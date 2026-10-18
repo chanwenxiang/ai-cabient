@@ -615,7 +615,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅ `3cc19429`、批 6 旧视频链 ✅ `cd74d31c`+`5c80a4c9`+`fac98345`、vision-async Kafka 链 ✅ `f30635ba`、`MinioVideoService` 死注入 ✅ `f7516c77`、`UPLOAD_STUCK` 扫描族 + `ops:session:upload` 权限码 ✅ V386、reserved Kafka SCRAM 用户 `vision` ✅ `aa9d409a`、自研 `edge/android-app` 整模块退役 ✅（分支 `chore/retire-android-app`，2026-10-18；批 6 待拍板的 android-app 多摄开关随整模块删除一并了结）（分支 `chore/dc27-remove-vision` 已 ff 合入 `dev`）。识别现役唯一入口 `POST /internal/v1/vision/edge-results`（HTTP；Kafka `aicabinet.vision.recognize.*` 已随 `f30635ba` 退役） |
 | G8 | 运营台仍有 **98 处**（32 个文件）`(cents / 100).toFixed(2)` 内联换算绕过 `yuanText`；双小程序已清零 | 渲染目前是对的（字面 `¥` + 纯数字），但负额会成 `¥-5.00`、且负数/空态口径与 `yuanText` 不一致。**只在该值可能为负时才算真缺陷**——2026-10-16 已把 5 处调账/提现确认串（输入框 `:min="-1000000"` 可为负）与 25 处重复 `¥` 收口；余量留作增量，动哪页顺手换成 `yuanText` 系 |
 | G9 | 隔离栈 admin UI **浏览器里登录不了**（403 `Invalid CORS request`）：`docker-compose.full.yml:179` `CORS_ORIGIN:-http://localhost` 未跟 28080 端口重映射对齐 | 纯 API 驱动器不带 `Origin` ⇒ 测不出来。本轮只本机 `CORS_ORIGIN=http://localhost:28080` 临时绕过。**待拍板**：是否在 `docker-compose.uat-isolated.yml` 里钉 `CORS_ORIGIN`（含宿主端口），让隔离栈运营台开箱可用 |
-| G10 | `POINTS_IDENTITY\|member 1` 累计 181 ≠ available+used+expired 149，**差 32 分**（2026-10-18 巡检实测，本轮只查不改） | 先定键与列口径（`member` 表定位 / 是否含未过期与冻结分），再决定是判据缺项还是数据真不平；改的是积分资金侧 ⇒ 与 §12 那两条同类，须先取证 |
+| G10 | `POINTS_IDENTITY\|member 1` 累计 181 ≠ available+used+expired 149，**差 32 分**——**根因已查清（2026-10-18 只查未改）** | 不是假阳性：`POINTS_BALANCE`（可用 vs Σ 流水）同行为绿。真因＝**退款扣回积分只减 `available_points`**（`MemberService:316-323`），既不记 `used_points` 也不动 `total_points`，而流水 `points_type` 只有 EARN/USE/EXPIRE 三值 ⇒ 扣回该归 `used` 桶却漏记。更危险的是 `fixPointsIdentity`(`DataConsistencyService:1692`) 的自动修复方向相反：**下调 `total_points`** 凑三桶（实测 181→149、H5 升级 gap 319→351），等于让运营一键改口径。另查出等级判定不看积分（`MemberService:150-174`），`min_points` 只当 H5 进度分母、`max_points` 全仓零读取（后台旋钮不生效）。取证 [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)，**修法待拍板** [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)（建议 A 扣回记入 `used` + D 撤积分族自动回写 + E 撤 `max_points` 死旋钮） |
 | G11 | `paid_amount_cents`（订单毛额列）vs `payment_operation` 净额**没有对账判据** | 2026-10-18 拍板「另起一轮」。落点仍是 `DataConsistencyService`，须复用 `PaymentOperationTypes` 单一事实源、并按教训 #325 做负向证明 |
 
 ---
@@ -681,6 +681,13 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   `docker-compose.uat-isolated.yml`（隔离栈 admin UI 才开箱可用）属环境口径 ⇒ §10 G9 等拍板。
 - **同日一条既有口径事实（只登记）**：`data_consistency_record` 的同一 `(check_type, check_key)` **再次检出会再插一行**
   （STAFF 探针留下 `STAFF_WALLET|UAT-STAFF-PROBE` 两行 FIXED）⇒ 自愈断言只能按 key 判存在，**不能按行数判「清了几条」**。
+- **同轮补做 G10 取证（同日，只查未改）**：`POINTS_IDENTITY|1` 差的 32 分**已定位到写侧**——退款扣回只减
+  `available_points`（`MemberService:316-323`），而流水 `points_type` 只有 `EARN/USE/EXPIRE` 三值 ⇒ 扣回本该归 `used` 桶。
+  同行 `POINTS_BALANCE` 为绿（余额与流水逐分自洽）⇒ 判据没错、余额没坏，坏在消耗归集漏记。
+  🔴 并查出 `fixPointsIdentity` 的自动修复**方向相反**（把 `total_points` 下调凑三桶，事务内实测 181→149 / H5 gap 319→351 后回滚），
+  以及等级判定根本不引用积分、`max_points` 全仓零读取两条口径缺口。
+  取证 [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)；
+  修法与三条待答问题入 [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)（建议 A+D+E②，**未动代码**）。
 - **落档**：提交 `e39ca4e6`（139 文件）已 refspec 推 origin/dev（快进 `d5dee737..e39ca4e6`），CI run 39118704110 **五作业全绿**
   （build / integration / admin-artifacts / mini-programs / e2e-h5）。补记一条迁移惯例：V390 首次落库后才补上
   `MIGRATION_KIND: backfill` 等评审头注释（`check:flyway-seed-separation` 要求数据写语句必须显式声明种类），
