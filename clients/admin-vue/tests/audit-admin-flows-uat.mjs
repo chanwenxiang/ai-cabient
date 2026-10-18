@@ -25,7 +25,21 @@
  *     实测时改走一次性转发容器：`python3 .tmp/gw_fwd.py` 起在 ai-cabinet_default 网络上，
  *     然后 JIANGYI_GATEWAY_BASE=http://127.0.0.1:18094（详见 Track C 报告 §0 环境说明）
  *   FLOWS          default env-baseline                逗号分隔：env-baseline,F1,F2,...
+ *   VIEWER_PHONE / VIEWER_PASSWORD  default 13900000005 / 123456   F8 越权矩阵的低权子账号（V117/V118）
+ *   MERCHANT_PHONE / MERCHANT_PASSWORD  default 空                 F7 补货终态需商户 token；不配则如实 SKIP
  *   PW_CHANNEL / PW_HEADED 同其它 UAT 脚本
+ *
+ * 🔴 隔离 project（aicabinet-uat）运行必须显式传容器名，否则 resolveContainer 的 `/postgres/`、
+ *    `/redis/` 等正则会先命中**共享栈** `ai-cabinet-*-1`（`docker ps` 含全部容器），
+ *    导致 psql/验证码读到 peer 的库与 redis ⇒ 跨栈污染（F7 的 SQL 种子会写进共享库）。
+ *    隔离跑法（与 infra/docker-compose.uat-isolated.yml 配套）：
+ *      ADMIN_URL=http://localhost:28080/admin  API_BASE=http://localhost:28080
+ *      TRADE_DIRECT=http://127.0.0.1:28081     JIANGYI_GATEWAY_BASE=http://127.0.0.1:28094
+ *      PG_CONTAINER=aicabinet-uat-postgres-1   TRADE_CONTAINER=aicabinet-uat-trade-service-1
+ *      GATEWAY_CONTAINER=aicabinet-uat-jiangyi-gateway-1  REDIS_CONTAINER=aicabinet-uat-redis-1
+ *
+ * 实现状态：env-baseline/F1 为完整实现；F7/F8 为**骨架**（断言只落真实端点，设备证据/未核契约
+ *   标 ⚠️ 待核实并 SKIP，不造绿）。F2–F6 尚未编写。
  *
  * Run:
  *   cd clients/consumer-mp && node ../admin-vue/tests/audit-admin-flows-uat.mjs
@@ -47,6 +61,13 @@ const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 const ADMIN_PHONE = process.env.ADMIN_PHONE || '13900000001';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '123456';
+// 低权子账号（V117 种入的 viewer，V118 收紧为「只有 *:list + dashboard:view」）——F8 越权矩阵的攻击方。
+const VIEWER_PHONE = process.env.VIEWER_PHONE || '13900000005';
+const VIEWER_PASSWORD = process.env.VIEWER_PASSWORD || '123456';
+// 补货任务的终态 COMPLETED 只有**商户域**能推（MerchantPortalController:663），F7 需商户 token；
+// 默认无演示商户凭据 ⇒ F7 会如实 SKIP 而不造绿（不猜着登）。
+const MERCHANT_PHONE = process.env.MERCHANT_PHONE || '';
+const MERCHANT_PASSWORD = process.env.MERCHANT_PASSWORD || '';
 const FLOWS = (process.env.FLOWS || 'env-baseline')
   .split(',')
   .map((s) => s.trim())
@@ -163,6 +184,18 @@ function psql(sql) {
     .map((l) => l.trim())
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * psql 的安全包装：列名/表名若与当前 schema 不符（骨架期常见，标注「待核实」处），
+ * 返回 err 而不是抛异常 ⇒ 该步记 SKIP/红，**不拖垮整轮**（对齐驱动器的「登录失败不能崩」纪律）。
+ */
+function psqlSafe(sql) {
+  try {
+    return { val: psql(sql), err: '' };
+  } catch (e) {
+    return { val: '', err: String(e.message).replace(/\s+/g, ' ').slice(0, 200) };
+  }
 }
 
 /**
@@ -305,6 +338,53 @@ async function adminLoginViaApi() {
   } catch (e) {
     // 登录失败必须是**一条红记录**，不能是整轮崩溃（否则后面的流程一步都看不到）
     return { status: 0, token: '', twoFactor: undefined, error: String(e.message).slice(0, 160) };
+  }
+}
+
+/**
+ * 以指定运营账号登录（与 adminLoginViaApi 同一条接口 + 同一份验证码解法），
+ * 但手机号/密码可参数化 ⇒ F8 能用**低权 viewer** 拿到一个「权限不足」的真实 token 去越权，
+ * 而不是只测 admin（admin 恒过 RBAC 闸门，测不出矩阵）。
+ */
+async function opsLoginAs(phone, password) {
+  try {
+    const cap = await fetch(`${API}/api/v2/auth/captcha`).then((r) => r.json());
+    const captchaId = cap?.data?.captchaId;
+    const captchaCode = (await captchaFromRedis(captchaId)).toLowerCase();
+    const res = await fetch(`${API}/api/v2/auth/admin-password-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ phoneNumber: phone, password, captchaId, captchaCode })
+    });
+    const json = await res.json().catch(() => null);
+    return {
+      status: res.status,
+      token: json?.data?.token || '',
+      twoFactor: json?.data?.twoFactorRequired,
+      error: ''
+    };
+  } catch (e) {
+    return { status: 0, token: '', twoFactor: undefined, error: String(e.message).slice(0, 160) };
+  }
+}
+
+/** 商户密码登录（补货任务终态只能由商户域推进；无凭据即返 0，由 F7 判 SKIP，不猜）。 */
+async function merchantLoginViaApi(phone, password) {
+  if (!phone || !password)
+    return { status: 0, token: '', error: '未提供 MERCHANT_PHONE/MERCHANT_PASSWORD' };
+  try {
+    const cap = await fetch(`${API}/api/v2/auth/captcha`).then((r) => r.json());
+    const captchaId = cap?.data?.captchaId;
+    const captchaCode = (await captchaFromRedis(captchaId)).toLowerCase();
+    const res = await fetch(`${API}/api/v2/auth/merchant-password-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ phoneNumber: phone, password, captchaId, captchaCode })
+    });
+    const json = await res.json().catch(() => null);
+    return { status: res.status, token: json?.data?.token || '', error: '' };
+  } catch (e) {
+    return { status: 0, token: '', error: String(e.message).slice(0, 160) };
   }
 }
 
@@ -764,6 +844,323 @@ const FLOWS_IMPL = {
       video.status === 200 && video.text.length > 1024 ? true : 'SKIP',
       `订单视频 HTTP=${video.status} bytes=${video.text.length}（本地无模拟器录像⇒OSS 台账空属预期，接真前 checklist 已含真机视频全链）`,
       null
+    );
+  },
+
+  /**
+   * F7 补货任务 → 补货录像。
+   *
+   * 契约面（Explore 亲读，行号取本 worktree cadmin-uat）：
+   *   建单    POST /api/v2/ops/admin/replenishment/suggest/create-task   OpsReplenishmentController:177
+   *   终态    POST /api/v2/merchant/replenishment/tasks/{id}/complete     MerchantPortalController:663（仅商户域能推 COMPLETED）
+   *   读录像  GET  /api/v2/ops/admin/jiangyi/order-videos/by-task/{id}    AdminJiangyiController:85（perm ops:device:video）
+   *   签名    GET  /api/v2/ops/admin/jiangyi/order-videos/{vid}/play-url  AdminJiangyiController:108
+   *   产录像  POST /internal/v1/jiangyi/order-video-report                JiangyiInternalController:172（边端设备上报）
+   *
+   * 🔴 补货录像是「证据」，按 no-fabricated-evidence 铁律只能由**边端链**产生（柜机补货开门→
+   *    gateway→order-video-report 落 jiangyi_order_video，经 shopping_session.replenishment_task_id 关联）。
+   *    本骨架不自造 video_urls 落库、不用假 MP4 记录凑绿：凡取不到的设备上报 payload 形状一律标
+   *    ⚠️ 待核实并 SKIP，绿只在「读路径契约真跑通（by-task 回 200+空数组）」这类可核验处挣。
+   *
+   * 跑在隔离空库（aicabinet-uat），正向对照即便命中真实变更也只动一次性栈。
+   */
+  F7: async ({ state }) => {
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+
+    // F7-01 建单：请求体字段契约待读 OpsReplenishmentController:177 的入参 DTO 后补齐（此处不猜 body）。
+    const created = await api(
+      admin.token,
+      'POST',
+      '/api/v2/ops/admin/replenishment/suggest/create-task',
+      {}
+    );
+    const taskId = created.json?.data?.id ?? created.json?.data?.taskId;
+    const bodyKnown = created.status === 200 && taskId !== undefined && taskId !== null;
+    record(
+      'F7',
+      'F7-01-create-task',
+      bodyKnown ? true : 'SKIP',
+      bodyKnown
+        ? `补货任务已建 taskId=${taskId}（GET fulfillment-tasks 可核）`
+        : `create-task HTTP=${created.status} msg=${created.json?.message || ''}——⚠️ 请求体字段契约待核实（骨架不猜 body），故后续设备链无法推进`,
+      writeText('f7-create-task', { status: created.status, body: created.json })
+    );
+
+    // F7-02 终态只能由商户域推进：无 MERCHANT_PHONE 即如实 SKIP（不借运营 token 伪推）。
+    const mer = await merchantLoginViaApi(MERCHANT_PHONE, MERCHANT_PASSWORD);
+    if (!mer.token) {
+      record(
+        'F7',
+        'F7-02-merchant-complete',
+        'SKIP',
+        `商户 token 不可得（${mer.error || '未配 MERCHANT_PHONE/PASSWORD'}）⇒ 任务无法推到 COMPLETED；接真 checklist 需演示商户凭据`,
+        null
+      );
+    } else if (taskId === undefined || taskId === null) {
+      record(
+        'F7',
+        'F7-02-merchant-complete',
+        'SKIP',
+        'F7-01 未拿到真实 taskId ⇒ 无从 complete',
+        null
+      );
+    } else {
+      const done = await api(
+        mer.token,
+        'POST',
+        `/api/v2/merchant/replenishment/tasks/${taskId}/complete`,
+        {}
+      );
+      const dbState = psqlSafe(
+        `select status from replenishment_task where id='${String(taskId).replace(/'/g, "''")}'`
+      );
+      record(
+        'F7',
+        'F7-02-merchant-complete',
+        done.status === 200 && /COMPLETED/.test(dbState.val || ''),
+        `complete HTTP=${done.status}｜库 replenishment_task.status=${dbState.val || dbState.err || '(无行)'}`,
+        writeText('f7-merchant-complete', { http: done.status, body: done.json, db: dbState.val })
+      );
+    }
+
+    // F7-03 读路径契约（运营域）：即便无边端录像，by-task 也必须回 200 + 空数组 ⇒ 证读接口/权限面通。
+    if (taskId === undefined || taskId === null) {
+      record('F7', 'F7-03-videos-by-task', 'SKIP', '无 taskId，跳过读路径断言', null);
+    } else {
+      const vids = await api(
+        admin.token,
+        'GET',
+        `/api/v2/ops/admin/jiangyi/order-videos/by-task/${taskId}`
+      );
+      const arr = vids.json?.data;
+      const list = Array.isArray(arr) ? arr : Array.isArray(arr?.list) ? arr.list : null;
+      record(
+        'F7',
+        'F7-03-videos-by-task',
+        vids.status === 200 && list !== null ? true : vids.status === 403 ? false : 'SKIP',
+        vids.status === 200 && list !== null
+          ? `补货录像读路径 HTTP=200 返回 ${list.length} 行（本地无模拟器⇒0 行属预期，非缺陷）`
+          : vids.status === 403
+            ? `by-task 回 403——运营 token 缺 ops:device:video？（应能拿到，属红）`
+            : `by-task HTTP=${vids.status} 非数组形态——⚠️ 响应结构待核实`,
+        writeText('f7-videos-by-task', { status: vids.status, body: vids.json })
+      );
+      // F7-04 play-url 需真实 video 行 id；无边端录像即 SKIP。
+      record(
+        'F7',
+        'F7-04-play-url',
+        'SKIP',
+        list && list.length
+          ? `有 ${list.length} 行，play-url 需逐行签名 URL（待补）`
+          : '无边端录像行 ⇒ play-url 无从取（接真需模拟器产录像）',
+        null
+      );
+    }
+
+    // F7-05 设备产录像：order-video-report 的 payload 形状 + 边端链未接 ⇒ 登记为接真前必补，不在此造绿。
+    record(
+      'F7',
+      'F7-05-edge-video-ingest',
+      'SKIP',
+      '补货录像只能由边端补货开门上报产生；⚠️ order-video-report(JiangyiInternalController:172) payload 形状待读 DTO，且需 jiangyi 模拟器在补货会话下开门——见接真 checklist',
+      null
+    );
+  },
+
+  /**
+   * F8 RBAC 越权矩阵（菜单/按钮/API 三层）。
+   *
+   * 权威闸门是 **API 层** `@RequiresPermissions` → PermissionService:43/55 抛 403「无权限执行此操作」；
+   * 前端「菜单/按钮」是 v-hasPermi 的 display:none（可绕，非权威），故本矩阵以 **viewer 低权 token 拿到 403**
+   * 为准，并用 **admin 对同一端点（不存在的资源 id）非 403** 作正向对照，证明 403 来自 RBAC 而非端点本身坏。
+   * 另以 ops_role_permission 落库口径复核 viewer 确无写码（DB 列名待核实则标 SKIP，不崩整轮）。
+   */
+  F8: async ({ state }) => {
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+
+    const viewer = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    record(
+      'F8',
+      'F8-00-viewer-login',
+      viewer.status === 200 && !!viewer.token,
+      `低权 viewer(${VIEWER_PHONE}) 登录 HTTP=${viewer.status} token=${viewer.token ? '有' : '无'} 2FA=${viewer.twoFactor}（V172 默认 totp=false 不阻断）`,
+      null
+    );
+    if (!viewer.token) {
+      record('F8', 'F8-ABORT', false, '低权 token 取不到 ⇒ 矩阵无法执行（不造绿，整条判红）', null);
+      return;
+    }
+
+    // viewer 自身权限码（GET me/permissions，OpsRbacController:212）——不得含写码。
+    const vp = await api(viewer.token, 'GET', '/api/v2/ops/admin/rbac/me/permissions');
+    const vBlob = JSON.stringify(vp.json?.data ?? vp.json ?? '');
+    record(
+      'F8',
+      'F8-00b-viewer-perms',
+      vp.status === 200 &&
+        !/refund|:edit|:manage|:review|:assign|:adjust|:payout|:import/.test(vBlob),
+      `viewer 权限码里不得含写码；实际：${vBlob.slice(0, 320) || '(空)'}`,
+      writeText('f8-viewer-permissions', vp.json)
+    );
+
+    // DB 口径：viewer 角色在 ops_role_permission 里无任何写码。列名以实测 schema 为准：
+    //   ops_role(role_id, role_key) · ops_permission(permission_id, perm_code) · ops_role_permission(role_id, permission_id)。
+    const dbw = psqlSafe(
+      `select coalesce(string_agg(p.perm_code,','),'(空)') from ops_role r ` +
+        `join ops_role_permission rp on rp.role_id = r.role_id ` +
+        `join ops_permission p on p.permission_id = rp.permission_id ` +
+        `where r.role_key = 'viewer' and p.perm_code ~ ':(refund|edit|manage|review|assign|adjust|payout|import)$'`
+    );
+    record(
+      'F8',
+      'F8-00c-db-no-write',
+      dbw.err ? 'SKIP' : dbw.val === '(空)',
+      dbw.err
+        ? `viewer 角色写码查询失败（ops_role/ops_role_permission 列名待核实）：${dbw.err}`
+        : `viewer 角色写码（DB）=${dbw.val}`,
+      writeText('f8-viewer-writecodes-db', { val: dbw.val, err: dbw.err })
+    );
+
+    const PROBES = [
+      [
+        'F8-01-refund',
+        'POST',
+        '/api/v2/ops/admin/orders/{orderId}/refund',
+        'ops:order:refund',
+        'AdminDashboardController:428'
+      ],
+      [
+        'F8-02-balance',
+        'POST',
+        '/api/v2/ops/admin/users/{userId}/balance',
+        'ops:user:balance',
+        'AdminDashboardController:389'
+      ],
+      [
+        'F8-03-recharge-refund',
+        'POST',
+        '/api/v2/ops/admin/recharge/{orderId}/refund',
+        'ops:recharge:edit',
+        'AdminDashboardController:418'
+      ],
+      [
+        'F8-04-balance-refund-review',
+        'POST',
+        '/api/v2/ops/admin/balance-refunds/{requestId}/review',
+        'ops:balance-refund:review',
+        'AdminBalanceRefundController:38'
+      ],
+      [
+        'F8-05-withdraw-payout',
+        'POST',
+        '/api/v2/ops/admin/merchant-withdraws/{requestId}/payout',
+        'ops:merchant-withdraw:review',
+        'MerchantWithdrawController:93'
+      ],
+      [
+        'F8-06-wallet-adjust',
+        'POST',
+        '/api/v2/ops/admin/merchant-wallets/{merchantId}/adjust',
+        'ops:merchant-withdraw:adjust',
+        'MerchantWalletController:51'
+      ],
+      [
+        'F8-07-fund-adjust',
+        'POST',
+        '/api/v2/ops/admin/platform-fund/accounts/{accountId}/adjust',
+        'ops:fund:manage',
+        'OpsPlatformFundController:73'
+      ],
+      [
+        'F8-08-staff-payout',
+        'POST',
+        '/api/v2/ops/admin/staff-wallets/{staffUserId}/payout',
+        'ops:line-manager:edit',
+        'OpsStaffWalletController:46'
+      ],
+      [
+        'F8-09-pricing',
+        'PUT',
+        '/api/v2/ops/admin/devices/{deviceId}/pricing/{skuId}',
+        'ops:pricing:edit',
+        'AdminDevicePricingController:46'
+      ],
+      [
+        'F8-10-config',
+        'PUT',
+        '/api/v2/ops/admin/system-configs',
+        'ops:config:edit',
+        'SystemConfigController:70'
+      ],
+      [
+        'F8-11-rent-split',
+        'PUT',
+        '/api/v2/ops/admin/site-contracts/{contractId}/rent-split-rules',
+        'ops:org:edit',
+        'SiteRentSplitController:32'
+      ],
+      [
+        'F8-12-rbac-assign',
+        'POST',
+        '/api/v2/ops/admin/rbac/operators',
+        'ops:rbac:assign:add',
+        'OpsRbacController:146'
+      ]
+    ];
+
+    // 判定口径（关键：区分 RBAC 闸门 vs 先校验，避免把「没触达闸门」误判成安全红/绿）：
+    //   viewer 403           ⇒ RBAC 拦住 = PASS（真绿）
+    //   viewer 2xx           ⇒ 越权成功 = FAIL（真缺陷）
+    //   viewer 400/404/422   ⇒ 端点**先校验 body/id 再判权限**，探针用空 body+假 id 没触达闸门
+    //                          ⇒ 权限面「未验」，记 SKIP 并标注需补合法 payload（属 #48 完成 F8 的活），不判红也不洗绿。
+    //   其余                 ⇒ 非预期，记 SKIP。
+    let blocked = 0;
+    let breach = 0;
+    let unverified = 0;
+    const unverifiedList = [];
+    for (const [code, method, pathTpl, perm, file] of PROBES) {
+      // 用不存在的资源 id 兜住路径参，使 admin 正向对照只证「过了 RBAC」而不动真实资金/配置。
+      const p = pathTpl.replace(/\{[a-zA-Z]+\}/g, '999999999');
+      const v = await api(viewer.token, method, p, {});
+      const a = await api(admin.token, method, p, {});
+      let verdict;
+      if (v.status === 403 && (v.json?.code === 403 || /无权限/.test(v.text || ''))) {
+        blocked++;
+        verdict = true;
+      } else if (v.status >= 200 && v.status < 300) {
+        breach++;
+        verdict = false;
+      } else if ([400, 404, 409, 422].includes(v.status)) {
+        unverified++;
+        unverifiedList.push(code);
+        verdict = 'SKIP';
+      } else {
+        unverified++;
+        unverifiedList.push(code);
+        verdict = 'SKIP';
+      }
+      record(
+        'F8',
+        code,
+        verdict,
+        verdict === 'SKIP'
+          ? `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status}=先校验未触达 RBAC 闸门（admin=${a.status}）⇒ 权限面未验，需合法 body 补测`
+          : `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status} admin=${a.status}（${blocked && v.status === 403 ? '闸门拦住' : '见状态码'}）`,
+        writeText(`f8-probe-${code}`, {
+          viewer: { status: v.status, body: v.json },
+          admin: { status: a.status, body: a.json }
+        })
+      );
+    }
+
+    // 聚合：真实越权(breach>0) 才判红；闸门已证拦住的端点 >0 且无越权即绿；其余未验端点单列。
+    record(
+      'F8',
+      'F8-99-summary',
+      breach === 0 && blocked > 0 ? true : breach > 0 ? false : 'SKIP',
+      `API 层 RBAC：${PROBES.length} 探针中 闸门拦住=${blocked}、越权=${breach}、先校验未触达闸门(待补 body)=${unverified}${unverified.length ? `[${unverified.join(',')}]` : ''}；菜单/按钮属前端 v-hasPermi 隐藏，非权威闸门，不单独判绿`
     );
   },
 
