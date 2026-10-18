@@ -44,8 +44,10 @@ function extractMethodBody(beanSrc, method) {
     for (let j = i; j < lines.length; j++) {
       body += lines[j] + '\n';
       for (const ch of lines[j]) {
-        if (ch === '{') { depth++; started = true; }
-        else if (ch === '}') depth--;
+        if (ch === '{') {
+          depth++;
+          started = true;
+        } else if (ch === '}') depth--;
       }
       if (started && depth <= 0) break;
     }
@@ -58,12 +60,16 @@ function runCheck(registrySrc, beanSources) {
   const problems = [];
   const tasks = extractTasks(registrySrc);
   if (tasks.length < 30) {
-    problems.push(`registry 只解析出 ${tasks.length} 个任务（预期 30+）——register 解析正则与源码形态漂移，请同步本脚本`);
+    problems.push(
+      `registry 只解析出 ${tasks.length} 个任务（预期 30+）——register 解析正则与源码形态漂移，请同步本脚本`
+    );
   }
   for (const t of tasks) {
     const src = beanSources.get(t.bean);
     if (src === undefined) {
-      problems.push(`${t.key}：action 绑定 ${t.bean}::${t.method}，但找不到 ${t.bean}.java（bean 命名或包位置漂移，请同步本脚本的 beanSources 收集）`);
+      problems.push(
+        `${t.key}：action 绑定 ${t.bean}::${t.method}，但找不到 ${t.bean}.java（bean 命名或包位置漂移，请同步本脚本的 beanSources 收集）`
+      );
       continue;
     }
     const body = extractMethodBody(src, t.method);
@@ -90,8 +96,11 @@ if (process.argv.includes('--self-test')) {
     register("no-guard", "无守卫", "T", "d", 600, beanB::unguarded);
   `;
   const beans = new Map([
-    ['beanA', 'public String guarded() { if (!taskService.tryBegin("with-guard", 600)) return "skipped"; return "ok"; }'],
-    ['beanB', 'public String unguarded() { return "do work without guard"; }'],
+    [
+      'beanA',
+      'public String guarded() { if (!taskService.tryBegin("with-guard", 600)) return "skipped"; return "ok"; }'
+    ],
+    ['beanB', 'public String unguarded() { return "do work without guard"; }']
   ]);
   const problems = runCheck(registrySample, beans);
   const noGuard = problems.find((p) => p.startsWith('no-guard'));
@@ -104,13 +113,35 @@ if (process.argv.includes('--self-test')) {
 }
 
 // ── 执行 ─────────────────────────────────────────────────────────────────────
-const registryPath = join(root, 'services', 'trade-service', 'src', 'main', 'java',
-  'com', 'aicabinet', 'trade', 'service', 'ScheduledTaskRegistry.java');
+const registryPath = join(
+  root,
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'service',
+  'ScheduledTaskRegistry.java'
+);
 if (!existsSync(registryPath)) fail('找不到 ScheduledTaskRegistry.java');
 const registrySrc = readFileSync(registryPath, 'utf8');
 
 // 收集 bean 源码：同包优先，找不到再全仓搜（覆盖跨包 bean）
-const serviceDir = join(root, 'services', 'trade-service', 'src', 'main', 'java', 'com', 'aicabinet', 'trade', 'service');
+const serviceDir = join(
+  root,
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'service'
+);
 const beanSources = new Map();
 for (const t of extractTasks(registrySrc)) {
   const p = join(serviceDir, `${t.bean}.java`);
@@ -151,4 +182,6 @@ if (problems.length) {
   for (const p of problems) console.error('  - ' + p);
   process.exit(1);
 }
-console.log(`[check-scheduled-task-trybegin] OK：${extractTasks(registrySrc).length} 个 registry 任务全部带 tryBegin 执行守卫`);
+console.log(
+  `[check-scheduled-task-trybegin] OK：${extractTasks(registrySrc).length} 个 registry 任务全部带 tryBegin 执行守卫`
+);
