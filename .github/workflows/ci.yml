@@ -390,8 +390,12 @@ jobs:
 
       # `verify` 会先跑 surefire 单测再跑 failsafe 集成测试。刻意不复用 build job 的单测结果：
       # 想「只跑 IT」就得用 -DskipTests，而 skipTests 会把 failsafe 一起跳过（那正是要防的静默跳过）。
-      - name: Integration tests (device-service)
-        run: mvn -B verify -pl services/device-service -am
+      # AU-178（2026-10-18 审计）：旧范围只 -pl device-service ⇒ trade 的 4 个资金级 SqlIT
+      #（WalletRefIdempotencySqlIT/WarehouseDeviceLedgerBalanceSqlIT 等，Testcontainers 真库）
+      # 与 jiangyi DeviceAuthIT（13 例激活闸鉴权，纯 MockMvc）在 CI 从未执行——「有 IT 守护」
+      # 的资金防线上线证据不实。三模块一并纳管（runner 已有 Docker，device integration 同机制）。
+      - name: Integration tests (device + trade SqlIT + jiangyi DeviceAuth)
+        run: mvn -B verify -pl services/device-service,services/trade-service,services/jiangyi-gateway -am
 
       - name: Verify integration tests ran (no silent skip)
         run: |
