@@ -75,6 +75,9 @@ export function clearAuthStorage(): void {
     localStorage.removeItem(COOKIE_AUTH_KEY);
     localStorage.removeItem('admin_permissions');
     localStorage.removeItem('admin_active_nav');
+    // AU-144：登出清记住手机号两键——否则换账号登录时登录页仍预填上个账号手机号
+    localStorage.removeItem('admin_phone');
+    localStorage.removeItem('admin_remember_phone');
   }
 }
 

@@ -201,7 +201,8 @@ export const useAuthStore = defineStore('auth', () => {
         merchantNames: me.merchantNames || []
       };
       userId.value = String(me.userId);
-      if (me.phoneNumber) {
+      if (me.phoneNumber && localStorage.getItem('admin_remember_phone') !== '0') {
+        // AU-144：opt-out（admin_remember_phone='0'）不回写——此前 /me 无条件回写击穿「记住账号」开关
         phone.value = me.phoneNumber;
         localStorage.setItem('admin_phone', me.phoneNumber);
       }
@@ -249,7 +250,8 @@ export const useAuthStore = defineStore('auth', () => {
       merchantNames: me.merchantNames || []
     };
     userId.value = String(me.userId);
-    if (me.phoneNumber) {
+    if (me.phoneNumber && localStorage.getItem('admin_remember_phone') !== '0') {
+      // AU-144：opt-out（admin_remember_phone='0'）不回写——此前 /me 无条件回写击穿「记住账号」开关
       phone.value = me.phoneNumber;
       localStorage.setItem('admin_phone', me.phoneNumber);
     }

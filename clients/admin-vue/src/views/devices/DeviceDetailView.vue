@@ -904,6 +904,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
@@ -1285,10 +1286,6 @@ watch(
 
 function pricingRowFor(skuId: string) {
   return pricingRows.value.find((r) => r.skuId === skuId);
-}
-
-function yuan(cents: number): string {
-  return `¥${(cents / 100).toFixed(2)}`;
 }
 
 async function onCardPriceChange(skuId: string, v: number | undefined) {
