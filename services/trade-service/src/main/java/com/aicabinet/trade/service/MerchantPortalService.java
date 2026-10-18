@@ -371,6 +371,17 @@ public class MerchantPortalService {
     @Transactional(readOnly = true)
     public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId,
                                                  String merchantId) {
+        return listOrders(userId, page, size, deviceId, merchantId, null, null, null, null, false);
+    }
+
+    /**
+     * AU-180（2026-10-18 批次 2）：全字段重载——status/from/to/keyword/excludeZero 此前被
+     * 5 参版静默落 null/false（商户端四项筛选全部无效），现透传给 MerchantOrderListQuery。
+     */
+    @Transactional(readOnly = true)
+    public PageResult<OrderReadModel> listOrders(Long userId, int page, int size, String deviceId,
+                                                 String merchantId, String status, String fromDate,
+                                                 String toDate, String keyword, boolean excludeZeroAmount) {
         java.util.Collection<String> restrictDeviceIds = null;
         if (merchantId != null && !merchantId.isBlank()) {
             restrictDeviceIds = deviceRepository.findByMerchantIdIn(java.util.List.of(merchantId.trim()))
@@ -379,7 +390,8 @@ public class MerchantPortalService {
                     .collect(Collectors.toSet());
         }
         return merchantFinanceService.listOrders(userId, new MerchantFinanceService.MerchantOrderListQuery(
-                page, size, deviceId, null, null, null, null, false, restrictDeviceIds));
+                page, size, deviceId, blankToNull(status), blankToNull(fromDate), blankToNull(toDate),
+                blankToNull(keyword), excludeZeroAmount, restrictDeviceIds));
     }
 
     @Transactional(readOnly = true)

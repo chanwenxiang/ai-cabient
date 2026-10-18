@@ -65,16 +65,18 @@ public class PlatformFundService {
     private final SystemConfigService systemConfigService;
     private final OpsAlertDispatcher alertDispatcher;
     private final Clock clock;
+    private final ScheduledTaskService taskService;
 
-    @Autowired // 双构造器必须显式指定 Spring 注入点：用 6 参版（内部造默认 Clock），Clock bean 未注册不能注 7 参版
+    @Autowired // 双构造器必须显式指定 Spring 注入点：用 7 参版（内部造默认 Clock），Clock bean 未注册不能注 8 参版
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
                                PlatformFundFlowMapper flowMapper,
                                MerchantWithdrawRequestMapper withdrawMapper,
                                OrderRevenueSplitMapper splitMapper,
                                SystemConfigService systemConfigService,
-                               OpsAlertDispatcher alertDispatcher) {
+                               OpsAlertDispatcher alertDispatcher,
+                               ScheduledTaskService taskService) {
         this(accountMapper, flowMapper, withdrawMapper, splitMapper, systemConfigService,
-                alertDispatcher, Clock.systemDefaultZone());
+                alertDispatcher, taskService, Clock.systemDefaultZone());
     }
 
     public PlatformFundService(PlatformFundAccountMapper accountMapper,
@@ -83,6 +85,7 @@ public class PlatformFundService {
                                OrderRevenueSplitMapper splitMapper,
                                SystemConfigService systemConfigService,
                                OpsAlertDispatcher alertDispatcher,
+                               ScheduledTaskService taskService,
                                Clock clock) {
         this.accountMapper = accountMapper;
         this.flowMapper = flowMapper;
@@ -90,6 +93,7 @@ public class PlatformFundService {
         this.splitMapper = splitMapper;
         this.systemConfigService = systemConfigService;
         this.alertDispatcher = alertDispatcher;
+        this.taskService = taskService;
         this.clock = clock;
     }
 
@@ -254,6 +258,25 @@ public class PlatformFundService {
      * @return 人读摘要（运营台任务历史可见）
      */
     public String runDailyCheck() {
+        // AU-173（2026-10-18 批次 1）：39 任务唯二漏配执行守卫 ⇒ 无 job:* 分布式锁（多副本双跑）
+        // 且 scheduled_task.enabled 停用开关被旁路（上线手册「资金任务保持关」关不住）。
+        // 本方法无 @Transactional（只读+告警），锁外包裹无事务交互；skip 原因由 XXL handler
+        // consumeLastTryBeginSkip 读取并落 SKIPPED 记录。
+        if (!taskService.tryBegin("platform-fund-daily", 1800)) {
+            return "skipped";
+        }
+        long start = System.nanoTime();
+        try {
+            String summary = doDailyCheck();
+            taskService.finish("platform-fund-daily", "SUCCESS", summary, start);
+            return summary;
+        } catch (Exception e) {
+            taskService.finish("platform-fund-daily", "FAILED", e.getMessage(), start);
+            throw e;
+        }
+    }
+
+    private String doDailyCheck() {
         Instant now = clock.instant();
         ZoneId zone = ScheduleZoneHolder.ZONE;
         LocalDate today = LocalDate.ofInstant(now, zone);

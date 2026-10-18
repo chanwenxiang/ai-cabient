@@ -40,6 +40,7 @@ class PlatformFundServiceTest {
     private OrderRevenueSplitMapper splitMapper;
     private SystemConfigService systemConfigService;
     private OpsAlertDispatcher alertDispatcher;
+    private ScheduledTaskService taskService;
     private PlatformFundService service;
 
     @BeforeEach
@@ -52,8 +53,10 @@ class PlatformFundServiceTest {
         alertDispatcher = mock(OpsAlertDispatcher.class);
         // 钉在 2026-10-12 08:00 上海时间，跨月边界可预测
         Clock clock = Clock.fixed(Instant.parse("2026-10-12T00:00:00Z"), ZoneId.of("Asia/Shanghai"));
+        taskService = mock(ScheduledTaskService.class);
+        when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         service = new PlatformFundService(accountMapper, flowMapper, withdrawMapper, splitMapper,
-                systemConfigService, alertDispatcher, clock);
+                systemConfigService, alertDispatcher, taskService, clock);
         when(systemConfigService.getDouble(anyString(), anyDouble()))
                 .thenAnswer(inv -> inv.getArgument(1));
         when(flowMapper.insert(any(PlatformFundFlow.class))).thenReturn(1);

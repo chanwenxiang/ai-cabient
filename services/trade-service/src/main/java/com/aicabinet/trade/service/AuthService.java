@@ -246,10 +246,19 @@ public class AuthService {
         return null;
     }
 
-    /** H5 微信网页授权：OAuth 换 openid 在事务外。 */
+    /**
+     * H5 微信网页授权：OAuth 换 openid 在事务外。
+     * <p>AU-136（2026-10-18 审计 P0）：客户端明文 phoneNumber 不得作为 openid 绑定依据——
+     * 旧实现未绑定时按该手机号 {@code requireExistingUser} 直接绑库签发正式 token，
+     * 持合法 OAuth code + 受害者手机号即可接管任意账号（含运营号段）。H5 OAuth 无
+     * phoneCode 快捷授权能力，故：生产（mock 关）完全忽略客户端手机号，未绑定走
+     * {@code createWxConsumer} 游客建号（与 C 端 wx-login 未绑定语义一致）；
+     * 仅 dev mock 开启时保留明文绑定供联调（与 {@link #resolveWxPhoneNumber} 的 mock 门对齐）。
+     */
     public LoginResponse wxH5Login(String code, String phoneNumber) {
         var session = weChatWebOAuthClient.webCode2Session(code);
-        return self.loginOrCreateByOpenId(session.openId(), phoneNumber);
+        String trustedPhone = securityProperties.mockEnabled() ? phoneNumber : null;
+        return self.loginOrCreateByOpenId(session.openId(), trustedPhone);
     }
 
     /**
