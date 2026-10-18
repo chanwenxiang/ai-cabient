@@ -526,9 +526,9 @@ const FLOWS_IMPL = {
       null
     );
 
-    // 结算模式**不动**：产品只有将邑端侧识别一种证据源，`settlement.recognition_mode`
-    // 保持默认 VISION。前一轮这里曾写入 VISION_GRAVITY 借重力 delta 凑结算，属造绿，已删除
-    // （重力/云端残留路径本身作为退役债务登记进台账，见 AUDIT_LEDGER AU-134）。
+    // 结算证据只有将邑端侧识别一种：`settlement.recognition_mode` 键本身已随 DC-27 批2 删除，
+    // 识别只认 `POST /internal/v1/vision/edge-results` 上报。前一轮这里曾写入 VISION_GRAVITY 借重力
+    // delta 凑结算，属造绿，已删除（重力/云端残留路径本身作为退役债务登记进台账，见 AUDIT_LEDGER AU-134）。
     //
     // 营业锁前置：柜机离线超 10 分钟会被 presence 巡检**自动停售**（sales_locked=true，
     // reason=离线超时自动停售），消费者开门即 409「设备已暂停营业」。上线自动锁是正确产品
