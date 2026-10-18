@@ -38,6 +38,8 @@ import java.util.Set;
  *   <li>INVENTORY_MISMATCH / INVENTORY_ORPHAN_LOT 修复时以在架批次合计为准回写汇总表</li>
  *   <li>POINTS_IDENTITY 只校验 available+used+expired=total，与 POINTS_BALANCE（流水合计）互补；
  *       两者均**仅巡检不自动修**——差在哪个桶要由人工按流水判方向，回写 total 会静默改「累计发放」（CB-058）</li>
+ *   <li>PAID_GROSS_MISMATCH 只校验冻结毛额列 = 流水入账和（G11），同样**仅巡检**——
+ *       该列是佣金基数来源，改写等于动钱；冻结&gt;入账和是资损方向，冻结&lt;入账和含争议加价的已知形态</li>
  *   <li>净额类判据（PAYMENT_AMOUNT / ORDER_AMOUNT 提示语 / 两条修复路径取数）的类型清单
  *       一律取自 {@link PaymentOperationTypes}，**禁止在本类内再写字面清单**
  *       （门禁 {@code check:payment-net-types-single-source}；起因见 lessons-learned #326）</li>
@@ -83,6 +85,8 @@ public class DataConsistencyService {
     private static final String COUPON_USED_LINK = "COUPON_USED_LINK";
     private static final String COUPON_DISCOUNT = "coupon_discount";
     private static final String PAYMENT_AMOUNT = "PAYMENT_AMOUNT";
+    /** 冻结毛额 vs 流水入账和（G11，2026-10-18）；仅巡检，不自动修（改列=改佣金基数）。 */
+    private static final String PAID_GROSS_MISMATCH = "PAID_GROSS_MISMATCH";
     private static final String ORDER_LINE_SUM = "ORDER_LINE_SUM";
     private static final String WALLET_BALANCE = "WALLET_BALANCE";
     private static final String REFUND_AMOUNT = "REFUND_AMOUNT";
@@ -213,6 +217,7 @@ public class DataConsistencyService {
             log.info("开始数据一致性巡检");
             checkOrderConsistency();
             checkPaymentConsistency();
+            checkPaidGrossConsistency();
             checkInventoryConsistency();
             checkInventoryOrphanLotConsistency();
             checkPointsConsistency();
@@ -352,6 +357,61 @@ public class DataConsistencyService {
                     "期望净入账 " + expected + " ≠ 实际净入账 " + actual + "（请走退款/调账）");
         }
         resolveStaleFailuresIfComplete(PAYMENT_AMOUNT, failing, rows.size());
+    }
+
+    /**
+     * 冻结毛额对账（G11，2026-10-18）：{@code cabinet_order.paid_amount_cents} 必须等于
+     * 该单 COMPLETED 的入账类型流水之和（定义见 V384/CB-057，与
+     * {@code PaymentOperationMapper.chargedCompletedCents} 逐字同构，过滤清单取自
+     * {@link PaymentOperationTypes#inboundTypesFilterSql(String)}）。只扫冻结过的单
+     * （{@code paid_amount_cents > 0}；0 = 从未扣到款，读侧回落 {@code total}）。
+     *
+     * <p>两个方向含义不同：
+     * <ul>
+     *   <li>冻结 &gt; 入账和：流水缺钱（挂错单/重复冻结/流水缺失）——V384 回填断言的同款资损方向，必须人工核实；</li>
+     *   <li>冻结 &lt; 入账和：冻结之后又有入账流水未重放 {@code freezePaidAmount}——
+     *       争议改单<b>加价</b>（{@code ADJUST_CHARGE}，V384 头注释「争议改单不得改写本列」）
+     *       属已知设计形态，佣金基数按首冻口径偏小；其余出现则是漏重放，同样偏佣金基数。</li>
+     * </ul>
+     * 仅巡检：自动改写本列等于改佣金基数（资损面），必须人工按流水定方向。
+     */
+    void checkPaidGrossConsistency() {
+        String sql = "SELECT o.order_id, "
+                + "o.paid_amount_cents AS frozen_gross, "
+                + "COALESCE(SUM(po.amount_cents), 0) AS inbound_sum "
+                + "FROM cabinet_order o "
+                + "LEFT JOIN payment_operation po ON po.order_id = o.order_id "
+                + "AND po.status = 'COMPLETED' "
+                + "AND " + PaymentOperationTypes.inboundTypesFilterSql("po.") + " "
+                + "WHERE o.paid_amount_cents > 0 "
+                + "GROUP BY o.order_id, o.paid_amount_cents "
+                + "HAVING o.paid_amount_cents <> COALESCE(SUM(po.amount_cents), 0) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String orderId = String.valueOf(row.get(ORDER_ID));
+            failing.add(orderId);
+            String frozen = String.valueOf(row.get("frozen_gross"));
+            String inbound = String.valueOf(row.get("inbound_sum"));
+            recordInconsistency(PAID_GROSS_MISMATCH, "cabinet_order",
+                    orderId,
+                    frozen,
+                    inbound,
+                    buildPaidGrossErrorMessage(toInt(row.get("frozen_gross")), toInt(row.get("inbound_sum"))));
+        }
+        resolveStaleFailuresIfComplete(PAID_GROSS_MISMATCH, failing, rows.size());
+    }
+
+    /** 冻结毛额 ≠ 流水入账和的提示语：按两个方向给出核对路径（静态便于单测）。 */
+    static String buildPaidGrossErrorMessage(int frozenGross, int inboundSum) {
+        if (frozenGross > inboundSum) {
+            return "冻结毛额 " + frozenGross + " 大于流水入账和 " + inboundSum
+                    + "：流水缺钱（挂错 order_id/重复冻结/流水缺失），资损方向，禁止改列迁就流水，须逐笔核实";
+        }
+        return "冻结毛额 " + frozenGross + " 小于流水入账和 " + inboundSum
+                + "：冻结后仍有入账流水未重放冻结（争议改单加价属已知形态），佣金基数偏小方向，请人工核对是否需补冻结";
     }
 
     /**
@@ -1374,7 +1434,9 @@ public class DataConsistencyService {
                  // POINTS_IDENTITY 不能自动修：`total_points` 是「累计发放」这一业务事实，
                  // 用三桶之和回写等于悄悄把它改小（CB-058 拍板 D：更正应由人工按流水做增量归集）。
                  POINTS_IDENTITY, POINTS_BALANCE, CROSS_LINK ->
-                    FixOutcome.fail("该类仅巡检记录，请人工核对处理");
+                     FixOutcome.fail("该类仅巡检记录，请人工核对处理");
+            // 冻结毛额是佣金/GMV 基数来源列（CB-057/F-9），自动改写=动钱，必须人工按流水定方向（G11）
+            case PAID_GROSS_MISMATCH -> FixOutcome.fail("该类仅巡检记录，请人工核对处理");
             default -> FixOutcome.fail("不支持自动修复的类型: " + checkType);
         };
     }

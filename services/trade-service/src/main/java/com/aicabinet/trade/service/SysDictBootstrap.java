@@ -219,6 +219,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
         map.put("consistency_check_type", t("一致性检查类型", m(
                 "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
+                "PAID_GROSS_MISMATCH", "冻结毛额入账",
                 "INVENTORY_MISMATCH", "库存汇总", "INVENTORY_ORPHAN_LOT", "孤儿批次",
                 "POINTS_BALANCE", "积分余额", "POINTS_IDENTITY", "积分恒等式",
                 "COUPON_ISSUED", "发券数量", "COUPON_OVER_QUOTA", "发券超配额",

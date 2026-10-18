@@ -103,6 +103,68 @@ class DataConsistencyServiceTest {
     }
 
     @Test
+    void checkPaidGrossConsistency_usesInboundSumNotNet() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaidGrossConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("paid_amount_cents > 0"), "只扫冻结过的单（0=从未扣到款，读侧回落 total）");
+        assertTrue(sql.contains("COMPLETED"));
+        assertTrue(sql.contains("CHARGE"));
+        assertTrue(sql.contains("ADJUST_CHARGE"));
+        assertTrue(sql.contains("PREAUTH_CAPTURE"));
+        assertFalse(sql.contains("REFUND"), "冻结毛额口径不含退款（退款走 refunded_cents 另算）");
+    }
+
+    @Test
+    void checkPaidGrossConsistency_recordsBothDirectionsWithDistinctGuidance() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-OVER", "frozen_gross", 700, "inbound_sum", 500),
+                Map.of("order_id", "O-UNDER", "frozen_gross", 1000, "inbound_sum", 1200)));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaidGrossConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, times(2)).save(captor.capture());
+        List<DataConsistencyRecord> saved = captor.getAllValues();
+        assertEquals("PAID_GROSS_MISMATCH", saved.get(0).getCheckType());
+        assertEquals("O-OVER", saved.get(0).getCheckKey());
+        assertEquals("700", saved.get(0).getExpectedValue());
+        assertEquals("500", saved.get(0).getActualValue());
+        assertTrue(saved.get(0).getErrorMessage().contains("资损方向"),
+                "冻结>入账和是流水缺钱方向，提示语必须点名");
+        assertTrue(saved.get(1).getErrorMessage().contains("佣金基数偏小"),
+                "冻结<入账和（含争议加价已知形态）是欠冻方向，提示语必须区分");
+    }
+
+    @Test
+    void fixInconsistency_paidGross_isScanOnly() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(31L);
+        record.setCheckType("PAID_GROSS_MISMATCH");
+        record.setCheckKey("O-1");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(31L);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("仅巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
+        verify(jdbcTemplate, never()).update(anyString(), (Object[]) any());
+    }
+
+    @Test
     void resolveStaleFailures_marksMissingKeysFixed() {
         DataConsistencyRecord stale = new DataConsistencyRecord();
         stale.setId(1793L);

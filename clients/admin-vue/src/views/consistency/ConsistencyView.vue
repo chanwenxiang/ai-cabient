@@ -284,6 +284,7 @@ function isWalletCheckType(t: string) {
 function rowSeverity(row: Row): 'high' | 'medium' | 'low' {
   if (
     row.checkType === 'PAYMENT_AMOUNT' ||
+    row.checkType === 'PAID_GROSS_MISMATCH' ||
     row.checkType === 'WALLET_BALANCE' ||
     isWalletCheckType(row.checkType) ||
     row.checkType === 'REVENUE_SPLIT_SUM' ||

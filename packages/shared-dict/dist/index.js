@@ -604,6 +604,7 @@ export const DICT = {
     consistency_check_type: {
         ORDER_AMOUNT: '订单金额',
         PAYMENT_AMOUNT: '支付净额',
+        PAID_GROSS_MISMATCH: '冻结毛额入账',
         INVENTORY_MISMATCH: '库存汇总',
         INVENTORY_ORPHAN_LOT: '孤儿批次',
         POINTS_BALANCE: '积分余额',
