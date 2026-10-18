@@ -52,7 +52,6 @@ public class StaffWalletService {
         account = new StaffWalletAccount();
         account.setStaffUserId(staffUserId);
         account.setBalanceCents(0L);
-        account.setFrozenCents(0L);
         account.setUpdatedAt(Instant.now());
         accountMapper.insert(account);
         return account;
@@ -98,7 +97,7 @@ public class StaffWalletService {
             account.setUpdatedAt(Instant.now());
             accountMapper.updateById(account);
             appendLedger(staffUserId, entryType, -amountCents, balance,
-                    value(account.getFrozenCents()), refType, refId, remark);
+                    refType, refId, remark);
             return true;
         });
     }
@@ -123,7 +122,7 @@ public class StaffWalletService {
             account.setUpdatedAt(Instant.now());
             accountMapper.updateById(account);
             appendLedger(staffUserId, entryType, -amountCents, balance,
-                    value(account.getFrozenCents()), refType, refId, remark);
+                    refType, refId, remark);
             return true;
         });
     }
@@ -153,7 +152,7 @@ public class StaffWalletService {
         account.setUpdatedAt(Instant.now());
         accountMapper.updateById(account);
         appendLedger(staffUserId, entryType, amountCents, balance,
-                value(account.getFrozenCents()), refType, refId, remark);
+                refType, refId, remark);
     }
 
     /** 写路径余额读取：DB 行锁（FOR UPDATE）+ 分布式锁双层，对齐 LineWalletService（审计 T4）。 */
@@ -166,13 +165,14 @@ public class StaffWalletService {
     }
 
     private void appendLedger(long staffUserId, String entryType, long amountCents, long balanceAfter,
-                              long frozenAfter, String refType, String refId, String remark) {
+                              String refType, String refId, String remark) {
         StaffWalletLedger ledger = new StaffWalletLedger();
         ledger.setStaffUserId(staffUserId);
         ledger.setEntryType(trim(entryType, 32));
         ledger.setAmountCents(amountCents);
         ledger.setBalanceAfter(balanceAfter);
-        ledger.setFrozenAfter(frozenAfter);
+        // 补货员钱包无冻结业务（提现走线下打款标记），frozen_after 恒 0；列保留以对齐商户/线长台账 schema。
+        ledger.setFrozenAfter(0L);
         ledger.setRefType(trim(refType, 32));
         ledger.setRefId(trim(refId, 64));
         ledger.setRemark(trim(remark, 255));

@@ -15674,8 +15674,6 @@ export interface components {
             staffUserId?: number;
             /** Format: int64 */
             balanceCents?: number;
-            /** Format: int64 */
-            frozenCents?: number;
             /** Format: date-time */
             updatedAt?: string;
         };

@@ -17,9 +17,8 @@
 #      ai_cabinet_device_temperature                （无对应指标）
 #      ai_cabinet_upload_queue_size                 （无对应指标）
 #      mqtt_disconnect_total                        （无对应指标）
-#      vision_recognition_duration_seconds_bucket   cabinet_recognize_duration_seconds_*
 #      hikari_connections_{active,max}              hikaricp_connections_{active,max}
-#    ⇒ 即便挂上，这 14 条规则**也不会触发**（Prometheus 对不存在的指标只是无序列，不报错）。
+#    ⇒ 即便挂上，这 13 条规则**也不会触发**（Prometheus 对不存在的指标只是无序列，不报错）。
 #
 # 3) **依赖的 exporter 本仓从未部署**：prometheus 只有 `trade-service` / `device-service` / `minio`
 #    三个 scrape job，而本文件引用了 `probe_success{job="cabinet-blackbox"}`、`kafka_consumer_lag`、
@@ -63,19 +62,6 @@ groups:
         annotations:
           summary: "MQTT 频繁断连"
           description: "MQTT 断开频率 > 10次/分钟 在 {{ $labels.instance }}"
-
-      # ── 识别延迟过高 ──
-      - alert: HighRecognitionLatency
-        expr: |
-          histogram_quantile(0.95,
-            rate(vision_recognition_duration_seconds_bucket[5m])
-          ) > 10
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "P95 识别延迟超过10秒"
-          description: "当前 P95 延迟: {{ $value }}s"
 
       # ── 会话异常卡住 ──
       - alert: StuckSession
