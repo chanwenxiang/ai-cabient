@@ -5,14 +5,14 @@ server:
   shutdown: graceful
 
 spring:
-  lifecycle:
-    timeout-per-shutdown-phase: 20s
-
-spring:
   application:
     name: jiangyi-gateway
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # AU-190：优雅停机宽限期（与 server.shutdown 配套；🔴 顶层 spring: 只能出现一次，
+  # 批次 7 首版把本块另起顶层键 ⇒ SnakeYAML 拒绝重复键，DeviceAuthIT 全体上下文加载失败）
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   data:
     redis:
       host: ${REDIS_HOST:localhost}

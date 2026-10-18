@@ -38,7 +38,7 @@ public class BalanceRefundService {
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_REJECTED = "REJECTED";
     private static final String STATUS_REFUNDED = "REFUNDED";
-    // AU-137（V392）：切片行级渠道状态——续退判定从「request 表状态推断」改为「切片行权威」
+    // AU-137（V393）：切片行级渠道状态——续退判定从「request 表状态推断」改为「切片行权威」
     private static final String SLICE_PROCESSING = "PROCESSING";
     private static final String SLICE_SUCCEEDED = "SUCCEEDED";
     private static final String SLICE_FAILED = "FAILED";

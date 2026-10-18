@@ -639,6 +639,48 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-18（G11 冻结毛额对账判据 + G9 CORS 钉隔离栈 + G10 32 分人工归集，三件同轮收口）
+- 🔴 **拍板**：用户 2026-10-18 晚选 **G9「钉进去」+ G11「本轮做完整链」+「现在按流水归集 32 分」**（三项均推荐项全采）。
+- **G11 `PAID_GROSS_MISMATCH` 判据**（`80c35b72`）：`cabinet_order.paid_amount_cents` 必须 = 该单 COMPLETED 入账类型
+  流水之和（V384/CB-057 定义逐字同构；类型过滤新 helper `PaymentOperationTypes.inboundTypesFilterSql`，继续单一事实源）。
+  只扫冻结过的单（>0；0=从未扣款回落 total），**仅巡检不修**（该列是佣金基数，改写=动钱）。两个方向分开提示语：
+  冻结>入账和=流水缺钱（资损方向，V384 fail-loud 同款）；冻结<入账和=冻结后未重放——
+  **争议改单加价属已知设计形态**（V384「改单不得改写本列」+ `finalizeConfirmDispute` 不补冻结），佣金基数偏小方向；
+  若日后拍板争议加价应补冻结，在 `finalizeConfirmDispute` 补 `freezePaidAmount` 即收敛。标签面三处同步（V392 + SysDictBootstrap + shared-dict src/dist）。
+- **G11 验证**：单测 44/44 + SqlIT 12/12（账平含退款静默/资损方向报警/欠冻方向报警，真 Postgres）；隔离栈四段证明
+  （播行/账平静默+对照版/破坏 999≠486 即 FAIL 资损方向提示语/恢复+清理探针三行全自愈 FIXED，零残留，failCount 回基线 1）
+  ⇒ [evidence/paid-gross-judge-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/paid-gross-judge-2026-10-18.md)。
+- **G9**：`docker-compose.uat-isolated.yml` trade-service 钉 `CORS_ORIGIN=http://localhost:28080`；
+  实测带 Origin 请求 **200 + Allow-Origin 回显**（此前浏览器恒 403，纯 API 驱动器测不出）。
+- **G10 32 分归集**：流水证据 EARN 181=total、USE 32（4 笔退款扣回漏归 used）⇒ 带前置条件 `UPDATE used_points 0→32`，
+  恒等式 181=149+32+0 成立，复跑巡检 `POINTS_IDENTITY` 自愈 FIXED、`POINTS_BALANCE` 保持绿（record 6 销案）。
+- **踩坑**：`DataConsistencyJudgeSqlIT.seedOrder` 对非 REFUNDED 单把 `paid_amount_cents` 置 0——
+  毛额判据用例必须显式 `freezePaid()`，否则被 `>0` 过滤静默虚绿（第一版 IT 两条报警用例就是这么假绿的）。
+- **落档**：`80c35b72`+`e43eaece`（admin 产物随 ConsistencyView 级别分类重建）快进推 origin/dev。
+
+### 2026-10-18（G10 写侧修复落库：扣回归入 used 桶 + 撤自动回写 + 撤 max_points 死旋钮，CB-058）
+- 🔴 **拍板**：对上一条「G10 取证（只查未改）」的三问，用户 2026-10-18 晚选 **A（扣回记入 `used_points`）+ D（撤掉
+  POINTS_IDENTITY 自动回写，改「仅巡检需人工」）+ E（撤旋钮：删 `max_points`）**，取证文档随即推 origin/dev（`815c4b4f`）。
+- **实现落库（`959a4694` + admin 产物 `5eb24626`，快进推 origin/dev）**：
+  - A：`doClawbackPointsOnRefund` 补 `setUsedPoints(used + actual)`——`total = available+used+expired` 恒等式闭合，
+    `total_points` 维持「累计发放只增不减」；流水 `points_type="USE"` 语义与账户列对齐（与兑换写法对齐）。
+  - D：删 `fixPointsIdentity` 覆写式自动修复（曾把 total 181→149 静默改写「累计发放」），`POINTS_IDENTITY/POINTS_BALANCE`
+    改「仅巡检记录，请人工核对处理」；`ConsistencyView.vue` 撤按钮与预览文案。
+  - E：[V391__drop_member_level_rule_max_points.sql](../services/trade-service/src/main/resources/db/migration/V391__drop_member_level_rule_max_points.sql)
+    删列（V163 以来全仓零读取死旋钮）；实体/DTO/两处映射/openapi.ts/后台表单列表全链清理，`minPoints` 列改标
+    「下一档积分门槛（仅 C 端进度展示，判级不读积分）」。
+  - F-7 欠账：竞品台账新增 **CB-058**（easygo 源码亲验/思迅/微信/京东京豆/农行/Snow Peak/Dynamics 365 共 7 家）+
+    门禁别名 4 条；有意不同留痕：`actual = min(clawback, available)` 扣完为止不产生负积分、不从现金退款追偿（差额静默截断已如实标注）。
+- **验证（全绿）**：目标 5 测试类 **61 用例 0 失败**（新 `MemberPointsClawbackIdentityTest` 修前红的 used_points 断言×2 + 幂等）；
+  `check-competitor-benchmark` CB-058=7 家；preflight 47 门禁 0 失败 + openapi 结构档比对过。
+- **隔离栈真库端到端（`aicabinet-uat` 换新镜像 `aicabuat`）**：`unzip -l` 实锤 jar 含 V390/V391 与新 admin 产物；
+  Flyway **V390 重放 + V391 应用均 success、history 无重复行**，`member_level_rule` 仅剩 `min_points`；
+  API 实跑 `POST /consistency/run` 检出 `POINTS_IDENTITY|1` FAIL（record 6）⇒ `POST /{id}/fix` 返回
+  `fixed=false`「该类仅巡检记录，请人工核对处理」，**member 1 行原样（181/149/0/0）未被任何自动路径改写**。
+- **剩余**：① ~~存量 32 分坏行~~ **已于同日晚按流水归集销案**（见下一条 Changelog：used 0→32，巡检自愈 FIXED）；
+  ② A 的真退款链路场景（柜台造 points-paid 单→退款观察四列）未跑，目前 unit 级；
+  ③ G9 CORS_ORIGIN / G11 `paid_amount_cents` 对账**均已同轮收口**（见下一条 Changelog）。
+
 ### 2026-10-18（数据一致性判据修复轮：两条假阳性清零 + 三域钱包判据泛化 + 流水链连续性 + 口径单一事实源）
 - 🔴 **拍板**：对上一条 §12 登记的两条既有巡检口径缺口，用户 2026-10-18 选「**两条都修**」；对「数据一致性要不要多加验证 SQL」，
   采纳「按建议」= 候选 1（三域钱包判据泛化，含补货员）+ 候选 2（`balance_after` 链连续性）并入本轮，

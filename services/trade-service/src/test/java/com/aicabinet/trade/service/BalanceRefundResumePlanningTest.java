@@ -29,7 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * AU-137（2026-10-18 批次 4）定案回归钉：续退规划改读切片行级状态（V392）。
+ * AU-137（2026-10-18 批次 4）定案回归钉：续退规划改读切片行级状态（V393）。
  * <p>根因：旧实现 skipOrderIds 跳过全部已用充值单且 succeededCents 按 Σ全部切片（含失败
  * 已冲回）计算 ⇒ 部分成功+部分失败时 remain=0 且 resumed.isEmpty() ⇒ 谎报 REFUNDED
  * （用户损失失败切片金额）。修复后：只跳过 SUCCEEDED 切片的单，失败切片金额重新补扣，

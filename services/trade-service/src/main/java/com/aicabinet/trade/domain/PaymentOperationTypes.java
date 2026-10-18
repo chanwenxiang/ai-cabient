@@ -34,6 +34,15 @@ public final class PaymentOperationTypes {
     public static final String NET_TYPES_SQL_LIST = INBOUND_TYPES_SQL_LIST + ", 'REFUND'";
 
     /**
+     * 「毛额」判据的类型过滤片段：只认入账类型、<b>不含退款</b>——
+     * {@code cabinet_order.paid_amount_cents} 的冻结定义（V384/CB-057）就是
+     * COMPLETED 入账类型之和，退款走 {@code refunded_cents} 另算，不进本列。
+     */
+    public static String inboundTypesFilterSql(String colPrefix) {
+        return colPrefix + "operation_type IN (" + INBOUND_TYPES_SQL_LIST + ")";
+    }
+
+    /**
      * 净入账 CASE 片段（进为正、退为负）。
      *
      * @param colPrefix 列前缀，如 {@code "po."} 或表内直引时传 {@code ""}

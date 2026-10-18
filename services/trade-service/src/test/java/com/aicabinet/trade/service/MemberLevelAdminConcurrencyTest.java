@@ -38,7 +38,7 @@ class MemberLevelAdminConcurrencyTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.upsert(new MemberLevelRuleDto(
-                        null, "GOLD", "黄金", null, null, 0, null,
+                        null, "GOLD", "黄金", null, null, 0,
                         BigDecimal.ONE, BigDecimal.ZERO, 1, "ACTIVE")));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());

@@ -622,6 +622,7 @@ export declare const DICT: {
     readonly consistency_check_type: {
         readonly ORDER_AMOUNT: "订单金额";
         readonly PAYMENT_AMOUNT: "支付净额";
+        readonly PAID_GROSS_MISMATCH: "冻结毛额入账";
         readonly INVENTORY_MISMATCH: "库存汇总";
         readonly INVENTORY_ORPHAN_LOT: "孤儿批次";
         readonly POINTS_BALANCE: "积分余额";

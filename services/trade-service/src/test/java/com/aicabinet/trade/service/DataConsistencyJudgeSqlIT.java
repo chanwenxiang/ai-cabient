@@ -142,6 +142,65 @@ class DataConsistencyJudgeSqlIT {
         assertTrue(hasFail("PAYMENT_AMOUNT", orderId), "补 PREAUTH_CAPTURE 不能把真缺收款也洗掉");
     }
 
+    // ---------- PAID_GROSS_MISMATCH（G11）：冻结毛额 = 入账类型流水之和（V384/CB-057 定义） ----------
+
+    /** seedOrder 对非 REFUNDED 单把 paid_amount_cents 置 0（0=从未扣到款）——毛额判据要显式冻结。 */
+    private void freezePaid(String orderId, int frozenCents) {
+        jdbc.update("UPDATE cabinet_order SET paid_amount_cents = ? WHERE order_id = ?", frozenCents, orderId);
+    }
+
+    @Test
+    @DisplayName("冻结毛额=入账和（含退款行）不得报 PAID_GROSS_MISMATCH；退款不进毛额口径")
+    void paidGrossConsistentWithRefundStaysSilent() {
+        String orderId = "JUDGE-PG-OK";
+        seedOrder(orderId, "PAID", 486, true);
+        freezePaid(orderId, 486);
+        seedPayment("OP-PG-CAP-1", orderId, "PREAUTH_CAPTURE", 486);
+        seedPayment("OP-PG-REF-1", orderId, "REFUND", 200);
+
+        service.checkPaidGrossConsistency();
+
+        assertFalse(hasFail("PAID_GROSS_MISMATCH", orderId),
+                "毛额口径只认入账类型；退款行走 refunded_cents，混进毛额判据会把部分退全判红（假阳性）");
+    }
+
+    @Test
+    @DisplayName("冻结毛额大于流水入账和（流水缺钱）必须报警")
+    void paidGrossOverFreezeAlarms() {
+        String orderId = "JUDGE-PG-OVER";
+        seedOrder(orderId, "PAID", 700, true);
+        freezePaid(orderId, 700);
+        seedPayment("OP-PG-CHG-2", orderId, "CHARGE", 500);
+
+        service.checkPaidGrossConsistency();
+
+        assertTrue(hasFail("PAID_GROSS_MISMATCH", orderId),
+                "冻结 700 > 入账和 500：流水缺钱是 V384 fail-loud 同款资损方向，静默=带着错基数发佣");
+        assertTrue(jdbc.queryForObject(
+                "SELECT count(*) FROM data_consistency_record WHERE check_type='PAID_GROSS_MISMATCH' "
+                        + "AND check_key=? AND status='FAIL' AND error_message LIKE '%资损方向%'",
+                Integer.class, orderId) >= 1, "提示语必须点名资损方向");
+    }
+
+    @Test
+    @DisplayName("冻结后新增 ADJUST_CHARGE（争议加价形态）也须报警并标欠冻方向")
+    void paidGrossUnderFreezeAlarms() {
+        String orderId = "JUDGE-PG-UNDER";
+        seedOrder(orderId, "PAID", 1000, true);
+        freezePaid(orderId, 1000);
+        seedPayment("OP-PG-CHG-3", orderId, "CHARGE", 1000);
+        seedPayment("OP-PG-ADJ-3", orderId, "ADJUST_CHARGE", 200);
+
+        service.checkPaidGrossConsistency();
+
+        assertTrue(hasFail("PAID_GROSS_MISMATCH", orderId),
+                "争议加价虽是已知设计形态（V384：改单不得改写本列），但佣金基数偏小必须可见可认领");
+        assertTrue(jdbc.queryForObject(
+                "SELECT count(*) FROM data_consistency_record WHERE check_type='PAID_GROSS_MISMATCH' "
+                        + "AND check_key=? AND status='FAIL' AND error_message LIKE '%佣金基数偏小%'",
+                Integer.class, orderId) >= 1, "提示语必须与资损方向区分开");
+    }
+
     // ---------- CROSS_LINK/RFINV：从未扣过库存的单不该被要求有退货流水 ----------
 
     @Test
