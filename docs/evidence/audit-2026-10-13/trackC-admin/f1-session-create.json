@@ -2,14 +2,14 @@
   "code": 0,
   "message": "ok",
   "data": {
-    "sessionId": "1792290876160926864627",
+    "sessionId": "1792293207493660016989",
     "userId": 10001,
     "deviceId": "EG746560232828",
     "state": "OPENING",
     "openTime": null,
     "closeTime": null,
     "orderId": null,
-    "createdAt": "2026-10-18T02:34:36.162364967Z",
+    "createdAt": "2026-10-18T03:13:27.494435711Z",
     "failReason": null,
     "payChannel": null,
     "deviceName": "演示智能柜"

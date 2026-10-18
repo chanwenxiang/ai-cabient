@@ -1,0 +1,31 @@
+{
+  "noReason": {
+    "code": 400,
+    "message": "扣款必须填写依据（欠租账单/验机损坏等）",
+    "data": null
+  },
+  "ok": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "depositId": 3,
+      "deviceId": "EG746560232828",
+      "merchantId": "MCH-DEFAULT",
+      "amountCents": 20000,
+      "balanceCents": 15000,
+      "status": "HELD",
+      "settledAt": null,
+      "remark": "审计押金登记",
+      "createdAt": "2026-10-18T03:51:05.549204Z",
+      "updatedAt": "2026-10-18T03:51:06.167420Z",
+      "chargeMode": "ONLINE",
+      "monthlyRefundCents": null,
+      "refundStartMonth": null,
+      "expireRewardCents": 0,
+      "installFeeDeductCents": 0,
+      "installFeeClawbackEnabled": false,
+      "contractYears": 5
+    }
+  },
+  "events": "CHARGE,DEDUCT"
+}

@@ -1,0 +1,21 @@
+{
+  "sweep": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "accountId": 5,
+      "channel": "BANK",
+      "accountName": "审计对公户",
+      "balanceCents": 90000,
+      "status": "ACTIVE",
+      "remark": "审计建账",
+      "createdAt": "2026-10-18T03:51:04.342671Z",
+      "updatedAt": "2026-10-18T03:51:04.342671Z"
+    }
+  },
+  "zero": {
+    "code": 400,
+    "message": "归集金额必须大于 0",
+    "data": null
+  }
+}

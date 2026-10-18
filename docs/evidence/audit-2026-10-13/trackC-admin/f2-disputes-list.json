@@ -4,8 +4,8 @@
   "data": {
     "items": [
       {
-        "ticketId": "1792290898050312201317",
-        "sessionId": "1792290897666649062044",
+        "ticketId": "1792293229093326254596",
+        "sessionId": "1792293228711991084464",
         "deviceId": "EG746560232828",
         "reason": "识别结果需人工审核",
         "status": "OPEN",
@@ -21,14 +21,14 @@
           }
         ],
         "resolutionItems": [],
-        "createdAt": "2026-10-18T02:34:58.029058Z",
+        "createdAt": "2026-10-18T03:13:49.085125Z",
         "resolvedAt": null,
         "videoUri": null,
         "videoPreviewUrl": null,
         "sessionState": "DISPUTED",
         "orderId": null,
         "billedAmountCents": null,
-        "slaDueAt": "2026-10-20T02:34:58.050161Z",
+        "slaDueAt": "2026-10-20T03:13:49.093712Z",
         "slaOverdue": false,
         "slaHoursRemaining": 47,
         "category": "RECOGNITION",

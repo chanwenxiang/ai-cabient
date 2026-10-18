@@ -1,0 +1,14 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "accountId": 5,
+    "channel": "BANK",
+    "accountName": "审计对公户",
+    "balanceCents": 120000,
+    "status": "ACTIVE",
+    "remark": "审计建账",
+    "createdAt": "2026-10-18T03:51:04.342671Z",
+    "updatedAt": "2026-10-18T03:51:04.342671Z"
+  }
+}

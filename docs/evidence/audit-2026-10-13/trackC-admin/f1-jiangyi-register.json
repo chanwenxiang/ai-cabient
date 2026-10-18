@@ -5,18 +5,18 @@
     "data": {
       "deviceId": "EG746560232828",
       "deviceSn": "AUDIT-F1-EG746560232828",
-      "identifier": null,
+      "identifier": "AUDITEG746560232828",
       "modelName": "AUDIT-SIM-MODEL",
       "classesVersion": null,
       "industrialControlModel": null,
       "gatherLockedAt": null,
-      "status": "UNBOUND",
-      "authEnabled": false,
+      "status": "BOUND",
+      "authEnabled": true,
       "tokenVersion": 0,
-      "tokenIssuedAt": null,
-      "lastWsOnlineAt": null,
-      "createdAt": "2026-10-18T02:34:32.523649073Z",
-      "updatedAt": "2026-10-18T02:34:32.523649073Z"
+      "tokenIssuedAt": "2026-10-18T03:11:14.609709Z",
+      "lastWsOnlineAt": "2026-10-18T03:11:14.659302Z",
+      "createdAt": "2026-10-18T02:34:32.523649Z",
+      "updatedAt": "2026-10-18T03:11:14.659385Z"
     }
   },
   "tradeLogLine": ""

@@ -3,8 +3,8 @@
   "message": "ok",
   "data": {
     "order": {
-      "orderId": "1792290899041756133331",
-      "sessionId": "1792290897666649062044",
+      "orderId": "1792293229862489403245",
+      "sessionId": "1792293228711991084464",
       "userId": 10001,
       "deviceId": "EG746560232828",
       "merchantId": "MCH-DEFAULT",
@@ -18,12 +18,12 @@
       "payChannel": "BALANCE",
       "lineCount": 2,
       "lineSummary": "可口可乐 330ml x2 ·货道A1",
-      "paymentOperationId": "1792290899071755385228",
+      "paymentOperationId": "1792293229879150074583",
       "refundedCents": 0,
       "inventoryDeducted": true,
       "refundPolicy": "AUTO_REFUND",
-      "createdAt": "2026-10-18T02:34:59.057851079Z",
-      "paidAt": "2026-10-18T02:34:59.072824Z",
+      "createdAt": "2026-10-18T03:13:49.872878517Z",
+      "paidAt": "2026-10-18T03:13:49.880273Z",
       "splitStatus": "LEDGER_ONLY",
       "lines": [
         {
@@ -36,8 +36,8 @@
           "slotId": "A1"
         }
       ],
-      "balanceBeforeCents": 9514,
-      "balanceAfterCents": 8828
+      "balanceBeforeCents": 6084,
+      "balanceAfterCents": 5398
     },
     "resolutionType": "CONFIRM",
     "originalAmountCents": 0,

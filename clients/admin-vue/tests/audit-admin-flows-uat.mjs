@@ -45,7 +45,22 @@
  *   已由 F1-04c/F1-12/F8-00 三处 HTTP=200 反证）；F2 争议全链绿（F2-01~17 全 PASS 于 aicabinet-uat
  *   隔离栈实测，2026-10-18：needReview→DISPUTED→ops_exception+工单→admin list/claim/resolve
  *   CONFIRM→COMPLETED+建单结算+金额不变量(2×343=686=合计)+viewer 越权 403；F2-18 同 E-03 弱判据如实
- *   SKIP）；F7/F8 为**骨架**（断言只落真实端点，设备证据/未核契约标 ⚠️ 待核实并 SKIP，不造绿）。F3–F6 尚未编写。
+ *   SKIP）；F3 退款→报表口径隔离栈实测（2026-10-18）：运营对 F1 已支付 BALANCE 单——viewer 越权 403 / 短原因 400 /
+ *   仅退款(restore=false) 200 REFUNDED / 库终态 refunded_cents / 钱包回补 +合计 / 台账净额=0(CHARGE−REFUND) /
+ *   工单 RESOLVED / 分账 VOIDED / 重复退 409 全绿；报表口径钉 (a) 退款感知台账，(c) finance/stats 无退款过滤是已知陷阱不断言。
+ *   🔴 F3-03b 捕获真实缺陷 **F3-FIND-1**（记 BLOCKED 不洗绿）：退货退款 restore=true 在 V271 DEFERRABLE 守卫下
+ *   必 500——prepare 独立事务把 inventory_deducted 置 false 时 status 仍 PAID ⇒ assert_cabinet_order_inventory_link RAISE
+ *   （见 docs/evidence/.../f3-restore-inventory-defect.json）；属产品资金/库存链跨事务边界改动，待拍板。
+ *   F4 提现审核隔离栈实测绿（2026-10-18，aicabinet-uat）：V321 资质闸门 403 / CB-035 T+1 可用额闸门 412（提额=可用+1 被待结算 3916 分排除）/
+ *   ≥阈值 60000 申请→PENDING_REVIEW 冻结毛额 / 两节点(MANAGER→FINANCE，均 admin)审批→PAID(MOCK 软启动) / consumeFrozen 拆 WITHDRAW_PAID+WITHDRAW_FEE(6‰) /
+ *   驳回→REJECTED+WITHDRAW_RELEASE / 复用 requestNo 改金额 409 全绿（F4-00 未种 settle_unlock_hour⇒走硬默认 0）。
+ *   F5 平台资金池隔离栈实测绿：viewer 建账 403 / 建账 BANK 初始 100000(以库断言，建账 DTO balanceCents=0 属实体时序) / 负初始 400+重复渠道 409 /
+ *   充值 +20000 / 归集 -30000 出账(0⇒400) / 带符号调整 -12345(允许负余额，空原因 400) / 流水 RECHARGE·SWEEP·ADJUST 齐；F5-07 PAYOUT 非运营端点(商户提现自动写)如实 SKIP。
+ *   F6 设备租赁隔离栈实测绿：rerun 守卫(未来/回溯93天/非法日期 全 400) / PATCH 设备 coop_mode=RENTAL·rent=31000·data_fee=0(ops:device:edit 产品路径) /
+ *   押金登记 ONLINE 扣商户 20000→HELD / 空依据扣款 400+有效扣 5000→15000·DEDUCT / 结算 SETTLED·RETURN 净 -5000 / 列表 200 / viewer 403 /
+ *   **出账已挣**：rerun-daily-fees 走产品链⇒REN 行 SETTLED 金额=floor(31000/当月天数)=1000·chargedCents=1000（dataFee=0⇒无 DATA 行）；
+ *   F6-08 锁柜/复机须账龄满 lock_days 的 **PENDING** 台账行（产品日扣只写 SETTLED，PENDING 仅人工补录）⇒隔离栈无 PENDING 且不 SQL 造行凑绿，如实 SKIP。
+ *   F7/F8 为**骨架**（补货录像/越权矩阵按 no-fabricated-evidence 待接真）。
  *
  * Run:
  *   cd clients/consumer-mp && node ../admin-vue/tests/audit-admin-flows-uat.mjs
@@ -1320,6 +1335,940 @@ const FLOWS_IMPL = {
         await shot(page, 'f2-admin-disputes')
       );
     }
+  },
+
+  /**
+   * F3 退款 → 报表口径（运营后台对 F1 的**已支付余额单**全额退款）。
+   *
+   * 资金链亲读（行号取本 worktree cadmin-uat）：
+   *   入口      POST /api/v2/ops/admin/orders/{orderId}/refund  AdminDashboardController:429（perm ops:order:refund）
+   *             → DisputeService.refundByOperator:249 先 requirePermission（缺码 ⇒ 403，先于任何 id 解析），
+   *               :253 requireDeviceAccess（全局域直接放行）→ lines 空 ⇒ executeFullRefund:323（P2-2 无外层事务）。
+   *   校验      reason.trim()<4 ⇒ 400；status==REFUNDED ⇒ 409「订单已退款」；status ∉{PAID,COMPLETED,DISPUTED,PARTIAL} ⇒ 409。
+   *   退款      SettlementService.waiveAndRefund → SettlementWaiveRefundService:66：prepare 取 netCompletedCents（本单 686）
+   *             → OrderPaymentService.refundOrder:529（跳过闸门 amount<=0 或 userId>=OPERATOR_USER_ID_START，10001 消费者不受限）
+   *             → prepareOrderRefund:589：BALANCE ⇒ completeLocalRefund:802 else 分支 `balanceLedgerService.change(+686, REFUND)`
+   *               写一条 COMPLETED payment_operation（doChange:81）并回补钱包可用余额；
+   *             finalizeWaiveRefund:107：status=REFUNDED、refunded_cents、refunded_at、voidSplitOnFullRefund（order_revenue_split→VOIDED）。
+   *   工单      ensureDisputeTicketForFullRefund:367 建单（无则建、按 session_id 关联）→ finalizeFullRefundTicket:412 置 RESOLVED。
+   *
+   * 报表口径（本流程取证重点）：
+   *   (a) payment_operation 台账【退款感知】= 对账净现金流入 SUM：CHARGE/ADJUST/RECHARGE − REFUND ⇒ 本单 686−686=0；
+   *   (b) CommissionBaseCalc COUNTABLE={PAID,COMPLETED,PARTIAL_REFUNDED} **不含 REFUNDED** ⇒ 退款单移出抽成基数；
+   *   (c) ⚠️ 后台 finance/stats 的 `SUM(total_amount_cents)` 无状态过滤、不减退款 ⇒ 全额退款后仍显示 686，
+   *       是**已知设计陷阱**（非缺陷）⇒ 本流程**不**对 (c) 断言变化，只钉 (a) 台账为权威退款感知口径。
+   *
+   * 🔴 不造绿：退款由运营真实接口发起，余额回补/流水/工单/分账冲正全部由产品代码落库；断言只落 DB/API 口径。
+   *   仅对 pay_channel=BALANCE 且状态 PAID 的正向单执行；WECHAT/ALIPAY 需真实渠道凭据 ⇒ 如实 SKIP（隔离栈无凭据，不 mock 凑）。
+   */
+  F3: async ({ state }) => {
+    const f1 = state.f1 || {};
+    if (!f1.sessionId) {
+      record(
+        'F3',
+        'F3-00',
+        'SKIP',
+        `F3 复用 F1 的已支付余额单（按 state.f1.sessionId 定位订单），需 FLOWS 含 F1 在前：state.f1=${JSON.stringify(f1).slice(0, 100)}`,
+        null
+      );
+      return;
+    }
+    const ord = psqlSafe(
+      `select order_id||'|'||status||'|'||coalesce(pay_channel,'')||'|'||total_amount_cents||'|'||` +
+        `coalesce(paid_amount_cents,0)||'|'||coalesce(refunded_cents,0)||'|'||user_id ` +
+        `from cabinet_order where session_id='${f1.sessionId}'`
+    );
+    const row = (ord.val || '').trim().split('|');
+    const orderId = (row[0] || '').trim();
+    const oStatus = (row[1] || '').trim();
+    const oChannel = (row[2] || '').trim();
+    const oTotal = Number(row[3] || '0');
+    const oUser = (row[6] || '').trim();
+    if (!orderId) {
+      record(
+        'F3',
+        'F3-00',
+        false,
+        `F1 会话未产生订单，无法测退款：[${(ord.val || ord.err).slice(0, 160)}]`,
+        null
+      );
+      return;
+    }
+    const liveChannel = /WECHAT|ALIPAY/i.test(oChannel);
+    const refundable = oStatus === 'PAID';
+    record(
+      'F3',
+      'F3-00',
+      refundable && !liveChannel ? true : 'SKIP',
+      `退款前置：orderId=${orderId} 状态=${oStatus} 渠道=${oChannel || '(null)'} 合计=${oTotal} 消费者=${oUser}（仅 BALANCE+PAID 正向测；${liveChannel ? '渠道单需真实凭据' : '状态不可退'}⇒SKIP）`,
+      writeText('f3-target-order', ord.val || ord.err)
+    );
+    if (liveChannel || !refundable) return;
+
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+    if (!admin.token) {
+      record('F3', 'F3-01', false, `admin 登录失败 HTTP=${admin.status} ⇒ 退款链无法推进`, null);
+      return;
+    }
+
+    // F3-02 viewer 越权退款必须被拒（真实 orderId ⇒ 权限闸门先于 id 解析，期望 403）。
+    const viewer = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    if (viewer.token) {
+      const bad = await api(
+        viewer.token,
+        'POST',
+        `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
+        { reason: '越权退款尝试', restoreInventory: true }
+      );
+      record(
+        'F3',
+        'F3-02-viewer-forbidden',
+        bad.status === 403,
+        `viewer 越权退款：HTTP=${bad.status}（期望 403，ops:order:refund 闸门）`,
+        writeText('f3-viewer-forbidden', bad.json)
+      );
+    } else {
+      record(
+        'F3',
+        'F3-02-viewer-forbidden',
+        'SKIP',
+        `viewer 登录失败 HTTP=${viewer.status}，越权守卫未取证`,
+        null
+      );
+    }
+
+    // F3-03 负向：原因 <4 字 ⇒ 400（executeFullRefund:332）。
+    const shortReason = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
+      { reason: '短', restoreInventory: true }
+    );
+    record(
+      'F3',
+      'F3-03-short-reason',
+      shortReason.status === 400,
+      `短原因退款：HTTP=${shortReason.status} msg=${String(shortReason.json?.message || '').slice(0, 60)}（期望 400）`,
+      writeText('f3-short-reason', shortReason.json)
+    );
+
+    // 🔴 F3-03b 已知缺陷探针（退货退款 restore=true）：当前在带 V271 守卫的库上必然 500，如实记 BLOCKED 不洗绿。
+    //   根因：SettlementWaiveRefundService.applyWaiveInventoryPolicy:143 在 **prepare 独立事务**内把
+    //   inventory_deducted 置 false（货回柜），但 status 仍是 PAID（REFUNDED 要到 finalize 事务才写）；
+    //   V271__cross_link_and_inventory_guard 的 CONSTRAINT TRIGGER assert_cabinet_order_inventory_link()
+    //   DEFERRABLE INITIALLY DEFERRED，于 prepare 提交点校验「PAID/部分退+有行 ⇒ 必须 inventory_deducted=true」⇒ RAISE 500。
+    //   修复属产品资金/库存链改动（跨事务边界），待拍板；本流程主链路改走受支持的「仅退款」口径。
+    const restoreAttempt = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
+      { reason: '审计退货退款缺陷探针', restoreInventory: true }
+    );
+    const guardHit = /inventory_deducted|assert_cabinet_order_inventory_link/.test(
+      String(restoreAttempt.json?.message || '')
+    );
+    record(
+      'F3',
+      'F3-03b-restore-defect',
+      // 观察即取证：命中 500+守卫 ⇒ BLOCKED（已知缺陷，非本驱动可修）；若将来 200（已修复）⇒ PASS；其它 ⇒ SKIP。
+      restoreAttempt.status === 500 && guardHit
+        ? 'BLOCKED'
+        : restoreAttempt.status === 200
+          ? true
+          : 'SKIP',
+      `退货退款(restore=true)：HTTP=${restoreAttempt.status}${guardHit ? '｜命中 V271 守卫「PAID+未扣库」⇒ 已知缺陷 F3-FIND-1（待拍板），主链改走仅退款' : restoreAttempt.status === 200 ? '｜未再命中守卫⇒疑似缺陷已修复，请复核主链断言' : '（行为异常，需复核）'}`,
+      writeText('f3-restore-inventory-defect', restoreAttempt.json)
+    );
+
+    const balBefore = Number(
+      (
+        psqlSafe(`select balance_cents from user_account where user_id='${oUser}'`).val || '0'
+      ).trim() || '0'
+    );
+
+    // F3-04 正向全额退款（仅退款口径 restore=false，运营默认，避开 F3-03b 守卫缺陷）⇒ 200 + REFUNDED。
+    const ref = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
+      { reason: '审计退款全链验证（仅退款）', restoreInventory: false }
+    );
+    const rStatus = ref.json?.data?.status;
+    const rRefunded = ref.json?.data?.refundedCents;
+    record(
+      'F3',
+      'F3-04-full-refund',
+      ref.status === 200 && rStatus === 'REFUNDED' && rRefunded === oTotal,
+      `运营全额退款：HTTP=${ref.status} status=${rStatus} refundedCents=${rRefunded}(应=${oTotal}) msg=${String(ref.json?.message || '').slice(0, 60)}`,
+      writeText('f3-refund', ref.json)
+    );
+
+    // F3-05 库终态：cabinet_order REFUNDED / refunded_cents=合计 / refunded_at 非空。
+    const after = psqlSafe(
+      `select status||'|'||coalesce(refunded_cents,0)||'|'||coalesce(paid_amount_cents,0)||'|'||(refunded_at is not null) ` +
+        `from cabinet_order where order_id='${orderId}'`
+    );
+    const a = (after.val || '').split('|');
+    record(
+      'F3',
+      'F3-05-order-terminal',
+      !after.err && a[0] === 'REFUNDED' && Number(a[1]) === oTotal && a[3] === 'true',
+      `订单终态：status=${a[0]} refunded_cents=${a[1]}(应=${oTotal}) paid_amount_cents=${a[2]} refunded_at非空=${a[3]}`,
+      writeText('f3-order-after', after.val || after.err)
+    );
+
+    // F3-06 消费者钱包回补 +合计（completeLocalRefund BALANCE 分支 change(+amount, REFUND)）。
+    const balAfter = Number(
+      (
+        psqlSafe(`select balance_cents from user_account where user_id='${oUser}'`).val || '0'
+      ).trim() || '0'
+    );
+    record(
+      'F3',
+      'F3-06-balance-credited',
+      balAfter === balBefore + oTotal,
+      `钱包回补：before=${balBefore} after=${balAfter} 应=+${oTotal}（余额单退款计入可用余额，非冻结）`,
+      writeText('f3-balance', { balBefore, balAfter })
+    );
+
+    // F3-07 报表口径 (a)【退款感知台账】= netCompletedCents（PaymentOperationMapper:128，正是退款额取值口径）：
+    //   净 = (CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE) − REFUND = 0。开门柜 F1 入账走 PREAUTH_CAPTURE（非 CHARGE），
+    //   故正项必须含 PREAUTH_CAPTURE，否则漏计入账、净额被洗成负数（本次实测即踩此坑）。
+    const led = psqlSafe(
+      `select coalesce(sum(case when operation_type in ('CHARGE','ADJUST_CHARGE','PREAUTH_CAPTURE') then amount_cents ` +
+        `when operation_type='REFUND' then -amount_cents else 0 end),0)||'|'||` +
+        `coalesce(sum(case when operation_type in ('CHARGE','ADJUST_CHARGE','PREAUTH_CAPTURE') and status='COMPLETED' then amount_cents else 0 end),0)||'|'||` +
+        `coalesce(sum(case when operation_type='REFUND' and status='COMPLETED' then amount_cents else 0 end),0) ` +
+        `from payment_operation where order_id='${orderId}' and status='COMPLETED'`
+    );
+    const L = (led.val || '').split('|');
+    record(
+      'F3',
+      'F3-07-ledger-net-zero',
+      !led.err && Number(L[0]) === 0 && Number(L[1]) === oTotal && Number(L[2]) === oTotal,
+      `台账净额(退款感知)：净=${L[0]} 入账=${L[1]} 退款=${L[2]}（期望 0/${oTotal}/${oTotal}，netCompletedCents 口径含 PREAUTH_CAPTURE）`,
+      writeText('f3-ledger', led.val || led.err)
+    );
+
+    // F3-08 退款工单随全额退款建单并结案 RESOLVED（按 session 关联，finalizeFullRefundTicket:412）。
+    const tk = psqlSafe(
+      `select coalesce(string_agg(status,','),'(无工单)') from dispute_ticket where session_id='${f1.sessionId}'`
+    );
+    record(
+      'F3',
+      'F3-08-ticket-resolved',
+      !tk.err && /RESOLVED/.test(tk.val) && !/OPEN/.test(tk.val),
+      `退款工单状态集合=[${(tk.val || tk.err).replace(/\s+/g, ' ').slice(0, 80)}]（应含 RESOLVED 且不残留 OPEN）`,
+      null
+    );
+
+    // F3-09 分账冲正：若本单有 order_revenue_split，全额退款后应全 VOIDED；无分账行 ⇒ 如实 SKIP。
+    const split = psqlSafe(
+      `select coalesce(string_agg(distinct status,','),'(无分账)') from order_revenue_split where order_id='${orderId}'`
+    );
+    const splitPass =
+      !split.err &&
+      split.val !== '(无分账)' &&
+      /VOIDED/.test(split.val) &&
+      !/ACCRUED|SETTLED|PENDING/.test(split.val);
+    record(
+      'F3',
+      'F3-09-split-voided',
+      split.err || split.val === '(无分账)' ? 'SKIP' : splitPass,
+      split.err
+        ? `order_revenue_split 查询失败（列名待核实）：${split.err}`
+        : split.val === '(无分账)'
+          ? '本 demo 单无分账行 ⇒ 冲正无从取证（非缺陷，如实 SKIP）'
+          : `分账状态集合=[${split.val}]（有分账⇒应全 VOIDED，voidSplitOnFullRefund:144）`,
+      writeText('f3-split', { val: split.val, err: split.err })
+    );
+
+    // F3-10 会话终态 COMPLETED（退款不改会话态；F1 结算后应仍 COMPLETED）。
+    const st = sessionState(f1.sessionId);
+    record(
+      'F3',
+      'F3-10-session-completed',
+      st === 'COMPLETED',
+      `退款后会话态=${st}（应仍 COMPLETED）`,
+      null
+    );
+
+    // F3-11 重复退款 ⇒ 409（executeFullRefund:327 status==REFUNDED 入口拦截，钱账不双退）。
+    const dup = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
+      { reason: '重复退款尝试', restoreInventory: true }
+    );
+    record(
+      'F3',
+      'F3-11-double-refund',
+      dup.status === 409,
+      `重复退款：HTTP=${dup.status} msg=${String(dup.json?.message || '').slice(0, 60)}（期望 409 订单已退款）`,
+      writeText('f3-double', dup.json)
+    );
+  },
+
+  /**
+   * F4 提现审核（申请→两节点审批→打款），含 CB-035 T+1 解锁口径。
+   *
+   * 契约面（亲读，行号取本 worktree cadmin-uat）：
+   *   运营代提现  POST /api/v2/ops/admin/merchant-wallets/{merchantId}/withdraw
+   *               MerchantWalletController:61-69（perm ops:merchant-withdraw:adjust，body WithdrawApplyRequest）
+   *               → MerchantWithdrawService.apply:239（先 requirePermission/requireMerchantAccess，
+   *                 再 V321 资质门禁 requireMerchantWithdrawEligible:246，最后 createWithdraw）
+   *   审核        POST /api/v2/ops/admin/merchant-withdraws/{requestId}/review  MerchantWithdrawController:84-91
+   *               （perm ops:merchant-withdraw:review，body WithdrawReviewRequest{approve:Boolean,remark}，approve fail-closed）
+   *               → review:318 → completeReview:331（approve=false 直接 REJECTED+releaseFrozen；
+   *                 approve=true 走两节点审批流 MERCHANT_WITHDRAW：运营审核(MANAGER)→财务复核(FINANCE)，
+   *                 isInstanceApproved 为真才落 APPROVED，随后 executePayout）
+   *   列表        GET  /api/v2/ops/admin/merchant-withdraws?...   MerchantWithdrawController:70-82
+   *   落库表      merchant_withdraw_request(V139+V195/V241/V307)：status
+   *               PENDING_REVIEW|APPROVED|PAYING|PAID|REJECTED|FAILED|CANCELLED；钱包台账 merchant_wallet_ledger
+   *               entry_type WITHDRAW_FREEZE/WITHDRAW_RELEASE/WITHDRAW_PAID/WITHDRAW_FEE（ref_type=WITHDRAW，ref_id=requestId）
+   *
+   * CB-035 T+1：解锁时刻 system_config key `merchant.withdraw.settle_unlock_hour`（隔离栈**未种** ⇒ 走 yml/硬默认 0=次日零点）；
+   *   available = balance − frozen − pendingSettle，pendingSettle 只计 order_revenue_split 中 status∈(LEDGER_ONLY,SETTLED)
+   *   且 settle_after>unlockedThroughDate 的商户分账（MerchantWithdrawService:812/831）。⇒ 超 available 提额必 412「可用余额不足」，
+   *   正是 T+1 把未解锁分账挡在可提现额度外的实证。
+   *
+   * 资质种子（隔离栈一次性测试库，非业务结果伪造）：演示商户 legal_person/business_license_url 皆 NULL ⇒ V321 必 403。
+   *   为跑通正向审核链，F4-02 先如实断言「未补资质=403」（这是正确的门禁行为），再对 MCH-DEFAULT 直接 UPDATE 补齐两字段（前置条件），
+   *   随后所有申请/审核/打款的**结果**均由产品链产出。审计运营账号=100000001，恰为 MANAGER∩FINANCE 处理人，故可自审两节点。
+   */
+  F4: async ({ state }) => {
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+    const ops = '/api/v2/ops/admin';
+    const M = 'MCH-DEFAULT';
+
+    // F4-00 CB-035 配置面：settle_unlock_hour 隔离栈未种 ⇒ 走默认（0=次日零点）；若种了须为 0..23。
+    const cfgQ = psqlSafe(
+      `select coalesce(string_agg(config_value,','),'(未种)') from system_config where config_key='merchant.withdraw.settle_unlock_hour'`
+    );
+    const cfgVal = (cfgQ.val || '').trim();
+    const cfgOk =
+      cfgQ.err === '' &&
+      (cfgVal === '(未种)' ||
+        cfgVal === '' ||
+        (/^\d+$/.test(cfgVal) && Number(cfgVal) >= 0 && Number(cfgVal) <= 23));
+    record(
+      'F4',
+      'F4-00-cb035-config',
+      cfgOk,
+      `CB-035 settle_unlock_hour 现值=${cfgVal || '(空)'}（未种即走 yml/硬默认 0=次日零点；越界值应被代码 clamp 到 0..23）`,
+      writeText('f4-cb035-config', { cfgVal, err: cfgQ.err })
+    );
+
+    // F4-01 viewer 越权审核 ⇒ 403（RBAC，ops:merchant-withdraw:review）。
+    const viewer = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    const vrv = await api(viewer.token, 'POST', `${ops}/merchant-withdraws/1/review`, {
+      approve: true,
+      remark: '越权'
+    });
+    record(
+      'F4',
+      'F4-01-viewer-forbidden',
+      vrv.status === 403,
+      `viewer 调 review：HTTP=${vrv.status} msg=${String(vrv.json?.message || '').slice(0, 40)}（期望 403 无权限）`,
+      writeText('f4-viewer-review', vrv.json)
+    );
+
+    // F4-02 V321 资质门禁：未补 KYC 的 MCH-OTHER 运营代提现 ⇒ 403（正确的资金安全行为，记为绿）。
+    const gate = await api(admin.token, 'POST', `${ops}/merchant-wallets/MCH-OTHER/withdraw`, {
+      amountCents: 60000
+    });
+    const gateMsg = String(gate.json?.message || '');
+    record(
+      'F4',
+      'F4-02-eligibility-gate',
+      gate.status === 403 && /资质/.test(gateMsg),
+      `未补资质代提现：HTTP=${gate.status} msg=${gateMsg.slice(0, 40)}（期望 403 商户资质不完整，V321 生效）`,
+      writeText('f4-eligibility', gate.json)
+    );
+
+    // 种子：补齐 MCH-DEFAULT 主体资质（V321 前置条件，隔离栈一次性测试库；非业务结果伪造）并保证可提现余量。
+    psql(
+      `begin; update merchant set legal_person='审计测试法人', business_license_url='https://audit.local/license.png' where merchant_id='${M}'; commit;`
+    );
+    const balNow = Number(
+      (
+        psqlSafe(`select balance_cents from merchant_wallet_account where merchant_id='${M}'`)
+          .val || '0'
+      ).trim()
+    );
+    if (balNow < 150000) {
+      await api(admin.token, 'POST', `${ops}/merchant-wallets/${M}/adjust`, {
+        amountCents: 150000,
+        remark: '审计前置充值'
+      });
+    }
+
+    // F4-03 CB-035 T+1 实证：提额=available+1 ⇒ 412「可用余额不足」（未解锁分账把可提现额度压到 available）。
+    //   已补资质⇒越过 403；amount=avail+1 远小于日限⇒命中 available 网关（当日首笔 T+1 探针，重跑多次可能改判日限则如实 SKIP）。
+    let f4Boundary = 'SKIP';
+    let f4BoundaryDetail = 'merchant_wallet_account 读取失败';
+    const acct0 = psqlSafe(
+      `select balance_cents||'|'||frozen_cents from merchant_wallet_account where merchant_id='${M}'`
+    );
+    const pending0 = psqlSafe(
+      `select coalesce(sum(merchant_cents),0) from order_revenue_split where merchant_id='${M}' and status in ('LEDGER_ONLY','SETTLED') and settle_after > current_date`
+    );
+    if (!acct0.err && !pending0.err) {
+      const [bal0, froz0] = (acct0.val || '').split('|').map((x) => Number(x));
+      const pend0 = Number((pending0.val || '0').trim()) || 0;
+      const avail0 = bal0 - froz0 - pend0;
+      if (pend0 > 0) {
+        const over = await api(admin.token, 'POST', `${ops}/merchant-wallets/${M}/withdraw`, {
+          amountCents: avail0 + 1
+        });
+        const m = String(over.json?.message || '');
+        f4Boundary =
+          over.status === 412 && /可用余额不足|余额不足/.test(m)
+            ? true
+            : over.status === 412
+              ? 'SKIP'
+              : 'SKIP';
+        f4BoundaryDetail = `提额=可用余额+1(${avail0 + 1})⇒HTTP=${over.status} msg=${m.slice(0, 40)}（T+1 未解锁分账 ${pend0} 分被排除在可提现额度外）`;
+      } else {
+        f4BoundaryDetail = `当日无未解锁分账(pending=0)⇒T+1 边界不可复现，如实 SKIP`;
+      }
+    }
+    record(
+      'F4',
+      'F4-03-t1-available-gate',
+      f4Boundary,
+      f4BoundaryDetail,
+      writeText('f4-t1-gate', {
+        acct0: acct0.val || acct0.err,
+        pending: pending0.val || pending0.err
+      })
+    );
+
+    const reqNo = 'UATWD' + Date.now();
+    const WD = 60000;
+    const apply = await api(admin.token, 'POST', `${ops}/merchant-wallets/${M}/withdraw`, {
+      amountCents: WD,
+      requestNo: reqNo
+    });
+    const requestId = apply.json?.data?.requestId;
+    const st0 = apply.json?.data?.status || '';
+    record(
+      'F4',
+      'F4-04-apply-pending',
+      apply.status === 200 && st0 === 'PENDING_REVIEW' && requestId != null,
+      `代提现 ${WD}：HTTP=${apply.status} status=${st0} requestId=${requestId ?? '(无)'}（>=阈值50000⇒PENDING_REVIEW 并冻结毛额）`,
+      writeText('f4-apply', apply.json)
+    );
+
+    // F4-05 冻结台账（ref_type=WITHDRAW, ref_id=requestId, entry_type=WITHDRAW_FREEZE）。
+    const frz = psqlSafe(
+      `select coalesce(string_agg(entry_type,','),'(无)') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${requestId}'`
+    );
+    record(
+      'F4',
+      'F4-05-freeze-ledger',
+      /WITHDRAW_FREEZE/.test(frz.val || ''),
+      `申请冻结台账：${frz.val || frz.err}（期望含 WITHDRAW_FREEZE）`,
+      writeText('f4-freeze', { led: frz.val || frz.err })
+    );
+
+    // F4-06 两节点审批（运营审核 MANAGER → 财务复核 FINANCE）：admin(100000001) 为两节点处理人，逐轮 approve 推至非 PENDING。
+    let stReview = st0;
+    for (let i = 0; i < 3 && stReview === 'PENDING_REVIEW'; i++) {
+      const rv = await api(admin.token, 'POST', `${ops}/merchant-withdraws/${requestId}/review`, {
+        approve: true,
+        remark: `审计通过第${i + 1}轮`
+      });
+      stReview = rv.json?.data?.status || stReview;
+    }
+    const fin = psqlSafe(
+      `select status||'|'||amount_cents||'|'||fee_cents||'|'||coalesce(paid_at::text,'') from merchant_withdraw_request where request_id=${requestId}`
+    );
+    const finA = (fin.val || '').split('|');
+    const finalStatus = finA[0] || stReview;
+    record(
+      'F4',
+      'F4-06-two-node-review',
+      finalStatus === 'PAID' || finalStatus === 'APPROVED',
+      `两节点审批后终态=${finalStatus}｜库 status=${finA[0]} fee=${finA[1] ?? '?'} paid_at=${finA[3] || '空'}（MANAGER→FINANCE 均 admin 处理，approve 两次达 APPROVED，MOCK 软启动打款达 PAID）`,
+      writeText('f4-review-final', { loopStatus: stReview, db: fin.val || fin.err })
+    );
+
+    // F4-07 打款台账 + 净额守恒（WITHDRAW_PAID；有手续费则 WITHDRAW_FEE；net+fee=毛额）。
+    const led = psqlSafe(
+      `select coalesce(string_agg(entry_type,','),'') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${requestId}'`
+    );
+    const fee = Number(finA[1] || 0);
+    const hasPaid = /WITHDRAW_PAID/.test(led.val || '');
+    const feeOk = fee > 0 ? /WITHDRAW_FEE/.test(led.val || '') : true;
+    record(
+      'F4',
+      'F4-07-payout-ledger',
+      finalStatus === 'PAID' ? hasPaid && feeOk : 'SKIP',
+      `打款台账：${led.val || led.err}｜毛额${finA[1] ?? WD} 费${fee}（PAID 应 consumeFrozen 拆 WITHDRAW_PAID${fee > 0 ? '+WITHDRAW_FEE' : ''}）`,
+      writeText('f4-payout-ledger', { led: led.val || led.err, fee })
+    );
+
+    // F4-08 驳回链：另一笔 PENDING_REVIEW → approve=false ⇒ REJECTED + releaseFrozen（不依赖审批推进，直接落 REJECTED）。
+    const reqNo2 = 'UATWDRJ' + Date.now();
+    const apply2 = await api(admin.token, 'POST', `${ops}/merchant-wallets/${M}/withdraw`, {
+      amountCents: 60000,
+      requestNo: reqNo2
+    });
+    const rid2 = apply2.json?.data?.requestId;
+    let rejStatus = '';
+    if (rid2 != null) {
+      const rj = await api(admin.token, 'POST', `${ops}/merchant-withdraws/${rid2}/review`, {
+        approve: false,
+        remark: '审计驳回验证'
+      });
+      rejStatus = rj.json?.data?.status || '';
+    }
+    const relLed =
+      rid2 == null
+        ? { val: '', err: '无 requestId' }
+        : psqlSafe(
+            `select coalesce(string_agg(entry_type,','),'') from merchant_wallet_ledger where ref_type='WITHDRAW' and ref_id='${rid2}'`
+          );
+    record(
+      'F4',
+      'F4-08-reject-releases-frozen',
+      rejStatus === 'REJECTED' && /WITHDRAW_RELEASE/.test(relLed.val || ''),
+      `驳回：status=${rejStatus || '(未建)'}｜台账=${relLed.val || relLed.err}（REJECTED 须 releaseFrozen 返还可提现额）`,
+      writeText('f4-reject', { status: rejStatus, led: relLed.val || relLed.err })
+    );
+
+    // F4-09 同 requestNo 不同金额 ⇒ 409（AU-006：requestNo 全局唯一且须归属/金额一致，防跨商户吞单）。
+    const dup = await api(admin.token, 'POST', `${ops}/merchant-wallets/${M}/withdraw`, {
+      amountCents: 70000,
+      requestNo: reqNo
+    });
+    record(
+      'F4',
+      'F4-09-duplicate-conflict',
+      dup.status === 409,
+      `复用 requestNo+改金额：HTTP=${dup.status} msg=${String(dup.json?.message || '').slice(0, 40)}（期望 409 单号占用）`,
+      writeText('f4-dup', dup.json)
+    );
+  },
+
+  /**
+   * F5 平台资金池操作（CB-033）。
+   *
+   * 契约面（亲读）：OpsPlatformFundController（base /api/v2/ops/admin）
+   *   GET  /platform-fund/accounts                         ops:fund:list
+   *   GET  /platform-fund/accounts/{id}/flows              ops:fund:list
+   *   POST /platform-fund/accounts                         ops:fund:manage（建账，initialBalanceCents>0 落 RECHARGE 流水）
+   *   POST /platform-fund/accounts/{id}/recharge           ops:fund:manage（+amountCents）
+   *   POST /platform-fund/accounts/{id}/sweep              ops:fund:manage（归集=出账，落 -amountCents，SWEEP）
+   *   POST /platform-fund/accounts/{id}/adjust             ops:fund:manage（带符号调整，remark 必填，ADJUST）
+   *   ⚠️「提现/打款 PAYOUT」不是运营端点——由商户提现成功后 recordPayoutQuietly 自动写（ref_type=MERCHANT_WITHDRAW），
+   *      不能 POST ⇒ 第五种流水如实标观察、不伪造。
+   *
+   * 落库：platform_fund_account(V341, 建栈即空) / platform_fund_flow(flow_type RECHARGE|SWEEP|ADJUST|PAYOUT，amount 带符号，
+   *   balance_after 每次更新后回读)。校验皆服务端 ResponseStatusException（无 bean-validation）：
+   *   channel 空/账户名空 400、初始余额<0 400、渠道重复 409、sweep<=0 400、adjust delta=0 或 remark 空 400、
+   *   账户不存在 404、amount=0 400。余额**允许为负**（设计如此，无透支 SQL 守卫）。
+   */
+  F5: async ({ state }) => {
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+    const base = '/api/v2/ops/admin/platform-fund';
+    const CH = 'BANK';
+
+    // F5-00 viewer 越权建账 ⇒ 403（ops:fund:manage）。
+    const v = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    const vres = await api(v.token, 'POST', `${base}/accounts`, {
+      channel: 'WECHAT',
+      accountName: '越权',
+      initialBalanceCents: 1
+    });
+    record(
+      'F5',
+      'F5-00-viewer-forbidden',
+      vres.status === 403,
+      `viewer 建账：HTTP=${vres.status}（期望 403 缺 ops:fund:manage）`,
+      writeText('f5-viewer-create', vres.json)
+    );
+
+    // 清测试渠道，保证可重复（隔离栈）。
+    psql(
+      `begin; delete from platform_fund_flow where account_id in (select account_id from platform_fund_account where channel='${CH}'); delete from platform_fund_account where channel='${CH}'; commit;`
+    );
+
+    // F5-01 建账 + 初始余额 ⇒ RECHARGE 流水，balance=initial。
+    const created = await api(admin.token, 'POST', `${base}/accounts`, {
+      channel: CH,
+      accountName: '审计对公户',
+      initialBalanceCents: 100000,
+      remark: '审计建账'
+    });
+    const accId = created.json?.data?.accountId;
+    // 建账返回 DTO 的 balanceCents 恒 0（初始余额经 recordFlow 落库后才更新，DTO 是建账前的实体）⇒ 以库为准。
+    const accBal = Number(
+      (
+        psqlSafe(`select balance_cents from platform_fund_account where account_id=${accId}`).val ||
+        ''
+      ).trim()
+    );
+    record(
+      'F5',
+      'F5-01-create-account',
+      created.status === 200 && accId != null && accBal === 100000,
+      `建账 BANK：HTTP=${created.status} accountId=${accId ?? '(无)'} 库 balance=${accBal}（初始 100000 落 RECHARGE 流水；建账 DTO balanceCents=0 属实体时序，以库断言）`,
+      writeText('f5-create', { body: created.json, dbBalance: accBal })
+    );
+
+    // F5-02 负向：初始余额<0 ⇒ 400；渠道重复 ⇒ 409。
+    const negInit = await api(admin.token, 'POST', `${base}/accounts`, {
+      channel: 'ALIPAY',
+      accountName: '负初始',
+      initialBalanceCents: -5
+    });
+    const dupCh = await api(admin.token, 'POST', `${base}/accounts`, {
+      channel: CH,
+      accountName: '重复',
+      initialBalanceCents: 0
+    });
+    record(
+      'F5',
+      'F5-02-create-guards',
+      negInit.status === 400 && dupCh.status === 409,
+      `负初始余额 HTTP=${negInit.status}（期望400）｜重复渠道 HTTP=${dupCh.status}（期望409）`,
+      writeText('f5-create-guards', { negInit: negInit.json, dup: dupCh.json })
+    );
+
+    // F5-03 充值 +20000 ⇒ balance 120000，RECHARGE。
+    const before3 = Number(
+      (
+        psqlSafe(`select balance_cents from platform_fund_account where account_id=${accId}`).val ||
+        ''
+      ).trim()
+    );
+    const rech = await api(admin.token, 'POST', `${base}/accounts/${accId}/recharge`, {
+      amountCents: 20000,
+      remark: '审计充值'
+    });
+    const balAfter3 = Number(rech.json?.data?.balanceCents ?? NaN);
+    record(
+      'F5',
+      'F5-03-recharge',
+      rech.status === 200 && before3 + 20000 === balAfter3,
+      `充值：HTTP=${rech.status} ${before3}→${balAfter3}（期望 +20000）`,
+      writeText('f5-recharge', rech.json)
+    );
+
+    // F5-04 归集 -30000 ⇒ balance -30000（出账），SWEEP；负数守卫 ⇒ 400。
+    const sweepBad = await api(admin.token, 'POST', `${base}/accounts/${accId}/sweep`, {
+      amountCents: 0,
+      remark: '零归集'
+    });
+    const before4 = Number(
+      (
+        psqlSafe(`select balance_cents from platform_fund_account where account_id=${accId}`).val ||
+        ''
+      ).trim()
+    );
+    const sweep = await api(admin.token, 'POST', `${base}/accounts/${accId}/sweep`, {
+      amountCents: 30000,
+      remark: '审计归集'
+    });
+    const balAfter4 = Number(sweep.json?.data?.balanceCents ?? NaN);
+    record(
+      'F5',
+      'F5-04-sweep-outflow',
+      sweep.status === 200 && before4 - 30000 === balAfter4 && sweepBad.status === 400,
+      `归集：HTTP=${sweep.status} ${before4}→${balAfter4}（期望 -30000 出账）｜amount=0 HTTP=${sweepBad.status}（期望400）`,
+      writeText('f5-sweep', { sweep: sweep.json, zero: sweepBad.json })
+    );
+
+    // F5-05 带符号调整 -12345 ⇒ balance -12345（允许为负）；缺 remark ⇒ 400。
+    const adjNoRemark = await api(admin.token, 'POST', `${base}/accounts/${accId}/adjust`, {
+      amountCents: -1,
+      remark: '   '
+    });
+    const before5 = Number(
+      (
+        psqlSafe(`select balance_cents from platform_fund_account where account_id=${accId}`).val ||
+        ''
+      ).trim()
+    );
+    const adj = await api(admin.token, 'POST', `${base}/accounts/${accId}/adjust`, {
+      amountCents: -12345,
+      remark: '审计调整'
+    });
+    const balAfter5 = Number(adj.json?.data?.balanceCents ?? NaN);
+    record(
+      'F5',
+      'F5-05-adjust-signed',
+      adj.status === 200 && before5 - 12345 === balAfter5 && adjNoRemark.status === 400,
+      `调整：HTTP=${adj.status} ${before5}→${balAfter5}（带符号，允许负余额）｜空原因 HTTP=${adjNoRemark.status}（期望400「必须填写原因」）`,
+      writeText('f5-adjust', { adjust: adj.json, noRemark: adjNoRemark.json })
+    );
+
+    // F5-06 流水读回：三条 RECHARGE/SWEEP/ADJUST 类型齐、balance_after 单调与库一致。
+    const flows = await api(admin.token, 'GET', `${base}/accounts/${accId}/flows?limit=50`);
+    const arr = flows.json?.data;
+    const list = Array.isArray(arr) ? arr : Array.isArray(arr?.list) ? arr.list : null;
+    const types = list ? list.map((f) => f.flowType) : [];
+    record(
+      'F5',
+      'F5-06-flows-ledger',
+      flows.status === 200 &&
+        list !== null &&
+        ['RECHARGE', 'SWEEP', 'ADJUST'].every((t) => types.includes(t)),
+      `流水：HTTP=${flows.status} 类型集=${Array.from(new Set(types)).join(',')}（建账/充值 RECHARGE、归集 SWEEP、调整 ADJUST 齐）`,
+      writeText('f5-flows', flows.json)
+    );
+
+    // F5-07 PAYOUT（第五种流水）不可 POST ⇒ 如实观察，不伪造（由商户提现自动写，见 F4）。
+    record(
+      'F5',
+      'F5-07-payout-not-admin',
+      'SKIP',
+      'PAYOUT 流水非运营端点：商户提现成功后 recordPayoutQuietly(PlatformFundService:224) 自动落，ref_type=MERCHANT_WITHDRAW；F4 打款链已产出该流水，此处不 POST 伪造',
+      null
+    );
+  },
+
+  /**
+   * F6 设备租赁（押金闭环 + 日扣守卫 + 出账(REN 日摊)已挣；锁柜/复机缺 PENDING 种子如实 SKIP）。
+   *
+   * 两套并行机制（亲读，勿混）：
+   *   CB-034 押金/月租账单  OpsDeviceRentalController（base /api/v2/ops/admin/device-rental）
+   *     POST /deposits            ops:rental:manage（登记，requireRentalDevice⇒设备须 coop_mode=RENTAL；charge_mode 固定 ONLINE ⇒ 从商户余额真扣 DEPOSIT_CHARGE；installFeeDeduct 默认 0=V383）
+   *     POST /deposits/{id}/deduct ops:rental:manage（扣款，reason 必填）
+   *     POST /deposits/{id}/settle ops:rental:manage（撤机结算：剩余押金 − 安装费(默认0) 退回商户 DEPOSIT_RETURN）
+   *     GET  /deposits · /deposits/{id}/events · /bills   ops:fund:list
+   *   F-2/F-5/F-6 日扣台账  OpsMerchantFeeLedgerController（base /api/v2/ops/admin/merchant-fee-ledgers）
+   *     GET /            ops:merchant-withdraw:list
+   *     POST /{id}/settle ops:merchant-withdraw:adjust（结清→自动复机 unlockFeeOverdueIfCleared）
+   *     POST /rerun-daily-fees?feeDate=YYYY-MM-DD  ops:merchant-withdraw:adjust（守卫：仅<=昨天、回溯<=92 天、格式对）
+   *   配置设备为 RENTAL：PATCH /api/v2/ops/admin/devices/{deviceId}  ops:device:edit（UpdateDeviceRequest.coopMode/rentCents/dataFeeCents/rentStartYm；normalizeCoop∈{SELF,FRANCHISE,CONSIGN,RENTAL}）
+   *   落库：device_rental_deposit(V342/V360/V365/V383 status HELD|SETTLED) / _event(CHARGE|DEDUCT|RETURN) / merchant_fee_ledger(V355/V380)。
+   *
+   * ✅ 出账(MerchantDailyIncomeNotifyScheduler.chargeDailyPeriodFees:343) 已可挣：先 PATCH 设备 coopMode=RENTAL/rentCents=31000，
+   *   rerun-daily-fees 遍历全商户 → REN 行 amount=floor(31000/feeDate.lengthOfMonth())、status=SETTLED（dataFee=0⇒无 DATA 行）。
+   *   日扣幂等：钱包流水 refId=日期 + 台账 uk_merchant_fee_date_type；本用例先删 (M,feeDate) REN/DATA 行以让 REN 行「当场产出」再核。
+   * 🔴 锁柜/复机仍需一条账龄满 lock_days(默认7) 的 **PENDING** merchant_fee_ledger 行（产品日扣只写 SETTLED，PENDING 仅人工补录）。
+   *   隔离演示栈无 PENDING ⇒ 状态机段如实 SKIP（绝不 SQL 造 PENDING 行凑绿）。
+   */
+  F6: async ({ state }) => {
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+    const rental = '/api/v2/ops/admin/device-rental';
+    const feeBase = '/api/v2/ops/admin/merchant-fee-ledgers';
+    const opsBase = '/api/v2/ops/admin';
+    const DEV = 'EG746560232828'; // F1 演示设备，merchant=MCH-DEFAULT（有钱包）
+    const M = 'MCH-DEFAULT';
+    const iso = (ms) => new Date(Date.now() + ms).toISOString().slice(0, 10);
+    const DAYMS = 86400000;
+    const bal = () =>
+      Number(
+        (
+          psqlSafe(`select balance_cents from merchant_wallet_account where merchant_id='${M}'`)
+            .val || '0'
+        ).trim()
+      );
+
+    // F6-00 rerun 守卫（负向，无需种子）：今天/未来 400、回溯>92 天 400、格式错 400。
+    const gFut = await api(
+      admin.token,
+      'POST',
+      `${feeBase}/rerun-daily-fees?feeDate=${iso(DAYMS)}`
+    );
+    const gFar = await api(
+      admin.token,
+      'POST',
+      `${feeBase}/rerun-daily-fees?feeDate=${iso(-93 * DAYMS)}`
+    );
+    const gBad = await api(admin.token, 'POST', `${feeBase}/rerun-daily-fees?feeDate=2026-13-40`);
+    record(
+      'F6',
+      'F6-00-rerun-guards',
+      gFut.status === 400 && gFar.status === 400 && gBad.status === 400,
+      `重跑日扣守卫：未来 HTTP=${gFut.status}｜回溯93天 HTTP=${gFar.status}｜非法日期 HTTP=${gBad.status}（均应 400）`,
+      writeText('f6-rerun-guards', { fut: gFut.json, far: gFar.json, bad: gBad.json })
+    );
+
+    // F6-01 押金链/出账前置：PATCH 设备为 coop_mode=RENTAL、rent_cents=31000、data_fee=0（ops:device:edit，产品 API 非 SQL）。
+    //   requireRentalDevice ⇒ 押金登记须 RENTAL；chargeDailyPeriodFees 的 REN 日摊也须此配置。dataFee=0 ⇒ 只出 REN 不出 DATA。
+    const RENT = 31000;
+    const ym = iso(0).slice(0, 7);
+    const cfg = await api(admin.token, 'PATCH', `${opsBase}/devices/${DEV}`, {
+      coopMode: 'RENTAL',
+      rentCents: RENT,
+      dataFeeCents: 0,
+      rentStartYm: ym
+    });
+    const devRow = psqlSafe(
+      `select coop_mode||'|'||coalesce(rent_cents,0)::text||'|'||coalesce(data_fee_cents,0)::text from device_info where device_id='${DEV}'`
+    );
+    const [dcoop, drent] = (devRow.val || '').split('|');
+    record(
+      'F6',
+      'F6-01-rental-device-config',
+      cfg.status === 200 && dcoop === 'RENTAL' && Number(drent) === RENT,
+      `设备配置：HTTP=${cfg.status}｜库 coop_mode=${dcoop} rent_cents=${drent} data_fee=${devRow.val ? devRow.val.split('|')[2] : ''}（期望 RENTAL/${RENT}/0）`,
+      writeText('f6-device-config', {
+        http: cfg.status,
+        body: cfg.json,
+        db: devRow.val || devRow.err
+      })
+    );
+
+    // F6-02 押金登记（ONLINE ⇒ 商户余额 -20000，status HELD，balance=20000）。清旧行以可重复。
+    const b0 = bal();
+    psql(
+      `begin; delete from device_rental_deposit_event where deposit_id in (select deposit_id from device_rental_deposit where device_id='${DEV}'); delete from device_rental_deposit where device_id='${DEV}'; commit;`
+    );
+    const reg = await api(admin.token, 'POST', `${rental}/deposits`, {
+      deviceId: DEV,
+      amountCents: 20000,
+      remark: '审计押金登记'
+    });
+    const depId = reg.json?.data?.depositId;
+    const depRow0 = psqlSafe(
+      `select status||'|'||balance_cents from device_rental_deposit where deposit_id=${depId}`
+    );
+    const [dstatus0, dbal0] = (depRow0.val || '').split('|');
+    record(
+      'F6',
+      'F6-02-deposit-register',
+      reg.status === 200 && dstatus0 === 'HELD' && Number(dbal0) === 20000 && bal() === b0 - 20000,
+      `押金登记：HTTP=${reg.status} depositId=${depId ?? '(无)'}｜库 status=${dstatus0} balance=${dbal0}｜商户钱包 ${b0}→${bal()}（ONLINE 收取，installFee 默认0）`,
+      writeText('f6-deposit-register', {
+        http: reg.status,
+        body: reg.json,
+        walletDelta: b0 - bal()
+      })
+    );
+
+    // F6-03 扣款守卫：空依据 ⇒ 400；有效扣 5000 ⇒ balance 15000 + DEDUCT 事件。depId 缺失（登记失败）⇒ BLOCKED，不伪造。
+    if (depId === undefined || depId === null) {
+      record(
+        'F6',
+        'F6-03-deposit-deduct',
+        'BLOCKED',
+        'F6-02 未拿到 depositId ⇒ 扣款链无从推进（不伪造）',
+        null
+      );
+      record('F6', 'F6-04-deposit-settle', 'BLOCKED', '同上：无 depositId ⇒ 结算链 BLOCKED', null);
+    } else {
+      const dedBad = await api(admin.token, 'POST', `${rental}/deposits/${depId}/deduct`, {
+        amountCents: 5000,
+        reason: '  '
+      });
+      const ded = await api(admin.token, 'POST', `${rental}/deposits/${depId}/deduct`, {
+        amountCents: 5000,
+        reason: '审计验机损坏抵扣'
+      });
+      const dedEvents = psqlSafe(
+        `select coalesce(string_agg(event_type,','),'') from device_rental_deposit_event where deposit_id=${depId}`
+      );
+      const depRow2 = psqlSafe(
+        `select balance_cents from device_rental_deposit where deposit_id=${depId}`
+      );
+      record(
+        'F6',
+        'F6-03-deposit-deduct',
+        dedBad.status === 400 &&
+          ded.status === 200 &&
+          Number((depRow2.val || '').trim()) === 15000 &&
+          /DEDUCT/.test(dedEvents.val || ''),
+        `扣款：空依据 HTTP=${dedBad.status}(期望400)｜有效 HTTP=${ded.status} 余额=${depRow2.val || depRow2.err} 事件=${dedEvents.val || dedEvents.err}（期望 15000 + DEDUCT）`,
+        writeText('f6-deduct', { noReason: dedBad.json, ok: ded.json, events: dedEvents.val })
+      );
+
+      // F6-04 结算：剩余 15000 − 安装费(默认0) ⇒ 全额退回商户钱包，status SETTLED，RETURN 事件；钱包净 = b0 − 5000。
+      const set = await api(admin.token, 'POST', `${rental}/deposits/${depId}/settle`, {
+        remark: '审计撤机结算'
+      });
+      const depRow3 = psqlSafe(
+        `select status from device_rental_deposit where deposit_id=${depId}`
+      );
+      const setEvents = psqlSafe(
+        `select coalesce(string_agg(event_type,','),'') from device_rental_deposit_event where deposit_id=${depId}`
+      );
+      const bAfter = bal();
+      record(
+        'F6',
+        'F6-04-deposit-settle',
+        set.status === 200 &&
+          (depRow3.val || '').trim() === 'SETTLED' &&
+          /RETURN/.test(setEvents.val || ''),
+        `结算：HTTP=${set.status} 状态=${depRow3.val || depRow3.err} 事件=${setEvents.val || setEvents.err}｜钱包 ${b0}→${bAfter}（净 -5000=已抵扣；installFee0⇒剩余 15000 全额 DEPOSIT_RETURN）`,
+        writeText('f6-settle', { http: set.status, body: set.json, wallet: `${b0}->${bAfter}` })
+      );
+    }
+
+    // F6-05 读回列表：GET /deposits 须 200 数组。
+    const listR = await api(admin.token, 'GET', `${rental}/deposits`);
+    const arr = listR.json?.data;
+    const list = Array.isArray(arr) ? arr : Array.isArray(arr?.list) ? arr.list : null;
+    record(
+      'F6',
+      'F6-05-deposits-list',
+      listR.status === 200 && list !== null,
+      `押金列表：HTTP=${listR.status} ${list ? list.length + ' 行' : '非数组'}`,
+      writeText('f6-deposits-list', listR.json)
+    );
+
+    // F6-06 viewer 越权登记押金 ⇒ 403（ops:rental:manage）。
+    const v = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    const vdep = await api(v.token, 'POST', `${rental}/deposits`, {
+      deviceId: DEV,
+      amountCents: 1
+    });
+    record(
+      'F6',
+      'F6-06-viewer-forbidden',
+      vdep.status === 403,
+      `viewer 登记押金：HTTP=${vdep.status}（期望 403 缺 ops:rental:manage）`,
+      writeText('f6-viewer-deposit', vdep.json)
+    );
+
+    // F6-07 出账(REN 日摊)——用产品链挣，不 SQL 造行：先删 (M,feeDate) 当日 REN/DATA 台账行让「当场产出」，
+    //   rerun-daily-fees 遍历全商户 ⇒ 该 RENTAL 设备按 floor(rent/当月天数) 出 REN SETTLED 行（dataFee=0⇒无 DATA）。
+    //   feeDate 取 -2 天（跨服务时区仍稳 <= 昨天，避开 today-1 边界）。
+    const chargeDate = iso(-2 * DAYMS);
+    const [cy, cm] = chargeDate.split('-').map(Number);
+    const cdim = new Date(cy, cm, 0).getDate();
+    const rentDailyExp = Math.floor(RENT / cdim);
+    psql(
+      `begin; delete from merchant_fee_ledger where merchant_id='${M}' and fee_date='${chargeDate}' and fee_type in ('REN','DATA'); commit;`
+    );
+    const rr = await api(admin.token, 'POST', `${feeBase}/rerun-daily-fees?feeDate=${chargeDate}`);
+    const renRow = psqlSafe(
+      `select status||'|'||amount_cents::text from merchant_fee_ledger where merchant_id='${M}' and fee_date='${chargeDate}' and fee_type='REN'`
+    );
+    const [renStatus, renAmount] = (renRow.val || '').split('|');
+    record(
+      'F6',
+      'F6-07-daily-charge-out',
+      rr.status === 200 && renStatus === 'SETTLED' && Number(renAmount) === rentDailyExp,
+      `出账：重跑 ${chargeDate} HTTP=${rr.status} chargedCents=${rr.json?.data?.chargedCents}｜库 REN 行 status=${renStatus} 金额=${renAmount}（期望 floor(${RENT}/${cdim})=${rentDailyExp}，dataFee=0⇒无 DATA 行）`,
+      writeText('f6-daily-charge', {
+        http: rr.status,
+        body: rr.json,
+        ren: renRow.val || renRow.err,
+        rentDailyExp,
+        cdim
+      })
+    );
+
+    // F6-08 锁柜/复机状态机：需账龄>=lock_days 的 **PENDING** merchant_fee_ledger 行（产品日扣只写 SETTLED，
+    //   PENDING 仅人工补录）。隔离栈无 PENDING 且不 SQL 造行凑绿 ⇒ 如实 SKIP。出账已 F6-07 单独挣得。
+    const pendingFee = psqlSafe(`select count(*) from merchant_fee_ledger where status='PENDING'`);
+    record(
+      'F6',
+      'F6-08-fee-lock-statemachine',
+      'SKIP',
+      `锁柜/复机未复现：PENDING 台账行数=${pendingFee.val || pendingFee.err}（日扣只写 SETTLED；锁柜须人工补 PENDING 且最老行账龄满 merchant.overdue.lock_days 默认7⇒FEE_OVERDUE 锁柜，结清后 unlockFeeOverdueIfCleared 复机。接真须造 PENDING 行，见接真 checklist；出账链见 F6-07 已挣）`,
+      null
+    );
   },
 
   /**

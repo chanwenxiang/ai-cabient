@@ -1,0 +1,21 @@
+{
+  "adjust": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "accountId": 5,
+      "channel": "BANK",
+      "accountName": "审计对公户",
+      "balanceCents": 77655,
+      "status": "ACTIVE",
+      "remark": "审计建账",
+      "createdAt": "2026-10-18T03:51:04.342671Z",
+      "updatedAt": "2026-10-18T03:51:04.342671Z"
+    }
+  },
+  "noRemark": {
+    "code": 400,
+    "message": "人工调整必须填写原因",
+    "data": null
+  }
+}
