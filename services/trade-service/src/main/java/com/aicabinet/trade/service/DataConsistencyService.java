@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.DataChangeLog;
 import com.aicabinet.trade.domain.DataConsistencyRecord;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.PaymentOperationTypes;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DataChangeLogMapper;
 import com.aicabinet.trade.mapper.DataConsistencyRecordMapper;
@@ -36,6 +37,11 @@ import java.util.Set;
  *   <li>PAYMENT_AMOUNT 对 PAID/PARTIAL_REFUNDED/REFUNDED 用 LEFT JOIN，无流水且应付&gt;0 也会 FAIL</li>
  *   <li>INVENTORY_MISMATCH / INVENTORY_ORPHAN_LOT 修复时以在架批次合计为准回写汇总表</li>
  *   <li>POINTS_IDENTITY 只校验 available+used+expired=total，与 POINTS_BALANCE（流水合计）互补</li>
+ *   <li>净额类判据（PAYMENT_AMOUNT / ORDER_AMOUNT 提示语 / 两条修复路径取数）的类型清单
+ *       一律取自 {@link PaymentOperationTypes}，**禁止在本类内再写字面清单**
+ *       （门禁 {@code check:payment-net-types-single-source}；起因见 lessons-learned #326）</li>
+ *   <li>MERCHANT/LINE/STAFF × {WALLET, WALLET_LEDGER_SUM} + WALLET_LEDGER_CHAIN 三域同表按 {@code domain} 泛化；
+ *       链判据只看 balance 维度、跳过每 owner 首行（V388 搬运的历史首行不保证从 0 起）</li>
  * </ul>
  */
 @Service
@@ -45,8 +51,6 @@ public class DataConsistencyService {
     private static final String INVENTORY_ORPHAN_LOT = "INVENTORY_ORPHAN_LOT";
     private static final String POINTS_BALANCE = "POINTS_BALANCE";
     private static final String POINTS_IDENTITY = "POINTS_IDENTITY";
-    private static final String MERCHANT_WALLET = "MERCHANT_WALLET";
-    private static final String LINE_WALLET = "LINE_WALLET";
     private static final String REVENUE_SPLIT_SUM = "REVENUE_SPLIT_SUM";
     private static final String REVENUE_SPLIT_MISSING = "REVENUE_SPLIT_MISSING";
     private static final String SLOT_SKU_MISMATCH = "SLOT_SKU_MISMATCH";
@@ -55,8 +59,22 @@ public class DataConsistencyService {
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
     private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
-    private static final String MERCHANT_WALLET_LEDGER_SUM = "MERCHANT_WALLET_LEDGER_SUM";
-    private static final String LINE_WALLET_LEDGER_SUM = "LINE_WALLET_LEDGER_SUM";
+    /**
+     * 三域钱包判据的类型后缀：判据按 {@code domain + 后缀} 拼出（见 {@link #WALLET_DOMAINS}），
+     * {@code applyFix} 用后缀而非逐个枚举识别「仅巡检」——逐个枚举正是补货员域当初被漏掉的方式
+     * （统一前四份手写副本只有商户/线长，STAFF 钱包错了没人查）。
+     */
+    private static final String WALLET_BALANCE_TYPE_SUFFIX = "_WALLET";
+    private static final String WALLET_LEDGER_SUM_TYPE_SUFFIX = "_WALLET_LEDGER_SUM";
+    /** 三域共用的流水链断裂判据（checkKey 带 domain 前缀，故类型只有一条）。 */
+    private static final String WALLET_LEDGER_CHAIN = "WALLET_LEDGER_CHAIN";
+    /**
+     * V388 三域物理统一后 {@code wallet_account}/{@code wallet_ledger} 的域全集。
+     * 判据按此循环 ⇒ 不可能再出现「只写了商户/线长、补货员钱包错了没人查」的盲区。
+     */
+    private static final List<String> WALLET_DOMAINS = List.of("MERCHANT", "LINE", "STAFF");
+    private static final Map<String, String> WALLET_DOMAIN_LABELS =
+            Map.of("MERCHANT", "商户", "LINE", "线长", "STAFF", "补货员");
     private static final String DEVICE_LEDGER = "DEVICE_LEDGER";
     private static final String COUPON_OVER_QUOTA = "COUPON_OVER_QUOTA";
     private static final String TOTAL_AMOUNT_CENTS = "total_amount_cents";
@@ -77,7 +95,7 @@ public class DataConsistencyService {
             "UPPER(COALESCE(l.status, '')) IN ('ON_SALE', 'NEAR_EXPIRY')";
     /**
      * 钱包冻结/解冻的<b>备忘行</b>：只挪冻结维度、<b>不改变总余额</b>（freeze 不动 balance、
-     * release 亦不动），故对账「Σ资金流水 = 总余额」时必须剔除（见 checkMerchantWalletLedgerSumConsistency）。
+     * release 亦不动），故对账「Σ资金流水 = 总余额」时必须剔除（见 {@link #checkWalletLedgerSumConsistency(String)}）。
      */
     private static final String LEDGER_MEMO_ENTRY_TYPES = "'WITHDRAW_FREEZE', 'WITHDRAW_RELEASE'";
 
@@ -201,10 +219,11 @@ public class DataConsistencyService {
             checkCouponIssuedConsistency();
             checkCouponOverQuotaConsistency();
             checkWalletBalanceConsistency();
-            checkMerchantWalletConsistency();
-            checkLineWalletConsistency();
-            checkMerchantWalletLedgerSumConsistency();
-            checkLineWalletLedgerSumConsistency();
+            for (String domain : WALLET_DOMAINS) {
+                checkWalletLatestBalanceConsistency(domain);
+                checkWalletLedgerSumConsistency(domain);
+            }
+            checkWalletLedgerChainConsistency();
             checkRefundAmountConsistency();
             checkOrderLineSumConsistency();
             checkCouponUsedLinkConsistency();
@@ -234,12 +253,9 @@ public class DataConsistencyService {
                 + "COALESCE(o.member_discount_cents, 0) AS member_discount, "
                 + "COALESCE(SUM(ol.line_amount_cents), 0) "
                 + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) AS payable_from_lines, "
-                + "COALESCE((SELECT SUM(CASE "
-                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
-                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
-                + "  ELSE 0 END) FROM payment_operation po "
+                + "COALESCE((SELECT SUM(" + PaymentOperationTypes.netCaseSql("po.") + ") FROM payment_operation po "
                 + "  WHERE po.order_id = o.order_id AND po.status = 'COMPLETED' "
-                + "  AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')), 0) AS net_paid "
+                + "  AND " + PaymentOperationTypes.netTypesFilterSql("po.") + "), 0) AS net_paid "
                 + "FROM cabinet_order o LEFT JOIN cabinet_order_line ol ON o.order_id = ol.order_id "
                 + "WHERE o.status IN ('PAID', 'PARTIAL_REFUNDED') "
                 + "GROUP BY o.order_id, o.total_amount_cents, o.coupon_discount_cents, o.member_discount_cents "
@@ -303,27 +319,22 @@ public class DataConsistencyService {
     }
 
     /**
-     * 净入账（COMPLETED CHARGE/ADJUST_CHARGE − REFUND）vs 订单应付。
+     * 净入账（COMPLETED 入账类型 − REFUND，清单取自 {@link PaymentOperationTypes}）vs 订单应付。
      * PAID / PARTIAL_REFUNDED 比对订单头；REFUNDED 期望净额为 0（全额退）。LEFT JOIN 可检出「已付状态却无流水」。
      */
     void checkPaymentConsistency() {
+        String netCase = PaymentOperationTypes.netCaseSql("po.");
         String sql = "SELECT o.order_id, "
                 + "CASE WHEN o.status = 'REFUNDED' THEN 0 ELSE o.total_amount_cents END AS expected_cents, "
-                + "COALESCE(SUM(CASE "
-                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
-                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
-                + "  ELSE 0 END), 0) AS net_paid "
+                + "COALESCE(SUM(" + netCase + "), 0) AS net_paid "
                 + "FROM cabinet_order o "
                 + "LEFT JOIN payment_operation po ON po.order_id = o.order_id "
                 + "AND po.status = 'COMPLETED' "
-                + "AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND') "
+                + "AND " + PaymentOperationTypes.netTypesFilterSql("po.") + " "
                 + "WHERE o.status IN ('PAID', 'REFUNDED', 'PARTIAL_REFUNDED') "
                 + "GROUP BY o.order_id, o.status, o.total_amount_cents "
                 + "HAVING CASE WHEN o.status = 'REFUNDED' THEN 0 ELSE o.total_amount_cents END "
-                + "<> COALESCE(SUM(CASE "
-                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
-                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
-                + "  ELSE 0 END), 0) "
+                + "<> COALESCE(SUM(" + netCase + "), 0) "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -670,8 +681,7 @@ public class DataConsistencyService {
     }
 
     /**
-     * P3-1a：商户钱包「总余额 = Σ资金流水」全史公式（现有 MERCHANT_WALLET 只比最近一条快照，
-     * 账本历史写错时两处同错=全绿）。
+     * 「总余额 = Σ资金流水」全史公式（同名的 {@code *_WALLET} 只比最近一条快照，账本历史写错时两处同错=全绿）。
      *
      * <p>🔴 口径修正（2026-10-10）：旧判据是 {@code (balance - frozen) == Σ全部流水}，
      * 但写侧 {@code consumeFrozenSplit}（提现打款）把 balance 与 frozen <b>同减毛额</b>
@@ -684,13 +694,14 @@ public class DataConsistencyService {
      * 逐态校验：提现打款后 balance 减毛额、剔除后流水亦为 -毛额（绿）；提现冻结中 balance 不变、
      * 剔除后流水为 0（绿）；提现取消 release 回退、剔除后流水仍为 0（绿）。
      */
-    void checkMerchantWalletLedgerSumConsistency() {
+    void checkWalletLedgerSumConsistency(String domain) {
+        String checkType = domain + WALLET_LEDGER_SUM_TYPE_SUFFIX;
         String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
                 + "THEN l.amount_cents ELSE 0 END), 0)";
-        String sql = "SELECT a.owner_id AS merchant_id, a.balance_cents AS expected, " + sum + " AS actual "
+        String sql = "SELECT a.owner_id AS owner_id, a.balance_cents AS expected, " + sum + " AS actual "
                 + "FROM wallet_account a "
                 + "LEFT JOIN wallet_ledger l ON l.domain = a.domain AND l.owner_id = a.owner_id "
-                + "WHERE a.domain = 'MERCHANT' "
+                + "WHERE a.domain = '" + domain + "' "
                 + "GROUP BY a.owner_id, a.balance_cents "
                 + "HAVING a.balance_cents <> " + sum + " "
                 + "LIMIT " + CHECK_BATCH;
@@ -698,46 +709,21 @@ public class DataConsistencyService {
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String merchantId = String.valueOf(row.get("merchant_id"));
-            failing.add(merchantId);
-            recordInconsistency(MERCHANT_WALLET_LEDGER_SUM, "wallet_account",
-                    merchantId,
+            String ownerId = String.valueOf(row.get("owner_id"));
+            failing.add(ownerId);
+            recordInconsistency(checkType, "wallet_account",
+                    ownerId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
-                    "商户钱包余额 " + row.get(EXPECTED) + " ≠ 资金流水合计 " + row.get(ACTUAL));
+                    walletLabel(domain) + "钱包余额 " + row.get(EXPECTED) + " ≠ 资金流水合计 " + row.get(ACTUAL));
         }
-        resolveStaleFailuresIfComplete(MERCHANT_WALLET_LEDGER_SUM, failing, rows.size());
+        resolveStaleFailuresIfComplete(checkType, failing, rows.size());
     }
 
-    /** P3-1a：线长钱包「总余额 = Σ资金流水」全史公式（口径与商户侧完全同构）。 */
-    void checkLineWalletLedgerSumConsistency() {
-        String sum = "COALESCE(SUM(CASE WHEN l.entry_type NOT IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
-                + "THEN l.amount_cents ELSE 0 END), 0)";
-        String sql = "SELECT a.owner_id AS manager_id, a.balance_cents AS expected, " + sum + " AS actual "
-                + "FROM wallet_account a "
-                + "LEFT JOIN wallet_ledger l ON l.domain = a.domain AND l.owner_id = a.owner_id "
-                + "WHERE a.domain = 'LINE' "
-                + "GROUP BY a.owner_id, a.balance_cents "
-                + "HAVING a.balance_cents <> " + sum + " "
-                + "LIMIT " + CHECK_BATCH;
-
-        Set<String> failing = new HashSet<>();
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-        for (Map<String, Object> row : rows) {
-            String managerId = String.valueOf(row.get("manager_id"));
-            failing.add(managerId);
-            recordInconsistency(LINE_WALLET_LEDGER_SUM, "wallet_account",
-                    managerId,
-                    String.valueOf(row.get(EXPECTED)),
-                    String.valueOf(row.get(ACTUAL)),
-                    "线长钱包余额 " + row.get(EXPECTED) + " ≠ 资金流水合计 " + row.get(ACTUAL));
-        }
-        resolveStaleFailuresIfComplete(LINE_WALLET_LEDGER_SUM, failing, rows.size());
-    }
-
-    /** 商户钱包余额 vs 最近一条流水 balance_after。 */
-    void checkMerchantWalletConsistency() {
-        String sql = "SELECT a.owner_id AS merchant_id, a.balance_cents AS expected, "
+    /** 「账户余额 = 最近一条流水 {@code balance_after}」快照判据，三域同表按 {@code domain} 泛化。 */
+    void checkWalletLatestBalanceConsistency(String domain) {
+        String checkType = domain + WALLET_BALANCE_TYPE_SUFFIX;
+        String sql = "SELECT a.owner_id AS owner_id, a.balance_cents AS expected, "
                 + "latest.balance_after AS actual "
                 + "FROM wallet_account a "
                 + "JOIN LATERAL ( "
@@ -747,50 +733,82 @@ public class DataConsistencyService {
                 + "  ORDER BY l.created_at DESC, l.ledger_id DESC "
                 + "  LIMIT 1 "
                 + ") latest ON true "
-                + "WHERE a.domain = 'MERCHANT' AND a.balance_cents IS DISTINCT FROM latest.balance_after "
+                + "WHERE a.domain = '" + domain + "' AND a.balance_cents IS DISTINCT FROM latest.balance_after "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String merchantId = String.valueOf(row.get("merchant_id"));
-            failing.add(merchantId);
-            recordInconsistency(MERCHANT_WALLET, "wallet_account",
-                    merchantId,
+            String ownerId = String.valueOf(row.get("owner_id"));
+            failing.add(ownerId);
+            recordInconsistency(checkType, "wallet_account",
+                    ownerId,
                     String.valueOf(row.get(EXPECTED)),
                     String.valueOf(row.get(ACTUAL)),
-                    "商户钱包 " + row.get(EXPECTED) + " ≠ 最近流水余额 " + row.get(ACTUAL));
+                    walletLabel(domain) + "钱包 " + row.get(EXPECTED) + " ≠ 最近流水余额 " + row.get(ACTUAL));
         }
-        resolveStaleFailuresIfComplete(MERCHANT_WALLET, failing, rows.size());
+        resolveStaleFailuresIfComplete(checkType, failing, rows.size());
     }
 
-    /** 线路钱包余额 vs 最近一条流水 balance_after。 */
-    void checkLineWalletConsistency() {
-        String sql = "SELECT a.owner_id AS manager_id, a.balance_cents AS expected, "
-                + "latest.balance_after AS actual "
-                + "FROM wallet_account a "
-                + "JOIN LATERAL ( "
-                + "  SELECT l.balance_after "
-                + "  FROM wallet_ledger l "
-                + "  WHERE l.domain = a.domain AND l.owner_id = a.owner_id "
-                + "  ORDER BY l.created_at DESC, l.ledger_id DESC "
-                + "  LIMIT 1 "
-                + ") latest ON true "
-                + "WHERE a.domain = 'LINE' AND a.balance_cents IS DISTINCT FROM latest.balance_after "
+    /**
+     * 流水链连续性：{@code balance_after = 上一行 balance_after + 本期变动}（冻结/解冻备忘行的变动计 0）。
+     *
+     * <p>补的是「最近一条」与「Σ 全部」两条判据<b>同时失明</b>的盲区：中间行被改写而首尾恰好抵消时，
+     * 上面两条都静默（不变量从 2026-10-18 隔离栈 44 行真实提现流水导出：非备忘行 {@code ba = prev_ba + amount}
+     * 逐行成立，{@code WITHDRAW_FREEZE/RELEASE} 的 {@code balance_after} 等于上一行）。
+     *
+     * <p>每个 owner <b>首行不参与</b>比较：V388 从六张旧表搬运的历史首行不保证期初为 0，
+     * 比了就是新的恒假阳性源。
+     *
+     * <p>🔴 与两条 {@code domain} 参数化的检查不同，本检查<b>单次扫全部 domain</b>：{@code checkType}
+     * 三域共用，按域拆成三次跑会让每次的「本轮未再检出 ⇒ 自动 FIXED」把另两域的真 FAIL 误关。
+     */
+    /**
+     * 钱包流水链连续性：每行 {@code balance_after} 必须等于「上一行 balance_after + 本行对余额的影响」，
+     * 冻结/解冻备忘行影响计 0。补的是「Σ 剔除口径」和「最近快照口径」都看不见的<b>中间行被改写</b>。
+     *
+     * <p>🔴 每域<b>首行跳过</b>（{@code prev_balance IS NOT NULL}）：V388 从六张旧表搬运的历史首行
+     * 不保证期初余额为 0，比首行就是造假阳性。
+     *
+     * <p>🔴 本判据<b>一次扫三域</b>而非按 domain 循环：checkType 三域共用一条，若按域分三次跑，
+     * 每轮的「本轮未检出 ⇒ 自动 FIXED」会把其它两域的在案 FAIL 误关。
+     */
+    void checkWalletLedgerChainConsistency() {
+        String sql = "SELECT domain, owner_id, ledger_id, prev_balance, effect_cents, balance_after FROM ("
+                + "  SELECT l.domain, l.owner_id, l.ledger_id, l.balance_after, "
+                + "    LAG(l.balance_after) OVER (PARTITION BY l.domain, l.owner_id "
+                + "      ORDER BY l.created_at, l.ledger_id) AS prev_balance, "
+                + "    CASE WHEN l.entry_type IN (" + LEDGER_MEMO_ENTRY_TYPES + ") "
+                + "      THEN 0 ELSE l.amount_cents END AS effect_cents "
+                + "  FROM wallet_ledger l"
+                + ") t "
+                + "WHERE prev_balance IS NOT NULL AND balance_after <> prev_balance + effect_cents "
+                + "ORDER BY domain, owner_id, ledger_id "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         for (Map<String, Object> row : rows) {
-            String managerId = String.valueOf(row.get("manager_id"));
-            failing.add(managerId);
-            recordInconsistency(LINE_WALLET, "wallet_account",
-                    managerId,
-                    String.valueOf(row.get(EXPECTED)),
-                    String.valueOf(row.get(ACTUAL)),
-                    "线路钱包 " + row.get(EXPECTED) + " ≠ 最近流水余额 " + row.get(ACTUAL));
+            String domain = String.valueOf(row.get("domain"));
+            String ownerId = String.valueOf(row.get("owner_id"));
+            String ledgerId = String.valueOf(row.get("ledger_id"));
+            String key = domain + "|" + ledgerId;
+            failing.add(key);
+            long prev = ((Number) row.get("prev_balance")).longValue();
+            long effect = ((Number) row.get("effect_cents")).longValue();
+            recordInconsistency(WALLET_LEDGER_CHAIN, "wallet_ledger",
+                    key,
+                    String.valueOf(prev + effect),
+                    String.valueOf(row.get("balance_after")),
+                    walletLabel(domain) + "钱包流水断链 owner=" + ownerId + " 行 " + ledgerId
+                            + "：balance_after 应为 上一行 " + prev + " + 本期 " + effect
+                            + "，实际 " + row.get("balance_after"));
         }
-        resolveStaleFailuresIfComplete(LINE_WALLET, failing, rows.size());
+        resolveStaleFailuresIfComplete(WALLET_LEDGER_CHAIN, failing, rows.size());
+    }
+
+    private static String walletLabel(String domain) {
+        return WALLET_DOMAIN_LABELS.getOrDefault(domain, domain);
     }
 
     /** 分账行金额闭合：platform + merchant = gross（排除 VOIDED）。 */
@@ -1103,13 +1121,20 @@ public class DataConsistencyService {
         return keys;
     }
 
-    /** B：存在已完成购物退款，但无 REFUND / REFUND_KEPT 库存审计。 */
+    /**
+     * B：存在已完成购物退款，但无 REFUND / REFUND_KEPT 库存审计。
+     *
+     * <p>🔴 必须限定 {@code inventory_deducted = TRUE}：退款判据的隐含前提是「这笔订单当初扣过库存」，
+     * 缺货取消/未扣库的订单退款<b>本就不该</b>有 REFUND/REFUND_KEPT 流水 ⇒ 缺守卫时每条都是恒假阳性
+     * （2026-10-18 隔离栈实测 2 条，与钱包统一无关，是判据原有缺陷）。
+     */
     private Set<String> checkCrossLinkRefundInventory() {
         String sql = "SELECT DISTINCT po.order_id "
                 + "FROM payment_operation po "
                 + "JOIN cabinet_order o ON o.order_id = po.order_id "
                 + "WHERE po.operation_type = 'REFUND' AND po.status = 'COMPLETED' "
                 + "AND o.status IN ('REFUNDED', 'PARTIAL_REFUNDED', 'PAID') "
+                + "AND o.inventory_deducted = TRUE "
                 + "AND NOT EXISTS ("
                 + "  SELECT 1 FROM inventory_movement m "
                 + "  WHERE m.movement_type IN ('REFUND', 'REFUND_KEPT') "
@@ -1331,7 +1356,11 @@ public class DataConsistencyService {
     }
 
     private FixOutcome applyFix(DataConsistencyRecord consistencyRecord) {
-        return switch (consistencyRecord.getCheckType()) {
+        String checkType = consistencyRecord.getCheckType();
+        if (isWalletScanOnlyType(checkType)) {
+            return FixOutcome.fail("该类仅巡检记录，请人工核对处理");
+        }
+        return switch (checkType) {
             case ORDER_AMOUNT -> fixOrderAmount(consistencyRecord);
             case INVENTORY_MISMATCH -> fixInventoryMismatch(consistencyRecord);
             case INVENTORY_ORPHAN_LOT -> fixInventoryOrphanLot(consistencyRecord);
@@ -1339,13 +1368,24 @@ public class DataConsistencyService {
             case ORDER_LINE_SUM -> fixOrderLineSum(consistencyRecord);
             case COUPON_USED_LINK -> fixCouponUsedLink(consistencyRecord);
             case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
-            case REFUND_AMOUNT, WALLET_BALANCE, MERCHANT_WALLET, LINE_WALLET,
+            case REFUND_AMOUNT, WALLET_BALANCE,
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING, SLOT_SKU_MISMATCH,
                  SLOT_CAPACITY, SLOT_PHYSICAL, WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
                  POINTS_BALANCE, CROSS_LINK ->
                     FixOutcome.fail("该类仅巡检记录，请人工核对处理");
-            default -> FixOutcome.fail("不支持自动修复的类型: " + consistencyRecord.getCheckType());
+            default -> FixOutcome.fail("不支持自动修复的类型: " + checkType);
         };
+    }
+
+    /**
+     * 三域钱包判据的类型名由 {@code domain} 拼出，逐个枚举必然漏域（STAFF 当初就是漏在这儿，
+     * 结果钱包错账走到「不支持自动修复」而非「仅巡检」）。
+     */
+    private static boolean isWalletScanOnlyType(String checkType) {
+        return checkType != null
+                && (WALLET_LEDGER_CHAIN.equals(checkType)
+                        || checkType.endsWith(WALLET_LEDGER_SUM_TYPE_SUFFIX)
+                        || checkType.endsWith(WALLET_BALANCE_TYPE_SUFFIX));
     }
 
     private FixOutcome fixOrderAmount(DataConsistencyRecord consistencyRecord) {
@@ -1376,13 +1416,10 @@ public class DataConsistencyService {
             return null;
         }
         int paid = queryInt(
-                "SELECT COALESCE(SUM(CASE "
-                        + "WHEN operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN amount_cents "
-                        + "WHEN operation_type = 'REFUND' THEN -amount_cents "
-                        + "ELSE 0 END), 0) "
+                "SELECT COALESCE(SUM(" + PaymentOperationTypes.netCaseSql("") + "), 0) "
                         + "FROM payment_operation "
                         + "WHERE order_id = ? AND status = 'COMPLETED' "
-                        + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
+                        + "AND " + PaymentOperationTypes.netTypesFilterSql(""),
                 orderId);
         int lineSum = queryInt(
                 "SELECT COALESCE(SUM(line_amount_cents), 0) FROM cabinet_order_line WHERE order_id = ?",
@@ -1494,13 +1531,10 @@ public class DataConsistencyService {
 
     private Integer queryNetCompletedCents(String orderId) {
         return jdbcTemplate.query(
-                "SELECT COALESCE(SUM(CASE "
-                        + "WHEN operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN amount_cents "
-                        + "WHEN operation_type = 'REFUND' THEN -amount_cents "
-                        + "ELSE 0 END), 0) "
+                "SELECT COALESCE(SUM(" + PaymentOperationTypes.netCaseSql("") + "), 0) "
                         + "FROM payment_operation "
                         + "WHERE order_id = ? AND status = 'COMPLETED' "
-                        + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
+                        + "AND " + PaymentOperationTypes.netTypesFilterSql(""),
                 rs -> rs.next() ? rs.getInt(1) : null,
                 orderId);
     }

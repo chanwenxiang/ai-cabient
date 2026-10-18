@@ -128,6 +128,16 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyJudgeSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java。' +
+        '在真 Postgres 上跑巡检**判据 SQL 的行为**（桩 JdbcTemplate 的 DataConsistencyServiceTest 判不了 SQL 语义）：' +
+        '2026-10-18 隔离栈 8 条报警里 6 条假阳性就是这类缺陷，用例含「先红再绿」的负向证明'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/DeviceSkuLotEnabledSlotSqlIT.java',
     {
       job: 'integration',

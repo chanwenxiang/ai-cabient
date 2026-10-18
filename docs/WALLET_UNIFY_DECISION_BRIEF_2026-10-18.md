@@ -149,7 +149,9 @@ B) **上线前的资金链回归窗口**（12 注入面 × 14 测试类 × 20 ad
   2. **`COMPETITOR_REF` 指向 CB-054,CB-033**——不为「存储收敛」这一已基准化能力新造无实证台账条目（门禁 N/A 通道因 SQL 含业务语义词被拒），复用真实存在的 CB-054（三域钱包本体）+ CB-033（资金池独立领域）。
 - **测试口径坑**：`MerchantWalletFeeSplitTest` 必须 stub `WalletAccountMapper.findByOwnerForUpdate`（返回 `Optional` 的 default 包装），而非底层 `findByOwnerForUpdateRaw`——Mockito 会拦截 default 方法、不委托底层，否则 `reload()` 拿到 `Optional.empty` 抛 500「钱包不存在」。
 - **验证（本 worktree，Docker 可用）**：clean compile 877；全量单测 **2031/0/0**；`run-audit-gates.mjs` **46 门禁 0 失败**；`WalletRefIdempotencySqlIT` **一次性空库 Flyway 从零**（含 V388/V389）5/5 绿。
-- **仍待监督环境**：隔离栈空库重跑对账 + F4/F8 余额侧 + `pre-push-ci-preflight` + refspec 推 dev；F1 结算链 2026-10-19 真·将邑柜复跑。
+- **运行期回归（2026-10-18 补齐，`aicabinet-uat` 隔离栈就地升级 V386→V389）**：升级前 38 行 / 升级后 38 行按归一化多重集**双向差 0**（首次在有真实数据的库上跑 V388 搬运）；F2–F8 驱动器复跑 **34 PASS / 0 FAIL / 2 SKIP**；`POST /api/v2/ops/admin/consistency/run` 真跑改写后的生产对账 SQL，四条钱包判据全静默。🔴 **负向证明**：本栈 LINE/STAFF 各 0 账户，静默本身是空转绿 ⇒ 播 LINE 探针（`WITHDRAW_FREEZE` 备忘 + 两条 COMMISSION）账平时不报警、余额 800→1000 后 `LINE_WALLET` 与 `LINE_WALLET_LEDGER_SUM` **双双报警**、清探针后自动 `FIXED`。证据 [wallet-unify-runtime-regression-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/wallet-unify-runtime-regression-2026-10-18.md)。
+- **仍待监督环境**：F1 结算链 2026-10-19 真·将邑柜复跑。另：本轮查出两条**与本统一无关的既有巡检假阳性**（`PAYMENT_AMOUNT` 缺 `PREAUTH_CAPTURE`、`CROSS_LINK/RFINV` 缺 `inventory_deducted` 守卫），属资金巡检判据 ⇒ 登记待拍板，未动代码。
+- **同日追加（拍板「两条都修」后落地，非本简报范围但同源）**：两条假阳性已修；顺带把三域钱包判据泛化（补上 STAFF）、新增流水链连续性判据、净额口径收敛为 `PaymentOperationTypes` 单一事实源 + grep 门禁。隔离栈实跑 failCount **8 → 2**，STAFF/链两判据做了四段负向证明。证据 [consistency-judge-fixes-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/consistency-judge-fixes-2026-10-18.md)。
 
 ## 附录 A · 关键行号索引
 

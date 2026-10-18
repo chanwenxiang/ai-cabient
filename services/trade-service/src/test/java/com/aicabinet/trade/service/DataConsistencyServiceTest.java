@@ -590,12 +590,12 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void checkMerchantWalletConsistency_joinsLatestLedger() {
+    void checkWalletLatestBalanceConsistency_joinsLatestLedgerPerDomain() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
                 .thenReturn(List.of());
 
-        service.checkMerchantWalletConsistency();
+        service.checkWalletLatestBalanceConsistency("MERCHANT");
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).queryForList(sqlCaptor.capture());
@@ -638,7 +638,7 @@ class DataConsistencyServiceTest {
         service.checkSlotPhysicalConsistency();
         service.checkWarehouseNegativeConsistency();
         service.checkCouponOverQuotaConsistency();
-        service.checkLineWalletConsistency();
+        service.checkWalletLatestBalanceConsistency("LINE");
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, times(6)).queryForList(sqlCaptor.capture());
@@ -806,18 +806,18 @@ class DataConsistencyServiceTest {
 
     @Test
     void checkWalletLedgerSumConsistency_recordsBothWalletsMismatch() {
-        // V388 后两域共用 wallet_account/ledger，按 WHERE domain='X' 关键字分开打桩
+        // V388 后三域共用 wallet_account/ledger，按 WHERE domain='X' 关键字分开打桩
         when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'MERCHANT'")))
-                .thenReturn(List.of(Map.of("merchant_id", "M-1", "expected", 700, "actual", 800)));
+                .thenReturn(List.of(Map.of("owner_id", "M-1", "expected", 700, "actual", 800)));
         when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'LINE'")))
-                .thenReturn(List.of(Map.of("manager_id", 9L, "expected", 300, "actual", 250)));
+                .thenReturn(List.of(Map.of("owner_id", "9", "expected", 300, "actual", 250)));
         when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
                 anyString(), anyString(), anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
                 .thenReturn(List.of());
 
-        service.checkMerchantWalletLedgerSumConsistency();
-        service.checkLineWalletLedgerSumConsistency();
+        service.checkWalletLedgerSumConsistency("MERCHANT");
+        service.checkWalletLedgerSumConsistency("LINE");
 
         org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
                 org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
@@ -836,6 +836,69 @@ class DataConsistencyServiceTest {
             assertTrue(sql.contains("balance_cents"), sql);
             assertFalse(sql.contains("frozen_cents"), sql);
         }
+    }
+
+    @Test
+    void runConsistencyCheck_coversAllThreeWalletDomains() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.runConsistencyCheck();
+
+        // 回归钉子：V388 统一后补货员钱包一度完全没有对账判据（只有 MERCHANT/LINE 两个手写副本）。
+        // 三域判据必须由 WALLET_DOMAINS 循环生成，新增域自动被覆盖。
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).queryForList(sqlCaptor.capture());
+        List<String> walletSqls = sqlCaptor.getAllValues().stream()
+                .filter(sql -> sql.contains("wallet_account") || sql.contains("wallet_ledger"))
+                .toList();
+        for (String domain : List.of("MERCHANT", "LINE", "STAFF")) {
+            assertTrue(walletSqls.stream().anyMatch(sql -> sql.contains("'" + domain + "'")),
+                    "钱包对账缺少 " + domain + " 域判据");
+        }
+    }
+
+    @Test
+    void checkWalletLedgerChainConsistency_usesLagAndSkewsMemoRows() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletLedgerChainConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        // 链判据补的是「Σ 和最近快照同时看不出中间行被改」的盲区
+        assertTrue(sql.contains("LAG(l.balance_after) OVER (PARTITION BY l.domain, l.owner_id"), sql);
+        // 冻结/解冻备忘行不动总余额 ⇒ 本期影响必须计 0，否则每笔提现都报断链
+        assertTrue(sql.contains("THEN 0 ELSE l.amount_cents END AS effect_cents"), sql);
+        // 每域首行没有上一行，比较它 = 恒假阳性
+        assertTrue(sql.contains("prev_balance IS NOT NULL"), sql);
+        // 🔴 单次扫三域：类型共用，按域拆跑会把其它域的在案 FAIL 误判成已修复
+        assertFalse(sql.contains("WHERE l.domain"), sql);
+    }
+
+    @Test
+    void checkWalletLedgerChainConsistency_recordsBrokenMiddleRow() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of(
+                "domain", "STAFF", "owner_id", "77", "ledger_id", 501L,
+                "prev_balance", 600L, "effect_cents", -200L, "balance_after", 999L)));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletLedgerChainConsistency();
+
+        org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
+                org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("WALLET_LEDGER_CHAIN", captor.getValue().getCheckType());
+        assertEquals("STAFF|501", captor.getValue().getCheckKey());
+        assertEquals("400", captor.getValue().getExpectedValue());
+        assertEquals("999", captor.getValue().getActualValue());
     }
 
     @Test
