@@ -1,0 +1,18 @@
+{
+  "viewer": {
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "无权限执行此操作",
+      "data": null
+    }
+  },
+  "admin": {
+    "status": 404,
+    "body": {
+      "code": 404,
+      "message": "提现单不存在",
+      "data": null
+    }
+  }
+}

@@ -14,21 +14,27 @@
 # 共享栈实际占用（须避开）：80 6379 9090 11883 13000 15433 18080 18081 18084 18089 18090 19000 19001 19092 18883 28083
 services:
   redis:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:26379:6379"
   trade-service:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:28081:8080"
       - "127.0.0.1:${XXL_JOB_EXECUTOR_PORT:-39999}:9999"
   device-service:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:28082:8081"
   jiangyi-gateway:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:28094:8083"
   gateway:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:28080:80"
   prometheus:
+    stop_grace_period: 30s
     ports: !override
       - "127.0.0.1:29090:9090"

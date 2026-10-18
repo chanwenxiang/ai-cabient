@@ -2,86 +2,80 @@
   "summary": {
     "flows": [
       "env-baseline",
-      "F1"
+      "F1",
+      "F7",
+      "F8"
     ],
-    "pass": 12,
+    "pass": 28,
     "fail": 1,
-    "skip": 0,
+    "skip": 13,
     "blocked": 0,
-    "at": "2026-10-13T12:50:09.881Z"
+    "at": "2026-10-18T01:47:45.359Z"
   },
   "results": [
     {
       "flow": "ENV",
       "id": "E-01",
       "status": "PASS",
-      "detail": "admin 入口产物=assets/index--YG4jrXZ.js,assets/ui-vendor-Bx2nlMIp.js（index.html 1213B）",
+      "detail": "admin 入口产物=assets/index-DieABj8p.js,assets/ui-vendor-B2gNH_lz.js（index.html 1213B）",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/admin-build-fingerprint.json",
-      "at": "2026-10-13T12:49:59.018Z"
+      "at": "2026-10-18T01:47:10.490Z"
     },
     {
       "flow": "ENV",
       "id": "E-02",
       "status": "PASS",
-      "detail": "代码指纹：当前后端含审计分支入口校验；probe exit=0",
+      "detail": "代码指纹：当前后端含审计分支入口校验；probe exit=1",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/code-fingerprint.json",
-      "at": "2026-10-13T12:49:59.170Z"
+      "at": "2026-10-18T01:47:10.567Z"
     },
     {
       "flow": "ENV",
       "id": "E-03",
-      "status": "PASS",
-      "detail": "token len=0 url=http://localhost/admin/dashboard",
+      "status": "FAIL",
+      "detail": "登录失败",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/e03-admin-login.png",
-      "at": "2026-10-13T12:50:03.145Z"
-    },
-    {
-      "flow": "ENV",
-      "id": "E-04",
-      "status": "PASS",
-      "detail": "订单管理: title=\"订单管理\" table=true rows=0 hydratedEmpty=true loading=false",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/e-04.png",
-      "at": "2026-10-13T12:50:03.875Z"
-    },
-    {
-      "flow": "ENV",
-      "id": "E-05",
-      "status": "PASS",
-      "detail": "争议审核: title=\"争议审核\" table=true rows=4 hydratedEmpty=false loading=false",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/e-05.png",
-      "at": "2026-10-13T12:50:04.600Z"
-    },
-    {
-      "flow": "ENV",
-      "id": "E-06",
-      "status": "PASS",
-      "detail": "异常中心: title=\"异常中心\" table=true rows=6 hydratedEmpty=false loading=false",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/e-06.png",
-      "at": "2026-10-13T12:50:05.411Z"
+      "at": "2026-10-18T01:47:21.847Z"
     },
     {
       "flow": "F1",
       "id": "F1-01",
       "status": "PASS",
-      "detail": "demo/ensure HTTP=200 device=500909625160 sku=SKU-DEMO-001 skus=9 invLines=6",
+      "detail": "demo/ensure HTTP=200 device=EG714090043837 sku=SKU-DEMO-001 skus=8 invLines=6",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-demo-ensure.json",
-      "at": "2026-10-13T12:50:05.492Z"
+      "at": "2026-10-18T01:47:21.873Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-01b",
+      "status": "PASS",
+      "detail": "测试夹具：demo SKU 库存 ≥ 结算所需 2 件；device_sku_inventory(EG714090043837/SKU-DEMO-001)=10",
+      "evidence": null,
+      "at": "2026-10-18T01:47:22.150Z"
     },
     {
       "flow": "F1",
       "id": "F1-02",
       "status": "PASS",
-      "detail": "onboarding/register HTTP=200 status=BOUND body={\"code\":0,\"message\":\"ok\",\"data\":{\"deviceId\":\"500909625160\",\"deviceSn\":\"AUDIT-F1-500909625160\",\"identifier\":\"AUDIT500909625160\",\"modelName\":\"",
+      "detail": "onboarding/register HTTP=200 status=BOUND body={\"code\":0,\"message\":\"ok\",\"data\":{\"deviceId\":\"EG714090043837\",\"deviceSn\":\"AUDIT-F1-EG714090043837\",\"identifier\":\"AUDITEG714090043837\",\"modelN",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-jiangyi-register.json",
-      "at": "2026-10-13T12:50:05.853Z"
+      "at": "2026-10-18T01:47:22.302Z"
     },
     {
       "flow": "F1",
       "id": "F1-02b",
       "status": "SEEDED",
-      "detail": "BOUND 档案种子（替代 setDomain 的将邑平台签发 identifier 这一步，不替代我方判定）：库=BOUND|AUDIT500909625160|AUDIT-F1-500909625160；trade 路由判定 routable=true",
+      "detail": "BOUND 档案种子（替代 setDomain 的将邑平台签发 identifier 这一步，不替代我方判定）：库=BOUND|AUDITEG714090043837|AUDIT-F1-EG714090043837；trade 路由判定 routable=true",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-jiangyi-seed.json",
-      "at": "2026-10-13T12:50:06.574Z"
+      "at": "2026-10-18T01:47:22.627Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-02c",
+      "status": "PASS",
+      "detail": "后台激活（A1/P0-3 令牌闸门前置，走 ops:device:edit 产品路径而非 SQL）：activate HTTP=200 body={\"code\":0,\"message\":\"ok\",\"data\":{\"deviceId\":\"EG714090043837\",\"deviceSn\":\"AUDIT-F1-EG714090043837\",\"identifier\":\"AUDITEG7；库 auth_enabled=true",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-jiangyi-activate.json",
+      "at": "2026-10-18T01:47:23.012Z"
     },
     {
       "flow": "F1",
@@ -89,7 +83,7 @@
       "status": "PASS",
       "detail": "class-mapping 9001→SKU-DEMO-001 HTTP=200",
       "evidence": null,
-      "at": "2026-10-13T12:50:06.598Z"
+      "at": "2026-10-18T01:47:23.022Z"
     },
     {
       "flow": "F1",
@@ -97,15 +91,15 @@
       "status": "PASS",
       "detail": "consumer login HTTP=200",
       "evidence": null,
-      "at": "2026-10-13T12:50:06.672Z"
+      "at": "2026-10-18T01:47:23.085Z"
     },
     {
       "flow": "F1",
       "id": "F1-04b",
       "status": "PASS",
-      "detail": "将邑模拟器（device-simulator jiangyi 模式）SN=AUDIT-F1-500909625160 已连 gateway，柜机 online_status=ONLINE（判据=gateway 建连回执→trade ws-online→setWsPresence，非脚本改库）｜gateway 日志：2026-10-13T12:50:07.372Z  INFO [jiangyi-gateway,,] c.a.j.ws.DeviceWebSocketHandler - jiangyi ws online reported deviceId=500909625160 identifier=AUDIT500909625160｜模拟器日志：[jiangyi-sim] ������base=http://127.0.0.1:18094 sn=AUDIT-F1-500909625160 [jiangyi-sim] POST /jiangyi/api/token/openDoorDeviceStatus �� 200 {\"msg\":\"success\",\"data\":{\"token\":\"eyJhbGciOiJIUzM4NCJ9.eyJqdG",
+      "detail": "将邑模拟器（device-simulator jiangyi 模式）SN=AUDIT-F1-EG714090043837 已连 gateway，柜机 online_status=ONLINE（判据=gateway 建连回执→trade ws-online→setWsPresence，非脚本改库）｜gateway 日志：2026-10-18T09:47:23.619+08:00  INFO [jiangyi-gateway,,] c.a.j.ws.DeviceWebSocketHandler - jiangyi ws online reported deviceId=EG714090043837 identifier=AUDITEG714090043837｜模拟器日志：[jiangyi-sim] ������base=http://127.0.0.1:28094 sn=AUDIT-F1-EG714090043837 [jiangyi-sim] POST /jiangyi/api/token/openDoorDeviceStatus �� 200 {\"msg\":\"success\",\"data\":{\"token\":\"eyJhbGciOiJIUzI1NiJ9.eyJq",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-simulator-online.json",
-      "at": "2026-10-13T12:50:09.131Z"
+      "at": "2026-10-18T01:47:25.169Z"
     },
     {
       "flow": "F1",
@@ -113,15 +107,254 @@
       "status": "PASS",
       "detail": "ops login HTTP=200 2FA=false",
       "evidence": null,
-      "at": "2026-10-13T12:50:09.369Z"
+      "at": "2026-10-18T01:47:25.373Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-04e",
+      "status": "PASS",
+      "detail": "营业锁前置（离线超时自动停售的解锁走运营 API，不改库）：GET policy HTTP=200 salesLocked=false saleForbidden=false｜无需解锁｜库=sales_locked=false sale_forbidden=false",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-device-policy.json",
+      "at": "2026-10-18T01:47:25.532Z"
     },
     {
       "flow": "F1",
       "id": "F1-05",
-      "status": "FAIL",
-      "detail": "POST /api/v2/sessions HTTP=409 session=undefined state=undefined msg=设备已暂停营业，请稍后再试",
+      "status": "PASS",
+      "detail": "POST /api/v2/sessions HTTP=200 session=1792288045546140544510 state=OPENING msg=ok",
       "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-session-create.json",
-      "at": "2026-10-13T12:50:09.408Z"
+      "at": "2026-10-18T01:47:25.571Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-06",
+      "status": "PASS",
+      "detail": "设备上报拉门 ⇒ 会话进/过 SHOPPING：state=SHOPPING（期望 SHOPPING 及以上）；gateway 转发原文=2026-10-18T09:47:25.598+08:00  INFO [jiangyi-gateway,,] c.a.j.api.DeviceReportController - jiangyi door-event OPEN forwarded deviceId=EG714090043837 sessionId=1792288045546140544510",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-door-open-chain.json",
+      "at": "2026-10-18T01:47:25.807Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-07",
+      "status": "PASS",
+      "detail": "将邑端侧识别（classId=9001×2）→ gateway 归一转发 → trade 结算 ⇒ 会话终态=COMPLETED（期望 COMPLETED；DISPUTED=映射未命中/无证据，FAILED=开门链断）｜gateway 转发原文=2026-10-18T09:47:31.708+08:00  INFO [jiangyi-gateway,,] c.a.j.api.DeviceReportController - jiangyi recognition forwarded deviceId=EG714090043837 sessionId=1792288045546140544510 items=1 outcome=PROCESSED｜模拟器日志=[jiangyi-sim] ������base=http://127.0.0.1:28094 sn=AUDIT-F1-EG714090043837 [jiangyi-sim] POST /jiangyi/api/token/openDoorDeviceStatus �� 200 {\"msg\":\"success\",\"data\":{\"token\":\"eyJhbGciOiJIUzI1NiJ9.eyJq",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-recognition-chain.json",
+      "at": "2026-10-18T01:47:32.593Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-08",
+      "status": "PASS",
+      "detail": "终态会话收到迟到/重放识别结果 ⇒ 必须拒收且不二次结算：HTTP=200 accepted=false outcome=ALREADY_HANDLED reason=会话已完成结算，请勿重发 stateAfter=COMPLETED（应仍为 COMPLETED）订单合计=686",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-edge-results-replay.json",
+      "at": "2026-10-18T01:47:33.017Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-09",
+      "status": "PASS",
+      "detail": "order=[1792288051644905079319|PAID|686|686|0|0|COMPLETED] lines=[SKU-DEMO-001|2|343|686]",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-db-order.json",
+      "at": "2026-10-18T01:47:33.297Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-10",
+      "status": "PASS",
+      "detail": "Σ行金额=686 − 券=0 − 会员=0 ⇒ 686 应=订单合计=686；逐行 qty×unit=2×343=686",
+      "evidence": null,
+      "at": "2026-10-18T01:47:33.297Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-11",
+      "status": "PASS",
+      "detail": "ops token 复用 F1-04c（长度=265）",
+      "evidence": null,
+      "at": "2026-10-18T01:47:33.297Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-12",
+      "status": "PASS",
+      "detail": "GET ops order HTTP=200 total=686",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-ops-order.json",
+      "at": "2026-10-18T01:47:33.313Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-13",
+      "status": "SKIP",
+      "detail": "SPA UI 登录不通（E-03 同款弱判据），API 面已由 F1-12 实证 orderId=1792288051644905079319 可读；SPA 登录链挂到接真前 checklist",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f1-admin-orders-search.png",
+      "at": "2026-10-18T01:47:44.426Z"
+    },
+    {
+      "flow": "F1",
+      "id": "F1-14",
+      "status": "SKIP",
+      "detail": "订单视频 HTTP=404 bytes=42（本地无模拟器录像⇒OSS 台账空属预期，接真前 checklist 已含真机视频全链）",
+      "evidence": null,
+      "at": "2026-10-18T01:47:44.437Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-01-create-task",
+      "status": "SKIP",
+      "detail": "create-task HTTP=400 msg=请选择设备——⚠️ 请求体字段契约待核实（骨架不猜 body），故后续设备链无法推进",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f7-create-task.json",
+      "at": "2026-10-18T01:47:44.448Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-02-merchant-complete",
+      "status": "SKIP",
+      "detail": "商户 token 不可得（未提供 MERCHANT_PHONE/MERCHANT_PASSWORD）⇒ 任务无法推到 COMPLETED；接真 checklist 需演示商户凭据",
+      "evidence": null,
+      "at": "2026-10-18T01:47:44.449Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-03-videos-by-task",
+      "status": "SKIP",
+      "detail": "无 taskId，跳过读路径断言",
+      "evidence": null,
+      "at": "2026-10-18T01:47:44.449Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-05-edge-video-ingest",
+      "status": "SKIP",
+      "detail": "补货录像只能由边端补货开门上报产生；⚠️ order-video-report(JiangyiInternalController:172) payload 形状待读 DTO，且需 jiangyi 模拟器在补货会话下开门——见接真 checklist",
+      "evidence": null,
+      "at": "2026-10-18T01:47:44.449Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00-viewer-login",
+      "status": "PASS",
+      "detail": "低权 viewer(13900000005) 登录 HTTP=200 token=[REDACTED] 2FA=false（V172 默认 totp=false 不阻断）",
+      "evidence": null,
+      "at": "2026-10-18T01:47:44.649Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00b-viewer-perms",
+      "status": "PASS",
+      "detail": "viewer 权限码里不得含写码；实际：[\"ops:sla\",\"ops:order:list\",\"ops:device-map:view\",\"ops:nav:growth\",\"ops:exception:list\",\"ops:device-kpi:view\",\"ops:session:list\",\"ops:user:list\",\"ops:device:list\",\"ops:fund:list\",\"ops:bigscreen:view\",\"ops:stock-health:list\",\"ops:recognition-demo:view\",\"ops:consistency:list\",\"ops:nav:overview\",\"ops:sales-report:list\",\"o",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-viewer-permissions.json",
+      "at": "2026-10-18T01:47:44.669Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00c-db-no-write",
+      "status": "PASS",
+      "detail": "viewer 角色写码（DB）=(空)",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-viewer-writecodes-db.json",
+      "at": "2026-10-18T01:47:44.823Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-01-refund",
+      "status": "SKIP",
+      "detail": "POST /api/v2/ops/admin/orders/999999999/refund［需 ops:order:refund｜AdminDashboardController:428］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-01-refund.json",
+      "at": "2026-10-18T01:47:44.840Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-02-balance",
+      "status": "SKIP",
+      "detail": "POST /api/v2/ops/admin/users/999999999/balance［需 ops:user:balance｜AdminDashboardController:389］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-02-balance.json",
+      "at": "2026-10-18T01:47:44.871Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-03-recharge-refund",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/recharge/999999999/refund［需 ops:recharge:edit｜AdminDashboardController:418］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-03-recharge-refund.json",
+      "at": "2026-10-18T01:47:44.905Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-04-balance-refund-review",
+      "status": "SKIP",
+      "detail": "POST /api/v2/ops/admin/balance-refunds/999999999/review［需 ops:balance-refund:review｜AdminBalanceRefundController:38］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-04-balance-refund-review.json",
+      "at": "2026-10-18T01:47:44.931Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-05-withdraw-payout",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/merchant-withdraws/999999999/payout［需 ops:merchant-withdraw:review｜MerchantWithdrawController:93］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-05-withdraw-payout.json",
+      "at": "2026-10-18T01:47:44.966Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-06-wallet-adjust",
+      "status": "SKIP",
+      "detail": "POST /api/v2/ops/admin/merchant-wallets/999999999/adjust［需 ops:merchant-withdraw:adjust｜MerchantWalletController:51］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-06-wallet-adjust.json",
+      "at": "2026-10-18T01:47:44.993Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-07-fund-adjust",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/platform-fund/accounts/999999999/adjust［需 ops:fund:manage｜OpsPlatformFundController:73］ viewer=403 admin=400（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-07-fund-adjust.json",
+      "at": "2026-10-18T01:47:45.025Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-08-staff-payout",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/staff-wallets/999999999/payout［需 ops:line-manager:edit｜OpsStaffWalletController:46］ viewer=403 admin=400（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-08-staff-payout.json",
+      "at": "2026-10-18T01:47:45.056Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-09-pricing",
+      "status": "PASS",
+      "detail": "PUT /api/v2/ops/admin/devices/999999999/pricing/999999999［需 ops:pricing:edit｜AdminDevicePricingController:46］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-09-pricing.json",
+      "at": "2026-10-18T01:47:45.088Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-10-config",
+      "status": "SKIP",
+      "detail": "PUT /api/v2/ops/admin/system-configs［需 ops:config:edit｜SystemConfigController:70］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-10-config.json",
+      "at": "2026-10-18T01:47:45.115Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-11-rent-split",
+      "status": "SKIP",
+      "detail": "PUT /api/v2/ops/admin/site-contracts/999999999/rent-split-rules［需 ops:org:edit｜SiteRentSplitController:32］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-11-rent-split.json",
+      "at": "2026-10-18T01:47:45.136Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-12-rbac-assign",
+      "status": "SKIP",
+      "detail": "POST /api/v2/ops/admin/rbac/operators［需 ops:rbac:assign:add｜OpsRbacController:146］ viewer=400=先校验未触达 RBAC 闸门（admin=400）⇒ 权限面未验，需合法 body 补测",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-12-rbac-assign.json",
+      "at": "2026-10-18T01:47:45.163Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-99-summary",
+      "status": "PASS",
+      "detail": "API 层 RBAC：12 探针中 闸门拦住=5、越权=0、先校验未触达闸门(待补 body)=7；菜单/按钮属前端 v-hasPermi 隐藏，非权威闸门，不单独判绿",
+      "at": "2026-10-18T01:47:45.163Z"
     }
   ]
 }

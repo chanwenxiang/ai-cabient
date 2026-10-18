@@ -1,0 +1,18 @@
+{
+  "viewer": {
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "无权限执行此操作",
+      "data": null
+    }
+  },
+  "admin": {
+    "status": 400,
+    "body": {
+      "code": 400,
+      "message": "For input string: \"null\"",
+      "data": null
+    }
+  }
+}

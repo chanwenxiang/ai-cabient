@@ -1,0 +1,18 @@
+{
+  "get": {
+    "status": 200,
+    "body": {
+      "code": 0,
+      "message": "ok",
+      "data": {
+        "deviceId": "EG714090043837",
+        "salesLocked": false,
+        "priceLocked": false,
+        "skuEditForbidden": false,
+        "saleForbidden": false
+      }
+    }
+  },
+  "put": null,
+  "dbAfter": "sales_locked=false sale_forbidden=false"
+}
