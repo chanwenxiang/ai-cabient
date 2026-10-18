@@ -256,9 +256,38 @@ services:
     volumes:
       - ./monitoring/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      # AU-189：prometheus 数据卷——重启丢告警历史与时序
+      - prometheus-data:/prometheus
     depends_on:
       trade-service:
         condition: service_started
       device-service:
         condition: service_started
     profiles: ["apps"]
+
+  # AU-188（2026-10-18 批次 6）：告警通知链路进生产栈——旧形态只在 full.yml 的 alerting
+  # profile（dev/demo 用），base/apps/production 无 relay/alertmanager ⇒ 规则触发了没人收到。
+  # 定义对齐 full.yml（含 AU-189 relay 无状态、alertmanager 配置只读挂载）。
+  feishu-alert-relay:
+    stop_grace_period: 30s
+    image: python:3.12-slim
+    restart: unless-stopped
+    command: python /app/feishu-relay.py
+    environment:
+      PORT: "8098"
+      FEISHU_WEBHOOK_URL: ${FEISHU_WEBHOOK_URL:-}
+      FEISHU_SIGN_SECRET: ${FEISHU_SIGN_SECRET:-}
+    volumes:
+      - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
+    ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
+
+  alertmanager:
+    stop_grace_period: 30s
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - "./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro"
+    ports: ["127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"]
+    depends_on: [feishu-alert-relay]

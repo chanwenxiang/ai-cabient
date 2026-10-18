@@ -70,6 +70,8 @@ services:
     volumes:
       - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
       - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
+      # AU-189：EMQX 数据卷——重启丢内置库 ⇒ 设备凭据变更/用户态不生效（bootstrap CSV 仅首启导入）
+      - emqx-data:/opt/emqx/data
     healthcheck:
       test: ["CMD", "emqx", "ctl", "status"]
       interval: 10s
@@ -119,6 +121,8 @@ services:
       REDPANDA_ADVERTISE: ${REDPANDA_ADVERTISE:-localhost}
     volumes:
       - ./redpanda/redpanda.sasl.yaml:/redpanda-tmpl/redpanda.sasl.yaml:ro
+      # AU-189：redpanda 数据卷——重启丢 offset/主题
+      - redpanda-data:/var/lib/redpanda/data
     ports:
       - "127.0.0.1:9092:9092"
 
@@ -169,6 +173,8 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # AU-189：prometheus 数据卷——重启丢告警历史与时序
+      - prometheus-data:/prometheus
     mem_limit: 512m
     cpus: 0.5
     extra_hosts:
@@ -189,6 +195,8 @@ services:
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+      # AU-189：grafana 数据卷——重启丢仪表盘编辑与数据源改动
+      - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
 
@@ -196,3 +204,8 @@ volumes:
   pgdata:
   miniodata:
   redisdata:
+  # AU-189：观测/消息中间件持久化
+  prometheus-data:
+  grafana-data:
+  redpanda-data:
+  emqx-data:

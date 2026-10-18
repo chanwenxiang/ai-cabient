@@ -166,6 +166,27 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/BalanceRefundResumeDebitSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'AU-193（批次 1）：钉续退补扣单轮双扣修复——debitRemainingBalance 只走 change 幂等语义，' +
+        'Testcontainers 真库断言「补扣 400 后余额只减 400（期望 9600）」+ 仅一条 RESUME 流水' +
+        '（修复前实 9200，peer 真库对账发现）'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/SlotTemplateMappingSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'AU-172（批次 3）：钉陈列模板 @TableId(value="id") 映射修复——insert/selectById/deleteById ' +
+        '三链真库走通（修复前拼 template_id 列全链 500，单测纯 Mockito 拦不住）'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletRefIdempotencySqlIT.java',
     {
       job: 'integration',
@@ -263,8 +284,55 @@ for (const p of GUARDED.keys()) {
   }
 }
 
+// 规则 3.5（AU-178，2026-10-18 批次 6）：GUARDED 条目所在模块必须出现在其 job 的
+// `-pl` 构建范围内——旧缺陷：4 个 trade SqlIT 登记 job:'integration'，
+// 但 ci.yml 的 integration job 只 `-pl services/device-service` ⇒ 用例恒不执行而
+// 本门禁照旧绿（锚点文本在、-pl 范围外）。负向验证：把 ci.yml integration job 的
+// -pl 删掉 services/trade-service 再跑本脚本 ⇒ 必红。
+function moduleOf(testPath) {
+  const m = /^(services\/[^/]+)\/src\/test\//.exec(testPath);
+  return m ? m[1] : null;
+}
+
+function jobMavenModules(ciText, jobName) {
+  const raw = jobBlock(ciText, jobName);
+  if (raw === null) return null;
+  const code = stripShellLineComments(raw);
+  const modules = [];
+  const re = /-pl\s+([^\n]+)/g;
+  for (const m of code.matchAll(re)) {
+    for (const tok of m[1].split(/[\s,]+/)) {
+      const t = tok.trim().replace(/^["']|["']$/g, '');
+      if (t.startsWith('services/')) modules.push(t);
+    }
+  }
+  return modules;
+}
+
 // 规则 3：清单引用的 job，其可执行命令里必须仍有自动发现锚点。
 const usedJobs = [...new Set([...GUARDED.values()].map((v) => v.job))].sort();
+
+const jobModules = new Map();
+for (const job of usedJobs) {
+  const mods = jobMavenModules(ci, job);
+  if (mods !== null) jobModules.set(job, mods);
+}
+if (jobModules.size > 0) {
+  for (const [p, spec] of GUARDED) {
+    const mod = moduleOf(p);
+    if (!mod) continue;
+    const mods = jobModules.get(spec.job);
+    if (mods === undefined || mods.length === 0) continue; // job 无 mvn -pl（纯脚本 job）⇒ 规则 3 已兜
+    if (!mods.includes(mod)) {
+      problems.push(
+        `${p}：登记在 job '${spec.job}'，但该 job 的 -pl 构建范围不含模块 ${mod}\n` +
+          `      （实际 -pl: ${mods.join(', ')}）⇒ 该用例在 CI 中不会执行（AU-178 同型假绿）。` +
+          `请在 ci.yml 对应 job 的 -pl 里补 ${mod}，或把用例移到已构建模块`
+      );
+    }
+  }
+}
+
 for (const job of usedJobs) {
   const spec = JOB_ANCHORS[job];
   if (!spec) {
