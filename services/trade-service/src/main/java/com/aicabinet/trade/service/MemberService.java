@@ -313,7 +313,9 @@ public class MemberService {
         if (actual <= 0) {
             return;
         }
+        // 扣回是「消耗」而非「撤销发放」：total 只增不减，漏归 used 会破 POINTS_IDENTITY 恒等式（CB-058）
         member.setAvailablePoints(available - actual);
+        member.setUsedPoints(nz(member.getUsedPoints()) + actual);
         member.setUpdatedAt(Instant.now());
         memberRepository.save(member);
 
@@ -342,7 +344,6 @@ public class MemberService {
                         r.getMinSpent(),
                         r.getMaxSpent(),
                         r.getMinPoints() != null ? r.getMinPoints() : 0,
-                        r.getMaxPoints(),
                         r.getPointsRate() != null ? r.getPointsRate() : java.math.BigDecimal.ONE,
                         r.getPriceDiscountPct() != null ? r.getPriceDiscountPct() : java.math.BigDecimal.ZERO,
                         r.getSortorder() != null ? r.getSortorder() : 0,

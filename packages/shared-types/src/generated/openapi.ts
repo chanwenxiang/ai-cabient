@@ -11436,8 +11436,6 @@ export interface components {
             maxSpent?: number;
             /** Format: int32 */
             minPoints?: number;
-            /** Format: int32 */
-            maxPoints?: number;
             pointsRate?: number;
             priceDiscountPct?: number;
             /** Format: int32 */

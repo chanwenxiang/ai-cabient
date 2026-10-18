@@ -19,6 +19,11 @@ services:
       - "127.0.0.1:26379:6379"
   trade-service:
     stop_grace_period: 30s
+    # G9（2026-10-18 拍板钉入）：隔离栈把 gateway 重映射到宿主 28080，浏览器带
+    # `Origin: http://localhost:28080` 打 API 会被 Spring CORS 拒（full.yml 默认 http://localhost
+    # 不等 ⇒ Invalid CORS request；curl 不带 Origin 测不出来）。钉成宿主实际端口。
+    environment:
+      CORS_ORIGIN: http://localhost:28080
     ports: !override
       - "127.0.0.1:28081:8080"
       - "127.0.0.1:${XXL_JOB_EXECUTOR_PORT:-39999}:9999"

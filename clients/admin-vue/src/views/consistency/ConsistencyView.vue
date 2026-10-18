@@ -284,6 +284,7 @@ function isWalletCheckType(t: string) {
 function rowSeverity(row: Row): 'high' | 'medium' | 'low' {
   if (
     row.checkType === 'PAYMENT_AMOUNT' ||
+    row.checkType === 'PAID_GROSS_MISMATCH' ||
     row.checkType === 'WALLET_BALANCE' ||
     isWalletCheckType(row.checkType) ||
     row.checkType === 'REVENUE_SPLIT_SUM' ||
@@ -343,9 +344,6 @@ function fixPreview(row: Row): string {
   }
   if (row.checkType === 'INVENTORY_ORPHAN_LOT') {
     return `按在架批次合计 ${displayValue(row, 'actual')} 补齐汇总库存行`;
-  }
-  if (row.checkType === 'POINTS_IDENTITY') {
-    return '按 available+used+expired 回写累计积分';
   }
   if (row.checkType === 'ORDER_AMOUNT') {
     const msg = String(row.errorMessage || '');
@@ -470,7 +468,6 @@ function isFixable(t: string) {
     t === 'ORDER_AMOUNT' ||
     t === 'INVENTORY_MISMATCH' ||
     t === 'INVENTORY_ORPHAN_LOT' ||
-    t === 'POINTS_IDENTITY' ||
     t === 'ORDER_LINE_SUM' ||
     t === 'COUPON_USED_LINK' ||
     t === 'PAYMENT_AMOUNT'
