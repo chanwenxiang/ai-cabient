@@ -87,7 +87,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-C")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-C")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
-        doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         // CB-045 拍板（政府消费券式+比例摊）：oldSubtotal=1000 → newSubtotal=600（退 SKU-A 400），
         // 券抵扣按比例 200×0.6=120（不返券、不重算门槛），退款=800−(600−120)=320
@@ -104,7 +104,7 @@ class SettlementPartialRefundTest {
         assertEquals(480, order.getTotalAmountCents());
         assertEquals(120, order.getCouponDiscountCents());
         verify(couponService).settleAfterPartialRefund(order, 1000, 600);
-        verify(orderPaymentService).refundOrder(order, 320, "coupon partial");
+        verify(orderPaymentService).refundOrder(eq(order), eq(320), eq("coupon partial"), any());
     }
 
     @Test
@@ -127,7 +127,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findByIdForUpdate("O-1")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
         doNothing().when(inventoryService).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());
@@ -192,7 +192,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-2")).thenReturn(Optional.of(order));
         when(orderRepository.findByIdForUpdate("O-2")).thenReturn(Optional.of(order));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
-        doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
         doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(true));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap(), anyString());
 
@@ -227,7 +227,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.findById("O-C04")).thenReturn(Optional.of(order));
         doThrow(new org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "渠道退款失败"))
-                .when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+                .when(orderPaymentService).refundOrder(any(), anyInt(), anyString(), any());
 
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.web.server.ResponseStatusException.class,
@@ -269,5 +269,94 @@ class SettlementPartialRefundTest {
         l.setLineAmountCents(unit * qty);
         l.setBatchNo(batch);
         return l;
+    }
+
+    // ── AU-174/175 回归钉（2026-10-18 批次 1） ─────────────────────────────
+
+    private CabinetOrder paidOrder() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R");
+        order.setSessionId("S-R");
+        order.setDeviceId("CAB-001");
+        order.setUserId(10001L);
+        order.setOriginalAmountCents(1000);
+        order.setTotalAmountCents(1000);
+        order.setStatus("PAID");
+        order.setInventoryDeducted(false);
+        order.setLines(new ArrayList<>(List.of(
+                line("SKU-A", "A", 1, 400, "B1"),
+                line("SKU-B", "B", 2, 300, "B2"))));
+        return order;
+    }
+
+    /** AU-174：支付层正常累加 refundedCents 时，finalize 不得二次累加（旧实现 1000 退 400 账面记 800）。 */
+    @Test
+    void partialRefund_paymentLayerAlreadyAccumulates_noDoubleCount() {
+        CabinetOrder order = paidOrder();
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
+        doNothing().when(orderLineRepository).deleteByOrderId(anyString());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
+        // 模拟 refundOrder 真实行为：短事务把本次退款累加进 refundedCents（余额渠道路径，:809 同型）
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenAnswer(inv -> {
+            CabinetOrder o = inv.getArgument(0);
+            o.setRefundedCents(Math.max(0, o.getRefundedCents()) + inv.getArgument(1, Integer.class));
+            return true;
+        });
+
+        settlementService.partialRefund(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)),
+                false,
+                "au174 no double count");
+
+        assertEquals(400, order.getRefundedCents(),
+                "退款前已退 0 + 本次 400 = 400；若为 800 即 AU-174 双倍记账复发");
+        assertEquals("PARTIAL_REFUNDED", order.getStatus());
+    }
+
+    /** AU-175：渠道幂等跳过（skipped）必须 409 中止，不得继续改行/记账/冲正分账。 */
+    @Test
+    void partialRefund_channelSkipped_aborts409() {
+        CabinetOrder order = paidOrder();
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(false);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> settlementService.partialRefund(
+                        order,
+                        List.of(new OrderRefundRequest.PartialRefundLine("SKU-B", 1, false)),
+                        false,
+                        "au175 skipped must abort"));
+
+        // 渠道没退 ⇒ 本地零改动（不改行、不落库、不冲正分账）
+        verify(orderRepository, never()).save(any());
+        verify(orderRepository, never()).findByIdForUpdate(anyString());
+        verify(orderLineRepository, never()).deleteByOrderId(anyString());
+        verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), anyBoolean());
+    }
+
+    /** AU-175：按行部分退款的幂等键必须带行集指纹（同单同额不同行 = 合法两笔）。 */
+    @Test
+    void partialRefund_idemKeyCarriesLineFingerprint() {
+        CabinetOrder order = paidOrder();
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
+        doNothing().when(orderLineRepository).deleteByOrderId(anyString());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+
+        settlementService.partialRefund(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)),
+                false,
+                "fingerprint key");
+
+        verify(orderPaymentService).refundOrder(
+                eq(order), eq(400), anyString(),
+                argThat(key -> key != null && key.contains(":L:")));
     }
 }

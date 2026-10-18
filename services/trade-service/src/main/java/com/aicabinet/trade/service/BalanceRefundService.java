@@ -469,19 +469,19 @@ public class BalanceRefundService {
         return allocations;
     }
 
-    /** H63 续退补扣：失败冲回时资金已回到余额（未回冻结），故这里直接扣余额。 */
+    /**
+     * H63 续退补扣：失败冲回时资金已回到余额（未回冻结），故这里直接扣余额。
+     * <p>AU-193（2026-10-18 真库实证）：旧实现先手动 {@code setBalanceCents(before-cents)}+save
+     * 扣一次、再调 {@link BalanceLedgerService#change} 又以「已被手动扣过」的余额为基数改一次
+     * ⇒ 单轮双扣（应 10000→9600 实 9200），且 change 写流水以扣后余额为 balance_after ⇒
+     * 流水自洽、资金巡检（余额 vs 最近流水）查不出。修复=删手动扣减，只走 change 的
+     * 锁+幂等+余额校验一体语义（余额不足由 change 内 412 兜住）。
+     * 注意：首退路径 {@code debitAccountForApprovedRefund} 的「手动扣 + recordFreezeOnly
+     * （只记流水不改余额）」是正确写法，勿按本条顺手改。 */
     private void debitRemainingBalance(BalanceRefundRequest req, int cents) {
         if (cents <= 0) {
             return;
         }
-        UserAccount account = accountMapper.findByIdForUpdate(req.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        if (account.getBalanceCents() < cents) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.INSUFFICIENT_BALANCE);
-        }
-        int before = account.getBalanceCents();
-        account.setBalanceCents(before - cents);
-        accountMapper.save(account);
         balanceLedgerService.change(req.getUserId(), -cents, BIZ_BALANCE_REFUND,
                 String.valueOf(req.getRequestId()),
                 "BALANCE_REFUND_RESUME:" + req.getRequestNo(),

@@ -161,12 +161,8 @@ public class SettlementService {
     }
 
     /** @see SettlementPartialRefundService.PartialRefundPrep */
-    public SettlementPartialRefundService.PartialRefundPrep preparePartialRefund(
-            String orderId,
-            List<OrderRefundRequest.PartialRefundLine> refundLines,
-            boolean defaultRestore) {
-        return settlementPartialRefundService.preparePartialRefund(orderId, refundLines, defaultRestore);
-    }
+    // AU-174：preparePartialRefund 门面已删（全仓零消费者）——其「不传退款前已退值」的签名
+    // 在 AU-174 修复后不再有正确语义（priorRefunded 必须在渠道退款前捕获），防止误用复活。
 
     /** @see SettlementPartialRefundService#finalizePartialRefund */
     public PartialRefundResult finalizePartialRefund(SettlementPartialRefundService.PartialRefundPrep prep) {
