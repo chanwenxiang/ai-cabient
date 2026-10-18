@@ -448,7 +448,9 @@ public class RevenueSplitService {
         if (amount <= 0) {
             return;
         }
-        boolean reversed = merchantWalletService.reverseCreditIfPresent(
+        // AU-181：改 AllowNegative 旁路（与 T4 的 clawbackWalletDelta 同构）——
+        // 余额提空/为负商户的退款 finalize 不得被余额闸卡死；refId 不变保幂等
+        boolean reversed = merchantWalletService.reverseCreditAllowNegativeIfPresent(
                 split.getMerchantId(),
                 amount,
                 "SPLIT_REVERSE",

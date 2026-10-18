@@ -477,13 +477,13 @@ class RevenueSplitServiceTest {
 
         when(splitRepository.findByOrderIdForUpdate("O-W2")).thenReturn(Optional.of(split));
         when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(merchantWalletService.reverseCreditIfPresent(eq("M-1"), eq(900L), anyString(), any()))
+        when(merchantWalletService.reverseCreditAllowNegativeIfPresent(eq("M-1"), eq(900L), anyString(), any()))
                 .thenReturn(true);
 
         service.voidSplitOnFullRefund("O-W2");
 
         assertEquals("VOIDED", split.getStatus());
-        verify(merchantWalletService).reverseCreditIfPresent(
+        verify(merchantWalletService).reverseCreditAllowNegativeIfPresent(
                 eq("M-1"), eq(900L), eq("SPLIT_REVERSE"),
                 argThat(cmd -> "SPLIT_REV".equals(cmd.reverseRefType())
                         && "SPLIT-W2".equals(cmd.reverseRefId())
@@ -492,7 +492,7 @@ class RevenueSplitServiceTest {
         verify(splitRepository).save(argThat(s -> "VOIDED".equals(s.getStatus())));
 
         service.voidSplitOnFullRefund("O-W2");
-        verify(merchantWalletService, times(1)).reverseCreditIfPresent(anyString(), anyLong(), anyString(), any());
+        verify(merchantWalletService, times(1)).reverseCreditAllowNegativeIfPresent(anyString(), anyLong(), anyString(), any());
         verify(splitRepository, times(1)).save(any());
     }
 

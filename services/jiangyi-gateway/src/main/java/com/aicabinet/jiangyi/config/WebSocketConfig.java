@@ -2,10 +2,12 @@ package com.aicabinet.jiangyi.config;
 
 import com.aicabinet.jiangyi.ws.DeviceHandshakeInterceptor;
 import com.aicabinet.jiangyi.ws.DeviceWebSocketHandler;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
 /**
  * 将邑设备 WS 注册（CB-022）：{@code /websocket/device/{identifier}?token=}。
@@ -24,6 +26,18 @@ public class WebSocketConfig implements WebSocketConfigurer {
                            DeviceHandshakeInterceptor deviceHandshakeInterceptor) {
         this.deviceWebSocketHandler = deviceWebSocketHandler;
         this.deviceHandshakeInterceptor = deviceHandshakeInterceptor;
+    }
+
+    /**
+     * AU-190（2026-10-18 批次 5）：WS 容器空闲超时 90s——4G 柜机 NAT 半开 TCP 下
+     * sessions 条目永不清理、isOnline 恒 true（ghost-online，开门放行打进虚空）。
+     * 需配合设备端心跳周期 &lt; 90s（V16 心跳协议）让容器踢死链触发 afterConnectionClosed。
+     */
+    @Bean
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
+        container.setMaxSessionIdleTimeout(90_000L);
+        return container;
     }
 
     @Override

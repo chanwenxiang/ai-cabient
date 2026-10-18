@@ -40,6 +40,8 @@ import static org.mockito.Mockito.when;
  * 单测钉住所有进入拉取之前的负向与回执侧。
  */
 @ExtendWith(MockitoExtension.class)
+@org.springframework.test.context.TestPropertySource(
+        properties = "aicabinet.jiangyi.model-sync.allowed-hosts=hunanjysmart.com,localhost,127.0.0.1")
 class JiangyiModelSyncServiceTest {
 
     private static final String DEVICE_ID = "100000000001";
@@ -76,8 +78,12 @@ class JiangyiModelSyncServiceTest {
     @Mock private JiangyiGatewayClient jiangyiGatewayClient;
 
     private JiangyiModelSyncService service() {
-        return new JiangyiModelSyncService(jiangyiGatherClient, jiangyiDeviceMapper,
+        JiangyiModelSyncService svc = new JiangyiModelSyncService(jiangyiGatherClient, jiangyiDeviceMapper,
                 jiangyiClassMappingMapper, deploymentMapper, jiangyiGatewayClient);
+        // AU-183：白名单注入本地 HttpServer host（守卫默认仅将邑域）
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "allowedModelHosts",
+                java.util.List.of("hunanjysmart.com", "http://localhost", "http://127.0.0.1"));
+        return svc;
     }
 
     private JiangyiDevice boundDevice(String industrialControlModel) {

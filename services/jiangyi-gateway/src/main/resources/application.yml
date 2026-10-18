@@ -1,5 +1,12 @@
 server:
   port: 8083
+  # AU-190：优雅停机——SIGTERM 后停收新请求并给在途 WS close(1001) 窗口，
+  # 避免 kill/重启瞬间设备端观测到 1006 硬断风暴
+  shutdown: graceful
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 spring:
   application:

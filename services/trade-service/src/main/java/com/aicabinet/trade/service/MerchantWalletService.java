@@ -79,6 +79,18 @@ public class MerchantWalletService {
     }
 
     /**
+     * AU-181：允许扣成负数的幂等冲正（原 ref 存在才冲、冲正 ref 已记不冲）——
+     * 全额退款 void 链分账冲正专用：余额提空/为负商户的退款 finalize 不得被余额闸卡死。
+     */
+    public boolean reverseCreditAllowNegativeIfPresent(String merchantId, long amountCents, String entryType,
+                                                       ReverseCreditCommand command) {
+        requireMerchantId(merchantId);
+        return engine.reverseCreditAllowNegativeIfPresent(DOMAIN, merchantId, amountCents, entryType,
+                command.reverseRefType(), command.reverseRefId(),
+                command.originalRefType(), command.originalRefId(), command.remark());
+    }
+
+    /**
      * 幂等扣款且允许扣成负数（押金收取：直减可负——余额不足也应收取成功、欠款挂余额）。
      */
     @Transactional

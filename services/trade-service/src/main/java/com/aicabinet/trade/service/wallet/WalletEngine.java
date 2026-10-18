@@ -249,6 +249,37 @@ public class WalletEngine {
         });
     }
 
+    /**
+     * AU-181（2026-10-18 批次 5）：与 {@link #reverseCreditIfPresent} 同构的「允许扣成负数」冲正——
+     * 全额退款 void 链的分账冲正（doVoidSplitOnFullRefund → reverseWalletCredit）此前走
+     * {@code doDebit} 的 412 余额闸 ⇒ 余额已提空/为负的商户退款 finalize 永久回滚、split 永不
+     * VOIDED（T4 当年只给了 clawbackWalletDelta 旁路，本条是被漏改的同族路径）。
+     * 冲正语义保留：原 ref 流水不存在不冲、冲正 ref 已记不冲（幂等不变）。
+     */
+    @Transactional
+    public boolean reverseCreditAllowNegativeIfPresent(WalletDomain domain, String ownerId, long amountCents,
+                                                       String entryType, String reverseRefType,
+                                                       String reverseRefId, String originalRefType,
+                                                       String originalRefId, String remark) {
+        return runWithWalletLock(domain, ownerId, () -> {
+            requirePositive(amountCents);
+            if (originalRefType == null || originalRefId == null
+                    || ledgerMapper.findByRef(domain.column(), ownerId, originalRefType, originalRefId).isEmpty()) {
+                return false;
+            }
+            if (reverseRefType != null && reverseRefId != null
+                    && ledgerMapper.findByRef(domain.column(), ownerId, reverseRefType, reverseRefId).isPresent()) {
+                return false;
+            }
+            WalletAccount account = reload(domain, ownerId);
+            long balance = value(account.getBalanceCents()) - amountCents;
+            persistBalances(domain, ownerId, balance, value(account.getFrozenCents()));
+            appendLedger(domain, ownerId, entryType, -amountCents,
+                    new BalanceSnapshot(balance, value(account.getFrozenCents())), reverseRefType, reverseRefId, remark);
+            return true;
+        });
+    }
+
     /** 某业务动作实际扣减金额（分，正数），无流水返回 0（展示口径 F-5）。 */
     @Transactional(readOnly = true)
     public long debitedCentsByRef(WalletDomain domain, String ownerId, String refType, String refId) {
