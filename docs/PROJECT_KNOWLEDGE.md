@@ -681,6 +681,10 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   `docker-compose.uat-isolated.yml`（隔离栈 admin UI 才开箱可用）属环境口径 ⇒ §10 G9 等拍板。
 - **同日一条既有口径事实（只登记）**：`data_consistency_record` 的同一 `(check_type, check_key)` **再次检出会再插一行**
   （STAFF 探针留下 `STAFF_WALLET|UAT-STAFF-PROBE` 两行 FIXED）⇒ 自愈断言只能按 key 判存在，**不能按行数判「清了几条」**。
+- **落档**：提交 `e39ca4e6`（139 文件）已 refspec 推 origin/dev（快进 `d5dee737..e39ca4e6`），CI run 39118704110 **五作业全绿**
+  （build / integration / admin-artifacts / mini-programs / e2e-h5）。补记一条迁移惯例：V390 首次落库后才补上
+  `MIGRATION_KIND: backfill` 等评审头注释（`check:flyway-seed-separation` 要求数据写语句必须显式声明种类），
+  checksum 随之漂移 ⇒ 隔离栈已 `delete from flyway_schema_history where version='390'`，下次启动按幂等 INSERT 重放（不产生重复行）。
 
 ### 2026-10-18（§12 待拍板 #1 落定：三域钱包**物理统一**为单账本 V388/V389 + 唯一写原语引擎）
 - 🔴 **拍板**：2026-10-18 用户对「三域钱包要不要抽泛型账本原语」选 **A 案「彻底解决干净」**（简报 [WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md](WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md)）。两条锁定范围：① **只统底层**——存储 + 写原语统一，各域 REST 端点 / DTO / 生成的 `openapi.ts` / 后台视图**维持现状**（facade 层委托，DTO 形状不破）；② **平台资金池不并入**——`platform_fund_account` 是资产/备付侧、无冻结无幂等、主键粒度不同，与三域应付钱包语义正交，强并 = 泛型被撑成 `if(domain)` 泥球，维持 `PlatformFundService` 独立领域（CB-033 早定性「本仓新增领域、无竞品先例」）。
