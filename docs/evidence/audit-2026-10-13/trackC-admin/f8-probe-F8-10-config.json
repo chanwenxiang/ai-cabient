@@ -1,18 +1,14 @@
 {
   "viewer": {
-    "status": 400,
+    "status": 403,
     "body": {
-      "code": 400,
-      "message": "配置键不能为空",
+      "code": 403,
+      "message": "无权限执行此操作",
       "data": null
     }
   },
   "admin": {
-    "status": 400,
-    "body": {
-      "code": 400,
-      "message": "配置键不能为空",
-      "data": null
-    }
+    "status": "n/a（无路径 id，跳过正向写以免真实改配置/建操作员）",
+    "body": {}
   }
 }

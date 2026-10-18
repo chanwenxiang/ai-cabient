@@ -46,11 +46,13 @@
  *   隔离栈实测，2026-10-18：needReview→DISPUTED→ops_exception+工单→admin list/claim/resolve
  *   CONFIRM→COMPLETED+建单结算+金额不变量(2×343=686=合计)+viewer 越权 403；F2-18 同 E-03 弱判据如实
  *   SKIP）；F3 退款→报表口径隔离栈实测（2026-10-18）：运营对 F1 已支付 BALANCE 单——viewer 越权 403 / 短原因 400 /
- *   仅退款(restore=false) 200 REFUNDED / 库终态 refunded_cents / 钱包回补 +合计 / 台账净额=0(CHARGE−REFUND) /
+ *   退货退款(restore=true) 200 REFUNDED + 库 inventory_deducted=false / 钱包回补 +合计 / 台账净额=0(入账−REFUND) /
  *   工单 RESOLVED / 分账 VOIDED / 重复退 409 全绿；报表口径钉 (a) 退款感知台账，(c) finance/stats 无退款过滤是已知陷阱不断言。
- *   🔴 F3-03b 捕获真实缺陷 **F3-FIND-1**（记 BLOCKED 不洗绿）：退货退款 restore=true 在 V271 DEFERRABLE 守卫下
- *   必 500——prepare 独立事务把 inventory_deducted 置 false 时 status 仍 PAID ⇒ assert_cabinet_order_inventory_link RAISE
- *   （见 docs/evidence/.../f3-restore-inventory-defect.json）；属产品资金/库存链跨事务边界改动，待拍板。
+ *   ✅ F3-FIND-1 已修（2026-10-18 拍板方案 B）：退货退款 restore=true 原在 V271 DEFERRABLE 守卫下必 500——
+ *   prepare 独立事务把 inventory_deducted 置 false 时 status 仍 PAID ⇒ assert_cabinet_order_inventory_link RAISE。
+ *   修法：SettlementWaiveRefundService 将「回库 + un-deduct」从 prepare 挪到 finalize，与 status=REFUNDED 同事务原子落
+ *   ⇒ 提交守卫见 REFUNDED（非 PAID）即豁免；去重由 finalize 的 REFUNDED 早退保证（替代旧 C03 prepare 落 flag）。
+ *   F3 主链因此从「仅退款 restore=false」改为「退货退款 restore=true」端到端跑通真守卫。
  *   F4 提现审核隔离栈实测绿（2026-10-18，aicabinet-uat）：V321 资质闸门 403 / CB-035 T+1 可用额闸门 412（提额=可用+1 被待结算 3916 分排除）/
  *   ≥阈值 60000 申请→PENDING_REVIEW 冻结毛额 / 两节点(MANAGER→FINANCE，均 admin)审批→PAID(MOCK 软启动) / consumeFrozen 拆 WITHDRAW_PAID+WITHDRAW_FEE(6‰) /
  *   驳回→REJECTED+WITHDRAW_RELEASE / 复用 requestNo 改金额 409 全绿（F4-00 未种 settle_unlock_hour⇒走硬默认 0）。
@@ -60,7 +62,10 @@
  *   押金登记 ONLINE 扣商户 20000→HELD / 空依据扣款 400+有效扣 5000→15000·DEDUCT / 结算 SETTLED·RETURN 净 -5000 / 列表 200 / viewer 403 /
  *   **出账已挣**：rerun-daily-fees 走产品链⇒REN 行 SETTLED 金额=floor(31000/当月天数)=1000·chargedCents=1000（dataFee=0⇒无 DATA 行）；
  *   F6-08 锁柜/复机须账龄满 lock_days 的 **PENDING** 台账行（产品日扣只写 SETTLED，PENDING 仅人工补录）⇒隔离栈无 PENDING 且不 SQL 造行凑绿，如实 SKIP。
- *   F7/F8 为**骨架**（补货录像/越权矩阵按 no-fabricated-evidence 待接真）。
+ *   F7 补货建单+读路径隔离栈实测绿：POST create-from-suggestion(deviceId=EG746560232828)⇒200 建 route+taskId、GET fulfillment-tasks 可核、
+ *   GET order-video-report 读路径/videos?taskId⇒200（本地无模拟器⇒0 行属预期）；F7-02 商户推 COMPLETED 需演示商户凭据、F7-04/05 边端录像上报需 jiangyi 模拟器在补货会话开门⇒无凭据/无录像如实 SKIP（不 SQL 造行凑绿）。
+ *   F8 RBAC 越权矩阵隔离栈实测绿：12 条写端点探针均补到**最小合法 body**，越过 @Valid 直达 @RequiresPermissions AOP 闸门⇒viewer 全 403、0 越权、0「校验先于闸门」；
+ *   admin 正向只在有路径 id 处发（config/rbac 无 id 跳正向写以免真实改配置/建操作员）。菜单/按钮属前端 v-hasPermi 隐藏、非权威闸门不单独判绿。
  *
  * Run:
  *   cd clients/consumer-mp && node ../admin-vue/tests/audit-admin-flows-uat.mjs
@@ -1363,12 +1368,17 @@ const FLOWS_IMPL = {
    */
   F3: async ({ state }) => {
     const f1 = state.f1 || {};
+    // 独立复跑退款链的可选入口：state.f1 缺（本轮没跑 F1）时，用 F3_TARGET_SESSION 指向库中已存在的 PAID 单会话，
+    //   免依赖模拟器在场即可复验退款/退货退款链（真实资金动作仅落隔离栈）。
+    if (!f1.sessionId && process.env.F3_TARGET_SESSION) {
+      f1.sessionId = process.env.F3_TARGET_SESSION.trim();
+    }
     if (!f1.sessionId) {
       record(
         'F3',
         'F3-00',
         'SKIP',
-        `F3 复用 F1 的已支付余额单（按 state.f1.sessionId 定位订单），需 FLOWS 含 F1 在前：state.f1=${JSON.stringify(f1).slice(0, 100)}`,
+        `F3 复用 F1 的已支付余额单（按 state.f1.sessionId 定位订单），需 FLOWS 含 F1 在前或设 F3_TARGET_SESSION：state.f1=${JSON.stringify(f1).slice(0, 100)}`,
         null
       );
       return;
@@ -1453,55 +1463,42 @@ const FLOWS_IMPL = {
       writeText('f3-short-reason', shortReason.json)
     );
 
-    // 🔴 F3-03b 已知缺陷探针（退货退款 restore=true）：当前在带 V271 守卫的库上必然 500，如实记 BLOCKED 不洗绿。
-    //   根因：SettlementWaiveRefundService.applyWaiveInventoryPolicy:143 在 **prepare 独立事务**内把
-    //   inventory_deducted 置 false（货回柜），但 status 仍是 PAID（REFUNDED 要到 finalize 事务才写）；
-    //   V271__cross_link_and_inventory_guard 的 CONSTRAINT TRIGGER assert_cabinet_order_inventory_link()
-    //   DEFERRABLE INITIALLY DEFERRED，于 prepare 提交点校验「PAID/部分退+有行 ⇒ 必须 inventory_deducted=true」⇒ RAISE 500。
-    //   修复属产品资金/库存链改动（跨事务边界），待拍板；本流程主链路改走受支持的「仅退款」口径。
-    const restoreAttempt = await api(
-      admin.token,
-      'POST',
-      `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
-      { reason: '审计退货退款缺陷探针', restoreInventory: true }
-    );
-    const guardHit = /inventory_deducted|assert_cabinet_order_inventory_link/.test(
-      String(restoreAttempt.json?.message || '')
-    );
-    record(
-      'F3',
-      'F3-03b-restore-defect',
-      // 观察即取证：命中 500+守卫 ⇒ BLOCKED（已知缺陷，非本驱动可修）；若将来 200（已修复）⇒ PASS；其它 ⇒ SKIP。
-      restoreAttempt.status === 500 && guardHit
-        ? 'BLOCKED'
-        : restoreAttempt.status === 200
-          ? true
-          : 'SKIP',
-      `退货退款(restore=true)：HTTP=${restoreAttempt.status}${guardHit ? '｜命中 V271 守卫「PAID+未扣库」⇒ 已知缺陷 F3-FIND-1（待拍板），主链改走仅退款' : restoreAttempt.status === 200 ? '｜未再命中守卫⇒疑似缺陷已修复，请复核主链断言' : '（行为异常，需复核）'}`,
-      writeText('f3-restore-inventory-defect', restoreAttempt.json)
-    );
-
+    // F3-04 正向全额退款（退货退款口径 restore=true，F3-FIND-1 修法 B 已修 ⇒ 端到端跑真 V271 守卫）⇒ 200 + REFUNDED。
+    //   balBefore 必须在退款前取（restore=true 回库 + 钱包回补同链发生）。
     const balBefore = Number(
       (
         psqlSafe(`select balance_cents from user_account where user_id='${oUser}'`).val || '0'
       ).trim() || '0'
     );
-
-    // F3-04 正向全额退款（仅退款口径 restore=false，运营默认，避开 F3-03b 守卫缺陷）⇒ 200 + REFUNDED。
     const ref = await api(
       admin.token,
       'POST',
       `/api/v2/ops/admin/orders/${encodeURIComponent(orderId)}/refund`,
-      { reason: '审计退款全链验证（仅退款）', restoreInventory: false }
+      { reason: '审计退款全链验证（退货退款）', restoreInventory: true }
     );
     const rStatus = ref.json?.data?.status;
     const rRefunded = ref.json?.data?.refundedCents;
+    const guardHit = /inventory_deducted|assert_cabinet_order_inventory_link/.test(
+      String(ref.json?.message || '')
+    );
     record(
       'F3',
-      'F3-04-full-refund',
+      'F3-04-full-refund-restore',
       ref.status === 200 && rStatus === 'REFUNDED' && rRefunded === oTotal,
-      `运营全额退款：HTTP=${ref.status} status=${rStatus} refundedCents=${rRefunded}(应=${oTotal}) msg=${String(ref.json?.message || '').slice(0, 60)}`,
-      writeText('f3-refund', ref.json)
+      `运营全额退款(退货退款 restore=true)：HTTP=${ref.status} status=${rStatus} refundedCents=${rRefunded}(应=${oTotal}) msg=${String(ref.json?.message || '').slice(0, 60)}${guardHit ? '｜仍命中 V271 守卫⇒F3-FIND-1 未修好！' : '｜未命中守卫⇒F3-FIND-1 修法 B 生效'}`,
+      writeText('f3-refund-restore', ref.json)
+    );
+
+    // F3-04b 库存回退落库：inventory_deducted 必须随 REFUNDED 同事务翻成 false（修法 B 的原子性直接取证）。
+    const invDeducted = psqlSafe(
+      `select inventory_deducted from cabinet_order where order_id='${orderId}'`
+    );
+    record(
+      'F3',
+      'F3-04b-inventory-undeducted',
+      !invDeducted.err && /^(f|false)$/i.test((invDeducted.val || '').trim()),
+      `退款后 inventory_deducted=${(invDeducted.val || invDeducted.err).trim()}（退货退款应=false，且与 REFUNDED 同事务原子落、未触发 V271 中间态守卫）`,
+      writeText('f3-inventory-undeducted', invDeducted.val || invDeducted.err)
     );
 
     // F3-05 库终态：cabinet_order REFUNDED / refunded_cents=合计 / refunded_at 非空。
@@ -2291,23 +2288,32 @@ const FLOWS_IMPL = {
   F7: async ({ state }) => {
     const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
     state.adminToken = admin.token;
+    const DEV = 'EG746560232828'; // F1 演示设备（merchant=MCH-DEFAULT）
 
-    // F7-01 建单：请求体字段契约待读 OpsReplenishmentController:177 的入参 DTO 后补齐（此处不猜 body）。
+    // F7-01 建单：body 契约 CreateFromSuggestionRequest{deviceId(必填), assigneeUserId?}；
+    //   返回 ApiResponse<ReplenishmentRouteDto{tasks:[{taskId,...}]}>。
+    //   无补货缺口时产品回 400「当前无补货缺口」⇒ 诚实 SKIP（绝不 SQL 造货道缺口凑绿）。
     const created = await api(
       admin.token,
       'POST',
       '/api/v2/ops/admin/replenishment/suggest/create-task',
-      {}
+      {
+        deviceId: DEV
+      }
     );
-    const taskId = created.json?.data?.id ?? created.json?.data?.taskId;
+    const taskArr = created.json?.data?.tasks;
+    const taskId = Array.isArray(taskArr) && taskArr.length ? taskArr[0].taskId : undefined;
+    const noGap = created.status === 400 && /无补货缺口/.test(String(created.json?.message || ''));
     const bodyKnown = created.status === 200 && taskId !== undefined && taskId !== null;
     record(
       'F7',
       'F7-01-create-task',
       bodyKnown ? true : 'SKIP',
       bodyKnown
-        ? `补货任务已建 taskId=${taskId}（GET fulfillment-tasks 可核）`
-        : `create-task HTTP=${created.status} msg=${created.json?.message || ''}——⚠️ 请求体字段契约待核实（骨架不猜 body），故后续设备链无法推进`,
+        ? `补货任务已建 taskId=${taskId}（routeId=${created.json?.data?.routeId}，GET fulfillment-tasks 可核）`
+        : noGap
+          ? `create-task HTTP=400「当前无补货缺口」⇒ 演示设备 ${DEV} 货道库存已达 PAR，无缺口可建；诚实 SKIP（不 SQL 造缺口凑绿）`
+          : `create-task HTTP=${created.status} msg=${created.json?.message || ''}——body 已按 CreateFromSuggestionRequest 补齐，非 200 且非「无缺口」即响应待核实`,
       writeText('f7-create-task', { status: created.status, body: created.json })
     );
 
@@ -2447,108 +2453,126 @@ const FLOWS_IMPL = {
       writeText('f8-viewer-writecodes-db', { val: dbw.val, err: dbw.err })
     );
 
+    // 每探针带满足 DTO 约束（@NotBlank/@NotNull/@NotEmpty）的最小合法 body，使 viewer 越过 Spring @Valid
+    //   抵达 @RequiresPermissions AOP 闸门；null = 该端点空 body 已能到闸门（早先已 403）。
     const PROBES = [
       [
         'F8-01-refund',
         'POST',
         '/api/v2/ops/admin/orders/{orderId}/refund',
         'ops:order:refund',
-        'AdminDashboardController:428'
+        'AdminDashboardController:428',
+        { reason: '审计越权探针', restoreInventory: false }
       ],
       [
         'F8-02-balance',
         'POST',
         '/api/v2/ops/admin/users/{userId}/balance',
         'ops:user:balance',
-        'AdminDashboardController:389'
+        'AdminDashboardController:389',
+        { deltaCents: 0, reason: '审计越权探针', idempotencyKey: 'audit-f8-02' }
       ],
       [
         'F8-03-recharge-refund',
         'POST',
         '/api/v2/ops/admin/recharge/{orderId}/refund',
         'ops:recharge:edit',
-        'AdminDashboardController:418'
+        'AdminDashboardController:418',
+        null
       ],
       [
         'F8-04-balance-refund-review',
         'POST',
         '/api/v2/ops/admin/balance-refunds/{requestId}/review',
         'ops:balance-refund:review',
-        'AdminBalanceRefundController:38'
+        'AdminBalanceRefundController:38',
+        { approve: false }
       ],
       [
         'F8-05-withdraw-payout',
         'POST',
         '/api/v2/ops/admin/merchant-withdraws/{requestId}/payout',
         'ops:merchant-withdraw:review',
-        'MerchantWithdrawController:93'
+        'MerchantWithdrawController:93',
+        null
       ],
       [
         'F8-06-wallet-adjust',
         'POST',
         '/api/v2/ops/admin/merchant-wallets/{merchantId}/adjust',
         'ops:merchant-withdraw:adjust',
-        'MerchantWalletController:51'
+        'MerchantWalletController:51',
+        { amountCents: 0 }
       ],
       [
         'F8-07-fund-adjust',
         'POST',
         '/api/v2/ops/admin/platform-fund/accounts/{accountId}/adjust',
         'ops:fund:manage',
-        'OpsPlatformFundController:73'
+        'OpsPlatformFundController:73',
+        null
       ],
       [
         'F8-08-staff-payout',
         'POST',
         '/api/v2/ops/admin/staff-wallets/{staffUserId}/payout',
         'ops:line-manager:edit',
-        'OpsStaffWalletController:46'
+        'OpsStaffWalletController:46',
+        null
       ],
       [
         'F8-09-pricing',
         'PUT',
         '/api/v2/ops/admin/devices/{deviceId}/pricing/{skuId}',
         'ops:pricing:edit',
-        'AdminDevicePricingController:46'
+        'AdminDevicePricingController:46',
+        null
       ],
       [
         'F8-10-config',
         'PUT',
         '/api/v2/ops/admin/system-configs',
         'ops:config:edit',
-        'SystemConfigController:70'
+        'SystemConfigController:70',
+        { configKey: 'audit.f8.probe', configValue: '1' }
       ],
       [
         'F8-11-rent-split',
         'PUT',
         '/api/v2/ops/admin/site-contracts/{contractId}/rent-split-rules',
         'ops:org:edit',
-        'SiteRentSplitController:32'
+        'SiteRentSplitController:32',
+        { rules: [{ partyType: 'MERCHANT' }] }
       ],
       [
         'F8-12-rbac-assign',
         'POST',
         '/api/v2/ops/admin/rbac/operators',
         'ops:rbac:assign:add',
-        'OpsRbacController:146'
+        'OpsRbacController:146',
+        { phoneNumber: '13900009999', name: '审计探针', password: 'AuditProbe123' }
       ]
     ];
 
-    // 判定口径（关键：区分 RBAC 闸门 vs 先校验，避免把「没触达闸门」误判成安全红/绿）：
+    // 判定口径（区分 RBAC 闸门 vs 先校验，避免把「没触达闸门」误判成安全红/绿）：
     //   viewer 403           ⇒ RBAC 拦住 = PASS（真绿）
     //   viewer 2xx           ⇒ 越权成功 = FAIL（真缺陷）
-    //   viewer 400/404/422   ⇒ 端点**先校验 body/id 再判权限**，探针用空 body+假 id 没触达闸门
-    //                          ⇒ 权限面「未验」，记 SKIP 并标注需补合法 payload（属 #48 完成 F8 的活），不判红也不洗绿。
-    //   其余                 ⇒ 非预期，记 SKIP。
+    //   viewer 其余(4xx/5xx)  ⇒ 端点先校验 body/id 再判权限，探针没触达闸门 ⇒ 权限面「未验」，记 SKIP
+    //                          （合法 body 已补齐，正常应把未验降到 0）。
+    // admin 正向对照仅对「路径含 {id}」的探针发起（用假 id 999999999 ⇒ 业务查无资源，只证「过了 RBAC」而不动真实资金/配置）；
+    //   config(F8-10)/rbac(F8-12) 无路径 id ⇒ 跳过 admin 正向写，避免真实改配置/建操作员。
     let blocked = 0;
     let breach = 0;
     let unverified = 0;
     const unverifiedList = [];
-    for (const [code, method, pathTpl, perm, file] of PROBES) {
+    for (const [code, method, pathTpl, perm, file, body] of PROBES) {
+      const hasPathId = /\{[a-zA-Z]+\}/.test(pathTpl);
       // 用不存在的资源 id 兜住路径参，使 admin 正向对照只证「过了 RBAC」而不动真实资金/配置。
       const p = pathTpl.replace(/\{[a-zA-Z]+\}/g, '999999999');
-      const v = await api(viewer.token, method, p, {});
-      const a = await api(admin.token, method, p, {});
+      const v = await api(viewer.token, method, p, body || {});
+      const a = hasPathId
+        ? await api(admin.token, method, p, body || {})
+        : { status: 'n/a（无路径 id，跳过正向写以免真实改配置/建操作员）', json: {} };
       let verdict;
       if (v.status === 403 && (v.json?.code === 403 || /无权限/.test(v.text || ''))) {
         blocked++;
@@ -2556,10 +2580,6 @@ const FLOWS_IMPL = {
       } else if (v.status >= 200 && v.status < 300) {
         breach++;
         verdict = false;
-      } else if ([400, 404, 409, 422].includes(v.status)) {
-        unverified++;
-        unverifiedList.push(code);
-        verdict = 'SKIP';
       } else {
         unverified++;
         unverifiedList.push(code);
@@ -2570,8 +2590,8 @@ const FLOWS_IMPL = {
         code,
         verdict,
         verdict === 'SKIP'
-          ? `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status}=先校验未触达 RBAC 闸门（admin=${a.status}）⇒ 权限面未验，需合法 body 补测`
-          : `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status} admin=${a.status}（${blocked && v.status === 403 ? '闸门拦住' : '见状态码'}）`,
+          ? `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status}=先校验未触达 RBAC 闸门（admin=${a.status}）⇒ 权限面未验`
+          : `${method} ${p}［需 ${perm}｜${file}］ viewer=${v.status}${hasPathId ? ` admin=${a.status}` : ''}（${v.status === 403 ? '闸门拦住' : '见状态码'}）`,
         writeText(`f8-probe-${code}`, {
           viewer: { status: v.status, body: v.json },
           admin: { status: a.status, body: a.json }

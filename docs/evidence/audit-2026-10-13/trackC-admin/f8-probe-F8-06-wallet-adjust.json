@@ -1,17 +1,17 @@
 {
   "viewer": {
-    "status": 400,
+    "status": 403,
     "body": {
-      "code": 400,
-      "message": "amountCents不能为空",
+      "code": 403,
+      "message": "无权限执行此操作",
       "data": null
     }
   },
   "admin": {
-    "status": 400,
+    "status": 404,
     "body": {
-      "code": 400,
-      "message": "amountCents不能为空",
+      "code": 404,
+      "message": "商户不存在",
       "data": null
     }
   }

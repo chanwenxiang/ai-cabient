@@ -1,9 +1,9 @@
 {
   "viewer": {
-    "status": 400,
+    "status": 403,
     "body": {
-      "code": 400,
-      "message": "原因不能为空",
+      "code": 403,
+      "message": "无权限执行此操作",
       "data": null
     }
   },
@@ -11,7 +11,7 @@
     "status": 400,
     "body": {
       "code": 400,
-      "message": "idempotencyKey不能为空",
+      "message": "不能调整运营账号余额",
       "data": null
     }
   }

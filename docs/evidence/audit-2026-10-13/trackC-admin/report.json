@@ -1,232 +1,279 @@
 {
   "summary": {
     "flows": [
-      "F4",
-      "F5",
-      "F6"
+      "F3",
+      "F7",
+      "F8"
     ],
-    "pass": 25,
+    "pass": 30,
     "fail": 0,
-    "skip": 2,
+    "skip": 3,
     "blocked": 0,
-    "at": "2026-10-18T03:51:07.954Z"
+    "at": "2026-10-18T04:49:41.736Z"
   },
   "results": [
     {
-      "flow": "F4",
-      "id": "F4-00-cb035-config",
+      "flow": "F3",
+      "id": "F3-00",
       "status": "PASS",
-      "detail": "CB-035 settle_unlock_hour 现值=(未种)（未种即走 yml/硬默认 0=次日零点；越界值应被代码 clamp 到 0..23）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-cb035-config.json",
-      "at": "2026-10-18T03:51:02.264Z"
+      "detail": "退款前置：orderId=1792293077352396669219 状态=PAID 渠道=BALANCE 合计=686 消费者=10001（仅 BALANCE+PAID 正向测；状态不可退⇒SKIP）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-target-order.json",
+      "at": "2026-10-18T04:49:38.769Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-01-viewer-forbidden",
+      "flow": "F3",
+      "id": "F3-02-viewer-forbidden",
       "status": "PASS",
-      "detail": "viewer 调 review：HTTP=403 msg=无权限执行此操作（期望 403 无权限）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-viewer-review.json",
-      "at": "2026-10-18T03:51:02.508Z"
+      "detail": "viewer 越权退款：HTTP=403（期望 403，ops:order:refund 闸门）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-viewer-forbidden.json",
+      "at": "2026-10-18T04:49:39.259Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-02-eligibility-gate",
+      "flow": "F3",
+      "id": "F3-03-short-reason",
       "status": "PASS",
-      "detail": "未补资质代提现：HTTP=403 msg=商户资质不完整：缺法人姓名与营业执照，无法发起提现；请先在「商户管理」补齐（期望 403 商户资质不完整，V321 生效）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-eligibility.json",
-      "at": "2026-10-18T03:51:02.527Z"
+      "detail": "短原因退款：HTTP=400 msg=请填写至少 4 字退款原因（期望 400）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-short-reason.json",
+      "at": "2026-10-18T04:49:39.289Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-03-t1-available-gate",
+      "flow": "F3",
+      "id": "F3-04-full-refund-restore",
       "status": "PASS",
-      "detail": "提额=可用余额+1(219001)⇒HTTP=412 msg=可用余额不足（含待结算 39.16 元，需到可提现日之后）（T+1 未解锁分账 3916 分被排除在可提现额度外）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-t1-gate.json",
-      "at": "2026-10-18T03:51:03.146Z"
+      "detail": "运营全额退款(退货退款 restore=true)：HTTP=200 status=REFUNDED refundedCents=686(应=686) msg=ok｜未命中守卫⇒F3-FIND-1 修法 B 生效",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-refund-restore.json",
+      "at": "2026-10-18T04:49:39.530Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-04-apply-pending",
+      "flow": "F3",
+      "id": "F3-04b-inventory-undeducted",
       "status": "PASS",
-      "detail": "代提现 60000：HTTP=200 status=PENDING_REVIEW requestId=5（>=阈值50000⇒PENDING_REVIEW 并冻结毛额）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-apply.json",
-      "at": "2026-10-18T03:51:03.186Z"
+      "detail": "退款后 inventory_deducted=f（退货退款应=false，且与 REFUNDED 同事务原子落、未触发 V271 中间态守卫）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-inventory-undeducted.json",
+      "at": "2026-10-18T04:49:39.675Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-05-freeze-ledger",
+      "flow": "F3",
+      "id": "F3-05-order-terminal",
       "status": "PASS",
-      "detail": "申请冻结台账：WITHDRAW_FREEZE（期望含 WITHDRAW_FREEZE）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-freeze.json",
-      "at": "2026-10-18T03:51:03.327Z"
+      "detail": "订单终态：status=REFUNDED refunded_cents=686(应=686) paid_amount_cents=686 refunded_at非空=true",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-order-after.json",
+      "at": "2026-10-18T04:49:39.820Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-06-two-node-review",
+      "flow": "F3",
+      "id": "F3-06-balance-credited",
       "status": "PASS",
-      "detail": "两节点审批后终态=PAID｜库 status=PAID fee=60000 paid_at=2026-10-18 03:51:03.380856+00（MANAGER→FINANCE 均 admin 处理，approve 两次达 APPROVED，MOCK 软启动打款达 PAID）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-review-final.json",
-      "at": "2026-10-18T03:51:03.527Z"
+      "detail": "钱包回补：before=6770 after=7456 应=+686（余额单退款计入可用余额，非冻结）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-balance.json",
+      "at": "2026-10-18T04:49:39.959Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-07-payout-ledger",
+      "flow": "F3",
+      "id": "F3-07-ledger-net-zero",
       "status": "PASS",
-      "detail": "打款台账：WITHDRAW_FREEZE,WITHDRAW_PAID,WITHDRAW_FEE｜毛额60000 费60000（PAID 应 consumeFrozen 拆 WITHDRAW_PAID+WITHDRAW_FEE）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-payout-ledger.json",
-      "at": "2026-10-18T03:51:03.666Z"
+      "detail": "台账净额(退款感知)：净=0 入账=686 退款=686（期望 0/686/686，netCompletedCents 口径含 PREAUTH_CAPTURE）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-ledger.json",
+      "at": "2026-10-18T04:49:40.111Z"
     },
     {
-      "flow": "F4",
-      "id": "F4-08-reject-releases-frozen",
+      "flow": "F3",
+      "id": "F3-08-ticket-resolved",
       "status": "PASS",
-      "detail": "驳回：status=REJECTED｜台账=WITHDRAW_FREEZE,WITHDRAW_RELEASE（REJECTED 须 releaseFrozen 返还可提现额）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-reject.json",
-      "at": "2026-10-18T03:51:03.859Z"
-    },
-    {
-      "flow": "F4",
-      "id": "F4-09-duplicate-conflict",
-      "status": "PASS",
-      "detail": "复用 requestNo+改金额：HTTP=409 msg=提现单号已被其它请求占用，请更换 requestNo 后重新提交（期望 409 单号占用）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f4-dup.json",
-      "at": "2026-10-18T03:51:03.885Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-00-viewer-forbidden",
-      "status": "PASS",
-      "detail": "viewer 建账：HTTP=403（期望 403 缺 ops:fund:manage）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-viewer-create.json",
-      "at": "2026-10-18T03:51:04.157Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-01-create-account",
-      "status": "PASS",
-      "detail": "建账 BANK：HTTP=200 accountId=5 库 balance=100000（初始 100000 落 RECHARGE 流水；建账 DTO balanceCents=0 属实体时序，以库断言）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-create.json",
-      "at": "2026-10-18T03:51:04.493Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-02-create-guards",
-      "status": "PASS",
-      "detail": "负初始余额 HTTP=400（期望400）｜重复渠道 HTTP=409（期望409）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-create-guards.json",
-      "at": "2026-10-18T03:51:04.528Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-03-recharge",
-      "status": "PASS",
-      "detail": "充值：HTTP=200 100000→120000（期望 +20000）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-recharge.json",
-      "at": "2026-10-18T03:51:04.701Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-04-sweep-outflow",
-      "status": "PASS",
-      "detail": "归集：HTTP=200 120000→90000（期望 -30000 出账）｜amount=0 HTTP=400（期望400）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-sweep.json",
-      "at": "2026-10-18T03:51:04.855Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-05-adjust-signed",
-      "status": "PASS",
-      "detail": "调整：HTTP=200 90000→77655（带符号，允许负余额）｜空原因 HTTP=400（期望400「必须填写原因」）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-adjust.json",
-      "at": "2026-10-18T03:51:05.026Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-06-flows-ledger",
-      "status": "PASS",
-      "detail": "流水：HTTP=200 类型集=ADJUST,SWEEP,RECHARGE（建账/充值 RECHARGE、归集 SWEEP、调整 ADJUST 齐）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f5-flows.json",
-      "at": "2026-10-18T03:51:05.039Z"
-    },
-    {
-      "flow": "F5",
-      "id": "F5-07-payout-not-admin",
-      "status": "SKIP",
-      "detail": "PAYOUT 流水非运营端点：商户提现成功后 recordPayoutQuietly(PlatformFundService:224) 自动落，ref_type=MERCHANT_WITHDRAW；F4 打款链已产出该流水，此处不 POST 伪造",
+      "detail": "退款工单状态集合=[RESOLVED]（应含 RESOLVED 且不残留 OPEN）",
       "evidence": null,
-      "at": "2026-10-18T03:51:05.039Z"
+      "at": "2026-10-18T04:49:40.243Z"
     },
     {
-      "flow": "F6",
-      "id": "F6-00-rerun-guards",
+      "flow": "F3",
+      "id": "F3-09-split-voided",
       "status": "PASS",
-      "detail": "重跑日扣守卫：未来 HTTP=400｜回溯93天 HTTP=400｜非法日期 HTTP=400（均应 400）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-rerun-guards.json",
-      "at": "2026-10-18T03:51:05.084Z"
+      "detail": "分账状态集合=[VOIDED]（有分账⇒应全 VOIDED，voidSplitOnFullRefund:144）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-split.json",
+      "at": "2026-10-18T04:49:40.384Z"
     },
     {
-      "flow": "F6",
-      "id": "F6-01-rental-device-config",
+      "flow": "F3",
+      "id": "F3-10-session-completed",
       "status": "PASS",
-      "detail": "设备配置：HTTP=200｜库 coop_mode=RENTAL rent_cents=31000 data_fee=0（期望 RENTAL/31000/0）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-device-config.json",
-      "at": "2026-10-18T03:51:05.246Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-02-deposit-register",
-      "status": "PASS",
-      "detail": "押金登记：HTTP=200 depositId=3｜库 status=HELD balance=20000｜商户钱包 162916→142916（ONLINE 收取，installFee 默认0）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-deposit-register.json",
-      "at": "2026-10-18T03:51:06.149Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-03-deposit-deduct",
-      "status": "PASS",
-      "detail": "扣款：空依据 HTTP=400(期望400)｜有效 HTTP=200 余额=15000 事件=CHARGE,DEDUCT（期望 15000 + DEDUCT）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-deduct.json",
-      "at": "2026-10-18T03:51:06.471Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-04-deposit-settle",
-      "status": "PASS",
-      "detail": "结算：HTTP=200 状态=SETTLED 事件=CHARGE,DEDUCT,RETURN｜钱包 162916→157916（净 -5000=已抵扣；installFee0⇒剩余 15000 全额 DEPOSIT_RETURN）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-settle.json",
-      "at": "2026-10-18T03:51:06.950Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-05-deposits-list",
-      "status": "PASS",
-      "detail": "押金列表：HTTP=200 1 行",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-deposits-list.json",
-      "at": "2026-10-18T03:51:06.972Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-06-viewer-forbidden",
-      "status": "PASS",
-      "detail": "viewer 登记押金：HTTP=403（期望 403 缺 ops:rental:manage）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-viewer-deposit.json",
-      "at": "2026-10-18T03:51:07.201Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-07-daily-charge-out",
-      "status": "PASS",
-      "detail": "出账：重跑 2026-10-16 HTTP=200 chargedCents=0｜库 REN 行 status=SETTLED 金额=1000（期望 floor(31000/31)=1000，dataFee=0⇒无 DATA 行）",
-      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f6-daily-charge.json",
-      "at": "2026-10-18T03:51:07.529Z"
-    },
-    {
-      "flow": "F6",
-      "id": "F6-08-fee-lock-statemachine",
-      "status": "SKIP",
-      "detail": "锁柜/复机未复现：PENDING 台账行数=0（日扣只写 SETTLED；锁柜须人工补 PENDING 且最老行账龄满 merchant.overdue.lock_days 默认7⇒FEE_OVERDUE 锁柜，结清后 unlockFeeOverdueIfCleared 复机。接真须造 PENDING 行，见接真 checklist；出账链见 F6-07 已挣）",
+      "detail": "退款后会话态=COMPLETED（应仍 COMPLETED）",
       "evidence": null,
-      "at": "2026-10-18T03:51:07.702Z"
+      "at": "2026-10-18T04:49:40.537Z"
+    },
+    {
+      "flow": "F3",
+      "id": "F3-11-double-refund",
+      "status": "PASS",
+      "detail": "重复退款：HTTP=409 msg=订单已退款（期望 409 订单已退款）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f3-double.json",
+      "at": "2026-10-18T04:49:40.567Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-01-create-task",
+      "status": "PASS",
+      "detail": "补货任务已建 taskId=2（routeId=2，GET fulfillment-tasks 可核）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f7-create-task.json",
+      "at": "2026-10-18T04:49:40.656Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-02-merchant-complete",
+      "status": "SKIP",
+      "detail": "商户 token 不可得（未提供 MERCHANT_PHONE/MERCHANT_PASSWORD）⇒ 任务无法推到 COMPLETED；接真 checklist 需演示商户凭据",
+      "evidence": null,
+      "at": "2026-10-18T04:49:40.656Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-03-videos-by-task",
+      "status": "PASS",
+      "detail": "补货录像读路径 HTTP=200 返回 0 行（本地无模拟器⇒0 行属预期，非缺陷）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f7-videos-by-task.json",
+      "at": "2026-10-18T04:49:40.671Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-04-play-url",
+      "status": "SKIP",
+      "detail": "无边端录像行 ⇒ play-url 无从取（接真需模拟器产录像）",
+      "evidence": null,
+      "at": "2026-10-18T04:49:40.671Z"
+    },
+    {
+      "flow": "F7",
+      "id": "F7-05-edge-video-ingest",
+      "status": "SKIP",
+      "detail": "补货录像只能由边端补货开门上报产生；⚠️ order-video-report(JiangyiInternalController:172) payload 形状待读 DTO，且需 jiangyi 模拟器在补货会话下开门——见接真 checklist",
+      "evidence": null,
+      "at": "2026-10-18T04:49:40.671Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00-viewer-login",
+      "status": "PASS",
+      "detail": "低权 viewer(13900000005) 登录 HTTP=200 token=[REDACTED] 2FA=false（V172 默认 totp=false 不阻断）",
+      "evidence": null,
+      "at": "2026-10-18T04:49:40.908Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00b-viewer-perms",
+      "status": "PASS",
+      "detail": "viewer 权限码里不得含写码；实际：[\"ops:sla\",\"ops:order:list\",\"ops:device-map:view\",\"ops:nav:growth\",\"ops:exception:list\",\"ops:device-kpi:view\",\"ops:session:list\",\"ops:user:list\",\"ops:device:list\",\"ops:fund:list\",\"ops:bigscreen:view\",\"ops:stock-health:list\",\"ops:recognition-demo:view\",\"ops:consistency:list\",\"ops:nav:overview\",\"ops:sales-report:list\",\"o",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-viewer-permissions.json",
+      "at": "2026-10-18T04:49:40.929Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-00c-db-no-write",
+      "status": "PASS",
+      "detail": "viewer 角色写码（DB）=(空)",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-viewer-writecodes-db.json",
+      "at": "2026-10-18T04:49:41.072Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-01-refund",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/orders/999999999/refund［需 ops:order:refund｜AdminDashboardController:428］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-01-refund.json",
+      "at": "2026-10-18T04:49:41.107Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-02-balance",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/users/999999999/balance［需 ops:user:balance｜AdminDashboardController:389］ viewer=403 admin=400（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-02-balance.json",
+      "at": "2026-10-18T04:49:41.142Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-03-recharge-refund",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/recharge/999999999/refund［需 ops:recharge:edit｜AdminDashboardController:418］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-03-recharge-refund.json",
+      "at": "2026-10-18T04:49:41.184Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-04-balance-refund-review",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/balance-refunds/999999999/review［需 ops:balance-refund:review｜AdminBalanceRefundController:38］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-04-balance-refund-review.json",
+      "at": "2026-10-18T04:49:41.227Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-05-withdraw-payout",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/merchant-withdraws/999999999/payout［需 ops:merchant-withdraw:review｜MerchantWithdrawController:93］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-05-withdraw-payout.json",
+      "at": "2026-10-18T04:49:41.257Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-06-wallet-adjust",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/merchant-wallets/999999999/adjust［需 ops:merchant-withdraw:adjust｜MerchantWalletController:51］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-06-wallet-adjust.json",
+      "at": "2026-10-18T04:49:41.304Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-07-fund-adjust",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/platform-fund/accounts/999999999/adjust［需 ops:fund:manage｜OpsPlatformFundController:73］ viewer=403 admin=400（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-07-fund-adjust.json",
+      "at": "2026-10-18T04:49:41.330Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-08-staff-payout",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/staff-wallets/999999999/payout［需 ops:line-manager:edit｜OpsStaffWalletController:46］ viewer=403 admin=400（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-08-staff-payout.json",
+      "at": "2026-10-18T04:49:41.361Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-09-pricing",
+      "status": "PASS",
+      "detail": "PUT /api/v2/ops/admin/devices/999999999/pricing/999999999［需 ops:pricing:edit｜AdminDevicePricingController:46］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-09-pricing.json",
+      "at": "2026-10-18T04:49:41.394Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-10-config",
+      "status": "PASS",
+      "detail": "PUT /api/v2/ops/admin/system-configs［需 ops:config:edit｜SystemConfigController:70］ viewer=403（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-10-config.json",
+      "at": "2026-10-18T04:49:41.410Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-11-rent-split",
+      "status": "PASS",
+      "detail": "PUT /api/v2/ops/admin/site-contracts/999999999/rent-split-rules［需 ops:org:edit｜SiteRentSplitController:32］ viewer=403 admin=404（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-11-rent-split.json",
+      "at": "2026-10-18T04:49:41.473Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-12-rbac-assign",
+      "status": "PASS",
+      "detail": "POST /api/v2/ops/admin/rbac/operators［需 ops:rbac:assign:add｜OpsRbacController:146］ viewer=403（闸门拦住）",
+      "evidence": "docs/evidence/audit-2026-10-13/trackC-admin/f8-probe-F8-12-rbac-assign.json",
+      "at": "2026-10-18T04:49:41.488Z"
+    },
+    {
+      "flow": "F8",
+      "id": "F8-99-summary",
+      "status": "PASS",
+      "detail": "API 层 RBAC：12 探针中 闸门拦住=12、越权=0、先校验未触达闸门(待补 body)=0；菜单/按钮属前端 v-hasPermi 隐藏，非权威闸门，不单独判绿",
+      "at": "2026-10-18T04:49:41.488Z"
     }
   ]
 }

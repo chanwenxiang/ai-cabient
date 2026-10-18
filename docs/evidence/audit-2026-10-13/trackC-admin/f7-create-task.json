@@ -1,8 +1,40 @@
 {
-  "status": 400,
+  "status": 200,
   "body": {
-    "code": 400,
-    "message": "请选择设备",
-    "data": null
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "routeId": 2,
+      "routeName": "建议-EG746560232828-2026-10-18",
+      "assigneeUserId": 100000001,
+      "plannedDate": "2026-10-18",
+      "status": "PLANNED",
+      "tasks": [
+        {
+          "taskId": 2,
+          "routeId": 2,
+          "deviceId": "EG746560232828",
+          "assigneeUserId": 100000001,
+          "status": "PENDING",
+          "notes": "from-suggest:EG746560232828",
+          "completedAt": null,
+          "checkInAt": null,
+          "checkInLat": null,
+          "checkInLng": null,
+          "checkInDistanceM": null,
+          "outboundId": null,
+          "createdAt": "2026-10-18T04:49:40.591480Z",
+          "deviceName": "演示智能柜",
+          "routeName": "建议-EG746560232828-2026-10-18",
+          "plannedDate": "2026-10-18",
+          "evidenceCount": null,
+          "lineSummary": null,
+          "deviceHasCoords": true
+        }
+      ],
+      "createdAt": null,
+      "totalDistanceM": 0,
+      "waypoints": []
+    }
   }
 }
