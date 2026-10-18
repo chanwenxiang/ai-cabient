@@ -420,9 +420,25 @@ public class BalanceRefundService {
                         "余额退款申请 " + req.getRequestNo(), alloc.getOutRefundNo());
                 succeeded.add(alloc);
             } catch (RuntimeException e) {
+                // AU-140（2026-10-18 批次 3）：渠道异常 ≠ 渠道未受理——超时/抖动下钱可能已按
+                // 稳定 outRefundNo 受理。旧实现一律按失败冲回 + 续退换单重退 ⇒ 双退窗口，
+                // 且 WeChatRefundReconciler 不覆盖余额切片号（无对账兜底）。查单三态确认：
+                // ACCEPTED ⇒ 按成功推进并补渠道 finalize；NOT_FOUND ⇒ 原失败冲回；
+                // UNKNOWN（支付宝/未配置/查单异常）⇒ 保守维持旧失败路径。
+                PaymentService.SliceRefundProbe probe = paymentService.probeChannelRefundAccepted(
+                        alloc.getRechargeOrderId(), alloc.getOutRefundNo());
+                if (probe == PaymentService.SliceRefundProbe.ACCEPTED) {
+                    paymentService.finalizeChannelPartialRefundQuietly(
+                            alloc.getRechargeOrderId(), alloc.getAmountCents());
+                    log.warn("balance refund channel errored but probe=ACCEPTED, count as succeeded "
+                            + "request={} rechargeOrder={} outRefundNo={}",
+                            req.getRequestNo(), alloc.getRechargeOrderId(), alloc.getOutRefundNo(), e);
+                    succeeded.add(alloc);
+                    continue;
+                }
                 failure = e;
-                log.error("balance refund channel failed request={} rechargeOrder={} outRefundNo={}",
-                        req.getRequestNo(), alloc.getRechargeOrderId(), alloc.getOutRefundNo(), e);
+                log.error("balance refund channel failed request={} rechargeOrder={} outRefundNo={} probe={}",
+                        req.getRequestNo(), alloc.getRechargeOrderId(), alloc.getOutRefundNo(), probe, e);
                 break;
             }
         }

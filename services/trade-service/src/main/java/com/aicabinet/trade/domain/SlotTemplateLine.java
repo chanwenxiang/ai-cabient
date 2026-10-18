@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 @TableName("slot_template_line")
 public class SlotTemplateLine {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long lineId;
 
     private Long templateId;

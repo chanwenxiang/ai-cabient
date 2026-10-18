@@ -596,6 +596,59 @@ public class PaymentService {
 
     public record ChannelPartialRefundPrep(RechargeOrder order, String channel, String refundNo, int alreadyRefunded) {}
 
+    /** AU-140：余额退款切片渠道异常后的查单三态（见 {@link #probeChannelRefundAccepted}）。 */
+    public enum SliceRefundProbe { ACCEPTED, NOT_FOUND, UNKNOWN }
+
+    /**
+     * AU-140（2026-10-18 批次 3）：余额退款切片抛异常 ≠ 渠道未受理——HTTP 超时/网络抖动下
+     * 渠道可能已按稳定 outRefundNo 受理（钱已退或在途）。旧实现一律按失败冲回 + 续退换单重退
+     * ⇒ 双退窗口，且 WeChatRefundReconciler 不覆盖余额切片号（无对账兜底）。
+     * 本方法用与订单退款链同款的 queryRefund 查单确认：
+     * SUCCESS/PROCESSING ⇒ ACCEPTED（不得冲回重退）；404/ABNORMAL/CLOSED ⇒ NOT_FOUND（可安全冲回）；
+     * 支付宝/未配置/查单异常 ⇒ UNKNOWN（保守维持旧失败路径）。
+     */
+    public SliceRefundProbe probeChannelRefundAccepted(String rechargeOrderId, String outRefundNo) {
+        RechargeOrder order = rechargeOrderRepository.findById(rechargeOrderId).orElse(null);
+        if (order == null || outRefundNo == null || outRefundNo.isBlank()) {
+            return SliceRefundProbe.UNKNOWN;
+        }
+        if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel()) || !weChatPayProperties.isConfigured()) {
+            return SliceRefundProbe.UNKNOWN;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode resp =
+                    weChatPayClient.v3().queryRefund(order.getOrderId(), outRefundNo);
+            String status = resp.path("status").asText("");
+            if ("SUCCESS".equals(status) || "PROCESSING".equals(status)) {
+                return SliceRefundProbe.ACCEPTED;
+            }
+            if ("ABNORMAL".equals(status) || "CLOSED".equals(status)) {
+                return SliceRefundProbe.NOT_FOUND;
+            }
+            return SliceRefundProbe.UNKNOWN;
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return SliceRefundProbe.NOT_FOUND;
+            }
+            return SliceRefundProbe.UNKNOWN;
+        } catch (Exception e) {
+            return SliceRefundProbe.UNKNOWN;
+        }
+    }
+
+    /**
+     * AU-140：查单确认已受理后补渠道侧 finalize（异常发生在 HTTP 成功与 finalize 之间的窗口），
+     * 失败仅告警——渠道侧资金已动，本地差额由对账兜底。
+     */
+    public void finalizeChannelPartialRefundQuietly(String orderId, int refundCents) {
+        try {
+            self.finalizeChannelPartialRefund(orderId, refundCents);
+        } catch (Exception e) {
+            log.warn("channel partial refund finalize-after-probe failed orderId={} amount={}",
+                    orderId, refundCents, e);
+        }
+    }
+
     @Transactional
     public ChannelPartialRefundPrep prepareChannelPartialRefund(String orderId, int refundCents, String outRefundNo) {
         RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
