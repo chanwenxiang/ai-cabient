@@ -7,6 +7,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.AdminDashboardControllerSupport;
 import com.aicabinet.trade.client.BarcodeLookupClient;
 import com.aicabinet.trade.dto.BarcodeLookupDto;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
@@ -34,13 +35,16 @@ public class AdminDashboardController {
     private final AdminDashboardService adminService;
     private final AdminDashboardControllerSupport support;
     private final BarcodeLookupClient barcodeLookupClient;
+    private final AdminAuditService auditService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     AdminDashboardControllerSupport support,
-                                    BarcodeLookupClient barcodeLookupClient) {
+                                    BarcodeLookupClient barcodeLookupClient,
+                                    AdminAuditService auditService) {
         this.adminService = adminService;
         this.support = support;
         this.barcodeLookupClient = barcodeLookupClient;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -297,6 +301,9 @@ public class AdminDashboardController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
             @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
+        // AU-192（批次 9）：导出/下载类接口补审计留痕——合法运营拖取订单/会话数据可追责
+        auditService.appendLog(operatorId(request), "EXPORT", "SESSION_CSV",
+                deviceId, "state=" + state + ",from=" + from + ",to=" + to);
         byte[] csv = adminService.exportSessionsCsv(
                 operatorId(request), new OpsSessionOrderQueryService.SessionExportQuery(
                         deviceId, state, sessionId, userId, from, to, q, stuckOnly, stuckMinutes));
@@ -353,6 +360,9 @@ public class AdminDashboardController {
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "excludeZero", required = false) Boolean excludeZero) {
+        // AU-192（批次 9）：导出留痕（同 sessions/export）
+        auditService.appendLog(operatorId(request), "EXPORT", "ORDER_CSV",
+                orderId, "mode=" + mode + ",from=" + from + ",to=" + to);
         byte[] csv = adminService.exportOrdersCsv(
                 operatorId(request), new OpsSessionOrderQueryService.OrderExportQuery(
                         deviceId, status, mode, orderId, userId, sessionId, payTradeNo, payChannel, from, to, q,

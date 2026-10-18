@@ -14,7 +14,9 @@ import java.util.List;
  */
 public record LiveCartUpdateRequest(
         String mode,
-        @Valid List<LiveCartItem> items
+        @Valid List<LiveCartItem> items,
+        /** AU-192：上报设备标识——internal 端点用其与会话归属柜机强校验（DEVICE_MISMATCH）。 */
+        String deviceId
 ) {
     public record LiveCartItem(
             @NotBlank String skuId,
