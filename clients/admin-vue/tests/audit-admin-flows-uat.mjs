@@ -42,8 +42,10 @@
  *   ops:device:edit 产品路径→开门→识别→归一→结算→订单→ops API 读全通；F1-13/F1-14 因 SPA
  *   登录面/local 无录像如实 SKIP）；env-baseline 的 E-03 SPA UI 登录判据偏弱（adminLogin 依赖
  *   前端 form/captcha 按钮 DOM，与 admin-vue 版本绑死，同因导致 F1-13 只能 SKIP；API 面登录
- *   已由 F1-04c/F1-12/F8-00 三处 HTTP=200 反证）；F7/F8 为**骨架**（断言只落真实端点，
- *   设备证据/未核契约标 ⚠️ 待核实并 SKIP，不造绿）。F2–F6 尚未编写。
+ *   已由 F1-04c/F1-12/F8-00 三处 HTTP=200 反证）；F2 争议全链绿（F2-01~17 全 PASS 于 aicabinet-uat
+ *   隔离栈实测，2026-10-18：needReview→DISPUTED→ops_exception+工单→admin list/claim/resolve
+ *   CONFIRM→COMPLETED+建单结算+金额不变量(2×343=686=合计)+viewer 越权 403；F2-18 同 E-03 弱判据如实
+ *   SKIP）；F7/F8 为**骨架**（断言只落真实端点，设备证据/未核契约标 ⚠️ 待核实并 SKIP，不造绿）。F3–F6 尚未编写。
  *
  * Run:
  *   cd clients/consumer-mp && node ../admin-vue/tests/audit-admin-flows-uat.mjs
@@ -92,7 +94,7 @@ function record(flow, id, status, detail, evidence) {
     at: new Date().toISOString()
   });
   console.log(
-    `${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} [${flow}] ${id} — ${String(detail).slice(0, 220)}`
+    `${s === 'PASS' ? '✓' : s === 'FAIL' ? '✗' : '○'} [${flow}] ${id} — ${redactSecrets(String(detail)).slice(0, 220)}`
   );
 }
 async function shot(page, name) {
@@ -105,12 +107,17 @@ async function shot(page, name) {
   }
 }
 /**
- * 证据落盘前**必须脱敏**：设备 token / JWT（三段 `eyJ…`）与 `token=` 查询串一旦被写进
+ * 证据落盘前**必须脱敏**：设备 token / JWT（`eyJ…`）与 `token=` 查询串一旦被写进
  * `docs/evidence/**` 就随提交长期留存，而将邑设备 token TTL 默认 7 天——证据要留，凭据不留。
+ *
+ * <p>两条 JWT 规则缺一不可：三段式抓完整 token；`eyJ…` 前缀式抓**被日志尾部切片截断**的片段
+ * （截断只剩「头 + payload 前缀」时三段正则匹配不到，会把 `{"alg":"HS256"}.eyJq` 这类残片漏进证据，
+ * 2026-10-18 F1-04b/F1-07 实测即命中此坑）。</p>
  */
 function redactSecrets(text) {
   return String(text)
     .replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[REDACTED-JWT]')
+    .replace(/eyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*)*/g, '[REDACTED-JWT]')
     .replace(/(token=)[^&\s"']+/gi, '$1[REDACTED]');
 }
 
@@ -942,6 +949,377 @@ const FLOWS_IMPL = {
       `订单视频 HTTP=${video.status} bytes=${video.text.length}（本地无模拟器录像⇒OSS 台账空属预期，接真前 checklist 已含真机视频全链）`,
       null
     );
+  },
+
+  /**
+   * F2 争议全链（低置信/需复核 → DISPUTED → 后台审核处置 → 终态）。
+   *
+   * 产品判定亲读（行号取本 worktree cadmin-uat）：
+   *   DISPUTED 入口  SettlementRecognitionService:212 escalateToDispute（先 createTicket 再 :218 throw），
+   *                  :114 needReview 判定**早于** :120 dev/mock 短路 ⇒ 环境无关，取 needReview=true 作确定性触发；
+   *                  SessionSettleService:177 catch(DisputeRequiredException) ⇒ 会话 transition DISPUTED
+   *                  + opsExceptionService.report("RECOGNITION_FAILED","HIGH",…)。
+   *   工单落库       DisputeService.createTicket（V4__dispute_ops.sql：dispute_ticket OPEN/reason/resolved_at）
+   *                  + ops_exception（V52：type/severity/status/session_id，OPEN 部分唯一索引去重）。
+   *   审核读        GET /api/v2/ops/disputes[/{ticketId}]（perm ops:dispute，DisputeController:28/46）。
+   *   审核写        POST …/claim、…/resolve（perm ops:dispute:resolve，DisputeController:55/64）。
+   *   结案终态      DisputeService.doResolveTicket:650 ⇒ DISPUTED→COMPLETED（四路径同点），
+   *                  KEEP→PAID / WAIVE→REFUNDED（alignOrderStatusAfterDisputeResolve:687）；
+   *                  CONFIRM/ADJUST 需 items 非空（:630），且**无订单时经 finalizeOrder 首次建单+结算**
+   *                  （SettlementConfirmDisputeService:156-162，与 F1 同一条 finalizeOrder，
+   *                  @Transactional noRollbackFor BalanceInsufficient ⇒ 余额不足落 PENDING 而非抛）。
+   *                  异常随结案关闭（opsExceptionService.resolveOpenForSession:647）。
+   *
+   * 🔴 不造绿：DISPUTED 由**产品自己的** needReview→escalateToDispute 判定产生（转人工是真实负向结论，
+   *   非我们凑的结算成功）；CONFIRM 结案的订单/金额由真实 confirmDisputedItems→finalizeOrder 落库。
+   *   设备档案（BOUND/激活/class-mapping/SKU 库存）复用 F1（F2 依赖 state.f1，FLOWS 须含 F1 在前）；
+   *   会话经真 WS 门链推到 SHOPPING 后 kill 模拟器，再由**内部面**合成 CLOSED(→RECOGNIZING) +
+   *   注入 needReview 识别结果（edge-results 是契约承认的第三方端侧入口，见 VisionInternalController:54），
+   *   以避开模拟器自身高置信识别的竞态——争议判定与结案结算全程走产品代码，无 SQL 硬写状态。
+   */
+  F2: async ({ page, state }) => {
+    const f1 = state.f1 || {};
+    if (!f1.deviceId || !f1.skuId) {
+      record(
+        'F2',
+        'F2-00',
+        'SKIP',
+        `F2 复用 F1 的将邑设备档案（BOUND/激活/class-mapping/库存），需 FLOWS 含 F1 在前：state.f1=${JSON.stringify(f1).slice(0, 100)}`,
+        null
+      );
+      return;
+    }
+    const { deviceId, skuId, classId } = f1;
+
+    // CONFIRM 结算会按现价扣库存（走真实 deductForOrder）⇒ 测试夹具先再补给，同 F1-01b 口径（非造结算证据）。
+    let inv = '';
+    try {
+      psql(
+        `update device_sku_inventory set quantity=greatest(quantity, 10), updated_at=now() where device_id='${deviceId}' and sku_id='${skuId}'`
+      );
+      inv = psql(
+        `select quantity from device_sku_inventory where device_id='${deviceId}' and sku_id='${skuId}'`
+      );
+    } catch (e) {
+      record('F2', 'F2-01', false, `库存再补给失败：${String(e.message).slice(0, 140)}`, null);
+      return;
+    }
+    record(
+      'F2',
+      'F2-01',
+      Number((inv || '').trim()) >= 2,
+      `争议 CONFIRM 结算前库存夹具：device_sku_inventory(${deviceId}/${skuId})=${(inv || '').trim()}（需 ≥ 结算件数 2）`,
+      null
+    );
+
+    const ens = await internal('POST', '/internal/v1/demo/ensure');
+    const demo = ens.json?.data || {};
+    const login =
+      state.f1.consumerToken && state.f1.consumerToken.length > 10
+        ? { status: 200, token: state.f1.consumerToken }
+        : await consumerLoginViaApi(demo.consumerPhone || '13800138000', '123456');
+
+    // 复用 F1 播下的 jiangyi_device 行（device_sn=AUDIT-F1-<deviceId>），故模拟器 SN 必须一致，
+    // 否则 gateway 按 SN 解析不到 BOUND 设备 ⇒ 拿不到令牌/不上线。
+    const sn = `AUDIT-F1-${deviceId}`;
+    const sim = startJiangyiSimulator({ sn, classId, qty: 2, shoppingMs: 30000 });
+    if (!sim.child) {
+      record('F2', 'F2-02', false, `模拟器未能启动：${sim.error}`, null);
+      return;
+    }
+    const online = await pollUntil(
+      () => ({
+        ok: psql(`select online_status from device_info where device_id='${deviceId}'`) === 'ONLINE'
+      }),
+      { timeoutMs: 40_000, intervalMs: 1500 }
+    );
+    record(
+      'F2',
+      'F2-02',
+      online.ok,
+      `设备经 WS 链上线（判据同 F1-04b：gateway 建连→trade ws-online→setWsPresence）online_status=${psql(
+        `select online_status from device_info where device_id='${deviceId}'`
+      )}`,
+      writeText('f2-simulator-online', { sn, simLog: sim.tail() })
+    );
+    if (!online.ok) {
+      sim.child.kill();
+      return;
+    }
+
+    const created = await api(login.token, 'POST', '/api/v2/sessions', {
+      deviceId,
+      idempotencyKey: `AUDIT-F2-${Date.now()}`
+    });
+    const sessionId = created.json?.data?.sessionId;
+    record(
+      'F2',
+      'F2-03',
+      created.status === 200 && !!sessionId,
+      `POST /api/v2/sessions HTTP=${created.status} session=${sessionId} state=${created.json?.data?.state} msg=${created.json?.message || ''}`,
+      writeText('f2-session-create', created.json)
+    );
+    if (!sessionId) {
+      sim.child.kill();
+      return;
+    }
+
+    // 等设备上报 door-event OPEN 把会话推到 SHOPPING；shoppingMs=30s 保证模拟器来不及自己上报识别，
+    // 于是**立即 kill**，识别改由脚本走内部面注入 ⇒ 无竞态（不篡改状态机：CLOSED/edge-results 皆产品接口）。
+    const shopping = await pollUntil(
+      () => {
+        const st = sessionState(sessionId);
+        return { ok: ['SHOPPING', 'RECOGNIZING'].includes(st), state: st };
+      },
+      { timeoutMs: 30_000, intervalMs: 1500 }
+    );
+    sim.child.kill();
+    record(
+      'F2',
+      'F2-04',
+      shopping.ok,
+      `设备 door-event OPEN ⇒ 会话进 SHOPPING（随即 kill 模拟器于其自动识别之前）state=${shopping.state}`,
+      writeText('f2-shopping', { state: shopping.state })
+    );
+
+    // 合成 CLOSED：jiangyi 会话在 SessionDoorService:78 直接返回、不 settleAfterClose ⇒ 停在 RECOGNIZING 等识别。
+    const closed = await internal('POST', '/internal/v1/sessions/door-event', {
+      sessionId,
+      deviceId,
+      doorState: 'CLOSED',
+      timestamp: Date.now()
+    });
+    const recState = sessionState(sessionId);
+    record(
+      'F2',
+      'F2-05',
+      closed.status === 200 && recState === 'RECOGNIZING',
+      `内部面合成 door-event CLOSED ⇒ RECOGNIZING：HTTP=${closed.status} state=${recState}（期望 RECOGNIZING）`,
+      writeText('f2-closed', closed.json)
+    );
+
+    // needReview=true ⇒ escalateToDispute ⇒ DISPUTED（同步：VisionResultIngestService:96 直接调 completeAsyncRecognition）。
+    const dispute = await internal('POST', '/internal/v1/vision/edge-results', {
+      sessionId,
+      deviceId,
+      taskId: 'AUDIT-F2-REVIEW',
+      traceId: null,
+      items: [{ skuId, quantity: 2, confidence: 0.4 }],
+      overallConfidence: 0.4,
+      needReview: true,
+      modelVersion: 'jiangyi:AUDIT-F2-REVIEW',
+      detectedClasses: ['audit-dispute'],
+      provider: 'JIANGYI',
+      occurredAt: new Date().toISOString()
+    });
+    const dispState = sessionState(sessionId);
+    record(
+      'F2',
+      'F2-06',
+      dispState === 'DISPUTED',
+      `端侧 needReview 识别结果 ⇒ 同步结算 ⇒ DISPUTED：HTTP=${dispute.status} accepted=${dispute.json?.data?.accepted} outcome=${dispute.json?.data?.outcome} reason=${String(dispute.json?.data?.reason || '').slice(0, 60)} state=${dispState}`,
+      writeText('f2-dispute', dispute.json)
+    );
+
+    const exc = psqlSafe(
+      `select status||'|'||coalesce(severity,'')||'|'||coalesce(resolved_at::text,'null') from ops_exception where session_id='${sessionId}' and exception_type='RECOGNITION_FAILED'`
+    );
+    record(
+      'F2',
+      'F2-07',
+      !exc.err && /OPEN/.test(exc.val),
+      `ops_exception(RECOGNITION_FAILED) 待处理：[${(exc.val || exc.err).replace(/\s+/g, ' ')}]（期望 OPEN，SessionSettleService:177 报）`,
+      null
+    );
+    const tk = psqlSafe(
+      `select ticket_id||'|'||status||'|'||coalesce(reason,'') from dispute_ticket where session_id='${sessionId}'`
+    );
+    record(
+      'F2',
+      'F2-08',
+      !tk.err && /OPEN/.test(tk.val),
+      `dispute_ticket 建单：[${(tk.val || tk.err).replace(/\s+/g, ' ').slice(0, 200)}]`,
+      writeText('f2-ticket-db', { ticket: tk.val || tk.err })
+    );
+    const ticketId = ((tk.val || '').split('|')[0] || '').trim();
+    if (!ticketId) return;
+
+    const admin = state.adminToken ? { token: state.adminToken } : await adminLoginViaApi();
+    state.adminToken = admin.token;
+    if (!admin.token) {
+      record('F2', 'F2-09', false, `admin 登录失败 HTTP=${admin.status} err=${admin.error}`, null);
+      return;
+    }
+
+    const list = await api(
+      admin.token,
+      'GET',
+      `/api/v2/ops/disputes?sessionId=${encodeURIComponent(sessionId)}`
+    );
+    const items = list.json?.data?.items || [];
+    const inList = items.some((it) => (it.ticketId || it.id) === ticketId);
+    record(
+      'F2',
+      'F2-09',
+      list.status === 200 && inList,
+      `GET /api/v2/ops/disputes?sessionId HTTP=${list.status} 命中工单=${inList}（本页 ${items.length} 条）`,
+      writeText('f2-disputes-list', list.json)
+    );
+
+    const detail = await api(
+      admin.token,
+      'GET',
+      `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}`
+    );
+    record(
+      'F2',
+      'F2-10',
+      detail.status === 200 && !!detail.json?.data,
+      `GET 工单详情 HTTP=${detail.status} status=${detail.json?.data?.status}`,
+      writeText('f2-dispute-detail', detail.json)
+    );
+
+    // 越权守卫：低权 viewer 不得结案（改判=资金动作）——期望 403（缺 ops:dispute:resolve）。
+    const viewer = await opsLoginAs(VIEWER_PHONE, VIEWER_PASSWORD);
+    if (viewer.token) {
+      const bad = await api(
+        viewer.token,
+        'POST',
+        `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}/resolve`,
+        { resolutionType: 'CONFIRM', items: [{ skuId, quantity: 2 }] }
+      );
+      record(
+        'F2',
+        'F2-11',
+        bad.status === 403,
+        `viewer 越权结案必须被拒：HTTP=${bad.status}（期望 403，ops:dispute:resolve 闸门）`,
+        writeText('f2-viewer-forbidden', bad.json)
+      );
+    } else {
+      record('F2', 'F2-11', 'SKIP', `viewer 登录失败 HTTP=${viewer.status}，越权守卫未取证`, null);
+    }
+
+    const claim = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}/claim`
+    );
+    record(
+      'F2',
+      'F2-12',
+      claim.status === 200,
+      `admin claim HTTP=${claim.status} assignee=${claim.json?.data?.assigneeId || claim.json?.data?.assignee || '(见 json)'}`,
+      writeText('f2-claim', claim.json)
+    );
+
+    const resolve = await api(
+      admin.token,
+      'POST',
+      `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}/resolve`,
+      { resolutionType: 'CONFIRM', items: [{ skuId, quantity: 2 }] }
+    );
+    const rt = resolve.json?.data?.resolutionType || resolve.json?.data?.resolution;
+    record(
+      'F2',
+      'F2-13',
+      resolve.status === 200 && rt === 'CONFIRM',
+      `admin resolve CONFIRM HTTP=${resolve.status} resolutionType=${rt} msg=${resolve.json?.message || ''}`,
+      writeText('f2-resolve', resolve.json)
+    );
+
+    // 终态断言（以库为准）：会话 COMPLETED、工单 RESOLVED、异常关闭、订单+金额不变量。
+    const finState = sessionState(sessionId);
+    record(
+      'F2',
+      'F2-14',
+      finState === 'COMPLETED',
+      `结案后会话终态=${finState}（期望 COMPLETED，DisputeService:650）`,
+      null
+    );
+    const tk2 = psqlSafe(`select status from dispute_ticket where ticket_id='${ticketId}'`);
+    record(
+      'F2',
+      'F2-15',
+      !tk2.err && /RESOLVED/.test(tk2.val),
+      `工单终态=[${(tk2.val || tk2.err).trim()}]（期望 RESOLVED）`,
+      null
+    );
+    const exc2 = psqlSafe(
+      `select status from ops_exception where session_id='${sessionId}' and exception_type='RECOGNITION_FAILED'`
+    );
+    record(
+      'F2',
+      'F2-16',
+      !exc2.err && !/OPEN/.test(exc2.val),
+      `异常随结案关闭：status=[${(exc2.val || exc2.err).trim()}]（不应仍 OPEN，resolveOpenForSession:647）`,
+      null
+    );
+
+    const dbOrder = psql(
+      `select o.order_id, o.status, o.total_amount_cents, coalesce(o.coupon_discount_cents,0), coalesce(o.member_discount_cents,0) from cabinet_order o where o.session_id='${sessionId}'`
+    );
+    const dbLines = psql(
+      `select l.sku_id, l.quantity, l.unit_price_cents, l.line_amount_cents from cabinet_order_line l join cabinet_order o on o.order_id=l.order_id where o.session_id='${sessionId}'`
+    );
+    const olines = dbLines
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => l.split('|'))
+      .map(([, q, up, la]) => ({ q: Number(q), up: Number(up), la: Number(la) }))
+      .filter((r) => Number.isFinite(r.la));
+    const oc = dbOrder.split('|');
+    const orderStatus = (oc[1] || '').trim();
+    const total = Number((oc[2] || '0').trim());
+    const coupon = Number((oc[3] || '0').trim()) || 0;
+    const member = Number((oc[4] || '0').trim()) || 0;
+    const sumLines = olines.reduce((a, r) => a + r.la, 0);
+    record(
+      'F2',
+      'F2-17',
+      !!dbOrder &&
+        olines.length > 0 &&
+        sumLines - coupon - member === total &&
+        olines.every((r) => r.la === r.q * r.up) &&
+        ['PAID', 'PENDING'].includes(orderStatus),
+      `CONFIRM 建单+金额不变量：order=[${dbOrder}] lines=[${dbLines}]；Σ行=${sumLines}−券=${coupon}−会员=${member}=${sumLines - coupon - member} 应=合计=${total}；状态=${orderStatus}（PAID/PENDING）`,
+      writeText('f2-db-order', { dbOrder, dbLines })
+    );
+
+    // SPA 争议审核页 UI（同 E-03 弱判据 ⇒ UI 登录不通则如实 SKIP，API 面 F2-09~13 已实证审核链）。
+    const uiLogin = await adminLogin(page);
+    if (!uiLogin.ok) {
+      record(
+        'F2',
+        'F2-18',
+        'SKIP',
+        `SPA UI 登录不通（E-03 同款弱判据）；争议审核链 API 面已由 F2-09~13 实证，SPA 挂接真前 checklist`,
+        await shot(page, 'f2-admin-disputes')
+      );
+    } else {
+      await page.goto(`${ADMIN}/disputes`, { waitUntil: 'domcontentloaded' });
+      try {
+        await page
+          .locator('.el-table__body-wrapper, .el-table__body, .el-table')
+          .first()
+          .waitFor({ state: 'attached', timeout: 8000 });
+      } catch {
+        /* 表格未出现不 throw，found=false 如实记录 */
+      }
+      const found = await page.evaluate(
+        (tid) =>
+          [...document.querySelectorAll('.el-table__body-wrapper tr, .el-table__row')].some((tr) =>
+            tr.innerText.includes(tid)
+          ) || document.body.innerText.includes(tid),
+        ticketId
+      );
+      record(
+        'F2',
+        'F2-18',
+        found,
+        `争议审核页可检索到工单 ticketId=${ticketId}（选择器：Element Plus .el-table__body-wrapper tr + body.innerText 兜底）`,
+        await shot(page, 'f2-admin-disputes')
+      );
+    }
   },
 
   /**

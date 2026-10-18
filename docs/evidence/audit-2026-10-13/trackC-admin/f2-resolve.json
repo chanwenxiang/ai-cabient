@@ -1,0 +1,48 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "order": {
+      "orderId": "1792290899041756133331",
+      "sessionId": "1792290897666649062044",
+      "userId": 10001,
+      "deviceId": "EG746560232828",
+      "merchantId": "MCH-DEFAULT",
+      "deviceName": "演示智能柜",
+      "merchantName": "默认直营商户",
+      "totalAmountCents": 686,
+      "originalAmountCents": 686,
+      "couponDiscountCents": 0,
+      "memberDiscountCents": 0,
+      "status": "PAID",
+      "payChannel": "BALANCE",
+      "lineCount": 2,
+      "lineSummary": "可口可乐 330ml x2 ·货道A1",
+      "paymentOperationId": "1792290899071755385228",
+      "refundedCents": 0,
+      "inventoryDeducted": true,
+      "refundPolicy": "AUTO_REFUND",
+      "createdAt": "2026-10-18T02:34:59.057851079Z",
+      "paidAt": "2026-10-18T02:34:59.072824Z",
+      "splitStatus": "LEDGER_ONLY",
+      "lines": [
+        {
+          "skuId": "SKU-DEMO-001",
+          "skuName": "可口可乐 330ml",
+          "quantity": 2,
+          "unitPriceCents": 343,
+          "lineAmountCents": 686,
+          "batchNo": null,
+          "slotId": "A1"
+        }
+      ],
+      "balanceBeforeCents": 9514,
+      "balanceAfterCents": 8828
+    },
+    "resolutionType": "CONFIRM",
+    "originalAmountCents": 0,
+    "finalAmountCents": 686,
+    "adjustmentCents": 686,
+    "message": "已确认商品并扣款 ¥6.86"
+  }
+}
