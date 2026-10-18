@@ -674,7 +674,7 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void fixInconsistency_pointsIdentity_rewritesTotal() {
+    void fixInconsistency_pointsIdentity_isScanOnlyAndNeverOverwritesTotalPoints() {
         DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
         consistencyRecord.setId(22L);
         consistencyRecord.setCheckType("POINTS_IDENTITY");
@@ -682,11 +682,14 @@ class DataConsistencyServiceTest {
         consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findByIdForUpdate(22L)).thenReturn(java.util.Optional.of(consistencyRecord));
-        when(jdbcTemplate.update(startsWith("UPDATE member SET total_points"), eq("9"))).thenReturn(1);
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(22L);
-        assertTrue(outcome.fixed());
-        assertTrue(outcome.message().contains("累计积分"));
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("仅巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
+        // total_points 是「累计发放」，巡检不得回写（CB-058 D）
+        verify(jdbcTemplate, never()).update(startsWith("UPDATE member SET total_points"), (Object) any());
     }
 
     @Test

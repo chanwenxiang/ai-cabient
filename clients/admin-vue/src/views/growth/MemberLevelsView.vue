@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">会员等级规则</span>
-            <span class="hint">累计消费门槛 + 积分倍率；修改后消费返积分与会员等级即时生效</span>
+            <span class="hint"
+              >判级只看累计消费区间；积分倍率影响消费返分，积分门槛仅供 C
+              端「距下一档」进度展示</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -68,16 +71,13 @@
             >
           </el-table-column>
           <el-table-column
-            label="累计积分区间"
+            label="下一档积分门槛"
             width="150"
             align="center"
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }"
-              >{{ row.minPoints ?? 0 }} ~
-              {{ row.maxPoints != null ? row.maxPoints : '+' }}</template
-            >
+            <template #default="{ row }">{{ row.minPoints ?? 0 }}</template>
           </el-table-column>
           <el-table-column
             label="积分倍率"
@@ -181,19 +181,9 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="最低累计积分">
+            <el-form-item label="下一档积分门槛">
               <el-input-number v-model="form.minPoints" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="最高累计积分">
-              <el-input-number
-                v-model="form.maxPoints"
-                :min="0"
-                :controls="false"
-                placeholder="留空表示不设上限"
-                style="width: 100%"
-              />
+              <div class="form-hint">仅用于 C 端「距下一档还差多少分」，判级不读积分</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -260,7 +250,6 @@ type LevelRule = {
   minSpent?: number;
   maxSpent?: number | null;
   minPoints?: number;
-  maxPoints?: number | null;
   pointsRate?: number;
   priceDiscountPct?: number;
   sortOrder: number;
@@ -314,7 +303,6 @@ const form = reactive({
   minSpent: 0,
   maxSpent: null as number | null,
   minPoints: 0,
-  maxPoints: null as number | null,
   pointsRate: 1,
   priceDiscountPct: 0,
   sortOrder: 0,
@@ -330,7 +318,6 @@ function openCreate() {
     minSpent: 0,
     maxSpent: null,
     minPoints: 0,
-    maxPoints: null,
     pointsRate: 1,
     priceDiscountPct: 0,
     sortOrder: 0,
@@ -348,7 +335,6 @@ function openEdit(row: LevelRule) {
     minSpent: row.minSpent ?? 0,
     maxSpent: row.maxSpent ?? null,
     minPoints: row.minPoints ?? 0,
-    maxPoints: row.maxPoints ?? null,
     pointsRate: row.pointsRate ?? 1,
     priceDiscountPct: row.priceDiscountPct ?? 0,
     sortOrder: row.sortOrder,
@@ -366,8 +352,7 @@ async function save() {
   try {
     const body = {
       ...form,
-      maxSpent: form.maxSpent == null ? undefined : form.maxSpent,
-      maxPoints: form.maxPoints == null ? undefined : form.maxPoints
+      maxSpent: form.maxSpent == null ? undefined : form.maxSpent
     };
     if (editing.value && form.id != null) {
       await api.request<LevelRule>(AdminEndpoints.growthMemberLevels, 'PUT', body);

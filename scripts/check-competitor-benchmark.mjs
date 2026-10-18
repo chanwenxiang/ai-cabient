@@ -149,6 +149,12 @@ const SUBJECT_ALIASES = [
   { re: /阿里云|aliyun/i, id: '阿里云', kind: 'cross' },
   { re: /腾讯云|tencent\s?cloud/i, id: '腾讯云', kind: 'cross' },
   { re: /华为云|huaweicloud/i, id: '华为云', kind: 'cross' },
+  // CB-058 会员积分账本口径：把积分做成「有流水的账户」的公开规格群体，全在跨行业
+  // （电商会员/零售品牌/银行卡奖励积分/零售 ERP）——开门柜同行无公开积分规格，只能借范式。
+  { re: /京豆/i, id: '京东京豆', kind: 'cross' },
+  { re: /Snow\s*Peak|雪诺必克/i, id: 'SnowPeak雪诺必克', kind: 'cross' },
+  { re: /农业银行|农行/i, id: '中国农业银行', kind: 'cross' },
+  { re: /Dynamics/i, id: 'MicrosoftDynamics', kind: 'cross' },
   // 行业研究机构（research）：给统计口径，不是自述主体
   { re: /中研普华|chinairn/i, id: '中研普华', kind: 'research' },
   { re: /沙利文|frost\s*sullivan|弗若斯特/i, id: '弗若斯特沙利文', kind: 'research' },

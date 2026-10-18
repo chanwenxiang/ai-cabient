@@ -216,7 +216,7 @@ class MemberServiceDepositLevelTest {
         MemberLevelAdminService adminService =
                 new MemberLevelAdminService(levelRuleRepository, distributedLockService);
         adminService.update(new MemberLevelRuleDto(77L, "GOLD", "金卡会员",
-                new BigDecimal("5000"), new BigDecimal("10000"), 0, null,
+                new BigDecimal("5000"), new BigDecimal("10000"), 0,
                 BigDecimal.ONE, new BigDecimal("5"), 3, "ACTIVE"));
 
         ArgumentCaptor<MemberLevelRule> captor = ArgumentCaptor.forClass(MemberLevelRule.class);

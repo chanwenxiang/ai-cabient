@@ -36,7 +36,8 @@ import java.util.Set;
  *   <li>ORDER_AMOUNT 扫 {@code PAID}/{@code PARTIAL_REFUNDED}（{@code DISPUTED} 尚在人工审单，故意排除）</li>
  *   <li>PAYMENT_AMOUNT 对 PAID/PARTIAL_REFUNDED/REFUNDED 用 LEFT JOIN，无流水且应付&gt;0 也会 FAIL</li>
  *   <li>INVENTORY_MISMATCH / INVENTORY_ORPHAN_LOT 修复时以在架批次合计为准回写汇总表</li>
- *   <li>POINTS_IDENTITY 只校验 available+used+expired=total，与 POINTS_BALANCE（流水合计）互补</li>
+ *   <li>POINTS_IDENTITY 只校验 available+used+expired=total，与 POINTS_BALANCE（流水合计）互补；
+ *       两者均**仅巡检不自动修**——差在哪个桶要由人工按流水判方向，回写 total 会静默改「累计发放」（CB-058）</li>
  *   <li>净额类判据（PAYMENT_AMOUNT / ORDER_AMOUNT 提示语 / 两条修复路径取数）的类型清单
  *       一律取自 {@link PaymentOperationTypes}，**禁止在本类内再写字面清单**
  *       （门禁 {@code check:payment-net-types-single-source}；起因见 lessons-learned #326）</li>
@@ -1303,7 +1304,7 @@ public class DataConsistencyService {
         return "data-consistency:check:" + checkType + ":" + checkKey;
     }
 
-    /** 人工修复入口：ORDER_AMOUNT / INVENTORY_* / POINTS_IDENTITY / 行金额 / 券核销 / 支付多收 可修。 */
+    /** 人工修复入口：ORDER_AMOUNT / INVENTORY_* / 行金额 / 券核销 / 支付多收 可修（积分两类只巡检）。 */
     @Transactional
     public boolean fixInconsistency(Long recordId) {
         return self.fixInconsistencyDetailed(recordId).fixed();
@@ -1364,14 +1365,15 @@ public class DataConsistencyService {
             case ORDER_AMOUNT -> fixOrderAmount(consistencyRecord);
             case INVENTORY_MISMATCH -> fixInventoryMismatch(consistencyRecord);
             case INVENTORY_ORPHAN_LOT -> fixInventoryOrphanLot(consistencyRecord);
-            case POINTS_IDENTITY -> fixPointsIdentity(consistencyRecord);
             case ORDER_LINE_SUM -> fixOrderLineSum(consistencyRecord);
             case COUPON_USED_LINK -> fixCouponUsedLink(consistencyRecord);
             case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
             case REFUND_AMOUNT, WALLET_BALANCE,
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING, SLOT_SKU_MISMATCH,
                  SLOT_CAPACITY, SLOT_PHYSICAL, WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
-                 POINTS_BALANCE, CROSS_LINK ->
+                 // POINTS_IDENTITY 不能自动修：`total_points` 是「累计发放」这一业务事实，
+                 // 用三桶之和回写等于悄悄把它改小（CB-058 拍板 D：更正应由人工按流水做增量归集）。
+                 POINTS_IDENTITY, POINTS_BALANCE, CROSS_LINK ->
                     FixOutcome.fail("该类仅巡检记录，请人工核对处理");
             default -> FixOutcome.fail("不支持自动修复的类型: " + checkType);
         };
@@ -1687,23 +1689,6 @@ public class DataConsistencyService {
             return FixOutcome.fail("未能写入汇总库存行");
         }
         return FixOutcome.ok("已按在架批次合计 " + lotQty + " 补齐汇总库存");
-    }
-
-    /** 以 available+used+expired 为准回写 total_points。 */
-    private FixOutcome fixPointsIdentity(DataConsistencyRecord consistencyRecord) {
-        String memberId = consistencyRecord.getCheckKey();
-        int updated = jdbcTemplate.update(
-                "UPDATE member SET total_points = COALESCE(available_points, 0) "
-                        + "+ COALESCE(used_points, 0) + COALESCE(expired_points, 0), "
-                        + "updated_at = NOW() "
-                        + "WHERE member_id = CAST(? AS BIGINT) "
-                        + "AND COALESCE(total_points, 0) <> COALESCE(available_points, 0) "
-                        + "+ COALESCE(used_points, 0) + COALESCE(expired_points, 0)",
-                memberId);
-        if (updated <= 0) {
-            return FixOutcome.fail("会员不存在或已一致");
-        }
-        return FixOutcome.ok("已按 available+used+expired 回写累计积分");
     }
 
     public List<DataConsistencyRecord> getFailedChecks() {
