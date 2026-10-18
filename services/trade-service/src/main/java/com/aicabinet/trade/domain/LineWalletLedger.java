@@ -1,19 +1,14 @@
 package com.aicabinet.trade.domain;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-
 import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
-@TableName("line_wallet_ledger")
+/** 线长钱包流水读模型：由 {@code wallet_ledger}(domain=LINE) 映射而来，V389 已删其同名表。 */
 @Getter
 @Setter
 public class LineWalletLedger {
 
-    @TableId(type = IdType.AUTO)
     private Long ledgerId;
     private Long managerId;
     private String entryType;

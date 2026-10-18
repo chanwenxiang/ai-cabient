@@ -1,15 +1,9 @@
 package com.aicabinet.trade.domain;
 
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.IdType;
-
 import java.time.Instant;
 
-/** 补货员钱包账户（V359，对齐老系统 CommissionAccount）。 */
-@TableName("staff_wallet_account")
+/** 补货员钱包账户读模型（V359，对齐老系统 CommissionAccount）；V388 起数据在 {@code wallet_account}(domain=STAFF)。 */
 public class StaffWalletAccount {
-    @TableId(type = IdType.INPUT)
     private Long staffUserId;
     private Long balanceCents;
     private Instant updatedAt;

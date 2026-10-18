@@ -1,15 +1,9 @@
 package com.aicabinet.trade.domain;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-
 import java.time.Instant;
 
-/** 补货员钱包流水（V359）。 */
-@TableName("staff_wallet_ledger")
+/** 补货员钱包流水读模型；V388 起数据在 {@code wallet_ledger}(domain=STAFF)，V389 已删其同名表。 */
 public class StaffWalletLedger {
-    @TableId(type = IdType.AUTO)
     private Long ledgerId;
     private Long staffUserId;
     private String entryType;

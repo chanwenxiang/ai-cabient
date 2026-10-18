@@ -145,7 +145,7 @@ B) **上线前的资金链回归窗口**（12 注入面 × 14 测试类 × 20 ad
 - **共享层已建**：`WalletAccount`/`WalletLedger` + 两 Mapper + `service/wallet/{WalletDomain,WalletEngine}`；六旧 Mapper + 三 `*WalletAccountMapper.xml` 已删（删 Mapper 连带删 XML，避 lesson #233）。
 - **facade 委托 + 读映射**：三 `*WalletService` public 签名/返回类型不变，内部转调引擎并把统一行映射回各域 view 实体；对账（`PayoutReconciliationService`/`MerchantWithdrawPayoutService`）、裸 SQL（`DataConsistencyService` 4 检查）、两个 .mjs 审计脚本改 domain-scoped 统一表。
 - **两处与 §5.3 原计划的偏差（均为收敛更优，非妥协）**：
-  1. **六 view 实体不删**——为守「各域 DTO 维持现状」的锁定范围，`Merchant/Line/StaffWallet{Account,Ledger}` 保留为**纯内存读模型**；其 `@TableName` 指向已被 V389 DROP 的旧表，但因 Mapper 全删、无任何 MP 操作触达，属**惰性无害**。后续若要做彻底去注解的收尾，应连同 openapi/序列化契约一起验，另议。
+  1. **六 view 实体不删**——为守「各域 DTO 维持现状」的锁定范围，`Merchant/Line/StaffWallet{Account,Ledger}` 保留为**纯内存读模型**；取证确认它们仍被 facade 返回类型、`MerchantWithdrawService`/`LineManagerService`/`OpsStaffWalletController` 与 7 个测试引用，删类等于改 facade 签名 ⇒ 不动。**2026-10-18 收尾已去掉 `@TableName`/`@TableId`**（那三对注解声明的表已被 V389 DROP，留着是谎报 ORM 映射），各类改为一行 javadoc 标注「由 `wallet_account`/`wallet_ledger` 的哪个 domain 映射而来」；`clean compile` + 全量 **2031 tests / 0 failure** 证明行为中性（无 Mapper 触达 ⇒ MP 从不解析其 TableInfo）。
   2. **`COMPETITOR_REF` 指向 CB-054,CB-033**——不为「存储收敛」这一已基准化能力新造无实证台账条目（门禁 N/A 通道因 SQL 含业务语义词被拒），复用真实存在的 CB-054（三域钱包本体）+ CB-033（资金池独立领域）。
 - **测试口径坑**：`MerchantWalletFeeSplitTest` 必须 stub `WalletAccountMapper.findByOwnerForUpdate`（返回 `Optional` 的 default 包装），而非底层 `findByOwnerForUpdateRaw`——Mockito 会拦截 default 方法、不委托底层，否则 `reload()` 拿到 `Optional.empty` 抛 500「钱包不存在」。
 - **验证（本 worktree，Docker 可用）**：clean compile 877；全量单测 **2031/0/0**；`run-audit-gates.mjs` **46 门禁 0 失败**；`WalletRefIdempotencySqlIT` **一次性空库 Flyway 从零**（含 V388/V389）5/5 绿。
