@@ -22,12 +22,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,10 +35,20 @@ import static org.mockito.Mockito.when;
 /**
  * AU-149（2026-10-19 拍板）：消费者自助注销账户——守卫 fail-closed + 匿名化 + 同意留痕。
  * CB-059：网信办 2026-09 通报「仅人工办理且响应迟缓」算无效注销 ⇒ 服务端自助闭环为硬要求。
+ * 持久化走 LambdaUpdateWrapper 显式 set（M01：updateById 忽略 null 列，匿名化清列必须显式），
+ * 故 happy path 断言落在 wrapper 的 sqlSet 段而不是实体字段。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class AccountDeleteOwnAccountTest {
+
+    static {
+        // 纯 Mockito 环境需手动注册 TableInfo 缓存（lambda 列解析依赖，惯例同 RevenueSplitServiceTest）
+        org.apache.ibatis.builder.MapperBuilderAssistant assistant =
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), "");
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(assistant, UserInfo.class);
+    }
 
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private UserAccountMapper userAccountRepository;
@@ -86,18 +96,26 @@ class AccountDeleteOwnAccountTest {
         when(userInfoRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(user));
         when(userAccountRepository.findById(100L)).thenReturn(Optional.of(zeroAccount(100L)));
         when(balanceRefundRequestMapper.countByUserIdAndStatus(100L, "PROCESSING")).thenReturn(0L);
+        when(userInfoRepository.update(any(), any())).thenReturn(1);
 
         service.deleteOwnAccount(100L);
 
-        assertEquals("DELETED", user.getStatus());
-        assertNull(user.getPhoneNumber());
-        assertNull(user.getName());
-        assertNull(user.getEmail());
-        assertNull(user.getWxOpenId());
-        assertNull(user.getPasswordHash());
-        assertNull(user.getPayscoreContractId());
-        assertNull(user.getAlipayAgreementId());
-        assertEquals(Boolean.FALSE, user.isVerified());
+        // 匿名化断言落在 wrapper 的 sqlSet（M01 显式 set(null) 才能真正清列）
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<UserInfo>> captor =
+                org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        verify(userInfoRepository).update(isNull(), captor.capture());
+        String sqlSet = ((com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserInfo>) captor.getValue())
+                .getSqlSet();
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("phone_number"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("name"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("email"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("wx_open_id"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("password_hash"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("totp_secret"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("payscore_contract_id"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("alipay_agreement_id"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("status"));
+        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("DELETED"));
         // 同意留痕：ACCOUNT_DELETE 落 user_consent_log
         verify(consentLogMapper).insertIgnoreConflict(eq(100L), eq(UserConsentLog.TYPE_ACCOUNT_DELETE), anyString());
     }
@@ -121,7 +139,7 @@ class AccountDeleteOwnAccountTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.deleteOwnAccount(100L));
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verify(userInfoRepository, never()).save(any(UserInfo.class));
+        verify(userInfoRepository, never()).update(any(), any());
     }
 
     @Test
@@ -172,7 +190,7 @@ class AccountDeleteOwnAccountTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.deleteOwnAccount(100L));
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        verify(userInfoRepository, never()).save(any(UserInfo.class));
+        verify(userInfoRepository, never()).update(any(), any());
     }
 
     @Test

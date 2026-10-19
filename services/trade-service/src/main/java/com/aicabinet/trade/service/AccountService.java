@@ -137,23 +137,25 @@ public class AccountService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "有进行中的余额退款，请待退款完成后再注销");
         }
 
-        // 匿名化：个人标识字段清空（列均可空或字符串），status=DELETED 拒绝续期/恢复
-        user.setPhoneNumber(null);
-        user.setName(null);
-        user.setEmail(null);
-        user.setAvatarUrl(null);
-        user.setNickname("已注销用户");
-        user.setWxOpenId(null);
-        user.setPasswordHash(null);
-        user.setTotpSecret(null);
-        user.setTotpEnabled(false);
-        user.setVerified(false);
-        user.setPayscoreEnabled(false);
-        user.setPayscoreContractId(null);
-        user.setAlipayAgreementId(null);
-        user.setAlipayUserId(null);
-        user.setStatus("DELETED");
-        userInfoRepository.save(user);
+        // 匿名化落库：M01——MyBatis-Plus updateById 忽略 null 列，清列必须 wrapper 显式
+        // set(field, null)（check:mybatis-null-clear 门禁口径）；行保留（外键不断链）。
+        userInfoRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<UserInfo>lambdaUpdate()
+                .eq(UserInfo::getUserId, userId)
+                .set(UserInfo::getPhoneNumber, null)
+                .set(UserInfo::getName, null)
+                .set(UserInfo::getEmail, null)
+                .set(UserInfo::getAvatarUrl, null)
+                .set(UserInfo::getNickname, "已注销用户")
+                .set(UserInfo::getWxOpenId, null)
+                .set(UserInfo::getPasswordHash, null)
+                .set(UserInfo::getTotpSecret, null)
+                .set(UserInfo::getTotpEnabled, false)
+                .set(UserInfo::getVerified, false)
+                .set(UserInfo::getPayscoreEnabled, false)
+                .set(UserInfo::getPayscoreContractId, null)
+                .set(UserInfo::getAlipayAgreementId, null)
+                .set(UserInfo::getAlipayUserId, null)
+                .set(UserInfo::getStatus, "DELETED"));
 
         userConsentLogService.recordAccountDelete(userId);
         log.warn("consumer account deleted (self-service) userId={} phone/anon wiped", userId);
