@@ -2707,7 +2707,9 @@ async function main() {
   // 「0 失败=绿」可被空轮次冒充上线证据。MIN_PASS 按 flows 下限写死，不足即红。
   const MIN_PASS = Number(process.env.UAT_MIN_PASS || '40');
   if (summary.pass < MIN_PASS) {
-    console.error(`[gate] pass=${summary.pass} < MIN_PASS=${MIN_PASS}: 空轮次/环境塌陷，不得作为上线证据`);
+    console.error(
+      `[gate] pass=${summary.pass} < MIN_PASS=${MIN_PASS}: 空轮次/环境塌陷，不得作为上线证据`
+    );
     process.exit(1);
   }
   process.exit(summary.fail > 0 ? 1 : 0);

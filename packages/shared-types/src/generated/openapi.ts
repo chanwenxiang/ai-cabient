@@ -6310,22 +6310,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/announcements/published": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["published"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/workbench": {
         parameters: {
             query?: never;
@@ -12008,6 +11992,7 @@ export interface components {
         LiveCartUpdateRequest: {
             mode?: string;
             items?: components["schemas"]["LiveCartItem"][];
+            deviceId?: string;
         };
         ApiResponseLiveCartDto: {
             /** Format: int32 */
@@ -15096,12 +15081,6 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
-        };
-        ApiResponseListAnnouncement: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["Announcement"][];
         };
         ApiResponseOpsWorkbenchDto: {
             /** Format: int32 */
@@ -30584,26 +30563,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDisputeTicketDto"];
-                };
-            };
-        };
-    };
-    published: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListAnnouncement"];
                 };
             };
         };
