@@ -627,15 +627,33 @@ jobs:
       # 真实产物编译覆盖为零（#ifdef MP-WEIXIN 块 / 组件拍平 / appid 注入 / urlCheck 校验
       # 的回归全部静默）。appid 是账号资产不入库，走 repo secrets；未配置时本步红 =
       # 提醒补配（fail-closed，绝不静默跳过）。urlCheck 由 inject-miniapp-env 按 release 权威判定。
+      # AU-179 处置（2026-10-19 用户拍板「暂没定域名，先显式跳过」）：secrets 未配置
+      # 时 SKIP 并打醒目 WARN（不红），保证其余 CI 信号可读；上线硬门仍在部署链——
+      # deploy 时 validate-miniapp-env --mode release 强制真实 HTTPS 域名+appid，
+      # 域名定案后配 3 个 secrets（MP_WEIXIN_APPID_CONSUMER / MP_WEIXIN_APPID_MERCHANT /
+      # MP_API_BASE_URL）本步自动转硬门。
       - name: Consumer MP weixin build (release gate)
-        run: pnpm --filter @aicabinet/consumer-mp run build:mp-weixin
+        run: |
+          if [ -z "$MP_WEIXIN_APPID_CONSUMER" ] || [ -z "$MP_API_BASE_URL" ]; then
+            echo "::warning::MP_WEIXIN_APPID_CONSUMER / MP_API_BASE_URL 未配置——跳过 mp-weixin release 构建。"
+            echo "::warning::上线前必须在 GitHub Secrets 配置（域名定案后），部署链硬门不依赖本步。"
+            exit 0
+          fi
+          pnpm --filter @aicabinet/consumer-mp run build:mp-weixin
         env:
           MP_WEIXIN_APPID_CONSUMER: ${{ secrets.MP_WEIXIN_APPID_CONSUMER }}
+          VITE_API_BASE_URL: ${{ secrets.MP_API_BASE_URL }}
 
       - name: Merchant MP weixin build (release gate)
-        run: pnpm --filter @aicabinet/merchant-mp run build:mp-weixin
+        run: |
+          if [ -z "$MP_WEIXIN_APPID_MERCHANT" ] || [ -z "$MP_API_BASE_URL" ]; then
+            echo "::warning::MP_WEIXIN_APPID_MERCHANT / MP_API_BASE_URL 未配置——跳过 mp-weixin release 构建。"
+            exit 0
+          fi
+          pnpm --filter @aicabinet/merchant-mp run build:mp-weixin
         env:
           MP_WEIXIN_APPID_MERCHANT: ${{ secrets.MP_WEIXIN_APPID_MERCHANT }}
+          VITE_API_BASE_URL: ${{ secrets.MP_API_BASE_URL }}
 
   # 行为级端到端：真实浏览器跑三端 H5 UAT。
   #
