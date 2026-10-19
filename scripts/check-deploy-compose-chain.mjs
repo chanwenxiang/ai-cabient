@@ -11,16 +11,19 @@
  * target can never regress.
  *
  * Extraction: any `-f infra/<name>.yml` token in deploy-prod.sh (single-quoted word
- * list, one -f per file). Existence is checked on disk AND via `git ls-files` (a local
- * untracked file must not satisfy the chain - CI clones are clean).
+ * list, one -f per file). The script is read from the WORKING TREE (so pre-push
+ * negative verification can inject a bogus -f and see the gate fail), while existence
+ * of each target is checked on disk AND via `git ls-files` (index): a local untracked
+ * file must not satisfy the chain - CI clones are clean, where worktree == HEAD, so
+ * the two readings are equivalent in CI.
  *
- * Negative verification (iron rule 4): add `-f infra/does-not-exist.yml` to
- * deploy-prod.sh => gate must FAIL; revert => green.
+ * Negative verification (iron rule 4): stage `-f infra/does-not-exist.yml` in
+ * deploy-prod.sh => gate must FAIL; `git checkout HEAD --` => green.
  *
  *   node scripts/check-deploy-compose-chain.mjs
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,21 +36,14 @@ function fail(msg) {
   process.exit(1);
 }
 
-const script = (() => {
-  try {
-    return execFileSync('git', ['show', `HEAD:${DEPLOY_SH}`], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      maxBuffer: 4 * 1024 * 1024,
-    });
-  } catch {
-    // Fallback for repos without commits; still better than silently passing.
-    return null;
-  }
-})();
-if (script === null) fail(`cannot read ${DEPLOY_SH} from git HEAD`);
+let script;
+try {
+  script = readFileSync(resolve(ROOT, DEPLOY_SH), 'utf8');
+} catch (e) {
+  fail(`cannot read ${DEPLOY_SH}: ${e.message}`);
+}
 
-const refs = [...script.matchAll(/-f\s+(infra\/[\w.-]+\.yml)/g)].map((m) => m[1]);
+const refs = [...new Set([...script.matchAll(/-f\s+(infra\/[\w.-]+\.yml)/g)].map((m) => m[1]))];
 if (refs.length === 0) {
   fail(`${DEPLOY_SH} references no "-f infra/*.yml" compose chain - extraction rule may be stale`);
 }
@@ -67,7 +63,8 @@ try {
 const problems = [];
 for (const ref of refs) {
   if (!existsSync(resolve(ROOT, ref))) problems.push(`${ref}: missing on disk`);
-  else if (!tracked.has(ref)) problems.push(`${ref}: exists locally but NOT tracked in git (CI clone would break)`);
+  else if (!tracked.has(ref))
+    problems.push(`${ref}: exists locally but NOT tracked in git (CI clone would break)`);
 }
 
 if (problems.length > 0) {
@@ -77,4 +74,6 @@ if (problems.length > 0) {
   );
 }
 
-console.log(`${TAG} OK: ${refs.length} compose chain files present and tracked: ${refs.join(', ')}`);
+console.log(
+  `${TAG} OK: ${refs.length} compose chain files present and tracked: ${refs.join(', ')}`
+);

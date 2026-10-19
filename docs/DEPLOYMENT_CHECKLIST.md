@@ -137,11 +137,13 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml \
   --env-file .env.production --profile apps up -d --build
 ```
 
-> **`infra/docker-compose.prod-server.yml` 是服务器侧维护的覆盖文件（审计 A3，2026-10-16 定性）**：
-> 它**不在 git 里**（`git log --all` 证实从未入库），只存在于生产服务器部署目录，
-> 由 `scripts/deploy-prod.sh:103` 在服务器现场引用（2026-10-13 实战部署已验证可用）。
-> 服务器特定配置（如 bind mount 路径）改它须 **ssh 到服务器直接编辑**；本地没有、也不该有副本。
-> 排查「compose 文件缺失」类报错时先分辨：仓库内文件 vs 服务器侧文件。
+> **`infra/docker-compose.prod-server.yml` 已入库（AU-185，2026-10-19 拍板「入库+预检」）**：
+> 旧定性（A3，2026-10-16）是「服务器侧维护、不入库、不该有副本」——已被本拍板取代。
+> 文件内容自生产服务器实取（**纯拓扑无密钥**，密钥全走 `.env.production`），入库基线
+> sha256 `1b038520…` 注记在文件头。此后**改动一律走 git**（可评审、可复现），每次部署
+> 由 tar 解包以仓库版本收敛服务器副本；`deploy-prod.sh` 在本地 [0/6] 与服务器 [4/6]
+> 两处预检该文件存在，并把 sha256 指纹打进部署日志。门禁
+> `check:deploy-compose-chain` 拒绝「deploy-prod.sh 引用了仓库里不存在的 -f 文件」。
 
 ### 3.3 部署后冒烟
 
