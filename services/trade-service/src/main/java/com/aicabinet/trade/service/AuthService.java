@@ -109,6 +109,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
+        requireLoginable(user);
         if (!smsCodeService.verifyCode(phone, code)) {
             throwLockedOr(phone, ApiMessages.INVALID_CODE);
         }
@@ -124,6 +125,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
+        requireLoginable(user);
         verifyPassword(user, request.password());
         loginThrottleService.clearFailures(phone);
         return tokenFor(user);
@@ -326,6 +328,7 @@ public class AuthService {
         return runWithAlipayUserLock(alipayUserId, () -> {
             var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
             if (byAlipay.isPresent()) {
+                requireLoginable(byAlipay.get());
                 return tokenFor(byAlipay.get());
             }
             return tokenFor(createAlipayConsumer(alipayUserId));
@@ -337,6 +340,7 @@ public class AuthService {
         return runWithWxOpenIdLock(openId, () -> {
             var byOpenId = userInfoRepository.findByWxOpenId(openId);
             if (byOpenId.isPresent()) {
+                requireLoginable(byOpenId.get());
                 return tokenFor(byOpenId.get());
             }
             String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
@@ -347,6 +351,7 @@ public class AuthService {
                 UserInfo user = requireExistingUser(phone);
                 UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+                requireLoginable(locked);
                 locked.setWxOpenId(openId);
                 userInfoRepository.save(locked);
                 return tokenFor(locked);
@@ -436,12 +441,24 @@ public class AuthService {
         }
     }
 
+    /**
+     * DC-10（2026-10-19 拍板：登录不校验 status 是缺口，不是「靠风控黑名单」的设计）：
+     * status 是登录闸门——INACTIVE=运营封禁、DELETED=已注销（AU-149 匿名化），一律拒绝登录。
+     * 消费者短信/密码/微信 openid/支付宝各登录路径统一走这里；运营台登录路径的
+     * {@link #requireActiveAccount} 同源。风控黑名单是叠加层，与本闸门互斥不冲突。
+     */
+    private static void requireLoginable(UserInfo user) {
+        String status = user.getStatus();
+        if (status != null
+                && ("INACTIVE".equalsIgnoreCase(status) || "DELETED".equalsIgnoreCase(status))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCOUNT_DISABLED);
+        }
+    }
+
     private void requireActiveAccount(long userId) {
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        if (user.getStatus() != null && "INACTIVE".equalsIgnoreCase(user.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCOUNT_DISABLED);
-        }
+        requireLoginable(user);
     }
 
     private LoginResponse tokenFor(UserInfo user) {

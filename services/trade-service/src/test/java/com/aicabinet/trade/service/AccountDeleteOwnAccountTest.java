@@ -115,7 +115,9 @@ class AccountDeleteOwnAccountTest {
         org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("payscore_contract_id"));
         org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("alipay_agreement_id"));
         org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("status"));
-        org.junit.jupiter.api.Assertions.assertTrue(sqlSet.contains("DELETED"));
+        // DC-6 同源教训：值在参数表不在 sqlSet——DELETED 必须从 paramNameValuePairs 里断言
+        org.junit.jupiter.api.Assertions.assertTrue(((com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<UserInfo>) captor.getValue())
+                .getParamNameValuePairs().containsValue("DELETED"));
         // 同意留痕：ACCOUNT_DELETE 落 user_consent_log
         verify(consentLogMapper).insertIgnoreConflict(eq(100L), eq(UserConsentLog.TYPE_ACCOUNT_DELETE), anyString());
     }
