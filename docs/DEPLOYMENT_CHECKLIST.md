@@ -42,18 +42,23 @@ copy infra\.env.staging.example infra\.env.staging
 | `JIANGYI_JWT_SECRET` | 自生成 ≥32 字节 | 设备 token 签发 503（fail-closed） |
 | `JIANGYI_TENANT_ID` / `JIANGYI_SECRET` | 将邑售后 | 入驻（setDomain）失败 |
 | `JIANGYI_MERCHANT_MOBILE` / `JIANGYI_MERCHANT_PASSWORD` | 商户后台账号 | 采集/模型/商品库 API 全部不可用 |
-| `JIANGYI_PUBLIC_BASE_URL` | 固定公网域名（勿用花生壳） | gather-finish-notify 回调不可达 |
+| `JIANGYI_PUBLIC_BASE_URL` | 固定公网域名（勿用穿透域名） | ① gather-finish-notify 回调不可达；② **域名自钉失效**：`domainConfig/*` 两端口一起回 404，设备继续用将邑云 HTTP base（设计文档 §5 拍板 A） |
 | `JIANGYI_OSS_*` 五项 | 阿里云 RAM（子账号只授 `AliyunSTSAssumeRoleAccess`；直传角色 `jiangyivideoupload`，权限=Put/Get/Delete 限 `ai-cabinet-by/jiangyi-video/*`） | STS 签发失败→视频上传不可用 |
 
 **验证顺序**（部署后逐条）：
 
 1. `docker compose ps` → `jiangyi-gateway` Up（apps 基座自带，nginx `/jiangyi/`、`/websocket/` 依赖它）。
 2. 未配 secret 冒烟（可选）：临时注释 `JIANGYI_JWT_SECRET` 重建后 `POST /jiangyi/api/token/openDoorDeviceStatus` 应 **503**；恢复后对未登记 SN 应 **404**、对已绑定设备 **200** 且拿到 token——fail-closed 三态即闭环。
-3. 运营后台「设备详情→将邑」：SN 登记 → setDomain（domain=`https://<域名>/jiangyi/api`，socketUrl=`wss://<域名>/websocket`）→ 设备通电后 WS 在线（`/internal/v1/jiangyi/devices/{id}/routable`）。
-4. 采集→学习→模型：识别入驻页发起采集 → 将邑 App 采样本 → commitTraining → 回调 `gather-finish-notify` 应 200/202 →「识别映射」页预生成映射→核对→激活→模型下发→设备回执 CONFIRMED。
-5. 全链购物： JiangyiDeviceSimulator（或真机）token→getDetail→WS→开门→上报→`COMPLETED`+扣款+扣库存；识别映射未命中的 classId 应转 DISPUTED（fail-closed）。
-6. 视频：触发异常单视频上传 → OSS `jiangyi-video/` 出对象 → 争议详情 `videoPreviewUrl` 可播（预签名读路径）。
-7. staging 特性：`AICABINET_MOCK_ENABLED=false` ⇒ **未登记将邑的柜机消费开门 409**「仅支持将邑柜机」（批1 生产门禁生效的实证）。
+3. 运营后台「设备详情→将邑」：SN 登记 → setDomain（domain=`https://<域名>/jiangyi/api`，socketUrl=`wss://<域名>/websocket/device/`——**尾段 `/device/` 与尾斜杠都不能少**，固件按 `socketUrl + identifier + ?token=` 直拼，缺 `/device/` 即 404；留空则按 `JiangyiOnboardingService.deriveSocketUrl` 自动推导）→ 设备通电后 WS 在线（`/internal/v1/jiangyi/devices/{id}/routable`）。
+   - 🔴 **顺序不可颠倒**：设备是在**已持有合法 token 之后**才轮询 `domainConfig/*`（实测 token → status → domain，同 base 同 token）。先钉域名、设备 yet 无我方 token ⇒ 从厂商云切到我方再吃 401，比不切更难查。
+4. **域名自钉冒烟（拍板 A，配了 `JIANGYI_PUBLIC_BASE_URL` 才做）**：一键跑 `pnpm jiangyi:day1-check`（=`node scripts/jiangyi-day1-check.mjs`，**纯只读探测**，可用 `--base=` 指 dev 子域）；手工口径同脚本：带合法设备 token `POST /jiangyi/api/domainConfig/getConfigStatusByIdentifier` 应回 `{"status":null,"msg":null,"data":1}`（**注意 status/msg 是 null，不是 200**——照抄云侧怪形态），再 `POST /jiangyi/api/domainConfig/getConfigDomainByIdentifier` 应回 `data` = `https://<域名>/jiangyi/api`（尾段自动补、幂等）。未配该变量时两端口**一起 404** = 预期不启用，不是故障。
+   - 脚本的判据解释：**不带 token 也得先探**——三条路由门（`/jiangyi/api/**`、catch-all、`/websocket/` 握手）全回 401 才证明入口 nginx 把设备面两条路送到网关；此时若自钉已配却回 404/502，说明钉的是死地址。
+   - 域名更换（花生壳 → 正式域名）**只改 `JIANGYI_PUBLIC_BASE_URL` 一行**，无需改代码；但改完必须重跑本条冒烟，并确认 `infra/.env.production`（`deploy-prod.sh:111` 的 `--env-file`，仓库只有 `.example`）已同步换值。
+   - 🔴 **部署前的 archive 陷阱**（`scripts/deploy-prod.sh:43-49/57`）：干净性判定是 `git status --porcelain | grep -v '^??'`——**未跟踪文件不拦**，而打包用 `git archive HEAD` 只含已提交内容。⇒ 新增的 Java 文件（如 `DomainConfigController` / `DeviceCompatController` / `DeviceUnknownPathController`）若忘了 `git add`+commit，**部署会照常成功但跑的是没有自钉的旧类**（现网表现为真机拉 `domainConfig` 吃 catch-all 404，与"配置没生效"极像）。部署前 `git status --porcelain | grep '^??'` 必须为空。
+5. 采集→学习→模型：识别入驻页发起采集 → 将邑 App 采样本 → commitTraining → 回调 `gather-finish-notify` 应 200/202 →「识别映射」页预生成映射→核对→激活→模型下发→设备回执 CONFIRMED。
+6. 全链购物： JiangyiDeviceSimulator（或真机）token→getDetail→WS→开门→上报→`COMPLETED`+扣款+扣库存；识别映射未命中的 classId 应转 DISPUTED（fail-closed）。
+7. 视频：触发异常单视频上传 → OSS `jiangyi-video/` 出对象 → 争议详情 `videoPreviewUrl` 可播（预签名读路径）。
+8. staging 特性：`AICABINET_MOCK_ENABLED=false` ⇒ **未登记将邑的柜机消费开门 409**「仅支持将邑柜机」（批1 生产门禁生效的实证）。
 
 **Staging 与 dev 差异：**
 
