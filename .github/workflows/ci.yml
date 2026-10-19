@@ -567,15 +567,35 @@ jobs:
         run: pnpm --filter @aicabinet/shared-rbac test
 
       # admin 单测此前从不被 CI 调用（与 test:mp 同一类覆盖缺口）
+      # AU-191（2026-10-19）：vitest 输出 tee 落盘 + 用例数下限断言——文件数基线
+      # （check-mp-unit-tests-wired）只数文件，「清空某文件内全部 it()」仍绿；
+      # 用例数取 2026-10-18 实测值（admin 198/consumer 276/merchant 318）减 5% 余量。
       - name: Admin unit tests (vitest)
-        run: pnpm --filter @aicabinet/admin-vue test
+        run: pnpm --filter @aicabinet/admin-vue test 2>&1 | tee /tmp/vitest-admin.log
 
-      # 两端 mp 的纯逻辑此前只被 Playwright e2e（需 dev 栈）覆盖，改坏不会红
       - name: Consumer MP unit tests (vitest)
-        run: pnpm --filter @aicabinet/consumer-mp test
+        run: pnpm --filter @aicabinet/consumer-mp test 2>&1 | tee /tmp/vitest-consumer.log
 
       - name: Merchant MP unit tests (vitest)
-        run: pnpm --filter @aicabinet/merchant-mp test
+        run: pnpm --filter @aicabinet/merchant-mp test 2>&1 | tee /tmp/vitest-merchant.log
+
+      - name: Test-case count floors (AU-191, fail if cases silently removed)
+        run: |
+          check_floor() {
+            local label="$1" log="$2" floor="$3"
+            local n
+            n=$(grep -aoE 'Tests +[0-9]+ passed' "$log" | grep -oE '[0-9]+' | head -1)
+            if [ -z "$n" ]; then
+              echo "[$label] 未找到 vitest 用例汇总（Tests N passed）——报告形态变化，人工核对"; exit 1
+            fi
+            if [ "$n" -lt "$floor" ]; then
+              echo "[$label] 用例数 $n < 下限 $floor——用例被删/跳过，须人工确认并更新下限"; exit 1
+            fi
+            echo "[$label] 用例数 $n >= $floor ✓"
+          }
+          check_floor admin /tmp/vitest-admin.log 188
+          check_floor consumer /tmp/vitest-consumer.log 262
+          check_floor merchant /tmp/vitest-merchant.log 302
 
       - name: Nav-permission alignment check
         run: pnpm check:nav-perms

@@ -166,6 +166,16 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/CabinetOrderInventoryLinkSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'AU-191（批次 12）：V271 DEFERRABLE 约束触发器（钱货关联最后一道 DB 防线）首次获得 ' +
+        'IT 触达——钉「PAID+行+inventory_deducted=false 在 commit 期炸并整体回滚」+ 合规路径放行'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/BalanceRefundResumeDebitSqlIT.java',
     {
       job: 'integration',
