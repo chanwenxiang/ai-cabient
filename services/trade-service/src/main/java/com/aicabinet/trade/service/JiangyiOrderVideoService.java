@@ -68,9 +68,46 @@ public class JiangyiOrderVideoService {
                 orderNo, deviceId, serialNum, videoQuantity, videoUrls, Instant.now());
     }
 
-    /** 按订单查全部分片（serial 升序；video_urls 空串=该片生成/上传失败）。 */
+    /**
+     * 按订单查全部分片原始行（serial 升序；video_urls 空串=该片生成/上传失败）。
+     *
+     * <p>🔴 DC-11：原始行（含对象键）只允许<b>网络隔离的内部面</b>（JiangyiInternalController，
+     * nginx /internal/ 403）消费；运营台 {@code ops:device:list} 面一律走
+     * {@link #listByOrderRedacted} 脱敏视图。</p>
+     */
     public List<JiangyiOrderVideo> findByOrderNo(String orderNo) {
         return jiangyiOrderVideoMapper.findByOrderNo(orderNo);
+    }
+
+    /**
+     * DC-11（2026-10-19 拍板）：脱敏台账行——给 {@code ops:device:list} 持有者的列表视图。
+     *
+     * <p>CB-029 的意图是「看视频须单独授权」：对象键（videoUrls）属视频信息，列表不回——
+     * 只回片数统计；看视频仍走 {@code ops:device:video} 的 play-url 端点。</p>
+     */
+    public record VideoListItem(Long id, String orderNo, String deviceId, Integer serialNum,
+                                Integer videoQuantity, int videoCount, Instant reportedAt) {}
+
+    /** 实体 → 脱敏行（videoUrls 不出网，只出解析后的片数；解析口径与前端旧 clipCount 一致）。 */
+    public static VideoListItem toListItem(JiangyiOrderVideo row) {
+        return new VideoListItem(row.getId(), row.getOrderNo(), row.getDeviceId(),
+                row.getSerialNum(), row.getVideoQuantity(), countClips(row.getVideoUrls()),
+                row.getReportedAt());
+    }
+
+    /** 分片数：videoUrls 按逗号拆、去空段（空串/null=0，即「该片失败」）。 */
+    public static int countClips(String videoUrls) {
+        String raw = videoUrls == null ? "" : videoUrls.trim();
+        if (raw.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (String part : raw.split(",")) {
+            if (!part.isBlank()) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -89,9 +126,33 @@ public class JiangyiOrderVideoService {
         return rows;
     }
 
-    /** 按设备查最近上报（设备详情卡片复核入口）。 */
+    /** DC-11：补货任务视频的脱敏视图（RestockVideoDialog 走 ops:device:video，仍可用原始行；此重载供统一）。 */
+    public List<VideoListItem> listByTaskRedacted(Long taskId) {
+        return findByTask(taskId).stream()
+                .map(JiangyiOrderVideoService::toListItem)
+                .toList();
+    }
+
+    /**
+     * 按设备查最近上报原始行——仅供网络隔离的内部面（JiangyiInternalController）使用，
+     * 运营台走 {@link #listRecentByDeviceRedacted}（DC-11）。
+     */
     public List<JiangyiOrderVideo> findRecentByDevice(String deviceId, int limit) {
         return jiangyiOrderVideoMapper.findRecentByDevice(deviceId, limit);
+    }
+
+    /** DC-11：按设备查最近上报的脱敏视图（运营台设备详情卡片）。 */
+    public List<VideoListItem> listRecentByDeviceRedacted(String deviceId, int limit) {
+        return findRecentByDevice(deviceId, limit).stream()
+                .map(JiangyiOrderVideoService::toListItem)
+                .toList();
+    }
+
+    /** DC-11：按订单查全部分片的脱敏视图（配合 play-url 端点使用）。 */
+    public List<VideoListItem> listByOrderRedacted(String orderNo) {
+        return findByOrderNo(orderNo).stream()
+                .map(JiangyiOrderVideoService::toListItem)
+                .toList();
     }
 
     /** 复核用播放视图（CB-029）：一行记录 + 逐片可播放地址。 */
