@@ -299,3 +299,22 @@
 | AU-149 | 自助注销闭环（人工客服不算数） | V394 `user_consent_log`（登录记 PRIVACY_POLICY / 注销记 ACCOUNT_DELETE，唯一键幂等；COMPETITOR_REF: CB-059）；`POST /api/v2/account/delete-account`：fail-closed 守卫（运营 403 / 余额冻结非 0 / 免密协议未解除 / PROCESSING 退款 ⇒ 409）+ 匿名化（个人标识全清、status=DELETED、交易记录法定留存）；小程序「我的」页入口 + 二次确认；隐私政策「五、您的权利」文案对齐；CB-059 台账（微信官方/美团/旧系统 easygo 三主体） | 7bd4f199 + 2c565e1e + 87f723fc | `AccountDeleteOwnAccountTest` 8 例；consumer-mp vue-tsc 绿；openapi.ts 重生成（+36 行）check-openapi-types 对 live spec 绿 |
 
 **边界与移交**：① AU-149 的登录 status 校验缺口（AU-058/DC-10）未顺手修——注销账号以「凭据已匿名化不存在」兜底，DC-10 拍板后统一收口；② 多设备 JWT 强制下线属后续增量；③ **AU-147（首期柜型）与 DC-6/9/10/11/14/18/20、refund-retry 上线手册勾选项、CB-032 真收六问仍开放**，未在本批范围。
+
+## 2026-10-19 拍板七条销账（DC-6/9/10/11/14/18/20，分支 fix/dc-decisions-batch14，叠于 fix/audit-decisions-batch13）
+
+> 用户 2026-10-19 对七条 DC 逐条采纳推荐做法拍板（「按照你的推荐吧」）。另确认：**全系统无结构化件/支换算**——SKU `spec`/`unit` 均为展示字符串，所有数量（库存/要货/上限 1000/5000）统一按 SKU 最小销售件数计，无单位歧义；将来若做按箱补货须先乘箱规再校验上限（本节备注）。
+
+| DC | 拍板 | 落地 | 回归证据 |
+| --- | --- | --- | --- |
+| DC-6 | 缺口，改 fail-safe | `SystemConfigService.getPositiveLimit`（读侧 ≤0 回落默认+WARN）+ `FUND_POSITIVE_LIMIT_KEYS`（写侧拒 0，400）；三个上限键（recharge/balance.refund/refund.self.max_cents）读侧全部切换；提现族 0 语义（2026-10-16 拍板）不动；`PayoutChannelLimits` 注释同步 | 反转旧钉住 `upsert_fundKey_zeroMeansUnlimited`→`upsert_limitKey_zero_rejected400_dc6` + 三键遍历 + 读侧回落双例 |
+| DC-9 | 白名单+审计先行，双人复核后置 | 后端面已在位（AU-048 `FUND_GUARDED_KEYS` 强制留痕+值校验）；本批补**前端二次确认**：SystemConfigView 敏感键保存前 ElMessageBox（旧值→新值+留痕提示），键清单与后端同步维护 | prettier 绿；admin-vue 构建含 type-check |
+| DC-10 | 缺口，登录补校验 | `AuthService.requireLoginable`（INACTIVE/DELETED 一律 403）挂进消费者四条登录路径（短信/密码/微信 openid×2/支付宝）；`requireActiveAccount` 同源复用 | `AuthServicePhoneAndTwoFactorTest` +4 例（INACTIVE 短信/密码、DELETED openid、ACTIVE 反向） |
+| DC-11 | 要脱敏 | 三个台账列表端点统一回脱敏行 `VideoListItem`（videoUrls 对象键不出网，只出 `videoCount`）；原始行仅限网络隔离内部面（JiangyiInternalController，/internal/ 403）；前端两 Dialog 改用 videoCount | `JiangyiOrderVideoRedactionTest` 3 例（含结构性防泄漏断言：DTO 组件集不含任何 url 字段） |
+| DC-14 | 不留，deny-by-default | `isGlobalScope` 只认显式 admin 角色；未绑定非 admin=零范围（AU-087/088/089 横切根因闭合）；演示账号绑定走 **seed** `R__seed_demo_ops_merchant_bindings.sql`（→MCH-DEFAULT/MCH-OTHER；dev 库已应用 8 行；生产 seed_env:none 跳过=演示账号生产零范围，符合 DC-14 意图） | 反转旧钉住 `unboundOperator_hasGlobalScope`→`unboundOperator_zeroScope_denyByDefault_dc14`（含 requireDeviceAccess 403+指标断言）；t2 角色矩阵已核实只验权限码不受影响 |
+| DC-18 | 认值 1000/5000 | AU-090 已落的上限（单行 1000/同 SKU 5000，单位=SKU 最小销售件数）运营确认，无代码改动；无公开规格，按规则 48 标「自己的设计判断」 | AU-090 既有 QtyCapsTest |
+| DC-20 | 不存在，豁免 | 生产补货走平台运营体系、线长/补货员按设备维度派单不挂 merchant scope ⇒ AU-112 降 P2 文档化豁免；若未来引入挂接形态必须先补 `requireDeviceAccess` 统一入参 | 无代码改动 |
+
+### 🔴 本批抓出并修复的存量缺陷：da428735（batch13 尾提交）**不编译**
+
+AU-149 注销匿名化 wrapper 误用 `UserInfo::getVerified/getTotpEnabled/getPayscoreEnabled`——Lombok 对 primitive boolean 生成 `isXxx()`。该提交推送前预检「绿」为误读（与当日 GATES_EXIT=0 同类错误：**只看 tail 未核退出码**）。本批 batch14 首次编译即暴露，已改 `isXxx()` 修复。**教训入册：预检/门禁结论必须核真实退出码（铁律 1/2 家族）**；batch13 分支 tip 以 batch14 合并后的 HEAD 为准。
+
