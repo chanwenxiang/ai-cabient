@@ -310,6 +310,13 @@ public class DeviceReportController {
      * 视频自动上传模式查询（log3 实证 34 次：POST /deviceInfo/isAutoUploadVideo）。
      * 与 §4.2.13 getArtificialCheckByIdentifier 同族：默认 data=false（只上传异常视频，
      * 全量上传属商户配置暂不开放）。
+     *
+     * <p><b>已知与云侧不一致，是拍板保留的、不要"顺手对齐"</b>：将邑云侧对同一台
+     * CQYB10720 恒回 {@code data:true}（log3 行 300/312/4545/10674/16986…实测×15 无一次 false），
+     * 即厂商环境是<b>每单全量上传视频</b>。我方回 false 的代价是「真机复现厂商行为」时少一路
+     * 视频证据；对齐的代价是每单一段视频经 {@code /aliYunOss/getTempToken} 的 STS 凭证直传
+     * 我方桶 ⇒ 物联卡上行流量 + OSS 存储成本随单量线性增长。2026-10-19 用户拍板：<b>保持 false</b>，
+     * 需要逐单视频时按设备/租户粒度做成配置项再放开，不开全局开关。</p>
      */
     @PostMapping("/jiangyi/api/deviceInfo/isAutoUploadVideo")
     public Map<String, Object> isAutoUploadVideo(HttpServletRequest request) {

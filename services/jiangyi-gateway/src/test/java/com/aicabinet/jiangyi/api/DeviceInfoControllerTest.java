@@ -7,10 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletRequest;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -49,20 +51,42 @@ class DeviceInfoControllerTest {
     }
 
     @Test
-    void getDetailReturnsCloudShapedHardwareTopology() {
-        // 2026-10-19 log3 修订（第三轮审计 P0-1）：固件读 usbNumRu/usbNumRb/doorNum 分配
-        // GPIO 与摄像头——字段须全量对齐云侧形态（未知值 null，云侧对部分字段也回 null）
+    void getDetailReturnsMeasuredHardwareTopologyNotNulls() {
+        // 2026-10-19 log2/log3 实锤：固件把 doorNum/locks 当门锁驱动（云侧回 doorNum:2 的那次
+        // 开机 25ms 内即写 gpio4 报 ENOENT，其余 doorNum:1 的开机零异常），把 usbNum* 当摄像头
+        // 总线分配。⇒ 拓扑字段必须是数字，回 null 属未定义行为。
+        // 0/null 语义分开：云侧对「通道不存在」回 0（usbNumRu/Rb），只对「未维护元数据」回 null。
         Map<String, Object> resp = controller.getDetail(authedRequest());
         Map<?, ?> data = (Map<?, ?>) resp.get("data");
         assertEquals("yes", data.get("isBind"));
         assertEquals("end", data.get("recognitionType"));
-        assertTrue(data.containsKey("doorNum"));
-        assertTrue(data.containsKey("locks"));
-        assertTrue(data.containsKey("usbNumLu"));
-        assertTrue(data.containsKey("usbNumRu"));
-        assertTrue(data.containsKey("usbNumRb"));
-        assertTrue(data.containsKey("modelNum"));
+        assertEquals(1, data.get("doorNum"));
+        assertEquals(List.of(1), data.get("locks"));
+        assertEquals(1, data.get("usbNumLu"));
+        assertEquals(3, data.get("usbNumLb"));
+        assertEquals(0, data.get("usbNumRu"));
+        assertEquals(0, data.get("usbNumRb"));
+        assertEquals(2, data.get("modelNum"));
+        assertNull(data.get("huodaoNum"));
+        assertNull(data.get("industrialControlType"));
+        assertNull(data.get("mqttClientId"));
         assertEquals(IDENTIFIER, data.get("identifier"));
+        // 云侧 id 是 JSON 数字（10720）；纯数字的 deviceId 必须同型下发，非数字才允许回字符串
+        assertEquals(100000000001L, data.get("id"));
+        // 键集与云侧实测响应逐一对齐（19 键）：多一键是我方发明，少一键是固件可能读不到预期字段
+        assertEquals(java.util.Set.of("id", "identifier", "isBind", "recognitionType", "doorNum",
+                        "locks", "usbNumLu", "usbNumLb", "usbNumRu", "usbNumRb", "modelNum", "huodaoNum",
+                        "industrialControlType", "mqttClientId", "mqttTopicPrefix", "lastOnlineTime",
+                        "mqttStatus", "lastHeartbeatTime", "mqttQos"), data.keySet());
+    }
+
+    @Test
+    void getDetailKeepsNonNumericDeviceIdAsString() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(DeviceAuthInterceptor.ATTR_DEVICE_ID, "EG943322621391");
+        request.setAttribute(DeviceAuthInterceptor.ATTR_IDENTIFIER, IDENTIFIER);
+        Map<?, ?> data = (Map<?, ?>) controller.getDetail(request).get("data");
+        assertEquals("EG943322621391", data.get("id"));
     }
 
     @Test
@@ -105,5 +129,18 @@ class DeviceInfoControllerTest {
         Map<String, Object> resp = controller.getArtificialCheck(authedRequest());
         assertEquals(200, resp.get("status"));
         assertFalse((Boolean) resp.get("data"));
+    }
+
+    @Test
+    void receiveCurrentTxtUrlCopiesCloudBusinessFailure() {
+        // 云侧实测恒 {"status":666,"msg":"当前模型text文件地址不存在","data":null}（log3 行 291/640）。
+        // 回 200 = 固件以为有 txt 地址可取，会去下载一个不存在的文件。
+        // data 必须显式为 null（Map.of 会 NPE，测试同时锁住这条构造）。
+        Map<String, Object> resp = controller.receiveCurrentTxtUrl(
+                authedRequest(), Map.of("identifier", IDENTIFIER));
+        assertEquals(666, resp.get("status"));
+        assertEquals("当前模型text文件地址不存在", resp.get("msg"));
+        assertTrue(resp.containsKey("data"));
+        assertNull(resp.get("data"));
     }
 }
