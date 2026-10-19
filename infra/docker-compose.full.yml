@@ -324,6 +324,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-devredis}
       JIANGYI_JWT_SECRET: ${JIANGYI_JWT_SECRET:-}
       JIANGYI_TOKEN_TTL_SECONDS: ${JIANGYI_TOKEN_TTL_SECONDS:-604800}
+      # 域名自钉（设计文档 §5 拍板 A）：设备开机后拉 domainConfig 问域名，本值即回钉地址
+      JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
       # OSS STS 直传（CB-024）：AK/RoleArn 只从宿主/infra/.env 注入，无默认值=fail-closed
       JIANGYI_OSS_ACCESS_KEY_ID: ${JIANGYI_OSS_ACCESS_KEY_ID:-}
       JIANGYI_OSS_ACCESS_KEY_SECRET: ${JIANGYI_OSS_ACCESS_KEY_SECRET:-}

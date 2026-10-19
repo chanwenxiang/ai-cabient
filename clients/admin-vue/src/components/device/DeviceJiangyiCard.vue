@@ -741,7 +741,7 @@ watch(
           <el-input
             v-model="bindForm.domain"
             class="jy-input-sn"
-            placeholder="平台接口地址，如 https://api.example.com"
+            placeholder="平台接口地址，须含 /jiangyi/api 尾段，如 https://gate.example.com/jiangyi/api"
             clearable
           />
           <el-input

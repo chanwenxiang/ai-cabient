@@ -97,6 +97,8 @@ services:
       JIANGYI_TENANT_ID: ${JIANGYI_TENANT_ID:-0}
       JIANGYI_SECRET: ${JIANGYI_SECRET:-}
       JIANGYI_API_BASE_URL: ${JIANGYI_API_BASE_URL:-https://lingshouapi.hunanjysmart.com}
+      # 域名自钉（设计文档 §5 拍板 A）：设备轮询 domainConfig 时按此值回钉我方网关。
+      # 留空 ⇒ 两个 domainConfig 端点一起 404（不钉）。生产必须填固定公网域名（勿用穿透域名）。
       JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
 
   emqx:
