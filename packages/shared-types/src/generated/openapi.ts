@@ -16821,6 +16821,26 @@ export interface components {
             reportedAt?: string;
             items?: components["schemas"]["PlayUrlItem"][];
         };
+        ApiResponseListVideoListItem: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["VideoListItem"][];
+        };
+        VideoListItem: {
+            /** Format: int64 */
+            id?: number;
+            orderNo?: string;
+            deviceId?: string;
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            videoQuantity?: number;
+            /** Format: int32 */
+            videoCount?: number;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
         ApiResponseListModelPreview: {
             /** Format: int32 */
             code?: number;
@@ -32754,7 +32774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };
@@ -32776,7 +32796,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };
@@ -32799,7 +32819,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };
