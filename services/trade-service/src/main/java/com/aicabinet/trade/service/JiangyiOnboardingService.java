@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -103,6 +104,8 @@ public class JiangyiOnboardingService {
         String effectiveSocketUrl = socketUrl == null || socketUrl.isBlank()
                 ? deriveSocketUrl(domain)
                 : socketUrl.trim();
+        log.info("jiangyi setDomain socketUrl resolved domain={} provided={} effective={}",
+                domain, socketUrl == null ? "null" : "blank→derived", effectiveSocketUrl);
         // ① setDomain（将邑侧把设备指向我方）；返回 identifier 存疑（文档笔误），有则采纳
         String identifier = jiangyiMerchantClient
                 .setDomain(tenantId, secret, domain.trim(), effectiveSocketUrl)
@@ -125,20 +128,23 @@ public class JiangyiOnboardingService {
 
     /**
      * socketUrl 缺省推导（V16 §4.2.2 组装规则：「地址+设备编号+token，这里只需要设置前面的地址，
-     * 设备号和 token 在代码中组装」）。成因注释（2026-10-19 实证）：此前推导为
-     * wss://host/websocket，少了 /device/ 前缀——设备按「socketUrl+编号+?token=」直拼，
-     * 拼出非法路径 ⇒ 真机 HTTP 全通却从不发起 WS（开机每 2 分钟循环）。正确前缀到
-     * /websocket/device/ 为止（§4.3.1 完整地址示例反推）。
+     * 设备号和 token 在代码中组装」）。正确前缀到 /websocket/device/ 为止（§4.3.1 完整地址示例反推）。
+     * <p>成因注释（2026-10-19 晚，logcat 二次实证）：只取 scheme+authority，**剥离 path**——
+     * 将邑云 sendDeviceDomain 下发的 msgContent 实测带 path（{@code https://lingshouapi.hunanjysmart.com/device}，
+     * device-log.txt 10-08 15:02:00 明文），若 path 带进 wss 前缀会拼出
+     * {@code wss://host/device/websocket/device/} 非法路径。现网我方 domain 无 path，此修幂等。
      */
     private static String deriveSocketUrl(String domain) {
-        String d = domain.trim().replaceAll("/+$", "");
-        if (d.startsWith("https://")) {
-            return "wss://" + d.substring("https://".length()) + "/websocket/device/";
+        String d = domain.trim();
+        URI uri = URI.create(d.contains("://") ? d : "https://" + d);
+        String authority = uri.getRawAuthority();
+        if (authority == null || authority.isBlank()) {
+            throw new IllegalArgumentException("domain 缺 authority，无法推导 socketUrl: " + domain);
         }
-        if (d.startsWith("http://")) {
-            return "ws://" + d.substring("http://".length()) + "/websocket/device/";
-        }
-        return "wss://" + d + "/websocket/device/";
+        boolean secure = "https".equalsIgnoreCase(uri.getScheme())
+                || "wss".equalsIgnoreCase(uri.getScheme())
+                || uri.getScheme() == null;
+        return (secure ? "wss://" : "ws://") + authority + "/websocket/device/";
     }
 
     /** 退役：拒绝一切后续路由与上报（gateway 校验 status）。 */
