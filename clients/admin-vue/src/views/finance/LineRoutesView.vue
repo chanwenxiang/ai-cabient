@@ -1,94 +1,106 @@
 <template>
   <div class="line-routes-page">
-    <el-tabs v-model="activeTab">
-      <!-- 线路管理 -->
-      <el-tab-pane label="线路管理" name="routes">
-        <CrudTable
-          :table="routesCrud"
-          row-key="id"
-          :actions="routeActions"
-          actions-test-id="line-route"
-          @action="onRouteAction"
-        >
-          <template #toolbar>
-            <span v-if="chiefRaw !== null" class="chief-line">
-              总线路负责人（多个，可随时改指）：
-              <el-tag v-for="c in chiefList" :key="c" size="small" class="chief-tag">{{
-                c
-              }}</el-tag>
-            </span>
-            <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
-            <el-button type="primary" @click="openCreate">新建线路</el-button>
-          </template>
-          <el-table-column prop="id" label="ID" width="70" />
-          <el-table-column prop="routeName" label="线路名称" min-width="140" />
-          <el-table-column prop="managerId" label="线长（负责人 userId）" width="180" />
-          <el-table-column prop="remark" label="备注" min-width="140" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '启用' : '已归档' }}
-              </el-tag>
+    <el-card class="page-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">线路与提成</span>
+              <span class="hint">线路与成员提成配置 · 月合计财务对账 · 补货员钱包打款</span>
+            </div>
+          </div>
+        </div>
+      </template>
+      <el-tabs v-model="activeTab">
+        <!-- 线路管理 -->
+        <el-tab-pane label="线路管理" name="routes">
+          <CrudTable
+            :table="routesCrud"
+            row-key="id"
+            :actions="routeActions"
+            actions-test-id="line-route"
+            @action="onRouteAction"
+          >
+            <template #toolbar>
+              <span v-if="chiefRaw !== null" class="chief-line">
+                总线路负责人（多个，可随时改指）：
+                <el-tag v-for="c in chiefList" :key="c" size="small" class="chief-tag">{{
+                  c
+                }}</el-tag>
+              </span>
+              <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
+              <el-button type="primary" @click="openCreate">新建线路</el-button>
             </template>
-          </el-table-column>
-        </CrudTable>
-      </el-tab-pane>
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="routeName" label="线路名称" min-width="140" />
+            <el-table-column prop="managerId" label="线长（负责人 userId）" width="180" />
+            <el-table-column prop="remark" label="备注" min-width="140" />
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                  {{ row.status === 'ACTIVE' ? '启用' : '已归档' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </CrudTable>
+        </el-tab-pane>
 
-      <!-- 岗位月合计 -->
-      <el-tab-pane label="月合计（财务对账）" name="monthly">
-        <h4>线长销售提成（线路柜销售额合计）</h4>
-        <CrudTable :table="summaryManagersCrud" row-key="managerId" :show-refresh="false">
-          <template #toolbar>
-            <el-date-picker
-              v-model="summaryMonth"
-              type="month"
-              value-format="YYYY-MM"
-              placeholder="选择账期"
-              :clearable="false"
-            />
-            <el-button type="primary" @click="loadSummary">查询</el-button>
-          </template>
-          <el-table-column prop="managerId" label="线长 userId" width="140" />
-          <el-table-column prop="orderCount" label="订单数" width="100" />
-          <el-table-column label="销售额（元）" width="140">
-            <template #default="{ row }">{{ yuan(row.gmvCents) }}</template>
-          </el-table-column>
-          <el-table-column label="提成（元）">
-            <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
-          </el-table-column>
-          <el-table-column label="其中退款冲回（元）" width="150">
-            <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
-          </el-table-column>
-        </CrudTable>
-        <h4>补货员佣金（按实际补货留痕）</h4>
-        <CrudTable :table="summaryStaffsCrud" row-key="staffUserId" :show-refresh="false">
-          <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
-          <el-table-column prop="restockQty" label="补货件数" width="120" />
-          <el-table-column label="佣金（元）">
-            <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
-          </el-table-column>
-          <el-table-column label="其中退款冲回（元）" width="150">
-            <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
-          </el-table-column>
-        </CrudTable>
-      </el-tab-pane>
+        <!-- 岗位月合计 -->
+        <el-tab-pane label="月合计（财务对账）" name="monthly">
+          <h4>线长销售提成（线路柜销售额合计）</h4>
+          <CrudTable :table="summaryManagersCrud" row-key="managerId" :show-refresh="false">
+            <template #toolbar>
+              <el-date-picker
+                v-model="summaryMonth"
+                type="month"
+                value-format="YYYY-MM"
+                placeholder="选择账期"
+                :clearable="false"
+              />
+              <el-button type="primary" @click="loadSummary">查询</el-button>
+            </template>
+            <el-table-column prop="managerId" label="线长 userId" width="140" />
+            <el-table-column prop="orderCount" label="订单数" width="100" />
+            <el-table-column label="销售额（元）" width="140">
+              <template #default="{ row }">{{ yuan(row.gmvCents) }}</template>
+            </el-table-column>
+            <el-table-column label="提成（元）">
+              <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
+            </el-table-column>
+            <el-table-column label="其中退款冲回（元）" width="150">
+              <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
+            </el-table-column>
+          </CrudTable>
+          <h4>补货员佣金（按实际补货留痕）</h4>
+          <CrudTable :table="summaryStaffsCrud" row-key="staffUserId" :show-refresh="false">
+            <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
+            <el-table-column prop="restockQty" label="补货件数" width="120" />
+            <el-table-column label="佣金（元）">
+              <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
+            </el-table-column>
+            <el-table-column label="其中退款冲回（元）" width="150">
+              <template #default="{ row }">{{ yuan(row.clawbackCents) }}</template>
+            </el-table-column>
+          </CrudTable>
+        </el-tab-pane>
 
-      <!-- 补货员钱包 -->
-      <el-tab-pane label="补货员钱包" name="wallets">
-        <CrudTable
-          :table="walletsCrud"
-          row-key="staffUserId"
-          :actions="walletActions"
-          actions-test-id="staff-wallet"
-          @action="onWalletAction"
-        >
-          <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
-          <el-table-column label="余额（元）" width="140">
-            <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
-          </el-table-column>
-        </CrudTable>
-      </el-tab-pane>
-    </el-tabs>
+        <!-- 补货员钱包 -->
+        <el-tab-pane label="补货员钱包" name="wallets">
+          <CrudTable
+            :table="walletsCrud"
+            row-key="staffUserId"
+            :actions="walletActions"
+            actions-test-id="staff-wallet"
+            @action="onWalletAction"
+          >
+            <el-table-column prop="staffUserId" label="补货员 userId" width="140" />
+            <el-table-column label="余额（元）" width="140">
+              <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
+            </el-table-column>
+          </CrudTable>
+        </el-tab-pane>
+      </el-tabs>
+    </el-card>
 
     <!-- 新建/编辑线路 -->
     <el-dialog
@@ -568,9 +580,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.line-routes-page {
-  padding: 8px 4px;
-}
 .chief-line {
   margin-right: 8px;
   font-size: 13px;

@@ -1,126 +1,138 @@
 <template>
   <div class="machine-bills-page">
-    <el-tabs v-model="activeTab">
-      <!-- 月度账单（CrudTable 统一壳：分页/排序/刷新/空态内建） -->
-      <el-tab-pane label="月度账单" name="bills">
-        <CrudTable
-          :table="crud"
-          row-key="billId"
-          :actions="rowActions"
-          actions-test-id="machine-bill"
-          @action="onRowAction"
-        >
-          <template #toolbar>
-            <el-date-picker
-              v-model="filterMonth"
-              type="month"
-              value-format="YYYY-MM"
-              placeholder="账期（空=全部）"
-              clearable
-            />
-            <el-select
-              v-model="filterStatus"
-              placeholder="状态（空=全部）"
-              clearable
-              style="width: 140px"
-            >
-              <el-option label="未结清" value="PENDING" />
-              <el-option label="已结清" value="SETTLED" />
-            </el-select>
-            <el-button type="primary" @click="applyFilters">查询</el-button>
-            <el-button type="warning" @click="openGenerate">手动出账</el-button>
-          </template>
-          <el-table-column prop="billId" label="ID" width="80" />
-          <el-table-column prop="billMonth" label="账期" width="100" />
-          <el-table-column prop="deviceId" label="柜机" width="140" />
-          <el-table-column label="费用类型" width="110">
-            <template #default="{ row }">{{ feeTypeText(row.feeType) }}</template>
-          </el-table-column>
-          <el-table-column label="金额（元）" width="120">
-            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
-          </el-table-column>
-          <el-table-column label="分成基数 GMV（元）" width="150">
-            <template #default="{ row }">{{
-              row.gmvCents == null ? '—' : yuan(row.gmvCents)
-            }}</template>
-          </el-table-column>
-          <el-table-column prop="payeeName" label="收款人（场地方）" width="130" />
-          <el-table-column prop="payeePhone" label="电话" width="130" />
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'SETTLED' ? 'success' : 'warning'" size="small">
-                {{ row.status === 'SETTLED' ? '已结清' : '未结清' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="120" />
-        </CrudTable>
-      </el-tab-pane>
-
-      <!-- 点位费用配置 -->
-      <el-tab-pane label="点位费用配置" name="config">
-        <div class="toolbar">
-          <el-input
-            v-model="configDeviceId"
-            placeholder="柜机编号（EG+12 位数字）"
-            style="width: 220px"
-            @keyup.enter="loadConfig"
-          />
-          <el-button type="primary" @click="loadConfig">查询配置</el-button>
+    <el-card class="page-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">机器账单</span>
+              <span class="hint">柜机费用月度账单与结清管理 · 手动出账 · 费用配置</span>
+            </div>
+          </div>
         </div>
-        <el-alert
-          v-if="configLoaded"
-          type="info"
-          :closable="false"
-          show-icon
-          title="费用项随时可改，只影响后续账期；场地方不是系统用户，收款人为文本快照，线下结算。"
-          style="margin-bottom: 10px"
-        />
-        <el-form v-if="configLoaded" label-width="160px" style="max-width: 560px">
-          <el-form-item label="柜机 deviceId">
-            <el-input v-model="configForm.deviceId" disabled />
-          </el-form-item>
-          <el-form-item label="电费类型">
-            <el-select v-model="configForm.electricType" style="width: 200px">
-              <el-option label="无电费" value="NONE" />
-              <el-option label="固定月额" value="FIXED" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="月电费（元）">
-            <el-input-number
-              v-model="configElectricYuan"
-              :min="0"
-              :precision="2"
-              controls-position="right"
+      </template>
+      <el-tabs v-model="activeTab">
+        <!-- 月度账单（CrudTable 统一壳：分页/排序/刷新/空态内建） -->
+        <el-tab-pane label="月度账单" name="bills">
+          <CrudTable
+            :table="crud"
+            row-key="billId"
+            :actions="rowActions"
+            actions-test-id="machine-bill"
+            @action="onRowAction"
+          >
+            <template #toolbar>
+              <el-date-picker
+                v-model="filterMonth"
+                type="month"
+                value-format="YYYY-MM"
+                placeholder="账期（空=全部）"
+                clearable
+              />
+              <el-select
+                v-model="filterStatus"
+                placeholder="状态（空=全部）"
+                clearable
+                style="width: 140px"
+              >
+                <el-option label="未结清" value="PENDING" />
+                <el-option label="已结清" value="SETTLED" />
+              </el-select>
+              <el-button type="primary" @click="applyFilters">查询</el-button>
+              <el-button type="warning" @click="openGenerate">手动出账</el-button>
+            </template>
+            <el-table-column prop="billId" label="ID" width="80" />
+            <el-table-column prop="billMonth" label="账期" width="100" />
+            <el-table-column prop="deviceId" label="柜机" width="140" />
+            <el-table-column label="费用类型" width="110">
+              <template #default="{ row }">{{ feeTypeText(row.feeType) }}</template>
+            </el-table-column>
+            <el-table-column label="金额（元）" width="120">
+              <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
+            </el-table-column>
+            <el-table-column label="分成基数 GMV（元）" width="150">
+              <template #default="{ row }">{{
+                row.gmvCents == null ? '—' : yuan(row.gmvCents)
+              }}</template>
+            </el-table-column>
+            <el-table-column prop="payeeName" label="收款人（场地方）" width="130" />
+            <el-table-column prop="payeePhone" label="电话" width="130" />
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'SETTLED' ? 'success' : 'warning'" size="small">
+                  {{ row.status === 'SETTLED' ? '已结清' : '未结清' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="120" />
+          </CrudTable>
+        </el-tab-pane>
+
+        <!-- 点位费用配置 -->
+        <el-tab-pane label="点位费用配置" name="config">
+          <div class="toolbar">
+            <el-input
+              v-model="configDeviceId"
+              placeholder="柜机编号（EG+12 位数字）"
+              style="width: 220px"
+              @keyup.enter="loadConfig"
             />
-          </el-form-item>
-          <el-form-item label="客情说明（送水/其他）">
-            <el-input v-model="configForm.welfareInfo" maxlength="200" />
-          </el-form-item>
-          <el-form-item label="场地方销售分成（bps）">
-            <el-input-number
-              v-model="configForm.shareBps"
-              :min="0"
-              :max="10000"
-              controls-position="right"
-            />
-            <span class="hint">{{ (configForm.shareBps / 100).toFixed(2) }}%</span>
-          </el-form-item>
-          <el-form-item label="收款人姓名" required>
-            <el-input v-model="configForm.payeeName" maxlength="64" />
-          </el-form-item>
-          <el-form-item label="收款人电话">
-            <el-input v-model="configForm.payeePhone" maxlength="20" />
-          </el-form-item>
-          <el-form-item label="启用">
-            <el-switch v-model="configEnabled" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" @click="saveConfig">保存配置</el-button>
-          </el-form-item>
-        </el-form>
-      </el-tab-pane>
-    </el-tabs>
+            <el-button type="primary" @click="loadConfig">查询配置</el-button>
+          </div>
+          <el-alert
+            v-if="configLoaded"
+            type="info"
+            :closable="false"
+            show-icon
+            title="费用项随时可改，只影响后续账期；场地方不是系统用户，收款人为文本快照，线下结算。"
+            style="margin-bottom: 10px"
+          />
+          <el-form v-if="configLoaded" label-width="160px" style="max-width: 560px">
+            <el-form-item label="柜机 deviceId">
+              <el-input v-model="configForm.deviceId" disabled />
+            </el-form-item>
+            <el-form-item label="电费类型">
+              <el-select v-model="configForm.electricType" style="width: 200px">
+                <el-option label="无电费" value="NONE" />
+                <el-option label="固定月额" value="FIXED" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="月电费（元）">
+              <el-input-number
+                v-model="configElectricYuan"
+                :min="0"
+                :precision="2"
+                controls-position="right"
+              />
+            </el-form-item>
+            <el-form-item label="客情说明（送水/其他）">
+              <el-input v-model="configForm.welfareInfo" maxlength="200" />
+            </el-form-item>
+            <el-form-item label="场地方销售分成（bps）">
+              <el-input-number
+                v-model="configForm.shareBps"
+                :min="0"
+                :max="10000"
+                controls-position="right"
+              />
+              <span class="hint">{{ (configForm.shareBps / 100).toFixed(2) }}%</span>
+            </el-form-item>
+            <el-form-item label="收款人姓名" required>
+              <el-input v-model="configForm.payeeName" maxlength="64" />
+            </el-form-item>
+            <el-form-item label="收款人电话">
+              <el-input v-model="configForm.payeePhone" maxlength="20" />
+            </el-form-item>
+            <el-form-item label="启用">
+              <el-switch v-model="configEnabled" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="saveConfig">保存配置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+    </el-card>
 
     <!-- 手动出账 -->
     <el-dialog v-model="generateDialogVisible" title="手动出账" width="420px">
@@ -296,9 +308,6 @@ async function saveConfig(): Promise<void> {
 </script>
 
 <style scoped>
-.machine-bills-page {
-  padding: 8px 4px;
-}
 .toolbar {
   display: flex;
   gap: 8px;
