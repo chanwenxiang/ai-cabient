@@ -15,8 +15,10 @@ import java.util.Set;
  *   <li><b>含 PARTIAL_REFUNDED</b>：部分退款单有净收入，发佣要计、冲正重算按净额差额；
  *       全额退款（REFUNDED）与未支付状态不计。</li>
  * </ul>
- * 发佣（{@link LineCommissionJob}）与冲正（{@link CommissionClawbackService}）必须同源，
- * 防止「发佣按全额、冲回按净额」产生系统性差额（老系统差异卡 §6.1 实锤口径）。
+ * 发佣（{@link LineCommissionJob}）、冲正（{@link CommissionClawbackService}）与
+ * <b>分账</b>（{@link RevenueSplitService}，AU-182 2026-10-19 拍板同源）必须共用本类，
+ * 防止「发佣按净额、分账按 total」或「发佣按全额、冲回按净额」产生系统性差额
+ * （老系统差异卡 §6.1 实锤口径）。
  */
 public final class CommissionBaseCalc {
 

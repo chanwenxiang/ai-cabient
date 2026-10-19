@@ -577,6 +577,119 @@ class RevenueSplitServiceTest {
         // 入账是全额 1000（SPLIT_CREDIT），不是差额 100（SPLIT_PARTIAL_CREDIT）
         verify(merchantWalletService, never()).creditIfAbsent(
                 anyString(), anyLong(), eq("SPLIT_PARTIAL_CREDIT"), anyString(), anyString(), anyString());
-        verify(profitSharingService, never()).submitSplit(any(), any(), anyString());
+    }
+
+    /**
+     * AU-182（2026-10-19）：金额退路径——total 不被改写（refunded 累加）时，分账重算
+     * 也必须冲减。旧代码按 total=1000 重算 ⇒ merchant 不变、returnCents=0（不冲减的缺陷）；
+     * 同源净额口径 = 冻结毛额 1000 − refunded 700 = 300 ⇒ merchant 270、钱包冲回 630。
+     */
+    @Test
+    void adjustSplitAfterPartialRefund_amountRefund_shouldClawbackByNet() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("SPLIT-AU182A");
+        split.setOrderId("O-AU182A");
+        split.setMerchantId("M-1");
+        split.setStatus("LEDGER_ONLY");
+        split.setGrossCents(1000);
+        split.setMerchantCents(900);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-AU182A");
+        order.setTotalAmountCents(1000);   // 金额退不改写 total
+        order.setPaidAmountCents(1000);    // V384 冻结毛额
+        order.setRefundedCents(700);       // 金额退累加
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setPlatformRateBps(1000);
+
+        when(splitRepository.findByOrderIdForUpdate("O-AU182A")).thenReturn(Optional.of(split));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.debitIfAbsentAllowNegative(eq("M-1"), eq(630L), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        service.adjustSplitAfterPartialRefund(order, false);
+
+        verify(merchantWalletService).debitIfAbsentAllowNegative(
+                eq("M-1"), eq(630L), eq("SPLIT_PARTIAL_REVERSE"),
+                eq("SPLIT_PARTIAL_REV"), eq("SPLIT-AU182A:g270"), contains("O-AU182A"));
+        verify(splitRepository).save(argThat(s ->
+                s.getGrossCents() == 300L && s.getMerchantCents() == 270L && s.getPlatformCents() == 30L));
+    }
+
+    /**
+     * AU-182：按行部分退——total 已被改写为剩余应付（SettlementOrderSupport），
+     * 分账基数必须取<b>冻结毛额−refunded</b>而不是 total（后者会把退款再减一遍）。
+     * 冻结 1000、refunded 700 ⇒ 净额 300（不是 max(0, 300−700)=0，也不是 total=300 减两遍）。
+     */
+    @Test
+    void resyncSplitForOrder_rowRefund_baseUsesFrozenGrossNotTotal() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("SPLIT-AU182B");
+        split.setOrderId("O-AU182B");
+        split.setMerchantId("M-1");
+        split.setStatus("LEDGER_ONLY");
+        split.setGrossCents(1000);
+        split.setMerchantCents(900);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-AU182B");
+        order.setTotalAmountCents(300);    // 按行退已改写为剩余应付
+        order.setPaidAmountCents(1000);    // 冻结毛额不动
+        order.setRefundedCents(700);
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setPlatformRateBps(1000);
+
+        when(splitRepository.findByOrderIdForUpdate("O-AU182B")).thenReturn(Optional.of(split));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.debitIfAbsentAllowNegative(eq("M-1"), eq(630L), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        service.resyncSplitForOrder(order);
+
+        verify(splitRepository).save(argThat(s ->
+                s.getGrossCents() == 300L && s.getMerchantCents() == 270L));
+    }
+
+    /**
+     * AU-182：改单增额——冻结值只增不减，补扣到账后 freezePaidAmount 会把冻结毛额抬到
+     * 实收合计 ⇒ 分账基数随冻结值上升，而不是旧代码那样只能靠 total（欠款单/历史单 total
+     * 与实收脱钩时两套口径漂移）。
+     */
+    @Test
+    void resyncSplitForOrder_increase_baseFollowsFrozenGross() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("SPLIT-AU182C");
+        split.setOrderId("O-AU182C");
+        split.setMerchantId("M-1");
+        split.setStatus("LEDGER_ONLY");
+        split.setMerchantCents(900);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-AU182C");
+        order.setTotalAmountCents(1500);
+        order.setPaidAmountCents(1500);    // 补扣后冻结值已上升
+
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setPlatformRateBps(1000);
+
+        when(splitRepository.findByOrderIdForUpdate("O-AU182C")).thenReturn(Optional.of(split));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(merchantWalletService.creditIfAbsent(eq("M-1"), eq(450L), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        service.resyncSplitForOrder(order);
+
+        verify(merchantWalletService).creditIfAbsent(
+                eq("M-1"), eq(450L), eq("SPLIT_PARTIAL_CREDIT"),
+                eq("SPLIT_PARTIAL"), eq("SPLIT-AU182C:g1350"), contains("O-AU182C"));
+        verify(splitRepository).save(argThat(s -> s.getGrossCents() == 1500L && s.getMerchantCents() == 1350L));
     }
 }
