@@ -529,6 +529,20 @@ export async function logoutConsumerSession() {
   }
 }
 
+/**
+ * AU-149：自助注销账户（服务端匿名化 + 拒绝续期）。
+ * 守卫未过（余额未清/协议未解除/退款进行中）服务端回 409，错误文案由 showError 呈现。
+ * 无论服务端结果如何，成功路径都清本地会话（与登出同口径）。
+ */
+export async function deleteConsumerAccount() {
+  try {
+    await request<void>(ConsumerEndpoints.accountDelete, 'POST', null, true);
+  } finally {
+    clearConsumerSession();
+    markConsumerExplicitLogout();
+  }
+}
+
 export const consumerApi = {
   account: () => request<import('@aicabinet/shared-types').AccountDto>(ConsumerEndpoints.account),
   createRechargePrepay: (
