@@ -129,7 +129,7 @@ class AuthServicePhoneAndTwoFactorTest {
         UserInfo user = consumerUser();
         user.setStatus("DELETED");
         user.setWxOpenId(OPEN_ID);
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
         when(distributedLockService.tryLock(AuthService.wxOpenIdLockKey(OPEN_ID), 60L, 5L)).thenReturn(true);
         when(userInfoRepository.findByWxOpenId(OPEN_ID)).thenReturn(Optional.of(user));
