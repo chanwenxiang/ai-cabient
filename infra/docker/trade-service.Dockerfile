@@ -55,4 +55,12 @@ COPY --chown=app:app --from=build /build/services/trade-service/target/trade-ser
 USER app
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# 堆随容器走（2026-10-16）：此前 ENTRYPOINT 是写死的 `java -jar`，全仓零 JVM 参数，
+# 而 apps.yml 给本容器 `mem_limit: 1024m` —— JVM 默认 MaxRAMPercentage=25% ⇒ 实际堆只有 ~256MB，
+# 且运维想调参必须重 build 镜像。`${JAVA_OPTS:-…}` 形式让「不设 = 用这套默认」，
+# 设了 = 整体替换（`:-` 连空串也当未设，避免 compose 传 `JAVA_OPTS: ""` 把默认清空）。
+# `exec` 让 java 仍是 PID 1：SIGTERM 直达 JVM，`stop_grace_period: 30s` 才有意义
+# （见 scripts/check-compose-stop-grace.mjs 头注：装了宽限不处理信号 = 白等后 137）。
+# ExitOnOutOfMemoryError：宁可被 `restart: unless-stopped` 拉起，也不要 OOM 后僵着半死进程。
+ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]

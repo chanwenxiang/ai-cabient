@@ -3926,6 +3926,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/update-sn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["updateSn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/retire": {
         parameters: {
             query?: never;
@@ -4064,6 +4080,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["deactivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/confirm-activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmActivate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14188,6 +14220,9 @@ export interface components {
             merchantId?: string;
             remark?: string;
         };
+        UpdateSnRequest: {
+            deviceSn: string;
+        };
         ApiResponseJiangyiDeviceDto: {
             /** Format: int32 */
             code?: number;
@@ -14231,6 +14266,12 @@ export interface components {
         };
         GatherStartRequest: {
             doorPosition?: string;
+        };
+        ConfirmActivateRequest: {
+            identifier?: string;
+            deviceName: string;
+            deviceAddress: string;
+            screen?: boolean;
         };
         ApiResponseDeviceDataFeeBillDto: {
             /** Format: int32 */
@@ -26634,6 +26675,32 @@ export interface operations {
             };
         };
     };
+    updateSn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSnRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
     retire_1: {
         parameters: {
             query?: never;
@@ -26840,6 +26907,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
+    confirmActivate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmActivateRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

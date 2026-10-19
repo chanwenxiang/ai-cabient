@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.function.Supplier;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @Service
 public class AuthService {
@@ -219,7 +220,7 @@ public class AuthService {
 
     /** 微信小程序 wx.login：code2Session / 手机号解密在事务外；建档/登录走短事务。 */
     public LoginResponse wxLogin(WxLoginRequest request) {
-        var session = weChatMiniAppClient.code2Session(request.code());
+        var session = weChatMiniAppClient.code2Session(request.code(), MiniAppTarget.CONSUMER);
         return self.loginOrCreateByOpenId(session.openId(), resolveWxPhoneNumber(request));
     }
 
@@ -231,7 +232,7 @@ public class AuthService {
     private String resolveWxPhoneNumber(WxLoginRequest request) {
         String phoneCode = request.phoneCode();
         if (phoneCode != null && !phoneCode.isBlank()) {
-            String phone = weChatMiniAppClient.getPhoneNumber(phoneCode.trim());
+            String phone = weChatMiniAppClient.getPhoneNumber(phoneCode.trim(), MiniAppTarget.CONSUMER);
             if (phone == null || phone.isBlank()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
             }
@@ -260,7 +261,7 @@ public class AuthService {
      */
     @Transactional
     public void bindMerchantWeChat(long userId, String code) {
-        var session = weChatMiniAppClient.code2Session(code);
+        var session = weChatMiniAppClient.code2Session(code, MiniAppTarget.MERCHANT);
         String openId = session.openId();
         var byOpenId = userInfoRepository.findByWxOpenId(openId);
         if (byOpenId.isPresent() && byOpenId.get().getUserId() != userId) {
@@ -283,7 +284,7 @@ public class AuthService {
      */
     @Transactional
     public LoginResponse merchantWxLogin(WxLoginRequest request) {
-        var session = weChatMiniAppClient.code2Session(request.code());
+        var session = weChatMiniAppClient.code2Session(request.code(), MiniAppTarget.MERCHANT);
         UserInfo user = userInfoRepository.findByWxOpenId(session.openId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "该微信未绑定商户账号，请使用密码登录"));

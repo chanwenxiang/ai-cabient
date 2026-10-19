@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 /**
  * 柜机意外事件即时通知：离线 / 停售。
@@ -170,7 +171,8 @@ public class MerchantDeviceIncidentNotifyService {
                                 "thing1", title,
                                 "thing2", summary,
                                 "time3", TIME_FMT.format(Instant.now())
-                        ));
+                        ),
+                        MiniAppTarget.MERCHANT);
                 if (ok) {
                     MerchantNotifyLog row = new MerchantNotifyLog();
                     row.setUserId(userId);

@@ -209,7 +209,7 @@ public class WeChatPublisherStatClient {
             // 末尾多一个 {adSlot}。传 adSlot（可能为 null）给不含该占位的模板是无害的 ——
             // RestClient 只替换模板里存在的占位符。
             body = restClient.get()
-                    .uri(template, action, miniAppClient.accessToken(),
+                    .uri(template, action, miniAppClient.accessToken(MiniAppTarget.CONSUMER),
                             start.toString(), end.toString(), page, PAGE_SIZE_MAX, adSlot)
                     .retrieve()
                     .body(String.class);

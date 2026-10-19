@@ -91,6 +91,20 @@ public class DeviceInfoController {
         return Map.of("status", 200, "msg", "success", "data", false);
     }
 
+    /**
+     * 未文档化端点（2026-10-19 真机 CQYB10720 实测：开机序列固定调用，404 会中断
+     * 设备启动）。语义据采集文档 §4.4.4 modelTextUrl（模型 classes txt 地址）推断：
+     * 设备上报当前使用的模型 txt 文件地址，与 downloadModelNotify 同族回执。
+     * 宽容接收任意 body 只记日志；classes_version 仍以 downloadModelNotify 为准。
+     */
+    @PostMapping("/jiangyi/api/deviceInfo/receiveCurrentTxtUrl")
+    public Map<String, Object> receiveCurrentTxtUrl(HttpServletRequest request,
+                                                    @RequestBody(required = false) Map<String, Object> body) {
+        String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
+        log.info("jiangyi receiveCurrentTxtUrl deviceId={} body={}", deviceId, body);
+        return ok();
+    }
+
     private static String attr(HttpServletRequest request, String name) {
         Object v = request.getAttribute(name);
         return v == null ? "unknown" : v.toString();

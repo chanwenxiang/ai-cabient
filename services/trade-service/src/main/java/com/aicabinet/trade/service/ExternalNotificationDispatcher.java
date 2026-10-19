@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 /** 外部渠道通知分发：微信订阅消息 / 短信；同步与异步（Kafka 消费）共用。 */
 @Component
@@ -82,7 +83,8 @@ public class ExternalNotificationDispatcher {
                 user.getWxOpenId(),
                 weChatMiniAppProperties.resolveConsumerTemplateId(),
                 weChatMiniAppProperties.resolveConsumerNotifyPage(),
-                Map.of("thing1", msg.title(), "thing2", msg.body()));
+                Map.of("thing1", msg.title(), "thing2", msg.body()),
+                MiniAppTarget.CONSUMER);
         if (ok) {
             saveLog(msg, "WECHAT_SUBSCRIBE");
         }

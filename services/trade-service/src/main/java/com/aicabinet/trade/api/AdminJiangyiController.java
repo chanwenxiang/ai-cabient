@@ -150,6 +150,24 @@ public class AdminJiangyiController {
         return ApiResponse.ok(toDto(jiangyiOnboardingService.retire(deviceId)));
     }
 
+    /** 修改 SN（仅 UNBOUND）：登记抄错的纠正入口；SN 全局唯一，BOUND 须退役重登记。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/update-sn")
+    public ApiResponse<JiangyiDeviceDto> updateSn(@PathVariable("deviceId") String deviceId,
+                                                  @Valid @RequestBody UpdateSnRequest body) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.updateDeviceSn(deviceId, body.deviceSn())));
+    }
+
+    /** 将邑侧激活（V16 §5.4.10 confirmActivate）：出厂未入库设备用铭牌设备号入库。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/confirm-activate")
+    public ApiResponse<JiangyiDeviceDto> confirmActivate(@PathVariable("deviceId") String deviceId,
+                                                         @Valid @RequestBody ConfirmActivateRequest body) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.activateAtJiangyi(
+                deviceId, blankToNull(body.identifier()), body.deviceName(),
+                body.deviceAddress(), Boolean.TRUE.equals(body.screen()))));
+    }
+
     /**
      * 激活：允许该设备凭 SN 领取 token（审计 A1/P0-3 激活制，2026-10-15 拍板）。
      * SN 为出厂可枚举标识，绑定≠在场——设备到场通电前由运营逐台激活（预授权）。
@@ -319,6 +337,14 @@ public class AdminJiangyiController {
 
     record BindRequest(@NotBlank(message = "domain 不能为空") String domain,
                        String socketUrl) {}
+
+    record UpdateSnRequest(@NotBlank(message = "设备 SN 不能为空") String deviceSn) {}
+
+    /** V16 §5.4.10 表153：identifier/deviceSn 服务端补，deviceName/deviceAddress 必填，screen 可选。 */
+    record ConfirmActivateRequest(String identifier,
+                                  @NotBlank(message = "设备名称不能为空") String deviceName,
+                                  @NotBlank(message = "投放地址不能为空") String deviceAddress,
+                                  Boolean screen) {}
 
     record MappingUpsertRequest(@NotBlank(message = "SKU 不能为空") String skuId,
                                 String textName,

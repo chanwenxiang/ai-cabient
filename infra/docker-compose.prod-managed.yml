@@ -1,0 +1,76 @@
+name: ai-cabinet
+
+# 生产「2 台 + 云托管」叠加层（2026-10-16 用户拍板：应用层 2 副本、PostgreSQL/Redis 换云托管）
+#
+# 与现有编排的关系（**只叠加，不替换 .production.yml**）：
+#   docker compose -p ai-cabinet \
+#     -f infra/docker-compose.yml \
+#     -f infra/docker-compose.apps.yml \
+#     -f infra/docker-compose.production.yml \
+#     -f infra/docker-compose.prod-managed.yml \
+#     --profile apps up -d --scale trade-service=2
+#
+# 本层做三件事：
+#   ① 把 trade/device 的 DB、Redis 指向**外部托管端点**（`:?` 必填 = fail-loud，
+#      忘配就起不来，而不是悄悄连到容器名 `postgres`/`redis` 上）；
+#   ② 把本机 postgres/redis 移出默认启动集（改 profiles，**不删服务**：
+#      回退到自托管只需去掉本层，风险可逆）；
+#   ③ 拆掉 trade 对 `postgres` 的 depends_on（否则依赖 profile 关闭的服务，compose 直接报错）。
+#
+# 🔴 上线前必须先做的两件事（否则本层与服务器现状对不上）：
+#   1. `infra/docker-compose.prod-server.yml` **不在 git**（只在 `/data/apps/ai-cabinet`），
+#      先把它 `cat` 回仓或逐行 diff：本层的 env 覆盖不能与它的 bind mount / 端口 / env 打架。
+#   2. 云托管 PG 的 `max_connections` 必须 ≥ 副本数 × `DB_POOL_SIZE`（默认 20）+ 迁移/监控余量；
+#      Redis 托管实例要支持 `MULTI/eval`（Redisson 锁依赖），且**必须带密码 + 内网访问**。
+#   详见 docs/PRODUCTION_TOPOLOGY.md。
+
+services:
+  trade-service:
+    # 门禁按"每个文件的每个 service 块"检查宽限，叠加层也要自带（继承不算）
+    stop_grace_period: 30s
+    # 依赖改写：托管后不再有本机 postgres 容器；minio-init/redpanda 仍在本机（B 台）。
+    # ⚠ 必须用 !override（=整段替换），`!reset` 在 compose v5.1.1 语义是「删除字段」，
+    #     会把 minio-init/redpanda 一并抹掉（实跑 config 验证过）。
+    depends_on: !override
+      minio-init:
+        condition: service_completed_successfully
+      redpanda:
+        condition: service_started
+    environment:
+      # ── 外部 PostgreSQL（云托管主备）────────────────────────────────
+      SPRING_DATASOURCE_URL: ${DB_URL:?set DB_URL=jdbc:postgresql://host:port/db in .env.production}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:?set DB_USER in .env.production}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env.production}
+      # 连接池上限显式化：N 副本 × DB_POOL_SIZE 必须与托管 PG max_connections 对账
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-20}
+      # ── 外部 Redis（托管主从；Redisson 分布式锁 + L2 缓存 + 幂等键都系于它）──
+      REDIS_HOST: ${REDIS_HOST:?set REDIS_HOST in .env.production}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST:?set REDIS_HOST in .env.production}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
+      # Redis 走 TLS 时由托管端点提供；本层不猜，缺省 false 并在部署清单里核对
+      REDIS_SSL: ${REDIS_SSL:-false}
+      # 多副本务必由调度中心统一触发（apps.yml 已默认 true，这里再钉一次并留可关位）
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
+    # 多副本：宿主机 8080 映射必须摘掉（ha.yml 同源做法），对外一律经 gateway :80
+    ports: !reset []
+
+  device-service:
+    stop_grace_period: 30s
+    environment:
+      REDIS_HOST: ${REDIS_HOST:?set REDIS_HOST in .env.production}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env.production}
+    # MQTT clientId 后缀取主机名（MqttEventListener:75-78）⇒ 同机多副本要确认 hostname 不同
+    hostname: device-${DEVICE_INSTANCE:-a}
+
+  # ── 本机有状态件移出默认启动集（不删定义，去掉本层即可回退自托管）────────
+  # 门禁按"每个文件的每个 service 块"检查，移出启动集也要自带宽限
+  postgres:
+    stop_grace_period: 60s
+    profiles: ["legacy-local-stateful"]
+  redis:
+    stop_grace_period: 30s
+    profiles: ["legacy-local-stateful"]

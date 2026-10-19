@@ -34,11 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 /**
  * C13 / H22 / H23：微信登录手机号必须服务端换取；短信验证码登录接入 2FA；刷新会话校验停用账号。
@@ -98,9 +100,9 @@ class AuthServicePhoneAndTwoFactorTest {
         // C13：phoneCode 非空时走服务端 getuserphonenumber，绑定的是换来的手机号
         UserInfo user = consumerUser();
         stubSuccessfulLoginOrCreate(user);
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
-        when(weChatMiniAppClient.getPhoneNumber("phone-code")).thenReturn(PHONE);
+        when(weChatMiniAppClient.getPhoneNumber("phone-code", MiniAppTarget.CONSUMER)).thenReturn(PHONE);
 
         LoginResponse response = service.wxLogin(new WxLoginRequest("wx-code", null, "phone-code"));
 
@@ -112,7 +114,7 @@ class AuthServicePhoneAndTwoFactorTest {
     @Test
     void wxLogin_clientPhoneWithoutCode_rejectedWhenNotMock() {
         // C13：mock 关闭时，客户端明文 phoneNumber 无授权码 → 拒绝（防知手机号即可接管账号）
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -120,7 +122,7 @@ class AuthServicePhoneAndTwoFactorTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("需提供手机号授权码", ex.getReason());
-        verify(weChatMiniAppClient, never()).getPhoneNumber(anyString());
+        verify(weChatMiniAppClient, never()).getPhoneNumber(anyString(), any());
     }
 
     @Test
@@ -128,21 +130,21 @@ class AuthServicePhoneAndTwoFactorTest {
         // dev 兼容：mock 开启时允许沿用请求体 phoneNumber，且不触发服务端换号
         UserInfo user = consumerUser();
         stubSuccessfulLoginOrCreate(user);
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
         ReflectionTestUtils.setField(service, "securityProperties", new SecurityProperties(true));
 
         LoginResponse response = service.wxLogin(new WxLoginRequest("wx-code", PHONE, null));
 
         assertEquals(user.getUserId(), response.userId());
-        verify(weChatMiniAppClient, never()).getPhoneNumber(anyString());
+        verify(weChatMiniAppClient, never()).getPhoneNumber(anyString(), any());
     }
 
     @Test
     void wxLogin_phoneCodeResolvedEmpty_rejected() {
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
-        when(weChatMiniAppClient.getPhoneNumber("phone-code")).thenReturn("");
+        when(weChatMiniAppClient.getPhoneNumber("phone-code", MiniAppTarget.CONSUMER)).thenReturn("");
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.wxLogin(new WxLoginRequest("wx-code", null, "phone-code")));

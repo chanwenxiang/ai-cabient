@@ -16,7 +16,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * 将邑设备面 HTTP 鉴权（CB-022，方案 §3）：拦截 {@code /jiangyi/api/**}
- * （token 签发端点除外），校验 {@code Authorization: Bearer <JWT>}。
+ * （token 签发端点除外），校验 {@code Authorization} 头中的 JWT——兼容
+ * 裸 token（文档 V16 §4.2.4 口径、真机实际行为）与 {@code Bearer <JWT>}
+ * 两种写法。
  *
  * <p>校验链：验签+exp（无状态）→ 表 status=BOUND → claims.ver ≥ 表 token_version
  * （吊销即失效）。每请求查 trade 换取吊销实时性——一期设备量级个位数，无性能压力；
@@ -51,13 +53,26 @@ public class DeviceAuthInterceptor implements HandlerInterceptor {
         String outcome = "ok";
         try {
             String auth = request.getHeader("Authorization");
-            if (auth == null || !auth.startsWith("Bearer ")) {
-                throw unauthorized("missing_token", "缺少 Bearer token");
+            // 2026-10-19 实证（真机 CQYB10720）：将邑设备按文档 V16 §4.2.4 把 token 原样放进
+            // Authorization 头（"商户服务器返回的token"，无 Bearer 前缀），真机全部请求
+            // outcome=missing_token 的真因即此前只认 "Bearer " 前缀。兼容两种写法：
+            //   Authorization: <裸JWT>（设备实际行为，文档口径）
+            //   Authorization: Bearer <JWT>（此前网关自定口径，保留兼容）
+            if (auth == null || auth.isBlank()) {
+                throw unauthorized("missing_token", "缺少 Authorization token");
+            }
+            String token = auth.startsWith("Bearer ") ? auth.substring(7).trim() : auth.trim();
+            if (token.isBlank()) {
+                throw unauthorized("missing_token", "缺少 token");
             }
             Claims claims;
             try {
-                claims = deviceTokenService.verify(auth.substring(7).trim());
+                claims = deviceTokenService.verify(token);
             } catch (JwtException e) {
+                // 2026-10-19 真机排障：advertising 端点报 bad_token 而 getDetail 同 token 通过，
+                // 打 token 头部片段（前 24 字符，非完整凭据）定位设备实际传参格式
+                log.info("jiangyi bad_token head={} path={}",
+                        token.length() <= 24 ? token : token.substring(0, 24) + "...", path);
                 throw unauthorized("bad_token", "token 无效或已过期");
             }
             String deviceId = claims.getSubject();

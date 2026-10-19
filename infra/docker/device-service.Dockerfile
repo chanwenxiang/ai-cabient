@@ -31,7 +31,7 @@ WORKDIR /app
 
 RUN apk add --no-cache wget
 RUN addgroup -S app && adduser -S app -G app \
-    && mkdir -p /app/data/mqtt-paho \
+    && mkdir -p /app/data/mqtt-paho /app/logs \
     && chown -R app:app /app
 
 COPY --from=build --chown=app:app /build/services/device-service/target/device-service-*.jar app.jar
@@ -39,4 +39,6 @@ COPY --from=build --chown=app:app /build/services/device-service/target/device-s
 USER app
 
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# 同 trade-service.Dockerfile：apps.yml 给本容器 mem_limit: 768m，写死 `java -jar` 时
+# JVM 只取 25%（~192MB）堆且改参必须重 build。exec 保 PID 1 ⇒ SIGTERM 直达、宽限不白等。
+ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]

@@ -154,6 +154,20 @@ class DeviceAuthIT {
     }
 
     @Test
+    void reportWithRawTokenWithoutBearerPrefixIsAccepted() throws Exception {
+        // 2026-10-19 真机实证（CQYB10720）：将邑设备按文档 V16 §4.2.4 把裸 token 原样放进
+        // Authorization 头（"商户服务器返回的token"，无 Bearer 前缀），必须放行
+        String token = deviceTokenService.issue(boundDevice());
+        when(tradeInternalClient.device("D1")).thenReturn(Optional.of(boundDevice()));
+        mockMvc.perform(post("/jiangyi/api/device/uploadLockState")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderNo\":\"S1\",\"lockStatus\":\"success\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200));
+    }
+
+    @Test
     void reportWithForgedTokenIs401() throws Exception {
         // 用不同密钥签发 = 伪造
         String forged = Jwts.builder().subject("D1").compact();

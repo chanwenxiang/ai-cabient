@@ -147,6 +147,12 @@ aicabinet:
     enabled: ${WECHAT_MINIAPP_ENABLED:false}
     app-id: ${WECHAT_MINIAPP_ID:}
     app-secret: ${WECHAT_MINIAPP_SECRET:}
+    # 2026-10-19 双 appid：两个小程序主体各有独立 appid/secret（openid 隔离）；
+    # 端专属键缺省时回退上面的旧单组值（兼容既有部署）。
+    consumer-app-id: ${WECHAT_CONSUMER_APP_ID:}
+    consumer-app-secret: ${WECHAT_CONSUMER_APP_SECRET:}
+    merchant-app-id: ${WECHAT_MERCHANT_APP_ID:}
+    merchant-app-secret: ${WECHAT_MERCHANT_APP_SECRET:}
     subscribe-template-id: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:}
     notify-page: pages/alerts/alerts
     consumer-subscribe-template-id: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:}

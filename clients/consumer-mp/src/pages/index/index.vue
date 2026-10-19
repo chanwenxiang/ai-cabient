@@ -915,8 +915,11 @@ onLoad(async (opts) => {
   // 断网监听：落地页提示 + 开门拦截都依赖 netOffline（onUnload 摘除）
   startNetworkWatch();
   // 分享菜单：开启「发送给朋友/分享到朋友圈」原生入口（微信端；朋友圈分享已在 onShareTimeline 注册）
+  // 成因注释：基础库 3.3.5 起 callback 风格 API 无回调时返回 Promise，测试号/未发布
+  // appid 无分享权限会 fail no permission → 未处理 Promise 拒绝刷红控制台；失败无碍
+  // 页面自身 onShareAppMessage/onShareTimeline，静默兜底即可
   if (isMpWeixin && typeof uni.showShareMenu === 'function') {
-    uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'] });
+    uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'], fail: () => {} });
   }
   refreshLandingPad();
   let launch = parseLaunchOptions((opts || {}) as Record<string, string>);

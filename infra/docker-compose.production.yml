@@ -10,6 +10,10 @@ services:
     stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      # 宽限只给时间窗，真正不硬断在飞请求要 graceful：SIGTERM 后先拒新请求、等在途处理完再退。
+      # 25s < stop_grace_period 30s，留 5s 给连接池/Redisson 收尾，避免被 SIGKILL。
+      SERVER_SHUTDOWN: graceful
+      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: ${SHUTDOWN_PHASE_TIMEOUT:-25s}
       AICABINET_STAGING_MODE: "false"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"

@@ -142,7 +142,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 1. **会员域**：`member.total_spent`、`member_level_rule.min_spent / max_spent / min_recharge` 是 `DECIMAL(12,2)` **元**，由 `BigDecimal.valueOf(cents, 2)` 从分换算写入。所以 [MemberLevelsView.vue](../clients/admin-vue/src/views/growth/MemberLevelsView.vue) 里的 `yuanOfYuan()` **入参已经是元，只加符号、绝不能再 ÷100**——名字刻意与全站「入参分」的 `yuan()`／`yuanText()` 区分。
 2. **平台资金两个配置**：`platform.fund.plan.buffer_yuan`、`platform.fund.recon.tolerance_yuan` 按元存、读取用 `getDouble` 后立即 `yuanToCents()`。键名带 `_yuan` 即声明单位。
 
-**同名不同物的两个「押金」**（问一次答一次，别再现场推断）：`device_info.deposit_cents` = 消费者**开门押金/预授权冻结额**（分，>0 时覆盖 `checkout.preauth_cents` 默认 2000 分 = ¥20）；`device_rental_deposit.amount_cents` = CB-034 **租赁押金本金**（分，另有 monthly_refund / expire_reward / install_fee_deduct 三列，装机抵扣默认 10000 分）。
+**同名不同物的两个「押金」**（问一次答一次，别再现场推断）：`device_info.deposit_cents` = 消费者**开门押金/预授权冻结额**（分，>0 时覆盖 `checkout.preauth_cents` 默认 2000 分 = ¥20）；`device_rental_deposit.amount_cents` = CB-034 **租赁押金本金**（分，另有 monthly_refund / expire_reward / install_fee_deduct 三列；装机抵扣默认 **0 分**——V383 归 0，登记按柜配参数，原「默认 10000 分」口径已废，2026-10-18 复审订正）。
 
 ### 6.2 分账状态机 + `platform_rate_bps=0` 的确切含义（2026-10-17 拍板）
 
@@ -168,7 +168,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整联调 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 服务边界 / 识别链路 |
 | [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 三端产品边界 |
-| [THREE_END_FULL_REVIEW_2026-09-27.md](THREE_END_FULL_REVIEW_2026-09-27.md) | 三端全面审查结论（无 P0/11 P1）、mock 开关总表、接真前 checklist | 排修复计划 / 接小程序号·支付·硬件·识别前 |
+| [THREE_END_FULL_REVIEW_2026-09-27.md](archive/audit/THREE_END_FULL_REVIEW_2026-09-27.md)（已归档） | 三端全面审查结论（无 P0/11 P1，**已全部修在位**）、mock 开关总表、接真前 checklist | 历史取证；缺陷编号与修复状态以 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 为准；其余旧审计快照同在 `docs/archive/audit/`（定性见其 README） |
 | [engineering/lessons-learned.md](engineering/lessons-learned.md) | 踩坑总册 |
 | [engineering/admin-vue-debt-tracker.md](engineering/admin-vue-debt-tracker.md) | 运营后台技术债进度（D1–D25 已清） |
 | [engineering/consumer-mp-debt-tracker.md](engineering/consumer-mp-debt-tracker.md) | 消费端小程序技术债（C1–C12，mp-weixin 权威） |
@@ -180,6 +180,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | [AUDIT_B1_EXTENDED_FUND_2026-10-16.md](AUDIT_B1_EXTENDED_FUND_2026-10-16.md) | 资金域扩展审 F-1…F-8（V355/V359/V361 三链，幂等根因）；动钱包/佣金/费用扣款前读 |
 | [AUDIT_DECISION_BRIEF_2026-10-16.md](AUDIT_DECISION_BRIEF_2026-10-16.md) | **待拍板简报**：DC-26/27/29 落地实证 + §12「还剩什么要你定」；想知道项目卡在哪些决策上读这一份 |
 | [AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md](AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md) | 费用口径（分/天、扣款即结清、账龄锁柜、按日期重跑）拍板与落地状态表 |
+| [AUDIT_THREE_END_FULL_2026-10-18.md](AUDIT_THREE_END_FULL_2026-10-18.md) | 最新三端全量复审（AU-136~173，编号源在台账；子代理明细见 [AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md](AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md)）；想知道「历史审计报告哪些还能信」读其 §5 核查矩阵（失实 17/虚报 0） |
 
 ### 7.2 Cursor 规则（`.cursor/rules/`）
 
@@ -289,6 +290,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ---
 
+| 2026-10-18 | **三端全量复审（8 路只读审计 + 历史文档逐条核查 + 终轮源码级复核，HEAD=28c9f99a）**：新发现 **P0×2**（AU-136 `/auth/wx-h5-login` 客户端明文手机号可绑任意账号含运营号段——C13 防线的 H5 旁路，生产未配 H5 OAuth 前不可触发、配置即炸；AU-172 `slot_template`/`slot_template_line` `@TableId` 缺 `value="id"` 与 V368 DDL 主键 `id` 错位——陈列模板新建/查详情/删除全链 500，225 张表探针唯二真实失配）+ P1×3（AU-137 余额退款续退链幂等键按 requestNo 恒定→多轮复审静默吞资金且无流水可查；AU-138 商户盘点页旧正则剥 EG 前缀→新编号设备盘点必失败；AU-173 `platform-fund-daily`/`device-rental-daily` 是 39 任务唯二无 tryBegin——无分布式锁多副本双跑 + `scheduled_task.enabled` 停用开关被旁路，上线手册「保持关」关不住）+ P2×10/P3×22（AU-139~171）；历史文档核查约 150 条声明**失实 17、虚报 0**——09-27/10-05 两轮报告判断层零误报、修复全在位，债务集中在**文档不回写**（FIX_QUEUE 低估完成度、台账 AU-002/077/134 已销账、backlog 三处失实、§6.1 押金默认值已顺手订正）；终轮实跑：2030 单测全绿 + `WalletRefIdempotencySqlIT` 5/5（钱包 DB 级幂等兜底在位）+ 消费者 token 实测 `/ops/announcements/published` 200（AU-125 运行时实证）。AU-172/173 在 origin/dev（d5dee737，+15 提交含钱包统一 V387-390）仍未修 | `docs/AUDIT_THREE_END_FULL_2026-10-18.md`（§2/§8）、[附录明细](AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md)、台账「2026-10-18 三端全量复审」+「终轮增补」节 |
 | 2026-10-11 | **将邑迁移后三端复审 + 协议对照 + 两缺陷修复**：①协议契约逐条对照 V16 §4.2 HTTP 面 + §4.3 WS 面（token/getDetail/downloadModelNotify/OSS STS 字段/lock/door/识别/orderError 双字段归一/视频分片/心跳 PONG/openDoor/updateModel）**全部一致**（报告 §2）；②三端一致性核对——录像读路径已收敛「服务端下发 videoPreviewUrl（将邑台账兜底）」、shared-types 零漂移、采集闸门同源、识别参考分层展示一致；③抓出并修复 **P1：admin「新增到将邑商品库」恒 400**（弹窗 mainImg 恒发空串 vs `@NotBlank`，按钮从未成功过——修法=预填 SKU 主图+可编辑输入+服务层回退 SKU imageUrl+双空 409，顺带消费 `jiangyiProductCategories` 下拉替换手填 catId）+ **P2：采集锁 409 文案漂移**（含「暂停营业」被 classifyOpenError 误判为锁机——新增 `device_gathering` 专属分类先于暂停营业判定，consumer 标题/离线判定同步，admin 入驻页 FAQ 对齐实况）+ P3 术语两处（「视觉识别处理中」→「识别商品中」）；④实跑全绿：gateway 58/58、trade 将邑面 73/73（修复后 38/38 含新增 2 用例）、admin 88+consumer 133+merchant 159 单测+三端 tsc；⑤旧链残留定界成文（5 条 D 级待拍板：叠加栈缺 jiangyi-gateway/生产钉死退役识别后端/EDGE 柜旧链仍真扣款/UAT 钉旧链/旧 YOLO 映射面在线）——**本次未擅自动旧链**，处置须先回读台账再批量清理 | `docs/JIANGYI_MIGRATION_AUDIT_2026-10-11.md`、lessons #294 |
 | 2026-10-09 | **第三批落码（CB-018①营收序列 + 商户客服触点 + CB-019 判定凭证）**：①柜机×日营收序列——`CabinetOrderMapper.selectRevenueDailyByDeviceSince`（XML 按 Asia/Shanghai 日历日分桶，**口径同 sumAmountByDeviceId 不过滤状态**保证日序列求和与报表累计可对平）→ `OpsDeviceAdminService.deviceDailyRevenue`（ops:report:device、normalizeTrendDays 7/30/90、**scope 外深链返回空列表不 404 防探测**）→ `GET /reports/devices/daily-revenue` → DeviceReportView 趋势卡（EChart 柱状图+天数切换，deviceId 深链标题切「该柜机」）；②商户端在线客服触点——双端不对称实锤（C 端完整/商户端零入口）→ 新配置键 `merchant.service_phone`（ensureDefaults 种子+feature-flags.json 登记）+ merchantPublicConfig 下发 servicePhone/supportEmail（**空串 fail-closed 整组不渲染**）→ mine.vue「帮助与客服」组（safeMakePhoneCall 拨号+剪贴板复制邮箱）；③争议详情判定凭证（CB-019）——纯前端零后端改动（DisputeTicketDto 已全量下发）：disputes.vue 抽屉补申诉证据图墙（`downloadDisputeEvidence` 带鉴权下载到本地临时路径——image 标签无法携带 Bearer，失败留空占位不拼 token 防泄露+模块级缓存）+人工判定明细（resolutionItems；terminal 无明细=「本次判定未计费商品」空态对齐 C 端语义）+处理人/运营备注行。**坑**：手写 `FileAttachmentDto.fileId` 必填 number vs OpenApi 生成版 optional → vue-tsc 红，参数改结构化类型 `{ fileId?: number; url?: string }`。验证：admin 9/9 绿+vue-tsc 绿、merchant-mp type-check+154 测试绿；**UI 实机验收过（browser-skill）：趋势卡三档联动+`daily-revenue?days=30` 请求实锤，抓出并修复深链缺陷——`/reports?deviceId=xxx` 的 query 无人读（只实现了 watch 未实现 query 解析，单测未覆盖），修法=applyRouteQuery 加 deviceId 同步，复验「该柜机」标题+选择器选中+带 deviceId 请求全链路生效** | CB-018、CB-019、`OpsDeviceAdminService`、`disputes.vue` |
 | 2026-10-09 | **资金两项②：渠道费实结化 V331（CB-020③）**：数据链=微信交易账单「手续费」列（官方 27 列 ALL 型 0 基第 22 列，WebSearch 取证）→ `PlatformBillLine` 加 `feeCents`（**Long null=通道未提供**，与 0 严格区分；支付宝未映射置 null、Mock 置 null 走估算兜底；**fee 解析独立 try 不丢行**——金额对账是主目标，费用列异常不能把整行变成 PLATFORM_ONLY 假差异）→ V331 `payment_platform_bill_line.fee_cents` + `payment_reconciliation.channel_fee_cents`（日×渠道粒度；feeProvided=false 存 NULL 不存 0）→ `FundBillService.listDailyBills` **实结优先**：当日跨渠道实结合计按商户 gross 占比分摊+**尾差挂当日最大 gross 商户行**（Σmerchant≡日实结），无实结回落 bps 估算；DTO 加 `channelFeeSource`（ACTUAL/ESTIMATED）前端「通道费（实结）/（估）」标注+CSV 同步。费率差异告警：`checkChannelFeeAnomaly` 实结 bps vs 配置 bps（`FundBillService.resolveChannelFeeBps` static 化复用同源配置），**绝对差>100bps 且 相对差>配置 25%** 双阈值（低费率防噪+高费率防钝）→ 复用 RECON_MISMATCH 告警+指标，**status 不动**（MISMATCH 语义只留给金额/单据不平）。`listLedger` 逐单明细**维持估算**（FundBillChannelFeeRateTest 5 用例钉死契约+逐单实结需 wechatTransactionId↔platformTradeNo 关联成本高，留增量）。**坑**：mock 未 stub `getInt` 返回 int 默认 0（0bps⇒估算 0 而非默认 60）——「默认费率」语义必须显式 stub。验证：5 测试类 30/30 绿+admin vue-tsc 绿 | CB-020、`V331__recon_channel_fee_actual.sql`、`WeChatBillCsvParserTest`、`ReconciliationServiceTest` |
@@ -635,6 +637,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-10-19（微信小程序双 appid 改造 + 双端凭证落地）
+- **背景**：用户提供两个独立小程序主体的真实凭证——消费者 `wx6dacefb3671de630`、商户 `wxf7de3625991a6431`（AppSecret 只进本地 gitignored `infra/.env` 新增 4 键 `WECHAT_CONSUMER_APP_ID/SECRET`、`WECHAT_MERCHANT_APP_ID/SECRET`，禁止提交）。小程序端 `consumer-mp`/`merchant-mp` 的 `manifest.json`(mp-weixin.appid) 与 `project.config.json` 已分别填入（appid 非密钥、可提交）。
+- **后端双 appid 改造**（此前 `WeChatMiniAppClient` 只有一组 `aicabinet.wechat-miniapp.app-id/secret`，而 `wxLogin`（C 端）与 `merchantWxLogin`/`bindMerchantWeChat`（B 端）共用——openid/access_token 按 appid 隔离，双小程序上线前必改）：
+  - 新增 [MiniAppTarget](../services/trade-service/src/main/java/com/aicabinet/trade/wechat/MiniAppTarget.java)（CONSUMER/MERCHANT）；[WeChatMiniAppProperties](../services/trade-service/src/main/java/com/aicabinet/trade/config/WeChatMiniAppProperties.java) 加 4 字段（端专属凭证），`resolveAppId/resolveAppSecret(target)` 端专属缺省时**回退旧单组值**（存量部署零改动兼容），`isConfigured()` 语义=两端都配齐；[WeChatMiniAppClient](../services/trade-service/src/main/java/com/aicabinet/trade/wechat/WeChatMiniAppClient.java) 全部方法（code2session/getPhoneNumber/sendSubscribeMessage/generateUrlLink/accessToken）带 target，access_token 按 appid 分缓存（V310 同 appid 频率限制约束不变）。
+  - 调用点端归属（9 处）：**CONSUMER**＝`AuthService.wxLogin`+`resolveWxPhoneNumber`、`ExternalNotificationDispatcher`（audience=CONSUMER）、`UnpaidOrderService` 催付、`CabinetOpenLandingController` URL Link、`WeChatPublisherStatClient` 流量主对账（**推定**广告位在消费者小程序，如流量主实际绑定在其它 appid 需回调）；**MERCHANT**＝`AuthService.bindMerchantWeChat`/`merchantWxLogin`、`MerchantNotifyService` 绑定+待办、`MerchantDeviceIncidentNotifyService`。
+  - 配置面：`application.yml` wechat-miniapp 节新增 4 键；`.env.example`/`.env.production.example` 同步。
+- **验证**：受影响 12 个测试类（Auth 3 + Dispatcher + 设备异常 + 商户待办并发 + SystemConfig 4 + Unpaid 并发 + 启动校验）**70 tests / 0 failure**；全局复扫无旧签名残留（`WeChatWebOAuthClient` 的 `appId()` 是公众号 H5 OAuth 另一组配置，无关）。**全量回归与 preflight 在提交前照常跑**。
 
 ### 2026-10-17（DC-27(b) 批 2/批 3/批 6 实删 + 提现费率注册表对齐 + 锁柜阈值登记 + 平台分账「先不收」落地）
 - **DC-27(b) 拍板「现在删了」→ 隔离分支 `chore/dc27-remove-vision`（跑完再合 dev）**，落实 2026-10-11 判定文档 §3 的批 2 + 批 3 + 批 6：

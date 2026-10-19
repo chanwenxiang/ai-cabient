@@ -332,8 +332,7 @@ $env:MP_WEIXIN_APPID_CONSUMER="wxXXXXXXXXXXXXXXXX"; npm run build:mp-weixin
   不是「页面丢失」。真实页面数 = `pages` 长度 + 各 `subPackages[].pages` 之和
   （consumer 21 页 / merchant 27 页）。
 
-> `scripts/sync-consumer-mp-api.mjs` 的地址探测顺序是**回环地址优先、局域网 IP 兜底**
-> （真机预览才需要局域网 IP），所以在本机编译出 `http://127.0.0.1` 是符合设计的，不是没探测到。
+> `scripts/sync-consumer-mp-api.mjs` 的地址探测顺序自 2026-10-15 起为**局域网 IP 优先、回环地址兜底**（真机预览是常态；`MP_API_USE_LAN=0` 可显式退回回环优先）。生产构建走 release env，不经过本脚本。
 
 ### 7. 编译报 `SAFE_DELETE_BULK_CONFIRM_REQUIRED` 怎么办
 

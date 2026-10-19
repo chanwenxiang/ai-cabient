@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @ExtendWith(MockitoExtension.class)
 class ExternalNotificationDispatcherTest {
@@ -39,7 +40,7 @@ class ExternalNotificationDispatcherTest {
 
     private static final WeChatMiniAppProperties WECHAT_PROPS =
             new WeChatMiniAppProperties(false, null, null, "merchant-tpl", "pages/alerts/alerts",
-                    "consumer-tpl", "pages/messages/messages");
+                    "consumer-tpl", "pages/messages/messages", null, null, null, null);
 
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
@@ -71,13 +72,13 @@ class ExternalNotificationDispatcherTest {
     void dispatch_shouldPushWechatWhenEnabledAndOpenIdBound() {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
-        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap()))
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), eq(MiniAppTarget.CONSUMER)))
                 .thenReturn(true);
 
         dispatcher.dispatch(message());
 
         verify(weChatMiniAppClient).sendSubscribeMessage(
-                eq("openid-1"), eq("consumer-tpl"), eq("pages/messages/messages"), anyMap());
+                eq("openid-1"), eq("consumer-tpl"), eq("pages/messages/messages"), anyMap(), eq(MiniAppTarget.CONSUMER));
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(logRepository).save(captor.capture());
         assertEquals("WECHAT_SUBSCRIBE", captor.getValue().getChannel());
@@ -103,7 +104,7 @@ class ExternalNotificationDispatcherTest {
         dispatcher.dispatch(message());
 
         verify(logRepository, never()).save(any(NotificationLog.class));
-        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap());
+        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), any());
         verify(smsSender, never()).sendMessage(anyString(), anyString());
     }
 
@@ -114,7 +115,7 @@ class ExternalNotificationDispatcherTest {
 
         dispatcher.dispatch(message());
 
-        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap());
+        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), any());
         verify(smsSender, never()).sendMessage(anyString(), anyString());
     }
 
@@ -124,7 +125,7 @@ class ExternalNotificationDispatcherTest {
         ExternalNotificationDispatcher dispatcher = dispatcher(true, true);
         when(templateRepository.findByCode("order_paid")).thenReturn(Optional.of(template("IN_APP,WECHAT_SUBSCRIBE")));
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", "13800138000")));
-        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap()))
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), eq(MiniAppTarget.CONSUMER)))
                 .thenReturn(true);
 
         dispatcher.dispatch(message());

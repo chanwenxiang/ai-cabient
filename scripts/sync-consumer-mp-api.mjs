@@ -36,10 +36,12 @@ function probe(base) {
 }
 
 /**
- * 选择顺序：
+ * 选择顺序（2026-10-15 用户定夺：默认局域网优先；上线发布前再改回环回优先）：
  * 1. 显式 `MP_API_BASE_URL` / `VITE_API_BASE_URL`
- * 2. 环回（微信开发者工具模拟器本机）
- * 3. 可达的局域网 IP（真机预览；探测失败则不用，禁止写死超时 IP）
+ * 2. 可达的局域网 IP（真机预览；探测失败则不用，禁止写死超时 IP）
+ * 3. 环回（微信开发者工具模拟器本机兜底）
+ * 注意：生产构建走 release env（validate-miniapp-env + inject --mode release），
+ * 不经过本脚本；发布前无需改此默认，仅需确认 release 配置不含局域网 IP。
  */
 const explicit = String(process.env.MP_API_BASE_URL || process.env.VITE_API_BASE_URL || '')
   .trim()
@@ -58,9 +60,11 @@ const lanCandidates = lanIp
   : [];
 
 const forceLan = String(process.env.MP_API_USE_LAN || '').trim() === '1';
+// 默认局域网优先（真机预览是常态）；MP_API_USE_LAN=0 可显式退回环回优先
+const lanFirst = process.env.MP_API_USE_LAN !== '0';
 const ordered = explicit
   ? [explicit]
-  : forceLan
+  : lanFirst || forceLan
     ? [...lanCandidates, ...loopbackCandidates]
     : [...loopbackCandidates, ...lanCandidates];
 

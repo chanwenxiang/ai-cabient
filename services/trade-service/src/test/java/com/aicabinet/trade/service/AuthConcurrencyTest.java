@@ -31,6 +31,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @ExtendWith(MockitoExtension.class)
 class AuthConcurrencyTest {
@@ -63,7 +64,7 @@ class AuthConcurrencyTest {
 
     @Test
     void wxLogin_whenLockBusy_rejectsWithConflict() {
-        when(weChatMiniAppClient.code2Session("wx-code"))
+        when(weChatMiniAppClient.code2Session("wx-code", MiniAppTarget.CONSUMER))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult("openid-1", "sess"));
         when(distributedLockService.tryLock(
                 AuthService.wxOpenIdLockKey("openid-1"), 60L, 5L))

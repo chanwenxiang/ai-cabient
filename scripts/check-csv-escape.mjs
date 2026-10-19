@@ -56,7 +56,7 @@ if (offenders.length) {
   console.error('check-csv-escape: 发现手写 CSV 转义副本：');
   for (const o of offenders) console.error('  ' + o);
   console.error(
-    '统一改为 com.aicabinet.trade.support.CsvCells.escape(...)（见审计 P1-7 / docs/CODE_AUDIT_REPORT_2026-10-05.md）'
+    '统一改为 com.aicabinet.trade.support.CsvCells.escape(...)（见审计 P1-7 / docs/archive/audit/CODE_AUDIT_REPORT_2026-10-05.md）'
   );
   process.exit(1);
 }

@@ -249,6 +249,37 @@ public class DeviceReportController {
         }
     }
 
+    // ---------- §4.2.16-4.2.18 可选上报（2026-10-19 补齐：真机固件可能调用，缺端点会 404） ----------
+
+    /**
+     * 门磁实时状态上报（V16 §4.2.16 deviceInfo/getDoorInfo，可选）：
+     * 运行过程下发命令后设备回报实时门/锁状态。当前仅审计日志——
+     * 门锁状态主链路走 §4.2.7 uploadLockState / §4.2.8 uploadDoorState（带 orderNo）。
+     */
+    @PostMapping("/jiangyi/api/deviceInfo/getDoorInfo")
+    public Map<String, Object> getDoorInfo(HttpServletRequest request,
+                                           @RequestBody DoorInfoRequest body) {
+        log.info("jiangyi door-magnet report deviceId={} doorState={} lockState={}",
+                device(request), body.doorState(), body.lockState());
+        return ok();
+    }
+
+    /** Wi-Fi 连接状态上报（V16 §4.2.17 deviceInfo/changeWifi，可选）：服务器下发连网指令后回报。 */
+    @PostMapping("/jiangyi/api/deviceInfo/changeWifi")
+    public Map<String, Object> changeWifi(HttpServletRequest request,
+                                          @RequestBody NetworkStateRequest body) {
+        log.info("jiangyi wifi-state report deviceId={} network={}", device(request), body.network());
+        return ok();
+    }
+
+    /** 机器端在线状态上报（V16 §4.2.18 deviceInfo/queryNetwork，可选）：下发查询后回报。 */
+    @PostMapping("/jiangyi/api/deviceInfo/queryNetwork")
+    public Map<String, Object> queryNetwork(HttpServletRequest request,
+                                            @RequestBody NetworkStateRequest body) {
+        log.info("jiangyi network-state report deviceId={} network={}", device(request), body.network());
+        return ok();
+    }
+
     // ---------- 内部 ----------
 
     /** 合成关门事件转发（模式一：识别/关门上报前统一推进 SHOPPING→RECOGNIZING）。 */
@@ -285,4 +316,8 @@ public class DeviceReportController {
     /** §4.2.15 字段照抄文档（signalStrength M 必报 0-4，String 型）。 */
     record DeviceSimInfoRequest(String simNum, String temperature, String signalStrength,
                                 String location, String isMove) {}
+    /** §4.2.16 门磁：doorState/lockState ∈ open|close（文档 String 型）。 */
+    record DoorInfoRequest(String doorState, String lockState) {}
+    /** §4.2.17/18 网络状态：network ∈ online|offline。 */
+    record NetworkStateRequest(String network) {}
 }

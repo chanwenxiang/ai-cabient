@@ -33,7 +33,8 @@ public class WeChatMiniAppClient {
     private static final String GET_USER_PHONE_NUMBER_URL =
             "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token={token}";
 
-    private final AtomicReference<CachedToken> cachedToken = new AtomicReference<>();
+    private final AtomicReference<CachedToken> cachedConsumerToken = new AtomicReference<>();
+    private final AtomicReference<CachedToken> cachedMerchantToken = new AtomicReference<>();
 
     private final WeChatMiniAppProperties properties;
     private final SecurityProperties securityProperties;
@@ -49,17 +50,17 @@ public class WeChatMiniAppClient {
         this.restClient = RestClient.create();
     }
 
-    public Code2SessionResult code2Session(String code) {
-        if (!properties.isConfigured()) {
+    public Code2SessionResult code2Session(String code, MiniAppTarget target) {
+        if (!properties.isConfigured(target)) {
             if (!securityProperties.mockEnabled()) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_MINIAPP_NOT_CONFIGURED);
             }
-            log.warn("wechat miniapp not configured, using mock openid (dev only)");
+            log.warn("wechat miniapp {} not configured, using mock openid (dev only)", target);
             return new Code2SessionResult("mock_openid_10001", "mock_session");
         }
         String body = restClient.get()
                 .uri(CODE2SESSION_URL,
-                        properties.appId(), properties.appSecret(), code)
+                        properties.resolveAppId(target), properties.resolveAppSecret(target), code)
                 .retrieve()
                 .body(String.class);
         try {
@@ -79,25 +80,25 @@ public class WeChatMiniAppClient {
 
     /**
      * 小程序手机号授权码换真实手机号（C13）：
-     * POST wxa/business/getuserphonenumber，access_token 复用 {@link #accessToken()} 缓存。
-     * isConfigured 语义与 {@link #code2Session(String)} 一致：未配置且非 mock 抛 503；
+     * POST wxa/business/getuserphonenumber，access_token 复用 {@link #accessToken(MiniAppTarget)} 缓存。
+     * isConfigured 语义与 {@link #code2Session(String, MiniAppTarget)} 一致：未配置且非 mock 抛 503；
      * 未配置且 mock（dev）返回空串，由调用方决定 dev 兼容行为。失败抛 IllegalStateException。
      *
      * @return purePhoneNumber（含手机号授权码无效/未返回时为空串）
      */
-    public String getPhoneNumber(String phoneCode) {
+    public String getPhoneNumber(String phoneCode, MiniAppTarget target) {
         if (phoneCode == null || phoneCode.isBlank()) {
             return "";
         }
-        if (!properties.isConfigured()) {
+        if (!properties.isConfigured(target)) {
             if (securityProperties.mockEnabled()) {
-                log.warn("wechat miniapp not configured, skip getuserphonenumber (dev only)");
+                log.warn("wechat miniapp {} not configured, skip getuserphonenumber (dev only)", target);
                 return "";
             }
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_MINIAPP_NOT_CONFIGURED);
         }
         String body = restClient.post()
-                .uri(GET_USER_PHONE_NUMBER_URL, accessToken())
+                .uri(GET_USER_PHONE_NUMBER_URL, accessToken(target))
                 .body(Map.of("code", phoneCode.trim()))
                 .retrieve()
                 .body(String.class);
@@ -114,11 +115,12 @@ public class WeChatMiniAppClient {
         }
     }
 
-    public boolean sendSubscribeMessage(String openId, String templateId, String page, Map<String, String> dataFields) {
+    public boolean sendSubscribeMessage(String openId, String templateId, String page, Map<String, String> dataFields,
+                                        MiniAppTarget target) {
         if (openId == null || openId.isBlank() || templateId == null || templateId.isBlank()) {
             return false;
         }
-        if (!properties.isConfigured()) {
+        if (!properties.isConfigured(target)) {
             if (securityProperties.mockEnabled()) {
                 log.info("mock subscribe message to {} data={}", openId, dataFields);
                 return true;
@@ -126,7 +128,7 @@ public class WeChatMiniAppClient {
             return false;
         }
         try {
-            String token = accessToken();
+            String token = accessToken(target);
             Map<String, Object> data = new java.util.LinkedHashMap<>();
             dataFields.forEach((k, v) -> data.put(k, Map.of("value", truncate(v, 20))));
             Map<String, Object> body = Map.of(
@@ -162,12 +164,13 @@ public class WeChatMiniAppClient {
      * @param query 如 deviceId=330449777078&amp;channel=WECHAT&amp;autoOpen=1
      * @param envVersion release / trial / develop
      */
-    public java.util.Optional<String> generateUrlLink(String path, String query, String envVersion) {
-        if (!properties.isConfigured()) {
+    public java.util.Optional<String> generateUrlLink(String path, String query, String envVersion,
+                                                      MiniAppTarget target) {
+        if (!properties.isConfigured(target)) {
             return java.util.Optional.empty();
         }
         try {
-            String token = accessToken();
+            String token = accessToken(target);
             String cleanPath = path == null ? "" : path.trim();
             if (cleanPath.startsWith("/")) {
                 cleanPath = cleanPath.substring(1);
@@ -216,14 +219,32 @@ public class WeChatMiniAppClient {
  * <b>直接失败并等下次调度</b>，不要在客户端里做强制刷新：
  * 强刷会让并发拉取的任务一起失效。
  */
-public String accessToken() {
-        CachedToken current = cachedToken.get();
+/**
+ * 取指定端小程序的 {@code access_token}（按端独立缓存，提前 120s 过期）。
+ *
+ * <p>V310：由private 提升为 **public** —— 广告收益对账（{@code publisher/stat}）
+ * 需要同一个 token。刻意<b>不新建第二个 token 管理器</b>：
+ * 微信对同一 appId 的 token 刷新有频率限制，两套缓存各自刷新会撞
+ * {@code 45009 请求过于频繁}，且两份缓存的过期判断会漂移。
+ *
+ * <p>2026-10-19 双 appid 改造：两个小程序主体各有独立 token（appid 隔离），
+ * 缓存按 {@code MiniAppTarget} 分开——同一端内仍是「一份缓存」，V310 的
+ * 同 appid 频率限制约束不变。
+ *
+ * <p>⚠️ 调用方拿到的是<b>可能已过期但尚未到 120s 安全边界</b>的 token ——
+ * 遇到 {@code 40001} / {@code 42001}（token 失效类错误码）时应当
+ * <b>直接失败并等下次调度</b>，不要在客户端里做强制刷新：
+ * 强刷会让并发拉取的任务一起失效。
+ */
+public String accessToken(MiniAppTarget target) {
+        AtomicReference<CachedToken> cached = cachedRef(target);
+        CachedToken current = cached.get();
         if (current != null && current.expiresAt.isAfter(Instant.now().plusSeconds(120))) {
             return current.token;
         }
         try {
             String body = restClient.get()
-                    .uri(ACCESS_TOKEN_URL, properties.appId(), properties.appSecret())
+                    .uri(ACCESS_TOKEN_URL, properties.resolveAppId(target), properties.resolveAppSecret(target))
                     .retrieve()
                     .body(String.class);
             JsonNode node = objectMapper.readTree(body);
@@ -232,14 +253,18 @@ public String accessToken() {
             }
             String token = node.get("access_token").asText();
             int expiresIn = node.path("expires_in").asInt(7200);
-            cachedToken.set(new CachedToken(token, Instant.now().plusSeconds(expiresIn)));
+            cached.set(new CachedToken(token, Instant.now().plusSeconds(expiresIn)));
             return token;
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("access_token failed", e);
         }
-    }
+        }
+
+private AtomicReference<CachedToken> cachedRef(MiniAppTarget target) {
+        return target == MiniAppTarget.CONSUMER ? cachedConsumerToken : cachedMerchantToken;
+        }
 
     private static String truncate(String value, int max) {
         if (value == null) return "";

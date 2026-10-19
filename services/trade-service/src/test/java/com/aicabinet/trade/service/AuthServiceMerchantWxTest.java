@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 /**
  * CB-048：商户端微信绑定 + 免密登录。
@@ -95,7 +96,7 @@ class AuthServiceMerchantWxTest {
     }
 
     private void stubCode2Session(String openId) {
-        when(weChatMiniAppClient.code2Session(anyString()))
+        when(weChatMiniAppClient.code2Session(anyString(), eq(MiniAppTarget.MERCHANT)))
                 .thenReturn(new WeChatMiniAppClient.Code2SessionResult(openId, "session"));
     }
 

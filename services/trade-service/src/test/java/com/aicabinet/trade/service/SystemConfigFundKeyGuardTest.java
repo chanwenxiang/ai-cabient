@@ -58,7 +58,7 @@ class SystemConfigFundKeyGuardTest {
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
                 new PayScoreProperties(false, false, 550, false, "", ""),
                 new WeChatWebProperties(false, "", ""),
-                new WeChatMiniAppProperties(false, "", "", "", "", "", ""),
+                new WeChatMiniAppProperties(false, "", "", "", "", "", "", "", "", "", ""),
                 new QrProperties("", "", "", "", ""),
                 distributedLockService, null);
         ReflectionTestUtils.setField(service, "self", service);

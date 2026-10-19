@@ -102,6 +102,19 @@ public class TradeInternalClient {
         return Optional.ofNullable(resp == null ? null : resp.data());
     }
 
+    /**
+     * 设备全量映射列表（2026-10-19 真机实证：开机序列固定调
+     * floor/getDeviceSellProductClassIds，需返回该设备全部在售 classId——
+     * trade 侧已有 GET /class-mappings?deviceId= 全量端点，此处按数组反序列化，
+     * ACTIVE 过滤由调用方做（列表含 DISABLED 行）。
+     */
+    public java.util.List<MappingView> listMappings(String deviceId) {
+        ApiResponse<MappingView[]> resp = get("/internal/v1/jiangyi/class-mappings?deviceId={deviceId}",
+                MappingView[].class, deviceId);
+        return resp == null || resp.data() == null
+                ? java.util.List.of() : java.util.Arrays.asList(resp.data());
+    }
+
     // ---------- 超时面 ----------
 
     /** 识别映射未命中 → 即时转人工审核；返回 false = 会话不在此状态（幂等）。 */

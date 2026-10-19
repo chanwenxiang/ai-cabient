@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @Service
 public class UnpaidOrderService {
@@ -152,7 +153,8 @@ public class UnpaidOrderService {
                             "thing1", "待支付订单提醒",
                             "amount2", amount,
                             "time3", TIME_FMT.format(Instant.now())
-                    ));
+                    ),
+                    MiniAppTarget.CONSUMER);
             message = sent ? "催付订阅消息已发送" : "催付发送失败（请检查小程序订阅配置），已记审计";
         }
         // V325：微信没命中（或用户根本没订阅）时走短信兜底 —— 人工催缴 force=true 跳过 24h 节流

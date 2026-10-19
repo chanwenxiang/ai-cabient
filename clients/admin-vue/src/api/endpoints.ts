@@ -160,6 +160,12 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/bind`,
   deviceJiangyiRetire: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/retire`,
+  /** 修改 SN（仅 UNBOUND）：登记抄错的纠正入口 */
+  deviceJiangyiUpdateSn: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/update-sn`,
+  /** 将邑入库激活（V16 §5.4.10 confirmActivate）：出厂新设备用铭牌设备号入库 */
+  deviceJiangyiConfirmActivate: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/confirm-activate`,
   /** 审计 A1/P0-3 激活制：SN 可枚举，激活后方可凭 SN 领 token；停用同步吊销存量 token */
   deviceJiangyiActivate: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/activate`,

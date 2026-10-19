@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Supplier;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @Service
 public class MerchantNotifyService {
@@ -102,7 +103,7 @@ public class MerchantNotifyService {
     public MerchantNotifyPrefDto bindWxOpenId(Long userId, String wxCode) {
         merchantPortalGuard.requireAccess(userId);
         return runWithUserAccountLock(userId, () -> {
-            var session = weChatMiniAppClient.code2Session(wxCode);
+            var session = weChatMiniAppClient.code2Session(wxCode, MiniAppTarget.MERCHANT);
             self.persistWxOpenId(userId, session.openId());
             return self.getPrefs(userId);
         });
@@ -208,7 +209,8 @@ public class MerchantNotifyService {
                         "thing1", "商户运营待办",
                         "thing2", summary,
                         "time3", TIME_FMT.format(Instant.now())
-                ));
+                ),
+                MiniAppTarget.MERCHANT);
         if (sent) {
             self.persistNotifyLog(userId, digest, summary);
             return true;

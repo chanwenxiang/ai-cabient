@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @ExtendWith(MockitoExtension.class)
 class MerchantDeviceIncidentNotifyServiceTest {
@@ -88,7 +89,7 @@ class MerchantDeviceIncidentNotifyServiceTest {
                 .thenReturn(Optional.empty());
         when(weChatMiniAppProperties.subscribeTemplateId()).thenReturn("tpl-1");
         when(weChatMiniAppProperties.resolveNotifyPage()).thenReturn("pages/alerts/alerts");
-        when(weChatMiniAppClient.sendSubscribeMessage(eq("ox-demo"), eq("tpl-1"), anyString(), anyMap()))
+        when(weChatMiniAppClient.sendSubscribeMessage(eq("ox-demo"), eq("tpl-1"), anyString(), anyMap(), eq(MiniAppTarget.MERCHANT)))
                 .thenReturn(true);
 
         int sent = service.notifyDeviceOffline("CAB-001", "连续 2 分钟未收到心跳");
@@ -98,7 +99,7 @@ class MerchantDeviceIncidentNotifyServiceTest {
         verify(notifyLogRepository).save(any());
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> data = ArgumentCaptor.forClass(Map.class);
-        verify(weChatMiniAppClient).sendSubscribeMessage(eq("ox-demo"), eq("tpl-1"), anyString(), data.capture());
+        verify(weChatMiniAppClient).sendSubscribeMessage(eq("ox-demo"), eq("tpl-1"), anyString(), data.capture(), eq(MiniAppTarget.MERCHANT));
         assertEquals("柜机离线", data.getValue().get("thing1"));
     }
 
@@ -116,6 +117,6 @@ class MerchantDeviceIncidentNotifyServiceTest {
 
         assertEquals(0, sent);
         verify(opsAlertDispatcher).send(eq("SALES_LOCKED"), anyString(), anyString(), anyMap());
-        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap());
+        verify(weChatMiniAppClient, never()).sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), any());
     }
 }

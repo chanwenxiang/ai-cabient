@@ -17,6 +17,7 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import com.aicabinet.trade.wechat.MiniAppTarget;
 
 /**
  * 柜门一码两用：微信优先 URL Link 进小程序，否则与支付宝一并进消费者 H5。
@@ -107,7 +108,8 @@ public class CabinetOpenLandingController {
         if (CabinetConstants.PAY_CHANNEL_WECHAT.equals(channel)) {
             String query = "deviceId=" + deviceId + "&channel=WECHAT&autoOpen=1";
             return weChatMiniAppClient
-                    .generateUrlLink(qrProperties.wechatPath(), query, qrProperties.wechatEnvVersion())
+                    .generateUrlLink(qrProperties.wechatPath(), query, qrProperties.wechatEnvVersion(),
+                            MiniAppTarget.CONSUMER)
                     .orElseGet(() -> buildH5OpenUrl(deviceId, CabinetConstants.PAY_CHANNEL_WECHAT));
         }
         return buildH5OpenUrl(deviceId, channel);

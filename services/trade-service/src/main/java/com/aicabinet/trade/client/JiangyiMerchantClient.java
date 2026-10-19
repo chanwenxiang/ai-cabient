@@ -69,14 +69,30 @@ public class JiangyiMerchantClient {
         body.put("domain", domain);
         body.put("socketUrl", socketUrl);
         JsonNode data = post("/platform/tenant/setDomain", body, false, "setDomain");
-        return Optional.ofNullable(textOrNull(data, "identifier")).filter(s -> !s.isBlank());
+        return identifierFromData(data);
     }
 
-    /** getIdentifier（采集文档 §3.6）：SN → 将邑签发设备编码（如 CQYB11253）。 */
+    /**
+     * getIdentifier（采集文档 §3.6）：SN → 将邑签发设备编码（如 CQYB11253）。
+     * 成因注释（2026-10-14 实测）：响应 data 是**设备编码字符串本身**（§3.6.4 data:String），
+     * 不是 {identifier} 对象——原实现按对象字段解析恒为空，导致绑定流程在 setDomain
+     * 未回带 identifier 时误判失败。
+     */
     public Optional<String> getIdentifier(String deviceSn) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("deviceSn", deviceSn);
         JsonNode data = post("/merchant/deviceInfo/getIdentifier", body, true, "getIdentifier");
+        return identifierFromData(data);
+    }
+
+    /** identifier 提取：data 为字符串时即编码本身；为对象时取 identifier 字段（文档笔误形态兼容）。 */
+    private static Optional<String> identifierFromData(JsonNode data) {
+        if (data == null || data.isNull()) {
+            return Optional.empty();
+        }
+        if (data.isTextual() && !data.asText().isBlank()) {
+            return Optional.of(data.asText());
+        }
         return Optional.ofNullable(textOrNull(data, "identifier")).filter(s -> !s.isBlank());
     }
 
@@ -86,6 +102,22 @@ public class JiangyiMerchantClient {
         body.put("deviceSn", deviceSn);
         body.put("tenantId", tenantId);
         post("/merchant/deviceInfo/modifyAffiliationTenant", body, true, "modifyAffiliationTenant");
+    }
+
+    /**
+     * confirmActivate（V16 §5.4.10）：新设备在将邑侧确认激活（运维小程序「激活设备」表单的
+     * 接口面，2026-10-19 实证：出厂未入库设备 getIdentifier 报「设备sn获取设备为空」，
+     * 须先走本接口入库）。identifier=铭牌「设备号」（CQYBxxxxx，出厂预印）。
+     */
+    public void confirmActivate(String identifier, String deviceSn, String deviceName,
+                                String deviceAddress, String screen) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("identifier", identifier);
+        body.put("deviceSn", deviceSn);
+        body.put("deviceName", deviceName);
+        body.put("deviceAddress", deviceAddress);
+        body.put("screen", screen);
+        post("/merchant/deviceInfo/confirmActivate", body, true, "confirmActivate");
     }
 
     /** login2（V16 §5.4.1）：运维小程序手机号+密码 → Bearer token（带 TTL 缓存）。 */

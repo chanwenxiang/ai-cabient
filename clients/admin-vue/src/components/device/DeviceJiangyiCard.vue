@@ -52,6 +52,13 @@ const registerForm = reactive({ deviceSn: '', modelName: '' });
 const registerSaving = ref(false);
 const bindForm = reactive({ domain: '', socketUrl: '' });
 const bindSaving = ref(false);
+const activateForm = reactive({
+  identifier: '',
+  deviceName: '',
+  deviceAddress: '',
+  hasScreen: false
+});
+const activateSaving = ref(false);
 const retireSaving = ref(false);
 const mappingForm = reactive({
   classId: undefined as number | undefined,
@@ -78,6 +85,9 @@ async function load() {
     }>(AdminEndpoints.deviceJiangyi(props.deviceId), 'GET');
     binding.value = view.binding;
     mappings.value = view.mappings || [];
+    if (binding.value && !activateForm.identifier) {
+      activateForm.identifier = binding.value.identifier || '';
+    }
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载将邑接入信息失败'));
   } finally {
@@ -105,6 +115,74 @@ async function doRegister() {
     ElMessage.error(errorMessage(e, '登记失败'));
   } finally {
     registerSaving.value = false;
+  }
+}
+
+/** 修改 SN（仅 UNBOUND）：登记抄错的纠正入口，弹出输入框校验后调 update-sn 端点。 */
+async function doUpdateSn() {
+  if (!binding.value) return;
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '仅未绑定状态可修改；已绑定请先退役再重新登记接入。',
+      '修改设备序列号 SN',
+      {
+        confirmButtonText: '保存',
+        cancelButtonText: '取消',
+        inputValue: binding.value.deviceSn,
+        inputPattern: /\S+/,
+        inputErrorMessage: 'SN 不能为空'
+      }
+    );
+    const sn = (value || '').trim();
+    if (!sn || sn === binding.value.deviceSn) return;
+    await api.request(AdminEndpoints.deviceJiangyiUpdateSn(props.deviceId), 'POST', {
+      deviceSn: sn
+    });
+    ElMessage.success('SN 已修改');
+    await load();
+  } catch (e) {
+    if (e === 'cancel' || (e as { message?: string })?.message === 'cancel') return;
+    ElMessage.error(errorMessage(e, '修改 SN 失败'));
+  }
+}
+
+/** 将邑入库激活（V16 §5.4.10 confirmActivate）：identifier 缺省取已存 identifier。 */
+async function doConfirmActivate() {
+  if (!binding.value) return;
+  const identifier = (activateForm.identifier.trim() || binding.value.identifier || '').trim();
+  const deviceName = activateForm.deviceName.trim();
+  const deviceAddress = activateForm.deviceAddress.trim();
+  if (!identifier) {
+    ElMessage.warning('请填写设备编码（铭牌「设备号」，如 CQYB10720）');
+    return;
+  }
+  if (!deviceName || !deviceAddress) {
+    ElMessage.warning('设备名称与投放地址为将邑必填项');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将把设备 ${identifier}（SN ${binding.value.deviceSn}）在将邑平台激活入库，确认继续？`,
+      '将邑激活确认',
+      { type: 'warning', confirmButtonText: '确认激活', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  activateSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiConfirmActivate(props.deviceId), 'POST', {
+      identifier,
+      deviceName,
+      deviceAddress,
+      screen: activateForm.hasScreen
+    });
+    ElMessage.success('将邑激活完成，可继续「接入平台」');
+    await load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '将邑激活失败'));
+  } finally {
+    activateSaving.value = false;
   }
 }
 
@@ -601,6 +679,12 @@ watch(
       <el-descriptions :column="3" border size="small">
         <el-descriptions-item label="设备序列号">
           <span class="jy-mono">{{ binding.deviceSn }}</span>
+          <el-tooltip
+            v-if="canEdit && binding.status === 'UNBOUND'"
+            content="登记时 SN 抄错可在此纠正（仅未绑定状态）"
+          >
+            <el-button link type="primary" size="small" @click="doUpdateSn">修改</el-button>
+          </el-tooltip>
         </el-descriptions-item>
         <el-descriptions-item label="设备标识">
           <span class="jy-mono">{{ binding.identifier || '未取得' }}</span>
@@ -618,6 +702,37 @@ watch(
           formatDateTime(binding.createdAt)
         }}</el-descriptions-item>
       </el-descriptions>
+
+      <!-- 将邑入库激活（V16 §5.4.10）：出厂新设备将邑云查无 SN，须用铭牌设备号 confirmActivate -->
+      <div v-if="canEdit && binding.status !== 'RETIRED'" class="jy-bind-block">
+        <div class="jy-section-label">
+          将邑入库激活（出厂新设备首次使用；对照铭牌「设备号」填写，运维小程序扫码激活的接口等价）
+        </div>
+        <div class="jy-form-row">
+          <el-input
+            v-model="activateForm.identifier"
+            class="jy-input"
+            placeholder="设备编码（铭牌设备号，如 CQYB10720）"
+            clearable
+          />
+          <el-input
+            v-model="activateForm.deviceName"
+            class="jy-input"
+            placeholder="设备名称（必填）"
+            clearable
+          />
+          <el-input
+            v-model="activateForm.deviceAddress"
+            class="jy-input"
+            placeholder="投放地址（必填）"
+            clearable
+          />
+          <el-checkbox v-model="activateForm.hasScreen">有广告屏</el-checkbox>
+          <el-button type="primary" :loading="activateSaving" @click="doConfirmActivate">
+            确认激活
+          </el-button>
+        </div>
+      </div>
 
       <!-- UNBOUND：补接入绑定表单 -->
       <div v-if="binding.status === 'UNBOUND' && canEdit" class="jy-bind-block">
