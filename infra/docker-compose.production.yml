@@ -7,6 +7,8 @@
 
 services:
   trade-service:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -41,7 +43,7 @@ services:
       WECHAT_PAY_ENABLED: ${WECHAT_PAY_ENABLED:?set WECHAT_PAY_ENABLED (true=requires full V3 creds / false=no-payment stage)}
       WECHAT_MINIAPP_ENABLED: ${WECHAT_MINIAPP_ENABLED:?set WECHAT_MINIAPP_ENABLED in .env.production}
       # M12 监控接线（2026-10-13 生产实证：trade 缺省探测 localhost ⇒ DevOps 中心恒「未启动」）：
-      # health 探测走容器网络内服务名；展示 URL 走网关同源子路径（nginx-full.conf 反代+Basic）
+      # health 探测走容器网络内服务名；展示 URL 走网关同源子路径（nginx.compose.conf 反代+Basic，AU-187）
       DEVOPS_GRAFANA_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/grafana
       DEVOPS_GRAFANA_HEALTH_URL: http://grafana:3000
       DEVOPS_PROMETHEUS_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/prometheus
@@ -51,6 +53,8 @@ services:
       OTLP_ENDPOINT: http://tempo:4318/v1/traces
 
   device-service:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -73,6 +77,8 @@ services:
   # CIDR 不显式注入、JIANGYI_* 无声明位）。gateway 的 ProductionStartupValidator 在
   # prod/staging 硬拒 dev key / 空 CIDR / 缺失或占位 JWT secret；compose 层用 :? 双保险。
   jiangyi-gateway:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 30s
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -94,6 +100,8 @@ services:
       JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
 
   emqx:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 30s
     image: emqx/emqx:5.8.6
     environment:
@@ -126,6 +134,8 @@ services:
       - "127.0.0.1:${EMQX_DASHBOARD_PORT:-18083}:18083"
 
   minio:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 60s
     environment:
       # B-11：强制强密码，无弱默认
@@ -136,6 +146,8 @@ services:
 
   # B-28：Grafana 禁止 admin/admin 弱默认
   grafana:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     stop_grace_period: 30s
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?set GRAFANA_ADMIN_USER}
@@ -146,7 +158,7 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       # M12 监控接线（2026-10-13 生产实证：缺这三项 ⇒ 网关子路径 404/iframe 拒嵌）：
-      # 同源子路径 /devops/grafana/（nginx-full.conf 反代 + Basic），允许后台 iframe 嵌入
+      # 同源子路径 /devops/grafana/（nginx.compose.conf 反代 + Basic，AU-187），允许后台 iframe 嵌入
       GF_SERVER_ROOT_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ALLOW_EMBEDDING: "true"
@@ -157,6 +169,8 @@ services:
   # M12 监控接线：Prometheus 挂到同源子路径 /devops/prometheus/（网关 Basic 防护），
   # 指标端点不直接暴露公网端口（base 层仅 127.0.0.1:9090）
   prometheus:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     # 常驻型 ≥30s（check:compose-stop-grace）：SIGTERM 后完成 TSDB 内存块落盘与 WAL 收尾
     stop_grace_period: 30s
     command:
@@ -167,6 +181,8 @@ services:
 
   # B-25：XXL-JOB 生产强口令（需叠加 docker-compose.xxljob.yml）
   xxl-job-mysql:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     # 2026-10-13 生产首启实证：本文件单独叠加（不叠 xxljob.yml）时这两服务既无 image 又挂
     # apps profile ⇒ compose 结构非法。补 image + 收进 xxljob profile（未叠加 xxljob.yml
     # 时不激活，结构合法；叠加时与 xxljob.yml 同镜像合并）。
@@ -177,6 +193,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:?set XXL_JOB_MYSQL_PASSWORD}
 
   xxl-job-admin:
+    # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
+    restart: unless-stopped
     image: xuxueli/xxl-job-admin:3.4.2
     profiles: ["xxljob"]
     stop_grace_period: 30s

@@ -81,10 +81,10 @@ copy infra\.env.production.example infra\.env.production
 - [ ] `SMS_WEBHOOK_URL` 可达
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
-- [ ] PostgreSQL 备份；Flyway 迁移至最新（V340+）
+- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V389**（全新库启动日志逐条 Migrating 到 `389 - drop six legacy wallet tables`；已在该版本的老库启动时不再有 Migrating 行属正常）
 - [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
-- [ ] **资金类定时任务已按需手动开启**（V376 起默认关，见 §3.1.2）
+- [ ] **资金类定时任务的开启状态已逐条确认**（V376 起默认关；2026-10-17 拍板**上线当天两条都保持关**，见 §3.1.2）
 - [ ] EMQX TLS（设备 MQTT）
 - [ ] Gateway HTTPS、CORS 仅运营域名
 
@@ -108,17 +108,23 @@ copy infra\.env.production.example infra\.env.production
 
 > 角色 `jiangyivideoupload` 的 `oss:DeleteObject` 权限（2026-10-11 已开通）**只**服务于「运营手动删单条」这类**服务端**调用——该能力**当前未开放**（无对应业务需求；且删对象会让 `jiangyi_order_video` 台账地址变死链，须同步处置台账）。保留期清理**一律走本生命周期规则**。
 
-### 3.1.2 资金类定时任务默认关闭（V376，上线须手动开启）
+### 3.1.2 资金类定时任务默认关闭（V376；上线当天**保持关**）
 
 > DC-29（2026-10-16 用户拍板「靠运营台手动开」）：三条「无人开启就会自己动钱」的路径改成了显式启用。
+> §12 待拍板 #8（2026-10-17 用户拍板）：**`refund-retry` 与 `deposit-monthly-refund` 上线当天都保持关闭**
+> （两种 `seed_env` 下实测种子行均为 `enabled=false`，无需迁移）。开启是**上线后的独立运营决策**，
+> 下表「不开的后果」就是这个决策的代价，必须读完再决定，不要靠记忆。
 > 机制：`ScheduledTaskService#tryBegin` 见到 `scheduled_task.enabled=FALSE` 直接跳过（跳过原因 `task disabled`
 > 在运营台执行记录可见），所以**关的是数据行，不是代码**；运营台「定时任务」页可一键启停。
 
-| 任务 key | 干什么 | 不开的后果 | 何时该开 |
+| 任务 key | 干什么 | 不开的后果 | 何时该开（拍板后仍要逐条确认） |
 |---|---|---|---|
-| `refund-retry` | 每 60 秒扫 `REFUND_INITIATED` 痕迹：查单优先、同号重发（渠道幂等）、超 30 分钟置 `REFUND_FAILED` + HIGH 告警 | 🔴 **渠道退款失败/进程中断后无人闭环**——本地痕迹永挂，只剩 T+1 金额对账兜底 | 生产一上线就该开（这是退款闭环的正解）；只在「渠道凭据尚未就绪」的窗口保持关闭 |
-| `deposit-monthly-refund` | 每月 1 日 01:30 按柜把押金分期退回商户余额 | 押金不自动退还，须运营手动退（对齐老系统「人工点退押金」形态） | 确定要跑「按月自动退还」商业模式时再开（V360/CB-044 拍板项） |
+| `refund-retry` | 每 60 秒扫 `REFUND_INITIATED` 痕迹：查单优先、同号重发（渠道幂等）、超 30 分钟置 `REFUND_FAILED` + HIGH 告警 | 🔴 **渠道退款失败/进程中断后无人闭环**——本地痕迹永挂，只剩 T+1 金额对账兜底；商户/消费者看到的「退款中」不会自己变终态 | ⚠️ 此处与 2026-10-17 拍板有张力：审计建议是「生产一上线就该开」，当前定的是**上线当天先关**。⇒ 微信退款凭据就绪、且确认试点期有真实退款流量后，**由运营在定时任务页显式开**，并在下面勾选项留痕 |
+| `deposit-monthly-refund` | 每月 1 日 01:30 按柜把押金分期退回商户余额 | 押金不自动退还，须运营手动退（对齐老系统「人工点退押金」形态）——试点柜少时人工可控 | 确定要跑「按月自动退还」商业模式时再开（V360/CB-044 拍板项）；开之前先核对押金台账 `device_rental_deposit` |
 | `device_rental_deposit.install_fee_clawback_enabled` | 押金已按月退完且未满合同年数时**倒扣商户余额**安装费（可挂负） | 撤机时不追回安装费（少收钱，不会多扣商户） | 逐柜显式开：当前**运营台登记表单未暴露该参数**，只能由登记接口显式传 `installFeeClawbackEnabled=true` |
+
+- [ ] 已就 `refund-retry` 作出「开/关」决定并记在这里：\_\_\_\_\_\_\_\_（决定人 / 日期）
+- [ ] 已就 `deposit-monthly-refund` 作出「开/关」决定并记在这里：\_\_\_\_\_\_\_\_（决定人 / 日期）
 
 - 验证：`GET /api/v2/ops/admin/scheduled-tasks` 或运营台页面看 `enabled`；迁移侧 V376 末尾有零残留断言（没关上就 fail 迁移）。
 - dev/staging 同状态（迁移不分环境，凭据可能是真的就不该自动跑）；要测退款闭环 ⇒ 运营台打开该任务再测，测完按需关闭。
@@ -131,11 +137,13 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml \
   --env-file .env.production --profile apps up -d --build
 ```
 
-> **`infra/docker-compose.prod-server.yml` 是服务器侧维护的覆盖文件（审计 A3，2026-10-16 定性）**：
-> 它**不在 git 里**（`git log --all` 证实从未入库），只存在于生产服务器部署目录，
-> 由 `scripts/deploy-prod.sh:103` 在服务器现场引用（2026-10-13 实战部署已验证可用）。
-> 服务器特定配置（如 bind mount 路径）改它须 **ssh 到服务器直接编辑**；本地没有、也不该有副本。
-> 排查「compose 文件缺失」类报错时先分辨：仓库内文件 vs 服务器侧文件。
+> **`infra/docker-compose.prod-server.yml` 已入库（AU-185，2026-10-19 拍板「入库+预检」）**：
+> 旧定性（A3，2026-10-16）是「服务器侧维护、不入库、不该有副本」——已被本拍板取代。
+> 文件内容自生产服务器实取（**纯拓扑无密钥**，密钥全走 `.env.production`），入库基线
+> sha256 `1b038520…` 注记在文件头。此后**改动一律走 git**（可评审、可复现），每次部署
+> 由 tar 解包以仓库版本收敛服务器副本；`deploy-prod.sh` 在本地 [0/6] 与服务器 [4/6]
+> 两处预检该文件存在，并把 sha256 指纹打进部署日志。门禁
+> `check:deploy-compose-chain` 拒绝「deploy-prod.sh 引用了仓库里不存在的 -f 文件」。
 
 ### 3.3 部署后冒烟
 

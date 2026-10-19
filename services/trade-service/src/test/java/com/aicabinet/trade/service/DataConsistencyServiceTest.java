@@ -103,6 +103,68 @@ class DataConsistencyServiceTest {
     }
 
     @Test
+    void checkPaidGrossConsistency_usesInboundSumNotNet() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaidGrossConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("paid_amount_cents > 0"), "只扫冻结过的单（0=从未扣到款，读侧回落 total）");
+        assertTrue(sql.contains("COMPLETED"));
+        assertTrue(sql.contains("CHARGE"));
+        assertTrue(sql.contains("ADJUST_CHARGE"));
+        assertTrue(sql.contains("PREAUTH_CAPTURE"));
+        assertFalse(sql.contains("REFUND"), "冻结毛额口径不含退款（退款走 refunded_cents 另算）");
+    }
+
+    @Test
+    void checkPaidGrossConsistency_recordsBothDirectionsWithDistinctGuidance() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-OVER", "frozen_gross", 700, "inbound_sum", 500),
+                Map.of("order_id", "O-UNDER", "frozen_gross", 1000, "inbound_sum", 1200)));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaidGrossConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, times(2)).save(captor.capture());
+        List<DataConsistencyRecord> saved = captor.getAllValues();
+        assertEquals("PAID_GROSS_MISMATCH", saved.get(0).getCheckType());
+        assertEquals("O-OVER", saved.get(0).getCheckKey());
+        assertEquals("700", saved.get(0).getExpectedValue());
+        assertEquals("500", saved.get(0).getActualValue());
+        assertTrue(saved.get(0).getErrorMessage().contains("资损方向"),
+                "冻结>入账和是流水缺钱方向，提示语必须点名");
+        assertTrue(saved.get(1).getErrorMessage().contains("佣金基数偏小"),
+                "冻结<入账和（含争议加价已知形态）是欠冻方向，提示语必须区分");
+    }
+
+    @Test
+    void fixInconsistency_paidGross_isScanOnly() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(31L);
+        record.setCheckType("PAID_GROSS_MISMATCH");
+        record.setCheckKey("O-1");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(31L);
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("仅巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
+        verify(jdbcTemplate, never()).update(anyString(), (Object[]) any());
+    }
+
+    @Test
     void resolveStaleFailures_marksMissingKeysFixed() {
         DataConsistencyRecord stale = new DataConsistencyRecord();
         stale.setId(1793L);
@@ -590,18 +652,19 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void checkMerchantWalletConsistency_joinsLatestLedger() {
+    void checkWalletLatestBalanceConsistency_joinsLatestLedgerPerDomain() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
                 .thenReturn(List.of());
 
-        service.checkMerchantWalletConsistency();
+        service.checkWalletLatestBalanceConsistency("MERCHANT");
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).queryForList(sqlCaptor.capture());
         String sql = sqlCaptor.getValue();
-        assertTrue(sql.contains("merchant_wallet_account"));
-        assertTrue(sql.contains("merchant_wallet_ledger"));
+        assertTrue(sql.contains("wallet_account"));
+        assertTrue(sql.contains("wallet_ledger"));
+        assertTrue(sql.contains("'MERCHANT'"));
         assertTrue(sql.contains("balance_after"));
     }
 
@@ -637,7 +700,7 @@ class DataConsistencyServiceTest {
         service.checkSlotPhysicalConsistency();
         service.checkWarehouseNegativeConsistency();
         service.checkCouponOverQuotaConsistency();
-        service.checkLineWalletConsistency();
+        service.checkWalletLatestBalanceConsistency("LINE");
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, times(6)).queryForList(sqlCaptor.capture());
@@ -647,7 +710,8 @@ class DataConsistencyServiceTest {
         assertTrue(sqls.get(2).contains("last_physical_qty"));
         assertTrue(sqls.get(3).contains("warehouse_inventory"));
         assertTrue(sqls.get(4).contains("max_issue_count"));
-        assertTrue(sqls.get(5).contains("line_wallet_account"));
+        assertTrue(sqls.get(5).contains("wallet_account"));
+        assertTrue(sqls.get(5).contains("'LINE'"));
     }
 
     @Test
@@ -672,7 +736,7 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void fixInconsistency_pointsIdentity_rewritesTotal() {
+    void fixInconsistency_pointsIdentity_isScanOnlyAndNeverOverwritesTotalPoints() {
         DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
         consistencyRecord.setId(22L);
         consistencyRecord.setCheckType("POINTS_IDENTITY");
@@ -680,11 +744,14 @@ class DataConsistencyServiceTest {
         consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findByIdForUpdate(22L)).thenReturn(java.util.Optional.of(consistencyRecord));
-        when(jdbcTemplate.update(startsWith("UPDATE member SET total_points"), eq("9"))).thenReturn(1);
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(22L);
-        assertTrue(outcome.fixed());
-        assertTrue(outcome.message().contains("累计积分"));
+
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("仅巡检"));
+        assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
+        // total_points 是「累计发放」，巡检不得回写（CB-058 D）
+        verify(jdbcTemplate, never()).update(startsWith("UPDATE member SET total_points"), (Object) any());
     }
 
     @Test
@@ -804,18 +871,18 @@ class DataConsistencyServiceTest {
 
     @Test
     void checkWalletLedgerSumConsistency_recordsBothWalletsMismatch() {
-        // 两个检查按各自 SQL 关键字分开打桩（共享 anyString 桩会让每个检查都读到对方行）
-        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("merchant_wallet_account")))
-                .thenReturn(List.of(Map.of("merchant_id", "M-1", "expected", 700, "actual", 800)));
-        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("line_wallet_account")))
-                .thenReturn(List.of(Map.of("manager_id", 9L, "expected", 300, "actual", 250)));
+        // V388 后三域共用 wallet_account/ledger，按 WHERE domain='X' 关键字分开打桩
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'MERCHANT'")))
+                .thenReturn(List.of(Map.of("owner_id", "M-1", "expected", 700, "actual", 800)));
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.contains("'LINE'")))
+                .thenReturn(List.of(Map.of("owner_id", "9", "expected", 300, "actual", 250)));
         when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
                 anyString(), anyString(), anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
                 .thenReturn(List.of());
 
-        service.checkMerchantWalletLedgerSumConsistency();
-        service.checkLineWalletLedgerSumConsistency();
+        service.checkWalletLedgerSumConsistency("MERCHANT");
+        service.checkWalletLedgerSumConsistency("LINE");
 
         org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
                 org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
@@ -834,6 +901,69 @@ class DataConsistencyServiceTest {
             assertTrue(sql.contains("balance_cents"), sql);
             assertFalse(sql.contains("frozen_cents"), sql);
         }
+    }
+
+    @Test
+    void runConsistencyCheck_coversAllThreeWalletDomains() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.runConsistencyCheck();
+
+        // 回归钉子：V388 统一后补货员钱包一度完全没有对账判据（只有 MERCHANT/LINE 两个手写副本）。
+        // 三域判据必须由 WALLET_DOMAINS 循环生成，新增域自动被覆盖。
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).queryForList(sqlCaptor.capture());
+        List<String> walletSqls = sqlCaptor.getAllValues().stream()
+                .filter(sql -> sql.contains("wallet_account") || sql.contains("wallet_ledger"))
+                .toList();
+        for (String domain : List.of("MERCHANT", "LINE", "STAFF")) {
+            assertTrue(walletSqls.stream().anyMatch(sql -> sql.contains("'" + domain + "'")),
+                    "钱包对账缺少 " + domain + " 域判据");
+        }
+    }
+
+    @Test
+    void checkWalletLedgerChainConsistency_usesLagAndSkewsMemoRows() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletLedgerChainConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        // 链判据补的是「Σ 和最近快照同时看不出中间行被改」的盲区
+        assertTrue(sql.contains("LAG(l.balance_after) OVER (PARTITION BY l.domain, l.owner_id"), sql);
+        // 冻结/解冻备忘行不动总余额 ⇒ 本期影响必须计 0，否则每笔提现都报断链
+        assertTrue(sql.contains("THEN 0 ELSE l.amount_cents END AS effect_cents"), sql);
+        // 每域首行没有上一行，比较它 = 恒假阳性
+        assertTrue(sql.contains("prev_balance IS NOT NULL"), sql);
+        // 🔴 单次扫三域：类型共用，按域拆跑会把其它域的在案 FAIL 误判成已修复
+        assertFalse(sql.contains("WHERE l.domain"), sql);
+    }
+
+    @Test
+    void checkWalletLedgerChainConsistency_recordsBrokenMiddleRow() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of(
+                "domain", "STAFF", "owner_id", "77", "ledger_id", 501L,
+                "prev_balance", 600L, "effect_cents", -200L, "balance_after", 999L)));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletLedgerChainConsistency();
+
+        org.mockito.ArgumentCaptor<DataConsistencyRecord> captor =
+                org.mockito.ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("WALLET_LEDGER_CHAIN", captor.getValue().getCheckType());
+        assertEquals("STAFF|501", captor.getValue().getCheckKey());
+        assertEquals("400", captor.getValue().getExpectedValue());
+        assertEquals("999", captor.getValue().getActualValue());
     }
 
     @Test

@@ -1,0 +1,54 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": [
+    {
+      "flowId": 12,
+      "accountId": 5,
+      "flowType": "ADJUST",
+      "amountCents": -12345,
+      "balanceAfterCents": 77655,
+      "refType": null,
+      "refId": null,
+      "operatorId": 100000001,
+      "remark": "审计调整",
+      "createdAt": "2026-10-18T03:51:05.023200Z"
+    },
+    {
+      "flowId": 11,
+      "accountId": 5,
+      "flowType": "SWEEP",
+      "amountCents": -30000,
+      "balanceAfterCents": 90000,
+      "refType": null,
+      "refId": null,
+      "operatorId": 100000001,
+      "remark": "审计归集",
+      "createdAt": "2026-10-18T03:51:04.851808Z"
+    },
+    {
+      "flowId": 10,
+      "accountId": 5,
+      "flowType": "RECHARGE",
+      "amountCents": 20000,
+      "balanceAfterCents": 120000,
+      "refType": null,
+      "refId": null,
+      "operatorId": 100000001,
+      "remark": "审计充值",
+      "createdAt": "2026-10-18T03:51:04.696979Z"
+    },
+    {
+      "flowId": 9,
+      "accountId": 5,
+      "flowType": "RECHARGE",
+      "amountCents": 100000,
+      "balanceAfterCents": 100000,
+      "refType": null,
+      "refId": null,
+      "operatorId": 100000001,
+      "remark": "建账初始余额",
+      "createdAt": "2026-10-18T03:51:04.343675Z"
+    }
+  ]
+}

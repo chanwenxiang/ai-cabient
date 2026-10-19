@@ -11,7 +11,7 @@
   trade-service  ←→  device-service  ←→  EMQX (MQTT)
        │                    │
        ▼                    ▼
-  jiangyi-gateway       edge/android-app
+  jiangyi-gateway       edge/device-simulator（联调）
 ``
 
 ## 模块一览
@@ -26,8 +26,7 @@
 | `services/device-service` | 设备服务 | MQTT、设备状态 |
 | `services/common/common-core` | 公共核心库 | DTO、枚举 |
 | `services/jiangyi-gateway` | 将邑柜接入网关 | 设备 token / WS / 上报归一（识别=将邑端侧） |
-| `edge/device-simulator` | 设备模拟器 | 本地联调（含 jiangyi 模式） |
-| `edge/android-app` | 柜机端 App | Android |
+| `edge/device-simulator` | 设备模拟器 | 本地联调 / CI（含 jiangyi 模式与旧 MQTT 模式） |
 | `infra/` | 基础设施 | Docker / 网关 |
 
 完整模块说明见 **[docs/MODULES.md](docs/MODULES.md)**。
@@ -158,6 +157,6 @@ Docker 镜像构建见 [`infra/docker/README.md`](infra/docker/README.md)。
 
 - **不修改** `easygo/ego-automat`、`ego-automat-android`
 - 业务规则参考：实名、余额/信用校验、补货开门不结算
-- 硬件协议参考：`ChzhDevice8` 串口门锁（edge 层实现）
+- 硬件协议参考：`ChzhDevice8` 串口门锁——自研柜体固件 `edge/android-app` 已随「生产仅将邑套件」退役（2026-10-18，可从 git history 恢复），此条仅存历史参考
 - 数据库由 Flyway 自动迁移，无需手工 ETL
 

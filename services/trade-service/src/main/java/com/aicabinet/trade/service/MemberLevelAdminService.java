@@ -88,7 +88,6 @@ public class MemberLevelAdminService {
         rule.setMinSpent(dto.minSpent());
         rule.setMaxSpent(dto.maxSpent());
         rule.setMinPoints(dto.minPoints());
-        rule.setMaxPoints(dto.maxPoints());
         rule.setPointsRate(dto.pointsRate() == null ? BigDecimal.ONE : dto.pointsRate());
         rule.setPriceDiscountPct(dto.priceDiscountPct() == null ? BigDecimal.ZERO : dto.priceDiscountPct());
         rule.setSortorder(dto.sortOrder());
@@ -146,7 +145,6 @@ public class MemberLevelAdminService {
                 r.getMinSpent(),
                 r.getMaxSpent(),
                 r.getMinPoints() != null ? r.getMinPoints() : 0,
-                r.getMaxPoints(),
                 r.getPointsRate() != null ? r.getPointsRate() : BigDecimal.ONE,
                 r.getPriceDiscountPct() != null ? r.getPriceDiscountPct() : BigDecimal.ZERO,
                 r.getSortorder() != null ? r.getSortorder() : 0,

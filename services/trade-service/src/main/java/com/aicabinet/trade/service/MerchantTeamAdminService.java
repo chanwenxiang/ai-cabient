@@ -250,7 +250,10 @@ public class MerchantTeamAdminService {
         user.setPhoneNumber(phone);
         user.setName(request.displayName() != null && !request.displayName().isBlank()
                 ? request.displayName().trim() : "商户成员");
-        user.setVerified(true);
+        // AU-184（2026-10-18 批次 5）：verified 是实名认证结论，商户管理员自助建号无实名凭据，
+        // 硬写 true = 未实名主体借子账号绕过提现实名校验（WithdrawEligibilityService 只判 isVerified）。
+        // 实名只能由实名认证服务写入；提现门槛同时已按商户主体实名联系人收紧（对账简报）。
+        user.setVerified(false);
         user.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(user);

@@ -43,14 +43,17 @@ import static org.mockito.Mockito.verify;
  * <p>覆盖不到的两处，由**同一个**静态门禁 {@code check:edge-cloud-mqtt-contract}
  * （{@code scripts/check-edge-cloud-mqtt-contract.mjs}，已入聚合链）兜住：
  * <ul>
- *   <li><b>真机端 Kotlin</b>（{@code edge/android-app} 无 gradlew/ANDROID_HOME，Maven 跑不到）
- *       ⇒ 其硬编码 topic 形状与 {@code payload.type} 取值，与 {@code MqttTopics} /
- *       {@code CabinetConstants} / {@code proto/cabinet.proto} **三方对账**；</li>
+ *   <li><b>proto 文档契约 ↔ Java 常量</b>：{@code proto/cabinet.proto} 的 oneof 字段名与
+ *       {@code CabinetConstants} / {@code MqttTopics} 逐字对账（本模块测试只断言 Java 侧常量，
+ *       够不着 proto 那份文档描述，改坏任一侧靠门禁红）；</li>
  *   <li><b>trade-service 侧端点</b>（本模块测试不依赖 trade-service）⇒ 门禁按源码把
  *       {@code TradeServiceClient} 的 {@code .uri("/internal/…")} 与对端
  *       {@code @RequestMapping} + {@code @XxxMapping} 拼出的路径逐个比对，
  *       拼不上即红（否则是**运行期静默 404**，编译期毫无提示）。</li>
  * </ul>
+ *
+ * <p>注：自研柜体 Kotlin 固件 {@code edge/android-app} 已随「生产仅将邑套件」拍板退役（2026-10-18），
+ * 该门禁相应从「三方」降为「两方」。
  *
  * <p>⚠️ 门禁只管**路径**能不能对上，不管 HTTP 方法与请求体形状（那要端到端测试兜）；
  * 报文**体内字段**（如 {@code alertType}）也不在它的覆盖面内。
@@ -205,10 +208,12 @@ class EdgeCloudMqttContractTest {
     /**
      * 边缘告警（{@code EDGE_QUEUE_ABANDON} 等）→ 转运营告警通道。
      *
-     * <p>⚠️ 该报文由**真机端 Kotlin** 发出（{@code MqttDeviceClient.kt} 的 {@code publishAlert}），
-     * 模拟器不产生，故此处字段名按真机端约定书写；其 {@code type="ALERT"} 取值与常量集合的
-     * 一致性由门禁 {@code check:edge-cloud-mqtt-contract} 守护（Kotlin 侧改 payload.type 会红）。
-     * {@code alertType} 等**报文体字段**不在门禁覆盖面内，改它们本类不会红。
+     * <p>⚠️ 该报文历史上由自研柜体 Kotlin 固件（{@code MqttDeviceClient.kt} 的 {@code publishAlert}）
+     * 发出，模拟器不产生，故此处字段名沿用端侧约定书写。该类固件已于 2026-10-18 随「生产仅将邑套件」
+     * 退役，但<b>云端 ALERT 解析分支保留</b>（在网老固件/其它厂商设备仍可能上报），故本用例继续固化其行为。
+     * 其 {@code type="ALERT"} 取值与常量集合的一致性由
+     * {@link #eventTypeConstants_areTheOnesCloudDispatchesOn()} 钉住；{@code alertType} 等
+     * **报文体字段**不在门禁覆盖面内，改它们本类不会红。
      */
     @Test
     void alert_fromDeviceClientConvention_reachesOpsAlert() throws Exception {

@@ -1,0 +1,15 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "orderId": "1792293077352396669219",
+    "sessionId": "1792293076150613517255",
+    "ticketId": "1792293076538398740324",
+    "status": "REFUNDED",
+    "refundedCents": 686,
+    "payChannel": "BALANCE",
+    "message": "退款成功，已退回 ¥6.86，库存已回库",
+    "inventoryRestored": true,
+    "partial": false
+  }
+}

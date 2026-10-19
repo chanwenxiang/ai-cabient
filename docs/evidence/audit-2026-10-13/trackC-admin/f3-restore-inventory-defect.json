@@ -1,0 +1,5 @@
+{
+  "code": 500,
+  "message": "JDBC commit; ERROR: cabinet_order 1792293213585607271538 PAID with lines requires inventory_deducted=true\n  Where: PL/pgSQL function assert_cabinet_order_inventory_link() line 24 at RAISE",
+  "data": null
+}

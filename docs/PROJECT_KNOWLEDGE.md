@@ -225,7 +225,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | `memory/MEMORY.md` | 项目长期铁律索引（门禁/测试/提交/XXL…，`§n`→REFERENCE） | **每会话开工** |
 | `memory/PROJECT-REFERENCE.md` | 外置详情大手册（环境/构建/OpenAPI/取证 §11…） | MEMORY 指到 `§n` 或构建/门禁细节 |
 | `memory/YYYY-MM-DD.md` | **按日工作日志（最新会话总结）** | 查近期改动/未决；**优先最新日期文件** |
-| `memory/EDGE-ANDROID-GRADLE.md` | 边缘端 Gradle | 动 `edge/android-app` |
+| `memory/EDGE-ANDROID-GRADLE.md` | 边缘端 Gradle | 历史留档（自研 `edge/android-app` 已于 2026-10-18 退役，仅 git 历史参考） |
 | `handoff-prompt-*.md` | 交接开场提示词模板 | 开新会话接手时 |
 | `cleanup-*.md` | 清理/划界笔记 | 清 scratch 前 |
 
@@ -284,7 +284,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | 资金/幂等 | 渠道事务顺序、幂等键可变、限额 (#17,96–97) | Payment / Refund 服务 |
 | 小程序性能 | 分包、N+1、列表 pageSize (#18,27,29,60,63) | pages.json + API 聚合 |
 | CI / DevOps | OpenAPI 过期、门禁未进 CI、runner/Sonar (#12–13,89,99–101) | `ci.yml` + devops 脚本 |
-| Edge | MQTT 队列丢事件、TLS truststore、Prefs apply (#88,91,94) | android-app |
+| Edge | MQTT 队列丢事件、TLS truststore、Prefs apply (#88,91,94) | 自研 android-app 已退役 2026-10-18（经验留档）；现边缘侧 = device-simulator |
 
 **配方级复用**：优先 `solved-problems-playbook` Skill，再下钻总册行号。
 
@@ -614,8 +614,11 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
 | G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
 | G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
-| G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅ `3cc19429`、批 6 旧视频链 ✅ `cd74d31c`+`5c80a4c9`+`fac98345`、vision-async Kafka 链 ✅ `f30635ba`、`MinioVideoService` 死注入 ✅ `f7516c77`、`UPLOAD_STUCK` 扫描族 + `ops:session:upload` 权限码 ✅ V386、reserved Kafka SCRAM 用户 `vision` ✅ `aa9d409a`（分支 `chore/dc27-remove-vision` 已 ff 合入 `dev`）。批 6 剩余**仅一项待拍板**：android-app 多摄开关（无 SDK 不可编译验证）。识别现役唯一入口 `POST /internal/v1/vision/edge-results`（HTTP；Kafka `aicabinet.vision.recognize.*` 已随 `f30635ba` 退役） |
+| G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅ `3cc19429`、批 6 旧视频链 ✅ `cd74d31c`+`5c80a4c9`+`fac98345`、vision-async Kafka 链 ✅ `f30635ba`、`MinioVideoService` 死注入 ✅ `f7516c77`、`UPLOAD_STUCK` 扫描族 + `ops:session:upload` 权限码 ✅ V386、reserved Kafka SCRAM 用户 `vision` ✅ `aa9d409a`、自研 `edge/android-app` 整模块退役 ✅（分支 `chore/retire-android-app`，2026-10-18；批 6 待拍板的 android-app 多摄开关随整模块删除一并了结）（分支 `chore/dc27-remove-vision` 已 ff 合入 `dev`）。识别现役唯一入口 `POST /internal/v1/vision/edge-results`（HTTP；Kafka `aicabinet.vision.recognize.*` 已随 `f30635ba` 退役） |
 | G8 | 运营台仍有 **98 处**（32 个文件）`(cents / 100).toFixed(2)` 内联换算绕过 `yuanText`；双小程序已清零 | 渲染目前是对的（字面 `¥` + 纯数字），但负额会成 `¥-5.00`、且负数/空态口径与 `yuanText` 不一致。**只在该值可能为负时才算真缺陷**——2026-10-16 已把 5 处调账/提现确认串（输入框 `:min="-1000000"` 可为负）与 25 处重复 `¥` 收口；余量留作增量，动哪页顺手换成 `yuanText` 系 |
+| G9 | 隔离栈 admin UI **浏览器里登录不了**（403 `Invalid CORS request`）：`docker-compose.full.yml:179` `CORS_ORIGIN:-http://localhost` 未跟 28080 端口重映射对齐 | 纯 API 驱动器不带 `Origin` ⇒ 测不出来。本轮只本机 `CORS_ORIGIN=http://localhost:28080` 临时绕过。**待拍板**：是否在 `docker-compose.uat-isolated.yml` 里钉 `CORS_ORIGIN`（含宿主端口），让隔离栈运营台开箱可用 |
+| G10 | `POINTS_IDENTITY\|member 1` 累计 181 ≠ available+used+expired 149，**差 32 分**——**根因已查清（2026-10-18 只查未改）** | 不是假阳性：`POINTS_BALANCE`（可用 vs Σ 流水）同行为绿。真因＝**退款扣回积分只减 `available_points`**（`MemberService:316-323`），既不记 `used_points` 也不动 `total_points`，而流水 `points_type` 只有 EARN/USE/EXPIRE 三值 ⇒ 扣回该归 `used` 桶却漏记。更危险的是 `fixPointsIdentity`(`DataConsistencyService:1692`) 的自动修复方向相反：**下调 `total_points`** 凑三桶（实测 181→149、H5 升级 gap 319→351），等于让运营一键改口径。另查出等级判定不看积分（`MemberService:150-174`），`min_points` 只当 H5 进度分母、`max_points` 全仓零读取（后台旋钮不生效）。取证 [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)，**修法待拍板** [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)（建议 A 扣回记入 `used` + D 撤积分族自动回写 + E 撤 `max_points` 死旋钮） |
+| G11 | `paid_amount_cents`（订单毛额列）vs `payment_operation` 净额**没有对账判据** | 2026-10-18 拍板「另起一轮」。落点仍是 `DataConsistencyService`，须复用 `PaymentOperationTypes` 单一事实源、并按教训 #325 做负向证明 |
 
 ---
 
@@ -645,6 +648,120 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   - 调用点端归属（9 处）：**CONSUMER**＝`AuthService.wxLogin`+`resolveWxPhoneNumber`、`ExternalNotificationDispatcher`（audience=CONSUMER）、`UnpaidOrderService` 催付、`CabinetOpenLandingController` URL Link、`WeChatPublisherStatClient` 流量主对账（**推定**广告位在消费者小程序，如流量主实际绑定在其它 appid 需回调）；**MERCHANT**＝`AuthService.bindMerchantWeChat`/`merchantWxLogin`、`MerchantNotifyService` 绑定+待办、`MerchantDeviceIncidentNotifyService`。
   - 配置面：`application.yml` wechat-miniapp 节新增 4 键；`.env.example`/`.env.production.example` 同步。
 - **验证**：受影响 12 个测试类（Auth 3 + Dispatcher + 设备异常 + 商户待办并发 + SystemConfig 4 + Unpaid 并发 + 启动校验）**70 tests / 0 failure**；全局复扫无旧签名残留（`WeChatWebOAuthClient` 的 `appId()` 是公众号 H5 OAuth 另一组配置，无关）。**全量回归与 preflight 在提交前照常跑**。
+### 2026-10-18（G11 冻结毛额对账判据 + G9 CORS 钉隔离栈 + G10 32 分人工归集，三件同轮收口）
+- 🔴 **拍板**：用户 2026-10-18 晚选 **G9「钉进去」+ G11「本轮做完整链」+「现在按流水归集 32 分」**（三项均推荐项全采）。
+- **G11 `PAID_GROSS_MISMATCH` 判据**（`80c35b72`）：`cabinet_order.paid_amount_cents` 必须 = 该单 COMPLETED 入账类型
+  流水之和（V384/CB-057 定义逐字同构；类型过滤新 helper `PaymentOperationTypes.inboundTypesFilterSql`，继续单一事实源）。
+  只扫冻结过的单（>0；0=从未扣款回落 total），**仅巡检不修**（该列是佣金基数，改写=动钱）。两个方向分开提示语：
+  冻结>入账和=流水缺钱（资损方向，V384 fail-loud 同款）；冻结<入账和=冻结后未重放——
+  **争议改单加价属已知设计形态**（V384「改单不得改写本列」+ `finalizeConfirmDispute` 不补冻结），佣金基数偏小方向；
+  若日后拍板争议加价应补冻结，在 `finalizeConfirmDispute` 补 `freezePaidAmount` 即收敛。标签面三处同步（V392 + SysDictBootstrap + shared-dict src/dist）。
+- **G11 验证**：单测 44/44 + SqlIT 12/12（账平含退款静默/资损方向报警/欠冻方向报警，真 Postgres）；隔离栈四段证明
+  （播行/账平静默+对照版/破坏 999≠486 即 FAIL 资损方向提示语/恢复+清理探针三行全自愈 FIXED，零残留，failCount 回基线 1）
+  ⇒ [evidence/paid-gross-judge-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/paid-gross-judge-2026-10-18.md)。
+- **G9**：`docker-compose.uat-isolated.yml` trade-service 钉 `CORS_ORIGIN=http://localhost:28080`；
+  实测带 Origin 请求 **200 + Allow-Origin 回显**（此前浏览器恒 403，纯 API 驱动器测不出）。
+- **G10 32 分归集**：流水证据 EARN 181=total、USE 32（4 笔退款扣回漏归 used）⇒ 带前置条件 `UPDATE used_points 0→32`，
+  恒等式 181=149+32+0 成立，复跑巡检 `POINTS_IDENTITY` 自愈 FIXED、`POINTS_BALANCE` 保持绿（record 6 销案）。
+- **踩坑**：`DataConsistencyJudgeSqlIT.seedOrder` 对非 REFUNDED 单把 `paid_amount_cents` 置 0——
+  毛额判据用例必须显式 `freezePaid()`，否则被 `>0` 过滤静默虚绿（第一版 IT 两条报警用例就是这么假绿的）。
+- **落档**：`80c35b72`+`e43eaece`（admin 产物随 ConsistencyView 级别分类重建）快进推 origin/dev。
+
+### 2026-10-18（G10 写侧修复落库：扣回归入 used 桶 + 撤自动回写 + 撤 max_points 死旋钮，CB-058）
+- 🔴 **拍板**：对上一条「G10 取证（只查未改）」的三问，用户 2026-10-18 晚选 **A（扣回记入 `used_points`）+ D（撤掉
+  POINTS_IDENTITY 自动回写，改「仅巡检需人工」）+ E（撤旋钮：删 `max_points`）**，取证文档随即推 origin/dev（`815c4b4f`）。
+- **实现落库（`959a4694` + admin 产物 `5eb24626`，快进推 origin/dev）**：
+  - A：`doClawbackPointsOnRefund` 补 `setUsedPoints(used + actual)`——`total = available+used+expired` 恒等式闭合，
+    `total_points` 维持「累计发放只增不减」；流水 `points_type="USE"` 语义与账户列对齐（与兑换写法对齐）。
+  - D：删 `fixPointsIdentity` 覆写式自动修复（曾把 total 181→149 静默改写「累计发放」），`POINTS_IDENTITY/POINTS_BALANCE`
+    改「仅巡检记录，请人工核对处理」；`ConsistencyView.vue` 撤按钮与预览文案。
+  - E：[V391__drop_member_level_rule_max_points.sql](../services/trade-service/src/main/resources/db/migration/V391__drop_member_level_rule_max_points.sql)
+    删列（V163 以来全仓零读取死旋钮）；实体/DTO/两处映射/openapi.ts/后台表单列表全链清理，`minPoints` 列改标
+    「下一档积分门槛（仅 C 端进度展示，判级不读积分）」。
+  - F-7 欠账：竞品台账新增 **CB-058**（easygo 源码亲验/思迅/微信/京东京豆/农行/Snow Peak/Dynamics 365 共 7 家）+
+    门禁别名 4 条；有意不同留痕：`actual = min(clawback, available)` 扣完为止不产生负积分、不从现金退款追偿（差额静默截断已如实标注）。
+- **验证（全绿）**：目标 5 测试类 **61 用例 0 失败**（新 `MemberPointsClawbackIdentityTest` 修前红的 used_points 断言×2 + 幂等）；
+  `check-competitor-benchmark` CB-058=7 家；preflight 47 门禁 0 失败 + openapi 结构档比对过。
+- **隔离栈真库端到端（`aicabinet-uat` 换新镜像 `aicabuat`）**：`unzip -l` 实锤 jar 含 V390/V391 与新 admin 产物；
+  Flyway **V390 重放 + V391 应用均 success、history 无重复行**，`member_level_rule` 仅剩 `min_points`；
+  API 实跑 `POST /consistency/run` 检出 `POINTS_IDENTITY|1` FAIL（record 6）⇒ `POST /{id}/fix` 返回
+  `fixed=false`「该类仅巡检记录，请人工核对处理」，**member 1 行原样（181/149/0/0）未被任何自动路径改写**。
+- **剩余**：① ~~存量 32 分坏行~~ **已于同日晚按流水归集销案**（见下一条 Changelog：used 0→32，巡检自愈 FIXED）；
+  ② ~~A 的真退款链路场景~~ **已于 2026-10-19 真链路 e2e 闭合**（UAT 隔离栈：MQTT 购物→云识别退役自动降级运营工作台
+  manual-resolve CONFIRM 真实人工路径成单 PAID 686→消费者全额退→`used+=8/available-=8/total 不动`/恒等式归零/
+  `points_log` EARN+USE 双行/巡检 POINTS 两判据零报警——
+  [evidence/points-clawback-e2e-2026-10-19.md](evidence/audit-2026-10-13/trackC-admin/points-clawback-e2e-2026-10-19.md)，
+  驱动脚本 `scripts/e2e-points-clawback-refund.ps1` 可重复执行）；
+  ③ G9 CORS_ORIGIN / G11 `paid_amount_cents` 对账**均已同轮收口**（见下一条 Changelog）。
+
+### 2026-10-18（数据一致性判据修复轮：两条假阳性清零 + 三域钱包判据泛化 + 流水链连续性 + 口径单一事实源）
+- 🔴 **拍板**：对上一条 §12 登记的两条既有巡检口径缺口，用户 2026-10-18 选「**两条都修**」；对「数据一致性要不要多加验证 SQL」，
+  采纳「按建议」= 候选 1（三域钱包判据泛化，含补货员）+ 候选 2（`balance_after` 链连续性）并入本轮，
+  `paid_amount_cents` 对账**另起一轮**，`POINTS_IDENTITY` **只查不改**。证据：
+  [evidence/consistency-judge-fixes-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/consistency-judge-fixes-2026-10-18.md)。
+- **净额口径单一事实源**：[PaymentOperationTypes.java](../services/trade-service/src/main/java/com/aicabinet/trade/domain/PaymentOperationTypes.java)
+  定为 `payment_operation` 金额类型的唯一口径（进 `CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE`、退 `REFUND`，暴露
+  `netCaseSql(prefix)` / `netTypesFilterSql(prefix)`）；`DataConsistencyService` 的 **4 处手写副本**（报警判据 / 提示语净额 /
+  **两条会动钱的修复路径取数**）全部改为取自它，本类内**禁止再写字面清单**。修掉 4×`PAYMENT_AMOUNT` 假阳性
+  （余额预付单收款只写 `PREAUTH_CAPTURE` ⇒ 期望 486 / 实际 0）——F-10 当初只修读路径，巡检是漏掉的副本之一。
+  新门禁 [check-payment-net-types-single-source.mjs](../scripts/check-payment-net-types-single-source.mjs) 钉住（聚合 **47** 条），
+  两处**应当**排除 `PREAUTH_CAPTURE` 的渠道现金口径显式登记豁免与理由。
+- **退货退款守卫**：`checkCrossLinkRefundInventory()` 补 `AND o.inventory_deducted = TRUE` ⇒ 修 2×`CROSS_LINK/RFINV` 假阳性
+  （F3-FIND-1 修法 B 的未扣库存退货，压根没扣过库存 ⇒ 没有回架流水才是正确形态）。
+- **三域钱包判据泛化**：删 6 个逐域常量，改 `WALLET_DOMAINS=[MERCHANT,LINE,STAFF]` + **后缀拼 `checkType`**，
+  补上 `DataConsistencyService` 从来没有的 **STAFF 钱包判据**（统一前也没有 ⇒ 非统一引入的缺口）。
+  `applyFix` 与前端 [ConsistencyView.vue](../clients/admin-vue/src/views/consistency/ConsistencyView.vue) 的 `isWalletCheckType()`
+  一律**按后缀识别**（`*_WALLET` / `*_WALLET_LEDGER_SUM` / `WALLET_LEDGER_CHAIN`）——逐个枚举正是 STAFF 当初漏登记的原因，
+  也是 `*_WALLET_LEDGER_SUM` 从 P3-1a 起就在写库、前端却不认识它的原因。
+- **新增链连续性判据 `WALLET_LEDGER_CHAIN`**：`LAG(balance_after) OVER (PARTITION BY domain, owner_id ORDER BY created_at, ledger_id)`，
+  备忘行（`WITHDRAW_FREEZE`/`WITHDRAW_RELEASE`）`effect_cents` 记 0，跳过每 owner 首行（V388 搬运的历史首行不保证从 0 起）。
+  闭合「Σ 与最近余额都自洽、中间某行被改写过」的盲区。🔴 **三域共用一个 checkType ⇒ 必须一次全域跑完**：
+  `resolveStaleFailuresIfComplete` 会把该类型下本轮未检出的 FAIL 自动置 FIXED，放进 per-domain 循环就会互相抹掉（代码注释已钉）。
+  标签面三处同步 + 幂等迁移 [V390__register_wallet_consistency_check_types.sql](../services/trade-service/src/main/resources/db/migration/V390__register_wallet_consistency_check_types.sql)。
+- **验证（全绿）**：`DataConsistencyJudgeSqlIT`（Testcontainers 真 Postgres）**9/9**（含「Σ/latest 静默、链必须报警」与
+  「真实提现四行必须静默」两条负向证明），已登记 `check-docker-tests-guarded`（`*IT.java`→integration job）；
+  `DataConsistencyServiceTest` **41/41**；trade-service 全量 **2034 tests / 0 failure / 0 error BUILD SUCCESS**；聚合 **47** 门禁 0 失败。
+- **隔离栈实跑（`aicabinet-uat`，重启到新镜像、Flyway 追到 v390）**：`POST /api/v2/ops/admin/consistency/run`
+  failCount **8 → 2**，6 条过期 FAIL 全部由 `resolveStaleFailuresIfComplete` 正常判为已消失并落 `FIXED`
+  （不是删行）。剩 2 条均为真待办：`POINTS_IDENTITY|1`（181 vs 149，差 32 分未查到底）、`CROSS_LINK/DSP|…`（F2 驱动器留下的未结案工单）。
+  ⇒ 运营台「数据一致性」页在真实数据上从 **6/8 是噪音** 收敛到 **0/2 是噪音**。
+  教训 #325 的负向证明按 STAFF 域重做了一遍四段（本栈 STAFF 0 行，静默本身不构成证据）：
+  播一致账→静默（含备忘剔除口径生效）/ 只改中间行→**只有链报警**、另两条静默 / 只改账户余额→STAFF 两条报警、链静默 / 清探针→回到 2 且全 `FIXED`。
+  浏览器实跑 admin 页：V390 中文标签渲染、4 条钱包行级别一律「高」、操作列一律禁用「需人工：该类仅巡检记录」，
+  一次点击同时看到三条钱包判据各自为红。「未通过」6 → 清理后回到 2，与 API 侧一致。
+- ⚠️ **顺带查出隔离栈一条环境口径缺口（登记，未改仓库）**：浏览器登录后台恒 **403 `Invalid CORS request`**——
+  `docker-compose.full.yml:179` 是 `CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}`，而隔离栈把 gateway 重映射到宿主 **28080**，
+  两者不等 ⇒ Spring CORS 直接拒（curl 不带 `Origin` 则 200，所以纯 API 驱动器**测不出来**；共享栈用 8080 同源故未暴露）。
+  本轮只本机用 `CORS_ORIGIN=http://localhost:28080 docker compose … up -d trade-service` 绕过。要不要钉进
+  `docker-compose.uat-isolated.yml`（隔离栈 admin UI 才开箱可用）属环境口径 ⇒ §10 G9 等拍板。
+- **同日一条既有口径事实（只登记）**：`data_consistency_record` 的同一 `(check_type, check_key)` **再次检出会再插一行**
+  （STAFF 探针留下 `STAFF_WALLET|UAT-STAFF-PROBE` 两行 FIXED）⇒ 自愈断言只能按 key 判存在，**不能按行数判「清了几条」**。
+- **同轮补做 G10 取证（同日，只查未改）**：`POINTS_IDENTITY|1` 差的 32 分**已定位到写侧**——退款扣回只减
+  `available_points`（`MemberService:316-323`），而流水 `points_type` 只有 `EARN/USE/EXPIRE` 三值 ⇒ 扣回本该归 `used` 桶。
+  同行 `POINTS_BALANCE` 为绿（余额与流水逐分自洽）⇒ 判据没错、余额没坏，坏在消耗归集漏记。
+  🔴 并查出 `fixPointsIdentity` 的自动修复**方向相反**（把 `total_points` 下调凑三桶，事务内实测 181→149 / H5 gap 319→351 后回滚），
+  以及等级判定根本不引用积分、`max_points` 全仓零读取两条口径缺口。
+  取证 [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)；
+  修法与三条待答问题入 [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)（建议 A+D+E②，**未动代码**）。
+- **落档**：提交 `e39ca4e6`（139 文件）已 refspec 推 origin/dev（快进 `d5dee737..e39ca4e6`），CI run 39118704110 **五作业全绿**
+  （build / integration / admin-artifacts / mini-programs / e2e-h5）。补记一条迁移惯例：V390 首次落库后才补上
+  `MIGRATION_KIND: backfill` 等评审头注释（`check:flyway-seed-separation` 要求数据写语句必须显式声明种类），
+  checksum 随之漂移 ⇒ 隔离栈已 `delete from flyway_schema_history where version='390'`，下次启动按幂等 INSERT 重放（不产生重复行）。
+
+### 2026-10-18（§12 待拍板 #1 落定：三域钱包**物理统一**为单账本 V388/V389 + 唯一写原语引擎）
+- 🔴 **拍板**：2026-10-18 用户对「三域钱包要不要抽泛型账本原语」选 **A 案「彻底解决干净」**（简报 [WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md](WALLET_UNIFY_DECISION_BRIEF_2026-10-18.md)）。两条锁定范围：① **只统底层**——存储 + 写原语统一，各域 REST 端点 / DTO / 生成的 `openapi.ts` / 后台视图**维持现状**（facade 层委托，DTO 形状不破）；② **平台资金池不并入**——`platform_fund_account` 是资产/备付侧、无冻结无幂等、主键粒度不同，与三域应付钱包语义正交，强并 = 泛型被撑成 `if(domain)` 泥球，维持 `PlatformFundService` 独立领域（CB-033 早定性「本仓新增领域、无竞品先例」）。
+- **迁移**：`V388` 新建两张多态表 `wallet_account` / `wallet_ledger`（`domain` 判别列 + `owner_id VARCHAR(64)`，复合键 domain+owner_id；line/staff 的 BIGINT 以 `::text` 落入），从 6 张同构旧表**只读搬运**演示余额（不写死锚点）；`V389` 删除 merchant/line/staff × account/ledger 六旧表。幂等兜底：`uk_wallet_ledger_ref` partial 唯一索引 `(domain, owner_id, ref_type, ref_id) WHERE ref_type IS NOT NULL AND ref_id IS NOT NULL AND ref_type <> 'WITHDRAW'`（提现生命周期天然一 ref 多行，豁免）。`COMPETITOR_REF: CB-054,CB-033`（三域钱包本体见 CB-054、资金池不并入见 CB-033）——**刻意不新造无实证台账条目**。
+- **共享层**：新增 `domain/{WalletAccount,WalletLedger}` 实体 + `mapper/{WalletAccountMapper,WalletLedgerMapper}`（复合键刻意**不**继承 `BaseTradeMapper`，单账户读锁/更新走 `(domain, owner_id)` 显式 SQL）+ `service/wallet/{WalletDomain,WalletEngine}`。**`WalletEngine` = 统一后唯一资金写入口**：把三域 `*WalletService` 里同构的「分布式锁 + 行锁 + 幂等查重 + 余额/冻结增减 + 流水记账」收敛一份，按 `WalletDomain`+`ownerId` 参数化；能力差异（商户可用额扣、补货员余额直扣、冻结生命周期仅商户/线长）用**不同方法**表达而非 `if(domain)`。🔴 锁串由 `WalletDomain.lockKey` 逐字沿用统一前原语（`merchant:wallet:` / `line:wallet:` / `staff-wallet:`），与各提现服务同一把可重入锁，改串会击穿钱包↔提现互斥 ⇒ 双扣。
+- **facade 委托**：`Merchant/Line/StaffWalletService` 全部转调 `WalletEngine` 并把统一行**读映射**回各域 view 实体（`toLedger`/`toAccount`）——端点/DTO 不动。删除六旧 Mapper + 三 `*WalletAccountMapper.xml`（**删 Mapper 连带删 XML**，避 lesson #233「漏删 XML 启动崩」）；六 view 实体降级为纯内存读模型（注解收尾见下一条）。
+- **对账 / 裸 SQL 消费者改写**：`PayoutReconciliationService`（商户+线长出款两侧）与 `MerchantWithdrawPayoutService`（今日手续费收入）改走 `WalletEngine` 的 domain-scoped 求和；`DataConsistencyService` 四条钱包检查（MERCHANT/LINE × ledger-sum / latest-balance）改在单张 `wallet_account`/`wallet_ledger` 上按 `domain` 过滤；两个审计脚本 [scripts/full-round-p0-04-split.mjs](../scripts/full-round-p0-04-split.mjs)、[clients/admin-vue/tests/audit-admin-flows-uat.mjs](../clients/admin-vue/tests/audit-admin-flows-uat.mjs) 的硬编码旧表名改 `wallet_*` + `domain='MERCHANT'` + `merchant_id`→`owner_id`。
+- **验证（全绿）**：`mvn -pl services/trade-service -am clean compile` 877 源文件；全量单测 **2031 tests / 0 failure / 0 error**；`node scripts/run-audit-gates.mjs` **46 门禁 0 失败**（含 `check:competitor-benchmark`）；`WalletRefIdempotencySqlIT` 在**一次性空库**上 Flyway 从零跑全史（含 V388/V389）⇒ **5/5 绿**——库级幂等兜底与三域搬运端到端成立。一处测试口径坑：`MerchantWalletFeeSplitTest` 需 stub `findByOwnerForUpdate`（返回 `Optional` 的 default 包装），而非其底层 `findByOwnerForUpdateRaw`——Mockito 拦截 default 方法不委托底层。
+- **运行期回归已补（2026-10-18，`aicabinet-uat` 隔离栈就地升级 V386→V389）**：首次在**有真实数据**的库上执行 V388 六表回填（升级前后 38 行归一化多重集**双向差 0**）；F2–F8 驱动器复跑 **34 PASS / 0 FAIL / 2 SKIP**（两条 SKIP 属既有说明）；`POST /api/v2/ops/admin/consistency/run` 真跑生产对账 SQL ⇒ 四条钱包判据全静默。🔴 **静默≠有效**：本栈 `wallet_account` 只有 1 个 MERCHANT 账户、LINE/STAFF **0 行**，故播了一个 LINE 探针做负向证明——账平时无报警（含 `WITHDRAW_FREEZE` 备忘剔除口径生效）、余额 800→1000 后**两条 LINE 判据同时报警**、清探针后自动 `FIXED`。详见 [evidence/wallet-unify-runtime-regression-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/wallet-unify-runtime-regression-2026-10-18.md)。补货员(STAFF)侧仍无生产对账判据（`git show 0c7765a5^` 同样零命中 ⇒ **非统一引入**），运行期证据只有单元/并发用例 + F4/F8 探针。**（→ 同日已补：三域泛化 + STAFF 探针四段负向证明，见上一条 Changelog。）**
+- 🔴 **仍待监督环境复跑**：F1 结算链须 2026-10-19 真·将邑柜复跑（隔离栈模拟器 ws `code=1006` 秒断，不能代替）。
+- 🔴 **本轮顺带查出两条既有巡检口径缺口（当日拍板「两条都修」并已落地，见上一条 Changelog；登记时未动代码）**：8 条报警里 6 条是**假阳性**——① 4×`PAYMENT_AMOUNT`：`DataConsistencyService:319` 的 `operation_type IN ('CHARGE','ADJUST_CHARGE','REFUND')` **漏 `PREAUTH_CAPTURE`**，与已修的 F-10（`PaymentOperationMapper:116`）**同一处遗漏、巡检侧没跟着修**，余额预付单收款全被算成净入账 0；② 2×`CROSS_LINK/RFINV`：判据缺 `AND o.inventory_deducted` 守卫，对 F3-FIND-1 修法 B 的「未扣库存退货退款」要求不存在的库存流水。改的是资金巡检判据 ⇒ 只登记等拍板。
+- **同日两处收尾欠账（非拍板项，已清）**：
+  - **六 view 实体摘掉 ORM 注解**：取证确认它们仍被 facade 返回类型、`MerchantWithdrawService`/`LineManagerService`/`OpsStaffWalletController` 与 7 个测试引用 ⇒ **类不删**（删等于改 facade 签名，破「各域 DTO 维持现状」的锁定范围），但 `@TableName("merchant_wallet_account")` 这类注解声明的表已被 V389 DROP ⇒ **注解删除**、各类改一行 javadoc 标明来自 `wallet_account`/`wallet_ledger` 的哪个 domain。行为中性实证：`clean compile` 绿 + 全量 **2031 tests / 0 failure**（无任何 Mapper 触达 ⇒ MyBatis-Plus 从不解析其 TableInfo；`BaseTradeMapper:97` 的 `TableInfoHelper` 路径不经过这六类）。`DataConsistencyService` 的 `MERCHANT/LINE_WALLET_LEDGER_SUM` 是**对账检查类型标识**（已入库的历史行 + 前端读它），不是表名，不改。
+  - **§12 待拍板 #8 的上线手册勾选项落地**（[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)）：§3.1 的「资金类定时任务已按需手动开启」改成**逐条确认开启状态**（2026-10-17 拍板是上线当天两条**都保持关**，原措辞等于反向默认）；§3.1.2 补拍板日期与「不开的后果」，给 `refund-retry`/`deposit-monthly-refund` 各留一行「开/关决定 + 决定人 + 日期」空白，并把审计原建议「refund-retry 一上线就该开」**保留**在表里 ⇒ 与拍板的张力是显式记录的，不靠记忆。顺带把「Flyway 迁移至最新（V340+）」订正为高水位 **V389**。
+  - ⚠️ `docs/PRODUCTION_TOPOLOGY.md` 仍是**主树未跟踪文件**（peer 的本轮工作，未进 origin/dev）⇒ 上线手册口径写进已跟踪的 `DEPLOYMENT_CHECKLIST.md`，不去碰那份。
 
 ### 2026-10-17（DC-27(b) 批 2/批 3/批 6 实删 + 提现费率注册表对齐 + 锁柜阈值登记 + 平台分账「先不收」落地）
 - **DC-27(b) 拍板「现在删了」→ 隔离分支 `chore/dc27-remove-vision`（跑完再合 dev）**，落实 2026-10-11 判定文档 §3 的批 2 + 批 3 + 批 6：
@@ -657,7 +774,8 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   - **批 6 剩余·vision-async Kafka 传输链整体删除**（`f30635ba`）：删 `SettlementVisionAsyncService`/`VisionRecognitionProducer`/`VisionRecognitionListener`/`VisionAsyncProperties`/`KafkaTopicConfig`（视觉 topic）+ 对应测试，`KafkaTopics` 只剩 `NOTIFY_DISPATCH_REQUEST`，`application.yml` 去掉 `vision-async.enabled`，`SettlementService` 构造器 11→9 参（两个纯转发方法删掉），`SessionSettleService` 去掉投递分支。**行为中性依据**：该开关硬编码 false 且三份 profile 无覆盖 ⇒ 投递分支从未在发布口径下跑过；将邑会话关门停在 `RECOGNIZING` 来自 `SessionDoorService:81-83` 的将邑豁免，与开关无关；`recognition_task_id` 仍有活写入者 `SettlementRecognitionService:104` 与读方 `DisputeService:196`。**顺带修掉一处静默失效**：`@EnableKafka` 原先只挂在 `KafkaEnableConfig`，而它的条件是已退役的 `aicabinet.vision-async.enabled`（默认 false）⇒ 唯一在用的 `NotificationDispatchListener` 即便 `NOTIFY_ASYNC_ENABLED=true` 也不注册消费；现改挂 `aicabinet.notify.async-enabled`，并用 `KafkaEnableConfigTest`（`ApplicationContextRunner`，仓内首例）钉住 true 有 `KafkaListenerEndpointRegistry`、false/缺省没有。**验证**：全量 **2030 tests / 0 failure / 0 error BUILD SUCCESS**（−2 = 删 `VisionRecognitionListenerTest` 5 例 + 新增 `KafkaEnableConfigTest` 3 例，surefire 逐类核销）+ 49 门禁 0 失败。**保留不动**：HTTP 直报链 `POST /internal/v1/vision/edge-results`（识别结果唯一入口）、reserved Kafka SCRAM 用户 `vision`（无代码消费方，部署面**待拍板**）。**配套口径订正**：两个 devops 验证脚本的「前置＝-D 开异步通道」是错的，真前置是**柜机是否登记为将邑端侧识别柜**（读 `jiangyi_device.status=BOUND`，非 JVM 开关）；2026-10-17 核对共享 dev 库时唯一 BOUND 的是审计夹具柜 `500909625160`，两脚本内 `DEVICE_ID=330449777078` 未登记 ⇒ `verify-vision-result-ingest.py` 直跑会在 B 步中止（已写进脚本自述），两者互斥、只能各跑各的环境。
   - **批 6 剩余·`MinioVideoService` 死注入清理**（`f7516c77`）：批 6-A 删掉上传预签名/`copyObject` 后，`SessionInternalController`/`AdminDashboardService`/`MerchantFinanceService`/`OpsSessionOrderQueryService`/`SessionDoorService`/`SessionService` 六处只剩「注入+赋值」、类内零调用 ⇒ 连同构造器参数一并删（`SessionService` 22→21 参、`SessionDoorService` 10→9 参），8 个测试文件的手工构造点按位置删实参。**计数勘误**：台账原记「7 处」是估值，实测 **6**——全仓 `minioVideoService.` 调用点只落在 `DisputeService`/`FileAttachmentService`/`MediaAssetService`/`MerchantPortalService`/`OtaCdnService`/`OpsExceptionService`（经 `OpsExceptionServiceSupport.minioVideoService()` 访问器），`OpsExceptionServiceSupport` 的注入是活的、不算死注入。验证：2030 tests / 0 failure / 0 error（例数与批 6-D 后一致，无静默丢例）+ 49 门禁 0 失败。
   - **批 6 收尾·`UPLOAD_STUCK` 异常扫描族 + `ops:session:upload` 权限码全撤**（`fd583f18` + V386；用户 2026-10-17 拍板「A 全撤」+「权限行改 `RETIRED` 留痕」+「**标签层全留**」；拍板面见 [AUDIT_DECISION_BRIEF_2026-10-16.md](AUDIT_DECISION_BRIEF_2026-10-16.md) §15）：删 `OpsExceptionScannerService` 的 `WAITING_UPLOAD → UPLOAD_STUCK` 一路扫描与 summary 里的「上传 N」项、删四处阈值旋钮（`SystemConfigService` 常量+种子、`OpsMonitoringProperties.uploadStuckMinutes`+`application.yml` 的 `OPS_UPLOAD_STUCK_MINUTES`、`ops/feature-flags.json` 条目、`AlertRuleView.vue` 白名单+中文标签）、后端两处 OR 与前端 7 处 `hasPerm` 收敛为只认 `ops:session:list`（DB 实证：持有 `upload` 的 `admin`/`operator` 本来就同时持有 `list` ⇒ 无人失去访问）；新迁移 [V386__retire_upload_queue_perm_and_stuck_knob.sql](../services/trade-service/src/main/resources/db/migration/V386__retire_upload_queue_perm_and_stuck_knob.sql) 把 `ops_permission` 160 改 `status='RETIRED'`（**不删行、不删 `ops_role_permission` 授权、不改历史迁移** V14/V93/V94/V118/V126/V138/V144；`OpsPermissionMapper.xml:17,29` 一律 `status='ACTIVE'` 过滤 ⇒ 改状态即全域失效，菜单管理页 `includeInactive` 仍可见＝留痕）+ 删 `system_config` 的 `ops.scan.upload_stuck_minutes` 行（参数配置页/告警规则页直接列 `system_config` 全表，只摘注册表会留一行孤儿死旋钮）。**刻意全留**：`SessionState.WAITING_UPLOAD` 枚举与全部读侧（openapi 产物不变）、`sys_dict_data` 三行、`SysDictBootstrap:205/328` 种子、`shared-dict` 三处映射、`BigScreenView:650/683`、merchant-mp `alerts.vue:251` / `todo-list.ts:211` —— 历史 `ops_exception` 行里已有的 `UPLOAD_STUCK` 仍要渲染成中文。**验证**：2030 tests / 0 failure / 0 error BUILD SUCCESS（例数不变；V386 在测试库随 382 支迁移一次性跑到 v386）+ 49 门禁 0 失败 + V386 在共享 dev 库 `BEGIN;…ROLLBACK;` 内真跑 `UPDATE 1 / DELETE 1`（回滚后核对：160 仍 ACTIVE、配置行仍在、2 条授权仍在）。
-  - **批 6-G·reserved Kafka SCRAM 用户 `vision` 删除**（`aa9d409a`；用户 2026-10-18 拍板「直接删掉」）：批 6-D（`f30635ba`）删 vision-async Kafka 传输链后该 SCRAM 用户已无任何代码消费方，属部署面死凭据。四处一并清：`infra/docker-compose.yml` + `infra/docker-compose.full.yml` 删 `rpk acl user create vision` 与 `KAFKA_VISION_PASSWORD` env、`superusers` 由 `["admin","trade","vision"]` 收为 `["admin","trade"]`（幂等 `rpk cluster config set`，下次起栈即覆盖旧值）；`infra/redpanda/redpanda.sasl.yaml` 模板 superusers 去掉 `vision`；`infra/.env.production.example` 删 `KAFKA_VISION_PASSWORD` 占位、注释「三组凭据」改「两组」。**保留不动**：HTTP 识别入口 `POST /internal/v1/vision/edge-results`、`infra/prometheus/alert_rules.yml` 的 `biz:vision` 标签与 `infra/monitoring/alerts.yml` 的 `vision_recognition_duration_seconds_bucket`（非 Kafka SCRAM 用户，属监控面，是否随识别链退役另议）。**已起过的集群**里 `vision` 账号不会自动消失，但既不在 superusers 也无 topic ACL ⇒ 无害孤儿；如需彻底清可一次性 `rpk acl user delete vision`（未内置进 bootstrap，避免永久死代码）。**验证**：三 YAML 解析 OK + `check-env-placeholders` EXIT=0 + 49 门禁 0 失败 + preflight EXIT=0。**至此批 6 仅剩 android-app 多摄开关一项待拍板（无 SDK 不可编译验证）。**
+  - **批 6-G·reserved Kafka SCRAM 用户 `vision` 删除**（`aa9d409a`；用户 2026-10-18 拍板「直接删掉」）：批 6-D（`f30635ba`）删 vision-async Kafka 传输链后该 SCRAM 用户已无任何代码消费方，属部署面死凭据。四处一并清：`infra/docker-compose.yml` + `infra/docker-compose.full.yml` 删 `rpk acl user create vision` 与 `KAFKA_VISION_PASSWORD` env、`superusers` 由 `["admin","trade","vision"]` 收为 `["admin","trade"]`（幂等 `rpk cluster config set`，下次起栈即覆盖旧值）；`infra/redpanda/redpanda.sasl.yaml` 模板 superusers 去掉 `vision`；`infra/.env.production.example` 删 `KAFKA_VISION_PASSWORD` 占位、注释「三组凭据」改「两组」。**保留不动**：HTTP 识别入口 `POST /internal/v1/vision/edge-results`、`infra/prometheus/alert_rules.yml` 的 `biz:vision` 标签与 `infra/monitoring/alerts.yml` 的 `vision_recognition_duration_seconds_bucket`（非 Kafka SCRAM 用户，属监控面，是否随识别链退役另议）。**已起过的集群**里 `vision` 账号不会自动消失，但既不在 superusers 也无 topic ACL ⇒ 无害孤儿；如需彻底清可一次性 `rpk acl user delete vision`（未内置进 bootstrap，避免永久死代码）。**验证**：三 YAML 解析 OK + `check-env-placeholders` EXIT=0 + 49 门禁 0 失败 + preflight EXIT=0。**至此批 6 全部闭环。**
+  - **批 6-H·自研 `edge/android-app` 整模块退役**（分支 `chore/retire-android-app`，2026-10-18；用户拍板「暂时只上将邑套件，未来不确定，现在可先移除」→ 选 A 全删+git 历史留档）：2026-10-11 已拍板生产柜体=将邑硬件，经 `jiangyi-gateway`（WS/HTTP）驱动开门/上报、识别走 `POST /internal/v1/vision/edge-results`、视频走 OSS `jiangyi_order_video`；自研 Android 工控端（Kotlin + 创智辉串口锁 HAL + MQTT 客户端）无任何生产路径 ⇒ 整目录 `git rm`。**取证边界（防误删）**：`e2e-lib.ps1:971-973` 实际仍拉起**旧 MQTT `DeviceSimulator`**（非 `JiangyiDeviceSimulator`），批 1 文档「UAT 切 JiangyiDeviceSimulator」为**不实**——故 `edge/device-simulator` 与 `services/device-service` 是 CI/E2E 承力件，**保留不删**；删除面严格限于 `edge/android-app`。连带清理：删 3 个只服务 android 的门禁（`check-android-tests-wired`/`check-edge-vision-wired`/`check-edge-queue-threading`）及 package.json 链+定义、`scripts/devops/verify-edge-threading-gate-drift.py`；`check-edge-cloud-mqtt-contract` 由「三方」（proto⟷Java⟷Kotlin `MqttDeviceClient.kt`）改「两方」（proto⟷Java 常量），死 topic 扫描（C6，走 `services`+`edge`）实测 4 个 `MqttTopics` 全部仍被 device-simulator Java 使用 ⇒ 无需裁剪；`EdgeCloudMqttContractTest.java` 仅改 Javadoc（原引 Kotlin 文件，逻辑本就只跑云端 MQTT 监听，云端 ALERT 分支保留给在网老固件）。CI 删末尾 `edge-android` job（ci.yml 1022→918 行，YAML 校验通过）；`.dockerignore`/`ai-cabinet.code-workspace` 去 android 引用；README/ARCHITECTURE/MODULES/CODEBASE_INVENTORY/CODEBASE_FOUNDATION/MASTER_TEST_PLAN 边缘面回写。**验证**：46 门禁（49−3）0 失败 + preflight EXIT=0 + `mvn test -pl services/device-service -am` 绿 + 全仓 grep 无 `edge/android-app` 悬空引用（除退役留痕）。
 - **F-9 佣金基数改「收款时冻结毛额」（V384）+ F-10 净额过滤器补 `PREAUTH_CAPTURE`（`5ec4020f`）**（用户 2026-10-17 拍板：F-9「订单新增 paid_amount_cents，支付成功时冻结毛额、退款不再改它；净额=paid−refunded」、F-10「修：一行过滤 + 真调 mapper 的用例」）：
   - **F-9** 新增列 `cabinet_order.paid_amount_cents INT NOT NULL DEFAULT 0`（[V384__order_paid_amount_snapshot.sql](../services/trade-service/src/main/resources/db/migration/V384__order_paid_amount_snapshot.sql)），值定义 = 该单 `payment_operation` 中 COMPLETED 的 `CHARGE + ADJUST_CHARGE + PREAUTH_CAPTURE` 之和，**与 `PaymentOperationMapper.chargedCompletedCents` 逐字同构** ⇒ 迁移回填与运行期冻结算的是同一个数。写入点 [`OrderPaymentService.freezePaidAmount`](../services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java)（只增不减，调用方 save）：`SettlementOrderFinalizeService.finalizeOrder` 扣款成功后、`UnpaidOrderService.markPaid` 两支（净额已覆盖 / 补扣成功）；争议结案的 `DISPUTED→PAID` 重放**不加**（那单早已冻结，多调只是多一次查询）。读侧 [`CommissionBaseCalc`](../services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionBaseCalc.java) 新增 `grossCents`：`冻结值>0 ? 冻结值 : total`（0=从未扣到过款 ⇒ 回落保住历史单），`netCents = max(0, gross − refunded)`。`total_amount_cents` 继续当「剩余应付」给分账/退款用，三条回写路径不再污染佣金基数。
   - **取证（CB-057，4 家主体含 2 家同行）**：微信支付交易账单「退款/撤销行的订单金额填 0.00」（订单额与退款额分列）、支付宝「成交订单=已付款成功的订单金额汇总（**未扣除退款订单金额**）+ 发生支付、退款时会产生新的记录」、有赞「订单实付金额不剔除退款金额」、**老系统 easygo 直接 `@Column(updatable=false)` 从 ORM 层面禁止回写成交额**，退款另立 `StatFinRefundDetail` 两列，日账单 GMV=`Σ order_total_amount − 退款行`（`BillService:424`）。不采纳「基数直接取 `netCompletedCents` 流水净额」：无流水的路径会恒 0、逐单查 N+1，且事后答不出「这单当初成交多少」。

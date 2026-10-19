@@ -5,7 +5,8 @@ import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
 import com.aicabinet.trade.domain.PayoutAccount;
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
+import com.aicabinet.trade.service.wallet.WalletDomain;
+import com.aicabinet.trade.service.wallet.WalletEngine;
 import com.aicabinet.trade.payout.PayoutChannel;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConstants;
@@ -53,21 +54,21 @@ public class MerchantWithdrawPayoutService {
     private final PayoutFieldCipher cipher;
     /** V308：费率解析（运营台 > yml），保证面板展示与实际执行同源。 */
     private final WithdrawPolicyResolver policy;
-    /** V308：平台侧手续费收入汇总。 */
-    private final MerchantWalletLedgerMapper ledgerMapper;
+    /** V308：平台侧手续费收入汇总（统一钱包引擎，domain=MERCHANT）。 */
+    private final WalletEngine walletEngine;
 
     public MerchantWithdrawPayoutService(MerchantWithdrawProperties properties,
                                          PayoutChannelRegistry channelRegistry,
                                          PayoutAccountService payoutAccountService,
                                          PayoutFieldCipher cipher,
                                          WithdrawPolicyResolver policy,
-                                         MerchantWalletLedgerMapper ledgerMapper) {
+                                         WalletEngine walletEngine) {
         this.properties = properties;
         this.channelRegistry = channelRegistry;
         this.payoutAccountService = payoutAccountService;
         this.cipher = cipher;
         this.policy = policy;
-        this.ledgerMapper = ledgerMapper;
+        this.walletEngine = walletEngine;
     }
 
     /**
@@ -187,10 +188,10 @@ public class MerchantWithdrawPayoutService {
     }
 
     private long feeIncomeSince(Instant since) {
-        if (ledgerMapper == null) {
+        if (walletEngine == null) {
             return 0L;
         }
-        return ledgerMapper.sumAmountByEntryTypeSince("WITHDRAW_FEE", since);
+        return walletEngine.sumAmountByEntryTypeSince(WalletDomain.MERCHANT, "WITHDRAW_FEE", since);
     }
 
     private static Instant startOfToday() {

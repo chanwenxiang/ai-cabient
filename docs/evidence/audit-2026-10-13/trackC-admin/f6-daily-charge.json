@@ -1,0 +1,15 @@
+{
+  "http": 200,
+  "body": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "note": "只补「该日没扣成」的商户：已扣过的不重扣，当天改过费率的也不会追平差额",
+      "feeDate": "2026-10-16",
+      "chargedCents": 0
+    }
+  },
+  "ren": "SETTLED|1000",
+  "rentDailyExp": 1000,
+  "cdim": 31
+}

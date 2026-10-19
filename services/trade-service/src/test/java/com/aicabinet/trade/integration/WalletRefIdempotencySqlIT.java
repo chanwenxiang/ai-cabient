@@ -26,13 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * B-1 扩展审（V355/V359/V361，2026-10-16）钉住钱包流水的**库级幂等兜底**。
  *
- * <p>取证：三张钱包流水表（staff/line/merchant_wallet_ledger）原本只有普通索引或压根没有索引，
- * 全部 {@code *IfAbsent} 出/入账的幂等只靠「应用层 findByRef 查重 + 分布式锁」两层——而锁在
- * {@code @Transactional} 方法体内 unlock，早于事务提交；后一个线程拿到锁时前一笔流水尚未可见，
- * 于是同一 refId 可以双扣双入账且库里没有任何东西会拦。本 IT 用真库把这条兜底钉成硬约束。</p>
- *
- * <p>V379 落地后本 IT 转绿；两条口径同时被钉住：幂等路径的 ref 唯一、提现生命周期
- * （{@code ref_type='WITHDRAW'}）一 ref 多行必须继续允许。</p>
+ * <p>V388 三域物理统一后，三张 {@code *_wallet_ledger} 合并为单表 {@code wallet_ledger}
+ * （复合业务键 {@code domain + owner_id}）。库级唯一兜底随之收敛为一条覆盖
+ * {@code (domain, owner_id, ref_type, ref_id)} 的 partial 唯一索引 {@code uk_wallet_ledger_ref}。
+ * 本 IT 用真库把「幂等路径的 ref 唯一」和「提现生命周期 {@code ref_type='WITHDRAW'} 一 ref 多行
+ * 必须继续允许」两条口径钉成硬约束。</p>
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
@@ -40,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WalletRefIdempotencySqlIT {
 
     private static final long STAFF = 900001L;
+    private static final String STAFF_OWNER = String.valueOf(STAFF);
 
     @Container
     @SuppressWarnings("resource")
@@ -68,32 +67,16 @@ class WalletRefIdempotencySqlIT {
     @Autowired
     private StaffWalletService staffWalletService;
 
-    /** owner 列名三张表不同，断言时按表取。 */
-    private static String ownerColumn(String table) {
-        return switch (table) {
-            case "staff_wallet_ledger" -> "staff_user_id";
-            case "line_wallet_ledger" -> "manager_id";
-            default -> "merchant_id";
-        };
-    }
-
-    private List<String> uniqueRefIndexes(String table) {
-        String owner = ownerColumn(table);
-        return jdbc.queryForList(
-                "SELECT indexdef FROM pg_indexes WHERE tablename = ? "
-                        + "AND indexdef LIKE 'CREATE UNIQUE INDEX%' "
-                        + "AND indexdef LIKE ? AND indexdef LIKE ? AND indexdef LIKE ?",
-                String.class, table,
-                "%" + owner + "%", "%ref_type%", "%ref_id%");
-    }
-
     @Test
-    @DisplayName("三张钱包流水表都必须有 (owner, ref_type, ref_id) 唯一索引")
-    void walletLedgersHaveUniqueRefIndex() {
-        for (String table : List.of("staff_wallet_ledger", "line_wallet_ledger", "merchant_wallet_ledger")) {
-            List<String> hits = uniqueRefIndexes(table);
-            assertEquals(1, hits.size(), table + " 缺少（或有多个）覆盖 ref 的唯一索引：" + hits);
-        }
+    @DisplayName("统一流水表必须有覆盖 (domain, owner_id, ref_type, ref_id) 的唯一索引")
+    void walletLedgerHasUniqueRefIndex() {
+        List<String> hits = jdbc.queryForList(
+                "SELECT indexdef FROM pg_indexes WHERE tablename = 'wallet_ledger' "
+                        + "AND indexdef LIKE 'CREATE UNIQUE INDEX%' "
+                        + "AND indexdef LIKE '%domain%' AND indexdef LIKE '%owner_id%' "
+                        + "AND indexdef LIKE '%ref_type%' AND indexdef LIKE '%ref_id%'",
+                String.class);
+        assertEquals(1, hits.size(), "wallet_ledger 缺少（或有多个）覆盖 domain/ref 的唯一索引：" + hits);
     }
 
     @Test
@@ -103,7 +86,7 @@ class WalletRefIdempotencySqlIT {
         insertStaffLedger("IT_DUP", "ref-dup", -100L);
         assertThrows(DataIntegrityViolationException.class,
                 () -> insertStaffLedger("IT_DUP", "ref-dup", -100L),
-                "同 (staff_user_id, ref_type, ref_id) 的第二行竟然插入成功 ⇒ 幂等只活在应用层");
+                "同 (domain, owner_id, ref_type, ref_id) 的第二行竟然插入成功 ⇒ 幂等只活在应用层");
         assertEquals(1, countStaffLedgerByRef("ref-dup"));
     }
 
@@ -114,20 +97,21 @@ class WalletRefIdempotencySqlIT {
         insertStaffLedger("IT_ADJUST", null, 50L);
         insertStaffLedger("IT_ADJUST", null, 50L);
         assertEquals(2, jdbc.queryForObject(
-                "SELECT count(*) FROM staff_wallet_ledger WHERE staff_user_id = ? AND ref_id IS NULL",
-                Integer.class, STAFF));
+                "SELECT count(*) FROM wallet_ledger "
+                        + "WHERE domain = 'STAFF' AND owner_id = ? AND ref_id IS NULL",
+                Integer.class, STAFF_OWNER));
     }
 
     @Test
     @DisplayName("ref_type='WITHDRAW' 豁免：提现生命周期天然一 ref 多行（含重试再冻结）")
     void withdrawLifecycleRowsMayRepeatRef() {
         seedStaffWallet();
-        // FREEZE → RELEASE → 重试 FREEZE：同 (owner, ref_type, ref_id, entry_type) 也会出现第二行
-        // （MerchantWithdrawService:605 / LineWithdrawService:421），V379 因此把 WITHDRAW 排除。
-        insertLedger("staff_wallet_ledger", "staff_user_id", "WITHDRAW_FREEZE", "WITHDRAW", "req-life", -100L);
-        insertLedger("staff_wallet_ledger", "staff_user_id", "WITHDRAW_RELEASE", "WITHDRAW", "req-life", 100L);
-        insertLedger("staff_wallet_ledger", "staff_user_id", "WITHDRAW_FREEZE", "WITHDRAW", "req-life", -100L);
-        assertEquals(3, countLedgerByRef("staff_wallet_ledger", "staff_user_id", "req-life"),
+        // FREEZE → RELEASE → 重试 FREEZE：同 (domain, owner_id, ref_type, ref_id, entry_type) 也会出现第二行
+        // （MerchantWithdrawService / LineWithdrawService 提现重试路径），uk_wallet_ledger_ref 因此把 WITHDRAW 排除。
+        insertStaffLedgerType("WITHDRAW_FREEZE", "WITHDRAW", "req-life", -100L);
+        insertStaffLedgerType("WITHDRAW_RELEASE", "WITHDRAW", "req-life", 100L);
+        insertStaffLedgerType("WITHDRAW_FREEZE", "WITHDRAW", "req-life", -100L);
+        assertEquals(3, countStaffLedgerByRef("req-life"),
                 "WITHDRAW 生命周期行被唯一索引误伤 ⇒ 提现打款/重试会当场 500");
     }
 
@@ -150,33 +134,27 @@ class WalletRefIdempotencySqlIT {
     }
 
     private void insertStaffLedger(String entryType, String refId, long amountCents) {
-        insertLedger("staff_wallet_ledger", "staff_user_id", entryType, "IT_PROBE", refId, amountCents);
+        insertStaffLedgerType(entryType, "IT_PROBE", refId, amountCents);
     }
 
-    private void insertLedger(String table, String ownerCol, String entryType, String refType,
-                              String refId, long amountCents) {
-        jdbc.update("INSERT INTO " + table + " (" + ownerCol + ", entry_type, amount_cents, "
+    private void insertStaffLedgerType(String entryType, String refType, String refId, long amountCents) {
+        jdbc.update("INSERT INTO wallet_ledger (domain, owner_id, entry_type, amount_cents, "
                         + "balance_after, frozen_after, ref_type, ref_id, remark) "
-                        + "VALUES (?, ?, ?, 0, 0, ?, ?, 'negative-test')",
-                STAFF, entryType, amountCents, refType, refId);
-    }
-
-    private long countLedgerByRef(String table, String ownerCol, String refId) {
-        Long c = jdbc.queryForObject(
-                "SELECT count(*) FROM " + table + " WHERE " + ownerCol + " = ? AND ref_id = ?",
-                Long.class, STAFF, refId);
-        return c == null ? 0L : c;
+                        + "VALUES ('STAFF', ?, ?, ?, 0, 0, ?, ?, 'negative-test')",
+                STAFF_OWNER, entryType, amountCents, refType, refId);
     }
 
     private long countStaffLedgerByRef(String refId) {
-        Long c = jdbc.queryForObject("SELECT count(*) FROM staff_wallet_ledger WHERE ref_id = ?",
+        Long c = jdbc.queryForObject(
+                "SELECT count(*) FROM wallet_ledger WHERE domain = 'STAFF' AND ref_id = ?",
                 Long.class, refId);
         return c == null ? 0L : c;
     }
 
     private long staffBalance() {
-        Long b = jdbc.queryForObject("SELECT balance_cents FROM staff_wallet_account WHERE staff_user_id = ?",
-                Long.class, STAFF);
+        Long b = jdbc.queryForObject(
+                "SELECT balance_cents FROM wallet_account WHERE domain = 'STAFF' AND owner_id = ?",
+                Long.class, STAFF_OWNER);
         return b == null ? 0L : b;
     }
 }

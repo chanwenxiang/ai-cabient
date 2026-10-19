@@ -19,6 +19,8 @@ infra/gateway/mp-h5/consumer/assets/
 infra/gateway/mp-h5/consumer/static/
 infra/gateway/mp-h5/merchant/assets/
 infra/gateway/mp-h5/merchant/static/
+# AU-146：Grafana Basic 口令哈希——本地由 scripts/devops/gen-grafana-htpasswd.ps1 生成，永不入库
+infra/gateway/grafana.htpasswd
 
 # shared-types 构建产物（由 pnpm build:packages / tsc 生成，勿手改入库）
 packages/shared-types/dist/

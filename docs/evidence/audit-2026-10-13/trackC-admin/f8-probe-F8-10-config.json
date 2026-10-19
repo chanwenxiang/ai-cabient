@@ -1,0 +1,14 @@
+{
+  "viewer": {
+    "status": 403,
+    "body": {
+      "code": 403,
+      "message": "无权限执行此操作",
+      "data": null
+    }
+  },
+  "admin": {
+    "status": "n/a（无路径 id，跳过正向写以免真实改配置/建操作员）",
+    "body": {}
+  }
+}

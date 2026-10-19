@@ -1,1 +1,5 @@
+<<<<<<<< HEAD:services/trade-service/src/main/resources/static/admin/assets/useDeviceOptions-DaIr_QzN.js
 import{c as o,a as n,A as r}from"./index-CV_UFBqw.js";import{r as t}from"./ui-vendor-BipPwLmQ.js";function v(){const a=o(),e=t([]),s=t(!1);async function i(){if(!a.hasPerm("ops:device:list")&&!a.hasPerm("ops:device:ref")){e.value=[];return}s.value=!0;try{e.value=await n.request(r.devicesRef,"GET")}catch{e.value=[]}finally{s.value=!1}}return{deviceOptions:e,deviceOptionsLoading:s,loadDeviceOptions:i}}export{v as u};
+========
+import{c as o,a as n,A as r}from"./index-nrkUHdEX.js";import{r as t}from"./ui-vendor-B2gNH_lz.js";function v(){const a=o(),e=t([]),s=t(!1);async function i(){if(!a.hasPerm("ops:device:list")&&!a.hasPerm("ops:device:ref")){e.value=[];return}s.value=!0;try{e.value=await n.request(r.devicesRef,"GET")}catch{e.value=[]}finally{s.value=!1}}return{deviceOptions:e,deviceOptionsLoading:s,loadDeviceOptions:i}}export{v as u};
+>>>>>>>> fix/dc-decisions-batch14:services/trade-service/src/main/resources/static/admin/assets/useDeviceOptions-DiB0wfSb.js

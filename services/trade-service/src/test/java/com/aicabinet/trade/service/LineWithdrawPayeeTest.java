@@ -10,7 +10,6 @@ import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.mapper.PayoutAccountMapper;
 import com.aicabinet.trade.payout.PayoutChannel;
@@ -72,7 +71,6 @@ class LineWithdrawPayeeTest {
     /** V321 提现资质门禁。 */
     @Mock private WithdrawEligibilityService withdrawEligibilityService;
     @Mock private MerchantWithdrawRequestMapper merchantWithdrawMapper;
-    @Mock private MerchantWalletLedgerMapper merchantWalletLedgerMapper;
 
     private LineWithdrawService service;
     private PayoutAccount wechatAccount;

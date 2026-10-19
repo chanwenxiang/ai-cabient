@@ -6,7 +6,6 @@ import com.aicabinet.trade.domain.LineWalletAccount;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
-import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +26,6 @@ class LineManagerToDtoReadOnlyTest {
 
     @Mock private LineManagerMapper managerMapper;
     @Mock private LineDeviceMapper deviceMapper;
-    @Mock private LineWalletLedgerMapper ledgerMapper;
     @Mock private DeviceInfoMapper deviceInfoMapper;
     @Mock private LineWalletService lineWalletService;
     @Mock private PermissionService permissionService;
@@ -41,7 +39,6 @@ class LineManagerToDtoReadOnlyTest {
         service = new LineManagerService(
                 managerMapper,
                 deviceMapper,
-                ledgerMapper,
                 deviceInfoMapper,
                 lineWalletService,
                 permissionService,

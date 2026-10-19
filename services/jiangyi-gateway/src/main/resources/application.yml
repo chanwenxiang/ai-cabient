@@ -1,11 +1,18 @@
 server:
   port: 8083
+  # AU-190：优雅停机——SIGTERM 后停收新请求并给在途 WS close(1001) 窗口，
+  # 避免 kill/重启瞬间设备端观测到 1006 硬断风暴
+  shutdown: graceful
 
 spring:
   application:
     name: jiangyi-gateway
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # AU-190：优雅停机宽限期（与 server.shutdown 配套；🔴 顶层 spring: 只能出现一次，
+  # 批次 7 首版把本块另起顶层键 ⇒ SnakeYAML 拒绝重复键，DeviceAuthIT 全体上下文加载失败）
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -28,7 +35,6 @@ aicabinet:
     token-ttl-seconds: ${JIANGYI_TOKEN_TTL_SECONDS:604800}
     # 识别上报 → 会话关门合成的轮询兜底（秒）：WS 无关门上报（模式一），
     # 会话靠识别上报先行合成 door-event CLOSED，超时则由 trade 侧扫描兜底
-    session-open-timeout-seconds: ${JIANGYI_SESSION_OPEN_TIMEOUT_SECONDS:90}
     # OSS STS 直传凭证（CB-024 §4.2.6）。🔴 AK/RoleArn 无默认值：未配置时
     # getTempUploadToken 返回 500 fail-closed（不影响购物主链路）；只在部署环境注入（铁律 #27）
     oss:

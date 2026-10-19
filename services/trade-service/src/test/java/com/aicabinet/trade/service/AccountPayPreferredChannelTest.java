@@ -50,7 +50,9 @@ class AccountPayPreferredChannelTest {
     @BeforeEach
     void setUp() {
         service = new AccountService(userInfoRepository, userAccountRepository,
-                payScoreService, balanceLedgerService, distributedLockService, identityVerifyClient, null);
+                payScoreService, balanceLedgerService, distributedLockService, identityVerifyClient,
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.BalanceRefundRequestMapper.class),
+                new UserConsentLogService(org.mockito.Mockito.mock(com.aicabinet.trade.mapper.UserConsentLogMapper.class)), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

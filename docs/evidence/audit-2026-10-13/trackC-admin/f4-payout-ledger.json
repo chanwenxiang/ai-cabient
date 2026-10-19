@@ -1,0 +1,4 @@
+{
+  "led": "WITHDRAW_FREEZE,WITHDRAW_PAID,WITHDRAW_FEE",
+  "fee": 60000
+}

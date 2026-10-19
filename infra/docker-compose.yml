@@ -6,7 +6,7 @@ name: ai-cabinet
 services:
   postgres:
     stop_grace_period: 60s
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # AU-192：钉 digest（= 2026-10 本地实测版）
     restart: unless-stopped
     environment:
       POSTGRES_DB: aicabinet
@@ -23,7 +23,7 @@ services:
 
   redis:
     stop_grace_period: 30s
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 # 钉 digest
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
@@ -45,7 +45,7 @@ services:
 
   emqx:
     stop_grace_period: 30s
-    image: emqx/emqx:5.8.6
+    image: emqx/emqx:5.8.6@sha256:a1e3d10fa1dcc8c94325b815a93b5b5974253a97cb36470b44e47d5d3ef9cd13 # 钉 digest
     restart: unless-stopped
     ports:
       # Host ports avoid Windows Hyper-V reserved range ~1822–1921 (includes 1883/8883/18083).
@@ -70,6 +70,8 @@ services:
     volumes:
       - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
       - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
+      # AU-189：EMQX 数据卷——重启丢内置库 ⇒ 设备凭据变更/用户态不生效（bootstrap CSV 仅首启导入）
+      - emqx-data:/opt/emqx/data
     healthcheck:
       test: ["CMD", "emqx", "ctl", "status"]
       interval: 10s
@@ -106,7 +108,7 @@ services:
 
   redpanda:
     stop_grace_period: 60s
-    image: redpandadata/redpanda:v24.1.1
+    image: redpandadata/redpanda:v24.1.1@sha256:3387a7ac6b2307129032562bf957653de13373a2748f82de7ab588a39d50b88d # 钉 digest
     # 审计 A2/P1-8：SASL/SCRAM 基线——配置文件挂载渲染（authentication_method 必须显式写在
     # 监听器上；--set/--kafka-addr 旗标写法实证不可靠，见 redpanda.sasl.yaml 头注释）。
     # 本 base 栈默认宣告 localhost（宿主工具直连）；apps 叠加时以 REDPANDA_ADVERTISE=redpanda 覆盖。
@@ -119,6 +121,8 @@ services:
       REDPANDA_ADVERTISE: ${REDPANDA_ADVERTISE:-localhost}
     volumes:
       - ./redpanda/redpanda.sasl.yaml:/redpanda-tmpl/redpanda.sasl.yaml:ro
+      # AU-189：redpanda 数据卷——重启丢 offset/主题
+      - redpanda-data:/var/lib/redpanda/data
     ports:
       - "127.0.0.1:9092:9092"
 
@@ -126,7 +130,7 @@ services:
   # enable_sasl 为集群配置属性（v24 --set 静态写法无效），运行时设置；不阻断栈启动。
   redpanda-init:
     stop_grace_period: 30s
-    image: redpandadata/redpanda:v24.1.1
+    image: redpandadata/redpanda:v24.1.1@sha256:3387a7ac6b2307129032562bf957653de13373a2748f82de7ab588a39d50b88d # 钉 digest
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
@@ -152,7 +156,7 @@ services:
 
   gateway:
     stop_grace_period: 30s
-    image: nginx:alpine
+    image: nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 # 钉 digest
     ports:
       - "80:80" # EXPOSE-ALLOW: gateway 业务入口（base 栈对外唯一 HTTP）
     volumes:
@@ -162,13 +166,15 @@ services:
 
   prometheus:
     stop_grace_period: 30s
-    image: prom/prometheus:v2.51.0
+    image: prom/prometheus:v2.51.0@sha256:5ccad477d0057e62a7cd1981ffcc43785ac10c5a35522dc207466ff7e7ec845f # 钉 digest
     restart: unless-stopped
     ports:
       # 仅回环：指标端点含内部拓扑信息，不暴露局域网/公网
       - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # AU-189：prometheus 数据卷——重启丢告警历史与时序
+      - prometheus-data:/prometheus
     mem_limit: 512m
     cpus: 0.5
     extra_hosts:
@@ -176,7 +182,7 @@ services:
 
   grafana:
     stop_grace_period: 30s
-    image: grafana/grafana:10.4.0
+    image: grafana/grafana:10.4.0@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5 # 钉 digest
     restart: unless-stopped
     profiles: ["apps"]
     ports:
@@ -189,6 +195,8 @@ services:
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+      # AU-189：grafana 数据卷——重启丢仪表盘编辑与数据源改动
+      - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
 
@@ -196,3 +204,8 @@ volumes:
   pgdata:
   miniodata:
   redisdata:
+  # AU-189：观测/消息中间件持久化
+  prometheus-data:
+  grafana-data:
+  redpanda-data:
+  emqx-data:

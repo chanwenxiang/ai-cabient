@@ -74,6 +74,16 @@ const EXEMPT = new Map([
         '会**真的向已配置的告警渠道（飞书等）投递一条测试消息**（脚本 :186 的注释明说），' +
         '并需要真实 webhook 凭据 —— 外部副作用，不适合被 CI 的每个 PR 触发'
     }
+  ],
+  [
+    'audit-admin-flows-uat.mjs',
+    {
+      why:
+        '上线前 **Track C-admin 运行期业务流程实测**：需要一个**独占被测全栈**（自建 compose project + 全新空库），' +
+        '因为它会向被测库**真实下单/开会话/结算**（写订单与会话行），绝不能对共享 dev 栈或每个 PR 触发；' +
+        'F1 还依赖本仓将邑设备模拟器 jar + 一次性 gateway 端口转发（本机宿主 :18084 被栈外 EMQX/Cowboy 占走，' +
+        '见 docs/AUDIT_TRACK_C_ADMIN_FLOWS_2026-10-13.md §0.1-1）。⇒ 属人工拍板环境才能跑的实测面，非 CI 自动化面。'
+    }
   ]
 ]);
 

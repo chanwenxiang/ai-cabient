@@ -88,12 +88,18 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         if (identifier == null) {
             return;
         }
-        // 只移除自己登记的那条（顶替语义下旧连接关闭不动新连接的登记）
-        sessions.remove(identifier, session);
+        // 只移除自己登记的那条（顶替语义下旧连接关闭不动新连接的登记）。
+        // AU-190（2026-10-18 批次 5）：remove 双参判定成功 = 本连接仍是当前登记会话才报离线；
+        // 旧实现无条件 reportOffline ⇒ 新连接顶替后旧连接关闭把仍在线的设备误报离线。
+        boolean wasCurrent = sessions.remove(identifier, session);
         lastOnlineReportAt.remove(identifier);
-        log.info("jiangyi ws disconnected identifier={} session={} status={} onlineDevices={}",
-                identifier, session.getId(), status, sessions.size());
-        reportOffline(identifier, attrDeviceId(session));
+        log.info("jiangyi ws disconnected identifier={} session={} status={} wasCurrent={} onlineDevices={}",
+                identifier, session.getId(), status, wasCurrent, sessions.size());
+        if (wasCurrent) {
+            reportOffline(identifier, attrDeviceId(session));
+        } else {
+            log.info("jiangyi ws stale close ignored (replaced by newer session) identifier={}", identifier);
+        }
     }
 
     @Override

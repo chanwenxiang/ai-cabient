@@ -66,8 +66,10 @@ public class RevenueSplitService {
         if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
             return Optional.empty();
         }
-        if (order.getTotalAmountCents() <= 0) {
-            log.debug("skip revenue split: zero gross order {}", order.getOrderId());
+        // AU-182：guard 同步改净额口径（frozen=0 时回落 total，markPaid 时点行为等价；
+        // 净额<=0 的全额退款残单不值得建 0 值分账行）
+        if (CommissionBaseCalc.netCents(order) <= 0) {
+            log.debug("skip revenue split: zero net order {}", order.getOrderId());
             return Optional.empty();
         }
         return runWithOrderSplitLock(order.getOrderId(), () -> doRecordSplit(order));
@@ -100,7 +102,10 @@ public class RevenueSplitService {
             return Optional.empty();
         }
 
-        long gross = order.getTotalAmountCents();
+        // AU-182（2026-10-19 拍板）：分账基数与佣金同源——走 CommissionBaseCalc 净额
+        // （冻结毛额−refunded）。此前用 totalAmountCents：金额退不改写 total ⇒ 部分退后
+        // 分账不冲减（原 1000 退 700 仍按 1000 拆分）；按行退又会把冻结值再减一遍 total。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * merchant.getPlatformRateBps() / 10_000L;
         long merchantShare = gross - platform;
 
@@ -261,17 +266,19 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         long returnCents = Math.max(0, oldMerchantCents - merchantShare);
         if (returnCents > 0 && merchant != null) {
             // 微信分账回退 out_return_no：协议幂等键，勿改成纯数字业务单号（lesson #223）
             String outReturnNo = "PSR" + split.getSplitId() + ":g" + merchantShare;
+            // AU-141：同全额路径——finalize 事务内不提交 HTTP，落 PENDING + 补偿任务异步提交
             applyWeChatReturnOutcome(split, outReturnNo, returnCents,
-                    profitSharingService.returnMerchantShare(
-                            split, merchant, returnCents, outReturnNo, "部分退款分账回退 " + order.getOrderId()),
-                    "部分退款后分账金额已重算，分账回退未成功需人工处理");
+                    ReturnSubmitOutcome.PROCESSING, "部分退款分账回退 " + order.getOrderId());
+            returnCompensationService.scheduleReturnRetry(split, 30);
         }
         split.setGrossCents(gross);
         split.setPlatformCents(platform);
@@ -304,7 +311,9 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         if (merchantShare <= oldMerchantCents) {
@@ -339,10 +348,12 @@ public class RevenueSplitService {
             return;
         }
         String outReturnNo = "PSR-FULL-" + split.getSplitId();
+        // AU-141（批次 8）：退款 finalize 事务内不再同步提交微信回退 HTTP——直接落 PENDING
+        // 状态 + 排补偿任务（≤30s 异步提交，refreshPendingReturn 查单确认 / retryFailedReturns
+        // 提交均在补偿调度器的独立短事务）。本地商户钱包 clawback 已先行，渠道回退滞后无资损。
         applyWeChatReturnOutcome(split, outReturnNo, amount,
-                profitSharingService.returnMerchantShare(
-                        split, merchant, amount, outReturnNo, "全额退款分账回退 " + split.getOrderId()),
-                "全额退款分账回退未成功，需人工处理");
+                ReturnSubmitOutcome.PROCESSING, "全额退款分账回退 " + split.getOrderId());
+        returnCompensationService.scheduleReturnRetry(split, 30);
         if (split.getFailureReason() != null) {
             log.warn("wechat profit sharing full return failed splitId={} order={}", split.getSplitId(), split.getOrderId());
         }
@@ -448,7 +459,9 @@ public class RevenueSplitService {
         if (amount <= 0) {
             return;
         }
-        boolean reversed = merchantWalletService.reverseCreditIfPresent(
+        // AU-181：改 AllowNegative 旁路（与 T4 的 clawbackWalletDelta 同构）——
+        // 余额提空/为负商户的退款 finalize 不得被余额闸卡死；refId 不变保幂等
+        boolean reversed = merchantWalletService.reverseCreditAllowNegativeIfPresent(
                 split.getMerchantId(),
                 amount,
                 "SPLIT_REVERSE",
@@ -499,7 +512,9 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         // 拍板 2026-10-17「平台分账先不收」：重算后平台份额为 0 ⇒ 这单不再走微信分账

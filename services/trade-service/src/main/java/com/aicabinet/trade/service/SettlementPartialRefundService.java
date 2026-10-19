@@ -55,8 +55,13 @@ public class SettlementPartialRefundService {
     /**
      * 按行部分退款（竞品口径）：指定 SKU/数量退款；行级或默认决定是否回库。
      * 退完全部行 → {@code REFUNDED}；否则 → {@code PARTIAL_REFUNDED}。
-     * C04 顺序：纯读计算退款计划 → 渠道退款（幂等 idemKey=订单+金额+原因）→ prepare+finalize 落库。
-     * 渠道失败时本地零改动；渠道成功但落库失败时，重试用相同金额/原因命中同一幂等键，安全重试。
+     * C04 顺序：纯读计算退款计划 → 渠道退款（幂等 idemKey=订单+金额+行集指纹，AU-175）
+     * → prepare+finalize 落库。渠道失败时本地零改动；渠道成功但落库失败时，重试用相同
+     * 金额/行集命中同一幂等键，安全重试。
+     * <p>AU-174（2026-10-18 真库对账）：{@code priorRefunded} 必须在调支付层 {@code refundOrder}
+     * <b>之前</b>捕获——refundOrder 正常路径会把本次退款累加进 {@code refundedCents} 并落库，
+     * 若在之后读（旧实现 prepare 内重载读取），finalize 会以「已含本次」的值再累加一次 ⇒
+     * 双倍记账（1000 分订单退 400 账面 800）。调用方持订单支付分布式锁，读值稳定。
      */
     public PartialRefundResult partialRefund(CabinetOrder order,
                                              List<OrderRefundRequest.PartialRefundLine> refundLines,
@@ -66,10 +71,40 @@ public class SettlementPartialRefundService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
         }
         int refundCents = self.planPartialRefundCents(order.getOrderId(), refundLines);
-        orderPaymentService.refundOrder(order, refundCents,
-                reason == null ? "按行部分退款" : reason);
-        PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines, defaultRestore);
+        // AU-174：支付层动账前捕获真实「已退累计」，杜绝 finalize 二次累加
+        int priorRefundedBeforeChannel = Math.max(0, order.getRefundedCents());
+        // AU-175：幂等键带行集指纹——同单同额、不同商品行的两笔退款是合法业务，
+        // 不得被 M02 的「订单+金额」键误判为重放而静默跳过渠道退款
+        String idemKeyOverride = "REFUND:" + order.getOrderId() + ":" + refundCents
+                + ":L:" + refundLinesFingerprint(refundLines);
+        boolean channelExecuted = orderPaymentService.refundOrder(order, refundCents,
+                reason == null ? "按行部分退款" : reason, idemKeyOverride);
+        if (!channelExecuted) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该订单已存在相同金额与商品行的退款记录，请勿重复提交；如需继续请调整退款行或金额");
+        }
+        PartialRefundPrep prep = self.preparePartialRefund(order.getOrderId(), refundLines,
+                defaultRestore, priorRefundedBeforeChannel);
         return self.finalizePartialRefund(prep);
+    }
+
+    /** AU-175：退款行集指纹（排序后 sku:qty 拼接的 SHA-256 前 16 位），同行集同额才视为重放。 */
+    static String refundLinesFingerprint(List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        String canonical = refundLines.stream()
+                .map(l -> l.skuId() + ":" + l.quantity())
+                .sorted()
+                .collect(java.util.stream.Collectors.joining("|"));
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 8; i++) {
+                hex.append(String.format("%02x", digest[i]));
+            }
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /**
@@ -101,7 +136,8 @@ public class SettlementPartialRefundService {
     @Transactional
     public PartialRefundPrep preparePartialRefund(String orderId,
                                                   List<OrderRefundRequest.PartialRefundLine> refundLines,
-                                                  boolean defaultRestore) {
+                                                  boolean defaultRestore,
+                                                  int priorRefundedBeforeChannel) {
         CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
@@ -125,7 +161,9 @@ public class SettlementPartialRefundService {
         }
 
         applyPartialRefundInventory(order, partition, remaining.isEmpty());
-        int priorRefunded = Math.max(0, order.getRefundedCents());
+        // AU-174：priorRefunded 由 partialRefund 在调支付层之前捕获传入——此处 order 已被
+        // refundOrder 累加过本次退款，再读会双倍。finalizer 的单调兜底语义不变。
+        int priorRefunded = Math.max(0, priorRefundedBeforeChannel);
         orderRepository.save(order);
         orderSupport.replaceOrderLines(order);
         return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored());

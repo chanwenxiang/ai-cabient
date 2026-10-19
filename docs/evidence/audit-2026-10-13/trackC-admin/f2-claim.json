@@ -1,0 +1,52 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "ticketId": "1792293229093326254596",
+    "sessionId": "1792293228711991084464",
+    "deviceId": "EG746560232828",
+    "reason": "识别结果需人工审核",
+    "status": "OPEN",
+    "suggestedItems": [
+      {
+        "skuId": "SKU-DEMO-001",
+        "skuName": "可口可乐 330ml",
+        "quantity": 2,
+        "unitPriceCents": 350,
+        "lineAmountCents": 700,
+        "batchNo": null,
+        "slotId": null
+      }
+    ],
+    "resolutionItems": [],
+    "createdAt": "2026-10-18T03:13:49.085125Z",
+    "resolvedAt": null,
+    "videoUri": null,
+    "videoPreviewUrl": null,
+    "sessionState": "DISPUTED",
+    "orderId": null,
+    "billedAmountCents": null,
+    "slaDueAt": "2026-10-20T03:13:49.093712Z",
+    "slaOverdue": false,
+    "slaHoursRemaining": 47,
+    "category": "RECOGNITION",
+    "priority": "HIGH",
+    "operatorNote": null,
+    "closedAt": null,
+    "reopenedAt": null,
+    "messages": [],
+    "evidence": [],
+    "reviewCode": "NEED_REVIEW",
+    "detectedClasses": [
+      "audit-dispute"
+    ],
+    "refundedAmountCents": null,
+    "claimedAmountCents": 700,
+    "deviceName": "演示智能柜",
+    "assignee": "运营测试",
+    "consumerStatusLabel": "审核中 · 暂未扣款",
+    "consumerReviewTitle": "账单待人工确认",
+    "consumerReviewDetail": "识别结果需人工审核",
+    "amountDiffNote": "识别参考 ¥7.00，实扣 ¥0.00（优惠/折扣 ¥7.00）"
+  }
+}

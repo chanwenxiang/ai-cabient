@@ -33,6 +33,7 @@
 | **支付宝芝麻先享**（⭕ 官方） | 同上，**官方文档明确提「智能货柜场景」** | 双通道对比，避免单平台依赖        |
 | **哈啰出行**          | 信用免押 + **违约上报的合规边界**   | 明确「什么能上报征信、什么不能」的红线  |
 | **共享充电宝/租赁**      | 押金/负余额/拉黑的经典形态         | 「预冻结」的等价实现           |
+| **会员积分账本**（京东京豆、Snow Peak、中国农业银行卡、Microsoft Dynamics 365 Commerce；CB-058） | 积分「发放 / 消耗 / 退货扣回 / 调整」的账本口径 | 开门柜同行无公开积分规格，扣回语义只能借这些写成条款的群体 |
 
 **不作为主体**：多家转载同一篇通联/服务商文档（只算 1 家）、营销软文（仅玩法旁证）。
 
@@ -1862,3 +1863,70 @@
   3. **不采纳「(a) 基数直接改用 `netCompletedCents(orderId)` 实时流水净额」**：方向与 CB-056「以账户实际发生额为准」一致，但两个硬伤——① `payment_operation` 只在**走支付通道/余额**时写行，欠款转付、券全额抵扣等路径不保证有行，逐单查还会踩 N+1（`LineCommissionJob` 按 device-day 捞单）；② 流水净额把「退款」与「改单补差」混在同一个减法里，事后无法回答「这单当初成交多少」。所以采用**新列冻结**：既留成交额、又留退款额，净额由两者算，且和老系统 `order_total_amount` + `StatFinRefundDetail` 的两列形态同构。
   4. **有意不同（相对老系统）**：老系统佣金**从不**随退款冲正（`commission` 与 `refund` 全仓共现 0，CB-040 已判缺陷），我方保留冲正；但**成交额列不回写**这一半照抄——老系统靠 `updatable = false` 从 ORM 层面堵死，我方靠「只在收款成功时写一次 + 两条退款链路都不碰它」实现同等约束。老系统「退款回写日账单行、佣金日行不回写」导致两表脱钩的坑**不跟**（本仓冲回走 CB-056 的「以已入账行为基数」）。
   5. **验收判据**：部分退 700/原 1000 的单，`netGmv` 必须是 300 而不是 0；争议改单降价（`applyPaymentDelta` 负 delta）后，冻结毛额仍为**改单前实际收款额**，净额 = 冻结毛额 − 已退。用例：`CommissionBaseCalcTest` / 线长分佣与冲回的既有 GMV 断言须随之收敛，新负向用例先行（修前必红）。
+
+### CB-058 【新】会员积分账本口径：退货扣回是**消耗**不是「撤销发放」——累计列只增不减，扣回必须同时归入消耗桶；更正走带符号流水，禁止覆写账户列
+
+> 触发：2026-10-18 §10 **G10**（`POINTS_IDENTITY` 巡检 `POINTS_IDENTITY|1` 恒差 32 分）取证已定位到**写侧漏记**、并查明巡检自动修复方向相反（详见 [evidence/…/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md) 与 [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)）⇒ 用户拍板 **A（扣回归入 `used_points`）+ D（撤掉自动回写、改「仅巡检需人工」）+ E（撤 `member_level_rule` 的死旋钮 `max_points`）**。动积分写侧记账前补检索：本台账此前**没有任何积分条目**（F-7 欠账）。
+> 先列名单再检索：peer 旧系统 easygo（源码亲验 `u_user.score` + `u_score_flow` 逐笔流水）、思迅（天店官方帮助 + 数据字段实操）+ official 微信官方（视频号小店会员积分 API）+ cross 京东京豆（官方帮助）、Snow Peak（品牌官方会员制度）、中国农业银行（信用卡官方活动规则）、Microsoft Dynamics 365 Commerce（官方文档「卡调整」）。🟡 旁证（未登记别名表 ⇒ **不计主体**）：PEKON 退货对账方法论、有赞官方帮助。
+> 现状取证（改前代码）：`member` 用**三列分解** `total_points = available_points + used_points + expired_points`，四条写路径里**三条成对移动、只有退款扣回只动一列**——发放 `MemberService.java:262-263`（`total +p` / `available +p`）、兑换 `PointsRedeemService.java:144-145`（`available −cost` / `used +cost`）、过期 `PointsExpiryScheduler.java:149-150`（`available −x` / `expired +x`）都保持恒等式；唯独 `MemberService.doClawbackPointsOnRefund:316-327` 只 `setAvailablePoints(available − actual)`，却写了 `points_type="USE"` 的流水 ⇒ **流水侧早已把它归为消耗，账户列漏归集**。巡检 `DataConsistencyService.java:449-457` 因此恒红；而自动修复 `:1692-1708 fixPointsIdentity` 是**反方向**覆写（`UPDATE member SET total_points = available+used+expired`），实测把 `total_points` 181 下调到 149 ⇒ 静默重定义「累计发放」。另 `calculateMemberLevel`（`MemberService.java:150-174`）只读 `totalSpent`/`netRecharge`，`max_points` 全仓零读取。
+
+- **竞品做法 / 官方口径**：
+  - **旧系统 easygo**（⭕ 源码亲验，2026-10-18）：积分账户是**单一余额列 + 逐笔流水**——`mis-server/mis-operation/.../user/dto/UserDto.java:25` `private Integer score; // 用户积分账户`，`.../active/model/ScoreFlow.java:16-26` `@Table(name = "u_score_flow")` 每行带 `sn`（唯一业务流水号）、`event`（业务事件）、`score`（**本次发生积分**）、`balance`（**剩余积分**快照）、`flowType`（入账 I / 出账 O，`dvm/dvm-const/.../account/enums/StreamType.java`，与资金账户共用同一套枚举）。⇒ 老系统**不做三桶分解**，所以没有恒等式可破；但它给出两条硬口径：**任何积分增减都必须落一条带符号、带余额快照的流水**，且积分与钱用同一个账户模型。后台另只暴露「积分类型/流水查询」（`.../active/ScoreFlowCtrl.java:46` 按 `event` 查），**没有改账户数字的端点**。
+  - **思迅（天店 / 商智云）**（⭕ 官方帮助 + 🟡 实操文档）：官方「5.2.1 积分设置」把积分写成账户规则——「积分规则：按消费金额积分、按商品积分值积分」「开启积分付款功能：如启用后，可设置会员多少积分抵用多少元」「**开启积分商品退款功能：使用积分进行付款的单据是否支持退款功能，如不开启，用积分付款的单据，则无法进行退款**」⇒ 退款与积分的关系是**显式开关**，不是隐式改数。数据侧字段实测更直接：思迅 `t_rm_vip_info` 有 `acc_num`（**累计积分**）/ `now_acc_num`（**当前剩余积分**）/ `dec_num`（**已使用/扣减积分**）三列，年终清零的通行做法是 `update t_rm_vip_info set now_acc_num = 0 …; update t_rm_vip_info set dec_num = acc_num where acc_num - dec_num > 0;`（原注：「把已使用和累计积分的数据设为一样」），且作者明确「**如果使用思迅的后台系统清零，就会把会员的积分消费数据流水也清零了。这对于后面查账、防损是很不利的。所以我的做法是直接把会员数据进行重置，但是保留了会员的消费流水**」⇒ 三桶恒等式（累计 = 剩余 + 已用）是运维脚本默认前提；**宁可手写 SQL 也不清流水**，即账户列可重置、流水不可抹。
+  - **京东京豆**（⭕ 官方帮助，直取被拒 ⇒ 逐字取自检索结果正文摘录）：「**在商品退货时，需扣除购买该商品时通过评价或晒单所获得的京豆及相应优惠，如账户京豆已使用，则从商品退款金额中相应扣除**；有赠品的主商品发生退货时，需将赠品一并提交退货返回」⇒ ① 退货**必然扣回当初发放的积分**（不是「以后不发」）；② 扣回的**去向是现金退款**，而不是把「累计获得」抹平——发放记录永不被撤销，追偿发生在另一侧。
+  **中国农业银行信用卡中心**（⭕ 官方活动规则）：「**若客户享受活动的交易发生全部或部分退货交易，我行将根据退货的交易金额按比例扣回该笔交易的奖励积分**」并给出按额算例（50 元消费累计 150 分、退 25 元扣回 75 分）⇒ ① **部分退按比例扣回**是行业标准（我方 `clawback = rate × refundAmountCents` 同构）；② 用词是「**扣回**」（消耗侧），不是「取消发放」。
+  - **Snow Peak 官方会员制度**（⭕ 品牌官方页，直取被拒 ⇒ 逐字取自检索结果正文摘录）：「退货系统将会自动扣减积分，当顾客退款成功之后，系统会自动从该顾客的**剩余积分**中扣除该顾客该笔退款成功金额对应的积分，**如顾客账户积分余额小于应扣除的积分数额，则系统将扣除该顾客剩余全部积分**」「当顾客发生退款时，若顾客账户中，**原单积分已经使用部分，不足以扣除时，则将从历史积分中扣除**」⇒ 扣回只从**可用余额**里扣、扣完为止，账户不会因追偿而变负（至少本方扣回桶仍是「剩余」）。
+  - **Microsoft Dynamics 365 Commerce**（⭕ 官方文档）：调整积分的唯一路径是「会员卡 → **卡调整** → 新建 →『在"金额或数量"字段中，输入数字。**通过使用正负数，您可以添加或删除该积分卡的点数**』→『**岗位调整**』→ 然后到「**卡片交易**」查看结果」（页面表单名 `RetailLoyaltyCardRewardPointTrans` / `RetailLoyaltyCardRewardPointAdjustment`）⇒ 官方形态是**带符号的调整交易过账进流水表**，账户余额是交易的结果而非可被手工覆写的字段——没有任何「直接改累计值凑平」的入口。
+  - 旁证（🟡 **不计主体**）：**PEKON**「一笔退货至少要核对四类记录」——「整单退货确认后，**不应只写一笔"积分净增加 200"**。CRM 要**分别记录返还 1,000 抵现积分和冲回 800 新增积分，两条流水**共同使积分余额回到 3,000」「若本单新增的积分已被顾客使用，CRM 可能无法直接扣回。品牌应**预先选择允许负积分、冻结后续积分、形成待冲回差额或转人工复核**中的一种处理方式，**不能让接口静默失败**」「两次流水都引用同一原销售单和各自的退货单，累计返还…不」超过上限；**有赞**官方帮助「普通订单根据**退款金额和原订单支付金额的比例**进行扣减积分。积分抵现订单部分退款不退积分」。⇒ 「冲回用引用原事件的**新流水**、不覆写」与「扣不动时要有人工/差额策略」是 POS-CRM 行业的既定做法。
+- **对照主体**（5 家不同主体，开门柜直接同行 2 家）：
+
+  旧系统easygo ｜ 思迅 ｜ 微信官方 ｜ 京东京豆 ｜ SnowPeak雪诺必克 ｜ 中国农业银行 ｜ MicrosoftDynamics
+- **证据**：
+  - 老 `d:/ideaCode/easygo` `mis-server/mis-operation/src/main/java/com/easygo/mis/active/model/ScoreFlow.java:16-26`、`.../user/dto/UserDto.java:25`、`mis-server/mis-admin/src/main/java/com/easygo/mis/web/controller/mis/active/ScoreFlowCtrl.java:46`、`dvm/dvm-const/src/main/java/com/easygovm/dvm/account/enums/StreamType.java`（⭕ 源码亲验）
+  - <https://tddoc.td365.com.cn/docs/standardstandard-1ds1aa6dbs8hj/jfsz> （⭕ 思迅天店官方帮助「5.2.1 积分设置」：积分规则 / 积分付款抵现 / 「开启积分商品退款功能…」；2026-10-18 抓取并确认站点归属思迅天店）
+  - <https://m.blog.csdn.net/weixin_30367169/article/details/95039232> （🟡 思迅 `t_rm_vip_info` 三列清零实操：`acc_num` 累计 / `now_acc_num` 当前剩余 / `dec_num` 已使用，且「保留消费流水」；2026-10-18）
+  - <https://help.jd.com/user/issue/948-3953.html> （⭕ 京东京豆官方帮助「退货需扣除该商品所获京豆…如账户京豆已使用，则从商品退款金额中相应扣除」；直取返回拒绝，逐字文本取自检索结果正文摘录，如实标注取证方式；2026-10-18）
+  - <https://www.snowpeak.cn/Member/11.html> （⭕ Snow Peak 官方「会员体系与积分体系」退款积分处理；同上取证方式；2026-10-18）
+  - <https://www.abchina.com.cn/cn/CreditCard/Special0ffers/All/khsd20260518.htm> （⭕ 中国农业银行信用卡中心：按退货金额比例扣回奖励积分含算例；2026-10-18）
+  - <https://learn.microsoft.com/zh-cn/dynamics365/commerce/tasks/process-loyalty-reward-point-adjustments> （⭕ Microsoft 官方：卡调整以正负数过账、卡片交易可查，表单名 `RetailLoyaltyCardRewardPointTrans`/`…Adjustment`；2026-10-18）
+  - <https://developers.weixin.qq.com/doc/channels/API/vip/score/set_conf.html> （⭕ 微信官方 视频号小店会员积分：`conf.gain_rule.pay_amount_rule`（消费金额对应获得 1 积分）+ `conf.deduct_rule`（下单抵扣开关/比例/上限），同页导航含 `getuserscoreflowrecord`「获取用户积分流水」；2026-10-18）
+  - <https://www.pekon.com/insights/member-benefits-return-reconciliation-pos-crm> （🟡 旁证，不计主体：退货四类记录核对、「不写净额一笔」「生成引用原事件的差额或冲正流水，不覆写」「不能让接口静默失败」；2026-10-18）
+  - <https://help.youzan.com/displaylist/detail_0_4-2-947> （⭕ 有赞官方帮助「按比例扣减积分」；🔺 主体名未登记本台账别名表 ⇒ 按门禁**不计入主体数**，只作旁证；2026-10-18）
+  - 本仓 `services/trade-service/src/main/java/com/aicabinet/trade/service/MemberService.java:262-263,316-327`、`PointsRedeemService.java:144-145`、`PointsExpiryScheduler.java:149-150`、`DataConsistencyService.java:449-457,1367,1692-1708`、`clients/admin-vue/src/views/growth/MemberLevelsView.vue:71,185`、`clients/consumer-mp/src/pages/points/points.vue:14`（⭕ 源码）
+- **取证日期**：2026-10-18
+- **我们的结论**：
+  1. **采纳 A——退款扣回同步归入消耗桶**：`MemberService.doClawbackPointsOnRefund` 在 `setAvailablePoints(available − actual)` 之外补 `setUsedPoints(used + actual)`，与 `PointsRedeemService:144-145` 的兑换写法对齐。依据链：思迅数据模型本身就是「累计 / 剩余 / 已用」三列且运维脚本按恒等式收尾；京豆、农行、Snow Peak 一律把退货处理写成「扣除 / 扣回」这类**消耗事件**，没有任何一家把它做成「把累计获得改小」；我方流水侧 `points_type="USE"` 早就是消耗桶语义 ⇒ **本次只是把账户列补齐到已写下的流水**，不是新口径。`total_points` 保持「累计发放只增不减」（与 `MemberService:262` 唯一写入点一致）。
+  2. **采纳 D——撤掉 `POINTS_IDENTITY` 的覆写式自动修复**：删除 `fixPointsIdentity` 的 `UPDATE member SET total_points = …`，该类型改为「仅巡检记录，请人工核对」。依据：Dynamics 官方**唯一**的调整入口是「卡调整→正负数→岗位调整→卡片交易留痕」；PEKON 明写「生成引用原事件的差额或冲正流水，**不覆写**」「扣不动时应预先选…转人工复核，不能静默失败」；easygo 后台只有流水查询、没有改账户数字的端点；思迅实操者宁可手写 SQL 重置账户也「保留消费流水」——因为「清流水对后面查账、防损很不利」。而我们的自动修复恰好相反：**把 `total_points` 下调凑平三桶**（实测 181→149、H5 gap 319→351），等于用巡检悄悄改写「累计发放」这一业务事实 ⇒ 必须撤。
+  3. **采纳 E——撤掉 `member_level_rule` 的积分门槛死旋钮**：等级判定 `calculateMemberLevel(totalSpent, netRecharge)` 不读积分、`max_points` 全仓零读取（`min_points` 仅被 `PointsRedeemService:69-70` 用来算「距下一档还差多少分」的展示）。对照：农行/京豆的活动积分与会员等级是两套规则，思迅天店文档把「积分设置」与「会员等级/权益」分列 ⇒ **积分门槛不是行业通行的等级判定输入**。后台 `MemberLevelsView.vue:71,185` 的可编辑「累计积分区间」是**能被运营误当规则填写的死旋钮** ⇒ 删 `max_points` 旋钮、门槛列改只读并按真实作用标注（仅用于 C 端「下一档进度」）。
+  4. **有意不同（相对京豆/Snow Peak 的追偿强度）**：京豆「账户京豆已使用，则**自商品退款金额中扣除相应现金**」，Snow Peak 还会「从历史积分中扣除」；我方 `actual = min(clawback, available)` **扣到可用余额为 0 为止、不产生负积分、不从现金退款里追偿**（`MemberService.java:312-315`）。理由：本仓扣款通道只按订单应收执行，「从退款现金里再扣一笔积分等值现金」需要独立对账科目与客服口径，属上线后按运营需求另拍板的功能，不在本次修桶范围内。🔴 但要如实留痕：当前 `clawback > available` 时**差额既不退也完全不记**，是静默截断——若日后开启追偿，须按 PEKON「预先选择允许负积分 / 待冲回差额 / 转人工」补策略，不得沿用静默丢弃。
+  5. **不采纳「按退款比例重算历史发放」**：农行/有赞的「按比例扣回」与我方 `rate × refundAmountCents` 同构（已采纳），但**费率取当期配置**这一点我们**不跟**——CB-056 已判定「冲回以已入账行为基数、费率不追溯」，积分发放率同样按**当初发放时点**的 `points_rate` 语义处理（现实现读的是会员当前等级的 `points_rate`，属已知偏差，随 §10 另轮处置，本条不重复立案）。
+  6. **验收判据**：① 负向先行——同一笔退款扣回后 `total = available + used + expired` 必须成立，**修前必红**（新用例覆盖 `actual < clawback` 的截断路径与重复退款幂等路径）；② 巡检只读——`applyFix` 对 `POINTS_IDENTITY` 返回失败并提示人工，后台按钮禁用，**库内 `total_points` 不再被任何自动路径下调**；③ 读侧不动——H5「累计 / 已用」（`points.vue:14`）在修后自然对得上真实消耗，无需改 DTO；④ 后台等级页不再暴露 `max_points` 可写入口。
+
+### CB-059 【新】账号注销：小程序内自助闭环是硬门槛——守卫 fail-closed（余额/协议/进行中退款未清即拒）+ 匿名化保留交易记录 + 服务端同意留痕；「仅人工客服」不构成有效注销
+
+> 触发：AU-149（2026-10-18 三端审计 P2 合规项）——隐私政策承诺「注销账户联系客服」，但全链路无注销端点、无同意留痕。2026-10-19 拍板「直接修」前按规则检索。
+> 先列名单再检索：微信官方（隐私保护指引模板 + 开放社区官方答复）+ 美团（《用户注销协议》规则中心官方页）+ 旧系统 easygo（源码亲验）。🟡 监管口径（网信办 2026-09 通报 / 《互联网应用程序个人信息收集使用规定（征求意见稿）》/ 工信部 24 号令 / PIPL §47）按门禁口径**不计主体**，仅作合规背景引证：通报明确「仅支持人工办理且响应迟缓」即属未提供**有效**注销功能；征求意见稿要求 15 个工作日内删除或匿名化。
+> 现状取证（改前代码）：trade 全仓 grep `注销|deleteAccount` 零命中；`user_info` 有 `status` 列但仅 INACTIVE 语义（DC-10 另案）；登录/续期不校验 DELETED（本条以「匿名化后凭据不存在」兜住，不依赖 status 校验）。
+
+- **竞品做法 / 官方口径**：
+  - **微信官方**（⭕ 官方文档 + 开放社区官方答复）：《小程序隐私保护指引》官方模板自带 3.4 条款——「**若你在小程序中注册了账号，你可以通过以下方式与开发者联系，申请注销你在小程序中使用的账号。在受理你的申请后，开发者承诺在十五个工作日内完成核查和处理**」⇒ 注销承诺是隐私指引的**必备段落**（不写过不了隐私审核）；《开发者合规开发指引》并要求「用户注销意愿明确后…**立即删除或匿名化**其个人信息，仅在法律法规明确要求的情况下留存（如交易记录、安全日志）」。
+  - **美团**（⭕ 规则中心《用户注销协议》官方页）：注销前置条件与**资金守卫逐字同构**——「①App 服务内**无资产、无欠款**；②**无未完成的订单**、已提供服务但未支付的订单；③**无任何纠纷**（投诉举报/被投诉举报）；④账户可正常使用无限制记录」；注销后「**删除个人信息，使其保持不可被检索、访问的状态，或对其进行匿名化处理**；根据相关法律规定**相关交易记录须保存 1 年甚至更长时间**」⇒ 行业范本 = 守卫拒绝（不是替用户清资产）+ 匿名化 + 交易记录法定留存。
+  - **旧系统 easygo**（⭕ 源码亲验，2026-10-19）：`ego-automat-operation` 全仓「注销」仅命中 `UserController.java:140`「用户注销登录 app」——**只有登出，没有账号删除**。⇒ 老系统形态在此处是缺口不是范本，本条**有意不同**于老系统。
+- **对照主体**（3 家不同主体，开门柜/同行 peer 2 家）：
+
+  微信官方 ｜ 美团 ｜ 旧系统easygo
+- **证据**：
+  - <http://mp.weixin.qq.com/s?__biz=MjM5NDAxMDg4MA==&mid=2650979253&idx=1&sn=da8ee4c9c395c9fd3e2562a041ebddef> （⭕ 微信官方《小程序开发者合规开发指引》：隐私指引模板 3.4「申请注销…十五个工作日内完成核查和处理」+ 删除/匿名化要求；2026-10-19 抓取）
+  - <https://developers.weixin.qq.com/community/develop/doc/000cc2de9940a049bc731a2df61400> （⭕ 微信开放社区官方答复「根据《个人信息保护法》要求，小程序必须提供用户账号注销入口…注销后立即删除或匿名化」；2026-10-19）
+  - <https://rules-center.meituan.com/rules-detail/548> （⭕ 美团规则中心《用户注销协议》：无资产/无未完成订单/无纠纷三守卫 + 匿名化 + 交易记录留存；2026-10-19）
+  - <https://news.qq.com/rain/a/20260922A04P0D00> （🟡 网信办 2026-09-20 通报转述：11 款 App/小程序未提供**有效**注销功能，15 工作日整改；「仅人工办理且响应迟缓」即违规——媒体类不计主体，仅背景；2026-10-19）
+  - <https://finance.people.com.cn/n1/2026/0112/c1004-40643010.html> （🟡 《互联网应用程序个人信息收集使用规定（征求意见稿）》转述：15 个工作日内注销并删除/匿名化——同上不计主体；2026-10-19）
+  - `d:/ideaCode/easygo/ego-automat/ego-automat-operation/.../user/controller/UserController.java:140`（⭕ 源码亲验：老系统仅「注销登录」，无账号删除）
+- **取证日期**：2026-10-19
+- **我们的结论**：**采纳「自助闭环 + fail-closed 守卫 + 匿名化」并有意不同于老系统**（2026-10-19 拍板「直接修」）：
+  1. **采纳微信官方/监管口径——小程序内自助注销**：`POST /api/v2/account/delete-account`（AuthInterceptor 鉴权）+ 小程序「我的」页入口；**不采纳「仅人工客服」**——通报已明示人工通道不构成有效注销。
+  2. **采纳美团守卫形态（fail-closed）**：余额/冻结非 0、支付分或支付宝免密协议未解除、存在 PROCESSING 余额退款 ⇒ 409 拒绝并提示先处理（守卫拒绝而非替用户清资产，与美团「需同时满足以下条件」同构）；运营账号（userId ≥ OPERATOR_USER_ID_START）一律 403 走线下流程。
+  3. **采纳「匿名化而非物理删」**：个人标识字段（手机号/姓名/邮箱/头像/openid/密码哈希/TOTP/支付协议标识）全清 + `status=DELETED`；行保留使钱包/订单外键不断链、交易记录按 PIPL 例外留存——与美团「删除或匿名化 + 交易记录依法保存」逐字同构；**不做** `is_deleted` 逻辑删位翻转（避免破坏裸 SQL join 的存量读路径）。
+  4. **采纳微信官方「十五个工作日」承诺形态为即时生效**：自助注销服务端事务内即时完成（审批流属人工通道范畴，本仓不需要）；同意留痕走新表 `user_consent_log`（登录记 PRIVACY_POLICY、注销记 ACCOUNT_DELETE，(user_id, type, policy_version) 唯一幂等）——补上「服务端无同意留痕」缺口。
+  5. **已知边界（如实留痕）**：① 登录路径 status 校验缺口（AU-058/DC-10）未在本条修——注销账号以「凭据已匿名化不存在」兜底，DC-10 拍板后统一收口；② 其他已签发 JWT 在过期前仍有效——与 logout 同一能力面（revoke 当前 token），多设备强制下线需 token 家族机制，属后续增量；③ 微信支付分/支付宝免密协议的**渠道侧解约**仍需用户先在「免密支付设置」操作（守卫已拦），注销不代发渠道解约请求。
+  6. **验收判据**：`AccountDeleteOwnAccountTest` 8 例（happy path 匿名化+留痕 / 运营 403 / 余额 / 冻结 / 支付分 / 支付宝协议 / PROCESSING 退款 / 404）；迁移 V394 空表新建；小程序「我的」页入口 + 二次确认。

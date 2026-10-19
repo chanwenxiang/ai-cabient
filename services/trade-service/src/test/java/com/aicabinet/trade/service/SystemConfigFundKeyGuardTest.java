@@ -26,6 +26,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -102,9 +103,52 @@ class SystemConfigFundKeyGuardTest {
     }
 
     @Test
-    void upsert_fundKey_zeroMeansUnlimited_stillAllowed() {
-        service.upsert(SystemConfigService.RECHARGE_MAX_CENTS, "0", "d", 9L);
+    void upsert_limitKey_zero_rejected400_dc6() {
+        // DC-6（2026-10-19 拍板）：上限型资金键不允许 0——旧口径「0=不限制」是 fail-open 缺口
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.RECHARGE_MAX_CENTS, "0", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(String.valueOf(ex.getReason()).contains("上限"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void upsert_limitKey_zero_allThreeKeys_rejected400() {
+        for (String key : java.util.List.of(
+                SystemConfigService.RECHARGE_MAX_CENTS,
+                SystemConfigService.BALANCE_REFUND_MAX_CENTS,
+                SystemConfigService.REFUND_SELF_MAX_CENTS)) {
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                    () -> service.upsert(key, "0", "d", 9L));
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode(), key);
+        }
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void upsert_nonLimitFundKey_zero_stillAllowed() {
+        // 提现族 0 语义（免收/全部人工审核/不封顶）是 2026-10-16 拍板，不在 DC-6 范围
+        service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_CENTS, "0", "d", 9L);
         verify(repository).save(any(SystemConfig.class));
+    }
+
+    @Test
+    void getPositiveLimit_nonPositiveValue_fallsBackToDefault_dc6() {
+        // 读侧双保险：存量行配了 0（旧口径遗留）⇒ 回落默认上限，不再放开
+        SystemConfig row = new SystemConfig();
+        row.setConfigKey(SystemConfigService.RECHARGE_MAX_CENTS);
+        row.setConfigValue("0");
+        when(repository.findById(SystemConfigService.RECHARGE_MAX_CENTS)).thenReturn(Optional.of(row));
+        assertEquals(500_000, service.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000));
+    }
+
+    @Test
+    void getPositiveLimit_positiveValue_passesThrough() {
+        SystemConfig row = new SystemConfig();
+        row.setConfigKey(SystemConfigService.RECHARGE_MAX_CENTS);
+        row.setConfigValue("800000");
+        when(repository.findById(SystemConfigService.RECHARGE_MAX_CENTS)).thenReturn(Optional.of(row));
+        assertEquals(800_000, service.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000));
     }
 
     @Test

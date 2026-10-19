@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 /**
- * O4 协议治理：MQTT 契约三方对账（proto ⟷ Java 常量 ⟷ edge Kotlin 硬编码）。
+ * O4 协议治理：MQTT 契约两方对账（proto ⟷ Java 常量）+ 内部 HTTP 端点核查。
  *
  *   node scripts/check-edge-cloud-mqtt-contract.mjs
  *
- * 为什么需要它：仓库里存在**三份**对同一套 MQTT 协议的描述 ——
+ * 为什么需要它：仓库里对同一套 MQTT 协议存在两份必须逐字对齐的描述 ——
  *   ① `proto/cabinet.proto`（文档化契约，不参与代码生成）
- *   ② `CabinetConstants` / `MqttTopics`（服务端权威）
- *   ③ `edge/android-app/.../MqttDeviceClient.kt`（端侧硬编码 topic 与 payload.type）
+ *   ② `CabinetConstants` / `MqttTopics`（服务端权威，device-service / device-simulator 共用）
  * 改其中任意一处而忘掉其余，都不会有任何编译/运行报错，只会**静默失联**。
- * 本脚本把三者拉平对账；另外拦住「声明了却零调用」的死 topic。
+ * 本脚本把两者拉平对账；拦住「声明了却零调用」的死 topic；并核查
+ * device/simulator 客户端 `.uri("/internal/…")` 与 trade-service 服务端映射能否拼上。
  *
+ * 🔴 历史：曾经还有第三份 `edge/android-app/.../MqttDeviceClient.kt`（自研柜体固件端侧硬编码），
+ *    随「生产仅将邑套件」拍板于 2026-10-18 整体退役，本脚本相应从三方降为两方。
  * 🔴 判据取向：只做**机械可推导**的比较（oneof 字段名 upper_snake 后逐字等于常量值、
  *    topic 形状按前缀+`{deviceId}`+后缀重组），**不维护任何手工映射表** ——
- *    手工映射表本身就会成为第四处漂移源。
+ *    手工映射表本身就会成为第三处漂移源。
  * 🔴 每个解析结果都断言非空：解析器一旦失效（正则打滑）必须**报错**，
  *    否则空集合互相比对会恒绿（门禁失效形态③）。
  */
@@ -30,10 +32,6 @@ const F_TOPICS = join(
 const F_CONSTS = join(
   root,
   'services/common/common-core/src/main/java/com/aicabinet/common/constants/CabinetConstants.java'
-);
-const F_KT = join(
-  root,
-  'edge/android-app/app/src/main/java/com/aicabinet/edge/mqtt/MqttDeviceClient.kt'
 );
 const F_PROTO = join(root, 'proto/cabinet.proto');
 
@@ -164,23 +162,6 @@ function oneofFields(src, name) {
 const protoCmd = oneofFields(protoSrc, 'DeviceCommand');
 const protoEvent = oneofFields(protoSrc, 'DeviceEvent');
 
-// ── 解析 ④：edge Kotlin 硬编码 ──────────────────────────────────────────────
-const ktSrc = stripComments(read(F_KT));
-const ktTopics = new Set();
-for (const m of ktSrc.matchAll(/"cabinet\/\$deviceId(\/[^"]*)"/g)) {
-  ktTopics.add(`${prefix}${TOPIC_PLACEHOLDER}${m[1]}`);
-}
-const ktOutTypes = new Set();
-for (const m of ktSrc.matchAll(/"type"\s+to\s+"([A-Z_]+)"/g)) {
-  ktOutTypes.add(m[1]);
-}
-const ktInTypes = new Set();
-for (const m of ktSrc.matchAll(/node\["type"\]\s*==\s*"([A-Z_]+)"/g)) {
-  ktInTypes.add(m[1]);
-}
-if (ktTopics.size === 0) err('解析 MqttDeviceClient.kt 得到 0 个硬编码 topic');
-if (ktOutTypes.size === 0) err('解析 MqttDeviceClient.kt 得到 0 个上行 payload.type');
-
 // ── 对账 ────────────────────────────────────────────────────────────────────
 // C1 下行命令：proto oneof ∪ upper == MQTT_CMD_*
 if (!eqSets(protoCmd, cmds)) {
@@ -198,23 +179,6 @@ if (!eqSets(protoEvent, events)) {
       `proto 多 ${fmt(new Set([...protoEvent].filter((x) => !events.has(x))))}`
   );
 }
-// C3 edge 上行 type ⊆ 事件常量
-for (const t of ktOutTypes) {
-  if (!events.has(t))
-    err(`edge 上行的 payload.type="${t}" 不在 MQTT_EVENT_TYPE_* 里（${fmt(events)}）`);
-}
-// C4 edge 下行的 type ⊆ 命令常量
-for (const t of ktInTypes) {
-  if (!cmds.has(t)) err(`edge 下行的 payload.type="${t}" 不在 MQTT_CMD_* 里（${fmt(cmds)}）`);
-}
-// C5 edge 使用的 topic 必须都是 MqttTopics 声明过的形状
-const javaShapes = new Set(javaTopicShapes.values());
-for (const t of ktTopics) {
-  if (!javaShapes.has(t)) {
-    err(`edge 硬编码 topic "${t}" 在 MqttTopics 里没有对应声明（已声明：${fmt(javaShapes)}）`);
-  }
-}
-
 // C6 死 topic 声明：MqttTopics 每个成员必须在**别处**被引用（去掉自身声明行）
 const prodSrcs = [];
 (function walk(dir) {
@@ -337,10 +301,7 @@ notes.push(
 
 // ── 汇总 ────────────────────────────────────────────────────────────────────
 notes.push(`proto 下行命令 ${protoCmd.size} 个、上行事件 ${protoEvent.size} 个`);
-notes.push(
-  `MqttTopics 声明 topic ${javaTopicShapes.size} 个；edge 硬编码 topic ${ktTopics.size} 个`
-);
-notes.push(`edge 上行 type ${fmt(ktOutTypes)}；下行 type ${fmt(ktInTypes)}`);
+notes.push(`MqttTopics 声明 topic ${javaTopicShapes.size} 个`);
 
 for (const n of notes) console.log(`[check-edge-cloud-mqtt-contract] ${n}`);
 if (errors.length) {
@@ -348,4 +309,6 @@ if (errors.length) {
   console.error(`[check-edge-cloud-mqtt-contract] ${errors.length} 处协议漂移`);
   process.exit(1);
 }
-console.log('[check-edge-cloud-mqtt-contract] OK：proto / Java 常量 / edge Kotlin 三方一致');
+console.log(
+  '[check-edge-cloud-mqtt-contract] OK：proto / Java 常量两方一致（含死 topic 与内部端点核查）'
+);

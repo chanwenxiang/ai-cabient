@@ -118,7 +118,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
       >
       <template v-else>
         <view class="card head-card">
-          <text class="title">{{ deviceName || `柜机 EG${deviceId}` }}</text>
+          <text class="title">{{ deviceName || `柜机 ${deviceId}` }}</text>
           <text class="meta">近 30 天记录 · 实时同步自平台台账</text>
         </view>
 

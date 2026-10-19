@@ -1,0 +1,17 @@
+{
+  "body": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "accountId": 5,
+      "channel": "BANK",
+      "accountName": "审计对公户",
+      "balanceCents": 0,
+      "status": "ACTIVE",
+      "remark": "审计建账",
+      "createdAt": "2026-10-18T03:51:04.342670807Z",
+      "updatedAt": "2026-10-18T03:51:04.342670917Z"
+    }
+  },
+  "dbBalance": 100000
+}

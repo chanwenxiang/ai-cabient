@@ -2,11 +2,11 @@
   "code": 0,
   "message": "ok",
   "data": {
-    "deviceId": "500909625160",
+    "deviceId": "EG746560232828",
     "consumerPhone": "13800138000",
     "consumerUserId": 10001,
     "fallbackSkuId": "SKU-DEMO-001",
-    "skuCount": 9,
+    "skuCount": 8,
     "deviceInventoryLines": 6,
     "warehouseLotCount": 6,
     "warehouseId": "WH-DEMO-001"

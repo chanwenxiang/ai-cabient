@@ -149,15 +149,25 @@ public class DeviceReportController {
                 null,
                 "JIANGYI",
                 Instant.now());
+        boolean forwarded = false;
         try {
             var response = tradeInternalClient.edgeResults(result);
+            forwarded = response != null;
             log.info("jiangyi recognition forwarded deviceId={} sessionId={} items={} outcome={}",
                     deviceId, sessionId, items.size(), response == null ? "n/a" : response.outcome());
         } catch (Exception e) {
             log.error("jiangyi edge-results forward failed deviceId={} sessionId={}", deviceId, sessionId, e);
-        } finally {
-            // 识别结果已到达（无论受理结论），关门兜底使命完成
+        }
+        if (forwarded) {
+            // 受理结论已回：关门兜底使命完成
             commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
+        } else {
+            // AU-063（批次 11）：转发失败不撤销关门兜底——旧实现 finally 无条件 complete，
+            // trade 不可达时识别数据丢失且 300s watchdog 不再触发（仅靠 trade 侧扫描）。
+            // 保留兜底：watchdog 到期 open-failed → recognize-timeout → DISPUTED（fail-safe），
+            // trade 恢复后自动收口；设备侧已回 200 不重报属既有取舍（防重试风暴，注释留痕）。
+            log.warn("jiangyi edge-results forward incomplete, CLOSE watchdog retained deviceId={} sessionId={}",
+                    deviceId, sessionId);
         }
         return ok();
     }

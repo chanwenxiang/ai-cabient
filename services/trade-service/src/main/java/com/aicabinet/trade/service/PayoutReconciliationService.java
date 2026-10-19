@@ -1,15 +1,13 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.LineWithdrawRequest;
-import com.aicabinet.trade.domain.LineWalletLedger;
 import com.aicabinet.trade.domain.MerchantWithdrawRequest;
-import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConstants;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.aicabinet.trade.service.wallet.WalletDomain;
+import com.aicabinet.trade.service.wallet.WalletEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -60,19 +58,16 @@ public class PayoutReconciliationService {
 
     private final MerchantWithdrawRequestMapper withdrawMapper;
     private final LineWithdrawRequestMapper lineWithdrawMapper;
-    private final MerchantWalletLedgerMapper ledgerMapper;
-    private final LineWalletLedgerMapper lineLedgerMapper;
+    private final WalletEngine walletEngine;
     private final PayoutChannelRegistry channelRegistry;
 
     public PayoutReconciliationService(MerchantWithdrawRequestMapper withdrawMapper,
                                        LineWithdrawRequestMapper lineWithdrawMapper,
-                                       MerchantWalletLedgerMapper ledgerMapper,
-                                       LineWalletLedgerMapper lineLedgerMapper,
+                                       WalletEngine walletEngine,
                                        PayoutChannelRegistry channelRegistry) {
         this.withdrawMapper = withdrawMapper;
         this.lineWithdrawMapper = lineWithdrawMapper;
-        this.ledgerMapper = ledgerMapper;
-        this.lineLedgerMapper = lineLedgerMapper;
+        this.walletEngine = walletEngine;
         this.channelRegistry = channelRegistry;
     }
 
@@ -113,11 +108,11 @@ public class PayoutReconciliationService {
             netFromRequests += acc[2];
         }
 
-        // 钱包流水侧：按 paidAt 同窗取（WITHDRAW_PAID 记负数，取绝对值）
-        long netFromLedger = ledgerMapper.sumAmountByEntryTypeBetween(LEDGER_PAID, start, end)
-                + lineSumBetween(LEDGER_PAID, start, end);
-        long feeFromLedger = ledgerMapper.sumAmountByEntryTypeBetween(LEDGER_FEE, start, end)
-                + lineSumBetween(LEDGER_FEE, start, end);
+        // 钱包流水侧：按 paidAt 同窗取（WITHDRAW_PAID 记负数，取绝对值）。商户 + 线长两域相加。
+        long netFromLedger = walletEngine.sumAmountByEntryTypeBetween(WalletDomain.MERCHANT, LEDGER_PAID, start, end)
+                + walletEngine.sumAmountByEntryTypeBetween(WalletDomain.LINE, LEDGER_PAID, start, end);
+        long feeFromLedger = walletEngine.sumAmountByEntryTypeBetween(WalletDomain.MERCHANT, LEDGER_FEE, start, end)
+                + walletEngine.sumAmountByEntryTypeBetween(WalletDomain.LINE, LEDGER_FEE, start, end);
 
         long netDiff = netFromRequests - netFromLedger;
         long feeDiff = feeFromRequests - feeFromLedger;
@@ -202,30 +197,6 @@ public class PayoutReconciliationService {
         acc[0] += gross;
         acc[1] += fee;
         acc[2] += net;
-    }
-
-    /**
-     * 线长钱包流水的同窗求和（绝对值口径）。
-     *
-     * <p>⚠️ 线长流水表<b>没有</b> {@code MerchantWalletLedgerMapper} 那套 helper，
-     * 这里就地遍历。返回<b>正数</b>（流水里记的是负数）。
-     */
-    private long lineSumBetween(String entryType, Instant from, Instant to) {
-        if (lineLedgerMapper == null) {
-            return 0L;
-        }
-        List<LineWalletLedger> rows = lineLedgerMapper.selectList(
-                Wrappers.<LineWalletLedger>lambdaQuery()
-                        .eq(LineWalletLedger::getEntryType, entryType)
-                        .ge(LineWalletLedger::getCreatedAt, from)
-                        .lt(LineWalletLedger::getCreatedAt, to));
-        long sum = 0L;
-        for (LineWalletLedger row : rows) {
-            if (row.getAmountCents() != null) {
-                sum += Math.abs(row.getAmountCents());
-            }
-        }
-        return sum;
     }
 
     /**

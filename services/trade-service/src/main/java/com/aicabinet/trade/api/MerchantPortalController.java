@@ -303,8 +303,11 @@ public class MerchantPortalController {
             @RequestParam(name = "keyword", required = false) String keyword,
             @RequestParam(name = "excludeZero", required = false) String excludeZero,
             @RequestParam(name = "merchantId", required = false) String merchantId) {
+        // AU-180：status/from/to/keyword/excludeZero 五参此前被静默丢弃（service 只收 page/size/
+        // deviceId/merchantId），商户端状态筛选/时间窗/关键字/零元单排除全无效。透传全字段。
         return ApiResponse.ok(merchantPortalService.listOrders(
-                userId(request), page, size, deviceId, merchantId));
+                userId(request), page, size, deviceId, merchantId,
+                status, from, to, keyword, isExcludeZeroParam(excludeZero)));
     }
 
     @RequiresPermissions("merchant:orders:list")

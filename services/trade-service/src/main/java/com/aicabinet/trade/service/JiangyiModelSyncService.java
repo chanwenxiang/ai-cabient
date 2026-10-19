@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
+import java.util.Locale;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -231,12 +232,59 @@ public class JiangyiModelSyncService {
         }
     }
 
+    /** AU-183：允许的 classes.txt 主机后缀白名单（逗号分隔；默认将邑域，测试注入 localhost）。 */
+    @org.springframework.beans.factory.annotation.Value(
+            "${aicabinet.jiangyi.model-sync.allowed-hosts:hunanjysmart.com}")
+    private java.util.List<String> allowedModelHosts = java.util.List.of("hunanjysmart.com");
+
     private JiangyiClassesParser.ParsedClasses parseClasses(JiangyiModelFile model, int classIdBase) {
+        String url = requireSafeModelTextUrl(model.modelTextUrl());
         String content = publicHttp.get()
-                .uri(URI.create(model.modelTextUrl()))
+                .uri(URI.create(url))
                 .retrieve()
                 .body(String.class);
         return JiangyiClassesParser.parse(content, model.quantity(), classIdBase);
+    }
+
+    /**
+     * AU-183（2026-10-18 批次 5）SSRF 守卫：classes.txt URL 来自将邑第三方接口返回值，
+     * 侧被攻陷/接口被 MITM 即可让 trade 以自身网络位置打内网（169.254.169.254 /
+     * actuator / Redis 管理面）。守卫：仅 https + 将邑域名后缀白名单 + 拒 IP 直连形态
+     * （私网/回环/链路本地地址根本不是合法域名）。
+     */
+    private String requireSafeModelTextUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "模型 classes.txt 地址为空");
+        }
+        URI uri;
+        try {
+            uri = URI.create(url.trim());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "模型 classes.txt 地址非法");
+        }
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        // 条目形态：`domain`（=强制 https，含子域）/ `http://host`、`https://host`（scheme+host 精确，
+        // 供测试本地 HttpServer 等 http 例外）。默认 hunanjysmart.com = 仅 https。
+        boolean allowlisted = allowedModelHosts.stream()
+                .map(String::trim).filter(e -> !e.isBlank())
+                .map(String::toLowerCase)
+                .anyMatch(entry -> {
+                    if (entry.startsWith("http://")) {
+                        return "http".equals(scheme) && host.equals(entry.substring(7));
+                    }
+                    if (entry.startsWith("https://")) {
+                        return "https".equals(scheme) && host.equals(entry.substring(8));
+                    }
+                    return "https".equals(scheme)
+                            && (host.equals(entry) || host.endsWith("." + entry));
+                });
+        if (!allowlisted) {
+            log.warn("jyi model classes url blocked by SSRF guard url={}", url);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "模型 classes.txt 地址不在允许的将邑域内");
+        }
+        return url.trim();
     }
 
     private static String classesVersionOf(JiangyiModelFile model) {

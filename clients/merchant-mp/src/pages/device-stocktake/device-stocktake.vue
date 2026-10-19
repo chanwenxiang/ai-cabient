@@ -9,6 +9,7 @@ import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 import type { DeviceSlot } from '@aicabinet/shared-types';
@@ -36,23 +37,14 @@ onLoad((opts) => {
   }
 });
 
-function scanDevice() {
-  uni.scanCode({
-    success: (res) => {
-      // 柜机二维码内容为开门链接，取末段 deviceId（12 位纯数字）
-      const raw = String(res.result || '');
-      const match = raw.match(/(\d{6,})/);
-      if (!match) {
-        showError('未识别到柜机编号');
-        return;
-      }
-      deviceId.value = match[1];
-      void loadSlots();
-    },
-    fail: () => {
-      /* 用户取消扫码，静默 */
-    }
-  });
+// AU-138：弃用页内正则（EG 改版前旧口径，剥前缀+贪婪抓数字段），改走 shared-uni 权威解析
+async function scanDevice() {
+  const id = await scanCabinetDeviceId();
+  if (!id) {
+    return; // 失败/取消/无效编号已在封装内提示或降级手输
+  }
+  deviceId.value = id;
+  void loadSlots();
 }
 
 async function loadSlots() {
@@ -158,7 +150,7 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
             <app-button label="扫码识别柜机" @click="scanDevice" />
           </view>
           <view v-else class="scan-done">
-            <text class="title">柜机 EG{{ deviceId }}</text>
+            <text class="title">柜机 {{ deviceId }}</text>
             <text class="meta">逐货道填写实盘数量后提交；照片凭证按商户要求强制</text>
             <app-button
               variant="secondary"

@@ -184,8 +184,8 @@ if (-not $SkipBuild) {
 }
 
 if (-not $SkipTests) {
-    Invoke-Checked "Trade exception/reconciliation tests" $Root "mvn" @("-pl", ":trade-service", "-am", "-Pskip-admin-ui", "-Dtest=ReconciliationServiceTest,ReplenishmentServiceOutboundTest,MerchantSkuPricingServiceTest,OperatorUserIdAllocatorTest,FinanceReportServiceTest,MerchantAiInsightServiceTest", "-Dsurefire.failIfNoSpecifiedTests=false", "test")
-    Invoke-Checked "Device command tracker tests" $Root "mvn" @("-pl", ":device-service", "-am", "-Dtest=DeviceCommandTrackerTest", "-Dsurefire.failIfNoSpecifiedTests=false", "test")
+    Invoke-Checked "Trade exception/reconciliation tests" $Root "mvn" @("-pl", ":trade-service", "-am", "-Pskip-admin-ui", "-Dtest=ReconciliationServiceTest,ReplenishmentServiceOutboundTest,MerchantSkuPricingServiceTest,OperatorUserIdAllocatorTest,FinanceReportServiceTest,MerchantAiInsightServiceTest", "test")
+    Invoke-Checked "Device command tracker tests" $Root "mvn" @("-pl", ":device-service", "-am", "-Dtest=DeviceCommandTrackerTest", "test")
 } else {
     Add-Result "WARN" "Backend targeted tests" "skipped"
 }

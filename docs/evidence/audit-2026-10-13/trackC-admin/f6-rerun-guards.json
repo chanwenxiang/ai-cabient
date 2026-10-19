@@ -1,0 +1,17 @@
+{
+  "fut": {
+    "code": 400,
+    "message": "feeDate 只能是不晚于昨天的日期（避免提前扣费），当前允许到 2026-10-17",
+    "data": null
+  },
+  "far": {
+    "code": 400,
+    "message": "feeDate 回溯不得超过 92 天（久历史请走线下对账）",
+    "data": null
+  },
+  "bad": {
+    "code": 400,
+    "message": "feeDate 须为 YYYY-MM-DD",
+    "data": null
+  }
+}

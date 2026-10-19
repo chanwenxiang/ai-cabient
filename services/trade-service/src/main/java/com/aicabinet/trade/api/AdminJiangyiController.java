@@ -8,7 +8,6 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
-import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
@@ -72,29 +71,33 @@ public class AdminJiangyiController {
      * <p>🔴 参数 {@code orderNo} 传的是<b>将邑上报的订单编号</b>，它等于我方 {@code sessionId}
      * （网关枢纽约定，V16 §4.3.2.7「商户服务器生成、需唯一」）——所以订单管理侧拿到
      * sessionId 就能直接查，不需要额外映射表。</p>
+     *
+     * <p>🔴 DC-11（2026-10-19 拍板）：本端点对 {@code ops:device:list} 持有者回<b>脱敏行</b>
+     * （对象键 videoUrls 不出网，只回片数统计）；看视频走 {@code ops:device:video} 的
+     * play-url 端点（CB-029 授权分离在此闭环）。</p>
      */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-order")
-    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByOrder(
+    public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByOrder(
             @RequestParam("orderNo") String orderNo) {
-        return ApiResponse.ok(jiangyiOrderVideoService.findByOrderNo(orderNo));
+        return ApiResponse.ok(jiangyiOrderVideoService.listByOrderRedacted(orderNo));
     }
 
-    /** 视频复核：按补货任务查（收尾E 入口，补货视频 orderNo=补货会话 id）。 */
+    /** 视频复核：按补货任务查（收尾E 入口，补货视频 orderNo=补货会话 id）。DC-11：统一脱敏行。 */
     @RequiresPermissions("ops:device:video")
     @GetMapping("/jiangyi/order-videos/by-task/{taskId}")
-    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByTask(
+    public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByTask(
             @PathVariable("taskId") long taskId) {
-        return ApiResponse.ok(jiangyiOrderVideoService.findByTask(taskId));
+        return ApiResponse.ok(jiangyiOrderVideoService.listByTaskRedacted(taskId));
     }
 
-    /** 视频复核：按设备查最近上报（设备详情「将邑接入」卡片入口）。 */
+    /** 视频复核：按设备查最近上报（设备详情「将邑接入」卡片入口）。DC-11：统一脱敏行。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-device")
-    public ApiResponse<List<JiangyiOrderVideo>> orderVideosByDevice(
+    public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByDevice(
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return ApiResponse.ok(jiangyiOrderVideoService.findRecentByDevice(deviceId, limit));
+        return ApiResponse.ok(jiangyiOrderVideoService.listRecentByDeviceRedacted(deviceId, limit));
     }
 
     /**

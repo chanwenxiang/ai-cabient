@@ -7,6 +7,8 @@ import com.aicabinet.trade.domain.StaffWalletLedger;
 import com.aicabinet.trade.service.StaffWalletService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -50,10 +52,13 @@ public class OpsStaffWalletController {
         long amountCents = Long.parseLong(String.valueOf(body.get("amountCents")).trim());
         String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
         // 🔴 幂等键（审计 🔴5）：前端每次打开打款弹窗生成一个 requestNo，重复提交/网络重试
-        // 只扣一次；未传时退化为请求内唯一键（兼容旧调用方，但不再承诺跨请求幂等）。
-        String requestNo = body.get("requestNo") == null || String.valueOf(body.get("requestNo")).isBlank()
-                ? "STAFF_PAYOUT:" + staffUserId + ":" + System.nanoTime()
-                : String.valueOf(body.get("requestNo")).trim();
+        // 只扣一次。AU-192（批次 8）：未传/空 ⇒ 400 拒绝——旧退化「请求内唯一键」等价于
+        // 无幂等（重复点击可重复出款，真金出账面）。前端必传（打款弹窗生成）。
+        String requestNo = body.get("requestNo") == null ? "" : String.valueOf(body.get("requestNo")).trim();
+        if (requestNo.isBlank() || requestNo.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "缺少有效 requestNo（≤64 位），拒绝打款以防重复出账");
+        }
         boolean applied = staffWalletService.payoutIfAbsent(staffUserId, amountCents,
                 "WITHDRAW_PAYOUT", "STAFF_WITHDRAW", requestNo,
                 remark == null ? "线下打款出账" : remark);

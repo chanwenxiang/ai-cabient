@@ -17,7 +17,8 @@ import java.util.Map;
  * 「单笔超过限额」把请求<b>全部拒掉</b> ⇒ 商户看到的是「申请成功但一直没到账」，
  * 远难于「当场提示单笔不能超过 ¥200」。所以 {@link #effective} 只允许<b>收紧</b>。
  *
- * <p><b>0 一律表示不限制</b>（与全系统 {@code RECHARGE_MAX_CENTS} 口径一致）。
+ * <p><b>0 一律表示不限制</b>（提现族 2026-10-16 拍板保留的口径；上限型资金键的
+ * fail-safe 例外见 {@code SystemConfigService.FUND_POSITIVE_LIMIT_KEYS}，DC-6）。
  *
  * <p>三个维度的语义（微信「商家转账到零钱」默认档）：
  * <ul>

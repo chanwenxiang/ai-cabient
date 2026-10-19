@@ -1,0 +1,12 @@
+{
+  "negInit": {
+    "code": 400,
+    "message": "建账初始余额不能为负",
+    "data": null
+  },
+  "dup": {
+    "code": 409,
+    "message": "该渠道已登记平台资金账户，请直接在原账户上登记充值",
+    "data": null
+  }
+}

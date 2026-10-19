@@ -27,8 +27,9 @@
 
 | 路径 | 中文名 | 说明 | 启动 |
 |------|--------|------|------|
-| `edge/device-simulator` | 设备模拟器 | 本地 MQTT 开门 / 视频上传联调 | `DeviceSimulator`，参数 `CAB-001` |
-| `edge/android-app` | 柜机端 App | Android 工控端 | Android Studio，`mockDebug` / `deviceDebug` |
+| `edge/device-simulator` | 设备模拟器 | 本地 MQTT 开门联调（旧模式）+ 将邑柜模拟 | `DeviceSimulator` / `JiangyiDeviceSimulator` |
+
+> 自研柜体固件 `edge/android-app`（Android 工控端）已随「生产仅将邑套件」退役（2026-10-18）；如未来上自研硬件，从 git history 恢复。
 
 ## 基础设施
 

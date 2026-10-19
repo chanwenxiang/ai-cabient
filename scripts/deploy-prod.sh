@@ -35,6 +35,11 @@ SSH_CMD=("$PROD_USER@$PROD_HOST")
 
 echo "── [0/6] 前置检查 ──"
 [ -f "$PROD_SSH_KEY" ] || { echo "❌ SSH 私钥不存在: $PROD_SSH_KEY"; exit 1; }
+# AU-185：compose 链引用的每个 -f 文件必须已入库（2026-10-13 部署时 prod-server.yml
+# 只存在于服务器，仓内缺失导致不可复现；现为入库文件，此处校验防回归）
+for f in docker-compose.yml docker-compose.apps.yml docker-compose.production.yml docker-compose.prod-server.yml; do
+  [ -f "infra/$f" ] || { echo "❌ compose 链文件缺失: infra/$f（deploy-prod.sh 引用了它）"; exit 1; }
+done
 DIRTY="$(git status --porcelain | grep -v '^??' || true)"
 if [ -n "$DIRTY" ]; then
   echo "❌ 工作区有未提交改动（archive 只打包 HEAD，部署的会不是你看到的代码）："
@@ -100,6 +105,9 @@ ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << '
 set -euo pipefail
 DIR="$1"
 cd "$DIR"
+# AU-185：服务器侧预检 + 指纹留痕（解包后应与仓库一致；sha 打进部署日志可追漂移）
+[ -f infra/docker-compose.prod-server.yml ] || { echo "❌ 服务器缺 infra/docker-compose.prod-server.yml（解包异常？）"; exit 1; }
+sha256sum infra/docker-compose.yml infra/docker-compose.apps.yml infra/docker-compose.production.yml infra/docker-compose.prod-server.yml
 C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
 $C build trade-service 2>&1 | tail -2
 $C up -d --no-deps --force-recreate trade-service 2>&1 | tail -1

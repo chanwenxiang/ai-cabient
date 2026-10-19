@@ -141,7 +141,7 @@ push('P0-04-formula', allFormulaOk ? 'PASS' : 'FAIL', {
 
 // --- 2) Ledger SPLIT_CREDIT vs split ---
 const ledgerRaw = psql(
-  "SELECT ref_id, amount_cents, entry_type FROM merchant_wallet_ledger WHERE entry_type='SPLIT_CREDIT' ORDER BY ledger_id"
+  "SELECT ref_id, amount_cents, entry_type FROM wallet_ledger WHERE domain='MERCHANT' AND entry_type='SPLIT_CREDIT' ORDER BY ledger_id"
 );
 const ledgerRows = ledgerRaw
   .split('\n')
@@ -162,13 +162,15 @@ push('P0-04-ledger-link', ledgerAligned ? 'PASS' : 'FAIL', {
 
 // wallet balance = sum credits + withdraws
 const bal = Number(
-  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
+  psql(
+    `SELECT balance_cents FROM wallet_account WHERE domain='MERCHANT' AND owner_id='${MERCHANT}'`
+  )
 );
 const expectedBal =
   ledgerRows.reduce((s, r) => s + r.amount, 0) +
   Number(
     psql(
-      "SELECT COALESCE(SUM(amount_cents),0) FROM merchant_wallet_ledger WHERE entry_type LIKE 'WITHDRAW%'"
+      "SELECT COALESCE(SUM(amount_cents),0) FROM wallet_ledger WHERE domain='MERCHANT' AND entry_type LIKE 'WITHDRAW%'"
     ) || '0'
   );
 // simpler: known 315+270-100=485
@@ -202,11 +204,13 @@ const target =
 const splitId = target?.splitId;
 const creditCountBefore = Number(
   psql(
-    `SELECT COUNT(*) FROM merchant_wallet_ledger WHERE entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
+    `SELECT COUNT(*) FROM wallet_ledger WHERE domain='MERCHANT' AND entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
   )
 );
 const balBefore = Number(
-  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
+  psql(
+    `SELECT balance_cents FROM wallet_account WHERE domain='MERCHANT' AND owner_id='${MERCHANT}'`
+  )
 );
 
 const confirm1 = await api(
@@ -228,11 +232,13 @@ const confirm2 = await api(
 
 const creditCountAfter = Number(
   psql(
-    `SELECT COUNT(*) FROM merchant_wallet_ledger WHERE entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
+    `SELECT COUNT(*) FROM wallet_ledger WHERE domain='MERCHANT' AND entry_type='SPLIT_CREDIT' AND ref_id='${splitId}'`
   )
 );
 const balAfter = Number(
-  psql(`SELECT balance_cents FROM merchant_wallet_account WHERE merchant_id='${MERCHANT}'`)
+  psql(
+    `SELECT balance_cents FROM wallet_account WHERE domain='MERCHANT' AND owner_id='${MERCHANT}'`
+  )
 );
 const statusAfter = psql(`SELECT status FROM order_revenue_split WHERE split_id='${splitId}'`);
 

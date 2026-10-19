@@ -1,687 +1,201 @@
 package com.aicabinet.trade.service;
 
-
-
 import com.aicabinet.trade.domain.MerchantWalletAccount;
-
 import com.aicabinet.trade.domain.MerchantWalletLedger;
-
-import com.aicabinet.trade.mapper.MerchantMapper;
-
-import com.aicabinet.trade.mapper.MerchantWalletAccountMapper;
-
-import com.aicabinet.trade.mapper.MerchantWalletLedgerMapper;
-
+import com.aicabinet.trade.domain.WalletAccount;
+import com.aicabinet.trade.domain.WalletLedger;
+import com.aicabinet.trade.service.wallet.WalletDomain;
+import com.aicabinet.trade.service.wallet.WalletEngine;
 import org.springframework.http.HttpStatus;
-
 import org.springframework.stereotype.Service;
-
 import org.springframework.transaction.annotation.Transactional;
-
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 
-
-import java.time.Instant;
-
-
-
+/**
+ * 商户钱包 facade（V139）。V388 三域物理统一后仅保留 facade 契约（{@code String merchantId}
+ * 入参、{@link MerchantWalletAccount} 返回类型、{@link ReverseCreditCommand} 记录全不变，
+ * 控制器/提现服务/openapi 无感），资金写路径委托 {@link WalletEngine}（domain=MERCHANT）。
+ *
+ * <p>商户特有能力：可用余额扣款、完整提现冻结生命周期、{@code reverseCreditIfPresent} 冲正、
+ * {@code debitedCentsByRef} 展示口径；{@code owner_snapshot_name}（旧 merchant_name 冗余）由
+ * 引擎按域解析。商户 ID 空值校验留在 facade（引擎域无关，不做 merchant 专属校验）。
+ */
 @Service
-
 public class MerchantWalletService {
 
+    private static final WalletDomain DOMAIN = WalletDomain.MERCHANT;
 
+    private final WalletEngine engine;
 
-    private final MerchantWalletAccountMapper accountMapper;
-
-    private final MerchantWalletLedgerMapper ledgerMapper;
-
-    private final MerchantMapper merchantMapper;
-
-    private final DistributedLockService distributedLockService;
-
-
-
-    public MerchantWalletService(MerchantWalletAccountMapper accountMapper,
-
-                                 MerchantWalletLedgerMapper ledgerMapper,
-
-                                 MerchantMapper merchantMapper,
-
-                                 DistributedLockService distributedLockService) {
-
-        this.accountMapper = accountMapper;
-
-        this.ledgerMapper = ledgerMapper;
-
-        this.merchantMapper = merchantMapper;
-
-        this.distributedLockService = distributedLockService;
-
-    }
-
-
-
-    @Transactional
-
-    public MerchantWalletAccount ensureAccount(String merchantId) {
-
-        return runWithWalletLock(merchantId, () -> doEnsureAccount(merchantId));
-
-    }
-
-
-
-    private MerchantWalletAccount doEnsureAccount(String merchantId) {
-
-        requireMerchantId(merchantId);
-
-        MerchantWalletAccount account = accountMapper.selectById(merchantId);
-
-        if (account != null) {
-
-            return account;
-
-        }
-
-        Instant now = Instant.now();
-
-        account = new MerchantWalletAccount();
-
-        account.setMerchantId(merchantId);
-
-        account.setBalanceCents(0L);
-
-        account.setFrozenCents(0L);
-
-        account.setUpdatedAt(now);
-
-        accountMapper.insert(account);
-
-        return account;
-
-    }
-
-
-
-    @Transactional
-
-    public boolean creditIfAbsent(String merchantId, long amountCents, String entryType,
-
-                                  String refType, String refId, String remark) {
-
-        return runWithWalletLock(merchantId, () -> {
-
-            requireMerchantId(merchantId);
-
-            requirePositive(amountCents);
-
-            if (refType != null && refId != null && ledgerMapper.findByRef(merchantId, refType, refId).isPresent()) {
-
-                return false;
-
-            }
-
-            doCredit(merchantId, amountCents, entryType, refType, refId, remark);
-
-            return true;
-
-        });
-
-    }
-
-
-
-    @Transactional
-
-    public boolean reverseCreditIfPresent(String merchantId, long amountCents, String entryType,
-                                          ReverseCreditCommand command) {
-        return runWithWalletLock(merchantId, () -> {
-
-            requireMerchantId(merchantId);
-
-            requirePositive(amountCents);
-
-            if (command.originalRefType() == null || command.originalRefId() == null
-                    || ledgerMapper.findByRef(merchantId, command.originalRefType(), command.originalRefId()).isEmpty()) {
-                return false;
-            }
-            if (command.reverseRefType() != null && command.reverseRefId() != null
-                    && ledgerMapper.findByRef(merchantId, command.reverseRefType(), command.reverseRefId()).isPresent()) {
-                return false;
-            }
-            doDebit(merchantId, amountCents, entryType, command.reverseRefType(), command.reverseRefId(), command.remark());
-            return true;
-        });
+    public MerchantWalletService(WalletEngine engine) {
+        this.engine = engine;
     }
 
     public record ReverseCreditCommand(
             String reverseRefType, String reverseRefId, String originalRefType, String originalRefId, String remark) {}
 
+    @Transactional
+    public MerchantWalletAccount ensureAccount(String merchantId) {
+        requireMerchantId(merchantId);
+        return toAccount(engine.ensureAccount(DOMAIN, merchantId));
+    }
 
+    /** 只读查询：不自动建户（列表/详情视图，无副作用）。 */
+    @Transactional(readOnly = true)
+    public MerchantWalletAccount findAccount(String merchantId) {
+        if (merchantId == null) {
+            return null;
+        }
+        return toAccount(engine.findAccount(DOMAIN, merchantId));
+    }
+
+    /** 某商户最近 N 条流水（created_at 倒序），映射回 {@link MerchantWalletLedger} 供提现服务视图复用。 */
+    @Transactional(readOnly = true)
+    public List<MerchantWalletLedger> listRecentLedger(String merchantId, int limit) {
+        if (merchantId == null) {
+            return List.of();
+        }
+        return engine.listLedgerByCreatedAtDesc(DOMAIN, merchantId, limit).stream()
+                .map(MerchantWalletService::toLedger)
+                .toList();
+    }
+
+    @Transactional
+    public boolean creditIfAbsent(String merchantId, long amountCents, String entryType,
+                                  String refType, String refId, String remark) {
+        requireMerchantId(merchantId);
+        return engine.creditIfAbsent(DOMAIN, merchantId, amountCents, entryType, refType, refId, remark);
+    }
+
+    @Transactional
+    public boolean reverseCreditIfPresent(String merchantId, long amountCents, String entryType,
+                                          ReverseCreditCommand command) {
+        requireMerchantId(merchantId);
+        return engine.reverseCreditIfPresent(DOMAIN, merchantId, amountCents, entryType,
+                command.reverseRefType(), command.reverseRefId(),
+                command.originalRefType(), command.originalRefId(), command.remark());
+    }
 
     /**
-     * 幂等扣款且允许扣成负数（押金收取对齐老系统：直减可负——押金是负债，
-     * 余额不足也应收取成功、欠款挂余额）。refType+refId 查重防重复扣。
+     * AU-181：允许扣成负数的幂等冲正（原 ref 存在才冲、冲正 ref 已记不冲）——
+     * 全额退款 void 链分账冲正专用：余额提空/为负商户的退款 finalize 不得被余额闸卡死。
+     */
+    public boolean reverseCreditAllowNegativeIfPresent(String merchantId, long amountCents, String entryType,
+                                                       ReverseCreditCommand command) {
+        requireMerchantId(merchantId);
+        return engine.reverseCreditAllowNegativeIfPresent(DOMAIN, merchantId, amountCents, entryType,
+                command.reverseRefType(), command.reverseRefId(),
+                command.originalRefType(), command.originalRefId(), command.remark());
+    }
+
+    /**
+     * 幂等扣款且允许扣成负数（押金收取：直减可负——余额不足也应收取成功、欠款挂余额）。
      */
     @Transactional
     public boolean debitIfAbsentAllowNegative(String merchantId, long amountCents, String entryType,
                                               String refType, String refId, String remark) {
-        return runWithWalletLock(merchantId, () -> {
-            requireMerchantId(merchantId);
-            requirePositive(amountCents);
-            if (refType != null && refId != null
-                    && ledgerMapper.findByRef(merchantId, refType, refId).isPresent()) {
-                return false;
-            }
-            MerchantWalletAccount account = reload(merchantId);
-            long balance = value(account.getBalanceCents()) - amountCents;
-            account.setBalanceCents(balance);
-            account.setUpdatedAt(Instant.now());
-            accountMapper.updateById(account);
-            appendLedger(new LedgerLine(merchantId, entryType, -amountCents,
-                    new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())),
-                    refType, refId, remark));
-            return true;
-        });
+        requireMerchantId(merchantId);
+        return engine.debitIfAbsentAllowNegative(DOMAIN, merchantId, amountCents, entryType, refType, refId, remark);
     }
 
     /**
-     * 某笔业务动作为商户钱包<b>实际扣减</b>的金额（分，正数）；没有流水就返回 0。
-     *
-     * <p>给「告知商户扣了多少」的展示口径用（日结通知 F-5，2026-10-17）：业务侧重算出来的
-     * 应扣额与钱包里真正扣到的额是两件事——扣款成功后续步骤抛异常、或该日已被运营重跑扣过，
-     * 重算值都会与余额不符。流水是唯一真相。</p>
+     * 某笔业务动作为商户钱包<b>实际扣减</b>的金额（分，正数）；没有流水就返回 0（展示口径 F-5）。
      */
     public long debitedCentsByRef(String merchantId, String refType, String refId) {
-        if (merchantId == null || refType == null || refId == null) {
+        if (merchantId == null) {
             return 0L;
         }
-        return ledgerMapper.findByRef(merchantId, refType, refId)
-                .map(ledger -> {
-                    long amount = value(ledger.getAmountCents());
-                    return amount < 0L ? -amount : 0L;
-                })
-                .orElse(0L);
+        return engine.debitedCentsByRef(DOMAIN, merchantId, refType, refId);
     }
 
     @Transactional
     public boolean debitIfAbsent(String merchantId, long amountCents, String entryType,
-
                                  String refType, String refId, String remark) {
-
-        return runWithWalletLock(merchantId, () -> {
-
-            requireMerchantId(merchantId);
-
-            requirePositive(amountCents);
-
-            if (refType != null && refId != null && ledgerMapper.findByRef(merchantId, refType, refId).isPresent()) {
-
-                return false;
-
-            }
-
-            doDebit(merchantId, amountCents, entryType, refType, refId, remark);
-
-            return true;
-
-        });
-
+        requireMerchantId(merchantId);
+        return engine.debitIfAbsent(DOMAIN, merchantId, amountCents, entryType, refType, refId, remark);
     }
 
-
-
     @Transactional
-
     public void credit(String merchantId, long amountCents, String entryType,
-
                        String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doCredit(merchantId, amountCents, entryType, refType, refId, remark);
-
-            return null;
-
-        });
-
+        requireMerchantId(merchantId);
+        engine.credit(DOMAIN, merchantId, amountCents, entryType, refType, refId, remark);
     }
-
-
-
-    private void doCredit(String merchantId, long amountCents, String entryType,
-
-                          String refType, String refId, String remark) {
-
-        requirePositive(amountCents);
-
-        MerchantWalletAccount account = reload(merchantId);
-
-        long balance = value(account.getBalanceCents()) + amountCents;
-
-        account.setBalanceCents(balance);
-
-        account.setUpdatedAt(Instant.now());
-
-        accountMapper.updateById(account);
-
-        appendLedger(new LedgerLine(merchantId, entryType, amountCents,
-                new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark));
-
-    }
-
-
 
     @Transactional
-
     public void debit(String merchantId, long amountCents, String entryType,
-
                       String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doDebit(merchantId, amountCents, entryType, refType, refId, remark);
-
-            return null;
-
-        });
-
+        requireMerchantId(merchantId);
+        engine.debit(DOMAIN, merchantId, amountCents, entryType, refType, refId, remark);
     }
-
-
-
-    private void doDebit(String merchantId, long amountCents, String entryType,
-
-                         String refType, String refId, String remark) {
-
-        requirePositive(amountCents);
-
-        MerchantWalletAccount account = reload(merchantId);
-
-        long available = value(account.getBalanceCents()) - value(account.getFrozenCents());
-
-        if (available < amountCents) {
-
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "可用余额不足");
-
-        }
-
-        long balance = value(account.getBalanceCents()) - amountCents;
-
-        account.setBalanceCents(balance);
-
-        account.setUpdatedAt(Instant.now());
-
-        accountMapper.updateById(account);
-
-        appendLedger(new LedgerLine(merchantId, entryType, -amountCents,
-                new LedgerLine.BalanceSnapshot(balance, value(account.getFrozenCents())), refType, refId, remark));
-
-    }
-
-
 
     @Transactional
-
     public void freezeForWithdraw(String merchantId, long amountCents,
-
                                   String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doFreezeForWithdraw(merchantId, amountCents, refType, refId, remark);
-
-            return null;
-
-        });
-
+        requireMerchantId(merchantId);
+        engine.freezeForWithdraw(DOMAIN, merchantId, amountCents, refType, refId, remark);
     }
-
-
-
-    private void doFreezeForWithdraw(String merchantId, long amountCents,
-
-                                     String refType, String refId, String remark) {
-
-        requirePositive(amountCents);
-
-        MerchantWalletAccount account = reload(merchantId);
-
-        long available = value(account.getBalanceCents()) - value(account.getFrozenCents());
-
-        if (available < amountCents) {
-
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "可用余额不足");
-
-        }
-
-        long frozen = value(account.getFrozenCents()) + amountCents;
-
-        account.setFrozenCents(frozen);
-
-        account.setUpdatedAt(Instant.now());
-
-        accountMapper.updateById(account);
-
-        appendLedger(new LedgerLine(merchantId, "WITHDRAW_FREEZE", -amountCents,
-                new LedgerLine.BalanceSnapshot(value(account.getBalanceCents()), frozen), refType, refId, remark));
-
-    }
-
-
 
     @Transactional
-
     public void releaseFrozen(String merchantId, long amountCents,
-
                               String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doReleaseFrozen(merchantId, amountCents, refType, refId, remark);
-
-            return null;
-
-        });
-
+        requireMerchantId(merchantId);
+        engine.releaseFrozen(DOMAIN, merchantId, amountCents, refType, refId, remark);
     }
-
-
-
-    private void doReleaseFrozen(String merchantId, long amountCents,
-
-                                 String refType, String refId, String remark) {
-
-        requirePositive(amountCents);
-
-        MerchantWalletAccount account = reload(merchantId);
-
-        if (value(account.getFrozenCents()) < amountCents) {
-
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结金额不足");
-
-        }
-
-        long frozen = value(account.getFrozenCents()) - amountCents;
-
-        account.setFrozenCents(frozen);
-
-        account.setUpdatedAt(Instant.now());
-
-        accountMapper.updateById(account);
-
-        appendLedger(new LedgerLine(merchantId, "WITHDRAW_RELEASE", amountCents,
-                new LedgerLine.BalanceSnapshot(value(account.getBalanceCents()), frozen), refType, refId, remark));
-
-    }
-
-
 
     @Transactional
-
     public void consumeFrozen(String merchantId, long amountCents,
-
                               String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doConsumeFrozen(merchantId, amountCents, refType, refId, remark);
-
-            return null;
-
-        });
-
-    }
-
-
-
-    private void doConsumeFrozen(String merchantId, long amountCents,
-
-                                 String refType, String refId, String remark) {
-
-        doConsumeFrozenSplit(merchantId, amountCents, 0L, refType, refId, remark);
-
+        requireMerchantId(merchantId);
+        engine.consumeFrozen(DOMAIN, merchantId, amountCents, refType, refId, remark);
     }
 
     /**
-     * V308：打款成功时<b>拆分记账</b> —— 净额记「已出款」，手续费单列一行。
-     *
-     * <p>🔴 <b>先纠正一个常见误解</b>：手续费<b>本来就已被扣走</b>。申请时冻结的是<b>毛额</b>，
-     * 打款成功扣的也是毛额，而渠道实际只发 {@code netCents = 毛额 − 手续费}，
-     * 差额天然留在平台。真正缺的不是「把钱扣掉」，而是<b>可对账性</b>：
-     * <ul>
-     *   <li>拆分前商户流水只有一条 {@code WITHDRAW_PAID -毛额} ⇒ 商户对账单看不懂
-     *       「申请 100 元，为什么被扣的手续费查不到这一笔」；</li>
-     *   <li>平台侧也没有任何一行能汇总「今日手续费收入」⇒ 无法与渠道流水对账。</li>
-     * </ul>
-     *
-     * <p><b>本方法的口径</b>：余额与冻结<b>合计只扣一次 {@code netCents + feeCents}</b>
-     * （与拆分前扣毛额<b>完全等价</b>，不多扣也不少扣），但流水拆两行：
-     * {@code WITHDRAW_PAID -netCents} + {@code WITHDRAW_FEE -feeCents}。
-     * 两行相加 == 原毛额 ⇒ 账单总和不变，审计口径可验证。
-     *
-     * <p>⚠️ {@code feeCents = 0} 时<b>只记一行</b>（不留 0 元流水噪音），行为与拆分前完全一致。
+     * V308：打款成功时拆分记账（净额记 WITHDRAW_PAID、手续费单列 WITHDRAW_FEE，两行相加==毛额）。
      */
     @Transactional
-
     public void consumeFrozenSplit(String merchantId, long netCents, long feeCents,
-
                                    String refType, String refId, String remark) {
-
-        runWithWalletLock(merchantId, () -> {
-
-            doConsumeFrozenSplit(merchantId, netCents, feeCents, refType, refId, remark);
-
-            return null;
-
-        });
-
+        requireMerchantId(merchantId);
+        engine.consumeFrozenSplit(DOMAIN, merchantId, netCents, feeCents, refType, refId, remark);
     }
-
-    private void doConsumeFrozenSplit(String merchantId, long netCents, long feeCents,
-
-                                       String refType, String refId, String remark) {
-
-        long net = Math.max(0L, netCents);
-
-        long fee = Math.max(0L, feeCents);
-
-        long gross = net + fee;
-
-        // 🔴 溢出保护：net+fee 理论上来自同一笔毛额的拆分，但上游误传两个大数时仍要挡住
-        if (gross < 0L) {
-
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现金额不合法");
-
-        }
-
-        requirePositive(gross);
-
-        MerchantWalletAccount account = reload(merchantId);
-
-        if (value(account.getBalanceCents()) < gross || value(account.getFrozenCents()) < gross) {
-
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结或余额不足");
-
-        }
-
-        long balance = value(account.getBalanceCents()) - gross;
-
-        long frozen = value(account.getFrozenCents()) - gross;
-
-        account.setBalanceCents(balance);
-
-        account.setFrozenCents(frozen);
-
-        account.setUpdatedAt(Instant.now());
-
-        accountMapper.updateById(account);
-
-        if (net > 0L) {
-
-            // 快照记「扣手续费之前」，两行的 balance_after 连起来才是完整轨迹
-            appendLedger(new LedgerLine(merchantId, "WITHDRAW_PAID", -net,
-
-                    new LedgerLine.BalanceSnapshot(balance + fee, frozen + fee), refType, refId, remark));
-
-        }
-
-        if (fee > 0L) {
-
-            appendLedger(new LedgerLine(merchantId, "WITHDRAW_FEE", -fee,
-
-                    new LedgerLine.BalanceSnapshot(balance, frozen), refType, refId, remark));
-
-        }
-
-    }
-
-
-
-    static String walletLockKey(String merchantId) {
-
-        return "merchant:wallet:" + merchantId;
-
-    }
-
-
-
-    private <T> T runWithWalletLock(String merchantId, java.util.function.Supplier<T> action) {
-
-        if (!distributedLockService.tryLock(walletLockKey(merchantId), 60, 5)) {
-
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
-
-        }
-
-        try {
-
-            return action.get();
-
-        } catch (ResponseStatusException e) {
-
-            throw e;
-
-        } catch (Exception e) {
-
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
-
-        } finally {
-
-            distributedLockService.unlock(walletLockKey(merchantId));
-
-        }
-
-    }
-
-
-
-    private MerchantWalletAccount reload(String merchantId) {
-
-        doEnsureAccount(merchantId);
-
-        return accountMapper.findByIdForUpdate(merchantId)
-
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "商户钱包不存在"));
-
-    }
-
-
-
-    private void appendLedger(LedgerLine line) {
-
-        MerchantWalletLedger ledger = new MerchantWalletLedger();
-
-        ledger.setMerchantId(line.merchantId());
-
-        var merchant = merchantMapper.selectById(line.merchantId());
-
-        if (merchant != null) {
-
-            ledger.setMerchantName(merchant.getMerchantName());
-
-        }
-
-        ledger.setEntryType(line.entryType());
-
-        ledger.setAmountCents(line.amountCents());
-
-        ledger.setBalanceAfter(line.balances().balanceAfter());
-
-        ledger.setFrozenAfter(line.balances().frozenAfter());
-
-        ledger.setRefType(trim(line.refType(), 32));
-
-        ledger.setRefId(trim(line.refId(), 64));
-
-        ledger.setRemark(trim(line.remark(), 255));
-
-        ledger.setCreatedAt(Instant.now());
-
-        ledgerMapper.insert(ledger);
-
-    }
-
-    private record LedgerLine(String merchantId, String entryType, long amountCents, BalanceSnapshot balances,
-                              String refType, String refId, String remark) {
-        private record BalanceSnapshot(long balanceAfter, long frozenAfter) {}
-    }
-
-
 
     private static void requireMerchantId(String merchantId) {
-
         if (merchantId == null || merchantId.isBlank()) {
-
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户 ID 无效");
-
         }
-
     }
 
-
-
-    private static void requirePositive(long amountCents) {
-
-        if (amountCents <= 0) {
-
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "金额必须大于 0");
-
-        }
-
-    }
-
-
-
-    private static long value(Long value) {
-
-        return value == null ? 0L : value;
-
-    }
-
-
-
-    private static String trim(String value, int max) {
-
-        if (value == null) {
-
+    private static MerchantWalletAccount toAccount(WalletAccount w) {
+        if (w == null) {
             return null;
-
         }
-
-        String trimmed = value.trim();
-
-        if (trimmed.isEmpty()) {
-
-            return null;
-
-        }
-
-        return trimmed.length() <= max ? trimmed : trimmed.substring(0, max);
-
+        MerchantWalletAccount account = new MerchantWalletAccount();
+        account.setMerchantId(w.getOwnerId());
+        account.setBalanceCents(w.getBalanceCents());
+        account.setFrozenCents(w.getFrozenCents());
+        account.setUpdatedAt(w.getUpdatedAt());
+        return account;
     }
 
+    private static MerchantWalletLedger toLedger(WalletLedger w) {
+        if (w == null) {
+            return null;
+        }
+        MerchantWalletLedger ledger = new MerchantWalletLedger();
+        ledger.setLedgerId(w.getLedgerId());
+        ledger.setMerchantId(w.getOwnerId());
+        ledger.setMerchantName(w.getOwnerSnapshotName());
+        ledger.setEntryType(w.getEntryType());
+        ledger.setAmountCents(w.getAmountCents());
+        ledger.setBalanceAfter(w.getBalanceAfter());
+        ledger.setFrozenAfter(w.getFrozenAfter());
+        ledger.setRefType(w.getRefType());
+        ledger.setRefId(w.getRefId());
+        ledger.setRemark(w.getRemark());
+        ledger.setCreatedAt(w.getCreatedAt());
+        return ledger;
+    }
 }
-
-

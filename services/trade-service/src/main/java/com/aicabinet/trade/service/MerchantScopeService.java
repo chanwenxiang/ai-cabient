@@ -33,8 +33,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 运营账号商户数据范围：未绑定商户 = 全局；绑定后仅可见对应商户及其下级组织的设备/订单。
- * admin 角色始终全局。
+ * 运营账号商户数据范围（DC-14，2026-10-19 拍板：<b>deny-by-default</b>）——
+ * 旧口径「未绑定商户 = 全局」是 AU-087/088/089 的横切根因，已废除：
+ * 只有显式 admin 角色才是全局；未绑定的非 admin 账号 = <b>零范围</b>（任何商户数据不可见），
+ * 需要数据视角就必须绑定商户（或由管理员授角色）。演示账号由 V395 显式绑定演示商户。
  */
 @Service
 public class MerchantScopeService {
@@ -74,10 +76,9 @@ public class MerchantScopeService {
 
     @Transactional(readOnly = true)
     public boolean isGlobalScope(Long operatorId) {
-        if (hasAdminRole(operatorId)) {
-            return true;
-        }
-        return !userMerchantRepository.existsByIdUserId(operatorId);
+        // DC-14：全局 = 显式 admin 角色。「未绑定 = 全局」旧口径已废除（AU-089 根因）——
+        // 未绑定的非 admin 账号按 allowedMerchantIds 返回空集处理（零范围），不再隐式放行。
+        return hasAdminRole(operatorId);
     }
 
     @Transactional(readOnly = true)

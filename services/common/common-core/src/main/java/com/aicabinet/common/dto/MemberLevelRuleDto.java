@@ -9,7 +9,6 @@ public record MemberLevelRuleDto(
         BigDecimal minSpent,
         BigDecimal maxSpent,
         int minPoints,
-        Integer maxPoints,
         BigDecimal pointsRate,
         BigDecimal priceDiscountPct,
         int sortOrder,

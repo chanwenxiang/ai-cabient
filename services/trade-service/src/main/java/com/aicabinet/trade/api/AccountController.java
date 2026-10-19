@@ -60,8 +60,7 @@ public class AccountController {
     }
 
     @PostMapping("/verify")
-    public ApiResponse<AccountDto> verifyIdentity(
-            HttpServletRequest request,
+    public ApiResponse<AccountDto> verifyIdentity(            HttpServletRequest request,
             @Valid @RequestBody VerifyIdentityRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(accountService.verifyIdentity(userId, body));
@@ -118,5 +117,17 @@ public class AccountController {
     public ApiResponse<List<InvoiceRequestDto>> myInvoices(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(invoiceService.listMine(userId));
+    }
+
+    /**
+     * AU-149（2026-10-19 拍板）：消费者<b>自助注销账户</b>（小程序「我的」页入口）。
+     * PIPL 删除权 + 小程序审核硬要求；余额/协议/进行中退款未清 ⇒ 409 拒绝（fail-closed）。
+     * 注销成功后后端匿名化个人标识并拒绝续期；前端清本地会话回登录页。
+     */
+    @PostMapping("/delete-account")
+    public ApiResponse<Void> deleteOwnAccount(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        accountService.deleteOwnAccount(userId);
+        return ApiResponse.ok(null);
     }
 }

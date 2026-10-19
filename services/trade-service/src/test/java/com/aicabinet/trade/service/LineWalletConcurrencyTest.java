@@ -1,7 +1,10 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.mapper.LineWalletAccountMapper;
-import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.WalletAccountMapper;
+import com.aicabinet.trade.mapper.WalletLedgerMapper;
+import com.aicabinet.trade.service.wallet.WalletDomain;
+import com.aicabinet.trade.service.wallet.WalletEngine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,31 +15,34 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class LineWalletConcurrencyTest {
 
-    @Mock private LineWalletAccountMapper accountMapper;
-    @Mock private LineWalletLedgerMapper ledgerMapper;
+    @Mock private WalletAccountMapper accountMapper;
+    @Mock private WalletLedgerMapper ledgerMapper;
+    @Mock private MerchantMapper merchantMapper;
     @Mock private DistributedLockService distributedLockService;
 
-    private LineWalletService service;
+    private WalletEngine engine;
 
     @BeforeEach
     void setUp() {
-        service = new LineWalletService(accountMapper, ledgerMapper, distributedLockService);
+        engine = new WalletEngine(accountMapper, ledgerMapper, merchantMapper, distributedLockService);
     }
 
     @Test
     void credit_whenWalletLockBusy_rejectsWithConflict() {
         when(distributedLockService.tryLock(
-                LineWalletService.walletLockKey(99L), 60L, 5L))
+                WalletDomain.LINE.lockKey("99"), 60L, 5L))
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.credit(99L, 100L, "ADJUST", "TEST", "R-1", "note"));
+                () -> engine.credit(WalletDomain.LINE, "99", 100L, "ADJUST", "TEST", "R-1", "note"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verifyNoInteractions(accountMapper, ledgerMapper, merchantMapper);
     }
 }

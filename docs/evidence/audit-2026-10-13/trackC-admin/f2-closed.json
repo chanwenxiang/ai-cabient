@@ -1,0 +1,17 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "sessionId": "1792293228711991084464",
+    "userId": 10001,
+    "deviceId": "EG746560232828",
+    "state": "RECOGNIZING",
+    "openTime": "2026-10-18T03:13:48.759780Z",
+    "closeTime": "2026-10-18T03:13:48.906174598Z",
+    "orderId": null,
+    "createdAt": "2026-10-18T03:13:48.712467Z",
+    "failReason": null,
+    "payChannel": null,
+    "deviceName": "演示智能柜"
+  }
+}

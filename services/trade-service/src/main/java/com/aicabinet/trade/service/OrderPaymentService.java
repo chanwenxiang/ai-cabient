@@ -525,19 +525,34 @@ public class OrderPaymentService {
     /**
      * 订单退款：无外层长事务包裹渠道。
      * 短事务准备 → 微信/支付宝 HTTP（事务外）→ 短事务落库；余额/mock 一次短事务完成。
+     *
+     * @return true=已执行退款（含 finalize）；false=幂等跳过（同 idemKey 已有完成记录，
+     *         <b>渠道未执行</b>）。调用方若依赖「渠道必然执行」继续本地推进（如按行部分退款
+     *         改行/记账/冲正分账），必须检测 false 并中止，否则重演 AU-175（钱没退账已退）。
+     *         早退（amount≤0 / 演示 OPERATOR 号段）返回 true——无渠道动作属设计内，
+     *         由 finalize 的单调兜底记账。
      */
-    public void refundOrder(CabinetOrder order, int amountCents, String reason) {
+    public boolean refundOrder(CabinetOrder order, int amountCents, String reason) {
+        return refundOrder(order, amountCents, reason, null);
+    }
+
+    /**
+     * AU-175：带幂等键覆盖的重载。按行部分退款传「订单+金额+行集指纹」键——同单同额、
+     * 不同商品行的两笔退款是合法业务，不得被 M02 的「订单+金额」键误判为重放。
+     * {@code idemKeyOverride} 为 null 时回落原 M02 键（存量调用方语义不变）。
+     */
+    public boolean refundOrder(CabinetOrder order, int amountCents, String reason, String idemKeyOverride) {
         if (amountCents <= 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
-            return;
+            return true;
         }
         if (!distributedLockService.tryLock(orderPaymentLockKey(order.getOrderId()), 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
         }
         try {
-            OrderRefundPrep prep = self.prepareOrderRefund(order.getOrderId(), amountCents, reason);
+            OrderRefundPrep prep = self.prepareOrderRefund(order.getOrderId(), amountCents, reason, idemKeyOverride);
             if (prep == null || prep.skipped()) {
                 refreshCallerOrder(order);
-                return;
+                return false;
             }
             if (prep.needsLiveChannel()) {
                 // B1/G1（2026-10-15）：HTTP 前以独立事务落 REFUND_INITIATED 痕迹（H41/M27 同构）——
@@ -550,6 +565,7 @@ public class OrderPaymentService {
             }
             refreshCallerOrder(order);
             clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId());
+            return true;
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
@@ -587,6 +603,16 @@ public class OrderPaymentService {
      */
     @Transactional
     public OrderRefundPrep prepareOrderRefund(String orderId, int amountCents, String reason) {
+        return prepareOrderRefund(orderId, amountCents, reason, null);
+    }
+
+    /**
+     * AU-175：{@code idemKeyOverride} 非空时覆盖 M02 的「订单+金额」键（按行部分退款传
+     * 订单+金额+行集指纹，使同单同额不同行的合法第二笔不被误判重放）。null 语义不变。
+     */
+    @Transactional
+    public OrderRefundPrep prepareOrderRefund(String orderId, int amountCents, String reason,
+                                              String idemKeyOverride) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         int netCharged = paymentOperationRepository.netCompletedCents(locked.getOrderId());
@@ -595,8 +621,11 @@ public class OrderPaymentService {
             return new OrderRefundPrep(orderId, locked.getUserId(), 0, reason, null, null, null, 0, true, false);
         }
         int refundCents = Math.min(amountCents, netCharged);
-        // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）
-        String idemKey = "REFUND:" + locked.getOrderId() + ":" + refundCents;
+        // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）；
+        // AU-175：按行部分退款场景由调用方传行集指纹键覆盖。
+        String idemKey = idemKeyOverride != null && !idemKeyOverride.isBlank()
+                ? idemKeyOverride
+                : "REFUND:" + locked.getOrderId() + ":" + refundCents;
         if (isCompleted(idemKey)) {
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
                     locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false);

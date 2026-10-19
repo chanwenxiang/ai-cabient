@@ -68,13 +68,13 @@ const bizChildren: RouteRecordRaw[] = [
     path: 'platform-fund',
     name: 'platform-fund',
     component: () => import('@/views/finance/PlatformFundView.vue'),
-    meta: { title: '平台资金池', group: '财务商户' }
+    meta: { title: '平台资金池', group: '财务商户', perm: 'ops:fund:list' }
   },
   {
     path: 'device-rental',
     name: 'device-rental',
     component: () => import('@/views/finance/DeviceRentalView.vue'),
-    meta: { title: '设备租赁', group: '财务商户' }
+    meta: { title: '设备租赁', group: '财务商户', perm: 'ops:fund:list' }
   },
   {
     path: 'sales-reports',
@@ -249,7 +249,7 @@ const bizChildren: RouteRecordRaw[] = [
     path: 'warehouse/monthly-close-sheets',
     name: 'warehouse-monthly-close-sheets',
     component: () => import('@/views/warehouse/WarehouseMonthlyCloseSheetsView.vue'),
-    meta: { title: '月结单台账', group: '仓储' }
+    meta: { title: '月结单台账', group: '仓储', perm: 'ops:warehouse:list' }
   },
   {
     // V326（E3 缺口 #8）：供应商月度对账单 —— 流水口径（V326 起有数据），期末=期初+应付−退货−付款

@@ -47,6 +47,7 @@ class DeviceRentalServiceTest {
     private FeeBillMonthResolver monthResolver;
     private DistributedLockService distributedLockService;
     private MerchantWalletService merchantWalletService;
+    private ScheduledTaskService taskService;
     private DeviceRentalService service;
 
     @BeforeEach
@@ -63,9 +64,11 @@ class DeviceRentalServiceTest {
         distributedLockService = mock(DistributedLockService.class);
         Clock clock = Clock.fixed(Instant.parse("2026-10-12T00:20:00Z"), ZoneId.of("Asia/Shanghai"));
         merchantWalletService = mock(MerchantWalletService.class);
+        taskService = mock(ScheduledTaskService.class);
+        when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         service = new DeviceRentalService(depositMapper, depositEventMapper, billMapper, deviceMapper,
                 permissionService, auditService, systemConfigService, salesLockService, monthResolver,
-                distributedLockService, merchantWalletService, clock);
+                distributedLockService, merchantWalletService, taskService, clock);
         when(monthResolver.resolve(any())).thenAnswer(inv -> {
             String m = inv.getArgument(0);
             return m == null || m.isBlank() ? "2026-10" : m;

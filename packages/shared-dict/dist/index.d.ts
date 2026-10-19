@@ -622,6 +622,7 @@ export declare const DICT: {
     readonly consistency_check_type: {
         readonly ORDER_AMOUNT: "订单金额";
         readonly PAYMENT_AMOUNT: "支付净额";
+        readonly PAID_GROSS_MISMATCH: "冻结毛额入账";
         readonly INVENTORY_MISMATCH: "库存汇总";
         readonly INVENTORY_ORPHAN_LOT: "孤儿批次";
         readonly POINTS_BALANCE: "积分余额";
@@ -631,6 +632,11 @@ export declare const DICT: {
         readonly WALLET_BALANCE: "用户钱包";
         readonly MERCHANT_WALLET: "商户钱包";
         readonly LINE_WALLET: "线路钱包";
+        readonly STAFF_WALLET: "补货员钱包";
+        readonly MERCHANT_WALLET_LEDGER_SUM: "商户钱包流水合计";
+        readonly LINE_WALLET_LEDGER_SUM: "线长钱包流水合计";
+        readonly STAFF_WALLET_LEDGER_SUM: "补货员钱包流水合计";
+        readonly WALLET_LEDGER_CHAIN: "钱包流水链断裂";
         readonly REFUND_AMOUNT: "退款金额";
         readonly ORDER_LINE_SUM: "订单行金额";
         readonly COUPON_USED_LINK: "券核销关联";

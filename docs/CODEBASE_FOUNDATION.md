@@ -53,7 +53,7 @@ device-service   jiangyi-gateway   MinIO / 微信·支付宝
  EMQX :11883    mock / DeepSeek争议辅助
    │                （生产意图：端侧 Quectel 识别上报）
    ▼
-edge: device-simulator | android-app
+edge: device-simulator（联调替身；自研 android-app 已退役 2026-10-18）
 ```
 
 ### 2.1 模块职责边界
@@ -235,10 +235,9 @@ CREATED → OPENING → SHOPPING → WAITING_UPLOAD → RECOGNIZING → SETTLING
 
 | 组件 | 作用 |
 |------|------|
-| `device-simulator` | MQTT 模拟柜；上传 testdata；HTTP 手动关门（full 栈常 `:18089`） |
-| `android-app` | 真实柜机：收令→开锁→录像→MinIO→门事件；`mockDebug` / `deviceDebug` |
+| `device-simulator` | MQTT 模拟柜（旧模式 + `JiangyiDeviceSimulator`）；HTTP 手动关门（full 栈常 `:18089`） |
 
-**同 deviceId 勿同时跑模拟器与真机。**
+> 自研柜体固件 `android-app`（真实柜机：收令→开锁→门事件）已随「生产仅将邑套件」退役（2026-10-18，git history 可恢复）；生产柜机经 jiangyi-gateway 接入。
 
 ---
 
@@ -421,7 +420,7 @@ Compose 入口见 `infra/README.md`：`docker-compose.yml`（infra）/ `full.yml
 
 ### 边缘 / 脚本
 
-18. `edge/android-app/README.md` + `services/jiangyi-gateway/`（将邑协议面）
+18. `docs/JIANGYI_GATEWAY_DESIGN.md` + `services/jiangyi-gateway/`（将邑协议面，生产柜机唯一接入路径）
 20. `scripts/e2e-lib.ps1` + `verify-local.ps1` + `build-admin.mjs`
 
 ---

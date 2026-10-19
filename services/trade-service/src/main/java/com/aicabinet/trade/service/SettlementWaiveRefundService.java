@@ -117,6 +117,13 @@ public class SettlementWaiveRefundService {
         if (prep.refundCents() > 0 && order.getRefundedCents() < prep.refundCents()) {
             order.setRefundedCents(prep.refundCents());
         }
+        // 🔴 F3-FIND-1 修法 B：退货退款的「回库 + inventory_deducted=false」与 status=REFUNDED 同事务原子落。
+        // 提交时守卫见 status=REFUNDED（非 PAID/PARTIAL_REFUNDED）即豁免，不再因中间态 un-deduct 而 500；
+        // 且回库与终态绑定，重试命中上方 REFUNDED 早退 ⇒ 天然不重复回库（替代旧 C03「prepare 落 flag」的去重）。
+        if (prep.restoreInventory() && order.isInventoryDeducted()) {
+            hydrateOrderLines(order);
+            performWaiveRestore(order);
+        }
         order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
         orderRepository.save(order);
         revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
@@ -125,10 +132,7 @@ public class SettlementWaiveRefundService {
         return prep.refundCents();
     }
 
-    private boolean applyWaiveInventoryPolicy(CabinetOrder order, boolean restoreInventory) {
-        if (!order.isInventoryDeducted()) {
-            return false;
-        }
+    private void performWaiveRestore(CabinetOrder order) {
         List<RecognizedItem> items = order.getLines().stream()
                 .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
                 .toList();
@@ -138,13 +142,30 @@ public class SettlementWaiveRefundService {
                         CabinetOrderLine::getSkuId,
                         CabinetOrderLine::getBatchNo,
                         (a, b) -> a));
-        if (restoreInventory) {
-            inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku, order.getOrderId());
-            order.setInventoryDeducted(false);
-            // C03：prepare 事务内立即持久化，否则 finalize 重查到的实体仍是 true，重试会重复回库
-            orderRepository.save(order);
-            return true;
+        inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku, order.getOrderId());
+        order.setInventoryDeducted(false);
+    }
+
+    private boolean applyWaiveInventoryPolicy(CabinetOrder order, boolean restoreInventory) {
+        if (!order.isInventoryDeducted()) {
+            return false;
         }
+        if (restoreInventory) {
+            // 🔴 F3-FIND-1：不在 prepare 落 un-deduct。三段式刻意不开外层事务 ⇒ prepare 独立提交，
+            // 此时 status 仍是 PAID，V271 钱货关联 DEFERRED 守卫见「PAID+有行+inventory_deducted=false」即 RAISE ⇒ 500。
+            // 回库 + inventory_deducted=false 改由 finalize 与 status=REFUNDED 同事务原子落（见 finalizeWaiveRefund）。
+            return false;
+        }
+        // 仅退款（货已离柜）：只记 kept goods，不动 inventory_deducted ⇒ 与守卫无冲突。
+        List<RecognizedItem> items = order.getLines().stream()
+                .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+                .toList();
+        var batchBySku = order.getLines().stream()
+                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
+                .collect(Collectors.toMap(
+                        CabinetOrderLine::getSkuId,
+                        CabinetOrderLine::getBatchNo,
+                        (a, b) -> a));
         inventoryService.recordRefundKeptGoods(
                 order.getDeviceId(), items, batchBySku, order.getOrderId());
         return false;

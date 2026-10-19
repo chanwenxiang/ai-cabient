@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.LoginRequest;
+import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
@@ -73,7 +74,8 @@ class AuthServicePhoneAndTwoFactorTest {
                 passwordEncoder, serverBootMarker,
                 new AuthProperties("test-secret", 3600L, false, false, 5, 15, null, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS),
                 new SecurityProperties(false),
-                loginThrottleService, phoneVerifyLogMapper, distributedLockService, null);
+                loginThrottleService, phoneVerifyLogMapper, distributedLockService,
+                new UserConsentLogService(org.mockito.Mockito.mock(com.aicabinet.trade.mapper.UserConsentLogMapper.class)), null);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -93,6 +95,64 @@ class AuthServicePhoneAndTwoFactorTest {
         when(userInfoRepository.findByIdForUpdate(user.getUserId())).thenReturn(Optional.of(user));
         when(jwtService.createToken(user.getUserId(), CabinetConstants.ACCOUNT_TYPE_CONSUMER)).thenReturn("token");
         when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+    }
+
+    // ---- DC-10（2026-10-19 拍板）：status 是登录闸门——INACTIVE/DELETED 消费者登录即拒 ----
+
+    @Test
+    void smsLogin_inactiveConsumer_forbidden_dc10() {
+        UserInfo user = consumerUser();
+        user.setStatus("INACTIVE");
+        when(userInfoRepository.findByPhoneNumber(PHONE)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.login(new LoginRequest(PHONE, "123456", null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(jwtService, never()).createToken(anyLong(), anyString());
+    }
+
+    @Test
+    void passwordLogin_inactiveConsumer_forbidden_dc10() {
+        UserInfo user = consumerUser();
+        user.setStatus("INACTIVE");
+        when(userInfoRepository.findByPhoneNumber(PHONE)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.loginByPassword(new PasswordLoginRequest(PHONE, "pw", null, null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
+    void wxLogin_openIdMatchedDeletedAccount_forbidden_dc10() {
+        UserInfo user = consumerUser();
+        user.setStatus("DELETED");
+        user.setWxOpenId(OPEN_ID);
+        when(weChatMiniAppClient.code2Session("wx-code"))
+                .thenReturn(new WeChatMiniAppClient.Code2SessionResult(OPEN_ID, "sess"));
+        when(distributedLockService.tryLock(AuthService.wxOpenIdLockKey(OPEN_ID), 60L, 5L)).thenReturn(true);
+        when(userInfoRepository.findByWxOpenId(OPEN_ID)).thenReturn(Optional.of(user));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.wxLogin(new WxLoginRequest("wx-code", null, null)));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(jwtService, never()).createToken(anyLong(), anyString());
+    }
+
+    @Test
+    void smsLogin_activeConsumer_stillPassesGate_dc10() {
+        // 反向钉住：ACTIVE 账号不被闸门误伤
+        UserInfo user = consumerUser();
+        when(userInfoRepository.findByPhoneNumber(PHONE)).thenReturn(Optional.of(user));
+        when(smsCodeService.verifyCode(PHONE, "123456")).thenReturn(true);
+        when(jwtService.createToken(user.getUserId(), CabinetConstants.ACCOUNT_TYPE_CONSUMER)).thenReturn("token");
+        when(jwtService.getExpirationSeconds()).thenReturn(3600L);
+
+        LoginResponse response = service.login(new LoginRequest(PHONE, "123456", null));
+
+        assertEquals(user.getUserId(), response.userId());
     }
 
     @Test

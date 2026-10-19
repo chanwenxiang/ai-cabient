@@ -219,10 +219,16 @@ public class SysDictBootstrap implements ApplicationRunner {
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
         map.put("consistency_check_type", t("一致性检查类型", m(
                 "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
+                "PAID_GROSS_MISMATCH", "冻结毛额入账",
                 "INVENTORY_MISMATCH", "库存汇总", "INVENTORY_ORPHAN_LOT", "孤儿批次",
                 "POINTS_BALANCE", "积分余额", "POINTS_IDENTITY", "积分恒等式",
                 "COUPON_ISSUED", "发券数量", "COUPON_OVER_QUOTA", "发券超配额",
                 "WALLET_BALANCE", "用户钱包", "MERCHANT_WALLET", "商户钱包", "LINE_WALLET", "线路钱包",
+                "STAFF_WALLET", "补货员钱包",
+                "MERCHANT_WALLET_LEDGER_SUM", "商户钱包流水合计",
+                "LINE_WALLET_LEDGER_SUM", "线长钱包流水合计",
+                "STAFF_WALLET_LEDGER_SUM", "补货员钱包流水合计",
+                "WALLET_LEDGER_CHAIN", "钱包流水链断裂",
                 "REFUND_AMOUNT", "退款金额",
                 "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联",
                 "REVENUE_SPLIT_SUM", "分账金额", "REVENUE_SPLIT_MISSING", "分账缺失",

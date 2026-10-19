@@ -42,7 +42,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = {
         "aicabinet.jiangyi.jwt-secret=jiangyi-it-secret-0123456789abcdef!!",
         "aicabinet.jiangyi.token-ttl-seconds=3600",
-        "aicabinet.trade-service.url=http://localhost:59999"
+        "aicabinet.trade-service.url=http://localhost:59999",
+        // MockMvc 上下文没有 jakarta.websocket ServerContainer 属性，WS 容器工厂 bean 在本类不可构造（见 WebSocketConfig 属性闸注释）
+        "aicabinet.jiangyi.ws-container.enabled=false"
 })
 class DeviceAuthIT {
 

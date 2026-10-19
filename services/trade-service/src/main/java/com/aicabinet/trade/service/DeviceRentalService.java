@@ -69,6 +69,7 @@ public class DeviceRentalService {
     private final FeeBillMonthResolver monthResolver;
     private final DistributedLockService distributedLockService;
     private final MerchantWalletService merchantWalletService;
+    private final ScheduledTaskService taskService;
     private final Clock clock;
 
     public DeviceRentalService(DeviceRentalDepositMapper depositMapper,
@@ -80,10 +81,11 @@ public class DeviceRentalService {
                                SystemConfigService systemConfigService,
                                DeviceSalesLockService salesLockService,
                                FeeBillMonthResolver monthResolver,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               ScheduledTaskService taskService) {
         this(depositMapper, depositEventMapper, billMapper, deviceMapper, permissionService,
                 auditService, systemConfigService, salesLockService, monthResolver, distributedLockService,
-                null, Clock.systemDefaultZone());
+                null, taskService, Clock.systemDefaultZone());
     }
 
     @Autowired // 双构造器（10 参便捷版供测试）必须显式指定 Spring 注入点，否则启动报 Clock bean 缺失
@@ -98,6 +100,7 @@ public class DeviceRentalService {
                                FeeBillMonthResolver monthResolver,
                                DistributedLockService distributedLockService,
                                MerchantWalletService merchantWalletService,
+                               ScheduledTaskService taskService,
                                Clock clock) {
         this.depositMapper = depositMapper;
         this.depositEventMapper = depositEventMapper;
@@ -110,6 +113,7 @@ public class DeviceRentalService {
         this.monthResolver = monthResolver;
         this.distributedLockService = distributedLockService;
         this.merchantWalletService = merchantWalletService;
+        this.taskService = taskService;
         this.clock = clock;
     }
 
@@ -534,6 +538,25 @@ public class DeviceRentalService {
      */
     @Transactional
     public String runDailyCheck() {
+        // AU-173（2026-10-18 批次 1）：39 任务唯二漏配执行守卫 ⇒ 无 job:* 分布式锁（多副本双跑）
+        // 且 scheduled_task.enabled 停用开关被旁路（上线手册「资金任务保持关」关不住）。
+        // 锁窗口=本事务期（unlock 由 finish 在提交前触发）：写侧出账/锁柜均幂等 + XXL cron 不重叠，
+        // 残余窗口可接受；若后续拆事务须把守卫移到事务外。
+        if (!taskService.tryBegin("device-rental-daily", 1800)) {
+            return "skipped";
+        }
+        long start = System.nanoTime();
+        try {
+            String summary = doDailyCheck();
+            taskService.finish("device-rental-daily", "SUCCESS", summary, start);
+            return summary;
+        } catch (Exception e) {
+            taskService.finish("device-rental-daily", "FAILED", e.getMessage(), start);
+            throw e;
+        }
+    }
+
+    private String doDailyCheck() {
         ZoneId zone = ZoneId.of("Asia/Shanghai");
         LocalDate today = LocalDate.ofInstant(clock.instant(), zone);
         String currentMonth = YearMonth.from(today).toString();

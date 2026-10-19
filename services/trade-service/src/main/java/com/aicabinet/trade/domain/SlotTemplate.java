@@ -10,7 +10,7 @@ import java.time.Instant;
 @TableName("slot_template")
 public class SlotTemplate {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "id", type = IdType.AUTO)
     private Long templateId;
 
     private String templateName;

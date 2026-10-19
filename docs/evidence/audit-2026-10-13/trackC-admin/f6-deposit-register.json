@@ -1,0 +1,27 @@
+{
+  "http": 200,
+  "body": {
+    "code": 0,
+    "message": "ok",
+    "data": {
+      "depositId": 4,
+      "deviceId": "EG746560232828",
+      "merchantId": "MCH-DEFAULT",
+      "amountCents": 20000,
+      "balanceCents": 20000,
+      "status": "HELD",
+      "settledAt": null,
+      "remark": "审计押金登记",
+      "createdAt": "2026-10-18T07:44:13.741940545Z",
+      "updatedAt": "2026-10-18T07:44:13.741941153Z",
+      "chargeMode": "ONLINE",
+      "monthlyRefundCents": null,
+      "refundStartMonth": null,
+      "expireRewardCents": 0,
+      "installFeeDeductCents": 0,
+      "installFeeClawbackEnabled": false,
+      "contractYears": 5
+    }
+  },
+  "walletDelta": 20000
+}

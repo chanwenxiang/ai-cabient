@@ -272,12 +272,21 @@ const severityCounts = computed(() => {
   return { high };
 });
 
+/**
+ * 三域钱包判据的类型名由后端按 `domain` 拼出（`MERCHANT_WALLET` / `LINE_WALLET_LEDGER_SUM` /
+ * `WALLET_LEDGER_CHAIN` …），逐个枚举过一次就漏一个域 ⇒ 按后缀判定。
+ * 此前正是这么漏掉两条 `*_WALLET_LEDGER_SUM`（自 P3-1a 就在写库，前端从没认得）。
+ */
+function isWalletCheckType(t: string) {
+  return t === 'WALLET_LEDGER_CHAIN' || t.endsWith('_WALLET') || t.endsWith('_WALLET_LEDGER_SUM');
+}
+
 function rowSeverity(row: Row): 'high' | 'medium' | 'low' {
   if (
     row.checkType === 'PAYMENT_AMOUNT' ||
+    row.checkType === 'PAID_GROSS_MISMATCH' ||
     row.checkType === 'WALLET_BALANCE' ||
-    row.checkType === 'MERCHANT_WALLET' ||
-    row.checkType === 'LINE_WALLET' ||
+    isWalletCheckType(row.checkType) ||
     row.checkType === 'REVENUE_SPLIT_SUM' ||
     row.checkType === 'REVENUE_SPLIT_MISSING' ||
     row.checkType === 'WAREHOUSE_NEGATIVE' ||
@@ -335,9 +344,6 @@ function fixPreview(row: Row): string {
   }
   if (row.checkType === 'INVENTORY_ORPHAN_LOT') {
     return `按在架批次合计 ${displayValue(row, 'actual')} 补齐汇总库存行`;
-  }
-  if (row.checkType === 'POINTS_IDENTITY') {
-    return '按 available+used+expired 回写累计积分';
   }
   if (row.checkType === 'ORDER_AMOUNT') {
     const msg = String(row.errorMessage || '');
@@ -430,6 +436,7 @@ function statusLabel(s: string) {
 }
 
 function typeTag(t: string) {
+  if (isWalletCheckType(t)) return 'danger';
   switch (t) {
     case 'ORDER_AMOUNT':
       return 'warning';
@@ -439,8 +446,6 @@ function typeTag(t: string) {
     case 'INVENTORY_ORPHAN_LOT':
       return 'info';
     case 'WALLET_BALANCE':
-    case 'MERCHANT_WALLET':
-    case 'LINE_WALLET':
     case 'REFUND_AMOUNT':
     case 'REVENUE_SPLIT_SUM':
     case 'REVENUE_SPLIT_MISSING':
@@ -463,7 +468,6 @@ function isFixable(t: string) {
     t === 'ORDER_AMOUNT' ||
     t === 'INVENTORY_MISMATCH' ||
     t === 'INVENTORY_ORPHAN_LOT' ||
-    t === 'POINTS_IDENTITY' ||
     t === 'ORDER_LINE_SUM' ||
     t === 'COUPON_USED_LINK' ||
     t === 'PAYMENT_AMOUNT'

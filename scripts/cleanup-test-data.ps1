@@ -172,11 +172,12 @@ DELETE FROM cabinet_order_line;
 DELETE FROM cabinet_order;
 
 -- recharge / wallet noise
+-- AU-186（2026-10-18）：V388/V389 三域钱包六表已并入 wallet_account / wallet_ledger
+--（domain 判别列 MERCHANT/LINE/STAFF），旧表名引用会让本脚本必炸并堵死清库链
 DELETE FROM recharge_order;
-DELETE FROM merchant_wallet_ledger;
-DELETE FROM line_wallet_ledger;
-UPDATE merchant_wallet_account SET balance_cents = 0, frozen_cents = 0, updated_at = NOW();
-UPDATE line_wallet_account SET balance_cents = 0, frozen_cents = 0, updated_at = NOW() WHERE TRUE;
+DELETE FROM wallet_ledger WHERE domain IN ('MERCHANT', 'LINE');
+UPDATE wallet_account SET balance_cents = 0, frozen_cents = 0, updated_at = NOW()
+WHERE domain IN ('MERCHANT', 'LINE');
 
 -- coupons issued to users (templates kept unless WipePlatform kills catalog deps)
 DELETE FROM user_coupon;
@@ -255,7 +256,7 @@ DELETE FROM device_availability_kpi_daily;
 DELETE FROM device_info;
 
 DELETE FROM merchant_withdraw_request;
-DELETE FROM merchant_wallet_account;
+DELETE FROM wallet_account WHERE domain = 'MERCHANT';
 DELETE FROM merchant_notify_log;
 DELETE FROM merchant_ops_config;
 DELETE FROM merchant_payment_onboarding;
@@ -285,8 +286,8 @@ UPDATE replenishment_task SET route_id = NULL WHERE route_id IS NOT NULL;
 DELETE FROM replenishment_route;
 DELETE FROM line_device;
 DELETE FROM line_withdraw_request;
-DELETE FROM line_wallet_ledger;
-DELETE FROM line_wallet_account;
+DELETE FROM wallet_ledger WHERE domain = 'LINE';
+DELETE FROM wallet_account WHERE domain = 'LINE';
 DELETE FROM line_promo_task;
 DELETE FROM line_manager;
 

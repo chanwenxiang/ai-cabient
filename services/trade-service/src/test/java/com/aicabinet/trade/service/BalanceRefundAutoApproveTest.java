@@ -89,6 +89,10 @@ class BalanceRefundAutoApproveTest {
             return 1;
         });
         lenient().when(requestMapper.countByUserIdAndStatus(anyLong(), anyString())).thenReturn(0L);
+        // DC-6 后 apply 读侧改 getPositiveLimit；mock 上不桩会返回 0（旧 getInt+0=不限额语义已废）。
+        // 成因注释：本类用例金额均 < 500_000，按生产默认值放行，不掩盖限额逻辑本身（限额专项在 SystemConfigFundKeyGuardTest）。
+        lenient().when(systemConfigService.getPositiveLimit(
+                eq(SystemConfigService.BALANCE_REFUND_MAX_CENTS), anyInt())).thenReturn(500_000);
     }
 
     private void stubApplicantFunds() {

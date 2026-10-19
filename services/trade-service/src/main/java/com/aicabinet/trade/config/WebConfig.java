@@ -36,8 +36,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**");
 
         // 设备面一机一密（审计 A1/P0-2）：先于 fleet-key 拦截器命中专属路径。
-        // 覆盖：OTA check/progress（edge APK+模拟器）、screen-content/ad-play（模拟器联调件）。
-        // 其余 /internal/** 仍为服务间 fleet key（不在 APK、生产有 CIDR）。
+        // 覆盖：OTA check/progress（模拟器联调件；edge android-app 已随 47188717 退役）。
+        // 其余 /internal/** 仍为服务间 fleet key（生产有 CIDR）。
         registry.addInterceptor(new DeviceHttpCredentialInterceptor(deviceHttpCredentialService))
                 .addPathPatterns(
                         "/internal/v1/devices/*/ota/*",

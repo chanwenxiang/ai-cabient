@@ -23,7 +23,7 @@ import java.util.Optional;
  * （OTA check/progress、screen-content、ad-play、sessions/video*）一机一密。
  *
  * <p>流程：运营签发（明文 secret 仅签发响应返回一次，表里只存 sha256）→ 现场装机时
- * 经 edge APK 装机页注入（AndroidKeyStore 加密落盘）。校验：X-Device-Id + X-Device-Secret
+ * 经运维下发/模拟器 env 注入（android-app 已随 47188717 退役，在网老固件沿用历史凭据）。校验：X-Device-Id + X-Device-Secret
  * → sha256 恒定时间比对 → ACTIVE 且与路径 deviceId 绑定（DEVICE_MISMATCH 语义）。</p>
  *
  * <p>表结构对齐 V290__device_mqtt_credential；差异=无明文列（HTTP 校验不经 EMQX）。</p>

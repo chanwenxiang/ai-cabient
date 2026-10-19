@@ -225,6 +225,14 @@ const BASE_NAV: NavItem[] = [
     keywords: ['效期', '过期', '临期', '预警', '批次', 'expiry', 'near-expiry']
   },
   {
+    path: '/warehouse/monthly-close-sheets',
+    title: '月结单台账',
+    group: '仓储',
+    // AU-176：V327 月结单面，后端 OpsWarehouseController close-sheets 族 = ops:warehouse:list
+    perm: 'ops:warehouse:list',
+    keywords: ['月结', '月结单', '台账', 'close-sheet']
+  },
+  {
     path: '/warehouse/stock',
     title: '库存与盘点',
     group: '仓储',
@@ -259,6 +267,22 @@ const BASE_NAV: NavItem[] = [
     group: '财务商户',
     perm: 'ops:fund:list',
     keywords: ['资金', '账单', '账务', 'ledger']
+  },
+  {
+    path: '/platform-fund',
+    title: '平台资金池',
+    group: '财务商户',
+    // AU-176（2026-10-18）：路由/meta.perm/菜单三缺二 ⇒ 全员（含超管）403；后端 V341 早已就绪
+    perm: 'ops:fund:list',
+    keywords: ['平台资金', '资金池', '备付', '归集', 'platform-fund']
+  },
+  {
+    path: '/device-rental',
+    title: '设备租赁',
+    group: '财务商户',
+    // 读面与 OpsDeviceRentalController 的列表权限对齐（ops:fund:list），管理动作页内 ops:rental:manage
+    perm: 'ops:fund:list',
+    keywords: ['租赁', '租金', '押金', '账单', 'rental']
   },
   {
     path: '/merchants',

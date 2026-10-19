@@ -30,9 +30,8 @@ public class MemberLevelRule {
      */
     private java.math.BigDecimal minRecharge;
 
+    /** 仅用于 C 端「距下一档还差多少分」的展示门槛；等级判定不读积分（见 MemberService.calculateMemberLevel）。 */
     private Integer minPoints = 0;
-
-    private Integer maxPoints;
 
     private java.math.BigDecimal pointsRate = java.math.BigDecimal.ONE;
 
