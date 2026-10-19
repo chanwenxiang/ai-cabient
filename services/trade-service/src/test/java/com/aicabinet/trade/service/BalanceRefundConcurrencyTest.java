@@ -50,7 +50,7 @@ class BalanceRefundConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        when(systemConfigService.getInt(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000))
+        when(systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000))
                 .thenReturn(500_000);
         service = new BalanceRefundService(
                 requestMapper, allocationMapper, accountMapper, rechargeOrderMapper,

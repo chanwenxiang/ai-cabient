@@ -129,8 +129,9 @@ public class BalanceRefundService {
         if (amountCents < 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
         }
-        int maxCents = systemConfigService.getInt(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);
-        if (maxCents > 0 && amountCents > maxCents) {
+        // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
+        int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000);
+        if (amountCents > maxCents) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "单次申请不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }
