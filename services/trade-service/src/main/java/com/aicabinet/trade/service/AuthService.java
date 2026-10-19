@@ -55,6 +55,9 @@ public class AuthService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final AuthService self;
 
+    /** AU-149：登录成功即视为对当期隐私政策的同意，落 user_consent_log（幂等留痕）。 */
+    private final UserConsentLogService userConsentLogService;
+
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
                        JwtService jwtService,
@@ -68,7 +71,9 @@ public class AuthService {
                        SecurityProperties securityProperties,
                        LoginThrottleService loginThrottleService,
                        PhoneVerifyLogMapper phoneVerifyLogMapper,
-                       DistributedLockService distributedLockService, @Lazy AuthService self) {
+                       DistributedLockService distributedLockService,
+                       UserConsentLogService userConsentLogService,
+                       @Lazy AuthService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -83,6 +88,7 @@ public class AuthService {
         this.loginThrottleService = loginThrottleService;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
         this.distributedLockService = distributedLockService;
+        this.userConsentLogService = userConsentLogService;
         this.self = self;
     }
 
@@ -439,6 +445,8 @@ public class AuthService {
     }
 
     private LoginResponse tokenFor(UserInfo user) {
+        // AU-149：同意留痕走旁路（失败不阻断登录），DB 层 (user_id, type, version) 幂等
+        userConsentLogService.recordPrivacyConsent(user.getUserId());
         String token = jwtService.createToken(user.getUserId(), OperatorAuth.resolveAccountType(user));
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
                 serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);

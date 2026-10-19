@@ -74,7 +74,8 @@ class AuthServiceMerchantWxTest {
                 passwordEncoder, serverBootMarker,
                 new AuthProperties("test-secret", 3600L, false, false, 5, 15, null, AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS),
                 new SecurityProperties(false),
-                loginThrottleService, phoneVerifyLogMapper, distributedLockService, null);
+                loginThrottleService, phoneVerifyLogMapper, distributedLockService,
+                new UserConsentLogService(org.mockito.Mockito.mock(com.aicabinet.trade.mapper.UserConsentLogMapper.class)), null);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
