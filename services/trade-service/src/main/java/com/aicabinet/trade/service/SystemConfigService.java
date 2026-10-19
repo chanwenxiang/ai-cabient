@@ -14,6 +14,8 @@ import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.domain.SystemConfigHistory;
 import com.aicabinet.trade.mapper.SystemConfigHistoryMapper;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ import java.util.Map;
 
 @Service
 public class SystemConfigService {
+    private static final Logger log = LoggerFactory.getLogger(SystemConfigService.class);
     private static final String FALSE = "false";
 
 
@@ -40,9 +43,13 @@ public class SystemConfigService {
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
     public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
     public static final String REFUND_SELF_MAX_HOURS = "refund.self.max_hours";
+    /** 单笔自助退款上限（分）；默认 ¥5000。DC-6：上限型键不允许 0=不限制（同 {@link #RECHARGE_MAX_CENTS}）。 */
     public static final String REFUND_SELF_MAX_CENTS = "refund.self.max_cents";
     public static final String REFUND_SELF_MAX_DAILY = "refund.self.max_daily";
-    /** 单次充值上限（分）；默认 ¥5000；0=不限制。 */
+    /**
+     * 单次充值上限（分）；默认 ¥5000。DC-6（2026-10-19 拍板）：<b>上限型键不允许「0=不限制」</b>——
+     * 配 0/负数读取侧回落默认值（fail-safe），写侧直接 400；确需调整就配一个足够大的正数（上限必须存在）。
+     */
     public static final String RECHARGE_MAX_CENTS = "recharge.max_cents";
     /**
      * 充值赠送比例（百分比，充 100 送 10 即填 10）；默认 0 = 关闭（不赠送）。
@@ -52,7 +59,7 @@ public class SystemConfigService {
      * 故与主充值一样可安全重试，不会重复赠送）。
      */
     public static final String RECHARGE_BONUS_PERCENT = "recharge.bonus.percent";
-    /** 单次余额退款申请上限（分）；默认 ¥5000；0=不限制。 */
+    /** 单次余额退款申请上限（分）；默认 ¥5000。DC-6：上限型键不允许 0=不限制（同 {@link #RECHARGE_MAX_CENTS}）。 */
     public static final String BALANCE_REFUND_MAX_CENTS = "balance.refund.max_cents";
     /**
      * 余额退款自动审批上限（分）；默认 0 = 关闭（全部转人工审核）。
@@ -341,7 +348,7 @@ public class SystemConfigService {
     // ── 商户/线长提现参数（V307）────────────────────────────────────────────
     // 语义：默认取 application.yml 的同名配置（启动期可改），运营台改后**运行期生效**（免重启）。
     // 取值优先级：SystemConfig（运营台）> application.yml > 代码兜底默认。
-    // 取 0 一律视为「不限制」，与既有 RECHARGE_MAX_CENTS 口径一致。
+    // 提现族 0=不限制（2026-10-16 拍板保留）；上限型资金键例外见 FUND_POSITIVE_LIMIT_KEYS（DC-6）。
     /** 商户提现单笔下限（分）。0=不限制。 */
     public static final String MERCHANT_WITHDRAW_MIN_CENTS = "merchant.withdraw.min_cents";
     /** 商户提现单笔上限（分）。0=不限制。对齐旧系统 easygo 的 ¥10000。 */
@@ -409,8 +416,8 @@ public class SystemConfigService {
     /**
      * 资金阈值键族（AU-048）：写侧受两道守卫——
      * ① 值必须是 [0, Integer.MAX_VALUE] 的整数（读取侧走 {@code getInt}，超范围或非数值会当场炸读取；
-     * 0=不限制，与全族语义一致）；
-     * ② <b>无视审计开关强制留痕</b>——改这些键必然落版本历史与审计日志。
+     * 0 语义按键而异：提现族=不限制（2026-10-16 拍板），上限型键（{@link #FUND_POSITIVE_LIMIT_KEYS}，
+     * DC-6）=写侧直接拒绝）；② <b>无视审计开关强制留痕</b>——改这些键必然落版本历史与审计日志。
      */
     static final java.util.Set<String> FUND_GUARDED_KEYS = java.util.Set.of(
             REFUND_SELF_MAX_CENTS, RECHARGE_MAX_CENTS,
@@ -421,6 +428,15 @@ public class SystemConfigService {
             LINE_WITHDRAW_MIN_CENTS, LINE_WITHDRAW_MAX_CENTS,
             LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
             LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS);
+
+    /**
+     * DC-6（2026-10-19 拍板）：上限型资金键——<b>0 不再表示「不限制」</b>。
+     * 这些键的语义是「必须存在的天花板」：写侧拒绝 0（400），读侧走 {@link #getPositiveLimit}
+     * 回落默认。与 {@link #FUND_GUARDED_KEYS} 其余成员的差别：下限/手续费/审核阈值类键的 0
+     * 有合法语义（免收、全部人工审核等，多为 2026-10-16 拍板），不在本集合。
+     */
+    static final java.util.Set<String> FUND_POSITIVE_LIMIT_KEYS = java.util.Set.of(
+            RECHARGE_MAX_CENTS, BALANCE_REFUND_MAX_CENTS, REFUND_SELF_MAX_CENTS);
 
     /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
     private static void validateFundKeyValue(String key, String value) {
@@ -434,6 +450,11 @@ public class SystemConfigService {
         if (parsed < 0 || parsed > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "资金阈值配置 " + key + " 超出允许范围（0~" + Integer.MAX_VALUE + "，0=不限制）");
+        }
+        if (parsed == 0 && FUND_POSITIVE_LIMIT_KEYS.contains(key)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "资金上限配置 " + key + " 不允许 0（DC-6：上限必须存在，不允许关闭）。"
+                            + "如需放宽请配置一个足够大的正数");
         }
     }
 
@@ -505,6 +526,24 @@ public class SystemConfigService {
         } catch (NumberFormatException e) {
             return defaultValue;
         }
+    }
+
+    /**
+     * DC-6（2026-10-19 拍板）：资金<b>上限型</b>键的读取口径——fail-safe。
+     *
+     * <p>与 {@link #getInt} 的差别：配置值 ≤0（旧口径「0=不限制」，或历史遗留脏数据）时
+     * <b>回落默认上限</b>并 WARN，而不是放开限制。上限必须存在；确需调整就配一个足够大的正数
+     *（写侧 {@link #FUND_POSITIVE_LIMIT_KEYS} 已直接拒绝 0 值，读侧回落是对存量行的双保险）。</p>
+     */
+    @Transactional(readOnly = true)
+    public int getPositiveLimit(String key, int fallbackDefault) {
+        int value = getInt(key, fallbackDefault);
+        if (value <= 0) {
+            log.warn("CONFIG limit key {} has non-positive value {}; falling back to default {} "
+                    + "(DC-6: upper-limit keys cannot disable the limit)", key, value, fallbackDefault);
+            return fallbackDefault;
+        }
+        return value;
     }
 
     @Transactional(readOnly = true)

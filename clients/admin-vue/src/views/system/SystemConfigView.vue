@@ -685,6 +685,7 @@ function openCreate() {
   form.configKey = '';
   form.configValue = '';
   form.description = '';
+  editingOldValue.value = null;
   dialogVisible.value = true;
 }
 
@@ -693,12 +694,58 @@ function openEdit(row: SystemConfigRow) {
   form.configKey = row.configKey;
   form.configValue = row.configValue;
   form.description = row.description || '';
+  editingOldValue.value = row.configValue;
   dialogVisible.value = true;
+}
+
+/**
+ * DC-9（2026-10-19 拍板）：资金阈值族敏感键——保存前强制二次确认。
+ * 与后端 SystemConfigService.FUND_GUARDED_KEYS 同步维护（后端另有强制留痕 + 值校验兜底）。
+ */
+const FUND_SENSITIVE_KEYS = [
+  'refund.self.max_cents',
+  'recharge.max_cents',
+  'balance.refund.max_cents',
+  'refund.auto_approve.max_cents',
+  'merchant.withdraw.min_cents',
+  'merchant.withdraw.max_cents',
+  'merchant.withdraw.daily_limit_cents',
+  'merchant.withdraw.review_threshold_cents',
+  'merchant.withdraw.fee_cents',
+  'merchant.withdraw.fee_bps',
+  'merchant.withdraw.fee_cap_cents',
+  'line.withdraw.min_cents',
+  'line.withdraw.max_cents',
+  'line.withdraw.daily_limit_cents',
+  'line.withdraw.review_threshold_cents',
+  'line.withdraw.fee_cents',
+  'line.withdraw.fee_bps',
+  'line.withdraw.fee_cap_cents'
+];
+
+const editingOldValue = ref<string | null>(null);
+
+/** 敏感资金键保存前的二次确认；用户取消则中断保存。 */
+async function confirmFundKeyChange() {
+  const oldText = editingOldValue.value === null ? '（新增）' : editingOldValue.value;
+  try {
+    await ElMessageBox.confirm(
+      `「${form.configKey.trim()}」是资金阈值配置。\n旧值：${oldText || '（未配置）'}\n新值：${form.configValue.trim()}\n变更将强制留痕（版本历史 + 审计日志）。确认保存？`,
+      '修改资金阈值',
+      { type: 'warning', confirmButtonText: '确认修改', cancelButtonText: '再想想' }
+    );
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 async function save() {
   if (!form.configKey.trim()) {
     ElMessage.warning('请填写配置键');
+    return;
+  }
+  if (FUND_SENSITIVE_KEYS.includes(form.configKey.trim()) && !(await confirmFundKeyChange())) {
     return;
   }
   saving.value = true;

@@ -5622,6 +5622,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/account/delete-account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deleteOwnAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/account/bind-openid": {
         parameters: {
             query?: never;
@@ -16804,6 +16820,26 @@ export interface components {
             /** Format: date-time */
             reportedAt?: string;
             items?: components["schemas"]["PlayUrlItem"][];
+        };
+        ApiResponseListVideoListItem: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["VideoListItem"][];
+        };
+        VideoListItem: {
+            /** Format: int64 */
+            id?: number;
+            orderNo?: string;
+            deviceId?: string;
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            videoQuantity?: number;
+            /** Format: int32 */
+            videoCount?: number;
+            /** Format: date-time */
+            reportedAt?: string;
         };
         ApiResponseListModelPreview: {
             /** Format: int32 */
@@ -29484,6 +29520,26 @@ export interface operations {
             };
         };
     };
+    deleteOwnAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     bindOpenId: {
         parameters: {
             query: {
@@ -32718,7 +32774,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };
@@ -32740,7 +32796,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };
@@ -32763,7 +32819,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListJiangyiOrderVideo"];
+                    "*/*": components["schemas"]["ApiResponseListVideoListItem"];
                 };
             };
         };

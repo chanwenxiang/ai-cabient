@@ -55,6 +55,9 @@ public class AuthService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final AuthService self;
 
+    /** AU-149：登录成功即视为对当期隐私政策的同意，落 user_consent_log（幂等留痕）。 */
+    private final UserConsentLogService userConsentLogService;
+
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
                        JwtService jwtService,
@@ -68,7 +71,9 @@ public class AuthService {
                        SecurityProperties securityProperties,
                        LoginThrottleService loginThrottleService,
                        PhoneVerifyLogMapper phoneVerifyLogMapper,
-                       DistributedLockService distributedLockService, @Lazy AuthService self) {
+                       DistributedLockService distributedLockService,
+                       UserConsentLogService userConsentLogService,
+                       @Lazy AuthService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -83,6 +88,7 @@ public class AuthService {
         this.loginThrottleService = loginThrottleService;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
         this.distributedLockService = distributedLockService;
+        this.userConsentLogService = userConsentLogService;
         this.self = self;
     }
 
@@ -103,6 +109,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
+        requireLoginable(user);
         if (!smsCodeService.verifyCode(phone, code)) {
             throwLockedOr(phone, ApiMessages.INVALID_CODE);
         }
@@ -118,6 +125,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
         }
         UserInfo user = requireExistingUser(phone);
+        requireLoginable(user);
         verifyPassword(user, request.password());
         loginThrottleService.clearFailures(phone);
         return tokenFor(user);
@@ -320,6 +328,7 @@ public class AuthService {
         return runWithAlipayUserLock(alipayUserId, () -> {
             var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
             if (byAlipay.isPresent()) {
+                requireLoginable(byAlipay.get());
                 return tokenFor(byAlipay.get());
             }
             return tokenFor(createAlipayConsumer(alipayUserId));
@@ -331,6 +340,7 @@ public class AuthService {
         return runWithWxOpenIdLock(openId, () -> {
             var byOpenId = userInfoRepository.findByWxOpenId(openId);
             if (byOpenId.isPresent()) {
+                requireLoginable(byOpenId.get());
                 return tokenFor(byOpenId.get());
             }
             String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
@@ -341,6 +351,7 @@ public class AuthService {
                 UserInfo user = requireExistingUser(phone);
                 UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+                requireLoginable(locked);
                 locked.setWxOpenId(openId);
                 userInfoRepository.save(locked);
                 return tokenFor(locked);
@@ -430,15 +441,29 @@ public class AuthService {
         }
     }
 
-    private void requireActiveAccount(long userId) {
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        if (user.getStatus() != null && "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+    /**
+     * DC-10（2026-10-19 拍板：登录不校验 status 是缺口，不是「靠风控黑名单」的设计）：
+     * status 是登录闸门——INACTIVE=运营封禁、DELETED=已注销（AU-149 匿名化），一律拒绝登录。
+     * 消费者短信/密码/微信 openid/支付宝各登录路径统一走这里；运营台登录路径的
+     * {@link #requireActiveAccount} 同源。风控黑名单是叠加层，与本闸门互斥不冲突。
+     */
+    private static void requireLoginable(UserInfo user) {
+        String status = user.getStatus();
+        if (status != null
+                && ("INACTIVE".equalsIgnoreCase(status) || "DELETED".equalsIgnoreCase(status))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCOUNT_DISABLED);
         }
     }
 
+    private void requireActiveAccount(long userId) {
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        requireLoginable(user);
+    }
+
     private LoginResponse tokenFor(UserInfo user) {
+        // AU-149：同意留痕走旁路（失败不阻断登录），DB 层 (user_id, type, version) 幂等
+        userConsentLogService.recordPrivacyConsent(user.getUserId());
         String token = jwtService.createToken(user.getUserId(), OperatorAuth.resolveAccountType(user));
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
                 serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);

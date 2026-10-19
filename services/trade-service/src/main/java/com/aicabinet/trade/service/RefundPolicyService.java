@@ -88,8 +88,9 @@ public class RefundPolicyService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "已超过自助退款时限（" + maxHours + " 小时），请提交申诉");
         }
-        int maxCents = systemConfigService.getInt(SystemConfigService.REFUND_SELF_MAX_CENTS, 5000);
-        if (maxCents > 0 && refundCents > maxCents) {
+        // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
+        int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.REFUND_SELF_MAX_CENTS, 5000);
+        if (refundCents > maxCents) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "单笔自助退款上限为 ¥" + String.format("%.2f", maxCents / 100.0) + "，请减少退款金额或联系客服");
         }

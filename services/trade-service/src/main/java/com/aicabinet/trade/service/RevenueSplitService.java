@@ -66,8 +66,10 @@ public class RevenueSplitService {
         if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
             return Optional.empty();
         }
-        if (order.getTotalAmountCents() <= 0) {
-            log.debug("skip revenue split: zero gross order {}", order.getOrderId());
+        // AU-182：guard 同步改净额口径（frozen=0 时回落 total，markPaid 时点行为等价；
+        // 净额<=0 的全额退款残单不值得建 0 值分账行）
+        if (CommissionBaseCalc.netCents(order) <= 0) {
+            log.debug("skip revenue split: zero net order {}", order.getOrderId());
             return Optional.empty();
         }
         return runWithOrderSplitLock(order.getOrderId(), () -> doRecordSplit(order));
@@ -100,7 +102,10 @@ public class RevenueSplitService {
             return Optional.empty();
         }
 
-        long gross = order.getTotalAmountCents();
+        // AU-182（2026-10-19 拍板）：分账基数与佣金同源——走 CommissionBaseCalc 净额
+        // （冻结毛额−refunded）。此前用 totalAmountCents：金额退不改写 total ⇒ 部分退后
+        // 分账不冲减（原 1000 退 700 仍按 1000 拆分）；按行退又会把冻结值再减一遍 total。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * merchant.getPlatformRateBps() / 10_000L;
         long merchantShare = gross - platform;
 
@@ -261,7 +266,9 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         long returnCents = Math.max(0, oldMerchantCents - merchantShare);
@@ -304,7 +311,9 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         if (merchantShare <= oldMerchantCents) {
@@ -503,7 +512,9 @@ public class RevenueSplitService {
             return;
         }
         int rateBps = merchant.getPlatformRateBps();
-        long gross = Math.max(0, order.getTotalAmountCents());
+        // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
+        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
         // 拍板 2026-10-17「平台分账先不收」：重算后平台份额为 0 ⇒ 这单不再走微信分账

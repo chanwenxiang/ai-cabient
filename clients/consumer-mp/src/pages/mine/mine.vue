@@ -349,6 +349,14 @@
     </view>
 
     <view v-if="authed" class="menu-list logout-wrap">
+      <view role="button" class="menu-cell" @click="onDeleteAccount">
+        <image class="menu-icon" :src="menuIcon('help')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">注销账户</text>
+          <text class="menu-desc">删除个人信息，余额需先清零</text>
+        </view>
+        <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
+      </view>
       <view role="button" class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
@@ -367,6 +375,7 @@ import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import {
   consumerApi,
+  deleteConsumerAccount,
   ensureConsumerAuth,
   isConsumerLoggedIn,
   logoutConsumerSession
@@ -803,6 +812,30 @@ async function onLogout() {
   account.value = null;
   balanceYuan.value = '--';
   showSuccess('已退出');
+}
+
+/**
+ * AU-149：自助注销账户。二次确认 + 不可恢复警示（CB-059 监管口径：自助闭环是硬要求）。
+ * 服务端 409（余额未清/协议未解除/退款进行中）由 showError 呈现后留在本页。
+ */
+async function onDeleteAccount() {
+  const confirmed = await showConfirm({
+    title: '注销账户',
+    content:
+      '注销后个人信息将被删除或匿名化，且不可恢复。请确认：余额已清零、免密协议已解除。确定继续吗？',
+    confirmText: '注销'
+  });
+  if (!confirmed) return;
+  try {
+    await deleteConsumerAccount();
+    authed.value = false;
+    account.value = null;
+    balanceYuan.value = '--';
+    showSuccess('账户已注销');
+  } catch (e) {
+    // 409 守卫文案（余额未清/协议未解除/退款进行中）由服务端 message 直出
+    showError(e instanceof Error ? e.message : '注销失败，请稍后重试');
+  }
 }
 </script>
 

@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.VerifyIdentityRequest;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.identity.IdentityVerifyClient;
+import com.aicabinet.trade.mapper.BalanceRefundRequestMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -31,6 +32,8 @@ public class AccountService {
     private final DistributedLockService distributedLockService;
     private final IdentityVerifyClient identityVerifyClient;
     private final AccountService self;
+    private final BalanceRefundRequestMapper balanceRefundRequestMapper;
+    private final UserConsentLogService userConsentLogService;
 
     public AccountService(UserInfoMapper userInfoRepository,
                           UserAccountMapper userAccountRepository,
@@ -38,6 +41,8 @@ public class AccountService {
                           BalanceLedgerService balanceLedgerService,
                           DistributedLockService distributedLockService,
                           IdentityVerifyClient identityVerifyClient,
+                          BalanceRefundRequestMapper balanceRefundRequestMapper,
+                          UserConsentLogService userConsentLogService,
                           @Lazy AccountService self) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -45,6 +50,8 @@ public class AccountService {
         this.balanceLedgerService = balanceLedgerService;
         this.distributedLockService = distributedLockService;
         this.identityVerifyClient = identityVerifyClient;
+        this.balanceRefundRequestMapper = balanceRefundRequestMapper;
+        this.userConsentLogService = userConsentLogService;
         this.self = self;
     }
 
@@ -92,6 +99,66 @@ public class AccountService {
         }
         user.setNickname(trimmed);
         userInfoRepository.save(user);
+    }
+
+    /**
+     * AU-149（2026-10-19 拍板）：消费者<b>自助注销账户</b>——PIPL 删除权与小程序审核硬要求；
+     * 网信办 2026-09 通报明确「仅人工客服、响应迟缓」也算无效注销 ⇒ 必须服务端闭环（CB-059）。
+     *
+     * <p>口径：
+     * <ul>
+     *   <li><b>fail-closed 守卫</b>：仅消费者账号可自助注销；余额/冻结未清零、免密协议未解除、
+     *       有 PROCESSING 余额退款 ⇒ 409 拒绝并提示先处理；</li>
+     *   <li><b>匿名化而非物理删</b>：行保留（交易记录属 PIPL 例外条款的法定留存，钱包/订单
+     *   外键不断链），个人标识字段（手机号/姓名/邮箱/头像/微信 openid/密码/TOTP/支付协议
+     *   标识）全部清空，status=DELETED；手机号/openid 清空后原凭据无法再登录；</li>
+     *   <li><b>同意留痕</b>：user_consent_log 落 ACCOUNT_DELETE 行（旁路，失败不阻断）。</li>
+     * </ul>
+     */
+    @Transactional
+    public void deleteOwnAccount(Long userId) {
+        if (userId == null || userId >= CabinetConstants.OPERATOR_USER_ID_START) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅消费者账号支持自助注销");
+        }
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "账号状态不允许注销");
+        }
+        UserAccount account = userAccountRepository.findById(userId).orElse(null);
+        if (account != null && (account.getBalanceCents() != 0 || account.getFrozenCents() != 0)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "账户余额未清零（含冻结），请先消费或提现到 0 后再注销");
+        }
+        if (user.isPayscoreEnabled()
+                || PayScoreService.isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先在「免密支付设置」解除微信支付分/支付宝免密协议后再注销");
+        }
+        if (balanceRefundRequestMapper.countByUserIdAndStatus(userId, "PROCESSING") > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "有进行中的余额退款，请待退款完成后再注销");
+        }
+
+        // 匿名化落库：M01——MyBatis-Plus updateById 忽略 null 列，清列必须 wrapper 显式
+        // set(field, null)（check:mybatis-null-clear 门禁口径）；行保留（外键不断链）。
+        userInfoRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<UserInfo>lambdaUpdate()
+                .eq(UserInfo::getUserId, userId)
+                .set(UserInfo::getPhoneNumber, null)
+                .set(UserInfo::getName, null)
+                .set(UserInfo::getEmail, null)
+                .set(UserInfo::getAvatarUrl, null)
+                .set(UserInfo::getNickname, "已注销用户")
+                .set(UserInfo::getWxOpenId, null)
+                .set(UserInfo::getPasswordHash, null)
+                .set(UserInfo::getTotpSecret, null)
+                .set(UserInfo::isTotpEnabled, false)
+                .set(UserInfo::isVerified, false)
+                .set(UserInfo::isPayscoreEnabled, false)
+                .set(UserInfo::getPayscoreContractId, null)
+                .set(UserInfo::getAlipayAgreementId, null)
+                .set(UserInfo::getAlipayUserId, null)
+                .set(UserInfo::getStatus, "DELETED"));
+
+        userConsentLogService.recordAccountDelete(userId);
+        log.warn("consumer account deleted (self-service) userId={} phone/anon wiped", userId);
     }
 
     @Transactional

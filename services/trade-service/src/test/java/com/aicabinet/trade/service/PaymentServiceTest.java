@@ -343,7 +343,7 @@ class PaymentServiceTest {
 
     @Test
     void createRechargePrepay_rejectsAboveConfiguredMax() {
-        when(systemConfigService.getInt(SystemConfigService.RECHARGE_MAX_CENTS, 500_000))
+        when(systemConfigService.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000))
                 .thenReturn(500_000);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,

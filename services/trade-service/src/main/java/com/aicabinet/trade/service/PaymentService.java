@@ -140,8 +140,9 @@ public class PaymentService {
 
     private RechargePrepayResponse doCreateRechargePrepay(Long userId, String channel,
                                                           int amountCents, String idempotencyKey) {
-        int maxCents = systemConfigService.getInt(SystemConfigService.RECHARGE_MAX_CENTS, 500_000);
-        if (maxCents > 0 && amountCents > maxCents) {
+        // DC-6：上限型键 fail-safe——0/负数回落默认（不再有「不限制」形态）
+        int maxCents = systemConfigService.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000);
+        if (amountCents > maxCents) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "单次充值不超过 ¥" + String.format("%.2f", maxCents / 100.0));
         }

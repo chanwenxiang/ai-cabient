@@ -78,12 +78,19 @@ class MerchantScopeServiceTest {
     }
 
     @Test
-    void unboundOperator_hasGlobalScope() {
+    void unboundOperator_zeroScope_denyByDefault_dc14() {
+        // DC-14（2026-10-19 拍板）：旧口径「未绑定=全局」废除——未绑定非 admin = 零范围
         when(userRoleRepository.findByIdUserId(ADMIN_USER)).thenReturn(List.of());
-        when(userMerchantRepository.existsByIdUserId(ADMIN_USER)).thenReturn(false);
 
-        assertTrue(merchantScopeService.isGlobalScope(ADMIN_USER));
-        assertNull(merchantScopeService.allowedDeviceIds(ADMIN_USER));
+        assertFalse(merchantScopeService.isGlobalScope(ADMIN_USER));
+        assertTrue(merchantScopeService.allowedMerchantIds(ADMIN_USER).isEmpty());
+        assertEquals(Set.of(), merchantScopeService.allowedDeviceIds(ADMIN_USER));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> merchantScopeService.requireDeviceAccess(ADMIN_USER, "CAB-001"));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertEquals(ApiMessages.PERMISSION_DENIED, ex.getReason());
+        verify(cabinetMetrics).recordMerchantScopeDenied("device");
     }
 
     @Test
@@ -144,7 +151,6 @@ class MerchantScopeServiceTest {
 
     private void stubScopedMerchantBinding(long userId, String merchantId) {
         when(userRoleRepository.findByIdUserId(userId)).thenReturn(List.of());
-        when(userMerchantRepository.existsByIdUserId(userId)).thenReturn(true);
         when(userMerchantRepository.findByIdUserId(userId))
                 .thenReturn(List.of(new OpsUserMerchant(userId, merchantId)));
     }

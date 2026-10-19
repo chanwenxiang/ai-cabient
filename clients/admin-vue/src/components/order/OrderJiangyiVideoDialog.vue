@@ -28,7 +28,8 @@ interface OrderVideoRow {
   deviceId: string | null;
   serialNum: number;
   videoQuantity: number;
-  videoUrls: string;
+  /** DC-11：列表脱敏——服务端不再回 videoUrls 对象键，只回解析后的片数统计 */
+  videoCount: number;
   reportedAt: string;
 }
 
@@ -102,11 +103,6 @@ async function openDetail(row: OrderVideoRow) {
   }
 }
 
-function clipCount(videoUrls: string | null): number {
-  const raw = (videoUrls || '').trim();
-  return raw ? raw.split(',').filter((u) => u.trim()).length : 0;
-}
-
 defineExpose({ open });
 </script>
 
@@ -126,8 +122,8 @@ defineExpose({ open });
         <el-table-column prop="videoQuantity" label="总片数" width="80" />
         <el-table-column label="视频" width="100">
           <template #default="{ row }">
-            <el-tag v-if="clipCount(row.videoUrls) === 0" type="info" size="small">该片失败</el-tag>
-            <span v-else>{{ clipCount(row.videoUrls) }} 段</span>
+            <el-tag v-if="row.videoCount === 0" type="info" size="small">该片失败</el-tag>
+            <span v-else>{{ row.videoCount }} 段</span>
           </template>
         </el-table-column>
         <el-table-column prop="reportedAt" label="上报时间" min-width="150">
