@@ -28,8 +28,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * WS 通道（CB-022 一期 + CB-023 二期模型面）单测：
- * updateModel 下发报文契约（V16 §4.3.2.9）/ downloadModelNotify 宽容解析（对象/字符串/
- * 缺 modelName 三形态）/ 心跳 PONG / 未知消息忽略。
+ * updateModel 下发报文契约（V16 §4.3.2.9 + 2026-10-19 真云对齐补 status:200）/
+ * downloadModelNotify 宽容解析（对象/字符串/缺 modelName 三形态）/
+ * 心跳固定回 PONG（真机发 PING，log3 实证）/ *Sure 回执分发 / 未知消息忽略。
  */
 @ExtendWith(MockitoExtension.class)
 class DeviceWebSocketHandlerTest {
@@ -38,12 +39,13 @@ class DeviceWebSocketHandlerTest {
     private static final String DEVICE_ID = "100000000001";
 
     @Mock private TradeInternalClient tradeInternalClient;
+    @Mock private com.aicabinet.jiangyi.tracker.CommandTracker commandTracker;
 
     private DeviceWebSocketHandler handler;
 
     @BeforeEach
     void setUp() {
-        handler = new DeviceWebSocketHandler(tradeInternalClient);
+        handler = new DeviceWebSocketHandler(tradeInternalClient, commandTracker);
     }
 
     /** 最小可用 WS 会话 mock：attributes 带 identifier/deviceId，isOpen=true。 */
@@ -150,6 +152,65 @@ class DeviceWebSocketHandlerTest {
         assertEquals(200, payload.path("status").asInt());
         assertEquals("heartBeat", payload.path("msgType").asText());
         assertEquals("PONG", payload.path("msgContent").asText());
+    }
+
+    @Test
+    void heartBeatDevicePingAlwaysAnsweredPong_notEcho() throws Exception {
+        // 2026-10-19 log3 实证：真机发 msgContent=PING，真云固定回 PONG（不回显）——
+        // 旧实现原样 echo 会把 PING 弹回设备
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"heartBeat\",\"msgContent\":\"PING\"}"));
+
+        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session, timeout(1000).atLeastOnce()).sendMessage(captor.capture());
+        JsonNode payload = new ObjectMapper().readTree(
+                captor.getAllValues().get(captor.getAllValues().size() - 1).getPayload());
+        assertEquals("PONG", payload.path("msgContent").asText());
+    }
+
+    @Test
+    void doorAckCompletesOpenTracking() {
+        // 真机回执（log3 实证）：{"msgType":"sendOpenStockDoorSure","msgContent":"<单号>"}
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"sendOpenStockDoorSure\",\"msgContent\":\"B260928565580001\"}"));
+
+        verify(commandTracker, timeout(1000))
+                .complete(com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "B260928565580001", DEVICE_ID);
+    }
+
+    @Test
+    void modelAckCompletesModelTrackingByDevice() {
+        // 真机回执（log3 实证）：{"msgType":"updateModelSure","msgContent":""}——空串无法对位 key
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"updateModelSure\",\"msgContent\":\"\"}"));
+
+        verify(commandTracker, timeout(1000))
+                .completeByDevice(com.aicabinet.jiangyi.tracker.CommandTracker.Kind.MODEL, DEVICE_ID);
+    }
+
+    @Test
+    void downstreamFramesCarryStatus200() throws Exception {
+        // 真云所有下发帧带 status:200（log3 实证）——旧实现只有 msgType/msgContent
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        assertTrue(handler.sendOpenDoor(IDENTIFIER, "SESS-1"));
+
+        ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+        verify(session, timeout(1000)).sendMessage(captor.capture());
+        JsonNode payload = new ObjectMapper().readTree(captor.getValue().getPayload());
+        assertEquals(200, payload.path("status").asInt());
+        assertEquals("openDoor", payload.path("msgType").asText());
+        assertEquals("SESS-1", payload.path("msgContent").asText());
     }
 
     @Test

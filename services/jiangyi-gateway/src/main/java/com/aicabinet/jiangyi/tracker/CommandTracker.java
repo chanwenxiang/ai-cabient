@@ -91,6 +91,24 @@ public class CommandTracker {
         return true;
     }
 
+    /**
+     * 按设备完成该 kind 的全部待回执（2026-10-19 新增）：真机 updateModelSure 回执
+     * msgContent 为空串（log3 实证），无法对位单条 key——按 deviceId 撤销该设备全部
+     * MODEL 登记（MODEL 并发条目少，遍历代价可忽略；owner 校验同 complete）。
+     *
+     * @return 实际完成的条数
+     */
+    public int completeByDevice(Kind kind, String deviceId) {
+        int done = 0;
+        for (Pending p : due(kind, Long.MAX_VALUE)) {
+            if (deviceId != null && deviceId.equals(p.deviceId())
+                    && complete(kind, p.sessionId(), deviceId)) {
+                done++;
+            }
+        }
+        return done;
+    }
+
     /** 取登记早于 cutoff 的超时会话（watchdog 扫描用）。 */
     public List<Pending> due(Kind kind, long cutoffEpochMs) {
         Set<ZSetOperations.TypedTuple<String>> hits =

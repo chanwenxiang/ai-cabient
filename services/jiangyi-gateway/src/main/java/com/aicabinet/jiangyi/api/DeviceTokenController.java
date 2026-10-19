@@ -110,8 +110,13 @@ public class DeviceTokenController {
         }
         log.info("jiangyi token issued deviceId={} identifier={} sn={}",
                 device.deviceId(), device.identifier(), deviceSn);
-        // data 附带 identifier：设备/模拟器直接拼 WS 路径 /websocket/device/{identifier}（自描述）
-        return envelope(200, "success", Map.of("token", token, "identifier", device.identifier()));
+        // data 附带 identifier：设备/模拟器直接拼 WS 路径 /websocket/device/{identifier}（自描述）。
+        // activeStatus：云侧真实响应字段（log3 实证 29 次 {"activeStatus":"设备激活成功",...}），
+        // V15/V16 文档均未记载——补齐对齐云侧形态（第三轮审计 P1-4）。
+        return envelope(200, "success", Map.of(
+                "token", token,
+                "identifier", device.identifier(),
+                "activeStatus", "设备激活成功"));
     }
 
     /** 滑窗突发判定：窗口内第 threshold 次起返回 true（记录含本次）。 */

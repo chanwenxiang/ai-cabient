@@ -42,7 +42,12 @@ public class DeviceExtensionController {
 
     /**
      * 设备在售商品分类列表。data = ACTIVE classId 数组（int）。
-     * trade 不可达/查询失败时返回空数组而非 5xx——设备启动流程不应被基础设施抖动卡死。
+     *
+     * <p><b>成因注释（2026-10-19 修订，第三轮审计 P1-5）</b>：旧实现把 trade 异常吞成
+     * {@code 200+[]}——trade 挂了设备会读成「营业中但没商品」而非重试。云侧语义
+     * （log3 实证）：业务空态用 {@code {"status":666,"msg":"…未上架商品","data":null}}。
+     * 现区分三态：有映射→200+数组；无 ACTIVE 映射→666；trade 不可达→503（设备按
+     * 失败处理可重试，也不至于把故障当「无商品」）。</p>
      */
     @PostMapping("/jiangyi/api/floor/getDeviceSellProductClassIds")
     public Map<String, Object> getDeviceSellProductClassIds(HttpServletRequest request) {
@@ -58,7 +63,11 @@ public class DeviceExtensionController {
         } catch (Exception e) {
             log.warn("jiangyi getDeviceSellProductClassIds listMappings failed deviceId={}: {}",
                     deviceId, e.getMessage());
-            classIds = List.of();
+            return Map.of("status", 503, "msg", "service unavailable", "data", "");
+        }
+        if (classIds.isEmpty()) {
+            log.info("jiangyi floor getDeviceSellProductClassIds identifier={} → 666（未上架商品）", identifier);
+            return Map.of("status", 666, "msg", "当前设备未上架商品", "data", "");
         }
         log.info("jiangyi floor getDeviceSellProductClassIds identifier={} classIds={}", identifier, classIds);
         return Map.of("status", 200, "msg", "success", "data", classIds);

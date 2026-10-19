@@ -61,14 +61,18 @@ public class OpenDoorController {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "设备不在线");
         }
         // 收尾E：stock=true=补货开门（sendOpenStockDoor，msgContent=补货会话 id）；
-        // 回执走同一套 uploadLockState/uploadDoorState（orderNo=补货单号）。
+        // 回执走同一套 uploadLockState/uploadOrderLockStatus（orderNo=补货单号）。
+        // 2026-10-19 修订：先登记后下发——消除「回执先于 register 到达被 owner==null 拒收」
+        // 的理论竞态窗口（回执虽是秒级，顺序正确无成本）。
+        commandTracker.register(CommandTracker.Kind.OPEN, sessionId, deviceId, identifier);
         boolean sent = request.stock()
                 ? deviceWebSocketHandler.sendOpenStockDoor(identifier, sessionId)
                 : deviceWebSocketHandler.sendOpenDoor(identifier, sessionId);
         if (!sent) {
+            // 下发失败要撤登记，否则残留 15s 后被 watchdog 误判「无设备回执」
+            commandTracker.evict(CommandTracker.Kind.OPEN, sessionId);
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "开门指令下发失败");
         }
-        commandTracker.register(CommandTracker.Kind.OPEN, sessionId, deviceId, identifier);
         log.info("jiangyi open-door dispatched deviceId={} identifier={} sessionId={} stock={}",
                 deviceId, identifier, sessionId, request.stock());
     }

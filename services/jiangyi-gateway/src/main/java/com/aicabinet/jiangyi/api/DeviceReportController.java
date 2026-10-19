@@ -58,19 +58,45 @@ public class DeviceReportController {
     @PostMapping("/jiangyi/api/device/uploadLockState")
     public Map<String, Object> uploadLockState(HttpServletRequest request,
                                                @RequestBody LockStateRequest body) {
+        return handleLockState(request, body.orderNo(), body.lockStatus());
+    }
+
+    /**
+     * 真机实路径（V15/V16 均未记载，2026-10-19 log3 实证：POST /order/uploadOrderLockStatus，
+     * body {@code {"orderNo":"","lockStatus":"success"}}）——与 §4.2.7 uploadLockState 同语义，
+     * 文档路径与固件路径并存兼容。orderNo 允许为空（真机实发空串）。
+     */
+    @PostMapping("/jiangyi/api/order/uploadOrderLockStatus")
+    public Map<String, Object> uploadOrderLockStatus(HttpServletRequest request,
+                                                     @RequestBody LockStateRequest body) {
+        return handleLockState(request, body.orderNo(), body.lockStatus());
+    }
+
+    private Map<String, Object> handleLockState(HttpServletRequest request, String orderNo, String lockStatus) {
         String deviceId = device(request);
-        boolean success = DoorStateNormalizer.isSuccess(body.lockStatus());
-        if (success) {
-            commandTracker.complete(CommandTracker.Kind.OPEN, body.orderNo(), deviceId);
-            log.info("jiangyi lock OK deviceId={} orderNo={}", deviceId, body.orderNo());
+        Boolean success = DoorStateNormalizer.normalize(lockStatus);
+        if (success == null) {
+            // 未知词汇/缺字段：只告警不动会话——fail-close 会误杀进行中的订单（第三轮审计 P0-3）
+            log.warn("jiangyi lock status UNKNOWN deviceId={} orderNo={} raw={} — ignore (fail-open)",
+                    deviceId, orderNo, lockStatus);
             return ok();
         }
-        log.warn("jiangyi lock FAIL deviceId={} orderNo={} — notify open-failed", deviceId, body.orderNo());
-        try {
-            tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报开锁失败", deviceId);
-        } catch (Exception e) {
-            log.error("jiangyi open-failed notify failed orderNo={}", body.orderNo(), e);
+        if (success) {
+            if (isBlank(orderNo)) {
+                // 真机实锤 {"orderNo":"","lockStatus":"success"}：空单号无会话可完成，只审计
+                log.info("jiangyi lock OK (blank orderNo, audit only) deviceId={}", deviceId);
+                return ok();
+            }
+            commandTracker.complete(CommandTracker.Kind.OPEN, orderNo, deviceId);
+            log.info("jiangyi lock OK deviceId={} orderNo={}", deviceId, orderNo);
+            return ok();
         }
+        if (isBlank(orderNo)) {
+            log.warn("jiangyi lock FAIL with blank orderNo deviceId={} — nothing to fail", deviceId);
+            return ok();
+        }
+        log.warn("jiangyi lock FAIL deviceId={} orderNo={} — notify open-failed", deviceId, orderNo);
+        notifyOpenFailed(orderNo, deviceId, "将邑设备上报开锁失败");
         return ok();
     }
 
@@ -85,30 +111,86 @@ public class DeviceReportController {
     @PostMapping("/jiangyi/api/device/uploadDoorState")
     public Map<String, Object> uploadDoorState(HttpServletRequest request,
                                                @RequestBody DoorStateRequest body) {
+        return handleDoorState(request, body.orderNo(), body.doorStatus());
+    }
+
+    /**
+     * 真机实路径（V15/V16 均未记载，log3 实证 30 次：POST /deviceInfo/uploadDeviceOpenStatus，
+     * body {@code {"openDoorStatus":"yes"}}，多数无 orderNo）——设备物理开门回报。
+     * 带 orderNo 时按门开事件推进会话；不带只审计（无法关联会话，靠 §4.2.10 识别上报推进）。
+     */
+    @PostMapping("/jiangyi/api/deviceInfo/uploadDeviceOpenStatus")
+    public Map<String, Object> uploadDeviceOpenStatus(HttpServletRequest request,
+                                                      @RequestBody(required = false) Map<String, Object> body) {
         String deviceId = device(request);
-        if (!DoorStateNormalizer.isSuccess(body.doorStatus())) {
-            // V16 §4.2.8「如果开门失败，不会上报订单结果」——拉门失败的订单必然没有后续
-            // 识别上报，等 300s CLOSE 兜底纯属浪费：立即走 open-failed 转 FAILED（幂等）。
-            log.warn("jiangyi door FAIL deviceId={} orderNo={} — notify open-failed", deviceId, body.orderNo());
-            try {
-                tradeInternalClient.postOpenFailed(body.orderNo(), "将邑设备上报拉门失败", deviceId);
-            } catch (Exception e) {
-                log.error("jiangyi open-failed notify failed orderNo={}", body.orderNo(), e);
-            }
+        String status = body == null ? null : String.valueOf(body.getOrDefault("openDoorStatus", "")).trim();
+        String orderNo = body == null || body.get("orderNo") == null ? null : body.get("orderNo").toString();
+        log.info("jiangyi device open-status deviceId={} openDoorStatus={} orderNo={}",
+                deviceId, status, orderNo);
+        Boolean open = DoorStateNormalizer.normalize(status);
+        if (Boolean.TRUE.equals(open) && !isBlank(orderNo)) {
+            forwardDoorOpen(deviceId, orderNo);
             return ok();
         }
-        try {
-            tradeInternalClient.doorEvent(new DoorEventRequest(
-                    body.orderNo(), deviceId, DoorState.OPEN, System.currentTimeMillis()));
-            log.info("jiangyi door-event OPEN forwarded deviceId={} sessionId={}", deviceId, body.orderNo());
-        } catch (Exception e) {
-            log.warn("jiangyi door-event forward rejected deviceId={} sessionId={} reason={}",
-                    deviceId, body.orderNo(), e.getMessage());
+        return ok();
+    }
+
+    private Map<String, Object> handleDoorState(HttpServletRequest request, String orderNo, String doorStatus) {
+        String deviceId = device(request);
+        Boolean success = DoorStateNormalizer.normalize(doorStatus);
+        if (success == null) {
+            // 未知词汇/缺字段：只告警不动会话（第三轮审计 P0-3 fail-open 修订）
+            log.warn("jiangyi door status UNKNOWN deviceId={} orderNo={} raw={} — ignore (fail-open)",
+                    deviceId, orderNo, doorStatus);
+            return ok();
         }
+        if (!success) {
+            if (isBlank(orderNo)) {
+                log.warn("jiangyi door FAIL with blank orderNo deviceId={} — nothing to fail", deviceId);
+                return ok();
+            }
+            // V16 §4.2.8「如果开门失败，不会上报订单结果」——明确失败才立即 open-failed（幂等）
+            log.warn("jiangyi door FAIL deviceId={} orderNo={} — notify open-failed", deviceId, orderNo);
+            notifyOpenFailed(orderNo, deviceId, "将邑设备上报拉门失败");
+            return ok();
+        }
+        if (isBlank(orderNo)) {
+            log.info("jiangyi door OPEN (blank orderNo, audit only) deviceId={}", deviceId);
+            return ok();
+        }
+        forwardDoorOpen(deviceId, orderNo);
         // 登记关门 300s 兜底（识别转发后 complete；误登记由 watchdog→trade 幂等处置消化）
-        commandTracker.register(CommandTracker.Kind.CLOSE, body.orderNo(), deviceId,
+        commandTracker.register(CommandTracker.Kind.CLOSE, orderNo, deviceId,
                 String.valueOf(request.getAttribute(DeviceAuthInterceptor.ATTR_IDENTIFIER)));
         return ok();
+    }
+
+    private void forwardDoorOpen(String deviceId, String orderNo) {
+        try {
+            tradeInternalClient.doorEvent(new DoorEventRequest(
+                    orderNo, deviceId, DoorState.OPEN, System.currentTimeMillis()));
+            log.info("jiangyi door-event OPEN forwarded deviceId={} sessionId={}", deviceId, orderNo);
+        } catch (Exception e) {
+            log.warn("jiangyi door-event forward rejected deviceId={} sessionId={} reason={}",
+                    deviceId, orderNo, e.getMessage());
+        }
+    }
+
+    /** open-failed 统一出口：orderNo 空守卫（真机实发 ""——拼 URL 会产出 /sessions//open-failed）。 */
+    private void notifyOpenFailed(String orderNo, String deviceId, String reason) {
+        if (isBlank(orderNo)) {
+            log.warn("jiangyi open-failed skipped (blank orderNo) deviceId={} reason={}", deviceId, reason);
+            return;
+        }
+        try {
+            tradeInternalClient.postOpenFailed(orderNo, reason, deviceId);
+        } catch (Exception e) {
+            log.error("jiangyi open-failed notify failed orderNo={}", orderNo, e);
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     // ---------- §4.2.10 识别结果 ----------
@@ -124,6 +206,12 @@ public class DeviceReportController {
                                                    @RequestBody RecognitionRequest body) {
         String deviceId = device(request);
         String sessionId = body.orderNo();
+        // 真机报文存在 orderNo 为空的形态（log3 实证）——空单号识别无法关联会话，只审计
+        if (isBlank(sessionId)) {
+            log.warn("jiangyi recognition with blank orderNo deviceId={} forms={} — audit only",
+                    deviceId, body.forms() == null ? 0 : body.forms().size());
+            return ok();
+        }
         forwardDoorClosed(deviceId, sessionId);
 
         List<VisionRecognitionResultDto.Item> items = recognitionNormalizer.normalize(deviceId, body.forms());
@@ -193,12 +281,40 @@ public class DeviceReportController {
         }
         log.warn("jiangyi order error deviceId={} orderNo={} errorMsg={} — fail-closed",
                 deviceId, body.orderNo(), body.errorMsg());
+        if (isBlank(body.orderNo())) {
+            log.warn("jiangyi order error with blank orderNo deviceId={} — nothing to notify", deviceId);
+            return ok();
+        }
         try {
             tradeInternalClient.recognizeTimeout(body.orderNo(), deviceId);
         } catch (Exception e) {
             log.error("jiangyi recognize-timeout notify failed orderNo={}", body.orderNo(), e);
         }
         return ok();
+    }
+
+    // ---------- 真机实路径 stub（V15/V16 均未记载，log3 实证高频调用） ----------
+
+    /**
+     * 运营模式同步（log3 实证 110 次：POST /operationMode/sync，开机及运行期周期调用）。
+     * 契约未文档化——宽容收下记日志回 ok（设备按成功处理）；模式语义待厂商答复（汇报文件问题 7）。
+     */
+    @PostMapping("/jiangyi/api/operationMode/sync")
+    public Map<String, Object> operationModeSync(HttpServletRequest request,
+                                                 @RequestBody(required = false) Map<String, Object> body) {
+        log.info("jiangyi operationMode sync deviceId={} body={}", device(request), body);
+        return ok();
+    }
+
+    /**
+     * 视频自动上传模式查询（log3 实证 34 次：POST /deviceInfo/isAutoUploadVideo）。
+     * 与 §4.2.13 getArtificialCheckByIdentifier 同族：默认 data=false（只上传异常视频，
+     * 全量上传属商户配置暂不开放）。
+     */
+    @PostMapping("/jiangyi/api/deviceInfo/isAutoUploadVideo")
+    public Map<String, Object> isAutoUploadVideo(HttpServletRequest request) {
+        log.info("jiangyi isAutoUploadVideo deviceId={} → false（默认只传异常视频）", device(request));
+        return Map.of("status", 200, "msg", "success", "data", false);
     }
 
     // ---------- §4.2.9 双门占用（可选）/ 故障单 ----------

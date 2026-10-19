@@ -53,11 +53,12 @@ public class DeviceAuthInterceptor implements HandlerInterceptor {
         String outcome = "ok";
         try {
             String auth = request.getHeader("Authorization");
-            // 2026-10-19 实证（真机 CQYB10720）：将邑设备按文档 V16 §4.2.4 把 token 原样放进
-            // Authorization 头（"商户服务器返回的token"，无 Bearer 前缀），真机全部请求
-            // outcome=missing_token 的真因即此前只认 "Bearer " 前缀。兼容两种写法：
-            //   Authorization: <裸JWT>（设备实际行为，文档口径）
-            //   Authorization: Bearer <JWT>（此前网关自定口径，保留兼容）
+            // 2026-10-19 深夜修订（log3 15 万行复核，第三轮审计 P2-8）：真机 HTTP 请求
+            // Authorization 全部带 Bearer 前缀（token=Bearer 425 次）；裸 JWT 仅 30 次且
+            // 全部出现在 WS URL 的 ?token= 查询参数里。旧注释「真机发裸 token（实证）」
+            // 是误判。两种写法都兼容（成本≈0，勿再单改一种）：
+            //   Authorization: Bearer <JWT>（真机 HTTP 实际行为）
+            //   Authorization: <裸JWT>（文档 §4.2.4 字面口径，保留兼容）
             if (auth == null || auth.isBlank()) {
                 throw unauthorized("missing_token", "缺少 Authorization token");
             }

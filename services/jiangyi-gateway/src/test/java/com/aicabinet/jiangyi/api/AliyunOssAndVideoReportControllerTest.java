@@ -56,13 +56,14 @@ class AliyunOssAndVideoReportControllerTest {
         Mockito.when(ossStsService.issueUploadToken(DEVICE_ID)).thenReturn(new OssStsService.OssUploadToken(
                 "STS.ak", "STS.sk", "STS.token", "2026-10-10T09:00:00Z",
                 "https://oss-cn-shenzhen.aliyuncs.com", "ai-cabinet-by", "jiangyi-video/"));
-        Map<String, Object> resp = ossController.getTempUploadToken(authedRequest());
+        Map<String, Object> resp = ossController.getTempUploadToken(authedRequest(), null);
         assertEquals(200, resp.get("status"));
         Map<?, ?> data = (Map<?, ?>) resp.get("data");
-        // 文档表格 17 字段逐字对齐
+        // 文档表格 17 字段逐字对齐 + 云侧实有的 expiration（V15/V16 字段表均漏，log3 实证）
         assertEquals("STS.ak", data.get("accessKeyId"));
         assertEquals("STS.sk", data.get("accessKeySecret"));
         assertEquals("STS.token", data.get("securityToken"));
+        assertEquals("2026-10-10T09:00:00Z", data.get("expiration"));
         assertEquals("https://oss-cn-shenzhen.aliyuncs.com", data.get("endpoint"));
         assertEquals("ai-cabinet-by", data.get("bucketName"));
         assertEquals("jiangyi-video/", data.get("dirName"));
@@ -72,8 +73,24 @@ class AliyunOssAndVideoReportControllerTest {
     void getTempUploadTokenFailsClosedWhenUnavailable() {
         // 未配置/签发失败 → 500 非 200（不给半可用凭证，设备侧重试）
         Mockito.when(ossStsService.issueUploadToken(DEVICE_ID)).thenReturn(null);
-        Map<String, Object> resp = ossController.getTempUploadToken(authedRequest());
+        Map<String, Object> resp = ossController.getTempUploadToken(authedRequest(), null);
         assertEquals(500, resp.get("status"));
+    }
+
+    @Test
+    void getTempTokenRealDevicePathMatchesUploadTokenBehavior() {
+        // 真机实路径（log3 实证 tokenPath=/aliYunOss/getTempToken，body jiangyi-logs/machine）：
+        // 两路径行为一致；body 只审计不采用（上传目标由返回凭证决定）
+        Mockito.when(ossStsService.issueUploadToken(DEVICE_ID)).thenReturn(new OssStsService.OssUploadToken(
+                "STS.ak", "STS.sk", "STS.token", "2026-10-10T09:00:00Z",
+                "https://oss-cn-shenzhen.aliyuncs.com", "ai-cabinet-by", "jiangyi-video/"));
+        Map<String, Object> resp = ossController.getTempToken(authedRequest(),
+                Map.of("bucketName", "jiangyi-logs", "dirName", "machine"));
+        assertEquals(200, resp.get("status"));
+        Map<?, ?> data = (Map<?, ?>) resp.get("data");
+        // 回的是我方桶凭证，不是设备请求里的将邑桶
+        assertEquals("ai-cabinet-by", data.get("bucketName"));
+        assertEquals("STS.token", data.get("securityToken"));
     }
 
     // ---------- §4.2.14 ----------

@@ -46,6 +46,6 @@ public class GatherNotifyController {
             // 静默 202 语义：不回错误详情（无鉴权面不暴露内部状态），trade 侧已有幂等保护
             log.warn("jiangyi gather finish-notify forward failed finishNotifyId={}: {}", finishNotifyId, e.getMessage());
         }
-        return Map.of("status", 202, "msg", "accepted");
+        return Map.of("status", 202, "msg", "accepted", "data", "");
     }
 }

@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -45,6 +46,23 @@ class DeviceInfoControllerTest {
         Map<String, Object> resp = controller.getDetail(authedRequest());
         assertEquals(200, resp.get("status"));
         assertEquals(IDENTIFIER, ((Map<?, ?>) resp.get("data")).get("identifier"));
+    }
+
+    @Test
+    void getDetailReturnsCloudShapedHardwareTopology() {
+        // 2026-10-19 log3 修订（第三轮审计 P0-1）：固件读 usbNumRu/usbNumRb/doorNum 分配
+        // GPIO 与摄像头——字段须全量对齐云侧形态（未知值 null，云侧对部分字段也回 null）
+        Map<String, Object> resp = controller.getDetail(authedRequest());
+        Map<?, ?> data = (Map<?, ?>) resp.get("data");
+        assertEquals("yes", data.get("isBind"));
+        assertEquals("end", data.get("recognitionType"));
+        assertTrue(data.containsKey("doorNum"));
+        assertTrue(data.containsKey("locks"));
+        assertTrue(data.containsKey("usbNumLu"));
+        assertTrue(data.containsKey("usbNumRu"));
+        assertTrue(data.containsKey("usbNumRb"));
+        assertTrue(data.containsKey("modelNum"));
+        assertEquals(IDENTIFIER, data.get("identifier"));
     }
 
     @Test

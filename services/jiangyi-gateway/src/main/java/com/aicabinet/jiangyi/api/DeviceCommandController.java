@@ -54,12 +54,14 @@ public class DeviceCommandController {
         String identifier = requireOnlineIdentifier(deviceId);
         if (request.switchOn() != null
                 && !deviceWebSocketHandler.send(identifier, Map.of(
+                        "status", 200,
                         "msgType", "sendDeviceSoundSwitch",
                         "msgContent", request.switchOn() ? "1" : "0"))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "音量开关指令下发失败");
         }
         if (request.volume() != null
                 && !deviceWebSocketHandler.send(identifier, Map.of(
+                        "status", 200,
                         "msgType", "sendDeviceSoundVolume",
                         "msgContent", String.valueOf(request.volume())))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "音量大小指令下发失败");
@@ -73,6 +75,7 @@ public class DeviceCommandController {
     public void deviceInfo(@PathVariable("deviceId") String deviceId) {
         String identifier = requireOnlineIdentifier(deviceId);
         if (!deviceWebSocketHandler.send(identifier, Map.of(
+                "status", 200,
                 "msgType", "getDeviceInfo",
                 "msgContent", ""))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "设备信息指令下发失败");

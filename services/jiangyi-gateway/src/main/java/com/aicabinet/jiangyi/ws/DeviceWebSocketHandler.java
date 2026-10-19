@@ -1,6 +1,7 @@
 package com.aicabinet.jiangyi.ws;
 
 import com.aicabinet.jiangyi.client.TradeInternalClient;
+import com.aicabinet.jiangyi.tracker.CommandTracker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -45,6 +46,8 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
 
     private final TradeInternalClient tradeInternalClient;
 
+    private final CommandTracker commandTracker;
+
     /** identifier → 在线 WS 会话（单设备单连接；新连接顶替旧连接）。 */
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
@@ -55,8 +58,9 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
      *  60s 上报一次留足冗余；将邑真机心跳周期见 V16 §4.3.1。 */
     private static final long ONLINE_REPORT_INTERVAL_MS = 60_000L;
 
-    public DeviceWebSocketHandler(TradeInternalClient tradeInternalClient) {
+    public DeviceWebSocketHandler(TradeInternalClient tradeInternalClient, CommandTracker commandTracker) {
         this.tradeInternalClient = tradeInternalClient;
+        this.commandTracker = commandTracker;
     }
 
     @Override
@@ -107,10 +111,10 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         String identifier = attrIdentifier(session);
         try {
             JsonNode node = objectMapper.readTree(message.getPayload());
-            // V16 §4.3.1 心跳契约：机器发 {msgType:"heartBeat",msgContent:"PONG"}，
-            // 服务端必须回发 {status:200,msgType:"heartBeat",msgContent:"PONG"}——
-            // 「心跳保持则机器在线，心跳断开机器离线」，不回发真机会判定离线重连。
-            // 此前「未知消息一律忽略」是对照方案摘要的漏判（2026-10-09 联调前对原文档核查补上）。
+            // 心跳契约（2026-10-19 log3 修订）：真机发 {msgType:"heartBeat",msgContent:"PING"}，
+            // 将邑云固定回 {status:200,msgType:"heartBeat",msgContent:"PONG"}——固件日志对
+            // heartBeat 帧统一记「收到心跳消息」，msgContent 值比对行为未定义；按真云行为
+            // 固定回 PONG（不回显 PING），status 恒带（真云全带）。
             if ("heartBeat".equalsIgnoreCase(node.path("msgType").asText())) {
                 // 心跳桥接：V16「心跳保持则机器在线」→ trade 巡检按 device_info.updated_at
                 // 判活（2 分钟），节流转发心跳维持在线态（缺陷⑥ 的持续侧；断开侧见 closed）。
@@ -118,7 +122,28 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                 send(session, identifier, Map.of(
                         "status", 200,
                         "msgType", "heartBeat",
-                        "msgContent", node.path("msgContent").asText("PONG")));
+                        "msgContent", "PONG"));
+                return;
+            }
+            // 真机回执分发（2026-10-19 log3 实证，V15/V16 文档均无 *Sure 帧）：
+            // sendOpenStockDoorSure msgContent=下单发出去的单号原样回 → 撤销 OPEN 15s 超时登记。
+            if ("sendOpenStockDoorSure".equalsIgnoreCase(node.path("msgType").asText())
+                    || "openDoorSure".equalsIgnoreCase(node.path("msgType").asText())) {
+                String ackNo = node.path("msgContent").asText("");
+                String deviceId = attrDeviceId(session);
+                if (deviceId != null && !ackNo.isBlank()) {
+                    boolean done = commandTracker.complete(CommandTracker.Kind.OPEN, ackNo, deviceId);
+                    log.info("jiangyi ws door ack identifier={} no={} completed={}", identifier, ackNo, done);
+                }
+                return;
+            }
+            // updateModelSure msgContent 为空串（log3 实证）→ 按 deviceId 撤销 MODEL 登记全部条目。
+            if ("updateModelSure".equalsIgnoreCase(node.path("msgType").asText())) {
+                String deviceId = attrDeviceId(session);
+                if (deviceId != null) {
+                    int done = commandTracker.completeByDevice(CommandTracker.Kind.MODEL, deviceId);
+                    log.info("jiangyi ws model ack identifier={} completed={}", identifier, done);
+                }
                 return;
             }
             // 模型下发完成回执（V16 §4.2.5）：宽容解析——只取 modelName，真实 msgContent
@@ -177,6 +202,7 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             return false;
         }
         return send(session, identifier, Map.of(
+                "status", 200,
                 "msgType", MSG_TYPE_SEND_OPEN_STOCK_DOOR,
                 "msgContent", stockNo));
     }
@@ -189,6 +215,7 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             return false;
         }
         return send(session, identifier, Map.of(
+                "status", 200,
                 "msgType", MSG_TYPE_OPEN_DOOR,
                 "msgContent", sessionId));
     }
@@ -208,6 +235,7 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
             return false;
         }
         return send(session, identifier, Map.of(
+                "status", 200,
                 "msgType", MSG_TYPE_UPDATE_MODEL,
                 "msgContent", Map.of(
                         "quantity", quantity,

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -44,13 +45,39 @@ public class DeviceInfoController {
         this.tradeInternalClient = tradeInternalClient;
     }
 
-    /** V16 §4.2.4：设备用 token 换设备编码（identifier），WS 连接路径依此拼。 */
+    /**
+     * V16 §4.2.4：设备用 token 换设备信息，WS 连接路径依 identifier 拼。
+     *
+     * <p><b>成因注释（2026-10-19 log3 修订，第三轮审计 P0-1）</b>：云侧真实响应是全量
+     * 硬件拓扑 {@code {id, identifier, isBind, recognitionType, doorNum, locks[],
+     * usbNumLu/Lb/Ru/Rb, modelNum, huodaoNum, industrialControlType}}，固件紧接读
+     * {@code Constans.usbNumRu=5 / usbNumRb=6} 做门锁 GPIO 与摄像头分配；V15/V16 文档
+     * 示例都只写 {@code {identifier}}（同源偏差）。我方设备档案无 USB/门锁拓扑数据——
+     * 字段全量对齐云侧形态（缺字段比少字段安全），未知值回 null（云侧对
+     * huodaoNum/industrialControlType 也回 null，固件容忍有实证）；
+     * recognitionType/isBind 按真机云响应回固定值（本产品全部为端侧视觉柜）。
+     * 精确拓扑值待厂商答复（汇报文件问题 8）后从激活流程回填。</p>
+     */
     @PostMapping("/jiangyi/api/deviceInfo/getDetail")
     public Map<String, Object> getDetail(HttpServletRequest request) {
         String identifier = attr(request, DeviceAuthInterceptor.ATTR_IDENTIFIER);
-        log.info("jiangyi deviceInfo getDetail identifier={}", identifier);
-        return Map.of("status", 200, "msg", "success",
-                "data", Map.of("identifier", identifier));
+        String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
+        log.info("jiangyi deviceInfo getDetail identifier={} deviceId={}", identifier, deviceId);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", deviceId);
+        data.put("identifier", identifier);
+        data.put("isBind", "yes");
+        data.put("recognitionType", "end");
+        data.put("doorNum", null);
+        data.put("locks", null);
+        data.put("usbNumLu", null);
+        data.put("usbNumLb", null);
+        data.put("usbNumRu", null);
+        data.put("usbNumRb", null);
+        data.put("modelNum", null);
+        data.put("huodaoNum", null);
+        data.put("industrialControlType", null);
+        return Map.of("status", 200, "msg", "success", "data", data);
     }
 
     /**
