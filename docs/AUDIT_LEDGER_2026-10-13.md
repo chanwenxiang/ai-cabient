@@ -286,3 +286,16 @@
 **对账补充**：AU-177 本轮由 P0 降 P3（`application-prod.yml:29-32` 硬编码 `seed_env: none`，V344 在 prod profile 下正常清演示号段——原判漏读该文件）；AU-137 机制订正（首要失效=allocation 无状态列）；AU-148 订正（production.yml 9 服务 0 restart，面更大）。peer 报告全文 `docs/AUDIT_FULL_SWEEP_2026-10-18.md` @ 分支 `audit/full-sweep-2026-10-18`（0bcdb467，含 §12 复现命令）。**冲突已裁决**：「无资损级 P0」总评不成立——AU-174/175（FS-01/02）在 28c9f99a 复核仍在，AU-193 真库实证，覆盖差非基线差。
 
 **引用纪律**：AU-174~192 的完整 file:line 明细在分支 `audit/full-sweep-2026-10-18` 的 `docs/AUDIT_FULL_SWEEP_2026-10-18.md`（第三路 9 路子代理原始报告）；主审亲验记录见 `.workbuddy/memory/2026-10-18.md`。修复顺序共识：**资金 P0 批（AU-174/175+AU-137/140 同链）与 CI 信任面批（AU-178/179）并行**——CI 批必须在资金修复合入前落，否则修复的测试照旧不被 CI 执行；随后小改大收益批（AU-176/180/AU-138）→ 安全+闸批（AU-136/173/172）→ 可观测批（AU-187/188/189/190）→ 拍板项集中问（AU-185、CB-032、DC 系列、AU-146/149、refund-retry 手册）。
+
+## 2026-10-19 拍板四条销账（AU-146 / AU-149 / AU-182 / AU-185，分支 fix/audit-decisions-batch13）
+
+> 用户 2026-10-19 对「拍板项清单（DC/CB 系列、AU-146/149/182/185）」中的四条 AU 逐条采纳推荐做法并拍板「直接修」。全部落地在分支 `fix/audit-decisions-batch13`（基于 origin/dev d123cc1a）。
+
+| ID | 拍板 | 落地 | 提交 | 回归证据 |
+| --- | --- | --- | --- | --- |
+| AU-146 | 轮换 + 部署时 env 生成 | `grafana.htpasswd` 出库（git rm --cached + .gitignore）；新增 `scripts/devops/gen-grafana-htpasswd.ps1`（口令读 GRAFANA_BASIC_AUTH_PASSWORD，缺失生成 24 位随机并落 infra/.env；账号沿用现有 htpasswd；bcrypt cost 10 优先、openssl apr1 回退、绝不自动拉镜像）；门禁 `check:htpasswd-untracked` 入聚合链；apps.yml「占位口令」失真注释改如实 | 5e5b92d2 | 门禁负向验证：git add 假 htpasswd ⇒ FAIL，移除还原绿；**主工作区口令已真实轮换**（新口令在主仓 infra/.env `GRAFANA_BASIC_AUTH_PASSWORD`，htpasswd 已重生成，浏览器下次访问 /devops/grafana 需重新输入） |
+| AU-185 | 入库 example + 预检（升级为直接入库） | `infra/docker-compose.prod-server.yml` 从生产服务器**实取入库**（纯拓扑无密钥，sha256 基线 1b03852… 注记文件头）；deploy-prod.sh [0/6] 本地预检 compose 链、[4/6] 服务器 test -f + sha256 指纹进部署日志；门禁 `check:deploy-compose-chain`（deploy-prod.sh 引用的每个 -f 必须在盘且被 git 跟踪）；DEPLOYMENT_CHECKLIST §3.2 旧定性「不该有副本」改口径 | fae61fee + 4839c365 | 门禁双例负向验证：引用不存在文件 ⇒ FAIL；盘上存在但未跟踪 ⇒ FAIL（首版读 HEAD 测不出，注入测红后改读工作区） |
+| AU-182 | 分账基数统一走 CommissionBaseCalc | `RevenueSplitService` 四处 `setGrossCents` 基数统一 `CommissionBaseCalc.netCents(order)`（冻结毛额−refunded）；recordSplit guard 改净额口径；金额退（total 不改写）路径从此正确冲减 | 6bf1e5ef | 钉住用例 3 条（金额退冲回 630 / 按行退冻结值优先 / 增额随冻结上升）+ RevenueSplit*/Commission*/FundBill*/ZeroRate 53 例全绿；下游 MerchantSettlementBill/FundBill 为「分账现状推导视图」无现金账假设（逐行核实） |
+| AU-149 | 自助注销闭环（人工客服不算数） | V394 `user_consent_log`（登录记 PRIVACY_POLICY / 注销记 ACCOUNT_DELETE，唯一键幂等；COMPETITOR_REF: CB-059）；`POST /api/v2/account/delete-account`：fail-closed 守卫（运营 403 / 余额冻结非 0 / 免密协议未解除 / PROCESSING 退款 ⇒ 409）+ 匿名化（个人标识全清、status=DELETED、交易记录法定留存）；小程序「我的」页入口 + 二次确认；隐私政策「五、您的权利」文案对齐；CB-059 台账（微信官方/美团/旧系统 easygo 三主体） | 7bd4f199 + 2c565e1e + 87f723fc | `AccountDeleteOwnAccountTest` 8 例；consumer-mp vue-tsc 绿；openapi.ts 重生成（+36 行）check-openapi-types 对 live spec 绿 |
+
+**边界与移交**：① AU-149 的登录 status 校验缺口（AU-058/DC-10）未顺手修——注销账号以「凭据已匿名化不存在」兜底，DC-10 拍板后统一收口；② 多设备 JWT 强制下线属后续增量；③ **AU-147（首期柜型）与 DC-6/9/10/11/14/18/20、refund-retry 上线手册勾选项、CB-032 真收六问仍开放**，未在本批范围。
