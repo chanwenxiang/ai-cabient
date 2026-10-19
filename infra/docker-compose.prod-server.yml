@@ -1,0 +1,46 @@
+# Linux 服务器专用覆盖层（AU-185，2026-10-19 入库拍板）。
+#
+# 历史：本文件曾只存在于生产服务器部署目录（git 全历史不存在），deploy-prod.sh:103 引用
+# 却不可代码审查/不可复现（审计 A3/AU-185）。拍板「入库 example+预检」后升级为**直接入库**：
+# 内容为纯拓扑无密钥（密钥全走 infra/.env.production），服务器侧不再单独维护副本——
+# 每次部署由 tar 解包用仓库版本收敛，改动一律走 git（可评审、可复现、门禁看护）。
+# 门禁：scripts/check-deploy-compose-chain.mjs 校验 deploy-prod.sh 引用的每个 -f 文件都存在。
+# 入库基线 sha256：1b038520734c5b0298d0df3c63db796459e8c5ac2c6fd2b58de5f9991d11297d
+# （2026-10-19 自生产服务器 /data/apps/ai-cabinet 实取；此后变更 sha 随提交自然演进）
+#
+# 内容职责：
+# 1) nginx 上游改服务名直连（host.docker.internal 是 Docker Desktop 专属）
+# 2) minio-init 镜像改用实际可得的 mc 版本（仓内 a7fe349 pin 从未可用，加速器对钉 digest 拒发）
+# 3) 短期带上 sms-webhook-mock（真短信网关未到位前的过渡，生产换真 URL 即删本段）
+# 4) admin/consumer/merchant 静态产物挂载（full.yml 同款；服务器栈不叠 full.yml）
+services:
+  gateway:
+    volumes:
+      - ./gateway/nginx-full.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../services/trade-service/src/main/resources/static/admin:/usr/share/nginx/html/admin:ro
+  minio-init:
+    image: minio/mc:server-pin
+  sms-webhook-mock:
+    image: python:3.12-slim
+    volumes:
+      - ../scripts/sms-webhook-mock.py:/app/sms-webhook-mock.py:ro
+    command: python /app/sms-webhook-mock.py
+    ports:
+      - "127.0.0.1:8099:8099"
+    environment:
+      PORT: "8099"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen(\x27http://127.0.0.1:8099/health\x27)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  trade-service:
+    environment:
+      SMS_WEBHOOK_URL: http://sms-webhook-mock:8099/send
+  # 新版 pinned minio 镜像无 wget（base 健康检查跑不了），镜像内自带 curl
+  minio:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
