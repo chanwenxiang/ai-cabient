@@ -678,7 +678,11 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   API 实跑 `POST /consistency/run` 检出 `POINTS_IDENTITY|1` FAIL（record 6）⇒ `POST /{id}/fix` 返回
   `fixed=false`「该类仅巡检记录，请人工核对处理」，**member 1 行原样（181/149/0/0）未被任何自动路径改写**。
 - **剩余**：① ~~存量 32 分坏行~~ **已于同日晚按流水归集销案**（见下一条 Changelog：used 0→32，巡检自愈 FIXED）；
-  ② A 的真退款链路场景（柜台造 points-paid 单→退款观察四列）未跑，目前 unit 级；
+  ② ~~A 的真退款链路场景~~ **已于 2026-10-19 真链路 e2e 闭合**（UAT 隔离栈：MQTT 购物→云识别退役自动降级运营工作台
+  manual-resolve CONFIRM 真实人工路径成单 PAID 686→消费者全额退→`used+=8/available-=8/total 不动`/恒等式归零/
+  `points_log` EARN+USE 双行/巡检 POINTS 两判据零报警——
+  [evidence/points-clawback-e2e-2026-10-19.md](evidence/audit-2026-10-13/trackC-admin/points-clawback-e2e-2026-10-19.md)，
+  驱动脚本 `scripts/e2e-points-clawback-refund.ps1` 可重复执行）；
   ③ G9 CORS_ORIGIN / G11 `paid_amount_cents` 对账**均已同轮收口**（见下一条 Changelog）。
 
 ### 2026-10-18（数据一致性判据修复轮：两条假阳性清零 + 三域钱包判据泛化 + 流水链连续性 + 口径单一事实源）
