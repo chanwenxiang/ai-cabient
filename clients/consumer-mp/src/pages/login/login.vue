@@ -269,8 +269,17 @@ const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } 
   usePrivacyConsentModal();
 
 const redirect = ref('/pages/index/index');
-// H5 无法微信静默授权，默认展开手机号，减少多点一次
-const showPhoneForm = ref(typeof globalThis !== 'undefined');
+/**
+ * 手机号表单默认收起（2026-10-20 真机反馈「默认应该收起，太丑」）：
+ * 小程序主路径就是微信一键授权，长表单默认摊开把主按钮挤到屏下方。
+ * 🔴 仅 H5 例外默认展开——H5 无法微信静默授权，收起会让用户多点一次。
+ */
+// #ifdef H5
+const showPhoneForm = ref(true);
+// #endif
+// #ifndef H5
+const showPhoneForm = ref(false);
+// #endif
 const wxBtnLabel = computed(() => '微信授权登录');
 const isDev = showDevTools();
 const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();

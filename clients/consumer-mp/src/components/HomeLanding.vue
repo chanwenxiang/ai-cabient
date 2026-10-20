@@ -139,7 +139,7 @@
       v-if="authPromptVisible"
       role="button"
       aria-label="关闭"
-      class="landing-mask"
+      class="landing-mask landing-mask--centered"
       @click="$emit('dismissAuthPrompt')"
     >
       <view role="button" class="landing-sheet" @click.stop="noop">

@@ -341,7 +341,8 @@
   gap: 8rpx;
   margin-bottom: 28rpx;
   padding: 6rpx;
-  border-radius: var(--radius-panel);
+  /* 2026-10-20 用户反馈「圆滑一点」：分段 tab 容器与选项同步 pill 化 */
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.07);
 }
 .tab-item {
@@ -350,7 +351,7 @@
   text-align: center;
   font-size: var(--font-size-md);
   color: rgba(204, 251, 241, 0.62);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   transition:
     color 0.2s ease,
     background 0.2s ease,
@@ -411,7 +412,8 @@
   padding: 0 28rpx;
   min-width: 180rpx;
   height: 88rpx;
-  border-radius: var(--radius-panel);
+  /* 2026-10-20 用户反馈「按钮圆滑一点，别方方正正」：动作按钮统一 pill */
+  border-radius: var(--radius-pill);
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
   color: var(--chart-1);
@@ -427,7 +429,8 @@
   justify-content: center;
   width: 220rpx;
   height: 88rpx;
-  border-radius: var(--radius-panel);
+  /* 2026-10-20 用户反馈：同上，pill 化 */
+  border-radius: var(--radius-pill);
   overflow: hidden;
   background: rgba(245, 247, 250, 0.95);
   border: 2rpx solid rgba(148, 210, 198, 0.35);

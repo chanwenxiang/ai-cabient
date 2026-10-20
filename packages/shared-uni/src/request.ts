@@ -94,8 +94,17 @@ export function formatMpRequestError(
     }
     // 真机 / 开发者工具常见：未勾选「不校验合法域名」，或防火墙/访客 WiFi 隔离
     if (verbose) {
+      if (isLocalDebugApi(baseUrl)) {
+        return (
+          '请求失败：请确认 ① 开发者工具勾选「不校验合法域名、web-view、TLS」② 手机与电脑同一 WiFi（勿用访客网络）③ 管理员运行 scripts/open-lan-api-firewall.ps1 放行 80/18080 ④ 本机网关已启动' +
+          apiHint
+        );
+      }
+      // 2026-10-20：公网域名场景的旧 LAN 提示（同 WiFi/防火墙/18080）全部不适用——
+      // 真机连不上公网 API 的真因是**合法域名校验**（开发版需开调试，正式版需后台配置域名）。
       return (
-        '请求失败：请确认 ① 开发者工具勾选「不校验合法域名、web-view、TLS」② 手机与电脑同一 WiFi（勿用访客网络）③ 管理员运行 scripts/open-lan-api-firewall.ps1 放行 80/18080 ④ 本机网关已启动' +
+        '请求失败：真机请点右上角「···」→ 打开「开发调试」（开发版绕过域名校验）；' +
+        '正式使用需在小程序后台「开发管理→服务器域名」加入当前域名' +
         apiHint
       );
     }
