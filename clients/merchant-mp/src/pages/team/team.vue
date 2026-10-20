@@ -86,7 +86,9 @@
         </view>
         <view class="dialog-actions">
           <button class="btn ghost" @click="inviteVisible = false">取消</button>
-          <button class="btn" :loading="saving" @click="onInvite">确认邀请</button>
+          <button class="btn" :disabled="saving" :loading="saving" @click="onInvite">
+            确认邀请
+          </button>
         </view>
       </AppSheet>
 
@@ -116,7 +118,9 @@
               >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
             >
           </view>
-          <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
+          <button class="btn block" :disabled="saving" :loading="saving" @click="onSaveRole">
+            保存角色
+          </button>
         </view>
 
         <view v-if="canReset" class="section">
@@ -128,19 +132,24 @@
             :value="resetPassword"
             @input="resetPassword = eventInput($event)"
           />
-          <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
+          <button class="btn block" :disabled="saving" :loading="saving" @click="onResetPassword">
+            确认重置
+          </button>
         </view>
 
         <view v-if="canDisable && manageUser && !manageUser.self" class="section">
           <button
             v-if="manageUser.status !== 'INACTIVE'"
             class="btn danger block"
+            :disabled="saving"
             :loading="saving"
             @click="onDisable"
           >
             停用该成员
           </button>
-          <button v-else class="btn block" :loading="saving" @click="onEnable">重新启用</button>
+          <button v-else class="btn block" :disabled="saving" :loading="saving" @click="onEnable">
+            重新启用
+          </button>
         </view>
 
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
@@ -264,6 +273,7 @@ async function load() {
 }
 
 async function onInvite() {
+  if (saving.value) return;
   const phone = form.phoneNumber.trim();
   const password = form.password.trim();
   if (!/^1\d{10}$/.test(phone)) {
@@ -293,7 +303,7 @@ async function onInvite() {
 }
 
 async function onSaveRole() {
-  if (!manageUser.value) return;
+  if (!manageUser.value || saving.value) return;
   saving.value = true;
   try {
     await merchantApi.updateTeamUser(manageUser.value.userId, { roleKey: manageRoleKey.value });
@@ -308,7 +318,7 @@ async function onSaveRole() {
 }
 
 async function onResetPassword() {
-  if (!manageUser.value) return;
+  if (!manageUser.value || saving.value) return;
   const pwd = resetPassword.value.trim();
   if (pwd.length < 6) {
     showError('密码至少 6 位');
@@ -327,7 +337,7 @@ async function onResetPassword() {
 }
 
 async function onDisable() {
-  if (!manageUser.value) return;
+  if (!manageUser.value || saving.value) return;
   saving.value = true;
   try {
     await merchantApi.disableTeamUser(manageUser.value.userId);
@@ -342,7 +352,7 @@ async function onDisable() {
 }
 
 async function onEnable() {
-  if (!manageUser.value) return;
+  if (!manageUser.value || saving.value) return;
   saving.value = true;
   try {
     await merchantApi.enableTeamUser(manageUser.value.userId);

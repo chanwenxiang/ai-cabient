@@ -43,6 +43,11 @@
             />
           </view>
           <text v-if="maxWithdrawHint" class="withdraw-hint">{{ maxWithdrawHint }}</text>
+          <!-- 2026-10-20：实名等后端拒绝原因（约 50 字）用 banner 全文展示——
+               toast 会被截断成 19 字，商户/线长看不到「去完成实名」的关键指引 -->
+          <view v-if="withdrawError" class="banner-err">
+            <text>{{ withdrawError }}</text>
+          </view>
           <!-- H53：绑定多商户时必须显式选择提现商户（后端未指定且多绑定返回 400「请指定提现商户」） -->
           <picker
             v-if="multiMerchant"
@@ -186,7 +191,7 @@ const cfg = computed(() =>
         emptyTitle: '暂无商户钱包',
         emptyHint: '当前账号未绑定开通经营工具的商户，无法查看可提现余额',
         roleTag: '商户 · 可自主提现',
-        tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。',
+        tip: '分账入账后可提现；大额需运营审核，到账以银行/微信回执为准。发起提现前需完成实名认证（未实名请在消费者小程序「我的-待实名」完成）。',
         withdrawStatusDict: 'merchant_withdraw_status',
         ledgerEmptyHint: '分账入账与提现变动会显示在这里',
         showLedgerTime: true,
@@ -198,7 +203,7 @@ const cfg = computed(() =>
         emptyTitle: '未绑定线长身份',
         emptyHint: '线长钱包仅对已绑定的线长成员开放。商户主体提现请使用「商户钱包」',
         roleTag: '线长 · 可自主提现',
-        tip: '提交后由运营审核；到账以银行/微信回执为准。',
+        tip: '提交后由运营审核；到账以银行/微信回执为准。发起提现前需完成实名认证（未实名请在消费者小程序「我的-待实名」完成）。',
         withdrawStatusDict: 'line_withdraw_status',
         ledgerEmptyHint: '佣金入账与提现变动会显示在这里',
         showLedgerTime: true,
@@ -209,6 +214,8 @@ const cfg = computed(() =>
 const loading = ref(false);
 const submitting = ref(false);
 const loadError = ref('');
+/** 提现被拒的全文原因（实名未完成等）——banner 展示，toast 会截断 */
+const withdrawError = ref('');
 const amountYuan = ref('');
 const overview = ref<Overview | null>(null);
 // CB-035：待结算 = 已入账但未到 T+1 可提现日的钱，与后端提现闸门同口径（仅商户钱包返回；线长佣金无此概念）
@@ -351,6 +358,7 @@ async function submitWithdraw() {
     return;
   }
   submitting.value = true;
+  withdrawError.value = '';
   try {
     // H53：多商户绑定必须显式指定提现商户；单商户/未知绑定交由后端自动解析
     const body = buildWalletWithdrawBody({
@@ -372,7 +380,9 @@ async function submitWithdraw() {
     amountYuan.value = '';
     await load();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '提交失败');
+    const msg = e instanceof Error ? e.message : '提交失败';
+    withdrawError.value = msg;
+    showError(msg);
   } finally {
     submitting.value = false;
   }

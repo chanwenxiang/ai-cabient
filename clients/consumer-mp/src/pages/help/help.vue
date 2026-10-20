@@ -160,8 +160,8 @@ import { ref } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
 import { showError, showSuccess } from '@/utils/notify';
 
-const supportPhoneDisplay = ref('400-888-0018');
-const supportPhoneDial = ref('4008880018');
+const supportPhoneDisplay = ref('4000182992');
+const supportPhoneDial = ref('4000182992');
 const supportEmail = ref('');
 const openIdx = ref<number | null>(0);
 

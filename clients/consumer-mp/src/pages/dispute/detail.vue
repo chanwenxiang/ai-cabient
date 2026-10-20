@@ -151,7 +151,7 @@ const error = ref('');
 const ticket = ref<DisputeTicketDto | null>(null);
 const sessionId = ref('');
 const ticketId = ref('');
-const servicePhone = ref('400-888-0018');
+const servicePhone = ref('4000182992');
 const supportEmail = ref('');
 /** fileId/url -> 本地临时路径，避免 image src 带 token */
 const evidenceLocalSrc = ref<Record<string, string>>({});

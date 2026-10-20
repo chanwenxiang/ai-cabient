@@ -390,8 +390,8 @@ const invoiceEmail = ref('');
 const selectedCategory = ref('USER_APPEAL');
 const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
-const supportPhoneDisplay = ref('400-888-0018');
-const supportPhoneDial = ref('4008880018');
+const supportPhoneDisplay = ref('4000182992');
+const supportPhoneDial = ref('4000182992');
 
 /** 合并 onLoad/onShow 同刻并发，避免首屏打两次订单详情 */
 let bootstrapPromise: Promise<void> | null = null;

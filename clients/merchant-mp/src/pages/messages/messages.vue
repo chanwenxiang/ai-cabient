@@ -79,8 +79,8 @@ function matchBizFilter(m: OpenApiNotificationDto, key: MsgFilter) {
   if (key === 'REPLENISHMENT') return t === 'REPLENISHMENT';
   if (key === 'DISPUTE') return t === 'DISPUTE';
   if (key === 'ORDER') return t === 'ORDER';
-  if (key === 'SETTLEMENT') return t === 'SETTLEMENT' || t === 'SPLIT';
-  if (key === 'WALLET') return t === 'WALLET' || t === 'WITHDRAW';
+  if (key === 'SETTLEMENT') return t === 'SETTLEMENT' || t === 'SPLIT' || t === 'DAILY_INCOME';
+  if (key === 'WALLET') return t === 'WALLET' || t === 'WITHDRAW' || t === 'FEE_REMINDER';
   if (key === 'OTHER') {
     return ![
       'REPLENISHMENT',
@@ -88,8 +88,10 @@ function matchBizFilter(m: OpenApiNotificationDto, key: MsgFilter) {
       'ORDER',
       'SETTLEMENT',
       'SPLIT',
+      'DAILY_INCOME',
       'WALLET',
-      'WITHDRAW'
+      'WITHDRAW',
+      'FEE_REMINDER'
     ].includes(t);
   }
   return true;
@@ -161,6 +163,8 @@ function bizTypeLabel(type?: string) {
   if (t === 'DISPUTE') return '争议';
   if (t === 'ORDER') return '订单';
   if (t === 'SETTLEMENT' || t === 'SPLIT') return '结算';
+  if (t === 'DAILY_INCOME') return '日结收入';
+  if (t === 'FEE_REMINDER') return '欠费提醒';
   if (t === 'WALLET' || t === 'WITHDRAW') return '钱包';
   if (t === 'DEVICE' || t === 'ALERT') return '告警';
   if (t === 'ANNOUNCEMENT') return '公告';
@@ -229,6 +233,10 @@ const NOTIFICATION_NAVIGATORS: Record<string, (id: string) => void> = {
   ORDER: navigateOrder,
   SETTLEMENT: navigateSettlement,
   SPLIT: navigateSettlement,
+  // 2026-10-20：日结收入/欠费催缴（MerchantDailyIncomeNotifyScheduler）接入消息中心——
+  // 两者都指向钱包页：日结看收入明细、催缴去处理欠费；无权限时 navigateWallet 有兜底提示
+  DAILY_INCOME: navigateWallet,
+  FEE_REMINDER: navigateWallet,
   WALLET: navigateWallet,
   WITHDRAW: navigateWallet,
   DEVICE: navigateAlerts,
