@@ -94,6 +94,12 @@
       <app-underline-tabs :items="statusTabItems" :value="status" @change="changeStatus" />
 
       <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
+      <error-state
+        v-else-if="loadError && !allTasks.length"
+        :title="loadError"
+        hint="请检查网络后重试"
+        @retry="load"
+      />
       <empty-state
         v-else-if="!tasks.length"
         icon="/static/menu/replenish.png"
@@ -451,7 +457,8 @@ const {
   emptyHintForStatusFilter,
   fetchList,
   isLatestLoad,
-  ensureSkuCatalog
+  ensureSkuCatalog,
+  loadError
 } = useReplenishmentList({ preferredId });
 
 const detailLoading = ref(false);

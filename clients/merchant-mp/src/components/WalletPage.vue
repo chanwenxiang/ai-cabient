@@ -37,6 +37,7 @@
             <input
               class="amount-input"
               type="digit"
+              maxlength="10"
               v-model="amountYuan"
               placeholder="提现金额（元）"
               placeholder-class="amount-ph"
@@ -531,6 +532,10 @@ useAutoRefresh({
   color: var(--text-subtle, #94a3b8);
   margin-top: 4rpx;
   display: block;
+  /* 长回执/备注不撑破行布局，与其他列表页 ellipsis 口径一致 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .row-sub.fail {
   color: var(--color-danger);

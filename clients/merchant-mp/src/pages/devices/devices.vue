@@ -30,6 +30,7 @@
       <input
         v-model="keyword"
         class="search"
+        confirm-type="search"
         aria-label="搜索柜机名称或编号"
         placeholder="搜索柜机名称或编号…"
       />

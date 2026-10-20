@@ -696,7 +696,7 @@ onShareAppMessage(() => {
       imageUrl: productThumb(detailProduct.value) || undefined
     };
   }
-  return { title: SHARE_TITLE, path: SHARE_PATH };
+  return { title: SHARE_TITLE, path: SHARE_PATH, imageUrl: '/static/share-card.jpg' };
 });
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
@@ -2333,6 +2333,13 @@ function stopDevicePoll() {
   color: var(--text-subtle);
   font-size: var(--font-size-h3);
   line-height: 1;
+  /* 热区扩展：视觉不变，触控 ≥88rpx */
+  position: relative;
+}
+.search-clear::after {
+  content: '';
+  position: absolute;
+  inset: -18rpx -20rpx -18rpx -16rpx;
 }
 .category-row {
   display: flex;
@@ -2355,6 +2362,16 @@ function stopDevicePoll() {
   font-size: var(--font-size-caption);
   font-weight: 600;
   flex-shrink: 0;
+  /* 热区扩展：只上下外扩（横向外扩会压到相邻 chip），触控 ≥88rpx */
+  position: relative;
+}
+.category-chip::after {
+  content: '';
+  position: absolute;
+  top: -18rpx;
+  bottom: -18rpx;
+  left: 0;
+  right: 0;
 }
 .category-chip.active {
   background: var(--brand);
@@ -2559,6 +2576,13 @@ function stopDevicePoll() {
   color: var(--text-muted, #475569);
   font-size: 20rpx;
   line-height: 1.6;
+  /* 热区扩展：视觉不变，触控 ≥88rpx */
+  position: relative;
+}
+.product-detail-btn::after {
+  content: '';
+  position: absolute;
+  inset: -20rpx -28rpx;
 }
 .detail-hero {
   display: flex;
@@ -2654,6 +2678,13 @@ function stopDevicePoll() {
   line-height: 42rpx;
   text-align: center;
   box-sizing: border-box;
+  /* 热区扩展（微信官方 ≥88rpx）：视觉保持 44rpx，透明 ::after 外扩 */
+  position: relative;
+}
+.stepper-btn::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx;
 }
 .stepper-btn.minus {
   background: var(--white, #fff);
@@ -2753,6 +2784,13 @@ function stopDevicePoll() {
   font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1.3;
+  /* 热区扩展：视觉不变，触控 ≥88rpx（横向外扩 12rpx < 行间 gap 一半，不压相邻链接） */
+  position: relative;
+}
+.review-link::after {
+  content: '';
+  position: absolute;
+  inset: -18rpx -12rpx;
 }
 .review-link.primary {
   color: var(--brand, #0d9488);
@@ -2838,8 +2876,8 @@ function stopDevicePoll() {
 .flow-cancel {
   margin-top: 40rpx;
   padding: 0 36rpx;
-  min-height: 72rpx;
-  height: 72rpx;
+  min-height: 88rpx; /* 官方最小触控高度（44pt），原 72rpx */
+  height: 88rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
   background: var(--surface-muted);

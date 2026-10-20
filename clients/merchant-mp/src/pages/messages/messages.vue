@@ -6,6 +6,12 @@
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
+      <error-state
+        v-else-if="loadError && !list.length"
+        :title="loadError"
+        hint="请检查网络后重试"
+        @retry="load"
+      />
       <empty-state
         v-else-if="!visibleList.length"
         icon="/static/menu/notice.png"
@@ -59,6 +65,7 @@ import {
 const { me } = useMerchantMe();
 
 const loading = ref(false);
+const loadError = ref('');
 const list = ref<OpenApiNotificationDto[]>([]);
 type MsgFilter =
   'all' | 'unread' | 'REPLENISHMENT' | 'DISPUTE' | 'ORDER' | 'SETTLEMENT' | 'WALLET' | 'OTHER';
@@ -148,10 +155,12 @@ onShow(load);
 
 async function load() {
   if (!list.value.length) loading.value = true;
+  loadError.value = '';
   try {
     list.value = await merchantApi.notifications(100);
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    showError(loadError.value);
   } finally {
     loading.value = false;
   }

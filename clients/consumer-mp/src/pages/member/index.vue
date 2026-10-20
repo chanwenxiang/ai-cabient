@@ -1,6 +1,13 @@
 <template>
   <view class="page">
     <app-nav-bar title="会员中心" />
+    <error-state
+      v-if="loadError"
+      compact
+      :title="loadError"
+      hint="会员数据可能不是最新"
+      @retry="load"
+    />
     <view class="hero" :class="'lv-' + (profile?.levelCode || 'NORMAL').toLowerCase()">
       <view class="hero-top">
         <view>
@@ -124,6 +131,7 @@ import { menuIcon } from '@/utils/menu-icon';
 import { softFallback } from '@/utils/soft-fallback';
 
 const profile = ref<MemberProfileDto | null>(null);
+const loadError = ref('');
 const couponCount = ref(0);
 const expireSoonCoupons = ref(0);
 
@@ -192,6 +200,7 @@ onShow(async () => {
 });
 
 async function load() {
+  loadError.value = '';
   try {
     const [p, count, coupons] = await Promise.all([
       consumerApi.memberProfile(),
@@ -209,7 +218,8 @@ async function load() {
       return Number.isFinite(t) && t > now && t - now <= soon;
     }).length;
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    showError(loadError.value);
   }
 }
 

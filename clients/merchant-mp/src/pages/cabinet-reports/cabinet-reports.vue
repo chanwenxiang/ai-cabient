@@ -24,6 +24,7 @@
         <text class="period-hint">{{ periodRangeLabel }}</text>
       </view>
       <view v-if="loading" class="empty">正在加载销售报表…</view>
+      <error-state v-else-if="pageError" :title="pageError" hint="请检查网络后重试" @retry="load" />
       <view v-else class="card">
         <view class="section-head">
           <text class="section-title">销售明细</text>
@@ -54,6 +55,12 @@
           <uni-echarts custom-style="width: 100%; height: 420rpx" :option="chartOption" />
         </view>
         <view v-if="reportLoading" class="empty">{{ loadingLabel('报表') }}</view>
+        <error-state
+          v-else-if="salesError && !listedSalesRows.length"
+          compact
+          :title="salesError"
+          @retry="loadSalesReports"
+        />
         <view v-else-if="!listedSalesRows.length" class="empty">该区间暂无销售明细</view>
         <view v-for="r in listedSalesRows" :key="r.dimKey" class="sku-row">
           <view class="sku-main">
@@ -69,7 +76,14 @@
         </view>
       </view>
       <view v-if="canExport" class="actions">
-        <app-button variant="primary" block label="导出报表" @click="onExport" />
+        <app-button
+          variant="primary"
+          block
+          label="导出报表"
+          :loading="exporting"
+          :disabled="exporting"
+          @click="onExport"
+        />
       </view>
     </view>
   </view>
@@ -117,6 +131,9 @@ const periods = [7, 30, 90];
 const periodTabs = periods.map((d) => ({ key: String(d), label: `近${d}天` }));
 const days = ref(30);
 const loading = ref(true);
+const pageError = ref('');
+const salesError = ref('');
+const exporting = ref(false);
 const reportLoading = ref(false);
 const deviceReports = ref<OpenApiMerchantDeviceReportDto[]>([]);
 const selectedDeviceId = ref('');
@@ -182,6 +199,7 @@ async function ensureLogin() {
 
 async function loadSalesReports() {
   reportLoading.value = true;
+  salesError.value = '';
   try {
     const { fromDate, toDate } = reportDateRange(days.value);
     const rows = await merchantApi.salesReports(
@@ -191,8 +209,9 @@ async function loadSalesReports() {
       selectedDeviceId.value || undefined
     );
     salesRows.value = rows || [];
-  } catch {
+  } catch (e) {
     salesRows.value = [];
+    salesError.value = e instanceof Error ? e.message : '报表加载失败';
   } finally {
     reportLoading.value = false;
   }
@@ -201,6 +220,7 @@ async function loadSalesReports() {
 async function load() {
   if (!(await ensureLogin())) return;
   loading.value = true;
+  pageError.value = '';
   try {
     const reports = await softFallback(
       merchantApi.deviceReports(),
@@ -211,7 +231,8 @@ async function load() {
     pickDefaultCabinet();
     await loadSalesReports();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    pageError.value = e instanceof Error ? e.message : '加载失败';
+    showError(pageError.value);
     salesRows.value = [];
   } finally {
     loading.value = false;
@@ -242,10 +263,12 @@ function onPeriodTab(key: string) {
 }
 
 function onExport() {
+  if (exporting.value) return; // 防重复导出（连续点击触发多次文件下载）
   if (!canExport.value) {
     showError('无导出权限');
     return;
   }
+  exporting.value = true;
   const { fromDate, toDate } = reportDateRange(days.value);
   downloadAuthedFile(merchantApi.exportSalesReportsUrl(reportDim.value, fromDate, toDate))
     .then(async (tempFilePath) => {
@@ -254,6 +277,9 @@ function onExport() {
     })
     .catch((e) => {
       showError(e instanceof Error ? e.message : '导出失败');
+    })
+    .finally(() => {
+      exporting.value = false;
     });
 }
 

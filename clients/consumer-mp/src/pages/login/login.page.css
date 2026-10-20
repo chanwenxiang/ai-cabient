@@ -270,6 +270,13 @@
 .phone-open .divider-toggle {
   min-height: 56rpx;
   padding: 10rpx 22rpx;
+  /* 热区扩展：视觉不变，触控 ≥88rpx */
+  position: relative;
+}
+.phone-open .divider-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx 0;
 }
 .title {
   font-size: var(--font-size-display-sm);
@@ -466,6 +473,13 @@
   text-align: center;
   color: rgba(204, 251, 241, 0.66);
   font-size: var(--font-size-body);
+  /* 热区扩展：视觉不变，触控 ≥88rpx */
+  position: relative;
+}
+.login-back::after {
+  content: '';
+  position: absolute;
+  inset: -20rpx -40rpx;
 }
 .login-back-hover {
   opacity: 0.55;

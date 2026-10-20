@@ -41,6 +41,7 @@
               <input
                 v-model="taxForm.taxNo"
                 class="tax-input"
+                maxlength="18"
                 placeholder="18 位统一社会信用代码"
               />
             </view>
@@ -58,6 +59,7 @@
                 v-model="taxForm.phone"
                 class="tax-input"
                 type="number"
+                maxlength="11"
                 placeholder="联系电话"
               />
             </view>

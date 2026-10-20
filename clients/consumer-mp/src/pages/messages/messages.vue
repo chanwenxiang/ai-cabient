@@ -35,6 +35,12 @@
       <view v-if="loading && !list.length" class="loading">
         <text>{{ UI_COPY.loading }}</text>
       </view>
+      <error-state
+        v-else-if="loadError && !list.length"
+        :title="loadError"
+        hint="请检查网络后重试"
+        @retry="load"
+      />
       <view v-else-if="!visibleList.length" class="empty">
         <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
@@ -115,6 +121,7 @@ const subscribeEnabled = ref(false);
 const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
+const loadError = ref('');
 /** H5 无 requestSubscribeMessage，勿展示「去开启」入口（同 M-P2-14）。编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
 let isMpWeixin = false;
 // #ifdef MP-WEIXIN
@@ -213,6 +220,7 @@ let loadSeq = 0;
 async function load() {
   const seq = ++loadSeq;
   if (!list.value.length) loading.value = true;
+  loadError.value = '';
   try {
     const [rows, count, prefList, cfg, pending] = await Promise.all([
       consumerApi.notifications(100),
@@ -230,7 +238,8 @@ async function load() {
     pendingCount.value = Math.max(0, Number(pending?.count || 0));
   } catch (e) {
     if (seq !== loadSeq) return;
-    showError(e instanceof Error ? e.message : '加载失败');
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    showError(loadError.value);
   } finally {
     loading.value = false;
   }

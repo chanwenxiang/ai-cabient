@@ -187,12 +187,13 @@ async function load() {
 
 onShow(() => {
   void load();
-  void loadDevices();
+  // 设备列表低频变化：已有缓存时 onShow 不重拉（省一次全量 devices 请求），下拉刷新才强制更新
+  if (!devices.value.length) void loadDevices();
 });
 
 onPullDownRefresh(async () => {
   try {
-    await load();
+    await Promise.all([load(), loadDevices()]);
   } finally {
     uni.stopPullDownRefresh();
   }

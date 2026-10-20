@@ -16,6 +16,12 @@
           <text class="card-title">流水记录</text>
         </view>
         <view v-if="loading && !transactions.length" class="empty">{{ UI_COPY.loading }}</view>
+        <error-state
+          v-else-if="loadError && !transactions.length"
+          :title="loadError"
+          hint="请检查网络后重试"
+          @retry="loadTransactions(true)"
+        />
         <view v-else-if="!transactions.length" class="empty">
           <text class="empty-title">暂无余额流水</text>
           <text class="empty-hint">购物扣款、退款与充值会出现在这里</text>
@@ -64,6 +70,7 @@ const balanceYuan = ref('--');
 const frozenYuan = ref('¥0.00');
 const account = ref<AccountDto | null>(null);
 const transactions = ref<BalanceTransactionDto[]>([]);
+const loadError = ref('');
 const page = ref(0);
 const hasMore = ref(false);
 
@@ -113,6 +120,7 @@ function loadTransactions(reset = true): Promise<void> {
   if (loading.value) return Promise.resolve();
   if (!reset && !hasMore.value) return Promise.resolve();
   loading.value = true;
+  if (reset) loadError.value = '';
   const nextPage = reset ? 0 : page.value + 1;
   return consumerApi
     .balanceTransactions(nextPage, PAGE_SIZE)
@@ -133,6 +141,7 @@ function loadTransactions(reset = true): Promise<void> {
         transactions.value.length < Math.max(total, transactions.value.length);
     })
     .catch((e) => {
+      if (reset) loadError.value = e instanceof Error ? e.message : '加载失败';
       showError(e instanceof Error ? e.message : '加载失败');
     })
     .finally(() => {

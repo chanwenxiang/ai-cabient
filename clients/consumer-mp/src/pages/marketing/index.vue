@@ -47,6 +47,12 @@
 
         <view class="section-title">进行中</view>
         <view v-if="loading && !campaigns.length" class="empty">{{ UI_COPY.loading }}</view>
+        <error-state
+          v-else-if="loadError && !campaigns.length"
+          :title="loadError"
+          hint="请检查网络后重试"
+          @retry="load"
+        />
         <view v-else-if="!campaigns.length" class="market-empty">
           <empty-state
             icon="/static/menu/hot.png"
@@ -118,11 +124,11 @@ const SHARE_PATH = '/pages/marketing/index';
 
 const banners = ref<MarketingBannerDto[]>([]);
 
-/** 分享卡带图：取首条广告横幅图兜底（官方卡片规范 5:4，无图时回退页面截图） */
+/** 分享卡带图：优先取广告横幅图，兜底品牌静态分享图（官方卡片规范 5:4） */
 onShareAppMessage(() => ({
   title: SHARE_TITLE,
   path: SHARE_PATH,
-  imageUrl: banners.value.find((b) => !!b.imageUrl)?.imageUrl || undefined
+  imageUrl: banners.value.find((b) => !!b.imageUrl)?.imageUrl || '/static/share-card.jpg'
 }));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
@@ -150,6 +156,7 @@ function onBannerTap(b: MarketingBannerDto) {
   openPath(b.ctaPath);
 }
 const campaigns = ref<MarketingCampaignDto[]>([]);
+const loadError = ref('');
 const couponCount = ref(0);
 const authed = ref(false);
 const loading = ref(false);
@@ -165,6 +172,7 @@ onShow(() => load());
 
 async function load() {
   if (!campaigns.value.length && !banners.value.length) loading.value = true;
+  loadError.value = '';
   authed.value = isConsumerLoggedIn();
   try {
     const [b, c] = await Promise.all([
@@ -200,6 +208,7 @@ async function load() {
     if (!campaigns.value.length) {
       banners.value = [];
       campaigns.value = [];
+      loadError.value = e instanceof Error ? e.message : '加载失败';
     }
     showError(e instanceof Error ? e.message : '加载失败');
   } finally {

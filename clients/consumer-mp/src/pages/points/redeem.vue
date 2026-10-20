@@ -11,6 +11,12 @@
       <view v-if="loading && !items.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
+      <error-state
+        v-else-if="loadError && !items.length"
+        :title="loadError"
+        hint="请检查网络后重试"
+        @retry="load"
+      />
       <view v-else-if="!items.length" class="empty">
         <text class="empty-title">暂无兑换商品</text>
         <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
@@ -75,6 +81,7 @@ import {
 
 const loading = ref(false);
 const redeeming = ref<number | null>(null);
+const loadError = ref('');
 const summary = ref<MemberPointsSummaryDto | null>(null);
 const items = ref<PointsRedeemItemDto[]>([]);
 
@@ -90,12 +97,14 @@ onShow(async () => {
 
 async function load() {
   if (!items.value.length) loading.value = true;
+  loadError.value = '';
   try {
     const [s, list] = await Promise.all([consumerApi.memberPoints(), consumerApi.redeemItems()]);
     summary.value = s;
     items.value = list;
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    showError(loadError.value);
   } finally {
     loading.value = false;
   }

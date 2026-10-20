@@ -61,7 +61,13 @@
             <text class="card-title">积分明细</text>
             <text role="button" class="card-link app-link-chevron" @click="goRedeem">去兑换</text>
           </view>
-          <view v-if="!logs.length" class="empty">
+          <error-state
+            v-if="loadError && !logs.length"
+            :title="loadError"
+            hint="请检查网络后重试"
+            @retry="load"
+          />
+          <view v-else-if="!logs.length" class="empty">
             <text class="empty-title">暂无积分记录</text>
             <text class="empty-hint">购物支付后自动返积分，可在结算后查看</text>
           </view>
@@ -99,6 +105,7 @@ import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const loading = ref(false);
+const loadError = ref('');
 const summary = ref<MemberPointsSummaryDto | null>(null);
 const logs = ref<MemberPointsLogDto[]>([]);
 
@@ -114,6 +121,7 @@ onShow(async () => {
 
 async function load() {
   if (!summary.value) loading.value = true;
+  loadError.value = '';
   try {
     const [s, list] = await Promise.all([
       consumerApi.memberPoints(),
@@ -122,7 +130,8 @@ async function load() {
     summary.value = s;
     logs.value = list;
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载失败');
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    showError(loadError.value);
   } finally {
     loading.value = false;
   }

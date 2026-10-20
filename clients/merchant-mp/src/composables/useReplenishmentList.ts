@@ -35,6 +35,7 @@ function sortTasksByPreferred(rows: Task[], preferred: string) {
  */
 export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   const loading = ref(false);
+  const loadError = ref('');
   let loadSeq = 0;
   const allTasks = ref<Task[]>([]);
   const evidenceCountMap = ref<Record<number, number>>({});
@@ -195,6 +196,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
       return null;
     }
     if (!allTasks.value.length) loading.value = true;
+    loadError.value = '';
     try {
       // 主列表硬失败：禁止 soft 成 [] 伪装「暂无补货任务」（M1）
       const taskRows = await merchantApi.replenishmentTasks();
@@ -213,7 +215,8 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
       return { seq, aborted: false };
     } catch (error) {
       if (seq !== loadSeq) return { seq, aborted: true };
-      showError(error instanceof Error ? error.message : '加载失败');
+      loadError.value = error instanceof Error ? error.message : '加载失败';
+      showError(loadError.value);
       return { seq, aborted: true };
     } finally {
       if (seq === loadSeq) {
@@ -229,6 +232,7 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
 
   return {
     loading,
+    loadError,
     allTasks,
     evidenceCountMap,
     lineSummaryMap,

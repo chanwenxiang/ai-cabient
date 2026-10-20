@@ -17,6 +17,7 @@ const deviceId = ref('');
 const deviceName = ref('');
 const mode = ref<'restock' | 'stocktake'>('restock');
 const loading = ref(false);
+const loadError = ref('');
 
 interface RestockRow {
   taskId: number;
@@ -54,6 +55,7 @@ onLoad((opts) => {
 async function load() {
   if (!deviceId.value) return;
   loading.value = true;
+  loadError.value = '';
   try {
     if (mode.value === 'restock') {
       const res = await merchantApi.deviceTallyRecords(deviceId.value, 0, 50, 30);
@@ -67,7 +69,8 @@ async function load() {
       stocktakeLoaded.value = true;
     }
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载理货记录失败');
+    loadError.value = e instanceof Error ? e.message : '加载理货记录失败';
+    showError(loadError.value);
   } finally {
     loading.value = false;
   }
@@ -144,6 +147,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
         <view v-if="loading" class="card"
           ><text class="meta">{{ UI_COPY.loading }}</text></view
         >
+        <error-state
+          v-else-if="loadError"
+          :title="loadError"
+          hint="请检查网络后重试"
+          @retry="load"
+        />
         <template v-else-if="mode === 'restock'">
           <view
             v-for="r in restockRows"
