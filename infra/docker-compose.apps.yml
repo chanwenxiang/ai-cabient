@@ -138,6 +138,9 @@ services:
       NOTIFY_WECHAT_ENABLED: ${NOTIFY_WECHAT_ENABLED:-false}
       NOTIFY_SMS_ENABLED: ${NOTIFY_SMS_ENABLED:-false}
       NOTIFY_ASYNC_ENABLED: ${NOTIFY_ASYNC_ENABLED:-false}
+      # 2026-10-20 扫描补漏：yml 有占位引用但此前未透传（.env 改了不生效）
+      AUTH_COOKIE_ENABLED: ${AUTH_COOKIE_ENABLED:-true}
+      DEVOPS_GRAFANA_EMBED_PATH: ${DEVOPS_GRAFANA_EMBED_PATH:-}
       # 2026-10-20：实名二要素 vendor（阿里云市场身份证二要素）——base-url=完整接口 URL，
       # api-key=AppCode。缺失时 IdentityVerifyClient fail-closed（实名接口 503），
       # 且 WECHAT_PAY_ENABLED=true 时启动校验器硬拒绝（ProductionStartupValidator）。
