@@ -130,13 +130,18 @@ REMOTE2
 echo "── [5/6] 部署后验证 ──"
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- << 'REMOTE3'
 set -euo pipefail
-IDX_JS=$(curl -s http://127.0.0.1/admin/ | grep -o 'index-[^"]*\.js' | head -1)
-[ -n "$IDX_JS" ] || { echo "❌ /admin/ 未返回 index.html"; exit 1; }
-CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1/admin/assets/$IDX_JS")
+# 2026-10-20 修正：宿主 nginx 接管 80/443（easygovm vhost）后，gateway 容器改发布在
+# 127.0.0.1:8180——探针必须打 8180 直连 gateway，打 80 会被宿主 nginx 默认 server 404
+# （当次部署实际成功，仅探针口径过时造成假失败）。
+GW="http://127.0.0.1:8180"
+IDX_JS=$(curl -sf "$GW/admin/" | grep -o 'index-[^"]*\.js' | head -1) || true
+[ -n "$IDX_JS" ] || { echo "❌ $GW/admin/ 未返回 index.html"; exit 1; }
+CODE=$(curl -s -o /dev/null -w '%{http_code}' "$GW/admin/assets/$IDX_JS")
 [ "$CODE" = "200" ] || { echo "❌ admin 入口资产 $IDX_JS → $CODE"; exit 1; }
-API=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/api/v2/auth/captcha)
+API=$(curl -s -o /dev/null -w '%{http_code}' "$GW/api/v2/auth/captcha")
 [ "$API" = "200" ] || { echo "❌ 业务 API /auth/captcha → $API"; exit 1; }
-echo "✅ admin 入口 $IDX_JS = 200；业务 API = 200"
+JY=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{}' "$GW/jiangyi/api/domainConfig/getConfigStatusByIdentifier")
+echo "✅ admin 入口 $IDX_JS = 200；业务 API = 200；domainConfig 探针 = $JY（401=路由通、待设备 token）"
 REMOTE3
 
 echo "── [6/6] 完成 ──"
