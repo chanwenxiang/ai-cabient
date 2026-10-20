@@ -273,12 +273,12 @@ const redirect = ref('/pages/index/index');
  * 手机号表单默认收起（2026-10-20 真机反馈「默认应该收起，太丑」）：
  * 小程序主路径就是微信一键授权，长表单默认摊开把主按钮挤到屏下方。
  * 🔴 仅 H5 例外默认展开——H5 无法微信静默授权，收起会让用户多点一次。
+ * （vue-tsc 对原始源码做类型检查，#ifdef 双声明会 TS2451——沿用 index.vue 的
+ *   「声明一次 + 条件编译内赋值」惯用法）
  */
-// #ifdef H5
-const showPhoneForm = ref(true);
-// #endif
-// #ifndef H5
 const showPhoneForm = ref(false);
+// #ifdef H5
+showPhoneForm.value = true;
 // #endif
 const wxBtnLabel = computed(() => '微信授权登录');
 const isDev = showDevTools();
