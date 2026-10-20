@@ -83,7 +83,7 @@ public class ExternalNotificationDispatcher {
                 user.getWxOpenId(),
                 weChatMiniAppProperties.resolveConsumerTemplateId(),
                 weChatMiniAppProperties.resolveConsumerNotifyPage(),
-                Map.of("thing1", msg.title(), "thing2", msg.body()),
+                Map.of("thing1", clipToThingLimit(msg.title()), "thing2", clipToThingLimit(msg.body())),
                 MiniAppTarget.CONSUMER);
         if (ok) {
             saveLog(msg, "WECHAT_SUBSCRIBE");
@@ -127,6 +127,19 @@ public class ExternalNotificationDispatcher {
                 .map(c -> c.toUpperCase(Locale.ROOT))
                 .anyMatch("SMS"::equals);
     }
+
+    /**
+     * 微信订阅消息 thing 类型字段限 20 字符，超长整条被微信拒发（errcode 47003）；
+     * 发送侧兜底截断，保证通知不会因文案过长而静默丢失。
+     */
+    private static String clipToThingLimit(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= WECHAT_THING_MAX_CHARS ? value : value.substring(0, WECHAT_THING_MAX_CHARS);
+    }
+
+    private static final int WECHAT_THING_MAX_CHARS = 20;
 
     private void saveLog(NotificationDispatchMessage msg, String channel) {
         NotificationLog logEntry = new NotificationLog();

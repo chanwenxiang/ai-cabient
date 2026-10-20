@@ -133,6 +133,11 @@ services:
       WECHAT_MERCHANT_APP_SECRET: ${WECHAT_MERCHANT_APP_SECRET:-}
       WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:-}
       WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:-sLGG1ukNcrUqbSMh8ntkpOq31tBz77QDXpElVgT2v7E}
+      # 2026-10-20：通知渠道开关（此前从未透传进容器，与 SMS 同型坑——改 .env 不重启容器不生效）。
+      # NOTIFY_SMS_ENABLED 是欠款催缴短信总闸（V326），默认 false；微信订阅消息按模板 channels 决定双发
+      NOTIFY_WECHAT_ENABLED: ${NOTIFY_WECHAT_ENABLED:-false}
+      NOTIFY_SMS_ENABLED: ${NOTIFY_SMS_ENABLED:-false}
+      NOTIFY_ASYNC_ENABLED: ${NOTIFY_ASYNC_ENABLED:-false}
       # 2026-10-20：实名二要素 vendor（阿里云市场身份证二要素）——base-url=完整接口 URL，
       # api-key=AppCode。缺失时 IdentityVerifyClient fail-closed（实名接口 503），
       # 且 WECHAT_PAY_ENABLED=true 时启动校验器硬拒绝（ProductionStartupValidator）。

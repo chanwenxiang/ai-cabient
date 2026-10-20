@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -82,6 +83,28 @@ class ExternalNotificationDispatcherTest {
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(logRepository).save(captor.capture());
         assertEquals("WECHAT_SUBSCRIBE", captor.getValue().getChannel());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dispatch_wechatThingFieldsClippedTo20Chars() {
+        // 2026-10-20：微信 thing 字段限 20 字符，超长整条拒发——发送侧必须兜底截断
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(), eq(MiniAppTarget.CONSUMER)))
+                .thenReturn(true);
+
+        NotificationDispatchMessage longMsg = new NotificationDispatchMessage("order_paid", 100L,
+                "这是一个超过二十个字符的超长订单通知标题用于验证截断逻辑生效",
+                "这也是一段超过二十个字符的超长正文内容用于验证 thing 字段截断兜底是否正常生效", "ORDER", "O1");
+        dispatcher.dispatch(longMsg);
+
+        ArgumentCaptor<Map<String, String>> payloadCaptor =
+                ArgumentCaptor.forClass((Class<Map<String, String>>) (Class<?>) Map.class);
+        verify(weChatMiniAppClient).sendSubscribeMessage(
+                anyString(), anyString(), anyString(), payloadCaptor.capture(), eq(MiniAppTarget.CONSUMER));
+        assertEquals(20, payloadCaptor.getValue().get("thing1").length());
+        assertEquals(20, payloadCaptor.getValue().get("thing2").length());
     }
 
     @Test
