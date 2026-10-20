@@ -154,6 +154,8 @@ export const AdminEndpoints = {
 
   /** 将邑接入（CB-022 收尾）：SN 登记 / setDomain 绑定 / 退役 / class 映射；库存走货道管理 */
   deviceJiangyi: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi`,
+  /** 租户级 setDomain（2026-10-20）：全局配置，一次覆盖租户下全部柜子（系统参数设置用） */
+  jiangyiTenantDomain: `${ops}/jiangyi/tenant-domain`,
   deviceJiangyiRegister: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/register`,
   deviceJiangyiBind: (deviceId: string) =>

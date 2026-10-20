@@ -73,6 +73,48 @@
       </el-form>
     </el-card>
 
+    <el-card class="brand-card" shadow="never">
+      <template #header>
+        <div class="brand-card-head">
+          <span>将邑接入（租户级）</span>
+          <span class="hint"
+            >一次下发覆盖租户下全部柜子的上报/WS 地址；⚠️
+            对厂商云共享状态生效，所有柜机随之切换</span
+          >
+        </div>
+      </template>
+      <el-form label-width="auto" class="brand-form" @submit.prevent="saveJiangyiDomain">
+        <el-form-item label="http地址" required>
+          <el-input
+            v-model="jiangyiForm.domain"
+            maxlength="256"
+            placeholder="设备请求地址，须含 /jiangyi/api 尾段，如 https://gate.example.com/jiangyi/api"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="websocket">
+          <el-input
+            v-model="jiangyiForm.socketUrl"
+            maxlength="256"
+            placeholder="留空自动推导为 wss://<域名>/websocket/device/"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="primary"
+            :loading="jiangyiSaving"
+            @click="saveJiangyiDomain"
+            >下发到将邑云</el-button
+          >
+          <span v-if="jiangyiPushedAt" class="hint">
+            最近下发：{{ formatDateTime(jiangyiPushedAt) }}
+          </span>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
@@ -380,6 +422,7 @@ function groupOf(key: string) {
 async function fetchPage(params: CrudPageParams) {
   items.value = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
   syncBrandFormFromItems();
+  syncJiangyiFormFromItems();
   const rows = filtered.value;
   const start = params.page * params.size;
   return { items: rows.slice(start, start + params.size), total: rows.length };
@@ -582,6 +625,49 @@ function syncBrandFormFromItems() {
   brandForm.logoUrl = valueOfKey(BRAND_KEYS.logoUrl, '');
   // 载入即基线：未编辑过不算脏
   brandBaseline.value = brandFormSnapshot();
+}
+
+// ---------- 将邑接入（租户级 setDomain，2026-10-20） ----------
+// 作用域=商户（租户）：一次下发覆盖租户下全部柜子的上报/WS 地址，与单设备无关——
+// 所以放系统参数设置，不埋在设备卡片（BOUND 设备的卡片不显示接入表单）。
+// 最近下发值由后端落 SystemConfig 三键（jiangyi.tenant.*），此处只做回显与提交。
+const jiangyiForm = reactive({ domain: '', socketUrl: '' });
+const jiangyiSaving = ref(false);
+const jiangyiPushedAt = ref('');
+
+function syncJiangyiFormFromItems() {
+  jiangyiForm.domain = valueOfKey('jiangyi.tenant.domain', '');
+  jiangyiForm.socketUrl = valueOfKey('jiangyi.tenant.socketUrl', '');
+  jiangyiPushedAt.value = valueOfKey('jiangyi.tenant.pushedAt', '');
+}
+
+async function saveJiangyiDomain() {
+  const domain = jiangyiForm.domain.trim();
+  if (!domain) {
+    ElMessage.warning('请填写设备请求 http 地址');
+    return;
+  }
+  if (!domain.endsWith('/jiangyi/api')) {
+    ElMessage.warning('地址必须含 /jiangyi/api 尾段，否则设备切过来全 404');
+    return;
+  }
+  jiangyiSaving.value = true;
+  try {
+    const result = await api.request<{ domain: string; socketUrl: string; pushedAt: string }>(
+      AdminEndpoints.jiangyiTenantDomain,
+      'POST',
+      { domain, socketUrl: jiangyiForm.socketUrl.trim() || undefined }
+    );
+    jiangyiForm.domain = result.domain;
+    jiangyiForm.socketUrl = result.socketUrl;
+    jiangyiPushedAt.value = result.pushedAt;
+    ElMessage.success('已下发到将邑云（租户级，覆盖全部柜子；设备将随下次开机切换）');
+  } catch (e) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e));
+    throw e;
+  } finally {
+    jiangyiSaving.value = false;
+  }
 }
 
 async function upsertBrandKey(configKey: string, configValue: string, description: string) {

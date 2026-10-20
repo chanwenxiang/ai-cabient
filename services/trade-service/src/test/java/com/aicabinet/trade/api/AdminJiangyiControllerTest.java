@@ -120,6 +120,27 @@ class AdminJiangyiControllerTest {
     }
 
     @Test
+    void tenantDomainDelegatesToGlobalService() {
+        // 租户级 setDomain（2026-10-20）：与 bind 调同一厂商接口，但作用域全局、不带 deviceId
+        when(onboardingService.setTenantDomain(eq("https://gate.example.com/jiangyi/api"), any()))
+                .thenReturn(new JiangyiOnboardingService.TenantDomainView(
+                        "https://gate.example.com/jiangyi/api",
+                        "wss://gate.example.com/websocket/device/",
+                        "2026-10-20T02:00:00Z"));
+
+        var body = new AdminJiangyiController.TenantDomainRequest(
+                "https://gate.example.com/jiangyi/api ", "");
+        var result = controller().setTenantDomain(body).data();
+
+        ArgumentCaptor<String> socketUrl = ArgumentCaptor.forClass(String.class);
+        verify(onboardingService).setTenantDomain(
+                eq("https://gate.example.com/jiangyi/api"), socketUrl.capture());
+        assertNull(socketUrl.getValue());
+        assertEquals("https://gate.example.com/jiangyi/api", result.domain());
+        assertEquals("wss://gate.example.com/websocket/device/", result.socketUrl());
+    }
+
+    @Test
     void retireDelegates() {
         when(onboardingService.retire(DEVICE_ID)).thenReturn(boundDevice());
 

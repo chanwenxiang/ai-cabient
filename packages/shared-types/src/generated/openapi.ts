@@ -3302,6 +3302,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/tenant-domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setTenantDomain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/invoices/{invoiceId}/reject": {
         parameters: {
             query?: never;
@@ -13792,6 +13808,21 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             updatedAt?: string;
+        };
+        TenantDomainRequest: {
+            domain: string;
+            socketUrl?: string;
+        };
+        ApiResponseTenantDomainView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["TenantDomainView"];
+        };
+        TenantDomainView: {
+            domain?: string;
+            socketUrl?: string;
+            pushedAt?: string;
         };
         WriteOffRequest: {
             deviceId?: string;
@@ -25594,6 +25625,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseLineManagerDto"];
+                };
+            };
+        };
+    };
+    setTenantDomain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantDomainRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseTenantDomainView"];
                 };
             };
         };

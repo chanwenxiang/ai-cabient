@@ -38,6 +38,7 @@ public class JiangyiOnboardingService {
     private final DeviceInfoMapper deviceInfoMapper;
     private final JiangyiMerchantClient jiangyiMerchantClient;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    private final SystemConfigService systemConfigService;
     private final long tenantId;
     private final String secret;
 
@@ -45,12 +46,14 @@ public class JiangyiOnboardingService {
                                     DeviceInfoMapper deviceInfoMapper,
                                     JiangyiMerchantClient jiangyiMerchantClient,
                                     JiangyiDeviceDirectory jiangyiDeviceDirectory,
+                                    SystemConfigService systemConfigService,
                                     @Value("${JIANGYI_TENANT_ID:0}") long tenantId,
                                     @Value("${JIANGYI_SECRET:}") String secret) {
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.jiangyiMerchantClient = jiangyiMerchantClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.systemConfigService = systemConfigService;
         this.tenantId = tenantId;
         this.secret = secret;
     }
@@ -124,6 +127,53 @@ public class JiangyiOnboardingService {
         log.info("jiangyi device bound deviceId={} deviceSn={} identifier={} status=BOUND",
                 device.getDeviceId(), deviceSn, identifier);
         return device;
+    }
+
+    /**
+     * 租户级 setDomain（2026-10-20，系统参数设置「将邑接入」区块的落点）。
+     *
+     * <p><b>为什么是全局</b>：{@code /platform/tenant/setDomain} 参数只有
+     * tenantId+secret+domain+socketUrl——作用域是<b>商户（租户）</b>，一次调用覆盖租户下
+     * 全部设备，与单台柜机无关。设备卡的 bind 流程（{@link #bindDomain}）保留给首次入驻，
+     * 但 BOUND 设备的卡片不再显示接入表单 ⇒ 本方法是唯一「重新下发」入口。</p>
+     *
+     * <p><b>成因注释</b>：2026-10-20 WS 停摆复盘发现 setDomain 正道从未被调用过
+     * （trade 日志 30h 计数=0），唯一生效的写入是商户后台 offnet 表单（无网络兜底缓存语义）；
+     * 且设备卡接入表单 v-if=UNBOUND，BOUND 态无法补发。故增设本全局入口。</p>
+     *
+     * <p>成功后把最近下发值落 SystemConfig（jiangyi.tenant.domain / socketUrl / pushedAt），
+     * 供参数设置页回显。这是对厂商云<b>共享状态</b>的写：租户下所有设备都会受影响。</p>
+     */
+    public TenantDomainView setTenantDomain(String domain, String socketUrl) {
+        if (tenantId <= 0 || secret == null || secret.isBlank()) {
+            throw new IllegalStateException("将邑租户凭据未配置（JIANGYI_TENANT_ID/JIANGYI_SECRET）");
+        }
+        String d = domain == null ? "" : domain.trim();
+        while (d.endsWith("/")) {
+            d = d.substring(0, d.length() - 1);
+        }
+        // 我方 nginx 只把 /jiangyi/* 路由到网关：domain 必须带尾段，否则设备过来全 404
+        // （DEPLOYMENT_CHECKLIST §3 口径；厂商自己的 domain 尾段是 /device，同理）。
+        if (!d.endsWith("/jiangyi/api")) {
+            throw new IllegalArgumentException("domain 必须含 /jiangyi/api 尾段，如 https://host/jiangyi/api");
+        }
+        String effectiveSocketUrl = socketUrl == null || socketUrl.isBlank()
+                ? deriveSocketUrl(d)
+                : socketUrl.trim();
+        log.info("jiangyi tenant setDomain domain={} providedSocketUrl={} effectiveSocketUrl={}",
+                d, socketUrl == null ? "null" : "blank→derived", effectiveSocketUrl);
+        // data 形态不定（实测 200 时 data:null）——identifier 语义属单设备绑定，这里不采纳
+        jiangyiMerchantClient.setDomain(tenantId, secret, d, effectiveSocketUrl);
+        String pushedAt = Instant.now().toString();
+        systemConfigService.upsert("jiangyi.tenant.domain", d, "将邑接入：设备请求http地址（租户级，最近一次 setDomain 下发值）");
+        systemConfigService.upsert("jiangyi.tenant.socketUrl", effectiveSocketUrl, "将邑接入：websocket地址（租户级，最近一次 setDomain 下发值）");
+        systemConfigService.upsert("jiangyi.tenant.pushedAt", pushedAt, "将邑接入：最近一次 setDomain 下发时间");
+        log.info("jiangyi tenant setDomain done domain={} socketUrl={}", d, effectiveSocketUrl);
+        return new TenantDomainView(d, effectiveSocketUrl, pushedAt);
+    }
+
+    /** setTenantDomain 的返回视图（最近一次全局下发的实际生效值）。 */
+    public record TenantDomainView(String domain, String socketUrl, String pushedAt) {
     }
 
     /**

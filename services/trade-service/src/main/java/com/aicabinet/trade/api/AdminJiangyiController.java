@@ -146,6 +146,24 @@ public class AdminJiangyiController {
                 deviceId, body.domain().trim(), blankToNull(body.socketUrl()))));
     }
 
+    /**
+     * 租户级 setDomain（2026-10-20，系统参数设置「将邑接入」区块）。
+     *
+     * <p><b>作用域是租户不是设备</b>：/platform/tenant/setDomain 一次覆盖租户下全部柜子，
+     * 与 {@code /devices/{id}/jiangyi/bind} 调的是同一个厂商接口；本端点存在的理由是
+     * BOUND 设备的卡片不显示接入表单（v-if=UNBOUND），且全局配置不该埋在单设备页。
+     * socketUrl 留空按 domain 自动推导（wss://host/websocket/device/）。</p>
+     *
+     * <p>⚠️ 对厂商云共享状态的写：租户下所有设备的上报/WS 目标都会随之切换。</p>
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/jiangyi/tenant-domain")
+    public ApiResponse<JiangyiOnboardingService.TenantDomainView> setTenantDomain(
+            @Valid @RequestBody TenantDomainRequest body) {
+        return ApiResponse.ok(jiangyiOnboardingService.setTenantDomain(
+                body.domain().trim(), blankToNull(body.socketUrl())));
+    }
+
     /** 退役：拒绝一切后续路由与上报（gateway 校验 status）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/retire")
@@ -340,6 +358,9 @@ public class AdminJiangyiController {
 
     record BindRequest(@NotBlank(message = "domain 不能为空") String domain,
                        String socketUrl) {}
+
+    record TenantDomainRequest(@NotBlank(message = "domain 不能为空") String domain,
+                               String socketUrl) {}
 
     record UpdateSnRequest(@NotBlank(message = "设备 SN 不能为空") String deviceSn) {}
 
