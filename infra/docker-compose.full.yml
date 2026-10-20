@@ -176,6 +176,16 @@ services:
       JWT_SECRET: ${JWT_SECRET:-ai-cabinet-dev-secret-key-32bytes!!}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       AMAP_WEB_KEY: ${AMAP_WEB_KEY:-}
+      # 短信链路（2026-10-20 阿里云打通）：验证码走 aliyun，通知短信走 webhook；
+      # dev profile mock-enabled=true 时 SmsCodeService 短路，不实际调用
+      SMS_PROVIDER: ${SMS_PROVIDER:-webhook}
+      SMS_WEBHOOK_URL: ${SMS_WEBHOOK_URL:-}
+      SMS_MOCK_CODE: ${SMS_MOCK_CODE:-}
+      SMS_ALIYUN_ACCESS_KEY_ID: ${SMS_ALIYUN_ACCESS_KEY_ID:-}
+      SMS_ALIYUN_ACCESS_KEY_SECRET: ${SMS_ALIYUN_ACCESS_KEY_SECRET:-}
+      SMS_ALIYUN_SIGN_NAME: ${SMS_ALIYUN_SIGN_NAME:-}
+      SMS_ALIYUN_TEMPLATE_CODE: ${SMS_ALIYUN_TEMPLATE_CODE:-}
+      SMS_ALIYUN_REGION_ID: ${SMS_ALIYUN_REGION_ID:-cn-hangzhou}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       DEVOPS_GRAFANA_URL: ${DEVOPS_GRAFANA_URL:-http://localhost/devops/grafana}
       DEVOPS_GRAFANA_HEALTH_URL: http://grafana:3000
