@@ -306,6 +306,11 @@ const pageIndex = ref(0);
 const hasMore = ref(false);
 const ordersTotal = ref(0);
 const PAGE_SIZE = 20;
+/** ensureConsumerAuth（boot+refresh+dicts）在轮询路径的节流窗口（接口层审计 高-1） */
+const AUTH_BOOTSTRAP_INTERVAL_MS = 60_000;
+let lastAuthBootstrapAt = 0;
+/** 请求序号守卫（接口层审计 中-6）：onShow/下拉/轮询触发并发 load 时旧响应不得覆盖新结果 */
+let loadSeq = 0;
 type OrderStatusFilter = 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled';
 const filter = ref<OrderStatusFilter>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
@@ -566,18 +571,27 @@ async function load() {
   pageIndex.value = 0;
   hasMore.value = false;
   ordersTotal.value = 0;
-  await ensureConsumerAuth();
+  // 接口层审计（2026-10-20）高-1：useAutoRefresh 每 10s 调 load，原实现每 tick 都跑
+  // ensureConsumerAuth（server-boot+refresh+dicts 共 4-5 个请求，请求放大 5 倍）。
+  // 改为 60s 节流：常规 tick 只发 2 个业务请求；401 自愈由 request 层单飞刷新兜底，
+  // boot-epoch 探测（服务重启清会话）保留在节流窗口内不丢失。
+  if (Date.now() - lastAuthBootstrapAt > AUTH_BOOTSTRAP_INTERVAL_MS) {
+    lastAuthBootstrapAt = Date.now();
+    await ensureConsumerAuth();
+  }
   authed.value = isConsumerLoggedIn();
   if (!authed.value) {
     loading.value = false;
     booting.value = false;
     return;
   }
+  const seq = ++loadSeq;
   try {
     const [page, mine] = await Promise.all([
       consumerApi.listOrders(0, PAGE_SIZE),
       consumerApi.listMyDisputes()
     ]);
+    if (seq !== loadSeq) return;
     orders.value = page.items || [];
     const total = Number(page.total ?? 0);
     ordersTotal.value = total;
@@ -595,10 +609,13 @@ async function load() {
       }
     }
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
-    booting.value = false;
+    if (seq === loadSeq) {
+      loading.value = false;
+      booting.value = false;
+    }
   }
 }
 

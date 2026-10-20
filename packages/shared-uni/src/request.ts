@@ -250,7 +250,19 @@ function mpRequestOnce<T>(
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };
         if (res.statusCode === 401) {
-          if (auth && !retried) {
+          // 匿名接口（auth=false，如 server-boot/public-config）收到 401 属网关/路由异常，
+          // 绝不能清已登录用户的会话（2026-10-20 接口层审计）：按普通错误 reject。
+          if (!auth) {
+            reject(
+              createMpApiError(
+                localizeApiMessage(body?.message, '请求失败 (401)'),
+                401,
+                'UNAUTHORIZED'
+              )
+            );
+            return;
+          }
+          if (!retried) {
             refreshTokenSilently(opts)
               .then(() =>
                 mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)

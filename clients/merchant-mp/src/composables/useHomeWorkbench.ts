@@ -46,9 +46,16 @@ const EMPTY_WORKBENCH: MerchantWorkbench = {
   actionItems: []
 };
 
-function softErr<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
+function softErr<T>(
+  promise: Promise<T>,
+  fallback: T,
+  label: string,
+  opts?: { silent?: boolean }
+): Promise<T> {
   return promise.catch((e) => {
-    showError((e instanceof Error ? e.message : label).slice(0, 40));
+    // 接口层审计（2026-10-20）H4：轮询路径必须静默（auto-refresh 契约），否则弱网下
+    // 每 15s 弹一次 toast 互相覆盖。silent 时仅回退值，错误交由页面 error 态承载。
+    if (!opts?.silent) showError((e instanceof Error ? e.message : label).slice(0, 40));
     return fallback;
   });
 }
@@ -229,57 +236,60 @@ export function useHomeWorkbench() {
     }
   }
 
-  async function fetchHomeWorkbench() {
+  async function fetchHomeWorkbench(silent?: boolean) {
     if (!canAlerts.value) return EMPTY_WORKBENCH;
-    return softErr(merchantApi.workbench(), EMPTY_WORKBENCH, '待办加载失败');
+    return softErr(merchantApi.workbench(), EMPTY_WORKBENCH, '待办加载失败', { silent });
   }
 
-  async function fetchHomeExceptions() {
+  async function fetchHomeExceptions(silent?: boolean) {
     if (!canAlerts.value) return { items: [], total: 0 };
     // M4：首页只摘要 3 条待办，每状态最多 1 页，避免 OPEN+PROCESSING 各串行最多 3 页
     return softErr(
       merchantApi.openExceptions(100, { maxPages: OPEN_EXCEPTIONS_HOME_MAX_PAGES }),
       { items: [], total: 0 },
-      '异常加载失败'
+      '异常加载失败',
+      { silent }
     );
   }
 
-  async function fetchHomeExpiryRows() {
+  async function fetchHomeExpiryRows(silent?: boolean) {
     if (!canAlerts.value) return [];
-    return softErr(merchantApi.expiryAlerts(), [], '效期告警加载失败');
+    return softErr(merchantApi.expiryAlerts(), [], '效期告警加载失败', { silent });
   }
 
-  async function fetchHomeDevices() {
+  async function fetchHomeDevices(silent?: boolean) {
     if (!canDevices.value && !canReplenishment.value) return [];
-    return softErr(merchantApi.devices(), [], '柜机加载失败');
+    return softErr(merchantApi.devices(), [], '柜机加载失败', { silent });
   }
 
-  async function fetchHomeReplenishmentTasks() {
+  async function fetchHomeReplenishmentTasks(silent?: boolean) {
     if (!canReplenishment.value) return [];
-    return softErr(merchantApi.replenishmentTasks(), [], '补货任务加载失败');
+    return softErr(merchantApi.replenishmentTasks(), [], '补货任务加载失败', { silent });
   }
 
-  async function fetchHomeAnalytics() {
+  async function fetchHomeAnalytics(silent?: boolean) {
     if (!canBusiness.value) return null;
-    return softErr(merchantApi.analytics(7), null, '经营数据加载失败');
+    return softErr(merchantApi.analytics(7), null, '经营数据加载失败', { silent });
   }
 
-  async function fetchHomeTrend() {
+  async function fetchHomeTrend(silent?: boolean) {
     if (!canTrend.value) return { last7Days: [] as { date?: string; revenueCents?: number }[] };
-    return softErr(merchantApi.trend(7), { last7Days: [] }, '趋势加载失败');
+    return softErr(merchantApi.trend(7), { last7Days: [] }, '趋势加载失败', { silent });
   }
 
-  async function fetchHomeDashboardBundle() {
+  async function fetchHomeDashboardBundle(silent?: boolean) {
     return Promise.all([
-      softErr(merchantApi.stats(), {} as OpenApiMerchantDashboardStatsDto, '统计加载失败'),
-      fetchHomeTrend(),
-      fetchHomeWorkbench(),
-      fetchHomeExceptions(),
-      fetchHomeExpiryRows(),
-      fetchHomeDevices(),
-      fetchHomeReplenishmentTasks(),
-      softFallback(merchantApi.listAnnouncements(), [], '公告'),
-      fetchHomeAnalytics()
+      softErr(merchantApi.stats(), {} as OpenApiMerchantDashboardStatsDto, '统计加载失败', {
+        silent
+      }),
+      fetchHomeTrend(silent),
+      fetchHomeWorkbench(silent),
+      fetchHomeExceptions(silent),
+      fetchHomeExpiryRows(silent),
+      fetchHomeDevices(silent),
+      fetchHomeReplenishmentTasks(silent),
+      softFallback(merchantApi.listAnnouncements(), [], '公告', { silent }),
+      fetchHomeAnalytics(silent)
     ]);
   }
 
@@ -391,7 +401,12 @@ export function useHomeWorkbench() {
     applyTaskPreview(tasks as TaskRow[]);
   }
 
-  async function load() {
+  /**
+   * 首页全量加载。silent=true 供轮询 tick 使用（auto-refresh 契约：失败不弹 toast，
+   * 错误仅落 error ref；接口层审计 2026-10-20 H4）；用户主动入口（onShow/下拉）不传。
+   */
+  async function load(opts?: { silent?: boolean }) {
+    const silent = opts?.silent === true;
     if (!isMerchantLoggedIn()) {
       uni.reLaunch({ url: '/pages/login/login' });
       return;
@@ -403,7 +418,7 @@ export function useHomeWorkbench() {
     try {
       const profile = await fetchHomeProfile(seq);
       if (!profile || seq !== loadSeq) return;
-      const bundle = await fetchHomeDashboardBundle();
+      const bundle = await fetchHomeDashboardBundle(silent);
       if (seq !== loadSeq) return;
       applyHomeDashboardData(profile, bundle);
     } catch (e) {
@@ -471,6 +486,8 @@ export function useHomeWorkbench() {
     goBusiness,
     goAnnouncementDetail,
     onScan,
-    load
+    load,
+    /** 轮询专用：静默版 load（接口层审计 H4，auto-refresh 契约） */
+    loadSilent: () => load({ silent: true })
   };
 }

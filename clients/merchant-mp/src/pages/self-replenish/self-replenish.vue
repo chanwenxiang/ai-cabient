@@ -80,6 +80,7 @@ import { computed, ref, watch } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { formatSkuNameWithSpec } from '@aicabinet/shared-uni/format';
+import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
@@ -253,7 +254,14 @@ async function submit() {
     draftLines.value = draftLines.value.map((line) => ({ ...line, selected: false, qty: 0 }));
     uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${task.taskId}` });
   } catch (e) {
-    showError(requestActionErrorMessage(e, '提交失败'));
+    // 接口层审计（2026-10-20）H2：超时=结果未知（服务端可能已生成出库+任务），
+    // 后端已有 90s 短窗去重兜底，但提示必须引导核对而非直接再点一次。
+    const base = requestActionErrorMessage(e, '提交失败');
+    showError(
+      isRetriableMpTransportError(e)
+        ? base + '；提交结果未知，请先到「补货任务」列表核对是否已生成'
+        : base
+    );
   } finally {
     submitting.value = false;
   }

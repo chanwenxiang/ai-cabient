@@ -161,6 +161,7 @@ import {
   yuanToCents
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
+import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import { merchantApi, isMerchantLoggedIn, handleUnauthorized, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {
@@ -321,6 +322,10 @@ async function load() {
   }
 }
 
+// 提现幂等键状态（接口层审计 H1）：跨提交持久——超时重试复用同键，语义见 submitWithdraw 内注释
+let pendingRequestNo = '';
+let pendingWithdrawCents = 0;
+
 async function submitWithdraw() {
   // P2：权限前置裁剪——无权用户提交前提示，而非点击后才吃后端 403
   const requiredPerm =
@@ -362,13 +367,21 @@ async function submitWithdraw() {
   withdrawError.value = '';
   try {
     // H53：多商户绑定必须显式指定提现商户；单商户/未知绑定交由后端自动解析
+    // 接口层审计（2026-10-20）H1：requestNo 是后端幂等键，原实现每次点击重新生成——
+    // 请求超时（结果未知）后重试会变成新的一笔，穿透后端去重造成重复扣减可提余额。
+    // 改为：同金额的传输类失败重试复用同一 requestNo；成功或业务性失败后才换新。
+    if (!pendingRequestNo || pendingWithdrawCents !== amountCents) {
+      pendingRequestNo = buildWalletWithdrawRequestNo({
+        nowMs: Date.now(),
+        randomSuffix: secureRandomToken(5)
+      });
+      // 此处校验已保证 amountCents 非 null（INVALID_AMOUNT 先拦）；?? 仅为类型收窄
+      pendingWithdrawCents = amountCents ?? 0;
+    }
     const body = buildWalletWithdrawBody({
       role: props.role,
       amountCents: amountCents!,
-      requestNo: buildWalletWithdrawRequestNo({
-        nowMs: Date.now(),
-        randomSuffix: secureRandomToken(5)
-      }),
+      requestNo: pendingRequestNo,
       merchantId: selectedMerchantId.value || undefined,
       boundMerchantCount: boundMerchants.value.length
     });
@@ -377,10 +390,18 @@ async function submitWithdraw() {
     } else {
       await merchantApi.lineWalletWithdraw(body);
     }
+    pendingRequestNo = '';
+    pendingWithdrawCents = 0;
     showSuccess('已提交');
     amountYuan.value = '';
     await load();
   } catch (e) {
+    // 传输类错误（超时/断网）结果未知：保留 requestNo 供重试去重；业务性失败（如余额不足）
+    // 服务端必然未受理，换新键避免下一笔被幂等拒绝。
+    if (!isRetriableMpTransportError(e)) {
+      pendingRequestNo = '';
+      pendingWithdrawCents = 0;
+    }
     const msg = e instanceof Error ? e.message : '提交失败';
     withdrawError.value = msg;
     showError(msg);

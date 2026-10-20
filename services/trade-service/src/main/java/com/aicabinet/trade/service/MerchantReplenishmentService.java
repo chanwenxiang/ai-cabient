@@ -279,6 +279,21 @@ public class MerchantReplenishmentService {
         // 仓跟人走：仅分仓负责人可自主发起（历史任务/他人仓一律拒绝）
         warehouseService.requireWarehouseManagedBy(homeWarehouseId.trim(), userId);
 
+        // 接口层审计（2026-10-20）H2：本端点直接生效（出库+任务）且无 clientRequestNo 幂等契约，
+        // 前端 20s 超时重试会产生重复出库。短窗去重兜底：同设备+同用户+self-initiated notes
+        // 在窗口期内已有 PENDING 任务 ⇒ 视为超时重试，幂等返回原任务。
+        // runWithDeviceLock 已按设备串行化，此处查询无并发竞态；窗口 90s > 前端 20s 超时。
+        String selfNotes = "self-initiated by user " + userId;
+        List<ReplenishmentTask> recentSelf = taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                deviceId, selfNotes, Instant.now().minusSeconds(90));
+        ReplenishmentTask duplicate = recentSelf.stream()
+                .filter(t -> "PENDING".equals(t.getStatus()))
+                .findFirst()
+                .orElse(null);
+        if (duplicate != null) {
+            return replenishmentService.getTaskDto(duplicate.getTaskId());
+        }
+
         Map<String, Long> totals = new LinkedHashMap<>();
         for (MerchantSelfReplenishLine line : body.lines()) {
             if (line == null || line.skuId() == null || line.skuId().isBlank()) {
@@ -321,7 +336,7 @@ public class MerchantReplenishmentService {
         task.setRouteId(route.getRouteId());
         task.setDeviceId(deviceId);
         task.setStatus("PENDING");
-        task.setNotes("self-initiated by user " + userId);
+        task.setNotes(selfNotes);
         task = taskRepository.save(task);
 
         // 出库与任务解耦：分仓无可用库存时仍生成补货任务（RESTORM 行兜底），避免同事务 rollback-only

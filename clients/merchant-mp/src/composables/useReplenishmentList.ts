@@ -216,7 +216,8 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     } catch (error) {
       if (seq !== loadSeq) return { seq, aborted: true };
       loadError.value = error instanceof Error ? error.message : '加载失败';
-      showError(loadError.value);
+      // 不再 showError：页面已用 error-state 横幅承载同一文案（接口层审计 2026-10-20 H4——
+      // 本 load 同时是轮询路径，toast 会每 10s 弹一次互相覆盖；横幅可静默重入）
       return { seq, aborted: true };
     } finally {
       if (seq === loadSeq) {

@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { formatError } from '@aicabinet/shared-uni/format';
+import { isMpAuthFailure } from '@aicabinet/shared-uni/request';
 import {
   isNetworkishErrorMessage,
   pollDurationExceeded,
@@ -17,6 +18,8 @@ import {
  * - 防并发堆积（pollInFlight）；
  * - 失败连击与弱网文案升级（pollFailStreak/pollError，POLL_FAIL_WARN_AT 语义不变）；
  * - 手动刷新（refreshNow：guard + 成功 toast 回调）。
+ * - 2026-10-20 接口层审计增补：失败指数退避（2s→4s→…上限 30s，成功复位）；
+ *   鉴权失效（401 且刷新失败）直接停表，不再 2s 硬打 401 至时长上限。
  *
  * **页面保留**（onTick 回调，资金/结算语义不搬）：getSession、applySessionView、
  * 购物车联动、finishSession 结算、abort 清理——即 `classifyPollSessionState` 的
@@ -45,16 +48,51 @@ export function useSessionPoll(options: SessionPollOptions) {
   const pollError = ref('');
   const pollRefreshing = ref(false);
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let wakeSleep: (() => void) | null = null;
   let pollInFlight = false;
   let pollStartedAt = 0;
   let pollCappedSessionId = '';
   let pollFailStreak = 0;
+  /** 调度循环存活标记：stopPoll 置 false 后循环自然退出（2026-10-20 接口层审计改为退避调度）。 */
+  let pollLoopActive = false;
 
   function stopPoll() {
-    if (pollTimer != null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    pollLoopActive = false;
+    // 若正睡在退避间隔上：唤醒使其立刻退出，避免悬挂协程
+    if (wakeSleep) {
+      wakeSleep();
+      wakeSleep = null;
+    }
+  }
+
+  function sleepMs(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      pollTimer = setTimeout(resolve, ms);
+      wakeSleep = () => {
+        if (pollTimer != null) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+        resolve();
+      };
+    });
+  }
+
+  /**
+   * 退避调度：连续失败时按 2^n 递增间隔（上限 30s），成功即回原频率。
+   * 弱网/鉴权失效场景不再以固定频率硬打（接口层审计 高-4）。
+   */
+  async function scheduleLoop() {
+    while (pollLoopActive) {
+      const delay =
+        pollFailStreak > 0
+          ? Math.min(options.pollMs * 2 ** Math.min(pollFailStreak, 4), 30_000)
+          : options.pollMs;
+      await sleepMs(delay);
+      if (!pollLoopActive) return;
+      const ran = await tickPoll();
+      if (!ran || !pollLoopActive) return;
     }
   }
 
@@ -65,34 +103,47 @@ export function useSessionPoll(options: SessionPollOptions) {
     pollError.value = '';
     pollFailStreak = 0;
     pollStartedAt = Date.now();
-    // 立即拉一次，避免弱网下再等一个 interval 才知道状态
-    void tickPoll();
-    pollTimer = setInterval(() => void tickPoll(), options.pollMs);
+    // 立即拉一次，避免弱网下再等一个 interval 才知道状态；
+    // 仅当本次 tick 真正执行（未被 in-flight 去重跳过）才启动退避循环，防双循环叠发
+    pollLoopActive = true;
+    void tickPoll().then((ran) => {
+      if (ran && pollLoopActive) void scheduleLoop();
+    });
   }
 
-  /** 单次会话轮询：防并发堆积；连续失败升级弱网文案；C2 总时长到期停表转订单页。 */
-  async function tickPoll() {
+  /** 单次会话轮询：防并发堆积；连续失败升级弱网文案；C2 总时长到期停表转订单页。
+   *  返回是否真正执行（被 in-flight 去重跳过/已停表时返回 false，调用方据此决定是否续循环）。 */
+  async function tickPoll(): Promise<boolean> {
     const sessionId = options.getSessionId();
-    if (!sessionId || pollInFlight) return;
+    if (!sessionId || pollInFlight) return false;
     if (pollStartedAt > 0 && pollDurationExceeded(pollStartedAt)) {
       pollCappedSessionId = sessionId;
       stopPoll();
       options.onCapped();
-      return;
+      return false;
     }
     pollInFlight = true;
     try {
       await options.onTick();
       pollFailStreak = 0;
       pollError.value = '';
+      return true;
     } catch (e) {
       pollFailStreak += 1;
+      // 登录态已失效（401 且刷新失败）⇒ 停表：再打只会持续 401 空转
+      // （接口层审计 高-2：原实现最长 10 分钟硬打 401）
+      if (isMpAuthFailure(e)) {
+        stopPoll();
+        pollError.value = '登录已失效，请重新进入开门流程';
+        return false;
+      }
       pollError.value = pollErrorMessage(
         pollFailStreak,
         isNetworkishErrorMessage(formatError(e)),
         formatError(e),
         options.failWarnAt
       );
+      return true;
     } finally {
       pollInFlight = false;
     }

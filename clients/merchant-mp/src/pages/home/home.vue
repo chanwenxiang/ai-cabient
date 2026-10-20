@@ -7,7 +7,9 @@
     <view v-else>
       <view v-if="error" class="banner-err"
         ><text>{{ error }}</text
-        ><text role="button" aria-label="重试" class="banner-retry" @click="load">重试</text></view
+        ><text role="button" aria-label="重试" class="banner-retry" @click="load()"
+          >重试</text
+        ></view
       >
       <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
@@ -332,7 +334,8 @@ const {
   goBusiness,
   goAnnouncementDetail,
   onScan,
-  load
+  load,
+  loadSilent
 } = useHomeWorkbench();
 
 /** F1-UX：「无权限=看不见」——争议 KPI 点击按权限分流（补货员走柜机列表处理柜端） */
@@ -357,7 +360,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
  */
 useAutoRefresh({
   intervalMs: 15_000,
-  load,
+  // 轮询走静默版：弱网下失败不再每 15s 弹 toast（接口层审计 H4，auto-refresh 契约）
+  load: loadSilent,
   shouldContinue: () =>
     pendingCount.value > 0 || pendingTaskCount.value > 0 || offlineCount.value > 0,
   maxDurationMs: 300_000,

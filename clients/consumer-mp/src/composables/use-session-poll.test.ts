@@ -52,7 +52,7 @@ describe('useSessionPoll', () => {
     poll.stopPoll();
   });
 
-  it('onTick 抛错：失败有可见文案；连续网络错误升级 warnAt 文案', async () => {
+  it('onTick 抛错：失败有可见文案；连续网络错误升级 warnAt 文案；失败后指数退避', async () => {
     const onTick = vi
       .fn()
       .mockRejectedValueOnce(new Error('boom')) // 非网络：本地化兜底文案
@@ -62,10 +62,11 @@ describe('useSessionPoll', () => {
     await vi.runOnlyPendingTimersAsync();
     expect(poll.pollError.value).not.toBe('');
 
-    // pending interval 已消耗 streak=2（< warnAt）：网络波动短文案
+    // 2026-10-20 退避语义：第 1 次失败后间隔翻倍（pollMs*2），pending sleep 触发第 2 次
+    // 失败 → streak=2（< warnAt）：网络波动短文案
     expect(poll.pollError.value).toBe('网络波动，正在重试…');
-    // streak=3（≥ warnAt）：升级长文案
-    await vi.advanceTimersByTimeAsync(1000);
+    // 第 3 次失败需再等 pollMs*4（2^2 倍退避）：streak=3（≥ warnAt）升级长文案
+    await vi.advanceTimersByTimeAsync(4000);
     expect(poll.pollError.value).toBe(
       '网络不稳定，正在自动重试。可点「刷新会话状态」或检查网络后再试。'
     );
@@ -85,6 +86,25 @@ describe('useSessionPoll', () => {
     poll.startPoll();
     await vi.advanceTimersByTimeAsync(3000);
     expect(onTick.mock.calls.length).toBe(callsAtCap);
+  });
+
+  it('鉴权失效：立即停表不再 401 空转（接口层审计 2026-10-20 高-2）', async () => {
+    const onTick = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error('登录已失效'), { status: 401, code: 'UNAUTHORIZED' })
+      );
+    const { poll, onCapped } = setup(onTick);
+    poll.startPoll();
+    await vi.runOnlyPendingTimersAsync();
+    // 仅首发 1 次：鉴权失败即刻停表，退避循环不再续
+    expect(onTick).toHaveBeenCalledTimes(1);
+    expect(poll.pollError.value).toBe('登录已失效，请重新进入开门流程');
+    // 推进远超任何退避间隔：不应再有请求
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onTick).toHaveBeenCalledTimes(1);
+    // 非 C2 封顶路径：不触发 onCapped
+    expect(onCapped).not.toHaveBeenCalled();
   });
 
   it('refreshNow：成功回调一次；进行中防重入', async () => {

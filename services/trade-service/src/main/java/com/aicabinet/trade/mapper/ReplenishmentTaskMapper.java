@@ -49,6 +49,15 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
                 .orderByAsc(ReplenishmentTask::getTaskId));
     }
 
+    /** 自主补货超时重试去重（2026-10-20 接口层审计 H2）：按设备+notes+时间窗查近期任务。 */
+    default List<ReplenishmentTask> findByDeviceIdAndNotesAndCreatedAtSince(String deviceId, String notes, Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .eq(ReplenishmentTask::getDeviceId, deviceId)
+                .eq(ReplenishmentTask::getNotes, notes)
+                .ge(ReplenishmentTask::getCreatedAt, since)
+                .orderByDesc(ReplenishmentTask::getTaskId));
+    }
+
     default List<ReplenishmentTask> findByStatusIn(List<String> statuses) {
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().in(ReplenishmentTask::getStatus, statuses));
     }

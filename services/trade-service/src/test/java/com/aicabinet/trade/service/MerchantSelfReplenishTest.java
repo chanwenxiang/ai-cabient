@@ -133,6 +133,64 @@ class MerchantSelfReplenishTest {
         verify(replenishmentService, never()).seedDraftRestockLines(anyLong(), anyString(), any());
     }
 
+    /** 接口层审计（2026-10-20）H2：超时重试去重——窗口内同设备同用户已有 PENDING 任务 ⇒ 幂等返回原任务，不再出库。 */
+    @Test
+    void selfInitiate_dedupesRecentDuplicateWithinWindow() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        ReplenishmentTask existing = new ReplenishmentTask();
+        existing.setTaskId(66L);
+        existing.setDeviceId("CAB-001");
+        existing.setStatus("PENDING");
+        existing.setNotes("self-initiated by user 9");
+        when(taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                        eq("CAB-001"), eq("self-initiated by user 9"), any()))
+                .thenReturn(List.of(existing));
+        ReplenishmentTaskDto dto = new ReplenishmentTaskDto(66L, null, "CAB-001", 9L, "PENDING",
+                null, null, null, null, null, null, null, null);
+        when(replenishmentService.getTaskDto(66L)).thenReturn(dto);
+
+        ReplenishmentTaskDto result = service.selfInitiateTask(9L, body());
+
+        assertEquals(66L, result.taskId());
+        verify(routeRepository, never()).save(any());
+        verify(taskRepository, never()).save(any());
+        verify(warehouseService, never())
+                .tryCreateOutboundFromLines(any(), anyString(), any(), any(), any(), anyString());
+    }
+
+    /** 去重只认 PENDING：窗口内的已完成/取消任务不算重复，仍正常创建。 */
+    @Test
+    void selfInitiate_doesNotDedupeWhenRecentTaskNotPending() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        when(skuCatalogRepository.findById("4709")).thenReturn(Optional.of(new com.aicabinet.trade.domain.SkuCatalog()));
+        ReplenishmentTask done = new ReplenishmentTask();
+        done.setTaskId(65L);
+        done.setStatus("COMPLETED");
+        done.setNotes("self-initiated by user 9");
+        when(taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                        eq("CAB-001"), eq("self-initiated by user 9"), any()))
+                .thenReturn(List.of(done));
+
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteId(77L);
+        when(routeRepository.save(any(ReplenishmentRoute.class))).thenReturn(route);
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(88L);
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenReturn(task);
+        when(warehouseService.tryCreateOutboundFromLines(any(), anyString(), any(), any(), any(), anyString()))
+                .thenReturn(null);
+        when(replenishmentService.getTaskDto(88L)).thenReturn(
+                new ReplenishmentTaskDto(88L, 77L, "CAB-001", 9L, "PENDING",
+                        null, null, null, null, null, null, null, null));
+
+        ReplenishmentTaskDto result = service.selfInitiateTask(9L, body());
+
+        assertEquals(88L, result.taskId());
+        verify(taskRepository).save(any());
+    }
+
     /** AU-090：单行数量上界（修复前仅判 qty>0，无上限）。 */
     @Test
     void selfInitiate_rejectsLineAbovePerLineCap() {

@@ -193,6 +193,21 @@ export function request<T>(
 export function uploadDisputeEvidenceFile(
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  // 接口层审计（2026-10-20）中-7：上传通道原 401 直接报错不自愈——token 过期时用户上传
+  // 争议凭证必然失败。对齐 JSON 请求层口径：静默刷新后重试一次，仍 401 再明确报错。
+  return uploadDisputeEvidenceOnce(filePath).catch(async (e) => {
+    if (e instanceof Error && e.message.includes('(401)')) {
+      const ok = await sharedRefreshToken(mpApiSession).catch(() => false);
+      if (ok) return uploadDisputeEvidenceOnce(filePath);
+      throw new Error('登录已失效，请重新登录后重试');
+    }
+    throw e;
+  });
+}
+
+function uploadDisputeEvidenceOnce(
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
   return new Promise((resolve, reject) => {
     if (!isConsumerLoggedIn()) {
       reject(new Error('请先登录'));

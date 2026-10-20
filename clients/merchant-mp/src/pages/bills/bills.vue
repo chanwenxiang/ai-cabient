@@ -166,22 +166,29 @@ async function loadDevices() {
   }
 }
 
+/** 请求序号守卫（接口层审计 2026-10-20 M10）：快速切换月份/设备时旧响应不得覆盖新结果 */
+let loadSeq = 0;
+
 async function load() {
   if (!isMerchantLoggedIn()) return;
   if (!canView.value) {
     loadError.value = '没有查看账单的权限';
     return;
   }
+  const seq = ++loadSeq;
   loading.value = true;
   loadError.value = '';
   try {
     const deviceId =
       deviceIndex.value > 0 ? devices.value[deviceIndex.value - 1]?.deviceId : undefined;
-    bill.value = await merchantApi.monthlyBill(month.value, deviceId);
+    const data = await merchantApi.monthlyBill(month.value, deviceId);
+    if (seq !== loadSeq) return;
+    bill.value = data;
   } catch (err) {
+    if (seq !== loadSeq) return;
     loadError.value = err instanceof Error ? err.message : '账单加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 

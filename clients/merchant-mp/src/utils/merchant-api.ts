@@ -9,6 +9,7 @@ import { clearPreferredDeviceId } from '@/utils/preferred-device';
 import {
   mpRequest,
   createMpApiError,
+  refreshTokenSilently,
   type MpApiSession,
   type MpRefreshData
 } from '@aicabinet/shared-uni/request';
@@ -193,8 +194,21 @@ export function handleUnauthorized(message?: string) {
 /**
  * 带鉴权的文件下载（导出/证据等）。
  * 成功返回 tempFilePath；失败抛错。
+ * 接口层审计（2026-10-20）H3：401 原直接登出踢回登录页——现场导出/下载证据时 token
+ * 过期（20 分钟）会被硬中断。对齐 JSON 请求层：静默刷新后重试一次，仍失败才登出。
  */
 export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
+  return downloadAuthedFileOnce(url, timeoutMs).catch(async (e) => {
+    if (e instanceof Error && e.message === 'DOWNLOAD_AUTH_EXPIRED') {
+      const ok = await refreshTokenSilently(mpApiSession).catch(() => false);
+      if (ok) return downloadAuthedFileOnce(url, timeoutMs);
+      throw handleUnauthorized();
+    }
+    throw e;
+  });
+}
+
+function downloadAuthedFileOnce(url: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!isMerchantLoggedIn()) {
       reject(new Error('请先登录'));
@@ -212,7 +226,7 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
       timeout: timeoutMs,
       success(res) {
         if (res.statusCode === 401) {
-          reject(handleUnauthorized());
+          reject(new Error('DOWNLOAD_AUTH_EXPIRED'));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
@@ -351,8 +365,23 @@ function parseFileAttachmentDto(
  */
 export { softFallback } from '@/utils/soft-fallback';
 
-/** 鉴权 multipart 上传；两处凭证上传共用，避免重复 try/catch 解析。 */
+/** 鉴权 multipart 上传；两处凭证上传共用，避免重复 try/catch 解析。
+ *  接口层审计（2026-10-20）H3：401 对齐 JSON 层——静默刷新后重试一次，仍失败才登出。 */
 function uploadMerchantAuthedFile(
+  url: string,
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return uploadMerchantAuthedFileOnce(url, filePath).catch(async (e) => {
+    if (e instanceof Error && e.message === 'UPLOAD_AUTH_EXPIRED') {
+      const ok = await refreshTokenSilently(mpApiSession).catch(() => false);
+      if (ok) return uploadMerchantAuthedFileOnce(url, filePath);
+      throw handleUnauthorized();
+    }
+    throw e;
+  });
+}
+
+function uploadMerchantAuthedFileOnce(
   url: string,
   filePath: string
 ): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
@@ -377,7 +406,7 @@ function uploadMerchantAuthedFile(
       timeout: 30_000,
       success(res) {
         if (res.statusCode === 401) {
-          reject(handleUnauthorized());
+          reject(new Error('UPLOAD_AUTH_EXPIRED'));
           return;
         }
         try {

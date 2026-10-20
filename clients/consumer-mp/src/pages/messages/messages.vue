@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import {
   consumerApi,
   ensureConsumerAuth,
@@ -214,6 +214,9 @@ onShow(async () => {
   }
   await load();
 });
+
+// pages.json 已开 enablePullDownRefresh，必须有 handler 停表（否则转圈挂死，接口层审计 高-3）
+onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 let loadSeq = 0;
 

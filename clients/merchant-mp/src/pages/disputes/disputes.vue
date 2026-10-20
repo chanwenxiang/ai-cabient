@@ -677,10 +677,14 @@ function goOrderFromDetail() {
 
 async function loadMore() {
   if (!hasMore.value || loadingMore.value || loading.value) return;
+  // 接口层审计（2026-10-20）M11：loadMore 也要占 loadSeq——若在飞时用户下拉/切 tab 触发
+  // load() 重置列表，旧 loadMore 响应返回后会把第 1 页数据 append 到已重置的列表上。
+  const seq = ++loadSeq;
   loadingMore.value = true;
   try {
     const next = pageIndex.value + 1;
     const res = await merchantApi.disputes(activeTab.value, next, PAGE_SIZE);
+    if (seq !== loadSeq) return;
     const page = appendDisputePageItems({
       list: list.value,
       pageIndex: next,
@@ -693,9 +697,10 @@ async function loadMore() {
     pageIndex.value = page.pageIndex;
     hasMore.value = page.hasMore;
   } catch (e) {
+    if (seq !== loadSeq) return;
     showError(disputeActionErrorMessage(e, '加载失败'));
   } finally {
-    loadingMore.value = false;
+    if (seq === loadSeq) loadingMore.value = false;
   }
 }
 

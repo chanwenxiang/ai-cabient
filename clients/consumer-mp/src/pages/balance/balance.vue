@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { showError } from '@/utils/notify';
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onShow, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { formatDateTimeShort, fmtMoney, displayBizNo } from '@aicabinet/shared-uni/format';
@@ -103,6 +103,11 @@ useAutoRefresh({
 });
 
 onPullDownRefresh(() => refreshAll().finally(() => uni.stopPullDownRefresh()));
+
+// 触底自动加载：与 orders 页口径一致（接口层审计 中-2；loadTransactions 内有 hasMore/loading 守卫）
+onReachBottom(() => {
+  if (hasMore.value) void loadTransactions(false);
+});
 
 async function loadAccount() {
   try {
