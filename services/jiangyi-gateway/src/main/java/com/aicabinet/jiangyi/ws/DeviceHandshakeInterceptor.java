@@ -63,11 +63,20 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
         String claimedIdentifier = claims.get(DeviceTokenService.CLAIM_IDENTIFIER, String.class);
+        String claimedSn = claims.get(DeviceTokenService.CLAIM_SN, String.class);
         String deviceId = claims.getSubject();
-        if (!identifier.equals(claimedIdentifier)) {
+        // 成因注释（2026-10-20）：设备固件 WS 拨号 URL 的拼接段存在两种未证伪口径——
+        // V16 §4.3.1 文档与我方 DEPLOYMENT_CHECKLIST 记为 identifier（CQYB10720），
+        // 另一 AI 对 smali（SocketMsgDeal/OffNetDomainTool/initWebSocket）的读数为 SN。
+        // 推送规格发出前无法定谳（反编译产物不在本机），故对两种形态都放行：
+        // sn 与 identifier 同属 token 绑定的同一台设备，path 只可能与本机 token 二者其一吻合，
+        // 跨机冒连（A 机 token 连 B 机通道）仍会在两处同时失配被拒——fail-closed 性质不变。
+        boolean channelMatches = identifier.equals(claimedIdentifier)
+                || (claimedSn != null && identifier.equals(claimedSn));
+        if (!channelMatches) {
             // 铁律 fail-closed：token 与通道不匹配，拒绝
-            log.info("jiangyi ws handshake rejected: identifier mismatch claimed={} path={}",
-                    claimedIdentifier, identifier);
+            log.info("jiangyi ws handshake rejected: identifier mismatch claimed={} sn={} path={}",
+                    claimedIdentifier, claimedSn, identifier);
             reject(response, "identifier mismatch");
             return false;
         }
@@ -86,7 +95,9 @@ public class DeviceHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
         attributes.put(ATTR_DEVICE_ID, deviceId);
-        attributes.put(ATTR_IDENTIFIER, identifier);
+        // 归一化：无论 path 段是 identifier 还是 SN 形态，下游 handler（DeviceWebSocketHandler
+        // 按 ATTR_IDENTIFIER 路由/回查）一律拿 canonical identifier。
+        attributes.put(ATTR_IDENTIFIER, claimedIdentifier);
         log.info("jiangyi ws handshake accepted deviceId={} identifier={}", deviceId, identifier);
         return true;
     }
