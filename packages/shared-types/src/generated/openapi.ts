@@ -14793,7 +14793,7 @@ export interface components {
         };
         VerifyIdentityRequest: {
             realName: string;
-            idCardLast4: string;
+            idCard: string;
         };
         ApiResponsePayContractDto: {
             /** Format: int32 */
