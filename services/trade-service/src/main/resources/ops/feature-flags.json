@@ -35,6 +35,48 @@
       "description": "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS ③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出"
     },
     {
+      "key": "ops.alert.email.enabled",
+      "group": "运营告警",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "运营告警邮件渠道开关：开=有告警时向 ops.alert.email.to 发邮件（与飞书/钉钉/企微/webhook 并存，改完即生效）"
+    },
+    {
+      "key": "ops.alert.email.smtp_host",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "smtp.qiye.aliyun.com",
+      "description": "告警邮件 SMTP 服务器：阿里企业邮箱 smtp.qiye.aliyun.com，个人 @aliyun.com 用 smtp.aliyun.com"
+    },
+    {
+      "key": "ops.alert.email.smtp_port",
+      "group": "运营告警",
+      "type": "NUMBER",
+      "default": "465",
+      "description": "告警邮件 SMTP 端口（SSL 直连，465）"
+    },
+    {
+      "key": "ops.alert.email.username",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "告警邮件发件账号（同时作为 MAIL FROM），如 dengwu.wang@easygovm.com"
+    },
+    {
+      "key": "ops.alert.email.password",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "告警邮件 SMTP 授权码=邮箱「三方客户端安全密码」（敏感：非登录密码，泄露可在邮箱设置删除重生成）"
+    },
+    {
+      "key": "ops.alert.email.to",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "告警收件邮箱（多个英文逗号分隔）"
+    },
+    {
       "key": "notify.sms.dunning_template",
       "group": "消息触达",
       "type": "TEXT",

@@ -53,7 +53,7 @@ class OpsAlertDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder()));
+        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer()));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
     }
 

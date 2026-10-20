@@ -279,6 +279,18 @@ public class SystemConfigService {
     public static final String NOTIFY_ASYNC_ENABLED = "notify.async.enabled";
     /** 消息触达：欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone）。 */
     public static final String NOTIFY_SMS_DUNNING_TEMPLATE = "notify.sms.dunning_template";
+    /** 运营告警：邮件渠道开关（SMTP；与 webhook 类渠道并存，任一配置即参与分发）。 */
+    public static final String OPS_ALERT_EMAIL_ENABLED = "ops.alert.email.enabled";
+    /** 运营告警：SMTP 服务器（阿里企业邮箱 smtp.qiye.aliyun.com / 个人 smtp.aliyun.com）。 */
+    public static final String OPS_ALERT_EMAIL_SMTP_HOST = "ops.alert.email.smtp_host";
+    /** 运营告警：SMTP 端口（SSL 465）。 */
+    public static final String OPS_ALERT_EMAIL_SMTP_PORT = "ops.alert.email.smtp_port";
+    /** 运营告警：发件账号（同时作为 MAIL FROM）。 */
+    public static final String OPS_ALERT_EMAIL_USERNAME = "ops.alert.email.username";
+    /** 运营告警：SMTP 授权码（三方客户端安全密码；敏感，仅运营台可见）。 */
+    public static final String OPS_ALERT_EMAIL_PASSWORD = "ops.alert.email.password";
+    /** 运营告警：收件邮箱（多个英文逗号分隔）。 */
+    public static final String OPS_ALERT_EMAIL_TO = "ops.alert.email.to";
     /**
      * 消费端：结算页**主动选择支付方式**（F6，见 {@code docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md} F6）。
      *
@@ -1071,6 +1083,20 @@ public class SystemConfigService {
         upsertIfAbsent(NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664",
                 "欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone；"
                         + "换模板时同步改正文变量并保持键名一致）");
+        // 2026-10-20 邮件告警渠道（SMTP 手写客户端，零依赖）：enabled 只控制参与分发，
+        // host/user/pass/to 四项全非空才算配置完成；授权码=邮箱「三方客户端安全密码」。
+        upsertIfAbsent(OPS_ALERT_EMAIL_ENABLED, "false",
+                "运营告警邮件渠道开关：开=有告警时向 ops.alert.email.to 发邮件（与飞书/钉钉/企微/webhook 并存）");
+        upsertIfAbsent(OPS_ALERT_EMAIL_SMTP_HOST, "smtp.qiye.aliyun.com",
+                "告警邮件 SMTP 服务器：阿里企业邮箱 smtp.qiye.aliyun.com，个人 @aliyun.com 用 smtp.aliyun.com");
+        upsertIfAbsent(OPS_ALERT_EMAIL_SMTP_PORT, "465",
+                "告警邮件 SMTP 端口（SSL 直连，465）");
+        upsertIfAbsent(OPS_ALERT_EMAIL_USERNAME, "",
+                "告警邮件发件账号（同时作为 MAIL FROM），如 dengwu.wang@easygovm.com");
+        upsertIfAbsent(OPS_ALERT_EMAIL_PASSWORD, "",
+                "告警邮件 SMTP 授权码=邮箱「三方客户端安全密码」（敏感：非登录密码，泄露可在邮箱设置里删除重生成）");
+        upsertIfAbsent(OPS_ALERT_EMAIL_TO, "",
+                "告警收件邮箱（多个英文逗号分隔，如 oncall@easygovm.com,dengwu.wang@easygovm.com）");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {

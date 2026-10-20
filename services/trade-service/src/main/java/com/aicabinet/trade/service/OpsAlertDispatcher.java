@@ -81,10 +81,13 @@ public class OpsAlertDispatcher {
 
     private final SystemConfigService systemConfigService;
     private final RestClient restClient;
+    private final SmtpAlertMailer smtpAlertMailer;
 
-    public OpsAlertDispatcher(SystemConfigService systemConfigService, RestClient.Builder restClientBuilder) {
+    public OpsAlertDispatcher(SystemConfigService systemConfigService, RestClient.Builder restClientBuilder,
+                              SmtpAlertMailer smtpAlertMailer) {
         this.systemConfigService = systemConfigService;
         this.restClient = restClientBuilder.requestFactory(alertRequestFactory()).build();
+        this.smtpAlertMailer = smtpAlertMailer;
     }
 
     /**
@@ -168,6 +171,11 @@ public class OpsAlertDispatcher {
                 anyDelivered = true;
             }
         }
+        // 邮件渠道（2026-10-20）：与 webhook 类渠道并存；enabled + host/user/pass/to 齐全才参与
+        if (tryEmail(type, title, message, extra)) {
+            anyConfigured = true;
+            anyDelivered = true;
+        }
         if (extraUrls != null) {
             for (String url : extraUrls) {
                 if (url != null && !url.isBlank()) {
@@ -179,6 +187,42 @@ public class OpsAlertDispatcher {
             }
         }
         return new Fanout(anyConfigured, anyDelivered);
+    }
+
+    /** 邮件渠道尝试：enabled 且四项配置齐全才发；成功返回 true，失败记日志返回 false（不拖累其他渠道）。 */
+    private boolean tryEmail(String type, String title, String message, Map<String, Object> extra) {
+        if (!"true".equalsIgnoreCase(systemConfigService.getValue(
+                SystemConfigService.OPS_ALERT_EMAIL_ENABLED, "false"))) {
+            return false;
+        }
+        String host = systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_SMTP_HOST, "");
+        String user = systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_USERNAME, "");
+        String pass = systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_PASSWORD, "");
+        String toRaw = systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_TO, "");
+        int port;
+        try {
+            port = Integer.parseInt(systemConfigService.getValue(
+                    SystemConfigService.OPS_ALERT_EMAIL_SMTP_PORT, "465").trim());
+        } catch (NumberFormatException e) {
+            log.warn("ops alert email skipped: bad port config");
+            return false;
+        }
+        List<String> to = java.util.Arrays.stream(toRaw.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (host.isBlank() || user.isBlank() || pass.isBlank() || to.isEmpty()) {
+            log.warn("ops alert email skipped: incomplete config (host/username/password/to)");
+            return false;
+        }
+        String body = (message == null || message.isBlank() ? title : title + "\n\n" + message)
+                + (extra == null || extra.isEmpty() ? "" : "\n\n" + extra);
+        try {
+            smtpAlertMailer.send(host, port, user, pass, to,
+                    "[AI柜运营告警] " + type + "：" + title, body);
+            return true;
+        } catch (Exception e) {
+            log.warn("ops alert email failed type={}: {}", type, e.toString());
+            return false;
+        }
     }
 
     /**

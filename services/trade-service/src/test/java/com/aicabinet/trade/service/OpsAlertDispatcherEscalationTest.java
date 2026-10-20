@@ -53,7 +53,7 @@ class OpsAlertDispatcherEscalationTest {
     @BeforeEach
     void setUp() {
         dispatcher = org.mockito.Mockito.spy(
-                new OpsAlertDispatcher(systemConfigService, RestClient.builder()));
+                new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer()));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
         doReturn(MONDAY_10).when(dispatcher).now();
     }
