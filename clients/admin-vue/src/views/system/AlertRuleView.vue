@@ -240,7 +240,13 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
     'ops.alert.feishu_sign_secret',
     'ops.alert.dingtalk_webhook',
     'ops.alert.wecom_webhook',
-    'ops.alert.webhook'
+    'ops.alert.webhook',
+    'ops.alert.email.enabled',
+    'ops.alert.email.smtp_host',
+    'ops.alert.email.smtp_port',
+    'ops.alert.email.username',
+    'ops.alert.email.password',
+    'ops.alert.email.to'
   ],
   告警升级链: [
     'ops.alert.escalation_enabled',
