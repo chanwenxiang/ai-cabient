@@ -53,7 +53,7 @@ class OpsAlertDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer()));
+        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer(), org.mockito.Mockito.mock(com.aicabinet.trade.sms.AliyunSmsSender.class)));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
     }
 

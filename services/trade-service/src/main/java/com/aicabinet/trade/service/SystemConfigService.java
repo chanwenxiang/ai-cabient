@@ -291,6 +291,9 @@ public class SystemConfigService {
     public static final String OPS_ALERT_EMAIL_PASSWORD = "ops.alert.email.password";
     /** 运营告警：收件邮箱（多个英文逗号分隔）。 */
     public static final String OPS_ALERT_EMAIL_TO = "ops.alert.email.to";
+    /** 运营告警：升级链短信级直连阿里云的模板 CODE（空=未启用，回退 sms_webhook 网关）。 */
+    public static final String OPS_ALERT_ESCALATION_SMS_ALIYUN_TEMPLATE =
+            "ops.alert.escalation_sms_aliyun_template";
     /**
      * 消费端：结算页**主动选择支付方式**（F6，见 {@code docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md} F6）。
      *
@@ -1097,6 +1100,9 @@ public class SystemConfigService {
                 "告警邮件 SMTP 授权码=邮箱「三方客户端安全密码」（敏感：非登录密码，泄露可在邮箱设置里删除重生成）");
         upsertIfAbsent(OPS_ALERT_EMAIL_TO, "",
                 "告警收件邮箱（多个英文逗号分隔，如 oncall@easygovm.com,dengwu.wang@easygovm.com）");
+        upsertIfAbsent(OPS_ALERT_ESCALATION_SMS_ALIYUN_TEMPLATE, "",
+                "P0 升级短信级：直连阿里云的模板 CODE（留空=不启用，回退 escalation_sms_webhook 网关）。"
+                        + "模板变量须为 title(事项,20字内)/time(时间)，发送侧自动截断");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {

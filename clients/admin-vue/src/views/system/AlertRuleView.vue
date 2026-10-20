@@ -253,6 +253,7 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
     'ops.alert.escalation_types',
     'ops.alert.oncall_roster',
     'ops.alert.escalation_sms_webhook',
+    'ops.alert.escalation_sms_aliyun_template',
     'ops.alert.escalation_phone_webhook'
   ],
   卡点扫描: [

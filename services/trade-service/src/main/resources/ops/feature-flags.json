@@ -35,6 +35,13 @@
       "description": "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS ③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出"
     },
     {
+      "key": "ops.alert.escalation_sms_aliyun_template",
+      "group": "运营告警",
+      "type": "TEXT",
+      "default": "",
+      "description": "P0 升级短信级：直连阿里云的模板 CODE（留空=不启用，回退 escalation_sms_webhook 网关）。模板变量须为 title(事项,20字内)/time(时间)"
+    },
+    {
       "key": "ops.alert.email.enabled",
       "group": "运营告警",
       "type": "BOOLEAN",

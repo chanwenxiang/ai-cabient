@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
@@ -47,13 +49,14 @@ class OpsAlertDispatcherEscalationTest {
     private static final LocalDateTime MONDAY_10 = LocalDateTime.of(2026, 9, 21, 10, 0);
 
     @Mock private SystemConfigService systemConfigService;
+    @Mock private com.aicabinet.trade.sms.AliyunSmsSender aliyunSmsSender;
 
     private OpsAlertDispatcher dispatcher;
 
     @BeforeEach
     void setUp() {
         dispatcher = org.mockito.Mockito.spy(
-                new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer()));
+                new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer(), aliyunSmsSender));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
         doReturn(MONDAY_10).when(dispatcher).now();
     }
@@ -70,6 +73,49 @@ class OpsAlertDispatcherEscalationTest {
                 .thenReturn(smsUrl);
         when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_ESCALATION_PHONE_WEBHOOK, ""))
                 .thenReturn(phoneUrl);
+    }
+
+    // ---------- 短信级：阿里云直连 ----------
+
+    @Test
+    void escalation_smsLevel_prefersAliyunDirect() {
+        enableEscalation("DISPUTE_SLA_OVERDUE", ONCALL_JSON, SMS_URL, PHONE_URL);
+        when(systemConfigService.getValue(
+                SystemConfigService.OPS_ALERT_ESCALATION_SMS_ALIYUN_TEMPLATE, ""))
+                .thenReturn("SMS_ESCALATION_TEMPLATE");
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+
+        OpsAlertDispatcher.EscalationOutcome outcome = dispatcher.escalateIfNeeded(
+                "DISPUTE_SLA_OVERDUE",
+                "这是一个超过二十个字符的超长告警标题用于验证发送侧截断逻辑是否正确生效",
+                "detail", false);
+
+        assertEquals(OpsAlertDispatcher.EscalationOutcome.SMS_SENT, outcome);
+        ArgumentCaptor<String> template = ArgumentCaptor.forClass(String.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> params =
+                ArgumentCaptor.forClass((Class<Map<String, String>>) (Class<?>) Map.class);
+        verify(aliyunSmsSender).sendMessage(eq("13800000000"), template.capture(), params.capture());
+        assertEquals("SMS_ESCALATION_TEMPLATE", template.getValue());
+        assertEquals(20, params.getValue().get("title").length());
+        assertNotNull(params.getValue().get("time"));
+        // 阿里云直连成功 ⇒ 不再走 webhook 网关，电话级不触发
+        verify(dispatcher, never()).postJson(eq(SMS_URL), any());
+        verify(dispatcher, never()).postJson(eq(PHONE_URL), any());
+    }
+
+    @Test
+    void escalation_smsLevel_fallsBackToWebhook_whenAliyunTemplateEmpty() {
+        // 模板 CODE 留空（默认）⇒ 回退 escalation_sms_webhook 网关，既有行为不变
+        enableEscalation("DISPUTE_SLA_OVERDUE", ONCALL_JSON, SMS_URL, PHONE_URL);
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+
+        OpsAlertDispatcher.EscalationOutcome outcome = dispatcher.escalateIfNeeded(
+                "DISPUTE_SLA_OVERDUE", "订单结算卡点", "detail", false);
+
+        assertEquals(OpsAlertDispatcher.EscalationOutcome.SMS_SENT, outcome);
+        verify(aliyunSmsSender, never()).sendMessage(anyString(), anyString(), anyMap());
+        verify(dispatcher).postJson(eq(SMS_URL), any());
     }
 
     // ---------- 不该升级的三种情形 ----------

@@ -82,12 +82,15 @@ public class OpsAlertDispatcher {
     private final SystemConfigService systemConfigService;
     private final RestClient restClient;
     private final SmtpAlertMailer smtpAlertMailer;
+    private final com.aicabinet.trade.sms.AliyunSmsSender aliyunSmsSender;
 
     public OpsAlertDispatcher(SystemConfigService systemConfigService, RestClient.Builder restClientBuilder,
-                              SmtpAlertMailer smtpAlertMailer) {
+                              SmtpAlertMailer smtpAlertMailer,
+                              com.aicabinet.trade.sms.AliyunSmsSender aliyunSmsSender) {
         this.systemConfigService = systemConfigService;
         this.restClient = restClientBuilder.requestFactory(alertRequestFactory()).build();
         this.smtpAlertMailer = smtpAlertMailer;
+        this.aliyunSmsSender = aliyunSmsSender;
     }
 
     /**
@@ -226,6 +229,30 @@ public class OpsAlertDispatcher {
     }
 
     /**
+     * P0 升级短信级：直连阿里云模板渲染（须先在运营台配 ops.alert.escalation_sms_aliyun_template）。
+     * <p>模板变量约定 title(事项,20字内——阿里云事项类型硬上限，发送侧自动截断)/time(时间)。
+     * 未配置模板 CODE 或阿里云未配齐 ⇒ 返回 false 回退 webhook 网关，电话级照常兜底。</p>
+     */
+    private boolean escalateSmsViaAliyun(String phoneNumber, String title) {
+        String templateCode = systemConfigService.getValue(
+                SystemConfigService.OPS_ALERT_ESCALATION_SMS_ALIYUN_TEMPLATE, "");
+        if (templateCode == null || templateCode.isBlank() || !aliyunSmsSender.isConfigured()) {
+            return false;
+        }
+        String clippedTitle = title == null ? "" : (title.length() <= 20 ? title : title.substring(0, 20));
+        String time = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                .format(java.time.LocalDateTime.now());
+        try {
+            aliyunSmsSender.sendMessage(phoneNumber, templateCode.trim(),
+                    java.util.Map.of("title", clippedTitle, "time", time));
+            return true;
+        } catch (Exception e) {
+            log.warn("ops alert escalation aliyun sms failed: {}", e.toString());
+            return false;
+        }
+    }
+
+    /**
      * 单渠道投递（含重试）：被平台接受返回 true；被业务码拒绝、或重试耗尽仍失败返回 false（不抛出）。
      *
      * <p>本方法是**全部渠道日志的唯一出口** —— 若 {@code post()} 与 {@code tryPost()} 各写一份，
@@ -302,6 +329,12 @@ public class OpsAlertDispatcher {
             return EscalationOutcome.NO_ONCALL;
         }
         Object payload = escalationPayload(type, title, message, onCall);
+        // 2026-10-20：短信级新增「阿里云直连」分支——模板 CODE 配了就走阿里云（无需自建短信网关）；
+        // 未配/失败仍回退 escalation_sms_webhook 网关，电话级不受影响
+        if (escalateSmsViaAliyun(onCall.phone(), title)) {
+            log.warn("ops alert escalated to SMS (aliyun direct) type={} onCall={}", type, onCall.name());
+            return EscalationOutcome.SMS_SENT;
+        }
         if (escalateTo(ESCALATION_SMS, SystemConfigService.OPS_ALERT_ESCALATION_SMS_WEBHOOK,
                 type, payload)) {
             log.warn("ops alert escalated to SMS type={} onCall={}", type, onCall.name());
