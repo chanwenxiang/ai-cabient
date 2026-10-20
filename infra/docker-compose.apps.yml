@@ -97,6 +97,14 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       SMS_WEBHOOK_URL: ${SMS_WEBHOOK_URL:-}
+      # 阿里云短信（2026-10-20 打通）：provider=aliyun 时验证码走阿里云；
+      # staging 栈由 staging.yml 把 SMS_WEBHOOK_URL 钉成 mock 容器，SMS_PROVIDER 不钉（.env.staging 可覆盖）
+      SMS_PROVIDER: ${SMS_PROVIDER:-webhook}
+      SMS_ALIYUN_ACCESS_KEY_ID: ${SMS_ALIYUN_ACCESS_KEY_ID:-}
+      SMS_ALIYUN_ACCESS_KEY_SECRET: ${SMS_ALIYUN_ACCESS_KEY_SECRET:-}
+      SMS_ALIYUN_SIGN_NAME: ${SMS_ALIYUN_SIGN_NAME:-}
+      SMS_ALIYUN_TEMPLATE_CODE: ${SMS_ALIYUN_TEMPLATE_CODE:-}
+      SMS_ALIYUN_REGION_ID: ${SMS_ALIYUN_REGION_ID:-cn-hangzhou}
       CHECKOUT_BALANCE_ONLY: ${CHECKOUT_BALANCE_ONLY:-false}
       PAYSCORE_ENABLED: ${PAYSCORE_ENABLED:-false}
       PAYSCORE_MOCK_ENABLED: ${PAYSCORE_MOCK_ENABLED:-true}

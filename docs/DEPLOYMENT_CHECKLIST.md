@@ -84,7 +84,7 @@ copy infra\.env.production.example infra\.env.production
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`
 - [ ] `JWT_SECRET` / `INTERNAL_API_KEY` / `JIANGYI_JWT_SECRET` ≥ 32 字符，非默认值
-- [ ] `SMS_WEBHOOK_URL` 可达
+- [ ] 短信（2026-10-20 起）：`SMS_PROVIDER=aliyun` 且 `SMS_ALIYUN_ACCESS_KEY_ID/SECRET/SIGN_NAME/TEMPLATE_CODE` 已配（签名=深圳前海易购科创智能设备，验证码模板 SMS_512651638 变量须 `${code}`）；已用真实手机号实发一条验证码收通（不得再依赖 prod-server 的 mock 容器，已移除）
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
 - [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V389**（全新库启动日志逐条 Migrating 到 `389 - drop six legacy wallet tables`；已在该版本的老库启动时不再有 Migrating 行属正常）
