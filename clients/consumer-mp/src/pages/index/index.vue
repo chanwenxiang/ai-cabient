@@ -1452,7 +1452,11 @@ function ensureCanOpenDoor(): Promise<boolean> {
   return consumerApi
     .account()
     .then((acc) => {
-      if (acc.operator || (acc.verified && payReady(acc))) return true;
+      // 🔴 V326（CB-014）语义：实名**不是**开门前提，开门只看免密/余额就绪。
+      //   旧条件 `acc.verified && payReady(acc)` 会让「未实名但免密就绪」的用户
+      //   掉进开通抽屉死局——抽屉内部只判 payReady ⇒ ✓ 态藏掉全部按钮且不自动关闭
+      //   （2026-10-20 真机实证：✓ 圆圈被当成按钮点，毫无反应）。
+      if (acc.operator || payReady(acc)) return true;
       prepAccount.value = acc;
       showPrepDrawer.value = true;
       return new Promise<boolean>((resolve) => {

@@ -250,12 +250,19 @@ function goRechargePage() {
   uni.navigateTo({ url: '/pages/recharge/recharge' });
 }
 
-watch(payReady, (ready) => {
-  // V326：不再以「已实名」为开通完成的前提，只看免密支付是否就绪（CB-014）
-  if (ready) {
-    emit('done', entryChannel.value);
-  }
-});
+watch(
+  payReady,
+  (ready) => {
+    // V326：不再以「已实名」为开通完成的前提，只看免密支付是否就绪（CB-014）
+    if (ready) {
+      emit('done', entryChannel.value);
+    }
+  },
+  // 🔴 immediate（2026-10-20 真机死局实证）：账户在挂载时就已就绪（余额≥预授权 /
+  //    上一轮签约已成功）⇒ 初始即 ✓ 态、按钮区被 v-if="!payReady" 全藏；旧 watch
+  //    不监听初始值 ⇒ done 永不 emit、抽屉永不关闭，用户面对一个点不动的 ✓。
+  { immediate: true }
+);
 
 async function onSignPayScore() {
   if (busy.value) return;
