@@ -236,10 +236,10 @@ public class AccountService {
         }
         // 🔴 V322：mock 环境下verify 返回的是「假通过」。
         //   **不能**因此 setVerified(true) ⇒ 否则开发/测试环境里
-        //   输入任意姓名 + 4 位数字即实名成功 ⇒ 可开通免密支付 ⇒ 🔴 白嫖。
-        //   staging 恰恰是做 soak 测试的环境，风险不是假想。
+        //   输入任意姓名即实名成功 ⇒ 可提现 ⇒ 🔴 资金出口失守。
         //   ⇒ mock 时只记姓名（便于调试），verified 保持 false。
-        var outcome = identityVerifyClient.verify(request.realName(), request.idCardLast4());
+        //   2026-10-20：idCardLast4 → 完整 idCard（权威库二要素前提）；X 归一大写。
+        var outcome = identityVerifyClient.verify(request.realName(), request.idCard());
         user.setName(request.realName().trim());
         if (outcome.trusted()) {
             user.setVerified(true);

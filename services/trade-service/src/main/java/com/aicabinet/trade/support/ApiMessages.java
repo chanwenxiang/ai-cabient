@@ -24,6 +24,11 @@ public final class ApiMessages {
     public static final String USER_NOT_VERIFIED = "请先完成实名认证";
     public static final String IDENTITY_VERIFY_FAILED = "实名信息核验未通过";
     public static final String IDENTITY_VERIFY_UNAVAILABLE = "实名核验服务暂不可用";
+    /** vendor checkresult=3「库无」：户籍迁移未更新/现役军人/新证未入库存等（2026-10-20 二要素接入）。 */
+    public static final String IDENTITY_VERIFY_NO_RECORD =
+            "未查询到证件信息：若近期迁移过户口或补办身份证，请稍后再试，或到派出所核实";
+    /** vendor checkresult=110：同一身份证号一天内最多核验 10 次。 */
+    public static final String IDENTITY_VERIFY_RATE_LIMITED = "该证件今日核验次数已达上限，请明日再试";
     public static final String OPERATOR_REQUIRED = "需要运营账号权限";
     public static final String PERMISSION_DENIED = "无权限执行此操作";
     public static final String CONSUMER_CANNOT_USE_ADMIN = "当前账号为消费者，请使用运营账号登录后台";

@@ -43,6 +43,13 @@
       }
     },
     {
+      "path": "pages/realname/realname",
+      "style": {
+        "navigationBarTitleText": "实名认证",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/result/result",
       "style": {
         "navigationBarTitleText": "账单结果",

@@ -933,7 +933,8 @@ export interface ApplyBalanceRefundRequest {
 
 export interface VerifyIdentityRequest {
   realName: string;
-  idCardLast4: string;
+  /** 完整 18 位身份证号（末位可为 X/x）；仅透传给核验服务商，本地不落库。 */
+  idCard: string;
 }
 
 export interface PayContractDto {

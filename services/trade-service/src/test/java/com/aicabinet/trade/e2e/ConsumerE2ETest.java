@@ -215,12 +215,12 @@ class ConsumerE2ETest {
     void consumer_fullPurchaseFlow() throws Exception {
         String token = consumerToken();
 
-        // 1) 实名（演示仅姓名+身份证后 4 位）
+        // 1) 实名（2026-10-20 契约：完整 18 位身份证号；mock 环境不外呼 vendor）
         mockMvc.perform(post("/api/v2/account/verify")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                Map.of("realName", "E2E用户", "idCardLast4", "1234"))))
+                                Map.of("realName", "E2E用户", "idCard", "110105194912310011"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
