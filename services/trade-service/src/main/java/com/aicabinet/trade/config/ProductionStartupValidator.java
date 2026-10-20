@@ -101,8 +101,13 @@ public class ProductionStartupValidator {
             throw new IllegalStateException(
                     "Production/staging requires SEED_ENV=none (got '" + seedEnv + "'): demo accounts would remain active");
         }
-        if (!authProperties.sms().hasWebhook()) {
-            throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
+        // 2026-10-20：短信通道双轨化——webhook 网关或阿里云四件套（SMS_PROVIDER=aliyun/auto）
+        // 任一配好即放行；两者皆缺仍 fail-closed。原 webhook-only 口径会把「已配齐阿里云、
+        // 故意不再要求 webhook」的合法生产配置拦成启动失败（2026-10-20 生产实证）。
+        if (!authProperties.sms().hasWebhook() && !authProperties.sms().hasAliyun()) {
+            throw new IllegalStateException(
+                    "Production/staging requires an SMS channel: set SMS_WEBHOOK_URL "
+                            + "(aicabinet.auth.sms.webhook-url) or SMS_ALIYUN_* with SMS_PROVIDER=aliyun/auto");
         }
         validateSmsMockCode();
         validateCookieSecurity();

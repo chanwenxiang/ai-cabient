@@ -51,6 +51,41 @@ class ProductionStartupValidatorTest {
     }
 
     @Test
+    void prodAcceptsAliyunSmsWithoutWebhook() {
+        // 2026-10-20 短信双轨：只配阿里云四件套、无 webhook URL ⇒ 合法生产配置（生产实证曾被误拦）
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        SmsProperties aliyunOnly = new SmsProperties(
+                null, 300, null,
+                "aliyun", "LTAI-ak", "aliyun-sk-at-least-16ch", "深圳前海易购科创智能设备", "SMS_512651638", "cn-hangzhou");
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidrSms(
+                environment, minio, List.of("https://ops.example.com"), true, aliyunOnly);
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
+        v.validateProductionConfig();
+    }
+
+    @Test
+    void prodRejectsMissingSmsChannel() {
+        // 2026-10-20 短信双轨：webhook 与阿里云都没配 ⇒ 仍 fail-closed（消息改双轨口径）
+        Environment environment = mock(Environment.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[] {"prod"});
+        MinioProperties minio = mock(MinioProperties.class);
+        when(minio.accessKey()).thenReturn("prod-minio-user");
+        when(minio.secretKey()).thenReturn("prod-minio-secret-32bytes-at-least");
+        SmsProperties none = new SmsProperties(
+                null, 300, null, "webhook", null, null, null, null, null);
+        ProductionStartupValidator v = buildValidatorWithMinioCorsCidrSms(
+                environment, minio, List.of("https://ops.example.com"), true, none);
+        when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
+        assertThatThrownBy(v::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("requires an SMS channel");
+    }
+
+    @Test
     void prodAcceptsWithSeedEnvNoneExplicit() {
         // AU-177：seed_env 显式 none（application-prod.yml 硬编码形态）⇒ 正常通过
         Environment environment = mock(Environment.class);
@@ -144,6 +179,18 @@ class ProductionStartupValidatorTest {
             MinioProperties minioProperties,
             List<String> corsOrigins,
             boolean hasCidr) {
+        return buildValidatorWithMinioCorsCidrSms(environment, minioProperties, corsOrigins, hasCidr,
+                new SmsProperties("482913", 300, "https://sms.example.com/send",
+                        "webhook", null, null, null, null, null));
+    }
+
+    /** 2026-10-20 短信双轨：SmsProperties 可注入 aliyun-only / 双缺形态。 */
+    private ProductionStartupValidator buildValidatorWithMinioCorsCidrSms(
+            Environment environment,
+            MinioProperties minioProperties,
+            List<String> corsOrigins,
+            boolean hasCidr,
+            SmsProperties sms) {
         when(environment.getProperty("spring.datasource.password", "")).thenReturn("prod-db-password-not-default");
         when(environment.getProperty("PUBLIC_BASE_URL", "")).thenReturn("https://admin.example.com");
         SecurityProperties securityProperties = mock(SecurityProperties.class);
@@ -157,9 +204,7 @@ class ProductionStartupValidatorTest {
         when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
         when(authProperties.cookieEnabled()).thenReturn(true);
         when(authProperties.cookieSecure()).thenReturn(true);
-        when(authProperties.sms()).thenReturn(new SmsProperties(
-                "482913", 300, "https://sms.example.com/send",
-                "webhook", null, null, null, null, null));
+        when(authProperties.sms()).thenReturn(sms);
         WeChatPayProperties weChatPayProperties = mock(WeChatPayProperties.class);
         when(weChatPayProperties.isConfigured()).thenReturn(true);
         when(weChatPayProperties.platformCertAutoFetch()).thenReturn(true);

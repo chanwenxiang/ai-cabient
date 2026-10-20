@@ -47,5 +47,13 @@ public record AuthProperties(
         public boolean hasWebhook() {
             return webhookUrl != null && !webhookUrl.isBlank();
         }
+
+        /** 阿里云短信四件套（AK/SK/签名/模板）是否配齐；与 hasWebhook 双轨任一即可。 */
+        public boolean hasAliyun() {
+            return aliyunAccessKeyId != null && !aliyunAccessKeyId.isBlank()
+                    && aliyunAccessKeySecret != null && !aliyunAccessKeySecret.isBlank()
+                    && aliyunSignName != null && !aliyunSignName.isBlank()
+                    && aliyunTemplateCode != null && !aliyunTemplateCode.isBlank();
+        }
     }
 }
