@@ -42,7 +42,7 @@ class NotificationServiceTest {
                 org.mockito.ArgumentMatchers.eq(60L), org.mockito.ArgumentMatchers.eq(5L)))
                 .thenReturn(true);
         NotificationService svc = new NotificationService(templateRepository, logRepository,
-                new NotificationProperties(false, false, async), notifyPrefService,
+                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, async)), notifyPrefService,
                 externalDispatcher, producerProvider, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;

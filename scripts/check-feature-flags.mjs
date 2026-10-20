@@ -423,6 +423,13 @@ if (unregisteredReads.length) {
 // 动态键站点：按「文件 → 表达式多重集」精确比对（刻意不用行号）
 const EXPECTED_DYNAMIC_SITES = new Map([
   [
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/NotifyChannelSwitchService.java',
+    {
+      exprs: ['key'],
+      why: '键来自 SystemConfigService.NOTIFY_* 三个常量，均已登记在册（resolve() 统一转发）'
+    }
+  ],
+  [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/OpsAlertDispatcher.java',
     {
       exprs: ['channel.configKey()', 'channel.configKey()', 'configKey'],

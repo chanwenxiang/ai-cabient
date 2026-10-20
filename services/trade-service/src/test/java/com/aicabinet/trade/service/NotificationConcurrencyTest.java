@@ -33,7 +33,7 @@ class NotificationConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new NotificationService(templateRepository, logRepository,
-                new NotificationProperties(false, false, false), notifyPrefService,
+                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, false)), notifyPrefService,
                 externalDispatcher, producerProvider, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }

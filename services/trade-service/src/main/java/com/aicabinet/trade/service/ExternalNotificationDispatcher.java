@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.NotificationDispatchMessage;
-import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
@@ -33,7 +32,7 @@ public class ExternalNotificationDispatcher {
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final WebhookSmsSender smsSender;
-    private final NotificationProperties notificationProperties;
+    private final NotifyChannelSwitchService channelSwitch;
 
     public ExternalNotificationDispatcher(NotificationLogMapper logRepository,
                                           UserInfoMapper userInfoRepository,
@@ -41,14 +40,14 @@ public class ExternalNotificationDispatcher {
                                           WeChatMiniAppClient weChatMiniAppClient,
                                           WeChatMiniAppProperties weChatMiniAppProperties,
                                           WebhookSmsSender smsSender,
-                                          NotificationProperties notificationProperties) {
+                                          NotifyChannelSwitchService channelSwitch) {
         this.logRepository = logRepository;
         this.userInfoRepository = userInfoRepository;
         this.templateRepository = templateRepository;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.smsSender = smsSender;
-        this.notificationProperties = notificationProperties;
+        this.channelSwitch = channelSwitch;
     }
 
     /** 按消息渠道配置分发微信订阅消息与短信；单渠道失败只记日志，不抛出。 */
@@ -56,7 +55,7 @@ public class ExternalNotificationDispatcher {
         if (msg.userId() == null) {
             return;
         }
-        if (notificationProperties.wechatEnabled()) {
+        if (channelSwitch.wechatEnabled()) {
             try {
                 sendWechat(msg);
             } catch (Exception e) {
@@ -64,7 +63,7 @@ public class ExternalNotificationDispatcher {
                         msg.userId(), msg.templateCode(), e.toString());
             }
         }
-        if (notificationProperties.smsEnabled()) {
+        if (channelSwitch.smsEnabled()) {
             try {
                 sendSms(msg);
             } catch (Exception e) {

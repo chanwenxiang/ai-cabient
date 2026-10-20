@@ -12,7 +12,7 @@
     "风控自动处置",
     "运营告警",
     "卡点监控",
-    "可观测性（追踪/日志）",
+    "可观测性（追踪/日志）", "消息触达",
     "日志留存",
     "客户端展示",
     "品牌文案",
@@ -20,6 +20,27 @@
     "扩展功能"
   ],
   "flags": [
+    {
+      "key": "notify.wechat.enabled",
+      "group": "消息触达",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "微信订阅消息通知总开关（消费者/商户端订阅消息）。用户需已授权订阅才收得到；取代环境变量 NOTIFY_WECHAT_ENABLED"
+    },
+    {
+      "key": "notify.sms.enabled",
+      "group": "消息触达",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS ③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出"
+    },
+    {
+      "key": "notify.async.enabled",
+      "group": "消息触达",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "通知异步派发（Kafka）；关闭时同步发送，会占用请求线程"
+    },
     {
       "key": "consumer.order_search.enabled",
       "group": "扩展功能",

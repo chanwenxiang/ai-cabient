@@ -7,7 +7,6 @@ import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.NotificationLog;
 import com.aicabinet.trade.domain.NotificationTemplate;
-import com.aicabinet.trade.config.NotificationProperties;
 import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
@@ -42,7 +41,7 @@ public class NotificationService {
 
     private final NotificationTemplateMapper templateRepository;
     private final NotificationLogMapper logRepository;
-    private final NotificationProperties notificationProperties;
+    private final NotifyChannelSwitchService channelSwitch;
     private final ConsumerNotifyPrefService notifyPrefService;
     private final ExternalNotificationDispatcher externalDispatcher;
     private final ObjectProvider<NotificationDispatchProducer> producerProvider;
@@ -52,14 +51,14 @@ public class NotificationService {
 
     public NotificationService(NotificationTemplateMapper templateRepository,
                                NotificationLogMapper logRepository,
-                               NotificationProperties notificationProperties,
+                               NotifyChannelSwitchService channelSwitch,
                                ConsumerNotifyPrefService notifyPrefService,
                                ExternalNotificationDispatcher externalDispatcher,
                                ObjectProvider<NotificationDispatchProducer> producerProvider,
                                DistributedLockService distributedLockService, @Lazy NotificationService self) {
         this.templateRepository = templateRepository;
         this.logRepository = logRepository;
-        this.notificationProperties = notificationProperties;
+        this.channelSwitch = channelSwitch;
         this.notifyPrefService = notifyPrefService;
         this.externalDispatcher = externalDispatcher;
         this.producerProvider = producerProvider;
@@ -147,7 +146,7 @@ public class NotificationService {
         }
         NotificationDispatchMessage message = new NotificationDispatchMessage(
                 tpl.getTemplateCode(), userId, title, body, bizType, bizId);
-        if (notificationProperties.asyncEnabled()) {
+        if (channelSwitch.asyncEnabled()) {
             NotificationDispatchProducer producer = producerProvider.getIfAvailable();
             if (producer != null) {
                 producer.publish(message);

@@ -41,7 +41,7 @@ class MerchantNotifyConcurrencyTest {
         service = new MerchantNotifyService(merchantPortalGuard, permissionService, merchantPortalService,
                 merchantFeaturePackService, opsExceptionService, userInfoRepository, subscribePrefRepository,
                 notifyLogRepository, weChatMiniAppClient, weChatMiniAppProperties,
-                new NotificationProperties(false, false, false), distributedLockService, null);
+                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, false)), distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

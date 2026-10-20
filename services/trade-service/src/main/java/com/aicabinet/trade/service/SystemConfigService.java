@@ -271,6 +271,12 @@ public class SystemConfigService {
     public static final String MERCHANT_CHARTS_ENABLED = "merchant.charts.enabled";
     /** 消费端：本柜商品详情（商品卡片可点开详情弹层；关闭时仅展示卡片摘要，与接入前一致）。 */
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
+    /** 消息触达：微信订阅消息总开关（消费者/商户端订阅消息；取代 NOTIFY_WECHAT_ENABLED 环境变量）。 */
+    public static final String NOTIFY_WECHAT_ENABLED = "notify.wechat.enabled";
+    /** 消息触达：欠款催缴短信总闸（V326；取代 NOTIFY_SMS_ENABLED 环境变量）。 */
+    public static final String NOTIFY_SMS_ENABLED = "notify.sms.enabled";
+    /** 消息触达：通知异步派发（Kafka；取代 NOTIFY_ASYNC_ENABLED 环境变量）。 */
+    public static final String NOTIFY_ASYNC_ENABLED = "notify.async.enabled";
     /**
      * 消费端：结算页**主动选择支付方式**（F6，见 {@code docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md} F6）。
      *
@@ -1050,6 +1056,16 @@ public class SystemConfigService {
         // 旧 key 不再被读取（判据见 MerchantDailyIncomeNotifyScheduler#lockDaysThreshold）。
         refreshDescriptionIfPresent("merchant.overdue.lock_months",
                 "【已废弃·请勿使用】欠费锁柜判据已改为账龄天数 merchant.overdue.lock_days（默认 7 天）");
+        // 2026-10-20 消息触达渠道开关进运营台（原 NOTIFY_* 环境变量口径退役，环境变量仅在
+        // seed 尚未落库的极端窗口作兜底——见 NotifyChannelSwitchService）。
+        upsertIfAbsent(NOTIFY_WECHAT_ENABLED, "false",
+                "微信订阅消息通知总开关（消费者/商户端订阅消息）。用户需已授权订阅才收得到；"
+                        + "取代环境变量 NOTIFY_WECHAT_ENABLED");
+        upsertIfAbsent(NOTIFY_SMS_ENABLED, "false",
+                "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS "
+                        + "③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出");
+        upsertIfAbsent(NOTIFY_ASYNC_ENABLED, "false",
+                "通知异步派发（Kafka）；关闭时同步发送，会占用请求线程");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {
