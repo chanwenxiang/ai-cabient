@@ -185,6 +185,7 @@ if (!token) {
     true
   );
   record('自钉 · getConfigDomainByIdentifier', true, '未提供 --token，跳过', true);
+  record('自钉 · getConfigSocketUrlByIdentifier', true, '未提供 --token，跳过', true);
 } else {
   const statusEnv = nullEnvelope(
     '自钉 · getConfigStatusByIdentifier（恒 1 + null 信封）',
@@ -220,7 +221,39 @@ if (!token) {
       record(
         '自钉 · 下发值形态与主机',
         false,
-        `data=${JSON.stringify(d)} ⇒ 网关侧 JIANGYI_PUBLIC_BASE_URL 未配/非法（设计值是两端口一起 404，回 200+null 属实现漂移）`
+        `data=${JSON.stringify(d)} ⇒ 网关侧 JIANGYI_PUBLIC_BASE_URL 未配/非法（设计值是三端点一起 404，回 200+null 属实现漂移）`
+      );
+    }
+  }
+  const socketEnv = nullEnvelope(
+    '自钉 · getConfigSocketUrlByIdentifier（下发 wss 基址）',
+    await post('/domainConfig/getConfigSocketUrlByIdentifier', {
+      bearer: token,
+      body: JSON.stringify({ identifier })
+    })
+  );
+  if (!socketEnv.failed) {
+    const s = socketEnv.data;
+    if (typeof s === 'string') {
+      let hostOk = false;
+      let tailOk = false;
+      try {
+        const u = new URL(s);
+        tailOk = /^wss?:$/.test(u.protocol) && u.pathname === '/websocket/device/';
+        hostOk = u.host === base.host;
+      } catch {
+        /* 下面按失败报 */
+      }
+      record(
+        '自钉 · socket 下发值形态与主机',
+        tailOk && hostOk,
+        `${s}｜形态 ${tailOk ? 'ws(s)://…/websocket/device/' : '不符（APK 要求可直接拼 device/<id> 的基址）'}｜host ${hostOk ? '与目标一致' : `≠ 期望 ${base.host}`}`
+      );
+    } else {
+      record(
+        '自钉 · socket 下发值形态与主机',
+        false,
+        `data=${JSON.stringify(s)} ⇒ 基址缺失时本端点应与另两条一起 404；回 200+null 属实现漂移`
       );
     }
   }
@@ -248,6 +281,8 @@ if (fails.length) {
   );
   process.exit(1);
 }
-console.log(`[day1-check] 提醒：明天可验收的是 **HTTP 面 + 自钉 + 404 台账**。WS 端到端仍会被两堵墙挡住
-            （socketUrl 槽恒空回落内置 wss://lingshouapi + WS URL 带的是将邑云 HS512 token，
-             我方 DeviceHandshakeInterceptor 只验自家密钥 ⇒ 401）——那是第三个待拍板项，不是回归。`);
+console.log(`[day1-check] 提醒：明天可验收的是 **HTTP 面 + 自钉三端点 + 404 台账**。WS 端到端仍会被两堵墙挡住
+            （NORMAL 拨号只认 prefs "socketurl"，空则回落内置 wss://lingshouapi——拉取到的 SOCKET_URL
+             只喂 MZ/CARD_258/CD_WB 任务；且 WS 带的是将邑云 HS512 token，我方 DeviceHandshakeInterceptor
+             只验自家密钥 ⇒ 401）——这两堵墙的钥匙都在厂商推送（sendDeviceDomain 对象格式 / sendDeviceOffDomain），
+             不是回归。`);

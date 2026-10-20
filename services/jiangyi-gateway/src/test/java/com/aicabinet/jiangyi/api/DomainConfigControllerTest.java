@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 域名自钉（设计文档 §5「域名自钉已实装」，2026-10-19 拍板 A 第 1 条）。
  *
  * <p>锁三件事：① 照抄云侧 {@code status/msg=null} 的响应形态（不是 200 envelope）；
- * ② 基址归一化必须带 {@code /jiangyi/api} 尾段且幂等；③ 基址缺失时两端点一起 404，
+ * ② 基址归一化必须带 {@code /jiangyi/api} 尾段且幂等；③ 基址缺失时三端点一起 404，
  * 绝不允许「说有配置待拉」而拉取 404 的半开状态。</p>
  */
 class DomainConfigControllerTest {
@@ -52,6 +52,9 @@ class DomainConfigControllerTest {
         assertEquals("https://gw.example.com/jiangyi/api",
                 armed("https://gw.example.com/jiangyi/api")
                         .getConfigDomain(authedRequest(), Map.of()).get("data"));
+        assertEquals("wss://gw.example.com/websocket/device/",
+                armed("https://gw.example.com/jiangyi/api/")
+                        .getConfigSocketUrl(authedRequest(), Map.of()).get("data"));
     }
 
     @Test
@@ -64,14 +67,34 @@ class DomainConfigControllerTest {
     }
 
     @Test
-    void bothEndpointsGoDarkTogetherWhenBaseMissing() {
+    void socketPullCopiesCloudEnvelopeAndDerivesWsBaseFromSameHost() {
+        // 云侧 2026-10-20 实测：{"status":null,"msg":null,"data":"wss://<host>/websocket/device/"}
+        Map<String, Object> resp = armed("https://gw.example.com")
+                .getConfigSocketUrl(authedRequest(), Map.of("identifier", IDENTIFIER));
+        assertNull(resp.get("status"), "云侧实测 status=null，不能规范成 200");
+        assertNull(resp.get("msg"));
+        assertEquals("wss://gw.example.com/websocket/device/", resp.get("data"));
+    }
+
+    @Test
+    void socketPullDowngradesSchemeForPlainHttpBase() {
+        assertEquals("ws://gw.example.com/websocket/device/",
+                armed("http://gw.example.com")
+                        .getConfigSocketUrl(authedRequest(), Map.of()).get("data"));
+    }
+
+    @Test
+    void allThreeEndpointsGoDarkTogetherWhenBaseMissing() {
         DomainConfigController controller = armed("");
         ResponseStatusException domain = assertThrows(ResponseStatusException.class,
                 () -> controller.getConfigDomain(authedRequest(), Map.of()));
         ResponseStatusException status = assertThrows(ResponseStatusException.class,
                 () -> controller.getConfigStatus(authedRequest(), Map.of()));
+        ResponseStatusException socket = assertThrows(ResponseStatusException.class,
+                () -> controller.getConfigSocketUrl(authedRequest(), Map.of()));
         assertEquals(404, domain.getStatusCode().value());
         assertEquals(404, status.getStatusCode().value());
+        assertEquals(404, socket.getStatusCode().value());
     }
 
     @Test
