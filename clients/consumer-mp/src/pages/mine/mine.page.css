@@ -269,7 +269,8 @@
   overflow: hidden;
 }
 .logout-wrap {
-  margin-top: 12rpx;
+  /* 2026-10-20 真机反馈「退出登录和上面贴在一起」：12rpx 时两块白底卡片视觉粘连 */
+  margin-top: 24rpx;
   padding-bottom: 8rpx;
 }
 .menu-cell {
