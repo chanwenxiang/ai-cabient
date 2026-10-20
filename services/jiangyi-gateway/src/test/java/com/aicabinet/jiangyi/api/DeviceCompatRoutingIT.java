@@ -147,6 +147,35 @@ class DeviceCompatRoutingIT {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"status\":null")))
                 .andExpect(jsonPath("$.data").value("https://it-gw.example.com/jiangyi/api"));
+
+        // 第三端点（APK 开机链 getOtherSocketUrl）：失败会无限重试卡死后续开机链，必须在线
+        mockMvc.perform(post("/jiangyi/api/domainConfig/getConfigSocketUrlByIdentifier")
+                        .header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"identifier\":\"CQYB10720\"}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"status\":null")))
+                .andExpect(jsonPath("$.data").value("wss://it-gw.example.com/websocket/device/"));
+    }
+
+    @Test
+    void domainConfigAnswersWithoutTokenForBootstrapRecovery() throws Exception {
+        // 2026-10-20 11:15:57 实证：设备 token 过期（TTL 3600s）后固件以「无 Authorization」
+        // 探测配置状态——这是它丢配置/换 token 前的自举问路；401 会把自愈链掐死
+        // （当时设备因此静默）。三端点免鉴权后仍回自钉值；带 token 的形态由
+        // domainConfigSelfPinsOurOwnBaseInsteadOfLettingFirmwareGuess 覆盖。
+        mockMvc.perform(post("/jiangyi/api/domainConfig/getConfigStatusByIdentifier")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(1));
+        mockMvc.perform(post("/jiangyi/api/domainConfig/getConfigDomainByIdentifier")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("https://it-gw.example.com/jiangyi/api"));
+        mockMvc.perform(post("/jiangyi/api/domainConfig/getConfigSocketUrlByIdentifier")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("wss://it-gw.example.com/websocket/device/"));
     }
 
     @Test
