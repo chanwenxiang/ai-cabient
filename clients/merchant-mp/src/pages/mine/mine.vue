@@ -53,7 +53,14 @@
       />
       <view class="dialog-actions">
         <button class="btn ghost" @click="profileEditVisible = false">取消</button>
-        <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
+        <button
+          class="btn"
+          :loading="profileSaving"
+          :disabled="profileSaving"
+          @click="saveProfileEdit"
+        >
+          保存
+        </button>
       </view>
     </AppSheet>
 
@@ -332,6 +339,7 @@ function onProfileTap() {
 }
 
 async function saveProfileEdit() {
+  if (profileSaving.value) return; // 防重复提交（原生 button 的 loading 只显转圈不拦截点击）
   profileSaving.value = true;
   try {
     await merchantApi.updateMerchantProfile({
@@ -517,7 +525,7 @@ async function onLogout() {
   border: none;
   border-radius: 16rpx;
   font-size: var(--font-size-md);
-  min-height: 80rpx;
+  min-height: 88rpx; /* 官方最小触控高度（44pt） */
   line-height: 1.2;
   display: flex;
   align-items: center;

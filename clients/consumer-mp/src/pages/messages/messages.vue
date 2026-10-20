@@ -33,8 +33,8 @@
       </view>
 
       <view v-if="loading && !list.length" class="loading">
-        ><text>{{ UI_COPY.loading }}</text></view
-      >
+        <text>{{ UI_COPY.loading }}</text>
+      </view>
       <view v-else-if="!visibleList.length" class="empty">
         <text class="empty-title">{{ emptyTitle }}</text>
         <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
@@ -115,15 +115,11 @@ const subscribeEnabled = ref(false);
 const subscribeTemplateId = ref('');
 const subscribing = ref(false);
 const pendingCount = ref(0);
-/** H5 无 requestSubscribeMessage，勿展示「去开启」入口（同 M-P2-14）。 */
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+/** H5 无 requestSubscribeMessage，勿展示「去开启」入口（同 M-P2-14）。编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 const showSubscribeBanner = computed(
   () => isMpWeixin && subscribeEnabled.value && !!subscribeTemplateId.value
 );

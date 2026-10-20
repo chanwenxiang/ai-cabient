@@ -76,14 +76,11 @@ const runtimeSubscribeTmplId = ref('');
 const subscribeReady = computed(() =>
   hasSubscribeTemplates(runtimeSubscribeTmplId.value ? [runtimeSubscribeTmplId.value] : [])
 );
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+/** 编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。 */
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 const bindLabel = computed(() => (wxBound.value ? '已绑定' : '未绑定'));
 const introDesc = computed(() => {
   if (!isMpWeixin) return '柜机离线、缺货、争议等可发到微信。请在微信小程序中开启。';

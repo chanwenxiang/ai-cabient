@@ -352,15 +352,12 @@ const orderId = ref('');
 /**
  * 在线客服（CB-039）开关与卡片路径：仅微信小程序展示；
  * 消息卡片回跳本单，客服在会话里点卡片直达该订单详情。
+ * 编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。
  */
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 const orderContactPath = computed(
   () => `/pages/order-detail/order-detail?orderId=${encodeURIComponent(orderId.value || '')}`
 );

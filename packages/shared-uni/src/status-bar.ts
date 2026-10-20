@@ -2,10 +2,28 @@
  * 自定义顶栏状态栏占位（px）。
  * 小程序 / App：用真实 statusBarHeight；H5 桌面常为 0，回退 44 以模拟手机框。
  */
+/**
+ * 窗口信息读取：优先官方新 API getWindowInfo（基础库 2.20.1+），
+ * 替代已弃用的 getSystemInfoSync（工具台持续告警）；旧基础库走同步回退。
+ */
+export function readWindowInfo(): { statusBarHeight?: number; windowWidth?: number } | null {
+  try {
+    if (typeof uni.getWindowInfo === 'function') {
+      return uni.getWindowInfo() as { statusBarHeight?: number; windowWidth?: number };
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    return uni.getSystemInfoSync() as { statusBarHeight?: number; windowWidth?: number };
+  } catch {
+    return null;
+  }
+}
+
 export function getStatusBarPadPx(fallbackWhenZero = 44, fallbackOnError = 20): number {
   try {
-    const info = uni.getSystemInfoSync();
-    const h = Number(info?.statusBarHeight) || 0;
+    const h = Number(readWindowInfo()?.statusBarHeight) || 0;
     if (h > 0) return h;
     return fallbackWhenZero;
   } catch {
@@ -31,8 +49,7 @@ export function getBelowCapsulePadPx(extraAfterCapsule = 8): number {
     /* fall through */
   }
   try {
-    const info = uni.getSystemInfoSync();
-    const status = Number(info?.statusBarHeight) || 0;
+    const status = Number(readWindowInfo()?.statusBarHeight) || 0;
     // 胶囊高约 32px，与状态栏之间约 6–8px
     if (status > 0) return Math.ceil(status + 32 + 8 + extraAfterCapsule);
   } catch {
@@ -46,8 +63,7 @@ export function getCapsuleRightGutterPx(): number {
   try {
     if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
       const menu = uni.getMenuButtonBoundingClientRect();
-      const info = uni.getSystemInfoSync();
-      const winW = Number(info?.windowWidth) || 375;
+      const winW = Number(readWindowInfo()?.windowWidth) || 375;
       const left = Number(menu?.left) || 0;
       if (left > 0) return Math.max(16, Math.ceil(winW - left + 8));
     }

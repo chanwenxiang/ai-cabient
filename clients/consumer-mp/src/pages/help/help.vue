@@ -167,16 +167,12 @@ const openIdx = ref<number | null>(0);
 
 /**
  * 仅微信小程序展示在线客服入口（open-type=contact 为微信特有）。
- * 与 messages.vue 的 isMpWeixin 同口径：uniPlatform 运行时探测，探测失败按隐藏。
+ * 与 messages.vue 的 isMpWeixin 同口径：编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。
  */
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 
 const faqs = [
   {

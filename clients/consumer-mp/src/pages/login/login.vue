@@ -243,7 +243,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onReady, onShow, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onReady, onShow, onHide, onUnload } from '@dcloudio/uni-app';
 import { showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
@@ -359,6 +359,13 @@ onLoad((opts) => {
 /** 已登录时不应停留在 login URL（IMP-004） */
 onShow(async () => {
   refreshPrivacyGate();
+  // 验证码倒计时切后台停表（onHide），回前台按剩余冷却续跑
+  if (codeCooldown.value > 0 && !codeTimer) {
+    codeTimer = setInterval(() => {
+      codeCooldown.value -= 1;
+      if (codeCooldown.value <= 0) clearCodeTimer();
+    }, 1000);
+  }
   if (!isConsumerLoggedIn()) return;
   try {
     const ok = await ensureConsumerAuth();
@@ -367,6 +374,9 @@ onShow(async () => {
     /* 保留登录页供手动重试 */
   }
 });
+
+// 验证码 60s 冷却切后台停表：保留 codeCooldown 值，onShow 按 >0 续跑
+onHide(() => clearCodeTimer());
 
 onReady(() => refreshLoginPad());
 
@@ -472,16 +482,12 @@ async function onWxLogin() {
 
 /**
  * 仅微信小程序展示原生 getPhoneNumber 按钮（企业主体能力，H5/支付宝端走 v-else 视图）。
- * 与 messages.vue/help.vue 的 isMpWeixin 同口径：uniPlatform 运行时探测，失败按隐藏。
+ * 与 messages.vue/help.vue 的 isMpWeixin 同口径：编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测。
  */
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 
 /**
  * 一键登录：getPhoneNumber 授权码 + wx.login code 一起走 /auth/wx-login（phoneCode）。

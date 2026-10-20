@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
-import { onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app';
+import { onShareAppMessage, onShareTimeline, onLoad, onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
   isConsumerLoggedIn,
@@ -116,10 +116,24 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 const SHARE_TITLE = 'AI开门柜 · 领券与热门活动';
 const SHARE_PATH = '/pages/marketing/index';
 
-onShareAppMessage(() => ({ title: SHARE_TITLE, path: SHARE_PATH }));
+const banners = ref<MarketingBannerDto[]>([]);
+
+/** 分享卡带图：取首条广告横幅图兜底（官方卡片规范 5:4，无图时回退页面截图） */
+onShareAppMessage(() => ({
+  title: SHARE_TITLE,
+  path: SHARE_PATH,
+  imageUrl: banners.value.find((b) => !!b.imageUrl)?.imageUrl || undefined
+}));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
-const banners = ref<MarketingBannerDto[]>([]);
+// 开启右上角「发送给朋友/分享到朋友圈」原生入口（与首页同口径；失败静默）
+onLoad(() => {
+  // #ifdef MP-WEIXIN
+  if (typeof uni.showShareMenu === 'function') {
+    uni.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'], fail: () => {} });
+  }
+  // #endif
+});
 /** P3-6：广告横幅曝光上报实例内去重（服务端另有 60s 窗口） */
 const impressedAds = new Set<string>();
 

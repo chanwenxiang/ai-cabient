@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
+import { getStatusBarPadPx, readWindowInfo } from '@aicabinet/shared-uni/status-bar';
 import { navigateBackOrHome } from '@aicabinet/shared-uni/navigate-back';
 
 const props = withDefaults(
@@ -65,8 +65,7 @@ function readCapsuleLayout() {
   try {
     if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
       const menu = uni.getMenuButtonBoundingClientRect();
-      const info = uni.getSystemInfoSync();
-      const winW = Number(info?.windowWidth) || 375;
+      const winW = Number(readWindowInfo()?.windowWidth) || 375;
       const top = Number(menu?.top) || 0;
       const height = Number(menu?.height) || 0;
       const left = Number(menu?.left) || 0;

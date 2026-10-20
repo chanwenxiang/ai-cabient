@@ -35,22 +35,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { ref, watch } from 'vue';
 import { consumerApi, type MarketingBannerDto } from '@/utils/consumer-api';
+
+/**
+ * 设备上下文（可选）：有柜码时带上，让后端过滤 SPECIFIC 投放范围
+ * （index.vue:53 v-else 分支传入；无柜码场景只出 ALL 范围广告）。
+ */
+const props = defineProps<{ deviceId?: string | null }>();
 
 const slides = ref<MarketingBannerDto[]>([]);
 /** 实例内去重：campaignId+assetId+事件 各一次（服务端另有 60s 窗口兜底）。 */
 const reported = new Set<string>();
 
-onShow(() => {
-  // 组件级 onShow 不触发（§11.95⑥），挂页面钩子；已加载过则不重复拉，避免翻页抖动
-  if (!slides.value.length) void load();
-});
+// 🔴 组件级 onShow 在 mp-weixin 端永不触发（同 use-auto-refresh 实测结论），
+// 曾经的 onShow(() => load()) 导致营销位在微信端静默永不加载。
+// 改用 device-ad-banner.vue 同款 watch+immediate：挂载即拉一次，deviceId 变化重拉。
+watch(
+  () => props.deviceId,
+  () => {
+    if (!slides.value.length) void load();
+  },
+  { immediate: true }
+);
 
 async function load() {
   try {
-    const all = await consumerApi.marketingBanners();
+    const all = await consumerApi.marketingBanners(props.deviceId || undefined);
     slides.value = (all || []).filter((b) => !!b.imageUrl);
     slides.value.forEach((b) => report(b, 'IMPRESSION'));
   } catch {

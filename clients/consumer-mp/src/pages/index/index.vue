@@ -700,15 +700,11 @@ onShareAppMessage(() => {
 });
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
-/** 仅微信小程序：启用右上角菜单的「发送给朋友/分享到朋友圈」（需 onShareTimeline 已注册） */
-const isMpWeixin = (() => {
-  try {
-    const info = uni.getSystemInfoSync() as { uniPlatform?: string };
-    return info.uniPlatform === 'mp-weixin';
-  } catch {
-    return false;
-  }
-})();
+/** 仅微信小程序：启用右上角菜单的「发送给朋友/分享到朋友圈」（需 onShareTimeline 已注册）。编译期平台判定，替代已弃用的 getSystemInfoSync().uniPlatform 运行时探测 */
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
 
 /**
  * 商品图大图预览（2026-10-14 审计补齐：争议/补货凭证早有 previewImage，卖的商品反而没有）。
@@ -1017,6 +1013,8 @@ onHide(() => {
   stopDevicePoll();
   stopPoll();
   stopRecognitionTimer();
+  // 开门倒计时切后台停表（返回时 onShow→轮询→applySessionView 按 createdAt 重启）
+  stopOpeningCountdown();
   // 切到订单/我的时务必显示底栏（hideTabBar 是全局的）
   showTabBarSafe();
 });
