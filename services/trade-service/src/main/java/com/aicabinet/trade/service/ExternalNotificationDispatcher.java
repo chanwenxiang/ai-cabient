@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.WebhookSmsSender;
+import com.aicabinet.trade.sms.AliyunSmsSender;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,8 @@ public class ExternalNotificationDispatcher {
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final WebhookSmsSender smsSender;
     private final NotifyChannelSwitchService channelSwitch;
+    private final AliyunSmsSender aliyunSmsSender;
+    private final SystemConfigService systemConfigService;
 
     public ExternalNotificationDispatcher(NotificationLogMapper logRepository,
                                           UserInfoMapper userInfoRepository,
@@ -40,7 +43,9 @@ public class ExternalNotificationDispatcher {
                                           WeChatMiniAppClient weChatMiniAppClient,
                                           WeChatMiniAppProperties weChatMiniAppProperties,
                                           WebhookSmsSender smsSender,
-                                          NotifyChannelSwitchService channelSwitch) {
+                                          NotifyChannelSwitchService channelSwitch,
+                                          AliyunSmsSender aliyunSmsSender,
+                                          SystemConfigService systemConfigService) {
         this.logRepository = logRepository;
         this.userInfoRepository = userInfoRepository;
         this.templateRepository = templateRepository;
@@ -48,6 +53,8 @@ public class ExternalNotificationDispatcher {
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.smsSender = smsSender;
         this.channelSwitch = channelSwitch;
+        this.aliyunSmsSender = aliyunSmsSender;
+        this.systemConfigService = systemConfigService;
     }
 
     /** 按消息渠道配置分发微信订阅消息与短信；单渠道失败只记日志，不抛出。 */
@@ -99,8 +106,46 @@ public class ExternalNotificationDispatcher {
             log.info("sms skipped: template {} has no SMS channel, userId={}", msg.templateCode(), msg.userId());
             return;
         }
+        if (sendViaAliyunTemplate(msg, user.getPhoneNumber())) {
+            saveLog(msg, "SMS");
+            return;
+        }
         smsSender.sendMessage(user.getPhoneNumber(), msg.title() + "：" + msg.body());
         saveLog(msg, "SMS");
+    }
+
+    /**
+     * 阿里云通知短信（模板渲染）：消息带结构化参数（smsParams）且阿里云四件套配齐时走模板发送。
+     * <p>键名映射：催缴链路内部参数是 orderId/amount（V325 站内信模板 {orderId} 键名，固定迁移不可改），
+     * 阿里云催缴模板变量是 order_no/amount/service_phone；并补 service_phone=运营台客服电话，
+     * 清洗为纯数字以适配阿里云「电话号码」属性（5~11 位）。阿里云未配置/无参数 ⇒ 返回 false
+     * 回退 webhook 文本通道（既有行为不变）。发送失败也回退 webhook，催缴不因单通道故障丢失。</p>
+     */
+    private boolean sendViaAliyunTemplate(NotificationDispatchMessage msg, String phoneNumber) {
+        if (msg.smsParams() == null || msg.smsParams().isEmpty() || !aliyunSmsSender.isConfigured()) {
+            return false;
+        }
+        String templateCode = systemConfigService.getValue(
+                SystemConfigService.NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664");
+        Map<String, String> params = new java.util.LinkedHashMap<>(msg.smsParams());
+        if (params.get("order_no") == null) {
+            params.put("order_no", params.get("orderId"));
+        }
+        params.put("service_phone", sanitizeDigits(systemConfigService.getValue(
+                SystemConfigService.CONSUMER_SERVICE_PHONE, "")));
+        try {
+            aliyunSmsSender.sendMessage(phoneNumber, templateCode, params);
+            log.info("sms sent via aliyun template={} userId={}", templateCode, msg.userId());
+            return true;
+        } catch (Exception e) {
+            log.warn("aliyun template sms failed userId={} template={}: {}",
+                    msg.userId(), templateCode, e.toString());
+            return false;
+        }
+    }
+
+    private static String sanitizeDigits(String raw) {
+        return raw == null ? "" : raw.replaceAll("[^0-9]", "");
     }
 
     /**

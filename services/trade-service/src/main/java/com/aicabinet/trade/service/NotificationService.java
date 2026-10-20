@@ -144,8 +144,9 @@ public class NotificationService {
         if (!hasExternal || userId == null) {
             return;
         }
+        // 短信结构化参数随消息下发：阿里云通知短信需要模板变量（title/body 是渲染后文本，落不了变量）
         NotificationDispatchMessage message = new NotificationDispatchMessage(
-                tpl.getTemplateCode(), userId, title, body, bizType, bizId);
+                tpl.getTemplateCode(), userId, title, body, bizType, bizId, params);
         if (channelSwitch.asyncEnabled()) {
             NotificationDispatchProducer producer = producerProvider.getIfAvailable();
             if (producer != null) {

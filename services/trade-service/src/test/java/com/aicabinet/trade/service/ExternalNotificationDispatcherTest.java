@@ -29,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.sms.AliyunSmsSender;
 import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +40,8 @@ class ExternalNotificationDispatcherTest {
     @Mock private NotificationTemplateMapper templateRepository;
     @Mock private WeChatMiniAppClient weChatMiniAppClient;
     @Mock private WebhookSmsSender smsSender;
+    @Mock private AliyunSmsSender aliyunSmsSender;
+    @Mock private SystemConfigService systemConfigService;
 
     private static final WeChatMiniAppProperties WECHAT_PROPS =
             new WeChatMiniAppProperties(false, null, null, "merchant-tpl", "pages/alerts/alerts",
@@ -47,7 +50,8 @@ class ExternalNotificationDispatcherTest {
     private ExternalNotificationDispatcher dispatcher(boolean wechat, boolean sms) {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
                 weChatMiniAppClient, WECHAT_PROPS, smsSender,
-                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, false)));
+                new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, false)),
+                aliyunSmsSender, systemConfigService);
     }
 
     private static NotificationDispatchMessage message() {
@@ -84,6 +88,51 @@ class ExternalNotificationDispatcherTest {
         ArgumentCaptor<NotificationLog> captor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(logRepository).save(captor.capture());
         assertEquals("WECHAT_SUBSCRIBE", captor.getValue().getChannel());
+    }
+
+    @Test
+    void dispatch_aliyunTemplatePath_mapsParamsAndSanitizesPhone() {
+        // 2026-10-20：带 smsParams 的消息走阿里云模板渲染（催缴），键名映射 + 客服电话清洗
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+        when(systemConfigService.getValue(SystemConfigService.NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664"))
+                .thenReturn("SMS_512661664");
+        when(systemConfigService.getValue(SystemConfigService.CONSUMER_SERVICE_PHONE, ""))
+                .thenReturn("400-888-0018");
+
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12.5 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12.5"));
+        dispatcher.dispatch(msg);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> captor =
+                ArgumentCaptor.forClass((Class<Map<String, String>>) (Class<?>) Map.class);
+        verify(aliyunSmsSender).sendMessage(eq("13800138000"), eq("SMS_512661664"), captor.capture());
+        assertEquals("O1", captor.getValue().get("order_no"));
+        assertEquals("12.5", captor.getValue().get("amount"));
+        assertEquals("4008880018", captor.getValue().get("service_phone"));
+        verify(smsSender, never()).sendMessage(anyString(), anyString());
+        ArgumentCaptor<NotificationLog> logCaptor = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(logCaptor.capture());
+        assertEquals("SMS", logCaptor.getValue().getChannel());
+    }
+
+    @Test
+    void dispatch_webhookFallback_whenAliyunNotConfigured() {
+        // 带 smsParams 但阿里云未配齐 ⇒ 回退 webhook 文本通道（既有行为不变）
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(false);
+
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12.5 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12.5"));
+        dispatcher.dispatch(msg);
+
+        verify(aliyunSmsSender, never()).sendMessage(anyString(), anyString(), anyMap());
+        verify(smsSender).sendMessage(eq("13800138000"), anyString());
     }
 
     @Test

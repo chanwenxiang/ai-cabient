@@ -35,6 +35,13 @@
       "description": "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS ③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出"
     },
     {
+      "key": "notify.sms.dunning_template",
+      "group": "消息触达",
+      "type": "TEXT",
+      "default": "SMS_512661664",
+      "description": "欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone）；换模板需同步保持变量键名"
+    },
+    {
       "key": "notify.async.enabled",
       "group": "消息触达",
       "type": "BOOLEAN",

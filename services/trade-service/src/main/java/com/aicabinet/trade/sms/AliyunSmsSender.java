@@ -59,9 +59,29 @@ public class AliyunSmsSender implements SmsSender {
         if (!isConfigured()) {
             throw new IllegalStateException("Aliyun SMS not configured");
         }
+        doSend(phoneNumber, sms().aliyunTemplateCode(), Map.of("code", code));
+    }
+
+    /**
+     * 通知类短信（模板渲染）。阿里云通知短信强制要求模板+变量（与验证码同一 SendSms 接口），
+     * 模板 CODE 由调用方传入（运营台可配）。变量值会原样下发——电话号码等需调用方自行清洗
+     * （阿里云「电话号码」属性只认 5~11 位）。
+     */
+    public void sendMessage(String phoneNumber, String templateCode, Map<String, String> templateVars) {
+        if (!isConfigured()) {
+            throw new IllegalStateException("Aliyun SMS not configured");
+        }
+        doSend(phoneNumber, templateCode, templateVars);
+    }
+
+    private AuthProperties.SmsProperties sms() {
+        return authProperties.sms();
+    }
+
+    private void doSend(String phoneNumber, String templateCode, Map<String, String> templateVars) {
         AuthProperties.SmsProperties sms = authProperties.sms();
         try {
-            String templateParam = objectMapper.writeValueAsString(Map.of("code", code));
+            String templateParam = objectMapper.writeValueAsString(templateVars);
             TreeMap<String, String> params = new TreeMap<>();
             params.put("AccessKeyId", sms.aliyunAccessKeyId());
             params.put("Action", "SendSms");
@@ -72,7 +92,7 @@ public class AliyunSmsSender implements SmsSender {
             params.put("SignatureMethod", "HMAC-SHA1");
             params.put("SignatureNonce", UUID.randomUUID().toString());
             params.put("SignatureVersion", "1.0");
-            params.put("TemplateCode", sms.aliyunTemplateCode());
+            params.put("TemplateCode", templateCode);
             params.put("TemplateParam", templateParam);
             params.put("Timestamp", ISO.format(Instant.now()));
             params.put("Version", "2017-05-25");

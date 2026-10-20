@@ -277,6 +277,8 @@ public class SystemConfigService {
     public static final String NOTIFY_SMS_ENABLED = "notify.sms.enabled";
     /** 消息触达：通知异步派发（Kafka；取代 NOTIFY_ASYNC_ENABLED 环境变量）。 */
     public static final String NOTIFY_ASYNC_ENABLED = "notify.async.enabled";
+    /** 消息触达：欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone）。 */
+    public static final String NOTIFY_SMS_DUNNING_TEMPLATE = "notify.sms.dunning_template";
     /**
      * 消费端：结算页**主动选择支付方式**（F6，见 {@code docs/COMPETITOR_BENCHMARK_AND_ROADMAP_2026-09-17.md} F6）。
      *
@@ -1066,6 +1068,9 @@ public class SystemConfigService {
                         + "③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出");
         upsertIfAbsent(NOTIFY_ASYNC_ENABLED, "false",
                 "通知异步派发（Kafka）；关闭时同步发送，会占用请求线程");
+        upsertIfAbsent(NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664",
+                "欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone；"
+                        + "换模板时同步改正文变量并保持键名一致）");
     }
 
     private void refreshDescriptionIfPresent(String key, String description) {
