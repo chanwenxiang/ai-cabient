@@ -73,6 +73,17 @@ class DeviceCompatControllerTest {
         assertEquals(0, cfg.get("isShowAllLog"));
     }
 
+    /**
+     * 重审商品黑名单：固件 {@code ErrorGoodsEntity.data} 是 String 数组（smali 亲验），
+     * 空表是我方真实答案；<b>形态必须是数组</b>——回字符串会让 Gson 抛 Expected BEGIN_ARRAY，
+     * 正是 2026-10-21 真机日志噪音来源。
+     */
+    @Test
+    void orderRecheckProductAnswersEmptyArrayNotNullOrString() {
+        assertEquals(Map.of("status", 200, "msg", "success", "data", List.of()),
+                controller.getOrderRecheckProduct(request, Map.of("identifier", "CQYB10720")));
+    }
+
     @Test
     void baiduAudioCodeAnswersBusinessFailure666() {
         Map<String, Object> resp = controller.getBaiduAudioCode(request,

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -102,6 +103,36 @@ public class DeviceCompatController {
         log.info("jiangyi tenant/getDeviceBasicConfig deviceId={} asked={} → 云侧实测缺省组",
                 device(request), body);
         return data(cfg);
+    }
+
+    /**
+     * 重审商品黑名单（真机每次开门调一次：POST {@code /tenant/getOrderRecheckProduct}，
+     * body {@code {"identifier":"CQYB10720"}}（{@code OkhttpUtils.postRequest} 把 HashMap
+     * Gson 序列化后以 {@code application/json} 发出，smali 亲验）；V15/V16 未载，
+     * 2026-10-21 我方日志实测 6 次全 404）。
+     *
+     * <p><b>契约取自固件而非文档</b>：{@code ErrorGoodsEntity}（smali 亲验）=
+     * {@code {status:int, msg:String, data:[Ljava/lang/String;}}，回调把 {@code data} 转成
+     * {@code Constans.ERROR_GOODS}，唯一消费点是各 Tracker 的
+     * {@code ERROR_GOODS.contains(labelTitle)} → {@code isErrorGoods}。</p>
+     *
+     * <p><b>回 {@code 200 + []} 与现状 404 对设备行为等价</b>：两个调用点（BaseActivity$11 /
+     * CameraPreviewNew$17）的 {@code onFailed} 都是空实现，{@code onSuccess} 对 entity 与 data
+     * 各有 {@code if-eqz} 保护 ⇒ 404 时 ERROR_GOODS 维持 null、含空表时为空表，两者都不产生
+     * 「重审商品」标记；差别只在设备日志里少一条失败记录。<b>不可回 {@code data:""}</b>：
+     * 固件按 String 数组反序列化，字符串会抛 Expected BEGIN_ARRAY（被 try/catch printStackTrace
+     * 吞掉，正是本轮真机日志噪音来源）。</p>
+     *
+     * <p>与 {@code docs/JIANGYI_GATEWAY_DESIGN.md} §「未实测一律 404」不冲突：那条针对的是
+     * <b>配置读取类</b>（200 空值会伪装成「配置就是空」）；本端点是无条件的商品黑名单查询，
+     * 空表是我方真实答案（我方没有任何要求重审的商品）。</p>
+     */
+    @PostMapping("/jiangyi/api/tenant/getOrderRecheckProduct")
+    public Map<String, Object> getOrderRecheckProduct(HttpServletRequest request,
+                                                      @RequestBody(required = false) Map<String, Object> body) {
+        log.info("jiangyi tenant/getOrderRecheckProduct deviceId={} asked={} → 空黑名单",
+                device(request), body);
+        return data(List.of());
     }
 
     /**

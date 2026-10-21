@@ -100,6 +100,16 @@ class DeviceCompatRoutingIT {
                         .content("{\"identifier\":\"CQYB10720\",\"doorNum\":0}"))
                 .andExpect(jsonPath("$.data.dictValue").value("NORMAL"))
                 .andExpect(jsonPath("$.data.isUseTts").value(1));
+
+        // 重审商品黑名单（每次开门 1 次）：固件按 String[] 反序列化 ⇒ 端到端必须回数组，
+        // 落回 catch-all 的 data:"" 会让设备 Gson 抛 Expected BEGIN_ARRAY。
+        mockMvc.perform(post("/jiangyi/api/tenant/getOrderRecheckProduct")
+                        .header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"identifier\":\"CQYB10720\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(content().string(containsString("\"data\":[]")));
     }
 
     @Test
