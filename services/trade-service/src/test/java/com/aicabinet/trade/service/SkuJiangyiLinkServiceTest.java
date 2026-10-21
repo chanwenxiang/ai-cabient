@@ -369,4 +369,38 @@ class SkuJiangyiLinkServiceTest {
                 () -> service().bind(SKU_ID, 88L, "x", null));
         assertEquals(404, e.getStatusCode().value());
     }
+
+    // ---------- resolveSkuIdByProductId（识别上报 thirdPid → SKU，CB-061 解析优先级） ----------
+
+    private JiangyiSkuJiangyiLink link(String syncStatus, String skuId) {
+        JiangyiSkuJiangyiLink l = new JiangyiSkuJiangyiLink();
+        l.setSyncStatus(syncStatus);
+        l.setSkuId(skuId);
+        return l;
+    }
+
+    @Test
+    void resolveSku_byProductHit() {
+        when(linkMapper.byProduct("100013")).thenReturn(Optional.of(link("BOUND", SKU_ID)));
+        assertEquals(Optional.of(SKU_ID), service().resolveSkuIdByProductId(" 100013 "));
+    }
+
+    @Test
+    void resolveSku_retiredLinkIsMiss() {
+        when(linkMapper.byProduct("100013")).thenReturn(Optional.of(link("RETIRED", SKU_ID)));
+        assertTrue(service().resolveSkuIdByProductId("100013").isEmpty());
+    }
+
+    @Test
+    void resolveSku_blankProductIdNeverTouchesMapper() {
+        assertTrue(service().resolveSkuIdByProductId(null).isEmpty());
+        assertTrue(service().resolveSkuIdByProductId("  ").isEmpty());
+        verify(linkMapper, never()).byProduct(anyString());
+    }
+
+    @Test
+    void resolveSku_linkWithoutSkuIdIsMiss() {
+        when(linkMapper.byProduct("100013")).thenReturn(Optional.of(link("CREATED", "  ")));
+        assertTrue(service().resolveSkuIdByProductId("100013").isEmpty());
+    }
 }

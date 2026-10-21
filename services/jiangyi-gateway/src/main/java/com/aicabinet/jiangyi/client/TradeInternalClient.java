@@ -103,6 +103,21 @@ public class TradeInternalClient {
     }
 
     /**
+     * 按将邑标准商品 id（上报里的 thirdPid）解析我方 SKU——走 {@code sku_jiangyi_link}
+     * 唯一键，挂接一次全 fleet 生效，不需逐设备配映射（2026-10-21，固件 Forms 实有 thirdPid）。
+     * <p>empty = 未挂接/已解挂（调用方回落 classId 映射）。</p>
+     */
+    public Optional<String> resolveSkuByProduct(String jiangyiProductId) {
+        if (jiangyiProductId == null || jiangyiProductId.isBlank()) {
+            return Optional.empty();
+        }
+        ApiResponse<String> resp = get("/internal/v1/jiangyi/skus/by-product/{productId}",
+                String.class, jiangyiProductId);
+        String skuId = resp == null ? null : resp.data();
+        return Optional.ofNullable(skuId == null || skuId.isBlank() ? null : skuId);
+    }
+
+    /**
      * 设备全量映射列表（2026-10-19 真机实证：开机序列固定调
      * floor/getDeviceSellProductClassIds，需返回该设备全部在售 classId——
      * trade 侧已有 GET /class-mappings?deviceId= 全量端点，此处按数组反序列化，
@@ -111,6 +126,18 @@ public class TradeInternalClient {
     public java.util.List<MappingView> listMappings(String deviceId) {
         ApiResponse<MappingView[]> resp = get("/internal/v1/jiangyi/class-mappings?deviceId={deviceId}",
                 MappingView[].class, deviceId);
+        return resp == null || resp.data() == null
+                ? java.util.List.of() : java.util.Arrays.asList(resp.data());
+    }
+
+    /**
+     * 设备补货表（floor/getFloorByDevice 的数据源，2026-10-21）：
+     * trade 侧按 ACTIVE 映射 + 挂接 + 现行售价 + 货道库存组装，gateway 只负责信封转换。
+     * <p>异常原样抛出——调用方要区分「真没商品」与「trade 不可达」，不得吞成空表。</p>
+     */
+    public java.util.List<FloorGoodsView> listFloorGoods(String deviceId) {
+        ApiResponse<FloorGoodsView[]> resp = get(
+                "/internal/v1/jiangyi/devices/{deviceId}/floor-goods", FloorGoodsView[].class, deviceId);
         return resp == null || resp.data() == null
                 ? java.util.List.of() : java.util.Arrays.asList(resp.data());
     }
@@ -202,6 +229,22 @@ public class TradeInternalClient {
         return resp == null ? null : resp.data();
     }
 
+    /**
+     * 识别上报原样留档（CB-062，V396 {@code jiangyi_recognition_report}）：一到达一行、
+     * 含整段 forms 原文与我方归一化结果。🔴 与结算解耦——失败由调用方吞掉记 warn，
+     * 存档缺行不得把可结算单拖成 DISPUTED。
+     */
+    public void postRecognitionReport(RecognitionReportRequest report) {
+        post("/internal/v1/jiangyi/recognition-reports", report);
+    }
+
+    /** 与 trade JiangyiInternalController.RecognitionReportRequest 对齐（formsJson/itemsJson 为原文 JSON 串）。 */
+    public record RecognitionReportRequest(String deviceId, String orderNo, String transactionId,
+                                           String payType, String formsJson, String itemsJson,
+                                           Integer formCount, Integer itemCount,
+                                           Long vendorAmountCents, String outcome,
+                                           java.time.Instant reportedAt) {}
+
     // ---------- 实现 ----------
 
     private <T> ApiResponse<T> get(String path, Class<T> dataType, Object... uriVars) {
@@ -263,4 +306,11 @@ public class TradeInternalClient {
     /** jiangyi_class_mapping 行视图（只暴露解析所需字段）。 */
     public record MappingView(Integer classId, String textName, String skuId,
                               String status, String source) {}
+
+    /**
+     * 设备补货表行（与 trade JiangyiInternalController.FloorGoodsResponse 对齐）。
+     * salePrice 单位分，取我方现行售价（与结算同源，A 档）；thirdPid 无挂接时为 0。
+     */
+    public record FloorGoodsView(Integer classId, Integer thirdPid, String productName,
+                                 Integer salePrice, Integer stock) {}
 }

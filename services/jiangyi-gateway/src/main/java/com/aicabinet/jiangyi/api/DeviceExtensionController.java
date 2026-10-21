@@ -74,6 +74,54 @@ public class DeviceExtensionController {
     }
 
     /**
+     * V16 §5.5.2 语义的设备侧对应物：<b>设备主动拉取本机补货/在售商品表</b>。
+     *
+     * <p><b>为什么必须实现（2026-10-21，APK 反编译实证）</b>：固件里
+     * {@code ReplenishGoodsInfos.addGoods} 的<b>唯一调用点</b>是
+     * {@code control/main/tool/GetReplenishGoodsInfo$1}（解析本端点响应），调用时机为
+     * 购物预览（CameraPreviewNew）与上报前（UploadInfo2Server）。识别上报的
+     * {@code thirdPid/price/productName} 就是按 classId 从这张表回填的——
+     * 该端点 404 ⇒ 表恒空 ⇒ 上报里这三个字段恒 0/null，识别歧义消解
+     * （{@code UpDownCampare} 按 {@code stock>0} 偏向有货类别、
+     * {@code RawPairedPrefixClassEvidencePolicy} 要求 {@code thirdPid>0} 且 category 非空）
+     * 也随之降级。⇒ 这是「开门→取货→识别→结算」能否走通的必需下发面，不是可选项。</p>
+     *
+     * <p><b>响应契约</b>（固件 Gson 目标类 {@code GoodsInfoMsgEntiy} →
+     * {@code GoodsInfoMsgProducts.products[]} → {@code ReplenishGoodsInfo}）：
+     * {@code {status:200,msg:"success",data:{products:[{classId,thirdPid,productName,
+     * salePrice,stock,category}]}}}}。设备只按 {@code "status":200} 判成功，
+     * 故 <b>空表也回 200+[]</b>（回 666/503 会把「没有在售商品」和「拉取失败」混成同一个
+     * onFailed 分支）；仅 trade 不可达回 503。{@code category} 暂不下发：
+     * 取值是形态枚举（bag/bottle/bowl/box/egg），与我方 SKU 类目无映射依据，
+     * 固件各消费点均先判 null（{@code if-eqz}），留空只是不启用形态判定，不会 NPE。</p>
+     */
+    @PostMapping("/jiangyi/api/floor/getFloorByDevice")
+    public Map<String, Object> getFloorByDevice(HttpServletRequest request) {
+        String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
+        List<Map<String, Object>> products;
+        try {
+            products = tradeInternalClient.listFloorGoods(deviceId).stream()
+                    .filter(g -> g.classId() != null)
+                    .map(g -> {
+                        Map<String, Object> row = new java.util.LinkedHashMap<String, Object>();
+                        row.put("classId", g.classId());
+                        row.put("thirdPid", g.thirdPid() == null ? 0 : g.thirdPid());
+                        row.put("productName", g.productName());
+                        row.put("salePrice", g.salePrice() == null ? 0 : g.salePrice());
+                        row.put("stock", g.stock() == null ? 0 : g.stock());
+                        return (Map<String, Object>) row;
+                    })
+                    .toList();
+        } catch (Exception e) {
+            log.warn("jiangyi floor getFloorByDevice floor-goods failed deviceId={}: {}",
+                    deviceId, e.getMessage());
+            return Map.of("status", 503, "msg", "service unavailable", "data", Map.of());
+        }
+        log.info("jiangyi floor getFloorByDevice deviceId={} products={}", deviceId, products.size());
+        return Map.of("status", 200, "msg", "success", "data", Map.of("products", products));
+    }
+
+    /**
      * V16 §4.2.19 界面广告展示。data = [{advertisingAddress, advertisingType}]，
      * advertisingType 1=图片(jpg/png) 2=视频(mp4)。暂无广告运营面 → 恒空数组
      * （文档注明该接口面向「机器端有屏幕的商户」，空数组=不展示，符合最小实现）。

@@ -4,14 +4,18 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
+import com.aicabinet.trade.domain.JiangyiRecognitionReport;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
+import com.aicabinet.trade.service.JiangyiFloorGoodsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import com.aicabinet.trade.service.JiangyiRecognitionReportService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
+import com.aicabinet.trade.service.SkuJiangyiLinkService;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -49,6 +54,9 @@ public class JiangyiInternalController {
     private final JiangyiModelSyncService jiangyiModelSyncService;
     private final JiangyiGatherService jiangyiGatherService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
+    private final SkuJiangyiLinkService skuJiangyiLinkService;
+    private final JiangyiFloorGoodsService jiangyiFloorGoodsService;
+    private final JiangyiRecognitionReportService jiangyiRecognitionReportService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -57,7 +65,10 @@ public class JiangyiInternalController {
                                      DevicePresenceService devicePresenceService,
                                      JiangyiModelSyncService jiangyiModelSyncService,
                                      JiangyiGatherService jiangyiGatherService,
-                                     JiangyiOrderVideoService jiangyiOrderVideoService) {
+                                     JiangyiOrderVideoService jiangyiOrderVideoService,
+                                     SkuJiangyiLinkService skuJiangyiLinkService,
+                                     JiangyiFloorGoodsService jiangyiFloorGoodsService,
+                                     JiangyiRecognitionReportService jiangyiRecognitionReportService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -66,6 +77,9 @@ public class JiangyiInternalController {
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
+        this.skuJiangyiLinkService = skuJiangyiLinkService;
+        this.jiangyiFloorGoodsService = jiangyiFloorGoodsService;
+        this.jiangyiRecognitionReportService = jiangyiRecognitionReportService;
     }
 
     // ---------- 设备面 ----------
@@ -201,6 +215,26 @@ public class JiangyiInternalController {
         return ApiResponse.ok(jiangyiClassMappingService.resolveActive(deviceId, classId).orElse(null));
     }
 
+    /**
+     * 上报 {@code thirdPid}（将邑标准商品 id）→ 我方 skuId（挂接关系反查，2026-10-21）。
+     * data=null 即未挂接/已解挂，gateway 回落 classId 映射。
+     */
+    @GetMapping("/skus/by-product/{productId}")
+    public ApiResponse<String> skuByProduct(@PathVariable("productId") String productId) {
+        return ApiResponse.ok(skuJiangyiLinkService.resolveSkuIdByProductId(productId).orElse(null));
+    }
+
+    /**
+     * 设备补货/在售商品表（gateway {@code floor/getFloorByDevice} 转发，2026-10-21）。
+     * 固件按 classId 从此表回填识别上报的 thirdPid/price/productName，并以此做识别歧义消解，
+     * 故必须给出现行售价（与结算同价）与货道库存。
+     */
+    @GetMapping("/devices/{deviceId}/floor-goods")
+    public ApiResponse<List<JiangyiFloorGoodsService.FloorGoods>> floorGoods(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiFloorGoodsService.listFloorGoods(deviceId));
+    }
+
     @GetMapping("/class-mappings")
     public ApiResponse<List<JiangyiClassMapping>> mappings(
             @RequestParam("deviceId") String deviceId) {
@@ -243,6 +277,30 @@ public class JiangyiInternalController {
         return ApiResponse.ok(jiangyiRecognitionTimeoutService.markRecognitionTimeout(sessionId, deviceId));
     }
 
+    // ---------- 留档面（CB-062） ----------
+
+    /**
+     * 识别上报原样留档（V396 {@code jiangyi_recognition_report}）：gateway 每次到达落一行，
+     * 含整段 forms 原文与我方归一化结果并排。🔴 与结算解耦——厂商 price 合计只存档不采信，
+     * 本端点写入失败也不影响结算（gateway 侧 fire-and-forget）。
+     */
+    @PostMapping("/recognition-reports")
+    public ApiResponse<Long> recognitionReport(@RequestBody RecognitionReportRequest body) {
+        JiangyiRecognitionReport row = new JiangyiRecognitionReport();
+        row.setDeviceId(body.deviceId());
+        row.setOrderNo(body.orderNo());
+        row.setTransactionId(body.transactionId());
+        row.setPayType(body.payType());
+        row.setFormsJson(body.formsJson());
+        row.setItemsJson(body.itemsJson());
+        row.setFormCount(body.formCount());
+        row.setItemCount(body.itemCount());
+        row.setVendorAmountCents(body.vendorAmountCents());
+        row.setOutcome(body.outcome());
+        row.setReportedAt(body.reportedAt());
+        return ApiResponse.ok(jiangyiRecognitionReportService.archive(row));
+    }
+
     // ---------- 入驻面 ----------
 
     @PostMapping("/onboarding/register")
@@ -267,6 +325,11 @@ public class JiangyiInternalController {
     record MappingUpsertRequest(String deviceId, Integer classId, String modelName,
                                 String textName, String skuId, String status, String source) {}
     record MappingStatusRequest(Boolean active) {}
+    /** 与 gateway TradeInternalClient.RecognitionReportRequest 对齐（formsJson/itemsJson 为原文 JSON 串）。 */
+    record RecognitionReportRequest(String deviceId, String orderNo, String transactionId,
+                                    String payType, String formsJson, String itemsJson,
+                                    Integer formCount, Integer itemCount, Long vendorAmountCents,
+                                    String outcome, Instant reportedAt) {}
     record RegisterRequest(String deviceId, String deviceSn, String modelName) {}
     record BindDomainRequest(String deviceSn, String domain, String socketUrl) {}
     record ModelConfirmedRequest(String modelName) {}

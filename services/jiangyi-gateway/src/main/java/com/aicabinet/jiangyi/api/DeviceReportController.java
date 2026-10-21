@@ -8,6 +8,7 @@ import com.aicabinet.jiangyi.client.TradeInternalClient;
 import com.aicabinet.jiangyi.normalize.DoorStateNormalizer;
 import com.aicabinet.jiangyi.normalize.RecognitionNormalizer;
 import com.aicabinet.jiangyi.tracker.CommandTracker;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,16 +36,26 @@ public class DeviceReportController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceReportController.class);
 
+    /** 留档处置码（与 trade {@code JiangyiRecognitionReport} 常量、V396 列注释同源）。 */
+    private static final String OUTCOME_FORWARDED = "FORWARDED";
+    private static final String OUTCOME_MAPPING_MISS = "MAPPING_MISS";
+    private static final String OUTCOME_EMPTY_FORMS = "EMPTY_FORMS";
+    private static final String OUTCOME_BLANK_ORDERNO = "BLANK_ORDERNO";
+    private static final String OUTCOME_FORWARD_FAILED = "FORWARD_FAILED";
+
     private final TradeInternalClient tradeInternalClient;
     private final RecognitionNormalizer recognitionNormalizer;
     private final CommandTracker commandTracker;
+    private final ObjectMapper objectMapper;
 
     public DeviceReportController(TradeInternalClient tradeInternalClient,
                                   RecognitionNormalizer recognitionNormalizer,
-                                  CommandTracker commandTracker) {
+                                  CommandTracker commandTracker,
+                                  ObjectMapper objectMapper) {
         this.tradeInternalClient = tradeInternalClient;
         this.recognitionNormalizer = recognitionNormalizer;
         this.commandTracker = commandTracker;
+        this.objectMapper = objectMapper;
     }
 
     // ---------- §4.2.7 开锁状态 ----------
@@ -199,65 +210,99 @@ public class DeviceReportController {
      * 识别上报（含二次甄别结果复用本端点的场景）：
      * ① 先补 door-event CLOSED（模式一无关门上报，保证 SHOPPING→RECOGNIZING）；
      * ② forms → 映射归一化（任一未命中 fail-closed → recognize-timeout 转 DISPUTED）；
-     * ③ 转发 edge-results 进既有结算链路（金额我方按映射 SKU 价合计，分）。
+     * ③ 转发 edge-results 进既有结算链路（金额我方按映射 SKU 价合计，分）；
+     * ④ <b>无论走哪个分支，原始报文一律留档一行</b>（CB-062，V396）——留档在 finally 里，
+     * 归一化/转发抛异常也留痕；存档失败只记 warn，不影响结算主链路。
      */
     @PostMapping("/jiangyi/api/orderProduct/addRecognitionGoodsToOrder")
     public Map<String, Object> addRecognitionGoods(HttpServletRequest request,
                                                    @RequestBody RecognitionRequest body) {
         String deviceId = device(request);
         String sessionId = body.orderNo();
-        // 真机报文存在 orderNo 为空的形态（log3 实证）——空单号识别无法关联会话，只审计
-        if (isBlank(sessionId)) {
-            log.warn("jiangyi recognition with blank orderNo deviceId={} forms={} — audit only",
-                    deviceId, body.forms() == null ? 0 : body.forms().size());
-            return ok();
-        }
-        forwardDoorClosed(deviceId, sessionId);
-
-        List<VisionRecognitionResultDto.Item> items = recognitionNormalizer.normalize(deviceId, body.forms());
-        if (items.isEmpty()) {
-            // forms 空 = 没识别到商品（合法）；映射未命中 = fail-closed。
-            // 两者对 trade 的处置相同：立即转人工审核，不等 10 分钟扫描。
-            boolean isMiss = body.forms() != null && !body.forms().isEmpty();
-            boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId);
-            log.warn("jiangyi recognition {} deviceId={} sessionId={} handled={}",
-                    isMiss ? "MAPPING-MISS" : "EMPTY", deviceId, sessionId, handled);
-            return ok();
-        }
-        VisionRecognitionResultDto result = new VisionRecognitionResultDto(
-                sessionId,
-                deviceId,
-                null,
-                null,
-                items,
-                1.0d,
-                false,
-                RecognitionNormalizer.modelVersion(tradeInternalClient.device(deviceId)
-                        .map(TradeInternalClient.JiangyiDeviceView::modelName).orElse(null)),
-                null,
-                "JIANGYI",
-                Instant.now());
-        boolean forwarded = false;
+        String outcome = OUTCOME_FORWARD_FAILED;
+        List<VisionRecognitionResultDto.Item> items = List.of();
         try {
-            var response = tradeInternalClient.edgeResults(result);
-            forwarded = response != null;
-            log.info("jiangyi recognition forwarded deviceId={} sessionId={} items={} outcome={}",
-                    deviceId, sessionId, items.size(), response == null ? "n/a" : response.outcome());
+            // 真机报文存在 orderNo 为空的形态（log3 实证）——空单号识别无法关联会话，只审计
+            if (isBlank(sessionId)) {
+                outcome = OUTCOME_BLANK_ORDERNO;
+                log.warn("jiangyi recognition with blank orderNo deviceId={} forms={} — audit only",
+                        deviceId, body.forms() == null ? 0 : body.forms().size());
+                return ok();
+            }
+            forwardDoorClosed(deviceId, sessionId);
+
+            items = recognitionNormalizer.normalize(deviceId, body.forms());
+            if (items.isEmpty()) {
+                // forms 空 = 没识别到商品（合法）；映射未命中 = fail-closed。
+                // 两者对 trade 的处置相同：立即转人工审核，不等 10 分钟扫描。
+                boolean isMiss = body.forms() != null && !body.forms().isEmpty();
+                outcome = isMiss ? OUTCOME_MAPPING_MISS : OUTCOME_EMPTY_FORMS;
+                boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId);
+                log.warn("jiangyi recognition {} deviceId={} sessionId={} handled={}",
+                        outcome, deviceId, sessionId, handled);
+                return ok();
+            }
+            VisionRecognitionResultDto result = new VisionRecognitionResultDto(
+                    sessionId,
+                    deviceId,
+                    null,
+                    null,
+                    items,
+                    1.0d,
+                    false,
+                    RecognitionNormalizer.modelVersion(tradeInternalClient.device(deviceId)
+                            .map(TradeInternalClient.JiangyiDeviceView::modelName).orElse(null)),
+                    null,
+                    "JIANGYI",
+                    Instant.now());
+            boolean forwarded = false;
+            try {
+                var response = tradeInternalClient.edgeResults(result);
+                forwarded = response != null;
+                log.info("jiangyi recognition forwarded deviceId={} sessionId={} items={} outcome={}",
+                        deviceId, sessionId, items.size(), response == null ? "n/a" : response.outcome());
+            } catch (Exception e) {
+                log.error("jiangyi edge-results forward failed deviceId={} sessionId={}",
+                        deviceId, sessionId, e);
+            }
+            if (forwarded) {
+                outcome = OUTCOME_FORWARDED;
+                // 受理结论已回：关门兜底使命完成
+                commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
+            } else {
+                // AU-063（批次 11）：转发失败不撤销关门兜底——旧实现 finally 无条件 complete，
+                // trade 不可达时识别数据丢失且 300s watchdog 不再触发（仅靠 trade 侧扫描）。
+                // 保留兜底：watchdog 到期 open-failed → recognize-timeout → DISPUTED（fail-safe），
+                // trade 恢复后自动收口；设备侧已回 200 不重报属既有取舍（防重试风暴，注释留痕）。
+                log.warn("jiangyi edge-results forward incomplete, CLOSE watchdog retained deviceId={} sessionId={}",
+                        deviceId, sessionId);
+            }
+            return ok();
+        } finally {
+            archiveRecognition(deviceId, body, items, outcome);
+        }
+    }
+
+    /**
+     * 原始报文留档（CB-062）：fire-and-forget——序列化或 trade 不可达都只记 warn，
+     * 绝不能把可结算单拖成 DISPUTED（存档是证据，不在结算关键路径上）。
+     */
+    private void archiveRecognition(String deviceId, RecognitionRequest body,
+                                    List<VisionRecognitionResultDto.Item> items, String outcome) {
+        try {
+            tradeInternalClient.postRecognitionReport(new TradeInternalClient.RecognitionReportRequest(
+                    deviceId, isBlank(body.orderNo()) ? null : body.orderNo(),
+                    body.transactionId(), body.payType(),
+                    objectMapper.writeValueAsString(body.forms()),
+                    items == null || items.isEmpty() ? null : objectMapper.writeValueAsString(items),
+                    body.forms() == null ? 0 : body.forms().size(),
+                    items == null ? 0 : items.size(),
+                    RecognitionNormalizer.vendorAmountCents(body.forms()),
+                    outcome, Instant.now()));
         } catch (Exception e) {
-            log.error("jiangyi edge-results forward failed deviceId={} sessionId={}", deviceId, sessionId, e);
+            log.warn("jiangyi recognition report archive failed deviceId={} orderNo={} outcome={}",
+                    deviceId, body.orderNo(), outcome, e);
         }
-        if (forwarded) {
-            // 受理结论已回：关门兜底使命完成
-            commandTracker.complete(CommandTracker.Kind.CLOSE, sessionId, deviceId);
-        } else {
-            // AU-063（批次 11）：转发失败不撤销关门兜底——旧实现 finally 无条件 complete，
-            // trade 不可达时识别数据丢失且 300s watchdog 不再触发（仅靠 trade 侧扫描）。
-            // 保留兜底：watchdog 到期 open-failed → recognize-timeout → DISPUTED（fail-safe），
-            // trade 恢复后自动收口；设备侧已回 200 不重报属既有取舍（防重试风暴，注释留痕）。
-            log.warn("jiangyi edge-results forward incomplete, CLOSE watchdog retained deviceId={} sessionId={}",
-                    deviceId, sessionId);
-        }
-        return ok();
     }
 
     // ---------- §4.2.11/4.2.12 异常/大模型 ----------
@@ -441,7 +486,13 @@ public class DeviceReportController {
 
     record LockStateRequest(String orderNo, String lockStatus) {}
     record DoorStateRequest(String orderNo, String doorStatus) {}
-    record RecognitionRequest(String orderNo, List<RecognitionNormalizer.Form> forms) {}
+    /**
+     * 固件 {@code OrderEntity}（{@code rknn/tool/UploadInfo2Server} 构造）：
+     * forms + orderNo + transactionId + payType。后两者 §4.2.10 文档未列但固件实发，
+     * 缺席时为 null，只入留档台账、不参与结算。
+     */
+    record RecognitionRequest(String orderNo, String transactionId, String payType,
+                              List<RecognitionNormalizer.Form> forms) {}
     /** §4.2.11 bigModel / §4.2.12 BigModel——大小写两存，运行时归一（铁律：固件不可信）。 */
     record OrderErrorRequest(String orderNo, String errorMsg, String bigModel, String BigModel) {}
     record DoubleDoorRequest(String orderNo, String doorPosition) {}

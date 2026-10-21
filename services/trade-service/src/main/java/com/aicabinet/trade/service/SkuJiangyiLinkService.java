@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -71,6 +72,26 @@ public class SkuJiangyiLinkService {
     public List<JiangyiSkuJiangyiLink> listLinks(String skuId) {
         requireSku(skuId);
         return linkMapper.listBySku(skuId);
+    }
+
+    /**
+     * 上报报文里的 {@code thirdPid}（将邑标准商品 id）→ 我方 skuId（2026-10-21）。
+     *
+     * <p>识别归一的首选通路：{@code uk_sku_jiangyi_product} 保证一个将邑商品至多挂一个 SKU，
+     * 所以挂接一次即全 fleet 生效，不必逐设备配 classId 映射。RETIRED（解挂留痕）不认。</p>
+     *
+     * <p>刻意<b>不</b>在这里再校验 SKU 上下架：设备级门槛已由
+     * {@code jiangyi_class_mapping} 的 ACTIVE 行承担（classId 兜底路径），落架 SKU 该由结算侧
+     * 现有的取价/售卖校验拒绝并转人工，两条路径不该各长一套判据。</p>
+     */
+    public Optional<String> resolveSkuIdByProductId(String jiangyiProductId) {
+        if (jiangyiProductId == null || jiangyiProductId.isBlank()) {
+            return Optional.empty();
+        }
+        return linkMapper.byProduct(jiangyiProductId.trim())
+                .filter(link -> !"RETIRED".equals(link.getSyncStatus()))
+                .map(JiangyiSkuJiangyiLink::getSkuId)
+                .filter(skuId -> skuId != null && !skuId.isBlank());
     }
 
     /**

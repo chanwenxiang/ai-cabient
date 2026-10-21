@@ -6,7 +6,7 @@
 ## 0. 核心判断（复述）
 
 - **枢纽**：将邑 `orderNo` = 我方 `sessionId`（V16 §4.3.2.7「商户服务器生成、需唯一」）——免映射。
-- **金额不采信设备侧**：识别上报只带 classId+quantity（无金额字段）⇒ 结算金额 = Σ(映射 SKU 现价 × qty)（分）；映射未命中 fail-closed 转 DISPUTED。
+- **金额不采信设备侧（口径 2026-10-21 修订，原「上报无金额字段」是错的）**：识别上报**有两套契约**——V16 §4.2.10（第四章 普通对接）`forms={classId,quantity,specialId?}` 确实没有金额；§5.2.9（第五章 使用将邑后台）把 `thirdPid`「标准商品id」+ `price`「单位为分」+ `productName` 列为 **M 必填**。APK 实证走的是后者：`data/service/Forms.smali` 字段= barCode/classId/floorNum/price/productCode/productName/quantity/specialId/thirdPid/txtName，`rknn/tool/UploadInfo2Server` 上报前用设备侧补货表按 classId 逐行回填 thirdPid/productName/price ⇒ **我方收到的报文自带厂商价**。拍板 **A 档**：结算金额仍 = Σ(我方 SKU 现价 × qty)（`MerchantSkuPricingService.resolveUnitPriceCents`，与下发给设备的售价同一函数），厂商 `price` **只留档不采信**；真机攒到第一份真实报文后比对两侧价差，再决定是否升 B 档（采信上报价）。SKU 解析优先级同步改为 **thirdPid（商品库挂接 `sku_jiangyi_link`）> classId（逐设备映射）**，映射未命中仍 fail-closed 转 DISPUTED。
 - **模式一无关门上报**：识别上报到达时 gateway 先合成 door-event CLOSED（SHOPPING→RECOGNIZING）再转发 edge-results；`uploadDoorState`（拉门成功）→ door-event OPEN（OPENING→SHOPPING）。
 - **零侵入**：device-info / trade 业务服务 / common-core / 前端不动；唯一现有 Java 改动 = `DeviceServiceClient`（路由分流）。
 - **名词：本文「云侧／云端」专指将邑智能的 SaaS 后端** `https://lingshouapi.hunanjysmart.com/device`（厂商云，实测证据：设备面 43 条路径全打它、JWT 由它签发 `{"exp":2188291197,"deviceId":10720}` HS512、桶 `jiangyi-logs.oss-cn-shanghai.aliyuncs.com`、`domainConfig/*` 由它下发域名、OTA/特征包/模型/调光表/商户后台都在它那边）。我方 `services/jiangyi-gateway` 是它在**设备固件眼里**的顶替者（只顶 device-facing API，不搬它的数据）；我方 `services/*`（trade/edge/admin）是业务后端，本文不称「云端」。
@@ -28,7 +28,9 @@
 | gateway | `api/DeviceReportController` | 文档路径照抄：uploadLockState/uploadDoorState/addRecognitionGoodsToOrder/uploadOrderError/openDoubleDoorError/uploadFaultOrder |
 | gateway | `api/OpenDoorController` | `/internal/v1/jiangyi/devices/{id}/open-door`：WS 下发 + tracker 登记 |
 | gateway | `tracker/CommandTracker` / `SessionWatchdog` | Redis hash+ZSET 三组 pending；15s 开门 / 300s 识别 / 10min doing 兜底 |
-| gateway | `normalize/DoorStateNormalizer` / `RecognitionNormalizer` | success|fail 与 bigModel/BigModel 大小写归一；forms→items；modelVersion 截断 64 |
+| gateway | `normalize/DoorStateNormalizer` / `RecognitionNormalizer` | success|fail 与 bigModel/BigModel 大小写归一；forms→items（thirdPid 挂接优先，classId 映射兜底）；modelVersion 截断 64；`vendorAmountCents` 只算给留档列 |
+| trade | `V396__jiangyi_recognition_report.sql` / `JiangyiRecognitionReportService` | 识别上报**原样留档台账**（CB-062，append-only：整段 forms 原文 + 我方 items + 处置码 + 厂商价合计） |
+| gateway | `DeviceReportController.archiveRecognition` / `TradeInternalClient.postRecognitionReport` | 每次到达在 finally 落一行（fail-closed/空单号/空 forms 同样留痕）；存档失败只记 warn，不入结算关键路径 |
 | 部署 | `infra/docker-compose.full.yml`、`infra/gateway/nginx*.conf` ×3 | jiangyi-gateway `127.0.0.1:18084:8083`；`/jiangyi/` + `/websocket/`（proxy_read_timeout 3600s） |
 | 模拟器 | `simulator/jiangyi/JiangyiDeviceSimulator` | `java -jar … jiangyi`：取 token→WS→收 openDoor→锁/门/识别上报全链路 |
 
@@ -39,7 +41,8 @@
 | 换 token | `POST /jiangyi/api/token/openDoorDeviceStatus` | `{deviceSn}` → `{status:200,data:{token,identifier}}` |
 | 开锁状态 | `POST /jiangyi/api/device/uploadLockState` | `{orderNo, lockStatus}` fail→trade open-failed |
 | 拉门状态 | `POST /jiangyi/api/device/uploadDoorState` | `{orderNo, doorStatus}` success→door-event OPEN |
-| 识别结果 | `POST /jiangyi/api/orderProduct/addRecognitionGoodsToOrder` | `{orderNo, forms:[{classId,quantity,specialId}]}` → 先合成 CLOSED → 归一化 → edge-results |
+| 识别结果 | `POST /jiangyi/api/orderProduct/addRecognitionGoodsToOrder` | `{orderNo, transactionId, payType, forms:[{classId,quantity,thirdPid,price,productName,barCode,txtName,productCode,floorNum,specialId?}]}`（§5.2.9 富字段形态，固件实发）→ 先合成 CLOSED → 归一化（thirdPid 优先）→ edge-results |
+| 补货/在售表（**设备拉取**） | `POST /jiangyi/api/floor/getFloorByDevice` | `{}` + Bearer → `{status:200,data:{products:[{classId,thirdPid,productName,salePrice,stock}]}}`；固件 `GetReplenishGoodsInfo` 是 `ReplenishGoodsInfos.addGoods` 的**唯一写入点** ⇒ 缺它 = 上报里 thirdPid/price/productName 恒 0。空表回 200+`[]`，仅 trade 不可达回 503 |
 | 异常/大模型 | `POST /jiangyi/api/device/pokerOrder/uploadOrderError` | `bigModel:"doing"`→挂起 10min 兜底；否则→DISPUTED |
 | 双门占用/故障单 | `/jiangyi/api/order/openDoubleDoorError`、`/order/uploadFaultOrder` | 仅审计 |
 
@@ -89,7 +92,7 @@
   ② 拓扑是**将邑后台可改的每机配置**，本台 SN 在同一天日志里出现过 3 种形态：`doorNum:1,locks:[1],Ru:0,Rb:0`（68 次）、`doorNum:1,locks:[1],Ru:5,Rb:6`（32 次）、`doorNum:2,locks:[1,2],Ru:5,Rb:6`（4 次，09-28，同期 logcat 出现 `打开摄像头2`）。⇒ 我方回什么值 = 声称这台柜子的物理拓扑是什么，**必须逐台建档**，`jiangyi_device` 现有列里没有拓扑（V332/V336/V366/V369 全无 `door/lock/usb/model_num`），要落库+运营可编辑才谈得上正确回答。
   厂商问题 8 由此从「usbNum 语义未知」降级为两条确认：0/null 约定是否如上、拓扑由谁在何时维护（换摄像头/换锁后我方怎么知道）。
   **已修（2026-10-19 晚，`DeviceInfoController.getDetail`）**：拓扑字段不再回 null，改按上表实测元组回数字（`doorNum=1`/`locks=[1]`/`Lu=1`/`Lb=3`/`Ru=0`/`Rb=0`/`modelNum=2`），null 只留给云侧自己也回 null 的 `huodaoNum`/`industrialControlType`/`mqtt*`；单测 7 条锁死该语义（`DeviceInfoControllerTest#getDetailReturnsMeasuredHardwareTopologyNotNulls`）。同批遗留一处未证字段：`id` 云侧回数字 10720、我方回 deviceId 字符串，类型差异固件容忍度未实证，真机连入后先看是否解析异常。
-- specialId 不采信（V16 §4.2.10 唯一出口、来源未定义）。
+- **specialId 仍不采信**（2026-10-21 复核后维持）：字段只在 §4.2.10 出现、全文档仅此一处出口、来源未定义；且固件上报前有专门把 `specialId`（连同 productCode/floorNum/txtName/barCode）**置空**的分支（`rknn/tool/trakerDeal/tool/UploadIdentifyResult.smali` `refreshMappedGoodsInfo`）⇒ 归一化不读它。同理 `floorNum/txtName/barCode` 只留档不参与解析。
 - **§5.2 独有的 3 条入向端点不接（有拍板，但出处已被删）**：V15 全文 OCR（107 页）与 V16 逐条对账，云/设备→商户服务器的入向面在第五章 §5.2 比第四章 §4.2 多三条——
   `pokerOrderProduct/addProductToOrder`（§5.2.11 二次甄别扣款通知，「商户端收到后需要进行扣款处理」）、
   `thirdRecheckOrder/recheckOrder`（§5.2.12 重审退款/补扣，`orderNo`+`productForms`+`amount`(分)）、

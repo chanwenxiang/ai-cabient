@@ -175,8 +175,10 @@
  G4 🔴 将邑识别前置（漏了这组，P3 第 10–12 跳要么出不了单、要么全部被判 DISPUTED）
  20 将邑商品库：把本轮 SKU 新增进将邑商品库（历史缺陷 2026-10-11 已修：mainImg 空串恒 400 →
      现口径=预填 SKU 主图可编辑 + 服务层回退 imageUrl + 双空 409）→ 记录将邑侧 classId / catId
- 21 🔴 class_id → SKU 映射（`jiangyi_class_mapping` V333）：本柜 classId 必须映射到本轮 SKU；
-     DISABLED 映射的启停实测——**识别上报只带 classId（无金额无 SKU），映射缺失或停用即换算不出我方 SKU**
+ 21 🔴 识别解析两条通道（2026-10-21 修订）：① 上报 thirdPid → 商品库挂接 `sku_jiangyi_link`（优先，
+     需 G20 先把 SKU 挂进将邑商品库 + 柜机已从 `floor/getFloorByDevice` 拿到补货表）；
+     ② `jiangyi_class_mapping`（V333）classId 兜底。DISABLED 映射启停实测——两条都不命中才换算不出
+     我方 SKU → fail-closed 转 DISPUTED（报文原文一律进 `jiangyi_recognition_report` V396 留档）
  22 SKU-将邑链接（`sku_jiangyi_link` V335）与品类下拉（jiangyiProductCategories）实况核对，勿手填 catId
  23 设备 HTTP 凭据（`device_http_credential` V367）+ 激活态（V366 auth_enabled）：
      未激活必须被拒（激活制）→ 激活后 token → getDetail → identifier 链实测
