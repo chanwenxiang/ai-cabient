@@ -115,12 +115,22 @@ public class DeviceInfoController {
      * V16 §4.2.5：模型下发成功回执（主通道；WS 分支为宽容兜底）。
      * 文档注明「下发时没有 modelName，上报时就为空」——空 modelName 只记日志不转发
      * （与 WS 分支语义一致），响应仍 200 避免设备重试风暴。
+     *
+     * <p>另外收三条文档未列、真机固件确实在打的路径（log4 行 24231 base / 30621 big /
+     * 17847 third，请求体同形 {@code {identifier,modelName}}）——对应将邑后台「模型类型」
+     * 三档。三档语义未向厂商核实，故<b>不区分处理</b>，一律走同一转发：
+     * trade 侧 {@code confirmModel} 按 modelName 匹配 SENT 记录、不匹配回 409 ⇒ 错档回执
+     * 只会进 warn 台账，不会伪造 CONFIRMED。
      */
-    @PostMapping("/jiangyi/api/deviceInfo/downloadModelNotify")
+    @PostMapping({"/jiangyi/api/deviceInfo/downloadModelNotify",
+            "/jiangyi/api/deviceInfo/downloadBaseModelNotify",
+            "/jiangyi/api/deviceInfo/downloadBigModelNotify",
+            "/jiangyi/api/deviceInfo/downloadThirdModelNotify"})
     public Map<String, Object> downloadModelNotify(HttpServletRequest request,
                                                    @RequestBody DownloadModelNotifyRequest body) {
         String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
         String tokenIdentifier = attr(request, DeviceAuthInterceptor.ATTR_IDENTIFIER);
+        String notifyPath = request.getRequestURI();
         if (body != null && body.identifier() != null && !body.identifier().isBlank()
                 && !body.identifier().equals(tokenIdentifier)) {
             log.warn("jiangyi downloadModelNotify identifier mismatch token={} body={}",
@@ -128,15 +138,17 @@ public class DeviceInfoController {
         }
         String modelName = body == null ? null : body.modelName();
         if (modelName == null || modelName.isBlank()) {
-            log.info("jiangyi downloadModelNotify without modelName deviceId={}（§4.3.2.9 允许为空）",
-                    deviceId);
+            log.info("jiangyi {} without modelName deviceId={}（§4.3.2.9 允许为空）",
+                    notifyPath, deviceId);
             return ok();
         }
         try {
             tradeInternalClient.modelConfirmed(deviceId, modelName);
-            log.info("jiangyi http model confirmed deviceId={} modelName={}", deviceId, modelName);
+            log.info("jiangyi http model confirmed path={} deviceId={} modelName={}",
+                    notifyPath, deviceId, modelName);
         } catch (Exception e) {
-            log.warn("jiangyi http model-confirmed report failed deviceId={}: {}", deviceId, e.getMessage());
+            log.warn("jiangyi http model-confirmed report failed path={} deviceId={}: {}",
+                    notifyPath, deviceId, e.getMessage());
         }
         return ok();
     }

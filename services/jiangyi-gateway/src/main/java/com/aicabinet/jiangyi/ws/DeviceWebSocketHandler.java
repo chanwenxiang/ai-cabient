@@ -178,8 +178,13 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                         identifier, node.path("msgContent").asText(""));
                 return;
             }
-            // 模式一业务上报全走 HTTP 面；WS 上行其余消息忽略（铁律：未知消息宁可忽略也不误当业务数据）
-            log.debug("jiangyi ws upstream identifier={} payload={}", identifier, message.getPayload());
+            // 模式一业务上报全走 HTTP 面；WS 上行其余消息<b>仍不当事务处理</b>（铁律：未知消息
+            // 宁可忽略也不误当业务数据），但 2026-10-21 起从 debug 升为 WARN 台账——与 HTTP 面
+            // JIANGYI_PATH_UNIMPLEMENTED 对称：debug 级在生产的 INFO 阈值下等于静默丢帧，
+            // 而固件下行回执族（*Sure / download*ModelNotify 变体）恰恰只在这条通道出现，
+            // 需要可 grep 的清单才能决定补哪一条，而不是靠事后翻 logcat。
+            log.warn("JIANGYI_WS_MSG_UNHANDLED identifier={} msgType={} payload={}",
+                    identifier, node.path("msgType").asText(""), message.getPayload());
         } catch (Exception e) {
             log.debug("jiangyi ws upstream non-JSON identifier={} len={}",
                     identifier, message.getPayload().length());

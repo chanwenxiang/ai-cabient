@@ -1,5 +1,9 @@
 package com.aicabinet.jiangyi.ws;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.aicabinet.jiangyi.client.TradeInternalClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -30,7 +35,7 @@ import static org.mockito.Mockito.when;
  * WS 通道（CB-022 一期 + CB-023 二期模型面）单测：
  * updateModel 下发报文契约（V16 §4.3.2.9 + 2026-10-19 真云对齐补 status:200）/
  * downloadModelNotify 宽容解析（对象/字符串/缺 modelName 三形态）/
- * 心跳固定回 PONG（真机发 PING，log3 实证）/ *Sure 回执分发 / 未知消息忽略。
+ * 心跳固定回 PONG（真机发 PING，log3 实证）/ *Sure 回执分发 / 未知消息 WARN 台账（不当业务数据）。
  */
 @ExtendWith(MockitoExtension.class)
 class DeviceWebSocketHandlerTest {
@@ -223,6 +228,65 @@ class DeviceWebSocketHandlerTest {
         handler.handleTextMessage(session, new TextMessage("not-json-at-all"));
 
         verify(tradeInternalClient, never()).modelConfirmed(any(), any());
+    }
+
+    /**
+     * 2026-10-21：未处理上行从 debug 升为 WARN 台账（与 HTTP 面 JIANGYI_PATH_UNIMPLEMENTED 对称）。
+     * msgType 取真机实测未处理帧（log2/log3/log4 tally：uploadLogSure 2-4 次、
+     * sendDeviceUsedStatusSure 3 次），生产 INFO 阈值下 debug 等于静默丢帧。
+     */
+    @Test
+    void unknownUpstreamIsLedgeredAtWarn() {
+        ListAppender<ILoggingEvent> appender = attachAppender();
+        try {
+            WebSocketSession session = onlineSession();
+            handler.afterConnectionEstablished(session);
+
+            handler.handleTextMessage(session, new TextMessage(
+                    "{\"msgType\":\"uploadLogSure\",\"msgContent\":\"x\"}"));
+            handler.handleTextMessage(session, new TextMessage(
+                    "{\"msgType\":\"sendDeviceUsedStatusSure\",\"msgContent\":\"\"}"));
+
+            long ledgered = appender.list.stream()
+                    .filter(e -> e.getLevel() == Level.WARN)
+                    .filter(e -> e.getFormattedMessage().startsWith("JIANGYI_WS_MSG_UNHANDLED"))
+                    .count();
+            assertEquals(2, ledgered);
+            assertTrue(appender.list.stream().anyMatch(e ->
+                    e.getFormattedMessage().contains("msgType=uploadLogSure")));
+        } finally {
+            detachAppender(appender);
+        }
+    }
+
+    /** 心跳是最高频上行（log2/3/4 各 1119 次）——绝不能进 WARN 台账，否则台账被淹没。 */
+    @Test
+    void heartBeatIsNotLedgered() {
+        ListAppender<ILoggingEvent> appender = attachAppender();
+        try {
+            WebSocketSession session = onlineSession();
+            handler.afterConnectionEstablished(session);
+
+            handler.handleTextMessage(session, new TextMessage(
+                    "{\"msgType\":\"heartBeat\",\"msgContent\":\"PING\"}"));
+
+            assertTrue(appender.list.stream().noneMatch(e -> e.getLevel() == Level.WARN),
+                    "心跳不得产生 WARN：" + appender.list);
+        } finally {
+            detachAppender(appender);
+        }
+    }
+
+    private ListAppender<ILoggingEvent> attachAppender() {
+        Logger wsLog = (Logger) LoggerFactory.getLogger(DeviceWebSocketHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        wsLog.addAppender(appender);
+        return appender;
+    }
+
+    private void detachAppender(ListAppender<ILoggingEvent> appender) {
+        ((Logger) LoggerFactory.getLogger(DeviceWebSocketHandler.class)).detachAppender(appender);
     }
 
     @Test

@@ -2,13 +2,16 @@ package com.aicabinet.jiangyi.api;
 
 import com.aicabinet.jiangyi.auth.DeviceAuthInterceptor;
 import com.aicabinet.jiangyi.client.TradeInternalClient;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -122,6 +125,37 @@ class DeviceInfoControllerTest {
         Map<String, Object> resp = controller.downloadModelNotify(authedRequest(),
                 new DeviceInfoController.DownloadModelNotifyRequest(IDENTIFIER, "model.rknn"));
         assertEquals(200, resp.get("status"));
+    }
+
+    /**
+     * 文档只列 downloadModelNotify（§4.2.5），真机固件另外打三条分档回执（log4 行
+     * 24231 base / 30621 big / 17847 third，body 同形）。四条必须同映射：漏一条 ⇒
+     * 该档下发拿不到 CONFIRMED，watchdog 把已成功的应用误判成超时 FAILED。
+     */
+    @Test
+    void downloadModelNotifyMapsAllFourFirmwarePaths() throws Exception {
+        PostMapping mapping = DeviceInfoController.class
+                .getMethod("downloadModelNotify", HttpServletRequest.class,
+                        DeviceInfoController.DownloadModelNotifyRequest.class)
+                .getAnnotation(PostMapping.class);
+        assertEquals(Set.of(
+                        "/jiangyi/api/deviceInfo/downloadModelNotify",
+                        "/jiangyi/api/deviceInfo/downloadBaseModelNotify",
+                        "/jiangyi/api/deviceInfo/downloadBigModelNotify",
+                        "/jiangyi/api/deviceInfo/downloadThirdModelNotify"),
+                Set.of(mapping.value()));
+    }
+
+    @Test
+    void variantModelNotifyForwardsSameAsPrimary() {
+        // 三档语义未向厂商核实 ⇒ 不区分处理；错档回执由 trade confirmModel 的
+        // modelName 匹配（不匹配 409）挡住，不会伪造 CONFIRMED。
+        MockHttpServletRequest request = authedRequest();
+        request.setRequestURI("/jiangyi/api/deviceInfo/downloadBigModelNotify");
+        Map<String, Object> resp = controller.downloadModelNotify(request,
+                new DeviceInfoController.DownloadModelNotifyRequest(IDENTIFIER, "best_800rk3588_0310_800senpt.rknn"));
+        assertEquals(200, resp.get("status"));
+        verify(tradeInternalClient).modelConfirmed(DEVICE_ID, "best_800rk3588_0310_800senpt.rknn");
     }
 
     @Test
