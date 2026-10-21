@@ -1,1 +1,0 @@
-import{k as o,t as i}from"./index-7kH3wtSg.js";import{c as r}from"./ui-vendor-BipPwLmQ.js";function s(t){return r(()=>(o(),i(t)))}export{s as u};
