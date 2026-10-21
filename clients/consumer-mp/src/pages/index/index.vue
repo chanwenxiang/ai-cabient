@@ -678,6 +678,34 @@ const sessionActive = computed(
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
 /*
+ * 2026-10-21 用户拍板的底栏策略（替代旧「落地页永远沉浸」）：
+ * - 从未开过门 ⇒ 落地页全屏沉浸、无底栏（对齐扫码开门竞品的首触体验）；
+ * - 只要开过一次门（进入过开门流程）⇒ 底栏常驻，此后落地页也显示，
+ *   结算完点「首页」tab 回落地页仍可去订单/我的，不会被憋在落地页。
+ * storage 持久化：跨会话生效（老用户不再出现无底栏落地页）。
+ */
+const OPENED_ONCE_KEY = 'consumer_opened_once_v1';
+const hasOpenedOnce = ref(false);
+try {
+  hasOpenedOnce.value = uni.getStorageSync(OPENED_ONCE_KEY) === '1';
+} catch {
+  /* storage 不可用时退化为「未开过门」，仅影响首触沉浸判定 */
+}
+watch(
+  () => scanned.value || enteringFlow.value,
+  (v) => {
+    if (v && !hasOpenedOnce.value) {
+      hasOpenedOnce.value = true;
+      try {
+        uni.setStorageSync(OPENED_ONCE_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+);
+
+/*
  * F3 原生分享（竞品标配，本仓此前两端 0 命中）。
  * 刻意「不带 deviceId」：parseLaunchOptions 只要见到 deviceId 就把 autoOpen 判为 true
  * （shared-uni/qrcode.ts:199-202 用的是 `||` 短路，无法用 autoOpen=0 关掉），
@@ -755,7 +783,8 @@ function showTabBarSafe() {
 }
 
 function syncLandingTabBar() {
-  if (showLanding.value) {
+  const immersiveLanding = showLanding.value && !hasOpenedOnce.value;
+  if (immersiveLanding) {
     hideTabBarTries = 0;
     hideLandingTabBar();
     // 隐藏底栏后视口底部安全区「窗口底色」改品牌深色，消落地页白条。
@@ -770,12 +799,13 @@ function syncLandingTabBar() {
       });
     }
   } else {
+    // 开过门的用户：落地页也显示底栏（2026-10-21 用户拍板），可自由去订单/我的
     showTabBarSafe();
     if (typeof uni.setBackgroundColor === 'function') {
       uni.setBackgroundColor({
-        backgroundColor: '#ffffff',
-        backgroundColorTop: '#ffffff',
-        backgroundColorBottom: '#ffffff'
+        backgroundColor: showLanding.value ? '#115e59' : '#ffffff',
+        backgroundColorTop: showLanding.value ? '#115e59' : '#ffffff',
+        backgroundColorBottom: showLanding.value ? '#115e59' : '#ffffff'
       });
     }
   }
@@ -2050,9 +2080,12 @@ function applySessionView(s: SessionDto) {
     stopRecognitionTimer();
     recognitionDeferred.value = false;
   }
+  // 离开等待开门态（含 FAILED/CANCELLED 终态）就必须清 opening，否则按钮停在「开门中…」
+  if (s.state !== 'OPENING' && s.state !== 'CREATED') {
+    opening.value = false;
+  }
   // 状态一变就立刻改顶栏文案；勿走 30s 节流，否则会卡在「正在开门」
   if (s.state === 'SHOPPING') {
-    opening.value = false;
     deviceStatusText.value = UI_COPY.doorOpenShopping;
     deviceOffline.value = false;
   } else if (s.deviceId && deviceId.value) {
