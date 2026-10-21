@@ -8,6 +8,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { errorMessage } from '@/utils/error-message';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface InvoiceRow {
@@ -122,30 +123,43 @@ const showActionColumn = computed(
 );
 
 async function onRowAction(key: string, row: InvoiceRow) {
-  try {
-    if (key === 'issue') {
+  if (key === 'issue') {
+    try {
       await ElMessageBox.confirm(
         `确认将订单 ${displayBizNo(row.orderId)} 标记为已开具？\n（仅改状态，不生成税控 PDF / 不发邮件）`,
         '开具发票（仅状态）'
       );
+    } catch {
+      return;
+    }
+    try {
       await api.request(AdminEndpoints.invoiceIssue(row.invoiceId), 'POST');
       ElMessage.success('已标记为已开具（未对接税控）');
       await crud.load();
-      return;
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '开具发票失败'));
     }
-    if (key === 'reject') {
-      const { value } = await ElMessageBox.prompt('驳回原因', '驳回开票', {
+    return;
+  }
+  if (key === 'reject') {
+    let value = '';
+    try {
+      ({ value } = await ElMessageBox.prompt('驳回原因', '驳回开票', {
         inputPlaceholder: '不符合开票条件',
         confirmButtonText: '驳回'
-      });
+      }));
+    } catch {
+      return;
+    }
+    try {
       await api.request(AdminEndpoints.invoiceReject(row.invoiceId), 'POST', {
         reason: value || '不符合开票条件'
       });
       ElMessage.success('已驳回');
       await crud.load();
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '驳回开票失败'));
     }
-  } catch {
-    /* 用户取消对话框 */
   }
 }
 

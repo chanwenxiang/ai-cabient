@@ -641,6 +641,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-21（后台巡检第一批修复：分页基数 / 异常归档页 / 弹窗残留 / 静默失败）
+- ✅ **租金账单页页码基数错位**：`FeeBillMonthResolver.clampPage` 从 1 起（`page<1→1`），而 `useCrudTable` 传 `page-1`（0 基）⇒ 首屏请求 `page=0` 被钳到 1、第 2 页请求 `page=1` 又回到第 1 页，**整页只能看到第一页**。`DeviceRentalView` 传参改为 `p.page + 1`（`DeviceRentalView.vue` query builder）。
+- ✅ **异常列表「已归档」页签查空**：后端 `archived` 是独立布尔条件，与 `status` 是 AND 关系；前端把 `ARCHIVED` 当状态值传给 `status` ⇒ `status='ARCHIVED'` 恒无数据。改为 `ARCHIVED` 只发 `archived=true`、不发 `status`；徽标计数本就只发 `archived=true`，两处口径对齐（`ExceptionListView.vue` query builder ↔ `OpsExceptionMapper`）。
+- ✅ **将邑挂接弹窗跨 SKU 残留**：创建表单改为 `emptyCreateForm()` 工厂，每次 `open()` 整表重置（识别形态/规格/品牌/价格/分类），仅主图预填当前 SKU 图；原实现只重置部分字段，换商品后会把上一个商品的分类、价格写进将邑档案。
+- ✅ **设备详情三处静默失败**：缺货阈值保存、重置覆盖价、商品排序保存补 `catch` + `ElMessage.error(errorMessage(e, '…失败'))`，不再「点完没反应」。⚠️ 遗留：`MerchantOpsConfigDto` 无版本字段，整配置 GET→PUT 覆盖仍有并发丢更新风险（修需后端加乐观锁，未在本批）。
+- ✅ **发票列表错误被吞**：`onRowAction` 原把「确认框取消」与「接口失败」混在同一个 `catch` 里，接口报错也被当成取消静默返回。拆成确认/输入阶段（取消即返回）与 API 阶段（各自 `errorMessage` toast）两段。
+- 验证：`vue-tsc --noEmit` 绿、ESLint 0 error、admin 单测 14 文件 / 112 用例全绿。
+
 ### 2026-10-21（将邑挂接：智能筛选 + 图片并排核对）
 - ✅ **搜索分级**：`GET /jiangyi/std-skus` 增加 `skuId/includeAll`，返回 `{items,total,hidden}`；以我方 SKU 为基准分 `EXACT_BARCODE > SAME_SPEC > RELATED > SUSPECT`，规格归一（ml/毫升/L）、版本词（零卡/无糖/纤维/纪念/摩登）与 test/测试 判明显不符并默认隐藏；未挂接优先、扫码条码优先于手填。**条码不一致本身不隐藏也不阻断**（69 码随包装版本不同，2026-10-21 拍板）。
 - ✅ **弹窗**：有品牌时自动预搜；卡片补缩略图、匹配徽标、`barCodeSource`（扫码/手填/无来源）、被隐藏条数与「显示全部」；挂接前并排我方 SKU 与将邑商品图片/名称/规格/条码，非条码一致须勾选「已核对为同一实物」才可提交。过渡期（nginx 已挂新前端、trade-service 未重建）兼容旧 jar 的裸数组响应，不把搜索打空。

@@ -687,7 +687,7 @@ const crud = useCrudTable<OpsException>({
   autoLoad: false,
   fetchPage: async (params) => {
     const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
-    const apiStatus = status.value === 'ALL' ? '' : status.value;
+    const apiStatus = status.value === 'ALL' || status.value === 'ARCHIVED' ? '' : status.value;
     if (status.value === 'ARCHIVED') q.set('archived', 'true');
     if (apiStatus) q.set('status', apiStatus);
     if (severity.value) q.set('severity', severity.value);

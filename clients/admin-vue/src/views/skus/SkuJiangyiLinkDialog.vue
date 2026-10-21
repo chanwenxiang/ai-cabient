@@ -89,16 +89,19 @@ const needsManualConfirm = computed(
   () => Boolean(confirmItem.value) && confirmItem.value?.matchLevel !== 'EXACT_BARCODE'
 );
 
-const createForm = ref({
-  specs: '',
-  brandName: '',
-  purchasePrice: '',
-  salePrice: '',
-  mainImg: '',
-  color: undefined as number | undefined,
-  category: '',
-  catId: undefined as number | undefined
-});
+function emptyCreateForm() {
+  return {
+    specs: '',
+    brandName: '',
+    purchasePrice: '',
+    salePrice: '',
+    mainImg: '',
+    color: undefined as number | undefined,
+    category: '',
+    catId: undefined as number | undefined
+  };
+}
+const createForm = ref(emptyCreateForm());
 const creating = ref(false);
 
 // 将邑分类（CB-023 §4.1.4）：创建时 catId 必填，拉到列表就用下拉替代手填编号
@@ -167,10 +170,10 @@ function open(row: {
   confirmItem.value = null;
   confirmVisible.value = false;
   confirmedSame.value = false;
+  // 换 SKU 必须整表重置：分类/规格/品牌/价格沿用上一个商品会写错将邑档案
+  createForm.value = emptyCreateForm();
   // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
   createForm.value.mainImg = row.imageUrl || '';
-  // 不能沿用上一个 SKU 选的包装类型：罐装/瓶装误选会写进将邑商品
-  createForm.value.category = '';
   visible.value = true;
   void load();
   void loadCategories();

@@ -419,7 +419,8 @@ const billsCrud = useCrudTable<RentalBill>({
     if (billMonth.value) q.set('billMonth', billMonth.value);
     if (billStatus.value) q.set('status', billStatus.value);
     if (billDeviceId.value.trim()) q.set('deviceId', billDeviceId.value.trim());
-    q.set('page', String(p.page));
+    // 账单接口 page 从 1 起（其余列表多为 0 基），useCrudTable 给的是 page-1
+    q.set('page', String(p.page + 1));
     q.set('size', String(p.size));
     return api.request<{ items: RentalBill[]; total: number }>(
       AdminEndpoints.rentalBills(q),

@@ -1520,6 +1520,8 @@ async function saveThreshold() {
     thresholdDialogVisible.value = false;
     ElMessage.success('缺货阈值已更新');
     await refreshSlots();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存缺货阈值失败'));
   } finally {
     thresholdSaving.value = false;
   }
@@ -1544,6 +1546,8 @@ async function onResetPricing() {
     await loadPricingRows();
     await refreshSlots();
     pricingCardRef.value?.onActive(true);
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '重置覆盖价失败'));
   } finally {
     resettingPrice.value = false;
   }
@@ -1594,6 +1598,8 @@ async function saveSort() {
     sortDialogVisible.value = false;
     ElMessage.success('商品排序已保存');
     await refreshSlots();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存商品排序失败'));
   } finally {
     sortSaving.value = false;
   }
