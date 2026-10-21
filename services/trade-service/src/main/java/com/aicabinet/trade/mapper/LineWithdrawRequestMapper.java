@@ -16,6 +16,25 @@ public interface LineWithdrawRequestMapper extends BaseTradeMapper<LineWithdrawR
                 .eq(LineWithdrawRequest::getRequestNo, requestNo)));
     }
 
+    /**
+     * 抢「出款权」：把单据从指定状态<b>条件</b>迁移到 PAYING（与
+     * {@link MerchantWithdrawRequestMapper#claimForPayout} 同形，2026-10-21 镜像）。
+     *
+     * <p>返回 1 才算拿到出款资格；返回 0 说明状态已被别的调用改走（并发重入 / 提现锁
+     * 租约到期后的第二个请求），此时<b>绝不能</b>继续向渠道发起转账。
+     *
+     * <p>线长单同样没有 {@code @Version}，「先 findById 判状态再 updateById」在读-改-写之间
+     * 有丢失更新窗口；提现锁租约 60s 且无看门狗，挂满 60s 后第二个请求能拿到锁。
+     * 单条条件 UPDATE 由数据库行锁保证原子，是这个窗口里唯一本地可控的闸门。
+     */
+    default int claimForPayout(long requestId, String fromStatus, Instant now) {
+        return update(null, Wrappers.<LineWithdrawRequest>lambdaUpdate()
+                .set(LineWithdrawRequest::getStatus, "PAYING")
+                .set(LineWithdrawRequest::getUpdatedAt, now)
+                .eq(LineWithdrawRequest::getRequestId, requestId)
+                .eq(LineWithdrawRequest::getStatus, fromStatus));
+    }
+
     default List<LineWithdrawRequest> findByManagerIdOrderByCreatedAtDesc(Long managerId, int limit) {
         int lim = Math.min(Math.max(limit, 1), 50);
         return selectList(Wrappers.<LineWithdrawRequest>lambdaQuery()

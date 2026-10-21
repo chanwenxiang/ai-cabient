@@ -99,6 +99,10 @@ class MerchantWithdrawConcurrencyTest {
         //    严格模式下这类未被消费的 stub 会报 UnnecessaryStubbing 而让用例变红。
         lenient().when(payoutAccountService.resolveForApply(any(), any(), any()))
                 .thenReturn(stubPayeeAccount());
+        // 出款权改用条件 UPDATE 抢占（claimForPayout）。Mockito 不会把 default 方法
+        // 委托给真实实现，未 stub 时恒返回 0 ⇒ 所有打款用例都会被「已有出款在进行中」拦住。
+        // 这里默认让它抢到；专门测「抢不到」的用例在自己内部覆盖。
+        lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any())).thenReturn(1);
     }
 
     /**

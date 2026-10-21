@@ -12,6 +12,7 @@ import { useCrudTable } from '@/composables/useCrudTable';
 import type { BalanceRefundRequestDto, PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import { runFundReviewBatch } from '@/utils/money-ui-contracts';
 
 const auth = useAuthStore();
 const { goPath } = useNavAccess();
@@ -190,18 +191,28 @@ async function batchReviewAll(approve: boolean) {
       }
     );
     batchLoading.value = approve ? 'approve' : 'reject';
-    const results = await Promise.allSettled(
-      targets.map((row) =>
+    // 🔴 串行，不许改回 Promise.allSettled（2026-10-20 决策 C）：本域「通过」会按充值单
+    // FIFO 原路退款并扣减用户余额，同一用户的兄弟请求互抢钱包锁 ⇒ 撞出的 409/412
+    // 不是业务失败、无法归因。判据与理由见 runFundReviewBatch。
+    const remark = value || undefined;
+    const { ok, failures } = await runFundReviewBatch(
+      targets,
+      (row) => displayBizNo(row.requestNo),
+      (row) =>
         api.request(AdminEndpoints.balanceRefundReview(row.requestId), 'POST', {
           approve,
-          remark: value || undefined
+          remark
         })
-      )
     );
-    const ok = results.filter((r) => r.status === 'fulfilled').length;
-    const fail = results.length - ok;
-    if (fail === 0) ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
-    else ElMessage.warning(`批量${action}完成：成功 ${ok}，失败 ${fail}`);
+    if (!failures.length) {
+      ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
+    } else {
+      const head = failures.slice(0, 3).join('；');
+      ElMessage.warning(
+        `批量${action}完成：成功 ${ok}，失败 ${failures.length}：${head}` +
+          (failures.length > 3 ? ` 等 ${failures.length} 条` : '')
+      );
+    }
     crud.clearSelection();
     await crud.load();
   } catch (e) {

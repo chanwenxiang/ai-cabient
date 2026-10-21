@@ -126,6 +126,11 @@ class LineWithdrawTimeoutSweepTest {
         request.setAmountCents(10_000L);
         request.setStatus("APPROVED");
         when(withdrawMapper.findById(56L)).thenReturn(Optional.of(request));
+        // 2026-10-21：出款权改条件 UPDATE 抢占，假表按当前状态迁移
+        when(withdrawMapper.claimForPayout(eq(56L), eq("APPROVED"), any())).thenAnswer(inv -> {
+            request.setStatus("PAYING");
+            return 1;
+        });
         when(lineManagerService.requireManager(8L)).thenReturn(manager);
         when(payoutService.payout(any(), eq(manager), any())).thenReturn(
                 LineWithdrawPayoutService.PayoutResult.failure("WECHAT", null, "渠道失败"));

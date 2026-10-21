@@ -2,6 +2,7 @@
  * 金钱相关 UI 契约（可单测）：状态门闩 + 写请求体形状。
  * View 必须复用本模块，禁止再手写一套可退款状态 / 提现审核体（debt-tracker D5）。
  */
+import { errorMessage } from './error-message';
 
 export const REFUNDABLE_ORDER_STATUSES = [
   'PAID',
@@ -120,4 +121,34 @@ export function canCancelFailedLineWithdraw(
 
 export function buildLineWithdrawReviewBody(approve: boolean, options?: { batch?: boolean }) {
   return buildMerchantWithdrawReviewBody(approve, options);
+}
+
+/**
+ * 资金审核「批量执行」的唯一实现：**串行逐条**，失败记名后继续。
+ *
+ * 为什么必须串行（2026-10-20 决策 C）：一次「批量通过」= N 条独立 POST，每条都会抢
+ * 按钱包粒度的 Redisson 锁（`aicabinet:lock:merchant:wallet:<merchantId>`，见
+ * `MerchantWithdrawService`）。`Promise.allSettled` 并发 fan-out 时，同一商户的兄弟请求
+ * 必然互相撞锁 ⇒ 409「该提现单已有出款在进行中」，而这类失败**不是**业务失败，是自家
+ * 并发造出来的；运营看到「成功 3，失败 2」无法归因，重试又可能撞上真在途的出款。
+ * 串行后每条读到的都是前一条**已提交**的状态，失败清单能指认到具体单据。
+ *
+ * `rowLabel` 由调用方给（申请单号/商户名），用于失败归因。
+ */
+export async function runFundReviewBatch<R>(
+  targets: R[],
+  rowLabel: (row: R) => string,
+  request: (row: R) => Promise<unknown>
+): Promise<{ total: number; ok: number; failures: string[] }> {
+  let ok = 0;
+  const failures: string[] = [];
+  for (const row of targets) {
+    try {
+      await request(row);
+      ok += 1;
+    } catch (e) {
+      failures.push(`${rowLabel(row)}：${errorMessage(e, '审核请求失败')}`);
+    }
+  }
+  return { total: targets.length, ok, failures };
 }

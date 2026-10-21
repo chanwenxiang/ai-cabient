@@ -17,6 +17,24 @@ public interface MerchantWithdrawRequestMapper extends BaseTradeMapper<MerchantW
                 .eq(MerchantWithdrawRequest::getRequestNo, requestNo)));
     }
 
+    /**
+     * 抢「出款权」：把单据从指定状态<b>条件</b>迁移到 PAYING。
+     *
+     * <p>返回 1 才算拿到出款资格；返回 0 说明状态已被别的调用改走（并发重入 / 提现锁
+     * 租约到期后的第二个请求），此时<b>绝不能</b>继续向渠道发起转账。
+     *
+     * <p>为什么不靠「先 findById 判状态再 updateById」：提现单没有 {@code @Version}，
+     * 读-改-写之间存在窗口；提现锁租约 60s 且无看门狗，挂满 60s 后第二个请求能拿到锁。
+     * 单条条件 UPDATE 由数据库的行锁保证原子，是这个窗口里唯一本地可控的闸门。
+     */
+    default int claimForPayout(long requestId, String fromStatus, Instant now) {
+        return update(null, Wrappers.<MerchantWithdrawRequest>lambdaUpdate()
+                .set(MerchantWithdrawRequest::getStatus, "PAYING")
+                .set(MerchantWithdrawRequest::getUpdatedAt, now)
+                .eq(MerchantWithdrawRequest::getRequestId, requestId)
+                .eq(MerchantWithdrawRequest::getStatus, fromStatus));
+    }
+
     default List<MerchantWithdrawRequest> findByMerchantIdOrderByCreatedAtDesc(String merchantId, int limit) {
         int lim = Math.min(Math.max(limit, 1), 50);
         return selectList(Wrappers.<MerchantWithdrawRequest>lambdaQuery()

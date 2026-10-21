@@ -11,7 +11,8 @@ import {
   canReviewLineWithdraw,
   canReviewMerchantWithdraw,
   canRetryLineWithdrawPayout,
-  canRetryMerchantWithdrawPayout
+  canRetryMerchantWithdrawPayout,
+  runFundReviewBatch
 } from './money-ui-contracts';
 
 describe('money-ui-contracts · 订单退款', () => {
@@ -149,5 +150,60 @@ describe('money-ui-contracts · 线长提现（审计 P2-15 契约单点化）',
       approve: false,
       remark: '批量审核驳回'
     });
+  });
+});
+
+describe('money-ui-contracts · 资金审核批量执行必须串行（2026-10-20 决策 C）', () => {
+  it('并发度恒为 1：前一条 settle 后才发下一条', async () => {
+    const trace: string[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const targets = [{ id: 'A' }, { id: 'B' }, { id: 'C' }];
+    const res = await runFundReviewBatch(
+      targets,
+      (row) => row.id,
+      async (row) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        trace.push(`start:${row.id}`);
+        await Promise.resolve(); // 让出事件循环：并发实现会在这里交错
+        if (row.id === 'B') {
+          inFlight -= 1;
+          throw new Error('该提现单已有出款在进行中');
+        }
+        trace.push(`end:${row.id}`);
+        inFlight -= 1;
+      }
+    );
+    expect(maxInFlight).toBe(1);
+    // 串行顺序 + 失败不中断后续条目（B 只有 start 没有 end）
+    expect(trace).toEqual(['start:A', 'end:A', 'start:B', 'start:C', 'end:C']);
+    expect(res).toEqual({
+      total: 3,
+      ok: 2,
+      failures: ['B：该提现单已有出款在进行中']
+    });
+  });
+
+  it('全成功 ⇒ failures 空数组（View 据此决定 success/warning 文案）', async () => {
+    const res = await runFundReviewBatch(
+      [{ id: 'A' }, { id: 'B' }],
+      (row) => row.id,
+      async () => undefined
+    );
+    expect(res.ok).toBe(2);
+    expect(res.failures).toEqual([]);
+  });
+
+  it('非 Error 抛错也要记名（不能只留「操作失败」这种无主文案）', async () => {
+    const res = await runFundReviewBatch(
+      [{ id: 'R-001' }],
+      (row) => row.id,
+      async () => {
+        throw 'boom';
+      }
+    );
+    expect(res.ok).toBe(0);
+    expect(res.failures).toEqual(['R-001：boom']);
   });
 });

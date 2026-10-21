@@ -361,14 +361,16 @@ public class MerchantWithdrawService {
 
     public MerchantWithdrawRequestDto payout(Long operatorId, long requestId) {
         permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
-        MerchantWithdrawRequest request = requireRequest(requestId);
-        merchantScopeService.requireMerchantAccess(operatorId, request.getMerchantId());
-        return runWithMerchantWalletLock(request.getMerchantId(), () -> {
-            if (!Set.of(STATUS_APPROVED, "FAILED").contains(request.getStatus())) {
+        MerchantWithdrawRequest pre = requireRequest(requestId);
+        merchantScopeService.requireMerchantAccess(operatorId, pre.getMerchantId());
+        return runWithMerchantWalletLock(pre.getMerchantId(), () -> {
+            // AU-007 同形修正：闸门以<b>锁内重查</b>为准。原先判的是加锁前读的快照 ——
+            // 等锁期间并发方可能已把单据推到 PAID/FAILED，用旧快照放行会多一次渠道调用与记账。
+            if (!Set.of(STATUS_APPROVED, "FAILED").contains(requireRequest(requestId).getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
             }
             auditService.appendLog(operatorId, "MERCHANT_WITHDRAW_PAYOUT", BIZ_MERCHANT_WITHDRAW,
-                    String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
+                    String.valueOf(requestId), "打款金额(分)=" + pre.getAmountCents());
             return self.executePayout(requestId);
         });
     }
@@ -586,12 +588,22 @@ public class MerchantWithdrawService {
     public MerchantWithdrawRequest markPaying(long requestId) {
         MerchantWithdrawRequest request = requireRequest(requestId);
         String previousStatus = request.getStatus();
-        if (!Set.of(STATUS_APPROVED, "FAILED", "PAYING").contains(previousStatus)) {
+        // 🔴 不再允许 PAYING → PAYING：那等于「本地拦不住重复出款，只剩渠道幂等键」。
+        //    提现锁租约 60s 且无看门狗，渠道 I/O 挂过 60s 后第二个请求能拿到锁并重入这里。
+        //    陈旧 PAYING 本来就没有合法调用方（review 只发 APPROVED、payout 只发 APPROVED/FAILED），
+        //    它的正确处置是 failStalePayingWithdraws：MOCK 置 FAILED 后走 payout 重试，真渠道转人工核对。
+        if (!Set.of(STATUS_APPROVED, "FAILED").contains(previousStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
         }
+        Instant now = Instant.now();
+        // 条件 UPDATE 抢出款权：单据没有 @Version，读-改-写之间有窗口；
+        // 抢不到（0 行）说明并发方已把状态推走，此时向渠道转账就是重复出款。
+        if (withdrawMapper.claimForPayout(requestId, previousStatus, now) == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该提现单已有出款在进行中，请稍后刷新查看结果");
+        }
         request.setStatus("PAYING");
-        request.setUpdatedAt(Instant.now());
-        withdrawMapper.updateById(request);
+        request.setUpdatedAt(now);
         if ("FAILED".equals(previousStatus)) {
             // FAILED 落账时已释放冻结；重试打款前需重新冻结，保证 PAID consumeFrozen 口径
             merchantWalletService.freezeForWithdraw(request.getMerchantId(), request.getAmountCents(),

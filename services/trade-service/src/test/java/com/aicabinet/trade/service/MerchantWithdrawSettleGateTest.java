@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -90,6 +91,8 @@ class MerchantWithdrawSettleGateTest {
         lenient().when(distributedLockService.tryLock(anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+        // 出款权改用条件 UPDATE 抢占（claimForPayout），default 方法不被 Mockito 委托 ⇒ 未 stub 恒 0
+        lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any())).thenReturn(1);
         lenient().when(withdrawMapper.findByRequestNo(anyString())).thenReturn(Optional.empty());
         lenient().when(withdrawMapper.sumAmountByMerchantSince(eq("M-1"), any())).thenReturn(0L);
         lenient().when(withdrawMapper.insert(any(MerchantWithdrawRequest.class))).thenAnswer(inv -> {

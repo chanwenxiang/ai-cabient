@@ -619,7 +619,8 @@ import {
   buildMerchantWithdrawReviewBody,
   canCancelFailedMerchantWithdraw,
   canRetryMerchantWithdrawPayout,
-  canReviewMerchantWithdraw
+  canReviewMerchantWithdraw,
+  runFundReviewBatch
 } from '@/utils/money-ui-contracts';
 
 // loadSeq 仅剩打款模式提示在用；两个列表的分页/多选/竞态已由 useCrudTable 收口
@@ -715,6 +716,9 @@ const withdrawSaving = ref(false);
 const withdrawTarget = ref<WalletRow | null>(null);
 const withdrawForm = ref({ amount: 0 });
 const wdBatchLoading = ref<'approve' | 'reject' | ''>('');
+// 行级资金动作（审核/重试打款/取消解冻）在途标记：后端已有状态机与锁兜底，
+// 这里只是防止连点重复提交后收到「状态已变更」报错。
+const wdRowBusyId = ref<number | ''>('');
 
 // 列表状态机统一交给 CrudTable：分页 / 多选 / 竞态 / 空态全部内建。
 // 两个 tab 的内容默认同时挂载，首查必须跟随当前激活 tab（并与打款模式提示同批初始化），
@@ -787,18 +791,31 @@ function onWalletAction({ key, row }: { key: string; row: WalletRow }) {
 
 /** 审核行操作：权限内嵌在 can* 判定（状态+权限双条件），与迁移前一致 */
 function wdActions(row: Withdraw): CrudRowAction[] {
+  const busy = wdRowBusyId.value === row.requestId;
   if (canReviewWithdraw(row)) {
     return [
-      { key: 'approve', label: '通过并打款', icon: CircleCheck, type: 'success' },
-      { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' }
+      { key: 'approve', label: '通过并打款', icon: CircleCheck, type: 'success', disabled: busy },
+      { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger', disabled: busy }
     ];
   }
   if (canRetryWithdrawPayout(row)) {
     const acts: CrudRowAction[] = [
-      { key: 'payout', label: '重试打款', icon: RefreshRight, type: 'primary' }
+      {
+        key: 'payout',
+        label: '重试打款',
+        icon: RefreshRight,
+        type: 'primary',
+        disabled: busy
+      }
     ];
     if (canCancelFailedWithdraw(row)) {
-      acts.push({ key: 'cancel', label: '取消解冻', icon: Unlock, type: 'danger' });
+      acts.push({
+        key: 'cancel',
+        label: '取消解冻',
+        icon: Unlock,
+        type: 'danger',
+        disabled: busy
+      });
     }
     return acts;
   }
@@ -1032,6 +1049,14 @@ async function review(row: Withdraw, approve: boolean) {
       approve ? '通过并打款' : '驳回申请',
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) {
+      ElMessage.error(errorMessage(e, '审核失败'));
+    }
+    return;
+  }
+  wdRowBusyId.value = row.requestId;
+  try {
     await api.request(
       AdminEndpoints.merchantWithdrawReview(row.requestId),
       'POST',
@@ -1040,9 +1065,9 @@ async function review(row: Withdraw, approve: boolean) {
     ElMessage.success(approve ? '已通过' : '已驳回');
     await wdCrud.load();
   } catch (e: unknown) {
-    if (!isUserDismiss(e)) {
-      ElMessage.error(errorMessage(e, '审核失败'));
-    }
+    ElMessage.error(errorMessage(e, '审核失败'));
+  } finally {
+    wdRowBusyId.value = '';
   }
 }
 
@@ -1070,19 +1095,28 @@ async function batchReviewWithdraws(approve: boolean) {
   }
   wdBatchLoading.value = approve ? 'approve' : 'reject';
   try {
-    const results = await Promise.allSettled(
-      targets.map((row) =>
+    // 🔴 串行，不许改回 Promise.allSettled（2026-10-20 决策 C）：并行 fan-out 会让
+    // 同一商户的兄弟请求互抢钱包锁（aicabinet:lock:merchant:wallet:<merchantId>），
+    // 撞出来的 409 不是业务失败，运营无法归因。理由写在 runFundReviewBatch。
+    const { ok, failures } = await runFundReviewBatch(
+      targets,
+      (row) => row.requestNo,
+      (row) =>
         api.request(
           AdminEndpoints.merchantWithdrawReview(row.requestId),
           'POST',
           buildMerchantWithdrawReviewBody(approve, { batch: true })
         )
-      )
     );
-    const ok = results.filter((r) => r.status === 'fulfilled').length;
-    const fail = results.length - ok;
-    if (fail === 0) ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
-    else ElMessage.warning(`批量${label}完成：成功 ${ok}，失败 ${fail}`);
+    if (!failures.length) {
+      ElMessage.success(`已${approve ? '通过' : '驳回'} ${ok} 条`);
+    } else {
+      const head = failures.slice(0, 3).join('；');
+      ElMessage.warning(
+        `批量${label}完成：成功 ${ok}，失败 ${failures.length}：${head}` +
+          (failures.length > 3 ? ` 等 ${failures.length} 条` : '')
+      );
+    }
     wdCrud.clearSelection();
     await wdCrud.load();
   } finally {
@@ -1101,6 +1135,7 @@ async function payout(row: Withdraw) {
         cancelButtonText: '取消'
       }
     );
+    wdRowBusyId.value = row.requestId;
     await api.request(AdminEndpoints.merchantWithdrawPayout(row.requestId), 'POST', {});
     ElMessage.success('已重试打款');
     await wdCrud.load();
@@ -1108,6 +1143,8 @@ async function payout(row: Withdraw) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '打款失败'));
     }
+  } finally {
+    wdRowBusyId.value = '';
   }
 }
 
@@ -1122,6 +1159,7 @@ async function cancelFailed(row: Withdraw) {
         cancelButtonText: '返回'
       }
     );
+    wdRowBusyId.value = row.requestId;
     await api.request(AdminEndpoints.merchantWithdrawCancel(row.requestId), 'POST', {
       remark: '运营取消解冻'
     });
@@ -1131,6 +1169,8 @@ async function cancelFailed(row: Withdraw) {
     if (!isUserDismiss(e)) {
       ElMessage.error(errorMessage(e, '取消失败'));
     }
+  } finally {
+    wdRowBusyId.value = '';
   }
 }
 
