@@ -647,7 +647,7 @@ jobs:
       # MP_API_BASE_URL）本步自动转硬门。
       - name: Consumer MP weixin build (release gate)
         run: |
-          if [ -z "$MP_WEIXIN_APPID_CONSUMER" ] || [ -z "$MP_API_BASE_URL" ]; then
+          if [ -z "$MP_WEIXIN_APPID_CONSUMER" ] || [ -z "$VITE_API_BASE_URL" ]; then
             echo "::warning::MP_WEIXIN_APPID_CONSUMER / MP_API_BASE_URL 未配置——跳过 mp-weixin release 构建。"
             echo "::warning::上线前必须在 GitHub Secrets 配置（域名定案后），部署链硬门不依赖本步。"
             exit 0
@@ -659,7 +659,7 @@ jobs:
 
       - name: Merchant MP weixin build (release gate)
         run: |
-          if [ -z "$MP_WEIXIN_APPID_MERCHANT" ] || [ -z "$MP_API_BASE_URL" ]; then
+          if [ -z "$MP_WEIXIN_APPID_MERCHANT" ] || [ -z "$VITE_API_BASE_URL" ]; then
             echo "::warning::MP_WEIXIN_APPID_MERCHANT / MP_API_BASE_URL 未配置——跳过 mp-weixin release 构建。"
             exit 0
           fi
