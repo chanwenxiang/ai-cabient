@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,13 +35,16 @@ public class SkuJiangyiLinkService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final SkuCatalogMapper skuCatalogMapper;
     private final JiangyiGatherClient jiangyiGatherClient;
+    private final String publicBaseUrl;
 
     public SkuJiangyiLinkService(JiangyiSkuJiangyiLinkMapper linkMapper,
                                  SkuCatalogMapper skuCatalogMapper,
-                                 JiangyiGatherClient jiangyiGatherClient) {
+                                 JiangyiGatherClient jiangyiGatherClient,
+                                 @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl) {
         this.linkMapper = linkMapper;
         this.skuCatalogMapper = skuCatalogMapper;
         this.jiangyiGatherClient = jiangyiGatherClient;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     public List<JiangyiSkuJiangyiLink> listLinks(String skuId) {
@@ -66,8 +70,9 @@ public class SkuJiangyiLinkService {
     }
 
     /**
-     * 挂接既有将邑商品。jiangyi_product_id 唯一（非 RETIRED 行冲突 409）；
-     * 双方 barCode 均非空且不等即拒（防挂错商品——识别错误会直接错误扣款）。
+     * 挂接既有将邑商品。jiangyi_product_id 唯一（非 RETIRED 行冲突 409）。
+     * 双方 barCode 不一致只留痕不阻断——69 码是罐身固有属性，同款不同包装版本条码本就不同
+     * （2026-10-21 拍板）；识别扣款走 classId 映射、不读本关联，挂错仍可在识别映射页纠正。
      */
     public JiangyiSkuJiangyiLink bind(String skuId, long jiangyiProductId, String jiangyiName, String barCode) {
         requireSku(skuId);
@@ -81,8 +86,8 @@ public class SkuJiangyiLinkService {
         if (barCode != null && !barCode.isBlank()
                 && sku.getBarcode() != null && !sku.getBarcode().isBlank()
                 && !sku.getBarcode().equals(barCode)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "条形码不一致：我方 " + sku.getBarcode() + " ≠ 将邑 " + barCode + "，请人工核对");
+            log.info("jiangyi sku link barCode differs — bind proceeds by operator choice skuId={} skuBarCode={} jiangyiBarCode={}",
+                    skuId, sku.getBarcode(), barCode);
         }
         Instant now = Instant.now();
         JiangyiSkuJiangyiLink link = linkMapper.byProduct(String.valueOf(jiangyiProductId))
@@ -114,9 +119,9 @@ public class SkuJiangyiLinkService {
      */
     public JiangyiSkuJiangyiLink createInJiangyi(String skuId, ProductCreateSpec spec) {
         SkuCatalog sku = requireSku(skuId);
-        String mainImg = spec.mainImg() != null && !spec.mainImg().isBlank()
-                ? spec.mainImg().trim()
-                : (sku.getImageUrl() == null ? "" : sku.getImageUrl().trim());
+        String mainImg = absoluteImageUrl(spec.mainImg() != null && !spec.mainImg().isBlank()
+                ? spec.mainImg()
+                : sku.getImageUrl());
         if (mainImg.isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "将邑要求商品主图：请先在商品管理登记该商品的图片，再新增到将邑商品库");
@@ -196,6 +201,22 @@ public class SkuJiangyiLinkService {
         linkMapper.updateById(link);
         log.info("jiangyi sku link unbound linkId={} skuId={} jiangyiProductId={}",
                 linkId, link.getSkuId(), link.getJiangyiProductId());
+    }
+
+    /**
+     * 将邑 mainImg 是给其服务端/端侧直接取图的 URL；我方 SKU 主图存的是站内相对路径
+     * （/api/v2/media/sku-images/…），发送前按 JIANGYI_PUBLIC_BASE_URL 补成公网绝对地址。
+     * 已是 http(s) 的完整 URL 原样保留；基址未配置时保持原值（由将邑侧决定是否接受）。
+     */
+    private String absoluteImageUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        String trimmed = url.trim();
+        if (trimmed.startsWith("/") && publicBaseUrl != null && !publicBaseUrl.isBlank()) {
+            return publicBaseUrl.replaceAll("/+$", "") + trimmed;
+        }
+        return trimmed;
     }
 
     private SkuCatalog requireSku(String skuId) {

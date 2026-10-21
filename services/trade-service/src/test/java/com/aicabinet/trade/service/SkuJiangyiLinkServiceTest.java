@@ -42,7 +42,8 @@ class SkuJiangyiLinkServiceTest {
     @Mock private JiangyiGatherClient jiangyiGatherClient;
 
     private SkuJiangyiLinkService service() {
-        return new SkuJiangyiLinkService(linkMapper, skuCatalogMapper, jiangyiGatherClient);
+        return new SkuJiangyiLinkService(linkMapper, skuCatalogMapper, jiangyiGatherClient,
+                "https://public.example.com");
     }
 
     private SkuCatalog sku(String barcode) {
@@ -70,15 +71,16 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
-    void bind_barCodeMismatchIsRejectedEvenThoughBarCodeIsNotUniqueKey() {
+    void bind_barCodeMismatchIsLoggedButNotBlocked() {
+        // 2026-10-21 拍板：69 码是罐身固有属性，同款不同包装版本条码不同，不做硬阻断
         when(linkMapper.byProduct("88")).thenReturn(Optional.empty());
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
 
-        ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().bind(SKU_ID, 88L, "农夫山泉", "6900000000009"));
-        assertEquals(409, e.getStatusCode().value());
-        assertTrue(e.getReason().contains("条形码不一致"));
-        verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
+        JiangyiSkuJiangyiLink link = service().bind(SKU_ID, 88L, "农夫山泉", "6900000000009");
+
+        assertEquals("BOUND", link.getSyncStatus());
+        assertEquals("6900000000009", link.getBarCode());
+        verify(linkMapper).insert(link);
     }
 
     @Test
@@ -158,6 +160,24 @@ class SkuJiangyiLinkServiceTest {
                 ArgumentCaptor.forClass(java.util.Map.class);
         verify(jiangyiGatherClient).productCreate(body.capture());
         assertEquals("http://img/sku-main.png", body.getValue().get("mainImg"));
+    }
+
+    @Test
+    void createInJiangyi_relativeMainImgIsSentAsPublicAbsoluteUrl() {
+        SkuCatalog s = sku("6901234567890");
+        s.setImageUrl("/api/v2/media/sku-images/1");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
+
+        service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+                "330ml雪碧柠檬味汽水", "330ml", 4465L, "雪碧", "1.5", "3.0",
+                "", null, "bottle", "6928804010145"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<String, Object>> body =
+                ArgumentCaptor.forClass(java.util.Map.class);
+        verify(jiangyiGatherClient).productCreate(body.capture());
+        assertEquals("https://public.example.com/api/v2/media/sku-images/1", body.getValue().get("mainImg"));
     }
 
     @Test

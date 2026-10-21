@@ -57,7 +57,7 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.productCategories());
     }
 
-    /** 挂接既有将邑商品（唯一冲突 409 / 条码不一致 409，中文提示）。 */
+    /** 挂接既有将邑商品（唯一冲突 409；条码不一致仅记日志/前端提示，不阻断）。 */
     @RequiresPermissions("ops:sku:edit")
     @PutMapping("/skus/{skuId}/jiangyi-link")
     public ApiResponse<JiangyiSkuJiangyiLink> bind(@PathVariable("skuId") String skuId,

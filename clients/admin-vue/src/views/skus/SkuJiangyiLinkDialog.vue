@@ -9,7 +9,8 @@ import { errorMessage } from '@/utils/error-message';
  * 将邑商品库挂接弹窗（CB-023 二期，范围 B）：
  * 我方 SKU ↔ 将邑商品（商品维度关联，识别 classId 映射之外的另一半）。
  * 能力：搜索将邑商品库挂接 / 我方商品新增到将邑 / 学习后按条码回填 textName / 解挂。
- * jiangyi_product_id 全局唯一（一个将邑商品至多挂一个我方 SKU）；barCode 不一致拒绝挂接。
+ * jiangyi_product_id 全局唯一（一个将邑商品至多挂一个我方 SKU）；barCode 不一致仅提示不阻断
+ * （69 码是罐身固有属性，同款不同包装版本条码可不同）。
  */
 
 interface JiangyiLink {
@@ -119,8 +120,13 @@ async function search() {
   searching.value = true;
   try {
     const query = new URLSearchParams();
-    if (searchKeyword.value.trim()) query.set('name', searchKeyword.value.trim());
-    if (skuBarcode.value.trim()) query.set('barCode', skuBarcode.value.trim());
+    const name = searchKeyword.value.trim();
+    // 名称优先：将邑 name+barCode 是 AND，叠加我方条码会把「库里有、条码不同」的商品全部滤掉
+    if (name) {
+      query.set('name', name);
+    } else if (skuBarcode.value.trim()) {
+      query.set('barCode', skuBarcode.value.trim());
+    }
     searchResults.value = await api.request<StdSkuView[]>(
       AdminEndpoints.jiangyiStdSkus(query),
       'GET'
@@ -133,10 +139,15 @@ async function search() {
 }
 
 async function bind(item: StdSkuView) {
+  const barcodeMismatch =
+    skuBarcode.value.trim() && item.barCode && skuBarcode.value.trim() !== item.barCode;
   try {
     await ElMessageBox.confirm(
-      `将 SKU「${skuName.value}」挂接到将邑商品「${item.name}」？若两边条码不一致将被拒绝。`,
-      '挂接确认',
+      `将 SKU「${skuName.value}」挂接到将邑商品「${item.name}」？` +
+        (barcodeMismatch
+          ? `我方条码 ${skuBarcode.value.trim()} 与将邑条码 ${item.barCode} 不一致，请核对名称/规格后再继续。`
+          : ''),
+      barcodeMismatch ? '条码不一致，确认挂接' : '挂接确认',
       { type: 'warning', confirmButtonText: '挂接', cancelButtonText: '取消' }
     );
   } catch {
@@ -279,7 +290,7 @@ defineExpose({ open });
           <el-button type="primary" :loading="searching" @click="search">搜索</el-button>
         </div>
         <div v-if="searchResults.length === 0" class="jy-link-empty">
-          输入名称后搜索（默认按我方条码）
+          输入名称搜索；名称留空时按我方条码搜索
         </div>
         <div v-for="item in searchResults" :key="item.id" class="jy-link-card">
           <div class="jy-link-card-main">
