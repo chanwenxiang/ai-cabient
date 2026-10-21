@@ -104,7 +104,7 @@ class ProcurementServiceTest {
     }
 
     private PurchaseOrderLineDto lineDto(String skuId, String batchNo, java.time.LocalDate expiry, int qty) {
-        return new PurchaseOrderLineDto(null, skuId, batchNo, null, expiry, qty, 0, 120, 0);
+        return new PurchaseOrderLineDto(null, skuId, batchNo, null, expiry, qty, 0, 120, 0, 1);
     }
 
     private void stubCreateHappyPath() {

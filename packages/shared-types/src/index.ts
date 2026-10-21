@@ -550,6 +550,8 @@ export interface SkuCatalog {
   updatedByName?: string;
   /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；空=未分类，CB-036） */
   operationScope?: string;
+  /** 件装数（V395，CB-061）：每件的支数，采购按件/库存按支换算；缺省 1 */
+  packQty?: number;
   /** 商品×场景上架限额（CB-049 扩展）：admin 读路径回填；其他消费方缺省 */
   sceneLimits?: SkuSceneLimitItem[];
 }
@@ -601,6 +603,8 @@ export interface UpsertSkuRequest {
   detectionMinConfidence?: number;
   /** 经营归属（V349 字典 sku_operation_scope）；空=未分类 */
   operationScope?: string;
+  /** 件装数（V395）：>0，<=0 服务端归 1；采购按件下单、库存按支计 */
+  packQty?: number;
   /** 商品×场景上架限额（CB-049 扩展）：整单替换；新建必须非空，编辑 null=保留原限额 */
   sceneLimits?: SkuSceneLimitItem[];
   /** 只读；写入时服务端忽略 */

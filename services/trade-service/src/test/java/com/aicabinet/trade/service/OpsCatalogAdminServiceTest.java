@@ -141,7 +141,10 @@ class OpsCatalogAdminServiceTest {
                 null,
                 null,
                 null,
-                null,
+                "件",
+                // CB-061：件装数（每件的支数）；默认 1 表示无箱规
+                1,
+                // V349：经营归属
                 null,
                 // V350（CB-037）：maxPriceCents / minPriceCents
                 null,
@@ -164,7 +167,7 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "NON_DIRECT", null, null,
+                null, null, null, "件", 1, "NON_DIRECT", null, null,
                 java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
 
         var dto = service.createSku(10001L, req);
@@ -193,7 +196,7 @@ class OpsCatalogAdminServiceTest {
                 null, null, null, null, "ACTIVE",
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, "件", "  ", null, null,
+                null, null, null, "件", 1, "  ", null, null,
                 java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
 
         service.updateSku(10001L, "311", req);

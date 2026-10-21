@@ -41,6 +41,8 @@ public record UpsertSkuRequest(
         String brand,
         String spec,
         String unit,
+        /** 件装数（CB-061）：每件的支数，用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。 */
+        int packQty,
         /** 经营归属（V349 字典 sku_operation_scope）；空=未分类，取值校验见 @Pattern */
         @Pattern(regexp = "DIRECT|NON_DIRECT", message = "operationScope must be DIRECT or NON_DIRECT")
         String operationScope,
@@ -72,6 +74,9 @@ public record UpsertSkuRequest(
         }
         if (unit == null || unit.isBlank()) {
             unit = "件";
+        }
+        if (packQty <= 0) {
+            packQty = 1;
         }
         if (operationScope != null && operationScope.isBlank()) {
             operationScope = null;

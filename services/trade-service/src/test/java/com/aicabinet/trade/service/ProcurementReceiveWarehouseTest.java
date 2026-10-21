@@ -110,7 +110,7 @@ class ProcurementReceiveWarehouseTest {
         when(purchaseOrderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ReceivePurchaseOrderRequest request = new ReceivePurchaseOrderRequest(
-                List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 10, 10, 120, 0)),
+                List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 10, 10, 120, 0, 1)),
                 null,
                 "WH-B");
 
@@ -143,7 +143,7 @@ class ProcurementReceiveWarehouseTest {
         when(purchaseOrderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ReceivePurchaseOrderRequest request = new ReceivePurchaseOrderRequest(
-                List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 10, 10, 120, 0)),
+                List.of(new PurchaseOrderLineDto(1L, "SKU-1", "B1", null, null, 10, 10, 120, 0, 1)),
                 null,
                 null);
 

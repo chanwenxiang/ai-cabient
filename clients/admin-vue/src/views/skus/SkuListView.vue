@@ -298,6 +298,22 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="14">
+            <el-form-item label="件装数">
+              <!-- CB-061：采购按件、库存/销售按支，成本按支折；默认 1 表示无箱规 -->
+              <el-input-number
+                v-model="form.packQty"
+                :min="1"
+                :max="9999"
+                :step="1"
+                style="width: 100%"
+              />
+              <div class="field-hint">
+                每件的支数（如 1 箱=24 瓶则填
+                24）；采购下单/收货以「件」为单位，库存/货道/销售以「支」为单位，成本自动折算为每支
+              </div>
+            </el-form-item>
+          </el-col>
           <el-col :span="12">
             <el-form-item label="品牌">
               <!-- CB-026：品牌走系统字典（开放集，字典管理维护）；allow-create 兜底 -->
@@ -808,6 +824,8 @@ const form = reactive({
   brand: '',
   spec: '',
   unit: '件',
+  // CB-061：件装数（每件的支数），用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。
+  packQty: 1,
   // 新建不留默认价（2026-10-12 用户反馈：默认 3.5 看着像上次没清掉的数据）；保存校验会拦空值
   priceYuan: undefined as number | undefined,
   costYuan: undefined as number | undefined,
@@ -1045,6 +1063,7 @@ function openEdit(row?: SkuCatalog) {
     form.brand = row.brand || '';
     form.spec = row.spec || '';
     form.unit = row.unit || '件';
+    form.packQty = row.packQty ?? 1;
     form.priceYuan = (row.priceCents || 0) / 100;
     form.costYuan = row.purchaseCostCents == null ? undefined : row.purchaseCostCents / 100;
     form.minPriceYuan = row.minPriceCents == null ? undefined : row.minPriceCents / 100;
@@ -1076,6 +1095,7 @@ function openEdit(row?: SkuCatalog) {
     form.brand = '';
     form.spec = '';
     form.unit = '件';
+    form.packQty = 1;
     form.priceYuan = undefined;
     form.minPriceYuan = undefined;
     form.maxPriceYuan = undefined;
@@ -1225,6 +1245,7 @@ async function saveEdit() {
       brand: form.brand.trim() || undefined,
       spec: form.spec.trim() || undefined,
       unit: form.unit.trim() || '件',
+      packQty: form.packQty > 0 ? form.packQty : 1,
       category: normalizeCategoryToCode(form.category) || undefined,
       weightGrams: form.weightGrams,
       status: form.status,

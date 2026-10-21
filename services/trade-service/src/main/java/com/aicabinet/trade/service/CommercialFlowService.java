@@ -108,7 +108,8 @@ public class CommercialFlowService {
                         inboundQty,
                         0,
                         100,
-                        0
+                        0,
+                        1
                 ))
         ));
         procurementService.ensurePurchaseOrderApproved(operatorId, purchase.purchaseOrderId());
@@ -116,7 +117,7 @@ public class CommercialFlowService {
                 purchase.lines().stream()
                         .map(l -> new PurchaseOrderLineDto(
                                 l.lineId(), l.skuId(), l.batchNo(), l.productionDate(), l.expiryDate(),
-                                l.orderedQty(), l.orderedQty(), l.unitCostCents(), l.returnedQty()))
+                                l.orderedQty(), l.orderedQty(), l.unitCostCents(), l.returnedQty(), l.packQty()))
                         .toList(),
                 "flow receive"
         ));

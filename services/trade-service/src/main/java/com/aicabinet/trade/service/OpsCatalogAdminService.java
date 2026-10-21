@@ -187,6 +187,8 @@ public class OpsCatalogAdminService {
         sku.setBrand(trimToNull(request.brand()));
         sku.setSpec(request.spec() == null || request.spec().isBlank() ? "" : request.spec().trim());
         sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
+        // CB-061：件装数（每件的支数），用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。
+        sku.setPackQty(request.packQty() > 0 ? request.packQty() : 1);
         sku.setStatus(request.status());
         sku.setShelfLifeDays(request.shelfLifeDays());
         sku.setNearExpiryDays(request.nearExpiryDays());

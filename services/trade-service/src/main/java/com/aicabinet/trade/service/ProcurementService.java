@@ -374,8 +374,14 @@ public class ProcurementService {
                     .filter(l -> lineReq.purchaseLineId().equals(l.getLineId()))
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, PURCHASE_LINE_NOT_FOUND));
+            
+            // CB-061：退货数量以「件」为单位，扣仓需换算为「支」。
+            int packQty = poLine.getPackQty() > 0 ? poLine.getPackQty() : 1;
+            int returnCases = lineReq.quantity();
+            int returnPieces = returnCases * packQty;
+            
             int returnable = poLine.getReceivedQty() - poLine.getReturnedQty();
-            if (lineReq.quantity() > returnable) {
+            if (returnCases > returnable) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "return qty exceeds returnable for sku=" + poLine.getSkuId()
                                 + " returnable=" + returnable);
@@ -384,13 +390,13 @@ public class ProcurementService {
                     order.getWarehouseId(),
                     poLine.getSkuId(),
                     poLine.getBatchNo(),
-                    lineReq.quantity(),
+                    returnPieces,  // 库存以支为单位扣减
                     operatorId,
                     "PURCHASE_RETURN",
                     String.valueOf(ret.getReturnId())
             );
-            returnedValueCents += (long) lineReq.quantity() * poLine.getUnitCostCents();
-            poLine.setReturnedQty(poLine.getReturnedQty() + lineReq.quantity());
+            returnedValueCents += (long) returnCases * poLine.getUnitCostCents();
+            poLine.setReturnedQty(poLine.getReturnedQty() + returnCases);
             purchaseOrderLineRepository.save(poLine);
 
             PurchaseReturnLine retLine = new PurchaseReturnLine();
@@ -445,7 +451,7 @@ public class ProcurementService {
         LocalDate productionDate = receiveLine.productionDate() != null
                 ? receiveLine.productionDate() : line.getProductionDate();
         validatePurchaseLine(new PurchaseOrderLineDto(line.getLineId(), line.getSkuId(), batchNo,
-                productionDate, expiryDate, 0, 0, line.getUnitCostCents(), 0), true);
+                productionDate, expiryDate, 0, 0, line.getUnitCostCents(), 0, line.getPackQty()), true);
         line.setBatchNo(batchNo);
         line.setExpiryDate(expiryDate);
         line.setProductionDate(productionDate);
@@ -456,12 +462,21 @@ public class ProcurementService {
         if (qty <= line.getReceivedQty()) {
             return 0L;
         }
-        int deltaQty = qty - line.getReceivedQty();
-        QualityResult quality = inspectPurchaseLine(line, deltaQty);
+        int deltaCases = qty - line.getReceivedQty();
+        
+        // CB-061：采购按件（箱）、库存/销售按支，成本按支折。
+        // orderedQty/receivedQty 以「件」为单位，入库时需换算为「支」。
+        int packQty = line.getPackQty() > 0 ? line.getPackQty() : 1;
+        int stockDeltaPieces = deltaCases * packQty;
+        
+        // 成本折算：unitCostCents 为「每件成本」，除以件装数得「每支成本」（四舍五入取整）。
+        int unitCostPerPiece = Math.round((float) line.getUnitCostCents() / packQty);
+        
+        QualityResult quality = inspectPurchaseLine(line, deltaCases);
         if (!quality.accepted()) {
             line.setQualityStatus("REJECTED");
             line.setQualityNote(quality.note());
-            line.setRejectedQty(deltaQty);
+            line.setRejectedQty(deltaCases);
             purchaseOrderLineRepository.save(line);
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "purchase quality rejected sku=" + line.getSkuId() + " reason=" + quality.note());
@@ -475,12 +490,12 @@ public class ProcurementService {
                 warehouseId,
                 new WarehouseService.LotSpec(line.getSkuId(), line.getBatchNo(),
                         line.getProductionDate(), line.getExpiryDate()),
-                deltaQty,
-                line.getUnitCostCents(),
+                stockDeltaPieces,  // 库存以支为单位
+                unitCostPerPiece,   // 成本按支计算
                 operatorId,
                 BIZ_PURCHASE_ORDER,
                 String.valueOf(order.getPurchaseOrderId())));
-        return (long) deltaQty * line.getUnitCostCents();
+        return (long) deltaCases * line.getUnitCostCents();
     }
 
     private void finalizePurchaseOrderReceive(Long operatorId, Long purchaseOrderId, PurchaseOrder order,
@@ -633,7 +648,7 @@ public class ProcurementService {
                 line.getLineId(), line.getSkuId(), line.getBatchNo(),
                 line.getProductionDate(), line.getExpiryDate(),
                 line.getOrderedQty(), line.getReceivedQty(), line.getUnitCostCents(),
-                line.getReturnedQty()
+                line.getReturnedQty(), line.getPackQty()
         );
     }
 
@@ -716,6 +731,8 @@ public class ProcurementService {
             line.setReceivedQty(0);
             line.setReturnedQty(0);
             line.setUnitCostCents(lineDto.unitCostCents());
+            // CB-061：快照件装数（防止后续修改 SKU 主数据导致历史订单换算错乱）
+            line.setPackQty(lineDto.packQty() > 0 ? lineDto.packQty() : 1);
             purchaseOrderLineRepository.save(line);
         }
         approvalWorkflowService.start(
@@ -756,7 +773,8 @@ public class ProcurementService {
                     line.orderedQty(),
                     line.receivedQty(),
                     cost,
-                    line.returnedQty());
+                    line.returnedQty(),
+                    line.packQty());
         }).toList();
     }
 

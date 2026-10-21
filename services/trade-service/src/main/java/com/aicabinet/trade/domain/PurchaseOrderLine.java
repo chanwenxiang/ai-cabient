@@ -23,6 +23,10 @@ public class PurchaseOrderLine {
     private int receivedQty;
     private int returnedQty;
     private int unitCostCents;
+
+    /** 件装数快照（CB-061）：下单时的每件支数，防止后续修改 SKU 主数据导致历史订单换算错乱。 */
+    private int packQty = 1;
+
     private String qualityStatus = "PENDING";
     private String qualityNote;
     private int rejectedQty;

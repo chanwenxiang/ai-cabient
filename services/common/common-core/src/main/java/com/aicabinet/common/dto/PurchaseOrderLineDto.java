@@ -11,5 +11,7 @@ public record PurchaseOrderLineDto(
         int orderedQty,
         int receivedQty,
         int unitCostCents,
-        int returnedQty
+        int returnedQty,
+        /** 件装数快照（CB-061）：下单时的每件支数，用于收货时件→支换算。 */
+        int packQty
 ) {}

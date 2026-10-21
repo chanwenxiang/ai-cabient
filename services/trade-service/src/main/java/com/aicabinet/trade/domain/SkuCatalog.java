@@ -69,6 +69,9 @@ public class SkuCatalog {
     /** 显式最低限价（V350，CB-037）：null=不限（仅要求 >0），支持清仓/引流打折；低于成本由前端提醒。 */
     private Integer minPriceCents;
 
+    /** 件装数（CB-061）：每件的支数，用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。 */
+    private int packQty = 1;
+
     @TableField(fill = FieldFill.INSERT)
     private Instant createdAt;
 
@@ -123,6 +126,7 @@ public class SkuCatalog {
                 updatedByUserId,
                 updatedByName,
                 operationScope,
+                packQty,
                 sceneLimits
         );
     }

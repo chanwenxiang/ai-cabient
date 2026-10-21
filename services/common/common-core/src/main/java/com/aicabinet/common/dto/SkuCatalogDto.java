@@ -34,6 +34,8 @@ public record SkuCatalogDto(
         String updatedByName,
         /** 经营归属（V349 字典 sku_operation_scope：DIRECT/NON_DIRECT；null=未分类） */
         String operationScope,
+        /** 件装数（CB-061）：每件的支数，用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。 */
+        int packQty,
         /** 商品×场景上架限额（CB-049 扩展）：admin 读路径回填；其他消费方为 null */
         List<SkuSceneLimitItem> sceneLimits
 ) {}
