@@ -81,7 +81,7 @@
             :actions="rowActions"
             :action-width="220"
             :empty-text="emptyHint"
-            sort-field-label="异常编号"
+            sort-field-label="发生时间"
             :csv="csvOptions"
             :row-class-name="rowClassName"
             @action="onExceptionAction"
@@ -703,8 +703,10 @@ const crud = useCrudTable<OpsException>({
     await refreshStatusCounts();
     return data;
   },
-  // 排序走壳内「升/降序」工具条（全站无表头箭头），默认升序对齐原 useIdColumnSort
-  sort: { prop: 'exceptionId', mode: 'local' }
+  // 排序走壳内「升/降序」工具条（全站无表头箭头）。异常编号 = BizIds 13 位毫秒 + 9 位随机，
+  // 定长纯数字 ⇒ 编号序即发生时间序；默认降序对齐后端 findFiltered 的 createdAt desc，
+  // 否则本页会把最新一条压到最下（2026-10-21 真机反馈「异常中心没按时间排」）。
+  sort: { prop: 'exceptionId', mode: 'local', defaultDir: 'desc' }
 });
 
 const pageOverdueCount = computed(() => crud.items.filter((r) => r.slaOverdue).length);

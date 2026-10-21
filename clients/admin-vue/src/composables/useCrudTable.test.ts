@@ -66,6 +66,28 @@ describe('useCrudTable', () => {
     expect(fetchPage).toHaveBeenCalledTimes(1); // local 模式不重查
   });
 
+  it('local 排序 defaultDir=desc：最新一条排最前（异常中心 2026-10-21 反馈「没按时间排」）', async () => {
+    // 真机单号形态：BizIds = 13 位毫秒 + 9 位随机，定长纯数字 ⇒ 编号降序即时间降序
+    type ExRow = { exceptionId: string };
+    const OLDER = '1792576399120886364007';
+    const MIDDLE = '1792577459658639504457';
+    const NEWEST = '1792577482545710798672';
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValue([OLDER, NEWEST, MIDDLE].map((exceptionId) => ({ exceptionId })));
+    const crud = useCrudTable<ExRow>({
+      rowKey: (r) => r.exceptionId,
+      fetchPage,
+      sort: { prop: 'exceptionId', mode: 'local', defaultDir: 'desc' },
+      autoLoad: false
+    });
+
+    await crud.load();
+
+    expect(crud.sortDir).toBe('desc');
+    expect(crud.displayItems.map((r) => r.exceptionId)).toEqual([NEWEST, MIDDLE, OLDER]);
+  });
+
   it('sort.pinned：置顶行稳定排在最前，升降序只影响其余行相对顺序', async () => {
     type StuckRow = Row & { stuck?: boolean };
     const rows: StuckRow[] = [
