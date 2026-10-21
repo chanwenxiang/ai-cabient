@@ -392,6 +392,66 @@ async function doModelPush(row: JiangyiModelPreview) {
   }
 }
 
+/**
+ * 台账 G-14：上方列表来自将邑 §4.4.4，租户没登记模型时它是空的——但 V16 §4.3.2.9 的下行
+ * 载荷本来就是裸地址，所以厂商只要肯给 modelUrl + classes 地址，同一条通道照样能走。
+ */
+const explicitForm = reactive({ modelName: '', modelUrl: '', textUrl: '', quantity: 0 });
+const explicitBusy = ref(false);
+
+function explicitPayload() {
+  return {
+    modelName: explicitForm.modelName.trim(),
+    modelUrl: explicitForm.modelUrl.trim(),
+    textUrl: explicitForm.textUrl.trim(),
+    quantity: explicitForm.quantity,
+    classIdBase: classIdBase.value
+  };
+}
+
+async function doExplicitSync() {
+  explicitBusy.value = true;
+  try {
+    const written = await api.request<number>(
+      AdminEndpoints.deviceJiangyiModelSyncExplicit(props.deviceId),
+      'POST',
+      explicitPayload()
+    );
+    ElMessage.success(`已按该 classes 文件生成 ${written} 行停用状态对照，请核对后启用`);
+    await load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '按地址生成对照表失败'));
+  } finally {
+    explicitBusy.value = false;
+  }
+}
+
+async function doExplicitPush() {
+  try {
+    await ElMessageBox.confirm(
+      `把「${explicitForm.modelName.trim()}」按地址发送到柜机（柜机加载模型后会重启）。确认发送？`,
+      '发送模型确认',
+      { type: 'warning', confirmButtonText: '发送', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  explicitBusy.value = true;
+  try {
+    await api.request<number>(
+      AdminEndpoints.deviceJiangyiModelPushExplicit(props.deviceId),
+      'POST',
+      explicitPayload()
+    );
+    ElMessage.success('已发送，等待柜机确认回执');
+    await loadDeployments();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '按地址发送模型失败'));
+  } finally {
+    explicitBusy.value = false;
+  }
+}
+
 async function loadDeployments() {
   deploymentsLoading.value = true;
   try {
@@ -903,6 +963,54 @@ watch(
               </template>
             </el-table-column>
           </el-table>
+
+          <div class="jy-section-label" style="margin-top: 12px">
+            上方列表为空时：按厂商给的地址直接处理
+          </div>
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            class="jy-tip"
+            title="这条不查将邑模型列表，所以校验不了工控机机型——地址与该柜型号是否对应由操作人确认；classes 文件行数必须等于商品数量，否则拒绝生成对照"
+          />
+          <div class="jy-form-row">
+            <el-input
+              v-model="explicitForm.modelName"
+              size="small"
+              placeholder="模型名称（柜机回执按它比对，例：hysxr…3576.rknn）"
+            />
+            <el-input-number
+              v-model="explicitForm.quantity"
+              size="small"
+              :min="1"
+              controls-position="right"
+              class="jy-input-class"
+              placeholder="商品数量"
+            />
+          </div>
+          <div class="jy-form-row">
+            <el-input
+              v-model="explicitForm.modelUrl"
+              size="small"
+              placeholder="模型下载地址（.rknn）"
+            />
+          </div>
+          <div class="jy-form-row">
+            <el-input
+              v-model="explicitForm.textUrl"
+              size="small"
+              placeholder="classes 对照文件地址（.txt）"
+            />
+          </div>
+          <div v-if="canEdit" class="jy-form-row">
+            <el-button size="small" :loading="explicitBusy" @click="doExplicitSync">
+              按地址生成对照
+            </el-button>
+            <el-button size="small" type="warning" :loading="explicitBusy" @click="doExplicitPush">
+              按地址发到柜机
+            </el-button>
+          </div>
 
           <div class="jy-section-label" style="margin-top: 12px">发送记录</div>
           <div class="jy-form-row" style="margin-top: 0">

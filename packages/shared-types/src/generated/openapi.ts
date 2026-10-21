@@ -4054,6 +4054,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/model-sync-explicit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["modelSyncExplicit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/model-push": {
         parameters: {
             query?: never;
@@ -4064,6 +4080,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["modelPush"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/model-push-explicit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["modelPushExplicit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14399,6 +14431,15 @@ export interface components {
         };
         ModelSyncRequest: {
             modelName: string;
+            /** Format: int32 */
+            classIdBase?: number;
+        };
+        ExplicitModelRequest: {
+            modelName?: string;
+            modelUrl?: string;
+            textUrl?: string;
+            /** Format: int32 */
+            quantity?: number;
             /** Format: int32 */
             classIdBase?: number;
         };
@@ -27066,6 +27107,32 @@ export interface operations {
             };
         };
     };
+    modelSyncExplicit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExplicitModelRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
     modelPush: {
         parameters: {
             query?: never;
@@ -27078,6 +27145,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ModelSyncRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseLong"];
+                };
+            };
+        };
+    };
+    modelPushExplicit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExplicitModelRequest"];
             };
         };
         responses: {

@@ -10,10 +10,11 @@ import java.util.List;
 /**
  * 将邑模型 classes 映射文件解析器（CB-023，采集文档 §4.4.4 modelTextUrl）。
  *
- * <p>classes.txt 每行 = 一个商品 textName；classId 与行号的对应方向（0/1-based）文档
- * 未明示（PDF 无此说明），以 {@code classIdBase} 可配 + admin 预览人工确认为兜底
- * （CB-023 台账局限 1）。行数必须等于模型 quantity，不符即拒绝预生成（负向：宁可
- * 人工介入，不预生成错位映射——错位映射一旦激活会直接错误扣款）。</p>
+ * <p>classes.txt 每行 = 一个商品 textName；classId 的方向 2026-10-21 已用厂商
+ * V16 §5.5.3 {@code getStdSkuQueryByTextNames} 实测锁定为 <b>0-based 行下标</b>
+ * （6 行与 69 行两份 classes 各取首/末行回验，见台账 H-15）；{@code classIdBase}
+ * 保留为旋钮，只防厂商哪天改口，默认按 0。行数必须等于模型 quantity，不符即拒绝
+ * 预生成（负向：宁可人工介入，不预生成错位映射——错位映射一旦激活会直接错误扣款）。</p>
  *
  * <p>classesVersion = 内容 sha256 前 12 位（我方计算；设备不报版本，作为下发审计
  * 与设备登记的 classes 指纹）。</p>

@@ -191,6 +191,77 @@ class JiangyiModelSyncServiceTest {
                 eq("http://oss/model.rknn"), eq(classesUrl), eq(2));
     }
 
+    /**
+     * G-14 主证：显式 URL 下发**完全不查 §4.4.4**（租户 426 现回 []，这是不打扰厂商就能推模型的唯一入口）。
+     */
+    @Test
+    void pushModelByUrl_neverConsultsVendorModelList() {
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
+        when(deploymentMapper.hasPendingSent(DEVICE_ID)).thenReturn(false);
+        doAnswer(inv -> {
+            ((JiangyiModelDeployment) inv.getArgument(0)).setId(57L);
+            return 1;
+        }).when(deploymentMapper).insert(any(JiangyiModelDeployment.class));
+
+        long id = service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+                MODEL_NAME, "http://oss/explicit.rknn", classesUrl, 2));
+
+        assertEquals(57L, id);
+        verify(jiangyiGatherClient, org.mockito.Mockito.never()).modelFiles();
+        ArgumentCaptor<JiangyiModelDeployment> captor =
+                ArgumentCaptor.forClass(JiangyiModelDeployment.class);
+        verify(deploymentMapper).insert(captor.capture());
+        JiangyiModelDeployment dep = captor.getValue();
+        assertEquals("SENT", dep.getStatus());
+        assertNull(dep.getModelId(), "显式下发没有 §4.4.4 的 modelId，model_id 必须留空");
+        assertEquals("76", dep.getIndustrialControlModel());
+        verify(jiangyiGatewayClient).modelPush(eq(DEVICE_ID), eq(57L), eq(MODEL_NAME),
+                eq("http://oss/explicit.rknn"), eq(classesUrl), eq(2));
+    }
+
+    @Test
+    void pushModelByUrl_missingFieldIs400AndTouchesNothing() {
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+                        MODEL_NAME, "http://oss/m.rknn", " ", 2)));
+        assertEquals(400, e.getStatusCode().value());
+        verify(deploymentMapper, org.mockito.Mockito.never())
+                .insert(any(JiangyiModelDeployment.class));
+    }
+
+    /** 行数≠quantity 一律拒（错位映射一旦激活就是错钱），显式路径不松这条。 */
+    @Test
+    void pushModelByUrl_quantityMismatchingClassesLinesIsRejectedBeforeAnyWrite() {
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
+
+        assertThrows(JiangyiClassesParser.ClassesParseRejectException.class,
+                () -> service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+                        MODEL_NAME, "http://oss/m.rknn", classesUrl, 3)));
+        verify(deploymentMapper, org.mockito.Mockito.never())
+                .insert(any(JiangyiModelDeployment.class));
+    }
+
+    @Test
+    void pregenerateForDeviceByUrl_writesDisabledRowsFromExplicitClasses() {
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
+        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of());
+
+        int written = service().pregenerateForDeviceByUrl(DEVICE_ID,
+                new JiangyiModelSyncService.ExplicitModel(MODEL_NAME, "http://oss/m.rknn", classesUrl, 2), 0);
+
+        assertEquals(2, written);
+        verify(jiangyiGatherClient, org.mockito.Mockito.never()).modelFiles();
+        ArgumentCaptor<com.aicabinet.trade.domain.JiangyiClassMapping> captor =
+                ArgumentCaptor.forClass(com.aicabinet.trade.domain.JiangyiClassMapping.class);
+        verify(jiangyiClassMappingMapper, org.mockito.Mockito.times(2)).upsert(captor.capture());
+        assertEquals(List.of(0, 1),
+                captor.getAllValues().stream().map(m -> m.getClassId()).toList());
+        assertEquals("农夫山泉 550ml", captor.getAllValues().get(0).getTextName());
+        assertTrue(captor.getAllValues().stream().allMatch(m -> "DISABLED".equals(m.getStatus())));
+    }
+
     @Test
     void confirmModel_withoutPendingSentIsRejectedAsReplaySuspect() {
         when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.empty());

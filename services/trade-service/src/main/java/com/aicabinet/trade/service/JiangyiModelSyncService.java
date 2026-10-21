@@ -106,16 +106,32 @@ public class JiangyiModelSyncService {
         JiangyiModelFile model = requireModel(modelName);
         // 预生成同样按机型过滤：非本机型模型不生成映射（发了也下发不了，避免无效 DISABLED 行污染人工确认面）
         requireModelCompatible(device, model);
-        JiangyiClassesParser.ParsedClasses parsed = parseClasses(model, classIdBase);
+        return writePregenerated(deviceId, modelName, parseClasses(model, classIdBase).rows());
+    }
 
+    /**
+     * 显式 classes 地址预生成（台账 G-14）：§4.4.4 回 {@code []} 时，这是把 classId↔textName
+     * 落库的唯一路径——厂商后台点的那次下发不会写进 §4.4.4（2026-10-21 对照实验已证）。
+     * <p>机型匹配这一步<b>无法校验</b>：显式载荷没有厂商的 industrialControlModel 字段，
+     * 型号对不对由操作人对 modelUrl 文件名负责（G-15 记的 rk3576 嫌疑）。其余校验与
+     * {@link #pregenerateForDevice} 同：BOUND + classes 过 SSRF 白名单 + 行数==quantity。</p>
+     */
+    public int pregenerateForDeviceByUrl(String deviceId, ExplicitModel model, int classIdBase) {
+        requireBoundDevice(deviceId);
+        model.requireComplete();
+        return writePregenerated(deviceId, model.modelName().trim(),
+                parseClasses(model.textUrl().trim(), model.quantity(), classIdBase).rows());
+    }
+
+    private int writePregenerated(String deviceId, String modelName,
+                                  List<JiangyiClassesParser.ParsedClassRow> rows) {
         Set<String> trainedTextNames = new HashSet<>();
         for (TrainedProduct p : jiangyiGatherClient.trainedProducts()) {
             if (p.textName() != null) {
                 trainedTextNames.add(p.textName());
             }
         }
-        int written = 0;
-        for (JiangyiClassesParser.ParsedClassRow row : parsed.rows()) {
+        for (JiangyiClassesParser.ParsedClassRow row : rows) {
             JiangyiClassMapping mapping = new JiangyiClassMapping();
             mapping.setDeviceId(deviceId);
             mapping.setClassId(row.classId());
@@ -126,13 +142,12 @@ public class JiangyiModelSyncService {
             mapping.setStatus("DISABLED");
             mapping.setSource("MODEL_SYNC");
             jiangyiClassMappingMapper.upsert(mapping);
-            written++;
         }
         log.info("jiangyi model-sync pregenerated deviceId={} modelName={} rows={} trainedMatched={}/{}",
-                deviceId, modelName, written,
-                parsed.rows().stream().filter(r -> trainedTextNames.contains(r.textName())).count(),
-                parsed.rows().size());
-        return written;
+                deviceId, modelName, rows.size(),
+                rows.stream().filter(r -> trainedTextNames.contains(r.textName())).count(),
+                rows.size());
+        return rows.size();
     }
 
     /** 批量激活某设备某模型的全部预生成行（人工确认后一次性生效）。 */
@@ -148,41 +163,62 @@ public class JiangyiModelSyncService {
     /** 下发模型到设备（BOUND + 机型字符串相等 + 无未决 SENT 幂等）→ 落 SENT 审计 → 调 gateway。 */
     public long pushModel(String deviceId, String modelName) {
         JiangyiDevice device = requireBoundDevice(deviceId);
-        if (device.getIndustrialControlModel() == null || device.getIndustrialControlModel().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "设备未登记工控机机型（将邑原值 76/88），拒绝下发");
-        }
+        requireRegisteredControlModel(device);
         JiangyiModelFile model = requireModel(modelName);
         requireModelCompatible(device, model);
+        JiangyiClassesParser.ParsedClasses parsed = parseClasses(model, 0);
+
+        return recordAndPush(device, String.valueOf(model.id()), model.modelName(),
+                model.modelUrl(), model.modelTextUrl(), model.quantity(), parsed.classesVersion());
+    }
+
+    /**
+     * 显式 URL 下发（台账 G-14）：走同一条 §4.3.2.9 `updateModel` 通道，但<b>不查 §4.4.4</b>。
+     * <p>留着不松的校验：BOUND、机型已登记、无未决 SENT、classes 地址过 SSRF 白名单、
+     * 行数==quantity（错位映射一旦激活就是错钱）。去掉的只有 `requireModel` 那道我方自加的
+     * 门 —— 真机日志证明 `updateModel` 载荷本来就是裸 URL（G-15/G-16）。</p>
+     */
+    public long pushModelByUrl(String deviceId, ExplicitModel model) {
+        JiangyiDevice device = requireBoundDevice(deviceId);
+        requireRegisteredControlModel(device);
+        model.requireComplete();
+        JiangyiClassesParser.ParsedClasses parsed =
+                parseClasses(model.textUrl().trim(), model.quantity(), 0);
+
+        return recordAndPush(device, null, model.modelName().trim(), model.modelUrl().trim(),
+                model.textUrl().trim(), model.quantity(), parsed.classesVersion());
+    }
+
+    /** 落 SENT 审计 → 网关下发；网关侧失败即标 FAILED（两条下发路径共用）。 */
+    private long recordAndPush(JiangyiDevice device, String modelId, String modelName,
+                               String modelUrl, String textUrl, int quantity, String classesVersion) {
+        String deviceId = device.getDeviceId();
         if (deploymentMapper.hasPendingSent(deviceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "该设备存在未完成的模型下发（SENT 待回执），请等待回执或超时后再试");
         }
-        JiangyiClassesParser.ParsedClasses parsed = parseClasses(model, 0);
-
         JiangyiModelDeployment dep = new JiangyiModelDeployment();
         dep.setDeviceId(deviceId);
-        dep.setModelId(String.valueOf(model.id()));
-        dep.setModelName(model.modelName());
-        dep.setModelUrl(model.modelUrl());
-        dep.setClassesTextUrl(model.modelTextUrl());
+        dep.setModelId(modelId);
+        dep.setModelName(modelName);
+        dep.setModelUrl(modelUrl);
+        dep.setClassesTextUrl(textUrl);
         dep.setIndustrialControlModel(device.getIndustrialControlModel());
-        dep.setClassesVersion(parsed.classesVersion());
+        dep.setClassesVersion(classesVersion);
         dep.setStatus("SENT");
         dep.setSentAt(Instant.now());
         deploymentMapper.insert(dep);
 
         // 组装 V16 §4.3.2.9 updateModel；gateway 负责 identifier→WS + tracker 超时兜底
         try {
-            jiangyiGatewayClient.modelPush(deviceId, dep.getId(), model.modelName(),
-                    model.modelUrl(), model.modelTextUrl(), model.quantity());
+            jiangyiGatewayClient.modelPush(deviceId, dep.getId(), modelName, modelUrl, textUrl, quantity);
         } catch (Exception e) {
             deploymentMapper.fail(dep.getId(), "gateway 下发失败：" + e.getMessage(), Instant.now());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "模型下发到网关失败：" + e.getMessage());
         }
         log.info("jiangyi model pushed deviceId={} modelName={} deploymentId={} classesVersion={}",
-                deviceId, modelName, dep.getId(), parsed.classesVersion());
+                deviceId, modelName, dep.getId(), classesVersion);
         return dep.getId();
     }
 
@@ -236,18 +272,30 @@ public class JiangyiModelSyncService {
         }
     }
 
+    /** 机型未登记时两条下发路径都拒绝（下发了也没法判型号对不对）。 */
+    private void requireRegisteredControlModel(JiangyiDevice device) {
+        if (device.getIndustrialControlModel() == null || device.getIndustrialControlModel().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "设备未登记工控机机型（将邑原值 76/88），拒绝下发");
+        }
+    }
+
     /** AU-183：允许的 classes.txt 主机后缀白名单（逗号分隔；默认将邑域，测试注入 localhost）。 */
     @org.springframework.beans.factory.annotation.Value(
             "${aicabinet.jiangyi.model-sync.allowed-hosts:hunanjysmart.com}")
     private java.util.List<String> allowedModelHosts = java.util.List.of("hunanjysmart.com");
 
     private JiangyiClassesParser.ParsedClasses parseClasses(JiangyiModelFile model, int classIdBase) {
-        String url = requireSafeModelTextUrl(model.modelTextUrl());
+        return parseClasses(model.modelTextUrl(), model.quantity(), classIdBase);
+    }
+
+    private JiangyiClassesParser.ParsedClasses parseClasses(String textUrl, int quantity, int classIdBase) {
+        String url = requireSafeModelTextUrl(textUrl);
         String content = publicHttp.get()
                 .uri(URI.create(url))
                 .retrieve()
                 .body(String.class);
-        return JiangyiClassesParser.parse(content, model.quantity(), classIdBase);
+        return JiangyiClassesParser.parse(content, quantity, classIdBase);
     }
 
     /**
@@ -301,6 +349,24 @@ public class JiangyiModelSyncService {
             return rse.getReason();
         }
         return e.getMessage();
+    }
+
+    /**
+     * 显式下发入参 = V16 §4.3.2.9 `updateModel` 的 msgContent 四字段（协议层本来就是裸 URL，
+     * 不含任何「模型须登记在租户名下」的前置；台账 G-14/G-15）。
+     */
+    public record ExplicitModel(String modelName, String modelUrl, String textUrl, Integer quantity) {
+        void requireComplete() {
+            if (modelName == null || modelName.isBlank()
+                    || modelUrl == null || modelUrl.isBlank()
+                    || textUrl == null || textUrl.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "显式下发需要 modelName / modelUrl / classes 地址三项非空");
+            }
+            if (quantity == null || quantity <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "模型商品数量必须是正整数");
+            }
+        }
     }
 
     /** admin 预览行（openapi inline schema）。 */

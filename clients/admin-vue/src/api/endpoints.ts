@@ -189,6 +189,11 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/activate`,
   deviceJiangyiModelPush: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-push`,
+  /** 台账 G-14：§4.4.4 模型列表为空时，按厂商给的裸地址生成对照 / 下发 */
+  deviceJiangyiModelSyncExplicit: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-sync-explicit`,
+  deviceJiangyiModelPushExplicit: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-push-explicit`,
   deviceJiangyiModelDeployments: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-deployments`,
   deviceJiangyiGatherStart: (deviceId: string) =>

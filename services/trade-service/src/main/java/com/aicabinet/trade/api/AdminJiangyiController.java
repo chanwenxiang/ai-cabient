@@ -326,6 +326,26 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiModelSyncService.pushModel(deviceId, body.modelName().trim()));
     }
 
+    /**
+     * 显式 URL 生成对照表（台账 G-14）：§4.4.4 回空数组时按操作人给的 classes 地址生成，
+     * 仍落 DISABLED 等人工激活。机型这一步校验不了（显式载荷没有厂商型号字段），由操作人负责。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/model-sync-explicit")
+    public ApiResponse<Integer> modelSyncExplicit(@PathVariable("deviceId") String deviceId,
+                                                  @RequestBody ExplicitModelRequest body) {
+        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDeviceByUrl(
+                deviceId, body.toSpec(), body.classIdBase() == null ? 0 : body.classIdBase()));
+    }
+
+    /** 显式 URL 下发（台账 G-14）：不查 §4.4.4，直接组 V16 §4.3.2.9 updateModel 经网关 WS 发出。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/model-push-explicit")
+    public ApiResponse<Long> modelPushExplicit(@PathVariable("deviceId") String deviceId,
+                                               @RequestBody ExplicitModelRequest body) {
+        return ApiResponse.ok(jiangyiModelSyncService.pushModelByUrl(deviceId, body.toSpec()));
+    }
+
     /** 模型下发审计列表（SENT/CONFIRMED/FAILED + classes_version）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/jiangyi/model-deployments")
@@ -409,6 +429,14 @@ public class AdminJiangyiController {
 
     record ModelSyncRequest(@NotBlank(message = "模型名不能为空") String modelName,
                             Integer classIdBase) {}
+
+    /** 显式下发（G-14）：V16 §4.3.2.9 updateModel 的四字段原样；空值/数量校验统一在 service 侧。 */
+    record ExplicitModelRequest(String modelName, String modelUrl, String textUrl,
+                                Integer quantity, Integer classIdBase) {
+        JiangyiModelSyncService.ExplicitModel toSpec() {
+            return new JiangyiModelSyncService.ExplicitModel(modelName, modelUrl, textUrl, quantity);
+        }
+    }
 
     record GatherStartRequest(String doorPosition) {}
 
