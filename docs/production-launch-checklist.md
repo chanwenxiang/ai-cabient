@@ -80,7 +80,7 @@
 - 🔴 **根因实证**：生产 compose 链（4 文件链）此前从未映射 `QR_PUBLIC_HOST`（只在 full.yml 有，而生产不叠 full.yml）⇒ Spring `auto` 探测容器内网 IP `http://172.19.0.8`（Docker bridge）⇒ 柜门码 `http://172.19.0.8/o/{deviceId}` 外部手机不可达。
 - **修复**：`docker-compose.production.yml` trade-service 补映射 `QR_PUBLIC_HOST`；`infra/.env.production` 显式设 `https://cabinet.easygovm.com`（与 `PUBLIC_BASE_URL` 同域，DNS 已解析到生产机，宿主 nginx 443 终结 TLS → gateway 容器 127.0.0.1:8180）。
 - **微信后台「扫普通链接二维码打开小程序」规则填法**：协议 https；二维码规则 `https://cabinet.easygovm.com/o/`；前缀占用=不占用；小程序功能页面 `pages/index/index`（`parseLaunchOptions` 已支持从 `q` 参数解析 deviceId）；测试范围先「体验版」后「线上版本」。
-- **校验文件**：MP 后台下载后置于 gateway 容器 `/usr/share/nginx/html/`（`docker cp`，一次性文件，丢失重传即可）；nginx-full.conf 已加 `location ~ ^/[^/]+\.txt$` 例外（防被 `location /` 的 302 /admin/ 拦截）。放好后 `docker exec ai-cabinet-gateway-1 nginx -t && nginx -s reload`。
+- **校验文件**：⚠️ 微信要求放在**二维码规则前缀下**（`https://{域名}/o/{文件名}.txt`，实证仅根目录直出会「校验文件检查失败」）。nginx-full.conf 已加两处静态例外：根目录单段 `.txt` + `/o/` 下单段 `.txt`（正则优先于 `/o/` 的 proxy_pass）；文件置于 gateway 容器 `/usr/share/nginx/html/o/`（`docker cp`，一次性文件）。改动后必须 **force-recreate 或确认 inode 对齐后 reload**（单文件 bind mount 铁律）。
 - **分工**：微信扫码 → 直接拉起小程序（走此规则）；支付宝扫同一码 → 仍走中间页 `/o/{deviceId}` UA 分流 → H5（H5 生产未部署，支付宝侧后置）。
 - ⚠️ **连带发现并修复（2026-10-21）**：生产 gateway 旧容器绑定 `127.0.0.1:8180` 的配置只存在于历史容器、从未入库——一 recreate 即爆「`address already in use 0.0.0.0:80`」（宿主 nginx 占 80，且 compose ports 是追加合并、prod-server 层加 8180 挡不住 base 的硬编码 80）。修复 = base `docker-compose.yml` 端口变量化 `${GATEWAY_PUBLISH:-80:80}` + `.env.production` 设 `GATEWAY_PUBLISH=127.0.0.1:8180:80`。另印证铁律：单文件 bind mount（nginx-full.conf）在 tar 解包换 inode 后**必须 force-recreate 容器**，`nginx -s reload` 读到的仍是旧 inode 内容。
 
