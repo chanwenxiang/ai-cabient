@@ -2878,6 +2878,16 @@ button.stat-tile,
   background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
 }
 
+/*
+ * KPI 瓦片高度钉住（防「加载完成整页上顶」= 用户看到的页面抖）。
+ * 加载态是 3 行（标签 15.4 + 数值 4+28.1 + hint 2+15.4 + 上下 padding 24 ≈ 89px），
+ * 完成态 DeviceDetailView / SlaView 的 hint 被 v-if 摘掉，5 个瓦片集体矮 17px，
+ * 下方整块内容上顶；Dashboard / Analytics 的 hint 恒渲染故不抖——两种口径并存，这里统一兜住。
+ */
+.stat-tile {
+  min-height: 89px;
+}
+
 .ops-board__tile.active {
   background: color-mix(in srgb, var(--el-color-primary) 8%, var(--layout-card, #fff));
 }

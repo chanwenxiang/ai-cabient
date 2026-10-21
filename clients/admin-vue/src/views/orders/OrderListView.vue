@@ -788,7 +788,7 @@ import type {
   OpenApiOrderReadModelAdmin,
   PageResult
 } from '@aicabinet/shared-types';
-import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import { centsToYuanDigits, displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildOrderRefundBody, canRefundOrderStatus } from '@/utils/money-ui-contracts';
@@ -814,6 +814,8 @@ const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const jiangyiVideoDialog = ref<InstanceType<typeof OrderJiangyiVideoDialog> | null>(null);
 const refundingId = ref('');
+/** 催付/补扣/关单的在途标记：确认框关闭到响应返回之间按钮仍可点，二次确认＝二次 POST（同 refundingId 的口径）。 */
+const pendingActionId = ref('');
 const keyword = ref('');
 const payChannel = ref('');
 const createdRange = ref<[string, string] | null>(null);
@@ -968,8 +970,9 @@ async function onExportMode(mode: string) {
   }
 }
 
+/** B 类金额（只出数字）：调用处模板自带字面 ¥，换算走共享整数拆分（见 lessons #304/#306） */
 function money(cents?: number) {
-  return ((cents || 0) / 100).toFixed(2);
+  return centsToYuanDigits(cents);
 }
 
 function orderDiscountCents(row: { couponDiscountCents?: number; memberDiscountCents?: number }) {
@@ -1071,13 +1074,22 @@ function rowActions(row: OrderSummary): CrudRowAction[] {
     actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
   }
   if (row.status === 'PENDING') {
+    const busy = pendingActionId.value === row.orderId;
     actions.push(
-      { key: 'remind', label: '催付', icon: Bell, type: 'warning', perm: 'ops:order:remind' },
+      {
+        key: 'remind',
+        label: '催付',
+        icon: Bell,
+        type: 'warning',
+        disabled: busy,
+        perm: 'ops:order:remind'
+      },
       {
         key: 'collect',
         label: '补扣',
         icon: Coin,
         overflow: true,
+        disabled: busy,
         perm: ['ops:order:remind', 'ops:order:cancel', 'ops:order:refund']
       },
       {
@@ -1086,6 +1098,7 @@ function rowActions(row: OrderSummary): CrudRowAction[] {
         icon: CircleClose,
         type: 'danger',
         overflow: true,
+        disabled: busy,
         perm: 'ops:order:cancel'
       }
     );
@@ -1335,6 +1348,7 @@ async function remindOrder(row: { orderId: string }) {
       confirmButtonText: '发送催付',
       type: 'warning'
     });
+    pendingActionId.value = row.orderId;
     const result = await api.request<{ message?: string; notified?: boolean }>(
       AdminEndpoints.orderRemind(row.orderId),
       'POST'
@@ -1344,6 +1358,8 @@ async function remindOrder(row: { orderId: string }) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '催付失败');
     }
+  } finally {
+    pendingActionId.value = '';
   }
 }
 
@@ -1354,6 +1370,7 @@ async function collectUnpaid(row: { orderId: string }) {
       '补扣收款',
       { confirmButtonText: '确认补扣', type: 'warning' }
     );
+    pendingActionId.value = row.orderId;
     await api.request(AdminEndpoints.orderCollect(row.orderId), 'POST');
     ElMessage.success('补扣成功');
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
@@ -1364,6 +1381,8 @@ async function collectUnpaid(row: { orderId: string }) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '补扣失败');
     }
+  } finally {
+    pendingActionId.value = '';
   }
 }
 
@@ -1392,6 +1411,7 @@ async function cancelUnpaid(row: { orderId: string }) {
     } catch (error_: unknown) {
       if (error_ !== 'cancel' && error_ !== 'close') throw error_;
     }
+    pendingActionId.value = row.orderId;
     const result = await api.request<{ message?: string }>(
       AdminEndpoints.orderCancel(row.orderId),
       'POST',
@@ -1404,6 +1424,8 @@ async function cancelUnpaid(row: { orderId: string }) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '关单失败');
     }
+  } finally {
+    pendingActionId.value = '';
   }
 }
 

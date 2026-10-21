@@ -512,6 +512,7 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { softFallback } from '@/utils/soft-fallback';
 import { displayLabel } from '@aicabinet/shared-dict';
 
 const route = useRoute();
@@ -764,13 +765,13 @@ function onAction({ key, row }: { key: string; row: OperatorRow }) {
 
 async function loadDepartments() {
   const seq = loadSeq.begin('loadDepartments');
-  try {
-    departments.value =
-      (await api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])) || [];
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'loadDepartments')) return;
-    departments.value = [];
-  }
+  const depts = await softFallback(
+    api.request<DeptRow[]>(AdminEndpoints.departments, 'GET'),
+    [] as DeptRow[],
+    '部门选项'
+  );
+  if (!loadSeq.isCurrent(seq, 'loadDepartments')) return;
+  departments.value = depts;
 }
 
 async function loadRoles() {

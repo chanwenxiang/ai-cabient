@@ -94,9 +94,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }"
-              >¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template
-            >
+            <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
           </el-table-column>
           <el-table-column
             label="实名"
@@ -168,7 +166,7 @@
       <div class="adjust-user__name">{{ adjustRow.name || '未命名' }}</div>
       <div class="adjust-user__id">用户 {{ adjustRow.userId }} · {{ phoneText(adjustRow) }}</div>
       <div class="adjust-user__balance">
-        当前余额 <b>¥{{ ((adjustRow.balanceCents || 0) / 100).toFixed(2) }}</b>
+        当前余额 <b>{{ yuan(adjustRow.balanceCents) }}</b>
       </div>
     </div>
     <el-form label-position="top" @submit.prevent="submitAdjust">

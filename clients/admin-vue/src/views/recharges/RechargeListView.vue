@@ -66,7 +66,7 @@
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
           <el-table-column label="金额" width="120" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
+            <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column
             label="渠道"
@@ -156,10 +156,11 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { yuanTextZero as yuan } from '@/utils/display';
 import { REFUNDABLE_RECHARGE_STATUSES, canRefundRechargeStatus } from '@/utils/money-ui-contracts';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
+import { centsToYuanDigits, displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();
@@ -167,6 +168,8 @@ const auth = useAuthStore();
 const canRefund = computed(() => auth.hasPerm('ops:recharge:edit'));
 const status = ref('');
 const keyword = ref('');
+// 退款在途标记：后端退款有自己的幂等/状态校验，这里防止连点重复提交。
+const refundBusyId = ref('');
 
 // 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
 // 首查依赖路由 query 初始化筛选条件，故关闭 autoLoad、在 onMounted 显式首查。
@@ -191,16 +194,12 @@ const csvOptions: CrudCsvOptions = {
     rows.map((row) => [
       row.orderId,
       row.userId,
-      money(row.amountCents),
+      centsToYuanDigits(Number(row.amountCents) || 0),
       displayLabel('pay_channel', String(row.channel || ''), '未知'),
       displayLabel('recharge_status', String(row.status || ''), '未知状态'),
       formatDateTime(String(row.createdAt || ''))
     ])
 };
-
-function money(cents: unknown) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
-}
 
 /** A1：可退款判定收口到 money-ui-contracts（充值域独立状态集） */
 function isRefundable(row: Record<string, unknown>) {
@@ -217,7 +216,14 @@ const showActionColumn = computed(
 function rowActions(row: Record<string, unknown>): CrudRowAction[] {
   if (!isRefundable(row)) return [];
   return [
-    { key: 'refund', label: '退款', icon: RefreshLeft, type: 'danger', perm: 'ops:recharge:edit' }
+    {
+      key: 'refund',
+      label: '退款',
+      icon: RefreshLeft,
+      type: 'danger',
+      perm: 'ops:recharge:edit',
+      disabled: refundBusyId.value === String(row.orderId || '')
+    }
   ];
 }
 
@@ -234,6 +240,7 @@ async function refundRecharge(row: Record<string, unknown>) {
       cancelButtonText: '取消',
       inputPlaceholder: '退款原因'
     });
+    refundBusyId.value = orderId;
     await api.request(AdminEndpoints.rechargeRefund(orderId), 'POST', {
       reason: (value || '').trim() || undefined
     });
@@ -242,6 +249,8 @@ async function refundRecharge(row: Record<string, unknown>) {
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '退款失败');
+  } finally {
+    refundBusyId.value = '';
   }
 }
 

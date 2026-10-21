@@ -303,6 +303,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable, type CrudPageParams } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
+import { softFallback } from '@/utils/soft-fallback';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 interface ApprovalNode {
@@ -422,7 +423,11 @@ function reseq() {
 async function fetchPage(params: CrudPageParams) {
   const [defs, depts] = await Promise.all([
     api.request<ApprovalDef[]>(AdminEndpoints.approvalsDefinitions, 'GET'),
-    api.request<DeptRow[]>(AdminEndpoints.departments, 'GET').catch(() => [])
+    softFallback(
+      api.request<DeptRow[]>(AdminEndpoints.departments, 'GET'),
+      [] as DeptRow[],
+      '部门选项'
+    )
   ]);
   departments.value = depts || [];
   const list = defs || [];
