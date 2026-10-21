@@ -13,11 +13,16 @@ import org.mockito.quality.Strictness;
 
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +50,7 @@ class JiangyiSessionBindingGuardTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private OpsExceptionService opsExceptionService;
     @Mock private OpsAlertDispatcher opsAlertDispatcher;
+    @Mock private JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     private SessionOpenService openService;
     private JiangyiRecognitionTimeoutService timeoutService;
@@ -55,7 +61,8 @@ class JiangyiSessionBindingGuardTest {
                 consumerPreauthService, null, null, sessionService,
                 distributedLockService, opsAlertDispatcher);
         timeoutService = new JiangyiRecognitionTimeoutService(repository, sessionService,
-                disputeService, consumerPreauthService, distributedLockService, opsExceptionService);
+                disputeService, consumerPreauthService, distributedLockService, opsExceptionService,
+                jiangyiDeviceDirectory);
         when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }
 
@@ -103,12 +110,14 @@ class JiangyiSessionBindingGuardTest {
 
     // ── recognize-timeout ────────────────────────────────────────────────
 
+    private static final String NO_REPORT = JiangyiRecognitionTimeoutService.CAUSE_NO_REPORT;
+
     @Test
     void markRecognitionTimeout_foreignDevice_returnsFalseAndUntouched() {
         when(repository.findByIdForUpdate(SESSION))
                 .thenReturn(Optional.of(session(SessionState.RECOGNIZING)));
 
-        assertFalse(timeoutService.markRecognitionTimeout(SESSION, FOREIGN_DEVICE));
+        assertFalse(timeoutService.markRecognitionTimeout(SESSION, FOREIGN_DEVICE, NO_REPORT, null));
 
         verify(sessionService, never()).transition(any(), any());
         verify(consumerPreauthService, never()).releaseIfFrozen(any());
@@ -119,8 +128,47 @@ class JiangyiSessionBindingGuardTest {
         when(repository.findByIdForUpdate(SESSION))
                 .thenReturn(Optional.of(session(SessionState.RECOGNIZING)));
 
-        timeoutService.markRecognitionTimeout(SESSION, OWNER_DEVICE);
+        timeoutService.markRecognitionTimeout(SESSION, OWNER_DEVICE, NO_REPORT, null);
 
         verify(consumerPreauthService).releaseIfFrozen(any());
+    }
+
+    // ── 模式一无关门上报：SHOPPING 会话由本服务合成关门（2026-10-21 真机四单实测）──
+
+    @Test
+    void markRecognitionTimeout_shoppingJiangyiSession_synthesizesCloseAndEscalates() {
+        ShoppingSession shopping = session(SessionState.SHOPPING);
+        when(repository.findByIdForUpdate(SESSION)).thenReturn(Optional.of(shopping));
+        when(jiangyiDeviceDirectory.isJiangyi(OWNER_DEVICE)).thenReturn(true);
+        stubRealTransition();
+
+        assertTrue(timeoutService.markRecognitionTimeout(SESSION, OWNER_DEVICE, NO_REPORT, null));
+
+        assertNotNull(shopping.getCloseTime(), "合成关门必须留 close_time，否则记录仍像没关门");
+        assertEquals(SessionState.DISPUTED, shopping.getState());
+        verify(disputeService).createTimeoutTicket(eq(shopping), anyString());
+    }
+
+    @Test
+    void markRecognitionTimeout_shoppingNonJiangyiSession_returnsFalseUntouched() {
+        ShoppingSession shopping = session(SessionState.SHOPPING);
+        when(repository.findByIdForUpdate(SESSION)).thenReturn(Optional.of(shopping));
+        when(jiangyiDeviceDirectory.isJiangyi(OWNER_DEVICE)).thenReturn(false);
+        stubRealTransition();
+
+        assertFalse(timeoutService.markRecognitionTimeout(SESSION, OWNER_DEVICE, NO_REPORT, null));
+
+        assertEquals(SessionState.SHOPPING, shopping.getState());
+        assertNull(shopping.getCloseTime());
+        verify(consumerPreauthService, never()).releaseIfFrozen(any());
+    }
+
+    /** transition 是包私有且真实会改状态+落库；mock 默认 no-op 会让本服务的二次状态判定失真。 */
+    private void stubRealTransition() {
+        doAnswer(inv -> {
+            ShoppingSession s = inv.getArgument(0);
+            s.setState(inv.getArgument(1));
+            return null;
+        }).when(sessionService).transition(any(), any());
     }
 }

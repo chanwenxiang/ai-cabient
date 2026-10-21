@@ -237,7 +237,10 @@ public class DeviceReportController {
                 // 两者对 trade 的处置相同：立即转人工审核，不等 10 分钟扫描。
                 boolean isMiss = body.forms() != null && !body.forms().isEmpty();
                 outcome = isMiss ? OUTCOME_MAPPING_MISS : OUTCOME_EMPTY_FORMS;
-                boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId);
+                boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId,
+                        isMiss ? TradeInternalClient.CAUSE_CLASS_MAPPING_MISS
+                               : TradeInternalClient.CAUSE_EMPTY_FORMS,
+                        isMiss ? describeForms(body.forms()) : null);
                 log.warn("jiangyi recognition {} deviceId={} sessionId={} handled={}",
                         outcome, deviceId, sessionId, handled);
                 return ok();
@@ -305,6 +308,15 @@ public class DeviceReportController {
         }
     }
 
+    /** 上报行的紧凑描述——只用于争议单/异常单排查，不参与结算；长度截断统一在 trade 侧做。 */
+    private static String describeForms(List<RecognitionNormalizer.Form> forms) {
+        return forms.stream()
+                .filter(java.util.Objects::nonNull)   // 固件不可信：forms 里的 null 行不得把上报打成 500
+                .map(f -> "classId=" + f.classId() + " qty=" + f.quantity() + " thirdPid=" + f.thirdPid()
+                        + (f.productName() == null || f.productName().isBlank() ? "" : " 名=" + f.productName()))
+                .collect(java.util.stream.Collectors.joining("; "));
+    }
+
     // ---------- §4.2.11/4.2.12 异常/大模型 ----------
 
     /**
@@ -331,7 +343,8 @@ public class DeviceReportController {
             return ok();
         }
         try {
-            tradeInternalClient.recognizeTimeout(body.orderNo(), deviceId);
+            tradeInternalClient.recognizeTimeout(body.orderNo(), deviceId,
+                    TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, body.errorMsg());
         } catch (Exception e) {
             log.error("jiangyi recognize-timeout notify failed orderNo={}", body.orderNo(), e);
         }

@@ -144,12 +144,36 @@ public class TradeInternalClient {
 
     // ---------- 超时面 ----------
 
-    /** 识别映射未命中 → 即时转人工审核；返回 false = 会话不在此状态（幂等）。 */
-    public boolean recognizeTimeout(String sessionId, String deviceId) {
+    /** 识别未成功的成因；🔴 字面量须与 trade {@code JiangyiRecognitionTimeoutService} 的解析一致。 */
+    public static final String CAUSE_CLASS_MAPPING_MISS = "CLASS_MAPPING_MISS";
+    public static final String CAUSE_EMPTY_FORMS = "EMPTY_FORMS";
+    public static final String CAUSE_DEVICE_ERROR_ORDER = "DEVICE_ERROR_ORDER";
+    public static final String CAUSE_NO_REPORT = "NO_REPORT";
+
+    /**
+     * 识别未成功 → 即时转人工审核；返回 false = 会话不在此状态（幂等）。
+     *
+     * <p>{@code cause} 决定争议单 fail_reason 与异常单类型（字面量须与 trade
+     * {@code JiangyiRecognitionTimeoutService.CAUSE_*} 一致，改一侧必须改另一侧）；
+     * {@code vendorDetail} 放设备原文（uploadOrderError 的 errorMsg）或未命中的 classId，
+     * 由 trade 侧截断后写进 reason/detail——排查「厂商到底回了什么」只靠这两个参数。
+     */
+    public boolean recognizeTimeout(String sessionId, String deviceId, String cause, String vendorDetail) {
         ApiResponse<Boolean> resp = post(
-                "/internal/v1/jiangyi/sessions/{sessionId}/recognize-timeout?deviceId={deviceId}",
-                null, Boolean.class, sessionId, deviceId);
+                "/internal/v1/jiangyi/sessions/{sessionId}/recognize-timeout"
+                        + "?deviceId={deviceId}&cause={cause}&vendorDetail={vendorDetail}",
+                null, Boolean.class, sessionId, compactParam(deviceId), compactParam(cause),
+                compactParam(vendorDetail));
         return Boolean.TRUE.equals(resp == null ? null : resp.data());
+    }
+
+    /** 查询参数取值：设备原文不可信，先截到 200 再拼 URL，避免超长请求行被容器拒收。 */
+    private static String compactParam(String value) {
+        if (value == null) {
+            return "";
+        }
+        String v = value.trim();
+        return v.length() <= 200 ? v : v.substring(0, 200);
     }
 
     /** 开锁失败通知（trade markOpenDoorFailed 幂等：非 OPENING no-op；AU-060 带上报设备做归属校验）。 */

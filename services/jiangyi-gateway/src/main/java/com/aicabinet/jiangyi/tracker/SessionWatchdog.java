@@ -91,7 +91,8 @@ public class SessionWatchdog {
         for (CommandTracker.Pending p : due) {
             log.warn("jiangyi watchdog CLOSE timeout sessionId={} — recognize-timeout", p.sessionId());
             try {
-                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId());
+                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId(),
+                        TradeInternalClient.CAUSE_NO_REPORT, null);
             } catch (Exception e) {
                 log.error("jiangyi watchdog recognize-timeout notify failed sessionId={}", p.sessionId(), e);
                 continue;
@@ -106,7 +107,8 @@ public class SessionWatchdog {
         for (CommandTracker.Pending p : due) {
             log.warn("jiangyi watchdog DOING timeout sessionId={} — recognize-timeout", p.sessionId());
             try {
-                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId());
+                tradeInternalClient.recognizeTimeout(p.sessionId(), p.deviceId(),
+                        TradeInternalClient.CAUSE_NO_REPORT, null);
             } catch (Exception e) {
                 log.error("jiangyi watchdog doing-timeout notify failed sessionId={}", p.sessionId(), e);
                 continue;

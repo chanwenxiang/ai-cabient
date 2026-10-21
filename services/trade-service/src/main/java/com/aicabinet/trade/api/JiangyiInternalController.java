@@ -267,14 +267,18 @@ public class JiangyiInternalController {
     // ---------- 超时面 ----------
 
     /**
-     * 识别映射未命中 → 即时转人工审核（对齐 C09：释放冻结 → DISPUTED → 争议单）。
+     * 识别未成功 → 即时转人工审核（对齐 C09：释放冻结 → DISPUTED → 争议单）。
      * 返回 false 表示会话不在此状态（已结算/已取消等），幂等不重复处置。
+     * cause/vendorDetail 由 gateway 透传；缺省按「超时未回传」旧口径处置（兼容未升级的 gateway）。
      */
     @PostMapping("/sessions/{sessionId}/recognize-timeout")
     public ApiResponse<Boolean> recognizeTimeout(
             @PathVariable("sessionId") String sessionId,
-            @RequestParam(value = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(jiangyiRecognitionTimeoutService.markRecognitionTimeout(sessionId, deviceId));
+            @RequestParam(value = "deviceId", required = false) String deviceId,
+            @RequestParam(value = "cause", required = false) String cause,
+            @RequestParam(value = "vendorDetail", required = false) String vendorDetail) {
+        return ApiResponse.ok(jiangyiRecognitionTimeoutService.markRecognitionTimeout(
+                sessionId, deviceId, cause, vendorDetail));
     }
 
     // ---------- 留档面（CB-062） ----------

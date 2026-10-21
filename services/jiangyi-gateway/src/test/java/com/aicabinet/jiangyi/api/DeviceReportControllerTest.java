@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -101,7 +103,6 @@ class DeviceReportControllerTest {
     void mappingMissStillArchivesWholeRawReport() {
         when(trade.resolveSkuByProduct("1018")).thenReturn(Optional.empty());
         when(trade.resolveMapping(DEVICE_ID, 7)).thenReturn(Optional.empty());
-        when(trade.recognizeTimeout(SESSION_ID, DEVICE_ID)).thenReturn(true);
 
         controller.addRecognitionGoods(authedRequest(), new DeviceReportController.RecognitionRequest(
                 SESSION_ID, null, null, List.of(form(7, 1, 1018, 350))));
@@ -111,6 +112,11 @@ class DeviceReportControllerTest {
         assertNull(archived.itemsJson(), "未转发结算 → 无归一化结果");
         assertTrue(archived.formsJson().contains("\"barCode\":\"6901234567890\""));
         verify(trade, never()).edgeResults(any());
+        // 成因必须透传到 trade：旧实现不带 cause，映射未命中与「设备压根没回」在争议单里同一个文案
+        verify(trade).recognizeTimeout(eq(SESSION_ID), eq(DEVICE_ID),
+                eq(TradeInternalClient.CAUSE_CLASS_MAPPING_MISS),
+                argThat(d -> d.contains("classId=7") && d.contains("thirdPid=1018")
+                        && d.contains("qty=1")));
     }
 
     @Test
@@ -122,6 +128,18 @@ class DeviceReportControllerTest {
         assertEquals("EMPTY_FORMS", archived.outcome());
         assertEquals(0, archived.formCount());
         assertNull(archived.vendorAmountCents(), "空报文不带价 → 与 0 元单区分");
+        verify(trade).recognizeTimeout(eq(SESSION_ID), eq(DEVICE_ID),
+                eq(TradeInternalClient.CAUSE_EMPTY_FORMS), isNull());
+    }
+
+    /** 真机 18:11 形态：设备直接回异常单（errorMsg=人工复核），识别上报从未到达——原文必须透传给 trade。 */
+    @Test
+    void deviceErrorOrderPassesVendorErrorMsg() {
+        controller.uploadOrderError(authedRequest(),
+                new DeviceReportController.OrderErrorRequest(SESSION_ID, "人工复核", null, null));
+
+        verify(trade).recognizeTimeout(SESSION_ID, DEVICE_ID,
+                TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, "人工复核");
     }
 
     @Test

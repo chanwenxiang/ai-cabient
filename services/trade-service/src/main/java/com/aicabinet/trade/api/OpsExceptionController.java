@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.OpsExceptionService;
 import com.aicabinet.trade.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +15,11 @@ import org.springframework.web.bind.annotation.*;
 public class OpsExceptionController {
     private final OpsExceptionService service;
     private final SessionService sessionService;
-    public OpsExceptionController(OpsExceptionService service, SessionService sessionService) {
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    public OpsExceptionController(OpsExceptionService service, SessionService sessionService,
+            JiangyiDeviceDirectory jiangyiDeviceDirectory) {
         this.service = service; this.sessionService = sessionService;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
     }
     @RequiresPermissions("ops:exception:list")
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
@@ -79,6 +83,15 @@ public class OpsExceptionController {
         if (sessionId == null || sessionId.isBlank()) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT, "该异常未关联购物会话");
+        }
+        // 将邑柜没有我方可重放的识别源：重试喂的是 RETIRED 空结果，needReview=true 必然
+        // 重新进争议（挣不到结算绿），还会先把 fail_reason 擦成空白抹掉成因线索。
+        // 正确出路是「人工商品处置」按实际拿货补扣——空转按钮直接挡掉，别让运营以为重试能救回。
+        if (jiangyiDeviceDirectory.isJiangyi(detail.exception().deviceId())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "将邑柜的识别结果只在厂商侧，重试无法重新识别，只会退回人工审核并清空失败原因；"
+                            + "请改用「人工商品处置」按实际拿货补扣");
         }
         service.recordAction(operatorId, id, "OPS_EXCEPTION_RETRY", body.idempotencyKey(), body.reason());
         var session = sessionService.retryForOperations(sessionId);
