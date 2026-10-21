@@ -120,7 +120,7 @@
         >
         <view v-else-if="!products.length" class="card loading-card catalog-empty">
           <text class="empty-title">本柜暂无上架商品</text>
-          <text class="empty-hint">仍可开门购物；实付以关门识别为准</text>
+          <text class="empty-hint">仍可开门；未取走商品不会产生扣费</text>
         </view>
         <view v-else-if="!filteredProducts.length" class="card loading-card catalog-empty">
           <text class="empty-title">未找到匹配商品</text>
@@ -161,7 +161,8 @@
                 >
               </view>
               <text class="product-name">{{ p.skuName }}</text>
-              <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
+              <text v-if="p.spec" class="product-spec">{{ p.spec }}</text>
+              <text class="product-price">{{ productPriceLabel(p) }}</text>
               <text
                 v-if="detailVisible"
                 role="button"
@@ -342,7 +343,11 @@
         <view class="detail-rows">
           <view class="detail-row">
             <text class="detail-k">价格</text>
-            <text class="detail-v">{{ fmtMoney(detailProduct.priceCents) }}</text>
+            <text class="detail-v">{{ productPriceLabel(detailProduct) }}</text>
+          </view>
+          <view v-if="detailProduct.spec" class="detail-row">
+            <text class="detail-k">规格</text>
+            <text class="detail-v">{{ detailProduct.spec }}</text>
           </view>
           <view v-if="detailProduct.category" class="detail-row">
             <text class="detail-k">分类</text>
@@ -401,6 +406,7 @@ import {
   isConsumerLoggedIn
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
+import { applyTabBarSkin } from '@/utils/tabbar-skin';
 import {
   safeMakePhoneCall,
   safeScanCode,
@@ -801,6 +807,7 @@ function syncLandingTabBar() {
   } else {
     // 开过门的用户：落地页也显示底栏（2026-10-21 用户拍板），可自由去订单/我的
     showTabBarSafe();
+    applyTabBarSkin(showLanding.value);
     if (typeof uni.setBackgroundColor === 'function') {
       uni.setBackgroundColor({
         backgroundColor: showLanding.value ? '#115e59' : '#ffffff',
@@ -901,7 +908,7 @@ const shoppingBannerSub = computed(() => {
     return '可先离开，账单会在「订单」中展示';
   }
   if (canReopen.value) return '上一单已结束，再买请再次开门';
-  return '实际扣款以识别结果为准';
+  return '取走商品后关门，账单自动生成并扣款';
 });
 
 const catalogNotice = computed(() => {
@@ -912,7 +919,9 @@ const catalogNotice = computed(() => {
   if (canReopen.value) {
     return '上一单已结束，再买请再次开门';
   }
-  return '本柜价目仅供参考，实付以关门识别为准';
+  // CB-063：价目就是结算价（A 档：金额 = Σ 我方 SKU 单价 × 件数），不再写「仅供参考」——
+  // 那句话把「识别可能出错」当成对用户的免责，反而削弱价目的可信度。
+  return '价目即结算价，按实际取走件数计费';
 });
 
 const cartBarHint = computed(() => {
@@ -1072,6 +1081,15 @@ function onThumbError(skuId: string) {
 
 function showThumb(p: DeviceProduct) {
   return productThumb(p) && !brokenThumbs.value[p.skuId];
+}
+
+/**
+ * 价目即结算价 ⇒ 卡片按「¥3.50/罐」渲染：unit 取商品档案计价单位，
+ * 缺省「件」（与后端 `SkuCatalog.unit` 默认值一致，不能留空成「¥3.50/」）。
+ */
+function productPriceLabel(p: DeviceProduct) {
+  const unit = (p.unit || '').trim() || '件';
+  return `${fmtMoney(p.priceCents)}/${unit}`;
 }
 
 async function resetDevice() {
@@ -2593,6 +2611,16 @@ function stopDevicePoll() {
   min-height: 58rpx;
   margin-top: 8rpx;
   text-align: center;
+}
+.product-spec {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary, #6b7280);
+  line-height: 1.2;
+  margin-top: 2rpx;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .product-price {
   font-size: var(--font-size-body);

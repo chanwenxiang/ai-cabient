@@ -407,6 +407,7 @@ import {
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { isHapticEnabled, setHapticEnabled } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
+import { applyTabBarSkin } from '@/utils/tabbar-skin';
 import {
   MINE_DEV_RECHARGE_CENTS,
   mineAlipayRechargeConfirm,
@@ -642,6 +643,8 @@ function syncBalanceDisplay(acc: AccountDto | null) {
 
 onShow(async () => {
   uni.showTabBar({ animation: false });
+  // tabBar 皮肤是持久设置（首页落地页会换成深绿），切到本页必须显式套回浅色
+  applyTabBarSkin(false);
   await ensureConsumerAuth();
   authed.value = isConsumerLoggedIn();
   // tabBar「我的」未读角标：登录态下同步消息未读数（0/未登录清除）

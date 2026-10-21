@@ -293,6 +293,7 @@ import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast, showError } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
+import { applyTabBarSkin } from '@/utils/tabbar-skin';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -686,6 +687,8 @@ function applyPendingFilterFromStorage() {
 
 onShow(() => {
   uni.showTabBar({ animation: false });
+  // tabBar 皮肤是持久设置（首页落地页会换成深绿），切到本页必须显式套回浅色
+  applyTabBarSkin(false);
   applyPendingFilterFromStorage();
   load();
   // 扩展功能开关（fail-closed：配置取不到就保持关闭，行为与接入前一致）
