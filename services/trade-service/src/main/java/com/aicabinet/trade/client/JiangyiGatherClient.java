@@ -76,7 +76,7 @@ public class JiangyiGatherClient {
             body.put("barCode", barCode);
         }
         body.put("applyMachineId", applyMachineId);
-        JsonNode data = post("/merchant/stdSku/getList", body, "stdSkuList");
+        JsonNode data = post("/merchant/stdSku/getList", body, true, "stdSkuList");
         List<JiangyiStdSku> out = new ArrayList<>();
         if (data.isArray()) {
             for (JsonNode n : data) {
@@ -96,7 +96,7 @@ public class JiangyiGatherClient {
 
     /** 获取商品分类（§4.1.4 /merchant/productCategory/getTopList，无参数）。 */
     public List<JiangyiCategory> productCategories() {
-        JsonNode data = post("/merchant/productCategory/getTopList", Map.of(), "productCategories");
+        JsonNode data = post("/merchant/productCategory/getTopList", Map.of(), true, "productCategories");
         List<JiangyiCategory> out = new ArrayList<>();
         if (data.isArray()) {
             for (JsonNode n : data) {
@@ -112,7 +112,7 @@ public class JiangyiGatherClient {
      * barCode/stdSkuCode 可选——字段校验在上层 Service（UI 表单必填兜底）。
      */
     public long productCreate(Map<String, Object> req) {
-        JsonNode data = post("/merchant/product/create", req, "productCreate");
+        JsonNode data = post("/merchant/product/create", req, true, "productCreate");
         if (data == null || data.isNull() || !data.isValueNode()) {
             throw new IllegalStateException("将邑 productCreate 响应缺少商品id");
         }
@@ -126,7 +126,7 @@ public class JiangyiGatherClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("barCode", barCode == null ? "" : barCode);
         body.put("name", name == null ? "" : name);
-        return post("/merchant/selfhelpGatherProduct/waitGatherProduct", body, "waitGatherProduct");
+        return post("/merchant/selfhelpGatherProduct/waitGatherProduct", body, true, "waitGatherProduct");
     }
 
     /** 采集商品开门（§4.2.3 gatherOpenDoor；identifier=CQYB 编号，doorPosition 双门柜 L/R 可空）。 */
@@ -134,14 +134,14 @@ public class JiangyiGatherClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("identifier", identifier);
         body.put("doorPosition", doorPosition == null ? "" : doorPosition);
-        post("/merchant/selfhelpGatherProduct/gatherOpenDoor", body, "gatherOpenDoor");
+        post("/merchant/selfhelpGatherProduct/gatherOpenDoor", body, true, "gatherOpenDoor");
     }
 
     /** 查询开门状态（§4.2.4 doorStatus）。 */
     public JsonNode doorStatus(String identifier) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("identifier", identifier);
-        return post("/merchant/selfhelpGatherProduct/doorStatus", body, "doorStatus");
+        return post("/merchant/selfhelpGatherProduct/doorStatus", body, true, "doorStatus");
     }
 
     // ---------- 学习与模型（4.4.x） ----------
@@ -152,7 +152,7 @@ public class JiangyiGatherClient {
         body.put("gatherStatus", "training");
         body.put("page", 1);
         body.put("pageSize", 200);
-        JsonNode data = post("/merchant/product/getPageData", body, "trainedProducts");
+        JsonNode data = post("/merchant/product/getPageData", body, true, "trainedProducts");
         List<TrainedProduct> out = new ArrayList<>();
         JsonNode rows = data.path("pageData");
         if (rows.isArray()) {
@@ -176,12 +176,12 @@ public class JiangyiGatherClient {
         body.put("modelName", modelName);
         body.put("finishNotifyUrl", finishNotifyUrl);
         body.put("finishNotifyId", finishNotifyId);
-        post("/merchant/selfhelpGatherProduct/commitTrainingTenantOne", body, "commitTraining");
+        post("/merchant/selfhelpGatherProduct/commitTrainingTenantOne", body, true, "commitTraining");
     }
 
     /** 学习中商品列表（§4.4.5 studyingProduct）。 */
     public JsonNode trainingProducts() {
-        return post("/merchant/selfhelpGatherProduct/studyingProduct", Map.of(), "trainingProducts");
+        return post("/merchant/selfhelpGatherProduct/studyingProduct", Map.of(), true, "trainingProducts");
     }
 
     /**
@@ -189,7 +189,7 @@ public class JiangyiGatherClient {
      * id/modelName/modelUrl/industrialControlModel(原值 "76"/"88")/modelTextUrl/quantity。
      */
     public List<JiangyiModelFile> modelFiles() {
-        JsonNode data = post("/merchant/modelFile/getModelFileByApi", Map.of(), "modelFiles");
+        JsonNode data = post("/merchant/modelFile/getModelFileByApi", Map.of(), true, "modelFiles");
         List<JiangyiModelFile> out = new ArrayList<>();
         if (data.isArray()) {
             for (JsonNode n : data) {
@@ -209,7 +209,7 @@ public class JiangyiGatherClient {
     public List<GatherCheckItem> gatherCheck(List<Long> productIds) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("productIds", productIds == null ? List.of() : productIds);
-        JsonNode data = post("/merchant/selfhelpGatherProduct/gatherCheck", body, "gatherCheck");
+        JsonNode data = post("/merchant/selfhelpGatherProduct/gatherCheck", body, true, "gatherCheck");
         List<GatherCheckItem> out = new ArrayList<>();
         JsonNode rows = data.path("pageData");
         if (!rows.isArray() && data.isArray()) {
@@ -243,7 +243,7 @@ public class JiangyiGatherClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("mobile", merchantMobile);
         body.put("password", merchantPassword);
-        JsonNode data = post("/merchant/authentication/login2", body, "login2");
+        JsonNode data = post("/merchant/authentication/login2", body, false, "login2");
         String token = data.isNull() || !data.isTextual() ? null : data.asText();
         if (token == null || token.isBlank()) {
             throw new IllegalStateException("将邑 login2 响应缺少 token");
@@ -258,19 +258,24 @@ public class JiangyiGatherClient {
         tokenFetchedAtMs = 0;
     }
 
-    private JsonNode post(String path, Map<String, Object> body, String op) {
+    /**
+     * 统一 POST：校验 envelope.status==200，返回 data 节点。
+     * withAuth=true 时带 Bearer 并对 401/403 强制重登重试一次；login2 自身必须 withAuth=false，
+     * 否则 bearerToken() → post() → bearerToken() 无限递归（2026-10-21 追踪号 3b6fec1ee3c1 实证）。
+     */
+    private JsonNode post(String path, Map<String, Object> body, boolean withAuth, String op) {
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
-                JsonNode resp = restClient.post()
-                        .uri(path)
-                        .header("Authorization", "Bearer " + bearerToken())
-                        .body(body)
-                        .retrieve()
-                        .body(JsonNode.class);
+                RestClient.RequestBodySpec spec = restClient.post().uri(path);
+                if (withAuth) {
+                    spec = spec.header("Authorization", "Bearer " + bearerToken());
+                }
+                JsonNode resp = spec.body(body).retrieve().body(JsonNode.class);
                 return parseEnvelope(resp, op);
             } catch (HttpStatusCodeException e) {
                 HttpStatusCode code = e.getStatusCode();
-                boolean authExpired = attempt == 0 && (code.value() == 401 || code.value() == 403);
+                boolean authExpired = withAuth && attempt == 0
+                        && (code.value() == 401 || code.value() == 403);
                 if (authExpired) {
                     log.warn("jiangyi gather {} got {} — token refreshed, retrying once", op, code.value());
                     invalidateToken();
