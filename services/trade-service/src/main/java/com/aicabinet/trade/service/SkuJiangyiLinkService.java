@@ -16,9 +16,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 将邑商品库挂接（CB-023 二期，范围 B）：我方 SKU ↔ 将邑商品（stdSku）的商品维度关联。
@@ -31,6 +38,20 @@ import java.util.Map;
 public class SkuJiangyiLinkService {
 
     private static final Logger log = LoggerFactory.getLogger(SkuJiangyiLinkService.class);
+
+    /** 规格归一化：330ml / 330毫升 / 1.5L / 1500ml 统一成毫升数。 */
+    private static final Pattern VOLUME_PATTERN =
+            Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(ml|毫升|l|升)", Pattern.CASE_INSENSITIVE);
+    /** 同一商品线内会改变实物身份的版本词：仅出现在一方即判明显不符。 */
+    private static final List<String> VARIANT_MARKERS =
+            List.of("零卡", "无糖", "纤维", "纪念", "摩登");
+    private static final List<String> JUNK_MARKERS = List.of("test", "测试");
+    /** 未挂接优先 → 匹配度 → 扫码条码优先于手填 → 编号。 */
+    private static final Comparator<Ranked> RESULT_ORDER = Comparator
+            .comparing(Ranked::linked)
+            .thenComparingInt(r -> r.match().rank())
+            .thenComparingInt(r -> "manual".equals(r.sku().barCodeSource()) ? 1 : 0)
+            .thenComparingLong(r -> r.sku().id());
 
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final SkuCatalogMapper skuCatalogMapper;
@@ -52,17 +73,103 @@ public class SkuJiangyiLinkService {
         return linkMapper.listBySku(skuId);
     }
 
-    /** 搜索将邑商品库（透传 §4.1.2）+ 标注已挂接状态。 */
-    public List<StdSkuView> searchJiangyiProducts(String name, String barCode) {
+    /**
+     * 搜索将邑商品库（透传 §4.1.2）+ 匹配分级。传 skuId 时以我方 SKU 为基准：
+     * 条码一致 &gt; 同规格 &gt; 相关；规格/版本词/test 明显不符默认隐藏（includeAll=true 返回并标 SUSPECT）。
+     * 排序：未挂接优先 → 匹配度 → 扫码条码优先于手填 → 编号。
+     */
+    public StdSkuSearchResult searchJiangyiProducts(String name, String barCode,
+                                                    String skuId, boolean includeAll) {
         List<JiangyiStdSku> skus = jiangyiGatherClient.stdSkuList(name, barCode);
+        SkuCatalog sku = skuId == null || skuId.isBlank() ? null : requireSku(skuId);
         List<String> bound = linkMapper.listBoundProductIds(
                 skus.stream().map(s -> String.valueOf(s.id())).toList());
-        var boundSet = new java.util.HashSet<>(bound);
-        return skus.stream()
-                .map(s -> new StdSkuView(s.id(), s.name(), s.barCode(), s.specs(), s.brandName(),
-                        s.category(), s.mainImg(), s.stdSkuCode(),
-                        boundSet.contains(String.valueOf(s.id()))))
+        Set<String> boundSet = new HashSet<>(bound);
+        List<Ranked> ranked = skus.stream()
+                .map(s -> new Ranked(s, evaluate(s, sku), boundSet.contains(String.valueOf(s.id()))))
+                .sorted(RESULT_ORDER)
                 .toList();
+        List<StdSkuView> items = ranked.stream()
+                .filter(r -> includeAll || r.match().mismatchReasons().isEmpty())
+                .map(Ranked::toView)
+                .toList();
+        return new StdSkuSearchResult(items, ranked.size(), ranked.size() - items.size());
+    }
+
+    /**
+     * 以我方 SKU 评估将邑商品。条码不一致本身不判不符（69 码按包装版本不同，2026-10-21 拍板），
+     * 只在条目上如实展示；只有规格/版本词/test 这类实物身份差异才隐藏。
+     */
+    private Match evaluate(JiangyiStdSku vendor, SkuCatalog ours) {
+        if (ours == null) {
+            return new Match("UNKNOWN", 3, List.of());
+        }
+        String ourBarcode = trimToNull(ours.getBarcode());
+        if (ourBarcode != null && ourBarcode.equals(trimToNull(vendor.barCode()))) {
+            return new Match("EXACT_BARCODE", 0, List.of());
+        }
+        List<String> reasons = new ArrayList<>();
+        Integer ourMl = volumeMl(ours.getSpec(), ours.getSkuName());
+        Integer vendorMl = volumeMl(vendor.specs(), vendor.name());
+        if (ourMl != null && vendorMl != null && !ourMl.equals(vendorMl)) {
+            reasons.add("规格 " + mlText(vendorMl) + " ≠ 我方 " + mlText(ourMl));
+        }
+        List<String> variantDiff = variantDiff(
+                nullToEmpty(ours.getSkuName()) + " " + nullToEmpty(ours.getSpec()),
+                nullToEmpty(vendor.name()) + " " + nullToEmpty(vendor.specs()));
+        if (!variantDiff.isEmpty()) {
+            reasons.add("版本词不一致：" + String.join("、", variantDiff));
+        }
+        if (containsAny(nullToEmpty(vendor.name()) + " " + nullToEmpty(vendor.specs()), JUNK_MARKERS)) {
+            reasons.add("将邑名称含 test/测试");
+        }
+        if (!reasons.isEmpty()) {
+            return new Match("SUSPECT", 3, List.copyOf(reasons));
+        }
+        if (ourMl != null && vendorMl != null) {
+            return new Match("SAME_SPEC", 1, List.of());
+        }
+        return new Match("RELATED", 2, List.of());
+    }
+
+    private static Integer volumeMl(String... texts) {
+        for (String text : texts) {
+            if (text == null) {
+                continue;
+            }
+            Matcher m = VOLUME_PATTERN.matcher(text);
+            if (!m.find()) {
+                continue;
+            }
+            double value = Double.parseDouble(m.group(1));
+            String unit = m.group(2).toLowerCase(Locale.ROOT);
+            boolean liters = "l".equals(unit) || "升".equals(unit);
+            return (int) Math.round(liters ? value * 1000 : value);
+        }
+        return null;
+    }
+
+    private static String mlText(int ml) {
+        return ml % 1000 == 0 ? (ml / 1000) + "L" : ml + "ml";
+    }
+
+    private static List<String> variantDiff(String ours, String vendor) {
+        return VARIANT_MARKERS.stream()
+                .filter(m -> ours.contains(m) != vendor.contains(m))
+                .toList();
+    }
+
+    private static boolean containsAny(String text, List<String> markers) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        return markers.stream().anyMatch(lower::contains);
+    }
+
+    private static String trimToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
     }
 
     public List<JiangyiCategory> productCategories() {
@@ -227,9 +334,27 @@ public class SkuJiangyiLinkService {
         return sku;
     }
 
-    /** 搜索视图（标注已挂接）。 */
+    /** 单条匹配结果：SUSPECT 才有 mismatchReasons，其余为空。 */
+    private record Match(String level, int rank, List<String> mismatchReasons) {}
+
+    private record Ranked(JiangyiStdSku sku, Match match, boolean linked) {
+        StdSkuView toView() {
+            return new StdSkuView(sku.id(), sku.name(), sku.barCode(), sku.specs(), sku.brandName(),
+                    sku.category(), sku.mainImg(), sku.stdSkuCode(), linked,
+                    sku.barCodeSource(), match.level(), match.mismatchReasons());
+        }
+    }
+
+    /**
+     * 搜索视图。barCodeSource 原值 app/manual/null；matchLevel ∈
+     * EXACT_BARCODE|SAME_SPEC|RELATED|SUSPECT|UNKNOWN（未传 skuId 时不比对）。
+     */
     public record StdSkuView(long id, String name, String barCode, String specs, String brandName,
-                             String category, String mainImg, String stdSkuCode, boolean linked) {}
+                             String category, String mainImg, String stdSkuCode, boolean linked,
+                             String barCodeSource, String matchLevel, List<String> mismatchReasons) {}
+
+    /** items=当前返回项；total=将邑原始条数；hidden=被隐藏的明显不符条数（includeAll 时 0）。 */
+    public record StdSkuSearchResult(List<StdSkuView> items, int total, int hidden) {}
 
     /** 新增到将邑商品库的入参（§4.1.5 必填集合）。 */
     public record ProductCreateSpec(String name, String specs, long catId, String brandName,

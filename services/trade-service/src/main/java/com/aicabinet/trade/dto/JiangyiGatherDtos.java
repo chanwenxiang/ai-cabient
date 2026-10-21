@@ -8,9 +8,13 @@ public final class JiangyiGatherDtos {
 
     private JiangyiGatherDtos() {}
 
-    /** 将邑商品库标准商品（采集文档 §4.1.2.4；name 语义以 PDF 原文「标准商品名称」为准）。 */
+    /**
+     * 将邑商品库标准商品（采集文档 §4.1.2.4；name 语义以 PDF 原文「标准商品名称」为准）。
+     * barCodeSource 原值 app（扫码）/manual（手填，不可靠）/null（未登记）。
+     */
     public record JiangyiStdSku(long id, String name, String barCode, String specs,
-                                String brandName, String category, String mainImg, String stdSkuCode) {}
+                                String brandName, String category, String mainImg, String stdSkuCode,
+                                String barCodeSource) {}
 
     /** 商品分类（§4.1.4.4：id/name，例 235 其他 / 238 饮料）。 */
     public record JiangyiCategory(long id, String name) {}

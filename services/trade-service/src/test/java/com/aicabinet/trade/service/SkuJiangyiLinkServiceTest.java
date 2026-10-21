@@ -19,6 +19,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -231,19 +232,117 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
-    void search_marksLinkedProducts() {
+    void search_marksLinkedProductsAndPutsUnlinkedFirst() {
         when(jiangyiGatherClient.stdSkuList("农夫山泉", null)).thenReturn(List.of(
                 new JiangyiStdSku(88L, "农夫山泉 550ml", "6901234567890", "550ml",
-                        "农夫山泉", "bottle", "http://img/1.png", "STD-001"),
+                        "农夫山泉", "bottle", "http://img/1.png", "STD-001", "app"),
                 new JiangyiStdSku(99L, "可口可乐 330ml", "6901111111111", "330ml",
-                        "可口可乐", "bottle", "http://img/2.png", "STD-002")));
+                        "可口可乐", "bottle", "http://img/2.png", "STD-002", "app")));
         when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of("88"));
 
-        List<SkuJiangyiLinkService.StdSkuView> views = service().searchJiangyiProducts("农夫山泉", null);
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("农夫山泉", null, null, false);
 
-        assertEquals(2, views.size());
-        assertTrue(views.get(0).linked());
-        assertFalse(views.get(1).linked());
+        assertEquals(2, result.items().size());
+        assertEquals(99L, result.items().get(0).id());
+        assertFalse(result.items().get(0).linked());
+        assertTrue(result.items().get(1).linked());
+        assertEquals("UNKNOWN", result.items().get(0).matchLevel());
+        assertEquals(0, result.hidden());
+    }
+
+    @Test
+    void search_exactBarcodeFirstAndVolumeMismatchHiddenUnlessIncludeAll() {
+        SkuCatalog s = sku("6928804010145");
+        s.setSkuName("330ml雪碧柠檬味汽水");
+        s.setSpec("330毫升");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
+                new JiangyiStdSku(2014L, "雪碧", "6928804010220", "500ml",
+                        "雪碧", "bottle", null, null, "manual"),
+                new JiangyiStdSku(2211L, "雪碧", "6954767437583", "330ml",
+                        "雪碧", "bottle", null, null, "app"),
+                new JiangyiStdSku(100013L, "雪碧", "6928804010145", "330ml",
+                        "雪碧", "bottle", null, null, "app")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
+
+        SkuJiangyiLinkService.StdSkuSearchResult filtered =
+                service().searchJiangyiProducts("雪碧", null, SKU_ID, false);
+
+        assertEquals(2, filtered.items().size());
+        assertEquals(100013L, filtered.items().get(0).id());
+        assertEquals("EXACT_BARCODE", filtered.items().get(0).matchLevel());
+        assertEquals(2211L, filtered.items().get(1).id());
+        assertEquals("SAME_SPEC", filtered.items().get(1).matchLevel());
+        assertEquals(3, filtered.total());
+        assertEquals(1, filtered.hidden());
+
+        SkuJiangyiLinkService.StdSkuSearchResult all =
+                service().searchJiangyiProducts("雪碧", null, SKU_ID, true);
+
+        assertEquals(3, all.items().size());
+        assertEquals(0, all.hidden());
+        assertEquals(2014L, all.items().get(2).id());
+        assertEquals("SUSPECT", all.items().get(2).matchLevel());
+        assertTrue(all.items().get(2).mismatchReasons().get(0).contains("500ml"));
+    }
+
+    @Test
+    void search_variantWordOnlyOnOneSideIsSuspect() {
+        SkuCatalog s = sku("6928804010145");
+        s.setSkuName("330ml雪碧柠檬味汽水");
+        s.setSpec("330毫升");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
+                new JiangyiStdSku(2137L, "雪碧零卡", "6928804014686", "330ml",
+                        "雪碧", "bottle", null, null, "app"),
+                new JiangyiStdSku(2211L, "雪碧", "6954767437583", "330ml",
+                        "雪碧", "bottle", null, null, "app")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of("2211"));
+
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("雪碧", null, SKU_ID, true);
+
+        assertEquals(2, result.items().size());
+        // 未挂接优先：零卡虽被标 SUSPECT，仍排在已挂接的同规格之前
+        assertEquals(2137L, result.items().get(0).id());
+        assertEquals("SUSPECT", result.items().get(0).matchLevel());
+        assertTrue(result.items().get(0).mismatchReasons().get(0).contains("零卡"));
+        assertEquals("SAME_SPEC", result.items().get(1).matchLevel());
+    }
+
+    @Test
+    void search_volumeUnitsAreNormalizedBeforeComparing() {
+        SkuCatalog s = sku("6901234567890");
+        s.setSkuName("雪碧");
+        s.setSpec("1.5L");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
+                new JiangyiStdSku(1L, "雪碧", null, "1500ml", "雪碧", "bottle", null, null, null)));
+
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("雪碧", null, SKU_ID, false);
+
+        assertEquals(0, result.hidden());
+        assertEquals("SAME_SPEC", result.items().get(0).matchLevel());
+        assertNull(result.items().get(0).barCodeSource());
+    }
+
+    @Test
+    void search_withoutSkuIdDoesNotFilterOrScore() {
+        when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
+                new JiangyiStdSku(1L, "雪碧 500ml", "6901234567890", "500ml",
+                        "雪碧", "bottle", null, null, "manual"),
+                new JiangyiStdSku(2L, "雪碧零卡 330ml", "6901111111111", "330ml",
+                        "雪碧", "bottle", null, null, "app")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
+
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("雪碧", null, null, false);
+
+        assertEquals(2, result.items().size());
+        assertEquals(0, result.hidden());
+        assertEquals("UNKNOWN", result.items().get(0).matchLevel());
     }
 
     @Test

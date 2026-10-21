@@ -41,13 +41,15 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.listLinks(skuId));
     }
 
-    /** 搜索将邑商品库（name/barCode 模糊，结果标注已挂接）。 */
+    /** 搜索将邑商品库（name/barCode 模糊）；传 skuId 时按我方 SKU 分级并隐藏明显不符。 */
     @RequiresPermissions("ops:sku:list")
     @GetMapping("/jiangyi/std-skus")
-    public ApiResponse<List<SkuJiangyiLinkService.StdSkuView>> search(
+    public ApiResponse<SkuJiangyiLinkService.StdSkuSearchResult> search(
             @RequestParam(value = "name", required = false) String name,
-            @RequestParam(value = "barCode", required = false) String barCode) {
-        return ApiResponse.ok(skuJiangyiLinkService.searchJiangyiProducts(name, barCode));
+            @RequestParam(value = "barCode", required = false) String barCode,
+            @RequestParam(value = "skuId", required = false) String skuId,
+            @RequestParam(value = "includeAll", defaultValue = "false") boolean includeAll) {
+        return ApiResponse.ok(skuJiangyiLinkService.searchJiangyiProducts(name, barCode, skuId, includeAll));
     }
 
     /** 商品分类下拉（§4.1.4）。 */

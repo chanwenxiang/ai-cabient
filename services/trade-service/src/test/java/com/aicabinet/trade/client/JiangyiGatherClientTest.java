@@ -40,7 +40,8 @@ class JiangyiGatherClientTest {
         server.createContext("/merchant/stdSku/getList", exchange -> {
             listAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
             respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":[{\"id\":100013,"
-                    + "\"name\":\"330ml雪碧柠檬味汽水\",\"barCode\":\"6901234567890\"}]}");
+                    + "\"name\":\"330ml雪碧柠檬味汽水\",\"barCode\":\"6901234567890\","
+                    + "\"barCodeSource\":\"app\"}]}");
         });
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -69,6 +70,7 @@ class JiangyiGatherClientTest {
         assertEquals(1, first.size());
         assertEquals(100013L, first.get(0).id());
         assertEquals("330ml雪碧柠檬味汽水", first.get(0).name());
+        assertEquals("app", first.get(0).barCodeSource());
         assertNull(loginAuthorization, "login2 不能携带 Bearer，否则 bearerToken/post 递归");
         assertEquals("Bearer token-abc", listAuthorization);
 

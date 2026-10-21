@@ -641,6 +641,11 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-21（将邑挂接：智能筛选 + 图片并排核对）
+- ✅ **搜索分级**：`GET /jiangyi/std-skus` 增加 `skuId/includeAll`，返回 `{items,total,hidden}`；以我方 SKU 为基准分 `EXACT_BARCODE > SAME_SPEC > RELATED > SUSPECT`，规格归一（ml/毫升/L）、版本词（零卡/无糖/纤维/纪念/摩登）与 test/测试 判明显不符并默认隐藏；未挂接优先、扫码条码优先于手填。**条码不一致本身不隐藏也不阻断**（69 码随包装版本不同，2026-10-21 拍板）。
+- ✅ **弹窗**：有品牌时自动预搜；卡片补缩略图、匹配徽标、`barCodeSource`（扫码/手填/无条码）、被隐藏条数与「显示全部」；挂接前并排我方 SKU 与将邑商品图片/名称/规格/条码，非条码一致须勾选「已核对为同一实物」才可提交。
+- 验证：`SkuJiangyiLinkServiceTest` 19/19 + `JiangyiGatherClientTest` 1/1；admin `vue-tsc`、ESLint、dialog-a11y / admin-endpoints 门禁绿。
+
 ### 2026-10-21（提现出款权改条件 UPDATE 抢占 + MySQL 方言门禁进链 + 批量审核串行化）
 - 🔴 **V395 是 MySQL 语法，PostgreSQL 起不来**：`ADD COLUMN pack_qty INT NOT NULL DEFAULT 1 COMMENT '件装数'` 的行内列注释只有 MySQL 支持 ⇒ Flyway `syntax error at or near "COMMENT"` ⇒ **56 个 `@SpringBootTest` 上下文加载集体 error**，而纯 Mockito 单测全绿（根本不起 Spring）。改为 `ADD COLUMN IF NOT EXISTS` + `COMMENT ON COLUMN` 后 trade 模块全绿。**教训落 lessons #328**。
 - ✅ **固化成门禁（用户拍板「固化成第 48 条门禁」，实际落点是聚合链第 51 条）**：`scripts/check-mysql-isms-in-migrations.mjs`（19 组方言判据：行内 COMMENT/反引号/AUTO_INCREMENT/ENGINE+CHARSET/ON DUPLICATE KEY/INSERT IGNORE/MySQL 函数族与类型族/`AFTER` 位置子句/`DELIMITER`/索引 hint/`LIMIT n,m`…），`check:migration-mysql-isms` 已进 `check:audit-gates`（**50 → 51** 条，`node scripts/check-audit-gates-wiring.mjs` 实测绿）；CI 的 build job 另在 `mvn verify` **之前**加 gate + self-test 两步把反馈降到秒级（这两道**不依赖基线 ref**，与 `check-migration-safety`/`check-flyway-seed-separation` 不同，故可同时进聚合链）。`*.test.mjs` 在**真 Flyway 目录**跑 28 个红/绿方向用例（含 `CREATE TYPE … AS ENUM` 必须放行、`numeric(10,2)` 必须放行、注释里的 MySQL 片段必须不算数），临时文件收尾清零。现存 393 个 SQL 判据 0 命中。

@@ -88,7 +88,8 @@ public class JiangyiGatherClient {
                         text(n, "brandName"),
                         text(n, "category"),
                         text(n, "mainImg"),
-                        text(n, "stdSkuCode")));
+                        text(n, "stdSkuCode"),
+                        text(n, "barCodeSource")));
             }
         }
         return out;

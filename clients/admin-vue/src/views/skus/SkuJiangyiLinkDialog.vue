@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -34,20 +34,59 @@ interface StdSkuView {
   mainImg: string | null;
   stdSkuCode: string | null;
   linked: boolean;
+  barCodeSource: string | null;
+  matchLevel: 'EXACT_BARCODE' | 'SAME_SPEC' | 'RELATED' | 'SUSPECT' | 'UNKNOWN';
+  mismatchReasons: string[];
+}
+
+interface StdSkuSearchResult {
+  items: StdSkuView[];
+  total: number;
+  hidden: number;
 }
 
 const visible = ref(false);
 const skuId = ref('');
 const skuBarcode = ref('');
 const skuName = ref('');
+const skuSpec = ref('');
+const skuImageUrl = ref('');
 const links = ref<JiangyiLink[]>([]);
 const loading = ref(false);
 
 const searchKeyword = ref('');
 const searchResults = ref<StdSkuView[]>([]);
 const searching = ref(false);
+const searchAttempted = ref(false);
+const includeAll = ref(false);
+const searchTotal = ref(0);
+const hiddenCount = ref(0);
 const binding = ref(false);
 const pulling = ref(false);
+
+// 挂接前并排核对（我方 SKU vs 将邑商品）；无条码一致时不勾选不允许提交
+const confirmItem = ref<StdSkuView | null>(null);
+const confirmVisible = ref(false);
+const confirmedSame = ref(false);
+
+const hasExactBarcodeMatch = computed(() =>
+  searchResults.value.some((item) => item.matchLevel === 'EXACT_BARCODE')
+);
+const suspectCount = computed(() => {
+  if (includeAll.value) {
+    return searchResults.value.filter((item) => item.matchLevel === 'SUSPECT').length;
+  }
+  return hiddenCount.value;
+});
+const confirmBarcodeMismatch = computed(() => {
+  const item = confirmItem.value;
+  return Boolean(
+    item && skuBarcode.value.trim() && item.barCode && skuBarcode.value.trim() !== item.barCode
+  );
+});
+const needsManualConfirm = computed(
+  () => Boolean(confirmItem.value) && confirmItem.value?.matchLevel !== 'EXACT_BARCODE'
+);
 
 const createForm = ref({
   specs: '',
@@ -74,20 +113,61 @@ const syncStatusMeta: Record<string, { label: string; type: 'success' | 'warning
   RETIRED: { label: '已解挂', type: 'info' }
 };
 
+type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
+
+const matchMetaMap: Record<StdSkuView['matchLevel'], { label: string; type: TagType }> = {
+  EXACT_BARCODE: { label: '条码一致', type: 'success' },
+  SAME_SPEC: { label: '同规格', type: 'primary' },
+  RELATED: { label: '相关', type: 'info' },
+  SUSPECT: { label: '明显不符', type: 'danger' },
+  UNKNOWN: { label: '未比对', type: 'info' }
+};
+
+function matchMeta(level: StdSkuView['matchLevel']) {
+  return matchMetaMap[level] || matchMetaMap.UNKNOWN;
+}
+
+function sourceMeta(source: string | null): { label: string; type: TagType } {
+  if (source === 'app') {
+    return { label: '扫码条码', type: 'success' };
+  }
+  if (source === 'manual') {
+    return { label: '手填条码', type: 'warning' };
+  }
+  return { label: source || '无条码', type: 'info' };
+}
+
 function open(row: {
   skuId: string;
   barcode?: string | null;
   skuName?: string | null;
+  spec?: string | null;
+  brand?: string | null;
   imageUrl?: string | null;
 }) {
   skuId.value = row.skuId;
   skuBarcode.value = row.barcode || '';
   skuName.value = row.skuName || '';
+  skuSpec.value = row.spec || '';
+  skuImageUrl.value = row.imageUrl || '';
+  searchKeyword.value = (row.brand || '').trim();
+  searchResults.value = [];
+  searchTotal.value = 0;
+  hiddenCount.value = 0;
+  searchAttempted.value = false;
+  includeAll.value = false;
+  confirmItem.value = null;
+  confirmVisible.value = false;
+  confirmedSame.value = false;
   // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
   createForm.value.mainImg = row.imageUrl || '';
   visible.value = true;
   void load();
   void loadCategories();
+  // 有品牌就先用品牌搜一轮：名称搜全称往往一条都匹配不到，品牌能直接看到同款候选
+  if (searchKeyword.value) {
+    void search();
+  }
 }
 
 async function loadCategories() {
@@ -127,10 +207,20 @@ async function search() {
     } else if (skuBarcode.value.trim()) {
       query.set('barCode', skuBarcode.value.trim());
     }
-    searchResults.value = await api.request<StdSkuView[]>(
+    if (skuId.value) {
+      query.set('skuId', skuId.value);
+    }
+    if (includeAll.value) {
+      query.set('includeAll', 'true');
+    }
+    const result = await api.request<StdSkuSearchResult>(
       AdminEndpoints.jiangyiStdSkus(query),
       'GET'
     );
+    searchResults.value = result.items || [];
+    searchTotal.value = result.total ?? searchResults.value.length;
+    hiddenCount.value = result.hidden ?? 0;
+    searchAttempted.value = true;
   } catch (e) {
     ElMessage.error(errorMessage(e, '搜索将邑商品库失败'));
   } finally {
@@ -138,19 +228,20 @@ async function search() {
   }
 }
 
-async function bind(item: StdSkuView) {
-  const barcodeMismatch =
-    skuBarcode.value.trim() && item.barCode && skuBarcode.value.trim() !== item.barCode;
-  try {
-    await ElMessageBox.confirm(
-      `将 SKU「${skuName.value}」挂接到将邑商品「${item.name}」？` +
-        (barcodeMismatch
-          ? `我方条码 ${skuBarcode.value.trim()} 与将邑条码 ${item.barCode} 不一致，请核对名称/规格后再继续。`
-          : ''),
-      barcodeMismatch ? '条码不一致，确认挂接' : '挂接确认',
-      { type: 'warning', confirmButtonText: '挂接', cancelButtonText: '取消' }
-    );
-  } catch {
+function toggleIncludeAll() {
+  includeAll.value = !includeAll.value;
+  void search();
+}
+
+function openBindConfirm(item: StdSkuView) {
+  confirmItem.value = item;
+  confirmedSame.value = false;
+  confirmVisible.value = true;
+}
+
+async function confirmBind() {
+  const item = confirmItem.value;
+  if (!item) {
     return;
   }
   binding.value = true;
@@ -161,6 +252,7 @@ async function bind(item: StdSkuView) {
       barCode: item.barCode || undefined
     });
     ElMessage.success('已挂接');
+    confirmVisible.value = false;
     await Promise.all([load(), search()]);
   } catch (e) {
     ElMessage.error(errorMessage(e, '挂接失败'));
@@ -289,18 +381,69 @@ defineExpose({ open });
           />
           <el-button type="primary" :loading="searching" @click="search">搜索</el-button>
         </div>
-        <div v-if="searchResults.length === 0" class="jy-link-empty">
-          输入名称搜索；名称留空时按我方条码搜索
+        <div v-if="searchAttempted" class="jy-link-summary">
+          共 {{ searchTotal }} 条<template v-if="suspectCount > 0"
+            >，{{
+              includeAll ? `其中 ${suspectCount} 条明显不符` : `已隐藏 ${suspectCount} 条明显不符`
+            }}</template
+          >
+          <el-button
+            v-if="suspectCount > 0"
+            link
+            type="primary"
+            size="small"
+            :loading="searching"
+            @click="toggleIncludeAll"
+          >
+            {{ includeAll ? '收起不符项' : `显示全部 ${searchTotal} 条` }}
+          </el-button>
         </div>
-        <div v-for="item in searchResults" :key="item.id" class="jy-link-card">
+        <el-alert
+          v-if="searchAttempted && searchResults.length > 0 && !hasExactBarcodeMatch"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="jy-link-alert"
+          :title="
+            skuBarcode.trim()
+              ? `将邑库中没有与我方条码 ${skuBarcode} 完全一致的商品，请按图片/名称/规格核对后再挂接`
+              : '我方 SKU 未登记条码，无法按条码校验，请按图片/名称/规格核对后再挂接'
+          "
+        />
+        <div v-if="searchResults.length === 0" class="jy-link-empty">
+          {{
+            searchAttempted
+              ? '没有匹配的将邑商品（可换关键词或显示全部）'
+              : '输入名称搜索；名称留空时按我方条码搜索'
+          }}
+        </div>
+        <div
+          v-for="item in searchResults"
+          :key="item.id"
+          class="jy-link-card"
+          :class="{ 'jy-link-card-suspect': item.matchLevel === 'SUSPECT' }"
+        >
+          <el-image v-if="item.mainImg" :src="item.mainImg" fit="cover" class="jy-link-thumb">
+            <template #error><span class="jy-link-thumb-empty-text">无图</span></template>
+          </el-image>
+          <div v-else class="jy-link-thumb jy-link-thumb-empty">无图</div>
           <div class="jy-link-card-main">
             <div class="jy-link-card-title">
               <span class="jy-link-mono">编号 {{ item.id }}</span>
+              <el-tag size="small" :type="matchMeta(item.matchLevel).type">
+                {{ matchMeta(item.matchLevel).label }}
+              </el-tag>
               <el-tag v-if="item.linked" size="small" type="info">已挂接</el-tag>
+              <el-tag size="small" :type="sourceMeta(item.barCodeSource).type">
+                {{ sourceMeta(item.barCodeSource).label }}
+              </el-tag>
             </div>
             <div class="jy-link-card-line">{{ item.name }}</div>
             <div class="jy-link-card-sub">
               条码：{{ item.barCode || '—' }}｜规格：{{ item.specs || '—' }}
+            </div>
+            <div v-if="item.mismatchReasons.length" class="jy-link-card-warn">
+              {{ item.mismatchReasons.join('；') }}
             </div>
           </div>
           <div class="jy-link-card-actions">
@@ -309,8 +452,7 @@ defineExpose({ open });
               link
               type="primary"
               size="small"
-              :loading="binding"
-              @click="bind(item)"
+              @click="openBindConfirm(item)"
             >
               挂接
             </el-button>
@@ -406,6 +548,72 @@ defineExpose({ open });
       </div>
     </div>
   </el-dialog>
+
+  <el-dialog v-model="confirmVisible" title="核对并挂接" width="720px" append-to-body>
+    <div v-if="confirmItem" class="jy-compare">
+      <div class="jy-compare-col">
+        <div class="jy-compare-title">我方 SKU</div>
+        <div class="jy-compare-img-box">
+          <el-image v-if="skuImageUrl" :src="skuImageUrl" fit="cover" class="jy-compare-img">
+            <template #error><span class="jy-link-thumb-empty-text">无图</span></template>
+          </el-image>
+          <div v-else class="jy-link-thumb-empty">无图</div>
+        </div>
+        <div class="jy-compare-name">{{ skuName || '—' }}</div>
+        <div class="jy-compare-row">规格：{{ skuSpec || '—' }}</div>
+        <div class="jy-compare-row" :class="{ 'jy-compare-diff': confirmBarcodeMismatch }">
+          条码：{{ skuBarcode || '—' }}
+        </div>
+      </div>
+      <div class="jy-compare-col">
+        <div class="jy-compare-title">将邑商品（编号 {{ confirmItem.id }}）</div>
+        <div class="jy-compare-img-box">
+          <el-image
+            v-if="confirmItem.mainImg"
+            :src="confirmItem.mainImg"
+            fit="cover"
+            class="jy-compare-img"
+          >
+            <template #error><span class="jy-link-thumb-empty-text">无图</span></template>
+          </el-image>
+          <div v-else class="jy-link-thumb-empty">无图</div>
+        </div>
+        <div class="jy-compare-name">{{ confirmItem.name }}</div>
+        <div class="jy-compare-row">规格：{{ confirmItem.specs || '—' }}</div>
+        <div class="jy-compare-row" :class="{ 'jy-compare-diff': confirmBarcodeMismatch }">
+          条码：{{ confirmItem.barCode || '—' }}
+          <el-tag size="small" :type="sourceMeta(confirmItem.barCodeSource).type">
+            {{ sourceMeta(confirmItem.barCodeSource).label }}
+          </el-tag>
+        </div>
+      </div>
+    </div>
+    <el-alert
+      v-if="needsManualConfirm"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="jy-link-alert"
+      title="双方条码不一致或无法校验。69 码随包装版本不同，条码不同不阻断挂接，但请确认图片/名称/规格指向同一实物。"
+    />
+    <ul v-if="confirmItem && confirmItem.mismatchReasons.length" class="jy-compare-reasons">
+      <li v-for="reason in confirmItem.mismatchReasons" :key="reason">{{ reason }}</li>
+    </ul>
+    <el-checkbox v-if="needsManualConfirm" v-model="confirmedSame" class="jy-compare-check">
+      已核对为同一实物
+    </el-checkbox>
+    <template #footer>
+      <el-button @click="confirmVisible = false">取消</el-button>
+      <el-button
+        type="primary"
+        :loading="binding"
+        :disabled="needsManualConfirm && !confirmedSame"
+        @click="confirmBind"
+      >
+        挂接
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -433,6 +641,46 @@ defineExpose({ open });
   color: var(--color-text-tertiary);
   padding: 8px 0;
 }
+.jy-link-summary {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.jy-link-alert {
+  margin-bottom: 8px;
+}
+.jy-link-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.jy-link-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  background: var(--el-fill-color-lighter, #f5f7fa);
+}
+.jy-link-thumb-empty-text {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+.jy-link-card-suspect {
+  border-color: var(--el-color-danger);
+  background: color-mix(in srgb, var(--el-color-danger) 4%, transparent);
+}
+.jy-link-card-warn {
+  font-size: 12px;
+  color: var(--el-color-danger);
+  margin-top: 2px;
+}
 .jy-link-card {
   display: flex;
   justify-content: space-between;
@@ -445,6 +693,7 @@ defineExpose({ open });
 }
 .jy-link-card-main {
   min-width: 0;
+  flex: 1;
 }
 .jy-link-card-title {
   display: flex;
@@ -481,5 +730,59 @@ defineExpose({ open });
   border-radius: 4px;
   border: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+.jy-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.jy-compare-col {
+  min-width: 0;
+}
+.jy-compare-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.jy-compare-img-box {
+  width: 100%;
+  height: 180px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jy-compare-img {
+  width: 100%;
+  height: 100%;
+}
+.jy-compare-name {
+  font-size: 14px;
+  margin: 8px 0 4px;
+  word-break: break-all;
+}
+.jy-compare-row {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.jy-compare-diff {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+.jy-compare-reasons {
+  margin: 4px 0 0 18px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--el-color-danger);
+}
+.jy-compare-check {
+  margin-top: 10px;
 }
 </style>
