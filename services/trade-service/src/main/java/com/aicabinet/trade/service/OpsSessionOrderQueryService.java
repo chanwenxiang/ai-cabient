@@ -393,7 +393,7 @@ public class OpsSessionOrderQueryService {
         String deviceFilter = (criteria.deviceId() != null && !criteria.deviceId().isBlank())
                 ? criteria.deviceId().trim() : null;
         Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
-        return sessionRepository.findByFiltersOrderByCreatedAtDesc(
+        return sessionRepository.findByFiltersOrderByUpdatedAtDesc(
                 new ShoppingSessionMapper.SessionFilterCriteria(
                         deviceFilter,
                         scopeFilter,

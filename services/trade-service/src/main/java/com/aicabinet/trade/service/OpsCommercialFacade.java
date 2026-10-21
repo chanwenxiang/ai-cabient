@@ -210,9 +210,9 @@ public class OpsCommercialFacade {
         return replenishmentService.listOpenPullOffTasks();
     }
 
-    public PageResult<PullOffTaskDto> listExpiryAlertsPage(Long operatorId, int page, int size) {
+    public PageResult<PullOffTaskDto> listExpiryAlertsPage(Long operatorId, String deviceId, int page, int size) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listOpenPullOffTasksPage(page, size);
+        return replenishmentService.listOpenPullOffTasksPage(deviceId, page, size);
     }
 
     public PullOffTaskDto ensureExpiryAlert(Long operatorId, String lotId) {

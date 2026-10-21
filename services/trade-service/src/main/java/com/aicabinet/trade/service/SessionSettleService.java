@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -273,6 +274,11 @@ public class SessionSettleService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
             }
             log.info("demo-close zero-settle {}", SessionLogContext.of(session));
+            // 演示关门没有柜门 CLOSED 事件，必须在此补关门时刻；否则 close_time 恒空，
+            // 开门记录时长列永远 0 秒（2026-10-20 用户反馈）。
+            if (session.getCloseTime() == null) {
+                session.setCloseTime(Instant.now());
+            }
             sessionService.transition(session, SessionState.RECOGNIZING);
             sessionService.transition(session, SessionState.SETTLING);
             OrderReadModel order = settlementService.settleManual(session, List.of());

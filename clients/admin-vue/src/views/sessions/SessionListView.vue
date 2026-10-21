@@ -93,7 +93,7 @@
           :action-width="220"
           actions-testid="session"
           :empty-text="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'"
-          sort-field-label="会话编号"
+          sort-field-label="更新时间"
           :row-class-name="rowClassName"
           @action="onAction"
         >
@@ -458,8 +458,8 @@ const crud = useCrudTable<SessionRow>({
     }
     return { items: rows, total: data.total ?? 0 };
   },
-  // 滞留会话置顶（组内仍按会话编号排序），保留原「滞留优先」跟进体验
-  sort: { prop: 'sessionId', mode: 'local', pinned: (r) => isStuck(r) }
+  // 按更新时间倒序（后端同口径按 updated_at DESC 分页）；滞留会话仍置顶跟进
+  sort: { prop: 'updatedAt', mode: 'local', defaultDir: 'desc', pinned: (r) => isStuck(r) }
 });
 
 const pageStuckCount = computed(() => crud.displayItems.filter((r) => isStuck(r)).length);
@@ -575,8 +575,11 @@ function formatAge(ms: number) {
 
 function formatDuration(row: SessionRow) {
   const start = row.openTime || row.createdAt;
-  const end = row.closeTime || row.updatedAt;
-  if (!start || !end) return '';
+  // 已结束会话只认 close_time：updated_at 会被后续运维动作刷新，拿它兜底会虚增时长；
+  // 历史单（2026-10-20 前演示关门）没落 close_time，显示 — 不猜。
+  const end = row.closeTime || (isActiveState(row.state) ? new Date().toISOString() : '');
+  if (!start) return '';
+  if (!end) return '—';
   const sec = Math.max(0, Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000));
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m${sec % 60}s`;

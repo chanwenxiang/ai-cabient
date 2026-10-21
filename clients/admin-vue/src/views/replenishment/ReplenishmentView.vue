@@ -1048,14 +1048,15 @@ const crudExpiry = useCrudTable<Row>({
   autoLoad: false,
   fetchPage: async (params) => {
     await loadSummary();
+    const extra: Record<string, string> = {};
+    // 与其它页签一致走服务端 deviceId 过滤：原先拉回一页再前端 filter，
+    // total 仍是全量 ⇒ 从设备详情下钻时「显示 N 条 / 共 M 条」不符且翻页大面积空。
+    if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
     const data = await api.request<{ items: Row[]; total: number }>(
-      AdminEndpoints.expiryAlerts(replenishmentPageQuery(params)),
+      AdminEndpoints.expiryAlerts(replenishmentPageQuery(params, extra)),
       'GET'
     );
-    let rows = data.items || [];
-    if (focusDeviceId.value.trim()) {
-      rows = rows.filter((x) => x.deviceId === focusDeviceId.value.trim());
-    }
+    const rows = data.items || [];
     expiryAlerts.value = rows;
     tabTotals.value = { ...tabTotals.value, expiry: Number(data.total) || 0 };
     return { items: rows, total: Number(data.total) || 0 };

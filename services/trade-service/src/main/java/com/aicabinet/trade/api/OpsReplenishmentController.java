@@ -197,8 +197,10 @@ public class OpsReplenishmentController {
     public ApiResponse<PageResult<PullOffTaskDto>> expiryAlerts(
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(replenishmentAdminService.listExpiryAlertsPage(operatorId(request), page, size));
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
+        return ApiResponse.ok(replenishmentAdminService.listExpiryAlertsPage(
+                operatorId(request), deviceId, page, size));
     }
 
     @RequiresPermissions("ops:replenishment:edit")

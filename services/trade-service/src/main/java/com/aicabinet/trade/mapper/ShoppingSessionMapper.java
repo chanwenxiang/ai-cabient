@@ -344,7 +344,8 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             String keyword,
             java.time.Instant updatedBefore) {}
 
-    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
+    /** 运营会话列表：按更新时间倒序（同刻回落创建时间），与页面「更新时间」列及排序按钮一致。 */
+    default Page<ShoppingSession> findByFiltersOrderByUpdatedAtDesc(
             SessionFilterCriteria criteria, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
@@ -354,7 +355,7 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         }
         applySessionExactFilters(q, criteria);
         applySessionKeywordFilter(q, criteria.keyword());
-        q.orderByDesc(ShoppingSession::getCreatedAt);
+        q.orderByDesc(ShoppingSession::getUpdatedAt).orderByDesc(ShoppingSession::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }

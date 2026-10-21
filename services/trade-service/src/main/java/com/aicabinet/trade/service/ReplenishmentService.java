@@ -283,10 +283,10 @@ public class ReplenishmentService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<PullOffTaskDto> listOpenPullOffTasksPage(int page, int size) {
+    public PageResult<PullOffTaskDto> listOpenPullOffTasksPage(String deviceId, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = pullOffTaskRepository.searchPage("OPEN", p, s);
+        var result = pullOffTaskRepository.searchPage("OPEN", deviceId, p, s);
         List<PullOffTaskDto> items = result.getRecords().stream().map(this::toPullOffDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }

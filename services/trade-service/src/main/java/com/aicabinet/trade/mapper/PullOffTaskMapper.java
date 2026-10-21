@@ -37,12 +37,17 @@ public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
     return Optional.ofNullable(selectOne(Wrappers.<PullOffTask>lambdaQuery().eq(PullOffTask::getLotId, lotId).eq(PullOffTask::getStatus, status)));
     }
 
-    /** page 为 0-based。 */
-    default Page<PullOffTask> searchPage(String status, int page, int size) {
+    /**
+     * page 为 0-based。deviceId 非空则服务端过滤——运营从设备详情下钻时必须服务端筛，
+     * 前端 filter 会让分页 total 失真（显示 N 条 / 共 M 条、翻页大面积空）。
+     */
+    default Page<PullOffTask> searchPage(String status, String deviceId, int page, int size) {
         String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "OPEN";
+        String dev = deviceId != null && !deviceId.isBlank() ? deviceId.trim() : null;
         return selectPage(new Page<>(page + 1L, size),
                 Wrappers.<PullOffTask>lambdaQuery()
                         .eq(PullOffTask::getStatus, st)
+                        .eq(dev != null, PullOffTask::getDeviceId, dev)
                         .orderByDesc(PullOffTask::getCreatedAt));
     }
 

@@ -166,6 +166,29 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/WithdrawClaimForPayoutSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉「抢出款权」条件 UPDATE 的真库语义 —— mapper 在单测里是 mock，MyBatis-Plus 由 ' +
+        'update(null, lambdaUpdate()…) 生成的 SQL 永远跑不到；本 IT 断旧值匹配才 1 行且只改 ' +
+        'status/updated_at、真值不符抢 0 行、两线程并发抢同一单恰有一方赢（商户与线长两侧各一遍）'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PullOffTaskDeviceFilterSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉临期下钻的服务端 deviceId 过滤 —— PullOffTaskMapper.searchPage 的 ' +
+        '.eq(dev != null, …) 生成的 WHERE 在单测里（mock mapper）从未被数据库执行过；' +
+        '本 IT 断 records 与 total 同步收窄（旧前端 filter 让 total 仍是全量 ⇒「显示 N 条/共 M 条」不符）、' +
+        'null 与空白 deviceId 保持全量、status/created_at 倒序不受影响、服务层翻页落在过滤集内'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/CabinetOrderInventoryLinkSqlIT.java',
     {
       job: 'integration',
