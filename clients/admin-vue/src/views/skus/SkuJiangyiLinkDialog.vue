@@ -58,6 +58,7 @@ const searchKeyword = ref('');
 const searchResults = ref<StdSkuView[]>([]);
 const searching = ref(false);
 const searchAttempted = ref(false);
+const scored = ref(false);
 const includeAll = ref(false);
 const searchTotal = ref(0);
 const hiddenCount = ref(0);
@@ -127,14 +128,20 @@ function matchMeta(level: StdSkuView['matchLevel']) {
   return matchMetaMap[level] || matchMetaMap.UNKNOWN;
 }
 
-function sourceMeta(source: string | null): { label: string; type: TagType } {
+function sourceMeta(
+  source: string | null,
+  barCode?: string | null
+): { label: string; type: TagType } {
   if (source === 'app') {
     return { label: '扫码条码', type: 'success' };
   }
   if (source === 'manual') {
     return { label: '手填条码', type: 'warning' };
   }
-  return { label: source || '无条码', type: 'info' };
+  if (source) {
+    return { label: source, type: 'info' };
+  }
+  return { label: barCode ? '来源未知' : '无条码', type: 'info' };
 }
 
 function open(row: {
@@ -155,6 +162,7 @@ function open(row: {
   searchTotal.value = 0;
   hiddenCount.value = 0;
   searchAttempted.value = false;
+  scored.value = false;
   includeAll.value = false;
   confirmItem.value = null;
   confirmVisible.value = false;
@@ -213,13 +221,23 @@ async function search() {
     if (includeAll.value) {
       query.set('includeAll', 'true');
     }
-    const result = await api.request<StdSkuSearchResult>(
+    // 旧 jar 仍返回裸数组（nginx 挂新前端、trade-service 未重建的过渡期），归一到新结构
+    const response = await api.request<StdSkuSearchResult | StdSkuView[]>(
       AdminEndpoints.jiangyiStdSkus(query),
       'GET'
     );
-    searchResults.value = result.items || [];
-    searchTotal.value = result.total ?? searchResults.value.length;
-    hiddenCount.value = result.hidden ?? 0;
+    const rawItems = Array.isArray(response) ? response : response.items || [];
+    searchResults.value = rawItems.map((item) => ({
+      ...item,
+      barCodeSource: item.barCodeSource ?? null,
+      matchLevel: item.matchLevel ?? 'UNKNOWN',
+      mismatchReasons: item.mismatchReasons ?? []
+    }));
+    scored.value = !Array.isArray(response);
+    searchTotal.value = Array.isArray(response)
+      ? searchResults.value.length
+      : (response.total ?? searchResults.value.length);
+    hiddenCount.value = Array.isArray(response) ? 0 : (response.hidden ?? 0);
     searchAttempted.value = true;
   } catch (e) {
     ElMessage.error(errorMessage(e, '搜索将邑商品库失败'));
@@ -399,7 +417,7 @@ defineExpose({ open });
           </el-button>
         </div>
         <el-alert
-          v-if="searchAttempted && searchResults.length > 0 && !hasExactBarcodeMatch"
+          v-if="scored && searchAttempted && searchResults.length > 0 && !hasExactBarcodeMatch"
           type="warning"
           :closable="false"
           show-icon
@@ -434,8 +452,8 @@ defineExpose({ open });
                 {{ matchMeta(item.matchLevel).label }}
               </el-tag>
               <el-tag v-if="item.linked" size="small" type="info">已挂接</el-tag>
-              <el-tag size="small" :type="sourceMeta(item.barCodeSource).type">
-                {{ sourceMeta(item.barCodeSource).label }}
+              <el-tag size="small" :type="sourceMeta(item.barCodeSource, item.barCode).type">
+                {{ sourceMeta(item.barCodeSource, item.barCode).label }}
               </el-tag>
             </div>
             <div class="jy-link-card-line">{{ item.name }}</div>
@@ -582,8 +600,11 @@ defineExpose({ open });
         <div class="jy-compare-row">规格：{{ confirmItem.specs || '—' }}</div>
         <div class="jy-compare-row" :class="{ 'jy-compare-diff': confirmBarcodeMismatch }">
           条码：{{ confirmItem.barCode || '—' }}
-          <el-tag size="small" :type="sourceMeta(confirmItem.barCodeSource).type">
-            {{ sourceMeta(confirmItem.barCodeSource).label }}
+          <el-tag
+            size="small"
+            :type="sourceMeta(confirmItem.barCodeSource, confirmItem.barCode).type"
+          >
+            {{ sourceMeta(confirmItem.barCodeSource, confirmItem.barCode).label }}
           </el-tag>
         </div>
       </div>
