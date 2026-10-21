@@ -124,6 +124,19 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
+      # 方言门禁：Flyway 执行的 SQL 里不许有 MySQL 专有语法。
+      # 与上面两道的关键差别是**不依赖基线 ref**（扫全目录），所以它同时进了聚合链
+      # `check:audit-gates`（本机 `pnpm preflight` 由此覆盖）；这里仍在 `mvn verify` **之前**
+      # 单独跑一遍：V395 的 `ADD COLUMN … COMMENT '…'` 是 Flyway 语法错 ⇒ 56 个
+      # @SpringBootTest 上下文加载失败，靠 mvn 那一步反馈要等整个后端 job。
+      - name: MySQL-isms in Flyway SQL gate
+        run: node scripts/check-mysql-isms-in-migrations.mjs
+
+      # 防绕过自测：判据全靠正则，正则退化（漏 g 标志 / 转义写错）会让门禁恒绿或恒抛，
+      # 而它自己看不出 —— 故红/绿两个方向都要在真 Flyway 目录里跑一遍再清干净。
+      - name: MySQL-isms gate self-test
+        run: node scripts/check-mysql-isms-in-migrations.test.mjs
+
       # 管理后台表格收敛门禁：裸 el-table / 表头排序 / 原生按钮防回潮 + shared-uni 拷贝一致性
       - name: Admin table & shared-component gate
         run: node scripts/check-admin-table-gate.mjs

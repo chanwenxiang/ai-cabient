@@ -64,6 +64,52 @@ pnpm check:migration-safety
 
 禁止只写 `MIGRATION_REVIEWED: yes` 空头豁免。`LOCK_RISK: high` 时 NOTES 同样强制非空。
 
+## 5.5 方言：业务库只有 PostgreSQL，Flyway 执行的 SQL 里不许出现 MySQL 语法
+
+**门禁**：`pnpm check:migration-mysql-isms`（`scripts/check-mysql-isms-in-migrations.mjs`），
+已进聚合链 `check:audit-gates`（本机 `pnpm preflight` 由此覆盖）；CI 的 build job 另在
+`mvn verify` **之前**单跑 gate + self-test 两步，把反馈从「整个后端 job」降到秒级。
+扫描面 = Flyway 执行的 `services/trade-service/src/main/resources/db/`（migration + seed + rollback）；
+它**不依赖基线 ref**，与 §4 的 `check:migration-safety`、§6 的 `check:flyway-seed-separation` 不同
+（那两道按「相对基线新增」判定，故刻意不进聚合链）。
+
+**为什么单独立一道**：`V395__sku_pack_quantity.sql` 写过 MySQL 的行内列注释
+`ADD COLUMN pack_qty INT NOT NULL DEFAULT 1 COMMENT '件装数'`。纯 Mockito 单测**全绿**（根本不起
+Spring 上下文），而 PostgreSQL 直接 `syntax error at or near "COMMENT"` ⇒ Flyway 失败 ⇒ 56 个
+`@SpringBootTest` 上下文加载集体 error（lessons #328）。**方言错不会让写它的人失败，只会让后面
+所有起库的人失败**，所以必须在 CI 早于 mvn 拦下。
+
+| MySQL 写法 | PostgreSQL 写法 |
+|---|---|
+| `ADD COLUMN x INT COMMENT '…'` | `ADD COLUMN x INT` + `COMMENT ON COLUMN tbl.x IS '…'` |
+| `` `col` `` 反引号 | 直接去掉（只在大小写/保留字时用 `"col"`） |
+| `AUTO_INCREMENT`、`ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` | `BIGSERIAL` / `GENERATED … AS IDENTITY`；删掉表尾选项 |
+| `ON UPDATE CURRENT_TIMESTAMP` | `BEFORE UPDATE` 触发器（本仓既有做法） |
+| `ON DUPLICATE KEY UPDATE` / `REPLACE INTO` / `INSERT IGNORE` | `ON CONFLICT (键) DO UPDATE SET … / DO NOTHING` |
+| `IFNULL` / `GROUP_CONCAT(… SEPARATOR ',')` / `DATE_FORMAT` / `CURDATE` | `COALESCE` / `string_agg(…, ',')` / `to_char` / `CURRENT_DATE` |
+| `TINYINT(1)` / `INT(11) UNSIGNED` / `DATETIME` / `MEDIUMTEXT` / 裸 `DOUBLE` | `boolean` / `int` / `timestamp` / `text` / `double precision`（`numeric(10,2)` 合法，别改） |
+| `ADD COLUMN x … AFTER y` | 删掉 `AFTER`（PG 不支持列顺序，新列只能加在末尾） |
+| `LIMIT 10, 20` | `LIMIT 20 OFFSET 10` |
+| `IF(cond, a, b)` | `CASE WHEN cond THEN a ELSE b END` |
+| `DELIMITER //` | 不需要；写函数/匿名块用 `DO $$ … $$;` |
+| `FORCE INDEX` / `ALGORITHM=INPLACE, LOCK=NONE` | 由规划器决定；在线建索引走 `CREATE INDEX CONCURRENTLY` |
+| `ALTER TABLE … ADD CONSTRAINT IF NOT EXISTS` | 直接 `ADD CONSTRAINT`（V 迁移天然只跑一次），或查 `pg_constraint` 后 `DO` 块条件执行 |
+
+判据实现取向（改门禁前必读）：**先剥 `--` / `/* */` 注释**（本仓注释里成片用反引号包裹标识符是
+markdown 习惯，不剥 ⇒ 恒红 ⇒ 门禁被人关掉）；**匹配整段代码文本而不是逐行**
+（`ADD COLUMN … AFTER …` 会跨行）；**扫到 0 个文件必须红**（目录被改名时的「0 命中」是假绿，
+故有 `MIN_SQL_FILES` 下界锚点）；红/绿两个方向由
+`node scripts/check-mysql-isms-in-migrations.test.mjs` 在**真 Flyway 目录**里跑 28 个用例证明
+（含 `CREATE TYPE … AS ENUM` 必须放行、`numeric(10,2)` 必须放行、注释里的 MySQL 片段必须不算数）。
+
+**不在门禁范围内**（已知漏口，别当成全覆盖）：
+
+- `infra/xxl-job/*.sql` 是 **MySQL**：`docker-compose.full.yml` 里 xxl-job 用 `mysql:8.0` 容器 +
+  `jdbc:mysql://xxl-job-mysql:3306/xxl_job`，由 xxl-job 官方表结构决定，刻意排除。
+- MyBatis `*Mapper.xml` / `@Select` 里的运行期 SQL：方言错在那里只坏一条查询，失败形态不同，
+  需要另一道门禁（2026-10-21 实测该面当前无 MySQL 专有写法）。
+- `docs/` 里的示例/证据 SQL：不执行，不扫。
+
 ## 6. 种子数据与结构分离（O9，2026-09-19）
 
 `db/migration/` 里 277 个迁移中，种子数据一直与结构 DDL 混在一起
