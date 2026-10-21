@@ -24,6 +24,14 @@ describe('privacy-consent mp 门禁（官方 getPrivacySetting）', () => {
     g.window = prevWindow;
   });
 
+  /**
+   * 模拟浏览器 H5 的 DOM 存在性。navigator 不 stub：Node 24 自带只读 globalThis.navigator
+   * （赋值会 TypeError），且其 UA 不含 miniProgram，正是 isH5PrivacyRuntime 需要的另一半。
+   */
+  function asBrowserH5() {
+    g.window = {};
+  }
+
   it('无 wx（admin/node）→ 非 mp 运行时且恒不弹', async () => {
     g.wx = undefined;
     expect(isWeixinMpRuntime()).toBe(false);
@@ -31,7 +39,7 @@ describe('privacy-consent mp 门禁（官方 getPrivacySetting）', () => {
   });
 
   it('uni-app H5 的 wx 别名对象（有 uni API、无 getPrivacySetting）→ 判 false，不抢 mp 分支', () => {
-    g.window = {};
+    asBrowserH5();
     g.wx = { $emit() {}, addInterceptor() {}, canvasGetImageData() {} };
     expect(isWeixinMpRuntime()).toBe(false);
   });
@@ -42,8 +50,8 @@ describe('privacy-consent mp 门禁（官方 getPrivacySetting）', () => {
     expect(isWeixinMpRuntime()).toBe(false);
   });
 
-  it('有 DOM 时即使带 getPrivacySetting 也不判 mp（H5 门禁优先）', () => {
-    g.window = {};
+  it('浏览器 H5 即使拿到 getPrivacySetting 也判 false（与 request 层 H5 门禁同一判据）', () => {
+    asBrowserH5();
     g.wx = { getPrivacySetting: () => {} };
     expect(isWeixinMpRuntime()).toBe(false);
   });

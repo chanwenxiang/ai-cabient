@@ -56,10 +56,14 @@ function wxPrivacyApi(): WxPrivacyApi | undefined {
  * `getPrivacySetting`）。首版只判 wx 存在 ⇒ H5 被判成 mp ⇒ use-privacy-consent 走 mp 分支
  * 永不弹首屏窗，而 request.ts 的 H5 门禁照旧拦（PRIVACY_CONSENT_REQUIRED）⇒ 整站 H5 请求死锁，
  * CI consumer UAT 的 captcha 请求根本没发出（表现为「6 次未取到 2xx」，被文案误报成 429 限流）。
- * 两道独立排除：DOM 存在=H5；官方隐私接口缺失=非 mp（低版本基础库由微信官方弹窗兜底）。
+ *
+ * 修法的不变量：端判定必须与 request.ts 的门禁**共用同一判据**（先按 H5 排除，再看官方隐私接口），
+ * 否则会出现「门禁认为我是 H5、弹窗认为我不是 H5」这种两边各拦一半的死锁。
+ * 老基础库无 getPrivacySetting 时判 false，落到的 H5 分支在 mp 因 isH5PrivacyRuntime=false 仍不弹，
+ * 结论与改前一致（漏网由微信官方默认弹窗兜底）。
  */
 export function isWeixinMpRuntime(): boolean {
-  if (typeof (globalThis as Record<string, unknown>).window !== 'undefined') {
+  if (isH5PrivacyRuntime()) {
     return false;
   }
   return typeof wxPrivacyApi()?.getPrivacySetting === 'function';
