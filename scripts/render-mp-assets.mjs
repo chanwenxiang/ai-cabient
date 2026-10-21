@@ -150,60 +150,6 @@ function syncSkuImages() {
   }
 }
 
-/**
- * 首页推广位**占位图**（F4 切片 1，见 docs/AD_MONETIZATION_DESIGN.md）。
- *
- * 尺寸 750x220 —— 与 `device-ad-banner.vue` 里 swiper 的 `220rpx` 等比
- * （设计稿宽 750rpx ⇒ 本图即 2x 位图）。开关开启、但该柜既无自有投放、
- * 又未接腾讯流量主时由组件渲染，**不携带任何点击行为、不上报计量**。
- *
- * ⚠️ 含中文文案 ⇒ 渲染依赖本机中文字体（Windows: Microsoft YaHei）。本脚本**不在 CI 门禁链内**
- * （手工运行），换机器重跑若字体缺失只影响字形，不影响尺寸与文件名。
- *
- * 📌 文案刻意**中立、不带「广告」标识**（2026-09-20 方向更正后）：
- *   - 我们是**流量主**（收腾讯分成），不向第三方卖广告位 ⇒「广告位招租 / 商务合作请联系」是错的；
- *   - 占位图**本身不是广告**，标「广告」反而误导；真实腾讯广告由微信组件自带标识；
- *   - 自有活动属平台自营内容，同样不需要广告标识。
- */
-const AD_PLACEHOLDER_W = 750;
-const AD_PLACEHOLDER_H = 220;
-
-/** 与前端 CSS 变量同源的青绿主色 + 中性灰，避免占位图看起来像「真内容」。 */
-const AD_PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${AD_PLACEHOLDER_W}" height="${AD_PLACEHOLDER_H}" viewBox="0 0 ${AD_PLACEHOLDER_W} ${AD_PLACEHOLDER_H}">
-  <defs>
-    <linearGradient id="adbg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f0fdfa"/>
-      <stop offset="1" stop-color="#e6ebf1"/>
-    </linearGradient>
-  </defs>
-  <rect width="${AD_PLACEHOLDER_W}" height="${AD_PLACEHOLDER_H}" fill="url(#adbg)"/>
-  <rect x="11" y="11" width="${AD_PLACEHOLDER_W - 22}" height="${AD_PLACEHOLDER_H - 22}" rx="18"
-        fill="none" stroke="#5eead4" stroke-width="2" stroke-dasharray="14 10"/>
-  <text x="${AD_PLACEHOLDER_W / 2}" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
-        font-size="42" font-weight="700" fill="#0f766e" text-anchor="middle">平台推广位</text>
-  <text x="${AD_PLACEHOLDER_W / 2}" y="160" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
-        font-size="21" fill="#64748b" text-anchor="middle">更多优惠活动，敬请期待</text>
-  <text x="${AD_PLACEHOLDER_W - 38}" y="${AD_PLACEHOLDER_H - 26}" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif"
-        font-size="18" fill="#94a3b8" text-anchor="end">占位图 · 配置后自动替换</text>
-</svg>`;
-
-/** 渲染首页推广位占位图到 C 端 static/ad/。 */
-async function renderAdSlotPlaceholder(browser) {
-  const outDir = path.join(root, 'clients/consumer-mp/src/static/ad');
-  fs.mkdirSync(outDir, { recursive: true });
-  const page = await browser.newPage({
-    viewport: { width: AD_PLACEHOLDER_W, height: AD_PLACEHOLDER_H }
-  });
-  try {
-    await renderSvgToPng(page, AD_PLACEHOLDER_SVG, path.join(outDir, 'slot-placeholder.png'), {
-      width: AD_PLACEHOLDER_W,
-      height: AD_PLACEHOLDER_H
-    });
-  } finally {
-    await page.close();
-  }
-}
-
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -242,11 +188,9 @@ async function main() {
     await tabPage.close();
     await menuPage.close();
 
-    await renderAdSlotPlaceholder(browser);
-
     syncSkuImages();
 
-    console.log('render-mp-assets ok（tab 图标已渲染，广告位占位图已渲染，商品图已同步）');
+    console.log('render-mp-assets ok（tab 图标已渲染，商品图已同步）');
   } finally {
     await browser.close();
   }

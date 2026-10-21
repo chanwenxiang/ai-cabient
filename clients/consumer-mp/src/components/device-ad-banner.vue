@@ -2,10 +2,10 @@
   <!--
     首页推广位（S1）。
 
-    三种来源按优先级**择一**渲染（同一时刻只会出现一种，不叠加）：
+    两种来源按优先级**择一**渲染（同一时刻只会出现一种，不叠加）：
       1. 该柜有生效中的投放计划 ⇒ 自有素材轮播（我们自己的活动/推广，曝光/完播/点击上报）；
       2. 否则腾讯流量主广告（微信原生组件，开关 + 广告单元 ID 齐备时）；
-      3. 都没有 ⇒ 占位图（不上报任何事件）。
+      3. 两者都没有 ⇒ 整块不渲染（不渲染占位图：占位不是广告、不下发计量，留空更干净）。
 
     优先级本身由 `resolvePromoSlot()` 单点决定（纯函数、有单测），模板只做分支渲染。
 
@@ -54,26 +54,6 @@
       只在「本柜没有自有投放 + 开关开 + 填了广告单元 ID」时渲染；组件内部再按平台能力收敛。
     -->
     <WxAdSlot v-else-if="promoSource === 'wxAd'" :unit-id="adUnitId" />
-    <!--
-      第三优先级：占位图（自有投放与腾讯广告都没有时）。
-      🔴 刻意**不绑定任何点击、也不上报任何事件** —— 占位不是广告，不该产生计量数据
-      （计量即计费依据，见 docs/AD_MONETIZATION_DESIGN.md §5）。
-
-      🔴 占位图要**标明是哪种来源**（2026-10-07 用户要求）：
-      同一个位置在「有自有活动」和「有腾讯广告」两种状态下都可能落到占位，
-      不标来源的话运营/用户会以为「投放已经配好了」，实际上是空的。
-    -->
-    <view v-else class="ad-placeholder-wrap">
-      <image
-        class="ad-media"
-        mode="aspectFill"
-        :src="placeholderUrl"
-        :alt="placeholderAlt"
-        data-testid="device-ad-banner-placeholder"
-      />
-      <!-- 来源角标：新品活动 / 流量主 -->
-      <text class="ad-source-badge" data-testid="device-ad-banner-source">{{ sourceLabel }}</text>
-    </view>
     <text v-if="campaignName" class="ad-caption">{{ campaignName }}</text>
   </view>
 </template>
@@ -86,7 +66,6 @@ import { wxAdEnabled, wxAdUnitId } from '@/utils/feature-flags';
 import { resolvePromoSlot } from '@/utils/promo-slot';
 import WxAdSlot from '@/components/wx-ad-slot.vue';
 import type { ScreenContentItemDto } from '@aicabinet/shared-types';
-import placeholderUrl from '@/static/ad/slot-placeholder.png';
 
 const props = defineProps<{
   deviceId: string;
@@ -108,46 +87,16 @@ const campaignId = ref<number | null>(null);
 const campaignName = ref('');
 const items = ref<ScreenContentItemDto[]>([]);
 const currentIndex = ref(0);
-/**
- * 是否已完成一次加载（成功或失败）。
- * 🔴 用它（而不是 `!items.length`）当占位图的闸门：加载中 `items` 也是空数组，
- * 直接判空会让占位图在真实素材到达前**闪一下**，看起来像「投放内容丢了」。
- */
-const loaded = ref(false);
 const completeTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const impressed = new Set<number>();
 
 /** 本槽位当前该渲染哪一种来源（规则与判据都在 `@/utils/promo-slot`）。 */
 const promoSource = computed(() =>
   resolvePromoSlot({
-    loaded: loaded.value,
     hasOwnContent: items.value.length > 0,
     wxAdAvailable
   })
 );
-
-/**
- * 占位图上要**标明是哪种来源**（2026-10-07 用户要求）。
- *
- * <p>🔴 为什么必须标：这个位置在「有自有活动」与「有腾讯广告」两种状态下
- * 都会落到占位图。不标的话，运营看到「有图」会以为**投放已配好**，
- * 实际是空的 —— 这类「看起来配好了却没有内容」最难发现。
- *
- * <p>判定顺序与 {@link promoSource} 的优先级**保持一致**：
- * 有自有内容 ⇒ 新品活动；否则腾讯广告开着 ⇒ 流量主；都没有 ⇒ 未配置。
- */
-const sourceLabel = computed(() => {
-  if (promoSource.value === 'self') return '新品活动';
-  if (promoSource.value === 'wxAd') return '流量主';
-  return '未配置';
-});
-
-/** 无障碍文本：说明这个位置当前实际是什么。 */
-const placeholderAlt = computed(() => {
-  if (promoSource.value === 'self') return '平台推广位（新品活动占位，活动即将上线）';
-  if (promoSource.value === 'wxAd') return '平台推广位（广告位预留）';
-  return '平台推广位（未配置投放内容）';
-});
 
 const slideMs = computed(() => {
   const cur = items.value[currentIndex.value];
@@ -175,10 +124,8 @@ async function load() {
   const id = (props.deviceId || '').trim();
   if (!id) {
     reset();
-    loaded.value = false;
     return;
   }
-  loaded.value = false;
   try {
     const data = await consumerApi.screenContent(id);
     campaignId.value = data?.campaignId ?? null;
@@ -194,10 +141,6 @@ async function load() {
   } catch {
     reset();
   }
-  // 🔴 无论成功失败都置 true：取不到投放内容 ≠ 取不到推广位本身。开关由页面把关，
-  // 这里按优先级落到「腾讯广告 / 占位图」，避免「接口失败」被表现成「整块消失」
-  // （运营会误判开关没生效）。
-  loaded.value = true;
 }
 
 function reset() {
@@ -295,30 +238,6 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 220rpx;
   display: block;
-}
-
-/*占位图容器：相对定位，供来源角标绝对定位。 */
-.ad-placeholder-wrap {
-  position: relative;
-  width: 100%;
-  height: 220rpx;
-}
-
-/*
- * 来源角标（2026-10-07 用户要求：标明是新品活动还是流量主）。
- * 🔴 刻意放右上角且不遮主体内容 —— 占位图本身是「暂无内容」的意思，
- * 角标只做**来源说明**，不做点击入口（占位不产生任何行为）。
- */
-.ad-source-badge {
-  position: absolute;
-  top: 12rpx;
-  right: 12rpx;
-  padding: 4rpx 16rpx;
-  border-radius: 8rpx;
-  font-size: 22rpx;
-  line-height: 32rpx;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
 }
 
 .ad-fallback {

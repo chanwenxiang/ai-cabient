@@ -9,7 +9,7 @@ import { resolvePromoSlot, type PromoSlotInput } from './promo-slot';
  * 特定时序下出现，靠肉眼很难稳定复现。
  */
 function input(partial: Partial<PromoSlotInput> = {}): PromoSlotInput {
-  return { loaded: true, hasOwnContent: false, wxAdAvailable: false, ...partial };
+  return { hasOwnContent: false, wxAdAvailable: false, ...partial };
 }
 
 describe('首页推广位来源选择', () => {
@@ -22,20 +22,15 @@ describe('首页推广位来源选择', () => {
     expect(resolvePromoSlot(input({ wxAdAvailable: true }))).toBe('wxAd');
   });
 
-  it('两者都没有 + 已加载完成 ⇒ 占位图', () => {
-    expect(resolvePromoSlot(input())).toBe('placeholder');
+  it('两者都没有 ⇒ 整块不渲染（占位图已移除，留空比留「未配置」更干净）', () => {
+    expect(resolvePromoSlot(input())).toBe('none');
   });
 
-  it('🔴 两者都没有 + 尚未加载完成 ⇒ 什么都不渲染（防止真素材到达前闪占位图）', () => {
-    expect(resolvePromoSlot(input({ loaded: false }))).toBe('none');
+  it('腾讯广告不依赖我们的接口 ⇒ 即使自有素材还在请求中也能出广告', () => {
+    expect(resolvePromoSlot(input({ wxAdAvailable: true }))).toBe('wxAd');
   });
 
-  it('腾讯广告不依赖我们的接口 ⇒ 未加载完成也应能出广告', () => {
-    // 自有素材还在请求中，但腾讯广告现在就能渲染，没有理由被我们的请求拖住
-    expect(resolvePromoSlot(input({ loaded: false, wxAdAvailable: true }))).toBe('wxAd');
-  });
-
-  it('已加载完成且有自有内容 ⇒ 仍是自有（回归：别被 loaded 判反）', () => {
-    expect(resolvePromoSlot(input({ loaded: true, hasOwnContent: true }))).toBe('self');
+  it('有自有内容 ⇒ 仍是自有', () => {
+    expect(resolvePromoSlot(input({ hasOwnContent: true }))).toBe('self');
   });
 });
