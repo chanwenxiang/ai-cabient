@@ -51,13 +51,15 @@ WECHAT_PLATFORM_CERT_AUTO_FETCH=true
 WECHAT_MINIAPP_ID=wx...
 WECHAT_MINIAPP_SECRET=...
 
-# MinIO / 对象存储（本地 MinIO；生产可改为阿里云 OSS S3 兼容 endpoint）
-MINIO_ENDPOINT=https://oss-cn-shanghai.aliyuncs.com
-MINIO_ACCESS_KEY=...
-MINIO_SECRET_KEY=...
+# 对象存储（生产 = compose 内置 MinIO，不是阿里云 OSS）
+# compose 已把 trade-service 的 MINIO_ENDPOINT 钉死为 http://minio:9000，AK/SK 取自
+# MINIO_ROOT_*，因此只有以下 4 项生效；MINIO_ENDPOINT/ACCESS_KEY/SECRET_KEY 写了也不读。
+MINIO_ROOT_USER=<强用户名>
+MINIO_ROOT_PASSWORD=<强密码>
 MINIO_BUCKET=cabinet-videos
-OSS_REGION=cn-shanghai
-OBJECT_STORAGE_SCHEME=oss
+# 预签名 URL 公网基址：MinIO 仅绑 127.0.0.1:9000，需另配反代/域名，否则外部打不开回放
+MINIO_PUBLIC_ENDPOINT=https://cdn.your-domain.com
+# OSS_REGION / OBJECT_STORAGE_SCHEME 为旧 OSS 方案残留，代码不读取，勿再照抄
 
 # 服务地址（Docker Compose 内网）
 AICABINET_DEVICE_SERVICE_URL=http://device-service:8081
