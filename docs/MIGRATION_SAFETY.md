@@ -141,6 +141,17 @@ markdown 习惯，不剥 ⇒ 恒红 ⇒ 门禁被人关掉）；**匹配整段�
 `flyway repair`；门禁按「相对基线新增」判定，277 个历史迁移天然 grandfather。
 不要为了「看起来整齐」去重构历史迁移。
 
+**已应用过的迁移文件不能删（`V*` 与 `R__` 同理）。** Flyway 校验是「台账有记录 ⇒ 本地必须能解析到该
+脚本」，解析不到就抛 `Detected applied migration not resolved locally: <description>`，Spring 侧表现为
+`flywayInitializer` bean 创建失败 ⇒ **整个服务起不来**，不是「少跑一条迁移」那么轻。
+2026-10-21 实证：提交 `6786fa64` 删掉 `R__seed_consumer_ad_banner.sql`（该库 2026-10-08 已应用过它），
+重建后 trade-service 崩环约 4 分钟、dev API 全停。
+**正确做法 = 墓碑文件**：文件留在原位，内容改成「幂等清理 + `seed_env` 守卫」（可重复迁移本就允许改内容，
+改 checksum 会重跑一次），例如现版 `R__seed_consumer_ad_banner.sql` 只剩三条 `DELETE`。
+先例：V134/V135 当年也是改成 `SELECT 1;` 而非删文件。
+⚠️ 若已经删过并靠手工 `DELETE FROM flyway_schema_history …` 恢复启动（dev 本次即如此），那笔手工操作
+**每个跑过旧版的环境都要重做一次** —— 这正是改用墓碑文件的理由。
+
 ```bash
 pnpm check:flyway-seed-separation        # 门禁（CI 步骤同样跑，带 PR 基线 ref）
 node scripts/check-flyway-seed-separation.test.mjs   # 自带 A/B 自测（10 用例）
