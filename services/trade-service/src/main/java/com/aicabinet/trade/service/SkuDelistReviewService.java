@@ -82,6 +82,11 @@ public class SkuDelistReviewService {
         Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
                 .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
         for (SkuCatalog sku : skus.values()) {
+            // 已下架（INACTIVE）SKU 不再进诊断：停售商品继续出「无销量」建议是噪音（2026-10-21 用户拍板）
+            if (sku == null || sku.getSkuId() == null || sku.getSkuId().isBlank()
+                    || "INACTIVE".equals(sku.getStatus())) {
+                continue;
+            }
             upsertSkuReview(sku, sales, stock, window);
         }
         log.info("sku review refreshed window={}d skus={}", window, skus.size());
@@ -170,6 +175,11 @@ public class SkuDelistReviewService {
         Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
                 .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
         return reviewRepository.findAll().stream()
+                // 已下架 SKU 不出现在诊断列表（与 searchPage 的 notExists 口径一致）
+                .filter(r -> {
+                    SkuCatalog sku = skus.get(r.getSkuId());
+                    return sku == null || !"INACTIVE".equals(sku.getStatus());
+                })
                 .map(r -> toDto(r, skus.get(r.getSkuId()), skus))
                 .toList();
     }

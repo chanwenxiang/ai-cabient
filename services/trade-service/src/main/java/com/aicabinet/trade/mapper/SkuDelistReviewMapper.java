@@ -29,9 +29,15 @@ public interface SkuDelistReviewMapper extends BaseTradeMapper<SkuDelistReview> 
                 .orderByAsc(SkuDelistReview::getId));
     }
 
-    /** page 为 0-based。 */
+    /**
+     * page 为 0-based。
+     * 排除已下架（sku_catalog.status=INACTIVE）SKU 的评审行：诊断只服务在售商品，
+     * SQL 层过滤保证 total/分页正确（与 SkuDelistReviewService.list 的内存过滤口径一致）。
+     */
     default Page<SkuDelistReview> searchPage(int page, int size) {
         return selectPage(new Page<>(page + 1L, size),
-                Wrappers.<SkuDelistReview>lambdaQuery().orderByDesc(SkuDelistReview::getUpdatedAt));
+                Wrappers.<SkuDelistReview>lambdaQuery()
+                        .notExists("SELECT 1 FROM sku_catalog c WHERE c.sku_id = sku_delist_review.sku_id AND c.status = 'INACTIVE'")
+                        .orderByDesc(SkuDelistReview::getUpdatedAt));
     }
 }

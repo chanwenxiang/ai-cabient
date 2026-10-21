@@ -81,6 +81,44 @@ class SkuDelistReviewServiceTest {
     }
 
     @Test
+    void runReview_shouldSkipInactiveSkus() {
+        SkuDelistReviewService service = service();
+        when(lineRepository.skuBreakdownSince(any())).thenReturn(List.<Object[]>of());
+        when(inventoryRepository.findAllLimit(5000)).thenReturn(List.of());
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐", "ACTIVE"), sku("SKU-B", "果汁", "INACTIVE")));
+        when(reviewRepository.findBySkuId(anyString())).thenReturn(Optional.empty());
+        when(reviewRepository.findAll()).thenReturn(List.of());
+
+        service.runReview(30);
+
+        // 已下架 SKU 不建评审行：负向漂移=去掉过滤后此断言会变 2 次
+        verify(reviewRepository, org.mockito.Mockito.times(1)).insert(any(SkuDelistReview.class));
+        verify(reviewRepository, org.mockito.Mockito.never())
+                .insert(org.mockito.ArgumentMatchers.argThat(r -> r != null && "SKU-B".equals(r.getSkuId())));
+    }
+
+    @Test
+    void list_shouldExcludeRowsOfInactiveSkus() {
+        SkuDelistReviewService service = service();
+        SkuDelistReview activeRow = new SkuDelistReview();
+        activeRow.setId(1L);
+        activeRow.setSkuId("SKU-A");
+        SkuDelistReview inactiveRow = new SkuDelistReview();
+        inactiveRow.setId(2L);
+        inactiveRow.setSkuId("SKU-B");
+        when(reviewRepository.findAll()).thenReturn(List.of(activeRow, inactiveRow));
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐", "ACTIVE"), sku("SKU-B", "果汁", "INACTIVE")));
+
+        List<SkuDelistReviewDto> result = service.list();
+
+        // 负向漂移=去掉 list() 过滤后此断言会变 2
+        assertEquals(1, result.size());
+        assertEquals("SKU-A", result.get(0).skuId());
+    }
+
+    @Test
     void decide_shouldMarkDelistedAndDisableSku() {
         SkuDelistReviewService service = service();
         SkuDelistReview review = new SkuDelistReview();
