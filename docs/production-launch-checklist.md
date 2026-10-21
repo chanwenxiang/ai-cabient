@@ -75,3 +75,11 @@
 - 结构化「意见反馈」走自有 `feedback` 后端（`/api/v2/feedback` + admin `ops:feedback`），不受微信客服 48h/5 条限制，与 `open-type="contact"` 原生客服互补。
 - 验证方式：开发者工具体验版进「我的 → 帮助与客服 → 在线客服」应拉起会话；用绑定客服微信号在「客服小助手」或 `mpkf.weixin.qq.com` 看是否收到测试消息。
 
+## 柜门码扫码链路（2026-10-21 定版）
+
+- 🔴 **根因实证**：生产 compose 链（4 文件链）此前从未映射 `QR_PUBLIC_HOST`（只在 full.yml 有，而生产不叠 full.yml）⇒ Spring `auto` 探测容器内网 IP `http://172.19.0.8`（Docker bridge）⇒ 柜门码 `http://172.19.0.8/o/{deviceId}` 外部手机不可达。
+- **修复**：`docker-compose.production.yml` trade-service 补映射 `QR_PUBLIC_HOST`；`infra/.env.production` 显式设 `https://cabinet.easygovm.com`（与 `PUBLIC_BASE_URL` 同域，DNS 已解析到生产机，宿主 nginx 443 终结 TLS → gateway 容器 127.0.0.1:8180）。
+- **微信后台「扫普通链接二维码打开小程序」规则填法**：协议 https；二维码规则 `https://cabinet.easygovm.com/o/`；前缀占用=不占用；小程序功能页面 `pages/index/index`（`parseLaunchOptions` 已支持从 `q` 参数解析 deviceId）；测试范围先「体验版」后「线上版本」。
+- **校验文件**：MP 后台下载后置于 gateway 容器 `/usr/share/nginx/html/`（`docker cp`，一次性文件，丢失重传即可）；nginx-full.conf 已加 `location ~ ^/[^/]+\.txt$` 例外（防被 `location /` 的 302 /admin/ 拦截）。放好后 `docker exec ai-cabinet-gateway-1 nginx -t && nginx -s reload`。
+- **分工**：微信扫码 → 直接拉起小程序（走此规则）；支付宝扫同一码 → 仍走中间页 `/o/{deviceId}` UA 分流 → H5（H5 生产未部署，支付宝侧后置）。
+

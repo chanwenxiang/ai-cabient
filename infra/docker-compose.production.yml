@@ -51,6 +51,10 @@ services:
       DEVOPS_PROMETHEUS_HEALTH_URL: http://prometheus:9090/devops/prometheus
       # 链路追踪出口（observability 栈的 tempo；留空=关闭，2026-10-13 起生产开启）
       OTLP_ENDPOINT: http://tempo:4318/v1/traces
+      # 柜门一码对外域名（admin 出码 + CabinetOpenLanding 中间页用）。
+      # 🔴 此前生产链从未映射本键（只在 full.yml 有）⇒ Spring auto 探测容器内网 IP
+      #    （2026-10-21 实证 http://172.19.0.8，Docker bridge）⇒ 柜门码全坏。生产必须显式设。
+      QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-}
 
   device-service:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
