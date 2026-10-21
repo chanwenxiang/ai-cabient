@@ -25,7 +25,24 @@
         >
           暂不使用
         </button>
+        <!--
+          微信小程序：官方隐私同意按钮（open-type=agreePrivacyAuthorization）——点击即由基础库
+          向微信同步「用户已同意当前版《用户隐私保护指引》」；未注册 onNeedPrivacyAuthorization，
+          漏网场景由微信官方默认弹窗兜底，无需 resolve/buttonId。
+          其余端（H5）保持普通按钮仅写本地存储（request 层 H5 门禁消费）。
+          官方指南：framework/user-privacy/PrivacyAuthorize.html §2
+        -->
         <button
+          v-if="isMpWeixin"
+          class="privacy-btn primary"
+          data-testid="privacy-accept"
+          open-type="agreePrivacyAuthorization"
+          @agreeprivacyauthorization="onAccept"
+        >
+          同意并继续
+        </button>
+        <button
+          v-else
           type="button"
           class="privacy-btn primary"
           data-testid="privacy-accept"
@@ -39,7 +56,10 @@
 </template>
 
 <script setup lang="ts">
-import { acceptPrivacyConsent } from '@aicabinet/shared-uni/privacy-consent';
+import { acceptPrivacyConsent, isWeixinMpRuntime } from '@aicabinet/shared-uni/privacy-consent';
+
+/** mp 端渲染官方隐私同意按钮（open-type=agreePrivacyAuthorization）；H5 等其余端走普通按钮。 */
+const isMpWeixin = isWeixinMpRuntime();
 
 const props = defineProps<{
   visible: boolean;

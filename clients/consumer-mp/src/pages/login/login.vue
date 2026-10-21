@@ -32,13 +32,16 @@
           getuserphonenumber 服务端换取，C13 不信客户端明文），首次登录即绑手机号。
           用户拒绝授权 → 回退纯微信登录（openId 通道）；非微信端/H5 走原 .btn-wx 视图。
           🔴 仅企业主体小程序可用：小程序注册审核通过后无需改代码，直接生效。
+          2026-10-21 隐私合规：open-type 耦合 agreePrivacyAuthorization（官方指南 §2 推荐写法）——
+          未同步同意隐私协议的用户点此按钮即弹「勾选隐私协议 + 授权手机号」耦合窗，一次点击同时
+          完成两件事；已同步用户行为不变。无需 bindagreeprivacyauthorization 额外处理。
         -->
         <button
           v-if="isMpWeixin"
           class="btn-wx btn-wx--native"
           :class="{ disabled: loading }"
           data-testid="login-wx"
-          open-type="getPhoneNumber"
+          open-type="getPhoneNumber|agreePrivacyAuthorization"
           :disabled="loading"
           @getphonenumber="onWxPhoneLogin"
         >
