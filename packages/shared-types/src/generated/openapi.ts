@@ -21907,6 +21907,8 @@ export interface operations {
         parameters: {
             query?: {
                 deviceId?: string;
+                cause?: string;
+                vendorDetail?: string;
             };
             header?: never;
             path: {
