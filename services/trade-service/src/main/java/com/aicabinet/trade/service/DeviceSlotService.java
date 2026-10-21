@@ -42,6 +42,8 @@ public class DeviceSlotService {
     private final SkuSceneLimitService skuSceneLimitService;
     /** CB-050 扩展：盘点写 AISLE_AUDIT 运维事件（商户端理货记录数据源） */
     private final DeviceOpsEventMapper opsEventRepository;
+    /** 设备 DTO 回填将邑厂商 SN（将邑柜无 IMEI，只能靠 SN 识别） */
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceSlotService self;
 
@@ -62,6 +64,7 @@ public class DeviceSlotService {
                              CabinetOrderLineMapper orderLineRepository,
                              SkuSceneLimitService skuSceneLimitService,
                              DeviceOpsEventMapper opsEventRepository,
+                             JiangyiDeviceDirectory jiangyiDeviceDirectory,
                              @Lazy DeviceSlotService self) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
@@ -80,6 +83,7 @@ public class DeviceSlotService {
         this.orderLineRepository = orderLineRepository;
         this.skuSceneLimitService = skuSceneLimitService;
         this.opsEventRepository = opsEventRepository;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.self = self;
     }
 
@@ -1475,14 +1479,24 @@ public class DeviceSlotService {
         String effective = refundPolicyService != null
                 ? refundPolicyService.resolveForDevice(d.getDeviceId()).name()
                 : null;
+        JiangyiDevice jiangyi = jiangyiDeviceDirectory == null ? null : jiangyiDeviceDirectory.findDevice(d.getDeviceId());
         return new AdminDeviceDto(
                 d.getDeviceId(), d.getDeviceName(), d.getDeviceType(), d.getSceneType(),
                 d.getOnlineStatus(),
                 d.getMerchantId(), merchantName,
                 lastSession == null ? null : lastSession.getSessionId(),
                 lastSession == null ? null : lastSession.getState().name(),
-                d.getUpdatedAt(), false,
-                d.getRefundPolicy(), effective, d.salesLockedEnabled()
+                d.getUpdatedAt(),
+                d.getOnlineSince(), d.getLastOfflineAt(), false,
+                d.getRefundPolicy(), effective, d.salesLockedEnabled(),
+                DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()),
+                d.getImei(), d.getAssetOwner(), d.getCoopMode(),
+                d.getDepositCents(), d.getDataFeeCents(),
+                d.getOpsTags(), d.getRouteCode(), d.getDeployedAt(), d.getLifecycleRemark(),
+                d.getLatitude(), d.getLongitude(), d.getAddress(),
+                d.getId(), d.getCurrentTempC(), d.getTargetTempC(), d.getFirmwareVersion(),
+                d.getSalesLockReason(), d.getSignalStrength(), d.getHomeWarehouseId(),
+                jiangyi == null ? null : jiangyi.getDeviceSn()
         );
     }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -26,27 +27,14 @@ interface JiangyiDeviceBinding {
   authEnabled?: boolean;
 }
 
-interface JiangyiClassMappingRow {
-  id: number;
-  deviceId: string;
-  classId: number;
-  modelName: string | null;
-  textName: string | null;
-  skuId: string | null;
-  status: 'ACTIVE' | 'DISABLED';
-  source: 'MANUAL' | 'MODEL_SYNC';
-  createdAt: string;
-  updatedAt: string;
-}
-
 const props = defineProps<{
   deviceId: string;
   canEdit: boolean;
 }>();
 
+const router = useRouter();
 const loading = ref(false);
 const binding = ref<JiangyiDeviceBinding | null>(null);
-const mappings = ref<JiangyiClassMappingRow[]>([]);
 
 const registerForm = reactive({ deviceSn: '', modelName: '' });
 const registerSaving = ref(false);
@@ -60,14 +48,6 @@ const activateForm = reactive({
 });
 const activateSaving = ref(false);
 const retireSaving = ref(false);
-const mappingForm = reactive({
-  classId: undefined as number | undefined,
-  skuId: '',
-  textName: '',
-  modelName: '',
-  active: true
-});
-const mappingSaving = ref(false);
 
 const statusMeta = computed(() => {
   if (!binding.value) return null;
@@ -81,10 +61,8 @@ async function load() {
   try {
     const view = await api.request<{
       binding: JiangyiDeviceBinding | null;
-      mappings: JiangyiClassMappingRow[];
     }>(AdminEndpoints.deviceJiangyi(props.deviceId), 'GET');
     binding.value = view.binding;
-    mappings.value = view.mappings || [];
     if (binding.value && !activateForm.identifier) {
       activateForm.identifier = binding.value.identifier || '';
     }
@@ -251,54 +229,10 @@ async function toggleAuth() {
   }
 }
 
-async function saveMapping() {
-  const classId = mappingForm.classId;
-  const skuId = mappingForm.skuId.trim();
-  if (classId == null || Number.isNaN(classId)) {
-    ElMessage.warning('请填写识别编号（数字）');
-    return;
-  }
-  if (!skuId) {
-    ElMessage.warning('请填写对应商品编号');
-    return;
-  }
-  mappingSaving.value = true;
-  try {
-    await api.request(AdminEndpoints.deviceJiangyiMapping(props.deviceId, classId), 'PUT', {
-      skuId,
-      textName: mappingForm.textName.trim() || undefined,
-      modelName: mappingForm.modelName.trim() || undefined,
-      active: mappingForm.active
-    });
-    ElMessage.success('对照已保存');
-    mappingForm.classId = undefined;
-    mappingForm.skuId = '';
-    mappingForm.textName = '';
-    mappingForm.modelName = '';
-    mappingForm.active = true;
-    await load();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存对照失败'));
-  } finally {
-    mappingSaving.value = false;
-  }
-}
-
-async function toggleMapping(row: JiangyiClassMappingRow) {
-  try {
-    await api.request(
-      AdminEndpoints.deviceJiangyiMappingStatus(props.deviceId, row.classId),
-      'POST',
-      { active: row.status !== 'ACTIVE' }
-    );
-    ElMessage.success(row.status === 'ACTIVE' ? '已停用，下次识别即生效' : '已启用');
-    await load();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '变更对照状态失败'));
-  }
-}
-
-// ---------- 模型同步（CB-023 二期）：classes 对照→预生成→人工激活→WS 下发→回执审计 ----------
+/** 商品对照统一在「识别映射」独立页维护，本卡片只保留入口（两处共用同一组端点）。 */
+function goMappings() {
+  void router.push({ path: '/vision-mappings', query: { deviceId: props.deviceId } });
+} // ---------- 模型同步（CB-023 二期）：classes 对照→预生成→人工激活→WS 下发→回执审计 ----------
 
 interface JiangyiModelPreview {
   modelName: string;
@@ -589,12 +523,12 @@ async function loadSignal() {
   }
 }
 
-/** 下发 getDeviceInfo（§4.3.2.13）：设备回执后信号强度异步落库，稍后点「刷新」可读。 */
+/** 下发 getDeviceInfo（§4.3.2.13）：设备回执后信号强度异步落库。当前固件未实现该回执。 */
 async function pullDeviceInfo() {
   pullLoading.value = true;
   try {
     await api.request(AdminEndpoints.deviceJiangyiDeviceInfo(props.deviceId), 'POST');
-    ElMessage.success('已下发实时拉取，设备回执后点「刷新」查看最新信号');
+    ElMessage.info('已下发实时拉取；该接口为厂商可选，固件未实现时不会回报信号');
   } catch (e) {
     ElMessage.error(errorMessage(e, '拉取失败（设备可能离线）'));
   } finally {
@@ -640,7 +574,7 @@ watch(
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别开门柜套件</span>
-            <span class="hint">登记设备 → 接入平台 → 配置商品对照；库存走「货道陈列」</span>
+            <span class="hint">登记设备 → 接入平台 → 配置识别映射；库存走「货道陈列」</span>
           </div>
         </div>
         <el-tag v-if="statusMeta" :type="statusMeta.type" size="small">{{
@@ -703,8 +637,8 @@ watch(
         }}</el-descriptions-item>
       </el-descriptions>
 
-      <!-- 将邑入库激活（V16 §5.4.10）：出厂新设备将邑云查无 SN，须用铭牌设备号 confirmActivate -->
-      <div v-if="canEdit && binding.status !== 'RETIRED'" class="jy-bind-block">
+      <!-- 将邑入库激活（V16 §5.4.10）：仅未绑定设备的首次入库；BOUND 后已激活，再点会重复写厂商云 -->
+      <div v-if="canEdit && binding.status === 'UNBOUND'" class="jy-bind-block">
         <div class="jy-section-label">
           将邑入库激活（出厂新设备首次使用；对照铭牌「设备号」填写，运维小程序扫码激活的接口等价）
         </div>
@@ -760,7 +694,9 @@ watch(
         <div class="jy-signal-row">
           <span>
             信号强度：
-            <strong>{{ signal ? `${signal.signalStrength}/4` : '未上报' }}</strong>
+            <strong>{{
+              signal?.signalStrength != null ? `${signal.signalStrength}/4` : '未上报（设备未回报）'
+            }}</strong>
             <span v-if="signal?.reportedAt" class="jy-signal-at">
               （{{ formatDateTime(signal.reportedAt) }}）
             </span>
@@ -769,6 +705,10 @@ watch(
           <el-button size="small" :loading="pullLoading" @click="pullDeviceInfo"
             >实时拉取</el-button
           >
+        </div>
+        <div class="jy-signal-hint">
+          信号强度走将邑可选接口（§4.2.15 上报 / §4.3.2.13
+          拉取）；实测当前固件下发后不回报，数值为空属固件未实现，待厂商固件支持后才会出现。
         </div>
         <div v-if="canEdit" class="jy-sound-row">
           <span class="jy-sound-label">音量设置：</span>
@@ -827,77 +767,14 @@ watch(
         </el-popconfirm>
       </div>
 
-      <!-- 商品对照：柜机识别上报的是「识别编号」，结算前必须换算成商品 -->
-      <div class="jy-mapping-block">
-        <div class="jy-section-label">商品对照表（识别编号 ↔ 商品）</div>
-        <el-table
-          :data="mappings"
-          size="small"
-          empty-text="暂无对照；识别到未登记的商品会转争议处理"
-        >
-          <el-table-column prop="classId" label="识别编号" width="90" />
-          <el-table-column prop="textName" label="商品名" min-width="140">
-            <template #default="{ row }">{{ row.textName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="skuId" label="商品编号" min-width="140">
-            <template #default="{ row }">
-              <span class="jy-mono">{{ row.skuId || '—' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="modelName" label="识别型号" min-width="110">
-            <template #default="{ row }">{{ row.modelName || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="source" label="来源" width="90">
-            <template #default="{ row }">{{
-              row.source === 'MODEL_SYNC' ? '模型同步' : '人工'
-            }}</template>
-          </el-table-column>
-          <el-table-column prop="status" label="状态" width="80">
-            <template #default="{ row }">
-              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="90">
-            <template #default="{ row }">
-              <el-button link type="primary" size="small" @click="toggleMapping(row)">
-                {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
-              </el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <div v-if="canEdit" class="jy-form-row jy-mapping-form">
-          <el-input-number
-            v-model="mappingForm.classId"
-            class="jy-input-class"
-            :min="0"
-            :controls="false"
-            placeholder="识别编号"
-          />
-          <el-input
-            v-model="mappingForm.skuId"
-            class="jy-input"
-            placeholder="商品编号（必填）"
-            clearable
-          />
-          <el-input
-            v-model="mappingForm.textName"
-            class="jy-input"
-            placeholder="商品名（可选）"
-            clearable
-          />
-          <el-input
-            v-model="mappingForm.modelName"
-            class="jy-input"
-            placeholder="识别型号（可选）"
-            clearable
-          />
-          <el-checkbox v-model="mappingForm.active">保存即启用</el-checkbox>
-          <el-button type="primary" :loading="mappingSaving" @click="saveMapping">
-            添加对照
-          </el-button>
+      <!-- 商品对照：柜机识别上报的是「识别编号」，结算前必须换算成商品；表格统一在识别映射页维护 -->
+      <div v-if="binding.status !== 'RETIRED'" class="jy-mapping-block">
+        <div class="jy-section-label">识别映射（识别编号 ↔ 平台商品）</div>
+        <div class="jy-mapping-entry">
+          <span class="jy-mapping-hint">
+            对照表、模型预生成与启用都在「识别映射」页维护；未挂接的识别会转争议处理。
+          </span>
+          <el-button type="primary" plain size="small" @click="goMappings">去识别映射</el-button>
         </div>
       </div>
 
@@ -1153,6 +1030,11 @@ watch(
   color: var(--color-text-secondary);
   font-size: 12px;
 }
+.jy-signal-hint {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
 .jy-sound-row {
   display: flex;
   align-items: center;
@@ -1172,8 +1054,16 @@ watch(
 .jy-mapping-block {
   margin-top: 16px;
 }
-.jy-mapping-form {
-  margin-top: 10px;
+.jy-mapping-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.jy-mapping-hint {
+  flex: 1 1 320px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--color-text-secondary);
 }
 .jy-mono {
   font-family: var(--font-mono);

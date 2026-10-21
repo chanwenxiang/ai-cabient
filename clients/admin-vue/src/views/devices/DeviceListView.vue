@@ -208,6 +208,11 @@
           <el-table-column label="类型" min-width="100" class-name="col-text">
             <template #default="{ row }">{{ dictLabel('device_type', row.deviceType) }}</template>
           </el-table-column>
+          <el-table-column label="投放场景" width="110" align="center" class-name="col-text">
+            <template #default="{ row }">
+              {{ row.sceneType ? dictLabel('device_scene_type', row.sceneType) : '未分类' }}
+            </template>
+          </el-table-column>
           <el-table-column
             label="状态"
             width="88"
@@ -319,7 +324,13 @@
             </template>
           </el-table-column>
           <el-table-column label="IMEI" min-width="120" class-name="col-text">
-            <template #default="{ row }">{{ row.imei || '无' }}</template>
+            <template #default="{ row }">
+              <span v-if="row.imei">{{ row.imei }}</span>
+              <span v-else-if="row.jiangyiSn" class="muted" :title="`厂商 SN：${row.jiangyiSn}`"
+                >厂商未提供</span
+              >
+              <span v-else class="muted">无</span>
+            </template>
           </el-table-column>
           <el-table-column label="资产方" min-width="100" class-name="col-text">
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
@@ -417,6 +428,21 @@
               :value="item.value"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item label="投放场景" required>
+          <el-select
+            v-model="createForm.sceneType"
+            placeholder="请选择投放场景"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in dictOptions('device_scene_type')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <p class="form-hint muted">必选：用于按场景选品与运营，创建后仍可在「资产与投放」修改</p>
         </el-form-item>
         <el-form-item label="商户">
           <el-select
@@ -583,6 +609,7 @@ const warehouseOptions = ref<WarehouseOption[]>([]);
 const createForm = reactive({
   deviceName: '',
   deviceType: '',
+  sceneType: '',
   merchantId: '',
   homeWarehouseId: '',
   /** 点位坐标：填了商户即视为部署，此时经纬度必填（后端 createDevice 亦 fail-closed） */
@@ -745,6 +772,7 @@ const csvOptions: CrudCsvOptions = {
     '设备编号',
     '名称',
     '类型',
+    '投放场景',
     displayLabel('online_status', 'ONLINE'),
     '锁机',
     '能否购买',
@@ -769,6 +797,7 @@ const csvOptions: CrudCsvOptions = {
       row.deviceId,
       row.deviceName,
       dictLabel('device_type', row.deviceType),
+      row.sceneType ? dictLabel('device_scene_type', row.sceneType) : '未分类',
       dictLabel('online_status', row.onlineStatus),
       row.salesLocked ? '已锁机' : '未锁机',
       row.salesLocked ? '不可买' : row.onlineStatus === 'ONLINE' ? '可购买' : '离线不可买',
@@ -776,7 +805,7 @@ const csvOptions: CrudCsvOptions = {
       row.currentTempC != null ? `${row.currentTempC}` : '',
       row.firmwareVersion || '',
       lifecycleLabel(row.lifecycleStatus),
-      row.imei,
+      row.imei || (row.jiangyiSn ? `厂商未提供(SN:${row.jiangyiSn})` : '无'),
       row.assetOwner,
       row.routeCode,
       row.merchantId,
@@ -1121,6 +1150,7 @@ function openCreate() {
   }
   createForm.deviceName = '';
   createForm.deviceType = '';
+  createForm.sceneType = '';
   createForm.merchantId = '';
   createForm.homeWarehouseId = '';
   createForm.latitude = undefined;
@@ -1134,6 +1164,10 @@ function openCreate() {
 async function saveCreate() {
   if (!auth.hasPerm('ops:device:create')) {
     ElMessage.warning('无新建设备权限');
+    return;
+  }
+  if (!createForm.sceneType) {
+    ElMessage.warning('请选择投放场景');
     return;
   }
   // 设备名称允许留空（后端会回退为系统自动分配的 12 位编号），但设备名是运维识别柜机的
@@ -1171,6 +1205,7 @@ async function saveCreate() {
     const created = await api.request<{ deviceId: string }>(AdminEndpoints.devices, 'POST', {
       deviceName: createForm.deviceName.trim() || undefined,
       deviceType: createForm.deviceType || undefined,
+      sceneType: createForm.sceneType,
       merchantId: createForm.merchantId || undefined,
       latitude: createForm.latitude,
       longitude: createForm.longitude,

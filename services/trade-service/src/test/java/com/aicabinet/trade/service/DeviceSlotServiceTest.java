@@ -53,7 +53,7 @@ class DeviceSlotServiceTest {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
                 salesVelocityService, null, null, null, distributedLockService, null, null,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null);
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 

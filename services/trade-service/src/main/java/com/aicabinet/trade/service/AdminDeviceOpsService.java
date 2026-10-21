@@ -118,6 +118,11 @@ public class AdminDeviceOpsService {
 
         try {
             deviceClient.requestOpenDoorOperator(sessionId, device.getDeviceId(), operatorId);
+        } catch (ResponseStatusException e) {
+            // 路由层的明确拒绝（如将邑柜 501 不支持运维开门）原样透出，不再改写成 device-service 文案
+            self.markOpsRemoteSessionFailed(sessionId,
+                    e.getReason() != null ? e.getReason() : "开门指令下发失败");
+            throw e;
         } catch (Exception e) {
             self.markOpsRemoteSessionFailed(sessionId, "开门指令下发失败");
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,

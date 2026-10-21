@@ -10,12 +10,15 @@ import com.aicabinet.common.dto.UpdateDeviceRequest;
 import com.aicabinet.common.dto.UpsertDeviceRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceLifecycleEvent;
+import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceDailyOnlineRateMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.DeviceLifecycleEventMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
@@ -67,6 +70,8 @@ public class OpsDeviceAdminService {
     private final RefundPolicyService refundPolicyService;
     private final WarehouseMapper warehouseRepository;
     private final DeviceDailyOnlineRateMapper onlineRateRepository;
+    private final DeviceLifecycleEventMapper lifecycleEventMapper;
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
 
     public OpsDeviceAdminService(PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
@@ -81,7 +86,9 @@ public class OpsDeviceAdminService {
                                  AdminAuditService auditService,
                                  RefundPolicyService refundPolicyService,
                                  WarehouseMapper warehouseRepository,
-                                 DeviceDailyOnlineRateMapper onlineRateRepository) {
+                                 DeviceDailyOnlineRateMapper onlineRateRepository,
+                                 DeviceLifecycleEventMapper lifecycleEventMapper,
+                                 JiangyiDeviceDirectory jiangyiDeviceDirectory) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -96,6 +103,8 @@ public class OpsDeviceAdminService {
         this.refundPolicyService = refundPolicyService;
         this.warehouseRepository = warehouseRepository;
         this.onlineRateRepository = onlineRateRepository;
+        this.lifecycleEventMapper = lifecycleEventMapper;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
     }
 
     @Transactional(readOnly = true)
@@ -142,12 +151,15 @@ public class OpsDeviceAdminService {
                         s -> s,
                         OpsDeviceAdminService::preferSessionForDeviceList
                 ));
+        Map<String, String> jiangyiSnByDevice = jiangyiDeviceDirectory.deviceSnByDeviceIds(
+                devices.stream().map(DeviceInfo::getDeviceId).toList());
 
         DeviceListFilters filters = DeviceListFilters.from(
                 query.q(), query.online(), query.salesLocked(),
                 query.lifecycleStatus(), query.coopMode(), query.routeCode());
         List<AdminDeviceDto> filtered = devices.stream()
-                .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
+                .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()),
+                        replenishing.contains(d.getDeviceId()), jiangyiSnByDevice.get(d.getDeviceId())))
                 .filter(d -> matchesDeviceListFilters(d, filters))
                 .toList();
 
@@ -388,12 +400,17 @@ public class OpsDeviceAdminService {
     @Transactional
     public AdminDeviceDto createDevice(Long operatorId, UpsertDeviceRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
+        String sceneType = trimToNull(request.sceneType());
+        if (sceneType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择投放场景");
+        }
         String deviceId = deviceIdService.resolveForCreate(request.deviceId());
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId(deviceId);
         device.setDeviceName(request.deviceName() != null ? request.deviceName().trim() : deviceId);
         device.setDeviceType(request.deviceType() != null && !request.deviceType().isBlank()
                 ? request.deviceType().trim() : "AI_CABINET_V1");
+        device.setSceneType(sceneType);
         device.setOnlineStatus("OFFLINE");
         device.setSalesLocked(false);
         // 点位坐标：此前 UpsertDeviceRequest 根本没有经纬度字段，createDevice 也从不 set，
@@ -421,6 +438,16 @@ public class OpsDeviceAdminService {
             device.setLifecycleStatus(INBOUND);
         }
         deviceRepository.save(device);
+        // 新建即投放此前不留痕，详情「投放流水」对存量是空的；从现在起补记首个事件
+        DeviceLifecycleEvent created = new DeviceLifecycleEvent();
+        created.setDeviceId(deviceId);
+        created.setFromStatus(deploying ? INBOUND : null);
+        created.setToStatus(device.getLifecycleStatus());
+        created.setAction(deploying ? "DEPLOY" : "INBOUND");
+        created.setOperatorId(operatorId);
+        created.setRemark(deploying ? "新建设备并投放" : "新建设备入库");
+        created.setCreatedAt(Instant.now());
+        lifecycleEventMapper.insert(created);
         deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
         auditService.appendLog(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
         return toDeviceDto(device, null, false);
@@ -657,6 +684,16 @@ public class OpsDeviceAdminService {
     }
 
     private AdminDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active, boolean replenishmentInProgress) {
+        return toDeviceDto(d, active, replenishmentInProgress, jiangyiSnOf(d.getDeviceId()));
+    }
+
+    private String jiangyiSnOf(String deviceId) {
+        JiangyiDevice jiangyi = jiangyiDeviceDirectory.findDevice(deviceId);
+        return jiangyi == null ? null : jiangyi.getDeviceSn();
+    }
+
+    private AdminDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active, boolean replenishmentInProgress,
+                                       String jiangyiSn) {
         String merchantName = null;
         if (d.getMerchantId() != null) {
             merchantName = merchantRepository.findById(d.getMerchantId())
@@ -699,7 +736,8 @@ public class OpsDeviceAdminService {
                 d.getFirmwareVersion(),
                 d.getSalesLockReason(),
                 d.getSignalStrength(),
-                d.getHomeWarehouseId()
+                d.getHomeWarehouseId(),
+                jiangyiSn
         );
     }
 

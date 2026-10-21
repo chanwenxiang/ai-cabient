@@ -48,7 +48,9 @@ public record AdminDeviceDto(
         /** 将邑信号强度 0-4（V363；非将邑柜=null）。CB-050 商户端详情展示 */
         Integer signalStrength,
         /** 所属分仓编号；空表示未归线 */
-        String homeWarehouseId
+        String homeWarehouseId,
+        /** 将邑厂商 SN（jiangyi_device.device_sn；非将邑柜=null）。厂商协议无 IMEI，列表/详情用它识别柜机 */
+        String jiangyiSn
 ) {
     public AdminDeviceDto(
             String deviceId,
@@ -66,7 +68,8 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, null, null, replenishmentInProgress,
                 null, null, false,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 
     public AdminDeviceDto(
@@ -87,7 +90,8 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, null, null, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, false,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 
     public AdminDeviceDto(
@@ -110,6 +114,7 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, null, null, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, salesLocked,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null,
+                null);
     }
 }

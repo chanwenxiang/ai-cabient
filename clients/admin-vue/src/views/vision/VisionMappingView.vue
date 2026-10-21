@@ -7,7 +7,7 @@
             <span class="title">识别映射</span>
             <span class="hint">
               端侧识别编号 → 商品的对应表；只有激活的映射参与结算推荐。识别在将邑端侧完成，
-              云端不做识别；商品入驻流程见「识别入驻」
+              云端不做识别；「识别名称」是厂商模型类目名（多为拼音/英文缩写），核对商品请看「平台商品」中文名
             </span>
           </div>
         </div>
@@ -22,7 +22,7 @@
           clearable
           placeholder="选择将邑柜机"
           style="width: 280px"
-          @change="load()"
+          @change="onDeviceChange"
         >
           <el-option
             v-for="d in deviceOptions"
@@ -168,6 +168,13 @@
             <el-table-column prop="textName" label="识别名称" min-width="150">
               <template #default="{ row }">{{ row.textName || '—' }}</template>
             </el-table-column>
+            <el-table-column label="平台商品" min-width="160">
+              <template #default="{ row }">
+                <span v-if="!row.skuId" class="muted">未挂接</span>
+                <span v-else-if="skuNameFor(row.skuId)">{{ skuNameFor(row.skuId) }}</span>
+                <span v-else class="jy-mono">{{ row.skuId }}</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="skuId" label="商品编号" min-width="120" class-name="col-text">
               <template #default="{ row }">{{ row.skuId || '未挂接' }}</template>
             </el-table-column>
@@ -299,6 +306,7 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, EditPen } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
@@ -377,6 +385,8 @@ interface SkuOption {
   skuName?: string;
 }
 
+const route = useRoute();
+const router = useRouter();
 const deviceId = ref('');
 const deviceOptions = ref<DeviceOption[]>([]);
 const binding = ref<JiangyiBindingInfo | null>(null);
@@ -389,6 +399,16 @@ const classIdBase = ref(0);
 const acting = ref<'sync' | 'activate' | 'push' | ''>('');
 const deployments = ref<DeploymentRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
+const skuNameMap = computed(() => {
+  const map = new Map<string, string>();
+  for (const sku of skuOptions.value) {
+    if (sku.skuId && sku.skuName) map.set(sku.skuId, sku.skuName);
+  }
+  return map;
+});
+function skuNameFor(skuId?: string | null) {
+  return skuId ? skuNameMap.value.get(skuId) || '' : '';
+}
 const saving = ref(false);
 const editVisible = ref(false);
 const editForm = ref({ classId: 0, textName: '', skuId: '' });
@@ -655,9 +675,26 @@ function formatInstant(t: string | null) {
   return formatDateTime(t);
 }
 
+/** 设备详情「去识别映射」深链：?deviceId=xxx 预选；改选后回写 query，keep-alive 恢复时不回跳旧柜。 */
+function applyDeviceFromRoute() {
+  const fromQuery = typeof route.query.deviceId === 'string' ? route.query.deviceId.trim() : '';
+  if (!fromQuery || fromQuery === deviceId.value) return;
+  deviceId.value = fromQuery;
+  void load();
+}
+
+function onDeviceChange() {
+  const query = { ...route.query };
+  if (deviceId.value) query.deviceId = deviceId.value;
+  else delete query.deviceId;
+  void router.replace({ query });
+  void load();
+}
+
 onMounted(() => {
   void loadDevices();
   void loadSkus();
+  applyDeviceFromRoute();
 });
 // 首次 activated 紧随 onMounted（设备/SKU 选项已拉过），跳过防双请求
 let activatedOnce = false;
@@ -669,6 +706,7 @@ onActivated(() => {
   // keep-alive 缓存页恢复时重拉设备/SKU 选项：设备页/商品页新增后切回本页，选择项不缺
   void loadDevices();
   void loadSkus();
+  applyDeviceFromRoute();
 });
 </script>
 

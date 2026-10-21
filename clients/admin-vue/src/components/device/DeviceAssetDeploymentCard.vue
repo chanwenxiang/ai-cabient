@@ -21,6 +21,8 @@ defineProps<{
   bindMerchantsLoading: boolean;
   bindMerchantOptions: Array<{ merchantId: string; merchantName?: string }>;
   warehouseOptions: Array<{ warehouseId: string; warehouseName?: string }>;
+  /** 将邑柜厂商 SN（绑定表）；平台拿不到 IMEI 时用它兜底展示序列号 */
+  deviceSnFallback?: string;
   lifecycleLabel: (status?: string | null) => string;
   canLifecycle: (action: string) => boolean;
   lifecycleDisabledReason: (action: string) => string;
@@ -128,10 +130,19 @@ const dataFeeYuan = computed({
         <el-col :xs="24" :sm="12" :md="8">
           <el-form-item label="设备序列号">
             <div class="imei-field">
-              <el-tag v-if="!asset.imei" type="info" effect="plain">未绑定</el-tag>
-              <el-input v-else :model-value="asset.imei" disabled placeholder="柜机心跳自动绑定" />
+              <el-input
+                v-if="asset.imei || deviceSnFallback"
+                :model-value="asset.imei || deviceSnFallback"
+                disabled
+                placeholder="柜机心跳自动绑定"
+              />
+              <!-- 异步拿到 SN 后会切到输入框；ElTag 自带 appear 过渡，禁用后离场不留残影 -->
+              <el-tag v-else type="info" effect="plain" disable-transitions>未绑定</el-tag>
             </div>
-            <p v-if="canEditDevice" class="form-hint muted">
+            <p v-if="!asset.imei && deviceSnFallback" class="form-hint muted">
+              将邑厂商 SN（厂商未上报 IMEI）
+            </p>
+            <p v-else-if="canEditDevice" class="form-hint muted">
               柜机联网后自动绑定；如需更换请联系平台解绑
             </p>
           </el-form-item>

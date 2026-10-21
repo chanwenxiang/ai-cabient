@@ -1,15 +1,19 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import type {
   DeviceRemoteOpsPolicy,
   DeviceRepairTicketRow
 } from '@/composables/device/useDeviceRemoteOps';
+import { api } from '@/api/client';
+import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 /** 父组件拥有 reactive 策略对象；开关编辑走 defineModel */
 const policy = defineModel<DeviceRemoteOpsPolicy | null>('policy', { required: true });
 
-defineProps<{
+const props = defineProps<{
+  deviceId: string;
   canEditDevice: boolean;
   canAccessReplenishment: boolean;
   canAccessRepairTickets: boolean;
@@ -41,6 +45,22 @@ const emit = defineEmits<{
   'save-policy': [];
   'update:refundPolicyDraft': [value: string];
 }>();
+
+/** 将邑柜协议无运维开门（trade 侧 501），前端不再放出该按钮。 */
+const jiangyiRegistered = ref(false);
+watch(
+  () => props.deviceId,
+  async (id) => {
+    if (!id) return;
+    try {
+      const view = await api.request<{ binding: unknown }>(AdminEndpoints.deviceJiangyi(id), 'GET');
+      jiangyiRegistered.value = view.binding != null;
+    } catch {
+      jiangyiRegistered.value = false;
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
@@ -67,10 +87,15 @@ const emit = defineEmits<{
           :closable="false"
           show-icon
           class="open-door-alert"
-          title="「运维远程开门」只用于应急检修：开门不结算、不绑补货任务。日常补货请走「补货调度 → 补货开门」或商户小程序（需先签到）。"
+          :title="
+            jiangyiRegistered
+              ? '将邑柜不支持运维远程开门与远程重启（协议无对应指令，重启类需现场处理）：开门请走「补货调度 → 补货开门」（需先签到）或消费者扫码。锁机停售/解锁营业是平台侧拦截，对将邑柜同样生效。'
+              : '「运维远程开门」只用于应急检修：开门不结算、不绑补货任务。日常补货请走「补货调度 → 补货开门」或商户小程序（需先签到）。'
+          "
         />
         <div class="cmd-bar">
           <el-button
+            v-if="!jiangyiRegistered"
             v-hasPermi="['ops:device:edit']"
             type="primary"
             :loading="cmdLoading === 'OPEN_DOOR'"
@@ -93,7 +118,9 @@ const emit = defineEmits<{
             @click="emit('send-command', 'UNLOCK')"
             >解锁营业</el-button
           >
+          <!-- 重启走自研 MQTT ops-command，将邑协议无对应指令：留着点了只会报「请确认 device-service 在线」的误导性失败 -->
           <el-button
+            v-if="!jiangyiRegistered"
             v-hasPermi="['ops:device:edit']"
             type="danger"
             plain
@@ -264,7 +291,11 @@ const emit = defineEmits<{
           :closable="false"
           show-icon
           class="lock-restock-hint"
-          title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用左侧「运维远程开门」检修。"
+          :title="
+            jiangyiRegistered
+              ? '当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」。'
+              : '当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用左侧「运维远程开门」检修。'
+          "
         />
       </div>
     </div>

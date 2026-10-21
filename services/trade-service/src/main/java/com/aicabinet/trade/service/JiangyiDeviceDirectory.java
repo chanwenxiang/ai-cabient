@@ -2,13 +2,16 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 将邑设备判定（CB-022）：deviceId 是否为「已绑定」的将邑柜。
@@ -68,6 +71,18 @@ public class JiangyiDeviceDirectory {
     /** 设备详情（gateway 校验 status=BOUND 后才服务该设备）。 */
     public JiangyiDevice findDevice(String deviceId) {
         return jiangyiDeviceMapper.selectById(deviceId);
+    }
+
+    /** 批量取厂商 SN（设备列表展示用：一次 IN 查询，避免逐台 selectById 的 N+1）。 */
+    public Map<String, String> deviceSnByDeviceIds(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return Map.of();
+        }
+        return jiangyiDeviceMapper.selectList(Wrappers.<JiangyiDevice>lambdaQuery()
+                        .in(JiangyiDevice::getDeviceId, deviceIds))
+                .stream()
+                .filter(d -> d.getDeviceSn() != null)
+                .collect(Collectors.toMap(JiangyiDevice::getDeviceId, JiangyiDevice::getDeviceSn));
     }
 
     /** 按 SN 查设备（gateway token 签发前校验主体）。 */

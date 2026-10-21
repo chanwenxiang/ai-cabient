@@ -67,11 +67,11 @@
             :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `缺货商品 ${metrics?.oosSlotCount ?? 0}`
-                : `缺货商品 ${UI_COPY.loading}`
+                ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
+                : `缺货货道 ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">缺货商品</div>
+            <div class="stat-label">缺货货道</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
             </div>
@@ -83,11 +83,11 @@
             :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `低库存商品 ${metrics?.lowStockSlotCount ?? 0}`
-                : `低库存商品 ${UI_COPY.loading}`
+                ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
+                : `低库存货道 ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">低库存商品</div>
+            <div class="stat-label">低库存货道</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
             </div>
@@ -109,7 +109,9 @@
             </div>
             <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </div>
+          <!-- 将邑柜温度文档明确「暂无法获取」，指标恒为无；按绑定隐藏，自研柜保留 -->
           <div
+            v-if="!jiangyiRegistered"
             class="stat-tile"
             role="group"
             :aria-label="
@@ -133,7 +135,8 @@
         </div>
 
         <!-- 温度下发从信息格里拿出来：它是操作不是属性，混在只读格子里既难找又误触 -->
-        <div class="temp-action-bar">
+        <!-- 将邑柜温度走厂商协议，当前固件没有可用下发通道（MQTT 假成功）；与远程开门同款按绑定关系隐藏 -->
+        <div v-if="!jiangyiRegistered" class="temp-action-bar">
           <span class="temp-bar-label">温度设置</span>
           <el-input-number
             v-model="tempDraft"
@@ -193,7 +196,17 @@
               <div class="info-item">
                 <span class="info-label">固件版本</span>
                 <span class="info-value">{{
-                  metricsHydrated ? metrics?.firmwareVersion || '无' : UI_COPY.loading
+                  metricsHydrated
+                    ? metrics?.firmwareVersion || (jiangyiRegistered ? '厂商未提供' : '无')
+                    : UI_COPY.loading
+                }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">IMEI</span>
+                <span class="info-value cell-id">{{
+                  metricsHydrated
+                    ? device?.imei || (jiangyiRegistered ? '厂商未提供' : '无')
+                    : UI_COPY.loading
                 }}</span>
               </div>
             </div>
@@ -242,8 +255,10 @@
             <div class="info-grid">
               <div class="info-item">
                 <span class="info-label">最近开门</span>
-                <span class="info-value cell-id">{{
-                  metricsHydrated ? device?.activeSessionId || '无' : UI_COPY.loading
+                <span class="info-value cell-datetime">{{
+                  metricsHydrated && relatedHydrated
+                    ? formatDateTime(lastOpenAt) || '无'
+                    : UI_COPY.loading
                 }}</span>
               </div>
               <div class="info-item">
@@ -557,7 +572,9 @@
             </template>
           </el-dialog>
 
-          <div v-if="!slotsHydrated" class="muted">在售商品{{ UI_COPY.loading }}</div>
+          <div v-if="!slotsHydrated" class="slots-placeholder muted">
+            在售商品{{ UI_COPY.loading }}
+          </div>
         </el-card>
       </el-tab-pane>
 
@@ -576,6 +593,7 @@
           :bind-merchants-loading="bindMerchantsLoading"
           :bind-merchant-options="bindMerchantOptions"
           :warehouse-options="warehouseOptions"
+          :device-sn-fallback="jiangyiSn"
           :lifecycle-label="lifecycleLabel"
           :can-lifecycle="canLifecycle"
           :lifecycle-disabled-reason="lifecycleDisabledReason"
@@ -592,6 +610,7 @@
 
       <el-tab-pane label="远程运维" name="ops">
         <DeviceRemoteOpsCard
+          :device-id="deviceId"
           :can-edit-device="canEditDevice"
           :can-access-replenishment="canAccessPath('/replenishment')"
           :can-access-repair-tickets="canAccessPath('/repair-tickets')"
@@ -628,7 +647,12 @@
         <DeviceJiangyiCard :device-id="deviceId" :can-edit="canEditDevice" />
       </el-tab-pane>
 
-      <el-tab-pane label="温控与环境" name="temp-env" lazy>
+      <!--
+        温控与环境只对自研柜开放：将邑协议没有温控下发通道，但后端 applyNow 会照写我方
+        target_temp_c 并调 device-service（MQTT），厂商柜一条指令都收不到，前端却提示「已下发」。
+        与温度指标/温度下发条同款按绑定隐藏（2026-10-20 拍板：将邑没有的就不做）。
+      -->
+      <el-tab-pane v-if="!jiangyiRegistered" label="温控与环境" name="temp-env" lazy>
         <DeviceTempEnvTab
           :can-edit-temp-plan="canEditTempPlan"
           :temp-plan-enabled="tempPlanEnabled"
@@ -666,9 +690,13 @@
             >
               <div class="life-event">
                 <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
-                <span class="muted"
-                  >{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span
-                >
+                <span class="muted">
+                  <template v-if="ev.fromStatus"
+                    >{{ lifecycleLabel(ev.fromStatus) }} →
+                    {{ lifecycleLabel(ev.toStatus) }}</template
+                  >
+                  <template v-else>初始状态：{{ lifecycleLabel(ev.toStatus) }}</template>
+                </span>
                 <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
               </div>
             </el-timeline-item>
@@ -954,6 +982,8 @@ interface DeviceRow {
   refundPolicy?: string | null;
   /** 已解析的生效策略 */
   effectiveRefundPolicy?: string;
+  /** 自研柜心跳绑定的 IMEI；将邑柜厂商不上报 */
+  imei?: string;
   homeWarehouseId?: string | null;
 }
 
@@ -1011,6 +1041,31 @@ const auth = useAuthStore();
 const { canAccessPath, goPath, router } = useNavAccess();
 const deviceId = route.params.id as string;
 
+/**
+ * 将邑柜：温度指令无可用通道、运维开门走补货链路；两者都按绑定关系隐藏。
+ * 厂商不上报 IMEI/固件（协议 §4.2.15 无该字段），SN 只能在绑定表取到，故一并缓存。
+ */
+const jiangyiRegistered = ref(false);
+const jiangyiSn = ref('');
+watch(
+  () => deviceId,
+  async (id) => {
+    if (!id) return;
+    try {
+      const view = await api.request<{ binding: { deviceSn?: string } | null }>(
+        AdminEndpoints.deviceJiangyi(id),
+        'GET'
+      );
+      jiangyiRegistered.value = view.binding != null;
+      jiangyiSn.value = view.binding?.deviceSn || '';
+    } catch {
+      jiangyiRegistered.value = false;
+      jiangyiSn.value = '';
+    }
+  },
+  { immediate: true }
+);
+
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 // 单柜定价（V350，CB-037）：改价走独立权限点 ops:pricing:edit（资金敏感，与商户端对称）；
 // 查看沿用面板口径 ops:device:list（能进详情页即可看，铁律 66）
@@ -1032,6 +1087,16 @@ const {
   loadRelated,
   markRelatedHydrated
 } = useDeviceRelatedRecords({ deviceId });
+/**
+ * 「最近开门」= 最新一条开门记录的时间。关联会话列表后端按 updatedAt DESC 排，
+ * 首条即最新；显示取 openTime（真实开门时刻），无则回落 createdAt。
+ * 原实现直接铺 activeSessionId（会话 id 串，无语义且进行中会话不随新单移动），已弃用。
+ */
+const lastOpenAt = computed(() => {
+  const top = sessions.value[0];
+  if (!top) return undefined;
+  return top.openTime || top.createdAt;
+});
 const loading = ref(true);
 const metricsHydrated = ref(false);
 const lifecycleHydrated = ref(false);
@@ -1744,27 +1809,12 @@ onActivated(() => {
   padding-bottom: 4px;
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
+/*
+ * 选项页样式跟全站默认（14px / 权重 500 / 2px 直角下划线，同 LineManagerView 等页面）。
+ * 原先这里自带 15px/600/3px 圆角条的覆盖，导致设备详情 tabs 与其它页面观感不一致，已删。
+ */
 .detail-tabs {
   margin-top: 4px;
-}
-.detail-tabs :deep(.el-tabs__header) {
-  margin: 4px 0 20px;
-}
-.detail-tabs :deep(.el-tabs__nav-wrap::after) {
-  height: 1px;
-}
-.detail-tabs :deep(.el-tabs__item) {
-  font-size: var(--admin-font-size-title, 15px);
-  color: var(--el-text-color-secondary);
-}
-.detail-tabs :deep(.el-tabs__item.is-active) {
-  font-weight: 600;
-  color: var(--app-primary, #0f766e);
-}
-.detail-tabs :deep(.el-tabs__active-bar) {
-  height: 3px;
-  border-radius: 2px;
-  background-color: var(--app-primary, #0f766e);
 }
 .page-head-meta {
   display: flex;
@@ -1822,6 +1872,12 @@ onActivated(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  /*
+   * 预留两行（标签 15.4 + 2px + 值 2 行 39 ≈ 56px）：加载完「商户」格可能多一行商户号、
+   * 「开门状态」由纯文本换成 el-tag（高 24）、长地址换行——这些都是 hydration 后才长高，
+   * 整格/整行随之顶开。钉住两行高度后行高不再随内容变化。
+   */
+  min-height: 56px;
 }
 .info-item--full {
   grid-column: 1 / -1;
@@ -2096,6 +2152,18 @@ onActivated(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 12px;
+}
+/*
+ * 在售商品加载占位钉一块高度：原来只有一行文字，hydration 后换成卡片墙/空态块，
+ * 页尾猛地拉长（滚动条跳动）。96px ≈ 空态盒高度；有商品时仍只向下生长，不回收。
+ */
+.slots-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-top: 16px;
+  font-size: var(--admin-font-size-sm);
 }
 .sku-card {
   position: relative;

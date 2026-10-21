@@ -16,7 +16,9 @@ public record UpsertDeviceRequest(
         /** 点位地址（可选，便于运营核对，不参与围栏计算）。 */
         String address,
         /** 所属分仓；空则未归线 */
-        String homeWarehouseId
+        String homeWarehouseId,
+        /** 投放场景（device_scene_type 字典值）；新建必填，空则由服务层拒绝 */
+        String sceneType
 ) {
     public UpsertDeviceRequest(
             String deviceId,
@@ -25,7 +27,20 @@ public record UpsertDeviceRequest(
             String merchantId,
             Double latitude,
             Double longitude,
+            String address,
+            String homeWarehouseId) {
+        this(deviceId, deviceName, deviceType, merchantId, latitude, longitude, address,
+                homeWarehouseId, null);
+    }
+
+    public UpsertDeviceRequest(
+            String deviceId,
+            String deviceName,
+            String deviceType,
+            String merchantId,
+            Double latitude,
+            Double longitude,
             String address) {
-        this(deviceId, deviceName, deviceType, merchantId, latitude, longitude, address, null);
+        this(deviceId, deviceName, deviceType, merchantId, latitude, longitude, address, null, null);
     }
 }
