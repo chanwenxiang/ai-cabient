@@ -28,6 +28,8 @@
 - 完成消费者、商户和运营后台商用 UI 设计与真机适配。
 - 至少覆盖常见 iPhone、Android、微信版本和弱网环境。
 - 完成用户协议、隐私政策、退款规则、客服入口和消费者账单说明。
+- 微信小程序管理后台开通「客服」功能并绑定 ≥1 名客服人员（【功能】→【客服】→【客服管理】→ 添加客服微信号），并打开「在官方客服工作台收发消息」开关；确认未因【开发】→【开发设置】→【消息推送】配置导致客服消息被劫持转发到回调（代码入口 `open-type="contact"` 已就绪，无需改码）。
+- 复核生产 `system_config` 客服联系方式（2026-10-21 已处理）：`consumer.service_phone` / `merchant.service_phone` 已设为 `4000182992`（用户确认真实号）；`ops.support_email` 已置空 ⇒ C 端/商户端「复制邮箱」入口自动隐藏，不显示邮箱。
 
 ## P2：正式规模化运营前完成
 
@@ -61,4 +63,15 @@
 5. Vision：开发可用 mock；关闭 mock 前须确认端侧识别上报可用（见 `docs/VISION_QUECTEL_INTEGRATION.md`），勿再依赖已移除的云端 YOLO 权重
 
 说明：正式 `prod` profile 仍要求微信 V3 / 小程序配置；本路径只用于预发验证业务闭环，不能替代真钱进件。
+
+## 客服系统上线前置（2026-10-21 复核）
+
+代码侧已就绪且闭环打通，无需改码，仅剩运营/配置动作：
+
+- **微信客服后台开通**：`open-type="contact"` 入口已分布 help / order-detail / index / dispute 等页；运营须在小程序 MP 后台开通客服功能、绑定客服人员、开「在官方客服工作台收发消息」开关。
+- **配置生效链路已实证**（前后端 key 严格匹配，`SystemConfigService.java:597/666/598` → 前端 `help.vue:215/220`、`index.vue:1390`、`order-detail.vue:502`、`dispute/detail.vue:315`）：
+  - `consumer.service_phone` / `merchant.service_phone` = `4000182992`（用户确认真实号，已 UPDATE 生产库；代码默认值同步改为 `4000182992`，见 `SystemConfigService.java:597`/`:666`）。
+  - `ops.support_email` = 空（**2026-10-21 已置空 ⇒ 邮箱入口不显示**；代码默认值 `SystemConfigService.java:598` 同步改为空串，删 key 也不会兜底假邮箱）。
+- 结构化「意见反馈」走自有 `feedback` 后端（`/api/v2/feedback` + admin `ops:feedback`），不受微信客服 48h/5 条限制，与 `open-type="contact"` 原生客服互补。
+- 验证方式：开发者工具体验版进「我的 → 帮助与客服 → 在线客服」应拉起会话；用绑定客服微信号在「客服小助手」或 `mpkf.weixin.qq.com` 看是否收到测试消息。
 
