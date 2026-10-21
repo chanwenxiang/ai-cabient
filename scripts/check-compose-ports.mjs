@@ -80,6 +80,12 @@ export function isLoopbackHost(hostPart) {
  *  container 允许两段式 "80:80" 与协议前缀 "tcp/..."。 */
 function splitSpec(spec) {
   spec = spec.replace(/^\w+\//, '');
+  // 整条 spec 就是一个带默认值的变量（`${GATEWAY_PUBLISH:-80:80}`，默认值本身是 host:port:port 形态）：
+  // 先把默认值展开再逐段扫，否则只会切出 1 段 ⇒ 误报「无法解析为 host:container 形态」。
+  // 只展开「整条都是变量」这一种：`${BIND:-0.0.0.0}:7004:80` 仍走原路径（host 段交给 isLoopbackHost）。
+  // 展开后判定逻辑一字不变 ⇒ 非回环默认值照样要撞 ALLOWLIST + EXPOSE-ALLOW，不会因能解析就放行。
+  const whole = spec.match(/^\$\{[^:}]+:-(.+)\}$/);
+  if (whole && whole[1].includes(':')) spec = whole[1];
   const segs = [];
   let i = 0;
   while (i < spec.length && segs.length < 4) {
@@ -154,7 +160,8 @@ function runReal() {
     console.error('[check-compose-ports] 以下端口映射未绑回环且不在豁免清单：');
     for (const v of violations) console.error(`  - ${v}`);
     console.error(
-      '  修复：改为 "127.0.0.1:端口:端口"（或 ${VAR:-127.0.0.1} 形态）；确需对外暴露则在本脚本 ALLOWLIST 带理由登记。'
+      '  修复：改为 "127.0.0.1:端口:端口"（或 ${VAR:-127.0.0.1}／${VAR:-127.0.0.1:端口:端口} 形态）；' +
+        '确需对外暴露则在本脚本 ALLOWLIST 带理由登记，并在 compose 行尾加 "# EXPOSE-ALLOW: 理由"。'
     );
     process.exit(1);
   }
@@ -180,18 +187,24 @@ function runSelfTest() {
       src: 'services:\n  a:\n    ports:\n      - "${BIND:-0.0.0.0}:7004:80"\n'
     },
     {
-      name: '合规对照：回环+变量回环默认',
-      src: 'services:\n  a:\n    ports:\n      # 注释\n      - "127.0.0.1:7005:80"\n      - "${BIND:-127.0.0.1}:7006:80"\n'
+      name: '合规对照：回环+变量回环默认+整条变量默认含冒号',
+      src:
+        'services:\n  a:\n    ports:\n      # 注释\n      - "127.0.0.1:7005:80"\n      - "${BIND:-127.0.0.1}:7006:80"\n' +
+        '      - "${PUBLISH:-127.0.0.1:7009:80}"\n'
+    },
+    {
+      name: '⑦整条变量默认值含冒号且非回环',
+      src: 'services:\n  a:\n    ports:\n      - "${PUBLISH:-0.0.0.0:7010:80}"\n'
     }
   ];
   let failed = 0;
   const sources = cases.map((c, idx) => ({ file: `case-${idx}.yml`, src: c.src }));
   const { violations } = checkSources(sources);
   const hitFile = (idx) => violations.some((v) => v.includes(`case-${idx}.yml`));
-  // 前 4 例必须各报 1 条违规；第 5 例（合规对照）必须零报
-  cases.slice(0, 4).forEach((c, idx) => {
+  // 违规用例（前 4 例 + 第 7 形态）必须各报 1 条；合规对照必须零报
+  [0, 1, 2, 3, 5].forEach((idx) => {
     if (!hitFile(idx)) {
-      console.error(`✗ 自测失败（违规未被识别）：${c.name}`);
+      console.error(`✗ 自测失败（违规未被识别）：${cases[idx].name}`);
       failed++;
     }
   });
@@ -227,7 +240,9 @@ function runSelfTest() {
     console.error(`check-compose-ports --self-test: ${failed} 项失败`);
     process.exit(1);
   }
-  console.log('check-compose-ports --self-test: 四形态盲区用例全部识别，合规对照无误报');
+  console.log(
+    'check-compose-ports --self-test: 四形态 + 整条变量默认值（含冒号）共 5 例违规全部识别，合规对照无误报'
+  );
 }
 
 if (process.argv.includes('--self-test')) {
