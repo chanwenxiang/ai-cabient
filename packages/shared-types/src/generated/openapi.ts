@@ -3318,6 +3318,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/order-videos/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pullOrderVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/invoices/{invoiceId}/reject": {
         parameters: {
             query?: never;
@@ -10837,6 +10853,8 @@ export interface components {
             brand?: string;
             spec?: string;
             unit?: string;
+            /** Format: int32 */
+            packQty?: number;
             operationScope?: string;
             /** Format: int32 */
             maxPriceCents?: number;
@@ -10893,6 +10911,8 @@ export interface components {
             updatedByUserId?: number;
             updatedByName?: string;
             operationScope?: string;
+            /** Format: int32 */
+            packQty?: number;
             sceneLimits?: components["schemas"]["SkuSceneLimitItem"][];
         };
         BindRequest: {
@@ -13450,6 +13470,8 @@ export interface components {
             unitCostCents?: number;
             /** Format: int32 */
             returnedQty?: number;
+            /** Format: int32 */
+            packQty?: number;
         };
         ApiResponsePurchaseOrderDto: {
             /** Format: int32 */
@@ -13824,6 +13846,9 @@ export interface components {
             socketUrl?: string;
             pushedAt?: string;
         };
+        PullVideoRequest: {
+            orderNo: string;
+        };
         WriteOffRequest: {
             deviceId?: string;
             warehouseId?: string;
@@ -14171,6 +14196,7 @@ export interface components {
             longitude?: number;
             address?: string;
             homeWarehouseId?: string;
+            sceneType?: string;
         };
         AdminDeviceDto: {
             deviceId?: string;
@@ -14221,6 +14247,7 @@ export interface components {
             /** Format: int32 */
             signalStrength?: number;
             homeWarehouseId?: string;
+            jiangyiSn?: string;
         };
         ApiResponseAdminDeviceDto: {
             /** Format: int32 */
@@ -25653,6 +25680,30 @@ export interface operations {
             };
         };
     };
+    pullOrderVideo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullVideoRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     reject: {
         parameters: {
             query?: never;
@@ -33553,6 +33604,7 @@ export interface operations {
             query?: {
                 page?: number;
                 size?: number;
+                deviceId?: string;
             };
             header?: never;
             path?: never;
