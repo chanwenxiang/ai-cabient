@@ -48,9 +48,21 @@ function wxPrivacyApi(): WxPrivacyApi | undefined {
   return w && typeof w === 'object' ? (w as WxPrivacyApi) : undefined;
 }
 
-/** 微信小程序运行时判定：H5/admin 环境无 wx → false（request 层 H5 门禁不受影响）。 */
+/**
+ * 微信小程序运行时判定。
+ *
+ * 🔴 「有 globalThis.wx」绝不能当 mp 判据：uni-app 的 **H5** 运行时把 uni API 别名挂到
+ * `globalThis.wx`（实测键含 `$emit`/`addInterceptor`/`canvasGetImageData`…，但**无**
+ * `getPrivacySetting`）。首版只判 wx 存在 ⇒ H5 被判成 mp ⇒ use-privacy-consent 走 mp 分支
+ * 永不弹首屏窗，而 request.ts 的 H5 门禁照旧拦（PRIVACY_CONSENT_REQUIRED）⇒ 整站 H5 请求死锁，
+ * CI consumer UAT 的 captcha 请求根本没发出（表现为「6 次未取到 2xx」，被文案误报成 429 限流）。
+ * 两道独立排除：DOM 存在=H5；官方隐私接口缺失=非 mp（低版本基础库由微信官方弹窗兜底）。
+ */
 export function isWeixinMpRuntime(): boolean {
-  return wxPrivacyApi() !== undefined;
+  if (typeof (globalThis as Record<string, unknown>).window !== 'undefined') {
+    return false;
+  }
+  return typeof wxPrivacyApi()?.getPrivacySetting === 'function';
 }
 
 /**

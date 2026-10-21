@@ -263,6 +263,8 @@ function pickCaptchaId(body) {
  * 这里显式区分状态码，并只在 429 上做有上限的线性退避（限流是 5r/s，900ms×n 足够跨过窗口）。
  */
 async function fetchCaptchaWithRetry(page, { attempts = 6, baseDelayMs = 900 } = {}) {
+  let saw429 = 0;
+  let sawNoResponse = 0;
   for (let i = 0; i < attempts; i++) {
     const waiter = page
       .waitForResponse((r) => /\/api\/v2\/auth\/captcha(?:\?|$)/.test(r.url()), { timeout: 12000 })
@@ -286,8 +288,12 @@ async function fetchCaptchaWithRetry(page, { attempts = 6, baseDelayMs = 900 } =
     }
 
     const resp = await waiter;
-    if (!resp) continue;
+    if (!resp) {
+      sawNoResponse++;
+      continue;
+    }
     if (resp.status() === 429) {
+      saw429++;
       const wait = baseDelayMs * (i + 1);
       console.log(`○ [setup] captcha 命中网关限流 429（第 ${i + 1} 次），退避 ${wait}ms 重试`);
       await page.waitForTimeout(wait);
@@ -295,9 +301,15 @@ async function fetchCaptchaWithRetry(page, { attempts = 6, baseDelayMs = 900 } =
     }
     if (resp.ok()) return resp;
   }
+  // 🔴 两种形态根因完全不同，必须分开报（run 933 曾把「请求根本没发出」误读成限流，白查一轮 nginx）：
+  //  · 429  → 真被 nginx 限流（infra/gateway/nginx.conf 的 /api/v2/auth/ auth_ratelimit）
+  //  · 无响应 → 请求**没发出**：客户端被自有门禁拦下（request.ts 隐私未同意 ⇒ reject）、
+  //            或点击没触发 loadCaptcha（组件没挂载 / tab 选择器失效）
   throw new Error(
-    `图形验证码连续 ${attempts} 次未取到 2xx（多为网关 auth_ratelimit 429 限流），` +
-      '请检查 infra/gateway/nginx.conf 的 /api/v2/auth/ 限流配置'
+    `图形验证码连续 ${attempts} 次未取到 2xx（429 命中 ${saw429} 次、根本没收到响应 ${sawNoResponse} 次）：` +
+      (saw429 > 0
+        ? '先查 infra/gateway/nginx.conf 的 /api/v2/auth/ 限流'
+        : '请求未发出，先查 packages/shared-uni/src/request.ts 的客户端拦截（隐私同意门禁）与验证码加载是否被触发')
   );
 }
 
@@ -413,16 +425,34 @@ async function fillTextarea(page, value) {
  * 会拦截全部指针事件。不先关掉它，登录表单完全无法点击 —— 旧版脚本正是在
  * 「填手机号」这一步 15s 超时，导致整套 UAT 中断（仅 5/44 条用例有机会执行）。
  */
+/** 弹窗缺席时确认本地同意标记；没有就直接失败（把「客户端拦截」和「服务端没响应」分开）。 */
+async function assertConsentOrThrow(page, why) {
+  const consent = await page
+    .evaluate(() => localStorage.getItem('aicabinet_privacy_consent_v1'))
+    .catch(() => null);
+  if (consent === '1') return false;
+  throw new Error(
+    `${why}且本地无同意标记（aicabinet_privacy_consent_v1=${String(consent)}）：` +
+      'request.ts 的 H5 隐私门禁会拦下全部请求 —— 查 shouldShowPrivacyConsent 的端判定' +
+      '（注意 uni-app H5 的 globalThis.wx 是 uni API 别名，不代表微信运行时）'
+  );
+}
+
 async function dismissPrivacyConsent(page) {
   const dialog = page.locator('[data-testid="privacy-consent-dialog"]');
-  if ((await dialog.count()) === 0) return false;
+  // 🔴 「弹窗没出现」≠「不需要同意」：request.ts 的 H5 门禁在未同意时 reject 掉**全部**请求，
+  // 下游只会看到「接口超时」（run 933 的 captcha 请求根本没发出即此因）。必须校验同意标记，
+  // 否则这类死锁会被误诊成网关限流。
+  if ((await dialog.count()) === 0) {
+    return assertConsentOrThrow(page, '隐私弹窗未渲染');
+  }
   if (
     !(await dialog
       .first()
       .isVisible()
       .catch(() => false))
   )
-    return false;
+    return assertConsentOrThrow(page, '隐私弹窗不可见');
   await page
     .evaluate(() => {
       const d = document.querySelector('[data-testid="privacy-consent-dialog"]');

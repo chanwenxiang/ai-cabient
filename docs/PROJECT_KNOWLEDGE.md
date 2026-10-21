@@ -641,6 +641,13 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-21（隐私端判定 H5 死锁修复 + classes.txt 白名单改为纯配置）
+- 🔴 **P0：H5 隐私门禁自锁（4173228b 已推 origin/dev，CI run 933 e2e-h5 红才暴露）**：`isWeixinMpRuntime()` 用「`globalThis.wx` 是否存在」判端，而 **uni-app 的 H5 运行时本来就把 uni API 别名挂在 `globalThis.wx`**（本地 :3002 实测 `typeof wx='object'`、有 `$emit`/`canvasGetImageData`、**无** `getPrivacySetting`）⇒ H5 被判成 mp ⇒ 首屏隐私窗永不渲染，而 `request.ts:233` 的 H5 门禁照旧 reject ⇒ 未同意用户**没有任何同意入口**，consumer/merchant 两个 H5 的全部请求死在客户端。判据改为「有 DOM(`globalThis.window`) 即 false + 必须真有 `wx.getPrivacySetting` 函数」两条彼此独立的排除；mp 端结论逐项对齐（现代基础库仍 true；无该 API 的老基础库改判 false，落到的 H5 分支在 mp 因无 `window` 仍不弹 ⇒ 行为不变）。取证：修前弹窗节点不存在且 `/api/v2/auth/captcha` **零网络请求**；修后点「同意并继续」写入 `aicabinet_privacy_consent_v1=1`、captcha 请求 200 真发出。详见 `docs/MINIPROGRAM_PRIVACY_LAUNCH.md` §7.1、lessons #334。
+- **测试判据补牙齿**（同因）：`fetchCaptchaWithRetry` 旧文案「多为网关 auth_ratelimit 429 限流」把方向钉向 nginx，而 e2e job **没有 nginx**（`VITE_DEV_PROXY` 直连 8080）⇒ 白查一轮。现按观测分叉计数（429 命中 N / 根本没收到响应 M），`dismissPrivacyConsent` 在弹窗缺席时**必须**回查同意标记，缺失即失败（不再静默放行到下游误报）。
+- **classes.txt SSRF 白名单改为纯配置**（AU-183，默认值不变＝等真值）：`aicabinet.jiangyi.model-sync.allowed-hosts` 由 `AICABINET_JIANGYI_MODEL_SYNC_ALLOWED_HOSTS` 注入（`application.yml` + `docker-compose.full/apps.yml` + `.env.production.example` 三处对齐），裸域＝强制 https+后缀匹配、`https://host`＝精确条目；厂商把 classes.txt 托管到 OSS 时按 probe 到的真实 host 填，**不要**一上来放宽成 `aliyuncs.com`。改动生效需重建 trade-service 容器。
+- **模型预览整页 400 降级为逐行警示**：`previewModels` 的 catch 扩到 `ClassesParseRejectException | ResponseStatusException | RestClientException`，单个模型取不到 classes.txt（白名单拒/地址为空/OSS 不可达）只在该行显示拒绝原因，其余模型照常预览；🔴 **只降级预览**——`pregenerateForDevice`/`pushModel` 仍必须硬失败（写库/下发不能容忍）。回归测试 `JiangyiModelSyncServiceTest#previewModels_degradesUnreachableClassesTextPerModelInsteadOfFailingWholeList`。
+- 验证：trade-service `verify`（含 IT）单测 2121/0/0、IT 42/0/0、BUILD SUCCESS 26:06；`JiangyiModelSyncServiceTest` 13/13 复跑绿；consumer-mp 单测 145/145（含隐私 7 条）+ `vue-tsc` 绿、merchant-mp 175/175 + `vue-tsc` 绿；prettier/ESLint 无改动无告警。
+
 ### 2026-10-21（后台巡检第一批修复：分页基数 / 异常归档页 / 弹窗残留 / 静默失败）
 - ✅ **租金账单页页码基数错位**：`FeeBillMonthResolver.clampPage` 从 1 起（`page<1→1`），而 `useCrudTable` 传 `page-1`（0 基）⇒ 首屏请求 `page=0` 被钳到 1、第 2 页请求 `page=1` 又回到第 1 页，**整页只能看到第一页**。`DeviceRentalView` 传参改为 `p.page + 1`（`DeviceRentalView.vue` query builder）。
 - ✅ **异常列表「已归档」页签查空**：后端 `archived` 是独立布尔条件，与 `status` 是 AND 关系；前端把 `ARCHIVED` 当状态值传给 `status` ⇒ `status='ARCHIVED'` 恒无数据。改为 `ARCHIVED` 只发 `archived=true`、不发 `status`；徽标计数本就只发 `archived=true`，两处口径对齐（`ExceptionListView.vue` query builder ↔ `OpsExceptionMapper`）。

@@ -6,29 +6,46 @@ import {
 
 /**
  * mp 隐私门禁（2026-10-21 隐私合规接入）：
- * - 无 wx（H5/admin）→ 非 mp 运行时，恒不弹；
- * - 低版本基础库无 getPrivacySetting → 不弹（微信官方默认弹窗兜底）；
+ * - 无 wx（admin/node）→ 非 mp 运行时，恒不弹；
+ * - 🔴 uni-app **H5** 运行时也有 globalThis.wx（uni API 别名，无 getPrivacySetting）⇒ 必须判 false，
+ *   否则 use-privacy-consent 走 mp 分支不弹首屏窗，而 request 层 H5 门禁照旧拦 ⇒ 整站 H5 死锁
+ *   （CI run 933 consumer UAT 的 captcha 请求从不发出，即此因）；
+ * - 低版本基础库无 getPrivacySetting → 非 mp 门禁，不弹（微信官方默认弹窗兜底）；
  * - needAuthorization=true（未同步当前版指引）→ 弹；false（已同步）→ 不弹；
  * - 查询抛错/失败 → 不弹不抛。
  */
 describe('privacy-consent mp 门禁（官方 getPrivacySetting）', () => {
-  const g = globalThis as { wx?: unknown };
+  const g = globalThis as { wx?: unknown; window?: unknown };
   const prevWx = g.wx;
+  const prevWindow = g.window;
 
   afterEach(() => {
     g.wx = prevWx;
+    g.window = prevWindow;
   });
 
-  it('无 wx（H5/admin）→ 非 mp 运行时且恒不弹', async () => {
+  it('无 wx（admin/node）→ 非 mp 运行时且恒不弹', async () => {
     g.wx = undefined;
     expect(isWeixinMpRuntime()).toBe(false);
     await expect(shouldShowMpPrivacyConsent()).resolves.toBe(false);
   });
 
-  it('低版本基础库（无 getPrivacySetting）→ 判定为 mp 但不弹', async () => {
+  it('uni-app H5 的 wx 别名对象（有 uni API、无 getPrivacySetting）→ 判 false，不抢 mp 分支', () => {
+    g.window = {};
+    g.wx = { $emit() {}, addInterceptor() {}, canvasGetImageData() {} };
+    expect(isWeixinMpRuntime()).toBe(false);
+  });
+
+  it('真 mp 运行时（无 DOM）但低版本基础库无 getPrivacySetting → 判 false', () => {
+    g.window = undefined;
     g.wx = {};
-    expect(isWeixinMpRuntime()).toBe(true);
-    await expect(shouldShowMpPrivacyConsent()).resolves.toBe(false);
+    expect(isWeixinMpRuntime()).toBe(false);
+  });
+
+  it('有 DOM 时即使带 getPrivacySetting 也不判 mp（H5 门禁优先）', () => {
+    g.window = {};
+    g.wx = { getPrivacySetting: () => {} };
+    expect(isWeixinMpRuntime()).toBe(false);
   });
 
   it('needAuthorization=true（该用户未同意当前版指引）→ 弹', async () => {
@@ -37,6 +54,7 @@ describe('privacy-consent mp 门禁（官方 getPrivacySetting）', () => {
         success?: (res: { needAuthorization: boolean; privacyContractName?: string }) => void;
       }) => o.success?.({ needAuthorization: true, privacyContractName: '《测试指引》' })
     };
+    expect(isWeixinMpRuntime()).toBe(true);
     await expect(shouldShowMpPrivacyConsent()).resolves.toBe(true);
   });
 
