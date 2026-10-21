@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -117,6 +118,19 @@ class AdminJiangyiControllerTest {
         ArgumentCaptor<String> socketUrl = ArgumentCaptor.forClass(String.class);
         verify(onboardingService).bindForDevice(eq(DEVICE_ID), eq("https://api.example.com"), socketUrl.capture());
         assertNull(socketUrl.getValue());
+    }
+
+    /** 拉取柜内视频（§4.3.2.11）：orderNo 去空格后带操作者落到设备控制面服务。 */
+    @Test
+    void pullOrderVideoTrimsOrderNoAndCarriesOperator() {
+        jakarta.servlet.http.HttpServletRequest httpRequest =
+                mock(jakarta.servlet.http.HttpServletRequest.class);
+        when(httpRequest.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID)).thenReturn(9L);
+        var body = new AdminJiangyiController.PullVideoRequest(" 1791884161406172652398 ");
+
+        controller().pullOrderVideo(httpRequest, body);
+
+        verify(deviceOpsService).pullOrderVideo(9L, "1791884161406172652398");
     }
 
     @Test

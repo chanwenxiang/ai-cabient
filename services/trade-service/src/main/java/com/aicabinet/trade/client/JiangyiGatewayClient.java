@@ -60,8 +60,21 @@ public class JiangyiGatewayClient {
                 .toBodilessEntity();
     }
 
+    /** 按单拉取柜内视频（§4.3.2.11 sendUploadErrorOrderVideos）：orderNo=我方 sessionId。 */
+    public void pullVideo(String deviceId, String orderNo) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/pull-video", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new PullVideoRequest(orderNo))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /** 与 gateway DeviceCommandController.SoundRequest 对齐。 */
     public record SoundRequest(Boolean switchOn, Integer volume) {}
+
+    /** 与 gateway DeviceCommandController.PullVideoRequest 对齐。 */
+    public record PullVideoRequest(String orderNo) {}
 
     /** 与 gateway ModelPushController.ModelPushRequest 对齐。 */
     public record ModelPushRequest(Long deploymentId, String modelName, String modelUrl,

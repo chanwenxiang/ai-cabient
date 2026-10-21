@@ -226,6 +226,20 @@ class DeviceWebSocketHandlerTest {
     }
 
     @Test
+    void videoReportUpstream_consumedWithoutAutoResend() throws Exception {
+        // 设备→云同字帧（上传失败求重发 / 本地无文件，两种成因不可区分）：只留痕不自动回拉，
+        // 否则无文件单会帧对帧成环。重拉由 admin 手动触发（pull-video 端点）。
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"sendUploadErrorOrderVideos\",\"msgContent\":\"1791884161406172652398\"}"));
+
+        verify(session, never()).sendMessage(any());
+        verify(tradeInternalClient, never()).modelConfirmed(any(), any());
+    }
+
+    @Test
     void disconnectReportsOffline() {
         WebSocketSession session = onlineSession();
         handler.afterConnectionEstablished(session);

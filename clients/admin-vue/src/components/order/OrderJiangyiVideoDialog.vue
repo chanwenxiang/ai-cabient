@@ -103,6 +103,30 @@ async function openDetail(row: OrderVideoRow) {
   }
 }
 
+/**
+ * 按单拉取柜内视频（V16 §4.3.2.11，方案 A）：正常单默认只留柜机本地 64G，
+ * 循环覆盖前拉回才看得到。指令下发是异步的——成功仅表示「柜机收到」，
+ * 上传+入库要等一会儿，靠用户点「刷新列表」看结果（与设备信息实时拉取同模式）。
+ */
+const pulling = ref(false);
+async function pullVideo() {
+  if (!sessionId.value) {
+    ElMessage.warning('该订单没有关联会话，无法拉取');
+    return;
+  }
+  pulling.value = true;
+  try {
+    await api.request<unknown>(AdminEndpoints.jiangyiOrderVideoPull, 'POST', {
+      orderNo: sessionId.value
+    });
+    ElMessage.success('拉取指令已下发：柜机在线且视频未被覆盖时会自动上传，稍候点「刷新列表」查看');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '拉取指令下发失败（常见原因：柜机离线）'));
+  } finally {
+    pulling.value = false;
+  }
+}
+
 defineExpose({ open });
 </script>
 
@@ -115,6 +139,16 @@ defineExpose({ open });
       class="ov-tip"
       title="交易视频含顾客影像，属敏感信息：仅授权账号可查看，播放链接短时效，请勿外传或留存"
     />
+
+    <div class="ov-actions">
+      <el-button size="small" :loading="loading" @click="load">刷新列表</el-button>
+      <el-button size="small" type="primary" :loading="pulling" @click="pullVideo">
+        拉取柜内视频
+      </el-button>
+      <span class="ov-actions-hint">
+        正常单视频只存在柜机本地（循环覆盖），需柜机在线时按需拉取；下发后稍候刷新
+      </span>
+    </div>
 
     <div v-loading="loading" class="ov-body">
       <el-table :data="rows" size="small" empty-text="该订单暂无柜机视频（正常单视频留在柜机本地）">
@@ -175,6 +209,16 @@ defineExpose({ open });
 <style scoped>
 .ov-tip {
   margin-bottom: 12px;
+}
+.ov-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ov-actions-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 .ov-body {
   min-height: 120px;

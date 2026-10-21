@@ -41,6 +41,10 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
     /** 设备模型下发完成回执。V16 §4.2.5 PDF 原件核对：主通道是设备 HTTP POST
      * /deviceInfo/downloadModelNotify（DeviceInfoController）；本 WS 分支为宽容兜底。 */
     public static final String MSG_TYPE_DOWNLOAD_MODEL_NOTIFY = "downloadModelNotify";
+    /** 视频拉取（V16 §4.3.2.11）双向同字：云→设备=按 msgContent 单号查本地 mp4 上传；
+     *  设备→云=「上传失败求重发」或「本地无此单视频」上报（固件 UploadIdentifyResult.uploadFailNew /
+     *  DealSocketMsg .line 186-200 两种成因同帧，不可盲目自动重发——无文件单会成回环）。 */
+    public static final String MSG_TYPE_UPLOAD_ERROR_ORDER_VIDEOS = "sendUploadErrorOrderVideos";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -165,6 +169,13 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                     log.debug("jiangyi ws downloadModelNotify without modelName identifier={} payload={}",
                             identifier, message.getPayload());
                 }
+                return;
+            }
+            // 视频拉取上报帧（设备→云）：单号原样回。两种成因同帧（上传失败求重发 / 本地无文件），
+            // 不自动回拉避免无文件单回环；info 留痕供运营对照「拉取后仍无视频」。
+            if (MSG_TYPE_UPLOAD_ERROR_ORDER_VIDEOS.equalsIgnoreCase(node.path("msgType").asText())) {
+                log.info("jiangyi ws video-report upstream identifier={} orderNo={}",
+                        identifier, node.path("msgContent").asText(""));
                 return;
             }
             // 模式一业务上报全走 HTTP 面；WS 上行其余消息忽略（铁律：未知消息宁可忽略也不误当业务数据）

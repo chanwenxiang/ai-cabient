@@ -59,7 +59,9 @@ public class DeviceCommandController {
                         "msgContent", request.switchOn() ? "1" : "0"))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "音量开关指令下发失败");
         }
-        if (request.volume() != null
+        // 固件音量帧走 AudioManager.setStreamVolume（会解除静音）：静音后再发音量帧会把声音放回来
+        boolean muted = Boolean.FALSE.equals(request.switchOn());
+        if (!muted && request.volume() != null
                 && !deviceWebSocketHandler.send(identifier, Map.of(
                         "status", 200,
                         "msgType", "sendDeviceSoundVolume",
@@ -83,6 +85,31 @@ public class DeviceCommandController {
         log.info("jiangyi getDeviceInfo dispatched deviceId={} identifier={}", deviceId, identifier);
     }
 
+    /**
+     * 按单拉取柜内视频（V16 §4.3.2.11）：msgContent=我方 sessionId（开门时设备即以它作
+     * 单号，本地文件名 {@code /sdcard/{单号}-left.mp4}/{@code -right.mp4}，固件证据
+     * DealSocketMsg .line 186-200）。不分正常/异常单，文件在则经 getTempToken→OSS→
+     * uploadVideoUrl 回传；不在则设备回同类型 WS 帧（见 DeviceWebSocketHandler 分支）。
+     * 文档示例里的 {@code _MSG} 后缀是厂商云标注习惯，固件无该字面量，不发。
+     */
+    @PostMapping("/devices/{deviceId}/pull-video")
+    public void pullVideo(@PathVariable("deviceId") String deviceId,
+                          @RequestBody PullVideoRequest request) {
+        String orderNo = request.orderNo() == null ? "" : request.orderNo().trim();
+        if (orderNo.isBlank() || !orderNo.matches("[A-Za-z0-9_-]{1,64}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "orderNo 非法（1-64 位字母数字/_/-）");
+        }
+        String identifier = requireOnlineIdentifier(deviceId);
+        if (!deviceWebSocketHandler.send(identifier, Map.of(
+                "status", 200,
+                "msgType", DeviceWebSocketHandler.MSG_TYPE_UPLOAD_ERROR_ORDER_VIDEOS,
+                "msgContent", orderNo))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "拉取视频指令下发失败");
+        }
+        log.info("jiangyi pullVideo dispatched deviceId={} identifier={} orderNo={}",
+                deviceId, identifier, orderNo);
+    }
+
     private String requireOnlineIdentifier(String deviceId) {
         TradeInternalClient.JiangyiDeviceView device = tradeInternalClient.device(deviceId).orElse(null);
         if (device == null || !"BOUND".equals(device.status())) {
@@ -97,4 +124,7 @@ public class DeviceCommandController {
 
     /** volume 0=大 1=中 2=小（§4.3.2.17）；switchOn true=开 false=关（§4.3.2.16）。 */
     public record SoundRequest(Boolean switchOn, Integer volume) {}
+
+    /** orderNo=我方 sessionId（§4.3.2.11 拉取视频）。 */
+    public record PullVideoRequest(String orderNo) {}
 }

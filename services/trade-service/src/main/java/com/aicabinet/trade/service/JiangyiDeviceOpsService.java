@@ -2,7 +2,9 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiGatewayClient;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -28,15 +30,18 @@ public class JiangyiDeviceOpsService {
     private final JiangyiGatewayClient gatewayClient;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final DeviceInfoMapper deviceRepository;
+    private final ShoppingSessionMapper sessionRepository;
     private final AdminAuditService auditService;
 
     public JiangyiDeviceOpsService(JiangyiGatewayClient gatewayClient,
                                    JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                    DeviceInfoMapper deviceRepository,
+                                   ShoppingSessionMapper sessionRepository,
                                    AdminAuditService auditService) {
         this.gatewayClient = gatewayClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.deviceRepository = deviceRepository;
+        this.sessionRepository = sessionRepository;
         this.auditService = auditService;
     }
 
@@ -71,6 +76,30 @@ public class JiangyiDeviceOpsService {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "设备信息拉取失败（网关不可达或设备离线）");
         }
         auditService.appendLog(operatorId, "JIANGYI_DEVICE_INFO", "DEVICE", deviceId, "下发设备信息拉取（getDeviceInfo）");
+    }
+
+    /**
+     * 按单拉取柜内视频（§4.3.2.11）：sessionId=将邑上报口径的 orderNo（免映射，V16 §4.3.2.7）。
+     * 视频留在柜内 64G 循环覆盖——本指令只是「趁文件还在时取回」，无回执通道，
+     * 结果以 uploadVideoUrl 落库后前端刷新为准；设备离线/文件已清则拿不到。
+     */
+    public void pullOrderVideo(Long operatorId, String sessionId) {
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null || session.getDeviceId() == null || session.getDeviceId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在或无关联设备：" + sessionId);
+        }
+        String deviceId = session.getDeviceId();
+        requireJiangyi(deviceId);
+        try {
+            gatewayClient.pullVideo(deviceId, sessionId);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("jiangyi pullVideo dispatch failed device={} orderNo={}: {}", deviceId, sessionId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "拉取视频下发失败（网关不可达或设备离线）");
+        }
+        auditService.appendLog(operatorId, "JIANGYI_PULL_VIDEO", "DEVICE", deviceId,
+                "下发按单拉取视频（sendUploadErrorOrderVideos）orderNo=" + sessionId);
     }
 
     /** 信号强度视图；非将邑柜/未上报返回 signalStrength=null。 */

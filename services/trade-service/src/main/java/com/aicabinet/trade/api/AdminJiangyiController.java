@@ -114,6 +114,20 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiOrderVideoService.playUrls(id));
     }
 
+    /**
+     * 按单拉取柜内视频（V16 §4.3.2.11，方案 A 按需拉取）：orderNo=我方 sessionId。
+     * 正常单视频默认只留柜内（isAutoUploadVideo=false 拍板不变），运营在此按需下发
+     * 拉取指令 → 设备查 /sdcard/{单号}-*.mp4，有则传 OSS 回调入库，无则 WS 上报「无文件」。
+     * 与查看视频同为 ops:device:video 授权；柜机需在线，无同步回执，稍后刷新视频列表看结果。
+     */
+    @RequiresPermissions("ops:device:video")
+    @PostMapping("/jiangyi/order-videos/pull")
+    public ApiResponse<Void> pullOrderVideo(HttpServletRequest request,
+                                            @Valid @RequestBody PullVideoRequest body) {
+        jiangyiDeviceOpsService.pullOrderVideo(operatorId(request), body.orderNo().trim());
+        return ApiResponse.ok(null);
+    }
+
     /** 绑定视图：binding=null = 未登记（前台展示「未接入」态 + 登记表单）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/jiangyi")
@@ -407,6 +421,8 @@ public class AdminJiangyiController {
 
     /** 音量设置请求体：switchOn/volume 至少一项（service 校验）。 */
     record SoundRequest(Boolean switchOn, Integer volume) {}
+
+    record PullVideoRequest(@NotBlank(message = "订单号（会话 id）不能为空") String orderNo) {}
 
     private static JiangyiDeviceDto toDto(JiangyiDevice d) {
         return new JiangyiDeviceDto(d.getDeviceId(), d.getDeviceSn(), d.getIdentifier(),

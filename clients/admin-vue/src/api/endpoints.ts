@@ -213,6 +213,8 @@ export const AdminEndpoints = {
   jiangyiOrderVideosByDevice: (deviceId: string, limit = 20) =>
     `${ops}/jiangyi/order-videos/by-device?deviceId=${encodeURIComponent(deviceId)}&limit=${limit}`,
   jiangyiOrderVideoPlayUrl: (id: number) => `${ops}/jiangyi/order-videos/${id}/play-url`,
+  /** 按单拉取柜内视频（§4.3.2.11）：下发指令后设备趁本地未覆盖上传，稍后刷新列表 */
+  jiangyiOrderVideoPull: `${ops}/jiangyi/order-videos/pull`,
   jiangyiOrderVideosByTask: (taskId: number | string) =>
     `${ops}/jiangyi/order-videos/by-task/${taskId}`,
 

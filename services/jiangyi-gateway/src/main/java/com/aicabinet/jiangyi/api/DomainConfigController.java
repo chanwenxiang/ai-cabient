@@ -33,8 +33,9 @@ import java.util.Map;
  * 每次开机都把我方域名再钉一遍。</p>
  *
  * <p><b>fail-safe（不能反过来变成放大器）</b>：自钉等于「我方说什么，设备就信什么」，
- * 一旦 {@code JIANGYI_PUBLIC_BASE_URL} 配错，会把设备主动钉到一个错地址上，且只有厂商
- * 重推 {@code sendDeviceDomain} 才能救回。所以基址缺失/非 http(s)/含空白时，本类<b>不</b>
+ * 一旦 {@code JIANGYI_PUBLIC_BASE_URL} 配错，会把设备主动钉到一个错地址上，且救回依赖厂商侧
+ * （WS 重推 {@code sendDeviceRuntimeType} 写 prefs {@code url}=COMMON_URL 槽；563 smali 实证
+ * {@code sendDeviceDomain} 推送只触发重启、不携带值）。所以基址缺失/非 http(s)/含空白时，本类<b>不</b>
  * 猜一个值，而是与不设自钉时行为一致：回 404 + 一条 {@code JIANGYI_DOMAIN_PIN_DISABLED} 告警。
  * 三个端点共用同一个开关：绝不允许「告诉设备有待拉配置」而拉取又 404 的半开状态。</p>
  *
