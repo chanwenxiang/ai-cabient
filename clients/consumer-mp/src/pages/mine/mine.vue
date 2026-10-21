@@ -357,7 +357,7 @@
       </view>
     </view>
 
-    <view v-if="authed" class="menu-list logout-wrap">
+    <view v-if="authed" class="menu-list">
       <view role="button" class="menu-cell" @click="onDeleteAccount">
         <image class="menu-icon" :src="menuIcon('help')" mode="aspectFit" />
         <view class="menu-text">
@@ -366,6 +366,13 @@
         </view>
         <view class="menu-arrow app-icon app-icon--chevron" aria-hidden="true" />
       </view>
+    </view>
+    <!--
+      2026-10-21 真机反馈「退出登录还是贴着」：此前 1d7e2f83 只把间距 12→24rpx，
+      真机上与上方白卡视觉仍然粘连。彻底拆卡——退出登录独立一张白卡（危险操作
+      与普通菜单分离，也是支付/账户类 App 的通行做法）。
+    -->
+    <view v-if="authed" class="menu-list logout-standalone">
       <view role="button" class="menu-cell danger-cell" @click="onLogout">
         <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
