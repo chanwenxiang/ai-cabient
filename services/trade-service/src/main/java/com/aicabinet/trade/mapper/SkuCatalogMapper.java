@@ -70,14 +70,46 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
      */
     default Page<SkuCatalog> search(String q, String status, String category,
                                     String operationScope, int page, int size) {
-        var query = Wrappers.<SkuCatalog>lambdaQuery()
-                .orderByAsc(SkuCatalog::getSkuCode)
-                .orderByAsc(SkuCatalog::getSkuId);
+        return search(q, status, category, operationScope, page, size, null);
+    }
+
+    /**
+     * sortDir = asc/desc 时按添加时间（created_at）排序，sku_id 同向做稳定次序；
+     * 空/其它值保持既有「sku_code, sku_id 升序」——非商品管理页的列表/下拉不受影响。
+     */
+    default Page<SkuCatalog> search(String q, String status, String category,
+                                    String operationScope, int page, int size, String sortDir) {
+        return search(q, status, category, null, operationScope, page, size, sortDir);
+    }
+
+    /**
+     * categoryLabel 与 category 同时命中（IN），兼容历史行存类目标签、新行存字典键值的混用：
+     * 只按选中项的键值 eq 会漏掉标签行，只按标签 eq 会漏掉新行。两者相同/为空时退化为 eq。
+     */
+    default Page<SkuCatalog> search(String q, String status, String category,
+                                    String categoryLabel, String operationScope,
+                                    int page, int size, String sortDir) {
+        boolean asc = "asc".equalsIgnoreCase(sortDir);
+        boolean desc = "desc".equalsIgnoreCase(sortDir);
+        var query = Wrappers.<SkuCatalog>lambdaQuery();
+        if (asc || desc) {
+            query.orderBy(true, asc, SkuCatalog::getCreatedAt)
+                    .orderBy(true, asc, SkuCatalog::getSkuId);
+        } else {
+            query.orderByAsc(SkuCatalog::getSkuCode)
+                    .orderByAsc(SkuCatalog::getSkuId);
+        }
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
             query.eq(SkuCatalog::getStatus, status.trim().toUpperCase());
         }
         if (category != null && !category.isBlank()) {
-            query.eq(SkuCatalog::getCategory, category.trim());
+            String code = category.trim();
+            String label = categoryLabel == null ? null : categoryLabel.trim();
+            if (label != null && !label.isBlank() && !label.equals(code)) {
+                query.in(SkuCatalog::getCategory, code, label);
+            } else {
+                query.eq(SkuCatalog::getCategory, code);
+            }
         }
         if (operationScope != null && !operationScope.isBlank()
                 && !"ALL".equalsIgnoreCase(operationScope.trim())) {

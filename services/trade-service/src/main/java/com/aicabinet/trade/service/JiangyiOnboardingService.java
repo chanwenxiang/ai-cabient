@@ -306,6 +306,35 @@ public class JiangyiOnboardingService {
     }
 
     /**
+     * 登记工控机机型（将邑原值 "76"/"88"）：模型预生成与下发时按与厂商模型文件的
+     * industrialControlModel 字符串相等校验，登记错会导致 model-sync/model-push 全部拒绝。
+     */
+    public JiangyiDevice setIndustrialControlModel(String deviceId, String industrialControlModel) {
+        String value = industrialControlModel == null ? "" : industrialControlModel.trim();
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException("工控机机型不能为空");
+        }
+        if (value.length() > 16) {
+            throw new IllegalArgumentException("工控机机型过长（最多 16 字符）：" + value);
+        }
+        JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
+        if (device == null) {
+            throw new IllegalStateException("将邑设备不存在：deviceId=" + deviceId);
+        }
+        if ("RETIRED".equals(device.getStatus())) {
+            throw new IllegalStateException("已退役设备不能登记工控机机型：deviceId=" + deviceId);
+        }
+        if (value.equals(device.getIndustrialControlModel())) {
+            return device; // 幂等：机型未变化
+        }
+        jiangyiDeviceMapper.updateIndustrialControlModel(deviceId, value, Instant.now());
+        jiangyiDeviceDirectory.evict(deviceId);
+        log.info("jiangyi device industrial control model updated deviceId={} oldValue={} newValue={}",
+                deviceId, device.getIndustrialControlModel(), value);
+        return jiangyiDeviceMapper.selectById(deviceId);
+    }
+
+    /**
      * 将邑侧激活（V16 §5.4.10 confirmActivate，2026-10-19）：出厂未入库设备在将邑云查无
      * SN（getIdentifier 报「设备sn获取设备为空」），须先用铭牌「设备号」confirmActivate
      * 入库。identifier 缺失时由本方法入参补录（铭牌手工核对），传了就落库。

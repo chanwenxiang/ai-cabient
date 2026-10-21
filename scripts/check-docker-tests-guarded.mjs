@@ -189,6 +189,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/SkuCatalogSearchSortSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉商品管理「按添加时间排序」的数据库实证 —— SkuCatalogMapper.search 的 ORDER BY 由 ' +
+        'MyBatis-Plus lambda 生成，单测 mock mapper 时从未被数据库执行；本 IT 断 sortDir=desc/asc ' +
+        '的 created_at 次序、分页 records/total 同口径、不传 sortDir 时保持既有 sku_code 升序'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/CabinetOrderInventoryLinkSqlIT.java',
     {
       job: 'integration',

@@ -478,11 +478,15 @@ public class AdminDashboardController {
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "category", required = false) String category,
+            // 类目字典标签：历史行把标签当键值存，筛选时与 category 一起命中（见 mapper.search）
+            @RequestParam(name = "categoryLabel", required = false) String categoryLabel,
             @RequestParam(name = "operationScope", required = false) String operationScope,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            // asc/desc：按添加时间排序（商品管理列表）；不传保持 SKU 编号升序
+            @RequestParam(name = "sortDir", required = false) String sortDir) {
         return ApiResponse.ok(adminService.listSkusPage(
-                operatorId(request), q, status, category, operationScope, page, size));
+                operatorId(request), q, status, category, categoryLabel, operationScope, page, size, sortDir));
     }
 
     /** 设备基础信息只读（履约角色设备下拉），按账号商户范围过滤。 */

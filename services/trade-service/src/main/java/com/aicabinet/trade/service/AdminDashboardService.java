@@ -339,9 +339,10 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public PageResult<SkuCatalogDto> listSkusPage(
-            Long operatorId, String q, String status, String category,
-            String operationScope, int page, int size) {
-        return catalogAdminService.listSkusPage(operatorId, q, status, category, operationScope, page, size);
+            Long operatorId, String q, String status, String category, String categoryLabel,
+            String operationScope, int page, int size, String sortDir) {
+        return catalogAdminService.listSkusPage(
+                operatorId, q, status, category, categoryLabel, operationScope, page, size, sortDir);
     }
 
     @Transactional

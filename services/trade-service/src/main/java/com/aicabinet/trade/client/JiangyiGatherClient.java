@@ -206,10 +206,15 @@ public class JiangyiGatherClient {
         return out;
     }
 
-    /** 查看采集审核列表（§4.4.6 gatherCheck；productIds 可空=全部）。 */
+    /**
+     * 查看采集审核列表（§4.4.6 gatherCheck；productIds 可空=全部）。
+     *
+     * <p>「全部」必须传 null 而不是空数组：2026-10-21 实测厂商 SQL 用 {@code p.id in (...)}
+     * 拼接该集合，空数组直接 555 bad SQL grammar（缺键/null 均 200）。</p>
+     */
     public List<GatherCheckItem> gatherCheck(List<Long> productIds) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("productIds", productIds == null ? List.of() : productIds);
+        body.put("productIds", productIds == null || productIds.isEmpty() ? null : productIds);
         JsonNode data = post("/merchant/selfhelpGatherProduct/gatherCheck", body, true, "gatherCheck");
         List<GatherCheckItem> out = new ArrayList<>();
         JsonNode rows = data.path("pageData");

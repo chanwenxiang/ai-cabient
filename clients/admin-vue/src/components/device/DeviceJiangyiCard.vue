@@ -17,6 +17,7 @@ interface JiangyiDeviceBinding {
   deviceSn: string;
   identifier: string | null;
   modelName: string | null;
+  industrialControlModel: string | null;
   classesVersion: string | null;
   status: 'UNBOUND' | 'BOUND' | 'RETIRED';
   tokenVersion: number;
@@ -48,6 +49,8 @@ const activateForm = reactive({
 });
 const activateSaving = ref(false);
 const retireSaving = ref(false);
+const industrialModelDraft = ref('');
+const industrialModelSaving = ref(false);
 
 const statusMeta = computed(() => {
   if (!binding.value) return null;
@@ -63,6 +66,7 @@ async function load() {
       binding: JiangyiDeviceBinding | null;
     }>(AdminEndpoints.deviceJiangyi(props.deviceId), 'GET');
     binding.value = view.binding;
+    industrialModelDraft.value = view.binding?.industrialControlModel || '';
     if (binding.value && !activateForm.identifier) {
       activateForm.identifier = binding.value.identifier || '';
     }
@@ -121,6 +125,26 @@ async function doUpdateSn() {
   } catch (e) {
     if (e === 'cancel' || (e as { message?: string })?.message === 'cancel') return;
     ElMessage.error(errorMessage(e, '修改 SN 失败'));
+  }
+}
+
+/** 登记工控机机型：须与将邑模型文件的 industrialControlModel 完全一致，否则模型下发被拒。 */
+async function doSaveIndustrialModel(value: string) {
+  if (!binding.value) return;
+  const model = String(value || '').trim();
+  if (!model || model === (binding.value.industrialControlModel || '')) return;
+  industrialModelSaving.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiIndustrialControlModel(props.deviceId), 'PUT', {
+      industrialControlModel: model
+    });
+    ElMessage.success('工控机机型已登记');
+    await load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '登记工控机机型失败'));
+    industrialModelDraft.value = binding.value.industrialControlModel || '';
+  } finally {
+    industrialModelSaving.value = false;
   }
 }
 
@@ -626,6 +650,21 @@ watch(
         <el-descriptions-item label="设备型号">{{
           binding.modelName || '无'
         }}</el-descriptions-item>
+        <el-descriptions-item label="工控机机型">
+          <el-select
+            v-if="canEdit && binding.status !== 'RETIRED'"
+            v-model="industrialModelDraft"
+            class="jy-input-class"
+            size="small"
+            placeholder="未登记（下发会拒绝）"
+            :disabled="industrialModelSaving"
+            @change="doSaveIndustrialModel"
+          >
+            <el-option label="76" value="76" />
+            <el-option label="88" value="88" />
+          </el-select>
+          <span v-else class="jy-mono">{{ binding.industrialControlModel || '未登记' }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="通信凭证版本">{{
           binding.tokenVersion ?? 0
         }}</el-descriptions-item>

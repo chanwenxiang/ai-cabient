@@ -44,6 +44,9 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
         } else {
             row.setId(existing.getId());
             row.setCreatedAt(existing.getCreatedAt());
+            // 来源是溯源信息而非可编辑字段：人工给 MODEL_SYNC 行挂 SKU 后仍须能被
+            // 「批量激活预生成行」命中，不能因为一次编辑就变成 MANUAL。
+            row.setSource(existing.getSource());
             update(row, Wrappers.<JiangyiClassMapping>lambdaQuery()
                     .eq(JiangyiClassMapping::getDeviceId, row.getDeviceId())
                     .eq(JiangyiClassMapping::getClassId, row.getClassId()));
@@ -59,7 +62,12 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
                 .eq(JiangyiClassMapping::getClassId, classId));
     }
 
-    /** 批量激活某设备某模型的全部预生成行（CB-023：人工确认后一次性生效）。 */
+    /**
+     * 批量激活某设备某模型的全部预生成行（CB-023：人工确认后一次性生效）。
+     *
+     * <p>只激活已挂 SKU 的行：未挂 SKU 的预生成行激活后识别仍会 fail-closed 转
+     * DISPUTED（映射不可用却显示「已生效」），必须留给人工逐条补 SKU。</p>
+     */
     default int activatePregenerated(String deviceId, String modelName) {
         return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
                 .set(JiangyiClassMapping::getStatus, "ACTIVE")
@@ -67,6 +75,8 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
                 .eq(JiangyiClassMapping::getDeviceId, deviceId)
                 .eq(JiangyiClassMapping::getModelName, modelName)
                 .eq(JiangyiClassMapping::getSource, "MODEL_SYNC")
-                .eq(JiangyiClassMapping::getStatus, "DISABLED"));
+                .eq(JiangyiClassMapping::getStatus, "DISABLED")
+                .isNotNull(JiangyiClassMapping::getSkuId)
+                .ne(JiangyiClassMapping::getSkuId, ""));
     }
 }

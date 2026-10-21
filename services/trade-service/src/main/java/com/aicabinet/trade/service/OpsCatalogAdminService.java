@@ -78,10 +78,29 @@ public class OpsCatalogAdminService {
     public PageResult<SkuCatalogDto> listSkusPage(
             Long operatorId, String q, String status, String category,
             String operationScope, int page, int size) {
+        return listSkusPage(operatorId, q, status, category, operationScope, page, size, null);
+    }
+
+    /** sortDir = asc/desc：商品管理列表按添加时间排序；null 保持既有 SKU 编号升序。 */
+    @Transactional(readOnly = true)
+    public PageResult<SkuCatalogDto> listSkusPage(
+            Long operatorId, String q, String status, String category,
+            String operationScope, int page, int size, String sortDir) {
+        return listSkusPage(operatorId, q, status, category, null, operationScope, page, size, sortDir);
+    }
+
+    /**
+     * categoryLabel：类目筛选同时按字典键值与标签命中（历史行存标签、新行存键值），
+     * 见 {@link SkuCatalogMapper#search(String, String, String, String, String, int, int, String)}。
+     */
+    @Transactional(readOnly = true)
+    public PageResult<SkuCatalogDto> listSkusPage(
+            Long operatorId, String q, String status, String category, String categoryLabel,
+            String operationScope, int page, int size, String sortDir) {
         permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 500);
-        var result = skuCatalogRepository.search(q, status, category, operationScope, p, s);
+        var result = skuCatalogRepository.search(q, status, category, categoryLabel, operationScope, p, s, sortDir);
         // 商品×场景限额批量回填（CB-049 扩展）：一查全量，避免 N+1
         var limits = skuSceneLimitService.limitsBySku(
                 result.getRecords().stream().map(SkuCatalog::getSkuId).toList());

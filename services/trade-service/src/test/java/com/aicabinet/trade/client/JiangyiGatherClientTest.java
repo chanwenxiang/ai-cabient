@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 回归：login2 必须以无鉴权方式发出（withAuth=false）。历史缺陷：bearerToken() 调 post()，
@@ -28,6 +29,7 @@ class JiangyiGatherClientTest {
     private static final AtomicInteger loginCalls = new AtomicInteger();
     private static volatile String loginAuthorization;
     private static volatile String listAuthorization;
+    private static volatile String gatherCheckBody;
 
     @BeforeAll
     static void startServer() throws IOException {
@@ -42,6 +44,10 @@ class JiangyiGatherClientTest {
             respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":[{\"id\":100013,"
                     + "\"name\":\"330ml雪碧柠檬味汽水\",\"barCode\":\"6901234567890\","
                     + "\"barCodeSource\":\"app\"}]}");
+        });
+        server.createContext("/merchant/selfhelpGatherProduct/gatherCheck", exchange -> {
+            gatherCheckBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":null}");
         });
         server.start();
         baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
@@ -65,6 +71,7 @@ class JiangyiGatherClientTest {
     @Test
     void loginIsSentWithoutAuthAndTokenIsReused() {
         JiangyiGatherClient client = new JiangyiGatherClient(baseUrl, "13800000000", "secret", 21);
+        int loginCallsBefore = loginCalls.get();
 
         List<JiangyiStdSku> first = client.stdSkuList("雪碧", null);
         assertEquals(1, first.size());
@@ -75,6 +82,21 @@ class JiangyiGatherClientTest {
         assertEquals("Bearer token-abc", listAuthorization);
 
         client.stdSkuList("雪碧", null);
-        assertEquals(1, loginCalls.get(), "25 分钟内应复用缓存 token，不重复登录");
+        assertEquals(1, loginCalls.get() - loginCallsBefore, "25 分钟内应复用缓存 token，不重复登录");
+    }
+
+    /** 回归：gatherCheck 的「全部」= productIds:null；空数组会让厂商 SQL in () 语法报错 555。 */
+    @Test
+    void gatherCheckSendsNullProductIdsForAll() {
+        JiangyiGatherClient client = new JiangyiGatherClient(baseUrl, "13800000000", "secret", 21);
+
+        assertTrue(client.gatherCheck(null).isEmpty());
+        assertEquals("{\"productIds\":null}", gatherCheckBody);
+
+        client.gatherCheck(List.of());
+        assertEquals("{\"productIds\":null}", gatherCheckBody, "空列表同样不能发 []");
+
+        client.gatherCheck(List.of(100013L));
+        assertEquals("{\"productIds\":[100013]}", gatherCheckBody);
     }
 }

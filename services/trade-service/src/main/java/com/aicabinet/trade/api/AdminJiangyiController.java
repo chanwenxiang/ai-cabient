@@ -193,6 +193,19 @@ public class AdminJiangyiController {
         return ApiResponse.ok(toDto(jiangyiOnboardingService.updateDeviceSn(deviceId, body.deviceSn())));
     }
 
+    /**
+     * 登记工控机机型（将邑原值 "76"/"88"）：模型预生成/下发按与厂商值字符串相等校验，
+     * 未登记时 model-sync 与 model-push 均拒绝。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/jiangyi/industrial-control-model")
+    public ApiResponse<JiangyiDeviceDto> updateIndustrialControlModel(
+            @PathVariable("deviceId") String deviceId,
+            @Valid @RequestBody IndustrialControlModelRequest body) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.setIndustrialControlModel(
+                deviceId, body.industrialControlModel())));
+    }
+
     /** 将邑侧激活（V16 §5.4.10 confirmActivate）：出厂未入库设备用铭牌设备号入库。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/confirm-activate")
@@ -378,6 +391,9 @@ public class AdminJiangyiController {
 
     record UpdateSnRequest(@NotBlank(message = "设备 SN 不能为空") String deviceSn) {}
 
+    record IndustrialControlModelRequest(
+            @NotBlank(message = "工控机机型不能为空") String industrialControlModel) {}
+
     /** V16 §5.4.10 表153：identifier/deviceSn 服务端补，deviceName/deviceAddress 必填，screen 可选。 */
     record ConfirmActivateRequest(String identifier,
                                   @NotBlank(message = "设备名称不能为空") String deviceName,
@@ -426,9 +442,9 @@ public class AdminJiangyiController {
 
     private static JiangyiDeviceDto toDto(JiangyiDevice d) {
         return new JiangyiDeviceDto(d.getDeviceId(), d.getDeviceSn(), d.getIdentifier(),
-                d.getModelName(), d.getClassesVersion(), d.getStatus(), d.getTokenVersion(),
-                d.getTokenIssuedAt(), d.getLastWsOnlineAt(), d.getCreatedAt(), d.getUpdatedAt(),
-                Boolean.TRUE.equals(d.getAuthEnabled()));
+                d.getModelName(), d.getIndustrialControlModel(), d.getClassesVersion(), d.getStatus(),
+                d.getTokenVersion(), d.getTokenIssuedAt(), d.getLastWsOnlineAt(), d.getCreatedAt(),
+                d.getUpdatedAt(), Boolean.TRUE.equals(d.getAuthEnabled()));
     }
 
     private static JiangyiClassMappingDto toDto(JiangyiClassMapping m) {

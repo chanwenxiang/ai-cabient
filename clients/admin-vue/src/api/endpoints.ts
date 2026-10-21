@@ -173,6 +173,9 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/activate`,
   deviceJiangyiDeactivate: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/deactivate`,
+  /** 登记工控机机型（将邑原值 "76"/"88"）：模型预生成/下发按字符串相等校验 */
+  deviceJiangyiIndustrialControlModel: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/industrial-control-model`,
   deviceJiangyiMapping: (deviceId: string, classId: number) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}`,
   deviceJiangyiMappingStatus: (deviceId: string, classId: number) =>

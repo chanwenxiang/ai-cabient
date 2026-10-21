@@ -1,6 +1,8 @@
 package com.aicabinet.trade.integration;
 
+import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,10 +77,14 @@ class JiangyiOnboardingRegisterSqlIT {
     private JiangyiOnboardingService onboardingService;
 
     @Autowired
+    private JiangyiClassMappingMapper classMappingMapper;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @AfterEach
     void tearDown() {
+        jdbc.update("DELETE FROM jiangyi_class_mapping WHERE device_id IN (?, ?)", DEV_A, DEV_B);
         jdbc.update("DELETE FROM jiangyi_device WHERE device_id IN (?, ?)", DEV_A, DEV_B);
         jdbc.update("DELETE FROM device_info WHERE device_id IN (?, ?)", DEV_A, DEV_B);
     }
@@ -137,6 +143,66 @@ class JiangyiOnboardingRegisterSqlIT {
         assertThrows(IllegalArgumentException.class,
                 () -> onboardingService.registerForDevice("JI-REG-IT-NONE", "jiregn0000000001", "M"),
                 "柜机档案不存在时必须拒绝，否则会造出孤儿绑定行");
+    }
+
+    @Test
+    @DisplayName("登记工控机机型：trim 后落库并回读；空白值拒绝（模型下发按字符串相等校验）")
+    void setIndustrialControlModel_persistsValue() {
+        seedDeviceInfo(DEV_A);
+        onboardingService.registerForDevice(DEV_A, SN_A, "AUDIT-IT-MODEL");
+
+        JiangyiDevice updated = onboardingService.setIndustrialControlModel(DEV_A, " 88 ");
+
+        assertEquals("88", updated.getIndustrialControlModel());
+        String dbValue = jdbc.queryForObject(
+                "SELECT industrial_control_model FROM jiangyi_device WHERE device_id = ?",
+                String.class, DEV_A);
+        assertEquals("88", dbValue, "机型必须按将邑原值落库，模型下发靠字符串相等匹配");
+        assertThrows(IllegalArgumentException.class,
+                () -> onboardingService.setIndustrialControlModel(DEV_A, "   "),
+                "空白机型不得写入：否则后续 model-push 会以空值参与相等校验");
+    }
+
+    @Test
+    @DisplayName("批量激活只作用于已挂 SKU 的预生成行；人工补 SKU 不改变 MODEL_SYNC 来源")
+    void activatePregenerated_skipsRowsWithoutSku() {
+        String model = "IT-ACT-MODEL";
+        jdbc.update("INSERT INTO jiangyi_class_mapping "
+                        + "(device_id, class_id, model_name, text_name, sku_id, status, source) "
+                        + "VALUES (?, 21, ?, '有 SKU', 'SKU-IT-1', 'DISABLED', 'MODEL_SYNC')",
+                DEV_A, model);
+        jdbc.update("INSERT INTO jiangyi_class_mapping "
+                        + "(device_id, class_id, model_name, text_name, sku_id, status, source) "
+                        + "VALUES (?, 22, ?, '待人工挂接', NULL, 'DISABLED', 'MODEL_SYNC')",
+                DEV_A, model);
+        jdbc.update("INSERT INTO jiangyi_class_mapping "
+                        + "(device_id, class_id, model_name, text_name, sku_id, status, source) "
+                        + "VALUES (?, 23, ?, '空串 SKU', '', 'DISABLED', 'MODEL_SYNC')",
+                DEV_A, model);
+
+        JiangyiClassMapping manualEdit = new JiangyiClassMapping();
+        manualEdit.setDeviceId(DEV_A);
+        manualEdit.setClassId(22);
+        manualEdit.setModelName(model);
+        manualEdit.setTextName("人工挂接");
+        manualEdit.setSkuId("SKU-IT-2");
+        manualEdit.setStatus("DISABLED");
+        manualEdit.setSource("MANUAL");
+        classMappingMapper.upsert(manualEdit);
+
+        String source = jdbc.queryForObject(
+                "SELECT source FROM jiangyi_class_mapping WHERE device_id = ? AND class_id = 22",
+                String.class, DEV_A);
+        assertEquals("MODEL_SYNC", source, "来源是溯源信息：人工编辑不得把预生成行改成 MANUAL");
+
+        int activated = classMappingMapper.activatePregenerated(DEV_A, model);
+
+        assertEquals(2, activated, "已挂 SKU 的 21/22 应被激活；空串 SKU 的 23 不得激活");
+        Integer stillDisabled = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM jiangyi_class_mapping "
+                        + "WHERE device_id = ? AND status = 'DISABLED' AND class_id = 23",
+                Integer.class, DEV_A);
+        assertEquals(1, stillDisabled, "空串 SKU 激活后识别仍会 fail-closed，必须保持停用");
     }
 
     private record Row(String status, String identifier) {}

@@ -718,6 +718,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/industrial-control-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateIndustrialControlModel"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-mappings/{classId}": {
         parameters: {
             query?: never;
@@ -11691,6 +11707,35 @@ export interface components {
             /** Format: int32 */
             volume?: number;
         };
+        IndustrialControlModelRequest: {
+            industrialControlModel: string;
+        };
+        ApiResponseJiangyiDeviceDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["JiangyiDeviceDto"];
+        };
+        JiangyiDeviceDto: {
+            deviceId?: string;
+            deviceSn?: string;
+            identifier?: string;
+            modelName?: string;
+            industrialControlModel?: string;
+            classesVersion?: string;
+            status?: string;
+            /** Format: int64 */
+            tokenVersion?: number;
+            /** Format: date-time */
+            tokenIssuedAt?: string;
+            /** Format: date-time */
+            lastWsOnlineAt?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            authEnabled?: boolean;
+        };
         MappingUpsertRequest: {
             skuId: string;
             textName?: string;
@@ -14279,31 +14324,6 @@ export interface components {
         };
         UpdateSnRequest: {
             deviceSn: string;
-        };
-        ApiResponseJiangyiDeviceDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["JiangyiDeviceDto"];
-        };
-        JiangyiDeviceDto: {
-            deviceId?: string;
-            deviceSn?: string;
-            identifier?: string;
-            modelName?: string;
-            classesVersion?: string;
-            status?: string;
-            /** Format: int64 */
-            tokenVersion?: number;
-            /** Format: date-time */
-            tokenIssuedAt?: string;
-            /** Format: date-time */
-            lastWsOnlineAt?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            updatedAt?: string;
-            authEnabled?: boolean;
         };
         ModelSyncRequest: {
             modelName: string;
@@ -20961,6 +20981,32 @@ export interface operations {
             };
         };
     };
+    updateIndustrialControlModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndustrialControlModelRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
     upsertMapping: {
         parameters: {
             query?: never;
@@ -23574,9 +23620,11 @@ export interface operations {
                 q?: string;
                 status?: string;
                 category?: string;
+                categoryLabel?: string;
                 operationScope?: string;
                 page?: number;
                 size?: number;
+                sortDir?: string;
             };
             header?: never;
             path?: never;

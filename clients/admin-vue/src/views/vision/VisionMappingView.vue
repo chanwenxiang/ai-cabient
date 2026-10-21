@@ -32,6 +32,11 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item v-if="binding && binding.status !== 'RETIRED'">
+        <el-button v-hasPermi="['ops:device:edit']" type="primary" @click="openCreate">
+          新增映射
+        </el-button>
+      </el-form-item>
     </el-form>
 
     <el-alert
@@ -58,6 +63,10 @@
         <div class="jy-device-item">
           <span class="jy-device-label">模型版本</span>
           <span class="jy-mono">{{ binding.classesVersion || '—' }}</span>
+        </div>
+        <div class="jy-device-item">
+          <span class="jy-device-label">工控机机型</span>
+          <span class="jy-mono">{{ binding.industrialControlModel || '未登记' }}</span>
         </div>
         <div class="jy-device-item">
           <span class="jy-device-label">最近通信时间</span>
@@ -103,7 +112,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="识别编号起始值">
-            <el-select v-model="classIdBase" style="width: 150px">
+            <el-select v-model="classIdBase" style="width: 150px" @change="loadModels()">
               <el-option label="0 起（第 1 行=0）" :value="0" />
               <el-option label="1 起（第 1 行=1）" :value="1" />
             </el-select>
@@ -112,6 +121,24 @@
             <el-button :loading="modelsLoading" @click="loadModels()">刷新模型列表</el-button>
           </el-form-item>
         </el-form>
+
+        <el-alert
+          v-if="modelsError"
+          class="jy-model-alert"
+          type="error"
+          :closable="false"
+          show-icon
+          :title="modelsError"
+        />
+        <el-alert
+          v-else-if="modelsLoaded && modelPreviews.length === 0"
+          class="jy-model-alert"
+          type="info"
+          :closable="false"
+          show-icon
+          title="将邑未返回可用模型"
+          description="模型列表按商户范围返回；为空时可先用「新增映射」逐条挂接，或稍后刷新重试。"
+        />
 
         <template v-if="currentPreview">
           <div class="jy-preview-rows">
@@ -155,7 +182,7 @@
             :table="crud"
             :actions="rowActions"
             :action-width="150"
-            empty-text="暂无映射；先在「模型同步」预生成，或到商品管理逐条挂接"
+            empty-text="暂无映射；可「新增映射」逐条创建，或先在「模型同步」预生成"
             sort-field-label="识别编号"
             :csv="csvOptions"
             @action="onAction"
@@ -276,11 +303,22 @@
 
     <el-empty v-if="!deviceId" description="选择一台将邑柜机查看其识别映射与模型同步状态" />
 
-    <el-dialog v-model="editVisible" title="编辑映射" destroy-on-close>
+    <el-dialog v-model="editVisible" :title="isCreate ? '新增映射' : '编辑映射'" destroy-on-close>
       <el-form label-width="auto">
-        <el-form-item label="识别编号">
-          <el-input :model-value="editForm.classId" disabled />
-          <div class="field-hint">模型文件里的编号，不可修改</div>
+        <el-form-item label="识别编号" required>
+          <el-input v-if="!isCreate" :model-value="editForm.classId" disabled />
+          <el-input-number
+            v-else
+            v-model="editForm.classId"
+            :min="0"
+            :precision="0"
+            :step="1"
+            controls-position="right"
+            style="width: 100%"
+          />
+          <div class="field-hint">
+            {{ isCreate ? '模型文件里的编号；同一柜机不可重复' : '模型文件里的编号，不可修改' }}
+          </div>
         </el-form-item>
         <el-form-item label="识别名称">
           <el-input v-model="editForm.textName" placeholder="模型输出的商品名，如 农夫山泉550ml" />
@@ -288,12 +326,17 @@
         <el-form-item label="对应商品" required>
           <el-select v-model="editForm.skuId" filterable style="width: 100%">
             <el-option
-              v-for="s in skuOptions"
+              v-for="s in skuSelectOptions"
               :key="s.skuId"
               :label="`${s.skuName || '未命名商品'}（编号 ${s.skuId}）`"
               :value="s.skuId"
             />
           </el-select>
+          <div class="field-hint">只列出在售商品；已停用的历史挂接仍保留原值</div>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="editForm.active" active-text="启用" inactive-text="停用" />
+          <div class="field-hint">启用后立即参与识别结算推荐；停用只保留对照关系</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -340,6 +383,7 @@ interface JiangyiBindingInfo {
   deviceSn: string | null;
   identifier: string | null;
   modelName: string | null;
+  industrialControlModel: string | null;
   classesVersion: string | null;
   status: string;
   lastWsOnlineAt: string | null;
@@ -383,6 +427,7 @@ interface DeviceOption {
 interface SkuOption {
   skuId: string;
   skuName?: string;
+  status?: string;
 }
 
 const route = useRoute();
@@ -394,11 +439,21 @@ const loaded = ref(false);
 
 const modelPreviews = ref<ModelPreview[]>([]);
 const modelsLoading = ref(false);
+const modelsLoaded = ref(false);
+const modelsError = ref('');
 const selectedModel = ref('');
 const classIdBase = ref(0);
 const acting = ref<'sync' | 'activate' | 'push' | ''>('');
 const deployments = ref<DeploymentRow[]>([]);
 const skuOptions = ref<SkuOption[]>([]);
+/** 只允许挂接在售商品；编辑既有停用挂接时保留当前项，避免下拉里看不到原值 */
+const skuSelectOptions = computed(() => {
+  const available = skuOptions.value.filter((s) => !s.status || s.status === 'ACTIVE');
+  const current = skuOptions.value.find(
+    (s) => s.skuId === editForm.value.skuId && s.status && s.status !== 'ACTIVE'
+  );
+  return current ? [...available, current] : available;
+});
 const skuNameMap = computed(() => {
   const map = new Map<string, string>();
   for (const sku of skuOptions.value) {
@@ -411,7 +466,8 @@ function skuNameFor(skuId?: string | null) {
 }
 const saving = ref(false);
 const editVisible = ref(false);
-const editForm = ref({ classId: 0, textName: '', skuId: '' });
+const isCreate = ref(false);
+const editForm = ref({ classId: 0, textName: '', skuId: '', active: true });
 
 const currentPreview = computed(
   () => modelPreviews.value.find((m) => m.modelName === selectedModel.value) || null
@@ -497,23 +553,40 @@ async function loadDevices() {
 async function load() {
   loaded.value = false;
   binding.value = null;
+  modelsLoaded.value = false;
+  modelsError.value = '';
+  modelPreviews.value = [];
+  selectedModel.value = '';
+  deployments.value = [];
   if (!deviceId.value) return;
   await crud.load({ resetPage: true });
   loaded.value = true;
   void loadDeployments();
+  // 已接入设备进页即拉模型，避免运营以为「没有可预生成的模型」；失败只落页内提示，不弹 toast
+  if (isBoundDevice()) void loadModels({ silent: true });
 }
 
-async function loadModels() {
+function isBoundDevice() {
+  return binding.value?.status === 'BOUND';
+}
+
+async function loadModels(opts?: { silent?: boolean }) {
   modelsLoading.value = true;
+  modelsError.value = '';
   try {
     const q = new URLSearchParams({ classIdBase: String(classIdBase.value) });
     modelPreviews.value = await api.request<ModelPreview[]>(
       `${AdminEndpoints.jiangyiModels}?${q.toString()}`,
       'GET'
     );
+    modelsLoaded.value = true;
     if (selectedModel.value && !currentPreview.value) selectedModel.value = '';
   } catch (e) {
-    ElMessage.error(errorMessage(e, '拉取将邑模型列表失败'));
+    modelsError.value = errorMessage(e, '拉取将邑模型列表失败');
+    modelPreviews.value = [];
+    selectedModel.value = '';
+    modelsLoaded.value = false;
+    if (!opts?.silent) ElMessage.error(modelsError.value);
   } finally {
     modelsLoading.value = false;
   }
@@ -544,7 +617,7 @@ async function doActivate() {
   if (!ensureSelected()) return;
   try {
     await ElMessageBox.confirm(
-      '激活后该模型全部预生成行立即参与结算推荐。已确认 classId ↔ SKU 对照无误？',
+      '只激活已挂 SKU 的预生成行；未挂 SKU 的行会保持停用（激活也无法参与结算）。已确认 classId ↔ SKU 对照无误？',
       '激活确认',
       { type: 'warning', confirmButtonText: '激活', cancelButtonText: '取消' }
     );
@@ -558,7 +631,7 @@ async function doActivate() {
       'POST',
       { modelName: selectedModel.value }
     );
-    ElMessage.success(`已激活 ${n} 行映射`);
+    ElMessage.success(`已激活 ${n} 行（仅已挂 SKU 的预生成行）`);
     await crud.load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '激活失败'));
@@ -635,27 +708,57 @@ async function loadSkus() {
   }
 }
 
+/** 新增时给一个未占用的编号建议（当前最大编号 + 1）；最终仍以人工输入为准。 */
+function suggestClassId() {
+  const used = crud.items.map((r) => Number(r.classId)).filter((n) => Number.isFinite(n));
+  return used.length ? Math.max(...used) + 1 : classIdBase.value;
+}
+
+function openCreate() {
+  isCreate.value = true;
+  editForm.value = {
+    classId: suggestClassId(),
+    textName: '',
+    skuId: '',
+    active: true
+  };
+  editVisible.value = true;
+}
+
 function openEdit(row: JiangyiClassMappingRow) {
-  editForm.value = { classId: row.classId, textName: row.textName || '', skuId: row.skuId || '' };
+  isCreate.value = false;
+  editForm.value = {
+    classId: row.classId,
+    textName: row.textName || '',
+    skuId: row.skuId || '',
+    active: row.status === 'ACTIVE'
+  };
   editVisible.value = true;
 }
 
 async function saveEdit() {
+  const classId = editForm.value.classId;
+  if (typeof classId !== 'number' || !Number.isInteger(classId) || classId < 0) {
+    ElMessage.warning('识别编号必须是非负整数');
+    return;
+  }
+  if (isCreate.value && crud.items.some((r) => Number(r.classId) === classId)) {
+    ElMessage.warning(`识别编号 ${classId} 已存在，请直接编辑该行`);
+    return;
+  }
   if (!editForm.value.skuId) {
     ElMessage.warning('请选择 SKU');
     return;
   }
   saving.value = true;
   try {
-    await api.request(
-      AdminEndpoints.deviceJiangyiMapping(deviceId.value, editForm.value.classId),
-      'PUT',
-      {
-        skuId: editForm.value.skuId,
-        textName: editForm.value.textName || undefined
-      }
-    );
-    ElMessage.success('已保存');
+    await api.request(AdminEndpoints.deviceJiangyiMapping(deviceId.value, classId), 'PUT', {
+      skuId: editForm.value.skuId,
+      textName: editForm.value.textName || undefined,
+      // 显式回传状态：后端按 active 落 status，漏传会把已启用行静默停用
+      active: editForm.value.active
+    });
+    ElMessage.success(isCreate.value ? '已新增映射' : '已保存');
     editVisible.value = false;
     await crud.load();
   } catch (e) {
@@ -771,6 +874,9 @@ onActivated(() => {
 }
 .jy-model-card {
   margin-bottom: 16px;
+}
+.jy-model-alert {
+  margin-bottom: 12px;
 }
 .jy-preview-rows {
   display: grid;

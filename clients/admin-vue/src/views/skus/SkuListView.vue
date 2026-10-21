@@ -101,7 +101,7 @@
           :action-width="96"
           actions-testid="sku"
           :empty-text="skuEmptyText"
-          sort-field-label="SKU"
+          sort-field-label="添加时间"
           :csv="csvOptions"
           @action="onAction"
         >
@@ -140,7 +140,7 @@
                 class="link-cell"
                 @click="canEdit ? openEdit(row) : ElMessage.info('当前账号无商品编辑权限')"
               >
-                {{ row.skuName || '无' }}
+                {{ skuNameText(row.skuName) }}
               </button>
             </template>
           </el-table-column>
@@ -148,7 +148,7 @@
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
           <el-table-column prop="spec" label="规格" min-width="72" class-name="col-text">
-            <template #default="{ row }">{{ row.spec || '无' }}</template>
+            <template #default="{ row }">{{ skuSpecText(row.spec) }}</template>
           </el-table-column>
           <el-table-column
             prop="unit"
@@ -338,7 +338,10 @@
           <el-col :span="12">
             <el-form-item label="规格">
               <el-input v-model="form.spec" placeholder="如 550ml" maxlength="40" />
-              <div class="field-hint">同一名称可以有多种规格；名称+规格合在一起不能重复</div>
+              <div class="field-hint">
+                单位用英文缩写（ml / L / g /
+                kg），保存时自动转换；同一名称可以有多种规格，名称+规格不能重复
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -574,7 +577,12 @@ import { useDictOptions } from '@/composables/useDictOptions';
 import { useAuthStore } from '@/stores/auth';
 import { findNavByPath } from '@/config/menu';
 import { consumeDictRuntimeEpoch } from '@/stores/dict-runtime';
-import { cleanOfficialSpec, officialUnitTail } from '@/utils/barcode-spec-clean';
+import {
+  cleanOfficialSpec,
+  moveLeadingSpecToEnd,
+  officialUnitTail,
+  toEnglishSpecUnit
+} from '@/utils/barcode-spec-clean';
 import { yuanToCents } from '@/utils/display';
 import { validateImageFile } from '@/utils/upload-validate';
 import type {
@@ -638,9 +646,10 @@ const crud = useCrudTable<SkuCatalog>({
   rowKey: (r) => r.skuId,
   fetchPage: (params) =>
     api.request<{ items: SkuCatalog[]; total: number }>(
-      AdminEndpoints.skusList(skuQueryParams(params.page, params.size))
+      AdminEndpoints.skusList(skuQueryParams(params.page, params.size, params.sortDir))
     ),
-  sort: { prop: 'skuId', mode: 'local' }
+  // 2026-10-21 用户要求：按添加时间排序（默认最新在前）；方向切换由壳内升/降序按钮驱动重查
+  sort: { prop: 'createdAt', mode: 'server', defaultDir: 'desc' }
 });
 
 const csvOptions: CrudCsvOptions = {
@@ -681,9 +690,9 @@ const csvOptions: CrudCsvOptions = {
     rows.map((row) => [
       row.skuId || '',
       row.barcode || '',
-      row.skuName,
+      moveLeadingSpecToEnd(row.skuName || ''),
       row.brand || '',
-      row.spec || '',
+      toEnglishSpecUnit(row.spec || ''),
       row.unit || '件',
       row.operationScope ? operationScopeLabel(row.operationScope) : '未分类',
       sceneLimitsToCsv(row.sceneLimits),
@@ -697,9 +706,10 @@ const csvOptions: CrudCsvOptions = {
   onImportRows: async (rows) => {
     let ok = 0;
     for (const row of rows) {
-      const skuName = (row['名称'] || row.skuName || '').trim();
+      const skuName = moveLeadingSpecToEnd((row['名称'] || row.skuName || '').trim());
       if (!skuName) continue;
       const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
+      const spec = toEnglishSpecUnit((row['规格'] || row.spec || '').trim());
       const priceCents = yuanToCents(row['售价'] || row.priceYuan);
       if (priceCents == null || priceCents < 0) continue;
       const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
@@ -713,10 +723,11 @@ const csvOptions: CrudCsvOptions = {
           const byBarcode = crud.items.find((i) => i.barcode && i.barcode === barcode);
           if (byBarcode) return byBarcode;
         }
-        const spec = (row['规格'] || row.spec || '').trim();
         return crud.items.find(
           (i) =>
-            (i.skuName || '').trim().toLowerCase() === skuName.toLowerCase() &&
+            moveLeadingSpecToEnd(i.skuName || '')
+              .trim()
+              .toLowerCase() === skuName.toLowerCase() &&
             (i.spec || '').trim().toLowerCase() === spec.toLowerCase()
         );
       })();
@@ -726,7 +737,7 @@ const csvOptions: CrudCsvOptions = {
         priceCents,
         barcode,
         brand: (row['品牌'] || row.brand || '').trim() || undefined,
-        spec: (row['规格'] || row.spec || '').trim() || undefined,
+        spec: spec || undefined,
         unit: (row['单位'] || row.unit || '').trim() || '件',
         category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
         operationScope: normalizeScopeToCode(row['归属'] || row.operationScope) || undefined,
@@ -936,6 +947,16 @@ function skuStatusLabel(status?: string) {
   return displayLabel('sku_status', status, '未知状态');
 }
 
+/** 名称展示：官方名称首部的规格挪到末尾（330ml雪碧… → 雪碧… 330ml） */
+function skuNameText(name?: string | null) {
+  return moveLeadingSpecToEnd(name || '') || '无';
+}
+
+/** 规格展示：计量单位统一英文（毫升→ml 等） */
+function skuSpecText(spec?: string | null) {
+  return toEnglishSpecUnit(spec || '') || '无';
+}
+
 /** 经营归属 label（CB-036 字典 sku_operation_scope）；空值由调用方自行处理 */
 function operationScopeLabel(scope?: string | null) {
   if (!scope) return '未分类';
@@ -1058,10 +1079,10 @@ function openEdit(row?: SkuCatalog) {
     form.existing = true;
     form.skuId = row.skuId;
     form.skuCode = row.skuCode;
-    form.skuName = row.skuName;
+    form.skuName = moveLeadingSpecToEnd(row.skuName || '');
     form.barcode = row.barcode || '';
     form.brand = row.brand || '';
-    form.spec = row.spec || '';
+    form.spec = toEnglishSpecUnit(row.spec || '');
     form.unit = row.unit || '件';
     form.packQty = row.packQty ?? 1;
     form.priceYuan = (row.priceCents || 0) / 100;
@@ -1138,7 +1159,8 @@ async function lookupBarcode() {
     }
     const filled: string[] = [];
     if (!form.skuName.trim() && res.name) {
-      form.skuName = res.name;
+      // 官方名称常把规格写在最前（330ml雪碧柠檬味汽水）→ 统一挪到名称末尾
+      form.skuName = moveLeadingSpecToEnd(res.name);
       filled.push('名称');
     }
     if (!form.brand.trim() && res.brand) {
@@ -1149,7 +1171,8 @@ async function lookupBarcode() {
       // 单位暗示取自官方原文（cleanOfficialSpec 会把「/罐」式尾缀也洗掉，须先提取）
       const unitTail = officialUnitTail(res.spec);
       // 轻度清洗：去包装英文前缀 + 尾缀单位（单位是独立字段）；只清洗自动填充值，手工输入不动
-      form.spec = cleanOfficialSpec(res.spec);
+      // 再把中文计量单位换成英文缩写（毫升→ml）
+      form.spec = toEnglishSpecUnit(cleanOfficialSpec(res.spec));
       filled.push('规格');
       // 单位顺带带出：尾缀命中单位字典、且单位仍是默认「件」（视为未手工选过）才生效
       if (
@@ -1239,11 +1262,11 @@ async function saveEdit() {
   try {
     const body: UpsertSkuRequest = {
       skuId: form.existing ? form.skuId : undefined,
-      skuName: form.skuName.trim(),
+      skuName: moveLeadingSpecToEnd(form.skuName.trim()),
       priceCents,
       barcode: barcode,
       brand: form.brand.trim() || undefined,
-      spec: form.spec.trim() || undefined,
+      spec: toEnglishSpecUnit(form.spec.trim()) || undefined,
       unit: form.unit.trim() || '件',
       packQty: form.packQty > 0 ? form.packQty : 1,
       category: normalizeCategoryToCode(form.category) || undefined,
@@ -1281,11 +1304,12 @@ async function saveEdit() {
       updated = await api.request<SkuCatalog>(AdminEndpoints.skus, 'POST', body);
     }
     const idx = crud.items.findIndex((i) => i.skuId === updated.skuId);
-    if (idx >= 0) crud.items[idx] = updated;
-    else crud.items.push(updated);
-    crud.items.sort((a, b) =>
-      String(a.skuId || '').localeCompare(String(b.skuId || ''), 'zh-CN', { numeric: true })
-    );
+    if (idx >= 0) {
+      crud.items[idx] = updated;
+    } else {
+      // 新建商品按「添加时间倒序」应排在首页第一条，回第一页重查（后端排序为准）
+      await crud.search();
+    }
     editDialog.value = false;
     ElMessage.success(form.existing ? '已保存商品' : `已新建，SKU ${updated.skuId}`);
   } catch (e) {
@@ -1318,14 +1342,23 @@ function resetFilters() {
   void crud.search();
 }
 
-function skuQueryParams(page: number, size: number) {
+function skuQueryParams(page: number, size: number, sortDir?: string) {
   const q = new URLSearchParams({
     page: String(page),
     size: String(size)
   });
+  if (sortDir) q.set('sortDir', sortDir);
   const kw = keyword.value.trim();
   if (kw) q.set('q', kw);
-  if (categoryFilter.value.trim()) q.set('category', categoryFilter.value.trim());
+  const cat = categoryFilter.value.trim();
+  if (cat) {
+    q.set('category', cat);
+    // 历史行存类目标签、新行存字典键值：同时带上另一个值，后端按 IN 命中两边
+    const byValue = categoryOptions.value.find((o) => o.value === cat);
+    const byLabel = categoryOptions.value.find((o) => o.label === cat);
+    const alt = byValue ? byValue.label : byLabel ? byLabel.value : '';
+    if (alt && alt !== cat) q.set('categoryLabel', alt);
+  }
   if (scopeFilter.value.trim()) q.set('operationScope', scopeFilter.value.trim());
   if (saleTab.value === 'ACTIVE') q.set('status', 'ACTIVE');
   else q.set('status', 'ALL');
