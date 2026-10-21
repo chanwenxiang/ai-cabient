@@ -65,6 +65,7 @@
           v-model="createdRange"
           type="datetimerange"
           value-format="x"
+          :default-time="DEFAULT_DATETIME_RANGE_TIME"
           start-placeholder="起"
           end-placeholder="止"
           style="width: 340px"
@@ -790,6 +791,7 @@ import type {
 } from '@aicabinet/shared-types';
 import { centsToYuanDigits, displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
+import { DEFAULT_DATETIME_RANGE_TIME } from '@/utils/date-time-presets';
 import { orderAmountDiffNote } from '@/utils/dispute-amount-note';
 import { buildOrderRefundBody, canRefundOrderStatus } from '@/utils/money-ui-contracts';
 import { parseGoodsLines } from '@/utils/order-line-summary';

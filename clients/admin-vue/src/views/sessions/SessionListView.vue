@@ -53,6 +53,7 @@
           v-model="createdRange"
           type="datetimerange"
           value-format="x"
+          :default-time="DEFAULT_DATETIME_RANGE_TIME"
           start-placeholder="起"
           end-placeholder="止"
           style="width: 340px"
@@ -364,6 +365,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
+import { DEFAULT_DATETIME_RANGE_TIME } from '@/utils/date-time-presets';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 interface SessionRow {

@@ -242,6 +242,7 @@
               <el-date-picker
                 v-model="form.window"
                 type="datetimerange"
+                :default-time="DEFAULT_DATETIME_RANGE_TIME"
                 start-placeholder="开始"
                 end-placeholder="结束"
                 style="width: 100%"
@@ -285,6 +286,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { DEFAULT_DATETIME_RANGE_TIME } from '@/utils/date-time-presets';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 
