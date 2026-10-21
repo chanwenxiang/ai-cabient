@@ -645,6 +645,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - ✅ **搜索分级**：`GET /jiangyi/std-skus` 增加 `skuId/includeAll`，返回 `{items,total,hidden}`；以我方 SKU 为基准分 `EXACT_BARCODE > SAME_SPEC > RELATED > SUSPECT`，规格归一（ml/毫升/L）、版本词（零卡/无糖/纤维/纪念/摩登）与 test/测试 判明显不符并默认隐藏；未挂接优先、扫码条码优先于手填。**条码不一致本身不隐藏也不阻断**（69 码随包装版本不同，2026-10-21 拍板）。
 - ✅ **弹窗**：有品牌时自动预搜；卡片补缩略图、匹配徽标、`barCodeSource`（扫码/手填/无来源）、被隐藏条数与「显示全部」；挂接前并排我方 SKU 与将邑商品图片/名称/规格/条码，非条码一致须勾选「已核对为同一实物」才可提交。过渡期（nginx 已挂新前端、trade-service 未重建）兼容旧 jar 的裸数组响应，不把搜索打空。
 - ✅ **识别形态不预选**：原默认 `bottle` 会把罐装商品静默写成瓶装，改为空值 + `clearable` + 提交前校验，切换 SKU 时重置。将邑 v1.13.0 枚举只有 `bottle/box/bag/bowl/egg`，**没有「罐装」**（`bottle:瓶装 box:盒装 bag:袋装 bowl:碗装 egg:鸡蛋`，见 `将邑对接资料/…v1.13.0.docx` §商品分类），罐装饮品按「瓶装」提交，提示已写在表单里。
+- ⚠️ **DTO 变更须同步 generated OpenAPI 类型**：改 `StdSkuView`/返回结构后漏跑 `pnpm gen:api-types`，CI build 的 `check:openapi-types` 直接红。本机复现方式：`mvn -q -pl services/trade-service -am package -DskipTests` → 起 jar（dev PG 15433 / Redis 6379 密码 `devredis`）→ `OPENAPI_FILE=.tmp/live-openapi.json pnpm gen:api-types` → 提交 `packages/shared-types/src/generated/openapi.ts`。
 - 验证：`SkuJiangyiLinkServiceTest` 19/19 + `JiangyiGatherClientTest` 1/1；admin `vue-tsc`、ESLint、dialog-a11y / admin-endpoints 门禁绿。
 
 ### 2026-10-21（提现出款权改条件 UPDATE 抢占 + MySQL 方言门禁进链 + 批量审核串行化）

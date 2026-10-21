@@ -16864,11 +16864,18 @@ export interface components {
             activeDays?: number;
             dailies?: components["schemas"]["Daily"][];
         };
-        ApiResponseListStdSkuView: {
+        ApiResponseStdSkuSearchResult: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["StdSkuView"][];
+            data?: components["schemas"]["StdSkuSearchResult"];
+        };
+        StdSkuSearchResult: {
+            items?: components["schemas"]["StdSkuView"][];
+            /** Format: int32 */
+            total?: number;
+            /** Format: int32 */
+            hidden?: number;
         };
         StdSkuView: {
             /** Format: int64 */
@@ -16881,6 +16888,9 @@ export interface components {
             mainImg?: string;
             stdSkuCode?: string;
             linked?: boolean;
+            barCodeSource?: string;
+            matchLevel?: string;
+            mismatchReasons?: string[];
         };
         ApiResponseListJiangyiCategory: {
             /** Format: int32 */
@@ -23567,6 +23577,7 @@ export interface operations {
                 operationScope?: string;
                 page?: number;
                 size?: number;
+                sortDir?: string;
             };
             header?: never;
             path?: never;
@@ -32896,6 +32907,8 @@ export interface operations {
             query?: {
                 name?: string;
                 barCode?: string;
+                skuId?: string;
+                includeAll?: boolean;
             };
             header?: never;
             path?: never;
@@ -32909,7 +32922,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListStdSkuView"];
+                    "*/*": components["schemas"]["ApiResponseStdSkuSearchResult"];
                 };
             };
         };
