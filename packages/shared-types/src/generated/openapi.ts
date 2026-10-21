@@ -1118,6 +1118,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/recognition-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recognitionReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/order-video-report": {
         parameters: {
             query?: never;
@@ -5926,6 +5942,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/skus/by-product/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["skuByProduct"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/order-videos/by-order": {
         parameters: {
             query?: never;
@@ -5982,6 +6014,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["routable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/jiangyi/devices/{deviceId}/floor-goods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["floorGoods"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12178,6 +12226,30 @@ export interface components {
             message?: string;
             data?: boolean;
         };
+        RecognitionReportRequest: {
+            deviceId?: string;
+            orderNo?: string;
+            transactionId?: string;
+            payType?: string;
+            formsJson?: string;
+            itemsJson?: string;
+            /** Format: int32 */
+            formCount?: number;
+            /** Format: int32 */
+            itemCount?: number;
+            /** Format: int64 */
+            vendorAmountCents?: number;
+            outcome?: string;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
+        ApiResponseLong: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            /** Format: int64 */
+            data?: number;
+        };
         OrderVideoReportRequest: {
             deviceId?: string;
             orderNo?: string;
@@ -14330,13 +14402,6 @@ export interface components {
             /** Format: int32 */
             classIdBase?: number;
         };
-        ApiResponseLong: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            /** Format: int64 */
-            data?: number;
-        };
         TrainingRequest: {
             skuId: string;
             modelName: string;
@@ -15002,6 +15067,12 @@ export interface components {
             code?: string;
             expiresAt?: string;
         };
+        ApiResponseString: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: string;
+        };
         ApiResponseListJiangyiOrderVideo: {
             /** Format: int32 */
             code?: number;
@@ -15020,6 +15091,23 @@ export interface components {
             videoUrls?: string;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseListFloorGoods: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["FloorGoods"][];
+        };
+        FloorGoods: {
+            /** Format: int32 */
+            classId?: number;
+            /** Format: int32 */
+            thirdPid?: number;
+            productName?: string;
+            /** Format: int32 */
+            salePrice?: number;
+            /** Format: int32 */
+            stock?: number;
         };
         ApiResponseListJiangyiClassMapping: {
             /** Format: int32 */
@@ -21833,6 +21921,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
+    recognitionReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecognitionReportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseLong"];
                 };
             };
         };
@@ -30226,6 +30338,28 @@ export interface operations {
             };
         };
     };
+    skuByProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseString"];
+                };
+            };
+        };
+    };
     orderVideosByOrder: {
         parameters: {
             query: {
@@ -30311,6 +30445,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
+    floorGoods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListFloorGoods"];
                 };
             };
         };
