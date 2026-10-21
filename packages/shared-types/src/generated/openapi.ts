@@ -23577,7 +23577,6 @@ export interface operations {
                 operationScope?: string;
                 page?: number;
                 size?: number;
-                sortDir?: string;
             };
             header?: never;
             path?: never;
