@@ -1004,6 +1004,10 @@ export const DEFAULT_PREAUTH_CENTS = 2000;
 export interface DeviceProduct {
   skuId: string;
   skuName: string;
+  /** 规格（如「330ml」），与商品档案同源，可为空。 */
+  spec?: string;
+  /** 计价单位（如「瓶」「罐」）；缺省前端按「件」兜底。 */
+  unit?: string;
   priceCents: number;
   quantity?: number;
   category?: string;

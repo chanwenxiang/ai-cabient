@@ -75,6 +75,8 @@ public class DeviceCatalogService {
                 result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),
+                    sku.getSpec(),
+                    sku.getUnit(),
                     skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy),
                     qty,
                     sku.getImageUrl(),

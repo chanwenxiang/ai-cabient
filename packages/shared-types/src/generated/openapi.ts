@@ -19183,6 +19183,8 @@ export interface components {
         DeviceProductDto: {
             skuId?: string;
             skuName?: string;
+            spec?: string;
+            unit?: string;
             /** Format: int32 */
             priceCents?: number;
             /** Format: int32 */

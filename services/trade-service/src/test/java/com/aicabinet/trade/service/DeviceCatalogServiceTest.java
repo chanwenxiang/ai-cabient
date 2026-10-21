@@ -133,6 +133,26 @@ class DeviceCatalogServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.listProducts("  "));
     }
 
+    @Test
+    @DisplayName("价目带规格与计价单位（CB-063：消费者侧要渲染成「¥3.50/罐」）")
+    void listProducts_carriesSpecAndUnit() {
+        when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of(new DeviceSkuLot()));
+        when(lotRepository.sumSellableBySkuOnEnabledSlots(DEVICE_ID))
+                .thenReturn(List.<Object[]>of(row("SKU-SODA-001", 8)));
+        SkuCatalog sprite = sku("SKU-SODA-001", "雪碧柠檬味汽水330ml");
+        sprite.setSpec("330ml");
+        sprite.setUnit("罐");
+        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of(sprite));
+        when(skuPricingService.loadPromoPolicy()).thenReturn(null);
+        when(skuPricingService.resolveUnitPriceCents(anyString(), any(SkuCatalog.class),
+                nullable(PricingPromoPolicy.class))).thenReturn(350);
+
+        DeviceProductDto p = service.listProducts(DEVICE_ID).get(0);
+
+        assertEquals("330ml", p.spec());
+        assertEquals("罐", p.unit());
+    }
+
     private static Object[] row(String skuId, int qty) {
         return new Object[] { skuId, qty };
     }
