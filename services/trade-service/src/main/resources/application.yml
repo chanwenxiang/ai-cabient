@@ -109,6 +109,12 @@ aicabinet:
   # 将邑开门柜网关（CB-022）：将邑柜开门指令路由目标（将邑柜单次下发不重试）
   jiangyi-gateway:
     url: ${AICABINET_JIANGYI_GATEWAY_URL:http://localhost:8083}
+  jiangyi:
+    model-sync:
+      # AU-183：classes.txt 的 SSRF 白名单，逗号分隔。裸域=强制 https + 后缀匹配；
+      # 也支持 `https://host` 精确条目（桶名单桶时用这种）。厂商把 txt 托管到 OSS 时，
+      # 按 JIANGYI_GATEWAY_DESIGN §7.6 用 probe 拿到的真实 host 填值，不要放宽成整域。
+      allowed-hosts: ${AICABINET_JIANGYI_MODEL_SYNC_ALLOWED_HOSTS:hunanjysmart.com}
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}

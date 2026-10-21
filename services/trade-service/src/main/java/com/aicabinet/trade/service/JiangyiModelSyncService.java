@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
@@ -79,11 +80,14 @@ public class JiangyiModelSyncService {
                 JiangyiClassesParser.ParsedClasses parsed = parseClasses(model, classIdBase);
                 rows = parsed.rows();
                 classesVersion = parsed.classesVersion();
-            } catch (JiangyiClassesParser.ClassesParseRejectException e) {
-                // 预览不因单个模型解析失败而整体失败：标注拒绝原因，人工可见
+            } catch (JiangyiClassesParser.ClassesParseRejectException
+                    | ResponseStatusException
+                    | RestClientException e) {
+                // 预览不因单个模型取不到 classes.txt 而整体失败：白名单拒/地址为空/OSS 不可达
+                // 一律降级成该行原因（后台按行显示「解析被拒」），其余模型照常可预览
                 out.add(new ModelPreview(model.modelName(), model.industrialControlModel(),
                         model.quantity(), model.modelTextUrl(), null, classesVersionOf(model),
-                        List.of(), e.getMessage(), 0));
+                        List.of(), previewRejectReason(e), 0));
                 continue;
             }
             long matched = rows.stream().filter(r -> trainedTextNames.contains(r.textName())).count();
@@ -289,6 +293,14 @@ public class JiangyiModelSyncService {
 
     private static String classesVersionOf(JiangyiModelFile model) {
         return JiangyiClassesParser.sha256Prefix(model.modelTextUrl() == null ? "" : model.modelTextUrl());
+    }
+
+    /** 预览降级原因：ResponseStatusException 只取 reason（去掉「400 BAD_REQUEST」前缀），其余取 message。 */
+    private static String previewRejectReason(Exception e) {
+        if (e instanceof ResponseStatusException rse && rse.getReason() != null) {
+            return rse.getReason();
+        }
+        return e.getMessage();
     }
 
     /** admin 预览行（openapi inline schema）。 */

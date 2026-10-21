@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -242,6 +243,29 @@ class JiangyiModelSyncServiceTest {
         assertEquals(409, e.getStatusCode().value());
         verify(jiangyiClassMappingMapper, org.mockito.Mockito.never())
                 .upsert(any(com.aicabinet.trade.domain.JiangyiClassMapping.class));
+    }
+
+    /**
+     * AU-183 连带修复：白名单拒 / classes.txt 地址为空 / OSS 不可达都只降级成该行原因，
+     * 不得让整页模型预览 400（真模型一来厂商桶常不在将邑域内，此前后台连列表都打不开）。
+     */
+    @Test
+    void previewModels_degradesUnreachableClassesTextPerModelInsteadOfFailingWholeList() {
+        JiangyiModelFile blocked = new JiangyiModelFile(8L, "JY-BLOCKED", "http://oss/b.rknn",
+                "88", "https://evil.example.com/classes.txt", 2);
+        JiangyiModelFile blank = new JiangyiModelFile(9L, "JY-BLANK", "http://oss/c.rknn",
+                "88", "  ", 2);
+        when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(blocked, blank, modelFile("88")));
+        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of());
+
+        List<JiangyiModelSyncService.ModelPreview> previews = service().previewModels(0);
+
+        assertEquals(3, previews.size());
+        assertEquals("模型 classes.txt 地址不在允许的将邑域内", previews.get(0).rejectReason());
+        assertTrue(previews.get(0).rows().isEmpty());
+        assertEquals("模型 classes.txt 地址为空", previews.get(1).rejectReason());
+        assertNull(previews.get(2).rejectReason());
+        assertEquals(2, previews.get(2).rows().size());
     }
 
     @Test
