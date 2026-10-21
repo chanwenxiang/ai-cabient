@@ -8,7 +8,7 @@
  *
  * 预算可用环境变量覆盖（单位 KB）：
  *   ADMIN_BUDGET_UI_VENDOR_KB=1200
- *   ADMIN_BUDGET_INDEX_KB=120
+ *   ADMIN_BUDGET_INDEX_KB=125
  *   ADMIN_BUDGET_LEAFLET_KB=220
  *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
@@ -45,7 +45,10 @@ function envKb(name, fallback) {
 
 const BUDGET = {
   uiVendorKb: envKb('ADMIN_BUDGET_UI_VENDOR_KB', 1200),
-  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 120),
+  // 120 定工时几乎零余量（2026-10-21 产物 122834B = 119.95KB，仅空 51B）⇒ 加两条 API 路径
+  // 字面量就必红（9935133d 实测 123087B = 120.20KB，逐字比对确认增量就是 endpoints.ts 里
+  // model-sync-explicit / model-push-explicit 两个串，无整包误引入）。抬到 125 ≈ 4% 余量。
+  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 125),
   leafletKb: envKb('ADMIN_BUDGET_LEAFLET_KB', 220),
   // echarts+zrender 按需注册后的实测体积 ≈513KB（全量引入约 1MB）。600KB 留 ~17% 余量，
   // 既能容忍 minor 升级，又能抓住「有人退回 import * as echarts from 'echarts'」这类回归。

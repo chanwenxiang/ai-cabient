@@ -142,6 +142,10 @@ const openApiSurface = changed.some(
 );
 
 if (adminSrcChanged || full) {
+  // 🔴 该门禁只在 CI build job 单步跑、不在聚合链里 ⇒ 本地预检不跑就等于「推了才知道红」
+  //    （2026-10-22 实测：`--full` 全绿，CI 却因 index chunk +253B 红）。它只读已提交产物，
+  //    不依赖 Vite 重建，Windows 也能跑。
+  run('admin-bundle-budget', node, [resolve(root, 'scripts/check-admin-bundle-budget.mjs')]);
   if (process.platform === 'win32') {
     console.log('\n── admin 源码有改动 ──');
     console.log(
