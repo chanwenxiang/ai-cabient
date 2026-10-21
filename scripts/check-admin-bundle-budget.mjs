@@ -12,7 +12,7 @@
  *   ADMIN_BUDGET_LEAFLET_KB=220
  *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
- *   ADMIN_BUDGET_TOTAL_JS_KB=3300
+ *   ADMIN_BUDGET_TOTAL_JS_KB=3400
  *
  * 分类按 chunk **名前缀**判定（`ui-vendor-` / `index-` / `leaflet-` / `echarts-vendor-`，
  * 其余全算 route）。⇒ 新增一类必须同时改这里与 vite.config.ts 的 manualChunks，
@@ -53,7 +53,10 @@ const BUDGET = {
   routeKb: envKb('ADMIN_BUDGET_ROUTE_KB', 150),
   // 3200 定于 f030f09f（74 页时代）。2026-10-13 平台资金池/设备租赁两个新财务页
   // （CB-033/034）落地后实测 3208.3KB ⇒ 3300，留 ~3% 余量给后续页面；单项预算不变。
-  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3300)
+  // 2026-10-21 设备详情/将邑 SN、SKU 件装数、按单拉取视频入口、资金动作在途防重落地后
+  // 实测 3300.4KB（较上版 +2.9KB，最大单页 +1.1KB OrderListView）⇒ 3400，仍留 ~3%。
+  // 抬预算前先看 chunk 级增量：若某一页暴涨，优先查是否误引入整包，而不是抬总额度。
+  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3400)
 };
 
 function kb(bytes) {
