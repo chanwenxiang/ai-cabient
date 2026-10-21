@@ -247,7 +247,8 @@ const headerTitle = computed(() => {
   if (s === 'FAILED' || s === 'CANCELLED') return '本次未完成';
   return Number(order.value?.totalAmountCents ?? 0) > 0 ? '购物完成' : '感谢使用';
 });
-let sessionId = '';
+// 模板直接引用（v-if="sessionId && …"）：必须是 ref，普通 let 赋值不触发重渲染
+const sessionId = ref('');
 let loadedKey = '';
 const deviceId = ref('');
 const showDispute = ref(false);
@@ -321,8 +322,8 @@ onShow(() => {
   // H5 同页换 query 时 onLoad 不重跑；微信 onShow 无入参，空 query 不得冲掉已有单号
   const merged = { ...readHashQuery(), ...currentPageOptions() };
   if (!String(merged.sessionId || merged.orderId || '').trim()) {
-    if (sessionId || order.value?.orderId) {
-      merged.sessionId = sessionId;
+    if (sessionId.value || order.value?.orderId) {
+      merged.sessionId = sessionId.value;
       merged.orderId = String(order.value?.orderId || '');
     } else {
       return;
@@ -374,7 +375,7 @@ function readHashQuery(): Record<string, string> {
 }
 
 async function bootstrap(opts?: Record<string, string>) {
-  const nextSession = String(opts?.sessionId || sessionId || '').trim();
+  const nextSession = String(opts?.sessionId || sessionId.value || '').trim();
   const nextOrder = String(opts?.orderId || order.value?.orderId || '').trim();
   const key = `${nextOrder}|${nextSession}`;
   if (!nextOrder && !nextSession) {
@@ -384,7 +385,7 @@ async function bootstrap(opts?: Record<string, string>) {
   }
   if (key === loadedKey && (order.value || error.value)) return;
   loadedKey = key;
-  sessionId = nextSession;
+  sessionId.value = nextSession;
   order.value = null;
   error.value = '';
   disputeFiled.value = false;
@@ -404,7 +405,7 @@ function applyOrderSnapshot(next: OrderDetailDto) {
   error.value = '';
   recognizing.value = false;
   statusLabel.value = orderStatusLabel(next?.status);
-  sessionId = next?.sessionId || sessionId;
+  sessionId.value = next?.sessionId || sessionId.value;
   deviceId.value = next?.deviceId || deviceId.value;
   if (next?.status === 'DISPUTED') disputeFiled.value = true;
   if (next?.status === 'REFUNDED') {
@@ -457,8 +458,8 @@ async function refreshQuietly() {
       applyOrderSnapshot(await consumerApi.getOrder(oid));
       return;
     }
-    if (!sessionId) return;
-    const found = await consumerApi.getSessionOrder(sessionId);
+    if (!sessionId.value) return;
+    const found = await consumerApi.getSessionOrder(sessionId.value);
     if (found?.orderId) applyOrderSnapshot(found);
   } catch {
     /* 账单尚未生成：保持当前画面，等下一次 tick */
@@ -536,7 +537,7 @@ async function submitAction() {
 
 async function submitDispute() {
   const reason = disputeReason.value.trim();
-  if (!sessionId) {
+  if (!sessionId.value) {
     showError('缺少订单信息');
     return;
   }
@@ -549,7 +550,7 @@ async function submitDispute() {
   try {
     await consumerApi.fileDispute(
       buildFileDisputeBody({
-        sessionId,
+        sessionId: sessionId.value,
         reason,
         category: selectedCategory.value,
         evidenceFileIds: evidenceFileIds(evidence.value)
@@ -561,8 +562,8 @@ async function submitDispute() {
     loadedKey = '';
     if (order.value?.orderId) {
       await loadByOrderId(order.value.orderId);
-    } else if (sessionId) {
-      await loadBySession(sessionId);
+    } else if (sessionId.value) {
+      await loadBySession(sessionId.value);
     }
     showSuccess('申诉已提交');
   } catch (e) {

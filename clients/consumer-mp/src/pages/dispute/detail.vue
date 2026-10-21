@@ -228,12 +228,16 @@ onLoad((opts) => {
   void bootstrap();
 });
 
+let pageShowCount = 0;
 onShow(() => {
   // 同页不同 query 跳转时 onLoad 不一定重跑；空 query 不得冲掉已有单号
   applyQuery({ ...readHashQuery(), ...currentPageOptions() });
   if (!ticketId.value && !sessionId.value) return;
-  void bootstrap();
   loadServicePhone();
+  // 首屏由 onLoad 的 bootstrap 负责（含登录态确认）；此处再跑一次 bootstrap，
+  // 未登录用户会紧邻连弹两次「需要授权」确认框（onLoad 与 onShow 首屏背靠背触发）。
+  pageShowCount += 1;
+  if (pageShowCount > 1) void bootstrap();
 });
 
 /**
