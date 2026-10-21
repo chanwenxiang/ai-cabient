@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -291,29 +292,55 @@ public class SkuJiangyiLinkService {
         return link;
     }
 
-    /** 学习完成后按 barCode 从已学习商品回填 text_name（classes.txt 直接键）。 */
+    /**
+     * 学习完成后按 barCode 从已学习商品回填 text_name（classes.txt 直接键）。
+     *
+     * <p>🔴 命中多条不猜（2026-10-22 用户拍板）：将邑库里同一条码可能同时挂着正式行与
+     * test/纪念装行（实测「雪碧」11 条里 {@code id=3563 test雪碧听装330ml} 条码为空、
+     * {@code id=4083 雪碧330ml} 亦空，同规格还有 4 个不同 69 码）。textName 是 classes.txt
+     * 的行内容，挑错一行 = 整列 classId 错位 = 按错的商品扣钱。故只接受
+     * <b>条码精确相等且 textName 唯一</b>的结果；多值一律 409 并列出候选，
+     * 由人工在识别映射页指定。</p>
+     */
     public int pullTextName(String skuId) {
         SkuCatalog sku = requireSku(skuId);
         if (sku.getBarcode() == null || sku.getBarcode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "我方 SKU 未登记条形码，无法按条码回填");
         }
         List<TrainedProduct> trained = jiangyiGatherClient.trainedProducts();
-        int updated = 0;
+        List<TrainedProduct> hits = new ArrayList<>();
+        Set<String> textNames = new LinkedHashSet<>();
         for (TrainedProduct p : trained) {
             if (!sku.getBarcode().equals(p.barCode())) {
                 continue;
             }
-            for (JiangyiSkuJiangyiLink link : linkMapper.listBySku(skuId)) {
-                link.setJiangyiTextName(p.textName());
-                link.setSyncedAt(Instant.now());
-                link.setUpdatedAt(Instant.now());
-                linkMapper.updateById(link);
-                updated++;
+            hits.add(p);
+            if (p.textName() != null && !p.textName().isBlank()) {
+                textNames.add(p.textName());
             }
         }
-        if (updated == 0) {
+        if (hits.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
                     "已学习商品中未找到条形码 " + sku.getBarcode());
+        }
+        if (textNames.size() > 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "条码 " + sku.getBarcode() + " 在已学习商品中命中 " + hits.size() + " 条且 textName 不同（"
+                            + String.join(" / ", textNames) + "），不自动回填——请到识别映射页人工指定 classId 对应商品");
+        }
+        if (textNames.isEmpty()) {
+            // 宁可不动，也不把已核对过的 textName 静默清空
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "条码 " + sku.getBarcode() + " 命中的 " + hits.size() + " 条已学习商品没有 textName");
+        }
+        String textName = textNames.iterator().next();
+        int updated = 0;
+        for (JiangyiSkuJiangyiLink link : linkMapper.listBySku(skuId)) {
+            link.setJiangyiTextName(textName);
+            link.setSyncedAt(Instant.now());
+            link.setUpdatedAt(Instant.now());
+            linkMapper.updateById(link);
+            updated++;
         }
         return updated;
     }

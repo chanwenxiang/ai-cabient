@@ -232,6 +232,53 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
+    void pullTextName_multipleTextNamesUnderSameBarCodeAre409AndTouchNothing() {
+        // 2026-10-22 拍板：同一条码命中多条且 textName 不同 ⇒ 不猜、不写、要求人工
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
+                new TrainedProduct(1L, "雪碧清爽柠檬味汽水普通听装330ml",
+                        "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
+                new TrainedProduct(2L, "test雪碧听装330ml", "test_xb_tz330ml", "6901234567890")));
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().pullTextName(SKU_ID));
+
+        assertEquals(409, e.getStatusCode().value());
+        assertTrue(e.getReason().contains("kkkl_xb_qsnmw_pttz_330ml"));
+        assertTrue(e.getReason().contains("test_xb_tz330ml"));
+        verify(linkMapper, never()).listBySku(any());
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    @Test
+    void pullTextName_duplicateTextNamesStillFill() {
+        // 同 textName 的重复学习行不算歧义（同一解码键），仍按原行为回填
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
+                new TrainedProduct(1L, "雪碧 330ml 一版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
+                new TrainedProduct(2L, "雪碧 330ml 二版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890")));
+        JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
+        link.setId(9L);
+        link.setSkuId(SKU_ID);
+        when(linkMapper.listBySku(SKU_ID)).thenReturn(List.of(link));
+
+        assertEquals(1, service().pullTextName(SKU_ID));
+        assertEquals("kkkl_xb_qsnmw_pttz_330ml", link.getJiangyiTextName());
+    }
+
+    @Test
+    void pullTextName_blankTextNameDoesNotWipeExistingValue() {
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
+                new TrainedProduct(1L, "雪碧 330ml", null, "6901234567890")));
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().pullTextName(SKU_ID));
+
+        assertEquals(404, e.getStatusCode().value());
+        assertTrue(e.getReason().contains("没有 textName"));
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    @Test
     void search_marksLinkedProductsAndPutsUnlinkedFirst() {
         when(jiangyiGatherClient.stdSkuList("农夫山泉", null)).thenReturn(List.of(
                 new JiangyiStdSku(88L, "农夫山泉 550ml", "6901234567890", "550ml",
