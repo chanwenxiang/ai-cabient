@@ -96,7 +96,7 @@ const createForm = ref({
   salePrice: '',
   mainImg: '',
   color: undefined as number | undefined,
-  category: 'bottle',
+  category: '',
   catId: undefined as number | undefined
 });
 const creating = ref(false);
@@ -169,6 +169,8 @@ function open(row: {
   confirmedSame.value = false;
   // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
   createForm.value.mainImg = row.imageUrl || '';
+  // 不能沿用上一个 SKU 选的包装类型：罐装/瓶装误选会写进将邑商品
+  createForm.value.category = '';
   visible.value = true;
   void load();
   void loadCategories();
@@ -282,6 +284,10 @@ async function confirmBind() {
 async function createInJiangyi() {
   if (!createForm.value.catId) {
     ElMessage.warning('请选择将邑分类（列表加载失败时可手填编号）');
+    return;
+  }
+  if (!createForm.value.category) {
+    ElMessage.warning('请选择识别形态（将邑要求必填）');
     return;
   }
   try {
@@ -530,14 +536,21 @@ defineExpose({ open });
             </el-col>
             <el-col :span="12">
               <el-form-item label="识别形态">
-                <el-select v-model="createForm.category" style="width: 100%">
+                <el-select
+                  v-model="createForm.category"
+                  clearable
+                  placeholder="请选择包装类型"
+                  style="width: 100%"
+                >
                   <el-option label="瓶装" value="bottle" />
                   <el-option label="盒装" value="box" />
                   <el-option label="袋装" value="bag" />
                   <el-option label="碗装" value="bowl" />
                   <el-option label="蛋类" value="egg" />
                 </el-select>
-                <div class="jy-link-hint">用于将邑侧商品归类，不影响端侧识别</div>
+                <div class="jy-link-hint">
+                  用于将邑侧商品归类，不影响端侧识别。将邑仅支持这五种，无「罐装」——罐装饮品请选「瓶装」
+                </div>
               </el-form-item>
             </el-col>
             <el-col :span="24">
