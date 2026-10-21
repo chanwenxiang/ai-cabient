@@ -75,9 +75,14 @@ export function clearAuthStorage(): void {
     localStorage.removeItem(COOKIE_AUTH_KEY);
     localStorage.removeItem('admin_permissions');
     localStorage.removeItem('admin_active_nav');
-    // AU-144：登出清记住手机号两键——否则换账号登录时登录页仍预填上个账号手机号
-    localStorage.removeItem('admin_phone');
-    localStorage.removeItem('admin_remember_phone');
+    // AU-144（2026-10-21 语义修订，用户拍板）：登出是否清记住手机号由「记住账号」开关决定——
+    // 勾选（默认）= 保留（「记住」的本意就是跨登录会话）；显式取消勾选（'0'）= 清（不记住就不预填）。
+    // 原实现一律清 ⇒ 默认勾选的「记住账号」被登出击穿（用户实证：退出后账号被清空）。
+    // AU-144 原担忧「换账号预填错人」仍由 opt-out 开关覆盖：取消勾选登录后即不再预填。
+    // 开关键 admin_remember_phone 本身永不清——它是用户的开关状态，清了会退回默认勾选。
+    if (localStorage.getItem('admin_remember_phone') === '0') {
+      localStorage.removeItem('admin_phone');
+    }
   }
 }
 
