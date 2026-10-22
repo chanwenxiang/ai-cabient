@@ -142,12 +142,19 @@ public class OpsAuditQueryService {
      */
     public List<AdminAuditSensitiveSummaryDto> sensitiveSummary(Long operatorId, int days) {
         permissionService.requirePermission(operatorId, "ops:audit:list");
+        /*
+         * 成因注释（追踪号 499677148c50）：原实现把 LIKE 参数写成 MyBatis 风格的 `?1..?N`
+         * 序号占位符，并把时间窗写成 `(days || ' days')::interval`（integer || text 在 PG 无
+         * 此运算符）——本方法走 Spring JdbcTemplate（只认裸 `?`）+ Postgres，两条都必然
+         * BadSqlGrammarException。钉住测试是 mock 判据（contains "LIKE ?"），区分不了好坏。
+         * 现改为裸 `?` 占位符 + 内联 clamp 后的 int（1..90，无注入面）拼 INTERVAL 字面量。
+         */
         int safeDays = Math.min(Math.max(days, 1), 90);
         StringBuilder where = new StringBuilder();
         for (int i = 0; i < SENSITIVE_ACTION_PREFIXES.size(); i++) {
-            where.append(i == 0 ? " WHERE (" : " OR ").append("action LIKE ?").append(i + 1).append(" ");
+            where.append(i == 0 ? " WHERE (" : " OR ").append("action LIKE ? ");
         }
-        where.append(") AND created_at >= NOW() - (").append(safeDays).append(" || ' days')::interval");
+        where.append(") AND created_at >= NOW() - INTERVAL '").append(safeDays).append(" days'");
         String sql = "SELECT action, COUNT(*) AS total, MAX(created_at) AS last_at"
                 + " FROM admin_audit_log" + where
                 + " GROUP BY action ORDER BY total DESC, action ASC";

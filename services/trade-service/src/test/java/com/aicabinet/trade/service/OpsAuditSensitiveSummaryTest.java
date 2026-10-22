@@ -67,9 +67,13 @@ class OpsAuditSensitiveSummaryTest {
         service.sensitiveSummary(9L, 7);
 
         Captured c = captureQuery();
-        assertTrue(c.sql().contains("action LIKE ?"), "谓词必须是 LIKE 占位形式");
+        // 🔴 判据升级（追踪号 499677148c50 实证）：mock 只断言 contains("LIKE ?") 挡不住
+        // `?1` 序号占位符（"LIKE ?1" 同样 contains "LIKE ?"，且 `?` 字符计数两种写法都是 22）。
+        // JdbcTemplate 只认裸 `?`：必须显式断言「不存在 LIKE ?数字 的序号占位符」。
+        assertTrue(!java.util.regex.Pattern.compile("LIKE \\?\\d").matcher(c.sql()).find(),
+                "禁止 MyBatis 风格 ?N 序号占位符（JdbcTemplate 不认，PG 直接 bad grammar）");
         assertEquals(OpsAuditQueryService.SENSITIVE_ACTION_PREFIXES.size(), c.args().length,
-                "SQL 谓词数必须与前缀族数一致（漂移=报表漏族）");
+                "SQL 参数数必须与前缀族数一致（漂移=报表漏族）");
         for (String family : List.of("BALANCE_ADJUST", "BALANCE_REFUND", "RECHARGE_REFUND",
                 "SPLIT_LEDGER", "PROFIT_SHARING", "SITE_RENT", "DEVICE_RENTAL", "DEVICE_DATA_FEE",
                 "DEVICE_MQTT_CREDENTIAL", "DEVICE_HTTP_CREDENTIAL", "DEVICE_REMOTE_OPEN",
@@ -85,7 +89,9 @@ class OpsAuditSensitiveSummaryTest {
             assertTrue(found, "敏感族缺失：" + family);
         }
         assertTrue(c.sql().contains("GROUP BY action"), "必须按 action 聚合");
-        assertTrue(c.sql().contains("90") || c.sql().contains("7"), "必须有时间窗");
+        // PG 无 integer || text 运算符，时间窗必须是 INTERVAL 'N days' 字面量（追踪号 499677148c50）
+        assertTrue(c.sql().contains("INTERVAL '7 days'"),
+                "时间窗必须是 INTERVAL '7 days' 字面量（`(7 || ' days')::interval` 在 PG 是 bad grammar）");
     }
 
     @Test
@@ -103,6 +109,6 @@ class OpsAuditSensitiveSummaryTest {
         service.sensitiveSummary(9L, 365);
 
         Captured c = captureQuery();
-        assertTrue(c.sql().contains("(90 || ' days')"), "days 必须 clamp 到 90（防全表扫描）");
+        assertTrue(c.sql().contains("INTERVAL '90 days'"), "days 必须 clamp 到 90（防全表扫描）");
     }
 }
