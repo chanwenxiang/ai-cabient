@@ -13,6 +13,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.Mockito.when;
@@ -110,6 +111,52 @@ class DeviceCompatRoutingIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(content().string(containsString("\"data\":[]")));
+    }
+
+    @Test
+    void floorGoodsAnswerOnBothUrlBases() throws Exception {
+        // 补货表在固件里由 GetReplenishGoodsInfo 用 COMMON_URL 拼，裸路径是 §5.5.2 文档形态；
+        // 两字段落点无从判明 ⇒ 两种拼写都收，少一种就命中 catch-all 404。
+        when(tradeInternalClient.listFloorGoods("D1")).thenReturn(List.of());
+        String bearer = "Bearer " + authHeader();
+        for (String path : new String[]{"/jiangyi/api/floor/getFloorByDevice",
+                "/jiangyi/api/device/floor/getFloorByDevice"}) {
+            mockMvc.perform(post(path)
+                            .header("Authorization", bearer)
+                            .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(200))
+                    .andExpect(content().string(containsString("\"products\":[]")));
+        }
+    }
+
+    @Test
+    void recognitionAndErrorIngestAnswerOnEveryFirmwareUrlSpelling() throws Exception {
+        // 固件对同一尾串既可能拼 URL 也可能拼 COMMON_URL（两字段开机时同值，落点无从证明），
+        // 异常上报还按对接版本换尾串（NORMAL→/order/uploadErrorOrder）。少收任一种拼写
+        // = 设备拿到 catch-all 404，而这两条正是「买货清单进不进得来 / 争议单有没有成因」。
+        String bearer = "Bearer " + authHeader();
+        for (String path : new String[]{"/jiangyi/api/orderProduct/addRecognitionGoodsToOrder",
+                "/jiangyi/api/device/orderProduct/addRecognitionGoodsToOrder"}) {
+            mockMvc.perform(post(path)
+                            .header("Authorization", bearer)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"orderNo\":\"\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(200));
+        }
+
+        for (String path : new String[]{"/jiangyi/api/device/pokerOrder/uploadOrderError",
+                "/jiangyi/api/pokerOrder/uploadOrderError",
+                "/jiangyi/api/device/order/uploadErrorOrder",
+                "/jiangyi/api/order/uploadErrorOrder"}) {
+            mockMvc.perform(post(path)
+                            .header("Authorization", bearer)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"orderNo\":\"\",\"bigModel\":\"doing\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(200));
+        }
     }
 
     @Test

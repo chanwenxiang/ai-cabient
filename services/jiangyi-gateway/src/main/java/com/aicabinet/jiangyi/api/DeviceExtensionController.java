@@ -94,8 +94,17 @@ public class DeviceExtensionController {
      * onFailed 分支）；仅 trade 不可达回 503。{@code category} 暂不下发：
      * 取值是形态枚举（bag/bottle/bowl/box/egg），与我方 SKU 类目无映射依据，
      * 固件各消费点均先判 null（{@code if-eqz}），留空只是不启用形态判定，不会 NPE。</p>
+     *
+     * <p><b>两种前缀都要收（2026-10-22）</b>：固件 {@code Constans.URL} 与 {@code Constans.COMMON_URL}
+     * 在 {@code <clinit>} 里被赋成<b>同一个串</b>（厂商默认 {@code …/device}），我方自钉下发的 base 是
+     * {@code …/jiangyi/api}；而同一端点在固件里既有 {@code URL + 尾串} 的调用点也有
+     * {@code COMMON_URL + 尾串} 的调用点（本表 {@code GetReplenishGoodsInfo} 是后者），nginx 里
+     * 又没有「只可能来自 COMMON_URL」的请求能判明它落哪头 ⇒ 两种拼写都收，少一种就是 catch-all 404。
+     * ⚠️ 曾据「nginx 见过 {@code /jiangyi/api/device/token/openDoorDeviceStatus}」认定 COMMON_URL
+     * 多一段 {@code /device}——那两条是我方 2026-10-20 的 curl 探测（UA=curl），不是设备，判据作废。</p>
      */
-    @PostMapping("/jiangyi/api/floor/getFloorByDevice")
+    @PostMapping({"/jiangyi/api/floor/getFloorByDevice",
+            "/jiangyi/api/device/floor/getFloorByDevice"})
     public Map<String, Object> getFloorByDevice(HttpServletRequest request) {
         String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
         List<Map<String, Object>> products;

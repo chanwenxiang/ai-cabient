@@ -220,8 +220,15 @@ public class DeviceReportController {
      * ③ 转发 edge-results 进既有结算链路（金额我方按映射 SKU 价合计，分）；
      * ④ <b>无论走哪个分支，原始报文一律留档一行</b>（CB-062，V396）——留档在 finally 里，
      * 归一化/转发抛异常也留痕；存档失败只记 warn，不影响结算主链路。
+     *
+     * <p>两种前缀都要收：识别上报在固件里分两条腿——{@code uploadBuyGoodsInfo2JYServer} 用
+     * {@code COMMON_URL + 该字面}（{@code UploadInfo2Server:324}），{@code uploadBuyGoodsInfo2OtherServer}
+     * 用 {@code URL +} <b>同一字面</b>（{@code :597}）。两个字段开机时被赋成同一个串，而我方 nginx 里
+     * 没有「只可能来自 COMMON_URL」的请求可判明设备走哪条 ⇒ 裸拼写与 {@code /device} 拼写一并收
+     * （机制同 {@code DeviceExtensionController#getFloorByDevice} 的注）。</p>
      */
-    @PostMapping("/jiangyi/api/orderProduct/addRecognitionGoodsToOrder")
+    @PostMapping({"/jiangyi/api/orderProduct/addRecognitionGoodsToOrder",
+            "/jiangyi/api/device/orderProduct/addRecognitionGoodsToOrder"})
     public Map<String, Object> addRecognitionGoods(HttpServletRequest request,
                                                    @RequestBody RecognitionRequest body) {
         String deviceId = device(request);
@@ -333,8 +340,20 @@ public class DeviceReportController {
      * <p>{@code errorDetailMessage} 是设备自带的成因原文（固件 ErrorOrderEntity 字段，
      * {@code UploadInfo2Server.uploadErrorJY} 的第二参）。errorMsg 只有「人工复核」这类四字文案，
      * 不采就永远判不出是轨迹漏网还是商品未登记，故一并拼进争议单的设备原文。
+     *
+     * <p><b>四种拼写都收（2026-10-22）</b>，由两个正交的岔路叠出来：
+     * ① 对接版本定尾串——{@code uploadErrorJY} 在 {@code M_NAME=NORMAL} 发
+     * {@code /order/uploadErrorOrder}、其余头发 {@code /pokerOrder/uploadOrderError}
+     * （{@code UploadInfo2Server:1197-1214}，body 同为 {@code ErrorOrderEntity}），厂商把本柜翻到
+     * NORMAL 就换串；② base 定前缀——真机那 20 次走的是<b>字面自带 {@code /device}</b> 再拼
+     * {@code URL}（{@code CameraPreviewNew:7184} 等四处），而 {@code UploadInfo2Server:1214} 是
+     * {@code COMMON_URL +} 裸尾串，两字段同为我方 base 却无从判明落点 ⇒ 四种组合全收，
+     * 少一种即静默 404、争议单失去成因。</p>
      */
-    @PostMapping("/jiangyi/api/device/pokerOrder/uploadOrderError")
+    @PostMapping({"/jiangyi/api/device/pokerOrder/uploadOrderError",
+            "/jiangyi/api/pokerOrder/uploadOrderError",
+            "/jiangyi/api/device/order/uploadErrorOrder",
+            "/jiangyi/api/order/uploadErrorOrder"})
     public Map<String, Object> uploadOrderError(HttpServletRequest request,
                                                 @RequestBody OrderErrorRequest body) {
         String deviceId = device(request);
