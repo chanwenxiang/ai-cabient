@@ -157,6 +157,9 @@ public class OrderPaymentService {
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         ShoppingSession session = resolveSession(order.getSessionId());
+        if (tryCompleteWeChatPayScore(order, session)) {
+            return;
+        }
         if (requestedChannel != null && !requestedChannel.isBlank()) {
             chargeWithSelectedChannel(order, user, session, requestedChannel, idemKey);
             return;
@@ -168,6 +171,25 @@ public class OrderPaymentService {
         applyBalanceCharge(order, session, idemKey);
         order.setPayChannel(PayChannels.BALANCE);
         ensurePaymentOperationId(order);
+    }
+
+    /**
+     * 微信支付分（免确认）开门单：结算走「完结订单→微信异步扣款→回调改 PAID」
+     * 而非同步代扣（CB-064）。本地订单置 PENDING——期间欠款闸（enforceUnpaidDebtBlock）
+     * 与 {@link UnpaidDunningService} 催缴闭环接管，回调 {@code DONE} 后自愈为 PAID。
+     */
+    private boolean tryCompleteWeChatPayScore(CabinetOrder order, ShoppingSession session) {
+        if (session == null || securityProperties.mockEnabled() || !payScoreService.wechatRealChannelReady()) {
+            return false;
+        }
+        if (!payScoreService.hasOpenWechatOrderForSession(session.getSessionId())) {
+            return false; // 非支付分开门单（或创单未发生）→ 既有同步路径
+        }
+        payScoreService.completeWechatOrderForSession(session.getSessionId(), order);
+        order.setPayChannel(PayChannels.WECHAT);
+        order.setPayScoreUsed(true);
+        order.setStatus("PENDING");
+        return true;
     }
 
     /**

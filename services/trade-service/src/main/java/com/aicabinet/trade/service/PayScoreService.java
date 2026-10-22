@@ -4,7 +4,12 @@ import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.domain.CabinetOrderLine;
+import com.aicabinet.trade.domain.PayScoreOrder;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.PayScoreOrderMapper;
 import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.support.ApiMessages;
@@ -16,6 +21,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -34,6 +43,9 @@ public class PayScoreService {
     private final AlipayPayClient alipayPayClient;
     private final AgreementChargeClient agreementChargeClient;
     private final DistributedLockService distributedLockService;
+    private final com.aicabinet.trade.payment.WeChatPayScoreClient weChatPayScoreClient;
+    private final com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper;
+    private final com.aicabinet.trade.mapper.CabinetOrderLineMapper cabinetOrderLineMapper;
 
     public PayScoreService(PayScoreProperties payScoreProperties,
                            SecurityProperties securityProperties,
@@ -41,7 +53,10 @@ public class PayScoreService {
                            UserInfoMapper userInfoRepository,
                            AlipayPayClient alipayPayClient,
                            AgreementChargeClient agreementChargeClient,
-                           DistributedLockService distributedLockService) {
+                           DistributedLockService distributedLockService,
+                           com.aicabinet.trade.payment.WeChatPayScoreClient weChatPayScoreClient,
+                           com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper,
+                           com.aicabinet.trade.mapper.CabinetOrderLineMapper cabinetOrderLineMapper) {
         this.payScoreProperties = payScoreProperties;
         this.securityProperties = securityProperties;
         this.weChatPayProperties = weChatPayProperties;
@@ -49,6 +64,9 @@ public class PayScoreService {
         this.alipayPayClient = alipayPayClient;
         this.agreementChargeClient = agreementChargeClient;
         this.distributedLockService = distributedLockService;
+        this.weChatPayScoreClient = weChatPayScoreClient;
+        this.payScoreOrderMapper = payScoreOrderMapper;
+        this.cabinetOrderLineMapper = cabinetOrderLineMapper;
     }
 
     public static boolean isActiveAlipayAgreementId(String agreementId) {
@@ -115,13 +133,35 @@ public class PayScoreService {
     }
 
     @Transactional
-    public String signWeChatPayScore(Long userId) {
+    /** 微信支付分签约结果：pending=true 表示待用户在授权页确认（activation 走回调）。 */
+    public record WechatSignResult(boolean pending, String contractId, String applyPermissionsToken) {
+    }
+
+    /** 微信签约单号前缀（未激活标记；out_request_no 本体紧跟其后，激活时替换为 authorization_code）。 */
+    public static final String WECHAT_PENDING_PREFIX = "PENDING:PSU-";
+
+    /**
+     * 微信支付分签约（先享后付）。
+     *
+     * <p>三条路径（CB-064）：
+     * ① {@code aicabinet.payscore.enabled + service-id} 已配置且微信支付已配置 → 走真实
+     * 商户预授权：返回 {@code apply_permissions_token} 给小程序拉起授权页，用户确认后由
+     * 回调（{@link #handleWechatPermissionNotify}）落 {@code authorization_code} 激活；
+     * ② 未配置但 mock 环境 → 本地伪签约（C17：仅限 mock，生产不得静默落伪单）；
+     * ③ 未配置且非 mock → 501 fail-closed（准入现实：直连免确认模式灰度中）。</p>
+     */
+    public WechatSignResult signWeChatPayScore(Long userId) {
         return runWithPayScoreUserLock(userId, () -> {
+            // 闸前置：未配置（或 mock 未开）时不动任何数据——fail-closed 先于 DB 访问
+            boolean realReady = payScoreProperties.enabled() && weChatPayScoreClient.isContractReady()
+                    && !securityProperties.mockEnabled();
+            if (!realReady && !securityProperties.mockEnabled()) {
+                throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "微信先享支付签约未接入");
+            }
             UserInfo user = userInfoRepository.findByIdForUpdate(userId)
                     .orElseThrow(() -> new IllegalArgumentException(USER_NOT_FOUND));
-            // C17: 本地 PSC-* 伪签约仅限 mock 环境；生产（enabled=true 且 mock=false）不得静默落伪单
-            if (!securityProperties.mockEnabled()) {
-                throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "微信先享支付签约未接入");
+            if (realReady) {
+                return signWeChatPayScoreReal(user);
             }
             if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
                 throw new IllegalStateException("微信支付分未启用");
@@ -135,8 +175,198 @@ public class PayScoreService {
             }
             userInfoRepository.save(user);
             log.info("payscore contract signed user={} contract={}", userId, contractId);
-            return contractId;
+            return new WechatSignResult(false, contractId, null);
         });
+    }
+
+    /**
+     * 真实签约：商户预授权（POST /v3/payscore/permissions）。用户此刻**未开通**——落
+     * {@code PENDING:PSU-*} 标记、enabled=false，激活只认回调里的 {@code authorization_code}；
+     * 免密就绪判定（{@link #isPasswordFreeReadyForChannel}）按 enabled 位自然不会误放行。
+     */
+    private WechatSignResult signWeChatPayScoreReal(UserInfo user) {
+        String openid = user.getWxOpenId();
+        if (openid == null || openid.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "请先用微信登录小程序后再开通微信免密");
+        }
+        String outRequestNo = "PSU" + user.getUserId() + "-" + Long.toString(System.currentTimeMillis(), 36)
+                + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
+        com.fasterxml.jackson.databind.JsonNode resp =
+                weChatPayScoreClient.createPermission(outRequestNo, openid);
+        String token = resp == null ? "" : resp.path("apply_permissions_token").asText("");
+        if (token.isBlank()) {
+            throw new IllegalStateException("微信支付分签约响应缺少 apply_permissions_token");
+        }
+        String pendingMarker = WECHAT_PENDING_PREFIX + outRequestNo;
+        user.setPayscoreEnabled(false);
+        user.setPayscoreContractId(pendingMarker);
+        userInfoRepository.save(user);
+        log.info("wechat payscore permission requested user={} outRequestNo={}", user.getUserId(), outRequestNo);
+        return new WechatSignResult(true, pendingMarker, token);
+    }
+
+    /**
+     * 微信支付分授权回调：用户在授权页确认后微信推送 {@code authorization_code}——
+     * 按 {@code PENDING:PSU-*} 标记找到签约中的用户并激活。事件体与预期不符（无主回调）
+     * 只记 WARN 台账不抛错：返回 204 让微信停止重试，避免无限重推。
+     *
+     * <p>⚠️ 「解除授权」回调的字段形态未取证（CB-064），暂不实现自动解绑——解约走
+     * 用户侧 {@code cancelPasswordFree} 主动解除 + 微信侧异步生效。</p>
+     */
+    @Transactional
+    public void handleWechatPermissionNotify(com.fasterxml.jackson.databind.JsonNode event) {
+        String outRequestNo = event.path("out_request_no").asText("");
+        String authorizationCode = event.path("authorization_code").asText("");
+        if (authorizationCode.isBlank()) {
+            log.warn("wechat payscore notify without authorization_code keys={}", fieldNamesOf(event));
+            return;
+        }
+        var pendingQuery = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
+                .eq(UserInfo::getPayscoreContractId, WECHAT_PENDING_PREFIX + outRequestNo);
+        UserInfo user = userInfoRepository.selectList(pendingQuery).stream().findFirst().orElse(null);
+        if (user == null && !outRequestNo.isBlank()) {
+            // 回调可能晚于用户重试签约（旧 outRequestNo 已被覆盖）：按 openid 兜底定位
+            String openid = event.path("openid").asText("");
+            if (!openid.isBlank()) {
+                user = userInfoRepository.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
+                                .eq(UserInfo::getWxOpenId, openid)).stream().findFirst().orElse(null);
+            }
+        }
+        if (user == null) {
+            log.warn("wechat payscore notify unmatched outRequestNo={} code={}", outRequestNo,
+                    authorizationCode.substring(0, Math.min(6, authorizationCode.length())) + "***");
+            return;
+        }
+        user.setPayscoreEnabled(true);
+        user.setPayscoreContractId(authorizationCode);
+        if (!PayChannels.BALANCE.equalsIgnoreCase(
+                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+            user.setPayPreferredChannel(PayChannels.WECHAT);
+        }
+        userInfoRepository.save(user);
+        log.info("wechat payscore authorized user={} code={}", user.getUserId(),
+                authorizationCode.substring(0, Math.min(6, authorizationCode.length())) + "***");
+    }
+
+    private static String fieldNamesOf(com.fasterxml.jackson.databind.JsonNode node) {
+        var names = new java.util.LinkedHashSet<String>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names.toString();
+    }
+
+    /** 真实免确认渠道是否可用（enabled + 微信支付已配置 + serviceId 已下发，且非 mock）。 */
+    public boolean wechatRealChannelReady() {
+        return payScoreProperties.enabled()
+                && weChatPayScoreClient.isContractReady()
+                && !securityProperties.mockEnabled();
+    }
+
+    /** 该会话是否存在未完结的支付分开门单（结算走「完结+异步扣款」路径的判据）。 */
+    public boolean hasOpenWechatOrderForSession(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+        Long n = payScoreOrderMapper.selectCount(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.aicabinet.trade.domain.PayScoreOrder>()
+                        .eq(com.aicabinet.trade.domain.PayScoreOrder::getOutOrderNo, sessionId)
+                        .in(com.aicabinet.trade.domain.PayScoreOrder::getOrderState, List.of("CREATED", "DOING")));
+        return n != null && n > 0;
+    }
+
+    /**
+     * 开门时创建支付分订单（免确认模式，CB-064 四步之②）：风险金=预授权口径同源
+     * （{@code resolvePreauthCents}），评估不通过=不可使用服务 ⇒ 412 拒绝开门（官方语义）。
+     *
+     * <p>仅真实渠道 + 用户已激活微信免密时生效；其余形态静默返回（走既有同步代扣/余额路径）。
+     * 幂等：同会话（out_order_no=sessionId）已创单直接返回。</p>
+     */
+    @Transactional
+    public void openServiceOrderForShopping(ShoppingSession session, int riskAmountCents) {
+        if (session == null || !wechatRealChannelReady()) {
+            return;
+        }
+        UserInfo user = userInfoRepository.findById(session.getUserId()).orElse(null);
+        if (user == null || !isPasswordFreeReadyForChannel(user, PayChannels.WECHAT)) {
+            return;
+        }
+        String openid = user.getWxOpenId();
+        if (openid == null || openid.isBlank()) {
+            return;
+        }
+        if (hasOpenWechatOrderForSession(session.getSessionId())) {
+            return;
+        }
+        try {
+            var resp = weChatPayScoreClient.createServiceOrder(session.getSessionId(), openid,
+                    "开门购物", riskAmountCents, java.time.Instant.now(),
+                    payScoreProperties.permissionNotifyUrl());
+            var po = new com.aicabinet.trade.domain.PayScoreOrder();
+            po.setOutOrderNo(session.getSessionId());
+            po.setUserId(session.getUserId());
+            po.setOpenId(openid);
+            po.setServiceId(payScoreProperties.serviceId());
+            po.setServiceStartTime(java.time.Instant.now());
+            po.setTotalAmountCents(riskAmountCents);
+            String state = resp == null ? "" : resp.path("state").asText("");
+            po.setOrderState(state.isBlank() ? "CREATED" : state);
+            po.setNeedUserConfirm(false);
+            payScoreOrderMapper.insert(po);
+            log.info("wechat payscore service order created session={} risk={}", session.getSessionId(), riskAmountCents);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("wechat payscore create service order failed session={} err={}",
+                    session.getSessionId(), e.getMessage(), e);
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "微信免密确认失败，请改用余额支付或稍后再试");
+        }
+    }
+
+    /**
+     * 结算时完结支付分订单（CB-064 四步之④）：{@code post_payments} 逐件「商品信息」
+     * （单价×数量，与开门前价目同源同价——CB-063 结论 3），优惠以负向金额单列。
+     * 完结后微信进入 {@code USER_PAYING} 异步扣款+自动催收；订单由调用方置 PENDING，
+     * 回调 {@code DONE} 才置 PAID。完结失败向上抛（会话冻结→超时清扫→人工），本地留
+     * {@code orderState=COMPLETE_FAILED} 痕迹供补偿。
+     */
+    @Transactional
+    public void completeWechatOrderForSession(String sessionId, com.aicabinet.trade.domain.CabinetOrder order) {
+        var po = payScoreOrderMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.aicabinet.trade.domain.PayScoreOrder>()
+                        .eq(com.aicabinet.trade.domain.PayScoreOrder::getOutOrderNo, sessionId)
+                        .in(com.aicabinet.trade.domain.PayScoreOrder::getOrderState, List.of("CREATED", "DOING")))
+                .stream().findFirst().orElse(null);
+        if (po == null) {
+            throw new IllegalStateException("wechat payscore order missing for session " + sessionId);
+        }
+        List<Map<String, Object>> postPayments = new java.util.ArrayList<>();
+        int lineSum = 0;
+        for (com.aicabinet.trade.domain.CabinetOrderLine line : cabinetOrderLineMapper
+                .selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.aicabinet.trade.domain.CabinetOrderLine>()
+                        .eq(com.aicabinet.trade.domain.CabinetOrderLine::getOrderId, order.getOrderId()))) {
+            Map<String, Object> p = new LinkedHashMap<>();
+            p.put("name", "商品信息");
+            p.put("amount", line.getUnitPriceCents());
+            p.put("description", line.getSkuName());
+            p.put("count", line.getQuantity());
+            postPayments.add(p);
+            lineSum += line.getLineAmountCents();
+        }
+        // 券/会员优惠：负向单列（官方 post_discounts），保证逐件明细与应付总额自洽
+        int discount = Math.max(0, lineSum - order.getTotalAmountCents());
+        List<Map<String, Object>> postDiscounts = discount > 0
+                ? List.of(Map.of("name", "优惠", "amount", -discount))
+                : null;
+        weChatPayScoreClient.completeServiceOrder(sessionId, postPayments, postDiscounts,
+                order.getTotalAmountCents(), po.getServiceStartTime(), java.time.Instant.now());
+        po.setOrderState("USER_PAYING");
+        po.setOrderId(order.getOrderId());
+        po.setActualAmountCents(order.getTotalAmountCents());
+        po.setServiceEndTime(java.time.Instant.now());
+        payScoreOrderMapper.updateById(po);
+        log.info("wechat payscore order completed session={} order={} amount={}",
+                sessionId, order.getOrderId(), order.getTotalAmountCents());
     }
 
     /**

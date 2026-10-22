@@ -50,6 +50,9 @@ public class CabinetOrder {
     private Integer balanceBeforeCents;
     private Integer balanceAfterCents;
 
+    /** 微信支付分（先享后付）订单标记：完结后扣款异步，PAID 以渠道回调为准（CB-064）。 */
+    private boolean payScoreUsed;
+
     private boolean inventoryDeducted;
 
     private Instant refundedAt;

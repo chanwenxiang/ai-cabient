@@ -164,8 +164,15 @@ public class AccountService {
     @Transactional
     public PayContractDto signWeChatPayScore(Long userId) {
         return runWithUserAccountLock(userId, () -> {
-            String contractId = payScoreService.signWeChatPayScore(userId);
-            return new PayContractDto(PayChannels.WECHAT, true, contractId, "微信支付分免密已开通，购物将优先免密扣款");
+            var result = payScoreService.signWeChatPayScore(userId);
+            if (result.pending()) {
+                // 真实渠道：signFormHtml 字段复用为签约凭据载体（支付宝=HTML 表单，微信=apply_permissions_token，
+                // 小程序拿它调 wx.openBusinessView 拉起授权页）；激活走微信回调，此刻未开通。
+                return new PayContractDto(PayChannels.WECHAT, false, result.contractId(),
+                        "请在微信支付分授权页确认开通，成功后自动生效",
+                        true, result.applyPermissionsToken());
+            }
+            return new PayContractDto(PayChannels.WECHAT, true, result.contractId(), "微信支付分免密已开通，购物将优先免密扣款");
         });
     }
 

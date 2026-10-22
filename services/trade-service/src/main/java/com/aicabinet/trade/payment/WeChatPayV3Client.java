@@ -75,6 +75,24 @@ public class WeChatPayV3Client {
         }
     }
 
+    /** DELETE（如支付分解除授权 DELETE /v3/payscore/permissions/authorization-code/{code}）。 */
+    public JsonNode delete(String path) {
+        try {
+            String auth = buildAuthorization("DELETE", path, "");
+            String response = restClient.delete()
+                    .uri(API_HOST + path)
+                    .header("Authorization", auth)
+                    .header("Accept", MediaType.APPLICATION_JSON_VALUE)
+                    .retrieve()
+                    .body(String.class);
+            return response == null || response.isBlank()
+                    ? objectMapper.nullNode()
+                    : objectMapper.readTree(response);
+        } catch (Exception e) {
+            throw new IllegalStateException("wechat v3 DELETE " + path + " failed", e);
+        }
+    }
+
     public byte[] download(String url) {
         byte[] data = restClient.get()
                 .uri(URI.create(url))

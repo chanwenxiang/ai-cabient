@@ -198,6 +198,35 @@ async function onSignPayScore() {
   err.value = '';
   try {
     const res = await consumerApi.signPayScore();
+    if (res.pending && res.signFormHtml) {
+      // 真实渠道：signFormHtml 复用为 apply_permissions_token（CB-064），
+      // 拉起微信支付分授权页，用户确认后由微信回调激活，本页 onShow 刷新状态
+      pendingChannel.value = 'WECHAT';
+      // #ifdef MP-WEIXIN
+      // wx 为小程序专有全局（仓库无全局声明，用窄类型取用；openBusinessView 无 uni 包装）
+      const wxApi = globalThis as unknown as {
+        wx?: { openBusinessView: (options: Record<string, unknown>) => void };
+      };
+      wxApi.wx?.openBusinessView({
+        businessType: 'wxpayScoreEnable',
+        queryString: `apply_permissions_token=${res.signFormHtml}`,
+        success: () => {
+          showSuccess('已发起授权，确认后自动生效');
+        },
+        fail: (e: unknown) => {
+          const msg =
+            e && typeof e === 'object' && 'errMsg' in e
+              ? String((e as { errMsg: unknown }).errMsg)
+              : '';
+          err.value = msg ? `未完成授权：${msg}` : '未完成授权，请稍后重试';
+        }
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      err.value = '微信免密需在微信小程序内开通';
+      // #endif
+      return;
+    }
     account.value = await consumerApi.account();
     if (pendingChannel.value === 'WECHAT') pendingChannel.value = '';
     showSuccess(res.message || '开通成功');

@@ -28,13 +28,17 @@ class PayScoreConcurrencyTest {
     @Mock private AlipayPayClient alipayPayClient;
     @Mock private AgreementChargeClient agreementChargeClient;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private com.aicabinet.trade.payment.WeChatPayScoreClient weChatPayScoreClient;
+    @Mock private com.aicabinet.trade.mapper.PayScoreOrderMapper payScoreOrderMapper;
+    @Mock private com.aicabinet.trade.mapper.CabinetOrderLineMapper cabinetOrderLineMapper;
 
     private PayScoreService service;
 
     @BeforeEach
     void setUp() {
         service = new PayScoreService(payScoreProperties, securityProperties, weChatPayProperties,
-                userInfoRepository, alipayPayClient, agreementChargeClient, distributedLockService);
+                userInfoRepository, alipayPayClient, agreementChargeClient, distributedLockService,
+                weChatPayScoreClient, payScoreOrderMapper, cabinetOrderLineMapper);
     }
 
     @Test

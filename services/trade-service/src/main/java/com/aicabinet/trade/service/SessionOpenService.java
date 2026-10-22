@@ -34,6 +34,7 @@ public class SessionOpenService {
     private final SessionService sessionService;
     private final DistributedLockService distributedLockService;
     private final OpsAlertDispatcher opsAlertDispatcher;
+    private final PayScoreService payScoreService;
 
     public SessionOpenService(ShoppingSessionMapper repository,
                               UserValidationService userValidationService,
@@ -44,7 +45,8 @@ public class SessionOpenService {
                               UserInfoMapper userInfoRepository,
                               @Lazy SessionService sessionService,
                               DistributedLockService distributedLockService,
-                              OpsAlertDispatcher opsAlertDispatcher) {
+                              OpsAlertDispatcher opsAlertDispatcher,
+                              PayScoreService payScoreService) {
         this.repository = repository;
         this.userValidationService = userValidationService;
         this.deviceValidationService = deviceValidationService;
@@ -55,6 +57,7 @@ public class SessionOpenService {
         this.sessionService = sessionService;
         this.distributedLockService = distributedLockService;
         this.opsAlertDispatcher = opsAlertDispatcher;
+        this.payScoreService = payScoreService;
     }
 
     @Transactional
@@ -80,6 +83,10 @@ public class SessionOpenService {
 
         boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
         consumerPreauthService.freezeForOpen(session, passwordFree);
+        // 微信支付分（免确认模式）：开门前创单评估，评估不过不开门（CB-064 官方流程）。
+        // 仅真实渠道 + 微信免密已激活用户生效；风险金与预授权口径同源（resolvePreauthCents）。
+        payScoreService.openServiceOrderForShopping(session,
+                consumerPreauthService.resolvePreauthCents(request.deviceId()));
 
         sessionService.transition(session, SessionState.OPENING);
         return sessionService.toDto(session);

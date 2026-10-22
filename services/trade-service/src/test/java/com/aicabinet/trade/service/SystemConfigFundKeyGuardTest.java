@@ -57,7 +57,7 @@ class SystemConfigFundKeyGuardTest {
                 new SecurityProperties(false),
                 new AlipayProperties(false, "", "", "", "", "", "", "", "", "", ""),
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
-                new PayScoreProperties(false, false, 550, false, "", ""),
+                new PayScoreProperties(false, false, 550, false, "", "", "", ""),
                 new WeChatWebProperties(false, "", ""),
                 new WeChatMiniAppProperties(false, "", "", "", "", "", "", "", "", "", ""),
                 new QrProperties("", "", "", "", ""),

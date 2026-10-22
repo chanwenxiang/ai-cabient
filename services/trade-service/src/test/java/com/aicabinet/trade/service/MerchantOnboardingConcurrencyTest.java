@@ -39,7 +39,7 @@ class MerchantOnboardingConcurrencyTest {
                 merchantScopeService, auditService, new SecurityProperties(true),
                 new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
                 new AlipayProperties(false, "", "", "", "", "", "", "", "", "", ""),
-                new PayScoreProperties(false, false, 550, false, "", ""),
+                new PayScoreProperties(false, false, 550, false, "", "", "", ""),
                 distributedLockService, approvalWorkflowService);
     }
 
