@@ -130,7 +130,12 @@
   - 验证：两端 vitest 全绿（consumer 143 / merchant 175）+ 双端 `vue-tsc --noEmit` 通过 + prettier 通过；✅ 同日两端 `build:mp-weixin:dev` 全链实跑通过（validate→uni build→sync→patch→inject，命令**前置真 appid**——shell 残留假值 `wx5a5bc…` 仍会被 inject 读走，必须显式覆盖）。产物级取证：consumer `pages/login/login.wxml` 含 `getPhoneNumber|agreePrivacyAuthorization`、两端 `privacy-consent-modal.wxml` 含官方同意按钮、两端 `vendor.js` 含 `getPrivacySetting`；两端 dev `project.config.json` appid 已纠正为真值（merchant dev 原残留假值）。
   - 🔴 构建前置：`.env.production.local`（gitignored，`.gitignore:39`）须含 `VITE_API_BASE_URL=https://cabinet.easygovm.com`（生产入口，A→120.25.246.179 + certbot，见 `docs/PROJECT_KNOWLEDGE.md:694`）——两端该文件已建；缺它 validate-miniapp-env 直接 exit 1。
 - [ ] **服务类目**：微信**没有**「智能柜/自助零售」类目。官方社区对「无人零售柜（零食、饮料）」的建议是 **生活服务 > 百货/超市/便利店**（前提：不涉及食品的在线交易及配送）。卖酒需另加「商家自营-酒类」（食品经营许可证含酒类）；卖保健品另加对应类目。类目选错会导致 `getPhoneNumber`、摄像头、`getLocation` 被类目权限拦截。
-- [ ] **ICP 备案（必须）**：2023-09-01 起未备案的微信小程序不能上架；**每个小程序单独备案**，不能一个覆盖两个 AppID。前置＝先过微信认证（企业 ¥300/年）。流程：填信息 → 平台初审(1-2 工作日) → 工信部短信核验(12381，24h 内) → 通管局审核(1-20 工作日) → 备案成功；广东主体需打印资料签字盖章上传。
+- [ ] **ICP 备案（必须）**：2023-09-01 起未备案的微信小程序不能上架；**每个小程序单独备案**，不能一个覆盖两个 AppID。前置＝先过微信认证（企业 ¥300/年）。流程：填信息 → 平台初审(1-2 工作日) → 工信部短信核验(12381，24h 内 beian.miit.gov.cn，输验证码+身份证后 6 位) → 通管局审核(1-20 工作日) → 备案成功（备案号自动展示在小程序资料页，无需手动挂）。
+  - 填表要点（企业主体）：地区按营业执照（广东省深圳市）；营业执照彩色扫描件清晰完整、有效期>1 个月；主体负责人=法定代表人，手机号本人实号且**不同人不能同号**，应急手机号不可重复；前置审批选「以上都不涉及」（本项目不涉新闻/出版/药品/网约车等）；小程序负责人需本人人脸核验（浅色背景、无遮挡）。初审期间保持电话畅通。
+  - 「备注」栏可直接粘贴（20-200 字内）：
+    - consumer：`小程序为智能自助售卖柜扫码购物工具，用户扫描柜机二维码开门选购商品，关门后自动结算，可在小程序内查询订单、余额与账单，申请售后退款及联系客服。`
+    - merchant：`小程序为智能自助售卖柜商户运营工具，供商户管理柜机设备、商品库存、补货任务与订单账单，处理售后争议及查看经营数据。`
+  - 另：request 域名 `cabinet.easygovm.com` 需**网站 ICP 备案**（与小程序备案两回事），可在 beian.miit.gov.cn 公共查询核对是否已备；未备则需经服务器接入商（阿里云）办理。
 - [ ] **request 合法域名**另需**网站 ICP 备案**（域名级），与小程序备案是两件事。
 - [ ] **request 合法域名白名单**：生产 API、OSS/CDN 域名须加进 mp 控制台；当前 `manifest.json` `urlCheck:false` 仅开发态，不能当生产配置。
 - [ ] **微信认证 / 主体认证**（企业号，¥300/年）—— 确认已办理。
