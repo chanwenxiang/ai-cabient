@@ -149,7 +149,13 @@
               </view>
             </view>
           </view>
-          <template v-else>
+          <!--
+            2026-10-22 修复：v-else → v-else-if="mode === 'sms'"。
+            原 `<template v-else>` 只排除了「密码模式且后端要求图形验证码」，
+            密码模式但未触发验证码要求（captchaRequired=false）时也落进此分支，
+            把短信登录的「图形验证码+短信验证码」错渲染进密码表单（真机截图实锤）。
+          -->
+          <template v-else-if="mode === 'sms'">
             <view class="field field-auth">
               <text class="field-label">图形验证码</text>
               <view class="row">
