@@ -204,6 +204,13 @@ public class DeviceReportController {
         return s == null || s.isBlank();
     }
 
+    private static String joinNonBlank(String first, String second) {
+        if (isBlank(first)) {
+            return isBlank(second) ? first : second.trim();
+        }
+        return isBlank(second) ? first : first.trim() + "｜" + second.trim();
+    }
+
     // ---------- §4.2.10 识别结果 ----------
 
     /**
@@ -322,6 +329,10 @@ public class DeviceReportController {
     /**
      * bigModel=doing（大小写不敏感，§4.2.11 bigModel / §4.2.12 BigModel）→ 保持
      * RECOGNIZING 等二次甄别重报；不传值/其他 = 异常订单 → recognize-timeout 转 DISPUTED。
+     *
+     * <p>{@code errorDetailMessage} 是设备自带的成因原文（固件 ErrorOrderEntity 字段，
+     * {@code UploadInfo2Server.uploadErrorJY} 的第二参）。errorMsg 只有「人工复核」这类四字文案，
+     * 不采就永远判不出是轨迹漏网还是商品未登记，故一并拼进争议单的设备原文。
      */
     @PostMapping("/jiangyi/api/device/pokerOrder/uploadOrderError")
     public Map<String, Object> uploadOrderError(HttpServletRequest request,
@@ -336,15 +347,16 @@ public class DeviceReportController {
                     String.valueOf(request.getAttribute(DeviceAuthInterceptor.ATTR_IDENTIFIER)));
             return ok();
         }
-        log.warn("jiangyi order error deviceId={} orderNo={} errorMsg={} — fail-closed",
-                deviceId, body.orderNo(), body.errorMsg());
+        String vendorText = joinNonBlank(body.errorMsg(), body.errorDetailMessage());
+        log.warn("jiangyi order error deviceId={} orderNo={} errorMsg={} detail={} — fail-closed",
+                deviceId, body.orderNo(), body.errorMsg(), body.errorDetailMessage());
         if (isBlank(body.orderNo())) {
             log.warn("jiangyi order error with blank orderNo deviceId={} — nothing to notify", deviceId);
             return ok();
         }
         try {
             tradeInternalClient.recognizeTimeout(body.orderNo(), deviceId,
-                    TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, body.errorMsg());
+                    TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, vendorText);
         } catch (Exception e) {
             log.error("jiangyi recognize-timeout notify failed orderNo={}", body.orderNo(), e);
         }
@@ -507,7 +519,8 @@ public class DeviceReportController {
     record RecognitionRequest(String orderNo, String transactionId, String payType,
                               List<RecognitionNormalizer.Form> forms) {}
     /** §4.2.11 bigModel / §4.2.12 BigModel——大小写两存，运行时归一（铁律：固件不可信）。 */
-    record OrderErrorRequest(String orderNo, String errorMsg, String bigModel, String BigModel) {}
+    record OrderErrorRequest(String orderNo, String errorMsg, String errorDetailMessage,
+                             String bigModel, String BigModel) {}
     record DoubleDoorRequest(String orderNo, String doorPosition) {}
     record FaultOrderRequest(String orderNo, String errorCode, String errorMsg) {}
     /** §4.2.15 字段照抄文档（signalStrength M 必报 0-4，String 型）。 */

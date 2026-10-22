@@ -136,10 +136,30 @@ class DeviceReportControllerTest {
     @Test
     void deviceErrorOrderPassesVendorErrorMsg() {
         controller.uploadOrderError(authedRequest(),
-                new DeviceReportController.OrderErrorRequest(SESSION_ID, "人工复核", null, null));
+                new DeviceReportController.OrderErrorRequest(SESSION_ID, "人工复核", null, null, null));
 
         verify(trade).recognizeTimeout(SESSION_ID, DEVICE_ID,
                 TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, "人工复核");
+    }
+
+    /** errorMsg 只有四个字，成因在 errorDetailMessage（固件 ErrorOrderEntity 字段）——不采就无从判因。 */
+    @Test
+    void deviceErrorOrderAppendsErrorDetailMessage() {
+        controller.uploadOrderError(authedRequest(), new DeviceReportController.OrderErrorRequest(
+                SESSION_ID, "人工复核", " 轨迹甄别置位 ", null, null));
+
+        verify(trade).recognizeTimeout(SESSION_ID, DEVICE_ID,
+                TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, "人工复核｜轨迹甄别置位");
+    }
+
+    /** 只带 detail 不带 errorMsg（§4.2.11 errorMsg 为可选 0）时不得拼出前导分隔符。 */
+    @Test
+    void deviceErrorOrderWithoutMsgPassesDetailAlone() {
+        controller.uploadOrderError(authedRequest(), new DeviceReportController.OrderErrorRequest(
+                SESSION_ID, null, " 仅详情 ", null, null));
+
+        verify(trade).recognizeTimeout(SESSION_ID, DEVICE_ID,
+                TradeInternalClient.CAUSE_DEVICE_ERROR_ORDER, "仅详情");
     }
 
     @Test
