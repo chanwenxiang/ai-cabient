@@ -94,6 +94,7 @@
         <div class="login-extras">
           <div class="remember-group">
             <el-checkbox v-model="rememberPhone" size="small">记住账号</el-checkbox>
+            <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
           </div>
         </div>
       </el-form>
@@ -185,17 +186,27 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
-/** 只记住手机号；密码不写 localStorage（安全），也不做任何预填。 */
+/**
+ * 记住密码（2026-10-22 用户拍板，推翻此前「密码不写 localStorage」的安全默认）：
+ * 与「记住账号」同语义——勾选（默认）= 跨登录会话预填；显式取消 = 不预填。
+ * 存的是 base64 编码（便利性混淆，非安全边界；防的是 devtools 里一眼明文）。
+ * 清除口径与 admin_phone 对齐：登出/取消勾选才清，开关键本身永不清。
+ */
 const PW_STORE_KEY = 'admin_password';
 const PW_FLAG_KEY = 'admin_remember_password';
-try {
-  localStorage.removeItem(PW_STORE_KEY);
-  localStorage.removeItem(PW_FLAG_KEY);
-} catch {
-  /* ignore quota / private mode */
+function readRememberedPassword(): string {
+  try {
+    if (localStorage.getItem(PW_FLAG_KEY) === '0') return '';
+    const raw = localStorage.getItem(PW_STORE_KEY);
+    if (!raw) return '';
+    return atob(raw);
+  } catch {
+    return '';
+  }
 }
 
 const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
+const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
 /**
  * A-1：不做演示口令预填。
  * 原实现用 `ENABLE_TEST_TOOLS || isDemoPhone(phone.value)` 决定是否预填演示口令——只把门控关了一半：
@@ -203,7 +214,7 @@ const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
  * 于是生产构建同样会预填口令，等于内置一个可用口令的资金后台入口。
  * 现在一律留空（靠浏览器密码管理器）；内置账号只存在于后端 seed。
  */
-const password = ref('');
+const password = ref(readRememberedPassword());
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -434,8 +445,13 @@ async function finishLogin(normalizedPhone: string) {
     localStorage.removeItem('admin_phone');
     localStorage.setItem('admin_remember_phone', '0');
   }
-  localStorage.removeItem(PW_STORE_KEY);
-  localStorage.removeItem(PW_FLAG_KEY);
+  if (rememberPassword.value && password.value) {
+    localStorage.setItem(PW_FLAG_KEY, '1');
+    localStorage.setItem(PW_STORE_KEY, btoa(password.value));
+  } else {
+    localStorage.removeItem(PW_STORE_KEY);
+    localStorage.setItem(PW_FLAG_KEY, '0');
+  }
   const home = resolveHomePath(auth);
   const requested = safeRedirectPath(route.query.redirect, home);
   const nav = findNavByPath(requested);

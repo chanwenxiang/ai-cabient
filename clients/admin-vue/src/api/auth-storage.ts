@@ -83,6 +83,10 @@ export function clearAuthStorage(): void {
     if (localStorage.getItem('admin_remember_phone') === '0') {
       localStorage.removeItem('admin_phone');
     }
+    // 记住密码同口径（2026-10-22）：取消勾选（'0'）= 登出即清；勾选 = 保留供下次预填。
+    if (localStorage.getItem('admin_remember_password') === '0') {
+      localStorage.removeItem('admin_password');
+    }
   }
 }
 
