@@ -52,18 +52,18 @@
 | §4.2.6 | `aliYunOss/getTempUploadToken` | v16:813 | `AliyunOssController.java:40` | ✅ STS 直传我方 OSS；🔁 另接固件实测变体 `getTempToken`（`:47`） |
 | §4.2.7 | `device/uploadLockState` | v16:929 | `DeviceReportController.java:69` | ✅ fail→trade open-failed |
 | §4.2.8 | `device/uploadDoorState` | v16:997 | `DeviceReportController.java:122` | ✅ success→door-event OPEN |
-| §4.2.9 | `order/openDoubleDoorError` | v16:1070 | `DeviceReportController.java:387` | ✅ 仅审计（单门柜不会触发）。🔁 真机「正在使用中」实际走 `deviceInfo/uploadDeviceOpenStatus`（`:133`） |
-| §4.2.10 | `orderProduct/addRecognitionGoodsToOrder` | v16:1128 | `DeviceReportController.java:217` | ✅ 先合成 CLOSED→归一化（thirdPid 优先）→edge-results；金额**不采信设备**，映射未命中 fail-closed 转 DISPUTED |
-| §4.2.11 | `device/pokerOrder/uploadOrderError`（`bigModel:"doing"`） | v16:1216 | `DeviceReportController.java:326` | ✅ 与 §4.2.12 **同一路径、靠字段分流**（doing→挂起 10min 兜底；否则→DISPUTED） |
-| §4.2.12 | `device/pokerOrder/uploadOrderError` | v16:1301 | 同上 `:326` | ✅ 同一个 handler |
-| §4.2.13 | `deviceInfo/getArtificialCheckByIdentifier` | v16:1364 | `DeviceInfoController.java:145` | ✅ 回 `data:false`=只上传异常单视频（2026-10-19 拍板 `isAutoUploadVideo=false` 同口径）。🔁 固件另打 `deviceInfo/isAutoUploadVideo`（`DeviceReportController.java:379`） |
+| §4.2.9 | `order/openDoubleDoorError` | v16:1070 | `DeviceReportController.java:418` | ✅ 仅审计（单门柜不会触发）。🔁 真机「正在使用中」实际走 `deviceInfo/uploadDeviceOpenStatus`（`:133`） |
+| §4.2.10 | `orderProduct/addRecognitionGoodsToOrder` | v16:1128 | `DeviceReportController.java:230` | ✅ 先合成 CLOSED→归一化（thirdPid 优先）→edge-results；金额**不采信设备**，映射未命中 fail-closed 转 DISPUTED。🔴 10-22 起裸/`/device` 两种拼写都注册，理由见 H-18（识别上报的「将邑腿」`uploadBuyGoodsInfo2JYServer` 用 `COMMON_URL`、「其他腿」`…2OtherServer` 用 `URL`，同一字面两个 base）|
+| §4.2.11 | `device/pokerOrder/uploadOrderError`（`bigModel:"doing"`） | v16:1216 | `DeviceReportController.java:353` | ✅ 与 §4.2.12 **同一路径、靠字段分流**（doing→挂起 10min 兜底；否则→DISPUTED）。🔴 10-22 起该 handler 收**四种**拼写（`pokerOrder|order` × 裸/`/device`）：尾串随对接版本换（`NORMAL`→`/order/uploadErrorOrder`，其余→`/pokerOrder/uploadOrderError`，`UploadInfo2Server.smali:1197-1214`，body 同为 `ErrorOrderEntity`），前缀随 base 字段换，见 H-18|
+| §4.2.12 | `device/pokerOrder/uploadOrderError` | v16:1301 | 同上 `:348` | ✅ 同一个 handler |
+| §4.2.13 | `deviceInfo/getArtificialCheckByIdentifier` | v16:1364 | `DeviceInfoController.java:145` | ✅ 回 `data:false`=只上传异常单视频（2026-10-19 拍板 `isAutoUploadVideo=false` 同口径）。🔁 固件另打 `deviceInfo/isAutoUploadVideo`（`DeviceReportController.java:410`） |
 | §4.2.14 | `device/pokerOrderVideo/uploadVideoUrl` | v16:1437 | `OrderVideoReportController.java:43` | ✅ 落 `jiangyi_order_video`（§4.3.2.11 拉取链的闭合点）。⚠️ 2026-10-21 一次子代理盘点漏掉本条，已纠正 |
-| §4.2.15 | `deviceInfo/getDeviceSimInfo` | v16:1518 | `DeviceReportController.java:411` | ✅ 标题「上报」而路径叫 `get…`（文档笔误，见 §H-3） |
-| §4.2.16 | `deviceInfo/getDoorInfo` | v16:1617 | `DeviceReportController.java:450` | ✅ |
-| §4.2.17 | `deviceInfo/changeWifi` | v16:1686 | `DeviceReportController.java:459` | ✅ wifi 连接结果上报（与 WS 下行 §4.3.2.15 `sendChangeWifiCommand` 配对，后者未接） |
-| §4.2.18 | `deviceInfo/queryNetwork` | v16:1750 | `DeviceReportController.java:467` | ✅ 在线状态上报 |
-| §4.2.19 | `advertisingDevice/getAdvertisingByDeviceId` | v16:1810 | `DeviceExtensionController.java:129` | ✅ 我方无广告位⇒回空数组 |
-| §4.2.20 | `order/uploadFaultOrder` | v16:1899 | `DeviceReportController.java:396` | ✅ 仅审计 |
+| §4.2.15 | `deviceInfo/getDeviceSimInfo` | v16:1518 | `DeviceReportController.java:442` | ✅ 标题「上报」而路径叫 `get…`（文档笔误，见 §H-3） |
+| §4.2.16 | `deviceInfo/getDoorInfo` | v16:1617 | `DeviceReportController.java:481` | ✅ |
+| §4.2.17 | `deviceInfo/changeWifi` | v16:1686 | `DeviceReportController.java:490` | ✅ wifi 连接结果上报（与 WS 下行 §4.3.2.15 `sendChangeWifiCommand` 配对，后者未接） |
+| §4.2.18 | `deviceInfo/queryNetwork` | v16:1750 | `DeviceReportController.java:498` | ✅ 在线状态上报 |
+| §4.2.19 | `advertisingDevice/getAdvertisingByDeviceId` | v16:1810 | `DeviceExtensionController.java:138` | ✅ 我方无广告位⇒回空数组 |
+| §4.2.20 | `order/uploadFaultOrder` | v16:1899 | `DeviceReportController.java:427` | ✅ 仅审计 |
 
 **结论：V16 第四章设备面文档的 17 条，我方 17 条全接，无遗漏。**
 
@@ -83,10 +83,10 @@
 | `order/uploadAddGoodsCloseStatus` | `:206` | ✅ `data:null` 留档 |
 | `deviceInfo/selfCheckReport` / `reportDeviceStatus` / `reportCameraRealInfo` / `updateTrouble` / `uploadDeviceDataCardNo` | `:214`/`:222`/`:230`/`:239`/`:247` | ✅ `data:null` 只留原始日志 |
 | `floor/getDeviceSellProductClassIds` | `DeviceExtensionController.java:52` | ✅ 真机在售面（`floor/getFloorByDevice` 真机 0 命中，见下） |
-| `floor/getFloorByDevice` | `:98` | 🟡 按文档 §5.5.2/补货语义实现，**真机从未请求过**（10-21 复核：开门前才拉、无需重启；判据=字面 `"status":200`） |
+| `floor/getFloorByDevice` | `:106` | 🟡 按文档 §5.5.2/补货语义实现，**真机从未请求过**。🔴 10-22 两次复核纠正：0 命中**不能**只归因于「没跑补货开门」——`GetReplenishGoodsInfo` 对 XY/YP/NO_NET 直接 `onResult("suc")` 不发 HTTP，只有 NORMAL 才 POST（`project-jiangyi-mname-dictvalue-trap` 记忆），而本表 0 命中与「对接版本非 NORMAL」一致。⚠️ 早班写的「唯一自洽解释是 `M_NAME=YP`」**已降级**：真机那 20 次 `/device/pokerOrder/uploadOrderError` 出自六处「字面自带 `/device` + `URL`」的站点（`uploadErrorOther:1247`、`CameraPreviewNew:7184`、`OrderRknnResultDeal:2999`、`UploadIdentifyResult:57095`、`UploadLocalOrder:759`、`UploadInfo2ServerStock:1316`，六处逐个读了门＝NORMAL 即 `return-void`）⇒ 只证到 **`M_NAME ∉ {NORMAL, NO_NET}`，XY 与 YP 现有证据分不开**（`OkhttpUtils.postRequest*` 只拦 NO_NET、不拦 XY）。另按 H-18 把本表注册成裸/`/device` 双拼写（原判「COMMON_URL 多一段 /device」已作废，见 §11）（判据=字面 `"status":200`） |
 | `deviceInfo/receiveCurrentTxtUrl` | `DeviceInfoController.java:165` | ✅ 照抄云侧 `666`（2026-10-19 拍板：勿顺手对齐成 200） |
-| `deviceInfo/isAutoUploadVideo` | `DeviceReportController.java:379` | ✅ 回 false（拍板：只传异常单视频） |
-| `deviceInfo/uploadDeviceOpenStatus` / `order/uploadOrderLockStatus` / `operationMode/sync` | `:133` / `:80` / `:360` | ✅ 真机补 |
+| `deviceInfo/isAutoUploadVideo` | `DeviceReportController.java:410` | ✅ 回 false（拍板：只传异常单视频） |
+| `deviceInfo/uploadDeviceOpenStatus` / `order/uploadOrderLockStatus` / `operationMode/sync` | `:133` / `:80` / `:391` | ✅ 真机补 |
 | `aliYunOss/getTempToken` | `AliyunOssController.java:47` | ✅ 真机变体 |
 | `domainConfig/getConfigDomainByIdentifier` | `DomainConfigController.java:94` | ✅ 拍板 A 自钉：照抄云侧怪形态 `{"status":null,"msg":null,"data":"<base>/jiangyi/api"}` |
 | `domainConfig/getConfigStatusByIdentifier` | `:111` | 🟡 恒回 `data:1`。10-20 晚逐行重核订正：该值实为固件 **USE_TYPE**（使用模式）写入槽、非配置状态位；1/2 语义=厂商问题 18 |
@@ -239,6 +239,10 @@
 | H-3 | §4.2.9「上报货柜正在使用中」 | 路径 `order/openDoubleDoorError`，描述行是从 §4.2.10 复制的「将识别结果上报」 | 真机实际走 `deviceInfo/uploadDeviceOpenStatus` | 两条都实现；`openDoubleDoorError` 仅审计 |
 | H-4 | §4.2.16「上报门磁状态」 | 描述整段是广告接口的文字 | 路径 `getDoorInfo` + 参数 `doorState/lockState` 与标题一致 | 按标题+参数实现 |
 | H-5 | §4.3.1 心跳 | 「机器端发送 `{msgType:heartBeat, msgContent:PONG}`」 | 固件发 **PING**，服务器回 PONG（log3 实测） | 不校验入值、恒回 PONG ⇒ 两形皆绿 |
+| H-18 | 本表 10-22 早班批次的「`COMMON_URL` 比 `URL` 多一段 `/device`」 | 固件 `Constans.<clinit>` 把 `URL` 与 `COMMON_URL` 赋成**同一个串**（`Constans.smali:2396/2403` 与 `:2405/2408` 两次 `const-string` 完全相同 = `https://lingshouapi.hunanjysmart.com/device`），我方自钉 base 是 `…/jiangyi/api`；`InitAppServerInfoControl$19:144` 把回值**原样**写入 `URL`，`:146-156` 只做 `equals` 比较，**全程没有任何地方给 COMMON_URL 追加 `/device`** | nginx 里 `/jiangyi/api/device/…` 那四条（`uploadDoorState`/`uploadLockState`/`pokerOrderVideo/uploadVideoUrl`/`pokerOrder/uploadOrderError`）全部来自**字面自带 `/device/`** 的调用点（`UpDoorState.smali:1927`、`OrderVedioInfo2Server.smali:1576`、`CameraPreviewNew.smali:7184`），不是 base 带的；而 `tenant/getOrderRecheckProduct` 那 22 次裸命中出自 `BaseActivity:428` 的 **`URL`**，**不能**反过来当 COMMON_URL 的证据 ⇒ **COMMON_URL 现值在 nginx 里无从判明** | 设备面同一尾串的两种拼写一律都注册；只信「日志里见过哪种」会把没跑到的路径判成已验证 |
+| H-19 | 早班「20 次 `/device/pokerOrder/uploadOrderError` ⇒ `M_NAME=YP`（唯一解）」 | 该 `/device` 路径有**六处**站点会发（`UploadInfo2Server.uploadErrorOther:1247`、`CameraPreviewNew:7184`、`OrderRknnResultDeal:2999`、`UploadIdentifyResult:57095`、`UploadLocalOrder:759`、`UploadInfo2ServerStock:1316`），六处逐个读了门都是 `equals(NORMAL)` 为真即 `return-void` ⇒ 只证到 **`≠NORMAL`**；`OkhttpUtils.postRequest`/`postRequest_json` **只对 `NO_NET` 短路**（`:759-774` 等四处），不拦 XY，而 XY 下这些站点照样发 | 真机那 20 次的 body 无法二分：`uploadErrorOther` 的 HashMap 键就叫 `errorMsg`/`errorDetailMessage`，与 `ErrorOrderEntity` 同名，我方日志只落这两个字段、没存原文 | 定档结论一律写 **`M_NAME ∉ {NORMAL, NO_NET}`，XY/YP 未分**；下次开机的判别探针＝**裸 `/pokerOrder/uploadOrderError` 若与 `/device` 那条成对出现 ⇒ 定 YP 且证明 COMMON_URL 落我方域**（`uploadError` 在 YP 腿会连发 JY+Other 两条，XY 在 `:cond_85` 就跳走了）。对 #90 无影响：`uploadBuyGoodsInfo2Server:645`（XY→`:cond_3f`、YP→`:cond_3f`、NO_NET→`:goto_3f`）三档同处置＝`dealNormalOrder` 只发 AIDL、零 HTTP |
+| H-20 | 10-22 14:41:51 与 14:42:36 两次真机开门＝判据 **C 命中，A/B/D 全未检验** | 设备侧（UA `okhttp`）14:41–14:43 窗口只打了 8 条：`tenant/getOrderRecheckProduct`×2、`floor/getDeviceSellProductClassIds`×2（我方回 `classIds=[29]`）、`device/uploadLockState`×2、`device/uploadDoorState`×2、`device/pokerOrder/uploadOrderError`×2、`device/pokerOrderVideo/uploadVideoUrl`×1、`aliYunOss/getTempUploadToken`×1 ⇒ **`orderProduct/addRecognitionGoodsToOrder`（A）与 `pokerOrderProduct/addProductsToOrder`（B）两条腿 0 命中**，`jiangyi_recognition_report` 仍 **0 行**，`device_sku_inventory` 仍 1（未扣款，符合 fail-closed） | 🔴 **本轮没有「识别成功」样本**：两次都是设备主动转人工（14:42:09 `errorMsg=再次确认`，成因 **`幻影放回抑制链冲突转人工:T2 kkkl_xb_qsnmw_pttz_330ml(OUT计费与被抑制IN同链不可分)`**＋cam=1 调光未确认；14:42:54 `errorMsg=人工复核`，成因两摄 `开门后调光未确认:reason=settle_budget`）⇒ 既没证成 AIDL 档（D），也没暴露「第四档 ⇒ 我方缺 `addProductsToOrder` 路由」（B）。我在 14:37 把 D 写成「最可能」属**无成功样本时的外推**，本轮不改变「XY / YP / 第四档」三态未分 | ①潜伏缺口如实登记、**不提前实现**：`addProductsToOrder` 固件有两处字面——`UploadInfo2Server:349`（`COMMON_URL`+裸串，JY 腿在 `M_NAME≠NORMAL` 时改走它）与 `:625`（`URL`+`/device` 串，且受 `IS_OPEN_DOOR_ALAWYS` 开关），我方**均未注册**，真打到就是 401/404，责任在我方缺路由（payload 未文档化，等实路径出现再补）；②下轮要拿的判别样本＝**一次干净的取货**（只拿一瓶、手不碰其它货道、不放回、取完即关门），若出现 `addRecognitionGoodsToOrder` ⇒ 第四档、补路由即可通；若仍零上行 ⇒ 才轮到 AIDL 档成立 |
+| H-21 | 10-22 14:53:05 一次「干净取货」＝**又落 `uploadOrderError`（判据 C），但设备自报成因被现场协议消掉两条** | 会话 `1792651983860343089366` DISPUTED、不扣款，`fail_reason` 尾部原文 `人工复核｜开门后调光未确认:cam=1,reason=settle_budget；原图证据不足，保留复核` ⇒ **14:42 的 `幻影放回抑制链冲突` 与 11:43 的 `副键弱证据换类（魔爪/雪碧）` 本轮均未复现**（膜已撕、柜内 3 瓶、另开一次门只取一瓶、不举到镜头前、取完即关门）；`addRecognitionGoodsToOrder`/`addProductsToOrder` 仍 **0 命中**、`jiangyi_recognition_report` 仍 **0 行**、`device_sku_inventory` 仍 3、视频 14:53:47 迟到 31 秒才落 `jiangyi_order_video` | 🔴 **#90 剩下的唯一设备侧闸＝`cam=1 reason=settle_budget`「开门后调光未确认」**，与商品/保护膜/开门时长/动作序列全无关（#92 已证 39.2s 也不消），我方无旋钮 ⇒ 只能厂商解释或修。另：网关日志 `addRecognitionGoodsToOrder` 那 4 条命中全是本人 14:26 的 `curl` 探针（`outcome=missing_token remote=172.18.0.12`＋401） | ①现场协议**已验证有效**，后续取证一律按「放/取分两次开门、只取一瓶、不放回、取完即关门」；②判「设备打到过某端点」**只认 nginx 台账 `UA=okhttp/4.9.3`**，应用日志同字面须先看 remote；③判「视频缺失」要等 ≥40 秒再查库 |
 | H-6 | §4.3.2.11 拉取视频示例 | `msgContent:"24005355433545_MSG"` | 固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件 ⇒ **不带 `_MSG`** | 我方透传会话 id，不加后缀 |
 | H-7 | V1.13 §4.4.4.4 `industrialControlModel` | 中文说明也叫「模型类型」 | 厂商后台弹窗里对得上商户 API 的是**「工控型号」**那栏；「模型类型」是另一档（大模型/基础模型/商品模型，**商户 API 无对应字段**） | 校验只做字符串相等、不解释语义；默认登记 `88`（2026-10-10 拍板） |
 | H-8 | V16 第四章 vs 第五章 | 两章各有一套 §x.2 设备面 | **入向面逐条完全一致**，第五章只多 3 条（§G-12）；`domainConfig/*` 两条都**没有**（固件自用未文档化面） | 以第四章为契约，`domainConfig` 走自钉 |
@@ -257,6 +261,9 @@
 - 三条独立盘点对撞：① V16 第四章/第五章逐节抠路径+行号；② V1.13 逐节抠 `/merchant/`；③ 我方 `jiangyi-gateway` / `trade-service` 逐 controller/client 抠映射与方法。设备路径计数**我本人重数过**：46 具体 + 1 别名 + catch-all。
 - **抓到的子代理错**：① 漏报 `OrderVideoReportController.java:43`（差点被写成「§4.2.14 未实现」的假缺口）；② 设备路径计数偏低。⇒ 本表所有「未实现」结论逐条回源码确认后才落笔。
 - **抓到的我自己的旧结论错**：① 「我方无法从 API 判某模型覆盖了哪些 stdSku」——**错**，V16 §5.5.3 就是干这个的（§G-9）；② Track E 台账里 `confirmActivate`「全仓零调用/新柜无激活通道」——**已闭合**（`JiangyiMerchantClient.java:120`、`AdminJiangyiController.java:211`）；③ 本表初稿把 §4.2.5 我方响应判成「偏离云侧实测」——**被文档自己的 json 示例推翻**（v16:789 逐字 `"data":"0"`），改记 §H-11。
+- **2026-10-22 14:4x 抓到自己在开跑前的一处外推**：我把「识别成功 ⇒ 零 HTTP（AIDL 档）」写成「最可能的结果」，但 14:41/14:42 两轮实测**根本没有成功样本**（设备两次都主动转人工），所以这条既没被证实也没被证伪 ⇒ 定档仍是 `M_NAME ∉ {NORMAL, NO_NET}`、XY/YP/第四档三态未分（→ H-20）。**教训＝把「按代码推演最可能」写成「本轮会验证到」，会让下一轮跑空手而归**；判别探针要先确认「本轮有没有可能产生那个分支的样本」。
+- **2026-10-22 14:2x 同批改掉我的第二处过度断言**：「20 次 `/device/pokerOrder/uploadOrderError` ⇒ `M_NAME` 唯一解 = YP」。逐站点重读后发现该路径有六处调用点、且 `OkhttpUtils` 只拦 NO_NET 不拦 XY ⇒ 证据只撑到 `∉{NORMAL, NO_NET}`（→ H-19）。**教训＝一条路径被多处代码共用时，它只能证「这些处的共同门」，不能证「我挑的那一处」**；本表凡按「设备发了 X 所以是 Y 发的」定的档，都要回查 X 还有谁在发。
+- **2026-10-22 14:0x 抓到自己今日早班的一条假判据**：为「COMMON_URL 在我方域多一段 `/device`」举的 nginx 实证（`/jiangyi/api/device/token/openDoorDeviceStatus` 2 次）**是我方自己的 curl 探测**（UA=`curl/8.13.0`、来源 172.18.0.1、10-20 06:42），不是设备。⇒ 该结论降级为「无从判明」，处置改成两种拼写都收（H-18）。
 - **2026-10-22 00:0x–00:2x 复核（用户三连质疑「v1.13 看了吗 / 只有雪碧是真的 / 自采不需要那么多图 / 确定要他们把模型挂到租户？」）——四处旧结论被推翻，逐条**：
   ① 「自采逐商品约 2000 张」**错**（→ H-12，真数 200 张，V16 §5.6 引言）；
   ② 「其余 10 个 SKU 要补挂接」**作废**（用户口径：真商品只有雪碧，且 `6954767430386` 实测精确命中 stdSku 1018、`sku_jiangyi_link` 已 BOUND ⇒ 真商品侧挂接是完成态）；
@@ -264,7 +271,7 @@
   ④ 🔴 **「必须让厂商把模型挂到租户 426」不是厂商侧限制，是我方 `requireModel` 自己加的门**（→ G-14）：V16 §4.3.2.9 载荷全是裸 URL 字符串、§5.5.3 入参就是裸 `modelTextUrl`、我方网关 internal `model-push` 收显式 URL 且不查模型库 ⇒ 要问厂商的只有一句话「覆盖 6954767430386 的 88 模型，modelUrl 和 classes 地址各是什么」。
   同批实测：**§5.5.3 端点是活的**（`status:200`，租户 426 有权调），且其 `classId` 与 classes.txt **0-based 行号逐字一致** ⇒ `JiangyiClassesParser` 的「0/1-based 文档未明示」悬案由实测判死（→ §8 该行、G-9）。
   代码落点（未提交）：`SkuJiangyiLinkService.pullTextName` 改「条码精确相等且 textName 唯一才回填，多条不同 textName ⇒ 409 列候选、空 textName ⇒ 404 不清值」，`SkuJiangyiLinkServiceTest` 26 条全绿（新增 3 条）。
-- **仍未实锤、不许当结论用**的四条：G-4 里 `[{barCode,textName,bgType}]` 的归属、G-5 的「采集由柜机 APK 自走」、H-10 的 76/88↔rknn 目标对应、`floor/getFloorByDevice` 真机是否会请求（真机 0 命中只说明**没跑过补货开门**，不说明接口无用）。
+- **仍未实锤、不许当结论用**的四条：G-4 里 `[{barCode,textName,bgType}]` 的归属、G-5 的「采集由柜机 APK 自走」、H-10 的 76/88↔rknn 目标对应、`floor/getFloorByDevice` 真机是否会请求（~~真机 0 命中只说明没跑过补货开门~~ **10-22 二次已判**：本表 0 命中与「对接版本非 NORMAL」一致，但**不能**定档到 YP ⇒ 见 H-19（`M_NAME ∉ {NORMAL, NO_NET}`，XY/YP 未分））。
 - **全文覆盖度（2026-10-21 23:10 被问「确定文档都核对了？」后补的一次穷举）**：V16 目录里**所有**节都已打开看过，不是只挑 §4.2/§5.2/§5.4/§5.5/§5.6——
   §4.1 与 §5.1 是流程叙述**无端点**；§4.2（17 条，§2 表）；§4.3.1 上行只定义 `heartBeat`（§5 表）；§4.3.2 下行 17 条（§4 表）；
   **§5.3「服务器 WebSocket 接口」（v16:3881）此前确实没看，本次补看**：只列 5 条下行（`reboot`/`openDoor`/`closeDoor`/带订单号 `openDoor`/`openDoubleDoor`），
@@ -277,6 +284,13 @@
   `DeviceInfoController.class` 含 `downloadThirdModelNotify`、`DeviceWebSocketHandler.class` 含 `JIANGYI_WS_MSG_UNHANDLED`（各 1 次，`docker cp` + `unzip -p` 实证，
   避免「改了没生效」那类假绿）；trade-service 用 `--no-deps --no-build` **只重建容器不重建镜像** ⇒ 并行会话未提交的
   `SkuDelistReview*` 脏文件没有被打进任何镜像。
+- **2026-10-22 14:3x 独立复核（另一会话，用户令核对「本表 ↔ 两份 PDF ↔ 代码」一致性）**：
+  ① **文档侧全对**。从两份 PDF 派生文本逐条重抽比对：§4.2 十七条、§4.3.2 十七条 msgType、§5.2 三条、§5.4 九条、§5.5/§5.6 八条、V1.13 三十四条，**路径+行号全部命中**；语义钉死项复核通过——§5.6 引言「提交合格图片 200 张就可以了」（v16:6066 附近逐字）、§5.2.14「并不用token 验证」（v16:3833 逐字）、§4.4.4「请求参数(无)」、§5.5.3 同节两套键名（参数表 `Skuld`/`class` vs 示例 `stdSkuld`/`name`/`classId`）。仅三处行号漂移（派生文本再生，内容逐字不变）：v113 1689→1691、1932→1935；confirmActivate v16 5378→5377。
+  ② **代码侧路径全在，但本表大量「文件:行号」已过期**（G-3/G-9/G-14 插行后未刷新；漂 +5～+26，符号全部存在）：`DeviceInfoController` getArtificialCheck :145→:157、receiveCurrentTxtUrl :165→:177；`JiangyiGatherClient` getTopList :100→:126、create :116→:142、waitGatherProduct :130→:156、gatherOpenDoor :138→:164、doorStatus :145→:171、getPageData :156→:182、commitTraining :180→:206、studyingProduct :185→:211、getModelFileByApi :193→:219、gatherCheck :218→:244、login2 :252→:278；`DeviceReportController` sync :360→:385、isAutoUploadVideo :379→:404、openDoubleDoorError :387→:412、uploadFaultOrder :396→:421、getDeviceSimInfo :411→:436、getDoorInfo :450→:475、changeWifi :459→:484、queryNetwork :467→:492；`DeviceExtensionController` getAdvertising :129→:138；`DeviceWebSocketHandler` 三条下行 send :217/:230/:250→msgType 实位 :222/:235/:255；`DeviceCommandController` :58/:67/:105→:45/:76/:95；`JiangyiModelSyncService` DISABLED :142→:236、pushModelByUrl :181-190→:275、requireModel :221→:351；G-9 行「`MSG_TYPE_UPDATE_MODEL`（ModelPushController.java:18）」实为 `DeviceWebSocketHandler.java:40`（:18 只是 javadoc 提及）。⇒ 本表行号一律按「符号名+大致位置」读，别点查。
+  ③ 🔴 **运行时缺口（本次复核发现，未闭合）**：10-22 双前缀修复（§4.2.10/§4.2.11/floor 两拼写，防御性双收）**只在工作区、未提交**（源文件 mtime 14:12），而本地 jiangyi-gateway 容器 **~11:00 已启动**——`docker cp`+解包实证容器内 `DeviceReportController.class` 无 `/jiangyi/api/device/orderProduct/…` 与 `/order/uploadErrorOrder`、`DeviceExtensionController.class` 无 `/jiangyi/api/device/floor/…`（G-3 三档 notify 在容器 ✓ ⇒ 容器=10-21 版本）。设备到底打不打 `/device` 前缀本就「无从判明」（见上 14:0x 条），防御双收正是为此——**柜测前必须重建 gateway 容器**，否则一旦设备真走该拼写，识别/异常上报落 catch-all 404、且无人察觉台账以外的事。
+  **15:5x 订正**：该修复的「未提交」半句已作废——源码已随 `b734741d` 落 dev 分支工作树；但**「容器内 jar 是否已含这四种拼写」仍未复核**，判据照旧是 `docker cp` 出 `/app/app.jar` 后在 `DeviceReportController.class` / `DeviceExtensionController.class` 字节里查路径字面量（镜像无 unzip/python，别用 `unzip` 探测），**别把「已提交」当「已生效」**。
+  ④ 本表 §3 顶部「DeviceUnknownPathController 注释仍列 domainConfig 不接管」的 ⚠️ 本身已过时（注释 10-20 起已改「已从本清单移出」，工作区实证）；但该注释同段「一切资金前缀（orderProduct/**、device/pokerOrder/**）刻意失败」与 10-22 双前缀显式注册形成新的表述矛盾（显式映射优先、行为正确，注释待同步）。
+  ⑤ 工作区实跑：`mvn -o -B -pl services/jiangyi-gateway verify` **137 单测 + 22 IT 全绿 BUILD SUCCESS**（DeviceCompatRoutingIT 9 条含 10-22 新增 2 条双前缀用例）。
 
 ## 12. 相关文档
 
