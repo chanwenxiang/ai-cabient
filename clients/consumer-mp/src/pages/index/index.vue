@@ -171,8 +171,11 @@
               <text v-if="!specRedundant(p.skuName, p.spec)" class="product-spec">{{
                 p.spec
               }}</text>
-              <!-- 2026-10-22 用户拍板：金额放加号旁 —— 卡片底部一行「价格靠左 + 步进器靠右」 -->
-              <view class="product-footer">
+              <!-- 2026-10-22 用户拍板：金额放加号旁；浏览态无步进器时价格居中（真机反馈） -->
+              <view
+                class="product-footer"
+                :class="{ 'has-stepper': sessionActive && state === 'SHOPPING' && mockEnabled }"
+              >
                 <text class="product-price">{{ productPriceLabel(p) }}</text>
                 <view
                   v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
@@ -910,11 +913,8 @@ const catalogNotice = computed(() => {
   if (mockEnabled.value && state.value === 'SHOPPING') {
     return '';
   }
-  if (canReopen.value) {
-    return '上一单已结束，再买请再次开门';
-  }
-  // CB-063：价目就是结算价（A 档：金额 = Σ 我方 SKU 单价 × 件数），不再写「仅供参考」——
-  // 那句话把「识别可能出错」当成对用户的免责，反而削弱价目的可信度。
+  // 浏览态绿 banner 副标题已是「上一单已结束，再买请再次开门」，橙色提示不再复读
+  // （2026-10-22 真机截图实锤同屏两行一字不差），改为展示价目口径这条有用信息。
   return '价目即结算价，按实际取走件数计费';
 });
 
@@ -2271,7 +2271,9 @@ function stopDevicePoll() {
 }
 .shop-nav {
   flex-shrink: 0;
-  background: var(--nav-bar-bg, var(--brand, #0d9488));
+  /* 2026-10-22：直接用品牌青绿——--nav-bar-bg 是其他页 AppNavBar 的提亮白底，
+     借用过来会把这里的白字顶栏衬成白底白字（真机截图实锤「顶部没内容」） */
+  background: var(--brand, #0d9488);
 }
 .shop-nav-row {
   position: relative;
@@ -2611,14 +2613,14 @@ function stopDevicePoll() {
   overflow: hidden;
   min-height: 58rpx;
   margin-top: 8rpx;
-  text-align: left;
+  text-align: center;
 }
 .product-spec {
   font-size: var(--font-size-xs);
   color: var(--text-secondary, #6b7280);
   line-height: 1.2;
   margin-top: 2rpx;
-  text-align: left;
+  text-align: center;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2629,15 +2631,21 @@ function stopDevicePoll() {
   font-weight: 700;
 }
 /*
- * 2026-10-22 用户拍板：金额放加号旁 —— 卡片底部一行「价格靠左 + 步进器靠右」。
- * min-height 与步进器等高，保证非购物态（无步进器）时各卡片价格基线对齐。
+ * 2026-10-22 用户拍板：金额放加号旁 —— 卡片底部一行。
+ * 浏览态（无步进器）：价格居中（真机反馈「¥3.50/罐 没居中」）；
+ * 购物态（has-stepper）：价格靠左、步进器靠右（电商标准卡面）。
+ * min-height 与步进器等高，保证各卡片价格基线对齐。
  */
 .product-footer {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12rpx;
   margin-top: 10rpx;
   min-height: 48rpx;
+}
+.product-footer.has-stepper {
+  justify-content: space-between;
 }
 .product-detail-btn {
   margin: 6rpx auto 0;
