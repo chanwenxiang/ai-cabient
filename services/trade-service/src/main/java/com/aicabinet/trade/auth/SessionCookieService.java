@@ -119,7 +119,14 @@ public class SessionCookieService {
         if (!authProperties.cookieEnabled() || token == null || token.isBlank() || realm == null) {
             return;
         }
-        int maxAge = (int) Math.min(Integer.MAX_VALUE, authProperties.expirationSeconds());
+        // 🔴 2026-10-22 真机实锤（用户反馈「后台一会就掉线」）：Max-Age 曾取 JWT 有效期（默认 30min），
+        //    闲置超过 30 分钟后**浏览器直接删除 Cookie**，用户回来时 refresh 已无凭据可用 ⇒ 只能重登。
+        //    后端 AuthProperties 注释本意是「过期 token 仅允许 refresh 的宽限期内，闲置后回来可静默续期」，
+        //    但凭证比宽限窗口先死，该语义被击穿。修复：Max-Age 覆盖「有效期 + refresh 宽限期」，
+        //    让闲置回归的用户先拿到 Cookie、再走 refresh 换新（滑动续期，每次 refresh 重置）。
+        //    登出/轮换的吊销语义不受影响：deny 黑名单按 exp+grace 写 TTL，与 Cookie 寿命解耦。
+        int maxAge = (int) Math.min(Integer.MAX_VALUE,
+                authProperties.expirationSeconds() + authProperties.refreshGraceSeconds());
         response.addCookie(createCookie(cookieName(realm), token, maxAge));
     }
 

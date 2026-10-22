@@ -42,6 +42,21 @@ class SessionCookieServiceTest {
         assertEquals("consumer-token", service.resolveToken(request, SessionCookieService.Realm.CONSUMER));
     }
 
+    /**
+     * 回归（2026-10-22 真机实锤「后台一会就掉线」）：会话 Cookie 寿命必须覆盖
+     * 「JWT 有效期 + refresh 宽限期」——否则闲置超过有效期后浏览器先删 Cookie，
+     * 用户回来时 refresh 无凭据可用，只能重登（宽限窗口形同虚设）。
+     */
+    @Test
+    void writeSessionCookie_maxAgeCoversRefreshGraceWindow() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        service.writeSessionCookie(response, "t", SessionCookieService.Realm.ADMIN);
+
+        int expected = 1800 + (int) AuthProperties.DEFAULT_REFRESH_GRACE_SECONDS;
+        assertEquals(expected, response.getCookie(SessionCookieService.ADMIN_SESSION_COOKIE_NAME).getMaxAge(),
+                "Cookie Max-Age 必须 >= 有效期 + refresh 宽限期，闲置回归用户才能静默续期");
+    }
+
     @Test
     void resolveForPath_opsUsesAdminCookieEvenWhenConsumerCookiePresent() {
         MockHttpServletRequest request = new MockHttpServletRequest();
