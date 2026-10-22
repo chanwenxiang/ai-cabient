@@ -19,6 +19,11 @@ services:
       AICABINET_STAGING_MODE: "false"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
+      # 首次部署初始运营超管（本文档 §2.0 P0）：库中没有任何运营账号时才创建并绑 admin 角色；
+      # 已有账号一律跳过（不改密码、不提权）。密码只由 .env.production 注入，不写日志、不入库文件。
+      AICABINET_OPS_ADMIN_PHONE: ${AICABINET_OPS_ADMIN_PHONE:-}
+      AICABINET_OPS_ADMIN_PASSWORD: ${AICABINET_OPS_ADMIN_PASSWORD:-}
+      AICABINET_OPS_ADMIN_NAME: ${AICABINET_OPS_ADMIN_NAME:-cwx}
       # P2：生产 HTTPS 下会话 Cookie 必须 Secure（validator 亦有强校验）
       # Cookie 会话安全属性生产必填显式声明（HTTPS 未就绪的过渡期可 false，见 DEPLOYMENT_CHECKLIST）
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:?set AUTH_COOKIE_SECURE (true after HTTPS / false interim) in .env.production}

@@ -138,6 +138,19 @@ export class ApiClient {
     fetchCaptcha() {
         return this.request('/api/v2/auth/captcha', 'GET', undefined, false);
     }
+    /** 运营后台忘记密码：发送短信验证码（须先过图形验证码）。 */
+    sendAdminSmsCode(phoneNumber, captcha) {
+        const query = new URLSearchParams({
+            phoneNumber,
+            captchaId: captcha.captchaId,
+            captchaCode: captcha.captchaCode
+        });
+        return this.request(`/api/v2/auth/sms-code?${query.toString()}`, 'POST', undefined, false);
+    }
+    /** 运营后台忘记密码：短信验证码 + 图形验证码重置密码。 */
+    resetAdminPassword(payload) {
+        return this.request('/api/v2/auth/admin-password-reset', 'POST', payload, false);
+    }
     merchantLogin(phone, password) {
         return this.request('/api/v2/auth/merchant-password-login', 'POST', { phoneNumber: phone, password }, false);
     }

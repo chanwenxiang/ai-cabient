@@ -84,6 +84,7 @@ copy infra\.env.production.example infra\.env.production
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`
 - [ ] `JWT_SECRET` / `INTERNAL_API_KEY` / `JIANGYI_JWT_SECRET` ≥ 32 字符，非默认值
+- [ ] **首次部署（空库）**：`AICABINET_OPS_ADMIN_PHONE` / `AICABINET_OPS_ADMIN_PASSWORD` 已配；启动日志出现「初始运营超管已创建」，且该手机号+密码能登录运营台。库中已有运营账号时自动跳过（不改密码、不提权），创建成功后从环境移除 PASSWORD
 - [ ] 短信（2026-10-20 起）：`SMS_PROVIDER=aliyun` 且 `SMS_ALIYUN_ACCESS_KEY_ID/SECRET/SIGN_NAME/TEMPLATE_CODE` 已配（签名=深圳前海易购科创智能设备，验证码模板 SMS_512651638 变量须 `${code}`）；已用真实手机号实发一条验证码收通（不得再依赖 prod-server 的 mock 容器，已移除）
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`

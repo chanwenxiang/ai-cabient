@@ -36,6 +36,13 @@ INTERNAL_API_KEY=<随机32+字符>
 # 将邑柜机设备 JWT：缺失或仍是占位 ⇒ 生产启动硬拒（fail-closed）
 JIANGYI_JWT_SECRET=<随机32+字节>
 
+# 首次部署初始运营超管（库里没有任何运营账号时必填；已有账号则整段自动跳过，不改密码/不提权）
+# 密码只在启动时读取、不写日志；创建成功后可从环境移除 AICABINET_OPS_ADMIN_PASSWORD
+# compose 三处（production / staging / full）已透传到 trade-service，只写 .env.production 即可
+AICABINET_OPS_ADMIN_PHONE=<11位手机号>
+AICABINET_OPS_ADMIN_PASSWORD=<6-64位，须同时含字母和数字>
+AICABINET_OPS_ADMIN_NAME=cwx
+
 # SMS：POST JSON {"phoneNumber":"138...","code":"123456"}
 SMS_WEBHOOK_URL=https://your-sms-gateway/send
 
@@ -81,6 +88,18 @@ PAYSCORE_LIVE_CHARGE_ENABLED=false
 PAYSCORE_CHARGE_GATEWAY_URL=https://pay-gateway.example.com
 PAYSCORE_CHARGE_GATEWAY_API_KEY=<随机32+字符>
 ```
+
+### 运营账号密码：三条通道与忘密码处置
+
+| 场景 | 入口 | 接口 | 限制 |
+|------|------|------|------|
+| 已登录改自己密码 | 个人中心 | `PUT /api/v2/ops/admin/rbac/me/password` | 须验原密码 |
+| 给他人重置 | 系统 → 运营账号 → 重置密码 | `POST /api/v2/ops/admin/rbac/operators/{userId}/reset-password` | 需 `ops:rbac:assign:reset-password`；**不允许重置超级管理员、不允许重置自己**（C16） |
+| 忘记密码（含超管） | 登录页「忘记密码？」 | `POST /api/v2/auth/sms-code` → `POST /api/v2/auth/admin-password-reset` | 短信验证码 + 图形验证码；只能重置本机号对应的账号；须是 OPERATOR 且 ACTIVE |
+
+- 超管忘密码**只有第三条通道**：第二条被 C16 硬拦，第一条要求已登录。后端接口早已存在，登录页入口 2026-10-22 补齐。
+- 图形验证码一次一用，所以一次重置会用到两张：发码时一张、提交重置时另一张（前端发码成功后自动换新的，无需人工刷新）。
+- 前置条件：生产短信通道可用（`SMS_PROVIDER` / `SMS_WEBHOOK_URL`），且该超管手机号能收到短信。收不到短信时的兜底是运维直接改哈希：`UPDATE user_info SET password_hash = <新生成 BCrypt> WHERE user_id = ...`——库里只有 `password_hash` 一列，没有任何明文口令可查。
 
 ### device-service
 

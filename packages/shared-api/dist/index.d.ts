@@ -53,6 +53,19 @@ export declare class ApiClient {
         captchaId: string;
         imageBase64: string;
     }>;
+    /** 运营后台忘记密码：发送短信验证码（须先过图形验证码）。 */
+    sendAdminSmsCode(phoneNumber: string, captcha: {
+        captchaId: string;
+        captchaCode: string;
+    }): Promise<void>;
+    /** 运营后台忘记密码：短信验证码 + 图形验证码重置密码。 */
+    resetAdminPassword(payload: {
+        phoneNumber: string;
+        smsCode: string;
+        captchaId: string;
+        captchaCode: string;
+        newPassword: string;
+    }): Promise<void>;
     merchantLogin(phone: string, password: string): Promise<LoginResponse>;
 }
 export * from '@aicabinet/shared-types';

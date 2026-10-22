@@ -93,9 +93,9 @@
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
           <div class="remember-group">
-            <el-checkbox v-model="rememberPhone" size="small">记住账号</el-checkbox>
-            <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
+            <el-checkbox v-model="rememberCredentials" size="small">记住账号密码</el-checkbox>
           </div>
+          <button type="button" class="link-btn" @click="openReset">忘记密码？</button>
         </div>
       </el-form>
       <el-form v-else label-position="top" @submit.prevent="onSubmitTwoFactor">
@@ -144,6 +144,108 @@
         超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
         补货 13900000004 · 只读 13900000005
       </p>
+      <el-dialog
+        v-model="resetVisible"
+        title="重置登录密码"
+        width="420px"
+        :close-on-click-modal="false"
+        append-to-body
+        @closed="onResetClosed"
+      >
+        <p class="reset-tip">短信验证码 + 图形验证码通过后即可重置；重置后请用新密码登录。</p>
+        <el-form label-position="top" @submit.prevent="onSubmitReset">
+          <el-form-item label="手机号">
+            <el-input
+              v-model="resetPhone"
+              type="tel"
+              maxlength="11"
+              inputmode="numeric"
+              placeholder="请输入11位手机号…"
+              :disabled="resetSubmitting"
+              @input="onResetPhoneInput"
+            />
+          </el-form-item>
+          <el-form-item label="图形验证码">
+            <div class="captcha-row">
+              <el-input
+                v-model="resetCaptchaCode"
+                maxlength="8"
+                autocomplete="off"
+                placeholder="图形验证码…"
+                :disabled="resetSubmitting"
+                @input="resetErr = ''"
+              />
+              <button
+                type="button"
+                class="captcha-img-btn"
+                title="点击刷新验证码"
+                aria-label="刷新图形验证码"
+                :data-captcha-id="resetCaptchaId"
+                :disabled="resetLoading"
+                @click="loadResetCaptcha"
+              >
+                <img
+                  v-if="resetCaptchaImage"
+                  :src="resetCaptchaImage"
+                  alt="验证码"
+                  width="120"
+                  height="40"
+                />
+                <span v-else>点击获取</span>
+              </button>
+            </div>
+          </el-form-item>
+          <el-form-item label="短信验证码">
+            <div class="captcha-row">
+              <el-input
+                v-model="resetSmsCode"
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="6位短信验证码…"
+                :disabled="resetSubmitting"
+                @input="resetErr = ''"
+              />
+              <el-button
+                :disabled="resetCountdown > 0 || resetSending || resetSubmitting"
+                :loading="resetSending"
+                @click="onSendSms"
+                >{{ resetCountdown > 0 ? `${resetCountdown}s 后重发` : '获取验证码' }}</el-button
+              >
+            </div>
+          </el-form-item>
+          <el-form-item label="新密码">
+            <el-input
+              v-model="resetNewPassword"
+              type="password"
+              show-password
+              maxlength="64"
+              autocomplete="new-password"
+              placeholder="6-64位，须同时含字母和数字"
+              :disabled="resetSubmitting"
+            />
+          </el-form-item>
+          <el-form-item label="确认新密码">
+            <el-input
+              v-model="resetConfirmPassword"
+              type="password"
+              show-password
+              maxlength="64"
+              autocomplete="new-password"
+              placeholder="再次输入新密码"
+              :disabled="resetSubmitting"
+              @keyup.enter="onSubmitReset"
+            />
+          </el-form-item>
+          <p v-if="resetErr" class="err" role="alert">{{ resetErr }}</p>
+        </el-form>
+        <template #footer>
+          <el-button :disabled="resetSubmitting" @click="resetVisible = false">取消</el-button>
+          <el-button type="primary" :loading="resetSubmitting" @click="onSubmitReset"
+            >重置密码</el-button
+          >
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -152,7 +254,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRouter, useRoute } from 'vue-router';
-import { type InputInstance } from 'element-plus';
+import { type InputInstance, ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
 import { useBrandStore } from '@/stores/brand';
 import { api } from '@/api/client';
@@ -187,9 +289,10 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
 /**
- * 记住密码（2026-10-22 用户拍板，推翻此前「密码不写 localStorage」的安全默认）：
- * 与「记住账号」同语义——勾选（默认）= 跨登录会话预填；显式取消 = 不预填。
- * 存的是 base64 编码（便利性混淆，非安全边界；防的是 devtools 里一眼明文）。
+ * 记住账号密码（2026-10-22 用户拍板：原「记住账号」「记住密码」两勾选合并为一个）：
+ * 勾选（默认）= 跨登录会话预填账号与密码；显式取消 = 都不预填、登出即清。
+ * 兼容旧开关：任一旧标记未显式取消（≠'0'）即视为勾选。
+ * 密码存的是 base64 编码（便利性混淆，非安全边界；防的是 devtools 里一眼明文）。
  * 清除口径与 admin_phone 对齐：登出/取消勾选才清，开关键本身永不清。
  */
 const PW_STORE_KEY = 'admin_password';
@@ -205,8 +308,9 @@ function readRememberedPassword(): string {
   }
 }
 
-const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
-const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
+const rememberCredentials = ref(
+  localStorage.getItem('admin_remember_phone') !== '0' || localStorage.getItem(PW_FLAG_KEY) !== '0'
+);
 /**
  * A-1：不做演示口令预填。
  * 原实现用 `ENABLE_TEST_TOOLS || isDemoPhone(phone.value)` 决定是否预填演示口令——只把门控关了一半：
@@ -224,6 +328,25 @@ const err = ref('');
 const twoFactorStep = ref(false);
 const twoFactorCode = ref('');
 const usingRecovery = ref(false);
+
+/**
+ * 忘记密码（短信 + 图形验证码）：后端 /auth/admin-password-reset 早已存在，
+ * 但登录页一直没有入口，超管忘记密码只能手工调接口。这里只暴露既有能力，不新增后端规则。
+ */
+const resetVisible = ref(false);
+const resetPhone = ref('');
+const resetCaptchaId = ref('');
+const resetCaptchaImage = ref('');
+const resetCaptchaCode = ref('');
+const resetSmsCode = ref('');
+const resetNewPassword = ref('');
+const resetConfirmPassword = ref('');
+const resetErr = ref('');
+const resetLoading = ref(false);
+const resetSending = ref(false);
+const resetSubmitting = ref(false);
+const resetCountdown = ref(0);
+let resetTimer: number | null = null;
 const phoneInput = ref<InputInstance | null>(null);
 const passwordInput = ref<InputInstance | null>(null);
 const captchaInput = ref<InputInstance | null>(null);
@@ -328,6 +451,7 @@ function startCaretWatch() {
 onUnmounted(() => {
   clearCaretFixTimers();
   stopCaretWatch();
+  clearResetTimer();
   if (boundCard) {
     boundCard.removeEventListener('pointerdown', onCardPointerDown);
     boundCard.removeEventListener('keydown', onCardKeydown);
@@ -426,6 +550,139 @@ async function loadCaptcha() {
   }
 }
 
+function clearResetTimer() {
+  if (resetTimer !== null) {
+    window.clearInterval(resetTimer);
+    resetTimer = null;
+  }
+}
+
+function startResetCountdown() {
+  clearResetTimer();
+  resetCountdown.value = 60;
+  resetTimer = window.setInterval(() => {
+    resetCountdown.value -= 1;
+    if (resetCountdown.value <= 0) clearResetTimer();
+  }, 1000);
+}
+
+async function loadResetCaptcha() {
+  resetLoading.value = true;
+  try {
+    const data = await api.fetchCaptcha();
+    resetCaptchaId.value = data.captchaId;
+    resetCaptchaImage.value = data.imageBase64;
+    resetCaptchaCode.value = '';
+  } catch (e) {
+    resetErr.value = e instanceof Error ? e.message : '验证码加载失败';
+  } finally {
+    resetLoading.value = false;
+  }
+}
+
+function openReset() {
+  resetErr.value = '';
+  resetPhone.value = phone.value;
+  resetSmsCode.value = '';
+  resetNewPassword.value = '';
+  resetConfirmPassword.value = '';
+  resetVisible.value = true;
+  void loadResetCaptcha();
+}
+
+function onResetPhoneInput() {
+  resetPhone.value = resetPhone.value.replaceAll(/\D/g, '');
+  resetErr.value = '';
+}
+
+async function onSendSms() {
+  resetErr.value = '';
+  const target = resetPhone.value.trim();
+  if (!/^1\d{10}$/.test(target)) {
+    resetErr.value = '请输入正确的11位手机号';
+    return;
+  }
+  if (!resetCaptchaCode.value.trim()) {
+    resetErr.value = '请先输入图形验证码';
+    return;
+  }
+  resetSending.value = true;
+  try {
+    await api.sendAdminSmsCode(target, {
+      captchaId: resetCaptchaId.value,
+      captchaCode: resetCaptchaCode.value.trim()
+    });
+    ElMessage.success('短信验证码已发送');
+    resetSmsCode.value = '';
+    // 图形验证码一次一用：发短信已消耗掉，必须换一张供提交重置使用
+    await loadResetCaptcha();
+    startResetCountdown();
+  } catch (e) {
+    resetErr.value = e instanceof Error ? e.message : '验证码发送失败';
+    await loadResetCaptcha();
+  } finally {
+    resetSending.value = false;
+  }
+}
+
+async function onSubmitReset() {
+  resetErr.value = '';
+  const target = resetPhone.value.trim();
+  if (!/^1\d{10}$/.test(target)) {
+    resetErr.value = '请输入正确的11位手机号';
+    return;
+  }
+  if (!resetSmsCode.value.trim()) {
+    resetErr.value = '请输入短信验证码';
+    return;
+  }
+  if (!resetCaptchaCode.value.trim()) {
+    resetErr.value = '请输入图形验证码';
+    return;
+  }
+  if (!/^(?=.*[A-Za-z])(?=.*\d).{6,64}$/.test(resetNewPassword.value)) {
+    resetErr.value = '新密码须6-64位且同时包含字母和数字';
+    return;
+  }
+  if (resetNewPassword.value !== resetConfirmPassword.value) {
+    resetErr.value = '两次输入的新密码不一致';
+    return;
+  }
+  resetSubmitting.value = true;
+  try {
+    await api.resetAdminPassword({
+      phoneNumber: target,
+      smsCode: resetSmsCode.value.trim(),
+      captchaId: resetCaptchaId.value,
+      captchaCode: resetCaptchaCode.value.trim(),
+      newPassword: resetNewPassword.value
+    });
+    ElMessage.success('密码已重置，请用新密码登录');
+    resetVisible.value = false;
+    phone.value = target;
+    password.value = '';
+    localStorage.removeItem(PW_STORE_KEY);
+    await loadCaptcha();
+    await nextTick();
+    focusPassword();
+  } catch (e) {
+    resetErr.value = e instanceof Error ? e.message : '重置密码失败';
+    await loadResetCaptcha();
+  } finally {
+    resetSubmitting.value = false;
+  }
+}
+
+function onResetClosed() {
+  clearResetTimer();
+  resetCountdown.value = 0;
+  resetSmsCode.value = '';
+  resetNewPassword.value = '';
+  resetConfirmPassword.value = '';
+  resetCaptchaCode.value = '';
+  resetErr.value = '';
+}
+
 onMounted(async () => {
   void brandStore.load();
   await loadCaptcha();
@@ -438,18 +695,17 @@ onMounted(async () => {
 });
 
 async function finishLogin(normalizedPhone: string) {
-  if (rememberPhone.value) {
+  if (rememberCredentials.value) {
     localStorage.setItem('admin_remember_phone', '1');
     localStorage.setItem('admin_phone', normalizedPhone);
+    if (password.value) {
+      localStorage.setItem(PW_FLAG_KEY, '1');
+      localStorage.setItem(PW_STORE_KEY, btoa(password.value));
+    }
   } else {
     localStorage.removeItem('admin_phone');
-    localStorage.setItem('admin_remember_phone', '0');
-  }
-  if (rememberPassword.value && password.value) {
-    localStorage.setItem(PW_FLAG_KEY, '1');
-    localStorage.setItem(PW_STORE_KEY, btoa(password.value));
-  } else {
     localStorage.removeItem(PW_STORE_KEY);
+    localStorage.setItem('admin_remember_phone', '0');
     localStorage.setItem(PW_FLAG_KEY, '0');
   }
   const home = resolveHomePath(auth);
@@ -845,7 +1101,9 @@ async function onSubmitTwoFactor() {
 .login-extras {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   margin-top: 12px;
   color: rgba(207, 250, 254, 0.72);
   text-shadow: 0 1px 8px rgba(2, 10, 14, 0.6);
@@ -880,6 +1138,12 @@ async function onSubmitTwoFactor() {
   color: #99f6e4;
   outline: none;
   text-decoration: underline;
+}
+.reset-tip {
+  margin: 0 0 16px;
+  font-size: var(--admin-font-size-table);
+  line-height: 1.5;
+  color: #64748b;
 }
 .hint {
   color: rgba(207, 250, 254, 0.6);

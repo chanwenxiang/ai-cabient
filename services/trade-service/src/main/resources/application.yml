@@ -90,6 +90,13 @@ aicabinet:
   security:
     mock-enabled: ${AICABINET_MOCK_ENABLED:true}
     captcha-enabled: ${AICABINET_CAPTCHA_ENABLED:true}
+  bootstrap:
+    ops-admin:
+      # 首次部署初始超管：仅当库中没有任何运营账号时创建并绑 admin 角色；
+      # 已有账号不改密码、不提升权限。密码只从环境变量读取，禁止写入仓库。
+      phone: ${AICABINET_OPS_ADMIN_PHONE:}
+      password: ${AICABINET_OPS_ADMIN_PASSWORD:}
+      name: ${AICABINET_OPS_ADMIN_NAME:cwx}
   amap:
     web-key: ${AMAP_WEB_KEY:}
   staging-mode: ${AICABINET_STAGING_MODE:false}

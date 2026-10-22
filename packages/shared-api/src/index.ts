@@ -208,6 +208,32 @@ export class ApiClient {
     );
   }
 
+  /** 运营后台忘记密码：发送短信验证码（须先过图形验证码）。 */
+  sendAdminSmsCode(phoneNumber: string, captcha: { captchaId: string; captchaCode: string }) {
+    const query = new URLSearchParams({
+      phoneNumber,
+      captchaId: captcha.captchaId,
+      captchaCode: captcha.captchaCode
+    });
+    return this.request<void>(
+      `/api/v2/auth/sms-code?${query.toString()}`,
+      'POST',
+      undefined,
+      false
+    );
+  }
+
+  /** 运营后台忘记密码：短信验证码 + 图形验证码重置密码。 */
+  resetAdminPassword(payload: {
+    phoneNumber: string;
+    smsCode: string;
+    captchaId: string;
+    captchaCode: string;
+    newPassword: string;
+  }) {
+    return this.request<void>('/api/v2/auth/admin-password-reset', 'POST', payload, false);
+  }
+
   merchantLogin(phone: string, password: string) {
     return this.request<LoginResponse>(
       '/api/v2/auth/merchant-password-login',

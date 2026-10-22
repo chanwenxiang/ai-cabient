@@ -27,6 +27,10 @@ services:
       AICABINET_STAGING_MODE: "true"
       AICABINET_MOCK_ENABLED: "false"
       AICABINET_SECURITY_MOCK_ENABLED: "false"
+      # 首次部署初始运营超管：库中没有任何运营账号时才创建；已有账号跳过（不改密码、不提权）
+      AICABINET_OPS_ADMIN_PHONE: ${AICABINET_OPS_ADMIN_PHONE:-}
+      AICABINET_OPS_ADMIN_PASSWORD: ${AICABINET_OPS_ADMIN_PASSWORD:-}
+      AICABINET_OPS_ADMIN_NAME: ${AICABINET_OPS_ADMIN_NAME:-cwx}
       CHECKOUT_BALANCE_ONLY: ${CHECKOUT_BALANCE_ONLY:-true}
       # 审计 P2-20：staging 是「接近 prod 的环境」，对账 mock 默认关（原默认 true 即模板教用户开 mock）；
       # 确需联调对账 mock 时在 .env.staging 显式打开
