@@ -95,7 +95,13 @@
               >×</text
             >
           </view>
-          <scroll-view scroll-x class="category-row" :show-scrollbar="false">
+          <!-- 2026-10-22 用户拍板：只有一个分类时「全部/分类名」是噪音，隐藏整行 -->
+          <scroll-view
+            v-if="productCategories.length > 1"
+            scroll-x
+            class="category-row"
+            :show-scrollbar="false"
+          >
             <view
               role="button"
               class="category-chip"
@@ -161,8 +167,43 @@
                 >
               </view>
               <text class="product-name">{{ p.skuName }}</text>
-              <text v-if="p.spec" class="product-spec">{{ p.spec }}</text>
-              <text class="product-price">{{ productPriceLabel(p) }}</text>
+              <!-- 规格去重（2026-10-22）：商品名本身含规格（如「…330ml」+ spec=330ml）时不再重复显示 -->
+              <text v-if="!specRedundant(p.skuName, p.spec)" class="product-spec">{{
+                p.spec
+              }}</text>
+              <!-- 2026-10-22 用户拍板：金额放加号旁 —— 卡片底部一行「价格靠左 + 步进器靠右」 -->
+              <view class="product-footer">
+                <text class="product-price">{{ productPriceLabel(p) }}</text>
+                <view
+                  v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
+                  class="product-stepper"
+                  :class="{ 'is-empty': selectedQty(p) <= 0 }"
+                  @click.stop="noop"
+                >
+                  <text
+                    v-if="selectedQty(p) > 0"
+                    class="stepper-btn minus"
+                    role="button"
+                    :aria-label="`减少 ${p.skuName}`"
+                    :data-testid="`product-step-minus-${p.skuId}`"
+                    :data-sku-id="p.skuId"
+                    @click.stop="onRemoveProductTap"
+                    >−</text
+                  >
+                  <text v-if="selectedQty(p) > 0" class="stepper-qty">{{ selectedQty(p) }}</text>
+                  <text
+                    class="stepper-btn plus"
+                    :class="{ disabled: !canAddProduct(p) }"
+                    role="button"
+                    :aria-disabled="!canAddProduct(p) ? 'true' : 'false'"
+                    :aria-label="`增加 ${p.skuName}`"
+                    :data-testid="`product-step-plus-${p.skuId}`"
+                    :data-sku-id="p.skuId"
+                    @click.stop="onAddProductTap"
+                    >+</text
+                  >
+                </view>
+              </view>
               <text
                 v-if="detailVisible"
                 role="button"
@@ -173,35 +214,6 @@
                 @click.stop="onProductDetailTap"
                 >详情</text
               >
-              <view
-                v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
-                class="product-stepper"
-                :class="{ 'is-empty': selectedQty(p) <= 0 }"
-                @click.stop="noop"
-              >
-                <text
-                  v-if="selectedQty(p) > 0"
-                  class="stepper-btn minus"
-                  role="button"
-                  :aria-label="`减少 ${p.skuName}`"
-                  :data-testid="`product-step-minus-${p.skuId}`"
-                  :data-sku-id="p.skuId"
-                  @click.stop="onRemoveProductTap"
-                  >−</text
-                >
-                <text v-if="selectedQty(p) > 0" class="stepper-qty">{{ selectedQty(p) }}</text>
-                <text
-                  class="stepper-btn plus"
-                  :class="{ disabled: !canAddProduct(p) }"
-                  role="button"
-                  :aria-disabled="!canAddProduct(p) ? 'true' : 'false'"
-                  :aria-label="`增加 ${p.skuName}`"
-                  :data-testid="`product-step-plus-${p.skuId}`"
-                  :data-sku-id="p.skuId"
-                  @click.stop="onAddProductTap"
-                  >+</text
-                >
-              </view>
             </view>
           </view>
         </view>
@@ -345,7 +357,7 @@
             <text class="detail-k">价格</text>
             <text class="detail-v">{{ productPriceLabel(detailProduct) }}</text>
           </view>
-          <view v-if="detailProduct.spec" class="detail-row">
+          <view v-if="!specRedundant(detailProduct.skuName, detailProduct.spec)" class="detail-row">
             <text class="detail-k">规格</text>
             <text class="detail-v">{{ detailProduct.spec }}</text>
           </view>
@@ -684,32 +696,13 @@ const sessionActive = computed(
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
 /*
- * 2026-10-21 用户拍板的底栏策略（替代旧「落地页永远沉浸」）：
- * - 从未开过门 ⇒ 落地页全屏沉浸、无底栏（对齐扫码开门竞品的首触体验）；
- * - 只要开过一次门（进入过开门流程）⇒ 底栏常驻，此后落地页也显示，
- *   结算完点「首页」tab 回落地页仍可去订单/我的，不会被憋在落地页。
- * storage 持久化：跨会话生效（老用户不再出现无底栏落地页）。
+ * 2026-10-22 用户拍板（替代 2026-10-21 的「开过门永久记忆」方案）：
+ * - 落地页（未扫码且未进入开门流程）⇒ **每次**都全屏沉浸、无底栏，
+ *   不区分首触/老用户，不做任何 storage 记忆——「开过门显示底栏」
+ *   只在单次购物流程（购物页）内成立，重新扫码进落地页即回到沉浸态；
+ * - 购物页（扫码后）⇒ 显示底栏，可自由切订单/我的。
+ * 旧实现（consumer_opened_once_v1 永久置位导致老用户落地页常驻底栏）已废弃删除。
  */
-const OPENED_ONCE_KEY = 'consumer_opened_once_v1';
-const hasOpenedOnce = ref(false);
-try {
-  hasOpenedOnce.value = uni.getStorageSync(OPENED_ONCE_KEY) === '1';
-} catch {
-  /* storage 不可用时退化为「未开过门」，仅影响首触沉浸判定 */
-}
-watch(
-  () => scanned.value || enteringFlow.value,
-  (v) => {
-    if (v && !hasOpenedOnce.value) {
-      hasOpenedOnce.value = true;
-      try {
-        uni.setStorageSync(OPENED_ONCE_KEY, '1');
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-);
 
 /*
  * F3 原生分享（竞品标配，本仓此前两端 0 命中）。
@@ -789,7 +782,8 @@ function showTabBarSafe() {
 }
 
 function syncLandingTabBar() {
-  const immersiveLanding = showLanding.value && !hasOpenedOnce.value;
+  // 2026-10-22 拍板：落地页一律沉浸（每次扫码进入都无底栏），不再区分开过门与否
+  const immersiveLanding = showLanding.value;
   if (immersiveLanding) {
     hideTabBarTries = 0;
     hideLandingTabBar();
@@ -805,7 +799,7 @@ function syncLandingTabBar() {
       });
     }
   } else {
-    // 开过门的用户：落地页也显示底栏（2026-10-21 用户拍板），可自由去订单/我的
+    // 购物页：显示底栏，可自由去订单/我的（落地页沉浸策略见上方 2026-10-22 注释）
     showTabBarSafe();
     applyTabBarSkin(showLanding.value);
     if (typeof uni.setBackgroundColor === 'function') {
@@ -1065,6 +1059,13 @@ onUnload(() => {
   stopRecognitionTimer();
   showTabBarSafe();
 });
+
+/** 规格去重（2026-10-22）：商品名本身已含规格串（忽略空格/大小写）⇒ 规格行不重复显示。 */
+function specRedundant(skuName: string, spec?: string | null): boolean {
+  if (!spec) return false;
+  const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+  return norm(skuName).includes(norm(spec));
+}
 
 function thumbTone(p: DeviceProduct) {
   const c = p.category || '';
@@ -2610,14 +2611,14 @@ function stopDevicePoll() {
   overflow: hidden;
   min-height: 58rpx;
   margin-top: 8rpx;
-  text-align: center;
+  text-align: left;
 }
 .product-spec {
   font-size: var(--font-size-xs);
   color: var(--text-secondary, #6b7280);
   line-height: 1.2;
   margin-top: 2rpx;
-  text-align: center;
+  text-align: left;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2626,8 +2627,17 @@ function stopDevicePoll() {
   font-size: var(--font-size-body);
   color: var(--brand, #0d9488);
   font-weight: 700;
-  margin-top: 6rpx;
-  text-align: center;
+}
+/*
+ * 2026-10-22 用户拍板：金额放加号旁 —— 卡片底部一行「价格靠左 + 步进器靠右」。
+ * min-height 与步进器等高，保证非购物态（无步进器）时各卡片价格基线对齐。
+ */
+.product-footer {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 10rpx;
+  min-height: 48rpx;
 }
 .product-detail-btn {
   margin: 6rpx auto 0;
@@ -2723,9 +2733,8 @@ function stopDevicePoll() {
 .product-stepper {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 10rpx;
-  min-height: 48rpx;
+  gap: 14rpx;
+  margin-left: auto;
 }
 .product-stepper.is-empty {
   justify-content: flex-end;
