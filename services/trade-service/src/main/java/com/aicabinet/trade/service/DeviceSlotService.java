@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -112,7 +113,22 @@ public class DeviceSlotService {
         Map<String, Integer> sellableBySku = inventoryLotService.deviceUsesLotLedger(deviceId)
                 ? inventoryLotService.sellableQtyBySku(deviceId)
                 : null;
-        List<DeviceInventoryDto> skuInventory = inventoryRepository.findByIdDeviceId(deviceId).stream()
+        // 商品管理下架（sku_catalog.status≠ACTIVE）只改商品档案，不级联清柜×商品台账行；
+        // 设备详情「已上架商品」若不过滤会把已下架 SKU 仍显示为在架（2026-10-22 用户反馈）。
+        // 口径与消费者目录一致（DeviceCatalogService 只认 ACTIVE）。
+        List<DeviceSkuInventory> inventoryRows = inventoryRepository.findByIdDeviceId(deviceId);
+        Set<String> inventorySkuIds = inventoryRows.stream()
+                .map(DeviceSkuInventory::getSkuId)
+                .collect(Collectors.toSet());
+        Set<String> activeSkuIds = inventorySkuIds.isEmpty() ? Set.of()
+                : skuCatalogRepository.selectList(
+                                Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, inventorySkuIds))
+                        .stream()
+                        .filter(s -> "ACTIVE".equals(s.getStatus()))
+                        .map(SkuCatalog::getSkuId)
+                        .collect(Collectors.toSet());
+        List<DeviceInventoryDto> skuInventory = inventoryRows.stream()
+                .filter(inv -> activeSkuIds.contains(inv.getSkuId()))
                 .map(inv -> toInventoryDto(inv, sellableBySku))
                 .toList();
         // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），

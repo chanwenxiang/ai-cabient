@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.domain.DeviceSlotId;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -177,6 +179,59 @@ class DeviceSlotServiceTest {
                 .filter(id -> id != null && !id.isBlank())
                 .collect(Collectors.toSet());
         assertTrue(assigned.isEmpty(), "missing catalog SKUs must not be written to device_slot");
+    }
+
+    /** 2026-10-22：商品管理下架（status≠ACTIVE）后，设备详情 skuInventory 不再返回该 SKU。 */
+    @Test
+    void getDeviceDetail_filtersDelistedSkuFromSkuInventory() {
+        DeviceSkuInventoryMapper inventoryRepository = org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class);
+        ShoppingSessionMapper shoppingSessionMapper = org.mockito.Mockito.mock(ShoppingSessionMapper.class);
+        ReplenishmentTaskMapper taskRepository = org.mockito.Mockito.mock(ReplenishmentTaskMapper.class);
+        CabinetOrderLineMapper orderLineRepository = org.mockito.Mockito.mock(CabinetOrderLineMapper.class);
+        InventoryLotService inventoryLotService = org.mockito.Mockito.mock(InventoryLotService.class);
+        DeviceSlotService svc = new DeviceSlotService(
+                slotRepository, lotRepository, deviceRepository, inventoryRepository, skuCatalogRepository,
+                null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
+                salesVelocityService, null, inventoryLotService, null, distributedLockService,
+                shoppingSessionMapper, orderLineRepository,
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId(DEVICE_ID);
+        when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
+        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of());
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of());
+        when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of());
+        when(taskRepository.findLastCompletedAtByDeviceId(DEVICE_ID)).thenReturn(Optional.empty());
+        when(shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(DEVICE_ID)).thenReturn(Optional.empty());
+        when(inventoryLotService.deviceUsesLotLedger(DEVICE_ID)).thenReturn(false);
+
+        DeviceSkuInventory activeRow = new DeviceSkuInventory();
+        activeRow.setDeviceId(DEVICE_ID);
+        activeRow.setSkuId("SKU-ACTIVE-001");
+        activeRow.setQuantity(3);
+        DeviceSkuInventory delistedRow = new DeviceSkuInventory();
+        delistedRow.setDeviceId(DEVICE_ID);
+        delistedRow.setSkuId("SKU-DELISTED-001");
+        delistedRow.setQuantity(5);
+        when(inventoryRepository.findByIdDeviceId(DEVICE_ID)).thenReturn(List.of(activeRow, delistedRow));
+
+        SkuCatalog activeSku = new SkuCatalog();
+        activeSku.setSkuId("SKU-ACTIVE-001");
+        activeSku.setStatus("ACTIVE");
+        SkuCatalog delistedSku = new SkuCatalog();
+        delistedSku.setSkuId("SKU-DELISTED-001");
+        delistedSku.setStatus("INACTIVE");
+        when(skuCatalogRepository.selectList(any())).thenReturn(List.of(activeSku, delistedSku));
+
+        var detail = svc.getDeviceDetail(1L, DEVICE_ID);
+
+        List<String> skuIds = detail.skuInventory().stream()
+                .map(com.aicabinet.common.dto.DeviceInventoryDto::skuId)
+                .toList();
+        assertTrue(skuIds.contains("SKU-ACTIVE-001"), "在售 SKU 应保留在设备详情");
+        assertFalse(skuIds.contains("SKU-DELISTED-001"), "已下架 SKU 不应出现在设备详情已上架列表");
     }
 
     private static DeviceSlot slot(String slotCode, String skuId, int maxLevel) {

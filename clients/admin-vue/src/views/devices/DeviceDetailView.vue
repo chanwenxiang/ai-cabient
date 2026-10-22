@@ -1414,8 +1414,14 @@ const invMode = ref<'create' | 'edit'>('create');
 const invSaving = ref(false);
 const invForm = reactive({ skuId: '', quantity: 0, capacity: 0, lowThreshold: 2 });
 
+// 上架候选=未在架的在售商品；已下架（status≠ACTIVE）的 SKU 不允许上架到柜机，
+// 与后端设备详情过滤口径一致（2026-10-22：商品管理下架后不应再出现在上架弹窗）
 const availableSkus = computed(() =>
-  skus.value.filter((k) => !skuInventory.value.some((i) => i.skuId === k.skuId))
+  skus.value.filter(
+    (k) =>
+      (k.status == null || k.status === 'ACTIVE') &&
+      !skuInventory.value.some((i) => i.skuId === k.skuId)
+  )
 );
 
 function openInvCreate() {
