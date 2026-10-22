@@ -27,7 +27,7 @@
 |---|---|---|---|
 | A 设备面 HTTP（V16 §4.2，不含 §4.2.1 说明节与 §4.2.2 出向） | **17** | **17** | **0** |
 | A′ 设备面 HTTP（固件实测有、§4.2 没有 ⇒ 我方补） | 45 条已观测 | 我方共 **46** 具体路径 | 见 §G-7（§G-3 三档回执 2026-10-21 已落码） |
-| B WS 下行（V16 §4.3.2.1–17） | **17** | **6** 个 msgType（+1 共用字面量） | **10 未发**（§G-10） |
+| B WS 下行（V16 §4.3.2.1–17） | **17** | **7** 个 msgType（+1 共用字面量；2026-10-22 18:0x 纠正：旧记 6 漏了 `getDeviceInfo`） | **9 未发**（§G-10） |
 | C WS 上行（V16 §4.3.1 只定义 heartBeat） | **1** | 我方处理 **5** 类 | 0（未知上行走 `JIANGYI_WS_MSG_UNHANDLED` WARN 台账，§G-8 已落码） |
 | D 出向 `/merchant/`、`/platform/`（V1.13 + V16 §5.4） | V1.13 **34** 条唯一路径 | 我方 **16** 条（V1.13 内 14 + V16 `setDomain`/`confirmActivate`） | **20 条未接**（§G-5） |
 | E V16 §5.2 独有入向 3 条 | 3 | 0 | ⛔ 选型一致（§G-12） |
@@ -97,7 +97,7 @@
 | `deviceInfo/getFaceModelConfig` / `getDeivceFrameRate` | catch-all | ⛔ 未实测⇒一律 404（不回 200 空值伪装「配置就是空」） |
 | `replenishmentHistoryBatch/uploadOpenMsg` / `replenishmentHistoryVideo/create` | catch-all | ⛔ 桩掉可接受（少一路厂商补货历史） |
 | `deviceInfo/downloadBaseModelNotify` / `downloadBigModelNotify` / `downloadThirdModelNotify` | `DeviceInfoController.java:125-129`（与 §4.2.5 同一 handler） | ✅ **2026-10-21 落码**（原为 catch-all 404）：固件三档模型回执各一条独立路径（log4 行 24231/30621/17847，body 与 §4.2.5 逐字同形 `{identifier,modelName}`）。三档语义**未向厂商核实⇒不区分处理**，错档回执由 trade `confirmModel` 的 modelName 匹配（不匹配 409）挡住，不会伪造 CONFIRMED。判据待真机：开机一轮 4 条 notify 全 200（§G-3） |
-| `pokerOrder/getChessRoomOpenStatus` | catch-all ⇒ **404** | ❌ 真机每 20s 一次（10-20 15:44 起）。语义/云侧响应**未取证**⇒ 禁止照抄猜值；见 §G-7 |
+| `pokerOrder/getChessRoomOpenStatus` | catch-all ⇒ **404** | ❌ 🔴 **2026-10-22 18:0x 按 nginx 逐秒重算，旧记「真机每 20s 一次固定轮询」作废**：真机共 **98** 次 okhttp 命中，形态是**事件触发的 burst**（每组 3–6 条、间隔 1–2s，10-22 散布在 03:43/04:44/06:02/06:26/07:03/07:50/08:07/08:30/09:42 UTC；**09:42:06 那条正落在网关 17:38 重建后设备重连的同一秒**）⇒ 触发点像「连上门/状态变化」而非定时器。🔴 **且这 98 次里 401=70、404=28，同一次 burst 内两种码并存**（如 08:30:55–57 三 401 + 一 404）⇒ 该路径有**两个带不同凭据的调用点**，401 那条带的不是我方签发（或缺失）的 token；**它是全表唯一长期吃 401 的路径**（其他路径的 401 全集中在 10-19 无 token 期）⇒ **即便补了 200 路由，3/4 的调用仍然进不来**。语义/云侧响应**未取证**⇒ 禁止照抄猜值；见 §G-7 |
 
 > ⚠️ `DeviceUnknownPathController` 的类注释仍把 `domainConfig/*` 列为「不接管」，与 `DomainConfigController` 已实装相矛盾（显式映射优先于 catch-all，行为正确、注释陈旧）⇒ 顺手项，不紧急。
 
@@ -124,7 +124,7 @@
 | §4.3.2.10 灯带控制 | `sendDeviceLightStripFlag` | v16:2356-2357 | — | ❌ 未接（可选，柜无灯带需求） |
 | §4.3.2.11 拉取视频 | `sendUploadErrorOrderVideos` | v16:2390-2391 | `DeviceCommandController.java:105` | ✅ 2026-10-20 上线。🔴 **文档示例 `msgContent:"24005355433545_MSG"` 带 `_MSG` 后缀，固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件⇒不带后缀才对**（§H-6）。上游同字面回传=二义（重传请求 or 无文件），我方**只记日志绝不重发**（`DeviceWebSocketHandler.java:176`） |
 | §4.3.2.12 获取门磁状态 | `getDoorState` | v16:2433-2434 | — | ❌ 未接（现场巡检有用，P2） |
-| §4.3.2.13 获取设备基本信息 | `getDeviceInfo`（文档 OCR 作 `getDevicelnfo`） | v16:2468-2469 | — | ❌ 未接（同上） |
+| §4.3.2.13 获取设备基本信息 | `getDeviceInfo`（文档 OCR 作 `getDevicelnfo`） | v16:2468-2469 | `DeviceCommandController.java:76`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/device-info`） | ✅ **已实现，🔴 但真机从未点过**（2026-10-22 18:0x 复核纠正本表旧记「❌ 未接」——该行漏读了上面这个文件:行；代码自 2026-10-15 `167f51d7` 就在）。回执是 HTTP 上行 §4.2.15 `deviceInfo/getDeviceSimInfo`，同样 **0 命中** ⇒ 判据见 §9B R2 |
 | §4.3.2.14 检查在线状态 | `sendQueryNetwork` | v16:2515-2516 | — | ❌ 未接（现用 WS 会话存活判在线，够用） |
 | §4.3.2.15 连接 Wi-Fi | `sendChangeWifiCommand` | v16:2552-2553 | — | ❌ 未接⇒**换场地配网只能现场手工**（§G-10） |
 | §4.3.2.16 声音开关 | `sendDeviceSoundSwitch`（`"0"`/`"1"`） | v16:2613-2614 | `DeviceCommandController.java:58` | ✅ |
@@ -215,18 +215,173 @@
 | **G-4** | §4.2.5 的 `data` 语义仍是黑盒（**观察项，不是偏离**） | 我方回 `data:"0"` 是**逐字照抄文档 json 示例**（v16:789；同节说明栏却写「数据 对象」，v16:783-786 自相矛盾⇒照抄示例，见 §H-11）。log4 行 11436 邻域云侧有一次回 `[{barCode,textName,bgType}]`，但**归属证据只是同 PID + 0.27s 的「上报成功」行、不是同行 URL 绑定**⇒按取证铁律记「未实锤」，且现在更倾向它不属于 §4.2.5 | 柜连我方后若出现「回执 200 但设备本地 class 表空」，再回来质疑这一格 | 观察（G-1 达成后自然有读数）；厂商问题清单可挂一句「§4.2.5 的 data 商户端到底该回什么」 |
 | **G-5** | **V1.13 §4.3.3–4.3.14 采集编排 12 条全无** | 「上架厂商库里没有的商品」这条业务路径**我方无法驱动**——只能求厂商或走人工。我方在售 11 SKU 全是全国流通品，所以**今天不卡**，扩品必卡 | `gather/*` 页能走完 新增→开门→采集→完成批次→上传 五步 | **待拍板**：先问厂商「采集流程是否由柜机 APK 自己完成、我方只需 `commitTraining`」（logcat 里 `selfhelpGatherProduct` **0 命中**，但从未跑过采集，不能据此断言）⇒ 判据=真跑一次采集看 nginx 有无这些路径 |
 | **G-6** | **采集开门经将邑云，而柜 WS 已指我方** | `JiangyiGatherService.startGather`（`:70-88`）→ `gatherOpenDoor`（`JiangyiGatherClient.java:138`）打到厂商云；厂商若要开这台柜的门，得走它自己的 WS 会话——**它已经没有了**（设备 `COMMON_URL` 与 prefs `socketurl` 都是我方）⇒ 采集开门可能**结构性打不开门** | 真点一次 `gather/start`，看柜是否开门 + 我方 nginx 是否收到 `device/uploadDoorState` | **我方**（若开门不到，改法=我方 `sendOpenStockDoor` 顶替，属设计变更需拍板）。⚠️ 顺带：`waitGatherProduct`（`JiangyiGatherClient.java:130`）无调用方=死代码 |
-| **G-7** | **`pokerOrder/getChessRoomOpenStatus` 每 20s 404** | 真机自 10-20 15:44 起的固定轮询（body `{identifier}`）。语义未知⇒每次 404 走设备失败分支，日志噪音 + 设备侧可能有重试/告警副作用 | 🔴 **2026-10-22 新证据：契约不用问厂商，我方自己那个安装包里就有**（`.tmp/jadxtool/smali/.../control/DealStringMsg.smali` + `DealStringMsg$9.smali`）：`getLockState()`/`getLockStateOther()` POST `{identifier}`；回调成功判据是**字面量含 `"status":200`** → 解 `BaseEntity` → `getData()` 字符串 **`equals("open")`** → `OpenLockStateRecord.writeLockState(Z)`。⚠️ **但真/假两条分支随后都调 `DealStringMsg->openLock()`**（`:goto_35` / `:cond_3b`）⇒ 我方回 `open` 还是回 `closed` 都会触发一次开锁动作，差别只在是否写那条本地记录——**这正是不能顺手回个 200 的原因**。仍未取证：404 时 okhttp 走 `onError` 还是 `onFailed`（决定「补 200」到底改变了什么） | **维持 404 + WARN 台账**（禁照抄猜值）。要接必须先满足其一：① 厂商一句话给语义；② 可控实测看 404→200 后设备行为是否变化。厂商催办清单里此项**优先级低于上电** |
+| **G-7** | **`pokerOrder/getChessRoomOpenStatus` 真机 98 次命中全失败（70×401 + 28×404）** | 触发形态见 §3 A′ 同路径行（🔴 旧记「每 20s 固定轮询」已按 nginx 逐秒重算作废；实为事件触发的 3–6 条 burst）。语义未知⇒每次都走设备失败分支，日志噪音 + 设备侧可能有重试/告警副作用。🔴 **新增硬事实：401 占 70/98 ⇒ 光补路由不够，还得先定「另一条腿带的是什么 token」**（判据见 §9B R7） | 🔴 **2026-10-22 新证据：契约不用问厂商，我方自己那个安装包里就有**（`.tmp/jadxtool/smali/.../control/DealStringMsg.smali` + `DealStringMsg$9.smali`）：`getLockState()`/`getLockStateOther()` POST `{identifier}`；回调成功判据是**字面量含 `"status":200`** → 解 `BaseEntity` → `getData()` 字符串 **`equals("open")`** → `OpenLockStateRecord.writeLockState(Z)`。⚠️ **但真/假两条分支随后都调 `DealStringMsg->openLock()`**（`:goto_35` / `:cond_3b`）⇒ 我方回 `open` 还是回 `closed` 都会触发一次开锁动作，差别只在是否写那条本地记录——**这正是不能顺手回个 200 的原因**。仍未取证：404 时 okhttp 走 `onError` 还是 `onFailed`（决定「补 200」到底改变了什么） | **维持 404 + WARN 台账**（禁照抄猜值）。要接必须先满足其一：① 厂商一句话给语义；② 可控实测看 404→200 后设备行为是否变化。厂商催办清单里此项**优先级低于上电** |
 | **G-8** | ~~WS 未知上行静默~~ → **已落码**（2026-10-21 23:15，`DeviceWebSocketHandler.java:186`） | 原状：HTTP 缺口有 `JIANGYI_PATH_UNIMPLEMENTED` WARN 台账，WS 缺口是 `log.debug` ⇒ 生产 INFO 阈值下**等于静默丢帧**。现改 `JIANGYI_WS_MSG_UNHANDLED` WARN（带 msgType + 原文），仍**不当事务数据**处理（铁律不变） | 真机连上后台账出现真实未处理 msgType（预期候选：`sendDeviceDomainSure` 5-6 次、`sendDeviceUsedStatusSure` 3 次、`uploadLogSure` 2-4 次、`rebootSure` 2 次——log2/3/4 tally） | **已完成**（+2 单测：两条未知帧各产生一条 WARN、心跳不得产生 WARN）。⚠️ 台账量级安全：这些都是**每条下行一次**的回执，不是周期帧；唯一的周期帧 heartBeat（1119 次/份日志）已单独处理 |
 | **G-9** | ~~§5.5.3 `getStdSkuQueryByTextNames` 未用~~ → **✅ 2026-10-22 已接入（只读展示）** | 原状：`class-mappings` 挂接全靠**人工核对 `classId↔textName↔SKU`**（textName 是 `kkkl_xb_qsnmw_pttz_330ml` 这种拼音缩写串，人读不动） | 🔴 **拍板口径（用户 2026-10-22）：只作显示/辅助人工挂接，绝不写 `sku_id`**——§5.5.3 回的是**厂商标准商品**，不是我方 SKU；自动挂等于把「厂商认为这是什么」当成「这个柜按哪个价结算」，挂错即错扣款（与「结算绿须端侧挣得」同源） | 落码四处：`JiangyiGatherClient.stdSkuByTextNames`（:106，字段按**真机回包**取 `stdSkuId/stdSkuName/textName/barCode/classId`，文档 json 示例写的 `stdSkuld`/`name` 是错的 → H-17）；`JiangyiModelSyncService.decodeVendorSkuByClasses`（:125，**只读**）；`GET /devices/{id}/jiangyi/class-decode`（`AdminJiangyiController.java:355`，`ops:device:list`）；后台设备卡「查厂商商品对照（只读）」。**两个设计点**：① 合并键用 `textName` **不是** `classId`——该页有 classIdBase 旋钮，按 classId 合并在拨到 1 时整表错行且看不出来，厂商 classId 原样回显成 `vendorClassId` 让冲突肉眼可见；② 回包**稀疏**（69 行只回 67 行）⇒ 未解析行显式显示「厂商库无对应」，不拿别的行凑 | **我方**（已完成，23/23 单测含新增 7 条） |
 | **G-14** | 🔴 **「必须让厂商把模型挂到租户 426」是我方自己加的门槛** | 复核依据（逐字）：① V16 §4.3.2.9 `updateModel` 的 `msgContent` 只有 `{quantity, modelUrl, textUrl, modelName}`——**全是 URL/字符串，协议层没有任何"模型须登记在租户名下"的要求**；② V16 §5.5.3 的入参就是**裸 `modelTextUrl` 字符串** ⇒ 厂商自己把 classes 当成"任意可传的地址"；③ 我方网关内部 `POST /internal/v1/jiangyi/devices/{id}/model-push` 收的正是显式 URL（`ModelPushRequest`），**不查 §4.4.4、不下 classes**。⇒ 把链堵死的是 `JiangyiModelSyncService.requireModel` 只认 §4.4.4（`[]` ⇒ 404），不是厂商侧的配置缺失 | ✅ **2026-10-22 已落码**（原建议「后台加显式入口」）：`POST /api/v2/ops/admin/devices/{id}/jiangyi/model-sync-explicit` 与 `.../model-push-explicit`，载荷 = §4.3.2.9 四字段（modelName/modelUrl/textUrl/quantity），**不再调 `requireModel`**；仍保留 BOUND + 机型已登记 + 无未决 SENT + classes 过 SSRF 白名单 + 行数==quantity，映射照旧落 `MODEL_SYNC`/`DISABLED` 需人工激活。✅ **2026-10-22 07:15 本地 dev 栈已重建生效**（`/v3/api-docs` paths=666、两条 explicit 在列、启动 0 ERROR；今晚柜测走 vicp 隧道⇒本地栈，这条已够用），✅ **07:2x 生产 trade-service 已部署 9935133d**（健康检查 40s 内 healthy）。判据 = 柜在线时 `jiangyi_model_deployment` 走 SENT→CONFIRMED（现值 **0 行**⇒我方从未发过模型，这是上电后第一个动作）。⚠️ 待发载荷已从本柜旧 logcat 逐字取到（→ G-15），厂商那句机型问法**不再需要**。 | **我方** |
 | **G-15** | 🔴 **覆盖雪碧的商品模型已到手，零厂商依赖**（2026-10-22 00:4x 从真机旧 logcat 挖出） | `.tmp/log4.txt` 里 09-28 / 10-08 的三条 `updateModel` 载荷给出 `modelUrl`+`textUrl`+`quantity`，全部在同一个公共 dev 桶：`hysxr20260930120329732_20260930120413844_3_50_3576.rknn`(69 类) 与 `ZQ_hysxr…_3_50_3576.rknn`(65 类)。实测：三个 `.rknn` HEAD 仍 **200**；classes 行数与 `quantity` 逐字相等（69/65）；§5.5.3 解出 **67 / 63 行**（64 / 60 行带 `barCode`），`classId` 范围 0~68 / 0~64 ⇒ **0-based 行号在 69 行真文件上再次自证**；🔴 **雪碧 = `stdSkuId 1018 / 6954767430386 / textName kkkl_xb_qsnmw_pttz_330ml`，在 65 类模型是 classId 25、在 69 类模型是 classId 29** ⇒ 结算链的输入端不再缺东西 | 判据（柜上电后）：网关 `ws downstream updateModel` → §4.2.5 `downloadModelNotify` 回同 modelName → 真取一瓶雪碧 → `jiangyi_recognition_report` 出现 classId=29（或 25）→ `cabinet_order_line` 有真实单价×数量 ⇒ **第一条非 0 结算绿**。⚠️ **边界**：这批是**别的商户训练**的模型（`hysxr`/`ZQ_` 前缀），只作链路验证；上线仍须厂商把我方在售商品训进 426 的模型。⚠️ 文件名是 **rk3576**，与本柜 10-21 登记的 `industrial_control_model='88'` 冲突 ⇒ ✅ **2026-10-22 已按实据把该柜登记值改为 '76'**（用户拍板；`JIANGYI_GATEWAY_DESIGN.md` §7.6 同步改判）。⚠️ 仍未实测：这台柜的工控机**加载** 76 模型从未观察过，首推若无 `downloadModelNotify` 先怀疑取值。 | **我方**（下发）+ **厂商**（上线用模型须训进 426） |
 | **G-16** | 🔴 **「按地址生成对照」会把唯一可结算的映射行打成不可用，且批量激活救不回来** | 源码逐行实证：`writePregenerated` 无条件 `setStatus("DISABLED")`（`JiangyiModelSyncService.java:142`），而 `upsert` 按 `UNIQUE(device_id, class_id)` 覆盖并**保留原 `source`**（`JiangyiClassMappingMapper.java:49`，本柜 classId 29 那行是 `MANUAL`+`ACTIVE`+sku 100013）⇒ 生成 69 行会把这行改成 `MANUAL`+`DISABLED`；「批量激活」条件要求 `source='MODEL_SYNC'`（同文件 :77）**命中不到它**，只能在识别映射页单条重新启用。识别解析只按 `deviceId+classId+ACTIVE` 点查（:15-19），一旦 DISABLED 就 fail-closed 转 DISPUTED | 判据：柜上电后**先只点「按地址发到柜机」**（`pushModelByUrl` 仅做行数校验、不写映射表，`JiangyiModelSyncService.java:181-190`）→ 拿到第一条非 0 结算绿；确需铺 69 行对照时，生成后**必须回识别映射页单条启用 classId 29** | 我方（操作顺序，非代码缺陷；若要改代码需先拍板「预生成是否该保留已激活行」） |
-| **G-10** | **WS 下行 10 条未发**：`reboot`、`closeDoor`、`getDoorState`、`getDeviceInfo`、`sendQueryNetwork`、`sendChangeWifiCommand`、`sendDeviceLightStripFlag`、`openDoubleDoor`、`sendForceOpenDoubleDoor`、`sendOpenStockDoubleDoor` | 后 3 条单门柜**不需要**（⛔ 与选型一致）；前 7 条的代价=**现场运维全靠人手**（重启靠合闸、配网靠现场、门磁/设备信息查不到） | 按运维需求逐条开；优先 `reboot` + `getDoorState`/`getDeviceInfo`（排障最有用） | **待拍板**（不阻塞上线） |
+| **G-10** | **WS 下行 9 条未发**：`reboot`、`closeDoor`、`getDoorState`、`sendQueryNetwork`、`sendChangeWifiCommand`、`sendDeviceLightStripFlag`、`openDoubleDoor`、`sendForceOpenDoubleDoor`、`sendOpenStockDoubleDoor`（🔴 2026-10-22 18:0x 纠正：旧列 10 条里的 `getDeviceInfo` **早已实现**（`DeviceCommandController.java:76`，自 `167f51d7`），只是真机没点过 ⇒ 属「未测」不属「未接」，见 §9B R2） | 后 3 条单门柜**不需要**（⛔ 与选型一致）；前 6 条的代价=**现场运维全靠人手**（重启靠合闸、配网靠现场、门磁查不到） | 按运维需求逐条开；优先 `reboot` + `getDoorState`（排障最有用；`getDeviceInfo` 从本行剔除，它只差一次点击） | **待拍板**（不阻塞上线）。⚠️ 与 G-10 并列的**真缺口是「已实现未实测」**五条：`sendOpenStockDoor`、`updateModel`、`getDeviceInfo`、`sendDeviceSoundSwitch`、`sendDeviceSoundVolume`（真机 downstream tally 只有 heartBeat/openDoor/sendUploadErrorOrderVideos）⇒ 全部排进 §9B R2–R4 |
 | **G-11** | `waitGatherProduct` 死方法 | 无功能后果；误导后续读者以为采集链已通 | 删除或接进 G-5 流程 | 我方（顺手） |
 | **G-12** | §5.4.x / §5.2.x **不接** | **不是缺口**。⛔ 模式一下订单不落将邑云；§5.2.14 是免鉴权写路径。**别当新缺口重提**（出处：`docs/JIANGYI_GATEWAY_DESIGN.md` §5 与 E-2 台账） | — | — |
 | **G-13** | 非接口前置：**prod 库空 + 缺商户云凭据** | `jiangyi_device=0`、`merchant=0`；prod `.env.production` 的 `JIANGYI_MERCHANT_MOBILE/_PASSWORD` 长度 0 ⇒ 即使柜连上，prod 也拿不到登记与 `login2` 能力 | 运营台建商户+柜机、SN 登记并激活到 BOUND（判据=库里 status 字面量）+ 补两条凭据并重启 trade | **运营/运维**（顺序铁律：登记→激活→setDomain 不可颠倒） |
 
-**一句话回答「对接还差什么」（2026-10-22 07:3x 订正，覆盖此前所有版本）**：文档第四章设备面 17 条 HTTP **一条不缺**；代码侧也已无卡点——②「缺覆盖在售商品的 modelUrl/classes」2026-10-22 00:4x 从本柜旧 logcat 到手（65/69 类商品模型，§5.5.3 解出**雪碧 = classId 25 / 29**，→ G-15），③ 三条模型回执变体已落码**且生产 `jiangyi-gateway` 已单独重建到 HEAD（2026-10-22 07:33，启动 0 ERROR）**——deploy-prod.sh 刻意只重建 trade-service，这条属脚本范围外、已人工补上；⑤ §5.5.3 官方解码器**已接入并只读落地（2026-10-22 09:2x，→ G-9）**：后台设备卡多一个「查厂商商品对照（只读）」，把 `textName` 拼音串翻成厂商品名+69 码并列出本平台同条码候选，**不写 `sku_id`**（拍板：自动挂=错扣款）。**真正还差的只剩三条**：① **柜没上电**（库里 `last_ws_online_at=2026-10-21 18:14` 北京时间，端到端 0 次；这条我方做不了）；② **我方一次模型都没发过**（`jiangyi_model_deployment=0 行`，显式下发入口已上线生效 → G-14），上电后第一个动作就是点「按地址发到柜机」；③ **首推若失败先怀疑 76/rk3576 从未实测**（→ H-10、G-15 边界），别判「通道不通」。另有操作顺序坑 **G-16**：别先点「生成对照」，它会把唯一可结算的 classId 29 行打成 DISABLED 且批量激活救不回来。自采自训 12 条（G-5）与 `getChessRoomOpenStatus`（G-7）不阻塞今晚；§5.4/§5.2/双门是**拍板不接**，不是忘。
+**一句话回答「对接还差什么」（2026-10-22 07:3x 订正，覆盖此前所有版本）**：文档第四章设备面 17 条 HTTP **一条不缺**；代码侧也已无卡点——②「缺覆盖在售商品的 modelUrl/classes」2026-10-22 00:4x 从本柜旧 logcat 到手（65/69 类商品模型，§5.5.3 解出**雪碧 = classId 25 / 29**，→ G-15），③ 三条模型回执变体已落码**且生产 `jiangyi-gateway` 已单独重建到 HEAD（2026-10-22 07:33，启动 0 ERROR）**——deploy-prod.sh 刻意只重建 trade-service，这条属脚本范围外、已人工补上；⑤ §5.5.3 官方解码器**已接入并只读落地（2026-10-22 09:2x，→ G-9）**：后台设备卡多一个「查厂商商品对照（只读）」，把 `textName` 拼音串翻成厂商品名+69 码并列出本平台同条码候选，**不写 `sku_id`**（拍板：自动挂=错扣款）。**真正还差的只剩三条**：① **柜没上电**（库里 `last_ws_online_at=2026-10-21 18:14` 北京时间，端到端 0 次；这条我方做不了）；② **我方一次模型都没发过**（`jiangyi_model_deployment=0 行`，显式下发入口已上线生效 → G-14），上电后第一个动作就是点「按地址发到柜机」；③ **首推若失败先怀疑 76/rk3576 从未实测**（→ H-10、G-15 边界），别判「通道不通」。另有操作顺序坑 **G-16**：别先点「生成对照」，它会把唯一可结算的 classId 29 行打成 DISABLED 且批量激活救不回来。**上面这些「差什么」怎么一次性验完，见 §9B 的七轮测试流程（R0–R7，含每轮判据与互斥表）。**自采自训 12 条（G-5）与 `getChessRoomOpenStatus`（G-7）不阻塞今晚；§5.4/§5.2/双门是**拍板不接**，不是忘。
+
+---
+
+## 9B｜未实测接口的测试流程（2026-10-22 18:0x 设计；R0–R7 逐轮跑，一轮填一行结果）
+
+**为什么按「轮」排而不是按「接口」排**：设备面一条路径能不能被走到，取决于**柜机此刻在哪个流程**（开机 / 营业开门 / 补货开门 / 采集），不取决于我方代码写没写。⇒ 轮次=设备状态机里的位置，接口挂在轮次上，一轮只能解锁一批。本节把 §9 的「待真机」和 §2/§3 的 44 条 0 命中路径一次性分进七个可执行轮次。
+
+🔴 **小节编号=R 编号（便于回查），不等于执行顺序**；真正跑的次序只看 §9B.10 那张表（`R0 → R2 → R1 → R6 → R4 → R5 → R3 → 结算复跑 → R7 另议`）。两者刻意不同：R2 零成本先白拿，R1 可能改档位要尽早，R3 有覆盖模型的风险所以压到最后。
+
+### 9B.0 判据口径（每轮通用，跑之前先读）
+
+| 要判什么 | 唯一可信取法 | 会骗人的取法 |
+|---|---|---|
+| 「设备打到过这条 HTTP」 | `docker logs ai-cabinet-gateway-1` 里 **UA=`okhttp/4.9.3`** + 状态码 200，按路径计数（nginx 全史自 10-19 起在这一个容器里） | 我方 curl 探测恒 401（已两次污染计数）；应用日志同字面须先看 remote 是不是 172.18.0.x；🔴 **401 不能判路由存在与否**——`DeviceAuthInterceptor` 盖整个 `/jiangyi/api/**`，实现与未实现都回 401 |
+| 「这行代码在跑着的容器里」 | `docker cp ai-cabinet-jiangyi-gateway-1:/app/app.jar` + 扫 class 常量池字面量（`.tmp/jar-class-grep.mjs`） | alpine JRE **无 unzip**⇒容器内解压探测恒假阴性；源码里有≠容器里有 |
+| 「下行指令真发出去了」 | 网关 `ws downstream … payload` 里的 `msgType` 字面量（`send()` 返回 false 会 503，不会静默） | 后台点了按钮就认为设备收到 |
+| 缺口有没有新面孔 | `JIANGYI_PATH_UNIMPLEMENTED`（HTTP）/ `JIANGYI_WS_MSG_UNHANDLED`（WS，心跳不进台账） | — |
+| 「设备侧报 5xx/4xx 是不是设备的锅」 | **先对齐我方栈的动作时间轴**：10-22 16:26:39–49 `device/pokerOrderVideo/uploadVideoUrl` 被真机打了 **15 次全 503**、16:33:42 起恢复 200 ⇒ 那段是我方侧的窗口，不是设备故障。顺带实测到固件的重试节奏=**10 秒内 15 次后退避** | 直接把 5xx 记成设备侧异常；把 burst 当周期轮询（`getChessRoomOpenStatus` 就是这么被我写错的，见 §3 A′） |
+
+🔴 **凭据分档（18:0x 新出的一条判据）**：同一秒的同一次 burst 里可以既有 401 又有 404（`getChessRoomOpenStatus` 70:28）⇒ **设备对不同调用点带不同 token**。所以「设备连上了」不等于「所有设备调用都带得上有效凭据」；某条路径**长期吃 401** 时，先查凭据来源再补路由，否则补了也只救 1/4。
+
+**现场互斥铁律**（撞了本轮就白跑）：两次开门间隔 **≥10s**（固件 `uploadErrorJY` 自带 10 秒节流）；补货开门窗口与采集模式都会把消费者购物 **409** 冻住（`REPLENISHMENT_IN_PROGRESS` / `gather_locked_at`）；🔴 **取证期间绝不重建网关容器**（容器日志随容器一起删）；视频迟到 31s～2min，判「视频缺失」要等 ≥40s 再查库；结算绿只能由设备侧链路挣得。
+
+### 9B.1 基线（2026-10-22 18:0x 实测重算，覆盖此前所有计数）
+
+| 面 | 实测数 | 取法 |
+|---|---|---|
+| 设备面注册的 `/jiangyi/api/**` 字面 | **59** 种拼写（含双前缀别名；与总账「46 具体路径」不矛盾，那是去重后的路径数） | `grep -rh '"/jiangyi/api/…"' services/jiangyi-gateway/src/main/java` |
+| 真机 `okhttp` 命中 | **16** 条 | 同上 UA 过滤，`sort -u` |
+| 注册但真机 **0 命中** | **44** 条 ⇒ 逐条清单 `.tmp/never-hit.txt`，本节轮次就是把它们分进能到达的流程 | `comm -23` |
+| WS 下行我方**会发** | **7** 个 msgType：`openDoor` / `sendOpenStockDoor` / `updateModel` / `sendUploadErrorOrderVideos` / `getDeviceInfo` / `sendDeviceSoundSwitch` / `sendDeviceSoundVolume` | gateway 源码 `send(` 调用点 |
+| WS 下行真机**实际发过** | **3** 种：回 `heartBeat` PONG 1084、`openDoor` 11、`sendUploadErrorOrderVideos` 6（两个日志窗口 tally 一致） | `.tmp/round-20261022/gateway.log` |
+| 出向 D 面 | `jiangyi_training_ticket` **0 行** ⇒ 采集/学习 8 条从未真跑；`jiangyi_model_deployment` **0 行** ⇒ 模型下行从未真发；`jiangyi_recognition_report` 1 行（17:02:59 FORWARDED） | dev 库 |
+
+⇒ 🔴 **结论：真正的空白不是「没实现」，是「实现了但一次没点过」**——`sendOpenStockDoor`、`updateModel`、`getDeviceInfo`、音量两条，全部排进 R2–R4。
+
+### 9B.2 R0｜前置对账（我方，10 分钟，不开门）
+
+| 步 | 做什么 | 判据 / 动作 |
+|---|---|---|
+| ① 在线 | `SELECT status,last_ws_online_at FROM jiangyi_device` | `BOUND` + 近 5 分钟；nginx 心跳在打。不在线 ⇒ 本轮作废，先合闸（G-1） |
+| ② **token 寿命** | 设备 token TTL=`aicabinet.jiangyi.token-ttl-seconds:604800`=**7 天**（`DeviceTokenService.java:44`），现 token 签于 10-20 ⇒ **约 10-27 到期** | 🔴 R1 若排在 10-27 之后，判据要换成「设备重新 `token/openDoorDeviceStatus` 拿到新 token」——**换新与沿用都算通过，别判故障** |
+| ③ 映射行 | `jiangyi_class_mapping` 该柜 `class_id=29 → sku_id=100013 ACTIVE` | 缺行 ⇒ R3 后复跑的结算必 fail-closed |
+| ④ 账面库存 | `device_sku_inventory` 该柜该 SKU | 🔴 须 ≥ 设备可能上报的最大件数：无 lot 柜 `applyDelta` **扣成负数即抛 409**，而 412/409 会毒化共享事务（H-22④）。账面是手写值非盘点 ⇒ 放货后进场肉眼核对 |
+| ⑤ **当前模型留档**（R3 的回滚依据） | 抓 `deviceInfo/receiveCurrentTxtUrl` 上行原文（柜自报的 classes URL/modelName） | 落 `.tmp/round-…/current-model.txt`。R3 会覆盖它 ⇒ 没留档就别点 R3 |
+| ⑥ 栈选择 | 本轮全走**本地 vicp 隧道栈**（`ai-cabinet-jiangyi-gateway-1` :8083 + nginx :80） | 🔴 **不在生产上点 R3/R5**（生产 `.env.production` 的 `JIANGYI_MERCHANT_MOBILE/_PASSWORD` 长度 0，D 面出向必失败；G-13） |
+| ⑦ UI 无按钮的入口 | `POST /api/v2/ops/admin/devices/{id}/jiangyi/device-info` **只有 API、后台没有按钮**（已核 `DeviceJiangyiCard.vue` 无引用） | 用 `.tmp/admin-session-probe.mjs` 同型脚本登录拿 ops Bearer 后直接 fetch（运营登录要图形验证码，验证码值在 redis 里读）；**要不要补按钮另拍板** |
+
+### 9B.3 R1｜断电重启恢复（现场拔合闸 + 我方观察 ~20 分钟）
+
+**目的**：换域交接是 10-20 靠 offnet WS 推送完成的，**重启后能不能自己回来从未验证**（现 token 有效到 10-27，正好盖住）。顺带解锁开机簇 5 条 0 命中路径。
+
+涉及接口（照抄拼写）：`domainConfig/getConfigDomainByIdentifier`、`domainConfig/getConfigStatusByIdentifier`、`domainConfig/getConfigSocketUrlByIdentifier`（我方自钉，A′ 表，真机 0 命中）；`token/openDoorDeviceStatus`、`deviceInfo/getDetail`（已命中，重启后再验）；**`tenant/getDeviceBasicConfig`（0 命中；10-19 云侧 log3 是每次开机 ~9 次）**；`deviceInfo/downloadBaseModelNotify` / `downloadBigModelNotify` / `downloadThirdModelNotify`（G-3 三条分档回执，落码后待真机）。
+
+步骤：① 现场拔电 60s 再合闸 → ② 我方按 9B.0 口径盯 nginx okhttp 计数 + 网关 `ws … 101` → ③ 等一轮完整开机（≤3 分钟）。
+
+判据（三档，**缺一档就是一条新发现，如实记**）：
+1. **活着回来**：nginx 有 `token/openDoorDeviceStatus` 200(okhttp) + 网关 `onlineDevices=1` + 心跳恢复 ⇒ 「换域后重启要不要人工介入」闭合。
+2. **开机配置簇**：`tenant/getDeviceBasicConfig` 是否出现。🔴 **若出现，我方回的 `dictValue:"NORMAL"` 会被固件写进 `Constans.M_NAME`**（覆盖逻辑见 §3 A′ 与 `getDeviceBasicConfig` 注释）⇒ 这**不只是连通性测试，可能改变设备侧协议档位**（XY/YP/NORMAL 三态正是当前悬案 H-19）。所以 **R1 必须排在 R3/R5 之前，且 R1 结束后立刻复跑一次购物结算轮**，确认 #90 那条绿没被档位变化打断。
+3. **判别副产物**（两种结果都要接受，别预设）：重启后若出现 `floor/getFloorByDevice` 或**裸** `/jiangyi/api/pokerOrder/uploadOrderError`（无 `/device`）⇒ 与 `M_NAME=NORMAL` 一致；仍只出 `/device/pokerOrder/uploadOrderError` ⇒ 与 `∉{NORMAL, NO_NET}` 一致。
+4. 分档回执：开机一轮 `download*ModelNotify` 四条全 200 ⇒ G-3 真机判据达成（§G-3 遗留的「三档语义未确认」不因这条改变，我方仍不区分处理）。
+5. **凭据重启效应**（顺手测，零成本）：重启后按 9B.0 口径数一遍 `getChessRoomOpenStatus` 的 401/404 比例。🔴 若 401 **消失**（全部变 404）⇒ 那 70 次带的是**旧会话残留 token**，重连即愈，G-7 只剩路由问题；若仍 401/404 并存 ⇒ 设备确实有两个凭据来源（厂商 token 残留于 prefs），**G-7 的补 200 方案直接减半**，必须先问厂商。取数：`docker logs ai-cabinet-gateway-1 | grep okhttp | grep getChessRoomOpenStatus`，按 `" 401 "`/`" 404 "` 分列计数。
+
+失败分叉：设备没回来 ⇒ 先看它有没有拉 `domainConfig/*`（我方回的是自己的 base）；拉了却仍连厂商 ⇒ 拍板 A 的自钉失效，属**设计缺陷**，登记在 G-13 旁边；压根没拉且没连 ⇒ 回落分支（拉取失败时设备用什么）第一次暴露真值，这是文档和反编译都没答的那题。
+
+### 9B.4 R2｜三条零风险下行（我方点 + 现场听，5 分钟）
+
+**目的**：把「已实现、不改设备状态、从没点过」的三条一次清账。
+
+| 步 | 谁做 | 操作（入口） | 涉及接口 | 判据 |
+|---|---|---|---|---|
+| ① 静音 | 我方 | 设备详情将邑卡片「设备控制（信号/音量）」→ 音量设置关（`PUT /devices/{id}/jiangyi/sound` `switchOn:false`） | WS §4.3.2.16 `sendDeviceSoundSwitch` `msgContent:"0"` | 网关 `ws downstream … sendDeviceSoundSwitch` + **现场听** |
+| ② 开声 | 我方 | 同上 `switchOn:true` | 同上 `"1"` | 现场恢复出声 |
+| ③ 音量三档 | 我方 | volume 依次 `0`/`1`/`2`（大/中/小） | WS §4.3.2.17 `sendDeviceSoundVolume` | 现场三档可分辨。⚠️ **音量两条无文档回执⇒本表唯一「人耳判据」**，务必留现场人 |
+| ④ 拉设备信息 | 我方 | `POST /devices/{id}/jiangyi/device-info`（🔴 **无 UI 按钮**，走 R0⑦ 的 fetch） | WS §4.3.2.13 `getDeviceInfo` → 上行 HTTP §4.2.15 `deviceInfo/getDeviceSimInfo` | nginx 出现 `deviceInfo/getDeviceSimInfo` **200(okhttp)**（这条现在 0 命中）+ 后台「信号强度」由 `未上报` 变 `N/4`（`GET …/signal` 非 null `reportedAt`） |
+
+副作用已知（别互相误判）：固件音量帧走 `AudioManager.setStreamVolume`、**会解除静音**（`DeviceCommandController.java:62` 注释）⇒ 顺序必须①→②→③，**不要在静音状态下发音量帧**，否则会把「静音成功」判成失败。
+
+### 9B.5 R3｜商品模型下行（我方，15 分钟 + 一次结算复跑；🔴 有覆盖柜上模型的回归风险 ⇒ **实际执行放在 R1/R4/R5/R6 之后**，见 §9B.10）
+
+涉及接口：WS §4.3.2.9 `updateModel`（四字段 `{quantity,modelUrl,textUrl,modelName}`）；HTTP 回执 §4.2.5 `deviceInfo/downloadModelNotify`（+三条分档变体）；WS 上行 `updateModelSure`（兜底通道）。出向 §4.4.4 `modelFile/getModelFileByApi` 本轮**刻意绕开**（租户 426 仍回 `[]`），走 #78 的显式 URL 入口。
+
+载荷（G-15，已从本柜旧 logcat 逐字取到）：69 类 `hysxr20260930120329732_20260930120413844_3_50_3576.rknn` + 同名 `_3.txt`，`quantity=69`，雪碧=**classId 29**。入口=后台「按地址发到柜机」= `POST /devices/{id}/jiangyi/model-push-explicit`。
+
+🔴 **顺序坑 G-16，动手前必读**：**只点「按地址发到柜机」**（`pushModelByUrl` 仅做行数校验、不写映射表，`JiangyiModelSyncService.java:181-190`）；**别点「生成对照」**——`writePregenerated` 无条件 `setStatus("DISABLED")`（`:142`）且 `upsert` 保留原 `source`（`JiangyiClassMappingMapper.java:49`），会把唯一可结算的 classId 29 行打成 `MANUAL`+`DISABLED`，而「批量激活」只认 `source='MODEL_SYNC'`（`:77`）**救不回来**，只能在识别映射页单条重新启用。确需铺 69 行对照 ⇒ 生成后**回识别映射页单条启用 classId 29**，再复跑结算轮。
+
+判据链（**全绿才算通**，断在哪一环就归因到哪一环）：
+网关 `ws downstream … updateModel` → `jiangyi_model_deployment` 该行 **SENT**（`sent_at` 有值）→ nginx `deviceInfo/downloadModelNotify` **200(okhttp)** 且 body `modelName` 与发出**逐字相同** → 该行 **CONFIRMED**（`confirmed_at`）→ **复跑一次购物结算轮**：`jiangyi_recognition_report` 出现第二条 `outcome=FORWARDED`、`recognition_result` 含 `100013×1`、订单 **PAID 350**、会话 COMPLETED。
+
+分叉归因：① 有 downstream 无 notify ⇒ **先怀疑 76/rk3576 与模型编译目标不匹配**（H-10；本柜登记值已按实据改 `'76'`，但**这台工控机加载 76 模型从未观察过**），别判「通道不通」；② HTTP 无回执但 WS 回了 `updateModelSure` ⇒ 走的是兜底分支（`DeviceWebSocketHandler.java:145`），主通道另有问题；③ 停 SENT 到 push-timeout ⇒ 记下 `fail_reason` 原文，先查厂商是否代下了分档模型（台账里会先照出 `update*ModelSure`）。
+回滚：若复跑结算轮转 DISPUTED，立刻用 R0⑤ 留档的 modelName/URL 走同一入口推回。
+
+### 9B.6 R4｜补货开门 + 补货表下行（我方 + 现场，20 分钟；期间购物 409）
+
+涉及接口：WS §4.3.2.4 `sendOpenStockDoor`（`msgContent`=补货会话 id ≡ 补货单号）+ 上行 `sendOpenStockDoorSure`；HTTP `floor/getFloorByDevice`（裸 + `/device` 双拼写）；`floor/getDeviceSellProductClassIds`（已命中，本轮验**内容随映射行变化**）；`replenishmentHistoryBatch/uploadOpenMsg`、`replenishmentHistoryVideo/create`（当前 catch-all **404**，本轮看设备会不会打——打了就是新增缺口台账）。
+
+步骤：① 后台补货页**新建补货任务**，在**任务行**上点「开门」（🔴 开门按钮只挂在任务行；页面顶部那个「补货调度/补货开门」跳的是路线规划页，点不出开门）⇒ `POST /api/v2/ops/restock/open-door`（`useReplenishmentTaskActions.ts:141`）；② 现场拉门、按补货流程放/取货；③ 关闭补货会话；④ 退出后确认购物面恢复（点一次消费者开门不被 409）。
+
+判据：网关 `ws downstream … sendOpenStockDoor`；`sendOpenStockDoorSure` 回来 ⇒ **撤销 OPEN 15s 超时登记**（`DeviceWebSocketHandler.java:133-135`）；nginx 出现补货会话的 `device/uploadDoorState`；🔴 **`floor/getFloorByDevice` 是否第一次出现**（两种拼写都算）；补货表内容 = `jiangyi_class_mapping` 里满足四条件的行（ACTIVE + class_id 非空 + sku_id 非空 + SKU ACTIVE，`JiangyiFloorGoodsService.listFloorGoods`）。
+
+🔴 **两种结果都要接受，0 命中不等于我方有漏**：`GetReplenishGoodsInfo` 在 `M_NAME ∈ {XY,YP,NO_NET}` 时**不发 HTTP、直接回调 "suc"** ⇒ 若 R1 已证档位仍非 NORMAL 而本轮无 `getFloorByDevice`，判定=「设备档位决定、我方无从触发」，处置是挂厂商问题清单（挨着问题 18），**不是**漏接。
+成功判据的硬细节：设备用**字符串包含 `"status":200`**（`contains`，不解析 JSON）判成功 ⇒ 序列化不能带空格；我方 `ok()` 形态满足，人工核对时从 `docker logs` 抓响应原文。
+顺带清账：门磁面（§4.2.16 `deviceInfo/getDoorInfo`，0 命中）**本轮也测不到**——它由 WS 下行 `getDoorState` 触发，而那条我方未实现（G-10）⇒ 门磁只剩「换固件/厂商」两条路，如实记「不可自测」。
+
+### 9B.7 R5｜自采自训端到端（我方 + 🔴 厂商商户 App 账号，半天；采集期间购物 409）
+
+涉及接口（出向 V1.13，本轮全部是**第一次真跑**）：§4.2.3 `selfhelpGatherProduct/gatherOpenDoor`、§4.2.4 `doorStatus`、§4.2.2/§4.3.2 `waitGatherProduct`（🔴 现为**死代码、无调用方**，G-11）、§4.4.6 `gatherCheck`、§4.4.2 `product/getPageData`、§4.4.3 `commitTrainingTenantOne`、§4.4.5 `studyingProduct`、§4.1.2 `stdSku/getList`、§4.1.4 `productCategory/getTopList`、§4.1.5 `product/create`；入向：§4.4.3 回调 `POST /jiangyi/api/gather-finish-notify`（`GatherNotifyController.java:36`）。
+
+🔴 **三条结构性前置，先解决再排期**：
+1. **G-6**：采集开门 `gatherOpenDoor` 打的是**厂商云**，而柜 WS 已指我方 ⇒ 厂商侧对这台柜**没有会话**，采集开门可能**结构性打不开门**。判据=点了「进入采集模式」后柜门开不开 + 我方 nginx 有没有对应 `device/uploadDoorState`。不到门的处置=我方 `sendOpenStockDoor` 顶替（**属设计变更，需拍板**）。
+2. **拍照采集的操作在将邑商户 App 里完成**（后台卡片提示语原文，我方无采集 UI）⇒ 必须有**厂商商户 App 账号**，这是本轮唯一对外依赖，先要。
+3. **G-5**：V1.13 §4.3.3–4.3.14 十二条编排 API 我方 **0 实现** ⇒ 若 App 流程要求我方驱动，本轮会当场卡住——**那正是 G-5 的判据**（看厂商云/我方 nginx 是否留下这些路径的痕迹），卡住就是结论，不是白跑。
+
+步骤：① 选一个**厂商库里没有**的商品做样本（先按 H-13 用 `barCode` **精确查**确认不在厂商库，别拿列表长度当结论；真商品只有雪碧，所以用测试 SKU 100011 或新建一条）→ ② 后台「进入采集模式」（`POST …/jiangyi/gather/start`，置 `gather_locked_at`）→ ③ 现场确认门 → ④ 用厂商 App 采集 **200 张/商品**（🔴 H-12：**200 不是 2000**）→ ⑤ `GET …/gather/progress` 轮询（内部串 `doorStatus` + `studyingProduct` + `gatherCheck(null)`）→ ⑥ 「触发学习」（`POST …/gather/training`）→ ⑦ 等 `gather-finish-notify` → ⑧ **「退出采集模式（恢复营业）」必须点**，否则购物一直 409。
+
+判据：`jiangyi_training_ticket` 由 **0 行**变 ≥1 行且 PENDING→FINISHED；`GET /api/v2/ops/admin/jiangyi/gather-check` 回包含该商品；🔴 学习完成后 §4.4.4 `modelFile/getModelFileByApi` **由 `[]` 变成有货**——这条是 G-2 厂商侧卡点的真解，也是 R3 之后模型链的**正式来源**（借别商户模型只算验链路）；防伪验证顺手做一次：用错的 `finishNotifyId` curl 一次回调，判据=只 `log.warn("…dropped…")`、单行状态不变（`JiangyiGatherService.java:151-156`）。
+
+已知坑（跑前照抄）：`gatherCheck` 必须发 `productIds:null`，传 `[]` 被厂商 MyBatis 拼非法 SQL 回 555；`commitTrainingTenantOne` 的 `finishNotifyUrl` **不能带 token**（我方传 `publicBaseUrl + /jiangyi/api/gather-finish-notify`）⇒ 公网面须可达且免鉴权，本地靠 vicp 隧道演，生产要核 `JIANGYI_PUBLIC_BASE_URL`。
+
+### 9B.8 R6｜只读对照与商品维护面（我方，30 分钟，不开门）
+
+| 步 | 接口 | 判据 / 口径 |
+|---|---|---|
+| 厂商对照只读 | `GET /devices/{id}/jiangyi/class-decode`（V16 §5.5.3 `stdSku/getStdSkuQueryByTextNames`；UI「查厂商商品对照（只读）」） | 真回 **67/69 行**、`vendorClassId` 原样回显（`classIdBase` 拨到 1 时错行必须肉眼可见）；未解析行显式「厂商库无对应」（回包稀疏，H-15）。🔴 **前后各 `SELECT` 一次 `sku_jiangyi_link`，必须逐字一致**——拍板口径：只读接口绝不写 `sku_id`（自动挂=错扣款） |
+| 挂接与 textName 回填 | `GET/PUT /skus/{skuId}/jiangyi-link`、`POST …/create`、`POST …/pull-text-name` | `pull-text-name` 判据（10-22 收紧后）：**条码精确相等且 textName 唯一**才回填；多条不同 ⇒ **409 列候选**；空 ⇒ 404 且**不清值**（`.tmp/probe-stdsku.mjs` 可复跑对照） |
+| 商品/类目字典 | `GET /jiangyi/std-skus`、`/jiangyi/product-categories` | 🔴 判「在不在厂商库」**只能带 `barCode` 精确查**（H-13：无分页参数、空查回 20 条是**服务端截断**，实 ≥4000） |
+| **未实现两条** | V1.13 §4.1.6 `merchant/product/delete`、§4.1.7 `product/updateMainImg` | **测不了我方代码，只测后果**：后台改一条在售 SKU 主图 / 删一条已挂接 SKU，然后**用厂商账号看他们云上是否残留脏商品、是否还是旧图**。后果确认后再拍板要不要接（别先写代码）。依赖厂商账号 |
+
+### 9B.9 R7｜刻意 404 的行为对照（需拍板或厂商，🔴 不排进本轮）
+
+对象：`pokerOrder/getChessRoomOpenStatus`（真机 **98 次 okhttp 命中、0 次成功：70×401 + 28×404**，形态=事件触发的 3–6 条 burst，非固定轮询——详见 §3 A′ 同路径行）、`feature/getFeatureByDevice`、`deviceApp/updateAppVersion*`（G-7 + 拍板 B）。
+
+为什么**不能顺手补 200**（逐字实证）：回调成功判据是字面 `"status":200` → `data` **`equals("open")`** → `OpenLockStateRecord.writeLockState`，而 🔴 **真/假两条分支随后都调 `DealStringMsg->openLock()`**（`:goto_35`/`:cond_3b`）⇒ 我方回 `open` 还是 `closed` **都会触发一次开锁**，差别只在要不要写那条本地记录。
+🔴 **第一道闸不是路由，是凭据**：这条路径真机 98 次里 **401=70**，且同一次 burst 内 401/404 并存（§3 A′ 同路径行）⇒ 设备有两个带不同凭据的调用点，**补了 200 也只对那 28 次有效**。R7 步骤 0=先定「401 那条带的是什么」：抓一次 burst 的 `Authorization` 原文（nginx 不记头，须在网关侧临时开 `logging.level.org.springframework.web=DEBUG` 或对 `/jiangyi/api/**` 前加一个只记头指纹的 filter——**属代码改动，需拍板**），与我方 `DeviceTokenService` 签发值比对。
+⇒ R7 的形态=**可控实测 + 人工盯门锁**：同一次只切 404→200 一个变量，观察柜是否多开一次锁；先取证「404 时 okhttp 走 `onError` 还是 `onFailed`」（这条决定补 200 到底改变了什么，仍未取证）。这是七轮里唯一**测它本身有物理副作用**的，绝不与别的轮次混跑；厂商一句话可替代实测。
+
+### 9B.10 排期、互斥与耗时
+
+| 轮 | 时长 | 需现场 | 需厂商 | 冻结购物 | 风险 |
+|---|---|---|---|---|---|
+| R0 | 10min | — | — | 否 | 无 |
+| R2 | 5min | 听声音 | — | 否 | 无（唯一人耳判据） |
+| R1 | 20min | 拔/合闸 | — | 否 | 🔴 **可能改 `M_NAME` 档位** ⇒ 必须紧跟一次结算复跑 |
+| R6 | 30min | — | （delete 后果要账号） | 否 | 无 |
+| R4 | 20min | 拉门/放货 | — | 🔴 是 | 低 |
+| R5 | 半天 | 放样本、拉门 | 🔴 商户 App 账号 + 云侧审核 | 🔴 是 | 中（G-6 可能打不开门） |
+| R3 | 15min + 复跑 | 取一瓶 | — | 否 | 🔴 覆盖柜上模型 ⇒ **排在 R1/R4/R5/R6 之后** |
+| R7 | 待拍板 | 🔴 盯锁 | 建议要厂商 | 否 | 🔴 会开锁，单跑 |
+
+**建议顺序**：`R0 → R2 → R1 →（结算复跑）→ R6 → R4 → R5 → R3 →（结算复跑）→ R7 另议`。
+依据：把「可能改变设备档位」的 R1 放前面，让后面每轮都在**已知的 M_NAME** 下跑；把唯一有覆盖副作用的 R3 放最后，前面各轮跑完才看得出它改变了什么。
+
+### 9B.11 每轮结果怎么落（不留聊天里）
+
+跑完把 §9 对应行的「待真机」改成「实测」，并在此表追加一行：`轮次 | 时间 | PASS/PART/FAIL | 证据（nginx 行原文 / SQL 结果 / 日志事件名）| 新发现的判据`。🔴 0 命中的路径**保留在 `.tmp/never-hit.txt` 口径**（该文件是 gitignore 的本机证据，把结论抄进本表才是入库），别因为「这轮没打到」就把接口从表里删行——删行=下一个人重新猜一遍。
 
 ---
 
@@ -243,6 +398,8 @@
 | H-19 | 早班「20 次 `/device/pokerOrder/uploadOrderError` ⇒ `M_NAME=YP`（唯一解）」 | 该 `/device` 路径有**六处**站点会发（`UploadInfo2Server.uploadErrorOther:1247`、`CameraPreviewNew:7184`、`OrderRknnResultDeal:2999`、`UploadIdentifyResult:57095`、`UploadLocalOrder:759`、`UploadInfo2ServerStock:1316`），六处逐个读了门都是 `equals(NORMAL)` 为真即 `return-void` ⇒ 只证到 **`≠NORMAL`**；`OkhttpUtils.postRequest`/`postRequest_json` **只对 `NO_NET` 短路**（`:759-774` 等四处），不拦 XY，而 XY 下这些站点照样发 | 真机那 20 次的 body 无法二分：`uploadErrorOther` 的 HashMap 键就叫 `errorMsg`/`errorDetailMessage`，与 `ErrorOrderEntity` 同名，我方日志只落这两个字段、没存原文 | 定档结论一律写 **`M_NAME ∉ {NORMAL, NO_NET}`，XY/YP 未分**；下次开机的判别探针＝**裸 `/pokerOrder/uploadOrderError` 若与 `/device` 那条成对出现 ⇒ 定 YP 且证明 COMMON_URL 落我方域**（`uploadError` 在 YP 腿会连发 JY+Other 两条，XY 在 `:cond_85` 就跳走了）。对 #90 无影响：`uploadBuyGoodsInfo2Server:645`（XY→`:cond_3f`、YP→`:cond_3f`、NO_NET→`:goto_3f`）三档同处置＝`dealNormalOrder` 只发 AIDL、零 HTTP |
 | H-20 | 10-22 14:41:51 与 14:42:36 两次真机开门＝判据 **C 命中，A/B/D 全未检验** | 设备侧（UA `okhttp`）14:41–14:43 窗口只打了 8 条：`tenant/getOrderRecheckProduct`×2、`floor/getDeviceSellProductClassIds`×2（我方回 `classIds=[29]`）、`device/uploadLockState`×2、`device/uploadDoorState`×2、`device/pokerOrder/uploadOrderError`×2、`device/pokerOrderVideo/uploadVideoUrl`×1、`aliYunOss/getTempUploadToken`×1 ⇒ **`orderProduct/addRecognitionGoodsToOrder`（A）与 `pokerOrderProduct/addProductsToOrder`（B）两条腿 0 命中**，`jiangyi_recognition_report` 仍 **0 行**，`device_sku_inventory` 仍 1（未扣款，符合 fail-closed） | 🔴 **本轮没有「识别成功」样本**：两次都是设备主动转人工（14:42:09 `errorMsg=再次确认`，成因 **`幻影放回抑制链冲突转人工:T2 kkkl_xb_qsnmw_pttz_330ml(OUT计费与被抑制IN同链不可分)`**＋cam=1 调光未确认；14:42:54 `errorMsg=人工复核`，成因两摄 `开门后调光未确认:reason=settle_budget`）⇒ 既没证成 AIDL 档（D），也没暴露「第四档 ⇒ 我方缺 `addProductsToOrder` 路由」（B）。我在 14:37 把 D 写成「最可能」属**无成功样本时的外推**，本轮不改变「XY / YP / 第四档」三态未分 | ①潜伏缺口如实登记、**不提前实现**：`addProductsToOrder` 固件有两处字面——`UploadInfo2Server:349`（`COMMON_URL`+裸串，JY 腿在 `M_NAME≠NORMAL` 时改走它）与 `:625`（`URL`+`/device` 串，且受 `IS_OPEN_DOOR_ALAWYS` 开关），我方**均未注册**，真打到就是 401/404，责任在我方缺路由（payload 未文档化，等实路径出现再补）；②下轮要拿的判别样本＝**一次干净的取货**（只拿一瓶、手不碰其它货道、不放回、取完即关门），若出现 `addRecognitionGoodsToOrder` ⇒ 第四档、补路由即可通；若仍零上行 ⇒ 才轮到 AIDL 档成立 |
 | H-21 | 10-22 14:53:05 一次「干净取货」＝**又落 `uploadOrderError`（判据 C），但设备自报成因被现场协议消掉两条** | 会话 `1792651983860343089366` DISPUTED、不扣款，`fail_reason` 尾部原文 `人工复核｜开门后调光未确认:cam=1,reason=settle_budget；原图证据不足，保留复核` ⇒ **14:42 的 `幻影放回抑制链冲突` 与 11:43 的 `副键弱证据换类（魔爪/雪碧）` 本轮均未复现**（膜已撕、柜内 3 瓶、另开一次门只取一瓶、不举到镜头前、取完即关门）；`addRecognitionGoodsToOrder`/`addProductsToOrder` 仍 **0 命中**、`jiangyi_recognition_report` 仍 **0 行**、`device_sku_inventory` 仍 3、视频 14:53:47 迟到 31 秒才落 `jiangyi_order_video` | 🔴 **#90 剩下的唯一设备侧闸＝`cam=1 reason=settle_budget`「开门后调光未确认」**，与商品/保护膜/开门时长/动作序列全无关（#92 已证 39.2s 也不消），我方无旋钮 ⇒ 只能厂商解释或修。另：网关日志 `addRecognitionGoodsToOrder` 那 4 条命中全是本人 14:26 的 `curl` 探针（`outcome=missing_token remote=172.18.0.12`＋401） | ①现场协议**已验证有效**，后续取证一律按「放/取分两次开门、只取一瓶、不放回、取完即关门」；②判「设备打到过某端点」**只认 nginx 台账 `UA=okhttp/4.9.3`**，应用日志同字面须先看 remote；③判「视频缺失」要等 ≥40 秒再查库 |
+| H-22 | 本表 H-20/H-21 的「识别成功零上行 / 唯一闸＝`cam=1 reason=settle_budget` 只能厂商」 | H-21 判「取货轮剩下的唯一设备侧闸是 cam=1 调光未确认，我方零旋钮」 | 🔴🔴 **10-22 17:02:59 全链真绿，两条定性一并作废**：会话 `1792659768034787655997` 17:02:48 开门→17:02:59 关门，nginx（UA `okhttp/4.9.3`，全 200）出现 `orderProduct/addRecognitionGoodsToOrder` 与 `aliYunOss/getTempUploadToken`，**整轮 `uploadOrderError` 0 条**；网关 `recognition forwarded … items=1 outcome=PROCESSED`、`jiangyi_recognition_report` report_id=2 **`FORWARDED`**、`recognition_result` = `[{100013×1,conf 1.0}]` `model_version=jiangyi:CQYB10720`、订单 `1792659779535535992400` **PAID 350 分**、会话 **COMPLETED**、该会话 `ops_exception` **0 行**、trade-service 自 17:02 起 **0 ERROR**。「调光未确认」这轮**一次都没出现**——用户在 16:2x 现场调整了摄像头与门锁，并说明**门锁此前只锁了一半** ⇒ 那道闸是**门未合拢**（采集窗口状态机不闭），不是厂商旋钮。附带：`/jiangyi/api/order/uploadOrderCloseStatus` 被真机打到 **404**（body `doorCloseStatus=…`，已知未注册路由，非设备故障） | ①**再遇「调光未确认/证据不足」类成因，先查门锁到底、镜头对齐，再谈厂商**；②`M_NAME` 档位判废重核：成功腿走的是 `orderProduct/addRecognitionGoodsToOrder` **裸拼写**（按固件 `:349` 那是 NORMAL 档特征），与 H-19 降级后的 `YP` 结论冲突 ⇒ 要定档**先问厂商他们云上当前 M_NAME**，别再从 nginx 反推；③`recognition_result.fusion_mode` 恒 `VISION` 是 `RecognitionResultWriter.java:135` 给所有入口写死的标签，**不代表我方视觉链跑过**，别误读成造假；④16:36 那单丢单是我方 **412 不足额毒化共享事务**（F1-B 的 `noRollbackFor` 只盖 `BalanceInsufficientException`），已按争议结案 CONFIRM 收口，代码修复待拍板 |
+| H-23 | 「关门反馈」三条通道分开判（真机 2026-10-22 + 固件 `control/lock/tool/UpDoorState`） | §4.2.8 只写「上报用户**拉门**状态」（`doorStatus=success/fail`），第四章**没有**关门回执端点；§4.2.16 列了可选门磁 `deviceInfo/getDoorInfo` | ①`uploadDoorState` 真机**每轮只发 1 次＝OPEN**（nginx 全史 32 条，无一轮有第二条）；网关日志里的 `door-event CLOSED` 是**我方在识别上报到达时合成的**（`DeviceReportController:508-512`），不是设备反馈；②设备**确实有关门上行** `order/uploadOrderCloseStatus`（全史 3 次：16:23/16:36/17:02，body `doorCloseStatus=yes, lockStatus=success`）⇒ 此前我方 **404 未注册**；③门磁 `getDoorInfo` 全史 **0 命中**（设备从不发） | 🔴 该回执**不能当门锁到位判据**：16:19 那轮设备自报「开门时间过长」，4 分钟后仍回 `doorCloseStatus=yes`；固件 `UpDoorState.persistPhysicallyClosedReceipts` 更把 `doorCloseStatus` 写死 `"yes"`，且 `uploadCloseDoorState` 那段在 `M_NAME ∈ {XY,YP,NO_NET}` 时整段跳过（`:395-430`），活体字段（`lockStatus`）与 563 smali（`doorStatus`）已不一致 ⇒ 语义只能问厂商。10-22 17:3x 已把该端点注册为**只审计 200**（`order`/`pokerOrder` × 裸/`/device` 四拼写，收原始 Map 全量入日志，**不接状态机**），单测 137/0、IT 23/0，容器 17:38 重建已生效；另：`shopping_session.close_time` **不可当关门证据**（9 轮全有值，被 6 处非门径写） |
 | H-6 | §4.3.2.11 拉取视频示例 | `msgContent:"24005355433545_MSG"` | 固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件 ⇒ **不带 `_MSG`** | 我方透传会话 id，不加后缀 |
 | H-7 | V1.13 §4.4.4.4 `industrialControlModel` | 中文说明也叫「模型类型」 | 厂商后台弹窗里对得上商户 API 的是**「工控型号」**那栏；「模型类型」是另一档（大模型/基础模型/商品模型，**商户 API 无对应字段**） | 校验只做字符串相等、不解释语义；默认登记 `88`（2026-10-10 拍板） |
 | H-8 | V16 第四章 vs 第五章 | 两章各有一套 §x.2 设备面 | **入向面逐条完全一致**，第五章只多 3 条（§G-12）；`domainConfig/*` 两条都**没有**（固件自用未文档化面） | 以第四章为契约，`domainConfig` 走自钉 |
@@ -258,6 +415,7 @@
 
 ## 11. I｜本表怎么复核出来的（含被抓到的错）
 
+- **2026-10-22 18:0x 为设计 §9B 测试流程而做的一次重算**（口径：`grep -rh '"/jiangyi/api/…"'` 注册字面 59 → nginx `UA=okhttp/4.9.3` 命中 16 → `comm -23` 得 0 命中 44；WS 下行按 `send(` 调用点得 7 个 msgType，按 `.tmp/round-20261022/gateway.log` 的 `ws downstream` payload  tally 得实际只发过 3 种）。**抓到我自己昨日落表时的两处错**：① §4.3.2.13 `getDeviceInfo` 记成「❌ 未接」，实际 `DeviceCommandController.java:76` 自 2026-10-15 `167f51d7` 就实现了（同文件上下两行的音量两条我都引对了，唯独漏了它）⇒ 总账 B「6 个 msgType / 10 未发」订正为 **7 / 9**，G-10 同步改；② 我把「已实现未实测」和「未实现」混在同一列里，导致 §9 看上去缺口比实际少——**真正的空白是没人点过**， hence §9B。**教训＝盘点表按「代码有没有」打勾，会系统性掩盖「链路跑没跑过」；缺口表必须显式分「未实现 / 实现未测 / 测过但判据不全」三档。**
 - 三条独立盘点对撞：① V16 第四章/第五章逐节抠路径+行号；② V1.13 逐节抠 `/merchant/`；③ 我方 `jiangyi-gateway` / `trade-service` 逐 controller/client 抠映射与方法。设备路径计数**我本人重数过**：46 具体 + 1 别名 + catch-all。
 - **抓到的子代理错**：① 漏报 `OrderVideoReportController.java:43`（差点被写成「§4.2.14 未实现」的假缺口）；② 设备路径计数偏低。⇒ 本表所有「未实现」结论逐条回源码确认后才落笔。
 - **抓到的我自己的旧结论错**：① 「我方无法从 API 判某模型覆盖了哪些 stdSku」——**错**，V16 §5.5.3 就是干这个的（§G-9）；② Track E 台账里 `confirmActivate`「全仓零调用/新柜无激活通道」——**已闭合**（`JiangyiMerchantClient.java:120`、`AdminJiangyiController.java:211`）；③ 本表初稿把 §4.2.5 我方响应判成「偏离云侧实测」——**被文档自己的 json 示例推翻**（v16:789 逐字 `"data":"0"`），改记 §H-11。

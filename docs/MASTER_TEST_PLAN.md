@@ -288,6 +288,7 @@ S-01 配置生效（新单按新比例，旧单不静默改写）/ S-02 支付�
 | DV-04 | 端侧结果受理契约 | `POST /internal/v1/vision/edge-results`：无密钥→401、会话不存在→404、缺 `modelVersion`/`quantity<=0`/`modelVersion` 超列宽→400、重复上报幂等（不重复扣款/建单/落库）；置信度 0~1 值域由 `VisionResultIngestService.checkConfidence` 拒收（AU-039）。脚本 `scripts/devops/verify-vision-result-ingest.py` 全链断言（前置＝`DEVICE_ID` 在 `jiangyi_device` 登记为 `BOUND`，关门才停在 `RECOGNIZING`；旧 `-Daicabinet.vision-async.enabled` 开关已于 2026-10-17 `f30635ba` 随 Kafka 链退役） | 脚本可跑（需真实栈 + 将邑柜登记） |
 | DV-05 | 识别失败→争议 | 关门无端侧结果 → `SettlementSettleOrchestrator` 构造「待人工审核」占位结果 → 会话 DISPUTED + `RECOGNITION_FAILED` 异常；种子脚本 `create-open-dispute.ps1` | 脚本已有（旧 `e2e-dispute-recognition.ps1` 随云识别链删除） |
 | DV-06 | 已知缺口标注 | device-service 集成测试薄（仅 5 类）：MQTT 桥与模拟器契约、多柜并发属**已知缺口**，补测优先级高于新功能用例 | 登记于 §9 |
+| DV-07 | **真将邑柜接口轮次（R0–R7）** | 真柜经 `jiangyi-gateway` 联调的全部未实测接口，按「设备此刻在哪个流程」分七轮，每轮写明谁做/点哪个入口/看哪条 nginx `UA=okhttp` 行/哪张表：见 [JIANGYI_INTERFACE_CHECKLIST.md](JIANGYI_INTERFACE_CHECKLIST.md) **§9B**（含 §9B.10 互斥与顺序、§9B.11 结果落点） | 流程已设计（2026-10-22），**除购物结算轮（#90 已绿）外七轮均未跑过** |
 
 ---
 
@@ -501,6 +502,7 @@ P0: __/10 · 快速回归: 绿/红 · UI 门禁: 绿/红 · 包体积: OK/超
 | `SECURITY_BEST_PRACTICES_REPORT.md` | 安全扫描基线 | §5 依据 |
 | `PERFORMANCE_TESTING.md` | JMeter 脚本 | §6 依据 |
 | `production-launch-checklist.md` | 上线清单 | §10 依据 |
+| `JIANGYI_INTERFACE_CHECKLIST.md` §9B | 真将邑柜未实测接口的**轮次化测试流程**（R0–R7，含判据口径与互斥表） | §3.6 DV-07 真源 |
 | `DEMO_ACCOUNTS.md` / `STARTUP_REFERENCE.md` / `MODULES.md` | 账号/端口/模块 | §1 依据 |
 
 ## 附录 B：当前基线快照（2026-09-12 代码实测）
