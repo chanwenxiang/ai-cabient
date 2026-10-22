@@ -1518,7 +1518,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/payment/alipay/notify": {
+    "/api/v2/payment/payscore/notify": {
         parameters: {
             query?: never;
             header?: never;
@@ -1528,6 +1528,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["notify_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/payment/alipay/notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notify_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -22643,6 +22659,33 @@ export interface operations {
         };
     };
     notify_1: {
+        parameters: {
+            query?: never;
+            header: {
+                "Wechatpay-Timestamp": string;
+                "Wechatpay-Nonce": string;
+                "Wechatpay-Signature": string;
+                "Wechatpay-Serial"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    notify_2: {
         parameters: {
             query?: never;
             header?: never;
