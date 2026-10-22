@@ -346,6 +346,9 @@
                 />
               </video>
             </div>
+            <div v-if="embedVideoUrl && auth.hasPerm('ops:device:video')" class="hint">
+              内嵌的只是第 1 路画面；柜内左右两路完整录像与「拉取柜内视频」请用下方「柜机录像」。
+            </div>
             <el-empty
               v-else-if="videoAttempted && !videoLoading"
               description="暂无录像或加载失败"
@@ -363,6 +366,13 @@
               description="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
             />
             <div class="workbench-media-actions">
+              <el-button
+                v-if="selected.sessionId && auth.hasPerm('ops:device:video')"
+                type="primary"
+                size="small"
+                @click="cabinetVideoDialog?.open({ sessionId: selected.sessionId })"
+                >柜机录像（左右两路）</el-button
+              >
               <el-button
                 v-if="selected.sessionId && auth.hasPerm('ops:session:list')"
                 type="warning"
@@ -660,6 +670,8 @@
         </div>
       </div>
     </ResizableDrawer>
+
+    <OrderJiangyiVideoDialog ref="cabinetVideoDialog" />
   </el-card>
 </template>
 
@@ -680,6 +692,7 @@ import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { disputeAmountDiffNote } from '@/utils/dispute-amount-note';
@@ -704,6 +717,7 @@ type SkuOption = { skuId: string; skuName: string; priceCents?: number };
 const route = useRoute();
 const router = useRouter();
 const { auth, canAccessPath, goPath } = useNavAccess();
+const cabinetVideoDialog = ref<InstanceType<typeof OrderJiangyiVideoDialog> | null>(null);
 const videoLoading = ref(false);
 const videoAttempted = ref(false);
 const embedVideoUrl = ref('');
@@ -976,6 +990,17 @@ function reviewChipType(row?: DisputeTicketDto | null) {
 
 function appendDisputeVideoAction(actions: CrudRowAction[], row: DisputeTicketDto) {
   if (!row.sessionId) return;
+  // 「录像」沿用会话查看权，只开第 1 路；柜机台账（左右两路 + 按需拉取）走交易视频独立授权。
+  if (auth.hasPerm('ops:device:video')) {
+    actions.push({
+      key: 'cabinetVideo',
+      label: '柜机录像',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true
+    });
+    return;
+  }
   if (!auth.hasPerm('ops:session:list')) return;
   actions.push({
     key: 'video',
@@ -1017,6 +1042,7 @@ function rowActions(row: DisputeTicketDto): CrudRowAction[] {
 function onRowAction({ key, row }: { key: string; row: DisputeTicketDto }) {
   if (key === 'detail') openDetail(row);
   if (key === 'video') playVideo(row.sessionId, row.videoPreviewUrl, row.ticketId);
+  if (key === 'cabinetVideo') cabinetVideoDialog.value?.open({ sessionId: row.sessionId });
   if (key === 'exception') goExceptions(row.deviceId);
   if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);

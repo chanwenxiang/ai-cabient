@@ -59,6 +59,13 @@ const detail = ref<PlayUrlView | null>(null);
 const detailId = ref<number | null>(null);
 const detailLoading = ref(false);
 
+function clipLabel(clip: PlayUrlItem): string {
+  const u = (clip.url || '').toLowerCase();
+  if (u.includes('left')) return `第 ${clip.index} 路（左镜头）`;
+  if (u.includes('right')) return `第 ${clip.index} 路（右镜头）`;
+  return `第 ${clip.index} 路`;
+}
+
 function open(order: { sessionId?: string | null }) {
   sessionId.value = (order.sessionId || '').trim();
   detail.value = null;
@@ -131,7 +138,15 @@ defineExpose({ open });
 </script>
 
 <template>
-  <el-dialog v-model="visible" title="取货视频复核" class="dialog-wide" destroy-on-close>
+  <!-- append-to-body：本弹窗现在还从「会话时间线」抽屉与「争议审单」抽屉里打开，
+       抽屉遮罩是 body 级 z-index，留在卡片内会被它整片盖住（弹窗看得见、点不动）。 -->
+  <el-dialog
+    v-model="visible"
+    title="取货视频复核"
+    class="dialog-wide"
+    append-to-body
+    destroy-on-close
+  >
     <el-alert
       type="warning"
       :closable="false"
@@ -151,13 +166,17 @@ defineExpose({ open });
     </div>
 
     <div v-loading="loading" class="ov-body">
-      <el-table :data="rows" size="small" empty-text="该订单暂无柜机视频（正常单视频留在柜机本地）">
+      <el-table
+        :data="rows"
+        size="small"
+        empty-text="该会话暂无柜机视频（正常单视频留在柜机本地，可下发拉取）"
+      >
         <el-table-column prop="serialNum" label="分片" width="70" />
         <el-table-column prop="videoQuantity" label="总片数" width="80" />
         <el-table-column label="视频" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.videoCount === 0" type="info" size="small">该片失败</el-tag>
-            <span v-else>{{ row.videoCount }} 段</span>
+            <span v-else>{{ row.videoCount }} 路镜头</span>
           </template>
         </el-table-column>
         <el-table-column prop="reportedAt" label="上报时间" min-width="150">
@@ -186,7 +205,7 @@ defineExpose({ open });
         <div v-loading="detailLoading" class="ov-clips">
           <div v-for="clip in detail?.items || []" :key="clip.index" class="ov-clip">
             <div class="ov-clip-head">
-              <span>第 {{ clip.index }} 段</span>
+              <span>{{ clipLabel(clip) }}</span>
               <el-tag v-if="!clip.playable" type="info" size="small">
                 {{ clip.reason || '不可播放' }}
               </el-tag>

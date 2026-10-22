@@ -333,9 +333,16 @@
           </el-timeline-item>
         </el-timeline>
         <!-- 会话级「播放录像」已下线：旧边缘链路的会话录像（shopping_session.video_uri）
-             对将邑柜机永不写入，按钮恒为死入口。取货视频复核统一走「订单 → 柜机取货视频」
-             （CB-029，按 sessionId 直查将邑台账 jiangyi_order_video）。 -->
+             对将邑柜机永不写入，按钮恒为死入口。柜机取货录像改由「柜机录像」直查将邑台账
+             jiangyi_order_video（CB-029，按 sessionId，左右两路 + 拉取柜内视频），
+             授权用 ops:device:video，与订单侧「柜机取货视频」同一弹窗。 -->
         <div class="tl-actions">
+          <el-button
+            v-if="auth.hasPerm('ops:device:video')"
+            type="warning"
+            @click="cabinetVideoDialog?.open({ sessionId: timelineRow.sessionId })"
+            >柜机录像</el-button
+          >
           <el-button
             v-if="timelineRow.orderId && canAccessPath('/orders')"
             type="primary"
@@ -345,19 +352,21 @@
         </div>
       </template>
     </ResizableDrawer>
+    <OrderJiangyiVideoDialog ref="cabinetVideoDialog" />
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { CircleClose, Clock, CopyDocument, View } from '@element-plus/icons-vue';
+import { CircleClose, Clock, CopyDocument, VideoCamera, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
+import OrderJiangyiVideoDialog from '@/components/order/OrderJiangyiVideoDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
@@ -408,7 +417,8 @@ const ACTIVE_STATES = new Set([
 ]);
 
 const route = useRoute();
-const { router, canAccessPath, goPath } = useNavAccess();
+const { router, auth, canAccessPath, goPath } = useNavAccess();
+const cabinetVideoDialog = ref<InstanceType<typeof OrderJiangyiVideoDialog> | null>(null);
 const keyword = ref('');
 const createdRange = ref<[string, string] | null>(null);
 const kindFilter = ref('');
@@ -695,6 +705,15 @@ function rowActions(row: SessionRow): CrudRowAction[] {
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
   }
+  // 将邑柜的取货录像按会话号直查柜机台账（未成交会话没有订单，订单侧入口到不了）
+  acts.push({
+    key: 'cabinetVideo',
+    label: '柜机录像',
+    icon: VideoCamera,
+    type: 'warning',
+    overflow: true,
+    perm: 'ops:device:video'
+  });
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
   if (canCancel(row.state)) {
     acts.push({
@@ -764,6 +783,10 @@ async function onAction({ key, row }: { key: string; row: SessionRow }) {
   }
   if (key === 'device' && row.deviceId) {
     goPath(`/devices/${encodeURIComponent(row.deviceId)}`);
+    return;
+  }
+  if (key === 'cabinetVideo') {
+    cabinetVideoDialog.value?.open({ sessionId: row.sessionId });
     return;
   }
   if (key === 'copy') {
