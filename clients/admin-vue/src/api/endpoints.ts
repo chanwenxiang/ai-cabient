@@ -196,6 +196,9 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-push-explicit`,
   deviceJiangyiModelDeployments: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-deployments`,
+  /** V16 §5.5.3 只读解码：classes 行 → 厂商标准商品 + 本平台条码候选（不写映射） */
+  deviceJiangyiClassDecode: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-decode`,
   deviceJiangyiGatherStart: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/start`,
   deviceJiangyiGatherExit: (deviceId: string) =>

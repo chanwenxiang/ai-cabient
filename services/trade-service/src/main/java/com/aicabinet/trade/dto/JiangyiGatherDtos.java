@@ -23,6 +23,15 @@ public final class JiangyiGatherDtos {
     public record TrainedProduct(long id, String name, String textName, String barCode) {}
 
     /**
+     * classes.txt 行 → 将邑标准商品（§5.5.3.4 返回表；字段名以 2026-10-22 真机响应原文为准，
+     * 文档正文示例用的是 <code>stdSkuld</code>/<code>name</code>，与实际回包不一致，不可据示例编码）。
+     *
+     * <p>barCode 可为 null（香烟等无条码类目）；classId 是 classes.txt 的 0-based 行下标（台账 H-15）。</p>
+     */
+    public record JiangyiTextNameSku(Long stdSkuId, String stdSkuName, String textName,
+                                     String barCode, Integer classId) {}
+
+    /**
      * 模型文件（§4.4.4.4）。industrialControlModel 存将邑原值（"76"/"88"）——
      * PDF 示例两种主板 rknn 该字段同为 "88"，映射关系不解释，下发校验用字符串相等。
      */

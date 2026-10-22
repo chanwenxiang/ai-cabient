@@ -8620,6 +8620,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-decode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["classDecode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/env-readings": {
         parameters: {
             query?: never;
@@ -17756,6 +17772,42 @@ export interface components {
             doorStatus?: unknown;
             trainingProducts?: unknown;
             checks?: components["schemas"]["GatherCheckItem"][];
+        };
+        ApiResponseClassDecodeView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ClassDecodeView"];
+        };
+        ClassDecodeView: {
+            classesVersion?: string;
+            /** Format: int32 */
+            classesLines?: number;
+            /** Format: int32 */
+            vendorRows?: number;
+            /** Format: int32 */
+            vendorMatchedRows?: number;
+            rows?: components["schemas"]["DecodeRow"][];
+        };
+        DecodeRow: {
+            /** Format: int32 */
+            classId?: number;
+            textName?: string;
+            /** Format: int32 */
+            vendorClassId?: number;
+            /** Format: int64 */
+            stdSkuId?: number;
+            stdSkuName?: string;
+            vendorBarcode?: string;
+            localCandidates?: components["schemas"]["SkuCandidate"][];
+            mappedSkuId?: string;
+            mappedSkuName?: string;
+            mappingStatus?: string;
+        };
+        SkuCandidate: {
+            skuId?: string;
+            skuName?: string;
+            barcode?: string;
         };
         ApiResponseListDeviceEnvReadingDto: {
             /** Format: int32 */
@@ -34219,6 +34271,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseGatherProgress"];
+                };
+            };
+        };
+    };
+    classDecode: {
+        parameters: {
+            query: {
+                textUrl: string;
+                quantity?: number;
+                classIdBase?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseClassDecodeView"];
                 };
             };
         };

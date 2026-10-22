@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.client.JiangyiGatewayClient;
+import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
@@ -77,10 +78,11 @@ class JiangyiModelSyncServiceTest {
     @Mock private JiangyiClassMappingMapper jiangyiClassMappingMapper;
     @Mock private JiangyiModelDeploymentMapper deploymentMapper;
     @Mock private JiangyiGatewayClient jiangyiGatewayClient;
+    @Mock private com.aicabinet.trade.mapper.SkuCatalogMapper skuCatalogMapper;
 
     private JiangyiModelSyncService service() {
         JiangyiModelSyncService svc = new JiangyiModelSyncService(jiangyiGatherClient, jiangyiDeviceMapper,
-                jiangyiClassMappingMapper, deploymentMapper, jiangyiGatewayClient);
+                jiangyiClassMappingMapper, deploymentMapper, jiangyiGatewayClient, skuCatalogMapper);
         // AU-183：白名单注入本地 HttpServer host（守卫默认仅将邑域）
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "allowedModelHosts",
                 java.util.List.of("hunanjysmart.com", "http://localhost", "http://127.0.0.1"));
@@ -343,5 +345,127 @@ class JiangyiModelSyncServiceTest {
     void listDeploymentsDelegates() {
         when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
         assertTrue(service().listDeployments(DEVICE_ID).isEmpty());
+    }
+
+    // ---------- §5.5.3 厂商对照解码（只读，一行都不写） ----------
+
+    private static com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku vendorRow(
+            Long stdSkuId, String stdSkuName, String textName, String barCode, Integer classId) {
+        return new com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku(
+                stdSkuId, stdSkuName, textName, barCode, classId);
+    }
+
+    private static com.aicabinet.trade.domain.SkuCatalog sku(String skuId, String skuName, String barcode) {
+        com.aicabinet.trade.domain.SkuCatalog s = new com.aicabinet.trade.domain.SkuCatalog();
+        s.setSkuId(skuId);
+        s.setSkuName(skuName);
+        s.setBarcode(barcode);
+        return s;
+    }
+
+    private static JiangyiClassMapping mapping(Integer classId, String skuId, String status) {
+        JiangyiClassMapping m = new JiangyiClassMapping();
+        m.setDeviceId(DEVICE_ID);
+        m.setClassId(classId);
+        m.setSkuId(skuId);
+        m.setStatus(status);
+        return m;
+    }
+
+    /** 正向：classes 行 + 厂商 stdSku + 本平台条码候选 + 该柜当前挂接，四列拼齐且零写入。 */
+    @Test
+    void decode_mergesVendorStdSkuAndLocalCandidatesWithoutWriting() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl)).thenReturn(List.of(
+                vendorRow(101L, "农夫山泉饮用天然水550ml", "农夫山泉 550ml", "6921168596348", 0),
+                vendorRow(777L, "不在这个 classes 里的商品", "别的产品", "6900000000000", 9)));
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of(
+                sku("SKU-1", "农夫山泉 550ml", "6921168596348")));
+        when(jiangyiClassMappingMapper.listByDevice(DEVICE_ID))
+                .thenReturn(List.of(mapping(0, "SKU-1", "ACTIVE")));
+
+        JiangyiModelSyncService.ClassDecodeView view =
+                service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 2, 0);
+
+        assertEquals(2, view.classesLines());
+        assertEquals(2, view.vendorRows());
+        assertEquals(1, view.vendorMatchedRows(), "厂商回了 2 行，只有 1 行在本 classes 文件里");
+        assertTrue(view.classesVersion() != null && view.classesVersion().length() == 12);
+        JiangyiModelSyncService.DecodeRow first = view.rows().get(0);
+        assertEquals("农夫山泉饮用天然水550ml", first.stdSkuName());
+        assertEquals("6921168596348", first.vendorBarcode());
+        assertEquals(List.of("SKU-1"), first.localCandidates().stream()
+                .map(JiangyiModelSyncService.SkuCandidate::skuId).toList());
+        assertEquals("SKU-1", first.mappedSkuId());
+        assertEquals("农夫山泉 550ml", first.mappedSkuName());
+        assertEquals("ACTIVE", first.mappingStatus());
+        JiangyiModelSyncService.DecodeRow second = view.rows().get(1);
+        assertNull(second.stdSkuName(), "厂商对不上号的行必须显式留空，不能拿别人的行凑");
+        assertTrue(second.localCandidates().isEmpty());
+        assertNull(second.mappingStatus());
+        verify(jiangyiClassMappingMapper, org.mockito.Mockito.never())
+                .upsert(any(com.aicabinet.trade.domain.JiangyiClassMapping.class));
+        verify(deploymentMapper, org.mockito.Mockito.never()).insert(any(JiangyiModelDeployment.class));
+    }
+
+    /** 已挂 SKU 不在条码候选里时仍要回品名（否则「当前挂接」列只有 id）。 */
+    @Test
+    void decode_namesMappedSkuEvenWhenItIsNotABarcodeCandidate() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl))
+                .thenReturn(List.of(vendorRow(101L, "厂商名", "农夫山泉 550ml", "6921168596348", 0)));
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of());
+        when(jiangyiClassMappingMapper.listByDevice(DEVICE_ID))
+                .thenReturn(List.of(mapping(0, "SKU-9", "DISABLED")));
+        when(skuCatalogMapper.findAllById(any())).thenReturn(List.of(sku("SKU-9", "人工挂的商品", "6901")));
+
+        var row = service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 2, 0).rows().get(0);
+
+        assertEquals("人工挂的商品", row.mappedSkuName());
+        assertTrue(row.localCandidates().isEmpty(), "厂商条码在本平台无同条码商品 → 候选为空，靠人工挂接");
+    }
+
+    /**
+     * classIdBase 旋钮拨到 1 时合并仍按 textName 成立（按 classId 合并会整体错行且看不出来）；
+     * 厂商 classId 原样回显，与本行 classId 不一致 = 肉眼可见的基址冲突。
+     */
+    @Test
+    void decode_keepsTextNameMergeWhenClassIdBaseDiffersFromVendor() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl))
+                .thenReturn(List.of(vendorRow(101L, "农夫山泉饮用天然水550ml", "农夫山泉 550ml", "6921168596348", 0)));
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of(
+                sku("SKU-1", "农夫山泉 550ml", "6921168596348")));
+        when(jiangyiClassMappingMapper.listByDevice(DEVICE_ID))
+                .thenReturn(List.of(mapping(0, "SKU-1", "ACTIVE")));
+
+        var row = service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 2, 1).rows().get(0);
+
+        assertEquals(1, row.classId());
+        assertEquals(0, row.vendorClassId());
+        assertEquals("农夫山泉饮用天然水550ml", row.stdSkuName(), "基址不同也要正确合并，不能整表错位");
+        assertNull(row.mappedSkuId(), "映射按 classId 取：基址改了就该显示未挂接，而不是冒充已挂");
+    }
+
+    @Test
+    void decode_rejectsOffAllowlistClassesHostBeforeCallingVendor() {
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().decodeVendorSkuByClasses(DEVICE_ID, "https://evil.example.com/c.txt", 2, 0));
+        assertEquals(400, e.getStatusCode().value());
+        verify(jiangyiGatherClient, org.mockito.Mockito.never()).stdSkuByTextNames(anyString());
+    }
+
+    /** 行数≠quantity 同样拒绝解码显示：拿错文件翻译出来的对照比不翻译更危险。 */
+    @Test
+    void decode_rejectsQuantityMismatchingClassesLines() {
+        assertThrows(JiangyiClassesParser.ClassesParseRejectException.class,
+                () -> service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 3, 0));
+    }
+
+    /** quantity=0 只做翻译（后台「先看看这文件是什么」），此时不校验行数。 */
+    @Test
+    void decode_withZeroQuantitySkipsLineCountCheck() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl)).thenReturn(List.of());
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of());
+        when(jiangyiClassMappingMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        assertEquals(2, service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 0, 0).classesLines());
     }
 }

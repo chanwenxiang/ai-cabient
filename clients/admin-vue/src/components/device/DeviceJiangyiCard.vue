@@ -452,6 +452,73 @@ async function doExplicitPush() {
   }
 }
 
+/**
+ * 台账 G-9：V16 §5.5.3 能把 classes 行翻成厂商标准商品（品名 + 条码）。
+ * 🔴 只读展示——厂商回的是「标准商品」，不是我方 SKU，按它自动挂接会把
+ * 「厂商认为这是什么」当成「这个柜按哪个价结算」，挂错即错扣款。
+ * 条码命中的本平台候选只给人看，多命中也不自动选。
+ */
+interface JiangyiSkuCandidate {
+  skuId: string;
+  skuName: string;
+  barcode: string;
+}
+
+interface JiangyiDecodeRow {
+  classId: number;
+  textName: string;
+  vendorClassId: number | null;
+  stdSkuId: number | null;
+  stdSkuName: string | null;
+  vendorBarcode: string | null;
+  localCandidates: JiangyiSkuCandidate[] | null;
+  mappedSkuId: string | null;
+  mappedSkuName: string | null;
+  mappingStatus: string | null;
+}
+
+interface JiangyiDecodeView {
+  classesVersion: string | null;
+  classesLines: number;
+  vendorRows: number;
+  vendorMatchedRows: number;
+  rows: JiangyiDecodeRow[] | null;
+}
+
+const decode = ref<JiangyiDecodeView | null>(null);
+const decoding = ref(false);
+
+function candidateText(row: JiangyiDecodeRow): string {
+  const list = row.localCandidates || [];
+  if (!list.length) return '';
+  return list.map((c) => `${c.skuName}（${c.skuId}）`).join('、');
+}
+
+async function doClassDecode() {
+  const textUrl = explicitForm.textUrl.trim();
+  if (!textUrl) {
+    ElMessage.warning('先填 classes 对照文件地址');
+    return;
+  }
+  decoding.value = true;
+  try {
+    const query = new URLSearchParams({
+      textUrl,
+      quantity: String(explicitForm.quantity || 0),
+      classIdBase: String(classIdBase.value)
+    });
+    decode.value = await api.request<JiangyiDecodeView>(
+      `${AdminEndpoints.deviceJiangyiClassDecode(props.deviceId)}?${query.toString()}`,
+      'GET'
+    );
+  } catch (e) {
+    decode.value = null;
+    ElMessage.error(errorMessage(e, '厂商对照解码失败'));
+  } finally {
+    decoding.value = false;
+  }
+}
+
 async function loadDeployments() {
   deploymentsLoading.value = true;
   try {
@@ -1012,6 +1079,83 @@ watch(
             </el-button>
           </div>
 
+          <div class="jy-form-row">
+            <el-button size="small" :loading="decoding" @click="doClassDecode">
+              查厂商商品对照（只读）
+            </el-button>
+            <span v-if="decode" class="jy-mapping-hint">
+              classes 共 {{ decode.classesLines }} 行，厂商标准商品库认出
+              {{ decode.vendorMatchedRows }} 行
+            </span>
+          </div>
+          <el-alert
+            v-if="decode"
+            type="info"
+            :closable="false"
+            show-icon
+            class="jy-tip"
+            title="这里只把识别编号翻成人话，方便逐条挂接平台商品；不改动对照表，条码相同也不会自动挂"
+          />
+          <el-table
+            v-if="decode"
+            :data="decode.rows || []"
+            size="small"
+            max-height="260"
+            empty-text="该 classes 文件没有可显示的行"
+          >
+            <el-table-column prop="classId" label="识别编号" width="86" />
+            <el-table-column label="识别名（classes 原文）" min-width="160">
+              <template #default="{ row }">
+                <span class="jy-mono">{{ row.textName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="厂商商品" min-width="150">
+              <template #default="{ row }">
+                <el-tag v-if="!row.stdSkuName" size="small" type="info">厂商库无对应</el-tag>
+                <span v-else>{{ row.stdSkuName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="厂商条码" width="130">
+              <template #default="{ row }">
+                <span class="jy-mono">{{ row.vendorBarcode || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="本平台同条码商品" min-width="160">
+              <template #default="{ row }">
+                <el-tag v-if="(row.localCandidates || []).length > 1" size="small" type="warning">
+                  {{ (row.localCandidates || []).length }} 条，需人工分辨
+                </el-tag>
+                <span v-if="candidateText(row)" class="jy-mono">{{ candidateText(row) }}</span>
+                <el-tag
+                  v-else-if="row.vendorBarcode"
+                  size="small"
+                  type="info"
+                  :class="{ 'jy-tag-gap': (row.localCandidates || []).length > 1 }"
+                >
+                  本平台无同条码商品
+                </el-tag>
+                <span v-else>—</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="当前挂接" min-width="130">
+              <template #default="{ row }">
+                <el-tag v-if="!row.mappedSkuId" size="small" type="info">未挂接</el-tag>
+                <template v-else>
+                  <el-button link type="primary" size="small" @click="goMappings">
+                    {{ row.mappedSkuName || row.mappedSkuId }}
+                  </el-button>
+                  <el-tag
+                    size="small"
+                    :type="row.mappingStatus === 'ACTIVE' ? 'success' : 'warning'"
+                    class="jy-tag-gap"
+                  >
+                    {{ row.mappingStatus === 'ACTIVE' ? '已启用' : '停用' }}
+                  </el-tag>
+                </template>
+              </template>
+            </el-table-column>
+          </el-table>
+
           <div class="jy-section-label" style="margin-top: 12px">发送记录</div>
           <div class="jy-form-row" style="margin-top: 0">
             <el-button size="small" :loading="deploymentsLoading" @click="loadDeployments">
@@ -1229,5 +1373,8 @@ watch(
 }
 .jy-tip {
   margin: 8px 0;
+}
+.jy-tag-gap {
+  margin-left: 6px;
 }
 </style>

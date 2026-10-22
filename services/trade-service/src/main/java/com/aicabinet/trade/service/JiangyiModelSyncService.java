@@ -6,10 +6,13 @@ import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiModelDeploymentMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -22,8 +25,11 @@ import java.net.URI;
 import java.util.Locale;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -46,6 +52,7 @@ public class JiangyiModelSyncService {
     private final JiangyiClassMappingMapper jiangyiClassMappingMapper;
     private final JiangyiModelDeploymentMapper deploymentMapper;
     private final JiangyiGatewayClient jiangyiGatewayClient;
+    private final SkuCatalogMapper skuCatalogMapper;
     /** 拉取 classes.txt（将邑 OSS 外链，不带内部凭据）。 */
     private final RestClient publicHttp = RestClient.create();
 
@@ -53,12 +60,14 @@ public class JiangyiModelSyncService {
                                    JiangyiDeviceMapper jiangyiDeviceMapper,
                                    JiangyiClassMappingMapper jiangyiClassMappingMapper,
                                    JiangyiModelDeploymentMapper deploymentMapper,
-                                   JiangyiGatewayClient jiangyiGatewayClient) {
+                                   JiangyiGatewayClient jiangyiGatewayClient,
+                                   SkuCatalogMapper skuCatalogMapper) {
         this.jiangyiGatherClient = jiangyiGatherClient;
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
         this.jiangyiClassMappingMapper = jiangyiClassMappingMapper;
         this.deploymentMapper = deploymentMapper;
         this.jiangyiGatewayClient = jiangyiGatewayClient;
+        this.skuCatalogMapper = skuCatalogMapper;
     }
 
     // ---------- 预览 ----------
@@ -96,6 +105,91 @@ public class JiangyiModelSyncService {
                     rows, null, trainedTextNames.isEmpty() ? 0 : (int) (matched * 100 / rows.size())));
         }
         return out;
+    }
+
+    // ---------- 厂商对照解码（§5.5.3，只读） ----------
+
+    /**
+     * 把 classes.txt 的每一行翻成「厂商标准商品 + 本平台候选 SKU」，供运营挂接对照时看人话。
+     *
+     * <p>🔴 <b>只读，一行都不写</b>（2026-10-22 拍板）：§5.5.3 回的是厂商标准商品，不是我方 SKU——
+     * 按它自动写 sku_id 等于把「厂商认为这是什么商品」当成「这个柜按哪个价结算的商品」，
+     * 挂错即错扣款。条码命中的候选只用于显示，挂接仍由人工在识别映射页做。</p>
+     *
+     * <p>合并键用 textName 而不是 classId：厂商 classId 与 classes.txt 行下标同基（台账 H-15
+     * 实测 0-based），但本页留着 classIdBase 旋钮——按 classId 合并时旋钮拨到 1 会整体错行且
+     * 看不出来。厂商 classId 原样回显（vendorClassId），与 classId 不一致即肉眼可见。</p>
+     *
+     * @param quantity 模型声明的商品行数；0 = 跳过行数校验（只想翻译看看时）
+     */
+    public ClassDecodeView decodeVendorSkuByClasses(String deviceId, String textUrl,
+                                                   int quantity, int classIdBase) {
+        JiangyiClassesParser.ParsedClasses parsed = parseClasses(textUrl, quantity, classIdBase);
+        List<JiangyiTextNameSku> vendor =
+                jiangyiGatherClient.stdSkuByTextNames(requireSafeModelTextUrl(textUrl));
+        Map<String, JiangyiTextNameSku> byTextName = new LinkedHashMap<>();
+        Set<String> barcodes = new HashSet<>();
+        for (JiangyiTextNameSku s : vendor) {
+            if (s.textName() == null) {
+                continue;
+            }
+            byTextName.putIfAbsent(s.textName(), s);
+            if (s.barCode() != null && !s.barCode().isBlank()) {
+                barcodes.add(s.barCode().trim());
+            }
+        }
+
+        Map<String, List<SkuCandidate>> candidatesByBarcode = new HashMap<>();
+        Map<String, String> skuNames = new HashMap<>();
+        for (SkuCatalog sku : skuCatalogMapper.findByBarcodes(barcodes)) {
+            if (sku.getBarcode() == null || sku.getBarcode().isBlank()) {
+                continue;
+            }
+            String code = sku.getBarcode().trim();
+            candidatesByBarcode.computeIfAbsent(code, k -> new ArrayList<>())
+                    .add(new SkuCandidate(sku.getSkuId(), sku.getSkuName(), code));
+            skuNames.put(sku.getSkuId(), sku.getSkuName());
+        }
+
+        Map<Integer, JiangyiClassMapping> mappedByClassId = new HashMap<>();
+        for (JiangyiClassMapping m : jiangyiClassMappingMapper.listByDevice(deviceId)) {
+            mappedByClassId.putIfAbsent(m.getClassId(), m);
+        }
+        // 已挂但不在条码候选里的 SKU：一次批量补品名，否则「当前挂接」列只有 id
+        List<String> unmappedNames = mappedByClassId.values().stream()
+                .map(JiangyiClassMapping::getSkuId)
+                .filter(id -> id != null && !id.isBlank() && !skuNames.containsKey(id))
+                .distinct()
+                .toList();
+        for (SkuCatalog sku : skuCatalogMapper.findAllById(unmappedNames)) {
+            skuNames.put(sku.getSkuId(), sku.getSkuName());
+        }
+
+        List<DecodeRow> rows = new ArrayList<>();
+        int matched = 0;
+        for (JiangyiClassesParser.ParsedClassRow row : parsed.rows()) {
+            JiangyiTextNameSku s = byTextName.get(row.textName());
+            if (s != null) {
+                matched++;
+            }
+            JiangyiClassMapping m = mappedByClassId.get(row.classId());
+            List<SkuCandidate> candidates = (s == null || s.barCode() == null)
+                    ? List.of()
+                    : candidatesByBarcode.getOrDefault(s.barCode().trim(), List.of());
+            rows.add(new DecodeRow(row.classId(), row.textName(),
+                    s == null ? null : s.classId(),
+                    s == null ? null : s.stdSkuId(),
+                    s == null ? null : s.stdSkuName(),
+                    s == null ? null : s.barCode(),
+                    candidates,
+                    m == null ? null : m.getSkuId(),
+                    m == null || m.getSkuId() == null ? null : skuNames.get(m.getSkuId()),
+                    m == null ? null : m.getStatus()));
+        }
+        log.info("jiangyi class-decode deviceId={} lines={} vendorRows={} matched={} classesVersion={}",
+                deviceId, parsed.rows().size(), vendor.size(), matched, parsed.classesVersion());
+        return new ClassDecodeView(parsed.classesVersion(), parsed.rows().size(),
+                vendor.size(), matched, List.copyOf(rows));
     }
 
     // ---------- 预生成 / 激活 ----------
@@ -374,4 +468,20 @@ public class JiangyiModelSyncService {
                                String modelTextUrl, String classesVersion, String fallbackVersion,
                                List<JiangyiClassesParser.ParsedClassRow> rows,
                                String rejectReason, int trainedMatchPercent) {}
+
+    /** 本平台候选 SKU（只按条码精确相等命中；多命中=名称规格要人工分辨，不自动选）。 */
+    public record SkuCandidate(String skuId, String skuName, String barcode) {}
+
+    /**
+     * §5.5.3 对照解码行（openapi inline schema）：vendor* 为 null = 该 classes 行在厂商标准
+     * 商品库里对不上号（实测 69 行文件回 67 行），仍须人工挂接。
+     */
+    public record DecodeRow(int classId, String textName, Integer vendorClassId,
+                            Long stdSkuId, String stdSkuName, String vendorBarcode,
+                            List<SkuCandidate> localCandidates,
+                            String mappedSkuId, String mappedSkuName, String mappingStatus) {}
+
+    /** 解码汇总：classesLines/vendorMatchedRows 直接说明「多少行还翻不出来」。 */
+    public record ClassDecodeView(String classesVersion, int classesLines, int vendorRows,
+                                  int vendorMatchedRows, List<DecodeRow> rows) {}
 }

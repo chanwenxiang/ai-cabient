@@ -346,6 +346,22 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiModelSyncService.pushModelByUrl(deviceId, body.toSpec()));
     }
 
+    /**
+     * 厂商对照解码（V16 §5.5.3，<b>只读</b>）：classes.txt 每行 → 厂商标准商品品名/条码 +
+     * 本平台条码命中的候选 SKU + 该柜当前挂接情况。给运营挂接对照时看人话用，
+     * 不写任何映射行（§5.5.3 回的是厂商商品，不是我方 SKU——自动挂会错扣款）。
+     */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/class-decode")
+    public ApiResponse<JiangyiModelSyncService.ClassDecodeView> classDecode(
+            @PathVariable("deviceId") String deviceId,
+            @RequestParam("textUrl") String textUrl,
+            @RequestParam(value = "quantity", defaultValue = "0") int quantity,
+            @RequestParam(value = "classIdBase", defaultValue = "0") int classIdBase) {
+        return ApiResponse.ok(jiangyiModelSyncService.decodeVendorSkuByClasses(
+                deviceId, textUrl, quantity, classIdBase));
+    }
+
     /** 模型下发审计列表（SENT/CONFIRMED/FAILED + classes_version）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/jiangyi/model-deployments")

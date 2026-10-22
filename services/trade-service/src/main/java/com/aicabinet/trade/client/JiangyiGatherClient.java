@@ -4,6 +4,7 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -90,6 +91,31 @@ public class JiangyiGatherClient {
                         text(n, "mainImg"),
                         text(n, "stdSkuCode"),
                         text(n, "barCodeSource")));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 按模型 classes.txt 地址查将邑标准商品（§5.5.3 /merchant/stdSku/getStdSkuQueryByTextNames）。
+     *
+     * <p>2026-10-22 用厂商两份真 classes 文件实测：回包<b>稀疏</b>——69 行的文件只回 67 行，
+     * 对不上标准商品库的类目直接不出现在 data 里。所以它只能用来「把 classes 行翻成人能看懂的
+     * 品名+条码」，不能当全量映射源（缺的行仍须人工挂接）。</p>
+     */
+    public List<JiangyiTextNameSku> stdSkuByTextNames(String modelTextUrl) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("modelTextUrl", modelTextUrl);
+        JsonNode data = post("/merchant/stdSku/getStdSkuQueryByTextNames", body, true, "stdSkuByTextNames");
+        List<JiangyiTextNameSku> out = new ArrayList<>();
+        if (data.isArray()) {
+            for (JsonNode n : data) {
+                out.add(new JiangyiTextNameSku(
+                        n.hasNonNull("stdSkuId") ? n.path("stdSkuId").asLong() : null,
+                        text(n, "stdSkuName"),
+                        text(n, "textName"),
+                        text(n, "barCode"),
+                        n.hasNonNull("classId") ? n.path("classId").asInt() : null));
             }
         }
         return out;
