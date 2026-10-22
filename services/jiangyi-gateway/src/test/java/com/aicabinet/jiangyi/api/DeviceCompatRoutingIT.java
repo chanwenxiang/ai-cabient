@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -157,6 +160,26 @@ class DeviceCompatRoutingIT {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value(200));
         }
+    }
+
+    @Test
+    void orderCloseReceiptIsAcceptedOnAllFourSpellingsWithoutMovingState() throws Exception {
+        // 真机只见过 /order/ 裸拼写（2026-10-22 三次），但固件 UpDoorState 同一方法还拼 /pokerOrder/，
+        // 且 URL/COMMON_URL 落点无从判明 ⇒ 四种拼写都得收，否则设备拿到 catch-all 404。
+        // 该回执 doorCloseStatus 恒 yes 不可信 ⇒ 只审计：不得碰 doorEvent / edgeResults。
+        String bearer = "Bearer " + authHeader();
+        for (String path : new String[]{"/jiangyi/api/order/uploadOrderCloseStatus",
+                "/jiangyi/api/pokerOrder/uploadOrderCloseStatus",
+                "/jiangyi/api/device/order/uploadOrderCloseStatus",
+                "/jiangyi/api/device/pokerOrder/uploadOrderCloseStatus"}) {
+            mockMvc.perform(post(path)
+                            .header("Authorization", bearer)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"doorCloseStatus\":\"yes\",\"orderNo\":\"S-1\",\"lockStatus\":\"success\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(200));
+        }
+        verify(tradeInternalClient, never()).doorEvent(any());
     }
 
     @Test

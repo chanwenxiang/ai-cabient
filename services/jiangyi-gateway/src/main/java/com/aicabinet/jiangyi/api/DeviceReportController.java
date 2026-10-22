@@ -28,8 +28,10 @@ import java.util.Map;
  * 响应一律将邑协议 envelope {@code {status:200, msg:"success", data:"0"}}。</p>
  *
  * <p>枢纽约定：orderNo = 我方 sessionId（方案 §4，V16 §4.3.2.7「商户服务器生成、需唯一」）。
- * 模式一<b>无关门上报</b>——识别上报到达时统一先合成 door-event CLOSED（推进 SHOPPING→
- * RECOGNIZING）再转发 edge-results；door-event 对已关门会话被 TOO_EARLY 拒收属预期幂等。</p>
+ * 模式一<b>没有可用的关门上报</b>——识别上报到达时统一先合成 door-event CLOSED（推进 SHOPPING→
+ * RECOGNIZING）再转发 edge-results；door-event 对已关门会话被 TOO_EARLY 拒收属预期幂等。
+ * 固件确实发一条 {@code uploadOrderCloseStatus} 关门回执，但它 {@code yes} 不可信、只审计，
+ * 见 {@link #uploadOrderCloseStatus}。</p>
  */
 @RestController
 public class DeviceReportController {
@@ -209,6 +211,31 @@ public class DeviceReportController {
             return isBlank(second) ? first : second.trim();
         }
         return isBlank(second) ? first : first.trim() + "｜" + second.trim();
+    }
+
+    // ---------- 关门回执（固件实发，V15/V16 未列）----------
+
+    /**
+     * 真机 2026-10-22 三次打到 {@code /order/uploadOrderCloseStatus}，body
+     * {@code {orderNo, doorCloseStatus=yes, lockStatus=success}}；固件同一工具类另有
+     * {@code /pokerOrder/uploadOrderCloseStatus} 拼写，且 {@code M_NAME ∈ {XY, YP, NO_NET}} 时整段跳过
+     * （{@code control/lock/tool/UpDoorState:395-440}）⇒ 四种前缀拼写一律显式注册，少一种就是 catch-all 404。
+     * 活体字段与 563 smali 已不一致（那边是 {@code doorStatus}，本机发 {@code lockStatus}），
+     * 故收原始 Map 全量入日志，不锁字段名。
+     *
+     * <p><b>只审计、不推进会话</b>：该回执不能当「门锁卡到位」判据——16:19 那轮设备自报「开门时间过长」，
+     * 4 分钟后仍回 {@code doorCloseStatus=yes}；固件 {@code UpDoorState.persistPhysicallyClosedReceipts}
+     * 更是把 {@code doorCloseStatus} 写死 {@code "yes"}。模式一的 SHOPPING→RECOGNIZING 仍只由识别上报
+     * 合成 CLOSED（见类注），<b>别顺手把这个端点接进状态机</b>。</p>
+     */
+    @PostMapping({"/jiangyi/api/order/uploadOrderCloseStatus",
+            "/jiangyi/api/pokerOrder/uploadOrderCloseStatus",
+            "/jiangyi/api/device/order/uploadOrderCloseStatus",
+            "/jiangyi/api/device/pokerOrder/uploadOrderCloseStatus"})
+    public Map<String, Object> uploadOrderCloseStatus(HttpServletRequest request,
+                                                      @RequestBody(required = false) Map<String, Object> body) {
+        log.info("jiangyi order-close receipt (audit only) deviceId={} body={}", device(request), body);
+        return ok();
     }
 
     // ---------- §4.2.10 识别结果 ----------
