@@ -104,6 +104,25 @@ public class SysDictService {
     }
 
     /**
+     * 批量取某字典类型的 value→label 全映射（含停用项，展示口径与 {@link #labelOf} 一致）。
+     * 用途：列表接口的逐行翻译 —— 一次查库建映射，避免 N 行 × 逐条 {@code labelOf} 放大成 N 次查库。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, String> labelMapOf(String dictType) {
+        if (dictType == null || dictType.isBlank()) {
+            return Map.of();
+        }
+        String type = dictType.trim().toLowerCase();
+        Map<String, String> map = new LinkedHashMap<>();
+        for (SysDictData row : dataRepository.findByDictTypeOrderBySortOrderAscDictValueAsc(type)) {
+            if (row.getDictValue() != null && row.getDictLabel() != null && !row.getDictLabel().isBlank()) {
+                map.putIfAbsent(row.getDictValue(), row.getDictLabel());
+            }
+        }
+        return map;
+    }
+
+    /**
      * 字典类型是否已初始化（存在任意 ACTIVE 项）。
      * 用途：业务侧做字典白名单校验时，若字典尚未 seed（迁移缺失/被清空）应降级放行，
      * 避免「配置缺失」升级成「整个业务不可用」。

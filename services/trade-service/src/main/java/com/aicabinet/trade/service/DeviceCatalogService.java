@@ -24,15 +24,18 @@ public class DeviceCatalogService {
     private final DeviceSkuLotMapper lotRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final MerchantSkuPricingService skuPricingService;
+    private final SysDictService sysDictService;
 
     public DeviceCatalogService(DeviceSkuInventoryMapper inventoryRepository,
                                 DeviceSkuLotMapper lotRepository,
                                 SkuCatalogMapper skuCatalogRepository,
-                                MerchantSkuPricingService skuPricingService) {
+                                MerchantSkuPricingService skuPricingService,
+                                SysDictService sysDictService) {
         this.inventoryRepository = inventoryRepository;
         this.lotRepository = lotRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.skuPricingService = skuPricingService;
+        this.sysDictService = sysDictService;
     }
 
     /**
@@ -68,6 +71,10 @@ public class DeviceCatalogService {
         List<DeviceProductDto> result = new ArrayList<>();
         // 促销策略快照读一次、循环内复用：配置是直读 DB 无缓存的，逐 SKU 读会放大成 N×4 次查库。
         PricingPromoPolicy promoPolicy = skuPricingService.loadPromoPolicy();
+        // 分类字典映射一次取全（2026-10-22）：sku_catalog.category 存的是 category_code 字典值（如 1），
+        // 消费者端直接显示会露出「1」这种字典码；此处统一翻译成中文标签（如「饮料」）。
+        // 字典没配的值（历史自由文本如「零食」）原样返回，不吞掉。
+        Map<String, String> categoryLabels = sysDictService.labelMapOf("category_code");
         for (String skuId : skuIds) {
             SkuCatalog sku = skuMap.get(skuId);
             int qty = qtyBySku.getOrDefault(skuId, 0);
@@ -80,7 +87,7 @@ public class DeviceCatalogService {
                     skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy),
                     qty,
                     sku.getImageUrl(),
-                    sku.getCategory(),
+                    displayCategory(sku.getCategory(), categoryLabels),
                     sku.getDescription()
             ));
             }
@@ -114,5 +121,16 @@ public class DeviceCatalogService {
             }
         }
         return map;
+    }
+
+    /**
+     * 分类展示值：字典值翻译成中文标签；空值与字典未收录的值（历史自由文本）原样返回。
+     * 查找口径与 {@code SysDictService.labelOf} 一致（value trim+大写后匹配）。
+     */
+    private static String displayCategory(String raw, Map<String, String> categoryLabels) {
+        if (raw == null || raw.isBlank()) {
+            return raw;
+        }
+        return categoryLabels.getOrDefault(raw.trim().toUpperCase(), raw);
     }
 }

@@ -53,13 +53,15 @@ class DeviceCatalogServiceTest {
     private SkuCatalogMapper skuCatalogRepository;
     @Mock
     private MerchantSkuPricingService skuPricingService;
+    @Mock
+    private SysDictService sysDictService;
 
     private DeviceCatalogService service;
 
     @BeforeEach
     void setUp() {
         service = new DeviceCatalogService(
-                inventoryRepository, lotRepository, skuCatalogRepository, skuPricingService);
+                inventoryRepository, lotRepository, skuCatalogRepository, skuPricingService, sysDictService);
     }
 
     @Test
@@ -151,6 +153,39 @@ class DeviceCatalogServiceTest {
 
         assertEquals("330ml", p.spec());
         assertEquals("罐", p.unit());
+    }
+
+    @Test
+    @DisplayName("分类字典值翻译成中文标签下发给消费者（回归：小程序把字典码「1」直出成分类 chip）")
+    void listProducts_translatesCategoryDictValueToLabel() {
+        when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of(new DeviceSkuLot()));
+        when(lotRepository.sumSellableBySkuOnEnabledSlots(DEVICE_ID))
+                .thenReturn(List.<Object[]>of(row("SKU-DICT-001", 3), row("SKU-FREETEXT-001", 4),
+                        row("SKU-NOCAT-001", 5)));
+        SkuCatalog dictCoded = sku("SKU-DICT-001", "雪碧柠檬味汽水330ml");
+        dictCoded.setCategory("1");
+        SkuCatalog freeText = sku("SKU-FREETEXT-001", "历史自由文本分类");
+        freeText.setCategory("零食");
+        SkuCatalog noCategory = sku("SKU-NOCAT-001", "无分类商品");
+        noCategory.setCategory(" ");
+        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of(dictCoded, freeText, noCategory));
+        when(skuPricingService.loadPromoPolicy()).thenReturn(null);
+        when(skuPricingService.resolveUnitPriceCents(anyString(), any(SkuCatalog.class),
+                nullable(PricingPromoPolicy.class))).thenReturn(350);
+        when(sysDictService.labelMapOf("category_code")).thenReturn(java.util.Map.of("1", "饮料"));
+
+        List<DeviceProductDto> out = service.listProducts(DEVICE_ID);
+
+        assertEquals("饮料", bySku(out, "SKU-DICT-001").category(),
+                "字典值 1 必须翻译成「饮料」——不能把字典码直出给消费者");
+        assertEquals("零食", bySku(out, "SKU-FREETEXT-001").category(),
+                "字典未收录的自由文本分类应原样返回，不能被吞掉");
+        assertEquals(" ", bySku(out, "SKU-NOCAT-001").category(),
+                "空分类原样返回，不做翻译也不报错");
+    }
+
+    private static DeviceProductDto bySku(List<DeviceProductDto> list, String skuId) {
+        return list.stream().filter(p -> p.skuId().equals(skuId)).findFirst().orElseThrow();
     }
 
     private static Object[] row(String skuId, int qty) {
