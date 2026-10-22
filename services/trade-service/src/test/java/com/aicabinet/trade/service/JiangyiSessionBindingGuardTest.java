@@ -59,7 +59,7 @@ class JiangyiSessionBindingGuardTest {
     void setUp() {
         openService = new SessionOpenService(repository, null, null, null,
                 consumerPreauthService, null, null, sessionService,
-                distributedLockService, opsAlertDispatcher);
+                distributedLockService, opsAlertDispatcher, null);
         timeoutService = new JiangyiRecognitionTimeoutService(repository, sessionService,
                 disputeService, consumerPreauthService, distributedLockService, opsExceptionService,
                 jiangyiDeviceDirectory);
