@@ -124,7 +124,7 @@
           :actions="rowActions"
           :action-width="180"
           actions-testid="order"
-          :empty-text="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'"
+          :empty-text="orderEmptyText"
           :row-class-name="orderRowClass"
           @action="onAction"
         >
@@ -437,6 +437,11 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
+          <template #empty-extra>
+            <el-button v-if="hiddenZeroCount > 0" link type="primary" @click="showHiddenZeroOrders">
+              显示这些订单
+            </el-button>
+          </template>
         </CrudTable>
       </div>
     </div>
@@ -845,7 +850,16 @@ function persistHideZeroPreference(value: boolean) {
 }
 
 const hideZeroOrders = ref(readHideZeroPreference());
+/** 本屏因「隐藏零元单」而被挡掉的笔数，仅用于空态解释 */
+const hiddenZeroCount = ref(0);
 const focusOrderId = ref('');
+
+const orderEmptyText = computed(() => {
+  if (statusTab.value === 'PENDING' && overdueOnly.value) return '无超时未付订单';
+  if (hiddenZeroCount.value > 0)
+    return `已隐藏 ${hiddenZeroCount.value} 笔 0 元单（多为开门未取货）`;
+  return '暂无订单';
+});
 
 const detailOpen = ref(false);
 const detailLoading = ref(false);
@@ -883,6 +897,8 @@ const crud = useCrudTable<OrderSummary>({
     }
     // 创建时间新→旧（去掉订单号主键排序）
     list = [...list].sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
+    hiddenZeroCount.value =
+      (data.total || 0) === 0 && shouldApplyExcludeZero() ? await probeHiddenZeroOrders(q) : 0;
     return { items: list, total: data.total || 0 };
   }
 });
@@ -948,6 +964,22 @@ function appendOrderFilters(q: URLSearchParams) {
     if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
   }
   if (shouldApplyExcludeZero()) q.set('excludeZero', '1');
+}
+
+/** 空态解释用：同条件但不带 excludeZero 再查一次 total；失败按 0 处理，绝不影响主列表 */
+async function probeHiddenZeroOrders(base: URLSearchParams): Promise<number> {
+  try {
+    const q = new URLSearchParams(base);
+    q.set('size', '1');
+    q.delete('excludeZero');
+    const data = await api.request<PageResult<OpenApiOrderReadModelAdmin>>(
+      AdminEndpoints.ordersList(q),
+      'GET'
+    );
+    return Number(data.total || 0);
+  } catch {
+    return 0;
+  }
 }
 
 async function onExportMode(mode: string) {
@@ -1458,6 +1490,13 @@ function onOverdueToggle() {
 
 function onHideZeroToggle() {
   persistHideZeroPreference(hideZeroOrders.value);
+  search();
+}
+
+/** 空态里的「显示这些订单」：关掉隐藏零元单后重查（偏好同步落盘，与开关一致） */
+function showHiddenZeroOrders() {
+  hideZeroOrders.value = false;
+  persistHideZeroPreference(false);
   search();
 }
 
