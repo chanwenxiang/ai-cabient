@@ -118,13 +118,13 @@
 | §4.3.2.3 强制双门开门 | `sendForceOpenDoubleDoor` | v16:2035-2036 | — | ⛔ 单门柜无此概念 |
 | §4.3.2.4 补货开门 | `sendOpenStockDoor`（补货单号） | v16:2067-2068 | `:217` | ✅ 补货会话 id ≡ 补货单号 |
 | §4.3.2.5 补货双门开门 | `sendOpenStockDoubleDoor` | v16:2108-2109 | — | ⛔ 单门柜 |
-| §4.3.2.6 关门 | `closeDoor` | v16:2162-2163 | `DeviceCommandController.java:122`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/close-door`，后台设备卡「关闭柜门」按钮带确认） | ✅ 2026-10-23 补接（用户拍板）：采集开门会话（`gatherOpenDoor`）解锁后柜门不回锁，运营需显式关门手段。🔴 文档无回执 ⇒ 只能审计下发动作，**不能当「已锁上」判据**；真机执行待柜上电（当前 503 设备不在线） |
+| §4.3.2.6 关门 | `closeDoor` | v16:2162-2163 | `DeviceCommandController.java:122`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/close-door`，后台设备卡「关闭柜门」按钮带确认） | ✅ 2026-10-23 补接（用户拍板）：采集开门会话（`gatherOpenDoor`）解锁后柜门不回锁，运营需显式关门手段。🔴 文档无回执 ⇒ 只能审计下发动作，**不能当「已锁上」判据**；真机执行待柜上电（当前 503 设备不在线）。⚠️ 563 固件分支里该 msgType 走的是**双门维护语义**（`DealSocketMsg.smali:1667`：`LOCKS=[1]` 关一次、再 `LOCKS=[2]`+`usbNumRu/Rb` 关一次），且 `BusinessSessionGuard.captureBusy()` 为真时**直接 return 并 TTS「请先完成采集并关闭柜门」**⇒ 若现场关门无效，先查采集会话是否仍占用，再查 806 活体是否同分支 |
 | §4.3.2.7 购物开门 | `openDoor`（订单号） | v16:2189-2190 | `:230` | ✅ 我方唯一实际开门路径 |
 | §4.3.2.8 双门购物开门 | `openDoubleDoor` | v16:2217 | — | ⛔ 单门柜（文档自己写明「一笔订单只能开一个门」） |
 | §4.3.2.9 模型下发 | `updateModel`（对象 `{quantity,modelUrl,textUrl,modelName}`） | v16:2278-2279、参数表三行全 M | `:250` | ✅ 出站已实现；**卡的是输入**：§4.4.4 列表空⇒`requireModel` 404、classes host 白名单⇒`parseClasses` 400（§G-2） |
 | §4.3.2.10 灯带控制 | `sendDeviceLightStripFlag` | v16:2356-2357 | — | ❌ 未接（可选，柜无灯带需求） |
 | §4.3.2.11 拉取视频 | `sendUploadErrorOrderVideos` | v16:2390-2391 | `DeviceCommandController.java:105` | ✅ 2026-10-20 上线。🔴 **文档示例 `msgContent:"24005355433545_MSG"` 带 `_MSG` 后缀，固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件⇒不带后缀才对**（§H-6）。上游同字面回传=二义（重传请求 or 无文件），我方**只记日志绝不重发**（`DeviceWebSocketHandler.java:176`） |
-| §4.3.2.12 获取门磁状态 | `getDoorState` | v16:2433-2434 | `DeviceCommandController.java:154`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/door-state`） | ✅ 2026-10-23 补接：回执 §4.2.16 此前只进日志，现落 `device_info.door_state/lock_state/door_reported_at`（V402），后台设备卡展示「门/锁」+ 查询按钮。🔴 设备自报口径，不作结算判据；真机未验（柜关机） |
+| §4.3.2.12 获取门磁状态 | `getDoorState` | v16:2433-2434 | `DeviceCommandController.java:154`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/door-state`） | ✅ 2026-10-23 补接：回执 §4.2.16 此前只进日志，现落 `device_info.door_state/lock_state/door_reported_at`（V402），后台设备卡展示「门/锁」+ 查询按钮。⚠️ 固件 `DealSocketMsg.uploadDoorState` 把两字段初值设为 **`unknown`**（`LockSys` 读 GPIO 抛 IOException/RuntimeException/LinkageError 时照发）⇒ 我方把 `unknown` 也落库、后台显示「未知」，与「未上报」区分（文档只写 open/close，这是固件实发口径）。🔴 设备自报口径，不作结算判据；真机未验（柜关机） |
 | §4.3.2.13 获取设备基本信息 | `getDeviceInfo`（文档 OCR 作 `getDevicelnfo`） | v16:2468-2469 | `DeviceCommandController.java:80`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/device-info`） | ✅ **已实现，🔴 但真机从未点过**（2026-10-22 18:0x 复核纠正本表旧记「❌ 未接」——该行漏读了上面这个文件:行；代码自 2026-10-15 `167f51d7` 就在）。回执是 HTTP 上行 §4.2.15 `deviceInfo/getDeviceSimInfo`，同样 **0 命中** ⇒ 判据见 §9B R2 |
 | §4.3.2.14 检查在线状态 | `sendQueryNetwork` | v16:2515-2516 | — | ❌ 未接（现用 WS 会话存活判在线，够用） |
 | §4.3.2.15 连接 Wi-Fi | `sendChangeWifiCommand` | v16:2552-2553 | — | ❌ 未接⇒**换场地配网只能现场手工**（§G-10） |

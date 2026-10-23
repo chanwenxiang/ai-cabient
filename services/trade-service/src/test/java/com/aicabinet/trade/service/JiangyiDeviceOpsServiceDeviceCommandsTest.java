@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -83,26 +84,45 @@ class JiangyiDeviceOpsServiceDeviceCommandsTest {
 
     @Test
     void recordDoorState_persistsNormalizedSnapshot() {
-        DeviceInfo device = new DeviceInfo();
-        device.setDeviceId(DEVICE_ID);
-        when(deviceMapper.findById(DEVICE_ID)).thenReturn(Optional.of(device));
+        when(deviceMapper.updateDoorState(eq(DEVICE_ID), eq("open"), eq("close"), any()))
+                .thenReturn(1);
 
         service.recordDoorState(DEVICE_ID, " OPEN ", "Close");
 
-        assertEquals("open", device.getDoorState());
-        assertEquals("close", device.getLockState());
-        org.junit.jupiter.api.Assertions.assertNotNull(device.getDoorReportedAt());
-        verify(deviceMapper).updateById(device);
+        verify(deviceMapper).updateDoorState(eq(DEVICE_ID), eq("open"), eq("close"), any());
+    }
+
+    /**
+     * 固件 uploadDoorState 的初值就是 "unknown"（LockSys 读不到 GPIO 时照发）：
+     * 必须收下并盖时间戳，否则设备明明回了、后台仍显示「未上报」。
+     */
+    @Test
+    void recordDoorState_acceptsUnknownAsReported() {
+        when(deviceMapper.updateDoorState(eq(DEVICE_ID), eq("unknown"), eq("unknown"), any()))
+                .thenReturn(1);
+
+        service.recordDoorState(DEVICE_ID, "unknown", "Unknown");
+
+        verify(deviceMapper).updateDoorState(eq(DEVICE_ID), eq("unknown"), eq("unknown"), any());
+    }
+
+    /** 只一侧可识别时，另一侧传 null，保留库里上次值。 */
+    @Test
+    void recordDoorState_keepsOtherSideWhenOneValueUnusable() {
+        when(deviceMapper.updateDoorState(eq(DEVICE_ID), isNull(), eq("close"), any()))
+                .thenReturn(1);
+
+        service.recordDoorState(DEVICE_ID, "locking", "close");
+
+        verify(deviceMapper).updateDoorState(eq(DEVICE_ID), isNull(), eq("close"), any());
     }
 
     /** 固件口径不可信：非法值丢弃，不覆盖既有快照。 */
     @Test
     void recordDoorState_dropsIllegalValues() {
-        when(deviceMapper.findById(DEVICE_ID)).thenReturn(Optional.of(new DeviceInfo()));
-
         service.recordDoorState(DEVICE_ID, "locking", null);
 
-        verify(deviceMapper, times(0)).updateById(any());
+        verify(deviceMapper, times(0)).updateDoorState(any(), any(), any(), any());
     }
 
     @Test

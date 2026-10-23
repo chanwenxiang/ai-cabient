@@ -124,36 +124,41 @@ public class JiangyiDeviceOpsService {
         auditService.appendLog(operatorId, "JIANGYI_DOOR_STATE", "DEVICE", deviceId, "下发门磁查询（getDoorState）");
     }
 
-    /** 门磁回执落库（gateway §4.2.16 转发）；非法值丢弃，不覆盖既有快照。 */
+    /**
+     * 门磁回执落库（gateway §4.2.16 转发）：无法识别的取值丢弃，不覆盖既有快照。
+     * <p>{@code unknown} 是固件真实会发的值（LockSys 读 GPIO 抛 IOException/RuntimeException/
+     * LinkageError 时两个字段保持初值 "unknown" 照发，DealSocketMsg.uploadDoorState），
+     * 必须收下并盖时间戳——否则设备明明回了，后台仍显示「未上报」，运营无法区分
+     * 「指令没到」与「到了但锁控读不出来」。</p>
+     */
     @Transactional
     public void recordDoorState(String deviceId, String doorState, String lockState) {
         String door = normalizeSwitchState(doorState);
         String lock = normalizeSwitchState(lockState);
         if (door == null && lock == null) {
+            log.warn("jiangyi door-state IGNORED device={} doorState={} lockState={}（取值无法识别）",
+                    deviceId, doorState, lockState);
             return;
         }
-        DeviceInfo device = deviceRepository.findById(deviceId).orElse(null);
-        if (device == null) {
-            return;
+        int updated = deviceRepository.updateDoorState(deviceId, door, lock,
+                java.time.Instant.now());
+        if (updated == 0) {
+            // 设备先于我方建档上报：静默丢会让人以为链路没通。
+            log.warn("jiangyi door-state DROPPED device={} door={} lock={}（device_info 无此设备）",
+                    deviceId, door, lock);
         }
-        if (door != null) {
-            device.setDoorState(door);
-        }
-        if (lock != null) {
-            device.setLockState(lock);
-        }
-        device.setDoorReportedAt(java.time.Instant.now());
-        device.setUpdatedAt(java.time.Instant.now());
-        deviceRepository.updateById(device);
     }
 
-    /** 文档口径 open/close；大小写与空白宽容（固件口径不可信，铁律）。 */
+    /**
+     * 文档口径 open/close（V16 §4.2.16），另收固件实发的 unknown（锁控读取失败）。
+     * 大小写与空白宽容（固件口径不可信，铁律）。
+     */
     private static String normalizeSwitchState(String raw) {
         if (raw == null) {
             return null;
         }
         String v = raw.trim().toLowerCase(java.util.Locale.ROOT);
-        return "open".equals(v) || "close".equals(v) ? v : null;
+        return "open".equals(v) || "close".equals(v) || "unknown".equals(v) ? v : null;
     }
 
     /** 门磁快照视图；未查询过返回全 null。 */

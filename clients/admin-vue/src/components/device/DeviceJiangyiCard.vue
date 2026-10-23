@@ -704,8 +704,8 @@ async function saveSound() {
 
 // ===== 柜门控制（2026-10-23）：关门/回锁 §4.3.2.6、门磁查询 §4.3.2.12、重启 §4.3.2.1 =====
 interface DoorStateView {
-  doorState?: 'open' | 'close' | null;
-  lockState?: 'open' | 'close' | null;
+  doorState?: 'open' | 'close' | 'unknown' | null;
+  lockState?: 'open' | 'close' | 'unknown' | null;
   reportedAt?: string | null;
 }
 const doorState = ref<DoorStateView | null>(null);
@@ -714,7 +714,9 @@ const doorQueryLoading = ref(false);
 const closeDoorLoading = ref(false);
 const rebootLoading = ref(false);
 
-const switchLabel = (v?: string | null) => (v === 'open' ? '开' : v === 'close' ? '关' : '未上报');
+/** unknown = 设备回了但锁控 GPIO 读不出来（固件 uploadDoorState 初值），与「从未上报」区分。 */
+const switchLabel = (v?: string | null) =>
+  v === 'open' ? '开' : v === 'close' ? '关' : v === 'unknown' ? '未知' : '未上报';
 
 async function loadDoorState() {
   doorStateLoading.value = true;
@@ -723,19 +725,20 @@ async function loadDoorState() {
       AdminEndpoints.deviceJiangyiDoorState(props.deviceId)
     );
   } catch {
-    doorState.value = null;
+    // 保留上次快照：一次网络抖动不该把已读到的门磁状态抹成「未上报」
   } finally {
     doorStateLoading.value = false;
   }
 }
 
-/** 下发 getDoorState：设备经 §4.2.16 回执异步落库，故延迟再刷一次。 */
+/** 下发 getDoorState：设备经 §4.2.16 回执异步落库，故延迟两次刷新（弱网下设备回执可能超过 3s）。 */
 async function queryDoorState() {
   doorQueryLoading.value = true;
   try {
     await api.request(AdminEndpoints.deviceJiangyiDoorState(props.deviceId), 'POST');
     ElMessage.info('已下发门磁查询；设备回报后自动刷新（可选接口，固件未实现则无回执）');
     window.setTimeout(() => void loadDoorState(), 3000);
+    window.setTimeout(() => void loadDoorState(), 10000);
   } catch (e) {
     ElMessage.error(errorMessage(e, '门磁查询下发失败（设备可能离线）'));
   } finally {
@@ -1011,6 +1014,7 @@ watch(
         </div>
         <div class="jy-signal-hint">
           门磁走将邑可选接口（§4.3.2.12 下发 / §4.2.16 回报）——设备自报口径，仅作现场参考；
+          「未知」= 设备回报了但锁控读不出（固件初值），与「未上报」不同。
           关门（§4.3.2.6）与重启（§4.3.2.1）均无回执，下发后需现场确认。
         </div>
       </div>

@@ -176,6 +176,27 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
             """)
     Long maxNumericDeviceIdRaw();
 
+    /**
+     * 门磁回执定点更新（V402 §4.2.16）：只写 door/lock 三列。
+     * <p>不用 {@code findById + updateById} 整行回写——那会把读到的旧 online_status 一并写回，
+     * 与并发的 ws-online 置位抢写。只更新非 null 的字段，另一侧保留上次值。</p>
+     */
+    default int updateDoorState(String deviceId, String doorState, String lockState,
+                                java.time.Instant reportedAt) {
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DeviceInfo> wrapper =
+                Wrappers.<DeviceInfo>lambdaUpdate()
+                        .eq(DeviceInfo::getDeviceId, deviceId)
+                        .set(DeviceInfo::getDoorReportedAt, reportedAt)
+                        .set(DeviceInfo::getUpdatedAt, reportedAt);
+        if (doorState != null) {
+            wrapper.set(DeviceInfo::getDoorState, doorState);
+        }
+        if (lockState != null) {
+            wrapper.set(DeviceInfo::getLockState, lockState);
+        }
+        return update(null, wrapper);
+    }
+
     default Optional<DeviceInfo> findByImei(String imei) {
         if (imei == null || imei.isBlank()) {
             return Optional.empty();
