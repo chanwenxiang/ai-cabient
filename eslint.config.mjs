@@ -17,6 +17,8 @@ export default tseslint.config(
       '**/.cursor/**',
       // AI 工具本地 worktree（如 .qoder/worktrees/*，内含检出副本与构建产物，不入库）
       '**/.qoder/**',
+      // git worktree 检出副本（本机多分支并行用；CI 不存在，扫描它只会把历史分支报成本轮缺陷）
+      '**/.worktrees/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/bin/**',
