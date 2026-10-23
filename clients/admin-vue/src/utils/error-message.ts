@@ -20,3 +20,12 @@ export function isSessionAuthError(error: unknown): boolean {
 export function isUserDismiss(error: unknown): boolean {
   return error === 'cancel' || error === 'close';
 }
+
+/** HTTP 状态码（shared-api 的 ApiHttpError 携带）；本地/网络类错误返回 undefined。 */
+export function httpStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === 'number') return status;
+  }
+  return undefined;
+}

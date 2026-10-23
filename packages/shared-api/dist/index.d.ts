@@ -28,6 +28,14 @@ export interface ApiClientOptions {
     getRetryCount?: number;
     fetchImpl?: typeof fetch;
 }
+/**
+ * 服务端拒绝（非 2xx 或业务码非 0）。带 HTTP `status`，供调用方区分 409 等——
+ * 例如设备维护指令被「进行中业务」拦下时，运营二次确认后带 force 重试。
+ */
+export declare class ApiHttpError extends Error {
+    readonly status: number;
+    constructor(message: string, status: number);
+}
 export declare class ApiClient {
     private readonly baseUrl;
     private readonly getToken;

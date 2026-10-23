@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
@@ -153,8 +154,7 @@ class DeviceValidationServiceTest {
     }
 
     @Test
-    void ensureConsumerShopping_allowedWhenJiangyiBoundAndMockDisabled() {
-        DeviceInfo device = new DeviceInfo();
+    void ensureConsumerShopping_allowedWhenJiangyiBoundAndMockDisabled() {        DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-001");
         device.setOnlineStatus("ONLINE");
         when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
@@ -167,5 +167,61 @@ class DeviceValidationServiceTest {
                 .thenReturn(List.of());
 
         assertDoesNotThrow(() -> service.ensureConsumerShoppingAllowed("CAB-001"));
+    }
+
+    // ---------- 维护指令（reboot §4.3.2.1 / closeDoor §4.3.2.6）前置 ----------
+
+    @Test
+    void maintenanceCommand_blocksActiveConsumerSession() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-1");
+        when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of(session));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.ensureMaintenanceCommandAllowed("CAB-001", false));
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("消费者购物会话"));
+    }
+
+    @Test
+    void maintenanceCommand_ignoresNonConsumerSessions() {
+        ShoppingSession restock = new ShoppingSession();
+        restock.setIdempotencyKey("RESTOCK:T-1");
+        ShoppingSession ops = new ShoppingSession();
+        ops.setIdempotencyKey("OPS_REMOTE:1");
+        when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of(restock, ops));
+        when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+
+        assertDoesNotThrow(() -> service.ensureMaintenanceCommandAllowed("CAB-001", false));
+    }
+
+    @Test
+    void maintenanceCommand_blocksCheckedInReplenishmentTask() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setStatus("IN_PROGRESS");
+        task.setCheckInAt(Instant.now());
+        when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+        when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
+                .thenReturn(List.of(task));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.ensureMaintenanceCommandAllowed("CAB-001", false));
+
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason().contains("补货任务"));
+    }
+
+    @Test
+    void maintenanceCommand_forceSkipsBothChecks() {
+        assertDoesNotThrow(() -> service.ensureMaintenanceCommandAllowed("CAB-001", true));
+
+        verify(sessionRepository, never()).findByDeviceIdAndStateIn(ArgumentMatchers.any(), ArgumentMatchers.anyList());
+        verify(replenishmentTaskRepository, never())
+                .findByDeviceIdAndStatusIn(ArgumentMatchers.any(), ArgumentMatchers.anyList());
     }
 }

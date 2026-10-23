@@ -113,12 +113,12 @@
 
 | 文档节 | msgType | 文档行 | 我方 | 状态 |
 |---|---|---|---|---|
-| §4.3.2.1 机器重启 | `reboot` | v16:1980-1981 | `DeviceCommandController.java:138`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/reboot`） | ✅ 2026-10-23 补接（用户拍板）：现场断电此前只能人工合闸。🔴 无回执；重启期间 WS 断开（gateway 收 ws-offline 即置离线） |
+| §4.3.2.1 机器重启 | `reboot` | v16:1980-1981 | `DeviceCommandController.java:138`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/reboot`） | ✅ 2026-10-23 补接（用户拍板）：现场断电此前只能人工合闸。🔴 无回执；重启期间 WS 断开（gateway 收 ws-offline 即置离线）。⚠️ 下发前过「进行中业务」闸（`DeviceValidationService.ensureMaintenanceCommandAllowed`：消费者购物会话六态 或 已签到补货任务 ⇒ 409；`force=true` 为运营二次确认后越过，审计记「强制」） |
 | §4.3.2.2 强制开门 | `openDoor`（`msgContent:""`） | v16:2007-2008 | 同一字面量恒带 sessionId（`DeviceWebSocketHandler.java:230`） | ⛔ 空 msgContent **结构性拒绝**（购物开门必须有会话号，空值=无审计开门） |
 | §4.3.2.3 强制双门开门 | `sendForceOpenDoubleDoor` | v16:2035-2036 | — | ⛔ 单门柜无此概念 |
 | §4.3.2.4 补货开门 | `sendOpenStockDoor`（补货单号） | v16:2067-2068 | `:217` | ✅ 补货会话 id ≡ 补货单号 |
 | §4.3.2.5 补货双门开门 | `sendOpenStockDoubleDoor` | v16:2108-2109 | — | ⛔ 单门柜 |
-| §4.3.2.6 关门 | `closeDoor` | v16:2162-2163 | `DeviceCommandController.java:122`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/close-door`，后台设备卡「关闭柜门」按钮带确认） | ✅ 2026-10-23 补接（用户拍板）：采集开门会话（`gatherOpenDoor`）解锁后柜门不回锁，运营需显式关门手段。🔴 文档无回执 ⇒ 只能审计下发动作，**不能当「已锁上」判据**；真机执行待柜上电（当前 503 设备不在线）。⚠️ 563 固件分支里该 msgType 走的是**双门维护语义**（`DealSocketMsg.smali:1667`：`LOCKS=[1]` 关一次、再 `LOCKS=[2]`+`usbNumRu/Rb` 关一次），且 `BusinessSessionGuard.captureBusy()` 为真时**直接 return 并 TTS「请先完成采集并关闭柜门」**⇒ 若现场关门无效，先查采集会话是否仍占用，再查 806 活体是否同分支 |
+| §4.3.2.6 关门 | `closeDoor` | v16:2162-2163 | `DeviceCommandController.java:122`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/close-door`，后台设备卡「关闭柜门」按钮带确认） | ✅ 2026-10-23 补接（用户拍板）：采集开门会话（`gatherOpenDoor`）解锁后柜门不回锁，运营需显式关门手段。🔴 文档无回执 ⇒ 只能审计下发动作，**不能当「已锁上」判据**；真机执行待柜上电（当前 503 设备不在线）。⚠️ 563 固件分支里该 msgType 走的是**双门维护语义**（`DealSocketMsg.smali:1667`：`LOCKS=[1]` 关一次、再 `LOCKS=[2]`+`usbNumRu/Rb` 关一次），且 `BusinessSessionGuard.captureBusy()` 为真时**直接 return 并 TTS「请先完成采集并关闭柜门」**⇒ 若现场关门无效，先查采集会话是否仍占用，再查 806 活体是否同分支。⚠️ 下发前过「进行中业务」闸（消费者购物会话/已签到补货任务 ⇒ 409，`force=true` 可越过并审计记「强制」）——注意只拦消费者会话：补货/运维远程开门会话本身就用本指令收尾 |
 | §4.3.2.7 购物开门 | `openDoor`（订单号） | v16:2189-2190 | `:230` | ✅ 我方唯一实际开门路径 |
 | §4.3.2.8 双门购物开门 | `openDoubleDoor` | v16:2217 | — | ⛔ 单门柜（文档自己写明「一笔订单只能开一个门」） |
 | §4.3.2.9 模型下发 | `updateModel`（对象 `{quantity,modelUrl,textUrl,modelName}`） | v16:2278-2279、参数表三行全 M | `:250` | ✅ 出站已实现；**卡的是输入**：§4.4.4 列表空⇒`requireModel` 404、classes host 白名单⇒`parseClasses` 400（§G-2） |

@@ -31,17 +31,20 @@ public class JiangyiDeviceOpsService {
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final DeviceInfoMapper deviceRepository;
     private final ShoppingSessionMapper sessionRepository;
+    private final DeviceValidationService deviceValidationService;
     private final AdminAuditService auditService;
 
     public JiangyiDeviceOpsService(JiangyiGatewayClient gatewayClient,
                                    JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                    DeviceInfoMapper deviceRepository,
                                    ShoppingSessionMapper sessionRepository,
+                                   DeviceValidationService deviceValidationService,
                                    AdminAuditService auditService) {
         this.gatewayClient = gatewayClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
+        this.deviceValidationService = deviceValidationService;
         this.auditService = auditService;
     }
 
@@ -78,9 +81,15 @@ public class JiangyiDeviceOpsService {
         auditService.appendLog(operatorId, "JIANGYI_DEVICE_INFO", "DEVICE", deviceId, "下发设备信息拉取（getDeviceInfo）");
     }
 
-    /** 关门/回锁（§4.3.2.6 可选指令 closeDoor）：文档未定义回执，是否生效看设备行为。 */
-    public void closeDoor(Long operatorId, String deviceId) {
+    /**
+     * 关门/回锁（§4.3.2.6 可选指令 closeDoor）：文档未定义回执，是否生效看设备行为。
+     * <p>固件（563 DealSocketMsg.closeDoor）是双门维护语义：先关 1 号门，再对 2 号门下发并清零
+     * usbNumRu/Rb；采集/补货会话忙（BusinessSessionGuard.captureBusy）时固件直接丢弃并播报
+     * 「请先完成采集并关闭柜门」——所以本指令只能用在「柜门没收上」的补救场景。</p>
+     */
+    public void closeDoor(Long operatorId, String deviceId, boolean force) {
         requireJiangyi(deviceId);
+        deviceValidationService.ensureMaintenanceCommandAllowed(deviceId, force);
         try {
             gatewayClient.closeDoor(deviceId);
         } catch (ResponseStatusException e) {
@@ -89,12 +98,14 @@ public class JiangyiDeviceOpsService {
             log.warn("jiangyi closeDoor dispatch failed device={}: {}", deviceId, e.getMessage());
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "关门指令下发失败（网关不可达或设备离线）");
         }
-        auditService.appendLog(operatorId, "JIANGYI_CLOSE_DOOR", "DEVICE", deviceId, "下发关门指令（closeDoor）");
+        auditService.appendLog(operatorId, "JIANGYI_CLOSE_DOOR", "DEVICE", deviceId,
+                force ? "强制下发关门指令（closeDoor）：运营已确认越过进行中业务" : "下发关门指令（closeDoor）");
     }
 
     /** 机器重启（§4.3.2.1 reboot）：无回执；设备重启后 WS 会短暂断开。 */
-    public void reboot(Long operatorId, String deviceId) {
+    public void reboot(Long operatorId, String deviceId, boolean force) {
         requireJiangyi(deviceId);
+        deviceValidationService.ensureMaintenanceCommandAllowed(deviceId, force);
         try {
             gatewayClient.reboot(deviceId);
         } catch (ResponseStatusException e) {
@@ -103,7 +114,8 @@ public class JiangyiDeviceOpsService {
             log.warn("jiangyi reboot dispatch failed device={}: {}", deviceId, e.getMessage());
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "重启指令下发失败（网关不可达或设备离线）");
         }
-        auditService.appendLog(operatorId, "JIANGYI_REBOOT", "DEVICE", deviceId, "下发重启指令（reboot）");
+        auditService.appendLog(operatorId, "JIANGYI_REBOOT", "DEVICE", deviceId,
+                force ? "强制下发重启指令（reboot）：运营已确认越过进行中业务" : "下发重启指令（reboot）");
     }
 
     /**

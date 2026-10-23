@@ -10,6 +10,17 @@ function isRetriableTransportError(err) {
         return false;
     return err.message.includes('请求超时') || err.message.includes('网络错误');
 }
+/**
+ * 服务端拒绝（非 2xx 或业务码非 0）。带 HTTP `status`，供调用方区分 409 等——
+ * 例如设备维护指令被「进行中业务」拦下时，运营二次确认后带 force 重试。
+ */
+export class ApiHttpError extends Error {
+    constructor(message, status) {
+        super(message);
+        this.name = 'ApiHttpError';
+        this.status = status;
+    }
+}
 export class ApiClient {
     constructor(opts) {
         this.refreshPromise = null;
@@ -91,7 +102,7 @@ export class ApiClient {
             throw new Error(localizeApiMessage(json.message, '权限不足'));
         }
         if (!res.ok || json.code !== 0) {
-            throw new Error(localizeApiMessage(json.message, `请求失败 (${res.status})`));
+            throw new ApiHttpError(localizeApiMessage(json.message, `请求失败 (${res.status})`), res.status);
         }
         return json.data;
     }

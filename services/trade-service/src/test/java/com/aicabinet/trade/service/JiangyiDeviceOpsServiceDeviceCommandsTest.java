@@ -34,6 +34,7 @@ class JiangyiDeviceOpsServiceDeviceCommandsTest {
     private JiangyiGatewayClient gatewayClient;
     private JiangyiDeviceDirectory directory;
     private DeviceInfoMapper deviceMapper;
+    private DeviceValidationService validationService;
     private AdminAuditService auditService;
     private JiangyiDeviceOpsService service;
 
@@ -42,20 +43,51 @@ class JiangyiDeviceOpsServiceDeviceCommandsTest {
         gatewayClient = mock(JiangyiGatewayClient.class);
         directory = mock(JiangyiDeviceDirectory.class);
         deviceMapper = mock(DeviceInfoMapper.class);
+        validationService = mock(DeviceValidationService.class);
         auditService = mock(AdminAuditService.class);
         service = new JiangyiDeviceOpsService(gatewayClient, directory,
-                deviceMapper, mock(ShoppingSessionMapper.class), auditService);
+                deviceMapper, mock(ShoppingSessionMapper.class), validationService, auditService);
     }
 
     @Test
     void reboot_dispatchesAndAudits() {
         when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
 
-        service.reboot(OPERATOR_ID, DEVICE_ID);
+        service.reboot(OPERATOR_ID, DEVICE_ID, false);
 
         verify(gatewayClient).reboot(DEVICE_ID);
         verify(auditService).appendLog(eq(OPERATOR_ID), eq("JIANGYI_REBOOT"),
                 eq("DEVICE"), eq(DEVICE_ID), anyString());
+    }
+
+    @Test
+    void reboot_blockedByActiveBusiness() {
+        when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
+        doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "设备使用中"))
+                .when(validationService).ensureMaintenanceCommandAllowed(DEVICE_ID, false);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.reboot(OPERATOR_ID, DEVICE_ID, false));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+        verify(gatewayClient, never()).reboot(DEVICE_ID);
+        verify(auditService, never())
+                .appendLog(any(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void reboot_forceBypassesGuardAndAuditsForce() {
+        when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
+        org.mockito.ArgumentCaptor<String> detail =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+
+        service.reboot(OPERATOR_ID, DEVICE_ID, true);
+
+        verify(validationService).ensureMaintenanceCommandAllowed(DEVICE_ID, true);
+        verify(gatewayClient).reboot(DEVICE_ID);
+        verify(auditService).appendLog(eq(OPERATOR_ID), eq("JIANGYI_REBOOT"),
+                eq("DEVICE"), eq(DEVICE_ID), detail.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(detail.getValue().contains("强制"));
     }
 
     @Test
@@ -75,7 +107,7 @@ class JiangyiDeviceOpsServiceDeviceCommandsTest {
         doThrow(new RuntimeException("device offline")).when(gatewayClient).reboot(DEVICE_ID);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.reboot(OPERATOR_ID, DEVICE_ID));
+                () -> service.reboot(OPERATOR_ID, DEVICE_ID, false));
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, e.getStatusCode());
         verify(auditService, never())

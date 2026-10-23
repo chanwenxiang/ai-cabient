@@ -286,12 +286,16 @@ public class AdminJiangyiController {
         return ApiResponse.ok(null);
     }
 
-    /** 关门/回锁（§4.3.2.6 可选指令 closeDoor）。 */
+    /**
+     * 关门/回锁（§4.3.2.6 可选指令 closeDoor）。
+     * <p>有进行中的消费者会话/补货任务时 409；{@code force=true} 为运营二次确认后的强制下发。</p>
+     */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/close-door")
     public ApiResponse<Void> closeDoor(HttpServletRequest request,
-                                       @PathVariable("deviceId") String deviceId) {
-        jiangyiDeviceOpsService.closeDoor(operatorId(request), deviceId);
+                                       @PathVariable("deviceId") String deviceId,
+                                       @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        jiangyiDeviceOpsService.closeDoor(operatorId(request), deviceId, force);
         return ApiResponse.ok(null);
     }
 
@@ -303,12 +307,13 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiDeviceOpsService.signal(deviceId));
     }
 
-    /** 机器重启（§4.3.2.1 reboot）：无回执，设备重启期间 WS 断开。 */
+    /** 机器重启（§4.3.2.1 reboot）：无回执，设备重启期间 WS 断开；有进行中业务时 409，force 可越过。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/reboot")
     public ApiResponse<Void> reboot(HttpServletRequest request,
-                                    @PathVariable("deviceId") String deviceId) {
-        jiangyiDeviceOpsService.reboot(operatorId(request), deviceId);
+                                    @PathVariable("deviceId") String deviceId,
+                                    @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        jiangyiDeviceOpsService.reboot(operatorId(request), deviceId, force);
         return ApiResponse.ok(null);
     }
 

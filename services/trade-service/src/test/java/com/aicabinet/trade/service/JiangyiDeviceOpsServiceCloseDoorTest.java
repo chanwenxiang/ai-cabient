@@ -25,6 +25,7 @@ class JiangyiDeviceOpsServiceCloseDoorTest {
 
     private JiangyiGatewayClient gatewayClient;
     private JiangyiDeviceDirectory directory;
+    private DeviceValidationService validationService;
     private AdminAuditService auditService;
     private JiangyiDeviceOpsService service;
 
@@ -32,16 +33,18 @@ class JiangyiDeviceOpsServiceCloseDoorTest {
     void setUp() {
         gatewayClient = mock(JiangyiGatewayClient.class);
         directory = mock(JiangyiDeviceDirectory.class);
+        validationService = mock(DeviceValidationService.class);
         auditService = mock(AdminAuditService.class);
         service = new JiangyiDeviceOpsService(gatewayClient, directory,
-                mock(DeviceInfoMapper.class), mock(ShoppingSessionMapper.class), auditService);
+                mock(DeviceInfoMapper.class), mock(ShoppingSessionMapper.class), validationService,
+                auditService);
     }
 
     @Test
     void closeDoor_dispatchesAndAudits() {
         org.mockito.Mockito.when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
 
-        service.closeDoor(OPERATOR_ID, DEVICE_ID);
+        service.closeDoor(OPERATOR_ID, DEVICE_ID, false);
 
         verify(gatewayClient).closeDoor(DEVICE_ID);
         verify(auditService).appendLog(eq(OPERATOR_ID), eq("JIANGYI_CLOSE_DOOR"),
@@ -53,7 +56,7 @@ class JiangyiDeviceOpsServiceCloseDoorTest {
         org.mockito.Mockito.when(directory.isJiangyi(DEVICE_ID)).thenReturn(false);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.closeDoor(OPERATOR_ID, DEVICE_ID));
+                () -> service.closeDoor(OPERATOR_ID, DEVICE_ID, false));
 
         assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
         verify(gatewayClient, org.mockito.Mockito.times(0)).closeDoor(anyString());
@@ -65,10 +68,41 @@ class JiangyiDeviceOpsServiceCloseDoorTest {
         doThrow(new RuntimeException("connect timeout")).when(gatewayClient).closeDoor(DEVICE_ID);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.closeDoor(OPERATOR_ID, DEVICE_ID));
+                () -> service.closeDoor(OPERATOR_ID, DEVICE_ID, false));
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, e.getStatusCode());
         verify(auditService, org.mockito.Mockito.times(0))
                 .appendLog(any(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /** 有进行中消费者会话/补货任务时不下发；运营可在 UI 二次确认后带 force 重试。 */
+    @Test
+    void closeDoor_blockedByActiveBusiness() {
+        org.mockito.Mockito.when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.CONFLICT, "设备使用中"))
+                .when(validationService).ensureMaintenanceCommandAllowed(DEVICE_ID, false);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.closeDoor(OPERATOR_ID, DEVICE_ID, false));
+
+        assertEquals(HttpStatus.CONFLICT, e.getStatusCode());
+        verify(gatewayClient, org.mockito.Mockito.times(0)).closeDoor(anyString());
+        verify(auditService, org.mockito.Mockito.times(0))
+                .appendLog(any(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void closeDoor_forceBypassesGuardAndAuditsForce() {
+        org.mockito.Mockito.when(directory.isJiangyi(DEVICE_ID)).thenReturn(true);
+        org.mockito.ArgumentCaptor<String> detail =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+
+        service.closeDoor(OPERATOR_ID, DEVICE_ID, true);
+
+        verify(validationService).ensureMaintenanceCommandAllowed(DEVICE_ID, true);
+        verify(gatewayClient).closeDoor(DEVICE_ID);
+        verify(auditService).appendLog(eq(OPERATOR_ID), eq("JIANGYI_CLOSE_DOOR"),
+                eq("DEVICE"), eq(DEVICE_ID), detail.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(detail.getValue().contains("强制"));
     }
 }

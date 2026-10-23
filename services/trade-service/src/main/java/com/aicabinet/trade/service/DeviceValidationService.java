@@ -192,6 +192,26 @@ public class DeviceValidationService {
     }
 
     /**
+     * 维护类指令（重启 §4.3.2.1、关门 §4.3.2.6）前置校验：有消费者购物会话或已签到补货任务时拦截。
+     * <p>只拦消费者会话：补货/运维远程开门会话本身就用这些指令收尾，拦了会互相死锁。
+     * {@code force=true} = 运营在后台二次确认后显式越过（调用方负责审计留痕）。</p>
+     */
+    public void ensureMaintenanceCommandAllowed(String deviceId, boolean force) {
+        if (force) {
+            return;
+        }
+        var active = sessionRepository.findByDeviceIdAndStateIn(deviceId, BLOCKING_SESSION_STATES);
+        if (active.stream().anyMatch(s -> !isNonConsumerSession(s))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "设备有进行中的消费者购物会话（未结算），该指令会中断交易；如确需下发请二次确认强制");
+        }
+        if (hasInProgressReplenishmentTask(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "设备有进行中的补货任务（已签到），该指令会干扰补货；如确需下发请二次确认强制");
+        }
+    }
+
+    /**
      * 运维远程开门：须在线、无占用会话。
      * 允许在锁机停售下开门（检修场景）；消费者开门仍受 salesLocked 约束。
      */

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { errorMessage } from '@/utils/error-message';
+import { errorMessage, httpStatus, isUserDismiss } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 /**
@@ -746,6 +746,26 @@ async function queryDoorState() {
   }
 }
 
+/**
+ * 维护类指令下发（reboot/closeDoor）：409 = 设备有进行中的消费者会话或已签到补货任务，
+ * 后端拦下；运营二次确认后带 force=true 重试，审计记「强制」。返回是否走了强制。
+ */
+async function postDoorCommand(path: string, forceTitle: string): Promise<boolean> {
+  try {
+    await api.request(path, 'POST');
+    return false;
+  } catch (e) {
+    if (httpStatus(e) !== 409) throw e;
+    await ElMessageBox.confirm(`${errorMessage(e, '设备使用中')}。仍要下发？`, forceTitle, {
+      type: 'warning',
+      confirmButtonText: '强制下发',
+      cancelButtonText: '取消'
+    });
+    await api.request(`${path}?force=true`, 'POST');
+    return true;
+  }
+}
+
 async function closeDoor() {
   try {
     await ElMessageBox.confirm(
@@ -758,10 +778,17 @@ async function closeDoor() {
   }
   closeDoorLoading.value = true;
   try {
-    await api.request(AdminEndpoints.deviceJiangyiCloseDoor(props.deviceId), 'POST');
-    ElMessage.success('关门指令已下发（无回执，请现场确认已锁）');
+    const forced = await postDoorCommand(
+      AdminEndpoints.deviceJiangyiCloseDoor(props.deviceId),
+      '强制关门'
+    );
+    ElMessage.success(
+      forced
+        ? '已强制下发关门指令（越过进行中业务，无回执，请现场确认已锁）'
+        : '关门指令已下发（无回执，请现场确认已锁）'
+    );
   } catch (e) {
-    ElMessage.error(errorMessage(e, '关门指令下发失败（设备可能离线）'));
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '关门指令下发失败（设备可能离线）'));
   } finally {
     closeDoorLoading.value = false;
   }
@@ -779,10 +806,15 @@ async function rebootDevice() {
   }
   rebootLoading.value = true;
   try {
-    await api.request(AdminEndpoints.deviceJiangyiReboot(props.deviceId), 'POST');
-    ElMessage.success('重启指令已下发，设备将短暂离线');
+    const forced = await postDoorCommand(
+      AdminEndpoints.deviceJiangyiReboot(props.deviceId),
+      '强制重启'
+    );
+    ElMessage.success(
+      forced ? '已强制下发重启（越过进行中业务），设备将短暂离线' : '重启指令已下发，设备将短暂离线'
+    );
   } catch (e) {
-    ElMessage.error(errorMessage(e, '重启指令下发失败（设备可能离线）'));
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '重启指令下发失败（设备可能离线）'));
   } finally {
     rebootLoading.value = false;
   }
