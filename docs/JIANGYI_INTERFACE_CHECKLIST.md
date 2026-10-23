@@ -349,6 +349,25 @@
 
 步骤：① 选一个**厂商库里没有**的商品做样本（先按 H-13 用 `barCode` **精确查**确认不在厂商库，别拿列表长度当结论；真商品只有雪碧，所以用测试 SKU 100011 或新建一条）→ ② 后台「进入采集模式」（`POST …/jiangyi/gather/start`，置 `gather_locked_at`）→ ③ 现场确认门 → ④ **柜机自身摄像头**出图、采集 **200 张/商品**（🔴 H-12：**200 不是 2000**；🔴 出图方=柜机，不是手机 App，见本节前置 2）→ ⑤ `GET …/gather/progress` 轮询（内部串 `doorStatus` + `studyingProduct` + `gatherCheck(null)`）→ ⑥ 「触发学习」（`POST …/gather/training`）→ ⑦ 等 `gather-finish-notify` → ⑧ **「退出采集模式（恢复营业）」必须点**，否则购物一直 409。
 
+**采集脚本（2026-10-23 新增）**：`node scripts/jiangyi-gather-r5.mjs <子命令>`——只打 V1.13 §4.3.2–4.3.14 的厂商序列，外加 §4.4.4/4.4.5/4.4.6 只读；凭据只从环境变量或本机 dev 容器读、**不打印**，写操作必须显式 `--yes`。我方后台仍负责「进入采集模式 / 退出 / 触发学习 / 进度」（`JiangyiGatherService` 会建 `jiangyi_training_ticket`）⇒ 🔴 **不要用脚本直打 `commitTrainingTenantOne`**：finishNotifyId 是我方一次性凭据，绕过 ticket 会让回调被 `handleFinishNotify` 丢弃。`JIANGYI_IDENTIFIER`=厂商登记编号（本柜 `CQYB10720`），`JIANGYI_GATHER_PHONE`=endAll 的通知号码。
+
+| 步 | 子命令 | 判据（不过就停，别往下点） |
+|---|---|---|
+| 0 | 后台「识别映射 → 映射复核」 | `verified=true` 且「柜机版本」= 当前 `classes_version`；未复核先复核（H-28），否则采集后也无法结算 |
+| 1 | `list`（§4.3.2） | 待采集列表含目标行。**2026-10-23 实测 1 条**：`productId=41175 / 康师傅冰红茶柠檬口味茶饮品 / 康师傅 / 310ml / bottle` |
+| 2 | `prep --product-id 41175 --name … --brand 康师傅 --specs 310ml --category bottle --yes`（§4.3.3） | 回包 `data[0].id` = **采集商品信息 id**（记下，后续 ready/start/error/end-one 全用它）；404 先查 H-24 的 `productInfo` 拼写 |
+| 3 | `ready --gather-id <id>`（§4.3.4） | `cameraStatus=yes` + `configParamStatus=yes` + `start=yes`；任一 `no` 停 |
+| 4 | `start --gather-id <id> --yes`（§4.3.5） | 现场柜门打开/进入采集；同时我方 nginx 出现 `device/uploadDoorState`。**门不开=G-6**（厂商云对这台柜无会话），改用 `sendOpenStockDoor` 属设计变更，需拍板 |
+| 5 | 现场放样本，柜机自采 **200 张/商品**（H-12）→ `error --gather-id <id>`（§4.3.6） | `data=no`。⚠️ 文档明说「图片不足 2000 张也返回 no」⇒ **no ≠ 张数够**，张数以现场/设备为准 |
+| 6 | `end-one --gather-id <id> --yes`（§4.3.7） | 回包 `data`=采集次数 |
+| 7 | `products`（§4.3.8） | 列表含该商品 `productInfo` |
+| 8 | `go-on`（§4.3.9） | `yes` 才可采下一商品；`wait` 等设备；`no` 查 `error`/上传状态 |
+| 9 | `end-all --yes`（§4.3.10） | `data=null`；此后本批次不能再补商品 |
+| 10 | `upload-info`（§4.3.11） | 逐条 `wait → success`；`weak`=图片不足、`fail`=重采；**有 `wait` 时不要 clear-batch** |
+| 11 | `clear-batch --yes`（§4.3.14） | 仅当上传状态**全无 `wait`** 才调；失败可用 `forgo-upload`/`go-on-upload`（§4.3.12/13） |
+| 12 | 后台「触发学习」（**不是脚本**，§4.4.3） | ticket `PENDING`；`gather-finish-notify` 到达后 `FINISHED`；`studying`=pass；`gather-check` 含 41175；`models` 出现新模型（`modelTextUrl` 用 `.tmp/jy-decode-url.mjs` 复核行号） |
+| 13 | 学习完成后 | 🔴 **先做映射复核再开门**：新模型 classes 会平移行号（H-27/H-28），复核页「拉取差异 → 确认复核并应用」后 `verified=true` |
+
 判据：`jiangyi_training_ticket` 由 **0 行**变 ≥1 行且 PENDING→FINISHED；`GET /api/v2/ops/admin/jiangyi/gather-check` 回包含该商品；🔴 学习完成后 §4.4.4 `modelFile/getModelFileByApi` **由 `[]` 变成有货**——这条是 G-2 厂商侧卡点的真解，也是 R3 之后模型链的**正式来源**（借别商户模型只算验链路）；防伪验证顺手做一次：用错的 `finishNotifyId` curl 一次回调，判据=只 `log.warn("…dropped…")`、单行状态不变（`JiangyiGatherService.java:151-156`）。
 
 已知坑（跑前照抄）：`gatherCheck` 必须发 `productIds:null`，传 `[]` 被厂商 MyBatis 拼非法 SQL 回 555；`commitTrainingTenantOne` 的 `finishNotifyUrl` **不能带 token**（我方传 `publicBaseUrl + /jiangyi/api/gather-finish-notify`）⇒ 公网面须可达且免鉴权，本地靠 vicp 隧道演，生产要核 `JIANGYI_PUBLIC_BASE_URL`；🔴 **§4.3.3 `productInfo` 与 §4.3.11 `uploadInfoNew` 在文档里被 OCR 成 `productlnfo`/`uploadlnfoNew`（小写 L），照抄必 404**——序列跑之前先按 H-24 的探针做一次拼写对撞；🔴 我方后台**没有采集向导**（G-5 本轮只做只读），④ 这步得用脚本按 §4.3.3→4.3.14 的手动序列打。
@@ -399,6 +418,8 @@
 ### 9B.12 R8｜多商品识别（2026-10-23 16:0x 我方侧建档完成，🔴 只差现场放货开门）
 
 背景：昨天那次 PASS 只证明了**单款**（雪碧 classId 29 → 100013 → PAID 350）。本轮要证的是**一次开门拿多款、逐款归一/计价/扣库存**，所以先把在售面从 1 行扩到 4 行。
+
+🔴 **2026-10-23 V400 新增前置（H-28）：开门前必须先做一次映射复核**。本柜 `classes_version` 目前为**空**（从没下发/确认过模型），按新口径 `verified=false` ⇒ 在售面直接返空、识别一律 `MAPPING_UNVERIFIED` 转争议、**不扣款**。步骤：后台「识别映射 → 映射复核（结算闸口）」→ 模型选当前 69 类（`modelName` 用借来的 `hysxr20260930120329732_20260930120413844_50`，`textUrl` 取同名 `…_3.txt`，`quantity=69`，起始值 0）→「拉取差异」→ 核对 26/27/28/29 四行仍指向 100016/100017/100018/100013（其余行按 text_name 自动 KEEP/MOVE）→「确认复核并应用」（对从未确认过模型的柜子，这一步会把当前 `classes_version` 采纳为复核版本）。复核后 `mapping-status.verified=true`；若厂商在那之前又重训过，行号会整体平移（H-27），先按 `.tmp/jy-decode-url.mjs` 重新核这 4 个位置。
 
 建档走的是后台同一批端点、没有裸改 SQL（脚本 `.tmp/jy-onboard-multi.mjs`，重跑会撞名称/条码唯一约束，不会静默叠行）：`POST /skus` 建档 → `PUT /skus/{skuId}/jiangyi-link` 挂厂商现成条目（用户 10-23 拍板「挂厂商现成条目」，不走 §4.1.5 新增）→ `PUT /devices/{id}/jiangyi/class-mappings/{classId}` ACTIVE（带 `textName`+`modelName`）→ `PUT /devices/{id}/sku-inventory`。
 
@@ -452,6 +473,7 @@
 | H-25 | 我方 `jiangyi_device.model_name` **一列两义**（2026-10-23 现场撞出） | 登记弹窗那栏写的是「设备型号（可选）」（`DeviceJiangyiCard.vue:756` → `JiangyiOnboardingService.register:77`），下发回执 `confirmModel` 又用它存「当前生效模型名」（`JiangyiModelSyncService.java:326`） | 本柜现值 `model_name=CQYB10720`＝**登记时填的型号/identifier，不是模型**（`classes_version` 空、`jiangyi_model_deployment` 无行 ⇒ 从没下发过）。而识别映射页顶部「当前生效模型」读的就是这一列（`VisionMappingView.vue:60`）⇒ 界面在把「型号」当「模型」展示 | 🔴 **R3 的判据别用 `model_name` 非空**：只认 `jiangyi_model_deployment.confirmed_at` + `classes_version`。列拆分/改标签属口径变更，等下发真跑通那轮一起拍板，别顺手改（改了会把已有登记值语义搅浑） |
 | H-26 | 厂商 `POST /merchant/modelFile/getModelFile`（用户 2026-10-23 15:5x 贴出，需自填 `commonTenantId`） | 我方**没有**这个接口，只有 §4.4.4.1 `getModelFileByApi`（**无参数**、租户由 token 定，`JiangyiGatherClient.java:250`）；两份厂商文档全文 `getModelFile` 唯一出现＝`getModelFileByApi` 那一行，`commonTenantId` **0 命中** | 四档实测（`.tmp/jy-modelfile-probe.mjs`，同一 Bearer）：`getModelFileByApi{}`→**0**、`getModelFile{76,product,commonTenantId:413}`→**5**、`{…426}`→**0**、**不带 `commonTenantId`→1544 条**（textUrl 覆盖 418/411/374/393… 多个租户）⇒ 未文档化且**无租户隔离**。413 那 5 颗（id 5282/5068/5066/5063/5061，quantity 13/12/11/3/3，5063/5061 共用同一 classes）经 §5.5.3 解出：`bj_phone_10g`/`bj_watch_8g` 干扰类 + 百事可乐330罐/脉动600/东鹏补水啦555/东鹏特饮/红牛250/康师傅冰红茶**500ml**(6921311105014)/丽芝士威化/东方树叶茉莉花+乌龙/农夫山泉550/维他柠檬茶——**无雪碧、无可口可乐**，冰红茶 500ml ≠ 我方 310ml（6921294307016） | 🔴 **不接**：跨租户数据面 + 对 R8 不解渴（下发任何一颗会把柜上 26/27/28/29 四类整片换掉）。R8 继续用借来的 **id 5247/5242**（`hysxr20260930120329732_76_20260930120413844_50`/`_10`，quantity 69，`…_3.txt`）；要**新**商品可识别只有 R5 自采（**200 张/商品**）或厂商给租户 426 训练。⑥（16:2x 补）回包还带 `modelUrl`：id 5282 → `…_413_80_3576.rknn`，OSS HEAD **6,603,840 B**、ETag MD5 `d4b7de4d4bbbb2a4c654fa4d463cec9e`，与用户下载到桌面的同名文件 **MD5 逐字相同** ⇒ 文件是真的、也能下（**OSS 无鉴权**），但「能下」≠「厂商给我们下发」：租户归属只看 `commonTenantId`，426 仍 0 条；`encryptionFlag=2` ⇒ 文件头没有 `RKNN` 魔数是**加密**所致，别当坏文件 |
 | H-27 | **classId 是排序后的行号，跨模型版本会整体平移**（2026-10-23 16:3x 拿两版 hysxr 类表对撞） | 旧结论「classId 只是 classes.txt 的行号」只对一半 | 65 类（厂商 id **5102**，09-18，`ZQ_hysxr20260918155237…_3.txt`）vs 69 类（id **5247**，09-30）：新表在 `adym` 前插入 `OKPERCENT_xdltzwyl_360ml`、`bskl` 前插入 `bq_bqbhcklqs_600ml`、`bx` 后插入 `bzxt_bhsz_450hs`/`d5j_ynxqngzqps_scan320ml` 共 4 行，整表按 `textName` **ASCII 升序**（大写 `OKPERCENT` 排第 0）⇒ 雪碧 330 由 **25 → 29**、可口可乐330 由 22 → 26、其后每行整体 +N。另：hysxr 历史 65 类维持近两个月 → 67（09-29）→ 69（09-30），**每次学习新商品就重训并重排行号** | 🔴 **映射的 class_id 不是稳定主键**：厂商任何一次重训（哪怕只加一个商品）都会让「在我之前」的商品行号平移 ⇒ 若不重算，我方 `jiangyi_class_mapping` 会**静默错位**（认 B 扣 A）。R8 的 26/27/28/29 只对**当前这颗 69 类**成立，跑测试前先核这 4 个位置；生产必须做「模型版本 ↔ 映射版本」联动：模型更新后按 `text_name` 重算全部映射并强制复核，未复核的映射不可结算（已有 `writePregenerated/activatePregenerated` 但会打 DISABLED，见 G-16） |
+| H-28 | **重训后映射会静默错钱**——2026-10-23 已做成**结算闸口**（H-27 的后果，CB-065） | 旧行为：映射只按 classId 存，模型重训/更新后既不重算也不失效；柜机按新行号上报 ⇒ 认 B 扣 A。`classes_version` 只在模型回执里回来，系统里**没有「映射已验证」这个概念** | 新增 V400：`jiangyi_device.mapping_verified_version / mapping_verified_at`；**verified ⇔ `classes_version` 非空且 == verified_version**。复核页「拉取差异」按 `text_name` 重算 KEEP/MOVE/NEW/ORPHAN/CONFLICT（两阶段 `-rowId` 哨兵绕开 `UNIQUE(device_id,class_id)`），人工确认后**同一事务**写戳；三条自动失效：`confirmModel` 换版本 / 未知模型回执（无 SENT 且从未确认）/ 下发超时（真改到行才撤）。未复核 **fail-closed 三层**：在售面返回空 / `resolveMapping` 返 null / gateway 在归一化前整单 `MAPPING_UNVERIFIED` → 订单 DISPUTED | 操作与判据：① 识别映射页顶部必须显示「已复核 classesVersion=…」；② 任何模型下发/确认后都要重新「拉取差异 → 确认复核并应用」，否则该柜识别**全部转争议**（**包括只带 thirdPid 的单**，刻意收紧）；③ CONFLICT（同柜同 text_name 多行）一律拒绝应用；④ `classId 0` 是合法类，过滤用 `>=0` 不是 `>0`；⑤ 本柜 `classes_version` 目前为空 ⇒ **部署 V400 后先跑一次复核**（adopt 当前 69 类）再开门；⑥ 别把 `model_name` 当模型（H-25），复核页的「柜机版本」只认 `classes_version`。⑦ 真机验证：未复核时下单 → 网关 `outcome=MAPPING_UNVERIFIED`、`recognize-timeout` 成因 `MAPPING_UNVERIFIED`、订单 DISPUTED 且不扣款；复核后同一单可正常结算 |
 
 ## 11. I｜本表怎么复核出来的（含被抓到的错）
 

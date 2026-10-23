@@ -11,6 +11,7 @@ import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
@@ -50,19 +51,22 @@ public class AdminJiangyiController {
     private final JiangyiGatherService jiangyiGatherService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
+    private final JiangyiMappingReviewService jiangyiMappingReviewService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
                                   JiangyiModelSyncService jiangyiModelSyncService,
                                   JiangyiGatherService jiangyiGatherService,
                                   JiangyiOrderVideoService jiangyiOrderVideoService,
-                                  JiangyiDeviceOpsService jiangyiDeviceOpsService) {
+                                  JiangyiDeviceOpsService jiangyiDeviceOpsService,
+                                  JiangyiMappingReviewService jiangyiMappingReviewService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
         this.jiangyiGatherService = jiangyiGatherService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
+        this.jiangyiMappingReviewService = jiangyiMappingReviewService;
     }
 
     /**
@@ -370,6 +374,48 @@ public class AdminJiangyiController {
                 .map(AdminJiangyiController::toDto).toList());
     }
 
+    // ---------- 映射复核面（V400：重训后编号平移） ----------
+
+    /** 复核态：verified=false 时识别整单转人工、在售面下发空表（一眼看出「为什么柜子不卖了」）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/mapping-status")
+    public ApiResponse<JiangyiMappingReviewService.MappingStatus> mappingStatus(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiMappingReviewService.status(deviceId));
+    }
+
+    /**
+     * 差异预览（只读）：按 classes.txt 的识别名对照现存映射，算保留/平移/新增/失效/冲突。
+     * 回包里的 classesVersion 是「确认令牌」——apply 时原样带回，防审 A 版落 B 版。
+     */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/mapping-rebuild")
+    public ApiResponse<JiangyiMappingReviewService.RebuildPlan> mappingRebuildPlan(
+            @PathVariable("deviceId") String deviceId,
+            @RequestParam("modelName") String modelName,
+            @RequestParam("textUrl") String textUrl,
+            @RequestParam("quantity") int quantity,
+            @RequestParam(value = "classIdBase", defaultValue = "0") int classIdBase) {
+        return ApiResponse.ok(jiangyiMappingReviewService.plan(
+                deviceId, modelName, textUrl, quantity, classIdBase));
+    }
+
+    /**
+     * 应用差异 = 本轮人工复核通过（同一事务写映射 + 认领/确认 classes 版本）。
+     * 柜机尚无 classes_version（厂商直推设备）时在此认领当前审阅版本。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/mapping-rebuild")
+    public ApiResponse<JiangyiMappingReviewService.ApplyResult> mappingRebuildApply(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @Valid @RequestBody MappingRebuildRequest body) {
+        return ApiResponse.ok(jiangyiMappingReviewService.apply(
+                deviceId, body.modelName().trim(), body.textUrl().trim(), body.quantity(),
+                body.classIdBase() == null ? 0 : body.classIdBase(),
+                body.expectedClassesVersion(), operatorId(request)));
+    }
+
     // ---------- 采集编排面（CB-023 二期，范围 C） ----------
 
     /** 进入采集模式：置锁（营业开门即 409）→ 将邑侧采集开门；开门失败自动回滚锁。 */
@@ -453,6 +499,15 @@ public class AdminJiangyiController {
             return new JiangyiModelSyncService.ExplicitModel(modelName, modelUrl, textUrl, quantity);
         }
     }
+
+    /** 复核应用入参：expectedClassesVersion = 预览回包里的 classesVersion（内容令牌，必填）。 */
+    record MappingRebuildRequest(@NotBlank(message = "模型名不能为空") String modelName,
+                                 @NotBlank(message = "classes 地址不能为空") String textUrl,
+                                 @jakarta.validation.constraints.NotNull(
+                                         message = "模型商品数量不能为空") Integer quantity,
+                                 Integer classIdBase,
+                                 @NotBlank(message = "缺少审阅版本令牌，请重新拉取差异")
+                                 String expectedClassesVersion) {}
 
     record GatherStartRequest(String doorPosition) {}
 

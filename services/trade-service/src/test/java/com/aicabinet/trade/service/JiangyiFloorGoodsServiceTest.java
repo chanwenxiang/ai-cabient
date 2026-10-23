@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,10 +40,17 @@ class JiangyiFloorGoodsServiceTest {
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private DeviceSkuInventoryMapper inventoryMapper;
     @Mock private MerchantSkuPricingService pricingService;
+    @Mock private JiangyiMappingReviewService mappingReviewService;
+
+    @BeforeEach
+    void verifiedByDefault() {
+        // 其余用例都在「已按当前 classes 复核」的前提下考察行集；未复核闸口单列用例
+        lenient().when(mappingReviewService.isVerified(DEVICE)).thenReturn(true);
+    }
 
     private JiangyiFloorGoodsService service() {
         return new JiangyiFloorGoodsService(classMappingService, skuCatalogMapper, linkMapper,
-                inventoryMapper, pricingService);
+                inventoryMapper, pricingService, mappingReviewService);
     }
 
     private JiangyiClassMapping mapping(Integer classId, String skuId, String status) {
@@ -109,6 +118,8 @@ class JiangyiFloorGoodsServiceTest {
                 mapping(8, "SKU-8", "DISABLED"),
                 mapping(9, null, "ACTIVE"),
                 mapping(null, "SKU-10", "ACTIVE"),
+                // 负编号 = 重算腾位哨兵（V400），即便被误激活也不得下发
+                mapping(-7, "SKU-7", "ACTIVE"),
                 mapping(11, "SKU-GONE", "ACTIVE")));
         // SKU-11 映射在册但商品目录查不到 → 下发出去设备会解析到一个我们认不出的商品
         when(skuCatalogMapper.selectList(any()))
@@ -169,6 +180,15 @@ class JiangyiFloorGoodsServiceTest {
 
         assertTrue(service().listFloorGoods(DEVICE).isEmpty());
         verify(skuCatalogMapper, never()).selectList(any());
+    }
+
+    @Test
+    void unverifiedMappingWithholdsEntireFloorTable() {
+        // 重训后编号整体平移（H-27）：未按柜机当前 classes 复核前，一行都不下发
+        when(mappingReviewService.isVerified(DEVICE)).thenReturn(false);
+
+        assertTrue(service().listFloorGoods(DEVICE).isEmpty());
+        verify(classMappingService, never()).listByDevice(any());
     }
 
     @Test

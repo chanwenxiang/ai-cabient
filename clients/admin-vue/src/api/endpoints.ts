@@ -180,6 +180,12 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}`,
   deviceJiangyiMappingStatus: (deviceId: string, classId: number) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-mappings/${classId}/status`,
+  /** 映射复核（V400）：重训后 classId 整体平移，按识别名重算 + 人工确认才恢复结算 */
+  deviceJiangyiMappingReviewStatus: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/mapping-status`,
+  /** GET=差异预览（只读，回包 classesVersion 为确认令牌）；POST=应用复核 */
+  deviceJiangyiMappingRebuild: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/mapping-rebuild`,
 
   /** 将邑模型同步 / 采集编排（CB-023 二期）：classes 对照→预生成→激活→WS 下发→回执审计 */
   jiangyiModels: `${ops}/jiangyi/models`,

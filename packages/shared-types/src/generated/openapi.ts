@@ -4118,6 +4118,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/mapping-rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mappingRebuildPlan"];
+        put?: never;
+        post: operations["mappingRebuildApply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/gather/training": {
         parameters: {
             query?: never;
@@ -6062,6 +6078,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["routable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/jiangyi/devices/{deviceId}/mapping-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mappingStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8628,6 +8660,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["modelDeployments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/mapping-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["mappingStatus_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12367,6 +12415,9 @@ export interface components {
             identifier?: string;
             modelName?: string;
             classesVersion?: string;
+            mappingVerifiedVersion?: string;
+            /** Format: date-time */
+            mappingVerifiedAt?: string;
             industrialControlModel?: string;
             /** Format: date-time */
             gatherLockedAt?: string;
@@ -14507,6 +14558,40 @@ export interface components {
             /** Format: int32 */
             classIdBase?: number;
         };
+        MappingRebuildRequest: {
+            modelName: string;
+            textUrl: string;
+            /** Format: int32 */
+            quantity: number;
+            /** Format: int32 */
+            classIdBase?: number;
+            expectedClassesVersion: string;
+        };
+        ApiResponseApplyResult: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ApplyResult"];
+        };
+        ApplyResult: {
+            classesVersion?: string;
+            adoptedVersion?: boolean;
+            counts?: components["schemas"]["Counts"];
+            /** Format: date-time */
+            verifiedAt?: string;
+        };
+        Counts: {
+            /** Format: int32 */
+            kept?: number;
+            /** Format: int32 */
+            moved?: number;
+            /** Format: int32 */
+            created?: number;
+            /** Format: int32 */
+            orphaned?: number;
+            /** Format: int32 */
+            conflicts?: number;
+        };
         TrainingRequest: {
             skuId: string;
             modelName: string;
@@ -15196,6 +15281,19 @@ export interface components {
             videoUrls?: string;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseMappingStatus: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MappingStatus"];
+        };
+        MappingStatus: {
+            verified?: boolean;
+            classesVersion?: string;
+            verifiedVersion?: string;
+            /** Format: date-time */
+            verifiedAt?: string;
         };
         ApiResponseListFloorGoods: {
             /** Format: int32 */
@@ -17827,6 +17925,39 @@ export interface components {
             /** Format: date-time */
             confirmedAt?: string;
             failReason?: string;
+        };
+        ApiResponseRebuildPlan: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["RebuildPlan"];
+        };
+        RebuildPlan: {
+            deviceId?: string;
+            modelName?: string;
+            classesVersion?: string;
+            deviceClassesVersion?: string;
+            adoptVersion?: boolean;
+            versionMismatch?: boolean;
+            verified?: boolean;
+            /** Format: int32 */
+            rowCount?: number;
+            counts?: components["schemas"]["Counts"];
+            rows?: components["schemas"]["RebuildRow"][];
+        };
+        RebuildRow: {
+            /** Format: int64 */
+            id?: number;
+            /** Format: int32 */
+            classId?: number;
+            textName?: string;
+            action?: string;
+            /** Format: int32 */
+            oldClassId?: number;
+            skuId?: string;
+            status?: string;
+            source?: string;
+            reason?: string;
         };
         ApiResponseGatherProgress: {
             /** Format: int32 */
@@ -27331,6 +27462,59 @@ export interface operations {
             };
         };
     };
+    mappingRebuildPlan: {
+        parameters: {
+            query: {
+                modelName: string;
+                textUrl: string;
+                quantity: number;
+                classIdBase?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRebuildPlan"];
+                };
+            };
+        };
+    };
+    mappingRebuildApply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MappingRebuildRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseApplyResult"];
+                };
+            };
+        };
+    };
     startTraining: {
         parameters: {
             query?: never;
@@ -30688,6 +30872,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
+    mappingStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMappingStatus"];
                 };
             };
         };
@@ -34365,6 +34571,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListDeploymentDto"];
+                };
+            };
+        };
+    };
+    mappingStatus_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMappingStatus"];
                 };
             };
         };

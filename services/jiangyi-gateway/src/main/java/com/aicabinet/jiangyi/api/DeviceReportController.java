@@ -41,6 +41,7 @@ public class DeviceReportController {
     /** 留档处置码（与 trade {@code JiangyiRecognitionReport} 常量、V396 列注释同源）。 */
     private static final String OUTCOME_FORWARDED = "FORWARDED";
     private static final String OUTCOME_MAPPING_MISS = "MAPPING_MISS";
+    private static final String OUTCOME_MAPPING_UNVERIFIED = "MAPPING_UNVERIFIED";
     private static final String OUTCOME_EMPTY_FORMS = "EMPTY_FORMS";
     private static final String OUTCOME_BLANK_ORDERNO = "BLANK_ORDERNO";
     private static final String OUTCOME_FORWARD_FAILED = "FORWARD_FAILED";
@@ -271,6 +272,24 @@ public class DeviceReportController {
                 return ok();
             }
             forwardDoorClosed(deviceId, sessionId);
+
+            // 复核闸口（V400）：classId 是 classes.txt 的行下标，重训会整体平移（台账 H-27）。
+            // 未按柜机当前 classes 版本人工复核时，任何映射解析都可能「编号对、商品错」——
+            // 整单不结算，统一转人工。此检查先于归一化，覆盖 thirdPid 绕过 classId 映射的通路。
+            TradeInternalClient.MappingStatusView mappingStatus =
+                    tradeInternalClient.mappingStatus(deviceId).orElse(null);
+            if (mappingStatus == null || !mappingStatus.verified()) {
+                outcome = OUTCOME_MAPPING_UNVERIFIED;
+                String detail = mappingStatus == null
+                        ? "trade 未返回复核态"
+                        : "classesVersion=" + mappingStatus.classesVersion()
+                                + " verifiedVersion=" + mappingStatus.verifiedVersion();
+                boolean handled = tradeInternalClient.recognizeTimeout(sessionId, deviceId,
+                        TradeInternalClient.CAUSE_MAPPING_UNVERIFIED, detail);
+                log.warn("jiangyi recognition {} deviceId={} sessionId={} detail={} handled={}",
+                        outcome, deviceId, sessionId, detail, handled);
+                return ok();
+            }
 
             items = recognitionNormalizer.normalize(deviceId, body.forms());
             if (items.isEmpty()) {

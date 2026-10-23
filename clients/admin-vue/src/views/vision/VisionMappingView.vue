@@ -74,6 +74,83 @@
         </div>
       </div>
 
+      <!-- 映射复核（V400）：重训后 classId 整体平移，未复核不结算 -->
+      <el-card class="jy-model-card" shadow="never">
+        <template #header>
+          <div class="page-card-head">
+            <div class="page-card-head__meta">
+              <div class="page-card-head__title">
+                <span class="title">映射复核（结算闸口）</span>
+                <span class="hint">
+                  将邑识别编号是 classes.txt 按识别名排序后的行号，厂商每次重训都会整体平移
+                  （同一商品换编号）。柜机当前模型未经人工复核前，识别整单转人工、在售面下发空表；
+                  先拉差异逐行核对，再确认
+                </span>
+              </div>
+            </div>
+            <div class="page-card-head__actions">
+              <el-button size="small" :loading="reviewStatusLoading" @click="loadReviewStatus()">
+                刷新复核状态
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <el-alert
+          :type="reviewStatus?.verified ? 'success' : 'warning'"
+          :closable="false"
+          show-icon
+          :title="
+            reviewStatus?.verified
+              ? '已复核：当前模型版本可正常结算'
+              : '未复核：识别结算与在售面已暂停'
+          "
+          :description="reviewDescription"
+        />
+
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+          <el-form-item label="模型名">
+            <el-input
+              v-model="reviewForm.modelName"
+              placeholder="柜机正在跑的模型名"
+              style="width: 220px"
+            />
+          </el-form-item>
+          <el-form-item label="classes 地址">
+            <el-input
+              v-model="reviewForm.textUrl"
+              placeholder="https://…/classes.txt"
+              style="width: 320px"
+            />
+          </el-form-item>
+          <el-form-item label="类目数">
+            <el-input-number
+              v-model="reviewForm.quantity"
+              :min="1"
+              :precision="0"
+              controls-position="right"
+              style="width: 120px"
+            />
+          </el-form-item>
+          <el-form-item label="编号起始">
+            <el-select v-model="reviewForm.classIdBase" style="width: 130px">
+              <el-option label="0 起" :value="0" />
+              <el-option label="1 起" :value="1" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="reviewPlanning" @click="loadReviewPlan()">
+              拉取差异（只读）
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div class="field-hint">
+          模型列表为空（厂商未下发到本租户）时用厂商给的 classes
+          地址手工填；类目数必须与文件行数一致。 确认会重算该柜全部映射并把复核版本认领为本次审阅的
+          classes 版本。
+        </div>
+      </el-card>
+
       <!-- 模型同步：预览 → 预生成 → 激活 → 下发（CB-023 链路） -->
       <el-card class="jy-model-card" shadow="never">
         <template #header>
@@ -97,6 +174,7 @@
               placeholder="拉取模型列表"
               style="width: 320px"
               :loading="modelsLoading"
+              @change="onModelPicked"
             >
               <el-option
                 v-for="m in modelPreviews"
@@ -303,6 +381,113 @@
 
     <el-empty v-if="!deviceId" description="选择一台将邑柜机查看其识别映射与模型同步状态" />
 
+    <el-dialog v-model="reviewVisible" title="映射复核差异" width="960px" destroy-on-close>
+      <template v-if="reviewPlan">
+        <div class="jy-device-bar">
+          <div class="jy-device-item">
+            <span class="jy-device-label">本次审阅版本</span>
+            <span class="jy-mono">{{ reviewPlan.classesVersion }}</span>
+          </div>
+          <div class="jy-device-item">
+            <span class="jy-device-label">柜机当前版本</span>
+            <span class="jy-mono">
+              {{ reviewPlan.deviceClassesVersion || '未认领（本次确认后认领）' }}
+            </span>
+          </div>
+          <div class="jy-device-item">
+            <span class="jy-device-label">保留 / 平移 / 新增 / 失效 / 冲突</span>
+            <span class="jy-mono">{{ reviewCountsText }}</span>
+          </div>
+        </div>
+
+        <el-alert
+          v-if="reviewPlan.versionMismatch"
+          class="jy-model-alert"
+          type="error"
+          :closable="false"
+          show-icon
+          title="柜机当前模型与本次审阅版本不一致"
+          :description="`柜机 ${reviewPlan.deviceClassesVersion || '—'} ≠ 审阅 ${reviewPlan.classesVersion}：请审柜机正在跑的那一版，或先下发/确认正确模型`"
+        />
+        <el-alert
+          v-else-if="reviewPlan.counts.conflicts > 0"
+          class="jy-model-alert"
+          type="error"
+          :closable="false"
+          show-icon
+          title="存在识别名冲突，不能应用"
+          description="同一识别名对应多行映射（或 classes 内重名），请先在映射表人工合并/删除多余行"
+        />
+        <el-alert
+          v-else
+          class="jy-model-alert"
+          type="info"
+          :closable="false"
+          show-icon
+          title="逐行核对后再确认"
+          description="平移 = SKU 跟随识别名换编号；新增行先停用等挂 SKU；失效行停用并腾出编号（挂接留档）。确认后本柜结算恢复。"
+        />
+
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table :data="reviewPlan.rows" stripe border size="small" max-height="420">
+              <el-table-column label="处置" width="90" align="center" class-name="col-status">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="actionTagType(row.action)">
+                    {{ actionLabel(row.action) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="识别编号" width="130">
+                <template #default="{ row }">
+                  <span class="jy-mono">
+                    {{ row.classId ?? '—' }}
+                    <template v-if="row.oldClassId !== null && row.oldClassId !== row.classId">
+                      （原 {{ row.oldClassId }}）
+                    </template>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="识别名称" min-width="200">
+                <template #default="{ row }">{{ row.textName || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="平台商品" min-width="180">
+                <template #default="{ row }">
+                  <span v-if="!row.skuId" class="muted">未挂接</span>
+                  <span v-else-if="skuNameFor(row.skuId)">
+                    {{ skuNameFor(row.skuId) }}（{{ row.skuId }}）
+                  </span>
+                  <span v-else class="jy-mono">{{ row.skuId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="90" align="center" class-name="col-status">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+                    {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="reason" label="说明" min-width="220">
+                <template #default="{ row }">{{ row.reason || '—' }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <el-button @click="reviewVisible = false">关闭</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          :disabled="!canApplyReview"
+          :loading="reviewApplying"
+          @click="applyReview()"
+        >
+          确认复核并应用
+        </el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="editVisible" :title="isCreate ? '新增映射' : '编辑映射'" destroy-on-close>
       <el-form label-width="auto">
         <el-form-item label="识别编号" required>
@@ -426,6 +611,46 @@ interface DeploymentRow {
   failReason: string | null;
 }
 
+interface MappingReviewStatus {
+  verified: boolean;
+  classesVersion: string | null;
+  verifiedVersion: string | null;
+  verifiedAt: string | null;
+}
+
+interface RebuildCounts {
+  kept: number;
+  moved: number;
+  created: number;
+  orphaned: number;
+  conflicts: number;
+}
+
+interface RebuildRow {
+  id: number | null;
+  classId: number | null;
+  textName: string | null;
+  action: string;
+  oldClassId: number | null;
+  skuId: string | null;
+  status: string | null;
+  source: string | null;
+  reason: string | null;
+}
+
+interface RebuildPlan {
+  deviceId: string;
+  modelName: string;
+  classesVersion: string;
+  deviceClassesVersion: string | null;
+  adoptVersion: boolean;
+  versionMismatch: boolean;
+  verified: boolean;
+  rowCount: number;
+  counts: RebuildCounts;
+  rows: RebuildRow[];
+}
+
 interface DeviceOption {
   deviceId: string;
   deviceName?: string;
@@ -452,6 +677,13 @@ const selectedModel = ref('');
 const classIdBase = ref(0);
 const acting = ref<'sync' | 'activate' | 'push' | ''>('');
 const deployments = ref<DeploymentRow[]>([]);
+const reviewStatus = ref<MappingReviewStatus | null>(null);
+const reviewStatusLoading = ref(false);
+const reviewForm = ref({ modelName: '', textUrl: '', quantity: 1, classIdBase: 0 });
+const reviewPlanning = ref(false);
+const reviewPlan = ref<RebuildPlan | null>(null);
+const reviewVisible = ref(false);
+const reviewApplying = ref(false);
 const skuOptions = ref<SkuOption[]>([]);
 /** 只允许挂接在售商品；编辑既有停用挂接时保留当前项，避免下拉里看不到原值 */
 const skuSelectOptions = computed(() => {
@@ -479,6 +711,42 @@ const editForm = ref({ classId: 0, textName: '', skuId: '', active: true });
 const currentPreview = computed(
   () => modelPreviews.value.find((m) => m.modelName === selectedModel.value) || null
 );
+
+const reviewCountsText = computed(() => {
+  const c = reviewPlan.value?.counts;
+  return c ? `${c.kept} / ${c.moved} / ${c.created} / ${c.orphaned} / ${c.conflicts}` : '—';
+});
+const canApplyReview = computed(() => {
+  const p = reviewPlan.value;
+  return !!p && !p.versionMismatch && p.counts.conflicts === 0;
+});
+const reviewDescription = computed(() => {
+  const s = reviewStatus.value;
+  if (!s) return '尚未取到复核状态；若柜机刚接入，请按当前模型填写 classes 地址后拉取差异';
+  if (s.verified) {
+    return `柜机 ${s.classesVersion} 已人工复核（${formatInstant(s.verifiedAt) || '—'}）`;
+  }
+  return `柜机版本 ${s.classesVersion || '未认领'}；已复核版本 ${s.verifiedVersion || '无'} —— 两者一致才允许识别结算`;
+});
+
+function actionLabel(action: string) {
+  return (
+    (
+      { KEEP: '保留', MOVE: '平移', NEW: '新增', ORPHAN: '失效', CONFLICT: '冲突' } as Record<
+        string,
+        string
+      >
+    )[action] || action
+  );
+}
+
+function actionTagType(action: string) {
+  if (action === 'CONFLICT') return 'danger';
+  if (action === 'MOVE') return 'warning';
+  if (action === 'NEW') return 'primary';
+  if (action === 'ORPHAN') return 'info';
+  return 'success';
+}
 
 const crud = useCrudTable<JiangyiClassMappingRow>({
   rowKey: (r) => r.id,
@@ -569,6 +837,7 @@ async function load() {
   await crud.load({ resetPage: true });
   loaded.value = true;
   void loadDeployments();
+  void loadReviewStatus();
   // 已接入设备进页即拉模型，避免运营以为「没有可预生成的模型」；失败只落页内提示，不弹 toast
   if (isBoundDevice()) void loadModels({ silent: true });
 }
@@ -685,6 +954,95 @@ async function loadDeployments() {
     );
   } catch {
     deployments.value = [];
+  }
+}
+
+async function loadReviewStatus() {
+  if (!deviceId.value) return;
+  reviewStatusLoading.value = true;
+  try {
+    reviewStatus.value = await api.request<MappingReviewStatus>(
+      AdminEndpoints.deviceJiangyiMappingReviewStatus(deviceId.value),
+      'GET'
+    );
+  } catch {
+    reviewStatus.value = null;
+  } finally {
+    reviewStatusLoading.value = false;
+  }
+}
+
+/** 从模型列表带入复核表单：模型可用的前提是 classes 地址能取到，省一次手抄。 */
+function onModelPicked() {
+  const p = currentPreview.value;
+  if (!p) return;
+  reviewForm.value.modelName = p.modelName;
+  reviewForm.value.quantity = p.quantity;
+  if (p.modelTextUrl) reviewForm.value.textUrl = p.modelTextUrl;
+}
+
+async function loadReviewPlan() {
+  if (!deviceId.value) return;
+  const f = reviewForm.value;
+  if (!f.modelName.trim() || !f.textUrl.trim()) {
+    ElMessage.warning('请填写模型名与 classes 地址');
+    return;
+  }
+  reviewPlanning.value = true;
+  try {
+    const q = new URLSearchParams({
+      modelName: f.modelName.trim(),
+      textUrl: f.textUrl.trim(),
+      quantity: String(f.quantity),
+      classIdBase: String(f.classIdBase)
+    });
+    reviewPlan.value = await api.request<RebuildPlan>(
+      `${AdminEndpoints.deviceJiangyiMappingRebuild(deviceId.value)}?${q.toString()}`,
+      'GET'
+    );
+    reviewVisible.value = true;
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '拉取差异失败'));
+  } finally {
+    reviewPlanning.value = false;
+  }
+}
+
+async function applyReview() {
+  const plan = reviewPlan.value;
+  if (!plan || !canApplyReview.value) return;
+  const c = plan.counts;
+  try {
+    await ElMessageBox.confirm(
+      `将按识别名重算该柜全部映射到版本 ${plan.classesVersion}：平移 ${c.moved} 行、新增 ${c.created} 行（停用）、失效 ${c.orphaned} 行。确认即代表你已逐行核对，本柜识别结算随即恢复。`,
+      '确认复核',
+      { type: 'warning', confirmButtonText: '确认复核', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  reviewApplying.value = true;
+  try {
+    const f = reviewForm.value;
+    const result = await api.request<{ classesVersion: string; adoptedVersion: boolean }>(
+      AdminEndpoints.deviceJiangyiMappingRebuild(deviceId.value),
+      'POST',
+      {
+        modelName: f.modelName.trim(),
+        textUrl: f.textUrl.trim(),
+        quantity: f.quantity,
+        classIdBase: f.classIdBase,
+        expectedClassesVersion: plan.classesVersion
+      }
+    );
+    ElMessage.success(`复核已生效（${result.classesVersion}）`);
+    reviewVisible.value = false;
+    await loadReviewStatus();
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '应用复核失败'));
+  } finally {
+    reviewApplying.value = false;
   }
 }
 

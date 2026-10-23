@@ -48,6 +48,8 @@ public class JiangyiRecognitionTimeoutService {
     public static final String CAUSE_EMPTY_FORMS = "EMPTY_FORMS";
     public static final String CAUSE_DEVICE_ERROR_ORDER = "DEVICE_ERROR_ORDER";
     public static final String CAUSE_NO_REPORT = "NO_REPORT";
+    /** V400：当前 classes 版本未经人工复核（重训平移/未知模型回执撤销）——一律不结算。 */
+    public static final String CAUSE_MAPPING_UNVERIFIED = "MAPPING_UNVERIFIED";
 
     /** 设备原文落库上限：reason/fail_reason 列 256，成因文案另留余量。 */
     private static final int VENDOR_DETAIL_MAX = 120;
@@ -174,7 +176,8 @@ public class JiangyiRecognitionTimeoutService {
     private static String normalizeCause(String cause) {
         String c = cause == null ? "" : cause.trim().toUpperCase();
         return switch (c) {
-            case CAUSE_CLASS_MAPPING_MISS, CAUSE_EMPTY_FORMS, CAUSE_DEVICE_ERROR_ORDER, CAUSE_NO_REPORT -> c;
+            case CAUSE_CLASS_MAPPING_MISS, CAUSE_EMPTY_FORMS, CAUSE_DEVICE_ERROR_ORDER,
+                 CAUSE_NO_REPORT, CAUSE_MAPPING_UNVERIFIED -> c;
             default -> CAUSE_NO_REPORT;
         };
     }
@@ -185,6 +188,7 @@ public class JiangyiRecognitionTimeoutService {
             case CAUSE_CLASS_MAPPING_MISS -> "识别超时（上报的 classId 未挂到我方 SKU）";
             case CAUSE_EMPTY_FORMS -> "识别超时（设备回传识别结果为空，未识别到商品）";
             case CAUSE_DEVICE_ERROR_ORDER -> "识别超时（设备上报异常订单）";
+            case CAUSE_MAPPING_UNVERIFIED -> "识别超时（映射未按柜机当前模型人工复核，暂停结算）";
             default -> "识别超时（将邑端识别结果超时未回传）";
         };
     }
@@ -192,9 +196,11 @@ public class JiangyiRecognitionTimeoutService {
     private static String exceptionType(String cause) {
         return switch (cause) {
             case CAUSE_CLASS_MAPPING_MISS -> "JIANGYI_CLASS_MAPPING_MISS";
-            // forms 空 / 设备异常单 = 「识别结果需人工审核」，与非将邑柜 SessionSettleService 同型，
-            // 后台据此才给得出人工处置/重试入口（旧实现挂 JIANGYI_CLASS_MAPPING_MISS 落在白名单外）。
-            case CAUSE_EMPTY_FORMS, CAUSE_DEVICE_ERROR_ORDER -> "RECOGNITION_FAILED";
+            // forms 空 / 设备异常单 / 映射未复核 = 「识别结果需人工审核」，与非将邑柜
+            // SessionSettleService 同型，后台据此才给得出人工处置/重试入口
+            // （旧实现挂 JIANGYI_CLASS_MAPPING_MISS 落在白名单外）。
+            case CAUSE_EMPTY_FORMS, CAUSE_DEVICE_ERROR_ORDER, CAUSE_MAPPING_UNVERIFIED ->
+                    "RECOGNITION_FAILED";
             default -> "RECOGNITION_TIMEOUT";
         };
     }
@@ -204,6 +210,7 @@ public class JiangyiRecognitionTimeoutService {
             case CAUSE_CLASS_MAPPING_MISS -> "将邑识别映射未命中";
             case CAUSE_EMPTY_FORMS -> "将邑识别结果为空";
             case CAUSE_DEVICE_ERROR_ORDER -> "将邑设备上报异常订单";
+            case CAUSE_MAPPING_UNVERIFIED -> "将邑识别映射未复核";
             default -> "将邑识别结果超时未回传";
         };
     }
@@ -216,6 +223,8 @@ public class JiangyiRecognitionTimeoutService {
             case CAUSE_EMPTY_FORMS -> "设备回传识别 forms 为空（未识别到商品）" + tail;
             case CAUSE_DEVICE_ERROR_ORDER -> "设备 uploadOrderError errorMsg："
                     + (vendor.isEmpty() ? "（设备未给 errorMsg）" : vendor) + tail;
+            case CAUSE_MAPPING_UNVERIFIED -> "柜机当前 classes 版本未经人工复核（重训平移或未知模型回执），"
+                    + "按错位映射结算会错扣款" + tail;
             default -> "识别上报在 watchdog 窗口（关门 300s / 大模型复核 600s）内未到达" + tail;
         };
     }

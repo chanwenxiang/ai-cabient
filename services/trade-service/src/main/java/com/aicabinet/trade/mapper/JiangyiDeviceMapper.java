@@ -67,6 +67,41 @@ public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
                 .eq(JiangyiDevice::getDeviceId, deviceId));
     }
 
+    /**
+     * 认领柜机当前模型版本（V400）：仅在 classes_version 未知（历史厂商直推、我方无下发记录）时写入，
+     * 已有版本不覆盖——已知版本与审阅版本不符必须走人工确认，不能让一次重算顺手改掉版本。
+     */
+    default int adoptClassesVersionIfAbsent(String deviceId, String classesVersion, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getClassesVersion, classesVersion)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId)
+                .and(w -> w.isNull(JiangyiDevice::getClassesVersion)
+                        .or().eq(JiangyiDevice::getClassesVersion, "")));
+    }
+
+    /**
+     * 映射复核通过（V400）：记录「审阅的是哪个 classes 版本」。
+     * <p>🔴 只写戳，不写 classes_version —— 版本是柜机事实，复核是对该事实的确认；两者混写会让
+     * 「复核」能把未知模型直接认证成审阅版本。</p>
+     */
+    default int stampMappingVerified(String deviceId, String classesVersion, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getMappingVerifiedVersion, classesVersion)
+                .set(JiangyiDevice::getMappingVerifiedAt, at)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
+    /** 撤销复核戳（未知模型到达/下发超时：无法认定柜机到底在跑哪版 ⇒ 结算 fail-closed）。 */
+    default int clearMappingVerification(String deviceId, Instant at) {
+        return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()
+                .set(JiangyiDevice::getMappingVerifiedVersion, null)
+                .set(JiangyiDevice::getMappingVerifiedAt, null)
+                .set(JiangyiDevice::getUpdatedAt, at)
+                .eq(JiangyiDevice::getDeviceId, deviceId));
+    }
+
     /** 登记工控机机型（将邑原值 "76"/"88"，admin 录入/采集链路回填）。 */
     default int updateIndustrialControlModel(String deviceId, String industrialControlModel, Instant at) {
         return update(null, Wrappers.<JiangyiDevice>lambdaUpdate()

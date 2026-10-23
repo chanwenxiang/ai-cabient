@@ -50,17 +50,20 @@ public class JiangyiFloorGoodsService {
     private final JiangyiSkuJiangyiLinkMapper jiangyiSkuJiangyiLinkMapper;
     private final DeviceSkuInventoryMapper deviceSkuInventoryMapper;
     private final MerchantSkuPricingService merchantSkuPricingService;
+    private final JiangyiMappingReviewService mappingReviewService;
 
     public JiangyiFloorGoodsService(JiangyiClassMappingService jiangyiClassMappingService,
                                     SkuCatalogMapper skuCatalogMapper,
                                     JiangyiSkuJiangyiLinkMapper jiangyiSkuJiangyiLinkMapper,
                                     DeviceSkuInventoryMapper deviceSkuInventoryMapper,
-                                    MerchantSkuPricingService merchantSkuPricingService) {
+                                    MerchantSkuPricingService merchantSkuPricingService,
+                                    JiangyiMappingReviewService mappingReviewService) {
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.skuCatalogMapper = skuCatalogMapper;
         this.jiangyiSkuJiangyiLinkMapper = jiangyiSkuJiangyiLinkMapper;
         this.deviceSkuInventoryMapper = deviceSkuInventoryMapper;
         this.merchantSkuPricingService = merchantSkuPricingService;
+        this.mappingReviewService = mappingReviewService;
     }
 
     /**
@@ -71,9 +74,17 @@ public class JiangyiFloorGoodsService {
         if (deviceId == null || deviceId.isBlank()) {
             return List.of();
         }
+        // 复核闸口（V400）：映射未必跟得上柜机正在跑的模型（重训会整体平移 classId），
+        // 未按当前 classes 版本人工复核就不下发——补货表是设备回填 thirdPid/price 的依据，
+        // 错一行就是设备拿着错价去识别。空表让识别退回 fail-closed，比错扣钱安全。
+        if (!mappingReviewService.isVerified(deviceId)) {
+            log.warn("jiangyi floor goods withheld: mapping not verified for current classes deviceId={}",
+                    deviceId);
+            return List.of();
+        }
         List<JiangyiClassMapping> mappings = jiangyiClassMappingService.listByDevice(deviceId).stream()
                 .filter(m -> "ACTIVE".equals(m.getStatus()))
-                .filter(m -> m.getClassId() != null)
+                .filter(m -> m.getClassId() != null && m.getClassId() >= 0)
                 .filter(m -> m.getSkuId() != null && !m.getSkuId().isBlank())
                 .toList();
         if (mappings.isEmpty()) {

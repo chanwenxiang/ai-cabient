@@ -194,6 +194,15 @@ public class JiangyiModelSyncService {
 
     // ---------- 预生成 / 激活 ----------
 
+    /**
+     * 映射复核（V400）专用解析入口：与下发/预生成同一解析器、同一 SSRF 白名单，
+     * 返回行与内容版本（sha256 前 12 位），供「审阅即认领版本」的差异计算与令牌比对。
+     */
+    public JiangyiClassesParser.ParsedClasses parseClassesForReview(String textUrl, int quantity,
+                                                                    int classIdBase) {
+        return parseClasses(textUrl, quantity, classIdBase);
+    }
+
     /** 模型 classes → 该设备映射预生成（source=MODEL_SYNC，status=DISABLED）。返回写入行数。 */
     public int pregenerateForDevice(String deviceId, String modelName, int classIdBase) {
         JiangyiDevice device = requireBoundDevice(deviceId);
@@ -316,11 +325,32 @@ public class JiangyiModelSyncService {
         return dep.getId();
     }
 
-    /** 设备 downloadModelNotify 回执（gateway 转发）：回填 model_name/classes_version + CONFIRMED。 */
+    /**
+     * 设备 downloadModelNotify 回执（gateway 转发）：回填 model_name/classes_version + CONFIRMED。
+     *
+     * <p>复核失效（V400）两条路：</p>
+     * <ul>
+     *   <li>回执命中 SENT → classes_version 被改成新版本，mapping_verified_version 落后即自动失效；</li>
+     *   <li>回执对不上任何 SENT，且该模型也从未 CONFIRMED 过 = 柜机在跑一个我方没下发的模型
+     *       （厂商直推/恢复出厂）。此时<b>主动撤销复核戳</b>再抛 409：否则旧映射会继续按未知
+     *       classes 结算，这正是 H-27 的错钱路径。重放已知模型则不动状态。</li>
+     * </ul>
+     */
     public void confirmModel(String deviceId, String modelName) {
         JiangyiModelDeployment dep = deploymentMapper.findLatestSent(deviceId, modelName)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        "无进行中的模型下发记录（modelName=" + modelName + "）——疑似串包或重放，忽略"));
+                .orElseThrow(() -> {
+                    if (!deploymentMapper.hasConfirmed(deviceId, modelName)) {
+                        Instant now = Instant.now();
+                        int cleared = jiangyiDeviceMapper.clearMappingVerification(deviceId, now);
+                        log.warn("jiangyi model notify for unknown model deviceId={} modelName={} "
+                                + "→ mapping verification revoked rows={}", deviceId, modelName, cleared);
+                        return new ResponseStatusException(HttpStatus.CONFLICT,
+                                "无进行中的模型下发记录（modelName=" + modelName + "），且该模型从未确认过"
+                                        + "——柜机可能被厂商直推了未知模型；已撤销映射复核，请按当前模型重算并确认");
+                    }
+                    return new ResponseStatusException(HttpStatus.CONFLICT,
+                            "无进行中的模型下发记录（modelName=" + modelName + "）——疑似串包或重放，忽略");
+                });
         Instant now = Instant.now();
         deploymentMapper.confirm(dep.getId(), dep.getClassesVersion(), now);
         jiangyiDeviceMapper.updateModelInfo(deviceId, modelName, dep.getClassesVersion(), now);
@@ -328,9 +358,23 @@ public class JiangyiModelSyncService {
                 deviceId, modelName, dep.getId(), dep.getClassesVersion());
     }
 
-    /** 模型下发超时（watchdog）：SENT → FAILED（幂等）。 */
+    /**
+     * 模型下发超时（watchdog）：SENT → FAILED（幂等）。
+     *
+     * <p>超时只说明没收到回执，柜机可能已经切换过去了（回执丢失要比没收到更常见）。
+     * 为防「映射按旧模型审过、柜机跑新模型」的错位扣款，只要有一行真的置败就撤销复核戳
+     * （V400）；已 FAILED 的重入 no-op 不再重复撤销。</p>
+     */
     public void markPushTimeout(long deploymentId, String reason) {
-        int rows = deploymentMapper.fail(deploymentId, reason, Instant.now());
+        Instant now = Instant.now();
+        int rows = deploymentMapper.fail(deploymentId, reason, now);
+        if (rows > 0) {
+            deploymentMapper.byId(deploymentId).ifPresent(dep -> {
+                int cleared = jiangyiDeviceMapper.clearMappingVerification(dep.getDeviceId(), now);
+                log.warn("jiangyi model push timeout revoked mapping verification deviceId={} "
+                        + "deploymentId={} rows={}", dep.getDeviceId(), deploymentId, cleared);
+            });
+        }
         log.warn("jiangyi model push timeout deploymentId={} rows={} reason={}", deploymentId, rows, reason);
     }
 

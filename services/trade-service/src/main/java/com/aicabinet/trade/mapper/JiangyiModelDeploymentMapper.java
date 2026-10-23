@@ -38,6 +38,14 @@ public interface JiangyiModelDeploymentMapper extends BaseTradeMapper<JiangyiMod
                 .last("LIMIT 1")));
     }
 
+    /** 该设备是否已有该模型的确认记录（用于区分「重放回执」与「未走我方下发链的模型到达」）。 */
+    default boolean hasConfirmed(String deviceId, String modelName) {
+        return selectCount(Wrappers.<JiangyiModelDeployment>lambdaQuery()
+                .eq(JiangyiModelDeployment::getDeviceId, deviceId)
+                .eq(JiangyiModelDeployment::getModelName, modelName)
+                .eq(JiangyiModelDeployment::getStatus, "CONFIRMED")) > 0;
+    }
+
     /** 回执确认（仅 SENT → CONFIRMED，防串包/防重放：其他状态 no-op 返回 0）。 */
     default int confirm(long id, String classesVersion, Instant confirmedAt) {
         return update(null, Wrappers.<JiangyiModelDeployment>lambdaUpdate()

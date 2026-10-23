@@ -38,6 +38,16 @@ public class JiangyiDevice {
     private String classesVersion;
 
     /**
+     * 最近一次人工复核通过时审阅的 classes 版本（V400）。
+     * <p>🔴 classId 是 classes.txt 的行下标（台账 H-27），重训会整体平移 ⇒ 只有
+     * {@code classesVersion.equals(mappingVerifiedVersion)} 才允许识别结算；模型下发确认或
+     * 收到未匹配的模型回执都会让两者不等（复核失效），须重新「按当前模型重算」并人工确认。</p>
+     */
+    private String mappingVerifiedVersion;
+
+    private Instant mappingVerifiedAt;
+
+    /**
      * 工控机机型——存将邑原值（"76"/"88"），不解释语义（CB-023：PDF §4.4.4.5 示例中
      * rk3588/rk3576 两种主板该字段同为 "88"，映射关系文档自证不了）；模型下发校验用字符串相等。
      */

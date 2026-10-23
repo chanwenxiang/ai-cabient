@@ -10,6 +10,7 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiFloorGoodsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
@@ -57,6 +58,7 @@ public class JiangyiInternalController {
     private final SkuJiangyiLinkService skuJiangyiLinkService;
     private final JiangyiFloorGoodsService jiangyiFloorGoodsService;
     private final JiangyiRecognitionReportService jiangyiRecognitionReportService;
+    private final JiangyiMappingReviewService jiangyiMappingReviewService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -68,7 +70,8 @@ public class JiangyiInternalController {
                                      JiangyiOrderVideoService jiangyiOrderVideoService,
                                      SkuJiangyiLinkService skuJiangyiLinkService,
                                      JiangyiFloorGoodsService jiangyiFloorGoodsService,
-                                     JiangyiRecognitionReportService jiangyiRecognitionReportService) {
+                                     JiangyiRecognitionReportService jiangyiRecognitionReportService,
+                                     JiangyiMappingReviewService jiangyiMappingReviewService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -80,6 +83,7 @@ public class JiangyiInternalController {
         this.skuJiangyiLinkService = skuJiangyiLinkService;
         this.jiangyiFloorGoodsService = jiangyiFloorGoodsService;
         this.jiangyiRecognitionReportService = jiangyiRecognitionReportService;
+        this.jiangyiMappingReviewService = jiangyiMappingReviewService;
     }
 
     // ---------- 设备面 ----------
@@ -207,11 +211,19 @@ public class JiangyiInternalController {
 
     // ---------- 映射面 ----------
 
-    /** ACTIVE 映射点查：data=null 即未命中（gateway 据此触发 recognize-timeout）。 */
+    /**
+     * ACTIVE 映射点查：data=null 即未命中（gateway 据此触发 recognize-timeout）。
+     * <p>V400 复核闸口：未按柜机当前 classes 版本人工复核时一律回 null——即便某行仍是 ACTIVE，
+     * 也不能拿旧编号的映射去结算（重训平移后同一编号是别的商品）。网关侧另有整单预检，
+     * 这里兜住 thirdPid 等绕过预检的入口。</p>
+     */
     @GetMapping("/class-mappings/{deviceId}/{classId}")
     public ApiResponse<JiangyiClassMapping> resolveMapping(
             @PathVariable("deviceId") String deviceId,
             @PathVariable("classId") Integer classId) {
+        if (!jiangyiMappingReviewService.isVerified(deviceId)) {
+            return ApiResponse.ok(null);
+        }
         return ApiResponse.ok(jiangyiClassMappingService.resolveActive(deviceId, classId).orElse(null));
     }
 
@@ -235,10 +247,23 @@ public class JiangyiInternalController {
         return ApiResponse.ok(jiangyiFloorGoodsService.listFloorGoods(deviceId));
     }
 
+    /**
+     * 映射复核态（V400）：gateway 识别归一化前必查——未复核 ⇔ 当前 classes 版本没有人工
+     * 审过的映射，整单 fail-closed 转人工。未登记设备返回 verified=false（不 404）。
+     */
+    @GetMapping("/devices/{deviceId}/mapping-status")
+    public ApiResponse<JiangyiMappingReviewService.MappingStatus> mappingStatus(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiMappingReviewService.status(deviceId));
+    }
+
+    /** 全量映射（含 DISABLED）；负编号是重算腾位哨兵（V400），不对外暴露。 */
     @GetMapping("/class-mappings")
     public ApiResponse<List<JiangyiClassMapping>> mappings(
             @RequestParam("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiClassMappingService.listByDevice(deviceId));
+        return ApiResponse.ok(jiangyiClassMappingService.listByDevice(deviceId).stream()
+                .filter(m -> m.getClassId() != null && m.getClassId() >= 0)
+                .toList());
     }
 
     /** 幂等 upsert（admin 人工建立；二期 MODEL_SYNC 预生成共用）。 */

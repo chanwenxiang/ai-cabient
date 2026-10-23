@@ -131,6 +131,17 @@ public class TradeInternalClient {
     }
 
     /**
+     * 映射复核态（V400）：verified=false ⇔ 柜机当前 classes 版本没有人工审过的映射
+     * （重训平移 / 未知模型回执）。识别上报先查此态，未复核整单 fail-closed。
+     * <p>异常原样抛出：trade  momentarily 不可达时让设备重试，不能误判成「未复核」去转争议。</p>
+     */
+    public Optional<MappingStatusView> mappingStatus(String deviceId) {
+        ApiResponse<MappingStatusView> resp = get("/internal/v1/jiangyi/devices/{deviceId}/mapping-status",
+                MappingStatusView.class, deviceId);
+        return Optional.ofNullable(resp == null ? null : resp.data());
+    }
+
+    /**
      * 设备补货表（floor/getFloorByDevice 的数据源，2026-10-21）：
      * trade 侧按 ACTIVE 映射 + 挂接 + 现行售价 + 货道库存组装，gateway 只负责信封转换。
      * <p>异常原样抛出——调用方要区分「真没商品」与「trade 不可达」，不得吞成空表。</p>
@@ -149,6 +160,8 @@ public class TradeInternalClient {
     public static final String CAUSE_EMPTY_FORMS = "EMPTY_FORMS";
     public static final String CAUSE_DEVICE_ERROR_ORDER = "DEVICE_ERROR_ORDER";
     public static final String CAUSE_NO_REPORT = "NO_REPORT";
+    /** V400：映射未按柜机当前 classes 版本人工复核——识别整单不结算。 */
+    public static final String CAUSE_MAPPING_UNVERIFIED = "MAPPING_UNVERIFIED";
 
     /**
      * 识别未成功 → 即时转人工审核；返回 false = 会话不在此状态（幂等）。
@@ -330,6 +343,10 @@ public class TradeInternalClient {
     /** jiangyi_class_mapping 行视图（只暴露解析所需字段）。 */
     public record MappingView(Integer classId, String textName, String skuId,
                               String status, String source) {}
+
+    /** 映射复核态（与 trade {@code JiangyiMappingReviewService.MappingStatus} 对齐）。 */
+    public record MappingStatusView(boolean verified, String classesVersion,
+                                    String verifiedVersion, Instant verifiedAt) {}
 
     /**
      * 设备补货表行（与 trade JiangyiInternalController.FloorGoodsResponse 对齐）。

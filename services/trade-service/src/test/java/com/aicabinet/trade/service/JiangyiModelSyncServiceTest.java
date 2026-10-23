@@ -275,6 +275,29 @@ class JiangyiModelSyncServiceTest {
                 .updateModelInfo(anyString(), anyString(), anyString(), any());
     }
 
+    /** V400：柜机回执一个我方从未 SENT、也从未 CONFIRMED 的模型（厂商直推/恢复出厂）⇒ 撤复核戳。 */
+    @Test
+    void confirmModel_unknownModelRevokesMappingVerification() {
+        when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.empty());
+        when(deploymentMapper.hasConfirmed(DEVICE_ID, MODEL_NAME)).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class, () -> service().confirmModel(DEVICE_ID, MODEL_NAME));
+
+        verify(jiangyiDeviceMapper).clearMappingVerification(eq(DEVICE_ID), any());
+    }
+
+    /** 重放已知模型（曾 CONFIRMED）只是串包/重放，不能把已复核的柜子打成未复核。 */
+    @Test
+    void confirmModel_replayOfKnownModelKeepsMappingVerification() {
+        when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.empty());
+        when(deploymentMapper.hasConfirmed(DEVICE_ID, MODEL_NAME)).thenReturn(true);
+
+        assertThrows(ResponseStatusException.class, () -> service().confirmModel(DEVICE_ID, MODEL_NAME));
+
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerification(anyString(), any());
+    }
+
     @Test
     void confirmModel_fillsDeploymentAndDeviceModelInfo() {
         JiangyiModelDeployment sent = new JiangyiModelDeployment();
@@ -296,6 +319,30 @@ class JiangyiModelSyncServiceTest {
         when(deploymentMapper.fail(eq(55L), anyString(), any())).thenReturn(1);
         service().markPushTimeout(55L, "watchdog 600s 超时");
         verify(deploymentMapper).fail(eq(55L), anyString(), any());
+    }
+
+    /** V400：超时置败成功 ⇒ 柜机可能已切到新模型，必须撤复核戳（否则按旧模型映射错扣款）。 */
+    @Test
+    void markPushTimeoutWithChangedRowRevokesMappingVerification() {
+        JiangyiModelDeployment sent = new JiangyiModelDeployment();
+        sent.setDeviceId(DEVICE_ID);
+        when(deploymentMapper.fail(eq(55L), anyString(), any())).thenReturn(1);
+        when(deploymentMapper.byId(55L)).thenReturn(Optional.of(sent));
+
+        service().markPushTimeout(55L, "watchdog 600s 超时");
+
+        verify(jiangyiDeviceMapper).clearMappingVerification(eq(DEVICE_ID), any());
+    }
+
+    /** 已 FAILED 的重入 no-op（rows=0）不得反复撤销：幂等语义照旧。 */
+    @Test
+    void markPushTimeoutIdempotentReentryDoesNotRevokeMappingVerification() {
+        when(deploymentMapper.fail(eq(55L), anyString(), any())).thenReturn(0);
+
+        service().markPushTimeout(55L, "watchdog 600s 超时");
+
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never())
+                .clearMappingVerification(anyString(), any());
     }
 
     @Test

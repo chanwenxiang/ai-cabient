@@ -51,6 +51,9 @@ class DeviceReportControllerTest {
         controller = new DeviceReportController(trade, new RecognitionNormalizer(trade),
                 commandTracker, new ObjectMapper());
         when(trade.device(DEVICE_ID)).thenReturn(Optional.empty());
+        // 默认按「已复核」跑既有用例；未复核闸口单列用例（V400）
+        when(trade.mappingStatus(DEVICE_ID)).thenReturn(Optional.of(
+                new TradeInternalClient.MappingStatusView(true, "ver-1", "ver-1", null)));
     }
 
     private MockHttpServletRequest authedRequest() {
@@ -117,6 +120,25 @@ class DeviceReportControllerTest {
                 eq(TradeInternalClient.CAUSE_CLASS_MAPPING_MISS),
                 argThat(d -> d.contains("classId=7") && d.contains("thirdPid=1018")
                         && d.contains("qty=1")));
+    }
+
+    /** V400：柜机 classes 版本未人工复核 ⇒ 整单 fail-closed；thirdPid 通路也不得绕过（H-27）。 */
+    @Test
+    void unverifiedMappingFailsClosedBeforeNormalization() {
+        when(trade.mappingStatus(DEVICE_ID)).thenReturn(Optional.of(
+                new TradeInternalClient.MappingStatusView(false, "classes-new", "classes-old", null)));
+
+        controller.addRecognitionGoods(authedRequest(), new DeviceReportController.RecognitionRequest(
+                SESSION_ID, null, null, List.of(form(7, 1, 1018, 350))));
+
+        TradeInternalClient.RecognitionReportRequest archived = captureArchive();
+        assertEquals("MAPPING_UNVERIFIED", archived.outcome());
+        assertNull(archived.itemsJson(), "未复核不产生归一化结果");
+        verify(trade, never()).resolveSkuByProduct(anyString());
+        verify(trade, never()).edgeResults(any());
+        verify(trade).recognizeTimeout(eq(SESSION_ID), eq(DEVICE_ID),
+                eq(TradeInternalClient.CAUSE_MAPPING_UNVERIFIED),
+                argThat(d -> d.contains("classes-new") && d.contains("classes-old")));
     }
 
     @Test

@@ -67,6 +67,9 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
      *
      * <p>只激活已挂 SKU 的行：未挂 SKU 的预生成行激活后识别仍会 fail-closed 转
      * DISPUTED（映射不可用却显示「已生效」），必须留给人工逐条补 SKU。</p>
+     *
+     * <p>class_id ≥ 0 排除复核重算腾位用的负哨兵行（V400）——失效行同样带 SKU 和
+     * MODEL_SYNC 来源，不过滤就会被一次「批量激活」重新点亮成旧编号的错映射。</p>
      */
     default int activatePregenerated(String deviceId, String modelName) {
         return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
@@ -76,7 +79,35 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
                 .eq(JiangyiClassMapping::getModelName, modelName)
                 .eq(JiangyiClassMapping::getSource, "MODEL_SYNC")
                 .eq(JiangyiClassMapping::getStatus, "DISABLED")
+                .ge(JiangyiClassMapping::getClassId, 0)
                 .isNotNull(JiangyiClassMapping::getSkuId)
                 .ne(JiangyiClassMapping::getSkuId, ""));
+    }
+
+    // ---------- 重算重排（V400：重训后编号平移） ----------
+
+    /** 阶段一：挪到负哨兵编号腾位（UNIQUE(device_id, class_id) 限制下交换/连环平移必须两阶段）。 */
+    default int parkForRelocation(long id, int parkedClassId, Instant at) {
+        return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
+                .set(JiangyiClassMapping::getClassId, parkedClassId)
+                .set(JiangyiClassMapping::getUpdatedAt, at)
+                .eq(JiangyiClassMapping::getId, id));
+    }
+
+    /** 模型里已无该识别名：停用 + 腾出编号，sku_id 原样留档（不删行，便于回溯旧挂接）。 */
+    default int parkAsOrphan(long id, int parkedClassId, Instant at) {
+        return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
+                .set(JiangyiClassMapping::getClassId, parkedClassId)
+                .set(JiangyiClassMapping::getStatus, "DISABLED")
+                .set(JiangyiClassMapping::getUpdatedAt, at)
+                .eq(JiangyiClassMapping::getId, id));
+    }
+
+    /** 阶段二：落位到新编号（识别名不变，SKU/状态/来源跟随）。 */
+    default int relocateClassId(long id, int classId, Instant at) {
+        return update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
+                .set(JiangyiClassMapping::getClassId, classId)
+                .set(JiangyiClassMapping::getUpdatedAt, at)
+                .eq(JiangyiClassMapping::getId, id));
     }
 }

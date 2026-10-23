@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
@@ -46,10 +47,12 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiGatherService gatherService;
     @Mock private JiangyiOrderVideoService orderVideoService;
     @Mock private com.aicabinet.trade.service.JiangyiDeviceOpsService deviceOpsService;
+    @Mock private JiangyiMappingReviewService mappingReviewService;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
-                modelSyncService, gatherService, orderVideoService, deviceOpsService);
+                modelSyncService, gatherService, orderVideoService, deviceOpsService,
+                mappingReviewService);
     }
 
     private JiangyiDevice boundDevice() {
