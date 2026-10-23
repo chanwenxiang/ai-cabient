@@ -152,4 +152,27 @@ public class SkuSceneLimitService {
                             + "，当前柜内上架合计 " + total + "，请调低容量或减少绑定货道");
         }
     }
+
+    /**
+     * 「编辑库存」容量口径的场景限额校验：商品配置了该场景的限额条目且编辑后的容量
+     * 超出上限即拒绝（未配置条目=不限制）。与 {@link #assertWithinSceneLimit} 的货道
+     * maxLevel 合计口径互补——直接改库存容量的路径此前绕过了场景限额（2026-10-22 用户反馈）。
+     */
+    public void assertCapacityWithinSceneLimit(String sceneType, String skuId, int capacity) {
+        if (sceneType == null || sceneType.isBlank() || capacity <= 0) {
+            return;
+        }
+        SkuSceneLimit limit = limitRepository.selectOne(
+                Wrappers.<SkuSceneLimit>lambdaQuery()
+                        .eq(SkuSceneLimit::getSceneType, sceneType)
+                        .eq(SkuSceneLimit::getSkuId, skuId));
+        if (limit == null || capacity <= limit.getMaxQty()) {
+            return;
+        }
+        String skuName = skuCatalogRepository.findById(skuId)
+                .map(SkuCatalog::getSkuName).orElse(skuId);
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "「" + skuName + "」在投放场景「" + sceneType + "」的上架上限为 " + limit.getMaxQty()
+                        + "，编辑容量 " + capacity + " 超出限制");
+    }
 }

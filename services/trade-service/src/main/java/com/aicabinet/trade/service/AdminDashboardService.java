@@ -94,6 +94,7 @@ public class AdminDashboardService {
     private final OpsSessionOrderQueryService sessionOrderQueryService;
     private final OpsWorkbenchQueryService workbenchQueryService;
     private final OpsMemberFinanceAdminService memberFinanceAdminService;
+    private final SkuSceneLimitService skuSceneLimitService;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -136,7 +137,8 @@ public class AdminDashboardService {
                                  OpsCatalogAdminService catalogAdminService,
                                  OpsSessionOrderQueryService sessionOrderQueryService,
                                  OpsWorkbenchQueryService workbenchQueryService,
-                                 OpsMemberFinanceAdminService memberFinanceAdminService) {
+                                 OpsMemberFinanceAdminService memberFinanceAdminService,
+                                 SkuSceneLimitService skuSceneLimitService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -179,6 +181,7 @@ public class AdminDashboardService {
         this.sessionOrderQueryService = sessionOrderQueryService;
         this.workbenchQueryService = workbenchQueryService;
         this.memberFinanceAdminService = memberFinanceAdminService;
+        this.skuSceneLimitService = skuSceneLimitService;
     }
 
     @Transactional(readOnly = true)
@@ -453,11 +456,18 @@ public class AdminDashboardService {
     public DeviceInventoryDto upsertDeviceSkuInventory(Long operatorId, String deviceId,
                                                        UpsertDeviceSkuInventoryRequest body) {
         body.validate();
-        if (deviceRepository.selectById(deviceId) == null) {
+        DeviceInfo device = deviceRepository.selectById(deviceId);
+        if (device == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "柜机不存在");
         }
         if (skuCatalogRepository.selectById(body.skuId()) == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商品不存在：" + body.skuId());
+        }
+        // 编辑容量须受商品在该投放场景的限额约束（此前绕过了场景限额——2026-10-22 用户反馈：
+        // 限额 4 配置后编辑容量仍可填 12/8）。未配置该场景条目 = 不限制。
+        if (body.capacity() != null) {
+            skuSceneLimitService.assertCapacityWithinSceneLimit(
+                    device.getSceneType(), body.skuId(), body.capacity());
         }
         // 复合主键实体无 @TableId，selectById/updateById 不可用（Invalid bound statement）——走 wrapper
         DeviceSkuInventory inv = inventoryRepository.selectOne(

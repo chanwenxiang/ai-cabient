@@ -376,6 +376,72 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
+    void search_jiangyiDirtyUnitHsIsComparedAsMillilitres() {
+        // 2026-10-23 实盘：我方 310ml 罐装 vs 将邑同名 500ml 瓶装，对方 specs 写的是 "500hs"
+        SkuCatalog s = sku("6921294307016");
+        s.setSkuName("康师傅冰红茶（柠檬口味茶饮品）");
+        s.setSpec("310ml");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
+                new JiangyiStdSku(128L, "康师傅冰红茶柠檬口味茶饮品", "6922456805012", "500hs",
+                        "康师傅", "bottle", null, null, "app"),
+                new JiangyiStdSku(1473L, "康师傅陈皮酸梅汤", "6973870135001", "500ml",
+                        "康师傅", "bottle", null, null, "app")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
+
+        SkuJiangyiLinkService.StdSkuSearchResult filtered =
+                service().searchJiangyiProducts("康师傅", null, SKU_ID, false);
+        assertEquals(0, filtered.items().size());
+        assertEquals(2, filtered.hidden());
+
+        SkuJiangyiLinkService.StdSkuSearchResult all =
+                service().searchJiangyiProducts("康师傅", null, SKU_ID, true);
+        assertEquals(128L, all.items().get(0).id());
+        assertEquals("SUSPECT", all.items().get(0).matchLevel());
+        assertTrue(all.items().get(0).mismatchReasons().get(0).contains("500ml"));
+    }
+
+    @Test
+    void search_sameNameWithUnparseableSpecIsUnverifiedNotRelated() {
+        SkuCatalog s = sku("6921294307016");
+        s.setSkuName("康师傅冰红茶（柠檬口味茶饮品）");
+        s.setSpec("310ml");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
+                new JiangyiStdSku(128L, "康师傅冰红茶柠檬口味茶饮品", "6922456805012", "1s",
+                        "康师傅", "bottle", null, null, "app"),
+                new JiangyiStdSku(1413L, "康师傅大红袍红茶", "6973870132925", "dt",
+                        "康师傅", "bottle", null, null, "app")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
+
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("康师傅", null, SKU_ID, false);
+
+        // 同名不隐藏（隐藏会诱导运营重复新建），但降级为「同名待核对」并排在噪声之前
+        assertEquals(2, result.items().size());
+        assertEquals("UNVERIFIED", result.items().get(0).matchLevel());
+        assertEquals("RELATED", result.items().get(1).matchLevel());
+    }
+
+    @Test
+    void search_gramSpecIsNotGuessedIntoMillilitres() {
+        SkuCatalog s = sku("6921294307016");
+        s.setSkuName("康师傅冰红茶（柠檬口味茶饮品）");
+        s.setSpec("310ml");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+        when(jiangyiGatherClient.stdSkuList("康师傅", null)).thenReturn(List.of(
+                new JiangyiStdSku(140L, "康师傅红烧牛肉面桶装107g", "6920208900770", "107g",
+                        "康师傅", "bowl", null, null, "manual")));
+        when(linkMapper.listBoundProductIds(anyList())).thenReturn(List.of());
+
+        SkuJiangyiLinkService.StdSkuSearchResult result =
+                service().searchJiangyiProducts("康师傅", null, SKU_ID, false);
+
+        assertEquals("RELATED", result.items().get(0).matchLevel());
+        assertEquals(0, result.hidden());
+    }
+
+    @Test
     void search_withoutSkuIdDoesNotFilterOrScore() {
         when(jiangyiGatherClient.stdSkuList("雪碧", null)).thenReturn(List.of(
                 new JiangyiStdSku(1L, "雪碧 500ml", "6901234567890", "500ml",

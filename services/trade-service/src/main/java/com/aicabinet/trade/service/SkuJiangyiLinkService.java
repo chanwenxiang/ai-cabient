@@ -41,9 +41,23 @@ public class SkuJiangyiLinkService {
 
     private static final Logger log = LoggerFactory.getLogger(SkuJiangyiLinkService.class);
 
-    /** 规格归一化：330ml / 330毫升 / 1.5L / 1500ml 统一成毫升数。 */
+    /**
+     * 规格归一化：330ml / 330毫升 / 1.5L / 1500ml 统一成毫升数。
+     *
+     * <p>{@code hs} 是按 ml 处理的：将邑库里的 specs 是自由文本，实测同一行的名称与 specs
+     * 单位互证——「小吊梨汤310ml罐」specs={@code 310hs}、「三得利利趣拿铁310ml」specs={@code 310hs}、
+     * 「康师傅冰红茶柠檬口味茶饮品」specs={@code 500hs}。不认 hs 的话这类条目解析不出规格，
+     * 500ml 瓶装会以「相关」露出来供挂接到 310ml 罐装 SKU 上（2026-10-23 实盘缺陷）。</p>
+     * <p>数字与单位之间容忍 ≤2 个字母：将邑还有 {@code 500gml} / {@code 330hsg} / {@code 500mlg}。
+     * 纯克重（{@code 107g}）与 {@code 1s}/{@code 90k}/{@code dt} 仍解析不出——不猜。</p>
+     */
     private static final Pattern VOLUME_PATTERN =
-            Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*(ml|毫升|l|升)", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*[a-z]{0,2}?(ml|毫升|l|升|hs)", Pattern.CASE_INSENSITIVE);
+    /**
+     * 同名判定：将邑侧会把全角括号等标点吞掉（我方「康师傅冰红茶（柠檬口味茶饮品）」→ 对方「康师傅冰红茶柠檬口味茶饮品」）。
+     * 用 {@code \p{L}\p{N}} 而不是 {@code \p{Alnum}}——后者在 Java 里默认只覆盖 ASCII，会把汉字整条剥空。
+     */
+    private static final Pattern NAME_NOISE = Pattern.compile("[^\\p{L}\\p{N}]+");
     /** 同一商品线内会改变实物身份的版本词：仅出现在一方即判明显不符。 */
     private static final List<String> VARIANT_MARKERS =
             List.of("零卡", "无糖", "纤维", "纪念", "摩登");
@@ -97,7 +111,7 @@ public class SkuJiangyiLinkService {
 
     /**
      * 搜索将邑商品库（透传 §4.1.2）+ 匹配分级。传 skuId 时以我方 SKU 为基准：
-     * 条码一致 &gt; 同规格 &gt; 相关；规格/版本词/test 明显不符默认隐藏（includeAll=true 返回并标 SUSPECT）。
+     * 条码一致 &gt; 同规格 &gt; 同名待核对 &gt; 相关；规格/版本词/test 明显不符默认隐藏（includeAll=true 返回并标 SUSPECT）。
      * 排序：未挂接优先 → 匹配度 → 扫码条码优先于手填 → 编号。
      */
     public StdSkuSearchResult searchJiangyiProducts(String name, String barCode,
@@ -151,7 +165,17 @@ public class SkuJiangyiLinkService {
         if (ourMl != null && vendorMl != null) {
             return new Match("SAME_SPEC", 1, List.of());
         }
+        // 同名但规格至少有一侧解析不出＝比不动：既不能当同规格，也不能混进「相关」让人以为已核对过
+        if (sameName(ours, vendor)) {
+            return new Match("UNVERIFIED", 1, List.of());
+        }
         return new Match("RELATED", 2, List.of());
+    }
+
+    private static boolean sameName(SkuCatalog ours, JiangyiStdSku vendor) {
+        String oursKey = NAME_NOISE.matcher(nullToEmpty(ours.getSkuName())).replaceAll("");
+        String vendorKey = NAME_NOISE.matcher(nullToEmpty(vendor.name())).replaceAll("");
+        return !oursKey.isEmpty() && oursKey.equalsIgnoreCase(vendorKey);
     }
 
     private static Integer volumeMl(String... texts) {
@@ -395,7 +419,8 @@ public class SkuJiangyiLinkService {
 
     /**
      * 搜索视图。barCodeSource 原值 app/manual/null；matchLevel ∈
-     * EXACT_BARCODE|SAME_SPEC|RELATED|SUSPECT|UNKNOWN（未传 skuId 时不比对）。
+     * EXACT_BARCODE|SAME_SPEC|UNVERIFIED|RELATED|SUSPECT|UNKNOWN（未传 skuId 时不比对）。
+     * UNVERIFIED=名称去掉标点后与我方完全一致，但规格至少一侧解析不出，须人工核对实物。
      */
     public record StdSkuView(long id, String name, String barCode, String specs, String brandName,
                              String category, String mainImg, String stdSkuCode, boolean linked,

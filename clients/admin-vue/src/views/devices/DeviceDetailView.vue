@@ -2295,6 +2295,7 @@ onActivated(() => {
   display: grid;
   grid-template-columns: 1fr;
   gap: 2px;
+  text-align: center;
 }
 .sku-card-fields label {
   color: var(--el-text-color-secondary);

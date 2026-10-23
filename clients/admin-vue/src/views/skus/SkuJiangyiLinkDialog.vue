@@ -35,7 +35,7 @@ interface StdSkuView {
   stdSkuCode: string | null;
   linked: boolean;
   barCodeSource: string | null;
-  matchLevel: 'EXACT_BARCODE' | 'SAME_SPEC' | 'RELATED' | 'SUSPECT' | 'UNKNOWN';
+  matchLevel: 'EXACT_BARCODE' | 'SAME_SPEC' | 'UNVERIFIED' | 'RELATED' | 'SUSPECT' | 'UNKNOWN';
   mismatchReasons: string[];
 }
 
@@ -88,6 +88,8 @@ const confirmBarcodeMismatch = computed(() => {
 const needsManualConfirm = computed(
   () => Boolean(confirmItem.value) && confirmItem.value?.matchLevel !== 'EXACT_BARCODE'
 );
+/** 同名但规格比不动（将邑 specs 常是 500hs/1s 这类非规范值）——同名不等于同款。 */
+const confirmSpecUnverifiable = computed(() => confirmItem.value?.matchLevel === 'UNVERIFIED');
 
 function emptyCreateForm() {
   return {
@@ -122,6 +124,7 @@ type TagType = 'success' | 'warning' | 'info' | 'primary' | 'danger';
 const matchMetaMap: Record<StdSkuView['matchLevel'], { label: string; type: TagType }> = {
   EXACT_BARCODE: { label: '条码一致', type: 'success' },
   SAME_SPEC: { label: '同规格', type: 'primary' },
+  UNVERIFIED: { label: '同名待核对', type: 'warning' },
   RELATED: { label: '相关', type: 'info' },
   SUSPECT: { label: '明显不符', type: 'danger' },
   UNKNOWN: { label: '未比对', type: 'info' }
@@ -632,6 +635,14 @@ defineExpose({ open });
       show-icon
       class="jy-link-alert"
       title="双方条码不一致或无法校验。69 码随包装版本不同，条码不同不阻断挂接，但请确认图片/名称/规格指向同一实物。"
+    />
+    <el-alert
+      v-if="confirmSpecUnverifiable"
+      type="error"
+      :closable="false"
+      show-icon
+      class="jy-link-alert"
+      :title="`名称与我方完全一致，但规格比不动（将邑侧填的是「${confirmItem?.specs || '空'}」，我方「${skuSpec || '空'}」）——同名不等于同款，请核对实物包装上的毫升数`"
     />
     <ul v-if="confirmItem && confirmItem.mismatchReasons.length" class="jy-compare-reasons">
       <li v-for="reason in confirmItem.mismatchReasons" :key="reason">{{ reason }}</li>
