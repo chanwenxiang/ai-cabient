@@ -311,6 +311,9 @@
 
 涉及接口：WS §4.3.2.9 `updateModel`（四字段 `{quantity,modelUrl,textUrl,modelName}`）；HTTP 回执 §4.2.5 `deviceInfo/downloadModelNotify`（+三条分档变体）；WS 上行 `updateModelSure`（兜底通道）。出向 §4.4.4 `modelFile/getModelFileByApi` 本轮**刻意绕开**（租户 426 仍回 `[]`），走 #78 的显式 URL 入口。
 
+🔴 **10-23 15:5x 三条只读重跑（`.tmp/jy-model-list-444.mjs`，凭据从 `infra/.env` 取）**：§4.4.4 `getModelFileByApi` → **`data=[]`**、§4.4.5 `studyingProduct` → **`[]`**、§4.4.2 `getPageData{gatherStatus:"training"}` → **`data=null`** ⇒ **厂商侧至今没有任何属于本租户的模型、也没有在学/学过的商品** ⇒ 「下发」这条路能验链路，但**下发不出新商品**：可下的只有借来的那颗 69 类（`model-push-explicit` 收裸 URL，G-14 已开）。要出现「我们自己的模型」必须先走 §4.2.3 采集开门 → §4.3 每商品 200 张 → §4.4.3 开始学习。
+🔴 **同时订正我 10-23 14:4x 写的那句「我方没有判据证明这台柜加载哪颗类表」**：文档给了判据，只是**它只在下发之后才触发**——§4.2.5 目的原文「如果没有上报模型名字，则表示下发模型失败」，参数 `modelName`=「当前设备使用的模型名字」，且描述第(2)条**「模型下发成功后，机器端会重启」**⇒ 首次下发轮必须把「现场要等一次柜机重启」算进时间预算；换来的是设备自报 `modelName`（此后"柜机在用哪颗模型"才有官方口径）。
+
 载荷（G-15，已从本柜旧 logcat 逐字取到）：69 类 `hysxr20260930120329732_20260930120413844_3_50_3576.rknn` + 同名 `_3.txt`，`quantity=69`，雪碧=**classId 29**。入口=后台「按地址发到柜机」= `POST /devices/{id}/jiangyi/model-push-explicit`。
 
 🔴 **顺序坑 G-16，动手前必读**：**只点「按地址发到柜机」**（`pushModelByUrl` 仅做行数校验、不写映射表，`JiangyiModelSyncService.java:181-190`）；**别点「生成对照」**——`writePregenerated` 无条件 `setStatus("DISABLED")`（`:142`）且 `upsert` 保留原 `source`（`JiangyiClassMappingMapper.java:49`），会把唯一可结算的 classId 29 行打成 `MANUAL`+`DISABLED`，而「批量激活」只认 `source='MODEL_SYNC'`（`:77`）**救不回来**，只能在识别映射页单条重新启用。确需铺 69 行对照 ⇒ 生成后**回识别映射页单条启用 classId 29**，再复跑结算轮。
