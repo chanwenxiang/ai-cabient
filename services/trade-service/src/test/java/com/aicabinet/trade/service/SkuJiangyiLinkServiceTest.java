@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
@@ -24,7 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -462,7 +465,7 @@ class SkuJiangyiLinkServiceTest {
     void unbind_missingLinkIs404AndExistingGoesRetired() {
         when(linkMapper.selectById(404L)).thenReturn(null);
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().unbind(404L));
+                () -> service().unbind(SKU_ID, 404L));
         assertEquals(404, e.getStatusCode().value());
 
         JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
@@ -470,9 +473,108 @@ class SkuJiangyiLinkServiceTest {
         link.setSkuId(SKU_ID);
         link.setSyncStatus("BOUND");
         when(linkMapper.selectById(9L)).thenReturn(link);
-        service().unbind(9L);
+        service().unbind(SKU_ID, 9L);
         assertEquals("RETIRED", link.getSyncStatus());
         verify(linkMapper).updateById(link);
+    }
+
+    @Test
+    void unbind_linkOwnedByAnotherSkuIs404() {
+        // 路径上的 skuId 必须与挂接行一致，否则任意 skuId 都能改掉别人的挂接
+        JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
+        link.setId(9L);
+        link.setSkuId("SKU-OTHER");
+        link.setSyncStatus("BOUND");
+        when(linkMapper.selectById(9L)).thenReturn(link);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().unbind(SKU_ID, 9L));
+        assertEquals(404, e.getStatusCode().value());
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    // ---------- deleteFromJiangyi（§4.1.6 删我方新建的商品，用于填错返工） ----------
+
+    private JiangyiSkuJiangyiLink vendorLink(long id, String syncStatus, String productId) {
+        JiangyiSkuJiangyiLink l = new JiangyiSkuJiangyiLink();
+        l.setId(id);
+        l.setSkuId(SKU_ID);
+        l.setSyncStatus(syncStatus);
+        l.setJiangyiProductId(productId);
+        return l;
+    }
+
+    @Test
+    void deleteFromJiangyi_createdDeletesAtVendorThenRetiresLink() {
+        JiangyiSkuJiangyiLink link = vendorLink(9L, "CREATED", "41159");
+        when(linkMapper.selectById(9L)).thenReturn(link);
+
+        service().deleteFromJiangyi(SKU_ID, 9L);
+
+        verify(jiangyiGatherClient).productDelete(41159L);
+        assertEquals("RETIRED", link.getSyncStatus());
+        verify(linkMapper).updateById(link);
+    }
+
+    @Test
+    void deleteFromJiangyi_boundIs409AndVendorNeverCalled() {
+        // BOUND 指向将邑标准库共享条目，删它会波及别的商户
+        when(linkMapper.selectById(9L)).thenReturn(vendorLink(9L, "BOUND", "1018"));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().deleteFromJiangyi(SKU_ID, 9L));
+
+        assertEquals(409, e.getStatusCode().value());
+        verify(jiangyiGatherClient, never()).productDelete(anyLong());
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    @Test
+    void deleteFromJiangyi_vendorFailureKeepsLinkActive() {
+        JiangyiSkuJiangyiLink link = vendorLink(9L, "CREATED", "41159");
+        when(linkMapper.selectById(9L)).thenReturn(link);
+        doThrow(new IllegalStateException("将邑采集 productDelete 失败 status=500"))
+                .when(jiangyiGatherClient).productDelete(41159L);
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().deleteFromJiangyi(SKU_ID, 9L));
+
+        assertEquals(502, e.getStatusCode().value());
+        assertEquals("CREATED", link.getSyncStatus());
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    // ---------- listPendingGather（§4.3.2 待采集：商品库搜不到的那一半） ----------
+
+    @Test
+    void pendingGather_marksWhichOfOurSkusCreatedIt() {
+        when(jiangyiGatherClient.waitGatherProduct("冰红茶")).thenReturn(List.of(
+                new GatherPendingProduct(41159L, "康师傅冰红茶柠檬口味茶饮品", "康师傅", "330",
+                        "bottle", "https://public.example.com/api/v2/media/sku-images/2",
+                        "", "ksf_ksfbhcnmkwcyp_330"),
+                new GatherPendingProduct(50001L, "别的商户建的", null, null, null, null,
+                        null, null)));
+        JiangyiSkuJiangyiLink mine = vendorLink(2L, "CREATED", "41159");
+        when(linkMapper.listByProducts(List.of("41159", "50001"))).thenReturn(List.of(mine));
+
+        List<SkuJiangyiLinkService.PendingGatherView> views = service().listPendingGather("冰红茶");
+
+        assertEquals(2, views.size());
+        assertEquals(41159L, views.get(0).productId());
+        assertEquals("330", views.get(0).specs());
+        assertEquals(SKU_ID, views.get(0).linkedSkuId());
+        assertEquals("CREATED", views.get(0).linkedSyncStatus());
+        assertNull(views.get(1).linkedSkuId());
+        assertNull(views.get(1).linkedSyncStatus());
+    }
+
+    @Test
+    void pendingGather_blankNameStillQueriesVendorForFullList() {
+        when(jiangyiGatherClient.waitGatherProduct(null)).thenReturn(List.of());
+        when(linkMapper.listByProducts(List.of())).thenReturn(List.of());
+
+        assertTrue(service().listPendingGather(null).isEmpty());
+        verify(jiangyiGatherClient).waitGatherProduct(null);
     }
 
     @Test

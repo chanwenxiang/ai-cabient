@@ -32,4 +32,14 @@ public interface JiangyiSkuJiangyiLinkMapper extends BaseTradeMapper<JiangyiSkuJ
                         .ne(JiangyiSkuJiangyiLink::getSyncStatus, "RETIRED"))
                 .stream().map(JiangyiSkuJiangyiLink::getJiangyiProductId).toList();
     }
+
+    /** 按将邑商品 id 批量取挂接行（待采集列表回标「我方哪个 SKU 建的」用）。 */
+    default List<JiangyiSkuJiangyiLink> listByProducts(List<String> jiangyiProductIds) {
+        if (jiangyiProductIds == null || jiangyiProductIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<JiangyiSkuJiangyiLink>lambdaQuery()
+                .in(JiangyiSkuJiangyiLink::getJiangyiProductId, jiangyiProductIds)
+                .ne(JiangyiSkuJiangyiLink::getSyncStatus, "RETIRED"));
+    }
 }

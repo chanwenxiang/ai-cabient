@@ -7964,6 +7964,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/pending-gather": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pendingGather"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/jiangyi/order-videos/{id}/play-url": {
         parameters: {
             query?: never;
@@ -10583,6 +10599,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["unbind"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/skus/{skuId}/jiangyi-link/{linkId}/jiangyi-product": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteInJiangyi"];
         options?: never;
         head?: never;
         patch?: never;
@@ -17083,6 +17115,25 @@ export interface components {
             /** Format: int64 */
             id?: number;
             name?: string;
+        };
+        ApiResponseListPendingGatherView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PendingGatherView"][];
+        };
+        PendingGatherView: {
+            /** Format: int64 */
+            productId?: number;
+            name?: string;
+            brandName?: string;
+            specs?: string;
+            category?: string;
+            mainImg?: string;
+            barCodeSource?: string;
+            productEn?: string;
+            linkedSkuId?: string;
+            linkedSyncStatus?: string;
         };
         ApiResponsePlayUrlView: {
             /** Format: int32 */
@@ -33342,6 +33393,28 @@ export interface operations {
             };
         };
     };
+    pendingGather: {
+        parameters: {
+            query?: {
+                name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPendingGatherView"];
+                };
+            };
+        };
+    };
     orderVideoPlayUrl: {
         parameters: {
             query?: never;
@@ -36973,6 +37046,29 @@ export interface operations {
         };
     };
     unbind: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                skuId: string;
+                linkId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    deleteInJiangyi: {
         parameters: {
             query?: never;
             header?: never;

@@ -45,6 +45,20 @@ interface StdSkuSearchResult {
   hidden: number;
 }
 
+/** 将邑待采集条目（§4.3.2）：已新增进将邑、还没采集学习过，商品库搜索搜不到它们 */
+interface PendingGatherView {
+  productId: number;
+  name: string | null;
+  brandName: string | null;
+  specs: string | null;
+  category: string | null;
+  mainImg: string | null;
+  barCodeSource: string | null;
+  productEn: string | null;
+  linkedSkuId: string | null;
+  linkedSyncStatus: string | null;
+}
+
 const visible = ref(false);
 const skuId = ref('');
 const skuBarcode = ref('');
@@ -64,6 +78,13 @@ const searchTotal = ref(0);
 const hiddenCount = ref(0);
 const binding = ref(false);
 const pulling = ref(false);
+
+// 将邑待采集（§4.3.2）：这批条目在商品库搜索里根本不出现，缺了它运营会误判「将邑库里没有」
+const pending = ref<PendingGatherView[]>([]);
+const pendingName = ref('');
+const pendingLoading = ref(false);
+const pendingError = ref('');
+const deletingVendor = ref<number | null>(null);
 
 // 挂接前并排核对（我方 SKU vs 将邑商品）；无条码一致时不勾选不允许提交
 const confirmItem = ref<StdSkuView | null>(null);
@@ -173,6 +194,7 @@ function open(row: {
   confirmItem.value = null;
   confirmVisible.value = false;
   confirmedSame.value = false;
+  pendingName.value = '';
   // 换 SKU 必须整表重置：分类/规格/品牌/价格沿用上一个商品会写错将邑档案
   createForm.value = emptyCreateForm();
   // 主图默认取我方商品图（将邑侧必填；后端也会按 SKU 主图兜底，这里预填可核对/可改）
@@ -180,6 +202,7 @@ function open(row: {
   visible.value = true;
   void load();
   void loadCategories();
+  void loadPending();
   // 有品牌就先用品牌搜一轮：名称搜全称往往一条都匹配不到，品牌能直接看到同款候选
   if (searchKeyword.value) {
     void search();
@@ -209,6 +232,23 @@ async function load() {
     ElMessage.error(errorMessage(e, '加载挂接信息失败'));
   } finally {
     loading.value = false;
+  }
+}
+
+/** 待采集列表拉取失败只就地提示：弹窗其余能力（搜索/挂接）仍可用，不该被它打断 */
+async function loadPending() {
+  pendingLoading.value = true;
+  pendingError.value = '';
+  try {
+    pending.value = await api.request<PendingGatherView[]>(
+      AdminEndpoints.jiangyiPendingGather(pendingName.value.trim() || undefined),
+      'GET'
+    );
+  } catch (e) {
+    pending.value = [];
+    pendingError.value = errorMessage(e, '加载将邑待采集列表失败');
+  } finally {
+    pendingLoading.value = false;
   }
 }
 
@@ -363,6 +403,30 @@ async function unbind(link: JiangyiLink) {
   }
 }
 
+/** 只对我方新建（CREATED）的行开：BOUND 是标准库共享条目，删它会波及别的商户 */
+async function deleteInJiangyi(link: JiangyiLink) {
+  try {
+    await ElMessageBox.confirm(
+      `将在将邑商品库删除商品 ${link.jiangyiProductId}（${link.jiangyiName || '未登记名称'}）。` +
+        '将邑侧不可恢复，挂接记录同时置为已解挂；名称/规格填错需要返工时用这个，删完重新新增。确认？',
+      '从将邑删除确认',
+      { type: 'error', confirmButtonText: '从将邑删除', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  deletingVendor.value = link.id;
+  try {
+    await api.request(AdminEndpoints.skuJiangyiLinkVendorProduct(skuId.value, link.id), 'DELETE');
+    ElMessage.success('已从将邑删除，挂接记录留痕为已解挂');
+    await Promise.all([load(), loadPending()]);
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '从将邑删除失败'));
+  } finally {
+    deletingVendor.value = null;
+  }
+}
+
 defineExpose({ open });
 </script>
 
@@ -394,7 +458,57 @@ defineExpose({ open });
             <el-button link type="primary" size="small" :loading="pulling" @click="pullTextName">
               回填识别名称
             </el-button>
+            <el-button
+              v-if="link.syncStatus === 'CREATED'"
+              link
+              type="danger"
+              size="small"
+              :loading="deletingVendor === link.id"
+              @click="deleteInJiangyi(link)"
+            >
+              从将邑删除
+            </el-button>
             <el-button link type="danger" size="small" @click="unbind(link)">解挂</el-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="jy-link-section">
+        <div class="jy-link-label">将邑待采集（已新增进将邑、还没采集学习）</div>
+        <div class="jy-link-hint">
+          这批条目在下面的商品库搜索里搜不到——「搜不到」不等于「将邑库里没有」。采集拍照由柜机自身摄像头完成，
+          采集向导尚未接入后台，当前仍需在将邑侧操作后回来刷新这里。
+        </div>
+        <div class="jy-link-row">
+          <el-input
+            v-model="pendingName"
+            placeholder="按名称筛选（留空看全部）"
+            clearable
+            style="flex: 1"
+            @keyup.enter="loadPending"
+          />
+          <el-button :loading="pendingLoading" @click="loadPending">刷新</el-button>
+        </div>
+        <div v-if="pendingError" class="jy-link-card-warn">{{ pendingError }}</div>
+        <div v-else-if="pending.length === 0" class="jy-link-empty">将邑侧没有待采集商品</div>
+        <div v-for="item in pending" :key="item.productId" class="jy-link-card">
+          <el-image v-if="item.mainImg" :src="item.mainImg" fit="cover" class="jy-link-thumb">
+            <template #error><span class="jy-link-thumb-empty-text">无图</span></template>
+          </el-image>
+          <div v-else class="jy-link-thumb jy-link-thumb-empty">无图</div>
+          <div class="jy-link-card-main">
+            <div class="jy-link-card-title">
+              <span class="jy-link-mono">编号 {{ item.productId }}</span>
+              <el-tag v-if="item.linkedSkuId" size="small" type="warning">
+                我方 {{ item.linkedSkuId }}
+                {{ item.linkedSyncStatus === 'CREATED' ? '新建' : '挂接' }}
+              </el-tag>
+              <el-tag v-else size="small" type="info">非我方条目</el-tag>
+            </div>
+            <div class="jy-link-card-line">{{ item.name || '—' }}</div>
+            <div class="jy-link-card-sub">
+              规格：{{ item.specs || '—' }}｜品牌：{{ item.brandName || '—' }}
+            </div>
           </div>
         </div>
       </div>

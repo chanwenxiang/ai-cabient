@@ -2,7 +2,7 @@ package com.aicabinet.trade.dto;
 
 /**
  * 将邑采集 API（CB-023）轻量 DTO 集合：仅承载客户端收敛后的字段，
- * 宽松字段（doorStatus/waitGatherProduct/studyingProduct 的原始 JsonNode）不在此定义。
+ * 宽松字段（doorStatus/studyingProduct 的原始 JsonNode）不在此定义。
  */
 public final class JiangyiGatherDtos {
 
@@ -15,6 +15,17 @@ public final class JiangyiGatherDtos {
     public record JiangyiStdSku(long id, String name, String barCode, String specs,
                                 String brandName, String category, String mainImg, String stdSkuCode,
                                 String barCodeSource) {}
+
+    /**
+     * 将邑待采集商品（§4.3.2.4 waitGatherProduct）：已进将邑、但还没采集学习过的条目。
+     *
+     * <p>2026-10-23 实测回包<b>没有 barCode 字段</b>（只有 productId/name/brandName/specs/
+     * category/mainImg/barCodeSource/productEn），条码要等采集学习进标准库后
+     * 才在 §4.1.2 出现——所以这个列表不能按条码筛（同批次实测 barCode 入参也是空转）。</p>
+     */
+    public record GatherPendingProduct(long productId, String name, String brandName, String specs,
+                                       String category, String mainImg, String barCodeSource,
+                                       String productEn) {}
 
     /** 商品分类（§4.1.4.4：id/name，例 235 其他 / 238 饮料）。 */
     public record JiangyiCategory(long id, String name) {}

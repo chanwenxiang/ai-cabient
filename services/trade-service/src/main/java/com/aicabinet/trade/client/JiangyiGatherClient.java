@@ -1,6 +1,7 @@
 package com.aicabinet.trade.client;
 
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
@@ -146,14 +147,44 @@ public class JiangyiGatherClient {
         return data.asLong();
     }
 
+    /**
+     * 删除商品（§4.1.6 /merchant/product/delete，入参只有 id，响应 data=null）。
+     * 厂商侧不可逆——调用方的「只删我方新建的」闸门见
+     * {@link com.aicabinet.trade.service.SkuJiangyiLinkService#deleteFromJiangyi}。
+     */
+    public void productDelete(long productId) {
+        post("/merchant/product/delete", Map.of("id", productId), true, "productDelete");
+    }
+
     // ---------- 采集（4.2.x） ----------
 
-    /** 查询待采集商品列表（§4.2.2 waitGatherProduct；barCode/name 至少一项）。 */
-    public JsonNode waitGatherProduct(String barCode, String name) {
+    /**
+     * 查询待采集商品列表（§4.3.2 waitGatherProduct）。
+     *
+     * <p>只收 name：2026-10-23 实测 name 是真模糊过滤（冰红茶 1 条 / 雪碧 0 / 农夫山泉 0），
+     * 而 barCode 入参<b>完全空转</b>（传 0000000000000 仍返回同一条）——文档 §4.2.2「barCode/name
+     * 至少一项」不成立，两项都留空即返回全量。别在调用方做条码搜索。</p>
+     */
+    public List<GatherPendingProduct> waitGatherProduct(String name) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("barCode", barCode == null ? "" : barCode);
+        body.put("barCode", "");
         body.put("name", name == null ? "" : name);
-        return post("/merchant/selfhelpGatherProduct/waitGatherProduct", body, true, "waitGatherProduct");
+        JsonNode data = post("/merchant/selfhelpGatherProduct/waitGatherProduct", body, true, "waitGatherProduct");
+        List<GatherPendingProduct> out = new ArrayList<>();
+        if (data.isArray()) {
+            for (JsonNode n : data) {
+                out.add(new GatherPendingProduct(
+                        n.path("productId").asLong(),
+                        text(n, "name"),
+                        text(n, "brandName"),
+                        text(n, "specs"),
+                        text(n, "category"),
+                        text(n, "mainImg"),
+                        text(n, "barCodeSource"),
+                        text(n, "productEn")));
+            }
+        }
+        return out;
     }
 
     /** 采集商品开门（§4.2.3 gatherOpenDoor；identifier=CQYB 编号，doorPosition 双门柜 L/R 可空）。 */

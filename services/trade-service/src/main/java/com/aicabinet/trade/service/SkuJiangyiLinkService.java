@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
@@ -130,6 +131,31 @@ public class SkuJiangyiLinkService {
                 .map(Ranked::toView)
                 .toList();
         return new StdSkuSearchResult(items, ranked.size(), ranked.size() - items.size());
+    }
+
+    /**
+     * 将邑待采集列表（§4.3.2）：已进将邑、还没采集学习过的商品。
+     *
+     * <p>存在的意义是补一个盲区：这类条目<b>不在 §4.1.2 商品库搜索结果里</b>（实测 41159
+     * 康师傅冰红茶在 waitGatherProduct 里、stdSku/getList 查不到），运营「搜不到」时
+     * 会误判成「将邑库里没有」。name 留空即全量（该接口 barCode 空转，见客户端注释）。</p>
+     */
+    public List<PendingGatherView> listPendingGather(String name) {
+        List<GatherPendingProduct> pending = jiangyiGatherClient.waitGatherProduct(name);
+        Map<String, JiangyiSkuJiangyiLink> byProduct = new HashMap<>();
+        for (JiangyiSkuJiangyiLink link : linkMapper.listByProducts(
+                pending.stream().map(p -> String.valueOf(p.productId())).toList())) {
+            byProduct.putIfAbsent(link.getJiangyiProductId(), link);
+        }
+        return pending.stream()
+                .map(p -> {
+                    JiangyiSkuJiangyiLink link = byProduct.get(String.valueOf(p.productId()));
+                    return new PendingGatherView(p.productId(), p.name(), p.brandName(), p.specs(),
+                            p.category(), p.mainImg(), p.barCodeSource(), p.productEn(),
+                            link == null ? null : link.getSkuId(),
+                            link == null ? null : link.getSyncStatus());
+                })
+                .toList();
     }
 
     /**
@@ -317,6 +343,33 @@ public class SkuJiangyiLinkService {
     }
 
     /**
+     * 把我方新增到将邑的商品删掉（§4.1.6）——用于「字段填错了还没采集」的返工：
+     * 将邑没有改名称/规格的接口，只能删了重建。删成功才把挂接行置 RETIRED（失败不留假删除）。
+     *
+     * <p>闸门只放 CREATED：BOUND 指向将邑标准库里本来就有的商品，那是共享条目，
+     * 删它会波及别的商户，我方无权处置（要断开走 {@link #unbind}）。</p>
+     */
+    public void deleteFromJiangyi(String skuId, long linkId) {
+        JiangyiSkuJiangyiLink link = requireLink(skuId, linkId);
+        if (!"CREATED".equals(link.getSyncStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "只有「我方新增」的挂接能从将邑删除（当前是 " + link.getSyncStatus()
+                            + "）；标准库既有商品属共享条目，请改用解挂");
+        }
+        try {
+            jiangyiGatherClient.productDelete(Long.parseLong(link.getJiangyiProductId()));
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "将邑删除商品失败：" + e.getMessage());
+        }
+        link.setSyncStatus("RETIRED");
+        link.setUpdatedAt(Instant.now());
+        linkMapper.updateById(link);
+        log.info("jiangyi sku link deleted-in-jiangyi skuId={} linkId={} jiangyiProductId={}",
+                skuId, linkId, link.getJiangyiProductId());
+    }
+
+    /**
      * 学习完成后按 barCode 从已学习商品回填 text_name（classes.txt 直接键）。
      *
      * <p>🔴 命中多条不猜（2026-10-22 用户拍板）：将邑库里同一条码可能同时挂着正式行与
@@ -370,16 +423,22 @@ public class SkuJiangyiLinkService {
     }
 
     /** 解挂（RETIRED 留痕，不物理删）。 */
-    public void unbind(long linkId) {
-        JiangyiSkuJiangyiLink link = linkMapper.selectById(linkId);
-        if (link == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "挂接记录不存在：" + linkId);
-        }
+    public void unbind(String skuId, long linkId) {
+        JiangyiSkuJiangyiLink link = requireLink(skuId, linkId);
         link.setSyncStatus("RETIRED");
         link.setUpdatedAt(Instant.now());
         linkMapper.updateById(link);
         log.info("jiangyi sku link unbound linkId={} skuId={} jiangyiProductId={}",
                 linkId, link.getSkuId(), link.getJiangyiProductId());
+    }
+
+    /** 挂接行必须属于路径上的那个 SKU——否则同一条 link 能从任意 skuId 路径被改。 */
+    private JiangyiSkuJiangyiLink requireLink(String skuId, long linkId) {
+        JiangyiSkuJiangyiLink link = linkMapper.selectById(linkId);
+        if (link == null || !skuId.equals(link.getSkuId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "挂接记录不存在：" + linkId);
+        }
+        return link;
     }
 
     /**
@@ -428,6 +487,14 @@ public class SkuJiangyiLinkService {
 
     /** items=当前返回项；total=将邑原始条数；hidden=被隐藏的明显不符条数（includeAll 时 0）。 */
     public record StdSkuSearchResult(List<StdSkuView> items, int total, int hidden) {}
+
+    /**
+     * 待采集视图：将邑原样字段 + 我方挂接回标。
+     * linkedSkuId/linkedSyncStatus 为 null 表示这条不是我方建的（别的商户/历史遗留）。
+     */
+    public record PendingGatherView(long productId, String name, String brandName, String specs,
+                                    String category, String mainImg, String barCodeSource,
+                                    String productEn, String linkedSkuId, String linkedSyncStatus) {}
 
     /** 新增到将邑商品库的入参（§4.1.5 必填集合）。 */
     public record ProductCreateSpec(String name, String specs, long catId, String brandName,

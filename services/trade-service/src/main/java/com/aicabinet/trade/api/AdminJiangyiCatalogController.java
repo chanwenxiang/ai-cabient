@@ -59,6 +59,17 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.productCategories());
     }
 
+    /**
+     * 将邑待采集列表（§4.3.2）：已新增进将邑、还没采集学习过的商品。
+     * 这批条目搜商品库是搜不到的，运营判断「将邑库里到底有没有」得看这里。
+     */
+    @RequiresPermissions("ops:sku:list")
+    @GetMapping("/jiangyi/pending-gather")
+    public ApiResponse<List<SkuJiangyiLinkService.PendingGatherView>> pendingGather(
+            @RequestParam(value = "name", required = false) String name) {
+        return ApiResponse.ok(skuJiangyiLinkService.listPendingGather(name));
+    }
+
     /** 挂接既有将邑商品（唯一冲突 409；条码不一致仅记日志/前端提示，不阻断）。 */
     @RequiresPermissions("ops:sku:edit")
     @PutMapping("/skus/{skuId}/jiangyi-link")
@@ -85,12 +96,21 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.pullTextName(skuId));
     }
 
+    /** 我方新增到将邑的商品从将邑删除（§4.1.6，不可逆；BOUND 一律 409）。 */
+    @RequiresPermissions("ops:sku:edit")
+    @DeleteMapping("/skus/{skuId}/jiangyi-link/{linkId}/jiangyi-product")
+    public ApiResponse<Void> deleteInJiangyi(@PathVariable("skuId") String skuId,
+                                             @PathVariable("linkId") long linkId) {
+        skuJiangyiLinkService.deleteFromJiangyi(skuId, linkId);
+        return ApiResponse.ok(null);
+    }
+
     /** 解挂（RETIRED 留痕）。 */
     @RequiresPermissions("ops:sku:edit")
     @DeleteMapping("/skus/{skuId}/jiangyi-link/{linkId}")
     public ApiResponse<Void> unbind(@PathVariable("skuId") String skuId,
                                     @PathVariable("linkId") long linkId) {
-        skuJiangyiLinkService.unbind(linkId);
+        skuJiangyiLinkService.unbind(skuId, linkId);
         return ApiResponse.ok(null);
     }
 

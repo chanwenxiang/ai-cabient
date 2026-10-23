@@ -235,6 +235,10 @@ export const AdminEndpoints = {
     `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/create`,
   skuJiangyiLinkPullTextName: (skuId: string) =>
     `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/pull-text-name`,
+  skuJiangyiLinkVendorProduct: (skuId: string, linkId: number) =>
+    `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/${linkId}/jiangyi-product`,
+  jiangyiPendingGather: (name?: string) =>
+    `${ops}/jiangyi/pending-gather${name ? `?name=${encodeURIComponent(name)}` : ''}`,
   jiangyiStdSkus: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/jiangyi/std-skus?${query}`
