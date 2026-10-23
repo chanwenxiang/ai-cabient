@@ -2301,6 +2301,16 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   margin-right: 6px;
 }
+.sku-card-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+/* el-button 相邻默认 margin-left:12px 会与 flex gap 叠加，归零用 gap 控距 */
+.sku-card-actions .el-button + .el-button {
+  margin-left: 0;
+}
 .sort-list {
   max-height: 420px;
   overflow: auto;
