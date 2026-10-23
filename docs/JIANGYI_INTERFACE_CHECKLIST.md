@@ -394,6 +394,27 @@
 
 跑完把 §9 对应行的「待真机」改成「实测」，并在此表追加一行：`轮次 | 时间 | PASS/PART/FAIL | 证据（nginx 行原文 / SQL 结果 / 日志事件名）| 新发现的判据`。🔴 0 命中的路径**保留在 `.tmp/never-hit.txt` 口径**（该文件是 gitignore 的本机证据，把结论抄进本表才是入库），别因为「这轮没打到」就把接口从表里删行——删行=下一个人重新猜一遍。
 
+### 9B.12 R8｜多商品识别（2026-10-23 16:0x 我方侧建档完成，🔴 只差现场放货开门）
+
+背景：昨天那次 PASS 只证明了**单款**（雪碧 classId 29 → 100013 → PAID 350）。本轮要证的是**一次开门拿多款、逐款归一/计价/扣库存**，所以先把在售面从 1 行扩到 4 行。
+
+建档走的是后台同一批端点、没有裸改 SQL（脚本 `.tmp/jy-onboard-multi.mjs`，重跑会撞名称/条码唯一约束，不会静默叠行）：`POST /skus` 建档 → `PUT /skus/{skuId}/jiangyi-link` 挂厂商现成条目（用户 10-23 拍板「挂厂商现成条目」，不走 §4.1.5 新增）→ `PUT /devices/{id}/jiangyi/class-mappings/{classId}` ACTIVE（带 `textName`+`modelName`）→ `PUT /devices/{id}/sku-inventory`。
+
+| classId | 我方 SKU | 挂的厂商 pid | textName（§5.5.3 逐字） | 条码（两处一致） | 价 | 映射行 |
+|---|---|---|---|---|---|---|
+| 26 | 100016 可口可乐经典美味汽水330ml | 1033 | `kkkl_jdmw_pttz_330ml` | 6954767410388 | 350 | id=75 ACTIVE |
+| 27 | 100017 可口可乐经典美味汽水500ml | 127 | `kkkl_qs_jdmw_500ml` | 6954767412573 | 400 | id=76 ACTIVE |
+| 28 | 100018 雪碧清爽柠檬味汽水500ml | 2014 | `kkkl_xb_qsnmw_500ml` | 6928804010220 | 400 | id=77 ACTIVE |
+| 29 | 100013 雪碧柠檬味汽水330ml（昨日 PASS 那行） | 1018 | `kkkl_xb_qsnmw_pttz_330ml` | 6954767430386 | 350 | id=72 ACTIVE |
+
+`floor-goods` 实测回包（4 行）：`[{26,1033,可口可乐经典美味汽水330ml,350,stock4},{27,127,…500ml,400,4},{28,2014,雪碧清爽柠檬味汽水500ml,400,4},{29,1018,雪碧柠檬味汽水330ml,350,stock2}]`。每行的**归属证据是两处逐字对齐**：V16 §5.5.3 解码行的 `textName/stdSkuName/vendorBarcode` ↔ V1.13 §4.1.2 按 `barCode` 精确查回来的 `name/textName/barCode`（`.tmp/jy-stdsku-byname.mjs` 与条码轮询都跑过）。
+
+⚠️ **28 号有一处对不上，已按「活行优先」处置**：§5.5.3 该类记的是 `stdSkuId=55`、`stdSkuName=可口可乐雪碧柠檬味汽水`，但本租户 §4.1.2 用条码 `6928804010220` 查到的活行是 **`2014` / `可口可乐雪碧清爽柠檬味瓶装500ml` / `textName=kkkl_kkklxbqsnmwpz500ml_500ml`**（55 在 `雪碧`/`柠檬味汽水`/`瓶装500ml` 三次查询里都不出现）。挂 2014，映射行的 `text_name` 仍填**模型侧**那个 token（`kkkl_xb_qsnmw_500ml`，它才是类表里的行名）。判据上不影响结算：现网设备上报 `thirdPid=0`，解析走 classId 兜底（`JiangyiInternalController.java:212`），pid 差异只影响「别去厂商库里按 55 找这款」。
+
+🔴 **本轮的失败面是我方刻意设计，别当新缺陷**：识别归一 fail-closed——报文里**任一行**解析不到 SKU 就整单转争议（`RecognitionNormalizer.normalize` + `DeviceReportController.java:276-288` `JIANGYI_CLASS_MAPPING_MISS`）。所以现场**只放这 4 款**；放 20 号加多宝 500ml、或 30/31 号康师傅（现 DISABLED）都会把整单打废。库存 4 行 qty=4/cap=4 也是同一原因：无 lot 柜扣成负数即 409，账面必须 ≥ 设备可能上报的件数。
+
+**判据（跑完在此追加一行）**：一次开门取 2 款以上 ⇒ `jiangyi_recognition_report` 新行 `outcome=FORWARDED` 且 `recognition_result` 含 **≥2 个 classId**、订单金额=对应单价之和、库存逐款递减、会话 COMPLETED。若只出 1 款 ⇒ 先分「设备只报了一件」还是「第二件解析失败被丢」，看同一 report 行的原始 JSON 再归因。
+
 ---
 
 ## 10. H｜文档笔误与不一致（照抄会错的一律钉在这）
