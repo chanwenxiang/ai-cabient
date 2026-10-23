@@ -259,7 +259,7 @@
 | 设备面注册的 `/jiangyi/api/**` 字面 | **59** 种拼写（含双前缀别名；与总账「46 具体路径」不矛盾，那是去重后的路径数） | `grep -rh '"/jiangyi/api/…"' services/jiangyi-gateway/src/main/java` |
 | 真机 `okhttp` 命中 | **16** 条 | 同上 UA 过滤，`sort -u` |
 | 注册但真机 **0 命中** | **44** 条 ⇒ 逐条清单 `.tmp/never-hit.txt`，本节轮次就是把它们分进能到达的流程 | `comm -23` |
-| WS 下行我方**会发** | **7** 个 msgType：`openDoor` / `sendOpenStockDoor` / `updateModel` / `sendUploadErrorOrderVideos` / `getDeviceInfo` / `sendDeviceSoundSwitch` / `sendDeviceSoundVolume` | gateway 源码 `send(` 调用点 |
+| WS 下行我方**会发** | **8** 个 msgType：`openDoor` / `sendOpenStockDoor` / `updateModel` / `sendUploadErrorOrderVideos` / `getDeviceInfo` / `sendDeviceSoundSwitch` / `sendDeviceSoundVolume` / `closeDoor`（§4.3.2.6 可选关门，2026-10-23 用户拍板补接：采集开门会话解锁后柜门无法回锁） | gateway 源码 `send(` 调用点 |
 | WS 下行真机**实际发过** | **3** 种：回 `heartBeat` PONG 1084、`openDoor` 11、`sendUploadErrorOrderVideos` 6（两个日志窗口 tally 一致） | `.tmp/round-20261022/gateway.log` |
 | 出向 D 面 | `jiangyi_training_ticket` **0 行** ⇒ 采集/学习 8 条从未真跑；`jiangyi_model_deployment` **0 行** ⇒ 模型下行从未真发；`jiangyi_recognition_report` 1 行（17:02:59 FORWARDED） | dev 库 |
 
@@ -347,7 +347,7 @@
 2. ~~**拍照采集的操作在将邑商户 App 里完成** ⇒ 必须有厂商商户 App 账号~~ → 🔴 **2026-10-23 推翻（用户指认「移动端不只是手机」+ 逐节核对文档）**：V1.13 标题里的「**移动端**」= 调这批 REST 的**客户端角色**（封面把平板/手机/PC 三类都标成移动端），**不是手机 App**。§4.3.4「查询摄像头和配置是否准备好」(`startGather`) 与 §4.3.7「结束当次商品采集」(`endOne`) 的入参**只有 `identifier`(设备编号) + `id`(采集商品信息 id)**，没有任何手机专有输入；🔴 而 §4.3.4 的**标题本身就说明出图的是柜机自己的摄像头**——它在问「摄像头就绪了没」。⇒ R5 的对外依赖**不是账号**，而是：①一个能拿商户 token 的 HTTP 客户端（我方 `JiangyiGatherClient` 已在），②柜机在线 + **现场有人在柜前放样本/收图**。后台挂接弹窗那句提示语已按此订正为「采集拍照由柜机自身摄像头完成，采集向导尚未接入后台」。
 3. **G-5**：V1.13 §4.3.3–4.3.14 十二条编排 API 我方 **0 实现** ⇒ 若 App 流程要求我方驱动，本轮会当场卡住——**那正是 G-5 的判据**（看厂商云/我方 nginx 是否留下这些路径的痕迹），卡住就是结论，不是白跑。
 
-步骤：① 选一个**厂商库里没有**的商品做样本（先按 H-13 用 `barCode` **精确查**确认不在厂商库，别拿列表长度当结论；真商品只有雪碧，所以用测试 SKU 100011 或新建一条）→ ② 后台「进入采集模式」（`POST …/jiangyi/gather/start`，置 `gather_locked_at`）→ ③ 现场确认门 → ④ **柜机自身摄像头**出图、采集 **200 张/商品**（🔴 H-12：**200 不是 2000**；🔴 出图方=柜机，不是手机 App，见本节前置 2）→ ⑤ `GET …/gather/progress` 轮询（内部串 `doorStatus` + `studyingProduct` + `gatherCheck(null)`）→ ⑥ 「触发学习」（`POST …/gather/training`）→ ⑦ 等 `gather-finish-notify` → ⑧ **「退出采集模式（恢复营业）」必须点**，否则购物一直 409。
+步骤：① 选一个**厂商库里没有**的商品做样本（先按 H-13 用 `barCode` **精确查**确认不在厂商库，别拿列表长度当结论；真商品只有雪碧，所以用测试 SKU 100011 或新建一条）→ ② 后台「进入采集模式」（`POST …/jiangyi/gather/start`，置 `gather_locked_at`）→ ③ 现场确认门 → ④ **柜机自身摄像头**出图（🔴 2026-10-23 用户口径：**不需要 200 张**，采到现场认为够为止；`error` 的 `no` 与张数无关，见 H-12；出图方=柜机，不是手机 App，见本节前置 2）→ ⑤ `GET …/gather/progress` 轮询（内部串 `doorStatus` + `studyingProduct` + `gatherCheck(null)`）→ ⑥ 「触发学习」（`POST …/gather/training`）→ ⑦ 等 `gather-finish-notify` → ⑧ **「退出采集模式（恢复营业）」必须点**，否则购物一直 409。
 
 **采集脚本（2026-10-23 新增）**：`node scripts/jiangyi-gather-r5.mjs <子命令>`——只打 V1.13 §4.3.2–4.3.14 的厂商序列，外加 §4.4.4/4.4.5/4.4.6 只读；凭据只从环境变量或本机 dev 容器读、**不打印**，写操作必须显式 `--yes`。我方后台仍负责「进入采集模式 / 退出 / 触发学习 / 进度」（`JiangyiGatherService` 会建 `jiangyi_training_ticket`）⇒ 🔴 **不要用脚本直打 `commitTrainingTenantOne`**：finishNotifyId 是我方一次性凭据，绕过 ticket 会让回调被 `handleFinishNotify` 丢弃。`JIANGYI_IDENTIFIER`=厂商登记编号（本柜 `CQYB10720`），`JIANGYI_GATHER_PHONE`=endAll 的通知号码。
 
@@ -358,7 +358,7 @@
 | 2 | `prep --product-id 41175 --name … --brand 康师傅 --specs 310ml --category bottle --yes`（§4.3.3） | 回包 `data[0].id` = **采集商品信息 id**（记下，后续 ready/start/error/end-one 全用它）；404 先查 H-24 的 `productInfo` 拼写 |
 | 3 | `ready --gather-id <id>`（§4.3.4） | `cameraStatus=yes` + `configParamStatus=yes` + `start=yes`；任一 `no` 停 |
 | 4 | `start --gather-id <id> --yes`（§4.3.5） | 现场柜门打开/进入采集；同时我方 nginx 出现 `device/uploadDoorState`。**门不开=G-6**（厂商云对这台柜无会话），改用 `sendOpenStockDoor` 属设计变更，需拍板 |
-| 5 | 现场放样本，柜机自采 **200 张/商品**（H-12）→ `error --gather-id <id>`（§4.3.6） | `data=no`。⚠️ 文档明说「图片不足 2000 张也返回 no」⇒ **no ≠ 张数够**，张数以现场/设备为准 |
+| 5 | 现场放样本，柜机自采（🔴 2026-10-23 用户口径：**张数无硬性下限，不需要 200 张**，采到够为止）→ `error --gather-id <id>`（§4.3.6） | `data=no`。⚠️ 文档明说「图片不足 2000 张也返回 no」⇒ **no ≠ 张数够**，张数以现场/设备为准 |
 | 6 | `end-one --gather-id <id> --yes`（§4.3.7） | 回包 `data`=采集次数 |
 | 7 | `products`（§4.3.8） | 列表含该商品 `productInfo` |
 | 8 | `go-on`（§4.3.9） | `yes` 才可采下一商品；`wait` 等设备；`no` 查 `error`/上传状态 |
