@@ -1326,6 +1326,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/devices/{deviceId}/door-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["doorState"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/class-mappings": {
         parameters: {
             query?: never;
@@ -4070,6 +4086,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/reboot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reboot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/model-sync": {
         parameters: {
             query?: never;
@@ -4192,6 +4224,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["exitGather"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/door-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["doorState_1"];
+        put?: never;
+        post: operations["requestDoorState"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12490,6 +12538,10 @@ export interface components {
         ModelConfirmedRequest: {
             modelName?: string;
         };
+        DoorStateRequest: {
+            doorState?: string;
+            lockState?: string;
+        };
         ApiResponseJiangyiClassMapping: {
             /** Format: int32 */
             code?: number;
@@ -18003,6 +18055,18 @@ export interface components {
             trainingProducts?: unknown;
             checks?: components["schemas"]["GatherCheckItem"][];
         };
+        ApiResponseDoorStateView: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DoorStateView"];
+        };
+        DoorStateView: {
+            doorState?: string;
+            lockState?: string;
+            /** Format: date-time */
+            reportedAt?: string;
+        };
         ApiResponseClassDecodeView: {
             /** Format: int32 */
             code?: number;
@@ -22546,6 +22610,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ModelConfirmedRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    doorState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DoorStateRequest"];
             };
         };
         responses: {
@@ -27417,6 +27507,28 @@ export interface operations {
             };
         };
     };
+    reboot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
     modelSync: {
         parameters: {
             query?: never;
@@ -27627,6 +27739,50 @@ export interface operations {
         };
     };
     exitGather: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    doorState_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDoorStateView"];
+                };
+            };
+        };
+    };
+    requestDoorState: {
         parameters: {
             query?: never;
             header?: never;
