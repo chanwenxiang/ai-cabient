@@ -231,12 +231,24 @@ public class TradeInternalClient {
                 new DeviceSignalRequest(signalStrength), deviceId);
     }
 
+    /**
+     * 门磁状态转发（V16 §4.2.16 §4.3.2.12）：设备回应门磁查询，落 trade
+     * device_info.door_state/lock_state。仅展示，设备自报口径不作结算判据。
+     */
+    public void deviceDoorState(String deviceId, String doorState, String lockState) {
+        post("/internal/v1/jiangyi/devices/{deviceId}/door-state",
+                new DeviceDoorStateRequest(doorState, lockState), deviceId);
+    }
+
     /** 与 trade JiangyiInternalController.OrderVideoReportRequest 对齐。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
                                    Integer videoQuantity, java.util.List<String> videoUrls) {}
 
     /** 与 trade JiangyiInternalController.SignalRequest 对齐。 */
     record DeviceSignalRequest(Integer signalStrength) {}
+
+    /** 与 trade JiangyiInternalController.DoorStateRequest 对齐（§4.2.16 doorState/lockState）。 */
+    record DeviceDoorStateRequest(String doorState, String lockState) {}
 
     /** 与 trade JiangyiInternalController.ModelConfirmedRequest 对齐。 */
     record ModelConfirmedRequest(String modelName) {}

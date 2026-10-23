@@ -20,9 +20,13 @@ import java.util.Map;
  * ① 音量开关 {@code {msgType:"sendDeviceSoundSwitch", msgContent:"0"关/"1"开}}（V16 §4.3.2.16）
  * ② 音量大小 {@code {msgType:"sendDeviceSoundVolume", msgContent:"0"大/"1"中/"2"小}}（V16 §4.3.2.17）
  * ③ 信息拉取 {@code {msgType:"getDeviceInfo", msgContent:""}}（§4.3.2.13，回执走
- *    HTTP §4.2.15 getDeviceSimInfo → trade device_info.signal_strength）。
+ *    HTTP §4.2.15 getDeviceSimInfo → trade device_info.signal_strength）
+ * ④ 关门/回锁 {@code {msgType:"closeDoor", msgContent:""}}（§4.3.2.6 可选，无回执）
+ * ⑤ 机器重启 {@code {msgType:"reboot", msgContent:""}}（§4.3.2.1，无回执）
+ * ⑥ 门磁查询 {@code {msgType:"getDoorState", msgContent:""}}（§4.3.2.12 可选，回执走
+ *    HTTP §4.2.16 getDoorInfo → trade device_info.door_state/lock_state）
  *
- * <p>下发成功 ≠ 设备已执行：音量指令文档未定义回执，仅审计下发动作。</p>
+ * <p>下发成功 ≠ 设备已执行：音量/关门/重启文档未定义回执，仅审计下发动作。</p>
  *
  * <p>鉴权：/internal/** 由 InternalApiAuthInterceptor 统一校验（GatewayWebConfig）。</p>
  */
@@ -125,6 +129,38 @@ public class DeviceCommandController {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "关门指令下发失败");
         }
         log.info("jiangyi closeDoor dispatched deviceId={} identifier={}", deviceId, identifier);
+    }
+
+    /**
+     * 机器重启（V16 §4.3.2.1）：{@code {msgType:"reboot", msgContent:""}}。无回执；
+     * 设备重启期间 WS 会断开（我方收到 ws-offline 回执即置离线）。
+     */
+    @PostMapping("/devices/{deviceId}/reboot")
+    public void reboot(@PathVariable("deviceId") String deviceId) {
+        String identifier = requireOnlineIdentifier(deviceId);
+        if (!deviceWebSocketHandler.send(identifier, Map.of(
+                "status", 200,
+                "msgType", "reboot",
+                "msgContent", ""))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "重启指令下发失败");
+        }
+        log.info("jiangyi reboot dispatched deviceId={} identifier={}", deviceId, identifier);
+    }
+
+    /**
+     * 查询门磁实时状态（V16 §4.3.2.12 可选）：{@code {msgType:"getDoorState", msgContent:""}}，
+     * 设备随后经 HTTP §4.2.16 deviceInfo/getDoorInfo 回 doorState/lockState。
+     */
+    @PostMapping("/devices/{deviceId}/door-state")
+    public void doorState(@PathVariable("deviceId") String deviceId) {
+        String identifier = requireOnlineIdentifier(deviceId);
+        if (!deviceWebSocketHandler.send(identifier, Map.of(
+                "status", 200,
+                "msgType", "getDoorState",
+                "msgContent", ""))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "门磁查询指令下发失败");
+        }
+        log.info("jiangyi getDoorState dispatched deviceId={} identifier={}", deviceId, identifier);
     }
 
     private String requireOnlineIdentifier(String deviceId) {

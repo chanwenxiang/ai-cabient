@@ -60,6 +60,24 @@ public class JiangyiGatewayClient {
                 .toBodilessEntity();
     }
 
+    /** 机器重启（§4.3.2.1 reboot）：无回执。 */
+    public void reboot(String deviceId) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/reboot", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    /** 查询门磁状态（§4.3.2.12 getDoorState）：回执走 HTTP §4.2.16 → device_info 落库。 */
+    public void requestDoorState(String deviceId) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/door-state", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /** 按单拉取柜内视频（§4.3.2.11 sendUploadErrorOrderVideos）：orderNo=我方 sessionId。 */
     public void pullVideo(String deviceId, String orderNo) {
         gatewayClient.post()

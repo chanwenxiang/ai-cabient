@@ -303,6 +303,32 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiDeviceOpsService.signal(deviceId));
     }
 
+    /** 机器重启（§4.3.2.1 reboot）：无回执，设备重启期间 WS 断开。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/reboot")
+    public ApiResponse<Void> reboot(HttpServletRequest request,
+                                    @PathVariable("deviceId") String deviceId) {
+        jiangyiDeviceOpsService.reboot(operatorId(request), deviceId);
+        return ApiResponse.ok(null);
+    }
+
+    /** 下发门磁查询（§4.3.2.12 getDoorState）：回执经 §4.2.16 异步落库，随后 GET door-state 可读。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/door-state")
+    public ApiResponse<Void> requestDoorState(HttpServletRequest request,
+                                              @PathVariable("deviceId") String deviceId) {
+        jiangyiDeviceOpsService.requestDoorState(operatorId(request), deviceId);
+        return ApiResponse.ok(null);
+    }
+
+    /** 门磁快照视图（最近一次 §4.2.16 上报；未查询过全 null）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/door-state")
+    public ApiResponse<JiangyiDeviceOpsService.DoorStateView> doorState(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiDeviceOpsService.doorState(deviceId));
+    }
+
     // ---------- 模型同步面（CB-023 二期） ----------
 
     /** 将邑模型列表 + classes 解析预览（classId↔textName 对照表；rejectReason 非空=该模型解析被拒）。 */

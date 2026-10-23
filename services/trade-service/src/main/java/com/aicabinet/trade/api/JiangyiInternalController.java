@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.JiangyiRecognitionReport;
 import com.aicabinet.trade.service.DevicePresenceService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
+import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFloorGoodsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
@@ -59,6 +60,7 @@ public class JiangyiInternalController {
     private final JiangyiFloorGoodsService jiangyiFloorGoodsService;
     private final JiangyiRecognitionReportService jiangyiRecognitionReportService;
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
+    private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -71,7 +73,8 @@ public class JiangyiInternalController {
                                      SkuJiangyiLinkService skuJiangyiLinkService,
                                      JiangyiFloorGoodsService jiangyiFloorGoodsService,
                                      JiangyiRecognitionReportService jiangyiRecognitionReportService,
-                                     JiangyiMappingReviewService jiangyiMappingReviewService) {
+                                     JiangyiMappingReviewService jiangyiMappingReviewService,
+                                     JiangyiDeviceOpsService jiangyiDeviceOpsService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -84,6 +87,7 @@ public class JiangyiInternalController {
         this.jiangyiFloorGoodsService = jiangyiFloorGoodsService;
         this.jiangyiRecognitionReportService = jiangyiRecognitionReportService;
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
+        this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
     }
 
     // ---------- 设备面 ----------
@@ -143,6 +147,18 @@ public class JiangyiInternalController {
                                        @RequestBody SignalRequest body) {
         devicePresenceService.updateSignal(deviceId, body.signalStrength());
         return ApiResponse.ok(1);
+    }
+
+    /**
+     * 门磁状态上报转发（V16 §4.2.16 deviceInfo/getDoorInfo）：gateway 收到后转至此，
+     * 落 device_info.door_state/lock_state/door_reported_at（V402）。
+     * 设备自报口径，仅展示，不作结算/开门判据。
+     */
+    @PostMapping("/devices/{deviceId}/door-state")
+    public ApiResponse<Void> doorState(@PathVariable("deviceId") String deviceId,
+                                       @RequestBody DoorStateRequest body) {
+        jiangyiDeviceOpsService.recordDoorState(deviceId, body.doorState(), body.lockState());
+        return ApiResponse.ok(null);
     }
 
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */
@@ -369,4 +385,6 @@ public class JiangyiInternalController {
                                    Integer videoQuantity, List<String> videoUrls) {}
     /** 与 gateway TradeInternalClient.DeviceSignalRequest 对齐（§4.2.15 signalStrength 0-4）。 */
     record SignalRequest(Integer signalStrength) {}
+    /** 与 gateway TradeInternalClient.DeviceDoorStateRequest 对齐（§4.2.16 doorState/lockState）。 */
+    record DoorStateRequest(String doorState, String lockState) {}
 }

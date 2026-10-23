@@ -702,18 +702,107 @@ async function saveSound() {
   }
 }
 
+// ===== 柜门控制（2026-10-23）：关门/回锁 §4.3.2.6、门磁查询 §4.3.2.12、重启 §4.3.2.1 =====
+interface DoorStateView {
+  doorState?: 'open' | 'close' | null;
+  lockState?: 'open' | 'close' | null;
+  reportedAt?: string | null;
+}
+const doorState = ref<DoorStateView | null>(null);
+const doorStateLoading = ref(false);
+const doorQueryLoading = ref(false);
+const closeDoorLoading = ref(false);
+const rebootLoading = ref(false);
+
+const switchLabel = (v?: string | null) => (v === 'open' ? '开' : v === 'close' ? '关' : '未上报');
+
+async function loadDoorState() {
+  doorStateLoading.value = true;
+  try {
+    doorState.value = await api.request<DoorStateView>(
+      AdminEndpoints.deviceJiangyiDoorState(props.deviceId)
+    );
+  } catch {
+    doorState.value = null;
+  } finally {
+    doorStateLoading.value = false;
+  }
+}
+
+/** 下发 getDoorState：设备经 §4.2.16 回执异步落库，故延迟再刷一次。 */
+async function queryDoorState() {
+  doorQueryLoading.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiDoorState(props.deviceId), 'POST');
+    ElMessage.info('已下发门磁查询；设备回报后自动刷新（可选接口，固件未实现则无回执）');
+    window.setTimeout(() => void loadDoorState(), 3000);
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '门磁查询下发失败（设备可能离线）'));
+  } finally {
+    doorQueryLoading.value = false;
+  }
+}
+
+async function closeDoor() {
+  try {
+    await ElMessageBox.confirm(
+      '将向柜机下发关门/回锁指令。该指令为厂商可选命令、无回执，下发后请到现场确认柜门已锁。',
+      '关闭柜门',
+      { type: 'warning', confirmButtonText: '下发', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  closeDoorLoading.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiCloseDoor(props.deviceId), 'POST');
+    ElMessage.success('关门指令已下发（无回执，请现场确认已锁）');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '关门指令下发失败（设备可能离线）'));
+  } finally {
+    closeDoorLoading.value = false;
+  }
+}
+
+async function rebootDevice() {
+  try {
+    await ElMessageBox.confirm(
+      '将重启柜机主控。设备会短暂离线（WS 断开、下单/开门不可用），确认现场无人在购物。',
+      '重启设备',
+      { type: 'warning', confirmButtonText: '重启', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  rebootLoading.value = true;
+  try {
+    await api.request(AdminEndpoints.deviceJiangyiReboot(props.deviceId), 'POST');
+    ElMessage.success('重启指令已下发，设备将短暂离线');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '重启指令下发失败（设备可能离线）'));
+  } finally {
+    rebootLoading.value = false;
+  }
+}
+
 onMounted(load);
 // 绑定成功（BOUND）后补充拉一次信号强度（未绑定设备该接口 400，静默忽略）
 watch(
   () => props.deviceId,
   () => {
-    if (binding.value?.status === 'BOUND') void loadSignal();
+    if (binding.value?.status === 'BOUND') {
+      void loadSignal();
+      void loadDoorState();
+    }
   }
 );
 watch(
   () => binding.value?.status,
   (status) => {
-    if (status === 'BOUND') void loadSignal();
+    if (status === 'BOUND') {
+      void loadSignal();
+      void loadDoorState();
+    }
   }
 );
 </script>
@@ -856,7 +945,7 @@ watch(
 
       <!-- 设备控制（V363，图2 对照）：信号强度 + 音量设置；网络延迟/拍照/断电协议无接口不做 -->
       <div v-if="binding.status === 'BOUND'" class="jy-bind-block">
-        <div class="jy-section-label">设备控制（信号 / 音量）</div>
+        <div class="jy-section-label">设备控制（信号 / 音量 / 柜门）</div>
         <div class="jy-signal-row">
           <span>
             信号强度：
@@ -887,6 +976,42 @@ watch(
           <el-button type="primary" size="small" :loading="soundSaving" @click="saveSound"
             >下发</el-button
           >
+        </div>
+
+        <!-- 柜门控制（2026-10-23）：关门 §4.3.2.6 / 门磁查询 §4.3.2.12 / 重启 §4.3.2.1 -->
+        <div class="jy-door-row">
+          <span>
+            门磁：
+            <strong>门 {{ switchLabel(doorState?.doorState) }}</strong>
+            ·
+            <strong>锁 {{ switchLabel(doorState?.lockState) }}</strong>
+            <span v-if="doorState?.reportedAt" class="jy-signal-at">
+              （{{ formatDateTime(doorState.reportedAt) }}）
+            </span>
+          </span>
+          <el-button size="small" :loading="doorStateLoading" @click="loadDoorState"
+            >刷新</el-button
+          >
+          <template v-if="canEdit">
+            <el-button size="small" :loading="doorQueryLoading" @click="queryDoorState"
+              >查询门磁</el-button
+            >
+            <el-button type="warning" size="small" :loading="closeDoorLoading" @click="closeDoor"
+              >关闭柜门</el-button
+            >
+            <el-button
+              type="danger"
+              plain
+              size="small"
+              :loading="rebootLoading"
+              @click="rebootDevice"
+              >重启设备</el-button
+            >
+          </template>
+        </div>
+        <div class="jy-signal-hint">
+          门磁走将邑可选接口（§4.3.2.12 下发 / §4.2.16 回报）——设备自报口径，仅作现场参考；
+          关门（§4.3.2.6）与重启（§4.3.2.1）均无回执，下发后需现场确认。
         </div>
       </div>
 
@@ -1330,6 +1455,13 @@ watch(
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.jy-door-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
 }
 .jy-sound-label {
   color: var(--color-text-secondary);

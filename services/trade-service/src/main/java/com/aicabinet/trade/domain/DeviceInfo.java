@@ -46,6 +46,15 @@ public class DeviceInfo {
     /** 信号强度最近上报时间（V363）。 */
     private Instant signalReportedAt;
 
+    /** 门磁门状态 open/close（V402，§4.2.16 getDoorInfo；§4.3.2.12 getDoorState 触发）。 */
+    private String doorState;
+
+    /** 门磁锁状态 open/close（V402，同上；设备自报口径，不作结算判据）。 */
+    private String lockState;
+
+    /** 门磁状态最近上报时间（V402）。 */
+    private Instant doorReportedAt;
+
     private Double latitude;
     private Double longitude;
 

@@ -222,6 +222,15 @@ export const AdminEndpoints = {
   /** 信号强度视图（0-4 档） */
   deviceJiangyiSignal: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/signal`,
+  /** 关门/回锁（§4.3.2.6 可选，无回执） */
+  deviceJiangyiCloseDoor: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/close-door`,
+  /** 门磁状态：POST=下发查询（§4.3.2.12），GET=最近一次上报快照（§4.2.16） */
+  deviceJiangyiDoorState: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/door-state`,
+  /** 机器重启（§4.3.2.1，无回执） */
+  deviceJiangyiReboot: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/reboot`,
   jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
 
   /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */

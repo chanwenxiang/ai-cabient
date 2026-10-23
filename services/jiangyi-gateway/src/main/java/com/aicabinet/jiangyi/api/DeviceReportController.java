@@ -521,14 +521,21 @@ public class DeviceReportController {
 
     /**
      * 门磁实时状态上报（V16 §4.2.16 deviceInfo/getDoorInfo，可选）：
-     * 运行过程下发命令后设备回报实时门/锁状态。当前仅审计日志——
-     * 门锁状态主链路走 §4.2.7 uploadLockState / §4.2.8 uploadDoorState（带 orderNo）。
+     * 运行过程下发命令后设备回报实时门/锁状态。落 trade device_info（V402）供后台「查询门磁」展示；
+     * 门锁状态主链路仍走 §4.2.7 uploadLockState / §4.2.8 uploadDoorState（带 orderNo），
+     * 本回执是设备自报口径，不作结算/开门判据。
      */
     @PostMapping("/jiangyi/api/deviceInfo/getDoorInfo")
     public Map<String, Object> getDoorInfo(HttpServletRequest request,
                                            @RequestBody DoorInfoRequest body) {
+        String deviceId = device(request);
         log.info("jiangyi door-magnet report deviceId={} doorState={} lockState={}",
-                device(request), body.doorState(), body.lockState());
+                deviceId, body.doorState(), body.lockState());
+        try {
+            tradeInternalClient.deviceDoorState(deviceId, body.doorState(), body.lockState());
+        } catch (Exception e) {
+            log.warn("jiangyi door-magnet forward failed deviceId={}: {}", deviceId, e.getMessage());
+        }
         return ok();
     }
 

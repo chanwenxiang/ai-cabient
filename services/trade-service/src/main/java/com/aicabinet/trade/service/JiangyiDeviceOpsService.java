@@ -92,6 +92,80 @@ public class JiangyiDeviceOpsService {
         auditService.appendLog(operatorId, "JIANGYI_CLOSE_DOOR", "DEVICE", deviceId, "下发关门指令（closeDoor）");
     }
 
+    /** 机器重启（§4.3.2.1 reboot）：无回执；设备重启后 WS 会短暂断开。 */
+    public void reboot(Long operatorId, String deviceId) {
+        requireJiangyi(deviceId);
+        try {
+            gatewayClient.reboot(deviceId);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("jiangyi reboot dispatch failed device={}: {}", deviceId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "重启指令下发失败（网关不可达或设备离线）");
+        }
+        auditService.appendLog(operatorId, "JIANGYI_REBOOT", "DEVICE", deviceId, "下发重启指令（reboot）");
+    }
+
+    /**
+     * 查询门磁实时状态（§4.3.2.12 getDoorState）：设备收到后经 HTTP §4.2.16
+     * deviceInfo/getDoorInfo 回 {doorState, lockState}，异步落 device_info，
+     * 由 {@link #doorState} 读出。设备没回/固件未实现则保持旧值（时间戳可辨）。
+     */
+    public void requestDoorState(Long operatorId, String deviceId) {
+        requireJiangyi(deviceId);
+        try {
+            gatewayClient.requestDoorState(deviceId);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("jiangyi getDoorState dispatch failed device={}: {}", deviceId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "门磁查询下发失败（网关不可达或设备离线）");
+        }
+        auditService.appendLog(operatorId, "JIANGYI_DOOR_STATE", "DEVICE", deviceId, "下发门磁查询（getDoorState）");
+    }
+
+    /** 门磁回执落库（gateway §4.2.16 转发）；非法值丢弃，不覆盖既有快照。 */
+    @Transactional
+    public void recordDoorState(String deviceId, String doorState, String lockState) {
+        String door = normalizeSwitchState(doorState);
+        String lock = normalizeSwitchState(lockState);
+        if (door == null && lock == null) {
+            return;
+        }
+        DeviceInfo device = deviceRepository.findById(deviceId).orElse(null);
+        if (device == null) {
+            return;
+        }
+        if (door != null) {
+            device.setDoorState(door);
+        }
+        if (lock != null) {
+            device.setLockState(lock);
+        }
+        device.setDoorReportedAt(java.time.Instant.now());
+        device.setUpdatedAt(java.time.Instant.now());
+        deviceRepository.updateById(device);
+    }
+
+    /** 文档口径 open/close；大小写与空白宽容（固件口径不可信，铁律）。 */
+    private static String normalizeSwitchState(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String v = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return "open".equals(v) || "close".equals(v) ? v : null;
+    }
+
+    /** 门磁快照视图；未查询过返回全 null。 */
+    @Transactional(readOnly = true)
+    public DoorStateView doorState(String deviceId) {
+        DeviceInfo device = deviceRepository.findById(deviceId).orElse(null);
+        if (device == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "device not found");
+        }
+        return new DoorStateView(device.getDoorState(), device.getLockState(), device.getDoorReportedAt());
+    }
+
     /**
      * 按单拉取柜内视频（§4.3.2.11）：sessionId=将邑上报口径的 orderNo（免映射，V16 §4.3.2.7）。
      * 视频留在柜内 64G 循环覆盖——本指令只是「趁文件还在时取回」，无回执通道，
@@ -133,4 +207,6 @@ public class JiangyiDeviceOpsService {
     }
 
     public record SignalView(Integer signalStrength, java.time.Instant reportedAt) {}
+
+    public record DoorStateView(String doorState, String lockState, java.time.Instant reportedAt) {}
 }

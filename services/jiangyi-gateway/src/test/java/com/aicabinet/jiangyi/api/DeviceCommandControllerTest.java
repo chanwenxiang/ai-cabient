@@ -107,4 +107,40 @@ class DeviceCommandControllerTest {
                 org.springframework.web.server.ResponseStatusException.class,
                 () -> controller.closeDoor(DEVICE_ID));
     }
+
+    /** 机器重启（V16 §4.3.2.1）：msgContent 空串原样下发。 */
+    @Test
+    void reboot_sendsEmptyContentFrame() {
+        controller.reboot(DEVICE_ID);
+
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).send(eq(IDENTIFIER), captor.capture());
+        assertEquals("reboot", captor.getValue().get("msgType"));
+        assertEquals("", captor.getValue().get("msgContent"));
+        assertEquals(200, captor.getValue().get("status"));
+    }
+
+    /** 门磁查询（V16 §4.3.2.12 可选）：msgContent 空串原样下发。 */
+    @Test
+    void doorState_sendsEmptyContentFrame() {
+        controller.doorState(DEVICE_ID);
+
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).send(eq(IDENTIFIER), captor.capture());
+        assertEquals("getDoorState", captor.getValue().get("msgType"));
+        assertEquals("", captor.getValue().get("msgContent"));
+        assertEquals(200, captor.getValue().get("status"));
+    }
+
+    @Test
+    void rebootAndDoorState_whenDeviceOffline_throws503() {
+        when(handler.isOnline(IDENTIFIER)).thenReturn(false);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> controller.reboot(DEVICE_ID));
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> controller.doorState(DEVICE_ID));
+        verify(handler, times(0)).send(eq(IDENTIFIER), any());
+    }
 }
