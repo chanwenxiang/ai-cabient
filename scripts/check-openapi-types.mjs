@@ -8,10 +8,10 @@
  *
  * 别名清单与 gen 共用 scripts/openapi-alias-groups.mjs。
  */
-import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runAsync } from './lib/async-spawn.mjs';
 import { OPENAPI_ALIAS_GROUPS, OPENAPI_INDEX_REEXPORTS } from './openapi-alias-groups.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -74,17 +74,18 @@ if (shouldRegen) {
     env.OPENAPI_IGNORE_CACHE = '1';
     console.log('[check-openapi-types] 忽略 .tmp 缓存，现抓 OPENAPI_URL 校验');
   }
-  const gen = spawnSync(process.execPath, [join(root, 'scripts', 'gen-openapi-types.mjs')], {
+  // 异步 spawn（lessons #292）：spawnSync 在 WorkBuddy 下 EBUSY 会把「没生成」判成失败。
+  const gen = await runAsync(process.execPath, [join(root, 'scripts', 'gen-openapi-types.mjs')], {
     cwd: root,
     env,
-    stdio: 'inherit',
-    shell: false
+    inheritStdio: true
   });
-  if (gen.status !== 0) fail('gen:api-types failed');
-  const diff = spawnSync(
+  if (gen.status !== 0)
+    fail(`gen:api-types failed (exit ${gen.status}, ${gen.spawnError || 'no spawn error'})`);
+  const diff = await runAsync(
     'git',
     ['diff', '--exit-code', '--', 'packages/shared-types/src/generated/'],
-    { cwd: root, stdio: 'inherit', shell: false }
+    { cwd: root, inheritStdio: true }
   );
   if (diff.status !== 0) {
     fail('generated OpenAPI types are stale; run pnpm gen:api-types and commit');

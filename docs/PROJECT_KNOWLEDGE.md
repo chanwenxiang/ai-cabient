@@ -641,6 +641,21 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-24（后端缺陷类机检门禁批：6 道新门禁 + 2 处真实缺陷）
+- **动机**：复现过的缺陷类此前只落在 `docs/engineering/lessons-learned.md` 的文字里。实测该表 326 行中只有 65 行的「门禁/文件」列带门禁/测试，其余基本只是文件路径 ⇒ 「写着」不等于「守着」。本批只做**后端**可静态判定的类（Java / Flyway / MyBatis / compose / 门禁基础设施），小程序端另批。
+- **新增（进聚合链，`pnpm check:audit-gates` 与 CI mini-programs 都会跑）**：
+  - `check:migration-immutable`：基线（`MIGRATION_BASE_REF`，默认 `origin/dev`）里已存在的 Flyway 迁移被**删除/改名/改内容**即红，新增不受限。负向实测：给已应用迁移追加一行 → 红；还原 → 绿。
+  - `check:mapper-xml-binding`：76 个 Mapper XML 的 namespace、statement id、`resultType|parameterType|javaType|ofType|type` 必须解析到 Java 源码（编译绿证明不了 XML 扫描面，lessons #233/#323）；负向实测 namespace 与 statement id 各注入一次均红。
+  - `check:config-passthrough`：`application*.yml` 的 `${KEY:}` 空默认键必须在**同名 service** 的 compose environment 里显式透传，或登记进 `scripts/config-env-waivers.json`（理由必填；已透传、条目失效都会红）。实测 60 个键，清出 8 条豁免。
+  - `check:shared-dist-fresh`：用包内 tsc 编到临时 outDir，再与 git 已跟踪 dist 逐字节比对（CRLF 归一）；「已提交但源已删」的死产物与「新增源未提交产物」同样红（lessons #231）。首跑即揪出 `packages/shared-dict/dist/dict-options.spec.{js,d.ts}` 两个死产物（源文件早已不存在），已删。
+  - `check:gate-runtime-hygiene`：全部 `scripts/check-*.mjs` 禁止 `spawnSync/execSync/execFileSync`（WorkBuddy 下同步子进程一律 EBUSY ⇒ 全门禁假红，lessons #292），并禁止 `--require` 相对路径（lessons #230）。
+- **新增（基线 diff 型，刻意不进聚合链）**：`check:openapi-regen`（改动集含 Controller/DTO 形状——mapping/参数注解/字段声明——却没带 `packages/shared-types/src/generated` 变更即红，lessons #12/#242）与 `check:migration-immutable`。二者进 `scripts/pre-push-ci-preflight.mjs` 与 CI 独立步骤；CI 基线用 PR 的 `base_ref` / push 事件的 `github.event.before`（若用 origin/dev，push 到 dev 时基线==HEAD ⇒ 恒空、假绿）。聚合链只在 preflight/CI 步骤里出现，与 `check:migration-safety` 同口径。
+- **顺带修的真实缺陷 ①**：`AICABINET_PAYOUT_ENCRYPTION_KEY`（V307 提现收款账号 AES-256-GCM 密钥）在 `application.yml` 是 `${AICABINET_PAYOUT_ENCRYPTION_KEY:}`，但 full/apps/production 三份 compose **从未透传** ⇒ 容器里恒为空、出款 500「解密密钥未配置」。已在 `infra/docker-compose.apps.yml` 补透传（空默认仍＝拒付，`.env` 注入即生效）。
+- **顺带修的门禁自身缺陷 ②**：`check-openapi-types`、`check-no-committed-htpasswd`、`check-deploy-compose-chain`、`check-migration-reviewed-gate.test` 仍在用同步子进程（EBUSY 假红），已改用 `scripts/lib/async-spawn.mjs`（本次给该 helper 增加 `env` 选项）。
+- **台账回填**：lessons #12 / #34 / #230 / #231 / #233 / #237（compose 透传条）/ #242 / #280 / #292 / #323 / #333 的「门禁/文件」列补齐门禁名；#237（字典值宽）显式标注暂无静态门禁（取决于运行期字典数据）。
+- **本批刻意不做静态门禁（避免下次误以为已覆盖）**：#229 nginx 缺 `/consumer/` `/merchant/` H5 路由（配置本身未修，属部署级变更）；#243 调度任务整实体 save（约 15 处候选，无基线会噪声过大）；#277 `selectOne` 唯一性；#232 xxl_job DATETIME 语义。
+- **验证**：6 道门禁本机逐个绿，其中 5 项做负向注入（改迁移/改 namespace/改 statement id/加空默认键/改 src 不重建 dist）均先红后还原绿；`check-audit-gates-wiring` 报 56 个聚合引用全部有定义、67 个 `check-*.mjs` 全部已接线、65 个可达 + 2 个本地豁免；`check-preflight-wiring` 绿；新脚本已过 prettier。
+
 ### 2026-10-23（将邑映射复核＝结算闸口（V400 / CB-065）＋ R5 采集脚本与分步判据）
 - 🔴 **结算口径变更：未按柜机当前 classes 版本人工复核的映射一律不结算（fail-closed）**。起因是 H-27：将邑 `classId` = `classes.txt` 按识别名排序的行下标，厂商每次重训整体平移（65 类→69 类实测 雪碧 25→29、可乐 330 22→26），旧实现只存 `classId→sku` 且不记录「审的是哪版 classes」⇒ 重训后静默「认 B 扣 A」。V400 加 `jiangyi_device.mapping_verified_version/at`，**verified ⇔ `classes_version` 非空且相等**；复核页「拉取差异」按 `text_name` 重算 KEEP/MOVE/NEW/ORPHAN/CONFLICT（两阶段 `-rowId` 负哨兵绕 `UNIQUE(device_id,class_id)`），人工确认后同事务写映射+版本戳；apply 带 `expectedClassesVersion`（classes 文件被换即 409），版本不符/冲突一律拒。三条自动失效：模型回执换版本（戳落后即失效）/ 未知模型回执且从未 CONFIRMED（主动撤戳）/ 下发超时真置败。三层 fail-closed：在售面返空（`JiangyiFloorGoodsService:80`）、`resolveMapping` 返 null（`JiangyiInternalController:224`，兜住 thirdPid 回退）、gateway 在归一化前整单 `MAPPING_UNVERIFIED`→`recognize-timeout`→DISPUTED 不扣款（`DeviceReportController:281`）；争议 `exceptionType=RECOGNITION_FAILED` 已在人工处置白名单内。`classId 0` 合法（0-based，过滤用 `>=0`）。
 - 🔴 **上线/现场前置**：真柜 `EG943322621391` 的 `classes_version` 仍为空（只读查库确认）⇒ 部署 V400 后 `verified=false`，现场表现为「在售面空表 + 识别全部转争议」。R8 开门前必须先在复核页 adopt 当前 69 类（`modelName=hysxr20260930120329732_20260930120413844_50`、`_3.txt`、`quantity=69`、起始 0），核对 26/27/28/29→100016/100017/100018/100013 后「确认复核并应用」。共享 dev 库尚未应用 V400（`mapping_verified_*` 两列不存在），需拍板后再跑迁移。

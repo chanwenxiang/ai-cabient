@@ -27,16 +27,18 @@ import { spawn } from 'node:child_process';
  * @param {boolean} [opts.inheritStdio] true=直接继承父进程 stdio（不捕获输出）
  * @param {boolean} [opts.shell] true=用 shell 解析 `cmd`（**仅当 cmd 是含 `&&` 的命令行串时**；
  *   传数组参数时必须 false，否则 Windows 下引号规则不一致会踩坑）
+ * @param {object} [opts.env] 追加/覆盖的环境变量（与 process.env 合并）
  * @returns {Promise<{status:number, stdout:string, stderr:string, spawnError:(string|null)}>}
  *   `status` 为 0 表示成功；非 0 表示失败（**永不为 null**，避免调用方误判）
  */
 export function runAsync(cmd, args = [], opts = {}) {
-  const { cwd, inheritStdio = false, shell = false } = opts;
+  const { cwd, inheritStdio = false, shell = false, env } = opts;
   return new Promise((resolvePromise) => {
     const child = spawn(cmd, args, {
       cwd,
       shell,
       windowsHide: true,
+      env: env ? { ...process.env, ...env } : process.env,
       stdio: inheritStdio ? 'inherit' : 'pipe'
     });
     let stdout = '';

@@ -17,9 +17,9 @@
  *
  *   node scripts/check-no-committed-htpasswd.mjs
  */
-import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitAsync } from './lib/async-spawn.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-no-committed-htpasswd]';
@@ -29,18 +29,16 @@ function fail(msg) {
   process.exit(1);
 }
 
-let tracked = [];
-try {
-  tracked = execFileSync('git', ['ls-files', '--', '*.htpasswd'], {
-    cwd: ROOT,
-    encoding: 'utf8'
-  })
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-} catch (e) {
-  fail(`git ls-files failed: ${e.message}`);
+// 异步 git（lessons #292）：spawnSync/execFileSync 在 WorkBuddy 下一律 EBUSY，
+// 会把「git 没跑成」静默当成「没有 htpasswd」——正是本门禁最不能接受的方向。
+const listed = await gitAsync(['ls-files', '--', '*.htpasswd'], { cwd: ROOT });
+if (!listed.ok) {
+  fail(`git ls-files failed: ${listed.out}`);
 }
+const tracked = listed.out
+  .split(/\r?\n/)
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 if (tracked.length > 0) {
   fail(

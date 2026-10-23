@@ -17,9 +17,9 @@
  */
 import { readdirSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { runAsync } from './lib/async-spawn.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationDir = join(
@@ -76,21 +76,21 @@ function sweepTemps() {
   return leftovers.length;
 }
 
-function withTempSql(body, run) {
+async function withTempSql(body, run) {
   const name = `V9999__tmp_migration_reviewed_gate_${Date.now()}.sql`;
   const abs = join(migrationDir, name);
   writeFileSync(abs, body, 'utf8');
   try {
-    return run();
+    return await run();
   } finally {
     unlinkWithRetry(abs); // 失败会抛，不会把假迁移留在源码树里
   }
 }
 
+/** 异步 spawn：WorkBuddy 下 spawnSync 一律 EBUSY/status=null（lessons #292）。 */
 function runCheck() {
-  return spawnSync('node', [join(root, 'scripts', 'check-migration-safety.mjs')], {
-    cwd: root,
-    encoding: 'utf8'
+  return runAsync(process.execPath, [join(root, 'scripts', 'check-migration-safety.mjs')], {
+    cwd: root
   });
 }
 
@@ -103,7 +103,7 @@ if (sweptAtStart) {
 }
 
 // 1) 空头 MIGRATION_REVIEWED: yes 必须失败
-const bareResult = withTempSql(bare, runCheck);
+const bareResult = await withTempSql(bare, runCheck);
 if (bareResult.status === 0) {
   console.error('FAIL: bare MIGRATION_REVIEWED should have failed');
   process.exit(1);
@@ -114,7 +114,7 @@ if (!/requires LOCK_RISK|requires non-empty NOTES|requires TABLES/i.test(bareRes
 }
 
 // 2) 元数据齐全的 reviewed 头必须通过
-const okResult = withTempSql(ok, runCheck);
+const okResult = await withTempSql(ok, runCheck);
 if (okResult.status !== 0) {
   console.error('FAIL: complete reviewed header should pass\n', okResult.stderr);
   process.exit(1);

@@ -1,0 +1,10 @@
+{
+  "MQTT_TRUST_STORE": "仅自签证书的 EMQX TLS 需要；未配置时走系统信任库（生产当前用系统信任链）。启用双向/自签 TLS 时必须删除本豁免并补 compose 透传。",
+  "MQTT_TRUST_STORE_PASSWORD": "同上：仅在 MQTT_TRUST_STORE 配置时才需要，单独透传无意义。",
+  "WECHAT_WEB_APP_ID": "H5 微信扫码登录尚未上线（以小程序为主）；启用 H5 登录时必须删除本豁免并补 compose 透传。",
+  "WECHAT_WEB_APP_SECRET": "同上：与 WECHAT_WEB_APP_ID 成对使用。",
+  "EDGE_EXPECTED_FIRMWARE": "可选的设备固件版本断言；未配置=不断言，不是静默失效。",
+  "ALIPAY_AGREEMENT_NOTIFY_URL": "支付宝周期代扣未启用（ALIPAY_ENABLED=false）；启用代扣时删除本豁免并补回调地址。",
+  "DISPUTE_SLA_WEBHOOK": "争议 SLA 外部 webhook 为可选集成；未接外部系统时留空即关闭推送。",
+  "XXL_JOB_EXECUTOR_IP": "执行器 IP 默认自动探测；只有多网卡/固定网段场景才需要显式指定。"
+}

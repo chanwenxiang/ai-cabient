@@ -22,10 +22,10 @@
  *
  *   node scripts/check-deploy-compose-chain.mjs
  */
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gitAsync } from './lib/async-spawn.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-deploy-compose-chain]';
@@ -48,17 +48,15 @@ if (refs.length === 0) {
   fail(`${DEPLOY_SH} references no "-f infra/*.yml" compose chain - extraction rule may be stale`);
 }
 
-let tracked = [];
-try {
-  tracked = new Set(
-    execFileSync('git', ['ls-files', '--', 'infra/'], { cwd: ROOT, encoding: 'utf8' })
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-  );
-} catch (e) {
-  fail(`git ls-files failed: ${e.message}`);
-}
+// 异步 git（lessons #292）：同步子进程在 WorkBuddy 下 EBUSY，结果会被误读成「未跟踪」。
+const listed = await gitAsync(['ls-files', '--', 'infra/'], { cwd: ROOT });
+if (!listed.ok) fail(`git ls-files failed: ${listed.out}`);
+const tracked = new Set(
+  listed.out
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 
 const problems = [];
 for (const ref of refs) {

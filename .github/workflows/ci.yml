@@ -124,6 +124,20 @@ jobs:
         env:
           MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
 
+      # 已应用迁移不可删/改名/改内容（2026-10-22 删 R__seed_consumer_ad_banner 让
+      # trade-service 崩环 4 分钟；正解是墓碑文件）。基线刻意不用 origin/dev：
+      # push 到 dev 时 origin/dev==HEAD ⇒ 空 diff ⇒ 那道门禁会恒绿（假门禁）。
+      - name: Applied migration immutability gate
+        run: node scripts/check-migration-immutable.mjs
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+
+      # Controller/DTO 形状变了但 packages/shared-types 未 regen ⇒ 前端拿旧契约（lessons #12/#242）。
+      - name: OpenAPI regen required gate
+        run: node scripts/check-openapi-regen-required.mjs
+        env:
+          OPENAPI_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+
       # 方言门禁：Flyway 执行的 SQL 里不许有 MySQL 专有语法。
       # 与上面两道的关键差别是**不依赖基线 ref**（扫全目录），所以它同时进了聚合链
       # `check:audit-gates`（本机 `pnpm preflight` 由此覆盖）；这里仍在 `mvn verify` **之前**

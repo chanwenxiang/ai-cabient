@@ -130,6 +130,10 @@ run('audit-gates', node, [resolve(root, 'scripts/run-audit-gates.mjs')]);
 // 5) CI-only 门禁（不在本机聚合链内，但 build job 会跑）
 run('migration-safety', node, [resolve(root, 'scripts/check-migration-safety.mjs')]);
 run('flyway-seed-separation', node, [resolve(root, 'scripts/check-flyway-seed-separation.mjs')]);
+// 🔴 这两道是**基线 diff** 门禁（origin/dev…HEAD + 工作树），与 migration-safety 同性质：
+//    进聚合链会在 CI push 到 dev 时基线==HEAD ⇒ 恒空 ⇒ 假绿，故只在这里和 CI 独立步骤里跑。
+run('migration-immutable', node, [resolve(root, 'scripts/check-migration-immutable.mjs')]);
+run('openapi-regen', node, [resolve(root, 'scripts/check-openapi-regen-required.mjs')]);
 
 // 6) 按改动面加检
 const changed = gitDiffNames();

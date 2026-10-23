@@ -167,6 +167,10 @@ services:
       MERCHANT_WITHDRAW_FEE_BPS: ${MERCHANT_WITHDRAW_FEE_BPS:-60}
       LINE_WITHDRAW_FEE_CENTS: ${LINE_WITHDRAW_FEE_CENTS:-50}
       LINE_WITHDRAW_FEE_BPS: ${LINE_WITHDRAW_FEE_BPS:-50}
+      # V307 收款账号 AES-256-GCM 密钥（lessons #237）：application.yml 是 ${AICABINET_PAYOUT_ENCRYPTION_KEY:}，
+      # 此前只在 .env 模板里出现、compose 从未透传 ⇒ 容器恒为空 ⇒ 提现出款 500「解密密钥未配置」。
+      # 空默认保持「未配置=拒付」，.env 注入即可生效。
+      AICABINET_PAYOUT_ENCRYPTION_KEY: ${AICABINET_PAYOUT_ENCRYPTION_KEY:-}
       # Spring 绑定 aicabinet.security.mock-enabled ← AICABINET_MOCK_ENABLED
       AICABINET_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
       AICABINET_SECURITY_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
