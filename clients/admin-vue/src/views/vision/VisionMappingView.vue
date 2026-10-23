@@ -321,7 +321,14 @@
           </div>
         </el-form-item>
         <el-form-item label="识别名称">
-          <el-input v-model="editForm.textName" placeholder="模型输出的商品名，如 农夫山泉550ml" />
+          <el-input
+            v-model="editForm.textName"
+            placeholder="classes 原文行名，如 kkkl_xb_qsnmw_pttz_330ml"
+          />
+          <div class="field-hint">
+            取设备详情「将邑接入 → 查厂商商品对照（只读）」的「识别名（classes 原文）」列
+          </div>
+          <div class="field-hint">只作留档；结算判据是「识别编号 + 对应商品」</div>
         </el-form-item>
         <el-form-item label="对应商品" required>
           <el-select v-model="editForm.skuId" filterable style="width: 100%">
