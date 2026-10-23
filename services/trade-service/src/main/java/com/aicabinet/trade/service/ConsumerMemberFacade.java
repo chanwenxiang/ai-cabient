@@ -54,14 +54,16 @@ public class ConsumerMemberFacade {
                         .doubleValue();
             }
             spentToNext = Math.max(0, ceiling.subtract(spent).setScale(0, RoundingMode.CEILING).intValue());
-            nextName = next.getLevelName();
+            nextName = MemberService.displayLevelName(next.getLevelCode(), next.getLevelName());
         }
 
         return new MemberProfileDto(
                 member.getMemberId(),
                 member.getUserId(),
                 member.getMemberLevel(),
-                current != null ? current.getLevelName() : member.getMemberLevel(),
+                current != null
+                        ? MemberService.displayLevelName(current.getLevelCode(), current.getLevelName())
+                        : member.getMemberLevel(),
                 member.getTotalSpent() != null ? member.getTotalSpent() : BigDecimal.ZERO,
                 nz(member.getAvailablePoints()),
                 nz(member.getTotalPoints()),
@@ -78,7 +80,7 @@ public class ConsumerMemberFacade {
         return new MemberLevelRuleDto(
                 r.getId(),
                 r.getLevelCode(),
-                r.getLevelName(),
+                MemberService.displayLevelName(r.getLevelCode(), r.getLevelName()),
                 r.getMinSpent(),
                 r.getMaxSpent(),
                 r.getMinPoints() != null ? r.getMinPoints() : 0,

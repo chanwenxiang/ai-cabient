@@ -450,4 +450,81 @@ class PaymentServiceTest {
         order.setStatus("PAID");
         return order;
     }
+
+    // ── 微信 V3 退款结果通知（2026-10-23 商户平台手工退款同步，防幽灵余额）──
+
+    private ObjectNode refundNotify(String outTradeNo, String refundId, String outRefundNo,
+                                    String status, int refundCents) {
+        var mapper = new ObjectMapper();
+        var node = mapper.createObjectNode();
+        node.put("out_trade_no", outTradeNo);
+        node.put("refund_id", refundId);
+        node.put("out_refund_no", outRefundNo);
+        node.put("refund_status", status);
+        node.putObject("amount").put("refund", refundCents);
+        return node;
+    }
+
+    @Test
+    void handleWeChatRefundNotify_manualRefund_syncsBalance() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-MANUAL", "RF-1", "", "SUCCESS", 100));
+        RechargeOrder order = paidOrder("R-MANUAL", 10001L, 100);
+        order.setChannel("WECHAT");
+        // outRefundNo 为空（商户平台手工退款常态）⇒ 短路不查 selectCount，直接进同步
+        when(rechargeOrderRepository.findById("R-MANUAL")).thenReturn(Optional.of(order));
+        when(balanceLedgerService.change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
+                eq("channel-refund-sync:RF-1"), anyString()))
+                .thenReturn(new PaymentOperation());
+        when(rechargeOrderRepository.findByIdForUpdate("R-MANUAL")).thenReturn(Optional.of(order));
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(balanceLedgerService).change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
+                eq("channel-refund-sync:RF-1"), anyString());
+        assertEquals("REFUNDED", order.getStatus());
+        assertEquals(100, order.getRefundedCents());
+    }
+
+    @Test
+    void handleWeChatRefundNotify_systemInitiated_skipsDebit() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-SYS", "RF-2", "RN-2", "SUCCESS", 100));
+        when(paymentOperationRepository.selectCount(any())).thenReturn(1L);
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(rechargeOrderRepository, never()).findById(anyString());
+    }
+
+    @Test
+    void handleWeChatRefundNotify_abnormal_sendsAlert() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-AB", "RF-3", "", "ABNORMAL", 100));
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_ABNORMAL"), anyString(), contains("R-AB"));
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void handleWeChatRefundNotify_insufficientBalance_alertsInsteadOfThrow() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-POOR", "RF-4", "", "SUCCESS", 100));
+        RechargeOrder order = paidOrder("R-POOR", 10001L, 1000);
+        order.setChannel("WECHAT");
+        when(rechargeOrderRepository.findById("R-POOR")).thenReturn(Optional.of(order));
+        when(balanceLedgerService.change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-POOR"),
+                eq("channel-refund-sync:RF-4"), anyString()))
+                .thenThrow(new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "余额不足"));
+
+        assertDoesNotThrow(() ->
+                paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial"));
+
+        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_INSUFFICIENT_BALANCE"), anyString(),
+                contains("R-POOR"), anyMap());
+        verify(rechargeOrderRepository, never()).findByIdForUpdate(anyString());
+    }
 }

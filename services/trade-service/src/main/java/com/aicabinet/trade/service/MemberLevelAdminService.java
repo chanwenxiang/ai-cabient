@@ -84,7 +84,9 @@ public class MemberLevelAdminService {
             }
         }
         rule.setLevelCode(code);
-        rule.setLevelName(dto.levelName() == null ? code : dto.levelName());
+        rule.setLevelName(dto.levelName() == null
+                ? MemberService.displayLevelName(code, null)
+                : dto.levelName());
         rule.setMinSpent(dto.minSpent());
         rule.setMaxSpent(dto.maxSpent());
         rule.setMinPoints(dto.minPoints());

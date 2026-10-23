@@ -96,15 +96,27 @@
               @click="onMockRecharge"
             />
           </view>
-          <view v-if="devTools && alipayRechargeEnabled" class="btn-slot">
+          <!--
+            🔴 2026-10-23 生产门禁修复：原 `devTools && alipayRechargeEnabled` 在生产构建恒 false
+            ⇒ 快捷充值抽屉的支付宝入口永不渲染（与充值页同型问题，对齐微信 live 判据）。
+            🔴 平台边界（成因）：支付宝 live 收银台仅 H5 可开（recharge.ts 非 H5 直接抛错），
+            用 #ifdef H5 编译期排除，mp 端不渲染（与充值页同口径）。
+          -->
+          <!-- #ifdef H5 -->
+          <view v-if="alipayPayLive || (devTools && alipayRechargeEnabled)" class="btn-slot">
             <app-button
               variant="alipay"
               :loading="busy"
               :disabled="busy"
-              :label="busy ? '处理中…' : `支付宝充值 ¥${quickRechargeYuan}`"
+              :label="
+                busy
+                  ? '处理中…'
+                  : `${alipayPayLive ? '支付宝支付' : '支付宝充值'} ¥${quickRechargeYuan}`
+              "
               @click="onAlipayRecharge"
             />
           </view>
+          <!-- #endif -->
           <view role="button" class="support-link app-link-chevron" @click="goRechargePage"
             >去充值页选择金额</view
           >
@@ -160,6 +172,7 @@ const busy = ref(false);
 const err = ref('');
 const mockRechargeEnabled = ref(false);
 const alipayRechargeEnabled = ref(false);
+const alipayPayLive = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
 const payScoreSignEnabled = ref(true);
@@ -190,6 +203,7 @@ onMounted(async () => {
     const cfg = await consumerApi.consumerPublicConfig();
     mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
+    alipayPayLive.value = cfg?.alipayPayLive === 'true';
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
     wechatRechargeEnabled.value = resolveWechatRechargeVisible({
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
@@ -201,6 +215,7 @@ onMounted(async () => {
   } catch {
     mockRechargeEnabled.value = false;
     alipayRechargeEnabled.value = false;
+    alipayPayLive.value = false;
     wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
     payScoreSignEnabled.value = true;
@@ -287,7 +302,19 @@ async function onSignAlipay() {
   busy.value = true;
   err.value = '';
   try {
-    await consumerApi.signAlipayAgreement();
+    const res = await consumerApi.signAlipayAgreement();
+    if (res.pending && res.signFormHtml) {
+      // 🔴 平台边界（成因对齐 verify.vue 同款兜底）：支付宝签约页只能在支付宝环境打开，
+      // 微信小程序无法跳转（平台封锁）⇒ 生产（live/pending）时绝不能报「已开通」。
+      await showConfirm({
+        title: '请在支付宝内开通',
+        content:
+          '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
+        showCancel: false
+      });
+      account.value = await consumerApi.account();
+      return;
+    }
     account.value = await consumerApi.account();
     showSuccess('支付宝免密已开通');
     if (payReady.value) emit('done', entryChannel.value || 'ALIPAY');
@@ -322,7 +349,8 @@ async function onAlipayRecharge() {
     const key = `prep-alipay-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(quickRechargeCents.value, key);
     if (mode === 'live') {
-      showError('请在支付宝完成支付');
+      // live 跳收银台是正常流程（到账靠异步通知），非错误
+      showSuccess('已跳转支付宝，完成支付后自动到账');
       return;
     }
     account.value = await consumerApi.account();

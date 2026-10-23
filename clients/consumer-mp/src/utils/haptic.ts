@@ -33,3 +33,16 @@ export function hapticLight(): void {
     /* 部分平台/机型不支持 vibrateShort，静默 */
   }
 }
+
+/**
+ * 中震动反馈：关键成功节点（开门成功、支付到账）用 medium——
+ * 2026-10-23 真机反馈 light 档几乎无感（「震动好像没用」），可感知操作节点才换档。
+ */
+export function hapticMedium(): void {
+  if (!isHapticEnabled()) return;
+  try {
+    uni.vibrateShort({ type: 'medium' });
+  } catch {
+    /* 部分平台/机型不支持 vibrateShort，静默 */
+  }
+}

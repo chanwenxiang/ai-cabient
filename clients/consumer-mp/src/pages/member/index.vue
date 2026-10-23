@@ -250,7 +250,8 @@ function goMessages() {
 .page {
   min-height: 100%;
   padding: 0 0 48rpx;
-  background: var(--page-bg, #ededed);
+  /* 2026-10-23 全局样式统一（用户拍板以开通支付页为准）：白底直铺 */
+  background: var(--card-bg, #ffffff);
 }
 .hero {
   position: relative;

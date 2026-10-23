@@ -250,6 +250,17 @@ public final class ApiMessages {
             return label + "不能为空";
         }
         String trimmed = defaultMessage.trim();
+        // 🔴 2026-10-23 实证（生产）：@Min/@Max 在英文 locale 下的默认消息（如 "must be greater
+        // than or equal to 100"）不含 CJK，曾落入末尾兜底被误报成「xxx不能为空」——用户输 0.1 元
+        // 退余额（低于 @Min(100)）看到的是「amountCents不能为空」，完全误导。范围类约束先行翻译。
+        java.util.regex.Matcher min = RANGE_MIN_PATTERN.matcher(trimmed);
+        if (min.matches()) {
+            return label + "不能低于" + min.group(1);
+        }
+        java.util.regex.Matcher max = RANGE_MAX_PATTERN.matcher(trimmed);
+        if (max.matches()) {
+            return label + "不能高于" + max.group(1);
+        }
         if (trimmed.startsWith(label)) {
             return trimmed;
         }
@@ -258,6 +269,13 @@ public final class ApiMessages {
         }
         return label + "不能为空";
     }
+
+    /** 英文 locale 下 @Min 的默认消息（Hibernate Validator：must be greater than or equal to {value}）。 */
+    private static final java.util.regex.Pattern RANGE_MIN_PATTERN =
+            java.util.regex.Pattern.compile("must be greater than or equal to (-?[\\d,.]+)");
+    /** 英文 locale 下 @Max 的默认消息（Hibernate Validator：must be less than or equal to {value}）。 */
+    private static final java.util.regex.Pattern RANGE_MAX_PATTERN =
+            java.util.regex.Pattern.compile("must be less than or equal to (-?[\\d,.]+)");
 
     private static boolean isGenericValidationMessage(String message) {
         if (message == null || message.isBlank()) {

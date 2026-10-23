@@ -138,7 +138,17 @@
           @click="onRecharge"
         />
       </view>
-      <view v-if="devTools && alipayRechargeEnabled" class="btn-slot">
+      <!--
+        🔴 2026-10-23：生产门禁修复。原判据 `devTools && alipayRechargeEnabled` 在生产构建恒 false
+        （runtime-flags isDevBuild=false ⇒ devTools=false），支付宝通道上线后充值入口永远不渲染——
+        与微信按钮（上方 `wechatPayLive || wechatRechargeEnabled`）口径漂移。
+        现对齐：live（后端 isConfigured 下发 alipayPayLive=true）生产可见；沙箱路径（devTools）保留。
+        🔴 平台边界（成因）：支付宝 live 收银台只能由 H5 打开（recharge.ts openAlipayPayForm
+        非 H5 直接抛「请在 H5 浏览器中打开」——微信小程序无法跳转支付宝，平台封锁，非缺陷）。
+        故整块用 #ifdef H5 编译期排除，mp 端不渲染（避免出现点了必报错的死按钮）。
+      -->
+      <!-- #ifdef H5 -->
+      <view v-if="alipayPayLive || (devTools && alipayRechargeEnabled)" class="btn-slot">
         <app-button
           variant="alipay"
           :disabled="!selectedAmountCents || loading"
@@ -147,15 +157,20 @@
             loading
               ? '处理中…'
               : selectedAmountCents
-                ? `支付宝充值 ${fmtMoney(selectedAmountCents)}`
-                : '支付宝充值'
+                ? `${alipayPayLive ? '支付宝支付' : '支付宝充值'} ${fmtMoney(selectedAmountCents)}`
+                : alipayPayLive
+                  ? '支付宝支付'
+                  : '支付宝充值'
           "
           @click="onAlipayRecharge"
         />
       </view>
+      <!-- #endif -->
 
       <view
-        v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)"
+        v-if="
+          !wechatPayLive && !wechatRechargeEnabled && !alipayPayLive && !(devTools && mockEnabled)
+        "
         class="channel-hint"
       >
         <text>暂未开通在线充值，请联系现场运营或开通微信支付分后免密开门。</text>
@@ -223,6 +238,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { secureRandomToken } from '@/utils/secure-id';
+import { hapticMedium } from '@/utils/haptic';
 import {
   displayBizNo,
   formatDateTimeMinute,
@@ -268,6 +284,9 @@ const refundYuan = ref('');
 const refundAmountCents = ref(0);
 const refundError = ref('');
 const refundBusy = ref(false);
+// 退款下限与后端 ApplyBalanceRefundRequest @Min(100) 对齐（2026-10-23 实证：用户输 0.1 元，
+// 后端 400 但文案误报「amountCents不能为空」⇒ 前端先行拦截给准确提示）。
+const REFUND_MIN_CENTS = 100;
 // V343 幂等键：金额变化即视为新意图 ⇒ 重新生成；提交失败保留原键（重试=同一意图，服务端按
 // (userId, idemKey) 重放去重），提交成功后金额清零触发 watch 自然换新键
 const refundIdemKey = ref<string | null>(null);
@@ -330,6 +349,11 @@ function onRefundYuan(e: unknown) {
   if (!Number.isFinite(yuan) || yuan <= 0) {
     refundAmountCents.value = 0;
     refundError.value = '请输入大于 0 的金额';
+    return;
+  }
+  if (Math.round(yuan * 100) < REFUND_MIN_CENTS) {
+    refundAmountCents.value = 0;
+    refundError.value = '单次申请不低于 ¥1.00';
     return;
   }
   if (
@@ -577,6 +601,8 @@ async function onWeChatRecharge() {
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmountCents.value, key);
     showSuccess(mode === 'live' ? '充值已到账' : '充值成功');
+    // 支付到账中震动（2026-10-23 补：此前仅开门/加购有触感，支付成功无反馈）
+    hapticMedium();
     await loadBalance();
     await loadRecords();
   } catch (e) {
@@ -593,7 +619,8 @@ async function onAlipayRecharge() {
     const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(selectedAmountCents.value, key);
     if (mode === 'live') {
-      showError('请在支付宝完成支付');
+      // live 跳收银台是正常流程（到账靠异步通知），不是错误——中性提示即可
+      showSuccess('已跳转支付宝，完成支付后自动到账');
       return;
     }
     showSuccess('支付宝模拟充值成功');

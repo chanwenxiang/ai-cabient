@@ -266,11 +266,12 @@ function goOrders() {
 <style scoped>
 .page-outer {
   min-height: 100%;
-  background: var(--page-bg, #ededed);
+  /* 2026-10-23 全局样式统一（用户拍板以开通支付页为准）：白底直铺，弃灰底白卡对比 */
+  background: var(--card-bg, #ffffff);
 }
 .page {
   min-height: 100%;
-  padding: 0 var(--page-gutter) calc(var(--spacing-lg) * 2);
+  padding: 24rpx var(--page-gutter) calc(var(--spacing-lg) * 2);
   box-sizing: border-box;
   background: transparent;
 }

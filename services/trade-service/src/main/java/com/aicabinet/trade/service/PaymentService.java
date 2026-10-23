@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.common.dto.AlipayPayParams;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.RechargePrepayResponse;
@@ -366,6 +367,102 @@ public class PaymentService {
             creditRechargeNotify(outTradeNo, notifyCents,
                     transaction.path(TRANSACTION_ID).asText(null), null);
         });
+    }
+
+    /**
+     * 微信 V3 退款结果通知（2026-10-23）：商户平台手工退款此前是系统盲区
+     * （refundWeChatPartial 只覆盖系统内发起的退款，无回调端点可配置入口），
+     * 手工退款会绕过余额扣减形成幽灵余额（实证：0.10 元充值经商户平台退款后余额未减）。
+     * 本方法识别「非系统内发起」的退款并同步扣余额、推进单据；
+     * 系统内发起的退款（outRefundNo 已写 payment_operation.gateway_trade_no）只做确认不重复扣。
+     * 验签/解密/防重放复用 {@link WeChatPayNotifyService#parseAndVerify}。
+     */
+    public void handleWeChatRefundNotify(String body,
+                                         String timestamp,
+                                         String nonce,
+                                         String signature,
+                                         String serial) {
+        JsonNode refund = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
+        String outTradeNo = refund.path(OUT_TRADE_NO).asText(null);
+        String refundId = refund.path("refund_id").asText(null);
+        String refundStatus = refund.path("refund_status").asText("");
+        if (outTradeNo == null || outTradeNo.isBlank()) {
+            log.warn("wechat refund notify missing out_trade_no refundId={}", refundId);
+            return;
+        }
+        if (!STATUS_SUCCESS.equals(refundStatus)) {
+            if ("ABNORMAL".equals(refundStatus)) {
+                log.error("wechat refund notify abnormal confirmed orderId={} refundId={}", outTradeNo, refundId);
+                opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常（回调确认）",
+                        "orderId=" + outTradeNo + " refundId=" + refundId + " 需人工介入");
+            } else {
+                log.info("wechat refund notify ignored refund_status={} orderId={}", refundStatus, outTradeNo);
+            }
+            return;
+        }
+        int refundCents = refund.path("amount").path("refund").asInt(0);
+        if (refundCents <= 0) {
+            log.warn("wechat refund notify missing refund amount orderId={} refundId={}", outTradeNo, refundId);
+            return;
+        }
+        String outRefundNo = refund.path("out_refund_no").asText("").trim();
+        if (!outRefundNo.isEmpty() && isKnownSystemRefundNo(outRefundNo)) {
+            log.info("wechat refund notify skipped (system-initiated) orderId={} outRefundNo={}",
+                    outTradeNo, outRefundNo);
+            return;
+        }
+        syncChannelSideRefund(outTradeNo, refundCents, refundId);
+    }
+
+    /** 渠道退款单号是否出自系统内发起（商户平台手工退款单号在系统内无对应流水）。 */
+    private boolean isKnownSystemRefundNo(String outRefundNo) {
+        return paymentOperationRepository.selectCount(Wrappers.<PaymentOperation>lambdaQuery()
+                .eq(PaymentOperation::getGatewayTradeNo, outRefundNo)
+                .eq(PaymentOperation::getChannel, PayChannels.WECHAT)) > 0;
+    }
+
+    /**
+     * 手工退款同步：扣余额 + 推进单据。事务边界照 {@link BalanceLedgerService} 的锁序约定
+     * （Redis 用户锁外置、编程式短事务，外层禁 @Transactional 包裹）；
+     * 幂等键 = 渠道退款单号（同一退款单重推不重复扣，findByIdempotencyKey 先查）；
+     * 单据推进复用 {@link #finalizeChannelPartialRefund}（含满额置 REFUNDED）。
+     * 余额不足（用户已消费部分资金）：不扣款、告警、返回 200 终止微信重试，人工处置——
+     * 重试不可能自愈，与 WeChatRefundReconciler 的 ABNORMAL「需人工介入」同款处置。
+     */
+    private void syncChannelSideRefund(String orderId, int refundCents, String refundId) {
+        RechargeOrder order = rechargeOrderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            log.warn("wechat refund sync order not found orderId={} refundId={}", orderId, refundId);
+            return;
+        }
+        if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
+            log.warn("wechat refund sync channel mismatch orderId={} channel={}", orderId, order.getChannel());
+            return;
+        }
+        int already = Math.max(0, order.getRefundedCents());
+        if (already + refundCents > order.getAmountCents()) {
+            log.error("wechat refund sync over-refund orderId={} already={} refundCents={} amount={}",
+                    orderId, already, refundCents, order.getAmountCents());
+            sendOpsAlert("WECHAT_REFUND_SYNC_OVER_REFUND", "微信手工退款同步超退",
+                    "orderId=" + orderId + " refundId=" + refundId + " 需人工核对", order);
+            return;
+        }
+        try {
+            balanceLedgerService.change(order.getUserId(), -refundCents, "RECHARGE_REFUND", orderId,
+                    "channel-refund-sync:" + refundId, "微信商户平台退款同步");
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
+                log.error("wechat refund sync insufficient balance orderId={} userId={} refundCents={}",
+                        orderId, order.getUserId(), refundCents);
+                sendOpsAlert("WECHAT_REFUND_SYNC_INSUFFICIENT_BALANCE", "微信手工退款同步失败：余额不足",
+                        "orderId=" + orderId + " refundId=" + refundId
+                                + " 需人工扣减余额（用户已消费部分资金）", order);
+                return;
+            }
+            throw e;
+        }
+        self.finalizeChannelPartialRefund(orderId, refundCents);
+        log.info("wechat manual refund synced orderId={} refundId={} cents={}", orderId, refundId, refundCents);
     }
 
     /** 验签在事务外；入账走独立短事务。 */

@@ -487,7 +487,7 @@ import {
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
-import { hapticLight } from '@/utils/haptic';
+import { hapticLight, hapticMedium } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
 import {
   delay,
@@ -1211,8 +1211,9 @@ async function handleSessionOpenResult(
 ): Promise<boolean> {
   if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {
     adoptSession((sessionResult as PromiseFulfilledResult<SessionDto>).value);
-    // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想
-    hapticLight();
+    // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想。
+    // medium：light 档真机几乎无感（2026-10-23 用户反馈），关键节点换可感知档位
+    hapticMedium();
     return true;
   }
   if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;

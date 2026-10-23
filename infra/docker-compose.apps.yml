@@ -135,6 +135,16 @@ services:
       WECHAT_MERCHANT_APP_SECRET: ${WECHAT_MERCHANT_APP_SECRET:-}
       WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE: ${WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE:-}
       WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:-}
+      # 2026-10-23 支付宝（网页应用 2021007112617393，手机网站支付 wap.pay）：application.yml:255-264
+      # 消费 ${ALIPAY_*}，此前未透传 ⇒ 与 466930d7/双 appid 同型坑（.env 改了容器 env 恒空）。
+      # PRIVATE_KEY=应用私钥(PKCS8 单行)；PUBLIC_KEY=支付宝公钥（平台回显，非应用公钥）。
+      ALIPAY_ENABLED: ${ALIPAY_ENABLED:-false}
+      ALIPAY_APP_ID: ${ALIPAY_APP_ID:-}
+      ALIPAY_SELLER_ID: ${ALIPAY_SELLER_ID:-}
+      ALIPAY_PRIVATE_KEY: ${ALIPAY_PRIVATE_KEY:-}
+      ALIPAY_PUBLIC_KEY: ${ALIPAY_PUBLIC_KEY:-}
+      ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-}
+      ALIPAY_RETURN_URL: ${ALIPAY_RETURN_URL:-}
       # 2026-10-20：通知渠道开关（此前从未透传进容器，与 SMS 同型坑——改 .env 不重启容器不生效）。
       # NOTIFY_SMS_ENABLED 是欠款催缴短信总闸（V326），默认 false；微信订阅消息按模板 channels 决定双发
       NOTIFY_WECHAT_ENABLED: ${NOTIFY_WECHAT_ENABLED:-false}

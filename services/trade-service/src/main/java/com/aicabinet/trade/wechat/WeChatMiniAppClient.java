@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
@@ -47,7 +49,13 @@ public class WeChatMiniAppClient {
         this.properties = properties;
         this.securityProperties = securityProperties;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.create();
+        // 🔴 不能用 RestClient.create()（Spring 6.1+ 对 JSON body 不再预缓冲、不设 Content-Length，
+        // 改 Transfer-Encoding: chunked）——微信 API 对无 Content-Length 的请求一律回
+        // 412 Precondition Failed（实证 2026-10-23：getuserphonenumber 与 subscribe/send 双双 412，
+        // 后者此前被误判为"用户未订阅"）。BufferingClientHttpRequestFactory 恢复缓冲 → 带 Content-Length。
+        this.restClient = RestClient.builder()
+                .requestFactory(new BufferingClientHttpRequestFactory(new SimpleClientHttpRequestFactory()))
+                .build();
     }
 
     public Code2SessionResult code2Session(String code, MiniAppTarget target) {

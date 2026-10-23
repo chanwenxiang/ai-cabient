@@ -29,9 +29,9 @@
           >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。开通后扫码即开门，
           关门自动扣款。</text
         >
-        <view v-if="account?.phoneNumber" class="status-row">
+        <view class="status-row">
           <text class="status-label">登录手机号</text>
-          <text class="status-val">{{ maskPhone(account.phoneNumber) }}</text>
+          <text class="status-val">{{ displayPhone(account?.phoneNumber) }}</text>
         </view>
         <view class="status-row">
           <text class="status-label">可用余额</text>
@@ -160,6 +160,17 @@ function maskPhone(phone?: string | number) {
   const p = String(phone || '').replaceAll(/\D/g, '');
   if (p.length < 7) return String(phone || '');
   return p.slice(0, 3) + '****' + p.slice(-4);
+}
+
+/**
+ * 登录手机号展示（2026-10-23 用户反馈显示 "wx1"）：后端建号对未绑手机号的用户写
+ * 占位符（"wx"+userId / "ali"+userId，AuthService createWxConsumer，phone_number 列
+ * NOT NULL+唯一索引所致）。非 11 位纯手机号一律按「未绑定」展示，避免占位符外露。
+ */
+function displayPhone(phone?: string | number) {
+  const p = String(phone || '').trim();
+  if (/^1\d{10}$/.test(p)) return maskPhone(p);
+  return '未绑定（可去登录页用手机号一键授权绑定）';
 }
 
 onLoad((opts) => {

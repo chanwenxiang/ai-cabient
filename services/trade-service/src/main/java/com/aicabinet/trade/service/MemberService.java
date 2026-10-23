@@ -22,6 +22,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -32,6 +33,24 @@ public class MemberService {
     public static final String LEVEL_SILVER = "SILVER";
     public static final String LEVEL_GOLD = "GOLD";
     public static final String LEVEL_PLATINUM = "PLATINUM";
+
+    /**
+     * 等级编码默认中文名（2026-10-23 用户反馈会员中心显示英文 NORMAL）。
+     * 等级名未配置（或历史上 fallback 存成了编码本身）时按此映射兜底展示。
+     */
+    public static final Map<String, String> DEFAULT_LEVEL_NAMES = Map.of(
+            LEVEL_NORMAL, "普通会员",
+            LEVEL_SILVER, "白银会员",
+            LEVEL_GOLD, "黄金会员",
+            LEVEL_PLATINUM, "铂金会员");
+
+    /** 等级展示名：空值或与编码相同（历史 fallback 把编码当名字存了）时回退默认中文名。 */
+    public static String displayLevelName(String levelCode, String levelName) {
+        if (levelName != null && !levelName.isBlank() && !levelName.equals(levelCode)) {
+            return levelName;
+        }
+        return DEFAULT_LEVEL_NAMES.getOrDefault(levelCode, levelCode);
+    }
 
     private final MemberMapper memberRepository;
     private final MemberLevelRuleMapper levelRuleRepository;

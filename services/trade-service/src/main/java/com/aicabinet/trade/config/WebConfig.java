@@ -62,6 +62,9 @@ public class WebConfig implements WebMvcConfigurer {
                         // 支付平台真实回调（各自做签名验签）。勿用 wechat/**、alipay/**：
                         // 否则 /notify/mock/** 也会裸奔，可任意 userId 模拟入账。
                         "/api/v2/payment/wechat/notify",
+                        // 微信 V3 退款结果通知（同样自带验签；商户平台手工退款同步扣余额，
+                        // 2026-10-23 实证：手工退款无此端点则系统盲区，产生幽灵余额）
+                        "/api/v2/payment/wechat/refund-notify",
                         "/api/v2/payment/alipay/notify",
                         // 消费者公开公告
                         "/api/v2/announcements/**",
