@@ -84,9 +84,12 @@ public class OpsDevicePricingService {
         Map<String, Integer> qtyBySku = resolveSellableQtyBySku(deviceId, invRows, skuIds);
         Map<String, DeviceSkuPrice> overrides = priceRepository.findByIdDeviceId(deviceId).stream()
                 .collect(Collectors.toMap(p -> p.getId().getSkuId(), p -> p, (a, b) -> a));
+        // 商品管理下架（status≠ACTIVE）不级联清柜×商品台账行——单柜定价若不过滤，
+        // 已下架 SKU 会带着旧库存继续出现在定价列表（2026-10-22 用户反馈：柜里只有雪碧
+        // 却列出一排 demo SKU）。口径与消费者目录/设备详情「在售商品」一致（只认 ACTIVE）。
         return skuIds.stream()
                 .map(skuMap::get)
-                .filter(sku -> sku != null)
+                .filter(sku -> sku != null && "ACTIVE".equals(sku.getStatus()))
                 .sorted((a, b) -> a.getSkuId().compareTo(b.getSkuId()))
                 .map(sku -> toRow(deviceId, device.getDeviceName(), sku,
                         overrides.get(sku.getSkuId()), qtyBySku.getOrDefault(sku.getSkuId(), 0)))

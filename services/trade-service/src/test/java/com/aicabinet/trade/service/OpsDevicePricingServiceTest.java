@@ -14,11 +14,14 @@ import static org.mockito.Mockito.when;
 import com.aicabinet.common.dto.UpdateDeviceSkuPriceRequest;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSkuPrice;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
+import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.DeviceSkuPriceMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,6 +75,37 @@ class OpsDevicePricingServiceTest {
         s.setSkuName("可乐");
         s.setPriceCents(basePrice);
         return s;
+    }
+
+    @Test
+    void listPricing_filtersDelistedSku() {
+        // 商品管理下架（status≠ACTIVE）不清柜×商品台账行 ⇒ 单柜定价不得把已下架 SKU 带出来
+        //（2026-10-22 用户反馈：柜里只有雪碧却列出一排 demo SKU）
+        when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device()));
+        var active = sku(350);
+        active.setSkuId("100013");
+        active.setSkuName("雪碧柠檬味汽水330ml");
+        var delisted = sku(350);
+        delisted.setSkuId("SKU-DEMO-001");
+        delisted.setSkuName("可口可乐 330ml");
+        delisted.setStatus("INACTIVE");
+        DeviceSkuInventory invActive = new DeviceSkuInventory();
+        DeviceSkuInventory invDelisted = new DeviceSkuInventory();
+        invActive.setId(new DeviceSkuInventoryId("CAB-001", "100013"));
+        invActive.setQuantity(1);
+        invDelisted.setId(new DeviceSkuInventoryId("CAB-001", "SKU-DEMO-001"));
+        invDelisted.setQuantity(10);
+        when(inventoryRepository.findByIdDeviceId("CAB-001"))
+                .thenReturn(List.of(invActive, invDelisted));
+        when(skuCatalogRepository.findAllById(any()))
+                .thenReturn(List.of(active, delisted));
+        when(inventoryLotService.deviceUsesLotLedger("CAB-001")).thenReturn(false);
+        when(priceRepository.findByIdDeviceId("CAB-001")).thenReturn(List.of());
+
+        var rows = service.listPricing(90000000001L, "CAB-001");
+
+        assertEquals(1, rows.size());
+        assertEquals("100013", rows.get(0).skuId());
     }
 
     @Test

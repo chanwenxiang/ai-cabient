@@ -8,7 +8,7 @@
       title="单柜定价只影响本柜：覆盖价启用后，顾客在本柜下单按覆盖价结算（时段/清仓折扣仍会在其上叠加）；停用则恢复跟随商品库基准价。可改区间与限价规则与商户端一致。"
     />
     <el-table :data="rows" size="small" :row-key="(r: DevicePricingRow) => r.skuId">
-      <el-table-column label="商品" min-width="180">
+      <el-table-column label="商品" min-width="200">
         <template #default="{ row }">
           <div class="sku-cell">
             <el-image
@@ -26,10 +26,10 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="基准价" width="90" align="right" class-name="col-money">
+      <el-table-column label="基准价" min-width="90" align="right" class-name="col-money">
         <template #default="{ row }">{{ yuan(row.basePriceCents) }}</template>
       </el-table-column>
-      <el-table-column label="覆盖价（元）" width="150" class-name="col-money">
+      <el-table-column label="覆盖价（元）" min-width="150" class-name="col-money">
         <template #default="{ row }">
           <!-- 🔴 输入按元（运营语言），写回走 yuanToCents 转分。
                此前直接绑 overridePriceCents + precision=0，运营输 3.5 会被截成 3 分（¥0.03）。 -->
@@ -53,7 +53,7 @@
           }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="启用" width="80" align="center" class-name="col-text">
+      <el-table-column label="启用" min-width="80" align="center" class-name="col-text">
         <template #default="{ row }">
           <el-switch
             v-if="canEdit"
@@ -66,21 +66,21 @@
           }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="当前成交价" width="110" align="right" class-name="col-money">
+      <el-table-column label="当前成交价" min-width="110" align="right" class-name="col-money">
         <template #default="{ row }">
           <span :class="{ 'price-active': row.overridePriceCents != null && row.overrideEnabled }">
             {{ yuan(row.effectivePriceCents) }}
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="可改区间" width="130" align="center" class-name="col-money">
+      <el-table-column label="可改区间" min-width="130" align="center" class-name="col-money">
         <template #default="{ row }"
           >{{ yuan(row.minPriceCents) }} ~ {{ yuan(row.maxPriceCents) }}</template
         >
       </el-table-column>
       <el-table-column
         label="库存"
-        width="70"
+        min-width="70"
         align="right"
         prop="sellableQty"
         class-name="col-text"
@@ -88,7 +88,7 @@
       <el-table-column
         v-if="canEdit"
         label="操作"
-        width="110"
+        min-width="110"
         align="center"
         class-name="col-action"
       >
