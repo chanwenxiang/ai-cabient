@@ -19,11 +19,13 @@
               :preview-src-list="[row.imageUrl]"
               preview-teleported
             />
-            <div class="sku-meta">
-              <span class="sku-name">{{ row.skuName }}</span>
-              <span class="sku-id">{{ row.skuId }}</span>
-            </div>
+            <span class="sku-name">{{ row.skuName }}</span>
           </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="SKU" min-width="100" class-name="col-text">
+        <template #default="{ row }">
+          <span class="sku-id">{{ row.skuId }}</span>
         </template>
       </el-table-column>
       <el-table-column label="基准价" min-width="90" align="right" class-name="col-money">
@@ -178,16 +180,11 @@ function isBelowCost(row: DevicePricingRow): boolean {
   border-radius: 4px;
   flex: none;
 }
-.sku-meta {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
 .sku-name {
   font-size: 13px;
 }
 .sku-id {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 .price-input {
