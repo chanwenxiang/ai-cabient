@@ -27509,7 +27509,9 @@ export interface operations {
     };
     reboot: {
         parameters: {
-            query?: never;
+            query?: {
+                force?: boolean;
+            };
             header?: never;
             path: {
                 deviceId: string;
@@ -27876,7 +27878,9 @@ export interface operations {
     };
     closeDoor: {
         parameters: {
-            query?: never;
+            query?: {
+                force?: boolean;
+            };
             header?: never;
             path: {
                 deviceId: string;
