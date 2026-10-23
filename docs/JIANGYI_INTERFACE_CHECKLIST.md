@@ -445,6 +445,7 @@
 | H-6 | §4.3.2.11 拉取视频示例 | `msgContent:"24005355433545_MSG"` | 固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件 ⇒ **不带 `_MSG`** | 我方透传会话 id，不加后缀 |
 | H-11 | §4.2.5 返回说明 vs 示例 | 说明栏 `data` =「数据 / 对象 / 无用，固定格式」（v16:783-786），**json 示例却是 `"data":"0"`**（v16:789） | 同一节自相矛盾 | **照抄示例**（我方 `ok()` 回 `data:"0"`）——说明栏那三个词不构成字段规格；我 10-21 起草本表时曾把它判成「我方偏离云侧」，被 v16:789 推翻，已订正 |
 | H-17 | §5.5.3 返回参数表 + json 示例（v16:6008-6042） | 参数表写 `Skuld`/`stdSkuName`/`class`，json 示例写 `"stdSkuld"`/`"name"`/`"classId"`——**同一节两套键名** | 🔴 真机回包两套都不是：`.tmp/probe-553-real.mjs` 2026-10-22 逐字打印 = `stdSkuId` / `stdSkuName` / `textName` / `barCode` / `classId` | 编码**只按真机回包**（`JiangyiGatherClient.stdSkuByTextNames:106`）。教训：文档示例连键名都不可信，凡是「照抄示例字段名」的接入点都要先打一次真回包 |
+| H-25 | 我方 `jiangyi_device.model_name` **一列两义**（2026-10-23 现场撞出） | 登记弹窗那栏写的是「设备型号（可选）」（`DeviceJiangyiCard.vue:756` → `JiangyiOnboardingService.register:77`），下发回执 `confirmModel` 又用它存「当前生效模型名」（`JiangyiModelSyncService.java:326`） | 本柜现值 `model_name=CQYB10720`＝**登记时填的型号/identifier，不是模型**（`classes_version` 空、`jiangyi_model_deployment` 无行 ⇒ 从没下发过）。而识别映射页顶部「当前生效模型」读的就是这一列（`VisionMappingView.vue:60`）⇒ 界面在把「型号」当「模型」展示 | 🔴 **R3 的判据别用 `model_name` 非空**：只认 `jiangyi_model_deployment.confirmed_at` + `classes_version`。列拆分/改标签属口径变更，等下发真跑通那轮一起拍板，别顺手改（改了会把已有登记值语义搅浑） |
 
 ## 11. I｜本表怎么复核出来的（含被抓到的错）
 
