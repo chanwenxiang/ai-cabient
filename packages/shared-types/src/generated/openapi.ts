@@ -1470,6 +1470,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/payment/wechat/refund-notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refundNotify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/payment/wechat/notify": {
         parameters: {
             query?: never;
@@ -4224,6 +4240,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["confirmActivate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/close-door": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["closeDoor"];
         delete?: never;
         options?: never;
         head?: never;
@@ -22767,6 +22799,33 @@ export interface operations {
             };
         };
     };
+    refundNotify: {
+        parameters: {
+            query?: never;
+            header: {
+                "Wechatpay-Timestamp": string;
+                "Wechatpay-Nonce": string;
+                "Wechatpay-Signature": string;
+                "Wechatpay-Serial"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": string;
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     notify: {
         parameters: {
             query?: never;
@@ -27655,6 +27714,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseJiangyiDeviceDto"];
+                };
+            };
+        };
+    };
+    closeDoor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
