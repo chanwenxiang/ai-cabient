@@ -78,6 +78,20 @@ public class JiangyiDeviceOpsService {
         auditService.appendLog(operatorId, "JIANGYI_DEVICE_INFO", "DEVICE", deviceId, "下发设备信息拉取（getDeviceInfo）");
     }
 
+    /** 关门/回锁（§4.3.2.6 可选指令 closeDoor）：文档未定义回执，是否生效看设备行为。 */
+    public void closeDoor(Long operatorId, String deviceId) {
+        requireJiangyi(deviceId);
+        try {
+            gatewayClient.closeDoor(deviceId);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("jiangyi closeDoor dispatch failed device={}: {}", deviceId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "关门指令下发失败（网关不可达或设备离线）");
+        }
+        auditService.appendLog(operatorId, "JIANGYI_CLOSE_DOOR", "DEVICE", deviceId, "下发关门指令（closeDoor）");
+    }
+
     /**
      * 按单拉取柜内视频（§4.3.2.11）：sessionId=将邑上报口径的 orderNo（免映射，V16 §4.3.2.7）。
      * 视频留在柜内 64G 循环覆盖——本指令只是「趁文件还在时取回」，无回执通道，

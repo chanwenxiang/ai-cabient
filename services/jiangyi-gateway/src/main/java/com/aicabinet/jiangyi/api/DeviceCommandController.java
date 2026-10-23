@@ -110,6 +110,23 @@ public class DeviceCommandController {
                 deviceId, identifier, orderNo);
     }
 
+    /**
+     * 关门/回锁（V16 §4.3.2.6，可选指令）：{@code {msgType:"closeDoor", msgContent:""}}。
+     * 文档未定义回执，仅审计下发动作；2026-10-23 现场实测柜门被采集开门会话
+     * （gatherOpenDoor）解锁后无法回锁，运营需要显式关门手段。
+     */
+    @PostMapping("/devices/{deviceId}/close-door")
+    public void closeDoor(@PathVariable("deviceId") String deviceId) {
+        String identifier = requireOnlineIdentifier(deviceId);
+        if (!deviceWebSocketHandler.send(identifier, Map.of(
+                "status", 200,
+                "msgType", "closeDoor",
+                "msgContent", ""))) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "关门指令下发失败");
+        }
+        log.info("jiangyi closeDoor dispatched deviceId={} identifier={}", deviceId, identifier);
+    }
+
     private String requireOnlineIdentifier(String deviceId) {
         TradeInternalClient.JiangyiDeviceView device = tradeInternalClient.device(deviceId).orElse(null);
         if (device == null || !"BOUND".equals(device.status())) {

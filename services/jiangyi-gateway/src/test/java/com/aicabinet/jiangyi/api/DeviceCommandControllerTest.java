@@ -87,4 +87,24 @@ class DeviceCommandControllerTest {
                 () -> controller.pullVideo(DEVICE_ID, new DeviceCommandController.PullVideoRequest("1234/../x")));
         verify(handler, times(0)).send(eq(IDENTIFIER), any());
     }
+
+    /** 关门/回锁（V16 §4.3.2.6 可选指令）：msgContent 空串原样下发。 */
+    @Test
+    void closeDoor_sendsEmptyContentFrame() {
+        controller.closeDoor(DEVICE_ID);
+
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(handler, times(1)).send(eq(IDENTIFIER), captor.capture());
+        assertEquals("closeDoor", captor.getValue().get("msgType"));
+        assertEquals("", captor.getValue().get("msgContent"));
+        assertEquals(200, captor.getValue().get("status"));
+    }
+
+    @Test
+    void closeDoor_whenSendFails_throws503() {
+        when(handler.send(eq(IDENTIFIER), any())).thenReturn(false);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> controller.closeDoor(DEVICE_ID));
+    }
 }

@@ -286,6 +286,15 @@ public class AdminJiangyiController {
         return ApiResponse.ok(null);
     }
 
+    /** 关门/回锁（§4.3.2.6 可选指令 closeDoor）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/close-door")
+    public ApiResponse<Void> closeDoor(HttpServletRequest request,
+                                       @PathVariable("deviceId") String deviceId) {
+        jiangyiDeviceOpsService.closeDoor(operatorId(request), deviceId);
+        return ApiResponse.ok(null);
+    }
+
     /** 信号强度视图（0-4 档；非将邑柜/未上报 signalStrength=null）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/jiangyi/signal")

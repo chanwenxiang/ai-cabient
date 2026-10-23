@@ -70,6 +70,15 @@ public class JiangyiGatewayClient {
                 .toBodilessEntity();
     }
 
+    /** 关门/回锁（V16 §4.3.2.6 可选指令 closeDoor）：msgContent 空，文档未定义回执。 */
+    public void closeDoor(String deviceId) {
+        gatewayClient.post()
+                .uri("/internal/v1/jiangyi/devices/{deviceId}/close-door", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /** 与 gateway DeviceCommandController.SoundRequest 对齐。 */
     public record SoundRequest(Boolean switchOn, Integer volume) {}
 
