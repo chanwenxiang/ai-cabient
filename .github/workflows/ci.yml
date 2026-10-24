@@ -138,6 +138,11 @@ jobs:
         env:
           OPENAPI_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
 
+      # 防绕过自测：判据是正则 + record 头解析，退化就静默放行（2026-10-24 实测被
+      # record 分量绕过过一次：CI 的 openapi job 判红而本门禁报「无形状改动」）。
+      - name: OpenAPI regen gate self-test
+        run: node scripts/check-openapi-regen-required.test.mjs
+
       # 方言门禁：Flyway 执行的 SQL 里不许有 MySQL 专有语法。
       # 与上面两道的关键差别是**不依赖基线 ref**（扫全目录），所以它同时进了聚合链
       # `check:audit-gates`（本机 `pnpm preflight` 由此覆盖）；这里仍在 `mvn verify` **之前**
