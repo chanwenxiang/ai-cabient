@@ -11,6 +11,7 @@ import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -68,14 +69,28 @@ class NotificationDispatchListenerIdempotencyTest {
         verify(redisson).getBucket(contains("aicabinet:notify:dispatch:"), eq(StringCodec.INSTANCE));
     }
 
-    /** B3（2026-10-16 审计）：dispatch 失败必须释放幂等键，否则重投被「已处理」挡掉，通知静默丢失。 */
+    /** B3（2026-10-16 审计）：dispatch 失败必须释放幂等键，且必须重抛让容器重试/入 DLT。 */
     @Test
-    void onMessage_dispatchFails_releasesDedupeKey() {
+    void onMessage_dispatchFails_releasesDedupeKeyAndRethrows() {
         when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
         org.mockito.Mockito.doThrow(new RuntimeException("sms gateway down"))
                 .when(dispatcher).dispatch(any(com.aicabinet.common.dto.NotificationDispatchMessage.class));
 
-        listener.onMessage(PAYLOAD);
+        assertThatThrownBy(() -> listener.onMessage(PAYLOAD))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("sms gateway down");
+
+        verify(dedupeBucket).delete();
+    }
+
+    /** 报文不可解析也要重抛：正常返回会让偏移提交、消息永久丢；重试耗尽后由 DLT 兜底。 */
+    @Test
+    void onMessage_unparseablePayload_releasesDedupeKeyAndRethrows() {
+        when(dedupeBucket.setIfAbsent(eq("1"), any(java.time.Duration.class))).thenReturn(true);
+
+        assertThatThrownBy(() -> listener.onMessage("{not-json"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("notification dispatch failed");
 
         verify(dedupeBucket).delete();
     }

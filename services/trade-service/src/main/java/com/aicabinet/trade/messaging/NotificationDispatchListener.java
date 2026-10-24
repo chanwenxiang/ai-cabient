@@ -57,6 +57,12 @@ public class NotificationDispatchListener {
             // 释放后重投最多造成重复通知（at-least-once），优于静默丢失。
             releaseDispatchMark(payload);
             log.error("failed to process notification dispatch payload={}", payload, e);
+            // 🔴 必须重抛（lessons #19/#75/#95）：正常返回会让容器提交偏移，消息静默丢失。
+            // 交给 KafkaErrorHandlingConfig 的 DefaultErrorHandler 有限重试，仍失败则投 DLT。
+            if (e instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException("notification dispatch failed", e);
         }
     }
 
