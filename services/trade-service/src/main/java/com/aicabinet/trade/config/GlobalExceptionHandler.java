@@ -19,6 +19,8 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 @RestControllerAdvice
@@ -27,15 +29,42 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     public static final String TRACE_HEADER = "X-Trace-Id";
 
+    /** 判定「这段 5xx 文本是内部诊断而非业务话术」的特征串（小写比对）。 */
+    private static final List<String> SERVER_DETAIL_MARKERS = List.of(
+            "### the error may", "### sql:", "### cause:", "sql state [", "nested exception",
+            "org.springframework", "java.sql", "mapper.java", "cause: ", "stacktrace");
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
         String raw = ex.getReason() != null ? ex.getReason() : ex.getStatusCode().toString();
-        String message = ApiMessages.translate(raw);
         if (ex.getStatusCode().is5xxServerError()) {
-            log.error("response status error {} {}", RequestCorrelation.summary(), message, ex);
+            // 原始 reason（可能带 mapper/SQL/SQLSTATE）连栈一起落日志，客户端只拿通用话术。
+            log.error("response status error {} {}", RequestCorrelation.summary(), raw, ex);
+            String clientMessage = looksLikeInternalDetail(raw) ? internalErrorMessage() : ApiMessages.translate(raw);
+            return withTrace(ResponseEntity.status(ex.getStatusCode())
+                    .body(ApiResponse.error(ex.getStatusCode().value(), clientMessage)));
         }
         return withTrace(ResponseEntity.status(ex.getStatusCode())
-                .body(ApiResponse.error(ex.getStatusCode().value(), message)));
+                .body(ApiResponse.error(ex.getStatusCode().value(), ApiMessages.translate(raw))));
+    }
+
+    /**
+     * 判定 5xx 的 reason 是不是底层原始异常报文：MyBatis 会把 mapper 名 / 原始 SQL / SQLSTATE 写进 message，
+     * 这类内容不得回给客户端；业务自陈的话术（含「微信退款失败：xxx」这类运营要看的原因）原样保留。
+     */
+    private static boolean looksLikeInternalDetail(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return false;
+        }
+        String lower = raw.toLowerCase(Locale.ROOT);
+        return SERVER_DETAIL_MARKERS.stream().anyMatch(lower::contains);
+    }
+
+    private static String internalErrorMessage() {
+        String shortTrace = RequestCorrelation.shortTraceForClient();
+        return shortTrace.isEmpty()
+                ? ApiMessages.INTERNAL_ERROR
+                : ApiMessages.INTERNAL_ERROR + "（追踪号 " + shortTrace + "）";
     }
 
     /** 余额不足：与账本扣款口径一致返回 412，避免未捕获 RuntimeException 落成 500（BUG-007）。 */
@@ -123,13 +152,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
         // S-P2-2：通用 500 必须带 traceId/sessionId，便于对照网关与日志
         log.error("unhandled error {}", RequestCorrelation.summary(), ex);
-        String message = ApiMessages.INTERNAL_ERROR;
-        String shortTrace = RequestCorrelation.shortTraceForClient();
-        if (!shortTrace.isEmpty()) {
-            message = ApiMessages.INTERNAL_ERROR + "（追踪号 " + shortTrace + "）";
-        }
         return withTrace(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(500, message)));
+                .body(ApiResponse.error(500, internalErrorMessage())));
     }
 
     private static ResponseEntity<ApiResponse<Void>> withTrace(ResponseEntity<ApiResponse<Void>> response) {

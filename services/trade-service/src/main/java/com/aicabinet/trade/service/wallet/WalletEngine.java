@@ -7,7 +7,10 @@ import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.WalletAccountMapper;
 import com.aicabinet.trade.mapper.WalletLedgerMapper;
 import com.aicabinet.trade.service.DistributedLockService;
+import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +33,8 @@ import java.util.function.Supplier;
  */
 @Service
 public class WalletEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(WalletEngine.class);
 
     private final WalletAccountMapper accountMapper;
     private final WalletLedgerMapper ledgerMapper;
@@ -420,7 +425,10 @@ public class WalletEngine {
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+            // 资金路径的原始异常报文（MyBatis 会把 mapper 名/SQL/SQLSTATE 写进 message）不得当客户端可见 reason，
+            // 详情只进日志；状态码仍是 500，话术由 GlobalExceptionHandler 统一给追踪号。
+            log.error("wallet action failed domain={} owner={}", domain, ownerId, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ApiMessages.INTERNAL_ERROR, e);
         } finally {
             distributedLockService.unlock(key);
         }

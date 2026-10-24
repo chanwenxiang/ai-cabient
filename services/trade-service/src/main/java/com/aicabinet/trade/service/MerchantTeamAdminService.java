@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.MerchantTeamRoleDto;
 import com.aicabinet.common.dto.MerchantUserDto;
 import com.aicabinet.common.dto.ResetMerchantUserPasswordRequest;
 import com.aicabinet.common.dto.UpdateMerchantUserRequest;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.OpsRole;
@@ -269,7 +270,7 @@ public class MerchantTeamAdminService {
             userMerchantRepository.insert(new OpsUserMerchant(newUserId, merchantId));
         }
         auditService.appendLog(userId, "MERCHANT_USER_CREATE", "USER", String.valueOf(newUserId),
-                "phone=" + phone + ",role=" + request.roleKey());
+                "phone=" + PhoneMask.mask(phone) + ",role=" + request.roleKey());
         return toMerchantUserDto(user, false);
     }
 

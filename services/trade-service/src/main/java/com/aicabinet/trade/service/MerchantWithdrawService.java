@@ -284,9 +284,12 @@ public class MerchantWithdrawService {
             return new MerchantWalletOverviewDto(
                     false, null, null, null, null, null, null, List.of(), List.of());
         }
-        MerchantWalletAccount account = merchantWalletService.ensureAccount(merchantId);
-        long balance = value(account.getBalanceCents());
-        long frozen = value(account.getFrozenCents());
+        // 只读视图不建户（与 LineWithdrawService.merchantOverview 同口径）：缺户按 0 展示。
+        // 走 ensureAccount 会在这个 readOnly 事务里 INSERT ⇒ PG 25006 ⇒ 门户钱包页对新商户恒 500，
+        // 而且 GET 会抢钱包写锁。建档/入账路径（validateAmount 等）继续 ensure。
+        MerchantWalletAccount account = merchantWalletService.findAccount(merchantId);
+        long balance = value(account == null ? null : account.getBalanceCents());
+        long frozen = value(account == null ? null : account.getFrozenCents());
         // CB-035：展示口径与 V308 提现闸门同口径——可提 = 余额 − 冻结 − 待结算（T+1 未到期）
         long pendingSettle = pendingSettleAmount(merchantId);
         return new MerchantWalletOverviewDto(

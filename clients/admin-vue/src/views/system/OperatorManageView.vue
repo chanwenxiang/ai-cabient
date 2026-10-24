@@ -206,7 +206,7 @@
                 name="ops-acc-new-password"
                 autocomplete="new-password"
                 show-password
-                placeholder="至少6位"
+                placeholder="6-64位，须同时含字母和数字"
                 maxlength="64"
               />
             </el-form-item>
@@ -326,7 +326,7 @@
             show-password
             autocomplete="new-password"
             name="ops-reset-new-password"
-            placeholder="至少6位"
+            placeholder="6-64位，须同时含字母和数字"
             maxlength="64"
           />
         </el-form-item>
@@ -420,7 +420,7 @@
           show-icon
           class="scope-alert"
           title="数据范围说明"
-          description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。可再通过「货柜范围」限定到部分柜机。"
+          description="勾选商户后，该账号可见这些商户及其全部下级商户的设备与订单/补货/看板数据（下级由商户层级自动带入，无需勾选，本列表不显示下级）。不勾选任何商户 = 无任何商户范围，该账号登录商户门户会被拒（403「账号未绑定任何商户」）；超级管理员不能进商户门户，请使用运营后台。可再通过「货柜范围」限定到部分柜机。"
         />
         <el-checkbox-group v-if="merchants.length" v-model="merchantIds" class="merchant-group">
           <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
@@ -587,6 +587,7 @@ const deviceDlg = ref(false);
 const merchantScopeLoading = ref(false);
 const deviceScopeLoading = ref(false);
 const merchantIds = ref<string[]>([]);
+const merchantScopeOriginal = ref<string[]>([]);
 const deviceIds = ref<string[]>([]);
 const routeCodes = ref<string[]>([]);
 const deviceScopeMode = ref('ALL');
@@ -864,6 +865,13 @@ function openResetPassword(row: OperatorRow) {
   resetPwdDlg.value = true;
 }
 
+/** 与后端 PasswordPolicy 同规则（6-64 位且同时含字母与数字）：提示、前端放行、后端校验三处不得各说一套。 */
+const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d).{6,64}$/;
+function newPasswordError(pwd: string, label = '新密码'): string | null {
+  if (!pwd) return `请填写${label}`;
+  return PASSWORD_RULE.test(pwd) ? null : `${label}须6-64位且同时包含字母和数字`;
+}
+
 async function submitResetPassword() {
   const target = resetPwdTarget.value;
   if (!target) return;
@@ -872,7 +880,8 @@ async function submitResetPassword() {
   }
   const pwd = resetPwd.value.password;
   const confirm = resetPwd.value.confirm;
-  if (!pwd || pwd.length < 6) return ElMessage.warning('新密码至少6位');
+  const pwdErr = newPasswordError(pwd);
+  if (pwdErr) return ElMessage.warning(pwdErr);
   if (pwd !== confirm) return ElMessage.warning('两次输入的密码不一致');
   resetPwdSaving.value = true;
   try {
@@ -897,7 +906,10 @@ async function saveForm() {
     return ElMessage.warning('请填写正确手机号，或留空保持原号');
   }
   if (!f.userId && !phoneTrimmed) return ElMessage.warning('请填写正确手机号');
-  if (!f.userId && (!f.password || f.password.length < 6)) return ElMessage.warning('密码至少6位');
+  if (!f.userId) {
+    const createPwdErr = newPasswordError(f.password, '密码');
+    if (createPwdErr) return ElMessage.warning(createPwdErr);
+  }
   if (f.primaryDeptId != null && !f.deptIds.includes(f.primaryDeptId)) {
     return ElMessage.warning('主部门必须包含在所属部门中');
   }
@@ -1037,6 +1049,7 @@ async function openMerchants(row: OperatorRow) {
       'GET'
     );
     merchantIds.value = [...(data.merchantIds || [])];
+    merchantScopeOriginal.value = [...merchantIds.value];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载商户范围失败');
   } finally {
@@ -1046,6 +1059,22 @@ async function openMerchants(row: OperatorRow) {
 
 async function saveMerchants() {
   if (currentUserId.value == null) return;
+  // 授予范围不设摩擦，收窄/清空必须二次确认：一个 PUT 就能关掉整个门户，
+  // 而「移除本账号绑定」不会回收其名下已建成员的绑定（实测孤儿授权仍在）。
+  const before = merchantScopeOriginal.value;
+  const after = merchantIds.value;
+  const removed = before.filter((id) => !after.includes(id));
+  if (removed.length > 0 || (before.length > 0 && after.length === 0)) {
+    const tip =
+      after.length === 0
+        ? `将清空该账号的商户范围（现 ${before.length} 家）。清空后该账号登录商户门户会被拒（403「账号未绑定任何商户」），确认继续？`
+        : `将移除 ${removed.length} 家商户：该账号立即看不到这些商户的数据，其名下已建成员的商户范围不会自动收回。确认继续？`;
+    try {
+      await ElMessageBox.confirm(tip, '收窄商户范围', { type: 'warning' });
+    } catch {
+      return;
+    }
+  }
   saving.value = true;
   try {
     await api.request(
