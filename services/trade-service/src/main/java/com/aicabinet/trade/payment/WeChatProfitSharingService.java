@@ -233,9 +233,7 @@ public class WeChatProfitSharingService {
         if (outOrderNo == null || outOrderNo.isBlank()) {
             outOrderNo = split.getSplitId();
         }
-        String returnNo = outReturnNo == null || outReturnNo.isBlank()
-                ? com.aicabinet.trade.util.BizIds.nextNumeric()
-                : outReturnNo.trim();
+        String returnNo = requireStableReturnNo(outReturnNo);
         if (profitSharingProperties.mockEnabled()) {
             log.info("mock profit sharing return splitId={} orderId={} amount={} outReturnNo={}",
                     split.getSplitId(), split.getOrderId(), returnCents, returnNo);
@@ -261,6 +259,19 @@ public class WeChatProfitSharingService {
                     split.getSplitId(), returnNo, e);
             return ReturnSubmitOutcome.FAILED;
         }
+    }
+
+    /**
+     * 分账回退单号必须由调用方给出并持久化（{@code wechat_pending_return_no}）。
+     *
+     * <p>缺失即拒绝，<b>不得</b>现场生成（lessons #97/#225）：重试换号会让渠道侧
+     * 无法识别为同一笔回退 ⇒ 重复回退窗口。
+     */
+    static String requireStableReturnNo(String outReturnNo) {
+        if (outReturnNo == null || outReturnNo.isBlank()) {
+            throw new IllegalArgumentException("缺少稳定分账回退单号（outReturnNo）");
+        }
+        return outReturnNo.trim();
     }
 
     /**

@@ -657,11 +657,16 @@ public class PaymentService {
     }
 
     private void refundWeChat(RechargeOrder order, String reason) {
-        refundWeChatPartial(order, order.getAmountCents(), reason, null);
+        refundWeChatPartial(order, order.getAmountCents(), reason, fullRefundNo(order));
     }
 
     private void refundAlipay(RechargeOrder order, String reason) {
-        refundAlipayPartial(order, order.getAmountCents(), reason, null);
+        refundAlipayPartial(order, order.getAmountCents(), reason, fullRefundNo(order));
+    }
+
+    /** 全额退款单号：由不可变订单号派生 ⇒ 重试同号、渠道可去重；局部退款必须传入按切片持久化的号。 */
+    static String fullRefundNo(RechargeOrder order) {
+        return "RF-FULL-" + order.getOrderId();
     }
 
     /**
@@ -760,10 +765,22 @@ public class PaymentService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "充值单可退金额不足（剩余 ¥" + String.format("%.2f", refundable / 100.0) + "）");
         }
-        String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? BizIds.nextNumeric()
-                : outRefundNo.trim();
+        String refundNo = requireStableRefundNo(outRefundNo);
         return new ChannelPartialRefundPrep(order, order.getChannel(), refundNo, already);
+    }
+
+    /**
+     * 渠道退款单号必须由调用方给出并持久化（余额退款切片、全额退款均如此）。
+     *
+     * <p>缺失即拒绝，<b>不得</b>现场用 {@code BizIds.nextNumeric()} 生成（lessons #97/#225）：
+     * 随机号在重试时会换号，渠道侧无法识别为同一笔退款 ⇒ 双退窗口。
+     */
+    static String requireStableRefundNo(String outRefundNo) {
+        if (outRefundNo == null || outRefundNo.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "缺少稳定退款单号（outRefundNo），拒绝发起渠道退款");
+        }
+        return outRefundNo.trim();
     }
 
     @Transactional
@@ -783,9 +800,7 @@ public class PaymentService {
     }
 
     private void refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
-        String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? BizIds.nextNumeric()
-                : outRefundNo;
+        String refundNo = requireStableRefundNo(outRefundNo);
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (weChatPayProperties.isConfigured()) {
             ensureRechargeGatewayTradeNo(order);
@@ -813,9 +828,7 @@ public class PaymentService {
     }
 
     private void refundAlipayPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
-        String refundNo = outRefundNo == null || outRefundNo.isBlank()
-                ? BizIds.nextNumeric()
-                : outRefundNo;
+        String refundNo = requireStableRefundNo(outRefundNo);
         String idemKey = rechargeRefundIdempotencyKey(order.getOrderId(), refundCents, refundNo);
         if (alipayPayClient.isConfigured()) {
             ensureRechargeGatewayTradeNo(order);

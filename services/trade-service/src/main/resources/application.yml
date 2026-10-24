@@ -202,6 +202,21 @@ aicabinet:
   # 业务日界 / @Scheduled(cron) / XXL 种子统一时区（S-P2-7）
   schedule:
     zone: ${AICABINET_SCHEDULE_ZONE:Asia/Shanghai}
+  # 补货建议：ROP（再订货点）与路线规划。此前两个 Properties 类整段没落 yml，
+  # 实际值只来自代码构造器/默认值（2026-10-24 静态门禁补绑定）。
+  replenishment:
+    rop:
+      lead-time-days: ${REPLENISHMENT_ROP_LEAD_TIME_DAYS:2}
+      safety-days: ${REPLENISHMENT_ROP_SAFETY_DAYS:1}
+      trend-forecast-enabled: ${REPLENISHMENT_ROP_TREND_FORECAST_ENABLED:true}
+      forecast-window-days: ${REPLENISHMENT_ROP_FORECAST_WINDOW_DAYS:28}
+      trend-lookback-days: ${REPLENISHMENT_ROP_TREND_LOOKBACK_DAYS:14}
+      safety-service-level: ${REPLENISHMENT_ROP_SAFETY_SERVICE_LEVEL:0.95}
+    route:
+      # NEAREST=本地最近邻；GAODE=高德 /v3/distance 矩阵（调用失败自动回落 NEAREST）
+      provider: ${REPLENISHMENT_ROUTE_PROVIDER:NEAREST}
+      # 与地理编码共用一个高德 Web 服务 Key（AMAP_WEB_KEY，compose 已透传）
+      gaode-key: ${AMAP_WEB_KEY:}
   risk:
     enabled: ${RISK_CONTROL_ENABLED:true}
     max-opens-per-hour: ${RISK_MAX_OPENS_PER_HOUR:5}
@@ -270,6 +285,16 @@ aicabinet:
     live-charge-enabled: ${PAYSCORE_LIVE_CHARGE_ENABLED:false}
     charge-gateway-url: ${PAYSCORE_CHARGE_GATEWAY_URL:}
     charge-gateway-api-key: ${PAYSCORE_CHARGE_GATEWAY_API_KEY:}
+    service-id: ${PAYSCORE_SERVICE_ID:}
+    permission-notify-url: ${PAYSCORE_PERMISSION_NOTIFY_URL:}
+  # P3-4 超时争议自动免单（零资金移动的纯结案）：默认 OFF，由部署方显式开启。
+  # 五个键此前从未落 yml（只靠代码默认值），运营无法在部署期调阈值。
+  dispute-auto-waive:
+    enabled: ${AICABINET_DISPUTE_AUTO_WAIVE_ENABLED:false}
+    hours: ${DISPUTE_AUTO_WAIVE_HOURS:72}
+    max-per-round: ${DISPUTE_AUTO_WAIVE_MAX_PER_ROUND:50}
+    per-user-max: ${DISPUTE_AUTO_WAIVE_PER_USER_MAX:3}
+    per-user-window-days: ${DISPUTE_AUTO_WAIVE_PER_USER_WINDOW_DAYS:7}
   dispute-sla:
     hours: ${DISPUTE_SLA_HOURS:48}
     reminder-hours-before: ${DISPUTE_SLA_REMINDER_HOURS:12}

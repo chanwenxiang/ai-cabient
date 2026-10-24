@@ -17,9 +17,14 @@ import java.util.Map;
 /**
  * 微信支付分（直连·免确认模式）HTTP 客户端——契约出处 CB-064（docs/COMPETITOR_BENCHMARK.md）：
  * <ul>
- *   <li>商户预授权（签约）：{@code POST /v3/payscore/permissions}，返回 {@code apply_permissions_token}
- *       供小程序 {@code wx.openBusinessView} 拉起授权页；用户确认后微信回调
- *       {@code authorization_code}（激活凭证）。</li>
+ *   <li>商户预授权（签约）：{@code POST /v3/payscore/permissions}，请求体为
+ *       {@code service_id} / {@code appid} / {@code authorization_code}（商户生成的授权协议号，
+ *       同一商户号下唯一、不得跨用户复用）/ {@code notify_url}（选填）——**没有
+ *       {@code out_request_no}，也不收 {@code openid}**；返回 {@code apply_permissions_token}
+ *       供小程序 {@code wx.openBusinessView} 拉起授权页。</li>
+ *   <li>授权/解约回调：解密字段 {@code appid/mchid/service_id/openid/user_service_status/
+ *       openorclose_time/authorization_code}，{@code user_service_status} 取
+ *       {@code USER_OPEN_SERVICE}（授权成功）或 {@code USER_CLOSE_SERVICE}（解除授权成功）。</li>
  *   <li>创建支付分订单：{@code POST /v3/payscore/serviceorder}，免确认模式
  *       {@code need_user_confirm} 固定 false，风险金 {@code risk_fund.name=ESTIMATE_ORDER_COST}；
  *       创单失败=微信侧评估不通过（分数门槛/风险金都在微信侧，本代码不判分）。</li>
@@ -57,29 +62,32 @@ public class WeChatPayScoreClient {
     }
 
     /** 商户预授权（签约）：返回 {@code apply_permissions_token}。 */
-    public JsonNode createPermission(String outRequestNo, String openid) {
+    public JsonNode createPermission(String authorizationCode) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("appid", weChatPayProperties.appId());
         body.put("service_id", payScoreProperties.serviceId());
-        body.put("out_request_no", outRequestNo);
-        body.put("notify_url", payScoreProperties.permissionNotifyUrl());
-        if (openid != null && !openid.isBlank()) {
-            body.put("openid", openid);
+        body.put("authorization_code", authorizationCode);
+        String notifyUrl = payScoreProperties.permissionNotifyUrl();
+        if (notifyUrl != null && !notifyUrl.isBlank()) {
+            body.put("notify_url", notifyUrl);
         }
         return v3Client.post("/v3/payscore/permissions", body);
     }
 
-    /** 按商户签约单号查询授权状态（authorization_code / 授权状态）。 */
-    public JsonNode queryPermissionByOutRequestNo(String outRequestNo) {
-        return v3Client.get("/v3/payscore/permissions/out-request-no/" + outRequestNo
-                + "?appid=" + urlEncode(weChatPayProperties.appId())
-                + "&service_id=" + urlEncode(payScoreProperties.serviceId()));
+    /** 按授权协议号查询授权状态（authorization_state / 授权状态）。 */
+    public JsonNode queryPermission(String authorizationCode) {
+        return v3Client.get("/v3/payscore/permissions/authorization-code/"
+                + urlEncode(authorizationCode)
+                + "?service_id=" + urlEncode(payScoreProperties.serviceId()));
     }
 
-    /** 解除授权（用户解约或运营主动解除）。 */
-    public JsonNode terminatePermission(String authorizationCode) {
-        return v3Client.delete("/v3/payscore/permissions/authorization-code/"
-                + urlEncode(authorizationCode));
+    /** 解除授权（用户解约或运营主动解除）：{@code POST …/authorization-code/{code}/terminate}。 */
+    public JsonNode terminatePermission(String authorizationCode, String reason) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("service_id", payScoreProperties.serviceId());
+        body.put("reason", reason == null || reason.isBlank() ? "用户申请解约" : reason);
+        return v3Client.post("/v3/payscore/permissions/authorization-code/"
+                + urlEncode(authorizationCode) + "/terminate", body);
     }
 
     /**

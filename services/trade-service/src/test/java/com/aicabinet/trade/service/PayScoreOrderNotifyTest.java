@@ -134,7 +134,7 @@ class PayScoreOrderNotifyTest {
     @Test
     void orderEventRouting_byOutOrderNoPresence() {
         var orderEvent = new ObjectMapper().createObjectNode().put("out_order_no", "x");
-        var permEvent = new ObjectMapper().createObjectNode().put("out_request_no", "y");
+        var permEvent = new ObjectMapper().createObjectNode().put("authorization_code", "y");
         assertTrue(PayScoreOrderNotifyService.isOrderEvent(orderEvent));
         assertFalse(PayScoreOrderNotifyService.isOrderEvent(permEvent));
     }

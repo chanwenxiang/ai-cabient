@@ -137,8 +137,10 @@ public class PayScoreService {
     public record WechatSignResult(boolean pending, String contractId, String applyPermissionsToken) {
     }
 
-    /** 微信签约单号前缀（未激活标记；out_request_no 本体紧跟其后，激活时替换为 authorization_code）。 */
+    /** 微信待激活标记前缀（后面紧跟商户侧 authorization_code；激活时整列替换为 code 本体）。 */
     public static final String WECHAT_PENDING_PREFIX = "PENDING:PSU-";
+    private static final String WECHAT_OPEN_SERVICE = "USER_OPEN_SERVICE";
+    private static final String WECHAT_CLOSE_SERVICE = "USER_CLOSE_SERVICE";
 
     /**
      * 微信支付分签约（先享后付）。
@@ -190,52 +192,69 @@ public class PayScoreService {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
                     "请先用微信登录小程序后再开通微信免密");
         }
-        String outRequestNo = "PSU" + user.getUserId() + "-" + Long.toString(System.currentTimeMillis(), 36)
-                + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
+        String authorizationCode = newAuthorizationCode();
         com.fasterxml.jackson.databind.JsonNode resp =
-                weChatPayScoreClient.createPermission(outRequestNo, openid);
+                weChatPayScoreClient.createPermission(authorizationCode);
         String token = resp == null ? "" : resp.path("apply_permissions_token").asText("");
         if (token.isBlank()) {
             throw new IllegalStateException("微信支付分签约响应缺少 apply_permissions_token");
         }
-        String pendingMarker = WECHAT_PENDING_PREFIX + outRequestNo;
+        String pendingMarker = WECHAT_PENDING_PREFIX + authorizationCode;
         user.setPayscoreEnabled(false);
         user.setPayscoreContractId(pendingMarker);
         userInfoRepository.save(user);
-        log.info("wechat payscore permission requested user={} outRequestNo={}", user.getUserId(), outRequestNo);
+        log.info("wechat payscore permission requested user={} code={}", user.getUserId(),
+                maskAuthorizationCode(authorizationCode));
         return new WechatSignResult(true, pendingMarker, token);
     }
 
+    /** 商户侧授权协议号：≤32 字符，仅数字/字母/`-`（微信契约）；每次签约尝试一个新号。 */
+    private static String newAuthorizationCode() {
+        return "PSU" + Long.toString(System.currentTimeMillis(), 36).toUpperCase()
+                + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
     /**
-     * 微信支付分授权回调：用户在授权页确认后微信推送 {@code authorization_code}——
-     * 按 {@code PENDING:PSU-*} 标记找到签约中的用户并激活。事件体与预期不符（无主回调）
-     * 只记 WARN 台账不抛错：返回 204 让微信停止重试，避免无限重推。
-     *
-     * <p>⚠️ 「解除授权」回调的字段形态未取证（CB-064），暂不实现自动解绑——解约走
-     * 用户侧 {@code cancelPasswordFree} 主动解除 + 微信侧异步生效。</p>
+     * 微信支付分授权/解约回调（CB-064）。{@code user_service_status}：
+     * {@code USER_OPEN_SERVICE} 激活、{@code USER_CLOSE_SERVICE} 停用；未知状态只记 WARN
+     * （fail-closed，不猜测）。激活按 {@code PENDING:PSU-<authorization_code>} 定位，
+     * 标记已被重试覆盖时按 openid 兜底。事件体与预期不符（无主回调）只记 WARN 不抛错：
+     * 返回 204 让微信停止重试，避免无限重推。
      */
     @Transactional
     public void handleWechatPermissionNotify(com.fasterxml.jackson.databind.JsonNode event) {
-        String outRequestNo = event.path("out_request_no").asText("");
         String authorizationCode = event.path("authorization_code").asText("");
+        String status = event.path("user_service_status").asText("");
         if (authorizationCode.isBlank()) {
             log.warn("wechat payscore notify without authorization_code keys={}", fieldNamesOf(event));
             return;
         }
-        var pendingQuery = new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
-                .eq(UserInfo::getPayscoreContractId, WECHAT_PENDING_PREFIX + outRequestNo);
-        UserInfo user = userInfoRepository.selectList(pendingQuery).stream().findFirst().orElse(null);
-        if (user == null && !outRequestNo.isBlank()) {
-            // 回调可能晚于用户重试签约（旧 outRequestNo 已被覆盖）：按 openid 兜底定位
+        if (WECHAT_CLOSE_SERVICE.equals(status)) {
+            deactivateWechatPayscore(authorizationCode);
+            return;
+        }
+        if (!WECHAT_OPEN_SERVICE.equals(status)) {
+            log.warn("wechat payscore notify unknown user_service_status={} code={} keys={}",
+                    status, maskAuthorizationCode(authorizationCode), fieldNamesOf(event));
+            return;
+        }
+        activateWechatPayscore(event, authorizationCode);
+    }
+
+    private void activateWechatPayscore(com.fasterxml.jackson.databind.JsonNode event, String authorizationCode) {
+        UserInfo user = findByPayscoreContractId(WECHAT_PENDING_PREFIX + authorizationCode);
+        if (user == null) {
+            // 回调可能晚于用户重试签约（旧 pending 标记已被新 code 覆盖）：按 openid 兜底定位
             String openid = event.path("openid").asText("");
             if (!openid.isBlank()) {
-                user = userInfoRepository.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
+                user = userInfoRepository.selectList(
+                        new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
                                 .eq(UserInfo::getWxOpenId, openid)).stream().findFirst().orElse(null);
             }
         }
         if (user == null) {
-            log.warn("wechat payscore notify unmatched outRequestNo={} code={}", outRequestNo,
-                    authorizationCode.substring(0, Math.min(6, authorizationCode.length())) + "***");
+            log.warn("wechat payscore notify unmatched code={} keys={}",
+                    maskAuthorizationCode(authorizationCode), fieldNamesOf(event));
             return;
         }
         user.setPayscoreEnabled(true);
@@ -246,7 +265,40 @@ public class PayScoreService {
         }
         userInfoRepository.save(user);
         log.info("wechat payscore authorized user={} code={}", user.getUserId(),
-                authorizationCode.substring(0, Math.min(6, authorizationCode.length())) + "***");
+                maskAuthorizationCode(authorizationCode));
+    }
+
+    private void deactivateWechatPayscore(String authorizationCode) {
+        UserInfo user = findByPayscoreContractId(authorizationCode);
+        if (user == null) {
+            log.warn("wechat payscore close unmatched code={}", maskAuthorizationCode(authorizationCode));
+            return;
+        }
+        user.setPayscoreEnabled(false);
+        user.setPayscoreContractId(null);
+        if (PayChannels.WECHAT.equalsIgnoreCase(
+                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+            user.setPayPreferredChannel(PayChannels.BALANCE);
+        }
+        userInfoRepository.save(user);
+        // M01：save/updateById 忽略 null 列 ⇒ 协议号列必须用 wrapper 显式 set(null)
+        userInfoRepository.update(null,
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<UserInfo>lambdaUpdate()
+                        .eq(UserInfo::getUserId, user.getUserId())
+                        .set(UserInfo::getPayscoreContractId, null));
+        log.info("wechat payscore closed user={} code={}", user.getUserId(),
+                maskAuthorizationCode(authorizationCode));
+    }
+
+    private UserInfo findByPayscoreContractId(String contractId) {
+        return userInfoRepository.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserInfo>()
+                        .eq(UserInfo::getPayscoreContractId, contractId))
+                .stream().findFirst().orElse(null);
+    }
+
+    private static String maskAuthorizationCode(String code) {
+        return code.substring(0, Math.min(6, code.length())) + "***";
     }
 
     private static String fieldNamesOf(com.fasterxml.jackson.databind.JsonNode node) {

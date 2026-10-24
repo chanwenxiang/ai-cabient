@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -31,11 +32,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -88,7 +91,7 @@ class PayScoreWechatSignTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> payScoreService.signWeChatPayScore(10001L));
         assertEquals(HttpStatus.NOT_IMPLEMENTED, ex.getStatusCode());
-        verify(weChatPayScoreClient, never()).createPermission(anyString(), anyString());
+        verify(weChatPayScoreClient, never()).createPermission(anyString());
     }
 
     @Test
@@ -101,13 +104,18 @@ class PayScoreWechatSignTest {
         when(userInfoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         com.fasterxml.jackson.databind.JsonNode resp = new com.fasterxml.jackson.databind.ObjectMapper()
                 .createObjectNode().put("apply_permissions_token", "TOKEN-1");
-        when(weChatPayScoreClient.createPermission(anyString(), eq("oX-abc"))).thenReturn(resp);
+        when(weChatPayScoreClient.createPermission(anyString())).thenReturn(resp);
 
         PayScoreService.WechatSignResult result = payScoreService.signWeChatPayScore(10002L);
 
         assertTrue(result.pending());
         assertEquals("TOKEN-1", result.applyPermissionsToken());
         assertTrue(result.contractId().startsWith(PayScoreService.WECHAT_PENDING_PREFIX));
+        ArgumentCaptor<String> codeCap = ArgumentCaptor.forClass(String.class);
+        verify(weChatPayScoreClient).createPermission(codeCap.capture());
+        // 微信契约：authorization_code ≤32 字符，仅数字/字母/_-|*
+        assertTrue(codeCap.getValue().matches("[0-9A-Za-z_\\-|*]{1,32}"), codeCap.getValue());
+        assertEquals(PayScoreService.WECHAT_PENDING_PREFIX + codeCap.getValue(), result.contractId());
         ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
         verify(userInfoRepository).save(cap.capture());
         assertFalse(cap.getValue().isPayscoreEnabled(), "激活前不得放行免密");
@@ -125,21 +133,21 @@ class PayScoreWechatSignTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> payScoreService.signWeChatPayScore(10002L));
         assertEquals(HttpStatus.PRECONDITION_FAILED, ex.getStatusCode());
-        verify(weChatPayScoreClient, never()).createPermission(anyString(), anyString());
+        verify(weChatPayScoreClient, never()).createPermission(anyString());
     }
 
     @Test
-    void notify_activatesPendingUser() {
+    void notify_openEvent_activatesPendingUserByAuthorizationCode() {
         UserInfo pending = userWithWx(10002L, "oX-abc");
         pending.setPayscoreEnabled(false);
-        pending.setPayscoreContractId(PayScoreService.WECHAT_PENDING_PREFIX + "PSU10002-1");
+        pending.setPayscoreContractId(PayScoreService.WECHAT_PENDING_PREFIX + "PSU-ABC123");
         when(userInfoRepository.selectList(any())).thenReturn(List.of(pending));
         when(userInfoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        com.fasterxml.jackson.databind.JsonNode event = new com.fasterxml.jackson.databind.ObjectMapper()
+        var event = new com.fasterxml.jackson.databind.ObjectMapper()
                 .createObjectNode()
-                .put("out_request_no", "PSU10002-1")
-                .put("authorization_code", "AUTH-CODE-9")
+                .put("authorization_code", "PSU-ABC123")
+                .put("user_service_status", "USER_OPEN_SERVICE")
                 .put("openid", "oX-abc");
 
         payScoreService.handleWechatPermissionNotify(event);
@@ -147,17 +155,78 @@ class PayScoreWechatSignTest {
         ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
         verify(userInfoRepository).save(cap.capture());
         assertTrue(cap.getValue().isPayscoreEnabled());
-        assertEquals("AUTH-CODE-9", cap.getValue().getPayscoreContractId());
+        assertEquals("PSU-ABC123", cap.getValue().getPayscoreContractId());
         assertTrue(payScoreService.isPasswordFreeReadyForChannel(cap.getValue(), "WECHAT"));
+    }
+
+    @Test
+    void notify_openEvent_fallsBackToOpenidWhenPendingMarkerWasOverwritten() {
+        UserInfo user = userWithWx(10002L, "oX-abc");
+        user.setPayscoreEnabled(false);
+        user.setPayscoreContractId(PayScoreService.WECHAT_PENDING_PREFIX + "PSU-NEWER");
+        when(userInfoRepository.selectList(any())).thenReturn(List.of(), List.of(user));
+        when(userInfoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var event = new com.fasterxml.jackson.databind.ObjectMapper()
+                .createObjectNode()
+                .put("authorization_code", "PSU-OLDER")
+                .put("user_service_status", "USER_OPEN_SERVICE")
+                .put("openid", "oX-abc");
+
+        payScoreService.handleWechatPermissionNotify(event);
+
+        ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
+        verify(userInfoRepository).save(cap.capture());
+        assertTrue(cap.getValue().isPayscoreEnabled());
+        assertEquals("PSU-OLDER", cap.getValue().getPayscoreContractId());
+    }
+
+    @Test
+    void notify_closeEvent_deactivatesAndFallsBackPreferredChannel() {
+        UserInfo active = userWithWx(10002L, "oX-abc");
+        active.setPayscoreEnabled(true);
+        active.setPayscoreContractId("PSU-ABC123");
+        active.setPayPreferredChannel(PayChannels.WECHAT);
+        when(userInfoRepository.selectList(any())).thenReturn(List.of(active));
+        when(userInfoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var event = new com.fasterxml.jackson.databind.ObjectMapper()
+                .createObjectNode()
+                .put("authorization_code", "PSU-ABC123")
+                .put("user_service_status", "USER_CLOSE_SERVICE")
+                .put("openid", "oX-abc");
+
+        payScoreService.handleWechatPermissionNotify(event);
+
+        ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
+        verify(userInfoRepository).save(cap.capture());
+        assertFalse(cap.getValue().isPayscoreEnabled());
+        assertNull(cap.getValue().getPayscoreContractId());
+        assertEquals(PayChannels.BALANCE, cap.getValue().getPayPreferredChannel());
+        // M01：null 列必须用 wrapper 显式清
+        verify(userInfoRepository).update(isNull(), any());
+    }
+
+    @Test
+    void notify_unknownStatus_isIgnoredWithoutSave() {
+        var event = new com.fasterxml.jackson.databind.ObjectMapper()
+                .createObjectNode()
+                .put("authorization_code", "PSU-ABC123")
+                .put("user_service_status", "USER_SOMETHING_ELSE")
+                .put("openid", "oX-abc");
+
+        payScoreService.handleWechatPermissionNotify(event);
+
+        verify(userInfoRepository, never()).save(any());
     }
 
     @Test
     void notify_unmatchedEvent_isSwallowedWithoutSave() {
         when(userInfoRepository.selectList(any())).thenReturn(List.of());
-        com.fasterxml.jackson.databind.JsonNode event = new com.fasterxml.jackson.databind.ObjectMapper()
+        var event = new com.fasterxml.jackson.databind.ObjectMapper()
                 .createObjectNode()
-                .put("out_request_no", "PSU-NOBODY")
-                .put("authorization_code", "AUTH-ORPHAN")
+                .put("authorization_code", "PSU-NOBODY")
+                .put("user_service_status", "USER_OPEN_SERVICE")
                 .put("openid", "oX-nobody");
 
         payScoreService.handleWechatPermissionNotify(event);

@@ -201,7 +201,7 @@ class PaymentServiceTest {
         when(weChatPayClient.queryByOutTradeNo("R-WX")).thenReturn(notPaid);
 
         assertThrows(ResponseStatusException.class,
-                () -> paymentService.refundRechargeChannelPartial("R-WX", 200, "test", null));
+                () -> paymentService.refundRechargeChannelPartial("R-WX", 200, "test", "RF-TEST-WX"));
 
         verify(weChatPayClient).queryByOutTradeNo("R-WX");
         verify(weChatPayClient, never()).createRefund(anyString(), anyString(), anyInt(), anyInt(), anyString());
@@ -229,7 +229,7 @@ class PaymentServiceTest {
         when(alipayPayClient.queryByOutTradeNo("R-ALI")).thenReturn(closed);
 
         assertThrows(ResponseStatusException.class,
-                () -> paymentService.refundRechargeChannelPartial("R-ALI", 200, "test", null));
+                () -> paymentService.refundRechargeChannelPartial("R-ALI", 200, "test", "RF-TEST-ALI"));
 
         verify(alipayPayClient, never()).refund(anyString(), anyString(), anyInt(), anyString());
     }
@@ -255,7 +255,7 @@ class PaymentServiceTest {
         when(paymentOperationRepository.findRechargeCreditGatewayTradeNo("R-WX-BF"))
                 .thenReturn(Optional.of("WX-RECHARGE-TXN"));
 
-        paymentService.refundRechargeChannelPartial("R-WX-BF", 200, "test", null);
+        paymentService.refundRechargeChannelPartial("R-WX-BF", 200, "test", "RF-TEST-WX-BF");
 
         assertEquals("WX-RECHARGE-TXN", order.getWxTransactionId());
         verify(rechargeOrderRepository, atLeastOnce()).save(order);
@@ -286,7 +286,7 @@ class PaymentServiceTest {
         remote.put("trade_no", "ALI-RECHARGE-TXN");
         when(alipayPayClient.queryByOutTradeNo("R-ALI-BF")).thenReturn(remote);
 
-        paymentService.refundRechargeChannelPartial("R-ALI-BF", 200, "test", null);
+        paymentService.refundRechargeChannelPartial("R-ALI-BF", 200, "test", "RF-TEST-ALI-BF");
 
         assertEquals("ALI-RECHARGE-TXN", order.getAlipayTradeNo());
         verify(alipayPayClient).refund(eq("R-ALI-BF"), anyString(), eq(200), eq("test"));
