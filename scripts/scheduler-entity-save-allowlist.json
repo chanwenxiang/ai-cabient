@@ -1,0 +1,42 @@
+{
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CompensationTaskScheduler.java#processProfitSharingReturnTask": {
+    "count": 1,
+    "reason": "把任务置 PROCESSING 后整实体 save；同方法随后多次重新 select split 并回写 retry_count/scheduled_at/result，改列级更新需先把状态机与期望状态（where status='PENDING'）一次梳理清"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CompensationTaskScheduler.java#deferProfitSharingReturnTask": {
+    "count": 1,
+    "reason": "回写 retry_count/scheduled_at/result/status；与 finish 路径可能并发改同一任务行，需列级更新并把期望状态放进 where"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CompensationTaskScheduler.java#finishCompensationTask": {
+    "count": 1,
+    "reason": "终态回写 status/result/executed_at；应改列级 update where task_id=? and status in (PENDING, PROCESSING)"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponExpiryReminderScheduler.java#remind": {
+    "count": 1,
+    "reason": "逐券 set reminded_at 后整实体 save；应 update set reminded_at where coupon_id=? and reminded_at is null"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/PointsExpiryScheduler.java#remind": {
+    "count": 1,
+    "reason": "逐积分日志 set reminded_at 后整实体 save；同上，应列级条件更新避免覆盖并发字段"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/PointsExpiryScheduler.java#expireMemberPoints": {
+    "count": 1,
+    "reason": "findByIdForUpdate 行锁内改 available/expired/updated_at 后整实体 save；锁内无丢更新，但写放大到全列，应改列级更新"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/PointsExpiryScheduler.java#markEarnLogsExpired": {
+    "count": 1,
+    "reason": "逐日志 set expired_at 后整实体 save；应 update set expired_at where log_id=? and expired_at is null"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundRetryScheduler.java#touch": {
+    "count": 1,
+    "reason": "仅推后 updated_at 却整实体 updateById；应 update set updated_at where op_id=?（其余列一律不动）"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java#expireOne": {
+    "count": 1,
+    "reason": "改 status/notes 后整实体 save；应列级 update where task_id=? and status='CHECKED_IN'，防并发重复取消"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java#finalizeRouteIfReady": {
+    "count": 1,
+    "reason": "读 route 改 status 后整实体 save；应列级 update where route_id=? and status not in 终态"
+  }
+}

@@ -240,6 +240,32 @@ const GUARDED = new Map([
         '「分布式锁早于事务提交释放 ⇒ 同 ref 双扣双入账」，同时钉住提现生命周期 ' +
         "ref_type='WITHDRAW' 一 ref 多行（FREEZE/PAID/FEE/RELEASE）必须继续放行"
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/SeedSequenceDriftSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'UAT 2026-10-23 G1-3 实炸的**族级**回归闸：历史迁移用显式主键插种子却不推序列 ⇒ ' +
+        '全新空库上 nextval 发出已占用的号。三条同族缺陷里两条已造成真损失' +
+        '（operator_user_id_seq→静默覆盖在用账号 P0/V398、ops_role_role_id_seq→新增角色 500/V399），' +
+        '单测与 mapper mock 都看不见（发号由数据库默认值完成）。' +
+        '本 IT ①逐 OWNED 序列断言 nextIssued>MAX(宿主列)（先卡序列数>100 防扫描退化假绿）' +
+        '②真调 roleMapper.insert 三次断言全部拿到种子 max 之上的新号'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PaidAmountSnapshotSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'C1 快照列双定义：从 classpath 抽 V384 回填 UPDATE 与 $paid_amount_bound$ 护栏原文' +
+        '在真库执行，逐单断言 paid_amount_cents == PaymentOperationMapper.chargedCompletedCents，' +
+        '越界（冻结毛额 > 应付+已退）必须抛错点名。SQL 语义与 Java 取数是否同值，' +
+        '字符串断言与 Mockito 单测都证明不了'
+    }
   ]
 ]);
 

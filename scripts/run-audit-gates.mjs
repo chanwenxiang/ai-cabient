@@ -66,6 +66,25 @@ for (const name of names) {
       .join(' / ');
     const why = result.spawnError ? ` (spawn failed: ${result.spawnError})` : '';
     console.log(`✗ ${name} exit=${result.status}${why} :: ${tail}`);
+    // 完整输出落盘（3 行尾巴不够诊断未捕获异常的根因行；2026-10-24 mp-defect-classes 实证）
+    try {
+      const { mkdirSync, writeFileSync } = await import('node:fs');
+      // .tmp 是 gitignore 的 ⇒ 新 clone / 干净 CI runner 上根本不存在，ENOENT 会被下面的
+      // catch 吞掉，恰好在最需要诊断日志的机器上静默丢日志（2026-10-24 复核发现）
+      const logDir = resolve(root, '.tmp');
+      mkdirSync(logDir, { recursive: true });
+      // 文件名禁冒号：Windows NTFS 会把 `a:b.log` 当备用数据流（ADS）写进 `a`，
+      // 普通 ls/cat 全看不见（2026-10-24 实证：诊断文件写成功却"不存在"）
+      const logName = `gate-failure-${name.replace(/:/g, '_')}.log`;
+      writeFileSync(
+        resolve(logDir, logName),
+        `exit=${result.status}\n--- stdout ---\n${result.stdout || ''}\n--- stderr ---\n${result.stderr || ''}`
+      );
+      console.log(`  （完整输出已存 .tmp/${logName}）`);
+    } catch (e) {
+      // 落盘失败不掩盖原失败，但必须留一行痕迹，否则「日志呢」无处可查
+      console.log(`  （完整输出落盘失败：${e instanceof Error ? e.message : e}）`);
+    }
     failed++;
   }
 }

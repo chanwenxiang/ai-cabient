@@ -1,0 +1,42 @@
+{
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CompetitiveGapService.java#salesReportPage": {
+    "count": 1,
+    "reason": "salesReport(...) 先按维度全量聚合 + 排序，再切当前页；分页下推要把多路聚合与排序搬进 SQL，单独立项评估"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceAssetService.java#stockHealthPage": {
+    "count": 1,
+    "reason": "缺货/低库存/临期 KPI 与一键补货设备集合都基于全量行计算，切片只是出参；需先拆出独立 KPI 聚合查询"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/FundBillService.java#listDailyBillsPage": {
+    "count": 1,
+    "reason": "listDailyBills 先算全账期日账单（含渠道费实结对账），再按关键词内存过滤；关键词过滤与分页需一起下推"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/FundBillService.java#listLedger": {
+    "count": 1,
+    "reason": "由 order_revenue_split 全量展开成逐单多行流水（一单拆 ORDER/PLATFORM/CHANNEL/MERCHANT 行）后过滤，行数被单据数放大；需先做行级分页视图"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java#listDevicesPaged": {
+    "count": 1,
+    "reason": "allowedDevices 全量设备 + 内存过滤/拼 DTO（会话、补货、将邑 SN 三张映射批量查）；分页需把过滤条件下推到 device 查询"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java#deviceReports": {
+    "count": 1,
+    "reason": "设备明细报表对全量设备拼近 7 日在线率/会话/商户名后内存过滤排序；下推需先在 SQL 侧 join 在线率快照表"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/PurchaseSuggestionService.java#suggestPage": {
+    "count": 1,
+    "reason": "suggest(...) 对全 SKU 跑需求模型（预测/趋势）后排序；建议量本身是全量计算结果，无法直接 SQL 分页"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentService.java#listShortagePage": {
+    "count": 1,
+    "reason": "listShortageRows 全量缺货行（货道×SKU）后才切片；缺口计算在 service 内，需先把 shortage 做成可分页查询"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java#listPayablesPage": {
+    "count": 1,
+    "reason": "仅 overdueOnly=true 分支走 findAllByOrderByDueDateAsc 全量后内存过滤 isOverdue；非 overdue 分支已走 searchPage"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseBinService.java#listBinStockPage": {
+    "count": 1,
+    "reason": "buildBinStockList 全量货位库存（含 SKU 展开）后才切片；需把货位/SKU 过滤下推到查询"
+  }
+}

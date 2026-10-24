@@ -1,17 +1,20 @@
 /**
- * 渲染小程序视觉资产（tab 图标 / 商品演示图）。
+ * 渲染小程序视觉资产（tab 图标 / 菜单图标）。
  *
  * 用法：node scripts/render-mp-assets.mjs
- * 依赖：系统 Chrome（Playwright channel=chrome）；产物为 PNG，覆盖以下文件：
- *   clients/consumer-mp/src/static/tab/*.png
+ * 依赖：系统 Chrome（Playwright channel=chrome）；产物为 PNG，覆盖：
+ *   clients/consumer-mp/src/static/tab/*.png（含暗色变体的基础色，*-darkbg 为独立提交资产不在此生成）
  *   clients/merchant-mp/src/static/tab/*.png
- * 商品图（clients/{consumer,merchant}-mp/src/static/sku/*.jpg）直接复制自
- * 管理端 clients/admin-vue/public/sku-demo/*.jpg，保证三端同图。
+ *   clients/{consumer,merchant}-mp/src/static/menu/*.png
+ * 🔴 清单按端拆分（TAB_ICONS_BY_APP / MENU_ICONS_BY_APP）：只生成各端实际引用的图标。
+ *   2026-10-24 收敛为「在盘＝被引用」差集——此前单表写两端，谁重跑脚本谁复活 35 个 dead 图标。
+ *   两端 pages.json / menuIcon('x') 调用方变更时须同步改这里，改完跑 P 类门禁核对。
+ * 商品演示图（static/sku/*.jpg 及管理端 public/sku-demo）已于 2026-10-24 下线，不再同步；
+ *   注意管理端 public/sku-demo 仍被 DemoDataService 种子 URL 引用，属后台跨端引用，别删。
  */
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -67,7 +70,8 @@ const ICONS = {
     '<path d="M12 4a6 6 0 0 1 6 6v4l2 3H4l2-3v-4a6 6 0 0 1 6-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/>'
 };
 
-/** 菜单/快捷项线性图标（Feather 风格，24 视图框；页面以 <image> 展示） */
+/** 菜单/快捷项线性图标（Feather 风格，24 视图框；页面以 <image> 展示）
+ *  字形定义全集；各端实际生成哪些名字见下方 MENU_ICONS_BY_APP。 */
 const MENU_ICONS = {
   orders:
     '<path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/>',
@@ -127,6 +131,60 @@ const MENU_ICON_COLORS = {
   logout: '#ef4444'
 };
 
+// tab 图标按端拆分（对齐 2026-10-24 清理后的在盘集：consumer 已下线 devices/alerts tab，
+// merchant 已下线 orders tab；ICONS 仍作字形全集，缺字形时 fail-closed 报错）。
+const TAB_ICONS_BY_APP = {
+  'clients/consumer-mp': ['home', 'orders', 'mine'],
+  'clients/merchant-mp': ['home', 'mine', 'devices', 'alerts']
+};
+
+// 菜单图标按端拆分（对齐清理后在盘集：consumer 22 / merchant 17，交集不再隐含「两端共用」）。
+const MENU_ICONS_BY_APP = {
+  'clients/consumer-mp/src/static/menu': [
+    'agreement',
+    'alipay',
+    'balance',
+    'billing',
+    'coupons',
+    'disputes',
+    'feedback',
+    'gift',
+    'help',
+    'hot',
+    'logout',
+    'member',
+    'mock',
+    'notice',
+    'orders',
+    'phone',
+    'privacy',
+    'recharge',
+    'refund',
+    'repair',
+    'shopping',
+    'wechat'
+  ],
+  'clients/merchant-mp/src/static/menu': [
+    'billing',
+    'business',
+    'cabinet',
+    'check-circle',
+    'disputes',
+    'help',
+    'line-wallet',
+    'member',
+    'notice',
+    'orders',
+    'pending',
+    'pricing',
+    'replenish',
+    'settlements',
+    'splits',
+    'team',
+    'wallet'
+  ]
+};
+
 const MENU_ICON_TEMPLATE = (
   path,
   color
@@ -134,53 +192,38 @@ const MENU_ICON_TEMPLATE = (
   <g transform="translate(2.4,2.4) scale(0.8)" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</g>
 </svg>`;
 
-/** 商品演示图：从管理端 public/sku-demo 复制，保证三端同一套真实商品照片 */
-function syncSkuImages() {
-  const srcDir = path.join(root, 'clients/admin-vue/public/sku-demo');
-  const targets = ['clients/consumer-mp/src/static/sku', 'clients/merchant-mp/src/static/sku'];
-  for (const rel of targets) {
-    const outDir = path.join(root, rel);
-    fs.mkdirSync(outDir, { recursive: true });
-  }
-  for (const file of fs.readdirSync(srcDir)) {
-    if (!/\.(jpe?g|png|webp)$/i.test(file)) continue;
-    for (const rel of targets) {
-      fs.copyFileSync(path.join(srcDir, file), path.join(root, rel, file));
-    }
-  }
-}
-
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const tabPage = await browser.newPage({ viewport: { width: 144, height: 144 } });
-    for (const [name, glyph] of Object.entries(ICONS)) {
-      for (const [suffix, active] of [
-        ['', false],
-        ['-active', true]
-      ]) {
-        const file = path.join(root, `clients/consumer-mp/src/static/tab/${name}${suffix}.png`);
-        await renderSvgToPng(tabPage, ICON_TEMPLATE(glyph, active), file, 144);
+    for (const [appDir, names] of Object.entries(TAB_ICONS_BY_APP)) {
+      for (const name of names) {
+        const glyph = ICONS[name];
+        if (!glyph) {
+          throw new Error(
+            `render-mp-assets: TAB_ICONS_BY_APP 引用了 ICONS 里不存在的字形「${name}」`
+          );
+        }
+        for (const [suffix, active] of [
+          ['', false],
+          ['-active', true]
+        ]) {
+          const file = path.join(root, `${appDir}/src/static/tab/${name}${suffix}.png`);
+          await renderSvgToPng(tabPage, ICON_TEMPLATE(glyph, active), file, 144);
+        }
       }
     }
-    // 商户端复用 home/mine；devices/alerts 专属
-    for (const [name, glyph] of Object.entries(ICONS)) {
-      for (const [suffix, active] of [
-        ['', false],
-        ['-active', true]
-      ]) {
-        const file = path.join(root, `clients/merchant-mp/src/static/tab/${name}${suffix}.png`);
-        await renderSvgToPng(tabPage, ICON_TEMPLATE(glyph, active), file, 144);
-      }
-    }
-    // 菜单/快捷项线性图标（两端共用同一套）
+    // 菜单/快捷项线性图标（清单按端拆分，见 MENU_ICONS_BY_APP 头注释）
     const menuPage = await browser.newPage({ viewport: { width: 96, height: 96 } });
-    for (const [name, d] of Object.entries(MENU_ICONS)) {
-      const color = MENU_ICON_COLORS[name] || TEAL;
-      for (const rel of [
-        'clients/consumer-mp/src/static/menu',
-        'clients/merchant-mp/src/static/menu'
-      ]) {
+    for (const [rel, names] of Object.entries(MENU_ICONS_BY_APP)) {
+      for (const name of names) {
+        const d = MENU_ICONS[name];
+        if (!d) {
+          throw new Error(
+            `render-mp-assets: MENU_ICONS_BY_APP 引用了 MENU_ICONS 里不存在的字形「${name}」`
+          );
+        }
+        const color = MENU_ICON_COLORS[name] || TEAL;
         const file = path.join(root, `${rel}/${name}.png`);
         await renderSvgToPng(menuPage, MENU_ICON_TEMPLATE(d, color), file, 96);
       }
@@ -188,9 +231,7 @@ async function main() {
     await tabPage.close();
     await menuPage.close();
 
-    syncSkuImages();
-
-    console.log('render-mp-assets ok（tab 图标已渲染，商品图已同步）');
+    console.log('render-mp-assets ok（tab 图标已渲染）');
   } finally {
     await browser.close();
   }

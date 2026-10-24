@@ -151,6 +151,63 @@ jobs:
       - name: MySQL-isms gate self-test
         run: node scripts/check-mysql-isms-in-migrations.test.mjs
 
+      # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
+      # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
+      # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。
+      # Spring 对缺键是静默 null/0/false，单测又多 `new XxxProperties(...)` 绕开绑定，
+      # 只有静态对拍能拦住。
+      - name: ConfigurationProperties yml binding gate
+        run: node scripts/check-config-properties-binding.mjs
+
+      # 防绕过自测：解析器全靠正则/文本扫描，漏一条 record 或误判列表都会让门禁恒绿，
+      # 故在临时 fixture 里把红/绿/豁免/锚点四个方向都跑一遍再清干净。
+      - name: ConfigurationProperties binding self-test
+        run: node scripts/config-properties-binding.test.mjs
+
+      # DevMock 范围门禁（lessons #25）：mock 路由只许活在 /api/v2/dev/ 下，且必须由
+      # aicabinet.security.mock-enabled=true 装配；生产启动校验仍须拒绝该开关。
+      # 名称/路径/开关三面交叉，防「换个类名把 mock 留在正式前缀」和「删掉条件悄悄常开」。
+      - name: DevMock route scope gate
+        run: node scripts/check-devmock-scope.mjs
+
+      # 防绕过自测：注解解析全靠正则，漏掉多行注解或 matchIfMissing 会让门禁恒绿，
+      # 故在临时 fixture 里把缺开关/错前缀/锚点失效等方向都跑一遍再清干净。
+      - name: DevMock scope self-test
+        run: node scripts/check-devmock-scope.test.mjs
+
+      # 内存分页门禁（lessons #47）：返回 PageResult/*PageDto 的方法里禁止对全量 List
+      # 做 subList；存量 10 处冻结在 scripts/inmemory-paging-allowlist.json（棘轮只减不增）。
+      - name: In-memory paging gate (ratchet)
+        run: node scripts/check-inmemory-paging.mjs
+
+      # 防绕过自测：方法解析/计数全靠正则，漏一个方法或把清单一起改错都会假绿，
+      # 故把「新增/多一处/少一处/条目失效/空理由/锚点」六个方向都跑一遍。
+      - name: In-memory paging self-test
+        run: node scripts/check-inmemory-paging.test.mjs
+
+      # 定时任务整实体回写门禁（lessons #243）：*Scheduler/*Job 里把读出来的实体整行 save
+      # 会覆盖 HTTP 写路径刚改的列；存量 10 处冻结在 scripts/scheduler-entity-save-allowlist.json。
+      - name: Scheduler entity save gate (ratchet)
+        run: node scripts/check-scheduler-entity-save.mjs
+
+      # 防绕过自测：「新建实体」识别错了会假绿或假红，故把 fresh/参数/重新赋值、
+      # 棘轮四方向、*Job 作用域、锚点都跑一遍。
+      - name: Scheduler entity save self-test
+        run: node scripts/check-scheduler-entity-save.test.mjs
+
+      # Mockito 写法门禁（lessons #296 / #322）：when(void)、matcher 与形参类型不符
+      # （anyInt 桩 long 静默失配）、Mapper.delete(any()) 重载歧义，测试源码里都不许出现。
+      - name: Mockito pitfalls gate
+        run: node scripts/check-test-mockito-pitfalls.mjs
+
+      - name: Mockito pitfalls self-test
+        run: node scripts/check-test-mockito-pitfalls.test.mjs
+
+      # target 孤儿门禁（lessons #302/#323）本身跑在聚合链里：CI 干净检出无 target ⇒ 天然
+      # no-op；有 target 的机器上会揪出源码已删的迁移/Mapper。这里只补自测，防目录遍历退化。
+      - name: Target orphans self-test
+        run: node scripts/check-target-orphans.test.mjs
+
       # 管理后台表格收敛门禁：裸 el-table / 表头排序 / 原生按钮防回潮 + shared-uni 拷贝一致性
       - name: Admin table & shared-component gate
         run: node scripts/check-admin-table-gate.mjs
