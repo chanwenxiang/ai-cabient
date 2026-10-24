@@ -257,12 +257,13 @@ public class MerchantTeamAdminService {
         user.setVerified(false);
         user.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        userInfoRepository.save(user);
+        // 同 OpsRbacService.doCreateOperator：分配来的 id 只允许 insert，撞号必须报错回滚而不是覆盖已有账号
+        userInfoRepository.insert(user);
 
         UserAccount account = new UserAccount();
         account.setUserId(newUserId);
         account.setBalanceCents(0);
-        userAccountRepository.save(account);
+        userAccountRepository.insert(account);
 
         long roleId = resolveMerchantRoleId(request.roleKey());
         userRoleRepository.insert(new OpsUserRole(newUserId, roleId));

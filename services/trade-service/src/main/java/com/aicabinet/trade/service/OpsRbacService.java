@@ -415,12 +415,13 @@ public class OpsRbacService {
         user.setVerified(true);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setStatus(normalizeAccountStatus(request.status()));
-        userInfoRepository.save(user);
+        // 分配来的 id 必须 insert 不能 save：save() 见主键已存在会 updateById，序列滞后就变成静默覆盖别人的账号
+        userInfoRepository.insert(user);
 
         UserAccount account = new UserAccount();
         account.setUserId(newUserId);
         account.setBalanceCents(0);
-        userAccountRepository.save(account);
+        userAccountRepository.insert(account);
 
         if (request.roleIds() != null && !request.roleIds().isEmpty()) {
             replaceUserRoles(actorUserId, newUserId, request.roleIds());
