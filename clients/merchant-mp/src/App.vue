@@ -126,6 +126,70 @@ uni-page-body {
   --radius-tag: 8rpx;
   --card-radius: var(--radius-card);
   --card-border: rgba(0, 0, 0, 0.1);
+  /*
+   * 🔴 令牌兜底（2026-10-24 补齐）：theme.css 把全部令牌声明在 `:root` 上，
+   * 但 **WXSS 只支持 element / #id / .class / ::after / ::before + `page`**——
+   * `:root` 在小程序端**不命中**，⇒ theme.css 的 :root 令牌在小程序端整体失效。
+   * 若 page 上也不声明，引用它的 `var(--x)` 会**整条声明失效**：
+   *   · `color: var(--white)`        → 回落继承 page 的 `var(--text-primary, #0f172a)`
+   *                                    ⇒ 青绿底按钮变「深板岩底深字」（登录页「登录」按钮）
+   *   · `background: linear-gradient(135deg, var(--brand-wx), …)` → 整条失效 ⇒ 按钮全透明
+   * 以上两条正是 2026-10-24 用户报「商户端按钮字体都看不了」的**真因**（截图实证）。
+   *
+   * 下面补齐 theme.css :root 中本端缺失的令牌，**值须与 theme.css 逐字一致**，
+   * 改一处必须同步另一处（消费端 consumer-mp/App.vue 同口径）。
+   * 上方已有的同名声明是本端的**刻意覆写**（WeUI 风），保留不动。
+   */
+  --app-font:
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    'Source Han Sans SC', sans-serif;
+  --app-font-mono:
+    'SF Mono', 'Cascadia Mono', 'Consolas', 'Sarasa Mono SC', ui-monospace, monospace;
+  --el-font-family: var(--app-font);
+  --app-font-size-root: 14px;
+  --brand-2: #0d9488;
+  --brand-wx: #07c160;
+  --brand-alipay: #1677ff;
+  --success: #16a34a;
+  --danger: #b91c1c;
+  --warning: #b45309;
+  --accent-orange: #c2410c;
+  --info: #0369a1;
+  --info-soft: #e0f2fe;
+  --warning-soft: #fff7ed;
+  --danger-soft: #fef2f2;
+  --accent-rose: #be185d;
+  --accent-rose-soft: #fce7f3;
+  --surface-muted: #f4f7f5;
+  --text-primary: #0f172a;
+  --card-bg: #ffffff;
+  --white: #ffffff;
+  --color-white: var(--white);
+  --section-gap: 20rpx;
+  --mask-bg: rgba(15, 23, 42, 0.62);
+  --on-deep-opacity-50: 0.5;
+  --on-deep-opacity-78: 0.78;
+  --on-deep-opacity-88: 0.88;
+  --on-deep-opacity-92: 0.92;
+  --on-deep-opacity-95: 0.95;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.25;
+  --line-height-body: 1.5;
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-bg-card: var(--card-bg);
+  --color-border: var(--card-border);
+  --color-border-subtle: #f3f4f6;
+  /* 数据可视化色板（图表专用，勿当业务状态色） */
+  --chart-1: #2dd4bf;
+  --chart-2: #60a5fa;
+  --chart-3: #fbbf24;
+  --chart-4: #a78bfa;
+  --chart-5: #f97316;
   height: 100%;
   background: var(--page-bg);
   font-family: var(--app-font);

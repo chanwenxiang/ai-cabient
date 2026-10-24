@@ -155,45 +155,6 @@ public class AuthController {
                 SessionCookieService.Realm.CONSUMER));
     }
 
-    /**
-     * CB-048 商户端微信免密登录：openid 必须已绑定商户/运营账号（绑定走
-     * /merchant-wx-bind，须密码登录后的已验证会话）。未绑定/游客账号 → 404/403，
-     * 前端引导走密码登录。realm=ADMIN（商户会话与 /merchant-password-login 同界）。
-     */
-    @PostMapping("/merchant-wx-login")
-    public ApiResponse<LoginResponse> merchantWxLogin(@Valid @RequestBody WxLoginRequest request,
-                                                      HttpServletResponse response) {
-        return ApiResponse.ok(withSessionCookie(response, authService.merchantWxLogin(request),
-                SessionCookieService.Realm.ADMIN));
-    }
-
-    /** CB-048 商户端绑定微信：仅接受已验证商户会话（Bearer 或 ADMIN realm Cookie）。 */
-    @PostMapping("/merchant-wx-bind")
-    public ApiResponse<Void> merchantWxBind(@Valid @RequestBody WxLoginRequest request,
-                                            @RequestHeader(value = "Authorization", required = false) String authorization,
-                                            HttpServletRequest httpRequest) {
-        String token = null;
-        if (authorization != null && authorization.startsWith("Bearer ")) {
-            token = authorization.substring(7);
-        }
-        if (token == null) {
-            SessionCookieService.PresentedSession presented =
-                    sessionCookieService.resolvePresentedSession(httpRequest);
-            if (presented != null && presented.realm() == SessionCookieService.Realm.ADMIN) {
-                token = presented.token();
-            }
-        }
-        if (token == null || token.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
-        }
-        JwtService.SessionPrincipal principal = jwtService.validateAndGetPrincipal(token);
-        if (!OperatorAuth.isOperator(principal.userId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CONSUMER_CANNOT_USE_ADMIN);
-        }
-        authService.bindMerchantWeChat(principal.userId(), request.code());
-        return ApiResponse.ok(null);
-    }
-
     @PostMapping("/alipay/login")
     public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request,
                                                   HttpServletResponse response) {

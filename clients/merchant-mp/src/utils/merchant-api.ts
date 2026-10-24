@@ -321,28 +321,6 @@ export function merchantLogin(
   });
 }
 
-/** CB-048：商户微信免密登录（openid 须已绑定商户账号；2FA 商户回 challenge）。 */
-export function merchantWxLogin(code: string) {
-  return request<LoginResponse>(AuthEndpoints.merchantWxLogin, 'POST', { code }, false).then(
-    async (data) => {
-      applyLoginSession(data);
-      await sharedLoadRuntimeDict({
-        getToken: getToken,
-        fetchRuntime: () => request(MerchantEndpoints.dictsRuntime, 'GET')
-      });
-      return data;
-    }
-  );
-}
-
-/**
- * CB-048：绑定当前微信到已登录商户账号（幂等；换微信号=密码登录后重绑覆盖）。
- * 只能在密码登录成功后的会话内调用（后端校验商户 realm）。
- */
-export function merchantWxBind(code: string) {
-  return request<void>(AuthEndpoints.merchantWxBind, 'POST', { code }, true);
-}
-
 /** 上传响应 data 须为有效附件（M-19） */
 function parseFileAttachmentDto(
   data: unknown

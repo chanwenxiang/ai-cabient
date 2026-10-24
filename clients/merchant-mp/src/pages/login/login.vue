@@ -95,24 +95,6 @@
           :label="loading ? '登录中…' : '登录'"
           @click="onLogin"
         />
-        <!-- CB-048：微信绑定免密登录——已绑定商户账号的微信可一键登录；
-             未绑定走密码登录，登录成功后自动静默绑定当前微信 -->
-        <!-- AU-192：微信一键登录依赖 uni.login(provider=weixin)，H5 端无此能力必失败；
-             消费端同按钮有 #ifdef H5 分支，商户端此前无条件渲染 ⇒ H5 用户点必报错。 -->
-        <!-- #ifdef MP-WEIXIN -->
-        <view class="wx-divider"><text class="wx-divider__text">或</text></view>
-        <app-button
-          class="wx-login-btn"
-          data-testid="login-wx"
-          size="md"
-          shape="pill"
-          variant="wechat"
-          :loading="wxLoading"
-          :disabled="loading || wxLoading"
-          :label="wxLoading ? '微信登录中…' : '微信一键登录'"
-          @click="onWxLogin"
-        />
-        <!-- #endif -->
         <text v-if="err" class="err" data-testid="login-error">{{ err }}</text>
         <text v-if="isDev && demoHint" class="hint">{{ demoHint }}</text>
       </view>
@@ -129,13 +111,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import {
-  merchantLogin,
-  merchantApi,
-  merchantWxLogin,
-  merchantWxBind,
-  clearSession
-} from '@/utils/merchant-api';
+import { merchantLogin, merchantApi } from '@/utils/merchant-api';
 import { showDevTools } from '@/utils/runtime-flags';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
@@ -193,7 +169,6 @@ const demoHint =
 const phone = ref(isDev && demoPhone ? demoPhone : '');
 const password = ref(isDev && demoPassword ? demoPassword : '');
 const loading = ref(false);
-const wxLoading = ref(false);
 const err = ref('');
 
 function persistCredentials() {
@@ -240,17 +215,6 @@ async function onLogin() {
     pwFailCount = 0;
     persistCredentials();
     await finishLoginFlow();
-    // CB-048：密码登录成功后静默绑定当前微信（幂等；换微信号重登即换绑）。
-    // 失败不阻断登录（如该微信已绑其它账号 → 409，下次密码登录再试）；
-    // fire-and-forget：绑定不阻塞进工作台（页面卸载后 uni.request 照常完成）。
-    void (async () => {
-      try {
-        const bindCode = await wxLoginCode();
-        await merchantWxBind(bindCode);
-      } catch {
-        /* 绑定失败静默：下次密码登录再试 */
-      }
-    })();
     uni.switchTab({ url: '/pages/home/home' });
   } catch (e) {
     const msg = e instanceof Error ? e.message : '登录失败';
@@ -265,42 +229,6 @@ async function onLogin() {
   } finally {
     loading.value = false;
   }
-}
-
-/** CB-048：微信一键登录——wx.login 静默授权，openid 已绑定商户账号则免密进入。 */
-async function onWxLogin() {
-  if (wxLoading.value) return;
-  wxLoading.value = true;
-  err.value = '';
-  try {
-    const code = await wxLoginCode();
-    const data = await merchantWxLogin(code);
-    if (data.twoFactorRequired) {
-      // 商户端无 2FA 校验页（TOTP 仅运营后台使用），引导走密码登录兜底
-      err.value = '该账号已开启两步验证，请使用密码登录';
-      clearSession();
-      return;
-    }
-    await finishLoginFlow();
-    uni.switchTab({ url: '/pages/home/home' });
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '微信登录失败，请使用密码登录';
-  } finally {
-    wxLoading.value = false;
-  }
-}
-
-function wxLoginCode(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    uni.login({
-      provider: 'weixin',
-      success: (res) => {
-        if (res.code) resolve(res.code);
-        else reject(new Error('微信授权失败，请重试'));
-      },
-      fail: () => reject(new Error('微信授权失败，请重试'))
-    });
-  });
 }
 
 /** 登录成功共用收尾：拉 profile 供工作台直读。 */
@@ -573,19 +501,6 @@ async function finishLoginFlow() {
  * 尺寸/圆角走组件 prop；这里只给宿主节点加间距。 */
 .login-submit {
   margin-top: 12rpx;
-}
-.wx-divider {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  margin: 20rpx 0 16rpx;
-}
-.wx-divider__text {
-  color: rgba(204, 251, 241, 0.5);
-  font-size: var(--font-size-caption);
-}
-.wx-login-btn {
-  margin-top: 0;
 }
 .err {
   color: var(--color-danger);

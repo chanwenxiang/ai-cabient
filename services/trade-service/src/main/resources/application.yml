@@ -136,7 +136,9 @@ aicabinet:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
     # 过期 token 仅允许 refresh 的宽限期（秒）：闲置后回来可静默续期；登出/吊销/重启语义不受影响
-    refresh-grace-seconds: ${JWT_REFRESH_GRACE_SECONDS:86400}
+    # ✔ 2026-10-24 用户拍板（商户端登录体验复盘）：补货员「每天上班开一次」的节奏恰好踩在 24h 宽限线上（两次打开间隔 >24.5h 即断会话 ⇒ 天天输密码）。
+    #    调到 7 天：每周输一次，体感≈免密；密码永不出服务端（否决「记住密码」方案——2026-10-16 A6⑥ 审计已拍板删除，勿回潮）。
+    refresh-grace-seconds: ${JWT_REFRESH_GRACE_SECONDS:604800}
     cookie-enabled: ${AUTH_COOKIE_ENABLED:true}
     cookie-secure: ${AUTH_COOKIE_SECURE:false}
     login-max-failures: ${LOGIN_MAX_FAILURES:5}
