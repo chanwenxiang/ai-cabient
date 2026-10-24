@@ -70,6 +70,17 @@ public class PayoutAccount {
     /** ACTIVE / DISABLED（停用后不可用于新提现单，历史单快照不受影响） */
     private String status;
 
+    /**
+     * 版本号：<b>预留，当前未参与并发校验</b>。V307 的列注释写「防止并发改账户」是目标态——
+     * 本仓既没有 {@code @Version}，也没注册乐观锁拦截器，写入路径（{@code insert}、
+     * {@link com.aicabinet.trade.mapper.PayoutAccountMapper#switchDefault}、
+     * {@code PayoutAccountService#disable} 的 {@code updateById}）都<b>不</b>递增它。
+     *
+     * <p>要接成真锁，必须所有写路径一起改（含 {@code switchDefault} 的 SQL 里
+     * {@code SET version = version + 1}），只给某一条加 {@code where version = ?} 会让版本号
+     * 变成「只在部分写入时前进」的假时钟。现有并发窗口无害：{@code switchDefault} 只碰
+     * ACTIVE 行，停用后的账户由 {@code resolveForApply} 的 ACTIVE 校验兜住。
+     */
     private Integer version;
     private Long createdBy;
     private Long reviewedBy;

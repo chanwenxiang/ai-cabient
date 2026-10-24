@@ -139,7 +139,14 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
         return net;
     }
 
-    /** 已完成扣款合计（分），不含退款。 */
+    /**
+     * 已完成扣款合计（分），不含退款：COMPLETED 的 CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE 之和。
+     *
+     * <p>与 V384 回填（原样求和）唯一的差异：本方法逐行 {@code Math.max(0, …)}。只影响历史上的
+     * 负入账行——现网写入口 {@code OrderPaymentService#applyPaymentDelta} 把负差额转 {@code refundOrder}
+     * （写 REFUND 行），不产生负入账行。负行会让本方法偏大，冻结因此只会多不会少；
+     * 不要为了「和回填逐字一致」去掉 clamp（V384 已应用不可改，且换方向会改佣金基数）。
+     */
     default int chargedCompletedCents(String orderId) {
         int charged = 0;
         for (PaymentOperation op : findCompletedPaymentOpsByOrderId(orderId)) {

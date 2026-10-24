@@ -195,6 +195,12 @@ public class DevicePresenceService {
                 d.setOnlineStatus("OFFLINE");
                 d.setOnlineSince(null);
                 d.setLastOfflineAt(Instant.now());
+                // 成因（2026-10-23）：MP 默认 NOT_NULL 更新策略不把 null 上库，下方 save()
+                // 后库里 online_since 仍是旧值 ⇒ 重连后 ws-online 见非空不重置，「最近上线」
+                // 停留在断线前（实证 EG943322621391：断开 36 秒重连仍显示前一天）；
+                // 且污染「稳定在线自动解锁」的判据（重连即视为已在线很久）。
+                // 与 markDeviceOffline 的 MQTT 巡检路径同款修复：wrapper 显式写 null。
+                deviceRepository.clearOnlineSince(deviceId);
             }
             d.setUpdatedAt(Instant.now());
             deviceRepository.save(d);

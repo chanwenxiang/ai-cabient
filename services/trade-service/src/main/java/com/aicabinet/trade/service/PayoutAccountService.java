@@ -9,7 +9,6 @@ import com.aicabinet.trade.payout.PayoutChannel;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConstants;
 import com.aicabinet.trade.payout.PayoutFieldCipher;
-import com.aicabinet.trade.util.BizIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -125,6 +124,12 @@ public class PayoutAccountService {
      * 停用账户。
      *
      * <p><b>不做物理删除</b>：历史提现单靠快照展示收款方，删账户会让已打款记录失去可追溯性。
+     *
+     * <p>整行 {@code updateById} 不带版本条件：{@code payout_account.version} 目前是预留列
+     * （见 {@link com.aicabinet.trade.domain.PayoutAccount}）。现有写入口只有「新建 / 设默认 /
+     * 停用」，没有并发改同一账户资料的路径；{@code switchDefault} 只更新 ACTIVE 行，
+     * 停用与设默认交错时最坏是默认标记短暂指向停用账户，提现申请会被 {@code resolveForApply}
+     * 的 ACTIVE 校验拦下，不动钱。新增「编辑账户」入口时须连同版本条件一起接。
      */
     public void disable(String ownerType, String ownerId, long accountId, Long operatorId) {
         PayoutAccount account = requireOwned(ownerType, ownerId, accountId);
@@ -190,9 +195,16 @@ public class PayoutAccountService {
         return payee;
     }
 
-    /** 幂等键：同一笔提现单复用（重试打款不换键 ⇒ 渠道侧不重复出款）。 */
+    /**
+     * 渠道幂等键：{@code <prefix>:<requestId>}。
+     *
+     * <p>只由不变业务要素构成（lessons #97/#225）：{@code requestId} 是提现单主键，
+     * 同一单据的每次重试得到同一个键，不同单据天然不同。<b>不得</b>再拼随机/时间后缀——
+     * 那会让重试换键，渠道侧无法识别为同一笔出款。建单时仍应把键落库（{@code idem_key}）
+     * 以便审计与重放。
+     */
     public static String newIdemKey(String prefix, long requestId) {
-        return prefix + ":" + requestId + ":" + BizIds.nextNumeric();
+        return prefix + ":" + requestId;
     }
 
     /**
