@@ -490,7 +490,7 @@ public class MerchantWithdrawService {
     /**
      * 写打款幂等键。<b>必须在 insert 之后</b> —— 键里含 requestId（自增主键）。
      *
-     * <p>形态：{@code MW:<requestId>:<随机>}。随机段是为了让「同一 requestId 的不同重试」
+     * <p>形态：{@code MW:<requestId>}。只由不变业务要素构成，同一单据的不同重试
      * 保持同一个键（重试不换键 ⇒ 渠道侧幂等），而不同单据天然不同。
      */
     private void applyIdemKey(MerchantWithdrawRequest request) {
