@@ -5,8 +5,9 @@
       它挂在 nav-bar 的 #right 插槽上，紧贴标题右侧、真机视觉上像标题的一部分，
       且与列表内既有的单条已读操作并列时功能重叠。
       连带清理：markAllRead() 函数与 .nav-read-all 样式块。
-      ⚠️ 未动 `consumer-api.ts` 的 markAllNotificationsRead —— 它是公共 API 定义（:854），
-         本页只是不再调用，删定义会波及其他调用方。
+      ⚠️ `consumer-api.ts` 的 markAllNotificationsRead 保留：它对应真实后端端点
+         （ConsumerNotificationController /read-all），只是本页按 2026-10-08 决定不再调用——
+         API client 层「有后端无调用方」不算死代码（2026-10-23 曾误删后恢复）。
       ⚠️ 保留 messages 页自身的未读筛选（app-underline-tabs）与订阅提醒入口 —— 那是消息中心的
       主体功能，不属于「通知按钮」。`unread` ref 也必须保留（未读筛选 / 单条已读后递减 / 卡片样式
       共 8 处引用），只删按钮不删计数。
@@ -67,6 +68,8 @@
           <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
           <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
         </view>
+        <!-- 接口一次性返回上限 100 条、无游标分页，超限旧消息不可见须显式说明（审计 M5） -->
+        <text v-if="list.length >= 100" class="msg-cap">仅显示最近 100 条消息</text>
       </view>
 
       <!--
@@ -438,6 +441,13 @@ function formatTime(t?: string) {
 }
 .msg-list {
   background: #ffffff;
+}
+.msg-cap {
+  display: block;
+  padding: 20rpx 0 8rpx;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle, #9aa4a0);
 }
 .msg-card {
   margin: 0;

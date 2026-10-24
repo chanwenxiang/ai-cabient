@@ -186,7 +186,13 @@
       </view>
 
       <view v-if="canExport" class="actions">
-        <app-button variant="outline" label="导出对账单" @click="onExport" />
+        <app-button
+          variant="outline"
+          label="导出对账单"
+          :loading="exporting"
+          :disabled="exporting"
+          @click="onExport"
+        />
       </view>
     </view>
   </view>
@@ -198,7 +204,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { fmtMoney, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import {
   hasPerm,
@@ -218,6 +224,7 @@ import type {
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
+const exporting = ref(false);
 
 function localDateISO(d: Date) {
   const y = d.getFullYear();
@@ -265,13 +272,9 @@ function isSettlementRangeInvalid(start: string, end: string): boolean {
   return a > b;
 }
 
-function formatBatchTime(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+// 2026-10-23 审计 L2：手写 MM-DD HH:mm 与共享 formatDateTimeShort（MM/DD HH:mm，东八区）
+// 语义等价，收敛到共享版防格式漂移（与钱包/争议页时间格式统一）。
+const formatBatchTime = (iso?: string) => formatDateTimeShort(iso, '');
 
 const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'] as const;
 
@@ -481,6 +484,7 @@ async function load() {
 }
 
 function onExport() {
+  if (exporting.value) return; // 防重复导出（连续点击触发多次文件下载）
   if (!canExport.value) {
     showError('无导出权限');
     return;
@@ -489,6 +493,7 @@ function onExport() {
     showError('开始日期不能晚于结束日期');
     return;
   }
+  exporting.value = true;
   const url = merchantApi.exportSettlementsUrl(startDate.value, endDate.value);
   downloadAuthedFile(url)
     .then(async (tempFilePath) => {
@@ -497,6 +502,9 @@ function onExport() {
     })
     .catch((e) => {
       showError(e instanceof Error ? e.message : '导出失败');
+    })
+    .finally(() => {
+      exporting.value = false;
     });
 }
 </script>
@@ -508,7 +516,7 @@ function onExport() {
   min-height: 100vh;
 }
 .period-card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 16rpx 20rpx 18rpx;
   margin-bottom: 20rpx;
@@ -531,7 +539,7 @@ function onExport() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-control);
 }
@@ -558,7 +566,7 @@ function onExport() {
   font-weight: 600;
 }
 .summary-card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: none;
   border-radius: var(--radius-panel);
   padding: 28rpx 30rpx 24rpx;
@@ -603,7 +611,7 @@ function onExport() {
 .kpi-cell {
   flex: 1;
   min-width: 0;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-tag);
   padding: 14rpx 12rpx;
@@ -654,7 +662,7 @@ function onExport() {
   font-size: var(--font-size-sm);
 }
 .section {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 20rpx;
@@ -742,7 +750,7 @@ function onExport() {
   align-items: stretch;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

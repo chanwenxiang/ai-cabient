@@ -3,7 +3,7 @@
     <app-nav-bar :title="navTitle" />
     <view class="page-body">
       <view class="policy-card">
-        <text class="policy-updated">更新日期：2026-08-08 · 版本 V1.2</text>
+        <text class="policy-updated">{{ metaText }}</text>
         <view v-for="section in sections" :key="section.title" class="section">
           <text class="section-title">{{ section.title }}</text>
           <text v-for="(p, i) in section.paragraphs" :key="i" class="section-p">{{ p }}</text>
@@ -34,6 +34,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import { consumerApi } from '@/utils/consumer-api';
 
 interface PolicySection {
   title: string;
@@ -233,8 +234,45 @@ const CONTENTS: Record<PolicyType, PolicySection[]> = {
   ]
 };
 
-const sections = computed(() => CONTENTS[type.value] || CONTENTS.agreement);
-const navTitle = computed(() => TITLES[type.value] || TITLES.agreement);
+// 内置内容是法审真稿的兜底副本；线上以后端 /public/policies（public-legal.json）为准，
+// 两者内容已通过 .tmp/sync-policy-legal.mjs 同步一致（2026-10-23）。接口失败/缺类型时
+// 落回内置——备案要求条款离线可用，不允许白屏。
+const remotePolicies = ref<
+  Map<string, { title: string; version: string; updatedAt: string; sections: PolicySection[] }>
+>(new Map());
+
+const sections = computed(
+  () => remotePolicies.value.get(type.value)?.sections || CONTENTS[type.value] || CONTENTS.agreement
+);
+const navTitle = computed(
+  () => remotePolicies.value.get(type.value)?.title || TITLES[type.value] || TITLES.agreement
+);
+const metaText = computed(() => {
+  const remote = remotePolicies.value.get(type.value);
+  const updated = remote?.updatedAt || '2026-08-08';
+  const version = remote?.version || 'V1.2';
+  return `更新日期：${updated} · 版本 ${version}`;
+});
+
+async function loadRemotePolicies() {
+  try {
+    const list = await consumerApi.consumerPublicPolicies();
+    const map = new Map();
+    for (const p of list || []) {
+      if (p?.type && Array.isArray(p.sections) && p.sections.length) {
+        map.set(p.type, {
+          title: p.title,
+          version: p.version,
+          updatedAt: p.updatedAt,
+          sections: p.sections
+        });
+      }
+    }
+    if (map.size) remotePolicies.value = map;
+  } catch {
+    /* 静默：条款必须始终可读，失败保持内置内容 */
+  }
+}
 
 const relatedLinks: Array<{ type: PolicyType; label: string }> = [
   { type: 'agreement', label: '用户协议' },
@@ -246,7 +284,8 @@ const relatedLinks: Array<{ type: PolicyType; label: string }> = [
 function switchType(next: PolicyType) {
   if (next === type.value) return;
   routeType.value = next;
-  uni.setNavigationBarTitle({ title: TITLES[next] });
+  // 标题由 <app-nav-bar :title="navTitle"> 驱动（本页 navigationStyle:custom，
+  // 原生标题栏不存在，setNavigationBarTitle 是 no-op——2026-10-23 第五轮审计删除）
 }
 
 function goHelp() {
@@ -255,6 +294,7 @@ function goHelp() {
 
 onLoad((query) => {
   routeType.value = String(query?.type || 'agreement');
+  void loadRemotePolicies();
 });
 </script>
 
@@ -266,11 +306,11 @@ onLoad((query) => {
   background: var(--card-bg, #ffffff);
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .policy-card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx 28rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);

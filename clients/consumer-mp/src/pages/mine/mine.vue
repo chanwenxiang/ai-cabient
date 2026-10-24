@@ -693,7 +693,6 @@ onShow(async () => {
       /* keep previous snapshot */
     }
   }
-  if (!authed.value) return;
 });
 
 async function refreshAccount() {
@@ -728,7 +727,8 @@ async function onAlipayRecharge() {
     const key = mineRechargeIdempotencyKey('alipay');
     const { mode } = await runAlipayRecharge(MINE_DEV_RECHARGE_CENTS, key);
     if (mode === 'live') {
-      showError('请在支付宝完成支付');
+      // 正常流程提示（跳转支付宝收银台），非错误——不用 showError 的红色样式
+      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
       return;
     }
     await refreshAccount();

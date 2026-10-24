@@ -224,6 +224,9 @@
             >
           </view>
         </view>
+        <!-- G 静默截断提示（2026-10-24 缺陷类门禁）：visibleRecords 只取最近 20 条，
+             与销售明细/消息中心同口径明示，避免用户以为看到全量 -->
+        <view v-if="visibleRecords.length" class="list-caption">仅展示最近 20 条充值记录</view>
       </view>
 
       <view v-if="devTools" class="note">体验充值不会产生真实扣款。</view>
@@ -305,7 +308,15 @@ const visibleRecords = computed(() =>
 );
 
 onShow(async () => {
-  await ensureConsumerAuth();
+  // 登录守卫（2026-10-23 审计 B1）：此前丢弃 ensureConsumerAuth 返回值，
+  // 主动退出过的用户进本页余额显示「--」、点支付才 401；若 loadConfig 也失败
+  // 会误显「暂未开通在线充值」——把「未登录」报成「渠道未开通」。
+  if (!(await ensureConsumerAuth())) {
+    uni.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/recharge/recharge')
+    });
+    return;
+  }
   await loadConfig();
   await Promise.all([loadBalance(), loadRecords(), loadRefundRequests()]);
   const paid = await resumePendingRechargeIfAny();

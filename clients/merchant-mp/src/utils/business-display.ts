@@ -81,6 +81,9 @@ export function rowAov(r: { orderCount?: number | null; revenueCents?: number | 
 export function formatInsightTime(iso?: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);
+  // 非法 ISO 兜底（第四轮审计）：后端若下发异常 generatedAt，
+  // 旧代码会直出 "NaN-NaN NaN:NaN"
+  if (!Number.isFinite(d.getTime())) return '';
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

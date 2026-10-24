@@ -29,7 +29,7 @@
   margin: 0;
   padding: 24rpx;
   width: 100%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 18rpx);
   box-sizing: border-box;
 }
@@ -56,6 +56,10 @@
   color: var(--brand-deep, var(--brand));
   font-size: var(--font-size-md);
   font-weight: 700;
+}
+/* 多商户切换（2026-10-23 审计）：picker 内的可点区域撑满行尾 */
+.picker-val {
+  display: block;
 }
 .row {
   display: flex;

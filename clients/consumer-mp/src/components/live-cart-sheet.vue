@@ -110,7 +110,7 @@ const totalAmountCents = computed(() =>
 .sheet-panel {
   width: 100%;
   max-height: 72vh;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card) 28rpx 0 0;
   padding: 4rpx 28rpx 24rpx;
   box-sizing: border-box;

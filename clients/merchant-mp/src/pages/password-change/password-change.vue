@@ -65,7 +65,7 @@ async function submit() {
 
 <style scoped>
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
 }
 .card {
   background: #fff;

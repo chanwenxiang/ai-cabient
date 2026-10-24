@@ -68,7 +68,8 @@
             <app-button
               variant="primary"
               block
-              :loading="taxSaving"
+              :loading="taxSaving || taxLoading"
+              :disabled="taxSaving || taxLoading"
               label="保存"
               @click="saveTax"
             />
@@ -84,7 +85,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { showError, showSuccess } from '@/utils/notify';
+import { showConfirm, showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
 import {
@@ -97,6 +98,8 @@ import {
 const { me, refresh: refreshMe } = useMerchantMe();
 const taxMerchantId = ref('');
 const taxSaving = ref(false);
+/** 切换商户后档案加载中的门闩：加载完成前禁止保存（第五轮审计 M-2 跨商户写穿窗口） */
+const taxLoading = ref(false);
 const taxForm = ref(emptyTaxProfileForm());
 
 const merchantOptions = computed(() =>
@@ -132,27 +135,73 @@ async function ensureLogin() {
   return true;
 }
 
+/** 请求序号守卫（2026-10-23 审计 H1）：多商户快速切换时，迟到的旧商户响应不得灌进表单——
+ * 否则「picker 显示 B、表单是 A」，用户一保存就把 A 的开票抬头写进商户 B（跨商户写穿） */
+let loadTaxSeq = 0;
+
+/** 表单「已加载基线」快照：onShow 重拉前比对，用户有未保存编辑时不被服务端值覆盖
+ * （2026-10-23 第四轮审计：编辑中切后台再回前台，编辑被静默冲掉）。
+ * 🔴 初值必须取当前表单的序列化：若为 ''，首屏 taxForm=emptyTaxProfileForm()
+ * 就与 '' 不等 → taxDirty 永真 → onShow 永远跳过加载，税号页空表单（第五轮自查回归）。 */
+const taxBaseline = ref(JSON.stringify(taxForm.value));
+
+function captureTaxBaseline() {
+  taxBaseline.value = JSON.stringify(taxForm.value);
+}
+
+const taxDirty = computed(() => JSON.stringify(taxForm.value) !== taxBaseline.value);
+
 async function loadTaxProfile() {
   const mid = taxMerchantId.value;
   if (!mid) return;
+  const seq = ++loadTaxSeq;
   try {
     const p = await merchantApi.getTaxProfile(mid);
+    if (seq !== loadTaxSeq) return;
     taxForm.value = mapTaxProfileToForm(p);
+    captureTaxBaseline();
   } catch {
+    if (seq !== loadTaxSeq) return;
     taxForm.value = emptyTaxProfileForm();
+    // 失败分支也要重置基线：否则空表单与初始 '' 不等，dirty 永真，
+    // 之后 onShow 再也不重拉，失败态会被钉死在本页。
+    captureTaxBaseline();
   }
 }
 
 function onMerchantPick(e: { detail?: { value?: string | number } }) {
   const next = merchantOptions.value[Number(e.detail?.value)]?.id || '';
   if (!next || next === taxMerchantId.value) return;
+  if (taxDirty.value) {
+    // 切商户=放弃未保存编辑（2026-10-23 第五轮审计 L-1）：显式确认，不静默冲掉
+    void showConfirm({
+      title: '放弃未保存的修改？',
+      content: '切换开票商户后，当前未保存的编辑将丢失',
+      confirmText: '放弃并切换'
+    }).then((ok) => {
+      if (ok) switchTaxMerchant(next);
+    });
+    return;
+  }
+  switchTaxMerchant(next);
+}
+
+function switchTaxMerchant(next: string) {
   taxMerchantId.value = next;
-  void loadTaxProfile();
+  // 🔴 同步清空表单+置加载中（第五轮审计 M-2）：档案异步到达前 saveTax 会把旧商户
+  // 抬头写进新商户（跨商户写穿窗口）。空表单+重置基线=不 dirty；taxLoading 门闩
+  // 拦保存，按钮同步置灰，加载完成才恢复。
+  taxForm.value = emptyTaxProfileForm();
+  captureTaxBaseline();
+  taxLoading.value = true;
+  loadTaxProfile().finally(() => {
+    taxLoading.value = false;
+  });
 }
 
 async function saveTax() {
   const mid = taxMerchantId.value;
-  if (!mid || taxSaving.value) return;
+  if (!mid || taxSaving.value || taxLoading.value) return;
   if (!canEditProfile.value) {
     showError('无资料编辑权限');
     return;
@@ -166,6 +215,8 @@ async function saveTax() {
   try {
     await merchantApi.saveTaxProfile(buildSaveTaxProfileBody(mid, taxForm.value));
     showSuccess('已保存');
+    // 保存成功=服务端已认可当前表单，重置基线避免残留 dirty 拦之后的重拉
+    captureTaxBaseline();
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -176,6 +227,9 @@ async function saveTax() {
 onShow(async () => {
   if (!(await ensureLogin())) return;
   if (!taxMerchantId.value) taxMerchantId.value = merchantOptions.value[0]?.id || '';
+  // 有未保存编辑时不重拉（2026-10-23 第四轮审计）：切后台回前台不该冲掉用户输入；
+  // 表单干净时才重拉，保证他人/他端修改能同步进来。切商户走 onMerchantPick 显式重拉。
+  if (taxDirty.value) return;
   await loadTaxProfile();
 });
 </script>

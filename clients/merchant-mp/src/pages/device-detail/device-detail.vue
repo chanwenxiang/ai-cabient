@@ -796,26 +796,6 @@ async function saveSlots() {
 </script>
 
 <style scoped>
-.temp-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 12rpx 0;
-  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
-}
-.temp-row:last-child {
-  border-bottom: none;
-}
-.temp-val {
-  font-size: var(--font-size-body);
-  font-weight: 700;
-  color: var(--brand);
-}
-.temp-val.warn {
-  color: var(--warning, #b45309);
-}
-
 .velocity-row {
   display: flex;
   align-items: center;
@@ -954,7 +934,7 @@ async function saveSlots() {
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 0 12px;
@@ -1022,7 +1002,7 @@ async function saveSlots() {
   color: var(--color-danger);
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 /* 保存货道与货道网格的间距：margin 写在自定义组件标签上小程序端不生效，改用页面容器 */

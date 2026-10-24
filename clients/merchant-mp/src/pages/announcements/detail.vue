@@ -48,7 +48,7 @@ onLoad((query) => {
   box-sizing: border-box;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx 28rpx;
   box-shadow: 0 8rpx 24rpx rgba(13, 148, 136, 0.06);
@@ -102,7 +102,7 @@ onLoad((query) => {
   line-height: 1.75;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

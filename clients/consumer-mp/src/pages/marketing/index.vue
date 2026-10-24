@@ -112,6 +112,7 @@ import {
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
+import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 /*
@@ -217,26 +218,12 @@ async function load() {
 }
 
 function openPath(path?: string) {
-  if (!path) return;
-  const raw = String(path).trim();
-  // 仅允许本小程序页面路径，禁止外链 / 协议跳转
-  if (!raw.startsWith('/pages/') || /[\s\\]/.test(raw) || raw.includes('://')) {
+  // 校验与跳转统一收敛到 campaign-path（审计 M3，与 marketing-ad-banner 同口径）
+  if (path && !isSafeCampaignPath(path)) {
     showError('活动链接无效');
     return;
   }
-  const pathOnly = raw.split('?')[0] || raw;
-  if (
-    pathOnly === '/pages/index/index' ||
-    pathOnly.startsWith('/pages/index/') ||
-    pathOnly === '/pages/orders/orders' ||
-    pathOnly.startsWith('/pages/orders/') ||
-    pathOnly === '/pages/mine/mine' ||
-    pathOnly.startsWith('/pages/mine/')
-  ) {
-    uni.switchTab({ url: pathOnly });
-    return;
-  }
-  uni.navigateTo({ url: raw });
+  openCampaignPath(path);
 }
 
 function displayCta(c: MarketingCampaignDto) {
@@ -304,7 +291,8 @@ function remainText(end?: string) {
   const t = new Date(end).getTime();
   if (!Number.isFinite(t)) return '';
   const diff = t - Date.now();
-  if (diff <= 0) return '即将结束';
+  // 已过 endTime（含客户端时钟小幅偏差）显示「已结束」，不能落进「即将结束」分支（审计 L7）
+  if (diff <= 0) return '已结束';
   const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
   if (days <= 1) return '今日截止';
   if (days <= 7) return `剩 ${days} 天`;
@@ -341,7 +329,7 @@ function remainText(end?: string) {
 }
 .page-body {
   /* 唯一水平边距：banner / 入口卡 / 底部操作同宽（勿用 CSS 变量，旧基础库可能整段 padding 失效） */
-  padding: 20rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 20rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   width: 100%;
 }
@@ -447,10 +435,10 @@ function remainText(end?: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 28rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx);
   margin: 0 0 16rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
   box-sizing: border-box;
   width: 100%;
@@ -487,10 +475,10 @@ function remainText(end?: string) {
   color: var(--text-primary, #1b3027);
 }
 .campaign {
-  padding: 26rpx 24rpx;
+  padding: 26rpx var(--page-gutter, 24rpx);
   margin-bottom: 16rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
 .campaign-badge {

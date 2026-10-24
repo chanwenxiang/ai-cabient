@@ -13,14 +13,22 @@ import { consumerApi } from './consumer-api';
  */
 let cache: Record<string, string> | null = null;
 let inflight: Promise<Record<string, string>> | null = null;
+/**
+ * 2026-10-23 审计残留修复：原先失败也 `cache = {}` 永久钉死 ⇒ 首次拉取赶上网络抖动，
+ * 整个进程生命周期的开关全关、再无重试。现失败只记负缓存时间戳：
+ * TTL 窗口内直接回空表（fail-closed 不变、不刷接口），窗口过后允许重试。
+ */
+const FAILURE_RETRY_MS = 30_000;
+let lastFailureAt = 0;
 
 function enabled(raw: unknown): boolean {
   return raw === true || raw === 'true' || raw === '1';
 }
 
-/** 拉取并缓存公开配置（进程内一次）。失败时缓存空表 ⇒ 所有开关按「关」。 */
+/** 拉取并缓存公开配置（成功后进程内一次）。失败时不入正缓存，仅 30s 负缓存窗口内免重试。 */
 export async function loadConsumerFlags(): Promise<Record<string, string>> {
   if (cache) return cache;
+  if (lastFailureAt && Date.now() - lastFailureAt < FAILURE_RETRY_MS) return {};
   if (inflight) return inflight;
   inflight = consumerApi
     .consumerPublicConfig()
@@ -29,8 +37,8 @@ export async function loadConsumerFlags(): Promise<Record<string, string>> {
       return cache;
     })
     .catch(() => {
-      cache = {};
-      return cache;
+      lastFailureAt = Date.now();
+      return {} as Record<string, string>;
     })
     .finally(() => {
       inflight = null;

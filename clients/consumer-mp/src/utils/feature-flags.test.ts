@@ -100,7 +100,7 @@ describe('扩展功能开关读取器', () => {
     expect(m.adBannerEnabled()).toBe(true);
   });
 
-  it('loadConsumerFlags 请求失败 ⇒ 缓存空表、开关全关（fail-closed，且不抛穿）', async () => {
+  it('loadConsumerFlags 请求失败 ⇒ 本次回空表、开关全关（fail-closed，且不抛穿）', async () => {
     consumerPublicConfig.mockRejectedValue(new Error('network down'));
     const m = await fresh();
     await expect(m.loadConsumerFlags()).resolves.toEqual({});
@@ -108,6 +108,45 @@ describe('扩展功能开关读取器', () => {
     expect(m.orderSearchEnabled()).toBe(false);
     expect(m.productDetailEnabled()).toBe(false);
     expect(m.adBannerEnabled()).toBe(false);
+  });
+
+  it('🔴 失败负缓存窗口内再调不刷接口（防打爆），仍 fail-closed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-23T18:00:00'));
+    try {
+      consumerPublicConfig.mockRejectedValue(new Error('network down'));
+      const m = await fresh();
+      await m.loadConsumerFlags();
+      await m.loadConsumerFlags();
+      await m.loadConsumerFlags();
+      expect(consumerPublicConfig).toHaveBeenCalledTimes(1);
+      expect(m.couponEntryEnabled()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('🔴 失败 30s 后必须允许重试 —— 一次网络抖动不能把开关钉死整个进程（本次修复的核心断言）', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-23T18:00:00'));
+    try {
+      consumerPublicConfig.mockRejectedValueOnce(new Error('network down'));
+      const m = await fresh();
+      await m.loadConsumerFlags();
+      expect(m.couponEntryEnabled()).toBe(false);
+      // 负向对照：窗口内重试被负缓存拦住
+      vi.advanceTimersByTime(29_000);
+      await m.loadConsumerFlags();
+      expect(consumerPublicConfig).toHaveBeenCalledTimes(1);
+      // TTL 过后重试，成功 ⇒ 开关打开
+      vi.advanceTimersByTime(2_000);
+      consumerPublicConfig.mockResolvedValue({ couponEntryEnabled: 'true' });
+      await m.loadConsumerFlags();
+      expect(consumerPublicConfig).toHaveBeenCalledTimes(2);
+      expect(m.couponEntryEnabled()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('loadConsumerFlags 成功 ⇒ 下发键进缓存，开关随值打开', async () => {

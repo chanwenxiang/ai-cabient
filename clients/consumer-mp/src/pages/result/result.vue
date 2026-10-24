@@ -131,6 +131,15 @@
       <view class="footer-actions">
         <app-button label="返回本柜" @click="continueShop" />
         <app-button variant="ghost" label="查看订单" @click="goOrders" />
+        <!-- 账单通知订阅（2026-10-24 审计留置②收口）：requestSubscribeMessage 必须在
+             用户点击上下文中调用才稳定弹窗，故从 index.vue 关门结算异步链迁到这里 -->
+        <app-button
+          v-if="showSubscribeEntry"
+          variant="ghost"
+          :label="subscribing ? '订阅中…' : '订阅账单通知'"
+          :disabled="subscribing"
+          @click="onSubscribeBill"
+        />
 
         <view v-if="sessionId && !disputeFiled && !refundDone" class="secondary-actions">
           <text role="button" class="secondary-link warn" @click="openDispute">账单有问题</text>
@@ -180,7 +189,7 @@
 
 <script setup lang="ts">
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { showError, showSuccess, showConfirm } from '@/utils/notify';
+import { showError, showSuccess, showConfirm, requestOrderSubscribe } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -313,8 +322,44 @@ function currentPageOptions(): Record<string, string> {
   return cur?.options || {};
 }
 
+// ── 账单通知订阅（2026-10-24 审计留置②收口）──────────────────────────
+// 微信 requestSubscribeMessage 要求在用户点击上下文中调用才稳定弹窗；
+// 原挂在 index.vue 关门结算异步链上，部分基础库版本会静默失败。
+// 平台门控沿用 messages.vue 的 M-P2-14 口径：编译期判定，H5 不展示入口。
+let isMpWeixin = false;
+// #ifdef MP-WEIXIN
+isMpWeixin = true;
+// #endif
+const subscribeTmplId = ref('');
+const subscribing = ref(false);
+const showSubscribeEntry = computed(() => isMpWeixin && !!subscribeTmplId.value);
+
+async function loadSubscribeTemplateId() {
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    // 拉取失败按无模板处理——订阅是增益功能，不阻断结果页主流程
+    subscribeTmplId.value = String(cfg?.wechatSubscribeTemplateId || '').trim();
+  } catch {
+    subscribeTmplId.value = '';
+  }
+}
+
+async function onSubscribeBill() {
+  // F4 在途门闩：一次性弹窗入口，防双击连发
+  if (!subscribeTmplId.value || subscribing.value) return;
+  subscribing.value = true;
+  try {
+    // wrapper 在 complete 即 resolve，无法区分同意/拒绝——微信弹窗本身就是反馈，
+    // 用户选了「总是保持以上选择」后再次点击不会重复弹窗
+    await requestOrderSubscribe([subscribeTmplId.value]);
+  } finally {
+    subscribing.value = false;
+  }
+}
+
 onLoad((opts) => {
   void bootstrap(opts as Record<string, string>);
+  void loadSubscribeTemplateId();
 });
 
 let pageShowCount = 0;
@@ -646,7 +691,7 @@ function goHelp() {
   display: flex;
   align-items: center;
   gap: 20rpx;
-  margin: 24rpx 24rpx 0;
+  margin: 24rpx var(--page-gutter, 24rpx) 0;
   padding: 30rpx;
   border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));
@@ -707,7 +752,7 @@ function goHelp() {
 }
 .amount-card {
   text-align: center;
-  margin: 20rpx 24rpx 18rpx;
+  margin: 20rpx var(--page-gutter, 24rpx) 18rpx;
   padding: 34rpx;
   border-radius: var(--radius-card);
   box-shadow: none;
@@ -815,7 +860,7 @@ function goHelp() {
   justify-content: space-between;
   gap: 16rpx;
   padding: 12rpx 0;
-  border-bottom: 1px solid var(--page-bg, #f8fafc);
+  border-bottom: 1px solid var(--page-bg, #ededed);
 }
 .info-row:last-child {
   border-bottom: none;
@@ -868,7 +913,7 @@ function goHelp() {
   color: var(--warning);
 }
 .footer-actions {
-  padding: 20rpx 24rpx 38rpx;
+  padding: 20rpx var(--page-gutter, 24rpx) 38rpx;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -923,7 +968,7 @@ function goHelp() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.2;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   color: var(--text-muted);
   border: 1rpx solid var(--color-border-subtle);
   border-radius: var(--radius-pill);

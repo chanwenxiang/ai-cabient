@@ -525,7 +525,7 @@ function previewEvidence(img: FileAttachmentDto) {
   display: flex;
   align-items: center;
   gap: 20rpx;
-  margin: 24rpx 24rpx 0;
+  margin: 24rpx var(--page-gutter, 24rpx) 0;
   padding: 30rpx;
   border-radius: var(--radius-card);
   background: linear-gradient(135deg, var(--brand-soft, #e8f5e9), var(--white));
@@ -576,9 +576,9 @@ function previewEvidence(img: FileAttachmentDto) {
   text-overflow: ellipsis;
 }
 .card {
-  margin: 20rpx 24rpx 0;
+  margin: 20rpx var(--page-gutter, 24rpx) 0;
   padding: 28rpx;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
@@ -723,7 +723,7 @@ function previewEvidence(img: FileAttachmentDto) {
   color: var(--text-muted);
 }
 .actions {
-  padding: 28rpx 24rpx 8rpx;
+  padding: 28rpx var(--page-gutter, 24rpx) 8rpx;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -749,7 +749,7 @@ function previewEvidence(img: FileAttachmentDto) {
   border: none;
 }
 .btn-ghost {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   color: var(--text-muted, #334155);
   border: 1rpx solid var(--color-border);
 }

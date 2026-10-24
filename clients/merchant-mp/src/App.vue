@@ -166,7 +166,7 @@ uni-page-body {
   border-radius: var(--radius-pill);
   font-size: var(--font-size-caption);
   color: var(--text-muted);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--card-border, #e2e8f0);
   white-space: nowrap;
 }

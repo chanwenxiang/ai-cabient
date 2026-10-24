@@ -37,6 +37,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { consumerApi, type MarketingBannerDto } from '@/utils/consumer-api';
+import { openCampaignPath } from '@/utils/campaign-path';
 
 /**
  * 设备上下文（可选）：有柜码时带上，让后端过滤 SPECIFIC 投放范围
@@ -79,7 +80,8 @@ function onTap(index: number) {
   if (!banner) return;
   report(banner, 'CLICK');
   if (banner.ctaPath) {
-    uni.navigateTo({ url: banner.ctaPath, fail: () => {} });
+    // 统一走 campaign-path 校验口径（审计 M3）：非法路径静默返回，tabBar 页自动 switchTab
+    openCampaignPath(banner.ctaPath);
   }
 }
 

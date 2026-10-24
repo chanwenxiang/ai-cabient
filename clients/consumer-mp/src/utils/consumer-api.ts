@@ -124,7 +124,9 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
         reject(new Error(classified.message || `下载失败 (${res.statusCode})`));
       },
       fail(err) {
-        reject(new Error(err.errMsg || '下载失败'));
+        // 不带原始 errMsg（第五轮门禁类 D）：downloadFile:fail cancel 类英文平台串
+        // 不得进入 Error message——多数调用方 catch 后兜底，少数会直弹给用户
+        reject(new Error('下载失败'));
       }
     });
   });
@@ -169,15 +171,6 @@ function applyTokenSession(data: LoginResponse) {
 
 async function refreshTokenSilently(): Promise<boolean> {
   return sharedRefreshToken(mpApiSession);
-}
-
-/** Thin wrappers for pages that expect `{ data }` like axios-style clients. */
-export async function get<T = unknown>(path: string, auth = true) {
-  return { data: await request<T>(path, 'GET', undefined, auth) };
-}
-
-export async function post<T = unknown>(path: string, data?: unknown, auth = true) {
-  return { data: await request<T>(path, 'POST', data, auth) };
 }
 
 export function request<T>(
@@ -402,7 +395,8 @@ function wxLoginCode(): Promise<string> {
         else reject(new Error('微信授权失败'));
       },
       fail(err) {
-        reject(new Error(err.errMsg || '微信授权失败'));
+        // 不带原始 errMsg（第五轮门禁类 D）：login:fail cancel 类英文平台串不上浮
+        reject(new Error('微信授权失败'));
       }
     });
   });
@@ -823,6 +817,9 @@ export const consumerApi = {
       'POST',
       body
     ),
+  // ⚠️ 以下三个方法当前页面未调用，但均对应真实后端端点（AccountController /invoices、
+  // PublicConfigController /policies、ConsumerNotificationController /read-all）——
+  // API client 层「有后端无调用方」不算死代码，2026-10-23 曾误删后恢复（教训：删前必须核后端端点存在性）
   listMyInvoices: () =>
     request<
       Array<{
@@ -835,12 +832,6 @@ export const consumerApi = {
     >(ConsumerEndpoints.accountInvoices),
   consumerPublicConfig: () =>
     request<Record<string, string>>(ConsumerEndpoints.publicConsumerConfig, 'GET', null, false),
-  consumerPublicHelp: () =>
-    request<{
-      supportPhone: string;
-      supportEmail: string;
-      faqs: { q: string; a: string }[];
-    }>(ConsumerEndpoints.publicHelp, 'GET', null, false),
   consumerPublicPolicies: () =>
     request<
       {
@@ -869,29 +860,55 @@ export const consumerApi = {
   listMyFeedback: () =>
     request<import('@aicabinet/shared-types').UserFeedbackDto[]>(ConsumerEndpoints.feedbackMine),
 
-  memberProfile: () => request<MemberProfileDto>(ConsumerEndpoints.memberProfile),
-  memberPoints: () => request<MemberPointsSummaryDto>(ConsumerEndpoints.memberPoints),
+  memberProfile: () =>
+    request<import('@aicabinet/shared-types').OpenApiMemberProfileDto>(
+      ConsumerEndpoints.memberProfile
+    ),
+  memberPoints: () =>
+    request<import('@aicabinet/shared-types').OpenApiMemberPointsSummaryDto>(
+      ConsumerEndpoints.memberPoints
+    ),
   memberPointsLog: (limit = 50) =>
-    request<MemberPointsLogDto[]>(ConsumerEndpoints.memberPointsLog(limit)),
-  redeemItems: () => request<PointsRedeemItemDto[]>(ConsumerEndpoints.memberRedeemItems),
+    request<import('@aicabinet/shared-types').OpenApiMemberPointsLogDto[]>(
+      ConsumerEndpoints.memberPointsLog(limit)
+    ),
+  redeemItems: () =>
+    request<import('@aicabinet/shared-types').OpenApiPointsRedeemItemDto[]>(
+      ConsumerEndpoints.memberRedeemItems
+    ),
   redeemPoints: (itemId: number) =>
-    request<CouponDto>(ConsumerEndpoints.memberRedeem, 'POST', { itemId }),
+    request<import('@aicabinet/shared-types').OpenApiCouponDto>(
+      ConsumerEndpoints.memberRedeem,
+      'POST',
+      {
+        itemId
+      }
+    ),
   notifications: (limit = 50) =>
-    request<NotificationDto[]>(ConsumerEndpoints.memberNotifications(limit)),
+    request<import('@aicabinet/shared-types').OpenApiNotificationDto[]>(
+      ConsumerEndpoints.memberNotifications(limit)
+    ),
   notificationUnreadCount: () =>
     request<{ count: number }>(ConsumerEndpoints.memberNotificationsUnreadCount),
   markNotificationRead: (id: number) =>
     request<void>(ConsumerEndpoints.memberNotificationRead(id), 'POST'),
   markAllNotificationsRead: () =>
     request<void>(ConsumerEndpoints.memberNotificationsReadAll, 'POST'),
-  notifyPrefs: () => request<NotifyPrefDto[]>(ConsumerEndpoints.memberNotificationPrefs),
+  notifyPrefs: () =>
+    request<import('@aicabinet/shared-types').OpenApiNotifyPrefDto[]>(
+      ConsumerEndpoints.memberNotificationPrefs
+    ),
   updateNotifyPref: (category: string, enabled: boolean) =>
-    request<NotifyPrefDto>(ConsumerEndpoints.memberNotificationPrefs, 'PUT', {
-      category,
-      enabled
-    }),
+    request<import('@aicabinet/shared-types').OpenApiNotifyPrefDto>(
+      ConsumerEndpoints.memberNotificationPrefs,
+      'PUT',
+      {
+        category,
+        enabled
+      }
+    ),
   marketingBanners: (deviceId?: string) =>
-    request<MarketingBannerDto[]>(
+    request<import('@aicabinet/shared-types').OpenApiMarketingBannerDto[]>(
       deviceId
         ? `${ConsumerEndpoints.marketingBanners}?deviceId=${encodeURIComponent(deviceId)}`
         : ConsumerEndpoints.marketingBanners,
@@ -909,15 +926,21 @@ export const consumerApi = {
     ),
   // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
-    request<MarketingCampaignDto[]>(
+    request<import('@aicabinet/shared-types').OpenApiMarketingCampaignDto[]>(
       ConsumerEndpoints.marketingCampaignsActive,
       'GET',
       undefined,
       true
     ),
   claimCampaign: (activityId: number) =>
-    request<CouponDto>(ConsumerEndpoints.marketingCampaignClaim(activityId), 'POST'),
-  myCoupons: (status?: string) => request<CouponDto[]>(ConsumerEndpoints.coupons(status)),
+    request<import('@aicabinet/shared-types').OpenApiCouponDto>(
+      ConsumerEndpoints.marketingCampaignClaim(activityId),
+      'POST'
+    ),
+  myCoupons: (status?: string) =>
+    request<import('@aicabinet/shared-types').OpenApiCouponDto[]>(
+      ConsumerEndpoints.coupons(status)
+    ),
   couponCount: () => request<number>(ConsumerEndpoints.couponsCount),
   listAnnouncements: () =>
     request<import('@aicabinet/shared-types').AnnouncementDto[]>(
@@ -935,6 +958,10 @@ export const consumerApi = {
     )
 };
 
+/**
+ * 兼容别名（2026-10-23 复核：9 个均有调用方导入，非死代码；逐步迁移到 OpenApiXxx 后再删）。
+ * 已删除的真死代码：get/post 薄包装、consumerPublicHelp（零调用，见本日审计清理）。
+ */
 /** @deprecated 使用 OpenApiMemberProfileDto */
 export type MemberProfileDto = import('@aicabinet/shared-types').OpenApiMemberProfileDto;
 

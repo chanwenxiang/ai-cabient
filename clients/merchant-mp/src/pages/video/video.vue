@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { downloadAuthedFile, request } from '@/utils/merchant-api';
+import { request } from '@/utils/merchant-api';
 import { MerchantEndpoints } from '@/api/endpoints';
 import {
   clipLabel,
@@ -239,7 +239,7 @@ function goOrder() {
   margin-top: 24rpx;
 }
 .clip-chip {
-  padding: 8rpx 24rpx;
+  padding: 8rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-control);
   border: 1rpx solid var(--text-subtle);
   color: var(--text-subtle);

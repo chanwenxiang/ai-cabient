@@ -12,7 +12,7 @@
   align-items: center;
   gap: 20rpx;
   margin-bottom: 20rpx;
-  padding: 22rpx 24rpx 22rpx 20rpx;
+  padding: 22rpx var(--page-gutter, 24rpx) 22rpx 20rpx;
   background: var(--brand);
   border-radius: var(--radius-panel, 18rpx);
   box-sizing: border-box;
@@ -60,7 +60,7 @@
   font-size: var(--font-size-sm);
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 18rpx);
   padding: 24rpx 28rpx 24rpx 22rpx;
   margin-bottom: 16rpx;
@@ -181,7 +181,7 @@
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-control);
   padding: 0 20rpx;
@@ -198,7 +198,7 @@
   flex-wrap: wrap;
 }
 .role-chip {
-  padding: 12rpx 24rpx;
+  padding: 12rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-pill);
   background: var(--color-border-subtle, #f1f5f9);
   color: var(--text-muted);

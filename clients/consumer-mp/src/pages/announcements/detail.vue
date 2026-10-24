@@ -68,7 +68,7 @@ onLoad((query) => {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  padding: 80rpx 24rpx;
+  padding: 80rpx var(--page-gutter, 24rpx);
   color: var(--text-muted);
   font-size: var(--font-size-md);
 }
@@ -82,10 +82,10 @@ onLoad((query) => {
   border: none;
 }
 .article {
-  margin: 20rpx 24rpx 0;
-  background: var(--card-bg, #fff);
+  margin: 20rpx var(--page-gutter, 24rpx) 0;
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
-  padding: 28rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx);
 }
 .meta {
   display: flex;

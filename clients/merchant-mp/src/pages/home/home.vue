@@ -317,8 +317,6 @@ const {
   canReplenishment,
   canDevices,
   canAlerts,
-  canPricing,
-  canSettlements,
   canDisputes,
   lockedCount,
   canBusiness,
@@ -327,9 +325,6 @@ const {
   statusLabel,
   goTab,
   goReplenishment,
-  goRequest,
-  goPricing,
-  goSettlements,
   goDisputes,
   goBusiness,
   goAnnouncementDetail,
@@ -373,7 +368,7 @@ useAutoRefresh({
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: var(--page-bg, #f4faf7);
+  background: var(--page-bg, #ededed);
 }
 .dash-header {
   background: linear-gradient(
@@ -382,7 +377,7 @@ useAutoRefresh({
     var(--brand, #0d9488) 55%,
     var(--brand, #0d9488) 100%
   );
-  padding: 12rpx 24rpx 28rpx;
+  padding: 12rpx var(--page-gutter, 24rpx) 28rpx;
   color: #ffffff;
   border-radius: 0;
   margin: 0;
@@ -408,10 +403,10 @@ useAutoRefresh({
 }
 
 .scan-card {
-  margin: 12rpx 24rpx 0;
+  margin: 12rpx var(--page-gutter, 24rpx) 0;
   position: relative;
   z-index: 2;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-control);
   padding: 16rpx 18rpx;
   display: flex;
@@ -463,13 +458,13 @@ useAutoRefresh({
 .quick-row {
   display: flex;
   gap: 12rpx;
-  margin: 14rpx 24rpx 0;
+  margin: 14rpx var(--page-gutter, 24rpx) 0;
 }
 .quick-item {
   position: relative;
   flex: 1;
   min-width: 0;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 18rpx 10rpx;
   text-align: center;
@@ -512,23 +507,23 @@ useAutoRefresh({
 }
 
 .card {
-  margin: 16rpx 24rpx 0;
+  margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 32rpx;
   width: auto;
   max-width: none;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   border: none;
   box-shadow: none;
   box-sizing: border-box;
 }
 .home-notice {
-  margin: 16rpx 24rpx 12rpx;
+  margin: 16rpx var(--page-gutter, 24rpx) 12rpx;
   padding: 18rpx 20rpx;
   display: flex;
   align-items: center;
   gap: 14rpx;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   border: none;
   box-shadow: none;
@@ -717,9 +712,9 @@ useAutoRefresh({
 
 .ops-overview {
   display: flex;
-  margin: 16rpx 24rpx 0;
+  margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 28rpx 16rpx 24rpx;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 24rpx);
   width: auto;
   box-sizing: border-box;
@@ -774,7 +769,7 @@ useAutoRefresh({
   color: var(--color-danger);
 }
 .banner-err {
-  margin: 16rpx 24rpx 0;
+  margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 18rpx 22rpx;
   border-radius: var(--radius-panel);
   background: #f9eded;

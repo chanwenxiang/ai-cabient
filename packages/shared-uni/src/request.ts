@@ -66,6 +66,22 @@ function isLocalDebugApi(baseUrl: string): boolean {
   return /localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\./i.test(baseUrl);
 }
 
+/** uni.request fail 的传输层错误类别：TIMEOUT=超时，NETWORK=网络层失败（request:fail）。 */
+export type MpTransportKind = 'TIMEOUT' | 'NETWORK';
+
+/**
+ * 传输层失败的结构化分类（2026-10-23 审计残留修复）：
+ * 分类逻辑只写在这一处，formatMpRequestError（文案）与
+ * isRetriableMpTransportError（重试判定）共用，杜绝文案改动悄悄改变重试语义。
+ */
+export function classifyMpTransportError(errMsg: string | undefined): MpTransportKind | null {
+  const raw = String(errMsg || '');
+  if (!raw) return null;
+  if (raw.includes('timeout')) return 'TIMEOUT';
+  if (raw.includes('request:fail')) return 'NETWORK';
+  return null;
+}
+
 /** 请求失败文案：区分 request:fail（网络层）、timeout、以及服务端消息。 */
 export function formatMpRequestError(
   errMsg: string | undefined,
@@ -210,6 +226,10 @@ export function isRetriableMpTransportError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   // 鉴权失败不重试；仅超时/网络层
   if (isMpAuthFailure(err)) return false;
+  // 结构化 code 优先（mpRequestOnce fail 通道写入；文案可改，语义不变）
+  const code = String((err as MpApiError).code || '').toUpperCase();
+  if (code === 'MP_TRANSPORT_TIMEOUT' || code === 'MP_TRANSPORT_NETWORK') return true;
+  // 兜底：直构 Error 的旧路径（如上传通道 fail 后 new Error(格式化文案)）仍按文案识别
   const msg = err.message || '';
   return (
     msg.includes('请求超时') ||
@@ -267,7 +287,21 @@ function mpRequestOnce<T>(
               .then(() =>
                 mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)
               )
-              .catch(() => reject(opts.handleUnauthorized(body?.message)));
+              .catch((refreshErr) => {
+                // 只有刷新端点「明确 401」才判会话失效走登出（2026-10-23 审计）：
+                // 刷新请求自身网络失败/超时（弱网）不代表票据无效，旧代码无条件
+                // handleUnauthorized 会把仍有效的会话误杀。此时按普通失败 reject，
+                // 用户重试即可，会话保持登录态。
+                if (isMpAuthFailure(refreshErr)) {
+                  reject(opts.handleUnauthorized(body?.message));
+                  return;
+                }
+                reject(
+                  refreshErr instanceof Error
+                    ? refreshErr
+                    : createMpApiError('网络不稳定，请稍后再试')
+                );
+              });
             return;
           }
           reject(opts.handleUnauthorized(body?.message));
@@ -288,8 +322,17 @@ function mpRequestOnce<T>(
         reject(err);
       },
       fail(err) {
+        const kind = classifyMpTransportError(err.errMsg);
         reject(
-          createMpApiError(formatMpRequestError(err.errMsg, path, opts.isDevBuild, opts.baseUrl))
+          createMpApiError(
+            formatMpRequestError(err.errMsg, path, opts.isDevBuild, opts.baseUrl),
+            undefined,
+            kind === 'TIMEOUT'
+              ? 'MP_TRANSPORT_TIMEOUT'
+              : kind === 'NETWORK'
+                ? 'MP_TRANSPORT_NETWORK'
+                : undefined
+          )
         );
       }
     });

@@ -32,10 +32,10 @@
 
 <style scoped>
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--card-radius, 22rpx);
   padding: 28rpx;
   border: 1rpx solid var(--card-border, var(--color-border));

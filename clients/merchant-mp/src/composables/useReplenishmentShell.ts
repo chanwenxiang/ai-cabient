@@ -90,15 +90,11 @@ export function useReplenishmentShell(opts: {
     uni.navigateTo({ url: `/pages/self-replenish/self-replenish${q}` });
   }
 
-  function goRequestForDevice(deviceId: string) {
-    uni.navigateTo({
-      url: `/pages/self-replenish/self-replenish?deviceId=${encodeURIComponent(deviceId)}`
-    });
-  }
-
   function goDeviceShortage(deviceId: string) {
+    // 修复 2026-10-23：参数名须为 id（device-detail onLoad 读 opts.id），
+    // 原 ?deviceId= 详情页解析不到 ⇒ 恒落「柜机不存在」错误态。
     uni.navigateTo({
-      url: `/pages/device-detail/device-detail?deviceId=${encodeURIComponent(deviceId)}`
+      url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`
     });
   }
 
@@ -241,7 +237,6 @@ export function useReplenishmentShell(opts: {
     emptyHint,
     usePreferredDevice,
     goRequest,
-    goRequestForDevice,
     goDeviceShortage,
     deviceName,
     deviceAddressLine,

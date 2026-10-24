@@ -118,16 +118,16 @@ async function onSubmit() {
 <style scoped>
 .page-root {
   min-height: 100%;
-  background: var(--page-bg, #f8faf9);
+  background: var(--page-bg, #ededed);
   padding: 0;
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx;
   margin: 0;
@@ -157,10 +157,10 @@ async function onSubmit() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.4;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--card-border, #e8eeeb);
   border-radius: var(--radius-panel);
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   margin-bottom: 16rpx;
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);

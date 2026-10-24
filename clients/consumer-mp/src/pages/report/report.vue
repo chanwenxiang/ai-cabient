@@ -127,29 +127,35 @@ function onSubmit() {
   if (submitting.value) return;
   submitting.value = true;
   err.value = '';
-  ensureConsumerAuth().then(async (ok) => {
-    if (!ok) {
-      submitting.value = false;
-      uni.navigateTo({
-        url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/report/report')
-      });
-      return;
-    }
-    try {
-      const descParts = [description.value.trim()];
-      if (phone) descParts.push(`联系电话：${phone}`);
-      const res = await consumerApi.reportDeviceFault(id, {
-        issueType: issueType.value,
-        description: descParts.filter(Boolean).join('\n') || undefined
-      });
-      showSuccess(res.message || '已提交');
-      setTimeout(() => uni.navigateBack(), 800);
-    } catch (e) {
+  ensureConsumerAuth()
+    .then(async (ok) => {
+      if (!ok) {
+        submitting.value = false;
+        uni.navigateTo({
+          url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/report/report')
+        });
+        return;
+      }
+      try {
+        const descParts = [description.value.trim()];
+        if (phone) descParts.push(`联系电话：${phone}`);
+        const res = await consumerApi.reportDeviceFault(id, {
+          issueType: issueType.value,
+          description: descParts.filter(Boolean).join('\n') || undefined
+        });
+        showSuccess(res.message || '已提交');
+        setTimeout(() => uni.navigateBack(), 800);
+      } catch (e) {
+        err.value = e instanceof Error ? e.message : '提交失败';
+      } finally {
+        submitting.value = false;
+      }
+    })
+    .catch((e) => {
+      // ensureConsumerAuth 自身 reject（如 wx.login 内部异常）不能吞掉，否则 submitting 永卡 true（审计 M1）
       err.value = e instanceof Error ? e.message : '提交失败';
-    } finally {
       submitting.value = false;
-    }
-  });
+    });
 }
 </script>
 
@@ -161,7 +167,7 @@ function onSubmit() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
@@ -180,7 +186,7 @@ function onSubmit() {
   display: block;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx;
 }
@@ -195,9 +201,9 @@ function onSubmit() {
   width: 100%;
   height: 88rpx;
   line-height: 88rpx;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-control);
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   font-size: var(--font-size-lg);
   font-family: var(--app-font);
   font-weight: 500;
@@ -213,9 +219,9 @@ function onSubmit() {
   margin-bottom: 20rpx;
 }
 .issue-chip {
-  padding: 14rpx 24rpx;
+  padding: 14rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card);
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   font-size: var(--font-size-body);
   color: var(--text-muted, #666);
 }
@@ -227,9 +233,9 @@ function onSubmit() {
 .textarea {
   width: 100%;
   min-height: 160rpx;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-control);
-  padding: 20rpx 24rpx;
+  padding: 20rpx var(--page-gutter, 24rpx);
   font-size: var(--font-size-md);
   box-sizing: border-box;
   margin-bottom: 8rpx;
@@ -245,7 +251,7 @@ function onSubmit() {
   margin-top: 8rpx;
   padding: 24rpx;
   border-radius: var(--radius-card);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
 }
 .tip-title {
   display: block;

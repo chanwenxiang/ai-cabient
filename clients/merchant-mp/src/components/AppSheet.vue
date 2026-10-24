@@ -54,7 +54,7 @@ const emit = defineEmits<{ close: [] }>();
   max-height: 88vh;
   padding: 30rpx 26rpx calc(30rpx + env(safe-area-inset-bottom));
   border-radius: var(--radius-card) 32rpx 0 0;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;

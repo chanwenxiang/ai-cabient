@@ -236,7 +236,8 @@ function downloadAuthedFileOnce(url: string, timeoutMs: number): Promise<string>
         reject(new Error(`下载失败 (${res.statusCode})`));
       },
       fail(err) {
-        reject(new Error(err.errMsg || '下载失败'));
+        // 不带原始 errMsg（第五轮门禁类 D）：同 consumer-api 口径
+        reject(new Error('下载失败'));
       }
     });
   });
@@ -426,7 +427,8 @@ function uploadMerchantAuthedFileOnce(
         }
       },
       fail(err) {
-        reject(new Error(err.errMsg || '网络错误'));
+        // 不带原始 errMsg（第五轮门禁类 D）：uploadFile:fail 类英文平台串不上浮
+        reject(new Error('网络错误'));
       }
     });
   });
@@ -470,7 +472,23 @@ export function downloadStocktakeEvidenceFile(
   );
 }
 
+/**
+ * 争议证据本地临时路径缓存：FIFO 上限 50（2026-10-23 第四轮审计，
+ * 同 C 端 BoundedFifoCache 口径）。Map 保持插入序，超限逐出最旧——
+ * 此前无上限，长会话浏览争议图会无界增长；临时文件被系统回收后
+ * 展示层 image error 会回退占位，不影响正确性。
+ */
+const DISPUTE_EVIDENCE_CACHE_MAX = 50;
 const disputeEvidenceLocalCache = new Map<string, string>();
+
+function cacheDisputeEvidence(key: string, local: string) {
+  disputeEvidenceLocalCache.set(key, local);
+  while (disputeEvidenceLocalCache.size > DISPUTE_EVIDENCE_CACHE_MAX) {
+    const oldest = disputeEvidenceLocalCache.keys().next().value;
+    if (oldest === undefined) break;
+    disputeEvidenceLocalCache.delete(oldest);
+  }
+}
 
 /**
  * 争议证据图：带鉴权下载到本地临时路径（image 标签无法携带 Bearer）。
@@ -487,7 +505,7 @@ export async function downloadDisputeEvidence(img: {
   if (cached) return cached;
   try {
     const local = await downloadAuthedFile(merchantAbsUrl(url));
-    disputeEvidenceLocalCache.set(cacheKey, local);
+    cacheDisputeEvidence(cacheKey, local);
     return local;
   } catch {
     return '';
@@ -892,7 +910,7 @@ export const merchantApi = {
   downloadReplenishmentEvidence: (taskId: number, fileId: number) =>
     downloadReplenishmentEvidenceFile(taskId, fileId),
   // ── 仓库盘点（V349：仅本人负责的分仓，服务端二次校验） ──
-  warehouseStocktakes: (query?: URLSearchParams | string) =>
+  warehouseStocktakes: (query?: string) =>
     request<import('@aicabinet/shared-types').OpenApiPageResultStocktakeDto>(
       MerchantEndpoints.warehouseStocktakes(query)
     ),

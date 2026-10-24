@@ -329,7 +329,15 @@ function goNav(item: MerchantNavItem) {
 }
 
 function openProfileEdit() {
-  profileForm.value = { contactPhone: '', alertContactName: '', alertContactPhone: '' };
+  // 回填现有值（2026-10-23 审计 M4）：此前每次打开都是全空输入框，像「被清空了」。
+  // updateProfile 对该账号全部绑定商户生效，后端 /me 的 MerchantDto 三字段均已返回
+  // （alertContactName/alertContactPhone 由 toMerchantDto 透出），取第一个商户作现状展示。
+  const current = me.value?.merchants?.[0];
+  profileForm.value = {
+    contactPhone: current?.contactPhone || '',
+    alertContactName: current?.alertContactName || '',
+    alertContactPhone: current?.alertContactPhone || ''
+  };
   profileEditVisible.value = true;
 }
 
@@ -343,12 +351,16 @@ async function saveProfileEdit() {
   profileSaving.value = true;
   try {
     await merchantApi.updateMerchantProfile({
-      contactPhone: profileForm.value.contactPhone || undefined,
-      alertContactName: profileForm.value.alertContactName || undefined,
-      alertContactPhone: profileForm.value.alertContactPhone || undefined
+      // 表单已回填现值（openProfileEdit），语义=所见即所存：
+      // 清空字段提交空串，后端 blankToNull("")→null 即清空该字段（2026-10-23 审计 M4）；
+      // 不能再用 || undefined 把空串吞成「不修改」——用户清空保存会静默无效果。
+      contactPhone: profileForm.value.contactPhone ?? undefined,
+      alertContactName: profileForm.value.alertContactName ?? undefined,
+      alertContactPhone: profileForm.value.alertContactPhone ?? undefined
     });
     showSuccess('已保存');
     profileEditVisible.value = false;
+    await refreshMe();
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -366,7 +378,8 @@ function goAnnouncements() {
 }
 
 // ===== CB-050 扩展：切换组织 / 修改密码 / 关于 =====
-const APP_VERSION = 'v1.0.0';
+// 2026-10-23 审计 L4：版本号由构建注入（vite define 读 package.json version），不再手写
+const APP_VERSION = __APP_VERSION__;
 const orgSheetVisible = ref(false);
 const orgs = ref<Array<{ merchantId: string; merchantName: string }>>([]);
 const currentOrgId = ref('');
@@ -505,7 +518,7 @@ async function onLogout() {
   min-height: 80rpx;
   line-height: 80rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-control);
   padding: 0 20rpx;
@@ -612,8 +625,8 @@ async function onLogout() {
    *    只剩相邻两张 menu-list 贴在一起。
    * 两条路径都会产生「两张卡片黏成一块」，所以间距放在**卡片**上而不是标签上。
    */
-  margin: 0 24rpx 16rpx;
-  background: var(--card-bg, #fff);
+  margin: 0 var(--page-gutter, 24rpx) 16rpx;
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-control);
   overflow: hidden;
 }
@@ -690,7 +703,7 @@ async function onLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20rpx 24rpx;
+  padding: 20rpx var(--page-gutter, 24rpx);
   border: 1rpx solid var(--color-border, #ebeef5);
   border-radius: 12rpx;
 }

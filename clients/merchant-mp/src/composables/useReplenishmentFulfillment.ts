@@ -1,5 +1,5 @@
 import type { ComputedRef, Ref } from 'vue';
-import { showError, showSuccess } from '@/utils/notify';
+import { showError, showSuccess, showLongError } from '@/utils/notify';
 import { merchantApi } from '@/utils/merchant-api';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
@@ -170,7 +170,9 @@ export function useReplenishmentFulfillment(opts: {
   }
 
   async function handleCheckInDistanceFailure(msg: string) {
-    showError(msg || '距离过远，请到柜前再签到', 3600);
+    // 审计 2026-10-23 M3：距离校验拒绝理由含具体数字说明（50 字级），toast 截 19 字
+    // 商户看不到「差多少米」；showLongError 长文走 modal 全文。
+    showLongError(msg, '距离过远，请到柜前再签到', 3600);
   }
 
   async function checkIn() {
@@ -198,7 +200,7 @@ export function useReplenishmentFulfillment(opts: {
       if (location.locationOk && isDistanceCheckError(msg)) {
         await handleCheckInDistanceFailure(msg);
       } else {
-        showError(msg, 3600);
+        showLongError(msg, '签到失败', 3600);
       }
     } finally {
       opts.submitting.value = false;
@@ -258,7 +260,7 @@ export function useReplenishmentFulfillment(opts: {
       await applyOpenDoorSession(taskId, session);
     } catch (error) {
       const msg = error instanceof Error ? error.message : '开门失败';
-      showError(msg, 3200);
+      showLongError(msg, '开门失败', 3200);
     } finally {
       opts.submitting.value = false;
     }
@@ -363,7 +365,8 @@ export function useReplenishmentFulfillment(opts: {
 
   async function handleConfirmLinesFailure(msg: string) {
     if (!msg.includes('容量不足')) {
-      showError(msg, 3600);
+      // 审计 2026-10-23 M3：后端逐行容量不足说明（含 SKU/货道明细）是长文案
+      showLongError(msg, '确认失败', 3600);
       return;
     }
     const auto = await opts.askConfirm({

@@ -182,12 +182,9 @@
               <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
             </view>
             <view class="order-mid">
-              <image
-                class="order-thumb"
-                :src="orderThumb(o)"
-                mode="aspectFill"
-                aria-hidden="true"
-              />
+              <view class="order-thumb order-mark" aria-hidden="true">{{
+                (firstProductName(o.lineSummary) || '购').slice(0, 1)
+              }}</view>
               <view class="order-copy">
                 <view class="order-copy-main">
                   <text class="order-summary">{{ orderSummaryText(o) }}</text>
@@ -288,7 +285,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { cleanLineSummary, firstProductName } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast, showError } from '@/utils/notify';
@@ -495,9 +492,6 @@ function orderSummaryText(o: OrderSummary) {
   if (n > 0) return `共 ${n} 件商品`;
   return '购物账单';
 }
-function orderThumb(o: OrderSummary) {
-  return skuImageFor('', '', o.lineSummary);
-}
 function discountCents(o: OrderSummary) {
   return Math.max(0, Number(o.couponDiscountCents ?? 0) + Number(o.memberDiscountCents ?? 0));
 }
@@ -587,6 +581,9 @@ async function load() {
     return;
   }
   const seq = ++loadSeq;
+  // A 类（分页在途死锁）：load() 入口无条件复位在途 loadMore——loadMore 的 finally
+  // 已改为 seq 条件复位，迟到的那次会被跳过，不在此复位 loadingMore 将永真
+  loadingMore.value = false;
   try {
     const [page, mine] = await Promise.all([
       consumerApi.listOrders(0, PAGE_SIZE),
@@ -622,10 +619,14 @@ async function load() {
 
 async function loadMore() {
   if (!authed.value || loading.value || loadingMore.value || !hasMore.value) return;
+  // H 翻页污染守卫（2026-10-24 缺陷类门禁）：load()/自动刷新在途时切 tab，
+  // 迟到旧页不得 append 到新列表——与 merchant orders/splits/tally 同口径
+  const seq = ++loadSeq;
   loadingMore.value = true;
   try {
     const nextPage = pageIndex.value + 1;
     const page = await consumerApi.listOrders(nextPage, PAGE_SIZE);
+    if (seq !== loadSeq) return;
     const items = page.items || [];
     if (!items.length) {
       hasMore.value = false;
@@ -638,9 +639,10 @@ async function loadMore() {
     const total = Number(page.total ?? 0);
     hasMore.value = orders.value.length < total && items.length >= PAGE_SIZE;
   } catch (e) {
+    if (seq !== loadSeq) return;
     showError(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loadingMore.value = false;
+    if (seq === loadSeq) loadingMore.value = false;
   }
 }
 

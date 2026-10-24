@@ -87,8 +87,8 @@ function stepClass(step: number) {
   font-size: var(--font-size-caption);
   font-weight: 700;
   color: var(--text-muted);
-  background: var(--page-bg, #f1f5f9);
-  box-shadow: 0 0 0 8rpx var(--card-bg, #fff);
+  background: var(--page-bg, #ededed);
+  box-shadow: 0 0 0 8rpx var(--card-bg, #ffffff);
 }
 .step.active .step-num {
   color: #fff;

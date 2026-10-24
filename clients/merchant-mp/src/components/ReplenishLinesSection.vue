@@ -355,7 +355,7 @@ function isCapacityWarn(line: Line) {
   line-height: 56rpx;
   text-align: center;
   border-radius: 50%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   color: var(--brand);
   font-size: var(--font-size-lg);
   font-weight: 700;

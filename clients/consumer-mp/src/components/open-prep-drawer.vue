@@ -132,7 +132,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { showError, showSuccess, showConfirm } from '@/utils/notify';
+import { showSuccess, showConfirm } from '@/utils/notify';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { consumerApi } from '@/utils/consumer-api';
@@ -413,7 +413,7 @@ function onCancel() {
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card) 30rpx 0 0;
   padding: 18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
@@ -505,10 +505,10 @@ function onCancel() {
   margin-bottom: 8rpx;
 }
 .input {
-  background: var(--page-bg, #f8faf9);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border-subtle);
   border-radius: 17rpx;
-  padding: 22rpx 24rpx;
+  padding: 22rpx var(--page-gutter, 24rpx);
   margin-bottom: 20rpx;
   font-size: var(--font-size-lg);
 }

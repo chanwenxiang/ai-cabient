@@ -54,7 +54,9 @@
                   stockOf(item) <= 0 ||
                   (summary?.availablePoints ?? 0) < costOf(item)
               }"
-              :disabled="!!redeeming || stockOf(item) <= 0"
+              :disabled="
+                !!redeeming || stockOf(item) <= 0 || (summary?.availablePoints ?? 0) < costOf(item)
+              "
               @click="redeem(item)"
             >
               {{ redeeming === item.itemId ? '兑换中…' : '立即兑换' }}
@@ -174,7 +176,7 @@ function goPoints() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .balance-bar {
@@ -236,7 +238,7 @@ function goPoints() {
   margin-top: 20rpx;
   padding: 24rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
 }
 .item-main {
   display: flex;

@@ -146,8 +146,11 @@ function loadTransactions(reset = true): Promise<void> {
         transactions.value.length < Math.max(total, transactions.value.length);
     })
     .catch((e) => {
-      if (reset) loadError.value = e instanceof Error ? e.message : '加载失败';
-      showError(e instanceof Error ? e.message : '加载失败');
+      // 初次加载（reset）失败时页面渲染持久 error-state，同一错误不重复弹 toast；
+      // 翻页/下拉追加失败无 error-state，才需要 toast（2026-10-23 审计 B2）。
+      const msg = e instanceof Error ? e.message : '加载失败';
+      if (reset) loadError.value = msg;
+      else showError(msg);
     })
     .finally(() => {
       loading.value = false;
@@ -210,7 +213,7 @@ function goRecharge() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .summary {
@@ -258,9 +261,9 @@ function goRecharge() {
 }
 .card {
   margin: 0;
-  padding: 28rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;

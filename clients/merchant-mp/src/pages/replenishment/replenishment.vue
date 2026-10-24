@@ -556,7 +556,6 @@ const {
   emptyHint,
   usePreferredDevice,
   goRequest,
-  goRequestForDevice,
   goDeviceShortage,
   deviceName,
   deviceAddressLine,

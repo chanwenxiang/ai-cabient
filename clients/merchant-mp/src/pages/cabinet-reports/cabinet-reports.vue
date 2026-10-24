@@ -62,18 +62,25 @@
           @retry="loadSalesReports"
         />
         <view v-else-if="!listedSalesRows.length" class="empty">该区间暂无销售明细</view>
-        <view v-for="r in listedSalesRows" :key="r.dimKey" class="sku-row">
-          <view class="sku-main">
-            <text class="sku-name">{{ skuTitleWithQty(r.dimLabel || r.dimKey, r.qty) }}</text>
-            <text class="sku-rec"
-              >{{ r.orderCount || 0 }}单 · 客单 {{ money(rowAov(r)) }} · 毛利
-              {{ money(r.marginCents) }}</text
-            >
+        <template v-else>
+          <view v-for="r in listedSalesRows" :key="r.dimKey" class="sku-row">
+            <view class="sku-main">
+              <text class="sku-name">{{ skuTitleWithQty(r.dimLabel || r.dimKey, r.qty) }}</text>
+              <text class="sku-rec"
+                >{{ r.orderCount || 0 }}单 · 客单 {{ money(rowAov(r)) }} · 毛利
+                {{ money(r.marginCents) }}</text
+              >
+            </view>
+            <view class="sku-data">
+              <text class="sku-money">{{ money(r.revenueCents) }}</text>
+            </view>
           </view>
-          <view class="sku-data">
-            <text class="sku-money">{{ money(r.revenueCents) }}</text>
-          </view>
-        </view>
+          <!-- 2026-10-23 审计 M5：slice(0,12) 静默截断，加提示防「列表没有=没卖」误判 -->
+          <text v-if="salesRows.length > listedSalesRows.length" class="list-cap">
+            仅展示前 {{ listedSalesRows.length }} 项 · 共
+            {{ salesRows.length }} 项，完整数据请导出报表
+          </text>
+        </template>
       </view>
       <view v-if="canExport" class="actions">
         <app-button
@@ -218,8 +225,13 @@ async function loadSalesReports() {
 }
 
 async function load() {
-  if (!(await ensureLogin())) return;
+  // F3 门闩前置（2026-10-24 缺陷类门禁）：ensureLogin 握手窗口内按钮未置灰可二次提交，
+  // 与 feedback.vue 修后形态一致——先置位，鉴权失败分支复位。
   loading.value = true;
+  if (!(await ensureLogin())) {
+    loading.value = false;
+    return;
+  }
   pageError.value = '';
   try {
     const reports = await softFallback(

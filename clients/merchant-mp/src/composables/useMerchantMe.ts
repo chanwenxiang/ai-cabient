@@ -65,7 +65,11 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
       const me = await merchantApi.me();
       // 仅提交最新一次，避免并发响应覆盖较新资料
       if (seq === meSeq) {
-        uni.setStorageSync('merchant_me', me);
+        // 数据最小化（2026-10-24 审计留置④）：本地弱网缓存不落手机号。
+        // 离线展示名兜底链为 displayName →「同事」（见 useHomeWorkbench.hydrateFromCache），
+        // 无需手机号副本；内存态 meRef 仍带完整资料，在线功能不受影响。
+        const { phoneNumber: _stripped, ...cacheable } = me;
+        uni.setStorageSync('merchant_me', cacheable);
         meRef.value = me;
       }
       return me;

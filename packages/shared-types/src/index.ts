@@ -315,6 +315,9 @@ export interface MerchantDto {
   merchantId: string;
   merchantName: string;
   contactPhone?: string;
+  /** 告警联系人（后端 toMerchantDto 已返回；编辑资料弹层回填用） */
+  alertContactName?: string;
+  alertContactPhone?: string;
   platformRateBps: number;
   wechatReceiverId?: string;
   status: string;

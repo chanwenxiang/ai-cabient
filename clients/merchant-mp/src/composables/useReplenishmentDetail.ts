@@ -209,7 +209,12 @@ export function useReplenishmentDetail(opts: {
     }
   }
 
+  /** 拍照上传在途标志（2026-10-23 审计 M5）：选图+上传是长异步链，无门闩时连点两次
+   *  「拍照」都会通过入口的 <5 检查，最终超出「最多 5 张」承诺 */
+  let addingEvidence = false;
+
   async function addEvidence() {
+    if (addingEvidence) return;
     const task = opts.selected.value;
     const taskId = task?.taskId;
     if (!task || typeof taskId !== 'number' || !opts.canRequest.value) return;
@@ -221,21 +226,26 @@ export function useReplenishmentDetail(opts: {
       showError('最多 5 张');
       return;
     }
-    const paths = await safeChooseImage(5 - opts.evidenceItems.value.length);
-    for (const path of paths) {
-      try {
-        await assertLocalImageSize(path);
-        const uploaded = await merchantApi.uploadReplenishmentEvidence(taskId, path);
-        opts.evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
-        opts.evidenceCountMap.value = mergeEvidenceCountMap(
-          opts.evidenceCountMap.value,
-          taskId,
-          opts.evidenceItems.value.length
-        );
-      } catch (e) {
-        showError(e instanceof Error ? e.message : '上传失败');
-        break;
+    addingEvidence = true;
+    try {
+      const paths = await safeChooseImage(5 - opts.evidenceItems.value.length);
+      for (const path of paths) {
+        try {
+          await assertLocalImageSize(path);
+          const uploaded = await merchantApi.uploadReplenishmentEvidence(taskId, path);
+          opts.evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
+          opts.evidenceCountMap.value = mergeEvidenceCountMap(
+            opts.evidenceCountMap.value,
+            taskId,
+            opts.evidenceItems.value.length
+          );
+        } catch (e) {
+          showError(e instanceof Error ? e.message : '上传失败');
+          break;
+        }
       }
+    } finally {
+      addingEvidence = false;
     }
   }
 

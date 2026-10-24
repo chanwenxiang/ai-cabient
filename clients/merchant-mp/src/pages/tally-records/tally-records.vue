@@ -41,6 +41,15 @@ const restockTotal = ref(0);
 const stocktakeTotal = ref(0);
 const restockLoaded = ref(false);
 const stocktakeLoaded = ref(false);
+// 2026-10-23 审计 M4：原先两 tab 固定 page0/size50 静默截断，补加载更多。
+const PAGE_SIZE = 50;
+const restockPage = ref(0);
+const stocktakePage = ref(0);
+const restockHasMore = ref(false);
+const stocktakeHasMore = ref(false);
+const loadingMore = ref(false);
+/** loadMore 序号守卫（2026-10-23 第五轮审计 L-3）：切 tab 使迟到的旧页 append 失效 */
+let loadMoreSeq = 0;
 
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
@@ -56,16 +65,25 @@ async function load() {
   if (!deviceId.value) return;
   loading.value = true;
   loadError.value = '';
+  // 🔴 作废在途 loadMore（2026-10-23 第五轮审计）：切 tab 触发 load() 时，
+  // 迟到的旧页 append 会污染新列表；同时复位 loadingMore 防分页死锁
+  // （同 orders/splits/disputes 已修模式，check-mp-defect-classes 门禁兜底）
+  loadMoreSeq += 1;
+  loadingMore.value = false;
   try {
     if (mode.value === 'restock') {
-      const res = await merchantApi.deviceTallyRecords(deviceId.value, 0, 50, 30);
+      const res = await merchantApi.deviceTallyRecords(deviceId.value, 0, PAGE_SIZE, 30);
       restockRows.value = toRestockRows(res);
       restockTotal.value = Number(res.total ?? 0);
+      restockPage.value = 0;
+      restockHasMore.value = restockRows.value.length < restockTotal.value;
       restockLoaded.value = true;
     } else {
-      const res = await merchantApi.deviceStocktakeEvents(deviceId.value, 0, 50);
+      const res = await merchantApi.deviceStocktakeEvents(deviceId.value, 0, PAGE_SIZE);
       stocktakeRows.value = toStocktakeRows(res);
       stocktakeTotal.value = Number(res.total ?? 0);
+      stocktakePage.value = 0;
+      stocktakeHasMore.value = stocktakeRows.value.length < stocktakeTotal.value;
       stocktakeLoaded.value = true;
     }
   } catch (e) {
@@ -73,6 +91,49 @@ async function load() {
     showError(loadError.value);
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadMore() {
+  if (loadingMore.value || loading.value) return;
+  if (mode.value === 'restock' && !restockHasMore.value) return;
+  if (mode.value === 'stocktake' && !stocktakeHasMore.value) return;
+  // seq 守卫（2026-10-23 第五轮审计 L-3）：restock 翻页在途时切到 stocktake tab，
+  // load() 已重置 restockRows，迟到的旧页append 进来会让 restock 列表缺第 0 页
+  const seq = ++loadMoreSeq;
+  loadingMore.value = true;
+  try {
+    if (mode.value === 'restock') {
+      const res = await merchantApi.deviceTallyRecords(
+        deviceId.value,
+        restockPage.value + 1,
+        PAGE_SIZE,
+        30
+      );
+      if (seq !== loadMoreSeq) return;
+      const rows = toRestockRows(res);
+      restockRows.value = restockRows.value.concat(rows);
+      restockTotal.value = Number(res.total ?? restockTotal.value);
+      restockPage.value += 1;
+      restockHasMore.value = restockRows.value.length < restockTotal.value;
+    } else {
+      const res = await merchantApi.deviceStocktakeEvents(
+        deviceId.value,
+        stocktakePage.value + 1,
+        PAGE_SIZE
+      );
+      if (seq !== loadMoreSeq) return;
+      const rows = toStocktakeRows(res);
+      stocktakeRows.value = stocktakeRows.value.concat(rows);
+      stocktakeTotal.value = Number(res.total ?? stocktakeTotal.value);
+      stocktakePage.value += 1;
+      stocktakeHasMore.value = stocktakeRows.value.length < stocktakeTotal.value;
+    }
+  } catch (e) {
+    if (seq !== loadMoreSeq) return;
+    showError(e instanceof Error ? e.message : '加载更多失败');
+  } finally {
+    if (seq === loadMoreSeq) loadingMore.value = false;
   }
 }
 
@@ -176,6 +237,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
           <view v-if="restockLoaded && !restockRows.length" class="card">
             <text class="meta">近 30 天没有配货记录</text>
           </view>
+          <text v-if="restockHasMore" role="button" class="load-more" @click="loadMore">
+            {{
+              loadingMore
+                ? UI_COPY.loading
+                : `加载更多（已显示 ${restockRows.length}/${restockTotal}）`
+            }}
+          </text>
         </template>
         <template v-else>
           <view v-for="e in stocktakeRows" :key="e.eventId" class="card record-card">
@@ -186,8 +254,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
             <text class="meta">{{ e.detail || '' }}</text>
           </view>
           <view v-if="stocktakeLoaded && !stocktakeRows.length" class="card">
-            <text class="meta">近 14 天没有盘点记录——可在柜机详情点「柜机盘点」开始第一次实盘</text>
+            <text class="meta">暂无盘点记录——可在柜机详情点「柜机盘点」开始第一次实盘</text>
           </view>
+          <text v-if="stocktakeHasMore" role="button" class="load-more" @click="loadMore">
+            {{
+              loadingMore
+                ? UI_COPY.loading
+                : `加载更多（已显示 ${stocktakeRows.length}/${stocktakeTotal}）`
+            }}
+          </text>
         </template>
       </template>
     </view>
@@ -196,13 +271,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 <style scoped>
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
 }
 .card {
   background: #fff;
   border-radius: 16rpx;
   padding: 24rpx;
   margin-bottom: 24rpx;
+}
+.load-more {
+  display: block;
+  text-align: center;
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  padding: 12rpx 0 8rpx;
 }
 .head-card {
   display: flex;

@@ -109,6 +109,11 @@
               </template>
             </view>
           </view>
+          <!-- 语义说明（2026-10-23 审计 M6）：全部行保持默认=整单收货；
+               任一行调低=部分收货，只入库有增量的行，未调整的行不入库 -->
+          <text v-if="canReceiveSatellitePurchase(order.status)" class="recv-hint"
+            >全部行保持默认即整单收货；只到了部分货时，把实收数调低，未调整的行不入库</text
+          >
           <app-button
             v-if="canReceiveSatellitePurchase(order.status)"
             variant="primary"
@@ -236,18 +241,45 @@ function onExpiryPick(line: OrderLine, e: { detail?: { value?: string } }) {
   line.expiryDate = String(e.detail?.value || '');
 }
 
+/**
+ * 收货行「字段原值快照」：hydrate 时写入，用于判断用户是否改过批次/效期。
+ * 后端 P1-1 语义（ProcurementService.doReceive）：即使数量无增量，
+ * 请求里带了 batchNo/expiryDate 也会覆盖订单行——所以这些行必须随提交发出。
+ */
+const receiveLineOriginals = new Map<string, { batchNo: string; expiryDate: string }>();
+
+function receiveLineKey(line: OrderLine): string {
+  return String(line.lineId ?? line.skuId);
+}
+
+function isReceiveLineBatchEdited(line: OrderLine): boolean {
+  const orig = receiveLineOriginals.get(receiveLineKey(line));
+  if (!orig) return false;
+  return (
+    String(line.batchNo || '') !== orig.batchNo || String(line.expiryDate || '') !== orig.expiryDate
+  );
+}
+
 function hydrateReceiveLines(rows: OrderLine[] | undefined): OrderLine[] {
   const batch = defaultSatelliteReceiveBatch();
   const expiry = defaultSatelliteReceiveExpiry();
-  return (rows || []).map((line) => ({
-    ...line,
-    batchNo: line.batchNo || batch,
-    expiryDate: line.expiryDate || expiry,
-    // 修复 2026-10-14：后端把提交值当「累计已收目标」（≤已收静默无操作）。
-    // 保留服务端已收数供展示与下限约束，目标默认=采购数（补齐剩余）。
-    alreadyReceived: Math.max(0, Number(line.receivedQty) || 0),
-    receivedQty: Math.max(line.orderedQty, Number(line.receivedQty) || 0)
-  }));
+  return (rows || []).map((line) => {
+    const hydrated: OrderLine = {
+      ...line,
+      batchNo: line.batchNo || batch,
+      expiryDate: line.expiryDate || expiry,
+      // 修复 2026-10-14：后端把提交值当「累计已收目标」（≤已收静默无操作）。
+      // 保留服务端已收数供展示与下限约束，目标默认=采购数（补齐剩余）。
+      alreadyReceived: Math.max(0, Number(line.receivedQty) || 0),
+      receivedQty: Math.max(line.orderedQty, Number(line.receivedQty) || 0)
+    };
+    // 快照「用户可编辑字段」的初始值：之后凡与快照不同即视为已修正，提交时保留
+    receiveLineOriginals.set(receiveLineKey(hydrated), {
+      batchNo: String(hydrated.batchNo || ''),
+      expiryDate: String(hydrated.expiryDate || '')
+    });
+    return hydrated;
+  });
 }
 
 async function loadCreate() {
@@ -319,16 +351,37 @@ async function receive(order: { purchaseOrderId: number; lines?: OrderLine[] }) 
   if (receivingId.value || !canConfirmSatelliteReceive(order.lines || [])) return;
   // 修复 2026-10-14：目标 ≤ 已收 时后端静默 return 0（无入库），此前却 toast 成功。
   const hasDelta = (order.lines || []).some(
-    (line) => (Number(line.receivedQty) || 0) > (line.alreadyReceived ?? 0)
+    (line) =>
+      (Number(line.receivedQty) || 0) > (line.alreadyReceived ?? 0) ||
+      // 批次/效期修正也算「有变更」：后端对数量无增量的行也会落库批次修正（P1-1），
+      // 此前只改批次号时本门闩直接报「数量未变化」，修正没有提交入口。
+      isReceiveLineBatchEdited(line)
   );
   if (!hasDelta) {
-    showError('收货数量未变化：没有可入库的增量，请先调整实收数');
+    showError('收货未变化：没有可入库的增量，也没有批次/效期修正');
     return;
   }
   receivingId.value = order.purchaseOrderId;
   try {
+    const lines = order.lines || [];
+    // 语义收口（2026-10-23 审计 M6/M4）：
+    // - 整单模式：所有行都保持默认（实收=剩余全量）→ 全量行提交，行为与旧版一致；
+    // - 部分模式：任一行被调低（实收 < 默认全额）→ 只提交「有增量」的行。
+    //   后端对请求里没有的行不收货（ProcurementService 只遍历请求 lines，@NotEmpty 仅要求 ≥1 行），
+    //   此前 A 行改 3、未调整的 B 行也按 5 全额入库的写穿场景由此消除。
+    // - 🔴 修正（第四轮回归）：有增量之外，「批次/效期被修正」的行也必须保留——
+    //   后端对数量无增量的行同样会持久化 batchNo/expiryDate（P1-1），
+    //   按纯数量过滤会把这类修正静默丢掉。
+    const defaultFull = (l: OrderLine) => Math.max(l.orderedQty, l.alreadyReceived ?? 0);
+    const partialMode = lines.some((l) => (Number(l.receivedQty) || 0) < defaultFull(l));
+    const payloadLines = partialMode
+      ? lines.filter(
+          (l) =>
+            (Number(l.receivedQty) || 0) > (l.alreadyReceived ?? 0) || isReceiveLineBatchEdited(l)
+        )
+      : lines;
     await merchantApi.receiveSatellitePurchaseOrder(order.purchaseOrderId, {
-      lines: (order.lines || []).map((line) => ({
+      lines: payloadLines.map((line) => ({
         lineId: line.lineId,
         skuId: line.skuId,
         batchNo: String(line.batchNo || '').trim(),

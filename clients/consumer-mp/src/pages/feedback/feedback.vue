@@ -196,13 +196,16 @@ async function onSubmit() {
     return;
   }
   if (submitting.value) return;
+  // 防重必须在 ensureConsumerAuth 之前置位：未登录时它是完整网络握手（wx.login + code2session），
+  // 窗口内双击会让两次调用都通过检查并发双提交（成因见 2026-10-23 第三轮审计 H1）
+  submitting.value = true;
   if (!(await ensureConsumerAuth())) {
+    submitting.value = false;
     uni.navigateTo({
       url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/feedback/feedback')
     });
     return;
   }
-  submitting.value = true;
   err.value = '';
   try {
     let contact = contactInfo.value.trim();
@@ -234,7 +237,7 @@ async function onSubmit() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .tabs {
@@ -245,7 +248,7 @@ async function onSubmit() {
 .tab {
   padding: 12rpx 28rpx;
   border-radius: var(--radius-pill);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   color: var(--text-muted, #666);
   font-size: var(--font-size-body);
 }
@@ -270,7 +273,7 @@ async function onSubmit() {
   display: block;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx;
   margin: 0 0 16rpx;
@@ -286,9 +289,9 @@ async function onSubmit() {
   margin-top: 8rpx;
 }
 .input {
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-control);
-  padding: 22rpx 24rpx;
+  padding: 22rpx var(--page-gutter, 24rpx);
   font-size: var(--font-size-lg);
   margin-bottom: 16rpx;
 }
@@ -299,9 +302,9 @@ async function onSubmit() {
   margin-bottom: 20rpx;
 }
 .issue-chip {
-  padding: 14rpx 24rpx;
+  padding: 14rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card);
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   font-size: var(--font-size-body);
   color: var(--text-muted, #666);
 }
@@ -313,9 +316,9 @@ async function onSubmit() {
 .textarea {
   width: 100%;
   min-height: 180rpx;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-control);
-  padding: 20rpx 24rpx;
+  padding: 20rpx var(--page-gutter, 24rpx);
   font-size: var(--font-size-md);
   box-sizing: border-box;
   margin-bottom: 8rpx;
@@ -345,7 +348,7 @@ async function onSubmit() {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  padding: 64rpx 24rpx;
+  padding: 64rpx var(--page-gutter, 24rpx);
   color: var(--text-subtle, #888);
   font-size: var(--font-size-md);
 }

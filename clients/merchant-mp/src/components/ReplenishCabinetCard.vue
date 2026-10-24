@@ -65,7 +65,7 @@ defineEmits<{
 .cabinet-chip {
   padding: 10rpx 20rpx;
   border-radius: var(--radius-pill);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--text-subtle, #cbd5e1);
   color: var(--text-muted, #334155);
   font-size: var(--font-size-sm);

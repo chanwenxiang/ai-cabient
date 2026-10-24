@@ -107,7 +107,8 @@
             <view class="scan-corner scan-corner--tr" />
             <view class="scan-corner scan-corner--bl" />
             <view class="scan-corner scan-corner--br" />
-            <view class="scan-line" />
+            <!-- 类名必须与下方 .scan-icon-line 样式对齐：曾误写 scan-line 导致主动效不渲染（审计 M2） -->
+            <view class="scan-icon-line" />
           </view>
           <text class="scan-cta-title">{{ opening ? '正在开门…' : '扫码开门' }}</text>
         </button>
@@ -575,7 +576,7 @@ export default {
   align-items: center;
   justify-content: center;
   margin: 12rpx auto 0;
-  padding: 8rpx 24rpx;
+  padding: 8rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-pill);
   background: rgba(17, 94, 89, 0.55);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
@@ -673,7 +674,7 @@ export default {
   align-items: center;
   gap: 10rpx;
   margin: 0 auto 24rpx;
-  padding: 12rpx 24rpx;
+  padding: 12rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-pill);
   background: rgba(4, 31, 26, 0.62);
   border: 1rpx solid rgba(255, 255, 255, 0.22);
@@ -714,7 +715,7 @@ export default {
   max-width: 520rpx;
   margin-left: auto;
   margin-right: auto;
-  padding: 28rpx 24rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx) 24rpx;
   border-radius: var(--radius-card);
   background: var(--brand-deep, #115e59);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
@@ -751,7 +752,7 @@ export default {
   width: 100%;
   height: 88rpx;
   margin-bottom: 20rpx;
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   box-sizing: border-box;
   border-radius: var(--radius-control);
   background: var(--brand-ink, #043f32);

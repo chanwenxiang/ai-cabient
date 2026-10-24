@@ -253,7 +253,7 @@
 
 <script setup lang="ts">
 import { onLoad, onReady, onShow, onHide, onUnload } from '@dcloudio/uni-app';
-import { showSuccess } from '@/utils/notify';
+import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
@@ -433,11 +433,29 @@ function goPolicy(kind: 'agreement' | 'privacy' | 'refund') {
   uni.navigateTo({ url: `/pages/policy/detail?type=${kind}` });
 }
 
+/** H5 微信 OAuth 跳转域名白名单（2026-10-23 第五轮审计）：仅放行 open.weixin.qq.com 系 */
+function isAllowedWechatOauthUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname;
+    return host === 'open.weixin.qq.com' || host.endsWith('.weixin.qq.com');
+  } catch {
+    return false;
+  }
+}
+
 async function tryH5WechatOauth(): Promise<boolean> {
   // #ifdef H5
   try {
     const cfg = await consumerApi.consumerPublicConfig();
     const oauthUrl = String(cfg?.wechatH5OauthUrl || '').trim();
+    // 域名白名单（2026-10-23 第五轮审计，对齐 recharge.ts isAllowedAlipayAction 口径）：
+    // 该 URL 来自管理端公开配置，配置被篡改时不得把用户带去任意站点
+    if (oauthUrl && !isAllowedWechatOauthUrl(oauthUrl)) {
+      showError('微信登录地址配置异常，请联系客服');
+      return false;
+    }
     if (oauthUrl) {
       globalThis.location.href = oauthUrl;
       return true;

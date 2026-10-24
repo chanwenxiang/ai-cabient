@@ -100,3 +100,34 @@ export function safeChooseImage(count = 1): Promise<string[]> {
     }
   });
 }
+
+/**
+ * 选图并区分「用户拒绝授权」与「用户取消」（2026-10-23 第五轮审计）：
+ * 旧口径把 auth deny 归一成空数组，调用方静默 return，用户得不到任何反馈，
+ * 也无法区分「功能坏了」和「我拒绝了」。
+ * 注意：老基础库 fail 可能不带可判定 errCode，此时 denied=false（保守不误报）。
+ */
+export function safeChooseImageWithReason(
+  count = 1
+): Promise<{ paths: string[]; denied: boolean }> {
+  const api = uniApi();
+  const choose = api.chooseImage;
+  if (typeof choose !== 'function') {
+    return Promise.resolve({ paths: [], denied: false });
+  }
+  return new Promise((resolve) => {
+    try {
+      choose({
+        count,
+        success: (r) => resolve({ paths: r?.tempFilePaths ?? [], denied: false }),
+        fail: (err) => {
+          const msg = String((err as { errMsg?: string })?.errMsg || '');
+          const denied = /auth deny|authorize|denied|permission/i.test(msg);
+          resolve({ paths: [], denied });
+        }
+      });
+    } catch {
+      resolve({ paths: [], denied: false });
+    }
+  });
+}

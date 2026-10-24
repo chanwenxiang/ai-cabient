@@ -92,7 +92,7 @@ const emit = defineEmits<{
   max-width: 620rpx;
   padding: 36rpx 32rpx 28rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   box-shadow: 0 24rpx 48rpx rgba(15, 23, 42, 0.18);
 }
 .confirm-title {
@@ -116,7 +116,7 @@ const emit = defineEmits<{
   margin-top: 20rpx;
   padding: 16rpx 14rpx;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   color: var(--text-muted, #334155);
   font-size: var(--font-size-caption);
   line-height: 1.45;

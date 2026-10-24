@@ -265,6 +265,9 @@ async function onSignAlipay() {
       if (isH5Runtime && typeof document !== 'undefined') {
         const blob = new Blob([res.signFormHtml], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
+        // 页面即将整体跳走，blob URL 不会有机会再被引用——延迟回收防泄漏（审计 B3）。
+        // 60s 足够覆盖慢网下签约表单的提交；签约页起来后本页已卸载。
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
         globalThis.location.href = url;
         return;
       }
@@ -307,7 +310,8 @@ function goShop() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  /* 2026-10-23 三页侧距统一走 --page-gutter token（help/member/verify 口径一致） */
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
@@ -332,7 +336,7 @@ function goShop() {
   margin: 0 0 20rpx;
   padding: 24rpx 22rpx;
   border-radius: var(--radius-card);
-  background: var(--page-bg, #f8faf9);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border-subtle, #edf1ef);
 }
 .step {
@@ -377,7 +381,7 @@ function goShop() {
   background: var(--brand);
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 32rpx;
   margin: 0;
@@ -445,10 +449,10 @@ function goShop() {
   min-height: 88rpx;
   height: 88rpx;
   line-height: 1.4;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--card-border, #e8eeeb);
   border-radius: var(--radius-panel);
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   margin-bottom: 16rpx;
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);

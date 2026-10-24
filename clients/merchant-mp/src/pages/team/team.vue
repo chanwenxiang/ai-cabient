@@ -63,7 +63,8 @@
         <input
           class="input"
           password
-          placeholder="初始密码（至少 6 位）"
+          maxlength="64"
+          placeholder="初始密码（6-64 位）"
           :value="form.password"
           @input="form.password = eventInput($event)"
         />
@@ -128,7 +129,8 @@
           <input
             class="input"
             password
-            placeholder="新密码（至少 6 位）"
+            maxlength="64"
+            placeholder="新密码（6-64 位）"
             :value="resetPassword"
             @input="resetPassword = eventInput($event)"
           />
@@ -284,6 +286,12 @@ async function onInvite() {
     showError('密码至少 6 位');
     return;
   }
+  // 上限对齐 password-change.vue（6-64 位，2026-10-23 第四轮审计）：
+  // 此前本页无上限，超长密码直撞后端才报错
+  if (password.length > 64) {
+    showError('密码最多 64 位');
+    return;
+  }
   saving.value = true;
   try {
     await merchantApi.createTeamUser({
@@ -322,6 +330,11 @@ async function onResetPassword() {
   const pwd = resetPassword.value.trim();
   if (pwd.length < 6) {
     showError('密码至少 6 位');
+    return;
+  }
+  // 上限对齐 password-change.vue（6-64 位，2026-10-23 第四轮审计）
+  if (pwd.length > 64) {
+    showError('密码最多 64 位');
     return;
   }
   saving.value = true;

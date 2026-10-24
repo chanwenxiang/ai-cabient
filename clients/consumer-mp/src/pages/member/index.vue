@@ -249,18 +249,18 @@ function goMessages() {
 <style scoped>
 .page {
   min-height: 100%;
-  padding: 0 0 48rpx;
+  padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
   /* 2026-10-23 全局样式统一（用户拍板以开通支付页为准）：白底直铺 */
   background: var(--card-bg, #ffffff);
 }
 .hero {
   position: relative;
   overflow: hidden;
-  margin: 24rpx 24rpx 0;
+  margin: 24rpx var(--page-gutter, 24rpx) 0;
   padding: 36rpx 32rpx 28rpx;
   border-radius: 16rpx;
   color: var(--text-primary, #14201b);
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border: none;
   box-shadow: none;
 }
@@ -428,12 +428,12 @@ function goMessages() {
   grid-template-columns: repeat(4, 1fr);
   gap: 12rpx;
   /* 2026-10-14 用户反馈「左右边距太挤」：宫格此前贴屏，与 hero 卡 24rpx 对齐 */
-  margin: 22rpx 24rpx 0;
+  margin: 22rpx var(--page-gutter, 24rpx) 0;
 }
 .quick {
   padding: 22rpx 10rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   text-align: center;
   box-shadow: none;
 }
@@ -466,10 +466,10 @@ function goMessages() {
 
 .section {
   /* 2026-10-14 用户反馈「左右边距太挤」：权益/等级区块此前全幅贴屏，统一 24rpx */
-  margin: 24rpx 24rpx 0;
-  padding: 28rpx 24rpx;
+  margin: 24rpx var(--page-gutter, 24rpx) 0;
+  padding: 28rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   box-shadow: none;
 }
 .section-title {
@@ -520,7 +520,7 @@ function goMessages() {
   padding: 20rpx 18rpx;
   margin-top: 12rpx;
   border-radius: var(--radius-panel);
-  background: var(--page-bg, #f8faf9);
+  background: var(--page-bg, #ededed);
 }
 .level-row.on {
   background: var(--brand-soft);

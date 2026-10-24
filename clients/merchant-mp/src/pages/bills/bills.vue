@@ -210,7 +210,7 @@ onPullDownRefresh(async () => {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: var(--page-bg, #f5f6f8);
+  background: var(--page-bg, #ededed);
 }
 .page-body {
   padding: 12px 12px 32px;
@@ -224,7 +224,7 @@ onPullDownRefresh(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 14px;
@@ -251,7 +251,7 @@ onPullDownRefresh(async () => {
   font-weight: 600;
 }
 .bill-summary {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 12px;
   padding: 14px;
   margin-bottom: 12px;
@@ -314,7 +314,7 @@ onPullDownRefresh(async () => {
   color: var(--text-primary, #1f2329);
 }
 .day-card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 10px;

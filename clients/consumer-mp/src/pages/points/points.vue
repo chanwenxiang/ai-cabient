@@ -84,6 +84,8 @@
                 logPoints(l) >= 0 ? `+${logPoints(l)}` : logPoints(l)
               }}</text>
             </view>
+            <!-- 接口一次性返回上限 100 条、无游标分页，超限旧记录不可见须显式说明（审计 M5） -->
+            <text v-if="logs.length >= 100" class="log-cap">仅显示最近 100 条积分记录</text>
           </view>
         </view>
       </template>
@@ -166,7 +168,7 @@ function goRedeem() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .loading {
@@ -245,7 +247,7 @@ function goRedeem() {
  */
 .summary-note {
   margin-top: 16rpx;
-  padding: 20rpx 24rpx;
+  padding: 20rpx var(--page-gutter, 24rpx);
   border-radius: 18rpx;
   background: var(--brand-soft, #f0fdf4);
 }
@@ -266,9 +268,9 @@ function goRedeem() {
 }
 .card {
   margin: 24rpx 0 0;
-  padding: 28rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -339,5 +341,12 @@ function goRedeem() {
 }
 .log-points.outcome {
   color: var(--color-danger);
+}
+.log-cap {
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle, #9aa4a0);
 }
 </style>

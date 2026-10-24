@@ -60,6 +60,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { onHide, onPageHide, onPageShow } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
 import { consumerApi } from '@/utils/consumer-api';
 import { wxAdEnabled, wxAdUnitId } from '@/utils/feature-flags';
@@ -218,6 +219,24 @@ watch(
   { immediate: true }
 );
 
+// 🔴 组件实例里页面级 onHide 在 mp-weixin 端**不触发**（同 use-auto-refresh 实测结论：
+// uni 运行时把组件的 pageLifetimes 映射成 onPageShow/onPageHide，组件内注册的
+// onHide/onShow 永不被调用）。两套钩子都要注册，缺一即静默失效——
+// 只写 onHide 的话微信端切后台后挂起的 COMPLETE 定时器照常上报，完播率虚高。
+// 曝光被中断即不算「完成」：清掉挂起定时器；回前台后给当前展示的那一张
+// 重新挂表——swiper 不滑动、deviceId 不变时 onSwiperChange/load 都不会触发，
+// 不补这一下，回前台后当前素材看再久也不计完播。
+function handleAdPageHide() {
+  clearCompleteTimers();
+}
+function handleAdPageShow() {
+  const item = items.value[currentIndex.value];
+  if (item) scheduleComplete(item);
+}
+onHide(handleAdPageHide);
+onPageHide(handleAdPageHide);
+onPageShow(handleAdPageShow);
+
 onBeforeUnmount(() => {
   clearCompleteTimers();
 });
@@ -225,7 +244,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .ad-banner {
-  margin: 12rpx 24rpx 0;
+  margin: 12rpx var(--page-gutter, 24rpx) 0;
   border-radius: var(--radius-panel);
   overflow: hidden;
   background: var(--color-border-subtle);

@@ -9,7 +9,7 @@
   gap: 16rpx;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 22rpx;
   border: 1rpx solid var(--color-border);
@@ -35,6 +35,14 @@
   text-align: center;
   color: var(--text-subtle);
   font-size: var(--font-size-caption);
+}
+.load-more {
+  display: block;
+  text-align: center;
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  padding: 20rpx 0 8rpx;
 }
 .line-copy {
   flex: 1;
@@ -66,7 +74,7 @@
   padding: 0 18rpx;
   margin-top: 12rpx;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   font-size: var(--font-size-body);
   box-sizing: border-box;
@@ -78,7 +86,7 @@
   text-align: center;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 /* 盘点单卡片 */
@@ -94,7 +102,7 @@
   font-size: var(--font-size-caption);
   padding: 4rpx 14rpx;
   border-radius: var(--radius-tag);
-  background: var(--page-bg, #f1f5f9);
+  background: var(--page-bg, #ededed);
   color: var(--text-muted);
 }
 .st-status.matched {
@@ -119,7 +127,7 @@
   padding: 18rpx;
   border-radius: var(--radius-control);
   border: 2rpx solid var(--color-border);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
 }
 .mode-opt.on {
   border-color: var(--brand);
@@ -165,7 +173,7 @@
   padding: 0 18rpx;
   box-sizing: border-box;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   font-size: var(--font-size-sm);
   color: var(--text-primary, #0f172a);
@@ -185,6 +193,10 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
   flex-shrink: 0;
+}
+.save-btn.saving {
+  opacity: 0.5;
+  pointer-events: none;
 }
 /* 照片 */
 .photo-add-btn {
@@ -209,5 +221,5 @@
   width: 160rpx;
   height: 160rpx;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f1f5f9);
+  background: var(--page-bg, #ededed);
 }

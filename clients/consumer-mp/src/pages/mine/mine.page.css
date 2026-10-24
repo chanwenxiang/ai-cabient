@@ -109,7 +109,7 @@
   margin-right: 8rpx;
 }
 .setup-banner {
-  margin: 16rpx 24rpx 0;
+  margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 24rpx 28rpx;
   border-radius: 16rpx;
   background: #ffffff;

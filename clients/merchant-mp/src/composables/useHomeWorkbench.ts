@@ -213,9 +213,10 @@ export function useHomeWorkbench() {
 
   function hydrateFromCache() {
     const cached = peekMerchantMeCacheForDisplay();
-    if (cached && (cached.displayName || cached.phoneNumber)) {
+    // 缓存不再落手机号（2026-10-24 数据最小化），显示名兜底收敛为 displayName →「同事」
+    if (cached && (cached.displayName || cached.merchants?.length)) {
       seedMerchantMeDisplayCache(me);
-      meName.value = cached.displayName || cached.phoneNumber || '同事';
+      meName.value = cached.displayName || '同事';
       merchantNames.value = formatMerchantNames(cached.merchants);
     }
   }

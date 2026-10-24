@@ -29,7 +29,7 @@
   margin: 0 0 16rpx;
   padding: 24rpx;
   width: 100%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 18rpx);
   box-sizing: border-box;
 }

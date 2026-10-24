@@ -178,7 +178,7 @@ function onReasonInput(e: unknown) {
   max-height: 90vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   box-sizing: border-box;
 }
 .order-appeal-panel.surface-order-detail {
@@ -261,12 +261,12 @@ function onReasonInput(e: unknown) {
 }
 .order-appeal-input.surface-order-detail {
   min-height: 140rpx;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   margin-bottom: 16rpx;
 }
 .order-appeal-input.surface-result {
   min-height: 180rpx;
-  background: var(--page-bg, #f8faf9);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border-subtle);
   margin-bottom: 20rpx;
 }

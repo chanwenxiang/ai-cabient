@@ -241,7 +241,16 @@ export function invokeWxRequestPayment(wxPay: WxPayLike): Promise<void> {
       signType: (wxPay.signType as 'RSA' | 'MD5' | undefined) || 'RSA',
       paySign: String(wxPay.paySign || ''),
       success: () => resolve(),
-      fail: (err) => reject(new Error(err?.errMsg || '微信支付取消或失败'))
+      fail: (err) => {
+        // 用户主动取消不是错误：微信返回 requestPayment:fail cancel 原文（英文平台串，
+        // 绕过 notify 封装的中文口径）。转成中文提示，pending 单仍保留由上层兜底续跑。
+        const msg = String(err?.errMsg || '');
+        if (/cancel/i.test(msg)) {
+          reject(new Error('已取消支付'));
+          return;
+        }
+        reject(new Error(msg || '微信支付失败'));
+      }
     });
     // #endif
     // #ifndef MP-WEIXIN

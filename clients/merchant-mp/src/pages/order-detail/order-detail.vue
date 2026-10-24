@@ -15,12 +15,9 @@
         <view class="section">
           <text class="section-title">商品明细</text>
           <view v-for="(line, i) in order.lines || []" :key="i" class="line">
-            <image
-              class="line-thumb"
-              :src="skuImageFor(line.skuId, line.skuName)"
-              mode="aspectFill"
-              aria-hidden="true"
-            />
+            <view class="line-thumb line-mark" aria-hidden="true">{{
+              (line.skuName || '商').slice(0, 1)
+            }}</view>
             <view class="line-main">
               <view class="line-top">
                 <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
@@ -134,7 +131,6 @@ import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
   displayBizNo,
   emptyDisplay,
@@ -269,8 +265,13 @@ useAutoRefresh({
   load,
   shouldContinue: () => !isOrderTerminal(order.value?.status),
   maxDurationMs: 180_000,
-  canRefresh: () => !!orderId.value && isMerchantLoggedIn() && canList.value
+  // detailInFlight 门闩（审计 M2）：静默刷新不置 loading，须单独标志防止上一轮 GET
+  // 超 3s 未返回时轮询叠加，弱网下请求无界堆积（GET 幂等故仅 M 级）
+  canRefresh: () => !!orderId.value && isMerchantLoggedIn() && canList.value && !detailInFlight
 });
+
+/** 订单详情 GET 在途标志（loading 只在首屏置位，静默轮询不置位，不能当门闩） */
+let detailInFlight = false;
 
 async function load() {
   if (!isMerchantLoggedIn()) {
@@ -294,6 +295,7 @@ async function load() {
   }
   if (!order.value) loading.value = true;
   error.value = '';
+  detailInFlight = true;
   try {
     order.value = (await merchantApi.orderDetail(orderId.value)) as OrderDetail;
   } catch (e) {
@@ -302,6 +304,7 @@ async function load() {
       error.value = e instanceof Error ? e.message : '加载失败';
     }
   } finally {
+    detailInFlight = false;
     loading.value = false;
   }
 }
@@ -397,7 +400,7 @@ function playVideo() {
 }
 .loading {
   text-align: center;
-  padding: 80rpx 24rpx;
+  padding: 80rpx var(--page-gutter, 24rpx);
   color: var(--text-muted);
   font-size: var(--font-size-md);
 }
@@ -405,7 +408,7 @@ function playVideo() {
   background: linear-gradient(135deg, var(--brand-soft), var(--white));
   color: var(--text-primary, #14201b);
   border-radius: var(--radius-panel);
-  padding: 28rpx 24rpx;
+  padding: 28rpx var(--page-gutter, 24rpx);
   margin-bottom: 20rpx;
   border: 1rpx solid var(--brand-soft, #d1fae5);
   text-align: center;
@@ -439,7 +442,7 @@ function playVideo() {
   color: var(--brand);
 }
 .section {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 16rpx;
@@ -464,6 +467,15 @@ function playVideo() {
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   flex-shrink: 0;
+}
+/* 演示 SKU 本地图已下线（2026-10-24）：无图商品用首字占位 */
+.line-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-md, 28rpx);
+  font-weight: 700;
 }
 .line-main {
   flex: 1;
@@ -564,7 +576,7 @@ function playVideo() {
   margin: 0;
 }
 .btn-outline {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   color: var(--brand);
   border: 2rpx solid var(--brand);
   min-height: 80rpx;
@@ -574,7 +586,7 @@ function playVideo() {
   border: none;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

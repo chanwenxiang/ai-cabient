@@ -46,10 +46,6 @@ export const DISPUTE_REPLY_PROMPT = {
 
 export const DISPUTE_REPLY_DENIED_MESSAGE = '无回复权限';
 
-export function disputeActionErrorMessage(e: unknown, fallback: string): string {
-  return e instanceof Error ? e.message : fallback;
-}
-
 export function disputeOrderDetailUrl(orderId: string): string {
   return `/pages/order-detail/order-detail?orderId=${encodeURIComponent(orderId)}`;
 }

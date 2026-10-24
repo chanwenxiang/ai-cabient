@@ -260,7 +260,7 @@ input {
   height: 88rpx;
   font-size: 28rpx;
   line-height: 1.4;
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
 }
 
 /*

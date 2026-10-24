@@ -271,12 +271,12 @@ function goOrders() {
 }
 .page {
   min-height: 100%;
-  padding: 24rpx var(--page-gutter) calc(var(--spacing-lg) * 2);
+  padding: 24rpx var(--page-gutter) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: transparent;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 16rpx;
   padding: 24rpx;
   margin: 0 0 16rpx;

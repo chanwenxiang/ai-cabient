@@ -202,6 +202,18 @@ function persistCredentials() {
   clearStoredPassword();
 }
 
+// L2-2：后端连续失败 ≥2 次才强制图形验证码（AuthController.CAPTCHA_AFTER_FAILURES=2，
+// 按 redis failureCount 计数）。前端本地同步计数对齐该口径，另以后端验证码类报错兜底
+// （多设备/服务端计数领先于本地的场景）——此前任意一次失败就出验证码框，与后端口径不一致
+// （2026-10-23 审计 L5）。
+const CAPTCHA_AFTER_FAILURES = 2;
+let pwFailCount = 0;
+
+/** 验证码类报错：后端要求验证码但请求没带/带错时 verifyOrThrow 的三种文案 */
+function isCaptchaRejection(msg: string) {
+  return msg.includes('验证码');
+}
+
 async function onLogin() {
   if (loading.value) return;
   const phoneNumber = phone.value.trim();
@@ -225,6 +237,7 @@ async function onLogin() {
         : undefined
     );
     captchaRequired.value = false;
+    pwFailCount = 0;
     persistCredentials();
     await finishLoginFlow();
     // CB-048：密码登录成功后静默绑定当前微信（幂等；换微信号重登即换绑）。
@@ -240,10 +253,15 @@ async function onLogin() {
     })();
     uni.switchTab({ url: '/pages/home/home' });
   } catch (e) {
-    // L2-2：连续失败后需图形验证码；验证码一次性消费，失败后必须刷新
-    captchaRequired.value = true;
-    void loadCaptcha();
-    err.value = e instanceof Error ? e.message : '登录失败';
+    const msg = e instanceof Error ? e.message : '登录失败';
+    pwFailCount += 1;
+    // L2-2：连续失败后需图形验证码；验证码一次性消费，失败后必须刷新。
+    // 触发口径=后端强制阈值（≥2 次失败）或后端明确拒绝验证码（服务端计数可能领先本地）
+    if (pwFailCount >= CAPTCHA_AFTER_FAILURES || isCaptchaRejection(msg)) {
+      captchaRequired.value = true;
+      void loadCaptcha();
+    }
+    err.value = msg;
   } finally {
     loading.value = false;
   }
@@ -289,7 +307,10 @@ function wxLoginCode(): Promise<string> {
 async function finishLoginFlow() {
   try {
     const me = await merchantApi.me();
-    uni.setStorageSync('merchant_me', me);
+    // 数据最小化（2026-10-24 审计留置④，与 useMerchantMe.refreshMerchantMe 同口径）：
+    // 本地缓存不落手机号，离线展示名兜底见 useHomeWorkbench.hydrateFromCache
+    const { phoneNumber: _stripped, ...cacheable } = me;
+    uni.setStorageSync('merchant_me', cacheable);
   } catch {
     /* 工作台 onShow 会再拉 profile */
   }
@@ -432,7 +453,8 @@ async function finishLoginFlow() {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: calc(24rpx + env(safe-area-inset-top)) 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  padding: calc(24rpx + env(safe-area-inset-top)) var(--page-gutter, 24rpx)
+    calc(24rpx + env(safe-area-inset-bottom));
   overflow-x: hidden;
   overflow-y: auto;
   gap: 0;
@@ -532,7 +554,7 @@ async function finishLoginFlow() {
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
   border-radius: var(--radius-control);
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   font-size: var(--font-size-md);
   color: var(--page-tint, #f0fdfa);
   line-height: 76rpx;

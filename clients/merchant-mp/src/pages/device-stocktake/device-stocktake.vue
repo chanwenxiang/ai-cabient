@@ -11,6 +11,7 @@ import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
@@ -20,6 +21,7 @@ const deviceName = ref('');
 const slots = ref<DeviceSlot[]>([]);
 const physicalInputs = ref<Record<string, string>>({});
 const evidenceUrl = ref('');
+const uploadingEvidence = ref(false);
 const loading = ref(false);
 const submitting = ref<Record<string, boolean>>({});
 
@@ -69,6 +71,7 @@ async function loadSlots() {
 }
 
 function chooseEvidence() {
+  if (uploadingEvidence.value) return; // 在途门闩：连点拍照只发一次（第四轮审计，对齐补货证据口径）
   uni.chooseImage({
     count: 1,
     sourceType: ['camera'],
@@ -80,12 +83,18 @@ function chooseEvidence() {
 }
 
 async function uploadEvidence(path: string) {
+  if (uploadingEvidence.value) return;
+  uploadingEvidence.value = true;
   try {
+    // 5MB 预检（第四轮审计）：与补货证据同口径，避免大图直撞后端报原始错误
+    await assertLocalImageSize(path);
     const att = await merchantApi.uploadDeviceStocktakeEvidenceFile(deviceId.value, path);
     evidenceUrl.value = att.url || '';
     showSuccess('凭证已上传');
   } catch (e) {
     showError(e instanceof Error ? e.message : '凭证上传失败');
+  } finally {
+    uploadingEvidence.value = false;
   }
 }
 
@@ -212,7 +221,7 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
 
 <style scoped>
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
 }
 .card {
   background: #fff;

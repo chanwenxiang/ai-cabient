@@ -60,6 +60,8 @@
               :label="exporting ? '导出中…' : '导出'"
               @click="exportOrders"
             />
+            <!-- 口径说明（审计 M3）：后端导出仅支持柜机筛选；状态/时间/关键词只影响列表 -->
+            <text class="export-hint">导出当前柜机的全部订单（状态/时间筛选不适用于导出）</text>
           </view>
         </view>
 
@@ -156,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { showError } from '@/utils/notify';
-import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onReachBottom, onShow } from '@dcloudio/uni-app';
 import { getOrgFilter } from '@/utils/org-filter';
 import {
   emptyDisplay,
@@ -188,7 +190,9 @@ async function exportOrders() {
   if (exporting.value) return;
   exporting.value = true;
   try {
-    const url = `${merchantApi.exportOrdersUrl()}`;
+    // 与列表同口径传设备筛选（2026-10-23 审计 M3）。后端 exportOrdersCsv 目前只支持
+    // deviceId 一个筛选参数——状态/时间/关键词筛选不进导出，后端扩展前属已知口径差异。
+    const url = `${merchantApi.exportOrdersUrl(filterDeviceId.value || undefined)}`;
     const file = await downloadAuthedFile(url);
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, '0');
@@ -428,6 +432,11 @@ async function load() {
     return;
   }
   const seq = ++loadSeq;
+  // 🔴 复位 loadingMore（第四轮审计回归）：loadMore 在途时用户切筛选 → load() 递增
+  // loadSeq → loadMore 的 finally 因 seq 错位跳过复位 → loadingMore 永久 true，
+  // 此后触底/手动加载全被守卫拦死（分页死锁）。新 load 已重置 pageIndex/hasMore，
+  // 在途 loadMore 的迟到结果由 seq 守卫丢弃，不会重复追加。
+  loadingMore.value = false;
   if (!(await ensureOrdersMerchantMe(seq))) return;
   if (!canList.value) {
     denyOrdersAccess();
@@ -450,6 +459,11 @@ async function load() {
     }
   }
 }
+
+// 触底自动加载（2026-10-23 审计 L4）：与 splits 页对齐；此前只有手动点「加载更多」
+onReachBottom(() => {
+  void loadMore();
+});
 
 async function loadMore() {
   if (!hasMore.value || loadingMore.value || loading.value) return;
@@ -571,28 +585,22 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .page-root {
   /* globals in App.vue */
 }
-.loading,
-.empty {
+/* .empty 已删（模板零匹配，空态走 error-state 组件） */
+.loading {
   text-align: center;
-  padding: 80rpx 24rpx;
+  padding: 80rpx var(--page-gutter, 24rpx);
   color: var(--text-muted, #64748b);
   font-size: var(--font-size-md);
 }
 .loading.inline {
-  padding: 40rpx 24rpx;
+  padding: 40rpx var(--page-gutter, 24rpx);
 }
-.compact-empty {
-  padding: 40rpx 24rpx;
-}
-.err {
-  color: var(--danger, var(--color-danger));
-  display: block;
-  margin-bottom: 20rpx;
-}
+/* 2026-10-23 死 CSS 清理：.compact-empty/.err/.card-hover/.card-thumb/.card-time
+   均与模板零匹配（错误态走 error-state 组件、hover 用 wx-cell-hover、时间并入 card-meta） */
 .filter-panel {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 0;
-  padding: 20rpx 24rpx 14rpx;
+  padding: 20rpx var(--page-gutter, 24rpx) 14rpx;
   margin: 0;
   border: none;
   border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
@@ -643,15 +651,19 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   margin-top: 16rpx;
   width: 100%;
 }
+.export-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle);
+  text-align: center;
+}
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--card-radius, 22rpx);
   padding: 24rpx;
   margin: 0 0 16rpx;
   border: 1rpx solid var(--card-border, var(--color-border));
-}
-.card-hover {
-  background: var(--page-bg, #f8fafc) !important;
 }
 .card-header {
   display: flex;
@@ -711,13 +723,6 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   gap: 20rpx;
   margin-top: 12rpx;
 }
-.card-thumb {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 18rpx;
-  background: var(--brand-soft);
-  flex-shrink: 0;
-}
 .card-copy {
   flex: 1;
   min-width: 0;
@@ -740,12 +745,6 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .card-meta {
   display: block;
   margin-top: 8rpx;
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
-}
-.card-time {
-  display: block;
-  margin-top: 4rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
 }

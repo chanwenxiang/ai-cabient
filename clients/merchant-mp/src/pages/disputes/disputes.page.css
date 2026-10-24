@@ -24,7 +24,7 @@
 .card {
   background: var(--card-bg);
   border-radius: var(--radius-panel);
-  padding: 24rpx 24rpx 20rpx;
+  padding: 24rpx var(--page-gutter, 24rpx) 20rpx;
   margin-bottom: 16rpx;
   border: none;
   -webkit-tap-highlight-color: transparent;
@@ -317,6 +317,6 @@
   background: var(--color-border-subtle, #f1f5f9);
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }

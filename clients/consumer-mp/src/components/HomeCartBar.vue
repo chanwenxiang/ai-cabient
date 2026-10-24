@@ -131,8 +131,8 @@ export default {
   position: relative;
   z-index: 5;
   isolation: isolate;
-  background: var(--card-bg, #fff);
-  padding: 16rpx 24rpx;
+  background: var(--card-bg, #ffffff);
+  padding: 16rpx var(--page-gutter, 24rpx);
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
   display: flex;

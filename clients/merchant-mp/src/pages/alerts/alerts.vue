@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import { showError, showSuccess } from '@/utils/notify';
+import { showError, showSuccess, showLongError } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
@@ -147,7 +147,6 @@ const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory
 const loading = ref(true);
 const error = ref('');
 const preferredId = ref('');
-const onlyPreferred = ref(false);
 const slotDiscrepancies = ref<OpenApiSlotDiscrepancyAlertDto[]>([]);
 type AlertRow = {
   type: string;
@@ -434,8 +433,12 @@ function isInventoryException(type: string) {
   );
 }
 
+// 修复 2026-10-23：处理库存异常 POST 在途守卫（promptText 只挡弹窗期，
+// 确认后在途再点会重开弹窗二次提交同一条异常）。
+let resolvingInventory = false;
 async function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
   if (!item.exceptionId) return;
+  if (resolvingInventory) return;
   if (!canResolveInventory.value) {
     showError('无库存处理权限');
     return;
@@ -450,12 +453,15 @@ async function resolveInventory(item: { exceptionId?: string; deviceId?: string 
     testId: 'inventory-resolve-prompt'
   });
   if (resolution == null) return;
+  resolvingInventory = true;
   try {
     await merchantApi.resolveInventoryException(item.exceptionId!, resolution);
     showSuccess('库存异常已处理');
     await load();
   } catch (e) {
-    showError(e instanceof Error ? e.message : '处理失败');
+    showLongError(e, '处理失败');
+  } finally {
+    resolvingInventory = false;
   }
 }
 
@@ -469,7 +475,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
  * 与其它页不同，这里**没有「终态」可等**：空列表恰恰是「在等第一个待办」的状态，
  * 所以 shouldContinue 恒真，由 maxDurationMs 封顶（5 分钟）。切后台即停表，
  * 回前台重新计时 —— 避免用户挂机时无限烧接口。
- * load() 已有列表时不闪 loading，也不重置 onlyPreferred 本地筛选。
+ * load() 已有列表时不闪 loading。
  */
 useAutoRefresh({
   intervalMs: 10_000,
@@ -532,33 +538,26 @@ useAutoRefresh({
   color: var(--warning, #b45309);
 }
 
-.pref-bar {
-  display: none;
-}
 .device-tab-bar {
-  background: var(--card-bg, #fff);
-}
-.pref-toggle {
-  color: var(--text-muted);
-  text-decoration: underline;
+  background: var(--card-bg, #ffffff);
 }
 .kpi-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12rpx;
-  margin: 12rpx 24rpx 24rpx;
+  margin: 12rpx var(--page-gutter, 24rpx) 24rpx;
 }
 .kpi-card {
   border-radius: var(--radius-panel);
   padding: 22rpx 16rpx;
   text-align: center;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 14rpx rgba(13, 148, 136, 0.04);
 }
 .kpi-card-hover {
   opacity: 0.88;
-  background: var(--page-bg, #f8fafc) !important;
+  background: var(--page-bg, #ededed) !important;
 }
 .kpi-card.active {
   border-color: var(--brand, #0d9488);
@@ -609,7 +608,7 @@ useAutoRefresh({
   margin-top: 0;
 }
 .alert-card-hover {
-  background: var(--page-bg, #f8fafc) !important;
+  background: var(--page-bg, #ededed) !important;
   opacity: 0.96;
 }
 .tag {

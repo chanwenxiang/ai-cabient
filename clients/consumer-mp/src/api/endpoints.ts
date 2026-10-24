@@ -63,17 +63,21 @@ export const ConsumerEndpoints = {
   /** 会话 */
   sessions: `${API_PREFIX}/sessions`,
   sessionsActive: `${API_PREFIX}/sessions/active`,
-  session: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}`,
-  sessionCancel: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/cancel`,
-  sessionCart: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/cart`,
-  sessionDemoClose: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/demo-close`,
-  sessionOrder: (sessionId: string) => `${API_PREFIX}/sessions/${sessionId}/order`,
+  session: (sessionId: string) => `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}`,
+  sessionCancel: (sessionId: string) =>
+    `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/cancel`,
+  sessionCart: (sessionId: string) =>
+    `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/cart`,
+  sessionDemoClose: (sessionId: string) =>
+    `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/demo-close`,
+  sessionOrder: (sessionId: string) =>
+    `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/order`,
   sessionLiveCart: (sessionId: string) =>
     `${API_PREFIX}/sessions/${encodeURIComponent(sessionId)}/live-cart`,
   /** 订单 */
   orders: (page: number, size: number) => `${API_PREFIX}/orders?page=${page}&size=${size}`,
   ordersPendingCount: `${API_PREFIX}/orders/pending-count`,
-  orderDetail: (orderId: string) => `${API_PREFIX}/orders/${orderId}`,
+  orderDetail: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}`,
   orderPay: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/pay`,
   orderRefund: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/refund`,
   orderInvoice: (orderId: string) => `${API_PREFIX}/orders/${encodeURIComponent(orderId)}/invoice`,
@@ -94,11 +98,12 @@ export const ConsumerEndpoints = {
     `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/ad-play`,
   deviceFaultReport: (deviceId: string) =>
     `${API_PREFIX}/devices/${encodeURIComponent(deviceId)}/fault-report`,
-  /** 账户发票 */
+  /** 账户发票（AccountController /invoices） */
   accountInvoices: `${API_PREFIX}/account/invoices`,
   /** 公开配置（无鉴权） */
   publicConsumerConfig: `${API_PREFIX}/public/consumer-config`,
   publicHelp: `${API_PREFIX}/public/help`,
+  /** 公开条款（PublicConfigController /policies，public-legal.json） */
   publicPolicies: `${API_PREFIX}/public/policies`,
   /** 反馈 */
   feedback: `${API_PREFIX}/feedback`,
@@ -111,16 +116,18 @@ export const ConsumerEndpoints = {
   memberRedeem: `${API_PREFIX}/member/redeem`,
   memberNotifications: (limit: number) => `${API_PREFIX}/member/notifications?limit=${limit}`,
   memberNotificationsUnreadCount: `${API_PREFIX}/member/notifications/unread-count`,
-  memberNotificationRead: (id: number) => `${API_PREFIX}/member/notifications/${id}/read`,
+  memberNotificationRead: (id: number) =>
+    `${API_PREFIX}/member/notifications/${encodeURIComponent(String(id))}/read`,
   memberNotificationsReadAll: `${API_PREFIX}/member/notifications/read-all`,
   memberNotificationPrefs: `${API_PREFIX}/member/notifications/prefs`,
   /** 营销 */
   marketingBanners: `${API_PREFIX}/marketing/banners`,
   /** P3-6：小程序轮播位曝光/点击留痕（须登录） */
-  marketingAdEvent: (campaignId: number) => `${API_PREFIX}/marketing/ads/${campaignId}/events`,
+  marketingAdEvent: (campaignId: number) =>
+    `${API_PREFIX}/marketing/ads/${encodeURIComponent(String(campaignId))}/events`,
   marketingCampaignsActive: `${API_PREFIX}/marketing/campaigns/active`,
   marketingCampaignClaim: (activityId: number) =>
-    `${API_PREFIX}/marketing/campaigns/${activityId}/claim`,
+    `${API_PREFIX}/marketing/campaigns/${encodeURIComponent(String(activityId))}/claim`,
   /** 券 */
   coupons: (status?: string) =>
     status ? `${API_PREFIX}/coupons?status=${encodeURIComponent(status)}` : `${API_PREFIX}/coupons`,
@@ -128,7 +135,7 @@ export const ConsumerEndpoints = {
   couponsUnused: `${API_PREFIX}/coupons?status=UNUSED`,
   /** 公告 */
   announcements: `${API_PREFIX}/announcements`,
-  announcement: (id: number) => `${API_PREFIX}/announcements/${id}`
+  announcement: (id: number) => `${API_PREFIX}/announcements/${encodeURIComponent(String(id))}`
 } as const;
 
 /**

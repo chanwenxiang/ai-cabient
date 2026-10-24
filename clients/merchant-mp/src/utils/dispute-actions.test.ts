@@ -4,7 +4,6 @@ import {
   DISPUTE_REPLY_PROMPT,
   canStartDisputeClaim,
   canStartDisputeResolve,
-  disputeActionErrorMessage,
   disputeDeviceDetailUrl,
   disputeOrderDetailUrl,
   disputeResolveTypeLabels,
@@ -36,8 +35,6 @@ describe('dispute-actions · M7c', () => {
     expect(DISPUTE_REPLY_PROMPT.title).toBe('回复争议');
     expect(DISPUTE_REPLY_PROMPT.testId).toBe('dispute-reply-prompt');
     expect(DISPUTE_REPLY_DENIED_MESSAGE).toContain('权限');
-    expect(disputeActionErrorMessage(new Error('x'), 'fallback')).toBe('x');
-    expect(disputeActionErrorMessage('oops', 'fallback')).toBe('fallback');
     expect(disputeOrderDetailUrl('O1')).toContain('orderId=O1');
     expect(disputeDeviceDetailUrl('D1')).toContain('id=D1');
   });

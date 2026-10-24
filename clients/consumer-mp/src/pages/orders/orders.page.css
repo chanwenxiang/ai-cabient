@@ -9,7 +9,7 @@
 .search-input {
   flex: 1;
   height: 64rpx;
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   border-radius: 8rpx;
   background: #f7f7f7;
   border: none;
@@ -46,7 +46,7 @@
 .state-wrap {
   flex: 1;
   /* 与订单卡片 margin 左右 24rpx 对齐，避免空态按钮比列表更窄 */
-  padding: 48rpx 24rpx 32rpx;
+  padding: 48rpx var(--page-gutter, 24rpx) 32rpx;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -61,7 +61,7 @@
   padding: 24rpx;
 }
 .state-wrap.compact {
-  padding: 32rpx 24rpx;
+  padding: 32rpx var(--page-gutter, 24rpx);
 }
 /*
  * 块级按钮槽：.state-wrap 虽是 flex column 但**没有 gap**，两个 app-button 会零间距贴死
@@ -103,7 +103,7 @@
   letter-spacing: 1rpx;
 }
 .review-section {
-  padding: 8rpx 24rpx 0;
+  padding: 8rpx var(--page-gutter, 24rpx) 0;
 }
 .review-card {
   display: flex;
@@ -111,20 +111,20 @@
   padding: 18rpx 20rpx;
   margin-bottom: 12rpx;
   border-radius: 16rpx;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--color-border-subtle, #f0f0f0);
   box-shadow: none;
 }
 .review-card.tone-wait {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-card.tone-warn {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-card.tone-success {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-color: var(--color-border-subtle, #edf1ef);
 }
 .review-icon {
@@ -196,8 +196,8 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  background: var(--card-bg, #fff);
-  padding: 8rpx 24rpx 12rpx;
+  background: var(--card-bg, #ffffff);
+  padding: 8rpx var(--page-gutter, 24rpx) 12rpx;
 }
 .filter-aux {
   display: flex;
@@ -221,10 +221,10 @@
   box-sizing: border-box;
 }
 .order-card {
-  margin: 0 24rpx 16rpx;
+  margin: 0 var(--page-gutter, 24rpx) 16rpx;
   padding: 26rpx 28rpx;
   border-radius: 16rpx;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: none;
   box-shadow: none;
 }
@@ -293,6 +293,15 @@
   border-radius: 18rpx;
   background: var(--brand-soft, #f0fdfa);
   flex-shrink: 0;
+}
+/* 演示 SKU 本地图已下线（2026-10-24）：无图订单用首个商品名首字占位 */
+.order-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-md, 28rpx);
+  font-weight: 700;
 }
 .order-copy {
   flex: 1;
@@ -404,7 +413,7 @@
   color: var(--text-muted);
 }
 .list-foot {
-  padding: 28rpx 24rpx calc(160rpx + env(safe-area-inset-bottom));
+  padding: 28rpx var(--page-gutter, 24rpx) calc(160rpx + env(safe-area-inset-bottom));
   text-align: center;
 }
 .foot-link {

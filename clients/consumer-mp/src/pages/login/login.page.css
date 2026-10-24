@@ -155,7 +155,7 @@
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-  padding: 0 24rpx;
+  padding: 0 var(--page-gutter, 24rpx);
   overflow: hidden;
   box-sizing: border-box;
 }
@@ -177,7 +177,7 @@
   font-size: 56rpx;
   font-weight: 800;
   display: block;
-  color: var(--page-bg, #f0fdfa);
+  color: var(--page-bg, #ededed);
   letter-spacing: 2rpx;
 }
 .tagline {
@@ -236,7 +236,7 @@
   max-width: 320px;
   max-height: calc(100% - 140rpx);
   margin: 0;
-  padding: 28rpx 24rpx 32rpx;
+  padding: 28rpx var(--page-gutter, 24rpx) 32rpx;
   overflow-y: auto;
 }
 .field-auth {
@@ -283,7 +283,7 @@
   font-weight: 700;
   display: block;
   margin-bottom: 8rpx;
-  color: var(--page-bg, #f0fdfa);
+  color: var(--page-bg, #ededed);
   text-align: center;
 }
 .subtitle {
@@ -391,7 +391,7 @@
   border-radius: var(--radius-panel);
   padding: 0 28rpx;
   font-size: var(--font-size-md);
-  color: var(--page-bg, #f0fdfa);
+  color: var(--page-bg, #ededed);
   line-height: 88rpx;
   backdrop-filter: none;
 }

@@ -158,11 +158,10 @@ async function load() {
   try {
     list.value = await consumerApi.myCoupons(activeTab.value || undefined);
   } catch (e) {
-    if (!list.value.length) {
-      list.value = [];
-      loadError.value = e instanceof Error ? e.message : '加载失败';
-      showError(loadError.value);
-    }
+    // 切 tab 失败必须提示：旧 tab 数据留着渲染会让「tab 高亮」与「列表内容」错位（审计 M4）。
+    // 但初次加载失败时页面已渲染持久 error-state（含重试），同一错误不再弹 toast（审计 B2）。
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    if (list.value.length) showError(loadError.value);
   } finally {
     loading.value = false;
   }
@@ -221,17 +220,17 @@ function pickForNextOpen(c: CouponDto) {
   min-height: 100%;
 }
 .page-body {
-  padding: 16rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 16rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .loading {
   text-align: center;
-  padding: 80rpx 24rpx;
+  padding: 80rpx var(--page-gutter, 24rpx);
   color: var(--text-muted, #64748b);
 }
 .coupon-card {
   display: flex;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 16rpx;
   margin-bottom: 16rpx;
   overflow: hidden;

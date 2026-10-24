@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
 import {
   MERCHANT_BIZ_NAV,
   MERCHANT_DOCS_NAV,
@@ -13,6 +14,11 @@ import {
  * 菜单完整性门禁（2026-10-14 权限审计沉淀）：
  * 每个菜单项必须 perm+pack 双配置、URL 不带 query、key 全局唯一。
  * 权限码是否真实存在于后端由 scripts/check-frontend-perm-codes.mjs 把守，此处不重复。
+ *
+ * 2026-10-24 追加 icon 资产存在性断言：菜单 icon 经 mine.vue 的 menuIcon(item.icon)
+ * 动态拼接成 /static/menu/<icon>.png——**跨文件数据流**，门禁 P 类的同文件判据
+ * 看不见，删 static/menu/*.png 时按文件名 grep 也会漏。孤产清理险情（误删 20 个
+ * 被引用图标）的教训：这条数据链必须有用例钉住。
  */
 
 const ALL_NAVS: [string, MerchantNavItem[]][] = [
@@ -67,6 +73,19 @@ describe('merchant-nav 菜单完整性', () => {
     for (const item of MERCHANT_MORE_NAV) {
       const fromBiz = MERCHANT_BIZ_NAV.find((i) => i.key === item.key);
       if (fromBiz) expect(item).toBe(fromBiz);
+    }
+  });
+
+  it('每个菜单项的 icon 都有对应静态资产（menuIcon 动态拼接，删静态时 grep 看不见）', () => {
+    for (const [label, nav] of ALL_NAVS) {
+      for (const item of nav) {
+        if (!item.icon) continue;
+        const asset = new URL(`../static/menu/${item.icon}.png`, import.meta.url);
+        expect(
+          existsSync(asset),
+          `${label}.${item.key} 的 icon "${item.icon}" 缺少 static/menu/${item.icon}.png`
+        ).toBe(true);
+      }
     }
   });
 });

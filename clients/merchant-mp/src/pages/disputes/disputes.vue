@@ -279,7 +279,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { showError, showSuccess, showConfirm } from '@/utils/notify';
+import { showError, showSuccess, showConfirm, showLongError } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -325,7 +325,6 @@ import {
   DISPUTE_REPLY_PROMPT,
   canStartDisputeClaim,
   canStartDisputeResolve,
-  disputeActionErrorMessage,
   disputeDeviceDetailUrl,
   disputeOrderDetailUrl,
   disputeResolveTypeLabels,
@@ -549,6 +548,10 @@ async function load() {
     return;
   }
   const seq = ++loadSeq;
+  // 🔴 复位 loadingMore（2026-10-23 第五轮审计）：loadMore 在途时下拉/切 tab/onShow/
+  // 轮询触发 load() → seq 递增 → 迟到 loadMore 的 finally 因 seq 错位跳过复位 →
+  // loadingMore 永久 true，分页死锁。同 orders/splits 已修模式的第三处漏网。
+  loadingMore.value = false;
   if (!(await refreshDisputesMerchantMe(seq))) return;
   if (!canListDisputes.value) {
     denyDisputesAccess();
@@ -632,7 +635,7 @@ async function claimFromDetail() {
     showSuccess('已认领');
     await load();
   } catch (e) {
-    showError(disputeActionErrorMessage(e, '认领失败'));
+    showLongError(e, '认领失败');
   } finally {
     claiming.value = false;
   }
@@ -655,7 +658,7 @@ async function resolveFromDetail(type: MerchantDisputeResolutionType) {
     detailVisible.value = false;
     await load();
   } catch (e) {
-    showError(disputeActionErrorMessage(e, '结案失败'));
+    showLongError(e, '结案失败');
   } finally {
     resolving.value = false;
   }
@@ -698,7 +701,7 @@ async function loadMore() {
     hasMore.value = page.hasMore;
   } catch (e) {
     if (seq !== loadSeq) return;
-    showError(disputeActionErrorMessage(e, '加载失败'));
+    showLongError(e, '加载失败');
   } finally {
     if (seq === loadSeq) loadingMore.value = false;
   }
@@ -712,20 +715,26 @@ function goDeviceFromDetail() {
   }
 }
 
+// 修复 2026-10-23：回复 POST 在途守卫（promptText 只挡弹窗期，确认后在途可重开弹窗二次提交）。
+let replying = false;
 async function onReply(item: MerchantDisputeTicket | MerchantDisputeDetailView) {
   if (!canReply.value) {
     showError(DISPUTE_REPLY_DENIED_MESSAGE);
     return;
   }
+  if (replying) return;
   if (!item.ticketId) return;
   const body = await promptText({ ...DISPUTE_REPLY_PROMPT });
   if (body == null) return;
+  replying = true;
   try {
     await merchantApi.disputeReply(item.ticketId, body);
     showSuccess('已回复');
     await load();
   } catch (e) {
-    showError(disputeActionErrorMessage(e, '回复失败'));
+    showLongError(e, '回复失败');
+  } finally {
+    replying = false;
   }
 }
 </script>

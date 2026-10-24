@@ -183,7 +183,7 @@ const emptyTip = computed(() => {
   padding: 24rpx 20rpx;
   box-sizing: border-box;
   border: 2rpx dashed var(--text-subtle, #cbd5e1);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-panel);
   display: flex;
   flex-direction: column;

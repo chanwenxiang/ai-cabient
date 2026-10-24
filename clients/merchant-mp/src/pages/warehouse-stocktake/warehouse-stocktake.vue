@@ -41,6 +41,11 @@
           <text class="sku-meta">{{ fmtTime(st.createdAt) }}</text>
         </view>
 
+        <!-- 2026-10-23 审计残留：原先只取 page0/size20，>20 条静默截断；补加载更多。 -->
+        <text v-if="listHasMore" role="button" class="load-more" @click="loadMoreStocktakes">
+          {{ listLoadingMore ? '加载中…' : `加载更多（已显示 ${stocktakes.length}/${listTotal}）` }}
+        </text>
+
         <app-button
           block
           variant="primary"
@@ -159,7 +164,13 @@
                 >
                   <view class="picker reason-picker">{{ reasonLabel(row) }}</view>
                 </picker>
-                <view v-if="rowEditable(row)" role="button" class="save-btn" @click="saveLine(row)">
+                <view
+                  v-if="rowEditable(row)"
+                  role="button"
+                  class="save-btn"
+                  :class="{ saving: row.saving }"
+                  @click="saveLine(row)"
+                >
                   保存
                 </view>
               </view>
@@ -269,6 +280,15 @@ const statusTab = ref('ALL');
 const stocktakes = ref<Stocktake[]>([]);
 const listLoading = ref(false);
 const listError = ref('');
+// 2026-10-23 审计残留：列表翻页（原先只取第一页 20 条）
+const listTotal = ref(0);
+const listPage = ref(0);
+const listHasMore = ref(false);
+const listLoadingMore = ref(false);
+/** 列表分页序号守卫（2026-10-24 缺陷类门禁 H）：切 tab/下拉刷新使迟到旧页 append 失效 */
+let listSeq = 0;
+/** 凭证上传在途门闩（2026-10-24 缺陷类门禁 F4）：连点拍照只发一次，对齐 device-stocktake 口径 */
+const uploadingPhoto = ref(false);
 
 // ── 建单 ──
 const createMode = ref('OPEN');
@@ -338,6 +358,9 @@ function onStatusTab(v: string) {
 }
 
 async function loadList() {
+  // A 类模式：入口无条件复位在途 loadMore + 递增序号作废迟到旧页（对齐 tally-records）
+  listSeq += 1;
+  listLoadingMore.value = false;
   listLoading.value = true;
   listError.value = '';
   try {
@@ -348,10 +371,38 @@ async function loadList() {
     });
     const page = await merchantApi.warehouseStocktakes(q);
     stocktakes.value = page?.items || [];
+    listTotal.value = page?.total ?? stocktakes.value.length;
+    listPage.value = 0;
+    listHasMore.value = stocktakes.value.length < listTotal.value;
   } catch (e) {
     listError.value = e instanceof Error ? e.message : '盘点单加载失败';
   } finally {
     listLoading.value = false;
+  }
+}
+
+async function loadMoreStocktakes() {
+  if (!listHasMore.value || listLoadingMore.value || listLoading.value) return;
+  const seq = ++listSeq;
+  listLoadingMore.value = true;
+  try {
+    const q = toQuery({
+      page: listPage.value + 1,
+      size: 20,
+      status: statusTab.value === 'ALL' ? null : statusTab.value
+    });
+    const page = await merchantApi.warehouseStocktakes(q);
+    if (seq !== listSeq) return;
+    const items = page?.items || [];
+    stocktakes.value = stocktakes.value.concat(items);
+    listTotal.value = page?.total ?? listTotal.value;
+    listPage.value += 1;
+    listHasMore.value = stocktakes.value.length < listTotal.value;
+  } catch (e) {
+    if (seq !== listSeq) return;
+    showError(e instanceof Error ? e.message : '加载更多失败');
+  } finally {
+    if (seq === listSeq) listLoadingMore.value = false;
   }
 }
 
@@ -448,6 +499,9 @@ function onReasonPick(row: EditRow, e: { detail: { value: string } }) {
 }
 
 async function saveLine(row: EditRow) {
+  // 修复 2026-10-23：row.saving 此前只有赋值无读取（死变量）＝防重实际不存在，
+  // 双击会并发两个 PUT 重复写台账。入口守卫 + 按钮 .saving 态。
+  if (row.saving) return;
   const counted = row.countedInput === '' ? null : Number(row.countedInput);
   const built = buildUpdateLineBody(counted, row.notesInput, row.diffReason);
   if (!built.ok) {
@@ -495,6 +549,7 @@ async function loadPhotos(seq = detailSeq) {
 }
 
 function choosePhoto() {
+  if (uploadingPhoto.value) return; // 在途门闩：连点拍照只发一次（2026-10-24 缺陷类门禁 F4）
   uni.chooseImage({
     count: 1,
     sourceType: ['camera', 'album'],
@@ -506,12 +561,16 @@ function choosePhoto() {
 }
 
 async function uploadPhoto(path: string) {
+  if (uploadingPhoto.value) return;
+  uploadingPhoto.value = true;
   try {
     await merchantApi.uploadStocktakeEvidence(detailId.value, path);
     showSuccess('照片已上传');
     await loadPhotos();
   } catch (e) {
     showError(e instanceof Error ? e.message : '照片上传失败');
+  } finally {
+    uploadingPhoto.value = false;
   }
 }
 

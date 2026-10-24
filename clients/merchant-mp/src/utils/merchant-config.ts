@@ -10,12 +10,20 @@ import { merchantApi } from './merchant-api';
  */
 let cache: Record<string, string> | null = null;
 let inflight: Promise<Record<string, string>> | null = null;
+/**
+ * 2026-10-24 缺陷类门禁 N（负缓存钉死）：原先失败也 `cache = {}` 永久钉死 ⇒ 首次拉取
+ * 赶上网络抖动，整个进程生命周期的开关全关、再无重试（C 端 feature-flags 10-23 同型
+ * 已修，商户端漏修）。现失败只记负缓存时间戳：TTL 窗口内直接回空表（fail-closed 不变、
+ * 不刷接口），窗口过后允许重试。
+ */
+const FAILURE_RETRY_MS = 30_000;
+let lastFailureAt = 0;
 
 function enabled(raw: unknown): boolean {
   return raw === true || raw === 'true' || raw === '1';
 }
 
-/** 拉取并缓存公开配置。失败时缓存空表 ⇒ 所有开关按「关」。 */
+/** 拉取并缓存公开配置。失败时不入正缓存，仅 30s 负缓存窗口内免重试。 */
 export async function loadMerchantFlags(opts?: {
   refresh?: boolean;
 }): Promise<Record<string, string>> {
@@ -25,6 +33,7 @@ export async function loadMerchantFlags(opts?: {
   }
   if (cache) return cache;
   if (inflight) return inflight;
+  if (lastFailureAt && Date.now() - lastFailureAt < FAILURE_RETRY_MS) return {};
   inflight = merchantApi
     .merchantPublicConfig()
     .then((cfg) => {
@@ -32,8 +41,8 @@ export async function loadMerchantFlags(opts?: {
       return cache;
     })
     .catch(() => {
-      cache = {};
-      return cache;
+      lastFailureAt = Date.now();
+      return {} as Record<string, string>;
     })
     .finally(() => {
       inflight = null;

@@ -114,6 +114,7 @@ import {
   centsToYuanDigits,
   yuanToCents,
   fmtMoney,
+  formatDateTimeShort,
   formatSkuNameWithSpec,
   formatMerchantPriceHistoryDetail
 } from '@aicabinet/shared-uni/format';
@@ -174,12 +175,8 @@ function pricePlaceholder(p: MerchantSkuPricing) {
   return centsToYuanDigits(cents);
 }
 
-function formatTime(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+// 2026-10-23 审计 L2：收敛到共享 formatDateTimeShort（防格式漂移，与全 app 一致）
+const formatTime = (iso?: string) => formatDateTimeShort(iso, '');
 
 function historyProductName(h: MerchantSkuPriceChange) {
   const hit = rows.value.find((r) => r.skuId === h.skuId);
@@ -355,7 +352,8 @@ async function savePrice(p: MerchantSkuPricing) {
       void load(false);
     }
   } finally {
-    savingKey.value = '';
+    // 只清自己的槽（审计 M7）：快速连改两行时，A 的 finally 不能把正在保存中的 B 行门闩一并清掉
+    if (savingKey.value === key) savingKey.value = '';
   }
 }
 </script>
@@ -504,7 +502,7 @@ async function savePrice(p: MerchantSkuPricing) {
   height: 64rpx;
   padding: 0 16rpx;
   border-radius: 999rpx;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   box-sizing: border-box;
 }
@@ -555,7 +553,7 @@ async function savePrice(p: MerchantSkuPricing) {
   color: var(--color-danger);
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

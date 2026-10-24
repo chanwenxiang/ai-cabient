@@ -29,7 +29,7 @@
   margin: 0;
   padding: 24rpx;
   width: 100%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 18rpx);
   box-sizing: border-box;
 }
@@ -78,7 +78,7 @@
   height: 80rpx;
   padding: 0 20rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-control);
   display: flex;

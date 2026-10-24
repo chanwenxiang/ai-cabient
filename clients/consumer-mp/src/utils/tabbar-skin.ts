@@ -40,7 +40,7 @@ const TABBAR_SKIN: Record<'landing' | 'shop', TabBarSkinSpec> = {
   }
 };
 
-const TABBAR_ITEM_NAMES = ['home', 'orders', 'mine'] as const;
+export const TABBAR_ITEM_NAMES = ['home', 'orders', 'mine'] as const;
 
 /** 按页面形态套用 tabBar 皮肤：落地页传 true，其余（购物/订单/我的）传 false。 */
 export function applyTabBarSkin(landing: boolean): void {

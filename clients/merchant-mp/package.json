@@ -1,6 +1,6 @@
 {
   "name": "@aicabinet/merchant-mp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev:mp-weixin": "node ../../scripts/patch-uni-mp-workspace.mjs && node ../../scripts/dev-mp-weixin-with-patch.mjs",
@@ -29,8 +29,7 @@
     "@dcloudio/uni-mp-weixin": "3.0.0-4010520240507001",
     "echarts": "^5.6.0",
     "uni-echarts": "^2.5.3",
-    "vue": "^3.4.21",
-    "vue-i18n": "^9.1.9"
+    "vue": "^3.4.21"
   },
   "devDependencies": {
     "@dcloudio/types": "^3.4.8",

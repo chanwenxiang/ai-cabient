@@ -99,7 +99,7 @@ onShow(() => {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .state {
@@ -107,7 +107,7 @@ onShow(() => {
   flex-direction: column;
   align-items: center;
   gap: 16rpx;
-  padding: 80rpx 24rpx;
+  padding: 80rpx var(--page-gutter, 24rpx);
   color: var(--text-muted);
   font-size: var(--font-size-md);
 }
@@ -127,7 +127,7 @@ onShow(() => {
   gap: 16rpx;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: 16rpx;
   padding: 28rpx 28rpx 24rpx;
   box-shadow: none;

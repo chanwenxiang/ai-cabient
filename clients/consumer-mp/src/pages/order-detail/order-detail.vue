@@ -25,12 +25,9 @@
             :key="item.skuId + '-' + (item.slotId || '')"
             class="item-row"
           >
-            <image
-              class="item-thumb"
-              :src="skuImageFor(item.skuId, item.skuName)"
-              mode="aspectFill"
-              aria-hidden="true"
-            />
+            <view class="item-thumb item-mark" aria-hidden="true">{{
+              (item.skuName || '商').slice(0, 1)
+            }}</view>
             <view class="item-info">
               <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
               <text class="item-qty"
@@ -255,7 +252,7 @@
                 class="partial-qty"
                 type="number"
                 :value="String(row.qty)"
-                @input="(e: any) => onPartialQty(row, e)"
+                @input="onPartialQtyInput(row, $event)"
               />
             </view>
           </view>
@@ -305,7 +302,6 @@ import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
-import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
   emptyDisplay,
   displayBizNo,
@@ -659,15 +655,9 @@ function syncRefundLines() {
     }));
 }
 
-function onPartialQty(
-  row: RefundLineRow,
-  e: { detail?: { value?: string }; target?: { value?: string } } | Event
-) {
-  const raw = String(
-    (e as { detail?: { value?: string } })?.detail?.value ??
-      (e as { target?: { value?: string } })?.target?.value ??
-      ''
-  ).trim();
+function onPartialQty(row: RefundLineRow, e: unknown) {
+  const ev = e as { detail?: { value?: string }; target?: { value?: string } };
+  const raw = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
   if (!raw) {
     row.qty = 0;
     return;
@@ -678,6 +668,12 @@ function onPartialQty(
     return;
   }
   row.qty = Math.min(row.maxQty, Number.parseInt(raw, 10));
+}
+
+/** 模板内联适配器（2026-10-23 第五轮审计）：Vue 模板表达式不支持 TS 类型字面量
+ * 花括号，@input 事件经此转入 onPartialQty，避免为绕开类型报错而写 any。 */
+function onPartialQtyInput(row: RefundLineRow, e: unknown) {
+  onPartialQty(row, e);
 }
 
 const statusDetail = computed(() => {
@@ -955,7 +951,7 @@ function callSupport() {
 .status-bar {
   display: flex;
   align-items: center;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 30rpx;
   margin-bottom: 20rpx;
@@ -996,7 +992,7 @@ function callSupport() {
   display: block;
 }
 .section {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 24rpx;
   margin-bottom: 20rpx;
@@ -1022,6 +1018,15 @@ function callSupport() {
   border-radius: var(--radius-control);
   background: var(--brand-soft, #f0fdf4);
   flex-shrink: 0;
+}
+/* 演示 SKU 本地图已下线（2026-10-24）：无图商品用首字占位 */
+.item-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-md, 28rpx);
+  font-weight: 700;
 }
 .item-info {
   flex: 1;
@@ -1133,7 +1138,7 @@ function callSupport() {
   border: 2rpx solid var(--brand);
   color: var(--brand);
   border-radius: var(--radius-pill);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   font-size: var(--font-size-md);
   font-weight: 600;
 }
@@ -1196,7 +1201,7 @@ function callSupport() {
   max-height: 90vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card) 24rpx 0 0;
   padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
@@ -1235,7 +1240,7 @@ function callSupport() {
 .dispute-input {
   width: 100%;
   min-height: 140rpx;
-  background: var(--page-bg, #f5f7f8);
+  background: var(--page-bg, #ededed);
   border-radius: var(--radius-control);
   padding: 20rpx;
   box-sizing: border-box;
@@ -1318,6 +1323,6 @@ function callSupport() {
   border-radius: var(--radius-tag);
   text-align: center;
   font-size: var(--font-size-body);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
 }
 </style>

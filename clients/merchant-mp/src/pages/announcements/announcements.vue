@@ -82,7 +82,7 @@ onPullDownRefresh(async () => {
   box-sizing: border-box;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 0;

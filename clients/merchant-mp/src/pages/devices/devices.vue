@@ -436,7 +436,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .toolbar {
   display: flex;
   align-items: stretch;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   padding: 0 8rpx;
   border-bottom: 1rpx solid var(--color-border-subtle, #e2e8f0);
 }
@@ -495,7 +495,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   -webkit-tap-highlight-color: transparent;
 }
 .device-card-hover {
-  background: var(--page-bg, #f8fafc) !important;
+  background: var(--page-bg, #ededed) !important;
   opacity: 0.96;
 }
 .device-main {
@@ -600,7 +600,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   z-index: 5;
   isolation: isolate;
   background: var(--page-bg, #ededed);
-  padding: 16rpx 24rpx 12rpx;
+  padding: 16rpx var(--page-gutter, 24rpx) 12rpx;
 }
 .search {
   height: 72rpx;
@@ -671,7 +671,7 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  border: 2rpx solid var(--card-bg, #fff);
+  border: 2rpx solid var(--card-bg, #ffffff);
 }
 .online-dot.on {
   background: var(--success, #16a34a);

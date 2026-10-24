@@ -159,7 +159,7 @@ export const MerchantEndpoints = {
   deviceStocktakeEvidence: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence`,
   deviceStocktakeEvidenceFile: (id: string, fileId: number) =>
-    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence/${fileId}`,
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence/${encodeURIComponent(String(fileId))}`,
   /** CB-050 扩展：理货记录（配货=补货行聚合 / 盘点=AISLE_AUDIT 事件） */
   deviceTallyRecords: (id: string, page: number, size: number, days: number) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/tally-records?page=${page}&size=${size}&days=${days}`,
@@ -182,14 +182,17 @@ export const MerchantEndpoints = {
   workbench: `${API_PREFIX}/merchant/workbench`,
   opsConfig: `${API_PREFIX}/merchant/ops-config`,
   announcements: `${API_PREFIX}/merchant/announcements`,
-  announcement: (id: number | string) => `${API_PREFIX}/merchant/announcements/${id}`,
+  announcement: (id: number | string) =>
+    `${API_PREFIX}/merchant/announcements/${encodeURIComponent(String(id))}`,
   teamUsers: `${API_PREFIX}/merchant/team/users`,
-  teamUser: (userId: number | string) => `${API_PREFIX}/merchant/team/users/${userId}`,
+  teamUser: (userId: number | string) =>
+    `${API_PREFIX}/merchant/team/users/${encodeURIComponent(String(userId))}`,
   teamUserDisable: (userId: number | string) =>
-    `${API_PREFIX}/merchant/team/users/${userId}/disable`,
-  teamUserEnable: (userId: number | string) => `${API_PREFIX}/merchant/team/users/${userId}/enable`,
+    `${API_PREFIX}/merchant/team/users/${encodeURIComponent(String(userId))}/disable`,
+  teamUserEnable: (userId: number | string) =>
+    `${API_PREFIX}/merchant/team/users/${encodeURIComponent(String(userId))}/enable`,
   teamUserResetPassword: (userId: number | string) =>
-    `${API_PREFIX}/merchant/team/users/${userId}/reset-password`,
+    `${API_PREFIX}/merchant/team/users/${encodeURIComponent(String(userId))}/reset-password`,
   teamRoles: `${API_PREFIX}/merchant/team/roles`,
   notifyPrefs: `${API_PREFIX}/merchant/notify/prefs`,
   notifyWxBind: `${API_PREFIX}/merchant/notify/wx-bind`,
@@ -207,7 +210,8 @@ export const MerchantEndpoints = {
   profile: `${API_PREFIX}/merchant/profile`,
   notifications: (limit: number) => `${API_PREFIX}/merchant/notifications?limit=${limit}`,
   notificationsUnreadCount: `${API_PREFIX}/merchant/notifications/unread-count`,
-  notificationRead: (id: number | string) => `${API_PREFIX}/merchant/notifications/${id}/read`,
+  notificationRead: (id: number | string) =>
+    `${API_PREFIX}/merchant/notifications/${encodeURIComponent(String(id))}/read`,
   satelliteWarehouse: `${API_PREFIX}/merchant/satellite-warehouse`,
   satellitePurchaseSuppliers: `${API_PREFIX}/merchant/satellite-purchase/suppliers`,
   satellitePurchaseSkus: `${API_PREFIX}/merchant/satellite-purchase/skus`,

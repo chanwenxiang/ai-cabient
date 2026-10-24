@@ -29,7 +29,7 @@
   margin: 0 0 12rpx;
   padding: 16rpx 20rpx 12rpx;
   width: 100%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--brand-mist);
   border-radius: var(--radius-panel);
   box-sizing: border-box;
@@ -86,7 +86,7 @@
   margin: 0 0 12rpx;
   padding: 24rpx;
   width: 100%;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel, 18rpx);
   box-sizing: border-box;
 }
@@ -171,6 +171,13 @@
   text-align: center;
   padding: 40rpx 8rpx;
   color: var(--text-subtle);
+}
+.list-cap {
+  display: block;
+  text-align: center;
+  padding: 12rpx 0 4rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-caption);
 }
 .actions {
   margin-top: 8rpx;

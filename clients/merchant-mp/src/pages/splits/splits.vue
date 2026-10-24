@@ -254,6 +254,10 @@ async function loadFocused(seq: number): Promise<void> {
 
 async function load(reset: boolean) {
   const seq = ++loadSeq;
+  // 🔴 复位 loadingMore（第四轮审计回归，同 orders.vue）：loadMore 在途时
+  // 切 tab/onShow 触发 load() → loadSeq 递增 → loadMore 的 finally 因 seq
+  // 错位跳过复位 → loadingMore 永久 true，分页死锁。迟到结果由 seq 守卫丢弃。
+  loadingMore.value = false;
   if (reset) {
     pageIndex.value = 0;
     hasMore.value = false;
@@ -339,7 +343,7 @@ async function loadMore() {
   margin-bottom: 16rpx;
   padding: 16rpx 20rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--brand);
 }
 .focus-text {
@@ -354,7 +358,7 @@ async function loadMore() {
   padding: 4rpx 8rpx;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card);
   padding: 28rpx;
   margin-bottom: 16rpx;
@@ -435,7 +439,7 @@ async function loadMore() {
   font-size: var(--font-size-sm);
 }
 .page-body {
-  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

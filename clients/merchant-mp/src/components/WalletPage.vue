@@ -253,6 +253,9 @@ function onMerchantPick(e: { detail: { value: string | number } }) {
   if (!next || next === selectedMerchantId.value) return;
   selectedMerchantId.value = next;
   overview.value = null;
+  // 清掉在途提现的幂等键（2026-10-23 第五轮审计 L-5）：requestNo 全局唯一，
+  // 跨商户复用会撞旧商户的单 → 409「提现单号已被其它请求占用」且文案对商户费解
+  pendingRequestNo = '';
   void load();
 }
 
@@ -293,11 +296,16 @@ function ledgerRefOf(l: { refType?: string; refId?: string }) {
   return walletLedgerRefText(l.refType, l.refId);
 }
 
+/** 请求序号守卫（2026-10-23 审计 M1）：多商户快速切换 picker 时，迟到的旧商户响应
+ * 不得覆盖余额展示——「看着 B 的名字、读着 A 的余额」足以引起误判/客诉 */
+let loadSeq = 0;
+
 async function load() {
   if (!isMerchantLoggedIn()) {
     handleUnauthorized();
     return;
   }
+  const seq = ++loadSeq;
   loading.value = !overview.value;
   loadError.value = '';
   try {
@@ -311,14 +319,19 @@ async function load() {
         // 默认选中第一个（与后端未指定时的旧行为一致），用户可通过 picker 切换
         selectedMerchantId.value = merchantOptions.value[0]?.merchantId || '';
       }
-      overview.value = await merchantApi.wallet(selectedMerchantId.value || undefined);
+      const data = await merchantApi.wallet(selectedMerchantId.value || undefined);
+      if (seq !== loadSeq) return;
+      overview.value = data;
     } else {
-      overview.value = await merchantApi.lineWallet();
+      const data = await merchantApi.lineWallet();
+      if (seq !== loadSeq) return;
+      overview.value = data;
     }
   } catch (e) {
+    if (seq !== loadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -430,7 +443,7 @@ useAutoRefresh({
 .summary-card,
 .action-card,
 .section {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--card-radius, 22rpx);
   padding: 28rpx;
   margin-bottom: 20rpx;
@@ -477,7 +490,7 @@ useAutoRefresh({
   margin-bottom: 16rpx;
   padding: 0 28rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-panel);
 }
@@ -518,8 +531,8 @@ useAutoRefresh({
 }
 .picker {
   margin-bottom: 16rpx;
-  padding: 20rpx 24rpx;
-  background: var(--page-bg, #f8fafc);
+  padding: 20rpx var(--page-gutter, 24rpx);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   border-radius: var(--radius-panel);
   font-size: var(--font-size-md);
@@ -591,7 +604,7 @@ useAutoRefresh({
   padding: 40rpx;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 </style>

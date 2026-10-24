@@ -4,16 +4,6 @@ import { API_BASE_URL } from '@/config/api';
 
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 
-/** 演示 SKU 本地兜底图；正式商品图由后台上传 */
-export const LOCAL_SKU_THUMBS: Record<string, string> = {
-  'SKU-DEMO-001': '/static/sku/cola.jpg',
-  'SKU-SODA-001': '/static/sku/sprite.jpg',
-  'SKU-WATER-001': '/static/sku/water.jpg',
-  'SKU-SNACK-001': '/static/sku/chips.jpg',
-  'SKU-MILK-001': '/static/sku/milk.jpg',
-  'SKU-NOODLE-001': '/static/sku/noodle.jpg'
-};
-
 export function absoluteImageUrl(url?: string | null): string {
   const value = String(url || '').trim();
   if (!value) return '';
@@ -41,8 +31,9 @@ export function useReplenishmentDisplay(opts: {
   }
 
   function skuThumb(id: string) {
+    // 演示 SKU 本地图已于 2026-10-24 下线；商品图仅取后台上传地址，无图时走 productGlyph 占位
     const s = opts.skus.value.find((item) => item.skuId === id);
-    return absoluteImageUrl(s?.imageUrl) || LOCAL_SKU_THUMBS[id] || '';
+    return absoluteImageUrl(s?.imageUrl) || '';
   }
 
   function productGlyph(id: string) {

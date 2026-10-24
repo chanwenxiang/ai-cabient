@@ -422,11 +422,7 @@ import {
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { applyTabBarSkin } from '@/utils/tabbar-skin';
-import {
-  safeMakePhoneCall,
-  safeScanCode,
-  safeSetClipboardData
-} from '@aicabinet/shared-uni/safe-uni-call';
+import { safeMakePhoneCall, safeScanCode } from '@aicabinet/shared-uni/safe-uni-call';
 import {
   getBelowCapsulePadPx,
   getCapsuleRightGutterPx,
@@ -460,12 +456,9 @@ import {
   concurrentEntryDecision,
   deviceStatusLabel,
   isAdoptableSession,
-  isNetworkishErrorMessage,
   isTerminalSessionState,
   normalizeCabinetId,
   parseDeviceAvailability,
-  pollDurationExceeded,
-  pollErrorMessage,
   sessionOpenDecision,
   settleWithin,
   shouldResumeSessionPolling,
@@ -491,8 +484,6 @@ import { hapticLight, hapticMedium } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
 import {
   delay,
-  requestDisputeSubscribe,
-  requestOrderSubscribe,
   showBillToast,
   showDisputeResolvedToast,
   showError,
@@ -1580,9 +1571,11 @@ function confirmDevice() {
 }
 
 async function loadDeviceAndProducts() {
-  if (!(await ensureConsumerAuth())) return;
+  // F3 门闩前置（2026-10-24 缺陷类门禁）：ensureConsumerAuth 握手窗口内可二次进入，
+  // 与 feedback.vue 修后形态一致——先置位，鉴权失败走 finally 复位。
   productsLoading.value = true;
   try {
+    if (!(await ensureConsumerAuth())) return;
     await refreshDeviceStatus();
     products.value = normalizeProducts(await consumerApi.deviceProducts(deviceId.value));
     clampSelectionToStock();
@@ -2043,7 +2036,8 @@ async function finishSession(sessionState: string, sid: string) {
       } catch {
         /* 零元单或查询失败仍跳转结果页 */
       }
-      await requestOrderSubscribe();
+      // 账单通知订阅已移到结果页「订阅账单通知」按钮（tap 上下文才稳定弹窗，
+      // 异步链上部分基础库版本静默失败——2026-10-24 第五轮审计留置②收口）
       showBillToast(totalCents);
       await delay(1200);
       uni.redirectTo({ url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}` });
@@ -2064,7 +2058,8 @@ async function finishSession(sessionState: string, sid: string) {
       }
       setReviewSession(sid);
       void refreshReviewState();
-      void requestDisputeSubscribe();
+      // 争议通知订阅已收敛到结果页按钮/消息页横幅（tap 上下文才稳定弹窗），
+      // 异步链调用部分基础库版本静默失败（2026-10-24 与留置②同类收口）
       showError('识别完成，账单待人工确认');
       // C-P2-10：在 finishingSession 仍为 true 时完成导航，避免 onShow 与 600ms 定时器竞态
       await delay(400);
@@ -2156,7 +2151,7 @@ async function restoreActiveSession() {
       clearOpenAttempt();
       if (s.state === 'DISPUTED') {
         setReviewSession(s.sessionId);
-        void requestDisputeSubscribe();
+        // 争议通知订阅已收敛到结果页按钮/消息页横幅（tap 上下文），异步链调用删（同②）
       }
       return;
     }
@@ -2319,8 +2314,8 @@ function stopDevicePoll() {
   text-align: center;
 }
 .shopping-banner {
-  margin: 12rpx 24rpx 0;
-  padding: 22rpx 24rpx;
+  margin: 12rpx var(--page-gutter, 24rpx) 0;
+  padding: 22rpx var(--page-gutter, 24rpx);
   border-radius: var(--radius-card, 24rpx);
   background: linear-gradient(135deg, var(--brand-soft, #f0fdfa), var(--brand-soft, #f0fdfa));
   border: 1rpx solid var(--brand-mist, #ccfbf1);
@@ -2360,7 +2355,7 @@ function stopDevicePoll() {
 }
 
 .catalog-tools {
-  padding: 0 24rpx 4rpx;
+  padding: 0 var(--page-gutter, 24rpx) 4rpx;
 }
 .search-box {
   position: relative;
@@ -2369,7 +2364,7 @@ function stopDevicePoll() {
   height: 64rpx;
   padding: 0 28rpx;
   border-radius: var(--radius-card);
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border: 1rpx solid var(--color-border);
   box-shadow: 0 4rpx 16rpx rgba(13, 148, 136, 0.06);
 }
@@ -2485,14 +2480,14 @@ function stopDevicePoll() {
   align-items: center;
   justify-content: center;
   gap: 4rpx;
-  padding: 10rpx 24rpx 12rpx;
+  padding: 10rpx var(--page-gutter, 24rpx) 12rpx;
 }
 .support-link {
   font-size: var(--font-size-caption);
   color: var(--text-muted, #5f6b66);
   line-height: 1.4;
   /* 纯文字可点区域太窄，真机难点中：补内边距而不改视觉 */
-  padding: 8rpx 24rpx;
+  padding: 8rpx var(--page-gutter, 24rpx);
 }
 .support-link:active {
   opacity: 0.6;
@@ -2526,7 +2521,7 @@ function stopDevicePoll() {
 .product-cell-inner {
   flex: 1;
   min-width: 0;
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-control);
   padding: 12rpx 12rpx 14rpx;
   box-sizing: border-box;
@@ -2671,7 +2666,7 @@ function stopDevicePoll() {
   height: 320rpx;
   margin: 16rpx 0;
   border-radius: var(--radius-card, 12rpx);
-  background: var(--page-bg, #f6f7f9);
+  background: var(--page-bg, #ededed);
   overflow: hidden;
 }
 .detail-img {

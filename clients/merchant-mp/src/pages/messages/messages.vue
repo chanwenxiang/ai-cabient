@@ -41,6 +41,9 @@
           <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
           <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
         </view>
+        <text v-if="listTruncated" class="list-cap"
+          >仅显示最近 100 条，更早的消息请到对应单据页查看</text
+        >
       </view>
     </view>
   </view>
@@ -111,6 +114,10 @@ const visibleList = computed(() => {
 });
 
 const unreadCount = computed(() => list.value.filter((m) => !m.read).length);
+
+// 2026-10-23 审计 L5：接口只有 limit 无游标分页，满页=可能有更早消息被截，
+// 显式提示防「列表没有=没收到」误判（与销售报表 Top 截断提示同口径）。
+const listTruncated = computed(() => list.value.length >= 100);
 const unreadBadge = computed(() => (unreadCount.value > 99 ? '99+' : String(unreadCount.value)));
 const filterTabs = computed(() =>
   filters.map((f) => ({
@@ -275,6 +282,13 @@ function formatTime(t?: string) {
   background: var(--page-bg, #ededed);
   box-sizing: border-box;
 }
+.list-cap {
+  display: block;
+  text-align: center;
+  padding: 20rpx 24rpx 8rpx;
+  color: var(--text-subtle);
+  font-size: var(--font-size-caption);
+}
 .page-body {
   padding-left: 0;
   padding-right: 0;
@@ -284,7 +298,6 @@ function formatTime(t?: string) {
 .wx-cell-hover {
   background: #ececec !important;
 }
-.msg-card.unread,
 .wx-cell.unread {
   border-left: none;
 }
@@ -293,26 +306,8 @@ function formatTime(t?: string) {
   text-align: center;
   color: var(--text-muted, #8a968e);
 }
-.empty {
-  padding: 80rpx 48rpx;
-  text-align: center;
-}
-.empty-title {
-  display: block;
-  font-size: var(--font-size-md);
-  color: var(--text-muted);
-}
-.empty-hint {
-  display: block;
-  margin-top: 8rpx;
-  padding: 0 24rpx;
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
-  line-height: 1.55;
-}
-.msg-card {
-  display: none;
-}
+/* 2026-10-23 死 CSS 清理：.empty/.empty-title/.empty-hint（空态走 EmptyState 组件）、
+   .msg-card（模板只用 wx-cell）——均与模板零匹配后删除 */
 .msg-head {
   display: flex;
   justify-content: space-between;
