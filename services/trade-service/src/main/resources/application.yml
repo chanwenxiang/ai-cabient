@@ -34,6 +34,16 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration,classpath:db/seed
+    # 🔴 2026-10-24：允许倒序补跑（默认 false ⇒ 启动即 `Validate failed`）。
+    # 成因：本仓 V398/V399/V401 的号低于**已发布**的 V400/V402（先发 400/402、后补 P0 那批），
+    # 于是「跑过 400/402 但缺 398/399/401」的库下一次启动直接
+    # `Detected resolved migration not applied to database: 398` 起不来（本机已实测 rc=1）。
+    # 为什么不能靠改名：号已经发布出去，改名会让**已应用旧号**的库反过来命中
+    # `applied migration not resolved locally`，等于用一个隐患换另一个；改文件内容则 checksum 漂移。
+    # 开了它，待补的旧号按版本序补跑（pending 之间仍是升序），checksum 校验照旧（validate-on-migrate 未关）。
+    # ⚠️ 这是**兜底**不是许可证：编号单调由 `check:migration-number-order` 在推送前守，
+    # 红了一律先平移号段（见 lessons #340/#342）。
+    out-of-order: true
     # O9 种子/结构分离：db/migration 只放结构（V*.sql，一次性、checksum 不可变）；
     # db/seed 放**可重复**种子（R__seed_*.sql，幂等，checksum 变了就重跑）。
     # 由 check:flyway-seed-separation 守；历史 277 个迁移不动（改动已应用迁移 = checksum 漂移）。

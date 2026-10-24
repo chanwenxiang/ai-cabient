@@ -117,7 +117,7 @@ try {
   );
   check(
     '红：给出后果与正解（不许只说「不行」）',
-    /not applied to database/.test(r.stderr) && /SPRING_FLYWAY_OUT_OF_ORDER/.test(r.stderr)
+    /not applied to database/.test(r.stderr) && /spring\.flyway\.out-of-order/.test(r.stderr)
   );
 
   // ② 未提交（工作树）的低号 ⇒ 也要红（推送前预检看的就是这个状态）

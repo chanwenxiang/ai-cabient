@@ -39,8 +39,14 @@
  *      docs/AUDIT_DECISION_BRIEF_2026-10-16.md 的 DEV-01 先例）。前提是这批号还没被
  *      任何真实库应用过——已经应用过的库会反过来命中「applied migration not resolved
  *      locally」，所以平移前必须先查各库 flyway_schema_history。
- *   B. 已经推上去、且确认有库停在更高号：不改码，只在受影响那次部署带一次性
- *      `SPRING_FLYWAY_OUT_OF_ORDER=true`，跑完即撤，并在文件头补豁免留痕。
+ *   B. 已经推上去（号发布出去了）：**不要改名**——已应用旧号的库会反过来命中
+ *      「applied migration not resolved locally」，等于用一个隐患换另一个；改文件内容
+ *      则是 checksum 漂移。`application.yml` 已常开 `spring.flyway.out-of-order: true`
+ *      （2026-10-24 任务 #40，本机用风险态库实测：无任何 FLYWAY env 启动即把
+ *      398/399/401 按 `[out of order]` 补跑、应用正常起来），所以已发布的倒挂不会再卡
+ *      启动；**本门禁仍然要红**，因为编号单调是给人看、给 `flyway info` 看的约定。
+ *      （历史提示：早期方案是「那次部署带一次性 SPRING_FLYWAY_OUT_OF_ORDER=true」，
+ *      已改为入口配置常开，不再依赖每次部署记着传 env。）
  *
  * 负向验证：`node scripts/check-migration-number-order.test.mjs`（红/绿/豁免/解析四向）。
  *
@@ -208,9 +214,9 @@ async function main() {
     fail(
       `新增迁移编号倒挂：基线 ${base} 已发布到 V${baseMax}，而这批新迁移号 <= 它：\n  - ` +
         violations.map((v) => `${v.path}  (V${v.version} ≤ V${v.baseMax})`).join('\n  - ') +
-        `\n后果：任何已经应用过 V${baseMax} 的库下次启动即 "Detected resolved migration not applied to database"（2026-10-24 本机实测）。` +
-        `\n正解：整组平移保序到 V${baseMax} 之上（平移前先查各库 flyway_schema_history，别把已应用过的库改成「applied not resolved locally」）；` +
-        `号已发不出去时，改为那次部署带一次性 SPRING_FLYWAY_OUT_OF_ORDER=true，并在文件头补 "-- FLYWAY_OUT_OF_ORDER: <理由>" 留痕。`
+        `\n后果：任何已经应用过 V${baseMax} 的库，在 out-of-order 关闭时会以 "Detected resolved migration not applied to database" 拒绝启动（2026-10-24 本机实测 rc=1）。` +
+        `\n正解：整组平移保序到 V${baseMax} 之上（平移前先查各库 flyway_schema_history，已应用过旧号的库改名会变成「applied not resolved locally」）；` +
+        `号已发布出去就不要再改名/改内容（checksum 漂移），application.yml 的 spring.flyway.out-of-order: true 会让下次启动按 [out of order] 补跑——那是兜底，不是放过倒挂的理由。`
     );
   }
 

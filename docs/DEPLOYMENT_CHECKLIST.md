@@ -88,7 +88,7 @@ copy infra\.env.production.example infra\.env.production
 - [ ] 短信（2026-10-20 起）：`SMS_PROVIDER=aliyun` 且 `SMS_ALIYUN_ACCESS_KEY_ID/SECRET/SIGN_NAME/TEMPLATE_CODE` 已配（签名=深圳前海易购科创智能设备，验证码模板 SMS_512651638 变量须 `${code}`）；已用真实手机号实发一条验证码收通（不得再依赖 prod-server 的 mock 容器，已移除）
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
-- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V389**（全新库启动日志逐条 Migrating 到 `389 - drop six legacy wallet tables`；已在该版本的老库启动时不再有 Migrating 行属正常）
+- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V402**（全新库启动日志逐条 Migrating 到 `402 - device info door lock state`；已在该版本的老库启动时不再有 Migrating 行属正常）。**编号序与倒挂兜底见 §3.1.3，部署前必查**
 - [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
 - [ ] **资金类定时任务的开启状态已逐条确认**（V376 起默认关；2026-10-17 拍板**上线当天两条都保持关**，见 §3.1.2）
@@ -135,6 +135,37 @@ copy infra\.env.production.example infra\.env.production
 
 - 验证：`GET /api/v2/ops/admin/scheduled-tasks` 或运营台页面看 `enabled`；迁移侧 V376 末尾有零残留断言（没关上就 fail 迁移）。
 - dev/staging 同状态（迁移不分环境，凭据可能是真的就不该自动跑）；要测退款闭环 ⇒ 运营台打开该任务再测，测完按需关闭。
+
+### 3.1.3 Flyway 编号序与「倒挂」兜底（V398/V399/V401 低于 V400/V402，部署前必查）
+
+> 背景：V398/V399/V401 的号**低于**已发布的 V400/V402（400/402 先发、修 P0 序列漂移那批后补）。
+> 仓内原先没开 `spring.flyway.out-of-order`（默认 false）⇒「跑过 400/402、缺 398/399/401」的库
+> 下次启动直接 `Validate failed … Detected resolved migration not applied to database: 398` 起不来
+> （2026-10-24 本机用真实库实测 rc=1，三个号逐个点名）。
+> 现行处置（任务 #40，2026-10-24）：`application.yml` **常开** `spring.flyway.out-of-order: true`,
+> 风险态库启动时把待补的旧号按 `[out of order]` 补跑（pending 之间仍是升序），checksum 校验照旧；
+> **不依赖任何部署 env**，也**不改已发布文件**——改名会让已应用旧号的库反过来命中
+> `applied migration not resolved locally`，改内容则 checksum 漂移，两者都是用一个隐患换另一个。
+> 实证：`aicabinet_fix1024`（history 仅 400/402）在不给任何 `FLYWAY_*` 覆盖的情况下用本版 jar 启动 ⇒
+> 3 条 `[out of order]` + `Successfully applied 3 migrations` + `Started TradeServiceApplication`。
+
+部署前**对每一个要部署的库**执行（只读）：
+
+```sql
+SELECT version, success, installed_rank FROM flyway_schema_history
+WHERE version IN ('398','399','400','401','402') ORDER BY installed_rank;
+```
+
+| 查询结果 | 含义 | 本版镜像启动后应看到 |
+|---|---|---|
+| 无 400/402 行（最高号 ≤397 或空库） | 按序补齐，不受影响 | 逐条 Migrating 到 `402`，**没有** `[out of order]` |
+| 有 400、402，缺 398/399/401 | **风险态**（历史遗留） | 3 条 `[out of order]` + `Successfully applied 3 migrations` |
+| 398–402 五行齐全且 `success = t` | 已一致 | 无 Migrating 行 |
+
+- [ ] 部署前已对目标库执行上表查询并留档（结果：**\_\_\_\_\_\_\_\_\_\_**）
+- [ ] 部署后 `docker logs <trade-service>` 里**没有** `Validate failed`；出现 `[out of order]` 时条数与上表吻合
+- [ ] 部署后再查一次上面那条 SQL：398–402 均为 `success = t`
+- 🔴 已发布过的迁移文件**不得改名、不得改内容**；新增迁移号必须**大于当前最大号**（推送前 `check:migration-number-order` 与预检会拦）
 
 ### 3.2 部署命令
 

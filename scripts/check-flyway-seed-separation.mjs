@@ -17,6 +17,13 @@
  *    这样「把种子塞进 V」不再是顺手能做的事，而是一次自觉且有记录的决定。
  * 🔴 历史 277 个迁移天然 grandfather：按「相对基线新增」判定，不回溯。
  *    改写已应用迁移 = checksum 漂移，需要每台环境 `flyway repair` —— 明确不做。
+ *
+ * 另附一条配置锚点（2026-10-24 任务 #40）：`spring.flyway.out-of-order` 必须为 true。
+ *    仓里存在**已发布**的编号倒挂（V398/V399/V401 < V400/V402），只要这些文件还在，
+ *    任何「跑过 400/402、缺 398/399/401」的库（备份还原、灾备、老 staging）都会在
+ *    validate 阶段被拒——而失败点在生产启动，不是 CI（CI 永远起空库）。改文件名不可行：
+ *    已应用旧号的库会反过来报 `applied migration not resolved locally`。
+ *    ⇒ 这条配置被删 = 那类库起不来，故在这里钉死（理由详见 lessons #342）。
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -79,6 +86,16 @@ if (!locM) {
 const prodYml = read(PROD_YML);
 if (prodYml && !/seed_env\s*:\s*none/.test(prodYml)) {
   err(`${PROD_YML} 的 spring.flyway.placeholders.seed_env 不再是 none —— 生产会执行种子语句`);
+}
+
+// 2026-10-24 任务 #40：已发布的倒挂（V398/V399/V401 < V400/V402）只能靠 out-of-order 兜
+if (!/^\s+out-of-order\s*:\s*true\s*$/m.test(appYml)) {
+  err(
+    `${APP_YML} 缺 spring.flyway.out-of-order: true —— 本仓存在已发布的编号倒挂` +
+      `（V398/V399/V401 < V400/V402），删掉它 = 任何「跑过 400/402 而缺 398/399/401」的库` +
+      `（备份还原/灾备/老 staging）启动即 Validate failed；改文件名会让已应用旧号的库反过来` +
+      `报 applied migration not resolved locally（见 lessons #342）`
+  );
 }
 
 // ── 新增文件（相对基线）─────────────────────────────────────────────────────
