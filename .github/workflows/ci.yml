@@ -577,6 +577,13 @@ jobs:
       - name: Merchant nav-guard path helpers
         run: pnpm check:merchant-nav-guard
 
+      # 🔴 必须早于 `Audit regression gates`：链里的 check:shared-dist-fresh 要编译 shared-api，
+      # 而 packages/shared-types/dist 不入库（`git ls-files` = 0）⇒ 新检出必 TS2307，
+      # mini-programs 自 10d5a1ca（该门禁入链）起恒红。build:packages 只写各包 dist，
+      # 三个已跟踪 dist 重建后 0 脏（实测），前置无副作用。
+      - name: Build shared packages
+        run: pnpm build:packages
+
       # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致 / UAT 类选择器有效性 / 编号类输入框不得用数字键盘 / XXL-JOB 托管任务接线（清单↔handler↔种子↔调度中心 context-path）
       - name: Audit regression gates
         run: pnpm check:audit-gates
@@ -586,9 +593,6 @@ jobs:
 
       - name: Admin a11y smoke
         run: pnpm smoke:admin-a11y
-
-      - name: Build shared packages
-        run: pnpm build:packages
 
       - name: Shared RBAC unit tests
         run: pnpm --filter @aicabinet/shared-rbac test
