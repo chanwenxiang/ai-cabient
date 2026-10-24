@@ -458,18 +458,22 @@
           <el-radio value="ROUTE">线路</el-radio>
         </el-radio-group>
         <el-checkbox-group
-          v-if="deviceScopeMode === 'DEVICE_IDS' && allDevices.length"
+          v-if="deviceScopeMode === 'DEVICE_IDS' && deviceScopeChoices.length"
           v-model="deviceIds"
           class="merchant-group"
         >
-          <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
+          <el-checkbox v-for="d in deviceScopeChoices" :key="d.deviceId" :label="d.deviceId">
             {{ d.deviceName || '未命名设备' }}
             <span class="muted">· 编号 {{ d.deviceId }}</span>
           </el-checkbox>
         </el-checkbox-group>
         <el-empty
-          v-else-if="deviceScopeMode === 'DEVICE_IDS' && !deviceScopeLoading && !allDevices.length"
-          description="暂无货柜可分配"
+          v-else-if="
+            deviceScopeMode === 'DEVICE_IDS' && !deviceScopeLoading && !deviceScopeChoices.length
+          "
+          :description="
+            deviceScopeCandidates !== null ? '该账号的商户范围内没有可分配货柜' : '暂无货柜可分配'
+          "
           :image-size="64"
         />
         <el-select
@@ -592,9 +596,17 @@ const deviceIds = ref<string[]>([]);
 const routeCodes = ref<string[]>([]);
 const deviceScopeMode = ref('ALL');
 const allDevices = ref<{ deviceId: string; deviceName?: string; routeCode?: string }[]>([]);
+// 目标账号可分配的候选柜机（GET rbacUserDevices 的 allowedDeviceIds；null = 显式 admin 全部可勾）。
+// G2-12 ⑥L2 实测修复：此前对话框列全库设备、不按目标账号商户范围过滤，勾了他商户柜机被静默交集为 0。
+const deviceScopeCandidates = ref<Set<string> | null>(null);
+const deviceScopeChoices = computed(() => {
+  if (deviceScopeCandidates.value === null) return allDevices.value;
+  const allowed = deviceScopeCandidates.value;
+  return allDevices.value.filter((d) => allowed.has(d.deviceId));
+});
 const availableRoutes = computed(() => {
   const set = new Set<string>();
-  for (const d of allDevices.value) {
+  for (const d of deviceScopeChoices.value) {
     if (d.routeCode && d.routeCode.trim()) set.add(d.routeCode.trim());
   }
   for (const r of routeCodes.value) {
@@ -1097,6 +1109,7 @@ async function openDevices(row: OperatorRow) {
   deviceScopeMode.value = 'ALL';
   deviceIds.value = [];
   routeCodes.value = [];
+  deviceScopeCandidates.value = null;
   deviceDlg.value = true;
   deviceScopeLoading.value = true;
   try {
@@ -1105,6 +1118,7 @@ async function openDevices(row: OperatorRow) {
       deviceIds.value = [];
       routeCodes.value = [];
       deviceScopeMode.value = 'ALL';
+      deviceScopeCandidates.value = null;
       ElMessage.warning('当前账号无设备列表权限，无法配置柜机范围');
       return;
     }
@@ -1124,12 +1138,14 @@ async function openDevices(row: OperatorRow) {
       scopeMode: string;
       deviceIds: string[];
       routeCodes?: string[];
+      allowedDeviceIds?: string[] | null;
     }>(AdminEndpoints.rbacUserDevices(row.userId), 'GET');
     let mode = data.scopeMode || 'ALL';
     if (mode === 'PARTIAL') mode = 'DEVICE_IDS';
     deviceScopeMode.value = mode;
     deviceIds.value = [...(data.deviceIds || [])];
     routeCodes.value = [...(data.routeCodes || [])];
+    deviceScopeCandidates.value = data.allowedDeviceIds ? new Set(data.allowedDeviceIds) : null;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载货柜范围失败');
   } finally {

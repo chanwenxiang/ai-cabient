@@ -199,6 +199,26 @@ public class MerchantScopeService {
         return deviceRepository.findByDeviceIdIn(deviceIds);
     }
 
+    /**
+     * 可分配给该账号的「货柜范围」候选柜机（对话框清单与勾选校验的唯一真源）：
+     * null = 显式 admin 角色，全部柜机可勾；非空 = 商户范围（绑定 + 下级闭包）名下柜机。
+     * G2-12 ⑥L3/L4 实测：超出此集合的勾选此前不拦——与商户范围静默交集为 0（运营无感知），
+     * 幽灵号则撞 DB 外键成 500；改为服务层先校验（CompetitiveGapService 调用）。
+     */
+    @Transactional(readOnly = true)
+    public Set<String> assignableDeviceCandidates(Long operatorId) {
+        if (self.isGlobalScope(operatorId)) {
+            return null;
+        }
+        Set<String> merchantIds = self.allowedMerchantIds(operatorId);
+        if (merchantIds.isEmpty()) {
+            return Set.of();
+        }
+        return deviceRepository.findByMerchantIdIn(merchantIds).stream()
+                .map(DeviceInfo::getDeviceId)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
     @Transactional(readOnly = true)
     public void requireMerchantAccess(Long operatorId, String merchantId) {
         if (self.isGlobalScope(operatorId)) {

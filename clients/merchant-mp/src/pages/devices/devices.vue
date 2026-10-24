@@ -81,25 +81,28 @@
               <text class="name">{{ d.deviceName || d.deviceId }}</text>
               <text class="meta">{{ d.deviceId }}</text>
               <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-              <text
-                v-if="d.routeCode || lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
-                class="meta"
+              <!-- 状态/经营指标合并为可换行 chips 行：此前三条竖排 meta 让卡片又高又散（2026-10-25 排版优化） -->
+              <view
+                v-if="
+                  d.routeCode ||
+                  lifecycleText(d.lifecycleStatus) ||
+                  d.currentTempC != null ||
+                  stockSummary(d) ||
+                  cardMetrics(d)
+                "
+                class="stat-row"
               >
-                <template v-if="d.routeCode">线路 {{ d.routeCode }}</template>
-                <template v-if="d.routeCode && lifecycleText(d.lifecycleStatus)"> · </template>
-                <template v-if="lifecycleText(d.lifecycleStatus)">{{
+                <text v-if="d.routeCode" class="stat-chip">线路 {{ d.routeCode }}</text>
+                <text v-if="lifecycleText(d.lifecycleStatus)" class="stat-chip">{{
                   lifecycleText(d.lifecycleStatus)
-                }}</template>
-                <template
-                  v-if="(d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null"
-                >
-                  ·
-                </template>
-                <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
-              </text>
-              <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
-              <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
-              <text v-if="cardMetrics(d)" class="meta">{{ cardMetrics(d) }}</text>
+                }}</text>
+                <text v-if="d.currentTempC != null" class="stat-chip">{{ d.currentTempC }}°C</text>
+                <text v-if="stockSummary(d)" class="stat-chip stat-chip-warn">{{
+                  stockSummary(d)
+                }}</text>
+                <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
+                <text v-if="cardMetrics(d)" class="stat-chip">{{ cardMetrics(d) }}</text>
+              </view>
               <text v-if="canSeeRevenue" class="meta revenue"
                 >今日收入 {{ fmtMoney(revenueCentsByDevice[d.deviceId ?? ''] || 0) }}</text
               >
@@ -300,6 +303,8 @@ async function load() {
     seedMerchantMeDisplayCache(me);
   }
   if (!canListDevices.value) {
+    // 无权限分支此前 loading 永不复位：直连/深链进入时页面卡在「加载中」白屏（G2-12 ④ run2 实测）
+    loading.value = false;
     showError('无柜机权限');
     uni.switchTab({ url: '/pages/home/home' });
     return;
@@ -507,11 +512,9 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .device-right {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16rpx;
-  flex: 0 0 128rpx;
-  width: 128rpx;
-  max-width: 128rpx;
+  align-items: flex-end;
+  gap: 12rpx;
+  flex: 0 0 auto;
   box-sizing: border-box;
   padding-top: 2rpx;
 }
@@ -700,5 +703,33 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .meta.stock-warn {
   color: var(--warning, #b45309);
+}
+/* 卡片状态/经营指标 chips 行（2026-10-25 排版优化）：flex wrap 逐项成胶囊，
+   规避历史「inline 拼接连句」的换行坑（lessons：.meta.addr 注释） */
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx 12rpx;
+  margin-top: 8rpx;
+  max-width: 100%;
+}
+.stat-chip {
+  display: inline-block;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: var(--font-size-xs, 20rpx);
+  line-height: 1.5;
+  color: var(--text-muted, #64748b);
+  background: var(--page-tint, #f0fdfa);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.stat-chip-warn {
+  color: var(--warning, #b45309);
+  background: var(--warning-soft, #fff7ed);
 }
 </style>

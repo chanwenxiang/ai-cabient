@@ -45,6 +45,9 @@ public class OpsRbacService {
     private static final String PERM_OPS_RBAC_ROLE = "ops:rbac:role";
     private static final String INACTIVE = "INACTIVE";
     private static final String ADMIN = "admin";
+    /** 平台补货员 / 商户补货员：共用小程序、靠商户范围区分任务 ⇒ 二者互斥（前端 saveRoles 同句柄，G2-12 ⑦ 实测接口层此前不拦） */
+    private static final String ROLE_KEY_REPLENISHER = "replenisher";
+    private static final String ROLE_KEY_MERCHANT_REPLENISHER = "merchant_replenisher";
 
 
     private final OpsRoleMapper roleRepository;
@@ -598,6 +601,14 @@ public class OpsRbacService {
         }
         if (assigningAdmin && !userHasRoleKey(actorUserId, ADMIN)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CANNOT_ASSIGN_ADMIN_ROLE);
+        }
+        boolean platformReplenisher = resolved.stream()
+                .anyMatch(r -> ROLE_KEY_REPLENISHER.equals(r.getRoleKey()));
+        boolean merchantReplenisher = resolved.stream()
+                .anyMatch(r -> ROLE_KEY_MERCHANT_REPLENISHER.equals(r.getRoleKey()));
+        if (platformReplenisher && merchantReplenisher) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "平台补货员与商户补货员一般只选其一：共用小程序，靠商户范围区分自营/加盟任务");
         }
         userRoleRepository.deleteByIdUserId(userId);
         StringBuilder roleKeys = new StringBuilder();

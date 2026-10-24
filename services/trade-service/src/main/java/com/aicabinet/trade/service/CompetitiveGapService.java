@@ -114,7 +114,11 @@ public class CompetitiveGapService {
         List<String> routes = routeScopeMapper.findByUserId(userId).stream()
                 .map(OpsUserRouteScope::getRouteCode)
                 .toList();
-        return new OpsUserDeviceScopeDto(userId, mode, devices, routes);
+        // 候选柜机清单（对话框按它过滤、保存按它校验）：null = 该账号是显式 admin，全部柜机可勾
+        Set<String> candidates = merchantScopeService.assignableDeviceCandidates(userId);
+        List<String> allowed = candidates == null ? null
+                : candidates.stream().sorted().toList();
+        return new OpsUserDeviceScopeDto(userId, mode, devices, routes, allowed);
     }
 
     @Transactional
@@ -125,13 +129,96 @@ public class CompetitiveGapService {
 
     private OpsUserDeviceScopeDto doAssignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
         String mode = normalizeScopeMode(body.scopeMode());
+        // G2-12 ⑥L3/L4 实测修复：勾选必须在「该账号商户范围（绑定+下级闭包）名下柜机」内——
+        // 否则与商户范围静默交集为 0（运营无感知）；幽灵号则撞 ops_user_device_scope_device_id_fkey 成 500。
+        // 校验先于任何写入（本方法在 runWithDeviceScopeLock 的事务里，失败即整体回滚）。
+        if (DEVICE_IDS.equals(mode)) {
+            validateDeviceIdsInScope(userId, body.deviceIds());
+        } else if ("ROUTE".equals(mode)) {
+            validateRouteCodesInScope(userId, body.routeCodes());
+        }
         saveScopePreference(userId, mode);
         deviceScopeMapper.deleteByUserId(userId);
         routeScopeMapper.deleteByUserId(userId);
         persistDeviceScopes(userId, mode, body.deviceIds());
         persistRouteScopes(userId, mode, body.routeCodes());
-        auditService.appendLog(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
+        auditService.appendLog(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId),
+                scopeAuditDetail(mode, body));
         return self.getUserDeviceScope(operatorId, userId);
+    }
+
+    /** 货柜范围审计必须可复原「改了什么」：此前 detail 只有 mode，改完查不到勾了哪些柜机（G2-12 ⑥ 六档全踩） */
+    private static String scopeAuditDetail(String mode, OpsUserDeviceScopeDto body) {
+        List<String> devices = body.deviceIds() == null ? List.of()
+                : body.deviceIds().stream().filter(d -> d != null && !d.isBlank()).map(String::trim).sorted().toList();
+        List<String> routes = body.routeCodes() == null ? List.of()
+                : body.routeCodes().stream().filter(r -> r != null && !r.isBlank()).map(String::trim).sorted().toList();
+        if ("ALL".equalsIgnoreCase(mode)) {
+            return "mode=" + mode;
+        }
+        return "mode=" + mode + ", devices=" + devices + ", routes=" + routes;
+    }
+
+    private void validateDeviceIdsInScope(Long userId, List<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return;
+        }
+        Set<String> requested = deviceIds.stream()
+                .filter(d -> d != null && !d.isBlank())
+                .map(String::trim)
+                .collect(Collectors.toSet());
+        if (requested.isEmpty()) {
+            return;
+        }
+        Set<String> candidates = merchantScopeService.assignableDeviceCandidates(userId);
+        if (candidates == null) {
+            // 显式 admin 目标：不限商户范围，但仍必须真实存在（否则 DB 外键成 500）
+            Set<String> existing = deviceInfoMapper.selectBatchIds(requested).stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toSet());
+            for (String deviceId : requested) {
+                if (!existing.contains(deviceId)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "货柜 " + deviceId + " 不存在，无法勾选");
+                }
+            }
+            return;
+        }
+        for (String deviceId : requested) {
+            if (!candidates.contains(deviceId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "货柜 " + deviceId + " 不在该账号的商户范围内或不存在，无法勾选");
+            }
+        }
+    }
+
+    private void validateRouteCodesInScope(Long userId, List<String> routeCodes) {
+        if (routeCodes == null || routeCodes.isEmpty()) {
+            return;
+        }
+        Set<String> candidates = merchantScopeService.assignableDeviceCandidates(userId);
+        Set<String> existingRoutes = existingRouteCodes(candidates);
+        for (String route : routeCodes) {
+            if (route == null || route.isBlank()) {
+                continue;
+            }
+            if (!existingRoutes.contains(route.trim())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "线路编码 " + route.trim() + " 在该账号的商户范围内不存在（没有设备挂此线路），无法保存");
+            }
+        }
+    }
+
+    /** 候选柜机上真实挂着的线路编码集合；candidates 为 null（显式 admin 目标）= 对照全部设备 */
+    private Set<String> existingRouteCodes(Set<String> candidateDeviceIds) {
+        List<DeviceInfo> devices = candidateDeviceIds == null
+                ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery().isNotNull(DeviceInfo::getRouteCode))
+                : candidateDeviceIds.isEmpty() ? List.<DeviceInfo>of() : deviceInfoMapper.selectBatchIds(candidateDeviceIds);
+        return devices.stream()
+                .map(DeviceInfo::getRouteCode)
+                .filter(r -> r != null && !r.isBlank())
+                .map(String::trim)
+                .collect(Collectors.toSet());
     }
 
     private static String normalizeScopeMode(String rawMode) {

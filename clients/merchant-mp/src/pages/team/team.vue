@@ -63,7 +63,6 @@
         <input
           class="input"
           password
-          maxlength="64"
           placeholder="初始密码（6-64 位）"
           :value="form.password"
           @input="form.password = eventInput($event)"

@@ -11343,6 +11343,7 @@ export interface components {
             scopeMode?: string;
             deviceIds?: string[];
             routeCodes?: string[];
+            allowedDeviceIds?: string[];
         };
         ApiResponseOpsUserDeviceScopeDto: {
             /** Format: int32 */
