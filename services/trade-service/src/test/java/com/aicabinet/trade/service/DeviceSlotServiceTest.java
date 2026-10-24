@@ -55,7 +55,7 @@ class DeviceSlotServiceTest {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
                 salesVelocityService, null, null, null, distributedLockService, null, null,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null, null);
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 
@@ -194,7 +194,7 @@ class DeviceSlotServiceTest {
                 null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
                 salesVelocityService, null, inventoryLotService, null, distributedLockService,
                 shoppingSessionMapper, orderLineRepository,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository), null, null, null);
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
         DeviceInfo device = new DeviceInfo();

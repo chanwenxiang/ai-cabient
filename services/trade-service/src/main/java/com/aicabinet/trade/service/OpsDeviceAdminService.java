@@ -72,6 +72,7 @@ public class OpsDeviceAdminService {
     private final DeviceDailyOnlineRateMapper onlineRateRepository;
     private final DeviceLifecycleEventMapper lifecycleEventMapper;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    private final SkuSceneLimitService skuSceneLimitService;
 
     public OpsDeviceAdminService(PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
@@ -88,7 +89,8 @@ public class OpsDeviceAdminService {
                                  WarehouseMapper warehouseRepository,
                                  DeviceDailyOnlineRateMapper onlineRateRepository,
                                  DeviceLifecycleEventMapper lifecycleEventMapper,
-                                 JiangyiDeviceDirectory jiangyiDeviceDirectory) {
+                                 JiangyiDeviceDirectory jiangyiDeviceDirectory,
+                                 SkuSceneLimitService skuSceneLimitService) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -105,6 +107,7 @@ public class OpsDeviceAdminService {
         this.onlineRateRepository = onlineRateRepository;
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.skuSceneLimitService = skuSceneLimitService;
     }
 
     @Transactional(readOnly = true)
@@ -512,6 +515,16 @@ public class OpsDeviceAdminService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        String previousScene = device.getSceneType();
+        // 投放场景变更预检（CB-049 扩展，2026-10-23 用户拍板「预检拒绝」）：
+        // 1) 白名单 fail-closed（此前 update 路径不校验 KNOWN_SCENES，仅建档校验）；2) 换场景时
+        // 按目标场景校验柜内在售商品容量（device_sku_inventory），任一超限 400 并列出全部超限商品。
+        if (request.sceneType() != null && !request.sceneType().isBlank()) {
+            String requestedScene = request.sceneType().trim();
+            if (!requestedScene.equals(previousScene)) {
+                skuSceneLimitService.assertSceneSwitchAllowed(deviceId, requestedScene);
+            }
+        }
         RefundPolicyPatch refundPatch = applyUpdateDeviceFields(operatorId, device, request);
         boolean clearHomeWarehouse = applyHomeWarehouse(device, request.homeWarehouseId(), true);
         // 投放场景清除需 wrapper 显式写 null：MP 默认字段策略不把 null 上库（同 homeWarehouseId 坑）

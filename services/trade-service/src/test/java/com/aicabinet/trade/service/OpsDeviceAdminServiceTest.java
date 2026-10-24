@@ -53,6 +53,7 @@ class OpsDeviceAdminServiceTest {
     @Mock DeviceDailyOnlineRateMapper onlineRateRepository;
     @Mock DeviceLifecycleEventMapper lifecycleEventMapper;
     @Mock JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock SkuSceneLimitService skuSceneLimitService;
 
     private OpsDeviceAdminService service;
 
@@ -62,7 +63,8 @@ class OpsDeviceAdminServiceTest {
                 permissionService, merchantScopeService, deviceRepository, sessionRepository,
                 merchantRepository, replenishmentTaskRepository, orderRepository,
                 deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService,
-                warehouseRepository, onlineRateRepository, lifecycleEventMapper, jiangyiDeviceDirectory);
+                warehouseRepository, onlineRateRepository, lifecycleEventMapper, jiangyiDeviceDirectory,
+                skuSceneLimitService);
     }
 
     @Test

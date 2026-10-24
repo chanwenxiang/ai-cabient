@@ -40,7 +40,7 @@ class OpsCatalogAdminServiceTest {
         service = new OpsCatalogAdminService(
                 permissionService, skuCatalogRepository, aliyunCategoryMappingRepository,
                 userInfoRepository, auditService, fileAttachmentService,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository));
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)));
     }
 
     @Test
