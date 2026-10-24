@@ -9,7 +9,7 @@
   gap: 16rpx;
 }
 .card {
-  background: var(--card-bg, #fff);
+  background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
   padding: 22rpx;
   border: 1rpx solid var(--color-border);
@@ -23,7 +23,7 @@
 .picker {
   padding: 18rpx 20rpx;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   font-size: var(--font-size-md);
   color: var(--text-primary, #0f172a);
@@ -124,7 +124,7 @@
   line-height: 80rpx;
   padding: 0 18rpx;
   border-radius: var(--radius-control);
-  background: var(--page-bg, #f8fafc);
+  background: var(--page-bg, #ededed);
   border: 1rpx solid var(--color-border);
   font-size: var(--font-size-body);
   box-sizing: border-box;
@@ -158,6 +158,6 @@
   margin-bottom: 12rpx;
 }
 .page-body {
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }

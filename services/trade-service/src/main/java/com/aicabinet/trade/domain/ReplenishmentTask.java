@@ -23,6 +23,9 @@ public class ReplenishmentTask {
 
     private String notes;
 
+    /** 客户端幂等键（V401，自主补货 clientRequestNo 契约）：同键重放返回原任务；NULL=旧客户端走 90s 短窗。 */
+    private String clientRequestNo;
+
     private Instant completedAt;
 
     private Long outboundId;

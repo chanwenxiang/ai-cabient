@@ -279,19 +279,39 @@ public class MerchantReplenishmentService {
         // 仓跟人走：仅分仓负责人可自主发起（历史任务/他人仓一律拒绝）
         warehouseService.requireWarehouseManagedBy(homeWarehouseId.trim(), userId);
 
-        // 接口层审计（2026-10-20）H2：本端点直接生效（出库+任务）且无 clientRequestNo 幂等契约，
-        // 前端 20s 超时重试会产生重复出库。短窗去重兜底：同设备+同用户+self-initiated notes
-        // 在窗口期内已有 PENDING 任务 ⇒ 视为超时重试，幂等返回原任务。
-        // runWithDeviceLock 已按设备串行化，此处查询无并发竞态；窗口 90s > 前端 20s 超时。
-        String selfNotes = "self-initiated by user " + userId;
-        List<ReplenishmentTask> recentSelf = taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
-                deviceId, selfNotes, Instant.now().minusSeconds(90));
-        ReplenishmentTask duplicate = recentSelf.stream()
-                .filter(t -> "PENDING".equals(t.getStatus()))
-                .findFirst()
-                .orElse(null);
-        if (duplicate != null) {
-            return replenishmentService.getTaskDto(duplicate.getTaskId());
+        // 接口层审计（2026-10-20）H2 + V401 收口（2026-10-23）：
+        // 正式幂等契约——客户端提交意图生成 clientRequestNo，超时重试复用同键，
+        // 服务端按键幂等返回原任务（V401 唯一索引兜并发）。
+        // 90s 短窗去重（notes 兜底）仅对**未带键**的旧客户端生效：
+        // 带键请求若仍走短窗，90s 内的第二次合法补货会被误判为重试（窗口判据无法区分意图）。
+        String clientRequestNo =
+                body.clientRequestNo() == null ? "" : body.clientRequestNo().trim();
+        if (clientRequestNo.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "clientRequestNo 过长（最多 64 字符）");
+        }
+        if (!clientRequestNo.isEmpty()) {
+            Optional<ReplenishmentTask> replay = taskRepository.findByClientRequestNo(clientRequestNo);
+            if (replay.isPresent()) {
+                ReplenishmentTask original = replay.get();
+                if (!deviceId.equals(original.getDeviceId())) {
+                    // 键被其他设备占用：拒绝而非返回他人任务（既防误出库也防越权读）
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "clientRequestNo 已被其他设备的提交占用");
+                }
+                return replenishmentService.getTaskDto(original.getTaskId());
+            }
+        } else {
+            // 旧客户端兼容：同设备+同用户+self-initiated notes 在窗口期内已有 PENDING 任务
+            // ⇒ 视为超时重试，幂等返回原任务。runWithDeviceLock 已按设备串行化，查询无并发竞态。
+            String selfNotes = "self-initiated by user " + userId;
+            List<ReplenishmentTask> recentSelf = taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                    deviceId, selfNotes, Instant.now().minusSeconds(90));
+            ReplenishmentTask duplicate = recentSelf.stream()
+                    .filter(t -> "PENDING".equals(t.getStatus()))
+                    .findFirst()
+                    .orElse(null);
+            if (duplicate != null) {
+                return replenishmentService.getTaskDto(duplicate.getTaskId());
+            }
         }
 
         Map<String, Long> totals = new LinkedHashMap<>();
@@ -336,7 +356,9 @@ public class MerchantReplenishmentService {
         task.setRouteId(route.getRouteId());
         task.setDeviceId(deviceId);
         task.setStatus("PENDING");
-        task.setNotes(selfNotes);
+        task.setNotes("self-initiated by user " + userId);
+        // V401：键为空时不写入（NULL 不受唯一索引约束，旧客户端行为不变）
+        task.setClientRequestNo(clientRequestNo.isEmpty() ? null : clientRequestNo);
         task = taskRepository.save(task);
 
         // 出库与任务解耦：分仓无可用库存时仍生成补货任务（RESTORM 行兜底），避免同事务 rollback-only

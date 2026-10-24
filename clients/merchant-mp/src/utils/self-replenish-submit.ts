@@ -13,19 +13,43 @@ export function selectedReplenishLines(
     .map((l) => ({ skuId: l.skuId, qty: l.qty }));
 }
 
+/**
+ * V401 clientRequestNo 幂等契约（2026-10-23 审计残留 H2 收口）：
+ * 同一提交意图生成一次键；**传输类错误（超时）后复用同键重试**——服务端按键幂等返回原任务；
+ * 业务失败 / 成功后清空 ⇒ 下次提交生成新键（新意图）。
+ * 生成规则：`self-` + 时间戳 + 随机尾（后端上限 64 字符，此格式远小于上限）。
+ */
+export function newSelfReplenishRequestNo(
+  now = Date.now(),
+  rand: () => number = Math.random
+): string {
+  const tail = Math.floor(rand() * 36 ** 8)
+    .toString(36)
+    .padStart(8, '0');
+  return `self-${now.toString(36)}-${tail}`;
+}
+
+/** 重试语义：传输类错误保留键（幂等重放）；其余（成功/业务失败）清空。 */
+export function nextRequestNoAfterSubmit(
+  current: string,
+  outcome: 'success' | 'business_error' | 'transport_error'
+): string {
+  return outcome === 'transport_error' ? current : '';
+}
+
 export function buildSelfReplenishBody(input: {
   deviceId: string;
   notes: string;
   lines: { skuId: string; qty: number }[];
-}): {
-  deviceId: string;
-  notes?: string;
-  lines: { skuId: string; qty: number }[];
+  clientRequestNo: string;
+}): import('@aicabinet/shared-types').OpenApiMerchantSelfReplenishRequest & {
+  clientRequestNo: string;
 } {
   return {
     deviceId: input.deviceId,
     notes: input.notes.trim() || undefined,
-    lines: input.lines
+    lines: input.lines,
+    clientRequestNo: input.clientRequestNo
   };
 }
 

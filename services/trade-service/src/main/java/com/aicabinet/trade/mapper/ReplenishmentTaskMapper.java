@@ -58,6 +58,12 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
                 .orderByDesc(ReplenishmentTask::getTaskId));
     }
 
+    /** 自主补货 clientRequestNo 幂等重放（V401）：按键查原任务，命中即返回不重复出库。 */
+    default Optional<ReplenishmentTask> findByClientRequestNo(String clientRequestNo) {
+        return Optional.ofNullable(selectOne(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .eq(ReplenishmentTask::getClientRequestNo, clientRequestNo)));
+    }
+
     default List<ReplenishmentTask> findByStatusIn(List<String> statuses) {
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().in(ReplenishmentTask::getStatus, statuses));
     }

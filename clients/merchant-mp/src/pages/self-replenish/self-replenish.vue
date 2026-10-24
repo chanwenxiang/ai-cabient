@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { showError, showSuccess } from '@/utils/notify';
+import { showError, showSuccess, showLongError } from '@/utils/notify';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { formatSkuNameWithSpec } from '@aicabinet/shared-uni/format';
 import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
@@ -104,6 +104,8 @@ import {
   applyToggleDraftLine,
   buildSelfReplenishBody,
   canStartSelfReplenish,
+  newSelfReplenishRequestNo,
+  nextRequestNoAfterSubmit,
   requestActionErrorMessage,
   selectedReplenishLines
 } from '@/utils/self-replenish-submit';
@@ -129,6 +131,8 @@ let draftSeq = 0;
 const draftLines = ref<DraftLine[]>([]);
 const notes = ref('');
 const submitting = ref(false);
+// V401 幂等键：同一提交意图一次一键；传输类错误保留键重放，成功/业务失败清空。
+let clientRequestNo = '';
 
 const selectedCount = computed(
   () => draftLines.value.filter((l) => l.selected && l.qty > 0).length
@@ -166,13 +170,16 @@ async function bootstrap(preferDeviceId?: string) {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
+  // 保留下拉刷新前用户手选的柜机（2026-10-23 第五轮审计 L-2）：旧逻辑一律回落
+  // 常驻柜，手动选过柜机 B 的用户一刷新选择就被重置、草稿勾选一并丢失
+  const keepDeviceId = devices.value[deviceIndex.value]?.deviceId || '';
   try {
     devices.value = (await merchantApi.devices()) || [];
   } catch (e) {
     showError(e instanceof Error ? e.message : '柜机加载失败');
     devices.value = [];
   }
-  const prefer = preferDeviceId || preferredId.value;
+  const prefer = preferDeviceId || keepDeviceId || preferredId.value;
   deviceIndex.value = pickDefaultDeviceIndex(devices.value, prefer);
   await loadDraft();
 }
@@ -243,26 +250,34 @@ async function submit() {
     return;
   }
   const deviceId = selectedDeviceId.value;
+  // V401 幂等契约：同一提交意图一次一键；传输类错误（超时）后保留键重试 ⇒ 服务端幂等返回原任务，
+  // 不再重复出库；成功/业务失败清空 ⇒ 下次提交是新意图。对齐提现 requestNo 模式（2026-10-20）。
+  if (!clientRequestNo) clientRequestNo = newSelfReplenishRequestNo();
   submitting.value = true;
+  let outcome: 'success' | 'business_error' | 'transport_error' = 'business_error';
   try {
     const task = await merchantApi.selfInitiateReplenishment(
-      buildSelfReplenishBody({ deviceId, notes: notes.value, lines })
+      buildSelfReplenishBody({ deviceId, notes: notes.value, lines, clientRequestNo })
     );
+    outcome = 'success';
     showSuccess(`已生成补货任务 ${task.taskId}`);
     notes.value = '';
     // 修复 2026-10-14：清空勾选与数量，防止从任务页返回后一键重复下单（该接口直接生效）。
     draftLines.value = draftLines.value.map((line) => ({ ...line, selected: false, qty: 0 }));
     uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${task.taskId}` });
   } catch (e) {
-    // 接口层审计（2026-10-20）H2：超时=结果未知（服务端可能已生成出库+任务），
-    // 后端已有 90s 短窗去重兜底，但提示必须引导核对而非直接再点一次。
+    // 接口层审计（2026-10-20）H2：超时=结果未知（服务端可能已生成出库+任务）；
+    // 已带 clientRequestNo ⇒ 直接重试也幂等；文案仍引导核对，避免用户重复走整个表单。
+    // 审计 2026-10-23 M3：后端业务拒绝（容量/限额说明）是长文案，走 showLongError 全文。
     const base = requestActionErrorMessage(e, '提交失败');
-    showError(
-      isRetriableMpTransportError(e)
-        ? base + '；提交结果未知，请先到「补货任务」列表核对是否已生成'
-        : base
+    const retriable = isRetriableMpTransportError(e);
+    if (retriable) outcome = 'transport_error';
+    showLongError(
+      retriable ? base + '；提交结果未知，请先到「补货任务」列表核对是否已生成' : e,
+      '提交失败'
     );
   } finally {
+    clientRequestNo = nextRequestNoAfterSubmit(clientRequestNo, outcome);
     submitting.value = false;
   }
 }

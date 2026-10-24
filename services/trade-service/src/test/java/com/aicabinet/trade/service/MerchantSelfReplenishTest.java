@@ -65,7 +65,12 @@ class MerchantSelfReplenishTest {
     }
 
     private MerchantSelfReplenishRequest body() {
-        return new MerchantSelfReplenishRequest("CAB-001", null, List.of(new MerchantSelfReplenishLine("4709", 10)));
+        return bodyWithRequestNo(null);
+    }
+
+    private MerchantSelfReplenishRequest bodyWithRequestNo(String clientRequestNo) {
+        return new MerchantSelfReplenishRequest(
+                "CAB-001", null, List.of(new MerchantSelfReplenishLine("4709", 10)), clientRequestNo);
     }
 
     private MerchantSelfReplenishRequest bodyWithQty(int... qtys) {
@@ -73,7 +78,7 @@ class MerchantSelfReplenishTest {
         for (int qty : qtys) {
             lines.add(new MerchantSelfReplenishLine("4709", qty));
         }
-        return new MerchantSelfReplenishRequest("CAB-001", null, lines);
+        return new MerchantSelfReplenishRequest("CAB-001", null, lines, null);
     }
 
     private DeviceInfo deviceWithHomeWarehouse(String warehouseId) {
@@ -244,5 +249,122 @@ class MerchantSelfReplenishTest {
         service.selfInitiateTask(9L, bodyWithQty(1000, 1000, 1000, 1000));
 
         verify(replenishmentService).seedDraftRestockLines(88L, "CAB-001", Map.of("4709", 4000));
+    }
+
+    // ===== V401 clientRequestNo 幂等契约（2026-10-23 审计残留 H2 收口）=====
+
+    private void stubHappyPath() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        when(skuCatalogRepository.findById("4709")).thenReturn(Optional.of(new com.aicabinet.trade.domain.SkuCatalog()));
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteId(77L);
+        when(routeRepository.save(any(ReplenishmentRoute.class))).thenReturn(route);
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(88L);
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenReturn(task);
+        when(warehouseService.tryCreateOutboundFromLines(any(), anyString(), any(), any(), any(), anyString()))
+                .thenReturn(null);
+        when(replenishmentService.getTaskDto(88L)).thenReturn(
+                new ReplenishmentTaskDto(88L, 77L, "CAB-001", 9L, "PENDING",
+                        null, null, null, null, null, null, null, null));
+    }
+
+    /** 同 clientRequestNo 重放 ⇒ 幂等返回原任务，且**不走** 90s 短窗（窗口判据区分不了两次合法提交）。 */
+    @Test
+    void selfInitiate_replaysSameClientRequestNo() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        ReplenishmentTask original = new ReplenishmentTask();
+        original.setTaskId(66L);
+        original.setDeviceId("CAB-001");
+        original.setStatus("COMPLETED");
+        when(taskRepository.findByClientRequestNo("req-abc")).thenReturn(Optional.of(original));
+        when(replenishmentService.getTaskDto(66L)).thenReturn(
+                new ReplenishmentTaskDto(66L, null, "CAB-001", 9L, "COMPLETED",
+                        null, null, null, null, null, null, null, null));
+
+        ReplenishmentTaskDto result = service.selfInitiateTask(9L, bodyWithRequestNo("req-abc"));
+
+        assertEquals(66L, result.taskId());
+        verify(taskRepository, never()).save(any());
+        verify(routeRepository, never()).save(any());
+        // 带键请求不得吃短窗判据（负向对照：键路径与窗口路径互斥）
+        verify(taskRepository, never())
+                .findByDeviceIdAndNotesAndCreatedAtSince(anyString(), anyString(), any());
+    }
+
+    /** 🔴 负向对照：带键请求**不得**被 90s 短窗误判——窗口内有 PENDING 也照样创建新任务。 */
+    @Test
+    void selfInitiate_withClientRequestNo_bypassesLegacyWindowDedup() {
+        stubHappyPath();
+        when(taskRepository.findByClientRequestNo("req-new")).thenReturn(Optional.empty());
+        ReplenishmentTask pending = new ReplenishmentTask();
+        pending.setTaskId(65L);
+        pending.setStatus("PENDING");
+        pending.setNotes("self-initiated by user 9");
+        when(taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                        eq("CAB-001"), eq("self-initiated by user 9"), any()))
+                .thenReturn(List.of(pending));
+
+        ReplenishmentTaskDto result = service.selfInitiateTask(9L, bodyWithRequestNo("req-new"));
+
+        assertEquals(88L, result.taskId());
+        verify(taskRepository).save(Mockito.argThat(t -> "req-new".equals(t.getClientRequestNo())));
+    }
+
+    /** 键被其他设备占用 ⇒ 409 拒绝（防误出库 + 防越权读他人任务）。 */
+    @Test
+    void selfInitiate_rejectsClientRequestNoOwnedByOtherDevice() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        ReplenishmentTask other = new ReplenishmentTask();
+        other.setTaskId(66L);
+        other.setDeviceId("CAB-999");
+        when(taskRepository.findByClientRequestNo("req-stolen")).thenReturn(Optional.of(other));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, bodyWithRequestNo("req-stolen")));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** 键超长 ⇒ 400（列宽 64，防 DB 截断破坏唯一性语义）。 */
+    @Test
+    void selfInitiate_rejectsOverlongClientRequestNo() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, bodyWithRequestNo("x".repeat(65))));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** 空白键视为未传：回退 90s 短窗（旧客户端兼容），且不写入键。 */
+    @Test
+    void selfInitiate_blankClientRequestNo_fallsBackToWindowDedup() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        ReplenishmentTask existing = new ReplenishmentTask();
+        existing.setTaskId(66L);
+        existing.setStatus("PENDING");
+        existing.setNotes("self-initiated by user 9");
+        when(taskRepository.findByDeviceIdAndNotesAndCreatedAtSince(
+                        eq("CAB-001"), eq("self-initiated by user 9"), any()))
+                .thenReturn(List.of(existing));
+        when(replenishmentService.getTaskDto(66L)).thenReturn(
+                new ReplenishmentTaskDto(66L, null, "CAB-001", 9L, "PENDING",
+                        null, null, null, null, null, null, null, null));
+
+        ReplenishmentTaskDto result = service.selfInitiateTask(9L, bodyWithRequestNo("   "));
+
+        assertEquals(66L, result.taskId());
+        verify(taskRepository, never()).save(any());
+        verify(taskRepository, never()).findByClientRequestNo(anyString());
     }
 }
