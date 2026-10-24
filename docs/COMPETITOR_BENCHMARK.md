@@ -2083,6 +2083,15 @@
   3. **采纳同行共性「不自建信用」**：跑单防线=微信自动重试/催收/降分/联合惩戒 + 我方欠款闸与三级催缴（代码已有，CB-003/011）。
   4. **有意不同（相对直连灰度现实的取舍）**：不等全量——先按直连契约落码 config 门控，灰度/service_id 下发后即插即用；若微信拒绝灰度再评估 CB-032 Q8 的资金流拍板（CB-010 已证服务商场景不含智慧零售，此路大概率不通）。
   5. **验收判据**：①首条真实授权回调字段与契约核对；②首笔真实创单/完结/扣款 DONE 回调落 PAID；③真机全链走通前不放开非白名单用户。
+- **2026-10-24 字段级复核与订正（授权链路）**——按官方直连免确认文档逐字段核对，原实现与 v3 契约不一致；同日已订正并用单测钉住：
+  - 《商户预授权》`POST /v3/payscore/permissions` 请求体逐字为 `service_id`(必填)、`appid`(必填)、`authorization_code`(必填；商户生成的授权协议号，32 字符内，**同一个商户号下唯一**，多个用户不得复用同一号)、`notify_url`(选填)；返回 `apply_permissions_token`。**没有 `out_request_no`，也没有 `openid`。**
+  - 《授权/解除授权回调》解密后字段逐字为 `appid`、`mchid`、`service_id`、`openid`、`user_service_status`（`USER_OPEN_SERVICE`=授权成功 / `USER_CLOSE_SERVICE`=解除授权成功）、`openorclose_time`、`authorization_code`。**没有 `out_request_no`。**
+  - 查询授权：`GET /v3/payscore/permissions/authorization-code/{authorization_code}?service_id=`（另有 `/openid/{openid}?appid=&service_id=`）；解除授权：`POST /v3/payscore/permissions/authorization-code/{authorization_code}/terminate`，body `service_id` + `reason`。
+  - 原偏差：`WeChatPayScoreClient.java:64` 发 `out_request_no`、`:66-68` 发 `openid`、`:74` 查 `/out-request-no/`、`:81` 用 `DELETE`；`PayScoreService.java:219` 只读回调 `out_request_no`，且 `:228` 的 openid 兜底被 `!outRequestNo.isBlank()` 门住（字段恒缺 ⇒ 兜底恒不执行）⇒ **即使真实回调到达也不会激活，签约永远停在 `PENDING:PSU-`**。未读 `user_service_status`：授权与解约回调同形，只修定位不判状态的话，解约回调会把 `payscore_enabled` 重新置 true。
+  - **✅ 订正（2026-10-24）**：`WeChatPayScoreClient.createPermission(authorization_code)` 只发 `service_id`/`appid`/`authorization_code`（`notify_url` 非空才发），`queryPermission` 改 `GET …/authorization-code/{code}?service_id=`，`terminatePermission(code, reason)` 改 `POST …/terminate`；删除误写的 `WeChatPayV3Client.delete`。`PayScoreService` 回调按 `authorization_code` + `user_service_status` 分支：`USER_OPEN_SERVICE` 激活（pending 标记 `PENDING:PSU-<code>`；标记被重试覆盖时按 openid 兜底）、`USER_CLOSE_SERVICE` 停用并回落首选渠道（null 列走 wrapper 显式清）、未知状态只记 WARN（fail-closed）。配置补 `service-id` / `permission-notify-url` 的 yml 绑定与 compose 透传（空默认仍 = 501）。
+  - **测试**：新增 `WeChatPayScoreClientTest`（字段/路径/方法 5 例）+ 回调 4 例（按 code 激活、openid 兜底、解约停用、未知状态忽略），与既有 2 类合计 **23 例 0 失败**。
+  - **仍未取证**：同一 `authorization_code` 重新调用预授权能否拿回新 token，官方未明示 ⇒ 每次签约尝试生成新号（≤32），不据此改幂等口径。
+  - 证据（2026-10-24 取文）：<https://pay.weixin.qq.com/doc/v3/merchant/4012647349>（请求/应答字段）、<https://pay.weixin.qq.com/doc/v3/merchant/4012647393>（回调解密字段与 `user_service_status` 枚举）、<https://pay.weixin.qq.com/doc/v3/merchant/4012647401>（按授权协议号查询）、<https://pay.weixin.qq.com/doc/v3/merchant/4012647410>（解除用户授权）。
 
 
 ### CB-065 【新】模型重训/更新后「识别编号→商品」映射必须按稳定标识重算并强制人工复核——厂商的 classId 是排序行号、重训即整体平移，行业没有拿序号当商品身份的；未复核的映射不得结算

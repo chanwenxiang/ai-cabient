@@ -87,6 +87,10 @@ PAYSCORE_ENABLED=false
 PAYSCORE_LIVE_CHARGE_ENABLED=false
 PAYSCORE_CHARGE_GATEWAY_URL=https://pay-gateway.example.com
 PAYSCORE_CHARGE_GATEWAY_API_KEY=<随机32+字符>
+# 微信支付分服务ID（灰度审核通过后由微信运营下发，32 位数字）；空 = 真实签约 501
+PAYSCORE_SERVICE_ID=<微信支付分服务ID>
+# 授权/解约回调公网地址，须指向 trade 的 /api/v2/payment/payscore/notify（经网关）
+PAYSCORE_PERMISSION_NOTIFY_URL=https://<公网域名>/api/v2/payment/payscore/notify
 ```
 
 ### 运营账号密码：三条通道与忘密码处置
