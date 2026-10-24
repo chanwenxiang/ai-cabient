@@ -14996,6 +14996,7 @@ export interface components {
             deviceId?: string;
             notes?: string;
             lines?: components["schemas"]["MerchantSelfReplenishLine"][];
+            clientRequestNo?: string;
         };
         MerchantPasswordChangeRequest: {
             oldPassword: string;
