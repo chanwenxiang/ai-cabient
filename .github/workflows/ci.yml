@@ -151,6 +151,25 @@ jobs:
       - name: MySQL-isms gate self-test
         run: node scripts/check-mysql-isms-in-migrations.test.mjs
 
+      # 编号倒挂门禁（2026-10-24 实炸形态）：本分支新增的 V 号必须 **大于基线已发布最大号**。
+      # 反例就是当天推上去的一批：V398/V399/V401 排在早已发布的 V400/V402 之下，而仓内没设
+      # `spring.flyway.out-of-order`（=false）、`validate-on-migrate` 默认 true ⇒ 任何已经
+      # 应用过 400/402 的库下次启动即 `Detected resolved migration not applied to database: 398`
+      # （本机把新 jar 指向 such 库实测 rc=1）。空库与低水位库按序补齐 ⇒ CI 全绿证明不了安全。
+      # 🔴 同 check-migration-immutable：依赖基线 ref，不进聚合链；CI push 事件里
+      #    origin/dev==被推提交 ⇒ 变更集为空，真正的咬合点是推送前预检（这一步只留记录）。
+      - name: Flyway migration number-order gate
+        run: node scripts/check-migration-number-order.mjs
+        env:
+          MIGRATION_BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/dev' }}
+
+      # 防绕过自测：判据是「基线最大号 vs 新增号」的数值比较，比较方向写反或版本解析
+      # 退化成只认纯数字 ⇒ 门禁静默放行倒挂而它自己看不出来。红/绿/豁免/fail-closed/
+      # 构建副本边界五个方向全跑一遍；🔴 全程在 .tmp 里另建临时 git 仓库，绝不往真实
+      # Flyway 目录写低号文件（那等于注入一次真的倒挂），并断言真实目录零改动。
+      - name: Flyway migration number-order self-test
+        run: node scripts/check-migration-number-order.test.mjs
+
       # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
       # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
       # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。

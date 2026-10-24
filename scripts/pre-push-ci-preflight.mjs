@@ -130,9 +130,12 @@ run('audit-gates', node, [resolve(root, 'scripts/run-audit-gates.mjs')]);
 // 5) CI-only 门禁（不在本机聚合链内，但 build job 会跑）
 run('migration-safety', node, [resolve(root, 'scripts/check-migration-safety.mjs')]);
 run('flyway-seed-separation', node, [resolve(root, 'scripts/check-flyway-seed-separation.mjs')]);
-// 🔴 这两道是**基线 diff** 门禁（origin/dev…HEAD + 工作树），与 migration-safety 同性质：
+// 🔴 这几道是**基线 diff** 门禁（origin/dev…HEAD + 工作树），与 migration-safety 同性质：
 //    进聚合链会在 CI push 到 dev 时基线==HEAD ⇒ 恒空 ⇒ 假绿，故只在这里和 CI 独立步骤里跑。
 run('migration-immutable', node, [resolve(root, 'scripts/check-migration-immutable.mjs')]);
+// 编号倒挂（2026-10-24 实炸形态）：新增 V 号必须 > 基线已发布最大号，否则「已跑过高号」
+// 的库下次启动即 Validate failed。同为基线 diff 门禁，故也只在这里 + CI 独立步骤。
+run('migration-number-order', node, [resolve(root, 'scripts/check-migration-number-order.mjs')]);
 run('openapi-regen', node, [resolve(root, 'scripts/check-openapi-regen-required.mjs')]);
 
 // 6) 按改动面加检
