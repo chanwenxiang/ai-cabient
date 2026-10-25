@@ -22,7 +22,9 @@ let runtimeOverrides = {};
 /** True only after a successful /dicts/runtime response in this session. */
 let runtimeLoaded = false;
 /**
- * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
+ * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功但**无 ACTIVE 项**时回落内置 baseline
+ * （V404 起——此前是空列表；category_code 的 baseline 本就是空表 ⇒ 行为不变，而
+ * device_scene_type 借此获得「字典被清空/未种时不瘫下拉」的兜底）。
  * 系统状态枚举不要加入此集合。
  */
 export const OPS_MANAGED_DICT_TYPES = new Set([
@@ -32,7 +34,11 @@ export const OPS_MANAGED_DICT_TYPES = new Set([
     'sku_unit',
     'sku_brand',
     // 组织类型：运营可在字典管理增删（后端 OrgService 同样以其为写入白名单，两端口径须一致）
-    'org_node_type'
+    'org_node_type',
+    // 投放场景（V404，2026-10-25 用户拍板）：字典 ACTIVE 为权威（前后端同门），
+    // baseline=静态 9 值仅作 runtime 未加载/为空的兜底；后端 SkuSceneLimitService 同步以
+    // sys_dict_data 判定（isKnownDictValue，空字典回落 KNOWN_SCENES）
+    'device_scene_type'
 ]);
 export function isOpsManagedDict(type) {
     return OPS_MANAGED_DICT_TYPES.has(type);
@@ -876,9 +882,11 @@ export function actorDisplayName(input) {
 export function dictOptions(type) {
     const baseline = DICT[type];
     const override = runtimeOverrides[type];
-    // 运营可配：runtime 拉成功后以 ACTIVE 为准（可为空列表）
+    // 运营可配：runtime 拉成功且**有 ACTIVE 项** ⇒ 以字典为准；否则回落内置 baseline
+    // （V404：此前「拉成功即用（可为空列表）」——device_scene_type 需要空字典兜底，且
+    // category_code 的 baseline 是空表，本变更对其行为无影响）
     if (isOpsManagedDict(type)) {
-        if (runtimeLoaded) {
+        if (runtimeLoaded && override && Object.keys(override).length > 0) {
             return entriesToOptions(override);
         }
         return entriesToOptions(baseline);

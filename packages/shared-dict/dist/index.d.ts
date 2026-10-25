@@ -18,7 +18,9 @@
  * Labels (dictLabel): always override → DICT → readable fallback (historical rows still show).
  */
 /**
- * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
+ * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功但**无 ACTIVE 项**时回落内置 baseline
+ * （V404 起——此前是空列表；category_code 的 baseline 本就是空表 ⇒ 行为不变，而
+ * device_scene_type 借此获得「字典被清空/未种时不瘫下拉」的兜底）。
  * 系统状态枚举不要加入此集合。
  */
 export declare const OPS_MANAGED_DICT_TYPES: ReadonlySet<string>;

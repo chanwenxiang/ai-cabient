@@ -55,7 +55,7 @@ class DeviceSlotServiceTest {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
                 salesVelocityService, null, null, null, distributedLockService, null, null,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)), null, null, null);
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class), sceneDictStub()), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 
@@ -194,7 +194,7 @@ class DeviceSlotServiceTest {
                 null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
                 salesVelocityService, null, inventoryLotService, null, distributedLockService,
                 shoppingSessionMapper, orderLineRepository,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)), null, null, null);
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class), sceneDictStub()), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
         DeviceInfo device = new DeviceInfo();
@@ -242,5 +242,20 @@ class DeviceSlotServiceTest {
         slot.setParLevel(maxLevel);
         slot.setEnabled(true);
         return slot;
+    }
+
+    /** V404 字典门桩：字典恒空 ⇒ 服务回落 KNOWN_SCENES（与改造前行为一致） */
+    private static SysDictService sceneDictStub() {
+        SysDictService stub = org.mockito.Mockito.mock(SysDictService.class);
+        org.mockito.Mockito.lenient().when(stub.hasActiveItems(SysDictService.DEVICE_SCENE_TYPE)).thenReturn(false);
+        org.mockito.Mockito.lenient().when(stub.isKnownDictValue(org.mockito.ArgumentMatchers.eq(SysDictService.DEVICE_SCENE_TYPE),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anySet()))
+            .thenAnswer(inv -> {
+                String v = inv.getArgument(1);
+                @SuppressWarnings("unchecked")
+                java.util.Set<String> fb = (java.util.Set<String>) inv.getArgument(2);
+                return v != null && fb.contains(v.trim());
+            });
+        return stub;
     }
 }

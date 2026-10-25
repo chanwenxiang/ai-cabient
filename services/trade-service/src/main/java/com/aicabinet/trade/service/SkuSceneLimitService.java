@@ -32,8 +32,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class SkuSceneLimitService {
 
     /**
-     * 场景取值白名单（fail-closed）：与 shared-dict device_scene_type（CB-049）一致。
-     * 后端没有字典表，这里钉死集合，新增场景须两端同步。
+     * 场景取值内置集（V404 起为**兜底**而非权威）：权威白名单 = sys_dict_data(device_scene_type) 的
+     * ACTIVE 项（运营可在字典管理增停，经 {@link SysDictService#isKnownDictValue} 判定）；
+     * 字典无 ACTIVE 项时回落本集合（fail-safe，不放开任意值）。停用语义（2026-10-25 用户拍板）：
+     * 只拦新写入，存量设备/限额不动不告警。
      */
     public static final Set<String> KNOWN_SCENES = Set.of(
             "OFFICE", "CAMPUS", "FACTORY", "HOSPITAL", "TRANSIT",
@@ -42,12 +44,19 @@ public class SkuSceneLimitService {
     private final SkuSceneLimitMapper limitRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SysDictService sysDictService;
 
     public SkuSceneLimitService(SkuSceneLimitMapper limitRepository, SkuCatalogMapper skuCatalogRepository,
-                                DeviceSkuInventoryMapper inventoryRepository) {
+                                DeviceSkuInventoryMapper inventoryRepository, SysDictService sysDictService) {
         this.limitRepository = limitRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.inventoryRepository = inventoryRepository;
+        this.sysDictService = sysDictService;
+    }
+
+    /** 场景白名单（V404：字典 ACTIVE 为准，空字典回落 KNOWN_SCENES）。 */
+    private boolean sceneAllowed(String scene) {
+        return sysDictService.isKnownDictValue(SysDictService.DEVICE_SCENE_TYPE, scene, KNOWN_SCENES);
     }
 
     /** 建档/编辑请求里的限额条目校验：至少一条、场景合法、同场景不重复。 */
@@ -61,7 +70,7 @@ public class SkuSceneLimitService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "场景限额条目缺少场景");
             }
             String scene = item.sceneType().trim();
-            if (!KNOWN_SCENES.contains(scene)) {
+            if (!sceneAllowed(scene)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知投放场景：" + scene);
             }
             if (item.maxQty() == null || item.maxQty() < 1) {
@@ -193,7 +202,7 @@ public class SkuSceneLimitService {
             return;
         }
         String scene = newSceneType.trim();
-        if (!KNOWN_SCENES.contains(scene)) {
+        if (!sceneAllowed(scene)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知投放场景：" + scene);
         }
         List<DeviceSkuInventory> rows = inventoryRepository.selectList(

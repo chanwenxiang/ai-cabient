@@ -77,6 +77,25 @@ public class SysDictService {
 
   public static final String ORG_NODE_TYPE = "org_node_type";
 
+  public static final String DEVICE_SCENE_TYPE = "device_scene_type";
+
+    /**
+     * 字典驱动的业务值白名单（V404 场景字典后台可配）：字典有 ACTIVE 项时以字典为准（新值可配、
+     * 停用项拒新写入）；字典无任何 ACTIVE 项时回落调用方给的内置集（fail-safe：不因配置缺失
+     * 瘫痪业务，也**不**放开任意值）。与 {@link #isActiveDictValue}+{@link #hasActiveItems} 的
+     * 两段式等价，合并成一次语义供白名单场景使用。
+     */
+    @Transactional(readOnly = true)
+    public boolean isKnownDictValue(String dictType, String value, java.util.Set<String> builtinFallback) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        if (hasActiveItems(dictType)) {
+            return isActiveDictValue(dictType, value);
+        }
+        return builtinFallback != null && builtinFallback.contains(value.trim());
+    }
+
     /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文。 */
     @Transactional(readOnly = true)
     public String labelOf(String dictType, String value, String fallback) {

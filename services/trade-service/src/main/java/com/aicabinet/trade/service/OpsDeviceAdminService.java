@@ -73,6 +73,7 @@ public class OpsDeviceAdminService {
     private final DeviceLifecycleEventMapper lifecycleEventMapper;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final SkuSceneLimitService skuSceneLimitService;
+    private final SysDictService sysDictService;
 
     public OpsDeviceAdminService(PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
@@ -90,7 +91,8 @@ public class OpsDeviceAdminService {
                                  DeviceDailyOnlineRateMapper onlineRateRepository,
                                  DeviceLifecycleEventMapper lifecycleEventMapper,
                                  JiangyiDeviceDirectory jiangyiDeviceDirectory,
-                                 SkuSceneLimitService skuSceneLimitService) {
+                                 SkuSceneLimitService skuSceneLimitService,
+                                 SysDictService sysDictService) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -108,6 +110,7 @@ public class OpsDeviceAdminService {
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.skuSceneLimitService = skuSceneLimitService;
+        this.sysDictService = sysDictService;
     }
 
     @Transactional(readOnly = true)
@@ -406,6 +409,12 @@ public class OpsDeviceAdminService {
         String sceneType = trimToNull(request.sceneType());
         if (sceneType == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择投放场景");
+        }
+        // V404 前建档路径对 sceneType 零校验（任意字符串可落库，与 update 路径的
+        // assertSceneSwitchAllowed 白名单不对称）——补上同一字典门（G3 盘点发现）
+        if (!sysDictService.isKnownDictValue(SysDictService.DEVICE_SCENE_TYPE, sceneType,
+                SkuSceneLimitService.KNOWN_SCENES)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知投放场景：" + sceneType);
         }
         String deviceId = deviceIdService.resolveForCreate(request.deviceId());
         DeviceInfo device = new DeviceInfo();

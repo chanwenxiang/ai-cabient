@@ -57,6 +57,21 @@ class OpsDeviceAdminServiceTest {
 
     private OpsDeviceAdminService service;
 
+    /** V404 建档字典门桩：字典恒空 ⇒ 回落 KNOWN_SCENES（旧行为） */
+    private static SysDictService builtinSceneDict() {
+        SysDictService stub = org.mockito.Mockito.mock(SysDictService.class);
+        org.mockito.Mockito.lenient().when(stub.isKnownDictValue(
+                org.mockito.ArgumentMatchers.eq(SysDictService.DEVICE_SCENE_TYPE),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anySet()))
+            .thenAnswer(inv -> {
+                String v = inv.getArgument(1);
+                @SuppressWarnings("unchecked")
+                java.util.Set<String> fb = (java.util.Set<String>) inv.getArgument(2);
+                return v != null && fb.contains(v.trim());
+            });
+        return stub;
+    }
+
     @BeforeEach
     void setUp() {
         service = new OpsDeviceAdminService(
@@ -64,7 +79,7 @@ class OpsDeviceAdminServiceTest {
                 merchantRepository, replenishmentTaskRepository, orderRepository,
                 deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService,
                 warehouseRepository, onlineRateRepository, lifecycleEventMapper, jiangyiDeviceDirectory,
-                skuSceneLimitService);
+                skuSceneLimitService, builtinSceneDict());
     }
 
     @Test

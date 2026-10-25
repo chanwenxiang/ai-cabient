@@ -40,7 +40,7 @@ class OpsCatalogAdminServiceTest {
         service = new OpsCatalogAdminService(
                 permissionService, skuCatalogRepository, aliyunCategoryMappingRepository,
                 userInfoRepository, auditService, fileAttachmentService,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)));
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class), sceneDictStub()));
     }
 
     @Test
@@ -206,5 +206,20 @@ class OpsCatalogAdminServiceTest {
                 org.mockito.ArgumentCaptor.forClass(SkuCatalog.class);
         verify(skuCatalogRepository).save(captor.capture());
         assertEquals(null, captor.getValue().getOperationScope());
+    }
+
+    /** V404 字典门桩：字典恒空 ⇒ 服务回落 KNOWN_SCENES（与改造前行为一致） */
+    private static SysDictService sceneDictStub() {
+        SysDictService stub = org.mockito.Mockito.mock(SysDictService.class);
+        org.mockito.Mockito.lenient().when(stub.hasActiveItems(SysDictService.DEVICE_SCENE_TYPE)).thenReturn(false);
+        org.mockito.Mockito.lenient().when(stub.isKnownDictValue(org.mockito.ArgumentMatchers.eq(SysDictService.DEVICE_SCENE_TYPE),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anySet()))
+            .thenAnswer(inv -> {
+                String v = inv.getArgument(1);
+                @SuppressWarnings("unchecked")
+                java.util.Set<String> fb = (java.util.Set<String>) inv.getArgument(2);
+                return v != null && fb.contains(v.trim());
+            });
+        return stub;
     }
 }

@@ -61,7 +61,8 @@ class SlotTemplateServiceTest {
         service = new SlotTemplateService(templateMapper, lineMapper, slotMapper, priceMapper,
                 skuCatalogMapper, deviceMapper,
                 new SkuSceneLimitService(skuSceneLimitMapper, skuCatalogMapper,
-                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class)));
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class),
+                        sceneDictStub()));
         // 场景限额（CB-049 扩展）：测试柜无场景 → limitQtyBySku 返回空 Map（不限制）
         lenient().when(deviceMapper.findById(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(Optional.empty());
@@ -173,5 +174,19 @@ class SlotTemplateServiceTest {
         line.setPriceCents(price);
         line.setParLevel(par);
         return line;
+    }
+
+    /** V404 字典门桩：字典恒空 ⇒ 服务回落 KNOWN_SCENES（与改造前行为一致） */
+    private static SysDictService sceneDictStub() {
+        SysDictService stub = org.mockito.Mockito.mock(SysDictService.class);
+        org.mockito.Mockito.lenient().when(stub.isKnownDictValue(org.mockito.ArgumentMatchers.eq(SysDictService.DEVICE_SCENE_TYPE),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anySet()))
+            .thenAnswer(inv -> {
+                String v = inv.getArgument(1);
+                @SuppressWarnings("unchecked")
+                java.util.Set<String> fb = (java.util.Set<String>) inv.getArgument(2);
+                return v != null && fb.contains(v.trim());
+            });
+        return stub;
     }
 }
