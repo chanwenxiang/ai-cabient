@@ -474,7 +474,52 @@ public class AdminDashboardService {
                 Wrappers.<DeviceSkuInventory>lambdaQuery()
                         .eq(DeviceSkuInventory::getDeviceId, deviceId)
                         .eq(DeviceSkuInventory::getSkuId, body.skuId()));
+        // G5 §7.24 发现修复：quantity 不再直改列——差额走批次账本流水（增=入库/减=FEFO 报损），
+        // 汇总由 syncAggregateInventory 从账本回写。任务书 29「禁直接 UPDATE 库存列」此前只有
+        // 盘点路径守住，本端点直改会造成 device_sku_inventory 与 device_sku_lot 分叉（实测 99 vs 3）。
+        if (inv != null && body.quantity() != null && body.quantity() != inv.getQuantity()) {
+            int delta = body.quantity() - inv.getQuantity();
+            String refId = "ADMIN-INV-ADJ-" + deviceId + "-" + System.currentTimeMillis();
+            // 效期取 SKU 档案保质期（admin 调整无实贴信息，按「今天入库+整保质期」推算）；
+            // validateRestockExpiry 要求必填且未过期——有效期给足即过
+            com.aicabinet.trade.domain.SkuCatalog sku = skuCatalogRepository.selectById(body.skuId());
+            int shelf = sku != null && sku.getShelfLifeDays() != null && sku.getShelfLifeDays() > 0
+                    ? sku.getShelfLifeDays() : 180;
+            java.time.LocalDate adminExpiry = java.time.LocalDate.now().plusDays(shelf);
+            if (delta > 0) {
+                inventoryLotService.addRestock(deviceId, body.skuId(),
+                        new InventoryLotService.RestockCommand(
+                                "B-ADMIN-" + adminExpiry, adminExpiry.minusDays(shelf), adminExpiry,
+                                delta, null,
+                                new InventoryLotService.LotMovementRef("ADMIN_ADJUST", refId, operatorId)));
+            } else {
+                inventoryLotService.pullOff(deviceId, body.skuId(), null, -delta, operatorId, refId);
+            }
+            // 账本已回写汇总；重读拿流水后的真实值，capacity/阈值仍按请求落
+            inv = inventoryRepository.selectOne(
+                    Wrappers.<DeviceSkuInventory>lambdaQuery()
+                            .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                            .eq(DeviceSkuInventory::getSkuId, body.skuId()));
+        }
         boolean isNew = inv == null;
+        if (isNew && body.quantity() != null && body.quantity() > 0) {
+            // 新建行带 quantity 同样走流水（无 lot 的柜子历史上靠本端点建期初——保留能力但入账本）
+            com.aicabinet.trade.domain.SkuCatalog sku = skuCatalogRepository.selectById(body.skuId());
+            int shelf = sku != null && sku.getShelfLifeDays() != null && sku.getShelfLifeDays() > 0
+                    ? sku.getShelfLifeDays() : 180;
+            java.time.LocalDate adminExpiry = java.time.LocalDate.now().plusDays(shelf);
+            String refId = "ADMIN-INV-INIT-" + deviceId + "-" + System.currentTimeMillis();
+            inventoryLotService.addRestock(deviceId, body.skuId(),
+                    new InventoryLotService.RestockCommand(
+                            "B-ADMIN-" + adminExpiry, adminExpiry.minusDays(shelf), adminExpiry,
+                            body.quantity(), null,
+                            new InventoryLotService.LotMovementRef("ADMIN_ADJUST", refId, operatorId)));
+            inv = inventoryRepository.selectOne(
+                    Wrappers.<DeviceSkuInventory>lambdaQuery()
+                            .eq(DeviceSkuInventory::getDeviceId, deviceId)
+                            .eq(DeviceSkuInventory::getSkuId, body.skuId()));
+            isNew = inv == null;
+        }
         if (isNew) {
             inv = new DeviceSkuInventory();
             inv.setDeviceId(deviceId);
@@ -483,8 +528,14 @@ public class AdminDashboardService {
             inv.setCapacity(0);
             inv.setLowThreshold(2);
         }
-        if (body.quantity() != null) {
-            inv.setQuantity(body.quantity());
+        if (body.quantity() != null && inv.getQuantity() != body.quantity()) {
+            // 流水已执行但汇总仍可能不一致（如 lot 全被扣光等边界）——以请求值兜底前先记录差额，
+            // 正常路径 syncAggregateInventory 已把 inv.quantity 对齐到账本，这里只处理无 lot 可入的边界
+            // （delta=0 或新行 quantity=0 不会到这）。不直改：保持「汇总=Σ账本」不变式优先。
+            if (isNew) {
+                inv.setQuantity(body.quantity());
+            }
+            // 已有行：quantity 与账本不一致时以账本为准（inv 在上方已重读为流水后值），不改写
         }
         if (body.capacity() != null) {
             inv.setCapacity(body.capacity());
