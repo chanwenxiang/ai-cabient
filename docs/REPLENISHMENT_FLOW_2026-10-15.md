@@ -97,3 +97,22 @@
 ### 验证汇总
 - 单测：trade 补货域 46~48 例全绿（新增 1 个 P0-1 行为钉住用例）。
 - 实跑：pick/ship/回填批次行全链真实请求走通；fail-closed（离线开门 409）复核。
+
+## 七、G7 实测口径补充（2026-10-25，UAT 真 HTTP + 独立 SQL 复算，见 §7.27）
+
+### 7.1 「缺货看板有」≠「补货建议有」（用户拍板：维持现状，只把口径写清）
+两条是**不同谓词**，不是同一判定的两个视图：
+- 看板：`DeviceSlotService.isSlotShortage` = 货道账面 ≤ minLevel **或** 账面 < 容量×商户缺货阈值%（默认 50）。
+- 建议：`WarehouseService.suggestFromLowStock:444-476` ⇒ 原始缺口 = `capacity − 账面`，再被 `capSuggestBySlotHeadroom`（:1111 走 `totalHeadroomForSku`）按**可补容量**截断，最后 `.filter(s -> s.suggestQty() > 0)`（:474）。
+
+⇒ 账面已补满 par/cap 的货道，抬 minLevel 后**会进看板**（阈值谓词成立），但 gap=0 **不生成建议行**。
+实测（`EG574859056581/A1`，book3/par3/cap3/min1）：min 1→4 看板出现 `status=LOW`、建议仍为空；复原后同 SKU 的 A2（账面 0）才贡献 gap。
+**为什么不改**：建议行的语义是「要从仓库取多少件」，与「这个货道该不该被运营看到」本就不同轴；把看板判定也塞进 gap 会造出 `suggestQty=0` 的假需求，污染出库量与草稿行。运营侧口径差由此文钉住，不再靠源码考古。
+
+### 7.2 半满足出库单不再静默（FS-G7-3，A批② 修复）
+旧行为：`createOutboundForRoute` 只要有**任意一行**分配成功就返回 200，其余 SKU 的 gap **不建行也不报错**（§7.27 ⑤ 实测：SQL 复算 7 类缺口，出库单只覆盖仓内有货的 1 类）。运营看到的是一张「看起来齐了」的单。
+新行为：分配语义、FEFO 选批、是否建单**全部不变**；只在建单成功后把缺口显性化到两处——
+- `warehouse_outbound.notes` 追加 `半满足 N 项：SKU-x 需A/实B…`（超过 10 项只列前 10，其余指向服务日志；列是无上限 TEXT，DTO 早已透出）；
+- `log.warn("[replenishment] route=… outbound=… 补货建议半满足 …")`。
+同 SKU 跨路线多台柜时按 SKU **累计**后判定，避免「A 柜满配 + B 柜缺」互相抵消成假齐。
+判据来源：`WarehouseServiceTest` 17 例（全覆盖 / 半满足 / 全空 三态 + notes 截断），全空仍走原 400 回滚路径，备注里不出现「半满足」。

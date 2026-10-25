@@ -6,6 +6,8 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class WarehouseService {
+    private static final Logger log = LoggerFactory.getLogger(WarehouseService.class);
+    /** 出库单备注里最多列举的半满足条目数，超出只报计数——避免长清单淹没备注。 */
+    private static final int SHORTFALL_NOTE_ITEMS = 10;
     private static final String QUANTITY_MUST_BE_POSITIVE = "quantity must be positive";
     private static final String IN_TRANSIT = "IN_TRANSIT";
     private static final String STATUS_CANCELLED = "CANCELLED";
@@ -560,7 +565,7 @@ public class WarehouseService {
                 continue;
             }
             allocatedLines += allocateFefoToOutbound(
-                    outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue(), false);
+                    outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue(), false).lines();
         }
         if (allocatedLines <= 0) {
             outboundRepository.deleteById(outbound.getOutboundId());
@@ -594,6 +599,7 @@ public class WarehouseService {
                     ? ApiMessages.REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT
                     : ApiMessages.REPLENISHMENT_NO_GAP);
         }
+        annotateHalfFulfilledOutbound(outbound, allocation);
         return self.getOutbound(outbound.getOutboundId());
     }
 
@@ -621,12 +627,14 @@ public class WarehouseService {
         outboundRepository.deleteById(o.getOutboundId());
     }
 
-    private record RouteOutboundAllocation(int allocatedLines, boolean hadSuggestQty) {}
+    private record RouteOutboundAllocation(int allocatedLines, boolean hadSuggestQty, List<String> shortfall) {}
 
     private RouteOutboundAllocation allocateRouteOutboundLines(WarehouseOutbound outbound, String warehouseId,
                                                                List<ReplenishmentTask> tasks) {
         int allocatedLines = 0;
         boolean hadSuggestQty = false;
+        // 同 SKU 可分布在路线多台柜上，按 SKU 累计「建议量 / 实际分配量」再判定半满足
+        Map<String, int[]> accBySku = new LinkedHashMap<>();
         for (ReplenishmentTask task : tasks) {
             List<ReplenishmentSuggestDto> suggestions = self.suggestForDevice(task.getDeviceId(), true);
             for (ReplenishmentSuggestDto s : suggestions) {
@@ -634,13 +642,43 @@ public class WarehouseService {
                     continue;
                 }
                 hadSuggestQty = true;
-                allocatedLines += allocateFefoToOutbound(
+                FefoAllocResult alloc = allocateFefoToOutbound(
                         outbound.getOutboundId(), warehouseId, task.getDeviceId(), s.skuId(), s.suggestQty(), false);
+                allocatedLines += alloc.lines();
+                int[] acc = accBySku.computeIfAbsent(s.skuId(), k -> new int[2]);
+                acc[0] += s.suggestQty();
+                acc[1] += alloc.qty();
             }
             task.setOutboundId(outbound.getOutboundId());
             taskRepository.save(task);
         }
-        return new RouteOutboundAllocation(allocatedLines, hadSuggestQty);
+        List<String> shortfall = accBySku.entrySet().stream()
+                .filter(e -> e.getValue()[1] < e.getValue()[0])
+                .map(e -> e.getKey() + " 需" + e.getValue()[0] + "/实" + e.getValue()[1])
+                .toList();
+        return new RouteOutboundAllocation(allocatedLines, hadSuggestQty, shortfall);
+    }
+
+    /**
+     * FS-G7-3：库存只够覆盖部分建议量时，旧行为是「有行即成功」，缺口对运营完全静默。
+     * 这里只把缺口显性化（出库单备注 + 日志），不改 FEFO 分配、不阻断建单。
+     */
+    private void annotateHalfFulfilledOutbound(WarehouseOutbound outbound, RouteOutboundAllocation allocation) {
+        if (allocation.shortfall().isEmpty()) {
+            return;
+        }
+        log.warn("[replenishment] route={} outbound={} 补货建议半满足 {} 项：{}",
+                outbound.getRouteId(), outbound.getOutboundId(), allocation.shortfall().size(),
+                String.join("；", allocation.shortfall()));
+        outbound.setNotes(outbound.getNotes() + "；" + formatShortfall(allocation.shortfall()));
+        outboundRepository.save(outbound);
+    }
+
+    static String formatShortfall(List<String> shortfall) {
+        String listed = shortfall.stream().limit(SHORTFALL_NOTE_ITEMS).collect(Collectors.joining("；"));
+        int omitted = shortfall.size() - SHORTFALL_NOTE_ITEMS;
+        return "半满足 " + shortfall.size() + " 项：" + listed
+                + (omitted > 0 ? "（余 " + omitted + " 项见服务日志）" : "");
     }
 
     private void unlinkTasksFromOutbound(List<ReplenishmentTask> tasks, Long outboundId) {
@@ -1061,33 +1099,33 @@ public class WarehouseService {
     }
 
     /**
-     * @param requireFull true 时库存不足抛冲突；false 时尽力分配并返回已生成行数
-     * @return 本次写入的出库行数
+     * @param requireFull true 时库存不足抛冲突；false 时尽力分配
+     * @return 本次写入的出库行数与实际分配件数（qty 小于 needQty 即为半满足，由调用方决定是否显性化）
      */
-    private int allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
-                                       String skuId, int needQty, boolean requireFull) {
+    private FefoAllocResult allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
+                                                   String skuId, int needQty, boolean requireFull) {
         int cappedNeed = needQty;
         boolean boundSlots = deviceId != null && !deviceId.isBlank()
                 && deviceSlotService.hasSkuSlots(deviceId, skuId);
         if (boundSlots) {
             int headroom = deviceSlotService.totalHeadroomForSku(deviceId, skuId);
             if (headroom <= 0) {
-                return 0;
+                return NO_ALLOC;
             }
             cappedNeed = Math.min(needQty, headroom);
         }
         if (cappedNeed <= 0) {
-            return 0;
+            return NO_ALLOC;
         }
 
         List<DeviceSlotService.SlotRestockAllocation> slotAllocs = boundSlots
                 ? deviceSlotService.allocateRestockQuantity(deviceId, skuId, cappedNeed)
                 : List.of();
         if (boundSlots && slotAllocs.isEmpty()) {
-            return 0;
+            return NO_ALLOC;
         }
         if (slotAllocs.isEmpty()) {
-            return allocateFefoLots(outboundId, warehouseId, deviceId, skuId, cappedNeed, null, requireFull).lines();
+            return allocateFefoLots(outboundId, warehouseId, deviceId, skuId, cappedNeed, null, requireFull);
         }
 
         int lines = 0;
@@ -1106,10 +1144,12 @@ public class WarehouseService {
                     "warehouse stock insufficient for outbound sku=" + skuId
                             + " need=" + needQty + " remaining=" + (needQty - fulfilled));
         }
-        return lines;
+        return new FefoAllocResult(lines, fulfilled);
     }
 
     private record FefoAllocResult(int lines, int qty) {}
+
+    private static final FefoAllocResult NO_ALLOC = new FefoAllocResult(0, 0);
 
     /**
      * FEFO 写入出库行（可选货道）。

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.ReplenishmentSuggestDto;
 import com.aicabinet.trade.domain.Warehouse;
 import com.aicabinet.trade.domain.WarehouseInventory;
 import com.aicabinet.trade.domain.WarehouseOutbound;
@@ -8,6 +9,9 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,14 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class WarehouseServiceTest {
 
+    static {
+        // 建单失败路径里 unlinkTasksFromOutbound 用 LambdaUpdateWrapper 清 outbound_id：
+        // 纯 Mockito 环境无 SqlSession，需手动注册 TableInfo 缓存才能解析列名
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                ReplenishmentTask.class);
+    }
+
     private static final String TEST_WAREHOUSE_ID = "900000000001";
 
     @Mock private WarehouseMapper warehouseRepository;
@@ -56,6 +68,10 @@ class WarehouseServiceTest {
     @Mock private DeviceInfoMapper deviceInfoRepository;
 
     private WarehouseService warehouseService;
+
+    /** stubOutboundSave 记录的「最近一次 save 返回体」，供 findById 回读（模拟已落库）。 */
+    private final java.util.concurrent.atomic.AtomicReference<WarehouseOutbound> savedOutbound =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     @BeforeEach
     void setUp() {
@@ -236,6 +252,106 @@ class WarehouseServiceTest {
         assertEquals(ApiMessages.REPLENISHMENT_HOME_WAREHOUSE_MIXED, mixed.getReason());
     }
 
+    // ── FS-G7-3：路线出库单「半满足」显性化（备注 + 日志），FEFO 分配与建单成败判定不变 ──
+    @Test
+    void createOutboundForRoute_keepsNotes_whenWarehouseCoversEverySuggestion() {
+        WarehouseService svc = routedService(601L, routeTask(11L, "CAB-1"));
+        doReturn(List.of(suggest("CAB-1", "SKU-1", 5))).when(svc).suggestForDevice("CAB-1", true);
+        stubLot("SKU-1", "B1", 10);
+
+        var dto = svc.createOutboundForRoute(7L, TEST_WAREHOUSE_ID, 100L);
+
+        assertEquals("auto from route 7", dto.notes());
+        verify(outboundRepository, times(1)).save(any(WarehouseOutbound.class));
+    }
+
+    @Test
+    void createOutboundForRoute_annotatesNotes_whenWarehouseOnlyPartiallyCovers() {
+        WarehouseService svc = routedService(602L, routeTask(12L, "CAB-1"));
+        doReturn(List.of(suggest("CAB-1", "SKU-1", 10), suggest("CAB-1", "SKU-2", 4)))
+                .when(svc).suggestForDevice("CAB-1", true);
+        stubLot("SKU-1", "B1", 3);
+        stubLot("SKU-2", "B2", 4);
+
+        var dto = svc.createOutboundForRoute(8L, TEST_WAREHOUSE_ID, 100L);
+
+        assertEquals("auto from route 8；半满足 1 项：SKU-1 需10/实3", dto.notes());
+    }
+
+    @Test
+    void createOutboundForRoute_annotatesZeroAllocatedSku_whenWarehouseHasNoneOfIt() {
+        // 活栈实跑踩到的形态：出库单只覆盖「仓内有货的 SKU」，其余缺口此前完全静默
+        WarehouseService svc = routedService(603L, routeTask(13L, "CAB-1"));
+        doReturn(List.of(suggest("CAB-1", "SKU-1", 3), suggest("CAB-1", "SKU-2", 6)))
+                .when(svc).suggestForDevice("CAB-1", true);
+        stubLot("SKU-1", "B1", 3);
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(TEST_WAREHOUSE_ID, "SKU-2"))
+                .thenReturn(List.of());
+
+        var dto = svc.createOutboundForRoute(9L, TEST_WAREHOUSE_ID, 100L);
+
+        assertEquals("auto from route 9；半满足 1 项：SKU-2 需6/实0", dto.notes());
+        verify(outboundLineRepository, times(1)).save(any(WarehouseOutboundLine.class));
+    }
+
+    @Test
+    void createOutboundForRoute_stillRollsBackToInsufficient_whenNothingAllocatable() {
+        WarehouseService svc = routedService(604L, routeTask(14L, "CAB-1"));
+        doReturn(List.of(suggest("CAB-1", "SKU-1", 5))).when(svc).suggestForDevice("CAB-1", true);
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(TEST_WAREHOUSE_ID, "SKU-1"))
+                .thenReturn(List.of());
+
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> svc.createOutboundForRoute(10L, TEST_WAREHOUSE_ID, 100L));
+
+        assertEquals(ApiMessages.REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT, ex.getReason());
+        verify(outboundRepository).deleteById(604L);
+        assertFalse(String.valueOf(savedOutbound.get().getNotes()).contains("半满足"));
+    }
+
+    @Test
+    void formatShortfall_listsTenAndPointsToLogsForTheRest() {
+        List<String> many = java.util.stream.IntStream.rangeClosed(1, 12)
+                .mapToObj(i -> "SKU-" + i + " 需" + (i + 1) + "/实1")
+                .toList();
+
+        String note = WarehouseService.formatShortfall(many);
+
+        assertTrue(note.startsWith("半满足 12 项：SKU-1 需2/实1；SKU-2 需3/实1"), note);
+        assertTrue(note.contains("SKU-10 需11/实1"), note);
+        assertFalse(note.contains("SKU-11"), note);
+        assertTrue(note.endsWith("（余 2 项见服务日志）"), note);
+    }
+
+    /** 路线建单内部走 self.suggestForDevice / self.getOutbound ⇒ 用 spy 接住这两个自重入入口。 */
+    private WarehouseService routedService(long outboundId, ReplenishmentTask... tasks) {
+        WarehouseService svc = spy(warehouseService);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+        stubOutboundSave(outboundId);
+        when(outboundRepository.findByRouteId(anyLong())).thenReturn(Optional.empty());
+        when(outboundRepository.findById(outboundId))
+                .thenAnswer(inv -> Optional.of(savedOutbound.get()));
+        when(taskRepository.findByRouteId(anyLong())).thenReturn(List.of(tasks));
+        return svc;
+    }
+
+    private void stubLot(String skuId, String batchNo, int qty) {
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(TEST_WAREHOUSE_ID, skuId))
+                .thenReturn(List.of(inventoryLot(skuId, batchNo, qty)));
+        when(outboundLineRepository.sumAllocatedQty(TEST_WAREHOUSE_ID, skuId, batchNo)).thenReturn(0);
+    }
+
+    private static ReplenishmentTask routeTask(long taskId, String deviceId) {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(taskId);
+        task.setDeviceId(deviceId);
+        return task;
+    }
+
+    private static ReplenishmentSuggestDto suggest(String deviceId, String skuId, int suggestQty) {
+        return new ReplenishmentSuggestDto(deviceId, skuId, 0, 0, 0, suggestQty);
+    }
+
     private static Page<Warehouse> pageOf(Warehouse... rows) {
         Page<Warehouse> page = new Page<>(1, 500);
         page.setRecords(List.of(rows));
@@ -260,6 +376,7 @@ class WarehouseServiceTest {
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
+            savedOutbound.set(saved);
             return saved;
         });
     }
