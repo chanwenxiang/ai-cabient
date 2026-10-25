@@ -276,6 +276,17 @@ const GUARDED = new Map([
         '此前 String[] 无 typeHandler ⇒ 带柜机范围的券定义 insert 500。本 IT 走真库（Testcontainers PG16）' +
         '钉 insert/selectById/updateById 三链的数组读写映射（VarcharArrayTypeHandler）'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PurchaseLineNullableBatchSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；V405 修复回归：purchase_order_line.batch_no/expiry_date 原为 NOT NULL，' +
+        '而服务层早已按「下单选填 + 收货必填」实现并有 Mockito 单测 ⇒ 下单不填批次在真库 23502 500' +
+        '（UAT §7.20 ⓱19）。列约束与服务口径是否相反只有真 SQL 能证，本 IT 走 Testcontainers PG16 ' +
+        '钉 information_schema 可空性 + insert(NULL)→selectById→收货回写 updateById 三链'
+    }
   ]
 ]);
 

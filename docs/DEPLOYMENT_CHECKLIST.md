@@ -88,7 +88,7 @@ copy infra\.env.production.example infra\.env.production
 - [ ] 短信（2026-10-20 起）：`SMS_PROVIDER=aliyun` 且 `SMS_ALIYUN_ACCESS_KEY_ID/SECRET/SIGN_NAME/TEMPLATE_CODE` 已配（签名=深圳前海易购科创智能设备，验证码模板 SMS_512651638 变量须 `${code}`）；已用真实手机号实发一条验证码收通（不得再依赖 prod-server 的 mock 容器，已移除）
 - [ ] 微信支付 API v3 证书与 notify URL HTTPS
 - [ ] 小程序 `WECHAT_MINIAPP_ID` / `SECRET`
-- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V402**（全新库启动日志逐条 Migrating 到 `402 - device info door lock state`；已在该版本的老库启动时不再有 Migrating 行属正常）。**编号序与倒挂兜底见 §3.1.3，部署前必查**
+- [ ] PostgreSQL 备份；Flyway 已到本分支高水位 **V405**（全新库启动日志逐条 Migrating 到 `405 - purchase line batch nullable`；已在该版本的老库启动时不再有 Migrating 行属正常。已在 V402 的库跑本版镜像会严格升序补 403/404/405，不属倒挂）。**编号序与倒挂兜底见 §3.1.3，部署前必查**
 - [ ] 将邑面：`JIANGYI_JWT_SECRET` 已配（≥32 字节）；`JIANGYI_OSS_ACCESS_KEY_ID/SECRET/ROLE_ARN/REGION/BUCKET` 已配；`JIANGYI_PUBLIC_BASE_URL` 指向固定公网域名（勿用花生壳穿透）；OSS `jiangyi-video/` 生命周期规则已建（§3.1.1）
 - [ ] MinIO/OSS 桶策略、CORS、视频生命周期（**OSS 侧见 §3.1.1，必配**）
 - [ ] **资金类定时任务的开启状态已逐条确认**（V376 起默认关；2026-10-17 拍板**上线当天两条都保持关**，见 §3.1.2）
