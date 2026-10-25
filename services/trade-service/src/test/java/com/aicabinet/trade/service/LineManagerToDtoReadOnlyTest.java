@@ -44,6 +44,8 @@ class LineManagerToDtoReadOnlyTest {
                 permissionService,
                 auditService,
                 distributedLockService,
+                null,
+                null,
                 null);
     }
 

@@ -24,6 +24,9 @@ services:
     # 不等 ⇒ Invalid CORS request；curl 不带 Origin 测不出来）。钉成宿主实际端口。
     environment:
       CORS_ORIGIN: http://localhost:28080
+      # V307 收款账号 AES-256-GCM 密钥透传（G2-13 批次 3：收款账户管理上线后 UAT 需要真配账户；
+      # 值由起栈 shell 注入，不落盘。apps.yml 已有同键，full.yml 的 trade 定义漏了 ⇒ 此处补）。
+      AICABINET_PAYOUT_ENCRYPTION_KEY: ${AICABINET_PAYOUT_ENCRYPTION_KEY:-}
     ports: !override
       - "127.0.0.1:28081:8080"
       - "127.0.0.1:${XXL_JOB_EXECUTOR_PORT:-39999}:9999"

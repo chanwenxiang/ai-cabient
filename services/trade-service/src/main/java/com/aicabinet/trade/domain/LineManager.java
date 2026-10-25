@@ -23,6 +23,8 @@ public class LineManager {
     private String orgName;
     private Integer commissionRateBps;
     private Integer commissionFixedCents;
+    /** 身份核验通过时间（运营侧二要素 vendor 核验或 C 端实名后由核验动作落值；CB-066 持有人一致性守卫前置） */
+    private Instant identityVerifiedAt;
     private Instant createdAt;
     private Instant updatedAt;
 

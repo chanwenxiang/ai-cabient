@@ -76,6 +76,15 @@ public class LineManagerController {
         return ApiResponse.ok(lineManagerService.unbindDevice(operator(request), managerId, deviceId));
     }
 
+    /** 线长身份核验（CB-066 持有人一致性前置）：二要素 vendor 核验通过后覆写实名姓名并落核验时间戳。 */
+    @RequiresPermissions("ops:line-manager:edit")
+    @PostMapping("/{managerId}/identity-verify")
+    public ApiResponse<LineManagerDto> identityVerify(
+            HttpServletRequest request, @PathVariable long managerId, @RequestBody Map<String, String> body) {
+        return ApiResponse.ok(lineManagerService.identityVerify(
+                operator(request), managerId, body.get("realName"), body.get("idCard")));
+    }
+
     @RequiresPermissions("ops:line-manager:edit")
     @PostMapping("/{managerId}/adjust")
     public ApiResponse<LineManagerDto> adjust(

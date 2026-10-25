@@ -16,6 +16,7 @@ public record LineManagerDto(
         Long balanceCents,
         Long frozenCents,
         List<String> deviceIds,
+        Instant identityVerifiedAt,
         Instant createdAt,
         Instant updatedAt
 ) {}

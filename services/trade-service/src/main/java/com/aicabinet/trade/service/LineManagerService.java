@@ -3,13 +3,17 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.LineManagerDto;
 import com.aicabinet.common.dto.LineWalletLedgerDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineWalletAccount;
 import com.aicabinet.trade.domain.LineWalletLedger;
+import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.identity.IdentityVerifyClient;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
@@ -22,6 +26,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -47,6 +52,8 @@ public class LineManagerService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
+    private final UserInfoMapper userInfoMapper;
+    private final IdentityVerifyClient identityVerifyClient;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final LineManagerService self;
 
@@ -56,7 +63,10 @@ public class LineManagerService {
                               LineWalletService lineWalletService,
                               PermissionService permissionService,
                               AdminAuditService auditService,
-                              DistributedLockService distributedLockService, @Lazy LineManagerService self) {
+                              DistributedLockService distributedLockService,
+                              UserInfoMapper userInfoMapper,
+                              IdentityVerifyClient identityVerifyClient,
+                              @Lazy LineManagerService self) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.deviceInfoMapper = deviceInfoMapper;
@@ -64,6 +74,8 @@ public class LineManagerService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
+        this.userInfoMapper = userInfoMapper;
+        this.identityVerifyClient = identityVerifyClient;
         this.self = self;
     }
 
@@ -120,6 +132,13 @@ public class LineManagerService {
         manager.setUpdatedAt(now);
         managerMapper.insert(manager);
         lineWalletService.ensureAccount(manager.getManagerId());
+        // G2-13 发现补审计：线长域此前只有 adjust 有台账——建号（含佣金参数）不留痕，无法回答「谁建的线长」
+        auditService.appendLog(operatorId, "LINE_MANAGER_CREATE", "LINE_MANAGER",
+                String.valueOf(manager.getManagerId()),
+                "name=" + manager.getManagerName() + ",phone=" + PhoneMask.mask(manager.getPhone())
+                        + ",rateBps=" + manager.getCommissionRateBps()
+                        + ",fixedCents=" + manager.getCommissionFixedCents()
+                        + ",userId=" + manager.getUserId());
         return toDto(manager);
     }
 
@@ -127,9 +146,22 @@ public class LineManagerService {
     public LineManagerDto update(Long operatorId, long managerId, Map<String, Object> body) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         LineManager manager = requireManager(managerId);
+        Integer rateBefore = manager.getCommissionRateBps();
+        Integer fixedBefore = manager.getCommissionFixedCents();
+        String statusBefore = manager.getStatus();
         applyLineManagerUpdates(manager, managerId, body);
         manager.setUpdatedAt(Instant.now());
         managerMapper.updateById(manager);
+        // G2-13 发现补审计：佣金参数是资金分配参数，变更必须留 before/after
+        if (!Objects.equals(rateBefore, manager.getCommissionRateBps())
+                || !Objects.equals(fixedBefore, manager.getCommissionFixedCents())
+                || !Objects.equals(statusBefore, manager.getStatus())) {
+            auditService.appendLog(operatorId, "LINE_MANAGER_UPDATE", "LINE_MANAGER",
+                    String.valueOf(managerId),
+                    "rateBps=" + rateBefore + "->" + manager.getCommissionRateBps()
+                            + ",fixedCents=" + fixedBefore + "->" + manager.getCommissionFixedCents()
+                            + ",status=" + statusBefore + "->" + manager.getStatus());
+        }
         return toDto(manager);
     }
 
@@ -202,6 +234,8 @@ public class LineManagerService {
             ld.setAssignedAt(Instant.now());
             deviceMapper.insert(ld);
         }
+        auditService.appendLog(operatorId, "LINE_MANAGER_BIND", "LINE_MANAGER",
+                String.valueOf(managerId), "bindDevice=" + dev);
         return toDto(requireManager(managerId));
     }
 
@@ -220,7 +254,47 @@ public class LineManagerService {
         ld.setStatus("INACTIVE");
         ld.setUnassignedAt(Instant.now());
         deviceMapper.updateById(ld);
+        auditService.appendLog(operatorId, "LINE_MANAGER_UNBIND", "LINE_MANAGER",
+                String.valueOf(managerId), "unbindDevice=" + deviceId.trim());
         return toDto(requireManager(managerId));
+    }
+
+    /**
+     * 线长身份核验（CB-066 持有人一致性守卫的前置）：运营录入姓名+身份证号走同一二要素 vendor，
+     * 通过后把绑定用户 `name` 覆写为实名姓名（与 C 端实名同构）、`verified=true` 并落
+     * `identity_verified_at`——此后 LINE_MANAGER 对私收款账户的户名一致性校验以它为基准。
+     * 🔴 证件号**不入库**（V321 隐私拍板）：只用于本次 vendor 调用，日志/审计均不落。
+     */
+    @Transactional
+    public LineManagerDto identityVerify(Long operatorId, long managerId, String realName, String idCard) {
+        permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
+        LineManager manager = requireManager(managerId);
+        if (manager.getUserId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "该线长未绑定商户小程序用户，请先在「新建/编辑线长」填写用户编号并保存");
+        }
+        UserInfo user = userInfoMapper.selectById(manager.getUserId());
+        if (user == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "绑定的用户不存在");
+        }
+        if (realName == null || realName.isBlank() || idCard == null || idCard.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "姓名与身份证号必填");
+        }
+        IdentityVerifyClient.VerifyOutcome outcome =
+                identityVerifyClient.verify(realName.trim(), idCard.trim());
+        if (!outcome.verified()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "身份核验未通过，请核对姓名与身份证号");
+        }
+        user.setName(realName.trim());
+        user.setVerified(true);
+        userInfoMapper.updateById(user);
+        manager.setIdentityVerifiedAt(Instant.now());
+        managerMapper.updateById(manager);
+        auditService.appendLog(operatorId, "LINE_MANAGER_IDENTITY_VERIFY", "LINE_MANAGER",
+                String.valueOf(managerId),
+                "realName=" + realName.trim() + ",user=" + manager.getUserId()
+                        + (outcome.mock() ? "（mock 环境运营核验）" : "（二要素 vendor 核验通过）"));
+        return toDto(manager);
     }
 
     @Transactional
@@ -285,6 +359,7 @@ public class LineManagerService {
                 value(account == null ? null : account.getBalanceCents()),
                 value(account == null ? null : account.getFrozenCents()),
                 deviceIds,
+                manager.getIdentityVerifiedAt(),
                 manager.getCreatedAt(),
                 manager.getUpdatedAt()
         );

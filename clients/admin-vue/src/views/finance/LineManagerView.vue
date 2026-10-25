@@ -619,6 +619,142 @@
       </template>
     </el-dialog>
 
+    <!-- G2-13 发现修复：解绑此前无 UI 入口（后端 DELETE 存在、前端无调用点） -->
+    <el-dialog v-model="unbindDlgVisible" title="解绑柜机" destroy-on-close>
+      <el-form label-width="auto">
+        <el-form-item label="线长"
+          >{{ unbindTarget?.managerName }} · {{ unbindTarget?.phone }}</el-form-item
+        >
+        <el-form-item label="柜机" required>
+          <el-select v-model="unbindDeviceId" placeholder="选择要解绑的柜机" style="width: 100%">
+            <el-option v-for="d in unbindTarget?.deviceIds || []" :key="d" :label="d" :value="d" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="unbindDlgVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="confirmUnbind">确认解绑</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="identityDlgVisible" title="线长身份核验" destroy-on-close>
+      <el-form label-width="auto">
+        <el-form-item label="线长"
+          >{{ identityTarget?.managerName }} · {{ identityTarget?.phone }}</el-form-item
+        >
+        <el-form-item label="实名姓名" required>
+          <el-input v-model="identityForm.realName" placeholder="须与身份证姓名一致" />
+        </el-form-item>
+        <el-form-item label="身份证号" required>
+          <el-input v-model="identityForm.idCard" placeholder="仅用于本次二要素核验，系统不留存" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="identityDlgVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitIdentityVerify"
+          >核验并保存</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="accountsDlgVisible" title="收款账户" class="dialog-wide" destroy-on-close>
+      <el-alert
+        v-if="!accountsTarget?.identityVerifiedAt"
+        type="warning"
+        :closable="false"
+        class="scope-alert"
+        title="该线长尚未完成身份核验：配置对私账户前请先核验（户名必须与实名姓名一致）"
+      />
+      <el-form v-if="!accountsTarget?.identityVerifiedAt" label-width="auto" inline>
+        <el-form-item label="实名姓名">
+          <el-input v-model="identityForm.realName" placeholder="与身份证一致" />
+        </el-form-item>
+        <el-form-item label="身份证号">
+          <el-input v-model="identityForm.idCard" placeholder="仅本次核验使用，不留存" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="submitIdentityVerify"
+            >核验并保存</el-button
+          >
+        </el-form-item>
+      </el-form>
+      <el-table :data="payoutAccounts" size="small" v-loading="accountsLoading">
+        <el-table-column label="类型" width="90">
+          <template #default="{ row }">{{
+            row.accountType === 'PAYEE_TYPE_COMPANY' ? '对公' : '对私'
+          }}</template>
+        </el-table-column>
+        <el-table-column prop="channel" label="通道" width="90" />
+        <el-table-column prop="accountName" label="户名" min-width="140" />
+        <el-table-column prop="accountNoMask" label="账号" min-width="150" />
+        <el-table-column label="默认" width="70">
+          <template #default="{ row }">{{ row.isDefault ? '是' : '' }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="操作" width="150">
+          <template #default="{ row }">
+            <el-button
+              v-if="!row.isDefault && row.status === 'ACTIVE'"
+              link
+              type="primary"
+              @click="setPayoutDefault(row)"
+              >设默认</el-button
+            >
+            <el-button
+              v-if="row.status === 'ACTIVE'"
+              link
+              type="danger"
+              @click="disablePayoutAccount(row)"
+              >停用</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-divider />
+      <el-form label-width="auto" inline>
+        <el-form-item label="类型">
+          <el-radio-group v-model="payoutForm.accountType">
+            <el-radio value="PAYEE_TYPE_PERSONAL">对私</el-radio>
+            <el-radio value="PAYEE_TYPE_COMPANY">对公</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="通道">
+          <el-select v-model="payoutForm.channel" style="width: 120px">
+            <el-option label="银行卡" value="BANK" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="户名">
+          <el-input v-model="payoutForm.accountName" style="width: 200px" />
+        </el-form-item>
+        <el-form-item label="账号">
+          <el-input v-model="payoutForm.accountNo" style="width: 220px" placeholder="6-32 位数字" />
+        </el-form-item>
+        <template v-if="payoutForm.accountType === 'PAYEE_TYPE_COMPANY'">
+          <el-form-item label="开户行">
+            <el-input
+              v-model="payoutForm.bankName"
+              style="width: 240px"
+              placeholder="全称，如 中国工商银行杭州西湖支行"
+            />
+          </el-form-item>
+          <el-form-item label="支行">
+            <el-input v-model="payoutForm.bankBranch" style="width: 160px" />
+          </el-form-item>
+          <el-form-item label="税号">
+            <el-input v-model="payoutForm.taxNo" style="width: 200px" />
+          </el-form-item>
+        </template>
+        <el-form-item>
+          <el-checkbox v-model="payoutForm.asDefault">设为默认</el-checkbox>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="submitPayoutCreate"
+            >新增账户</el-button
+          >
+        </el-form-item>
+      </el-form>
+    </el-dialog>
+
     <ResizableDrawer
       v-model="ledgerVisible"
       title="钱包流水"
@@ -795,7 +931,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
-import { Refresh, View, TrendCharts, Link, Wallet, Money } from '@element-plus/icons-vue';
+import { Refresh, View, TrendCharts, Link, Wallet, Money, User } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -831,7 +967,22 @@ interface Manager {
   deviceIds?: string[];
   commissionRateBps?: number;
   commissionFixedCents?: number;
+  identityVerifiedAt?: string;
   status?: string;
+  createdAt?: string;
+}
+
+interface PayoutAccountRow {
+  accountId: number;
+  accountType: string;
+  channel: string;
+  accountName: string;
+  accountNoMask: string;
+  bankName?: string;
+  bankBranch?: string;
+  taxNo?: string;
+  isDefault?: boolean;
+  status: string;
   createdAt?: string;
 }
 
@@ -1143,6 +1294,191 @@ function openBind(row: Manager) {
   if (!deviceOptions.value.length) void loadDeviceOptions();
 }
 
+// ── G2-13 发现修复：解绑 UI 入口 + 线长身份核验 + 收款账户管理（CB-066） ──
+const unbindDlgVisible = ref(false);
+const unbindTarget = ref<Manager | null>(null);
+const unbindDeviceId = ref('');
+const identityDlgVisible = ref(false);
+const identityTarget = ref<Manager | null>(null);
+const identityForm = ref({ realName: '', idCard: '' });
+const accountsDlgVisible = ref(false);
+const accountsTarget = ref<Manager | null>(null);
+const payoutAccounts = ref<PayoutAccountRow[]>([]);
+const accountsLoading = ref(false);
+const payoutForm = ref({
+  accountType: 'PAYEE_TYPE_PERSONAL',
+  channel: 'BANK',
+  accountName: '',
+  accountNo: '',
+  bankName: '',
+  bankBranch: '',
+  taxNo: '',
+  asDefault: true
+});
+
+function openUnbind(row: Manager) {
+  unbindTarget.value = row;
+  unbindDeviceId.value = '';
+  unbindDlgVisible.value = true;
+}
+
+async function confirmUnbind() {
+  if (!unbindTarget.value || !unbindDeviceId.value) {
+    ElMessage.warning('请选择要解绑的柜机');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request(
+      `${AdminEndpoints.lineManagerDevices(unbindTarget.value.managerId)}/${encodeURIComponent(unbindDeviceId.value)}`,
+      'DELETE'
+    );
+    ElMessage.success('已解绑');
+    unbindDlgVisible.value = false;
+    await loadManagers();
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
+  } finally {
+    saving.value = false;
+  }
+}
+
+function openIdentityVerify(row: Manager) {
+  identityTarget.value = row;
+  identityForm.value = { realName: '', idCard: '' };
+  identityDlgVisible.value = true;
+}
+
+async function submitIdentityVerify() {
+  if (!identityTarget.value) return;
+  if (!identityForm.value.realName.trim() || !identityForm.value.idCard.trim()) {
+    ElMessage.warning('请填写实名姓名与身份证号');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request(
+      AdminEndpoints.lineManagerIdentityVerify(identityTarget.value.managerId),
+      'POST',
+      {
+        realName: identityForm.value.realName.trim(),
+        idCard: identityForm.value.idCard.trim()
+      }
+    );
+    ElMessage.success('身份核验已通过');
+    identityDlgVisible.value = false;
+    await loadManagers();
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
+  } finally {
+    saving.value = false;
+  }
+}
+
+function openAccounts(row: Manager) {
+  accountsTarget.value = row;
+  payoutForm.value = {
+    accountType: 'PAYEE_TYPE_PERSONAL',
+    channel: 'BANK',
+    accountName: '',
+    accountNo: '',
+    bankName: '',
+    bankBranch: '',
+    taxNo: '',
+    asDefault: true
+  };
+  accountsDlgVisible.value = true;
+  void loadPayoutAccounts();
+}
+
+async function loadPayoutAccounts() {
+  if (!accountsTarget.value) return;
+  accountsLoading.value = true;
+  try {
+    payoutAccounts.value = await api.request<PayoutAccountRow[]>(
+      AdminEndpoints.payoutAccountsList('LINE_MANAGER', accountsTarget.value.managerId),
+      'GET'
+    );
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '加载收款账户失败'));
+  } finally {
+    accountsLoading.value = false;
+  }
+}
+
+async function submitPayoutCreate() {
+  if (!accountsTarget.value) return;
+  if (
+    payoutForm.value.accountType === 'PAYEE_TYPE_PERSONAL' &&
+    !accountsTarget.value.identityVerifiedAt
+  ) {
+    ElMessage.warning('对私账户须先完成线长身份核验（户名须与实名姓名一致）');
+    return;
+  }
+  if (!payoutForm.value.accountName.trim() || !payoutForm.value.accountNo.trim()) {
+    ElMessage.warning('户名与账号必填');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request(AdminEndpoints.payoutAccountCreate, 'POST', {
+      ownerType: 'LINE_MANAGER',
+      ownerId: String(accountsTarget.value.managerId),
+      accountType: payoutForm.value.accountType,
+      channel: payoutForm.value.channel,
+      accountName: payoutForm.value.accountName.trim(),
+      accountNo: payoutForm.value.accountNo.trim(),
+      bankName: payoutForm.value.bankName || null,
+      bankBranch: payoutForm.value.bankBranch || null,
+      taxNo: payoutForm.value.taxNo || null,
+      asDefault: payoutForm.value.asDefault
+    });
+    ElMessage.success('收款账户已新增');
+    await loadPayoutAccounts();
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function setPayoutDefault(row: PayoutAccountRow) {
+  if (!accountsTarget.value) return;
+  try {
+    await api.request(AdminEndpoints.payoutAccountDefault(row.accountId), 'POST', {
+      ownerType: 'LINE_MANAGER',
+      ownerId: String(accountsTarget.value.managerId)
+    });
+    ElMessage.success('已设为默认');
+    await loadPayoutAccounts();
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
+  }
+}
+
+async function disablePayoutAccount(row: PayoutAccountRow) {
+  if (!accountsTarget.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认停用该收款账户（${row.accountNoMask}）？停用只拦「新申请」，已成立的提现单照常打款。`,
+      '停用收款账户',
+      { type: 'warning', confirmButtonText: '确认停用', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.payoutAccountDisable(row.accountId), 'POST', {
+      ownerType: 'LINE_MANAGER',
+      ownerId: String(accountsTarget.value.managerId)
+    });
+    ElMessage.success('已停用');
+    await loadPayoutAccounts();
+  } catch (e: unknown) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '失败'));
+  }
+}
+
 /** 主按钮只放全员可用的只读操作，编辑类操作收进「更多」并按权限过滤 */
 function managerRowActions(row: Manager): TableAction[] {
   const actions: TableAction[] = [
@@ -1152,7 +1488,10 @@ function managerRowActions(row: Manager): TableAction[] {
   if (auth.hasPerm('ops:line-manager:edit')) {
     actions.push(
       { key: 'bind', label: '绑柜', icon: Link },
+      { key: 'accounts', label: '收款账户', icon: Wallet },
       { key: 'adjust', label: '调账', icon: Wallet },
+      { key: 'unbind', label: '解绑', icon: Link, divided: true },
+      { key: 'identity', label: '身份核验', icon: User },
       { key: 'withdraw', label: '代提现', icon: Money, divided: true }
     );
   }
@@ -1165,6 +1504,9 @@ function onManagerRowAction(key: string, row: Manager) {
   else if (key === 'bind') openBind(row);
   else if (key === 'adjust') void adjust(row);
   else if (key === 'withdraw') void proxyWithdraw(row);
+  else if (key === 'unbind') openUnbind(row);
+  else if (key === 'identity') openIdentityVerify(row);
+  else if (key === 'accounts') openAccounts(row);
 }
 
 async function confirmBind() {

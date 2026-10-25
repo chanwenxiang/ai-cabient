@@ -1,10 +1,14 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.domain.PayoutAccountStatus;
+import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
 import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.mapper.PayoutAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.payout.PayoutChannel;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConstants;
@@ -36,8 +40,8 @@ public class PayoutAccountService {
 
     private static final Logger log = LoggerFactory.getLogger(PayoutAccountService.class);
 
-    /** 对公开户行：中文/英文/空格/括号，长度 2-128 */
-    private static final Pattern BANK_NAME_RE = Pattern.compile("^[\\\\u4e00-\\\\u9fa5A-Za-z0-9 ()（）\\\\-]{2,128}$");
+    /** 对公开户行：中文/英文/空格/括号，长度 2-128（2026-10-25 修：原四重转义使中文户名恒 400——对公 create 路径此前从未被走到，G2-13 收款账户测试首踩） */
+    private static final Pattern BANK_NAME_RE = Pattern.compile("^[\\u4e00-\\u9fa5A-Za-z0-9 ()（）\\-]{2,128}$");
     /** 纳税人识别号：15/18/20 位字母数字 */
     private static final Pattern TAX_NO_RE = Pattern.compile("^[A-Za-z0-9]{15,20}$");
     /** 银行账号：6-32 位数字（对公可能带 * 掩码标记，但我们只存真号） */
@@ -49,17 +53,24 @@ public class PayoutAccountService {
     /** V308：跨主体额度统计（商户侧 + 线长侧共用渠道池）。 */
     private final MerchantWithdrawRequestMapper withdrawMapper;
     private final LineWithdrawRequestMapper lineWithdrawMapper;
+    /** CB-066：LINE_MANAGER 主体「持有人=实名本人」一致性守卫用的两张表。 */
+    private final LineManagerMapper lineManagerMapper;
+    private final UserInfoMapper userInfoMapper;
 
     public PayoutAccountService(PayoutAccountMapper accountMapper,
                                 PayoutFieldCipher cipher,
                                 PayoutChannelRegistry channelRegistry,
                                 MerchantWithdrawRequestMapper withdrawMapper,
-                                LineWithdrawRequestMapper lineWithdrawMapper) {
+                                LineWithdrawRequestMapper lineWithdrawMapper,
+                                LineManagerMapper lineManagerMapper,
+                                UserInfoMapper userInfoMapper) {
         this.accountMapper = accountMapper;
         this.cipher = cipher;
         this.channelRegistry = channelRegistry;
         this.withdrawMapper = withdrawMapper;
         this.lineWithdrawMapper = lineWithdrawMapper;
+        this.lineManagerMapper = lineManagerMapper;
+        this.userInfoMapper = userInfoMapper;
     }
 
     /**
@@ -75,6 +86,7 @@ public class PayoutAccountService {
         requireValidPayeeType(accountType);
         requireRegisteredChannel(channel);
         validateFields(accountType, accountName, accountNo, bankName, taxNo);
+        requireHolderMatchesRealName(ownerType, ownerId, accountType, accountName);
 
         PayoutAccount account = new PayoutAccount();
         account.setOwnerType(ownerType);
@@ -274,6 +286,46 @@ public class PayoutAccountService {
     private void validateOwner(String ownerType, String ownerId) {
         if (isBlank(ownerType) || isBlank(ownerId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收款主体无效");
+        }
+    }
+
+    /**
+     * CB-066 持有人一致性守卫：提现收款账户的户名必须与收款主体的实名人一致（微信/支付宝/美团/拉卡拉同向，
+     * 见 docs/COMPETITOR_BENCHMARK.md CB-066）。当前落地 LINE_MANAGER 主体：
+     * <ul>
+     *   <li>必须绑定商户小程序用户（user_id 非空）；</li>
+     *   <li>绑定用户必须已实名（verified=true）且线长已完成身份核验（identity_verified_at 非空）；</li>
+     *   <li>对私账户户名必须等于实名姓名（C 端二要素 vendor 通过后覆写的 user.name）。</li>
+     * </ul>
+     * ⚠️ 证件号不入库（V321 隐私拍板）：一致性只比对姓名；MERCHANT 主体的法人一致性待拍板后另接。
+     */
+    private void requireHolderMatchesRealName(String ownerType, String ownerId,
+                                               String accountType, String accountName) {
+        if (!PayoutConstants.PAYEE_OWNER_LINE_MANAGER.equals(ownerType)) {
+            return;
+        }
+        LineManager manager = lineManagerMapper.selectById(Long.valueOf(ownerId.trim()));
+        if (manager == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "线长不存在");
+        }
+        if (manager.getUserId() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "该线长未绑定商户小程序用户，无法配置收款账户；请先在「编辑线长」填写用户编号");
+        }
+        if (manager.getIdentityVerifiedAt() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "该线长尚未完成身份核验，无法配置收款账户；请在「收款账户」里先完成「身份核验」");
+        }
+        UserInfo user = userInfoMapper.selectById(manager.getUserId());
+        if (user == null || !user.isVerified()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "线长绑定的用户尚未完成实名，无法配置收款账户");
+        }
+        if (PayoutConstants.PAYEE_TYPE_PERSONAL.equals(accountType)
+                && accountName != null
+                && !accountName.trim().equals(user.getName() == null ? "" : user.getName().trim())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "收款账户户名须与实名姓名一致（实名姓名：" + user.getName().trim() + "）");
         }
     }
 

@@ -595,6 +595,15 @@ export const AdminEndpoints = {
     `${ops}/line-managers/${encodeURIComponent(String(managerId))}/devices`,
   lineManagerAdjust: (managerId: string | number) =>
     `${ops}/line-managers/${encodeURIComponent(String(managerId))}/adjust`,
+  lineManagerIdentityVerify: (managerId: string | number) =>
+    `${ops}/line-managers/${encodeURIComponent(String(managerId))}/identity-verify`,
+  payoutAccountsList: (ownerType: string, ownerId: string | number) =>
+    `${ops}/payout-accounts?ownerType=${encodeURIComponent(ownerType)}&ownerId=${encodeURIComponent(String(ownerId))}`,
+  payoutAccountCreate: `${ops}/payout-accounts`,
+  payoutAccountDefault: (accountId: string | number) =>
+    `${ops}/payout-accounts/${encodeURIComponent(String(accountId))}/default`,
+  payoutAccountDisable: (accountId: string | number) =>
+    `${ops}/payout-accounts/${encodeURIComponent(String(accountId))}/disable`,
   lineManagerLedgers: (managerId: string | number, limit = 50) =>
     `${ops}/line-managers/${encodeURIComponent(String(managerId))}/ledgers?limit=${limit}`,
   lineManagerKpi: (managerId: string | number) =>
