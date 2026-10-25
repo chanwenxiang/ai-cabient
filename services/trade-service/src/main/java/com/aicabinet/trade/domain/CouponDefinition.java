@@ -1,5 +1,7 @@
 package com.aicabinet.trade.domain;
 
+import com.aicabinet.trade.config.VarcharArrayTypeHandler;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
@@ -7,7 +9,7 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
-@TableName("coupon_definition")
+@TableName(value = "coupon_definition", autoResultMap = true)
 @Getter
 @Setter
 public class CouponDefinition {
@@ -53,6 +55,7 @@ public class CouponDefinition {
     private String scopeMerchantId;
 
     /** V319：{@code scopeType=DEVICE} 时生效的柜机 ID 集合（空 = 不限制）。 */
+    @TableField(typeHandler = VarcharArrayTypeHandler.class)
     private String[] scopeDeviceIds;
 
     private String status = "ACTIVE";

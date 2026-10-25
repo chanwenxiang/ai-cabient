@@ -266,6 +266,16 @@ const GUARDED = new Map([
         '越界（冻结毛额 > 应付+已退）必须抛错点名。SQL 语义与 Java 取数是否同值，' +
         '字符串断言与 Mockito 单测都证明不了'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/CouponScopeDeviceIdsSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；G6/§7.24.1 修复回归：coupon_definition.scope_device_ids VARCHAR(64)[] ' +
+        '此前 String[] 无 typeHandler ⇒ 带柜机范围的券定义 insert 500。本 IT 走真库（Testcontainers PG16）' +
+        '钉 insert/selectById/updateById 三链的数组读写映射（VarcharArrayTypeHandler）'
+    }
   ]
 ]);
 
