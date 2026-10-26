@@ -110,7 +110,7 @@
 
 | # | 验证 | 命令/判据 |
 |---|---|---|
-| 1 | 调度中心业务 job 数 = **37** | `SELECT COUNT(*) FROM xxl_job_info WHERE job_group=10;`（🔴 别用 `id BETWEEN 101 AND 131`：真实 id 集是 101–135 缺 117、再加 140/141/142/143，按区间数会数错） |
+| 1 | 调度中心业务 job 数 = **37** | `SELECT COUNT(*) FROM xxl_job_info WHERE job_group=10;`（🔴 别用 `id BETWEEN 101 AND 131`：真实 id 集是 101–135 里缺 117 与 124、再加 140/141/142/143（136–139 未用），共 37 条——按区间数必然数错，判据只认 `job_group=10` 的实数） |
 | 2 | 已有 job 未被改动 | 逐条比对 `executor_handler`/`schedule_conf` 与改动前相同（防重复插入 → 双触发）；`check-xxl-job-wiring` 3.8.5 起静态拦「种子 id 撞号 / 同 handler 多排 / 种子行数 ≠ 具名 handler 数」 |
 | 3 | 全部启用（两侧都要看） | `SELECT trigger_status, COUNT(*) FROM xxl_job_info WHERE job_group=10 GROUP BY trigger_status;` → 37 条均 `=1`；**同时** `SELECT task_key FROM scheduled_task WHERE NOT enabled;` 只允许 V376 刻意默认关的 `refund-retry`/`deposit-monthly-refund` ⇒ 这两条 XXL 照样派发、但 `tryBegin` 记 `task disabled` 跳过，`trigger_status=1` 不等于真跑 |
 | 4 | 执行器已注册 | `SELECT * FROM xxl_job_registry;` 有 `EXECUTOR/trade-service` 且 `update_time` 是近期心跳 |
