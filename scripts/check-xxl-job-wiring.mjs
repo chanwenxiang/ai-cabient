@@ -425,6 +425,48 @@ if (cronMismatch.length) {
   );
 }
 
+// 3.8.5 种子行的 **主键 id 必须唯一**、且每个 handler 只出现一次。
+//   为什么单独验：整份种子是**一条**多行 INSERT + `ON DUPLICATE KEY UPDATE`，两行撞同一个 id 时
+//   MySQL 不报错——第二行把第一行**就地覆盖**（handler/desc/cron 全换成后一行的值），于是前一个
+//   job 在调度中心永不存在。实证（2026-10-26 G8-38）：id=133 同时给了「争议超时自动免单」
+//   （disputeAutoWaiveJob）与「平台资金日检」（platformFundDailyJob），活库 xxl_job_info 只有
+//   platformFundDailyJob，37 条种子实落 36 条 ⇒ dispute-auto-waive 在 XXL 档下**永不触发**
+//   （`XXL_JOB_ENABLED=true` 时 Spring 侧让位），而运营台台账显示它 enabled=true、3.1~3.9 全绿。
+const seedIdTupleRe =
+  /\((\d+),\s*\d+,\s*'[^']*',[\s\S]*?'CRON',\s*'([^']+)',[\s\S]*?'([A-Za-z0-9_$]+)',\s*''/g;
+const seedRows = [...seedSource.matchAll(seedIdTupleRe)].map((m) => ({
+  id: m[1],
+  handler: m[3]
+}));
+if (seedRows.length === 0) {
+  fail('未能从 seed_aicabinet_jobs.sql 解析出 (id, handler) 元组，门禁已失效，请同步本脚本');
+}
+const idSeen = new Map();
+for (const row of seedRows) idSeen.set(row.id, [...(idSeen.get(row.id) ?? []), row.handler]);
+const dupIds = [...idSeen.entries()].filter(([, handlers]) => handlers.length > 1);
+if (dupIds.length) {
+  problems.push(
+    `seed_aicabinet_jobs.sql 主键 id 撞号（多行 INSERT + ON DUPLICATE ⇒ 后者静默覆盖前者，排期根本进不了调度中心）：\n    - ` +
+      dupIds.map(([id, handlers]) => `id=${id} → ${handlers.join(' / ')}`).join('\n    - ')
+  );
+}
+const handlerSeen = new Map();
+for (const row of seedRows) handlerSeen.set(row.handler, (handlerSeen.get(row.handler) ?? 0) + 1);
+const dupHandlers = [...handlerSeen.entries()].filter(([, n]) => n > 1);
+if (dupHandlers.length) {
+  problems.push(
+    `seed_aicabinet_jobs.sql 里同一 executor_handler 排了多行：${dupHandlers
+      .map(([h, n]) => `${h}×${n}`)
+      .join(', ')}`
+  );
+}
+if (seedRows.length !== namedHandlers.size) {
+  problems.push(
+    `种子行数 ${seedRows.length} ≠ 代码具名 handler 数 ${namedHandlers.size}` +
+      `（撞号或多排一行都会让调度中心与实际不一致）`
+  );
+}
+
 // 3.9 托管任务必须已在 ScheduledTaskRegistry 注册 —— 否则调度中心派发到执行器后
 //     registry.get(key) 为空，runKey 直接 handleFail「任务未注册」，任务照停（且只在
 //     调度台报失败，业务侧毫无痕迹）。

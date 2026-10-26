@@ -13,6 +13,11 @@
 -- 路由：FAILOVER（多实例下单选一台执行，失败的自动转下一台）；阻塞：SERIAL_EXECUTION。
 -- executor_fail_retry_count：只读巡检类 0，写型/资金/通知类 1~2。
 -- cron 必须与 ScheduleZones.XXL_CRON_BY_TASK 一致，由 scripts/check-xxl-job-wiring.mjs 静态校验。
+-- id 必须唯一：本文件是**一条**多行 INSERT + ON DUPLICATE KEY UPDATE，两行撞同一个 id 时 MySQL 不报错，
+--   而是让后一行把前一行**就地覆盖** ⇒ 前一个 job 在调度中心永不存在、且没有任何报错痕迹。
+--   实证（2026-10-26 G8-38）：id=133 同时排给 disputeAutoWaiveJob 与 platformFundDailyJob，活库
+--   xxl_job_info 只剩后者，37 条种子实落 36 条 ⇒ 争议超时自动免单在 XXL 档下永不触发。
+--   现由 check-xxl-job-wiring.mjs 的 id 唯一性规则拦截；新增任务取当前最大 id+1（现为 143）。
 
 INSERT INTO `xxl_job_group`(`id`, `app_name`, `title`, `address_type`, `address_list`, `update_time`)
 VALUES (10, 'trade-service', 'AI Cabinet trade-service', 0, NULL, now())
@@ -109,7 +114,7 @@ INSERT INTO `xxl_job_info`(
 (126, 10, '争议 SLA 巡检', now(), now(), 'aicabinet', '',
  'CRON', '0 0/15 * * * ?', 'DO_NOTHING', 'FAILOVER',
  'disputeSlaJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
-(133, 10, '争议超时自动免单', now(), now(), 'aicabinet', '',
+(143, 10, '争议超时自动免单', now(), now(), 'aicabinet', '',
  'CRON', '0 0/15 * * * ?', 'DO_NOTHING', 'FAILOVER',
  'disputeAutoWaiveJob', '', 'SERIAL_EXECUTION', 0, 1, 'BEAN', '', 'GLUE代码初始化', now(), '', 1, 0, 0),
 (127, 10, '补货超时收口', now(), now(), 'aicabinet', '',
