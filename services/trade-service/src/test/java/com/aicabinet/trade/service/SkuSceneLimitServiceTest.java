@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -37,8 +39,24 @@ class SkuSceneLimitServiceTest {
     @Mock SkuSceneLimitMapper limitRepository;
     @Mock SkuCatalogMapper skuCatalogRepository;
     @Mock DeviceSkuInventoryMapper inventoryRepository;
+    @Mock SysDictService sysDictService;
 
     @InjectMocks SkuSceneLimitService service;
+
+    @BeforeEach
+    void stubSceneWhitelist() {
+        // V404 起场景白名单由字典权威、内置集兜底；单测按「字典无 ACTIVE 项 ⇒ 回落调用方内置集」接线
+        when(sysDictService.isKnownDictValue(any(), any(), any()))
+                .thenAnswer(
+                        invocation -> {
+                            String value = invocation.getArgument(1);
+                            Set<String> builtinFallback = invocation.getArgument(2);
+                            return value != null
+                                    && !value.isBlank()
+                                    && builtinFallback != null
+                                    && builtinFallback.contains(value.trim());
+                        });
+    }
 
     @BeforeAll
     static void initTableInfo() {
