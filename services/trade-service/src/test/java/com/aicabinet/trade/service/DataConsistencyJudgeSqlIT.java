@@ -310,4 +310,87 @@ class DataConsistencyJudgeSqlIT {
                 Integer.class, domain, ownerId);
         return count == null ? 0 : count;
     }
+
+    // ---------- INVENTORY_NO_LOT_LEDGER（B批 A 档）：有建档、有汇总、无账本 ----------
+
+    /** 一台柜 + 一条绑定 SKU 的货道 + 一条汇总台账行（批次表刻意不建）。 */
+    private void seedNoLotCabinet(String deviceId, String skuId, int parLevel, boolean slotEnabled,
+                                  int summaryQty, boolean deleted) {
+        // device_name 有 uk_device_name：同库多台柜必须各自唯一，否则第二个用例撞名
+        jdbc.update("INSERT INTO device_info (device_id, device_name, device_type, online_status, is_deleted) "
+                        + "VALUES (?, ?, 'AI_CABINET_V1', 'OFFLINE', ?) "
+                        + "ON CONFLICT (device_id) DO UPDATE SET is_deleted = EXCLUDED.is_deleted",
+                deviceId, "no-lot-" + deviceId, deleted);
+        // sku_catalog 有 uk_sku_catalog_name_spec（LOWER(name)+spec）：名称同样要按 SKU 唯一
+        jdbc.update("INSERT INTO sku_catalog (sku_id, sku_name, price_cents) "
+                + "VALUES (?, ?, 100) ON CONFLICT (sku_id) DO NOTHING", skuId, "no-lot-" + skuId);
+        jdbc.update("INSERT INTO device_slot (device_id, slot_code, row_no, col_no, assigned_sku_id, "
+                        + "par_level, max_level, enabled) VALUES (?, 'A1', 1, 1, ?, ?, ?, ?) "
+                        + "ON CONFLICT (device_id, slot_code) DO UPDATE SET "
+                        + "assigned_sku_id = EXCLUDED.assigned_sku_id, par_level = EXCLUDED.par_level, "
+                        + "enabled = EXCLUDED.enabled",
+                deviceId, skuId, parLevel, Math.max(parLevel, 1), slotEnabled);
+        jdbc.update("INSERT INTO device_sku_inventory (device_id, sku_id, quantity) VALUES (?, ?, ?) "
+                        + "ON CONFLICT (device_id, sku_id) DO UPDATE SET quantity = EXCLUDED.quantity",
+                deviceId, skuId, summaryQty);
+    }
+
+    private int checkStatusCount(String checkType, String checkKey, String status) {
+        Integer count = jdbc.queryForObject(
+                "SELECT count(*) FROM data_consistency_record WHERE check_type = ? AND check_key = ? "
+                        + "AND status = ?", Integer.class, checkType, checkKey, status);
+        return count == null ? 0 : count;
+    }
+
+    @Test
+    @DisplayName("有启用货道 + 汇总有货 + 整机无批次账本 ⇒ 必须进台账（且老的 INVENTORY_MISMATCH 对它静默）")
+    void noLotLedgerIsVisibleWhereLegacyCheckIsBlind() {
+        String deviceId = "JUDGE-NL-ALARM";
+        seedNoLotCabinet(deviceId, "SKU-NL-1", 6, true, 5, false);
+
+        service.checkInventoryConsistency();
+        service.checkInventoryNoLotLedgerConsistency();
+
+        assertFalse(hasFail("INVENTORY_MISMATCH", deviceId + "|SKU-NL-1"),
+                "前提核对：EXISTS(device_sku_lot) 谓词把无账本柜整体排除——这正是本缺陷此前隐形的原因");
+        assertTrue(hasFail("INVENTORY_NO_LOT_LEDGER", deviceId + "|SKU-NL-1"),
+                "A 档的唯一目的：把「汇总有货、货道账面恒 0」变成运营看得见的告警");
+    }
+
+    @Test
+    @DisplayName("第一次真实补货落出批次行后，该条 FAIL 必须自行消解为 FIXED")
+    void noLotLedgerResolvesAfterFirstLotRow() {
+        String deviceId = "JUDGE-NL-RESOLVE";
+        String skuId = "SKU-NL-2";
+        seedNoLotCabinet(deviceId, skuId, 6, true, 5, false);
+        service.checkInventoryNoLotLedgerConsistency();
+        assertTrue(hasFail("INVENTORY_NO_LOT_LEDGER", deviceId + "|" + skuId), "先得真的报出来");
+
+        jdbc.update("INSERT INTO device_sku_lot (lot_id, device_id, sku_id, batch_no, expiry_date, "
+                        + "quantity, slot_id, status) VALUES (?, ?, ?, 'NL-BATCH-1', CURRENT_DATE + 180, 5, "
+                        + "'A1', 'ON_SALE')",
+                "LOT-NL-1", deviceId, skuId);
+        service.checkInventoryNoLotLedgerConsistency();
+
+        assertFalse(hasFail("INVENTORY_NO_LOT_LEDGER", deviceId + "|" + skuId),
+                "有批次账本后不该再报（否则是新的恒假阳性）");
+        assertEquals(1, checkStatusCount("INVENTORY_NO_LOT_LEDGER", deviceId + "|" + skuId, "FIXED"),
+                "旧 FAIL 必须被收口成 FIXED，而不是留着占 failCount");
+    }
+
+    @Test
+    @DisplayName("货道未启用 / par=0 / 汇总为 0 / 已删柜 四种形态都不得报警")
+    void noLotLedgerStaysSilentOnNonDefectShapes() {
+        seedNoLotCabinet("JUDGE-NL-DISABLED", "SKU-NL-3", 6, false, 5, false);
+        seedNoLotCabinet("JUDGE-NL-NOPAR", "SKU-NL-4", 0, true, 5, false);
+        seedNoLotCabinet("JUDGE-NL-ZEROQTY", "SKU-NL-5", 6, true, 0, false);
+        seedNoLotCabinet("JUDGE-NL-DELETED", "SKU-NL-6", 6, true, 5, true);
+
+        service.checkInventoryNoLotLedgerConsistency();
+
+        assertFalse(hasFail("INVENTORY_NO_LOT_LEDGER", "JUDGE-NL-DISABLED|SKU-NL-3"), "未启用货道不是在售面");
+        assertFalse(hasFail("INVENTORY_NO_LOT_LEDGER", "JUDGE-NL-NOPAR|SKU-NL-4"), "par=0 表示不补，不该要求账本");
+        assertFalse(hasFail("INVENTORY_NO_LOT_LEDGER", "JUDGE-NL-ZEROQTY|SKU-NL-5"), "两本账都空不属于本缺陷");
+        assertFalse(hasFail("INVENTORY_NO_LOT_LEDGER", "JUDGE-NL-DELETED|SKU-NL-6"), "已删柜不报警");
+    }
 }

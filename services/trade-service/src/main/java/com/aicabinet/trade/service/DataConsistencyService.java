@@ -52,6 +52,8 @@ public class DataConsistencyService {
     private static final String UPDATE_CABINET_ORDER_SET_TOTAL_AMOUNT_CENTS_WHERE_ORDER_ID = "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?";
     private static final String INVENTORY_MISMATCH = "INVENTORY_MISMATCH";
     private static final String INVENTORY_ORPHAN_LOT = "INVENTORY_ORPHAN_LOT";
+    /** B批 A 档（§7.38）：有货道建档、汇总台账有货，却一行批次账本都没有的柜机。 */
+    private static final String INVENTORY_NO_LOT_LEDGER = "INVENTORY_NO_LOT_LEDGER";
     private static final String POINTS_BALANCE = "POINTS_BALANCE";
     private static final String POINTS_IDENTITY = "POINTS_IDENTITY";
     private static final String REVENUE_SPLIT_SUM = "REVENUE_SPLIT_SUM";
@@ -220,6 +222,7 @@ public class DataConsistencyService {
             checkPaidGrossConsistency();
             checkInventoryConsistency();
             checkInventoryOrphanLotConsistency();
+            checkInventoryNoLotLedgerConsistency();
             checkPointsConsistency();
             checkPointsIdentityConsistency();
             checkCouponIssuedConsistency();
@@ -476,6 +479,53 @@ public class DataConsistencyService {
                     "有在架批次合计 " + lotQty + " 但无汇总库存行");
         }
         resolveStaleFailuresIfComplete(INVENTORY_ORPHAN_LOT, failing, rows.size());
+    }
+
+    /**
+     * 有货道建档、汇总台账有货，但该机<b>一行批次账本都没有</b>（B批 A 档，2026-10-26 §7.38）。
+     *
+     * <p>这类柜机在所有既有巡检里是<b>隐形</b>的：{@link #checkInventoryConsistency()} 的谓词带
+     * {@code EXISTS(device_sku_lot)}（2026-10-10 为消演示柜永久假阳性做的口径修正），无批次柜整体
+     * 被排除；而 {@code DeviceSlotService.loadBookQtyBySlot} 只读批次表且<b>无回退</b> ⇒ 每个货道
+     * 账面恒 0、看板全缺货、补货建议按满 par 提量，且没有任何一处会报警。
+     *
+     * <p>「有账本」的判据与写侧 {@link InventoryLotService#deviceUsesLotLedger}（存在任意 lot 行）
+     * <b>同一条</b>，这里只取其反面，不再造一套定义。<b>只记录不修数</b>：正解是让期初走真实补货/
+     * 收货入库（{@code InventoryLotService.doAddRestock} 在无 lot 行时会新建批次账本并同步汇总），
+     * 而不是把汇总硬摊成 lot 行 —— 那是 B 档，会连带翻转结算 FEFO、消费者可售口径与 V271
+     * 钱货关联约束触发器的适用范围，必须等真柜第一次真实补货之后再复评。
+     */
+    void checkInventoryNoLotLedgerConsistency() {
+        String sql = "SELECT i.device_id, i.sku_id, i.quantity AS expected_qty, "
+                + "(SELECT COUNT(*) FROM device_slot s "
+                + "  WHERE s.device_id = i.device_id AND s.enabled AND s.par_level > 0 "
+                + "  AND s.assigned_sku_id = i.sku_id) AS slot_cnt "
+                + "FROM device_sku_inventory i "
+                + "WHERE i.quantity > 0 "
+                + "AND NOT EXISTS (SELECT 1 FROM device_sku_lot l WHERE l.device_id = i.device_id) "
+                + "AND EXISTS (SELECT 1 FROM device_slot s "
+                + "  WHERE s.device_id = i.device_id AND s.enabled AND s.par_level > 0 "
+                + "  AND s.assigned_sku_id = i.sku_id) "
+                + "AND EXISTS (SELECT 1 FROM device_info d "
+                + "  WHERE d.device_id = i.device_id AND d.is_deleted = false) "
+                + "ORDER BY i.device_id, i.sku_id "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = row.get("device_id") + "|" + row.get("sku_id");
+            failing.add(key);
+            String qty = String.valueOf(row.get("expected_qty"));
+            recordInconsistency(INVENTORY_NO_LOT_LEDGER, "device_sku_inventory",
+                    key,
+                    qty,
+                    "0",
+                    "汇总台账 " + qty + " 件但该柜无批次账本行（" + row.get("slot_cnt")
+                            + " 个启用货道绑此 SKU 且 par>0）⇒ 货道账面恒 0、看板全缺货；"
+                            + "期初请走真实补货/收货入库生成批次账本");
+        }
+        resolveStaleFailuresIfComplete(INVENTORY_NO_LOT_LEDGER, failing, rows.size());
     }
 
     /**
@@ -1431,6 +1481,10 @@ public class DataConsistencyService {
             case REFUND_AMOUNT, WALLET_BALANCE,
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING, SLOT_SKU_MISMATCH,
                  SLOT_CAPACITY, SLOT_PHYSICAL, WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
+                 // 无批次账本的正解是「期初走真实补货/收货入库」，一键把汇总摊成 lot 行就是 B 档
+                 // （会翻转结算 FEFO 与消费者可售口径），所以这里必须拒绝自动修，别落到 default 的
+                 // 「不支持自动修复」——那条文案会把运营推去找开发而不是去补货。
+                 INVENTORY_NO_LOT_LEDGER,
                  // POINTS_IDENTITY 不能自动修：`total_points` 是「累计发放」这一业务事实，
                  // 用三桶之和回写等于悄悄把它改小（CB-058 拍板 D：更正应由人工按流水做增量归集）。
                  POINTS_IDENTITY, POINTS_BALANCE, CROSS_LINK ->

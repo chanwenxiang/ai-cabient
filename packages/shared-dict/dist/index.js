@@ -613,6 +613,7 @@ export const DICT = {
         PAID_GROSS_MISMATCH: '冻结毛额入账',
         INVENTORY_MISMATCH: '库存汇总',
         INVENTORY_ORPHAN_LOT: '孤儿批次',
+        INVENTORY_NO_LOT_LEDGER: '无批次账本',
         POINTS_BALANCE: '积分余额',
         POINTS_IDENTITY: '积分恒等式',
         COUPON_ISSUED: '发券数量',

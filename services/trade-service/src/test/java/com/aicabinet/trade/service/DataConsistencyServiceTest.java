@@ -635,6 +635,59 @@ class DataConsistencyServiceTest {
     }
 
     @Test
+    void checkInventoryNoLotLedgerConsistency_pinsAllPredicateLegs() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("device_id", "CAB-1", "sku_id", "SKU-1", "expected_qty", 5, "slot_cnt", 2)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryNoLotLedgerConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        // 缺任何一条腿都不再是「有建档、有汇总、无账本」这个形态（B批 A 档，§7.38）
+        assertTrue(sql.contains("NOT EXISTS (SELECT 1 FROM device_sku_lot"),
+                "判据必须是「整机一行批次账本都没有」，与 InventoryLotService.deviceUsesLotLedger 同义");
+        assertTrue(sql.contains("s.enabled") && sql.contains("s.par_level > 0"),
+                "货道口径：启用且 par>0（未启用的空货道不是缺陷）");
+        assertTrue(sql.contains("s.assigned_sku_id = i.sku_id"), "货道必须真绑了这条汇总的 SKU");
+        assertTrue(sql.contains("i.quantity > 0"), "汇总没货的柜两本账都空，不属于本缺陷");
+        assertTrue(sql.contains("d.is_deleted = false"), "已删柜不得报警");
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("INVENTORY_NO_LOT_LEDGER", saved.getCheckType());
+        assertEquals("CAB-1|SKU-1", saved.getCheckKey());
+        assertEquals("5", saved.getExpectedValue(), "expected 与 INVENTORY_MISMATCH 同口径 = 汇总台账");
+        assertEquals("0", saved.getActualValue());
+        assertTrue(saved.getErrorMessage().contains("无批次账本行"), "提示语要说清是「无账本」而不是数量不符");
+        assertTrue(saved.getErrorMessage().contains("真实补货"), "提示语必须给出正解，否则运营只会来找开发");
+    }
+
+    @Test
+    void fixInconsistency_noLotLedger_refusesAutoFixAsScanOnly() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(31L);
+        record.setCheckType("INVENTORY_NO_LOT_LEDGER");
+        record.setCheckKey("CAB-1|SKU-1");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(31L);
+
+        assertFalse(outcome.fixed(), "一键把汇总摊成 lot 行是 B 档（会翻转结算 FEFO 与可售口径），必须拒绝");
+        assertTrue(outcome.message().contains("仅巡检记录"),
+                "不能落到 default 的「不支持自动修复」——那条文案会把运营推去找开发而不是去补货");
+        assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
+        verify(consistencyRepository, never()).save(any(DataConsistencyRecord.class));
+    }
+
+    @Test
     void checkPointsIdentityConsistency_comparesTriangle() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))

@@ -627,6 +627,7 @@ export declare const DICT: {
         readonly PAID_GROSS_MISMATCH: "冻结毛额入账";
         readonly INVENTORY_MISMATCH: "库存汇总";
         readonly INVENTORY_ORPHAN_LOT: "孤儿批次";
+        readonly INVENTORY_NO_LOT_LEDGER: "无批次账本";
         readonly POINTS_BALANCE: "积分余额";
         readonly POINTS_IDENTITY: "积分恒等式";
         readonly COUPON_ISSUED: "发券数量";
