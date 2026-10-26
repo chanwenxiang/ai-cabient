@@ -28,7 +28,9 @@ const REQUIRED_SHARED_COMPONENTS = [
   'app-button',
   'empty-state',
   'error-state',
-  'privacy-consent-modal'
+  'privacy-consent-modal',
+  // 支付分品牌标签（CB-067）：consumer-mp easycom 注册，静态资产 /static/payscore/ 已随包
+  'pay-score-tag'
 ];
 const SHARED_COMPONENTS = [...REQUIRED_SHARED_COMPONENTS, 'app-underline-tabs'];
 
