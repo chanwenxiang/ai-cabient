@@ -138,6 +138,19 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/OpsAuditSensitiveSummarySqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'OpsAuditSensitiveSummaryTest 桩掉 JdbcTemplate ⇒ RowMapper 里那三行从未执行，' +
+        '活栈 /audit-logs/sensitive-summary 恒 500（pgjdbc 42.7.12 未注册 timestamptz→Instant 转换，' +
+        '追踪号 fb841eb1070d）。本 IT 用真库真驱动跑真 RowMapper，断「取到行 + lastAt 非空 + ' +
+        '与库里 MAX(created_at) 同值」（按 JVM 时区平移读数的错写法会被抓）、' +
+        '7 天窗口与族前缀白名单在真库上生效'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/DeviceSkuLotEnabledSlotSqlIT.java',
     {
       job: 'integration',

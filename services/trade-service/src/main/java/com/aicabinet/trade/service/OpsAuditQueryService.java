@@ -14,6 +14,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -162,6 +165,18 @@ public class OpsAuditQueryService {
         return jdbc.query(sql, (rs, i) -> new AdminAuditSensitiveSummaryDto(
                 rs.getString("action"),
                 rs.getLong("total"),
-                rs.getObject("last_at", Instant.class)), patterns);
+                readInstant(rs, "last_at")), patterns);
+    }
+
+    /**
+     * 🔴 别「简化」回 {@code rs.getObject(col, Instant.class)}：pgjdbc 42.7.12 没注册
+     * timestamptz→Instant 转换，在本方法的 {@code MAX(created_at)} 上必抛
+     * {@code conversion to class java.time.Instant from timestamptz not supported}
+     * （活栈 500，追踪号 fb841eb1070d）。桩掉 JdbcTemplate 的单测跑不到 RowMapper，
+     * 这条腿由 {@code OpsAuditSensitiveSummarySqlIT} 在真库上钉。
+     */
+    private static Instant readInstant(ResultSet rs, String column) throws SQLException {
+        Timestamp value = rs.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 }
