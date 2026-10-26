@@ -40,7 +40,7 @@
 | admin-vue 业务视图 | **83** `.vue` | `src/views` |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
-| 踩坑总册条目 | **319 号 / 310 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
+| 踩坑总册条目 | **345 号 / 336 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
 | 竞品对照台账 | **18 条 / 96 行含 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
 | 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
@@ -667,6 +667,27 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-10-26（B批 A 档：无批次账本柜机进巡检台账 `INVENTORY_NO_LOT_LEDGER`）
+- 🔴 **缺陷形态**：判定库里有 **3 台柜 × 6 个 SKU** 处于「`device_sku_inventory` 汇总有货（合计 23 件/台）、货道已建档且 par>0，但整机**一行 `device_sku_lot` 都没有**」。
+  `DeviceSlotService.loadBookQtyBySlot` 只读批次表且**无回退** ⇒ 每个货道账面恒 0、看板全缺货、补货建议按满 par 提量；而既有 `INVENTORY_MISMATCH` 的谓词带 `EXISTS(device_sku_lot)`
+  （2026-10-10 为消演示柜永久假阳性做的口径修正）⇒ 这类柜机在所有巡检里**整体隐形**，零告警。
+- ✅ **A 档落地（只记录不修数）**：`checkInventoryNoLotLedgerConsistency()` 按「汇总>0 ∧ 整机无 lot 行 ∧ 有启用货道绑此 SKU 且 par>0 ∧ 柜未删」四个谓词检出；
+  「有账本」的判据与写侧 `InventoryLotService.deviceUsesLotLedger`（存在任意 lot 行）**同一条**，不另造定义。
+  `applyFix` 把它显式放进「仅巡检记录，请人工核对处理」组并写明理由——正解是期初走真实补货/收货入库生成批次账本；
+  **把汇总直接摊成 lot 行是 B 档**（会翻转结算 FEFO、消费者可售口径与 V271 钱货关联触发器适用范围）⇒ 明确**否决**，留到真柜第一次真实补货后复评。
+- 🛠 **六面登记**（lessons #344）：常量 + `check*` 方法 + `runConsistencyCheck` 注册；`applyFix` 归类；`SysDictBootstrap`；`packages/shared-dict` src **与 tracked `dist`**；
+  幂等迁移 [V408__register_inventory_no_lot_ledger_check_type.sql](../services/trade-service/src/main/resources/db/migration/V408__register_inventory_no_lot_ledger_check_type.sql)（`INSERT…WHERE NOT EXISTS` + 五字段头，`backfill` 非新建表故不触发 COMPETITOR_REF 规则）。
+- **验证（全绿）**：`DataConsistencyServiceTest` **46/46**（新增 2 条：四谓词逐字钉住 + 扫描型必须拒绝自动修且状态留 FAIL）；
+  `DataConsistencyJudgeSqlIT` 真库 **15/15**（新增 3 条：老判据对它静默而新判据必报、落第一行 lot 后旧 FAIL 自行收口为 `FIXED`、四种非缺陷形态（货道停用 / par=0 / 汇总=0 / 已删柜）不得报警）。
+- **隔离栈活栈复验（`aicabinet-uat` 换镜像 `670bb0ff`，Flyway 追到 v408，容器 env 115 键与换镜像前逐字节一致）**：
+  自动巡检 16:15 起 FAIL 总计 **21 = 18×`INVENTORY_NO_LOT_LEDGER` + 2×`INVENTORY_MISMATCH`（B批-2 待办）+ 1×`SLOT_PHYSICAL`（既有）**；
+  浏览器点「立即巡检」→ `POST /consistency/run` 200 / `code=0` / `failCount=21` 与库内一致；类型下拉选「无批次账本」后 **18 行**、类型列中文标签全对、
+  键列柜机集合 = 库内 3 台、基准列逐行 ≡ 库内 `expected_value`、对照列全为 0；页面 0 console 错误、0 个 4xx/5xx。
+  截图 `.tmp/full-test-20261023/artifacts/b1-no-lot-ledger.png`，驱动器 `.tmp/full-test-20261023/drivers/b1-verify-no-lot-ledger.mjs`。
+- 📦 **admin 产物必须同批重建**：shared-dict 新增标签 ⇒ DICT 内联块变化 ⇒ `index` 与 `shared-dict-reactive` 哈希变，引用它们的 **109 个 chunk 随之改名**
+  （同尺寸、仅 import 路径级联，逐 chunk diff 归因过）。由 `scripts/build-admin-ci-fidelity.sh` 从**已提交的干净检出**重建（node:24.18.0），产物单独成笔 `ab9fa4a2`。
+- 🧾 遗留：B批-2（2×`INVENTORY_MISMATCH` 汇总 99 / 批次 3 的旧 FAIL）、B批-3（3 台柜期初走真实补货让批次账本自然生长）仍待办。
 
 ### 2026-10-24（API 形状门禁 `check:openapi-regen-required` 修 record 分量假阴性：昨天靠手动 live regen 才没吃红）
 - 🔴 **假阴性是真实发生过的**：`MerchantSelfReplenishRequest`（Java **record**）加幂等键 `clientRequestNo` 那次，`check-openapi-regen-required` 打印「变更集内无 API 形状改动」放行，而 CI 的 openapi job 起 jar 抽真 `/v3/api-docs` 判红——**靠手动 live regen（`aa3d0707`）才没吃一轮推送红**。根因：判据只认 `private|protected` 开头的字段声明，而 record 分量写成 `String clientRequestNo`——**既无修饰符也无结尾符**；更深一层是原实现**只读 diff 文本、从不读文件全文**，拿不到「这个文件是不是 record」这种文件级语义。判据型门禁退化成盲区时**不报错、只是安静地绿**，比「跑不起来会红」危险得多。
