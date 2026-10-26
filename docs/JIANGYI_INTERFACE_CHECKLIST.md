@@ -557,7 +557,9 @@
 - 不支持批量改收款对象、不支持覆盖已有库存、不支持有批次账本柜的整机铺货；
 - 不校验厂商价（结算价只认我方 `sku_catalog`，CB-062 A 档，同 §9C）。
 
-**2026-10-26 验证证据（隔离实例 + 单测，未在浏览器点过）**：`JiangyiShelfWriterTest` 12/12、`JiangyiShelfServiceTest` 13/13、`AdminJiangyiControllerTest` 18/18（0 failure/error）；`vue-tsc --noEmit` 0 error；prettier 干净；OpenAPI 由**隔离实例现抓**重生成（干净工作树 = HEAD + 本批文件 → 新 jar → 一次性库 → 18199），`paths 684`、新端点 `operationId=shelveLearnedProduct`，`git diff --stat packages/shared-types/` **只增不删**；17 条门禁全绿。🔴 **未点过 UI**：上架弹窗（多选/价/件数/逐柜结果表）只过了 `vue-tsc` + 接口契约，**上线前需在 dev 栈用真实数据点开一次**确认渲染与四态着色。
+**2026-10-26 验证证据（隔离实例 + 单测）**：`JiangyiShelfWriterTest` 12/12、`JiangyiShelfServiceTest` 13/13、`AdminJiangyiControllerTest` 18/18（0 failure/error）；`vue-tsc --noEmit` 0 error；prettier 干净；OpenAPI 由**隔离实例现抓**重生成（干净工作树 = HEAD + 本批文件 → 新 jar → 一次性库 → 18199），`paths 684`、新端点 `operationId=shelveLearnedProduct`，`git diff --stat packages/shared-types/` **只增不删**；17 条门禁全绿。
+
+**2026-10-26 16:0x dev 栈验证（真实部署，提交 `7f4945e6` + 产物 `14c25e88`）**：隔离工作树出包（镜像内 `JiangyiShelf(Service|Writer).class` 各 1、V407 在 jar 内）→ compose 只重建 trade-service → Flyway `now at version v407`（V406/V407 各 `success=t`）、`Started` 后 **0 ERROR**；网关探测 `GET …/learning-library` **401**、`POST …/learning-library/shelf` **401**（已注册，非 404），空柜机列表带 token 回 **400「请至少选择一台柜机」**；网关已供新 chunk（`LearningLibraryView-DFRvBmax.js` 200）。Playwright 用 seed 运营号登录 `/admin/learning-library`：页面统计 `模型 0 / 已学商品 1 / 已接入柜机 2 / 可发起学习的 SKU 6`，点「跨柜上架」弹窗正常，字段为 商品/柜机/柜级价/铺货件数 + 三条口径提示，**0 console error**。🔴 该行「已学商品」是 Playwright **拦截 GET 注入的探针行（未落库）**——dev 租户当前厂商 `trained` 列表为 0（`models=0 learned=0` 且 `vendorError` 为空 ⇒ 读面成功、确实没学成商品），所以**真实的提交+逐柜结果四态仍未在浏览器里跑过**，等有一个真实学成商品后再点一次。
 
 ---
 
