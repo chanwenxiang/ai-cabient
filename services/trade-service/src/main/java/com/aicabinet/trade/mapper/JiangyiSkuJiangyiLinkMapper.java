@@ -33,6 +33,13 @@ public interface JiangyiSkuJiangyiLinkMapper extends BaseTradeMapper<JiangyiSkuJ
                 .stream().map(JiangyiSkuJiangyiLink::getJiangyiProductId).toList();
     }
 
+    /** 全部有效挂接（商品学习库的「可发起学习的 SKU」清单；RETIRED 已解绑不再可选）。 */
+    default List<JiangyiSkuJiangyiLink> listBoundAll() {
+        return selectList(Wrappers.<JiangyiSkuJiangyiLink>lambdaQuery()
+                .ne(JiangyiSkuJiangyiLink::getSyncStatus, "RETIRED")
+                .orderByDesc(JiangyiSkuJiangyiLink::getUpdatedAt));
+    }
+
     /** 按将邑商品 id 批量取挂接行（待采集列表回标「我方哪个 SKU 建的」用）。 */
     default List<JiangyiSkuJiangyiLink> listByProducts(List<String> jiangyiProductIds) {
         if (jiangyiProductIds == null || jiangyiProductIds.isEmpty()) {

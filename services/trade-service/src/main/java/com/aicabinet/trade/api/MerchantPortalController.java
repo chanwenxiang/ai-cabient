@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.AuthService;
@@ -258,6 +259,18 @@ public class MerchantPortalController {
             HttpServletRequest request, @PathVariable String deviceId) {
         merchantPortalService.exitJiangyiGather(userId(request), deviceId);
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * 只读学习进度（补货员看「学完没有」）：本地票据聚合，不读厂商读面即不会因厂商 503 变错误页；
+     * 触发学习仍在运营后台，商户端只展示。
+     */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/jiangyi/gather/training-status")
+    public ApiResponse<MerchantTrainingStatusDto> jiangyiGatherTrainingStatus(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(
+                merchantPortalService.getJiangyiGatherTrainingStatus(userId(request), deviceId));
     }
 
     private String blankToNull(String s) {

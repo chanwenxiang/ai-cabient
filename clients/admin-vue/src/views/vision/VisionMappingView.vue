@@ -303,14 +303,20 @@
             <el-table-column
               prop="source"
               label="来源"
-              width="110"
+              width="120"
               align="center"
               class-name="col-status"
               label-class-name="col-status"
             >
               <template #default="{ row }">
                 <el-tag size="small" type="warning" effect="plain">
-                  {{ row.source === 'MODEL_SYNC' ? '模型预生成' : '手工' }}
+                  {{
+                    row.source === 'MODEL_AUTO_MATCH'
+                      ? '模型自动匹配'
+                      : row.source === 'MODEL_SYNC'
+                        ? '模型预生成'
+                        : '手工'
+                  }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -425,7 +431,7 @@
           :closable="false"
           show-icon
           title="逐行核对后再确认"
-          description="平移 = SKU 跟随识别名换编号；新增行先停用等挂 SKU；失效行停用并腾出编号（挂接留档）。确认后本柜结算恢复。"
+          description="平移 = SKU 跟随识别名换编号；新增行先停用等挂 SKU；失效行停用并腾出编号（挂接留档）。确认后本柜结算恢复。模型回执确认后系统已自动跑过同一套处置（仅冲突时停下），此处可人工复看或补跑。"
         />
 
         <div class="table-scroll">

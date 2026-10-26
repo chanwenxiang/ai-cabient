@@ -40,6 +40,14 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         return selectCount(q) > 0;
     }
 
+    /** skuId 批量点查（学习库把挂接/学习凭据上的 skuId 翻成品名，缺行返回空集合）。 */
+    default java.util.List<SkuCatalog> findBySkuIds(java.util.Collection<String> skuIds) {
+        if (skuIds == null || skuIds.isEmpty()) {
+            return java.util.List.of();
+        }
+        return selectList(Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, skuIds));
+    }
+
     /** 条码批量点查（只读）：厂商标准商品条码 → 本平台候选 SKU（§5.5.3 对照解码用）。 */
     default java.util.List<SkuCatalog> findByBarcodes(java.util.Collection<String> barcodes) {
         if (barcodes == null || barcodes.isEmpty()) {

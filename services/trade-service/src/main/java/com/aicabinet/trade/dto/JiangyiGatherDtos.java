@@ -1,5 +1,8 @@
 package com.aicabinet.trade.dto;
 
+import java.time.Instant;
+import java.util.List;
+
 /**
  * 将邑采集 API（CB-023）轻量 DTO 集合：仅承载客户端收敛后的字段，
  * 宽松字段（doorStatus/studyingProduct 的原始 JsonNode）不在此定义。
@@ -58,4 +61,15 @@ public final class JiangyiGatherDtos {
      * 不弹错）；gatherLocked=true 表示营业开门已被 409 闸断（DeviceValidationService）。
      */
     public record MerchantGatherStatusDto(boolean bound, boolean gatherLocked) {}
+
+    /**
+     * 商户端只读学习进度（本地票据聚合，不读厂商读面）：bound=false 时前端隐藏入口。
+     * 一次触发（含批量）共享一个回执 id，所以 items 是整组 SKU 的逐项状态；
+     * status 是整组汇总（PENDING 学习中 / FINISHED 全部学成 / FAILED 有失败）。
+     */
+    public record MerchantTrainingStatusDto(boolean bound, boolean gatherLocked, String modelName,
+                                            String status, Instant createdAt, Instant finishedAt,
+                                            List<MerchantTrainingItemDto> items) {}
+
+    public record MerchantTrainingItemDto(String skuId, String skuName, String status) {}
 }

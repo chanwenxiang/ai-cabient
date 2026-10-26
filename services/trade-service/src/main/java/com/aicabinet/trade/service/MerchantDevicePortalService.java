@@ -18,6 +18,7 @@ import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -148,6 +149,15 @@ public class MerchantDevicePortalService {
         merchantPortalGuard.requireAccess(userId);
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         jiangyiGatherService.exitGatherMode(deviceId);
+    }
+
+    /** 只读学习进度：本地票据聚合（不读厂商读面），权限与归属同一套闸门。 */
+    @Transactional(readOnly = true)
+    public MerchantTrainingStatusDto getJiangyiGatherTrainingStatus(Long userId, String deviceId) {
+        permissionService.requirePermission(userId, "merchant:devices:detail");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        return jiangyiGatherService.merchantTrainingStatus(deviceId);
     }
 
     @Transactional

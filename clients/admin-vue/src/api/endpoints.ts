@@ -213,6 +213,8 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/progress`,
   deviceJiangyiGatherTraining: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/training`,
+  /** 批量触发学习（一次 §4.4.3 调用 + 勾选 SKU 各落一张票据，学习=集合粒度） */
+  jiangyiGatherTrainingBatch: `${ops}/jiangyi/gather/training/batch`,
   /** 音量设置（V363，图2 对照；§4.3.2.16/17） */
   deviceJiangyiSound: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/sound`,
@@ -232,6 +234,10 @@ export const AdminEndpoints = {
   deviceJiangyiReboot: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/reboot`,
   jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
+  /** 商品学习库：租户级模型/已学商品/各柜覆盖 + 最近学习凭据（学习本身是商户级，上架仍逐柜） */
+  jiangyiLearningLibrary: `${ops}/jiangyi/learning-library`,
+  /** 跨柜一键上架：已学商品按识别名挂到多柜映射（可选柜级价与铺货），逐柜回显结果 */
+  jiangyiShelfLearnedProduct: `${ops}/jiangyi/learning-library/shelf`,
 
   /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */
   jiangyiOrderVideosByOrder: (orderNo: string) =>

@@ -182,6 +182,14 @@ const BASE_NAV: NavItem[] = [
     keywords: ['映射', 'vision', '类名', '端侧']
   },
   {
+    path: '/learning-library',
+    title: '商品学习库',
+    group: '设备商品',
+    // 租户级学习资产（厂商模型/已学商品），与识别映射共用柜机权限位
+    perm: 'ops:device:list',
+    keywords: ['学习', '采集', '训练', '模型', 'classes', '将邑', '上架']
+  },
+  {
     path: '/replenishment',
     title: '补货调度',
     group: '履约仓储',

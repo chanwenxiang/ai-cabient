@@ -65,6 +65,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/sku-review': TrendCharts,
   '/sku-vision': View,
   '/vision-mappings': View,
+  '/learning-library': Notebook,
   '/ota': Cpu,
   '/sla': Timer,
   '/disputes': Warning,

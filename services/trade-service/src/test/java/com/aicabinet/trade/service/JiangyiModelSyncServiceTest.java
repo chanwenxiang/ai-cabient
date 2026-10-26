@@ -304,11 +304,15 @@ class JiangyiModelSyncServiceTest {
         sent.setId(55L);
         sent.setDeviceId(DEVICE_ID);
         sent.setModelName(MODEL_NAME);
+        sent.setClassesTextUrl("https://x/classes.txt");
         sent.setClassesVersion("ab12cd34ef56");
         when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.of(sent));
 
-        service().confirmModel(DEVICE_ID, MODEL_NAME);
+        JiangyiModelDeployment returned = service().confirmModel(DEVICE_ID, MODEL_NAME);
 
+        // 回执确认要把 deployment 交回调用方：到期自动复核靠它的 classesTextUrl + 内容指纹
+        assertEquals(sent, returned);
+        assertEquals("https://x/classes.txt", returned.getClassesTextUrl());
         verify(deploymentMapper).confirm(eq(55L), eq("ab12cd34ef56"), any());
         verify(jiangyiDeviceMapper).updateModelInfo(eq(DEVICE_ID), eq(MODEL_NAME),
                 eq("ab12cd34ef56"), any());
@@ -514,5 +518,61 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiClassMappingMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
 
         assertEquals(2, service().decodeVendorSkuByClasses(DEVICE_ID, classesUrl, 0, 0).classesLines());
+    }
+
+    // ---------- 自动挂接判定（条码唯一命中，H-27 自动档） ----------
+
+    @Test
+    void uniqueBarcodeSkuMatches_returnsOnlyUnambiguousOnSaleSku() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl)).thenReturn(List.of(
+                vendorRow(101L, "可口可乐 330", "kkkl_jdmw_pttz_330ml", "6928804010145", 26),
+                vendorRow(102L, "雪碧 330", "kkkl_xb_qsnmw_pttz_330ml", " 6954767430386 ", 29),
+                vendorRow(103L, "没条码的新货", "new_item_no_barcode", "  ", 30)));
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of(
+                sku("100016", "可口可乐 330ml", "6928804010145"),
+                sku("100013", "雪碧 330ml", "6954767430386")));
+
+        var matched = service().uniqueBarcodeSkuMatches(classesUrl, List.of(
+                "kkkl_jdmw_pttz_330ml", "kkkl_xb_qsnmw_pttz_330ml", "new_item_no_barcode"));
+
+        assertEquals(java.util.Map.of(
+                "kkkl_jdmw_pttz_330ml", "100016",
+                "kkkl_xb_qsnmw_pttz_330ml", "100013"), matched, "条码逐字相等（含首尾空格）才算命中");
+    }
+
+    @Test
+    void uniqueBarcodeSkuMatches_rejectsBarcodeSharedByTwoTextNames() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl)).thenReturn(List.of(
+                vendorRow(101L, "A 包装", "a_pack", "690000000001", 0),
+                vendorRow(102L, "A 整箱", "a_case", "690000000001", 1)));
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of(
+                sku("SKU-1", "A", "690000000001")));
+
+        assertTrue(service().uniqueBarcodeSkuMatches(classesUrl, List.of("a_pack", "a_case")).isEmpty(),
+                "一个条码被两个类目认领 ⇒ 挂谁都可能错，留人工");
+    }
+
+    @Test
+    void uniqueBarcodeSkuMatches_rejectsMultipleOrOffSaleLocalSku() {
+        when(jiangyiGatherClient.stdSkuByTextNames(classesUrl)).thenReturn(List.of(
+                vendorRow(101L, "B", "b_item", "690000000002", 0),
+                vendorRow(102L, "C", "c_item", "690000000003", 1)));
+        com.aicabinet.trade.domain.SkuCatalog offSale = sku("SKU-3", "C", "690000000003");
+        offSale.setStatus("DISABLED");
+        when(skuCatalogMapper.findByBarcodes(any())).thenReturn(List.of(
+                sku("SKU-1", "B 旧", "690000000002"),
+                sku("SKU-2", "B 新", "690000000002"),
+                offSale));
+
+        var matched = service().uniqueBarcodeSkuMatches(classesUrl, List.of("b_item", "c_item"));
+
+        assertTrue(matched.isEmpty(), "我方同条码两个 SKU / 命中停售 SKU ⇒ 都不挂");
+    }
+
+    @Test
+    void uniqueBarcodeSkuMatches_skipsWithoutTextNamesAndDoesNotCallVendor() {
+        assertTrue(service().uniqueBarcodeSkuMatches(classesUrl, List.of()).isEmpty());
+        org.mockito.Mockito.verify(jiangyiGatherClient, org.mockito.Mockito.never())
+                .stdSkuByTextNames(anyString());
     }
 }

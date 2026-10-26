@@ -48,11 +48,13 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiOrderVideoService orderVideoService;
     @Mock private com.aicabinet.trade.service.JiangyiDeviceOpsService deviceOpsService;
     @Mock private JiangyiMappingReviewService mappingReviewService;
+    @Mock private com.aicabinet.trade.service.JiangyiLearningLibraryService learningLibraryService;
+    @Mock private com.aicabinet.trade.service.JiangyiShelfService shelfService;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
-                mappingReviewService);
+                mappingReviewService, learningLibraryService, shelfService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -283,5 +285,41 @@ class AdminJiangyiControllerTest {
         when(gatherService.checkList("SKU-WATER-001")).thenReturn(List.of());
         controller().gatherCheck("SKU-WATER-001");
         verify(gatherService).checkList("SKU-WATER-001");
+    }
+
+    // ---------- 跨柜一键上架（学习库 → 多柜） ----------
+
+    @Test
+    void shelveTrimsProductIdAndCarriesOperator() {
+        jakarta.servlet.http.HttpServletRequest httpRequest =
+                mock(jakarta.servlet.http.HttpServletRequest.class);
+        when(httpRequest.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID)).thenReturn(9L);
+        when(shelfService.shelve(9L, "41175", List.of(DEVICE_ID), 350, 4))
+                .thenReturn(new com.aicabinet.trade.service.JiangyiShelfService.ShelfResult(
+                        "41175", "SKU-100016", "可口可乐 330ml", "可口可乐330ml",
+                        1, List.of(new com.aicabinet.trade.service.JiangyiShelfService.ShelfDeviceResult(
+                                DEVICE_ID, "1号柜", "SHELVED", 26, 350, 4, "识别编号 26"))));
+
+        var body = new AdminJiangyiController.ShelfRequest(" 41175 ", List.of(DEVICE_ID), 350, 4);
+        var result = controller().shelveLearnedProduct(httpRequest, body).data();
+
+        verify(shelfService).shelve(9L, "41175", List.of(DEVICE_ID), 350, 4);
+        assertEquals("SHELVED", result.devices().get(0).status());
+        assertEquals(26, result.devices().get(0).classId());
+    }
+
+    @Test
+    void shelveKeepsNullPriceAndQuantity() {
+        jakarta.servlet.http.HttpServletRequest httpRequest =
+                mock(jakarta.servlet.http.HttpServletRequest.class);
+        when(httpRequest.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID)).thenReturn(9L);
+        when(shelfService.shelve(9L, "41175", List.of(DEVICE_ID), null, null))
+                .thenReturn(new com.aicabinet.trade.service.JiangyiShelfService.ShelfResult(
+                        "41175", "SKU-100016", "可口可乐 330ml", "可口可乐330ml", 1, List.of()));
+
+        controller().shelveLearnedProduct(httpRequest,
+                new AdminJiangyiController.ShelfRequest("41175", List.of(DEVICE_ID), null, null));
+
+        verify(shelfService).shelve(9L, "41175", List.of(DEVICE_ID), null, null);
     }
 }

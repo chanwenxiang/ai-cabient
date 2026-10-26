@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.storage.MinioVideoService;
@@ -350,6 +351,10 @@ public class MerchantPortalService {
 
     public void exitJiangyiGather(Long userId, String deviceId) {
         devicePortalService.exitJiangyiGather(userId, deviceId);
+    }
+
+    public MerchantTrainingStatusDto getJiangyiGatherTrainingStatus(Long userId, String deviceId) {
+        return devicePortalService.getJiangyiGatherTrainingStatus(userId, deviceId);
     }
 
     @Transactional(readOnly = true)

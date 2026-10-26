@@ -320,6 +320,12 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '识别映射', group: '设备商品' }
   },
   {
+    path: 'learning-library',
+    name: 'jiangyi-learning-library',
+    component: () => import('@/views/vision/LearningLibraryView.vue'),
+    meta: { title: '商品学习库', group: '设备商品' }
+  },
+  {
     path: 'ota',
     name: 'ota',
     component: () => import('@/views/ota/OtaView.vue'),

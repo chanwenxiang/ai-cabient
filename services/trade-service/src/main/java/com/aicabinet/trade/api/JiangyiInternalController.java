@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
+import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.domain.JiangyiRecognitionReport;
 import com.aicabinet.trade.service.DevicePresenceService;
@@ -18,6 +19,8 @@ import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import com.aicabinet.trade.service.JiangyiRecognitionReportService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
 import com.aicabinet.trade.service.SkuJiangyiLinkService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,6 +50,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/internal/v1/jiangyi")
 public class JiangyiInternalController {
+
+    private static final Logger log = LoggerFactory.getLogger(JiangyiInternalController.class);
 
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final JiangyiClassMappingService jiangyiClassMappingService;
@@ -177,7 +182,16 @@ public class JiangyiInternalController {
     @PostMapping("/devices/{deviceId}/model-confirmed")
     public ApiResponse<Void> modelConfirmed(@PathVariable("deviceId") String deviceId,
                                             @RequestBody ModelConfirmedRequest body) {
-        jiangyiModelSyncService.confirmModel(deviceId, body.modelName());
+        JiangyiModelDeployment confirmed =
+                jiangyiModelSyncService.confirmModel(deviceId, body.modelName());
+        try {
+            // 自动复核（H-27/§10.1）：纯行号平移自动落位，语义变化仍交人工
+            jiangyiMappingReviewService.autoRebuild(deviceId, confirmed.getModelName(),
+                    confirmed.getClassesTextUrl(), confirmed.getClassesVersion());
+        } catch (RuntimeException e) {
+            // 尽力而为：回执已落库，自动复核失败只等于「省不掉这次人工」，不能把确认打成失败
+            log.warn("jiangyi auto mapping rebuild failed deviceId={} err={}", deviceId, e.getMessage());
+        }
         return ApiResponse.ok(null);
     }
 

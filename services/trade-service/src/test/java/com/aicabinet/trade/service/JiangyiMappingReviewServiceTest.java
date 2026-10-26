@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -281,6 +282,219 @@ class JiangyiMappingReviewServiceTest {
                 service.apply(DEVICE, "m", "https://x/classes.txt", 1, 0, "v1", 9L));
 
         verify(deviceMapper, never()).stampMappingVerified(anyString(), anyString(), any());
+    }
+
+    // ---------- 自动复核（重训回执后） ----------
+
+    @Test
+    void autoRebuildAppliesPureShiftAndStamps() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(30, "cola"), row(31, "sprite")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 26, "cola", "100016", "ACTIVE"),
+                mapping(76, 27, "sprite", "100017", "ACTIVE")));
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied(), "类目集没变、只是行号平移 ⇒ 不需要人判断");
+        assertEquals(new JiangyiMappingReviewService.Counts(0, 2, 0, 0, 0), result.counts());
+        assertEquals("v2", result.classesVersion());
+        verify(mappingMapper).parkForRelocation(eq(75L), eq(-75), any());
+        verify(mappingMapper).parkForRelocation(eq(76L), eq(-76), any());
+        verify(mappingMapper).relocateClassId(eq(75L), eq(30), any());
+        verify(mappingMapper).relocateClassId(eq(76L), eq(31), any());
+        verify(deviceMapper).stampMappingVerified(eq(DEVICE), eq("v2"), any());
+        verify(adminAuditService, never()).appendLog(any(), anyString(), anyString(), anyString(), anyString());
+        verify(lockService).unlock(anyString());
+    }
+
+    @Test
+    void autoRebuildCreatesDisabledRowForNewCategoryAndKeepsOldSelling() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(26, "cola"), row(30, "kkkl_xb_qsnmw_pttz_330ml")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 26, "cola", "100016", "ACTIVE")));
+        ArgumentCaptor<JiangyiClassMapping> inserted = ArgumentCaptor.forClass(JiangyiClassMapping.class);
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied(), "新增类目不该拦住老商品恢复可售");
+        assertEquals(new JiangyiMappingReviewService.Counts(1, 0, 1, 0, 0), result.counts());
+        assertEquals(1, result.pendingManual(), "新类目待挂 SKU 的工作量要带回去");
+        verify(mappingMapper).insert(inserted.capture());
+        JiangyiClassMapping fresh = inserted.getValue();
+        assertEquals(30, fresh.getClassId());
+        assertEquals("kkkl_xb_qsnmw_pttz_330ml", fresh.getTextName());
+        assertNull(fresh.getSkuId(), "新行不挂 SKU");
+        assertEquals("DISABLED", fresh.getStatus(), "新行不启用 ⇒ 不可能错扣款");
+        verify(deviceMapper).stampMappingVerified(eq(DEVICE), eq("v2"), any());
+        verify(lockService).unlock(anyString());
+    }
+
+    @Test
+    void autoRebuildParksVanishedClassSoReusedNumberCannotChargeWrongSku() {        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(22, "cola")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 22, "cola", "100016", "ACTIVE"),
+                mapping(76, 23, "vendor_renamed_flavor", "100017", "ACTIVE")));
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied(), "类目消失要腾编号，但不该拦住其它商品");
+        assertEquals(1, result.freshOrphans());
+        assertEquals(1, result.pendingManual(), "消失类目可能是改名，欠人工确认");
+        verify(mappingMapper).parkAsOrphan(eq(76L), eq(-76), any());
+        verify(mappingMapper, never()).relocateClassId(eq(76L), anyInt(), any());
+        verify(deviceMapper).stampMappingVerified(eq(DEVICE), eq("v2"), any());
+    }
+
+    @Test
+    void autoRebuildBlocksOnConflictOnly() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(22, "cola")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 22, "cola", "100016", "ACTIVE"),
+                mapping(76, 23, "cola", "100017", "ACTIVE")));
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertFalse(result.applied(), "同识别名对应多个 SKU ⇒ 机器无法判断该挂谁");
+        assertEquals(2, result.counts().conflicts());
+        verify(mappingMapper, never()).parkForRelocation(anyLong(), anyInt(), any());
+        verify(mappingMapper, never()).parkAsOrphan(anyLong(), anyInt(), any());
+        verify(mappingMapper, never()).relocateClassId(anyLong(), anyInt(), any());
+        verify(mappingMapper, never()).insert(any());
+        verify(deviceMapper, never()).stampMappingVerified(anyString(), anyString(), any());
+        verify(lockService).unlock(anyString());
+    }
+
+    @Test
+    void autoRebuildAutoHangsNewCategoryWhenBarcodeUniquelyMatches() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(26, "cola"), row(30, "newprod")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 26, "cola", "100016", "ACTIVE")));
+        when(modelSyncService.uniqueBarcodeSkuMatches(eq("https://x/classes.txt"), any()))
+                .thenReturn(Map.of("newprod", "100099"));
+        ArgumentCaptor<JiangyiClassMapping> inserted = ArgumentCaptor.forClass(JiangyiClassMapping.class);
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied());
+        assertEquals(1, result.autoHung(), "条码唯一命中的新类目直接挂上");
+        assertEquals(0, result.pendingManual(), "自动挂上的不再欠人工");
+        verify(mappingMapper).insert(inserted.capture());
+        assertEquals("100099", inserted.getValue().getSkuId());
+        assertEquals("ACTIVE", inserted.getValue().getStatus());
+        assertEquals("MODEL_AUTO_MATCH", inserted.getValue().getSource(), "来源要能和人工挂接区分");
+        verify(deviceMapper).stampMappingVerified(eq(DEVICE), eq("v2"), any());
+    }
+
+    @Test
+    void autoRebuildKeepsNewCategoryManualWhenSkuAlreadyHung() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(26, "cola"), row(30, "newprod")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 26, "cola", "100016", "ACTIVE"),
+                // 同一商品已挂在别的编号上（停用留档行也算）⇒ 不能再挂一次
+                mapping(73, -73, "", "100099", "DISABLED")));
+        when(modelSyncService.uniqueBarcodeSkuMatches(eq("https://x/classes.txt"), any()))
+                .thenReturn(Map.of("newprod", "100099"));
+        ArgumentCaptor<JiangyiClassMapping> inserted = ArgumentCaptor.forClass(JiangyiClassMapping.class);
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied());
+        assertEquals(0, result.autoHung());
+        assertEquals(1, result.pendingManual());
+        verify(mappingMapper).insert(inserted.capture());
+        assertNull(inserted.getValue().getSkuId());
+        assertEquals("DISABLED", inserted.getValue().getStatus());
+        assertEquals("MODEL_SYNC", inserted.getValue().getSource());
+    }
+
+    @Test
+    void autoRebuildStaysAppliedWhenBarcodeMatchFails() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(26, "cola"), row(30, "newprod")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 26, "cola", "100016", "ACTIVE")));
+        when(modelSyncService.uniqueBarcodeSkuMatches(eq("https://x/classes.txt"), any()))
+                .thenThrow(new IllegalStateException("厂商 503 设备不在线"));
+        ArgumentCaptor<JiangyiClassMapping> inserted = ArgumentCaptor.forClass(JiangyiClassMapping.class);
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied(), "挂接判定失败只等于省不掉人工，不能把复核打回");
+        assertEquals(0, result.autoHung());
+        verify(mappingMapper).insert(inserted.capture());
+        assertNull(inserted.getValue().getSkuId());
+        assertEquals("DISABLED", inserted.getValue().getStatus());
+    }
+
+    @Test
+    void autoRebuildIgnoresAlreadyParkedOrphans() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v2", row(22, "cola")));
+        when(mappingMapper.listByDevice(DEVICE)).thenReturn(List.of(
+                mapping(75, 22, "cola", "100016", "ACTIVE"),
+                // 10-23 停用 classId 30/31 留下的孤儿行：编号已是负哨兵、text_name 已清空
+                mapping(73, -73, "", "100014", "DISABLED")));
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertTrue(result.applied(), "历史孤儿行不能让之后每次自动复核都被永久拦住");
+        assertEquals(0, result.freshOrphans());
+        verify(deviceMapper).stampMappingVerified(eq(DEVICE), eq("v2"), any());
+    }
+
+    @Test
+    void autoRebuildRequiresContentFingerprintMatch() {
+        when(lockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(deviceMapper.selectById(DEVICE)).thenReturn(device("v2"));
+        when(modelSyncService.parseClassesForReview("https://x/classes.txt", 0, 0))
+                .thenReturn(parsed("v-replaced", row(22, "cola")));
+
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "https://x/classes.txt", "v2");
+
+        assertFalse(result.applied(), "OSS 上的文件被换过就不能自动落位");
+        assertTrue(result.reason().contains("不一致"));
+        verify(mappingMapper, never()).relocateClassId(anyLong(), anyInt(), any());
+        verify(deviceMapper, never()).stampMappingVerified(anyString(), anyString(), any());
+    }
+
+    @Test
+    void autoRebuildSkipsWithoutClassesUrlWithoutTakingLock() {
+        JiangyiMappingReviewService.AutoResult result =
+                service.autoRebuild(DEVICE, "m", "  ", "v2");
+
+        assertFalse(result.applied(), "厂商直推模型我方没有 textUrl，只能走人工");
+        verify(lockService, never()).tryLock(anyString(), anyLong(), anyLong());
     }
 
     // ---------- 装配 ----------

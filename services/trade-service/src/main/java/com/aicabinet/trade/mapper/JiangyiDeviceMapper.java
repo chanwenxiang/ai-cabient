@@ -5,9 +5,18 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.Instant;
+import java.util.List;
 
 @Mapper
 public interface JiangyiDeviceMapper extends BaseTradeMapper<JiangyiDevice> {
+
+    /** 全部已绑定柜机（商品学习库的柜机清单：只有 BOUND 才谈得上采集与上架）。 */
+    default List<JiangyiDevice> listBound() {
+        return selectList(Wrappers.<JiangyiDevice>lambdaQuery()
+                .eq(JiangyiDevice::getStatus, "BOUND")
+                .orderByAsc(JiangyiDevice::getCreatedAt)
+                .orderByAsc(JiangyiDevice::getDeviceId));
+    }
 
     /** SN 点查（入驻幂等判定、token 签发按 SN 查）。 */
     default JiangyiDevice findByDeviceSn(String deviceSn) {

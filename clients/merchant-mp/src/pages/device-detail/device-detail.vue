@@ -204,10 +204,32 @@
           <text class="gather-tip">
             {{
               jiangyiGather.gatherLocked
-                ? '采集模式下顾客无法开门购物。采集批次操作在将邑商户 App 完成，完成后退出采集模式恢复营业。'
+                ? '采集模式下顾客无法开门购物。拍照采集在将邑商户 App 完成；学习回调成功后系统会自动退出采集模式恢复营业，也可手动退出。'
                 : '上新商品需柜内采集学习：进入采集模式后柜机停止营业，放入实物由柜机摄像头自动拍摄，无需人工上传图片。'
             }}
           </text>
+          <!-- 只读学习进度：触发学习在运营后台，这里只让补货员看到学完没有 -->
+          <view v-if="gatherTraining.items.length" class="training-progress">
+            <view class="row">
+              <text class="field-label">学习进度</text>
+              <text class="meta">{{ trainingStatusText(gatherTraining.status) }}</text>
+            </view>
+            <text v-for="it in gatherTraining.items" :key="it.skuId" class="meta training-item">
+              {{ it.skuName || it.skuId }} · {{ trainingStatusText(it.status) }}
+            </text>
+            <text class="meta">
+              模型 {{ gatherTraining.modelName || '—' }}
+              <text v-if="gatherTraining.createdAt">
+                · 发起 {{ formatDateTime(gatherTraining.createdAt) }}
+              </text>
+              <text v-if="gatherTraining.finishedAt">
+                · 完成 {{ formatDateTime(gatherTraining.finishedAt) }}
+              </text>
+            </text>
+          </view>
+          <text v-else class="meta training-progress"
+            >学习进度：暂无记录（学习由运营在后台触发）</text
+          >
           <view v-if="canEditDevice && !jiangyiGather.gatherLocked" class="field">
             <text class="field-label">门位（选填）</text>
             <input v-model="gatherDoorPosition" class="input" placeholder="例如 1" />
@@ -358,6 +380,14 @@ const cmdBusy = ref(false);
 const jiangyiGather = ref({ bound: false, gatherLocked: false });
 const gatherDoorPosition = ref('');
 const gatherBusy = ref(false);
+// 只读学习进度（触发学习在运营后台）：一次触发（含批量）共享一个回执 → items 是整组 SKU
+const gatherTraining = ref<{
+  modelName: string | null;
+  status: string | null;
+  createdAt: string | null;
+  finishedAt: string | null;
+  items: { skuId: string; skuName: string | null; status: string }[];
+}>({ modelName: null, status: null, createdAt: null, finishedAt: null, items: [] });
 const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog();
 
 const lifecycleLabel = computed(() =>
@@ -515,7 +545,7 @@ async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
   // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
-  const [list, vel, gather, detail, kpi] = await Promise.all([
+  const [list, vel, gather, training, detail, kpi] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
@@ -527,6 +557,15 @@ async function loadDeviceExtras(seq: number) {
         gatherLocked: false
       } as import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto,
       '采集状态'
+    ),
+    softFallback(
+      merchantApi.jiangyiGatherTrainingStatus(deviceId.value),
+      {
+        bound: false,
+        gatherLocked: false,
+        items: []
+      } as import('@aicabinet/shared-types').OpenApiMerchantTrainingStatusDto,
+      '学习进度'
     ),
     // CB-050：详情 device（AdminDeviceDto）带场景/分配时间/最近上下线/信号强度
     softFallback(
@@ -548,6 +587,17 @@ async function loadDeviceExtras(seq: number) {
   slots.value = list;
   velocity.value = vel;
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
+  gatherTraining.value = {
+    modelName: training.modelName ?? null,
+    status: training.status ?? null,
+    createdAt: training.createdAt ?? null,
+    finishedAt: training.finishedAt ?? null,
+    items: (training.items ?? []).map((it) => ({
+      skuId: it.skuId ?? '',
+      skuName: it.skuName ?? null,
+      status: it.status ?? ''
+    }))
+  };
   const deviceFields = (detail as { device?: { [k: string]: unknown } } | null)?.device;
   if (deviceFields) {
     sceneType.value = String(deviceFields.sceneType || '');
@@ -606,6 +656,14 @@ function goOrders() {
   uni.navigateTo({
     url: `/pages/orders/orders?deviceId=${encodeURIComponent(deviceId.value)}`
   });
+}
+
+/** 学习状态文案（只读展示，来自本地票据聚合）。 */
+function trainingStatusText(status: string | null | undefined) {
+  if (status === 'FINISHED') return '已学成';
+  if (status === 'FAILED') return '失败';
+  if (status === 'PENDING') return '学习中';
+  return '—';
 }
 
 /**
@@ -895,6 +953,15 @@ async function saveSlots() {
   color: var(--text-muted, #475569);
   line-height: 1.5;
   margin-bottom: 12rpx;
+}
+.training-progress {
+  display: block;
+  margin: 8rpx 0 12rpx;
+}
+.training-item {
+  display: block;
+  font-size: var(--font-size-caption);
+  line-height: 1.5;
 }
 .field {
   margin: 12rpx 0;

@@ -571,6 +571,11 @@ export const merchantApi = {
   jiangyiGatherStart: (id: string, doorPosition?: string) =>
     request(MerchantEndpoints.jiangyiGatherStart(id), 'POST', doorPosition ? { doorPosition } : {}),
   jiangyiGatherExit: (id: string) => request(MerchantEndpoints.jiangyiGatherExit(id), 'POST', {}),
+  /** 只读学习进度（本地票据聚合）：补货员看「学完没有」，不触发学习 */
+  jiangyiGatherTrainingStatus: (id: string) =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantTrainingStatusDto>(
+      MerchantEndpoints.jiangyiGatherTrainingStatus(id)
+    ),
   pricing: (deviceId?: string) => {
     const path = deviceId
       ? MerchantEndpoints.pricingSkusByDevice(deviceId)

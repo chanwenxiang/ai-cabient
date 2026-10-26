@@ -192,6 +192,78 @@ public class JiangyiModelSyncService {
                 vendor.size(), matched, List.copyOf(rows));
     }
 
+    /**
+     * 自动档挂接判定（§5.5.3 只读）：模型新增类目 → 「唯一可信的在售 SKU」。
+     *
+     * <p><b>为什么敢自动写</b>：10-22 拍板「按厂商意见写 sku_id 会错扣款」，指的是把
+     * {@code stdSkuName} 当判据（厂商认为这是什么 ≠ 我方按哪个价结算）。这里换的是**条码**：
+     * 厂商标准商品条码与我方 `sku_catalog.barcode` 逐字相等时，物理上是同一件商品，结算价仍是
+     * 我方自己的价（A 档铁律不变）。</p>
+     *
+     * <p>🔴 <b>四个「唯一」缺一不挂</b>：①该识别名在 §5.5.3 回包里只有一个非空条码；
+     * ②该条码在本模型里只被一个识别名认领（两个类目同一个商品 ⇒ 不猜）；③条码在我方
+     * `sku_catalog` 只命中一个 SKU；④该 SKU 在售（status=ACTIVE）。任一不满足即返回空，
+     * 调用方照旧建 DISABLED 空行等人工。</p>
+     *
+     * <p>只读：不写库（写库由调用方在同一事务里做）。厂商接口不可达时抛异常，调用方必须
+     * 降级成「不自动挂」而不是让整个复核失败。</p>
+     */
+    public Map<String, String> uniqueBarcodeSkuMatches(String textUrl,
+                                                       java.util.Collection<String> textNames) {
+        if (textNames == null || textNames.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> wanted = new HashSet<>(textNames);
+        List<JiangyiTextNameSku> vendor =
+                jiangyiGatherClient.stdSkuByTextNames(requireSafeModelTextUrl(textUrl));
+        Map<String, Set<String>> barcodesByText = new LinkedHashMap<>();
+        Map<String, Set<String>> textsByBarcode = new LinkedHashMap<>();
+        for (JiangyiTextNameSku s : vendor) {
+            if (s.textName() == null || !wanted.contains(s.textName())) {
+                continue;
+            }
+            if (s.barCode() == null || s.barCode().isBlank()) {
+                continue;
+            }
+            String code = s.barCode().trim();
+            barcodesByText.computeIfAbsent(s.textName(), k -> new HashSet<>()).add(code);
+            textsByBarcode.computeIfAbsent(code, k -> new HashSet<>()).add(s.textName());
+        }
+        Set<String> unambiguousCodes = new HashSet<>();
+        for (Map.Entry<String, Set<String>> e : barcodesByText.entrySet()) {
+            if (e.getValue().size() == 1) {
+                unambiguousCodes.add(e.getValue().iterator().next());
+            }
+        }
+        Map<String, List<SkuCatalog>> skusByBarcode = new HashMap<>();
+        for (SkuCatalog sku : skuCatalogMapper.findByBarcodes(unambiguousCodes)) {
+            if (sku.getBarcode() == null || sku.getBarcode().isBlank() || sku.getSkuId() == null) {
+                continue;
+            }
+            if (!"ACTIVE".equalsIgnoreCase(sku.getStatus())) {
+                continue;
+            }
+            skusByBarcode.computeIfAbsent(sku.getBarcode().trim(), k -> new ArrayList<>()).add(sku);
+        }
+        Map<String, String> matched = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> e : barcodesByText.entrySet()) {
+            if (e.getValue().size() != 1) {
+                continue;
+            }
+            String code = e.getValue().iterator().next();
+            if (textsByBarcode.getOrDefault(code, Set.of()).size() != 1) {
+                continue;
+            }
+            List<SkuCatalog> skus = skusByBarcode.getOrDefault(code, List.of());
+            if (skus.size() == 1) {
+                matched.put(e.getKey(), skus.get(0).getSkuId());
+            }
+        }
+        log.info("jiangyi auto-hang barcode match candidates={} matched={} pairs={}",
+                wanted.size(), matched.size(), matched);
+        return matched;
+    }
+
     // ---------- 预生成 / 激活 ----------
 
     /**
@@ -335,8 +407,11 @@ public class JiangyiModelSyncService {
      *       （厂商直推/恢复出厂）。此时<b>主动撤销复核戳</b>再抛 409：否则旧映射会继续按未知
      *       classes 结算，这正是 H-27 的错钱路径。重放已知模型则不动状态。</li>
      * </ul>
+     *
+     * @return 刚确认的 deployment —— 调用方（内部接口）据此触发到期自动复核
+     *         （{@link JiangyiMappingReviewService#autoRebuild} 需要 classesTextUrl + classesVersion）
      */
-    public void confirmModel(String deviceId, String modelName) {
+    public JiangyiModelDeployment confirmModel(String deviceId, String modelName) {
         JiangyiModelDeployment dep = deploymentMapper.findLatestSent(deviceId, modelName)
                 .orElseThrow(() -> {
                     if (!deploymentMapper.hasConfirmed(deviceId, modelName)) {
@@ -356,6 +431,7 @@ public class JiangyiModelSyncService {
         jiangyiDeviceMapper.updateModelInfo(deviceId, modelName, dep.getClassesVersion(), now);
         log.info("jiangyi model confirmed deviceId={} modelName={} deploymentId={} classesVersion={}",
                 deviceId, modelName, dep.getId(), dep.getClassesVersion());
+        return dep;
     }
 
     /**

@@ -16,7 +16,8 @@ import lombok.Setter;
  * 结算金额 = Σ(我方 SKU 现价 × qty)，厂商上报的 price 只留档不采信（A 档，CB-062）；
  * 两者都未命中 fail-closed 转 DISPUTED。</p>
  *
- * <p>source：MANUAL 人工建立 | MODEL_SYNC 模型 classes 同步预生成（二期）；
+ * <p>source：MANUAL 人工建立 | MODEL_SYNC 模型 classes 同步预生成（二期）|
+ * MODEL_AUTO_MATCH 重训自动复核时按条码唯一命中新建并启用（V406，H-27 自动档）；
  * status：ACTIVE 生效 | DISABLED 预生成先禁用、人工确认后激活（防误映射直接扣款）。</p>
  */
 @TableName("jiangyi_class_mapping")

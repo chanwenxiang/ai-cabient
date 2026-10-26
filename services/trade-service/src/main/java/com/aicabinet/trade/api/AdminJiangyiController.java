@@ -11,10 +11,12 @@ import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiGatherService;
+import com.aicabinet.trade.service.JiangyiLearningLibraryService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import com.aicabinet.trade.service.JiangyiShelfService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -52,6 +54,8 @@ public class AdminJiangyiController {
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
+    private final JiangyiLearningLibraryService jiangyiLearningLibraryService;
+    private final JiangyiShelfService jiangyiShelfService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
@@ -59,7 +63,9 @@ public class AdminJiangyiController {
                                   JiangyiGatherService jiangyiGatherService,
                                   JiangyiOrderVideoService jiangyiOrderVideoService,
                                   JiangyiDeviceOpsService jiangyiDeviceOpsService,
-                                  JiangyiMappingReviewService jiangyiMappingReviewService) {
+                                  JiangyiMappingReviewService jiangyiMappingReviewService,
+                                  JiangyiLearningLibraryService jiangyiLearningLibraryService,
+                                  JiangyiShelfService jiangyiShelfService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
@@ -67,6 +73,8 @@ public class AdminJiangyiController {
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
+        this.jiangyiLearningLibraryService = jiangyiLearningLibraryService;
+        this.jiangyiShelfService = jiangyiShelfService;
     }
 
     /**
@@ -492,12 +500,55 @@ public class AdminJiangyiController {
                 deviceId, body.skuId().trim(), body.modelName().trim()).getId());
     }
 
+    /**
+     * 批量触发学习：一次 §4.4.3 厂商调用 + 勾选 SKU 各落一张票据（学习是集合粒度）。
+     * 任一 SKU 未挂将邑商品 / 已有在途票据 / 模型名不在厂商模型列表 → 409，不会半提交。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/jiangyi/gather/training/batch")
+    public ApiResponse<JiangyiGatherService.BatchTrainingResult> startTrainingBatch(
+            @Valid @RequestBody TrainingBatchRequest body) {
+        return ApiResponse.ok(jiangyiGatherService.startTrainingBatch(
+                body.deviceId().trim(), body.skuIds(), body.modelName()));
+    }
+
     /** 审核列表（按挂接商品反查 productIds；skuId 缺省=全部）。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/gather-check")
     public ApiResponse<List<com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem>> gatherCheck(
             @RequestParam(value = "skuId", required = false) String skuId) {
         return ApiResponse.ok(jiangyiGatherService.checkList(skuId));
+    }
+
+    /**
+     * 商品学习库（租户级资产总览）：厂商模型 + 已学商品 + 各柜覆盖 + 可发起学习的 SKU + 最近凭据。
+     *
+     * <p>学习是商户（租户）级动作（§4.4.3 无 deviceId），所以总览不按柜机切；但「能否卖」仍逐柜
+     * ——覆盖列回的是每台柜子的 ACTIVE 映射编号。厂商读面失败只降级该两块 + vendorError。</p>
+     */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/jiangyi/learning-library")
+    public ApiResponse<JiangyiLearningLibraryService.LearningLibraryView> learningLibrary() {
+        return ApiResponse.ok(jiangyiLearningLibraryService.view());
+    }
+
+    /**
+     * 跨柜一键上架：把一个已学商品挂到多台柜机的识别映射上，可选写柜级价与铺货件数。
+     *
+     * <p>前端只传 {@code jiangyiProductId}——识别名由服务端从 §4.4.2 已学商品回包取，
+     * 不信前端文本（识别名是钱的对位锚）。逐柜独立事务、部分成功：每台柜回一条
+     * SHELVED / ALREADY / SKIPPED / FAILED，跳过与失败都带人话原因。</p>
+     *
+     * <p>写映射要 {@code ops:device:edit}；填价/填件数还各自要求 {@code ops:pricing:edit} /
+     * {@code ops:replenishment:edit}，服务层在写任何一台柜之前校验（不留半批改价）。</p>
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/jiangyi/learning-library/shelf")
+    public ApiResponse<JiangyiShelfService.ShelfResult> shelveLearnedProduct(
+            HttpServletRequest request, @Valid @RequestBody ShelfRequest body) {
+        return ApiResponse.ok(jiangyiShelfService.shelve(
+                operatorId(request), body.jiangyiProductId().trim(), body.deviceIds(),
+                body.priceCents(), body.quantity()));
     }
 
     // ---------- 请求体 / 装配 ----------
@@ -553,6 +604,18 @@ public class AdminJiangyiController {
 
     record TrainingRequest(@NotBlank(message = "SKU 不能为空") String skuId,
                            @NotBlank(message = "模型名不能为空") String modelName) {}
+
+    record TrainingBatchRequest(@NotBlank(message = "柜机不能为空") String deviceId,
+                                @jakarta.validation.constraints.NotEmpty(message = "请至少选择一个商品")
+                                List<String> skuIds,
+                                @NotBlank(message = "模型名不能为空") String modelName) {}
+
+    /** 上架入参：priceCents/quantity 留空 = 不动该柜的价格/库存（各自还需独立权限点）。 */
+    record ShelfRequest(@NotBlank(message = "将邑商品不能为空") String jiangyiProductId,
+                        @jakarta.validation.constraints.NotEmpty(message = "请至少选择一台柜机")
+                        List<String> deviceIds,
+                        Integer priceCents,
+                        Integer quantity) {}
 
     private static DeploymentDto toDto(JiangyiModelDeployment d) {
         return new DeploymentDto(d.getId(), d.getDeviceId(), d.getModelName(), d.getModelUrl(),

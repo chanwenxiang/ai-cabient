@@ -151,9 +151,13 @@ console.log(
 
 /* ── 1. 路由门（无需凭据） ───────────────────────────────── */
 try {
+  // 🔴 这条期望是 200 不是 401：`/jiangyi/api/domainConfig/**` 被 GatewayWebConfig 刻意从
+  // deviceAuthInterceptor 排除（设备 token 过期后靠它自举问路，401 会掐死自愈链，H-29）。
+  // 本门只证「公网入口把 /jiangyi/ 送到了网关」；信封形态由下面带 token 的自钉门负责。
   routeGate(
-    '路由门 · domainConfig 无 token 须 401',
-    await post('/domainConfig/getConfigStatusByIdentifier')
+    '路由门 · domainConfig 免鉴权须 200（非 401）',
+    await post('/domainConfig/getConfigStatusByIdentifier'),
+    200
   );
 } catch (e) {
   record('路由门 · domainConfig', false, `请求异常：${e.message}（域名不可达 / DNS / 证书？）`);

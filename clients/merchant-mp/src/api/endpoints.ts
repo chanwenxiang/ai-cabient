@@ -146,6 +146,9 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/start`,
   jiangyiGatherExit: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/exit`,
+  /** 将邑只读学习进度（本地票据聚合，不读厂商面；触发学习仍在运营后台） */
+  jiangyiGatherTrainingStatus: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/training-status`,
   deviceSlots: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots`,
   /** CB-050 扩展：商户自助改密（须已登录，携带当前密码） */
   merchantPasswordChange: `${API_PREFIX}/merchant/password-change`,

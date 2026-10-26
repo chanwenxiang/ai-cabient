@@ -32,6 +32,18 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
                 .orderByAsc(JiangyiClassMapping::getClassId));
     }
 
+    /**
+     * 全租户 ACTIVE 映射（商品学习库：「这个识别类别被哪几台柜子上架了」）。
+     * <p>class_id ≥ 0 排除复核重算腾位用的负哨兵行——那些是已失效的挂接，不是覆盖。</p>
+     */
+    default List<JiangyiClassMapping> listActiveAll() {
+        return selectList(Wrappers.<JiangyiClassMapping>lambdaQuery()
+                .eq(JiangyiClassMapping::getStatus, "ACTIVE")
+                .ge(JiangyiClassMapping::getClassId, 0)
+                .orderByAsc(JiangyiClassMapping::getDeviceId)
+                .orderByAsc(JiangyiClassMapping::getClassId));
+    }
+
     /** 幂等 upsert：UNIQUE(device_id, class_id) 判存，存在则更新映射内容，否则插入。 */
     default void upsert(JiangyiClassMapping row) {
         row.setUpdatedAt(Instant.now());

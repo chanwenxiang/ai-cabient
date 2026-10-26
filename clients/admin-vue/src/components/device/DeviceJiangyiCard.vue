@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -544,11 +544,21 @@ interface GatherCheckItem {
   picUrl: string | null;
 }
 
+interface TrainingTicketView {
+  skuId: string | null;
+  modelName: string | null;
+  jiangyiProductId: string | null;
+  status: 'PENDING' | 'FINISHED' | 'FAILED' | string;
+  createdAt: string | null;
+  finishedAt: string | null;
+}
+
 interface GatherProgress {
   gatherLocked: boolean;
   doorStatus: unknown;
   trainingProducts: unknown;
   checks: GatherCheckItem[];
+  lastTraining: TrainingTicketView | null;
 }
 
 const gatherSection = ref(false);
@@ -559,25 +569,72 @@ const gatherDoorPosition = ref('');
 const trainingForm = reactive({ skuId: '', modelName: '' });
 const trainingSaving = ref(false);
 
+/** 回调结果横幅：FINISHED 才算学习完成（与「关门」动作无关）。 */
+const trainingNotice = computed(() => {
+  const t = gatherProgress.value?.lastTraining;
+  if (!t) return null;
+  const sku = t.skuId || '—';
+  const model = t.modelName || '—';
+  if (t.status === 'FINISHED') {
+    const at = t.finishedAt ? formatDateTime(t.finishedAt) : '—';
+    return gatherProgress.value?.gatherLocked
+      ? {
+          type: 'warning' as const,
+          title: `将邑已回调学习完成（${at}，商品 ${sku}，模型 ${model}），但采集模式仍开启，请点「退出采集模式」恢复营业`
+        }
+      : {
+          type: 'success' as const,
+          title: `将邑已回调学习完成（${at}，商品 ${sku}，模型 ${model}），采集模式已自动退出、营业已恢复`
+        };
+  }
+  if (t.status === 'FAILED') {
+    return {
+      type: 'error' as const,
+      title: `将邑回报学习失败（商品 ${sku}，模型 ${model}）；柜机仍在采集模式，可重试学习或手动退出`
+    };
+  }
+  return {
+    type: 'info' as const,
+    title: `学习已提交（商品 ${sku}，模型 ${model}），等待将邑回调；成功后会自动退出采集模式恢复营业`
+  };
+});
+
 const gatherCheckMeta: Record<string, { label: string; type: 'success' | 'danger' | 'info' }> = {
   pass: { label: '通过', type: 'success' },
   reject: { label: '驳回', type: 'danger' },
   wait: { label: '待审核', type: 'info' }
 };
 
-async function loadGatherProgress() {
-  gatherLoading.value = true;
+async function loadGatherProgress(silent = false) {
+  if (!silent) gatherLoading.value = true;
   try {
     gatherProgress.value = await api.request<GatherProgress>(
       AdminEndpoints.deviceJiangyiGatherProgress(props.deviceId),
       'GET'
     );
   } catch (e) {
-    ElMessage.error(errorMessage(e, '加载采集进度失败'));
+    if (!silent) ElMessage.error(errorMessage(e, '加载采集进度失败'));
   } finally {
-    gatherLoading.value = false;
+    if (!silent) gatherLoading.value = false;
   }
 }
+
+// 采集模式期间每 15s 静默刷新：学习回调成功会自动退出，运营不必守着点「刷新进度」
+let gatherPoll: ReturnType<typeof setInterval> | null = null;
+function syncGatherPoll() {
+  const need = gatherSection.value && !!gatherProgress.value?.gatherLocked;
+  if (need && !gatherPoll) {
+    gatherPoll = setInterval(() => void loadGatherProgress(true), 15000);
+  } else if (!need && gatherPoll) {
+    clearInterval(gatherPoll);
+    gatherPoll = null;
+  }
+}
+watch(gatherSection, syncGatherPoll);
+watch(gatherProgress, syncGatherPoll);
+onUnmounted(() => {
+  if (gatherPoll) clearInterval(gatherPoll);
+});
 
 function toggleGatherSection() {
   gatherSection.value = !gatherSection.value;
@@ -589,7 +646,7 @@ function toggleGatherSection() {
 async function doStartGather() {
   try {
     await ElMessageBox.confirm(
-      '进入采集模式后，顾客将无法开门购物，直到手动退出。确认进入？',
+      '进入采集模式后，顾客将无法开门购物，直到手动退出或学习完成回调自动退出。确认进入？',
       '进入采集模式',
       { type: 'warning', confirmButtonText: '进入', cancelButtonText: '取消' }
     );
@@ -636,7 +693,7 @@ async function doStartTraining() {
       skuId,
       modelName
     });
-    ElMessage.success('学习已提交，等待将邑完成训练');
+    ElMessage.success('学习已提交；将邑回调成功后会自动退出采集模式，结果见下方状态');
     trainingForm.skuId = '';
     trainingForm.modelName = '';
     await loadGatherProgress();
@@ -1409,8 +1466,20 @@ watch(
             </el-tag>
           </div>
 
+          <el-alert
+            v-if="trainingNotice"
+            :type="trainingNotice.type"
+            :title="trainingNotice.title"
+            :closable="false"
+            show-icon
+            class="jy-tip"
+          />
+
           <div class="jy-section-label" style="margin-top: 12px">
             触发学习（采集完成后提交训练）
+          </div>
+          <div class="jy-helper-text">
+            学习是否完成以将邑回调为准：回调成功会自动退出采集模式并在此显示；「关门」只是柜门动作，不代表学习完成。
           </div>
           <div v-if="canEdit" class="jy-form-row">
             <el-input
@@ -1541,6 +1610,12 @@ watch(
 }
 .jy-tip {
   margin: 8px 0;
+}
+.jy-helper-text {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
 .jy-tag-gap {
   margin-left: 6px;
