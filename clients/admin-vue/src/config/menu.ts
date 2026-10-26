@@ -174,20 +174,20 @@ const BASE_NAV: NavItem[] = [
     keywords: ['sku', '识别', '入驻', 'vision', '类名', '端侧']
   },
   {
+    path: '/learning-library',
+    title: '商品学习库',
+    group: '设备商品',
+    // 租户级学习资产（厂商模型/已学商品）+ 采集台/审核/触发学习；业务顺序在识别映射之前
+    perm: 'ops:device:list',
+    keywords: ['学习', '采集', '训练', '模型', 'classes', '将邑', '上架']
+  },
+  {
     path: '/vision-mappings',
     title: '识别映射',
     group: '设备商品',
     // 旧 ops:vision:list 随旧映射控制器删除（批5）；页面数据源=AdminJiangyiController（ops:device:*）
     perm: 'ops:device:list',
     keywords: ['映射', 'vision', '类名', '端侧']
-  },
-  {
-    path: '/learning-library',
-    title: '商品学习库',
-    group: '设备商品',
-    // 租户级学习资产（厂商模型/已学商品），与识别映射共用柜机权限位
-    perm: 'ops:device:list',
-    keywords: ['学习', '采集', '训练', '模型', 'classes', '将邑', '上架']
   },
   {
     path: '/replenishment',

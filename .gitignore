@@ -227,3 +227,4 @@ services/trade-service/src/main/resources/static/admin/runtime-config.json
 
 # qoder 工具工作树（不入库）
 .qoder/
+.zcode/

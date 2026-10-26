@@ -39,6 +39,23 @@
           <text class="sheet-sum-label">合计 {{ totalQty }} 件</text>
           <text class="sheet-sum-amt">{{ fmtMoney(totalAmountCents) }}</text>
         </view>
+        <!--
+          支付方式 + 计费规则（CB-067 规范 P11「订单提交页=按钮 + 基本说明」）：
+          官方要求提交订单页须含「商品信息 / 计费规则 / 支付方式」。本项目是
+          「扫码即开门、关门自动扣」无独立提交页 ⇒ 本抽屉（本次取货/取走预览）承担该职责。
+          🔴 支付分标签只在**微信支付分已开通**时展示（未开通挂标签=虚假承诺）。
+        -->
+        <view class="sheet-pay-row">
+          <text class="sheet-pay-label">支付方式</text>
+          <view class="sheet-pay-value">
+            <pay-score-tag v-if="payScoreReady" variant="label" biz="先取后付" />
+            <text v-else class="sheet-pay-text">{{ payChannelText }}</text>
+          </view>
+        </view>
+        <view class="sheet-pay-row">
+          <text class="sheet-pay-label">计费规则</text>
+          <text class="sheet-pay-text">按实际取走商品金额计费，关门后自动扣款</text>
+        </view>
         <view class="sheet-actions">
           <view class="sheet-action">
             <app-button variant="ghost" label="继续选购" @click="emit('close')" />
@@ -78,8 +95,12 @@ const props = withDefaults(
     items: LiveCartSheetLine[];
     mockMode?: boolean;
     closingDoor?: boolean;
+    /** 微信支付分是否已开通（已开通才展示品牌标签） */
+    payScoreReady?: boolean;
+    /** 支付方式文案（非支付分渠道时展示） */
+    payChannelText?: string;
   }>(),
-  { mockMode: false, closingDoor: false }
+  { mockMode: false, closingDoor: false, payScoreReady: false, payChannelText: '账户余额' }
 );
 
 const emit = defineEmits<{ close: []; settle: [] }>();
@@ -232,6 +253,31 @@ const totalAmountCents = computed(() =>
   justify-content: space-between;
   gap: 16rpx;
   margin-bottom: 16rpx;
+}
+/* 支付方式 / 计费规则行（CB-067 规范 P11 订单提交页=基本说明） */
+.sheet-pay-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 10rpx 0;
+  border-top: 1rpx solid var(--border-color, #eef2f6);
+}
+.sheet-pay-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary, #6b7280);
+  flex-shrink: 0;
+}
+.sheet-pay-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.sheet-pay-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary, #0f172a);
+  text-align: right;
 }
 .sheet-sum-label {
   font-size: var(--font-size-md);

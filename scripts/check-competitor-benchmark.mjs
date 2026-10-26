@@ -89,6 +89,9 @@ const SUBJECT_ALIASES = [
   { re: /美智微/i, id: '美智微', kind: 'peer' },
   { re: /宇脉/i, id: '宇脉电子', kind: 'peer' },
   { re: /合豚/i, id: '合豚', kind: 'peer' },
+  // CB-067：小卖柜（美的×阿里，支付宝扫码+芝麻分550 免密）与魔盒 CITYBOX（上海鲜动，信用单次授权扣款）——开门柜直接同行
+  { re: /小卖柜/i, id: '小卖柜', kind: 'peer' },
+  { re: /魔盒|鲜动|citybox/i, id: '魔盒CITYBOX', kind: 'peer' },
   // 广州富宏智能/点为科技：开门柜/售货机运营商同行（CB-049 场景分层对照）
   { re: /富宏/i, id: '广州富宏智能', kind: 'peer' },
   { re: /点为/i, id: '点为科技', kind: 'peer' },

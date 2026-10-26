@@ -234,6 +234,18 @@ export const AdminEndpoints = {
   deviceJiangyiReboot: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/reboot`,
   jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
+  /** 学习中商品列表（§4.4.5 直读厂商原始回包）：提交学习后、学成前停在这里，空数组=没有在学 */
+  jiangyiTrainingProducts: `${ops}/jiangyi/training-products`,
+  /** 六步流程导航条数字面板：挂接/柜机/映射本地读，待采集/审核/学习中/模型厂商读（单项降级） */
+  jiangyiFlowSummary: `${ops}/jiangyi/flow-summary`,
+  /** 采集台（§4.3.3–4.3.14 一条龙，内存态会话）：start 异步跑链路，state 轮询进度，其余为救援动作 */
+  jiangyiGatherConsoleStart: `${ops}/jiangyi/gather-console/start`,
+  jiangyiGatherConsoleState: (deviceId: string) =>
+    `${ops}/jiangyi/gather-console/state?deviceId=${encodeURIComponent(deviceId)}`,
+  jiangyiGatherConsoleResumeUpload: `${ops}/jiangyi/gather-console/resume-upload`,
+  jiangyiGatherConsoleForgoUpload: `${ops}/jiangyi/gather-console/forgo-upload`,
+  jiangyiGatherConsoleClearBatch: `${ops}/jiangyi/gather-console/clear-batch`,
+  jiangyiGatherConsoleAbort: `${ops}/jiangyi/gather-console/abort`,
   /** 商品学习库：租户级模型/已学商品/各柜覆盖 + 最近学习凭据（学习本身是商户级，上架仍逐柜） */
   jiangyiLearningLibrary: `${ops}/jiangyi/learning-library`,
   /** 跨柜一键上架：已学商品按识别名挂到多柜映射（可选柜级价与铺货），逐柜回显结果 */

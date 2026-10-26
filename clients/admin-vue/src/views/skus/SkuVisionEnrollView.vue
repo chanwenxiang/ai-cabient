@@ -27,8 +27,10 @@
       :closable="false"
       show-icon
       title="不是每个商品都要采集"
-      description="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第⑤⑥步），无需采集。只有将邑库里没有的新商品才需要柜内采集学习——把实物放进柜内，由柜机内置摄像头自动拍摄（约 2000 张/商品），全程无需人工上传图片；管理后台上传的商品图片仅用于展示，不参与识别训练。"
+      description="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第⑤⑥步），无需采集。只有将邑库里没有的新商品才需要柜内采集学习——在学习库「开始采集」发起，把商品摆在柜机摄像头前缓慢扫动约 45 秒（厂商门槛：每摄 ≥500 张轨迹裁图），全程无需人工上传图片；管理后台上传的商品图片仅用于展示，不参与识别训练。"
     />
+
+    <VisionFlowSteps :active="1" />
 
     <el-steps class="jy-steps" direction="vertical" :active="6" space="72px">
       <el-step v-for="step in steps" :key="step.title" :title="step.title" :status="step.status">
@@ -67,10 +69,11 @@
 
 <script setup lang="ts">
 import { useNavAccess } from '@/composables/useNavAccess';
+import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
 
 /**
  * 识别入驻（CB-023 改造）：云端识别方案废弃后，本页改为将邑识别体系入驻指引。
- * 管理动作分布在商品管理（挂接）、设备详情（采集编排/下发）、识别映射（映射管理），
+ * 管理动作分布在商品管理（挂接）、商品学习库（采集台/触发学习/上架）、识别映射（映射管理），
  * 本页负责讲清链路与跳转，不重复承载管理功能。
  */
 
@@ -97,23 +100,25 @@ const steps: StepView[] = [
     action: { label: '去商品管理', path: '/skus', primary: true }
   },
   {
-    title: '② 柜内采集（仅将邑库中没有的商品）',
-    desc: '先在设备详情进入采集模式：柜机锁定停止营业后放入实物，由柜机内置摄像头自动拍摄（约 2000 张/商品），无需人工上传图片。',
+    title: '② 柜前采集（仅将邑库中没有的商品）',
+    desc: '在商品学习库「采集台」发起：选柜机和待采商品 → 后台自动开门 → 把商品摆到摄像头前缓慢扫动 → 关门后自动收尾回传。',
     points: [
-      '采集模式期间营业开门直接 409「设备商品采集中」，顾客无法购物；退出采集模式即恢复营业',
-      '采集批次操作在将邑商户 App 完成；进度与退出入口：设备详情 →「将邑接入」卡片'
+      '入口：商品学习库 →「开始采集」；采集会话期间该柜自动停止营业，结束自动恢复',
+      '厂商门槛「每摄 ≥500 张轨迹裁图」：拍摄窗口建议 45 秒，商品在柜内缓慢上下扫动',
+      '回传后要过厂商人工审核；「学习中商品」「采集审核」弹窗可随时查进度'
     ],
     status: 'process',
-    action: { label: '设备详情', path: '/devices', hint: '在设备列表打开对应柜机' }
+    action: { label: '去采集台', path: '/learning-library?dialog=console', primary: true }
   },
   {
     title: '③ 触发学习',
-    desc: '采集完成后在设备详情的采集编排区块触发学习（将邑云端异步训练）。',
+    desc: '审核通过后在学习库「触发学习」（将邑云端异步训练，无需柜机在线）。',
     points: [
-      '学习范围 = 将邑侧已采集的全部商品（集合粒度）',
+      '学习范围 = 将邑侧已采集的全部商品（集合粒度，一次学习全部进模型）',
       '学习完成回执经 finishNotify 自动回填，已做防伪造校验'
     ],
-    status: 'process'
+    status: 'process',
+    action: { label: '去学习库', path: '/learning-library?dialog=training' }
   },
   {
     title: '④ 回填 textName',

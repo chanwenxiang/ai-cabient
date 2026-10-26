@@ -110,9 +110,13 @@ public class DeviceSlotService {
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
                 .toList();
         DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
-        Map<String, Integer> sellableBySku = inventoryLotService.deviceUsesLotLedger(deviceId)
-                ? inventoryLotService.sellableQtyBySku(deviceId)
-                : null;
+        // 「该柜启用批次账本」和「本 SKU 进过批次账本」是两个粒度。只判前者，会把柜里
+        // 从未建账的 SKU 一律读成 0——账面明明有货却恒显示缺货，且「编辑库存」保存后数字不动
+        // （2026-10-26 雪碧实测：device_sku_inventory=2、device_sku_lot 零行、流水零条）。
+        Set<String> lotLedgerSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+        Map<String, Integer> sellableBySku = lotLedgerSkus.isEmpty()
+                ? null
+                : inventoryLotService.sellableQtyBySku(deviceId);
         // 商品管理下架（sku_catalog.status≠ACTIVE）只改商品档案，不级联清柜×商品台账行；
         // 设备详情「已上架商品」若不过滤会把已下架 SKU 仍显示为在架（2026-10-22 用户反馈）。
         // 口径与消费者目录一致（DeviceCatalogService 只认 ACTIVE）。
@@ -129,7 +133,7 @@ public class DeviceSlotService {
                         .collect(Collectors.toSet());
         List<DeviceInventoryDto> skuInventory = inventoryRows.stream()
                 .filter(inv -> activeSkuIds.contains(inv.getSkuId()))
-                .map(inv -> toInventoryDto(inv, sellableBySku))
+                .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus))
                 .toList();
         // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
@@ -1463,12 +1467,15 @@ public class DeviceSlotService {
         return "OK";
     }
 
-    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku) {
+    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku,
+                                              Set<String> lotLedgerSkus) {
         String deviceId = inv.getId().getDeviceId();
         String skuId = inv.getId().getSkuId();
         int qty = inv.getQuantity();
         if (sellableBySku != null) {
-            qty = sellableBySku.getOrDefault(skuId, 0);
+            // 已建账的 SKU 才以账本为准（含卖光/过期=0）；未建账的回落账面，
+            // 否则分叉行永远显示 0，而保存路径比的却是账面值——数字看着「改了没反应」。
+            qty = lotLedgerSkus.contains(skuId) ? sellableBySku.getOrDefault(skuId, 0) : inv.getQuantity();
         } else if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
             qty = inventoryLotService.sellableQuantity(deviceId, skuId);
         }

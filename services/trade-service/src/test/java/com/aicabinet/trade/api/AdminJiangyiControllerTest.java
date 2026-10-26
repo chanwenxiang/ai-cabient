@@ -11,6 +11,8 @@ import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,11 +53,14 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiMappingReviewService mappingReviewService;
     @Mock private com.aicabinet.trade.service.JiangyiLearningLibraryService learningLibraryService;
     @Mock private com.aicabinet.trade.service.JiangyiShelfService shelfService;
+    @Mock private com.aicabinet.trade.service.JiangyiGatherConsoleService gatherConsoleService;
+    @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
-                mappingReviewService, learningLibraryService, shelfService);
+                mappingReviewService, learningLibraryService, shelfService,
+                gatherConsoleService, flowSummaryService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -283,8 +289,70 @@ class AdminJiangyiControllerTest {
     @Test
     void gatherCheckPassesSkuIdThrough() {
         when(gatherService.checkList("SKU-WATER-001")).thenReturn(List.of());
-        controller().gatherCheck("SKU-WATER-001");
+        controller().gatherCheck("SKU-WATER-001", null);
         verify(gatherService).checkList("SKU-WATER-001");
+    }
+
+    @Test
+    void gatherCheckProductIdBypassesLinkLookup() {
+        when(gatherService.checkByProductId(41175L)).thenReturn(List.of());
+
+        controller().gatherCheck("SKU-WATER-001", 41175L);
+
+        verify(gatherService).checkByProductId(41175L);
+        verify(gatherService, never()).checkList(any());
+    }
+
+    @Test
+    void trainingProductsPassesVendorPayloadThrough() throws Exception {
+        JsonNode payload = new ObjectMapper()
+                .readTree("[{\"name\":\"康师傅冰红茶柠檬口味茶饮品\",\"status\":\"wait\"}]");
+        when(gatherService.studyingProducts()).thenReturn(payload);
+
+        assertEquals(payload, controller().trainingProducts().data());
+    }
+
+    @Test
+    void consoleStartDelegatesWithEntry() {
+        com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest entry =
+                new com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest(
+                        null, 41175L, "康师傅冰红茶", "康师傅", "310ml", "bottle", "manual");
+        when(gatherConsoleService.start(eq("EG1"), eq(entry), eq(45))).thenReturn(null);
+
+        controller().consoleStart(new AdminJiangyiController.GatherConsoleStartRequest(
+                " EG1 ", 41175L, "康师傅冰红茶", "康师傅", "310ml", "bottle", "manual", 45));
+
+        verify(gatherConsoleService).start(eq("EG1"), eq(entry), eq(45));
+    }
+
+    @Test
+    void consoleStateMayBeNullWhenNoSession() {
+        when(gatherConsoleService.state("EG1")).thenReturn(null);
+        assertNull(controller().consoleState("EG1").data());
+    }
+
+    @Test
+    void consoleRescueActionsTrimDeviceId() {
+        controller().consoleResumeUpload(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
+        controller().consoleForgoUpload(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
+        controller().consoleClearBatch(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
+        controller().consoleAbort(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
+
+        verify(gatherConsoleService).resumeUpload("EG1");
+        verify(gatherConsoleService).forgoUpload("EG1");
+        verify(gatherConsoleService).clearBatch("EG1");
+        verify(gatherConsoleService).abort("EG1");
+    }
+
+    @Test
+    void flowSummaryDelegates() {
+        when(flowSummaryService.view()).thenReturn(new com.aicabinet.trade.service.JiangyiFlowSummaryService.FlowSummaryView(
+                1, 2, 1, 3, 0, 1, 0, 1, 1, null));
+
+        var view = controller().flowSummary().data();
+
+        assertEquals(1, view.linkedSkus());
+        assertEquals(1, view.auditWait());
     }
 
     // ---------- 跨柜一键上架（学习库 → 多柜） ----------

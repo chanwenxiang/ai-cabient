@@ -477,8 +477,15 @@ public class AdminDashboardService {
         // G5 §7.24 发现修复：quantity 不再直改列——差额走批次账本流水（增=入库/减=FEFO 报损），
         // 汇总由 syncAggregateInventory 从账本回写。任务书 29「禁直接 UPDATE 库存列」此前只有
         // 盘点路径守住，本端点直改会造成 device_sku_inventory 与 device_sku_lot 分叉（实测 99 vs 3）。
+        //
+        // 但差额的分母必须是**账本现值**，不是账面现值：该柜已启用批次账本、本 SKU 却一条没建时
+        // （历史遗留分叉行），账面那截永远进不了账本——填 4 只建 2 件批次，回显仍是 2，
+        // 用户看到的就是「编辑库存保存了没反应」（2026-10-26 雪碧实测：账面 2、账本空、流水零条）。
+        Set<String> lotLedgerSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+        boolean unledgedSku = !lotLedgerSkus.isEmpty() && !lotLedgerSkus.contains(body.skuId());
+        int ledgerCurrent = inv == null || unledgedSku ? 0 : inv.getQuantity();
         if (inv != null && body.quantity() != null && body.quantity() != inv.getQuantity()) {
-            int delta = body.quantity() - inv.getQuantity();
+            int delta = body.quantity() - ledgerCurrent;
             String refId = "ADMIN-INV-ADJ-" + deviceId + "-" + System.currentTimeMillis();
             // 效期取 SKU 档案保质期（admin 调整无实贴信息，按「今天入库+整保质期」推算）；
             // validateRestockExpiry 要求必填且未过期——有效期给足即过
@@ -492,8 +499,12 @@ public class AdminDashboardService {
                                 "B-ADMIN-" + adminExpiry, adminExpiry.minusDays(shelf), adminExpiry,
                                 delta, null,
                                 new InventoryLotService.LotMovementRef("ADMIN_ADJUST", refId, operatorId)));
-            } else {
+            } else if (delta < 0) {
                 inventoryLotService.pullOff(deviceId, body.skuId(), null, -delta, operatorId, refId);
+            } else {
+                // delta==0 只可能来自未建账 SKU 且请求量为 0（未建账时账本现值恒 0、请求量已禁负）：
+                // 空账本无批次可 FEFO 扣，按「汇总=Σ账本」不变式把账面残值回落到 0。
+                inventoryLotService.syncAggregateInventory(deviceId, body.skuId());
             }
             // 账本已回写汇总；重读拿流水后的真实值，capacity/阈值仍按请求落
             inv = inventoryRepository.selectOne(

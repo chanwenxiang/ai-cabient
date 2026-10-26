@@ -171,6 +171,19 @@
               <text v-if="!specRedundant(p.skuName, p.spec)" class="product-spec">{{
                 p.spec
               }}</text>
+              <!--
+                微信支付分品牌标签（CB-067 /《微信支付分合作品牌线上应用规范》P14）：
+                商品展示页的标签用于「强调权益感知、驱动开通决策」。
+                🔴 只在**该渠道免密已就绪**时展示——标签承诺的是「先取后付」权益，
+                未就绪时挂标签等于虚假承诺（用户开通失败即投诉，CB-012 同行投诉形态）。
+                素材为官方 PDF 切图，logo 不可重绘/改色/拉伸。
+              -->
+              <pay-score-tag
+                v-if="showPayScoreTag"
+                class="product-score-tag"
+                variant="label"
+                biz="先取后付"
+              />
               <!-- 2026-10-22 用户拍板：金额放加号旁；浏览态无步进器时价格居中（真机反馈） -->
               <view
                 class="product-footer"
@@ -274,6 +287,8 @@
       :items="shoppingCartLines"
       :mock-mode="mockEnabled"
       :closing-door="closingDoor"
+      :pay-score-ready="!!prepAccount?.payscoreEnabled"
+      :pay-channel-text="cartPayChannelText"
       @close="cartSheetVisible = false"
       @settle="onCartSheetSettle"
     />
@@ -930,6 +945,39 @@ const cartBarAction = computed(() => {
 function payReady(acc: AccountDto) {
   return isPayReady(acc, entryChannel.value, devicePreauthCents.value || undefined);
 }
+
+/**
+ * 商品展示页是否挂微信支付分标签（CB-067 规范 P14：标签用于驱动开通决策）。
+ *
+ * 🔴 判据：**该渠道免密已就绪**才展示。
+ * - 微信入口 → `payscoreEnabled`（微信支付分已开通）
+ * - 支付宝入口 → `alipayAgreementEnabled`（支付宝先享后付已开通）
+ * - 渠道未知 → 任意渠道就绪即展示（用户可能从任一端进来）
+ *
+ * 未就绪时挂标签 = 虚假承诺「先取后付」⇒ 用户开通失败即投诉（CB-012 记录的同行投诉形态）。
+ * 🔴 标签只挂**微信支付分**品牌标识——支付宝侧是「芝麻先享/信用代扣」，品牌体系不同，
+ * 不得套用微信支付分 logo（评审会判「支付渠道标识错用」）。
+ */
+const showPayScoreTag = computed(() => {
+  const acc = prepAccount.value;
+  if (!acc) return false;
+  const channel = entryChannel.value;
+  if (channel === 'WECHAT') return !!acc.payscoreEnabled;
+  if (channel === 'ALIPAY') return false;
+  return !!acc.payscoreEnabled;
+});
+
+/**
+ * 购物车抽屉里的支付方式文案（CB-067 规范 P11：订单提交页须含「支付方式」）。
+ * 微信支付分已开通时由 `pay-score-tag` 渲染品牌标识，此处只兜底非支付分渠道。
+ */
+const cartPayChannelText = computed(() => {
+  const acc = prepAccount.value;
+  if (!acc) return '账户余额';
+  if (acc.payscoreEnabled) return '微信支付分';
+  if (acc.alipayAgreementEnabled) return '支付宝先享后付';
+  return '账户余额';
+});
 
 onLoad(async (opts) => {
   // 断网监听：落地页提示 + 开门拦截都依赖 netOffline（onUnload 摘除）
@@ -2620,6 +2668,17 @@ function stopDevicePoll() {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/*
+ * 微信支付分品牌标签（CB-067 规范 P14）：
+ * 规范要求标签「颜色、大小、风格与支付分 logo 协调且不影响 logo 自身的识别性」。
+ * ⇒ 标签用**白底 + 浅灰描边胶囊**（与官方样例一致），文字色 #07C160；
+ * 不加投影/渐变（规范 P6：不可加投影、不可做模糊/羽化/渐变处理）。
+ */
+.product-score-tag {
+  margin-top: 4rpx;
+  align-self: center;
 }
 .product-price {
   font-size: var(--font-size-body);

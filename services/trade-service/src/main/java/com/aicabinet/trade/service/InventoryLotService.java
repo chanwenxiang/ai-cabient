@@ -32,7 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class InventoryLotService {
@@ -84,6 +86,22 @@ public class InventoryLotService {
             return false;
         }
         return !lotRepository.findByDeviceId(deviceId.trim()).isEmpty();
+    }
+
+    /**
+     * 该柜**已建批次账**的 SKU 集合（含 DEPLETED/EXPIRED 等零可售批次——只表示进过账本）。
+     *
+     * <p>用来区分「该 SKU 卖光了」和「该 SKU 从来没进过账本」：前者在可售汇总里查不到就是 0，
+     * 后者查不到只是因为汇总按可售状态过滤、行压根不存在。两者都读成 0 会把历史分叉行
+     * （{@code device_sku_inventory} 有值、账本空）永久显示成缺货。
+     */
+    public Set<String> lotLedgerSkuIds(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return Set.of();
+        }
+        return lotRepository.findByDeviceId(deviceId.trim()).stream()
+                .map(DeviceSkuLot::getSkuId)
+                .collect(Collectors.toSet());
     }
 
     public int sellableQuantity(String deviceId, String skuId) {

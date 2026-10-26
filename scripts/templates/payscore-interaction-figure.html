@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>微信支付分 · 开门柜先享后付 · 场景交互图</title>
+    <style>
+      /* ── 画布 ───────────────────────────────────────────── */
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #ffffff;
+        font-family:
+          'PingFang SC',
+          'Microsoft YaHei',
+          -apple-system,
+          sans-serif;
+        color: #0f172a;
+      }
+      .canvas {
+        width: 2160px;
+        padding: 48px 48px 40px;
+      }
+
+      .doc-head {
+        margin-bottom: 40px;
+      }
+      .doc-title {
+        font-size: 34px;
+        font-weight: 500;
+        margin: 0 0 10px;
+      }
+      .doc-sub {
+        font-size: 20px;
+        color: #64748b;
+        margin: 0;
+      }
+
+      .screens {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+      }
+
+      .screen {
+        width: 380px;
+      }
+      .screen-cap {
+        text-align: center;
+        margin-bottom: 14px;
+      }
+      .screen-step {
+        display: inline-block;
+        font-size: 18px;
+        font-weight: 500;
+        color: #0f172a;
+      }
+      .screen-step-no {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #07c160;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 500;
+        margin-right: 8px;
+        vertical-align: 2px;
+      }
+      .screen-name {
+        font-size: 16px;
+        color: #64748b;
+        margin-top: 4px;
+      }
+
+      .phone {
+        width: 380px;
+        height: 780px;
+        border-radius: 32px;
+        background: #f5f7fa;
+        border: 1px solid #dfe4ea;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+      }
+      .phone-bar {
+        height: 56px;
+        background: #0d9488;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+      .phone-body {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+      }
+      .phone-foot {
+        flex-shrink: 0;
+      }
+
+      .arrow-col {
+        width: 26px;
+        padding-top: 430px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .arrow-col svg {
+        display: block;
+      }
+
+      /* ── ① 商品展示页 ─────────────────────────────────── */
+      .catalog {
+        padding: 16px;
+      }
+      .search {
+        height: 44px;
+        background: #fff;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        color: #94a3b8;
+        font-size: 15px;
+        margin-bottom: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .pcard {
+        background: #fff;
+        border-radius: 14px;
+        padding: 12px;
+      }
+      /* 🔴 规范 P14 商品展示页标签：官方样例把标签放在**商品信息下方**、横跨整行，
+     而非塞进商品卡内（卡片宽度不足会把标签压到相邻商品上）。 */
+      .pcard--tagged {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 72px 1fr;
+        grid-template-areas: 'thumb main' 'tag tag';
+        gap: 10px 12px;
+        align-items: center;
+      }
+      .pcard--tagged .pthumb {
+        grid-area: thumb;
+        width: 72px;
+        height: 72px;
+        margin-bottom: 0;
+      }
+      .pcard--tagged .pcard-main {
+        grid-area: main;
+        min-width: 0;
+      }
+      .pcard--tagged .pfoot {
+        margin-top: 6px;
+      }
+      .pcard--tagged .ptag-wrap {
+        grid-area: tag;
+        justify-content: flex-start;
+        margin-top: 2px;
+      }
+      .pthumb {
+        height: 96px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
+      .t1 {
+        background: #e0f2fe;
+      }
+      .t2 {
+        background: #fef3c7;
+      }
+      .t3 {
+        background: #dcfce7;
+      }
+      .t4 {
+        background: #fce7f3;
+      }
+      .pname {
+        font-size: 15px;
+        font-weight: 500;
+        line-height: 1.35;
+      }
+      .pspec {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
+      }
+      .pfoot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+      }
+      .pprice {
+        font-size: 17px;
+        font-weight: 500;
+        color: #0d9488;
+      }
+
+      /*
+   * 微信支付分品牌标签（CB-067 规范 P14）：
+   * 白色胶囊 + 浅灰描边，文字色 #07C160，logo 用官方 PDF 切图。
+   * 规范 P6：文字/比例/颜色不可改、不可加投影/渐变/拉伸。
+   */
+      .ps-tag {
+        display: inline-flex;
+        align-items: center;
+        height: 30px;
+        padding: 0 8px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 15px;
+        background: #fff;
+        /* 🔴 规范 P4：组合整体高度 ≥30px、文字不可改行 ⇒ 标签整体不可被父容器压缩换行 */
+        flex-shrink: 0;
+        white-space: nowrap;
+        width: max-content;
+      }
+      .ps-tag__logo {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+      }
+      .ps-tag__brand {
+        margin-left: 5.5px;
+        font-size: 22px;
+        line-height: 30px;
+        font-weight: 400;
+        color: #07c160;
+        white-space: nowrap;
+      }
+      .ps-tag__sep {
+        width: 5.5px;
+        height: 22px;
+        margin: 0 5.5px;
+        background: rgba(7, 193, 96, 0.6);
+        flex-shrink: 0;
+      }
+      .ps-tag__biz {
+        font-size: 22px;
+        line-height: 30px;
+        font-weight: 500;
+        color: #07c160;
+        white-space: nowrap;
+      }
+      .ps-tag--slogan {
+        border: 0;
+        border-radius: 0;
+        height: 30px;
+        padding: 0;
+      }
+      .ps-tag--slogan .ps-tag__brand,
+      .ps-tag--slogan .ps-tag__biz {
+        color: #666;
+      }
+      .ps-tag--slogan .ps-tag__sep {
+        background: rgba(102, 102, 102, 0.6);
+      }
+
+      .ptag-wrap {
+        display: flex;
+        justify-content: center;
+        margin-top: 10px;
+      }
+      /* 商品卡宽度有限 ⇒ 标签按规范字号可能超出卡片宽度，官方样例即允许标签溢出卡片（见 P14 标签示意），
+     但为可读性这里让标签在卡片内完整显示（字号仍是规范的 22px）。 */
+      .pcard .ps-tag {
+        transform-origin: center;
+      }
+
+      /* ── ② 订单提交页（购物车明细抽屉）─────────────────── */
+      .sheet-mask {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+      }
+      .sheet-panel {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #fff;
+        border-radius: 20px 20px 0 0;
+        padding: 12px 18px 20px;
+      }
+      .sheet-handle {
+        width: 44px;
+        height: 5px;
+        border-radius: 3px;
+        background: #d8dee6;
+        margin: 0 auto 14px;
+      }
+      .sheet-title {
+        font-size: 18px;
+        font-weight: 500;
+      }
+      .sheet-sub {
+        font-size: 13px;
+        color: #64748b;
+        margin-top: 4px;
+        margin-bottom: 14px;
+      }
+      .srow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .sthumb {
+        width: 44px;
+        height: 44px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+      }
+      .sname {
+        font-size: 15px;
+      }
+      .smeta {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
+      }
+      .samt {
+        margin-left: auto;
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .ssum {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 14px 0 8px;
+      }
+      .ssum-label {
+        font-size: 15px;
+      }
+      .ssum-amt {
+        font-size: 19px;
+        font-weight: 500;
+        color: #0d9488;
+      }
+      .spay-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 0;
+        border-top: 1px solid #eef2f6;
+      }
+      .spay-label {
+        font-size: 14px;
+        color: #64748b;
+      }
+      .spay-text {
+        font-size: 14px;
+      }
+      .spay-val {
+        display: flex;
+        justify-content: flex-end;
+        flex-shrink: 0;
+      }
+      .btn-primary {
+        height: 48px;
+        background: #07c160;
+        color: #fff;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        font-weight: 500;
+        margin-top: 14px;
+      }
+      .btn-ghost {
+        height: 44px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        margin-top: 10px;
+        color: #475569;
+      }
+
+      /* ── ③ 支付分开通成功 ─────────────────────────────── */
+      .done-wrap {
+        position: absolute;
+        inset: 0;
+        background: #f5f7fa;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 90px 24px 0;
+      }
+      .done-icon {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: #07c160;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+      .done-title {
+        font-size: 24px;
+        font-weight: 500;
+      }
+      .done-desc {
+        font-size: 15px;
+        color: #64748b;
+        margin-top: 8px;
+      }
+      /* 标语独立成块 + 上下留足间距（规范 P6：不得在标语周围添加任何文本） */
+      .done-slogan {
+        margin: 30px 0;
+      }
+
+      /* ── ④ ⑤ 订单页 ──────────────────────────────────── */
+      .od-body {
+        padding: 16px;
+      }
+      .od-card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .od-sec-title {
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 12px;
+      }
+      .od-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 0;
+        border-top: 1px solid #f1f5f9;
+      }
+      .od-row:first-of-type {
+        border-top: 0;
+      }
+      .od-label {
+        font-size: 14px;
+        color: #64748b;
+      }
+      .od-value {
+        font-size: 14px;
+      }
+      .od-goods {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+      }
+      .od-thumb {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      .od-gname {
+        font-size: 14px;
+      }
+      .od-gmeta {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 2px;
+      }
+      .od-gamt {
+        margin-left: auto;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .od-success {
+        color: #07c160;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+      .od-total {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 12px 0 4px;
+      }
+      .od-total-amt {
+        font-size: 20px;
+        font-weight: 500;
+        color: #0d9488;
+      }
+
+      /* ── 微信授权页占位（微信侧提供）──────────────────── */
+      .wx-auth {
+        position: absolute;
+        inset: 0;
+        background: #f5f7fa;
+        padding: 90px 24px 0;
+      }
+      .wx-auth-note {
+        border: 1px dashed #94a3b8;
+        border-radius: 12px;
+        background: #fff;
+        padding: 18px 16px;
+        margin-bottom: 16px;
+      }
+      .wx-auth-title {
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+      .wx-auth-text {
+        font-size: 13px;
+        color: #64748b;
+        line-height: 1.7;
+      }
+      .wx-page {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px 16px;
+        margin-top: 12px;
+      }
+      .wx-page-title {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 10px;
+      }
+      .wx-page-line {
+        font-size: 13px;
+        color: #475569;
+        line-height: 1.9;
+      }
+      .wx-agree {
+        margin-top: 18px;
+        height: 46px;
+        background: #07c160;
+        color: #fff;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+      }
+
+      /* ── 页脚 ───────────────────────────────────────────── */
+      .doc-foot {
+        margin-top: 44px;
+        padding-top: 20px;
+        border-top: 1px solid #e5e9ef;
+        display: flex;
+        justify-content: space-between;
+        font-size: 16px;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <div class="doc-head">
+        <p class="doc-title">微信支付分 · 无人零售（智能开门柜）先享后付 · 场景交互图</p>
+        <p class="doc-sub">
+          深圳前海易购科创智能设备有限公司 ｜ 微信支付商户号 1700080722 ｜ 场景：扫码开门 → 开门取货
+          → 关门自动扣款
+        </p>
+      </div>
+
+      <div class="screens">
+        <!-- ① 商品展示页 -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">1</span>商品展示页</span>
+            <div class="screen-name">支付分标签 · 权益感知</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">开门购物</div>
+            <div class="phone-body">
+              <div class="catalog">
+                <div class="search">搜索本柜商品</div>
+                <div class="grid">
+                  <div class="pcard pcard--tagged">
+                    <div class="pthumb t1">水</div>
+                    <div class="pcard-main">
+                      <div class="pname">农夫山泉 550ml</div>
+                      <div class="pspec">饮用水</div>
+                      <div class="pfoot"><span class="pprice">¥2.00</span></div>
+                    </div>
+                    <div class="ptag-wrap">
+                      <span class="ps-tag">
+                        <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                        <span class="ps-tag__brand">微信支付分</span>
+                        <span class="ps-tag__sep"></span>
+                        <span class="ps-tag__biz">先取后付</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="pcard">
+                    <div class="pthumb t2">食</div>
+                    <div class="pname">三明治 火腿芝士</div>
+                    <div class="pspec">冷藏</div>
+                    <div class="pfoot"><span class="pprice">¥8.50</span></div>
+                  </div>
+                  <div class="pcard">
+                    <div class="pthumb t3">饮</div>
+                    <div class="pname">东方树叶 乌龙茶</div>
+                    <div class="pspec">500ml</div>
+                    <div class="pfoot"><span class="pprice">¥5.00</span></div>
+                  </div>
+                  <div class="pcard">
+                    <div class="pthumb t4">果</div>
+                    <div class="pname">香蕉</div>
+                    <div class="pspec">散装</div>
+                    <div class="pfoot"><span class="pprice">¥3.80</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- ② 订单提交页 -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">2</span>订单提交页</span>
+            <div class="screen-name">商品信息 · 计费规则 · 支付方式</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">本次取货</div>
+            <div class="phone-body">
+              <div class="catalog" style="padding-top: 12px">
+                <div class="search">搜索本柜商品</div>
+                <div class="grid">
+                  <div class="pcard">
+                    <div class="pthumb t1">水</div>
+                    <div class="pname">农夫山泉 550ml</div>
+                    <div class="pspec">饮用水</div>
+                    <div class="pfoot"><span class="pprice">¥2.00</span></div>
+                  </div>
+                  <div class="pcard">
+                    <div class="pthumb t2">食</div>
+                    <div class="pname">三明治 火腿芝士</div>
+                    <div class="pspec">冷藏</div>
+                    <div class="pfoot"><span class="pprice">¥8.50</span></div>
+                  </div>
+                  <div class="pcard">
+                    <div class="pthumb t3">饮</div>
+                    <div class="pname">东方树叶 乌龙茶</div>
+                    <div class="pspec">500ml</div>
+                    <div class="pfoot"><span class="pprice">¥5.00</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sheet-mask"></div>
+              <div class="sheet-panel">
+                <div class="sheet-handle"></div>
+                <div class="sheet-title">本次取货</div>
+                <div class="sheet-sub">点选数量加入清单，关门后按此结算</div>
+                <div class="srow">
+                  <div class="sthumb t1">水</div>
+                  <div>
+                    <div class="sname">农夫山泉 550ml</div>
+                    <div class="smeta">¥2.00 × 1</div>
+                  </div>
+                  <div class="samt">¥2.00</div>
+                </div>
+                <div class="srow">
+                  <div class="sthumb t3">饮</div>
+                  <div>
+                    <div class="sname">东方树叶 乌龙茶</div>
+                    <div class="smeta">¥5.00 × 1</div>
+                  </div>
+                  <div class="samt">¥5.00</div>
+                </div>
+                <div class="ssum">
+                  <span class="ssum-label">合计 2 件</span><span class="ssum-amt">¥7.00</span>
+                </div>
+                <div class="spay-row">
+                  <span class="spay-label">支付方式</span>
+                  <span class="spay-val">
+                    <span class="ps-tag">
+                      <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                      <span class="ps-tag__brand">微信支付分</span>
+                      <span class="ps-tag__sep"></span>
+                      <span class="ps-tag__biz">先取后付</span>
+                    </span>
+                  </span>
+                </div>
+                <div class="spay-row">
+                  <span class="spay-label">计费规则</span>
+                  <span class="spay-text">按实际取走商品金额计费，关门后自动扣款</span>
+                </div>
+                <div class="btn-primary">确认开通并开门</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- 微信授权页（占位） -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">3</span>支付分授权页</span>
+            <div class="screen-name">微信侧提供（本图为跳转目标）</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">微信支付分</div>
+            <div class="phone-body">
+              <div class="wx-auth">
+                <div class="wx-auth-note">
+                  <div class="wx-auth-title">占位说明</div>
+                  <div class="wx-auth-text">
+                    此页为<b>微信支付分官方授权页</b>，由微信在小程序内拉起（wx.openBusinessView /
+                    businessType=wxpayScoreEnable），页面与交互由微信提供，本图仅标注其为流程中的一跳。
+                  </div>
+                </div>
+                <div class="wx-page">
+                  <div class="wx-page-title">开通服务</div>
+                  <div class="wx-page-line">服务内容：智能开门柜先享后付</div>
+                  <div class="wx-page-line">扣款规则：按实际取货商品金额计费</div>
+                  <div class="wx-page-line">开通后：扫码即开门，关门自动扣款</div>
+                  <div class="wx-agree">同意并开通</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- ③ 开通成功 -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">4</span>支付分开通成功</span>
+            <div class="screen-name">弹窗 · 品牌标语</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">开通支付</div>
+            <div class="phone-body">
+              <div class="done-wrap">
+                <div class="done-icon">
+                  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <path
+                      d="M9 18.5L15.5 25L27 11"
+                      stroke="#fff"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div class="done-title">可以开门购物了</div>
+                <div class="done-desc">扫柜门二维码即可开门取货</div>
+                <div class="done-slogan">
+                  <span class="ps-tag ps-tag--slogan">
+                    <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                    <span class="ps-tag__brand">微信支付分</span>
+                    <span class="ps-tag__sep"></span>
+                    <span class="ps-tag__biz">先取后付</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- ④ 扣款成功 -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">5</span>扣款成功</span>
+            <div class="screen-name">逐件明细 · 申诉入口</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">订单详情</div>
+            <div class="phone-body">
+              <div class="od-body">
+                <div class="od-card">
+                  <div class="od-sec-title">商品明细</div>
+                  <div class="od-goods">
+                    <div class="od-thumb t1">水</div>
+                    <div>
+                      <div class="od-gname">农夫山泉 550ml</div>
+                      <div class="od-gmeta">× 1</div>
+                    </div>
+                    <div class="od-gamt">¥2.00</div>
+                  </div>
+                  <div class="od-goods">
+                    <div class="od-thumb t3">饮</div>
+                    <div>
+                      <div class="od-gname">东方树叶 乌龙茶</div>
+                      <div class="od-gmeta">× 1</div>
+                    </div>
+                    <div class="od-gamt">¥5.00</div>
+                  </div>
+                  <div class="od-total">
+                    <span class="od-label">合计 2 件</span><span class="od-total-amt">¥7.00</span>
+                  </div>
+                </div>
+                <div class="od-card">
+                  <div class="od-sec-title">支付信息</div>
+                  <div class="od-row">
+                    <span class="od-label">支付方式</span><span class="od-value">微信支付分</span>
+                  </div>
+                  <div class="od-row">
+                    <span class="od-label">免密方式</span>
+                    <span class="spay-val">
+                      <span class="ps-tag">
+                        <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                        <span class="ps-tag__brand">微信支付分</span>
+                        <span class="ps-tag__sep"></span>
+                        <span class="ps-tag__biz">先取后付</span>
+                      </span>
+                    </span>
+                  </div>
+                  <div class="od-row">
+                    <span class="od-label">扣款时间</span
+                    ><span class="od-value">2026-10-26 15:20</span>
+                  </div>
+                  <div class="od-success">关门自动扣款成功，如有疑问可立即退款或提交申诉</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
+        <!-- ⑤ 订单完成页 -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">6</span>订单完成页</span>
+            <div class="screen-name">收口 · 引导复购</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">订单详情</div>
+            <div class="phone-body">
+              <div class="od-body">
+                <div class="od-card">
+                  <div class="od-sec-title">购物完成</div>
+                  <div class="od-success" style="margin-top: 0; color: #0f172a; font-size: 14px">
+                    关门自动结算完成，下次扫码直接开门
+                  </div>
+                  <div class="od-total">
+                    <span class="od-label">本期合计</span><span class="od-total-amt">¥7.00</span>
+                  </div>
+                </div>
+                <div class="od-card">
+                  <div class="od-sec-title">支付信息</div>
+                  <div class="od-row">
+                    <span class="od-label">支付方式</span><span class="od-value">微信支付分</span>
+                  </div>
+                  <div class="od-row">
+                    <span class="od-label">免密方式</span>
+                    <span class="spay-val">
+                      <span class="ps-tag">
+                        <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                        <span class="ps-tag__brand">微信支付分</span>
+                        <span class="ps-tag__sep"></span>
+                        <span class="ps-tag__biz">先取后付</span>
+                      </span>
+                    </span>
+                  </div>
+                  <div class="btn-ghost">查看订单详情</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="doc-foot">
+        <span>深圳前海易购科创智能设备有限公司 ｜ 微信支付商户号 1700080722</span>
+        <span>场景：无人零售（智能开门柜）先享后付 ｜ 2026-10-26</span>
+      </div>
+    </div>
+  </body>
+</html>

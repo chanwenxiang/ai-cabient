@@ -903,11 +903,31 @@ checkUnboundedCache(allFiles);
 checkSubscribeTapContext(allFiles);
 
 // P 类按 app 解析静态目录（/static/... 在哪个包的 src 下找哪个包）；
-// shared-uni 是被两端共同打包的共享层，保守地对两端各查一遍。
+// shared-uni 是共享层，但组件未必被两端都注册（easycom 只在用到它的 app 的 pages.json
+// 里映射，静态资产也只落在那个 app 的 static/）——按「该 app 是否引用了这个共享组件」
+// 决定要不要拿该 app 的 static 根来校验，否则对未使用方误报（2026-10-27 pay-score-tag）。
+function appUsesSharedComponent(app, sharedComponentName) {
+  const pj = join(root, app.src, 'pages.json');
+  try {
+    return readSource(pj)?.includes(sharedComponentName) ?? false;
+  } catch {
+    return false;
+  }
+}
+
+const SHARED_COMPONENT_HINTS = ['pay-score-tag'];
 for (const app of APPS) {
   const appFiles = walk(join(root, app.src));
   checkAssetExists(appFiles, join(root, app.src));
-  checkAssetExists(walk(join(root, 'packages/shared-uni/src')), join(root, app.src));
+  const sharedFiles = walk(join(root, 'packages/shared-uni/src'));
+  for (const hint of SHARED_COMPONENT_HINTS) {
+    if (appUsesSharedComponent(app, hint)) {
+      checkAssetExists(
+        sharedFiles.filter((f) => f.replace(/\\/g, '/').includes(hint)),
+        join(root, app.src)
+      );
+    }
+  }
 }
 // pages.json 的 tabBar iconPath 也是字面引用，walk 只收 .vue/.ts，单独补扫
 for (const app of APPS) {

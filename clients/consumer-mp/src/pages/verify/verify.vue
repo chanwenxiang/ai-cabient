@@ -26,8 +26,8 @@
       <view v-if="!payReady" class="card">
         <text class="card-title">开通免密支付</text>
         <text class="card-desc"
-          >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。开通后扫码即开门，
-          关门自动扣款。</text
+          >开通后扫码即开门，关门后自动按实际取货金额扣款。微信支付分需通过微信侧评估后方可使用；
+          支付宝先享后付需芝麻信用分达标；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
         >
         <view class="status-row">
           <text class="status-label">登录手机号</text>
@@ -71,7 +71,7 @@
             @click="onSignPayScore"
           />
           <text v-if="pendingChannel === 'WECHAT'" class="sign-pulse-hint"
-            >↑ 点这里开通微信免密</text
+            >↑ 点这里开通微信支付分</text
           >
         </view>
         <view class="btn-slot" :class="{ 'sign-pulse': pendingChannel === 'ALIPAY' }">
@@ -98,6 +98,15 @@
         <text class="done-icon">✓</text>
         <text class="done-title">可以开门购物了</text>
         <text class="done-desc">扫柜门二维码即可开门取货</text>
+        <!--
+          微信支付分品牌标语（CB-067 规范 P11「支付分开通成功=弹窗」/ P4 品牌标语视觉规范）：
+          🔴 规范要求「**不得在标语周围添加任何文本**」⇒ 标语**独立成块**、与上下文案保持明显间距，
+          不得拼成一句文案；文字/比例/颜色不可改，logo 用官方 PDF 切图（不可重绘）。
+          支付宝入口不展示本标语（品牌体系不同）。
+        -->
+        <view v-if="showPayScoreSlogan" class="done-score-slogan">
+          <pay-score-tag variant="slogan" biz="先取后付" />
+        </view>
         <view class="done-meta">
           <text>优先支付：{{ preferredPayText }}</text>
           <text>可用余额 {{ balanceYuan }}</text>
@@ -146,6 +155,12 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
+
+/**
+ * 是否展示微信支付分品牌标语（CB-067 规范 P11「支付分开通成功=弹窗」）。
+ * 🔴 仅微信支付分已开通时展示——支付宝侧品牌体系不同（芝麻先享/信用代扣），不得混用。
+ */
+const showPayScoreSlogan = computed(() => wechatReady.value);
 const preferredPayText = computed(() => {
   const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
   if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
@@ -220,7 +235,13 @@ async function onSignPayScore() {
       };
       wxApi.wx?.openBusinessView({
         businessType: 'wxpayScoreEnable',
-        queryString: `apply_permissions_token=${res.signFormHtml}`,
+        // 🔴 小程序端用 extraData 传 apply_permissions_token（官方《JSAPI 调起支付分授权页》
+        // 的 queryString 是**公众号 H5**（wx.invoke）形态；小程序端 wx.openBusinessView 的
+        // 参数表只有 businessType + extraData）。写成 queryString ⇒ 真机报「非法的参数」。
+        // 官方：https://pay.weixin.qq.com/doc/v3/partner/4012677915
+        extraData: {
+          apply_permissions_token: res.signFormHtml
+        },
         success: () => {
           showSuccess('已发起授权，确认后自动生效');
         },
@@ -499,6 +520,16 @@ function goShop() {
 .done-card {
   text-align: center;
   padding: 48rpx 32rpx;
+}
+/*
+ * 微信支付分品牌标语容器（CB-067 规范 P6）：
+ * 「不得在标语周围添加任何文本」⇒ 标语独立成块并留足间距（上下各 24rpx），
+ * 不得与标题/描述贴在一起被读成一句话。
+ */
+.done-score-slogan {
+  margin: 24rpx 0;
+  display: flex;
+  justify-content: center;
 }
 .done-icon {
   font-size: 88rpx;

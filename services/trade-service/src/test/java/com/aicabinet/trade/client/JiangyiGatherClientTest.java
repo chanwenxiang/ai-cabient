@@ -99,4 +99,58 @@ class JiangyiGatherClientTest {
         client.gatherCheck(List.of(100013L));
         assertEquals("{\"productIds\":[100013]}", gatherCheckBody);
     }
+
+    // ---------- 采集编排（4.3.3–4.3.14；参数形态以 2026-10-26 真机自采为锚） ----------
+
+    private static volatile String productInfoBody;
+    private static volatile String confirmStartBody;
+    private static volatile String endAllBody;
+    private static volatile String uploadInfoBody;
+
+    @Test
+    void gatherOrchestrationSendsVerifiedBodies() throws IOException {
+        server.createContext("/merchant/selfhelpGatherProduct/productInfo", exchange -> {
+            productInfoBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":{\"productInfoId\":7955}}");
+        });
+        server.createContext("/merchant/selfhelpGatherProduct/confirmStart", exchange -> {
+            confirmStartBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":1}");
+        });
+        server.createContext("/merchant/selfhelpGatherProduct/gatherError", exchange ->
+                respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":\"no\"}"));
+        server.createContext("/merchant/selfhelpGatherProduct/endAll", exchange -> {
+            endAllBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":null}");
+        });
+        server.createContext("/merchant/selfhelpGatherProduct/uploadInfoNew", exchange -> {
+            uploadInfoBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            respond(exchange, "{\"status\":200,\"msg\":\"\",\"data\":[{\"id\":7955,"
+                    + "\"productInfo\":\"康师傅_康师傅冰红茶柠檬口味茶饮品_310ml\",\"status\":\"success\"}]}");
+        });
+
+        JiangyiGatherClient client = new JiangyiGatherClient(baseUrl, "13800000000", "secret", 21);
+
+        // barCodeSource 空白 → 客户端兜底 manual（2026-10-26 实测可通过）
+        long id = client.gatherProductInfo(new com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest(
+                "CQYB10720", 41175L, "康师傅冰红茶", "康师傅", "310ml", "bottle", " "));
+        assertEquals(7955L, id);
+        assertTrue(productInfoBody.contains("\"identifier\":\"CQYB10720\""), productInfoBody);
+        assertTrue(productInfoBody.contains("\"productId\":41175"), productInfoBody);
+        assertTrue(productInfoBody.contains("\"barCodeSource\":\"manual\""), productInfoBody);
+
+        // 🔴 confirmStart 必带 identifier（只发 id 厂商回「发送确认开始采集指令失败」）
+        client.gatherConfirmStart("CQYB10720", 7955L);
+        assertTrue(confirmStartBody.contains("\"identifier\":\"CQYB10720\""), confirmStartBody);
+        assertTrue(confirmStartBody.contains("\"id\":7955"), confirmStartBody);
+
+        assertEquals("no", client.gatherError(7955L));
+
+        client.gatherEndAll("CQYB10720", "13800000000");
+        assertTrue(endAllBody.contains("\"phoneNum\":\"13800000000\""), endAllBody);
+
+        assertEquals(1, client.uploadInfoNew("CQYB10720").size());
+        assertEquals("success", client.uploadInfoNew("CQYB10720").get(0).path("status").asText());
+        assertEquals("{\"identifier\":\"CQYB10720\"}", uploadInfoBody);
+    }
 }

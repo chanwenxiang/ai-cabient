@@ -127,4 +127,59 @@ class AdminInventoryQtyThroughLotTest {
         assertEquals(7L, cmd.getValue().ref().operatorId());
         assertEquals("ADMIN_ADJUST", cmd.getValue().ref().refType());
     }
+
+    // ── 分叉行：该柜已有批次账本，但本 SKU 一条没建（2026-10-26 雪碧实测） ──────────
+
+    /** 把 addRestock 改造成「空账本建账」语义：账面=Σ账本=本笔全量，而非在账面基础上累加。 */
+    private void stubRestockAsSeedingEmptyLedger() {
+        org.mockito.Mockito.reset(inventoryLotService);
+        lenient().when(inventoryLotService.lotLedgerSkuIds(DEV))
+                .thenReturn(java.util.Set.of("OTHER-SKU"));
+        doAnswer(x -> {
+            InventoryLotService.RestockCommand cmd = x.getArgument(2);
+            inv.setQuantity(cmd.quantity());
+            return null;
+        }).when(inventoryLotService).addRestock(anyString(), anyString(), any());
+    }
+
+    @Test
+    void divergedSkuWithoutLots_restocksFullRequestNotDeltaVsBook() {
+        stubRestockAsSeedingEmptyLedger();
+
+        service.upsertDeviceSkuInventory(1L, DEV,
+                new UpsertDeviceSkuInventoryRequest(SKU, 5, 8, 2));
+
+        // 账面 3 进不了差额口径：整笔 5 建账，否则账本永远少账面那一截、卡片回显不动
+        var cmd = org.mockito.ArgumentCaptor.forClass(InventoryLotService.RestockCommand.class);
+        verify(inventoryLotService).addRestock(eq(DEV), eq(SKU), cmd.capture());
+        assertEquals(5, cmd.getValue().quantity());
+        assertEquals(5, inv.getQuantity());
+    }
+
+    @Test
+    void divergedSkuWithoutLots_requestZeroReconcilesBookToEmptyLedger() {
+        lenient().when(inventoryLotService.lotLedgerSkuIds(DEV))
+                .thenReturn(java.util.Set.of("OTHER-SKU"));
+
+        service.upsertDeviceSkuInventory(1L, DEV,
+                new UpsertDeviceSkuInventoryRequest(SKU, 0, 8, 2));
+
+        // 空账本无批次可 FEFO 扣 ⇒ 既不能 pullOff（会 409）也不能静默留着账面 3
+        verify(inventoryLotService, never()).pullOff(anyString(), anyString(), any(), anyInt(), any(), anyString());
+        verify(inventoryLotService, never()).addRestock(anyString(), anyString(), any());
+        verify(inventoryLotService).syncAggregateInventory(DEV, SKU);
+    }
+
+    @Test
+    void ledgeredSku_stillDeltasAgainstBook() {
+        lenient().when(inventoryLotService.lotLedgerSkuIds(DEV)).thenReturn(java.util.Set.of(SKU));
+
+        service.upsertDeviceSkuInventory(1L, DEV,
+                new UpsertDeviceSkuInventoryRequest(SKU, 5, 8, 2));
+
+        // 已建账 ⇒ 账面=Σ账本（sync 维持不变式），仍按差额 2 补，不得整笔重记
+        var cmd = org.mockito.ArgumentCaptor.forClass(InventoryLotService.RestockCommand.class);
+        verify(inventoryLotService).addRestock(eq(DEV), eq(SKU), cmd.capture());
+        assertEquals(2, cmd.getValue().quantity());
+    }
 }

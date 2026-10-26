@@ -251,9 +251,11 @@ const balanceInsufficient = computed(() => {
 });
 const payDesc = computed(() => {
   const c = entryChannel.value;
-  if (c === 'WECHAT') return '推荐开通微信支付分：关门后自动扣款，无需每次确认。';
-  if (c === 'ALIPAY') return '推荐开通支付宝免密：关门后自动扣款，无需每次确认。';
-  return '请开通对应渠道免密支付；可用余额满足预授权也可临时开门。';
+  // 🔴 微信支付分品牌规范（CB-067 /《微信支付分合作品牌线上应用规范》）：微信侧文案不得出现
+  // 「免确认」「无需每次确认」等表述（易被判定为对授权机制的误导）；统一走「先享后付」系口径。
+  if (c === 'WECHAT') return '推荐开通微信支付分：先享后付，关门后自动按实际取货金额扣款。';
+  if (c === 'ALIPAY') return '推荐开通支付宝先享后付：关门后自动按实际取货金额扣款。';
+  return '请开通对应渠道的先享后付；可用余额满足预授权也可临时开门。';
 });
 const showWechatSign = computed(
   () => payScoreSignEnabled.value && (!entryChannel.value || entryChannel.value === 'WECHAT')
@@ -285,7 +287,38 @@ async function onSignPayScore() {
   busy.value = true;
   err.value = '';
   try {
-    await consumerApi.signPayScore();
+    const res = await consumerApi.signPayScore();
+    if (res.pending && res.signFormHtml) {
+      // 🔴 真实渠道（CB-064/CB-067）：pending=true 表示待用户在微信支付分授权页确认。
+      // 原实现直接刷 account 就结束 ⇒ 真实渠道下**永远不会拉起授权页**，「开通免密支付」按钮是哑的。
+      // 现在按小程序端官方契约拉起授权页（extraData 形态，见 verify.vue 同款实现）。
+      // #ifdef MP-WEIXIN
+      const wxApi = globalThis as unknown as {
+        wx?: { openBusinessView: (options: Record<string, unknown>) => void };
+      };
+      wxApi.wx?.openBusinessView({
+        businessType: 'wxpayScoreEnable',
+        extraData: {
+          apply_permissions_token: res.signFormHtml
+        },
+        success: () => {
+          showSuccess('已发起授权，确认后自动生效');
+        },
+        fail: (e: unknown) => {
+          const msg =
+            e && typeof e === 'object' && 'errMsg' in e
+              ? String((e as { errMsg: unknown }).errMsg)
+              : '';
+          err.value = msg ? `未完成授权：${msg}` : '未完成授权，请稍后重试';
+        }
+      });
+      // #endif
+      // #ifndef MP-WEIXIN
+      err.value = '微信免密需在微信小程序内开通';
+      // #endif
+      account.value = await consumerApi.account();
+      return;
+    }
     account.value = await consumerApi.account();
     showSuccess('支付分已开通');
     if (payReady.value) emit('done', entryChannel.value || 'WECHAT');

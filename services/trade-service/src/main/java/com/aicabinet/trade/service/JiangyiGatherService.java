@@ -14,6 +14,7 @@ import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.JiangyiTrainingTicketMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -363,6 +364,16 @@ public class JiangyiGatherService {
                 .filter(id -> id != null && id > 0)
                 .toList();
         return jiangyiGatherClient.gatherCheck(productIds.isEmpty() ? null : productIds);
+    }
+
+    /** 审核列表（按厂商商品 id 直查，不经我方挂接——已采集回传但还没挂 SKU 的商品只能这样查）。 */
+    public List<GatherCheckItem> checkByProductId(long productId) {
+        return jiangyiGatherClient.gatherCheck(List.of(productId));
+    }
+
+    /** 学习中商品列表（§4.4.5，无参数；原始透传——status pass|reject|wait / name / rejectCause / mainImg）。 */
+    public JsonNode studyingProducts() {
+        return jiangyiGatherClient.trainingProducts();
     }
 
     private JiangyiTrainingTicket newTicket(String deviceId, String skuId, String jiangyiProductId,

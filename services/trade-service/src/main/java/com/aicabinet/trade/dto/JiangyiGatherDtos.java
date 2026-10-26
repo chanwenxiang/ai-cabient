@@ -33,6 +33,13 @@ public final class JiangyiGatherDtos {
     /** 商品分类（§4.1.4.4：id/name，例 235 其他 / 238 饮料）。 */
     public record JiangyiCategory(long id, String name) {}
 
+    /**
+     * 采集建条目请求（§4.3.3 productInfo）。字段取自待采集列表（waitGatherProduct 行）+
+     * 柜机 identifier；barCodeSource 空/非法时客户端兜底 manual（2026-10-26 实测）。
+     */
+    public record GatherEntryRequest(String identifier, long productId, String name, String brand,
+                                     String specs, String category, String barCodeSource) {}
+
     /** 已学习准备成功商品（§4.4.2.4）：textName 是模型 classes.txt 的直接键。 */
     public record TrainedProduct(long id, String name, String textName, String barCode) {}
 

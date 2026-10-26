@@ -2947,7 +2947,8 @@ button.stat-tile,
   font-weight: 500;
 }
 
-/* Alert 在列表页上方时不抢表格高度 */
+/* Alert 在列表页上方时不抢表格高度（flex-shrink）；
+   与后续内容保留 12px 呼吸感——2026-10-27 运营反馈横幅贴着表单/表格，原 margin-top:0 太挤 */
 .layout-main-scroll .el-alert {
   flex-shrink: 0;
 }
@@ -2955,7 +2956,7 @@ button.stat-tile,
 .layout-main-scroll .el-alert + .filter-bar,
 .layout-main-scroll .el-alert + .el-form,
 .layout-main-scroll .el-alert + .table-scroll {
-  margin-top: 0;
+  margin-top: 12px;
 }
 
 /* 面包屑 / 顶栏可读性 */

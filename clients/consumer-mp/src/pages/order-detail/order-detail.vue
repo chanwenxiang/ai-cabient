@@ -70,6 +70,16 @@
             ><text class="info-label">支付方式</text
             ><text class="info-value">{{ payChannelText }}</text></view
           >
+          <!--
+            微信支付分品牌标签（CB-067 规范 P14 订单完成页=标签 / P11 扣款成功页=基本说明）：
+            支付方式为微信支付分时展示官方品牌标识，让用户明确「本次是先用后付」。
+            🔴 只在 WECHAT 渠道展示——支付宝侧品牌体系不同（芝麻先享/信用代扣），
+            不得套用微信支付分 logo（评审会判「支付渠道标识错用」）。
+          -->
+          <view v-if="showPayScoreTag" class="info-row">
+            <text class="info-label">免密方式</text>
+            <pay-score-tag variant="label" biz="先取后付" />
+          </view>
           <view v-if="order?.payTradeNo || order?.paymentOperationId" class="info-row"
             ><text class="info-label">流水号</text
             ><text class="info-value mono">{{
@@ -697,6 +707,12 @@ const payChannelText = computed(() => {
   if (!ch) return '未记录';
   return displayLabel('pay_channel', ch, '未知渠道');
 });
+
+/**
+ * 是否展示微信支付分品牌标签（CB-067 规范 P11/P14）。
+ * 🔴 仅 WECHAT 渠道——支付宝侧品牌体系不同，不得套用微信支付分 logo。
+ */
+const showPayScoreTag = computed(() => order.value?.payChannel === 'WECHAT');
 
 /**
  * 结算页可选的支付方式（F6）。规则在 `@/utils/pay-channel`（纯函数，有单测）——

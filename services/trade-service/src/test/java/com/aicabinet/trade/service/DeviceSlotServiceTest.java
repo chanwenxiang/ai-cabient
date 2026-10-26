@@ -234,6 +234,65 @@ class DeviceSlotServiceTest {
         assertFalse(skuIds.contains("SKU-DELISTED-001"), "已下架 SKU 不应出现在设备详情已上架列表");
     }
 
+    /**
+     * 2026-10-26 雪碧实测：柜机因两个 SKU 走过「编辑库存」而有了批次账，
+     * 第三个 SKU（账面 2、账本零行、流水零条）被整柜口径读成 0，卡片恒显缺货且保存后数字不动。
+     */
+    @Test
+    void getDeviceDetail_fallsBackToBookQtyOnlyForSkuNeverLedged() {
+        DeviceSkuInventoryMapper inventoryRepository = org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class);
+        ShoppingSessionMapper shoppingSessionMapper = org.mockito.Mockito.mock(ShoppingSessionMapper.class);
+        ReplenishmentTaskMapper taskRepository = org.mockito.Mockito.mock(ReplenishmentTaskMapper.class);
+        InventoryLotService inventoryLotService = org.mockito.Mockito.mock(InventoryLotService.class);
+        DeviceSlotService svc = new DeviceSlotService(
+                slotRepository, lotRepository, deviceRepository, inventoryRepository, skuCatalogRepository,
+                null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
+                salesVelocityService, null, inventoryLotService, null, distributedLockService,
+                shoppingSessionMapper, org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository,
+                        org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class), sceneDictStub()),
+                null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId(DEVICE_ID);
+        when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
+        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of());
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of());
+        when(taskRepository.findLastCompletedAtByDeviceId(DEVICE_ID)).thenReturn(Optional.empty());
+        when(shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(DEVICE_ID)).thenReturn(Optional.empty());
+        // 该柜已建账的 SKU 只有 LEDGED；UNLEDGED 一条批次都没有（含 DEPLETED 也没有）
+        when(inventoryLotService.lotLedgerSkuIds(DEVICE_ID)).thenReturn(Set.of("SKU-LEDGED"));
+        when(inventoryLotService.sellableQtyBySku(DEVICE_ID)).thenReturn(Map.of("SKU-LEDGED", 7));
+
+        when(inventoryRepository.findByIdDeviceId(DEVICE_ID)).thenReturn(List.of(
+                inventoryRow("SKU-LEDGED", 9), inventoryRow("SKU-UNLEDGED", 2)));
+        when(skuCatalogRepository.selectList(any())).thenReturn(List.of(
+                activeSku("SKU-LEDGED"), activeSku("SKU-UNLEDGED")));
+
+        Map<String, Integer> qtyBySku = svc.getDeviceDetail(1L, DEVICE_ID).skuInventory().stream()
+                .collect(Collectors.toMap(com.aicabinet.common.dto.DeviceInventoryDto::skuId,
+                        com.aicabinet.common.dto.DeviceInventoryDto::quantity));
+
+        assertEquals(7, qtyBySku.get("SKU-LEDGED"), "已建账 SKU 以批次可售量为准，账面分叉不外显");
+        assertEquals(2, qtyBySku.get("SKU-UNLEDGED"), "未建账 SKU 回落账面值，不得读成 0");
+    }
+
+    private static DeviceSkuInventory inventoryRow(String skuId, int quantity) {
+        DeviceSkuInventory row = new DeviceSkuInventory();
+        row.setDeviceId(DEVICE_ID);
+        row.setSkuId(skuId);
+        row.setQuantity(quantity);
+        return row;
+    }
+
+    private static SkuCatalog activeSku(String skuId) {
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId(skuId);
+        sku.setStatus("ACTIVE");
+        return sku;
+    }
+
     private static DeviceSlot slot(String slotCode, String skuId, int maxLevel) {
         DeviceSlot slot = new DeviceSlot();
         slot.setId(new DeviceSlotId(DEVICE_ID, slotCode));

@@ -11,8 +11,13 @@
             </span>
           </div>
         </div>
+        <div class="page-card-head__actions">
+          <el-button v-if="deviceId" @click="goDeviceDetail">设备详情</el-button>
+        </div>
       </div>
     </template>
+
+    <VisionFlowSteps :active="4" />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load()">
       <el-form-item label="柜机">
@@ -74,315 +79,391 @@
         </div>
       </div>
 
-      <!-- 映射复核（V400）：重训后 classId 整体平移，未复核不结算 -->
-      <el-card class="jy-model-card" shadow="never">
-        <template #header>
-          <div class="page-card-head">
-            <div class="page-card-head__meta">
-              <div class="page-card-head__title">
-                <span class="title">映射复核（结算闸口）</span>
-                <span class="hint">
-                  将邑识别编号是 classes.txt 按识别名排序后的行号，厂商每次重训都会整体平移
-                  （同一商品换编号）。柜机当前模型未经人工复核前，识别整单转人工、在售面下发空表；
-                  先拉差异逐行核对，再确认
-                </span>
+      <el-tabs v-model="mappingTab" class="mapping-tabs">
+        <el-tab-pane label="复核（结算闸口）" name="review">
+          <!-- 映射复核（V400）：重训后 classId 整体平移，未复核不结算 -->
+          <el-card class="jy-model-card" shadow="never">
+            <template #header>
+              <div class="page-card-head">
+                <div class="page-card-head__meta">
+                  <div class="page-card-head__title">
+                    <span class="title">映射复核（结算闸口）</span>
+                    <span class="hint">
+                      重训后识别编号整体平移；未复核的柜机识别结算暂停。先拉差异核对，再确认
+                    </span>
+                  </div>
+                </div>
+                <div class="page-card-head__actions">
+                  <el-button
+                    size="small"
+                    :loading="reviewStatusLoading"
+                    @click="loadReviewStatus()"
+                  >
+                    刷新复核状态
+                  </el-button>
+                </div>
               </div>
-            </div>
-            <div class="page-card-head__actions">
-              <el-button size="small" :loading="reviewStatusLoading" @click="loadReviewStatus()">
-                刷新复核状态
-              </el-button>
-            </div>
-          </div>
-        </template>
+            </template>
 
-        <el-alert
-          :type="reviewStatus?.verified ? 'success' : 'warning'"
-          :closable="false"
-          show-icon
-          :title="
-            reviewStatus?.verified
-              ? '已复核：当前模型版本可正常结算'
-              : '未复核：识别结算与在售面已暂停'
-          "
-          :description="reviewDescription"
-        />
-
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
-          <el-form-item label="模型名">
-            <el-input
-              v-model="reviewForm.modelName"
-              placeholder="柜机正在跑的模型名"
-              style="width: 220px"
+            <el-alert
+              v-if="reviewStatus"
+              class="review-status-alert"
+              :type="reviewStatus?.verified ? 'success' : 'warning'"
+              :closable="false"
+              show-icon
+              :title="
+                reviewStatus?.verified
+                  ? '已复核：当前模型版本可正常结算'
+                  : '未复核：识别结算与在售面已暂停'
+              "
+              :description="reviewDescription"
             />
-          </el-form-item>
-          <el-form-item label="classes 地址">
-            <el-input
-              v-model="reviewForm.textUrl"
-              placeholder="https://…/classes.txt"
-              style="width: 320px"
-            />
-          </el-form-item>
-          <el-form-item label="类目数">
-            <el-input-number
-              v-model="reviewForm.quantity"
-              :min="1"
-              :precision="0"
-              controls-position="right"
-              style="width: 120px"
-            />
-          </el-form-item>
-          <el-form-item label="编号起始">
-            <el-select v-model="reviewForm.classIdBase" style="width: 130px">
-              <el-option label="0 起" :value="0" />
-              <el-option label="1 起" :value="1" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" :loading="reviewPlanning" @click="loadReviewPlan()">
-              拉取差异（只读）
+            <el-button
+              v-if="reviewStatus?.verified && !reviewFormForceOpen"
+              size="small"
+              class="review-toggle"
+              @click="reviewFormForceOpen = true"
+            >
+              有新模型要复核？展开表单
             </el-button>
-          </el-form-item>
-        </el-form>
-        <div class="field-hint">
-          模型列表为空（厂商未下发到本租户）时用厂商给的 classes
-          地址手工填；类目数必须与文件行数一致。 确认会重算该柜全部映射并把复核版本认领为本次审阅的
-          classes 版本。
-        </div>
-      </el-card>
 
-      <!-- 模型同步：预览 → 预生成 → 激活 → 下发（CB-023 链路） -->
-      <el-card class="jy-model-card" shadow="never">
-        <template #header>
-          <div class="page-card-head">
-            <div class="page-card-head__meta">
-              <div class="page-card-head__title">
-                <span class="title">模型同步</span>
-                <span class="hint">
-                  预生成后映射为停用态，人工核对「识别编号 ↔ 商品」再激活；机型参数按字符串
-                  相等校验，与设备登记值不一致将拒绝下发
-                </span>
+            <el-form
+              v-show="!reviewStatus?.verified || reviewFormForceOpen"
+              label-width="130px"
+              class="review-form"
+              @submit.prevent
+            >
+              <el-row :gutter="16">
+                <el-col :span="11">
+                  <el-form-item label="从将邑模型带出">
+                    <el-select
+                      v-model="reviewModelPicked"
+                      clearable
+                      filterable
+                      placeholder="选模型自动填右边的模型名"
+                      style="width: 100%"
+                      @change="onReviewModelPicked"
+                    >
+                      <el-option
+                        v-for="m in modelPreviews"
+                        :key="m.modelName"
+                        :label="`${m.modelName}（${m.quantity} 类 · 机型 ${m.industrialControlModel || '—'}）`"
+                        :value="m.modelName"
+                        :disabled="Boolean(m.rejectReason)"
+                      />
+                      <template #empty>
+                        <div class="select-empty">
+                          将邑还没有学成模型；训练完成后会出现在这里，届时选中即可自动带出
+                        </div>
+                      </template>
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="13">
+                  <el-form-item label="模型名">
+                    <el-input v-model="reviewForm.modelName" placeholder="柜机正在跑的模型名" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="16">
+                <el-col :span="10">
+                  <el-form-item label="classes 地址">
+                    <el-input v-model="reviewForm.textUrl" placeholder="https://…/classes.txt" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="5">
+                  <el-form-item label="类目数">
+                    <el-input-number
+                      v-model="reviewForm.quantity"
+                      :min="1"
+                      :precision="0"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="5">
+                  <el-form-item label="编号起始">
+                    <el-select v-model="reviewForm.classIdBase" style="width: 100%">
+                      <el-option label="第 1 行 = 编号 0" :value="0" />
+                      <el-option label="第 1 行 = 编号 1" :value="1" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="4">
+                  <el-form-item label-width="0">
+                    <el-button type="primary" :loading="reviewPlanning" @click="loadReviewPlan()">
+                      拉取差异（只读）
+                    </el-button>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <div class="field-hint">
+                优先从下拉带出（只含学成模型）；旧模型按地址手填，类目数须与文件行数一致；确认后重算全部映射并认领该版本。
               </div>
-            </div>
-          </div>
-        </template>
+            </el-form>
+          </el-card>
+        </el-tab-pane>
 
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
-          <el-form-item label="将邑模型">
-            <el-select
-              v-model="selectedModel"
-              placeholder="拉取模型列表"
-              style="width: 320px"
-              :loading="modelsLoading"
-              @change="onModelPicked"
-            >
-              <el-option
-                v-for="m in modelPreviews"
-                :key="m.modelName"
-                :label="`${m.modelName}（${m.quantity} 类 · ${m.trainedMatchPercent}% 已挂接 · 机型 ${m.industrialControlModel}）`"
-                :value="m.modelName"
-                :disabled="Boolean(m.rejectReason)"
-              >
-                <template v-if="m.rejectReason">
-                  <span>{{ m.modelName }}（不可用：{{ m.rejectReason }}）</span>
-                </template>
-              </el-option>
-            </el-select>
-          </el-form-item>
-          <el-form-item label="识别编号起始值">
-            <el-select v-model="classIdBase" style="width: 150px" @change="loadModels()">
-              <el-option label="0 起（第 1 行=0）" :value="0" />
-              <el-option label="1 起（第 1 行=1）" :value="1" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button :loading="modelsLoading" @click="loadModels()">刷新模型列表</el-button>
-          </el-form-item>
-        </el-form>
+        <el-tab-pane label="预生成与激活" name="pregen">
+          <!-- 预生成与激活：把流程写在最上面，按钮按步骤排 -->
+          <el-card class="jy-model-card" shadow="never">
+            <template #header>
+              <div class="page-card-head">
+                <div class="page-card-head__meta">
+                  <div class="page-card-head__title">
+                    <span class="title">预生成与激活</span>
+                    <span class="hint">
+                      ① 选模型 → ② 预生成（自动生成停用态对照表）→ ③ 到「识别对照表」逐行核对 → ④
+                      回这里点激活 → ⑤ 点下发推到柜机（柜机需在线）
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </template>
 
-        <el-alert
-          v-if="modelsError"
-          class="jy-model-alert"
-          type="error"
-          :closable="false"
-          show-icon
-          :title="modelsError"
-        />
-        <el-alert
-          v-else-if="modelsLoaded && modelPreviews.length === 0"
-          class="jy-model-alert"
-          type="info"
-          :closable="false"
-          show-icon
-          title="将邑未返回可用模型"
-          description="模型列表按商户范围返回；为空时可先用「新增映射」逐条挂接，或稍后刷新重试。"
-        />
+            <el-form label-width="110px" class="review-form" @submit.prevent>
+              <el-row :gutter="16">
+                <el-col :span="11">
+                  <el-form-item label="将邑模型">
+                    <el-select
+                      v-model="selectedModel"
+                      placeholder="拉取模型列表"
+                      style="width: 100%"
+                      :loading="modelsLoading"
+                      @change="onModelPicked"
+                    >
+                      <el-option
+                        v-for="m in modelPreviews"
+                        :key="m.modelName"
+                        :label="`${m.modelName}（${m.quantity} 类，已挂 ${m.trainedMatchPercent}%）`"
+                        :value="m.modelName"
+                        :disabled="Boolean(m.rejectReason)"
+                      >
+                        <template v-if="m.rejectReason">
+                          <span>{{ m.modelName }}（不可用：{{ m.rejectReason }}）</span>
+                        </template>
+                      </el-option>
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="7">
+                  <el-form-item label="识别编号起点">
+                    <el-select v-model="classIdBase" style="width: 100%" @change="loadModels()">
+                      <el-option label="第 1 行 = 编号 0" :value="0" />
+                      <el-option label="第 1 行 = 编号 1" :value="1" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="4">
+                  <el-form-item label-width="0">
+                    <el-button :loading="modelsLoading" @click="loadModels()">
+                      刷新模型列表
+                    </el-button>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <div class="field-hint">
+                「识别编号起点」：厂商不同固件对 classes
+                行号的起点不同，预生成按它换算每行的识别编号；
+                对照表和柜机对不上就换另一边重新预生成。
+              </div>
+            </el-form>
 
-        <template v-if="currentPreview">
-          <div class="jy-preview-rows">
-            <div v-for="row in currentPreview.rows" :key="row.classId" class="jy-preview-row">
-              <span class="jy-mono">编号 {{ row.classId }}</span>
-              <span>{{ row.textName }}</span>
-            </div>
-          </div>
-          <div class="jy-model-actions">
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              :loading="acting === 'sync'"
-              @click="doModelSync()"
-            >
-              预生成映射（停用态）
-            </el-button>
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              type="warning"
-              :loading="acting === 'activate'"
-              @click="doActivate()"
-            >
-              激活该模型预生成行
-            </el-button>
-            <el-button
-              v-hasPermi="['ops:device:edit']"
-              type="primary"
-              :loading="acting === 'push'"
-              @click="doPush()"
-            >
-              下发模型到柜机
-            </el-button>
-          </div>
-        </template>
-      </el-card>
+            <el-alert
+              v-if="modelsError"
+              class="jy-model-alert"
+              type="error"
+              :closable="false"
+              show-icon
+              :title="modelsError"
+            />
+            <el-alert
+              v-else-if="modelsLoaded && modelPreviews.length === 0"
+              class="jy-model-alert"
+              type="info"
+              :closable="false"
+              show-icon
+              title="将邑未返回可用模型"
+              description="模型列表按商户范围返回；为空时可先用「新增映射」逐条挂接，或稍后刷新重试。"
+            />
 
-      <!-- 识别编号映射表 -->
-      <div class="table-scroll">
-        <div class="table-scroll-inner">
-          <CrudTable
-            :table="crud"
-            :actions="rowActions"
-            :action-width="150"
-            empty-text="暂无映射；可「新增映射」逐条创建，或先在「模型同步」预生成"
-            sort-field-label="识别编号"
-            :csv="csvOptions"
-            @action="onAction"
-          >
-            <el-table-column prop="classId" label="识别编号" width="100" class-name="col-text">
-              <template #default="{ row }">
-                <span class="jy-mono">{{ row.classId }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="textName" label="识别名称" min-width="150">
-              <template #default="{ row }">{{ row.textName || '—' }}</template>
-            </el-table-column>
-            <el-table-column label="平台商品" min-width="160">
-              <template #default="{ row }">
-                <span v-if="!row.skuId" class="muted">未挂接</span>
-                <span v-else-if="skuNameFor(row.skuId)">{{ skuNameFor(row.skuId) }}</span>
-                <span v-else class="jy-mono">{{ row.skuId }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="skuId" label="商品编号" min-width="120" class-name="col-text">
-              <template #default="{ row }">{{ row.skuId || '未挂接' }}</template>
-            </el-table-column>
-            <el-table-column prop="modelName" label="模型" min-width="130">
-              <template #default="{ row }">{{ row.modelName || '—' }}</template>
-            </el-table-column>
-            <el-table-column
-              prop="status"
-              label="状态"
-              width="100"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            >
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                  {{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="source"
-              label="来源"
-              width="120"
-              align="center"
-              class-name="col-status"
-              label-class-name="col-status"
-            >
-              <template #default="{ row }">
-                <el-tag size="small" type="warning" effect="plain">
-                  {{
-                    row.source === 'MODEL_AUTO_MATCH'
-                      ? '模型自动匹配'
-                      : row.source === 'MODEL_SYNC'
-                        ? '模型预生成'
-                        : '手工'
-                  }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </CrudTable>
-        </div>
-      </div>
-
-      <!-- 下发审计 -->
-      <el-card class="jy-deploy-card" shadow="never">
-        <template #header>
-          <div class="page-card-head">
-            <div class="page-card-head__meta">
-              <div class="page-card-head__title">
-                <span class="title">下发记录</span>
-                <span class="hint"
-                  >SENT=已下发等待回执（600s 超时置 FAILED）；CONFIRMED=柜机已应用</span
+            <template v-if="currentPreview">
+              <div class="jy-preview-rows">
+                <div v-for="row in currentPreview.rows" :key="row.classId" class="jy-preview-row">
+                  <span class="jy-mono">编号 {{ row.classId }}</span>
+                  <span>{{ row.textName }}</span>
+                </div>
+              </div>
+              <div class="jy-model-actions">
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  :loading="acting === 'sync'"
+                  @click="doModelSync()"
                 >
+                  预生成映射（停用态）
+                </el-button>
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  type="warning"
+                  :loading="acting === 'activate'"
+                  @click="doActivate()"
+                >
+                  激活该模型预生成行
+                </el-button>
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  type="primary"
+                  :loading="acting === 'push'"
+                  @click="doPush()"
+                >
+                  下发模型到柜机
+                </el-button>
               </div>
-            </div>
-            <div class="page-card-head__actions">
-              <el-button size="small" @click="loadDeployments()">刷新</el-button>
+            </template>
+          </el-card>
+        </el-tab-pane>
+
+        <el-tab-pane label="识别对照表" name="table">
+          <!-- 识别编号映射表 -->
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <CrudTable
+                :table="crud"
+                :actions="rowActions"
+                :action-width="150"
+                empty-text="暂无映射；可「新增映射」逐条创建，或先在「模型同步」预生成"
+                sort-field-label="识别编号"
+                :csv="csvOptions"
+                @action="onAction"
+              >
+                <el-table-column prop="classId" label="识别编号" width="100" class-name="col-text">
+                  <template #default="{ row }">
+                    <span class="jy-mono">{{ row.classId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="textName" label="识别名称" min-width="150">
+                  <template #default="{ row }">{{ row.textName || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="平台商品" min-width="160">
+                  <template #default="{ row }">
+                    <span v-if="!row.skuId" class="muted">未挂接</span>
+                    <span v-else-if="skuNameFor(row.skuId)">{{ skuNameFor(row.skuId) }}</span>
+                    <span v-else class="jy-mono">{{ row.skuId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="skuId"
+                  label="商品编号"
+                  min-width="120"
+                  class-name="col-text"
+                >
+                  <template #default="{ row }">{{ row.skuId || '未挂接' }}</template>
+                </el-table-column>
+                <el-table-column prop="modelName" label="模型" min-width="130">
+                  <template #default="{ row }">{{ row.modelName || '—' }}</template>
+                </el-table-column>
+                <el-table-column
+                  prop="status"
+                  label="状态"
+                  width="100"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+                      {{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="source"
+                  label="来源"
+                  width="120"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
+                  <template #default="{ row }">
+                    <el-tag size="small" type="warning" effect="plain">
+                      {{
+                        row.source === 'MODEL_AUTO_MATCH'
+                          ? '模型自动匹配'
+                          : row.source === 'MODEL_SYNC'
+                            ? '模型预生成'
+                            : '手工'
+                      }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </CrudTable>
             </div>
           </div>
-        </template>
-        <el-table :data="deployments" stripe border size="small">
-          <el-table-column prop="modelName" label="模型" min-width="140" />
-          <el-table-column prop="industrialControlModel" label="机型" width="90">
-            <template #default="{ row }">
-              <span class="jy-mono">{{ row.industrialControlModel || '—' }}</span>
+        </el-tab-pane>
+
+        <el-tab-pane label="下发记录" name="deploys">
+          <!-- 下发审计 -->
+          <el-card class="jy-deploy-card" shadow="never">
+            <template #header>
+              <div class="page-card-head">
+                <div class="page-card-head__meta">
+                  <div class="page-card-head__title">
+                    <span class="title">下发记录</span>
+                    <span class="hint"
+                      >SENT=已下发等待回执（600s 超时置 FAILED）；CONFIRMED=柜机已应用</span
+                    >
+                  </div>
+                </div>
+                <div class="page-card-head__actions">
+                  <el-button size="small" @click="loadDeployments()">刷新</el-button>
+                </div>
+              </div>
             </template>
-          </el-table-column>
-          <el-table-column
-            prop="status"
-            label="状态"
-            width="120"
-            align="center"
-            class-name="col-status"
-            label-class-name="col-status"
-          >
-            <template #default="{ row }">
-              <el-tag
-                size="small"
-                :type="
-                  row.status === 'CONFIRMED'
-                    ? 'success'
-                    : row.status === 'FAILED'
-                      ? 'danger'
-                      : 'warning'
-                "
+            <el-table :data="deployments" stripe border size="small">
+              <el-table-column prop="modelName" label="模型" min-width="140" />
+              <el-table-column prop="industrialControlModel" label="机型" width="90">
+                <template #default="{ row }">
+                  <span class="jy-mono">{{ row.industrialControlModel || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="status"
+                label="状态"
+                width="120"
+                align="center"
+                class-name="col-status"
+                label-class-name="col-status"
               >
-                {{ row.status }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="下发时间" width="170">
-            <template #default="{ row }">{{ formatInstant(row.sentAt) }}</template>
-          </el-table-column>
-          <el-table-column label="确认时间" width="170">
-            <template #default="{ row }">{{ formatInstant(row.confirmedAt) || '—' }}</template>
-          </el-table-column>
-          <el-table-column prop="failReason" label="失败原因" min-width="160">
-            <template #default="{ row }">{{ row.failReason || '—' }}</template>
-          </el-table-column>
-          <template #empty><el-empty description="尚未下发过模型" /></template>
-        </el-table>
-      </el-card>
+                <template #default="{ row }">
+                  <el-tag
+                    size="small"
+                    :type="
+                      row.status === 'CONFIRMED'
+                        ? 'success'
+                        : row.status === 'FAILED'
+                          ? 'danger'
+                          : 'warning'
+                    "
+                  >
+                    {{ row.status }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="下发时间" width="170">
+                <template #default="{ row }">{{ formatInstant(row.sentAt) }}</template>
+              </el-table-column>
+              <el-table-column label="确认时间" width="170">
+                <template #default="{ row }">{{ formatInstant(row.confirmedAt) || '—' }}</template>
+              </el-table-column>
+              <el-table-column prop="failReason" label="失败原因" min-width="160">
+                <template #default="{ row }">{{ row.failReason || '—' }}</template>
+              </el-table-column>
+              <template #empty><el-empty description="尚未下发过模型" /></template>
+            </el-table>
+          </el-card>
+        </el-tab-pane>
+      </el-tabs>
     </template>
 
     <el-empty v-if="!deviceId" description="选择一台将邑柜机查看其识别映射与模型同步状态" />
@@ -431,7 +512,7 @@
           :closable="false"
           show-icon
           title="逐行核对后再确认"
-          description="平移 = SKU 跟随识别名换编号；新增行先停用等挂 SKU；失效行停用并腾出编号（挂接留档）。确认后本柜结算恢复。模型回执确认后系统已自动跑过同一套处置（仅冲突时停下），此处可人工复看或补跑。"
+          description="平移＝SKU 跟着识别名换编号；新增行停用等挂 SKU；失效行停用腾编号。确认后本柜结算恢复。"
         />
 
         <div class="table-scroll">
@@ -546,7 +627,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, EditPen } from '@element-plus/icons-vue';
@@ -556,6 +637,7 @@ import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components
 import { useCrudTable } from '@/composables/useCrudTable';
 import { errorMessage } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
 
 /**
  * 识别映射（CB-023 改造）：云端识别（YOLO/阿里云）方案已废弃，本页收编将邑
@@ -674,6 +756,15 @@ const deviceId = ref('');
 const deviceOptions = ref<DeviceOption[]>([]);
 const binding = ref<JiangyiBindingInfo | null>(null);
 const loaded = ref(false);
+const mappingTab = ref('review');
+/** 已复核时收起表单（没新模型就不用填）；点了「展开表单」才显示。 */
+const reviewFormForceOpen = ref(false);
+
+function goDeviceDetail() {
+  if (deviceId.value) {
+    void router.push({ path: `/devices/${encodeURIComponent(deviceId.value)}` });
+  }
+}
 
 const modelPreviews = ref<ModelPreview[]>([]);
 const modelsLoading = ref(false);
@@ -686,6 +777,28 @@ const deployments = ref<DeploymentRow[]>([]);
 const reviewStatus = ref<MappingReviewStatus | null>(null);
 const reviewStatusLoading = ref(false);
 const reviewForm = ref({ modelName: '', textUrl: '', quantity: 1, classIdBase: 0 });
+const reviewModelPicked = ref('');
+
+/** 复核字典：选将邑模型自动带出名称/地址/类目数；旧模型不在列表时仍可手填。 */
+function onReviewModelPicked(name: string) {
+  const m = modelPreviews.value.find((x) => x.modelName === name);
+  if (!m) return;
+  reviewForm.value = {
+    modelName: m.modelName,
+    textUrl: m.modelTextUrl ?? '',
+    quantity: m.quantity || reviewForm.value.quantity,
+    classIdBase: reviewForm.value.classIdBase
+  };
+}
+
+// 进复核页时把模型列表拉好（字典源），失败静默——手填通道兜底；
+// 同时自动取复核状态：已复核就把表单收起来（没新模型不用填任何东西）
+watch(mappingTab, (tab) => {
+  if (tab === 'review') {
+    if (!modelsLoaded.value && !modelsLoading.value) void loadModels();
+    void loadReviewStatus();
+  }
+});
 const reviewPlanning = ref(false);
 const reviewPlan = ref<RebuildPlan | null>(null);
 const reviewVisible = ref(false);
@@ -754,19 +867,27 @@ function actionTagType(action: string) {
   return 'success';
 }
 
+// 全量映射另存一份：对照表分页只切窗口，编号建议/冲突校验仍要看到全部行
+const allMappings = ref<JiangyiClassMappingRow[]>([]);
 const crud = useCrudTable<JiangyiClassMappingRow>({
   rowKey: (r) => r.id,
   errorMessage: '加载映射失败',
   autoLoad: false,
   sort: { prop: 'classId', mode: 'local' },
-  fetchPage: async () => {
+  pageSize: 20,
+  fetchPage: async ({ page, size }) => {
     if (!deviceId.value) return { items: [], total: 0 };
     const data = await api.request<{
       binding: JiangyiBindingInfo | null;
       mappings: JiangyiClassMappingRow[];
     }>(AdminEndpoints.deviceJiangyi(deviceId.value), 'GET');
     binding.value = data.binding;
-    return { items: data.mappings || [], total: (data.mappings || []).length };
+    allMappings.value = data.mappings || [];
+    const start = page * size;
+    return {
+      items: allMappings.value.slice(start, start + size),
+      total: allMappings.value.length
+    };
   }
 });
 
@@ -991,7 +1112,10 @@ async function loadReviewPlan() {
   if (!deviceId.value) return;
   const f = reviewForm.value;
   if (!f.modelName.trim() || !f.textUrl.trim()) {
-    ElMessage.warning('请填写模型名与 classes 地址');
+    // 复核必须对照一份 classes 文件；学成模型从下拉带出，旧模型手填
+    ElMessage.warning(
+      '复核要对照一份 classes 文件：从「从将邑模型带出」选一个，或手填模型名与地址（可向厂商要）'
+    );
     return;
   }
   reviewPlanning.value = true;
@@ -1081,7 +1205,7 @@ async function loadSkus() {
 
 /** 新增时给一个未占用的编号建议（当前最大编号 + 1）；最终仍以人工输入为准。 */
 function suggestClassId() {
-  const used = crud.items.map((r) => Number(r.classId)).filter((n) => Number.isFinite(n));
+  const used = allMappings.value.map((r) => Number(r.classId)).filter((n) => Number.isFinite(n));
   return used.length ? Math.max(...used) + 1 : classIdBase.value;
 }
 
@@ -1113,7 +1237,7 @@ async function saveEdit() {
     ElMessage.warning('识别编号必须是非负整数');
     return;
   }
-  if (isCreate.value && crud.items.some((r) => Number(r.classId) === classId)) {
+  if (isCreate.value && allMappings.value.some((r) => Number(r.classId) === classId)) {
     ElMessage.warning(`识别编号 ${classId} 已存在，请直接编辑该行`);
     return;
   }
@@ -1185,6 +1309,43 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.mapping-tabs {
+  margin-top: 8px;
+}
+.mapping-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+}
+.review-form {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 18px;
+}
+.review-status-alert {
+  margin-bottom: 20px;
+}
+.review-toggle {
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+.review-form .el-form-item {
+  margin-bottom: 18px;
+}
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.review-toggle {
+  margin-top: 10px;
+}
+.select-empty {
+  padding: 10px 0;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -1215,19 +1376,20 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .jy-device-bar {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  padding: 12px 16px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   margin-bottom: 16px;
+  justify-items: center;
+  text-align: center;
 }
 .jy-device-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 120px;
 }
 .jy-device-label {
   font-size: 12px;
