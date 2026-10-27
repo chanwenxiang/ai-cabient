@@ -113,7 +113,7 @@ class MerchantInventoryPortalServiceTest {
         task.setDeviceId("EG-1");
         task.setOutboundId(70L);
         task.setStatus("IN_PROGRESS");
-        when(replenishmentTaskRepository.findByStatusIn(java.util.List.of("IN_PROGRESS")))
+        when(replenishmentTaskRepository.findByStatusIn(java.util.List.of("PENDING", "IN_PROGRESS")))
                 .thenReturn(java.util.List.of(task));
         com.aicabinet.trade.domain.WarehouseOutbound outbound = new com.aicabinet.trade.domain.WarehouseOutbound();
         outbound.setOutboundId(70L);

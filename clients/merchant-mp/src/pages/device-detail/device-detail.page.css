@@ -1,0 +1,25 @@
+/* 选项式详情页签（2026-10-27） */
+.detail-tabs {
+  display: flex;
+  gap: 8rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 8rpx;
+  margin-bottom: 16rpx;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.detail-tab {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  font-size: 26rpx;
+  color: #6b7280;
+  border-radius: 12rpx;
+}
+.detail-tab.active {
+  background: #0f766e;
+  color: #fff;
+  font-weight: 600;
+}

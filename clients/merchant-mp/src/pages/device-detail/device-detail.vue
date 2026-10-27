@@ -89,8 +89,22 @@
           </view>
         </view>
 
+        <!-- 选项式详情页签（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 -->
+        <view class="detail-tabs" role="tablist">
+          <view
+            v-for="t in detailTabs"
+            :key="t.key"
+            class="detail-tab"
+            :class="{ active: activeTab === t.key }"
+            role="tab"
+            :aria-selected="activeTab === t.key"
+            @click="activeTab = t.key"
+            >{{ t.label }}</view
+          >
+        </view>
+
         <!-- CB-050：快捷操作宫格（收拢散落入口） -->
-        <view class="card">
+        <view class="card" v-show="activeTab === 'overview'">
           <text class="section">快捷操作</text>
           <view class="action-grid">
             <view
@@ -138,7 +152,7 @@
         </view>
 
         <!-- CB-050：设备控制（merchant:device:control；白名单 停售/恢复售卖/重启，指令留平台审计） -->
-        <view v-if="canControl" class="card">
+        <view v-if="canControl" class="card" v-show="activeTab === 'gather'">
           <text class="section">设备控制</text>
           <text class="meta">远程开门请走补货任务；指令将记入平台审计日志</text>
           <view class="action-row">
@@ -172,7 +186,7 @@
           </view>
         </view>
 
-        <view v-if="canEditDevice" class="card">
+        <view v-if="canEditDevice" class="card" v-show="activeTab === 'settings'">
           <text class="section">柜机设置</text>
           <view class="field">
             <text class="field-label">显示名称</text>
@@ -194,7 +208,7 @@
         </view>
 
         <!-- 将邑采集模式（CB-023 商户端补充）：仅将邑绑定柜机显示；409 营业闸门与 admin 共用 -->
-        <view v-if="jiangyiGather.bound" class="card">
+        <view v-if="jiangyiGather.bound" class="card" v-show="activeTab === 'gather'">
           <view class="row">
             <text class="section">将邑识别采集</text>
             <text class="meta" :class="{ 'gather-on': jiangyiGather.gatherLocked }">
@@ -243,7 +257,7 @@
           />
         </view>
 
-        <view id="slotCard" class="card">
+        <view id="slotCard" class="card" v-show="activeTab === 'goods'">
           <view class="row">
             <text class="section">{{ isDoorCabinet ? '在架商品' : '货道' }}</text>
             <text v-if="!isDoorCabinet && !canEditSlots" class="meta">暂无货道编辑权限</text>
@@ -287,7 +301,7 @@
           </template>
         </view>
 
-        <view v-if="canAnalytics && velocity.length" class="card">
+        <view v-if="canAnalytics && velocity.length" class="card" v-show="activeTab === 'overview'">
           <view class="row">
             <text class="section">商品动销 / 补货点</text>
             <text class="meta">近 14 日</text>
@@ -324,7 +338,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import {
@@ -392,6 +406,26 @@ const cmdBusy = ref(false);
 
 // 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
 const jiangyiGather = ref({ bound: false, gatherLocked: false });
+
+// ===== 选项式详情（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 =====
+type DetailTab = 'overview' | 'goods' | 'gather' | 'settings';
+const activeTab = ref<DetailTab>('overview');
+const detailTabs = computed(() => {
+  const tabs: { key: DetailTab; label: string }[] = [
+    { key: 'overview', label: '概览' },
+    { key: 'goods', label: isDoorCabinet.value ? '在架商品' : '货道' },
+    { key: 'gather', label: '采集·识别' },
+    { key: 'settings', label: '设置' }
+  ];
+  return tabs;
+});
+// 非将邑柜没有采集卡，页签同步隐藏；停在采集页签时回概览
+watch(
+  () => jiangyiGather.value.bound,
+  (bound) => {
+    if (!bound && activeTab.value === 'gather') activeTab.value = 'overview';
+  }
+);
 // 方案A 第一步：开门柜（将邑，bound=已绑定）按商品备货——货道编辑隐藏，改台账在架列表
 const isDoorCabinet = computed(() => jiangyiGather.value.bound);
 const ledgerGoods = ref<
@@ -668,8 +702,9 @@ async function sendCmd(command: 'LOCK' | 'UNLOCK' | 'REBOOT') {
   }
 }
 
-/** 快捷操作：滚到货道（在售商品）卡 */
+/** 快捷操作：滚到货道（在售商品）卡（选项式：先切到商品页签再定位） */
 function scrollToSlots() {
+  activeTab.value = 'goods';
   uni
     .createSelectorQuery()
     .select('#slotCard')

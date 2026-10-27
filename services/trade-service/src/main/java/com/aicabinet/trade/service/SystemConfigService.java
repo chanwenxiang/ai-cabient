@@ -273,6 +273,8 @@ public class SystemConfigService {
     public static final String CONSUMER_PRODUCT_DETAIL_ENABLED = "consumer.product_detail.enabled";
     /** 消息触达：微信订阅消息总开关（消费者/商户端订阅消息；取代 NOTIFY_WECHAT_ENABLED 环境变量）。 */
     public static final String NOTIFY_WECHAT_ENABLED = "notify.wechat.enabled";
+    /** 缺货自动建补货任务总开关（AutoReplenishmentTaskService；默认开，按阈值触发、同柜幂等）。 */
+    public static final String REPLENISH_AUTO_TASK_ENABLED = "replenishment.auto_task.enabled";
     /** 消息触达：欠款催缴短信总闸（V326；取代 NOTIFY_SMS_ENABLED 环境变量）。 */
     public static final String NOTIFY_SMS_ENABLED = "notify.sms.enabled";
     /** 消息触达：通知异步派发（Kafka；取代 NOTIFY_ASYNC_ENABLED 环境变量）。 */
@@ -830,6 +832,8 @@ public class SystemConfigService {
 
     private void ensureDefaults() {
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
+        upsertIfAbsent(REPLENISH_AUTO_TASK_ENABLED, "true",
+                "缺货自动建补货任务（按台账阈值/补货点触发，同柜已有进行中任务即跳过）");
         upsertIfAbsent(MERCHANT_SERVICE_PHONE, "400-888-0018", "商户端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local",
                 "运营支持邮箱（下发 C 端公开配置 supportEmail）");

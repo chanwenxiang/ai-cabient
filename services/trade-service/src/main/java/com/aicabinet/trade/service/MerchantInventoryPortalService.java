@@ -264,8 +264,9 @@ public class MerchantInventoryPortalService {
         if (allowed != null && allowed.isEmpty()) {
             return List.of();
         }
+        // PENDING 也纳入：自动建的缺货任务在签到前是 PENDING，而备货恰恰发生在签到前
         List<ReplenishmentTask> tasks = replenishmentTaskRepository
-                .findByStatusIn(List.of("IN_PROGRESS")).stream()
+                .findByStatusIn(List.of("PENDING", "IN_PROGRESS")).stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .filter(t -> t.getOutboundId() != null)
                 .toList();
