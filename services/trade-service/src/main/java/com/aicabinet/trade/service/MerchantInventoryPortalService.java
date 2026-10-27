@@ -54,6 +54,9 @@ public class MerchantInventoryPortalService {
     private final DeviceInfoMapper deviceRepository;
     private final FileAttachmentService fileAttachmentService;
     private final SkuCatalogMapper skuCatalogMapper;
+    private final com.aicabinet.trade.mapper.WarehouseOutboundMapper outboundRepository;
+    private final com.aicabinet.trade.mapper.WarehouseOutboundLineMapper outboundLineRepository;
+    private final com.aicabinet.trade.mapper.WarehouseInventoryMapper warehouseInventoryRepository;
 
     public MerchantInventoryPortalService(PermissionService permissionService,
                                           MerchantPortalGuard merchantPortalGuard,
@@ -67,7 +70,10 @@ public class MerchantInventoryPortalService {
                                           ReplenishmentRouteMapper replenishmentRouteRepository,
                                           DeviceInfoMapper deviceRepository,
                                           FileAttachmentService fileAttachmentService,
-                                          SkuCatalogMapper skuCatalogMapper) {
+                                          SkuCatalogMapper skuCatalogMapper,
+                                          com.aicabinet.trade.mapper.WarehouseOutboundMapper outboundRepository,
+                                          com.aicabinet.trade.mapper.WarehouseOutboundLineMapper outboundLineRepository,
+                                          com.aicabinet.trade.mapper.WarehouseInventoryMapper warehouseInventoryRepository) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -81,6 +87,9 @@ public class MerchantInventoryPortalService {
         this.deviceRepository = deviceRepository;
         this.fileAttachmentService = fileAttachmentService;
         this.skuCatalogMapper = skuCatalogMapper;
+        this.outboundRepository = outboundRepository;
+        this.outboundLineRepository = outboundLineRepository;
+        this.warehouseInventoryRepository = warehouseInventoryRepository;
     }
 
     @Transactional(readOnly = true)
@@ -240,6 +249,102 @@ public class MerchantInventoryPortalService {
                         evidenceByTask.getOrDefault(t.getTaskId(), 0),
                         lineSummaryByTask.getOrDefault(t.getTaskId(), "")))
                 .toList();
+    }
+
+    /**
+     * 首页「备货清单」（CB-072）：本人范围内进行中补货任务的出库行按 SKU 聚合，
+     * pack_qty 换算「X 件 + Y 支」，带相关仓库库存提示。数量口径=支（CB-061）。
+     */
+    @Transactional(readOnly = true)
+    public List<MerchantPrepListDto> replenishmentPrepList(Long userId) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantPortalGuard.requireAccess(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
+        if (allowed != null && allowed.isEmpty()) {
+            return List.of();
+        }
+        List<ReplenishmentTask> tasks = replenishmentTaskRepository
+                .findByStatusIn(List.of("IN_PROGRESS")).stream()
+                .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
+                .filter(t -> t.getOutboundId() != null)
+                .toList();
+        Map<String, Integer> unitsBySku = new java.util.LinkedHashMap<>();
+        Map<String, java.util.LinkedHashMap<Long, Integer>> taskQtyBySku = new java.util.LinkedHashMap<>();
+        Map<String, java.util.Set<String>> warehousesBySku = new java.util.LinkedHashMap<>();
+        Map<Long, String> deviceByTask = new java.util.HashMap<>();
+        for (ReplenishmentTask task : tasks) {
+            com.aicabinet.trade.domain.WarehouseOutbound outbound =
+                    outboundRepository.selectById(task.getOutboundId());
+            if (outbound == null) {
+                continue;
+            }
+            deviceByTask.put(task.getTaskId(), task.getDeviceId());
+            for (com.aicabinet.trade.domain.WarehouseOutboundLine line : outboundLineRepository
+                    .findByOutboundIdAndDeviceIdOrderByLineIdAsc(task.getOutboundId(), task.getDeviceId())) {
+                // 备货只排除作废行（CB-072 站点自仓口径）：天天补货从分仓（站点自仓）出货，
+                // 本部仓只对采购——交接状态（PENDING/IN_TRANSIT/…）在自仓直配流程不作为排除依据
+                if ("CANCELLED".equals(line.getHandoverStatus())) {
+                    continue;
+                }
+                unitsBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
+                taskQtyBySku.computeIfAbsent(line.getSkuId(), k -> new java.util.LinkedHashMap<>())
+                        .merge(task.getTaskId(), line.getQuantity(), Integer::sum);
+                warehousesBySku.computeIfAbsent(line.getSkuId(), k -> new java.util.HashSet<>())
+                        .add(outbound.getWarehouseId());
+            }
+        }
+        if (unitsBySku.isEmpty()) {
+            return List.of();
+        }
+        Set<String> skuIds = unitsBySku.keySet();
+        Map<String, com.aicabinet.trade.domain.SkuCatalog> catalogBySku =
+                skuCatalogMapper.selectList(
+                                com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                        .<com.aicabinet.trade.domain.SkuCatalog>lambdaQuery()
+                                        .in(com.aicabinet.trade.domain.SkuCatalog::getSkuId, skuIds))
+                        .stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                com.aicabinet.trade.domain.SkuCatalog::getSkuId,
+                                s -> s, (a, b) -> a));
+        List<MerchantPrepListDto> out = new java.util.ArrayList<>();
+        for (Map.Entry<String, Integer> e : unitsBySku.entrySet()) {
+            String skuId = e.getKey();
+            int totalUnits = e.getValue();
+            com.aicabinet.trade.domain.SkuCatalog catalog = catalogBySku.get(skuId);
+            int packQty = Math.max(1, catalog == null ? 1 : catalog.getPackQty());
+            int stockUnits = warehousesBySku.getOrDefault(skuId, java.util.Set.of()).stream()
+                    .mapToInt(wid -> warehouseInventoryRepository
+                            .selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                                    .<com.aicabinet.trade.domain.WarehouseInventory>lambdaQuery()
+                                    .eq(com.aicabinet.trade.domain.WarehouseInventory::getWarehouseId, wid)
+                                    .eq(com.aicabinet.trade.domain.WarehouseInventory::getSkuId, skuId))
+                            .stream()
+                            .mapToInt(com.aicabinet.trade.domain.WarehouseInventory::getQuantity)
+                            .sum())
+                    .sum();
+            List<MerchantPrepListDto.TaskRef> taskRefs = taskQtyBySku
+                    .getOrDefault(skuId, new java.util.LinkedHashMap<>())
+                    .entrySet().stream()
+                    .map(t -> new MerchantPrepListDto.TaskRef(
+                            t.getKey(), deviceByTask.get(t.getKey()), t.getValue()))
+                    .toList();
+            out.add(new MerchantPrepListDto(
+                    skuId,
+                    catalog == null ? skuId : catalog.getSkuName(),
+                    catalog == null ? "支" : catalog.getUnit(),
+                    packQty,
+                    totalUnits,
+                    totalUnits / packQty,
+                    totalUnits % packQty,
+                    stockUnits,
+                    stockUnits / packQty,
+                    stockUnits < totalUnits,
+                    taskRefs.size(),
+                    taskRefs));
+        }
+        out.sort(java.util.Comparator.comparingInt(MerchantPrepListDto::totalUnits).reversed());
+        return out;
     }
 
     @Transactional(readOnly = true)

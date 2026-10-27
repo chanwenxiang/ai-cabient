@@ -89,6 +89,8 @@ export const MerchantEndpoints = {
   /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
   replenishmentSelfInitiate: `${API_PREFIX}/merchant/replenishment/self-initiate`,
   replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,
+  /** 首页备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 + 仓库库存 */
+  replenishmentPrepList: `${API_PREFIX}/merchant/replenishment/prep-list`,
   replenishmentTasksByStatus: (status: string) =>
     `${API_PREFIX}/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`,
   replenishmentDeviceAccess: (deviceId: string) =>

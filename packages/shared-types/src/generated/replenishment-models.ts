@@ -20,6 +20,8 @@ export type OpenApiMerchantSelfReplenishRequest = components['schemas']['Merchan
 export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSelfReplenishLine'];
 /** 补货任务 */
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
+/** 首页备货清单行（CB-072，按 SKU 聚合 + 件装数换算） */
+export type OpenApiMerchantPrepListDto = components['schemas']['MerchantPrepListDto'];
 /** 整仓盘点单（ops 与商户小程序共用） */
 export type OpenApiStocktakeDto = components['schemas']['StocktakeDto'];
 /** 盘点明细行 */

@@ -531,6 +531,12 @@ public class MerchantPortalService {
         return inventoryPortalService.listReplenishmentTasks(userId, status, deviceId);
     }
 
+    /** 首页「备货清单」（CB-072）：进行中任务的出库行按 SKU 聚合 + 件装数换算 + 仓库库存提示。 */
+    @Transactional(readOnly = true)
+    public List<com.aicabinet.common.dto.MerchantPrepListDto> replenishmentPrepList(Long userId) {
+        return inventoryPortalService.replenishmentPrepList(userId);
+    }
+
     /** 商户「缺货巡柜」聚合（货道级统一口径，2026-10-15）。 */
     @Transactional(readOnly = true)
     public List<com.aicabinet.common.dto.MerchantShortageSummaryDto> listShortageSummary(Long userId) {

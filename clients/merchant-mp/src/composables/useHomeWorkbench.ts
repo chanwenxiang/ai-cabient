@@ -115,6 +115,8 @@ export function useHomeWorkbench() {
   const lowStockCount = ref(0);
   const expiryCount = ref(0);
   const taskPreview = ref<TaskRow[]>([]);
+  /** 首页备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 */
+  const prepList = ref<import('@aicabinet/shared-types').OpenApiMerchantPrepListDto[]>([]);
   const deviceMap = ref<Record<string, string>>({});
   const stats = ref<Record<string, unknown>>({});
   const latestAnnouncement = ref<AnnouncementDto | null>(null);
@@ -271,6 +273,11 @@ export function useHomeWorkbench() {
     return softErr(merchantApi.replenishmentTasks(), [], '补货任务加载失败', { silent });
   }
 
+  async function fetchHomePrepList(silent?: boolean) {
+    if (!canReplenishment.value) return [];
+    return softErr(merchantApi.replenishmentPrepList(), [], '备货清单加载失败', { silent });
+  }
+
   async function fetchHomeAnalytics(silent?: boolean) {
     if (!canBusiness.value) return null;
     return softErr(merchantApi.analytics(7), null, '经营数据加载失败', { silent });
@@ -292,6 +299,7 @@ export function useHomeWorkbench() {
       fetchHomeExpiryRows(silent),
       fetchHomeDevices(silent),
       fetchHomeReplenishmentTasks(silent),
+      fetchHomePrepList(silent),
       softFallback(merchantApi.listAnnouncements(), [], '公告', { silent }),
       fetchHomeAnalytics(silent)
     ]);
@@ -386,6 +394,7 @@ export function useHomeWorkbench() {
       expiryRows,
       devices,
       tasks,
+      prep,
       announcements,
       analytics
     ] = bundle;
@@ -403,6 +412,9 @@ export function useHomeWorkbench() {
     }
     deviceMap.value = map;
     applyTaskPreview(tasks as TaskRow[]);
+    prepList.value = canReplenishment.value
+      ? ((prep || []) as import('@aicabinet/shared-types').OpenApiMerchantPrepListDto[])
+      : [];
   }
 
   /**
@@ -461,6 +473,7 @@ export function useHomeWorkbench() {
     pendingTaskCount,
     actionItems,
     taskPreview,
+    prepList,
     deviceMap,
     stats,
     latestAnnouncement,

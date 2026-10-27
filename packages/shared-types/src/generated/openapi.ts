@@ -9804,6 +9804,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/replenishment/prep-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["replenishmentPrepList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/replenishment/my-efficiency": {
         parameters: {
             query?: never;
@@ -19476,6 +19492,40 @@ export interface components {
             shortageSlots?: number;
             /** Format: int32 */
             shortageQty?: number;
+        };
+        ApiResponseListMerchantPrepListDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantPrepListDto"][];
+        };
+        MerchantPrepListDto: {
+            skuId?: string;
+            skuName?: string;
+            unit?: string;
+            /** Format: int32 */
+            packQty?: number;
+            /** Format: int32 */
+            totalUnits?: number;
+            /** Format: int32 */
+            cases?: number;
+            /** Format: int32 */
+            remainUnits?: number;
+            /** Format: int32 */
+            stockUnits?: number;
+            /** Format: int32 */
+            stockCases?: number;
+            stockShort?: boolean;
+            /** Format: int32 */
+            taskCount?: number;
+            tasks?: components["schemas"]["TaskRef"][];
+        };
+        TaskRef: {
+            /** Format: int64 */
+            taskId?: number;
+            deviceId?: string;
+            /** Format: int32 */
+            quantity?: number;
         };
         ApiResponseMerchantReplenishmentEfficiencyDto: {
             /** Format: int32 */
@@ -36867,6 +36917,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListMerchantShortageSummaryDto"];
+                };
+            };
+        };
+    };
+    replenishmentPrepList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMerchantPrepListDto"];
                 };
             };
         };

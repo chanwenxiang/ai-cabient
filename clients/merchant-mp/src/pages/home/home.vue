@@ -163,6 +163,32 @@
         </view>
       </view>
 
+      <!-- 备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算；备货在去柜之前 -->
+      <view v-if="canReplenishment && prepList.length" class="card section-card">
+        <view class="section-head">
+          <text class="section">备货清单</text>
+          <text class="meta">出发前照单备货 · {{ prepList.length }} 种商品</text>
+        </view>
+        <view
+          v-for="row in prepList"
+          :key="row.skuId"
+          class="task-row"
+          hover-class="task-row-hover"
+          role="button"
+          :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
+          @click="goReplenishment()"
+        >
+          <view class="task-copy">
+            <text class="task-name">{{ row.skuName }}</text>
+            <text class="task-meta">
+              备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
+              }}{{ row.stockShort ? ' · 库存不足' : '' }}
+            </text>
+          </view>
+          <text class="task-go app-link-chevron">{{ row.taskCount }} 个任务</text>
+        </view>
+      </view>
+
       <view v-if="canReplenishment" class="card section-card">
         <view class="section-head">
           <text class="section">今日补货</text>
@@ -307,6 +333,7 @@ const {
   pendingTaskCount,
   actionItems,
   taskPreview,
+  prepList,
   latestAnnouncement,
   onlineText,
   isMerchantUnbound,
@@ -340,6 +367,17 @@ function onDisputeTap() {
     return;
   }
   uni.switchTab({ url: '/pages/devices/devices' });
+}
+
+/** 备货换算展示（CB-072）：「X 件 + Y 支」，整件或拆零为 0 时省略对应段 */
+function prepPackText(row: { cases?: number; remainUnits?: number; unit?: string }): string {
+  const unit = String(row.unit || '支');
+  const cases = Number(row.cases) || 0;
+  const remain = Number(row.remainUnits) || 0;
+  const parts: string[] = [];
+  if (cases > 0) parts.push(`${cases} 件`);
+  if (remain > 0) parts.push(`${remain} ${unit}`);
+  return parts.length ? parts.join(' + ') : `0 ${unit}`;
 }
 
 onShow(() => {

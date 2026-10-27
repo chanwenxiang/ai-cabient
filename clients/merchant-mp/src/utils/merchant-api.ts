@@ -836,6 +836,11 @@ export const merchantApi = {
       : MerchantEndpoints.replenishmentTasks;
     return request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto[]>(path);
   },
+  /** 首页备货清单（CB-072）：数量口径=支，cases/remainUnits 由 pack_qty 换算 */
+  replenishmentPrepList: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantPrepListDto[]>(
+      MerchantEndpoints.replenishmentPrepList
+    ),
   /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
   assertReplenishmentDeviceAccess: (deviceId: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDeviceAccessDto>(

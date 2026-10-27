@@ -668,6 +668,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（夜：首页「备货清单」上线（CB-072）——缺货→备货单视图 + 件装数换算，竞品取证后按「不新造单据」落法）
+
+- **需求语义（用户口径）**：备货=根据**缺货**（不是取货）在出发前生成清单，补货员照单去仓库备货；饮料最小单位是支，要按件装数换算。竞品取证落 **CB-072**：Parlevel Stock（遥测→每机建议→按路线聚合到司机 App）+ WMS 整箱/拆零（Units = Cases × pack，case-pack 存 SKU 主数据）⇒ 结论=**不新造单据**，备货清单=进行中任务出库行的聚合换算视图（我方发起补货本就自动生成分仓出库）。
+- **后端**：新商户端点 `GET /api/v2/merchant/replenishment/prep-list`（权限同补货查看 + FIELD 设备范围）：IN_PROGRESS 任务的出库行按 SKU 聚合 → `MerchantPrepListDto`（totalUnits / cases / remainUnits 按 `sku_catalog.pack_qty` 换算 + **分仓库存**支/件与不足标记 + 任务引用）。🔴 **仓库口径（用户 2026-10-27 纠正，勿再犯）**：分仓=站点/商户**自己的仓**，本部仓只对采购——天天补货从他们自己的仓出货，不存在「本部→站点」在途腿；库存读**出库单上的分仓**（`outbound.warehouse_id`），行过滤**只排除作废（CANCELLED）**，交接状态在自仓直配流程不作排除依据。
+- **mp 首页**：`canReplenishment` 用户在「扫码到柜」与「今日补货」之间插「备货清单」卡（空清单不占位）——每行 商品名 / 备 X 件 + Y 支 / 仓库库存（支+件）/ 「N 个任务」，点行进补货页；换算展示 `prepPackText`（整件或拆零为 0 省略对应段）。
+- 🧪 实跑：`MerchantInventoryPortalServiceTest` 5/5（聚合+换算+作废行排除+库存提示）；mp vitest 193/193、`vue-tsc` 绿、dev 包已出；**live 接口探针 code=0 data=[]**（现存唯一 IN_PROGRESS 任务 4 的出库已 SHIPPED 全在途 ⇒ 空是正确行为；明早第一笔新补货任务即出清单）。openapi.ts / replenishment-models.ts / alias-groups 同批重生成（MerchantPrepListDto + TaskRef schema）。
+- 📌 备货单暂不做：跨柜/跨任务聚合的「今日线路」视图（依赖线路排班，后置）；打印/导出。
+
 ### 2026-10-27（晚间：方案 A 第一步落地——商户端备货链路去货道化（用户拍板）+ 货道路径建议钳制 + 登录自动跳过）
 
 - 📌 **用户拍板方案 A**：开门柜（将邑）的用户可见面切「台账 + 场景限制」口径，分两步走；今天落商户端备货链路。直接诱因：用户在货道页重存了 PAR=8 的配置 ⇒ 建议按「目标库存−货道账面(0)」顶到 8，台账容量 4 被顶穿。
