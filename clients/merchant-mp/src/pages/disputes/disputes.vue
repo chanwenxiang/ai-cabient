@@ -199,28 +199,22 @@
               />
             </view>
           </view>
-          <view v-if="playbackUrl" class="video-block">
-            <text class="detail-lbl">购物录像</text>
+          <view v-if="playbackUrls.length" class="video-block">
+            <text class="detail-lbl"
+              >购物录像{{ playbackUrls.length > 1 ? `（${playbackUrls.length} 段）` : '' }}</text
+            >
+            <!-- 微信小程序 video 不支持 <track> 子节点（初始化异常/黑屏），已移除；
+                 enable-progress-gesture=false：进度手势不再劫持 scroll-view 滑动（用户实测「卡住不能下滑」） -->
             <video
+              v-for="(url, idx) in playbackUrls"
+              :key="url.slice(-40) + idx"
               class="dispute-video"
-              :src="playbackUrl"
+              :src="url"
               controls
               object-fit="contain"
+              :enable-progress-gesture="false"
               :show-center-play-btn="true"
-            >
-              <track
-                kind="captions"
-                srclang="zh"
-                label="现场录像无对白字幕"
-                src="data:text/vtt,WEBVTT"
-              />
-              <track
-                kind="descriptions"
-                srclang="zh"
-                label="购物过程监控录像"
-                src="data:text/vtt,WEBVTT"
-              />
-            </video>
+            />
           </view>
         </scroll-view>
         <view class="detail-actions">
@@ -369,7 +363,17 @@ const detailAmountDiffNote = computed(() => merchantDisputeAmountDiffNote(detail
  * `<video>` 解析不了（`net::ERR_UNKNOWN_URL_SCHEME`、黑屏 00:00）—— 该回退块已删除，
  * 因为把「不可播放」当成「有录像」展示本身就是误导。
  */
-const playbackUrl = computed(() => playablePlaybackUrl(detail.value?.videoPreviewUrl));
+// 双摄：将邑柜每单左/右两段录像，ticket.videoPreviewUrls 为全部可播地址；
+// 旧后端无该字段时回退单地址 videoPreviewUrl（2026-10-27 用户实测「有两段视频」）
+const playbackUrls = computed<string[]>(() => {
+  const urls = (detail.value?.videoPreviewUrls || [])
+    .map((u) => playablePlaybackUrl(u))
+    .filter(Boolean);
+  if (urls.length) return urls;
+  const first = playablePlaybackUrl(detail.value?.videoPreviewUrl);
+  return first ? [first] : [];
+});
+const playbackUrl = computed(() => playbackUrls.value[0] || '');
 /**
  * 证据图 fileId/url -> 本地临时路径。
  * image 标签无法携带 Authorization 头，直连证据流 URL 会 401；

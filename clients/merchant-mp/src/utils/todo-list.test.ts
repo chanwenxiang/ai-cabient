@@ -324,4 +324,7 @@ describe('matchTodoKpiCategory', () => {
     expect(matchTodoKpiCategory('EXPIRY', 'expiry')).toBe(true);
     expect(matchTodoKpiCategory('DISPUTE', 'stock')).toBe(false);
   });
+  it('OPEN_TIMEOUT 归故障卡——否则徽标≠待办总数（2026-10-27 实测 37 vs 41）', () => {
+    expect(matchTodoKpiCategory('OPEN_TIMEOUT', 'offline')).toBe(true);
+  });
 });

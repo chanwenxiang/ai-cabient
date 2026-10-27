@@ -7,6 +7,7 @@
       <view class="card">
         <text class="card-title">联系客服</text>
         <view
+          v-if="supportPhoneDisplay"
           class="support-row"
           role="button"
           aria-label="拨打客服热线"
@@ -160,8 +161,9 @@ import { ref } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
 import { showError, showSuccess } from '@/utils/notify';
 
-const supportPhoneDisplay = ref('4000182992');
-const supportPhoneDial = ref('4000182992');
+// 2026-10-27 用户拍板：客服电话不写死——从 consumer.service_phone 配置下发，未配置=整行不渲染
+const supportPhoneDisplay = ref('');
+const supportPhoneDial = ref('');
 const supportEmail = ref('');
 const openIdx = ref<number | null>(0);
 

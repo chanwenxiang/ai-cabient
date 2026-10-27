@@ -594,7 +594,8 @@ public class SystemConfigService {
     @Transactional(readOnly = true)
     public Map<String, String> consumerPublicConfig() {
         Map<String, String> map = new LinkedHashMap<>();
-        map.put("servicePhone", self.getValue(CONSUMER_SERVICE_PHONE, "4000182992"));
+        // 2026-10-27 用户拍板：客服电话不写死——未配置=不下发，前端整组不渲染（fail-closed 同商户端）
+        map.put("servicePhone", self.getValue(CONSUMER_SERVICE_PHONE, "").trim());
         map.put("supportEmail", self.getValue(OPS_SUPPORT_EMAIL, "").trim());
         boolean wechatSubscribeOk = weChatMiniAppProperties.isConfigured()
                 && weChatMiniAppProperties.resolveConsumerTemplateId() != null
@@ -663,7 +664,7 @@ public class SystemConfigService {
         map.put("chartsEnabled",
                 String.valueOf(self.getBoolean(MERCHANT_CHARTS_ENABLED, false)));
         // CB-018④：商户端客服触点（「我的」页帮助与客服入口；空串 ⇒ 前端不渲染该入口，fail-closed）
-        map.put("servicePhone", self.getValue(MERCHANT_SERVICE_PHONE, "4000182992").trim());
+        map.put("servicePhone", self.getValue(MERCHANT_SERVICE_PHONE, "").trim());
         map.put("supportEmail", self.getValue(OPS_SUPPORT_EMAIL, "").trim());
         String merchantTmpl = weChatMiniAppProperties.subscribeTemplateId();
         boolean tmplOk = merchantTmpl != null && !merchantTmpl.isBlank();

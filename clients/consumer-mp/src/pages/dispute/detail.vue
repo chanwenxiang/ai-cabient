@@ -110,7 +110,7 @@
           label="返回订单列表"
           @click="goOrders"
         />
-        <text role="button" class="contact-link" @click="contactOps"
+        <text v-if="servicePhone" role="button" class="contact-link" @click="contactOps"
           >联系客服 {{ servicePhone }}</text
         >
         <text v-if="supportEmail" role="button" class="contact-link" @click="copySupportEmail"
@@ -151,7 +151,8 @@ const error = ref('');
 const ticket = ref<DisputeTicketDto | null>(null);
 const sessionId = ref('');
 const ticketId = ref('');
-const servicePhone = ref('4000182992');
+// 2026-10-27 用户拍板：客服电话不写死，consumer.service_phone 配置下发；未配置不渲染入口
+const servicePhone = ref('');
 const supportEmail = ref('');
 /** fileId/url -> 本地临时路径，避免 image src 带 token */
 const evidenceLocalSrc = ref<Record<string, string>>({});
@@ -482,6 +483,7 @@ function goOrders() {
 
 function contactOps() {
   // C9：H5 无拨号实现，降级提示
+  if (!servicePhone.value) return;
   if (!safeMakePhoneCall(servicePhone.value)) {
     showError(`请拨打 ${servicePhone.value}`);
   }

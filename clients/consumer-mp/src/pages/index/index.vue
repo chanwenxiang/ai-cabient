@@ -655,7 +655,8 @@ function clearReviewSession() {
 
 const reviewTicket = ref<DisputeTicketDto | null>(null);
 const reviewCopy = computed(() => consumerDisputeReviewCopy(reviewTicket.value));
-const servicePhone = ref('4000182992');
+// 2026-10-27 用户拍板：客服电话不写死，consumer.service_phone 配置下发（未配置=文案不提电话）
+const servicePhone = ref('');
 /**
  * 首页券包入口（扩展功能 `consumer.coupon_entry.enabled`）。
  * fail-closed：默认 false ⇒ 首页不渲染入口，与接入前完全一致。

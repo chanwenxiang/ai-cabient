@@ -131,7 +131,7 @@
           >
         </view>
 
-        <view class="actions">
+        <view v-if="supportPhoneDisplay" class="actions">
           <app-button v-if="order?.deviceId" label="再去本柜购物" @click="reopenCabinet" />
           <!-- 后端结算单待支付是 PENDING（SettlementOrderFinalizeService），UNPAID 为另一类应付单；两类都允许去支付 -->
           <app-button
@@ -171,7 +171,11 @@
           <app-button variant="outline" label="帮助与客服" @click="goHelp" />
         </view>
 
-        <view role="button" class="support app-link-chevron" @click="callSupport"
+        <view
+          v-if="supportPhoneDisplay"
+          role="button"
+          class="support app-link-chevron"
+          @click="callSupport"
           >客服电话: {{ supportPhoneDisplay }}</view
         >
         <!--
@@ -393,8 +397,9 @@ const invoiceEmail = ref('');
 const selectedCategory = ref('USER_APPEAL');
 const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
-const supportPhoneDisplay = ref('4000182992');
-const supportPhoneDial = ref('4000182992');
+// 2026-10-27：客服电话不写死，consumer.service_phone 配置下发；未配置整行不渲染
+const supportPhoneDisplay = ref('');
+const supportPhoneDial = ref('');
 
 /** 合并 onLoad/onShow 同刻并发，避免首屏打两次订单详情 */
 let bootstrapPromise: Promise<void> | null = null;

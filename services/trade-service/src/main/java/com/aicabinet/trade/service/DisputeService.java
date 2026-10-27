@@ -965,22 +965,32 @@ public class DisputeService {
      * <p>任何一步失败都返回 {@code null}：复核是「能看就更好」，不能让 OSS 不可达把整个争议
      * 详情页拖垮（presign 走 gateway，存在真实网络调用）。</p>
      */
-    private String jiangyiVideoFallbackUrl(String sessionId) {
-        if (sessionId == null || sessionId.isBlank()) {
-            return null;
+    /** 可播地址全集：MinIO 预签名优先（单段），将邑台账兜底并返回全部可播分片（双摄左/右两段）。 */
+    private java.util.List<String> previewUrlsFor(String videoUri, String sessionId) {
+        var minio = minioVideoService.presignPlaybackUrl(videoUri);
+        if (minio.isPresent()) {
+            return java.util.List.of(minio.get());
         }
+        return jiangyiVideoFallbackUrls(sessionId);
+    }
+
+    private java.util.List<String> jiangyiVideoFallbackUrls(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return java.util.List.of();
+        }
+        java.util.List<String> urls = new java.util.ArrayList<>();
         try {
             for (JiangyiOrderVideoService.PlayUrlView view : jiangyiOrderVideoService.playByOrderNo(sessionId)) {
                 for (JiangyiOrderVideoService.PlayUrlItem item : view.items()) {
                     if (item.playable() && item.url() != null && !item.url().isBlank()) {
-                        return item.url();
+                        urls.add(item.url());
                     }
                 }
             }
         } catch (RuntimeException e) {
             log.warn("争议录像回退将邑台账失败 sessionId={} reason={}", sessionId, e.toString());
         }
-        return null;
+        return urls;
     }
 
     private DisputeTicketDto toDto(DisputeTicket ticket) {
@@ -1006,10 +1016,10 @@ public class DisputeService {
         Integer claimedAmountCents = sumLineAmountCents(suggested);
         int memberDiscount = orderOpt.map(o -> o.getMemberDiscountCents()).orElse(0);
         int couponDiscount = orderOpt.map(o -> o.getCouponDiscountCents()).orElse(0);
-        String previewUrl = includeVideoPreview
-                ? minioVideoService.presignPlaybackUrl(videoUri)
-                        .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()))
-                : null;
+        java.util.List<String> previewUrls = includeVideoPreview
+                ? previewUrlsFor(videoUri, ticket.getSessionId())
+                : java.util.List.of();
+        String previewUrl = previewUrls.isEmpty() ? null : previewUrls.get(0);
         Instant now = Instant.now();
         boolean slaOverdue = DisputeTicketTransitions.canActWhileOpen(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1044,7 +1054,8 @@ public class DisputeService {
                 statusLabel,
                 consumerCopy.title(),
                 consumerCopy.detail(),
-                amountDiff);
+                amountDiff,
+                previewUrls);
     }
 
     @Transactional(readOnly = true)
@@ -1162,10 +1173,10 @@ public class DisputeService {
         String sessionState = session != null ? session.getState().name() : null;
         String orderId = session != null ? session.getOrderId() : null;
         String videoUri = session != null ? session.getVideoUri() : null;
-        String previewUrl = includeVideoPreview
-                ? minioVideoService.presignPlaybackUrl(videoUri)
-                        .orElseGet(() -> jiangyiVideoFallbackUrl(ticket.getSessionId()))
-                : null;
+        java.util.List<String> previewUrls = includeVideoPreview
+                ? previewUrlsFor(videoUri, ticket.getSessionId())
+                : java.util.List.of();
+        String previewUrl = previewUrls.isEmpty() ? null : previewUrls.get(0);
         var orderOpt = orderRepository.findBySessionId(ticket.getSessionId());
         Integer billedAmountCents = orderOpt.map(this::resolveBilledAmountCents).orElse(null);
         Integer refundedAmountCents = orderOpt.map(this::resolveRefundedAmountCents).orElse(null);
@@ -1209,7 +1220,8 @@ public class DisputeService {
                 statusLabel,
                 consumerCopy.title(),
                 consumerCopy.detail(),
-                amountDiff);
+                amountDiff,
+                previewUrls);
     }
 
     Integer resolveBilledAmountCents(CabinetOrder order) {

@@ -208,7 +208,9 @@ const TODO_CATEGORY_FAULT = [
   'DEVICE_FAULT',
   'SALES_LOCKED',
   'DOOR_OPEN_TOO_LONG',
-  'UPLOAD_STUCK'
+  'UPLOAD_STUCK',
+  // 2026-10-27：开门命令无响应也是设备不可用类——此前未归卡导致徽标(37)≠待办总数(41)
+  'OPEN_TIMEOUT'
 ];
 const TODO_CATEGORY_STOCK = [
   'LOW_STOCK',

@@ -12635,6 +12635,7 @@ export interface components {
             /** Format: date-time */
             archivedAt?: string;
             videoPreviewUrl?: string;
+            videoPreviewUrls?: string[];
         };
         OpenDoorFailedRequest: {
             reason?: string;
@@ -13253,6 +13254,7 @@ export interface components {
             consumerReviewTitle?: string;
             consumerReviewDetail?: string;
             amountDiffNote?: string;
+            videoPreviewUrls?: string[];
         };
         FileAttachmentDto: {
             /** Format: int64 */

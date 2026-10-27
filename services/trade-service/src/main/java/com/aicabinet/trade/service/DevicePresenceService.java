@@ -204,6 +204,12 @@ public class DevicePresenceService {
             }
             d.setUpdatedAt(Instant.now());
             deviceRepository.save(d);
+            if (online) {
+                // 2026-10-27：WS 重连 = 存活证据，自动结案未决的「设备离线」待办。
+                // 将邑柜不产生 MQTT 心跳，此前 10-22 的 DEVICE_OFFLINE 异常因「心跳恢复
+                // 才结案」永远挂着——柜子明明在线，待办里仍说离线（用户实测）。
+                opsExceptionService.resolveSystem("DEVICE_OFFLINE", deviceId, "设备已上线，自动结案");
+            }
         });
     }
 

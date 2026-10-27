@@ -42,7 +42,10 @@ public record DisputeTicketDto(
         String consumerReviewTitle,
         String consumerReviewDetail,
         /** 识别参考 vs 实扣差额说明；无差额时为空 */
-        String amountDiffNote
+        String amountDiffNote,
+        /** 可播地址全集（2026-10-27 双摄）：将邑柜每单左/右两段录像；单元素或空。
+         *  {@code videoPreviewUrl} 恒为第一个，旧读面零改动。 */
+        java.util.List<String> videoPreviewUrls
 ) {
     public DisputeTicketDto(
             String ticketId,
@@ -76,7 +79,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -112,7 +115,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, null, null, null, null, null, null, null);
+                refundedAmountCents, null, null, null, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -149,7 +152,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, null, deviceName, null, null, null, null, null);
+                refundedAmountCents, null, deviceName, null, null, null, null, null, null);
     }
 
     public DisputeTicketDto(
@@ -187,7 +190,7 @@ public record DisputeTicketDto(
                 createdAt, resolvedAt, videoUri, videoPreviewUrl, sessionState, orderId,
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
-                refundedAmountCents, claimedAmountCents, deviceName, null, null, null, null, null);
+                refundedAmountCents, claimedAmountCents, deviceName, null, null, null, null, null, null);
     }
 
     /** 含 assignee，消费者文案字段为空（兼容旧装配）。 */
@@ -228,6 +231,6 @@ public record DisputeTicketDto(
                 billedAmountCents, slaDueAt, slaOverdue, slaHoursRemaining, category, priority,
                 operatorNote, closedAt, reopenedAt, messages, evidence, reviewCode, detectedClasses,
                 refundedAmountCents, claimedAmountCents, deviceName, assignee,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 }
