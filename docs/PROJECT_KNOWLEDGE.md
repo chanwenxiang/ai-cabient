@@ -40,7 +40,7 @@
 | admin-vue 业务视图 | **83** `.vue` | `src/views` |
 | consumer-mp / merchant-mp | 独立 uni-app | 分包 + `preloadRule`；H5 `:3002` / `:3001` |
 | shared packages | types / api / dict / rbac / uni | 改 API 后 `pnpm gen:api-types` |
-| 踩坑总册条目 | **345 号 / 336 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
+| 踩坑总册条目 | **346 号 / 337 行**（编号不连续） | `docs/engineering/lessons-learned.md` |
 | 竞品对照台账 | **18 条 / 96 行含 URL** | `docs/COMPETITOR_BENCHMARK.md`；门禁 `check:competitor-benchmark` |
 | 审计门禁 | `pnpm check:audit-gates` | 新建脚本须进 `ci.yml` |
 | 将邑开门柜接入 | `services/jiangyi-gateway` **:8083**（全栈 Docker `127.0.0.1:18084`） | 模式一外采套件，CB-022；方案+现状速查 `docs/JIANGYI_GATEWAY_DESIGN.md`；`JIANGYI_JWT_SECRET` 未配置则 fail-closed 503 |
@@ -668,6 +668,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（B批-2：2×`INVENTORY_MISMATCH` 走后台「修复」结清 → 巡检 FAIL 21→19）
+- 🔴 **不是新缺陷，是「手写账面 vs 盘点落账」的历史分叉**：`EG574859056581` / `EG799261106686` 的 `sku_id=100043` 汇总 = **99**（G5 基数阶段手写的账面占位，非盘点），在架批次合计 = **3**（`STOCKTAKE-2026-10-25` × 3 @货道 A1）。两台柜 `OFFLINE`、近 3 天 **0 单**，无在途售货/资金。
+- ✅ **结清不改代码、不加迁移**：运营台「数据一致性 → 类型=库存汇总 → 修复」逐条点（`POST /api/v2/ops/admin/consistency/{id}/fix`），`fixInventoryMismatch` 以 **Σ在架批次** 回写汇总（99→3），**不新增批次、不动 FEFO**；两条记录置 `FIXED` 并留痕「已将汇总库存改为在架批次合计 3」。
+- **活栈复验（一次运行覆盖红→绿，40/40 断言）**：先把两行恢复成现场原状（`quantity=99` + `FAIL` + 原 `error_message`）再跑驱动 —— 基线 FAIL **21**（18 无批次账本 + 2 本类 + 1 货道盘点）；两次「修复」均 `fixed=true`、汇总 99→3、Σ在架批次**全程不变**；「立即巡检」`failCount=19` ≡ 库内 FAIL；
+  筛选「库存汇总」表格清空、点「重置」后 KPI「未通过 19 / 本页 19」、0 console 错误、0 个 4xx/5xx。
+  截图 `.tmp/full-test-20261023/artifacts/b2-inventory-mismatch-fixed.png`，驱动器 `drivers/b2-fix-inventory-mismatch.mjs`（可重跑：已无本类 FAIL 时自动降级为「修后复核」）。
+- 🧾 **剩 19 条**：18×`INVENTORY_NO_LOT_LEDGER`（A 档刻意只记录不修数，正解=期初真实补货/收货 ⇒ **B批-3**）
+  + 1×`SLOT_PHYSICAL`（`EG459586729793|A1`：近 30 天盘点 3 ≠ A1 在架批 0；成因是我方 V404 实验里 admin PUT 走 `addRestock` 生成 **`slot_id=NULL`** 的 `B-ADMIN-2027-04-23` 批次（99 件），随后 FEFO 扣减把 A1 的盘点批扣到 0 ⇒ 「柜级批次 vs 货道级盘点」的实验残留，**不是判据缺陷**；随 B批-3 一并复核，本轮不擅自改数）。
+- 📚 lessons **#346**：`TableActions` 的 `data-testid` 依赖 `testIdPrefix` 透传（本页没传 ⇒ 只能 `button[aria-label="…"]` 定位）；同一 checkType 在 shared-dict 有**两张文案表**（筛选下拉是「库存汇总」≠「库存差异」），别按近义词猜；该页「未通过」KPI 是**按当前筛选**计数，断言前先「重置」。
+
 ### 2026-10-26（B批 A 档：无批次账本柜机进巡检台账 `INVENTORY_NO_LOT_LEDGER`）
 - 🔴 **缺陷形态**：判定库里有 **3 台柜 × 6 个 SKU** 处于「`device_sku_inventory` 汇总有货（合计 23 件/台）、货道已建档且 par>0，但整机**一行 `device_sku_lot` 都没有**」。
   `DeviceSlotService.loadBookQtyBySlot` 只读批次表且**无回退** ⇒ 每个货道账面恒 0、看板全缺货、补货建议按满 par 提量；而既有 `INVENTORY_MISMATCH` 的谓词带 `EXISTS(device_sku_lot)`
@@ -687,7 +697,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   截图 `.tmp/full-test-20261023/artifacts/b1-no-lot-ledger.png`，驱动器 `.tmp/full-test-20261023/drivers/b1-verify-no-lot-ledger.mjs`。
 - 📦 **admin 产物必须同批重建**：shared-dict 新增标签 ⇒ DICT 内联块变化 ⇒ `index` 与 `shared-dict-reactive` 哈希变，引用它们的 **109 个 chunk 随之改名**
   （同尺寸、仅 import 路径级联，逐 chunk diff 归因过）。由 `scripts/build-admin-ci-fidelity.sh` 从**已提交的干净检出**重建（node:24.18.0），产物单独成笔 `ab9fa4a2`。
-- 🧾 遗留：B批-2（2×`INVENTORY_MISMATCH` 汇总 99 / 批次 3 的旧 FAIL）、B批-3（3 台柜期初走真实补货让批次账本自然生长）仍待办。
+- 🧾 遗留：~~B批-2~~ **已于 2026-10-27 结清（见上条 Changelog）**、B批-3（3 台柜期初走真实补货让批次账本自然生长）仍待办。
 
 ### 2026-10-24（API 形状门禁 `check:openapi-regen-required` 修 record 分量假阴性：昨天靠手动 live regen 才没吃红）
 - 🔴 **假阴性是真实发生过的**：`MerchantSelfReplenishRequest`（Java **record**）加幂等键 `clientRequestNo` 那次，`check-openapi-regen-required` 打印「变更集内无 API 形状改动」放行，而 CI 的 openapi job 起 jar 抽真 `/v3/api-docs` 判红——**靠手动 live regen（`aa3d0707`）才没吃一轮推送红**。根因：判据只认 `private|protected` 开头的字段声明，而 record 分量写成 `String clientRequestNo`——**既无修饰符也无结尾符**；更深一层是原实现**只读 diff 文本、从不读文件全文**，拿不到「这个文件是不是 record」这种文件级语义。判据型门禁退化成盲区时**不报错、只是安静地绿**，比「跑不起来会红」危险得多。
