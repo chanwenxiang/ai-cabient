@@ -245,32 +245,46 @@
 
         <view id="slotCard" class="card">
           <view class="row">
-            <text class="section">货道</text>
-            <text v-if="!canEditSlots" class="meta">暂无货道编辑权限</text>
+            <text class="section">{{ isDoorCabinet ? '在架商品' : '货道' }}</text>
+            <text v-if="!isDoorCabinet && !canEditSlots" class="meta">暂无货道编辑权限</text>
+            <text v-else-if="isDoorCabinet" class="meta">开门柜按商品备货，无货道概念</text>
           </view>
-          <view class="slot-grid">
-            <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
-              <text class="slot-code">{{ s.slotCode }}</text>
-              <text class="slot-sku">{{ s.assignedSkuName || '空' }}</text>
+          <!-- 方案A 第一步：开门柜（将邑）不展示/不可存货道——在架商品走台账
+               （skuInventory：商品名+库存/容量，与建议、补货同一口径） -->
+          <view v-if="isDoorCabinet" class="slot-grid">
+            <view v-for="s in ledgerGoods" :key="s.skuId" class="slot-cell">
+              <text class="slot-sku">{{ s.skuName || s.skuId }}</text>
               <text class="meta slot-stock"
-                >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
+                >库存 {{ s.quantity }}/{{ s.capacity || '未设上限' }}</text
               >
-              <input
-                v-if="canEditSlots"
-                v-model="slotPar[s.slotCode]"
-                class="input-sm"
-                type="number"
-                placeholder="目标库存"
+            </view>
+            <text v-if="!ledgerGoods.length" class="meta">暂无在架商品</text>
+          </view>
+          <template v-else>
+            <view class="slot-grid">
+              <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
+                <text class="slot-code">{{ s.slotCode }}</text>
+                <text class="slot-sku">{{ s.assignedSkuName || '空' }}</text>
+                <text class="meta slot-stock"
+                  >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
+                >
+                <input
+                  v-if="canEditSlots"
+                  v-model="slotPar[s.slotCode]"
+                  class="input-sm"
+                  type="number"
+                  placeholder="目标库存"
+                />
+              </view>
+            </view>
+            <view v-if="canEditSlots" class="slot-save-row">
+              <app-button
+                :loading="savingSlots"
+                :label="savingSlots ? '保存中…' : '保存货道'"
+                @click="saveSlots"
               />
             </view>
-          </view>
-          <view v-if="canEditSlots" class="slot-save-row">
-            <app-button
-              :loading="savingSlots"
-              :label="savingSlots ? '保存中…' : '保存货道'"
-              @click="saveSlots"
-            />
-          </view>
+          </template>
         </view>
 
         <view v-if="canAnalytics && velocity.length" class="card">
@@ -378,6 +392,11 @@ const cmdBusy = ref(false);
 
 // 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
 const jiangyiGather = ref({ bound: false, gatherLocked: false });
+// 方案A 第一步：开门柜（将邑，bound=已绑定）按商品备货——货道编辑隐藏，改台账在架列表
+const isDoorCabinet = computed(() => jiangyiGather.value.bound);
+const ledgerGoods = ref<
+  { skuId: string; skuName?: string | null; quantity?: number; capacity?: number }[]
+>([]);
 const gatherDoorPosition = ref('');
 const gatherBusy = ref(false);
 // 只读学习进度（触发学习在运营后台）：一次触发（含批量）共享一个回执 → items 是整组 SKU
@@ -587,6 +606,17 @@ async function loadDeviceExtras(seq: number) {
   slots.value = list;
   velocity.value = vel;
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
+  const inventoryRows = (
+    detail as {
+      skuInventory?: {
+        skuId: string;
+        skuName?: string | null;
+        quantity?: number;
+        capacity?: number;
+      }[];
+    } | null
+  )?.skuInventory;
+  ledgerGoods.value = Array.isArray(inventoryRows) ? inventoryRows : [];
   gatherTraining.value = {
     modelName: training.modelName ?? null,
     status: training.status ?? null,

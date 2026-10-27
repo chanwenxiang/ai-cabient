@@ -668,6 +668,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（晚间：方案 A 第一步落地——商户端备货链路去货道化（用户拍板）+ 货道路径建议钳制 + 登录自动跳过）
+
+- 📌 **用户拍板方案 A**：开门柜（将邑）的用户可见面切「台账 + 场景限制」口径，分两步走；今天落商户端备货链路。直接诱因：用户在货道页重存了 PAR=8 的配置 ⇒ 建议按「目标库存−货道账面(0)」顶到 8，台账容量 4 被顶穿。
+- **货道路径建议钳制**（75795abd）：`buildSuggestionsFromSlots` 补 `capSuggestByInventoryCapacity`——建议 ≤ 台账容量 − 台账账面；currentQty 改台账口径（已建账看账本、未建账回台账）。至此有货道/无货道两条建议路径同受上限管束。接口实测：雪碧 账面 2 / 容量 4 / 建议 2 ✓。
+- **mp 备货链路去货道化**（本批）：①设备详情：`jiangyiGather.bound`=开门柜 ⇒ 货道编辑器隐藏（不可再存出与台账冲突的 PAR），改「在架商品」台账卡（skuName+库存/容量）；②补货任务行：`doorCabinet` prop 隐藏「货道待分配」角标与选货道 UI（判定=采集状态接口软兜底）；③发起补货草稿：`mergeSlotDraftLine` 库存/容量/名称**以台账行为真源**（货道账面常为 0、PAR 可与台账冲突——之前 0/8 假象的根），台账行缺失才用货道注解。
+- **登录自动跳过**（75795abd）：登录页是入口页且从不自动跳过 ⇒ 冷启动必见登录框（17:49 实测刷新链 200 成功、用户仍被留在登录页）。onShow 有登录态且隐私闸已过 → 直接进工作台，token 过期由请求层 7 天宽限静默续期；登出态照常停留。
+- 🧪 实跑：`WarehouseSuggestBookQtyTest` 5/5（货道路径钳制用例）；merchant-mp vitest **193/193**（新增台账优先用例）、`vue-tsc` 绿、`build:mp-weixin:dev` 出包、预检全绿。Docker 插曲：trade 容器 JVM 僵尸（Windows Docker Desktop 老毛病）kill/rm 无效 ⇒ 重启电脑解决；重启后 compose 拉起的是改名残留旧容器（`94f1e98d65db_ai-cabinet-trade-service-1`），须先 `docker rm -f` 再 up——**新镜像没生效时先查这个**。
+- 📌 待办（方案 A 第二步，待排期）：后台/运营面的货道模块清理（24 个服务摸 device_slot 的盘点与瘦身）；开门柜货道编辑 API 对 mp 关闭的服务端守卫。
+
 ### 2026-10-27（补货建议三连修：建议量顶穿容量 / 明细标题变 SKU 编号 / LOW_STOCK 英文裸奔——零货道路径的三个连锁坑）
 
 - 🔴 **三个症状一个根**：清光脏货道后「在架台账=唯一骨架」（CB-069）走上 `mergeInventoryDraftLine` 新路径，三个隐含假设同时破裂。①**建议量顶穿容量**：`bookQtyForSuggest` 按设备级 `deviceUsesLotLedger` 一刀切走批次账——雪碧从未进过账本（lot 零行）被读成 0 ⇒ 建议 4−0=4，而页面「库存 2/4」走的是 `device_sku_inventory`，两个账本打架。修法=照抄 `toInventoryDto` 已有的 per-SKU 口径（`lotLedgerSkuIds`：已建账看账本含卖光=0，未建账回台账）；ROP 分支再加 `capSuggestByInventoryCapacity`（销量外推不得顶穿 容量−账面，capacity≤0 不钳）。②**标题变编号**：`mergeInventoryDraftLine` 写死 `skuName: skuId`（名字原先从货道注解来）⇒ `DeviceInventoryDto` 尾部加 `skuName`（8 参兼容重载兜住 6 个既有调用点，deviceDetail 组装点用同一次 sku_catalog 查询顺带取名；写路径 null）。③**LOW_STOCK 裸奔**：`suggestReasonLabel` 映射表没有它 ⇒ 补「库存偏低」。

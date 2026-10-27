@@ -161,6 +161,26 @@ describe('buildDraftLines（在架台账为骨架，CB-069）', () => {
     // 旧后端不带 skuName 时退回编号，不阻塞补货
     expect(lines.find((l) => l.skuId === '100016')?.skuName).toBe('100016');
   });
+
+  it('有货道但台账行存在：库存/容量/名称以台账为准，不吃货道的 0/8（2026-10-27 用户实测）', () => {
+    const slotRows = [
+      {
+        assignedSkuId: '100013',
+        assignedSkuName: '雪碧',
+        bookQty: 0,
+        maxLevel: 8,
+        parLevel: 8
+      }
+    ] as unknown as DeviceSlot[];
+    const ledgerRows = [
+      { skuId: '100013', skuName: '雪碧柠檬味汽水330ml', quantity: 2, capacity: 4 }
+    ] as OpenApiDeviceDetailDto['skuInventory'];
+    const lines = buildDraftLines(slotRows, buildSuggestMap([]), ledgerRows || []);
+    const sprite = lines.find((l) => l.skuId === '100013');
+    expect(sprite?.currentQty).toBe(2);
+    expect(sprite?.capacity).toBe(4);
+    expect(sprite?.skuName).toBe('雪碧柠檬味汽水330ml');
+  });
 });
 
 describe('pickDefaultDeviceIndex', () => {

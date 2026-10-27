@@ -63,7 +63,8 @@
         <text v-else class="qty">× {{ line.quantity }}</text>
         <template v-if="!completed">
           <text v-if="line.slotId" class="fact">货道 {{ line.slotId }}</text>
-          <text v-else class="fact muted">货道待分配</text>
+          <!-- 方案A：开门柜按商品备货，无货道概念——空 slotId 不再显示「货道待分配」 -->
+          <text v-else-if="!doorCabinet" class="fact muted">货道待分配</text>
           <text v-if="line.batchNo" class="fact">批次 {{ line.batchNo }}</text>
           <text v-if="line.productionDate" class="fact">生产 {{ line.productionDate }}</text>
           <text v-if="line.expiryDate" class="fact">到期 {{ line.expiryDate }}</text>
@@ -74,7 +75,9 @@
         <text v-if="recapSecondary(line)" class="recap-line muted">{{ recapSecondary(line) }}</text>
       </view>
       <view
-        v-if="isLineEditable(line) && !resolveIsPullOff(line.lineType) && !line.slotId"
+        v-if="
+          !doorCabinet && isLineEditable(line) && !resolveIsPullOff(line.lineType) && !line.slotId
+        "
         class="slot-pick"
       >
         <text class="slot-pick-label">选择货道</text>
@@ -120,6 +123,8 @@ const props = defineProps<{
   completed?: boolean;
   pullOff?: boolean;
   scanning?: boolean;
+  /** 方案A：开门柜（将邑）按商品备货——隐藏货道角标/选货道 UI（2026-10-27 用户拍板） */
+  doorCabinet?: boolean;
   /** 父页布尔：有补货权限且明细未确认。小程序不能把函数当 prop 可靠传入。 */
   canEdit?: boolean;
   skuName?: (id: string) => string;

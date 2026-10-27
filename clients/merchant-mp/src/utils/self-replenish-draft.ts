@@ -65,21 +65,30 @@ export function mergeSlotDraftLine(
   bySku: Map<string, ReplenishDraftLine>,
   slot: DeviceSlot,
   sug: OpenApiReplenishmentSuggestDto | undefined,
-  onShelf?: Set<string> | null
+  onShelf?: Set<string> | null,
+  ledgerRow?: { quantity?: number; capacity?: number; skuName?: string | null } | null
 ): string | undefined {
   const skuId = String(slot.assignedSkuId || '').trim();
   if (!skuId) return;
   // 在架集合存在时，货道只作名称/容量注解：绑了已下架 SKU 的货道不进明细（2026-10-27 用户「补货应该只补柜里当前存在的 sku」）
   if (onShelf && !onShelf.has(skuId)) return;
-  const book = Number(slot.bookQty) || 0;
-  const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
+  // 🔴 库存/容量以在架台账为真源（CB-069 + 2026-10-27 实测）：货道账面常为 0
+  // （补货落账不绑货道）、PAR 可与台账容量冲突——台账行存在时一律以台账为准，
+  // 货道只在台账行缺失（历史无账行）时兜底注解。
+  const hasLedger = ledgerRow != null;
+  const book = hasLedger ? Number(ledgerRow.quantity) || 0 : Number(slot.bookQty) || 0;
+  const capacity = hasLedger
+    ? Number(ledgerRow.capacity) || 0
+    : Number(slot.maxLevel ?? slot.parLevel) || 0;
   const suggestQty = Number(sug?.suggestQty) || 0;
   const soldQty7d = Number(sug?.soldQty7d) || 0;
   const suggestReason = String(sug?.suggestReason || '');
   const existing = bySku.get(skuId);
   if (existing) {
-    existing.currentQty += book;
-    existing.capacity += capacity;
+    if (!hasLedger) {
+      existing.currentQty += book;
+      existing.capacity += capacity;
+    }
     existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
     existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
     if (suggestReason) existing.suggestReason = suggestReason;
@@ -88,7 +97,7 @@ export function mergeSlotDraftLine(
   const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
   bySku.set(skuId, {
     skuId,
-    skuName: String(slot.assignedSkuName || skuId),
+    skuName: String(ledgerRow?.skuName || slot.assignedSkuName || skuId),
     currentQty: book,
     capacity,
     suggestQty,
@@ -166,12 +175,16 @@ export function buildDraftLines(
   const bySku = new Map<string, ReplenishDraftLine>();
   const rest = new Map(suggestMap);
   const onShelf = rows ? new Set(rows.map((r) => String(r.skuId || '').trim())) : null;
+  const rowsBySku = new Map(
+    (rows || []).map((r) => [String(r.skuId || '').trim(), r] as const).filter(([k]) => !!k)
+  );
   for (const slot of slots || []) {
     const skuId = mergeSlotDraftLine(
       bySku,
       slot,
       rest.get(String(slot.assignedSkuId || '').trim()),
-      onShelf
+      onShelf,
+      rowsBySku.get(String(slot.assignedSkuId || '').trim()) || null
     );
     if (skuId) rest.delete(skuId);
   }

@@ -334,6 +334,7 @@
           :outbound-id="selected?.outboundId"
           :can-edit="canRequest && !linesConfirmed"
           :completed="selected?.status === 'COMPLETED'"
+          :door-cabinet="doorCabinet"
           :scanning="scanning"
           :sku-name="skuName"
           :sku-thumb="skuThumb"
@@ -379,7 +380,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -391,7 +392,7 @@ import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
 import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
 import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
-import { hasPerm } from '@/utils/merchant-api';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
@@ -469,6 +470,28 @@ const detailVisible = ref(false);
 /** 避免「点卡片打开」同一轮点击落到遮罩上立刻关掉 */
 const sheetCloseArmed = ref(false);
 const selected = ref<Task | null>(null);
+// 方案A 第一步：开门柜（将邑，gather bound=已绑定）按商品备货——任务行不再出现
+// 货道角标/选货道 UI。判定走将邑采集状态接口，非将邑 404 → 软兜底 false。
+const doorCabinetByDevice = ref<Record<string, boolean>>({});
+const doorCabinet = computed(
+  () => !!doorCabinetByDevice.value[String(selected.value?.deviceId || '').trim()]
+);
+watch(
+  () => selected.value?.deviceId,
+  (id) => {
+    const key = String(id || '').trim();
+    if (!key || doorCabinetByDevice.value[key] !== undefined) return;
+    merchantApi
+      .jiangyiGatherStatus(key)
+      .then((s) => {
+        doorCabinetByDevice.value[key] = !!s.bound;
+      })
+      .catch(() => {
+        doorCabinetByDevice.value[key] = false;
+      });
+  },
+  { immediate: true }
+);
 /**
  * 柜机是否明确未录点位坐标。为 true 时签到**必被服务端拒**（fail-closed），
  * 所以直接在按钮上禁用并给出指路提示，而不是让补货员到柜前吃 400。
