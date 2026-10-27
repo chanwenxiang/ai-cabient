@@ -14,6 +14,7 @@
     "clients/admin-vue/src/views/system/DictManageView.vue",
     "clients/admin-vue/src/views/system/OrgSitesView.vue",
     "clients/admin-vue/src/views/system/SystemConfigView.vue",
+    "clients/admin-vue/src/views/vision/LearningLibraryView.vue",
     "clients/admin-vue/src/views/vision/VisionMappingView.vue",
     "clients/admin-vue/src/views/warehouse/WarehouseMonthlyCloseSheetsView.vue"
   ],

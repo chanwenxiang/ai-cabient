@@ -28,11 +28,19 @@ const REQUIRED_SHARED_COMPONENTS = [
   'app-button',
   'empty-state',
   'error-state',
-  'privacy-consent-modal',
-  // 支付分品牌标签（CB-067）：consumer-mp easycom 注册，静态资产 /static/payscore/ 已随包
-  'pay-score-tag'
+  'privacy-consent-modal'
 ];
-const SHARED_COMPONENTS = [...REQUIRED_SHARED_COMPONENTS, 'app-underline-tabs'];
+/**
+ * 可选拍平清单（CB-067 pay-score-tag）：只被部分端注册（consumer-mp easycom 有、
+ * merchant-mp 无页面引用）。uni 按需编译 ⇒ 未引用端的 dist 里没有产物，
+ * 不能进 REQUIRED（assert 会对无引用端必红）；有则拍平、无则跳过。
+ */
+const OPTIONAL_SHARED_COMPONENTS = ['pay-score-tag'];
+const SHARED_COMPONENTS = [
+  ...REQUIRED_SHARED_COMPONENTS,
+  ...OPTIONAL_SHARED_COMPONENTS,
+  'app-underline-tabs'
+];
 
 const SHARED_COMPONENT_RE = /(?:^|\/)(?:packages|pkg)\/shared-uni\/src\/components\/([^/"']+)/;
 

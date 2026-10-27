@@ -233,6 +233,15 @@
       class="dialog-wide"
       :close-on-click-modal="false"
     >
+      <el-alert
+        v-if="!form.existing && cloneSource"
+        class="clone-source-alert"
+        type="info"
+        :closable="false"
+        show-icon
+        :title="`复制自「${cloneSource.sourceScope}」商品 ${cloneSource.sourceSkuId}，目标归属「${cloneSource.targetScope}」`"
+        description="条码/图片已清空（条码唯一不可共用）；价格/成本请按目标归属口径填写。保存后两边互不影响，识别仍走同一个将邑模型（两个 SKU 可挂将邑同一个商品）。"
+      />
       <el-form label-width="auto" class="sku-form" @submit.prevent>
         <div class="form-group-title">基础信息</div>
         <el-row :gutter="16">
@@ -564,7 +573,7 @@
 <script setup lang="ts">
 import { computed, onActivated, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Link as LinkIcon, Printer } from '@element-plus/icons-vue';
+import { CopyDocument, EditPen, Link as LinkIcon, Printer } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -613,6 +622,10 @@ const scopeFilterOptions = computed(() => [
 const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
 const editDialog = ref(false);
+/** 复制创建来源（CB-036 分家）：非空=本次新建来自某 SKU 的复制 */
+const cloneSource = ref<{ sourceSkuId: string; sourceScope: string; targetScope: string } | null>(
+  null
+);
 const barcodeLookingUp = ref(false);
 
 /** 单位/品牌走系统字典（CB-026，字典管理可维护；allow-create 兜底自定义输入） */
@@ -1042,10 +1055,11 @@ const skuStatusByLabel: Record<string, string> = {
   DISABLED: 'DISABLED'
 };
 
-function rowActions(_row: SkuCatalog): CrudRowAction[] {
+function rowActions(row: SkuCatalog): CrudRowAction[] {
   const acts: CrudRowAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+    acts.push({ key: 'clone', label: '复制创建', icon: CopyDocument, type: 'primary' });
     acts.push({ key: 'jiangyi-link', label: '将邑挂接', icon: LinkIcon, type: 'primary' });
   }
   acts.push({ key: 'print-label', label: '打印标签', icon: Printer, type: 'primary' });
@@ -1054,8 +1068,66 @@ function rowActions(_row: SkuCatalog): CrudRowAction[] {
 
 function onAction({ key, row }: { key: string; row: SkuCatalog }) {
   if (key === 'edit') openEdit(row);
+  else if (key === 'clone') openClone(row);
   else if (key === 'print-label') openPrintLabels([row.skuId]);
   else if (key === 'jiangyi-link') jiangyiLinkDialog.value?.open(row);
+}
+
+/**
+ * 复制创建（CB-036 分家方案）：直营/非直营卖同一款商品时，从现有 SKU 复制出另一条
+ * 独立 SKU——物理属性（条码/规格/图片/识别参数）预填沿用，经营属性（价格/成本/归属）
+ * 由操作人重填，两边从此互不影响。识别不受影响：两个 SKU 可挂将邑同一个商品，
+ * 识别模型只有一份，各柜映射到各自的 SKU 行。
+ */
+function openClone(row: SkuCatalog) {
+  const sourceScope = row.operationScope || '';
+  const targetScope = sourceScope === 'DIRECT' ? 'NON_DIRECT' : 'DIRECT';
+  const scopeLabel = (v: string) =>
+    v === 'DIRECT' ? '直营' : v === 'NON_DIRECT' ? '非直营' : '未分类';
+  const sourceScopeText = scopeLabel(sourceScope);
+  const targetScopeText = scopeLabel(targetScope);
+  const go = () => {
+    openEdit();
+    form.skuName = moveLeadingSpecToEnd(row.skuName || '');
+    form.barcode = '';
+    form.brand = row.brand || '';
+    form.spec = toEnglishSpecUnit(row.spec || '');
+    form.unit = row.unit || '件';
+    form.packQty = row.packQty ?? 1;
+    form.category = normalizeCategoryToCode(row.category);
+    form.weightGrams = row.weightGrams;
+    form.status = 'ACTIVE';
+    form.imageUrl = '';
+    form.description = row.description || '';
+    form.visionEnabled = row.visionEnabled ?? true;
+    form.minChargeConfidence = row.minChargeConfidence;
+    form.detectionMinConfidence = row.detectionMinConfidence;
+    form.shelfLifeDays = row.shelfLifeDays;
+    form.nearExpiryDays = row.nearExpiryDays;
+    form.blockSaleDaysBeforeExpiry = row.blockSaleDaysBeforeExpiry;
+    form.storageType = row.storageType || 'AMBIENT';
+    form.operationScope = targetScope;
+    form.sceneLimits = [{ sceneType: '', maxQty: undefined }];
+    cloneSource.value = {
+      sourceSkuId: row.skuId,
+      sourceScope: sourceScopeText,
+      targetScope: targetScopeText
+    };
+  };
+  if (sourceScopeText === targetScopeText) {
+    // 源本身未分类：目标默认直营（操作人可改），不打断
+    go();
+    return;
+  }
+  ElMessageBox.confirm(
+    `将从「${sourceScopeText}」商品 ${row.skuName || row.skuId}（${row.skuId}）复制一条「${targetScopeText}」新商品：` +
+      `条码/图片需重新填写或上传，价格/成本/归属请按${targetScopeText}口径填写；` +
+      `两边此后互不影响（识别仍走同一个将邑模型）。继续？`,
+    '复制创建',
+    { type: 'info', confirmButtonText: '继续', cancelButtonText: '取消' }
+  )
+    .then(go)
+    .catch(() => {});
 }
 
 function openPrintLabels(ids: Array<string | number>) {
@@ -1135,6 +1207,8 @@ function openEdit(row?: SkuCatalog) {
     form.nearExpiryPriceCents = undefined;
     form.operationScope = 'DIRECT';
     form.sceneLimits = [{ sceneType: '', maxQty: undefined }];
+    // 普通新建：清掉复制来源提示（复制路径由 openClone 在 openEdit 之后自行设置）
+    cloneSource.value = null;
   }
   editDialog.value = true;
 }
@@ -1311,6 +1385,7 @@ async function saveEdit() {
       await crud.search();
     }
     editDialog.value = false;
+    cloneSource.value = null;
     ElMessage.success(form.existing ? '已保存商品' : `已新建，SKU ${updated.skuId}`);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
@@ -1411,6 +1486,9 @@ onActivated(() => {
 <style scoped>
 .status-tabs {
   margin: 0 0 10px;
+}
+.clone-source-alert {
+  margin-bottom: 14px;
 }
 .page-card-head {
   display: flex;
