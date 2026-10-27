@@ -675,7 +675,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - **开门柜零货道豁免**：`persistRestockLines` 开头加 `hasSkuSlots=false → 整行落 slotId=null`（与完成链 `restockOutboundLineWithoutSlots` 同口径）——否则清掉脏货道后「确认核对→提交」会 400「无可用货道容量」。「开门柜没有格子」为用户拍板口径。
 - **配套数据清理（dev EG943322621391）**：删 7 行脏 `device_slot`（A1-A4/B1=演示种子 assigned_at 全 NULL + B2/B4 手写挂接）+ 6 行演示 SKU 零库存 `device_sku_inventory`（SKU-DEMO-001/MILK/NOODLE/SNACK/SODA/WATER，quantity 全 0）。🔴 两个边界：**场景限制载体是 `sku_scene_limit`（sku×scene→max_qty），与 device_slot 完全独立**，清货道不碰限制；货道页 `listSlots` **不过滤 enabled**——「停用」清不掉页面，必须删行。**B3 留而未删**：被任务 5 的待交接出库行（`warehouse_outbound_line` FK RESTRICT）挂着，须先取消任务 5（空任务可取消）再删；B3 的 max_level=8 手写值也是「0/12」「建议 12」假容量的另一半来源。
 - 🧪 实跑：jiangyi-gateway 全量 0 失败（含新钉 DeviceWebSocketHandlerTest 20/0：stock 回执转发 OPEN / 非 stock 不转发 / trade 不可达吞掉；DeviceCompatControllerTest 11/0：success 才转发 / 失败不转发 / 无鉴权不转发 / trade 挂了仍回 data:null）；trade 全量 **2435 条 `<testcase>`，仅 6 红且经 stash 实证在 HEAD 上同样红**（`TempBindingProbeTest` 端口 bind 探针 + `JiangyiOnboardingRegisterSqlIT` 上下文加载——纯本机环境既有问题，与本次无关）；新增 RestockDoorCloseReportTest 4/0（OPENING 孤儿推进/SHOPPING 快照完成/无会话幂等 false/空设备号不查询）+ ReplenishmentSubmitLinesQuantityGateTest 7/0（零货道落 null 行/有货道照旧分配）。
-- 📌 待办交接：任务 5 用户取消后删 B3 行；两端镜像重建+重启后真机再走一轮补货全流程（本轮代码未部署 dev 容器）。
+- 📌 待办交接（16:55 更新）：~~任务 5 取消~~（已按 `doCancelEmptyTask` 语义 SQL 收口：任务/出库 3/路由 3 全 CANCELLED，出库行 8 slot_id 置 NULL 后 B3 已删——**小程序无取消任务入口**，cancel-empty 是 ops 端点）~~后删 B3~~；该柜 device_slot 现 0 行。剩余：真机再走一轮补货全流程验证（代码已部署 dev 容器并推送 36f7662d）。
 
 ### 2026-10-27（B 档收尾：分仓负责人变更补「前后值」审计——复核先证伪了 backlog 里的现状措辞）
 
