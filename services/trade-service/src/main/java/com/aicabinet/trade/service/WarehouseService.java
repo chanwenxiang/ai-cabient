@@ -444,18 +444,29 @@ public class WarehouseService {
         if (qtyBySku.isEmpty()) {
             return List.of();
         }
+        // 台账对齐 + 容量钳制（2026-10-27 用户实测「目标库存 8 顶穿容量 4」）：
+        // currentQty 用与设备详情同一条口径（已建账看账本、未建账回台账——货道账面常为 0，
+        // 因为补货落账不绑货道）；建议量一律 ≤ 台账容量 − 台账账面，货道 PAR 填得再大也不越界。
+        Map<String, DeviceSkuInventory> invBySku = deviceInventoryRepository.findByIdDeviceId(dev).stream()
+                .collect(Collectors.toMap(i -> i.getId().getSkuId(), i -> i, (a, b) -> a));
+        java.util.Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(dev);
         return qtyBySku.entrySet().stream()
                 .map(e -> {
                     String skuId = e.getKey();
                     SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
                             skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
-                    int book = bookBySku.getOrDefault(skuId, 0);
+                    DeviceSkuInventory inv = invBySku.get(skuId);
+                    int book = inv == null
+                            ? bookBySku.getOrDefault(skuId, 0)
+                            : bookQtyForSuggest(dev, skuId, inv.getQuantity(), lotSkus);
                     int par = parBySku.getOrDefault(skuId, 0);
+                    int capacity = inv == null ? 0 : inv.getCapacity();
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
-                    int rawSuggest = e.getValue();
+                    int rawSuggest = capSuggestByInventoryCapacity(
+                            Math.max(0, e.getValue() - inTransit), book, capacity);
                     return new ReplenishmentSuggestDto(
-                            dev, skuId, book, par, 0,
-                            Math.max(0, rawSuggest - inTransit), inTransit,
+                            dev, skuId, book, capacity > 0 ? capacity : par, 0,
+                            rawSuggest, inTransit,
                             velocity.soldQty7d(), velocity.soldQty14d(), velocity.ropPoint(),
                             reasonBySku.getOrDefault(skuId, "PAR"));
                 })

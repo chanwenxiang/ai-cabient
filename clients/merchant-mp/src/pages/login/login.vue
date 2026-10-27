@@ -111,7 +111,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { merchantLogin, merchantApi } from '@/utils/merchant-api';
+import { merchantLogin, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { showDevTools } from '@/utils/runtime-flags';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
@@ -121,7 +121,16 @@ import { fetchCaptcha } from '@/utils/merchant-api';
 const { showPrivacy, refreshPrivacyGate, onPrivacyAccepted, onPrivacyDeclined } =
   usePrivacyConsentModal();
 
-onShow(refreshPrivacyGate);
+onShow(() => {
+  refreshPrivacyGate();
+  // 登录页是 pages.json 入口页：冷启动必经这里。已有登录态（含「token 过期但在
+  // 7 天宽限内可静默续期」）直接进工作台，请求层会自动续期——否则用户每次重启
+  // 都面对登录框重新输密码（2026-10-27 实测：刷新链本身 200 成功，用户却被留在本页）。
+  // 隐私弹窗未同意时留在本页先过闸；登出（clearSession）后无 token 照常停在本页。
+  if (isMerchantLoggedIn() && !showPrivacy.value) {
+    uni.switchTab({ url: '/pages/home/home' });
+  }
+});
 
 const PW_STORE_KEY = 'merchant_login_password';
 

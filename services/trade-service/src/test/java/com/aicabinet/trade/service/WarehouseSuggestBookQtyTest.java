@@ -164,4 +164,27 @@ class WarehouseSuggestBookQtyTest {
         assertEquals(3, out.stream().filter(s -> s.skuId().equals("100014"))
                 .findFirst().orElseThrow().suggestQty());
     }
+
+    @Test
+    void slotPath_parBeyondInventoryCapacity_clampedToCapacityMinusBook() {
+        // 用户实测案（货道页保存了 par=8 的货道，台账容量 4、账面 2）：
+        // 建议不得按 PAR 顶到 8，必须钳到 4−2=2；currentQty 用台账口径而非货道账面 0
+        when(inTransitService.qtyBySkuForDevice("EG-1")).thenReturn(Map.of());
+        when(salesVelocityService.velocityBySku("EG-1")).thenReturn(
+                Map.of("100013", new SalesVelocityService.SkuVelocity(2, 2, 0.3, 1)));
+        when(deviceInventoryRepository.findByIdDeviceId("EG-1"))
+                .thenReturn(List.of(inv("100013", 2, 4, 3)));
+        when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
+        when(deviceSlotService.suggestSlotsForDevice("EG-1")).thenReturn(List.of(
+                new com.aicabinet.common.dto.SlotReplenishmentSuggestDto(
+                        "EG-1", "A1", "100013", 0, 8, 0, 8, 8, "LOW", 2, 1, "PAR+ROP")));
+
+        List<ReplenishmentSuggestDto> out = service.suggestForDevice("EG-1");
+
+        assertEquals(1, out.size());
+        ReplenishmentSuggestDto s = out.get(0);
+        assertEquals(2, s.currentQty(), "账面应为台账口径 2，不是货道账面 0");
+        assertEquals(4, s.capacity(), "容量应为台账容量 4，不是货道 PAR 8");
+        assertEquals(2, s.suggestQty(), "建议应钳到 4−2=2，不能按 PAR 补到 8");
+    }
 }
