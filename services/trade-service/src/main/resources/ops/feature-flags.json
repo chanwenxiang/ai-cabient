@@ -21,6 +21,13 @@
   ],
   "flags": [
     {
+      "key": "replenishment.auto_task.enabled",
+      "group": "补货与签到",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "缺货自动建补货任务：定时扫描柜机，按设置的阈值触发（台账库存≤low_threshold/货道≤minLevel/销量补货点），同柜已有进行中任务即跳过"
+    },
+    {
       "key": "notify.wechat.enabled",
       "group": "消息触达",
       "type": "BOOLEAN",
