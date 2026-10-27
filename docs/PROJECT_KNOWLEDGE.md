@@ -688,6 +688,17 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - 🧪 实跑：`WarehouseServiceTest` **23/23**（其中 4 条新钉：换人记前后值 / 未换人不长审计 / 清空记掩码前后值 / 校验被拒不落审计）、
   `OpsAuditSensitiveSummaryTest` 3/3、admin-vue `type-check` 绿 + `vitest` **113/113**、`check:competitor-benchmark` OK（70 条 / CB-070 3 家）、
   `check:shared-dist-fresh` OK；两端小程序 release 构建（`build:mp-weixin`）exit 0。**未做**：活栈后台点一遍审计页看新行渲染（需 trade + admin 起服）。
+- 📤 推送与 CI（本轮留痕，2026-10-27 13:31 推、13:50 落定）：预检全绿（`format:check` prettier 全仓绿 / 两端 `vue-tsc --noEmit` 绿 / eslint 仅既有 warning /
+  聚合链 **74 门禁 0 失败**（含 `check:mp-defect-classes`、`check:shared-dist-fresh`）/ migration 三门禁 / `openapi-regen` 判「无 API 形状改动」）后推 `52a4edd4..8599f4f2`，
+  **CI 五岗全绿**：`build` / `admin-artifacts` / `mini-programs` / `e2e-h5` / `integration`（head `8599f4f2`，`integration` 05:49:51Z 收尾）。
+  🔴 两条查 CI 的坑（别再踩）：① **check-runs 只挂在这次 push 的 head 提交上**——源码提交 `368edaf9` 查得 `n=0` 是「没独立跑」不是「没跑过」，判据只看 head（本轮两提交同推，head 覆盖全量）；
+  ② **`admin-artifacts` 绿＝CI 对自己容器构建的产物做了字节比对并认可**，这也是产物必须在推送**之前**重建入库的原因（本机预检在 Windows 明确跳过产物比对）。
+- 🔴 **surefire XML 的 `tests="N"` 对 `@Nested` 少报**：本轮全量单测 mvn 报 **2413/0/0**，按 `tests="N"` 求和只得 **2388**，差的 25 全在两个含 `@Nested` 的类
+  （`SupplierReconciliationServiceTest` 外层写 `tests="0"` 实有 6 条、`WarehouseMonthlyCloseSheetServiceTest` 同样 0 实有 19 条）⇒ **聚合口径要数 `<testcase>` 标签**，
+  数 `tests=` 会得出「少了 25 条」的假异常（本轮曾据此留了一条待办，现已证伪并闭合）。
+- 两端 mp release 构建产物实证（本轮替代 H5 UAT 作判据）：merchant `wxf7de3625991a6431` / consumer `wx6dacefb3671de630`，均 `DONE Build complete.` +
+  `inject-miniapp-env --mode release` 回 `urlCheck=true patched=1`，API 注入 `https://cabinet.easygovm.com`；`check:mp-defect-classes` 的**负向验证**重跑 exit 0
+  （基线绿、红能红且报对文件、注释不误伤、真实树零写入）。
 
 ### 2026-10-27（补货一轮：明细只认柜内在售 SKU + A 档发起权 + 负责人写入校验 + 拒绝提示分档 + 会话纪元钉进 Redis）
 
