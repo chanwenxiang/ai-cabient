@@ -213,7 +213,7 @@
 3. **独立关联表**（V335 sku_jiangyi_link）：jiangyi_product_id UNIQUE（一个将邑商品至多挂一个我方 SKU，防识别歧义）；barCode 双方均非空且不等即拒（将邑 barCode 可空且 barCodeSource=manual 不可靠，仅作一致性校验不作唯一键）；RETIRED 留痕可复活。
 4. **采集只编排我方可治理部分**：4.3.x 采集批次操作留在将邑商户 App 人工完成；采集开门（§4.2.3）由将邑直接下发不经我方 gateway——采集模式锁（jiangyi_device.gather_locked_at）只管我方营业开门（DeviceValidationService 409「设备商品采集中」），账务天然隔离（将邑侧开门不产生我方会话）。
 5. **classIdBase 可配（0/1）**：classes 行号与 classId 的对应方向文档未明示（PDF 无说明），admin 预览人工确认为兜底。
-6. **finishNotify 三重防伪**（gateway 公开面 `/jiangyi/api/gather-finish-notify`，GatewayWebConfig 排除鉴权）：①finishNotifyId 必须命中 PENDING ticket 否则静默 202；②反查将邑 trainedProducts 交叉验证 productId；③CAS 一次性消费（PENDING→FINISHED/FAILED，重放 no-op）。回执到了但 trained 列表还没有 → 保留 PENDING（异步延迟容忍）。
+6. **finishNotify 二重防伪**（gateway 公开面 `/jiangyi/api/gather-finish-notify`，GatewayWebConfig 排除鉴权）：①finishNotifyId 必须命中 PENDING ticket 否则静默 202；②CAS 一次性消费（PENDING→FINISHED/FAILED，重放 no-op）。🔴 旧第三道「反查 trained 列表交叉验证」已于 2026-10-27 撤下（§4.4.2 是可学习名单、在列不证已学成，且厂商摘行会让票据永远 PENDING、采集锁不释放——见台账 H-32）；名单现在只用来打 warn，读面失败也不拦收口。
 7. **学习范围=将邑侧已采集待学习集合**（§4.4.3 参数表无 productId，只有 modelName/finishNotifyUrl/finishNotifyId；文档参数表与请求示例自身不一致——按示例带 modelName，productId 语义待真机实锤）。
 8. **MODEL_SYNC 覆盖保留已挂 SKU**：Mapper.upsert 的 MP NOT_NULL 策略下 sku_id=null 不进 SET 子句，预生成覆盖 MANUAL 行不丢已挂 SKU。
 

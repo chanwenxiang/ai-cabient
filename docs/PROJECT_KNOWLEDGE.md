@@ -668,6 +668,22 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（§4.4.2 语义纠偏：「可学习名单」≠已学成 + 回调第三道防伪闸撤下）
+- 🔴 **起因是用户质询「将邑对我们学习的冰红茶的结果咋样了」**：厂商 productId **41175**（我方 SKU 100014 / 柜 `CQYB10720`）**没有学成**，四条独立实读一致——
+  §4.4.4 模型文件 `[]`、§4.4.2 名单里该行 `trainingStatus="no"`、`studyingProduct → data:[]`、近 60 天 classes 命中 0；卡点在厂商侧训练排队，**不是我方代码**。
+- 🛠 **但我方代码确实读错了一个口径**：把 §4.4.2 当「已学商品」用（`LearnableSku.trained`、学习库「已学商品」选项卡、回调交叉验证的第三道闸）。
+  文档标题写「查询已学习**准备成功**商品」，可它在流程图里位于「开始学习」**之前**——文档自相矛盾，现网行为以「可学习名单」为准。
+  后端拆成 `learnableProducts`（名单，只证采集成档）与 `models`（成档证据）两个面；前端选项卡/统计/筛选/空态全量改名，`trained`→`inVendorList` + `mappedDeviceIds`。
+- 🔴 **回调防伪造由三重降为二重**（`finishNotifyId` 服务端一次性 UUID + PENDING→终态 CAS）。第三道闸「回执商品须在 §4.4.2 名单内」既**空洞**（目标恒在列）
+  又**危险**（厂商一旦把行移出名单 ⇒ 票据永远 PENDING ⇒ `gather_locked_at` 不释放 ⇒ 柜机停售，资损向）。名单现在只用于打 warn，读面失败也不拦收口（`learnableIdsOrNull()` fail-open）。
+- **顺带修**：`JiangyiModelFile` 增补 `customerModelName` 解析，模型名软锁按 `modelName | customerModelName` 双列放行；§4.4.4.4 文档写「工控类型固定 76/88」，
+  现网至少 76/88/1106/1126/3566，且一次重训产 **5** 行（ids 5246–5250）⇒ 别按「两个模型」写死计数。台账 **H-32 / H-33**。
+- ⚠️ **上午日志里「回调隧道不通」作废**：selfcheck 110549 三次 `200 {"status":202,"msg":"accepted"}` + trade 侧 `dropped (no pending ticket)` 日志，
+  证明 vicp 隧道全链可达；11:04 那次 GET 404 是柜机 catch-all 路由，不是隧道故障。
+- 🧪 验证：Jiangyi 单测 **256/0**（排除需真库的 `*SqlIT`；首轮 195 Errors 是共享树并行构建争抢 `target/classes`，见 lessons **#347**）；
+  live regen `packages/shared-types/src/generated/openapi.ts`（diff 恰 5 hunk 全为 Jiangyi）；`node scripts/build-admin.mjs` 退出 0（vue-tsc 绿＝改名漏项的机械证明）；
+  `pnpm check:audit-gates` 全绿（新禁令第 ④ 条「已学(习)商品」已进 `check:jiangyi-ui-copy-and-fixtures`）。
+
 ### 2026-10-27（B批-2：2×`INVENTORY_MISMATCH` 走后台「修复」结清 → 巡检 FAIL 21→19）
 - 🔴 **不是新缺陷，是「手写账面 vs 盘点落账」的历史分叉**：`EG574859056581` / `EG799261106686` 的 `sku_id=100043` 汇总 = **99**（G5 基数阶段手写的账面占位，非盘点），在架批次合计 = **3**（`STOCKTAKE-2026-10-25` × 3 @货道 A1）。两台柜 `OFFLINE`、近 3 天 **0 单**，无在途售货/资金。
 - ✅ **结清不改代码、不加迁移**：运营台「数据一致性 → 类型=库存汇总 → 修复」逐条点（`POST /api/v2/ops/admin/consistency/{id}/fix`），`fixInventoryMismatch` 以 **Σ在架批次** 回写汇总（99→3），**不新增批次、不动 FEFO**；两条记录置 `FIXED` 并留痕「已将汇总库存改为在架批次合计 3」。
