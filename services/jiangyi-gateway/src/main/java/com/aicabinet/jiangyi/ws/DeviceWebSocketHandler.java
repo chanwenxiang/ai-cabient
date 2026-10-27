@@ -1,5 +1,7 @@
 package com.aicabinet.jiangyi.ws;
 
+import com.aicabinet.common.dto.DoorEventRequest;
+import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.jiangyi.client.TradeInternalClient;
 import com.aicabinet.jiangyi.tracker.CommandTracker;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -138,6 +140,7 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
                 if (deviceId != null && !ackNo.isBlank()) {
                     boolean done = commandTracker.complete(CommandTracker.Kind.OPEN, ackNo, deviceId);
                     log.info("jiangyi ws door ack identifier={} no={} completed={}", identifier, ackNo, done);
+                    forwardStockDoorOpened(deviceId, ackNo);
                 }
                 return;
             }
@@ -188,6 +191,29 @@ public class DeviceWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             log.debug("jiangyi ws upstream non-JSON identifier={} len={}",
                     identifier, message.getPayload().length());
+        }
+    }
+
+    /**
+     * 补货开门回执 = 门已开，转发 trade door-event OPEN（仅 tracker 登记为 stock 的会话）。
+     *
+     * <p>2026-10-27 EG943322621391 两轮实锤：真机补货链路只有这条 WS 回执 +
+     * HTTP uploadAddGoodsCloseStatus，没有消费链的 uploadDoorState——不转发则 trade
+     * 90 秒 OPENING 超时必杀会话，小程序「关门后继续核对上架」永不到来。
+     * 消费开门回执（openDoorSure）语义仍是「指令送达」，其门事件走既有 HTTP 面，行为不变。
+     * 转发失败仅告警不重试——90s 超时兜底仍在，用户重试即可。</p>
+     */
+    private void forwardStockDoorOpened(String deviceId, String sessionId) {
+        if (!commandTracker.isStock(CommandTracker.Kind.OPEN, sessionId)) {
+            return;
+        }
+        try {
+            tradeInternalClient.doorEvent(new DoorEventRequest(
+                    sessionId, deviceId, DoorState.OPEN, System.currentTimeMillis()));
+            log.info("jiangyi ws stock door-open forwarded deviceId={} sessionId={}", deviceId, sessionId);
+        } catch (Exception e) {
+            log.warn("jiangyi ws stock door-open forward failed deviceId={} sessionId={}: {}",
+                    deviceId, sessionId, e.getMessage());
         }
     }
 

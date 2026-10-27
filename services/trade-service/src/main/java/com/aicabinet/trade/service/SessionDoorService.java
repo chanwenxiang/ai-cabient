@@ -94,6 +94,32 @@ public class SessionDoorService {
         return sessionService.runWithSessionLifeLock(event.sessionId(), () -> doApplyDoorEvent(event));
     }
 
+    /**
+     * 将邑补货关门上报（uploadAddGoodsCloseStatus，2026-10-27 EG943322621391 实锤：
+     * 真机补货链路唯一的关门信号，上报 body 无会话号）：按设备找最新活跃补货会话，
+     * 走与模拟器完全同一条 {@link #handleDoorEvent}(CLOSED) 路径——OPENING 孤儿关门
+     * 转 SHOPPING，SHOPPING 落 closeTime + 快照 + COMPLETED。
+     *
+     * @return true=找到活跃补货会话并推进；false=无（幂等 no-op，含会话已被
+     *         90s 超时清扫的竞态——此时门事件落库为无害 no-op）
+     */
+    @Transactional
+    public boolean applyRestockDoorClosed(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        ShoppingSession session = repository.findLatestActiveRestockByDeviceId(
+                deviceId, java.util.List.of(SessionState.OPENING, SessionState.SHOPPING)).orElse(null);
+        if (session == null) {
+            return false;
+        }
+        SessionDto after = handleDoorEvent(new DoorEventRequest(session.getSessionId(), deviceId,
+                DoorState.CLOSED, System.currentTimeMillis()));
+        log.info("restock door-close report applied session={} device={} state={}",
+                session.getSessionId(), deviceId, after.state());
+        return true;
+    }
+
     private SessionDto doApplyDoorEvent(DoorEventRequest event) {
         ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));

@@ -20,7 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DeviceCompatControllerTest {
 
-    private final DeviceCompatController controller = new DeviceCompatController();
+    private final com.aicabinet.jiangyi.client.TradeInternalClient tradeInternalClient =
+            org.mockito.Mockito.mock(com.aicabinet.jiangyi.client.TradeInternalClient.class);
+    private final DeviceCompatController controller = new DeviceCompatController(tradeInternalClient);
     private final HttpServletRequest request = authedRequest();
 
     private static MockHttpServletRequest authedRequest() {
@@ -96,6 +98,7 @@ class DeviceCompatControllerTest {
     void uploadFamilyAnswersSuccessWithNullData() {
         Map<String, Object> body = Map.of("lockStatus", "success", "addGoodsId", "");
         assertNull(controller.uploadAddGoodsCloseStatus(request, body).get("data"));
+        org.mockito.Mockito.verify(tradeInternalClient).restockDoorClosed("10720");
         assertNull(controller.reportPValue(request, Map.of("pvalue", "i：2,c:3,")).get("data"));
         assertNull(controller.reportPValueByTransaction(request,
                 Map.of("transactionId", "", "pvalue", "i：2,c:3,")).get("data"));
@@ -105,5 +108,33 @@ class DeviceCompatControllerTest {
         assertNull(controller.updateTrouble(request, Map.of("troubleStatus", "no")).get("data"));
         assertNull(controller.uploadDeviceDataCardNo(request, Map.of("cardNo", "898604")).get("data"));
         assertEquals(200, controller.uploadDeviceDataCardNo(request, Map.of("cardNo", "898604")).get("status"));
+    }
+
+    @Test
+    void closeStatusNonSuccessDoesNotForward() {
+        // 锁：只有 lockStatus=success 才推进补货会话（失败/未知值只审计）
+        controller.uploadAddGoodsCloseStatus(request, Map.of("lockStatus", "failed"));
+        controller.uploadAddGoodsCloseStatus(request, Map.of());
+        controller.uploadAddGoodsCloseStatus(request, new java.util.HashMap<>());
+        org.mockito.Mockito.verify(tradeInternalClient, org.mockito.Mockito.never()).restockDoorClosed(org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void closeStatusForwardFailureStillAnswersNullData() {
+        // 锁：trade 不可达不炸上报面——响应契约 data:null 不变（上报族实测口径）
+        org.mockito.Mockito.when(tradeInternalClient.restockDoorClosed("10720"))
+                .thenThrow(new IllegalStateException("trade down"));
+        Map<String, Object> resp = controller.uploadAddGoodsCloseStatus(request,
+                Map.of("lockStatus", "success", "addGoodsId", ""));
+        assertEquals(200, resp.get("status"));
+        assertNull(resp.get("data"));
+    }
+
+    @Test
+    void closeStatusWithoutDeviceAuthDoesNotForward() {
+        // 锁：deviceId 未知（无鉴权属性）不转发，避免拿 "unknown" 去查 trade
+        MockHttpServletRequest anon = new MockHttpServletRequest();
+        controller.uploadAddGoodsCloseStatus(anon, Map.of("lockStatus", "success"));
+        org.mockito.Mockito.verify(tradeInternalClient, org.mockito.Mockito.never()).restockDoorClosed(org.mockito.ArgumentMatchers.anyString());
     }
 }

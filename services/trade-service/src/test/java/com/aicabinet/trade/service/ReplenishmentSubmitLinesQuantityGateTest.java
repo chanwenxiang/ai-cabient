@@ -157,4 +157,58 @@ class ReplenishmentSubmitLinesQuantityGateTest {
 
         verify(taskLineRepository).save(any());
     }
+
+    @Test
+    void submitTaskLines_zeroSlotDevice_savesRestockLineWithoutSlot() {
+        // 开门柜没有格子（2026-10-27 EG943322621391）：该 SKU 无启用货道时不再 400
+        // 「无可用货道容量」，整行落 slotId=null（旧草稿行的已删货道号一并归零）
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(16L);
+        task.setDeviceId("CAB-DOOR");
+        task.setRouteId(1L);
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(16L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByRouteId(1L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(16L)).thenReturn(List.of());
+        when(deviceSlotService.hasSkuSlots("CAB-DOOR", "SKU-COLA")).thenReturn(false);
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-WH-SPRITE330-01", null, null, 2, "B3", false);
+
+        replenishmentService.submitTaskLines(1L, 16L, new SubmitReplenishmentLinesRequest(List.of(dto)));
+
+        org.mockito.ArgumentCaptor<com.aicabinet.trade.domain.ReplenishmentTaskLine> captor =
+                org.mockito.ArgumentCaptor.forClass(com.aicabinet.trade.domain.ReplenishmentTaskLine.class);
+        verify(taskLineRepository).save(captor.capture());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().getSlotId());
+        verify(deviceSlotService, never()).validateRestockLine(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+        verify(deviceSlotService, never()).allocateRestockQuantity(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void submitTaskLines_withSlots_stillAllocatesByHeadroom() {
+        // 锁：有货道机型维持原分配路径（无货道豁免不外溢）
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(17L);
+        task.setDeviceId("CAB-GRAVITY");
+        task.setRouteId(1L);
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(17L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByRouteId(1L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(17L)).thenReturn(List.of());
+        when(deviceSlotService.hasSkuSlots("CAB-GRAVITY", "SKU-COLA")).thenReturn(true);
+        when(deviceSlotService.allocateRestockQuantity("CAB-GRAVITY", "SKU-COLA", 3))
+                .thenReturn(List.of(new DeviceSlotService.SlotRestockAllocation("A1", 3)));
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "可乐", "B-01", null, null, 3, null, false);
+
+        replenishmentService.submitTaskLines(1L, 17L, new SubmitReplenishmentLinesRequest(List.of(dto)));
+
+        org.mockito.ArgumentCaptor<com.aicabinet.trade.domain.ReplenishmentTaskLine> captor =
+                org.mockito.ArgumentCaptor.forClass(com.aicabinet.trade.domain.ReplenishmentTaskLine.class);
+        verify(taskLineRepository).save(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("A1", captor.getValue().getSlotId());
+        org.junit.jupiter.api.Assertions.assertEquals(3, captor.getValue().getQuantity());
+    }
 }

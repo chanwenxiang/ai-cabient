@@ -190,6 +190,69 @@ class DeviceWebSocketHandlerTest {
     }
 
     @Test
+    void stockDoorAckForwardsDoorEventOpen() {
+        // 2026-10-27 EG943322621391 实锤：补货回执是补货链路唯一开门信号，须转发 trade
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+        org.mockito.Mockito.when(commandTracker.complete(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "1793087802986299249096", DEVICE_ID))
+                .thenReturn(true);
+        org.mockito.Mockito.when(commandTracker.isStock(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "1793087802986299249096"))
+                .thenReturn(true);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"sendOpenStockDoorSure\",\"msgContent\":\"1793087802986299249096\"}"));
+
+        ArgumentCaptor<com.aicabinet.common.dto.DoorEventRequest> captor =
+                ArgumentCaptor.forClass(com.aicabinet.common.dto.DoorEventRequest.class);
+        verify(tradeInternalClient, timeout(1000)).doorEvent(captor.capture());
+        assertEquals("1793087802986299249096", captor.getValue().sessionId());
+        assertEquals(DEVICE_ID, captor.getValue().deviceId());
+        assertEquals(com.aicabinet.common.enums.DoorState.OPEN, captor.getValue().doorState());
+    }
+
+    @Test
+    void consumerDoorAckDoesNotForwardDoorEvent() {
+        // 锁：消费开门回执语义仍是「指令送达」，其门事件走既有 HTTP 面（半径不扩）
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+        org.mockito.Mockito.when(commandTracker.complete(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "S-1", DEVICE_ID))
+                .thenReturn(true);
+        org.mockito.Mockito.when(commandTracker.isStock(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "S-1"))
+                .thenReturn(false);
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"openDoorSure\",\"msgContent\":\"S-1\"}"));
+
+        // 锁：非 stock 登记绝不调 doorEvent（handleTextMessage 同步执行，无需等待窗口）
+        org.mockito.Mockito.verify(tradeInternalClient, org.mockito.Mockito.never())
+                .doorEvent(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void stockDoorAckForwardFailureIsSwallowed() {
+        // 锁：trade 不可达不炸 WS 通道（90s 超时兜底仍在）
+        WebSocketSession session = onlineSession();
+        handler.afterConnectionEstablished(session);
+        org.mockito.Mockito.when(commandTracker.complete(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "S-2", DEVICE_ID))
+                .thenReturn(true);
+        org.mockito.Mockito.when(commandTracker.isStock(
+                com.aicabinet.jiangyi.tracker.CommandTracker.Kind.OPEN, "S-2"))
+                .thenReturn(true);
+        org.mockito.Mockito.when(tradeInternalClient.doorEvent(org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new IllegalStateException("trade down"));
+
+        handler.handleTextMessage(session, new TextMessage(
+                "{\"msgType\":\"sendOpenStockDoorSure\",\"msgContent\":\"S-2\"}"));
+
+        // 不抛即通过（handleTextMessage 同步执行，异常会直接冒泡）
+    }
+
+    @Test
     void modelAckCompletesModelTrackingByDevice() {
         // 真机回执（log3 实证）：{"msgType":"updateModelSure","msgContent":""}——空串无法对位 key
         WebSocketSession session = onlineSession();

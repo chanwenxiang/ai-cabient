@@ -111,6 +111,24 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
                 .in(ShoppingSession::getState, states));
     }
 
+    /**
+     * 该设备最新的活跃补货会话（将邑补货关门上报 uploadAddGoodsCloseStatus 按设备推进用，
+     * 2026-10-27：上报 body 无会话号）。补货会话 = 绑定补货任务，或历史 RESTOCK: 幂等键。
+     */
+    default Optional<ShoppingSession> findLatestActiveRestockByDeviceId(String deviceId,
+                                                                       Collection<SessionState> states) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getDeviceId, deviceId)
+                .and(w -> w.isNotNull(ShoppingSession::getReplenishmentTaskId)
+                        .or().likeRight(ShoppingSession::getIdempotencyKey, "RESTOCK:"))
+                .in(ShoppingSession::getState, states)
+                .orderByDesc(ShoppingSession::getCreatedAt)
+                .last("LIMIT 1")));
+    }
+
     /** 补货任务关联的全部开门会话（任意状态；补货视频查看按 会话id=补货单号 查台账） */
     default List<ShoppingSession> findByReplenishmentTaskId(Long taskId) {
         return selectList(Wrappers.<ShoppingSession>lambdaQuery()

@@ -11,6 +11,7 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFloorGoodsService;
+import com.aicabinet.trade.service.SessionDoorService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
@@ -66,6 +67,7 @@ public class JiangyiInternalController {
     private final JiangyiRecognitionReportService jiangyiRecognitionReportService;
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
     private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
+    private final SessionDoorService sessionDoorService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -79,7 +81,8 @@ public class JiangyiInternalController {
                                      JiangyiFloorGoodsService jiangyiFloorGoodsService,
                                      JiangyiRecognitionReportService jiangyiRecognitionReportService,
                                      JiangyiMappingReviewService jiangyiMappingReviewService,
-                                     JiangyiDeviceOpsService jiangyiDeviceOpsService) {
+                                     JiangyiDeviceOpsService jiangyiDeviceOpsService,
+                                     SessionDoorService sessionDoorService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -93,6 +96,7 @@ public class JiangyiInternalController {
         this.jiangyiRecognitionReportService = jiangyiRecognitionReportService;
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
         this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
+        this.sessionDoorService = sessionDoorService;
     }
 
     // ---------- 设备面 ----------
@@ -164,6 +168,16 @@ public class JiangyiInternalController {
                                        @RequestBody DoorStateRequest body) {
         jiangyiDeviceOpsService.recordDoorState(deviceId, body.doorState(), body.lockState());
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * 补货关门上报推进（2026-10-27，gateway uploadAddGoodsCloseStatus 转发）：
+     * 上报 body 无会话号，按设备找最新活跃补货会话走 door-event CLOSED。
+     * true=已推进；false=无活跃补货会话（幂等 no-op，例如已被 90s 超时清扫）。
+     */
+    @PostMapping("/restock-door-closed")
+    public ApiResponse<Boolean> restockDoorClosed(@RequestParam("deviceId") String deviceId) {
+        return ApiResponse.ok(sessionDoorService.applyRestockDoorClosed(deviceId));
     }
 
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */

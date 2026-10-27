@@ -31,6 +31,12 @@ public class DeviceCompatController {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceCompatController.class);
 
+    private final com.aicabinet.jiangyi.client.TradeInternalClient tradeInternalClient;
+
+    public DeviceCompatController(com.aicabinet.jiangyi.client.TradeInternalClient tradeInternalClient) {
+        this.tradeInternalClient = tradeInternalClient;
+    }
+
     // ---------- 设备读取类：照抄云侧实测值 ----------
 
     /**
@@ -200,13 +206,27 @@ public class DeviceCompatController {
      * 补货关门状态（log3 实测×2：req {@code {"deviceNum":"CQYB10720","addGoodsId":"",
      * "lockStatus":"success"}}；响应样本被 logcat 截断，未取到）。
      * 语义＝补货会话的门锁回执，{@code addGoodsId} 为空串（与 §4.2.7 uploadOrderLockStatus
-     * 的空 orderNo 同判：无会话可推进，只审计）。响应按上报族实测取 {@code data:null}。
-     * 待办（汇报文件问题 12）：我方补货流程是否要消费 addGoodsId。
+     * 的空 orderNo 同判）。响应按上报族实测取 {@code data:null}。
+     *
+     * <p>2026-10-27 EG943322621391 实锤接进业务：这是真机补货链路<b>唯一的关门信号</b>——
+     * lockStatus=success 时转发 trade 按设备找活跃补货会话推进（无会话/失败只审计不回错，
+     * 响应契约保持 {@code data:null} 不变）。待办（汇报文件问题 12）就此销项：addGoodsId
+     * 维持不消费（真机恒空串，无对位价值）。</p>
      */
     @PostMapping("/jiangyi/api/order/uploadAddGoodsCloseStatus")
     public Map<String, Object> uploadAddGoodsCloseStatus(HttpServletRequest request,
                                                           @RequestBody(required = false) Map<String, Object> body) {
-        log.info("jiangyi order/uploadAddGoodsCloseStatus deviceId={} body={}", device(request), body);
+        String deviceId = device(request);
+        log.info("jiangyi order/uploadAddGoodsCloseStatus deviceId={} body={}", deviceId, body);
+        if (!"unknown".equals(deviceId) && body != null
+                && "success".equalsIgnoreCase(String.valueOf(body.get("lockStatus")))) {
+            try {
+                boolean advanced = tradeInternalClient.restockDoorClosed(deviceId);
+                log.info("jiangyi restock door-close forwarded deviceId={} advanced={}", deviceId, advanced);
+            } catch (Exception e) {
+                log.warn("jiangyi restock door-close forward failed deviceId={}: {}", deviceId, e.getMessage());
+            }
+        }
         return data(null);
     }
 

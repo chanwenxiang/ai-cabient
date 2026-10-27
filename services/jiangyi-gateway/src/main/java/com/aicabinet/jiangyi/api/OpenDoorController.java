@@ -64,7 +64,9 @@ public class OpenDoorController {
         // 回执走同一套 uploadLockState/uploadOrderLockStatus（orderNo=补货单号）。
         // 2026-10-19 修订：先登记后下发——消除「回执先于 register 到达被 owner==null 拒收」
         // 的理论竞态窗口（回执虽是秒级，顺序正确无成本）。
-        commandTracker.register(CommandTracker.Kind.OPEN, sessionId, deviceId, identifier);
+        // 2026-10-27：stock 标记进 tracker hash——补货回执是补货链路唯一的开门信号，
+        // 回执到达时据此转发 door-event OPEN（消费开门不转发，行为不变）。
+        commandTracker.register(CommandTracker.Kind.OPEN, sessionId, deviceId, identifier, request.stock());
         boolean sent = request.stock()
                 ? deviceWebSocketHandler.sendOpenStockDoor(identifier, sessionId)
                 : deviceWebSocketHandler.sendOpenDoor(identifier, sessionId);

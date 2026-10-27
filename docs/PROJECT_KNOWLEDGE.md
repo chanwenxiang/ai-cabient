@@ -668,6 +668,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（将邑真机补货会话修通：开门回执/关门上报接进 trade 生命周期 + 零货道补货豁免——EG943322621391 两轮同型复现实锤）
+
+- 🔴 **真机补货链路只有两条回执，此前一条都没接进会话生命周期**：WS `sendOpenStockDoorSure`（msgContent=补货会话 id，实测 140ms 即回）在网关只撤销 15s CommandTracker 登记；HTTP `uploadAddGoodsCloseStatus`（`{deviceNum, addGoodsId:"", lockStatus:"success"}`，**无会话号**）在 DeviceCompatController 只记日志。⇒ trade 侧会话恒卡 OPENING，90s 超时扫描必转 CANCELLED + OPEN_TIMEOUT 异常，小程序「已开门，关门后继续核对上架」等一个永不到来的事件，「再次开门」还吃 409（幽灵会话占柜）。2026-10-27 15:07/15:56 两轮真机试跑 100% 同型复现；模拟器链路（MQTT door-event）一直是通的，所以收尾 E「开门指令能下去」的验收测不出这个洞。
+- **落地形态（半径最小）**：①`CommandTracker.register` 加 `stock` 标记（OpenDoorController 按请求的 `stock=true` 写入 hash，4 参旧重载保留委托 false）→ WS door ack 在 `complete` 成功后读 `isStock`，仅补货会话转发 `DoorEventRequest(OPEN)`；消费开门回执（openDoorSure）行为不变（其门事件本就走 HTTP uploadDoorState 面）。②`uploadAddGoodsCloseStatus` lockStatus=success → 网关新 `TradeInternalClient.restockDoorClosed` → trade 新内部端点 `POST /internal/v1/jiangyi/restock-door-closed?deviceId=` → `SessionDoorService.applyRestockDoorClosed`：按设备找最新活跃补货会话（`replenishment_task_id` 非空或历史 `RESTOCK:` 幂等键，state∈{OPENING,SHOPPING}），走与模拟器**完全同一条** `handleDoorEvent(CLOSED)`——OPENING 孤儿关门→SHOPPING，SHOPPING→closeTime+快照+COMPLETED。trade 侧门生命周期**零改动**。转发失败一律 warn 不重试（90s 超时兜底仍在）。
+- **开门柜零货道豁免**：`persistRestockLines` 开头加 `hasSkuSlots=false → 整行落 slotId=null`（与完成链 `restockOutboundLineWithoutSlots` 同口径）——否则清掉脏货道后「确认核对→提交」会 400「无可用货道容量」。「开门柜没有格子」为用户拍板口径。
+- **配套数据清理（dev EG943322621391）**：删 7 行脏 `device_slot`（A1-A4/B1=演示种子 assigned_at 全 NULL + B2/B4 手写挂接）+ 6 行演示 SKU 零库存 `device_sku_inventory`（SKU-DEMO-001/MILK/NOODLE/SNACK/SODA/WATER，quantity 全 0）。🔴 两个边界：**场景限制载体是 `sku_scene_limit`（sku×scene→max_qty），与 device_slot 完全独立**，清货道不碰限制；货道页 `listSlots` **不过滤 enabled**——「停用」清不掉页面，必须删行。**B3 留而未删**：被任务 5 的待交接出库行（`warehouse_outbound_line` FK RESTRICT）挂着，须先取消任务 5（空任务可取消）再删；B3 的 max_level=8 手写值也是「0/12」「建议 12」假容量的另一半来源。
+- 🧪 实跑：jiangyi-gateway 全量 0 失败（含新钉 DeviceWebSocketHandlerTest 20/0：stock 回执转发 OPEN / 非 stock 不转发 / trade 不可达吞掉；DeviceCompatControllerTest 11/0：success 才转发 / 失败不转发 / 无鉴权不转发 / trade 挂了仍回 data:null）；trade 全量 **2435 条 `<testcase>`，仅 6 红且经 stash 实证在 HEAD 上同样红**（`TempBindingProbeTest` 端口 bind 探针 + `JiangyiOnboardingRegisterSqlIT` 上下文加载——纯本机环境既有问题，与本次无关）；新增 RestockDoorCloseReportTest 4/0（OPENING 孤儿推进/SHOPPING 快照完成/无会话幂等 false/空设备号不查询）+ ReplenishmentSubmitLinesQuantityGateTest 7/0（零货道落 null 行/有货道照旧分配）。
+- 📌 待办交接：任务 5 用户取消后删 B3 行；两端镜像重建+重启后真机再走一轮补货全流程（本轮代码未部署 dev 容器）。
+
 ### 2026-10-27（B 档收尾：分仓负责人变更补「前后值」审计——复核先证伪了 backlog 里的现状措辞）
 
 - 🔴 **backlog 的「现状」不能当现状用**：CB-070 第 4 点原写「现状只记列名」，逐行复核后**证伪**——

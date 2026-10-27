@@ -195,6 +195,20 @@ public class TradeInternalClient {
                 new OpenDoorFailedRequest(reason, deviceId), sessionId);
     }
 
+    /**
+     * 补货关门上报转发（uploadAddGoodsCloseStatus，2026-10-27 真机实锤：真机补货链路
+     * 唯一的关门信号）。body 无会话号（addGoodsId 实测恒空串），trade 按设备找活跃
+     * 补货会话走与模拟器同一条 door-event CLOSED 路径。
+     *
+     * @return true=有活跃补货会话且已推进；false=无（幂等 no-op）
+     */
+    public boolean restockDoorClosed(String deviceId) {
+        ApiResponse<Boolean> resp = post(
+                "/internal/v1/jiangyi/restock-door-closed?deviceId={deviceId}",
+                null, Boolean.class, compactParam(deviceId));
+        return Boolean.TRUE.equals(resp == null ? null : resp.data());
+    }
+
     // ---------- 模型同步面（CB-023） ----------
 
     /** 设备 downloadModelNotify 回执转发：trade 回填 model_name/classes_version + deployment CONFIRMED。 */

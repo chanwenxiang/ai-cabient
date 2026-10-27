@@ -1074,7 +1074,7 @@ public class ReplenishmentService {
         return received;
     }
 
-    /** RESTOCK：无货道时按可补容量自动拆分/截断并分配货道，减少手填。 */
+    /** RESTOCK：有货道按可补容量自动拆分/截断并分配货道；无货道整机落 slotId=null。 */
     private void persistRestockLines(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {
         int qty = dto.quantity();
         // 审计 P1-17（2026-10-15）：qty≤0 明确拒绝而非静默丢弃——静默丢行会让商户以为
@@ -1082,6 +1082,13 @@ public class ReplenishmentService {
         if (qty <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "补货数量必须大于 0（sku=" + dto.skuId() + "）");
+        }
+        // 开门柜没有格子（2026-10-27 用户拍板）：该 SKU 在柜上无任何启用货道时
+        // 不分配、不 400，整行落 slotId=null——与完成链 restockOutboundLineWithoutSlots
+        // 同口径；旧草稿行携带的已删货道号也在此一并归零。
+        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), dto.skuId())) {
+            saveRestockLine(taskId, dto, null, qty);
+            return;
         }
         String slotId = dto.slotId() != null && !dto.slotId().isBlank()
                 ? dto.slotId().trim().toUpperCase() : null;
