@@ -38,7 +38,7 @@ class AutoReplenishmentTaskServiceTest {
     @Mock ReplenishmentTaskMapper taskRepository;
     @Mock ReplenishmentService replenishmentService;
     @Mock SystemConfigService systemConfigService;
-    @Mock DistributedLockService distributedLockService;
+    @Mock ScheduledTaskService taskService;
 
     private AutoReplenishmentTaskService service;
 
@@ -46,11 +46,11 @@ class AutoReplenishmentTaskServiceTest {
     void setUp() {
         service = new AutoReplenishmentTaskService(
                 deviceRepository, taskRepository, replenishmentService,
-                systemConfigService, distributedLockService);
+                systemConfigService, taskService);
         lenient().when(systemConfigService.getBoolean(
                 AutoReplenishmentTaskService.CONFIG_ENABLED, true)).thenReturn(true);
-        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong()))
-                .thenReturn(true);
+        lenient().when(taskService.tryBegin(
+                eq(AutoReplenishmentTaskService.TASK_KEY), anyLong())).thenReturn(true);
     }
 
     private DeviceInfo device(String id) {
@@ -114,6 +114,8 @@ class AutoReplenishmentTaskServiceTest {
 
         service.scanAndCreate();
 
+        verify(taskService).finish(eq(AutoReplenishmentTaskService.TASK_KEY),
+                eq("SUCCESS"), anyString(), anyLong());
         verify(deviceRepository, never()).selectList(any());
         verify(replenishmentService, never()).createTaskFromSuggestion(
                 anyLong(), anyString(), any());

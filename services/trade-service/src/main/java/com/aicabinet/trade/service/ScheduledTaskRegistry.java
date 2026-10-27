@@ -64,6 +64,7 @@ public class ScheduledTaskRegistry {
                                  DisputeSlaScheduler disputeSlaScheduler,
                                  DisputeAutoWaiveScheduler disputeAutoWaiveScheduler,
                                  ReplenishmentTimeoutScheduler replenishmentTimeoutScheduler,
+                                 AutoReplenishmentTaskService autoReplenishmentTaskService,
                                  DataConsistencyService dataConsistencyService,
                                  DevicePresenceService devicePresenceService,
                                  OpsExceptionScannerService opsExceptionScannerService,
@@ -100,6 +101,8 @@ public class ScheduledTaskRegistry {
         // L2-3：compensation-retry 注册项已随 TCC/分布式事务死代码下线移除（V288 清 scheduled_task 行）
         register("replenishment-timeout", "补货超时收口", "WAREHOUSE", V_60, 600,
                 replenishmentTimeoutScheduler::expireStaleCheckedInTasks);
+        register("auto-replenish-task", "缺货自动建补货任务", "WAREHOUSE", "每 30 分钟", 1900,
+                autoReplenishmentTaskService::scanAndCreate);
         // 必须走 performConsistencyCheck（含 tryBegin/finish），不能直接 runConsistencyCheck，否则手动触发不写耗时/结果说明
         register("data-consistency", "数据一致性巡检", "OPS", V_5, 900,
                 dataConsistencyService::performConsistencyCheck);

@@ -126,11 +126,16 @@ public class DeviceSlotService {
                 .collect(Collectors.toSet());
         // 同一查询顺带取名字：零货道机型补货明细以 skuInventory.skuName 作标题，
         // 缺了只能退回 SKU 编号（2026-10-27 用户反馈「给商品的名称，别用编号」）。
+        // 手工 putAll 容忍 null 名（toMap 遇 null value 会 NPE）——显示层另有编号兜底。
         List<SkuCatalog> catalogRows = inventorySkuIds.isEmpty() ? List.of()
                 : skuCatalogRepository.selectList(
                                 Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, inventorySkuIds));
-        Map<String, String> skuNameById = catalogRows.stream()
-                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s.getSkuName(), (a, b) -> a));
+        Map<String, String> skuNameById = new java.util.HashMap<>();
+        for (SkuCatalog s : catalogRows) {
+            if (s.getSkuName() != null) {
+                skuNameById.putIfAbsent(s.getSkuId(), s.getSkuName());
+            }
+        }
         Set<String> activeSkuIds = catalogRows.stream()
                 .filter(s -> "ACTIVE".equals(s.getStatus()))
                 .map(SkuCatalog::getSkuId)

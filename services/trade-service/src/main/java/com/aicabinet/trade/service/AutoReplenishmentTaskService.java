@@ -1,8 +1,8 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.ReplenishmentRouteDto;
 import com.aicabinet.common.dto.ReplenishmentSuggestDto;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.common.dto.ReplenishmentRouteDto;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import org.slf4j.Logger;
@@ -20,8 +20,10 @@ import java.util.List;
  * 有主仓时自动生成出库行，复用 {@link ReplenishmentService#createTaskFromSuggestion}）。
  *
  * <p>幂等口径：同柜已有 PENDING/IN_PROGRESS 任务即跳过——任务处理完再次跌破阈值才会再建。
- * 开关 {@code replenishment.auto_task.enabled}（默认开，运营台可关）；集群互斥走 Redis 锁。
- * operatorId=0（系统）留审计。每 30 分钟一轮（fixedDelay 串行不叠跑）。</p>
+ * 开关 {@code replenishment.auto_task.enabled}（默认开，运营台可关）。集群单实例与
+ * 运行留痕走 {@link ScheduledTaskService#tryBegin}/{@link #finish}（架构门禁
+ * scheduledMustCallTryBegin 管辖），任务键 {@code auto-replenish-task} 已注册
+ * {@link ScheduledTaskRegistry}（xxl-job 可接管）。每 30 分钟一轮（fixedDelay 串行不叠跑）。</p>
  */
 @Component
 public class AutoReplenishmentTaskService {
@@ -29,33 +31,35 @@ public class AutoReplenishmentTaskService {
     private static final Logger log = LoggerFactory.getLogger(AutoReplenishmentTaskService.class);
 
     static final String CONFIG_ENABLED = "replenishment.auto_task.enabled";
-    private static final String LOCK_KEY = "aicabinet:lock:job:auto-replenish-task";
-    private static final long LOCK_SECONDS = 30 * 60;
+    static final String TASK_KEY = "auto-replenish-task";
+    private static final long LEASE_SECONDS = 1900;
 
     private final DeviceInfoMapper deviceRepository;
     private final ReplenishmentTaskMapper taskRepository;
     private final ReplenishmentService replenishmentService;
     private final SystemConfigService systemConfigService;
-    private final DistributedLockService distributedLockService;
+    private final ScheduledTaskService taskService;
 
     public AutoReplenishmentTaskService(DeviceInfoMapper deviceRepository,
                                         ReplenishmentTaskMapper taskRepository,
                                         ReplenishmentService replenishmentService,
                                         SystemConfigService systemConfigService,
-                                        DistributedLockService distributedLockService) {
+                                        ScheduledTaskService taskService) {
         this.deviceRepository = deviceRepository;
         this.taskRepository = taskRepository;
         this.replenishmentService = replenishmentService;
         this.systemConfigService = systemConfigService;
-        this.distributedLockService = distributedLockService;
+        this.taskService = taskService;
     }
 
     @Scheduled(fixedDelay = 30 * 60_000L, initialDelay = 3 * 60_000L)
     public void scanAndCreate() {
-        if (!systemConfigService.getBoolean(CONFIG_ENABLED, true)) {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin(TASK_KEY, LEASE_SECONDS)) {
             return;
         }
-        if (!distributedLockService.tryLock(LOCK_KEY, LOCK_SECONDS, 0)) {
+        if (!systemConfigService.getBoolean(CONFIG_ENABLED, true)) {
+            taskService.finish(TASK_KEY, "SUCCESS", "开关关闭，本次跳过", start);
             return;
         }
         try {
@@ -71,11 +75,14 @@ public class AutoReplenishmentTaskService {
                     log.warn("auto replenish task failed device={}: {}", device.getDeviceId(), e.toString());
                 }
             }
+            String summary = "本次创建 " + created + " 个补货任务";
             if (created > 0) {
                 log.info("auto replenish tasks created={}", created);
             }
-        } finally {
-            distributedLockService.unlock(LOCK_KEY);
+            taskService.finish(TASK_KEY, "SUCCESS", summary, start);
+        } catch (Exception e) {
+            taskService.finish(TASK_KEY, "FAILED", e.toString(), start);
+            throw e;
         }
     }
 
