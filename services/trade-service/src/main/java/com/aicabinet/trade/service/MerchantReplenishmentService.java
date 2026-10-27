@@ -46,6 +46,7 @@ public class MerchantReplenishmentService {
     private final DistributedLockService distributedLockService;
     private final ShoppingSessionMapper shoppingSessionRepository;
     private final SystemConfigService systemConfigService;
+    private final MerchantScopeService merchantScopeService;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -61,7 +62,8 @@ public class MerchantReplenishmentService {
                                         FileAttachmentService fileAttachmentService,
                                         DistributedLockService distributedLockService,
                                         ShoppingSessionMapper shoppingSessionRepository,
-                                        SystemConfigService systemConfigService) {
+                                        SystemConfigService systemConfigService,
+                                        MerchantScopeService merchantScopeService) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -77,6 +79,7 @@ public class MerchantReplenishmentService {
         this.distributedLockService = distributedLockService;
         this.shoppingSessionRepository = shoppingSessionRepository;
         this.systemConfigService = systemConfigService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @Transactional(readOnly = true)
@@ -252,8 +255,10 @@ public class MerchantReplenishmentService {
     }
 
     /**
-     * 补货员自主发起补货（无审批）：校验当前用户是柜机所属分仓（home_warehouse_id）负责人后，
-     * 直接从该分仓扣账生成出库 + 补货任务，直达补货员任务列表（SATELLITE_WAREHOUSE.md 口径：日常补柜不申请要货）。
+     * 补货员自主发起补货（无审批）：判据 = 补货发起权限 + 柜机在本人数据范围内 + 柜机已归仓且该仓存在
+     * （CB-068 A 档，2026-10-27；不再要求「我是该分仓负责人」）。
+     * 通过后直接从该分仓扣账生成出库 + 补货任务，直达补货员任务列表
+     * （SATELLITE_WAREHOUSE.md 口径：日常补柜不申请要货）。
      */
     @Transactional
     public ReplenishmentTaskDto selfInitiateTask(Long userId, MerchantSelfReplenishRequest body) {
@@ -272,12 +277,21 @@ public class MerchantReplenishmentService {
     private ReplenishmentTaskDto doSelfInitiateTask(Long userId, MerchantSelfReplenishRequest body, String deviceId) {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+        // CB-070：四类拒绝各说各话，别再让商户「猜是哪种成因」
+        if (!merchantScopeService.canAccessDevice(userId, deviceId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "柜机 " + deviceId + " 不在你的数据范围内，请联系管理员为该账号分配商户或货柜");
+        }
         String homeWarehouseId = device.getHomeWarehouseId();
         if (homeWarehouseId == null || homeWarehouseId.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "柜机未绑定所属仓库，无法自主发起补货");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "柜机 " + deviceId + " 未绑定所属分仓，请先在「柜机管理」配置所属仓库后再发起补货");
         }
-        // 仓跟人走：仅分仓负责人可自主发起（历史任务/他人仓一律拒绝）
-        warehouseService.requireWarehouseManagedBy(homeWarehouseId.trim(), userId);
+        // CB-068 A 档（用户 2026-10-27 拍板）：自主发起的仓级判据从「我是该仓 manager_user_id」放宽为
+        // 「柜机归该仓 + 柜机在本人数据范围内」——行业口径是「补货角色 × 名下机器」，单人负责人是
+        // 主责/默认派单人，不是权限闸。资损面一律未放宽：设备行锁、clientRequestNo 幂等、
+        // 单行/单 SKU 数量上限、出库按仓内台账实扣，照旧。
+        warehouseService.requireWarehouseExists(homeWarehouseId.trim());
 
         // 接口层审计（2026-10-20）H2 + V401 收口（2026-10-23）：
         // 正式幂等契约——客户端提交意图生成 clientRequestNo，超时重试复用同键，

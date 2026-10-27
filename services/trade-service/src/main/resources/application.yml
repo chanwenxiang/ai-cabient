@@ -135,7 +135,9 @@ aicabinet:
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
-    # 过期 token 仅允许 refresh 的宽限期（秒）：闲置后回来可静默续期；登出/吊销/重启语义不受影响
+    # 过期 token 仅允许 refresh 的宽限期（秒）：闲置后回来可静默续期；登出/吊销语义不受影响。
+    # 2026-10-27 CB-071 拍板 B 后，重启/发版同样不影响既有会话（boot 是 Redis 里的集群会话纪元，不是进程启动时刻），
+    # 所以这个值就是「补货员多久要输一次密码」的真值——别再假设发版会把大家踢下线。
     # ✔ 2026-10-24 用户拍板（商户端登录体验复盘）：补货员「每天上班开一次」的节奏恰好踩在 24h 宽限线上（两次打开间隔 >24.5h 即断会话 ⇒ 天天输密码）。
     #    调到 7 天：每周输一次，体感≈免密；密码永不出服务端（否决「记住密码」方案——2026-10-16 A6⑥ 审计已拍板删除，勿回潮）。
     refresh-grace-seconds: ${JWT_REFRESH_GRACE_SECONDS:604800}

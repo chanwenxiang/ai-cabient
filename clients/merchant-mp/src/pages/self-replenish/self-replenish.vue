@@ -21,7 +21,7 @@
           <text class="hint block-hint">已按缺货与销量建议预填数量，可直接调整</text>
           <view v-if="draftLoading" class="empty-inline">{{ loadingLabel('建议') }}</view>
           <view v-else-if="!draftLines.length" class="empty-inline">
-            该柜机暂无可补商品（无绑定货道 SKU）
+            该柜机暂无在架商品（商品已下架或柜内无台账）
           </view>
           <view
             v-for="line in draftLines"
@@ -88,14 +88,14 @@ import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type {
   DeviceSlot,
   MerchantDeviceInfo,
+  OpenApiDeviceDetailDto,
   OpenApiReplenishmentSuggestDto
 } from '@aicabinet/shared-types';
 import {
-  appendOrphanSuggestions,
+  buildDraftLines,
   buildSuggestMap,
-  mergeSlotDraftLine,
+  onShelfInventoryRows,
   pickDefaultDeviceIndex,
-  sortDraftLines,
   suggestReasonLabel,
   type ReplenishDraftLine
 } from '@/utils/self-replenish-draft';
@@ -197,28 +197,27 @@ async function loadDraft() {
   const seq = ++draftSeq;
   draftLoading.value = true;
   try {
-    const [suggest, slots] = await Promise.all([
+    const [suggest, slots, detail] = await Promise.all([
       softFallback(
         merchantApi.replenishmentSuggestions(deviceId),
         [] as OpenApiReplenishmentSuggestDto[],
         '补货建议'
       ),
-      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[], '货道')
+      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[], '货道'),
+      // 在架台账=补货明细骨架（CB-069）；读失败回 null ⇒ 退回货道口径，静默不打扰（有可用兜底）
+      softFallback(
+        merchantApi.deviceDetail(deviceId),
+        null as OpenApiDeviceDetailDto | null,
+        '在架商品',
+        { silent: true }
+      )
     ]);
     if (seq !== draftSeq) return;
-    const suggestMap = buildSuggestMap(suggest);
-    const bySku = new Map<string, DraftLine>();
-    for (const slot of slots || []) {
-      const skuId = mergeSlotDraftLine(
-        bySku,
-        slot,
-        suggestMap.get(String(slot.assignedSkuId || '').trim())
-      );
-      if (skuId) suggestMap.delete(skuId);
-    }
-    appendOrphanSuggestions(bySku, suggestMap);
-    if (seq !== draftSeq) return;
-    draftLines.value = sortDraftLines([...bySku.values()]);
+    draftLines.value = buildDraftLines(
+      slots || [],
+      buildSuggestMap(suggest),
+      onShelfInventoryRows(detail)
+    );
   } catch (e) {
     if (seq !== draftSeq) return;
     draftLines.value = [];

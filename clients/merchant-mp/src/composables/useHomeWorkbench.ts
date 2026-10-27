@@ -18,7 +18,7 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
-import { formatMerchantNames } from '@/utils/merchant-display';
+import { formatMerchantNames, merchantBindingState } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import {
   mergeTodoItems,
@@ -126,20 +126,23 @@ export function useHomeWorkbench() {
     return `${on ?? 0} / ${total ?? 0}`;
   });
 
-  const isMerchantUnbound = computed(
-    () => !merchantNames.value || merchantNames.value === '未绑定商户'
-  );
-  const headerSubLine = computed(() =>
-    isMerchantUnbound.value ? '尚未绑定商户，请联系运营开通后使用完整功能' : merchantNames.value
-  );
+  const bindingState = computed(() => merchantBindingState(me.value));
+  const isMerchantUnbound = computed(() => bindingState.value === 'unbound');
+  const headerSubLine = computed(() => {
+    if (bindingState.value === 'unknown') return '账号资料未加载，请下拉重试';
+    return bindingState.value === 'unbound'
+      ? '尚未绑定商户，请联系运营开通后使用完整功能'
+      : merchantNames.value;
+  });
   const homeEmptyTitle = computed(() =>
     isMerchantUnbound.value ? '暂无补货任务' : '暂无待处理补货任务'
   );
-  const homeEmptyHint = computed(() =>
-    isMerchantUnbound.value
+  const homeEmptyHint = computed(() => {
+    if (bindingState.value === 'unknown') return '账号资料未加载，下拉重试后再看';
+    return isMerchantUnbound.value
       ? '绑定商户并分配柜机后，待补货任务会显示在这里'
-      : '可扫码巡柜看缺货，或从柜机列表进详情'
-  );
+      : '可扫码巡柜看缺货，或从柜机列表进详情';
+  });
 
   function deviceLabel(id?: string) {
     if (!id) return '无柜机';

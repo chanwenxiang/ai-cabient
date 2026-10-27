@@ -5,6 +5,7 @@ import com.aicabinet.common.constants.StocktakeDiffReason;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,9 @@ public class WarehouseService {
     private final DisplaySnapshotHelper displaySnapshotHelper;
     private final DeviceInfoMapper deviceInfoRepository;
     private final WarehouseSupplierIdService warehouseSupplierIdService;
+    private final UserInfoMapper userInfoRepository;
+    private final PermissionService permissionService;
+    private final MerchantScopeService merchantScopeService;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
@@ -81,6 +85,9 @@ public class WarehouseService {
                             DisplaySnapshotHelper displaySnapshotHelper,
                             DeviceInfoMapper deviceInfoRepository,
                             WarehouseSupplierIdService warehouseSupplierIdService,
+                            UserInfoMapper userInfoRepository,
+                            PermissionService permissionService,
+                            MerchantScopeService merchantScopeService,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
@@ -101,6 +108,9 @@ public class WarehouseService {
         this.displaySnapshotHelper = displaySnapshotHelper;
         this.deviceInfoRepository = deviceInfoRepository;
         this.warehouseSupplierIdService = warehouseSupplierIdService;
+        this.userInfoRepository = userInfoRepository;
+        this.permissionService = permissionService;
+        this.merchantScopeService = merchantScopeService;
         this.self = self;
     }
 
@@ -1409,18 +1419,85 @@ public class WarehouseService {
         return warehouse.getWarehouseId();
     }
 
+    /** 分仓存在性闸门：仓号写错/被删时给出可定位的成因，而不是让下游 NPE。 */
+    public Warehouse requireWarehouseExists(String warehouseId) {
+        return warehouseRepository.findById(warehouseId)
+                .orElseThrow(() -> badRequest("仓库不存在：" + warehouseId));
+    }
+
     /**
-     * 校验仓库存在且由指定用户负责（补货员自主发起补货的权限锚点：仓跟人走，V302 manager_user_id）。
-     * 返回仓库实体；不是负责人时 403。
+     * 校验仓库存在且由指定用户负责。
+     * 🔴 CB-068 A 档（2026-10-27）后**自主发起补货不再走这里**（判据=柜机归该仓 + 柜机在本人数据范围内）；
+     * 本闸门留给分仓盘点——盘点直接改写账面数量，仍按「主责人单一问责」收紧。
+     * 拒绝必须自带成因（CB-070）：报出仓号与当前负责人，别让商户猜「是不是权限没配」。
      */
     public Warehouse requireWarehouseManagedBy(String warehouseId, Long userId) {
-        Warehouse warehouse = warehouseRepository.findById(warehouseId)
-                .orElseThrow(() -> badRequest("仓库不存在"));
-        if (userId == null || !userId.equals(warehouse.getManagerUserId())) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.FORBIDDEN, "仅分仓负责人可对该仓发起补货");
+        Warehouse warehouse = requireWarehouseExists(warehouseId);
+        if (userId != null && userId.equals(warehouse.getManagerUserId())) {
+            return warehouse;
         }
-        return warehouse;
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "你不是分仓 " + warehouse.getWarehouseId() + " 的负责人（当前负责人："
+                        + describeManagerUser(warehouse.getManagerUserId())
+                        + "），请联系运营在「仓库概览」调整");
+    }
+
+    /** 该仓名下柜机所属商户（仓表无 merchant_id，只能经 device_info.home_warehouse_id 反推）。 */
+    private Set<String> warehouseMerchantIdsOf(String warehouseId) {
+        return deviceInfoRepository.findAllOrderByDeviceIdAsc().stream()
+                .filter(d -> warehouseId.equals(
+                        d.getHomeWarehouseId() == null ? null : d.getHomeWarehouseId().trim()))
+                .map(DeviceInfo::getMerchantId)
+                .filter(m -> m != null && !m.isBlank())
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 负责人写入校验（CB-070，只在 `managerUserId` **变化**时调用；清空不校验）。
+     * 三条判据各报各的，避免「保存失败」三无提示：
+     *   1) 账号存在且未停用；
+     *   2) 🔴 自加门（不抄竞品）：候选人与该仓至少一台柜机同商户——仓表无 merchant_id，
+     *      只能经 device_info.home_warehouse_id 反推；该仓暂无柜机时放行并提示，不阻断建档。
+     *   3) 拥有补货发起权限（角色里有 merchant:replenishment:request）。
+     */
+    void validateWarehouseManagerCandidate(String warehouseId, Long managerUserId) {
+        UserInfo candidate = userInfoRepository.selectById(managerUserId);
+        if (candidate == null) {
+            throw badRequest("分仓负责人用户编号 " + managerUserId + " 不存在，请到「运营账号管理」核对后重填");
+        }
+        if (candidate.getStatus() != null && !"ACTIVE".equalsIgnoreCase(candidate.getStatus())) {
+            throw badRequest("分仓负责人「" + describeManagerUser(managerUserId)
+                    + "」账号已停用，请先启用或改指他人");
+        }
+        Set<String> warehouseMerchantIds = warehouseMerchantIdsOf(warehouseId);
+        if (!warehouseMerchantIds.isEmpty()) {
+            Set<String> candidateMerchants = merchantScopeService.allowedMerchantIds(managerUserId);
+            if (warehouseMerchantIds.stream().noneMatch(candidateMerchants::contains)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "分仓负责人「" + describeManagerUser(managerUserId) + "」不属于分仓 " + warehouseId
+                                + " 内柜机的商户，请先为该账号绑定商户或改用同商户账号");
+            }
+        }
+        if (!permissionService.hasPermission(managerUserId, "merchant:replenishment:request")) {
+            throw badRequest("分仓负责人「" + describeManagerUser(managerUserId)
+                    + "」缺少「发起补货」权限，请先在「角色管理」为其分配补货员/店长类角色");
+        }
+    }
+
+    /** 负责人可读标识：姓名 + 掩码手机号；查不到账号时退化为编号，绝不回空（提示要能用）。 */
+    private String describeManagerUser(Long managerUserId) {
+        if (managerUserId == null) {
+            return "未指定";
+        }
+        UserInfo user = userInfoRepository.selectById(managerUserId);
+        if (user == null) {
+            return "账号 " + managerUserId + "（已不存在）";
+        }
+        String name = user.getName() == null || user.getName().isBlank() ? "未命名" : user.getName().trim();
+        String phone = user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()
+                ? ""
+                : " " + PhoneMask.mask(user.getPhoneNumber());
+        return name + phone;
     }
 
     private String resolveWarehouseId(String warehouseId) {
@@ -1567,7 +1644,16 @@ public class WarehouseService {
         }
         warehouse.setStatus(st);
         if (managerUserId != null) {
-            warehouse.setManagerUserId(managerUserId <= 0L ? null : managerUserId);
+            Long nextManager = managerUserId <= 0L ? null : managerUserId;
+            // CB-070：负责人**真的变化**才校验被授权人——改地址/改名重复保存同一人不该被账号状态误伤；
+            // 清空（<=0）与 CSV 省略（null）不校验（撤权不是授权）。
+            if (nextManager != null && !nextManager.equals(warehouse.getManagerUserId())) {
+                validateWarehouseManagerCandidate(id, nextManager);
+                if (warehouseMerchantIdsOf(id).isEmpty()) {
+                    log.info("分仓 {} 尚无柜机，负责人 {} 的「同商户」判据本次跳过（建档期放行）", id, nextManager);
+                }
+            }
+            warehouse.setManagerUserId(nextManager);
         }
         if (creating || warehouse.getCreatedAt() == null) {
             warehouse.setCreatedAt(Instant.now());

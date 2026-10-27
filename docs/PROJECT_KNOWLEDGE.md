@@ -668,6 +668,50 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（补货一轮：明细只认柜内在售 SKU + A 档发起权 + 负责人写入校验 + 拒绝提示分档 + 会话纪元钉进 Redis）
+
+- 🔴 **用户原话驱动**：「补货应该只补我们货柜当前存在的 sku 吧，A 做，还有前面的问题也要解决」+ 反问「如果报『你不是 WH-DEMO-001 的分仓负责人，
+  请联系管理员分配』，你就不用猜了」⇒ 台账 **CB-068**（发起权＝角色×名下机器）/ **CB-069**（明细骨架＝在架真源）/ **CB-070**（写入校验 + 一句话只说一个成因）/
+  **CB-071**（登录态生死只由「到期 + 显式撤销」决定，不由进程存活决定）。
+- **① 明细骨架换真源**（`clients/merchant-mp/src/utils/self-replenish-draft.ts`）：`buildDraftLines(slots, suggestMap, rows)` 以
+  `deviceDetail.skuInventory`（后端＝`device_sku_inventory` ∩ `sku_catalog.status='ACTIVE'`，与设备详情「已上架商品」、消费者目录同口径）为唯一骨架，
+  货道只作名称/容量注解；`mergeInventoryDraftLine` 补「台账在册但没绑货道」的 SKU（否则真有货的商品补不到）。
+  🔴 `null`（详情读失败，退回旧货道骨架）与 `[]`（柜里确实没在售商品）必须分开——把 `[]` 当「没读到」等于放行全部货道 SKU，演示品就是这么灌回来的。
+  在架态下**不再由孤儿建议新增行**（建议接口会带已下架 SKU 回来）。
+- **② A 档发起权**（`MerchantReplenishmentService.doSelfInitiateTask`）：仓级判据从「我是该仓 `manager_user_id`」放宽为
+  「柜机归该仓 + 柜机在本人数据范围内（`merchantScopeService.canAccessDevice`）+ 仓存在」；`requireWarehouseManagedBy` **留给分仓盘点**
+  （盘点直接改写账面数量，仍按主责人单一问责）。资损面一字未放宽：设备行锁、`clientRequestNo` 幂等、单行/单 SKU 上限、出库按仓内台账实扣照旧。
+- **③ 负责人写入校验**（`WarehouseService.validateWarehouseManagerCandidate`，仅当 `managerUserId` **变化**时；清空/CSV 省略不算分配）：
+  账号存在且 ACTIVE → 与该仓至少一台柜机同商户（🔴 **自加门**：`warehouse` 表无 `merchant_id`，只能经 `device_info.home_warehouse_id` 反推；
+  该仓暂无柜机时放行并提示，不把「还没配柜」误判成「不同商户」）→ 具备 `merchant:replenishment:request`。三条各报各的，报出仓号与当前负责人姓名/掩码手机。
+- **④ 拒绝提示分档**（CB-070 落地）：`MerchantPortalGuard` 超管误登门户 / 缺 `merchant:portal:access` / 账号未绑商户三条 403 各一句（旧写法把前两条合并，
+  把超管引去查自己无关的商户绑定）；自主补货四类拒绝（不在数据范围 / 柜机未归仓 / 仓不存在 / 非负责人）各一句。
+  **前端同规则**：`GET /merchant/me` 自己就要求 `merchant:portal:access` ⇒ 拿不到资料时**不许**倒推成「未绑定商户」，
+  `merchantBindingState()` 三态 `unknown`/`unbound`/`bound`（`useHomeWorkbench` 副标题与空态、`ops-config` 报错各按三态出话）。
+- **⑤ 拍板 B：`boot` 从进程时刻改成 Redis 集群会话纪元**（`ServerBootMarker` 读 `aicabinet:auth:boot-epoch`，缺失时 SETNX 补写、首个写入者定值）。
+  修掉两件事：发版/重启把 2026-10-24 拍板的 **7 天刷新宽限期静默清零**（补货员发版当天必重输密码）；多副本时 A 副本签发的 token 打 B 副本恒 401（潜伏）。
+  **撤销语义未放宽**——登出/换发仍由 `aicabinet:auth:deny:jti:` 黑名单执行，不依赖 boot。应急「全员下线」＝`DEL aicabinet:auth:boot-epoch`（**刻意不加本地缓存**，
+  加了旋钮就延迟生效；本轮曾写过 30s 缓存 + 读失败兜底 catch，判为死旋钮已删）。`application.yml` 宽限期注释、`PRODUCTION.md` 新增「会话时效与应急旋钮」表、
+  `AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md` 把「boot claim 重启全员失效＝健康面」就地标注订正。
+- **⑥ 拒绝成因传到端上**：`JwtService.InvalidSessionTokenException` 携带 `SessionReject`（`EXPIRED_BEYOND_GRACE`/`REVOKED`/`BOOT_CHANGED`/…），
+  `/auth/refresh` 按成因回「登录已超过有效期」／「该登录已退出或被管理员下线」／「系统会话已重置」（HTTP 仍 401，**放行范围未变**）；
+  `packages/shared-uni/src/request.ts` 旧写法把刷新失败一律压成「登录已失效」，现透传后端成因——否则分档到不了补货员眼前。
+  ⚠️ **改这个文件会踩 `check:mp-defect-classes` 类 K 的「行距判据」**：该门禁只在每个 `handleUnauthorized(` 调用点**上方 12 行窗口**里找
+  `401 / isMpAuthFailure / AUTH_EXPIRED…` 判据字面，HEAD 处窗口刚好压满（守卫行 295 → 调用点 307，差 12），多写几行注释就红。
+  正解**不是**塞一行带「401」的注释骗过正则，而是把「重试后仍 401 才登出」的分支上提到 `statusCode === 401` 判据旁边
+  （`if (retried) { …; return; }`，与旧 `if (!retried) { …; return; }` 逻辑等价），成因选择在守卫块内部。
+  收口判据三连：`check:mp-defect-classes` OK + `node scripts/devops/verify-mp-defect-class-gate.mjs` 负向验证通过 + `prettier --check`（不要只删注释凑行数，会被 prettier 重新 wrap）。
+- 🧪 **验证**（本轮实跑）：后端 `ServerBootMarkerTest` 5/0、`JwtServiceRefreshGraceTest` 7/0、`AuthControllerRefreshReasonTest` 2/0、`MerchantPortalGuardTest` 4/0；
+  merchant-mp `vitest` **190/190** + `vue-tsc` 绿、consumer-mp `vitest` **169/169** + `vue-tsc` 绿（两端都消费 `shared-uni/request.ts`）；
+  `check:shared-dist-fresh` OK（shared-uni 无 dist、按 src 消费）；`check:competitor-benchmark` OK（70 条 / 418 URL / CB-071 记 5 家含 2 peer）。
+  ⚠️ 两端 `test:ci` 里的 Playwright H5 UAT 需要活栈（dev server + trade）：本轮离线跑出的 14 条 FAIL，报错字面是
+  「The server is configured with a public base URL of /admin/ - did you mean to visit /admin/pages/home/home instead?」+ `ops-branding`/`auth/captcha` 500
+  ⇒ 3001 上现在是**别的服务**在占（`curl` 回 302 并跳 `/admin/…`），商户 H5（脚本默认 `MERCHANT_H5_URL=http://127.0.0.1:3001`）没起，页面根本没加载，
+  「找不到入口/容错/重定向」类判据必然连带失败。**未拿它当判据，也没逐条排除其中是否混有既有失败**——
+  活栈复验（商户 H5 + trade 起来后重跑 `pnpm --filter @aicabinet/merchant-mp test:uat`）是推送后的待办，不是本轮已完成项。
+- **📌 遗留（明确未做）**：负责人变更写 `admin_audit_log` 带前后值（金蝶口径，CB-070 第 4 点）列 backlog；
+  同行「运营 App 登录态是否跨发版存活」无公开对照，CB-071 的设备侧证据属借形态推断，已在条目里标局限。
+
 ### 2026-10-27（§4.4.2 语义纠偏：「可学习名单」≠已学成 + 回调第三道防伪闸撤下）
 - 🔴 **起因是用户质询「将邑对我们学习的冰红茶的结果咋样了」**：厂商 productId **41175**（我方 SKU 100014 / 柜 `CQYB10720`）**没有学成**，四条独立实读一致——
   §4.4.4 模型文件 `[]`、§4.4.2 名单里该行 `trainingStatus="no"`、`studyingProduct → data:[]`、近 60 天 classes 命中 0；卡点在厂商侧训练排队，**不是我方代码**。

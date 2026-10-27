@@ -14,6 +14,10 @@ public final class ApiMessages {
     // 认证
     public static final String MISSING_TOKEN = "请先登录";
     public static final String INVALID_TOKEN = "登录已失效，请重新登录";
+    /** CB-070：refresh 被拒要按成因分档，别再让「超过宽限期」「被下线」「会话纪元重置」共用一句。 */
+    public static final String REFRESH_GRACE_EXPIRED = "登录已超过有效期，请重新登录";
+    public static final String SESSION_REVOKED_ELSEWHERE = "该登录已退出或被管理员下线，请重新登录";
+    public static final String SESSION_EPOCH_RESET = "系统会话已重置，请重新登录";
     public static final String INVALID_PHONE = "手机号格式不正确";
     public static final String INVALID_CODE = "验证码错误或已过期";
     public static final String SMS_SEND_TOO_FREQUENT = "验证码发送过于频繁，请稍后再试";

@@ -47,6 +47,13 @@ async function load() {
     }
     const list = (me.value?.merchants || []) as { merchantId: string; merchantName?: string }[];
     merchantOptions.value = list;
+    // CB-070：/merchant/me 本身要 merchant:portal:access——缺权限/超管误登时根本拿不到资料，
+    // 不能把「资料未到」报成「账号未绑定商户」。
+    if (!me.value) {
+      loadError.value = '账号资料未加载，请稍后重试';
+      cfg.value = null;
+      return;
+    }
     if (!list.length) {
       loadError.value = '账号未绑定商户';
       cfg.value = null;

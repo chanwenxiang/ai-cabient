@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatMerchantNames, isCorruptedMerchantName } from './merchant-display';
+import {
+  formatMerchantNames,
+  isCorruptedMerchantName,
+  merchantBindingState
+} from './merchant-display';
 
 describe('isCorruptedMerchantName', () => {
   it('纯问号名判为损坏（编码丢失的典型形态）', () => {
@@ -62,5 +66,21 @@ describe('formatMerchantNames', () => {
 
   it('允许自定义空态文案', () => {
     expect(formatMerchantNames([], '暂无商户')).toBe('暂无商户');
+  });
+});
+
+describe('merchantBindingState', () => {
+  it('资料未到（/merchant/me 403 或离线无缓存）判 unknown，不得冒充「未绑定商户」', () => {
+    expect(merchantBindingState(null)).toBe('unknown');
+    expect(merchantBindingState(undefined)).toBe('unknown');
+  });
+
+  it('拿到资料且商户为空判 unbound', () => {
+    expect(merchantBindingState({ merchants: [] })).toBe('unbound');
+  });
+
+  it('拿到资料且有商户判 bound（哪怕名字损坏到展示为空）', () => {
+    expect(merchantBindingState({ merchants: [{ merchantName: '好邻居' }] })).toBe('bound');
+    expect(merchantBindingState({ merchants: [{ merchantName: '????' }] })).toBe('bound');
   });
 });

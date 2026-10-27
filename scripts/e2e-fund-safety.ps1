@@ -167,7 +167,7 @@ WHERE ss.session_id = '$sessionId' AND ua.user_id = 10001;
             }
         }
         $auth = @{ Authorization = "Bearer $($loginAfter.token)" }
-        Write-Host "Re-authenticated after outage (boot epoch refreshed)"
+        Write-Host "Re-authenticated after outage"
         Restart-E2eDeviceSimulator
         $activeAfter = $null
         try {

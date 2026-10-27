@@ -56,7 +56,9 @@ class WarehouseOutboundConcurrencyTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
-                displaySnapshotHelper, null, null, null);
+                displaySnapshotHelper,
+                null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
+                null /*scope*/, null /*self*/);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

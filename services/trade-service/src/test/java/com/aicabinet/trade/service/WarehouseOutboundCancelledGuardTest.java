@@ -68,7 +68,9 @@ class WarehouseOutboundCancelledGuardTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService,
-                distributedLockService, displaySnapshotHelper, null, null, null);
+                distributedLockService, displaySnapshotHelper,
+                null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
+                null /*scope*/, null /*self*/);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 

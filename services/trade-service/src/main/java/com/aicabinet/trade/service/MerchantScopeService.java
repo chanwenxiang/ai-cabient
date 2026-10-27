@@ -231,17 +231,30 @@ public class MerchantScopeService {
         }
     }
 
+    /**
+     * 只回答「这台柜机是否在我数据范围内」，判据与 requireDeviceAccess 完全一致。
+     * 给需要**业务化文案**的入口用（自主发起补货要指名柜机编号，见 CB-070）。
+     */
     @Transactional(readOnly = true)
-    public void requireDeviceAccess(Long operatorId, String deviceId) {
+    public boolean canAccessDevice(Long operatorId, String deviceId) {
         if (self.isGlobalScope(operatorId)) {
-            return;
+            return true;
         }
         Set<String> allowedDevices = self.allowedDeviceIds(operatorId);
         if (allowedDevices == null) {
-            return;
+            return true;
         }
-        if (deviceId == null || !allowedDevices.contains(deviceId)) {
-            cabinetMetrics.recordMerchantScopeDenied("device");
+        if (deviceId != null && allowedDevices.contains(deviceId)) {
+            return true;
+        }
+        cabinetMetrics.recordMerchantScopeDenied("device");
+        return false;
+    }
+
+    @Transactional(readOnly = true)
+    public void requireDeviceAccess(Long operatorId, String deviceId) {
+        // 拒绝计数在 canAccessDevice 内，勿在此重复记
+        if (!self.canAccessDevice(operatorId, deviceId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }

@@ -153,7 +153,7 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
       withCredentials: isH5Runtime(),
       timeout: opts.timeoutMs ?? 20_000,
       success(res) {
-        const body = res.data as { code?: number; data?: MpRefreshData };
+        const body = res.data as { code?: number; message?: string; data?: MpRefreshData };
         if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
           opts.applyRefreshedToken(body.data);
           resolve(true);
@@ -165,7 +165,11 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
           resolve(true);
           return;
         }
-        reject(createMpApiError('登录已失效', 401, 'UNAUTHORIZED'));
+        // CB-070：刷新被拒时后端已按成因分档（超宽限/被下线/纪元重置）。旧写法一律压成「登录已失效」，
+        // 补货员只能反复输密码却不知道是哪种成因——这里的 message 会经 handleUnauthorized 落到提示。
+        reject(
+          createMpApiError(localizeApiMessage(body?.message, '登录已失效'), 401, 'UNAUTHORIZED')
+        );
       },
       fail(err) {
         reject(
@@ -282,29 +286,33 @@ function mpRequestOnce<T>(
             );
             return;
           }
-          if (!retried) {
-            refreshTokenSilently(opts)
-              .then(() =>
-                mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)
-              )
-              .catch((refreshErr) => {
-                // 只有刷新端点「明确 401」才判会话失效走登出（2026-10-23 审计）：
-                // 刷新请求自身网络失败/超时（弱网）不代表票据无效，旧代码无条件
-                // handleUnauthorized 会把仍有效的会话误杀。此时按普通失败 reject，
-                // 用户重试即可，会话保持登录态。
-                if (isMpAuthFailure(refreshErr)) {
-                  reject(opts.handleUnauthorized(body?.message));
-                  return;
-                }
-                reject(
-                  refreshErr instanceof Error
-                    ? refreshErr
-                    : createMpApiError('网络不稳定，请稍后再试')
-                );
-              });
+          // 已经用刷新换来的新票据重放过、仍收到 401 ⇒ 会话确实失效，才允许登出。
+          if (retried) {
+            reject(opts.handleUnauthorized(body?.message));
             return;
           }
-          reject(opts.handleUnauthorized(body?.message));
+          refreshTokenSilently(opts)
+            .then(() =>
+              mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)
+            )
+            .catch((refreshErr) => {
+              // 只有刷新端点「明确 401」才判会话失效走登出（2026-10-23 审计）：
+              // 刷新请求自身网络失败/超时（弱网）不代表票据无效，旧代码无条件
+              // handleUnauthorized 会把仍有效的会话误杀。此时按普通失败 reject，
+              // 用户重试即可，会话保持登录态。
+              // CB-070 提示分档：登出时用刷新端点自己的成因（超宽限 / 被下线 / 纪元重置），
+              // 旧写法一律压成「登录已失效」，补货员反复输密码也不知道卡在哪一条。
+              if (isMpAuthFailure(refreshErr)) {
+                const deny = (refreshErr as MpApiError).message || body?.message;
+                reject(opts.handleUnauthorized(deny));
+                return;
+              }
+              reject(
+                refreshErr instanceof Error
+                  ? refreshErr
+                  : createMpApiError('网络不稳定，请稍后再试')
+              );
+            });
           return;
         }
         if (res.statusCode === 403) {

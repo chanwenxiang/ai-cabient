@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
+import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -22,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -66,6 +69,9 @@ class WarehouseServiceTest {
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisplaySnapshotHelper displaySnapshotHelper;
     @Mock private DeviceInfoMapper deviceInfoRepository;
+    @Mock private UserInfoMapper userInfoRepository;
+    @Mock private PermissionService permissionService;
+    @Mock private MerchantScopeService merchantScopeService;
 
     private WarehouseService warehouseService;
 
@@ -80,7 +86,8 @@ class WarehouseServiceTest {
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
-                displaySnapshotHelper, deviceInfoRepository, null, null);
+                displaySnapshotHelper, deviceInfoRepository, null,
+                userInfoRepository, permissionService, merchantScopeService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
         Warehouse defaultWh = new Warehouse();
         defaultWh.setWarehouseId(TEST_WAREHOUSE_ID);
@@ -390,10 +397,120 @@ class WarehouseServiceTest {
         Warehouse existing = existingWarehouse();
         when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubAssignableManager(42L);
 
         var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L);
 
         assertEquals(42L, dto.managerUserId());
+    }
+
+    /** CB-070：重复保存同一个人（改名称/地址）不重新校验被授权人——否则账号后来被停用就会挡住无关编辑。 */
+    @Test
+    void upsertWarehouse_skipsManagerValidation_whenManagerUnchanged() {
+        Warehouse existing = existingWarehouse();
+        existing.setManagerUserId(42L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var dto = warehouseService.upsertWarehouse("WH-001", "改名后的仓", "addr", "ACTIVE", 42L);
+
+        assertEquals(42L, dto.managerUserId());
+        verify(userInfoRepository, never()).selectById(any());
+    }
+
+    /** CB-070：负责人用户编号写错必须当场拒绝并说清去哪核对，而不是留下一个查无此人的仓。 */
+    @Test
+    void upsertWarehouse_rejectsManager_whenUserMissing() {
+        Warehouse existing = existingWarehouse();
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(userInfoRepository.selectById(4242L)).thenReturn(null);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 4242L));
+
+        assertTrue(ex.getReason().contains("不存在"));
+        verify(warehouseRepository, never()).save(any(Warehouse.class));
+    }
+
+    @Test
+    void upsertWarehouse_rejectsManager_whenUserDisabled() {
+        Warehouse existing = existingWarehouse();
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        UserInfo disabled = new UserInfo();
+        disabled.setUserId(42L);
+        disabled.setName("小王");
+        disabled.setStatus("INACTIVE");
+        when(userInfoRepository.selectById(42L)).thenReturn(disabled);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+
+        assertTrue(ex.getReason().contains("已停用"));
+        verify(warehouseRepository, never()).save(any(Warehouse.class));
+    }
+
+    /** CB-070 判据 2（自加门）：跨商户指派要挡住——补货扣的是这个仓的账，人得管得到这批柜机。 */
+    @Test
+    void upsertWarehouse_rejectsManager_whenMerchantMismatch() {
+        Warehouse existing = existingWarehouse();
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        stubAssignableManager(42L);
+        DeviceInfo inWarehouse = new DeviceInfo();
+        inWarehouse.setDeviceId("CAB-001");
+        inWarehouse.setMerchantId("MCH-A");
+        inWarehouse.setHomeWarehouseId("WH-001");
+        when(deviceInfoRepository.findAllOrderByDeviceIdAsc()).thenReturn(List.of(inWarehouse));
+        when(merchantScopeService.allowedMerchantIds(42L)).thenReturn(Set.of("MCH-B"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("不属于分仓 WH-001 内柜机的商户"));
+    }
+
+    /** CB-070 判据 3：没有「发起补货」权限的人当分仓负责人 = 挂了名也发不起补货，保存时就该提示。 */
+    @Test
+    void upsertWarehouse_rejectsManager_whenNoReplenishRequestPerm() {
+        Warehouse existing = existingWarehouse();
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        when(userInfoRepository.selectById(42L)).thenReturn(new UserInfo());
+        when(permissionService.hasPermission(42L, "merchant:replenishment:request")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+
+        assertTrue(ex.getReason().contains("发起补货"));
+        verify(warehouseRepository, never()).save(any(Warehouse.class));
+    }
+
+    /** CB-068 A 档：盘点闸门保留，但拒绝文案要报出仓号 + 当前负责人，别让人猜成因。 */
+    @Test
+    void requireWarehouseManagedBy_namesWarehouseAndCurrentManager() {
+        Warehouse existing = existingWarehouse();
+        existing.setManagerUserId(7L);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
+        UserInfo manager = new UserInfo();
+        manager.setUserId(7L);
+        manager.setName("张三");
+        manager.setPhoneNumber("13800001234");
+        when(userInfoRepository.selectById(7L)).thenReturn(manager);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> warehouseService.requireWarehouseManagedBy("WH-001", 9L));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("WH-001"));
+        assertTrue(ex.getReason().contains("张三"));
+    }
+
+    private void stubAssignableManager(long userId) {
+        UserInfo user = new UserInfo();
+        user.setUserId(userId);
+        user.setName("补货负责人");
+        user.setStatus("ACTIVE");
+        when(userInfoRepository.selectById(userId)).thenReturn(user);
+        when(permissionService.hasPermission(userId, "merchant:replenishment:request")).thenReturn(true);
     }
 
     @Test

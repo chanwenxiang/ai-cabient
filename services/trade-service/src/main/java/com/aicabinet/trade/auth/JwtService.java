@@ -111,8 +111,11 @@ public class JwtService {
      * 已过期会话」——前端闲置 30 分钟后回来必然被踢回登录页。现允许 exp > now - 宽限期 的
      * token 走 refresh，安全性由三点收敛：① 仅 refresh 端点可用（业务接口仍走
      * {@link #validateAndGetPrincipal}，一律拒绝过期 token）；② jti 吊销黑名单照常校验
-     * （登出/踢人立即失效）；③ boot claim 校验照常（服务重启全员失效）。
-     * 宽限期配置：aicabinet.auth.refresh-grace-seconds，默认 86400（24h）。</p>
+     * （登出/踢人立即失效）；③ boot claim 照常——它校验的是集群会话纪元
+     * （{@link com.aicabinet.trade.support.ServerBootMarker}，2026-10-27 拍板 B 前取进程启动时刻，
+     * 于是每次发版都把宽限期静默清零）。
+     * 宽限期配置：aicabinet.auth.refresh-grace-seconds（application.yml 现取 604800=7 天，2026-10-24 拍板；
+     * 属性缺失或非正数时回退 {@link com.aicabinet.trade.config.AuthProperties#DEFAULT_REFRESH_GRACE_SECONDS} 24h）。</p>
      */
     public SessionPrincipal validateForRefresh(String token) {
         Claims claims;
@@ -122,7 +125,8 @@ public class JwtService {
             claims = e.getClaims();
             Instant exp = claims.getExpiration() == null ? null : claims.getExpiration().toInstant();
             if (exp == null || exp.isBefore(Instant.now().minusSeconds(refreshGraceSeconds))) {
-                throw new InvalidSessionTokenException("token expired beyond refresh grace");
+                throw new InvalidSessionTokenException(
+                        "token expired beyond refresh grace", SessionReject.EXPIRED_BEYOND_GRACE);
             }
         }
         return toSessionPrincipal(claims);
@@ -138,7 +142,8 @@ public class JwtService {
         String scope = claims.get(SCOPE_CLAIM, String.class);
         if (SCOPE_TWO_FACTOR_CHALLENGE.equals(scope)
                 || (scope != null && !SCOPE_SESSION.equals(scope))) {
-            throw new InvalidSessionTokenException("token scope not allowed for session APIs");
+            throw new InvalidSessionTokenException(
+                    "token scope not allowed for session APIs", SessionReject.SCOPE_DENIED);
         }
         assertBoot(claims);
         assertNotRevoked(claims);
@@ -178,18 +183,19 @@ public class JwtService {
     private void assertNotRevoked(Claims claims) {
         String jti = claims.getId();
         if (jti != null && !jti.isBlank() && sessionRevocationService.isRevoked(jti)) {
-            throw new InvalidSessionTokenException("token revoked");
+            throw new InvalidSessionTokenException("token revoked", SessionReject.REVOKED);
         }
     }
 
     private void assertBoot(Claims claims) {
         Object bootObj = claims.get(BOOT_CLAIM);
         if (bootObj == null) {
-            throw new InvalidSessionTokenException("missing boot claim");
+            throw new InvalidSessionTokenException("missing boot claim", SessionReject.MISSING_BOOT);
         }
         long boot = bootObj instanceof Number n ? n.longValue() : Long.parseLong(bootObj.toString());
         if (boot != serverBootMarker.epochMillis()) {
-            throw new InvalidSessionTokenException("server restarted");
+            throw new InvalidSessionTokenException(
+                    "session boot epoch mismatch", SessionReject.BOOT_CHANGED);
         }
     }
 
@@ -217,8 +223,29 @@ public class JwtService {
     public record SessionPrincipal(long userId, String accountType, String jti, Instant expiresAt) {}
 
     public static class InvalidSessionTokenException extends RuntimeException {
+        /** 会话被拒的成因（CB-070：让端点能各说各话，而不是压成一句「登录已失效」）。 */
+        private final SessionReject reason;
+
         public InvalidSessionTokenException(String message) {
-            super(message);
+            this(message, SessionReject.UNSPECIFIED);
         }
+
+        public InvalidSessionTokenException(String message, SessionReject reason) {
+            super(message);
+            this.reason = reason;
+        }
+
+        public SessionReject reason() {
+            return reason;
+        }
+    }
+
+    public enum SessionReject {
+        MISSING_BOOT,
+        BOOT_CHANGED,
+        REVOKED,
+        EXPIRED_BEYOND_GRACE,
+        SCOPE_DENIED,
+        UNSPECIFIED
     }
 }

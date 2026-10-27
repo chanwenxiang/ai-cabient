@@ -199,9 +199,23 @@ public class AuthController {
                     ? SessionCookieService.Realm.ADMIN
                     : SessionCookieService.Realm.CONSUMER);
             return ApiResponse.ok(withSessionCookie(response, refreshed, writeRealm));
+        } catch (JwtService.InvalidSessionTokenException e) {
+            // CB-070：续期被拒的原因只有客户端自己无法判断，含糊一句「登录已失效」会让人反复重登也找不到门。
+            // 状态仍是 401（放行范围未变），只把成因说清。
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, refreshDeniedReason(e.reason()), e);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }
+    }
+
+    static String refreshDeniedReason(JwtService.SessionReject reason) {
+        return switch (reason) {
+            case EXPIRED_BEYOND_GRACE -> ApiMessages.REFRESH_GRACE_EXPIRED;
+            case REVOKED -> ApiMessages.SESSION_REVOKED_ELSEWHERE;
+            case BOOT_CHANGED -> ApiMessages.SESSION_EPOCH_RESET;
+            case MISSING_BOOT, SCOPE_DENIED, UNSPECIFIED -> ApiMessages.INVALID_TOKEN;
+        };
     }
 
     /** 登出：吊销当前会话 JWT 与两套 realm 会话 Cookie，并清除 Cookie（幂等）。 */

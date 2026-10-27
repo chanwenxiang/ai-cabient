@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -42,6 +43,7 @@ class MerchantSelfReplenishTest {
     private SkuCatalogMapper skuCatalogRepository;
     private ReplenishmentRouteMapper routeRepository;
     private ReplenishmentTaskMapper taskRepository;
+    private MerchantScopeService merchantScopeService;
     private MerchantReplenishmentService service;
 
     @BeforeEach
@@ -54,14 +56,17 @@ class MerchantSelfReplenishTest {
         skuCatalogRepository = Mockito.mock(SkuCatalogMapper.class);
         routeRepository = Mockito.mock(ReplenishmentRouteMapper.class);
         taskRepository = Mockito.mock(ReplenishmentTaskMapper.class);
+        merchantScopeService = Mockito.mock(MerchantScopeService.class);
         DistributedLockService distributedLockService = Mockito.mock(DistributedLockService.class);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        // CB-068 A 档：柜机数据范围是默认放行项，个别用例按需改回 false
+        lenient().when(merchantScopeService.canAccessDevice(anyLong(), anyString())).thenReturn(true);
         service = new MerchantReplenishmentService(
                 permissionService, Mockito.mock(MerchantFeaturePackService.class), merchantPortalGuard,
                 replenishmentService, null, warehouseService,
                 Mockito.mock(AdminAuditService.class), deviceRepository, skuCatalogRepository,
                 routeRepository, taskRepository, Mockito.mock(FileAttachmentService.class),
-                distributedLockService, null, null);
+                distributedLockService, null, null, merchantScopeService);
     }
 
     private MerchantSelfReplenishRequest body() {
@@ -97,15 +102,51 @@ class MerchantSelfReplenishTest {
         verify(routeRepository, never()).save(any());
     }
 
+    /** CB-070：柜机不在本人数据范围内 ⇒ 403 且文案指名柜机、给出「找谁做什么」。 */
     @Test
-    void selfInitiate_rejectsWhenUserIsNotWarehouseManager() {
+    void selfInitiate_rejectsWhenDeviceOutsideDataScope() {
         when(deviceRepository.findById("CAB-001"))
                 .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        when(merchantScopeService.canAccessDevice(9L, "CAB-001")).thenReturn(false);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, body()));
+
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("不在你的数据范围内"));
+        verify(routeRepository, never()).save(any());
+    }
+
+    /** CB-068 A 档（2026-10-27 用户拍板）：补货员不是分仓负责人也能自主发起，且不再走负责人闸门。 */
+    @Test
+    void selfInitiate_allowsNonWarehouseManager() {
+        Warehouse warehouse = new Warehouse();
+        warehouse.setWarehouseId("WH-001");
+        warehouse.setManagerUserId(777L);
+        when(warehouseService.requireWarehouseExists("WH-001")).thenReturn(warehouse);
+        stubHappyPath();
+
+        service.selfInitiateTask(9L, body());
+
+        verify(warehouseService, never()).requireWarehouseManagedBy(anyString(), anyLong());
+        verify(routeRepository).save(any(ReplenishmentRoute.class));
+    }
+
+    /** 柜机已归仓但仓被删/编号错 ⇒ 400 带仓号，别让人对着「仓库不存在」猜是哪一个。 */
+    @Test
+    void selfInitiate_rejectsWhenHomeWarehouseMissing() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-GONE")));
         Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.FORBIDDEN, "仅分仓负责人可对该仓发起补货"))
-                .when(warehouseService).requireWarehouseManagedBy("WH-001", 9L);
-        assertThrows(org.springframework.web.server.ResponseStatusException.class,
-                () -> service.selfInitiateTask(9L, body()));
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "仓库不存在：WH-GONE"))
+                .when(warehouseService).requireWarehouseExists("WH-GONE");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, body()));
+
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
         verify(routeRepository, never()).save(any());
     }
 

@@ -79,8 +79,11 @@ class JwtServiceRefreshGraceTest {
     void validateForRefresh_expiredBeyondGrace_rejected() {
         String token = expiredToken(GRACE_SECONDS + 60, "jti-grace-out"); // 过期 1h+1min
 
-        assertThrows(JwtService.InvalidSessionTokenException.class,
-                () -> jwtService.validateForRefresh(token));
+        JwtService.InvalidSessionTokenException ex =
+                assertThrows(JwtService.InvalidSessionTokenException.class,
+                        () -> jwtService.validateForRefresh(token));
+        // CB-070：refresh 端点靠这个成因出「超过有效期」的话术，别压成一句「登录已失效」
+        assertEquals(JwtService.SessionReject.EXPIRED_BEYOND_GRACE, ex.reason());
     }
 
     @Test
@@ -88,13 +91,18 @@ class JwtServiceRefreshGraceTest {
         String token = expiredToken(60, "jti-revoked");
         when(sessionRevocationService.isRevoked("jti-revoked")).thenReturn(true);
 
-        assertThrows(JwtService.InvalidSessionTokenException.class,
-                () -> jwtService.validateForRefresh(token));
+        JwtService.InvalidSessionTokenException ex =
+                assertThrows(JwtService.InvalidSessionTokenException.class,
+                        () -> jwtService.validateForRefresh(token));
+        assertEquals(JwtService.SessionReject.REVOKED, ex.reason());
     }
 
+    /**
+     * boot 不匹配仍拒绝。2026-10-27 拍板 B 后，boot 是**集群会话纪元**（Redis）而非进程启动时刻：
+     * 常规发版/重启不再走到这里，只有运维删掉纪元键（全员下线）或 token 由另一套环境签发才会。
+     */
     @Test
     void validateForRefresh_bootMismatch_rejected() {
-        // 过期但在宽限内，但 boot 是别的进程启动时刻（服务已重启）
         Instant now = Instant.now();
         String token = Jwts.builder()
                 .id(UUID.randomUUID().toString().replace("-", ""))
@@ -106,8 +114,10 @@ class JwtServiceRefreshGraceTest {
                 .signWith(key)
                 .compact();
 
-        assertThrows(JwtService.InvalidSessionTokenException.class,
-                () -> jwtService.validateForRefresh(token));
+        JwtService.InvalidSessionTokenException ex =
+                assertThrows(JwtService.InvalidSessionTokenException.class,
+                        () -> jwtService.validateForRefresh(token));
+        assertEquals(JwtService.SessionReject.BOOT_CHANGED, ex.reason());
     }
 
     @Test

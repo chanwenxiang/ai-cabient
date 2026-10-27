@@ -1,9 +1,14 @@
 /**
  * 自主补货草稿行合并。
  * 提交门闩见 `self-replenish-submit`。
- * 纯函数：货道 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
+ * 纯函数：在架台账 + 货道 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
  */
-import type { DeviceSlot, OpenApiReplenishmentSuggestDto } from '@aicabinet/shared-types';
+import type {
+  DeviceSlot,
+  OpenApiDeviceDetailDto,
+  OpenApiDeviceInventoryDto,
+  OpenApiReplenishmentSuggestDto
+} from '@aicabinet/shared-types';
 
 export type ReplenishDraftLine = {
   skuId: string;
@@ -40,13 +45,31 @@ export function buildSuggestMap(
   return suggestMap;
 }
 
+/**
+ * 在架台账 = 补货明细的唯一骨架真源（CB-069）。
+ * 后端 `deviceDetail.skuInventory` 已是 `device_sku_inventory` ∩ `sku_catalog.status='ACTIVE'`，
+ * 与设备详情「已上架商品」、消费者目录同口径 ⇒ 已下架/演示 SKU 不会进来。
+ *
+ * 🔴 `null`（详情读取失败）与 `[]`（柜里确实没有在架商品）必须分开：
+ * 前者退回货道骨架（旧行为），后者是真空态，不能当成「没读到」而放行全部货道 SKU。
+ */
+export function onShelfInventoryRows(
+  detail: OpenApiDeviceDetailDto | null | undefined
+): OpenApiDeviceInventoryDto[] | null {
+  const rows = detail?.skuInventory;
+  return Array.isArray(rows) ? rows : null;
+}
+
 export function mergeSlotDraftLine(
   bySku: Map<string, ReplenishDraftLine>,
   slot: DeviceSlot,
-  sug: OpenApiReplenishmentSuggestDto | undefined
+  sug: OpenApiReplenishmentSuggestDto | undefined,
+  onShelf?: Set<string> | null
 ): string | undefined {
   const skuId = String(slot.assignedSkuId || '').trim();
   if (!skuId) return;
+  // 在架集合存在时，货道只作名称/容量注解：绑了已下架 SKU 的货道不进明细（2026-10-27 用户「补货应该只补柜里当前存在的 sku」）
+  if (onShelf && !onShelf.has(skuId)) return;
   const book = Number(slot.bookQty) || 0;
   const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
   const suggestQty = Number(sug?.suggestQty) || 0;
@@ -76,6 +99,10 @@ export function mergeSlotDraftLine(
   return skuId;
 }
 
+/**
+ * 孤儿建议落行：只用于「在架台账读不到」的退回路径（buildDraftLines 内部）。
+ * 在架态下不要直接调用——建议接口会带已下架 SKU 回来，会把演示商品重新灌进明细。
+ */
 export function appendOrphanSuggestions(
   bySku: Map<string, ReplenishDraftLine>,
   suggestMap: Map<string, OpenApiReplenishmentSuggestDto>
@@ -96,6 +123,65 @@ export function appendOrphanSuggestions(
       selected: suggestQty > 0
     });
   }
+}
+
+/** 台账在册但没绑到货道的 SKU（货道漏配/仅按商品建档）也必须能补，否则柜里真有货的商品永远补不到。 */
+export function mergeInventoryDraftLine(
+  bySku: Map<string, ReplenishDraftLine>,
+  row: OpenApiDeviceInventoryDto,
+  sug: OpenApiReplenishmentSuggestDto | undefined
+): string | undefined {
+  const skuId = String(row.skuId || '').trim();
+  if (!skuId || bySku.has(skuId)) return skuId || undefined;
+  const currentQty = Number(row.quantity) || 0;
+  const capacity = Number(row.capacity) || 0;
+  const suggestQty = Number(sug?.suggestQty) || 0;
+  const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, capacity - currentQty);
+  bySku.set(skuId, {
+    skuId,
+    // DeviceInventoryDto 不带名称，无货道可注解时只能退回编号（后台货道配置补齐后自动恢复）
+    skuName: skuId,
+    currentQty,
+    capacity,
+    suggestQty,
+    soldQty7d: Number(sug?.soldQty7d) || 0,
+    suggestReason: String(sug?.suggestReason || ''),
+    qty: defaultQty,
+    selected: defaultQty > 0
+  });
+  return skuId;
+}
+
+/**
+ * 草稿组装：在架台账优先，货道只补名称/容量；台账读不到（rows=null）才退回「货道 + 孤儿建议」旧口径。
+ * 在架态下**不再由孤儿建议新增行**——建议可能带着已下架 SKU 回来（CB-069）。
+ */
+export function buildDraftLines(
+  slots: DeviceSlot[],
+  suggestMap: Map<string, OpenApiReplenishmentSuggestDto>,
+  rows: OpenApiDeviceInventoryDto[] | null
+): ReplenishDraftLine[] {
+  const bySku = new Map<string, ReplenishDraftLine>();
+  const rest = new Map(suggestMap);
+  const onShelf = rows ? new Set(rows.map((r) => String(r.skuId || '').trim())) : null;
+  for (const slot of slots || []) {
+    const skuId = mergeSlotDraftLine(
+      bySku,
+      slot,
+      rest.get(String(slot.assignedSkuId || '').trim()),
+      onShelf
+    );
+    if (skuId) rest.delete(skuId);
+  }
+  if (rows) {
+    for (const row of rows) {
+      const skuId = mergeInventoryDraftLine(bySku, row, rest.get(String(row.skuId || '').trim()));
+      if (skuId) rest.delete(skuId);
+    }
+  } else {
+    appendOrphanSuggestions(bySku, rest);
+  }
+  return sortDraftLines([...bySku.values()]);
 }
 
 /** 选中优先，再按建议量降序 */

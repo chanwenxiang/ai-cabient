@@ -54,7 +54,9 @@ class MerchantPortalGuardTest {
                 assertThrows(ResponseStatusException.class, () -> guard.requireAccess(USER_ID));
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        assertTrue(ex.getReason().contains("平台管理员请使用运营后台"), ex.getReason());
+        assertTrue(ex.getReason().contains("请改用运营后台"), ex.getReason());
+        // CB-070：这一句不得再夹带「已绑定商户的账号」——超管走 allowedMerchantIds 恒得全集，绑商户不是他的成因
+        assertTrue(!ex.getReason().contains("绑定"), ex.getReason());
         verify(cabinetMetrics).recordMerchantScopeDenied("portal_global");
         // 这条 verify 才是「分支可达」的判据：requirePermission 一旦排在前面，B-13 会先把双角色账号拒成通用 403
         verify(permissionService, never()).requirePermission(any(), anyString());
@@ -87,7 +89,7 @@ class MerchantPortalGuardTest {
     }
 
     @Test
-    void missingPortalAccess_stopsAtPermissionCheck() {
+    void missingPortalAccess_isToldWhichRoleToAdd() {
         when(merchantScopeService.isGlobalScope(USER_ID)).thenReturn(false);
         org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
                 .when(permissionService)
@@ -96,7 +98,11 @@ class MerchantPortalGuardTest {
         ResponseStatusException ex =
                 assertThrows(ResponseStatusException.class, () -> guard.requireAccess(USER_ID));
 
-        assertEquals(ApiMessages.PERMISSION_DENIED, ex.getReason());
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        // CB-070：通用「无权限执行此操作」换成点名「角色管理」的一句；范围不变，仍是 403
+        assertTrue(ex.getReason().contains("商户门户"), ex.getReason());
+        assertTrue(ex.getReason().contains("角色管理"), ex.getReason());
+        assertTrue(!ex.getReason().contains("未绑定任何商户"), ex.getReason());
         verify(merchantScopeService, never()).allowedMerchantIds(any());
     }
 }
