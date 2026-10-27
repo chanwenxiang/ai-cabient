@@ -24,10 +24,11 @@ export type ReplenishDraftLine = {
   selected: boolean;
 };
 
-/** 补货建议理由：PAR=目标库存，ROP=销量再订货点 */
+/** 补货建议理由：PAR=目标库存，ROP=销量再订货点，LOW_STOCK=库存偏低 */
 export function suggestReasonLabel(code?: string): string {
   const c = String(code || '').toUpperCase();
   if (!c || c === 'PAR') return '';
+  if (c === 'LOW_STOCK') return '库存偏低';
   if (c === 'ROP') return '按销量补货';
   if (c === 'PAR+ROP') return '目标库存+销量';
   return code || '';
@@ -139,8 +140,9 @@ export function mergeInventoryDraftLine(
   const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, capacity - currentQty);
   bySku.set(skuId, {
     skuId,
-    // DeviceInventoryDto 不带名称，无货道可注解时只能退回编号（后台货道配置补齐后自动恢复）
-    skuName: skuId,
+    // 设备详情 skuInventory 现带 skuName（2026-10-27 后端补的读面注解）；
+    // 旧后端/空名时退回编号，不阻塞补货
+    skuName: String(row.skuName || skuId),
     currentQty,
     capacity,
     suggestQty,

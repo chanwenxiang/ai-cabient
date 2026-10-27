@@ -413,11 +413,12 @@ public class WarehouseService {
             // 货道已满 PAR / 在途抵消后，再回退常规低库存/ROP 建议
             return self.suggestForDevice(deviceId, false);
         }
-        List<ReplenishmentSuggestDto> lowStock = suggestFromLowStock(dev, inTransitBySku, velocityBySku);
+        List<ReplenishmentSuggestDto> lowStock = suggestFromLowStock(dev, inTransitBySku, velocityBySku,
+                inventoryLotService.lotLedgerSkuIds(dev));
         if (!lowStock.isEmpty()) {
             return lowStock;
         }
-        return suggestFromRop(dev, inTransitBySku, velocityBySku);
+        return suggestFromRop(dev, inTransitBySku, velocityBySku, inventoryLotService.lotLedgerSkuIds(dev));
     }
 
     private List<ReplenishmentSuggestDto> buildSuggestionsFromSlots(
@@ -464,11 +465,12 @@ public class WarehouseService {
 
     private List<ReplenishmentSuggestDto> suggestFromLowStock(
             String dev, Map<String, Integer> inTransitBySku,
-            Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
+            Map<String, SalesVelocityService.SkuVelocity> velocityBySku,
+            java.util.Set<String> lotLedgerSkus) {
         return deviceInventoryRepository.findByIdDeviceId(dev).stream()
                 .map(i -> {
                     String skuId = i.getId().getSkuId();
-                    int book = bookQtyForSuggest(dev, skuId, i.getQuantity());
+                    int book = bookQtyForSuggest(dev, skuId, i.getQuantity(), lotLedgerSkus);
                     return Map.entry(i, book);
                 })
                 .filter(e -> e.getValue() <= e.getKey().getLowThreshold())
@@ -498,16 +500,18 @@ public class WarehouseService {
 
     private List<ReplenishmentSuggestDto> suggestFromRop(
             String dev, Map<String, Integer> inTransitBySku,
-            Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
+            Map<String, SalesVelocityService.SkuVelocity> velocityBySku,
+            java.util.Set<String> lotLedgerSkus) {
         return velocityBySku.entrySet().stream()
                 .filter(e -> e.getValue().ropPoint() > 0)
                 .map(e -> {
                     String skuId = e.getKey();
                     SalesVelocityService.SkuVelocity velocity = e.getValue();
-                    int book = bookQtyForSuggest(dev, skuId, deviceInventoryRepository.findByIdDeviceId(dev).stream()
-                            .filter(inv -> skuId.equals(inv.getId().getSkuId()))
-                            .mapToInt(DeviceSkuInventory::getQuantity)
-                            .sum());
+                    DeviceSkuInventory inv = deviceInventoryRepository.findByIdDeviceId(dev).stream()
+                            .filter(i -> skuId.equals(i.getId().getSkuId()))
+                            .findFirst().orElse(null);
+                    int book = inv == null ? 0
+                            : bookQtyForSuggest(dev, skuId, inv.getQuantity(), lotLedgerSkus);
                     if (book > velocity.ropPoint()) {
                         return null;
                     }
@@ -515,6 +519,8 @@ public class WarehouseService {
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
                     int rawSuggest = Math.max(0, target - book);
                     rawSuggest = capSuggestBySlotHeadroom(dev, skuId, rawSuggest);
+                    rawSuggest = capSuggestByInventoryCapacity(
+                            rawSuggest, book, inv == null ? 0 : inv.getCapacity());
                     if (rawSuggest <= 0) {
                         return null;
                     }
@@ -528,8 +534,15 @@ public class WarehouseService {
                 .toList();
     }
 
-    private int bookQtyForSuggest(String deviceId, String skuId, int inventoryQty) {
-        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+    /**
+     * 建议侧账面口径，与 {@code DeviceSlotService.toInventoryDto} 显示口径同一条规则：
+     * 已建批次账的 SKU 以账本可售为准（含卖光/过期=0），未建账的回落 device_sku_inventory 账面。
+     * 🔴 不能按设备级 {@code deviceUsesLotLedger} 一刀切——会把「从未进过账本」的 SKU
+     * 全读成 0（2026-10-27 实测：雪碧账面 2 被读成 0 ⇒ 建议 4−0=4 顶穿容量 4）。
+     */
+    private int bookQtyForSuggest(String deviceId, String skuId, int inventoryQty,
+                                  java.util.Set<String> lotLedgerSkus) {
+        if (lotLedgerSkus != null && lotLedgerSkus.contains(skuId)) {
             return inventoryLotService.sellableQuantity(deviceId, skuId);
         }
         return inventoryQty;
@@ -541,6 +554,18 @@ public class WarehouseService {
             return rawSuggest;
         }
         return Math.min(rawSuggest, deviceSlotService.totalHeadroomForSku(deviceId, skuId));
+    }
+
+    /**
+     * 无货道机型（开门柜）的容量钳制：建议量不得超过 台账容量 − 账面（2026-10-27 用户实测
+     * 「已有 2 个、最多放 4 个，建议不该是 4」——销量外推不得顶穿物理容量）。
+     * capacity≤0（未设容量）不钳制，维持原值。
+     */
+    private int capSuggestByInventoryCapacity(int rawSuggest, int book, int capacity) {
+        if (capacity <= 0) {
+            return rawSuggest;
+        }
+        return Math.min(rawSuggest, Math.max(0, capacity - book));
     }
 
     @Transactional

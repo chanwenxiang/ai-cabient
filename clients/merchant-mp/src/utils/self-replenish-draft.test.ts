@@ -22,6 +22,10 @@ describe('suggestReasonLabel', () => {
     expect(suggestReasonLabel('ROP')).toBe('按销量补货');
     expect(suggestReasonLabel('PAR+ROP')).toBe('目标库存+销量');
   });
+  it('maps LOW_STOCK to Chinese, never leaks the raw enum (2026-10-27 用户反馈)', () => {
+    expect(suggestReasonLabel('LOW_STOCK')).toBe('库存偏低');
+    expect(suggestReasonLabel('low_stock')).toBe('库存偏低');
+  });
 });
 
 describe('buildSuggestMap', () => {
@@ -143,6 +147,19 @@ describe('buildDraftLines（在架台账为骨架，CB-069）', () => {
     expect(buildDraftLines(slots, buildSuggestMap(suggest), [])).toEqual([]);
     const fallback = buildDraftLines(slots, buildSuggestMap(suggest), null);
     expect(fallback.map((l) => l.skuId).sort()).toEqual(['100013', '100014', 'SKU-DEMO-001']);
+  });
+
+  it('零货道柜：标题用 skuInventory.skuName，缺名退回编号（2026-10-27 用户反馈）', () => {
+    const noSlots: DeviceSlot[] = [];
+    const rowsWithName = [
+      { skuId: '100013', skuName: '雪碧柠檬味汽水330ml', quantity: 2, capacity: 4 },
+      { skuId: '100016', quantity: 4, capacity: 4 }
+    ] as OpenApiDeviceDetailDto['skuInventory'];
+    const lines = buildDraftLines(noSlots, buildSuggestMap([]), rowsWithName || []);
+    expect(lines.map((l) => l.skuId).sort()).toEqual(['100013', '100016']);
+    expect(lines.find((l) => l.skuId === '100013')?.skuName).toBe('雪碧柠檬味汽水330ml');
+    // 旧后端不带 skuName 时退回编号，不阻塞补货
+    expect(lines.find((l) => l.skuId === '100016')?.skuName).toBe('100016');
   });
 });
 

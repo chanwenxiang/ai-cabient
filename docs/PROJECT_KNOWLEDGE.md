@@ -668,6 +668,13 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（补货建议三连修：建议量顶穿容量 / 明细标题变 SKU 编号 / LOW_STOCK 英文裸奔——零货道路径的三个连锁坑）
+
+- 🔴 **三个症状一个根**：清光脏货道后「在架台账=唯一骨架」（CB-069）走上 `mergeInventoryDraftLine` 新路径，三个隐含假设同时破裂。①**建议量顶穿容量**：`bookQtyForSuggest` 按设备级 `deviceUsesLotLedger` 一刀切走批次账——雪碧从未进过账本（lot 零行）被读成 0 ⇒ 建议 4−0=4，而页面「库存 2/4」走的是 `device_sku_inventory`，两个账本打架。修法=照抄 `toInventoryDto` 已有的 per-SKU 口径（`lotLedgerSkuIds`：已建账看账本含卖光=0，未建账回台账）；ROP 分支再加 `capSuggestByInventoryCapacity`（销量外推不得顶穿 容量−账面，capacity≤0 不钳）。②**标题变编号**：`mergeInventoryDraftLine` 写死 `skuName: skuId`（名字原先从货道注解来）⇒ `DeviceInventoryDto` 尾部加 `skuName`（8 参兼容重载兜住 6 个既有调用点，deviceDetail 组装点用同一次 sku_catalog 查询顺带取名；写路径 null）。③**LOW_STOCK 裸奔**：`suggestReasonLabel` 映射表没有它 ⇒ 补「库存偏低」。
+- **同款打架顺带修**：`MerchantInventoryPortalService` 也是设备级判断（雪碧在商户库存页会显示 0），同口径修正。
+- 🧪 实跑：新 `WarehouseSuggestBookQtyTest` 4/0（用户实测案=建议 2 / 已建账按账本 / ROP 钳到 2 / 同柜混排各用各账）、`WarehouseServiceTest` 23/0、`ReplenishmentServiceSuggestTaskTest` 5/0；merchant-mp vitest **192/192**（新增 LOW_STOCK 中文映射 + 零货道 skuName 退回编号两条）、`vue-tsc` 绿、`build:mp-weixin:dev` 出包（dev 需重新预览）。openapi.ts 同提交重生成（`DeviceInventoryDto.skuName`）。
+- 📌 经验：**给「页面显示的数」和「建议用的数」立同一条口径铁律**——两个账本并存（汇总表+批次账）的系统里，任何读取点都必须三选一并写明：per-SKU 已建账看账本 / 未建账回台账 / 显式选边。设备级判断是这条规则的第三种隐形违反。
+
 ### 2026-10-27（将邑真机补货会话修通：开门回执/关门上报接进 trade 生命周期 + 零货道补货豁免——EG943322621391 两轮同型复现实锤）
 
 - 🔴 **真机补货链路只有两条回执，此前一条都没接进会话生命周期**：WS `sendOpenStockDoorSure`（msgContent=补货会话 id，实测 140ms 即回）在网关只撤销 15s CommandTracker 登记；HTTP `uploadAddGoodsCloseStatus`（`{deviceNum, addGoodsId:"", lockStatus:"success"}`，**无会话号**）在 DeviceCompatController 只记日志。⇒ trade 侧会话恒卡 OPENING，90s 超时扫描必转 CANCELLED + OPEN_TIMEOUT 异常，小程序「已开门，关门后继续核对上架」等一个永不到来的事件，「再次开门」还吃 409（幽灵会话占柜）。2026-10-27 15:07/15:56 两轮真机试跑 100% 同型复现；模拟器链路（MQTT door-event）一直是通的，所以收尾 E「开门指令能下去」的验收测不出这个洞。

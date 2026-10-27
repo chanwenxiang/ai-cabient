@@ -108,16 +108,20 @@ public class MerchantInventoryPortalService {
             rows = inventoryRepository.findAllLimit(2000);
         }
 
-        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Set<String>> ledgerSkusByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         return rows.stream()
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
                 .map(i -> {
                     String dev = i.getId().getDeviceId();
                     String skuId = i.getId().getSkuId();
-                    boolean ledger = ledgerByDevice.computeIfAbsent(dev, inventoryLotService::deviceUsesLotLedger);
+                    // 🔴 已建账按 SKU 粒度判断（与 DeviceSlotService.toInventoryDto 同口径）：
+                    // 设备级 deviceUsesLotLedger 会把「从未进过账本」的 SKU 读成 0——
+                    // 账面有货却显示缺货（2026-10-27 雪碧实测：inventory=2、账本零行）。
+                    Set<String> lotSkus = ledgerSkusByDevice.computeIfAbsent(
+                            dev, inventoryLotService::lotLedgerSkuIds);
                     int qty = i.getQuantity();
-                    if (ledger) {
+                    if (lotSkus.contains(skuId)) {
                         qty = sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
                                 .getOrDefault(skuId, 0);
                     }

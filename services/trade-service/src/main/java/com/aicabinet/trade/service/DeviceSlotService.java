@@ -124,16 +124,21 @@ public class DeviceSlotService {
         Set<String> inventorySkuIds = inventoryRows.stream()
                 .map(DeviceSkuInventory::getSkuId)
                 .collect(Collectors.toSet());
-        Set<String> activeSkuIds = inventorySkuIds.isEmpty() ? Set.of()
+        // 同一查询顺带取名字：零货道机型补货明细以 skuInventory.skuName 作标题，
+        // 缺了只能退回 SKU 编号（2026-10-27 用户反馈「给商品的名称，别用编号」）。
+        List<SkuCatalog> catalogRows = inventorySkuIds.isEmpty() ? List.of()
                 : skuCatalogRepository.selectList(
-                                Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, inventorySkuIds))
-                        .stream()
-                        .filter(s -> "ACTIVE".equals(s.getStatus()))
-                        .map(SkuCatalog::getSkuId)
-                        .collect(Collectors.toSet());
+                                Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, inventorySkuIds));
+        Map<String, String> skuNameById = catalogRows.stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s.getSkuName(), (a, b) -> a));
+        Set<String> activeSkuIds = catalogRows.stream()
+                .filter(s -> "ACTIVE".equals(s.getStatus()))
+                .map(SkuCatalog::getSkuId)
+                .collect(Collectors.toSet());
         List<DeviceInventoryDto> skuInventory = inventoryRows.stream()
                 .filter(inv -> activeSkuIds.contains(inv.getSkuId()))
-                .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus))
+                .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus,
+                        skuNameById.get(inv.getSkuId())))
                 .toList();
         // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
@@ -1468,7 +1473,7 @@ public class DeviceSlotService {
     }
 
     private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku,
-                                              Set<String> lotLedgerSkus) {
+                                              Set<String> lotLedgerSkus, String skuName) {
         String deviceId = inv.getId().getDeviceId();
         String skuId = inv.getId().getSkuId();
         int qty = inv.getQuantity();
@@ -1487,7 +1492,8 @@ public class DeviceSlotService {
                 inv.getLowThreshold(),
                 inv.getUpdatedAt(),
                 inv.getVersion(),
-                inv.getLastRestockQty()
+                inv.getLastRestockQty(),
+                skuName
         );
     }
 
