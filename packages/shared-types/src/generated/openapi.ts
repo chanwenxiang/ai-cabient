@@ -17770,7 +17770,7 @@ export interface components {
             rows?: components["schemas"]["ParsedClassRow"][];
             rejectReason?: string;
             /** Format: int32 */
-            trainedMatchPercent?: number;
+            learnableMatchPercent?: number;
         };
         ParsedClassRow: {
             /** Format: int32 */
@@ -17785,16 +17785,7 @@ export interface components {
             message?: string;
             data?: components["schemas"]["LearningLibraryView"];
         };
-        LearnableSku: {
-            skuId?: string;
-            skuName?: string;
-            jiangyiProductId?: string;
-            jiangyiName?: string;
-            textName?: string;
-            syncStatus?: string;
-            trained?: boolean;
-        };
-        LearnedProduct: {
+        LearnableProductRow: {
             /** Format: int64 */
             jiangyiProductId?: number;
             name?: string;
@@ -17803,6 +17794,16 @@ export interface components {
             skuId?: string;
             skuName?: string;
             coverage?: components["schemas"]["ProductCoverage"][];
+        };
+        LearnableSku: {
+            skuId?: string;
+            skuName?: string;
+            jiangyiProductId?: string;
+            jiangyiName?: string;
+            textName?: string;
+            syncStatus?: string;
+            inVendorList?: boolean;
+            mappedDeviceIds?: string[];
         };
         LearningCabinet: {
             deviceId?: string;
@@ -17819,7 +17820,7 @@ export interface components {
         };
         LearningLibraryView: {
             models?: components["schemas"]["LearningModel"][];
-            learnedProducts?: components["schemas"]["LearnedProduct"][];
+            learnableProducts?: components["schemas"]["LearnableProductRow"][];
             learnableSkus?: components["schemas"]["LearnableSku"][];
             cabinets?: components["schemas"]["LearningCabinet"][];
             recentTrainings?: components["schemas"]["TrainingAttempt"][];
@@ -17829,6 +17830,7 @@ export interface components {
             /** Format: int64 */
             id?: number;
             modelName?: string;
+            customerModelName?: string;
             /** Format: int32 */
             quantity?: number;
             industrialControlModel?: string;

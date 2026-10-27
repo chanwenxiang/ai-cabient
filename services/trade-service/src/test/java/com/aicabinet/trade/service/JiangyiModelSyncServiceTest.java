@@ -99,7 +99,7 @@ class JiangyiModelSyncServiceTest {
     }
 
     private JiangyiModelFile modelFile(String industrialControlModel) {
-        return new JiangyiModelFile(7L, MODEL_NAME, "http://oss/model.rknn",
+        return new JiangyiModelFile(7L, MODEL_NAME, null, "http://oss/model.rknn",
                 industrialControlModel, classesUrl, 2);
     }
 
@@ -248,7 +248,7 @@ class JiangyiModelSyncServiceTest {
     @Test
     void pregenerateForDeviceByUrl_writesDisabledRowsFromExplicitClasses() {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of());
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of());
 
         int written = service().pregenerateForDeviceByUrl(DEVICE_ID,
                 new JiangyiModelSyncService.ExplicitModel(MODEL_NAME, "http://oss/m.rknn", classesUrl, 2), 0);
@@ -375,12 +375,12 @@ class JiangyiModelSyncServiceTest {
      */
     @Test
     void previewModels_degradesUnreachableClassesTextPerModelInsteadOfFailingWholeList() {
-        JiangyiModelFile blocked = new JiangyiModelFile(8L, "JY-BLOCKED", "http://oss/b.rknn",
+        JiangyiModelFile blocked = new JiangyiModelFile(8L, "JY-BLOCKED", null, "http://oss/b.rknn",
                 "88", "https://evil.example.com/classes.txt", 2);
-        JiangyiModelFile blank = new JiangyiModelFile(9L, "JY-BLANK", "http://oss/c.rknn",
+        JiangyiModelFile blank = new JiangyiModelFile(9L, "JY-BLANK", null, "http://oss/c.rknn",
                 "88", "  ", 2);
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(blocked, blank, modelFile("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of());
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of());
 
         List<JiangyiModelSyncService.ModelPreview> previews = service().previewModels(0);
 

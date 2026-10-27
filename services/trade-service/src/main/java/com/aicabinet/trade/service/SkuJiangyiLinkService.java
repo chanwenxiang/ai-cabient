@@ -6,7 +6,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
@@ -370,7 +370,7 @@ public class SkuJiangyiLinkService {
     }
 
     /**
-     * 学习完成后按 barCode 从已学习商品回填 text_name（classes.txt 直接键）。
+     * 按 barCode 从厂商可学习商品名单回填 text_name（classes.txt 直接键）。
      *
      * <p>🔴 命中多条不猜（2026-10-22 用户拍板）：将邑库里同一条码可能同时挂着正式行与
      * test/纪念装行（实测「雪碧」11 条里 {@code id=3563 test雪碧听装330ml} 条码为空、
@@ -384,10 +384,10 @@ public class SkuJiangyiLinkService {
         if (sku.getBarcode() == null || sku.getBarcode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "我方 SKU 未登记条形码，无法按条码回填");
         }
-        List<TrainedProduct> trained = jiangyiGatherClient.trainedProducts();
-        List<TrainedProduct> hits = new ArrayList<>();
+        List<LearnableProduct> learnable = jiangyiGatherClient.learnableProducts();
+        List<LearnableProduct> hits = new ArrayList<>();
         Set<String> textNames = new LinkedHashSet<>();
-        for (TrainedProduct p : trained) {
+        for (LearnableProduct p : learnable) {
             if (!sku.getBarcode().equals(p.barCode())) {
                 continue;
             }
@@ -398,17 +398,17 @@ public class SkuJiangyiLinkService {
         }
         if (hits.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-                    "已学习商品中未找到条形码 " + sku.getBarcode());
+                    "将邑可学习商品名单中未找到条形码 " + sku.getBarcode());
         }
         if (textNames.size() > 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "条码 " + sku.getBarcode() + " 在已学习商品中命中 " + hits.size() + " 条且 textName 不同（"
+                    "条码 " + sku.getBarcode() + " 在将邑可学习商品名单中命中 " + hits.size() + " 条且 textName 不同（"
                             + String.join(" / ", textNames) + "），不自动回填——请到识别映射页人工指定 classId 对应商品");
         }
         if (textNames.isEmpty()) {
             // 宁可不动，也不把已核对过的 textName 静默清空
             throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-                    "条码 " + sku.getBarcode() + " 命中的 " + hits.size() + " 条已学习商品没有 textName");
+                    "条码 " + sku.getBarcode() + " 命中的 " + hits.size() + " 条将邑商品没有 textName");
         }
         String textName = textNames.iterator().next();
         int updated = 0;

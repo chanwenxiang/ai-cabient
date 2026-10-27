@@ -6,7 +6,7 @@ import com.aicabinet.trade.domain.JiangyiTrainingTicket;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.JiangyiTrainingTicketMapper;
@@ -36,9 +36,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 采集编排（CB-023 范围 C）单测：finishNotify 三重防伪（未知凭据静默丢弃 /
- * trainedProducts 交叉验证 / 逐张 CAS 一次性消费）、批量触发的集合粒度单次调用、
- * startGather 开门失败回滚锁、startTraining 幂等与公网回调基址前置校验。
+ * 采集编排（CB-023 范围 C）单测：finishNotify 防伪造（未知凭据静默丢弃 / 逐张 CAS 一次性消费）、
+ * <b>成功回执即收口</b>（可学习名单只留痕、读面失败也不拦，采集锁必退）、
+ * 批量触发的集合粒度单次调用、startGather 开门失败回滚锁、
+ * startTraining 幂等与公网回调基址前置校验。
  */
 @ExtendWith(MockitoExtension.class)
 class JiangyiGatherServiceTest {
@@ -116,23 +117,46 @@ class JiangyiGatherServiceTest {
     }
 
     @Test
-    void finishNotify_successCrossValidatesAgainstTrainedProducts() {
+    void finishNotify_successConfirmsTicketEvenWhenProductMissingFromLearnableList() {
+        // 🔴 2026-10-27 语义纠偏：§4.4.2 是「可学习/采集成档」名单，不是学成证据。
+        // 商品不在列（厂商学成后出列，或名单读面滞后）也必须收口——否则采集锁永不释放、柜机不能营业。
         when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(99L, "可乐", "可乐 330ml", "6900000000009")));
         when(ticketMapper.finishById(eq(ROW_ID), eq(true), any())).thenReturn(1);
+        JiangyiDevice locked = boundDevice();
+        locked.setGatherLockedAt(java.time.Instant.now());
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(locked);
 
         service("https://public").handleFinishNotify(TICKET_ID, "success");
 
         verify(ticketMapper).finishById(eq(ROW_ID), eq(true), any());
+        verify(jiangyiDeviceMapper).markGatherUnlocked(eq(DEVICE_ID), any());
+    }
+
+    @Test
+    void finishNotify_learnableListReadFailureDoesNotBlockTicketOrLock() {
+        // 名单读面挂了（厂商 503 等）绝不能把已到达的成功回执卡在门外
+        when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
+        when(jiangyiGatherClient.learnableProducts())
+                .thenThrow(new IllegalStateException("将邑 503 设备不在线"));
+        when(ticketMapper.finishById(eq(ROW_ID), eq(true), any())).thenReturn(1);
+        JiangyiDevice locked = boundDevice();
+        locked.setGatherLockedAt(java.time.Instant.now());
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(locked);
+
+        service("https://public").handleFinishNotify(TICKET_ID, "success");
+
+        verify(ticketMapper).finishById(eq(ROW_ID), eq(true), any());
+        verify(jiangyiDeviceMapper).markGatherUnlocked(eq(DEVICE_ID), any());
     }
 
     @Test
     void finishNotify_successAutoExitsGatherMode() {
-        // 学习完成的唯一可见结果：回调交叉验证通过 ⇒ 票据 FINISHED + 立刻恢复营业
+        // 学习完成的唯一可见结果：成功回执到达 ⇒ 票据 FINISHED + 立刻恢复营业
         when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
         when(ticketMapper.finishById(eq(ROW_ID), eq(true), any())).thenReturn(1);
         JiangyiDevice locked = boundDevice();
         locked.setGatherLockedAt(java.time.Instant.now());
@@ -146,8 +170,8 @@ class JiangyiGatherServiceTest {
     @Test
     void finishNotify_successWhenAlreadyExitedDoesNotTouchLock() {
         when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
         when(ticketMapper.finishById(eq(ROW_ID), eq(true), any())).thenReturn(1);
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice());
 
@@ -160,8 +184,8 @@ class JiangyiGatherServiceTest {
     void finishNotify_concurrentDuplicateDoesNotUnlockAgain() {
         // 两条重复回调并发：CAS 只让一条拿到终态，另一条不得再动设备锁
         when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(88L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890")));
         when(ticketMapper.finishById(eq(ROW_ID), eq(true), any())).thenReturn(0);
 
         service("https://public").handleFinishNotify(TICKET_ID, "success");
@@ -170,27 +194,15 @@ class JiangyiGatherServiceTest {
     }
 
     @Test
-    void finishNotify_successButNotYetTrainedKeepsPending() {
-        // 异步延迟容忍：回执到了但将邑 trained 列表还没有 → 保留 PENDING 等下轮，不假成功
-        when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(pendingTicket("88")));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(99L, "可乐", "可乐 330ml", "6900000000009")));
-
-        service("https://public").handleFinishNotify(TICKET_ID, "success");
-
-        verify(ticketMapper, never()).finishById(anyLong(), anyBoolean(), any());
-        verify(jiangyiDeviceMapper, never()).markGatherUnlocked(anyString(), any());
-    }
-
-    @Test
-    void finishNotify_batchFansOutOnlyTrainedTickets() {
-        // 批量一次训练扇出多张票据：命中的置 FINISHED，未命中的保留 PENDING；采集锁只退一次
+    void finishNotify_batchFansOutEveryPendingTicket() {
+        // 批量一次训练扇出多张票据（§4.4.3 是集合粒度，厂商不会分批发回执）：每张都收口，采集锁只退一次
         JiangyiTrainingTicket t1 = pendingTicket(1L, "SKU-A", "88", TICKET_ID);
         JiangyiTrainingTicket t2 = pendingTicket(2L, "SKU-B", "99", TICKET_ID);
         when(ticketMapper.listByFinishNotifyId(TICKET_ID)).thenReturn(List.of(t1, t2));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(88L, "农夫山泉", "农夫山泉 550ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(88L, "农夫山泉", "农夫山泉 550ml", "6901234567890")));
         when(ticketMapper.finishById(eq(1L), eq(true), any())).thenReturn(1);
+        when(ticketMapper.finishById(eq(2L), eq(true), any())).thenReturn(1);
         JiangyiDevice locked = boundDevice();
         locked.setGatherLockedAt(java.time.Instant.now());
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(locked);
@@ -198,7 +210,7 @@ class JiangyiGatherServiceTest {
         service("https://public").handleFinishNotify(TICKET_ID, "success");
 
         verify(ticketMapper).finishById(eq(1L), eq(true), any());
-        verify(ticketMapper, never()).finishById(eq(2L), anyBoolean(), any());
+        verify(ticketMapper).finishById(eq(2L), eq(true), any());
         verify(jiangyiDeviceMapper, times(1)).markGatherUnlocked(eq(DEVICE_ID), any());
     }
 
@@ -307,8 +319,25 @@ class JiangyiGatherServiceTest {
     }
 
     @Test
+    void startTrainingBatch_acceptsNameFoundOnlyInCustomerModelName() {
+        // 台账 H-33：厂商可能把我方提交的模型名改写成内部命名，初命名只在 customerModelName 列——
+        // 软锁只认 modelName 会把「重训同一个模型」判成非法名字而 409 自己
+        when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice());
+        when(linkMapper.listBySku("SKU-A")).thenReturn(List.of(link("SKU-A", "88")));
+        when(ticketMapper.listPendingBySkus(List.of("SKU-A"))).thenReturn(List.of());
+        when(jiangyiGatherClient.modelFiles()).thenReturn(
+                List.of(modelRenamedByVendor("426_20261027_76_1", "模型v1")));
+
+        JiangyiGatherService.BatchTrainingResult result = service("https://public")
+                .startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v1");
+
+        assertEquals(1, result.count());
+        verify(jiangyiGatherClient).commitTraining(eq("模型v1"), anyString(), anyString());
+    }
+
+    @Test
     void startTrainingBatch_allowsAnyModelWhenVendorListEmpty() {
-        // 首次学习：厂商尚无学成模型（§4.4.4 回 []），软锁必须放行，否则学习永远发不出去
+        // 首次学习：厂商模型列表为空（§4.4.4 回 []），软锁必须放行，否则学习永远发不出去
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice());
         when(linkMapper.listBySku("SKU-A")).thenReturn(List.of(link("SKU-A", "88")));
         when(ticketMapper.listPendingBySkus(List.of("SKU-A"))).thenReturn(List.of());
@@ -469,7 +498,13 @@ class JiangyiGatherServiceTest {
     }
 
     private static JiangyiModelFile model(String modelName) {
-        return new JiangyiModelFile(1L, modelName, "https://cdn/model.rknn",
+        return new JiangyiModelFile(1L, modelName, null, "https://cdn/model.rknn",
                 "88", "https://cdn/classes.txt", 4);
+    }
+
+    /** 厂商把我方提交的名字改写成内部命名时，初命名只落在 customerModelName 列（台账 H-33）。 */
+    private static JiangyiModelFile modelRenamedByVendor(String modelName, String customerModelName) {
+        return new JiangyiModelFile(1L, modelName, customerModelName, "https://cdn/model.rknn",
+                "76", "https://cdn/classes.txt", 4);
     }
 }

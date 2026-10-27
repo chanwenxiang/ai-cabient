@@ -4,7 +4,7 @@ import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
@@ -24,13 +24,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 跨柜一键上架（学习库 → 多柜）：把一个<b>已学成</b>的将邑商品挂到多台柜机的识别映射上，
+ * 跨柜一键上架（学习库 → 多柜）：把一个<b>已在厂商可学习名单里</b>的将邑商品挂到多台柜机的识别映射上，
  * 按需顺带写柜级价与铺货件数，逐柜回显结果。
  *
  * <p><b>识别名的来源是厂商，不信前端</b>：classId 是 classes.txt 按识别名排序的行号（H-27），
  * 唯一可用的对位锚就是识别名。前端只传 {@code jiangyiProductId}，服务端从 §4.4.2
- * {@code trainedProducts} 取该商品的 {@code textName}——既证明「确实已学成」，也不会被人为改错
- * 识别名把钱挂到别的类目上。厂商读面不可用即 502：这是资金相关写操作，宁可不上架。</p>
+ * {@code learnableProducts} 取该商品的 {@code textName}——不会被人为改错识别名把钱挂到别的类目上。
+ * 厂商读面不可用即 502：这是资金相关写操作，宁可不上架。</p>
+ *
+ * <p>🔴 <b>这份名单不能证明「已学成」</b>（2026-10-27 实测：商品在列时厂商模型数与学习中数同时为 0），
+ * 所以钱不会从这里进：真正拦错扣款的是 {@link JiangyiShelfWriter} 的「该柜必须已复核 +
+ * 该识别名在柜上已有映射行」fail-closed 门。类名/接口名里的 learned 只指「在厂商名单里」。</p>
  *
  * <p><b>逐柜部分成功</b>：单柜写入在 {@link JiangyiShelfWriter} 的独立事务里，一台失败/跳过不影响
  * 其余柜；本类只做前置校验（挂接、SKU 在售、限价、权限）后按柜汇总。前置校验失败则整批不写。</p>
@@ -87,22 +91,22 @@ public class JiangyiShelfService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "铺货件数必须 ≥ 1（留空表示不铺）");
         }
 
-        List<TrainedProduct> trained;
+        List<LearnableProduct> learnable;
         try {
-            trained = jiangyiGatherClient.trainedProducts();
+            learnable = jiangyiGatherClient.learnableProducts();
         } catch (RuntimeException e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "读取将邑已学习商品失败，无法核对识别名：" + rootMessage(e));
+                    "读取将邑可学习商品名单失败，无法核对识别名：" + rootMessage(e));
         }
-        TrainedProduct product = trained.stream()
+        LearnableProduct product = learnable.stream()
                 .filter(t -> String.valueOf(t.id()).equals(productId))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        "将邑已学习商品里没有 id=" + productId + "（学习未完成或厂商侧已删）"));
+                        "将邑可学习商品名单里没有 id=" + productId + "（采集未成档或厂商侧已删）"));
         String textName = product.textName() == null ? "" : product.textName().trim();
         if (textName.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "该已学商品在将邑侧没有识别名（classes 未对位），无法与柜机类目挂钩");
+                    "该商品在将邑侧没有识别名（classes 未对位），无法与柜机类目挂钩");
         }
 
         JiangyiSkuJiangyiLink link = linkMapper.byProduct(productId)

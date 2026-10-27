@@ -616,10 +616,11 @@ public class AdminJiangyiController {
     }
 
     /**
-     * 商品学习库（租户级资产总览）：厂商模型 + 已学商品 + 各柜覆盖 + 可发起学习的 SKU + 最近凭据。
+     * 商品学习库（租户级资产总览）：厂商模型 + 可学习商品名单 + 各柜覆盖 + 可发起学习的 SKU + 最近凭据。
      *
      * <p>学习是商户（租户）级动作（§4.4.3 无 deviceId），所以总览不按柜机切；但「能否卖」仍逐柜
-     * ——覆盖列回的是每台柜子的 ACTIVE 映射编号。厂商读面失败只降级该两块 + vendorError。</p>
+     * ——覆盖列回的是每台柜子的 ACTIVE 映射编号。🔴 名单在列只表示「厂商肯学」，学没学成看覆盖。
+     * 厂商读面失败只降级该两块 + vendorError。</p>
      */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/learning-library")
@@ -628,11 +629,14 @@ public class AdminJiangyiController {
     }
 
     /**
-     * 跨柜一键上架：把一个已学商品挂到多台柜机的识别映射上，可选写柜级价与铺货件数。
+     * 跨柜一键上架：把一个厂商名单里的商品挂到多台柜机的识别映射上，可选写柜级价与铺货件数。
      *
-     * <p>前端只传 {@code jiangyiProductId}——识别名由服务端从 §4.4.2 已学商品回包取，
+     * <p>前端只传 {@code jiangyiProductId}——识别名由服务端从 §4.4.2 可学习名单回包取，
      * 不信前端文本（识别名是钱的对位锚）。逐柜独立事务、部分成功：每台柜回一条
      * SHELVED / ALREADY / SKIPPED / FAILED，跳过与失败都带人话原因。</p>
+     *
+     * <p>🔴 名单在列不等于已学成（2026-10-27 实测在列时厂商模型数 0）；不扣错钱靠的是
+     * {@code JiangyiShelfWriter}「该柜已复核 + 该识别名已有映射行」的 fail-closed 门。</p>
      *
      * <p>写映射要 {@code ops:device:edit}；填价/填件数还各自要求 {@code ops:pricing:edit} /
      * {@code ops:replenishment:edit}，服务层在写任何一台柜之前校验（不留半批改价）。</p>

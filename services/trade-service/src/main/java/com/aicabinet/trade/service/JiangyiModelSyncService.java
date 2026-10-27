@@ -7,7 +7,7 @@ import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
@@ -72,13 +72,13 @@ public class JiangyiModelSyncService {
 
     // ---------- 预览 ----------
 
-    /** 模型列表 + classes 解析对照（classId↔textName）+ 与已学习商品 textName 的交集警示。 */
+    /** 模型列表 + classes 解析对照（classId↔textName）+ 与厂商可学习名单 textName 的交集警示。 */
     public List<ModelPreview> previewModels(int classIdBase) {
         List<JiangyiModelFile> models = jiangyiGatherClient.modelFiles();
-        Set<String> trainedTextNames = new HashSet<>();
-        for (TrainedProduct p : jiangyiGatherClient.trainedProducts()) {
+        Set<String> learnableTextNames = new HashSet<>();
+        for (LearnableProduct p : jiangyiGatherClient.learnableProducts()) {
             if (p.textName() != null) {
-                trainedTextNames.add(p.textName());
+                learnableTextNames.add(p.textName());
             }
         }
         List<ModelPreview> out = new ArrayList<>();
@@ -99,10 +99,10 @@ public class JiangyiModelSyncService {
                         List.of(), previewRejectReason(e), 0));
                 continue;
             }
-            long matched = rows.stream().filter(r -> trainedTextNames.contains(r.textName())).count();
+            long matched = rows.stream().filter(r -> learnableTextNames.contains(r.textName())).count();
             out.add(new ModelPreview(model.modelName(), model.industrialControlModel(),
                     model.quantity(), model.modelTextUrl(), classesVersion, classesVersion,
-                    rows, null, trainedTextNames.isEmpty() ? 0 : (int) (matched * 100 / rows.size())));
+                    rows, null, learnableTextNames.isEmpty() ? 0 : (int) (matched * 100 / rows.size())));
         }
         return out;
     }
@@ -300,10 +300,10 @@ public class JiangyiModelSyncService {
 
     private int writePregenerated(String deviceId, String modelName,
                                   List<JiangyiClassesParser.ParsedClassRow> rows) {
-        Set<String> trainedTextNames = new HashSet<>();
-        for (TrainedProduct p : jiangyiGatherClient.trainedProducts()) {
+        Set<String> learnableTextNames = new HashSet<>();
+        for (LearnableProduct p : jiangyiGatherClient.learnableProducts()) {
             if (p.textName() != null) {
-                trainedTextNames.add(p.textName());
+                learnableTextNames.add(p.textName());
             }
         }
         for (JiangyiClassesParser.ParsedClassRow row : rows) {
@@ -318,9 +318,9 @@ public class JiangyiModelSyncService {
             mapping.setSource("MODEL_SYNC");
             jiangyiClassMappingMapper.upsert(mapping);
         }
-        log.info("jiangyi model-sync pregenerated deviceId={} modelName={} rows={} trainedMatched={}/{}",
+        log.info("jiangyi model-sync pregenerated deviceId={} modelName={} rows={} learnableMatched={}/{}",
                 deviceId, modelName, rows.size(),
-                rows.stream().filter(r -> trainedTextNames.contains(r.textName())).count(),
+                rows.stream().filter(r -> learnableTextNames.contains(r.textName())).count(),
                 rows.size());
         return rows.size();
     }
@@ -583,11 +583,17 @@ public class JiangyiModelSyncService {
         }
     }
 
-    /** admin 预览行（openapi inline schema）。 */
+    /**
+     * admin 预览行（openapi inline schema）。
+     *
+     * <p>{@code learnableMatchPercent} = classes 行里命中<b>厂商可学习名单</b> textName 的比例。
+     * 🔴 它<b>不是</b>「学会率」：那份名单是采集成档名单，商品在列不等于已进模型（2026-10-27 实测
+     * 在列时模型数 0）。只用来提示「这个模型大致覆盖了多少个已归档商品」。</p>
+     */
     public record ModelPreview(String modelName, String industrialControlModel, int quantity,
                                String modelTextUrl, String classesVersion, String fallbackVersion,
                                List<JiangyiClassesParser.ParsedClassRow> rows,
-                               String rejectReason, int trainedMatchPercent) {}
+                               String rejectReason, int learnableMatchPercent) {}
 
     /** 本平台候选 SKU（只按条码精确相等命中；多命中=名称规格要人工分辨，不自动选）。 */
     public record SkuCandidate(String skuId, String skuName, String barcode) {}

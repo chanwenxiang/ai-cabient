@@ -17,8 +17,8 @@ import java.util.Map;
  *
  * <p>公开面（无设备 JWT，GatewayWebConfig 排除缺口）：将邑侧无法持设备 JWT，文档明文
  * 「此url不能有token及其他限制」。防伪造不在本层——trade 侧 finishNotifyId 一次性凭据
- * （jiangyi_training_ticket）+ 将邑侧反查交叉验证承担；未知 finishNotifyId 静默 202，
- * 不回错误详情（不给探测者信息）。</p>
+ * （服务端生成的 UUID，厂商不给就猜不到）+ PENDING→终态 CAS 一次性消费承担；
+ * 未知 finishNotifyId 静默 202，不回错误详情（不给探测者信息）。</p>
  */
 @RestController
 @RequestMapping("/jiangyi/api")

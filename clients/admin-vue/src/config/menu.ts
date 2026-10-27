@@ -177,7 +177,7 @@ const BASE_NAV: NavItem[] = [
     path: '/learning-library',
     title: '商品学习库',
     group: '设备商品',
-    // 租户级学习资产（厂商模型/已学商品）+ 采集台/审核/触发学习；业务顺序在识别映射之前
+    // 租户级学习资产（厂商模型/可学习商品名单）+ 采集台/审核/触发学习；业务顺序在识别映射之前
     perm: 'ops:device:list',
     keywords: ['学习', '采集', '训练', '模型', 'classes', '将邑', '上架']
   },

@@ -246,10 +246,10 @@ export const AdminEndpoints = {
   jiangyiGatherConsoleForgoUpload: `${ops}/jiangyi/gather-console/forgo-upload`,
   jiangyiGatherConsoleClearBatch: `${ops}/jiangyi/gather-console/clear-batch`,
   jiangyiGatherConsoleAbort: `${ops}/jiangyi/gather-console/abort`,
-  /** 商品学习库：租户级模型/已学商品/各柜覆盖 + 最近学习凭据（学习本身是商户级，上架仍逐柜） */
+  /** 商品学习库：租户级模型/可学习商品名单/各柜覆盖 + 最近学习凭据（学习本身是商户级，上架仍逐柜） */
   jiangyiLearningLibrary: `${ops}/jiangyi/learning-library`,
-  /** 跨柜一键上架：已学商品按识别名挂到多柜映射（可选柜级价与铺货），逐柜回显结果 */
-  jiangyiShelfLearnedProduct: `${ops}/jiangyi/learning-library/shelf`,
+  /** 跨柜一键上架：名单里的商品按识别名挂到多柜映射（可选柜级价与铺货），逐柜回显结果 */
+  jiangyiLearningLibraryShelf: `${ops}/jiangyi/learning-library/shelf`,
 
   /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */
   jiangyiOrderVideosByOrder: (orderNo: string) =>

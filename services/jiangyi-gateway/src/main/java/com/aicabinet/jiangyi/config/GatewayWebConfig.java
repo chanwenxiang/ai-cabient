@@ -35,7 +35,7 @@ public class GatewayWebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/jiangyi/api/**")
                 // 设备换 token 的免鉴权入口（文档路径 + 简短别名），排除缺口必须成对；
                 // gather-finish-notify：将邑云学习完成回调（CB-023），将邑侧无法持设备 JWT，
-                // 防伪造由 trade 侧 finishNotifyId 一次性凭据 + 交叉验证承担
+                // 防伪造由 trade 侧 finishNotifyId 一次性凭据（服务端 UUID）+ PENDING→终态 CAS 承担
                 .excludePathPatterns("/jiangyi/api/token/openDoorDeviceStatus", "/jiangyi/api/token",
                         "/jiangyi/api/gather-finish-notify",
                         // domainConfig/*：引导端点必须免鉴权（2026-10-20 11:15:57 实证）——

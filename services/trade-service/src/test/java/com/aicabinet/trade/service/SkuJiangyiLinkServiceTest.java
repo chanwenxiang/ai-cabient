@@ -5,7 +5,7 @@ import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.junit.jupiter.api.Test;
@@ -207,11 +207,11 @@ class SkuJiangyiLinkServiceTest {
     }
 
     @Test
-    void pullTextName_fillsTextNameByBarCodeFromTrainedProducts() {
+    void pullTextName_fillsTextNameByBarCodeFromLearnableProducts() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(1L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890"),
-                new TrainedProduct(2L, "可口可乐", "可口可乐 330ml", "6901111111111")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(1L, "农夫山泉 550ml", "农夫山泉 550ml", "6901234567890"),
+                new LearnableProduct(2L, "可口可乐", "可口可乐 330ml", "6901111111111")));
         JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
         link.setId(9L);
         link.setSkuId(SKU_ID);
@@ -228,7 +228,7 @@ class SkuJiangyiLinkServiceTest {
     @Test
     void pullTextName_noTrainedMatchIs404() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of());
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of());
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().pullTextName(SKU_ID));
         assertEquals(404, e.getStatusCode().value());
@@ -238,10 +238,10 @@ class SkuJiangyiLinkServiceTest {
     void pullTextName_multipleTextNamesUnderSameBarCodeAre409AndTouchNothing() {
         // 2026-10-22 拍板：同一条码命中多条且 textName 不同 ⇒ 不猜、不写、要求人工
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(1L, "雪碧清爽柠檬味汽水普通听装330ml",
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(1L, "雪碧清爽柠檬味汽水普通听装330ml",
                         "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
-                new TrainedProduct(2L, "test雪碧听装330ml", "test_xb_tz330ml", "6901234567890")));
+                new LearnableProduct(2L, "test雪碧听装330ml", "test_xb_tz330ml", "6901234567890")));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().pullTextName(SKU_ID));
 
@@ -256,9 +256,9 @@ class SkuJiangyiLinkServiceTest {
     void pullTextName_duplicateTextNamesStillFill() {
         // 同 textName 的重复学习行不算歧义（同一解码键），仍按原行为回填
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(1L, "雪碧 330ml 一版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
-                new TrainedProduct(2L, "雪碧 330ml 二版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(1L, "雪碧 330ml 一版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
+                new LearnableProduct(2L, "雪碧 330ml 二版", "kkkl_xb_qsnmw_pttz_330ml", "6901234567890")));
         JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
         link.setId(9L);
         link.setSkuId(SKU_ID);
@@ -271,8 +271,8 @@ class SkuJiangyiLinkServiceTest {
     @Test
     void pullTextName_blankTextNameDoesNotWipeExistingValue() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(
-                new TrainedProduct(1L, "雪碧 330ml", null, "6901234567890")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
+                new LearnableProduct(1L, "雪碧 330ml", null, "6901234567890")));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().pullTextName(SKU_ID));
 

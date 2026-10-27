@@ -204,8 +204,8 @@ public class JiangyiInternalController {
     }
 
     /**
-     * 将邑云学习完成回调（gateway 公开面转发）：finishNotifyId 一次性凭据防伪造 +
-     * 将邑侧反查交叉验证；未知/非 PENDING 凭据静默忽略（无鉴权面不回错误详情）。
+     * 将邑云学习完成回调（gateway 公开面转发）：finishNotifyId 一次性凭据（服务端 UUID）
+     * + PENDING→终态 CAS 防伪造与重放；未知/非 PENDING 凭据静默忽略（无鉴权面不回错误详情）。
      */
     @PostMapping("/gather-finish-notify")
     public ApiResponse<Void> gatherFinishNotify(@RequestBody GatherFinishNotifyRequest body) {

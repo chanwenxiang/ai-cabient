@@ -56,7 +56,7 @@
       type="warning"
       :closable="false"
       show-icon
-      title="将邑读面降级：下面的模型与已学商品可能为空"
+      title="将邑读面降级：下面的模型与可学习商品可能为空"
       :description="library.vendorError"
     />
 
@@ -65,7 +65,7 @@
         >模型 <b>{{ library?.models.length ?? 0 }}</b></span
       >
       <span
-        >已学商品 <b>{{ library?.learnedProducts.length ?? 0 }}</b></span
+        >可学习商品 <b>{{ library?.learnableProducts.length ?? 0 }}</b></span
       >
       <span
         >已接入柜机 <b>{{ cabinets.length }}</b></span
@@ -76,7 +76,7 @@
     </div>
 
     <el-tabs v-model="activeTab" class="library-tabs">
-      <el-tab-pane label="已学商品" name="products">
+      <el-tab-pane label="可学习商品" name="products">
         <div class="filter-bar filter-bar--compact">
           <el-input
             v-model="keyword"
@@ -85,7 +85,8 @@
             style="width: 320px"
           />
           <span class="form-hint">
-            「未上架」＝该识别名没有 ACTIVE 识别映射：<b>货道在售 ≠ 识别上架</b>，识别结算以映射为准
+            在列＝采集成档且厂商审核通过，<b>不等于已学成</b>；「未上架」＝该识别名没有 ACTIVE
+            识别映射：<b>货道在售 ≠ 识别上架</b>，识别结算以映射为准
           </span>
         </div>
         <el-table v-loading="loading" :data="pagedProducts" size="small" border>
@@ -154,8 +155,9 @@
             </template>
           </el-table-column>
         </el-table>
-        <div v-if="library && !library.learnedProducts.length" class="empty-note">
-          将邑侧当前没有已学习商品。先在柜机前采集，审核通过后触发学习；学习完成以将邑回调为准。
+        <div v-if="library && !library.learnableProducts.length" class="empty-note">
+          将邑侧的可学习商品名单为空。先在柜机前采集，厂商审核通过后才进名单——进名单只说明「可学」，
+          学没学成看「模型」与「学习中」两个选项卡。
         </div>
         <el-pagination
           v-model:current-page="productPage"
@@ -231,14 +233,22 @@
           <el-input
             v-model="modelKeyword"
             clearable
-            placeholder="按模型名过滤"
+            placeholder="按模型名 / 厂商初命名过滤"
             style="width: 320px"
           />
+          <span class="form-hint">
+            模型名以厂商回包为准——我方提交的名字被厂商改写时，只有「厂商初命名」列留着原名
+          </span>
         </div>
         <el-table :data="pagedModels" size="small" border>
           <el-table-column prop="modelName" label="模型名" min-width="170">
             <template #default="{ row }">
               <span class="mono">{{ row.modelName || '—' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="customerModelName" label="厂商初命名" min-width="170">
+            <template #default="{ row }">
+              <span class="mono">{{ row.customerModelName || '—' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="类别数" width="90" />
@@ -327,7 +337,8 @@
       >
         <template #default>
           将邑学习是<b>集合粒度</b>——一次提交就把已采集的全部商品重训一遍，勾几个都算同一次，
-          柜机只决定「进度挂在谁身上」。商品必须已在柜机前采集过、并已挂将邑商品（否则回调无法交叉验证）。
+          柜机只决定「进度挂在谁身上」。本页只拦「未挂将邑商品」的 SKU（票据要按厂商商品 id
+          记账）；按将邑流程，商品要先在柜机前采集并通过厂商审核才会进可学习名单。
           若柜机已在我方采集模式中，学习回调成功后会<b>自动退出采集模式</b>并恢复营业。
         </template>
       </el-alert>
@@ -360,13 +371,16 @@
             <el-option
               v-for="s in learnableSkus"
               :key="s.skuId"
-              :label="`${s.skuName || s.skuId}（${s.trained ? '已采集过审' : '将邑现成商品'}）`"
+              :label="`${s.skuName || s.skuId}（${
+                s.inVendorList ? '在厂商可学习名单' : '不在厂商可学习名单'
+              }${s.mappedDeviceIds.length ? ' · 已进识别链路' : ''}）`"
               :value="s.skuId"
             />
           </el-select>
           <div class="form-hint">
-            只列出已挂将邑商品的 SKU。『已采集过审』＝自采回传且通过厂商审核，本次会进训练；
-            『将邑现成商品』＝直接挂的将邑库商品，将邑本来就认识，无需学习。有在途学习的商品提交会被拒（等回执后再试）。
+            只列出已挂将邑商品的 SKU。『在厂商可学习名单』＝该商品当前出现在将邑的可学习名单里，
+            是本次训练覆盖的对象；名单只证「可学」，<b>不证已学成</b>。『已进识别链路』＝该识别名
+            已在某柜有 ACTIVE 挂牌，这才能被摄像头认出。有在途学习的商品提交会被拒（等回执后再试）。
           </div>
         </el-form-item>
         <el-form-item label="模型名" required>
@@ -816,14 +830,20 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
 
 /**
- * 商品学习库（租户级）：将邑云端学成的商品/模型是商户资产，一次学习全部柜机共用；
+ * 商品学习库（租户级）：将邑云端的模型与「可学习商品名单」是商户资产，一次学习全部柜机共用；
  * 但 classId 是 classes.txt 按识别名排序的行号（H-27），重训即整体平移 ⇒ 映射/库存/价格
- * 仍逐柜。本页只做总览与（可选）学习触发，采集编排不在我方（G-5）。
+ * 仍逐柜。本页只做总览与（可选）学习触发，采集编排走本页「开始采集」（§4.3.3–4.3.14）。
+ *
+ * 🔴 「可学习名单」（§4.4.2）只证明采集成档且厂商审核通过，<b>不证明已学成</b>——2026-10-27
+ * 实测商品 41175 在名单里时，厂商模型数与学习中数同时为 0。本页唯一能证「进了识别链路」的是
+ * 各柜的 ACTIVE 映射（「已上架柜机」列）。
  */
 
 interface LearningModel {
   id: number;
   modelName: string | null;
+  /** 厂商侧「模型初命名」：我方提交的 modelName 被厂商改写时，只有这列留着原名。 */
+  customerModelName: string | null;
   quantity: number;
   industrialControlModel: string | null;
   modelTextUrl: string | null;
@@ -837,7 +857,8 @@ interface ProductCoverage {
   mappingVerified: boolean;
 }
 
-interface LearnedProduct {
+/** §4.4.2 可学习名单的一行；🔴 在列 ≠ 已学成，能识别与否只看 coverage。 */
+interface LearnableProductRow {
   jiangyiProductId: number;
   name: string | null;
   textName: string | null;
@@ -854,7 +875,10 @@ interface LearnableSku {
   jiangyiName: string | null;
   textName: string | null;
   syncStatus: string;
-  trained: boolean;
+  /** 已在厂商可学习名单里——不表示已学成。 */
+  inVendorList: boolean;
+  /** 该识别名已在哪些柜上有 ACTIVE 挂牌，这才是「已进识别链路」。 */
+  mappedDeviceIds: string[];
 }
 
 interface LearningCabinet {
@@ -882,7 +906,7 @@ interface TrainingAttempt {
 
 interface LearningLibraryView {
   models: LearningModel[];
-  learnedProducts: LearnedProduct[];
+  learnableProducts: LearnableProductRow[];
   learnableSkus: LearnableSku[];
   cabinets: LearningCabinet[];
   recentTrainings: TrainingAttempt[];
@@ -924,7 +948,7 @@ const learnableSkus = computed(() => library.value?.learnableSkus ?? []);
 const learnableSkuCount = computed(() => learnableSkus.value.length);
 const filteredProducts = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
-  const rows = library.value?.learnedProducts ?? [];
+  const rows = library.value?.learnableProducts ?? [];
   if (!kw) return rows;
   return rows.filter((r) =>
     [r.name, r.textName, r.barCode, r.skuId, r.skuName]
@@ -969,7 +993,11 @@ const filteredModels = computed(() => {
   const kw = modelKeyword.value.trim().toLowerCase();
   const rows = library.value?.models ?? [];
   if (!kw) return rows;
-  return rows.filter((r) => (r.modelName ?? '').toLowerCase().includes(kw));
+  return rows.filter(
+    (r) =>
+      (r.modelName ?? '').toLowerCase().includes(kw) ||
+      (r.customerModelName ?? '').toLowerCase().includes(kw)
+  );
 });
 
 const filteredTrainings = computed(() => {
@@ -1043,7 +1071,7 @@ interface ShelfResult {
 
 const shelfVisible = ref(false);
 const shelfSubmitting = ref(false);
-const shelfProduct = ref<LearnedProduct | null>(null);
+const shelfProduct = ref<LearnableProductRow | null>(null);
 const shelfResult = ref<ShelfResult | null>(null);
 const shelfForm = ref<{
   deviceIds: string[];
@@ -1439,7 +1467,7 @@ function goMappings(deviceId?: string) {
   void router.push({ path: '/vision-mappings', query: deviceId ? { deviceId } : {} });
 }
 
-function openShelf(row: LearnedProduct) {
+function openShelf(row: LearnableProductRow) {
   shelfProduct.value = row;
   shelfResult.value = null;
   shelfForm.value = { deviceIds: [], priceYuan: undefined, quantity: undefined };
@@ -1463,7 +1491,7 @@ async function submitShelf() {
   shelfSubmitting.value = true;
   try {
     shelfResult.value = await api.request<ShelfResult>(
-      AdminEndpoints.jiangyiShelfLearnedProduct,
+      AdminEndpoints.jiangyiLearningLibraryShelf,
       'POST',
       { jiangyiProductId: String(product.jiangyiProductId), deviceIds, priceCents, quantity }
     );

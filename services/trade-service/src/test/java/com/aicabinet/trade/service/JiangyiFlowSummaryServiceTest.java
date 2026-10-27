@@ -48,7 +48,7 @@ class JiangyiFlowSummaryServiceTest {
         when(client.trainingProducts()).thenReturn(new ObjectMapper().readTree(
                 "[{\"name\":\"康师傅冰红茶\",\"status\":\"pass\"}]"));
         when(client.modelFiles()).thenReturn(List.of(
-                new JiangyiModelFile(235, "aicabinet-v1", "http://m.rknn", "88", "http://c.txt", 15)));
+                new JiangyiModelFile(235, "aicabinet-v1", null, "http://m.rknn", "88", "http://c.txt", 15)));
 
         JiangyiFlowSummaryService.FlowSummaryView view =
                 new JiangyiFlowSummaryService(client, linkMapper, deviceMapper, mappingMapper).view();

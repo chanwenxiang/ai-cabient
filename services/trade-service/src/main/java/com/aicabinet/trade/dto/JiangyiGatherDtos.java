@@ -40,8 +40,15 @@ public final class JiangyiGatherDtos {
     public record GatherEntryRequest(String identifier, long productId, String name, String brand,
                                      String specs, String category, String barCodeSource) {}
 
-    /** 已学习准备成功商品（§4.4.2.4）：textName 是模型 classes.txt 的直接键。 */
-    public record TrainedProduct(long id, String name, String textName, String barCode) {}
+    /**
+     * 厂商「学习准备成功」名单里的一行（§4.4.2.4）：textName 是模型 classes.txt 的直接键。
+     *
+     * <p>🔴 <b>在列 = 采集成档且厂商审核通过，不等于已学成</b>。文档 §4.4.1 流程图把它放在
+     * 「开始学习」<b>之前</b>（查询可学习商品 → 开始学习 → 获取模型文件），且 2026-10-27 实测
+     * 本租户商品 41175 在该名单内时 §4.4.4 模型数与 §4.4.5 学习中数<b>同时为 0</b>。
+     * 判「已学成/可识别」请看模型 classes（§5.5.3）与我方映射，<b>不要顺手把这里当学成证据</b>。</p>
+     */
+    public record LearnableProduct(long id, String name, String textName, String barCode) {}
 
     /**
      * classes.txt 行 → 将邑标准商品（§5.5.3.4 返回表；字段名以 2026-10-22 真机响应原文为准，
@@ -53,10 +60,16 @@ public final class JiangyiGatherDtos {
                                      String barCode, Integer classId) {}
 
     /**
-     * 模型文件（§4.4.4.4）。industrialControlModel 存将邑原值（"76"/"88"）——
-     * PDF 示例两种主板 rknn 该字段同为 "88"，映射关系不解释，下发校验用字符串相等。
+     * 模型文件（§4.4.4.4）。industrialControlModel 存将邑原值——文档写「固定值("76","88")」，
+     * 现网实测至少 76/88/1106/1126/3566，且一次重训按档位产 5 行而非 2 行（台账 H-33）；
+     * 映射关系不解释，下发校验用字符串相等，<b>别按「两个模型」写死计数</b>。
+     *
+     * <p>customerModelName（模型初命名）是文档列为 M 的字段：我们提交学习时用的名字若被厂商
+     * 改写成内部命名（未文档化面实测形态是 {@code 商户码+时间戳_工控型号_序号}），初命名只会
+     * 出现在这一列。模型名软锁必须同时认这两列，否则第一颗模型出来后我们会把「重训同一个模型」
+     * 判成非法名字而 409 自己（2026-10-27 台账 H-33；该 409 是推导，现网本租户模型 0 条，未实跑）。</p>
      */
-    public record JiangyiModelFile(long id, String modelName, String modelUrl,
+    public record JiangyiModelFile(long id, String modelName, String customerModelName, String modelUrl,
                                    String industrialControlModel, String modelTextUrl, int quantity) {}
 
     /** 采集审核项（§4.4.6.4：status pass|reject|wait，rejectCause 驳回原因）。 */

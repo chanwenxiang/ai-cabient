@@ -4,7 +4,7 @@ import com.aicabinet.trade.client.JiangyiGatherClient;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
@@ -61,8 +61,8 @@ class JiangyiShelfServiceTest {
                 deviceInfoMapper, shelfWriter, permissionService);
     }
 
-    private TrainedProduct trained(String textName) {
-        return new TrainedProduct(41175L, "雪碧 500ml 柠檬味", textName, "6928804011169");
+    private LearnableProduct trained(String textName) {
+        return new LearnableProduct(41175L, "雪碧 500ml 柠檬味", textName, "6928804011169");
     }
 
     private JiangyiSkuJiangyiLink link(String syncStatus) {
@@ -83,7 +83,7 @@ class JiangyiShelfServiceTest {
     }
 
     private void happyPreconditions() {
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(trained(TEXT_NAME)));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(trained(TEXT_NAME)));
         when(linkMapper.byProduct(PID)).thenReturn(Optional.of(link("BOUND")));
         when(skuMapper.selectById(SKU_ID)).thenReturn(sku("ACTIVE", 350));
     }
@@ -116,7 +116,7 @@ class JiangyiShelfServiceTest {
 
     @Test
     void shelve_vendorReadFailureIsBadGateway() {
-        when(jiangyiGatherClient.trainedProducts()).thenThrow(new IllegalStateException("503 设备不在线"));
+        when(jiangyiGatherClient.learnableProducts()).thenThrow(new IllegalStateException("503 设备不在线"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().shelve(9L, PID, List.of(DEV_A), null, null));
@@ -128,7 +128,7 @@ class JiangyiShelfServiceTest {
 
     @Test
     void shelve_productNotInTrainedListIsConflict() {
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(trained(TEXT_NAME)));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(trained(TEXT_NAME)));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().shelve(9L, "99999", List.of(DEV_A), null, null));
@@ -139,7 +139,7 @@ class JiangyiShelfServiceTest {
 
     @Test
     void shelve_blankVendorTextNameIsConflict() {
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(trained("  ")));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(trained("  ")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service().shelve(9L, PID, List.of(DEV_A), null, null));
@@ -151,7 +151,7 @@ class JiangyiShelfServiceTest {
 
     @Test
     void shelve_missingOrRetiredLinkIsConflict() {
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(trained(TEXT_NAME)));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(trained(TEXT_NAME)));
         when(linkMapper.byProduct(PID)).thenReturn(Optional.of(link("RETIRED")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
@@ -164,7 +164,7 @@ class JiangyiShelfServiceTest {
 
     @Test
     void shelve_nonActiveSkuIsConflict() {
-        when(jiangyiGatherClient.trainedProducts()).thenReturn(List.of(trained(TEXT_NAME)));
+        when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(trained(TEXT_NAME)));
         when(linkMapper.byProduct(PID)).thenReturn(Optional.of(link("BOUND")));
         when(skuMapper.selectById(SKU_ID)).thenReturn(sku("OFFLINE", 350));
 

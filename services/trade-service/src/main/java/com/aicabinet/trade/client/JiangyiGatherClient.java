@@ -7,7 +7,7 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiTextNameSku;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -315,18 +315,24 @@ public class JiangyiGatherClient {
 
     // ---------- 学习与模型（4.4.x） ----------
 
-    /** 查询已学习准备成功商品（§4.4.2 getPageData，gatherStatus=training）→ 行含 textName。 */
-    public List<TrainedProduct> trainedProducts() {
+    /**
+     * 厂商「学习准备成功」名单（§4.4.2 getPageData，gatherStatus=training）→ 行含 textName。
+     *
+     * <p>🔴 <b>在列 = 采集成档 + 厂商审核通过，不等于已学成</b>：文档 §4.4.1 流程图把它排在
+     * 「开始学习」之前，且 2026-10-27 实测本租户商品在列时模型数与学习中数同时为 0。
+     * 判学成/可识别要用 §4.4.4 模型 + classes（§5.5.3），<b>不要顺手把这里当学成证据</b>。</p>
+     */
+    public List<LearnableProduct> learnableProducts() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("gatherStatus", "training");
         body.put("page", 1);
         body.put("pageSize", 200);
-        JsonNode data = post("/merchant/product/getPageData", body, true, "trainedProducts");
-        List<TrainedProduct> out = new ArrayList<>();
+        JsonNode data = post("/merchant/product/getPageData", body, true, "learnableProducts");
+        List<LearnableProduct> out = new ArrayList<>();
         JsonNode rows = data.path("pageData");
         if (rows.isArray()) {
             for (JsonNode n : rows) {
-                out.add(new TrainedProduct(
+                out.add(new LearnableProduct(
                         n.path("id").asLong(),
                         text(n, "name"),
                         text(n, "textName"),
@@ -355,7 +361,11 @@ public class JiangyiGatherClient {
 
     /**
      * 查询模型（§4.4.4 getModelFileByApi，无参数）→ 列表含
-     * id/modelName/modelUrl/industrialControlModel(原值 "76"/"88")/modelTextUrl/quantity。
+     * id/modelName/customerModelName(模型初命名)/modelUrl/industrialControlModel(原值 "76"/"88")
+     * /modelTextUrl/quantity。
+     *
+     * <p>文档 §4.4.1 流程图逐字「两种工控类型76/88，所以两个模型」⇒ <b>一次学习应回两行</b>
+     * （76 与 88 各一）。只回一行是厂商侧异常，第一颗真模型出现时按这条判。</p>
      */
     public List<JiangyiModelFile> modelFiles() {
         JsonNode data = post("/merchant/modelFile/getModelFileByApi", Map.of(), true, "modelFiles");
@@ -365,6 +375,7 @@ public class JiangyiGatherClient {
                 out.add(new JiangyiModelFile(
                         n.path("id").asLong(),
                         text(n, "modelName"),
+                        text(n, "customerModelName"),
                         text(n, "modelUrl"),
                         text(n, "industrialControlModel"),
                         text(n, "modelTextUrl"),

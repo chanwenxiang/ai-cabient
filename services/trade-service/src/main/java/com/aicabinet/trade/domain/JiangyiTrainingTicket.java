@@ -11,7 +11,7 @@ import lombok.Setter;
 /**
  * 将邑学习触发凭据（CB-023，V336）：finishNotifyId 是服务端持有的一次性凭据——
  * 将邑要求回调 url 无鉴权（§4.4.3 原文），防伪造锚点必须服务端持久化。
- * <p>回调命中 PENDING 才处理（并反查将邑侧交叉验证），其余静默丢弃。</p>
+ * <p>回调命中 PENDING 才处理（逐张 CAS 置终态，重放 no-op），其余静默丢弃。</p>
  */
 @TableName("jiangyi_training_ticket")
 @Getter

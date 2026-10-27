@@ -236,7 +236,7 @@
                       <el-option
                         v-for="m in modelPreviews"
                         :key="m.modelName"
-                        :label="`${m.modelName}（${m.quantity} 类，已挂 ${m.trainedMatchPercent}%）`"
+                        :label="`${m.modelName}（${m.quantity} 类，可学习名单命中 ${m.learnableMatchPercent}%）`"
                         :value="m.modelName"
                         :disabled="Boolean(m.rejectReason)"
                       >
@@ -684,7 +684,8 @@ interface ModelPreview {
   fallbackVersion: string | null;
   rows: ParsedClassRow[];
   rejectReason: string | null;
-  trainedMatchPercent: number;
+  /** classes 行命中厂商「可学习名单」textName 的比例；🔴 不是学会率（名单只证采集成档）。 */
+  learnableMatchPercent: number;
 }
 
 interface DeploymentRow {

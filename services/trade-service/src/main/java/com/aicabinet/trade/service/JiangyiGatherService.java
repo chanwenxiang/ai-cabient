@@ -9,7 +9,7 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingItemDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.JiangyiTrainingTicketMapper;
@@ -40,13 +40,13 @@ import java.util.stream.Collectors;
  *
  * <p>边界（CB-023 台账结论 3）：4.3.x 采集批次操作留在将邑商户 App 人工完成，本期只编排
  * 我们侧可治理的部分。采集开门（§4.2.3）由将邑直接下发、不经我方 gateway——采集模式锁
- * 管住我方营业开门（409），将邑侧开门不产生我方会话，账务天然隔离。学习完成回调交叉验证
- * 通过后自动退出采集模式（恢复营业），运营无需再手工点退出。</p>
+ * 管住我方营业开门（409），将邑侧开门不产生我方会话，账务天然隔离。学习完成回调到达即
+ * 退出采集模式（恢复营业），运营无需再手工点退出。</p>
  *
  * <p>🔴 学习是<b>集合粒度</b>（§4.4.3 请求体无任何商品参数）：一次 {@code commitTrainingTenantOne}
  * 训练的是厂商侧「已采集待学习」的全集。所以批量触发只发 <b>一次</b> 厂商调用，再为我方勾选的
- * 每个 SKU 各落一张票据、共享同一个 finishNotifyId（V407 起该列不唯一）；回调到达后逐张按
- * trained 列表交叉验证。若按 SKU 逐个调厂商，会重复训练同一个模型，不存在这种用法。</p>
+ * 每个 SKU 各落一张票据、共享同一个 finishNotifyId（V407 起该列不唯一）；回调到达后逐张 CAS
+ * 置终态。若按 SKU 逐个调厂商，会重复训练同一个模型，不存在这种用法。</p>
  */
 @Service
 public class JiangyiGatherService {
@@ -211,7 +211,8 @@ public class JiangyiGatherService {
     /**
      * 批量触发学习：一次 §4.4.3 调用覆盖勾选的多个 SKU（厂商学习=集合粒度，无单品参数）。
      *
-     * <p>三道前置：①每个 SKU 必须已挂将邑商品（否则回调无法交叉验证，票据只会停在等待）；
+     * <p>三道前置：①每个 SKU 必须已挂将邑商品——票据要按商品 id 记账，没挂接就绑不上厂商侧
+     * 的学习对象，回执与后面上架都对不上号；
      * ②任一 SKU 已有 PENDING 票据直接 409——在途时再触发会让旧票据永远等不到自己的回执；
      * ③模型名软锁：厂商模型列表能读到时必须命中其一，列表为空/读面失败时放行（首次学习
      * 本来就没有可选模型）。</p>
@@ -247,7 +248,7 @@ public class JiangyiGatherService {
         }
         if (!unlinked.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "以下 SKU 未挂将邑商品，学习结果无法交叉验证：" + String.join("、", unlinked));
+                    "以下 SKU 未挂将邑商品，无法绑定学习对象：" + String.join("、", unlinked));
         }
         List<String> inFlight = ticketMapper.listPendingBySkus(skus).stream()
                 .map(JiangyiTrainingTicket::getSkuId).distinct().toList();
@@ -285,6 +286,10 @@ public class JiangyiGatherService {
      * 模型名软锁：厂商模型列表能读到时必须是其中一项（手打错字会训出对不上的模型）；
      * 列表为空（租户尚无学成模型，首次学习就是这个状态）或读面失败时放行并留日志——
      * 硬锁会让首次学习永远发不出去。
+     *
+     * <p>比对的键含 {@code customerModelName}（模型初命名）：厂商可能把我们提交的名字改写成
+     * {@code 商户码+时间戳_工控型号_序号} 形态（未文档化面实测），只比 modelName 会让
+     * 「重训我们自己的模型」在第一次学习成功后被这把锁 409 挡住。</p>
      */
     private void requireKnownModelName(String modelName) {
         List<JiangyiModelFile> models;
@@ -294,8 +299,11 @@ public class JiangyiGatherService {
             log.warn("jiangyi model list unavailable; skip modelName validation: {}", e.getMessage());
             return;
         }
-        List<String> known = models.stream().map(JiangyiModelFile::modelName)
-                .filter(n -> n != null && !n.isBlank()).toList();
+        List<String> known = models.stream()
+                .flatMap(m -> java.util.stream.Stream.of(m.modelName(), m.customerModelName()))
+                .filter(n -> n != null && !n.isBlank())
+                .distinct()
+                .toList();
         if (!known.isEmpty() && known.stream().noneMatch(modelName::equals)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "模型名不在将邑当前模型列表中：" + String.join("、", known)
@@ -304,15 +312,18 @@ public class JiangyiGatherService {
     }
 
     /**
-     * 学习完成回调（gateway 转发，无鉴权面）：三重防伪造（CB-023 设计）——
-     * ①finishNotifyId 必须命中 PENDING（否则静默 202 语义，不回错误详情）；
-     * ②反查将邑已学习商品交叉验证（productId 确实在 trained 列表才 FINISHED）；
-     * ③逐张 CAS 一次性消费（重复回调 no-op）。
+     * 学习完成回调（gateway 转发，无鉴权面）：两道防伪造——
+     * ①finishNotifyId 必须命中 PENDING（UUID 一次性凭据，厂商不给就猜不到；未知静默 202 语义，
+     * 不回错误详情，不给探测者信息）；②逐张 CAS 一次性消费（重复回调 no-op）。
      *
-     * <p>一次厂商回执可能对应多张票据（批量触发），逐张判定：命中的置 FINISHED，未命中的
-     * 保留 PENDING（异步延迟容忍，与单张时代同一口径）。有任意一张确认即说明本轮训练已完成，
-     * 立刻退出该柜采集模式恢复营业（采集锁只拦我方营业开门，多锁一秒就是少卖一秒）。
-     * 失败回调与「回调到了但商品还没学完」都保持采集模式，让运营能手动退出。</p>
+     * <p>🔴 原第三道「反查 §4.4.2 已学习商品交叉验证」2026-10-27 撤下。那张表是<b>可学习/
+     * 采集成档</b>名单（文档流程图排在「开始学习」之前，实测商品未学成时即在列）：对目标商品
+     * 恒通过 ⇒ 防伪作用为零；反过来若厂商学成后把商品出列，票据会永远停 PENDING 且
+     * <b>采集锁永不释放</b>——把营业押在一个语义不明的读面上，爆炸半径不对。</p>
+     *
+     * <p>一次厂商回执可能对应多张票据（批量触发），逐张 CAS 置 FINISHED。有任意一张被本次
+     * 回调消费就退出该柜采集模式：学没成不该影响营业，没学成的商品识别不上会走争议，
+     * 运营在学习库重发学习即可。名单只用来留痕告警，<b>读面失败同样不拦收口</b>。</p>
      */
     public void handleFinishNotify(String finishNotifyId, String msg) {
         List<JiangyiTrainingTicket> tickets = ticketMapper.listByFinishNotifyId(finishNotifyId).stream()
@@ -328,14 +339,13 @@ public class JiangyiGatherService {
                     finishNotifyId, skuIdsOf(tickets), msg);
             return;
         }
-        Set<String> trainedIds = jiangyiGatherClient.trainedProducts().stream()
-                .map(p -> String.valueOf(p.id())).collect(Collectors.toSet());
+        Set<String> learnableIds = learnableIdsOrNull();
         int confirmed = 0;
         for (JiangyiTrainingTicket ticket : tickets) {
-            if (!trainedIds.contains(ticket.getJiangyiProductId())) {
-                log.warn("jiangyi finish-notify but product not trained yet ticket={} sku={} jiangyiProductId={} — keep PENDING",
+            if (learnableIds != null && !learnableIds.contains(ticket.getJiangyiProductId())) {
+                log.warn("jiangyi finish-notify but product missing from 可学习名单（仅留痕，不拦收口）"
+                        + " ticket={} sku={} jiangyiProductId={}",
                         ticket.getId(), ticket.getSkuId(), ticket.getJiangyiProductId());
-                continue;
             }
             if (ticketMapper.finishById(ticket.getId(), true, Instant.now()) > 0) {
                 confirmed++;
@@ -343,7 +353,7 @@ public class JiangyiGatherService {
         }
         if (confirmed == 0) {
             // 并发重复回调：另一条线程已完成终态+退出，这里不再动设备锁
-            log.info("jiangyi training confirm already consumed or unmatched finishNotifyId={}", finishNotifyId);
+            log.info("jiangyi training confirm already consumed finishNotifyId={}", finishNotifyId);
             return;
         }
         String deviceId = tickets.stream().map(JiangyiTrainingTicket::getDeviceId)
@@ -354,6 +364,17 @@ public class JiangyiGatherService {
         }
         log.info("jiangyi training confirmed finishNotifyId={} confirmed={}/{} deviceId={} autoExitedGather={}",
                 finishNotifyId, confirmed, tickets.size(), deviceId, wasLocked);
+    }
+
+    /** 可学习名单的商品 id，只给回调留痕用；读面失败返回 null（调用方据此跳过比对，不拦收口）。 */
+    private Set<String> learnableIdsOrNull() {
+        try {
+            return jiangyiGatherClient.learnableProducts().stream()
+                    .map(p -> String.valueOf(p.id())).collect(Collectors.toSet());
+        } catch (RuntimeException e) {
+            log.warn("jiangyi finish-notify 读取可学习名单失败（不影响票据收口）：{}", e.getMessage());
+            return null;
+        }
     }
 
     /** 审核列表（productIds 从挂接表反查；空=全部）。 */
@@ -381,7 +402,7 @@ public class JiangyiGatherService {
         JiangyiTrainingTicket ticket = new JiangyiTrainingTicket();
         ticket.setDeviceId(deviceId);
         ticket.setSkuId(skuId);
-        // 学习是商品集合动作（§4.4.3 参数表无 productId）——记挂接商品 id 便于回执交叉验证
+        // 学习是商品集合动作（§4.4.3 参数表无 productId）——记挂接商品 id 便于回执逐张对账
         ticket.setJiangyiProductId(jiangyiProductId);
         ticket.setFinishNotifyId(finishNotifyId);
         ticket.setModelName(modelName);

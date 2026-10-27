@@ -8,7 +8,7 @@ import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.JiangyiTrainingTicket;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.TrainedProduct;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
@@ -37,9 +37,15 @@ import java.util.stream.Collectors;
  * 但「能不能卖」仍是逐柜的：classId 是 classes.txt 按识别名排序的行号，任何一次重训都会整体平移
  * （台账 H-27），所以挂接（{@code jiangyi_class_mapping}）、复核戳、库存、价格都留在柜机维度。</p>
  *
- * <p>本页只做三件事：把厂商侧的<b>已学商品 / 模型</b>摊平成能看懂的资产表、标出每个已学类别
- * <b>已被哪几台柜子上架</b>、给出（可选的）学习触发入口。拍照采集本身在柜机摄像头前、由厂商
- * 商户 App 编排——我方的 §4.3.3–4.3.14 采集编排尚未接入（台账 G-5），本页不假装能驱动采集。</p>
+ * <p>本页只做三件事：把厂商侧的<b>可学习商品名单 / 模型</b>摊平成能看懂的资产表、标出每个类别
+ * <b>已被哪几台柜子上架</b>、给出（可选的）学习触发入口。拍照采集在柜机摄像头前做，编排已由
+ * 后台「开始采集」（{@link JiangyiGatherConsoleService}，§4.3.3–4.3.14）服务化，本页不重复驱动。</p>
+ *
+ * <p>🔴 <b>「学没学成」在这页只能由末列证明，不能由名单证明</b>：§4.4.2 那张表是
+ * <b>采集成档 + 审核通过</b>的可学习名单（文档流程图把它排在「开始学习」之前），2026-10-27 实测
+ * 商品 41175 在列时厂商模型数与学习中数<b>同时为 0</b>。判据只有两条本地硬事实——
+ * 该识别名在某柜有 {@code ACTIVE} 映射行（{@code coverage} / {@code mappedDeviceIds}），
+ * 且那台柜的映射已按当前 classes 版本复核（{@code mappingVerified}）。名单只回答「厂商肯不肯学」。</p>
  *
  * <p>厂商读面失败只降级为空列表 + {@code vendorError}，柜机/挂接/凭据（本地库）照常展示——
  * 学习库页面的价值有一半在本地数据上，不能因为厂商 503 就整页白屏。</p>
@@ -76,7 +82,7 @@ public class JiangyiLearningLibraryService {
 
     public LearningLibraryView view() {
         List<JiangyiModelFile> models = List.of();
-        List<TrainedProduct> trained = List.of();
+        List<LearnableProduct> learnable = List.of();
         List<String> vendorErrors = new ArrayList<>();
         try {
             models = jiangyiGatherClient.modelFiles();
@@ -84,9 +90,9 @@ public class JiangyiLearningLibraryService {
             vendorErrors.add("读取将邑模型列表失败：" + rootMessage(e));
         }
         try {
-            trained = jiangyiGatherClient.trainedProducts();
+            learnable = jiangyiGatherClient.learnableProducts();
         } catch (RuntimeException e) {
-            vendorErrors.add("读取将邑已学习商品失败：" + rootMessage(e));
+            vendorErrors.add("读取将邑可学习商品名单失败：" + rootMessage(e));
         }
 
         List<JiangyiDevice> bound = deviceMapper.listBound();
@@ -119,9 +125,14 @@ public class JiangyiLearningLibraryService {
                 linkByProductId.putIfAbsent(l.getJiangyiProductId().trim(), l);
             }
         });
-        Set<String> trainedProductIds = trained.stream()
-                .map(t -> String.valueOf(t.id()))
-                .collect(Collectors.toSet());
+        Set<String> vendorListedIds = new LinkedHashSet<>();
+        Map<String, String> vendorTextNameById = new HashMap<>();
+        learnable.forEach(p -> {
+            vendorListedIds.add(String.valueOf(p.id()));
+            if (notBlank(p.textName())) {
+                vendorTextNameById.put(String.valueOf(p.id()), p.textName().trim());
+            }
+        });
 
         List<LearningCabinet> cabinets = bound.stream()
                 .map(d -> new LearningCabinet(
@@ -136,7 +147,7 @@ public class JiangyiLearningLibraryService {
                         d.getLastWsOnlineAt()))
                 .toList();
 
-        List<LearnedProduct> products = trained.stream()
+        List<LearnableProductRow> products = learnable.stream()
                 .map(t -> {
                     JiangyiSkuJiangyiLink link = linkByProductId.get(String.valueOf(t.id()));
                     String textName = t.textName() == null ? null : t.textName().trim();
@@ -151,7 +162,7 @@ public class JiangyiLearningLibraryService {
                                             m.getClassId(),
                                             verifiedByDevice.getOrDefault(m.getDeviceId(), false)))
                                     .toList();
-                    return new LearnedProduct(
+                    return new LearnableProductRow(
                             t.id(), t.name(), textName, t.barCode(),
                             link == null ? null : link.getSkuId(),
                             link == null ? null : skuName(skuById, link.getSkuId()),
@@ -160,15 +171,27 @@ public class JiangyiLearningLibraryService {
                 .toList();
 
         List<LearnableSku> learnableSkus = links.stream()
-                .map(l -> new LearnableSku(
-                        l.getSkuId(),
-                        skuName(skuById, l.getSkuId()),
-                        l.getJiangyiProductId(),
-                        l.getJiangyiName(),
-                        l.getJiangyiTextName(),
-                        l.getSyncStatus(),
-                        l.getJiangyiProductId() != null
-                                && trainedProductIds.contains(l.getJiangyiProductId().trim())))
+                .map(l -> {
+                    String productId = l.getJiangyiProductId() == null
+                            ? null : l.getJiangyiProductId().trim();
+                    // 识别名以厂商名单里的当前值为准，名单外（或未回）才退回挂接快照
+                    String textName = firstNonBlank(
+                            productId == null ? null : vendorTextNameById.get(productId),
+                            l.getJiangyiTextName());
+                    List<String> mappedDeviceIds = textName == null
+                            ? List.of()
+                            : activeByTextName.getOrDefault(textName, List.of()).stream()
+                                    .map(JiangyiClassMapping::getDeviceId).distinct().sorted().toList();
+                    return new LearnableSku(
+                            l.getSkuId(),
+                            skuName(skuById, l.getSkuId()),
+                            l.getJiangyiProductId(),
+                            l.getJiangyiName(),
+                            l.getJiangyiTextName(),
+                            l.getSyncStatus(),
+                            productId != null && vendorListedIds.contains(productId),
+                            mappedDeviceIds);
+                })
                 .toList();
 
         List<TrainingAttempt> recentTrainings = recentTickets.stream()
@@ -190,8 +213,8 @@ public class JiangyiLearningLibraryService {
 
         return new LearningLibraryView(
                 models.stream()
-                        .map(m -> new LearningModel(m.id(), m.modelName(), m.quantity(),
-                                m.industrialControlModel(), m.modelTextUrl(), m.modelUrl()))
+                        .map(m -> new LearningModel(m.id(), m.modelName(), m.customerModelName(),
+                                m.quantity(), m.industrialControlModel(), m.modelTextUrl(), m.modelUrl()))
                         .toList(),
                 products, learnableSkus, cabinets, recentTrainings, vendorError);
     }
@@ -205,6 +228,13 @@ public class JiangyiLearningLibraryService {
     private static String skuName(Map<String, SkuCatalog> skuById, String skuId) {
         SkuCatalog sku = skuId == null ? null : skuById.get(skuId);
         return sku == null ? null : sku.getSkuName();
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        if (notBlank(preferred)) {
+            return preferred.trim();
+        }
+        return notBlank(fallback) ? fallback.trim() : null;
     }
 
     private static void addIfPresent(Set<String> target, String value) {
@@ -227,28 +257,41 @@ public class JiangyiLearningLibraryService {
 
     /** 学习库视图（openapi inline schema）。 */
     public record LearningLibraryView(List<LearningModel> models,
-                                      List<LearnedProduct> learnedProducts,
+                                      List<LearnableProductRow> learnableProducts,
                                       List<LearnableSku> learnableSkus,
                                       List<LearningCabinet> cabinets,
                                       List<TrainingAttempt> recentTrainings,
                                       String vendorError) {}
 
-    /** 厂商模型（§4.4.4）：quantity = classes 行数（重训后编号平移的规模）。 */
-    public record LearningModel(long id, String modelName, int quantity,
+    /**
+     * 厂商模型（§4.4.4）：quantity = classes 行数（重训后编号平移的规模）。
+     * customerModelName = 厂商侧「模型初命名」，我方提交的 modelName 被厂商改写时只在这列留痕。
+     */
+    public record LearningModel(long id, String modelName, String customerModelName, int quantity,
                                 String industrialControlModel, String modelTextUrl, String modelUrl) {}
 
-    /** 已学商品（§4.4.2 trained）+ 我方挂接 SKU + 各柜覆盖。 */
-    public record LearnedProduct(long jiangyiProductId, String name, String textName, String barCode,
-                                 String skuId, String skuName, List<ProductCoverage> coverage) {}
+    /**
+     * 厂商可学习名单（§4.4.2）的一行 + 我方挂接 SKU + 各柜覆盖。
+     *
+     * <p>🔴 在列 = 采集成档且审核通过，<b>不等于已学成</b>；能不能识别只看 {@code coverage}
+     * （该识别名在某柜有 ACTIVE 挂牌且那台柜已复核）。</p>
+     */
+    public record LearnableProductRow(long jiangyiProductId, String name, String textName, String barCode,
+                                      String skuId, String skuName, List<ProductCoverage> coverage) {}
 
-    /** 某个已学类别在某台柜机上的 ACTIVE 挂牌（classId 只对该柜当前模型成立）。 */
+    /** 某个厂商名单类别在某台柜机上的 ACTIVE 挂牌（classId 只对该柜当前模型成立）。 */
     public record ProductCoverage(String deviceId, String deviceName, int classId,
                                   boolean mappingVerified) {}
 
-    /** 可发起学习的我方 SKU（必须有将邑挂接，否则回调无法交叉验证会永远 PENDING）。 */
+    /**
+     * 可发起学习的我方 SKU。必须有将邑挂接——票据要按厂商商品 id 记账，没挂接就绑不上学习对象。
+     *
+     * <p>{@code inVendorList} = 已在厂商可学习名单里（<b>不表示已学成</b>）；
+     * {@code mappedDeviceIds} = 该识别名已在哪些柜上有 ACTIVE 挂牌，这才是「已进识别链路」。</p>
+     */
     public record LearnableSku(String skuId, String skuName, String jiangyiProductId,
                                String jiangyiName, String textName, String syncStatus,
-                               boolean trained) {}
+                               boolean inVendorList, List<String> mappedDeviceIds) {}
 
     public record LearningCabinet(String deviceId, String deviceName, String identifier,
                                   String classesVersion, boolean mappingVerified,
