@@ -983,7 +983,8 @@ export const AUDIT_ACTION_LABELS = {
     OPS_EXCEPTION_RESOLVE_WITH_REPAIR: '异常结案并建维修单',
     OPS_EXCEPTION_AUTO_RESOLVE: '系统自动解决异常',
     OPS_EXCEPTION_SYNC_FROM_DISPUTE: '争议同步异常',
-    MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常'
+    MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常',
+    WAREHOUSE_MANAGER: '分仓负责人变更'
 };
 /** 审计对象类型 → 中文 */
 export const AUDIT_TARGET_LABELS = {
@@ -1002,7 +1003,8 @@ export const AUDIT_TARGET_LABELS = {
     VISION: '识别映射',
     SKU_PRICE: '商品定价',
     REPLENISHMENT_TASK: '补货任务',
-    REPLEN_REQUEST: '补货申请'
+    REPLEN_REQUEST: '补货申请',
+    WAREHOUSE: '分仓'
 };
 const AUDIT_DETAIL_KEY_LABELS = {
     minutes: '分钟',
@@ -1034,7 +1036,9 @@ const AUDIT_DETAIL_KEY_LABELS = {
     onlinestatus: '在线状态',
     lifecycle: '生命周期',
     lifecyclestatus: '生命周期',
-    issuetype: '问题类型'
+    issuetype: '问题类型',
+    // 分仓负责人：两条写通道（分仓管理弹窗 / 通用数据管理）的 detail 都用这个列名，同一标签同时生效
+    manager_user_id: '分仓负责人'
 };
 const DEVICE_FAULT_ISSUE_ALIASES = {
     DOOR_WONT_OPEN: 'DOOR_OPEN',

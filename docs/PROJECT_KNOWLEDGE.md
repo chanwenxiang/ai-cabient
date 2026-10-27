@@ -668,6 +668,27 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-27（B 档收尾：分仓负责人变更补「前后值」审计——复核先证伪了 backlog 里的现状措辞）
+
+- 🔴 **backlog 的「现状」不能当现状用**：CB-070 第 4 点原写「现状只记列名」，逐行复核后**证伪**——
+  `warehouse.manager_user_id` 在本仓的唯一实体写点 [WarehouseService.java:1656](../../services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseService.java) **一条审计都不落**，
+  两个运营调用方（`OpsWarehouseAdminService:47` / `OpsCommercialFacade:295`）在 `requireWarehouseWrite(operatorId)` 之后就把 operatorId 丢了 ⇒ 连「谁改的」都答不了。
+  「只记列名」说的是**另一条通道**：通用数据管理自 CB-021（2026-10-09）起就记 `col=old→new`（`AdminDataManageService:339-355,394-405`），而 `warehouse` 不在它的排除表里。
+  **同一条列、两条通道留痕能力正好相反**（从「分仓管理」弹窗改＝零留痕，从「数据管理」改＝有前后值），这才是缺陷真实形态。
+- **落地形态**：只在**真的换人/清空**时 `appendLog(operatorId, "WAREHOUSE_MANAGER", "WAREHOUSE", warehouseId, "manager_user_id=42(老王 139****0001)->null")`。
+  targetType 刻意用**大写** `WAREHOUSE` 与通用通道的 `table.toUpperCase()` 对齐（两条通道同一对象筛子捞得出）；detail 里带编号是为可还原、括号里人名是为运营看得懂；
+  校验当场被拒 ⇒ 不落审计（同事务回滚）。🔴 **detail 只允许掩码手机号**——`OpsAuditQueryService:104` 读侧只掩码操作人手机，detail 是**原样**吐给 `ops:audit:list` 持有者的。
+  清空（前端传 `0`）正是 CB-070 刻意「不校验」的那条路（撤权不是授权），**留痕是它唯一的兜底**，故本轮单独立测试钉住。
+- **B 档比 A 档多的那半（可读可筛）**：`shared-dict` 补 `WAREHOUSE_MANAGER`（分仓负责人变更）/ `WAREHOUSE`（分仓）/ `manager_user_id`（分仓负责人）三条标签
+  ——未命中的 UPPER_SNAKE 会回落成「其他操作」且**不可筛选**（`WH_TRANSFER_*` 至今还是这个待遇），只落 SQL 不落标签的审计等于给没人看的表加行；
+  另把 `WAREHOUSE_MANAGER` 纳入 `OpsAuditQueryService.SENSITIVE_ACTION_PREFIXES`（负责人＝谁能自主补货/分仓盘点，换人即换权）⇒ 进敏感操作巡视报表。
+  ⚠️ 改 dict 的连带成本（下次估算别再漏）：`packages/shared-dict/dist` **是入库的**（须 `pnpm --filter @aicabinet/shared-dict build` 重建 + `check:shared-dist-fresh`），
+  且后台读它 ⇒ 必须用 `scripts/build-admin-ci-fidelity.sh` 在容器里**从 git 干净检出**重建 `static/admin`（CI 做字节比对，本机工作区构建的哈希天然不同）。
+- 顺带删掉 `upsertWarehouse` 的 4 参重载（**全仓零调用方**）——留着它就是「不带操作人也能改负责人」的后门，与新审计语义冲突。
+- 🧪 实跑：`WarehouseServiceTest` **23/23**（其中 4 条新钉：换人记前后值 / 未换人不长审计 / 清空记掩码前后值 / 校验被拒不落审计）、
+  `OpsAuditSensitiveSummaryTest` 3/3、admin-vue `type-check` 绿 + `vitest` **113/113**、`check:competitor-benchmark` OK（70 条 / CB-070 3 家）、
+  `check:shared-dist-fresh` OK；两端小程序 release 构建（`build:mp-weixin`）exit 0。**未做**：活栈后台点一遍审计页看新行渲染（需 trade + admin 起服）。
+
 ### 2026-10-27（补货一轮：明细只认柜内在售 SKU + A 档发起权 + 负责人写入校验 + 拒绝提示分档 + 会话纪元钉进 Redis）
 
 - 🔴 **用户原话驱动**：「补货应该只补我们货柜当前存在的 sku 吧，A 做，还有前面的问题也要解决」+ 反问「如果报『你不是 WH-DEMO-001 的分仓负责人，
@@ -704,12 +725,20 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - 🧪 **验证**（本轮实跑）：后端 `ServerBootMarkerTest` 5/0、`JwtServiceRefreshGraceTest` 7/0、`AuthControllerRefreshReasonTest` 2/0、`MerchantPortalGuardTest` 4/0；
   merchant-mp `vitest` **190/190** + `vue-tsc` 绿、consumer-mp `vitest` **169/169** + `vue-tsc` 绿（两端都消费 `shared-uni/request.ts`）；
   `check:shared-dist-fresh` OK（shared-uni 无 dist、按 src 消费）；`check:competitor-benchmark` OK（70 条 / 418 URL / CB-071 记 5 家含 2 peer）。
-  ⚠️ 两端 `test:ci` 里的 Playwright H5 UAT 需要活栈（dev server + trade）：本轮离线跑出的 14 条 FAIL，报错字面是
+  ⚠️ 两端 `test:ci` 里的 Playwright **H5** UAT 需要活栈（dev server + trade）：本轮离线跑出的 14 条 FAIL，报错字面是
   「The server is configured with a public base URL of /admin/ - did you mean to visit /admin/pages/home/home instead?」+ `ops-branding`/`auth/captcha` 500
   ⇒ 3001 上现在是**别的服务**在占（`curl` 回 302 并跳 `/admin/…`），商户 H5（脚本默认 `MERCHANT_H5_URL=http://127.0.0.1:3001`）没起，页面根本没加载，
-  「找不到入口/容错/重定向」类判据必然连带失败。**未拿它当判据，也没逐条排除其中是否混有既有失败**——
-  活栈复验（商户 H5 + trade 起来后重跑 `pnpm --filter @aicabinet/merchant-mp test:uat`）是推送后的待办，不是本轮已完成项。
-- **📌 遗留（明确未做）**：负责人变更写 `admin_audit_log` 带前后值（金蝶口径，CB-070 第 4 点）列 backlog；
+  「找不到入口/容错/重定向」类判据必然连带失败。
+  🔴 **判据由用户改定（2026-10-27）：「我们不用 h5，我们只用小程序 mp」** ⇒ H5 UAT 不再当判据也不列待办，换成两端 **release 小程序构建**：
+  `pnpm --filter @aicabinet/merchant-mp build:mp-weixin` 与 consumer 同名脚本**均 exit 0**
+  （appid `wxf7de3625991a6431` / `wx6dacefb3671de630`，`inject-miniapp-env --mode release` + urlCheck 到位）。
+  仍未挣得的一条：真机侧「补货清单只列柜内在售 SKU / 拒绝提示分档」还没在**微信小程序**里点过，需在微信开发者工具导入
+  `clients/merchant-mp/dist/build/mp-weixin` 复验（`dist/` 不入库，每次判据前须重编）。
+  ✅ 推送后取到：Actions 对 `52a4edd4` 的 4 个 job（mini-programs / admin-artifacts / build / **e2e-h5**）**全 success**
+  （匿名 API `commits/<40 位 sha>/check-runs`，约 20 分钟）⇒ 上面那 14 条离线 FAIL 确属本机环境，不是代码；
+  但该 job 具体覆盖到哪些用例**未逐条核对**，不用它替「小程序真机复验」结账。
+- **📌 遗留（明确未做）**：~~负责人变更写 `admin_audit_log` 带前后值（金蝶口径，CB-070 第 4 点）列 backlog~~
+  **已于同日结清（见上条 B 档收尾——注意那条还订正了「现状只记列名」这个错判）**；
   同行「运营 App 登录态是否跨发版存活」无公开对照，CB-071 的设备侧证据属借形态推断，已在条目里标局限。
 
 ### 2026-10-27（§4.4.2 语义纠偏：「可学习名单」≠已学成 + 回调第三道防伪闸撤下）

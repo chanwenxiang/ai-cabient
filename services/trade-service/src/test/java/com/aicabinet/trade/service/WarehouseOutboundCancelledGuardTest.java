@@ -70,7 +70,7 @@ class WarehouseOutboundCancelledGuardTest {
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService,
                 distributedLockService, displaySnapshotHelper,
                 null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
-                null /*scope*/, null /*self*/);
+                null /*scope*/, null /*audit*/, null /*self*/);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 

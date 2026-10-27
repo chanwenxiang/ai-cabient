@@ -295,7 +295,12 @@ public class OpsCommercialFacade {
     public WarehouseDto upsertWarehouse(Long operatorId, String warehouseId, UpsertWarehouseRequest body) {
         requireWarehouseWrite(operatorId);
         return warehouseService.upsertWarehouse(
-                warehouseId, body.warehouseName(), body.address(), body.status(), body.managerUserId());
+                operatorId,
+                warehouseId,
+                body.warehouseName(),
+                body.address(),
+                body.status(),
+                body.managerUserId());
     }
 
     public List<WarehouseInventoryDto> warehouseInventory(Long operatorId, String warehouseId) {

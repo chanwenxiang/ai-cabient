@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +41,13 @@ public class WarehouseService {
     private static final String PARTIAL = "PARTIAL";
     private static final String PICKED = "PICKED";
     private static final String READY = "READY";
+    /**
+     * 负责人变更审计（CB-070 第 4 点，2026-10-27）。targetType 用大写 {@code WAREHOUSE} 而非表名小写，
+     * 是为了与通用数据管理通道对齐——那条通道写 {@code table.toUpperCase()}（AdminDataManageService#updateRow），
+     * **同一条列**两条通道必须能在审计页里被同一个对象筛子捞出来。
+     */
+    private static final String AUDIT_ACTION_MANAGER = "WAREHOUSE_MANAGER";
+    private static final String AUDIT_TARGET_WAREHOUSE = "WAREHOUSE";
 
 
     private final WarehouseMapper warehouseRepository;
@@ -64,6 +72,7 @@ public class WarehouseService {
     private final UserInfoMapper userInfoRepository;
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
+    private final AdminAuditService auditService;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
@@ -88,6 +97,7 @@ public class WarehouseService {
                             UserInfoMapper userInfoRepository,
                             PermissionService permissionService,
                             MerchantScopeService merchantScopeService,
+                            AdminAuditService auditService,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
@@ -111,6 +121,7 @@ public class WarehouseService {
         this.userInfoRepository = userInfoRepository;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
+        this.auditService = auditService;
         this.self = self;
     }
 
@@ -1609,17 +1620,18 @@ public class WarehouseService {
         );
     }
 
-    @Transactional
-    public WarehouseDto upsertWarehouse(String warehouseId, String warehouseName, String address, String status) {
-        return upsertWarehouse(warehouseId, warehouseName, address, status, null);
-    }
-
     /**
+     * @param operatorId    操作人编号，仅用于负责人变更审计（CB-070 第 4 点）；不影响任何业务判据
      * @param managerUserId {@code null} 表示不改负责人（导入 CSV 可省略）；{@code 0} 表示清空；正数为绑定用户
      */
     @Transactional
     public WarehouseDto upsertWarehouse(
-            String warehouseId, String warehouseName, String address, String status, Long managerUserId) {
+            Long operatorId,
+            String warehouseId,
+            String warehouseName,
+            String address,
+            String status,
+            Long managerUserId) {
         if (warehouseName == null || warehouseName.isBlank()) {
             throw badRequest("warehouseName required");
         }
@@ -1634,6 +1646,7 @@ public class WarehouseService {
         }
         Warehouse warehouse = warehouseRepository.findById(id).orElseGet(Warehouse::new);
         boolean creating = warehouse.getWarehouseId() == null || warehouse.getWarehouseId().isBlank();
+        Long previousManagerUserId = warehouse.getManagerUserId();
         warehouse.setWarehouseId(id);
         warehouse.setWarehouseName(warehouseName.trim());
         // 地址由运营填写（AddressPicker）；禁止种子写死城市
@@ -1647,7 +1660,7 @@ public class WarehouseService {
             Long nextManager = managerUserId <= 0L ? null : managerUserId;
             // CB-070：负责人**真的变化**才校验被授权人——改地址/改名重复保存同一人不该被账号状态误伤；
             // 清空（<=0）与 CSV 省略（null）不校验（撤权不是授权）。
-            if (nextManager != null && !nextManager.equals(warehouse.getManagerUserId())) {
+            if (nextManager != null && !nextManager.equals(previousManagerUserId)) {
                 validateWarehouseManagerCandidate(id, nextManager);
                 if (warehouseMerchantIdsOf(id).isEmpty()) {
                     log.info("分仓 {} 尚无柜机，负责人 {} 的「同商户」判据本次跳过（建档期放行）", id, nextManager);
@@ -1658,7 +1671,25 @@ public class WarehouseService {
         if (creating || warehouse.getCreatedAt() == null) {
             warehouse.setCreatedAt(Instant.now());
         }
-        return toWarehouseDto(warehouseRepository.save(warehouse));
+        WarehouseDto saved = toWarehouseDto(warehouseRepository.save(warehouse));
+        // 前后值只在**真的换人**时记（含清空）：形态沿用 CB-021 的 `col=old->new`，
+        // 值里带编号是为了可还原，括号里的人名是给人看的——🔴 必须是掩码手机号，
+        // 因为审计页把 detail 原样吐给 ops:audit:list 持有者，读侧只掩码操作人手机、不再洗 detail。
+        if (!Objects.equals(previousManagerUserId, warehouse.getManagerUserId())) {
+            auditService.appendLog(
+                    operatorId,
+                    AUDIT_ACTION_MANAGER,
+                    AUDIT_TARGET_WAREHOUSE,
+                    id,
+                    "manager_user_id=" + managerAuditValue(previousManagerUserId)
+                            + "->" + managerAuditValue(warehouse.getManagerUserId()));
+        }
+        return saved;
+    }
+
+    /** 审计值形态：{@code null} → {@code null}（与 CB-021 auditValue 同字面），否则 {@code 42(张三 138****6077)}。 */
+    private String managerAuditValue(Long managerUserId) {
+        return managerUserId == null ? "null" : managerUserId + "(" + describeManagerUser(managerUserId) + ")";
     }
 
     private WarehouseMovementDto toMovementDto(WarehouseMovement movement) {

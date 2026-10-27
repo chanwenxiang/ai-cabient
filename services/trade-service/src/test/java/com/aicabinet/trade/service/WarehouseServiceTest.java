@@ -51,6 +51,9 @@ class WarehouseServiceTest {
 
     private static final String TEST_WAREHOUSE_ID = "900000000001";
 
+    /** 分仓保存的操作人（合成编号，非真账号）：负责人变更审计要钉住「谁改的」。 */
+    private static final Long UPSERT_OPERATOR = 7001L;
+
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private WarehouseInventoryMapper inventoryRepository;
     @Mock private WarehouseInboundMapper inboundRepository;
@@ -72,6 +75,7 @@ class WarehouseServiceTest {
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private PermissionService permissionService;
     @Mock private MerchantScopeService merchantScopeService;
+    @Mock private AdminAuditService auditService;
 
     private WarehouseService warehouseService;
 
@@ -87,7 +91,7 @@ class WarehouseServiceTest {
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper, deviceInfoRepository, null,
-                userInfoRepository, permissionService, merchantScopeService, null);
+                userInfoRepository, permissionService, merchantScopeService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(warehouseService, "self", warehouseService);
         Warehouse defaultWh = new Warehouse();
         defaultWh.setWarehouseId(TEST_WAREHOUSE_ID);
@@ -399,9 +403,17 @@ class WarehouseServiceTest {
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
         stubAssignableManager(42L);
 
-        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L);
+        var dto = warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 42L);
 
         assertEquals(42L, dto.managerUserId());
+        // CB-070 第 4 点：换人要留前后值（编号可还原 + 人名给人看），且记的是操作人而不是负责人
+        verify(auditService)
+                .appendLog(
+                        UPSERT_OPERATOR,
+                        "WAREHOUSE_MANAGER",
+                        "WAREHOUSE",
+                        "WH-001",
+                        "manager_user_id=null->42(补货负责人)");
     }
 
     /** CB-070：重复保存同一个人（改名称/地址）不重新校验被授权人——否则账号后来被停用就会挡住无关编辑。 */
@@ -412,10 +424,12 @@ class WarehouseServiceTest {
         when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var dto = warehouseService.upsertWarehouse("WH-001", "改名后的仓", "addr", "ACTIVE", 42L);
+        var dto = warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "改名后的仓", "addr", "ACTIVE", 42L);
 
         assertEquals(42L, dto.managerUserId());
         verify(userInfoRepository, never()).selectById(any());
+        // 没换人就不该长审计行——否则每次改地址都往台账里灌一条「42->42」，台账会被自己的噪音淹没。
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
     }
 
     /** CB-070：负责人用户编号写错必须当场拒绝并说清去哪核对，而不是留下一个查无此人的仓。 */
@@ -426,10 +440,12 @@ class WarehouseServiceTest {
         when(userInfoRepository.selectById(4242L)).thenReturn(null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 4242L));
+                () -> warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 4242L));
 
         assertTrue(ex.getReason().contains("不存在"));
         verify(warehouseRepository, never()).save(any(Warehouse.class));
+        // 校验当场挡住 ⇒ 一条审计也不该落（异常会让同事务的审计一起回滚，这里连调用都不该发生）
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -443,7 +459,7 @@ class WarehouseServiceTest {
         when(userInfoRepository.selectById(42L)).thenReturn(disabled);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+                () -> warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 42L));
 
         assertTrue(ex.getReason().contains("已停用"));
         verify(warehouseRepository, never()).save(any(Warehouse.class));
@@ -463,7 +479,7 @@ class WarehouseServiceTest {
         when(merchantScopeService.allowedMerchantIds(42L)).thenReturn(Set.of("MCH-B"));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+                () -> warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 42L));
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         assertTrue(ex.getReason().contains("不属于分仓 WH-001 内柜机的商户"));
@@ -478,7 +494,7 @@ class WarehouseServiceTest {
         when(permissionService.hasPermission(42L, "merchant:replenishment:request")).thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 42L));
+                () -> warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 42L));
 
         assertTrue(ex.getReason().contains("发起补货"));
         verify(warehouseRepository, never()).save(any(Warehouse.class));
@@ -519,10 +535,25 @@ class WarehouseServiceTest {
         existing.setManagerUserId(9L);
         when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
+        UserInfo old = new UserInfo();
+        old.setUserId(9L);
+        old.setName("老王");
+        old.setPhoneNumber("13900000001");
+        old.setStatus("ACTIVE");
+        when(userInfoRepository.selectById(9L)).thenReturn(old);
 
-        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", 0L);
+        var dto = warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", 0L);
 
         assertNull(dto.managerUserId());
+        // 🔴 清空是「不校验」的那条路（撤权不是授权），因此**留痕是它唯一的兜底**；手机号必须落掩码值，
+        // 因为审计页把 detail 原样吐给 ops:audit:list 持有者，读侧只掩码操作人手机。
+        verify(auditService)
+                .appendLog(
+                        UPSERT_OPERATOR,
+                        "WAREHOUSE_MANAGER",
+                        "WAREHOUSE",
+                        "WH-001",
+                        "manager_user_id=9(老王 139****0001)->null");
     }
 
     @Test
@@ -532,9 +563,10 @@ class WarehouseServiceTest {
         when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(existing));
         when(warehouseRepository.save(any(Warehouse.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var dto = warehouseService.upsertWarehouse("WH-001", "主仓库", "addr", "ACTIVE", null);
+        var dto = warehouseService.upsertWarehouse(UPSERT_OPERATOR, "WH-001", "主仓库", "addr", "ACTIVE", null);
 
         assertEquals(9L, dto.managerUserId());
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
     }
 
     private static Warehouse existingWarehouse() {

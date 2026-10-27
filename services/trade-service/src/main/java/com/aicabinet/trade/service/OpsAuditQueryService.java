@@ -136,6 +136,8 @@ public class OpsAuditQueryService {
             "DEVICE_MQTT_CREDENTIAL", "DEVICE_HTTP_CREDENTIAL",            // 凭据签发/吊销
             "DEVICE_REMOTE_OPEN", "DEVICE_RESET_HARDWARE", "DEVICE_REGENERATE_ID",
             "OPS_ROLE", "OPS_PERM", "OPS_USER_ROLE", "ORG_NODE_ASSIGN",    // 角色/权限/组织
+            // 分仓负责人=「谁能自主发起补货/做分仓盘点」的归属，换人即换权（CB-070 第 4 点，2026-10-27）
+            "WAREHOUSE_MANAGER",
             "APPROVAL_DEF", "CONFIG_",                                     // 审批流/系统配置
             "DATA_UPDATE", "DATA_DELETE", "DATA_INSERT");                  // 数据直改
 

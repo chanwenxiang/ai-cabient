@@ -46,8 +46,10 @@ public class OpsWarehouseAdminService {
 
     public WarehouseDto upsertWarehouse(Long operatorId, String warehouseId, UpsertWarehouseRequest body) {
         requireWarehouseWrite(operatorId);
+        // operatorId 继续下传：负责人变更要落 admin_audit_log 的前后值（CB-070 第 4 点），
+        // 旧写法在这里把操作人丢了 ⇒ 审计连「谁改的」都答不了。
         return warehouseService.upsertWarehouse(
-                warehouseId, body.warehouseName(), body.address(), body.status(), body.managerUserId());
+                operatorId, warehouseId, body.warehouseName(), body.address(), body.status(), body.managerUserId());
     }
 
     public List<WarehouseInventoryDto> warehouseInventory(Long operatorId, String warehouseId) {

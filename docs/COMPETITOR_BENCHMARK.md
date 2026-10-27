@@ -2405,7 +2405,17 @@
      现改为 `merchantBindingState()` 三态：`unknown`（资料未到，只说「请下拉重试」）／`unbound`（真取到资料且商户为空）／`bound`。
   3. **有意不同（相对 AWS/Google）**：不在 message 里放 `ErrorInfo` 结构体（我方 `ApiResponse` 只有 code/message），
      等价实现=message 里点名「资源 ID + 缺哪条 + 找谁」，前端不做二次解析；理由：改响应契约的爆炸半径大于收益（本轮不动）。
-  4. **采纳（低优先，本轮不做）**：负责人变更写入 `admin_audit_log` 时带**前后值**（金蝶口径），现状只记列名——列 backlog，不混进本次修复。
+  4. **采纳并已落地（2026-10-27，原列 backlog）**：负责人变更写 `admin_audit_log` 时带**前后值**（金蝶口径）。
+     🔴 动手前复核把本条当初写的现状「只记列名」**证伪**了：`warehouse.manager_user_id` 在本仓的唯一实体写点
+     （`WarehouseService.upsertWarehouse`）**一条审计都不落**，两个运营调用方（`OpsWarehouseAdminService` / `OpsCommercialFacade`）
+     在权限校验后就把 operatorId 丢了——「只记列名」说的是**通用数据管理通道**（那条 CB-021 已补 `col=old→new`）。
+     ⇒ 同一条列、两条通道，留痕能力正好相反，这才是真实缺陷形态（也说明 backlog 措辞不能当现状用）。
+     现补成与 CB-021 同形：`action=WAREHOUSE_MANAGER`、`targetType=WAREHOUSE`（大写，与通用通道的 `table.toUpperCase()` 同被一个对象筛子捞出）、
+     `detail=manager_user_id=42(张三 138****6077)->null`；编号可还原、括号里的人名给运营看；**只在真的换人/清空时记**（改名称地址不灌噪音），
+     而清空正是刻意「不校验」的那条路（撤权不是授权），留痕是它唯一兜底。
+     端侧同步三条字典（`AUDIT_ACTION_LABELS` / `AUDIT_TARGET_LABELS` / `AUDIT_DETAIL_KEY_LABELS`——未命中的 UPPER_SNAKE 回落「其他操作」且**不可筛**）
+     + `OpsAuditQueryService.SENSITIVE_ACTION_PREFIXES` 纳入 `WAREHOUSE_MANAGER`（负责人＝谁能自主补货/做分仓盘点，换人即换权）。
+     🔴 detail 里只允许掩码手机号：审计页把 detail **原样**吐给 `ops:audit:list` 持有者，读侧只掩码操作人手机、不洗 detail。
 - **⚠️ 本条已知局限**：同行（友宝/思迅）**均未公开**保存时的校验规则与报错文案，本条的「报错规格」主要来自 Google/AWS 官方 API 规范（跨行业借形态）；
   「同商户」判据在行业里没有公开对照（同行的组织树是线路/门店，不是「仓×商户」），属我方数据模型的必要推导，须在代码注释里标为**自加门**。
 
