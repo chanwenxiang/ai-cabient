@@ -530,10 +530,10 @@
         type="info"
         :closable="false"
         show-icon
-        title="提交学习后、学成前停在这个列表；列表为空＝当前没有正在学习的商品"
+        title="出现在本列表＝正在学习或排队训练；「审核」是条目准入状态（通过才开始训练），学成以「模型」选项卡出现为准"
       >
         <template #default>
-          厂商侧原文状态：pass 通过 / reject 驳回 / wait 待审核。厂商商户 App 里发起的学习也在这里，
+          审核态：pass 审核通过 / reject 驳回 / wait 待审核。厂商商户 App 里发起的学习也在这里，
           与本页「最近学习」（只记我方发起的）互不相干。
         </template>
       </el-alert>
@@ -544,11 +544,10 @@
         <el-table-column label="商品" min-width="220">
           <template #default="{ row }">{{ row.name || '—' }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="100">
+        <el-table-column label="状态" width="170">
           <template #default="{ row }">
-            <el-tag size="small" :type="auditStatusType(row.status)">
-              {{ auditStatusText(row.status) }}
-            </el-tag>
+            <el-tag size="small">学习中</el-tag>
+            <div class="sub" style="margin-top: 4px">审核：{{ auditStatusText(row.status) }}</div>
           </template>
         </el-table-column>
         <el-table-column label="驳回原因" min-width="180">
