@@ -34,7 +34,7 @@
           @click="openDetail(Number(st.stocktakeId))"
         >
           <view class="row-between">
-            <text class="st-no">#{{ st.stocktakeNo }}</text>
+            <text class="st-no">{{ st.stocktakeNo }}</text>
             <text class="st-status" :class="lineStateClass(st.status)">{{
               stocktakeStatusLabel(st.status)
             }}</text>
@@ -122,7 +122,7 @@
         <template v-else-if="detail">
           <view class="card">
             <view class="row-between">
-              <text class="st-no">#{{ detail.stocktakeNo }}</text>
+              <text class="st-no">{{ detail.stocktakeNo }}</text>
               <text class="st-status" :class="lineStateClass(detail.status)">{{
                 stocktakeStatusLabel(detail.status)
               }}</text>
@@ -451,7 +451,7 @@ async function submitCreate() {
       mode: createMode.value,
       notes: createNotes.value.trim() || undefined
     });
-    showSuccess(`盘点单 #${st.stocktakeNo} 已创建`);
+    showSuccess(`盘点单 ${st.stocktakeNo} 已创建`);
     createNotes.value = '';
     detailId.value = Number(st.stocktakeId);
     mode.value = 'detail';

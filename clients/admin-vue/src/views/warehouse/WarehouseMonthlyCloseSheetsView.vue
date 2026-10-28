@@ -10,23 +10,28 @@
             <span class="hint">
               两步法：生成未审批（差异金额化）→ 审批锁单 → 逐行处置（进索赔台账 /
               标记正常损耗）。盘亏走索赔或损耗，<b>不生成应付</b>。金额 = 差异件数 ×
-              目录采购成本（未配置成本的 SKU 行金额留空）。
+              目录采购成本（未配置成本的 SKU
+              行金额留空）。上方「仓库」既筛本列表也是生成目标，清空＝看全部仓库。
             </span>
           </div>
         </div>
       </div>
     </template>
 
-    <!-- 生成区 -->
-    <el-card class="block" shadow="never">
-      <div class="gen-row">
+    <!-- 筛选 + 生成：并入全站标准 filter-bar（原为页中嵌套 el-card.block，与其余页面壳不一致）。
+         🔴 「仓库」既是列表筛选也是生成目标：后端 /close-sheets 支持 warehouseId 过滤，
+         但**不支持**按月份/状态过滤，故月份只作生成入参、不做筛选项（不做前端假过滤）。 -->
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="仓库">
         <el-select
-          v-model="genWarehouseId"
-          placeholder="选择仓库"
+          v-model="warehouseId"
+          placeholder="全部仓库"
+          clearable
           filterable
           style="width: 220px"
           :loading="warehousesLoading"
           data-testid="mcs-warehouse-select"
+          @change="search"
         >
           <el-option
             v-for="w in warehouses"
@@ -35,6 +40,8 @@
             :value="w.warehouseId"
           />
         </el-select>
+      </el-form-item>
+      <el-form-item label="生成月份">
         <el-date-picker
           v-model="genMonthDate"
           type="month"
@@ -43,32 +50,66 @@
           style="width: 150px"
           data-testid="mcs-month-picker"
         />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" data-testid="mcs-search-btn" @click="search">查询</el-button>
+        <el-button data-testid="mcs-reset-btn" @click="resetFilter">重置</el-button>
         <el-button
-          type="primary"
+          type="success"
           :loading="generating"
           data-testid="mcs-generate-btn"
           @click="generate"
         >
           生成 / 重新生成未审批
         </el-button>
-      </div>
-    </el-card>
+      </el-form-item>
+    </el-form>
 
-    <!-- 台账列表 -->
-    <el-table
-      class="block"
-      :data="sheets"
-      v-loading="listLoading"
-      size="small"
+    <!-- 台账列表：CrudTable 统一分页 / 空态 / 操作列（原为裸 el-table + 写死 page=0&size=50） -->
+    <CrudTable
+      :table="crud"
+      row-key="closeId"
+      :actions="rowActions"
+      :action-width="110"
+      actions-test-id="mcs"
+      empty-text="还没有月结单：先在上方选仓库与生成月份，点「生成 / 重新生成未审批」"
       data-testid="mcs-sheet-table"
+      @action="onRowAction"
     >
-      <el-table-column prop="closeId" label="单号" width="80" />
-      <el-table-column prop="warehouseName" label="仓库" min-width="120" />
-      <el-table-column prop="yearMonth" label="月份" width="90" />
-      <el-table-column label="状态" width="90">
+      <el-table-column
+        prop="closeId"
+        label="单号"
+        width="80"
+        class-name="col-text"
+        label-class-name="col-text"
+      />
+      <el-table-column
+        prop="warehouseName"
+        label="仓库"
+        min-width="120"
+        class-name="col-text"
+        label-class-name="col-text"
+      />
+      <el-table-column
+        prop="yearMonth"
+        label="月份"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="status"
+        label="状态"
+        width="90"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">
-          <el-tag v-if="row.status === 'APPROVED'" type="success" size="small">已审批</el-tag>
-          <el-tag v-else type="info" size="small">未审批</el-tag>
+          <el-tag :type="row.status === 'APPROVED' ? 'success' : 'info'" size="small">
+            {{ displayLabel('close_sheet_status', row.status) }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column
@@ -78,7 +119,7 @@
         width="150"
       >
         <template #default="{ row }">
-          {{ row.lossQty }} / {{ fmtCents(row.lossAmountCents) }}
+          {{ row.lossQty }} / {{ yuanTextZero(row.lossAmountCents) }}
         </template>
       </el-table-column>
       <el-table-column
@@ -88,27 +129,19 @@
         width="150"
       >
         <template #default="{ row }">
-          {{ row.surplusQty }} / {{ fmtCents(row.surplusAmountCents) }}
+          {{ row.surplusQty }} / {{ yuanTextZero(row.surplusAmountCents) }}
         </template>
       </el-table-column>
-      <el-table-column prop="approvedByName" label="审批人" width="100" />
-      <el-table-column label="操作" width="160">
-        <template #default="{ row }">
-          <el-button size="small" data-testid="mcs-detail-btn" @click="openDetail(row)"
-            >查看</el-button
-          >
-          <el-button
-            v-if="row.status === 'DRAFT'"
-            size="small"
-            type="success"
-            data-testid="mcs-approve-btn"
-            @click="approve(row)"
-          >
-            审批
-          </el-button>
-        </template>
+      <el-table-column
+        prop="approvedByName"
+        label="审批人"
+        width="100"
+        class-name="col-text"
+        label-class-name="col-text"
+      >
+        <template #default="{ row }">{{ textOrNone(row.approvedByName) }}</template>
       </el-table-column>
-    </el-table>
+    </CrudTable>
 
     <!-- 详情 -->
     <el-drawer v-model="detailOpen" size="72%" :title="detailTitle">
@@ -123,16 +156,18 @@
           <el-descriptions-item label="仓库">{{ detail.warehouseName }}</el-descriptions-item>
           <el-descriptions-item label="月份">{{ detail.yearMonth }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            {{ detail.status === 'APPROVED' ? '已审批（锁单）' : '未审批' }}
+            {{ closeStatusText(detail.status) }}
           </el-descriptions-item>
           <el-descriptions-item label="期初来源">
-            <el-tag v-if="detail.openingSource === 'PERIOD_CLOSE'" type="success" size="small"
-              >上期实盘结转</el-tag
+            <el-tag
+              :type="detail.openingSource === 'PERIOD_CLOSE' ? 'success' : 'warning'"
+              size="small"
             >
-            <el-tag v-else type="warning" size="small">账面结转</el-tag>
+              {{ displayLabel('close_sheet_opening_source', detail.openingSource) }}
+            </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="审批人">{{
-            detail.approvedByName || '—'
+            textOrNone(detail.approvedByName)
           }}</el-descriptions-item>
         </el-descriptions>
 
@@ -160,7 +195,7 @@
           title="未审批状态：随时可重新生成覆盖；差异处置须先审批锁单"
         />
 
-        <div class="block" style="display: flex; gap: 8px">
+        <div class="block drawer-actions">
           <el-button
             size="small"
             :loading="driftLoading"
@@ -180,8 +215,20 @@
           max-height="520"
           data-testid="mcs-line-table"
         >
-          <el-table-column prop="skuId" label="SKU" min-width="110" />
-          <el-table-column prop="skuName" label="名称" min-width="110" />
+          <el-table-column
+            prop="skuId"
+            label="SKU"
+            min-width="110"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
+          <el-table-column
+            prop="skuName"
+            label="名称"
+            min-width="110"
+            class-name="col-text"
+            label-class-name="col-text"
+          />
           <el-table-column
             class-name="col-text"
             label-class-name="col-text"
@@ -306,17 +353,29 @@
           >
             <template #default="{ row }">
               <span v-if="row.gapAmountCents == null" class="muted">未配成本</span>
-              <span v-else>{{ fmtCents(row.gapAmountCents) }}</span>
+              <span v-else>{{ yuanTextZero(row.gapAmountCents) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="处置" width="100">
+          <el-table-column
+            label="处置"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
             <template #default="{ row }">
               <el-tag size="small" :type="dispositionTag(row.gapDisposition)">
                 {{ dispositionLabel(row.gapDisposition) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="130">
+          <el-table-column
+            label="操作"
+            width="130"
+            align="center"
+            class-name="col-action"
+            label-class-name="col-action"
+          >
             <template #default="{ row }">
               <el-button
                 v-if="
@@ -432,7 +491,7 @@
             {{ disposeLine.skuId }}：{{ disposeLine.gapQty }} 件，
             {{
               disposeLine.gapAmountCents != null
-                ? fmtCents(disposeLine.gapAmountCents)
+                ? yuanTextZero(disposeLine.gapAmountCents)
                 : '金额未配（成本未配置）'
             }}
           </span>
@@ -456,8 +515,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { CircleCheck, View } from '@element-plus/icons-vue';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import { useCrudTable } from '@/composables/useCrudTable';
+import { textOrNone, yuanTextZero } from '@/utils/display';
 
 interface CloseSheetLine {
   lineId: number;
@@ -532,8 +596,8 @@ async function loadWarehouses() {
 }
 void loadWarehouses();
 
-// ── 生成 ──
-const genWarehouseId = ref('');
+// ── 仓库（既是列表筛选，也是生成目标）+ 生成月份 ──
+const warehouseId = ref('');
 const genMonthDate = ref<string>(defaultLastMonth());
 const generating = ref(false);
 const genMonth = computed(() => genMonthDate.value || '');
@@ -546,7 +610,7 @@ function defaultLastMonth(): string {
 }
 
 async function generate() {
-  if (!genWarehouseId.value || !genMonth.value) {
+  if (!warehouseId.value || !genMonth.value) {
     ElMessage.warning('请先选择仓库和月结月份');
     return;
   }
@@ -556,14 +620,14 @@ async function generate() {
       AdminEndpoints.warehouseCloseSheetsGenerate,
       'POST',
       {
-        warehouseId: genWarehouseId.value,
+        warehouseId: warehouseId.value,
         yearMonth: genMonth.value
       }
     );
     ElMessage.success(
       `已生成未审批 #${sheet.closeId}（盘亏 ${sheet.lossQty} 件 / 盘盈 ${sheet.surplusQty} 件）`
     );
-    await loadSheets();
+    await crud.load();
     detail.value = sheet;
     detailOpen.value = true;
     driftInfo.value = null;
@@ -574,25 +638,49 @@ async function generate() {
   }
 }
 
-// ── 台账列表 ──
-const sheets = ref<CloseSheet[]>([]);
-const listLoading = ref(false);
-async function loadSheets() {
-  listLoading.value = true;
-  try {
-    const data = await api.request<{ items: CloseSheet[]; total: number }>(
-      AdminEndpoints.warehouseCloseSheets(new URLSearchParams({ page: '0', size: '50' })),
+// ── 台账列表（分页交给后端：原实现写死 page=0&size=50，第 51 单往后看不到）──
+const crud = useCrudTable<CloseSheet>({
+  rowKey: (r) => r.closeId,
+  fetchPage: async (params) => {
+    const q = new URLSearchParams({
+      page: String(params.page), // 0 起（useCrudTable 已换算）
+      size: String(params.size)
+    });
+    if (warehouseId.value) q.set('warehouseId', warehouseId.value);
+    return api.request<{ items: CloseSheet[]; total: number }>(
+      AdminEndpoints.warehouseCloseSheets(q),
       'GET'
     );
-    // 🔴 失败不清空旧数据（claim-ledger 先例）：这里请求成功才赋值
-    sheets.value = data.items || [];
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '月结单加载失败');
-  } finally {
-    listLoading.value = false;
   }
+});
+
+function search() {
+  void crud.search();
 }
-void loadSheets();
+
+function resetFilter() {
+  warehouseId.value = '';
+  search();
+}
+
+const rowActions = (row: CloseSheet): CrudRowAction[] => {
+  const list: CrudRowAction[] = [{ key: 'detail', label: '查看', icon: View, type: 'primary' }];
+  if (row.status === 'DRAFT') {
+    list.push({
+      key: 'approve',
+      label: '审批锁单',
+      icon: CircleCheck,
+      type: 'success',
+      perm: 'ops:warehouse:edit'
+    });
+  }
+  return list;
+};
+
+function onRowAction({ key, row }: { key: string; row: CloseSheet }) {
+  if (key === 'detail') void openDetail(row);
+  else if (key === 'approve') void approve(row);
+}
 
 // ── 详情 ──
 const detail = ref<CloseSheet | null>(null);
@@ -654,7 +742,7 @@ async function approve(row: CloseSheet) {
     );
     ElMessage.success('已审批锁单');
     detail.value = updated;
-    await loadSheets();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '审批失败');
   }
@@ -738,7 +826,7 @@ async function confirmDispose() {
     detail.value = updated;
     disposeOpen.value = false;
     ElMessage.success('已处置');
-    await loadSheets();
+    await crud.load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '处置失败');
   } finally {
@@ -747,24 +835,14 @@ async function confirmDispose() {
 }
 
 // ── 展示 helpers ──
-function fmtCents(v: number | null): string {
-  if (v == null) return '—';
-  return `¥${(v / 100).toFixed(2)}`;
+/** 本页的核心动作是「锁账」，字典只给「已审批」，这里补上锁单后果。 */
+function closeStatusText(status: string): string {
+  const label = displayLabel('close_sheet_status', status);
+  return status === 'APPROVED' ? `${label}（锁单）` : label;
 }
 
 function dispositionLabel(d: string): string {
-  switch (d) {
-    case 'PENDING':
-      return '待认定';
-    case 'CLAIM':
-      return '已索赔';
-    case 'NORMAL_LOSS':
-      return '正常损耗';
-    case 'SURPLUS':
-      return '盘盈待查';
-    default:
-      return d;
-  }
+  return displayLabel('close_sheet_disposition', d);
 }
 
 function dispositionTag(d: string): 'warning' | 'danger' | 'info' | 'success' {
@@ -798,10 +876,9 @@ async function exportCsv() {
 .block {
   margin-bottom: 12px;
 }
-.gen-row {
+.drawer-actions {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 8px;
 }
 .gap-loss {
   color: var(--el-color-danger);

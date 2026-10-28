@@ -160,6 +160,57 @@
 
 ---
 
+## 十三期（开门柜「货道」概念残留盘点，2026-10-28 开单 · 只盘点不改码）
+
+> **判据（2026-10-28 用户拍板，勿再自创）**：开门柜 = `jiangyi_device.status = BOUND`（**不是** `device_type`）。
+> 开门柜没有「货道」概念：补货任务行 `replenishment_task_line.slot_id` 恒为 `null`，在售面读
+> `class_mapping + sku_catalog + inventory`（见 `PROJECT_KNOWLEDGE` 将邑段 / V400 映射复核闸口）。
+> 货道柜（重力 / 闸机）仍有 `device_slot`，那部分「货道」是真实概念，**不在本债内**。
+>
+> **本轮已动的一处**：`views/growth/ReplenishmentStaffView.vue` 理货记录删掉 `prop="slotId" label="货道"` 列
+> （详见修复日志 D26）。其余 19 个文件 82 处**未动**，按下表分类待拍板。
+>
+> **口径**：`grep -rn 货道 clients/admin-vue/src`（含 `.ts` / `.vue`，不含 `static/` 构建产物）＝ 84 处 / 20 文件。
+
+| ID | 优先级 | 状态 | 问题摘要 | 主要证据 / 边界 | 完成记录 |
+|----|--------|------|----------|-----------------|----------|
+| D26 | P2 | open | 运营后台仍有 19 个文件对**开门柜**讲「货道」：恒空列 / `待分配`·`无`·`暂无` 兜底 / 按货道粒度的文案 | 下表 A 类逐条 `file:line`；判据来自 2026-10-28 拍板 | — |
+
+### A 类 · 对开门柜会误导（该条件化或改文案，待拍板）
+
+| 位置 | 现状 | 为什么说它误导 |
+|------|------|----------------|
+| `components/warehouse/WarehouseOutboundsTab.vue:84` | `label="货道"`，单元格 `{{ row.slotId \|\| '无' }}` | 出库明细行=补货任务行；开门柜恒 `null` ⇒ 整列恒显「无」 |
+| `views/print/PrintView.vue:35` `:53` | 拣货单表头「货道」+ `{{ line.slotId \|\| '待分配' }}`；脚注「请按单核对批次与货道」 | 开门柜的货**永远不会分配货道**，「待分配」把结构性缺失说成流程未完成 |
+| `views/orders/OrderListView.vue:181` `:626` `:812` | 商品列内嵌货道展示 + 明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 将邑柜订单走识别结算，无 slot；`utils/order-line-summary.ts:9` 靠后端 `·货道A1` 字面量解析，开门柜订单串里根本没有该段 |
+| `views/disputes/DisputeListView.vue:587` | 争议明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 同上，订单行的 slot 对开门柜恒空 |
+| `views/replenishment/ReplenishmentView.vue:382` `:576` `:595` `:738` `:946` `:952` `:1121` `:1600` | 补货建议表 `prop="slotCode"`、空态「当前无缺货/低库存货道」、CSV 表头「货道」、「货道已满请先下架」、确认文案「设备×货道 粒度」 | 2026-10-28 已拍板：开门柜补货行恒 `slotId=null`，与残留货道无关 ⇒ 这些把「货道」当补货单位的表述对将邑柜不成立（**缺货新口径**本身也在待拍板清单里） |
+| `views/analytics/FootfallView.vue:8` `:189` `:225` | 页标题与模块标题「货道热区」，空态「暂无带货道明细的订单」 | 热区按货道坐标聚合；开门柜订单无坐标 ⇒ 模块对该柜型天然为空，需在标题上限定「（货道柜）」而非留白 |
+| `components/device/DeviceJiangyiCard.vue:14` `:481` | 将邑柜卡片自己写着「库存走既有『货道管理』」「上架；库存走『货道陈列』」 | 🔴 最刺眼的一处：正在被当开门柜用的组件里教运营去找货道 |
+| `views/growth/SkuReviewView.vue:9` `:290` `:295` `:324` `:329` | 下架提示「仅备注，不改货道」 | 纯文案，但把「柜内商品」说成「货道商品」；改词为「不改柜内在售商品」即可 |
+| `views/vision/LearningLibraryView.vue:89` `:130` | 「货道在售 ≠ 识别上架」 | 将邑映射页；开门柜的「在售」不是货道，措辞与 V400 映射口径混在一起容易读成两套 |
+
+### B 类 · 货道柜固有概念，保留（勿顺手删）
+
+| 位置 | 说明 |
+|------|------|
+| `views/devices/DeviceDetailView.vue`（19 处中的 KPI / 编辑货道弹窗 / 模板套用 / 排序） | 该页已按 CB-051 改造：`:440` `:1390` 明确「开门柜无货道概念、在售商品=商品卡片，卡片即编辑入口」。剩余「缺货货道 / 低库存货道 / 编辑货道 / N 货道」服务货道柜，且 `:735` 弹窗只在有 slot 的行入口出现 |
+| `composables/device/useDeviceSlotActions.ts`（7 处）· `components/device/SlotInlineRow.vue`（2 处） | 货道行内编辑的实现本体，同上一并保留 |
+| `views/consistency/ConsistencyView.vue:401` | `SLOT_CAPACITY` 巡检项的中文标签，名字等于后端 check code，不是界面自造概念 |
+| `views/merchants/MerchantSplitsView.vue:204` `:213` `:214` `:982` | `allowMerchantPlanogramEdit`（flag `planogram`）商户能力开关：对只跑开门柜的商户自然失效，删开关要动后端字段，属另一笔账 |
+| `utils/order-line-summary.ts:2` `:3` `:9` `:25` + `.test.ts`（7 处） | 解析 `·货道A1` 的唯一实现与其单测；货道柜订单要它 |
+
+### C 类 · 注释 / 关键词 / 端点说明，保留
+
+`api/endpoints.ts:106` `:155` `:360`、`config/menu.ts:300`（菜单搜索词，删了搜不到）、`views/skus/SkuListView.vue:322` `:377` `:525`（件装数/上架限额/「本项目无称重货道」注释）、`views/analytics/FootfallView.vue:265`（竞态注释）、`views/devices/DeviceDetailView.vue:834` `:838` `:2290`（历史对照注释）。
+
+**待拍板（三项，各自爆炸半径不同）**：
+1. A 类「恒空列」是**删列**（如本轮理货记录）还是**按柜型条件显示**（货道柜仍展示）——后者要前端能拿到柜型判据，即 `jiangyi BOUND` 的前端投影，目前只有设备详情侧在用。
+2. `PrintView` 的「待分配」兜底词（改成按柜型显示，还是统一「不适用」）。
+3. `ReplenishmentView` 的补货建议是否只对货道柜显示货道列（与「缺货新口径」那条待拍板是同一件事）。
+
+---
+
 ## 已确认「不是债」（勿重复开单）
 
 | 点 | 说明 |
@@ -315,6 +366,22 @@
 
 （D1–D25 追踪表内 open 项已清。）
 
+### 2026-10-28 — 开单 D26（仅盘点）
+- 改动：无代码。用户报障「理货记录还有货道的概念」后全量 `grep 货道 clients/admin-vue/src`，把 84 处 / 20 文件按 A（误导）/B（货道柜固有）/C（注释·关键词）分类写进「十三期」节
+- 验证：计数由 `grep -rn 货道 --include=*.vue --include=*.ts` 现取（不含 `static/` 构建产物）；A 类每条带 `file:line` 与「为什么误导」
+- 回链：判据见 `PROJECT_KNOWLEDGE` 2026-10-28「开门柜=jiangyi BOUND」行
+
+### 2026-10-28 — 三页缺陷整改（用户报障，未预先开单）
+- **月结单台账**（`views/warehouse/WarehouseMonthlyCloseSheetsView.vue`）：生成区+筛选并入 `filter-bar filter-bar--compact`，裸 `el-table` 换 `CrudTable`+`useCrudTable`（去掉写死的 `page=0&size=50`，第 51 单往后此前看不到）；状态/期初来源/处置三处中文标签迁 `@aicabinet/shared-dict`（新增 `close_sheet_status` / `close_sheet_opening_source` / `close_sheet_disposition`）；`¥${(v/100).toFixed(2)}` 自建 `fmtCents` 换 `yuanTextZero`；抽屉行表补 `col-*` 语义 class。详情抽屉的行表**仍是裸 `el-table`**（无独立分页需求），故本页合法留在 `admin-table-gate-baseline.json` 内
+- **仓库近效期预警**（`views/warehouse/WarehouseExpiryAlertsView.vue`）：仓库筛选由自由文本 `el-input`（要手敲仓库 id）改 `el-select`（名称显示 / id 提交，取 `warehouseListAll`），仓库列做 id→名称换算；查不到时退回原 id 而非显示「暂无」。🔴 仓库**不是** sys_dict：字典里只有 `warehouse_status` 等枚举，主数据在 `warehouse` 表
+- **理货记录**（`views/growth/ReplenishmentStaffView.vue` + 后端）：删「货道」列；顺带修撞 key——`TallyRecordRowDto` 补 `lineId`（SQL **投影列**增 `l.line_id`），前端 row-key 从 `taskId:skuId:slotId` 改 `lineId`（开门柜 `slot_id` 恒 null ⇒ 同任务同 SKU 两行会撞，Vue 复用节点后勾选/展开错行）；`packages/shared-types/src/generated/openapi.ts` 只补 lineId 两行
+- 验证：`npx vue-tsc --noEmit` exit 0；`check-admin-table-gate` OK（裸表格 17，基线未放宽）；`check-admin-table-align` ok（bare center 0，新增 WARN 0）；`mvn -o -pl services/trade-service -am -Dtest=TallyLedgerServiceTest -Dsurefire.failIfNoSpecifiedTests=false test` → surefire `Tests run: 2`（`<testcase>` 计数）exit 0；Playwright 三页实测 **27/27**（`vite` 3123 + `page.route` 只读 mock，跑法 `.tmp/verify-1028-three-pages.mjs`）
+- 🔴 负向对照（两条判据被证伪后订正）：
+  1. **DOM 层证不了撞 key**：把 mock 的 `lineId` 抹平重跑，「无 Duplicate keys 告警」仍然绿——本表既无勾选列也无展开列，`el-table` 只在 patch 乱序时才对重复 key 告警（`render-helper` 的 `getKey` 走 `getRowIdentity`，但 `patchKeyedChildren` 的前缀同步会把同序子节点全吃掉）。所以这条只是 canary，真判据挪到静态差分 `.tmp/static-control-1028.mjs`：同一份断言跑 `git show HEAD:` ⇒ **4 条红**，跑工作树 ⇒ 全绿。
+  2. **`contains("l.line_id")` 是弱断言**：HEAD 的 SQL 里 `ORDER BY … l.line_id ASC` 也含这个字面，单测在修复前照样绿。改成断言 `SELECT l.line_id`（投影位置），差分实测 HEAD 红 / 工作树绿。
+- 「货道」列删除的 DOM 判据是真能红的：临时把列加回去（备份 sha256 `1f35ce09…`，跑完逐字节还原并 `sha256sum -c` OK）⇒ 该检查变红且**只有它**变红（26/27，表头读出 `… 数量 货道 已应用 任务`）
+- 未做：merchant-mp 的 `pages/tally-records/tally-records.vue:220` `:233` 同样有「货道」展示与 `taskId-skuName-slotId` 撞 key——不在本轮拍板范围（用户只点了运营后台），只在此留痕
+
 ---
 
 ## 关联
@@ -334,3 +401,4 @@
 - 十期：本表 **D23**（「十期后续」节）
 - 十一期：本表 **D24**（「十一期后续」节）
 - 十二期：本表 **D25**（「十二期后续」节）
+- 十三期：本表 **D26**（「十三期」节 · 开门柜货道残留盘点，2026-10-28 开单，仅清单未改码）

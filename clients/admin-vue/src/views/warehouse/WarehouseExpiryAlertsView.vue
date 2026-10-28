@@ -13,6 +13,12 @@ import { useAuthStore } from '@/stores/auth';
 import CrudTable from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { EMPTY_TEXT } from '@/utils/display';
+
+interface WarehouseOption {
+  warehouseId: string;
+  warehouseName: string;
+}
 
 interface ExpiryAlertRow {
   inventoryId: number;
@@ -36,6 +42,40 @@ const daysAhead = ref(30);
 /** 空 = 全部仓库。 */
 const warehouseId = ref('');
 
+// 🔴 仓库候选来自 `warehouse` 表（warehouseListAll），**不是 sys_dict**：
+//    字典只有 warehouse_status 之类的枚举，没有仓库主数据。此前这里是自由文本框，
+//    逼运营手敲仓库 id ⇒ 既敲不对，也和列表里那列的 id 对不上眼。
+const warehouses = ref<WarehouseOption[]>([]);
+const warehousesLoading = ref(false);
+async function loadWarehouses() {
+  warehousesLoading.value = true;
+  try {
+    const data = await api.request<{ items: WarehouseOption[] }>(
+      AdminEndpoints.warehouseListAll,
+      'GET'
+    );
+    warehouses.value = data.items || [];
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? `仓库列表加载失败：${e.message}` : '仓库列表加载失败');
+  } finally {
+    warehousesLoading.value = false;
+  }
+}
+// 无仓库权限时不拉：否则进页面先吃一个 403 红条，而页面本来就会显示「没有仓库查看权限」
+if (canList.value) void loadWarehouses();
+
+const warehouseNameById = computed(() => {
+  const map = new Map<string, string>();
+  for (const w of warehouses.value) map.set(w.warehouseId, w.warehouseName);
+  return map;
+});
+
+/** 仓库列：id→名称。查不到（仓库被删 / 超出目录 500 上限）时退回原 id，不显示「暂无」掩盖问题。 */
+function warehouseLabel(id?: string | null): string {
+  if (!id) return EMPTY_TEXT;
+  return warehouseNameById.value.get(id) ?? id;
+}
+
 const crud = useCrudTable<ExpiryAlertRow>({
   rowKey: (r) => r.inventoryId,
   fetchPage: async (params) => {
@@ -43,7 +83,8 @@ const crud = useCrudTable<ExpiryAlertRow>({
       page: String(params.page), // 0 起（useCrudTable 已换算）
       size: String(params.size)
     });
-    if (warehouseId.value.trim()) q.set('warehouseId', warehouseId.value.trim());
+    // 下拉选择（clearable 可能置空）；不再 .trim()——值不是自由文本了
+    if (warehouseId.value) q.set('warehouseId', warehouseId.value);
     // 后端会夹取到 1..365；这里也夹一次，避免用户输 99999 时界面与实际不符
     q.set('daysAhead', String(Math.min(Math.max(Number(daysAhead.value) || 30, 1), 365)));
     const data = await api.request<{ items: ExpiryAlertRow[]; total: number }>(
@@ -110,13 +151,23 @@ function onDaysChange() {
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onFilterChange">
       <el-form-item label="仓库">
-        <el-input
+        <el-select
           v-model="warehouseId"
-          placeholder="留空 = 全部仓库"
+          placeholder="全部仓库"
           clearable
-          style="width: 180px"
+          filterable
+          style="width: 200px"
+          :loading="warehousesLoading"
+          data-testid="wea-warehouse-select"
           @change="onFilterChange"
-        />
+        >
+          <el-option
+            v-for="w in warehouses"
+            :key="w.warehouseId"
+            :label="w.warehouseName"
+            :value="w.warehouseId"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="提前天数">
         <!-- 🔴 上限 365：与后端夹取一致，避免界面显示 99999 但实际只查 365 天 -->
@@ -199,7 +250,9 @@ function onDaysChange() {
         min-width="130"
         class-name="col-text"
         label-class-name="col-text"
-      />
+      >
+        <template #default="{ row }">{{ warehouseLabel(row.warehouseId) }}</template>
+      </el-table-column>
     </CrudTable>
     <el-alert v-else type="warning" :closable="false" show-icon title="没有仓库查看权限" />
   </el-card>

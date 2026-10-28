@@ -40,7 +40,7 @@ class TallyLedgerServiceTest {
                 .thenReturn(1L);
         when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of(new TallyRecordRowDto(
-                        4L, "CAB-1", 10001L, "张三", "COMPLETED", "RESTOCK",
+                        77L, 4L, "CAB-1", 10001L, "张三", "COMPLETED", "RESTOCK",
                         "SKU-A", "可乐", 6, "A1", true, Instant.now())));
 
         PageResultAccess.items(new TallyLedgerService(jdbc).ledger(0, 20, "CAB-1", 10001L, 30));
@@ -59,6 +59,9 @@ class TallyLedgerServiceTest {
         assertTrue(sqlCaptor.getValue().contains("COALESCE(s.sku_name, l.sku_id)"),
                 "SKU 目录缺失时回退 skuId（台账不得因目录缺失漏行）");
         assertTrue(sqlCaptor.getValue().contains("LIMIT ? OFFSET ?"), "必须分页（LIMIT/OFFSET）");
+        assertTrue(sqlCaptor.getValue().contains("SELECT l.line_id"),
+                "行身份 line_id 必须在**投影列**（只写进 ORDER BY 不算）：开门柜 slot_id 恒 null，"
+                        + "前端用 taskId:skuId:slotId 会撞 key");
     }
 
     @Test

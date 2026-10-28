@@ -17077,6 +17077,8 @@ export interface components {
         };
         TallyRecordRowDto: {
             /** Format: int64 */
+            lineId?: number;
+            /** Format: int64 */
             taskId?: number;
             deviceId?: string;
             /** Format: int64 */

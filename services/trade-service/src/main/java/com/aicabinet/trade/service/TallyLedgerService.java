@@ -62,7 +62,7 @@ public class TallyLedgerService {
                 + where;
 
         Long total = jdbc.queryForObject("SELECT COUNT(*)" + baseSql, Long.class, args.toArray());
-        String sql = "SELECT t.task_id, t.device_id, t.assignee_user_id, u.name AS operator_name,"
+        String sql = "SELECT l.line_id, t.task_id, t.device_id, t.assignee_user_id, u.name AS operator_name,"
                 + " t.status AS task_status, l.line_type, l.sku_id, COALESCE(s.sku_name, l.sku_id) AS sku_name,"
                 + " l.quantity, l.slot_id, l.applied, t.completed_at"
                 + baseSql
@@ -71,6 +71,7 @@ public class TallyLedgerService {
         args.add(safeSize);
         args.add((long) safePage * safeSize);
         List<TallyRecordRowDto> rows = jdbc.query(sql, (rs, i) -> new TallyRecordRowDto(
+                rs.getLong("line_id"),
                 rs.getLong("task_id"),
                 rs.getString("device_id"),
                 (Long) rs.getObject("assignee_user_id"),

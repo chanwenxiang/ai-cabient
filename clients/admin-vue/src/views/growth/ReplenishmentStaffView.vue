@@ -158,7 +158,7 @@
         </el-form-item>
       </el-form>
 
-      <CrudTable :table="tallyCrud" :row-key="tallyRowKey" empty-text="时间窗内无理货记录">
+      <CrudTable :table="tallyCrud" row-key="lineId" empty-text="时间窗内无理货记录">
         <el-table-column label="时间" width="168" align="center" class-name="col-status">
           <template #default="{ row }">
             <span class="cell-datetime">{{ formatTallyTime(row.completedAt) }}</span>
@@ -191,13 +191,8 @@
           align="center"
           class-name="col-status"
         />
-        <el-table-column
-          prop="slotId"
-          label="货道"
-          width="90"
-          align="center"
-          class-name="col-text"
-        />
+        <!-- 🔴 无「货道」列：开门柜（将邑 BOUND）没有货道概念，补货行 slot_id 恒为 null，
+             这一列对绝大多数柜机只会显示空白，还会误导运营以为按货道核对过。 -->
         <el-table-column label="已应用" width="90" align="center" class-name="col-status">
           <template #default="{ row }">
             <span :class="{ 'cell-warn': !row.applied }">{{ row.applied ? '是' : '否' }}</span>
@@ -239,6 +234,7 @@ const activeTab = ref<'staff' | 'tally'>('staff');
 
 // ── C2 理货记录台账 ────────────────────────────────────────────
 type TallyRow = {
+  lineId: number;
   taskId: number;
   deviceId: string;
   operatorUserId?: number;
@@ -247,7 +243,6 @@ type TallyRow = {
   skuId: string;
   skuName?: string;
   quantity: number;
-  slotId?: string;
   applied: boolean;
   completedAt?: string;
 };
@@ -256,8 +251,10 @@ const tallyDeviceId = ref('');
 const tallyOperator = ref('');
 
 const tallyCrud = useCrudTable<TallyRow>({
-  // 行主键：台账行=任务×货道行，任务+SKU+货道即唯一（无独立行 ID）
-  rowKey: tallyRowKey,
+  // 行主键=后端 line_id（replenishment_task_line 主键）。
+  // 🔴 此前用 taskId:skuId:slotId 拼：开门柜 slot_id 恒 null ⇒ 同任务同 SKU 的两行撞 key，
+  //    Vue 复用节点后勾选/展开会错行。
+  rowKey: (r) => r.lineId,
   autoLoad: false, // 首次切到台账 tab 时再拉（避免进页即多一次查询）
   fetchPage: (params) => {
     const q = new URLSearchParams({
@@ -273,10 +270,6 @@ const tallyCrud = useCrudTable<TallyRow>({
     );
   }
 });
-
-function tallyRowKey(row: TallyRow) {
-  return `${row.taskId}:${row.skuId}:${row.slotId ?? ''}`;
-}
 
 function searchTally() {
   void tallyCrud.search();

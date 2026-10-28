@@ -37,4 +37,24 @@ public interface WarehouseStocktakeMapper extends BaseTradeMapper<WarehouseStock
         }
         return selectPage(new Page<>(page + 1L, size), query);
     }
+
+    /**
+     * 当日前缀（如 `PD20261028-`）下已有的最大单号；无则 null。
+     * 固定三位流水 ⇒ 字符串降序与数值降序一致，可直接 orderByDesc。
+     */
+    default String findMaxNoByPrefix(String prefix) {
+        WarehouseStocktake row = selectOne(Wrappers.<WarehouseStocktake>lambdaQuery()
+                .select(WarehouseStocktake::getStocktakeNo)
+                .likeRight(WarehouseStocktake::getStocktakeNo, prefix)
+                .orderByDesc(WarehouseStocktake::getStocktakeNo)
+                .last("LIMIT 1"));
+        return row == null ? null : row.getStocktakeNo();
+    }
+
+    /** 单号是否已被占用（唯一索引兜底之前先自查，避免脏号导致整单 500）。 */
+    default boolean existsByNo(String stocktakeNo) {
+        Long n = selectCount(Wrappers.<WarehouseStocktake>lambdaQuery()
+                .eq(WarehouseStocktake::getStocktakeNo, stocktakeNo));
+        return n != null && n > 0;
+    }
 }

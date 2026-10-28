@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +41,10 @@ public class WarehouseStocktakeService {
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String ADJUSTED = "ADJUSTED";
     private static final String MATCHED = "MATCHED";
+    /** 单号日期口径 = 北京时间自然日（铁律 72：日期语义用 LocalDate.now(zone)，不用 Instant.now(zone)）。 */
+    private static final java.time.ZoneId BIZ_ZONE = java.time.ZoneId.of("Asia/Shanghai");
+    private static final java.time.format.DateTimeFormatter BIZ_DAY =
+            java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final PermissionService permissionService;
     private final WarehouseStocktakeMapper stocktakeRepository;
@@ -71,15 +76,37 @@ public class WarehouseStocktakeService {
         this.self = self;
     }
 
-    @Transactional
+    /**
+     * 建单入口。单号为 {@code PDyyyyMMdd-NNN}（按自然日重置），必须**串行分配**才唯一；
+     * 锁要罩住**整个事务**（提交后另一个建单才读得到已落库的号），所以本方法不标
+     * {@code @Transactional}，真正落库走 {@link #createLocked}（经 {@code self} 代理，事务边界在锁内）。
+     */
     public StocktakeDto create(Long operatorId, CreateStocktakeRequest request) {
+        LocalDate day = LocalDate.now(BIZ_ZONE);
+        String lockKey = stocktakeNoLockKey(day);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw conflict("盘点单号分配繁忙，请稍后重试");
+        }
+        try {
+            return self.createLocked(operatorId, request, day);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+
+    static String stocktakeNoLockKey(LocalDate day) {
+        return "warehouse:stocktake:no:" + day.format(BIZ_DAY);
+    }
+
+    @Transactional
+    public StocktakeDto createLocked(Long operatorId, CreateStocktakeRequest request, LocalDate day) {
         String wh = required(request.warehouseId(), "warehouseId").trim();
         authorize(operatorId, PERM_OPS_WAREHOUSE_EDIT, wh);
         warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
 
         boolean blind = request.mode() != null && "BLIND".equalsIgnoreCase(request.mode().trim());
         WarehouseStocktake st = new WarehouseStocktake();
-        st.setStocktakeNo(generateNo());
+        st.setStocktakeNo(nextStocktakeNo(day));
         st.setWarehouseId(wh);
         st.setMode(blind ? "BLIND" : "OPEN");
         st.setStatus(CabinetConstants.PROMOTION_STATUS_DRAFT);
@@ -431,8 +458,28 @@ public class WarehouseStocktakeService {
                 line.getAdjustedAt());
     }
 
-    private static String generateNo() {
-        return com.aicabinet.trade.util.BizIds.nextNumeric();
+    /**
+     * 当日下一个单号：{@code PD20261028-001}，三位流水按自然日重置。
+     * 历史/脏号不合前缀时从 001 起，并逐号自查存在性（唯一索引 {@code warehouse_stocktake_stocktake_no_key} 仍兜底）。
+     */
+    private String nextStocktakeNo(LocalDate day) {
+        String prefix = "PD" + day.format(BIZ_DAY) + "-";
+        int seq = 1;
+        String latest = stocktakeRepository.findMaxNoByPrefix(prefix);
+        if (latest != null && latest.length() > prefix.length()) {
+            try {
+                seq = Integer.parseInt(latest.substring(prefix.length()).trim()) + 1;
+            } catch (NumberFormatException ignored) {
+                seq = 1;
+            }
+        }
+        for (int i = seq; i < seq + 1000; i++) {
+            String candidate = prefix + String.format(Locale.ROOT, "%03d", i);
+            if (!stocktakeRepository.existsByNo(candidate)) {
+                return candidate;
+            }
+        }
+        throw conflict("当日盘点单号已用尽（超过 999 张），请联系运维");
     }
 
     private static String required(String value, String name) {

@@ -75,9 +75,9 @@ class WarehouseStocktakeServiceTest {
         assertEquals(1, dto.lines().size());
         assertEquals(Integer.valueOf(12), dto.lines().get(0).countedQty());
         assertEquals("PENDING", dto.lines().get(0).status());
-        // 业务单号纯数字（BizIds.nextNumeric）；禁 STK 前缀
-        assertTrue(dto.stocktakeNo() != null && dto.stocktakeNo().matches("\\d+"),
-                "stocktakeNo should be numeric, was: " + dto.stocktakeNo());
+        // 业务单号可读格式 PDyyyyMMdd-NNN（2026-10-28 起；此前是 BizIds 的 22 位纯数字）
+        assertTrue(dto.stocktakeNo() != null && dto.stocktakeNo().matches("PD\\d{8}-\\d{3}"),
+                "stocktakeNo should be PDyyyyMMdd-NNN, was: " + dto.stocktakeNo());
         verify(permissionService).requirePermission(1L, "ops:warehouse:edit");
     }
 

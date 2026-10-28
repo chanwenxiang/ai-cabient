@@ -698,6 +698,18 @@ export const DICT = {
         SOON: '临近（≤30天）',
         NORMAL: '正常'
     },
+    // 月结单状态（V327 两步法 CB-017：DRAFT 可反复重生成，APPROVED 锁单）。
+    //    与 warehouse_outbound_status 的 DRAFT 不同义，故单列一个类型，避免跨页串用。
+    close_sheet_status: { DRAFT: '未审批', APPROVED: '已审批' },
+    // 月结期初来源：PERIOD_CLOSE=上一账期实盘结转（可信）/ BOOK=账面流水结转（须人工核对）
+    close_sheet_opening_source: { PERIOD_CLOSE: '上期实盘结转', BOOK: '账面结转' },
+    // 月结差异处置（后端 WarehouseCloseSheetLineDto.gapDisposition）
+    close_sheet_disposition: {
+        PENDING: '待认定',
+        CLAIM: '已索赔',
+        NORMAL_LOSS: '正常损耗',
+        SURPLUS: '盘盈待查'
+    },
     purchase_suggestion_reason: {
         SALES_DRIVEN: '销量驱动',
         TREND_FORECAST: '趋势预测',

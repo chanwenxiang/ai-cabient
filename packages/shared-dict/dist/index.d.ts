@@ -729,6 +729,20 @@ export declare const DICT: {
         readonly SOON: "临近（≤30天）";
         readonly NORMAL: "正常";
     };
+    readonly close_sheet_status: {
+        readonly DRAFT: "未审批";
+        readonly APPROVED: "已审批";
+    };
+    readonly close_sheet_opening_source: {
+        readonly PERIOD_CLOSE: "上期实盘结转";
+        readonly BOOK: "账面结转";
+    };
+    readonly close_sheet_disposition: {
+        readonly PENDING: "待认定";
+        readonly CLAIM: "已索赔";
+        readonly NORMAL_LOSS: "正常损耗";
+        readonly SURPLUS: "盘盈待查";
+    };
     readonly purchase_suggestion_reason: {
         readonly SALES_DRIVEN: "销量驱动";
         readonly TREND_FORECAST: "趋势预测";

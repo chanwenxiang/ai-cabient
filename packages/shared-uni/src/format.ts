@@ -273,6 +273,10 @@ export function displayBizNo(id?: string | number | null, empty: string = EMPTY.
 
   const isLedgerOrPaymentOp = LEDGER_OR_PAYMENT_OP_PREFIX.test(raw);
 
+  // 盘点单 PD20261028-001（2026-10-28）：可读业务单号原样展示——它的「PD」后面直接跟日期，
+  // 没有分隔符，下面的「剥前缀」会把 PD 吃掉只剩 20261028001，故先单独放行。
+  if (/^PD\d{8}-\d{3,}$/i.test(raw)) return raw;
+
   // 柜机 / SKU / 仓库等可读编码原样展示（余额流水 BL- 等须先排除，避免 BL- 里的 L 命中 [G-Z]）
   if (!isLedgerOrPaymentOp) {
     if (/^(CAB|SKU|ORG|WH|BIN|LOT|ROUTE)[-_]/i.test(raw)) return raw;
