@@ -94,6 +94,8 @@ function onPick(key: string) {
   width: 100%;
   background: var(--card-bg, #fff);
   border-bottom: 1rpx solid var(--card-border, #e8eeea);
+  /* 2026-10-28：tabs 与下方列表/内容贴在一起（此前无下边距），补下边距全局修复 */
+  margin-bottom: 16rpx;
   box-sizing: border-box;
 }
 .wx-tabs--scroll {

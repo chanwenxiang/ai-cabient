@@ -78,8 +78,22 @@
               <view class="online-dot" :class="d.online ? 'on' : 'off'" />
             </view>
             <view class="device-info">
-              <text class="name">{{ d.deviceName || d.deviceId }}</text>
+              <view class="name-row">
+                <text class="name">{{ d.deviceName || d.deviceId }}</text>
+                <text
+                  class="star"
+                  role="button"
+                  :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
+                  :class="{ on: preferredId === d.deviceId }"
+                  @click.stop="togglePreferred(d.deviceId)"
+                  >★</text
+                >
+              </view>
               <text class="meta">{{ d.deviceId }}</text>
+              <!-- 2026-10-28：今日收入上移到名称/编号下方醒目处（原在 chips 行之后的最底行） -->
+              <text v-if="canSeeRevenue" class="meta revenue"
+                >今日收入 {{ fmtMoney(revenueCentsByDevice[d.deviceId ?? ''] || 0) }}</text
+              >
               <text v-if="d.address" class="meta addr">{{ d.address }}</text>
               <!-- 状态/经营指标合并为可换行 chips 行：此前三条竖排 meta 让卡片又高又散（2026-10-25 排版优化） -->
               <view
@@ -103,21 +117,10 @@
                 <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
                 <text v-if="cardMetrics(d)" class="stat-chip">{{ cardMetrics(d) }}</text>
               </view>
-              <text v-if="canSeeRevenue" class="meta revenue"
-                >今日收入 {{ fmtMoney(revenueCentsByDevice[d.deviceId ?? ''] || 0) }}</text
-              >
               <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
             </view>
           </view>
           <view class="device-right">
-            <text
-              class="star"
-              role="button"
-              :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
-              :class="{ on: preferredId === d.deviceId }"
-              @click.stop="togglePreferred(d.deviceId)"
-              >★</text
-            >
             <text v-if="d.salesLocked" class="tag tag-lock">{{ UI_COPY.salesLocked }}</text>
             <text v-else-if="d.replenishmentInProgress" class="tag tag-warn">{{
               UI_COPY.replenishing
@@ -551,11 +554,13 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 }
 .star {
   color: var(--text-subtle, #cbd5e1);
-  font-size: 36rpx;
+  /* 2026-10-28：星星放名称旁，字号收敛 + 垂直居中（name-row 已 align-items:center） */
+  font-size: 32rpx;
   line-height: 1;
   padding: 0;
   position: relative;
   z-index: 1;
+  flex-shrink: 0;
 }
 .star.on {
   color: var(--warning, #f59e0b);
@@ -697,9 +702,22 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 2026-10-28：星星移到柜机名称旁并垂直居中（原在卡片右上角独立列，未居中） */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  max-width: 100%;
+}
+.name-row .name {
+  flex: 1;
+  min-width: 0;
+}
 .meta.revenue {
-  color: var(--warning, #d97706);
-  font-weight: 600;
+  /* 2026-10-28：今日收入上移到名称下方醒目处，品牌色 + 加粗强调 */
+  color: var(--brand, #0d9488);
+  font-weight: 700;
+  margin-top: 6rpx;
 }
 .meta.stock-warn {
   color: var(--warning, #b45309);

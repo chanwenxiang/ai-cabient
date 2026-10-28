@@ -126,20 +126,42 @@ public class MerchantNotifyService {
 
     private MerchantNotifyPrefDto doUpdateSubscribe(Long userId, MerchantSubscribeRequest request) {
         List<String> types = request.alertTypes() != null ? request.alertTypes() : List.of();
-        subscribePrefRepository.findByIdUserId(userId).forEach(p -> {
-            p.setEnabled(false);
-            subscribePrefRepository.save(p);
-        });
-        for (String raw : types) {
-            String type = raw != null ? raw.trim().toUpperCase(Locale.ROOT) : "";
-            if (!ALLOWED_ALERT_TYPES.contains(type)) {
-                continue;
+        // merchant_subscribe_pref 是 (user_id, alert_type) 联合主键、无单列自增主键，
+        // MyBatis-Plus 的 BaseMapper.selectById/save/updateById 依赖 @TableId 单主键，
+        // 一调即抛 BindingException「Invalid bound statement (not found)…selectById」。
+        // 此处照 OpsUserMerchantMapper 范式：全用 insert / update(wrapper) / delete(wrapper)，
+        // 不碰任何依赖主键的 CRUD（铁律：联合主键实体禁用 selectById/save/updateById）。
+        List<String> wanted = types.stream()
+                .filter(Objects::nonNull)
+                .map(raw -> raw.trim().toUpperCase(Locale.ROOT))
+                .filter(ALLOWED_ALERT_TYPES::contains)
+                .distinct()
+                .toList();
+        // 该用户既有偏好统一关闭，再按本次勾选重建开启
+        subscribePrefRepository.update(
+                null,
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantSubscribePref>lambdaUpdate()
+                        .eq(MerchantSubscribePref::getUserId, userId)
+                        .set(MerchantSubscribePref::isEnabled, false));
+        for (String type : wanted) {
+            boolean exists = subscribePrefRepository.selectCount(
+                    com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantSubscribePref>lambdaQuery()
+                            .eq(MerchantSubscribePref::getUserId, userId)
+                            .eq(MerchantSubscribePref::getAlertType, type)) > 0;
+            if (exists) {
+                subscribePrefRepository.update(
+                        null,
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantSubscribePref>lambdaUpdate()
+                                .eq(MerchantSubscribePref::getUserId, userId)
+                                .eq(MerchantSubscribePref::getAlertType, type)
+                                .set(MerchantSubscribePref::isEnabled, true)
+                                .set(MerchantSubscribePref::getUpdatedAt, Instant.now()));
+            } else {
+                MerchantSubscribePref pref = new MerchantSubscribePref(userId, type);
+                pref.setEnabled(true);
+                pref.setUpdatedAt(Instant.now());
+                subscribePrefRepository.insert(pref);
             }
-            MerchantSubscribePref pref = subscribePrefRepository
-                    .findById(new com.aicabinet.trade.domain.MerchantSubscribePrefId(userId, type))
-                    .orElseGet(() -> new MerchantSubscribePref(userId, type));
-            pref.setEnabled(true);
-            subscribePrefRepository.save(pref);
         }
         return self.getPrefs(userId);
     }

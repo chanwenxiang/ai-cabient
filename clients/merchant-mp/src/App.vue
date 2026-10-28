@@ -346,8 +346,8 @@ input {
 }
 
 .page-body {
-  padding-left: var(--page-gutter, 24rpx);
-  padding-right: var(--page-gutter, 24rpx);
+  /* 2026-10-28：补顶部留白——此前仅有左右 gutter，内容直接贴住导航栏/筛选区（与 .page 的 24rpx 对齐） */
+  padding: 24rpx var(--page-gutter, 24rpx) 0;
   box-sizing: border-box;
 }
 

@@ -126,7 +126,9 @@ class ReplenishmentServiceSuggestTaskTest {
 
     @Test
     void createTaskFromSuggestion_withHomeWarehouse_createsOutboundInsteadOfDraftLines() {
-        // P0-1（2026-10-15）：设备有主仓 ⇒ 同事务生成出库单，不再种无批次草稿行
+        // P0-1（2026-10-15）：设备有主仓 ⇒ 同事务生成出库单，不再种无批次草稿行。
+        // 2026-10-28 补货=自提自送口径：建出库单后**立即**种现场补货明细（generateLinesFromOutbound），
+        // 不再等「发运」回填——补货场景无发运环节，否则任务明细恒空、核对流程走不通。
         when(warehouseService.suggestForDevice(DEVICE)).thenReturn(List.of(suggest("SKU-A", 5)));
         com.aicabinet.trade.domain.DeviceInfo device = new com.aicabinet.trade.domain.DeviceInfo();
         device.setDeviceId(DEVICE);
@@ -142,10 +144,18 @@ class ReplenishmentServiceSuggestTaskTest {
             t.setTaskId(10L);
             return t;
         });
+        com.aicabinet.common.dto.WarehouseOutboundDto outbound =
+                new com.aicabinet.common.dto.WarehouseOutboundDto(
+                        88L, null, 7L, null, null, null, null, null, null);
+        when(warehouseService.createOutboundForRoute(7L, null, ACTOR)).thenReturn(outbound);
+        // generateLinesFromOutbound(88L) 会按 outboundId 查任务；此路径下无任务（任务行由出库行驱动，
+        // 而 createOutboundForRoute 已把 outboundId 回写到任务上——单测聚焦「不再种草稿行」语义）
+        when(taskRepository.findByOutboundId(88L)).thenReturn(List.of());
 
         service.createTaskFromSuggestion(ACTOR, DEVICE, null);
 
         verify(warehouseService).createOutboundForRoute(7L, null, ACTOR);
+        // 有主仓：不种草稿行（seedDraftRestockLines 不走），但会立即 generateLinesFromOutbound 回填明细
         verify(taskLineRepository, org.mockito.Mockito.never()).save(any());
     }
 

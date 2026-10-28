@@ -432,8 +432,13 @@ public class ReplenishmentService {
 
         }
 
-        // 同事务生成出库单：失败则整单回滚，避免吞异常导致 UnexpectedRollback→500 或半成功路线
-        warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
+        // 同事务生成出库单：失败则整单回滚，避免吞异常导致 UnexpectedRollback→500 或半成功路线。
+        // 业务口径（2026-10-28）：补货=自提自送，无发运环节，建出库单后立即种现场补货明细。
+        com.aicabinet.common.dto.WarehouseOutboundDto outbound =
+                warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
+        if (outbound != null && outbound.outboundId() != null) {
+            self.generateLinesFromOutbound(outbound.outboundId());
+        }
 
         return toRouteDto(route);
 
@@ -1475,8 +1480,15 @@ public class ReplenishmentService {
         // 发运时 generateLinesFromOutbound 回填批次行，完成时仓扣减/在途签收闭环）；
         // 无主仓（未启用仓配的商户）⇒ 保持直加模式（草稿行，完成时直接加柜机账面）。
         // 注意：有出库单时不可再种草稿行——generateLinesForTask 会因未应用行存在而跳过回填。
+        // 业务口径（2026-10-28 用户拍板）：补货员是「自提自送」——从自己分仓领货、自己拉上车去补柜，
+        // 没有采购/物流那套「发运」环节。故有主仓时建出库单后须**立即** generateLinesFromOutbound
+        // 种现场补货明细（与 selfInitiateTask 一致），否则任务明细恒为空、核对流程走不通。
         if (hasHomeWarehouse(dev)) {
-            warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
+            com.aicabinet.common.dto.WarehouseOutboundDto outbound =
+                    warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
+            if (outbound != null && outbound.outboundId() != null) {
+                self.generateLinesFromOutbound(outbound.outboundId());
+            }
         } else {
             self.seedDraftRestockLines(task.getTaskId(), dev, skuQty);
         }

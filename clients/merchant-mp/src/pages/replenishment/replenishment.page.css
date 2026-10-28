@@ -259,6 +259,7 @@
 .task-card {
   position: relative;
   overflow: hidden;
+  /* 间距统一由 app-underline-tabs 的 margin-bottom 承担（2026-10-28 全局修复） */
   margin: 0 var(--page-gutter) 18rpx;
   padding: 26rpx;
   border-radius: var(--radius-card);

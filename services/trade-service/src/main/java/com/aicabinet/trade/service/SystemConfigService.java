@@ -835,7 +835,7 @@ public class SystemConfigService {
         upsertIfAbsent(REPLENISH_AUTO_TASK_ENABLED, "true",
                 "缺货自动建补货任务（按台账阈值/补货点触发，同柜已有进行中任务即跳过）");
         upsertIfAbsent(MERCHANT_SERVICE_PHONE, "400-888-0018", "商户端客服电话");
-        upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local",
+        upsertIfAbsent(OPS_SUPPORT_EMAIL, "cwx@easygovm.com",
                 "运营支持邮箱（下发 C 端公开配置 supportEmail）");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72",
                 "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）");
