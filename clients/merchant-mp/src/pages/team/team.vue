@@ -50,8 +50,14 @@
         </view>
       </view>
 
-      <AppSheet :visible="inviteVisible" aria-label="邀请成员" @close="inviteVisible = false">
+      <AppSheet
+        :visible="inviteVisible"
+        :body-scroll="false"
+        aria-label="邀请成员"
+        @close="inviteVisible = false"
+      >
         <text class="dialog-title">邀请成员</text>
+        <scroll-view scroll-y class="sheet-scroll">
         <input
           class="input"
           type="number"
@@ -84,6 +90,7 @@
             >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
           >
         </view>
+        </scroll-view>
         <view class="dialog-actions">
           <button class="btn ghost" @click="inviteVisible = false">取消</button>
           <button class="btn" :disabled="saving" :loading="saving" @click="onInvite">
@@ -94,6 +101,7 @@
 
       <AppSheet
         :visible="!!(manageVisible && manageUser)"
+        :body-scroll="false"
         aria-label="成员管理"
         @close="manageVisible = false"
       >
@@ -105,6 +113,7 @@
           {{ teamRoleLabel(manageUser?.roleKey, manageUser?.roleName) }}</text
         >
 
+        <scroll-view scroll-y class="sheet-scroll">
         <view v-if="canEdit" class="section">
           <text class="section-title">角色</text>
           <view class="role-row wrap">
@@ -153,6 +162,7 @@
           </button>
         </view>
 
+        </scroll-view>
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
       </AppSheet>
     </view>

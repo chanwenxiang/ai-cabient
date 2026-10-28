@@ -65,9 +65,15 @@
     </AppSheet>
 
     <!-- CB-050 扩展：切换组织面板（选择后存本地，设备/柜机列表按组织过滤） -->
-    <AppSheet :visible="orgSheetVisible" aria-label="切换组织" @close="orgSheetVisible = false">
+    <AppSheet
+      :visible="orgSheetVisible"
+      :body-scroll="false"
+      aria-label="切换组织"
+      @close="orgSheetVisible = false"
+    >
       <text class="dialog-title">切换组织</text>
       <text class="hint">切换后柜机列表与工作台按所选组织过滤；不影响账号权限</text>
+      <scroll-view scroll-y class="sheet-scroll">
       <view class="org-list">
         <view
           v-for="org in orgs"
@@ -81,6 +87,7 @@
           <text v-if="org.merchantId === currentOrgId" class="org-current">当前</text>
         </view>
       </view>
+      </scroll-view>
       <view class="dialog-actions">
         <button class="btn ghost" @click="orgSheetVisible = false">取消</button>
         <button class="btn" @click="pickOrg('')">显示全部组织</button>
@@ -718,5 +725,10 @@ async function onLogout() {
   font-size: 24rpx;
   color: var(--color-primary, #0f766e);
   font-weight: 600;
+}
+/* 切换组织弹层（AppSheet bodyScroll=false）：组织列表滚动区，flex 列内占满剩余高度可滚动 */
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 </style>

@@ -253,3 +253,8 @@
 .btn::after {
   border: none;
 }
+/* 团队弹层（AppSheet bodyScroll=false）：邀请表单/成员管理列表滚动区，flex 列内占满剩余高度可滚动 */
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}

@@ -635,3 +635,11 @@ button[disabled] {
   margin-left: 24rpx;
   margin-right: 24rpx;
 }
+
+/* 补货详情弹层（AppSheet bodyScroll=false 模式）：主体内容滚动区。
+   面板为 flex 列、overflow hidden，此滚动区 flex:1 1 auto + min-height:0 占满剩余高度并可滚动，
+   底部 ReplenishActionDock 在 scroll-view 外常驻。修复长商品列表划不动、底部截断。 */
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}

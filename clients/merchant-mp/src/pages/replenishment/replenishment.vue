@@ -184,7 +184,7 @@
         </view>
       </view>
 
-      <ReplenishDetailSheet :visible="detailVisible" @close="closeDetail">
+      <ReplenishDetailSheet :visible="detailVisible" :body-scroll="false" @close="closeDetail">
         <view class="sheet-head recap">
           <view class="sheet-head-main">
             <view class="sheet-recap-stack">
@@ -218,6 +218,7 @@
           <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
         </view>
 
+        <scroll-view scroll-y class="sheet-scroll">
         <ReplenishCabinetCard
           :device-id="selected?.deviceId"
           :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
@@ -349,6 +350,7 @@
           @scan-product="scanProduct"
           @assign-slot="assignSlot"
         />
+        </scroll-view>
 
         <ReplenishActionDock
           :show-dock="canRequest && selected?.status !== 'COMPLETED' && !!selected?.checkInAt"

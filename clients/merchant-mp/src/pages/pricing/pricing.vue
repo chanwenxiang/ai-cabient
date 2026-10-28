@@ -73,7 +73,12 @@
           />
         </view>
 
-        <AppSheet :visible="historyVisible" aria-label="调价历史" @close="historyVisible = false">
+        <AppSheet
+          :visible="historyVisible"
+          :body-scroll="false"
+          aria-label="调价历史"
+          @close="historyVisible = false"
+        >
           <view class="dialog-head">
             <text class="dialog-title">调价历史</text>
             <text
@@ -84,6 +89,7 @@
               >×</text
             >
           </view>
+          <scroll-view scroll-y class="sheet-scroll">
           <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
           <view v-else-if="!history.length" class="meta center"
             >暂无本商户柜机的调价记录；改价成功后会出现在这里</view
@@ -98,6 +104,7 @@
               <text class="meta">{{ formatTime(h.changedAt) }}</text>
             </view>
           </view>
+          </scroll-view>
         </AppSheet>
       </template>
     </view>
@@ -555,5 +562,10 @@ async function savePrice(p: MerchantSkuPricing) {
 .page-body {
   padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+}
+/* 调价历史弹层（AppSheet bodyScroll=false）：列表滚动区，flex 列内占满剩余高度可滚动 */
+.sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 </style>
