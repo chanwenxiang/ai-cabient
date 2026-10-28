@@ -36,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -652,7 +654,12 @@ public class OpsRbacService {
     private OpsUserMerchantsDto doAssignMerchants(Long operatorId, Long userId, List<String> merchantIds) {
         ensureOperatorAccount(userId);
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
+        // G2-11 ⑨：before 必须在 delete 之前取——本表是「整删整插」，删完就再也问不出原范围
+        List<String> before = userMerchantRepository.findByIdUserId(userId).stream()
+                .map(m -> m.getId().getMerchantId())
+                .toList();
         userMerchantRepository.deleteByIdUserId(userId);
+        List<String> after = new ArrayList<>();
         if (merchantIds != null) {
             for (String merchantId : merchantIds) {
                 if (merchantId == null || merchantId.isBlank()) {
@@ -666,12 +673,38 @@ public class OpsRbacService {
                 if (allowed != null && !allowed.contains(id)) {
                     throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
                 }
-                userMerchantRepository.insert(new OpsUserMerchant(userId, id));
+                OpsUserMerchant binding = new OpsUserMerchant(userId, id);
+                binding.setCreatedBy(operatorId);
+                userMerchantRepository.insert(binding);
+                after.add(id);
             }
         }
         auditService.appendLog(operatorId, "OPS_USER_MERCHANT_ASSIGN", "USER", String.valueOf(userId),
-                "merchants=" + (merchantIds == null ? "(清空)" : String.join(",", merchantIds)));
+                scopeAuditDetail(before, after));
         return self.getUserMerchants(operatorId, userId);
+    }
+
+    /** 审计 detail 单侧字符上限：两侧 + 前缀须稳落在 {@link AdminAuditService} 的 512 截断兜底之内。 */
+    private static final int SCOPE_AUDIT_SIDE_MAX = 200;
+
+    /**
+     * 商户范围变更的审计形态：{@code merchants=old->new}，与本仓既有的
+     * {@code LineManagerService.update}（{@code field=old->new}）同源。
+     * 包级可见供纯逻辑单测钉住格式与截断形态（不起 Spring、不连库）。
+     */
+    static String scopeAuditDetail(Collection<String> before, Collection<String> after) {
+        return "merchants=" + scopeForAudit(before) + "->" + scopeForAudit(after);
+    }
+
+    /** 空集显式写成 {@code (空)}：旧形态 null→"(清空)"、空列表→空串，两种都读不出「清掉的是什么」。 */
+    private static String scopeForAudit(Collection<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return "(空)";
+        }
+        String joined = String.join(",", ids.stream().sorted().toList());
+        return joined.length() <= SCOPE_AUDIT_SIDE_MAX
+                ? joined
+                : joined.substring(0, SCOPE_AUDIT_SIDE_MAX) + "...(截断)";
     }
 
     @Transactional(readOnly = true)

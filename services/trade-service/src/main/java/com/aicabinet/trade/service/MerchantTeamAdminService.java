@@ -268,7 +268,10 @@ public class MerchantTeamAdminService {
         long roleId = resolveMerchantRoleId(request.roleKey());
         userRoleRepository.insert(new OpsUserRole(newUserId, roleId));
         for (String merchantId : merchants) {
-            userMerchantRepository.insert(new OpsUserMerchant(newUserId, merchantId));
+            // V410：绑定行记操作人，否则「商户自助建号」这条路径授的权在库里查不到是谁授的
+            OpsUserMerchant binding = new OpsUserMerchant(newUserId, merchantId);
+            binding.setCreatedBy(userId);
+            userMerchantRepository.insert(binding);
         }
         auditService.appendLog(userId, "MERCHANT_USER_CREATE", "USER", String.valueOf(newUserId),
                 "phone=" + PhoneMask.mask(phone) + ",role=" + request.roleKey());

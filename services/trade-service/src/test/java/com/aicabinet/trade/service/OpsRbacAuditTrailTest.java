@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.CreateOpsRoleRequest;
 import com.aicabinet.common.dto.ResetOpsOperatorPasswordRequest;
 import com.aicabinet.trade.domain.OpsPermission;
 import com.aicabinet.trade.domain.OpsRole;
+import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.OpsDepartmentMapper;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
@@ -19,17 +20,21 @@ import com.aicabinet.trade.sms.SmsCodeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -56,6 +61,7 @@ class OpsRbacAuditTrailTest {
     @Mock private OpsRolePermissionMapper rolePermissionRepository;
     @Mock private OpsUserRoleMapper userRoleRepository;
     @Mock private OpsUserMerchantMapper userMerchantRepository;
+    @Mock private com.aicabinet.trade.mapper.MerchantMapper merchantRepository;
     @Mock private PermissionService permissionService;
     @Mock private MerchantScopeService merchantScopeService;
     @Mock private UserInfoMapper userInfoRepository;
@@ -75,7 +81,7 @@ class OpsRbacAuditTrailTest {
     void setUp() {
         org.mockito.Mockito.lenient().doNothing().when(permissionService).requirePermission(anyLong(), anyString());
         service = new OpsRbacService(roleRepository, permissionRepository, rolePermissionRepository,
-                userRoleRepository, userMerchantRepository, null, permissionService, merchantScopeService,
+                userRoleRepository, userMerchantRepository, merchantRepository, permissionService, merchantScopeService,
                 userInfoRepository, null, null, passwordEncoder, distributedLockService, null,
                 userDepartmentRepository, departmentRepository, null, auditService, smsCodeService, self);
     }
@@ -175,5 +181,71 @@ class OpsRbacAuditTrailTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertEquals("新密码须同时包含字母和数字", ex.getReason());
         verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
+    }
+
+    // ===== G2-11 §7.17 ⑨（V410）：商户范围授权要能回答「从什么改成什么、这行是谁授的」=====
+
+    private static List<OpsUserMerchant> bindings(long userId, String... merchantIds) {
+        return Arrays.stream(merchantIds).map(m -> new OpsUserMerchant(userId, m)).toList();
+    }
+
+    private void stubScopeAssignHappyPath(List<OpsUserMerchant> current, String... existingMerchantIds) {
+        allowLock(OpsRbacService.opsOperatorLockKey(TARGET));
+        when(userInfoRepository.existsById(TARGET)).thenReturn(true);
+        when(userMerchantRepository.findByIdUserId(TARGET)).thenReturn(current);
+        // null = 全局可见运营员（MerchantScopeService.allowedMerchantIds 的既有语义）
+        when(merchantScopeService.allowedMerchantIds(ACTOR)).thenReturn(null);
+        for (String id : existingMerchantIds) {
+            when(merchantRepository.existsById(id)).thenReturn(true);
+        }
+    }
+
+    @Test
+    void assignMerchants_auditRecordsBeforeAndAfter_andRowCarriesOperator() {
+        stubScopeAssignHappyPath(bindings(TARGET, "M002", "M001"), "M003");
+
+        service.assignMerchants(ACTOR, TARGET, List.of("M003"));
+
+        // before 侧必须是 delete 之前读到的那一份：本表整删整插，删完就再也问不出原范围
+        verify(auditService).appendLog(eq(ACTOR), eq("OPS_USER_MERCHANT_ASSIGN"), eq("USER"),
+                eq(String.valueOf(TARGET)), eq("merchants=M001,M002->M003"));
+        ArgumentCaptor<OpsUserMerchant> inserted = ArgumentCaptor.forClass(OpsUserMerchant.class);
+        verify(userMerchantRepository).insert(inserted.capture());
+        assertEquals(ACTOR, inserted.getValue().getCreatedBy());
+    }
+
+    @Test
+    void assignMerchants_clearingScope_recordsEmptiedSideAndNoInsert() {
+        stubScopeAssignHappyPath(bindings(TARGET, "M001"));
+
+        service.assignMerchants(ACTOR, TARGET, null);
+
+        verify(auditService).appendLog(eq(ACTOR), eq("OPS_USER_MERCHANT_ASSIGN"), eq("USER"),
+                eq(String.valueOf(TARGET)), eq("merchants=M001->(空)"));
+        verify(userMerchantRepository, never()).insert(any());
+    }
+
+    /** 纯格式判据：不起 Spring、不连库（同 AdminDataManageService.changeDetail 的钉法）。 */
+    @Test
+    void scopeAuditDetail_sortsBothSidesAndNamesEmptySides() {
+        assertEquals("merchants=(空)->A,B",
+                OpsRbacService.scopeAuditDetail(List.of(), List.of("B", "A")));
+    }
+
+    /**
+     * admin_audit_log.detail 是 VARCHAR(512) 且 appendLog 静默截断 ⇒ 两侧都必须先各自封顶，
+     * 否则「改了 40 个商户」这种授权会把 after 侧整段截没，比只记 after 更糟。
+     */
+    @Test
+    void scopeAuditDetail_capsEachSideSoThePairFitsThe512Column() {
+        List<String> wide = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            wide.add("MERCHANT-" + i);
+        }
+
+        String detail = OpsRbacService.scopeAuditDetail(wide, wide);
+
+        assertTrue(detail.endsWith("...(截断)"), detail);
+        assertTrue(detail.length() <= 512, "detail 长度 " + detail.length());
     }
 }

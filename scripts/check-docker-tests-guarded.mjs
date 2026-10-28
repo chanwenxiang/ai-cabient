@@ -179,6 +179,19 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/OpsUserMerchantProvenanceSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'V410 给 ops_user_merchant 补的 created_at/created_by 三条承诺全在 Mockito 看不见的地方：' +
+        'NOT NULL DEFAULT now() 是否真成立（决定「既有行回填为迁移执行时刻」这句话真不真）、' +
+        '@TableField(fill = FieldFill.INSERT) 是否真被 MybatisMetaObjectHandler 接上（注解写错不报错，' +
+        '只会静默留 null，而 DB 默认值恰好会补上 ⇒ 光读库分不出是谁填的，所以断言取的是**实体**上的值）、' +
+        '中文注释是否真落进 pg_description。另断 created_by 上 0 条外键（刻意的取证语义，防后续会话顺手对齐 V220）'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/WithdrawClaimForPayoutSqlIT.java',
     {
       job: 'integration',

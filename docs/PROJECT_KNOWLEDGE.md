@@ -668,6 +668,17 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-28（G2-11 ⑨ 落地：商户范围授权补「谁授的 + 从什么改成什么」——V410 两列 + 审计前后值）
+
+- 🔴 **原缺陷**：`ops_user_merchant` 只有 `(user_id, merchant_id)` 两列 ⇒ 库里对「谁在什么时候把这个账号授权到某商户」没有任何答案；且 `OpsRbacService.doAssignMerchants` 的审计只记 **after**（`merchants=新列表`），改完查不出改了什么。本条为用户 2026-10-28 拍板「按之前定的顺序」的 G⑨。
+- **V410（schema，单独一笔）**：`created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` + `created_by BIGINT NULL`。PG11+ 的 `ADD COLUMN ... NOT NULL DEFAULT` 只改 catalog ⇒ 既有行按 missing 值物化、不重写表。🔴 **`created_by` 刻意不加外键**（与 V220 那批工单表的 `created_by` FK 是**有意保留的不一致**）：它是「当初谁授的权」的取证列，RESTRICT 会让删操作人被历史挡住、SET NULL 会把取证抹掉——理由已写进迁移头，**后续会话不要顺手对齐**。
+- **语义边界（别读成审计日志）**：既有行由 `DEFAULT NOW()` 回填成**本迁移执行时刻** ⇒ `created_at` 只保证「不早于 V410」，不代表真实授权时刻；`created_by` 对既有行与演示/系统种子路径（`DemoDataService`）留 NULL。
+- **审计前后值**：`doAssignMerchants` 的 `before` 必须在 `deleteByIdUserId` **之前**取（本表整删整插，删完再也问不出原范围）⇒ detail 形态 `merchants=old->new`，抄本仓既有口径 `LineManagerService.update` 的 `field=old->new`，不新造格式。空侧显式写 `(空)`（旧形态 `null`→"(清空)"、空列表→空串，两种都读不出「清掉的是什么」）；两侧各封顶 200 字符——`admin_audit_log.detail` 是 VARCHAR(512) 且 `appendLog` 静默截断，不封顶会让「改了 40 个商户」整段截没，比只记 after 更糟。
+- **写入路径两条都补 `created_by`**：运营后台授权（`OpsRbacService.doAssignMerchants`）、商户自助建号（`MerchantTeamAdminService:272`）——后者原本授的权在库里查不到是谁授的。`created_at` 双保险：实体侧 `@TableField(fill = FieldFill.INSERT)` 接 `MybatisMetaObjectHandler` + DB 侧默认值。
+- 📌 **刻意未动**：同文件 `assignRoles` 的 `roles=(清空)`（单值、非前后对，不跟着改措辞）；后台 `AUDIT_ACTION_LABELS` 仍未登记 RBAC 动作（=⑪，待拍板）⇒ 界面既不能按动作筛也看不出语义，定位仍靠 `?action=` 或对象 ID。
+- 🧪 判据：trade 全量单测 **2447 / 0 失败 / 0 错误**（`OpsRbacAuditTrailTest` 5→9，含 `scopeAuditDetail` 纯格式与 512 封顶两条）；真库 IT `OpsUserMerchantProvenanceSqlIT` **5/5**（Spring 在**空库**跑完整 Flyway 链 407 个迁移到 v410）。🔴 IT 里最值钱的一条是负向自证：`created_at` 判据取**实体**而非库——库里那列有默认值兜底，光读库分不出是 MP 填的还是 DB 填的，注解写错也能绿。5 条迁移门禁（safety / number-order / immutable / mysql-isms / seed-separation）RC 全 0。
+- ⏭️ 下一步前置：P2 三端接口自测前须重建 UAT 镜像——隔离栈库高水位 **V408** vs 仓库 **V409/V410**，否则跑的是旧代码。
+
 ### 2026-10-28（UAT G9 发现收口：资金审批「无实例仍 200」改 409 + 六条后台缺陷 + fidelity 脚本 worktree 化）
 
 - 🔴 **资金三路静默成功（G9-4 §7-B 实测）**：`ApprovalWorkflowService.start()` 在审批定义为空/禁用时静默不建实例，`completeApproved()` 遇无实例也静默 no-op ⇒ 运营点「通过」拿到 **200**、单据却永远停在 `PENDING_REVIEW`、冻结资金不动。修法=在三处调用点用 `instanceStatus(bizType,bizId).isEmpty()` 拦成 **409**（余额退款 `completeApprovalGate`、商户提现 `completeReview`、线长提现 `completeReview`），驳回路径不受影响（本就不需要实例）。🔴 **不动 workflow 全局**：采购单存在「无定义即单步自动通过」的既有语义（`ProcurementService.doReviewPurchaseOrder` 的 P2-4 兜底），把静默 no-op 改成抛错会打断它。
