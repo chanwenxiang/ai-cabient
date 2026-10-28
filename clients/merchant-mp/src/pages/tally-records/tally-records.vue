@@ -20,6 +20,7 @@ const loading = ref(false);
 const loadError = ref('');
 
 interface RestockRow {
+  lineId: number;
   taskId: number;
   lineType: string;
   skuName: string;
@@ -139,6 +140,7 @@ async function loadMore() {
 
 function toRestockRows(res: OpenApiPageResultTallyRecordRowDto): RestockRow[] {
   return (res.items || []).map((r) => ({
+    lineId: Number(r.lineId ?? 0),
     taskId: Number(r.taskId ?? 0),
     lineType: String(r.lineType || ''),
     skuName: String(r.skuName || ''),
@@ -215,11 +217,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
           @retry="load"
         />
         <template v-else-if="mode === 'restock'">
-          <view
-            v-for="r in restockRows"
-            :key="`${r.taskId}-${r.skuName}-${r.slotId}`"
-            class="card record-card"
-          >
+          <!-- 行身份用 lineId：开门柜 slot_id 恒 null，用 taskId-skuName-slotId 拼会让
+               同任务同 SKU 的两行撞 key，「加载更多」增量渲染时错行。 -->
+          <view v-for="r in restockRows" :key="r.lineId" class="card record-card">
             <view class="record-head">
               <text class="record-tag" :class="r.lineType === 'PULL_OFF' ? 'off' : 'on'">
                 {{ lineTypeLabel(r.lineType) }}

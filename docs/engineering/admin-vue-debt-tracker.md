@@ -380,7 +380,9 @@
   1. **DOM 层证不了撞 key**：把 mock 的 `lineId` 抹平重跑，「无 Duplicate keys 告警」仍然绿——本表既无勾选列也无展开列，`el-table` 只在 patch 乱序时才对重复 key 告警（`render-helper` 的 `getKey` 走 `getRowIdentity`，但 `patchKeyedChildren` 的前缀同步会把同序子节点全吃掉）。所以这条只是 canary，真判据挪到静态差分 `.tmp/static-control-1028.mjs`：同一份断言跑 `git show HEAD:` ⇒ **4 条红**，跑工作树 ⇒ 全绿。
   2. **`contains("l.line_id")` 是弱断言**：HEAD 的 SQL 里 `ORDER BY … l.line_id ASC` 也含这个字面，单测在修复前照样绿。改成断言 `SELECT l.line_id`（投影位置），差分实测 HEAD 红 / 工作树绿。
 - 「货道」列删除的 DOM 判据是真能红的：临时把列加回去（备份 sha256 `1f35ce09…`，跑完逐字节还原并 `sha256sum -c` OK）⇒ 该检查变红且**只有它**变红（26/27，表头读出 `… 数量 货道 已应用 任务`）
-- 未做：merchant-mp 的 `pages/tally-records/tally-records.vue:220` `:233` 同样有「货道」展示与 `taskId-skuName-slotId` 撞 key——不在本轮拍板范围（用户只点了运营后台），只在此留痕
+- 未做（本轮范围外，**已另修**见下条）：merchant-mp 的 `pages/tally-records/tally-records.vue:220` `:233` 同样有「货道」展示与 `taskId-skuName-slotId` 撞 key——用户只点了运营后台，当时只留痕
+- **2026-10-28 追修 merchant-mp 同缺陷（用户追加拍板）**：只改行身份，货道文案**保留**——商户端那处是 `r.slotId ? \`货道 ${r.slotId} · \` : ''`，开门柜 slot_id 恒 null 时一个字都不显示，和运营后台「永远空着的一整列」不是一回事；商户名下可能真有货道柜，删了丢信息。改动三处：`RestockRow` 加 `lineId`、`toRestockRows` 映射 `Number(r.lineId ?? 0)`、`:key` 由 `${taskId}-${skuName}-${slotId}` 改 `r.lineId`（这页有「加载更多」增量渲染，撞 key 就是错行）。后端无需改（`lineId` 已在上一笔的 DTO/API 里）
+  - 验证：`pnpm --filter @aicabinet/merchant-mp type-check` exit 0；`test` 32 文件/211 例通过；`build:mp-weixin`（release）exit 0，且**读产物判据**：`dist/build/mp-weixin/pages/tally-records/tally-records.js` 里 `j:a.lineId`、`tally-records.wxml` 的 restock 列表 `wx:key="j"`（盘点列表仍是 `wx:key="c"`=eventId），旧拼法字面 0 次
 
 ### 2026-10-28 — 上述整改的**落笔实况**（归因留痕，用户拍板「不改历史」）
 - 这 11 个文件**没有独立提交**：`git add` 之后我在跑预检，peer 于 20:45:56 在**同一棵主树**执行 `git commit`，把已 staged 的 11 个文件一并吞进他们的 `144a07dc feat(stocktake): 盘点单号改为可读 PDyyyyMMdd-NNN`。🔴 根因是**共享索引**：主树的 index 只有一个，谁 commit 都会带走别人 staged 的内容。
