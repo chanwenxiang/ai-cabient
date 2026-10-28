@@ -21,7 +21,11 @@ import { useReplenishmentFulfillment } from './useReplenishmentFulfillment';
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 
-function make(doorCabinet: boolean, lines: Line[]) {
+function make(
+  doorCabinet: boolean,
+  lines: Line[],
+  inventoryCaps: Record<string, { quantity: number; capacity: number }> = {}
+) {
   const linesRef = ref<Line[]>(lines);
   const askConfirm = vi.fn().mockResolvedValue(true);
   const svc = useReplenishmentFulfillment({
@@ -51,6 +55,7 @@ function make(doorCabinet: boolean, lines: Line[]) {
     addEvidence: () => {},
     isPullOffType: (t?: string) => String(t || '').toUpperCase() === 'PULL_OFF',
     isDoorCabinet: () => doorCabinet,
+    inventoryCaps: ref(inventoryCaps),
     formatLineSummary: () => '',
     slotHeadroom: () => 0
   });
@@ -74,8 +79,35 @@ describe('useReplenishmentFulfillment 开门柜口径', () => {
     confirmReplenishmentLines.mockImplementation(async (_taskId: number, rows: Line[]) => rows);
   });
 
-  it('开门柜加数量不受货道余量拦截', () => {
+  it('开门柜台账未配置（缺行/容量0）时不拦——fail-open，判官在后端', () => {
     const { svc, linesRef } = make(true, [line()]);
+    svc.adjustQty(linesRef.value[0], 3);
+    expect(linesRef.value[0].quantity).toBe(5);
+  });
+
+  it('开门柜按台账封顶：capacity 4 − 在架 2 = 最多再补 2', () => {
+    const { svc, linesRef } = make(true, [line()], {
+      'SKU-COLA': { quantity: 2, capacity: 4 }
+    });
+    svc.adjustQty(linesRef.value[0], 3);
+    expect(linesRef.value[0].quantity).toBe(2);
+    // 已到顶再加：保持 2 不涨
+    svc.adjustQty(linesRef.value[0], 1);
+    expect(linesRef.value[0].quantity).toBe(2);
+  });
+
+  it('开门柜台账已满（room=0）时数量不动', () => {
+    const { svc, linesRef } = make(true, [line()], {
+      'SKU-COLA': { quantity: 4, capacity: 4 }
+    });
+    svc.adjustQty(linesRef.value[0], 1);
+    expect(linesRef.value[0].quantity).toBe(2);
+  });
+
+  it('下架行不受台账封顶（以实取数为准）', () => {
+    const { svc, linesRef } = make(true, [line({ lineType: 'PULL_OFF' })], {
+      'SKU-COLA': { quantity: 4, capacity: 4 }
+    });
     svc.adjustQty(linesRef.value[0], 3);
     expect(linesRef.value[0].quantity).toBe(5);
   });

@@ -152,6 +152,28 @@ public class InTransitService {
         return bySku;
     }
 
+    /**
+     * 台账可补容量口径专用：本机在途量但**排除指定出库单**。
+     * 为什么不能直接用 {@link #qtyBySkuForDevice}：补货提交校验时，本任务自己的出库已经在途，
+     * 若计入会把「本任务正在补的量」既当作占位又当作提交，双重扣减后任务建议量本身都过不了闸
+     * （EG943322621391：台账可补 2、本任务出库在途 2，含自身口径算出余量 0）。
+     * 排除后语义 = capacity − 在架 − **别人**占的在途 = 本任务还能补多少。
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Integer> qtyBySkuForDeviceExcludingOutbound(String deviceId, Long excludeOutboundId) {
+        Map<String, Integer> bySku = new HashMap<>();
+        if (deviceId == null || deviceId.isBlank()) {
+            return bySku;
+        }
+        for (WarehouseInTransit row : transitRepository.findByDeviceIdAndStatus(deviceId.trim(), STATUS_IN_TRANSIT)) {
+            if (excludeOutboundId != null && excludeOutboundId.equals(row.getOutboundId())) {
+                continue;
+            }
+            bySku.merge(row.getSkuId(), row.getQuantity(), Integer::sum);
+        }
+        return bySku;
+    }
+
     @Transactional(readOnly = true)
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(String deviceId) {
         return self.listInTransitPage(deviceId, 0, 500).items();

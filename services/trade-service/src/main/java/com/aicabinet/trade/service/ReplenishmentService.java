@@ -65,6 +65,8 @@ import java.util.List;
 
 import java.util.Map;
 
+import java.util.stream.Collectors;
+
 
 
 @Service
@@ -759,6 +761,12 @@ public class ReplenishmentService {
         if (STATUS_COMPLETED.equals(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
         }
+        // 开门柜提交数量按台账封顶（2026-10-28 用户实测 EG943322621391：台账可补 2 件，
+        // 小程序数量却能加到 9）。货道柜有 validateRestockLine/自动分配截断两层钳制，
+        // 开门柜此前提交与生成两层都不设限，这是缺口不是设计。
+        if (deviceSlotService.isDoorCabinet(task.getDeviceId())) {
+            assertDoorCabinetHeadroom(task, request);
+        }
         taskLineRepository.deleteByTaskIdAndAppliedFalse(taskId);
         if (request.lines() != null) {
             for (ReplenishmentTaskLineDto dto : request.lines()) {
@@ -771,6 +779,53 @@ public class ReplenishmentService {
         }
         reopenRouteIfActive(task.getRouteId());
         return self.listTaskLines(taskId);
+    }
+
+    /**
+     * 开门柜提交数量台账封顶（2026-10-28）：可补量 = 台账 capacity − 在架 quantity − **他人**在途。
+     * 在途必须排除本任务自己的出库单（见 InTransitService.qtyBySkuForDeviceExcludingOutbound），
+     * 否则本任务建议量本身都过不了闸。同 SKU 多行（多批次）按合计校验。
+     * capacity≤0 视为未配置容量（历史设备数据），不拦——上限依据缺失时 fail-open，
+     * 录入容量后自动生效。并发口子：submitTaskLines 只锁任务不锁设备，两任务并发提交
+     * 同一 SKU 理论可合计越界；商户端单操作员场景下窗口极小，完成链入库仍以实际清点为准。
+     */
+    private void assertDoorCabinetHeadroom(ReplenishmentTask task, SubmitReplenishmentLinesRequest request) {
+        if (request.lines() == null || request.lines().isEmpty()) {
+            return;
+        }
+        Map<String, Integer> sumBySku = new LinkedHashMap<>();
+        for (ReplenishmentTaskLineDto dto : request.lines()) {
+            if (dto == null || dto.skuId() == null || dto.skuId().isBlank()) {
+                continue;
+            }
+            if (!RESTOCK.equals(normalizeTaskLineType(dto.lineType()))) {
+                continue;
+            }
+            sumBySku.merge(dto.skuId().trim(), Math.max(0, dto.quantity()), Integer::sum);
+        }
+        if (sumBySku.isEmpty()) {
+            return;
+        }
+        Map<String, DeviceSkuInventory> invBySku = inventoryRepository.findByIdDeviceId(task.getDeviceId())
+                .stream()
+                .collect(Collectors.toMap(DeviceSkuInventory::getSkuId, i -> i, (a, b) -> a));
+        Map<String, Integer> otherInTransitBySku = inTransitService
+                .qtyBySkuForDeviceExcludingOutbound(task.getDeviceId(), task.getOutboundId());
+        for (Map.Entry<String, Integer> e : sumBySku.entrySet()) {
+            DeviceSkuInventory inv = invBySku.get(e.getKey());
+            if (inv == null || inv.getCapacity() <= 0) {
+                continue;
+            }
+            int otherInTransit = otherInTransitBySku.getOrDefault(e.getKey(), 0);
+            int room = Math.max(0, inv.getCapacity() - inv.getQuantity() - otherInTransit);
+            if (e.getValue() > room) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "商品 " + e.getKey() + " 超出台账可补容量：上限 " + inv.getCapacity()
+                                + "，在架 " + inv.getQuantity()
+                                + "，他单在途 " + otherInTransit
+                                + "，最多再补 " + room);
+            }
+        }
     }
 
     private void persistSubmittedTaskLine(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {

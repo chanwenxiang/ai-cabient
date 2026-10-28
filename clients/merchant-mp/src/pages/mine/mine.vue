@@ -74,19 +74,19 @@
       <text class="dialog-title">切换组织</text>
       <text class="hint">切换后柜机列表与工作台按所选组织过滤；不影响账号权限</text>
       <scroll-view scroll-y class="sheet-scroll">
-      <view class="org-list">
-        <view
-          v-for="org in orgs"
-          :key="org.merchantId"
-          role="button"
-          class="org-cell"
-          :class="{ current: org.merchantId === currentOrgId }"
-          @click="pickOrg(org.merchantId)"
-        >
-          <text class="org-name">{{ org.merchantName }}</text>
-          <text v-if="org.merchantId === currentOrgId" class="org-current">当前</text>
+        <view class="org-list">
+          <view
+            v-for="org in orgs"
+            :key="org.merchantId"
+            role="button"
+            class="org-cell"
+            :class="{ current: org.merchantId === currentOrgId }"
+            @click="pickOrg(org.merchantId)"
+          >
+            <text class="org-name">{{ org.merchantName }}</text>
+            <text v-if="org.merchantId === currentOrgId" class="org-current">当前</text>
+          </view>
         </view>
-      </view>
       </scroll-view>
       <view class="dialog-actions">
         <button class="btn ghost" @click="orgSheetVisible = false">取消</button>

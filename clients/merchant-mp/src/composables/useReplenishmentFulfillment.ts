@@ -106,6 +106,12 @@ export function useReplenishmentFulfillment(opts: {
   isPullOffType: (type?: string) => boolean;
   /** 开门柜（判据=将邑绑定，与后端同口径）：无货道概念 ⇒ 不做货道容量/待分配拦截 */
   isDoorCabinet: () => boolean;
+  /**
+   * 设备台账（device_sku_inventory，键=skuId）：开门柜补货上限数据源。
+   * 上限口径 = capacity − quantity（在架），与后端提交校验 assertDoorCabinetHeadroom 同式；
+   * 台账缺行 / capacity≤0（未配置）= 不拦，判官在后端。
+   */
+  inventoryCaps: Ref<Record<string, { quantity: number; capacity: number }>>;
   formatLineSummary: (rows: Line[]) => string;
   slotHeadroom: (line: Line) => number;
 }) {
@@ -278,7 +284,24 @@ export function useReplenishmentFulfillment(opts: {
 
   function increaseLineQty(line: Line, delta: number) {
     const cur = Number(line.quantity) || 0;
-    if (opts.isPullOffType(line.lineType) || opts.isDoorCabinet()) {
+    if (opts.isPullOffType(line.lineType)) {
+      // 下架以实取数为准，不受任何容量口径约束
+      line.quantity = Math.max(0, cur + delta);
+      return;
+    }
+    if (opts.isDoorCabinet()) {
+      // 开门柜按台账封顶（2026-10-28 用户实测「台账可补 2 却能加到 9」）：上限 = capacity − 在架。
+      // 台账缺行/未配置容量（capacity≤0）不拦——数据缺失时 fail-open，兜底判官在后端提交校验。
+      const inv = opts.inventoryCaps.value[String(line.skuId || '')];
+      if (inv && inv.capacity > 0) {
+        const room = Math.max(0, inv.capacity - (Number(inv.quantity) || 0));
+        if (cur >= room) {
+          showError(room <= 0 ? '台账已满，无法再加' : `最多再补 ${room}`);
+          return;
+        }
+        line.quantity = Math.min(room, cur + delta);
+        return;
+      }
       line.quantity = Math.max(0, cur + delta);
       return;
     }

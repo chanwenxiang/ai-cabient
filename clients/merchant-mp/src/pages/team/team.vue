@@ -58,38 +58,38 @@
       >
         <text class="dialog-title">邀请成员</text>
         <scroll-view scroll-y class="sheet-scroll">
-        <input
-          class="input"
-          type="number"
-          maxlength="11"
-          placeholder="手机号"
-          :value="form.phoneNumber"
-          @input="form.phoneNumber = eventInput($event)"
-        />
-        <input
-          class="input"
-          password
-          placeholder="初始密码（6-64 位）"
-          :value="form.password"
-          @input="form.password = eventInput($event)"
-        />
-        <input
-          class="input"
-          placeholder="显示名（选填）"
-          :value="form.displayName"
-          @input="form.displayName = eventInput($event)"
-        />
-        <view class="role-row wrap">
-          <text
-            v-for="r in roles"
-            role="button"
-            :key="r.roleKey"
-            class="role-chip"
-            :class="{ active: form.roleKey === r.roleKey }"
-            @click="form.roleKey = r.roleKey"
-            >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
-          >
-        </view>
+          <input
+            class="input"
+            type="number"
+            maxlength="11"
+            placeholder="手机号"
+            :value="form.phoneNumber"
+            @input="form.phoneNumber = eventInput($event)"
+          />
+          <input
+            class="input"
+            password
+            placeholder="初始密码（6-64 位）"
+            :value="form.password"
+            @input="form.password = eventInput($event)"
+          />
+          <input
+            class="input"
+            placeholder="显示名（选填）"
+            :value="form.displayName"
+            @input="form.displayName = eventInput($event)"
+          />
+          <view class="role-row wrap">
+            <text
+              v-for="r in roles"
+              role="button"
+              :key="r.roleKey"
+              class="role-chip"
+              :class="{ active: form.roleKey === r.roleKey }"
+              @click="form.roleKey = r.roleKey"
+              >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
+            >
+          </view>
         </scroll-view>
         <view class="dialog-actions">
           <button class="btn ghost" @click="inviteVisible = false">取消</button>
@@ -114,54 +114,53 @@
         >
 
         <scroll-view scroll-y class="sheet-scroll">
-        <view v-if="canEdit" class="section">
-          <text class="section-title">角色</text>
-          <view class="role-row wrap">
-            <text
-              v-for="r in roles"
-              role="button"
-              :key="'m-' + r.roleKey"
-              class="role-chip"
-              :class="{ active: manageRoleKey === r.roleKey }"
-              @click="manageRoleKey = r.roleKey"
-              >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
-            >
+          <view v-if="canEdit" class="section">
+            <text class="section-title">角色</text>
+            <view class="role-row wrap">
+              <text
+                v-for="r in roles"
+                role="button"
+                :key="'m-' + r.roleKey"
+                class="role-chip"
+                :class="{ active: manageRoleKey === r.roleKey }"
+                @click="manageRoleKey = r.roleKey"
+                >{{ teamRoleLabel(r.roleKey, r.roleName) }}</text
+              >
+            </view>
+            <button class="btn block" :disabled="saving" :loading="saving" @click="onSaveRole">
+              保存角色
+            </button>
           </view>
-          <button class="btn block" :disabled="saving" :loading="saving" @click="onSaveRole">
-            保存角色
-          </button>
-        </view>
 
-        <view v-if="canReset" class="section">
-          <text class="section-title">重置密码</text>
-          <input
-            class="input"
-            password
-            maxlength="64"
-            placeholder="新密码（6-64 位）"
-            :value="resetPassword"
-            @input="resetPassword = eventInput($event)"
-          />
-          <button class="btn block" :disabled="saving" :loading="saving" @click="onResetPassword">
-            确认重置
-          </button>
-        </view>
+          <view v-if="canReset" class="section">
+            <text class="section-title">重置密码</text>
+            <input
+              class="input"
+              password
+              maxlength="64"
+              placeholder="新密码（6-64 位）"
+              :value="resetPassword"
+              @input="resetPassword = eventInput($event)"
+            />
+            <button class="btn block" :disabled="saving" :loading="saving" @click="onResetPassword">
+              确认重置
+            </button>
+          </view>
 
-        <view v-if="canDisable && manageUser && !manageUser.self" class="section">
-          <button
-            v-if="manageUser.status !== 'INACTIVE'"
-            class="btn danger block"
-            :disabled="saving"
-            :loading="saving"
-            @click="onDisable"
-          >
-            停用该成员
-          </button>
-          <button v-else class="btn block" :disabled="saving" :loading="saving" @click="onEnable">
-            重新启用
-          </button>
-        </view>
-
+          <view v-if="canDisable && manageUser && !manageUser.self" class="section">
+            <button
+              v-if="manageUser.status !== 'INACTIVE'"
+              class="btn danger block"
+              :disabled="saving"
+              :loading="saving"
+              @click="onDisable"
+            >
+              停用该成员
+            </button>
+            <button v-else class="btn block" :disabled="saving" :loading="saving" @click="onEnable">
+              重新启用
+            </button>
+          </view>
         </scroll-view>
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
       </AppSheet>

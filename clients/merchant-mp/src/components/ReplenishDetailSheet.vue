@@ -4,6 +4,7 @@
     :visible="visible"
     :aria-label="ariaLabel"
     :body-scroll="bodyScroll"
+    :fill-height="fillHeight"
     @close="emit('close')"
   >
     <slot />
@@ -23,8 +24,10 @@ withDefaults(
      * 长内容划不动，参照 disputes 详情做法）。补货详情内容长，调用方传 false。
      */
     bodyScroll?: boolean;
+    /** 透传 AppSheet：补货详情内容恒长且带常驻操作栏 ⇒ true（面板定高 88vh） */
+    fillHeight?: boolean;
   }>(),
-  { ariaLabel: '补货详情', bodyScroll: true }
+  { ariaLabel: '补货详情', bodyScroll: true, fillHeight: false }
 );
 
 const emit = defineEmits<{ close: [] }>();

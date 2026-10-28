@@ -41,6 +41,12 @@ export function useReplenishmentDetail(opts: {
   submitting: Ref<boolean>;
   slotCaps: Ref<Record<string, { maxLevel: number; bookQty: number }>>;
   deviceSlotsList: Ref<DeviceSlot[]>;
+  /**
+   * 设备台账（键=skuId）：开门柜补货上限数据源（capacity − 在架）。
+   * 打开详情时随货道一起并行拉取（deviceDetail.skuInventory）；拉失败置空=不设限，
+   * 兜底判官在后端提交校验（assertDoorCabinetHeadroom），不能因台账加载失败挡住补货。
+   */
+  inventoryCaps: Ref<Record<string, { quantity: number; capacity: number }>>;
   focusTaskId: Ref<number | null>;
   filterDeviceId: Ref<string>;
   status: Ref<string>;
@@ -131,6 +137,7 @@ export function useReplenishmentDetail(opts: {
     opts.detailLoading.value = true;
     opts.slotCaps.value = {};
     opts.deviceSlotsList.value = [];
+    opts.inventoryCaps.value = {};
   }
 
   async function refreshSelectedTask(task: Task) {
@@ -159,13 +166,31 @@ export function useReplenishmentDetail(opts: {
   async function loadTaskDetailResources(task: Task) {
     const taskId = task.taskId;
     if (typeof taskId !== 'number') return;
-    const [taskLines, slots, evidence] = await Promise.all([
+    const [taskLines, slots, evidence, deviceDetail] = await Promise.all([
       merchantApi.replenishmentTaskLines(taskId) as Promise<Line[]>,
       softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[], '货道'),
-      softFallback(merchantApi.listReplenishmentEvidence(taskId), [], '补货凭证')
+      softFallback(merchantApi.listReplenishmentEvidence(taskId), [], '补货凭证'),
+      // 台账只喂「开门柜数量上限」这一个用途，失败置空=不设限（判官在后端），不挡详情打开
+      softFallback(
+        merchantApi.deviceDetail(task.deviceId!) as Promise<{
+          skuInventory?: { skuId?: string; quantity?: number; capacity?: number }[];
+        } | null>,
+        null,
+        '台账'
+      )
     ]);
     opts.lines.value = taskLines;
     opts.deviceSlotsList.value = (slots || []) as DeviceSlot[];
+    const invMap: Record<string, { quantity: number; capacity: number }> = {};
+    for (const inv of deviceDetail?.skuInventory || []) {
+      const skuId = String(inv?.skuId || '').trim();
+      if (!skuId) continue;
+      invMap[skuId] = {
+        quantity: Number(inv.quantity) || 0,
+        capacity: Number(inv.capacity) || 0
+      };
+    }
+    opts.inventoryCaps.value = invMap;
     const mapped = await mapEvidenceFiles(task, evidence || []);
     opts.evidenceItems.value = mapped;
     opts.evidenceCountMap.value = mergeEvidenceCountMap(

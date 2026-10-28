@@ -50,13 +50,14 @@ class ReplenishmentSubmitLinesQuantityGateTest {
     @Mock private NotificationService notificationService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository;
 
     private ReplenishmentService replenishmentService;
 
     @BeforeEach
     void setUp() {
         replenishmentService = new ReplenishmentService(
-                null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
+                inventoryRepository, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, deviceRepository, deviceSlotService, inTransitService,
                 sessionService, notificationService, distributedLockService, systemConfigService, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(replenishmentService, "self", replenishmentService);
@@ -214,6 +215,134 @@ class ReplenishmentSubmitLinesQuantityGateTest {
         verify(deviceSlotService, never()).hasSkuSlots(anyString(), anyString());
         verify(deviceSlotService, never()).validateRestockLine(anyString(), anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
         verify(deviceSlotService, never()).allocateRestockQuantity(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void submitTaskLines_doorCabinet_overInventoryHeadroom_rejected() {
+        // 2026-10-28 EG943322621391 实测：台账 capacity=4 在架=2 可补 2，小程序却能提交 9。
+        // 开门柜提交数量必须按台账封顶：room = capacity − 在架 − 他单在途（排除本任务出库）。
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(21L);
+        task.setDeviceId("CAB-DOOR-INV");
+        task.setStatus("IN_PROGRESS");
+        task.setOutboundId(77L);
+        when(taskRepository.findByIdForUpdate(21L)).thenReturn(Optional.of(task));
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR-INV")).thenReturn(true);
+
+        com.aicabinet.trade.domain.DeviceSkuInventory inv = new com.aicabinet.trade.domain.DeviceSkuInventory();
+        inv.setDeviceId("CAB-DOOR-INV");
+        inv.setSkuId("SKU-COLA");
+        inv.setQuantity(2);
+        inv.setCapacity(4);
+        when(inventoryRepository.findByIdDeviceId("CAB-DOOR-INV")).thenReturn(List.of(inv));
+        when(inTransitService.qtyBySkuForDeviceExcludingOutbound("CAB-DOOR-INV", 77L))
+                .thenReturn(java.util.Map.of("SKU-COLA", 1));
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-01", null, null, 3, null, false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.submitTaskLines(1L, 21L, new SubmitReplenishmentLinesRequest(List.of(dto))));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(taskLineRepository, never()).save(any());
+        // 未删行即拒：避免「删了旧行又提交失败」把草稿清空
+        verify(taskLineRepository, never()).deleteByTaskIdAndAppliedFalse(anyLong());
+    }
+
+    @Test
+    void submitTaskLines_doorCabinet_withinHeadroom_savesWithoutSlot() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(22L);
+        task.setDeviceId("CAB-DOOR-INV2");
+        task.setRouteId(1L);
+        task.setStatus("IN_PROGRESS");
+        task.setOutboundId(78L);
+        when(taskRepository.findByIdForUpdate(22L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByRouteId(1L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(22L)).thenReturn(List.of());
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR-INV2")).thenReturn(true);
+
+        com.aicabinet.trade.domain.DeviceSkuInventory inv = new com.aicabinet.trade.domain.DeviceSkuInventory();
+        inv.setDeviceId("CAB-DOOR-INV2");
+        inv.setSkuId("SKU-COLA");
+        inv.setQuantity(2);
+        inv.setCapacity(4);
+        when(inventoryRepository.findByIdDeviceId("CAB-DOOR-INV2")).thenReturn(List.of(inv));
+        when(inTransitService.qtyBySkuForDeviceExcludingOutbound("CAB-DOOR-INV2", 78L))
+                .thenReturn(java.util.Map.of());
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-01", null, null, 2, null, false);
+
+        replenishmentService.submitTaskLines(1L, 22L, new SubmitReplenishmentLinesRequest(List.of(dto)));
+
+        org.mockito.ArgumentCaptor<com.aicabinet.trade.domain.ReplenishmentTaskLine> captor =
+                org.mockito.ArgumentCaptor.forClass(com.aicabinet.trade.domain.ReplenishmentTaskLine.class);
+        verify(taskLineRepository).save(captor.capture());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().getSlotId());
+        org.junit.jupiter.api.Assertions.assertEquals(2, captor.getValue().getQuantity());
+    }
+
+    @Test
+    void submitTaskLines_doorCabinet_capacityUnset_failOpen() {
+        // capacity≤0 = 未配置容量（历史数据）：fail-open 不拦，录入容量后自动生效
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(23L);
+        task.setDeviceId("CAB-DOOR-NOINV");
+        task.setRouteId(1L);
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(23L)).thenReturn(Optional.of(task));
+        when(taskRepository.findByRouteId(1L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(23L)).thenReturn(List.of());
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR-NOINV")).thenReturn(true);
+
+        com.aicabinet.trade.domain.DeviceSkuInventory inv = new com.aicabinet.trade.domain.DeviceSkuInventory();
+        inv.setDeviceId("CAB-DOOR-NOINV");
+        inv.setSkuId("SKU-COLA");
+        inv.setQuantity(1);
+        inv.setCapacity(0);
+        when(inventoryRepository.findByIdDeviceId("CAB-DOOR-NOINV")).thenReturn(List.of(inv));
+        when(inTransitService.qtyBySkuForDeviceExcludingOutbound("CAB-DOOR-NOINV", null))
+                .thenReturn(java.util.Map.of());
+
+        ReplenishmentTaskLineDto dto = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-01", null, null, 99, null, false);
+
+        replenishmentService.submitTaskLines(1L, 23L, new SubmitReplenishmentLinesRequest(List.of(dto)));
+
+        verify(taskLineRepository).save(any());
+    }
+
+    @Test
+    void submitTaskLines_doorCabinet_multiLineSameSku_summedAgainstHeadroom() {
+        // 同 SKU 多行（多批次）按合计校验：单行都不超、合计超也要拦
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(24L);
+        task.setDeviceId("CAB-DOOR-MULTI");
+        task.setStatus("IN_PROGRESS");
+        when(taskRepository.findByIdForUpdate(24L)).thenReturn(Optional.of(task));
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR-MULTI")).thenReturn(true);
+
+        com.aicabinet.trade.domain.DeviceSkuInventory inv = new com.aicabinet.trade.domain.DeviceSkuInventory();
+        inv.setDeviceId("CAB-DOOR-MULTI");
+        inv.setSkuId("SKU-COLA");
+        inv.setQuantity(2);
+        inv.setCapacity(4);
+        when(inventoryRepository.findByIdDeviceId("CAB-DOOR-MULTI")).thenReturn(List.of(inv));
+        when(inTransitService.qtyBySkuForDeviceExcludingOutbound("CAB-DOOR-MULTI", null))
+                .thenReturn(java.util.Map.of());
+
+        ReplenishmentTaskLineDto a = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-01", null, null, 1, null, false);
+        ReplenishmentTaskLineDto b = new ReplenishmentTaskLineDto(
+                null, "RESTOCK", "SKU-COLA", "雪碧", "B-02", null, null, 2, null, false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.submitTaskLines(1L, 24L, new SubmitReplenishmentLinesRequest(List.of(a, b))));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(taskLineRepository, never()).save(any());
     }
 
     @Test

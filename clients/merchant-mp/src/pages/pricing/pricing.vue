@@ -90,20 +90,20 @@
             >
           </view>
           <scroll-view scroll-y class="sheet-scroll">
-          <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
-          <view v-else-if="!history.length" class="meta center"
-            >暂无本商户柜机的调价记录；改价成功后会出现在这里</view
-          >
-          <view v-for="(h, i) in history" :key="i" class="history-row">
-            <view class="history-main">
-              <text class="history-sku">{{ historyProductName(h) }}</text>
-              <text class="history-detail">{{ formatMerchantPriceHistoryDetail(h.detail) }}</text>
+            <view v-if="historyLoading" class="meta center">{{ UI_COPY.loading }}</view>
+            <view v-else-if="!history.length" class="meta center"
+              >暂无本商户柜机的调价记录；改价成功后会出现在这里</view
+            >
+            <view v-for="(h, i) in history" :key="i" class="history-row">
+              <view class="history-main">
+                <text class="history-sku">{{ historyProductName(h) }}</text>
+                <text class="history-detail">{{ formatMerchantPriceHistoryDetail(h.detail) }}</text>
+              </view>
+              <view class="history-time">
+                <text class="meta">{{ historyCabinet(h) }}</text>
+                <text class="meta">{{ formatTime(h.changedAt) }}</text>
+              </view>
             </view>
-            <view class="history-time">
-              <text class="meta">{{ historyCabinet(h) }}</text>
-              <text class="meta">{{ formatTime(h.changedAt) }}</text>
-            </view>
-          </view>
           </scroll-view>
         </AppSheet>
       </template>

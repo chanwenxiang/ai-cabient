@@ -184,7 +184,12 @@
         </view>
       </view>
 
-      <ReplenishDetailSheet :visible="detailVisible" :body-scroll="false" @close="closeDetail">
+      <ReplenishDetailSheet
+        :visible="detailVisible"
+        :body-scroll="false"
+        :fill-height="true"
+        @close="closeDetail"
+      >
         <view class="sheet-head recap">
           <view class="sheet-head-main">
             <view class="sheet-recap-stack">
@@ -219,137 +224,137 @@
         </view>
 
         <scroll-view scroll-y class="sheet-scroll">
-        <ReplenishCabinetCard
-          :device-id="selected?.deviceId"
-          :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
-          :hide-verify="selected?.status === 'COMPLETED'"
-          centered
-          @copy="copyDeviceId(selected?.deviceId)"
-          @navigate="navigateToDevice(selected?.deviceId)"
-          @verify-scan="verifyCabinetScan"
-        />
+          <ReplenishCabinetCard
+            :device-id="selected?.deviceId"
+            :address-line="selected?.deviceId ? deviceAddressLine(selected.deviceId) : ''"
+            :hide-verify="selected?.status === 'COMPLETED'"
+            centered
+            @copy="copyDeviceId(selected?.deviceId)"
+            @navigate="navigateToDevice(selected?.deviceId)"
+            @verify-scan="verifyCabinetScan"
+          />
 
-        <ReplenishStepBar
-          :current-step="currentStep()"
-          :completed="selected?.status === 'COMPLETED'"
-          :checked-in="!!selected?.checkInAt"
-          :door-opened="doorOpened"
-          :lines-confirmed="linesConfirmed"
-          :pull-off="detailIsPullOff"
-        />
+          <ReplenishStepBar
+            :current-step="currentStep()"
+            :completed="selected?.status === 'COMPLETED'"
+            :checked-in="!!selected?.checkInAt"
+            :door-opened="doorOpened"
+            :lines-confirmed="linesConfirmed"
+            :pull-off="detailIsPullOff"
+          />
 
-        <!-- dev-only（showDevTools）。deviceCoordsMissing 时必须隐藏：那种柜机服务端已 fail-closed 拒签，
+          <!-- dev-only（showDevTools）。deviceCoordsMissing 时必须隐藏：那种柜机服务端已 fail-closed 拒签，
              再摆一个「跳过定位」开关会与上方「本柜尚未录入点位坐标」提示自相矛盾。 -->
-        <view
-          v-if="
-            canSkipLocation &&
-            requireReplenishmentCheckInLocation &&
-            canRequest &&
-            !deviceCoordsMissing &&
-            selected?.status !== 'COMPLETED' &&
-            !selected?.checkInAt
-          "
-          class="skip-loc-row"
-          role="switch"
-          :aria-checked="skipLocationCheck"
-          data-testid="skip-location-toggle"
-          @click="toggleSkipLocation"
-        >
-          <view class="skip-loc-copy">
-            <view class="skip-loc-top">
-              <text class="skip-loc-label">跳过定位采集</text>
-              <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
-                skipLocationCheck ? '开' : '关'
-              }}</text>
+          <view
+            v-if="
+              canSkipLocation &&
+              requireReplenishmentCheckInLocation &&
+              canRequest &&
+              !deviceCoordsMissing &&
+              selected?.status !== 'COMPLETED' &&
+              !selected?.checkInAt
+            "
+            class="skip-loc-row"
+            role="switch"
+            :aria-checked="skipLocationCheck"
+            data-testid="skip-location-toggle"
+            @click="toggleSkipLocation"
+          >
+            <view class="skip-loc-copy">
+              <view class="skip-loc-top">
+                <text class="skip-loc-label">跳过定位采集</text>
+                <text class="skip-loc-switch" :class="{ on: skipLocationCheck }">{{
+                  skipLocationCheck ? '开' : '关'
+                }}</text>
+              </view>
+              <text class="skip-loc-hint"
+                >开发环境：不取 GPS，无坐标提交（正式环境服务端会拒签）</text
+              >
             </view>
-            <text class="skip-loc-hint"
-              >开发环境：不取 GPS，无坐标提交（正式环境服务端会拒签）</text
-            >
           </view>
-        </view>
-        <text
-          v-if="
-            !requireReplenishmentCheckInLocation &&
-            canRequest &&
-            selected?.status !== 'COMPLETED' &&
-            !selected?.checkInAt
-          "
-          class="door-tip"
-        >
-          本柜可不校验定位签到{{
-            checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
-          }}
-        </text>
+          <text
+            v-if="
+              !requireReplenishmentCheckInLocation &&
+              canRequest &&
+              selected?.status !== 'COMPLETED' &&
+              !selected?.checkInAt
+            "
+            class="door-tip"
+          >
+            本柜可不校验定位签到{{
+              checkInMaxDistanceM > 0 ? `（若上报坐标，须在柜前 ${checkInMaxDistanceM} 米内）` : ''
+            }}
+          </text>
 
-        <text
-          v-if="
-            canRequest &&
-            deviceCoordsMissing &&
-            selected?.status !== 'COMPLETED' &&
-            !selected?.checkInAt
-          "
-          class="door-tip"
-          data-testid="replenish-no-coords-tip"
-        >
-          {{ DEVICE_COORDS_MISSING_HINT }}
-        </text>
+          <text
+            v-if="
+              canRequest &&
+              deviceCoordsMissing &&
+              selected?.status !== 'COMPLETED' &&
+              !selected?.checkInAt
+            "
+            class="door-tip"
+            data-testid="replenish-no-coords-tip"
+          >
+            {{ DEVICE_COORDS_MISSING_HINT }}
+          </text>
 
-        <app-button
-          v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-          data-testid="replenish-checkin"
-          :disabled="submitting || deviceCoordsMissing"
-          label="现场签到"
-          @click="checkIn"
-        />
-        <app-button
-          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-          data-testid="replenish-open-door"
-          :disabled="submitting"
-          :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
-          @click="openDoor"
-        />
-        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
-          只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
-        </text>
-        <text
-          v-if="doorOpened && openSessionId && selected?.status !== 'COMPLETED'"
-          class="door-tip"
-        >
-          已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
-        </text>
+          <app-button
+            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+            data-testid="replenish-checkin"
+            :disabled="submitting || deviceCoordsMissing"
+            label="现场签到"
+            @click="checkIn"
+          />
+          <app-button
+            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+            data-testid="replenish-open-door"
+            :disabled="submitting"
+            :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
+            @click="openDoor"
+          />
+          <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
+            只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
+          </text>
+          <text
+            v-if="doorOpened && openSessionId && selected?.status !== 'COMPLETED'"
+            class="door-tip"
+          >
+            已开门，关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
+          </text>
 
-        <ReplenishEvidenceSection
-          :items="evidenceItems"
-          :checked-in="!!selected?.checkInAt"
-          :completed="selected?.status === 'COMPLETED'"
-          :can-interact="canRequest"
-          :require-evidence="requireReplenishmentEvidence"
-          @preview="previewEvidence"
-          @add="addEvidence"
-        />
+          <ReplenishEvidenceSection
+            :items="evidenceItems"
+            :checked-in="!!selected?.checkInAt"
+            :completed="selected?.status === 'COMPLETED'"
+            :can-interact="canRequest"
+            :require-evidence="requireReplenishmentEvidence"
+            @preview="previewEvidence"
+            @add="addEvidence"
+          />
 
-        <ReplenishLinesSection
-          :lines="lines"
-          :detail-loading="detailLoading"
-          :pull-off="detailIsPullOff"
-          :outbound-id="selected?.outboundId"
-          :can-edit="canRequest && !linesConfirmed"
-          :completed="selected?.status === 'COMPLETED'"
-          :door-cabinet="doorCabinet"
-          :scanning="scanning"
-          :sku-name="skuName"
-          :sku-thumb="skuThumb"
-          :product-glyph="productGlyph"
-          :line-type-label="lineTypeLabel"
-          :line-status-label="lineStatusLabel"
-          :is-pull-off-type="isPullOffType"
-          :slot-options-for="slotOptionsFor"
-          :slot-hint="slotHint"
-          :slot-headroom="slotHeadroom"
-          @adjust-qty="adjustQty"
-          @scan-product="scanProduct"
-          @assign-slot="assignSlot"
-        />
+          <ReplenishLinesSection
+            :lines="lines"
+            :detail-loading="detailLoading"
+            :pull-off="detailIsPullOff"
+            :outbound-id="selected?.outboundId"
+            :can-edit="canRequest && !linesConfirmed"
+            :completed="selected?.status === 'COMPLETED'"
+            :door-cabinet="doorCabinet"
+            :scanning="scanning"
+            :sku-name="skuName"
+            :sku-thumb="skuThumb"
+            :product-glyph="productGlyph"
+            :line-type-label="lineTypeLabel"
+            :line-status-label="lineStatusLabel"
+            :is-pull-off-type="isPullOffType"
+            :slot-options-for="slotOptionsFor"
+            :slot-hint="slotHint"
+            :slot-headroom="slotHeadroom"
+            @adjust-qty="adjustQty"
+            @scan-product="scanProduct"
+            @assign-slot="assignSlot"
+          />
         </scroll-view>
 
         <ReplenishActionDock
@@ -513,6 +518,8 @@ const {
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
+/** skuId -> { quantity, capacity }：开门柜补货上限数据源（台账），详情打开时加载 */
+const inventoryCaps = ref<Record<string, { quantity: number; capacity: number }>>({});
 const skipLocationCheck = ref(canSkipLocation && getSkipCheckInLocation());
 
 const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog({
@@ -545,6 +552,7 @@ const {
   submitting,
   slotCaps,
   deviceSlotsList,
+  inventoryCaps,
   focusTaskId,
   filterDeviceId,
   status,
@@ -653,9 +661,38 @@ const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenis
   addEvidence,
   isPullOffType,
   isDoorCabinet: () => doorCabinet.value,
+  inventoryCaps,
   formatLineSummary,
   slotHeadroom
 });
+
+/**
+ * 存量任务行超过台账可补量时按上限收敛（2026-10-28 用户实测）：
+ * 任务 8 的行 quantity=9，而台账 capacity=4 / 在架 2 ⇒ 最多只能补 2，
+ * 打开详情看到 9 会让人以为「根本没限制」。只处理开门柜、未确认、RESTOCK 行、
+ * 台账容量已配置的行；只减不加（绝不把操作员手上的数改大），收敛后给一条提示。
+ */
+watch(
+  [inventoryCaps, doorCabinet, linesConfirmed, lines],
+  () => {
+    if (!doorCabinet.value || linesConfirmed.value) return;
+    let clamped = 0;
+    for (const line of lines.value) {
+      if (isPullOffType(line.lineType)) continue;
+      const inv = inventoryCaps.value[String(line.skuId || '').trim()];
+      if (!inv || !(Number(inv.capacity) > 0)) continue;
+      const room = Math.max(0, Number(inv.capacity) - (Number(inv.quantity) || 0));
+      if ((Number(line.quantity) || 0) > room) {
+        line.quantity = room;
+        clamped += 1;
+      }
+    }
+    if (clamped > 0) {
+      uni.showToast({ title: `已按台账可补量收敛 ${clamped} 个品项`, icon: 'none' });
+    }
+  },
+  { deep: true }
+);
 
 const { verifyCabinetScan, onScan, scanProduct } = useReplenishmentScan({
   devices,
