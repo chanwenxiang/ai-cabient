@@ -73,6 +73,8 @@ public class DemoDataService {
     private final OpsRoleMapper opsRoleMapper;
     private final CouponDefinitionMapper couponDefinitionMapper;
     private final PointsRedeemItemMapper pointsRedeemItemMapper;
+    /** 将邑绑定目录：演示数据不得落到真机柜（否则启动即把演示 SKU/默认货道写回真实台账）。 */
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DemoDataService self;
 
@@ -98,6 +100,7 @@ public class DemoDataService {
                            OpsRoleMapper opsRoleMapper,
                            CouponDefinitionMapper couponDefinitionMapper,
                            PointsRedeemItemMapper pointsRedeemItemMapper,
+                           JiangyiDeviceDirectory jiangyiDeviceDirectory,
                            @Lazy DemoDataService self) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -121,6 +124,7 @@ public class DemoDataService {
         this.opsRoleMapper = opsRoleMapper;
         this.couponDefinitionMapper = couponDefinitionMapper;
         this.pointsRedeemItemMapper = pointsRedeemItemMapper;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.self = self;
     }
 
@@ -133,9 +137,17 @@ public class DemoDataService {
         }
         ensureSkus();
         String deviceId = ensureDevice();
-        ensureDeviceInventory(deviceId);
-        deviceSlotService.ensureDefaultSlots(deviceId);
-        bindInventorySkuToSlots(deviceId);
+        // 🔴 将邑绑定柜（真机、端侧上报库存）不写演示数据：它的库存由端侧/台账维护，
+        // 播进来的演示 SKU 永远不会被结算，却会被台账口径统计成「缺货」，
+        // 并且每次启动都会把运营清掉的演示行与默认货道重新写回（2026-10-28 实测复现）。
+        // 兜底判据：正常路径下 pickExistingDemoDevice 已排除将邑柜，只有「全库仅剩将邑柜」时才会走到这里。
+        if (jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            log.warn("skip demo seeding on jiangyi-bound device={}（真机库存以端侧/台账为准）", deviceId);
+        } else {
+            ensureDeviceInventory(deviceId);
+            deviceSlotService.ensureDefaultSlots(deviceId);
+            bindInventorySkuToSlots(deviceId);
+        }
         String warehouseId = ensureWarehouse();
         ensureSupplier();
         ensureConsumerUser();
@@ -324,20 +336,34 @@ public class DemoDataService {
         return merchantId;
     }
 
-    /** 只读挑选：有商户、非 CAB-*；ONLINE / DEPLOYED 优先。 */
+    /** 只读挑选：有商户、非 CAB-*、非将邑绑定柜；ONLINE / DEPLOYED 优先。 */
     private Optional<String> resolveExistingDemoDeviceId() {
         return pickExistingDemoDevice().map(DeviceInfo::getDeviceId);
     }
 
-    private Optional<DeviceInfo> pickExistingDemoDevice() {
-        List<DeviceInfo> all = deviceInfoRepository.findAllOrderByDeviceIdAsc();
-        return all.stream()
-                .filter(d -> d.getDeviceId() != null && !d.getDeviceId().startsWith(LEGACY_ORPHAN_PREFIX))
+    // 包内可见：供同包测试钉住「将邑绑定柜不参与演示设备挑选」
+    Optional<DeviceInfo> pickExistingDemoDevice() {
+        List<DeviceInfo> demoCandidates = deviceInfoRepository.findAllOrderByDeviceIdAsc().stream()
+                .filter(this::isDemoDeviceCandidate)
+                .toList();
+        return demoCandidates.stream()
                 .filter(d -> d.getMerchantId() != null && !d.getMerchantId().isBlank())
                 .min(this::compareDemoDevicePreference)
-                .or(() -> all.stream()
-                        .filter(d -> d.getDeviceId() != null && !d.getDeviceId().startsWith(LEGACY_ORPHAN_PREFIX))
+                .or(() -> demoCandidates.stream()
                         .min(this::compareDemoDevicePreference));
+    }
+
+    /**
+     * 演示设备候选：排除遗留孤儿（CAB-）与将邑绑定真机。
+     *
+     * <p>🔴 将邑柜必须排除（2026-10-28 修）：它是最常见的「在线 + 已投放」设备，
+     * 偏好排序必然把它排第一，于是演示 SKU 与默认货道被写进真实柜，
+     * 台账口径把它算成缺货，运营每次清理都会被下一次启动覆盖。
+     */
+    private boolean isDemoDeviceCandidate(DeviceInfo d) {
+        return d.getDeviceId() != null
+                && !d.getDeviceId().startsWith(LEGACY_ORPHAN_PREFIX)
+                && !jiangyiDeviceDirectory.isJiangyi(d.getDeviceId());
     }
 
     private int compareDemoDevicePreference(DeviceInfo a, DeviceInfo b) {

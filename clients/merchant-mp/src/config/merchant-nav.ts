@@ -49,7 +49,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
   {
     key: 'ops-config',
     title: '补货配置',
-    desc: '拍照 · 阈值 · 补货单',
+    desc: '拍照 · 补货单',
     url: '/pages/ops-config/ops-config',
     perm: 'merchant:replenishment:view',
     pack: 'field',

@@ -9,6 +9,7 @@ import com.aicabinet.common.dto.OpsActionItemDto;
 import com.aicabinet.common.dto.SlotDiscrepancyAlertDto;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -19,7 +20,9 @@ import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +71,7 @@ public class MerchantWorkbenchQueryService {
     private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotService deviceSlotService;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
 
     public MerchantWorkbenchQueryService(PermissionService permissionService,
                                          MerchantPortalGuard merchantPortalGuard,
@@ -80,7 +84,8 @@ public class MerchantWorkbenchQueryService {
                                          DeviceSkuInventoryMapper inventoryRepository,
                                          PullOffTaskMapper pullOffTaskRepository,
                                          DeviceSlotService deviceSlotService,
-                                         ReplenishmentTaskMapper replenishmentTaskRepository) {
+                                         ReplenishmentTaskMapper replenishmentTaskRepository,
+                                         SkuCatalogMapper skuCatalogRepository) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -93,6 +98,7 @@ public class MerchantWorkbenchQueryService {
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.deviceSlotService = deviceSlotService;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
+        this.skuCatalogRepository = skuCatalogRepository;
     }
 
     public MerchantDashboardStatsDto getStats(Long userId) {
@@ -292,13 +298,61 @@ public class MerchantWorkbenchQueryService {
         return offline;
     }
 
-    private long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        // P1-3 统一口径（2026-10-15）：货道级缺货（minLevel 或 容量×商户阈值%），与看板/建议同源
-        long lowStock = 0;
+    // 包内可见：供同包测试直接验证「开门柜台账口径 / 有货道柜货道口径」的分流，不必走整条 getWorkbench
+    long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
+        // 口径按柜类型分流（2026-10-28 拍板「按后台阈值为准统一」）：
+        // · 开门柜（判据=将邑绑定）没有货道概念 ⇒ 台账口径 quantity <= device_sku_inventory.low_threshold
+        //   （后台「库存台账」逐 SKU 维护的阈值，与备货建议 suggestFromLowStock 同源）
+        // · 有货道柜 ⇒ 货道口径（minLevel 或 容量×商户阈值%），原逻辑不动
+        // 🔴 此前不分流：开门柜拿 device_slot 残留行凑数，首页「库存偏低 N」是货道假数
+        //   （2026-10-28 实测：开门柜 6 条假条目，台账真值 3 条）。
         Iterable<String> scopeIds = deviceIds != null ? deviceIds
                 : deviceRepository.findAllOrderByDeviceIdAsc().stream()
                         .map(DeviceInfo::getDeviceId).toList();
+        List<String> doorDeviceIds = new ArrayList<>();
+        List<String> slotDeviceIds = new ArrayList<>();
         for (String deviceId : scopeIds) {
+            if (deviceSlotService.isDoorCabinet(deviceId)) {
+                doorDeviceIds.add(deviceId);
+            } else {
+                slotDeviceIds.add(deviceId);
+            }
+        }
+        return appendDoorCabinetLowStock(items, doorDeviceIds)
+                + appendSlotLowStock(items, slotDeviceIds);
+    }
+
+    /** 开门柜：台账口径（后台阈值），条目粒度=柜×SKU。 */
+    private long appendDoorCabinetLowStock(List<OpsActionItemDto> items, List<String> deviceIds) {
+        if (deviceIds.isEmpty()) {
+            return 0;
+        }
+        List<DeviceSkuInventory> rows = inventoryRepository.findLowStockByDeviceIds(deviceIds);
+        if (rows.isEmpty()) {
+            return 0;
+        }
+        Map<String, String> nameBySku = new LinkedHashMap<>();
+        List<String> skuIds = rows.stream().map(DeviceSkuInventory::getSkuId).distinct().toList();
+        for (var sku : skuCatalogRepository.findBySkuIds(skuIds)) {
+            nameBySku.put(sku.getSkuId(), SkuDisplayNames.of(sku));
+        }
+        for (DeviceSkuInventory row : rows) {
+            if (items.size() < WORKBENCH_ITEM_CAP) {
+                String name = nameBySku.getOrDefault(row.getSkuId(), row.getSkuId());
+                items.add(new OpsActionItemDto(
+                        "LOW_STOCK", MEDIUM, "库存偏低",
+                        name + " 当前 " + row.getQuantity() + " / 上限 " + row.getCapacity()
+                                + "（阈值 " + row.getLowThreshold() + " 件）",
+                        row.getDeviceId(), null, null, row.getSkuId(), null, null, null));
+            }
+        }
+        return rows.size();
+    }
+
+    /** 有货道柜：货道口径（P1-3，2026-10-15），条目粒度=货道。 */
+    private long appendSlotLowStock(List<OpsActionItemDto> items, List<String> deviceIds) {
+        long lowStock = 0;
+        for (String deviceId : deviceIds) {
             for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
                 lowStock++;
                 if (items.size() < WORKBENCH_ITEM_CAP) {

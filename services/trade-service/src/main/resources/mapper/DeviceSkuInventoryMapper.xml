@@ -3,11 +3,19 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aicabinet.trade.mapper.DeviceSkuInventoryMapper">
 
-  <!-- 有批次账本的柜机：可售=ON_SALE/NEAR_EXPIRY 合计；否则回退汇总表 quantity -->
+  <!--
+    该 SKU 有批次账本时：可售 = ON_SALE/NEAR_EXPIRY 合计；否则回退汇总表 quantity。
+    🔴 判据必须是「柜 + SKU」而不是「柜」（2026-10-28 修）：按柜判会让**从未进过账本**的
+    商品被读成 0 可售，把台账明明有货的 SKU 永久算成缺货（实测 EG943322621391：
+    100016/100017/100018 台账各 4 件，按柜判全变 0，低库存从 3 条虚增到 6 条）。
+    SKU 级判据与 InventoryLotService.lotLedgerSkuIds 的语义一致（区分「卖光了」与
+    「从来没进过账本」）。
+  -->
   <sql id="effectiveSellableQty">
     <![CDATA[
     CASE
-      WHEN EXISTS (SELECT 1 FROM device_sku_lot x WHERE x.device_id = i.device_id)
+      WHEN EXISTS (SELECT 1 FROM device_sku_lot x
+                   WHERE x.device_id = i.device_id AND x.sku_id = i.sku_id)
       THEN COALESCE((
         SELECT SUM(l.quantity) FROM device_sku_lot l
         WHERE l.device_id = i.device_id

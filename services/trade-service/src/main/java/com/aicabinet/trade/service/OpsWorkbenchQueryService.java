@@ -7,6 +7,7 @@ import com.aicabinet.common.dto.OpsDashboardBundleDto;
 import com.aicabinet.common.dto.OpsWorkbenchDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -20,7 +21,9 @@ import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
+import com.aicabinet.trade.support.SkuDisplayNames;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +32,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +92,7 @@ public class OpsWorkbenchQueryService {
     private final WarehouseInTransitMapper inTransitRepository;
     private final OpsExceptionMapper exceptionRepository;
     private final OpsSessionOrderQueryService sessionOrderQueryService;
+    private final SkuCatalogMapper skuCatalogRepository;
 
     public OpsWorkbenchQueryService(PermissionService permissionService,
                                     MerchantScopeService merchantScopeService,
@@ -104,7 +110,8 @@ public class OpsWorkbenchQueryService {
                                     PaymentReconciliationMapper reconciliationRepository,
                                     WarehouseInTransitMapper inTransitRepository,
                                     OpsExceptionMapper exceptionRepository,
-                                    OpsSessionOrderQueryService sessionOrderQueryService) {
+                                    OpsSessionOrderQueryService sessionOrderQueryService,
+                                    SkuCatalogMapper skuCatalogRepository) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.deviceRepository = deviceRepository;
@@ -122,6 +129,7 @@ public class OpsWorkbenchQueryService {
         this.inTransitRepository = inTransitRepository;
         this.exceptionRepository = exceptionRepository;
         this.sessionOrderQueryService = sessionOrderQueryService;
+        this.skuCatalogRepository = skuCatalogRepository;
     }
 
     @Transactional(readOnly = true)
@@ -249,10 +257,63 @@ public class OpsWorkbenchQueryService {
                 )));
     }
 
-    private void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        // P1-3 统一口径（2026-10-15）：改用货道级缺货判定（minLevel 或 容量×商户阈值%），
-        // 与缺货看板/补货建议/stockoutWarn 同源——预警说缺的，建议页一定有。
+    // 包内可见：供同包测试直接验证低库存口径分流（同商户端的 merchant/workbench 规则）
+    void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        // 口径按柜类型分流（2026-10-28，与商户端 MerchantWorkbenchQueryService 同规则）：
+        // · 开门柜（判据=将邑绑定）无货道概念 ⇒ 台账口径 quantity <= low_threshold（后台阈值）
+        // · 有货道柜 ⇒ 货道口径（P1-3，2026-10-15：minLevel 或 容量×商户阈值%）
+        // 🔴 此前不分流：运营待办对开门柜也遍历 device_slot 残留行，出现「货道 A1」假条目，
+        //   且与同页 lowStock 指标（inventoryRepository.countLowStock，台账口径）自相矛盾。
+        List<String> doorDeviceIds = new ArrayList<>();
+        List<String> slotDeviceIds = new ArrayList<>();
         for (String deviceId : resolveShortageDeviceIds(scopedDevices)) {
+            if (deviceSlotService.isDoorCabinet(deviceId)) {
+                doorDeviceIds.add(deviceId);
+            } else {
+                slotDeviceIds.add(deviceId);
+            }
+        }
+        collectDoorCabinetLowStockItems(doorDeviceIds, items);
+        collectSlotLowStockItems(slotDeviceIds, items);
+    }
+
+    private void collectDoorCabinetLowStockItems(List<String> deviceIds, List<OpsActionItemDto> items) {
+        if (deviceIds.isEmpty() || items.size() >= WORKBENCH_ITEM_CAP) {
+            return;
+        }
+        List<DeviceSkuInventory> rows = inventoryRepository.findLowStockByDeviceIds(deviceIds);
+        if (rows.isEmpty()) {
+            return;
+        }
+        Map<String, String> nameBySku = new LinkedHashMap<>();
+        List<String> skuIds = rows.stream().map(DeviceSkuInventory::getSkuId).distinct().toList();
+        for (var sku : skuCatalogRepository.findBySkuIds(skuIds)) {
+            nameBySku.put(sku.getSkuId(), SkuDisplayNames.of(sku));
+        }
+        for (DeviceSkuInventory row : rows) {
+            if (items.size() >= WORKBENCH_ITEM_CAP) {
+                return;
+            }
+            String name = nameBySku.getOrDefault(row.getSkuId(), row.getSkuId());
+            items.add(new OpsActionItemDto(
+                    "LOW_STOCK",
+                    MEDIUM,
+                    "库存偏低",
+                    name + " 当前 " + row.getQuantity() + " / 上限 " + row.getCapacity()
+                            + "（阈值 " + row.getLowThreshold() + " 件）",
+                    row.getDeviceId(),
+                    null,
+                    null,
+                    row.getSkuId(),
+                    null,
+                    null,
+                    null
+            ));
+        }
+    }
+
+    private void collectSlotLowStockItems(List<String> deviceIds, List<OpsActionItemDto> items) {
+        for (String deviceId : deviceIds) {
             for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
                 if (items.size() >= WORKBENCH_ITEM_CAP) {
                     return;

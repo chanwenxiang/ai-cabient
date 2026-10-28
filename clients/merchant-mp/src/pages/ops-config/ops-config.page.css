@@ -89,28 +89,6 @@
   color: var(--text-subtle);
   line-height: 1.4;
 }
-.pct-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  flex-shrink: 0;
-}
-.pct-input {
-  width: 96rpx;
-  height: 64rpx;
-  margin: 0;
-  padding: 0;
-  border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-control);
-  text-align: center;
-  font-size: var(--font-size-md);
-  background: var(--page-bg);
-  box-sizing: border-box;
-}
-.pct-sign {
-  font-size: var(--font-size-sm);
-  color: var(--text-subtle);
-}
 .actions {
   margin-top: 12rpx;
   width: 100%;

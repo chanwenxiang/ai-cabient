@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.AdminStatsDto;
 import com.aicabinet.common.dto.OpsActionItemDto;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
@@ -21,11 +22,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +54,7 @@ class OpsWorkbenchQueryServiceTest {
     @Mock WarehouseInTransitMapper inTransitRepository;
     @Mock OpsExceptionMapper exceptionRepository;
     @Mock OpsSessionOrderQueryService sessionOrderQueryService;
+    @Mock com.aicabinet.trade.mapper.SkuCatalogMapper skuCatalogRepository;
 
     private OpsWorkbenchQueryService service;
 
@@ -58,7 +65,7 @@ class OpsWorkbenchQueryServiceTest {
                 orderRepository, disputeRepository, disputeSlaService, slaMetricsService,
                 inventoryRepository, splitRepository, inventoryLotService, deviceSlotService,
                 replenishmentTaskRepository, reconciliationRepository, inTransitRepository,
-                exceptionRepository, sessionOrderQueryService);
+                exceptionRepository, sessionOrderQueryService, skuCatalogRepository);
     }
 
     @Test
@@ -115,6 +122,45 @@ class OpsWorkbenchQueryServiceTest {
         assertTrue(!OpsWorkbenchQueryService.isDeployedDevice(inbound));
         // normalizeLifecycle(null) → DEPLOYED（与 DeviceAssetService 一致）
         assertTrue(OpsWorkbenchQueryService.isDeployedDevice(blank));
+    }
+
+    /**
+     * 运营待办对开门柜也必须走台账口径（同商户端首页规则）。
+     * 此前运营待办遍历残留货道行，既产生「货道 A1」假条目，又与同页 lowStock 指标
+     * （inventoryRepository.countLowStock，台账口径）自相矛盾。
+     */
+    @Test
+    void collectLowStockItems_doorCabinet_usesInventory_notSlots() {
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        DeviceSkuInventory inv = new DeviceSkuInventory();
+        inv.setDeviceId("EG-DOOR");
+        inv.setSkuId("100013");
+        inv.setQuantity(2);
+        inv.setCapacity(4);
+        inv.setLowThreshold(3);
+        when(inventoryRepository.findLowStockByDeviceIds(anyList())).thenReturn(List.of(inv));
+        when(skuCatalogRepository.findBySkuIds(anyList())).thenReturn(List.of());
+
+        List<OpsActionItemDto> items = new ArrayList<>();
+        service.collectLowStockItems(Set.of("EG-DOOR"), items);
+
+        assertEquals(1, items.size());
+        assertTrue(items.get(0).detail().contains("阈值 3 件"), items.get(0).detail());
+        verify(deviceSlotService, never()).listShortageSlots(anyString());
+    }
+
+    @Test
+    void collectLowStockItems_slotCabinet_keepsSlots() {
+        when(deviceSlotService.isDoorCabinet("CAB-SLOT")).thenReturn(false);
+        when(deviceSlotService.listShortageSlots("CAB-SLOT")).thenReturn(List.of(
+                new DeviceSlotService.SlotShortageItem("CAB-SLOT", "A1", "SKU-1", 0, 2, 8, 8, 50)));
+
+        List<OpsActionItemDto> items = new ArrayList<>();
+        service.collectLowStockItems(Set.of("CAB-SLOT"), items);
+
+        assertEquals(1, items.size());
+        assertTrue(items.get(0).detail().startsWith("货道 A1"), items.get(0).detail());
+        verify(inventoryRepository, never()).findLowStockByDeviceIds(anyList());
     }
 
     private static WarehouseInTransit line(Long transitId, Long outboundId, String deviceId,

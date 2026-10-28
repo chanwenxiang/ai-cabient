@@ -305,7 +305,14 @@ public class CompetitiveGapService {
         MerchantOpsConfig cfg = opsConfigMapper.findByIdForUpdate(merchantId).orElseGet(MerchantOpsConfig::new);
         cfg.setMerchantId(merchantId);
         cfg.setStockingType(nz(body.stockingType(), "CAPACITY"));
-        cfg.setStockoutThresholdPct(body.stockoutThresholdPct() <= 0 ? 50 : Math.min(100, body.stockoutThresholdPct()));
+        // 百分比阈值入口已在商户端下线（2026-10-28 拍板「按后台阈值为准统一」）：
+        // 未传（<=0）时**保留库中现值**，不再回落 50 —— 否则商户保存其他开关会把后台设的百分比冲掉。
+        // 🔴 该字段依赖「货道容量」，开门柜（无货道）不参与判定，仅存量货道柜还在用。
+        if (body.stockoutThresholdPct() > 0) {
+            cfg.setStockoutThresholdPct(Math.min(100, body.stockoutThresholdPct()));
+        } else if (cfg.getStockoutThresholdPct() <= 0) {
+            cfg.setStockoutThresholdPct(50);
+        }
         cfg.setTallyMode(nz(body.tallyMode(), "INDEPENDENT"));
         cfg.setUseStockingList(body.useStockingList());
         cfg.setReplenishInputType(nz(body.replenishInputType(), "ADD_QTY"));

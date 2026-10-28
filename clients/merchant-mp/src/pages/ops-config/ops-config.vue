@@ -15,7 +15,6 @@ const merchantId = ref('');
 const merchantName = ref('');
 const merchantOptions = ref<{ merchantId: string; merchantName?: string }[]>([]);
 const cfg = ref<OpsConfig | null>(null);
-const thresholdPct = ref(50);
 
 const merchantNames = computed(() =>
   merchantOptions.value.map((m) => m.merchantName || m.merchantId)
@@ -76,7 +75,6 @@ async function load() {
 
 async function loadConfig() {
   cfg.value = await merchantApi.opsConfig(merchantId.value);
-  thresholdPct.value = cfg.value?.stockoutThresholdPct ?? 50;
 }
 
 function onMerchantChange(e: unknown) {
@@ -101,11 +99,6 @@ function onMerchantChange(e: unknown) {
     });
 }
 
-function onPctInput(e: unknown) {
-  const n = Number((e as { detail?: { value?: string } })?.detail?.value);
-  thresholdPct.value = Number.isFinite(n) ? Math.max(1, Math.min(100, n)) : 50;
-}
-
 function onFlagChange(key: 'photoReplenish' | 'photoStocktake' | 'useStockingList', e: unknown) {
   if (!cfg.value) return;
   const on = !!(e as { detail?: { value?: boolean } }).detail?.value;
@@ -114,17 +107,13 @@ function onFlagChange(key: 'photoReplenish' | 'photoStocktake' | 'useStockingLis
 
 async function save() {
   if (!cfg.value) return;
-  const pct = Number(thresholdPct.value);
-  if (!Number.isFinite(pct) || pct < 1 || pct > 100) {
-    showError('缺货提醒阈值需在 1-100 之间');
-    return;
-  }
   saving.value = true;
   try {
-    cfg.value = await merchantApi.saveOpsConfig(
-      { ...cfg.value, stockoutThresholdPct: pct },
-      merchantId.value
-    );
+    // 缺货阈值不再由商户端设置（2026-10-28 拍板「按后台阈值为准统一」）：
+    // 显式剔除该字段，服务端收到 0 会保留库中现值，不会被商户侧保存动作冲成默认 50。
+    const payload = { ...cfg.value };
+    delete payload.stockoutThresholdPct;
+    cfg.value = await merchantApi.saveOpsConfig(payload, merchantId.value);
     showSuccess('已保存');
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
@@ -140,7 +129,7 @@ async function save() {
     <view class="page-body">
       <view class="intro">
         <text class="intro-title">现场补货规则</text>
-        <text class="intro-desc">缺货提醒、拍照和是否按补货单执行。签到定位由平台统一设置。</text>
+        <text class="intro-desc">拍照与是否按补货单执行。缺货阈值、签到定位由平台统一设置。</text>
       </view>
 
       <view v-if="loading && !cfg" class="card empty">正在加载配置…</view>
@@ -160,17 +149,7 @@ async function save() {
         <view class="row">
           <view class="row-copy">
             <text class="row-title">缺货提醒阈值</text>
-            <text class="row-desc">货道库存低于容量的 {{ thresholdPct }}% 时记为缺货</text>
-          </view>
-          <view class="pct-wrap">
-            <input
-              class="pct-input"
-              type="number"
-              :value="String(thresholdPct)"
-              maxlength="3"
-              @input="onPctInput"
-            />
-            <text class="pct-sign">%</text>
+            <text class="row-desc">由平台在柜机「库存台账」按商品统一设置，商户端不可修改</text>
           </view>
         </view>
         <view class="row">
