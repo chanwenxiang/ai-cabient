@@ -33,10 +33,6 @@
           <text class="ov-num">{{ expiryCount }}</text>
           <text class="ov-label">临期提醒</text>
         </view>
-        <view class="ov-item">
-          <text class="ov-num">{{ slotDiscrepancyCount }}</text>
-          <text class="ov-label">货道差异</text>
-        </view>
       </view>
 
       <!--
@@ -134,7 +130,7 @@
           class="quick-item"
           role="button"
           aria-label="备货单"
-          @click="goReplenishment()"
+          @click="goPrepList"
         >
           <image class="quick-icon" :src="menuIcon('prep')" mode="aspectFit" aria-hidden="true" />
           <text class="quick-label">备货单</text>
@@ -175,7 +171,7 @@
       </view>
 
       <!-- 备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算；备货在去柜之前 -->
-      <view v-if="canReplenishment && prepList.length" class="card section-card">
+      <view v-if="canReplenishment && prepList.length" id="prep-list" class="card section-card">
         <view class="section-head">
           <text class="section">备货清单</text>
           <text class="meta"
@@ -344,7 +340,6 @@ const {
   analyticsDays,
   pendingCount,
   refundOrders,
-  slotDiscrepancyCount,
   openDisputeCount,
   lowStockCount,
   expiryCount,
@@ -392,6 +387,24 @@ function onDisputeTap() {
     return;
   }
   uni.switchTab({ url: '/pages/devices/devices' });
+}
+
+/**
+ * 「备货单」≠「补货任务」：备货是出发前照单领货（本页就地展示的备货清单），
+ * 补货任务才是到柜后的开门/上架操作。两者原先共用 goReplenishment()，
+ * 点「备货单」直接落到补货任务列表 —— 见 .workbuddy/memory/MEMORY.md 铁律 80
+ * （补货＝自提自送：先照单领货、再到柜上架，是两段不同的现场动作）。
+ */
+function goPrepList() {
+  if (!prepList.value.length) {
+    uni.showToast({ title: '暂无待备货清单', icon: 'none' });
+    return;
+  }
+  uni.pageScrollTo({
+    selector: '#prep-list',
+    duration: 260,
+    fail: () => uni.showToast({ title: '备货清单在下方', icon: 'none' })
+  });
 }
 
 /** 备货换算展示（CB-072）：「X 件 + Y 支」，整件或拆零为 0 时省略对应段 */

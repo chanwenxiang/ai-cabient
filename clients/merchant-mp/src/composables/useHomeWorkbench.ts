@@ -110,7 +110,6 @@ export function useHomeWorkbench() {
   const pendingTaskCount = ref(0);
   const actionItems = ref<TodoSummaryItem[]>([]);
   const refundOrders = ref(0);
-  const slotDiscrepancyCount = ref(0);
   const openDisputeCount = ref(0);
   const lowStockCount = ref(0);
   const expiryCount = ref(0);
@@ -331,7 +330,6 @@ export function useHomeWorkbench() {
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);
     refundOrders.value = canAlerts.value ? workbench.refundOrders || 0 : 0;
-    slotDiscrepancyCount.value = canAlerts.value ? workbench.slotDiscrepancies || 0 : 0;
     openDisputeCount.value = canAlerts.value ? workbench.openDisputes || 0 : 0;
     lowStockCount.value = canAlerts.value ? workbench.lowStockItems || 0 : 0;
     expiryCount.value = canAlerts.value ? workbench.expiryAlerts || 0 : 0;
@@ -464,7 +462,6 @@ export function useHomeWorkbench() {
     analyticsDays,
     pendingCount,
     refundOrders,
-    slotDiscrepancyCount,
     openDisputeCount,
     lowStockCount,
     expiryCount,
