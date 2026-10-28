@@ -39,6 +39,7 @@ class WarehouseStockConcurrencyTest {
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisplaySnapshotHelper displaySnapshotHelper;
+    @Mock private WarehouseManagerMapper warehouseManagerRepository;
 
     private WarehouseService service;
 
@@ -50,7 +51,7 @@ class WarehouseStockConcurrencyTest {
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper,
                 null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
-                null /*scope*/, null /*audit*/, null /*self*/);
+                null /*scope*/, null /*audit*/, warehouseManagerRepository, null /*self*/);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

@@ -24,12 +24,15 @@
           <el-radio value="INACTIVE">停用</el-radio>
         </el-radio-group>
       </el-form-item>
+      <!-- V412：负责人放开成多人。🔴 顺序即主责人（列表第一位会同步进派名列），
+           故不排序、不用 collapse-tags 折叠——折叠后运营看不出谁是第一责任人。 -->
       <el-form-item label="负责人">
         <el-select
-          v-model="warehouseForm.managerUserId"
+          v-model="warehouseForm.managerUserIds"
+          multiple
           filterable
           clearable
-          placeholder="选择补货员"
+          placeholder="选择补货员（可多选，第一位为主责人）"
           :loading="managerLoading"
           style="width: 100%"
         >
@@ -40,6 +43,9 @@
             :value="op.userId"
           />
         </el-select>
+        <div v-if="warehouseForm.managerUserIds.length > 1" class="form-hint">
+          主责人：{{ warehouseManagerName(warehouseForm.managerUserIds[0]) }}
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -225,6 +231,7 @@ defineProps<{
   managerOptions: { userId: number; name?: string; phoneNumber?: string }[];
   managerLoading: boolean;
   managerOptionLabel: (op: { userId: number; name?: string; phoneNumber?: string }) => string;
+  warehouseManagerName: (userId?: number | string | null) => string;
 }>();
 
 const warehouseForm = defineModel<WarehouseEntityRow>('warehouseForm', { required: true });
@@ -246,6 +253,11 @@ function money(cents: number) {
 </script>
 
 <style scoped>
+.form-hint {
+  margin-top: 6px;
+  font-size: var(--admin-font-size-caption, 12px);
+  color: var(--layout-muted);
+}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

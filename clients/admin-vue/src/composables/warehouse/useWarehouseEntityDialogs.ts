@@ -10,6 +10,31 @@ import type { PageResult } from '@aicabinet/shared-types';
 /** 仓储动态行（D15：禁止散落 Record<string, any>） */
 export type WarehouseEntityRow = AdminDynamicRow;
 
+/** 负责人集合条目（对应后端 `WarehouseManagerDto`）。 */
+export type WarehouseManagerRow = { userId?: number; name?: string; phoneNumber?: string };
+
+/** 带负责人集合的仓行（列表行 / 表单行都可能是动态行，故只取需要的两个字段）。 */
+type ManagerAwareRow = {
+  managerUserId?: number | string | null;
+  managers?: WarehouseManagerRow[] | null;
+};
+
+/**
+ * 负责人编号集合（**顺序 = 主责人优先**）。
+ *
+ * 🔴 判「这个仓有没有负责人」一律看 `managers` 集合，不要读 `managerUserId`
+ * —— 那是主责人派生列，V412 多人负责人后它只代表「第一位」。
+ * 老数据（迁移前、或集合未回填）仍可能只有派生列，故这里做一次兜底。
+ */
+export function managerIdsOf(row?: ManagerAwareRow | null): number[] {
+  const fromSet = (row?.managers || [])
+    .map((m) => Number(m?.userId))
+    .filter((id) => Number.isFinite(id) && id > 0);
+  if (fromSet.length > 0) return fromSet;
+  const legacy = Number(row?.managerUserId);
+  return Number.isFinite(legacy) && legacy > 0 ? [legacy] : [];
+}
+
 export type UseWarehouseEntityDialogsDeps = {
   saving: Ref<boolean>;
   dialogBootLoading: Ref<boolean>;
@@ -44,7 +69,8 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     warehouseName: '',
     address: '',
     status: 'ACTIVE',
-    managerUserId: null as number | null
+    // V412：负责人是集合，顺序即主责人（第一位同步进派名列）
+    managerUserIds: [] as number[]
   });
   const managerOptions = ref<
     { userId: number; name?: string; phoneNumber?: string; status?: string }[]
@@ -81,13 +107,36 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     return phone ? `${name}（${phone}）` : `${name}（${op.userId}）`;
   }
 
-  function warehouseManagerLabel(userId?: number | string | null) {
-    if (userId == null || userId === '') return '未绑定';
+  /** 单个负责人编号 → 可读串；下拉没加载出来时退化成「用户 N」，绝不回空。 */
+  function warehouseManagerName(userId?: number | string | null) {
+    if (userId == null || userId === '') return '';
     const id = Number(userId);
-    if (!Number.isFinite(id) || id <= 0) return '未绑定';
+    if (!Number.isFinite(id) || id <= 0) return '';
     const op = managerOptions.value.find((item) => item.userId === id);
     if (op) return managerOptionLabel(op);
     return `用户 ${id}`;
+  }
+
+  /**
+   * 列表「负责人」列：多人时顿号分隔，无人显示「未绑定」。
+   *
+   * <p>优先直接用行里自带的 `managers`（后端已按绑定先后排序并掩码手机号，
+   * 不依赖前端下拉名单是否加载完）；老数据只有派名列时再退化成下拉查名。</p>
+   */
+  function warehouseManagerLabel(row?: ManagerAwareRow | null) {
+    const set = (row?.managers || []).filter((m) => Number(m?.userId) > 0);
+    if (set.length > 0) {
+      return set
+        .map((m) => {
+          const name = (m.name || '').trim() || `用户 ${m.userId}`;
+          const phone = (m.phoneNumber || '').trim();
+          return phone ? `${name}（${phone}）` : name;
+        })
+        .join('、');
+    }
+    const ids = managerIdsOf(row);
+    if (ids.length === 0) return '未绑定';
+    return ids.map((id) => warehouseManagerName(id) || `用户 ${id}`).join('、');
   }
 
   async function loadManagerOptions() {
@@ -124,14 +173,14 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
   }
 
   function openWarehouse(row?: WarehouseEntityRow) {
-    const rawManager = Number(row?.managerUserId);
     Object.assign(warehouseForm, {
       editing: !!row,
       warehouseId: row?.warehouseId || '',
       warehouseName: row?.warehouseName || '',
       address: row?.address || '',
       status: row?.status || 'ACTIVE',
-      managerUserId: Number.isFinite(rawManager) && rawManager > 0 ? rawManager : null
+      // 整表替换（不 splice）：否则上一行的负责人会残留到这一行
+      managerUserIds: managerIdsOf(row)
     });
     warehouseDialog.value = true;
     void loadManagerOptions();
@@ -151,8 +200,9 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
         warehouseName: warehouseForm.warehouseName.trim(),
         address: warehouseForm.address,
         status: warehouseForm.status,
-        managerUserId:
-          Number(warehouseForm.managerUserId) > 0 ? Number(warehouseForm.managerUserId) : 0
+        // 🔴 传集合而不是派名列：后端按「非 null 即覆盖」处理，空数组 = 清空负责人。
+        // 不传 managerUserId——它只是兼容字段，两个都给会以集合为准，容易看错。
+        managerUserIds: warehouseForm.managerUserIds.map((id) => Number(id)).filter((id) => id > 0)
       });
       warehouseDialog.value = false;
       ElMessage.success(warehouseForm.editing ? '仓库已保存' : '仓库已创建（编号由系统分配）');
@@ -312,6 +362,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     managerOptions,
     managerLoading,
     managerOptionLabel,
+    warehouseManagerName,
     warehouseManagerLabel,
     supplierForm,
     paymentForm,

@@ -9,7 +9,7 @@ export type WarehouseOverviewRow = AdminDynamicRow;
 defineProps<{
   table: object;
   actions: (row: WarehouseOverviewRow) => CrudRowAction[];
-  managerLabel: (userId?: number | string | null) => string;
+  managerLabel: (row: WarehouseOverviewRow) => string;
 }>();
 
 const emit = defineEmits<{
@@ -39,8 +39,9 @@ const emit = defineEmits<{
           <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
         </el-table-column>
         <el-table-column label="地址" min-width="220" class-name="col-text" prop="address" />
-        <el-table-column label="负责人" min-width="140" class-name="col-text">
-          <template #default="{ row }">{{ managerLabel(row.managerUserId) }}</template>
+        <!-- V412：负责人是集合，整行交给 managerLabel 拼（多人顿号分隔） -->
+        <el-table-column label="负责人" min-width="180" class-name="col-text">
+          <template #default="{ row }">{{ managerLabel(row) }}</template>
         </el-table-column>
         <el-table-column
           label="状态"

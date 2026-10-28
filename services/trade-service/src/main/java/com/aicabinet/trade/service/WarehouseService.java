@@ -22,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -73,6 +72,7 @@ public class WarehouseService {
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
     private final AdminAuditService auditService;
+    private final WarehouseManagerMapper warehouseManagerRepository;
     private final WarehouseService self;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
@@ -98,6 +98,7 @@ public class WarehouseService {
                             PermissionService permissionService,
                             MerchantScopeService merchantScopeService,
                             AdminAuditService auditService,
+                            WarehouseManagerMapper warehouseManagerRepository,
                             @Lazy WarehouseService self) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
@@ -122,6 +123,7 @@ public class WarehouseService {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.auditService = auditService;
+        this.warehouseManagerRepository = warehouseManagerRepository;
         this.self = self;
     }
 
@@ -1460,7 +1462,8 @@ public class WarehouseService {
     private String requireManagedOutboundWarehouse(String warehouseId) {
         Warehouse warehouse = warehouseRepository.findById(warehouseId)
                 .orElseThrow(() -> badRequest("仓库不存在"));
-        if (warehouse.getManagerUserId() == null) {
+        // V412：负责人是集合（warehouse_manager），不再看单值派生列
+        if (warehouseManagerRepository.listByWarehouseId(warehouse.getWarehouseId()).isEmpty()) {
             throw badRequest(ApiMessages.REPLENISHMENT_WAREHOUSE_UNMANAGED);
         }
         return warehouse.getWarehouseId();
@@ -1473,20 +1476,33 @@ public class WarehouseService {
     }
 
     /**
-     * 校验仓库存在且由指定用户负责。
+     * 校验仓库存在且由指定用户负责（多人中的任意一位即通过）。
      * 🔴 CB-068 A 档（2026-10-27）后**自主发起补货不再走这里**（判据=柜机归该仓 + 柜机在本人数据范围内）；
-     * 本闸门留给分仓盘点——盘点直接改写账面数量，仍按「主责人单一问责」收紧。
+     * 本闸门留给分仓盘点——盘点直接改写账面数量，仍按「负责人集合」收紧（V412 起集合可多人）。
      * 拒绝必须自带成因（CB-070）：报出仓号与当前负责人，别让商户猜「是不是权限没配」。
      */
     public Warehouse requireWarehouseManagedBy(String warehouseId, Long userId) {
         Warehouse warehouse = requireWarehouseExists(warehouseId);
-        if (userId != null && userId.equals(warehouse.getManagerUserId())) {
+        if (warehouseManagerRepository.isManager(warehouse.getWarehouseId(), userId)) {
             return warehouse;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "你不是分仓 " + warehouse.getWarehouseId() + " 的负责人（当前负责人："
-                        + describeManagerUser(warehouse.getManagerUserId())
+                        + describeManagerUsers(warehouse.getWarehouseId())
                         + "），请联系运营在「仓库概览」调整");
+    }
+
+    /** 该仓负责人集合的可读串（姓名 + 掩码手机号，顿号分隔）；无负责人回「未指定」。 */
+    public String describeManagerUsers(String warehouseId) {
+        List<WarehouseManagerDto> managers = managerDtosOf(warehouseId);
+        if (managers.isEmpty()) {
+            return "未指定";
+        }
+        return managers.stream()
+                .map(m -> m.phoneNumber() == null || m.phoneNumber().isBlank()
+                        ? m.name()
+                        : m.name() + " " + m.phoneNumber())
+                .collect(Collectors.joining("、"));
     }
 
     /** 该仓名下柜机所属商户（仓表无 merchant_id，只能经 device_info.home_warehouse_id 反推）。 */
@@ -1636,7 +1652,63 @@ public class WarehouseService {
                 w.getAddress(),
                 w.getStatus(),
                 w.getCreatedAt(),
-                w.getManagerUserId());
+                w.getManagerUserId(),
+                managerDtosOf(w.getWarehouseId()));
+    }
+
+    /**
+     * 某人是否该仓负责人（多人集合中的任意一位）。
+     *
+     * <p>🔴 唯一的「我是不是这个仓的负责人」判据入口：各处不要再读
+     * {@code warehouse.manager_user_id}（那是主责人派生列，一仓两人时第二位会被漏掉）。</p>
+     */
+    public boolean isManagedBy(Long userId, String warehouseId) {
+        if (userId == null || warehouseId == null || warehouseId.isBlank()) {
+            return false;
+        }
+        return warehouseManagerRepository.isManager(warehouseId, userId);
+    }
+
+    /**
+     * 该仓是否已有负责人（任意一位即可）。
+     *
+     * <p>只判存在性、不拼 DTO：采购入库等热路径拿它当闸门，走 {@link #managerDtosOf}
+     * 会白白带上逐人 {@code user_info} 查询。判据同样是 {@code warehouse_manager} 集合。</p>
+     */
+    public boolean hasAnyManager(String warehouseId) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            return false;
+        }
+        return !warehouseManagerRepository.listByWarehouseId(warehouseId).isEmpty();
+    }
+
+    /**
+     * 该仓负责人全集（按绑定先后，第一位即主责人）。
+     *
+     * <p>姓名空回落「未命名」、手机号**掩码**——这两个值会原样进后台列表，
+     * 回 null 会让运营看到空白并误判「没人负责」。</p>
+     *
+     * <p>仓表是配置表（个位数行），每仓 1~3 人，故逐人查 user_info 的 N+1 可接受；
+     * 真要批量化应改成 IN 查询 + group by，而不是在这里堆缓存。</p>
+     */
+    public List<WarehouseManagerDto> managerDtosOf(String warehouseId) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            return List.of();
+        }
+        return warehouseManagerRepository.listByWarehouseId(warehouseId).stream()
+                .map(m -> {
+                    UserInfo u = userInfoRepository.selectById(m.getUserId());
+                    if (u == null) {
+                        // 账号被硬删后 FK 会级联清行，走不到这里；留着只为「历史脏数据不炸列表」
+                        return new WarehouseManagerDto(m.getUserId(), "账号 " + m.getUserId() + "（已不存在）", "");
+                    }
+                    String name = u.getName() == null || u.getName().isBlank() ? "未命名" : u.getName().trim();
+                    String phone = u.getPhoneNumber() == null || u.getPhoneNumber().isBlank()
+                            ? ""
+                            : PhoneMask.mask(u.getPhoneNumber());
+                    return new WarehouseManagerDto(m.getUserId(), name, phone);
+                })
+                .toList();
     }
 
     private WarehouseInventoryDto toInventoryDto(WarehouseInventory i) {
@@ -1657,8 +1729,11 @@ public class WarehouseService {
     }
 
     /**
-     * @param operatorId    操作人编号，仅用于负责人变更审计（CB-070 第 4 点）；不影响任何业务判据
-     * @param managerUserId {@code null} 表示不改负责人（导入 CSV 可省略）；{@code 0} 表示清空；正数为绑定用户
+     * @param operatorId     操作人编号，仅用于负责人变更审计（CB-070 第 4 点）；不影响任何业务判据
+     * @param managerUserIds 🔴 V412 起负责人是**集合**：
+     *                       {@code null} = 不改负责人（CSV 导入 / 只改名称地址的旧客户端可省略）；
+     *                       空列表 = 清空；顺序有意义——**第一位即主责人**，
+     *                       同步写入派生列 {@code warehouse.manager_user_id}（月结/外部导入仍读它）。
      */
     @Transactional
     public WarehouseDto upsertWarehouse(
@@ -1667,7 +1742,7 @@ public class WarehouseService {
             String warehouseName,
             String address,
             String status,
-            Long managerUserId) {
+            List<Long> managerUserIds) {
         if (warehouseName == null || warehouseName.isBlank()) {
             throw badRequest("warehouseName required");
         }
@@ -1682,7 +1757,9 @@ public class WarehouseService {
         }
         Warehouse warehouse = warehouseRepository.findById(id).orElseGet(Warehouse::new);
         boolean creating = warehouse.getWarehouseId() == null || warehouse.getWarehouseId().isBlank();
-        Long previousManagerUserId = warehouse.getManagerUserId();
+        List<Long> previousManagers = warehouseManagerRepository.listByWarehouseId(id).stream()
+                .map(WarehouseManager::getUserId)
+                .toList();
         warehouse.setWarehouseId(id);
         warehouse.setWarehouseName(warehouseName.trim());
         // 地址由运营填写（AddressPicker）；禁止种子写死城市
@@ -1692,40 +1769,84 @@ public class WarehouseService {
             throw badRequest("status must be ACTIVE or INACTIVE");
         }
         warehouse.setStatus(st);
-        if (managerUserId != null) {
-            Long nextManager = managerUserId <= 0L ? null : managerUserId;
-            // CB-070：负责人**真的变化**才校验被授权人——改地址/改名重复保存同一人不该被账号状态误伤；
-            // 清空（<=0）与 CSV 省略（null）不校验（撤权不是授权）。
-            if (nextManager != null && !nextManager.equals(previousManagerUserId)) {
-                validateWarehouseManagerCandidate(id, nextManager);
-                if (warehouseMerchantIdsOf(id).isEmpty()) {
-                    log.info("分仓 {} 尚无柜机，负责人 {} 的「同商户」判据本次跳过（建档期放行）", id, nextManager);
+        List<Long> nextManagers = managerUserIds == null ? null : normalizeManagerIds(managerUserIds);
+        if (nextManagers != null) {
+            // CB-070：只校验**本次新增**的人。重复保存同一人（改名称/地址）不该被
+            // 「账号后来被停用」误伤；移除负责人是撤权、不是授权，同样不校验。
+            boolean sawCandidate = false;
+            for (Long next : nextManagers) {
+                if (!previousManagers.contains(next)) {
+                    validateWarehouseManagerCandidate(id, next);
+                    sawCandidate = true;
                 }
             }
-            warehouse.setManagerUserId(nextManager);
+            if (sawCandidate && warehouseMerchantIdsOf(id).isEmpty()) {
+                log.info("分仓 {} 尚无柜机，负责人「同商户」判据本次跳过（建档期放行）", id);
+            }
+            // 主责人派生列：列表第一位。权限判据一律读 warehouse_manager，不读这一列。
+            warehouse.setManagerUserId(nextManagers.isEmpty() ? null : nextManagers.get(0));
         }
         if (creating || warehouse.getCreatedAt() == null) {
             warehouse.setCreatedAt(Instant.now());
         }
-        WarehouseDto saved = toWarehouseDto(warehouseRepository.save(warehouse));
-        // 前后值只在**真的换人**时记（含清空）：形态沿用 CB-021 的 `col=old->new`，
-        // 值里带编号是为了可还原，括号里的人名是给人看的——🔴 必须是掩码手机号，
-        // 因为审计页把 detail 原样吐给 ops:audit:list 持有者，读侧只掩码操作人手机、不再洗 detail。
-        if (!Objects.equals(previousManagerUserId, warehouse.getManagerUserId())) {
+        warehouseRepository.save(warehouse);
+        // 负责人集合落库必须在 warehouse 保存之后（warehouse_manager.warehouse_id 有外键）
+        if (nextManagers != null && !nextManagers.equals(previousManagers)) {
+            syncManagers(id, nextManagers);
+            // 前后值只在**真的变人**时记（含清空）：形态沿用 CB-021 的 `col=old->new`，
+            // 值里带编号是为了可还原，括号里的人名是给人看的——🔴 必须是掩码手机号，
+            // 因为审计页把 detail 原样吐给 ops:audit:list 持有者，读侧只掩码操作人手机、不再洗 detail。
             auditService.appendLog(
                     operatorId,
                     AUDIT_ACTION_MANAGER,
                     AUDIT_TARGET_WAREHOUSE,
                     id,
-                    "manager_user_id=" + managerAuditValue(previousManagerUserId)
-                            + "->" + managerAuditValue(warehouse.getManagerUserId()));
+                    "manager_user_id=" + managerAuditValue(previousManagers)
+                            + "->" + managerAuditValue(nextManagers));
         }
-        return saved;
+        return toWarehouseDto(warehouse);
     }
 
-    /** 审计值形态：{@code null} → {@code null}（与 CB-021 auditValue 同字面），否则 {@code 42(张三 138****6077)}。 */
-    private String managerAuditValue(Long managerUserId) {
-        return managerUserId == null ? "null" : managerUserId + "(" + describeManagerUser(managerUserId) + ")";
+    /** 去空、去零、去重并保序（顺序决定主责人，故用 LinkedHashSet 不用 Set）。 */
+    private static List<Long> normalizeManagerIds(List<Long> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Long> uniq = new LinkedHashSet<>();
+        for (Long v : raw) {
+            if (v != null && v > 0L) {
+                uniq.add(v);
+            }
+        }
+        return List.copyOf(uniq);
+    }
+
+    /**
+     * 整表重写该仓负责人。
+     *
+     * <p>为什么整表重写而不是差量增删：顺序即主责人，差量无法表达「把第二位提为主责人」。
+     * 同一事务内批量重写行数极小（1~3 行），代价可忽略。</p>
+     */
+    private void syncManagers(String warehouseId, List<Long> managerUserIds) {
+        warehouseManagerRepository.deleteByWarehouseId(warehouseId);
+        Instant boundAt = Instant.now();
+        for (Long userId : managerUserIds) {
+            WarehouseManager row = new WarehouseManager();
+            row.setWarehouseId(warehouseId);
+            row.setUserId(userId);
+            row.setCreatedAt(boundAt);
+            warehouseManagerRepository.insert(row);
+        }
+    }
+
+    /** 审计值形态：{@code []}（无人）或 {@code [42(张三 138****6077),43(...)]}。 */
+    private String managerAuditValue(List<Long> managerUserIds) {
+        if (managerUserIds == null || managerUserIds.isEmpty()) {
+            return "[]";
+        }
+        return "[" + managerUserIds.stream()
+                .map(uid -> uid + "(" + describeManagerUser(uid) + ")")
+                .collect(Collectors.joining(",")) + "]";
     }
 
     private WarehouseMovementDto toMovementDto(WarehouseMovement movement) {

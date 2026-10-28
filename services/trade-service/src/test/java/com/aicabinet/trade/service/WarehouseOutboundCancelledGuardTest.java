@@ -59,6 +59,7 @@ class WarehouseOutboundCancelledGuardTest {
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisplaySnapshotHelper displaySnapshotHelper;
+    @Mock private WarehouseManagerMapper warehouseManagerRepository;
 
     private WarehouseService service;
 
@@ -70,7 +71,7 @@ class WarehouseOutboundCancelledGuardTest {
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService,
                 distributedLockService, displaySnapshotHelper,
                 null /*deviceInfo*/, null /*supplierId*/, null /*userInfo*/, null /*permission*/,
-                null /*scope*/, null /*audit*/, null /*self*/);
+                null /*scope*/, null /*audit*/, warehouseManagerRepository, null /*self*/);
         lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 

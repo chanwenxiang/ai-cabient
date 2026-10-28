@@ -10,6 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -120,6 +121,25 @@ public class AdminDataManageService {
      * 等一大批**业务标识**列（都是运营订正数据的正常对象）。
      */
     private static final Set<String> CREDENTIAL_COLUMNS = Set.of("session_key");
+
+    /**
+     * 派生列：由业务侧同步，单表直写会造成「两份真相」漂移，故本通道**读写两侧都排除**。
+     *
+     * <p>{@code warehouse.manager_user_id} = {@code warehouse_manager} 集合的主责人派生列
+     * （V412 多人负责人）。若放开，运营在「数据管理」改这一列会改出「派生列说 A、集合说 B」，
+     * 而权限判据读集合 ⇒ 改完不生效且无人察觉。前置条件已由「仓库概览」弹窗承接
+     * （那里同时写集合与派生列，并记审计）。</p>
+     */
+    private static final Map<String, Set<String>> DERIVED_COLUMNS = Map.of(
+            "warehouse", Set.of("manager_user_id"));
+
+    /** 该表不可经本通道读写的派生列；无则空集。包级可见：可被纯逻辑单测直接钉住。 */
+    static Set<String> derivedColumns(String table) {
+        if (table == null || table.isBlank()) {
+            return Set.of();
+        }
+        return DERIVED_COLUMNS.getOrDefault(table.trim().toLowerCase(), Set.of());
+    }
 
     /** 该列是否属于凭据/密钥（读写皆禁）。包级可见：策略可被纯逻辑单测直接钉住。 */
     static boolean isCredentialColumn(String column) {
@@ -301,6 +321,9 @@ public class AdminDataManageService {
         // 拿到 password_hash 可离线爆破；而这张表里就躺着后台管理员账号。
         Map<String, Object> row = new LinkedHashMap<>(rows.get(0));
         row.keySet().removeIf(AdminDataManageService::isCredentialColumn);
+        // 派生列不回吐：编辑框没有它 ⇒ 保存时不会把它原样写回（否则「编辑仓库名称」会顺手
+        // 用界面读到的旧值覆盖负责人派生列，与集合打架）。
+        row.keySet().removeIf(col -> derivedColumns(table).contains(col));
         return row;
     }
 
@@ -325,7 +348,7 @@ public class AdminDataManageService {
         requireManaged(table);
         Map<String, String> types = columnTypes(table);
         PkColumn pk = primaryKey(table);
-        Map<String, Object> safe = validatedColumns(types, columns, Set.of(pk.name()));
+        Map<String, Object> safe = validatedColumns(types, columns, excludedForWrite(table, pk.name()));
         if (safe.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "没有可更新的列");
         }
@@ -408,7 +431,7 @@ public class AdminDataManageService {
     public int insertRow(Long operatorId, String table, Map<String, Object> columns) {
         requireManaged(table);
         Map<String, String> types = columnTypes(table);
-        Map<String, Object> safe = validatedColumns(types, columns, Set.of());
+        Map<String, Object> safe = validatedColumns(types, columns, excludedForWrite(table, null));
         if (safe.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "没有可插入的列");
         }
@@ -508,6 +531,15 @@ public class AdminDataManageService {
 
     private static String placeholder(Map<String, String> types, String column) {
         return placeholder(types.get(column));
+    }
+
+    /** 写/读时须排除的列：主键（写） + 派生列（读写皆排除，见 {@link #DERIVED_COLUMNS}）。 */
+    private static Set<String> excludedForWrite(String table, String pkColumn) {
+        Set<String> out = new LinkedHashSet<>(derivedColumns(table));
+        if (pkColumn != null && !pkColumn.isBlank()) {
+            out.add(pkColumn);
+        }
+        return out;
     }
 
     /** 列名必须真实存在（防注入），返回有序副本；排除列（如主键/审计列）单独传入 */

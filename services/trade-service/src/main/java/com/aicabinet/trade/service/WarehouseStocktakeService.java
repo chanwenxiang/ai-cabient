@@ -341,7 +341,7 @@ public class WarehouseStocktakeService {
     }
 
     /**
-     * 授权：持有 ops 权限放行；否则若为该分仓负责人（managerUserId 匹配）同样放行——
+     * 授权：持有 ops 权限放行；否则若为该分仓负责人同样放行——
      * 商户小程序盘点（V349）复用整仓盘点流程的入口。两条路都不通 ⇒ 走标准 403。
      * <p>🔴 仓负责人只对该仓放行：warehouseId 为 null（跨仓列表）时仅 ops 权限可过。
      */
@@ -352,10 +352,13 @@ public class WarehouseStocktakeService {
         permissionService.requirePermission(operatorId, permission);
     }
 
+    /**
+     * 🔴 V412：负责人是**集合**，判据走 {@code warehouse_manager}。
+     * 原实现读 {@code warehouse.manager_user_id} 单值列 ⇒ 一仓两人时第二位负责人
+     * 明明被授权却被挡在盘点门外（与铁律 81 同一类缺陷）。
+     */
     private boolean isManagedBy(Long operatorId, String warehouseId) {
-        return warehouseRepository.findById(warehouseId)
-                .map(w -> operatorId != null && operatorId.equals(w.getManagerUserId()))
-                .orElse(false);
+        return warehouseService.isManagedBy(operatorId, warehouseId);
     }
 
     private void refreshTotals(WarehouseStocktake st) {

@@ -196,6 +196,81 @@ class AdminDataManageTablePolicyTest {
         assertTrue(AdminDataManageService.isCredentialColumn(null), "null 列名必须 fail-closed 拒绝");
     }
 
+    // —— 列级第三道防线：**派生列**（与凭据正交：不是敏感，而是「写了会制造两份真相」）——
+
+    /**
+     * 🔴 V412 多人负责人后，{@code warehouse.manager_user_id} 降级为「主责人派生列」，
+     * 真相在 {@code warehouse_manager} 集合。通用数据管理通道若还能直改这一列，运营会改出
+     * 「派生列说 A、集合说 B」，而**权限判据读集合** ⇒ 改完不生效且无人察觉（比报错更坏）。
+     *
+     * <p>因此本通道**读写两侧都排除**它：读侧排除，编辑框才不会把它原样回写。</p>
+     */
+    @Test
+    void warehouseManagerUserId_isDerivedAndBlocked() {
+        var blocked = AdminDataManageService.derivedColumns("warehouse");
+        assertTrue(
+                blocked.contains("manager_user_id"),
+                "warehouse.manager_user_id 是 warehouse_manager 集合的派生列，"
+                        + "必须禁止经通用数据管理通道直改（否则派生列与集合漂移，权限判据读集合 ⇒ 改了不生效）。"
+                        + "实际排除集：" + blocked);
+    }
+
+    /**
+     * 反向对账：派生列清单**只**登记真正的派生列 —— 别顺手把 {@code warehouse_name}/{@code address}
+     * 这类运营本来就该订正的业务列一起禁掉（过度收紧会让「数据管理」对仓库表彻底不可用）。
+     */
+    @Test
+    void warehouseBusinessColumns_stayEditable() {
+        List<String> business = List.of("warehouse_name", "address", "status");
+        List<String> wronglyBlocked = business.stream()
+                .filter(c -> AdminDataManageService.derivedColumns("warehouse").contains(c))
+                .sorted()
+                .toList();
+        assertTrue(wronglyBlocked.isEmpty(), "这些是仓库表本就该能订正的业务列，被派生列规则误伤：" + wronglyBlocked);
+    }
+
+    /** 表名大小写不敏感：通道里表名来自 URL path，运营/脚本可能给大写。 */
+    @Test
+    void derivedColumns_areCaseInsensitiveOnTable() {
+        assertTrue(
+                AdminDataManageService.derivedColumns("WAREHOUSE").contains("manager_user_id"),
+                "表名大写时派生列排除必须照样生效（表名来自 URL path，大小写不可控）");
+    }
+
+    /** 未登记派生的表 ⇒ 空集（不是「全排除」）—— 本规则只做减法，不做默认拒绝。 */
+    @Test
+    void tablesWithoutDerivedColumns_areUntouched() {
+        List<String> untouched = List.of("ops_exception", "user_info", "cabinet_order", "does_not_exist");
+        List<String> wronglyBlocked = untouched.stream()
+                .filter(t -> !AdminDataManageService.derivedColumns(t).isEmpty())
+                .sorted()
+                .toList();
+        assertTrue(wronglyBlocked.isEmpty(), "这些表没有派生列，不该被本规则排除任何列：" + wronglyBlocked);
+    }
+
+    /** null/空表名 ⇒ 空集（fail-closed 方向由 {@code requireManaged} 兜底，这里不做默认拒绝）。 */
+    @Test
+    void blankTable_hasNoDerivedColumns() {
+        assertTrue(AdminDataManageService.derivedColumns(null).isEmpty(), "null 表名 ⇒ 空集");
+        assertTrue(AdminDataManageService.derivedColumns("   ").isEmpty(), "空白表名 ⇒ 空集");
+    }
+
+    /**
+     * ⚠️ **自检：防恒真全绿**。若有人把 {@code DERIVED_COLUMNS} 清空（或改成不可达），
+     * 上面那条 {@link #warehouseManagerUserId_isDerivedAndBlocked()} 会当场变红；
+     * 但反过来「把整张 warehouse 表所有列都登记成派生列」会让它**恒绿**，
+     * 故这里额外钉住「排除集不能超出真实派生列」——两条件一起才锁住两端。
+     */
+    @Test
+    void warehouseDerivedColumns_haveNoUnexpectedMembers() {
+        var blocked = new java.util.TreeSet<>(AdminDataManageService.derivedColumns("warehouse"));
+        blocked.remove("manager_user_id");
+        assertTrue(
+                blocked.isEmpty(),
+                "warehouse 的派生列排除集里出现了未登记成员：" + blocked
+                        + "。新增派生列必须同步说明它与哪份真相同步，否则会静默禁掉业务列");
+    }
+
     // —— 核心守卫：源码实体 ↔ 保护规则 双向对账 ——————————————————————————
 
     private static final Pattern TABLE_NAME_ANNOTATION =

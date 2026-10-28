@@ -300,7 +300,7 @@ public class OpsCommercialFacade {
                 body.warehouseName(),
                 body.address(),
                 body.status(),
-                body.managerUserId());
+                body.resolvedManagerUserIds());
     }
 
     public List<WarehouseInventoryDto> warehouseInventory(Long operatorId, String warehouseId) {

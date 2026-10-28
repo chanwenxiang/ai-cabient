@@ -566,7 +566,10 @@
             :loading="isTabLoading('monthly')"
             :hydrated="hydratedTabs.has('monthly')"
             :hint="monthlyCloseHint"
+            :manager-name="monthlyCloseManager"
+            :device-count="monthlyCloseDeviceCount"
             :rows="monthlyCloseLines"
+            :load-restock-detail="loadMonthlyRestockDetail"
           />
         </el-tab-pane>
         <el-tab-pane
@@ -608,6 +611,7 @@
         :manager-options="managerOptions"
         :manager-loading="managerLoading"
         :manager-option-label="managerOptionLabel"
+        :warehouse-manager-name="warehouseManagerName"
         @update:warehouse-dialog="setWarehouseDialog"
         @update:supplier-dialog="setSupplierDialog"
         @update:payment-dialog="setPaymentDialog"
@@ -1221,6 +1225,8 @@ const inventory = ref<Row[]>([]);
 const movements = ref<Row[]>([]);
 const monthlyCloseLines = ref<Row[]>([]);
 const monthlyCloseHint = ref('');
+const monthlyCloseManager = ref('');
+const monthlyCloseDeviceCount = ref(0);
 const monthlyCloseYearMonth = ref(
   new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 7)
 );
@@ -1480,6 +1486,7 @@ const {
   loadWarehousesSoft,
   loadSuppliersSoft,
   loadPurchase,
+  loadMonthlyRestockDetail,
   loadTab: loadTabRaw
 } = useWarehouseTabLoader({
   loadSeq,
@@ -1507,6 +1514,8 @@ const {
   movements,
   monthlyCloseLines,
   monthlyCloseHint,
+  monthlyCloseManager,
+  monthlyCloseDeviceCount,
   monthlyCloseYearMonth,
   suggestions,
   payables,
@@ -1689,6 +1698,7 @@ const {
   managerOptions,
   managerLoading,
   managerOptionLabel,
+  warehouseManagerName,
   warehouseManagerLabel,
   supplierForm,
   paymentForm,

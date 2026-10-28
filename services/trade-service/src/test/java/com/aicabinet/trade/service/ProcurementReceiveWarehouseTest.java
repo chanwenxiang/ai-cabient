@@ -62,6 +62,9 @@ class ProcurementReceiveWarehouseTest {
                 .thenReturn(Optional.of(managedWarehouse("WH-A")));
         lenient().when(warehouseRepository.findById("WH-B"))
                 .thenReturn(Optional.of(managedWarehouse("WH-B")));
+        // V412：负责人判据改读 warehouse_manager 集合，受管仓必须显式挂人
+        lenient().when(warehouseService.hasAnyManager("WH-A")).thenReturn(true);
+        lenient().when(warehouseService.hasAnyManager("WH-B")).thenReturn(true);
     }
 
     private com.aicabinet.trade.domain.Warehouse managedWarehouse(String id) {

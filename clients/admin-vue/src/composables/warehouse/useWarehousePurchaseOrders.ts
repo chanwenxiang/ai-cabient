@@ -6,6 +6,7 @@ import { yuanToCents } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 import { adminDevWarn } from '@/utils/admin-dev-log';
 import { useAuthStore } from '@/stores/auth';
+import { managerIdsOf } from '@/composables/warehouse/useWarehouseEntityDialogs';
 import {
   emitPurchaseOrderReviewed,
   showPurchaseReviewToast,
@@ -51,8 +52,13 @@ function defaultPurchaseRefNo() {
   return `PO-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+/**
+ * 🔴 判据看负责人**集合**，不读 `managerUserId`——那是主责人派生列，
+ * V412 多人负责人后它只代表「第一位」，集合里有人它才非空（两者此刻等价），
+ * 但集合是唯一真相，别再退回派名列。
+ */
 function hasWarehouseManager(row: WarehousePurchaseRow) {
-  return Number(row.managerUserId) > 0;
+  return managerIdsOf(row).length > 0;
 }
 
 function isManagedWarehouseId(warehouses: WarehousePurchaseRow[], warehouseId: unknown) {
@@ -92,7 +98,8 @@ export function useWarehousePurchaseOrders(deps: UseWarehousePurchaseOrdersDeps)
       return filterId;
     }
     const uid = Number(useAuthStore().userId);
-    const mine = managed.find((w) => Number(w.managerUserId) === uid);
+    // 多人负责人：只要自己在集合里就算「我的仓」（第二负责人此前会被漏掉）
+    const mine = managed.find((w) => managerIdsOf(w).includes(uid));
     if (mine?.warehouseId) return String(mine.warehouseId);
     return managed[0]?.warehouseId ? String(managed[0].warehouseId) : '';
   }

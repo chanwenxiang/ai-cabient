@@ -180,9 +180,10 @@ class WarehouseStocktakeServiceTest {
 
     @Test
     void create_shouldBypassOpsPermForWarehouseManager() {
-        Warehouse w = warehouse();
-        w.setManagerUserId(77L);
-        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        // V412：负责人判据走 warehouse_manager 集合（WarehouseService.isManagedBy），
+        // 不再读 warehouse.manager_user_id 单值派生列。
+        when(warehouseService.isManagedBy(77L, "WH-001")).thenReturn(true);
+        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(warehouse()));
         when(inventoryRepository.findByWarehouseIdOrderByExpiryDateAsc("WH-001"))
                 .thenReturn(List.of(inventory("SKU-A", "B1", 12)));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
@@ -197,9 +198,7 @@ class WarehouseStocktakeServiceTest {
 
     @Test
     void create_shouldRejectNonManagerWithoutOpsPerm() {
-        Warehouse w = warehouse();
-        w.setManagerUserId(77L);
-        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        // 88L 不在 warehouse_manager 集合（mock 默认 false）⇒ 落到 ops 权限闸门
         org.mockito.Mockito.doThrow(new ResponseStatusException(
                 org.springframework.http.HttpStatus.FORBIDDEN, "denied"))
                 .when(permissionService).requirePermission(88L, "ops:warehouse:edit");
@@ -210,9 +209,7 @@ class WarehouseStocktakeServiceTest {
 
     @Test
     void updateLine_shouldBypassOpsPermForWarehouseManager() {
-        Warehouse w = warehouse();
-        w.setManagerUserId(77L);
-        when(warehouseRepository.findById("WH-001")).thenReturn(Optional.of(w));
+        when(warehouseService.isManagedBy(77L, "WH-001")).thenReturn(true);
         WarehouseStocktake st = stocktake("DRAFT");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
         when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));

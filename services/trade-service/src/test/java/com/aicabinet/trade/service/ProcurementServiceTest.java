@@ -114,6 +114,8 @@ class ProcurementServiceTest {
         warehouse.setStatus("ACTIVE");
         warehouse.setManagerUserId(9L);
         when(warehouseRepository.findById("WH-1")).thenReturn(java.util.Optional.of(warehouse));
+        // V412：负责人判据改读 warehouse_manager 集合，受管仓必须显式挂人
+        when(warehouseService.hasAnyManager("WH-1")).thenReturn(true);
         stubCreateSaves();
     }
 
@@ -300,6 +302,8 @@ class ProcurementServiceTest {
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
         when(warehouseRepository.findById("WH-1"))
                 .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
+        // V412：负责人判据改读 warehouse_manager 集合，受管仓必须显式挂人
+        when(warehouseService.hasAnyManager("WH-1")).thenReturn(true);
         PurchaseOrderLine line = new PurchaseOrderLine();
         line.setLineId(11L);
         line.setPurchaseOrderId(1L);
@@ -329,6 +333,8 @@ class ProcurementServiceTest {
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
         when(warehouseRepository.findById("WH-1"))
                 .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
+        // V412：负责人判据改读 warehouse_manager 集合，受管仓必须显式挂人
+        when(warehouseService.hasAnyManager("WH-1")).thenReturn(true);
         when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         PurchaseOrderLine line = new PurchaseOrderLine();
@@ -366,6 +372,8 @@ class ProcurementServiceTest {
         when(purchaseOrderRepository.findByIdForUpdate(1L)).thenReturn(java.util.Optional.of(order));
         when(warehouseRepository.findById("WH-1"))
                 .thenReturn(java.util.Optional.of(managedWarehouse("WH-1")));
+        // V412：负责人判据改读 warehouse_manager 集合，受管仓必须显式挂人
+        when(warehouseService.hasAnyManager("WH-1")).thenReturn(true);
         when(purchaseOrderRepository.save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         PurchaseOrderLine line = new PurchaseOrderLine();

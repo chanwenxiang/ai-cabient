@@ -210,7 +210,8 @@ public class ProcurementService {
                 w.getAddress(),
                 w.getStatus(),
                 w.getCreatedAt(),
-                w.getManagerUserId());
+                w.getManagerUserId(),
+                warehouseService.managerDtosOf(w.getWarehouseId()));
     }
 
     @Transactional(readOnly = true)
@@ -806,8 +807,9 @@ public class ProcurementService {
                         HttpStatus.BAD_REQUEST, "没有已指定负责人的分仓，请先在仓库概览绑定负责人"));
     }
 
-    private static void requireManagedWarehouse(Warehouse warehouse) {
-        if (warehouse.getManagerUserId() == null) {
+    /** V412：负责人是集合（warehouse_manager），只要有任意一位即可作为日常采购入库仓。 */
+    private void requireManagedWarehouse(Warehouse warehouse) {
+        if (!warehouseService.hasAnyManager(warehouse.getWarehouseId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该仓库未指定负责人，不能作为日常采购入库仓");
         }
     }

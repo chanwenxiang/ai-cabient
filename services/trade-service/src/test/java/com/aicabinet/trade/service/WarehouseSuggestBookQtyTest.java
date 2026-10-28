@@ -12,6 +12,7 @@ import com.aicabinet.trade.mapper.WarehouseInboundMapper;
 import com.aicabinet.trade.mapper.WarehouseMovementMapper;
 import com.aicabinet.trade.mapper.WarehouseOutboundLineMapper;
 import com.aicabinet.trade.mapper.WarehouseOutboundMapper;
+import com.aicabinet.trade.mapper.WarehouseManagerMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,6 +65,7 @@ class WarehouseSuggestBookQtyTest {
     @Mock private com.aicabinet.trade.service.PermissionService permissionService;
     @Mock private MerchantScopeService merchantScopeService;
     @Mock private AdminAuditService auditService;
+    @Mock private WarehouseManagerMapper warehouseManagerRepository;
 
     private WarehouseService service;
 
@@ -74,7 +76,7 @@ class WarehouseSuggestBookQtyTest {
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService,
                 displaySnapshotHelper, deviceInfoRepository, null,
-                userInfoRepository, permissionService, merchantScopeService, auditService, null);
+                userInfoRepository, permissionService, merchantScopeService, auditService, warehouseManagerRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
