@@ -45,6 +45,8 @@ public class InventoryLotService {
     private static final String DEPLETED = "DEPLETED";
     private static final String BLOCKED = "BLOCKED";
     private static final String ON_SALE = "ON_SALE";
+    /** 无批次支撑的历史库存（裸库存）在首次开批次账时并入的批次号。 */
+    private static final String LEGACY_OPENING_BATCH = "LEGACY-OPENING";
 
 
     private static final Logger log = LoggerFactory.getLogger(InventoryLotService.class);
@@ -577,6 +579,7 @@ public class InventoryLotService {
 
     @Transactional
     public void syncAggregateInventory(String deviceId, String skuId) {
+        materializeUntrackedInventory(deviceId, skuId);
         int sum = lotRepository.sumSellableQuantity(deviceId, skuId);
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
         DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
@@ -588,6 +591,37 @@ public class InventoryLotService {
         });
         inv.setQuantity(sum);
         inventoryRepository.save(inv);
+    }
+
+    /**
+     * 首次为该「柜 + SKU」开批次账时，把**无批次支撑的裸库存**并成一条批次。
+     *
+     * <p>成因：{@code syncAggregateInventory} 用批次汇总<b>覆盖</b>账面数量。若某 SKU 的
+     * 账面有货却从未写过批次（历史补货/演示数据/早期无批次口径留下的行），第一次上架
+     * 写批次后汇总只剩新批次，裸库存被静默吞掉——实测 100013 账面 2、上架 2，结果仍是 2。
+     *
+     * <p>判据刻意取「该柜该 SKU 一条批次都没有」：这是唯一能证明账面数量全部无批次支撑
+     * 的状态。已有批次时不动，避免把「部分有批次」的账外差异凭空补成批次（差异应走盘点）。
+     *
+     * <p>放在汇总入口而不是 {@code doAddRestock}，是为了同时盖住退货回库、盘盈、调拨入库
+     * 等所有「先建批次再汇总」的路径，避免同一类缺陷换个入口复现。
+     */
+    private void materializeUntrackedInventory(String deviceId, String skuId) {
+        if (!lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId).isEmpty()) {
+            return;
+        }
+        int bare = inventoryRepository
+                .findById(new DeviceSkuInventoryId(deviceId, skuId))
+                .map(DeviceSkuInventory::getQuantity)
+                .orElse(0);
+        if (bare <= 0) {
+            return;
+        }
+        DeviceSkuLot lot = createFallbackLot(deviceId, skuId, LEGACY_OPENING_BATCH);
+        lot.setQuantity(bare);
+        lotRepository.save(lot);
+        log.warn("materialize untracked inventory device={} sku={} qty={} -> batch={}",
+                deviceId, skuId, bare, LEGACY_OPENING_BATCH);
     }
 
     @Transactional(readOnly = true)
