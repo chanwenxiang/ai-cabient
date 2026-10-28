@@ -123,7 +123,8 @@ const MENU_ICONS = {
   team: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M12 8H7a2.5 2.5 0 0 1 0-5c2 0 4 2.5 5 5Zm0 0h5a2.5 2.5 0 0 0 0-5c-2 0-4 2.5-5 5Z"/>',
   'check-circle': '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
-  warning: '<path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/>'
+  warning: '<path d="M12 3 2 20h20Z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
+  prep: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9z"/><path d="M8 11h8M8 15h5"/>'
 };
 
 /** 需要特殊配色的图标（如退出登录用警示红） */
@@ -176,6 +177,7 @@ const MENU_ICONS_BY_APP = {
     'notice',
     'orders',
     'pending',
+    'prep',
     'pricing',
     'replenish',
     'settlements',

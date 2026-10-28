@@ -130,6 +130,22 @@
           <text class="quick-label">柜机列表</text>
         </view>
         <view
+          v-if="canReplenishment"
+          class="quick-item"
+          role="button"
+          aria-label="备货单"
+          @click="goReplenishment()"
+        >
+          <image
+            class="quick-icon"
+            :src="menuIcon('prep')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
+          <text class="quick-label">备货单</text>
+          <text v-if="prepGroupCount" class="quick-badge">{{ prepGroupCount }}</text>
+        </view>
+        <view
           v-if="canAlerts"
           class="quick-item"
           role="button"
