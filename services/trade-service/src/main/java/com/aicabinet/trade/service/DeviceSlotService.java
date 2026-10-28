@@ -131,9 +131,13 @@ public class DeviceSlotService {
                 : skuCatalogRepository.selectList(
                                 Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getSkuId, inventorySkuIds));
         Map<String, String> skuNameById = new java.util.HashMap<>();
+        Map<String, String> skuImageById = new java.util.HashMap<>();
         for (SkuCatalog s : catalogRows) {
             if (s.getSkuName() != null) {
                 skuNameById.putIfAbsent(s.getSkuId(), s.getSkuName());
+            }
+            if (s.getImageUrl() != null) {
+                skuImageById.putIfAbsent(s.getSkuId(), s.getImageUrl());
             }
         }
         Set<String> activeSkuIds = catalogRows.stream()
@@ -143,7 +147,7 @@ public class DeviceSlotService {
         List<DeviceInventoryDto> skuInventory = inventoryRows.stream()
                 .filter(inv -> activeSkuIds.contains(inv.getSkuId()))
                 .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus,
-                        skuNameById.get(inv.getSkuId())))
+                        skuNameById.get(inv.getSkuId()), skuImageById.get(inv.getSkuId())))
                 .toList();
         // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
@@ -1519,7 +1523,7 @@ public class DeviceSlotService {
     }
 
     private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku,
-                                              Set<String> lotLedgerSkus, String skuName) {
+                                              Set<String> lotLedgerSkus, String skuName, String imageUrl) {
         String deviceId = inv.getId().getDeviceId();
         String skuId = inv.getId().getSkuId();
         int qty = inv.getQuantity();
@@ -1539,7 +1543,8 @@ public class DeviceSlotService {
                 inv.getUpdatedAt(),
                 inv.getVersion(),
                 inv.getLastRestockQty(),
-                skuName
+                skuName,
+                imageUrl
         );
     }
 

@@ -36,7 +36,8 @@
               <template v-if="routeCode && lifecycleLabel"> · </template>
               <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
             </text>
-            <text class="meta-line">当前 {{ currentTemp }} · 目标 {{ targetTemp }}</text>
+            <!-- 2026-10-28 用户拍板：温度展示整体下线——我们控制不了温度，读数也拿不到，
+                 「当前 暂无 · 目标 未设置」只会让人以为柜机坏了。 -->
             <!-- CB-050：信息区扩展（场景/分配时间/最近上下线/信号强度），数据来自 deviceDetail 的 AdminDeviceDto -->
             <text class="meta-line">设备编号 {{ deviceId }}</text>
             <text v-if="sceneText" class="meta-line">投放场景 {{ sceneText }}</text>
@@ -184,10 +185,6 @@
             <input v-model="formName" class="input" placeholder="请输入柜机显示名称" />
           </view>
           <view class="field">
-            <text class="field-label">目标温度(°C)</text>
-            <input v-model="formTargetTemp" class="input" type="number" placeholder="例如 5" />
-          </view>
-          <view class="field">
             <text class="field-label">备注</text>
             <input v-model="formRemark" class="input" placeholder="选填运维备注" />
           </view>
@@ -256,12 +253,24 @@
           </view>
           <!-- 方案A 第一步：开门柜（将邑）不展示/不可存货道——在架商品走台账
                （skuInventory：商品名+库存/容量，与建议、补货同一口径） -->
-          <view v-if="isDoorCabinet" class="slot-grid">
-            <view v-for="s in ledgerGoods" :key="s.skuId" class="slot-cell">
-              <text class="slot-sku">{{ s.skuName || s.skuId }}</text>
-              <text class="meta slot-stock"
-                >库存 {{ s.quantity }}/{{ s.capacity || '未设上限' }}</text
-              >
+          <!-- 2026-10-28 用户拍板：在架商品每种独占一行并带商品图（原 3 列格子太挤、没图）。
+               图来自 SKU 目录 imageUrl（DeviceInventoryDto 顺路带出）；缺图用名称首字兜底。 -->
+          <view v-if="isDoorCabinet" class="goods-list">
+            <view v-for="s in ledgerGoods" :key="s.skuId" class="goods-row">
+              <image
+                v-if="s.imageUrl"
+                class="goods-img"
+                :src="s.imageUrl"
+                mode="aspectFill"
+                lazy-load
+              />
+              <view v-else class="goods-img goods-img-fallback">
+                <text class="goods-img-fallback-text">{{ (s.skuName || s.skuId || '?').slice(0, 1) }}</text>
+              </view>
+              <view class="goods-info">
+                <text class="goods-name">{{ s.skuName || s.skuId }}</text>
+                <text class="meta">库存 {{ s.quantity }}/{{ s.capacity || '未设上限' }}</text>
+              </view>
             </view>
             <text v-if="!ledgerGoods.length" class="meta">暂无在架商品</text>
           </view>
@@ -372,10 +381,7 @@ const lifecycleStatus = ref('');
 const firmwareVersion = ref('');
 const latitude = ref<number | null>(null);
 const longitude = ref<number | null>(null);
-const currentTemp = ref('暂无');
-const targetTemp = ref('未设置');
 const formName = ref('');
-const formTargetTemp = ref('');
 const formRemark = ref('');
 const saving = ref(false);
 const savingSlots = ref(false);
@@ -426,7 +432,13 @@ watch(
 // 方案A 第一步：开门柜（将邑，bound=已绑定）按商品备货——货道编辑隐藏，改台账在架列表
 const isDoorCabinet = computed(() => jiangyiGather.value.bound);
 const ledgerGoods = ref<
-  { skuId: string; skuName?: string | null; quantity?: number; capacity?: number }[]
+  {
+    skuId: string;
+    skuName?: string | null;
+    quantity?: number;
+    capacity?: number;
+    imageUrl?: string | null;
+  }[]
 >([]);
 const gatherDoorPosition = ref('');
 const gatherBusy = ref(false);
@@ -531,10 +543,6 @@ onLoad((opts) => {
   loadDetail();
 });
 
-function formatTempDisplay(value: number | null | undefined, emptyLabel: string): string {
-  return value == null ? emptyLabel : `${value}°C`;
-}
-
 function readExtendedDeviceFields(settings: OpenApiMerchantDeviceSettingsDto) {
   return {
     salesLocked: !!settings.salesLocked,
@@ -566,10 +574,7 @@ function applyDeviceSettings(settings: OpenApiMerchantDeviceSettingsDto) {
   firmwareVersion.value = ext.firmwareVersion;
   latitude.value = ext.latitude;
   longitude.value = ext.longitude;
-  currentTemp.value = formatTempDisplay(settings.currentTempC, '暂无');
-  targetTemp.value = formatTempDisplay(settings.targetTempC, '未设置');
   formName.value = settings.deviceName || '';
-  formTargetTemp.value = settings.targetTempC == null ? '' : String(settings.targetTempC);
   formRemark.value = settings.opsRemark || '';
 }
 
@@ -644,6 +649,7 @@ async function loadDeviceExtras(seq: number) {
         skuName?: string | null;
         quantity?: number;
         capacity?: number;
+        imageUrl?: string | null;
       }[];
     } | null
   )?.skuInventory;
@@ -846,19 +852,11 @@ function goRequest() {
 
 async function saveSettings() {
   if (saving.value) return;
+  // 目标温度已下线（控制不了温度，2026-10-28 用户拍板）——不再提交 targetTempC。
   const body: OpenApiUpdateMerchantDeviceSettingsRequest = {
     deviceName: formName.value.trim() || undefined,
     opsRemark: formRemark.value.trim() || undefined
   };
-  if (formTargetTemp.value !== '') {
-    const temp = Number(formTargetTemp.value);
-    // 用 Number + Number.isInteger 替代 parseInt，避免 "25.5" 被静默截断为 25
-    if (!Number.isInteger(temp)) {
-      showError('目标温度须为整数');
-      return;
-    }
-    body.targetTempC = temp;
-  }
   saving.value = true;
   try {
     await merchantApi.updateDeviceSettings(deviceId.value, body);
@@ -1089,6 +1087,54 @@ async function saveSlots() {
   font-weight: 600;
   display: block;
   font-size: var(--font-size-caption);
+}
+/* 在架商品行式列表（2026-10-28）：每商品独占一行 + 商品图；只服务开门柜分支 */
+.goods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+.goods-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 12rpx;
+  padding: 16rpx;
+  background: var(--white, #ffffff);
+  box-sizing: border-box;
+}
+.goods-img {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+  background: var(--bg-secondary, #f1f5f9);
+}
+.goods-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.goods-img-fallback-text {
+  font-size: 40rpx;
+  color: var(--text-muted, #64748b);
+}
+.goods-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
+  flex: 1;
+}
+.goods-name {
+  font-size: var(--font-size-body, 28rpx);
+  color: var(--text-primary, #0f172a);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .slot-sku {
   display: block;
