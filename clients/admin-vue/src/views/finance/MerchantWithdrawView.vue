@@ -14,7 +14,7 @@
             <el-button
               type="success"
               plain
-              :disabled="!wdCrud.hasSelection"
+              :disabled="!wdCrud.hasSelection || wdBatchLoading !== ''"
               :loading="wdBatchLoading === 'approve'"
               @click="batchReviewWithdraws(true)"
               >批量通过</el-button
@@ -22,7 +22,7 @@
             <el-button
               type="danger"
               plain
-              :disabled="!wdCrud.hasSelection"
+              :disabled="!wdCrud.hasSelection || wdBatchLoading !== ''"
               :loading="wdBatchLoading === 'reject'"
               @click="batchReviewWithdraws(false)"
               >批量驳回</el-button
@@ -1082,11 +1082,13 @@ async function batchReviewWithdraws(approve: boolean) {
     return;
   }
   const label = approve ? '通过并打款' : '驳回';
+  // 合计金额必须进确认框：批量点下去是真金白银的打款，只报条数等于让运营盲签
+  const totalCents = targets.reduce((sum, r) => sum + (r.amountCents ?? 0), 0);
   try {
     await ElMessageBox.confirm(
       approve
-        ? `确认批量通过 ${targets.length} 条提现申请并打款？`
-        : `确认批量驳回 ${targets.length} 条提现申请？`,
+        ? `确认批量通过 ${targets.length} 条提现申请并打款？合计 ${yuan(totalCents)}。`
+        : `确认批量驳回 ${targets.length} 条提现申请？合计 ${yuan(totalCents)}（驳回会解冻资金）。`,
       `批量${label}`,
       { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
     );

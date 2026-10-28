@@ -1189,7 +1189,10 @@ function openEdit(row?: SkuCatalog) {
     form.spec = '';
     form.unit = '件';
     form.packQty = 1;
+    // 🔴 必须显式清：form 是页面级常驻 reactive，编辑分支(:1161)会把上一商品的进货价写进来，
+    // 漏这一行就等于「新建 SKU 默认继承别人的成本」，直接污染 :1352 提交的 purchaseCostCents。
     form.priceYuan = undefined;
+    form.costYuan = undefined;
     form.minPriceYuan = undefined;
     form.maxPriceYuan = undefined;
     form.category = '';
