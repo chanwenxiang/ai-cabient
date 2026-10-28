@@ -178,6 +178,15 @@ public class SessionDoorService {
             return sessionService.toDto(session);
         }
 
+        if (DeviceValidationService.isStocktakeSession(session)) {
+            // 盘点开门（2026-10-28）：关门即完成，不识别、不结算；
+            // 库存修正由盘点提交接口按实盘落账（InventoryLotService.stocktakeAdjust），
+            // 这里只收会话，避免识别链路把清点动作当购物。
+            sessionService.transition(session, SessionState.COMPLETED);
+            log.info("stocktake door closed {}", SessionLogContext.of(session));
+            return sessionService.toDto(session);
+        }
+
         if (DeviceValidationService.isRestockSession(session)) {
             restockSnapshotService.applySnapshot(session);
             sessionService.transition(session, SessionState.COMPLETED);

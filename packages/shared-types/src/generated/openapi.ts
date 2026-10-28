@@ -5414,6 +5414,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/devices/{deviceId}/stocktake-door": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["openStocktakeDoor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/devices/{deviceId}/slots/stocktake": {
         parameters: {
             query?: never;
@@ -5456,6 +5472,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["jiangyiGatherExit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/door-stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitDoorStocktake"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15470,6 +15502,39 @@ export interface components {
         };
         MerchantGatherStartRequest: {
             doorPosition?: string;
+        };
+        MerchantDoorStocktakeRequest: {
+            lines: components["schemas"]["StocktakeLine"][];
+            photoEvidenceUrl?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+        };
+        StocktakeLine: {
+            skuId: string;
+            /** Format: int32 */
+            countedQuantity?: number;
+        };
+        ApiResponseMerchantDoorStocktakeResult: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MerchantDoorStocktakeResult"];
+        };
+        LineResult: {
+            skuId?: string;
+            /** Format: int32 */
+            quantityBefore?: number;
+            /** Format: int32 */
+            quantityAfter?: number;
+            /** Format: int32 */
+            delta?: number;
+        };
+        MerchantDoorStocktakeResult: {
+            deviceId?: string;
+            refId?: string;
+            lines?: components["schemas"]["LineResult"][];
         };
         ApiResponseCouponDto: {
             /** Format: int32 */
@@ -30538,6 +30603,28 @@ export interface operations {
             };
         };
     };
+    openStocktakeDoor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSessionDto"];
+                };
+            };
+        };
+    };
     stocktakeSlot_1: {
         parameters: {
             query?: never;
@@ -30608,6 +30695,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    submitDoorStocktake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantDoorStocktakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMerchantDoorStocktakeResult"];
                 };
             };
         };

@@ -150,6 +150,26 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.stocktakeSlot(userId(request), deviceId, body));
     }
 
+    /** 盘点开门（2026-10-28）：先扫码选中柜机（人在柜边）再发起；仅开门柜；关门即完成不结算。 */
+    @RequiresPermissions("merchant:slots:edit")
+    @PostMapping("/devices/{deviceId}/stocktake-door")
+    public ApiResponse<SessionDto> openStocktakeDoor(
+            HttpServletRequest request,
+            @PathVariable String deviceId) {
+        return ApiResponse.ok(merchantPortalService.openStocktakeDoor(userId(request), deviceId));
+    }
+
+    /** 开门柜盘点提交（2026-10-28）：逐商品实盘覆盖式调账，差值自动加/减并落批次台账。 */
+    @RequiresPermissions("merchant:slots:edit")
+    @PostMapping("/devices/{deviceId}/door-stocktake")
+    public ApiResponse<MerchantDoorStocktakeResult> submitDoorStocktake(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody MerchantDoorStocktakeRequest body) {
+        return ApiResponse.ok(
+                merchantPortalService.submitDoorStocktake(userId(request), deviceId, body));
+    }
+
     /** CB-050 扩展：理货记录-配货（补货任务行粒度只读聚合）。 */
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/devices/{deviceId}/tally-records")

@@ -62,7 +62,14 @@ class MerchantPortalConcurrencyTest {
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
                 merchantRepository, distributedLockService, merchantSelfServiceGate,
-                jiangyiGatherService);
+                jiangyiGatherService, inventoryLotService,
+                org.mockito.Mockito.mock(MerchantOpsPolicyService.class),
+                org.mockito.Mockito.mock(DeviceValidationService.class),
+                org.mockito.Mockito.mock(JiangyiDeviceDirectory.class),
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceOpsEventMapper.class),
+                org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class),
+                org.mockito.Mockito.mock(SessionService.class),
+                org.mockito.Mockito.mock(MerchantDevicePortalService.class));
         teamAdminService = new MerchantTeamAdminService(
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 userInfoRepository, userAccountRepository, userMerchantRepository,

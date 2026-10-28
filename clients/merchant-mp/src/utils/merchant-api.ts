@@ -537,6 +537,22 @@ export const merchantApi = {
       merchantAbsUrl(MerchantEndpoints.deviceStocktakeEvidence(deviceId)),
       filePath
     ),
+  /** 盘点开门（2026-10-28）：仅开门柜；先扫码选中柜机（人在柜边）再调用 */
+  openStocktakeDoor: (id: string) =>
+    request<import('@aicabinet/shared-types').SessionDto>(
+      MerchantEndpoints.deviceStocktakeDoor(id),
+      'POST'
+    ),
+  /** 开门柜盘点提交：逐商品实盘覆盖式调账，返回逐行差值 */
+  submitDoorStocktake: (
+    id: string,
+    body: import('@aicabinet/shared-types').MerchantDoorStocktakeRequest
+  ) =>
+    request<import('@aicabinet/shared-types').MerchantDoorStocktakeResult>(
+      MerchantEndpoints.deviceDoorStocktake(id),
+      'POST',
+      body
+    ),
   /** CB-050 扩展：理货记录-配货（补货任务行粒度） */
   deviceTallyRecords: (id: string, page = 0, size = 20, days = 30) =>
     request<import('@aicabinet/shared-types').OpenApiPageResultTallyRecordRowDto>(

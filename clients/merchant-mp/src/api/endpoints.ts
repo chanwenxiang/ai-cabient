@@ -157,6 +157,12 @@ export const MerchantEndpoints = {
   /** CB-050 扩展：柜机扫码盘点（单货道实盘） */
   deviceSlotStocktake: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/slots/stocktake`,
+  /** 盘点开门（2026-10-28）：先扫码选中柜机再发起；仅开门柜；关门即完成不结算 */
+  deviceStocktakeDoor: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-door`,
+  /** 开门柜盘点提交：逐商品实盘覆盖式调账 */
+  deviceDoorStocktake: (id: string) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/door-stocktake`,
   /** CB-050 扩展：柜机盘点凭证上传/回看 */
   deviceStocktakeEvidence: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/stocktake-evidence`,

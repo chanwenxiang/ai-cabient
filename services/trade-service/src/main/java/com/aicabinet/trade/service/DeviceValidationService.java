@@ -231,6 +231,8 @@ public class DeviceValidationService {
                 msg = ApiMessages.RESTOCK_DOOR_SESSION_BUSY;
             } else if (ops) {
                 msg = "设备运维开门会话进行中，请先关门或结束后再试";
+            } else if (active.stream().anyMatch(DeviceValidationService::isStocktakeSession)) {
+                msg = "柜机盘点开门进行中，请先关门完成盘点";
             } else {
                 msg = ApiMessages.DEVICE_BUSY;
             }
@@ -274,9 +276,18 @@ public class DeviceValidationService {
         return key != null && key.startsWith("OPS_REMOTE:");
     }
 
-    /** 非消费者购物会话（补货 / 运维），关门后不走扣款结算。 */
+    /**
+     * 商户盘点开门会话（2026-10-28）：人在柜边扫码后发起，关门即完成——
+     * 不识别、不结算、不出单；调账由盘点提交接口单独落账留痕。
+     */
+    static boolean isStocktakeSession(ShoppingSession session) {
+        String key = session.getIdempotencyKey();
+        return key != null && key.startsWith("STOCKTAKE:");
+    }
+
+    /** 非消费者购物会话（补货 / 运维 / 盘点），关门后不走扣款结算。 */
     static boolean isNonConsumerSession(ShoppingSession session) {
-        return isRestockSession(session) || isOpsRemoteSession(session);
+        return isRestockSession(session) || isOpsRemoteSession(session) || isStocktakeSession(session);
     }
 
     static String sessionKind(ShoppingSession session) {

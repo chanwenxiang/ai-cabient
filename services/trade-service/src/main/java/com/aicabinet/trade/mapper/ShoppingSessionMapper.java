@@ -112,8 +112,10 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     }
 
     /**
-     * 该设备最新的活跃补货会话（将邑补货关门上报 uploadAddGoodsCloseStatus 按设备推进用，
-     * 2026-10-27：上报 body 无会话号）。补货会话 = 绑定补货任务，或历史 RESTOCK: 幂等键。
+     * 该设备最新的活跃补货/盘点会话（将邑补货关门上报 uploadAddGoodsCloseStatus 按设备推进用，
+     * 2026-10-27：上报 body 无会话号）。补货会话 = 绑定补货任务，或历史 RESTOCK: 幂等键；
+     * 盘点开门会话（STOCKTAKE:，2026-10-28）走同一 sendOpenStockDoor 指令 ⇒ 关门上报
+     * 同样到达本入口，须一并推进，否则盘点会话永占柜。
      */
     default Optional<ShoppingSession> findLatestActiveRestockByDeviceId(String deviceId,
                                                                        Collection<SessionState> states) {
@@ -123,7 +125,8 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery()
                 .eq(ShoppingSession::getDeviceId, deviceId)
                 .and(w -> w.isNotNull(ShoppingSession::getReplenishmentTaskId)
-                        .or().likeRight(ShoppingSession::getIdempotencyKey, "RESTOCK:"))
+                        .or().likeRight(ShoppingSession::getIdempotencyKey, "RESTOCK:")
+                        .or().likeRight(ShoppingSession::getIdempotencyKey, "STOCKTAKE:"))
                 .in(ShoppingSession::getState, states)
                 .orderByDesc(ShoppingSession::getCreatedAt)
                 .last("LIMIT 1")));

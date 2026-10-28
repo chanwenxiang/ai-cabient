@@ -63,6 +63,14 @@ public class MerchantDevicePortalService {
     private final DistributedLockService distributedLockService;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final JiangyiGatherService jiangyiGatherService;
+    private final InventoryLotService inventoryLotService;
+    private final MerchantOpsPolicyService merchantOpsPolicyService;
+    private final DeviceValidationService deviceValidationService;
+    private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    private final com.aicabinet.trade.mapper.DeviceOpsEventMapper opsEventRepository;
+    private final com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository;
+    private final SessionService sessionService;
+    private final MerchantDevicePortalService self;
 
     public MerchantDevicePortalService(PermissionService permissionService,
                                        MerchantPortalGuard merchantPortalGuard,
@@ -78,7 +86,15 @@ public class MerchantDevicePortalService {
                                        MerchantMapper merchantRepository,
                                        DistributedLockService distributedLockService,
                                        MerchantSelfServiceGate merchantSelfServiceGate,
-                                       JiangyiGatherService jiangyiGatherService) {
+                                       JiangyiGatherService jiangyiGatherService,
+                                       InventoryLotService inventoryLotService,
+                                       MerchantOpsPolicyService merchantOpsPolicyService,
+                                       DeviceValidationService deviceValidationService,
+                                       JiangyiDeviceDirectory jiangyiDeviceDirectory,
+                                       com.aicabinet.trade.mapper.DeviceOpsEventMapper opsEventRepository,
+                                       com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository,
+                                       @org.springframework.context.annotation.Lazy SessionService sessionService,
+                                       @org.springframework.context.annotation.Lazy MerchantDevicePortalService self) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -94,6 +110,14 @@ public class MerchantDevicePortalService {
         this.distributedLockService = distributedLockService;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.jiangyiGatherService = jiangyiGatherService;
+        this.inventoryLotService = inventoryLotService;
+        this.merchantOpsPolicyService = merchantOpsPolicyService;
+        this.deviceValidationService = deviceValidationService;
+        this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.opsEventRepository = opsEventRepository;
+        this.inventoryRepository = inventoryRepository;
+        this.sessionService = sessionService;
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -178,6 +202,152 @@ public class MerchantDevicePortalService {
         merchantPortalGuard.requireAccess(userId);
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         return deviceSlotService.stocktakeSlot(userId, deviceId, request);
+    }
+
+    /**
+     * 商户盘点开门（2026-10-28）：开门柜逐商品盘点前的开门动作。
+     * <p>流程=先扫码选中柜机（人在柜边）→ 本接口落 STOCKTAKE 会话并经
+     * {@link DeviceServiceClient#requestOpenDoorStock} 下发将邑 sendOpenStockDoor（与补货开门
+     * 同一真路由）；关门上报（§4.2.14）按设备推进，{@code SessionDoorService} 对 STOCKTAKE
+     * 会话关门即完成——不识别、不结算。占柜期间消费者开门 409（ensureNoBlockingSession）。</p>
+     * <p>权限同货道盘点（merchant:slots:edit）；仅开门柜；须在线且无占用会话（允许锁机盘点）。</p>
+     */
+    public SessionDto openStocktakeDoor(Long userId, String deviceId) {
+        permissionService.requirePermission(userId, "merchant:slots:edit");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        if (!jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅开门柜支持盘点开门；弹簧柜走货道实盘无需开门");
+        }
+        String lockKey = SessionService.sessionOpenLockKey(deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备开门处理中，请稍后重试");
+        }
+        try {
+            return doOpenStocktakeDoor(userId, deviceId);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+
+    private SessionDto doOpenStocktakeDoor(Long userId, String deviceId) {
+        deviceValidationService.ensureOpsRemoteDoorAllowed(deviceId);
+        String sessionId = com.aicabinet.trade.util.BizIds.nextNumeric();
+        self.persistStocktakeOpeningSession(userId, deviceId, sessionId);
+        try {
+            deviceServiceClient.requestOpenDoorStock(sessionId, deviceId, userId);
+        } catch (ResponseStatusException e) {
+            self.markStocktakeSessionFailed(sessionId, e.getReason() != null ? e.getReason() : "开门指令下发失败");
+            throw e;
+        } catch (Exception e) {
+            self.markStocktakeSessionFailed(sessionId, "开门指令下发失败");
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "开门指令下发失败（请确认设备在线）", e);
+        }
+        auditService.appendLog(userId, "MERCHANT_STOCKTAKE_OPEN_DOOR", "SESSION", sessionId,
+                "deviceId=" + deviceId + "（盘点开门，扫码后发起）");
+        return sessionService.getSession(userId, sessionId);
+    }
+
+    /** STOCKTAKE 会话落库（短事务，与 MQTT 下发分离；同 persistRestockOpeningSession 模式）。 */
+    @Transactional
+    public void persistStocktakeOpeningSession(Long userId, String deviceId, String sessionId) {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId(sessionId);
+        session.setUserId(userId);
+        session.setDeviceId(deviceId);
+        session.setIdempotencyKey("STOCKTAKE:" + userId + ":" + sessionId);
+        session.setState(SessionState.OPENING);
+        sessionRepository.save(session);
+    }
+
+    @Transactional
+    public void markStocktakeSessionFailed(String sessionId, String failReason) {
+        ShoppingSession session = sessionRepository.findById(sessionId).orElse(null);
+        if (session == null) {
+            return;
+        }
+        if (session.getState() == SessionState.FAILED
+                || session.getState() == SessionState.CANCELLED
+                || session.getState() == SessionState.COMPLETED) {
+            return;
+        }
+        session.setFailReason(failReason);
+        sessionService.transition(session, SessionState.FAILED);
+    }
+
+    /**
+     * 开门柜盘点提交：逐商品实盘覆盖式调账（唯一入口，2026-10-28）。
+     * <p>台账→实盘差值自动加/减：{@link InventoryLotService#stocktakeAdjust} 在锁内
+     * 动批次+台账并同步聚合并（三层账一起对，铁律 79）；事件落 AISLE_AUDIT
+     * 与货道盘点同池（理货记录-盘点可查）。同 SKU 重复行 fail-closed 拒绝。</p>
+     */
+    @Transactional
+    public MerchantDoorStocktakeResult submitDoorStocktake(Long userId, String deviceId,
+                                                           MerchantDoorStocktakeRequest request) {
+        permissionService.requirePermission(userId, "merchant:slots:edit");
+        merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
+        if (!jiangyiDeviceDirectory.isJiangyi(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅开门柜支持按商品盘点");
+        }
+        if (request == null || request.lines() == null || request.lines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "盘点明细不能为空");
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (MerchantDoorStocktakeRequest.StocktakeLine line : request.lines()) {
+            if (line.skuId() == null || line.skuId().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "盘点行缺少 skuId");
+            }
+            if (!seen.add(line.skuId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "同一商品重复提交：" + line.skuId() + "（请合并为一行实盘总数）");
+            }
+        }
+        merchantOpsPolicyService.requirePhotoEvidence(deviceId, true, request.photoEvidenceUrl());
+
+        Map<String, Integer> before = new java.util.HashMap<>();
+        for (com.aicabinet.trade.domain.DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
+            before.put(inv.getSkuId(), inv.getQuantity());
+        }
+        String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
+        List<MerchantDoorStocktakeResult.LineResult> results = new java.util.ArrayList<>(request.lines().size());
+        for (MerchantDoorStocktakeRequest.StocktakeLine line : request.lines()) {
+            int beforeQty = before.getOrDefault(line.skuId(), 0);
+            inventoryLotService.stocktakeAdjust(deviceId, line.skuId(), line.countedQuantity(), userId, refId);
+            int afterQty = inventoryRepository
+                    .findById(new com.aicabinet.trade.domain.DeviceSkuInventoryId(deviceId, line.skuId()))
+                    .map(com.aicabinet.trade.domain.DeviceSkuInventory::getQuantity)
+                    .orElse(0);
+            results.add(new MerchantDoorStocktakeResult.LineResult(line.skuId(), beforeQty, afterQty,
+                    afterQty - beforeQty));
+        }
+        opsEventRepository.insert(newStocktakeEvent(deviceId, refId, results,
+                request.photoEvidenceUrl(), request.latitude(), request.longitude()));
+        auditService.appendLog(userId, "MERCHANT_DEVICE_STOCKTAKE", "DEVICE", deviceId,
+                "ref=" + refId + "；行数=" + results.size());
+        return new MerchantDoorStocktakeResult(deviceId, refId, results);
+    }
+
+    private com.aicabinet.trade.domain.DeviceOpsEvent newStocktakeEvent(
+            String deviceId, String refId, List<MerchantDoorStocktakeResult.LineResult> results,
+            String evidenceUrl, Double latitude, Double longitude) {
+        String location = latitude != null && longitude != null
+                ? "；定位 %.6f,%.6f".formatted(latitude, longitude)
+                : "";
+        String diffs = results.stream()
+                .map(r -> "%s %d→%d（%s%d）".formatted(r.skuId(), r.quantityBefore(), r.quantityAfter(),
+                        r.delta() > 0 ? "+" : "", r.delta()))
+                .collect(java.util.stream.Collectors.joining("；"));
+        com.aicabinet.trade.domain.DeviceOpsEvent e = new com.aicabinet.trade.domain.DeviceOpsEvent();
+        e.setDeviceId(deviceId);
+        e.setEventType("AISLE_AUDIT");
+        e.setSeverity("INFO");
+        e.setTitle("开门柜盘点 " + refId);
+        e.setDetail(diffs
+                + (evidenceUrl != null && !evidenceUrl.isBlank() ? "；凭证=有" : "；凭证=无")
+                + location);
+        e.setCreatedAt(Instant.now());
+        return e;
     }
 
     private MerchantDeviceSettingsDto doUpdateDeviceSettings(Long userId, String deviceId,

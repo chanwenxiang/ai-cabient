@@ -44,6 +44,14 @@ class MerchantDevicePortalServiceTest {
     @Mock DistributedLockService distributedLockService;
     @Mock MerchantSelfServiceGate merchantSelfServiceGate;
     @Mock JiangyiGatherService jiangyiGatherService;
+    @Mock InventoryLotService inventoryLotService;
+    @Mock MerchantOpsPolicyService merchantOpsPolicyService;
+    @Mock DeviceValidationService deviceValidationService;
+    @Mock JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock com.aicabinet.trade.mapper.DeviceOpsEventMapper opsEventRepository;
+    @Mock com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository;
+    @Mock SessionService sessionService;
+    @Mock MerchantDevicePortalService self;
 
     private MerchantDevicePortalService service;
 
@@ -54,7 +62,9 @@ class MerchantDevicePortalServiceTest {
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
                 merchantRepository, distributedLockService, merchantSelfServiceGate,
-                jiangyiGatherService);
+                jiangyiGatherService, inventoryLotService, merchantOpsPolicyService,
+                deviceValidationService, jiangyiDeviceDirectory, opsEventRepository,
+                inventoryRepository, sessionService, self);
     }
 
     @Test
@@ -171,5 +181,111 @@ class MerchantDevicePortalServiceTest {
         assertTrue(slots.isEmpty());
         org.mockito.Mockito.verify(deviceSlotService, org.mockito.Mockito.never())
                 .listSlots(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    // ---------- 盘点开门 / 开门柜盘点（2026-10-28） ----------
+
+    @Test
+    void openStocktakeDoor_nonJiangyi_rejectsWithConflict() {
+        when(jiangyiDeviceDirectory.isJiangyi("CAB-SPRING")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.openStocktakeDoor(1L, "CAB-SPRING"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        org.mockito.Mockito.verify(sessionRepository, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void openStocktakeDoor_happyPath_persistsStocktakeSessionAndSendsStockCommand() {
+        when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        when(sessionService.getSession(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+
+        service.openStocktakeDoor(1L, "EG-DOOR");
+
+        // 会话落库经 self 代理（事务边界）；mock 环境只验委托与指令路由
+        org.mockito.Mockito.verify(self).persistStocktakeOpeningSession(
+                org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq("EG-DOOR"),
+                org.mockito.ArgumentMatchers.anyString());
+        // 盘点开门走补货开门真路由（sendOpenStockDoor），非运维开门（将邑不支持）
+        org.mockito.Mockito.verify(deviceServiceClient).requestOpenDoorStock(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("EG-DOOR"),
+                org.mockito.ArgumentMatchers.eq(1L));
+        org.mockito.Mockito.verify(deviceValidationService).ensureOpsRemoteDoorAllowed("EG-DOOR");
+    }
+
+    @Test
+    void openStocktakeDoor_commandFailure_marksSessionFailed() {
+        when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        org.mockito.Mockito.doThrow(new RuntimeException("device-service down"))
+                .when(deviceServiceClient).requestOpenDoorStock(
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyLong());
+
+        assertThrows(ResponseStatusException.class, () -> service.openStocktakeDoor(1L, "EG-DOOR"));
+
+        org.mockito.Mockito.verify(self).markStocktakeSessionFailed(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.contains("开门指令下发失败"));
+    }
+
+    @Test
+    void submitDoorStocktake_duplicateSku_rejectsFailClosed() {
+        when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.submitDoorStocktake(1L, "EG-DOOR", new com.aicabinet.common.dto.MerchantDoorStocktakeRequest(
+                        List.of(new com.aicabinet.common.dto.MerchantDoorStocktakeRequest.StocktakeLine("SKU-1", 3),
+                                new com.aicabinet.common.dto.MerchantDoorStocktakeRequest.StocktakeLine("SKU-1", 5)),
+                        null, null, null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        org.mockito.Mockito.verify(inventoryLotService, org.mockito.Mockito.never())
+                .stocktakeAdjust(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void submitDoorStocktake_happyPath_adjustsPerLineAndWritesEvent() {
+        when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+        com.aicabinet.trade.domain.DeviceSkuInventory beforeRow = new com.aicabinet.trade.domain.DeviceSkuInventory();
+        beforeRow.setSkuId("SKU-1");
+        beforeRow.setQuantity(4);
+        when(inventoryRepository.findByIdDeviceId("EG-DOOR")).thenReturn(List.of(beforeRow));
+        org.mockito.Mockito.doAnswer(inv -> {
+            // stocktakeAdjust 内部会同步聚合台账：mock 同步效果 4 → 7
+            beforeRow.setQuantity(7);
+            return null;
+        }).when(inventoryLotService).stocktakeAdjust(org.mockito.ArgumentMatchers.eq("EG-DOOR"),
+                org.mockito.ArgumentMatchers.eq("SKU-1"), org.mockito.ArgumentMatchers.eq(7),
+                org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.anyString());
+        when(inventoryRepository.findById(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of(beforeRow));
+
+        com.aicabinet.common.dto.MerchantDoorStocktakeResult result = service.submitDoorStocktake(
+                1L, "EG-DOOR", new com.aicabinet.common.dto.MerchantDoorStocktakeRequest(
+                        List.of(new com.aicabinet.common.dto.MerchantDoorStocktakeRequest.StocktakeLine("SKU-1", 7)),
+                        "https://evidence/a.jpg", null, null));
+
+        assertEquals(1, result.lines().size());
+        assertEquals(4, result.lines().get(0).quantityBefore());
+        assertEquals(7, result.lines().get(0).quantityAfter());
+        assertEquals(3, result.lines().get(0).delta());
+        org.mockito.Mockito.verify(opsEventRepository).insert(org.mockito.ArgumentMatchers.argThat(
+                (com.aicabinet.trade.domain.DeviceOpsEvent e) ->
+                        "AISLE_AUDIT".equals(e.getEventType())
+                                && e.getDetail() != null && e.getDetail().contains("SKU-1 4→7（+3）")
+                                && e.getDetail().contains("凭证=有")));
+        org.mockito.Mockito.verify(merchantOpsPolicyService).requirePhotoEvidence(
+                org.mockito.ArgumentMatchers.eq("EG-DOOR"), org.mockito.ArgumentMatchers.eq(true),
+                org.mockito.ArgumentMatchers.eq("https://evidence/a.jpg"));
     }
 }

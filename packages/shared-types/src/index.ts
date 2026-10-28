@@ -250,6 +250,14 @@ export type OpenApiDeviceOpsCommandResultDto =
 export type SlotStocktakeRequest =
   import('./generated/openapi').components['schemas']['SlotStocktakeRequest'];
 
+/** 开门柜盘点提交（`POST .../devices/{id}/door-stocktake`，2026-10-28） */
+export type MerchantDoorStocktakeRequest =
+  import('./generated/openapi').components['schemas']['MerchantDoorStocktakeRequest'];
+
+/** 开门柜盘点提交结果（逐行前后账面与差值） */
+export type MerchantDoorStocktakeResult =
+  import('./generated/openapi').components['schemas']['MerchantDoorStocktakeResult'];
+
 /** 理货记录-配货分页（CB-050 扩展） */
 export type OpenApiPageResultTallyRecordRowDto =
   import('./generated/openapi').components['schemas']['PageResultTallyRecordRowDto'];

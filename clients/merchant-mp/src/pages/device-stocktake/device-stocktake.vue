@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
- * 柜机扫码盘点（CB-050 扩展，嗨便利对照）：扫码/选择柜机 → 逐货道实盘提交。
- * 复用 admin 同一盘点链路：照片凭证按商户 ops-policy 强制、账实差走 SLOT_DISCREPANCY 闭环。
- * 凭证照片按柜机归档（DEVICE_STOCKTAKE），可选附带定位（写入盘点事件，防伪）。
+ * 柜机盘点（CB-050 扩展，嗨便利对照）：扫码/选择柜机 → 按柜型分流。
+ * - 弹簧柜（有货道）：逐货道实盘提交（原链路，只记录走 SLOT_DISCREPANCY 闭环）。
+ * - 开门柜（将邑，2026-10-28）：盘点开门（先扫码选中柜机=人在柜边再开，关门即完成
+ *   不结算）→ 逐商品实盘覆盖式提交（台账→实盘差值自动加/减，落批次台账）。
+ * 凭证照片按商户 ops-policy 强制（共用 stocktake-evidence 上传），可选附带定位（防伪）。
  */
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
@@ -15,15 +17,40 @@ import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
+interface StocktakeGoodsRow {
+  skuId: string;
+  skuName?: string | null;
+  quantity?: number | null;
+  imageUrl?: string | null;
+}
+
+interface DoorStocktakeLineResult {
+  skuId: string;
+  quantityBefore: number;
+  quantityAfter: number;
+  delta: number;
+}
+
 const { me } = useMerchantMe();
 const deviceId = ref('');
 const deviceName = ref('');
+const loading = ref(false);
+const opening = ref(false);
+
+// ---- 弹簧柜（货道实盘，原链路） ----
 const slots = ref<DeviceSlot[]>([]);
 const physicalInputs = ref<Record<string, string>>({});
+const submitting = ref<Record<string, boolean>>({});
+
+// ---- 开门柜（商品实盘，2026-10-28） ----
+const isDoorCabinet = ref(false);
+const goods = ref<StocktakeGoodsRow[]>([]);
+const goodsInputs = ref<Record<string, string>>({});
+const submittingDoor = ref(false);
+const doorResult = ref<DoorStocktakeLineResult[] | null>(null);
+
 const evidenceUrl = ref('');
 const uploadingEvidence = ref(false);
-const loading = ref(false);
-const submitting = ref<Record<string, boolean>>({});
 
 const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
 
@@ -35,7 +62,7 @@ onLoad((opts) => {
   const id = opts?.deviceId ? decodeURIComponent(String(opts.deviceId)) : '';
   if (id) {
     deviceId.value = id;
-    void loadSlots();
+    void loadDevice();
   }
 });
 
@@ -46,30 +73,96 @@ async function scanDevice() {
     return; // 失败/取消/无效编号已在封装内提示或降级手输
   }
   deviceId.value = id;
-  void loadSlots();
+  // 门禁式：扫码成功即开门（仅开门柜；开门不结算无资金影响，全程留痕）
+  void loadDevice(true);
 }
 
-async function loadSlots() {
+async function loadDevice(autoOpen = false) {
   if (!deviceId.value) return;
   loading.value = true;
+  doorResult.value = null;
   try {
-    const list = await merchantApi.deviceSlots(deviceId.value);
-    slots.value = list.filter((s) => !!s.assignedSkuId);
-    const inputs: Record<string, string> = {};
-    list.forEach((s) => {
-      inputs[s.slotCode] = s.bookQty == null ? '' : String(s.bookQty);
-    });
-    physicalInputs.value = inputs;
-    if (!slots.value.length) {
-      showError('该柜没有已绑定商品的货道');
+    // 判柜型：将邑绑定柜=开门柜（与柜机详情页同判据 jiangyiGather.bound）
+    let bound = false;
+    try {
+      const st = await merchantApi.jiangyiGatherStatus(deviceId.value);
+      bound = !!st?.bound;
+    } catch {
+      bound = false; // 无 detail 权限/非将邑：按弹簧柜流程走
+    }
+    isDoorCabinet.value = bound;
+    if (bound) {
+      const detail = await merchantApi.deviceDetail(deviceId.value);
+      deviceName.value = detail.device?.deviceName || deviceId.value;
+      const rows: StocktakeGoodsRow[] = (detail.skuInventory ?? [])
+        .filter((g) => !!g.skuId)
+        .map((g) => ({
+          skuId: String(g.skuId),
+          skuName: g.skuName,
+          quantity: g.quantity,
+          imageUrl: g.imageUrl ?? null
+        }));
+      goods.value = rows;
+      // 实盘预填台账数：覆盖式语义，没动到的行=无差异，提交时自动过滤
+      const inputs: Record<string, string> = {};
+      rows.forEach((g) => {
+        inputs[g.skuId] = String(g.quantity ?? 0);
+      });
+      goodsInputs.value = inputs;
+      slots.value = [];
+      if (!rows.length) {
+        showError('该柜台账暂无在架商品');
+      } else if (autoOpen) {
+        void executeOpenDoor();
+      }
+    } else {
+      const list = await merchantApi.deviceSlots(deviceId.value);
+      slots.value = list.filter((s) => !!s.assignedSkuId);
+      const inputs: Record<string, string> = {};
+      list.forEach((s) => {
+        inputs[s.slotCode] = s.bookQty == null ? '' : String(s.bookQty);
+      });
+      physicalInputs.value = inputs;
+      goods.value = [];
+      if (!slots.value.length) {
+        showError('该柜没有已绑定商品的货道');
+      }
     }
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载货道失败');
+    showError(e instanceof Error ? e.message : '加载柜机信息失败');
   } finally {
     loading.value = false;
   }
 }
 
+// ---- 盘点开门（仅开门柜） ----
+/** 门禁式：扫码触发，直接开门不弹确认（开门不结算无资金影响，全程留痕）。 */
+async function executeOpenDoor() {
+  if (opening.value) return;
+  opening.value = true;
+  try {
+    await merchantApi.openStocktakeDoor(deviceId.value);
+    uni.showToast({ title: '门已开，请清点商品', icon: 'none' });
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '盘点开门失败');
+  } finally {
+    opening.value = false;
+  }
+}
+
+/** 手动开门按钮：保留确认弹窗防误开。 */
+function openDoor() {
+  if (opening.value) return;
+  uni.showModal({
+    title: '盘点开门',
+    content: '将远程打开柜门进行盘点，请确认已在柜机旁。开门与关门全程留痕。继续？',
+    success: (res) => {
+      if (res.confirm) void executeOpenDoor();
+    }
+  });
+}
+
+// ---- 凭证照（两分支共用） ----
 function chooseEvidence() {
   if (uploadingEvidence.value) return; // 在途门闩：连点拍照只发一次（第四轮审计，对齐补货证据口径）
   uni.chooseImage({
@@ -98,6 +191,80 @@ async function uploadEvidence(path: string) {
   }
 }
 
+function fetchLocation(): Promise<{ latitude: number; longitude: number } | null> {
+  return new Promise((resolve) => {
+    uni.getLocation({
+      type: 'gcj02',
+      success: (res) => resolve({ latitude: res.latitude, longitude: res.longitude }),
+      fail: () => resolve(null)
+    });
+  });
+}
+
+// ---- 开门柜：批量提交实盘 ----
+async function submitDoorStocktake() {
+  if (submittingDoor.value) return;
+  const changed = goods.value
+    .map((g) => ({
+      skuId: g.skuId,
+      countedQuantity: Number(goodsInputs.value[g.skuId] ?? '')
+    }))
+    .filter((l) => {
+      if (Number.isNaN(l.countedQuantity) || l.countedQuantity < 0) return false;
+      const book = goods.value.find((g) => g.skuId === l.skuId)?.quantity ?? 0;
+      return l.countedQuantity !== book; // 只提交有差异的行（覆盖式：相同行提交无意义）
+    });
+  if (!changed.length) {
+    showError('实盘与台账全部一致，无需调账');
+    return;
+  }
+  const bad = changed.find((l) => Number.isNaN(l.countedQuantity) || l.countedQuantity < 0);
+  if (bad) {
+    showError('实盘数量须为不小于 0 的整数');
+    return;
+  }
+  const diffText = changed
+    .map((l) => {
+      const book = goods.value.find((g) => g.skuId === l.skuId)?.quantity ?? 0;
+      const d = l.countedQuantity - book;
+      return `${d > 0 ? '+' : ''}${d}`;
+    })
+    .join('、');
+  uni.showModal({
+    title: `提交盘点（${changed.length} 行）`,
+    content: `系统将按实盘调账，差值：${diffText}${evidenceUrl.value ? '（含凭证）' : ''}。确认提交？`,
+    success: (res) => {
+      if (res.confirm) void doSubmitDoor(changed);
+    }
+  });
+}
+
+async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[]) {
+  submittingDoor.value = true;
+  try {
+    const location = await fetchLocation();
+    const result = await merchantApi.submitDoorStocktake(deviceId.value, {
+      lines,
+      photoEvidenceUrl: evidenceUrl.value || undefined,
+      latitude: location?.latitude,
+      longitude: location?.longitude
+    });
+    doorResult.value = (result.lines ?? []).map((r) => ({
+      skuId: String(r.skuId ?? ''),
+      quantityBefore: Number(r.quantityBefore ?? 0),
+      quantityAfter: Number(r.quantityAfter ?? 0),
+      delta: Number(r.delta ?? 0)
+    }));
+    showSuccess('盘点已提交，账面已按实盘调整');
+    await loadDevice();
+  } catch (e) {
+    showError(e instanceof Error ? e.message : '盘点提交失败');
+  } finally {
+    submittingDoor.value = false;
+  }
+}
+
+// ---- 弹簧柜：单货道实盘（原链路） ----
 function submitStocktake(slot: DeviceSlot) {
   const raw = physicalInputs.value[slot.slotCode];
   const qty = Number(raw);
@@ -127,22 +294,12 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
       longitude: location?.longitude
     });
     showSuccess(`货道 ${slot.slotCode} 已记录实盘`);
-    await loadSlots();
+    await loadDevice();
   } catch (e) {
     showError(e instanceof Error ? e.message : '盘点提交失败');
   } finally {
     submitting.value = { ...submitting.value, [slot.slotCode]: false };
   }
-}
-
-function fetchLocation(): Promise<{ latitude: number; longitude: number } | null> {
-  return new Promise((resolve) => {
-    uni.getLocation({
-      type: 'gcj02',
-      success: (res) => resolve({ latitude: res.latitude, longitude: res.longitude }),
-      fail: () => resolve(null)
-    });
-  });
 }
 </script>
 
@@ -159,8 +316,12 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
             <app-button label="扫码识别柜机" @click="scanDevice" />
           </view>
           <view v-else class="scan-done">
-            <text class="title">柜机 {{ deviceId }}</text>
-            <text class="meta">逐货道填写实盘数量后提交；照片凭证按商户要求强制</text>
+            <text class="title">柜机 {{ deviceName || deviceId }}</text>
+            <text class="meta">{{
+              isDoorCabinet
+                ? '开门柜：已按门禁式开门，清点后按商品提交实盘'
+                : '弹簧柜：逐货道填写实盘数量后提交；照片凭证按商户要求强制'
+            }}</text>
             <app-button
               variant="secondary"
               compact
@@ -172,47 +333,124 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
         </view>
 
         <template v-if="deviceId">
-          <view class="card">
-            <text class="section">盘点凭证</text>
-            <view class="evidence-row">
-              <app-button
-                variant="secondary"
-                compact
-                :block="false"
-                :label="evidenceUrl ? '已上传（重拍替换）' : '拍现场照'"
-                @click="chooseEvidence"
-              />
-              <text v-if="evidenceUrl" class="meta">凭证已随本次盘点提交</text>
-            </view>
-          </view>
-
-          <view class="card">
-            <view class="row">
-              <text class="section">货道实盘</text>
-              <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
-            </view>
-            <view v-for="s in slots" :key="s.slotCode" class="stock-row">
-              <view class="stock-main">
-                <text class="stock-code">{{ s.slotCode }}</text>
-                <text class="meta">{{ s.assignedSkuName || s.assignedSkuId }}</text>
+          <!-- 开门柜：盘点开门 + 逐商品实盘 -->
+          <template v-if="isDoorCabinet">
+            <view class="card">
+              <text class="section">盘点开门</text>
+              <view class="door-row">
+                <app-button
+                  compact
+                  :block="false"
+                  :loading="opening"
+                  label="盘点开门"
+                  @click="openDoor"
+                />
+                <text class="meta">门禁式：扫柜机码即自动开门；此按钮为手动兜底（带确认）</text>
               </view>
-              <text class="stock-book">系统 {{ s.bookQty ?? 0 }}</text>
-              <input
-                v-model="physicalInputs[s.slotCode]"
-                class="input stock-input"
-                type="number"
-                placeholder="实盘"
-              />
-              <app-button
-                compact
-                :block="false"
-                :loading="!!submitting[s.slotCode]"
-                label="提交"
-                @click="submitStocktake(s)"
-              />
             </view>
-            <text v-if="!loading && !slots.length" class="meta">暂无可盘点的货道</text>
-          </view>
+
+            <view class="card">
+              <view class="row">
+                <text class="section">盘点凭证</text>
+              </view>
+              <view class="evidence-row">
+                <app-button
+                  variant="secondary"
+                  compact
+                  :block="false"
+                  :label="evidenceUrl ? '已上传（重拍替换）' : '拍现场照'"
+                  @click="chooseEvidence"
+                />
+                <text v-if="evidenceUrl" class="meta">凭证已随本次盘点提交</text>
+              </view>
+            </view>
+
+            <view class="card">
+              <view class="row">
+                <text class="section">商品实盘</text>
+                <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
+              </view>
+              <view v-for="g in goods" :key="g.skuId" class="goods-row">
+                <image v-if="g.imageUrl" :src="g.imageUrl" mode="aspectFill" class="goods-img" />
+                <view v-else class="goods-img goods-img-fallback">
+                  <text>{{ (g.skuName || g.skuId).slice(0, 1) }}</text>
+                </view>
+                <view class="goods-main">
+                  <text class="goods-name">{{ g.skuName || g.skuId }}</text>
+                  <text class="meta">台账 {{ g.quantity ?? 0 }}</text>
+                </view>
+                <input
+                  v-model="goodsInputs[g.skuId]"
+                  class="input stock-input"
+                  type="number"
+                  placeholder="实盘"
+                />
+              </view>
+              <text v-if="!loading && !goods.length" class="meta">暂无在架商品</text>
+              <view v-if="goods.length" class="submit-row">
+                <app-button
+                  :block="false"
+                  :loading="submittingDoor"
+                  label="提交实盘调账"
+                  @click="submitDoorStocktake"
+                />
+                <text class="meta">只提交与台账有差异的商品；调账批次可追溯</text>
+              </view>
+              <view v-if="doorResult?.length" class="result-box">
+                <text class="section">本次调账结果</text>
+                <text v-for="r in doorResult" :key="r.skuId" class="meta">
+                  {{ r.skuId }}：{{ r.quantityBefore }} → {{ r.quantityAfter }}（{{
+                    r.delta > 0 ? '+' : ''
+                  }}{{ r.delta }}）
+                </text>
+              </view>
+            </view>
+          </template>
+
+          <!-- 弹簧柜：逐货道实盘（原链路） -->
+          <template v-else>
+            <view class="card">
+              <text class="section">盘点凭证</text>
+              <view class="evidence-row">
+                <app-button
+                  variant="secondary"
+                  compact
+                  :block="false"
+                  :label="evidenceUrl ? '已上传（重拍替换）' : '拍现场照'"
+                  @click="chooseEvidence"
+                />
+                <text v-if="evidenceUrl" class="meta">凭证已随本次盘点提交</text>
+              </view>
+            </view>
+
+            <view class="card">
+              <view class="row">
+                <text class="section">货道实盘</text>
+                <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
+              </view>
+              <view v-for="s in slots" :key="s.slotCode" class="stock-row">
+                <view class="stock-main">
+                  <text class="stock-code">{{ s.slotCode }}</text>
+                  <text class="meta">{{ s.assignedSkuName || s.assignedSkuId }}</text>
+                </view>
+                <text class="stock-book">系统 {{ s.bookQty ?? 0 }}</text>
+                <input
+                  v-model="physicalInputs[s.slotCode]"
+                  class="input stock-input"
+                  type="number"
+                  placeholder="实盘"
+                />
+                <app-button
+                  compact
+                  :block="false"
+                  :loading="!!submitting[s.slotCode]"
+                  label="提交"
+                  @click="submitStocktake(s)"
+                />
+              </view>
+              <text v-if="!loading && !slots.length" class="meta">暂无可盘点的货道</text>
+            </view>
+          </template>
         </template>
       </template>
     </view>
@@ -269,6 +507,61 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
   align-items: center;
   gap: 16rpx;
   margin-top: 12rpx;
+}
+.door-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-top: 12rpx;
+  align-items: flex-start;
+}
+.goods-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.goods-img {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 12rpx;
+  flex-shrink: 0;
+  background: #f5f6f8;
+}
+.goods-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-size: 36rpx;
+}
+.goods-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.goods-name {
+  font-weight: 600;
+  font-size: 28rpx;
+}
+.submit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-top: 20rpx;
+  align-items: flex-start;
+}
+.result-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  margin-top: 20rpx;
+  padding: 16rpx;
+  background: #f7f8fa;
+  border-radius: 12rpx;
 }
 .stock-row {
   display: flex;

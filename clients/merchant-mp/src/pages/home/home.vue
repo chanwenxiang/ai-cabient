@@ -174,9 +174,16 @@
       <view v-if="canReplenishment && prepList.length" id="prep-list" class="card section-card">
         <view class="section-head">
           <text class="section">备货清单</text>
-          <text class="meta"
-            >出发前照单备货 · {{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text
-          >
+          <view class="section-head-tools">
+            <text class="meta">{{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text>
+            <view
+              role="button"
+              aria-label="柜机盘点"
+              class="section-more app-link-chevron"
+              @click="goDeviceStocktake"
+              >柜机盘点</view
+            >
+          </view>
         </view>
         <view v-for="group in prepList" :key="group.deviceId" class="prep-group">
           <view class="prep-group-head" role="button" @click="goReplenishment()">
@@ -407,6 +414,11 @@ function goPrepList() {
   });
 }
 
+/** 柜机盘点（2026-10-28）：开门柜先盘点开门（扫码选中柜机后开）再逐商品实盘调账 */
+function goDeviceStocktake() {
+  uni.navigateTo({ url: '/pages/device-stocktake/device-stocktake' });
+}
+
 /** 备货换算展示（CB-072）：「X 件 + Y 支」，整件或拆零为 0 时省略对应段 */
 function prepPackText(row: { cases?: number; remainUnits?: number; unit?: string }): string {
   const unit = String(row.unit || '支');
@@ -635,6 +647,11 @@ useAutoRefresh({
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8rpx;
+}
+.section-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
 }
 .section {
   font-weight: 700;

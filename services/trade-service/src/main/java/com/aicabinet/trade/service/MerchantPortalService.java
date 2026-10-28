@@ -297,6 +297,17 @@ public class MerchantPortalService {
         return devicePortalService.stocktakeSlot(userId, deviceId, request);
     }
 
+    /** 盘点开门（2026-10-28）：开门柜逐商品盘点前的开门动作，见 MerchantDevicePortalService。 */
+    public SessionDto openStocktakeDoor(Long userId, String deviceId) {
+        return devicePortalService.openStocktakeDoor(userId, deviceId);
+    }
+
+    /** 开门柜盘点提交（2026-10-28）：逐商品实盘覆盖式调账。 */
+    public MerchantDoorStocktakeResult submitDoorStocktake(Long userId, String deviceId,
+                                                           MerchantDoorStocktakeRequest request) {
+        return devicePortalService.submitDoorStocktake(userId, deviceId, request);
+    }
+
     /** CB-050 扩展：理货记录-配货（补货任务行粒度只读聚合，TallyLedgerService）。 */
     @Transactional(readOnly = true)
     public PageResult<TallyRecordRowDto> tallyRecords(Long userId, String deviceId,
