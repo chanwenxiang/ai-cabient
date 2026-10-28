@@ -166,10 +166,11 @@ public class DeviceSlotService {
     /**
      * 柜机缺货/低库存货道计数（启用且有目标库存的货道）。
      * 供商户柜机列表默认排序（收藏柜 → 缺货最多）使用。
+     * 开门柜无货道概念 ⇒ 计数恒 0（宁可不出标签，也不拿残留货道行算错数）。
      */
     @Transactional(readOnly = true)
     public SlotStockCounts countSlotStock(String deviceId) {
-        if (deviceId == null || deviceId.isBlank()) {
+        if (deviceId == null || deviceId.isBlank() || isDoorCabinet(deviceId)) {
             return SlotStockCounts.EMPTY;
         }
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId.trim());
@@ -234,6 +235,10 @@ public class DeviceSlotService {
         if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
             String dev = deviceIdFilter.trim();
             merchantScopeService.requireDeviceAccess(operatorId, dev);
+            // 开门柜不实盘（无货道），账实差异恒空；残留货道行不算差异
+            if (isDoorCabinet(dev)) {
+                return List.of();
+            }
             return buildDiscrepanciesForDevice(dev);
         }
         List<DeviceSlot> candidates = slotRepository.findByEnabledTrueAndLastPhysicalQtyIsNotNull();
@@ -241,6 +246,9 @@ public class DeviceSlotService {
         List<SlotDiscrepancyAlertDto> alerts = new ArrayList<>();
         for (DeviceSlot slot : candidates) {
             String deviceId = slot.getId().getDeviceId();
+            if (isDoorCabinet(deviceId)) {
+                continue;
+            }
             if ((allowed == null || allowed.contains(deviceId)) && deviceRepository.existsById(deviceId)) {
                 alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
             }
@@ -326,9 +334,15 @@ public class DeviceSlotService {
         if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
             String dev = deviceIdFilter.trim();
             merchantScopeService.requireDeviceAccess(operatorId, dev);
+            // 开门柜无货道：缺货行由台账/建议口径产出，货道级建议行对它是空集
+            if (isDoorCabinet(dev)) {
+                return List.of();
+            }
             return deviceRepository.findById(dev).map(List::of).orElse(List.of());
         }
-        return merchantScopeService.allowedDevices(operatorId);
+        return merchantScopeService.allowedDevices(operatorId).stream()
+                .filter(d -> !isDoorCabinet(d.getDeviceId()))
+                .toList();
     }
 
     private static String shortageRowKey(String deviceId, String slotCode) {
@@ -847,12 +861,21 @@ public class DeviceSlotService {
      * mp 编辑器已隐藏，此守卫拦接口直绕（fail-closed）。
      */
     public void assertNotDoorCabinet(String deviceId) {
-        if (deviceId != null && !deviceId.isBlank()
-                && jiangyiDeviceDirectory.isJiangyi(deviceId.trim())) {
+        if (isDoorCabinet(deviceId)) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT,
                     "开门柜按商品备货，无货道概念，不能保存货道配置");
         }
+    }
+
+    /**
+     * 开门柜判据（2026-10-28 用户拍板：<b>固定为「将邑绑定」</b>）。
+     * 全系统唯一口径——货道读面归零、写面 409、补货行不绑货道都以本方法为准；
+     * 不要再按 device_type 另立判据（该字典当前只有 AI_CABINET_V1 一项，无法区分柜型）。
+     */
+    public boolean isDoorCabinet(String deviceId) {
+        return deviceId != null && !deviceId.isBlank()
+                && jiangyiDeviceDirectory.isJiangyi(deviceId.trim());
     }
 
     private List<DeviceSlotDto> doUpsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {

@@ -103,6 +103,25 @@ class MerchantInventoryPortalServiceTest {
     }
 
     @Test
+    void listShortageSummary_doorCabinet_excludedFromSlotShortage() {
+        // 开门柜无货道（判据=将邑绑定）：货道级缺货口径不成立，残留货道行不参与汇总
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("EG-DOOR", "CAB-GRAVITY"));
+        DeviceInfo door = new DeviceInfo();
+        door.setDeviceId("EG-DOOR");
+        DeviceInfo gravity = new DeviceInfo();
+        gravity.setDeviceId("CAB-GRAVITY");
+        when(deviceRepository.findAll()).thenReturn(List.of(door, gravity));
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        when(deviceSlotService.listShortageSlots("CAB-GRAVITY")).thenReturn(List.of());
+
+        List<com.aicabinet.common.dto.MerchantShortageSummaryDto> rows = service.listShortageSummary(9L);
+
+        assertTrue(rows.isEmpty());
+        verify(deviceSlotService, never()).listShortageSlots("EG-DOOR");
+    }
+
+    @Test
     void prepList_aggregatesBySku_andConvertsByPackQty() {
         // CB-072 站点自仓口径：IN_PROGRESS 任务出库行按 SKU 聚合，只排除作废行；
         // pack_qty=24 换算 26 支 → 1 件 + 2 支；带分仓库存 30 支（1 件 + 6 支）

@@ -104,6 +104,8 @@ export function useReplenishmentFulfillment(opts: {
   reloadList: () => Promise<void>;
   addEvidence: () => void | Promise<void>;
   isPullOffType: (type?: string) => boolean;
+  /** 开门柜（判据=将邑绑定，与后端同口径）：无货道概念 ⇒ 不做货道容量/待分配拦截 */
+  isDoorCabinet: () => boolean;
   formatLineSummary: (rows: Line[]) => string;
   slotHeadroom: (line: Line) => number;
 }) {
@@ -276,8 +278,8 @@ export function useReplenishmentFulfillment(opts: {
 
   function increaseLineQty(line: Line, delta: number) {
     const cur = Number(line.quantity) || 0;
-    if (opts.isPullOffType(line.lineType)) {
-      line.quantity = cur + delta;
+    if (opts.isPullOffType(line.lineType) || opts.isDoorCabinet()) {
+      line.quantity = Math.max(0, cur + delta);
       return;
     }
     const room = opts.slotHeadroom(line);
@@ -300,6 +302,8 @@ export function useReplenishmentFulfillment(opts: {
   }
 
   function clampLinesToCapacity() {
+    // 开门柜没有货道容量这回事：台账容量由后端在建议/上架侧管，客户端不清零数量
+    if (opts.isDoorCabinet()) return false;
     let changed = false;
     for (const line of opts.lines.value) {
       if (line.applied || opts.isPullOffType(line.lineType)) continue;
@@ -326,6 +330,7 @@ export function useReplenishmentFulfillment(opts: {
   }
 
   async function ensureLinesWithinCapacity(): Promise<boolean> {
+    if (opts.isDoorCabinet()) return true;
     const over = opts.lines.value.filter(
       (l) =>
         !l.applied &&
@@ -353,9 +358,9 @@ export function useReplenishmentFulfillment(opts: {
       showError('调低后无有效数量，请换货道或取消该行');
       return null;
     }
-    const unassigned = positive.filter(
-      (l) => !opts.isPullOffType(l.lineType) && !String(l.slotId || '').trim()
-    );
+    const unassigned = opts.isDoorCabinet()
+      ? []
+      : positive.filter((l) => !opts.isPullOffType(l.lineType) && !String(l.slotId || '').trim());
     if (unassigned.length) {
       showError('请先为待分配行选择货道');
       return null;
@@ -455,7 +460,9 @@ export function useReplenishmentFulfillment(opts: {
     return opts.askConfirm({
       title: pullOffCopy('确认全部上架', '确认全部下架'),
       content: pullOffCopy(
-        '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+        opts.isDoorCabinet()
+          ? '完成后将更新柜机库存并签收在途商品，请确认商品、批次无误。'
+          : '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
         '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
       ),
       confirmText: '确认完成',

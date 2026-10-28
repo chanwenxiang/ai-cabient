@@ -146,9 +146,11 @@ defineEmits<{
 
 const loadingText = computed(() => loadingLabel('明细'));
 
-const subtitle = computed(() =>
-  props.pullOff ? '请逐项核对下架商品与货道' : '请逐项核对商品、批次和货道'
-);
+const subtitle = computed(() => {
+  // 开门柜（判据=将邑绑定）无货道：不再让用户核对一个不存在的维度
+  if (props.doorCabinet) return props.pullOff ? '请逐项核对下架商品' : '请逐项核对商品、批次';
+  return props.pullOff ? '请逐项核对下架商品与货道' : '请逐项核对商品、批次和货道';
+});
 
 function callFn<A extends unknown[], R>(fn: Fn<A, R>, fallback: R, ...args: A): R {
   return typeof fn === 'function' ? fn(...args) : fallback;

@@ -175,6 +175,38 @@ class ReplenishmentServiceOutboundTest {
     }
 
     @Test
+    void generateLinesFromOutbound_doorCabinet_createsSingleLineWithoutSlot() {
+        // 开门柜（判据=将邑绑定）：出库行整行落无货道行，不探货道、不分配
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(30L);
+        task.setDeviceId("CAB-DOOR");
+        task.setStatus("PLANNED");
+
+        WarehouseOutboundLine outboundLine = new WarehouseOutboundLine();
+        outboundLine.setSkuId("SKU-DEMO-001");
+        outboundLine.setBatchNo("B20260701-004");
+        outboundLine.setQuantity(7);
+        outboundLine.setExpiryDate(LocalDate.of(2026, 12, 31));
+
+        when(taskRepository.findByOutboundId(103L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdAndAppliedFalse(30L)).thenReturn(List.of());
+        when(warehouseService.outboundLinesForDevice(103L, "CAB-DOOR")).thenReturn(List.of(outboundLine));
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR")).thenReturn(true);
+
+        replenishmentService.generateLinesFromOutbound(103L);
+
+        ArgumentCaptor<ReplenishmentTaskLine> lineCaptor = ArgumentCaptor.forClass(ReplenishmentTaskLine.class);
+        verify(taskLineRepository).save(lineCaptor.capture());
+        ReplenishmentTaskLine saved = lineCaptor.getValue();
+        assertNull(saved.getSlotId());
+        assertEquals(7, saved.getQuantity());
+        assertEquals("RESTOCK", saved.getLineType());
+        assertEquals("B20260701-004", saved.getBatchNo());
+        verify(deviceSlotService, never()).allocateRestockQuantity(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+        verify(deviceSlotService, never()).hasSkuSlots(anyString(), anyString());
+    }
+
+    @Test
     void completeTask_rejectsWithoutCheckIn() {
         ReplenishmentTask task = new ReplenishmentTask();
         task.setTaskId(21L);
@@ -304,6 +336,41 @@ class ReplenishmentServiceOutboundTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertTrue(ex.getReason() != null && ex.getReason().contains("货道已满"));
         verify(taskLineRepository, never()).save(any());
+    }
+
+    @Test
+    void createTaskFromPullOff_restock_doorCabinet_allowsWithoutSlotPlan() {
+        // 开门柜（判据=将邑绑定）：不要求 SKU 绑货道、不受货道余量限幅，
+        // 整行按告警数量建无货道 RESTOCK 行（旧逻辑会 400「未绑定货道」/「货道已满」）
+        PullOffTask pull = openPull(81L, "CAB-DOOR", "SKU-DEMO-001", 4, "B-DOOR");
+        when(pullOffTaskRepository.findById(81L)).thenReturn(java.util.Optional.of(pull));
+        when(deviceSlotService.isDoorCabinet("CAB-DOOR")).thenReturn(true);
+        when(routeRepository.save(any(ReplenishmentRoute.class))).thenAnswer(inv -> {
+            ReplenishmentRoute r = inv.getArgument(0);
+            r.setRouteId(901L);
+            return r;
+        });
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenAnswer(inv -> {
+            ReplenishmentTask t = inv.getArgument(0);
+            t.setTaskId(902L);
+            return t;
+        });
+        when(taskRepository.findByRouteId(901L)).thenReturn(List.of());
+
+        replenishmentService.createTaskFromPullOff(
+                100000001L, 81L, new CreateFromExpiryRequest("RESTOCK", null));
+
+        ArgumentCaptor<ReplenishmentTaskLine> lineCaptor = ArgumentCaptor.forClass(ReplenishmentTaskLine.class);
+        verify(taskLineRepository).save(lineCaptor.capture());
+        ReplenishmentTaskLine line = lineCaptor.getValue();
+        assertNull(line.getSlotId());
+        assertEquals(4, line.getQuantity());
+        assertEquals("RESTOCK", line.getLineType());
+        assertEquals("B-DOOR", line.getBatchNo());
+        verify(deviceSlotService, never()).hasSkuSlots(anyString(), anyString());
+        verify(deviceSlotService, never()).totalHeadroomForSku(anyString(), anyString());
+        verify(deviceSlotService, never()).allocateRestockQuantity(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
+        assertEquals("RESOLVED", pull.getStatus());
     }
 
     private static PullOffTask openPull(long id, String deviceId, String skuId, int qty, String batchNo) {

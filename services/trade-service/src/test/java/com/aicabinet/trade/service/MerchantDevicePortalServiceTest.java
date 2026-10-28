@@ -160,4 +160,16 @@ class MerchantDevicePortalServiceTest {
         org.mockito.Mockito.verify(merchantFeaturePackService).requireDevicePack(
                 1L, "CAB-JY", MerchantFeaturePacks.FIELD);
     }
+
+    @Test
+    void listDeviceSlots_doorCabinet_returnsEmptyWithoutQueryingSlots() {
+        // 开门柜无货道概念（判据=将邑绑定）：商户面读空，残留货道行不外泄
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+
+        List<com.aicabinet.common.dto.DeviceSlotDto> slots = service.listDeviceSlots(1L, "EG-DOOR");
+
+        assertTrue(slots.isEmpty());
+        org.mockito.Mockito.verify(deviceSlotService, org.mockito.Mockito.never())
+                .listSlots(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString());
+    }
 }

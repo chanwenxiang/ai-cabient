@@ -137,7 +137,7 @@
               <text>发起补货</text>
             </view>
             <view
-              v-if="canStocktake"
+              v-if="canStocktake && !isDoorCabinet"
               class="action-cell"
               role="button"
               aria-label="柜机盘点"

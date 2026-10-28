@@ -346,4 +346,18 @@ class DeviceSlotServiceTest {
         org.junit.jupiter.api.Assertions.assertEquals(
                 org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
     }
+
+    @Test
+    void countSlotStock_doorCabinet_returnsEmpty() {
+        // 开门柜无货道概念：残留货道行不进缺货/低库存计数（否则柜机卡片标签算错数）
+        org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+
+        DeviceSlotService.SlotStockCounts counts = deviceSlotService.countSlotStock("EG-DOOR");
+
+        org.junit.jupiter.api.Assertions.assertEquals(0, counts.oosSlotCount());
+        org.junit.jupiter.api.Assertions.assertEquals(0, counts.lowStockSlotCount());
+        org.junit.jupiter.api.Assertions.assertNull(counts.fillRatePct());
+        org.mockito.Mockito.verify(slotRepository, org.mockito.Mockito.never())
+                .findByIdDeviceIdOrderByRowNoAscColNoAsc("EG-DOOR");
+    }
 }

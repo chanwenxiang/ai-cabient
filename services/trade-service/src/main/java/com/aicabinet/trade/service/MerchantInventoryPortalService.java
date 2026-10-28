@@ -180,6 +180,9 @@ public class MerchantInventoryPortalService {
         }
         List<DeviceInfo> devices = deviceRepository.findAll().stream()
                 .filter(d -> inDeviceScope(allowed, d.getDeviceId()))
+                // 开门柜无货道（判据=将邑绑定）：货道级缺货口径对它不成立，
+                // 缺货改由台账/备货清单呈现；此处不拿残留货道行凑数。
+                .filter(d -> !deviceSlotService.isDoorCabinet(d.getDeviceId()))
                 .toList();
         return devices.stream()
                 .map(dev -> {

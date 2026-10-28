@@ -488,14 +488,17 @@ public class ReplenishmentService {
             return 0;
         }
         int created = 0;
+        // 开门柜按商品备货（判据=将邑绑定）：不走货道分配，整行落无货道行
+        boolean doorCabinet = deviceSlotService.isDoorCabinet(deviceId);
         for (Map.Entry<String, Integer> entry : skuQty.entrySet()) {
             String skuId = entry.getKey();
             int need = entry.getValue() == null ? 0 : Math.max(0, entry.getValue());
             if (skuId == null || skuId.isBlank() || need <= 0) {
                 continue;
             }
-            List<DeviceSlotService.SlotRestockAllocation> allocations =
-                    deviceSlotService.allocateRestockQuantity(deviceId, skuId, need);
+            List<DeviceSlotService.SlotRestockAllocation> allocations = doorCabinet
+                    ? List.of()
+                    : deviceSlotService.allocateRestockQuantity(deviceId, skuId, need);
             int allocated = 0;
             for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();
@@ -519,8 +522,10 @@ public class ReplenishmentService {
                 line.setApplied(false);
                 taskLineRepository.save(line);
                 created++;
-                log.warn("seedDraftRestockLines: {} units without slot headroom task={} sku={}",
-                        remain, taskId, skuId);
+                if (!doorCabinet) {
+                    log.warn("seedDraftRestockLines: {} units without slot headroom task={} sku={}",
+                            remain, taskId, skuId);
+                }
             }
         }
         return created;
@@ -556,6 +561,20 @@ public class ReplenishmentService {
     }
 
     private void saveRestockLinesFromOutbound(ReplenishmentTask task, WarehouseOutboundLine ol) {
+        // 开门柜按商品备货：不分配货道，整行落 slotId=null（否则走分配路径会把行绑回残留货道，
+        // 或 allocated=0 时整行被当成「超容量」丢掉）
+        if (deviceSlotService.isDoorCabinet(task.getDeviceId())) {
+            ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+            line.setTaskId(task.getTaskId());
+            line.setLineType(RESTOCK);
+            line.setSkuId(ol.getSkuId());
+            line.setBatchNo(ol.getBatchNo());
+            line.setExpiryDate(ol.getExpiryDate());
+            line.setQuantity(ol.getQuantity());
+            line.setApplied(false);
+            taskLineRepository.save(line);
+            return;
+        }
         List<DeviceSlotService.SlotRestockAllocation> allocations =
                 resolveOutboundSlotAllocations(task.getDeviceId(), ol);
         int allocated = 0;
@@ -923,7 +942,14 @@ public class ReplenishmentService {
             ReplenishmentTask task, List<ReplenishmentTaskLine> pending, Long operatorId, String refId,
             boolean preservePhysical) {
         int appliedRestockQty = 0;
+        // 开门柜历史行归一：旧任务行可能带着已删/残留货道号，上架时一并清掉
+        boolean doorCabinet = deviceSlotService.isDoorCabinet(task.getDeviceId());
         for (ReplenishmentTaskLine line : pending) {
+            if (doorCabinet && line.getSlotId() != null) {
+                line.setSlotId(null);
+                // 随后的 save 走 updateById，默认跳过 null ⇒ 残留货道号清不掉，须显式 SQL
+                taskLineRepository.clearSlotId(line.getLineId());
+            }
             inventoryLotService.applyReplenishmentLine(task.getDeviceId(), line, operatorId, refId);
             if (RESTOCK.equalsIgnoreCase(line.getLineType())) {
                 deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId(), preservePhysical);
@@ -983,6 +1009,10 @@ public class ReplenishmentService {
     private List<DeviceSlotService.SlotRestockAllocation> resolveOutboundSlotAllocations(
             String deviceId, WarehouseOutboundLine ol, int quantity) {
         if (quantity <= 0) {
+            return List.of();
+        }
+        // 开门柜按商品备货（判据=将邑绑定）：出库行携带的旧货道号一律忽略
+        if (deviceSlotService.isDoorCabinet(deviceId)) {
             return List.of();
         }
         if (ol.getSlotId() != null && !ol.getSlotId().isBlank()) {
@@ -1046,7 +1076,10 @@ public class ReplenishmentService {
 
     private int restockOutboundLineWithoutSlots(ReplenishmentTask task, WarehouseOutboundLine ol, int need,
                                                 Long operatorId, String refId) {
-        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
+        // 开门柜必须走这里加库存：柜上有残留货道时 hasSkuSlots 仍为真，
+        // 若只判 hasSkuSlots 会 return 0——补货完成却不加任何库存（静默丢账）
+        if (deviceSlotService.isDoorCabinet(task.getDeviceId())
+                || !deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
             inventoryLotService.addRestock(
                     task.getDeviceId(), ol.getSkuId(),
                     new InventoryLotService.RestockCommand(
@@ -1086,7 +1119,10 @@ public class ReplenishmentService {
         // 开门柜没有格子（2026-10-27 用户拍板）：该 SKU 在柜上无任何启用货道时
         // 不分配、不 400，整行落 slotId=null——与完成链 restockOutboundLineWithoutSlots
         // 同口径；旧草稿行携带的已删货道号也在此一并归零。
-        if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), dto.skuId())) {
+        // 2026-10-28 用户拍板「判据固定为将邑绑定」：开门柜**不论柜上有没有货道残留**，
+        // 补货行都不绑货道（残留行只会把行绑回脏货道，再被 mp 容量门禁二次拦截）。
+        if (deviceSlotService.isDoorCabinet(task.getDeviceId())
+                || !deviceSlotService.hasSkuSlots(task.getDeviceId(), dto.skuId())) {
             saveRestockLine(taskId, dto, null, qty);
             return;
         }
@@ -1471,6 +1507,10 @@ public class ReplenishmentService {
         if (!RESTOCK.equals(lineType)) {
             return new PullOffTaskPlan(qty, restockAllocs);
         }
+        // 开门柜按商品备货（判据=将邑绑定）：不要求该 SKU 绑货道，也不受货道余量限幅
+        if (deviceSlotService.isDoorCabinet(pull.getDeviceId())) {
+            return new PullOffTaskPlan(qty, restockAllocs);
+        }
         if (!deviceSlotService.hasSkuSlots(pull.getDeviceId(), pull.getSkuId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "该商品未绑定货道，无法创建补货任务；请先在货道配置中绑定 SKU");
@@ -1493,6 +1533,18 @@ public class ReplenishmentService {
 
     private void persistPullOffTaskLines(Long taskId, String lineType, PullOffTask pull, PullOffTaskPlan plan) {
         if (RESTOCK.equals(lineType)) {
+            if (plan.restockAllocs().isEmpty()) {
+                // 开门柜：无货道分配 ⇒ 整行落无货道行（不能因空分配而少建行）
+                ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+                line.setTaskId(taskId);
+                line.setLineType(lineType);
+                line.setSkuId(pull.getSkuId());
+                line.setBatchNo(pull.getBatchNo());
+                line.setQuantity(plan.qty());
+                line.setApplied(false);
+                taskLineRepository.save(line);
+                return;
+            }
             for (DeviceSlotService.SlotRestockAllocation alloc : plan.restockAllocs()) {
                 ReplenishmentTaskLine line = new ReplenishmentTaskLine();
                 line.setTaskId(taskId);

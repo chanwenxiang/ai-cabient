@@ -424,6 +424,11 @@ public class MerchantDevicePortalService {
     public List<DeviceSlotDto> listDeviceSlots(Long userId, String deviceId) {
         permissionService.requirePermission(userId, "merchant:slots:view");
         merchantPortalGuard.requireAccess(userId);
+        // 开门柜无货道概念（判据=将邑绑定）：商户面读空，残留货道行不外泄，
+        // 否则补货详情的容量映射/设备详情的缺失提示会按脏行算错数。
+        if (deviceSlotService.isDoorCabinet(deviceId)) {
+            return List.of();
+        }
         return deviceSlotService.listSlots(userId, deviceId);
     }
 

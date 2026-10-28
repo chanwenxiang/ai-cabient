@@ -668,6 +668,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-28（方案 A 第二步收口：开门柜判据固定为「将邑绑定」——货道概念在商户面读面归零、补货行永不带货道）
+
+- 📌 **用户拍板**：「固定为将邑绑定，然后开修」。判据唯一出处=`DeviceSlotService.isDoorCabinet(deviceId)` → `JiangyiDeviceDirectory.isJiangyi`（`jiangyi_device.status=BOUND`）。**不要**按 `device_type` 另立判据（字典只有 `AI_CABINET_V1` 一项）。`assertNotDoorCabinet` 改为复用同一方法。
+- **读面归零（残留货道行不再参与任何口径）**：①商户货道列表 `MerchantDevicePortalService.listDeviceSlots` → 开门柜返回空（`listSlots` 本身不动，运营后台 `/ops/devices/{id}/slots` 仍在用）；②`MerchantInventoryPortalService.listShortageSummary` 过滤开门柜设备；③`DeviceSlotService.countSlotStock` 恒 0（柜机卡片缺货标签）；④`listDiscrepancyAlerts`（单柜/全量两路）与 `resolveDevicesForShortage` 剔除开门柜。**`listShortageSlots` 刻意不动**——工作台/自动建任务（`suggestForDevice`）仍走它，改口径会牵连调度。
+- **补货行永不带货道（写面 6 处）**：`persistRestockLines`（用户提交）、`seedDraftRestockLines`（无仓直加草稿）、`saveRestockLinesFromOutbound`（出库回填）、`resolveOutboundSlotAllocations`（出库行旧货道号忽略）、`applyPendingReplenishmentLines`（历史行归一：上架前清 slotId）、`preparePullOffTaskPlan`/`persistPullOffTaskLines`（临期转补货不再要求绑货道、不受余量限幅，空分配也建行）。🔴 **关键坑**：只判 `hasSkuSlots` 是数据形状不是柜型——柜上有残留货道时 `restockOutboundLineWithoutSlots` 会 `return 0`，补货完成却不加任何库存（静默丢账）；现有测试已钉（`ReplenishmentDoorCabinetCompleteTest`）。
+- **mp**：`useReplenishmentFulfillment` 的 `increaseLineQty`/`clampLinesToCapacity`/`ensureLinesWithinCapacity`/`validatePositiveLines`/完成确认文案、`useReplenishmentDisplay` 的 `formatLineSummary`/`slotHint`、`ReplenishLinesSection` 副标题全部按 `doorCabinet` 分支；设备详情「柜机盘点」入口对开门柜隐藏（服务端早已 409）。
+- 🧪 实跑：trade 定向 49/49（DeviceSlot 13、ReplenishmentServiceOutbound 12、SubmitLinesGate 8、MerchantDevicePortal 9、MerchantInventoryPortal 6、DoorCabinetComplete 1）；merchant-mp vitest **201/201**（新增 7 条门禁用例）、`vue-tsc` 绿、`build:mp-weixin` release 出包。
+- 📌 未做（后续）：开门柜「缺货」新口径（台账 quantity vs lowThreshold）替换货道口径；纯文案类（ops-config 阈值、merchant-nav 描述、order-detail/tally-records 货道字眼）；admin 侧货道模块清理。历史任务行**不批量刷库**——只在完成/上架时按行归一（`ReplenishmentTaskLineMapper.clearSlotId` 显式 SQL，因 `updateById` 跳过 null）。
+
 ### 2026-10-28（方案A第二步主体：开门柜货道写面守卫 + CI 三红修 + 调度簿记补全）
 
 - **货道写面守卫（fail-closed 409）**：`upsertSlots`/`stocktakeSlot`/`applyPlanogramTemplate(ops)` 三入口 `assertNotDoorCabinet`——将邑柜按商品备货无货道概念（mp 编辑器已藏，此层拦接口直绕）；守卫**先于** scope 校验（不依赖外部服务可用性，测试也是这么钉的）。`DeviceSlotServiceTest` +2（开门柜保存/盘点 409），12/12。后台 DeviceDetailView 读面早在 CB-051 已是商品卡片口径，`openEditor` 已无调用方——本步未动。

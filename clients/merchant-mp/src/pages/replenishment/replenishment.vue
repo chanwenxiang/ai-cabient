@@ -568,7 +568,9 @@ const {
 } = useReplenishmentDisplay({
   skus,
   slotCaps,
-  deviceSlotsList
+  deviceSlotsList,
+  // 开门柜（判据=将邑绑定）无货道概念：行摘要不提示待选货道
+  isDoorCabinet: () => doorCabinet.value
 });
 
 const {
@@ -648,6 +650,7 @@ const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenis
   reloadList: load,
   addEvidence,
   isPullOffType,
+  isDoorCabinet: () => doorCabinet.value,
   formatLineSummary,
   slotHeadroom
 });

@@ -31,4 +31,11 @@ public interface ReplenishmentTaskLineMapper extends BaseTradeMapper<Replenishme
     delete(Wrappers.<ReplenishmentTaskLine>lambdaQuery().eq(ReplenishmentTaskLine::getTaskId, taskId).eq(ReplenishmentTaskLine::isApplied, false));
     }
 
+    /** 开门柜历史行归一：清残留货道号。updateById 默认跳过 null，必须显式 SQL。 */
+    default int clearSlotId(Long lineId) {
+        return update(null, Wrappers.<ReplenishmentTaskLine>lambdaUpdate()
+                .eq(ReplenishmentTaskLine::getLineId, lineId)
+                .set(ReplenishmentTaskLine::getSlotId, null));
+    }
+
 }

@@ -24,6 +24,8 @@ export function useReplenishmentDisplay(opts: {
   skus: Ref<MerchantSkuPricing[]>;
   slotCaps: Ref<Record<string, { maxLevel: number; bookQty: number }>>;
   deviceSlotsList: Ref<DeviceSlot[]>;
+  /** 开门柜（判据=将邑绑定）：无货道概念，行摘要不再提示「待选货道」 */
+  isDoorCabinet: () => boolean;
 }) {
   function skuName(id: string) {
     const s = opts.skus.value.find((item) => item.skuId === id);
@@ -70,7 +72,7 @@ export function useReplenishmentDisplay(opts: {
   }
 
   function slotHintImpl(line: Line): string {
-    if (isPullOffType(line.lineType)) return '';
+    if (isPullOffType(line.lineType) || opts.isDoorCabinet()) return '';
     const code = String(line.slotId || '').toUpperCase();
     const cap = opts.slotCaps.value[code];
     if (!cap || cap.maxLevel <= 0) return '';
@@ -97,7 +99,7 @@ export function useReplenishmentDisplay(opts: {
     const parts = [`${rows.length} 行`, `共 ${qty} 件`];
     if (restock > 0) parts.push(`补货 ${restock}`);
     if (pull > 0) parts.push(`下架 ${pull}`);
-    if (noSlot > 0) parts.push(`${noSlot} 行待选货道`);
+    if (noSlot > 0 && !opts.isDoorCabinet()) parts.push(`${noSlot} 行待选货道`);
     if (noExpiry > 0) parts.push(`${noExpiry} 行缺效期`);
     return parts.join(' · ');
   }
