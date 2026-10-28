@@ -668,6 +668,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-28（方案A第二步主体：开门柜货道写面守卫 + CI 三红修 + 调度簿记补全）
+
+- **货道写面守卫（fail-closed 409）**：`upsertSlots`/`stocktakeSlot`/`applyPlanogramTemplate(ops)` 三入口 `assertNotDoorCabinet`——将邑柜按商品备货无货道概念（mp 编辑器已藏，此层拦接口直绕）；守卫**先于** scope 校验（不依赖外部服务可用性，测试也是这么钉的）。`DeviceSlotServiceTest` +2（开门柜保存/盘点 409），12/12。后台 DeviceDetailView 读面早在 CB-051 已是商品卡片口径，`openEditor` 已无调用方——本步未动。
+- **CI build 两红修复**（连续 4 轮同因，artifact 实锤）：①架构门禁 `scheduledMustCallTryBegin`——自动任务 @Scheduled 改走 `ScheduledTaskService.tryBegin/finish`（tryBegin 本身即集群单实例锁，自造的 DistributedLockService 删），键 `auto-replenish-task` 注册 ScheduledTaskRegistry（xxl-job 可接管）+ V409 落 scheduled_task 种子（check:scheduled-task-seed 门禁同批过）；②`DeviceSlotServiceTest` 2 NPE——skuName 组装 `Collectors.toMap` 遇 null 名炸，改手工 putAll。
+- **e2e-h5 红一轮（R-03 补货调度可进）**：CI 上自动任务真建了任务、页面渲染正常但探针误判——本地同代码+同数据 22/22 复跑绿，判时序抖动，复跑观察。🔴 注意：**自动任务会在 CI/UAT 期间真建任务**（7709e826 起）——若后续 UAT 有按任务数断言的用例要留意这个新变量。
+- **自动任务指派语义**：operatorId=0（系统）不再落 `assignee_user_id=0` 脏外键（留空=待派单）；dev 存量 0 已清。备货清单同批纳入 PENDING 任务（自动建的任务签到前即 PENDING，备货恰恰发生在签到前）。
+- 🧪 实跑：Auto 4/0、Architecture 6/0、DeviceSlot 12/12、Portal 5/5、Presence 11/0；merchant mp 194/194、consumer 169/169；live 验证 V409 种子落库 + 争议详情 videoPreviewUrls=2 段。
+
+### 2026-10-27（夜：首页「备货清单」上线（CB-072）——缺货→备货单视图 + 件装数换算，竞品取证后按「不新造单据」落法）
+
 ### 2026-10-27（夜：首页「备货清单」上线（CB-072）——缺货→备货单视图 + 件装数换算，竞品取证后按「不新造单据」落法）
 
 - **需求语义（用户口径）**：备货=根据**缺货**（不是取货）在出发前生成清单，补货员照单去仓库备货；饮料最小单位是支，要按件装数换算。竞品取证落 **CB-072**：Parlevel Stock（遥测→每机建议→按路线聚合到司机 App）+ WMS 整箱/拆零（Units = Cases × pack，case-pack 存 SKU 主数据）⇒ 结论=**不新造单据**，备货清单=进行中任务出库行的聚合换算视图（我方发起补货本就自动生成分仓出库）。
