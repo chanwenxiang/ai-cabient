@@ -82,7 +82,7 @@ class ReplenishmentDoorCabinetCompleteTest {
         when(taskLineRepository.findByTaskIdAndAppliedFalse(40L)).thenReturn(List.of());
         when(taskLineRepository.findByTaskIdOrderByLineIdAsc(40L)).thenReturn(List.of());
         when(inTransitService.hasOpenForDevice(400L, "EG-DOOR")).thenReturn(true);
-        when(warehouseService.hasOutboundLinesForDevice(400L, "EG-DOOR")).thenReturn(true);
+        // 有在途即走签收，不再查出库明细（自提自送补齐发运的短路顺序）
         when(warehouseService.outboundLinesForDevice(400L, "EG-DOOR")).thenReturn(List.of(ol));
         when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
         when(deviceRepository.findById("EG-DOOR")).thenReturn(Optional.empty());

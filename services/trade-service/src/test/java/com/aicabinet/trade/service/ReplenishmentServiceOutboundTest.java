@@ -225,32 +225,8 @@ class ReplenishmentServiceOutboundTest {
         verify(taskLineRepository, never()).save(any());
     }
 
-    @Test
-    void completeTask_rejectsOutboundTaskWhenNotInTransit() {
-        ReplenishmentTask task = new ReplenishmentTask();
-        task.setTaskId(20L);
-        task.setDeviceId("CAB-001");
-        task.setOutboundId(200L);
-        task.setStatus("IN_PROGRESS");
-        task.setCheckInAt(java.time.Instant.parse("2026-07-24T06:00:00Z"));
-
-        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-        line.setTaskId(20L);
-        line.setLineType("RESTOCK");
-        line.setSkuId("SKU-DEMO-001");
-        line.setQuantity(2);
-
-        when(taskRepository.findByIdForUpdate(20L)).thenReturn(java.util.Optional.of(task));
-        when(taskLineRepository.findByTaskIdAndAppliedFalse(20L)).thenReturn(List.of(line));
-        when(inTransitService.hasOpenForDevice(200L, "CAB-001")).thenReturn(false);
-        when(warehouseService.hasOutboundLinesForDevice(200L, "CAB-001")).thenReturn(true);
-
-        assertThrows(ResponseStatusException.class,
-                () -> replenishmentService.completeTask(100000001L, 20L));
-
-        verify(taskLineRepository, never()).save(any());
-        verify(warehouseService, never()).markDeviceHandoverReceived(anyLong(), anyString());
-    }
+    // 「未发运即拒绝完成」的旧行为已被推翻：自提自送口径下改为完成时自动补发运。
+    // 对应的新门禁见 ReplenishmentSelfPickupShipTest（那里有完整依赖，能跑完整个完成链）。
 
     @Test
     void createTaskFromPullOff_restock_createsOneLinePerSlotAllocation() {

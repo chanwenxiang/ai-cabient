@@ -80,6 +80,9 @@ public class ReplenishmentService {
     private static final String PULL_OFF = "PULL_OFF";
     private static final String STATUS_PENDING = "PENDING";
     private static final String PLANNED = "PLANNED";
+    /** 出库单状态（与 WarehouseService 内部常量同口径，那边是 private，故此处本地复写）。 */
+    private static final String OUTBOUND_DRAFT = "DRAFT";
+    private static final String OUTBOUND_RECEIVED = "RECEIVED";
 
 
     private static final Logger log = LoggerFactory.getLogger(ReplenishmentService.class);
@@ -908,7 +911,7 @@ public class ReplenishmentService {
             return finalizeAlreadyCompletedTask(task, operatorId, taskId);
         }
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
-        boolean expectReceive = validateOutboundBeforeComplete(task, pending);
+        boolean expectReceive = validateOutboundBeforeComplete(operatorId, task, pending);
         // P0-2（2026-10-15）：有真实重力实测 ⇒ 保留关门快照实盘，不用回写后账面覆盖
         boolean preservePhysical = hasRealRestockGravitySnapshot(task);
         int appliedRestockQty = applyPendingReplenishmentLines(task, pending, operatorId,
@@ -981,21 +984,55 @@ public class ReplenishmentService {
 
     /**
      * 校验仓配发运状态；返回是否需要在途签收。
-     * 有仓配明细却未发运且仍有待上架行时拒绝完成。
+     * 无在途但出库单有明细且仍有待上架行时，按自提自送口径补一次发运（见 {@link #shipForSelfPickup}）。
      */
     private boolean validateOutboundBeforeComplete(
-            ReplenishmentTask task, List<ReplenishmentTaskLine> pending) {
+            Long operatorId, ReplenishmentTask task, List<ReplenishmentTaskLine> pending) {
         if (task.getOutboundId() == null) {
             return false;
         }
-        boolean inTransit = inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId());
+        if (inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
+            return true;
+        }
         boolean hasOutboundLines = warehouseService.hasOutboundLinesForDevice(
                 task.getOutboundId(), task.getDeviceId());
-        if (!inTransit && hasOutboundLines && !pending.isEmpty()) {
+        if (!hasOutboundLines || pending.isEmpty()) {
+            return false;
+        }
+        return shipForSelfPickup(operatorId, task);
+    }
+
+    /**
+     * 自提自送口径（2026-10-28 用户拍板）下的发运补齐。
+     *
+     * <p>口径：补货员从自己分仓领货、自己拉去上柜，没有采购/物流那套「拣货→发运→在途→签收」
+     * 的两段等待。但「领货出门」必须扣一次仓库存，而该扣减只存在于
+     * {@link WarehouseService#shipOutbound}。2026-10-28 把建单链路改成「建出库单后立即种现场
+     * 明细」时没补这一步，后果有两条，且都只在真机上才暴露：
+     * ① 出库单永远停在 DRAFT ⇒ {@link #validateOutboundBeforeComplete} 判为「未发运」⇒ 商户端
+     * 「确认全部上架」被 409 拦住，补货任务根本无法完成；
+     * ② 仓库存永不扣减 ⇒ 账实不符，出库单最终悬挂成孤儿单。
+     *
+     * <p>修法：把这一步挪到「确认上架」这一刻——仓扣减对齐真实上柜时点，任务中途取消也不会
+     * 提前扣库。发运产生的在途行由随后的 {@link #receiveOutboundHandover} 成对签收，不残留。
+     */
+    private boolean shipForSelfPickup(Long operatorId, ReplenishmentTask task) {
+        Long outboundId = task.getOutboundId();
+        String status = warehouseService.getOutbound(outboundId).status();
+        if (STATUS_CANCELLED.equals(status) || OUTBOUND_RECEIVED.equals(status)) {
+            // 已作废（仓库存已回仓）或已签收（其它路径已收口）⇒ 不再补发运，按任务行独立上架
+            return false;
+        }
+        if (OUTBOUND_DRAFT.equals(status)) {
+            warehouseService.markPicked(outboundId);
+        }
+        warehouseService.shipOutbound(operatorId, outboundId);
+        if (!inTransitService.hasOpenForDevice(outboundId, task.getDeviceId())) {
+            // 发运后仍无在途 ⇒ 出库单状态异常，宁可拦住也不能让仓库存白扣
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     ApiMessages.REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT);
         }
-        return inTransit;
+        return true;
     }
 
     private int applyPendingReplenishmentLines(
