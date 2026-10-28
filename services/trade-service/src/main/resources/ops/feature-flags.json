@@ -686,7 +686,7 @@
       "key": "ops.support_email",
       "group": "客户端展示",
       "type": "TEXT",
-      "default": "ops@aicabinet.local",
+      "default": "cwx@easygovm.com",
       "description": "运营支持邮箱（下发 C 端公开配置 supportEmail）"
     },
     {
