@@ -162,7 +162,7 @@ describe('useCrudTable', () => {
     expect(crud.pickSelected(rows)).toHaveLength(3);
   });
 
-  it('加载失败：提示 errorMessage，不置 hydrated 之外的状态残留', async () => {
+  it('加载失败：提示 errorMessage 并置 loadFailed（组件层据此不再拿「暂无数据」骗运营）', async () => {
     const fetchPage = vi.fn().mockRejectedValue(new Error('网络炸了'));
     const crud = useCrudTable<Row>({
       rowKey: (r) => r.id,
@@ -176,6 +176,51 @@ describe('useCrudTable', () => {
     expect(ElMessage.error).toHaveBeenCalledWith('网络炸了');
     expect(crud.loading).toBe(false);
     expect(crud.hydrated).toBe(true);
+    expect(crud.loadFailed).toBe(true);
+  });
+
+  it('翻页失败：页码回退到上一次成功落地的页，不留「页码 3 + 第 1 页数据」', async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: makeRows([1, 2]), total: 2 })
+      .mockRejectedValueOnce(new Error('超时'));
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    crud.page = 3;
+    await crud.load();
+
+    expect(crud.page).toBe(1); // 屏幕上还是第 1 页的两行
+    expect(crud.items).toHaveLength(2);
+    expect(crud.loadFailed).toBe(true);
+  });
+
+  it('失败后重查成功：loadFailed 复位', async () => {
+    const fetchPage = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('超时'))
+      .mockResolvedValueOnce({ items: makeRows([1]), total: 1 });
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    expect(crud.loadFailed).toBe(true);
+    await crud.load();
+
+    expect(crud.loadFailed).toBe(false);
+    expect(crud.items).toHaveLength(1);
+  });
+
+  it('静默刷新失败：不置 loadFailed（屏幕上的数据确实还是上一次成功的那页）', async () => {
+    const fetchPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: makeRows([1]), total: 1 })
+      .mockRejectedValueOnce(new Error('后台超时'));
+    const crud = useCrudTable<Row>({ rowKey: (r) => r.id, fetchPage, autoLoad: false });
+
+    await crud.load();
+    await crud.silentRefresh();
+
+    expect(crud.loadFailed).toBe(false);
   });
 
   it('onSizeChange：钳制 size 并重置页码', async () => {

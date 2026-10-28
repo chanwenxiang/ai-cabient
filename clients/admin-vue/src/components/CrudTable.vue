@@ -208,8 +208,12 @@
             小图标 + 一行说明 + 可选动作；页面可用 #empty-extra 插槽补「新建/上传」等出口。
           -->
           <div v-if="table.hydrated && !table.loading" class="crud-empty">
-            <el-icon class="crud-empty__icon"><Files /></el-icon>
-            <p class="crud-empty__text">{{ emptyText }}</p>
+            <!-- 拉取失败与「真的没有数据」必须分开显示：以前失败也走空态，运营会以为库里没单 -->
+            <el-icon class="crud-empty__icon">
+              <WarningFilled v-if="table.loadFailed" />
+              <Files v-else />
+            </el-icon>
+            <p class="crud-empty__text">{{ table.loadFailed ? '加载失败，请重试' : emptyText }}</p>
             <div v-if="$slots['empty-extra']" class="crud-empty__extra">
               <slot name="empty-extra" />
             </div>
@@ -303,7 +307,8 @@ import {
   Lock,
   Operation,
   Rank,
-  Refresh
+  Refresh,
+  WarningFilled
 } from '@element-plus/icons-vue';
 import PagePager from '@/components/PagePager.vue';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';

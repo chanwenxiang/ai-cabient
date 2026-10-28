@@ -436,6 +436,9 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (channel.value) query.channel = channel.value;
   if (statusFilter.value) query.status = statusFilter.value;
+  // keyword 也要进 URL：否则刷新/分享丢掉了「正在查哪一家/哪一笔」，运营只能重敲
+  const kw = keyword.value.trim();
+  if (kw) query.keyword = kw;
   router.replace({ query });
 }
 
@@ -506,6 +509,11 @@ function applyRouteQuery() {
     channel.value = qChannel;
     changed = true;
   }
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value.trim()) {
+    keyword.value = qKeyword;
+    changed = true;
+  }
   return changed;
 }
 
@@ -519,7 +527,7 @@ watch([keyword, statusFilter], () => {
 });
 
 watch(
-  () => [route.query.status, route.query.channel] as const,
+  () => [route.query.status, route.query.channel, route.query.keyword] as const,
   () => {
     void reloadFromRouteQuery();
   }

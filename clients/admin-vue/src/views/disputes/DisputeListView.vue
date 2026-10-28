@@ -1565,14 +1565,25 @@ watch(
   }
 );
 
+// keep-alive 下首进会 onMounted→onActivated 连着跑；首查已由 onMounted 负责，
+// 这里再无条件 search() 就是「首进双请求 + 把运营翻到的页码/勾选冲回第 1 页」。
+let firstActivation = true;
+
 onActivated(async () => {
   detailVisible.value = false;
   selected.value = null;
   resolveFeedback.value = null;
   clearEmbedVideo();
-  // keep-alive 复用时必须按本次 query 重置分拣 tab，再拉列表
-  applyRouteQuery();
-  await crud.search();
+  if (firstActivation) {
+    firstActivation = false;
+    applyRouteQuery();
+  } else if (applyRouteQuery()) {
+    // 带着新的路由筛选进来（看板/深链跳入）：按新条件重查并回第 1 页
+    await crud.search();
+  } else {
+    // 只是从详情或其它页返回：停在当前页，静默补一次数据（不清勾选、不闪 loading）
+    await crud.silentRefresh();
+  }
   await openFocusedTicket();
 });
 onDeactivated(() => {

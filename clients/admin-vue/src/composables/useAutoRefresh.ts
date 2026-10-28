@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue';
 
 /**
  * 运营后台列表页的「自动刷新」开关（默认关闭，按页面持久化）。
@@ -11,6 +11,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
  *
  * 行为约定：
  * - 标签页切到后台（`document.hidden`）时**暂停倒计时**，不消耗轮询配额；
+ * - 页面被 `<keep-alive>` 缓存后**切走即停表**，回到该页才续上（路由内跳转同样不再打接口）；
  * - 上一次刷新未返回时跳过本轮，慢接口不会滚雪球；
  * - 自动刷新失败**静默**（不弹 ElMessage），避免打断运营操作；
  * - 用户切换开关 / 间隔时立刻写回 localStorage，下次进页面沿用。
@@ -142,6 +143,16 @@ export function useAutoRefresh(options: UseAutoRefreshOptions) {
 
   onMounted(() => {
     if (enabled.value) start();
+  });
+
+  // keep-alive 缓存页切走时也在轮询（document.hidden 只管浏览器标签页），
+  // 等于给一个运营已经看不见的列表持续打接口 ⇒ 停用即停表，回到本页再续。
+  onActivated(() => {
+    if (enabled.value) start();
+  });
+
+  onDeactivated(() => {
+    stop();
   });
 
   onBeforeUnmount(() => {

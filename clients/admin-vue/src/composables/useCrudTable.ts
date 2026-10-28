@@ -58,6 +58,8 @@ export interface CrudTableController<T> {
   pageSizes: readonly number[];
   loading: boolean;
   hydrated: boolean;
+  /** 最近一次**非静默**加载是否失败：组件层据此区分「真没数据」与「拉取失败」，不再拿空态骗运营 */
+  loadFailed: boolean;
   selectedKeys: Array<string | number>;
   hasSelection: boolean;
   exportButtonLabel: string;
@@ -97,6 +99,7 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
   const loadSeq = createLoadSeq();
   const loading = ref(false);
   const hydrated = ref(false);
+  const loadFailed = ref(false);
   const page = ref(1);
   const size = ref(clampAdminPageSize(options.pageSize ?? 20));
   const items: Ref<T[]> = ref([]);
@@ -134,6 +137,9 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
    *  连 loading=false 一起跳过，遮罩永久卡住，整页按钮假死只剩 F5（2026-09-30 用户实测）。 */
   let nonSilentInflight = 0;
 
+  /** 上一次**成功落地**的页码：加载失败时把分页器拉回它，杜绝「页码 3 + 第 2 页数据」的错位显示。 */
+  let shownPage = 1;
+
   async function load(opts?: { resetPage?: boolean; silent?: boolean }) {
     if (opts?.resetPage) page.value = 1;
     const silent = !!opts?.silent;
@@ -157,11 +163,17 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
       const norm = normalizeListPage<T>(data);
       items.value = norm.items;
       total.value = norm.total;
+      shownPage = page.value;
+      loadFailed.value = false;
     } catch (e) {
       if (!loadSeq.isCurrent(seq)) return;
       // 静默刷新失败不弹提示：运营没主动点，弹窗只会打断
-      if (!silent)
+      if (!silent) {
+        loadFailed.value = true;
+        // 数据还是上一次成功的那页 ⇒ 页码必须跟着回去，否则分页器在撒谎
+        page.value = shownPage;
         ElMessage.error(e instanceof Error ? e.message : options.errorMessage || '加载失败');
+      }
     } finally {
       if (!silent) {
         nonSilentInflight = Math.max(0, nonSilentInflight - 1);
@@ -223,6 +235,7 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
     pageSizes: ADMIN_LIST_PAGE_SIZES,
     loading,
     hydrated,
+    loadFailed,
     selectedKeys,
     hasSelection,
     exportButtonLabel,
