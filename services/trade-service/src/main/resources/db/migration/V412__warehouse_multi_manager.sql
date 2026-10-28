@@ -1,5 +1,6 @@
 -- MIGRATION_KIND: create
 -- MIGRATION_REVIEWED: no
+-- COMPETITOR_REF: CB-068,CB-070
 -- LOCK_RISK: low
 -- TABLES: warehouse_manager（新表）+ warehouse（仅改列注释，无 DDL 变更）
 -- NOTES: 纯 CREATE TABLE/INDEX + 幂等 INSERT ... ON CONFLICT DO NOTHING；可重入。
