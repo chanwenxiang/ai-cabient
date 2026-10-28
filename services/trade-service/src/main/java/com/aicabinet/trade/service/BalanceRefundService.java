@@ -334,6 +334,13 @@ public class BalanceRefundService {
     @Transactional
     public ApprovalGate completeApprovalGate(Long operatorId, long requestId, String remark) {
         BalanceRefundRequest req = requirePendingForUpdate(requestId);
+        // 无实例 ≠ 已通过：审批定义缺失/禁用时 start() 静默不建实例，若此处也静默，
+        // 运营点「通过」会 200 成功但单据永远停在 PENDING_REVIEW（G9-4 §7-B 实测）。
+        if (approvalWorkflowService.instanceStatus(
+                BIZ_BALANCE_REFUND, String.valueOf(requestId)).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "审批流未发起（审批定义为空或已禁用），无法通过；如需退回冻结资金请走驳回");
+        }
         req.setReviewerId(operatorId);
         req.setReviewRemark(trim(remark));
         req.setReviewedAt(Instant.now());

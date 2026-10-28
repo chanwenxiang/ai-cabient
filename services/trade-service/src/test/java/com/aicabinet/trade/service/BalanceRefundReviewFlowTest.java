@@ -78,6 +78,9 @@ class BalanceRefundReviewFlowTest {
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         doNothing().when(permissionService).requirePermission(anyLong(), anyString());
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        // 审批实例默认存在（G9-4 §7-B：无实例时应 409，由缺实例专项用例覆盖）
+        lenient().when(approvalWorkflowService.instanceStatus(anyString(), anyString()))
+                .thenReturn(Optional.of("PENDING"));
     }
 
     private BalanceRefundRequest pendingRequest() {
@@ -158,6 +161,30 @@ class BalanceRefundReviewFlowTest {
                 anyString(), anyInt(), anyString(), anyString());
         verify(balanceLedgerService, never()).change(
                 anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /**
+     * G9-4 §7-B：审批实例不存在时 approve 必须显式 409。
+     * 原实现 completeApproved 在无实例时静默 return ⇒ 接口 200、还写「初审通过」审计，
+     * 但单据永远停在 PENDING_REVIEW（实跑复现）。
+     */
+    @Test
+    void review_whenApprovalInstanceMissing_conflictsWithoutTouchingFunds() {
+        BalanceRefundRequest req = pendingRequest();
+        when(requestMapper.selectById(77L)).thenReturn(req);
+        when(requestMapper.selectByIdForUpdate(77L)).thenReturn(Optional.of(req));
+        when(approvalWorkflowService.instanceStatus("BALANCE_REFUND", "77"))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.review(1L, 77L, true, "approve"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("审批流未发起"));
+        verify(approvalWorkflowService, never()).completeApproved(anyLong(), anyString(), anyString(), any());
+        verify(paymentService, never()).refundRechargeChannelPartial(
+                anyString(), anyInt(), anyString(), anyString());
+        assertEquals("PENDING_REVIEW", req.getStatus(), "无实例不得改动单据状态");
     }
 
     /** C05(b)：渠道退款放在扣减提交之后；部分成功时未成功切片冲回并置 PARTIAL（H63 可续退）。 */

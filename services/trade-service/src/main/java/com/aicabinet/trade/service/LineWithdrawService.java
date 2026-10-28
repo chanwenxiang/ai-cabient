@@ -174,6 +174,12 @@ public class LineWithdrawService {
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
         }
+        if (approve && approvalWorkflowService.instanceStatus(
+                BIZ_LINE_WITHDRAW, String.valueOf(requestId)).isEmpty()) {
+            // 同 G9-4 §7-B：无实例时 completeApproved 是静默 no-op ⇒ 会 200 却永远停在 PENDING_REVIEW
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "审批流未发起（审批定义为空或已禁用），无法通过；如需退回冻结资金请走驳回");
+        }
         Instant now = Instant.now();
         request.setReviewerId(operatorId);
         request.setReviewRemark(trim(remark));

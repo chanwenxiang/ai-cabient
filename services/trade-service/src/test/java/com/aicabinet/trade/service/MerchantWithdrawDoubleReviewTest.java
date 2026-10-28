@@ -116,6 +116,9 @@ class MerchantWithdrawDoubleReviewTest {
                 .thenReturn(Optional.of(stubPayeeAccount()));
         lenient().when(approvalWorkflowService.isInstanceApproved(
                 eq("MERCHANT_WITHDRAW"), eq("91"))).thenReturn(true);
+        // 审批实例默认存在（G9-4 §7-B：无实例时 review 应 409，不再是静默 200）
+        lenient().when(approvalWorkflowService.instanceStatus(anyString(), anyString()))
+                .thenReturn(Optional.of("PENDING"));
         // 条件 UPDATE 的语义在假表里如实实现：只有当前状态仍等于 from 才迁移到 PAYING
         lenient().when(withdrawMapper.claimForPayout(anyLong(), anyString(), any()))
                 .thenAnswer(invocation -> claimRow(
