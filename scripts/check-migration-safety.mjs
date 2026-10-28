@@ -144,11 +144,21 @@ for (const rel of files) {
     /ALTER\s+TABLE[\s\S]{0,2000}?\b(TYPE|SET\s+NOT\s+NULL|DROP\s+NOT\s+NULL|SET\s+DEFAULT|DROP\s+DEFAULT)\b/i.test(
       body
     );
-  const createIndex = /CREATE\s+(UNIQUE\s+)?INDEX(?!\s+CONCURRENTLY)/i.test(body);
   const dropIndex = /DROP\s+INDEX(?!\s+IF\s+EXISTS)(?!\s+CONCURRENTLY)/i.test(body);
   const touchesHot = touchesHotTable(body);
-  const needsReviewGate =
-    hasDropColumn || (alterColumn && touchesHot) || (createIndex && touchesHot);
+  // CREATE INDEX 判热表按**目标表**判定，而非文件全文：外键 REFERENCES user_info
+  // 或注释里提到热表名，不代表索引建在热表上（V412 误报实证：新表 warehouse_manager
+  // 的索引因文件里出现 REFERENCES user_info 被拦）。CONCURRENTLY 不能进事务，
+  // 新表建索引本就无并发问题——误报会逼人写出跑不起来的迁移。
+  const createIndexTargets = [
+    ...body.matchAll(
+      /CREATE\s+(?:UNIQUE\s+)?INDEX(?:\s+(?:IF\s+NOT\s+EXISTS\s+)?\S+)?\s+ON\s+([A-Za-z_][\w.]*)/gi
+    )
+  ].map((m) => m[1].split('.').pop());
+  const createIndexOnHot = createIndexTargets.some((t) =>
+    HOT_TABLES.some((h) => h.toLowerCase() === t.toLowerCase())
+  );
+  const needsReviewGate = hasDropColumn || (alterColumn && touchesHot) || createIndexOnHot;
 
   // 禁止空头「MIGRATION_REVIEWED: yes」绕过：凡触发评审门禁的脚本必须带齐元数据
   if (reviewed && needsReviewGate) {
@@ -181,8 +191,10 @@ for (const rel of files) {
     errors.push(`${rel}: LOCK_RISK high requires non-empty NOTES`);
   }
 
-  if (createIndex && touchesHot && !/CONCURRENTLY/i.test(body)) {
-    const msg = `${rel}: CREATE INDEX on hot table without CONCURRENTLY`;
+  if (createIndexOnHot && !/CONCURRENTLY/i.test(body)) {
+    const msg = `${rel}: CREATE INDEX on hot table (${createIndexTargets
+      .filter((t) => HOT_TABLES.some((h) => h.toLowerCase() === t.toLowerCase()))
+      .join(', ')}) without CONCURRENTLY`;
     if (reviewed && lockRisk === 'high') warnings.push(msg);
     else errors.push(msg);
   }
