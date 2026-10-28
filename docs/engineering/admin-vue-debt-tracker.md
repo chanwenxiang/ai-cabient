@@ -382,6 +382,19 @@
 - 「货道」列删除的 DOM 判据是真能红的：临时把列加回去（备份 sha256 `1f35ce09…`，跑完逐字节还原并 `sha256sum -c` OK）⇒ 该检查变红且**只有它**变红（26/27，表头读出 `… 数量 货道 已应用 任务`）
 - 未做：merchant-mp 的 `pages/tally-records/tally-records.vue:220` `:233` 同样有「货道」展示与 `taskId-skuName-slotId` 撞 key——不在本轮拍板范围（用户只点了运营后台），只在此留痕
 
+### 2026-10-28 — 上述整改的**落笔实况**（归因留痕，用户拍板「不改历史」）
+- 这 11 个文件**没有独立提交**：`git add` 之后我在跑预检，peer 于 20:45:56 在**同一棵主树**执行 `git commit`，把已 staged 的 11 个文件一并吞进他们的 `144a07dc feat(stocktake): 盘点单号改为可读 PDyyyyMMdd-NNN`。🔴 根因是**共享索引**：主树的 index 只有一个，谁 commit 都会带走别人 staged 的内容。
+- `144a07dc` 内文件归因（两组**不相交**，故内容没互相污染）：
+  - 本轮三页整改 11 个：3 个 view（月结台账 / 近效期 / 补货员效率）+ `packages/shared-dict/{src/index.ts,dist/index.js,dist/index.d.ts}` + `packages/shared-types/src/generated/openapi.ts` + `TallyRecordRowDto.java` + `TallyLedgerService.java` + `TallyLedgerServiceTest.java` + 本表
+  - peer 的盘点单号 7 个：`warehouse-stocktake.vue`、`biz-no.test.ts`、`packages/shared-uni/src/format.ts`、`WarehouseStocktakeMapper.java`、`WarehouseStocktakeService.java`、`WarehouseStocktakeNoTest.java`、`WarehouseStocktakeServiceTest.java`
+  - 核对法：`git show HEAD:<f> | diff --strip-trailing-cr - <f>` 逐文件比，11 个全同（`services/**`、`docs/**` 没设 `eol=lf`，不去 CR 会假报整文件差异）
+- dist 未被 peer 脏源码烤进去：peer 在 `shared-dict/src/index.ts` 里另有一处未提交改动（`inventory_change_type` 加 `DEMO_SEED/OPENING_BACKFILL/WRITE_OFF/GUEST_WATER`），我先摘掉那 4 行 → 重建 dist → `git add` → 逐字节还原（src `98b91d9b…` OK，dist 重建后回到 `4737c5e6…`/`5e238bd6…`）。用 detached worktree 按 `check-shared-dist-fresh` 的等价逻辑复算**提交树**：committed dist == HEAD src 重新编译（37163B / 28424B 逐字节一致）⇒ 这笔自己不会把门禁搞红。
+- 🔴 三条后续纪律（本轮踩过）：
+  1. 共享主树里 `git add` 与 `git commit` 之间**不许插长跑命令**；或直接用 `git commit -F <msg> -- <路径>`（`--only` 模式不依赖共享索引，谁在这窗口 commit 也带不走我的文件）。
+  2. `reset --soft HEAD~1` 前必须先 `git log -1` 确认 tip 还是自己要动那笔。peer 在我 staging 后又压了 `bf85febe build(admin)`，我那次 `HEAD~1` 撤的是**他们的产物提交**（已 `git reset bf85febe` 原样恢复，`static/admin` 差异 0 处）。
+  3. 重写历史要先数清「压在上面的有几笔」：一旦上面还压着 peer 的提交，拆笔就从「重写 1 笔」变「重写 N 笔」，代价跳档——本轮据此改选「不改历史 + 本条留痕」。
+- 旁证：peer 的 `bf85febe` 已提交产物里含 `月结单台账（审批锁账` 与 `时间窗内无理货记录` 两处字面量 ⇒ 那次重建是从**已含本轮源码**的树跑的；未见 `restock-detail` 字面量。
+
 ---
 
 ## 关联
