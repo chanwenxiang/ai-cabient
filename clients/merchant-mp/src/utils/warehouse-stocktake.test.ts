@@ -6,6 +6,7 @@ import {
   diffReasonLabel,
   diffReasonOptionsFor,
   isLineEditable,
+  resolveWarehouseGate,
   stocktakeLineStateClass,
   stocktakeModeLabel,
   stocktakeStatusLabel
@@ -121,5 +122,30 @@ describe('blindReasonOptions', () => {
     const blind = new Set(blindReasonOptions().map((o) => o.value));
     for (const o of diffReasonOptionsFor(-1)) expect(blind.has(o.value)).toBe(true);
     for (const o of diffReasonOptionsFor(1)) expect(blind.has(o.value)).toBe(true);
+  });
+});
+
+describe('resolveWarehouseGate', () => {
+  it('解析成功 → ready 且可发起盘点', () => {
+    const gate = resolveWarehouseGate('演示中心仓', '');
+    expect(gate).toEqual({ state: 'ready', nameText: '演示中心仓', enabled: true });
+  });
+
+  it('解析失败 → error，且文案不得再是「加载中…」（2026-10-28 永久加载态缺陷）', () => {
+    const gate = resolveWarehouseGate('', '没有已指定您为负责人的分仓');
+    expect(gate.state).toBe('error');
+    expect(gate.nameText).not.toContain('加载中');
+    expect(gate.enabled).toBe(false);
+  });
+
+  it('失败后即使残留空白的仓库名也判 error（不回落成 loading）', () => {
+    expect(resolveWarehouseGate('   ', '没有已指定您为负责人的分仓').state).toBe('error');
+  });
+
+  it('未回包（无名字、无错误）才是 loading，且禁用发起盘点', () => {
+    const gate = resolveWarehouseGate('', '');
+    expect(gate.state).toBe('loading');
+    expect(gate.nameText).toBe('加载中…');
+    expect(gate.enabled).toBe(false);
   });
 });

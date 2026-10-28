@@ -140,3 +140,29 @@ export function isLineEditable(
   if (stocktakeStatus !== 'DRAFT' && stocktakeStatus !== 'IN_PROGRESS') return false;
   return lineStatus !== 'ADJUSTED';
 }
+
+/** 盘点仓解析态：loading（在途/未回）、ready（拿到本人分仓）、error（解析失败）。 */
+export interface WarehouseGate {
+  state: 'loading' | 'ready' | 'error';
+  /** 盘点仓卡片的显示文案。 */
+  nameText: string;
+  /** 是否允许发起盘点 / 录入（只有 ready 才允许）。 */
+  enabled: boolean;
+}
+
+/**
+ * 盘点仓展示态（2026-10-28 修复）：
+ * 此前「分仓解析失败」只弹一次性 toast 就 `return`，页面永久停在「加载中…」+
+ * 「暂无盘点单」——用户无法分辨「没绑定分仓」与「确实没有盘点单」，被误判为页面坏了。
+ * 判据：解析失败（error 非空）时**不得**再产出「加载中…」文案，且必须禁用发起盘点。
+ */
+export function resolveWarehouseGate(
+  warehouseName: string | null | undefined,
+  errorMessage: string | null | undefined
+): WarehouseGate {
+  const name = (warehouseName ?? '').trim();
+  const err = (errorMessage ?? '').trim();
+  if (name) return { state: 'ready', nameText: name, enabled: true };
+  if (err) return { state: 'error', nameText: '未绑定盘点仓', enabled: false };
+  return { state: 'loading', nameText: '加载中…', enabled: false };
+}

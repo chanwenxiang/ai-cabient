@@ -6,16 +6,22 @@
       <view v-if="mode === 'list'" class="panel">
         <view class="card">
           <text class="label">盘点仓</text>
-          <text class="warehouse-name">{{ warehouseName || '加载中…' }}</text>
+          <text class="warehouse-name">{{ warehouseGate.nameText }}</text>
           <text class="hint">仅本人负责的分仓可盘点</text>
         </view>
 
         <app-underline-tabs :items="statusTabs" :value="statusTab" @change="onStatusTab" />
 
-        <view v-if="listError" class="card">
+        <!-- 2026-10-28：分仓解析失败必须常驻错误态（此前只弹一次 toast，页面永久停在「加载中…」） -->
+        <view v-if="warehouseGate.state === 'error'" class="card">
+          <error-state :message="warehouseError" retry-label="重试" @retry="retryWarehouse" />
+        </view>
+        <view v-else-if="listError" class="card">
           <error-state :message="listError" retry-label="重试" @retry="loadList" />
         </view>
-        <view v-else-if="listLoading" class="card"><view class="empty-inline">加载中…</view></view>
+        <view v-else-if="listLoading || warehouseGate.state === 'loading'" class="card">
+          <view class="empty-inline">加载中…</view>
+        </view>
         <view v-else-if="!stocktakes.length" class="card">
           <view class="empty-inline">暂无盘点单</view>
         </view>
@@ -50,17 +56,20 @@
           block
           variant="primary"
           label="发起盘点"
-          :disabled="!canRequest"
+          :disabled="!canRequest || !warehouseGate.enabled"
           @click="mode = 'create'"
         />
         <text v-if="!canRequest" class="err">当前账号无盘点操作权限</text>
+        <text v-else-if="warehouseGate.state === 'error'" class="err">
+          未绑定分仓，暂时无法盘点
+        </text>
       </view>
 
       <!-- ── 建单 ── -->
       <view v-else-if="mode === 'create'" class="panel">
         <view class="card">
           <text class="label">盘点仓</text>
-          <text class="warehouse-name">{{ warehouseName || '加载中…' }}</text>
+          <text class="warehouse-name">{{ warehouseGate.nameText }}</text>
         </view>
         <view class="card">
           <text class="label">盘点方式</text>
@@ -241,6 +250,7 @@ import {
   diffReasonLabel,
   diffReasonOptionsFor,
   isLineEditable,
+  resolveWarehouseGate,
   stocktakeLineStateClass,
   stocktakeModeLabel,
   stocktakeStatusLabel,
@@ -273,6 +283,10 @@ const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:requ
 
 const mode = ref<'list' | 'create' | 'detail'>('list');
 const warehouseName = ref('');
+const warehouseError = ref('');
+const warehouseGate = computed(() =>
+  resolveWarehouseGate(warehouseName.value, warehouseError.value)
+);
 
 // ── 列表 ──
 const statusTabs = STOCKTAKE_STATUS_TABS;
@@ -323,8 +337,15 @@ onLoad((opts) => {
 });
 
 onPullDownRefresh(() => {
+  // 分仓未解析成功时，下拉即重试解析（否则下拉成了无反馈的空动作）
   const reload =
-    mode.value === 'detail' ? loadDetail() : mode.value === 'list' ? loadList() : Promise.resolve();
+    mode.value === 'detail'
+      ? loadDetail()
+      : mode.value === 'list'
+        ? warehouseGate.value.enabled
+          ? loadList()
+          : retryWarehouse()
+        : Promise.resolve();
   void reload.finally(() => uni.stopPullDownRefresh());
 });
 
@@ -335,14 +356,7 @@ async function bootstrap(preferDetailId = 0) {
     if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
   }
-  try {
-    const wh = await merchantApi.satelliteWarehouse();
-    warehouseName.value = wh.warehouseName || wh.warehouseId || '';
-  } catch {
-    warehouseName.value = '';
-    showError('未找到您负责的分仓，无法盘点');
-    return;
-  }
+  if (!(await resolveWarehouse())) return;
   if (preferDetailId > 0) {
     detailId.value = preferDetailId;
     mode.value = 'detail';
@@ -352,12 +366,35 @@ async function bootstrap(preferDetailId = 0) {
   await loadList();
 }
 
+/**
+ * 解析本人负责的分仓。失败时把提示留在 warehouseError（页面上常驻错误态 + 重试），
+ * 不再用一次性 toast 掩盖——2026-10-28 修复：此前 return 后页面永久停在「加载中…」。
+ */
+async function resolveWarehouse(): Promise<boolean> {
+  try {
+    const wh = await merchantApi.satelliteWarehouse();
+    warehouseName.value = wh.warehouseName || wh.warehouseId || '';
+    warehouseError.value = '';
+    return Boolean(warehouseName.value);
+  } catch (e) {
+    warehouseName.value = '';
+    warehouseError.value = e instanceof Error ? e.message : '未找到您负责的分仓，无法盘点';
+    return false;
+  }
+}
+
+async function retryWarehouse() {
+  if (await resolveWarehouse()) await loadList();
+}
+
 function onStatusTab(v: string) {
   statusTab.value = v;
   void loadList();
 }
 
 async function loadList() {
+  // 分仓未解析成功时不发列表请求：后端必然 400，还会把错误叠加到错误态上
+  if (!warehouseGate.value.enabled) return;
   // A 类模式：入口无条件复位在途 loadMore + 递增序号作废迟到旧页（对齐 tally-records）
   listSeq += 1;
   listLoadingMore.value = false;
