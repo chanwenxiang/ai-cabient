@@ -265,7 +265,9 @@
                 lazy-load
               />
               <view v-else class="goods-img goods-img-fallback">
-                <text class="goods-img-fallback-text">{{ (s.skuName || s.skuId || '?').slice(0, 1) }}</text>
+                <text class="goods-img-fallback-text">{{
+                  (s.skuName || s.skuId || '?').slice(0, 1)
+                }}</text>
               </view>
               <view class="goods-info">
                 <text class="goods-name">{{ s.skuName || s.skuId }}</text>
