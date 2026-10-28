@@ -668,6 +668,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-28（UAT G9 发现收口：资金审批「无实例仍 200」改 409 + 六条后台缺陷 + fidelity 脚本 worktree 化）
+
+- 🔴 **资金三路静默成功（G9-4 §7-B 实测）**：`ApprovalWorkflowService.start()` 在审批定义为空/禁用时静默不建实例，`completeApproved()` 遇无实例也静默 no-op ⇒ 运营点「通过」拿到 **200**、单据却永远停在 `PENDING_REVIEW`、冻结资金不动。修法=在三处调用点用 `instanceStatus(bizType,bizId).isEmpty()` 拦成 **409**（余额退款 `completeApprovalGate`、商户提现 `completeReview`、线长提现 `completeReview`），驳回路径不受影响（本就不需要实例）。🔴 **不动 workflow 全局**：采购单存在「无定义即单步自动通过」的既有语义（`ProcurementService.doReviewPurchaseOrder` 的 P2-4 兜底），把静默 no-op 改成抛错会打断它。
+- **commercial-flow 假绿**：识别未成单（`orderId` 为空）时 `AI_SETTLEMENT`/`BUSINESS_CLOSED_LOOP` 仍标 `DONE`，跑通报告给出「全链路闭环」。改为按 `settled` 分 `DONE`/`WARN` 并写成因。同批把 `RevenueSplitService` 三处 AU-182 注释订正到 V384「首扣冻结」口径（原注释与迁移语义相反）。
+- **后台六条（2026-10-21 审计遗留，本轮逐条读码复验后修）**：①SKU `openEdit()` 新建分支漏重置 `costYuan` ⇒ 新建商品继承上一条的进货价（页面级常驻 reactive，编辑过再新建才现形）；②批量提现确认框只报条数不给合计 + 两按钮不互斥（并发 fan-out 会互抢同商户钱包锁，409 无法归因）；③`useCrudTable` 失败仍置 `hydrated` ⇒ 界面把接口故障读成「库里没单」，新增 `loadFailed` 并把页码回退到上一次成功落地的页（杜绝「页码 3 + 第 1 页数据」）；④对账页 `keyword` 既不写 URL 也不读回（Order/Session 此前已修）；⑤`useAutoRefresh` 只有 `document.hidden`，keep-alive 页面站内跳走仍持续打接口 ⇒ 补 `onActivated`/`onDeactivated`；⑥争议页 `onActivated` 无条件 `search()` ⇒ 首进双请求且把页码/勾选冲回第 1 页，改为「首进不重复查 / 路由筛选真变了才 search / 否则 silentRefresh 留在原页」。
+- 📌 **刻意未动**：`dispute_flag` 死列、#5 设备阈值乐观锁（要后端加版本字段）、G2-11 ⑤越权不进审计表/⑧商户端首 2 次免验证码/⑦扩权扩散/⑪商户目录钳 100（均待拍板）、G9-4-A 商户资质专用录入口（通用数据通道已可写 `legal_person`/`business_license_url`，故仅降级为 P3）。
+- 🧪 判据：trade 定向 4 类 **17/17** + `BUILD SUCCESS`；admin-vue vitest **116/116**（`useCrudTable` 15→19）、`vue-tsc` 0 错、prettier/eslint 0 error、6 个 admin 专项门禁 RC=0（含 `smoke:admin-list-race` 过期响应丢弃仍绿）；产物 `1dbfd691` 由 worktree 化后的 fidelity 脚本从干净 HEAD 重建（238 文件，实文验证新文案在 chunk 里）。
+- **fidelity 脚本 worktree 坑**：worktree 的 `.git` 是**文件**（指向主仓 `.git/worktrees/<name>`），容器内 clone 该路径恒 rc=128 且只报「容器构建失败」。正解=先 `git rev-parse --git-common-dir` 取真实仓库目录再挂载，并在克隆内 `checkout $HEAD_SHA`（分支可能不在远端）。
+
 ### 2026-10-28（方案 A 第二步收口：开门柜判据固定为「将邑绑定」——货道概念在商户面读面归零、补货行永不带货道）
 
 - 📌 **用户拍板**：「固定为将邑绑定，然后开修」。判据唯一出处=`DeviceSlotService.isDoorCabinet(deviceId)` → `JiangyiDeviceDirectory.isJiangyi`（`jiangyi_device.status=BOUND`）。**不要**按 `device_type` 另立判据（字典只有 `AI_CABINET_V1` 一项）。`assertNotDoorCabinet` 改为复用同一方法。
