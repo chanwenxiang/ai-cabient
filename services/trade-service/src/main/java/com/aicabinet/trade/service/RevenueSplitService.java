@@ -267,7 +267,9 @@ public class RevenueSplitService {
         }
         int rateBps = merchant.getPlatformRateBps();
         // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
-        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        // 金额退/按行退按 refunded 冲减。🔴 冻结毛额由 V384 在首次扣款时点固定，退款/按行退/
+        // 争议改单一律不得改写 ⇒ 争议 ADJUST 加价（ADJUST_CHARGE）不进基数，属已知形态
+        // （DataConsistencyService#checkPaidGrossConsistency 登记为「佣金基数偏小」）。
         long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
@@ -312,7 +314,9 @@ public class RevenueSplitService {
         }
         int rateBps = merchant.getPlatformRateBps();
         // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
-        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        // 金额退/按行退按 refunded 冲减。🔴 冻结毛额由 V384 在首次扣款时点固定，退款/按行退/
+        // 争议改单一律不得改写 ⇒ 争议 ADJUST 加价（ADJUST_CHARGE）不进基数，属已知形态
+        // （DataConsistencyService#checkPaidGrossConsistency 登记为「佣金基数偏小」）。
         long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;
@@ -513,7 +517,9 @@ public class RevenueSplitService {
         }
         int rateBps = merchant.getPlatformRateBps();
         // AU-182（2026-10-19 拍板）：基数与佣金同源走 CommissionBaseCalc 净额（冻结毛额−refunded），
-        // 金额退/按行退/争议改单回写下都能正确冲减；冻结值只增不减，增额补扣会随之上升。
+        // 金额退/按行退按 refunded 冲减。🔴 冻结毛额由 V384 在首次扣款时点固定，退款/按行退/
+        // 争议改单一律不得改写 ⇒ 争议 ADJUST 加价（ADJUST_CHARGE）不进基数，属已知形态
+        // （DataConsistencyService#checkPaidGrossConsistency 登记为「佣金基数偏小」）。
         long gross = CommissionBaseCalc.netCents(order);
         long platform = gross * rateBps / 10_000L;
         long merchantShare = gross - platform;

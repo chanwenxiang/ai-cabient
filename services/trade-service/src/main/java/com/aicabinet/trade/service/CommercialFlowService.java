@@ -165,13 +165,21 @@ public class CommercialFlowService {
                         "flow-mock",
                         List.of("flow")
                 ));
-        mark(steps, "AI_SETTLEMENT", "DONE", "Recognition settled order: " + completed.orderId());
+        // 识别未被采纳（如 flow-mock ⇒ needReview ⇒ 转争议）时 orderId=null：不能标 DONE，
+        // 否则运营端「全流程演示」显示全绿而实际没有订单（G9-1 F-G9-1 实测）。
+        boolean settled = completed.orderId() != null;
+        mark(steps, "AI_SETTLEMENT", settled ? "DONE" : "WARN",
+                settled ? "Recognition settled order: " + completed.orderId()
+                        : "识别结果未采纳（转争议/待人工复核），本会话未产生订单：session="
+                                + completed.sessionId());
 
         PaymentReconciliationDto recon = reconciliationService.runDaily(operatorId, LocalDate.now(), channel);
         mark(steps, "RECONCILIATION", "DONE", "Reconciliation status: " + recon.status());
 
-        mark(steps, "BUSINESS_CLOSED_LOOP", "DONE",
-                "Inbound, warehouse, replenishment, shopping, settlement, inventory deduction and reconciliation completed");
+        mark(steps, "BUSINESS_CLOSED_LOOP", settled ? "DONE" : "WARN",
+                settled
+                        ? "Inbound, warehouse, replenishment, shopping, settlement, inventory deduction and reconciliation completed"
+                        : "链路未闭环：识别未成单，订单/结算/佣金均未产生（会话已转争议）");
 
         return new CommercialFlowRunResult(
                 deviceId,
