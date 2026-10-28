@@ -6902,6 +6902,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/warehouse/monthly-close/restock-detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["warehouseMonthlyCloseRestockDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/warehouse/list": {
         parameters: {
             query?: never;
@@ -11243,6 +11259,7 @@ export interface components {
             status?: string;
             /** Format: int64 */
             managerUserId?: number;
+            managerUserIds?: number[];
         };
         ApiResponseWarehouseDto: {
             /** Format: int32 */
@@ -11259,6 +11276,13 @@ export interface components {
             createdAt?: string;
             /** Format: int64 */
             managerUserId?: number;
+            managers?: components["schemas"]["WarehouseManagerDto"][];
+        };
+        WarehouseManagerDto: {
+            /** Format: int64 */
+            userId?: number;
+            name?: string;
+            phoneNumber?: string;
         };
         UpdateStocktakeLineRequest: {
             /** Format: int32 */
@@ -16193,6 +16217,9 @@ export interface components {
         WarehouseMonthlyCloseDto: {
             warehouseId?: string;
             warehouseName?: string;
+            managerUserName?: string;
+            /** Format: int32 */
+            deviceCount?: number;
             yearMonth?: string;
             formulaHint?: string;
             openingSource?: string;
@@ -16201,6 +16228,7 @@ export interface components {
         WarehouseMonthlyCloseLineDto: {
             skuId?: string;
             skuName?: string;
+            barcode?: string;
             /** Format: int32 */
             openingQty?: number;
             /** Format: int32 */
@@ -16231,6 +16259,23 @@ export interface components {
             feeDeductQty?: number;
             /** Format: int64 */
             unitPriceCents?: number;
+        };
+        ApiResponseListWarehouseMonthlyCloseRestockLineDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WarehouseMonthlyCloseRestockLineDto"][];
+        };
+        WarehouseMonthlyCloseRestockLineDto: {
+            deviceId?: string;
+            deviceName?: string;
+            skuId?: string;
+            skuName?: string;
+            barcode?: string;
+            /** Format: int32 */
+            qty?: number;
+            outboundIds?: string;
+            lastShippedAt?: string;
         };
         ApiResponsePageResultWarehouseDto: {
             /** Format: int32 */
@@ -32762,6 +32807,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseWarehouseMonthlyCloseDto"];
+                };
+            };
+        };
+    };
+    warehouseMonthlyCloseRestockDetail: {
+        parameters: {
+            query: {
+                warehouseId: string;
+                yearMonth?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListWarehouseMonthlyCloseRestockLineDto"];
                 };
             };
         };
