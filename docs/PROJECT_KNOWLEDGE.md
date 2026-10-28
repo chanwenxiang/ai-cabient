@@ -685,6 +685,9 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   ③ **`mvn -am -Dtest=X`** 在上游模块以「No tests matching pattern」红 ⇒ 加 `-Dsurefire.failIfNoSpecifiedTests=false`。
 - 🔴 **新的待拍板（不是我造的，是 dev 现状）**：dev tip `ca912401` 的 `mini-programs` 作业**已红**，本地 `pnpm format:check` 同点复现——5 个已提交的 `clients/merchant-mp/**/*.vue` 在 `c3f09722` clean、在 `ca912401` dirty（≈470 行属性换行漂移，`4f6da2b3` + `ca912401` 带入）。
   本会话的后端改动与之无关，但 `pre-push-ci-green` 要求「预检全绿才推」⇒ 要么我替 peer 把这 5 个文件 `--write` 对齐（其中 `replenishment.vue` 正被 peer 在飞编辑，属越界），要么等 peer 自己修。处置与归因写进 `.tmp/full-test-20261023/P2-THREE-END-REPORT.md` §7「推送状态」；本轮**只留痕不动 peer 文件**。
+  **拍板结果（同日）**：用户选「只推我这 3 笔，mp 红留给 peer」⇒ `5933d1c7`/`ad59a6b8`/`705d2b6d` 已 fast-forward 推 dev（`ca912401..705d2b6d`，远端 head 里 `myTasks` 确带 `@RequiresPermissions`、单测在位）。
+  推前把预检余下各步**逐项单跑**，除 `format:check` 外全绿：`eslint .` 0 error（38 warning，CI 的 `pnpm lint` 不带 `--max-warnings` 故不红）、两端 `vue-tsc` 0、聚合链 74 门禁 0 失败、`check:nav-perms`/`check:openapi-types` 0、consumer vitest **169/169**、merchant vitest **204/204**、4 条迁移/基线门禁 OK、`openapi-regen`「变更集内无 API 形状改动」⇒ mp 作业里比 `format:check` 更靠前的步都排掉了，红点收敛到 prettier 那一步。
+  🔴 推完立刻复查：peer 已把那批 mp 文件在**盘上**格式化（`prettier --check` 全 exit=0，`home/mine/pricing/team` 从干净变成 ` M`）**但没提交** ⇒ 我这位 head 的 `mini-programs` 仍红是**预期、不是回归**；别顺手替 peer 提交或格式化他们的在飞文件。
 
 
 ### 2026-10-28（P2 三端 GET 读面自测收干：365 条端点逐条点名给值 + 一处静默失效的取值陷阱）
