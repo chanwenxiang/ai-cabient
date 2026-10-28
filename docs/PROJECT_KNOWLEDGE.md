@@ -668,6 +668,60 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-28（两件待拍板收口：档 A 挣到 8 条读面 + `my-tasks` 补权限门——顺带三条「假绿/假红」判据坑）
+
+- **交付**：① P2-B 未挣得 10 条按**档 A**实跑（`drivers/p2-b-unearned-earn.mjs` → `artifacts/p2-b-earn-run2.log`，`TOTAL checks=24 failed=0`、exit=0）；② `GET /api/v2/ops/admin/replenishment/my-tasks` 补上权限门（[OpsReplenishmentController.java:271](services/trade-service/src/main/java/com/aicabinet/trade/api/OpsReplenishmentController.java) + 新单测）。两件都来自用户 2026-10-28 拍板「两件待拍板 按照你的推荐做」。
+- **档 A 结果**：以分仓负责人本人 `user_id=100000039`（`139****2002`，3 个商户范围 + 分仓 999681187388 的 `manager_user_id`）经「超管 `reset-password` ⇒ 商户面真登录」重跑，**8 条转 2xx**（`satellite-warehouse`、`satellite-purchase/{orders,skus,suppliers}`、`warehouse/stocktakes`、`stocktakes/109`、`stocktakes/109/evidence`、`replenishment/tasks/38/evidence/1`——最后一支还核到**响应体前 4 字节 `89504e47`＝PNG 签名**，不是只看状态码）。
+  剩 2 条非 2xx 各有独立成因：`stocktakes/109/evidence/7` 从 403 前进到 **404「附件不存在」**（负责人门已过，卡在 `requireStocktakeEvidence` 的 `ref_type=STOCKTAKE` 过滤，库里该类 **0 行**）；`devices/{deviceId}/stocktake-evidence/{fileId}` 同理（`DEVICE_STOCKTAKE` 0 行）。两支都要真上传＝写面，不属 GET-only 口径 ⇒ **按「挣不到但说得出门」收口，没白名单化**。
+  顺带挣到两条范围边界负例：`devices/CAB-OTHER/stocktake-evidence/7` 与 `tasks/90/evidence/7` 均 **403** ⇒ 「是分仓负责人」不会把设备范围一起放大。
+  复原留证：`password_hash` 逐字节 EQ（`sha256=32bea57cb1b7 len=60`；中途 `94e17c00f3e6` 证明真写进去过）、`updated_at` 归位 `2026-10-27 07:46:50.384787+00`、`admin_audit_log` 增量**恰 1**、`user_info` 148 / `warehouse` 4 / `file_attachment` 6 行数不变；一次性口令只在进程内存，日志与库内零明文。
+- 🔴 **我自己的一次错判（差点把 200 判成 403）**：跑中途我从 `psql` 输出的列序推断「任务 38/52/79 的 `device_id` 是 NULL」，实际取的是 `assignee_user_id` 的空值。带 join 重取才看清 `task 38 → device EG574859056581 → merchant 845172102662`，于是那条腿的正确预期是 **200 + 真图字节**（即我首跑报告 §7 的原判断，中途「订正」才是错的）。**教训：跨列的判据一律 `SELECT` 里带上表名/别名并 join 复核，别在终端里数第几列。**
+- **权限门为什么选「复用已登记的码」而不是「新造码 + 写迁移」**：`ops:replenishment:list` 在库里是 `permission_id=111`（parent 471 补货调度，type C），角色 `admin` + `replenisher` 已持有 ⇒ 零迁移、零新行。
+  G9 那类真缺口是「后端在用而库里没这行 ⇒ 角色界面上永远勾不上」；这里若再造一个语义等价的 `ops:replenishment:view-mine`，就是**死旋钮**（`PermissionCodeDriftTest` 与三条前端对齐门禁都会绿，但角色页多一个没用的勾）。可达面因此＝能进「补货调度」页的人；商户自助账号（`account_type=OPERATOR` 但无 ops 角色）此后 **403**，这正是收口目的；全仓零前端消费者 ⇒ 不打断任何页面。
+  验证：`OpsReplenishmentControllerTest` 5 用例 0 失败（新增 `myTasks_keepsPermissionAndDelegatesCaller` 钉注解值 + `@GetMapping` 路径 + 委托 `myReplenishmentTasks(3L)`），`PermissionCodeDriftTest` 2/2。
+- **三条「假绿/假红」判据坑（本轮都真踩到）**：
+  ① **别把文件复制到 `.tmp/` 再判 prettier**——prettier 默认忽略点目录，`--check` 会输出「All matched files use Prettier code style!」**假绿**；必须在真实路径判。而 `--stdin-filepath X --check` 的告警行是 `(stdin)` 而非 `[warn] X`，靠 `grep warn` 会把 5 条红读成 0 条 ⇒ **用 exit code**。
+  ② **`mvn -am` 会端出陈旧 `target/classes`**：单测 NPE（`getAnnotation` 返回 null）看着像「注解没生效」，实为编译产物是改前那份；`javap -v -p` 只看目标方法那段 `RuntimeVisibleAnnotations` 才是铁证（只 grep class 里的权限码字面量是**假证**——同文件别的方法也贡献同一常量）。
+  ③ **`mvn -am -Dtest=X`** 在上游模块以「No tests matching pattern」红 ⇒ 加 `-Dsurefire.failIfNoSpecifiedTests=false`。
+- 🔴 **新的待拍板（不是我造的，是 dev 现状）**：dev tip `ca912401` 的 `mini-programs` 作业**已红**，本地 `pnpm format:check` 同点复现——5 个已提交的 `clients/merchant-mp/**/*.vue` 在 `c3f09722` clean、在 `ca912401` dirty（≈470 行属性换行漂移，`4f6da2b3` + `ca912401` 带入）。
+  本会话的后端改动与之无关，但 `pre-push-ci-green` 要求「预检全绿才推」⇒ 要么我替 peer 把这 5 个文件 `--write` 对齐（其中 `replenishment.vue` 正被 peer 在飞编辑，属越界），要么等 peer 自己修。处置与归因写进 `.tmp/full-test-20261023/P2-THREE-END-REPORT.md` §7「推送状态」；本轮**只留痕不动 peer 文件**。
+
+
+### 2026-10-28（P2 三端 GET 读面自测收干：365 条端点逐条点名给值 + 一处静默失效的取值陷阱）
+
+- **交付**：`.tmp/full-test-20261023/P2-THREE-END-REPORT.md`（驱动器 `drivers/p2-api-selftest.mjs`，全腿重跑 exit=0，8 条 PASS）。
+  端点清单只取**活栈** `/v3/api-docs`（镜像 `ai-cabinet/trade-service:uat-p2-c3f09722`＝tip `c3f09722`）⇒ **365 条 GET**：A ops 227 / B merchant 75 / C 消费者·公开 48 / I 内部 15。
+  可跑 353＝321 个 2xx + 30 个 4xx（**逐条**给「代码门 + 库里行数」两处证据）+ 2 个 5xx（只有 `/ops/admin/geo/{districts,geocode}`，`AMAP_WEB_KEY` 未配的净化 503）；0 个连接失败。
+  越权抽测 106 次：0 个 401、0 个 5xx，除一条实证豁免外 0 个跨档 2xx；水平越权（他人订单）回 **404 不是 403**（不泄存在性）。
+- 🔴 **取值陷阱（会让「取最新一条」整条链静默失效，且已在本轮真实踩到）**：PostgreSQL 的 `ORDER BY` **先按输出列名匹配**，
+  所以 `SELECT stocktake_id::text FROM warehouse_stocktake ORDER BY stocktake_id DESC LIMIT 1` 排的是那个 **text 投影（字典序）**，不是 bigint 原列——
+  28 行表里取到 `99`，而 `max(stocktake_id)=109`（`EXPLAIN` 的 `Sort Key: ((stocktake_id)::text) DESC` 是铁证）。
+  症状只会是「参数值看着像旧的、断言照样绿」，**不会报错**。修法：会撞名的投影**一律 `AS v`**（本轮 PARAM_SQL 30 个键 + PATH_OVERRIDES 7 条 + 属主取值全改），改完必须**整轮重跑**再取数。
+  同源坑：`flyway_schema_history.version` 是 varchar，`max(version)` 同样给 `99`——判高水位要 `max(version::int)`（现 V410）。
+- **三条判据口径订正**（都是「我的判据给错」而非端点红）：① OpenAPI 标 `required=false` 但语义必填要显式补（`/disputes/mine/detail` 的 `ticketId`，`DisputeService.getMyTicket:473` 两个都空即 404）；
+  ② 属主类 id 必须按**调用人自己的行**取，且一腿 4xx 分不清「属主校验生效」还是「端点坏」⇒ 另起二腿（换库里唯一持有争议证据附件的 `uid=10005`）重跑同两条路径，2/2 转 200 才算核销；
+  ③ 多商户账号的自助端点必须显式 `merchantId`（`MerchantPortalService.resolveMyMerchant:239` 只在**恰好绑定一个**商户时才默认取它，否则 400「请选择商户」）。
+- **一条弱边界留痕（已拍板⇒已落地，见上一节「两件待拍板收口」）**：`GET /ops/admin/replenishment/my-tasks` 是 ops 面里**唯一没有 `@RequiresPermissions`** 的那条（同文件 :262 的邻居都有），
+  靠 `requireOperator` 放行——而本库**商户自助账号的 `account_type` 也是 OPERATOR**（`13800138003`→`100000004/OPERATOR`），故任何 OPERATOR token 都能进。
+  数据边界在 `ReplenishmentService.myTasks:1361` 的 `findByAssigneeUserIdAndStatusIn(调用人,…)`，本轮用「**接口返回条数 ≡ 库里本人 assignee 在办数**」实证（两条腿各自 api=db=0，同期全表在办 10 条 ⇒ 未过滤必回 ≥3），不是靠「返回空所以没泄露」。
+  🔴 **归因订正：这不是本轮新发现的**——`docs/AUDIT_FULL_SWEEP_2026-10-18.md:140` 当日已登记「无 `@RequiresPermissions` 且全仓零消费者」，之后既没修也没有「暂不修」的拍板记录。
+  本轮增量只有两条：① 活栈把「边界收住」证掉（之前只是静态读码）；② 全仓 grep 复验**零消费者仍成立**（命中只有该 Controller / generated openapi / `target/` class 与 jacoco / 文档表格行，无任何前端调用点）
+  ⇒ 补权限门的爆炸半径≈0，代价是将来做「我的补货任务」页要先登记权限码。**我的推荐：补 `@RequiresPermissions` 并把码同步登记进 `ops_permission`**（避免重演 G9 那类「权限码未登记 ⇒ 角色授不上」）。
+  🔴 订正（同日）：该推荐**已被拍板采纳并落地**，且实际选法是「复用库里已登记的 `ops:replenishment:list`」而不是新建码+写迁移——见上一节。
+- **推送与 CI 后的树漂移**：dev tip 已前进到 `ca912401`（`4f6da2b3` 首页备货单入口 + `ca912401` AppSheet 滚动修复），两笔全在 `clients/` 与 `scripts/render-mp-assets.mjs`，
+  `git diff --name-only c3f09722..HEAD -- services/trade-service` 为空 ⇒ **P2 的后端读面结论仍锚 `c3f09722`**，不必为这两笔重跑。
+  🔴 但 `ca912401` 的 CI **不是全绿**：`mini-programs=failure`，其余 4 条 success；本地 `pnpm format:check` 在同点复现——
+  5 个**已提交**的 `clients/merchant-mp/**/*.vue`（home/mine/pricing/team/replenishment）在 `c3f09722` 逐个 clean、在 `ca912401` 逐个 dirty（≈470 行属性换行漂移，两笔 peer 提交带入）。
+  ⇒ dev 当前 head 的门禁红与本会话改动无关，但任何「预检全绿再推」的动作都会被它挡住（详见上一节的处置与待拍板）。
+- **12 条 UNRESOLVED（不算覆盖）**：逐条点名到 0 行的表——`device_rental_deposit`/`external_import_batch`/`jiangyi_order_video`/`line_route`/`announcement`/`jiangyi_class_mapping`/`jiangyi_device`/`sku_jiangyi_link`。
+  要收干得先造数据（将邑柜在架、公告、租赁押金、线路、外部导入批次），属 P1 铺量口径，不在「读面自测」里顺手造。
+- **B 腿 10 条「未挣得」→ 档 A 实跑挣到 8 条**（首跑交付的是「未挣得 + 具因」，随后用户拍板档 A，已执行并复原，见上一节）：`satellite-warehouse`/`satellite-purchase`×3/`warehouse/stocktakes` 族被 `warehouse.manager_user_id`（4 行=100000002/100000094/**NULL**/100000039，无 B 腿 100000004）拦着，
+  另 2 条 `{fileId}` 是 `ref_type=STOCKTAKE`/`DEVICE_STOCKTAKE` 附件各 0 行。这族本轮之前只挣过 1 条（G9-5a 用「超管重置口令后真登录」拿到 `/merchant/satellite-warehouse` 200，`g9-5a-procurement-final.log:8`）；
+  G3-2 的自采腿当时登记的是 **SKIP**（原文「R 密码不可复用」），不是成功。收干档已写进报告 §7，**未静默白名单化**。
+- **覆盖面边界**：只 trade-service（`device-service`/`jiangyi-gateway` 镜像仍约 5 天前）；直连 28081 不含 nginx 路由与静态产物；GET-only 零写请求；未新建空库、未 DROP 被污染的旧库 `aicabinet_fulltest_1023`。
+- **推送与 CI**：G⑨ 单独一笔 `c3f09722` 已推 dev，该 head 的 5 条 check-runs 全 success（build/integration/e2e-h5/mini-programs/admin-artifacts）。
+
+
 ### 2026-10-28（G2-11 ⑨ 落地：商户范围授权补「谁授的 + 从什么改成什么」——V410 两列 + 审计前后值）
 
 - 🔴 **原缺陷**：`ops_user_merchant` 只有 `(user_id, merchant_id)` 两列 ⇒ 库里对「谁在什么时候把这个账号授权到某商户」没有任何答案；且 `OpsRbacService.doAssignMerchants` 的审计只记 **after**（`merchants=新列表`），改完查不出改了什么。本条为用户 2026-10-28 拍板「按之前定的顺序」的 G⑨。
