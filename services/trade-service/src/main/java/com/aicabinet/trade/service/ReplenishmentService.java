@@ -922,7 +922,7 @@ public class ReplenishmentService {
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
         if (expectReceive) {
-            receiveOutboundHandover(task, operatorId, appliedRestockQty, pending.isEmpty(), preservePhysical);
+            receiveOutboundHandover(task, operatorId, appliedRestockQty, preservePhysical);
         }
         task = taskRepository.save(task);
         return finishCompletedTaskSideEffects(task, taskId);
@@ -1069,23 +1069,44 @@ public class ReplenishmentService {
     }
 
     /**
-     * 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补 SKU 差额。
+     * 出库结案：**柜机只按商户实收数量入账**，出库单按「领货已结」收口，不再按出库量补记库存。
+     *
+     * <p>2026-10-28 真机事故：任务行只有「雪碧 ×2」（商户实际只上架 2 个雪碧），
+     * 旧实现却把出库单上冰红茶 3、加多宝 3 的差额一并写进柜机台账，凭空多出 6 件，
+     * 首页「库存偏低」从 2 变 0。根因是把「出库单上的领货量」当成了「现场实收量」。
+     *
+     * <p>补货是自提自送：商户从**自有仓**领货、自己带过去上架，没有承运与签收环节，
+     * 出库单只证明货已从仓库出去（在商户手上），不能证明进了哪台柜机。柜机库存的唯一来源
+     * 是现场逐项确认的实收数量。
+     *
+     * <p>仅在任务**一条 RESTOCK 行都没应用过**时（建单即完成等无现场明细的场景）才按出库行整单入柜。
      */
     private int receiveOutboundHandover(
-            ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean pendingWasEmpty,
-            boolean preservePhysical) {
-        Map<String, Integer> appliedBySku = new HashMap<>();
+            ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean preservePhysical) {
+        Map<String, Integer> receivedBySku = appliedRestockQtyBySku(task);
+        if (receivedBySku.isEmpty()) {
+            int fromOutbound = restockFromOutboundLines(
+                    task, operatorId, "OB-" + task.getOutboundId(), preservePhysical);
+            receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), fromOutbound);
+            return fromOutbound;
+        }
+        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), Integer.MAX_VALUE);
+        return appliedRestockQty;
+    }
+
+    /** 本任务已应用的 RESTOCK 行按 SKU 汇总——即商户逐项确认的实收数量。 */
+    private Map<String, Integer> appliedRestockQtyBySku(ReplenishmentTask task) {
+        Map<String, Integer> bySku = new LinkedHashMap<>();
         for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId())) {
             if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
                 continue;
             }
-            appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
+            if (line.getQuantity() <= 0) {
+                continue;
+            }
+            bySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
         }
-        int fromOutbound = restockFromOutboundLines(
-                task, operatorId, "OB-" + task.getOutboundId(), appliedBySku, preservePhysical);
-        int totalRestock = pendingWasEmpty ? fromOutbound : appliedRestockQty + fromOutbound;
-        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), totalRestock);
-        return totalRestock;
+        return bySku;
     }
 
     private ReplenishmentTaskDto finishCompletedTaskSideEffects(ReplenishmentTask task, Long taskId) {
