@@ -268,6 +268,7 @@ public class OpsReplenishmentController {
     }
 
 
+    @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/replenishment/my-tasks")
     public ApiResponse<List<ReplenishmentTaskDto>> myTasks(HttpServletRequest request) {
         return ApiResponse.ok(replenishmentAdminService.myReplenishmentTasks(operatorId(request)));

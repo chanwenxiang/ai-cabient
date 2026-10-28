@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.ReplenishmentRouteDto;
+import com.aicabinet.common.dto.ReplenishmentTaskDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.FileAttachmentService;
@@ -69,6 +70,24 @@ class OpsReplenishmentControllerTest {
         ApiResponse<PageResult<ReplenishmentRouteDto>> response = controller.routes(request, null, 0, 20);
         assertEquals(0, response.code());
         verify(replenishmentAdminService).listRoutesPage(3L, null, 0, 20);
+    }
+
+    /**
+     * P2 收口（2026-10-28）：ops 面唯一无权限注解的自助腿补上门。
+     * 码沿用已登记的 {@code ops:replenishment:list}（与邻居 routes 同码，库里 admin/replenisher 两角色持有），
+     * 不新造语义等价的旋钮；数据边界仍在 OpsReplenishmentAdminService.myReplenishmentTasks 的调用人过滤。
+     */
+    @Test
+    void myTasks_keepsPermissionAndDelegatesCaller() throws Exception {
+        when(request.getAttribute(AuthInterceptor.ATTR_USER_ID)).thenReturn(3L);
+        Method method = OpsReplenishmentController.class.getMethod("myTasks", HttpServletRequest.class);
+        assertEquals("ops:replenishment:list", method.getAnnotation(RequiresPermissions.class).value()[0]);
+        assertEquals("/replenishment/my-tasks", method.getAnnotation(GetMapping.class).value()[0]);
+
+        when(replenishmentAdminService.myReplenishmentTasks(3L)).thenReturn(List.of());
+        ApiResponse<List<ReplenishmentTaskDto>> response = controller.myTasks(request);
+        assertEquals(0, response.code());
+        verify(replenishmentAdminService).myReplenishmentTasks(3L);
     }
 
     @Test
