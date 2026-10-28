@@ -835,8 +835,24 @@ public class DeviceSlotService {
 
     @Transactional
     public List<DeviceSlotDto> upsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
+        // 守卫先行：fail-closed 不依赖 scope 服务可用性
+        assertNotDoorCabinet(deviceId);
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         return runWithDeviceSlotLock(deviceId, () -> doUpsertSlots(operatorId, deviceId, requests));
+    }
+
+    /**
+     * 方案A第二步（2026-10-28 用户拍板）：将邑开门柜按商品备货、无货道概念——
+     * 所有货道<b>写</b>入口（保存货道/套模板/应用陈列）对将邑柜一律 409。
+     * mp 编辑器已隐藏，此守卫拦接口直绕（fail-closed）。
+     */
+    public void assertNotDoorCabinet(String deviceId) {
+        if (deviceId != null && !deviceId.isBlank()
+                && jiangyiDeviceDirectory.isJiangyi(deviceId.trim())) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT,
+                    "开门柜按商品备货，无货道概念，不能保存货道配置");
+        }
     }
 
     private List<DeviceSlotDto> doUpsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
@@ -955,6 +971,7 @@ public class DeviceSlotService {
 
     @Transactional
     public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
+        assertNotDoorCabinet(deviceId);
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         return runWithDeviceInventoryLock(deviceId, () -> doStocktakeSlot(operatorId, deviceId, request));
     }
@@ -1275,6 +1292,7 @@ public class DeviceSlotService {
     @Transactional
     public int applyPlanogramTemplate(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        assertNotDoorCabinet(deviceId);
         DeviceInfo device = requireDevice(deviceId);
         return runWithDeviceSlotLock(deviceId, () -> doApplyPlanogramTemplate(deviceId, device.getDeviceType()));
     }

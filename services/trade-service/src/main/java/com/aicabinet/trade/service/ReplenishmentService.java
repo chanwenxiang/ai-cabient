@@ -1420,7 +1420,9 @@ public class ReplenishmentService {
         }
         ReplenishmentRoute route = new ReplenishmentRoute();
         route.setRouteName("建议-" + dev + "-" + LocalDate.now());
-        route.setAssigneeUserId(assigneeUserId != null ? assigneeUserId : operatorId);
+        // 自动建任务链路 operatorId=0（系统）⇒ 0 不落指派（留空=待派单），避免脏外键语义
+        route.setAssigneeUserId(assigneeUserId != null && assigneeUserId > 0 ? assigneeUserId
+                : (operatorId != null && operatorId > 0 ? operatorId : null));
         route.setPlannedDate(LocalDate.now());
         route.setStatus(PLANNED);
         route = routeRepository.save(route);
