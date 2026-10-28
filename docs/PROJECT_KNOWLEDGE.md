@@ -676,7 +676,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
   顺带挣到两条范围边界负例：`devices/CAB-OTHER/stocktake-evidence/7` 与 `tasks/90/evidence/7` 均 **403** ⇒ 「是分仓负责人」不会把设备范围一起放大。
   复原留证：`password_hash` 逐字节 EQ（`sha256=32bea57cb1b7 len=60`；中途 `94e17c00f3e6` 证明真写进去过）、`updated_at` 归位 `2026-10-27 07:46:50.384787+00`、`admin_audit_log` 增量**恰 1**、`user_info` 148 / `warehouse` 4 / `file_attachment` 6 行数不变；一次性口令只在进程内存，日志与库内零明文。
 - 🔴 **我自己的一次错判（差点把 200 判成 403）**：跑中途我从 `psql` 输出的列序推断「任务 38/52/79 的 `device_id` 是 NULL」，实际取的是 `assignee_user_id` 的空值。带 join 重取才看清 `task 38 → device EG574859056581 → merchant 845172102662`，于是那条腿的正确预期是 **200 + 真图字节**（即我首跑报告 §7 的原判断，中途「订正」才是错的）。**教训：跨列的判据一律 `SELECT` 里带上表名/别名并 join 复核，别在终端里数第几列。**
-- **权限门为什么选「复用已登记的码」而不是「新造码 + 写迁移」**：`ops:replenishment:list` 在库里是 `permission_id=111`（parent 471 补货调度，type C），角色 `admin` + `replenisher` 已持有 ⇒ 零迁移、零新行。
+- **权限门为什么选「复用已登记的码」而不是「新造码 + 写迁移」**：`ops:replenishment:list` 在库里是 `permission_id=111`（`perm_name=补货调度`、`path=/replenishment`、type C、parent 471 `ops:nav:fulfill`「履约仓储」），角色 `admin` + `replenisher` 已持有 ⇒ 零迁移、零新行（2026-10-28 判定库实查）。
   G9 那类真缺口是「后端在用而库里没这行 ⇒ 角色界面上永远勾不上」；这里若再造一个语义等价的 `ops:replenishment:view-mine`，就是**死旋钮**（`PermissionCodeDriftTest` 与三条前端对齐门禁都会绿，但角色页多一个没用的勾）。可达面因此＝能进「补货调度」页的人；商户自助账号（`account_type=OPERATOR` 但无 ops 角色）此后 **403**，这正是收口目的；全仓零前端消费者 ⇒ 不打断任何页面。
   验证：`OpsReplenishmentControllerTest` 5 用例 0 失败（新增 `myTasks_keepsPermissionAndDelegatesCaller` 钉注解值 + `@GetMapping` 路径 + 委托 `myReplenishmentTasks(3L)`），`PermissionCodeDriftTest` 2/2。
 - **三条「假绿/假红」判据坑（本轮都真踩到）**：
