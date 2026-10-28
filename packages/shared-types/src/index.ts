@@ -449,7 +449,7 @@ export type {
   OpenApiMerchantSelfReplenishRequest,
   OpenApiMerchantSelfReplenishLine,
   OpenApiReplenishmentTaskDto,
-  OpenApiMerchantPrepListDto,
+  OpenApiMerchantPrepGroupDto,
   OpenApiReplenishmentTaskLineDto,
   OpenApiSubmitReplenishmentLinesRequest,
   OpenApiPullOffTaskDto,

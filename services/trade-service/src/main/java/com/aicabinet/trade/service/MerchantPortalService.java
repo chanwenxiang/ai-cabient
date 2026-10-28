@@ -531,9 +531,9 @@ public class MerchantPortalService {
         return inventoryPortalService.listReplenishmentTasks(userId, status, deviceId);
     }
 
-    /** 首页「备货清单」（CB-072）：进行中任务的出库行按 SKU 聚合 + 件装数换算 + 仓库库存提示。 */
+    /** 首页「备货清单」（CB-072/CB-073）：按柜机分模块 + 组内 SKU 聚合 + 件装数换算 + 分仓库存提示。 */
     @Transactional(readOnly = true)
-    public List<com.aicabinet.common.dto.MerchantPrepListDto> replenishmentPrepList(Long userId) {
+    public List<com.aicabinet.common.dto.MerchantPrepGroupDto> replenishmentPrepList(Long userId) {
         return inventoryPortalService.replenishmentPrepList(userId);
     }
 

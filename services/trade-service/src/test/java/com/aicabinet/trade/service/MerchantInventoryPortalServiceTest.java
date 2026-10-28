@@ -122,9 +122,9 @@ class MerchantInventoryPortalServiceTest {
     }
 
     @Test
-    void prepList_aggregatesBySku_andConvertsByPackQty() {
-        // CB-072 站点自仓口径：IN_PROGRESS 任务出库行按 SKU 聚合，只排除作废行；
-        // pack_qty=24 换算 26 支 → 1 件 + 2 支；带分仓库存 30 支（1 件 + 6 支）
+    void prepList_groupsByDevice_andConvertsByPackQty() {
+        // CB-072 站点自仓口径：IN_PROGRESS 任务出库行按柜机归组、组内按 SKU 聚合，只排除作废行；
+        // pack_qty=24 换算 26 支 → 1 件 + 2 支；带该柜分仓库存 30 支（1 件 + 6 支）
         when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
                 .thenReturn(null);
         com.aicabinet.trade.domain.ReplenishmentTask task = new com.aicabinet.trade.domain.ReplenishmentTask();
@@ -157,6 +157,11 @@ class MerchantInventoryPortalServiceTest {
         catalog.setPackQty(24);
         when(skuCatalogMapper.selectList(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.List.of(catalog));
+        com.aicabinet.trade.domain.DeviceInfo device = new com.aicabinet.trade.domain.DeviceInfo();
+        device.setDeviceId("EG-1");
+        device.setDeviceName("将邑测试机");
+        when(deviceRepository.selectBatchIds(java.util.Set.of("EG-1")))
+                .thenReturn(java.util.List.of(device));
         com.aicabinet.trade.domain.WarehouseInventory stock = new com.aicabinet.trade.domain.WarehouseInventory();
         stock.setWarehouseId("WH-1");
         stock.setSkuId("100013");
@@ -164,17 +169,96 @@ class MerchantInventoryPortalServiceTest {
         when(warehouseInventoryRepository.selectList(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.List.of(stock));
 
-        java.util.List<com.aicabinet.common.dto.MerchantPrepListDto> out =
+        java.util.List<com.aicabinet.common.dto.MerchantPrepGroupDto> out =
                 service.replenishmentPrepList(9L);
 
         assertEquals(1, out.size());
-        com.aicabinet.common.dto.MerchantPrepListDto row = out.get(0);
+        com.aicabinet.common.dto.MerchantPrepGroupDto group = out.get(0);
+        assertEquals("EG-1", group.deviceId());
+        assertEquals("将邑测试机", group.deviceName());
+        assertEquals(1, group.taskCount());
+        assertEquals(1, group.items().size());
+        com.aicabinet.common.dto.MerchantPrepItemDto row = group.items().get(0);
         assertEquals("100013", row.skuId());
         assertEquals(26, row.totalUnits());
         assertEquals(1, row.cases());
         assertEquals(2, row.remainUnits());
         assertEquals(30, row.stockUnits());
         assertFalse(row.stockShort());
-        assertEquals(1, row.taskCount());
+    }
+
+    @Test
+    void prepList_sameSkuOnTwoDevices_staysInOwnGroup_withOwnWarehouseStock() {
+        // CB-073：同 SKU 两台柜不合并——各柜数量、任务数与分仓库存独立
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(null);
+        com.aicabinet.trade.domain.ReplenishmentTask t1 = new com.aicabinet.trade.domain.ReplenishmentTask();
+        t1.setTaskId(71L);
+        t1.setDeviceId("EG-1");
+        t1.setOutboundId(700L);
+        t1.setStatus("IN_PROGRESS");
+        com.aicabinet.trade.domain.ReplenishmentTask t2 = new com.aicabinet.trade.domain.ReplenishmentTask();
+        t2.setTaskId(72L);
+        t2.setDeviceId("EG-2");
+        t2.setOutboundId(701L);
+        t2.setStatus("PENDING");
+        when(replenishmentTaskRepository.findByStatusIn(java.util.List.of("PENDING", "IN_PROGRESS")))
+                .thenReturn(java.util.List.of(t1, t2));
+        com.aicabinet.trade.domain.WarehouseOutbound whA = new com.aicabinet.trade.domain.WarehouseOutbound();
+        whA.setOutboundId(700L);
+        whA.setWarehouseId("WH-A");
+        com.aicabinet.trade.domain.WarehouseOutbound whB = new com.aicabinet.trade.domain.WarehouseOutbound();
+        whB.setOutboundId(701L);
+        whB.setWarehouseId("WH-B");
+        when(outboundRepository.selectById(700L)).thenReturn(whA);
+        when(outboundRepository.selectById(701L)).thenReturn(whB);
+        com.aicabinet.trade.domain.WarehouseOutboundLine lineA =
+                new com.aicabinet.trade.domain.WarehouseOutboundLine();
+        lineA.setSkuId("100013");
+        lineA.setQuantity(2);
+        lineA.setHandoverStatus("PENDING");
+        lineA.setPicked(false);
+        com.aicabinet.trade.domain.WarehouseOutboundLine lineB =
+                new com.aicabinet.trade.domain.WarehouseOutboundLine();
+        lineB.setSkuId("100013");
+        lineB.setQuantity(24);
+        lineB.setHandoverStatus("PENDING");
+        lineB.setPicked(false);
+        when(outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(700L, "EG-1"))
+                .thenReturn(java.util.List.of(lineA));
+        when(outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(701L, "EG-2"))
+                .thenReturn(java.util.List.of(lineB));
+        com.aicabinet.trade.domain.DeviceInfo d1 = new com.aicabinet.trade.domain.DeviceInfo();
+        d1.setDeviceId("EG-1");
+        d1.setDeviceName("一号柜");
+        com.aicabinet.trade.domain.DeviceInfo d2 = new com.aicabinet.trade.domain.DeviceInfo();
+        d2.setDeviceId("EG-2");
+        d2.setDeviceName("二号柜");
+        when(deviceRepository.selectBatchIds(java.util.Set.of("EG-1", "EG-2")))
+                .thenReturn(java.util.List.of(d1, d2));
+        when(skuCatalogMapper.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        com.aicabinet.trade.domain.WarehouseInventory stockA =
+                new com.aicabinet.trade.domain.WarehouseInventory();
+        stockA.setWarehouseId("WH-A");
+        stockA.setSkuId("100013");
+        stockA.setQuantity(5);
+        when(warehouseInventoryRepository.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(stockA));
+
+        java.util.List<com.aicabinet.common.dto.MerchantPrepGroupDto> out =
+                service.replenishmentPrepList(9L);
+
+        assertEquals(2, out.size());
+        // 柜机按 deviceId 升序
+        assertEquals("EG-1", out.get(0).deviceId());
+        assertEquals("EG-2", out.get(1).deviceId());
+        assertEquals(2, out.get(0).items().get(0).totalUnits());
+        assertEquals(5, out.get(0).items().get(0).stockUnits());
+        assertEquals(24, out.get(1).items().get(0).totalUnits());
+        // EG-2 的出库挂 WH-B，那里没有库存 → 不足
+        assertTrue(out.get(1).items().get(0).stockShort());
+        assertEquals(1, out.get(0).taskCount());
+        assertEquals(1, out.get(1).taskCount());
     }
 }

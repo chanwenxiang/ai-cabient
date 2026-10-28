@@ -80,7 +80,12 @@
       </view>
 
       <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
-      <AppSheet :visible="detailVisible" aria-label="争议详情" @close="detailVisible = false">
+      <AppSheet
+        :visible="detailVisible"
+        :body-scroll="false"
+        aria-label="争议详情"
+        @close="detailVisible = false"
+      >
         <text class="detail-title">{{ statusText(detail?.status) }}</text>
         <text class="detail-reason">{{
           merchantDisputeDisplayCopy(detail) || emptyDisplay(detail?.reason, 'reason')

@@ -19495,13 +19495,20 @@ export interface components {
             /** Format: int32 */
             shortageQty?: number;
         };
-        ApiResponseListMerchantPrepListDto: {
+        ApiResponseListMerchantPrepGroupDto: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["MerchantPrepListDto"][];
+            data?: components["schemas"]["MerchantPrepGroupDto"][];
         };
-        MerchantPrepListDto: {
+        MerchantPrepGroupDto: {
+            deviceId?: string;
+            deviceName?: string;
+            /** Format: int32 */
+            taskCount?: number;
+            items?: components["schemas"]["MerchantPrepItemDto"][];
+        };
+        MerchantPrepItemDto: {
             skuId?: string;
             skuName?: string;
             unit?: string;
@@ -19518,16 +19525,6 @@ export interface components {
             /** Format: int32 */
             stockCases?: number;
             stockShort?: boolean;
-            /** Format: int32 */
-            taskCount?: number;
-            tasks?: components["schemas"]["TaskRef"][];
-        };
-        TaskRef: {
-            /** Format: int64 */
-            taskId?: number;
-            deviceId?: string;
-            /** Format: int32 */
-            quantity?: number;
         };
         ApiResponseMerchantReplenishmentEfficiencyDto: {
             /** Format: int32 */
@@ -36938,7 +36935,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListMerchantPrepListDto"];
+                    "*/*": components["schemas"]["ApiResponseListMerchantPrepGroupDto"];
                 };
             };
         };

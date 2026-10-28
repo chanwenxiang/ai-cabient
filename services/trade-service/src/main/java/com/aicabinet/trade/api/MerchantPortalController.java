@@ -635,10 +635,10 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.listReplenishmentTasks(userId(request), status, deviceId));
     }
 
-    /** 首页「备货清单」（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 + 仓库库存提示。 */
+    /** 首页「备货清单」（CB-072/CB-073）：按柜机分模块，组内 SKU 聚合 + 件装数换算 + 分仓库存提示。 */
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/prep-list")
-    public ApiResponse<List<com.aicabinet.common.dto.MerchantPrepListDto>> replenishmentPrepList(
+    public ApiResponse<List<com.aicabinet.common.dto.MerchantPrepGroupDto>> replenishmentPrepList(
             HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.replenishmentPrepList(userId(request)));
     }

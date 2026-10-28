@@ -2492,3 +2492,21 @@
 - **对站点自营仓模型的修正（用户 2026-10-27 口径）**：**分仓=站点/商户自己的仓，本部仓只对采购**——天天补货从他们自己的仓出货，不存在「本部→站点」的在途腿；备货清单的仓库库存读**出库单上的分仓**（设备 `home_warehouse_id`），行过滤只排除作废（CANCELLED），交接状态在自仓直配流程里不作为备货排除依据（演示遗留单除外）。
 - **取证日期**：2026-10-27
 - **我们的结论**：**采纳**——备货单=补货任务详情/首页的「备货清单」区块（数据=任务出库行 × pack_qty 换算 × 分仓库存提示），不新造单据、不做跨柜聚合（同行「按路线聚合」依赖线路排班，我方线路路由未上线，后置）。
+
+### CB-073 【新】备货清单的分组维度=「柜机」，不是「跨柜 SKU 合计」——拣选行业「按单拣选 vs 汇总拣选」的取舍标准是订单行数与品项数；柜机=交付单元，去柜前照这台柜子的单拣货，跨柜合并（播种式）要等线路排班
+
+- **竞品做法**：
+  - **同行（Parlevel Stock，⭕ 官网，CB-072 已取证）**：司机 App 的每站清单**明确「这一站要装什么商品」**——机器/站点是补货作业的自然单元；跨站聚合属于「路线规划」层，不在拣货清单里混。
+  - **同行（Vendon，Nayax 系 vending 遥测云，⭕ App Store 自述）**：司机端按 route 组织，route 内做 stock（机器级补货量）与 warehouse events——同样把「装什么」挂在**机器/路线的每一站**，不是全 SKU 池一张总单。
+  - **官方 ERP（Microsoft Dynamics 365，⭕ 官方文档）**：出库拣货单（pick list）按**销售订单/出库单**生成，可按订单拣选也可合并拣选，但合并（batch picking）是显式选型且需要后续按单分拣（sorting）；拣货路线按库位排序是为了少走路。
+  - **行业协会（中国物资储运协会，⭕ 官网专栏）**：订单汇总是有前提的——「出库频次高/一个品种多订单需求量大」才汇总；**不满足就按单取货**。汇总后要么人工播种到单（订单行适量、品种多），要么上拣货区按单拣（品种少）。
+  - **设备商（岡村製作所 Okamura，⭕ 官网专栏，cross）**：トータルピッキング（汇总/种まき式）适合**少品大量、同一商品发往多目的地**；代价是拣完后多一道「按出荷先分拣」的工序。
+- **证据**：
+  - <https://www.parlevelsystems.com/stock-a-mobile-vending-app-to-enhance-your-service> （⭕ Parlevel 官网：每站机器级补货清单）
+  - <https://apps.apple.com/cn/app/vendon-mobile/id1576189182> （⭕ Vendon Mobile App Store：版本说明自述 route list / stock from route / warehouse events）
+  - <https://learn.microsoft.com/en-us/dynamics365/supply-chain/inventory/outbound-process> （⭕ Microsoft Learn 官方：Dynamics 365 出库流程——拣货单按出库单生成、合并拣选需显式选型）
+  - <https://www.cmsta.org/page440?article_id=1695&brd=1> （⭕ 中国物资储运协会：订单汇总的前提与播种/按单两种后处理）
+  - <https://www.okamura.co.jp/mhs/column/007221.html> （⭕ 岡村製作所：トータルピッキング vs 单品拣选的适用条件与二次分拣代价）
+- **对照主体**（2 同行 + 1 cross + 2 补充）：Parlevel Stock ｜ Vendon ｜ Microsoft Dynamics 365 ｜ 中国物资储运协会 ｜ Okamura 岡村製作所
+- **取证日期**：2026-10-28
+- **我们的结论**：**采纳按柜机分组（用户 2026-10-28 拍板）**——首页「备货清单」按柜机分模块，组内仍按 SKU 聚合（保住 pack_qty 整件/拆零换算），分仓库存读**该柜出库单上的分仓**（比旧跨柜合并更准：不同柜可挂不同分仓）。跨柜 SKU 合计（播种式汇总拣选）依赖线路排班与二次分拣，同行也把它放在路线层，维持后置不建。存量跨柜合并实现（MerchantPrepListDto.TaskRef）随本次删除。

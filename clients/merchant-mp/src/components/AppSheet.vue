@@ -18,7 +18,12 @@
     @click="emit('close')"
     @touchmove.stop.prevent
   >
-    <view role="document" class="app-sheet" @click.stop>
+    <view
+      role="document"
+      class="app-sheet"
+      :class="{ 'app-sheet--flex-body': !bodyScroll }"
+      @click.stop
+    >
       <view class="app-sheet-handle" aria-hidden="true" />
       <slot />
     </view>
@@ -26,13 +31,22 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * bodyScroll（默认 true）= 面板自身滚动（max-height 88vh + overflow-y auto）。
+ * 设 false 时面板改为 flex 列、自身不滚，由插槽里的滚动区（flex:1; min-height:0，
+ * 如 scroll-view）滚动、底部操作区常驻。为什么需要它：scroll-view 没有定高就不滚，
+ * 手势又被它自己吃掉 —— 整页表现为「下滑不了、底部按钮点不到」（争议详情，2026-10-28
+ * 用户实测两段购物录像时复现）。
+ */
 withDefaults(
   defineProps<{
     visible: boolean;
     /** 读屏名称，默认「底部面板」 */
     ariaLabel?: string;
+    /** true=面板整体滚动（默认）；false=面板 flex 列，由插槽滚动区滚动 */
+    bodyScroll?: boolean;
   }>(),
-  { ariaLabel: '底部面板' }
+  { ariaLabel: '底部面板', bodyScroll: true }
 );
 
 const emit = defineEmits<{ close: [] }>();
@@ -60,6 +74,12 @@ const emit = defineEmits<{ close: [] }>();
   box-sizing: border-box;
   isolation: isolate;
   box-shadow: 0 -12rpx 40rpx rgba(15, 23, 42, 0.18);
+}
+/* flex 列模式：面板自身不滚（overflow hidden），滚动交给插槽里的 scroll-view */
+.app-sheet--flex-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .app-sheet-handle {
   width: 64rpx;

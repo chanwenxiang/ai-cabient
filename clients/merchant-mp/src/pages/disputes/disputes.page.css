@@ -183,7 +183,9 @@
   flex-shrink: 0;
 }
 .detail-scroll {
-  flex: 1;
+  /* flex: 1 1 auto（不是 flex:1）：内容矮时按内容高、超高时被面板压缩出滚动区——
+     flex-basis 0 会在内容矮时把 scroll-view 压成 0 高整块消失 */
+  flex: 1 1 auto;
   min-height: 0;
   margin-top: 16rpx;
 }

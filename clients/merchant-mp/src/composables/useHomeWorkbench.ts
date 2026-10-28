@@ -115,8 +115,8 @@ export function useHomeWorkbench() {
   const lowStockCount = ref(0);
   const expiryCount = ref(0);
   const taskPreview = ref<TaskRow[]>([]);
-  /** 首页备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 */
-  const prepList = ref<import('@aicabinet/shared-types').OpenApiMerchantPrepListDto[]>([]);
+  /** 首页备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算 */
+  const prepList = ref<import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[]>([]);
   const deviceMap = ref<Record<string, string>>({});
   const stats = ref<Record<string, unknown>>({});
   const latestAnnouncement = ref<AnnouncementDto | null>(null);
@@ -413,7 +413,7 @@ export function useHomeWorkbench() {
     deviceMap.value = map;
     applyTaskPreview(tasks as TaskRow[]);
     prepList.value = canReplenishment.value
-      ? ((prep || []) as import('@aicabinet/shared-types').OpenApiMerchantPrepListDto[])
+      ? ((prep || []) as import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[])
       : [];
   }
 

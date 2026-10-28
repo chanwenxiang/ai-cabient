@@ -91,6 +91,10 @@ const SUBJECT_ALIASES = [
   // 柜小二=杭州福柜科技（App Store 自述「对柜体补货上下架」）—— 首次入台账，登记为主体。
   { re: /智购|zhigoukeji/i, id: '智购科技', kind: 'peer' },
   { re: /柜小二|福柜/i, id: '福柜科技', kind: 'peer' },
+  // CB-073 备货清单分组维度：Parlevel Stock（售货机运营商遥测 SaaS，官网自述每站机器级补货清单）、
+  // Vendon（Nayax 系 vending 遥测云，App Store 自述 route 内 stock / 机器级补货）—— 首次入台账，登记为主体。
+  { re: /parlevel/i, id: 'Parlevel', kind: 'peer' },
+  { re: /vendon/i, id: 'Vendon', kind: 'peer' },
   { re: /宇脉/i, id: '宇脉电子', kind: 'peer' },
   { re: /合豚/i, id: '合豚', kind: 'peer' },
   // CB-067：小卖柜（美的×阿里，支付宝扫码+芝麻分550 免密）与魔盒 CITYBOX（上海鲜动，信用单次授权扣款）——开门柜直接同行

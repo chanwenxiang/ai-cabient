@@ -163,29 +163,36 @@
         </view>
       </view>
 
-      <!-- 备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算；备货在去柜之前 -->
+      <!-- 备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算；备货在去柜之前 -->
       <view v-if="canReplenishment && prepList.length" class="card section-card">
         <view class="section-head">
           <text class="section">备货清单</text>
-          <text class="meta">出发前照单备货 · {{ prepList.length }} 种商品</text>
+          <text class="meta"
+            >出发前照单备货 · {{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text
+          >
         </view>
-        <view
-          v-for="row in prepList"
-          :key="row.skuId"
-          class="task-row"
-          hover-class="task-row-hover"
-          role="button"
-          :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
-          @click="goReplenishment()"
-        >
-          <view class="task-copy">
-            <text class="task-name">{{ row.skuName }}</text>
-            <text class="task-meta">
-              备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
-              }}{{ row.stockShort ? ' · 库存不足' : '' }}
-            </text>
+        <view v-for="group in prepList" :key="group.deviceId" class="prep-group">
+          <view class="prep-group-head" role="button" @click="goReplenishment()">
+            <text class="prep-group-name">{{ group.deviceName || group.deviceId }}</text>
+            <text class="task-go app-link-chevron">{{ group.taskCount }} 个任务</text>
           </view>
-          <text class="task-go app-link-chevron">{{ row.taskCount }} 个任务</text>
+          <view
+            v-for="row in group.items"
+            :key="row.skuId"
+            class="task-row"
+            hover-class="task-row-hover"
+            role="button"
+            :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
+            @click="goReplenishment()"
+          >
+            <view class="task-copy">
+              <text class="task-name">{{ row.skuName }}</text>
+              <text class="task-meta">
+                备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
+                }}{{ row.stockShort ? ' · 库存不足' : '' }}
+              </text>
+            </view>
+          </view>
         </view>
       </view>
 
@@ -293,6 +300,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import PrivacyConsentModal from '@aicabinet/shared-uni/components/privacy-consent-modal.vue';
 import { usePrivacyConsentModal } from '@aicabinet/shared-uni/use-privacy-consent';
@@ -359,6 +367,12 @@ const {
   load,
   loadSilent
 } = useHomeWorkbench();
+
+/** 备货清单按柜机分模块（CB-073）：头部计数 = 台数 / 商品种数 */
+const prepGroupCount = computed(() => prepList.value.length);
+const prepSkuCount = computed(() =>
+  prepList.value.reduce((sum, g) => sum + (g.items?.length || 0), 0)
+);
 
 /** F1-UX：「无权限=看不见」——争议 KPI 点击按权限分流（补货员走柜机列表处理柜端） */
 function onDisputeTap() {
@@ -641,6 +655,33 @@ useAutoRefresh({
   margin-top: 8rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle, #cbd5e1);
+}
+/* 备货清单按柜机分模块（CB-073）：柜名行 + 组内商品行 */
+.prep-group {
+  margin-top: 8rpx;
+}
+.prep-group + .prep-group {
+  margin-top: 12rpx;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+}
+.prep-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 12rpx 0 2rpx;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.prep-group-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: 650;
+  color: var(--text-primary, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .task-row {
   display: flex;
