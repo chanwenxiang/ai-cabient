@@ -28,10 +28,28 @@ PNPM_VER="9.15.9"
 
 mkdir -p "$ROOT/.tmp"
 : > "$LOG"
-ROOT_WIN="$(pwd -W)"
 
 command -v docker >/dev/null 2>&1 || { echo "❌ 未找到 docker"; exit 1; }
 docker version --format '{{.Server.Version}}' >/dev/null 2>&1 || { echo "❌ Docker daemon 不可用"; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "❌ 未找到 git"; exit 1; }
+
+# 🔴 工作树（git worktree）里 `$ROOT/.git` 是**文件**（`gitdir: <主仓>/.git/worktrees/<名>`），
+#   容器内 `git clone /src` 会 `fatal: not a git repository`（rc=128，实测 2026-10-25 SEC2）。
+#   ⇒ 挂载**真实仓库根**，并在容器内 checkout 到当前工作树的 HEAD（不能只 clone，
+#   因为 clone 出来的 HEAD 是主仓当前分支，未必是本工作树要构建的那个提交）。
+#   `pwd -W` 必须基于 $ROOT：脚本可能在任意 cwd 被调用。
+HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD)" || { echo "❌ 取 HEAD 失败"; exit 1; }
+SRC="$ROOT"
+if [ -f "$ROOT/.git" ]; then
+  GCD="$(git -C "$ROOT" rev-parse --git-common-dir)"
+  case "$GCD" in
+    /*|[A-Za-z]:*) GCD_ABS="$GCD" ;;
+    *) GCD_ABS="$ROOT/$GCD" ;;
+  esac
+  SRC="$(cd "$GCD_ABS/.." && pwd)"
+  echo "ℹ️  检测到 git worktree ⇒ 从真实仓库克隆：$SRC（checkout $HEAD_SHA）"
+fi
+SRC_WIN="$(cd "$SRC" && pwd -W 2>/dev/null || echo "$SRC")"
 
 cat > "$ROOT/.tmp/admin-ci-fidelity-container.sh" <<'CONTAINER_EOF'
 set -euo pipefail
@@ -40,6 +58,7 @@ echo "[容器] node=$(node -v) pnpm=$(pnpm --version)"
 
 git clone --quiet --no-hardlinks /src /w/repo
 cd /w/repo
+git checkout --quiet "$HEAD_SHA"
 echo "[容器] HEAD=$(git rev-parse --short HEAD)"
 # 自检：干净检出里不得存在被 gitignore 的 .env.local（它会内联进产物）
 if [ -f clients/admin-vue/.env.local ]; then
@@ -53,12 +72,16 @@ echo "[容器] 产物文件数: $(find "${OUT_REL}" -type f | wc -l)"
 CONTAINER_EOF
 
 echo "[1/3] 容器内从干净检出重建（node:${NODE_TAG}）"
+# ⚠️ 内存：宿主 Docker VM 共 8.3GB。`--memory 4g` 与宿主 mvn 并发时容器会被丢
+#    （rc=125 / error waiting for container: unexpected EOF，2026-10-25 实测一次）。
+#    并发跑构建时用 BUILD_MEMORY=3g，或串行执行。
 MSYS_NO_PATHCONV=1 docker run --name "$STAGE" \
   --memory "${BUILD_MEMORY:-4g}" \
+  -e HEAD_SHA="$HEAD_SHA" \
   -e npm_config_registry=https://registry.npmmirror.com \
   -e npm_config_script_shell=/bin/bash \
   -e PNPM_VER="$PNPM_VER" -e OUT_REL="$OUT_REL" \
-  --mount "type=bind,source=$ROOT_WIN,target=/src,readonly" \
+  --mount "type=bind,source=$SRC_WIN,target=/src,readonly" \
   --mount "type=bind,source=$ROOT/.tmp/admin-ci-fidelity-container.sh,target=/tmp/build.sh,readonly" \
   -i "node:${NODE_TAG}" bash /tmp/build.sh >>"$LOG" 2>&1
 RC=$?
