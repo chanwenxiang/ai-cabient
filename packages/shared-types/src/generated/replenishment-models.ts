@@ -22,6 +22,10 @@ export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSe
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
 /** 首页备货清单柜机模块（CB-073，按柜机分组 + 组内 SKU 聚合 + 件装数换算） */
 export type OpenApiMerchantPrepGroupDto = components['schemas']['MerchantPrepGroupDto'];
+/** 手动生成备货单预览柜机组（A 方案，补满口径按柜分组） */
+export type OpenApiMerchantPrepPreviewGroupDto = components['schemas']['MerchantPrepPreviewGroupDto'];
+/** 手动生成备货单预览行（A 方案，单柜×单商品建议量） */
+export type OpenApiMerchantPrepPreviewItemDto = components['schemas']['MerchantPrepPreviewItemDto'];
 /** 整仓盘点单（ops 与商户小程序共用） */
 export type OpenApiStocktakeDto = components['schemas']['StocktakeDto'];
 /** 盘点明细行 */

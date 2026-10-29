@@ -170,12 +170,22 @@
         </view>
       </view>
 
-      <!-- 备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算；备货在去柜之前 -->
-      <view v-if="canReplenishment && prepList.length" id="prep-list" class="card section-card">
+      <!-- 备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算；备货在去柜之前。
+           A 方案（2026-10-29）：清单为空也常驻卡片——「手动生成备货单」不依赖阈值可提前建任务 -->
+      <view v-if="canReplenishment" id="prep-list" class="card section-card">
         <view class="section-head">
           <text class="section">备货清单</text>
           <view class="section-head-tools">
-            <text class="meta">{{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text>
+            <text v-if="prepList.length" class="meta"
+              >{{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text
+            >
+            <view
+              role="button"
+              aria-label="手动生成备货单"
+              class="section-more app-link-chevron"
+              @click="goPrepGenerate"
+              >手动生成</view
+            >
             <view
               role="button"
               aria-label="柜机盘点"
@@ -185,28 +195,33 @@
             >
           </view>
         </view>
-        <view v-for="group in prepList" :key="group.deviceId" class="prep-group">
-          <view class="prep-group-head" role="button" @click="goReplenishment()">
-            <text class="prep-group-name">{{ group.deviceName || group.deviceId }}</text>
-            <text class="task-go app-link-chevron">{{ group.taskCount }} 个任务</text>
-          </view>
-          <view
-            v-for="row in group.items"
-            :key="row.skuId"
-            class="task-row"
-            hover-class="task-row-hover"
-            role="button"
-            :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
-            @click="goReplenishment()"
-          >
-            <view class="task-copy">
-              <text class="task-name">{{ row.skuName }}</text>
-              <text class="task-meta">
-                备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
-                }}{{ row.stockShort ? ' · 库存不足' : '' }}
-              </text>
+        <block v-if="prepList.length">
+          <view v-for="group in prepList" :key="group.deviceId" class="prep-group">
+            <view class="prep-group-head" role="button" @click="goReplenishment()">
+              <text class="prep-group-name">{{ group.deviceName || group.deviceId }}</text>
+              <text class="task-go app-link-chevron">{{ group.taskCount }} 个任务</text>
+            </view>
+            <view
+              v-for="row in group.items"
+              :key="row.skuId"
+              class="task-row"
+              hover-class="task-row-hover"
+              role="button"
+              :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
+              @click="goReplenishment()"
+            >
+              <view class="task-copy">
+                <text class="task-name">{{ row.skuName }}</text>
+                <text class="task-meta">
+                  备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
+                  }}{{ row.stockShort ? ' · 库存不足' : '' }}
+                </text>
+              </view>
             </view>
           </view>
+        </block>
+        <view v-else class="prep-empty" role="button" @click="goPrepGenerate">
+          暂无待备货任务 · 点此按「补满」手动生成备货单
         </view>
       </view>
 
@@ -417,6 +432,11 @@ function goPrepList() {
 /** 柜机盘点（2026-10-28）：开门柜先盘点开门（扫码选中柜机后开）再逐商品实盘调账 */
 function goDeviceStocktake() {
   uni.navigateTo({ url: '/pages/device-stocktake/device-stocktake' });
+}
+
+/** 手动生成备货单（A 方案，2026-10-29）：不依赖阈值按「补满」预生成，确认后逐柜建任务 */
+function goPrepGenerate() {
+  uni.navigateTo({ url: '/pages/prep-generate/prep-generate' });
 }
 
 /** 备货换算展示（CB-072）：「X 件 + Y 支」，整件或拆零为 0 时省略对应段 */
@@ -723,6 +743,15 @@ useAutoRefresh({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A 方案：清单为空时常驻空态，点击进「手动生成备货单」（2026-10-29） */
+.prep-empty {
+  padding: 28rpx 0 10rpx;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--brand);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 .task-row {
   display: flex;

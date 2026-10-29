@@ -63,6 +63,16 @@ export const OPENAPI_ALIAS_GROUPS = [
         comment: '首页备货清单柜机模块（CB-073，按柜机分组 + 组内 SKU 聚合 + 件装数换算）'
       },
       {
+        name: 'OpenApiMerchantPrepPreviewGroupDto',
+        schema: 'MerchantPrepPreviewGroupDto',
+        comment: '手动生成备货单预览柜机组（A 方案，补满口径按柜分组）'
+      },
+      {
+        name: 'OpenApiMerchantPrepPreviewItemDto',
+        schema: 'MerchantPrepPreviewItemDto',
+        comment: '手动生成备货单预览行（A 方案，单柜×单商品建议量）'
+      },
+      {
         name: 'OpenApiStocktakeDto',
         schema: 'StocktakeDto',
         comment: '整仓盘点单（ops 与商户小程序共用）'

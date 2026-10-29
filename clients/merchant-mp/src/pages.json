@@ -394,6 +394,19 @@
           }
         }
       ]
+    },
+    {
+      "root": "pages/prep-generate",
+      "pages": [
+        {
+          "path": "prep-generate",
+          "style": {
+            "navigationBarTitleText": "生成备货单",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
     }
   ],
   "preloadRule": {

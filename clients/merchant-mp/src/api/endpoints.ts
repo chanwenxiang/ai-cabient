@@ -91,6 +91,8 @@ export const MerchantEndpoints = {
   replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,
   /** 首页备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 + 仓库库存 */
   replenishmentPrepList: `${API_PREFIX}/merchant/replenishment/prep-list`,
+  /** 手动生成备货单预览（A 方案）：按柜分组、按「补满」口径（上限−实际−在途） */
+  replenishmentPrepPreview: `${API_PREFIX}/merchant/replenishment/prep-preview`,
   replenishmentTasksByStatus: (status: string) =>
     `${API_PREFIX}/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`,
   replenishmentDeviceAccess: (deviceId: string) =>

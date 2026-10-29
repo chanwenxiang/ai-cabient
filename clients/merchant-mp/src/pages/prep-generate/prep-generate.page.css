@@ -1,0 +1,122 @@
+.page {
+  min-height: 100vh;
+  padding: 0;
+  background: var(--card-bg, #ffffff);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.head-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding: 4rpx 6rpx;
+}
+.card {
+  background: var(--card-bg, #ffffff);
+  border-radius: var(--radius-panel);
+  padding: 22rpx;
+  border: 1rpx solid var(--color-border);
+}
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding-bottom: 14rpx;
+}
+.group-copy {
+  flex: 1;
+  min-width: 0;
+}
+.group-name {
+  display: block;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+.group-meta {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
+  margin-top: 4rpx;
+}
+.check {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: var(--radius-tag);
+  border: 2rpx solid var(--text-subtle, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  color: var(--white);
+  flex-shrink: 0;
+}
+.check.on {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+.empty-inline {
+  padding: 40rpx 0;
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: var(--font-size-caption);
+}
+.line-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 16rpx 0;
+  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+}
+.line-copy {
+  flex: 1;
+  min-width: 0;
+}
+.sku-name {
+  display: block;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+}
+.sku-meta {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--text-subtle);
+  margin-top: 4rpx;
+}
+.qty-val {
+  flex-shrink: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--brand);
+}
+.app-btn .btn-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  color: var(--white);
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+  line-height: 1.2;
+}
+.app-btn.is-disabled {
+  opacity: 0.45;
+}
+.submit-hint {
+  display: block;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.err {
+  color: var(--color-danger);
+  font-size: var(--font-size-caption);
+  text-align: center;
+}
+.page-body {
+  padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}

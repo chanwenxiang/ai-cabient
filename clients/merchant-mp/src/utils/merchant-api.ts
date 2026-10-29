@@ -857,6 +857,11 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[]>(
       MerchantEndpoints.replenishmentPrepList
     ),
+  /** 手动备货单预览（A 方案，2026-10-29）：逐柜「补满」建议（上限−实际−在途），事前规划视图 */
+  replenishmentPrepPreview: () =>
+    request<import('@aicabinet/shared-types').OpenApiMerchantPrepPreviewGroupDto[]>(
+      MerchantEndpoints.replenishmentPrepPreview
+    ),
   /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
   assertReplenishmentDeviceAccess: (deviceId: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantReplenishmentDeviceAccessDto>(
