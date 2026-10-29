@@ -212,7 +212,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "XXL_JOB_WIRING_BROKEN", "XXL-JOB 执行器接线异常",
                 "SCHEDULED_TASK_STALE", "定时任务停摆",
                 "VISION_ANOMALY", "视觉异常告警",
-                "IN_TRANSIT_OVERDUE", "签收超时")));
+                "IN_TRANSIT_OVERDUE", "未上柜超时")));
         map.put("ad_asset_type", t("广告素材类型", m(
                 "IMAGE", "图片", "VIDEO", "视频", "H5", "H5")));
         map.put("ad_campaign_status", t("投放计划状态", m(
@@ -299,22 +299,30 @@ public class SysDictBootstrap implements ApplicationRunner {
                 CREATED, "待收货", "PARTIAL_RECEIVED", "部分收货", RECEIVED, "已收货", STATUS_CANCELLED, "已取消")));
         map.put("warehouse_status", t("仓库状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "正常", INACTIVE, "停用")));
         map.put("warehouse_outbound_status", t("出库单状态", m(
-                CabinetConstants.PROMOTION_STATUS_DRAFT, "待拣货", "PICKED", "已拣货", "SHIPPED", "已发运", STATUS_CANCELLED, "已取消")));
-        map.put("handover_status", t("交接状态", m(
-                STATUS_PENDING, "待备货", "READY", "待发运", "IN_TRANSIT", "在途", "PARTIAL", "部分签收", RECEIVED, "已签收")));
-        map.put("in_transit_status", t("在途状态", m(
-                "IN_TRANSIT", "在途", RECEIVED, "已签收", "LOST", "丢失", "DAMAGED", "破损")));
+                CabinetConstants.PROMOTION_STATUS_DRAFT, "待拣货", "PICKED", "已拣货", "SHIPPED", "已领出", STATUS_CANCELLED, "已取消")));
+        // 铁律 80 / CB-074：分仓→柜是自提自送，口径统一成「领货 → 上柜」，不再讲「发运/在途/签收」。
+        // 标签真值在 packages/shared-dict（运行时字典可覆盖），改这里要同步改 V415 的 UPDATE。
+        map.put("handover_status", t("上柜交接状态", m(
+                STATUS_PENDING, "未交接", "READY", "已拣待领", "IN_TRANSIT", "已领未上柜", "PARTIAL", "部分上柜", RECEIVED, "已上柜",
+                STATUS_CANCELLED, "已取消")));
+        map.put("in_transit_status", t("领货未结状态", m(
+                "IN_TRANSIT", "未结清", RECEIVED, "已结清", STATUS_CANCELLED, "已取消", "LOST", "丢失", "DAMAGED", "破损")));
         map.put("warehouse_movement_type", t("库存变动类型", m(
                 "PURCHASE_RECEIVE", "采购收货", "PURCHASE_RETURN", "采购退货",
                 "MANUAL_INBOUND", "手工入库", "INBOUND_MANUAL", "手工入库",
-                "OUTBOUND", "出库", "OUTBOUND_SHIP", "发运", "RETURN", "退回", "ADJUSTMENT", "库存调整")));
+                "OUTBOUND", "出库", "OUTBOUND_SHIP", "领货出库", "RETURN", "退回", "ADJUSTMENT", "库存调整",
+                // D28-B11：这三类流水一直在写（盘点 / 货位增减 / 撤销领货回库），字典缺 ⇒ 流水页显示「未知」。
+                "STOCKTAKE", "盘点调整", "BIN_STOCK", "货位变动", "OUTBOUND_CANCEL", "领货撤销回库")));
         map.put("business_reference_type", t("业务关联类型", m(
                 "PURCHASE_ORDER", "采购单", "PURCHASE_RETURN", "采购退货", "OUTBOUND_ORDER", "出库单",
                 "WAREHOUSE_INBOUND", "仓库入库", "WAREHOUSE_OUTBOUND", "仓库出库",
                 "REPLENISHMENT_TASK", "补货任务",
                 "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作",
                 "DEMO_SEED", "演示播种期初", "OPENING_BACKFILL", "建账补记",
-                "WRITE_OFF", "报损核销", "GUEST_WATER", "客情用水")));
+                "WRITE_OFF", "报损核销", "GUEST_WATER", "客情用水",
+                // D28-B11：流水「关联业务」列的码——盘点单 / 货位 / 调拨进出（调拨行的 movement_type 是 BIN_STOCK，
+                // 区分进出只看这里，缺了就是「未知」）。
+                "STOCKTAKE", "盘点单", "BIN_INBOUND", "货位入库", "TRANSFER_OUT", "调拨出库", "TRANSFER_IN", "调拨入库")));
         map.put("replenishment_route_status", t("补货路线状态", m(
                 "PLANNED", "待执行", STATUS_IN_PROGRESS, "执行中", STATUS_COMPLETED, "已完成", STATUS_CANCELLED, "已取消")));
         map.put("replenishment_task_status", t("补货任务状态", m(

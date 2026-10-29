@@ -83,7 +83,12 @@ public class OpsCsvExportService {
         return bytes(sb);
     }
 
-    public byte[] exportWarehouseCsv(Long operatorId, String tab) {
+    /**
+     * D28-B3：{@code warehouseId}/{@code status} 可选——批次库存/库存流水此前恒导「默认仓」
+     * （listInventory(null) 被后端兜底）、出库单不认页面筛选 ⇒ 运营可能拿到另一个仓的全量文件。
+     * null/空白＝沿用旧口径（默认仓 / 不过滤）。
+     */
+    public byte[] exportWarehouseCsv(Long operatorId, String tab, String warehouseId, String status) {
         permissionService.requirePermission(operatorId, "ops:warehouse:export");
         String key = tab == null || tab.isBlank() ? "warehouses" : tab.trim().toLowerCase();
         return switch (key) {
@@ -91,9 +96,9 @@ public class OpsCsvExportService {
             case "suppliers" -> exportSuppliersCsv(operatorId);
             case "purchase" -> exportPurchaseOrdersCsv(operatorId);
             case "returns" -> exportPurchaseReturnsCsv(operatorId);
-            case "inventory" -> exportWarehouseInventoryCsv(operatorId);
-            case "outbounds" -> exportWarehouseOutboundsCsv(operatorId);
-            case "movements" -> exportWarehouseMovementsCsv(operatorId);
+            case "inventory" -> exportWarehouseInventoryCsv(operatorId, warehouseId);
+            case "outbounds" -> exportWarehouseOutboundsCsv(operatorId, warehouseId, status);
+            case "movements" -> exportWarehouseMovementsCsv(operatorId, warehouseId);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported warehouse export tab");
         };
     }
@@ -150,10 +155,10 @@ public class OpsCsvExportService {
         return bytes(sb);
     }
 
-    private byte[] exportWarehouseInventoryCsv(Long operatorId) {
+    private byte[] exportWarehouseInventoryCsv(Long operatorId, String warehouseId) {
         requireWarehouseRead(operatorId);
         StringBuilder sb = new StringBuilder("inventoryId,warehouseId,skuId,batchNo,quantity,expiryDate\n");
-        for (WarehouseInventoryDto i : warehouseService.listInventory(null)) {
+        for (WarehouseInventoryDto i : warehouseService.listInventory(warehouseId)) {
             sb.append(i.inventoryId()).append(',')
                     .append(csv(i.warehouseId())).append(',')
                     .append(csv(i.skuId())).append(',')
@@ -164,10 +169,10 @@ public class OpsCsvExportService {
         return bytes(sb);
     }
 
-    private byte[] exportWarehouseOutboundsCsv(Long operatorId) {
+    private byte[] exportWarehouseOutboundsCsv(Long operatorId, String warehouseId, String status) {
         requireWarehouseRead(operatorId);
         StringBuilder sb = new StringBuilder("outboundId,warehouseId,routeId,status,assigneeUserId,createdAt,shippedAt\n");
-        for (WarehouseOutboundDto o : warehouseService.listOutbounds()) {
+        for (WarehouseOutboundDto o : warehouseService.listOutbounds(warehouseId, status)) {
             sb.append(o.outboundId()).append(',')
                     .append(csv(o.warehouseId())).append(',')
                     .append(o.routeId() == null ? "" : o.routeId()).append(',')
@@ -179,11 +184,11 @@ public class OpsCsvExportService {
         return bytes(sb);
     }
 
-    private byte[] exportWarehouseMovementsCsv(Long operatorId) {
+    private byte[] exportWarehouseMovementsCsv(Long operatorId, String warehouseId) {
         requireWarehouseRead(operatorId);
         StringBuilder sb = new StringBuilder(
                 "\uFEFFmovementId,warehouseId,skuId,batchNo,movementType,deltaQty,refType,refId,operatorId,createdAt\n");
-        for (WarehouseMovementDto m : warehouseService.listMovements(null)) {
+        for (WarehouseMovementDto m : warehouseService.listMovements(warehouseId)) {
             sb.append(m.movementId()).append(',')
                     .append(csv(m.warehouseId())).append(',')
                     .append(csv(m.skuId())).append(',')

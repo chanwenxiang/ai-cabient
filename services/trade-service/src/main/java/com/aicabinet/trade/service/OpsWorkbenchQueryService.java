@@ -476,7 +476,7 @@ public class OpsWorkbenchQueryService {
             aggregated.add(new OpsActionItemDto(
                     "IN_TRANSIT_OVERDUE",
                     "HIGH",
-                    "补货签收超时",
+                    "补货未上柜超时",
                     "出库单 " + entry.getKey()
                             + " · " + skuCount + " 个 SKU"
                             + " · 共 " + quantitySum + " 件",
@@ -498,7 +498,7 @@ public class OpsWorkbenchQueryService {
             aggregated.add(new OpsActionItemDto(
                     "IN_TRANSIT_OVERDUE",
                     "HIGH",
-                    "补货签收超时",
+                    "补货未上柜超时",
                     "商品 " + orphan.getSkuId()
                             + " · 批次 " + orphan.getBatchNo()
                             + " · 数量 " + orphan.getQuantity(),

@@ -11,6 +11,7 @@ import {
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
+type Headroom = import('@aicabinet/shared-types').OpenApiReplenishmentHeadroomDto;
 
 export function buildSlotCapsFromSlots(slots: DeviceSlot[]) {
   const map: Record<string, { maxLevel: number; bookQty: number }> = {};
@@ -47,6 +48,12 @@ export function useReplenishmentDetail(opts: {
    * 兜底判官在后端提交校验（assertDoorCabinetHeadroom），不能因台账加载失败挡住补货。
    */
   inventoryCaps: Ref<Record<string, { quantity: number; capacity: number }>>;
+  /**
+   * 后端下发的开门柜可补量（键=skuId，值含 room=上限−在架−他单已领未上柜）。
+   * D28-A5：录入封顶与提交校验共用同一个数，前端不再自己算一层。
+   * 空对象=后端没给（货道柜恒空 / 请求失败降级），此时回退台账口径，判官仍在提交侧。
+   */
+  headroomBySku: Ref<Record<string, Headroom>>;
   focusTaskId: Ref<number | null>;
   filterDeviceId: Ref<string>;
   status: Ref<string>;
@@ -138,6 +145,7 @@ export function useReplenishmentDetail(opts: {
     opts.slotCaps.value = {};
     opts.deviceSlotsList.value = [];
     opts.inventoryCaps.value = {};
+    opts.headroomBySku.value = {};
   }
 
   async function refreshSelectedTask(task: Task) {
@@ -166,17 +174,23 @@ export function useReplenishmentDetail(opts: {
   async function loadTaskDetailResources(task: Task) {
     const taskId = task.taskId;
     if (typeof taskId !== 'number') return;
-    const [taskLines, slots, evidence, deviceDetail] = await Promise.all([
+    const [taskLines, slots, evidence, deviceDetail, headroomRows] = await Promise.all([
       merchantApi.replenishmentTaskLines(taskId) as Promise<Line[]>,
       softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[], '货道'),
       softFallback(merchantApi.listReplenishmentEvidence(taskId), [], '补货凭证'),
-      // 台账只喂「开门柜数量上限」这一个用途，失败置空=不设限（判官在后端），不挡详情打开
+      // 台账只喂「开门柜数量上限」的降级档（后端没下发时才算 capacity − 在架），失败置空=不设限
       softFallback(
         merchantApi.deviceDetail(task.deviceId!) as Promise<{
           skuInventory?: { skuId?: string; quantity?: number; capacity?: number }[];
         } | null>,
         null,
         '台账'
+      ),
+      // D28-A5：后端把提交封顶同一个数直接下发（货道柜恒空数组 ⇒ 天然不分摊到货道）
+      softFallback(
+        merchantApi.replenishmentTaskHeadroom(taskId) as Promise<Headroom[]>,
+        [] as Headroom[],
+        '可补量'
       )
     ]);
     opts.lines.value = taskLines;
@@ -191,6 +205,13 @@ export function useReplenishmentDetail(opts: {
       };
     }
     opts.inventoryCaps.value = invMap;
+    const headroomMap: Record<string, Headroom> = {};
+    for (const row of headroomRows || []) {
+      const skuId = String(row?.skuId || '').trim();
+      if (!skuId) continue;
+      headroomMap[skuId] = row;
+    }
+    opts.headroomBySku.value = headroomMap;
     const mapped = await mapEvidenceFiles(task, evidence || []);
     opts.evidenceItems.value = mapped;
     opts.evidenceCountMap.value = mergeEvidenceCountMap(

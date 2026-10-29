@@ -2,6 +2,7 @@
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { displayBizNo } from '@aicabinet/shared-uni/format';
+import { yuanText } from '@/utils/display';
 
 export type WarehousePurchaseOrderRow = AdminDynamicRow;
 
@@ -14,7 +15,6 @@ defineProps<{
   skuName: (skuId?: string) => string;
   supplierName: (supplierId: string) => string;
   warehouseName: (warehouseId: string) => string;
-  money: (cents: number) => string;
   canReviewPurchaseRow: (row: WarehousePurchaseOrderRow) => boolean;
 }>();
 
@@ -104,7 +104,7 @@ const emit = defineEmits<{
                   class-name="col-money"
                   label-class-name="col-money"
                 >
-                  <template #default="scope">¥{{ money(scope.row.unitCostCents) }}</template>
+                  <template #default="scope">{{ yuanText(scope.row.unitCostCents) }}</template>
                 </el-table-column>
                 <el-table-column
                   prop="expiryDate"

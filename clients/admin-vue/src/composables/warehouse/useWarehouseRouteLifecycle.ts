@@ -21,6 +21,10 @@ export type UseWarehouseRouteLifecycleDeps = {
   serverPaginatedTabs: Set<string>;
   syncTabGroupFromTab: (name?: string) => void;
   tabGroupFor: (name: string) => WarehouseTabGroup;
+  /** D28-B4：这个 tab 当前用户有没有**读**权限（判据照后端注解，见 WarehouseView 的 isWarehouseTabAllowed）。 */
+  isTabAllowed: (name: string) => boolean;
+  /** D28-B4：权限全挡／深链指向无权 tab 时的落点；返回空串表示一个都不可用。 */
+  firstAllowedTab: () => string;
   loadTab: (name: string, force?: boolean) => Promise<void>;
   patchPurchaseOrderRow: (updated: WarehouseRouteRow) => void;
 };
@@ -82,13 +86,18 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
       'monthly',
       'channel-import'
     ];
-    if (allowed.includes(qTab) && deps.tab.value !== qTab) {
+    if (allowed.includes(qTab) && deps.isTabAllowed(qTab) && deps.tab.value !== qTab) {
       deps.tab.value = qTab;
     } else if (!qTab && qDevice) {
       // deviceId deep-link without tab → in-transit (replenishment / dashboard)
-      if (deps.tab.value !== 'transit') deps.tab.value = 'transit';
+      if (deps.tab.value !== 'transit' && deps.isTabAllowed('transit')) deps.tab.value = 'transit';
     } else if (!qTab && deps.tab.value !== 'warehouses' && !qDevice) {
       // keep current tab when user switched locally; only reset when query fully cleared
+    }
+    // 深链指向无权 tab 时别留在那里（内容区会空白，且 onMounted 会先打一发必 403 的请求）
+    if (!deps.isTabAllowed(deps.tab.value)) {
+      const next = deps.firstAllowedTab();
+      if (next) deps.tab.value = next;
     }
     deps.syncTabGroupFromTab(deps.tab.value);
     if (deps.tab.value === 'transit') {
@@ -129,6 +138,15 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
     void deps.loadTab(deps.tab.value, true);
   }
 
+  /**
+   * D28-B4：本页一个 tab 都没权限时（如只有 `ops:warehouse:list` 的人打开采购子页），
+   * 页签已经不渲染了，但挂载时若照旧 `loadTab` 就会先打一发必 403 的请求 —— 别发。
+   */
+  function loadCurrentIfAllowed(force = true) {
+    if (!deps.isTabAllowed(deps.tab.value)) return Promise.resolve();
+    return deps.loadTab(deps.tab.value, force);
+  }
+
   let offPurchaseReviewed: (() => void) | undefined;
 
   onMounted(async () => {
@@ -142,7 +160,7 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
       }
     });
     applyTabFromQuery();
-    await deps.loadTab(deps.tab.value, true);
+    await loadCurrentIfAllowed();
   });
 
   onUnmounted(() => {
@@ -151,14 +169,14 @@ export function useWarehouseRouteLifecycle(deps: UseWarehouseRouteLifecycleDeps)
 
   onActivated(() => {
     applyTabFromQuery();
-    void deps.loadTab(deps.tab.value, true);
+    void loadCurrentIfAllowed();
   });
 
   watch(
     () => [deps.route.query.tab, deps.route.query.overdue, deps.route.query.deviceId] as const,
     () => {
       applyTabFromQuery();
-      void deps.loadTab(deps.tab.value, true);
+      void loadCurrentIfAllowed();
     }
   );
 

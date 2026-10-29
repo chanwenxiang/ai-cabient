@@ -169,6 +169,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/WarehouseOutboundTransitFilterSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉 D28-B5 下沉到服务端的筛选 SQL（出库 status / 在途 createdBefore）：' +
+        '真 Postgres 上同时断言 records 全符合条件**且 total 同步收窄**——' +
+        '只断言 records 时客户端过滤也能通过，正是该缺陷的原形态'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/JiangyiOnboardingRegisterSqlIT.java',
     {
       job: 'integration',

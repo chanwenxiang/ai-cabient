@@ -15,7 +15,12 @@ export type UseWarehouseLabelsDeps = {
 };
 
 /**
- * 仓储列表展示文案：供应商/仓库/设备/SKU 名、状态标签、效期与金额。
+ * 仓储列表展示文案：供应商/仓库/设备/SKU 名、状态标签、效期。
+ *
+ * 🔴 D28-B10：金额**不在这里**。此前的 `money()` 是第 4 套分→元实现（纯数字），
+ * 拼进模板的 `¥${money(x)}` 后负数渲染成 `¥-5.00`（规范 `yuanText` 出 `-¥5.00`）。
+ * 金额格式化器一律由组件自己 `import { yuanText } from '@/utils/display'` ——
+ * 经 props 注入的格式化器，`check:money-yuan-prefix` 看不到它带不带 ¥。
  */
 export function useWarehouseLabels(deps: UseWarehouseLabelsDeps) {
   function returnStatusLabel(status?: string) {
@@ -108,10 +113,6 @@ export function useWarehouseLabels(deps: UseWarehouseLabelsDeps) {
     return map[code] || 'info';
   }
 
-  function money(cents: number) {
-    return ((Number(cents) || 0) / 100).toFixed(2);
-  }
-
   function openPrint(type: string, query: Record<string, string | number>) {
     const url = deps.router.resolve({ name: 'print', query: { type, ...query } }).href;
     globalThis.open(url, '_blank', 'noopener,noreferrer');
@@ -150,7 +151,6 @@ export function useWarehouseLabels(deps: UseWarehouseLabelsDeps) {
     stocktakeStatusType,
     stocktakeLineStatusText,
     stocktakeLineStatusType,
-    money,
     openPrint,
     expiryDays,
     expiryText,

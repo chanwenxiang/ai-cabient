@@ -64,7 +64,8 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_COMPLETE_EVIDENCE_REQUIRED = "请先上传现场凭证照片后再完成补货";
     /** 商户端完成任务前须通过本任务下发过补货开门 */
     public static final String REPLENISHMENT_COMPLETE_DOOR_REQUIRED = "请先补货开门后再完成上架";
-    public static final String REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT = "出库单尚未发运在途，请先完成仓库发运后再确认上架";
+    public static final String REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT =
+            "该出库单还没有领货出库，请先在仓库页完成领货出库后再确认上架";
     /** 扫码/手输柜机不在当前账号管辖范围 */
     public static final String REPLENISHMENT_DEVICE_OUT_OF_SCOPE = "柜机不在您的管辖范围，无法操作";
     public static final String REPLENISHMENT_TASK_ALREADY_COMPLETED = "补货任务已完成，无需重复操作";
@@ -76,9 +77,9 @@ public final class ApiMessages {
             "路线下仍有不可取消的任务（已有上架记录），请先处理后再取消";
     /** 无任务行且出库无明细时禁止签到，避免空任务签到后冻柜又无法 cancel-empty */
     public static final String REPLENISHMENT_CHECK_IN_NO_LINES =
-            "任务暂无可履约明细，请先发运出库或录入上架清单后再签到";
+            "任务暂无可履约明细，请先在仓库页领货出库或录入上架清单后再签到";
     public static final String WAREHOUSE_OUTBOUND_CANCEL_BLOCKED =
-            "出库单已有签收/部分签收记录，不能整单作废回仓";
+            "出库单已有上柜/部分上柜记录，不能整单作废回仓";
     public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";
     public static final String REPLENISHMENT_HOME_WAREHOUSE_REQUIRED = "请先给柜机指定所属仓库，不能从无主默认仓出库";
     public static final String REPLENISHMENT_HOME_WAREHOUSE_MIXED = "同一路线的柜机必须归属同一仓库";

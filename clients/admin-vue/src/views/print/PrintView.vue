@@ -48,7 +48,7 @@
             </tr>
           </tbody>
         </table>
-        <p class="sheet-foot">打印时间：{{ printTime }} · 请在拣货/发运时按单核对批次</p>
+        <p class="sheet-foot">打印时间：{{ printTime }} · 请在拣货/领货时按单核对批次</p>
       </template>
 
       <!-- 采购收货单 -->

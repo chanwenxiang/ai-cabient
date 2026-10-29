@@ -403,26 +403,42 @@ export const DICT = {
   warehouse_outbound_status: {
     DRAFT: '待拣货',
     PICKED: '已拣货',
-    SHIPPED: '已发运',
+    SHIPPED: '已领出',
     CANCELLED: '已取消'
   },
+  // 铁律 80 / CB-074（2026-10-29）：分仓→柜这段是自提自送，没有「发运/在途/签收」三段物流。
+  // 口径改成「领货（出分仓）→ 上柜（现场实收）」；「已领未上柜」就是差额，不是运输状态。
+  // CANCELLED 由 WarehouseService（:920/:989/:997/:1017 出库单撤销）与 InTransitService:134 真实写入，
+  // 缺了它后台/小程序会显示「未知」（dictLabel 对未登记的 SCREAMING_SNAKE 码兜底成「未知」）。
   handover_status: {
-    PENDING: '待备货',
-    READY: '待发运',
-    IN_TRANSIT: '在途',
-    PARTIAL: '部分签收',
-    RECEIVED: '已签收'
+    PENDING: '未交接',
+    READY: '已拣待领',
+    IN_TRANSIT: '已领未上柜',
+    PARTIAL: '部分上柜',
+    RECEIVED: '已上柜',
+    CANCELLED: '已取消'
   },
-  in_transit_status: { IN_TRANSIT: '在途', RECEIVED: '已签收', LOST: '丢失', DAMAGED: '破损' },
+  in_transit_status: {
+    IN_TRANSIT: '未结清',
+    RECEIVED: '已结清',
+    CANCELLED: '已取消',
+    LOST: '丢失',
+    DAMAGED: '破损'
+  },
+  // 后 3 个是「代码在写、字典没有」的补集（D28-B11）：盘点调整 / 货位增减 / 撤销领货回库。
+  // 新增值不需要迁移：SysDictBootstrap 启动时 ensureMissingDictItems 会给已存在的库补种。
   warehouse_movement_type: {
     PURCHASE_RECEIVE: '采购收货',
     PURCHASE_RETURN: '采购退货',
     MANUAL_INBOUND: '手工入库',
     INBOUND_MANUAL: '手工入库',
     OUTBOUND: '出库',
-    OUTBOUND_SHIP: '发运',
+    OUTBOUND_SHIP: '领货出库',
+    OUTBOUND_CANCEL: '领货撤销回库',
     RETURN: '退回',
-    ADJUSTMENT: '库存调整'
+    ADJUSTMENT: '库存调整',
+    STOCKTAKE: '盘点调整',
+    BIN_STOCK: '货位变动'
   },
   business_reference_type: {
     PURCHASE_ORDER: '采购单',
@@ -436,7 +452,12 @@ export const DICT = {
     DEMO_SEED: '演示播种期初',
     OPENING_BACKFILL: '建账补记',
     WRITE_OFF: '报损核销',
-    GUEST_WATER: '客情用水'
+    GUEST_WATER: '客情用水',
+    // 库存流水「关联业务」列会取这几个码（盘点单/货位/调拨出进），缺一个就在流水页显示「未知」。
+    STOCKTAKE: '盘点单',
+    BIN_INBOUND: '货位入库',
+    TRANSFER_OUT: '调拨出库',
+    TRANSFER_IN: '调拨入库'
   },
   /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
   approval_biz_type: {
@@ -631,7 +652,7 @@ export const DICT = {
     XXL_JOB_WIRING_BROKEN: 'XXL-JOB 执行器接线异常',
     SCHEDULED_TASK_STALE: '定时任务停摆',
     VISION_ANOMALY: '视觉异常告警',
-    IN_TRANSIT_OVERDUE: '签收超时'
+    IN_TRANSIT_OVERDUE: '未上柜超时'
   },
   ad_asset_type: { IMAGE: '图片', VIDEO: '视频', H5: 'H5' },
   ad_campaign_status: { DRAFT: '草稿', RUNNING: '投放中', STOPPED: '已停止' },

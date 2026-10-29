@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
+import { SINGLE_WAREHOUSE_TABS } from '@/composables/warehouse/useWarehouseTabLoader';
 
 /** 仓储动态行（D15：禁止散落 Record<string, any>） */
 export type WarehouseFilterRow = AdminDynamicRow;
@@ -56,13 +57,19 @@ const FILTER_BAR_TABS = [
 ] as const;
 
 /**
- * 仓储列表筛选：filter-bar 显隐、出库/在途过滤与行样式、筛选项变更后重置分页。
+ * 仓储列表筛选：filter-bar 显隐、出库/未上柜过滤与行样式、筛选项变更后重置分页。
  */
 export function useWarehouseListFilters(deps: UseWarehouseListFiltersDeps) {
   /** 仅真正有筛选项的 Tab 才挂 filter-bar，避免空条占位像「中间少了字」 */
   const showFilterBar = computed(() =>
     FILTER_BAR_TABS.includes(deps.tab.value as (typeof FILTER_BAR_TABS)[number])
   );
+
+  /**
+   * D28-B3：这两个 tab 的数据面恒等于「一个仓」（见 SINGLE_WAREHOUSE_TABS）⇒ 仓库筛选项不许清空，
+   * 占位词也不能再写「全部仓库」。
+   */
+  const warehouseFilterRequired = computed(() => SINGLE_WAREHOUSE_TABS.has(deps.tab.value));
 
   const activeSuppliers = computed(() => deps.suppliers.value.filter((s) => s.status === 'ACTIVE'));
   const activeWarehouses = computed(() =>
@@ -113,9 +120,18 @@ export function useWarehouseListFilters(deps: UseWarehouseListFiltersDeps) {
     return parts.join(' ');
   }
 
+  /** D28-B5：真实状态下推服务端后，筛选变化要重拉（服务端分页 tab），不是只清勾选。 */
+  function reloadIfServerPaginated() {
+    if (deps.serverPaginatedTabs.has(deps.tab.value)) {
+      deps.loadedTabs.value.delete(deps.tab.value);
+      void deps.loadTab(deps.tab.value, true);
+    }
+  }
+
   function onOutboundStatusFilter() {
     deps.page.value = 1;
     deps.selectedKeys.value = [];
+    reloadIfServerPaginated();
   }
 
   function parseTs(value: unknown) {
@@ -214,15 +230,16 @@ export function useWarehouseListFilters(deps: UseWarehouseListFiltersDeps) {
         : `当前无超过 ${TRANSIT_OVERDUE_HOURS} 小时的到柜超时`;
     }
     if (deps.focusDeviceId.value) {
-      return `设备 ${deps.focusDeviceId.value} 暂无在途（已到柜签收或不在发运中）`;
+      return `设备 ${deps.focusDeviceId.value} 暂无未上柜行（已确认上柜，或还没领货）`;
     }
-    return '暂无在途（发运后出现于此；补货员到柜完成任务后自动消失）';
+    return '暂无未上柜行（补货员领货后出现于此；到柜确认上柜后自动消失）';
   });
 
   function onOverdueToggle() {
     deps.page.value = 1;
     deps.selectedKeys.value = [];
     deps.syncRouteQuery();
+    reloadIfServerPaginated();
   }
 
   function clearFocusDevice() {
@@ -276,6 +293,7 @@ export function useWarehouseListFilters(deps: UseWarehouseListFiltersDeps) {
   return {
     TRANSIT_OVERDUE_HOURS,
     showFilterBar,
+    warehouseFilterRequired,
     activeSuppliers,
     activeWarehouses,
     filteredSuppliers,

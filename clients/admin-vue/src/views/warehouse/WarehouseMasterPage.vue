@@ -4,5 +4,8 @@ import WarehouseView from './WarehouseView.vue';
 </script>
 
 <template>
-  <WarehouseView :only="['warehouses', 'bins']" />
+  <WarehouseView
+    :only="['warehouses', 'bins']"
+    hint="仓库主数据与货位：先订清有哪些仓、每个仓的存放位置怎么编"
+  />
 </template>

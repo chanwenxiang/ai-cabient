@@ -276,7 +276,7 @@ const bizChildren: RouteRecordRaw[] = [
     path: 'warehouse/fulfillment',
     name: 'warehouse-fulfillment',
     component: () => import('@/views/warehouse/WarehouseFulfillmentPage.vue'),
-    meta: { title: '调拨与在途', group: '仓储' }
+    meta: { title: '领货与调拨', group: '仓储' }
   },
   {
     path: 'recharges',

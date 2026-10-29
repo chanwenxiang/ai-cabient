@@ -5,7 +5,7 @@
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">仓库</span>
+              <span class="title">{{ pageTitle }}</span>
               <span class="hint">{{ pageHint }}</span>
             </div>
           </div>
@@ -78,7 +78,7 @@
               而「其他入库」是可逆的补录，两者心理预期不同。
             -->
             <el-button
-              v-if="canEdit && tab === 'inventory'"
+              v-if="canReplenishEdit && tab === 'inventory'"
               type="danger"
               plain
               data-testid="warehouse-write-off"
@@ -90,7 +90,7 @@
               :loading="cleanupStaleLoading"
               data-testid="cleanup-stale-outbounds"
               @click="cleanupStaleOutbounds"
-              >清理空草稿/脏在途</el-button
+              >清理空草稿/未结领货</el-button
             >
             <el-button
               v-if="canImportMaster"
@@ -119,7 +119,11 @@
               class="hidden-input"
               @change="onSupplierImportFile"
             />
-            <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
+            <el-button
+              v-if="WAREHOUSE_EXPORTABLE_TABS.has(tab)"
+              v-hasPermi="['ops:warehouse:export']"
+              @click="onExport"
+            >
               {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
             </el-button>
             <!-- 仓库主 tab 的刷新已内建 CrudTable 工具条；页头刷新仅服务其余 tab -->
@@ -150,8 +154,8 @@
         >
           <el-select
             v-model="filterWarehouseId"
-            clearable
-            placeholder="全部仓库"
+            :clearable="!warehouseFilterRequired"
+            :placeholder="warehouseFilterRequired ? '请选择仓库' : '全部仓库'"
             style="width: 220px"
             @change="onWarehouseFilter"
           >
@@ -292,7 +296,7 @@
         show-icon
         class="transit-flow-hint"
         data-testid="transit-flow-hint"
-        title="在途 = 已发往柜机、尚未在柜完成补货。到柜由补货员完成任务后自动签收并上架；本页不办理回仓入库。"
+        title="已领未上柜 = 补货员已从分仓领出、尚未在柜确认上柜。到柜由补货员完成任务后自动入账并结清；本页不办理回仓入库。"
       />
 
       <el-alert
@@ -309,10 +313,26 @@
         data-testid="transit-overdue-banner"
         :title="
           overdueOnly
-            ? `共 ${overdueTransitCount} 条到柜超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未完成补货签收）`
+            ? `共 ${overdueTransitCount} 条到柜超时（领货超 ${TRANSIT_OVERDUE_HOURS} 小时未完成上柜）`
             : `共 ${overdueTransitCount} 条到柜超时，可勾选「仅超时未到柜」聚焦催办`
         "
       />
+
+      <!-- D28-B7：请求失败 ≠ 没有数据。失败时下表的空态文案会把人骗成「这个仓是空的」，
+           而真实原因是 5xx/超时（处置完全不同：一个去查服务，一个可以放一放）。 -->
+      <el-alert
+        v-if="failedTabs.has(tab)"
+        type="error"
+        :closable="false"
+        show-icon
+        class="tab-load-failed"
+        data-testid="warehouse-tab-load-failed"
+        title="这一页没加载成功——下方的空表不是「没有数据」，是请求失败了。"
+      >
+        <el-button link type="primary" :loading="isTabLoading(tab)" @click="reloadCurrent"
+          >重试</el-button
+        >
+      </el-alert>
 
       <div
         v-if="!props.only && visibleTabGroups.length"
@@ -330,6 +350,21 @@
         <span class="tab-group-hint"
           >当前「{{ currentTabGroupLabel }}」·
           {{ currentGroupTabCount }}个列表（角标不是库存/单据条数）</span
+        >
+      </div>
+
+      <div
+        v-if="props.only?.length && warehouseSiblings.length > 1"
+        class="warehouse-siblings"
+        data-testid="warehouse-sibling-nav"
+      >
+        <router-link
+          v-for="n in warehouseSiblings"
+          :key="n.path"
+          :to="n.path"
+          class="warehouse-siblings__item"
+          :class="{ active: route.path === n.path }"
+          >{{ n.title }}</router-link
         >
       </div>
 
@@ -409,7 +444,6 @@
             :sku-name="skuName"
             :supplier-name="supplierName"
             :warehouse-name="warehouseName"
-            :money="money"
             :can-review-purchase-row="canReviewPurchaseRow"
             @selection-change="onSelectionChange"
             @print="(row) => openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
@@ -462,7 +496,6 @@
             :rows="pagedPayables"
             :summary-text="payableSummaryText"
             :can-edit="canEdit"
-            :money="money"
             :payable-status-type="payableStatusType"
             :payable-status-text="payableStatusText"
             @selection-change="onSelectionChange"
@@ -518,7 +551,7 @@
           />
         </el-tab-pane>
 
-        <el-tab-pane v-if="isPaneVisible('transit')" label="在途" name="transit">
+        <el-tab-pane v-if="isPaneVisible('transit')" label="已领未上柜" name="transit">
           <WarehouseTransitTab
             :loading="isTabLoading('transit')"
             :hydrated="hydratedTabs.has('transit')"
@@ -798,7 +831,10 @@ import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
-import { useWarehouseCsv } from '@/composables/warehouse/useWarehouseCsv';
+import {
+  useWarehouseCsv,
+  WAREHOUSE_EXPORTABLE_TABS
+} from '@/composables/warehouse/useWarehouseCsv';
 import { useWarehouseEntityDialogs } from '@/composables/warehouse/useWarehouseEntityDialogs';
 import { useWarehouseLabels } from '@/composables/warehouse/useWarehouseLabels';
 import {
@@ -815,7 +851,9 @@ import { useWarehouseStocktakes } from '@/composables/warehouse/useWarehouseStoc
 import { useWarehouseTabLoader } from '@/composables/warehouse/useWarehouseTabLoader';
 import { useWarehouseTransfers } from '@/composables/warehouse/useWarehouseTransfers';
 import { useAuthStore } from '@/stores/auth';
+import { NAV_ITEMS } from '@/config/menu';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
+import { yuanText } from '@/utils/display';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 const loadSeq = createLoadSeq();
@@ -830,6 +868,12 @@ const canWarehouseEdit = computed(() => auth.hasPerm('ops:warehouse:edit'));
 const canWarehouseList = computed(() => auth.hasPerm('ops:warehouse:list'));
 const canProcurementEdit = computed(() => auth.hasPerm('ops:procurement:edit'));
 const canProcurementList = computed(() => auth.hasPerm('ops:procurement:list'));
+/**
+ * D28-B9：「批次报损」走 `POST /ops/admin/inventory/write-off`，后端要的是
+ * `ops:replenishment:edit`（`OpsReplenishmentController:254`）——此前按 `ops:warehouse:edit` 显示，
+ * 有仓权限没补货权限的人点进去必 403。判据按后端码配对，别按「在仓储页」猜。
+ */
+const canReplenishEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
 const canReviewPurchase = computed(
   () => canProcurementEdit.value || auth.hasPerm('ops:finance:view')
 );
@@ -992,6 +1036,8 @@ function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
 
 const loadingTabs = ref(new Set<string>());
 const hydratedTabs = ref(new Set<string>());
+/** D28-B7：加载失败的 tab（与「空数据」分离；见 useWarehouseTabLoader 的 markTabFailed）。 */
+const failedTabs = ref(new Set<string>());
 function isTabLoading(name: string) {
   return loadingTabs.value.has(name);
 }
@@ -1001,28 +1047,34 @@ const tab = ref('warehouses');
 /**
  * 拆分「仓储」顶级模块后，4 个子页复用本组件，各自只渲染自己的 tab 子集：
  * props.only = 允许的 tab 名；不传 = 全量 13 tab（旧 /warehouse 深链兼容）。
+ * props.title/hint = 子页自己的标题与说明——🔴 别再用写死的「仓库」：子页各自的 tab
+ * 不一样，标题与侧栏菜单（config/menu.ts）不一致时，运营在三处看到三种说法。
  */
-const props = defineProps<{ only?: string[] }>();
+const props = defineProps<{ only?: string[]; title?: string; hint?: string }>();
 
-function isPaneVisible(name: string): boolean {
-  if (props.only?.length) return props.only.includes(name);
-  return tabGroup.value === tabGroupFor(name);
-}
+/**
+ * 标题默认取侧栏菜单（`config/menu.ts`）里当前路径那一条——🔴 不在这里再抄一遍字面量：
+ * 三处各写一次「仓库与库位」之类，改一处就漂一处。旧 /warehouse 整页不在菜单里，落回「仓库」。
+ */
+const pageTitle = computed(
+  () => props.title || NAV_ITEMS.find((n) => n.path === route.path)?.title || '仓库'
+);
 
-// only 模式：当前 tab 不在子集内（如深链带入别的 tab）时钳回子集第一个
-watch(
-  tab,
-  (name) => {
-    if (props.only?.length && !props.only.includes(name)) {
-      tab.value = props.only[0];
-    }
-  },
-  { immediate: true }
+/**
+ * 子页模式下的同级页签：原来只有旧整页有分组切换器（见 warehouse-tab-groups），
+ * 拆成 4 个子页后子页里既没有分组条也没有别页入口，运营只能回侧栏重找——
+ * 这里按 `config/menu.ts` 的「仓储」分组生成同级导航，标题单一出处、权限同样过滤。
+ */
+const warehouseSiblings = computed(() =>
+  NAV_ITEMS.filter(
+    (n) =>
+      n.group === '仓储' && n.path.startsWith('/warehouse/') && (!n.perm || auth.hasPerm(n.perm))
+  )
 );
 
 /** 每个 tab 的一句用途说明（给不熟悉仓储域的运营照着找；改 tab 语义时同步改这里） */
 const TAB_DESC: Record<string, string> = {
-  warehouses: '仓库主数据：维护收发货仓与地址，补货出库从这里发往各柜机',
+  warehouses: '仓库主数据：维护收发货仓与地址，补货员从这里领货带去各自看管的柜机',
   suppliers: '供应商档案：采购下单前先在这里维护供应商与联系方式',
   purchase: '采购单：向供应商下单，收货入库后形成批次与有效期',
   suggestions: '采购建议：系统按设备缺货与销量算出的补货清单，可一键转采购单',
@@ -1032,26 +1084,23 @@ const TAB_DESC: Record<string, string> = {
   bins: '货位：仓库内存放位置编码，出入库单据会引用',
   inventory: '批次库存：按批次查看各仓现存量与有效期，先进先出发货',
   movements: '库存流水：每笔入库/出库/调拨/盘点的明细账，可对账追溯',
-  monthly: '月结一张表：本仓应有、实盘、上柜件数，与结算金额无关',
+  monthly:
+    '月结一张表：本仓应有、实盘、领货件数（领货=从本仓带出的量，点数字下钻看上柜实收与领而未上），与结算金额无关',
   'channel-import':
     '渠道对账导入：大黄鹅/嗨便利等外部系统的补货与销售数据，解析→映射→提交为月结外调流水',
   transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
-  outbounds: '出库单：补货发往柜机的发货单，补货任务关联的出库在这里'
+  outbounds:
+    '出库单：按柜机建单 → 备货 → 领货（自提自送，无运输段）；领走但没上柜的差额在「已领未上柜」结清'
   // transit 不设通用描述：该 tab 有专属说明条（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
 
-/** only 子页里因权限被全部隐藏时的兜底提示（避免空白页） */
-const permGatedTabs = computed<Record<string, boolean>>(() => ({
-  transfers: canWarehouseList.value,
-  suppliers: canProcurementList.value,
-  purchase: canProcurementList.value,
-  suggestions: canProcurementList.value,
-  returns: canProcurementList.value,
-  payables: canProcurementList.value,
-  stocktakes: canWarehouseList.value,
-  bins: canWarehouseList.value
-}));
+/** only 子页里因权限被全部隐藏时的兜底提示（避免空白页）。判据与 `isWarehouseTabAllowed` 同源，别再抄一份。 */
+const permGatedTabs = computed<Record<string, boolean>>(() => {
+  const out: Record<string, boolean> = {};
+  for (const name of Object.keys(TAB_GROUP_MAP)) out[name] = isWarehouseTabAllowed(name);
+  return out;
+});
 const onlyNoVisibleTabs = computed(() => {
   if (!props.only?.length) return false;
   return !props.only.some((name) => permGatedTabs.value[name] !== false);
@@ -1096,15 +1145,66 @@ function tabGroupFor(name: string): WarehouseTabGroup {
   return TAB_GROUP_MAP[name] || 'overview';
 }
 
+/**
+ * D28-B4：仓储这棵树上「读」与「写」的后端权限码并不一一对应，前端此前**只给 8 个 tab 装了门**，
+ * `warehouses / inventory / movements / monthly / outbounds / transit` 直接 `return true` —— 没权限的人
+ * 点进去必 403。判据一律照后端注解（`OpsWarehouseController` / `WarehouseTransferController`）：
+ *   · `/warehouse/list`、`/inventory`、`/movements`、`/monthly-close`、`/outbounds`、`/in-transit`
+ *     = OR(`ops:warehouse:list`, `ops:replenishment:list`) ⇒ 补货员只有补货读权限也必须看得见这几个 tab；
+ *   · `/warehouse/transfers` GET = OR(`ops:warehouse:list`, `ops:warehouse:edit`) ⇒ 只有编辑权的人也能读；
+ *   · `/stocktakes`、`/bins` = `ops:warehouse:list`（没有 OR，别顺手放宽）。
+ */
+const canWarehouseRead = computed(
+  () => canWarehouseList.value || auth.hasPerm('ops:replenishment:list')
+);
 function isWarehouseTabAllowed(name: string): boolean {
   if (['suppliers', 'purchase', 'suggestions', 'returns', 'payables'].includes(name)) {
     return canProcurementList.value;
   }
-  if (['transfers', 'stocktakes', 'bins', 'channel-import'].includes(name)) {
+  if (['stocktakes', 'bins', 'channel-import'].includes(name)) {
     return canWarehouseList.value;
   }
-  return true;
+  if (name === 'transfers') return canWarehouseList.value || canWarehouseEdit.value;
+  return canWarehouseRead.value;
 }
+
+/**
+ * 权限全挡时别让页面落在一个看不见的 tab 上（深链 `?tab=suppliers` 而此人没有采购读权限）：
+ * 按分组顺序取第一个「有权限且在子页子集内」的 tab；一个都没有就返回空串，调用方保持原值
+ * （此时下面的 `onlyNoVisibleTabs` 兜底提示接管）。
+ */
+function firstAllowedTab(): string {
+  const ordered = Object.values(TAB_GROUP_ORDER).flat();
+  const candidates = props.only?.length
+    ? ordered.filter((name) => props.only!.includes(name))
+    : ordered;
+  return candidates.find((name) => isWarehouseTabAllowed(name)) || '';
+}
+
+function isPaneVisible(name: string): boolean {
+  // D28-B4：没权限的 tab 连页签都不该出现——此前只有 `isPaneVisible`（分组／子集）在管，
+  // 点进去才被后端 403。
+  if (!isWarehouseTabAllowed(name)) return false;
+  if (props.only?.length) return props.only.includes(name);
+  return tabGroup.value === tabGroupFor(name);
+}
+
+// only 模式：当前 tab 不在子集内（如深链带入别的 tab）时钳回子集第一个；
+// D28-B4：当前 tab 没权限时同理（否则内容区空白，只剩一条空壳）。
+watch(
+  tab,
+  (name) => {
+    if (props.only?.length && !props.only.includes(name)) {
+      tab.value = props.only[0];
+      return;
+    }
+    if (!isWarehouseTabAllowed(name)) {
+      const next = firstAllowedTab();
+      if (next && next !== name) tab.value = next;
+    }
+  },
+  { immediate: true }
+);
 
 function firstTabInGroup(group: WarehouseTabGroup): string {
   for (const name of TAB_GROUP_ORDER[group]) {
@@ -1168,8 +1268,9 @@ const SERVER_PAGINATED_TABS = new Set([
   'transit',
   'transfers',
   'inventory',
-  'movements',
-  'monthly'
+  'movements'
+  // 🔴 D28-B6：`monthly` 不在这里——月结接口一次返回整张表（`/warehouse/monthly-close` 不吃 page/size），
+  // 分页器也刻意不显示。留在这张表里只会让 `tabTotal` 假装来自服务端分页，将来谁把分页器放开就变假分页。
 ]);
 const tabTotals = ref<Record<string, number>>({});
 const page = ref(1);
@@ -1263,7 +1364,6 @@ const {
   stocktakeStatusType,
   stocktakeLineStatusText,
   stocktakeLineStatusType,
-  money,
   openPrint,
   expiryText,
   expiryType
@@ -1277,13 +1377,14 @@ const {
 
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
-    return `仓→柜在途：补货完成才从本列表消失；时限 ${TRANSIT_OVERDUE_HOURS} 小时，超时标红`;
+    return `仓→柜自提自送：补货员领出后、未确认上柜的差额在此结清；时限 ${TRANSIT_OVERDUE_HOURS} 小时，超时标红`;
   }
-  return '仓库 / 供应商 / 库存 / 采购与退货';
+  return props.hint || '仓库 / 供应商 / 库存 / 采购与退货';
 });
 
 const {
   showFilterBar,
+  warehouseFilterRequired,
   activeSuppliers,
   activeWarehouses,
   filteredSuppliers,
@@ -1392,7 +1493,7 @@ const payableSummaryText = computed(() => {
   if (!rows.length) return '暂无未结清应付账款';
   const total = rows.reduce((s, r) => s + (Number(r.totalBalanceCents) || 0), 0);
   const overdue = rows.reduce((s, r) => s + (Number(r.overdueBalanceCents) || 0), 0);
-  return `共 ${rows.length} 家供应商有欠款，未付合计 ¥${money(total)}，其中逾期 ¥${money(overdue)}`;
+  return `共 ${rows.length} 家供应商有欠款，未付合计 ${yuanText(total)}，其中逾期 ${yuanText(overdue)}`;
 });
 
 watch(tab, () => {
@@ -1423,6 +1524,8 @@ const {
 } = useWarehouseCsv({
   tab,
   selectedKeys,
+  filterWarehouseId,
+  filterOutboundStatus,
   loadedTabs,
   loadTab: (name, force) => loadTabHolder.fn(name, force),
   warehouses,
@@ -1495,6 +1598,8 @@ const {
   size,
   keyword,
   filterWarehouseId,
+  filterOutboundStatus,
+  overdueOnly,
   hideTestPurchaseOrders,
   focusDeviceId,
   suggestionLeadTimeDays,
@@ -1529,7 +1634,8 @@ const {
   tabTotals,
   loadedTabs,
   loadingTabs,
-  hydratedTabs
+  hydratedTabs,
+  failedTabs
 });
 loadWarehousesHolder.fn = loadWarehouses;
 
@@ -1601,6 +1707,8 @@ const { syncRouteQuery, onPagerChange, onPagerSizeChange, onTabChange, reloadCur
     serverPaginatedTabs: SERVER_PAGINATED_TABS,
     syncTabGroupFromTab,
     tabGroupFor,
+    isTabAllowed: isWarehouseTabAllowed,
+    firstAllowedTab,
     loadTab,
     patchPurchaseOrderRow
   });
@@ -1762,6 +1870,32 @@ function setInboundDialog(open: boolean) {
   margin: 0 0 12px;
   flex-shrink: 0;
 }
+.warehouse-siblings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  flex-shrink: 0;
+}
+.warehouse-siblings__item {
+  padding: 4px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 999px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-regular);
+  text-decoration: none;
+  line-height: 1.6;
+}
+.warehouse-siblings__item:hover {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+}
+.warehouse-siblings__item.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 600;
+}
 .transit-flow-hint {
   margin-bottom: 12px;
   flex-shrink: 0;
@@ -1861,6 +1995,9 @@ function setInboundDialog(open: boolean) {
   outline: 1px solid color-mix(in srgb, var(--app-primary, #0f766e) 35%, transparent);
 }
 .sla-banner {
+  margin: 0 0 12px;
+}
+.tab-load-failed {
   margin: 0 0 12px;
 }
 .sla-cell {

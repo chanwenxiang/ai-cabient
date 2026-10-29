@@ -183,8 +183,10 @@ public class OpsWarehouseController {
     @GetMapping(value = "/warehouse/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportWarehouse(
             HttpServletRequest request,
-            @RequestParam(name = "tab", defaultValue = "warehouses") String tab) {
-        byte[] csv = csvExportService.exportWarehouseCsv(operatorId(request), tab);
+            @RequestParam(name = "tab", defaultValue = "warehouses") String tab,
+            @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "status", required = false) String status) {
+        byte[] csv = csvExportService.exportWarehouseCsv(operatorId(request), tab, warehouseId, status);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"warehouse-" + tab + ".csv\"")
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
@@ -278,10 +280,11 @@ public class OpsWarehouseController {
             HttpServletRequest request,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "warehouseId", required = false) String warehouseId,
+            @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
         return ApiResponse.ok(warehouseAdminService.listWarehouseOutboundsPage(
-                operatorId(request), q, warehouseId, page, size));
+                operatorId(request), q, warehouseId, status, page, size));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
@@ -328,9 +331,11 @@ public class OpsWarehouseController {
     public ApiResponse<PageResult<WarehouseInTransitDto>> warehouseInTransit(
             HttpServletRequest request,
             @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "overdueOnly", required = false) Boolean overdueOnly,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(warehouseAdminService.listInTransitPage(operatorId(request), deviceId, page, size));
+        return ApiResponse.ok(warehouseAdminService.listInTransitPage(
+                operatorId(request), deviceId, Boolean.TRUE.equals(overdueOnly), page, size));
     }
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);

@@ -17,6 +17,11 @@
  * 另一条永远违规的形态：`money(x).replace(/^¥/, '')`。锚定 `^` 的正则对负数（`-¥5.00`）
  * 根本不匹配 ⇒ "去符号"变成"只有正数去了符号"，且最容易被人复制成真正的换算 bug。
  *
+ * 第三条（2026-10-29 D28-B10 补）：**金额格式化器禁止经 props 注入**。
+ * 本门禁按「同文件绑定来源」判定，props 传进来的 `money()` 既不在 import 表也不在本地函数表，
+ * 门禁看不见它到底自带不带 ¥。仓储页就这么漏掉了：`useWarehouseLabels` 的第 4 套
+ * `(cents/100).toFixed(2)`（纯数字）被 `¥${money(total)}` 拼用，负数渲染成 `¥-5.00` 而门禁全绿。
+ *
  * 正解：A 类 → 模板只写 `{{ fmtMoney(x) }}`；需要不带符号的元数字 → `centsToYuanDigits(x)`。
  *
  *   node scripts/check-money-yuan-prefix.mjs
@@ -101,6 +106,13 @@ function findDuplicateYen(src, emitting) {
 /** 靠剥前缀拼字符串，负额会漏剥 ⇒ 永远不允许。 */
 const YEN_STRIPPING = /\.replace\(\s*\/\^¥\/\s*,\s*''\s*\)/;
 
+/**
+ * props 注入的金额格式化器（`money: (cents: number) => string`）⇒ 永远不允许。
+ * 理由见文件头第三条：注入后本文件看不到它的 ¥ 语义，门禁对这一路完全失明。
+ */
+const INJECTED_MONEY_PROP =
+  /\b\w*(?:money|Money|yuan|Yuan)\w*\s*:\s*\([^)]*\)\s*(?::\s*string\s*)?=>\s*string/;
+
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
@@ -182,6 +194,19 @@ function selfCheck() {
     }
   }
 
+  const injectedPropCases = [
+    ['  money: (cents: number) => string;', true],
+    ['  yuanText: (cents?: number | null) => string;', true],
+    ['  payableStatusText: (status: string) => string;', false],
+    ['  canReviewPurchaseRow: (row: WarehousePurchaseOrderRow) => boolean;', false]
+  ];
+  for (const [line, expected] of injectedPropCases) {
+    if (INJECTED_MONEY_PROP.test(line) !== expected) {
+      console.error(`${TAG} FAIL: props 注入格式化器自检不通过（expected=${expected}）: ${line}`);
+      process.exit(1);
+    }
+  }
+
   // 判定函数：只有「字面 ¥ 落在 A 类调用上」才报，B 类必须放行
   const yenCallCases = [
     ['<text>¥{{ money(x) }}</text>', [], null], // B 类调用 ⇒ 正确写法
@@ -193,6 +218,12 @@ function selfCheck() {
     ['<text>可用余额 ≥ {{ needYuan }}</text>', ['fmtMoney'], null], // ¥ 不在插值旁
     ['<text>{{ money(x) }}</text>', ['fmtMoney'], null],
     ['<text>¥{{ centsToYuanDigits(x) }}</text>', ['fmtMoney'], null], // B 类，靠绑定集合放行
+    // 仓储页统一到 yuanText 之后的写法：模板不再写字面 ¥（D28-B10）
+    ['<span>¥{{ yuanText(row.amountCents) }}</span>', ['yuanText'], 'yuanText'],
+    ['const t = `未付合计 ¥${yuanText(total)}`', ['yuanText'], 'yuanText'],
+    // 🔴 B10 的原始写法：money 由 props 注入（纯数字实现），本文件解析不出来 ⇒ 这里看不见，
+    //    由 INJECTED_MONEY_PROP 在源头拦（禁止 props 注入金额格式化器）。
+    ['const t = `未付合计 ¥${money(total)}`', ['yuanText'], null],
     // 折行：`¥{{` 与调用分在两行（prettier 会这么排），逐行版漏报过
     ['<span>¥{{\n  yuan(Math.max(0, row.budgetCents))\n}}</span>', ['yuan'], 'yuan'],
     // 脚本侧（无 {{ }}）：这两类是 2026-10-17 实测的漏报形态
@@ -243,6 +274,11 @@ for (const file of files) {
     if (YEN_STRIPPING.test(line)) {
       hits.push(`剥 ¥ 前缀拼字符串（负额漏剥）\n  ${rel}:${i + 1}\n    ${line.trim()}`);
     }
+    if (INJECTED_MONEY_PROP.test(line)) {
+      hits.push(
+        `props 注入金额格式化器（门禁看不到它的 ¥ 语义，负数易渲染成 ¥-5.00）\n  ${rel}:${i + 1}\n    ${line.trim()}`
+      );
+    }
   });
   for (const dup of findDuplicateYen(src, emitting)) {
     const line = src.split(/\r?\n/)[dup.line - 1] || '';
@@ -257,9 +293,11 @@ if (hits.length) {
   for (const hit of hits) console.error(hit);
   console.error(
     '\n修法：模板里去掉字面 ¥，直接 {{ fmtMoney(x) }} / {{ yuan(x) }}；' +
-      '需要不带符号的元数字用 centsToYuanDigits(x)。'
+      '需要不带符号的元数字用 centsToYuanDigits(x)；金额格式化器由组件自己 import，不要经 props 注入。'
   );
   process.exit(1);
 }
 
-console.log(`${TAG} OK (${files.length} 个 .vue：无重复货币符号、无剥前缀手术)`);
+console.log(
+  `${TAG} OK (${files.length} 个 .vue：无重复货币符号、无剥前缀手术、无 props 注入格式化器)`
+);

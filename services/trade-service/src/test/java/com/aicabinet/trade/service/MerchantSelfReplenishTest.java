@@ -44,6 +44,7 @@ class MerchantSelfReplenishTest {
     private ReplenishmentRouteMapper routeRepository;
     private ReplenishmentTaskMapper taskRepository;
     private MerchantScopeService merchantScopeService;
+    private MerchantFeaturePackService featurePackService;
     private MerchantReplenishmentService service;
 
     @BeforeEach
@@ -57,12 +58,13 @@ class MerchantSelfReplenishTest {
         routeRepository = Mockito.mock(ReplenishmentRouteMapper.class);
         taskRepository = Mockito.mock(ReplenishmentTaskMapper.class);
         merchantScopeService = Mockito.mock(MerchantScopeService.class);
+        featurePackService = Mockito.mock(MerchantFeaturePackService.class);
         DistributedLockService distributedLockService = Mockito.mock(DistributedLockService.class);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         // CB-068 A 档：柜机数据范围是默认放行项，个别用例按需改回 false
         lenient().when(merchantScopeService.canAccessDevice(anyLong(), anyString())).thenReturn(true);
         service = new MerchantReplenishmentService(
-                permissionService, Mockito.mock(MerchantFeaturePackService.class), merchantPortalGuard,
+                permissionService, featurePackService, merchantPortalGuard,
                 replenishmentService, null, warehouseService,
                 Mockito.mock(AdminAuditService.class), deviceRepository, skuCatalogRepository,
                 routeRepository, taskRepository, Mockito.mock(FileAttachmentService.class),
@@ -115,6 +117,40 @@ class MerchantSelfReplenishTest {
 
         assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, ex.getStatusCode());
         assertTrue(ex.getReason().contains("不在你的数据范围内"));
+        verify(routeRepository, never()).save(any());
+    }
+
+    /**
+     * D28-A9（2026-10-29 拍板「取更严」）：发起腿的柜机判据必须与读腿同一条链（数据范围 ∩ FIELD 包）。
+     * 改前本方法是全链路唯一只判裸 canAccessDevice 的入口 ⇒ 未开包商户的柜能扣分仓库存生成出库、却看不到建议。
+     */
+    @Test
+    void selfInitiate_gatesDeviceThroughFieldPackLikeReadPaths() {
+        Warehouse warehouse = new Warehouse();
+        warehouse.setWarehouseId("WH-001");
+        when(warehouseService.requireWarehouseExists("WH-001")).thenReturn(warehouse);
+        stubHappyPath();
+
+        service.selfInitiateTask(9L, body());
+
+        verify(featurePackService).requireDevicePack(9L, "CAB-001", MerchantFeaturePacks.FIELD);
+    }
+
+    /** FIELD 包未开 ⇒ 403 原样回「该商户未开通对应功能包」，且不得留下出库/任务。 */
+    @Test
+    void selfInitiate_rejectsWhenMerchantLacksFieldPack() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.FORBIDDEN, "该商户未开通对应功能包"))
+                .when(featurePackService).requireDevicePack(9L, "CAB-001", MerchantFeaturePacks.FIELD);
+
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.selfInitiateTask(9L, body()));
+
+        assertEquals(org.springframework.http.HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("未开通对应功能包"));
         verify(routeRepository, never()).save(any());
     }
 

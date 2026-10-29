@@ -113,7 +113,7 @@
       <el-form-item label="关联采购单">
         <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
       </el-form-item>
-      <el-form-item label="未付余额">¥{{ money(payTarget.balanceCents) }}</el-form-item>
+      <el-form-item label="未付余额">{{ yuanText(payTarget.balanceCents) }}</el-form-item>
       <el-form-item label="付款金额(元)" required>
         <el-input-number
           v-model="paymentForm.amountYuan"
@@ -214,6 +214,7 @@
 import { dictOptions } from '@aicabinet/shared-dict';
 import AddressPicker from '@/components/AddressPicker.vue';
 import type { WarehouseEntityRow } from '@/composables/warehouse/useWarehouseEntityDialogs';
+import { yuanText } from '@/utils/display';
 
 /** 可见性走 defineModel，避免 props+emit 在 footer「取消」上不同步关闭 */
 const warehouseDialog = defineModel<boolean>('warehouseDialog', { required: true });
@@ -246,10 +247,6 @@ const emit = defineEmits<{
   addInboundLine: [];
   removeInboundLine: [index: number];
 }>();
-
-function money(cents: number) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
-}
 </script>
 
 <style scoped>

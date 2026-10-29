@@ -19,7 +19,8 @@ public record ReplenishmentFulfillmentTaskDto(
         Long outboundId,
         Instant createdAt,
         String deviceName,
-        /** 未分配货道的 RESTOCK 行数（applied=false 且 slot_id 空；0=全部就绪，CB-038 2026-10-14 重建）。 */
+        /** 未分配货道的 RESTOCK 行数（applied=false 且 slot_id 空；0=全部就绪，CB-038 2026-10-14 重建）。
+         *  铁律 78：开门柜无货道概念，恒为 0。 */
         int unassignedRestockLines
 ) {
     public ReplenishmentFulfillmentTaskDto(

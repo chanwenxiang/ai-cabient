@@ -17,14 +17,17 @@ vi.mock('@/utils/merchant-api', () => ({
 }));
 
 import { useReplenishmentFulfillment } from './useReplenishmentFulfillment';
+import { showError } from '@/utils/notify';
 
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
+type Headroom = import('@aicabinet/shared-types').OpenApiReplenishmentHeadroomDto;
 
 function make(
   doorCabinet: boolean,
   lines: Line[],
-  inventoryCaps: Record<string, { quantity: number; capacity: number }> = {}
+  inventoryCaps: Record<string, { quantity: number; capacity: number }> = {},
+  headroomBySku: Record<string, Headroom> = {}
 ) {
   const linesRef = ref<Line[]>(lines);
   const askConfirm = vi.fn().mockResolvedValue(true);
@@ -56,11 +59,23 @@ function make(
     isPullOffType: (t?: string) => String(t || '').toUpperCase() === 'PULL_OFF',
     isDoorCabinet: () => doorCabinet,
     inventoryCaps: ref(inventoryCaps),
+    headroomBySku: ref(headroomBySku),
     formatLineSummary: () => '',
     slotHeadroom: () => 0
   });
   return { svc, linesRef, askConfirm };
 }
+
+/** 后端下发口径（D28-A5）：room = 上限 − 在架 − 他单已领未上柜 */
+const serverRoom = (over: Partial<Headroom> = {}): Headroom =>
+  ({
+    skuId: 'SKU-COLA',
+    capacity: 20,
+    onShelfQty: 5,
+    otherInTransitQty: 10,
+    room: 5,
+    ...over
+  }) as unknown as Headroom;
 
 const line = (over: Partial<Line> = {}): Line =>
   ({
@@ -77,6 +92,7 @@ describe('useReplenishmentFulfillment 开门柜口径', () => {
   beforeEach(() => {
     confirmReplenishmentLines.mockReset();
     confirmReplenishmentLines.mockImplementation(async (_taskId: number, rows: Line[]) => rows);
+    vi.mocked(showError).mockClear();
   });
 
   it('开门柜台账未配置（缺行/容量0）时不拦——fail-open，判官在后端', () => {
@@ -102,6 +118,59 @@ describe('useReplenishmentFulfillment 开门柜口径', () => {
     });
     svc.adjustQty(linesRef.value[0], 1);
     expect(linesRef.value[0].quantity).toBe(2);
+  });
+
+  it('后端下发 room 优先：台账口径 15、后端 5 ⇒ 只让补 5（D28-A5 少扣一层才 400 的根因）', () => {
+    const { svc, linesRef } = make(
+      true,
+      [line()],
+      { 'SKU-COLA': { quantity: 5, capacity: 20 } },
+      { 'SKU-COLA': serverRoom() }
+    );
+    svc.adjustQty(linesRef.value[0], 8);
+    expect(linesRef.value[0].quantity).toBe(5);
+    svc.adjustQty(linesRef.value[0], 1);
+    expect(linesRef.value[0].quantity).toBe(5);
+    expect(showError).toHaveBeenCalledWith('上限 20，在架 5，他单已领未上柜 10，最多再补 5');
+  });
+
+  it('后端下发比台账宽时也用后端（不再各算一层）', () => {
+    const { svc, linesRef } = make(
+      true,
+      [line()],
+      { 'SKU-COLA': { quantity: 8, capacity: 10 } },
+      { 'SKU-COLA': serverRoom({ capacity: 30, onShelfQty: 8, otherInTransitQty: 0, room: 9 }) }
+    );
+    svc.adjustQty(linesRef.value[0], 6);
+    expect(linesRef.value[0].quantity).toBe(8);
+    svc.adjustQty(linesRef.value[0], 6);
+    expect(linesRef.value[0].quantity).toBe(9);
+  });
+
+  it('后端下发 room=0 ⇒ 不动，提示带「台账已满」', () => {
+    const { svc, linesRef } = make(true, [line()], {}, { 'SKU-COLA': serverRoom({ room: 0 }) });
+    svc.adjustQty(linesRef.value[0], 2);
+    expect(linesRef.value[0].quantity).toBe(2);
+    expect(showError).toHaveBeenCalledWith(
+      '台账已满，无法再加（上限 20，在架 5，他单已领未上柜 10，最多再补 0）'
+    );
+  });
+
+  it('后端下发 capacity≤0（脏数据）= 不设限，与后端未配容量同判据', () => {
+    const { svc, linesRef } = make(true, [line()], {}, { 'SKU-COLA': serverRoom({ capacity: 0 }) });
+    svc.adjustQty(linesRef.value[0], 3);
+    expect(linesRef.value[0].quantity).toBe(5);
+  });
+
+  it('下架行不受后端 room 影响（以实取数为准）', () => {
+    const { svc, linesRef } = make(
+      true,
+      [line({ lineType: 'PULL_OFF' })],
+      {},
+      { 'SKU-COLA': serverRoom({ room: 1 }) }
+    );
+    svc.adjustQty(linesRef.value[0], 6);
+    expect(linesRef.value[0].quantity).toBe(8);
   });
 
   it('下架行不受台账封顶（以实取数为准）', () => {

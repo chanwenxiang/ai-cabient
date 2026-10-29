@@ -12,6 +12,9 @@ import type { WarehouseFilterRow } from './useWarehouseListFilters';
 export type UseWarehouseCsvDeps = {
   tab: Ref<string>;
   selectedKeys: Ref<Array<string | number>>;
+  filterWarehouseId: Ref<string>;
+  /** D28-B5：出库导出跟随状态筛选（'actionable' 是组合口径，导全量）。 */
+  filterOutboundStatus: Ref<string>;
   loadedTabs: Ref<Set<string>>;
   loadTab: (name: string, force?: boolean) => Promise<void>;
   warehouses: Ref<WarehouseFilterRow[]>;
@@ -38,6 +41,22 @@ export type UseWarehouseCsvDeps = {
   transitAgeMs: (row: WarehouseFilterRow) => number;
   isTransitOverdue: (row: WarehouseFilterRow) => boolean;
 };
+
+/**
+ * D28-B8：哪些 tab 的「导出」真的导得出来——服务端全量导出支持的 tab ∪ 只有客户端导出的 tab
+ * （`transit`）。页面按这个集合决定显不显示按钮：此前按钮恒显示，点在没有 exporter 的 tab
+ * （盘点/货位/建议/应付/调拨/月结/渠道导入）上就是**静默空转**，用户以为导了。
+ */
+const SERVER_EXPORT_TABS = new Set([
+  'warehouses',
+  'suppliers',
+  'purchase',
+  'returns',
+  'inventory',
+  'outbounds',
+  'movements'
+]);
+export const WAREHOUSE_EXPORTABLE_TABS = new Set([...SERVER_EXPORT_TABS, 'transit']);
 
 /**
  * 仓储 CSV：主数据导入模板、各 Tab 客户端导出、服务端全量导出分流。
@@ -195,7 +214,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
   });
 
   const { onExport: exportTransit } = useListCsv({
-    filePrefix: '在途',
+    filePrefix: '已领未上柜',
     headers: [
       '出库单',
       '目标设备',
@@ -203,9 +222,9 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
       '批次',
       '数量',
       '状态',
-      '在途时长',
+      '未上柜时长',
       '是否超时',
-      '发运时间'
+      '领货时间'
     ],
     toRows: () =>
       deps
@@ -258,16 +277,35 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
         ])
   });
 
+  const exporters: Record<string, () => void> = {
+    warehouses: exportWarehouses,
+    suppliers: exportSuppliers,
+    purchase: exportPurchase,
+    returns: exportReturns,
+    outbounds: exportOutbounds,
+    transit: exportTransit,
+    inventory: exportInventory,
+    movements: exportMovements
+  };
+
+  /**
+   * D28-B3：服务端导出现在跟随页面筛选——inventory/movements 带 warehouseId（这两个 tab 已强制
+   * 选仓）、outbounds 带真实 status。后端 `/warehouse/export` 相应新增了可选参数；
+   * 未选仓/「待处理」组合口径时退回旧行为（默认仓 / 全量）。
+   */
+  function serverExportParams(): { warehouseId?: string; status?: string } {
+    const opts: { warehouseId?: string; status?: string } = {};
+    if (deps.tab.value === 'inventory' || deps.tab.value === 'movements') {
+      const wh = deps.filterWarehouseId.value.trim();
+      if (wh) opts.warehouseId = wh;
+    } else if (deps.tab.value === 'outbounds') {
+      const st = deps.filterOutboundStatus.value.trim();
+      if (st && st !== 'actionable') opts.status = st;
+    }
+    return opts;
+  }
+
   async function onExport() {
-    const serverTabs = new Set([
-      'warehouses',
-      'suppliers',
-      'purchase',
-      'returns',
-      'inventory',
-      'outbounds',
-      'movements'
-    ]);
     const currentRows = (() => {
       switch (deps.tab.value) {
         case 'warehouses':
@@ -288,17 +326,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     })();
     const partial =
       deps.selectedKeys.value.length > 0 && deps.selectedKeys.value.length < currentRows.length;
-    if (partial || !serverTabs.has(deps.tab.value)) {
-      const exporters: Record<string, () => void> = {
-        warehouses: exportWarehouses,
-        suppliers: exportSuppliers,
-        purchase: exportPurchase,
-        returns: exportReturns,
-        outbounds: exportOutbounds,
-        transit: exportTransit,
-        inventory: exportInventory,
-        movements: exportMovements
-      };
+    if (partial || !SERVER_EXPORT_TABS.has(deps.tab.value)) {
       exporters[deps.tab.value]?.();
       return;
     }
@@ -313,7 +341,7 @@ export function useWarehouseCsv(deps: UseWarehouseCsvDeps) {
     };
     try {
       await downloadAuthFile(
-        AdminEndpoints.warehouseExport(deps.tab.value),
+        AdminEndpoints.warehouseExport(deps.tab.value, serverExportParams()),
         csvFileName(labels[deps.tab.value] || '仓库')
       );
       ElMessage.success('已导出');

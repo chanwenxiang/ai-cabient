@@ -27,6 +27,12 @@ public class WarehouseOutboundLine {
 
     private int quantity;
 
+    /**
+     * 领而未上件数 = {@link #quantity} − 现场实收（CB-074，V414）。
+     * 0=全量上柜；&gt;0 是未结差额，货仍在补货员手上，不进分仓账也不进柜机账。
+     */
+    private int remainderQty;
+
     private boolean picked;
     private String handoverStatus = "PENDING";
 

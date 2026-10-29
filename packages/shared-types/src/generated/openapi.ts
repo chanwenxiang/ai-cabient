@@ -9788,6 +9788,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/replenishment/tasks/{taskId}/headroom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["replenishmentTaskHeadroom"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/replenishment/tasks/{taskId}/evidence/{fileId}": {
         parameters: {
             query?: never;
@@ -13493,6 +13509,8 @@ export interface components {
             expiryDate?: string;
             /** Format: int32 */
             quantity?: number;
+            /** Format: int32 */
+            remainderQty?: number;
             picked?: boolean;
             handoverStatus?: string;
             slotId?: string;
@@ -16358,6 +16376,10 @@ export interface components {
             barcode?: string;
             /** Format: int32 */
             qty?: number;
+            /** Format: int32 */
+            shelvedQty?: number;
+            /** Format: int32 */
+            remainderQty?: number;
             outboundIds?: string;
             lastShippedAt?: string;
         };
@@ -19573,6 +19595,23 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["PurchaseOrderDto"][];
+        };
+        ApiResponseListReplenishmentHeadroomDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentHeadroomDto"][];
+        };
+        ReplenishmentHeadroomDto: {
+            skuId?: string;
+            /** Format: int32 */
+            capacity?: number;
+            /** Format: int32 */
+            onShelfQty?: number;
+            /** Format: int32 */
+            otherInTransitQty?: number;
+            /** Format: int32 */
+            room?: number;
         };
         ApiResponseMerchantReplenishmentDoorSessionDto: {
             /** Format: int32 */
@@ -32879,6 +32918,7 @@ export interface operations {
             query?: {
                 q?: string;
                 warehouseId?: string;
+                status?: string;
                 page?: number;
                 size?: number;
             };
@@ -33045,6 +33085,7 @@ export interface operations {
         parameters: {
             query?: {
                 deviceId?: string;
+                overdueOnly?: boolean;
                 page?: number;
                 size?: number;
             };
@@ -33069,6 +33110,8 @@ export interface operations {
         parameters: {
             query?: {
                 tab?: string;
+                warehouseId?: string;
+                status?: string;
             };
             header?: never;
             path?: never;
@@ -37059,6 +37102,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListReplenishmentTaskDto"];
+                };
+            };
+        };
+    };
+    replenishmentTaskHeadroom: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListReplenishmentHeadroomDto"];
                 };
             };
         };

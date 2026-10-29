@@ -66,10 +66,22 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
 
     /** page 为 0-based。 */
     default Page<WarehouseInTransit> searchPage(String deviceId, String status, int page, int size) {
+        return searchPage(deviceId, status, null, page, size);
+    }
+
+    /**
+     * D28-B5：{@code createdBefore} 可选（超时筛选走服务端）。口径＝「createdAt 早于 now-24h」，
+     * 与前端 {@code TRANSIT_OVERDUE_HOURS = 24}、OpsWorkbenchQueryService.IN_TRANSIT_OVERDUE_HOURS 一致。
+     */
+    default Page<WarehouseInTransit> searchPage(
+            String deviceId, String status, java.time.Instant createdBefore, int page, int size) {
         String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "IN_TRANSIT";
         var query = Wrappers.<WarehouseInTransit>lambdaQuery()
                 .eq(WarehouseInTransit::getStatus, st)
                 .orderByAsc(WarehouseInTransit::getCreatedAt);
+        if (createdBefore != null) {
+            query.lt(WarehouseInTransit::getCreatedAt, createdBefore);
+        }
         if (deviceId != null && !deviceId.isBlank()) {
             query.eq(WarehouseInTransit::getDeviceId, deviceId.trim());
         }

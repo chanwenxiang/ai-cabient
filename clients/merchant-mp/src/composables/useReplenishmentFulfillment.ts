@@ -1,9 +1,12 @@
 import type { ComputedRef, Ref } from 'vue';
 import { showError, showSuccess, showLongError } from '@/utils/notify';
 import { merchantApi } from '@/utils/merchant-api';
+import { describeDoorHeadroom, doorHeadroomForSku } from '@/utils/replenishment-headroom';
 
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
+type OpenApiReplenishmentHeadroomDto =
+  import('@aicabinet/shared-types').OpenApiReplenishmentHeadroomDto;
 
 type AskConfirm = (opts: {
   title: string;
@@ -112,6 +115,11 @@ export function useReplenishmentFulfillment(opts: {
    * 台账缺行 / capacity≤0（未配置）= 不拦，判官在后端。
    */
   inventoryCaps: Ref<Record<string, { quantity: number; capacity: number }>>;
+  /**
+   * 后端下发的开门柜可补量（D28-A5）：录入封顶优先取这里的 `room`，
+   * 与提交校验同一个数；空对象=后端未下发 ⇒ 回退 `inventoryCaps` 台账口径。
+   */
+  headroomBySku: Ref<Record<string, OpenApiReplenishmentHeadroomDto>>;
   formatLineSummary: (rows: Line[]) => string;
   slotHeadroom: (line: Line) => number;
 }) {
@@ -290,16 +298,24 @@ export function useReplenishmentFulfillment(opts: {
       return;
     }
     if (opts.isDoorCabinet()) {
-      // 开门柜按台账封顶（2026-10-28 用户实测「台账可补 2 却能加到 9」）：上限 = capacity − 在架。
-      // 台账缺行/未配置容量（capacity≤0）不拦——数据缺失时 fail-open，兜底判官在后端提交校验。
-      const inv = opts.inventoryCaps.value[String(line.skuId || '')];
-      if (inv && inv.capacity > 0) {
-        const room = Math.max(0, inv.capacity - (Number(inv.quantity) || 0));
-        if (cur >= room) {
-          showError(room <= 0 ? '台账已满，无法再加' : `最多再补 ${room}`);
+      // 开门柜按台账封顶（2026-10-28 用户实测「台账可补 2 却能加到 9」）：
+      // 上限一律取后端下发的 room（= 上限 − 在架 − 他单已领未上柜），与提交校验同一个数（D28-A5）。
+      // 后端没下发时退回台账 capacity − 在架（偏松一档，不阻断补货）；两处都不给 = 不设限。
+      const headroom = doorHeadroomForSku(
+        line.skuId,
+        opts.headroomBySku.value,
+        opts.inventoryCaps.value
+      );
+      if (headroom) {
+        if (cur >= headroom.room) {
+          showError(
+            headroom.room <= 0
+              ? `台账已满，无法再加（${describeDoorHeadroom(headroom)}）`
+              : describeDoorHeadroom(headroom)
+          );
           return;
         }
-        line.quantity = Math.min(room, cur + delta);
+        line.quantity = Math.min(headroom.room, cur + delta);
         return;
       }
       line.quantity = Math.max(0, cur + delta);
@@ -484,8 +500,8 @@ export function useReplenishmentFulfillment(opts: {
       title: pullOffCopy('确认全部上架', '确认全部下架'),
       content: pullOffCopy(
         opts.isDoorCabinet()
-          ? '完成后将更新柜机库存并签收在途商品，请确认商品、批次无误。'
-          : '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+          ? '完成后将更新柜机库存、结清本次领出的货（没上的记为「领而未上」），请确认商品、批次无误。'
+          : '完成后将更新柜机库存、结清本次领出的货（没上的记为「领而未上」），请确认商品、批次和货道无误。',
         '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
       ),
       confirmText: '确认完成',

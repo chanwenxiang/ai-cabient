@@ -265,7 +265,7 @@
             class-name="col-text"
             label-class-name="col-text"
             prop="restockQty"
-            label="上柜"
+            label="领货"
             width="60"
             align="center"
           />

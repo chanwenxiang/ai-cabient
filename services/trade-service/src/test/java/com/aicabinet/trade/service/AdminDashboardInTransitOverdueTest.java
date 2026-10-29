@@ -27,7 +27,7 @@ class AdminDashboardInTransitOverdueTest {
         OpsActionItemDto item = items.get(0);
         assertEquals("IN_TRANSIT_OVERDUE", item.type());
         assertEquals("HIGH", item.severity());
-        assertEquals("补货签收超时", item.title());
+        assertEquals("补货未上柜超时", item.title());
         assertEquals("CAB-001", item.deviceId());
         assertEquals(2L, item.taskId());
         assertNull(item.skuId());

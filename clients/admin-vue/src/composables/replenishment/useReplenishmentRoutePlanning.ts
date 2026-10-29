@@ -212,7 +212,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
       const linked = (outbounds || []).filter((o) => o.routeId === created?.routeId);
       if (linked.length) {
         ElMessage.success({
-          message: `路线已创建，出库单 ${linked[0].outboundId} 待拣货发运（仓库页）`,
+          message: `路线已创建，出库单 ${linked[0].outboundId} 待拣货、领货（仓库页）`,
           duration: 5000
         });
       } else {

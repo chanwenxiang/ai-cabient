@@ -1327,6 +1327,14 @@ public class DeviceSlotService {
     private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
                                                Map<String, Integer> bookBySlot) {
         String deviceId = device.getDeviceId();
+        // 开门柜（判据=将邑绑定）无货道概念，货道台账恒空 ⇒ 货道口径恒 0（填充率 0%、缺货/低库存 0），
+        // 用户实测「柜里有货却显示没数据」（2026-10-29）。改走「在架 SKU 台账」口径分流：
+        // 只统计上架商品（device_sku_inventory 行 × sku_catalog ACTIVE，与详情页「已上架商品数」同源），
+        // 缺货=库存 0、低库存=0<库存≤逐 SKU low_threshold——与补货建议 suggestFromLowStock、
+        // 阈值自动任务、上架商品页「缺货」tag 同一旋钮（2026-10-29 用户拍板两档递进）。
+        if (isDoorCabinet(deviceId)) {
+            return computeDoorCabinetMetrics(device);
+        }
         List<DeviceSlot> active = slots.stream()
                 .filter(s -> s.isEnabled() && s.getParLevel() > 0)
                 .toList();
@@ -1343,11 +1351,9 @@ public class DeviceSlotService {
                 .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
 
         // 设备级告警联系人为空时回落显示绑定商户的联系人/电话（运营后台设备概览用）
-        var boundMerchant = device.getMerchantId() == null || device.getMerchantId().isBlank()
-                ? java.util.Optional.<Merchant>empty()
-                : merchantRepository.findById(device.getMerchantId());
-        String merchantContactName = boundMerchant.map(Merchant::getAlertContactName).orElse(null);
-        String merchantContactPhone = boundMerchant.map(Merchant::getContactPhone).orElse(null);
+        String[] merchantContacts = resolveMerchantContacts(device);
+        String merchantContactName = merchantContacts[0];
+        String merchantContactPhone = merchantContacts[1];
 
         return new DeviceOpsMetricsDto(
                 deviceId,
@@ -1373,6 +1379,91 @@ public class DeviceSlotService {
                 countNearExpiryLots(deviceId),
                 merchantContactName,
                 merchantContactPhone,
+                monthRevenueCents(deviceId)
+        );
+    }
+
+    /** 设备级告警联系人为空时回落绑定商户联系人/电话（运营后台设备概览用，两条柜型共用）。 */
+    private String[] resolveMerchantContacts(DeviceInfo device) {
+        var boundMerchant = device.getMerchantId() == null || device.getMerchantId().isBlank()
+                ? java.util.Optional.<Merchant>empty()
+                : merchantRepository.findById(device.getMerchantId());
+        return new String[]{
+                boundMerchant.map(Merchant::getAlertContactName).orElse(null),
+                boundMerchant.map(Merchant::getContactPhone).orElse(null)
+        };
+    }
+
+    /**
+     * 开门柜设备概览指标：在架 SKU 台账口径。
+     * 在架 = device_sku_inventory 有行且 sku_catalog.status=ACTIVE（与详情页「已上架商品数」、
+     * 消费者目录同一过滤，已下架 SKU 的库存残留不参与）。填充率 = Σmin(库存,容量)×100/Σ容量；
+     * 缺货商品 = 库存≤0；低库存商品 = 0<库存≤low_threshold（逐 SKU 阈值，与补货建议
+     * suggestFromLowStock / 阈值自动任务 / 上架商品页缺货 tag 同源）。
+     * DTO 字段名保留 *SlotCount（兼容不动 API），开门柜下语义为「商品」个数。
+     */
+    private DeviceOpsMetricsDto computeDoorCabinetMetrics(DeviceInfo device) {
+        String deviceId = device.getDeviceId();
+        List<DeviceSkuInventory> rows = inventoryRepository.findByIdDeviceId(deviceId);
+        Set<String> activeSkuIds = rows.isEmpty() ? Set.of()
+                : skuCatalogRepository.selectList(
+                                Wrappers.<SkuCatalog>lambdaQuery()
+                                        .in(SkuCatalog::getSkuId, rows.stream()
+                                                .map(DeviceSkuInventory::getSkuId)
+                                                .toList()))
+                        .stream()
+                        .filter(s -> "ACTIVE".equals(s.getStatus()))
+                        .map(SkuCatalog::getSkuId)
+                        .collect(Collectors.toSet());
+        int totalCap = 0;
+        int totalBook = 0;
+        int oosCount = 0;
+        int lowCount = 0;
+        int listedCount = 0;
+        for (DeviceSkuInventory inv : rows) {
+            if (!activeSkuIds.contains(inv.getSkuId())) {
+                continue;
+            }
+            listedCount++;
+            int qty = Math.max(inv.getQuantity(), 0);
+            int cap = Math.max(inv.getCapacity(), 0);
+            totalBook += Math.min(qty, cap);
+            totalCap += cap;
+            if (qty <= 0) {
+                oosCount++;
+            } else if (qty <= inv.getLowThreshold()) {
+                lowCount++;
+            }
+        }
+        int fillRate = totalCap > 0 ? totalBook * 100 / totalCap : 0;
+        int oosRate = listedCount > 0 ? oosCount * 100 / listedCount : 0;
+        // 货道维度的 lastRestockAt 对开门柜恒空，回落最近完成补货任务（与有货道路径同款兜底）
+        Instant lastRestock = taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null);
+        String[] merchantContacts = resolveMerchantContacts(device);
+        return new DeviceOpsMetricsDto(
+                deviceId,
+                0,
+                0,
+                fillRate,
+                oosRate,
+                oosCount,
+                lowCount,
+                totalBook,
+                totalCap,
+                lastRestock,
+                100,
+                device.getAddress(),
+                device.getCurrentTempC(),
+                device.getTargetTempC(),
+                device.getTempReportedAt(),
+                device.salesLockedEnabled(),
+                device.getAppVersion(),
+                device.getFirmwareVersion(),
+                device.getAlertContactName(),
+                device.getAlertContactPhone(),
+                countNearExpiryLots(deviceId),
+                merchantContacts[0],
+                merchantContacts[1],
                 monthRevenueCents(deviceId)
         );
     }

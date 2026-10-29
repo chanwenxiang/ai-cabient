@@ -26,7 +26,8 @@ const visible = ref(false);
 const saving = ref(false);
 const transferId = ref<string | number | null>(null);
 const transferNo = ref('');
-const lines = ref<Array<TransferLine & { receivedQty: number }>>([]);
+type ReceiveRow = TransferLine & { receivedQty: number; lossReason?: string };
+const lines = ref<ReceiveRow[]>([]);
 
 const LOSS_REASONS = [
   { value: 'HANDLING_DAMAGE', label: '搬运破损' },
@@ -36,15 +37,19 @@ const LOSS_REASONS = [
   { value: 'OTHER', label: '其他' }
 ];
 
-/** 每行：损耗 = 发运 − 实收（自动算，只读展示）。 */
-const derived = computed(() =>
-  lines.value.map((l) => ({
-    ...l,
-    loss: Math.max(0, (Number(l.quantity) || 0) - (Number(l.receivedQty) || 0))
-  }))
-);
+/**
+ * 每行：损耗 = 发运 − 实收（自动算，只读展示）。
+ *
+ * 🔴 D28-B14：**不要在 computed 里先 `{...l}` 拷一份行对象**再让输入框 v-model 写它 ——
+ * 拷贝是普通对象（非响应式），写进去既不触发重算，`loss` 也永远停在打开弹窗时的值
+ * ⇒ 界面损耗恒 0、提交 `lossQty` 恒 0，后端 `TransferLossValidator` 直接 400，
+ * 「有损耗的收货」根本存不下去。改为**就地按行算**，表格直接绑 `lines`。
+ */
+function lossOf(l: ReceiveRow): number {
+  return Math.max(0, (Number(l.quantity) || 0) - (Number(l.receivedQty) || 0));
+}
 
-const totalLoss = computed(() => derived.value.reduce((s, l) => s + l.loss, 0));
+const totalLoss = computed(() => lines.value.reduce((s, l) => s + lossOf(l), 0));
 const hasLoss = computed(() => totalLoss.value > 0);
 
 function open(id: string | number, no: string, rawLines: TransferLine[]) {
@@ -61,7 +66,7 @@ function open(id: string | number, no: string, rawLines: TransferLine[]) {
 async function save() {
   if (transferId.value == null) return;
   // 🔴 前端先校验一次（后端也会拒，但当场提示比往返一轮更好）
-  for (const l of derived.value) {
+  for (const l of lines.value) {
     if (l.receivedQty < 0) {
       ElMessage.warning('实收数量不能为负');
       return;
@@ -70,19 +75,26 @@ async function save() {
       ElMessage.warning(`实收不能大于发运数量（${l.quantity}）`);
       return;
     }
+    // 占位符写着「必填」就别偷偷替人填 OTHER：宁可当场拦下（后端也要求有损必有因）
+    if (lossOf(l) > 0 && !l.lossReason) {
+      ElMessage.warning(`${l.skuId || '有行'} 有损耗，请选择损耗原因`);
+      return;
+    }
   }
   saving.value = true;
   try {
     await api.request(AdminEndpoints.warehouseTransferReceive(transferId.value), 'POST', {
-      lines: derived.value.map((l) => ({
-        lineId: l.lineId,
-        receivedQty: l.receivedQty,
-        // 损耗仍显式传（与服务端算出的 derived 保持一致），
-        // 服务端会比对：手填的 loss 与「发运−实收」不符会 400
-        lossQty: l.loss,
-        lossReason: l.loss > 0 ? (l as { lossReason?: string }).lossReason || 'OTHER' : undefined,
-        lossNote: l.loss > 0 ? (l as { lossNote?: string }).lossNote || undefined : undefined
-      }))
+      lines: lines.value.map((l) => {
+        const loss = lossOf(l);
+        return {
+          lineId: l.lineId,
+          receivedQty: l.receivedQty,
+          // 损耗仍显式传（与服务端算出的 derived 保持一致），
+          // 服务端会比对：手填的 loss 与「发运−实收」不符会 400
+          lossQty: loss,
+          lossReason: loss > 0 ? l.lossReason : undefined
+        };
+      })
     });
     visible.value = false;
     ElMessage.success(hasLoss.value ? `已收货（在途损耗 ${totalLoss.value} 件）` : '已收货入库');
@@ -107,7 +119,7 @@ defineExpose({ open });
       title="实收数量与发运量不一致时，差额会自动记为「在途损耗」，请填损耗原因。"
       style="margin-bottom: 12px"
     />
-    <el-table :data="derived" border size="small" row-key="lineId">
+    <el-table :data="lines" border size="small" row-key="lineId">
       <el-table-column prop="skuId" label="SKU" min-width="130" />
       <el-table-column prop="batchNo" label="批次" min-width="100" />
       <el-table-column prop="quantity" label="发运" width="80" align="right" />
@@ -125,15 +137,15 @@ defineExpose({ open });
       </el-table-column>
       <el-table-column label="损耗" width="80" align="right">
         <template #default="{ row }">
-          <span :style="row.loss > 0 ? 'color: var(--el-color-danger); font-weight: 600' : ''">
-            {{ row.loss }}
+          <span :style="lossOf(row) > 0 ? 'color: var(--el-color-danger); font-weight: 600' : ''">
+            {{ lossOf(row) }}
           </span>
         </template>
       </el-table-column>
       <el-table-column label="损耗原因" min-width="150">
         <template #default="{ row }">
           <el-select
-            v-if="row.loss > 0"
+            v-if="lossOf(row) > 0"
             v-model="row.lossReason"
             size="small"
             placeholder="必填"

@@ -27,9 +27,18 @@ public interface WarehouseOutboundMapper extends BaseTradeMapper<WarehouseOutbou
 
     /** page 为 0-based。 */
     default Page<WarehouseOutbound> searchPage(String keyword, String warehouseId, int page, int size) {
+        return searchPage(keyword, warehouseId, null, page, size);
+    }
+
+    /** D28-B5：status 可选（运营台出库页签状态筛选走服务端，别再客户端过滤分页页）。 */
+    default Page<WarehouseOutbound> searchPage(
+            String keyword, String warehouseId, String status, int page, int size) {
         var query = Wrappers.<WarehouseOutbound>lambdaQuery().orderByDesc(WarehouseOutbound::getCreatedAt);
         if (warehouseId != null && !warehouseId.isBlank()) {
             query.eq(WarehouseOutbound::getWarehouseId, warehouseId.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(WarehouseOutbound::getStatus, status.trim().toUpperCase());
         }
         if (keyword != null && !keyword.isBlank()) {
             String kw = keyword.trim();
@@ -45,6 +54,18 @@ public interface WarehouseOutboundMapper extends BaseTradeMapper<WarehouseOutbou
             });
         }
         return selectPage(new Page<>(page + 1L, size), query);
+    }
+
+    /** D28-B3：服务端全量 CSV 导出按仓/状态过滤（null/空白＝不过滤）。 */
+    default List<WarehouseOutbound> findAllFiltered(String warehouseId, String status) {
+        var query = Wrappers.<WarehouseOutbound>lambdaQuery().orderByDesc(WarehouseOutbound::getCreatedAt);
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            query.eq(WarehouseOutbound::getWarehouseId, warehouseId.trim());
+        }
+        if (status != null && !status.isBlank()) {
+            query.eq(WarehouseOutbound::getStatus, status.trim().toUpperCase());
+        }
+        return selectList(query);
     }
 
 }

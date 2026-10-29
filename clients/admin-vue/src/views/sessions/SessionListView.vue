@@ -812,12 +812,25 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
-/** 焦点会话打开：fetchPage 注入兜底行后调用（rows 已包含该行） */
+/** 焦点会话只自动弹一次时间线的闸：刷新 / 自动刷新 / 同焦点重查都不再重复弹抽屉 */
+let lastAutoOpenedFocusSid = '';
+
+/**
+ * 焦点会话打开：fetchPage 注入兜底行后调用（rows 已包含该行）。
+ * 修复（2026-10-29）：原先无条件 openTimeline，导致从柜机详情带 sessionId 进来后
+ * 每点一次「刷新」就重弹一次会话时间线抽屉。现按焦点 sid 记账——同一焦点只弹一次；
+ * 焦点清空（离开 / 重置）时清账，再次从柜机详情点「查看」仍会正常弹出。
+ */
 async function maybeOpenFocusedSession(rows: SessionRow[]) {
   const sid = focusSessionId.value.trim();
-  if (!sid) return;
+  if (!sid) {
+    lastAutoOpenedFocusSid = '';
+    return;
+  }
+  if (lastAutoOpenedFocusSid === sid) return;
   const hit = rows.find((r) => r.sessionId === sid);
   if (hit) {
+    lastAutoOpenedFocusSid = sid;
     await nextTick();
     openTimeline(hit);
   }
@@ -1056,17 +1069,24 @@ onActivated(() => {
     var(--el-table-bg-color, #fff)
   ) !important;
 }
-/* 固定操作列保持实心底，避免滞留/临近高亮行透视 */
+/* 固定操作列保持实心底，避免滞留/临近/焦点高亮行透视 */
 :deep(.el-table .is-overdue > td.el-table-fixed-column--right),
-:deep(.el-table .is-due-soon > td.el-table-fixed-column--right) {
+:deep(.el-table .is-due-soon > td.el-table-fixed-column--right),
+:deep(.el-table .is-focus > td.el-table-fixed-column--right) {
   background: var(--el-table-bg-color, #fff) !important;
 }
 :deep(.el-table--striped .is-overdue.el-table__row--striped > td.el-table-fixed-column--right),
-:deep(.el-table--striped .is-due-soon.el-table__row--striped > td.el-table-fixed-column--right) {
+:deep(.el-table--striped .is-due-soon.el-table__row--striped > td.el-table-fixed-column--right),
+:deep(.el-table--striped .is-focus.el-table__row--striped > td.el-table-fixed-column--right) {
   background: var(--el-fill-color-lighter, #fafafa) !important;
 }
+/* 焦点会话行：整行浅主题色底（2026-10-29 由逐格描边改形态——描边逐单元格绘制
+   会在行内出现竖向青线，视觉上像样式错乱；底色形态与滞留/临近行同一语言） */
 :deep(.el-table .is-focus > td.el-table__cell) {
-  outline: 1px solid color-mix(in srgb, var(--el-color-primary) 45%, transparent);
-  outline-offset: -1px;
+  background: color-mix(
+    in srgb,
+    var(--el-color-primary) 7%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 </style>

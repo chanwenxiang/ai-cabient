@@ -38,7 +38,12 @@ interface SummaryRow {
 }
 
 const auth = useAuthStore();
-const canList = computed(() => auth.hasPerm('ops:replenishment:list'));
+/**
+ * D28-B9：本页两个 GET（`/inventory/write-off/claims` 与 `.../claims/summary`）后端都要
+ * `ops:replenishment:edit`（`OpsReplenishmentController:230/245`）——此前按 `:list` 判，
+ * 有「查看」没「编辑」的人照样看到表格，但每个请求都 403（页面像坏了）。按后端码配对。
+ */
+const canView = computed(() => auth.hasPerm('ops:replenishment:edit'));
 
 const partyFilter = ref<string>('');
 const summary = ref<SummaryRow[]>([]);
@@ -95,7 +100,7 @@ async function loadSummary() {
     summaryLoading.value = false;
   }
 }
-void loadSummary();
+if (canView.value) void loadSummary();
 
 function onPartyFilter() {
   void crud.load();
@@ -141,7 +146,7 @@ function locationLabel(r: ClaimRow) {
         <div class="card-header">
           <span>按责任方汇总（谁该赔多少钱）</span>
           <el-button
-            v-if="canList"
+            v-if="canView"
             :loading="summaryLoading"
             data-testid="claim-summary-refresh"
             @click="loadSummary"
@@ -197,7 +202,7 @@ function locationLabel(r: ClaimRow) {
          改索赔额 = 改一笔「要向人追的钱」，属资金相关动作必须留痕（走���端审计），
          表格内联编辑做不到。 -->
     <CrudTable
-      v-if="canList"
+      v-if="canView"
       :table="crud"
       row-key="writeOffId"
       :empty-text="'暂无待索赔记录（责任方未认定 或 索赔额为 0 的记录不列入）'"
@@ -256,7 +261,7 @@ function locationLabel(r: ClaimRow) {
         <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
     </CrudTable>
-    <el-empty v-else description="无「仓储补货查看」权限" />
+    <el-empty v-else description="无「仓储补货编辑」权限" />
   </el-card>
 </template>
 

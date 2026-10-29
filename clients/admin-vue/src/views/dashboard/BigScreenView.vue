@@ -656,7 +656,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   SESSION_STALE: '会话',
   RECON_MISMATCH: '对账',
   SPLIT_EXCEPTION: '分账',
-  IN_TRANSIT_OVERDUE: '在途'
+  IN_TRANSIT_OVERDUE: '未上柜'
 };
 function actionTypeLabel(type?: string): string {
   const t = (type || '').toUpperCase();

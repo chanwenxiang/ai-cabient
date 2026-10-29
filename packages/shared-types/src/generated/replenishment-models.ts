@@ -20,6 +20,8 @@ export type OpenApiMerchantSelfReplenishRequest = components['schemas']['Merchan
 export type OpenApiMerchantSelfReplenishLine = components['schemas']['MerchantSelfReplenishLine'];
 /** 补货任务 */
 export type OpenApiReplenishmentTaskDto = components['schemas']['ReplenishmentTaskDto'];
+/** 开门柜可补量下发（D28-A5/CB-075：与提交封顶同一个数） */
+export type OpenApiReplenishmentHeadroomDto = components['schemas']['ReplenishmentHeadroomDto'];
 /** 首页备货清单柜机模块（CB-073，按柜机分组 + 组内 SKU 聚合 + 件装数换算） */
 export type OpenApiMerchantPrepGroupDto = components['schemas']['MerchantPrepGroupDto'];
 /** 手动生成备货单预览柜机组（A 方案，补满口径按柜分组） */

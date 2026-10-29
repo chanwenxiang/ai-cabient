@@ -55,6 +55,7 @@ public class DeviceAssetService {
     private final DeviceLifecycleEventMapper lifecycleEventMapper;
     private final DeviceSkuInventoryMapper inventoryMapper;
     private final DeviceSkuLotMapper lotMapper;
+    private final InventoryLotService inventoryLotService;
     private final SkuCatalogMapper skuCatalogMapper;
     private final MerchantMapper merchantMapper;
     private final MerchantScopeService merchantScopeService;
@@ -68,6 +69,7 @@ public class DeviceAssetService {
                               DeviceLifecycleEventMapper lifecycleEventMapper,
                               DeviceSkuInventoryMapper inventoryMapper,
                               DeviceSkuLotMapper lotMapper,
+                              InventoryLotService inventoryLotService,
                               SkuCatalogMapper skuCatalogMapper,
                               MerchantMapper merchantMapper,
                               MerchantScopeService merchantScopeService,
@@ -78,6 +80,7 @@ public class DeviceAssetService {
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.inventoryMapper = inventoryMapper;
         this.lotMapper = lotMapper;
+        this.inventoryLotService = inventoryLotService;
         this.skuCatalogMapper = skuCatalogMapper;
         this.merchantMapper = merchantMapper;
         this.merchantScopeService = merchantScopeService;
@@ -281,10 +284,10 @@ public class DeviceAssetService {
         Map<String, SkuCatalog> skus = skuCatalogMapper.findAll().stream()
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
         List<StockHealthRowDto> rows = new ArrayList<>();
-        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Set<String>> lotSkusByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         if (!NEAR_EXPIRY.equals(dim)) {
-            appendInventoryHealthRows(rows, devices, skus, dim, ledgerByDevice, sellableByDevice);
+            appendInventoryHealthRows(rows, devices, skus, dim, lotSkusByDevice, sellableByDevice);
         }
         if (NEAR_EXPIRY.equals(dim) || "ALL".equals(dim)) {
             appendNearExpiryRows(rows, devices, skus, loadCapacityByDeviceSku(devices.keySet()));
@@ -325,14 +328,14 @@ public class DeviceAssetService {
                                            Map<String, DeviceInfo> devices,
                                            Map<String, SkuCatalog> skus,
                                            String dim,
-                                           Map<String, Boolean> ledgerByDevice,
+                                           Map<String, Set<String>> lotSkusByDevice,
                                            Map<String, Map<String, Integer>> sellableByDevice) {
         List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
                 .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
         for (DeviceSkuInventory row : inv) {
             DeviceInfo device = devices.get(row.getDeviceId());
             if (device != null) {
-                int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
+                int qty = effectiveSellableQty(row, lotSkusByDevice, sellableByDevice);
                 boolean stockout = qty <= 0;
                 boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
                 if (matchesInventoryHealthDimension(dim, stockout, low)) {
@@ -482,25 +485,26 @@ public class DeviceAssetService {
         return COOP.contains(s) ? s : null;
     }
 
+    /**
+     * 库存健康页的「账面量」：SKU 级判据（D28-A6）。
+     *
+     * <p>只有**这个 SKU 进过批次账本**才以账本可售为准（卖光/过期=0 是事实）；
+     * 没进过账本的 SKU 一律回退 {@code device_sku_inventory.quantity}。
+     * 🔴 禁止按设备级 {@code deviceUsesLotLedger}（整机有没有任意 lot 行）一刀切——
+     * 那会把同柜从未进过账本的 SKU 读成 0（假缺货），与补货建议量（{@code bookQtyForSuggest}）
+     * 和商户端库存页两套数字当面打架。
+     */
     private int effectiveSellableQty(DeviceSkuInventory row,
-                                     Map<String, Boolean> ledgerByDevice,
+                                     Map<String, Set<String>> lotSkusByDevice,
                                      Map<String, Map<String, Integer>> sellableByDevice) {
         String deviceId = row.getDeviceId();
-        boolean ledger = ledgerByDevice.computeIfAbsent(deviceId,
-                d -> !lotMapper.findByDeviceId(d).isEmpty());
-        if (!ledger) {
+        Set<String> lotSkus = lotSkusByDevice.computeIfAbsent(deviceId,
+                inventoryLotService::lotLedgerSkuIds);
+        if (!lotSkus.contains(row.getSkuId())) {
             return row.getQuantity();
         }
-        Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(deviceId, d -> {
-            Map<String, Integer> map = new HashMap<>();
-            for (Object[] r : lotMapper.sumSellableBySku(d)) {
-                if (r == null || r.length < 2 || r[0] == null || r[1] == null) {
-                    continue;
-                }
-                map.merge(String.valueOf(r[0]), ((Number) r[1]).intValue(), Integer::sum);
-            }
-            return map;
-        });
+        Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(deviceId,
+                inventoryLotService::sellableQtyBySku);
         return bySku.getOrDefault(row.getSkuId(), 0);
     }
 

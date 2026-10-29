@@ -58,6 +58,11 @@ export const OPENAPI_ALIAS_GROUPS = [
       },
       { name: 'OpenApiReplenishmentTaskDto', schema: 'ReplenishmentTaskDto', comment: '补货任务' },
       {
+        name: 'OpenApiReplenishmentHeadroomDto',
+        schema: 'ReplenishmentHeadroomDto',
+        comment: '开门柜可补量下发（D28-A5/CB-075：与提交封顶同一个数）'
+      },
+      {
         name: 'OpenApiMerchantPrepGroupDto',
         schema: 'MerchantPrepGroupDto',
         comment: '首页备货清单柜机模块（CB-073，按柜机分组 + 组内 SKU 聚合 + 件装数换算）'

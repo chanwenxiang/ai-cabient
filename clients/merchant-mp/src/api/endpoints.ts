@@ -91,7 +91,7 @@ export const MerchantEndpoints = {
   replenishmentTasks: `${API_PREFIX}/merchant/replenishment/tasks`,
   /** 首页备货清单（CB-072）：进行中任务出库行按 SKU 聚合 + 件装数换算 + 仓库库存 */
   replenishmentPrepList: `${API_PREFIX}/merchant/replenishment/prep-list`,
-  /** 手动生成备货单预览（A 方案）：按柜分组、按「补满」口径（上限−实际−在途） */
+  /** 手动生成备货单预览（A 方案）：按柜分组、按「补满」口径（上限−实际−已领未上柜） */
   replenishmentPrepPreview: `${API_PREFIX}/merchant/replenishment/prep-preview`,
   replenishmentTasksByStatus: (status: string) =>
     `${API_PREFIX}/merchant/replenishment/tasks?status=${encodeURIComponent(status)}`,
@@ -101,6 +101,13 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/door-session`,
   replenishmentTaskLines: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/lines`,
+  /**
+   * D28-A5（CB-075）：开门柜「可补量」下发。后端 `assertDoorCabinetHeadroom` 提交时用的
+   * 就是同一个数（上限 − 在架 − 他单已领未上柜），此前小程序自己只算「上限 − 在架」，
+   * 少扣一层 ⇒ 加得进去、点提交才 400。货道柜返回空数组（上限来自货道，不走台账）。
+   */
+  replenishmentTaskHeadroom: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/headroom`,
   replenishmentTaskCheckIn: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/check-in`,
   replenishmentTaskOpenDoor: (taskId: number | string) =>

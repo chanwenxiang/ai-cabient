@@ -277,18 +277,30 @@ public class MerchantSkuPricingService {
         return rows;
     }
 
+    /**
+     * 可售量按 <b>SKU 级</b>判据取（D28-A6）：只有这个 SKU 进过批次账本才以账本可售为准，
+     * 没进过的回退 {@code device_sku_inventory.quantity}。
+     * 🔴 禁止 {@code deviceUsesLotLedger} 设备级一刀切——会把同柜从未进账本的 SKU 读成 0，
+     * 与库存页/补货建议量数字打架。
+     */
     private Map<String, Integer> resolveSellableQtyBySku(String deviceId,
                                                          List<DeviceSkuInventory> invRows,
                                                          Set<String> skuIds) {
-        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
-            Map<String, Integer> qtyBySku = new HashMap<>(inventoryLotService.sellableQtyBySku(deviceId));
-            for (String skuId : skuIds) {
-                qtyBySku.putIfAbsent(skuId, 0);
-            }
-            return qtyBySku;
+        Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+        Map<String, Integer> ledgerQty = lotSkus.isEmpty()
+                ? Map.of()
+                : inventoryLotService.sellableQtyBySku(deviceId);
+        Map<String, Integer> bookQty = new HashMap<>();
+        for (DeviceSkuInventory row : invRows) {
+            bookQty.merge(row.getId().getSkuId(), row.getQuantity(), Integer::sum);
         }
-        return invRows.stream()
-                .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
+        Map<String, Integer> qtyBySku = new HashMap<>();
+        for (String skuId : skuIds) {
+            qtyBySku.put(skuId, lotSkus.contains(skuId)
+                    ? ledgerQty.getOrDefault(skuId, 0)
+                    : bookQty.getOrDefault(skuId, 0));
+        }
+        return qtyBySku;
     }
 
     @Transactional
@@ -343,7 +355,8 @@ public class MerchantSkuPricingService {
                     formatPriceChangeAuditDetail(sku.getPriceCents(), oldOverride, newPrice));
         }
 
-        int qty = inventoryLotService.deviceUsesLotLedger(deviceId)
+        // SKU 级判据（D28-A6）：只有本 SKU 建过批次账才以账本可售为准，否则回退账面
+        int qty = inventoryLotService.lotLedgerSkuIds(deviceId).contains(skuId)
                 ? inventoryLotService.sellableQuantity(deviceId, skuId)
                 : inventoryRepository.findByIdDeviceId(deviceId).stream()
                         .filter(r -> skuId.equals(r.getId().getSkuId()))

@@ -460,6 +460,7 @@ export type {
   OpenApiMerchantPrepGroupDto,
   OpenApiMerchantPrepPreviewGroupDto,
   OpenApiMerchantPrepPreviewItemDto,
+  OpenApiReplenishmentHeadroomDto,
   OpenApiReplenishmentTaskLineDto,
   OpenApiSubmitReplenishmentLinesRequest,
   OpenApiPullOffTaskDto,

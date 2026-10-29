@@ -338,6 +338,10 @@ public class ReplenishmentService {
      * 批量聚合各任务「未分配货道的 RESTOCK 行数」（applied=false 且 slot_id 空）。
      * CB-038（2026-10-14）重建「待分配」能力：替代已删的 admin 端逐任务拉明细（N 次请求），
      * 改为列表一次聚合；一台任务 0 = 货道全就绪。
+     *
+     * <p>铁律 78：开门柜（判据=将邑绑定）按商品备货，补货行恒无货道（{@code slot_id} 为空是常态，
+     * 见 {@link #applyPendingReplenishmentLines} 的归一逻辑），对它们「待分配」恒等「未上架行数」⇒ 徽章常亮、
+     * 「仅待分配」筛选命中全部开门柜。故开门柜任务一律不计数。
      */
     private Map<Long, Integer> unassignedRestockByTask(List<ReplenishmentTask> tasks) {
         if (tasks.isEmpty()) {
@@ -358,10 +362,21 @@ public class ReplenishmentService {
                 .and(w -> w.isNull("slot_id").or().eq("slot_id", ""))
                 .groupBy("task_id"));
         Map<Long, Integer> byTask = new HashMap<>();
+        Map<Long, String> deviceByTask = new HashMap<>();
+        for (ReplenishmentTask t : tasks) {
+            if (t.getTaskId() != null && t.getDeviceId() != null && !t.getDeviceId().isBlank()) {
+                deviceByTask.put(t.getTaskId(), t.getDeviceId().trim());
+            }
+        }
+        Map<String, Boolean> doorByDevice = new HashMap<>();
         for (Map<String, Object> row : rows) {
             Object tid = row.get("task_id");
             Object cnt = row.get("cnt");
             if (tid instanceof Number idNum && cnt instanceof Number cntNum) {
+                String device = deviceByTask.get(idNum.longValue());
+                if (device != null && doorByDevice.computeIfAbsent(device, deviceSlotService::isDoorCabinet)) {
+                    continue;
+                }
                 byTask.put(idNum.longValue(), cntNum.intValue());
             }
         }
@@ -785,11 +800,48 @@ public class ReplenishmentService {
     }
 
     /**
-     * 开门柜提交数量台账封顶（2026-10-28）：可补量 = 台账 capacity − 在架 quantity − **他人**在途。
-     * 在途必须排除本任务自己的出库单（见 InTransitService.qtyBySkuForDeviceExcludingOutbound），
-     * 否则本任务建议量本身都过不了闸。同 SKU 多行（多批次）按合计校验。
-     * capacity≤0 视为未配置容量（历史设备数据），不拦——上限依据缺失时 fail-open，
-     * 录入容量后自动生效。并发口子：submitTaskLines 只锁任务不锁设备，两任务并发提交
+     * D28-A5（CB-075）：开门柜可补量的**唯一出处**——提交封顶与商户端录入共用同一个数，
+     * 别再各算一层（此前小程序只算「上限 − 在架」，少扣他单在途 ⇒「能加进去、点提交才 400」）。
+     * 可补量 = 台账 capacity − 在架 quantity − **他人**在途。
+     * 在途必须排除本任务自己的出库单（见 InTransitService.qtyBySkuForDeviceExcludingOutbound、
+     * CB-075 结论 ②）：本单已领未上柜就是这一趟要装进柜机的货，扣掉等于自己挡自己上架。
+     * capacity≤0 或未建台账行的 SKU 不进结果＝不设限（上限依据缺失时 fail-open，录入容量后自动生效）。
+     */
+    private Map<String, ReplenishmentHeadroomDto> doorCabinetHeadroomBySku(ReplenishmentTask task) {
+        Map<String, DeviceSkuInventory> invBySku = inventoryRepository.findByIdDeviceId(task.getDeviceId())
+                .stream()
+                .collect(Collectors.toMap(DeviceSkuInventory::getSkuId, i -> i, (a, b) -> a, LinkedHashMap::new));
+        Map<String, Integer> otherInTransitBySku = inTransitService
+                .qtyBySkuForDeviceExcludingOutbound(task.getDeviceId(), task.getOutboundId());
+        Map<String, ReplenishmentHeadroomDto> headroomBySku = new LinkedHashMap<>();
+        for (DeviceSkuInventory inv : invBySku.values()) {
+            if (inv.getCapacity() <= 0) {
+                continue;
+            }
+            int otherInTransit = otherInTransitBySku.getOrDefault(inv.getSkuId(), 0);
+            int room = Math.max(0, inv.getCapacity() - inv.getQuantity() - otherInTransit);
+            headroomBySku.put(inv.getSkuId(), new ReplenishmentHeadroomDto(
+                    inv.getSkuId(), inv.getCapacity(), inv.getQuantity(), otherInTransit, room));
+        }
+        return headroomBySku;
+    }
+
+    /**
+     * D28-A5：只读下发给商户端的录入上限。非开门柜返回空列表——货道柜的上限来自货道
+     * （{@code device_slot}），把台账水位当成另一套上限会让两页数字当面打架。
+     * 🔴 判据与提交校验同一个（{@code deviceSlotService.isDoorCabinet}），别在这里改柜型判定。
+     */
+    @Transactional(readOnly = true)
+    public List<ReplenishmentHeadroomDto> taskHeadroom(ReplenishmentTask task) {
+        if (task == null || !deviceSlotService.isDoorCabinet(task.getDeviceId())) {
+            return List.of();
+        }
+        return List.copyOf(doorCabinetHeadroomBySku(task).values());
+    }
+
+    /**
+     * 开门柜提交数量台账封顶（2026-10-28）：口径见 {@link #doorCabinetHeadroomBySku}，
+     * 同 SKU 多行（多批次）按合计校验。并发口子：submitTaskLines 只锁任务不锁设备，两任务并发提交
      * 同一 SKU 理论可合计越界；商户端单操作员场景下窗口极小，完成链入库仍以实际清点为准。
      */
     private void assertDoorCabinetHeadroom(ReplenishmentTask task, SubmitReplenishmentLinesRequest request) {
@@ -809,24 +861,18 @@ public class ReplenishmentService {
         if (sumBySku.isEmpty()) {
             return;
         }
-        Map<String, DeviceSkuInventory> invBySku = inventoryRepository.findByIdDeviceId(task.getDeviceId())
-                .stream()
-                .collect(Collectors.toMap(DeviceSkuInventory::getSkuId, i -> i, (a, b) -> a));
-        Map<String, Integer> otherInTransitBySku = inTransitService
-                .qtyBySkuForDeviceExcludingOutbound(task.getDeviceId(), task.getOutboundId());
+        Map<String, ReplenishmentHeadroomDto> headroomBySku = doorCabinetHeadroomBySku(task);
         for (Map.Entry<String, Integer> e : sumBySku.entrySet()) {
-            DeviceSkuInventory inv = invBySku.get(e.getKey());
-            if (inv == null || inv.getCapacity() <= 0) {
+            ReplenishmentHeadroomDto headroom = headroomBySku.get(e.getKey());
+            if (headroom == null) {
                 continue;
             }
-            int otherInTransit = otherInTransitBySku.getOrDefault(e.getKey(), 0);
-            int room = Math.max(0, inv.getCapacity() - inv.getQuantity() - otherInTransit);
-            if (e.getValue() > room) {
+            if (e.getValue() > headroom.room()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "商品 " + e.getKey() + " 超出台账可补容量：上限 " + inv.getCapacity()
-                                + "，在架 " + inv.getQuantity()
-                                + "，他单在途 " + otherInTransit
-                                + "，最多再补 " + room);
+                        "商品 " + e.getKey() + " 超出台账可补容量：上限 " + headroom.capacity()
+                                + "，在架 " + headroom.onShelfQty()
+                                + "，他单已领未上柜 " + headroom.otherInTransitQty()
+                                + "，最多再补 " + headroom.room());
             }
         }
     }
@@ -931,15 +977,27 @@ public class ReplenishmentService {
     /** 幂等重入：已完成后补签收在途并关闭会话。 */
     private ReplenishmentTaskDto finalizeAlreadyCompletedTask(
             ReplenishmentTask task, Long operatorId, Long taskId) {
-        // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
-        // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
+        // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收
         if (task.getOutboundId() != null
                 && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
-            int appliedQty = resolveAppliedQtyForCatchUpReceive(task, operatorId, taskId,
-                    hasRealRestockGravitySnapshot(task));
-            receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), appliedQty);
+            receiveCatchUpHandover(task, operatorId, taskId, hasRealRestockGravitySnapshot(task));
         }
         return finishCompletedTaskSideEffects(task, taskId);
+    }
+
+    /**
+     * 幂等重入的成对签收。🔴 只有任务**完全没有明细**时才按出库行回写柜机（整单签收）；
+     * 有明细就只认已应用的实收，差额记 {@code remainder_qty}——否则会与已上架的任务行重复加库存。
+     */
+    private void receiveCatchUpHandover(
+            ReplenishmentTask task, Long operatorId, Long taskId, boolean preservePhysical) {
+        List<ReplenishmentTaskLine> existingLines = taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
+        if (existingLines.isEmpty()) {
+            restockFromOutboundLines(task, operatorId, "OB-" + task.getOutboundId(), preservePhysical);
+            receiveHandoverPairFull(task.getOutboundId(), task.getDeviceId());
+            return;
+        }
+        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), receivedQtyBySkuOf(existingLines));
     }
 
     /**
@@ -966,20 +1024,6 @@ public class ReplenishmentService {
                         .eq(DeviceSkuInventory::getSkuId, inv.getSkuId()));
             }
         }
-    }
-
-    private int resolveAppliedQtyForCatchUpReceive(
-            ReplenishmentTask task, Long operatorId, Long taskId, boolean preservePhysical) {
-        List<ReplenishmentTaskLine> existingLines =
-                taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
-        if (existingLines.isEmpty()) {
-            return restockFromOutboundLines(task, operatorId, "OB-" + task.getOutboundId(), preservePhysical);
-        }
-        return existingLines.stream()
-                .filter(l -> RESTOCK.equalsIgnoreCase(l.getLineType()))
-                .filter(ReplenishmentTaskLine::isApplied)
-                .mapToInt(ReplenishmentTaskLine::getQuantity)
-                .sum();
     }
 
     /**
@@ -1061,43 +1105,59 @@ public class ReplenishmentService {
     /**
      * P1-3：在途签收 + 交接收口的**唯一成对入口**——warehouse_in_transit 与
      * outbound handover 两账必须成对收口（漏一半即脏账，一致性巡检 OUTBOUND_HANDOVER 兜底）。
-     * 新增签收场景一律调用本方法，禁止散写两个服务方法。
+     * 新增签收场景一律调用本方法（或 {@link #receiveHandoverPairFull}），禁止散写两个服务方法。
+     *
+     * <p>CB-074：实收按 SKU 传入，未上满的差额写 {@code warehouse_outbound_line.remainder_qty}；
+     * 在途照样结掉——货确实出了仓，差额是「领而未上」，不是「仍在途」。
      */
-    private void receiveHandoverPair(Long outboundId, String deviceId, int appliedQty) {
+    private void receiveHandoverPair(Long outboundId, String deviceId, Map<String, Integer> receivedQtyBySku) {
         inTransitService.receiveForDevice(outboundId, deviceId);
-        warehouseService.markDeviceHandoverReceived(outboundId, deviceId, appliedQty);
+        warehouseService.markDeviceHandoverReceived(outboundId, deviceId, receivedQtyBySku);
+    }
+
+    /** 整单全量签收：仅在「无现场明细、按出库行入柜」时使用（差额=0）。 */
+    private void receiveHandoverPairFull(Long outboundId, String deviceId) {
+        inTransitService.receiveForDevice(outboundId, deviceId);
+        warehouseService.markDeviceHandoverReceivedFull(outboundId, deviceId);
     }
 
     /**
-     * 出库结案：**柜机只按商户实收数量入账**，出库单按「领货已结」收口，不再按出库量补记库存。
+     * 出库结案：**柜机只按商户实收数量入账**，差额记在出库行 {@code remainder_qty}（领而未上）。
      *
      * <p>2026-10-28 真机事故：任务行只有「雪碧 ×2」（商户实际只上架 2 个雪碧），
      * 旧实现却把出库单上冰红茶 3、加多宝 3 的差额一并写进柜机台账，凭空多出 6 件，
      * 首页「库存偏低」从 2 变 0。根因是把「出库单上的领货量」当成了「现场实收量」。
      *
-     * <p>补货是自提自送：商户从**自有仓**领货、自己带过去上架，没有承运与签收环节，
-     * 出库单只证明货已从仓库出去（在商户手上），不能证明进了哪台柜机。柜机库存的唯一来源
-     * 是现场逐项确认的实收数量。
+     * <p>2026-10-29 同族的另一半：旧实现此时又给整单打上「全量签收」，「领了没上」在三端查不出来，
+     * 月结「上柜」列其实是领货量。现在差额落成行上的未结数量（CB-074：留在原单据行，
+     * 既不自动退回分仓——退回是第二张单据；也不补记进柜机——铁律 78）。
      *
-     * <p>仅在任务**一条 RESTOCK 行都没应用过**时（建单即完成等无现场明细的场景）才按出库行整单入柜。
+     * <p>🔴 分支判据是「任务有没有 RESTOCK 行」，不是「实收合计是否大于 0」：
+     * 铁律 80 要求现场没上的货把行数量减到 0，若按合计判空就会掉进整单入柜分支，
+     * 把商户如实登记的 0 反转成柜机虚增（如实记数反被罚，必然逼着现场乱填）。
+     *
+     * <p>仅在任务**一条 RESTOCK 行都没有**时（建单即完成等无现场明细的场景）才按出库行整单入柜。
      */
     private int receiveOutboundHandover(
             ReplenishmentTask task, Long operatorId, int appliedRestockQty, boolean preservePhysical) {
-        Map<String, Integer> receivedBySku = appliedRestockQtyBySku(task);
-        if (receivedBySku.isEmpty()) {
+        List<ReplenishmentTaskLine> taskLines =
+                taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId());
+        boolean hasRestockLines = taskLines.stream()
+                .anyMatch(line -> RESTOCK.equalsIgnoreCase(line.getLineType()));
+        if (!hasRestockLines) {
             int fromOutbound = restockFromOutboundLines(
                     task, operatorId, "OB-" + task.getOutboundId(), preservePhysical);
-            receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), fromOutbound);
+            receiveHandoverPairFull(task.getOutboundId(), task.getDeviceId());
             return fromOutbound;
         }
-        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), Integer.MAX_VALUE);
+        receiveHandoverPair(task.getOutboundId(), task.getDeviceId(), receivedQtyBySkuOf(taskLines));
         return appliedRestockQty;
     }
 
-    /** 本任务已应用的 RESTOCK 行按 SKU 汇总——即商户逐项确认的实收数量。 */
-    private Map<String, Integer> appliedRestockQtyBySku(ReplenishmentTask task) {
+    /** 已应用的 RESTOCK 行按 SKU 汇总——即商户逐项确认的实收数量（数量为 0 的行不产出实收）。 */
+    private static Map<String, Integer> receivedQtyBySkuOf(List<ReplenishmentTaskLine> lines) {
         Map<String, Integer> bySku = new LinkedHashMap<>();
-        for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId())) {
+        for (ReplenishmentTaskLine line : lines) {
             if (!RESTOCK.equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
                 continue;
             }

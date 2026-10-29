@@ -203,6 +203,20 @@ public class MerchantReplenishmentService {
         return replenishmentService.listTaskLines(taskId);
     }
 
+    /**
+     * D28-A5（CB-075）：录入上限的只读视图——开门柜「上限/在架/他单已领未上柜/可补量」四项一次下发，
+     * 与提交校验同一个出处（{@code ReplenishmentService#doorCabinetHeadroomBySku}）。
+     * 权限门与 {@link #getTaskLines} 同一条：查看权 + 商户准入 + FIELD 包（明细能看就能看上限）。
+     */
+    public List<ReplenishmentHeadroomDto> taskHeadroom(Long userId, Long taskId) {
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        ReplenishmentTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
+        return replenishmentService.taskHeadroom(task);
+    }
+
     @Transactional
     public List<ReplenishmentTaskLineDto> confirmTaskLines(Long userId, Long taskId,
                                                            SubmitReplenishmentLinesRequest body) {
@@ -321,8 +335,8 @@ public class MerchantReplenishmentService {
     }
 
     /**
-     * 补货员自主发起补货（无审批）：判据 = 补货发起权限 + 柜机在本人数据范围内 + 柜机已归仓且该仓存在
-     * （CB-068 A 档，2026-10-27；不再要求「我是该分仓负责人」）。
+     * 补货员自主发起补货（无审批）：判据 = 补货发起权限 + 柜机在本人数据范围内 + **柜机所属商户开通 FIELD 包**
+     * + 柜机已归仓且该仓存在（CB-068 A 档，2026-10-27；不再要求「我是该分仓负责人」）。
      * 通过后直接从该分仓扣账生成出库 + 补货任务，直达补货员任务列表
      * （SATELLITE_WAREHOUSE.md 口径：日常补柜不申请要货）。
      */
@@ -348,6 +362,11 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "柜机 " + deviceId + " 不在你的数据范围内，请联系管理员为该账号分配商户或货柜");
         }
+        // D28-A9（2026-10-29 用户拍板「取更严」）：发起腿补上 FIELD 包判据，与其余入口同一条链。
+        // 改前本方法是全链路**唯一**只判裸数据范围的入口（建议/明细/上限/签到/开门/预览都走
+        // requireDevicePack(FIELD)）⇒「没开包的商户名下柜机能扣分仓库存生成出库，却看不到补货建议」：
+        // 会动库存的写腿比只读的读腿还松。
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         String homeWarehouseId = device.getHomeWarehouseId();
         if (homeWarehouseId == null || homeWarehouseId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

@@ -385,7 +385,13 @@ export const AdminEndpoints = {
       : `${ops}/warehouse/list?${query.toString()}`,
   warehouseListAll: `${ops}/warehouse/list?${adminCatalogQuery()}`,
   warehouseItem: (warehouseId: string) => `${ops}/warehouse/${encodeURIComponent(warehouseId)}`,
-  warehouseExport: (tab: string) => `${ops}/warehouse/export?tab=${encodeURIComponent(tab)}`,
+  /** D28-B3/B5：inventory/movements 传 warehouseId、outbounds 传 status——服务端导出跟随页面筛选。 */
+  warehouseExport: (tab: string, opts?: { warehouseId?: string; status?: string }) => {
+    const q = new URLSearchParams({ tab });
+    if (opts?.warehouseId) q.set('warehouseId', opts.warehouseId);
+    if (opts?.status) q.set('status', opts.status);
+    return `${ops}/warehouse/export?${q.toString()}`;
+  },
   warehouseInbound: `${ops}/warehouse/inbound`,
   warehouseOutbounds: (query: URLSearchParams | string) =>
     typeof query === 'string'
@@ -422,7 +428,7 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/monthly-close?${query}`
       : `${ops}/warehouse/monthly-close?${query.toString()}`,
-  /** 月结「上柜」列下钻：件数分别装进了哪台柜、出自哪张出库单。 */
+  /** 月结「领货」列下钻：件数分别装进了哪台柜、出自哪张出库单，并拆出上柜实收与领而未上。 */
   warehouseMonthlyCloseRestockDetail: (query: URLSearchParams | string) =>
     `${ops}/warehouse/monthly-close/restock-detail?${
       typeof query === 'string' ? query : query.toString()

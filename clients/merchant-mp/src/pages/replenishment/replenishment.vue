@@ -417,7 +417,8 @@ import { useReplenishmentShell } from '@/composables/useReplenishmentShell';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { showDevTools } from '@/utils/runtime-flags';
-import type { DeviceSlot } from '@aicabinet/shared-types';
+import { doorHeadroomForSku } from '@/utils/replenishment-headroom';
+import type { DeviceSlot, OpenApiReplenishmentHeadroomDto } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
@@ -520,6 +521,11 @@ const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
 /** skuId -> { quantity, capacity }：开门柜补货上限数据源（台账），详情打开时加载 */
 const inventoryCaps = ref<Record<string, { quantity: number; capacity: number }>>({});
+/**
+ * skuId -> 后端下发的可补量（D28-A5）。与提交封顶同一个数，
+ * 录入 `+` 与详情收敛都从这里取，客户端不再自己算第二层。
+ */
+const headroomBySku = ref<Record<string, OpenApiReplenishmentHeadroomDto>>({});
 const skipLocationCheck = ref(canSkipLocation && getSkipCheckInLocation());
 
 const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog({
@@ -553,6 +559,7 @@ const {
   slotCaps,
   deviceSlotsList,
   inventoryCaps,
+  headroomBySku,
   focusTaskId,
   filterDeviceId,
   status,
@@ -662,28 +669,28 @@ const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenis
   isPullOffType,
   isDoorCabinet: () => doorCabinet.value,
   inventoryCaps,
+  headroomBySku,
   formatLineSummary,
   slotHeadroom
 });
 
 /**
- * 存量任务行超过台账可补量时按上限收敛（2026-10-28 用户实测）：
- * 任务 8 的行 quantity=9，而台账 capacity=4 / 在架 2 ⇒ 最多只能补 2，
+ * 存量任务行超过可补量时按上限收敛（2026-10-28 用户实测，D28-A5 改用后端下发口径）：
+ * 任务 8 的行 quantity=9，而后端下发 上限 4 / 在架 2 / 他单已领未上柜 0 ⇒ 最多只能补 2，
  * 打开详情看到 9 会让人以为「根本没限制」。只处理开门柜、未确认、RESTOCK 行、
- * 台账容量已配置的行；只减不加（绝不把操作员手上的数改大），收敛后给一条提示。
+ * 有上限依据的行；只减不加（绝不把操作员手上的数改大），收敛后给一条提示。
  */
 watch(
-  [inventoryCaps, doorCabinet, linesConfirmed, lines],
+  [headroomBySku, inventoryCaps, doorCabinet, linesConfirmed, lines],
   () => {
     if (!doorCabinet.value || linesConfirmed.value) return;
     let clamped = 0;
     for (const line of lines.value) {
       if (isPullOffType(line.lineType)) continue;
-      const inv = inventoryCaps.value[String(line.skuId || '').trim()];
-      if (!inv || !(Number(inv.capacity) > 0)) continue;
-      const room = Math.max(0, Number(inv.capacity) - (Number(inv.quantity) || 0));
-      if ((Number(line.quantity) || 0) > room) {
-        line.quantity = room;
+      const headroom = doorHeadroomForSku(line.skuId, headroomBySku.value, inventoryCaps.value);
+      if (!headroom) continue;
+      if ((Number(line.quantity) || 0) > headroom.room) {
+        line.quantity = headroom.room;
         clamped += 1;
       }
     }

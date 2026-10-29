@@ -248,11 +248,26 @@ const BASE_NAV: NavItem[] = [
     keywords: ['库存', '批次', '盘点', '流水', '月结', 'stock']
   },
   {
+    path: '/warehouse/reconciliation',
+    title: '供应商对账单',
+    group: '仓储',
+    // 🔴 D28-B15：V326 上线时漏登记侧栏——路由在（warehouse/reconciliation）但 findNavByPath
+    //   解析不到 ⇒ beforeEach fail-closed，直链必 403，页面成死路。
+    //   菜单码沿用兄弟子页口径 `ops:warehouse:list`（ACTIVE 菜单表里没有任何行用
+    //   ops:procurement:list，挂它会过 hasPerm 却卡 isNavMenuActive ⇒ 仍然 403）；
+    //   「生成对账单」按钮由页内 canList（ops:procurement:list，= 后端注解）收口，
+    //   只有查看权的人看到页壳 + 「无采购查看权限」空态。
+    perm: 'ops:warehouse:list',
+    keywords: ['对账', '供应商', '月度对账', 'reconciliation']
+  },
+  {
     path: '/warehouse/fulfillment',
-    title: '调拨与在途',
+    // 🔴 铁律 80 / CB-074（2026-10-29）：分仓→柜是补货员**自提自送**，没有「在途」这一段
+    //   ——旧标题把它说成柜机那边也有运输在途。本页 = 出库领货 + 跨仓调拨。
+    title: '领货与调拨',
     group: '仓储',
     perm: 'ops:warehouse:list',
-    keywords: ['调拨', '出库', '在途', '履约']
+    keywords: ['调拨', '出库', '领货', '上柜', '未结', '履约']
   },
   {
     path: '/ota',

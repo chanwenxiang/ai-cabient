@@ -4,5 +4,8 @@ import WarehouseView from './WarehouseView.vue';
 </script>
 
 <template>
-  <WarehouseView :only="['transfers', 'outbounds', 'transit']" />
+  <WarehouseView
+    :only="['transfers', 'outbounds', 'transit']"
+    hint="柜机侧履约：建出库单 → 备货 → 补货员领货 → 柜机确认上柜（自提自送，无运输段）"
+  />
 </template>

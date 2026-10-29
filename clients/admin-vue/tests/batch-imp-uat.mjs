@@ -133,20 +133,27 @@ async function main() {
       desc: document.querySelector('[data-testid="warehouse-tab-desc"]')?.innerText || '',
       hint: document.querySelector('[data-testid="transit-flow-hint"]')?.innerText || '',
       pageHint: document.querySelector('.page-card-head .hint')?.innerText || '',
+      siblings: [
+        ...(document.querySelectorAll('[data-testid="warehouse-sibling-nav"] a') || [])
+      ].map((a) => a.innerText.trim()),
       overdueLabel:
         document.querySelector('[data-testid="transit-overdue-only"]')?.closest('label')
           ?.innerText || ''
     }));
-    // 2026-10-03 在途页去重：transit 不再渲染通用 desc（专属 transit-flow-hint 承载全部语义，避免同屏双提示）
+    // 2026-10-03 transit 页去重：不渲染通用 desc（专属 transit-flow-hint 承载全部语义，避免同屏双提示）
+    // 2026-10-29 铁律 80 / CB-074：仓→柜是自提自送，用户面不再出现「在途/发运/签收」，
+    //   tab 改叫「已领未上柜」；子页还必须有同级导航（拆页后原先只剩侧栏入口）。
     const whOk =
       wh.tabs.includes('仓间调拨') &&
       wh.tabs.includes('出库单') &&
-      wh.tabs.includes('在途') &&
+      wh.tabs.includes('已领未上柜') &&
+      !wh.tabs.some((t) => /在途|发运|签收/.test(t)) &&
       wh.desc === '' &&
-      /在途|柜机|补货|回仓/.test(wh.hint) &&
-      /仓→柜|在途/.test(wh.pageHint);
+      /未上柜|柜机|补货|回仓/.test(wh.hint) &&
+      /仓→柜|未上柜/.test(wh.pageHint) &&
+      wh.siblings.includes('库存与盘点');
     const eWh = await shot(page, '01-warehouse-transit');
-    record('B-01', '仓库分组+在途文案', whOk ? 'PASS' : 'FAIL', JSON.stringify(wh), eWh);
+    record('B-01', '仓库分组+领货上柜文案', whOk ? 'PASS' : 'FAIL', JSON.stringify(wh), eWh);
     whOk ? pass++ : fail++;
 
     // IMP-028 fund bill keyword

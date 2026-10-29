@@ -4,5 +4,8 @@ import WarehouseView from './WarehouseView.vue';
 </script>
 
 <template>
-  <WarehouseView :only="['suppliers', 'purchase', 'suggestions', 'returns', 'payables']" />
+  <WarehouseView
+    :only="['suppliers', 'purchase', 'suggestions', 'returns', 'payables']"
+    hint="采购链路：供应商档案 → 下单 → 收货入库 → 建议 / 退货 → 应付账款"
+  />
 </template>

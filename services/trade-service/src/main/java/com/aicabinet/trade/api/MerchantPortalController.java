@@ -685,6 +685,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantReplenishmentService().getTaskLines(userId(request), taskId));
     }
 
+    /** D28-A5（CB-075）：开门柜录入封顶＝上限/在架/他单已领未上柜/可补量；非开门柜返回空列表。 */
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/tasks/{taskId}/headroom")
+    public ApiResponse<List<ReplenishmentHeadroomDto>> replenishmentTaskHeadroom(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(support.merchantReplenishmentService().taskHeadroom(userId(request), taskId));
+    }
+
     @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/check-in")
     public ApiResponse<ReplenishmentTaskDto> checkInReplenishmentTask(
@@ -755,7 +763,11 @@ public class MerchantPortalController {
         return ApiResponse.ok(support.merchantReplenishmentService().listSuggestions(userId(request), deviceId));
     }
 
-    /** 补货员自主发起补货：仅柜机所属分仓负责人可用，直接扣分仓生成出库+补货任务，无审批。 */
+    /**
+     * 补货员自主发起补货：判据 = 发起权限 + 柜机在本人数据范围内 + 柜机所属商户开通 FIELD 包 + 柜机已归仓
+     * （D28-A9 订正，2026-10-29）。旧注释写「仅柜机所属分仓负责人可用」是 CB-068 A 档（2026-10-27）
+     * 放宽前的口径，实现里早已不再判 manager_user_id——留着会把他引去配一个根本不参与的闸门。
+     */
     @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/self-initiate")
     public ApiResponse<ReplenishmentTaskDto> selfInitiateReplenishment(

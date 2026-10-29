@@ -69,7 +69,7 @@ export function useReplenishmentTaskActions(deps: UseReplenishmentTaskActionsDep
   function canCancelEmptyRoute(row: ReplenishmentRouteRow) {
     if (!row?.routeId) return false;
     if (String(row.status || '') === 'COMPLETED') return false;
-    // CANCELLED：仍可幂等收口历史脏出库/在途
+    // CANCELLED：仍可幂等收口历史脏出库/未结领货
     if (String(row.status || '') === 'CANCELLED') return true;
     const tasks: ReplenishmentTaskRow[] = row.tasks || [];
     if (!tasks.length) return true;
@@ -89,8 +89,8 @@ export function useReplenishmentTaskActions(deps: UseReplenishmentTaskActionsDep
     try {
       await ElMessageBox.confirm(
         orphanCleanup
-          ? `确认收口路线 ${row.routeId} 的脏出库/在途？\n已发运未签收将回仓并取消在途。`
-          : `确认取消空路线 ${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已发运未签收会回仓。`,
+          ? `确认收口路线 ${row.routeId} 的脏出库/未结领货？\n已领出但没全部上柜的单据会回仓并结清。`
+          : `确认取消空路线 ${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已领出未上柜的会回仓。`,
         orphanCleanup ? '收口脏出库' : '取消空路线',
         { type: 'warning', confirmButtonText: orphanCleanup ? '确认收口' : '确认取消' }
       );

@@ -368,19 +368,21 @@ export declare const DICT: {
     readonly warehouse_outbound_status: {
         readonly DRAFT: "待拣货";
         readonly PICKED: "已拣货";
-        readonly SHIPPED: "已发运";
+        readonly SHIPPED: "已领出";
         readonly CANCELLED: "已取消";
     };
     readonly handover_status: {
-        readonly PENDING: "待备货";
-        readonly READY: "待发运";
-        readonly IN_TRANSIT: "在途";
-        readonly PARTIAL: "部分签收";
-        readonly RECEIVED: "已签收";
+        readonly PENDING: "未交接";
+        readonly READY: "已拣待领";
+        readonly IN_TRANSIT: "已领未上柜";
+        readonly PARTIAL: "部分上柜";
+        readonly RECEIVED: "已上柜";
+        readonly CANCELLED: "已取消";
     };
     readonly in_transit_status: {
-        readonly IN_TRANSIT: "在途";
-        readonly RECEIVED: "已签收";
+        readonly IN_TRANSIT: "未结清";
+        readonly RECEIVED: "已结清";
+        readonly CANCELLED: "已取消";
         readonly LOST: "丢失";
         readonly DAMAGED: "破损";
     };
@@ -390,9 +392,12 @@ export declare const DICT: {
         readonly MANUAL_INBOUND: "手工入库";
         readonly INBOUND_MANUAL: "手工入库";
         readonly OUTBOUND: "出库";
-        readonly OUTBOUND_SHIP: "发运";
+        readonly OUTBOUND_SHIP: "领货出库";
+        readonly OUTBOUND_CANCEL: "领货撤销回库";
         readonly RETURN: "退回";
         readonly ADJUSTMENT: "库存调整";
+        readonly STOCKTAKE: "盘点调整";
+        readonly BIN_STOCK: "货位变动";
     };
     readonly business_reference_type: {
         readonly PURCHASE_ORDER: "采购单";
@@ -407,6 +412,10 @@ export declare const DICT: {
         readonly OPENING_BACKFILL: "建账补记";
         readonly WRITE_OFF: "报损核销";
         readonly GUEST_WATER: "客情用水";
+        readonly STOCKTAKE: "盘点单";
+        readonly BIN_INBOUND: "货位入库";
+        readonly TRANSFER_OUT: "调拨出库";
+        readonly TRANSFER_IN: "调拨入库";
     };
     /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
     readonly approval_biz_type: {
@@ -613,7 +622,7 @@ export declare const DICT: {
         readonly XXL_JOB_WIRING_BROKEN: "XXL-JOB 执行器接线异常";
         readonly SCHEDULED_TASK_STALE: "定时任务停摆";
         readonly VISION_ANOMALY: "视觉异常告警";
-        readonly IN_TRANSIT_OVERDUE: "签收超时";
+        readonly IN_TRANSIT_OVERDUE: "未上柜超时";
     };
     readonly ad_asset_type: {
         readonly IMAGE: "图片";

@@ -23,6 +23,7 @@ import com.aicabinet.trade.mapper.DeviceSkuPriceMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,13 +100,47 @@ class OpsDevicePricingServiceTest {
                 .thenReturn(List.of(invActive, invDelisted));
         when(skuCatalogRepository.findAllById(any()))
                 .thenReturn(List.of(active, delisted));
-        when(inventoryLotService.deviceUsesLotLedger("CAB-001")).thenReturn(false);
+        when(inventoryLotService.lotLedgerSkuIds("CAB-001")).thenReturn(Set.of());
         when(priceRepository.findByIdDeviceId("CAB-001")).thenReturn(List.of());
 
         var rows = service.listPricing(90000000001L, "CAB-001");
 
         assertEquals(1, rows.size());
         assertEquals("100013", rows.get(0).skuId());
+    }
+
+    @Test
+    void listPricing_sellableQtyIsSkuLevel_notDeviceLevel() {
+        // D28-A6：该柜只有 100013 建过批次账（账本可售 0），100014 从未进账本但账面 5。
+        // 旧设备级判据会把 100014 也读成 0（假缺货），与库存页/补货建议量打架。
+        DeviceSkuInventory invLedgered = new DeviceSkuInventory();
+        invLedgered.setId(new DeviceSkuInventoryId("CAB-001", "100013"));
+        invLedgered.setQuantity(4);
+        DeviceSkuInventory invBookOnly = new DeviceSkuInventory();
+        invBookOnly.setId(new DeviceSkuInventoryId("CAB-001", "100014"));
+        invBookOnly.setQuantity(5);
+        SkuCatalog skuLedgered = sku(350);
+        skuLedgered.setSkuId("100013");
+        skuLedgered.setStatus("ACTIVE");
+        SkuCatalog skuBookOnly = sku(350);
+        skuBookOnly.setSkuId("100014");
+        skuBookOnly.setStatus("ACTIVE");
+
+        when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device()));
+        when(inventoryRepository.findByIdDeviceId("CAB-001"))
+                .thenReturn(List.of(invLedgered, invBookOnly));
+        when(skuCatalogRepository.findAllById(any()))
+                .thenReturn(List.of(skuLedgered, skuBookOnly));
+        when(inventoryLotService.lotLedgerSkuIds("CAB-001")).thenReturn(Set.of("100013"));
+        when(inventoryLotService.sellableQtyBySku("CAB-001")).thenReturn(java.util.Map.of("100013", 0));
+        when(priceRepository.findByIdDeviceId("CAB-001")).thenReturn(List.of());
+
+        var rows = service.listPricing(90000000001L, "CAB-001");
+
+        assertEquals(0, rows.stream().filter(r -> "100013".equals(r.skuId()))
+                .findFirst().orElseThrow().sellableQty(), "已建账且卖光 = 0（事实）");
+        assertEquals(5, rows.stream().filter(r -> "100014".equals(r.skuId()))
+                .findFirst().orElseThrow().sellableQty(), "未进账本的 SKU 必须回退账面 5，不得读成 0");
     }
 
     @Test

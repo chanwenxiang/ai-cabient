@@ -29,6 +29,7 @@ class DeviceAssetConcurrencyTest {
     @Mock private DeviceLifecycleEventMapper lifecycleEventMapper;
     @Mock private DeviceSkuInventoryMapper inventoryMapper;
     @Mock private DeviceSkuLotMapper lotMapper;
+    @Mock private InventoryLotService inventoryLotService;
     @Mock private SkuCatalogMapper skuCatalogMapper;
     @Mock private MerchantMapper merchantMapper;
     @Mock private MerchantScopeService merchantScopeService;
@@ -41,8 +42,8 @@ class DeviceAssetConcurrencyTest {
     @BeforeEach
     void setUp() {
         service = new DeviceAssetService(deviceInfoMapper, lifecycleEventMapper, inventoryMapper, lotMapper,
-                skuCatalogMapper, merchantMapper, merchantScopeService, permissionService, auditService,
-                distributedLockService, null);
+                inventoryLotService, skuCatalogMapper, merchantMapper, merchantScopeService, permissionService,
+                auditService, distributedLockService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

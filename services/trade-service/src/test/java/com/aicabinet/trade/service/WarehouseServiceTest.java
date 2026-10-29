@@ -827,4 +827,27 @@ class WarehouseServiceTest {
         assertEquals(1, result.skipped());
         assertEquals("DRAFT", ref.get() == null ? "DRAFT" : ref.get().getStatus());
     }
+
+    @Test
+    void listOutboundsPage_threadsStatusToRepository() {
+        // D28-B5：状态筛选下推服务端——service 原样透传（trim/大写在 mapper 内做）
+        when(outboundRepository.searchPage("kw", "WH-1", "draft", 0, 20))
+                .thenReturn(new Page<>());
+
+        var result = warehouseService.listOutboundsPage("kw", "WH-1", "draft", 0, 20);
+
+        verify(outboundRepository).searchPage("kw", "WH-1", "draft", 0, 20);
+        assertEquals(0, result.items().size());
+        assertEquals(0, result.total());
+    }
+
+    @Test
+    void listOutboundsFiltered_usesFindAllFiltered() {
+        // D28-B3：服务端 CSV 导出按仓/状态过滤走 findAllFiltered，不再全表 findAll
+        when(outboundRepository.findAllFiltered("WH-1", "SHIPPED")).thenReturn(List.of());
+
+        warehouseService.listOutbounds("WH-1", "SHIPPED");
+
+        verify(outboundRepository).findAllFiltered("WH-1", "SHIPPED");
+    }
 }

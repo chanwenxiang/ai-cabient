@@ -182,9 +182,22 @@ public class InTransitService {
     @Transactional(readOnly = true)
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
             String deviceId, int page, int size) {
+        return listInTransitPage(deviceId, false, page, size);
+    }
+
+    /** 领货未上柜超时口径：与前端 TRANSIT_OVERDUE_HOURS、OpsWorkbenchQueryService 均为 24h。 */
+    static final long TRANSIT_OVERDUE_HOURS = 24;
+
+    /** D28-B5：overdueOnly 时 createdAt 截止＝now-24h，筛选在服务端完成（别再客户端过滤分页页）。 */
+    @Transactional(readOnly = true)
+    public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
+            String deviceId, boolean overdueOnly, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = transitRepository.searchPage(deviceId, STATUS_IN_TRANSIT, p, s);
+        java.time.Instant createdBefore =
+                overdueOnly ? java.time.Instant.now().minus(TRANSIT_OVERDUE_HOURS, java.time.temporal.ChronoUnit.HOURS)
+                        : null;
+        var result = transitRepository.searchPage(deviceId, STATUS_IN_TRANSIT, createdBefore, p, s);
         List<com.aicabinet.common.dto.WarehouseInTransitDto> items = result.getRecords().stream()
                 .map(this::toDto)
                 .toList();
@@ -197,7 +210,7 @@ public class InTransitService {
 
     private <T> T runWithInTransitLock(Long outboundId, String deviceId, java.util.function.Supplier<T> action) {
         if (!distributedLockService.tryLock(inTransitLockKey(outboundId, deviceId), 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "在途库存处理中，请稍后重试");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该出库单的领货交接正在处理中，请稍后重试");
         }
         try {
             return action.get();

@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +36,10 @@ import static org.mockito.Mockito.when;
  * <p>真实事故（2026-10-28 真机 任务 8）：商户只上架 2 个雪碧，任务行也只有 100013×2，
  * 但出库单上是 2/3/3（雪碧/冰红茶/加多宝）。旧实现把「出库量 − 任务行量」的差额当作已上架补记，
  * 于是冰红茶 +3、加多宝 +3 凭空进账，首页「库存偏低」从 2 变 0。
+ *
+ * <p>CB-074（2026-10-29）补上另一半：差额不但不许进柜机，还必须**留下台账**——签收按 SKU 传实收，
+ * 未上满的量由 {@code WarehouseService} 写进入库行的 {@code remainder_qty}（领而未上），
+ * 不再用 {@code Integer.MAX_VALUE} 把整单伪造成「全量签收」。
  */
 @ExtendWith(MockitoExtension.class)
 class ReplenishmentOutboundRemainderNotCreditedTest {
@@ -109,9 +114,34 @@ class ReplenishmentOutboundRemainderNotCreditedTest {
         // 关键判据：不再去读/补记出库单差额（旧实现会给冰红茶、加多宝各 +3）
         verify(warehouseService, never()).outboundLinesForDevice(anyLong(), anyString());
         verifyNoMoreInteractions(inventoryLotService);
-        // 出库单按「领货已结」收口，不引入部分签收/在途余额
+        // 在途照结（货确实出了仓），交接按 SKU 记实收：只报 100013×2 ⇒ 未覆盖的出库行落差额（CB-074）
         verify(inTransitService).receiveForDevice(500L, "EG-DOOR");
-        verify(warehouseService).markDeviceHandoverReceived(500L, "EG-DOOR", Integer.MAX_VALUE);
+        verify(warehouseService).markDeviceHandoverReceived(500L, "EG-DOOR", Map.of("100013", 2));
+    }
+
+    @Test
+    void completeTask_allReportedQuantitiesZero_stillReportsEmptyReceiptNotWholeOutbound() {
+        // 铁律 80：现场没上的货要把行数量减到 0。若按「实收合计>0」判有没有明细，
+        // 全 0 会掉进整单入柜分支，把如实登记的 0 反转成柜机虚增。
+        ReplenishmentTask task = task(52L, 502L);
+        ReplenishmentTaskLine zeroed = restockLine(52L, "100013", 0);
+
+        when(taskRepository.findByIdForUpdate(52L)).thenReturn(Optional.of(task));
+        when(taskLineRepository.findByTaskIdAndAppliedFalse(52L)).thenReturn(List.of(zeroed));
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(52L)).thenReturn(List.of(zeroed));
+        when(inTransitService.hasOpenForDevice(502L, "EG-DOOR")).thenReturn(true);
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        when(deviceRepository.findById("EG-DOOR")).thenReturn(Optional.empty());
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        replenishmentService.completeTask(1L, 52L);
+
+        // 如实登记的 0 仍要「应用」（走现场行通道，加 0 件），但绝不得回退去按出库行入账
+        verify(inventoryLotService).applyReplenishmentLine(eq("EG-DOOR"), eq(zeroed), eq(1L), eq("52"));
+        verify(inventoryLotService, never()).addRestock(anyString(), anyString(), any());
+        verify(warehouseService, never()).outboundLinesForDevice(anyLong(), anyString());
+        verify(warehouseService).markDeviceHandoverReceived(502L, "EG-DOOR", Map.of());
+        verify(warehouseService, never()).markDeviceHandoverReceivedFull(anyLong(), anyString());
     }
 
     @Test
@@ -137,6 +167,7 @@ class ReplenishmentOutboundRemainderNotCreditedTest {
 
         verify(inventoryLotService).addRestock(eq("EG-DOOR"), eq("SKU-COLA"),
                 any(InventoryLotService.RestockCommand.class));
-        verify(warehouseService).markDeviceHandoverReceived(501L, "EG-DOOR", 4);
+        verify(inTransitService).receiveForDevice(501L, "EG-DOOR");
+        verify(warehouseService).markDeviceHandoverReceivedFull(501L, "EG-DOOR");
     }
 }

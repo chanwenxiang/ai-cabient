@@ -1120,7 +1120,11 @@ public class DataConsistencyService {
      * P1-3：仓配交接两账一致性——warehouse_in_transit（在途层）与
      * warehouse_outbound_line.handover_status（交接层）必须同向：
      * A. 在途有未签收行，但出库行侧已无任何未完成交接状态 ⇒ 签收漏了 in_transit；
-     * B. 出库行挂 IN_TRANSIT/PARTIAL，但在途层已无未签收行 ⇒ 签收漏了 handover。
+     * B. 出库行还挂在 IN_TRANSIT，但在途层已无未签收行 ⇒ 签收漏了 handover。
+     *
+     * <p>CB-074：{@code PARTIAL} 从 B 里摘出去。它现在是「领而未上」的**合法终态**
+     * （差额已写进 {@code remainder_qty}，在途必须结掉——货确实出了仓，只是没进柜），
+     * 继续当异常只会让巡检天天误报，把真漏签埋进噪声里。
      */
     void checkOutboundHandoverConsistency() {
         String sql = "SELECT 'ORPHAN_TRANSIT' AS kind, t.outbound_id, t.device_id "
@@ -1132,7 +1136,7 @@ public class DataConsistencyService {
                 + "UNION ALL "
                 + "SELECT 'STUCK_HANDOVER' AS kind, l.outbound_id, l.device_id "
                 + "FROM warehouse_outbound_line l "
-                + "WHERE l.handover_status IN ('IN_TRANSIT','PARTIAL') "
+                + "WHERE l.handover_status = 'IN_TRANSIT' "
                 + "AND l.device_id IS NOT NULL AND l.device_id <> '' "
                 + "AND NOT EXISTS (SELECT 1 FROM warehouse_in_transit t "
                 + "  WHERE t.outbound_id = l.outbound_id AND t.device_id = l.device_id "
@@ -1148,8 +1152,8 @@ public class DataConsistencyService {
             recordInconsistency(OUTBOUND_HANDOVER, "warehouse_outbound_line",
                     key, kind, "MISMATCH",
                     "ORPHAN_TRANSIT".equals(kind)
-                            ? "在途仍有未签收行，但出库行交接已全部收口（漏签 in_transit 或重复收口）"
-                            : "出库行交接挂起（IN_TRANSIT/PARTIAL），但在途层已无未签收行（漏调 markDeviceHandoverReceived）");
+                            ? "领货未结层仍有未结行，但出库行已全部上柜结清（漏结 in_transit 或重复收口）"
+                            : "出库行仍是「已领未上柜」，但领货未结层已无未结行（漏调 markDeviceHandoverReceived）");
         }
         resolveStaleFailuresIfComplete(OUTBOUND_HANDOVER, failing, rows.size());
     }

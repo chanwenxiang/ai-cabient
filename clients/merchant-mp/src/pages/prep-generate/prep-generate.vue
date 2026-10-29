@@ -4,8 +4,8 @@
     <view class="page-body">
       <view class="panel">
         <text class="head-hint">
-          按每台柜「补满」口径预生成：建议量 = 上限 − 实际 − 在途。勾选柜机确认后，
-          每台柜生成一张补货任务（生成分仓出库，无需审批）。
+          按每台柜「补满」口径预生成：建议量 = 上限 − 实际 − 已领未上柜。勾选柜机确认后，
+          每台柜生成一张补货任务（从本人负责的分仓出库，无需审批）。
         </text>
 
         <view v-if="loading" class="empty-inline">{{ loadingLabel('预览') }}</view>
@@ -28,7 +28,7 @@
               <text class="sku-name">{{ item.skuName }}</text>
               <text class="sku-meta">
                 当前 {{ item.currentQty }}{{ item.unit }} · 上限 {{ item.capacity || '—' }}
-                <text v-if="item.inTransitQty > 0"> · 在途 {{ item.inTransitQty }}</text>
+                <text v-if="item.inTransitQty > 0"> · 未上柜 {{ item.inTransitQty }}</text>
               </text>
             </view>
             <text class="qty-val">备 {{ item.qtyText }}</text>

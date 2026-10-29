@@ -11,6 +11,18 @@ import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 /** 仓储动态行（D15：禁止散落 Record<string, any>） */
 export type WarehouseTabRow = AdminDynamicRow;
 
+/**
+ * D28-B3：数据面恒等于「一个仓」的 tab。两种成因都算：
+ *   · `inventory` / `movements`——空白 warehouseId 被后端 `resolveWarehouseId(null)` 兜底成
+ *     「默认仓」，页面却写着「全部仓库」；
+ *   · `monthly`——后端直接要求必填仓（`loadMonthlyClose` 自己钉第一个仓）。
+ * 三处共用这一个集合，别各写一份：
+ * ① 本文件的 `pinSingleWarehouseFilter()`——进这两个 tab 先钉一个具体仓；
+ * ② `useWarehouseListFilters.warehouseFilterRequired`——筛选项禁清空、占位词改成「请选择仓库」；
+ * ③ `useWarehouseCsv.onExport`——服务端全量导出同样不认 warehouseId，这两个 tab 要点破再导。
+ */
+export const SINGLE_WAREHOUSE_TABS = new Set(['inventory', 'movements', 'monthly']);
+
 export type UseWarehouseTabLoaderDeps = {
   loadSeq: ReturnType<typeof createLoadSeq>;
   hasDeviceListPerm: () => boolean;
@@ -18,6 +30,10 @@ export type UseWarehouseTabLoaderDeps = {
   size: Ref<number>;
   keyword: Ref<string>;
   filterWarehouseId: Ref<string>;
+  /** D28-B5：出库状态筛选（'actionable'＝客户端组合筛选，其余为真实状态、走服务端 status 参数）。 */
+  filterOutboundStatus: Ref<string>;
+  /** D28-B5：在途超时筛选（true ⇒ 请求带 overdueOnly=true，服务端按 24h 截止过滤）。 */
+  overdueOnly: Ref<boolean>;
   hideTestPurchaseOrders: Ref<boolean>;
   focusDeviceId: Ref<string>;
   suggestionLeadTimeDays: Ref<number>;
@@ -53,6 +69,11 @@ export type UseWarehouseTabLoaderDeps = {
   loadedTabs: Ref<Set<string>>;
   loadingTabs: Ref<Set<string>>;
   hydratedTabs: Ref<Set<string>>;
+  /**
+   * D28-B7：加载失败的 tab。**不能**用「未 hydrated」代替——各 tab 的空态文案只在 hydrated
+   * 时出现，失败时若照旧标 hydrated，页面就把 5xx/超时说成「暂无数据」。
+   */
+  failedTabs: Ref<Set<string>>;
 };
 
 /**
@@ -87,14 +108,35 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     }
   }
 
-  function warehouseListParams() {
+  /**
+   * D28-B13：`keyword` 是跨 tab 共享的 ref，而关键词输入框只在 suppliers/purchase/returns 显示。
+   * 不管它的 tab 若照样带上 `q`，用户会看到一个「看不见也清不掉」的筛选条件在悄悄生效
+   * ⇒ 默认不带 `q`，只有真正渲染了关键词框的 tab 传 `withKeyword = true`。
+   */
+  function warehouseListParams(withKeyword = false) {
     const q = new URLSearchParams({
       page: String(deps.page.value - 1),
       size: String(deps.size.value)
     });
-    if (deps.keyword.value.trim()) q.set('q', deps.keyword.value.trim());
+    if (withKeyword && deps.keyword.value.trim()) q.set('q', deps.keyword.value.trim());
     if (deps.filterWarehouseId.value) q.set('warehouseId', deps.filterWarehouseId.value);
     return q;
+  }
+
+  /**
+   * D28-B3：批次库存 / 库存流水是**单仓口径**——后端 `listInventoryPage` / `listMovementsPage`
+   * 对空白 warehouseId 走 `resolveWarehouseId(null)`＝取「默认仓」（WarehouseService:157/:219），
+   * 而筛选项写着「全部仓库」、服务端 CSV 导出同样只导默认仓（OpsCsvExportService 传 null）。
+   * 这里把口径钉回诚实的一侧：进这两个 tab 先选中一个具体仓，之后每次请求都显式带 warehouseId，
+   * 筛选项同时禁清空（见 `SINGLE_WAREHOUSE_TABS` 与 WarehouseView 的 `warehouseFilterRequired`）。
+   * 一家仓都没配时不改值——让后端「未配置仓库，请先新建仓库」照常冒出来。
+   */
+  function pinSingleWarehouseFilter() {
+    if (deps.filterWarehouseId.value) return;
+    const rows = deps.warehouses.value;
+    const firstActive = rows.find((w) => (w.status || 'ACTIVE') === 'ACTIVE');
+    const id = String((firstActive ?? rows[0])?.warehouseId ?? '');
+    if (id) deps.filterWarehouseId.value = id;
   }
 
   async function loadWarehouses() {
@@ -168,7 +210,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadPurchase() {
     const seq = deps.loadSeq.begin('loadPurchase');
-    const q = warehouseListParams();
+    const q = warehouseListParams(true);
     if (deps.hideTestPurchaseOrders.value) q.set('excludeTestRef', 'true');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
       AdminEndpoints.purchaseOrdersList(q),
@@ -222,8 +264,13 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadOutbounds() {
     const seq = deps.loadSeq.begin('loadOutbounds');
+    const q = warehouseListParams();
+    // D28-B5：真实状态筛选下推服务端（出库列表是服务端分页，客户端过滤只作用当前页＝假过滤）。
+    // 'actionable'（有明细的 DRAFT+PICKED）是组合口径，仍由 filteredOutbounds 客户端完成。
+    const st = deps.filterOutboundStatus.value.trim();
+    if (st && st !== 'actionable') q.set('status', st);
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
-      AdminEndpoints.warehouseOutbounds(warehouseListParams()),
+      AdminEndpoints.warehouseOutbounds(q),
       'GET'
     );
     if (!deps.loadSeq.isCurrent(seq, 'loadOutbounds')) return;
@@ -241,6 +288,8 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       size: String(deps.size.value)
     });
     if (deps.focusDeviceId.value) q.set('deviceId', deps.focusDeviceId.value);
+    // D28-B5：超时筛选下推服务端（24h 截止口径在 InTransitService.TRANSIT_OVERDUE_HOURS）。
+    if (deps.overdueOnly.value) q.set('overdueOnly', 'true');
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
       AdminEndpoints.warehouseInTransit(q),
       'GET'
@@ -255,6 +304,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadInventory() {
     const seq = deps.loadSeq.begin('loadInventory');
+    pinSingleWarehouseFilter();
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
       AdminEndpoints.warehouseInventory(warehouseListParams()),
       'GET'
@@ -305,7 +355,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
   }
 
   /**
-   * 月结「上柜」列的柜机下钻明细。返回行而非写 state：弹窗归调用方（WarehouseView）持有，
+   * 月结「领货」列的柜机下钻明细。返回行而非写 state：弹窗归调用方（WarehouseView）持有，
    * 避免为一次性查询再开一组 deps。
    */
   async function loadMonthlyRestockDetail(skuId: string): Promise<WarehouseTabRow[]> {
@@ -323,6 +373,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
 
   async function loadMovements() {
     const seq = deps.loadSeq.begin('loadMovements');
+    pinSingleWarehouseFilter();
     const data = await api.request<{ items: WarehouseTabRow[]; total: number }>(
       AdminEndpoints.warehouseMovements(warehouseListParams()),
       'GET'
@@ -481,8 +532,10 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
       outbounds: () => Promise.all([loadOutbounds(), loadWarehousesSoft()]),
       transit: () => loadTransit(),
       transfers: () => Promise.all([loadTransfers(), loadWarehousesSoft()]),
-      inventory: () => Promise.all([loadInventory(), loadWarehousesSoft()]),
-      movements: () => Promise.all([loadMovements(), loadWarehousesSoft()]),
+      // 这两个 tab 必须先拿到仓库列表再拉数据：pinSingleWarehouseFilter 要在请求发出前定下具体仓，
+      // 否则会退回「后端兜底默认仓」那个读不出来的口径（D28-B3）。
+      inventory: () => loadWarehousesSoft().then(() => loadInventory()),
+      movements: () => loadWarehousesSoft().then(() => loadMovements()),
       monthly: () => loadWarehousesSoft().then(() => loadMonthlyClose())
     };
     const loader = loaders[name];
@@ -506,12 +559,14 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     const nextLoading = new Set(deps.loadingTabs.value);
     nextLoading.add(name);
     deps.loadingTabs.value = nextLoading;
+    let failed = false;
     try {
       await ensureMeta();
       await loadWarehouseTabData(name);
       if (deps.loadSeq.isCurrent(seq, 'loadTab')) deps.loadedTabs.value.add(name);
     } catch (e) {
       if (!deps.loadSeq.isCurrent(seq, 'loadTab')) return;
+      failed = true;
       ElMessage.error(errorMessage(e, '加载失败'));
     } finally {
       const left = Math.max(0, (tabInflight.get(name) || 1) - 1);
@@ -523,11 +578,23 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
         deps.loadingTabs.value = doneLoading;
       }
       if (deps.loadSeq.isCurrent(seq, 'loadTab')) {
-        const next = new Set(deps.hydratedTabs.value);
-        next.add(name);
-        deps.hydratedTabs.value = next;
+        markTabFailed(name, failed);
+        if (!failed) {
+          const next = new Set(deps.hydratedTabs.value);
+          next.add(name);
+          deps.hydratedTabs.value = next;
+        }
       }
     }
+  }
+
+  /** D28-B7：失败与空态分离；失败时同时撤掉 loadedTabs 记账，下次进这个 tab 会自动重试。 */
+  function markTabFailed(name: string, failed: boolean) {
+    const nextFailed = new Set(deps.failedTabs.value);
+    if (failed) nextFailed.add(name);
+    else nextFailed.delete(name);
+    deps.failedTabs.value = nextFailed;
+    if (failed) deps.loadedTabs.value.delete(name);
   }
 
   return {

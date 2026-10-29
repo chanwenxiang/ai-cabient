@@ -433,7 +433,7 @@
               >/{{ MAX_SKUS_PER_DEVICE }}
             </span>
             <span class="stockout-tip">
-              缺货口径：当前库存 ≤ 低库存阈值（逐商品可在「编辑库存」调整），推送商户缺货通知。
+              缺货＝库存为 0；低库存＝有货但 ≤ 低库存阈值（可逐商品调整），两者均进入商户补货建议。
             </span>
           </div>
           <!--
@@ -446,11 +446,12 @@
               v-for="card in skuCards"
               :key="card.skuId"
               class="sku-card"
-              :class="{ warn: card.stockoutWarn }"
+              :class="{ warn: card.oos, low: card.low }"
             >
               <div class="sku-card-head">
                 <span class="sku-card-brand">{{ card.brand || '未分类品牌' }}</span>
-                <span v-if="card.stockoutWarn" class="sku-card-badge">缺货</span>
+                <span v-if="card.oos" class="sku-card-badge">缺货</span>
+                <span v-else-if="card.low" class="sku-card-badge sku-card-badge-low">低库存</span>
               </div>
               <div class="sku-card-top">
                 <img
@@ -1383,7 +1384,9 @@ interface SkuCard {
   lastRestockQty: number | null;
   /** 上架时间：暂用商品建档时间（柜×SKU 绑定时戳后续随补货快照一并补） */
   shelvedAt?: string;
-  stockoutWarn: boolean;
+  /** 两档判定：缺货=库存为 0；低库存=有货但已到/低于低库存阈值 */
+  oos: boolean;
+  low: boolean;
   priceCents: number | null;
 }
 
@@ -1404,7 +1407,8 @@ const skuCards = computed<SkuCard[]>(() =>
         lowThreshold: inv.lowThreshold,
         lastRestockQty: inv.lastRestockQty ?? null,
         shelvedAt: sku?.createdAt,
-        stockoutWarn: inv.quantity <= inv.lowThreshold,
+        oos: inv.quantity <= 0,
+        low: inv.quantity > 0 && inv.quantity <= inv.lowThreshold,
         priceCents: pricingRowFor(inv.skuId)?.effectivePriceCents ?? null
       };
     })
@@ -2193,6 +2197,9 @@ onActivated(() => {
 .sku-card.warn {
   border-color: var(--el-color-danger);
 }
+.sku-card.low {
+  border-color: var(--el-color-warning);
+}
 .sku-card-head {
   width: 100%;
   display: flex;
@@ -2224,6 +2231,9 @@ onActivated(() => {
   font-size: var(--admin-font-size-sm);
   font-weight: 600;
   color: var(--el-color-danger);
+}
+.sku-card-badge-low {
+  color: var(--el-color-warning);
 }
 .sku-card-img {
   width: 72px;

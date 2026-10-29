@@ -115,8 +115,14 @@ public class OpsWarehouseAdminService {
 
     public PageResult<WarehouseOutboundDto> listWarehouseOutboundsPage(
             Long operatorId, String keyword, String warehouseId, int page, int size) {
+        return listWarehouseOutboundsPage(operatorId, keyword, warehouseId, null, page, size);
+    }
+
+    /** D28-B5：status 可选，出库状态筛选走服务端。 */
+    public PageResult<WarehouseOutboundDto> listWarehouseOutboundsPage(
+            Long operatorId, String keyword, String warehouseId, String status, int page, int size) {
         requireWarehouseRead(operatorId);
-        return warehouseService.listOutboundsPage(keyword, warehouseId, page, size);
+        return warehouseService.listOutboundsPage(keyword, warehouseId, status, page, size);
     }
 
     public WarehouseOutboundDto getWarehouseOutbound(Long operatorId, Long outboundId) {
@@ -153,8 +159,14 @@ public class OpsWarehouseAdminService {
 
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
             Long operatorId, String deviceId, int page, int size) {
+        return listInTransitPage(operatorId, deviceId, false, page, size);
+    }
+
+    /** D28-B5：overdueOnly 可选，超时筛选走服务端（口径 24h，见 InTransitService）。 */
+    public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
+            Long operatorId, String deviceId, boolean overdueOnly, int page, int size) {
         requireWarehouseRead(operatorId);
-        return inTransitService.listInTransitPage(deviceId, page, size);
+        return inTransitService.listInTransitPage(deviceId, overdueOnly, page, size);
     }
 
     private void requireWarehouseRead(Long operatorId) {

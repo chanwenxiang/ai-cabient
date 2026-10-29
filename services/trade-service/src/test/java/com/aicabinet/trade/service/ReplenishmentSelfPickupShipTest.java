@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.WarehouseOutboundDto;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
-import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
@@ -18,16 +17,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,7 +39,7 @@ import static org.mockito.Mockito.when;
  * 仓库存也永不扣减。真机 2026-10-28 17:46 实测复现（仅提示「出库单尚未发运在途」）。
  *
  * <p>本门禁钉住修好后的三条行为：
- * ① DRAFT/未发运 ⇒ 完成时补一次拣货+发运（扣仓库存），随后成对签收；
+ * ① DRAFT/未发运 ⇒ 完成时补一次拣货+发运（扣仓库存），随后按现场实收的 SKU 量成对签收（CB-074）；
  * ② 已作废出库单 ⇒ 不补发运（仓库存已回仓），按任务行独立上架；
  * ③ 已有在途 ⇒ 不重复发运（防双扣仓库存）。
  */
@@ -89,22 +86,21 @@ class ReplenishmentSelfPickupShipTest {
     void completeTask_unshippedOutbound_shipsThenReceives() {
         ReplenishmentTask task = openTask();
         ReplenishmentTaskLine pending = restockLine(1L, 2);
-        WarehouseOutboundLine outboundLine = outboundLine(2);
 
         when(taskRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
         when(taskLineRepository.findByTaskIdAndAppliedFalse(TASK_ID)).thenReturn(List.of(pending));
-        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(TASK_ID)).thenReturn(List.of());
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(TASK_ID)).thenReturn(List.of(pending));
         when(warehouseService.hasOutboundLinesForDevice(OUTBOUND_ID, DEVICE)).thenReturn(true);
         when(warehouseService.getOutbound(OUTBOUND_ID)).thenReturn(outbound("DRAFT"));
         // 第一次校验=发运前（无在途），第二次=补发运后的落库自检
         when(inTransitService.hasOpenForDevice(OUTBOUND_ID, DEVICE)).thenReturn(false, true);
-        when(warehouseService.outboundLinesForDevice(OUTBOUND_ID, DEVICE)).thenReturn(List.of(outboundLine));
 
         replenishmentService.completeTask(OPERATOR, TASK_ID);
 
         verify(warehouseService).markPicked(OUTBOUND_ID);
         verify(warehouseService).shipOutbound(OPERATOR, OUTBOUND_ID);
-        verify(warehouseService).markDeviceHandoverReceived(eq(OUTBOUND_ID), eq(DEVICE), anyInt());
+        // CB-074：签收按现场实收的 SKU 量，不拿出库量冒充，也不整单伪造全量
+        verify(warehouseService).markDeviceHandoverReceived(OUTBOUND_ID, DEVICE, Map.of("SKU-COLA", 2));
         assertEquals("COMPLETED", task.getStatus());
     }
 
@@ -134,17 +130,15 @@ class ReplenishmentSelfPickupShipTest {
 
         when(taskRepository.findByIdForUpdate(TASK_ID)).thenReturn(Optional.of(task));
         when(taskLineRepository.findByTaskIdAndAppliedFalse(TASK_ID)).thenReturn(List.of(pending));
-        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(TASK_ID)).thenReturn(List.of());
+        when(taskLineRepository.findByTaskIdOrderByLineIdAsc(TASK_ID)).thenReturn(List.of(pending));
         when(inTransitService.hasOpenForDevice(OUTBOUND_ID, DEVICE)).thenReturn(true);
-        when(warehouseService.outboundLinesForDevice(OUTBOUND_ID, DEVICE))
-                .thenReturn(List.of(outboundLine(2)));
 
         replenishmentService.completeTask(OPERATOR, TASK_ID);
 
         // 已有在途 ⇒ 走签收，不得重复发运（否则仓库存被扣两次）
         verify(warehouseService, never()).markPicked(anyLong());
         verify(warehouseService, never()).shipOutbound(anyLong(), anyLong());
-        verify(warehouseService).markDeviceHandoverReceived(eq(OUTBOUND_ID), eq(DEVICE), anyInt());
+        verify(warehouseService).markDeviceHandoverReceived(OUTBOUND_ID, DEVICE, Map.of("SKU-COLA", 2));
         assertEquals("COMPLETED", task.getStatus());
     }
 
@@ -167,17 +161,6 @@ class ReplenishmentSelfPickupShipTest {
         line.setQuantity(qty);
         line.setApplied(false);
         return line;
-    }
-
-    private WarehouseOutboundLine outboundLine(int qty) {
-        WarehouseOutboundLine ol = new WarehouseOutboundLine();
-        ol.setOutboundId(OUTBOUND_ID);
-        ol.setDeviceId(DEVICE);
-        ol.setSkuId("SKU-COLA");
-        ol.setBatchNo("B-2026-10-01");
-        ol.setQuantity(qty);
-        ol.setExpiryDate(LocalDate.of(2027, 4, 1));
-        return ol;
     }
 
     private WarehouseOutboundDto outbound(String status) {

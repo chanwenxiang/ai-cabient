@@ -12,6 +12,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
+import { centsToYuanDigits } from '@aicabinet/shared-uni/format';
 import { yuanText } from '@/utils/display';
 
 interface SupplierOption {
@@ -105,7 +106,12 @@ const monthDate = computed<Date | null>(() => {
   return Number.isFinite(y) && Number.isFinite(m) ? new Date(y, m - 1, 1) : null;
 });
 
-/** CSV 导出：一行对账单 + 交叉验证说明，供与供应商线下核对（一期不做系统内收票登记）。 */
+/**
+ * CSV 导出：一行对账单 + 交叉验证说明，供与供应商线下核对（一期不做系统内收票登记）。
+ *
+ * 金额列要**纯数字**（表格软件直接求和/做差），所以走 `centsToYuanDigits` 而不是 `yuanText`：
+ * 此前 7 处手写 `(cents / 100).toFixed(2)` 是第 4 套换算（负额、精度都与界面口径无关）。
+ */
 function exportCsv() {
   const r = result.value;
   if (!r) return;
@@ -115,14 +121,14 @@ function exportCsv() {
     ['对账月份', r.month],
     [],
     ['项目', '金额（元）'],
-    ['期初余额', (r.openingCents / 100).toFixed(2)],
-    ['本期新增应付（收货）', (r.receivedCents / 100).toFixed(2)],
-    ['本期退货冲减', (r.returnedCents / 100).toFixed(2)],
-    ['本期付款', (r.paidCents / 100).toFixed(2)],
-    ['期末余额（应付供应商）', (r.closingCents / 100).toFixed(2)],
+    ['期初余额', centsToYuanDigits(r.openingCents)],
+    ['本期新增应付（收货）', centsToYuanDigits(r.receivedCents)],
+    ['本期退货冲减', centsToYuanDigits(r.returnedCents)],
+    ['本期付款', centsToYuanDigits(r.paidCents)],
+    ['期末余额（应付供应商）', centsToYuanDigits(r.closingCents)],
     [],
-    ['流水推算当前余额', (r.ledgerBalanceCents / 100).toFixed(2)],
-    ['系统应付主表当前余额', (r.mainBalanceCents / 100).toFixed(2)],
+    ['流水推算当前余额', centsToYuanDigits(r.ledgerBalanceCents)],
+    ['系统应付主表当前余额', centsToYuanDigits(r.mainBalanceCents)],
     ['两套口径一致', r.ledgerConsistent ? '是' : '否（对账单不可信，需先排查）'],
     [],
     ['生成时间', new Date().toISOString()],

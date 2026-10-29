@@ -857,7 +857,7 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[]>(
       MerchantEndpoints.replenishmentPrepList
     ),
-  /** 手动备货单预览（A 方案，2026-10-29）：逐柜「补满」建议（上限−实际−在途），事前规划视图 */
+  /** 手动备货单预览（A 方案，2026-10-29）：逐柜「补满」建议（上限−实际−已领未上柜），事前规划视图 */
   replenishmentPrepPreview: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantPrepPreviewGroupDto[]>(
       MerchantEndpoints.replenishmentPrepPreview
@@ -875,6 +875,11 @@ export const merchantApi = {
   replenishmentTaskLines: (taskId: number) =>
     request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto[]>(
       MerchantEndpoints.replenishmentTaskLines(taskId)
+    ),
+  /** D28-A5：开门柜可补量下发（空数组=不设限：货道柜或台账未配容量） */
+  replenishmentTaskHeadroom: (taskId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentHeadroomDto[]>(
+      MerchantEndpoints.replenishmentTaskHeadroom(taskId)
     ),
   checkInReplenishmentTask: (
     taskId: number,

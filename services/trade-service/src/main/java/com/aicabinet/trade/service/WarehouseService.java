@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -561,9 +562,14 @@ public class WarehouseService {
         return inventoryQty;
     }
 
-    /** 已绑定货道时，建议量不超过货道可补总容量。 */
+    /**
+     * 已绑定货道时，建议量不超过货道可补总容量。
+     * 铁律 78：开门柜（判据=将邑绑定）的库存真值只在台账，`device_slot` 对它是死数据——
+     * 柜上可能残留历史/演示货道行，此时 hasSkuSlots 仍为真，若不按柜型分流就会拿死数据封顶建议量。
+     */
     private int capSuggestBySlotHeadroom(String deviceId, String skuId, int rawSuggest) {
-        if (rawSuggest <= 0 || !deviceSlotService.hasSkuSlots(deviceId, skuId)) {
+        if (rawSuggest <= 0 || deviceSlotService.isDoorCabinet(deviceId)
+                || !deviceSlotService.hasSkuSlots(deviceId, skuId)) {
             return rawSuggest;
         }
         return Math.min(rawSuggest, deviceSlotService.totalHeadroomForSku(deviceId, skuId));
@@ -755,16 +761,29 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<WarehouseOutboundDto> listOutbounds() {
-        return outboundRepository.findAllByOrderByCreatedAtDesc().stream()
+        return listOutbounds(null, null);
+    }
+
+    /** D28-B3：服务端 CSV 导出按仓/状态过滤（null＝不过滤）；行组装沿用 getOutbound（含明细）。 */
+    @Transactional(readOnly = true)
+    public List<WarehouseOutboundDto> listOutbounds(String warehouseId, String status) {
+        return outboundRepository.findAllFiltered(warehouseId, status).stream()
                 .map(o -> self.getOutbound(o.getOutboundId()))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public PageResult<WarehouseOutboundDto> listOutboundsPage(String keyword, String warehouseId, int page, int size) {
+        return listOutboundsPage(keyword, warehouseId, null, page, size);
+    }
+
+    /** D28-B5：status 可选（运营台出库页签状态筛选走服务端）。 */
+    @Transactional(readOnly = true)
+    public PageResult<WarehouseOutboundDto> listOutboundsPage(
+            String keyword, String warehouseId, String status, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = outboundRepository.searchPage(keyword, warehouseId, p, s);
+        var result = outboundRepository.searchPage(keyword, warehouseId, status, p, s);
         List<WarehouseOutboundDto> items = result.getRecords().stream()
                 .map(o -> self.getOutbound(o.getOutboundId()))
                 .toList();
@@ -833,14 +852,14 @@ public class WarehouseService {
             return self.getOutbound(outboundId);
         }
         if (STATUS_CANCELLED.equals(outbound.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单已作废，无法发运");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单已作废，无法领货出库");
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
-            throw badRequest("出库单无明细，无法发运（可能库存不足未生成行项）");
+            throw badRequest("出库单无明细，无法领货出库（可能库存不足未生成行项）");
         }
         if (lines.stream().allMatch(line -> STATUS_CANCELLED.equals(line.getHandoverStatus()))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单行项已全部作废，无法发运");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "出库单行项已全部作废，无法领货出库");
         }
         // 已作废行不参与发运扣库
         lines = lines.stream()
@@ -852,7 +871,7 @@ public class WarehouseService {
         // 发运前再按当前货道余量截断，避免规划后柜机库存变化导致超发
         lines = clampLinesToSlotHeadroom(lines);
         if (lines.isEmpty()) {
-            throw badRequest("货道已满，无可发运数量");
+            throw badRequest("货道已满，无可领货数量");
         }
         // 审计 P2-7：扣库前按 (skuId,batchNo) 全局排序——两个发运单行序相反且共用批次时，
         // 行级锁按同一顺序获取，消除 PG 死锁窗口（被 PG 中止的一方 500）
@@ -1114,48 +1133,74 @@ public class WarehouseService {
                 .anyMatch(task -> "COMPLETED".equals(task.getStatus()));
     }
 
-    @Transactional
-    public void markDeviceHandoverReceived(Long outboundId, String deviceId) {
-        self.markDeviceHandoverReceived(outboundId, deviceId, Integer.MAX_VALUE);
-    }
-
     /**
-     * 按实际上架数量签收：满量 RECEIVED，部分/零上架 PARTIAL（与仓配交接字典一致）。
-     *
-     * @param appliedQty 本设备本次实际上架数量；传 {@link Integer#MAX_VALUE} 表示按出库行全量签收
+     * 整单全量签收：现场没有逐项明细时的收口（如「建单即完成」直接按出库行入柜）。
+     * 与旧实现的区别只在命名——不再用 {@code Integer.MAX_VALUE} 这种「假装无穷」的写法，
+     * 因为一旦调用方手里其实有实收明细，走错这个方法就会把差额洗成 0（CB-074）。
      */
     @Transactional
-    public void markDeviceHandoverReceived(Long outboundId, String deviceId, int appliedQty) {
-        if (outboundId == null || deviceId == null || deviceId.isBlank() || appliedQty < 0) {
+    public void markDeviceHandoverReceivedFull(Long outboundId, String deviceId) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank()) {
             return;
         }
         runWithOutboundLock(outboundId, () -> {
-            doMarkDeviceHandoverReceived(outboundId, deviceId, appliedQty);
+            applyLineReceipt(outboundId, deviceId.trim(), null);
             return null;
         });
     }
 
-    private void doMarkDeviceHandoverReceived(Long outboundId, String deviceId, int appliedQty) {
+    /**
+     * 按 SKU 逐项签收（CB-074，2026-10-29）：实收量来自现场确认的补货行，不再拿领货量冒充。
+     *
+     * <p>每行实收 = {@code min(出库量, 该 SKU 尚未分配完的实收)}；差额写入
+     * {@code warehouse_outbound_line.remainder_qty}（领而未上），行状态
+     * 满量 {@code RECEIVED}、未满 {@code PARTIAL}。
+     *
+     * <p>🔴 差额**只记单据事实，不动任何库存**：出库流水已按领货量扣过仓（铁律 79），
+     * 写回分仓等于凭空造库存，补进柜机违反铁律 78；退回分仓是第二张单据，须人拍板。
+     *
+     * @param receivedQtyBySku 本设备本次各 SKU 实收件数；出库行上没有的 SKU 不参与分摊
+     */
+    @Transactional
+    public void markDeviceHandoverReceived(Long outboundId, String deviceId, Map<String, Integer> receivedQtyBySku) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank() || receivedQtyBySku == null) {
+            return;
+        }
+        runWithOutboundLock(outboundId, () -> {
+            applyLineReceipt(outboundId, deviceId.trim(), receivedQtyBySku);
+            return null;
+        });
+    }
+
+    /**
+     * @param receivedQtyBySku null=全量签收；非 null=按 SKU 分摊实收，未覆盖的部分即差额
+     */
+    private void applyLineReceipt(Long outboundId, String deviceId, Map<String, Integer> receivedQtyBySku) {
         List<WarehouseOutboundLine> deviceLines =
-                outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId.trim());
+                outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId);
         if (deviceLines.isEmpty()) {
             return;
         }
-        int shipped = deviceLines.stream().mapToInt(WarehouseOutboundLine::getQuantity).sum();
-        boolean full = appliedQty >= shipped && shipped > 0;
-        int remaining = Math.min(appliedQty, shipped);
-        for (WarehouseOutboundLine line : deviceLines) {
-            if (full) {
-                line.setHandoverStatus(RECEIVED);
-            } else if (remaining <= 0) {
-                line.setHandoverStatus(PARTIAL);
-            } else if (remaining >= line.getQuantity()) {
-                line.setHandoverStatus(RECEIVED);
-                remaining -= line.getQuantity();
-            } else {
-                line.setHandoverStatus(PARTIAL);
-                remaining = 0;
+        boolean full = receivedQtyBySku == null;
+        Map<String, Integer> unallocated = new HashMap<>();
+        if (!full) {
+            for (Map.Entry<String, Integer> entry : receivedQtyBySku.entrySet()) {
+                if (entry.getKey() == null || entry.getValue() == null || entry.getValue() <= 0) {
+                    continue;
+                }
+                unallocated.merge(entry.getKey().trim(), entry.getValue(), Integer::sum);
             }
+        }
+        for (WarehouseOutboundLine line : deviceLines) {
+            int shipped = Math.max(line.getQuantity(), 0);
+            int received = shipped;
+            if (!full) {
+                int left = unallocated.getOrDefault(skuKey(line.getSkuId()), 0);
+                received = Math.min(left, shipped);
+                unallocated.put(skuKey(line.getSkuId()), left - received);
+            }
+            line.setRemainderQty(shipped - received);
+            line.setHandoverStatus(received >= shipped ? RECEIVED : PARTIAL);
             outboundLineRepository.save(line);
         }
         WarehouseOutbound outbound = requireOutboundForUpdate(outboundId);
@@ -1172,6 +1217,10 @@ public class WarehouseService {
         outboundRepository.save(outbound);
     }
 
+    private static String skuKey(String skuId) {
+        return skuId == null ? "" : skuId.trim();
+    }
+
     /**
      * @param requireFull true 时库存不足抛冲突；false 时尽力分配
      * @return 本次写入的出库行数与实际分配件数（qty 小于 needQty 即为半满足，由调用方决定是否显性化）
@@ -1179,7 +1228,10 @@ public class WarehouseService {
     private FefoAllocResult allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
                                                    String skuId, int needQty, boolean requireFull) {
         int cappedNeed = needQty;
+        // 铁律 78：开门柜不按 device_slot 封顶、也不逐货道拆行（残留货道是死数据），
+        // 走 SKU 级单行分配（slotCode=null），与补货行恒无货道的口径一致。
         boolean boundSlots = deviceId != null && !deviceId.isBlank()
+                && !deviceSlotService.isDoorCabinet(deviceId)
                 && deviceSlotService.hasSkuSlots(deviceId, skuId);
         if (boundSlots) {
             int headroom = deviceSlotService.totalHeadroomForSku(deviceId, skuId);
@@ -1319,7 +1371,9 @@ public class WarehouseService {
     private boolean shouldClampLineToHeadroom(WarehouseOutboundLine line) {
         String deviceId = line.getDeviceId();
         String skuId = line.getSkuId();
+        // 铁律 78：开门柜出库行不得被残留货道截断（截断会静默减量甚至删行，台账与仓账就此错位）
         return deviceId != null && !deviceId.isBlank() && skuId != null
+                && !deviceSlotService.isDoorCabinet(deviceId)
                 && deviceSlotService.hasSkuSlots(deviceId, skuId);
     }
 
@@ -1736,7 +1790,7 @@ public class WarehouseService {
     private WarehouseOutboundLineDto toOutboundLineDto(WarehouseOutboundLine line) {
         return new WarehouseOutboundLineDto(
                 line.getLineId(), line.getDeviceId(), line.getSkuId(), line.getBatchNo(),
-                line.getExpiryDate(), line.getQuantity(), line.isPicked(),
+                line.getExpiryDate(), line.getQuantity(), line.getRemainderQty(), line.isPicked(),
                 line.getHandoverStatus() == null ? "PENDING" : line.getHandoverStatus(),
                 line.getSlotId(),
                 displaySnapshotHelper.resolveDeviceName(line.getDeviceId())

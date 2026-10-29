@@ -109,7 +109,7 @@ const emit = defineEmits<{
         </el-table-column>
         <el-table-column
           align="center"
-          label="在途 / 时限"
+          label="未上柜 / 时限"
           min-width="160"
           class-name="col-status"
           label-class-name="col-status"
@@ -123,19 +123,19 @@ const emit = defineEmits<{
               <template v-else-if="isTransitDueSoon(row)">
                 <el-tag type="warning" size="small">临近超时</el-tag>
                 <small class="sla-meta"
-                  >已运 {{ formatAge(transitAgeMs(row)) }} · 剩
+                  >已领 {{ formatAge(transitAgeMs(row)) }} · 剩
                   {{ formatAge(transitRemainMs(row)) }}</small
                 >
               </template>
               <template v-else>
-                <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
+                <span class="cell-datetime">已领 {{ formatAge(transitAgeMs(row)) }}</span>
                 <small class="sla-meta">待补货员到柜完成</small>
               </template>
             </div>
           </template>
         </el-table-column>
         <el-table-column
-          label="发运时间"
+          label="领货时间"
           min-width="170"
           align="center"
           class-name="col-status"

@@ -98,6 +98,27 @@ const emit = defineEmits<{
                   label-class-name="col-status"
                 />
                 <el-table-column
+                  min-width="96"
+                  align="center"
+                  class-name="col-status"
+                  label-class-name="col-status"
+                >
+                  <template #header>
+                    <el-tooltip
+                      content="领了但现场没上柜的件数：货已出分仓、仍在补货员手上，既不退仓也不记损耗（CB-074）"
+                      placement="top"
+                    >
+                      <span>领而未上</span>
+                    </el-tooltip>
+                  </template>
+                  <template #default="scope">
+                    <span v-if="Number(scope.row.remainderQty) > 0" class="remainder-warn">{{
+                      scope.row.remainderQty
+                    }}</span>
+                    <span v-else>—</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
                   label="交接状态"
                   min-width="110"
                   align="center"
@@ -199,7 +220,7 @@ const emit = defineEmits<{
                 class="print-btn"
                 :data-testid="`outbound-${row.outboundId}-ship`"
                 @click="emit('ship', row)"
-                >确认发运</el-button
+                >确认领货</el-button
               >
               <TableActions
                 v-if="outboundSecondaryActions(row).length"
@@ -210,7 +231,7 @@ const emit = defineEmits<{
               <span v-else-if="!row.lines?.length && row.status !== 'SHIPPED'" class="muted"
                 >无明细</span
               >
-              <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
+              <span v-else-if="row.status === 'SHIPPED'" class="muted">已领出</span>
             </div>
           </template>
         </el-table-column>
@@ -221,3 +242,10 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.remainder-warn {
+  color: var(--el-color-warning);
+  font-weight: 600;
+}
+</style>

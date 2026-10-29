@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { yuanText } from '@/utils/display';
 
 export type WarehousePayableRow = AdminDynamicRow;
 
@@ -10,7 +11,6 @@ defineProps<{
   rows: WarehousePayableRow[];
   summaryText: string;
   canEdit: boolean;
-  money: (cents: number) => string;
   payableStatusType: (status: string) => string;
   payableStatusText: (status: string) => string;
 }>();
@@ -75,7 +75,7 @@ const emit = defineEmits<{
                   class-name="col-money"
                   label-class-name="col-money"
                 >
-                  <template #default="scope">¥{{ money(scope.row.amountCents) }}</template>
+                  <template #default="scope">{{ yuanText(scope.row.amountCents) }}</template>
                 </el-table-column>
                 <el-table-column
                   prop="notes"
@@ -114,7 +114,7 @@ const emit = defineEmits<{
           class-name="col-money"
           label-class-name="col-money"
         >
-          <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
+          <template #default="{ row }">{{ yuanText(row.amountCents) }}</template>
         </el-table-column>
         <el-table-column
           label="已付"
@@ -123,7 +123,7 @@ const emit = defineEmits<{
           class-name="col-status"
           label-class-name="col-status"
         >
-          <template #default="{ row }">¥{{ money(row.paidAmountCents) }}</template>
+          <template #default="{ row }">{{ yuanText(row.paidAmountCents) }}</template>
         </el-table-column>
         <el-table-column
           label="未付余额"
@@ -133,7 +133,7 @@ const emit = defineEmits<{
           label-class-name="col-money"
         >
           <template #default="{ row }">
-            <span class="cell-id">{{ money(row.balanceCents) }}</span>
+            <span class="cell-id">{{ yuanText(row.balanceCents) }}</span>
           </template>
         </el-table-column>
         <el-table-column

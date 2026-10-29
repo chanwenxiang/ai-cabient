@@ -1,5 +1,5 @@
 <template>
-  <!-- 拣货/发运：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
+  <!-- 拣货/领货：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
   <el-dialog
     :model-value="outboundConfirm.visible"
     :title="outboundConfirm.title"

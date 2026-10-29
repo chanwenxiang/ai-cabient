@@ -315,7 +315,7 @@ interface OpsActionItem {
   sessionId?: string;
   ticketId?: string;
   skuId?: string;
-  /** 与 shared-types OpsWorkbench.actionItems 对齐（补货签收超时的 taskId 是出库单号，可能为 string） */
+  /** 与 shared-types OpsWorkbench.actionItems 对齐（补货未上柜超时的 taskId 是出库单号，可能为 string） */
   taskId?: number | string;
 }
 
@@ -410,7 +410,7 @@ const quickLinks = computed<QuickLink[]>(() => [
     query: { tab: 'splits' }
   },
   {
-    label: '签收超时',
+    label: '未上柜超时',
     count: workbench.value?.inTransitOverdue || 0,
     path: '/warehouse',
     query: { tab: 'transit', overdue: '1' }
@@ -430,7 +430,7 @@ function filterZone(labels: string[]) {
 
 const workZones = computed(() => {
   const fund = filterZone(['超时待支付', '对账差异', '分账异常']);
-  const fulfill = filterZone(['待审争议', '异常中心', '异常会话', '补货任务', '签收超时']);
+  const fulfill = filterZone(['待审争议', '异常中心', '异常会话', '补货任务', '未上柜超时']);
   const device = filterZone(['停售货柜', '离线设备', '缺货柜/SKU', '临期批次']);
   const onboard: QuickLink[] = canAccessPath('/merchant-onboarding')
     ? [
@@ -456,7 +456,7 @@ const workZones = computed(() => {
     {
       key: 'fulfill',
       title: '履约异常',
-      hint: '争议 · 异常会话 · 补货 · 在途',
+      hint: '争议 · 异常会话 · 补货 · 未上柜',
       items: fulfill,
       // 异常中心 count 已含 openExceptionCount，勿再加一次（否则角标双计）
       total: fulfill.reduce((s, i) => s + i.count, 0),
@@ -598,7 +598,7 @@ function contextLabel(row: OpsActionItem) {
   if (row.deviceId) parts.push(`设备 ${row.deviceId}`);
   if (row.sessionId) parts.push(`会话 ${shortId(row.sessionId)}`);
   if (row.ticketId) parts.push(`工单 ${shortId(row.ticketId)}`);
-  // 补货签收超时已按出库单聚合：taskId = outboundId
+  // 补货未上柜超时已按出库单聚合：taskId = outboundId
   if (row.type === 'IN_TRANSIT_OVERDUE' && row.taskId != null) {
     parts.push(`出库单 ${row.taskId}`);
   } else if (row.skuId) {

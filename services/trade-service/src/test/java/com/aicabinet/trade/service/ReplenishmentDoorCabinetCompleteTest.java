@@ -18,8 +18,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -92,7 +94,8 @@ class ReplenishmentDoorCabinetCompleteTest {
 
         verify(inventoryLotService).addRestock(eq("EG-DOOR"), eq("SKU-COLA"),
                 any(InventoryLotService.RestockCommand.class));
-        verify(warehouseService).markDeviceHandoverReceived(400L, "EG-DOOR", 5);
+        // 任务无明细 ⇒ 整单入柜并按全量签收（CB-074 后「全量」是显式入口，不再传 MAX_VALUE）
+        verify(warehouseService).markDeviceHandoverReceivedFull(400L, "EG-DOOR");
         // 判据短路：不探货道（柜上有残留货道也照样加库存）
         verify(deviceSlotService, never()).hasSkuSlots(anyString(), anyString());
         verify(deviceSlotService, never()).recordRestock(anyString(), any(), org.mockito.ArgumentMatchers.anyBoolean());
@@ -132,5 +135,40 @@ class ReplenishmentDoorCabinetCompleteTest {
         verify(deviceSlotService).recordRestock("EG-DOOR", null, false);
         org.junit.jupiter.api.Assertions.assertTrue(line.isApplied());
         org.junit.jupiter.api.Assertions.assertNull(line.getSlotId());
+    }
+
+    @Test
+    void listFulfillmentTasksPage_doorCabinetTaskNeverCountsAsPendingSlotAssignment() {
+        // 审计 F3：开门柜补货行恒无货道，「待分配」徽章按旧判据会常亮、'仅待分配'筛选命中全部开门柜
+        ReplenishmentTask door = fulfillmentTask(60L, "EG-DOOR");
+        ReplenishmentTask shelf = fulfillmentTask(61L, "CAB-SHELF");
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<ReplenishmentTask> page =
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 10);
+        page.setRecords(List.of(door, shelf));
+        when(taskRepository.searchPage(null, null, 0, 10)).thenReturn(page);
+        when(taskLineRepository.selectMaps(any())).thenReturn(List.of(
+                Map.of("task_id", 60L, "cnt", 2L),
+                Map.of("task_id", 61L, "cnt", 3L)));
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        when(deviceSlotService.isDoorCabinet("CAB-SHELF")).thenReturn(false);
+
+        var out = replenishmentService.listFulfillmentTasksPage(null, null, 0, 10).items();
+
+        assertEquals(0, badgeOf(out, 60L), "开门柜无货道概念，待分配恒 0");
+        assertEquals(3, badgeOf(out, 61L), "货架柜照旧统计未分配货道的补货行");
+    }
+
+    private static ReplenishmentTask fulfillmentTask(long taskId, String deviceId) {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(taskId);
+        task.setDeviceId(deviceId);
+        task.setStatus("PLANNED");
+        return task;
+    }
+
+    private static int badgeOf(
+            List<com.aicabinet.common.dto.ReplenishmentFulfillmentTaskDto> items, long taskId) {
+        return items.stream().filter(d -> Long.valueOf(taskId).equals(d.taskId()))
+                .findFirst().orElseThrow().unassignedRestockLines();
     }
 }

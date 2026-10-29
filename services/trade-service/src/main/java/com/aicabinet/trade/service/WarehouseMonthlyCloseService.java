@@ -84,7 +84,8 @@ public class WarehouseMonthlyCloseService {
     /** 发运流水（= 月结「上柜」列的唯一来源，见 {@link WarehouseMonthlyCloseMath#applyInMonth}）。 */
     private static final String MOVEMENT_OUTBOUND_SHIP = "OUTBOUND_SHIP";
     private static final String FORMULA_HINT =
-            "应有=上期+采购入库+调入−退货−调出−上柜（四损耗列单独展示不进应有）；"
+            "应有=上期+采购入库+调入−退货−调出−领货（四损耗列单独展示不进应有）；"
+                    + "「领货」=出库单从本仓带出的件数，其中没进柜的部分点该列下钻看「领而未上」（CB-074）；"
                     + "实盘=账期内最近一次已完成盘点或期末盘点导入；账期=上月26日~本月25日；与结算金额无关";
 
     private final WarehouseMapper warehouseRepository;
@@ -244,8 +245,12 @@ public class WarehouseMonthlyCloseService {
      *
      * <p>🔴 骨架是 {@code OUTBOUND_SHIP} 流水而不是出库单：月结的 restockQty 就是这批流水逐条累加出来的，
      * 换任何别的真源都会造出「明细合计 ≠ 列值」——那种差异比「某台柜没归属」更难向运营解释。
-     * 柜机归属由出库行回填：{@code WarehouseService.ship} 逐 line 写流水（{@code :862-869}），
+     * 柜机归属与领而未上差额由出库行回填：{@code WarehouseService.ship} 逐 line 写流水（{@code :862-869}），
      * 故 {@code (outboundId, skuId, batchNo)} 能与流水精确配对。
+     *
+     * <p>CB-074：列值是**领货量**（出了分仓多少），不是进柜量。下钻里把
+     * 领货 / 上柜实收 / 领而未上 三列拆开，运营才看得见「带了 10 件只上了 7 件」这 3 件去哪了
+     * ——它既不在分仓账（已发运扣减）也不在柜机账（现场没确认），是未结差额。
      *
      * <p>归属可能为空是数据现状而非缺陷：{@code device_info.home_warehouse_id} 决定柜机挂在哪个仓，
      * 但出库行本身带 {@code device_id}，所以明细按出库单归属、不经该列；未填只影响「按仓筛柜」。
@@ -276,20 +281,24 @@ public class WarehouseMonthlyCloseService {
             return List.of();
         }
 
-        Map<String, String> deviceByLine = deviceByOutboundLine(ships);
+        Map<String, WarehouseOutboundLine> lineByKey = outboundLineByMovement(ships);
         Map<String, RestockAcc> grouped = new TreeMap<>();
         for (WarehouseMovement m : ships) {
             int qty = Math.max(-m.getDeltaQty(), 0);
             if (qty == 0) {
                 continue;
             }
-            String deviceId = blankToNull(deviceByLine.get(
-                    lineKey(m.getRefId(), m.getSkuId(), m.getBatchNo())));
+            WarehouseOutboundLine line = lineByKey.get(lineKey(m.getRefId(), m.getSkuId(), m.getBatchNo()));
+            String deviceId = line == null ? null : blankToNull(line.getDeviceId());
             RestockAcc acc = grouped.computeIfAbsent(
                     (deviceId == null ? "" : deviceId) + "|" + m.getSkuId(), k -> new RestockAcc());
             acc.deviceId = deviceId;
             acc.skuId = m.getSkuId();
             acc.qty += qty;
+            // 出库行缺失（历史/外部单据）时不猜差额：按全量上柜出账，差额列留 0
+            if (line != null) {
+                acc.remainderQty += Math.max(0, Math.min(line.getRemainderQty(), qty));
+            }
             String refId = blankToNull(m.getRefId());
             if (refId != null) {
                 acc.outboundIds.add(refId);
@@ -315,6 +324,8 @@ public class WarehouseMonthlyCloseService {
                     skuName(sku, acc.skuId),
                     sku == null ? null : blankToNull(sku.getBarcode()),
                     acc.qty,
+                    acc.qty - acc.remainderQty,
+                    acc.remainderQty,
                     String.join("、", acc.outboundIds),
                     acc.lastShippedAt == null ? null : STAMP_FMT.format(acc.lastShippedAt)
             ));
@@ -322,8 +333,8 @@ public class WarehouseMonthlyCloseService {
         return rows;
     }
 
-    /** 流水 → 柜机：按 {@code (outboundId, skuId, batchNo)} 回查出库行的 device_id。 */
-    private Map<String, String> deviceByOutboundLine(List<WarehouseMovement> ships) {
+    /** 流水 → 出库行：按 {@code (outboundId, skuId, batchNo)} 回查，用于取柜机归属与领而未上差额。 */
+    private Map<String, WarehouseOutboundLine> outboundLineByMovement(List<WarehouseMovement> ships) {
         Set<Long> outboundIds = new LinkedHashSet<>();
         for (WarehouseMovement m : ships) {
             String ref = blankToNull(m.getRefId());
@@ -339,12 +350,11 @@ public class WarehouseMonthlyCloseService {
         if (outboundIds.isEmpty()) {
             return Map.of();
         }
-        Map<String, String> byLine = new HashMap<>();
+        Map<String, WarehouseOutboundLine> byLine = new HashMap<>();
         for (WarehouseOutboundLine line : outboundLineMapper.selectList(
                 Wrappers.<WarehouseOutboundLine>lambdaQuery()
                         .in(WarehouseOutboundLine::getOutboundId, outboundIds))) {
-            byLine.put(lineKey(String.valueOf(line.getOutboundId()), line.getSkuId(), line.getBatchNo()),
-                    line.getDeviceId());
+            byLine.put(lineKey(String.valueOf(line.getOutboundId()), line.getSkuId(), line.getBatchNo()), line);
         }
         return byLine;
     }
@@ -377,6 +387,8 @@ public class WarehouseMonthlyCloseService {
         private String deviceId;
         private String skuId;
         private int qty;
+        /** 领而未上（CB-074）：本账期该柜×商品出库行上未结的差额合计。 */
+        private int remainderQty;
         private final Set<String> outboundIds = new LinkedHashSet<>();
         private Instant lastShippedAt;
     }
