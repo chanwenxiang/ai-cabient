@@ -582,16 +582,7 @@
             >
               <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
             </el-table-column>
-            <el-table-column
-              prop="slotId"
-              label="货道"
-              width="72"
-              align="center"
-              class-name="col-text"
-              label-class-name="col-text"
-            >
-              <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
-            </el-table-column>
+            <!-- 无「货道」列：开门柜（将邑 BOUND）订单行的 slot 恒空。 -->
           </el-table>
         </section>
 

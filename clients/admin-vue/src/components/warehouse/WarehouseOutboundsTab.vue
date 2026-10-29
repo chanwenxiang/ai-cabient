@@ -80,14 +80,8 @@ const emit = defineEmits<{
                     {{ skuName(scope.row.skuId) }}
                   </template>
                 </el-table-column>
-                <el-table-column
-                  label="货道"
-                  min-width="88"
-                  class-name="col-text"
-                  label-class-name="col-text"
-                >
-                  <template #default="scope">{{ scope.row.slotId || '无' }}</template>
-                </el-table-column>
+                <!-- 无「货道」列：出库明细行即补货任务行，开门柜（将邑 BOUND）slot_id 恒 null，
+                     这一列只会恒显「无」。 -->
                 <el-table-column
                   prop="batchNo"
                   label="批次"

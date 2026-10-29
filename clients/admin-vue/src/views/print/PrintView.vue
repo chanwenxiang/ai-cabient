@@ -32,7 +32,6 @@
               <th>目标设备</th>
               <th>商品</th>
               <th>批次</th>
-              <th>货道</th>
               <th>数量</th>
               <th>到期日</th>
             </tr>
@@ -44,13 +43,12 @@
               </td>
               <td>{{ nameOf(skus, 'skuId', 'skuName', line.skuId) }}</td>
               <td>{{ line.batchNo || '暂无' }}</td>
-              <td>{{ line.slotId || '待分配' }}</td>
               <td class="num">{{ line.quantity }}</td>
               <td>{{ line.expiryDate || '暂无' }}</td>
             </tr>
           </tbody>
         </table>
-        <p class="sheet-foot">打印时间：{{ printTime }} · 请在拣货/发运时按单核对批次与货道</p>
+        <p class="sheet-foot">打印时间：{{ printTime }} · 请在拣货/发运时按单核对批次</p>
       </template>
 
       <!-- 采购收货单 -->

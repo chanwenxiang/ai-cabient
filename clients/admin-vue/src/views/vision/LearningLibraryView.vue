@@ -86,7 +86,7 @@
           />
           <span class="form-hint">
             在列＝采集成档且厂商审核通过，<b>不等于已学成</b>；「未上架」＝该识别名没有 ACTIVE
-            识别映射：<b>货道在售 ≠ 识别上架</b>，识别结算以映射为准
+            识别映射：<b>柜内在售 ≠ 识别上架</b>，识别结算以映射为准
           </span>
         </div>
         <el-table v-loading="loading" :data="pagedProducts" size="small" border>
@@ -127,7 +127,7 @@
                 </el-tag>
               </template>
               <el-tooltip
-                content="货道在售 ≠ 识别上架：该识别名在这台柜的模型映射里没有 ACTIVE 行，摄像头认出它也不会按此商品结算；到识别映射页激活后才算识别上架"
+                content="柜内在售 ≠ 识别上架：该识别名在这台柜的模型映射里没有 ACTIVE 行，摄像头认出它也不会按此商品结算；到识别映射页激活后才算识别上架"
                 placement="top"
               >
                 <span class="muted">未上架</span>

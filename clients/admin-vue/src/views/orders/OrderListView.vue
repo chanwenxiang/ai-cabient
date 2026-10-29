@@ -177,32 +177,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column
-            label="货道"
-            width="80"
-            align="center"
-            class-name="col-text"
-            label-class-name="col-text"
-          >
-            <template #default="{ row }">
-              <div
-                v-for="(disp, idx) in [goodsDisplay(row)]"
-                :key="`${row.orderId}-slot-${idx}`"
-                class="goods-cell"
-              >
-                <template v-if="disp.lines.length">
-                  <div
-                    v-for="(slot, i) in disp.slots"
-                    :key="`${row.orderId}-slot-${i}`"
-                    class="goods-line"
-                  >
-                    <span :class="slot ? 'goods-name' : 'muted'">{{ slot || '暂无' }}</span>
-                  </div>
-                </template>
-                <span v-else class="muted">暂无</span>
-              </div>
-            </template>
-          </el-table-column>
+          <!-- 无「货道」列：开门柜（将邑 BOUND）订单行走识别结算，商品行没有 slot。 -->
           <el-table-column
             label="金额"
             width="110"
@@ -622,15 +597,6 @@
               label-class-name="col-status"
             />
             <el-table-column
-              prop="slotId"
-              label="货道"
-              width="80"
-              class-name="col-text"
-              label-class-name="col-text"
-            >
-              <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
-            </el-table-column>
-            <el-table-column
               prop="batchNo"
               label="批次"
               width="100"
@@ -809,8 +775,6 @@ function goodsDisplay(row: OrderSummary) {
   const extraMatch = /等(\d{1,4})(?:种|件)\s*$/.exec(summary);
   return {
     lines,
-    /** 与商品行一一对齐（无货道则为空串） */
-    slots: lines.map((g) => g.slot),
     extraKinds: extraMatch ? Number(extraMatch[1]) : null,
     total: row.lineCount ?? 0
   };

@@ -11,7 +11,7 @@ import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
 /**
  * 将邑接入卡片（CB-022 收尾）：把此前只能手工 SQL 的登记/绑定/映射升级为后台可操作。
  * 流程＝SN 登记（UNBOUND）→ setDomain 绑定（BOUND）→ class_id→SKU 映射（识别结算的唯一换算依据）。
- * 库存不在此处：device_sku_inventory 走既有「货道管理」，将邑柜直接复用。
+ * 库存不在此处：device_sku_inventory 由补货/理货流程维护，将邑柜直接复用。
  */
 interface JiangyiDeviceBinding {
   deviceId: string;
@@ -478,7 +478,7 @@ onMounted(load);
           <div class="page-card-head__title">
             <span class="title">识别开门柜套件</span>
             <span class="hint">
-              挂接 → 采集 → 审核 → 学习 → 映射下发 → 上架；库存走「货道陈列」
+              挂接 → 采集 → 审核 → 学习 → 映射下发 → 上架；库存由补货/理货流程维护
             </span>
           </div>
         </div>

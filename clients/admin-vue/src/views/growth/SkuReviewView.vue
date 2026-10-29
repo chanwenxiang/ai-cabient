@@ -6,7 +6,7 @@
           <div class="page-card-head__title">
             <span class="title">选品诊断</span>
             <span class="hint"
-              >动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内货道商品</span
+              >动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内在售商品</span
             >
           </div>
         </div>
@@ -287,12 +287,12 @@ async function decide(row: ReviewRow, action: string) {
 
 async function confirmDelist(row: ReviewRow) {
   const { value } = await ElMessageBox.prompt(
-    `确认下架「${row.skuName}」？商品将停止销售。可填建议替换 SKU（仅备注，不改货道）。`,
+    `确认下架「${row.skuName}」？商品将停止销售。可填建议替换 SKU（仅备注，不改柜内在售商品）。`,
     '确认下架',
     {
       confirmButtonText: '确认下架',
       cancelButtonText: '取消',
-      inputPlaceholder: '建议替换 SKU（仅备注，不改货道）'
+      inputPlaceholder: '建议替换 SKU（仅备注，不改在售商品）'
     }
   ).catch(() => ({ value: undefined as string | undefined }));
   if (value === undefined) return;
@@ -321,12 +321,12 @@ async function batchDecide(action: 'DELIST' | 'KEEP') {
   try {
     if (action === 'DELIST') {
       const { value } = await ElMessageBox.prompt(
-        `确认批量下架 ${targets.length} 个 SKU？商品将停止销售。可填统一「建议替换」SKU（仅备注，不改货道）。`,
+        `确认批量下架 ${targets.length} 个 SKU？商品将停止销售。可填统一「建议替换」SKU（仅备注，不改柜内在售商品）。`,
         '批量下架',
         {
           confirmButtonText: '确认下架',
           cancelButtonText: '取消',
-          inputPlaceholder: '建议替换 SKU（仅备注，不改货道）'
+          inputPlaceholder: '建议替换 SKU（仅备注，不改在售商品）'
         }
       );
       replaceSkuId = value?.trim() || undefined;

@@ -160,35 +160,45 @@
 
 ---
 
-## 十三期（开门柜「货道」概念残留盘点，2026-10-28 开单 · 只盘点不改码）
+## 十三期（开门柜「货道」概念残留，2026-10-28 开单盘点 · 2026-10-29 A 类落地）
 
 > **判据（2026-10-28 用户拍板，勿再自创）**：开门柜 = `jiangyi_device.status = BOUND`（**不是** `device_type`）。
 > 开门柜没有「货道」概念：补货任务行 `replenishment_task_line.slot_id` 恒为 `null`，在售面读
 > `class_mapping + sku_catalog + inventory`（见 `PROJECT_KNOWLEDGE` 将邑段 / V400 映射复核闸口）。
 > 货道柜（重力 / 闸机）仍有 `device_slot`，那部分「货道」是真实概念，**不在本债内**。
 >
-> **本轮已动的一处**：`views/growth/ReplenishmentStaffView.vue` 理货记录删掉 `prop="slotId" label="货道"` 列
-> （详见修复日志 D26）。其余 19 个文件 82 处**未动**，按下表分类待拍板。
+> **2026-10-28 已动的一处**：`views/growth/ReplenishmentStaffView.vue` 理货记录删掉 `prop="slotId" label="货道"` 列
+> （详见修复日志 D26）。其余按下表分类，**2026-10-29 A 类 8 处已改**，B/C 类保留。
 >
 > **口径**：`grep -rn 货道 clients/admin-vue/src`（含 `.ts` / `.vue`，不含 `static/` 构建产物）＝ 84 处 / 20 文件。
+>
+> **2026-10-29 追改（用户拍板「A 类 8 处一起改」）**：A 类按下表 ✅ 落地——4 处**删列** + 4 处**改词**，
+> `ReplenishmentView` 的 8 处**未动**（并入「缺货新口径」那笔）。改后 `grep -o 货道` 由 **96 处 / 21 文件
+> （HEAD `8c74cfd2`）** 降到 **86 处 / 17 文件**，剩余全部是 B 类、C 类与 `ReplenishmentView`。
+> 口径变了要留意：2026-10-28 记的 84/20 是**当时**的树；此后 peer 的盘点等提交又新增了 12 处。
 
 | ID | 优先级 | 状态 | 问题摘要 | 主要证据 / 边界 | 完成记录 |
 |----|--------|------|----------|-----------------|----------|
-| D26 | P2 | open | 运营后台仍有 19 个文件对**开门柜**讲「货道」：恒空列 / `待分配`·`无`·`暂无` 兜底 / 按货道粒度的文案 | 下表 A 类逐条 `file:line`；判据来自 2026-10-28 拍板 | — |
+| D26 | P2 | open（A 类已清，仅剩 `ReplenishmentView`） | 运营后台仍有文件对**开门柜**讲「货道」：恒空列 / `待分配`·`无`·`暂无` 兜底 / 按货道粒度的文案 | 下表 A 类逐条 `file:line`；判据来自 2026-10-28 拍板 | 2026-10-29：A 类 8 处落地（见下「处置」与修复日志） |
 
-### A 类 · 对开门柜会误导（该条件化或改文案，待拍板）
+### A 类 · 对开门柜会误导（✅＝2026-10-29 已改；`ReplenishmentView` 待缺货新口径）
 
 | 位置 | 现状 | 为什么说它误导 |
 |------|------|----------------|
-| `components/warehouse/WarehouseOutboundsTab.vue:84` | `label="货道"`，单元格 `{{ row.slotId \|\| '无' }}` | 出库明细行=补货任务行；开门柜恒 `null` ⇒ 整列恒显「无」 |
-| `views/print/PrintView.vue:35` `:53` | 拣货单表头「货道」+ `{{ line.slotId \|\| '待分配' }}`；脚注「请按单核对批次与货道」 | 开门柜的货**永远不会分配货道**，「待分配」把结构性缺失说成流程未完成 |
-| `views/orders/OrderListView.vue:181` `:626` `:812` | 商品列内嵌货道展示 + 明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 将邑柜订单走识别结算，无 slot；`utils/order-line-summary.ts:9` 靠后端 `·货道A1` 字面量解析，开门柜订单串里根本没有该段 |
-| `views/disputes/DisputeListView.vue:587` | 争议明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 同上，订单行的 slot 对开门柜恒空 |
+| ✅ `components/warehouse/WarehouseOutboundsTab.vue:84` | `label="货道"`，单元格 `{{ row.slotId \|\| '无' }}` | 出库明细行=补货任务行；开门柜恒 `null` ⇒ 整列恒显「无」 |
+| ✅ `views/print/PrintView.vue:35` `:53` | 拣货单表头「货道」+ `{{ line.slotId \|\| '待分配' }}`；脚注「请按单核对批次与货道」 | 开门柜的货**永远不会分配货道**，「待分配」把结构性缺失说成流程未完成 |
+| ✅ `views/orders/OrderListView.vue:181` `:626` `:812` | 商品列内嵌货道展示 + 明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 将邑柜订单走识别结算，无 slot；`utils/order-line-summary.ts:9` 靠后端 `·货道A1` 字面量解析，开门柜订单串里根本没有该段 |
+| ✅ `views/disputes/DisputeListView.vue:587` | 争议明细 `prop="slotId" label="货道"`（`\|\| '暂无'`） | 同上，订单行的 slot 对开门柜恒空 |
 | `views/replenishment/ReplenishmentView.vue:382` `:576` `:595` `:738` `:946` `:952` `:1121` `:1600` | 补货建议表 `prop="slotCode"`、空态「当前无缺货/低库存货道」、CSV 表头「货道」、「货道已满请先下架」、确认文案「设备×货道 粒度」 | 2026-10-28 已拍板：开门柜补货行恒 `slotId=null`，与残留货道无关 ⇒ 这些把「货道」当补货单位的表述对将邑柜不成立（**缺货新口径**本身也在待拍板清单里） |
-| `views/analytics/FootfallView.vue:8` `:189` `:225` | 页标题与模块标题「货道热区」，空态「暂无带货道明细的订单」 | 热区按货道坐标聚合；开门柜订单无坐标 ⇒ 模块对该柜型天然为空，需在标题上限定「（货道柜）」而非留白 |
-| `components/device/DeviceJiangyiCard.vue:14` `:481` | 将邑柜卡片自己写着「库存走既有『货道管理』」「上架；库存走『货道陈列』」 | 🔴 最刺眼的一处：正在被当开门柜用的组件里教运营去找货道 |
-| `views/growth/SkuReviewView.vue:9` `:290` `:295` `:324` `:329` | 下架提示「仅备注，不改货道」 | 纯文案，但把「柜内商品」说成「货道商品」；改词为「不改柜内在售商品」即可 |
-| `views/vision/LearningLibraryView.vue:89` `:130` | 「货道在售 ≠ 识别上架」 | 将邑映射页；开门柜的「在售」不是货道，措辞与 V400 映射口径混在一起容易读成两套 |
+| ✅ `views/analytics/FootfallView.vue:8` `:189` `:225` | 页标题与模块标题「货道热区」，空态「暂无带货道明细的订单」 | 热区按货道坐标聚合；开门柜订单无坐标 ⇒ 模块对该柜型天然为空，需在标题上限定「（货道柜）」而非留白 |
+| ✅ `components/device/DeviceJiangyiCard.vue:14` `:481` | 将邑柜卡片自己写着「库存走既有『货道管理』」「上架；库存走『货道陈列』」 | 🔴 最刺眼的一处：正在被当开门柜用的组件里教运营去找货道 |
+| ✅ `views/growth/SkuReviewView.vue:9` `:290` `:295` `:324` `:329` | 下架提示「仅备注，不改货道」 | 纯文案，但把「柜内商品」说成「货道商品」；改词为「不改柜内在售商品」即可 |
+| ✅ `views/vision/LearningLibraryView.vue:89` `:130` | 「货道在售 ≠ 识别上架」 | 将邑映射页；开门柜的「在售」不是货道，措辞与 V400 映射口径混在一起容易读成两套 |
+
+**2026-10-29 处置（8 处落地，`ReplenishmentView` 除外）**：
+- **删列 4**：`WarehouseOutboundsTab` 出库明细「货道」；`PrintView` 拣货单「货道」表头 + `<td>`（`待分配` 兜底随之消失）+ 脚注去掉「与货道」；`OrderListView` 主表「货道」列 **与** 明细行「货道」列（顺带删掉只为该列存在的 `goodsDisplay().slots`，`parseGoodsLines`/`goodsDisplay` 保留给商品列）；`DisputeListView` 明细行「货道」。
+- **改词 4**：`DeviceJiangyiCard` → 「库存由补货/理货流程维护」；`SkuReviewView` → 「不改柜内在售商品」；`LearningLibraryView` → 「柜内在售 ≠ 识别上架」；`FootfallView` → 「货道热区（仅货道柜）」+ 空态「开门柜订单不含货道坐标，此处无数据」。
+- 删列处留了一行 `<!-- 无「货道」列：… -->` 注释（含「货道」二字），所以 `grep 货道` 在这些文件里仍有 1 处——**这是留痕不是残留**，下次盘点勿当漏网。
 
 ### B 类 · 货道柜固有概念，保留（勿顺手删）
 
@@ -204,10 +214,10 @@
 
 `api/endpoints.ts:106` `:155` `:360`、`config/menu.ts:300`（菜单搜索词，删了搜不到）、`views/skus/SkuListView.vue:322` `:377` `:525`（件装数/上架限额/「本项目无称重货道」注释）、`views/analytics/FootfallView.vue:265`（竞态注释）、`views/devices/DeviceDetailView.vue:834` `:838` `:2290`（历史对照注释）。
 
-**待拍板（三项，各自爆炸半径不同）**：
-1. A 类「恒空列」是**删列**（如本轮理货记录）还是**按柜型条件显示**（货道柜仍展示）——后者要前端能拿到柜型判据，即 `jiangyi BOUND` 的前端投影，目前只有设备详情侧在用。
-2. `PrintView` 的「待分配」兜底词（改成按柜型显示，还是统一「不适用」）。
-3. `ReplenishmentView` 的补货建议是否只对货道柜显示货道列（与「缺货新口径」那条待拍板是同一件事）。
+**待拍板（三项 → 2026-10-29 已拍板 1、2；剩 3）**：
+1. ~~A 类「恒空列」是删列还是按柜型条件显示~~ → **拍板删列**：这批界面服务的柜机固定都是将邑开门柜（用户 2026-10-28 定），不需要行级柜型判据，也就不存在「货道柜仍展示」的分支。
+2. ~~`PrintView` 的「待分配」兜底词~~ → 随删列消失，不再需要选「不适用」还是条件显示。
+3. **仍待拍板**：`ReplenishmentView` 的补货建议是否只对货道柜显示货道列（与「缺货新口径」那条是同一件事，等新口径定了再一起改）。
 
 ---
 
@@ -397,6 +407,14 @@
   3. 重写历史要先数清「压在上面的有几笔」：一旦上面还压着 peer 的提交，拆笔就从「重写 1 笔」变「重写 N 笔」，代价跳档——本轮据此改选「不改历史 + 本条留痕」。
 - 旁证：peer 的 `bf85febe` 已提交产物里含 `月结单台账（审批锁账` 与 `时间窗内无理货记录` 两处字面量 ⇒ 那次重建是从**已含本轮源码**的树跑的；未见 `restock-detail` 字面量。
 
+### 2026-10-29 — D26 A 类 8 处落地（用户拍板「A 类全部 8 处一起改」）
+- **删列 4**：`components/warehouse/WarehouseOutboundsTab.vue`（出库明细「货道」，恒 `slotId || '无'`）；`views/print/PrintView.vue`（拣货单 `<th>货道</th>` + `<td>{{ line.slotId || '待分配' }}</td>` + 脚注「…核对批次与货道」→「…核对批次」）；`views/orders/OrderListView.vue`（主表「货道」列 + 明细 `prop="slotId"`，同时删 `goodsDisplay()` 里**只服务该列**的 `slots: lines.map((g) => g.slot)`；`parseGoodsLines`/`goodsDisplay` 仍服务商品列，保留）；`views/disputes/DisputeListView.vue`（明细 `prop="slotId"`）
+- **改词 4**：`components/device/DeviceJiangyiCard.vue`（`device_sku_inventory 走既有「货道管理」`→「由补货/理货流程维护」，hint 的「库存走『货道陈列』」同改）；`views/growth/SkuReviewView.vue`（5 处「不改货道」→「不改柜内在售商品」/ 占位符「不改在售商品」）；`views/vision/LearningLibraryView.vue`（「货道在售 ≠ 识别上架」→「柜内在售 ≠ 识别上架」×2）；`views/analytics/FootfallView.vue`（标题/空态补「仅货道柜」与「开门柜订单不含货道坐标」）
+- 判据来源：用户 2026-10-28 拍板「这些界面服务的柜机固定都是将邑开门柜」⇒ 不需要行级柜型投影，直接删列
+- 验证：`npx vue-tsc --noEmit` exit 0；`check-admin-table-gate` OK（裸表格 17，基线未动）；`check-admin-table-align` ok（bare center 0，新增 WARN 0，13 条 money WARN 全在未触碰文件）；`prettier --check` 8 文件全绿（`FootfallView` 首次红＝我把 `<p>` 折行，`--write` 后 `git diff` 只有 3 行文案，无夹带）；`eslint` 0 error（2 条 `no-unused-vars` WARN 在 `DisputeListView:682/:694`，本笔未触及）
+- 🔴 计数口径：`grep -o 货道` 从 **96 处 / 21 文件**（HEAD `8c74cfd2`）→ **86 处 / 17 文件**。删列的 4 个文件各留 1 行 `<!-- 无「货道」列：… -->`，`FootfallView` 因加限定词反而 +3，所以**不能拿总数下降幅度当成绩单**，要按文件核
+- 未动：`ReplenishmentView` 8 处（等缺货新口径）、B 类（设备详情货道编辑 / `useDeviceSlotActions` / `SlotInlineRow` / `order-line-summary` + 单测 / `ConsistencyView:401` / planogram 开关）、C 类（注释 / 菜单搜索词 / 端点说明）
+
 ---
 
 ## 关联
@@ -416,4 +434,4 @@
 - 十期：本表 **D23**（「十期后续」节）
 - 十一期：本表 **D24**（「十一期后续」节）
 - 十二期：本表 **D25**（「十二期后续」节）
-- 十三期：本表 **D26**（「十三期」节 · 开门柜货道残留盘点，2026-10-28 开单，仅清单未改码）
+- 十三期：本表 **D26**（「十三期」节 · 开门柜货道残留，2026-10-28 盘点 → 2026-10-29 A 类 8 处改码，仅剩 `ReplenishmentView`）

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">客流坪效</span>
-            <span class="hint">开门客流 · 转化 · 时段热区 · 柜机坪效 · 货道热区</span>
+            <span class="hint">开门客流 · 转化 · 时段热区 · 柜机坪效 · 货道热区（仅货道柜）</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -186,7 +186,7 @@
       </div>
 
       <div class="section-head">
-        <h4 class="section-title section-title--inline">货道热区（选择柜机）</h4>
+        <h4 class="section-title section-title--inline">货道热区（仅货道柜，选择柜机）</h4>
         <div class="slot-controls">
           <el-select
             v-model="slotDeviceId"
@@ -222,7 +222,7 @@
           <span class="slot-qty">{{ s.qtySold }} 件</span>
         </div>
       </div>
-      <p v-else class="muted">选择柜机查看货道热区；暂无带货道明细的订单</p>
+      <p v-else class="muted">选择货道柜查看货道热区；开门柜订单不含货道坐标，此处无数据</p>
     </div>
   </el-card>
 </template>
