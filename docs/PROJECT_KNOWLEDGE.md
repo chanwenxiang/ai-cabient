@@ -668,6 +668,19 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-29（运营后台三处报障整改 + 开门柜「货道」A 类清理；判据两次被自己证伪）
+
+- **用户报障三处**（2026-10-28 提出）：
+  1. **月结单台账**样式与全站不同 → 生成区+筛选并入 `filter-bar filter-bar--compact`，裸 `el-table` 换 `CrudTable`+`useCrudTable`（去掉写死的 `page=0&size=50`，第 51 单往后此前看不到）；状态/期初来源/处置三标签迁 `@aicabinet/shared-dict`（新增 `close_sheet_status` / `close_sheet_opening_source` / `close_sheet_disposition`）。
+  2. **仓库近效期预警**的「仓库」不是字典、与现有仓库没关联 → 自由文本改 `el-select`（名称显示 / id 提交，取 `warehouseListAll`）。🔴 仓库**不是** `sys_dict`：主数据在 `warehouse` 表，字典里只有 `warehouse_status` 之流。
+  3. **补货员效率 → 理货记录**还在讲「货道」 → 删列，并顺带修撞 key：`TallyRecordRowDto` 补 `lineId`（SQL **投影列**增 `l.line_id`），row-key 由 `taskId:skuId:slotId` 改 `lineId`（开门柜 `slot_id` 恒 null，同任务同 SKU 两行会撞，复用节点后勾选/展开错行）；`openapi.ts` 只补 lineId 两行。商户端 `pages/tally-records` 同缺陷只改行身份、**文案保留**（那边 `r.slotId ? …` 为空时一个字不显示，且商户名下可能真有货道柜）。
+- **开门柜「货道」残留 A 类 8 处**（D26，详见 `docs/engineering/admin-vue-debt-tracker.md` 十三期）：删列 4（出库明细 / 拣货单 / 订单主表+明细 / 争议明细）+ 改词 4（将邑卡片库存归属、选品诊断「不改柜内在售商品」、学习库「柜内在售 ≠ 识别上架」、客流坪效「货道热区（仅货道柜）」）。**判据**：上线后车队只有一种柜型 ⇒ 恒空列直接删列，不做「按柜型条件显示」，也不需要 `jiangyi BOUND` 的前端投影。
+- 🔴 **两条判据被自己证伪后订正（都要能变红才算判据）**：① DOM 层「无 Duplicate keys 告警」**证不了**撞 key——`el-table` 只在勾选/展开/树表走 `getRowIdentity`，且 `patchKeyedChildren` 的前缀同步会吃掉同序子节点 ⇒ 该断言降级为 canary，真判据改成「同一份断言跑 `git show HEAD:` 必红、跑工作树必绿」的静态差分；② 单测里 `contains("l.line_id")` 是弱断言（HEAD 的 `ORDER BY … l.line_id` 也含该字面），改成 `contains("SELECT l.line_id")` 后差分实测 HEAD 红/工作树绿。
+- **计数口径提醒**：`grep -o 货道 clients/admin-vue/src` 本轮 96 处/21 文件 → 86 处/17 文件，但**别拿下降幅度当成绩单**——删列处各留一行 `<!-- 无「货道」列… -->` 说明（本身含该词），`FootfallView` 因加限定词反而 +3。D26 剩余仅 `ReplenishmentView` 8 处（并入「缺货新口径」）。
+- **盘点文档重修**（`docs/ADMIN_TABLE_INVENTORY.md` 全量重生成 + [gen-admin-table-inventory.py](scripts/gen-admin-table-inventory.py) 修扫描器）：旧版「99 表 / 791 列」的三处失真都在扫描器——①路由对象里独占一行的 `//` 注释把 `path/name/component/meta` 整条挡掉（漏 7 条 ⇒ 8 个视图被误报「未挂 router」，`/print`、`/big-screen` 都在里面）；②`<CrudTable :table="x">` 宿主完全不认，而 59 个页面 / 74 个宿主已迁到它下面（列仍是插槽里的 `el-table-column`）；③展开行子表被父块吞掉（`row.lines` 那类子表列被算进父表）。重写后：按 import 图把 `components/**` 的表归到宿主页、逐块挖掉子表区间、外壳页按 `:only="[...]"` tab 子集收窄（4 个仓储子页各 7/12/9/8 张表，不再各摊 30 张）、注释内的标签不再当表格。现口径 **82 路由 / 149 表 / 1163 列 / 68 页有表**，`货道` 只剩 2 处（`DeviceDetailView` 的商户改货道 + `ReplenishmentView.slotCode`，均属已开的 D26/B 类）。
+- 🔴 **重修顺手挖出 D27（非本轮引入）**：`channel-import`（渠道对账导入，6 张表）在 `WarehouseView` 里仍编译、`:585` 还为它单独隐藏筛选栏，但四个子页 `:only` 都不含它、`ROUTE_TAB_SUB` 也没有它 ⇒ **拆页后这块 UI 从任何入口都进不去**。已开单十四期，落哪一页待拍板（改一行数组即可），未擅自改。
+- 验证：`vue-tsc` exit 0、`check-admin-table-gate` / `check-admin-table-align` 绿、`prettier` 全绿、`eslint` 0 error；三页 Playwright 27/27（含一条能变红的负向对照）；`mvn -Dtest=TallyLedgerServiceTest` 2 例绿（surefire 对 `@Nested` 少报，按 `<testcase>` 计数）。
+
 ### 2026-10-29（端点权限普查：ops 面 507 条逐一「表态」+ 两处「消费者 JWT 能打通」实测修复 + 防回潮测试）
 
 - **先证伪自己的统计口径**：正则扫「无 `@RequiresPermissions`」首版报 51 条 ops 缺口，逐条回读发现**绝大多数是假阳**——`@RequiresPermissions(value = {…}, logical = …)` 的多行写法被注解回溯截断。改成状态机（按括号平衡合并多行注解条目、遇到声明才归属）后：507 条 `/api/v2/ops` 端点里 16 条无注解，再逐条看服务层有没有第二道闸（`requireOperator` / `authorize` / `requirePermission`）。
