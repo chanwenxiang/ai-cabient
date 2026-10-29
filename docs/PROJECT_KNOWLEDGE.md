@@ -669,6 +669,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（D28 批次落库：三笔提交 + admin 产物必须从「已提交的 HEAD」重建）
+
+- **落库**：`aa5004b0`（代码/测试/迁移/门禁/契约/两端客户端 99 文件）+ `eeeb4fb7`（5 篇活文档）+ `21a48e86`（`static/admin` Linux 保真产物 151 文件），dev `7143b3d7` → `21a48e86`（ahead 3 → 推后 ahead 0 / behind 0，fast-forward 无 force）。
+- 🔴 **判「工作树里的 admin 产物能不能提交」的实证法**（本轮 peer 树上有 236 条 `static/admin` 脏项，最终一笔都没收）：
+  ① **内容归属**——在产物里 grep 本轮新中文文案（「已领未上柜」等）能命中 ⇒ 产物含我的源码，但 ② **新鲜度**——产物最新 mtime `10-29 14:27` 早于我最后一次 admin 源码改动 `10-30 07:10`，且 ③ **平台**——`build-admin-ci-fidelity.sh` 是 `git clone` 后 checkout **HEAD** 再构建的，我的源码当时还没成任何提交 ⇒ 那份产物**不可能**是保真构建，只能是工作区原生构建（lessons #287：Windows 哈希与 Linux CI 不同，入库必红）。三条里任何一条不过都不提交。
+- **正解顺序**：先提源码 → 再 `BUILD_MEMORY=3g bash scripts/build-admin-ci-fidelity.sh`（宿主 Docker VM 只有 8.3GB 且 peer 的 14 个栈在跑，降内存避开）→ 产物与 HEAD 逐文件比对后单独一笔 `build(admin)`。回传前脚本把旧产物 `mv` 到 `.tmp/stale-admin-ci-*`（不是 `rm`），我另存了快照 `.tmp/admin-win-build-20261030/admin`（239 文件，index.html md5 已核）。
+- **自检两条**：新产物里能 grep 到本轮新文案、且**没有** `clients/admin-vue/.env.local` 的 `127.0.0.1:18080` 内联；`check:admin-bundle-budget` 复跑 OK（最大 `WarehouseView` 133.3KB≤150、`index` 124.6KB≤130、总 JS 3405.5KB≤3500）。
+- **预检三轮才绿**（每轮都是我自己造成的红，逐轮定位而非放行）：① `format:check`（prettier，改 4 行）② `lint`（我新写的 `check-selfpickup-copy.mjs:156` 未使用变量 `value` ⇒ 空位解构；改后 gate 与其 31 条注入负向验证仍逐条能红）③ `check:docker-tests-guarded`（我的 `WarehouseOutboundTransitFilterSqlIT` 带 `@Testcontainers` 未登记 GUARDED）。
+- **代提交留痕**：5 篇活文档跨会话共写，同一文件里另有 peer 的行（PROJECT_KNOWLEDGE 的「2026-10-29 启动 11 轮三端分模块审计 / `docs/module-audit`」条目、COMPETITOR_BENCHMARK 的 CB-073/074 登记），按文件无法拆分，随 `eeeb4fb7` 入库并在信息里点名。
+
 ### 2026-10-29（D28-A9 收口：商户补货发起腿的柜机判据抬到 FIELD 包，订正一条与实现不符的注释）
 
 - **复核后方向订正**（原判断写的是「预览说能补、点生成被拒」）：真实形态**反过来**——`doSelfInitiateTask` 是**全链路唯一**只判裸 `merchantScopeService.canAccessDevice`（数据范围）的入口，其余 **9 处**（建议 `:92`、明细 `:202`、上限 `:216`、扫码归属 `:285`、开门会话 `:305`、`requireScopedTask` `:333` ⇒ 签到/确认/完成、以及 `:513/:523/:534`）都走 `requireDevicePack(FIELD)` ＝「数据范围 **∩** 该柜所属商户开通 FIELD 包」。⇒ 未开包商户名下的柜**能扣分仓库存生成出库+补货任务，却看不到补货建议/明细**：会动库存的写腿比只读的读腿还松。
@@ -676,7 +686,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - **假注释订正**：`MerchantPortalController:768` 原文「仅柜机所属分仓负责人可用」是 **CB-068 A 档（2026-10-27 用户拍板）放宽前的残留**——实现早已不判 `manager_user_id`（`selfInitiate_allowsNonWarehouseManager` 钉着）。注释改写成真实四条判据，并留一句「旧口径会把他引去配一个根本不参与的闸门」。
 - **铁律 75 红证**：删掉发起腿那行 `requireDevicePack` ⇒ `MerchantSelfReplenishTest` **2 红**（`Wanted but not invoked: merchantFeaturePackService.requireDevicePack(9L,"CAB-001","FIELD")` + `expected:<403 FORBIDDEN> but was:<400 BAD_REQUEST>`——后者证明少了这道门时流程会**继续往下走到扣库存**）⇒ 逐字节复原（sha256 `b513b60382dd604946dfd722d1ae096e749e55720eb18fb14b250375ca0940af`，与注入前记录值一致）⇒ 复跑 **17/0**；商户+补货面 51 个测试类 **274 例**全绿（Surefire 报告按 mtime 判新鲜）。
 - **未动**：`canAccessDevice` 本身、`requireDevicePack` 内部实现、CB-068 的「不再要求分仓负责人」放宽——本轮只把发起腿补齐到与读腿同一条判据。
-- ⚠️ 未 commit / 未 push（与 F1–F5 + B3/B5 + A5 + A6 同批状态）。
+- ✅ 已 commit / 已 push（2026-10-30，`aa5004b0` 代码 + `eeeb4fb7` 文档 + `21a48e86` admin 产物，dev tip `21a48e86`）。
 
 ### 2026-10-29（D28-A6 收口：账面量判据统一到 **SKU 级**批次账本，禁止设备级一刀切）
 
@@ -685,7 +695,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - 🔴 **只改读路径，未动写入侧**：`deviceUsesLotLedger` 仍保留给「建账/是否允许只改汇总表」的写判据用；本轮一个字节没碰它的语义，避免把「读口径」和「写门槛」两件事混成一次改动。
 - **铁律 75 红证（逐文件注入 → 逐条红 → 逐字节复原）**：三份源码各注入「退回设备级判据」⇒ 新测 [StockHealthSkuLevelBookQtyTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/StockHealthSkuLevelBookQtyTest.java) **2 红**（`expected <LOW> but was <STOCKOUT>` + 一条假缺货行）、[MerchantSkuPricingSellableQtyTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantSkuPricingSellableQtyTest.java) **1 红**、`OpsDevicePricingServiceTest` **1 红**；复原后 sha256 与记录值一致（`DeviceAssetService` **6dac6438…d6dd1**、`MerchantSkuPricingService` **c37c0407…2ecd6**、`OpsDevicePricingService` **f673eb0d…60bbd**）⇒ 复跑 **4/0 + 3/0 + 6/0** 全绿，相邻 10 个测试类 **87 例**全绿（Surefire 报告 mtime 均已核）。
 - 📚 教训（#362）：同一业务概念在多个读面各写一层判据，缺陷会**只在一个页面显形**——补货建议因为注释里写了「禁止设备级」而一直是对的，另外三处没有。收敛时不是「找一处改一处」，而是**按概念 grep 全部副本**，把判据做成一个函数（本次即 `lotLedgerSkuIds`），并给每处补一条能红的新测。
-- ⚠️ 未 commit / 未 push（与前序批次同状态，等用户授权）。
+- ✅ 已 commit / 已 push（2026-10-30，同上三笔，dev tip `21a48e86`）。
 
 ### 2026-10-29（D28-A5 收口：开门柜「可补量」服务端算一次并下发，商户小程序不再自己算第二层，CB-075 + `/headroom` 端点）
 
@@ -695,7 +705,8 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - **铁律 75 双端红证（都实跑，非自报）**：后端 [ReplenishmentHeadroomReadMatchesSubmitGateTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/ReplenishmentHeadroomReadMatchesSubmitGateTest.java) **8/8**（钉「下发口径」「读到 N 能提交 N、N+1 必拒且报错四个数与下发字段逐字相等」「同 SKU 多行合并计」「未配容量两侧都不拦」）＋两次注入各炸对应断言、`ReplenishmentService.java` sha256 `0b19243a…` 复原后复跑绿；mp `useReplenishmentFulfillment.door-cabinet.test.ts` **12/12**（新增 5 例），把 `doorHeadroomForSku` 临时改成台账优先 ⇒ 3 红（`expected 10 to be 5`/`2 to be 8`/`4 to be 2`）⇒ 复原（sha256 `186d245f…`）⇒ 12/12 绿。
 - **验证面**：mp 全量 vitest **216/216**（32 文件）、`vue-tsc --noEmit` exit 0、`build:mp-weixin` **release** exit 0 且产物新鲜（`dist/build/mp-weixin/utils/replenishment-headroom.js` 里 server 优先逻辑与新字面量都在）；后端另跑 `ReplenishmentSubmitLinesQuantityGateTest` 12/0、`ReplenishmentDoorCabinetCompleteTest` 3/0；契约 `openapi.ts` **+65 / −0**（8 处 headroom，基线里该路径 grep=0），门禁 `check:openapi-types`/`check:openapi-regen`/`check:merchant-endpoints`/`check:shared-dist-fresh`/`check:mp-defect-classes`/`check:mp-unit-tests-wired`/`check:replenishment-checkin-contract` 全 exit 0，eslint 0 error。regen 仍走**隔离栈**（throwaway pg16:25444 + redis7:26388 + 本机 :28085 新 jar，空库 V1→V415），未碰 peer 的 :18080 与 `ai-cabinet-postgres-1`。
 - 📚 教训（两条，都是判据级）：① **`-i headroom` 这类宽 grep 会把无关字段算成「基线已有」**——本仓 HEAD 里唯一的 headroom 命中是 `WarehouseSuggestionDto.restockHeadroom`（建议量语义，与开门柜台账无关），据此得出「端点早就在契约里」是错的；判「契约里有没有」要**按完整路径字面量** `tasks/{taskId}/headroom` grep，不是按词根。② **`mvn` 不带 `-am` 会用本地仓库里的陈旧 `common-core`**，新 DTO「找不到符号」看起来像代码错，其实是构建作用域；且第一次跑别信 surefire XML——**按 mtime 判新鲜**，没变就是没跑成。
-- ⚠️ 交接（跨会话现状，非本会话可自证）：本轮另有 peer 会话在同一工作树改 `admin-vue`/`docs/module-audit`，且两台机各自的 `dev` 分叉（远端仓名不同、迁移号 V414–V417 归属未订）——**主线仓与迁移号待用户拍板**；本批（D28 F1–F5 + B3/B5 残留 + A5）**未 commit、未 push**。
+- ⚠️ 交接（跨会话现状，非本会话可自证）：本轮另有 peer 会话在同一工作树改 `admin-vue`/`docs/module-audit`，且两台机各自的 `dev` 分叉（远端仓名不同、迁移号 V414–V417 归属未订）——**主线仓与迁移号待用户拍板**。
+- ✅ 落库（2026-10-30 本会话）：D28 F1–F5 + B3/B5 残留 + A5/A6/A9 已按「代码 / 文档 / admin 产物」三笔提交并推送（dev `7143b3d7` → `21a48e86`）；peer 的 12 个脏文件（`git status` 未展开时 8 条：`.idea/`×3、`docs/JIANGYI_INTERFACE_CHECKLIST.md`、`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、`docs/figures/`×2、`docs/module-audit/`×5）未提交、未改动。
 
 ### 2026-10-29（D28 B3 残留 + B5 收口：仓储列表/导出筛选下沉服务端，openapi 隔离栈 regen）
 

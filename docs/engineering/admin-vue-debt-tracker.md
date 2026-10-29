@@ -501,7 +501,7 @@
 - **铁律 75 红证**：把两个 mapper 的 WHERE 临时挖掉 → 新 IT `WarehouseOutboundTransitFilterSqlIT` **2/2 全红**（`total` 期望 2 实得 3，报错文案正是「WHERE 没进 SQL」）→ 从 `.tmp/*.bak` 逐字节复原并 sha256 与记录值比对一致 → 2/2 绿（新 failsafe 报告 17:36:27）。
 - **请求级实测** `.tmp/verify-b3b5-server-filters.mjs` 9 断言 PASS：出库 `status=DRAFT` 真下发、在途 `overdueOnly=true`、导出带 `warehouseId`/`status`、`actionable` 仍留客户端、非单仓 tab 行为不变。
 - 门禁：`check:openapi-regen` / `check:openapi-types` / `check:shared-dist-fresh` / `check:admin-endpoints` / `check:admin-endpoint-paths` / `check:admin-table-align` / `check:admin-page-size` / `check:csv-escape` / `check:inmemory-paging` / `check:money-yuan-prefix` / `check:mybatis-null-clear` / `check:competitor-benchmark` / `gate:admin-tables` 全绿；5 个改动前端文件 `prettier --check` 全绿、`eslint` 0 error（1 条 `receiveTransfer` 未使用 WARN 在 `WarehouseView.vue:1777`，不在本笔 diff 内）。
-- **未提交**：等用户授权后走 `node scripts/pre-push-ci-preflight.mjs`；peer 脏文件（`static/admin`、`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、`docs/figures/*.txt`、`.idea/*`）一律不代提交、不烤进产物。
+- **已提交并推送**（2026-10-30）：`aa5004b0` 代码 / `eeeb4fb7` 文档 / `21a48e86` `static/admin` 保真产物，dev tip `21a48e86`。peer 脏文件（`static/admin` 的 Windows 工作区构建、`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、`docs/figures/*.txt`、`.idea/*`、`docs/JIANGYI_INTERFACE_CHECKLIST.md`、`docs/module-audit/`）一律不代提交；admin 产物改由 `build-admin-ci-fidelity.sh` **从已提交的 HEAD** 干净检出重建，故不会把工作区脏源码烤进产物（判据详见 `docs/PROJECT_KNOWLEDGE.md` §12 2026-10-30 条目）。
 
 ---
 
