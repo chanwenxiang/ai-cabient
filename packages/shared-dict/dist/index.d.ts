@@ -403,6 +403,10 @@ export declare const DICT: {
         readonly REPLENISHMENT_TASK: "补货任务";
         readonly INVENTORY_ADJUSTMENT: "库存调整";
         readonly MANUAL: "人工操作";
+        readonly DEMO_SEED: "演示播种期初";
+        readonly OPENING_BACKFILL: "建账补记";
+        readonly WRITE_OFF: "报损核销";
+        readonly GUEST_WATER: "客情用水";
     };
     /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
     readonly approval_biz_type: {

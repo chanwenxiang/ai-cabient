@@ -41,6 +41,8 @@ export type UseWarehouseTabLoaderDeps = {
   stocktakes: Ref<WarehouseTabRow[]>;
   monthlyCloseLines: Ref<WarehouseTabRow[]>;
   monthlyCloseHint: Ref<string>;
+  monthlyCloseManager: Ref<string>;
+  monthlyCloseDeviceCount: Ref<number>;
   monthlyCloseYearMonth: Ref<string>;
   bins: Ref<WarehouseTabRow[]>;
   binStock: Ref<WarehouseTabRow[]>;
@@ -278,6 +280,8 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (!warehouseId) {
       deps.monthlyCloseLines.value = [];
       deps.monthlyCloseHint.value = '请先选择仓库';
+      deps.monthlyCloseManager.value = '';
+      deps.monthlyCloseDeviceCount.value = 0;
       deps.tabTotals.value = { ...deps.tabTotals.value, monthly: 0 };
       return;
     }
@@ -285,15 +289,36 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     if (deps.monthlyCloseYearMonth.value) q.set('yearMonth', deps.monthlyCloseYearMonth.value);
     const data = await api.request<{
       formulaHint?: string;
+      managerUserName?: string | null;
+      deviceCount?: number;
       lines?: WarehouseTabRow[];
     }>(AdminEndpoints.warehouseMonthlyClose(q), 'GET');
     if (!deps.loadSeq.isCurrent(seq, 'loadMonthlyClose')) return;
     deps.monthlyCloseLines.value = data.lines || [];
     deps.monthlyCloseHint.value = data.formulaHint || '';
+    deps.monthlyCloseManager.value = data.managerUserName || '';
+    deps.monthlyCloseDeviceCount.value = Number(data.deviceCount) || 0;
     deps.tabTotals.value = {
       ...deps.tabTotals.value,
       monthly: (data.lines || []).length
     };
+  }
+
+  /**
+   * 月结「上柜」列的柜机下钻明细。返回行而非写 state：弹窗归调用方（WarehouseView）持有，
+   * 避免为一次性查询再开一组 deps。
+   */
+  async function loadMonthlyRestockDetail(skuId: string): Promise<WarehouseTabRow[]> {
+    const warehouseId = deps.filterWarehouseId.value;
+    if (!warehouseId) return [];
+    const q = new URLSearchParams({ warehouseId });
+    if (deps.monthlyCloseYearMonth.value) q.set('yearMonth', deps.monthlyCloseYearMonth.value);
+    const data = await api.request<WarehouseTabRow[]>(
+      AdminEndpoints.warehouseMonthlyCloseRestockDetail(q),
+      'GET'
+    );
+    const rows = Array.isArray(data) ? data : [];
+    return skuId ? rows.filter((r) => String(r.skuId ?? '') === skuId) : rows;
   }
 
   async function loadMovements() {
@@ -519,6 +544,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     loadInventory,
     loadMovements,
     loadMonthlyClose,
+    loadMonthlyRestockDetail,
     loadSuggestions,
     loadPayables,
     loadPayableSummary,

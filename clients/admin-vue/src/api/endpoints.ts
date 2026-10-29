@@ -422,6 +422,11 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/warehouse/monthly-close?${query}`
       : `${ops}/warehouse/monthly-close?${query.toString()}`,
+  /** 月结「上柜」列下钻：件数分别装进了哪台柜、出自哪张出库单。 */
+  warehouseMonthlyCloseRestockDetail: (query: URLSearchParams | string) =>
+    `${ops}/warehouse/monthly-close/restock-detail?${
+      typeof query === 'string' ? query : query.toString()
+    }`,
   /** 月结单台账（V327，E7：两步法——生成草稿→审批锁单→逐行处置，CB-017）。 */
   warehouseCloseSheets: (query: URLSearchParams | string) =>
     typeof query === 'string'

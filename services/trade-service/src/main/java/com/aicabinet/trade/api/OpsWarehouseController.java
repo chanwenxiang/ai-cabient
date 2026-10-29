@@ -103,6 +103,7 @@ public class OpsWarehouseController {
         return ApiResponse.ok(warehouseStocktakeService.completeAndAdjust(operatorId(request), stocktakeId));
     }
 
+    @RequiresPermissions("ops:warehouse:edit")
     @PostMapping("/warehouse/stocktakes/{stocktakeId}/adjust")
     public ApiResponse<StocktakeDto> adjustStocktake(
             HttpServletRequest request,
@@ -249,6 +250,17 @@ public class OpsWarehouseController {
             @RequestParam String warehouseId,
             @RequestParam(required = false) String yearMonth) {
         return ApiResponse.ok(warehouseAdminService.warehouseMonthlyClose(
+                operatorId(request), warehouseId, yearMonth));
+    }
+
+    /** 月结「上柜」列下钻：这一列的件数分别装进了哪台柜、出自哪张出库单。 */
+    @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/warehouse/monthly-close/restock-detail")
+    public ApiResponse<List<WarehouseMonthlyCloseRestockLineDto>> warehouseMonthlyCloseRestockDetail(
+            HttpServletRequest request,
+            @RequestParam String warehouseId,
+            @RequestParam(required = false) String yearMonth) {
+        return ApiResponse.ok(warehouseAdminService.warehouseMonthlyCloseRestockDetail(
                 operatorId(request), warehouseId, yearMonth));
     }
 

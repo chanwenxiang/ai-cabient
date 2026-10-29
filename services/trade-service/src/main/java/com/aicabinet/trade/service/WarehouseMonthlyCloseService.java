@@ -2,22 +2,30 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.WarehouseMonthlyCloseDto;
 import com.aicabinet.common.dto.WarehouseMonthlyCloseLineDto;
+import com.aicabinet.common.dto.WarehouseMonthlyCloseRestockLineDto;
+import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ExternalChannelFlow;
 import com.aicabinet.trade.domain.ExternalImportTemplate;
 import com.aicabinet.trade.domain.InventoryWriteOff;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.domain.Warehouse;
+import com.aicabinet.trade.domain.WarehouseMovement;
 import com.aicabinet.trade.domain.WarehouseMonthlyCloseLine;
 import com.aicabinet.trade.domain.WarehouseMonthlyCloseSheet;
+import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.domain.WarehouseStocktake;
 import com.aicabinet.trade.domain.WarehouseStocktakeLine;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ExternalChannelFlowMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
 import com.aicabinet.trade.mapper.WarehouseMovementMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseLineMapper;
 import com.aicabinet.trade.mapper.WarehouseMonthlyCloseSheetMapper;
+import com.aicabinet.trade.mapper.WarehouseOutboundLineMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeLineMapper;
 import com.aicabinet.trade.mapper.WarehouseStocktakeMapper;
 import com.aicabinet.trade.support.WarehouseMonthlyCloseMath;
@@ -34,8 +42,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * 分仓月结计算服务（V348 账期制返工，2026-10-13 拍板）。
@@ -68,6 +79,10 @@ public class WarehouseMonthlyCloseService {
 
     private static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
+    private static final DateTimeFormatter STAMP_FMT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(SHANGHAI);
+    /** 发运流水（= 月结「上柜」列的唯一来源，见 {@link WarehouseMonthlyCloseMath#applyInMonth}）。 */
+    private static final String MOVEMENT_OUTBOUND_SHIP = "OUTBOUND_SHIP";
     private static final String FORMULA_HINT =
             "应有=上期+采购入库+调入−退货−调出−上柜（四损耗列单独展示不进应有）；"
                     + "实盘=账期内最近一次已完成盘点或期末盘点导入；账期=上月26日~本月25日；与结算金额无关";
@@ -81,6 +96,9 @@ public class WarehouseMonthlyCloseService {
     private final WarehouseMonthlyCloseLineMapper lineMapper;
     private final InventoryWriteOffMapper writeOffMapper;
     private final ExternalChannelFlowMapper flowMapper;
+    private final UserInfoMapper userMapper;
+    private final DeviceInfoMapper deviceMapper;
+    private final WarehouseOutboundLineMapper outboundLineMapper;
 
     public WarehouseMonthlyCloseService(WarehouseMapper warehouseRepository,
                                         WarehouseMovementMapper movementRepository,
@@ -90,7 +108,10 @@ public class WarehouseMonthlyCloseService {
                                         WarehouseMonthlyCloseSheetMapper sheetMapper,
                                         WarehouseMonthlyCloseLineMapper lineMapper,
                                         InventoryWriteOffMapper writeOffMapper,
-                                        ExternalChannelFlowMapper flowMapper) {
+                                        ExternalChannelFlowMapper flowMapper,
+                                        UserInfoMapper userMapper,
+                                        DeviceInfoMapper deviceMapper,
+                                        WarehouseOutboundLineMapper outboundLineMapper) {
         this.warehouseRepository = warehouseRepository;
         this.movementRepository = movementRepository;
         this.stocktakeRepository = stocktakeRepository;
@@ -100,6 +121,9 @@ public class WarehouseMonthlyCloseService {
         this.lineMapper = lineMapper;
         this.writeOffMapper = writeOffMapper;
         this.flowMapper = flowMapper;
+        this.userMapper = userMapper;
+        this.deviceMapper = deviceMapper;
+        this.outboundLineMapper = outboundLineMapper;
     }
 
     public WarehouseMonthlyCloseDto closeSheet(String warehouseId, String yearMonth) {
@@ -147,11 +171,13 @@ public class WarehouseMonthlyCloseService {
                 ExternalImportTemplate.OP_GUEST_WATER);
         Map<String, Integer> countedFinal = counted;
 
-        List<WarehouseMonthlyCloseLineDto> lines = new ArrayList<>();
         List<String> skuIds = new ArrayList<>(bySku.keySet());
         skuIds.sort(Comparator.naturalOrder());
+        Map<String, SkuCatalog> catalog = catalogBySku(skuIds);
+        List<WarehouseMonthlyCloseLineDto> lines = new ArrayList<>();
         for (String skuId : skuIds) {
             Acc acc = bySku.get(skuId);
+            SkuCatalog sku = catalog.get(skuId);
             int expired = expiredBySku.getOrDefault(skuId, 0);
             int rock = rockBySku.getOrDefault(skuId, 0);
             int guest = acc.guestWaterQty + guestFlowBySku.getOrDefault(skuId, 0);
@@ -174,7 +200,8 @@ public class WarehouseMonthlyCloseService {
             Integer gap = countedQty == null ? null : countedQty - expected;
             lines.add(new WarehouseMonthlyCloseLineDto(
                     skuId,
-                    skuName(skuId),
+                    skuName(sku, skuId),
+                    sku == null ? null : blankToNull(sku.getBarcode()),
                     opening,
                     acc.purchaseInQty,
                     acc.transferInQty,
@@ -189,7 +216,7 @@ public class WarehouseMonthlyCloseService {
                     expired,
                     Math.max(guest, 0),
                     0,
-                    unitPriceCents(skuId)
+                    unitPriceCents(sku)
             ));
         }
         String name = warehouse.getWarehouseName();
@@ -200,6 +227,9 @@ public class WarehouseMonthlyCloseService {
         return new WarehouseMonthlyCloseDto(
                 warehouse.getWarehouseId(),
                 name == null || name.isBlank() ? warehouse.getWarehouseId() : name,
+                managerUserName(warehouse.getManagerUserId()),
+                Math.toIntExact(deviceMapper.selectCount(Wrappers.<DeviceInfo>lambdaQuery()
+                        .eq(DeviceInfo::getHomeWarehouseId, warehouse.getWarehouseId()))),
                 period.toString(),
                 hint,
                 openingFromPeriod
@@ -207,6 +237,148 @@ public class WarehouseMonthlyCloseService {
                         : WarehouseMonthlyCloseSheet.OPENING_BOOK,
                 lines
         );
+    }
+
+    /**
+     * 月结「上柜」列的柜机下钻明细（件数）。
+     *
+     * <p>🔴 骨架是 {@code OUTBOUND_SHIP} 流水而不是出库单：月结的 restockQty 就是这批流水逐条累加出来的，
+     * 换任何别的真源都会造出「明细合计 ≠ 列值」——那种差异比「某台柜没归属」更难向运营解释。
+     * 柜机归属由出库行回填：{@code WarehouseService.ship} 逐 line 写流水（{@code :862-869}），
+     * 故 {@code (outboundId, skuId, batchNo)} 能与流水精确配对。
+     *
+     * <p>归属可能为空是数据现状而非缺陷：{@code device_info.home_warehouse_id} 决定柜机挂在哪个仓，
+     * 但出库行本身带 {@code device_id}，所以明细按出库单归属、不经该列；未填只影响「按仓筛柜」。
+     */
+    public List<WarehouseMonthlyCloseRestockLineDto> restockDetail(String warehouseId, String yearMonth) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择仓库");
+        }
+        String wh = warehouseId.trim();
+        YearMonth period = parseYearMonth(yearMonth);
+        Instant start = period.minusMonths(1).atDay(26).atStartOfDay(SHANGHAI).toInstant();
+        Instant end = period.atDay(26).atStartOfDay(SHANGHAI).toInstant();
+
+        List<WarehouseMovement> ships = movementRepository.selectList(
+                        Wrappers.<WarehouseMovement>lambdaQuery()
+                                .eq(WarehouseMovement::getWarehouseId, wh)
+                                .eq(WarehouseMovement::getMovementType, MOVEMENT_OUTBOUND_SHIP)
+                                .ge(WarehouseMovement::getCreatedAt, start)
+                                .lt(WarehouseMovement::getCreatedAt, end)
+                                .orderByAsc(WarehouseMovement::getCreatedAt)
+                                .orderByAsc(WarehouseMovement::getMovementId))
+                .stream()
+                // 客情用水在月结里是独立列、不进上柜 ⇒ 下钻必须同样剔除，否则明细合计大于列值
+                .filter(m -> !WarehouseMonthlyCloseMath.REF_GUEST_WATER.equalsIgnoreCase(
+                        m.getRefType() == null ? "" : m.getRefType().trim()))
+                .toList();
+        if (ships.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, String> deviceByLine = deviceByOutboundLine(ships);
+        Map<String, RestockAcc> grouped = new TreeMap<>();
+        for (WarehouseMovement m : ships) {
+            int qty = Math.max(-m.getDeltaQty(), 0);
+            if (qty == 0) {
+                continue;
+            }
+            String deviceId = blankToNull(deviceByLine.get(
+                    lineKey(m.getRefId(), m.getSkuId(), m.getBatchNo())));
+            RestockAcc acc = grouped.computeIfAbsent(
+                    (deviceId == null ? "" : deviceId) + "|" + m.getSkuId(), k -> new RestockAcc());
+            acc.deviceId = deviceId;
+            acc.skuId = m.getSkuId();
+            acc.qty += qty;
+            String refId = blankToNull(m.getRefId());
+            if (refId != null) {
+                acc.outboundIds.add(refId);
+            }
+            if (m.getCreatedAt() != null && (acc.lastShippedAt == null
+                    || m.getCreatedAt().isAfter(acc.lastShippedAt))) {
+                acc.lastShippedAt = m.getCreatedAt();
+            }
+        }
+
+        Map<String, String> deviceNames = deviceNames(grouped.values());
+        Map<String, SkuCatalog> catalog = catalogBySku(grouped.values().stream()
+                .map(a -> a.skuId).distinct().sorted().toList());
+
+        List<WarehouseMonthlyCloseRestockLineDto> rows = new ArrayList<>();
+        for (RestockAcc acc : grouped.values()) {
+            SkuCatalog sku = catalog.get(acc.skuId);
+            rows.add(new WarehouseMonthlyCloseRestockLineDto(
+                    acc.deviceId,
+                    acc.deviceId == null ? null
+                            : deviceNames.getOrDefault(acc.deviceId, acc.deviceId),
+                    acc.skuId,
+                    skuName(sku, acc.skuId),
+                    sku == null ? null : blankToNull(sku.getBarcode()),
+                    acc.qty,
+                    String.join("、", acc.outboundIds),
+                    acc.lastShippedAt == null ? null : STAMP_FMT.format(acc.lastShippedAt)
+            ));
+        }
+        return rows;
+    }
+
+    /** 流水 → 柜机：按 {@code (outboundId, skuId, batchNo)} 回查出库行的 device_id。 */
+    private Map<String, String> deviceByOutboundLine(List<WarehouseMovement> ships) {
+        Set<Long> outboundIds = new LinkedHashSet<>();
+        for (WarehouseMovement m : ships) {
+            String ref = blankToNull(m.getRefId());
+            if (ref == null) {
+                continue;
+            }
+            try {
+                outboundIds.add(Long.parseLong(ref));
+            } catch (NumberFormatException ignored) {
+                // 非数字 refId（历史/外部单据）不参与柜机回填，明细仍按流水出账，归属留空
+            }
+        }
+        if (outboundIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> byLine = new HashMap<>();
+        for (WarehouseOutboundLine line : outboundLineMapper.selectList(
+                Wrappers.<WarehouseOutboundLine>lambdaQuery()
+                        .in(WarehouseOutboundLine::getOutboundId, outboundIds))) {
+            byLine.put(lineKey(String.valueOf(line.getOutboundId()), line.getSkuId(), line.getBatchNo()),
+                    line.getDeviceId());
+        }
+        return byLine;
+    }
+
+    private Map<String, String> deviceNames(Iterable<RestockAcc> accs) {
+        List<String> ids = new ArrayList<>();
+        for (RestockAcc acc : accs) {
+            if (acc.deviceId != null && !ids.contains(acc.deviceId)) {
+                ids.add(acc.deviceId);
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> names = new HashMap<>();
+        for (DeviceInfo device : deviceMapper.selectBatchIds(ids)) {
+            names.put(device.getDeviceId(),
+                    device.getDeviceName() == null || device.getDeviceName().isBlank()
+                            ? device.getDeviceId() : device.getDeviceName());
+        }
+        return names;
+    }
+
+    private static String lineKey(String outboundId, String skuId, String batchNo) {
+        return blankToNull(outboundId) + "|" + blankToNull(skuId) + "|"
+                + (batchNo == null ? "" : batchNo.trim());
+    }
+
+    private static final class RestockAcc {
+        private String deviceId;
+        private String skuId;
+        private int qty;
+        private final Set<String> outboundIds = new LinkedHashSet<>();
+        private Instant lastShippedAt;
     }
 
     /** 上一账期月结单的实盘列（APPROVED/DRAFT 均可——期初结转要的是「上一期期末数」）。 */
@@ -299,20 +471,47 @@ public class WarehouseMonthlyCloseService {
         return counted;
     }
 
-    private String skuName(String skuId) {
-        return skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getSkuName)
-                .filter(n -> n != null && !n.isBlank())
-                .orElse(skuId);
+    /**
+     * 一次批量取目录：月结一行要读名称/条码/单价三个字段，逐字段 {@code findById} 会把每行
+     * 两次查询涨到三次，改成按行集一次 {@code selectBatchIds}。
+     */
+    private Map<String, SkuCatalog> catalogBySku(List<String> skuIds) {
+        if (skuIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, SkuCatalog> byId = new HashMap<>();
+        for (SkuCatalog sku : skuCatalogRepository.selectBatchIds(skuIds)) {
+            byId.put(sku.getSkuId(), sku);
+        }
+        return byId;
+    }
+
+    private static String skuName(SkuCatalog sku, String skuId) {
+        return sku == null || sku.getSkuName() == null || sku.getSkuName().isBlank()
+                ? skuId : sku.getSkuName();
     }
 
     /** 单价快照 = 目录采购成本（未配置 → null，行级留空）。 */
-    private Long unitPriceCents(String skuId) {
-        return skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getPurchaseCostCents)
-                .filter(c -> c != null && c > 0)
-                .map(Integer::longValue)
+    private static Long unitPriceCents(SkuCatalog sku) {
+        if (sku == null || sku.getPurchaseCostCents() == null || sku.getPurchaseCostCents() <= 0) {
+            return null;
+        }
+        return sku.getPurchaseCostCents().longValue();
+    }
+
+    /** 分仓主责人姓名；未绑定或查不到时 null（前端留空，不显示「未知」）。 */
+    private String managerUserName(Long managerUserId) {
+        if (managerUserId == null) {
+            return null;
+        }
+        return userMapper.findById(managerUserId)
+                .map(UserInfo::getName)
+                .filter(n -> !n.isBlank())
                 .orElse(null);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     static YearMonth parseYearMonth(String yearMonth) {

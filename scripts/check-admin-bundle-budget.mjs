@@ -8,11 +8,11 @@
  *
  * 预算可用环境变量覆盖（单位 KB）：
  *   ADMIN_BUDGET_UI_VENDOR_KB=1200
- *   ADMIN_BUDGET_INDEX_KB=125
+ *   ADMIN_BUDGET_INDEX_KB=130
  *   ADMIN_BUDGET_LEAFLET_KB=220
  *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
- *   ADMIN_BUDGET_TOTAL_JS_KB=3400
+ *   ADMIN_BUDGET_TOTAL_JS_KB=3500
  *
  * 分类按 chunk **名前缀**判定（`ui-vendor-` / `index-` / `leaflet-` / `echarts-vendor-`，
  * 其余全算 route）。⇒ 新增一类必须同时改这里与 vite.config.ts 的 manualChunks，
@@ -48,7 +48,11 @@ const BUDGET = {
   // 120 定工时几乎零余量（2026-10-21 产物 122834B = 119.95KB，仅空 51B）⇒ 加两条 API 路径
   // 字面量就必红（9935133d 实测 123087B = 120.20KB，逐字比对确认增量就是 endpoints.ts 里
   // model-sync-explicit / model-push-explicit 两个串，无整包误引入）。抬到 125 ≈ 4% 余量。
-  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 125),
+  // 2026-10-28 同一成因复发：origin/dev 入口 123.5KB（余 1.5KB），月结下钻再加两条 endpoints
+  // 路径字面量后 124.0KB（余 1.0KB）⇒ 再抬 130（≈4.8%），与上一条同一判据。
+  // 真要压入口，正解是把 packages/shared-dict（dist 未压缩 43.8KB，目前整块进 index）
+  // 拆成独立 manualChunk，而不是继续抬这条额度。
+  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 130),
   leafletKb: envKb('ADMIN_BUDGET_LEAFLET_KB', 220),
   // echarts+zrender 按需注册后的实测体积 ≈513KB（全量引入约 1MB）。600KB 留 ~17% 余量，
   // 既能容忍 minor 升级，又能抓住「有人退回 import * as echarts from 'echarts'」这类回归。
@@ -59,7 +63,16 @@ const BUDGET = {
   // 2026-10-21 设备详情/将邑 SN、SKU 件装数、按单拉取视频入口、资金动作在途防重落地后
   // 实测 3300.4KB（较上版 +2.9KB，最大单页 +1.1KB OrderListView）⇒ 3400，仍留 ~3%。
   // 抬预算前先看 chunk 级增量：若某一页暴涨，优先查是否误引入整包，而不是抬总额度。
-  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3400)
+  // 2026-10-28 origin/dev 实测 3394.4KB（余量仅 5.6KB = 0.16%，已失去本预算的预警意义）⇒ 3500。
+  //   按上一条纪律先做了归因，两点都实证过才抬：
+  //   ① 自 f4f6fcdf（10-21 定 3400 那次）到 HEAD 的 +93.9KB 逐 chunk 拆过，全是真实页面增长：
+  //      LearningLibraryView 0→36.2（将邑模型库新页）、VisionMappingView +14.2、SkuListView +12.3、
+  //      LineManagerView +9.3、DeviceDetailView +5.5、LoginView +5.1、OrderJiangyiVideoDialog +4.4
+  //      （均将邑接入批次）；OrderListView -3.2 是唯一减量。
+  //   ② 无「误引入整包」：133 个 chunk 里 `REPLENISHMENT_TASK`/endpoints 路径串各只命中 index 一处
+  //      （无跨 chunk 重复内联），且 src/plugins/element-plus.ts 只注册 v-loading 指令、模板组件
+  //      走 unplugin-vue-components + ElementPlusResolver 按需引入（未退回整包 import）。
+  totalJsKb: envKb('ADMIN_BUDGET_TOTAL_JS_KB', 3500)
 };
 
 function kb(bytes) {

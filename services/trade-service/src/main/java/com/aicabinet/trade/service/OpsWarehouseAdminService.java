@@ -96,6 +96,13 @@ public class OpsWarehouseAdminService {
         return monthlyCloseService.closeSheet(warehouseId, yearMonth);
     }
 
+    /** 月结「上柜」列的柜机下钻明细；读权限与月结表同档。 */
+    public List<WarehouseMonthlyCloseRestockLineDto> warehouseMonthlyCloseRestockDetail(
+            Long operatorId, String warehouseId, String yearMonth) {
+        requireWarehouseRead(operatorId);
+        return monthlyCloseService.restockDetail(warehouseId, yearMonth);
+    }
+
     public WarehouseInboundRequest warehouseInbound(Long operatorId, WarehouseInboundRequest body) {
         requireWarehouseWrite(operatorId);
         return warehouseService.inbound(operatorId, body);

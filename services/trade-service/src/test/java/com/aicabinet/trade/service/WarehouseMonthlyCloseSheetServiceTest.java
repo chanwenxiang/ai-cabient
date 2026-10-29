@@ -70,13 +70,13 @@ class WarehouseMonthlyCloseSheetServiceTest {
     }
 
     private WarehouseMonthlyCloseLineDto computedLine(String skuId, Integer gap, Long unitPrice) {
-        return new WarehouseMonthlyCloseLineDto(skuId, "SKU-" + skuId,
+        return new WarehouseMonthlyCloseLineDto(skuId, "SKU-" + skuId, null,
                 10, 5, 2, 1, 3, 1, 0, 12, 12 + (gap == null ? 0 : gap), gap,
                 0, 0, 0, 0, unitPrice);
     }
 
     private WarehouseMonthlyCloseDto computed(String yearMonth, WarehouseMonthlyCloseLineDto... lines) {
-        return new WarehouseMonthlyCloseDto("WH-1", "一号仓", yearMonth, "应有=上期+…",
+        return new WarehouseMonthlyCloseDto("WH-1", "一号仓", "张三", 1, yearMonth, "应有=上期+…",
                 WarehouseMonthlyCloseSheet.OPENING_PERIOD_CLOSE, List.of(lines));
     }
 
@@ -295,9 +295,9 @@ class WarehouseMonthlyCloseSheetServiceTest {
             // 落库时实盘 9，现在重算实盘 7 ⇒ 漂移
             when(lineMapper.selectList(any())).thenReturn(List.of(sheetLine(21L, 11L, "SKU-A", -3, 1500L)));
             WarehouseMonthlyCloseLineDto nowLine = new WarehouseMonthlyCloseLineDto(
-                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 7, -3, 0, 0, 0, 0, 500L);
+                    "SKU-A", "SKU-SKU-A", null, 10, 5, 2, 1, 3, 1, 0, 12, 7, -3, 0, 0, 0, 0, 500L);
             when(closeCalculator.closeSheet("WH-1", "2026-10"))
-                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint",
+                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", null, 0, "2026-10", "hint",
                             WarehouseMonthlyCloseSheet.OPENING_BOOK, List.of(nowLine)));
 
             var out = service.recalcDrift(11L);
@@ -316,9 +316,9 @@ class WarehouseMonthlyCloseSheetServiceTest {
             row.setCountedQty(9);
             when(lineMapper.selectList(any())).thenReturn(List.of(row));
             WarehouseMonthlyCloseLineDto nowLine = new WarehouseMonthlyCloseLineDto(
-                    "SKU-A", "SKU-SKU-A", 10, 5, 2, 1, 3, 1, 0, 12, 9, -3, 0, 0, 0, 0, 500L);
+                    "SKU-A", "SKU-SKU-A", null, 10, 5, 2, 1, 3, 1, 0, 12, 9, -3, 0, 0, 0, 0, 500L);
             when(closeCalculator.closeSheet("WH-1", "2026-10"))
-                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", "2026-10", "hint",
+                    .thenReturn(new WarehouseMonthlyCloseDto("WH-1", "一号仓", null, 0, "2026-10", "hint",
                             WarehouseMonthlyCloseSheet.OPENING_BOOK, List.of(nowLine)));
 
             var out = service.recalcDrift(11L);

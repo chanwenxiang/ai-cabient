@@ -312,7 +312,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "PURCHASE_ORDER", "采购单", "PURCHASE_RETURN", "采购退货", "OUTBOUND_ORDER", "出库单",
                 "WAREHOUSE_INBOUND", "仓库入库", "WAREHOUSE_OUTBOUND", "仓库出库",
                 "REPLENISHMENT_TASK", "补货任务",
-                "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作")));
+                "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作",
+                "DEMO_SEED", "演示播种期初", "OPENING_BACKFILL", "建账补记",
+                "WRITE_OFF", "报损核销", "GUEST_WATER", "客情用水")));
         map.put("replenishment_route_status", t("补货路线状态", m(
                 "PLANNED", "待执行", STATUS_IN_PROGRESS, "执行中", STATUS_COMPLETED, "已完成", STATUS_CANCELLED, "已取消")));
         map.put("replenishment_task_status", t("补货任务状态", m(

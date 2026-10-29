@@ -432,7 +432,11 @@ export const DICT = {
     WAREHOUSE_OUTBOUND: '仓库出库',
     REPLENISHMENT_TASK: '补货任务',
     INVENTORY_ADJUSTMENT: '库存调整',
-    MANUAL: '人工操作'
+    MANUAL: '人工操作',
+    DEMO_SEED: '演示播种期初',
+    OPENING_BACKFILL: '建账补记',
+    WRITE_OFF: '报损核销',
+    GUEST_WATER: '客情用水'
   },
   /** 审批待办 / approval_instance.biz_type（与 sys_dict approval_biz_type 对齐） */
   approval_biz_type: {
