@@ -13512,6 +13512,8 @@ export interface components {
             /** Format: int32 */
             cancelledOrphanShipped?: number;
             /** Format: int32 */
+            cancelledPlannedNoTask?: number;
+            /** Format: int32 */
             skipped?: number;
             cancelledOutboundIds?: number[];
         };

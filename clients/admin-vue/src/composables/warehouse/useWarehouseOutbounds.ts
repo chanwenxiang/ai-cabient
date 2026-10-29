@@ -104,16 +104,18 @@ export function useWarehouseOutbounds(deps: UseWarehouseOutboundsDeps) {
         cancelledEmptyDrafts?: number;
         cancelledTerminalDrafts?: number;
         cancelledOrphanShipped?: number;
+        cancelledPlannedNoTask?: number;
         skipped?: number;
         cancelledOutboundIds?: number[];
       }>(AdminEndpoints.warehouseOutboundsCleanupStale, 'POST');
       const total =
         (result?.cancelledEmptyDrafts || 0) +
         (result?.cancelledTerminalDrafts || 0) +
-        (result?.cancelledOrphanShipped || 0);
+        (result?.cancelledOrphanShipped || 0) +
+        (result?.cancelledPlannedNoTask || 0);
       ElMessage.success({
         message: total
-          ? `已清理 ${total} 单（空草稿 ${result?.cancelledEmptyDrafts || 0} / 终态草稿 ${result?.cancelledTerminalDrafts || 0} / 孤儿发运 ${result?.cancelledOrphanShipped || 0}），跳过 ${result?.skipped || 0}`
+          ? `已清理 ${total} 单（空草稿 ${result?.cancelledEmptyDrafts || 0} / 终态草稿 ${result?.cancelledTerminalDrafts || 0} / 孤儿发运 ${result?.cancelledOrphanShipped || 0} / 计划无任务 ${result?.cancelledPlannedNoTask || 0}），跳过 ${result?.skipped || 0}`
           : `无可清理单据（跳过 ${result?.skipped || 0}）`,
         duration: 5000
       });

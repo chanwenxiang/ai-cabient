@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.WarehouseManager;
 import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.ReplenishmentRoute;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.*;
@@ -755,5 +756,75 @@ class WarehouseServiceTest {
         lot.setExpiryDate(expiryDate);
         lot.setQuantity(qty);
         return lot;
+    }
+
+    // ── cleanupStaleOutbounds「PLANNED+无任务」判据（2026-10-29 历史待定收口）──
+
+    /** 组装 PLANNED 路线 + 其下 DRAFT 出库单（带一条无设备明细，避开「空草稿」判据）；save 后 findById 回读。 */
+    private WarehouseOutbound plannedDraftOutbound(long outboundId, long routeId,
+                                                   java.util.concurrent.atomic.AtomicReference<WarehouseOutbound> ref) {
+        WarehouseOutbound outbound = new WarehouseOutbound();
+        outbound.setOutboundId(outboundId);
+        outbound.setRouteId(routeId);
+        outbound.setWarehouseId(TEST_WAREHOUSE_ID);
+        outbound.setStatus("DRAFT");
+        when(routeRepository.findAllByOrderByRouteIdAsc()).thenReturn(List.of(plannedRoute(routeId)));
+        when(outboundRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(outbound));
+        when(outboundRepository.save(any(WarehouseOutbound.class))).thenAnswer(inv -> {
+            ref.set(inv.getArgument(0));
+            return inv.getArgument(0);
+        });
+        // 取消链路：加锁读取（findByIdForUpdate）与取消后回读（findById）都给同一实体
+        when(outboundRepository.findByIdForUpdate(outboundId)).thenReturn(Optional.of(outbound));
+        when(outboundRepository.findById(outboundId)).thenAnswer(inv -> Optional.ofNullable(ref.get()));
+        // deviceId 留空 ⇒ 取消链路 distinctOutboundDevices 为空 ⇒ 直接整单收口（不打仓/在途）
+        WarehouseOutboundLine line = new WarehouseOutboundLine();
+        line.setOutboundId(outboundId);
+        when(outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId)).thenReturn(List.of(line));
+        return outbound;
+    }
+
+    private static ReplenishmentRoute plannedRoute(long routeId) {
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteId(routeId);
+        route.setStatus("PLANNED");
+        return route;
+    }
+
+    @Test
+    void cleanupStale_plannedRouteNoTask_cancelled() {
+        var ref = new java.util.concurrent.atomic.AtomicReference<WarehouseOutbound>();
+        plannedDraftOutbound(501L, 601L, ref);
+        // 无任务：outbound_id 与 route_id 两级查空 ⇒ 新判据命中
+        when(taskRepository.findByOutboundId(501L)).thenReturn(List.of());
+        when(taskRepository.findByRouteId(601L)).thenReturn(List.of());
+
+        var result = warehouseService.cleanupStaleOutbounds(UPSERT_OPERATOR);
+
+        assertEquals(1, result.cancelledPlannedNoTask());
+        assertEquals(List.of(501L), result.cancelledOutboundIds());
+        assertEquals("CANCELLED", ref.get().getStatus());
+        assertEquals("CANCELLED", ref.get().getHandoverStatus());
+    }
+
+    @Test
+    void cleanupStale_plannedRouteWithTask_kept() {
+        var ref = new java.util.concurrent.atomic.AtomicReference<WarehouseOutbound>();
+        plannedDraftOutbound(502L, 602L, ref);
+        when(taskRepository.findByOutboundId(502L)).thenReturn(List.of());
+        // 路线下仍有任务（活跃链路：createOutboundForRoute 同事务回写）⇒ 不得误清
+        ReplenishmentTask live = new ReplenishmentTask();
+        live.setTaskId(702L);
+        live.setRouteId(602L);
+        live.setOutboundId(502L);
+        live.setStatus("PENDING");
+        when(taskRepository.findByRouteId(602L)).thenReturn(List.of(live));
+
+        var result = warehouseService.cleanupStaleOutbounds(UPSERT_OPERATOR);
+
+        assertEquals(0, result.cancelledPlannedNoTask());
+        assertTrue(result.cancelledOutboundIds().isEmpty());
+        assertEquals(1, result.skipped());
+        assertEquals("DRAFT", ref.get() == null ? "DRAFT" : ref.get().getStatus());
     }
 }

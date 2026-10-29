@@ -9,6 +9,7 @@ public record WarehouseStaleCleanupResultDto(
         int cancelledEmptyDrafts,
         int cancelledTerminalDrafts,
         int cancelledOrphanShipped,
+        int cancelledPlannedNoTask,
         int skipped,
         List<Long> cancelledOutboundIds
 ) {}

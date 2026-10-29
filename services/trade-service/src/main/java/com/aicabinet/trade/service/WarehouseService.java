@@ -1019,6 +1019,7 @@ public class WarehouseService {
      *   <li>空 DRAFT/PICKED（无明细）</li>
      *   <li>终态路线上的未发运草稿/已拣货（含有明细）</li>
      *   <li>终态路线上的 SHIPPED 且未签收，且无 COMPLETED 关联任务（回仓 + 取消在途）</li>
+     *   <li>PLANNED 路线上无任何任务挂靠的未发运草稿/已拣货（2026-10-29 补「PLANNED+无任务」判据）</li>
      * </ul>
      * COMPLETED 路线仍 SHIPPED 时：仅当关联任务全非 COMPLETED（多为已取消未签收）才收口，
      * 避免「任务已完成但交接态未回写」场景误回仓造成假满货。
@@ -1034,6 +1035,7 @@ public class WarehouseService {
         int cancelledEmptyDrafts = 0;
         int cancelledTerminalDrafts = 0;
         int cancelledOrphanShipped = 0;
+        int cancelledPlannedNoTask = 0;
         int skipped = 0;
         List<Long> cancelledIds = new ArrayList<>();
         for (WarehouseOutbound outbound : outboundRepository.findAllByOrderByCreatedAtDesc()) {
@@ -1047,8 +1049,9 @@ public class WarehouseService {
                             case "empty" -> cancelledEmptyDrafts++;
                             case "terminal-draft" -> cancelledTerminalDrafts++;
                             case "orphan-shipped" -> cancelledOrphanShipped++;
+                            case "planned-no-task" -> cancelledPlannedNoTask++;
                             default -> {
-                                // classifyStaleOutbound only returns empty/terminal-draft/orphan-shipped.
+                                // classifyStaleOutbound only returns empty/terminal-draft/orphan-shipped/planned-no-task.
                             }
                         }
                     } catch (ResponseStatusException ex) {
@@ -1060,7 +1063,8 @@ public class WarehouseService {
             }
         }
         return new WarehouseStaleCleanupResultDto(
-                cancelledEmptyDrafts, cancelledTerminalDrafts, cancelledOrphanShipped, skipped, cancelledIds);
+                cancelledEmptyDrafts, cancelledTerminalDrafts, cancelledOrphanShipped,
+                cancelledPlannedNoTask, skipped, cancelledIds);
     }
 
     private String classifyStaleOutbound(WarehouseOutbound outbound, Map<Long, String> routeStatusById) {
@@ -1086,6 +1090,17 @@ public class WarehouseService {
         }
         if (SHIPPED.equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
             return "orphan-shipped";
+        }
+        // 「PLANNED+无任务」孤儿（2026-10-29 历史待定收口）：路线仍 PLANNED（未发运未终态，
+        // 现有 terminal-draft/orphan-shipped 均只覆盖终态路线）但无任何任务挂靠。活跃链路
+        // createOutboundForRoute 同事务校验 route has no tasks 并回写 task.outbound_id，
+        // 此形态只能来自历史取消链路未级联的遗留；未发运未交接（前置 handedOver 已挡），
+        // 可安全收口。routeStatus=PLANNED ⇒ routeId 非 null（map 只收非 null 路线），findByRouteId 安全。
+        if ((CabinetConstants.PROMOTION_STATUS_DRAFT.equals(status) || PICKED.equals(status))
+                && "PLANNED".equals(routeStatus)
+                && taskRepository.findByOutboundId(outboundId).isEmpty()
+                && taskRepository.findByRouteId(outbound.getRouteId()).isEmpty()) {
+            return "planned-no-task";
         }
         return null;
     }
