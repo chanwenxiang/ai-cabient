@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CreateOpsPermissionRequest;
+import com.aicabinet.common.dto.ChangePasswordRequest;
 import com.aicabinet.common.dto.OpsOperatorDto;
 import com.aicabinet.common.dto.ResetOpsOperatorPasswordRequest;
 import com.aicabinet.common.dto.UpdateOpsMeRequest;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -309,6 +311,24 @@ class OpsRbacServiceGuardTest {
         service.sendPhoneChangeCode(ACTOR, " 13900000002 ");
 
         verify(smsCodeService).sendCode("13900000002");
+    }
+
+    /**
+     * 2026-10-29 实测：消费者 JWT 打 {@code PUT /api/v2/ops/admin/rbac/me/password}
+     * 回 400「原密码错误」——已经进到业务逻辑，没被运营身份拦住。
+     * 自助端点没有功能权限码，但运营身份必须在动锁/查库之前就校验。
+     */
+    @Test
+    void changeMyPassword_rejectsNonOperatorBeforeLocking() {
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "需要运营账号权限"))
+                .when(permissionService).requireOperator(anyLong());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.changeMyPassword(10_001L, new ChangePasswordRequest("old-pass1", "new-pass1")));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(distributedLockService, never()).tryLock(anyString(), anyLong(), anyLong());
+        verify(userInfoRepository, never()).save(any());
     }
 
     private void stubOperatorDtoLookups() {

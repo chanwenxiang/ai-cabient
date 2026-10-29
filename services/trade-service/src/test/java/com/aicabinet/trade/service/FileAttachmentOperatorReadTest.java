@@ -46,6 +46,16 @@ class FileAttachmentOperatorReadTest {
     }
 
     @Test
+    void uploadOpsAvatar_rejectsConsumerAccount() {
+        // 2026-10-29 实测：消费者 JWT 打 POST /api/v2/ops/admin/rbac/me/avatar 拿到 500（不是 403）
+        // ⇒ 写侧也没拦；ops-avatars 命名空间只应接受运营账号。
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.uploadOpsAvatar(CONSUMER_ID, null));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+    }
+
+    @Test
     void operator_canReadDisputeEvidence() {
         FileAttachment dispute = row(FileAttachmentService.REF_DISPUTE, CONSUMER_ID);
         when(fileAttachmentMapper.selectById(9L)).thenReturn(dispute);

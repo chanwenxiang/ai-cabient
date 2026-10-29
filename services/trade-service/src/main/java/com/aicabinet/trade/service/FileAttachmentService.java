@@ -470,6 +470,9 @@ public class FileAttachmentService {
         if (operatorId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
         }
+        // 运营头像目录不对外开放（见 WebConfig 放行清单：ops-avatars 要求运营登录），
+        // 写入侧同样只收运营账号——否则消费者 JWT 也能往这个命名空间堆文件（实测 2026-10-29）。
+        OperatorAuth.requireOperator(operatorId);
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
         }

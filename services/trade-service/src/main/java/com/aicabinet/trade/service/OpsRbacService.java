@@ -542,6 +542,9 @@ public class OpsRbacService {
     }
     @Transactional
     public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
+        // 个人中心自助端点没有功能权限码，但必须先确认是运营账号：
+        // 否则消费者 JWT 也能走这条 /api/v2/ops/** 路径改自己的密码（实测 2026-10-29）。
+        permissionService.requireOperator(operatorId);
         runWithOperatorLock(operatorId, () -> {
             doChangeMyPassword(operatorId, request);
             return null;
