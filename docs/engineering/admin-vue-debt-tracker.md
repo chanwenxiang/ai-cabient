@@ -221,6 +221,17 @@
 
 ---
 
+## 十四期（仓储拆页后「渠道对账导入」tab 掉了，2026-10-29 开单）
+
+> 来源：重新生成 `docs/ADMIN_TABLE_INVENTORY.md` 时由扫描器算出「表格有代码但路由上到不了」，
+> 只有一条，人工逐行复核成立。非本轮改动引入，属 `f030f09f` 仓储拆页遗留。
+
+| ID | 优先级 | 状态 | 问题摘要 | 主要证据 / 边界 | 完成记录 |
+|----|--------|------|----------|-----------------|----------|
+| D27 | P2 | open（待拍板落哪一页） | 「渠道对账导入」整块 UI 从侧栏进去不到了：6 张表（外部渠道商品映射 / 批次 / 流水 / 批次明细等）仍编译进包，但没有任何页面渲染它 | ①`views/warehouse/WarehouseView.vue:575-581` 的 `<el-tab-pane name="channel-import">` 受 `isPaneVisible()` 门控；②`isPaneVisible` 在 `props.only` 模式下等价于 `only.includes(name)`（`:1007`）；③四个子页的 `:only` 分别是 `master=[warehouses,bins]`、`procurement=[suppliers,purchase,suggestions,returns,payables]`、`stock=[stocktakes,inventory,movements,monthly]`、`fulfillment=[transfers,outbounds,transit]` —— 都不含 `channel-import`；④`router/index.ts:13` 的 `ROUTE_TAB_SUB` 也没有该 tab（旧 `/warehouse?tab=channel-import` 会落到 master 再被钳回 `warehouses`）；⑤`config/menu.ts` 无对应入口；⑥`:585` 仍专门为 `channel-import` 保留「隐藏筛选栏」分支 ⇒ 拆页时是**漏配子集**，不是刻意下线 | 待拍板：放进 `/warehouse/stock`（与批次库存同组，`ONLY_STOCK` 加一项）还是 `/warehouse/procurement`（与供应商/采购同组）；确定后改一行 `:only` 数组即可 |
+
+---
+
 ## 已确认「不是债」（勿重复开单）
 
 | 点 | 说明 |
@@ -436,3 +447,4 @@
 - 十一期：本表 **D24**（「十一期后续」节）
 - 十二期：本表 **D25**（「十二期后续」节）
 - 十三期：本表 **D26**（「十三期」节 · 开门柜货道残留，2026-10-28 盘点 → 2026-10-29 A 类 8 处改码，仅剩 `ReplenishmentView`）
+- 十四期：本表 **D27**（「十四期」节 · 仓储拆页后 `channel-import` tab 无页承载，2026-10-29 盘点发现）
