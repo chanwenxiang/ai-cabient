@@ -668,6 +668,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-29（CI `build` 连红四批归因闭合：E2E 把共享演示柜登记成将邑柜后不还原）
+
+- **先归因再动手**：推送后 CI `build` 红，红点固定在 step 31 `mvn verify -DskipITs -pl services/trade-service -am`。匿名 API 拿不到 job 日志（`/actions/jobs/<id>/logs` 恒 403「Must have admin rights」，`gh` 未鉴权），但 `commits/<sha>/check-runs` 够用：逐 push head 查 ⇒ `c3f09722` **绿**，`35093336` / `8c74cfd2` / `ddf6ed08` / `dc6e6c99` / `2b0d2e41` **全红** ⇒ 不是本会话那几笔（V413 改名 / openapi 门禁 / D27）引入，红点落在 `5be1f43f` 那一批。
+- **本机复现（同参，不碰 peer 的栈）**：另起一次性 `postgres:16-alpine` + `redis:7-alpine` 挂 **15434/16379**（🔴 dev 栈的 postgres 恰好就监听 15433、redis 监听 6379，与 CI service 端口一模一样 ⇒ 直接照抄 env 会写进 peer 在用的库），用 CI 那条命令跑 ⇒ `Tests run: 2504, Failures: 0, Errors: 3`，三条全在 `ConsumerE2ETest`（`consumer_deviceStatus` / `f6_balanceChannel_isChargedViaBalance` / `consumer_deviceProducts`），异常 `duplicate key value violates unique constraint "uk_device_name"`。
+- **根因是两处各自都对、合起来互斥**：`DemoDataService.pickExistingDemoDevice()` 自 `5be1f43f`（2026-10-28「演示播种不再写将邑真机」）起把**将邑绑定柜排除**在演示候选之外；而 `ConsumerE2ETest` 的购买链路要把共享演示柜登记成 `jiangyi_device` BOUND 才能挣结算绿（DC-27 批2 删了重力/dev-cart 短路）。登记后不撤 ⇒ 排在它后面的 `DemoFixture.requireDeviceId` 挑不到柜，`ensureDevice()` 走「新建一台」分支、按常量显示名「演示智能柜」插入，撞 V76 的 `uk_device_name`。surefire 报告里用例顺序实证 `consumer_fullPurchaseFlow` 排在这三例之前——**用例之间可见的状态＝顺序依赖**，红只在这个顺序出现。
+- **修法（只动测试）**：`ConsumerE2ETest` 补 `@AfterEach restoreDemoJiangyiRegistration()`，撤掉**本次真的插进去的**那一行（helper 幂等，库内已有则不插、也就不撤）并 `JiangyiDeviceDirectory.evict`（否则 60s 正缓存仍认它是将邑柜）。同类 `cleanupNeverChargedFixtureOrders`（PENDING 订单污染）是同一形态的先例，位置也刻意放 `@AfterEach` 让断言失败时同样还原。
+- **验证**：单类 `mvn test -Dtest=ConsumerE2ETest` ⇒ 11/11 绿（改前同命令 3 ERROR）；全量 `mvn verify -DskipITs -pl services/trade-service -am` ⇒ `Tests run: 2504, Failures: 0, Errors: 0` + BUILD SUCCESS；`node scripts/pre-push-ci-preflight.mjs` exit 0（86 项 ✓，含 `openapi-regen`「变更集内无 API 形状改动」）。收尾删掉两个一次性容器。
+- ⚠️ **留档未动的主代码缺口**：`ensureDevice()` 用常量名新建柜，「全库只剩将邑柜且其中一台恰好叫演示智能柜」时每次播种必炸（DuplicateKeyException）。当前 dev 库**不成立**——`演示智能柜` 那台 `jiangyi_device.status=RETIRED`（只有 BOUND 才算将邑柜），仍是演示候选 ⇒ 按「不为没发生的场景加兜底」只记 [lessons #353](engineering/lessons-learned.md)，没顺手改判据。
+- **peer 在飞文件一律未 add**：`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`（§2.8 之后又改了 61 行）、新增未跟踪 `docs/figures/alipay-zhima-payafteruse-inquiry-email-body.txt`；`.idea/*` 按用户指示忽略。
+
 ### 2026-10-29（运营后台三处报障整改 + 开门柜「货道」A 类清理；判据两次被自己证伪）
 
 - **用户报障三处**（2026-10-28 提出）：

@@ -119,6 +119,9 @@ class ConsumerE2ETest {
     /** 本用例**直插**的订单号（见 {@link #insertNeverChargedPendingOrder}），用于用例结束后的清理。 */
     private final List<String> f6InsertedOrderIds = new ArrayList<>();
 
+    /** {@link #registerDemoAsJiangyiBound} 本次**真的插进去**的柜号；没插则为 null（见 {@link #restoreDemoJiangyiRegistration()}）。 */
+    private String jiangyiRegisteredDeviceId;
+
     /**
      * 用例结束后清掉「**从未扣款**」的 PENDING 订单。
      *
@@ -147,6 +150,31 @@ class ConsumerE2ETest {
                     .ifPresent(order -> cabinetOrderMapper.deleteById(orderId));
         }
         f6InsertedOrderIds.clear();
+    }
+
+    /**
+     * 用例结束后把演示柜的将邑登记**撤掉**，还原成「非将邑柜」。
+     *
+     * <p>🔴 必须还原，否则同一个容器里排在购买链路后面的用例全部带崩：
+     * {@code DemoDataService.pickExistingDemoDevice()} 自 5be1f43f（2026-10-28「演示播种不再写将邑真机」）
+     * 起把将邑绑定柜**排除**在演示候选之外，而本类的购买链路要把共享演示柜登记成 BOUND 才能挣结算绿。
+     * 不撤 ⇒ 后面的 {@code DemoFixture.requireDeviceId} 挑不到柜，于是按常量显示名「演示智能柜」
+     * 再新建一台，撞 {@code uk_device_name}（V76）：实测红线是
+     * {@code consumer_deviceStatus / f6_balanceChannel_isChargedViaBalance / consumer_deviceProducts}
+     * 三例 ERROR {@code duplicate key value violates unique constraint "uk_device_name"}，
+     * 且只在 JUnit 把 {@code consumer_fullPurchaseFlow} 排在这三例之前时复现——顺序依赖正是要抹掉的东西。
+     *
+     * <p>只删「本次真的插进去的行」（{@link #registerDemoAsJiangyiBound} 幂等：库内已有则不插），
+     * 删完必须 {@code evict}，否则 60s 正缓存仍把这台柜算成将邑柜。
+     */
+    @AfterEach
+    void restoreDemoJiangyiRegistration() {
+        if (jiangyiRegisteredDeviceId == null) {
+            return;
+        }
+        jiangyiDeviceMapper.deleteById(jiangyiRegisteredDeviceId);
+        jiangyiDeviceDirectory.evict(jiangyiRegisteredDeviceId);
+        jiangyiRegisteredDeviceId = null;
     }
 
     private static String consumerToken;
@@ -355,6 +383,7 @@ class ConsumerE2ETest {
             device.setDeviceSn("e2e" + Math.abs(deviceId.hashCode()));
             device.setStatus("BOUND");
             jiangyiDeviceMapper.insert(device);
+            jiangyiRegisteredDeviceId = deviceId; // 只有本次插的才由 @AfterEach 撤（见 restoreDemoJiangyiRegistration）
         }
         jiangyiDeviceDirectory.evict(deviceId);
     }
