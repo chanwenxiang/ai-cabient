@@ -51,7 +51,8 @@
         <!-- OSV 全树复扫命中项（须在 Boot BOM 前显式 DM） -->
         <log4j2.version>2.25.5</log4j2.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
-        <opentelemetry.version>1.62.0</opentelemetry.version>
+        <!-- GHSA-ccrj-gw8r-854m（W3C tracestate 二次方 CPU，fixed=1.67.0）：BOM 统一抬到修复版 -->
+        <opentelemetry.version>1.67.0</opentelemetry.version>
         <bouncycastle.version>1.85</bouncycastle.version>
         <lz4-java.version>1.11.4</lz4-java.version>
     </properties>
