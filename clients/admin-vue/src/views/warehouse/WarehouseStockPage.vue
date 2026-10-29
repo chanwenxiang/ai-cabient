@@ -4,5 +4,5 @@ import WarehouseView from './WarehouseView.vue';
 </script>
 
 <template>
-  <WarehouseView :only="['stocktakes', 'inventory', 'movements', 'monthly']" />
+  <WarehouseView :only="['stocktakes', 'inventory', 'movements', 'monthly', 'channel-import']" />
 </template>

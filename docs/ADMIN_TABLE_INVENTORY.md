@@ -25,7 +25,7 @@
 
 > 有表格的文件，从任何路由页顺着 import 都进不去。要么没被引用，要么被外壳页的 `:only` tab 子集挡掉。
 
-- `components/warehouse/ExternalChannelImportTab.vue`（表 6）—— 在 `views/warehouse/WarehouseView.vue` 的 `channel-import` 分页里，但没有哪个页面把它放进 `:only` 子集
+- （无）
 
 ## 1. 路由总表（一页一行）
 
@@ -68,7 +68,7 @@
 | 仓储 | `/warehouse/monthly-close-sheets` | 月结单台账 | `views/warehouse/WarehouseMonthlyCloseSheetsView.vue` | 2 | 25 |
 | 仓储 | `/warehouse/reconciliation` | 供应商对账单 | `views/warehouse/SupplierReconciliationView.vue` | 0 | 0 |
 | 仓储 | `/warehouse/expiry-alerts` | 仓库近效期预警 | `views/warehouse/WarehouseExpiryAlertsView.vue` | 1 | 7 |
-| 仓储 | `/warehouse/stock` | 库存与盘点 | `views/warehouse/WarehouseStockPage.vue` | 9 | 73 |
+| 仓储 | `/warehouse/stock` | 库存与盘点 | `views/warehouse/WarehouseStockPage.vue` | 15 | 113 |
 | 仓储 | `/warehouse/fulfillment` | 调拨与在途 | `views/warehouse/WarehouseFulfillmentPage.vue` | 8 | 55 |
 | 财务商户 | `/recharges` | 充值管理 | `views/recharges/RechargeListView.vue` | 1 | 9 |
 | 财务商户 | `/balance-refunds` | 余额退款 | `views/finance/BalanceRefundView.vue` | 1 | 8 |
@@ -1921,7 +1921,77 @@
 | 3 | `—` | 出库单 |
 | 4 | `—` | 发运时间 |
 
-**表 8** — `:data="derived"` · 来源 `components/warehouse/WarehouseTransferReceiveDialog.vue`
+**表 8** — `:data="previewBatch.unmappedProducts"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `externalKey` | 商品ID |
+| 2 | `externalName` | 商品名称 |
+| 3 | `timesSeen` | 出现次数 |
+
+**表 9** — `:data="(previewBatch.rows ?? []).slice(0, 200)"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `srcLine` | 源行 |
+| 2 | `person` | 线长 |
+| 3 | `extKey` | 商品ID |
+| 4 | `extName` | 商品名称 |
+| 5 | `qty` | 数量 |
+| 6 | `happenedAt` | 业务日期 |
+
+**表 10** — `:data="products"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `channelCode` | 渠道 |
+| 2 | `externalKey` | 商品ID |
+| 3 | `externalName` | 商品名称 |
+| 4 | `brand` | 品牌 |
+| 5 | `spec` | 规格 |
+| 6 | `timesSeen` | 出现次数 |
+| 7 | `—` | 映射 |
+| 8 | `—` | 操作 |
+
+**表 11** — `:data="batches"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `batchId` | 批次 |
+| 2 | `—` | 渠道 |
+| 3 | `periodLabel` | 账期 |
+| 4 | `fileName` | 文件 |
+| 5 | `—` | 状态 |
+| 6 | `—` | 行数 |
+| 7 | `uploadedByName` | 上传人 |
+| 8 | `—` | 上传时间 |
+| 9 | `—` | 操作 |
+
+**表 12** — `:data="flows"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `periodLabel` | 账期 |
+| 2 | `warehouseId` | 仓库 |
+| 3 | `personName` | 线长 |
+| 4 | `skuId` | SKU |
+| 5 | `—` | 操作类型 |
+| 6 | `qty` | 数量 |
+| 7 | `rowCount` | 原始行 |
+| 8 | `remark` | 备注 |
+
+**表 13** — `:data="(batchDetail.rows ?? []).slice(0, 300)"` · 来源 `components/warehouse/ExternalChannelImportTab.vue`
+
+| # | prop | label |
+|---|------|-------|
+| 1 | `srcLine` | 源行 |
+| 2 | `person` | 线长 |
+| 3 | `extKey` | 商品ID |
+| 4 | `extName` | 商品名称 |
+| 5 | `qty` | 数量 |
+| 6 | `happenedAt` | 业务日期 |
+
+**表 14** — `:data="derived"` · 来源 `components/warehouse/WarehouseTransferReceiveDialog.vue`
 
 | # | prop | label |
 |---|------|-------|
@@ -1932,7 +2002,7 @@
 | 5 | `—` | 损耗 |
 | 6 | `—` | 损耗原因 |
 
-**表 9** — `:data="rows"` · 来源 `components/warehouse/WarehouseStocktakesTab.vue`
+**表 15** — `:data="rows"` · 来源 `components/warehouse/WarehouseStocktakesTab.vue`
 
 特殊列：selection
 
@@ -2564,7 +2634,7 @@
 - `/warehouse/master`：#1 `receiveForm.lines @ WarehousePurchaseDialogs.vue`(6列)；#2 `returnForm.lines @ WarehousePurchaseDialogs.vue`(7列)；#3 `stocktakeDetail.lines || [] @ WarehouseStocktakeDialogs.vue`(8列)；#4 `bins @ WarehouseBinsTab.vue`(5列)；#5 `binStock @ WarehouseBinsTab.vue`(6列)；#6 `derived @ WarehouseTransferReceiveDialog.vue`(6列)；#7 `table @ WarehouseOverviewTab.vue`(5列)
 - `/warehouse/procurement`：#1 `receiveForm.lines @ WarehousePurchaseDialogs.vue`(6列)；#2 `returnForm.lines @ WarehousePurchaseDialogs.vue`(7列)；#3 `stocktakeDetail.lines || [] @ WarehouseStocktakeDialogs.vue`(8列)；#4 `derived @ WarehouseTransferReceiveDialog.vue`(6列)；#5 `rows @ WarehousePayablesTab.vue`(9列)；#6 `row.payments @ WarehousePayablesTab.vue`(3列)；#7 `rows @ WarehousePurchaseOrdersTab.vue`(7列)；#8 `row.lines || [] @ WarehousePurchaseOrdersTab.vue`(7列)；#9 `rows @ WarehousePurchaseReturnsTab.vue`(6列)；#10 `row.lines || [] @ WarehousePurchaseReturnsTab.vue`(3列)；#11 `rows @ WarehouseSuggestionsTab.vue`(12列)；#12 `rows @ WarehouseSuppliersTab.vue`(7列)
 - `/warehouse/monthly-close-sheets`：#1 `crud`(7列)；#2 `detail?.lines || []`(18列)
-- `/warehouse/stock`：#1 `receiveForm.lines @ WarehousePurchaseDialogs.vue`(6列)；#2 `returnForm.lines @ WarehousePurchaseDialogs.vue`(7列)；#3 `stocktakeDetail.lines || [] @ WarehouseStocktakeDialogs.vue`(8列)；#4 `rows @ WarehouseInventoryTab.vue`(7列)；#5 `rows @ WarehouseMovementsTab.vue`(8列)；#6 `rows @ WarehouseMonthlyCloseTab.vue`(17列)；#7 `detailRows @ WarehouseMonthlyCloseTab.vue`(4列)；#8 `derived @ WarehouseTransferReceiveDialog.vue`(6列)；#9 `rows @ WarehouseStocktakesTab.vue`(10列)
+- `/warehouse/stock`：#1 `receiveForm.lines @ WarehousePurchaseDialogs.vue`(6列)；#2 `returnForm.lines @ WarehousePurchaseDialogs.vue`(7列)；#3 `stocktakeDetail.lines || [] @ WarehouseStocktakeDialogs.vue`(8列)；#4 `rows @ WarehouseInventoryTab.vue`(7列)；#5 `rows @ WarehouseMovementsTab.vue`(8列)；#6 `rows @ WarehouseMonthlyCloseTab.vue`(17列)；#7 `detailRows @ WarehouseMonthlyCloseTab.vue`(4列)；#8 `previewBatch.unmappedProducts @ ExternalChannelImportTab.vue`(3列)；#9 `(previewBatch.rows ?? []).slice(0, 200) @ ExternalChannelImportTab.vue`(6列)；#10 `products @ ExternalChannelImportTab.vue`(8列)；#11 `batches @ ExternalChannelImportTab.vue`(9列)；#12 `flows @ ExternalChannelImportTab.vue`(8列)；#13 `(batchDetail.rows ?? []).slice(0, 300) @ ExternalChannelImportTab.vue`(6列)；#14 `derived @ WarehouseTransferReceiveDialog.vue`(6列)；#15 `rows @ WarehouseStocktakesTab.vue`(10列)
 - `/warehouse/fulfillment`：#1 `receiveForm.lines @ WarehousePurchaseDialogs.vue`(6列)；#2 `returnForm.lines @ WarehousePurchaseDialogs.vue`(7列)；#3 `stocktakeDetail.lines || [] @ WarehouseStocktakeDialogs.vue`(8列)；#4 `derived @ WarehouseTransferReceiveDialog.vue`(6列)；#5 `rows @ WarehouseOutboundsTab.vue`(6列)；#6 `row.lines || [] @ WarehouseOutboundsTab.vue`(5列)；#7 `rows @ WarehouseTransfersTab.vue`(9列)；#8 `rows @ WarehouseTransitTab.vue`(8列)
 - `/vision-mappings`：#1 `crud`(7列)；#2 `deployments`(6列)；#3 `reviewPlan.rows`(6列)
 - `/learning-library`：#1 `pagedProducts`(6列)；#2 `pagedCabinets`(7列)；#3 `pagedModels`(5列)；#4 `pagedTrainings`(6列)；#5 `shelfResult.devices`(4列)；#6 `studyingRows`(4列)；#7 `gatherCheckRows`(5列)；#8 `consolePending`(4列)；#9 `consoleRun.upload`(3列)
@@ -2588,6 +2658,7 @@
 | `/warehouse/procurement` | #6 | `components/warehouse/WarehousePayablesTab.vue` | `row.payments` | 付款时间、付款金额、备注 |
 | `/warehouse/procurement` | #10 | `components/warehouse/WarehousePurchaseReturnsTab.vue` | `row.lines || []` | 商品、批次、退货数 |
 | `/warehouse/stock` | #7 | `components/warehouse/WarehouseMonthlyCloseTab.vue` | `detailRows` | 柜机、件数、出库单、发运时间 |
+| `/warehouse/stock` | #8 | `components/warehouse/ExternalChannelImportTab.vue` | `previewBatch.unmappedProducts` | 商品ID、商品名称、出现次数 |
 | `/learning-library` | #5 | `views/vision/LearningLibraryView.vue` | `shelfResult.devices` | 柜机、结果、识别编号、说明 |
 | `/learning-library` | #6 | `views/vision/LearningLibraryView.vue` | `studyingRows` | 商品、状态、驳回原因、图片 |
 | `/learning-library` | #8 | `views/vision/LearningLibraryView.vue` | `consolePending` | 商品、品牌、规格、图片 |

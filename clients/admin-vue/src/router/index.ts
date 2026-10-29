@@ -22,6 +22,7 @@ const ROUTE_TAB_SUB: Record<string, string> = {
   inventory: 'stock',
   movements: 'stock',
   monthly: 'stock',
+  'channel-import': 'stock',
   transfers: 'fulfillment',
   outbounds: 'fulfillment',
   transit: 'fulfillment'
