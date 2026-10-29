@@ -414,6 +414,7 @@
 - 验证：`npx vue-tsc --noEmit` exit 0；`check-admin-table-gate` OK（裸表格 17，基线未动）；`check-admin-table-align` ok（bare center 0，新增 WARN 0，13 条 money WARN 全在未触碰文件）；`prettier --check` 8 文件全绿（`FootfallView` 首次红＝我把 `<p>` 折行，`--write` 后 `git diff` 只有 3 行文案，无夹带）；`eslint` 0 error（2 条 `no-unused-vars` WARN 在 `DisputeListView:682/:694`，本笔未触及）
 - 🔴 计数口径：`grep -o 货道` 从 **96 处 / 21 文件**（HEAD `8c74cfd2`）→ **86 处 / 17 文件**。删列的 4 个文件各留 1 行 `<!-- 无「货道」列：… -->`，`FootfallView` 因加限定词反而 +3，所以**不能拿总数下降幅度当成绩单**，要按文件核
 - 未动：`ReplenishmentView` 8 处（等缺货新口径）、B 类（设备详情货道编辑 / `useDeviceSlotActions` / `SlotInlineRow` / `order-line-summary` + 单测 / `ConsistencyView:401` / planogram 开关）、C 类（注释 / 菜单搜索词 / 端点说明）
+- `FootfallView` 的柜机下拉仍列全部柜机（含开门柜）：**决定不做柜型过滤**——用户 2026-10-29「待办 我们上线后只有一种类型」⇒ 恒空列直接删列/改词，不引入「按柜型条件显示」分支，也就不需要 `jiangyi BOUND` 的前端投影；选到开门柜时模块空态是预期结果，标题已写明「仅货道柜」
 
 ---
 
