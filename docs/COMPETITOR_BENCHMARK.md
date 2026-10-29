@@ -2510,3 +2510,48 @@
 - **对照主体**（2 同行 + 1 cross + 2 补充）：Parlevel Stock ｜ Vendon ｜ Microsoft Dynamics 365 ｜ 中国物资储运协会 ｜ Okamura 岡村製作所
 - **取证日期**：2026-10-28
 - **我们的结论**：**采纳按柜机分组（用户 2026-10-28 拍板）**——首页「备货清单」按柜机分模块，组内仍按 SKU 聚合（保住 pack_qty 整件/拆零换算），分仓库存读**该柜出库单上的分仓**（比旧跨柜合并更准：不同柜可挂不同分仓）。跨柜 SKU 合计（播种式汇总拣选）依赖线路排班与二次分拣，同行也把它放在路线层，维持后置不建。存量跨柜合并实现（MerchantPrepListDto.TaskRef）随本次删除。
+
+### CB-074 【新】「领而未上」的差额怎么记——行业口径是留在原单据行上的未结数量（部分接收），不是自动退回源头仓；开门柜同行只做到「现场异常就地记录 + 人工核对实际库存」，差额的记账规格未公开
+
+- **竞品做法**：
+  - **同行（Parlevel Stock，⭕ 官网，CB-072/073 已登记主体）**：司机 App 里现场异常商品**就地记录、立即同步回 VMS**——原句 _"Expired, damaged, or refunded products can be recorded on Stock and immediately synced up to your VMS."_。也就是说「没装进去/装坏了」是**一条回传的记录**，而不是靠发运量推定上架量；页面里**没有任何「自动退回仓库」**的动作。
+  - **同行（智购科技，⭕ 官网补货流程专栏）**：原句「**补货录入、商品调整和异常订单，都可能影响库存记录，不能完全省去人工核对**」，并要求到现场**核对实际库存** ⇒ 上架量以现场确认为准、发货量只是计划，两者必须分开呈现。
+  - **官方 ERP（Microsoft Dynamics 365 Business Central，⭕ 官方教程，一手源）**：部分接收时把采购订单行上的「要接收的数量」改成实际到货量再过账；原句「过帐采购收据后，在采购订单行上，**要接收的数量** 字段现在显示尚未接收的数量。**已接收的数量** 字段显示已接收的总数量」⇒ **差额留在同一张单据的同一行上，作为可查询的未结数量**；系统既不生成退供应商单，也不回滚已扣的承诺。
+- **🔴 未查到公开规格的部分（诚实标注）**：开门柜同行（友宝 / 丰e足食 / 哈哈零兽 / 嗨便利 / 映翰通 / Nayax）**均未公开**「补货员领 10 件、只上架 7 件」这 3 件的**记账口径**（回退分仓 / 挂差异台账 / 只记未结数量）。嗨便利官方 PaaS 页只写「智能进销存管理、智能补货缺货提醒」，未涉差异。**「单据行留未结数量」的范式取自跨行业 ERP + DSD 配送**；开门柜侧具体怎么落（存哪张表、是否进月结）是**我方设计判断**，不得当成同行背书。
+- **对照主体**（2 同行 + 1 官方 cross）：Parlevel ｜ 智购科技 ｜ Microsoft Dynamics 365 Business Central
+- **证据**：
+  - <https://www.parlevelsystems.com/stock-a-mobile-vending-app-to-enhance-your-service> （⭕ Parlevel 官网：现场异常商品就地记录并同步回 VMS）
+  - <https://www.sohu.com/a/1092144114_120560487> （⭕ 智购科技补货流程专栏（搜狐转载）：补货录入/商品调整/异常订单影响库存记录，不能省去人工核对）
+  - <https://learn.microsoft.com/zh-cn/training/modules/receive-invoice-dynamics-d365-business-central/1-receive-items> （⭕ Microsoft Learn 官方：部分接收后「要接收的数量」= 尚未接收的数量、「已接收的数量」= 累计实收）
+- **取证日期**：2026-10-29
+- **我们的结论**：**采纳「差额留在单据行、不自动退回、不动库存」**（用户 2026-10-29 拍板：差异**要有台账**，且补货员在异地自有仓、当日直配 ⇒ **补货段无在途**，只有采购段有在途）——
+
+  ① `warehouse_outbound_line` 加一列 `remainder_qty`（领而未上 = 出库量 − 实收量，**只存单据事实、不写库存流水**）；
+  ② 签收不再用 `Integer.MAX_VALUE` 伪造成全量：实收多少记多少，差额进 `remainder_qty`；
+  ③ 月结把「上柜」拆成 **领货 / 上柜(实收) / 领而未上** 三列，**应有库存公式一行不改**（差额既没回分仓、也没进柜机，与 Dynamics 的未结数量同形）；
+  🔴 **不做**「差额自动退回分仓库存」：行业里退回是**第二张单据**（要人拍板），没有一家做成系统默认；且我方分仓是异地站点仓、货可能还在补货员手上，自动退回等于凭空造库存。
+  **有意不同**（相对 ERP 的独立差异单/对账单）：不新建「差异台账」表、不引入 `PARTIAL` 在途余额——差额只在**原出库行**上留未结数量 + 月结列。原因是铁律 79 三层账：既有 `OUTBOUND_SHIP` 流水已按领货量扣了分仓，再写一条负 delta 的流水会**双扣**，柜机侧补记则违反铁律 78（开门柜真值只认设备上报）。
+
+### CB-075 【新】补货数量上限该扣什么——官方 ERP 的「可用量」一律 = 供给 − 已承诺（含出库未收），补货量按**预计**现有量而非当前在架；开门柜同行未公开扣减公式，但把「出发前配货」当既成占用
+
+- **竞品做法**：
+  - **官方 ERP（Microsoft Dynamics 365 Inventory Visibility，⭕ 官方文档，一手源）**：可承诺量按「计算度量」= 供给 − 需求，官方给出的默认公式原句 _"On-hand-available = (PhysicalInvent + OnHand + Unrestricted + QualityInspection + Inbound) – (ReservPhysical + SoftReservePhysical + Outbound)"_ ⇒ **已被预留/已出库的量必须从可用量里减掉**，「当前在架」本身不是可承诺量。
+  - **官方 ERP（同上，Min/Max 补货法）**：原句 _"The replenishment quantity will be the difference between the maximum level and the predicted on-hand level."_ ⇒ 补多少 = **最大水位 − 预计现有量**（预计里含已计划/已在途的量），不是「最大水位 − 此刻盘点数」。
+  - **官方 ERP（Oracle SCM Cloud PAR 水位，⭕ 官方字段文档）**：`INV_ITEM_SUB_INVENTORIES.PAR_MAX_QTY`「If the count falls below the PAR level, this value is used to calculate the re-order quantity」+ `COUNT_REQUIRED`「PAR location must be counted」——按水位算再订量，且**要求以实盘为准**（水位是上限，不是缺口）。
+  - **同行（Parlevel，⭕ 官网/App Store，CB-072/073/074 已登记主体）**：司机端 **Prekitting**（出发前按机器级清单配货）——商品在到柜前就已按「这一站」锁定并带上车 ⇒ 同一 SKU 的**多次领货互相占用**是作业事实。⚠️ 其扣减公式（是否减他单在途）官网未公开。
+  - **同行（Vendon，⭕ App Store 自述，CB-073 已登记主体）**：route 内做 stock 与 warehouse events，同样是机器级补货量；扣减规格未公开。
+- **🔴 未查到公开规格的部分（诚实标注）**：没有任何一家开门柜/VMS 同行公开「同一柜同 SKU 有两个未结补货任务时，后一单的可补量要不要减去前一单已领未上柜的量」的公式。上面的**扣已承诺 + 按预计现有量算缺口**是跨行业 ERP 官方规格，只能借范式，不能当同行背书。
+- **对照主体**（2 同行 + 1 官方 cross）：Parlevel ｜ Vendon ｜ Microsoft Dynamics 365
+- **证据**：
+  - <https://learn.microsoft.com/en-us/dynamics365/supply-chain/inventory/inventory-visibility-available-to-promise> （⭕ 官方：ATP 计算度量 = Supply − Demand，Demand 含 ReservPhysical/SoftReservePhysical/Outbound；原文公式逐字引用）
+  - <https://learn.microsoft.com/en-us/dynamics365/supply-chain/master-planning/planning-optimization/replenishment-methods-quantity-modification> （⭕ 官方：Min/Max 补货量 = 最大水位 − **predicted on-hand**）
+  - <https://docs.oracle.com/en/cloud/saas/supply-chain-and-manufacturing/25b/oedsc/invitemsubinventories-21961.html> （⭕ 官方：PAR 水位字段 PAR_MAX_QTY / COUNT_REQUIRED）
+  - <https://www.parlevelsystems.com/stock-a-mobile-vending-app-to-enhance-your-service> （⭕ Parlevel 官网 Stock 页：机器级补货 + 现场记录同步）
+  - <https://itunes.apple.com/cn/app/id1056324586> （⭕ Parlevel Mobile App Store 功能清单自述含 Prekitting）
+  - <https://apps.apple.com/cn/app/vendon-mobile/id1576189182> （⭕ Vendon Mobile App Store：route list / stock from route / warehouse events）
+- **取证日期**：2026-10-29
+- **我们的结论**：**采纳「可补量 = 台账上限 − 在架量 − 他人已承诺量」并把它做成唯一出处**（`ReplenishmentService` 服务端算一处，小程序与后端提交校验共用同一个数）——
+  ① 现状是三套数：运营建议扣**全部**在途、后端提交校验扣**排除本单出库单**的在途、小程序前端封顶**一层都不扣** ⇒ 补货员「能加进去、点提交才 400」（D28-A5，用户 2026-10-29 拍板「mp 前端对齐后端」）。
+  ② 🔴 **有意不同（相对 ERP 的 ATP 全扣）**：排除**本单**出库单产生的在途。理由不是省事——我方仓→柜是补货员当日自提自送（铁律 80），本单已领未上柜的量**就是这一趟要装进柜机的货**；把它当「他人已承诺」扣掉，等于自己领的货挡自己上架，建议量本身会过不了闸。ERP 语境里 ATP 面向的是**新客户订单**，同单自身的预留本就不参与二次扣减，方向一致。
+  ③ **前端不再自己算上限依据**：下发 `容量 / 在架 / 他单已领未上柜 / 可补量` 四项，弹窗文案与后端 400 文案同字面，避免「界面说能补 15、后端说最多 5」。
+  ④ 不做「预计到柜量」这类预测式水位：Dynamics 的 predicted on-hand 依赖计划收货日程，我方没有排程数据，硬套会变成新的猜测数。

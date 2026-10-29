@@ -69,7 +69,7 @@
 | 仓储 | `/warehouse/reconciliation` | 供应商对账单 | `views/warehouse/SupplierReconciliationView.vue` | 0 | 0 |
 | 仓储 | `/warehouse/expiry-alerts` | 仓库近效期预警 | `views/warehouse/WarehouseExpiryAlertsView.vue` | 1 | 7 |
 | 仓储 | `/warehouse/stock` | 库存与盘点 | `views/warehouse/WarehouseStockPage.vue` | 15 | 113 |
-| 仓储 | `/warehouse/fulfillment` | 调拨与在途 | `views/warehouse/WarehouseFulfillmentPage.vue` | 8 | 55 |
+| 仓储 | `/warehouse/fulfillment` | 领货与调拨 | `views/warehouse/WarehouseFulfillmentPage.vue` | 8 | 55 |
 | 财务商户 | `/recharges` | 充值管理 | `views/recharges/RechargeListView.vue` | 1 | 9 |
 | 财务商户 | `/balance-refunds` | 余额退款 | `views/finance/BalanceRefundView.vue` | 1 | 8 |
 | 财务商户 | `/invoices` | 开票申请 | `views/finance/InvoiceListView.vue` | 1 | 11 |
@@ -2019,7 +2019,7 @@
 | 9 | `—` | 创建时间 |
 | 10 | `—` | 操作 |
 
-#### `/warehouse/fulfillment` · 调拨与在途
+#### `/warehouse/fulfillment` · 领货与调拨
 
 组件：`views/warehouse/WarehouseFulfillmentPage.vue`
 

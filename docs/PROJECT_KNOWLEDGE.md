@@ -181,6 +181,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 | [AUDIT_DECISION_BRIEF_2026-10-16.md](AUDIT_DECISION_BRIEF_2026-10-16.md) | **待拍板简报**：DC-26/27/29 落地实证 + §12「还剩什么要你定」；想知道项目卡在哪些决策上读这一份 |
 | [AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md](AUDIT_F2_F3_F4_DECISION_BRIEF_2026-10-16.md) | 费用口径（分/天、扣款即结清、账龄锁柜、按日期重跑）拍板与落地状态表 |
 | [AUDIT_THREE_END_FULL_2026-10-18.md](AUDIT_THREE_END_FULL_2026-10-18.md) | 最新三端全量复审（AU-136~173，编号源在台账；子代理明细见 [AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md](AUDIT_THREE_END_FULL_2026-10-18_APPENDIX.md)）；想知道「历史审计报告哪些还能信」读其 §5 核查矩阵（失实 17/虚报 0） |
+| [module-audit/](module-audit/README.md) | **进行中（2026-10-29 起）**：11 轮三端分模块审计共享工作区（MA-xxx 编号唯一源；规则=一切以当前代码实况为准、旧文档只当线索、写前先看变化只追加）。参与审计的任何会话先读其 README |
 
 ### 7.2 Cursor 规则（`.cursor/rules/`）
 
@@ -667,6 +668,82 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-10-29（D28-A9 收口：商户补货发起腿的柜机判据抬到 FIELD 包，订正一条与实现不符的注释）
+
+- **复核后方向订正**（原判断写的是「预览说能补、点生成被拒」）：真实形态**反过来**——`doSelfInitiateTask` 是**全链路唯一**只判裸 `merchantScopeService.canAccessDevice`（数据范围）的入口，其余 **9 处**（建议 `:92`、明细 `:202`、上限 `:216`、扫码归属 `:285`、开门会话 `:305`、`requireScopedTask` `:333` ⇒ 签到/确认/完成、以及 `:513/:523/:534`）都走 `requireDevicePack(FIELD)` ＝「数据范围 **∩** 该柜所属商户开通 FIELD 包」。⇒ 未开包商户名下的柜**能扣分仓库存生成出库+补货任务，却看不到补货建议/明细**：会动库存的写腿比只读的读腿还松。
+- **拍板「取更严」**：发起腿补 `merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD)`（`MerchantReplenishmentService:369`），四条拒绝仍各说各话（CB-070：范围外点名柜机、未开包回「该商户未开通对应功能包」、未归仓/仓不存在各自 400），javadoc 判据同步补「FIELD 包」一条。
+- **假注释订正**：`MerchantPortalController:768` 原文「仅柜机所属分仓负责人可用」是 **CB-068 A 档（2026-10-27 用户拍板）放宽前的残留**——实现早已不判 `manager_user_id`（`selfInitiate_allowsNonWarehouseManager` 钉着）。注释改写成真实四条判据，并留一句「旧口径会把他引去配一个根本不参与的闸门」。
+- **铁律 75 红证**：删掉发起腿那行 `requireDevicePack` ⇒ `MerchantSelfReplenishTest` **2 红**（`Wanted but not invoked: merchantFeaturePackService.requireDevicePack(9L,"CAB-001","FIELD")` + `expected:<403 FORBIDDEN> but was:<400 BAD_REQUEST>`——后者证明少了这道门时流程会**继续往下走到扣库存**）⇒ 逐字节复原（sha256 `b513b60382dd604946dfd722d1ae096e749e55720eb18fb14b250375ca0940af`，与注入前记录值一致）⇒ 复跑 **17/0**；商户+补货面 51 个测试类 **274 例**全绿（Surefire 报告按 mtime 判新鲜）。
+- **未动**：`canAccessDevice` 本身、`requireDevicePack` 内部实现、CB-068 的「不再要求分仓负责人」放宽——本轮只把发起腿补齐到与读腿同一条判据。
+- ⚠️ 未 commit / 未 push（与 F1–F5 + B3/B5 + A5 + A6 同批状态）。
+
+### 2026-10-29（D28-A6 收口：账面量判据统一到 **SKU 级**批次账本，禁止设备级一刀切）
+
+- **问题**：同一个「这个 SKU 现在有多少货」，三个读面两套判据——补货建议（`WarehouseService.bookQtyForSuggest`）按 **SKU 级**（`lotLedgerSkuIds(dev).contains(sku)`）判，注释还明文写了「禁止设备级」；而库存健康页、商户端/运营端定价页的「库存」列按 **设备级**（`deviceUsesLotLedger`＝整机有没有任意 lot 行）一刀切 ⇒ 同柜里**从未进过账本**的 SKU 被读成 0，页面上凭空缺货，与补货建议当面打架。
+- **判据（拍板「统一 SKU 级」）**：`lotLedgerSkuIds(deviceId).contains(skuId)` ⇒ 读批次可售量（卖光就是真 0）；否则回退 `device_sku_inventory.quantity`（账面）。三处同形落地：`DeviceAssetService.effectiveSellableQty`（库存健康，**每设备只查一次** `lotLedgerSkuIds`/`sellableQtyBySku`，无 N+1）、`MerchantSkuPricingService.resolveSellableQtyBySku` + `updatePricing`（商户定价页）、`OpsDevicePricingService.resolveSellableQtyBySku`（运营定价页）。
+- 🔴 **只改读路径，未动写入侧**：`deviceUsesLotLedger` 仍保留给「建账/是否允许只改汇总表」的写判据用；本轮一个字节没碰它的语义，避免把「读口径」和「写门槛」两件事混成一次改动。
+- **铁律 75 红证（逐文件注入 → 逐条红 → 逐字节复原）**：三份源码各注入「退回设备级判据」⇒ 新测 [StockHealthSkuLevelBookQtyTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/StockHealthSkuLevelBookQtyTest.java) **2 红**（`expected <LOW> but was <STOCKOUT>` + 一条假缺货行）、[MerchantSkuPricingSellableQtyTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantSkuPricingSellableQtyTest.java) **1 红**、`OpsDevicePricingServiceTest` **1 红**；复原后 sha256 与记录值一致（`DeviceAssetService` **6dac6438…d6dd1**、`MerchantSkuPricingService` **c37c0407…2ecd6**、`OpsDevicePricingService` **f673eb0d…60bbd**）⇒ 复跑 **4/0 + 3/0 + 6/0** 全绿，相邻 10 个测试类 **87 例**全绿（Surefire 报告 mtime 均已核）。
+- 📚 教训（#362）：同一业务概念在多个读面各写一层判据，缺陷会**只在一个页面显形**——补货建议因为注释里写了「禁止设备级」而一直是对的，另外三处没有。收敛时不是「找一处改一处」，而是**按概念 grep 全部副本**，把判据做成一个函数（本次即 `lotLedgerSkuIds`），并给每处补一条能红的新测。
+- ⚠️ 未 commit / 未 push（与前序批次同状态，等用户授权）。
+
+### 2026-10-29（D28-A5 收口：开门柜「可补量」服务端算一次并下发，商户小程序不再自己算第二层，CB-075 + `/headroom` 端点）
+
+- **问题**：同一个 SKU 在补货链路上有**三个数**——建议量扣「全部在途」、后端提交封顶扣「排除本单在途」、mp 录入 `+` 只算 `capacity − 在架`（连在途都不扣）。后果是操作员在手机上**加得进去、点提交才 400**，且 400 里的四个数前端从没显示过。拍板档：**mp 前端对齐后端**（不是后端放宽），并同意为此把新字段搭进 openapi 批次。
+- **服务端单一出处**：`ReplenishmentService.doorCabinetHeadroomBySku(task)` 算 `room = max(0, capacity − 在架 − 他单已领未上柜)`（排除本任务出库单，CB-075 结论 ②），**新增只读端点** `GET /merchant/replenishment/tasks/{taskId}/headroom` 回 [ReplenishmentHeadroomDto](../services/common/common-core/src/main/java/com/aicabinet/common/dto/ReplenishmentHeadroomDto.java)（四要素齐全）；`assertDoorCabinetHeadroom` 复用**同一个 Map** ⇒ 「读到的」≡「能提交的」。两个刻意边界：货道柜恒返回空数组（上限来自 `device_slot`，不把台账水位当第二套上限）；`capacity≤0` = 未配容量 ⇒ **fail-open**，不进下发也不拦提交。
+- **mp 侧一个数只算一层**：新增 [replenishment-headroom.ts](../clients/merchant-mp/src/utils/replenishment-headroom.ts)——`doorHeadroomForSku()`（server 优先；后端没给才退回台账 `capacity − 在架`，该降级只偏松一档、判官仍在提交侧）＋ `describeDoorHeadroom()`（与后端 400 **同字面**：「上限 X，在架 Y，他单已领未上柜 Z，最多再补 N」）。两个各写各的站点（`increaseLineQty` 的 `+`、详情打开时的收敛 watcher）都改走它，`useReplenishmentDetail` 第 5 路并行拉 headroom（`softFallback` 降级，失败不设限）。**台账只喂降级档**这一条也写进了注释：`deviceDetail.skuInventory` 不再是主判据。
+- **铁律 75 双端红证（都实跑，非自报）**：后端 [ReplenishmentHeadroomReadMatchesSubmitGateTest](../services/trade-service/src/test/java/com/aicabinet/trade/service/ReplenishmentHeadroomReadMatchesSubmitGateTest.java) **8/8**（钉「下发口径」「读到 N 能提交 N、N+1 必拒且报错四个数与下发字段逐字相等」「同 SKU 多行合并计」「未配容量两侧都不拦」）＋两次注入各炸对应断言、`ReplenishmentService.java` sha256 `0b19243a…` 复原后复跑绿；mp `useReplenishmentFulfillment.door-cabinet.test.ts` **12/12**（新增 5 例），把 `doorHeadroomForSku` 临时改成台账优先 ⇒ 3 红（`expected 10 to be 5`/`2 to be 8`/`4 to be 2`）⇒ 复原（sha256 `186d245f…`）⇒ 12/12 绿。
+- **验证面**：mp 全量 vitest **216/216**（32 文件）、`vue-tsc --noEmit` exit 0、`build:mp-weixin` **release** exit 0 且产物新鲜（`dist/build/mp-weixin/utils/replenishment-headroom.js` 里 server 优先逻辑与新字面量都在）；后端另跑 `ReplenishmentSubmitLinesQuantityGateTest` 12/0、`ReplenishmentDoorCabinetCompleteTest` 3/0；契约 `openapi.ts` **+65 / −0**（8 处 headroom，基线里该路径 grep=0），门禁 `check:openapi-types`/`check:openapi-regen`/`check:merchant-endpoints`/`check:shared-dist-fresh`/`check:mp-defect-classes`/`check:mp-unit-tests-wired`/`check:replenishment-checkin-contract` 全 exit 0，eslint 0 error。regen 仍走**隔离栈**（throwaway pg16:25444 + redis7:26388 + 本机 :28085 新 jar，空库 V1→V415），未碰 peer 的 :18080 与 `ai-cabinet-postgres-1`。
+- 📚 教训（两条，都是判据级）：① **`-i headroom` 这类宽 grep 会把无关字段算成「基线已有」**——本仓 HEAD 里唯一的 headroom 命中是 `WarehouseSuggestionDto.restockHeadroom`（建议量语义，与开门柜台账无关），据此得出「端点早就在契约里」是错的；判「契约里有没有」要**按完整路径字面量** `tasks/{taskId}/headroom` grep，不是按词根。② **`mvn` 不带 `-am` 会用本地仓库里的陈旧 `common-core`**，新 DTO「找不到符号」看起来像代码错，其实是构建作用域；且第一次跑别信 surefire XML——**按 mtime 判新鲜**，没变就是没跑成。
+- ⚠️ 交接（跨会话现状，非本会话可自证）：本轮另有 peer 会话在同一工作树改 `admin-vue`/`docs/module-audit`，且两台机各自的 `dev` 分叉（远端仓名不同、迁移号 V414–V417 归属未订）——**主线仓与迁移号待用户拍板**；本批（D28 F1–F5 + B3/B5 残留 + A5）**未 commit、未 push**。
+
+### 2026-10-29（D28 B3 残留 + B5 收口：仓储列表/导出筛选下沉服务端，openapi 隔离栈 regen）
+
+- **问题**：运营台仓储页的筛选在**分页页上只筛当页**——出库「待处理」、在途「仅超时」原来是前端 `filter()` 当前页数组，红条「共 N 条超时」也只数当页；「全部仓库」实为默认仓的残留还影响到服务端 CSV 导出（只认默认仓）。
+- **后端三个可选参数，全部重载**（4 参旧签名原样委托 ⇒ `OpsCommercialFacade` 等调用点零改动）：`WarehouseOutboundMapper.searchPage(keyword, warehouseId, status, page, size)`（status 大写归一、空白＝不过滤）与 `findAllFiltered(warehouseId, status)`；`WarehouseInTransitMapper.searchPage(deviceId, status, createdBefore, page, size)`，截止时间由 `InTransitService.listInTransitPage` 按 `TRANSIT_OVERDUE_HOURS = 24` 换算；Controller：`/warehouse/outbounds` 加 `status`、`/warehouse/in-transit` 加 `overdueOnly`、`/warehouse/export` 加 `warehouseId`+`status`。
+- **前端**：`useWarehouseCsv.serverExportParams()` 只带本 tab 真实生效的键（inventory/movements⇒`warehouseId`，outbounds⇒`status`），F4 那个「导本页/仍导默认仓全量」三选弹窗**删除**（服务端已能跟筛选）；`useWarehouseListFilters.reloadIfServerPaginated()` 让服务端分页 tab 改筛选即整页重载。
+- 🔴 **`actionable`（待处理）刻意不下发**：它是 DRAFT/PICKED 且有行 的**复合条件**，不是后端枚举值，传下去会冒出第四种语义。客户端复合筛选与「服务端枚举筛选」的分界就画在这。
+- **openapi regen 全程隔离**：临时 `postgres:16-alpine`+`redis:7-alpine`（`--rm`）＋ 本机新端口 **:28085** 跑新 jar，空库 Flyway 迁移后抓 live spec（698 paths）；**未碰** peer 的 :18080 共享栈与 `ai-cabinet-postgres-1`。diff 逐行核：本批 5 个参数 + 3 个 DTO 字段（后者来自本会话 F1 月结未提交改动）。
+- **铁律 75 红证**：临时挖掉两个 mapper 的 WHERE ⇒ `WarehouseOutboundTransitFilterSqlIT` **2/2 全红**（`total` 期望 2 实得 3）⇒ `.tmp/*.bak` 逐字节复原、sha256 与记录值一致 ⇒ 2/2 绿（新 failsafe 报告时间戳在复原后）。请求级实测 `.tmp/verify-b3b5-server-filters.mjs` 9 断言 PASS。
+- 📚 教训：**「假筛选」在分页接口上不一定表现为「筛错了」，而是表现为「总数不跟着变」**——判据要把 `records` 与 `total` 一起断言（只断言 records 全符合条件时，客户端过滤也能通过）。另一条：`mvn -pl X -am verify -Dit.test=...` 必须在**每个被拉起来的上游模块**上关掉「没匹配到测试就报错」——`-Dsurefire.failIfNoSpecifiedTests=false -Dfailsafe.failIfNoSpecifiedTests=false` 两个都要，只给 surefire 会在 failsafe 阶段炸在 `ai-cabinet` 聚合模块上。
+
+### 2026-10-29（启动 11 轮三端分模块审计：建共享工作区 docs/module-audit/）
+
+- 用户拍板按模块逐轮审计三端：后台 8 模块（概览→系统）各一轮，R9 双小程序为主、R10 三端横切、R11 造数业务流转；**铁律=一切以当前代码实况为准（旧文档只当线索）+ 写共享文档前先看变化（git/他人增量）、只追加不覆盖**。
+- 落地 [module-audit/](module-audit/README.md)：README（规则/MA-xxx 编号/严重级）、PLAN（11 轮 + 从 menu.ts/router/pages.json 快照拉的清单：后台 76 菜单页+隐藏页、consumer-mp 23 页、merchant-mp 34 页）、ISSUES（台账）、两模板（页面九维清单/轮报告）。
+- 规划期即从代码发现线索 #1：`/warehouse/reconciliation`（供应商对账单）路由在 router 有、menu.ts 未登记 ⇒ beforeEach fail-closed 疑似整页 403 不可达，R4 实开复核。
+
+### 2026-10-29（仓储/履约三端口径复审 → F1 差额归位 + F2「领货→上柜」文案收口 + F3 开门柜判据 + F4 仓库口径/字典，CB-074/V414/V415）
+
+- **起点是用户报口径乱**：「仓储和履约仓储模块还有商户端重新审计一遍，口径和页面都有很大的问题呀，现在三端的业务口径差别有点问题」⇒ 三路只读子 agent（后端口径 / 运营后台四子页 / 商户端）＋逐条实读复核，产出 **A1–A9 口径冲突 + B1–B14 页面缺陷 + D 待拍板五项**，全量清单落 [admin-vue-debt-tracker.md](engineering/admin-vue-debt-tracker.md) **十五期（D28）**（含我否掉的子 agent 归因与三项「未跑实数据不下结论」）。
+- 🔴 **业务模型由用户当场订正**（本轮所有判断的地基）：「我们的补货员是在异地的，他们有自己的仓库，只有采购我们才会有什么在途，然后到达他们的仓库，然后每天从他们的仓库备货然后带着商品去补货，所以应该没有在途啥的」⇒ **分仓→柜没有运输段**；在途只属于采购段。据此把铁律 80 从「补货=自提自送」补齐成四条判据（柜机库存唯一来源=`applied=true` 的 RESTOCK 行／差额是**单据事实不是库存事实**／签收按 SKU 实收分摊／不新建差异台账表）。
+- **F1＝差额归位（A1+A2，P0）**：结案时单据传 `Integer.MAX_VALUE` 当「全量签收」⇒ `full = appliedQty >= shipped` 恒真、`PARTIAL` 是死枚举，**领货−实收的差额在账上无主**（仓已扣、柜未入、无报损无差异行）。修法给出库行加一列事实：[V414__outbound_line_remainder_qty.sql](../services/trade-service/src/main/resources/db/migration/V414__outbound_line_remainder_qty.sql) 的 `warehouse_outbound_line.remainder_qty` ＋ `markDeviceHandoverReceived(outboundId, device, Map<skuId,实收>)` 满量 `RECEIVED`/未满 `PARTIAL` ＋ 月结「上柜」列改 `qty − remainderQty` 并加下钻 `shelvedQty`。⛔ 明确**不**把差额补记柜机库存（铁律 78）、**不**为差额写库存流水（铁律 79：`OUTBOUND_SHIP` 已按领货量扣过，再写＝双扣）；巡检 `STUCK_HANDOVER` 仍只判 `IN_TRANSIT`，`PARTIAL` 是合法态。竞品口径入 **CB-074**（迁移头 `-- COMPETITOR_REF: CB-074`，「有意不同」=不建独立台账表）。
+- **F2＝三端文案与导航收口（A3+B1+B2，可逆展示层）**：仓→柜这条链路的用户面「发运/签收/在途」叙事下线——tab 改「已领未上柜」、按钮改「确认领货」、菜单与路由同名「领货与调拨」、四子页各传自己的 `hint`、子页补 `warehouse-sibling-nav` 同级导航、`pageTitle` 由 `route.path` 反查 `NAV_ITEMS`（不再在壳层各抄一份标题）。🔴 **刻意保留**：`warehouse_in_transit` 机制层（结清差额的载体）与**跨仓调拨**段的发运/收货/在途损耗（`WarehouseTransferService` / `TransferLossValidator` / `useWarehouseTransfers` 一字未动），以及「请求在途数」这类并发语义。
+- 📚 lessons **#355**：用户面字典标签改名是**三处同改**——`packages/shared-dict/src/index.ts`（内置 baseline，改完要 `pnpm --filter @aicabinet/shared-dict build` 重建 tracked `dist`）／`SysDictBootstrap`（`ApplicationRunner`，只做 `ensureMissing*`，**从不 update 已有标签**）／**一条带旧值锚点的 backfill 迁移**（V415 的 12 条 UPDATE，每条 `AND dict_label = '<旧>'` ⇒ 既幂等又不会覆盖运营在字典管理页自改的标签）。只改前两处 ⇒ 已种过字典的库界面仍是旧词；`ops_alert_type` 这类**第二张表**（工作台「签收超时」卡）最容易漏。
+- **两道新门禁**（铁律 62/75：新缺陷类必须机检，判据必须能红）：`check:competitor-benchmark` 之后接 `check:outbound-remainder-ledger`（F1 事实链：台账条目/迁移列名/实体与 DTO 字段/实收钳制/差额写回/行状态分流/月结算式/A 端「领而未上」列）与 `check:selfpickup-copy`（F2 三处同改逐条对账 + 旧词在 15 个文件中禁绝 + 新叙事在位 + 四子页各自 `hint`），各配负向验证器 `verify-outbound-remainder-gate.mjs`、`verify-selfpickup-copy-gate.mjs`（沙箱 ⓪基线绿 → ①逐条注入红 → ②还原绿 → ③真实树 md5 前后一致，31 条注入）。
+- 📚 lessons **#356**：负向验证的 needle 写法决定它能不能变红——①needle 是注入串的**子串**（针 `warehouse-sibling-nav`、注入 `warehouse-sibling-nav-x` ⇒ `includes` 仍真）、②判据按**整文件** `includes('自提自送')` 而同词在 `TAB_DESC` 另有出现、③宽松属性正则被注入的 `xhint="` 蒙混 ⇒ 三种都让「注入后仍绿」，即死判据被别的注入的红掩盖。修法：整属性字面 needle（`label="已领未上柜"`）、作用域收到块级（先抽出 `const pageHint = computed(` 那段再判）、属性判定要求行首/空白边界，并给每条注入配 `expect` 句子片段做**双条件**断言。
+- **F3**（A7 待分配徽章把开门柜正常任务当异常 / A8 出库货道封顶无柜型守卫、超限行直接 `deleteById`）同轮落地，判据与商户端 `ReplenishLinesSection.vue` 对齐（开门柜 `slot_id` 恒 null）。
+- **F4＝仓库筛选口径（B3）+ 字典补全（B11/B12）**：🔴 运营后台两个 tab 一直把「全部仓库」写在脸上，而后端对空白 `warehouseId` 走 `resolveWarehouseId(null)`＝**默认仓**（批次库存/库存流水/服务端导出同口径）⇒ 运营以为在看全公司。修法取**可逆档（只改 UI，不动 SQL 聚合）**：`SINGLE_WAREHOUSE_TABS` 作单一出处，进 `inventory`/`movements` 先 `pinSingleWarehouseFilter()` 钉一个 ACTIVE 仓、请求显式带 `warehouseId`，筛选项**禁清空**＋占位改「请选择仓库」；导出前用 `ElMessageBox` 点破「服务端全量只认默认仓」，给「导本页（跟筛选）／仍导默认仓全量／取消」三选。⚠️ **残留**：服务端导出仍不接 `warehouseId`/`q`（补参数要动 Controller ⇒ openapi/shared-types 重生成），并入 openapi regen 批次。
+- **字典补全**：`warehouse_movement_type` 补 `STOCKTAKE/BIN_STOCK/OUTBOUND_CANCEL`、`business_reference_type` 补 `STOCKTAKE/BIN_INBOUND/TRANSFER_OUT/TRANSFER_IN`（原单把 `TRANSFER_*` 误记成流动类型）、`handover_status` 与 `in_transit_status` 各补 `CANCELLED`——缺一个就在流水页显示「未知」（`dictLabel` 对未登记的大写码兜底「未知」）。**新增字典值不写迁移**：`SysDictBootstrap.run()` 每次启动 `ensureMissingDictItems` 把缺的 (type,value) 补进已存在库（只有改已有标签才需要带旧锚点的 backfill，见 V415）。
+- 📚 lessons **#357/#358/#359**：①字典「补新值」≠「改旧标签」，前者 src+dist+Bootstrap 三处同改即可、不必写迁移；②文本级门禁抠「后端在写的常量」时 marker 必须带调用上下文（`new X.Y(` / `.setX(`），否则命中声明行假红，且解析 DICT 块别用 `Function` eval（TS 的 `as Record<...>` 会炸）；③「先定筛选值再发请求」不能与依赖列表 `Promise.all` 并着拉，必须 `loadDeps().then(() => loadMain())`。
+- **第三道门禁** `check:warehouse-movement-dict`（＋负向 `verify-warehouse-movement-dict-gate.mjs` 11 条注入）：静态抠出后端真正写进 `movement_type`/`ref_type`/`handover_status`/`in_transit_status` 的码（构造实参 + `setXxx` 两路，动态实参必须登记），断言「后端在写的码 ⊆ 字典」＋ `shared-dict` ↔ `SysDictBootstrap` 值→标签逐字相等。
+- **F4 的界面验收（Playwright，17 条全 PASS）**：两个 tab 的列表请求实际带 `warehouseId=WH-DEMO-001`、筛选项显示具体仓名且无清除图标；导出弹窗两条分支各走对（「导本页」＝客户端下载且**零**服务端导出请求；「仍导默认仓全量」＝`GET /ops/admin/warehouse/export?tab=inventory|movements`）；`outbounds` 等多仓 tab 不弹窗、照旧服务端导出；零页面 JS 异常。已知非缺陷：首帧若 `loadTab` 被并发调两次，先到的那次 pin 时仓库列表尚未落地，会多发一次不带 `warehouseId` 的读，响应被 `loadSeq` 判旧丢弃、用户看不到。
+- 验证（本机实测，非自报）：`check:selfpickup-copy` / `check:outbound-remainder-ledger` 绿；两个负向验证器 OK（逐条注入红并还原、真实树零污染）；`check:shared-dist-fresh` 绿（`shared-dict/dist` 已随 src 重建）；`vue-tsc --noEmit` exit 0；`prettier` 全绿；`mvn -o -pl services/trade-service -am test -DskipITs` exit 0，本轮新报告 436 类 / **2516 例 / 0 failure / 0 error**（surefire-reports 里另有 4 支 10-23/10-27 的**陈旧 XML**仍带 failures=1/errors=5，按 mtime 排除后才算本批数字——别直接汇总整个目录）。F4 追加：`check:warehouse-movement-dict` 绿（`warehouse_movement_type` 7 码 / `business_reference_type` 10 码 / `handover_status` 5 码 / `in_transit_status` 3 码，动态实参 4 条登记）+ 负向 11 条注入 OK；`check:selfpickup-copy` 复跑绿（本轮改过 `useWarehouseCsv`）；`eslint` 0 error（`receiveTransfer` 未使用 WARN 在 HEAD 同样存在，非本轮）。F4 追加：`check:warehouse-movement-dict` 绿（`warehouse_movement_type` 7 码 / `business_reference_type` 10 码 / `handover_status` 5 码 / `in_transit_status` 3 码，动态实参 4 条登记）+ 负向 11 条注入 OK；`check:selfpickup-copy` 复跑绿（本轮改过 `useWarehouseCsv`）；`eslint` 0 error（`receiveTransfer` 未使用 WARN 在 HEAD 同样存在，非本轮）。
+- 🔴 **本轮未提交**：用户未授权 commit/push；共享树里 peer 的 `static/admin` 整棵重建产物（117 删 + 未跟踪新哈希）、`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、`docs/figures/*.txt`、`.idea/*` **一律未 add**。
+
+### 2026-10-29（D28-F5 收口：B4/B6/B7/B8/B9/B10/B13/B14 + B15 供应商对账单死路）
+
+- **B4/B9＝前端权限照后端注解配对**：`isWarehouseTabAllowed` 逐 tab 对 `OpsWarehouseController`/`WarehouseTransferController` 注解（**OR 码保留**——inventory 族=OR(`warehouse:list`,`replenishment:list`) 等，收紧成单码会把补货员/仓编辑整组弄瞎）；无权 tab 连页签都不渲染、深链 `?tab=` 钳到 `firstAllowedTab()`、全 tab 隐藏时不再发必 403 的请求。「批次报损」按钮与索赔台账门改 `ops:replenishment:edit`（=后端码）。
+- **B7＝失败态与空态分离**：`failedTabs` 状态位，失败不标 hydrated，表格上方出「这一页没加载成功——下方的空表不是没有数据」横幅 + 重试（500 注入实测 9 断言）。
+- **B8/B13**：导出按钮只在 `WAREHOUSE_EXPORTABLE_TABS` 渲染（5 个 tab 的静默空转消失）；`q` 关键词只随采购单请求透传（`warehouseListParams(withKeyword)`），不再串进 inventory/movements。
+- **B10＝金额格式化第 4 套实现拆除**：`useWarehouseLabels.money()` 删除，仓储组件一律自己 `import { yuanText }`。🔴 根因是**门禁按同文件绑定来源判 A/B 类，props 注入的格式化器完全失明**——`check-money-yuan-prefix` 加第三条规则 `INJECTED_MONEY_PROP`（props 注入金额格式化器直接红；自检 + 临时探针实证会红后删除）。附带修复：应付「未付余额」列原先裸数字无 ¥、负额 `-¥5.00` 取代 `¥-5.00`、对账单 CSV 7 处手写换算收敛 `centsToYuanDigits`（CSV 要纯数字）。
+- **B14＝先实测后改的样板**：静态「存疑」的调拨收货弹窗，Playwright 实测**证实**（损耗恒 0、payload `receivedQty:97+lossQty:0` ⇒ 后端必 400，有损收货整个不可用，定级应升 P2）；根因是 `:data="derived"` 把行拷进 computed 产物，`v-model` 写不回源。修法回到响应式 `lines` + 逐行 `lossOf(row)`，并加「有损耗必选原因」闸。
+- **B15（＝module-audit 线索 #1 实证收口）**：`/warehouse/reconciliation` 供应商对账单自 V326 起就是**死路**——路由在、NAV_ITEMS 没登记、meta 无 perm ⇒ fail-closed 403（超管也是）。🔴 实测教训：补登记后挂后端码 `ops:procurement:list` **仍然 403**——`rbac/me/nav` 的 ACTIVE 菜单表（95 行）没有任何行用该码，`isNavMenuActive` 恒 false；菜单码必须取 ACTIVE 表里已有的码（兄弟子页口径 `ops:warehouse:list`），业务码由页内 `canList` 收口。**此条超出原 F5 清单，待用户追认**。
+- **B6**：`monthly` 移出 `SERVER_PAGINATED_TABS`（loader 本就整表返回、分页器隐藏）。
+- **验证（本机实测）**：`vue-tsc` exit 0；prettier 全绿；eslint 0 error（`receiveTransfer` 未使用 WARN 为 HEAD 既有）；`check:money-yuan-prefix`（新规则自检通过 + 探针两形态各自红后复绿）、`check:frontend-perm-codes`、`check:menu-permissions`、`check-nav-perms`、`gate:admin-tables`、`check:admin-table-align`、`check:warehouse-movement-dict`、admin vitest 116/116 全绿；Playwright 五脚本（B3 17 条 / B7 9 / B8+B13 9 / B4 8 / B14 10 / B10 12）全 PASS。全部 `.tmp/verify-*.mjs` 只读拦截注入，未动库。
+- 🔴 **本轮未提交**：用户未授权 commit/push；peer 脏文件（`static/admin` 重建产物、`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、`docs/figures/*.txt`、`.idea/*`）一律不 add。
+
+
 
 ### 2026-10-29（CI `build` 连红闭合：E2E 共享夹具不还原 + 抬 OTel BOM 修昨天新发布的 GHSA）
 
