@@ -143,6 +143,36 @@ public record DemoRequest(
 ) {}
 `;
 
+const CTRL_NEW_MAPPING = `package com.aicabinet.trade.api;
+
+public class DemoController {
+    @GetMapping("/demo")
+    public String demo() {
+        return "ok";
+    }
+
+    @PostMapping("/demo-new")
+    public String demoNew() {
+        return "ok";
+    }
+}
+`;
+
+const GEN_BASE = 'export type Demo = { deviceId: string };\n';
+const GEN_WITH_SHAPE = `export type Demo = { deviceId: string };
+DemoRequest: {
+    deviceId?: string;
+    clientRequestNo?: string;
+    [key: string]: unknown;
+};
+`;
+const GEN_SCHEMA_ONLY = `export type Demo = { deviceId: string };
+DemoRequest: {
+    deviceId?: string;
+    [key: string]: unknown;
+};
+`;
+
 function put(rel, body) {
   const abs = join(SANDBOX, rel);
   mkdirSync(dirname(abs), { recursive: true });
@@ -155,7 +185,7 @@ async function sh(args) {
   return r.stdout;
 }
 
-async function freshRepo(files = {}) {
+async function freshRepo(files = {}, baseline = {}) {
   rmSync(SANDBOX, { recursive: true, force: true });
   mkdirSync(join(SANDBOX, 'scripts', 'lib'), { recursive: true });
   // 门禁按自身文件位置定位 ROOT ⇒ 拷脚本 + 它依赖的 lib，判据一行不改
@@ -166,7 +196,8 @@ async function freshRepo(files = {}) {
   await sh(['config', 'user.name', 'selftest']);
   put(CTRL, CTRL_BASE);
   put(DTO, DTO_BASE);
-  put(GEN, 'export type Demo = { deviceId: string };\n');
+  put(GEN, GEN_BASE);
+  for (const [rel, body] of Object.entries(baseline)) put(rel, body);
   await sh(['add', '-A']);
   await sh(['commit', '-q', '-m', 'baseline']);
   for (const [rel, body] of Object.entries(files)) put(rel, body);
@@ -255,6 +286,42 @@ try {
     r.status === 1 && /DemoRequest\.java/.test(r.stderr),
     `rc=${r.status} ${(r.stderr || r.stdout).slice(0, 200)}`
   );
+
+  // ⑨ 2026-10-29 形态：生成物**先于**代码进基线（peer 在 dev 上 live regen 时顺手带上
+  //    在飞形状）⇒ 变更集里只剩 Java。净形状差逐条被基线生成物覆盖 ⇒ 放行，但必须留痕。
+  await freshRepo({ [DTO]: DTO_SHAPE }, { [GEN]: GEN_WITH_SHAPE });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('绿：形状差已被基线里的生成物覆盖 ⇒ rc=0', r.status === 0, (r.stderr || '').slice(0, 300));
+  check(
+    '留痕：覆盖放行也说清「检测到 1 处」',
+    /检测到 1 处/.test(r.stdout),
+    r.stdout.slice(0, 200)
+  );
+  check('留痕：说明「已在基线提交且逐条覆盖」', /逐条覆盖/.test(r.stdout), r.stdout.slice(0, 200));
+
+  // ⑩ 同样的记账形态，但基线生成物**不含**新分量 ⇒ 必须红（新判据不放水）
+  await freshRepo({ [DTO]: DTO_SHAPE }, { [GEN]: GEN_SCHEMA_ONLY });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('红：基线生成物没覆盖新分量 ⇒ rc=1', r.status === 1, `rc=${r.status}`);
+  check('红：点名「未覆盖」并给出形状差', /未覆盖/.test(r.stderr), (r.stderr || '').slice(0, 400));
+
+  // ⑪ 控制器新映射：path 字面量在基线生成物里 ⇒ 放行；不在 ⇒ 红
+  await freshRepo({ [CTRL]: CTRL_NEW_MAPPING }, { [GEN]: `${GEN_BASE}"/demo-new": {};\n` });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('绿：新映射 path 已在基线生成物里 ⇒ rc=0', r.status === 0, (r.stderr || '').slice(0, 300));
+  await freshRepo({ [CTRL]: CTRL_NEW_MAPPING });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('红：基线生成物缺该 path ⇒ rc=1', r.status === 1, `rc=${r.status}`);
+
+  // ⑫ 删除分量但生成物仍含 ⇒ 红（极性相反，防「删了字段没重生成」蒙混）
+  await freshRepo({ [DTO]: DTO_BASE }, { [DTO]: DTO_SHAPE, [GEN]: GEN_WITH_SHAPE });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('红：删掉分量而基线生成物仍有 ⇒ rc=1', r.status === 1, `rc=${r.status}`);
 } catch (err) {
   failures++;
   console.error(`  RED  自测脚手架抛异常：${err && err.message}`);

@@ -28,6 +28,19 @@
  * 变更集 = base...HEAD（已提交）∪ base 工作树/暂存区（未提交）∪ 未跟踪文件。
  * base 默认 origin/dev，可用 OPENAPI_BASE_REF 覆盖；找不到 base 一律 fail-closed。
  *
+ * 🔴 2026-10-29 补的第二条放行判据（**内容覆盖**，不是「关掉门禁」）：生成物可以**先于**代码
+ * 进基线——peer 在 dev 服务上 live regen 时顺手把当天在飞的形状一起生成了，于是
+ * `openapi.ts` 早已随基线提交、本次变更集里只剩 Java。此时「同变更集带 openapi.ts」这条
+ * 记账判据必然红，而契约其实是同步的（本机实测：按 18080 现抓 spec 重生成，`git diff`
+ * 零字节）。放行的前提要逐条挣得：
+ *   ① 生成物在基线里**确实存在**（`git cat-file -e base:openapi.ts`）；
+ *   ② 每处形状改动都能在生成物里**找到对应物**：新增的 record 分量/字段 ⇒ 该 record 的
+ *      schema 块里出现同名属性；新增的映射路径 ⇒ 生成物里出现该 path 字面量；**删掉的**
+ *      形状则要求生成物里**不再出现**（极性相反，防止「删了字段但类型没重生成」蒙混）；
+ *   ③ 抽不出可核对标识符的命中（如无 path 字面量的 `@RequestParam`、普通类字段）⇒
+ *      **不放行**，仍按原判据红（fail-closed）。
+ * 真正的权威校验仍是 CI 那一步：起 HEAD 的 jar 抽 `/v3/api-docs` 再跑 `check:openapi-types`。
+ *
  * 负向验证：`node scripts/check-openapi-regen-required.test.mjs`
  * （注解红 / ack 绿 / record 分量红 / 方法体绿 / fail-closed 五向，全程在 `.tmp`
  * 临时 git 仓库里跑，不碰真实树）。
@@ -121,9 +134,19 @@ export function recordComponentNames(content) {
 
 /** 取变更行里第一条「形状」命中；控制器看注解，DTO 看字段声明或 record 分量。 */
 export function pickShapeHit(path, changedLines, content) {
-  if (isController(path)) return changedLines.find((line) => SHAPE_ANNOTATION.test(line));
+  const hit = pickShapeHitSigned(
+    path,
+    changedLines.map((line) => ({ sign: '+', line })),
+    content
+  );
+  return hit ? hit.line : undefined;
+}
+
+/** 同上，但保留极性与原文（内容覆盖判据要知道是「新增」还是「删除」）。 */
+export function pickShapeHitSigned(path, signedLines, content) {
+  if (isController(path)) return signedLines.find((l) => SHAPE_ANNOTATION.test(l.line));
   const components = recordComponentNames(content);
-  return changedLines.find((line) => {
+  return signedLines.find(({ line }) => {
     if (FIELD_DECL.test(line)) return true;
     if (RECORD_DECL_LINE.test(line)) return true;
     if (!RECORD_COMPONENT.test(line)) return false;
@@ -132,12 +155,95 @@ export function pickShapeHit(path, changedLines, content) {
   });
 }
 
+/** record 声明里的类型名（生成物里的 schema 键）。 */
+export function recordName(content) {
+  const m = RECORD_NAME.exec(content || '');
+  return m ? m[1] : null;
+}
+
+const RECORD_NAME = /\brecord\s+([A-Za-z_$][\w$]*)/;
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 生成物里 `Name: { … }` 的块内文（按花括号配平；取不到 ⇒ null，不猜）。 */
+export function schemaBlock(generated, name) {
+  if (!generated || !name) return null;
+  const re = new RegExp(`(?:^|[\\s{])${escapeRe(name)}\\s*:\\s*\\{`, 'm');
+  const m = re.exec(generated);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  let depth = 1;
+  let i = start;
+  for (; i < generated.length; i++) {
+    const c = generated[i];
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) break;
+    }
+  }
+  return depth === 0 ? generated.slice(start, i) : null;
+}
+
+/**
+ * 把一个 Java 文件里的「可核对形状」抽成集合（与 diff 无关，纯文件级）：
+ *   - 控制器 ⇒ 映射注解里的 path 字面量（只认以 `/` 开头的）；
+ *   - record ⇒ schema 名 + 各分量名（挂在 schema 名下核对）；
+ *   - 普通类 ⇒ 字段名（无 schema 归属，内容判据不认，走 fail-closed）。
+ */
+export function shapesOf(path, content) {
+  const shapes = [];
+  if (!content) return shapes;
+  if (isController(path)) {
+    for (const m of content.matchAll(MAPPING_PATH)) {
+      if (m[1].startsWith('/')) shapes.push({ kind: 'path', value: m[1] });
+    }
+    return shapes;
+  }
+  const owner = recordName(content);
+  if (!owner) {
+    for (const m of content.matchAll(FIELD_DECL_ALL)) {
+      shapes.push({ kind: 'property', owner: null, value: m[1] });
+    }
+    return shapes;
+  }
+  shapes.push({ kind: 'schema', value: owner });
+  for (const c of recordComponentNames(content)) {
+    shapes.push({ kind: 'property', owner, value: c });
+  }
+  return shapes;
+}
+
+const MAPPING_PATH =
+  /@(?:Get|Post|Put|Delete|Patch|Request)Mapping\s*\(\s*(?:value\s*=\s*)?\{?\s*"([^"]*)"/g;
+const FIELD_DECL_ALL = /^\s*(?:private|protected)\s+[\w<>[\],.?\s]+\s+(\w+)\s*(?:=|;)/gm;
+const shapeKey = (s) => `${s.kind}:${s.owner ?? ''}:${s.value}`;
+
+/** 生成物是否已覆盖该形状：新增要求出现，删除要求消失（抽不出归属 ⇒ 一律不覆盖）。 */
+export function shapeCovered({ sign, shape }, generated) {
+  let present = false;
+  if (shape.kind === 'path') {
+    present = !!generated && generated.includes(shape.value);
+  } else if (shape.kind === 'schema') {
+    present = schemaBlock(generated, shape.value) !== null;
+  } else if (shape.owner) {
+    const block = schemaBlock(generated, shape.owner);
+    present =
+      block !== null && new RegExp(`(?:^|[^\\w$])${escapeRe(shape.value)}\\??\\s*:`).test(block);
+  }
+  return sign === '-' ? !present : present;
+}
+
 /** diff 文本里的增删内容行（去掉 +/- 前缀，排除文件头）。 */
 export function changedContentLines(diff) {
+  return changedContentLinesWithSign(diff).map((s) => s.line);
+}
+
+/** 同上，保留极性：`+` 新增、`-` 删除。 */
+export function changedContentLinesWithSign(diff) {
   return diff
     .split(/\r?\n/)
     .filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
-    .map((l) => l.slice(1));
+    .map((l) => ({ sign: l[0], line: l.slice(1) }));
 }
 
 const isCli =
@@ -224,17 +330,75 @@ async function main() {
     if (!isController(path) && !isDto(path)) continue;
     const diff = await diffText(path);
     if (!diff) continue;
-    const changedLines = changedContentLines(diff);
-    const shapeHit = pickShapeHit(path, changedLines, await javaSource(path));
-    if (shapeHit) suspects.push({ path, line: shapeHit.trim() });
+    const hit = pickShapeHitSigned(path, changedContentLinesWithSign(diff), await javaSource(path));
+    if (hit) suspects.push({ path, sign: hit.sign, line: hit.line.trim() });
   }
 
   if (suspects.length && !set.has(GENERATED)) {
+    const why = await coverageVerdict();
+    if (why.ok) {
+      console.log(
+        `${TAG} OK：检测到 ${suspects.length} 处 API 形状改动；${GENERATED} 已在基线提交且逐条覆盖（${why.note}），变更集无需重复 regen`
+      );
+      return;
+    }
     fail(
       `检测到 API 形状改动，但变更集里没有 ${GENERATED}：\n  - ` +
-        suspects.map((s) => `${s.path}  (${s.line.slice(0, 100)})`).join('\n  - ') +
-        '\n正解：起 trade 后 OPENAPI_IGNORE_CACHE=1 跑 gen-openapi-types，把 openapi.ts 与端点改动放同一提交。'
+        suspects
+          .filter((s) => !s.covered)
+          .map((s) => `${s.path}  (${s.line.slice(0, 100)})`)
+          .join('\n  - ') +
+        `\n${why.reason}` +
+        `\n正解：起 trade 后 OPENAPI_IGNORE_CACHE=1 跑 gen-openapi-types，把 openapi.ts 与端点改动放同一提交。`
     );
+  }
+
+  /**
+   * 覆盖判据：生成物在基线存在，且「基线源码 → 当前源码」的**净形状差**逐条能在生成物里
+   * 找到（新增要求出现、删除要求消失）。净差 = 当前形状集 − 基线形状集。
+   * 净差为空（只改了请求体以外的注解参数、或文件没动到形状）⇒ 不覆盖，仍按原判据红。
+   */
+  async function coverageVerdict() {
+    const atBase = await gitAsync(['cat-file', '-e', `${base}:${GENERATED}`], { cwd: ROOT });
+    if (!atBase.ok) {
+      return { ok: false, reason: `（${GENERATED} 在基线 ${base} 里不存在，无法用内容覆盖判据）` };
+    }
+    let generated = '';
+    const abs = join(ROOT, GENERATED);
+    if (existsSync(abs)) generated = readFileSync(abs, 'utf8');
+    else {
+      const shown = await gitAsync(['show', `HEAD:${GENERATED}`], { cwd: ROOT });
+      if (shown.ok) generated = shown.out || '';
+    }
+    const uncovered = [];
+    for (const s of suspects) {
+      const before = await gitAsync(['show', `${base}:${s.path}`], { cwd: ROOT });
+      const beforeKeys = new Set(shapesOf(s.path, before.ok ? before.out || '' : '').map(shapeKey));
+      const current = shapesOf(s.path, await javaSource(s.path));
+      const currentKeys = new Set(current.map(shapeKey));
+      const added = current.filter((x) => !beforeKeys.has(shapeKey(x)));
+      const removed = shapesOf(s.path, before.ok ? before.out || '' : '').filter(
+        (x) => !currentKeys.has(shapeKey(x))
+      );
+      const delta = [
+        ...added.map((shape) => ({ shape, sign: '+' })),
+        ...removed.map((shape) => ({ shape, sign: '-' }))
+      ];
+      s.covered = delta.length > 0 && delta.every((x) => shapeCovered(x, generated));
+      if (!s.covered) {
+        s.delta =
+          delta.map((x) => `${x.sign}${x.shape.kind}:${x.shape.value}`).join(',') || '（净差为空）';
+        uncovered.push(s);
+      }
+    }
+    return uncovered.length
+      ? {
+          ok: false,
+          reason: `（基线里的 ${GENERATED} 未覆盖下列形状差——${uncovered
+            .map((s) => `${s.path} ${s.delta}`)
+            .join('；')}）`
+        }
+      : { ok: true, note: '按 schema 块/property/path 字面量逐条核对' };
   }
 
   console.log(
