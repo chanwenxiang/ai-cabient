@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -181,6 +182,47 @@ class WarehouseBinServiceTest {
 
         assertThrows(ResponseStatusException.class,
                 () -> service.moveBetweenBins(1L, new BinMoveRequest(1L, 2L, "SKU-A", "B1", 5)));
+    }
+
+    /**
+     * D28-A4：移库只在货位账内部挪——不动仓库批次账、也不写库存流水。
+     * 类注释与 bins 页文案都承诺了这条边界；哪天把总账同步接上（或给移库补流水），这两处文案必须同步改，
+     * 别让「货位账与仓库账一致」这类说法在没做完的链路上先写出来。
+     */
+    @Test
+    void moveBetweenBins_leavesWarehouseAggregateUntouched() {
+        WarehouseBin from = bin(1L, "WH-001", "A-01", null);
+        WarehouseBin to = bin(2L, "WH-001", "A-02", null);
+        WarehouseBinStock row = binStock(from, "SKU-A", "B1", LocalDate.now().plusDays(30), 10);
+        when(binRepository.findById(1L)).thenReturn(Optional.of(from));
+        when(binRepository.findById(2L)).thenReturn(Optional.of(to));
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(1L, "SKU-A", "B1"))
+                .thenReturn(Optional.of(row));
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(2L, "SKU-A", "B1"))
+                .thenReturn(Optional.empty());
+        when(binStockRepository.save(any())).thenAnswer(a -> a.getArgument(0));
+
+        service.moveBetweenBins(1L, new BinMoveRequest(1L, 2L, "SKU-A", "B1", 4));
+
+        verify(warehouseService, org.mockito.Mockito.never())
+                .binStockChange(any(WarehouseService.BinStockChangeCommand.class));
+    }
+
+    /**
+     * D28-A4：仓库总库存的其余写入路径（收货/出库/调拨/核销/盘点都走这三个服务）结构上碰不到货位账，
+     * 所以「货位库存」页合计 ≠ 「批次库存」页是常态，不是偶发偏差。
+     */
+    @Test
+    void stockWritingServicesHoldNoBinLedgerDependency() {
+        for (Class<?> svc : new Class<?>[] {
+                WarehouseService.class, WarehouseTransferService.class, InventoryOpsService.class}) {
+            for (java.lang.reflect.Field field : svc.getDeclaredFields()) {
+                assertFalse(field.getType().getSimpleName().startsWith("WarehouseBin"),
+                        svc.getSimpleName() + " 新持有了货位依赖 " + field.getType().getSimpleName()
+                                + "——若已在把这条链路接到货位账，请同步删掉 WarehouseBinService 类注释与"
+                                + " WarehouseView bins 页文案里的「不写货位账」表述");
+            }
+        }
     }
 
     private static Warehouse warehouse() {

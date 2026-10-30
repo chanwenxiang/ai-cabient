@@ -253,7 +253,10 @@ class DeviceSlotServiceTest {
                 shoppingSessionMapper, org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
                 new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository,
                         org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class), sceneDictStub()),
-                null, null, null);
+                null,
+                // computeMetrics 自 D28-F3 起先问一句「是不是开门柜」（分流两套指标口径），
+                // 这里要的是货道柜路径 ⇒ 给一个默认返回 false 的桩，别留 null（NPE 会把 fallback 断言掩盖掉）
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.JiangyiDeviceDirectory.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
         DeviceInfo device = new DeviceInfo();
