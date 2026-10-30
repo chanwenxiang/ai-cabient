@@ -179,7 +179,7 @@
 
 | ID | 优先级 | 状态 | 问题摘要 | 主要证据 / 边界 | 完成记录 |
 |----|--------|------|----------|-----------------|----------|
-| D26 | P2 | open（A 类已清，仅剩 `ReplenishmentView`） | 运营后台仍有文件对**开门柜**讲「货道」：恒空列 / `待分配`·`无`·`暂无` 兜底 / 按货道粒度的文案 | 下表 A 类逐条 `file:line`；判据来自 2026-10-28 拍板 | 2026-10-29：A 类 8 处落地（见下「处置」与修复日志） |
+| D26 | P2 | closed（2026-10-30 查证收口） | 运营后台仍有文件对**开门柜**讲「货道」：恒空列 / `待分配`·`无`·`暂无` 兜底 / 按货道粒度的文案 | 下表 A 类逐条 `file:line`；判据来自 2026-10-28 拍板 | 2026-10-29：A 类 8 处落地（见下「处置」与修复日志）。2026-10-30：余项 `ReplenishmentView` 8 处**查证为 no-op**——后端 `DeviceSlotService.resolveDevicesForShortage:357/:363` 与 `listDiscrepancyAlerts:258/:268` 已把开门柜整类排除出「缺货建议」行源，`unassignedRestockByTask:378` 对开门柜不计数，本地 BOUND 柜 `device_slot` 实测 0 行 ⇒ 那些「货道」字样只会作用在货道柜行上，措辞诚实，**隐藏货道列那一档作废**。同轮查出并修掉一条真缺陷（效期 tab 补货按钮被 `restockHeadroom` 恒 0 锁死而后端放行），见 `fa03ce1c` |
 
 ### A 类 · 对开门柜会误导（✅＝2026-10-29 已改；`ReplenishmentView` 待缺货新口径）
 
@@ -214,10 +214,10 @@
 
 `api/endpoints.ts:106` `:155` `:360`、`config/menu.ts:300`（菜单搜索词，删了搜不到）、`views/skus/SkuListView.vue:322` `:377` `:525`（件装数/上架限额/「本项目无称重货道」注释）、`views/analytics/FootfallView.vue:265`（竞态注释）、`views/devices/DeviceDetailView.vue:834` `:838` `:2290`（历史对照注释）。
 
-**待拍板（三项 → 2026-10-29 已拍板 1、2；剩 3）**：
+**待拍板（三项 → 2026-10-29 已拍板 1、2；2026-10-30 第 3 项查证闭合）**：
 1. ~~A 类「恒空列」是删列还是按柜型条件显示~~ → **拍板删列**：这批界面服务的柜机固定都是将邑开门柜（用户 2026-10-28 定），不需要行级柜型判据，也就不存在「货道柜仍展示」的分支。
 2. ~~`PrintView` 的「待分配」兜底词~~ → 随删列消失，不再需要选「不适用」还是条件显示。
-3. **仍待拍板**：`ReplenishmentView` 的补货建议是否只对货道柜显示货道列（与「缺货新口径」那条是同一件事，等新口径定了再一起改）。
+3. ~~`ReplenishmentView` 的补货建议是否只对货道柜显示货道列~~ → **不用改，且改不了**：这张表的行源里根本没有开门柜（后端两处排除 + `device_slot` 0 行实证），「只对货道柜显示货道列」是恒真命题。同轮查出该页**唯一**对开门柜可达的货道门在「效期」tab：`expiryRestockEnabled` 只看 `PullOffTaskDto.restockHeadroom`，而该值走 `allocateRestockQuantity` 遍历 `device_slot` ⇒ 开门柜恒 0 ⇒ 按钮永久置灰并弹「货道已满」，后端 `preparePullOffTaskPlan` 却放行。已按 CB-051 同一结论修：柜型标志由服务端单源下发（`doorCabinet` = `isDoorCabinet` = 将邑 BOUND），前端不另立判据（尤其不得改用设备详情那个含 RETIRED 的 `binding != null` 口径）。
 
 ---
 
