@@ -669,6 +669,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（代他会话落库：CB-076 开门柜库存单源 + 将邑/免密文档 + 三端审计工作区 + admin 产物）
+
+- **授权原话**：「dev 环境的 都可以推送，`.idea/*` 可以忽略，将邑/邮件文档、docs/figures、docs/module-audit/、`static/admin/**` 你可以看着处理一下」＋「dev 其他会话都做完了」。⇒ 本会话把 dev 工作树上**其他 AI 会话**留下的 25 个脏条目逐文件读完 diff 后分组落库，共 5 笔：`1e0b9aed`（CB-076 后端+两端前端+竞品台账）、`5913a831`（将邑接口清单 R9/§12）、`5914971f`（免密推进文档 + 两封待发邮件正文）、`7fe3335e`（`docs/module-audit/` 11 轮审计共享工作区）、`9a8e1f30`（`static/admin` 保真产物 115 文件）。
+- **CB-076 的实际改动面**（判据，不是文档自报）：新增 `support/SkuStockLevel`（OOS=可售≤0、LOW=0<可售≤`low_threshold`，边界**取严用 `≤`** 与 `suggestFromLowStock` 同源；数量源=建过批次账本的「柜×SKU」取批次合计，否则回落台账 `quantity`），`DeviceAssetService`/`DeviceSlotService`/`MerchantInventoryPortalService`/`ReplenishmentService`/`WarehouseService` 五处判定全部收敛到它；`countSlotStock` 对开门柜改走台账计数（修「商户卡片恒 0 缺货、与后台 KPI 对不上」）；商户门户不再把开门柜整类排除，`shortageSlots` 语义改成「待补商品数」；`findLowStockByDeviceIds` 从 default 方法裸列比较挪到 XML，复用 `inventorySelectEffective` + `lowStockPredicate`；新增跨服务一致性钉测 `DoorCabinetStockLevelConsistencyTest`。
+- **绿证取法与 A4 那轮不同**：这轮的基线本身**就含**待提交内容，所以直接在主树跑与 CI 同一条 `mvn verify -DskipITs -pl services/trade-service -am` ⇒ BUILD SUCCESS、`MVN_EXIT=0`（`.tmp/peer-batch-mvn.log`，09:38）。不需要 A4 那种 `.tmp/a4-green` 隔离 worktree——因为这次没有「只拷本批文件」的归因需求，整棵树就是待推内容。
+- **不进库的两类**：`.idea/*` 三个文件（用户明示忽略，仍是脏的）；`tmp-precheck/MerchantSplitsView.vue`、`tmp-precheck/device-detail.vue` 是某会话 09:21 做的预检 scratch 副本、既未跟踪也没被 gitignore ⇒ **移入 `.tmp/tmp-precheck-20261030/`**（`.gitignore:146` 覆盖）而不是删除，树里只留用户的 `.idea`。
+- ⚠️ **PII 随公开仓库发布**：`docs/figures/alipay-zhima-payafteruse-inquiry-email-body.txt` 与 `wechat-payscore-appeal-email-body.txt` 含联系人姓名 + 手机号 + 支付宝 PID/应用 ID + 微信商户号。归因判据：这些标识在 HEAD 里已分别存在于 5/4/11/1/4 个文件，属**既有暴露类别**而非新增；两封正文的新增长串经扫描无 PEM/base64 私钥体，只有 `infra/.env.production` 这个**路径名**的文字提及。邮件正文要真发出去就得带联系方式，故按项目既有惯例入库并**不擅自脱敏**；若要改成「发送时再填」的脱敏版，需要用户拍板（会削弱这份稿子作为发出版本的可追溯性）。
+- **上一批（A4）CI 回查结论**：`97219366` 的 `build` / `admin-artifacts` / `mini-programs` / `e2e-h5` 全 `success`，`integration` 已排队进入 `in_progress` ⇒ 我造成的那个 `build` 红（测试桩传 `null` 的 NPE）确实被 `3466e724` 修掉了，不再是被 skipped 的连带红。
+
 ### 2026-10-30（D28-A4 收口：货位账「与仓库账一致」这句没有实现方签字的断言，从注释与页面文案里摘掉）
 
 - **拍板档＝先诚实化**（全链路写 bin 仍未拍板，本轮一个写入点都没动）。`WarehouseBinService` 类注释原写「入库/出库会同步仓库总库存并记录库存流水，保证货位账与仓库账一致」——**两处不真**：出库腿根本不在本类（`WarehouseService.shipOutbound:845` 不碰货位），`moveBetweenBins` 既不碰总账也不写流水。改口后的三条边界：只有 `inboundToBin` 同步批次账 + 记一笔 `BIN_INBOUND`；其余总账增减（`inbound:230`、`receivePurchaseStock:266`、`adjustStocktake:329`、`shipOutbound:845`、`WarehouseTransferService`、`InventoryOpsService`）一律不写货位账；移库只在货位账内部挪 ⇒ 「货位库存」页合计 ≠ 「批次库存」页，两个方向都可能偏。
