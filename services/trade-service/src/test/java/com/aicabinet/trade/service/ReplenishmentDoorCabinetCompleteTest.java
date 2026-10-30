@@ -158,6 +158,49 @@ class ReplenishmentDoorCabinetCompleteTest {
         assertEquals(3, badgeOf(out, 61L), "货架柜照旧统计未分配货道的补货行");
     }
 
+    @Test
+    void listOpenPullOffTasksPage_doorCabinet_flagsCabinetAndSkipsSlotProbe() {
+        // 审计 D26/待拍板第 3 项查出的真缺陷：开门柜无货道行 ⇒ totalHeadroomForSku 恒 0，
+        // admin 效期 tab 据此禁用「补货任务」并弹「货道已满」，而后端 preparePullOffTaskPlan
+        // 对开门柜明确不设货道余量闸 ⇒ 前端锁死了后端支持的操作。判据必须由服务端单源下发。
+        com.aicabinet.trade.domain.PullOffTask door = pullOff(70L, "EG-DOOR");
+        com.aicabinet.trade.domain.PullOffTask shelf = pullOff(71L, "CAB-SHELF");
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<com.aicabinet.trade.domain.PullOffTask> page =
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(1, 20);
+        page.setRecords(List.of(door, shelf));
+        page.setTotal(2);
+
+        when(pullOffTaskRepository.searchPage("OPEN", null, 0, 20)).thenReturn(page);
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        when(deviceSlotService.isDoorCabinet("CAB-SHELF")).thenReturn(false);
+        when(deviceSlotService.totalHeadroomForSku("CAB-SHELF", "SKU-COLA")).thenReturn(0);
+
+        var items = replenishmentService.listOpenPullOffTasksPage(null, 0, 20).items();
+
+        org.junit.jupiter.api.Assertions.assertTrue(pullOffById(items, 70L).doorCabinet(),
+                "开门柜必须带柜型标志，否则前端只能按货道余量假锁补货按钮");
+        org.junit.jupiter.api.Assertions.assertFalse(pullOffById(items, 71L).doorCabinet(),
+                "货道柜照旧按货道余量门控");
+        // 短路即判据：开门柜不该再去探一轮货道（每行一次空查询 + 一条误导性的 no slot headroom 日志）
+        verify(deviceSlotService, never()).totalHeadroomForSku(eq("EG-DOOR"), anyString());
+    }
+
+    private static com.aicabinet.trade.domain.PullOffTask pullOff(long taskId, String deviceId) {
+        com.aicabinet.trade.domain.PullOffTask task = new com.aicabinet.trade.domain.PullOffTask();
+        task.setTaskId(taskId);
+        task.setDeviceId(deviceId);
+        task.setSkuId("SKU-COLA");
+        task.setQuantity(2);
+        task.setStatus("OPEN");
+        return task;
+    }
+
+    private static com.aicabinet.common.dto.PullOffTaskDto pullOffById(
+            List<com.aicabinet.common.dto.PullOffTaskDto> items, long taskId) {
+        return items.stream().filter(d -> Long.valueOf(taskId).equals(d.taskId()))
+                .findFirst().orElseThrow();
+    }
+
     private static ReplenishmentTask fulfillmentTask(long taskId, String deviceId) {
         ReplenishmentTask task = new ReplenishmentTask();
         task.setTaskId(taskId);

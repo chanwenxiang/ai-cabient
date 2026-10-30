@@ -152,16 +152,20 @@ public class MerchantInventoryPortalService {
         return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .map(t -> {
+                    // 开门柜按商品备货：不查货道余量（无货道行必得 0，会把补货按钮假锁死）
+                    boolean doorCabinet = deviceSlotService.isDoorCabinet(t.getDeviceId());
                     int headroom = 0;
-                    try {
-                        headroom = deviceSlotService.totalHeadroomForSku(t.getDeviceId(), t.getSkuId());
-                    } catch (Exception ignored) {
-                        headroom = 0;
+                    if (!doorCabinet) {
+                        try {
+                            headroom = deviceSlotService.totalHeadroomForSku(t.getDeviceId(), t.getSkuId());
+                        } catch (Exception ignored) {
+                            headroom = 0;
+                        }
                     }
                     return new PullOffTaskDto(
                             t.getTaskId(), t.getDeviceId(), t.getSkuId(), t.getLotId(),
                             t.getBatchNo(), t.getQuantity(), t.getReason(), t.getStatus(), t.getCreatedAt(),
-                            Math.max(0, headroom));
+                            Math.max(0, headroom), doorCabinet);
                 })
                 .toList();
     }

@@ -14968,6 +14968,7 @@ export interface components {
             createdAt?: string;
             /** Format: int32 */
             restockHeadroom?: number;
+            doorCabinet?: boolean;
         };
         ApiResponseOpsExceptionDto: {
             /** Format: int32 */

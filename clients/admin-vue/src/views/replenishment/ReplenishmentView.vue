@@ -1590,6 +1590,10 @@ function lineTypeLabel(type?: string) {
 }
 
 function expiryRestockEnabled(row: Row) {
+  // 开门柜按商品备货、无货道概念：柜型标志由服务端单源下发（PullOffTaskDto.doorCabinet，
+  // 判据=将邑绑定）。它的 restockHeadroom 恒 0，按余量门控会假锁「补货任务」并弹「货道已满」，
+  // 而后端 preparePullOffTaskPlan 对开门柜明确不设货道余量闸。
+  if (row?.doorCabinet) return true;
   const headroom = Number(row?.restockHeadroom);
   return Number.isFinite(headroom) ? headroom > 0 : true;
 }

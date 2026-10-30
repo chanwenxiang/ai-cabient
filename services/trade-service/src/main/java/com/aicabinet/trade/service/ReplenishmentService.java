@@ -2021,16 +2021,21 @@ public class ReplenishmentService {
 
 
     private PullOffTaskDto toPullOffDto(PullOffTask task) {
+        // 开门柜无货道行 ⇒ totalHeadroomForSku 恒 0，照它禁用 RESTOCK 会给出假的「货道已满」
+        // （后端 preparePullOffTaskPlan 对开门柜明确不设货道余量闸）。判据单源，别在这另立。
+        boolean doorCabinet = deviceSlotService.isDoorCabinet(task.getDeviceId());
         int headroom = 0;
-        try {
-            headroom = deviceSlotService.totalHeadroomForSku(task.getDeviceId(), task.getSkuId());
-        } catch (Exception ignored) {
-            headroom = 0;
+        if (!doorCabinet) {
+            try {
+                headroom = deviceSlotService.totalHeadroomForSku(task.getDeviceId(), task.getSkuId());
+            } catch (Exception ignored) {
+                headroom = 0;
+            }
         }
         return new PullOffTaskDto(
                 task.getTaskId(), task.getDeviceId(), task.getSkuId(), task.getLotId(),
                 task.getBatchNo(), task.getQuantity(), task.getReason(), task.getStatus(),
-                task.getCreatedAt(), Math.max(0, headroom)
+                task.getCreatedAt(), Math.max(0, headroom), doorCabinet
         );
     }
 

@@ -1667,6 +1667,17 @@
   3. **有意不同**：「上次配送后库存」（补货后快照）暂不做——需补货完成时写快照，挂到 CB-023 补货链路后续；
   4. **保留（后端语义）**：补货分配/盘点仍按 slot 记账（replenishment_task_line/device_ops_event），
      面向运营的 UI 不再暴露货道；C 端与商户端后续同类治理另行立项。
+- **追加（2026-10-30，同一结论落到漏掉的表面，不开新条）**：admin 补货台「效期」tab 的
+  「补货任务」按钮此前只看 `PullOffTaskDto.restockHeadroom`，而该值由
+  `DeviceSlotService.totalHeadroomForSku` → `allocateRestockQuantity` **遍历 `device_slot`** 算出
+  ⇒ 开门柜（0 货道行）恒 0 ⇒ 按钮永久置灰并弹「货道已满，请先下架腾出库存后再补货」；
+  后端 `ReplenishmentService.preparePullOffTaskPlan` 却对开门柜明确写了「不受货道余量限幅」并放行。
+  **结论（采纳既有 CB-051，无新增竞品取证）**：柜型标志必须由**服务端单源下发**
+  （`PullOffTaskDto.doorCabinet` = `DeviceSlotService.isDoorCabinet`，判据=将邑 BOUND），
+  前端只消费不另立。🔴 **不得**改用 admin 既有的 `GET /ops/devices/{id}/jiangyi` 里
+  `binding != null` 来判柜型 —— 那个口径含 RETIRED（设备详情用它只做文案，无功能后果），
+  放到功能闸门上就会与后端 `status == "BOUND"` 分叉。
+  判据测试：`ReplenishmentDoorCabinetCompleteTest.listOpenPullOffTasksPage_doorCabinet_flagsCabinetAndSkipsSlotProbe`。
 
 ### CB-052 【新】欠费自动处置的判据口径：云服务厂商一律按「账龄（时间）」三段式处置（催缴→停服保留期→补足自动复机），柜机同行与老系统均无「欠费即停机」公开规格
 
