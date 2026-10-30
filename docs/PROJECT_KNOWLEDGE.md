@@ -669,6 +669,17 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（D28-A4 收口：货位账「与仓库账一致」这句没有实现方签字的断言，从注释与页面文案里摘掉）
+
+- **拍板档＝先诚实化**（全链路写 bin 仍未拍板，本轮一个写入点都没动）。`WarehouseBinService` 类注释原写「入库/出库会同步仓库总库存并记录库存流水，保证货位账与仓库账一致」——**两处不真**：出库腿根本不在本类（`WarehouseService.shipOutbound:845` 不碰货位），`moveBetweenBins` 既不碰总账也不写流水。改口后的三条边界：只有 `inboundToBin` 同步批次账 + 记一笔 `BIN_INBOUND`；其余总账增减（`inbound:230`、`receivePurchaseStock:266`、`adjustStocktake:329`、`shipOutbound:845`、`WarehouseTransferService`、`InventoryOpsService`）一律不写货位账；移库只在货位账内部挪 ⇒ 「货位库存」页合计 ≠ 「批次库存」页，两个方向都可能偏。
+- **假文案订正**：`WarehouseView.vue` bins 页 `TAB_DESC` 原文「货位：仓库内存放位置编码，**出入库单据会引用**」全仓无出处——`grep bin_id` 只命中 V161/V237 的建表与索引，没有任何单据表引用货位。改成写明「独立台账 / 只有入库到货位同步批次账 / 本页合计 ≠ 批次库存，不能拿来对账」。
+- **边界做成能红的测**（`WarehouseBinServiceTest` 现 9 例）：`moveBetweenBins_leavesWarehouseAggregateUntouched`（`verify(never()).binStockChange`）＋ `stockWritingServicesHoldNoBinLedgerDependency`（反射扫三个写账枢纽的字段，谁将来把这条链接到货位账就红，红信息直接点名「同步删掉注释与文案里的『不写货位账』表述」——防止只改注释不改判据）。红证：注入反向改动 ⇒ `Tests run: 9, Failures: 2`（`NeverWantedButInvoked: warehouseService.binStockChange(…)` ＋ `InventoryOpsService 新持有了货位依赖 WarehouseBinMapper`）⇒ 逐字节复原，工作树 sha256 回到注入前记录值 `25e1063efd4a…8dc7a1b70`。
+- 🔴 **绿证只能在隔离 worktree 取**：共享工作树此刻被 peer 的 CB-076 在途重构（未跟踪的 `com/aicabinet/trade/support/SkuStockLevel.java`）弄到 `找不到符号` ⇒ 主树的红与绿都不可归因。改在 `git worktree add --detach .tmp/a4-green 0559f662` ＋**只拷本批 4 个文件**复跑：`WarehouseBinServiceTest` **9/0** ＋ `DeviceSlotServiceTest` **13/0**、BUILD SUCCESS、surefire 报告 mtime `09:11`。
+- 🐛 **顺带修掉 CI `build` 红**（`21a48e86`/`0559f662` 两次红、`integration` 被 skipped 的真因）：D28-F3 我在 `computeMetrics` 加了「先问是不是开门柜」的门控，而既有测试 `getDeviceDetail_fallsBackToBookQtyOnlyForSkuNeverLedged` 把新协作者 `JiangyiDeviceDirectory` 传了 `null` ⇒ `DeviceSlotService.isDoorCabinet:882` NPE。修法=换成默认返回 false 的显式桩（让红是判据红而不是空指针红），本地复刻 CI 同一条命令全量 **2540/0/0**。教训 #363：**动被多处调用的判据入口后，批次落地前必须跑与 CI 同一条命令的全量，不能只跑按业务名字挑的相邻子集。**
+- 🔴 **共享工作树里「逐文件归因」失效**：我拷完文件之后，peer 又往**同一个** `DeviceSlotServiceTest.java` 追加了两处 CB-076 hunk（`@@ -207`、`@@ -347`），该文件从我的 +4/−1 变成 +55/−8。按文件 `git add` 会把 peer 未完成的在途重构烤进我这一笔。正解=按 hunk 归因：把 `git diff` 按 `@@` 切块、只留命中我自己注释字面量那块写成 patch，`git apply --cached` ⇒ 索引里是「HEAD + 我的 hunk」，peer 的行原样留在工作树（提交后复查仍剩 48+/7−）。教训 #364。
+- **落库**：`3466e724`（注释/文案/两条边界测 + CI 测试桩）→ `bff0bbe3`（`static/admin` 保真产物，113 文件；判据：新中文文案在 `WarehouseView-DdEuNA2a.js` 命中、旧文案 0 命中、`127.0.0.1:18080` 0 命中、bundle 预算 OK）。peer 的脏文件（CB-076 全套 + `.idea/*` + `docs/JIANGYI_INTERFACE_CHECKLIST.md` + `docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md` + `docs/figures/*.txt` + `docs/module-audit/` + 新出现的 `DeviceDetailView.vue`/`MerchantSplitsView.vue`/mp 两页/`MerchantShortageSummaryDto.java`）一律未代提交、未改动。
+- ⚠️ 未 commit / 未 push 的只剩本轮文档三处（本条目 + 台账 A4 行 + 教训 #363/#364）。**A4 的另一档（全链路写 bin，动 6 个总账写入点＋对账）仍未拍板**；`docs/module-audit` 的 11 轮审计与迁移号 V414–V417 归属也仍待拍板。
+
 ### 2026-10-30（D28 批次落库：三笔提交 + admin 产物必须从「已提交的 HEAD」重建）
 
 - **落库**：`aa5004b0`（代码/测试/迁移/门禁/契约/两端客户端 99 文件）+ `eeeb4fb7`（5 篇活文档）+ `21a48e86`（`static/admin` Linux 保真产物 151 文件），dev `7143b3d7` → `21a48e86`（ahead 3 → 推后 ahead 0 / behind 0，fast-forward 无 force）。
