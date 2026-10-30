@@ -52,8 +52,9 @@ export function settlementHelpText(): string {
 
 export function insightHelpText(days: number, insight?: string | null): string {
   const base =
-    `依据：所选货柜当前在库或已绑货道的商品，对照近${Math.max(1, days)}天成交。` +
-    '畅销=销量不低于中位数的两倍，慢销=销量不足中位数一半，无销量=期间 0 件。';
+    `依据：所选货柜当前上架（在售）的商品，对照近${Math.max(1, days)}天成交。` +
+    '畅销=销量不低于中位数的两倍，慢销=销量不足中位数一半，无销量=期间 0 件。' +
+    '已下架商品不参与本分析，但历史成交仍会出现在上方商品表现里。';
   const extra = (insight || '').trim();
   return extra ? `${base}\n\n${extra}` : base;
 }

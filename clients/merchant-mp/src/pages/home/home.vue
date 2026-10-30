@@ -93,7 +93,10 @@
         </button>
       </view>
 
-      <view v-if="canReplenishment || canDevices || canAlerts || canBusiness" class="quick-row">
+      <view
+        v-if="canReplenishment || canDevices || canAlerts || canBusiness || canStocktake"
+        class="quick-row"
+      >
         <view
           v-if="canReplenishment"
           class="quick-item"
@@ -137,6 +140,21 @@
           <text v-if="prepGroupCount" class="quick-badge">{{ prepGroupCount }}</text>
         </view>
         <view
+          v-if="canStocktake"
+          class="quick-item"
+          role="button"
+          aria-label="柜机盘点"
+          @click="goDeviceStocktake"
+        >
+          <image
+            class="quick-icon"
+            :src="menuIcon('check-circle')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
+          <text class="quick-label">柜机盘点</text>
+        </view>
+        <view
           v-if="canAlerts"
           class="quick-item"
           role="button"
@@ -170,59 +188,21 @@
         </view>
       </view>
 
-      <!-- 备货清单（CB-072/073）：按柜机分模块，组内 SKU 聚合 + 件装数换算；备货在去柜之前。
-           A 方案（2026-10-29）：清单为空也常驻卡片——「手动生成备货单」不依赖阈值可提前建任务 -->
-      <view v-if="canReplenishment" id="prep-list" class="card section-card">
-        <view class="section-head">
-          <text class="section">备货清单</text>
-          <view class="section-head-tools">
-            <text v-if="prepList.length" class="meta"
-              >{{ prepGroupCount }} 台柜机 / {{ prepSkuCount }} 种商品</text
-            >
-            <view
-              role="button"
-              aria-label="手动生成备货单"
-              class="section-more app-link-chevron"
-              @click="goPrepGenerate"
-              >手动生成</view
-            >
-            <view
-              role="button"
-              aria-label="柜机盘点"
-              class="section-more app-link-chevron"
-              @click="goDeviceStocktake"
-              >柜机盘点</view
-            >
-          </view>
+      <!-- 备货单入口（CB-072/073）：明细搬进独立页面，首页只留一行概览 + 跳转。
+           备货在去柜之前，故排在「今日补货」上方。 -->
+      <view
+        v-if="canReplenishment"
+        class="card prep-entry"
+        role="button"
+        aria-label="备货单"
+        hover-class="task-row-hover"
+        @click="goPrepList"
+      >
+        <view class="prep-entry-copy">
+          <text class="prep-entry-title">备货单</text>
+          <text class="prep-entry-sub">{{ prepSummaryText }}</text>
         </view>
-        <block v-if="prepList.length">
-          <view v-for="group in prepList" :key="group.deviceId" class="prep-group">
-            <view class="prep-group-head" role="button" @click="goReplenishment()">
-              <text class="prep-group-name">{{ group.deviceName || group.deviceId }}</text>
-              <text class="task-go app-link-chevron">{{ group.taskCount }} 个任务</text>
-            </view>
-            <view
-              v-for="row in group.items"
-              :key="row.skuId"
-              class="task-row"
-              hover-class="task-row-hover"
-              role="button"
-              :aria-label="`备货 ${row.skuName} ${prepPackText(row)}`"
-              @click="goReplenishment()"
-            >
-              <view class="task-copy">
-                <text class="task-name">{{ row.skuName }}</text>
-                <text class="task-meta">
-                  备 {{ prepPackText(row) }} · 仓库库存 {{ row.stockUnits }}{{ row.unit
-                  }}{{ row.stockShort ? ' · 库存不足' : '' }}
-                </text>
-              </view>
-            </view>
-          </view>
-        </block>
-        <view v-else class="prep-empty" role="button" @click="goPrepGenerate">
-          暂无待备货任务 · 点此按「补满」手动生成备货单
-        </view>
+        <text class="task-go app-link-chevron">查看</text>
       </view>
 
       <view v-if="canReplenishment" class="card section-card">
@@ -252,23 +232,25 @@
           <text class="empty-scan-tip" role="button" @click="onScan">点此扫码到柜</text>
         </empty-state>
         <block v-else>
+          <!-- 同一台柜可能有多个进行中任务（运营按建议建一张 + 商户自主发起一张），
+               逐条铺开会像「重复行」；按柜机聚合成一行并标任务数，与备货单页口径一致。 -->
           <view
-            v-for="task in taskPreview"
-            :key="task.taskId"
+            v-for="group in taskGroups"
+            :key="group.deviceId"
             class="task-row"
             hover-class="task-row-hover"
             role="button"
-            :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
-            @click="goReplenishment(task.deviceId, task.taskId)"
+            :aria-label="`补货任务 ${deviceLabel(group.deviceId)} ${group.taskCount} 个`"
+            @click="goReplenishment(group.deviceId)"
           >
             <view class="task-copy">
               <text class="task-name">
-                {{ deviceLabel(task.deviceId) }}
-                <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
+                {{ deviceLabel(group.deviceId) }}
+                <text v-if="preferredId && group.deviceId === preferredId" class="pref-mark"
                   >常驻</text
                 >
               </text>
-              <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
+              <text class="task-meta">{{ group.deviceId }} · {{ group.metaText }}</text>
             </view>
             <text class="task-go app-link-chevron">去补货</text>
           </view>
@@ -337,6 +319,7 @@ import { UI_COPY, loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import { menuIcon } from '@/utils/menu-icon';
+import { hasPerm } from '@/utils/merchant-api';
 import { useHomeWorkbench } from '@/composables/useHomeWorkbench';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 
@@ -356,6 +339,7 @@ const {
   scanning,
   error,
   meName,
+  me,
   revenueToday,
   salesQty7d,
   stats,
@@ -396,11 +380,42 @@ const {
   loadSilent
 } = useHomeWorkbench();
 
-/** 备货清单按柜机分模块（CB-073）：头部计数 = 台数 / 商品种数 */
+/** 备货单概览（CB-073）：台数 / 商品种数，明细在备货单页 */
 const prepGroupCount = computed(() => prepList.value.length);
+/** 盘点门（与盘点页、柜机详情同一条：merchant:slots:edit） */
+const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
 const prepSkuCount = computed(() =>
   prepList.value.reduce((sum, g) => sum + (g.items?.length || 0), 0)
 );
+const prepSummaryText = computed(() =>
+  prepGroupCount.value
+    ? `${prepGroupCount.value} 台柜机 · ${prepSkuCount.value} 种商品待备`
+    : '暂无待备货，可按「补满」手动生成'
+);
+
+/**
+ * 今日补货按柜机聚合：同一台柜可能有多个进行中任务（运营按建议建一张 + 商户自主发起一张），
+ * 逐条铺开在首页看起来就是「同一台柜出现两行」。聚合行数仍截断 5 组（原 taskPreview 的上限）。
+ */
+const taskGroups = computed(() => {
+  const map = new Map<string, { deviceId: string; taskCount: number; statuses: string[] }>();
+  for (const task of taskPreview.value) {
+    const key = String(task.deviceId || '');
+    const hit = map.get(key);
+    if (hit) {
+      hit.taskCount += 1;
+      hit.statuses.push(task.status);
+    } else {
+      map.set(key, { deviceId: key, taskCount: 1, statuses: [task.status] });
+    }
+  }
+  return [...map.values()].slice(0, 5).map((g) => ({
+    deviceId: g.deviceId,
+    taskCount: g.taskCount,
+    // 单任务直接显示状态；多任务显示「N 个任务进行中」，避免两条状态挤在一行
+    metaText: g.taskCount > 1 ? `${g.taskCount} 个任务进行中` : statusLabel(g.statuses[0])
+  }));
+});
 
 /** F1-UX：「无权限=看不见」——争议 KPI 点击按权限分流（补货员走柜机列表处理柜端） */
 function onDisputeTap() {
@@ -412,42 +427,17 @@ function onDisputeTap() {
 }
 
 /**
- * 「备货单」≠「补货任务」：备货是出发前照单领货（本页就地展示的备货清单），
- * 补货任务才是到柜后的开门/上架操作。两者原先共用 goReplenishment()，
- * 点「备货单」直接落到补货任务列表 —— 见 .workbuddy/memory/MEMORY.md 铁律 80
- * （补货＝自提自送：先照单领货、再到柜上架，是两段不同的现场动作）。
+ * 「备货单」≠「补货任务」：备货是出发前照单领货，补货任务是到柜后的开门/上架操作。
+ * 2026-10-30 起备货清单明细独立成页（/pages/prep-list），首页只留入口 —— 见
+ * .workbuddy/memory/MEMORY.md 铁律 80（补货＝自提自送：先照单领货、再到柜上架）。
  */
 function goPrepList() {
-  if (!prepList.value.length) {
-    uni.showToast({ title: '暂无待备货清单', icon: 'none' });
-    return;
-  }
-  uni.pageScrollTo({
-    selector: '#prep-list',
-    duration: 260,
-    fail: () => uni.showToast({ title: '备货清单在下方', icon: 'none' })
-  });
+  uni.navigateTo({ url: '/pages/prep-list/prep-list' });
 }
 
-/** 柜机盘点（2026-10-28）：开门柜先盘点开门（扫码选中柜机后开）再逐商品实盘调账 */
+/** 不带 deviceId：盘点页到柜边扫码选柜（开错门风险由扫码兜住） */
 function goDeviceStocktake() {
   uni.navigateTo({ url: '/pages/device-stocktake/device-stocktake' });
-}
-
-/** 手动生成备货单（A 方案，2026-10-29）：不依赖阈值按「补满」预生成，确认后逐柜建任务 */
-function goPrepGenerate() {
-  uni.navigateTo({ url: '/pages/prep-generate/prep-generate' });
-}
-
-/** 备货换算展示（CB-072）：「X 件 + Y 支」，整件或拆零为 0 时省略对应段 */
-function prepPackText(row: { cases?: number; remainUnits?: number; unit?: string }): string {
-  const unit = String(row.unit || '支');
-  const cases = Number(row.cases) || 0;
-  const remain = Number(row.remainUnits) || 0;
-  const parts: string[] = [];
-  if (cases > 0) parts.push(`${cases} 件`);
-  if (remain > 0) parts.push(`${remain} ${unit}`);
-  return parts.length ? parts.join(' + ') : `0 ${unit}`;
 }
 
 onShow(() => {
@@ -565,12 +555,14 @@ useAutoRefresh({
 
 .quick-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12rpx;
   margin: 14rpx var(--page-gutter, 24rpx) 0;
 }
 .quick-item {
   position: relative;
-  flex: 1;
+  /* 一排三个：6 个入口正好两行；权限少的账号剩余项自动撑宽 */
+  flex: 1 1 calc((100% - 24rpx) / 3);
   min-width: 0;
   background: var(--card-bg, #ffffff);
   border-radius: var(--radius-panel);
@@ -717,41 +709,29 @@ useAutoRefresh({
   font-size: var(--font-size-sm);
   color: var(--text-subtle, #cbd5e1);
 }
-/* 备货清单按柜机分模块（CB-073）：柜名行 + 组内商品行 */
-.prep-group {
-  margin-top: 8rpx;
-}
-.prep-group + .prep-group {
-  margin-top: 12rpx;
-  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
-}
-.prep-group-head {
+/* 备货单入口（2026-10-30）：明细搬进 pages/prep-list，首页只留一行概览 */
+.prep-entry {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16rpx;
-  padding: 12rpx 0 2rpx;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.prep-group-name {
+.prep-entry-copy {
   flex: 1;
   min-width: 0;
-  font-size: var(--font-size-md);
-  font-weight: 650;
-  color: var(--text-primary, #0f172a);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-/* A 方案：清单为空时常驻空态，点击进「手动生成备货单」（2026-10-29） */
-.prep-empty {
-  padding: 28rpx 0 10rpx;
-  text-align: center;
+.prep-entry-title {
+  display: block;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+.prep-entry-sub {
+  display: block;
+  margin-top: 6rpx;
   font-size: var(--font-size-sm);
-  color: var(--brand);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  color: var(--text-subtle);
 }
 .task-row {
   display: flex;

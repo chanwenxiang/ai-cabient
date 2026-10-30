@@ -407,6 +407,19 @@
           }
         }
       ]
+    },
+    {
+      "root": "pages/prep-list",
+      "pages": [
+        {
+          "path": "prep-list",
+          "style": {
+            "navigationBarTitleText": "备货单",
+            "enablePullDownRefresh": true,
+            "navigationStyle": "custom"
+          }
+        }
+      ]
     }
   ],
   "preloadRule": {
@@ -416,7 +429,8 @@
         "pages/replenishment",
         "pages/self-replenish",
         "pages/purchase",
-        "pages/business"
+        "pages/business",
+        "pages/prep-list"
       ]
     },
     "pages/devices/devices": {

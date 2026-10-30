@@ -67,11 +67,11 @@
             :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `缺货货道 ${metrics?.oosSlotCount ?? 0}`
-                : `缺货货道 ${UI_COPY.loading}`
+                ? `缺货${stockUnitLabel} ${metrics?.oosSlotCount ?? 0}`
+                : `缺货${stockUnitLabel} ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">缺货货道</div>
+            <div class="stat-label">缺货{{ stockUnitLabel }}</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
             </div>
@@ -83,11 +83,11 @@
             :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-                : `低库存货道 ${UI_COPY.loading}`
+                ? `低库存${stockUnitLabel} ${metrics?.lowStockSlotCount ?? 0}`
+                : `低库存${stockUnitLabel} ${UI_COPY.loading}`
             "
           >
-            <div class="stat-label">低库存货道</div>
+            <div class="stat-label">低库存{{ stockUnitLabel }}</div>
             <div class="stat-value">
               {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
             </div>
@@ -868,24 +868,6 @@
       </template>
     </el-dialog>
 
-    <!-- 图1 对照：修改缺货阈值（商户级配置 merchant_ops_config.stockout_threshold_pct） -->
-    <el-dialog v-model="thresholdDialogVisible" title="修改缺货阈值" width="440px">
-      <el-form label-width="auto">
-        <el-form-item label="缺货阈值（%）">
-          <el-input-number v-model="thresholdDraft" :min="1" :max="100" />
-        </el-form-item>
-      </el-form>
-      <div class="muted">
-        仅对有货道柜生效：货道货量低于该货道容量的此比例时标记缺货。开门柜（将邑绑定）没有货道，
-        按每个商品自己的「低库存阈值」区分缺货（库存为 0）与低库存，并按商品进入补货建议。
-        该配置为商户级，影响该商户名下全部有货道柜。
-      </div>
-      <template #footer>
-        <el-button @click="thresholdDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="thresholdSaving" @click="saveThreshold">保存</el-button>
-      </template>
-    </el-dialog>
-
     <!-- C3 商品模板：存当前陈列 -->
     <el-dialog v-model="saveTemplateVisible" title="存为陈列模板" width="420px">
       <el-form label-width="90px">
@@ -1051,6 +1033,8 @@ const deviceId = route.params.id as string;
  * 厂商不上报 IMEI/固件（协议 §4.2.15 无该字段），SN 只能在绑定表取到，故一并缓存。
  */
 const jiangyiRegistered = ref(false);
+/** 缺货/低库存的计数单位：开门柜按商品计，货道柜按货道计（与后端 isDoorCabinet 同一判据） */
+const stockUnitLabel = computed(() => (jiangyiRegistered.value ? '商品' : '货道'));
 const jiangyiSn = ref('');
 watch(
   () => deviceId,
@@ -1319,7 +1303,6 @@ let qrObjectUrl: string | null = null;
 // 2026-10-16 改版：陈列网格下线（用户需求），卡片即编辑入口——卡上改覆盖价 + 货道行内编辑。
 const MAX_SKUS_PER_DEVICE = 50; // 与后端 DeviceSlotService.MAX_SKUS_PER_DEVICE 对齐
 const listedSkuCount = computed(() => skuInventory.value.length);
-const stockoutThresholdPct = ref(50);
 const canEditMerchantConfig = computed(() => auth.hasPerm('ops:merchant:edit'));
 
 /**
@@ -1496,51 +1479,6 @@ async function onRemoveInventory(card: SkuCard) {
   }
 }
 
-async function loadStockoutThreshold() {
-  const mid = device.value?.merchantId;
-  if (!mid) return;
-  try {
-    const cfg = await api.request<{ stockoutThresholdPct?: number }>(
-      AdminEndpoints.merchantOpsConfig(mid)
-    );
-    if (cfg?.stockoutThresholdPct && cfg.stockoutThresholdPct > 0) {
-      stockoutThresholdPct.value = Math.min(100, cfg.stockoutThresholdPct);
-    }
-  } catch {
-    // 无配置记录走默认 50（与后端回落口径一致）
-  }
-}
-
-const thresholdDialogVisible = ref(false);
-const thresholdDraft = ref(50);
-const thresholdSaving = ref(false);
-function openThresholdDialog() {
-  thresholdDraft.value = stockoutThresholdPct.value;
-  thresholdDialogVisible.value = true;
-}
-async function saveThreshold() {
-  const mid = device.value?.merchantId;
-  if (!mid) return;
-  thresholdSaving.value = true;
-  try {
-    // PUT 语义=整单保存：先取当前配置快照，仅改阈值字段回传
-    const cfg = await api.request<Record<string, unknown>>(AdminEndpoints.merchantOpsConfig(mid));
-    await api.request<Record<string, unknown>>(
-      AdminEndpoints.merchantOpsConfig(mid),
-      'PUT',
-      Object.assign({}, cfg, { stockoutThresholdPct: thresholdDraft.value })
-    );
-    stockoutThresholdPct.value = thresholdDraft.value;
-    thresholdDialogVisible.value = false;
-    ElMessage.success('缺货阈值已更新');
-    await refreshSlots();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存缺货阈值失败'));
-  } finally {
-    thresholdSaving.value = false;
-  }
-}
-
 const resettingPrice = ref(false);
 async function onResetPricing() {
   const n = listedSkuCount.value;
@@ -1710,7 +1648,6 @@ async function loadDetail() {
   skuInventory.value = detail.skuInventory || [];
   slotsHydrated.value = true;
   syncTempDraftFromMetrics(detail.metrics?.targetTempC);
-  void loadStockoutThreshold();
   await Promise.all([
     loadAsset(),
     loadLifecycleEvents(),

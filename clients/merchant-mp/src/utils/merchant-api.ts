@@ -857,10 +857,15 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[]>(
       MerchantEndpoints.replenishmentPrepList
     ),
-  /** 手动备货单预览（A 方案，2026-10-29）：逐柜「补满」建议（上限−实际−已领未上柜），事前规划视图 */
-  replenishmentPrepPreview: () =>
+  /**
+   * 备货单预览（A 方案，2026-10-29）：逐柜「补满」建议（上限−实际−已领未上柜），事前规划视图。
+   * includeZero=true ⇒ 柜内全量在架商品（手动生成页，建议量 0 也列）；默认只列有缺口的行（备货单页）。
+   */
+  replenishmentPrepPreview: (includeZero = false) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantPrepPreviewGroupDto[]>(
-      MerchantEndpoints.replenishmentPrepPreview
+      includeZero
+        ? `${MerchantEndpoints.replenishmentPrepPreview}?includeZero=true`
+        : MerchantEndpoints.replenishmentPrepPreview
     ),
   /** 扫码柜机归属校验：须在当前账号 FIELD 管辖范围 */
   assertReplenishmentDeviceAccess: (deviceId: string) =>

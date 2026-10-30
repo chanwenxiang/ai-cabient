@@ -2,53 +2,96 @@
   <view class="page">
     <app-nav-bar title="生成备货单" home-url="/pages/home/home" />
     <view class="page-body">
-      <view class="panel">
-        <text class="head-hint">
-          按每台柜「补满」口径预生成：建议量 = 上限 − 实际 − 已领未上柜。勾选柜机确认后，
-          每台柜生成一张补货任务（从本人负责的分仓出库，无需审批）。
-        </text>
+      <input
+        v-model="keyword"
+        class="filter-input"
+        type="text"
+        placeholder="按柜机名称或编码筛选"
+        aria-label="按柜机名称或编码筛选柜机"
+      />
 
-        <view v-if="loading" class="empty-inline">{{ loadingLabel('预览') }}</view>
-        <view v-else-if="!groups.length" class="empty-inline">
-          各柜机都已补满，暂无需要备货的商品
-        </view>
-
-        <view v-for="group in groups" :key="group.deviceId" class="card">
-          <view class="group-head" role="button" @click="toggleGroup(group)">
-            <view class="check" :class="{ on: group.checked }">{{ group.checked ? '✓' : '' }}</view>
-            <view class="group-copy">
-              <text class="group-name">{{ group.deviceName }}</text>
-              <text class="group-meta"
-                >{{ group.items.length }} 种商品 · 合计 {{ group.totalText }}</text
-              >
-            </view>
-          </view>
-          <view v-for="item in group.items" :key="item.skuId" class="line-row">
-            <view class="line-copy">
-              <text class="sku-name">{{ item.skuName }}</text>
-              <text class="sku-meta">
-                当前 {{ item.currentQty }}{{ item.unit }} · 上限 {{ item.capacity || '—' }}
-                <text v-if="item.inTransitQty > 0"> · 未上柜 {{ item.inTransitQty }}</text>
-              </text>
-            </view>
-            <text class="qty-val">备 {{ item.qtyText }}</text>
-          </view>
-        </view>
-
-        <app-button
-          v-if="groups.length"
-          :disabled="submitting || !checkedCount || !canRequest"
-          :loading="submitting"
-          :label="submitLabel"
-          @click="submit"
-        />
-        <text v-if="groups.length" class="submit-hint">
-          提交后任务出现在「补货任务」列表，首页备货清单同步更新
-        </text>
-        <text v-if="groups.length && !canRequest" class="err"
-          >当前账号无补货发起权限，仅可查看预览</text
-        >
+      <view v-if="loading" class="empty-inline">{{ loadingLabel('预览') }}</view>
+      <view v-else-if="!groups.length" class="card empty-card">
+        <text class="empty-title">暂无可备货柜机</text>
+        <text class="empty-hint">名下柜机里没有已上架商品</text>
       </view>
+      <view v-else-if="!visibleGroups.length" class="card empty-card">
+        <text class="empty-title">没有匹配的柜机</text>
+        <text class="empty-hint">换个名称或编码试试</text>
+      </view>
+
+      <view v-for="group in visibleGroups" :key="group.deviceId" class="card">
+        <view class="group-head" role="button" @click="toggleGroup(group)">
+          <view class="check" :class="{ on: group.checked }">{{ group.checked ? '✓' : '' }}</view>
+          <view class="group-copy">
+            <text class="group-name">{{ group.deviceName }}</text>
+            <text class="group-meta"
+              >{{ group.deviceId }} · 待补 {{ groupLineCount(group) }}/{{ group.items.length }} 种 ·
+              合计 {{ groupUnits(group) }}{{ groupUnit(group) }}</text
+            >
+          </view>
+        </view>
+        <view class="group-totals">
+          <view class="total-cell">
+            <text class="total-label">当前库存合计</text>
+            <text class="total-val">{{ groupCurrentTotal(group) }}{{ groupUnit(group) }}</text>
+          </view>
+          <view class="total-cell">
+            <text class="total-label">配送后库存合计</text>
+            <text class="total-val is-after"
+              >{{ groupAfterTotal(group) }}{{ groupUnit(group) }}</text
+            >
+          </view>
+        </view>
+        <view v-for="item in group.items" :key="item.skuId" class="line-row">
+          <view class="line-copy">
+            <text class="sku-name">{{ item.skuName }}</text>
+            <text class="sku-suggest"
+              >建议 {{ item.suggestQty }}{{ item.unit
+              }}<text v-if="item.suggestQty === 0"> · 已满</text
+              ><text v-else-if="item.qty !== item.suggestQty"> · 已下调</text></text
+            >
+            <text class="sku-stock"
+              >当前库存 {{ item.currentQty }}{{ item.unit }} · 容量
+              {{ item.capacity > 0 ? `${item.capacity}${item.unit}` : '未设'
+              }}<text v-if="item.inTransitQty > 0">
+                · 已领未上柜 {{ item.inTransitQty }}{{ item.unit }}</text
+              ></text
+            >
+          </view>
+          <!-- 确认量可下调不可上调：上限就是「补满」，再多放不进柜 -->
+          <view class="stepper">
+            <view
+              role="button"
+              class="step-btn"
+              :class="{ 'is-off': item.qty <= 0 }"
+              aria-label="减少确认量"
+              @click="setQty(item, item.qty - 1)"
+              >−</view
+            >
+            <text class="qty-val">{{ item.qtyText }}</text>
+            <view
+              role="button"
+              class="step-btn"
+              :class="{ 'is-off': item.qty >= item.suggestQty }"
+              aria-label="增加确认量"
+              @click="setQty(item, item.qty + 1)"
+              >+</view
+            >
+          </view>
+        </view>
+      </view>
+
+      <app-button
+        v-if="visibleGroups.length"
+        :disabled="submitting || !submittableCount || !canRequest"
+        :loading="submitting"
+        :label="submitLabel"
+        @click="submit"
+      />
+      <text v-if="visibleGroups.length && !canRequest" class="err"
+        >当前账号无补货发起权限，仅可查看预览</text
+      >
     </view>
   </view>
 </template>
@@ -56,10 +99,10 @@
 <script setup lang="ts">
 /**
  * 手动生成备货单（A 方案，2026-10-29）：不依赖阈值、可提前生成。
- * 预览 = GET /merchant/replenishment/prep-preview（逐柜 fillToPar 建议，按柜分组）；
- * 确认 = 逐柜 POST /merchant/replenishment/self-initiate（复用自主补货链路：
- * 出库扣账 + 补货任务 + clientRequestNo 幂等），不加备货单实体。
- * 与首页「备货清单」（进行中任务出库行的事后反推）互补：本页是出发前的事前规划。
+ * 预览 = GET /merchant/replenishment/prep-preview?includeZero=true（柜内全量在架 SKU，
+ * 按柜分组，建议量 0 的已满商品也列出）；确认 = 逐柜 POST /merchant/replenishment/self-initiate
+ * （复用自主补货链路：出库扣账 + 补货任务 + clientRequestNo 幂等），不加备货单实体。
+ * 与「备货单」页分工（2026-10-30 用户拍板）：那页只列缺口行，这页看整柜并按名称/编码筛选。
  */
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
@@ -70,6 +113,7 @@ import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { newSelfReplenishRequestNo } from '@/utils/self-replenish-submit';
+import { matchDeviceKeyword } from '@/utils/prep-filter';
 import type { OpenApiMerchantPrepPreviewGroupDto } from '@aicabinet/shared-types';
 
 /** 页内视图行：勾选态 + 数值量 + 件装换算文案（口径同 CB-061「X 件 + Y 支」） */
@@ -81,24 +125,35 @@ interface PrepGroupView {
     skuId: string;
     skuName: string;
     unit: string;
-    /** 建议补货量（支）——提交 body 的 qty 直接取它 */
+    /** 确认量（支）——提交 body 的 qty 取它；默认=建议量，可下调 */
     qty: number;
+    /** 建议量（支）= 上限 − 实际 − 已领未上柜，同时也是上调上限 */
+    suggestQty: number;
+    /** 件装数：把「支」换算成「X 件 + Y 支」展示（CB-061） */
+    packQty: number;
     qtyText: string;
     currentQty: number;
     capacity: number;
     inTransitQty: number;
   }[];
-  totalText: string;
 }
 
 const { me } = useMerchantMe();
 const loading = ref(false);
 const submitting = ref(false);
 const groups = ref<PrepGroupView[]>([]);
+const keyword = ref('');
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
-const checkedCount = computed(() => groups.value.filter((g) => g.checked).length);
+/** 柜名或编码模糊匹配（大小写不敏感）；无关键字时就是全部柜机 */
+const visibleGroups = computed(() =>
+  groups.value.filter((g) => matchDeviceKeyword(keyword.value, g))
+);
+/** 勾选且确认量不全为 0 的柜——只有这些会真正建任务（筛选出来的才算数） */
+const submittableCount = computed(
+  () => visibleGroups.value.filter((g) => g.checked && groupLineCount(g) > 0).length
+);
 const submitLabel = computed(() =>
-  submitting.value ? '生成中…' : `确认生成（${checkedCount.value} 台柜）`
+  submitting.value ? '生成中…' : `确认生成（${submittableCount.value} 台柜）`
 );
 
 onLoad(() => {
@@ -126,34 +181,65 @@ function toView(rows: OpenApiMerchantPrepPreviewGroupDto[]): PrepGroupView[] {
   return rows.map((group) => {
     const items = (group.items ?? []).map((item) => {
       const unit = String(item.unit || '支');
-      const qty = Number(item.suggestQty) || 0;
+      const packQty = Number(item.packQty) || 1;
+      const suggestQty = Number(item.suggestQty) || 0;
       return {
         skuId: String(item.skuId),
         skuName: String(item.skuName || item.skuId),
         unit,
-        qty,
-        qtyText: packText(qty, Number(item.packQty) || 1, unit),
+        qty: suggestQty,
+        suggestQty,
+        packQty,
+        qtyText: packText(suggestQty, packQty, unit),
         currentQty: Number(item.currentQty) || 0,
         capacity: Number(item.capacity) || 0,
         inTransitQty: Number(item.inTransitQty) || 0
       };
     });
-    const totalUnits = items.reduce((sum, item) => sum + item.qty, 0);
-    const firstPack = Number(group.items?.[0]?.packQty) || 1;
     return {
       deviceId: String(group.deviceId),
       deviceName: String(group.deviceName || group.deviceId),
-      checked: true,
-      items,
-      totalText: packText(totalUnits, firstPack, '支')
+      // 全柜已满的柜默认不勾（勾了也提交不出任务行）
+      checked: items.some((item) => item.qty > 0),
+      items
     };
   });
+}
+
+/** 确认量钳在 [0, 建议量]：建议量就是「补满」，再多放不进柜 */
+function setQty(item: PrepGroupView['items'][number], next: number) {
+  const clamped = Math.max(0, Math.min(Math.round(next) || 0, item.suggestQty));
+  item.qty = clamped;
+  item.qtyText = packText(clamped, item.packQty, item.unit);
+}
+
+function groupUnit(group: PrepGroupView): string {
+  return group.items[0]?.unit || '支';
+}
+
+function groupUnits(group: PrepGroupView): number {
+  return group.items.reduce((sum, item) => sum + item.qty, 0);
+}
+
+function groupCurrentTotal(group: PrepGroupView): number {
+  return group.items.reduce((sum, item) => sum + item.currentQty, 0);
+}
+
+/** 配送后库存合计 = 全柜账面 + 全柜已领未上柜 + 本次确认量 */
+function groupAfterTotal(group: PrepGroupView): number {
+  return group.items.reduce((sum, item) => sum + item.currentQty + item.inTransitQty + item.qty, 0);
+}
+
+/** 勾选的柜机里至少有一件确认量 > 0 才能提交 */
+function groupLineCount(group: PrepGroupView): number {
+  return group.items.filter((item) => item.qty > 0).length;
 }
 
 async function loadPreview() {
   loading.value = true;
   try {
-    const rows = await merchantApi.replenishmentPrepPreview();
+    // 手动生成要看柜内全量在架商品（建议量 0 也列），备货单页才只列缺货行
+    const rows = await merchantApi.replenishmentPrepPreview(true);
     groups.value = toView(rows || []);
   } catch (e) {
     groups.value = [];
@@ -173,9 +259,9 @@ function toggleGroup(group: PrepGroupView) {
  */
 async function submit() {
   if (submitting.value) return;
-  const targets = groups.value.filter((g) => g.checked);
+  const targets = visibleGroups.value.filter((g) => g.checked && groupLineCount(g) > 0);
   if (!targets.length) {
-    showError('请至少勾选一台柜机');
+    showError('请至少勾选一台柜机，且确认量不能全为 0');
     return;
   }
   submitting.value = true;
@@ -187,7 +273,10 @@ async function submit() {
     try {
       const body = {
         deviceId: group.deviceId,
-        lines: group.items.map((item) => ({ skuId: item.skuId, qty: item.qty })),
+        // 下调到 0 的行不建任务行（整柜全 0 的柜已在上面剔除）
+        lines: group.items
+          .filter((item) => item.qty > 0)
+          .map((item) => ({ skuId: item.skuId, qty: item.qty })),
         clientRequestNo: requestNos.get(group.deviceId) || newSelfReplenishRequestNo()
       };
       requestNos.set(group.deviceId, body.clientRequestNo);

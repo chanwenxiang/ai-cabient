@@ -13,56 +13,74 @@
       />
       <view v-else-if="deviceName || !loading">
         <view class="card">
-          <image
-            class="device-hero"
-            src="/static/device-default.png"
-            mode="aspectFit"
-            aria-hidden="true"
-          />
-          <text class="title">{{ deviceName }}</text>
-          <view class="meta-block">
-            <text class="meta-line meta-status-row">
-              <text>{{ deviceId }} · </text>
-              <text class="app-status" :class="online ? 'is-online' : 'is-offline'">
-                <text class="app-status-dot" aria-hidden="true" />
-                {{ onlineLabel(online) }}
+          <view class="head-main">
+            <image
+              class="device-thumb"
+              src="/static/device-default.png"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="head-id">
+              <text class="title">{{ deviceName }}</text>
+              <text class="meta-line meta-status-row">
+                <text>{{ deviceId }} · </text>
+                <text class="app-status" :class="online ? 'is-online' : 'is-offline'">
+                  <text class="app-status-dot" aria-hidden="true" />
+                  {{ onlineLabel(online) }}
+                </text>
+                <text v-if="lifecycleLabel"> · {{ lifecycleLabel }}</text>
+                <text v-if="salesLocked"> · {{ UI_COPY.salesLocked }}中</text>
               </text>
-              <text v-if="salesLocked"> · {{ UI_COPY.salesLocked }}中</text>
-            </text>
-            <text v-if="address" class="meta-line">{{ address }}</text>
-            <text v-if="firmwareVersion" class="meta-line">固件 {{ firmwareVersion }}</text>
-            <text v-if="routeCode || lifecycleLabel" class="meta-line">
-              <template v-if="routeCode">线路 {{ routeCode }}</template>
-              <template v-if="routeCode && lifecycleLabel"> · </template>
-              <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
-            </text>
-            <!-- 2026-10-28 用户拍板：温度展示整体下线——我们控制不了温度，读数也拿不到，
-                 「当前 暂无 · 目标 未设置」只会让人以为柜机坏了。 -->
-            <!-- CB-050：信息区扩展（场景/分配时间/最近上下线/信号强度），数据来自 deviceDetail 的 AdminDeviceDto -->
-            <text class="meta-line">设备编号 {{ deviceId }}</text>
-            <text v-if="sceneText" class="meta-line">投放场景 {{ sceneText }}</text>
-            <text v-if="assignedAtText" class="meta-line">分配时间 {{ assignedAtText }}</text>
-            <text class="meta-line"
-              >最近上线 {{ lastOnlineText }} · 最近离线 {{ lastOfflineText }}</text
-            >
-            <text v-if="signalText" class="meta-line">信号强度 {{ signalText }}</text>
-            <text v-if="slotStockHint" class="meta-line stock-warn">{{ slotStockHint }}</text>
+              <text v-if="address" class="meta-line">{{ address }}</text>
+            </view>
           </view>
+          <!-- CB-050 信息区收成两列键值格（2026-10-30 用户要求重新排版）；编号已在状态行，不再重复单列 -->
+          <view class="info-grid">
+            <view v-if="sceneText" class="info-cell">
+              <text class="info-label">投放场景</text>
+              <text class="info-val">{{ sceneText }}</text>
+            </view>
+            <view v-if="routeCode" class="info-cell">
+              <text class="info-label">线路</text>
+              <text class="info-val">{{ routeCode }}</text>
+            </view>
+            <view v-if="firmwareVersion" class="info-cell">
+              <text class="info-label">固件</text>
+              <text class="info-val">{{ firmwareVersion }}</text>
+            </view>
+            <view v-if="assignedAtText" class="info-cell">
+              <text class="info-label">分配时间</text>
+              <text class="info-val">{{ assignedAtText }}</text>
+            </view>
+            <view class="info-cell">
+              <text class="info-label">最近上线</text>
+              <text class="info-val">{{ lastOnlineText }}</text>
+            </view>
+            <view class="info-cell">
+              <text class="info-label">最近离线</text>
+              <text class="info-val">{{ lastOfflineText }}</text>
+            </view>
+            <view v-if="signalText" class="info-cell">
+              <text class="info-label">信号强度</text>
+              <text class="info-val">{{ signalText }}</text>
+            </view>
+          </view>
+          <text v-if="slotStockHint" class="meta-line stock-warn">{{ slotStockHint }}</text>
           <text v-if="salesLocked" class="locked-banner"
             >柜机已锁机停售，消费者无法开门；补货仍可按任务操作{{
               salesLockReason ? `（${salesLockReason}）` : ''
             }}</text
           >
-          <view
-            role="button"
-            class="pref-row"
-            :aria-label="isPreferred ? '取消常驻柜' : '设为常驻柜'"
-            @click="togglePreferred"
-          >
-            <text class="pref-star" :class="{ on: isPreferred }">★</text>
-            <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
-          </view>
-          <view class="action-row">
+          <view class="head-actions">
+            <view
+              role="button"
+              class="pref-row"
+              :aria-label="isPreferred ? '取消常驻柜' : '设为常驻柜'"
+              @click="togglePreferred"
+            >
+              <text class="pref-star" :class="{ on: isPreferred }">★</text>
+              <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
+            </view>
             <app-button
               v-if="latitude != null && longitude != null"
               class="app-btn-flex"
@@ -153,7 +171,7 @@
               class="app-btn-flex"
               :block="false"
               compact
-              variant="danger"
+              variant="ghost"
               :loading="cmdBusy"
               label="停售"
               @click="sendCmd('LOCK')"
@@ -180,13 +198,16 @@
 
         <view v-if="canEditDevice" class="card" v-show="activeTab === 'settings'">
           <text class="section">柜机设置</text>
-          <view class="field">
-            <text class="field-label">显示名称</text>
-            <input v-model="formName" class="input" placeholder="请输入柜机显示名称" />
-          </view>
-          <view class="field">
-            <text class="field-label">备注</text>
-            <input v-model="formRemark" class="input" placeholder="选填运维备注" />
+          <!-- 字段拼排（用户 2026-10-30）：显示名称 + 备注同一行两列，不一行一个 -->
+          <view class="settings-grid">
+            <view class="field">
+              <text class="field-label">显示名称</text>
+              <input v-model="formName" class="input" placeholder="如：1号柜" />
+            </view>
+            <view class="field">
+              <text class="field-label">备注</text>
+              <input v-model="formRemark" class="input" placeholder="选填运维备注" />
+            </view>
           </view>
           <app-button
             :loading="saving"
@@ -232,13 +253,16 @@
           <text v-else class="meta training-progress"
             >学习进度：暂无记录（学习由运营在后台触发）</text
           >
-          <view v-if="canEditDevice && !jiangyiGather.gatherLocked" class="field">
+          <view v-if="canEditDevice && !jiangyiGather.gatherLocked" class="field field-inline">
             <text class="field-label">门位（选填）</text>
-            <input v-model="gatherDoorPosition" class="input" placeholder="例如 1" />
+            <input
+              v-model="gatherDoorPosition"
+              class="input field-inline-input"
+              placeholder="例如 1"
+            />
           </view>
           <app-button
             v-if="canEditDevice"
-            :variant="jiangyiGather.gatherLocked ? 'primary' : 'danger'"
             :loading="gatherBusy"
             :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
             @click="toggleGatherMode"
@@ -975,18 +999,59 @@ async function saveSlots() {
   border-radius: var(--radius-pill);
 }
 
-.device-hero {
-  width: 100%;
-  height: 260rpx;
-  border-radius: 18rpx;
+.head-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 20rpx;
+}
+.device-thumb {
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 16rpx;
   background: var(--brand-soft);
-  margin-bottom: 16rpx;
-  display: block;
+  flex-shrink: 0;
+}
+.head-id {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8rpx;
 }
 .title {
   font-size: var(--font-size-xl);
   font-weight: 600;
   display: block;
+}
+.info-grid {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 14rpx;
+  margin-top: 20rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--color-border);
+}
+.info-cell {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 2rpx;
+}
+.info-label {
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle);
+}
+.info-val {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary, #0f172a);
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 18rpx;
 }
 .meta-block {
   display: flex;
@@ -1015,6 +1080,9 @@ async function saveSlots() {
   font-size: var(--font-size-caption);
   line-height: 1.4;
 }
+.meta-line.stock-warn {
+  margin-top: 16rpx;
+}
 .meta-line.stock-warn,
 .meta.stock-warn {
   color: var(--warning, #b45309);
@@ -1039,6 +1107,9 @@ async function saveSlots() {
 .training-progress {
   display: block;
   margin: 8rpx 0 12rpx;
+  padding: 16rpx 20rpx;
+  background: var(--bg-secondary, #f1f5f9);
+  border-radius: 12rpx;
 }
 .training-item {
   display: block;
@@ -1047,6 +1118,29 @@ async function saveSlots() {
 }
 .field {
   margin: 12rpx 0;
+}
+/* 柜机设置：显示名称 + 备注拼排两列 */
+.settings-grid {
+  display: flex;
+  gap: 16rpx;
+}
+.settings-grid .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+/* 采集门位：标签与输入同行，省一整行竖向空间 */
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.field-inline .field-label {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.field-inline-input {
+  flex: 1;
+  min-width: 0;
 }
 .field-label {
   display: block;
@@ -1062,7 +1156,6 @@ async function saveSlots() {
   margin-bottom: 12rpx;
 }
 .pref-row {
-  margin-top: 16rpx;
   display: flex;
   align-items: center;
   gap: 8rpx;

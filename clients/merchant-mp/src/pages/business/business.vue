@@ -87,7 +87,7 @@
         <view class="card">
           <view class="section-head"
             ><text class="section-title">商品经营表现</text
-            ><text class="section-sub">本柜在售 · 按销售额</text></view
+            ><text class="section-sub">本柜全部成交 · 按销售额</text></view
           >
           <view v-for="sku in analytics.topSkus || []" :key="sku.skuId" class="sku-row">
             <view class="sku-main">
@@ -101,7 +101,7 @@
               <text class="sku-money">{{ money(sku.revenueCents) }}</text>
             </view>
           </view>
-          <view v-if="!analytics.topSkus?.length" class="empty">本柜在售商品该区间暂无成交</view>
+          <view v-if="!analytics.topSkus?.length" class="empty">本柜该区间暂无成交记录</view>
         </view>
         <view v-if="insightRows.length" class="card">
           <view class="section-head">

@@ -377,7 +377,8 @@ export function useHomeWorkbench() {
         ]
       : openTasks;
     pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
-    taskPreview.value = canReplenishment.value ? sorted.slice(0, 5) : [];
+    // 不做截断（2026-10-30）：首页按柜机聚合，同一台柜的任务数要算全；截断几行由页面决定
+    taskPreview.value = canReplenishment.value ? sorted : [];
   }
 
   function applyHomeDashboardData(
