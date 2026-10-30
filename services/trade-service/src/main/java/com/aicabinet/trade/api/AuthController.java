@@ -130,7 +130,17 @@ public class AuthController {
         return ApiResponse.ok(null);
     }
 
-    /** 商户端密码登录：同运营鉴权边界；连续失败后升级图形验证码（L2-2）。 */
+    /**
+     * 商户端密码登录：同运营鉴权边界；连续失败后升级图形验证码（L2-2）。
+     *
+     * <p>G2-11 ⑧（2026-10-30 拍板：不改代码，钉口径）——本端点与
+     * {@link #adminPasswordLogin} 的验证码不对称是**刻意设计**：商户端首 2 次免码
+     * （{@code verifyCaptchaIfThrottled}），主防线是账号维度 5 次/10 分钟锁定
+     * （{@code LoginThrottleService}，失败计数三端共用同一 phone key）+ 网关 IP 限流；
+     * 运营端恒验码是因为运营号少、价值高且登录频率低。剩余风险 = 每账号每 10 分钟
+     * 2 次免费猜测，已被锁机制兜住。若要收紧，把 {@code verifyCaptchaIfThrottled}
+     * 换成 {@code captchaService.verifyOrThrow} 一行即可（A 档，可逆）。
+     */
     @PostMapping("/merchant-password-login")
     public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
                                                             HttpServletResponse response) {
