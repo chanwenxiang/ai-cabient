@@ -669,6 +669,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（G2-11 ⑤ 落地：授权配置类越权拒绝落 admin_audit_log——「没绑商户打不开」运营台可查了）
+
+- **缺陷**：`AccessDeniedAudit.denied()` 只 `log.warn` + metric，零落库 ⇒「账号没绑商户所以打不开」这类**配置事故**运营台查不到任何记录，只能翻容器日志；10s 去重还会把重复拒绝并成 1 条（2026-10-29 简报 B 档）。
+- **修法（B 档白名单，零迁移）**：`AccessDeniedAudit` 注入 `AdminAuditService`，白名单两原因（`REASON_NO_MERCHANT_BOUND`「账号未绑定任何商户」/ `REASON_ADMIN_USE_OPS_CONSOLE` CB-070 超管话术）额外 `appendLog(userId, "ACCESS_DENIED", "USER", <id>, detail)`；detail=perm+method+path+reason，复用 appendLog 512 截断。**写失败 try/catch 只记日志，绝不改变 403 语义**；落库与 WARN 同受 10s 去重约束。权限码类高频拒绝（PERMISSION_DENIED 等）**刻意不落库**——认证用户的 403 按 path 长 key 会被扫描器写爆，污染「谁做了什么」的操作账（A 档否决理由）。
+- **文案同源防漂移**：两常量定义在 `AccessDeniedAudit`，`MerchantPortalGuard` 的 ADMIN_HINT 与 403 话术改为引用常量——审计 reason 靠**原文精确匹配**命中白名单，文案改动不同步 = 白名单静默失效（`MerchantPortalGuardTest` 4 条仍绿钉住话术不变）。
+- 🧪 验证：新 `AccessDeniedAuditTest` 5 条（白名单两原因落库含 detail 字段 / 通用拒绝不落库 / 10s 去重落库只 1 条 / appendLog 抛异常不外传保 403）；定向五类 **27/27 BUILD SUCCESS**。前端 `shared-dict` `AUDIT_ACTION_LABELS` 补 `ACCESS_DENIED: '越权访问（配置类拒绝）'`，`AuditLogView` 筛选/表格自动生效，shared-dict dist 重编译入库。
+- 🔴 **并发事故留痕**：本轮 peer 在 ⑪ 提交后推进 HEAD（`3c873e15`/`4faec7cc`，含 STOCKTAKE 字典入库），我按会话开头快照「STOCKTAKE 未提交」做 dist 隔离重建时把**已提交行**删了——diff 立刻暴露 `-STOCKTAKE`，当即恢复重建。教训：**摘别人「未提交」行前必须重读 `git log` 确认 HEAD 未动**，快照会过期。
+
 ### 2026-10-30（CB-077 设备故障单入库+双端展示；缺陷①盘点会话类型漏分支②会话设备名快照缺补货/盘点落库；消费者开门「摄像头打开失败」设备侧定性）
 
 - **CB-077**：gateway `uploadFaultOrder` → trade `device_fault_order`（**V416**，与消费者报修 `device_fault_report` 分表）→ 运维设备概览「故障记录」卡 + 商户 mp 设备详情卡（有故障才显示）。真机实证：当日 15:56 故障单已实时落库。推送/阈值告警留观察（台账 CB-077 拍板：纯列表）。

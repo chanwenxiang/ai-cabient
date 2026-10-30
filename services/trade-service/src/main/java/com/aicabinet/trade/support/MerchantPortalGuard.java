@@ -16,8 +16,9 @@ public class MerchantPortalGuard {
     /**
      * CB-070：超管分支只说「去哪」——旧文案后半句「需用已绑定商户的账号登录」对超管是无关成因，
      * 只会把他引去查自己根本无关的商户绑定。
+     * 文案源在 {@link AccessDeniedAudit#REASON_ADMIN_USE_OPS_CONSOLE}（G2-11 ⑤ 白名单按原文命中）。
      */
-    private static final String ADMIN_HINT = "平台管理员账号请改用运营后台（商户门户不向平台管理员开放）";
+    private static final String ADMIN_HINT = AccessDeniedAudit.REASON_ADMIN_USE_OPS_CONSOLE;
     /** CB-070：通用「无权限执行此操作」不指出该配哪一类角色，运营只能猜是绑定掉了还是权限没给。 */
     private static final String PERMISSION_HINT =
             "该账号未被分配「商户门户」访问权限，请联系运营在「角色管理」为其绑定含商户门户权限的角色";
@@ -55,9 +56,10 @@ public class MerchantPortalGuard {
         Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
         if (allowed.isEmpty()) {
             cabinetMetrics.recordMerchantScopeDenied("portal_no_merchant");
-            accessDeniedAudit.denied(userId, MERCHANT_PORTAL_ACCESS, "账号未绑定任何商户");
+            // 审计 reason 与异常话术前缀同源（G2-11 ⑤ 白名单），改文案必须两处同步
+            accessDeniedAudit.denied(userId, MERCHANT_PORTAL_ACCESS, AccessDeniedAudit.REASON_NO_MERCHANT_BOUND);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "账号未绑定任何商户，请联系运营在「账号管理 → 商户范围」里勾选商户");
+                    AccessDeniedAudit.REASON_NO_MERCHANT_BOUND + "，请联系运营在「账号管理 → 商户范围」里勾选商户");
         }
     }
 }

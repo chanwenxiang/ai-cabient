@@ -1065,7 +1065,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   OPS_EXCEPTION_AUTO_RESOLVE: '系统自动解决异常',
   OPS_EXCEPTION_SYNC_FROM_DISPUTE: '争议同步异常',
   MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常',
-  WAREHOUSE_MANAGER: '分仓负责人变更'
+  WAREHOUSE_MANAGER: '分仓负责人变更',
+  /** G2-11 ⑤：授权配置类越权拒绝（白名单两原因）落 admin_audit_log 的动作 */
+  ACCESS_DENIED: '越权访问（配置类拒绝）'
 };
 
 /** 审计对象类型 → 中文 */
