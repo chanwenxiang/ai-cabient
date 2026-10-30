@@ -184,6 +184,18 @@ public class JiangyiInternalController {
         return ApiResponse.ok(sessionDoorService.applyRestockDoorClosed(deviceId));
     }
 
+    /**
+     * 补货开门回执推进（2026-10-30，gateway WS *Sure 转发）：补货会话的开门信号只有这条回执，
+     * 网关不再凭 tracker 判定（watchdog 15s open-failed 会先清掉登记，慢回执即丢），
+     * 改由 trade 做权威校验——设备一致的补货会话才走 door-event OPEN。
+     * true=命中补货会话并投递；false=无此会话/设备不符/非补货会话（幂等 no-op）。
+     */
+    @PostMapping("/restock-door-opened")
+    public ApiResponse<Boolean> restockDoorOpened(@RequestParam("deviceId") String deviceId,
+                                                  @RequestParam("sessionId") String sessionId) {
+        return ApiResponse.ok(sessionDoorService.applyRestockDoorOpened(deviceId, sessionId));
+    }
+
     /** 路由判定（供诊断/联调核查，DeviceServiceClient 侧走本地 Directory）。 */
     @GetMapping("/devices/{deviceId}/routable")
     public ApiResponse<Boolean> routable(@PathVariable("deviceId") String deviceId) {

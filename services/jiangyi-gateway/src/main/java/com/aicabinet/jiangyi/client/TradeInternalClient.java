@@ -209,6 +209,20 @@ public class TradeInternalClient {
         return Boolean.TRUE.equals(resp == null ? null : resp.data());
     }
 
+    /**
+     * 门已开回执转发（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）：网关不判会话
+     * 类型，一律按 sessionId 送——补货与否由 trade 侧权威校验（网关 tracker 的 stock 标记
+     * 会先被 watchdog 15s open-failed 清掉，慢回执即丢）。
+     *
+     * @return true=trade 确认补货会话并推进；false=非补货会话/设备不符（幂等 no-op）
+     */
+    public boolean restockDoorOpened(String deviceId, String sessionId) {
+        ApiResponse<Boolean> resp = post(
+                "/internal/v1/jiangyi/restock-door-opened?deviceId={deviceId}&sessionId={sessionId}",
+                null, Boolean.class, compactParam(deviceId), compactParam(sessionId));
+        return Boolean.TRUE.equals(resp == null ? null : resp.data());
+    }
+
     // ---------- 模型同步面（CB-023） ----------
 
     /** 设备 downloadModelNotify 回执转发：trade 回填 model_name/classes_version + deployment CONFIRMED。 */

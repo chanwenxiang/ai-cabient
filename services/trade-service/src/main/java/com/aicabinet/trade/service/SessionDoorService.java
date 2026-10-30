@@ -120,6 +120,31 @@ public class SessionDoorService {
         return true;
     }
 
+    /**
+     * 将邑补货开门回执推进（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）：网关只按
+     * sessionId 转发，是否补货由本方法判定——tracker 的 stock 标记不可靠，watchdog 15s
+     * open-failed 会先把登记清掉，回执稍慢就丢，补货会话照旧被 90s 扫杀。
+     *
+     * @return true=设备一致的补货会话且已投递 {@link DoorState#OPEN}（已过 OPENING 幂等 no-op）；
+     *         false=无此会话/设备不符/非补货会话（消费、盘点、运维）——一律不推进
+     */
+    @Transactional
+    public boolean applyRestockDoorOpened(String deviceId, String sessionId) {
+        if (deviceId == null || deviceId.isBlank() || sessionId == null || sessionId.isBlank()) {
+            return false;
+        }
+        ShoppingSession session = repository.findById(sessionId).orElse(null);
+        if (session == null || !deviceId.equals(session.getDeviceId())
+                || !DeviceValidationService.isRestockSession(session)) {
+            return false;
+        }
+        SessionDto after = handleDoorEvent(new DoorEventRequest(sessionId, deviceId,
+                DoorState.OPEN, System.currentTimeMillis()));
+        log.info("restock door-open ack applied session={} device={} state={}",
+                sessionId, deviceId, after.state());
+        return true;
+    }
+
     private SessionDto doApplyDoorEvent(DoorEventRequest event) {
         ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));

@@ -47,16 +47,6 @@ public class CommandTracker {
 
     /** 登记待回执阶段（幂等：重复登记以最新时间戳为准）。 */
     public void register(Kind kind, String sessionId, String deviceId, String identifier) {
-        register(kind, sessionId, deviceId, identifier, false);
-    }
-
-    /**
-     * 登记待回执阶段（幂等：重复登记以最新时间戳为准）。
-     * <p>{@code stock=true} 标记补货开门——其回执（sendOpenStockDoorSure）是补货链路
-     * 唯一的开门信号（2026-10-27 EG943322621391 实锤：真机补货无 HTTP uploadDoorState），
-     * 回执到达时网关据此判定并转发 door-event OPEN 给 trade。</p>
-     */
-    public void register(Kind kind, String sessionId, String deviceId, String identifier, boolean stock) {
         if (!isSafeSessionKey(sessionId)) {
             // AU-061：body.orderNo 固件不可信——直接 format 进 Redis key 会被注入
             // 空白/冒号/超长串污染键空间；非法字符集或超 64 字符一律不登记（trade 侧自会拒绝该订单）。
@@ -72,20 +62,10 @@ public class CommandTracker {
                 "deviceId", deviceId,
                 "identifier", identifier,
                 "issuedAt", String.valueOf(now),
-                "status", "PENDING",
-                "stock", String.valueOf(stock)));
+                "status", "PENDING"));
         redis.expire(hkey, Duration.ofHours(2));
-        log.info("jiangyi tracker registered kind={} sessionId={} deviceId={} stock={}",
-                kind, sessionId, deviceId, stock);
-    }
-
-    /** 该登记是否为补货开门（回执转发判定用；complete 保留 hash 故 ACKED 后仍可读，无登记/非法 key 返回 false）。 */
-    public boolean isStock(Kind kind, String sessionId) {
-        if (!isSafeSessionKey(sessionId)) {
-            return false;
-        }
-        Object stock = redis.opsForHash().get(hashKey(kind, sessionId), "stock");
-        return stock != null && Boolean.parseBoolean(stock.toString());
+        log.info("jiangyi tracker registered kind={} sessionId={} deviceId={}",
+                kind, sessionId, deviceId);
     }
 
     /**
