@@ -262,4 +262,28 @@ class DeviceReportControllerTest {
         assertTrue(archived.formsJson().contains("\"classId\":7"));
         assertTrue(archived.itemsJson().contains("SKU-7"));
     }
+
+    @Test
+    void setOrderNoVideoReturnsSuccessEnvelopeWithoutSideEffects() {
+        // 台账 D-4（2026-10-30 补收）：纯视频记账，回 200 让固件停重试；不碰 trade、不碰 tracker
+        Map<String, Object> resp = controller.setOrderNoVideo(authedRequest(),
+                new DeviceReportController.OrderNoVideoRequest("common", 1, 1, SESSION_ID));
+
+        assertEquals(200, resp.get("status"));
+        assertEquals("success", resp.get("msg"));
+        verifyNoInteractionsWithTradeAndTracker();
+    }
+
+    @Test
+    void setOrderNoVideoToleratesNullBody() {
+        Map<String, Object> resp = controller.setOrderNoVideo(authedRequest(), null);
+
+        assertEquals(200, resp.get("status"));
+        verifyNoInteractionsWithTradeAndTracker();
+    }
+
+    private void verifyNoInteractionsWithTradeAndTracker() {
+        Mockito.verifyNoInteractions(trade);
+        Mockito.verifyNoInteractions(commandTracker);
+    }
 }

@@ -748,6 +748,7 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
 - 根因两层：① **厂商私有协议**——`.tmp/jy563/smali/…/generateOrderVideo/tool/OrderVedioInfo2Server.smali:1022/:1140` 用 `Constans.COMMON_URL + "/order/setOrderNoVideo"` 打过来，V1.13/V16 全文 0 命中；② 我方 `DeviceUnknownPathController` **刻意 404**（属"资金前缀保护名单" `order/**`，目的是不吞任何钱类上报），固件拿不到 success 就无脑重试。
 - 后果：非功能阻断，是**日志噪声 + 固件无限重试**（每 3 分钟一次，直到会话清理或设备重启）。
 - 处置：**维持 404 + WARN**（`JIANGYI_PATH_UNIMPLEMENTED` 台账已记）；**不能自己编响应体**，必须拿到厂商期望的 success 形状才能实现。待办：向厂商问一句。
+- **🔴 2026-10-30 处置反转（回 200）**：量级从「每 3 分钟一条」恶化为**开机起 640ms 连环重试 ×4 笔历史订单**，且重试与消费开门「摄像头打开失败」故障**同秒交织**（17:47:21.266 故障 ↔ 21.870/22.510/23.150 重试）——对账重试风暴疑似挤占设备媒体/相机子系统。实现取舍：真机 boot 404 期间固件行为=无退避重试（smali 已证），success 形状按全网关统一 envelope `{status:200,msg:"success",data:"0"}`（固件只按体内 `status:200` 判成败，与 `getFloorByDevice` 空表 200 同一判据族）；纯视频记账无资金语义，`order/**` 其余路径保护不变。落在 `DeviceReportController.setOrderNoVideo`（INFO 台账，不建表、不改 jiangyi_order_video）；`DeviceUnknownPathController` 的 `order/**` 刻意 404 对其余路径维持。
 
 **B. D-5 8 条 WS 下行里 7 条从没发给真机 —— 根因是"没有触发路径"，非 bug**
 

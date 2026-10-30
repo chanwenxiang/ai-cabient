@@ -566,6 +566,31 @@ public class DeviceReportController {
         return ok();
     }
 
+    /**
+     * 厂商私有路径（V1.13/V16 无记载；smali 实锤 {@code OrderVedioInfo2Server} 打
+     * {@code COMMON_URL + "/order/setOrderNoVideo"}，台账 D-4）：设备视频对账发现
+     * 「某笔订单没有本地视频」时上报 {@code {tenantType, serialNum, videoQuantity,
+     * transactionId}}，transactionId=我方 sessionId。
+     *
+     * <p><b>为什么从刻意 404 改为回 200（2026-10-30）</b>：固件拿不到 success 就
+     * <b>无退避重试</b>（10-29 实测每 3 分钟一条；10-30 恶化为开机起 640ms 连环重试，
+     * 且与消费开门「摄像头打开失败」故障同秒交织——对账重试风暴疑似挤占设备媒体/相机
+     * 子系统）。本路径是纯视频记账，无资金语义，回 200 只是让固件把该条对账标记完成；
+     * {@code order/**} 其余路径的资金前缀保护（catch-all 404）不变。留 INFO 台账，
+     * 不建表、不改 jiangyi_order_video（videoQuantity>0 但无视频属设备侧自述，与我方
+     * 视频台账口径无关）。</p>
+     */
+    @PostMapping("/jiangyi/api/order/setOrderNoVideo")
+    public Map<String, Object> setOrderNoVideo(HttpServletRequest request,
+                                               @RequestBody(required = false) OrderNoVideoRequest body) {
+        log.info("jiangyi order no-video report deviceId={} transactionId={} serialNum={} videoQuantity={}",
+                device(request),
+                body == null ? null : body.transactionId(),
+                body == null ? null : body.serialNum(),
+                body == null ? null : body.videoQuantity());
+        return ok();
+    }
+
     // ---------- 内部 ----------
 
     /** 合成关门事件转发（模式一：识别/关门上报前统一推进 SHOPPING→RECOGNIZING）。 */
@@ -619,4 +644,12 @@ public class DeviceReportController {
     record DoorInfoRequest(String doorState, String lockState) {}
     /** §4.2.17/18 网络状态：network ∈ online|offline。 */
     record NetworkStateRequest(String network) {}
+
+    /**
+     * 厂商私有视频对账上报（台账 D-4，2026-10-30 补收）：真机实发
+     * {@code {tenantType:"common", serialNum:1, videoQuantity:1, transactionId:"…"}}。
+     * serialNum/videoQuantity 固件为 int，Integer 容忍缺席。
+     */
+    record OrderNoVideoRequest(String tenantType, Integer serialNum, Integer videoQuantity,
+                               String transactionId) {}
 }
