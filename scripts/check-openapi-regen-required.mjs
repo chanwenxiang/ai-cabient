@@ -328,6 +328,12 @@ async function main() {
   for (const path of set) {
     if (!path.endsWith('.java')) continue;
     if (!isController(path) && !isDto(path)) continue;
+    // 🔴 2026-10-30（G-18 首触发现）：豁免 jiangyi-gateway 设备协议模块——spec（18080→trade
+    // /v3/api-docs）从不含网关路径（openapi.ts 0 处 /jiangyi/api、0 处网关控制器，实测），
+    // 覆盖判据对该模块**结构上不可能满足**，留着就是必然误报。其契约面在
+    // docs/JIANGYI_INTERFACE_CHECKLIST.md（对照 smali/真机报文），不在 openapi.ts；
+    // CI 权威校验起的也是 trade jar。
+    if (path.startsWith('services/jiangyi-gateway/')) continue;
     const diff = await diffText(path);
     if (!diff) continue;
     const hit = pickShapeHitSigned(path, changedContentLinesWithSign(diff), await javaSource(path));

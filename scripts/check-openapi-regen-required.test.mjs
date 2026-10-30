@@ -322,6 +322,26 @@ try {
   await commit();
   r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
   check('红：删掉分量而基线生成物仍有 ⇒ rc=1', r.status === 1, `rc=${r.status}`);
+
+  // ⑬ 2026-10-30（G-18 首触发现）：网关设备协议模块（services/jiangyi-gateway/**）豁免——
+  //    spec（18080→trade）从不含网关路径（0 处 /jiangyi/api），形状改动不得要求 regen
+  const GW_CTRL =
+    'services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DemoGwController.java';
+  await freshRepo({
+    [GW_CTRL]: CTRL_NEW_MAPPING.replace('com.aicabinet.trade.api', 'com.aicabinet.jiangyi.api')
+  });
+  await commit();
+  r = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check(
+    '绿：网关模块形状改动豁免（覆盖判据对该模块不可能满足）',
+    r.status === 0,
+    (r.stderr || r.stdout).slice(0, 300)
+  );
+  check(
+    '绿：豁免也要说明「无 API 形状改动」',
+    /无 API 形状改动/.test(r.stdout),
+    r.stdout.slice(0, 200)
+  );
 } catch (err) {
   failures++;
   console.error(`  RED  自测脚手架抛异常：${err && err.message}`);
