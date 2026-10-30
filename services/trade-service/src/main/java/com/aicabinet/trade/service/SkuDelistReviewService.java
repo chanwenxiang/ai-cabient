@@ -223,6 +223,7 @@ public class SkuDelistReviewService {
             SkuCatalog sku = skuCatalogRepository.findById(skuId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在"));
             sku.setStatus("INACTIVE");
+            // 同 OpsCatalogAdminService.applySkuRequest：评审下架也只改档案，账面留着（货仍在柜里）。
             skuCatalogRepository.save(sku);
         } else if ("KEEP".equals(act)) {
             review.setReviewStatus("KEPT");

@@ -208,6 +208,8 @@ public class OpsCatalogAdminService {
         sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
         // CB-061：件装数（每件的支数），用于采购按件、库存/销售按支的换算；默认 1 表示无箱规。
         sku.setPackQty(request.packQty() > 0 ? request.packQty() : 1);
+        // 下架只改档案，不清柜×商品账面：货还在柜里，清零会让重新上架时账面凭空 0 ⇒ 过量补货。
+        // 出柜是另一个动作（CB-051 removeDeviceSkuInventory / 临期 PullOffTask），读面自己按 ACTIVE 过滤。
         sku.setStatus(request.status());
         sku.setShelfLifeDays(request.shelfLifeDays());
         sku.setNearExpiryDays(request.nearExpiryDays());
