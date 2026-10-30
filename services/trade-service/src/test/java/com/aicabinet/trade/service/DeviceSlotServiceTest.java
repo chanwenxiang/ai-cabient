@@ -207,7 +207,8 @@ class DeviceSlotServiceTest {
         when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of());
         when(taskRepository.findLastCompletedAtByDeviceId(DEVICE_ID)).thenReturn(Optional.empty());
         when(shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(DEVICE_ID)).thenReturn(Optional.empty());
-        when(inventoryLotService.deviceUsesLotLedger(DEVICE_ID)).thenReturn(false);
+        // CB-076：数量源改为「柜 + SKU」粒度判是否建账（deviceUsesLotLedger 已不再是这里的分流判据）
+        when(inventoryLotService.lotLedgerSkuIds(DEVICE_ID)).thenReturn(Set.of());
 
         DeviceSkuInventory activeRow = new DeviceSkuInventory();
         activeRow.setDeviceId(DEVICE_ID);
@@ -350,16 +351,56 @@ class DeviceSlotServiceTest {
                 org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
     }
 
+    /**
+     * 开门柜（判据=将邑绑定）无货道概念：计数走台账 SKU 口径，与设备详情 KPI 同一判定/数量源
+     * （CB-076：缺货=可售≤0，低库存=0<可售≤low_threshold）。残留货道行一律不参与。
+     */
     @Test
-    void countSlotStock_doorCabinet_returnsEmpty() {
-        // 开门柜无货道概念：残留货道行不进缺货/低库存计数（否则柜机卡片标签算错数）
+    void countSlotStock_doorCabinet_usesLedgerSkuCounts() {
+        DeviceSkuInventoryMapper inventoryRepository = org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class);
+        ReplenishmentTaskMapper taskRepository = org.mockito.Mockito.mock(ReplenishmentTaskMapper.class);
+        InventoryLotService inventoryLotService = org.mockito.Mockito.mock(InventoryLotService.class);
+        DeviceSlotService svc = new DeviceSlotService(
+                slotRepository, lotRepository, deviceRepository, inventoryRepository, skuCatalogRepository,
+                null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
+                salesVelocityService, null, inventoryLotService, null, distributedLockService,
+                org.mockito.Mockito.mock(ShoppingSessionMapper.class),
+                org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
+                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository,
+                        org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class), sceneDictStub()),
+                null, jiangyiDeviceDirectory, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
+        when(taskRepository.findLastCompletedAtByDeviceId("EG-DOOR")).thenReturn(Optional.empty());
 
-        DeviceSlotService.SlotStockCounts counts = deviceSlotService.countSlotStock("EG-DOOR");
+        DeviceSkuInventory soldOut = inventoryRow("SKU-SOLD-OUT", 0);
+        soldOut.setCapacity(4);
+        soldOut.setLowThreshold(2);
+        DeviceSkuInventory drainedLot = inventoryRow("SKU-LOT-DRAINED", 3);
+        drainedLot.setCapacity(4);
+        drainedLot.setLowThreshold(1);
+        DeviceSkuInventory healthy = inventoryRow("SKU-OK", 4);
+        healthy.setCapacity(4);
+        healthy.setLowThreshold(2);
+        DeviceSkuInventory delisted = inventoryRow("SKU-DELISTED", 0);
+        delisted.setCapacity(4);
+        delisted.setLowThreshold(4);
+        when(inventoryRepository.findByIdDeviceId("EG-DOOR"))
+                .thenReturn(List.of(soldOut, drainedLot, healthy, delisted));
+        SkuCatalog inactiveSku = activeSku("SKU-DELISTED");
+        inactiveSku.setStatus("INACTIVE");
+        when(skuCatalogRepository.selectList(any())).thenReturn(List.of(
+                activeSku("SKU-SOLD-OUT"), activeSku("SKU-LOT-DRAINED"), activeSku("SKU-OK"), inactiveSku));
+        // 账本：LOT-DRAINED 账面 3 但批次全被扣光 ⇒ 可售 0（缺货）；其余未建账 ⇒ 用账面
+        when(inventoryLotService.lotLedgerSkuIds("EG-DOOR")).thenReturn(Set.of("SKU-LOT-DRAINED"));
+        when(inventoryLotService.sellableQtyBySku("EG-DOOR")).thenReturn(Map.of("SKU-LOT-DRAINED", 0));
 
-        org.junit.jupiter.api.Assertions.assertEquals(0, counts.oosSlotCount());
-        org.junit.jupiter.api.Assertions.assertEquals(0, counts.lowStockSlotCount());
-        org.junit.jupiter.api.Assertions.assertNull(counts.fillRatePct());
+        DeviceSlotService.SlotStockCounts counts = svc.countSlotStock("EG-DOOR");
+
+        assertEquals(2, counts.oosSlotCount(), "SKU-SOLD-OUT 与批次扣光的 SKU-LOT-DRAINED 都算缺货");
+        assertEquals(0, counts.lowStockSlotCount(), "已下架 SKU 不参与计数");
+        assertEquals(33, counts.fillRatePct(), "填充率 = Σmin(可售,容量)/Σ容量 = (0+0+4)/(4+4+4)");
+        assertNull(counts.lastCheckAt(), "开门柜无货道盘点");
         org.mockito.Mockito.verify(slotRepository, org.mockito.Mockito.never())
                 .findByIdDeviceIdOrderByRowNoAscColNoAsc("EG-DOOR");
     }

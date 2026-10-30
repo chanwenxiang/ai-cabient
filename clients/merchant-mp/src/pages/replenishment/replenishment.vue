@@ -85,7 +85,8 @@
             <text class="device-code">{{ d.deviceId }}</text>
           </view>
           <view class="patrol-meta">
-            <text class="patrol-badge">{{ d.shortageSlots }} 个货道缺货</text>
+            <!-- 「项」兼容两种柜型：有货道柜=缺货货道数，开门柜=待补商品数（CB-076） -->
+            <text class="patrol-badge">{{ d.shortageSlots }} 项缺货</text>
             <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
           </view>
         </view>

@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Lazy;
@@ -336,8 +337,10 @@ public class DeviceAssetService {
             DeviceInfo device = devices.get(row.getDeviceId());
             if (device != null) {
                 int qty = effectiveSellableQty(row, lotSkusByDevice, sellableByDevice);
-                boolean stockout = qty <= 0;
-                boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
+                // 两档判定单源（CB-076）：缺货=可售≤0；低库存=0<可售≤阈值。
+                SkuStockLevel level = SkuStockLevel.of(qty, row.getLowThreshold());
+                boolean stockout = level == SkuStockLevel.OOS;
+                boolean low = level == SkuStockLevel.LOW;
                 if (matchesInventoryHealthDimension(dim, stockout, low)) {
                     String kind = stockout ? STOCKOUT : "LOW";
                     rows.add(buildInventoryHealthRow(device, row, skus, qty, kind, stockout));
@@ -505,7 +508,7 @@ public class DeviceAssetService {
         }
         Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(deviceId,
                 inventoryLotService::sellableQtyBySku);
-        return bySku.getOrDefault(row.getSkuId(), 0);
+        return SkuStockLevel.sellableQty(row, lotSkus, bySku);
     }
 
     private Integer estimateDaysOut(Instant updatedAt) {

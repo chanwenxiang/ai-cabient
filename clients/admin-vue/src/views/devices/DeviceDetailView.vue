@@ -876,8 +876,9 @@
         </el-form-item>
       </el-form>
       <div class="muted">
-        当剩余库存 &lt;
-        货柜容量的该比例时，库存状态标记为缺货并推送商户。该配置为商户级，影响该商户名下全部柜机。
+        仅对有货道柜生效：货道货量低于该货道容量的此比例时标记缺货。开门柜（将邑绑定）没有货道，
+        按每个商品自己的「低库存阈值」区分缺货（库存为 0）与低库存，并按商品进入补货建议。
+        该配置为商户级，影响该商户名下全部有货道柜。
       </div>
       <template #footer>
         <el-button @click="thresholdDialogVisible = false">取消</el-button>

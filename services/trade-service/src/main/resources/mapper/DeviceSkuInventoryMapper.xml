@@ -80,6 +80,25 @@
     LIMIT #{limit}
   </select>
 
+  <!--
+    运营/商户工作台「库存偏低」条目源。判据与 countLowStock* 完全同一条（lowStockPredicate），
+    quantity 列回的是可售量 —— 与备货建议、商户库存列表、设备详情同一数量源。
+    此前这里是 `quantity <= low_threshold` 裸列：批次已卖光的 SKU 不会进待办，而首页计数会算进去。
+  -->
+  <select id="findLowStockByDeviceIds" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
+    SELECT <include refid="inventorySelectEffective"/>
+    FROM device_sku_inventory i
+    INNER JOIN device_info d ON d.device_id = i.device_id
+    WHERE <include refid="normalizedLifecycle"/> = 'DEPLOYED'
+      AND <include refid="lowStockPredicate"/>
+      AND i.device_id IN
+    <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
+    ORDER BY quantity ASC, i.device_id, i.sku_id
+    LIMIT 500
+  </select>
+
   <select id="countLowStockByDeviceIds" resultType="long">
     SELECT COUNT(*) FROM device_sku_inventory i
     INNER JOIN device_info d ON d.device_id = i.device_id

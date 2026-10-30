@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -168,14 +169,28 @@ public class DeviceSlotService {
     }
 
     /**
-     * 柜机缺货/低库存货道计数（启用且有目标库存的货道）。
-     * 供商户柜机列表默认排序（收藏柜 → 缺货最多）使用。
-     * 开门柜无货道概念 ⇒ 计数恒 0（宁可不出标签，也不拿残留货道行算错数）。
+     * 柜机缺货/低库存计数。供商户柜机列表默认排序（收藏柜 → 缺货最多）与卡片标签使用。
+     * · 有货道柜 ⇒ 启用且有目标库存的货道口径
+     * · 开门柜 ⇒ 台账 SKU 口径（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}），
+     *   DTO 字段名保留 *Slot 但语义是「商品」个数；无货道故 lastCheckAt 恒空。
+     *   🔴 此前开门柜恒返回 EMPTY ⇒ 商户卡片恒「0 缺货」，与后台设备详情 KPI 对不上。
      */
     @Transactional(readOnly = true)
     public SlotStockCounts countSlotStock(String deviceId) {
-        if (deviceId == null || deviceId.isBlank() || isDoorCabinet(deviceId)) {
+        if (deviceId == null || deviceId.isBlank()) {
             return SlotStockCounts.EMPTY;
+        }
+        if (isDoorCabinet(deviceId)) {
+            DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
+            if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
+                return SlotStockCounts.EMPTY;
+            }
+            return new SlotStockCounts(
+                    doorStats.oosCount(),
+                    doorStats.lowCount(),
+                    doorStats.fillRatePct(),
+                    null,
+                    taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
         }
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId.trim());
         List<DeviceSlot> active = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId.trim()).stream()
@@ -1399,44 +1414,14 @@ public class DeviceSlotService {
      * 在架 = device_sku_inventory 有行且 sku_catalog.status=ACTIVE（与详情页「已上架商品数」、
      * 消费者目录同一过滤，已下架 SKU 的库存残留不参与）。填充率 = Σmin(库存,容量)×100/Σ容量；
      * 缺货商品 = 库存≤0；低库存商品 = 0<库存≤low_threshold（逐 SKU 阈值，与补货建议
-     * suggestFromLowStock / 阈值自动任务 / 上架商品页缺货 tag 同源）。
+     * suggestFromLowStock / 阈值自动任务 / 上架商品页缺货 tag 同源）。判定与数量源统一走
+     * {@link SkuStockLevel}（CB-076：缺货/低库存两档单源，建账 SKU 取批次合计）。
      * DTO 字段名保留 *SlotCount（兼容不动 API），开门柜下语义为「商品」个数。
      */
     private DeviceOpsMetricsDto computeDoorCabinetMetrics(DeviceInfo device) {
         String deviceId = device.getDeviceId();
-        List<DeviceSkuInventory> rows = inventoryRepository.findByIdDeviceId(deviceId);
-        Set<String> activeSkuIds = rows.isEmpty() ? Set.of()
-                : skuCatalogRepository.selectList(
-                                Wrappers.<SkuCatalog>lambdaQuery()
-                                        .in(SkuCatalog::getSkuId, rows.stream()
-                                                .map(DeviceSkuInventory::getSkuId)
-                                                .toList()))
-                        .stream()
-                        .filter(s -> "ACTIVE".equals(s.getStatus()))
-                        .map(SkuCatalog::getSkuId)
-                        .collect(Collectors.toSet());
-        int totalCap = 0;
-        int totalBook = 0;
-        int oosCount = 0;
-        int lowCount = 0;
-        int listedCount = 0;
-        for (DeviceSkuInventory inv : rows) {
-            if (!activeSkuIds.contains(inv.getSkuId())) {
-                continue;
-            }
-            listedCount++;
-            int qty = Math.max(inv.getQuantity(), 0);
-            int cap = Math.max(inv.getCapacity(), 0);
-            totalBook += Math.min(qty, cap);
-            totalCap += cap;
-            if (qty <= 0) {
-                oosCount++;
-            } else if (qty <= inv.getLowThreshold()) {
-                lowCount++;
-            }
-        }
-        int fillRate = totalCap > 0 ? totalBook * 100 / totalCap : 0;
-        int oosRate = listedCount > 0 ? oosCount * 100 / listedCount : 0;
+        DoorCabinetStockStats stats = doorCabinetStockStats(deviceId);
+        int fillRate = stats.fillRatePct() == null ? 0 : stats.fillRatePct();
         // 货道维度的 lastRestockAt 对开门柜恒空，回落最近完成补货任务（与有货道路径同款兜底）
         Instant lastRestock = taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null);
         String[] merchantContacts = resolveMerchantContacts(device);
@@ -1445,11 +1430,11 @@ public class DeviceSlotService {
                 0,
                 0,
                 fillRate,
-                oosRate,
-                oosCount,
-                lowCount,
-                totalBook,
-                totalCap,
+                stats.oosRatePct(),
+                stats.oosCount(),
+                stats.lowCount(),
+                stats.totalBook(),
+                stats.totalCap(),
                 lastRestock,
                 100,
                 device.getAddress(),
@@ -1466,6 +1451,68 @@ public class DeviceSlotService {
                 merchantContacts[1],
                 monthRevenueCents(deviceId)
         );
+    }
+
+    /**
+     * 开门柜台账口径统计（单源）：在架（sku_catalog.status=ACTIVE）SKU 的缺货/低库存件数与填充量。
+     * 判定与数量源统一走 {@link SkuStockLevel}（缺货=可售≤0；低库存=0<可售≤low_threshold；
+     * 建过批次账本的 SKU 取账本可售）。设备详情 KPI 与商户柜机卡片都从这里取，避免两套数。
+     */
+    private DoorCabinetStockStats doorCabinetStockStats(String deviceId) {
+        List<DeviceSkuInventory> rows = inventoryRepository.findByIdDeviceId(deviceId);
+        if (rows.isEmpty()) {
+            return DoorCabinetStockStats.EMPTY;
+        }
+        Set<String> activeSkuIds = skuCatalogRepository.selectList(
+                        Wrappers.<SkuCatalog>lambdaQuery()
+                                .in(SkuCatalog::getSkuId, rows.stream()
+                                        .map(DeviceSkuInventory::getSkuId)
+                                        .toList()))
+                .stream()
+                .filter(s -> "ACTIVE".equals(s.getStatus()))
+                .map(SkuCatalog::getSkuId)
+                .collect(Collectors.toSet());
+        // 数量源与详情页卡片同源（CB-076）：按「柜 + SKU」粒度判是否建账——整柜判会把
+        // 从未进过账本的 SKU 读成 0（2026-10-28 实测 EG943322621391）。
+        Set<String> lotLedgerSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+        Map<String, Integer> sellableBySku = lotLedgerSkus.isEmpty()
+                ? null
+                : inventoryLotService.sellableQtyBySku(deviceId);
+        int totalCap = 0;
+        int totalBook = 0;
+        int oosCount = 0;
+        int lowCount = 0;
+        int listedCount = 0;
+        for (DeviceSkuInventory inv : rows) {
+            if (!activeSkuIds.contains(inv.getSkuId())) {
+                continue;
+            }
+            listedCount++;
+            int qty = Math.max(SkuStockLevel.sellableQty(inv, lotLedgerSkus, sellableBySku), 0);
+            int cap = Math.max(inv.getCapacity(), 0);
+            totalBook += Math.min(qty, cap);
+            totalCap += cap;
+            SkuStockLevel level = SkuStockLevel.of(qty, inv.getLowThreshold());
+            if (level == SkuStockLevel.OOS) {
+                oosCount++;
+            } else if (level == SkuStockLevel.LOW) {
+                lowCount++;
+            }
+        }
+        return new DoorCabinetStockStats(listedCount, oosCount, lowCount, totalBook, totalCap);
+    }
+
+    private record DoorCabinetStockStats(int listedCount, int oosCount, int lowCount,
+                                         int totalBook, int totalCap) {
+        static final DoorCabinetStockStats EMPTY = new DoorCabinetStockStats(0, 0, 0, 0, 0);
+
+        Integer fillRatePct() {
+            return totalCap > 0 ? totalBook * 100 / totalCap : null;
+        }
+
+        int oosRatePct() {
+            return listedCount > 0 ? oosCount * 100 / listedCount : 0;
+        }
     }
 
     /**
@@ -1617,14 +1664,11 @@ public class DeviceSlotService {
                                               Set<String> lotLedgerSkus, String skuName, String imageUrl) {
         String deviceId = inv.getId().getDeviceId();
         String skuId = inv.getId().getSkuId();
-        int qty = inv.getQuantity();
-        if (sellableBySku != null) {
-            // 已建账的 SKU 才以账本为准（含卖光/过期=0）；未建账的回落账面，
-            // 否则分叉行永远显示 0，而保存路径比的却是账面值——数字看着「改了没反应」。
-            qty = lotLedgerSkus.contains(skuId) ? sellableBySku.getOrDefault(skuId, 0) : inv.getQuantity();
-        } else if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
-            qty = inventoryLotService.sellableQuantity(deviceId, skuId);
-        }
+        // 数量源唯一出处（CB-076）：已建账的 SKU 以账本为准（含卖光/过期=0），未建账回落账面，
+        // 否则分叉行永远显示 0，而保存路径比的却是账面值——数字看着「改了没反应」。
+        int qty = sellableBySku == null && lotLedgerSkus != null && lotLedgerSkus.contains(skuId)
+                ? inventoryLotService.sellableQuantity(deviceId, skuId)
+                : SkuStockLevel.sellableQty(inv, lotLedgerSkus, sellableBySku);
         return new DeviceInventoryDto(
                 deviceId,
                 skuId,

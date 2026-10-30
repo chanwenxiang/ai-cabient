@@ -270,7 +270,15 @@
                 }}</text>
               </view>
               <view class="goods-info">
-                <text class="goods-name">{{ s.skuName || s.skuId }}</text>
+                <view class="goods-title-row">
+                  <text class="goods-name">{{ s.skuName || s.skuId }}</text>
+                  <text v-if="stockLevelOf(s) === 'OOS'" class="goods-badge goods-badge-oos"
+                    >缺货</text
+                  >
+                  <text v-else-if="stockLevelOf(s) === 'LOW'" class="goods-badge goods-badge-low"
+                    >低库存</text
+                  >
+                </view>
                 <text class="meta">库存 {{ s.quantity }}/{{ s.capacity || '未设上限' }}</text>
               </view>
             </view>
@@ -433,15 +441,24 @@ watch(
 );
 // 方案A 第一步：开门柜（将邑，bound=已绑定）按商品备货——货道编辑隐藏，改台账在架列表
 const isDoorCabinet = computed(() => jiangyiGather.value.bound);
-const ledgerGoods = ref<
-  {
-    skuId: string;
-    skuName?: string | null;
-    quantity?: number;
-    capacity?: number;
-    imageUrl?: string | null;
-  }[]
->([]);
+type LedgerGood = {
+  skuId: string;
+  skuName?: string | null;
+  quantity?: number;
+  capacity?: number;
+  lowThreshold?: number;
+  imageUrl?: string | null;
+};
+const ledgerGoods = ref<LedgerGood[]>([]);
+/**
+ * 缺货/低库存两档（CB-076，与后台 SkuStockLevel.of 同一条判据）：
+ * 缺货 = 可售 ≤ 0；低库存 = 0 < 可售 ≤ 该商品低库存阈值。
+ */
+function stockLevelOf(g: { quantity?: number; lowThreshold?: number }): 'OOS' | 'LOW' | 'OK' {
+  const qty = Number(g.quantity ?? 0);
+  if (qty <= 0) return 'OOS';
+  return qty <= Math.max(Number(g.lowThreshold ?? 0), 0) ? 'LOW' : 'OK';
+}
 const gatherDoorPosition = ref('');
 const gatherBusy = ref(false);
 // 只读学习进度（触发学习在运营后台）：一次触发（含批量）共享一个回执 → items 是整组 SKU
@@ -460,6 +477,15 @@ const lifecycleLabel = computed(() =>
     : ''
 );
 const slotStockHint = computed(() => {
+  // 开门柜没有货道（判据=将邑绑定）：提示改由台账商品算，口径与后台设备详情 KPI 一致
+  if (isDoorCabinet.value) {
+    const goodsOos = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'OOS').length;
+    const goodsLow = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'LOW').length;
+    if (goodsOos > 0 && goodsLow > 0) return `缺货 ${goodsOos} 个商品 · 低库存 ${goodsLow} 个商品`;
+    if (goodsOos > 0) return `缺货 ${goodsOos} 个商品`;
+    if (goodsLow > 0) return `低库存 ${goodsLow} 个商品`;
+    return '';
+  }
   const oos = slots.value.filter((s) => Number(s.bookQty || 0) <= 0 && !!s.assignedSkuId).length;
   const low = slots.value.filter((s) => {
     const qty = Number(s.bookQty || 0);
@@ -646,13 +672,7 @@ async function loadDeviceExtras(seq: number) {
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
   const inventoryRows = (
     detail as {
-      skuInventory?: {
-        skuId: string;
-        skuName?: string | null;
-        quantity?: number;
-        capacity?: number;
-        imageUrl?: string | null;
-      }[];
+      skuInventory?: LedgerGood[];
     } | null
   )?.skuInventory;
   ledgerGoods.value = Array.isArray(inventoryRows) ? inventoryRows : [];
@@ -1130,10 +1150,32 @@ async function saveSlots() {
   min-width: 0;
   flex: 1;
 }
+.goods-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  min-width: 0;
+}
+.goods-badge {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs, 22rpx);
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  line-height: 1.4;
+}
+.goods-badge-oos {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.goods-badge-low {
+  background: #fef3c7;
+  color: #b45309;
+}
 .goods-name {
   font-size: var(--font-size-body, 28rpx);
   color: var(--text-primary, #0f172a);
   line-height: 1.3;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

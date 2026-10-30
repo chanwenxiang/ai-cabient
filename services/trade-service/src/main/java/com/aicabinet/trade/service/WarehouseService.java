@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuStockLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -487,7 +488,7 @@ public class WarehouseService {
                     int book = bookQtyForSuggest(dev, skuId, i.getQuantity(), lotLedgerSkus);
                     return Map.entry(i, book);
                 })
-                .filter(e -> e.getValue() <= e.getKey().getLowThreshold())
+                .filter(e -> SkuStockLevel.of(e.getValue(), e.getKey().getLowThreshold()).warning())
                 .map(e -> {
                     DeviceSkuInventory i = e.getKey();
                     int book = e.getValue();

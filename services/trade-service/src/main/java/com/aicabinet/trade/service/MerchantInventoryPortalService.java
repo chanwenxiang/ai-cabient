@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuStockLevel;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -123,22 +124,22 @@ public class MerchantInventoryPortalService {
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
                 .map(i -> {
                     String dev = i.getId().getDeviceId();
-                    String skuId = i.getId().getSkuId();
-                    // 🔴 已建账按 SKU 粒度判断（与 DeviceSlotService.toInventoryDto 同口径）：
-                    // 设备级 deviceUsesLotLedger 会把「从未进过账本」的 SKU 读成 0——
-                    // 账面有货却显示缺货（2026-10-27 雪碧实测：inventory=2、账本零行）。
+                    // 🔴 已建账按 SKU 粒度判断（与 DeviceSlotService.toInventoryDto 同一条
+                    // SkuStockLevel 口径）：设备级 deviceUsesLotLedger 会把「从未进过账本」的
+                    // SKU 读成 0——账面有货却显示缺货（2026-10-27 雪碧实测：inventory=2、账本零行）。
                     Set<String> lotSkus = ledgerSkusByDevice.computeIfAbsent(
                             dev, inventoryLotService::lotLedgerSkuIds);
-                    int qty = i.getQuantity();
-                    if (lotSkus.contains(skuId)) {
-                        qty = sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
-                                .getOrDefault(skuId, 0);
-                    }
+                    Map<String, Integer> sellableBySku = lotSkus.contains(i.getId().getSkuId())
+                            ? sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
+                            : null;
+                    int qty = SkuStockLevel.sellableQty(i, lotSkus, sellableBySku);
                     return new DeviceInventoryDto(
-                            dev, skuId, qty, i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt(),
-                            i.getVersion(), i.getLastRestockQty());
+                            dev, i.getId().getSkuId(), qty, i.getCapacity(), i.getLowThreshold(),
+                            i.getUpdatedAt(), i.getVersion(), i.getLastRestockQty());
                 })
-                .filter(d -> !lowStockOnly || d.quantity() <= d.lowThreshold())
+                // 「低库存」筛选含缺货（CB-076：0 < 可售 ≤ 阈值 才叫低库存，缺货单独一档但同属需补货）
+                .filter(d -> !lowStockOnly
+                        || SkuStockLevel.of(d.quantity(), d.lowThreshold()).warning())
                 .toList();
     }
 
@@ -180,12 +181,15 @@ public class MerchantInventoryPortalService {
         }
         List<DeviceInfo> devices = deviceRepository.findAll().stream()
                 .filter(d -> inDeviceScope(allowed, d.getDeviceId()))
-                // 开门柜无货道（判据=将邑绑定）：货道级缺货口径对它不成立，
-                // 缺货改由台账/备货清单呈现；此处不拿残留货道行凑数。
-                .filter(d -> !deviceSlotService.isDoorCabinet(d.getDeviceId()))
                 .toList();
         return devices.stream()
                 .map(dev -> {
+                    // 开门柜无货道（判据=将邑绑定）⇒ 走台账 SKU 口径（与备货建议 suggestFromLowStock
+                    // 同一条 SkuStockLevel 判据），不拿残留货道行凑数；此前直接排除会让商户端
+                    // 缺货巡柜永远看不到开门柜，与后台设备详情 KPI 对不上。
+                    if (deviceSlotService.isDoorCabinet(dev.getDeviceId())) {
+                        return doorCabinetShortage(dev);
+                    }
                     List<DeviceSlotService.SlotShortageItem> slots =
                             deviceSlotService.listShortageSlots(dev.getDeviceId());
                     int shortageQty = slots.stream()
@@ -203,6 +207,29 @@ public class MerchantInventoryPortalService {
                         .thenComparing(Comparator.comparingInt(MerchantShortageSummaryDto::shortageQty).reversed()))
                 .limit(5)
                 .toList();
+    }
+
+    /**
+     * 开门柜缺货巡柜行：SKU 级两档（缺货=可售≤0；低库存=0<可售≤阈值，与 SkuStockLevel 同源）。
+     * shortageSlots 语义是「待补商品数」，shortageQty = Σmax(容量−可售, 0)。
+     */
+    private MerchantShortageSummaryDto doorCabinetShortage(DeviceInfo dev) {
+        String deviceId = dev.getDeviceId();
+        Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+        Map<String, Integer> sellableBySku = lotSkus.isEmpty()
+                ? Map.of()
+                : inventoryLotService.sellableQtyBySku(deviceId);
+        int pendingSkus = 0;
+        int shortageQty = 0;
+        for (DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
+            int sellable = Math.max(SkuStockLevel.sellableQty(inv, lotSkus, sellableBySku), 0);
+            if (!SkuStockLevel.of(sellable, inv.getLowThreshold()).warning()) {
+                continue;
+            }
+            pendingSkus++;
+            shortageQty += Math.max(inv.getCapacity() - sellable, 0);
+        }
+        return new MerchantShortageSummaryDto(deviceId, dev.getDeviceName(), pendingSkus, shortageQty);
     }
 
     @Transactional(readOnly = true)

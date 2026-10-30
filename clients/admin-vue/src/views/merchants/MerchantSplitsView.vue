@@ -331,6 +331,9 @@
             </el-form-item>
             <el-form-item label="缺货阈值%">
               <el-input-number v-model="opsConfig.stockoutThresholdPct" :min="1" :max="100" />
+              <div class="hint" style="width: 100%">
+                仅对有货道柜生效（按货道货量占容量的比例判缺货）；开门柜按每个商品的「低库存阈值」判缺货/低库存，不受此项影响。
+              </div>
             </el-form-item>
             <el-form-item label="理货模式">
               <el-radio-group v-model="opsConfig.tallyMode">

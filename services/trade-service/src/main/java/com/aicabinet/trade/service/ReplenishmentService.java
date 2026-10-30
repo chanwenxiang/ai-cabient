@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuStockLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,13 +206,13 @@ public class ReplenishmentService {
         }
 
         Map<String, Map<String, Integer>> sellableByDevice = new java.util.HashMap<>();
-        Map<String, Boolean> ledgerByDevice = new java.util.HashMap<>();
+        Map<String, java.util.Set<String>> lotSkusByDevice = new java.util.HashMap<>();
         List<DeviceInventoryDto> dtos = rows.stream()
-                .map(inv -> toInventoryDto(inv, sellableByDevice, ledgerByDevice))
+                .map(inv -> toInventoryDto(inv, sellableByDevice, lotSkusByDevice))
                 .toList();
         if (lowStockOnly) {
             return dtos.stream()
-                    .filter(d -> d.quantity() <= d.lowThreshold())
+                    .filter(d -> SkuStockLevel.of(d.quantity(), d.lowThreshold()).warning())
                     .toList();
         }
         return dtos;
@@ -1791,16 +1792,17 @@ public class ReplenishmentService {
 
     private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv,
                                               Map<String, Map<String, Integer>> sellableByDevice,
-                                              Map<String, Boolean> ledgerByDevice) {
+                                              Map<String, java.util.Set<String>> lotSkusByDevice) {
         String deviceId = inv.getId().getDeviceId();
         String skuId = inv.getId().getSkuId();
-        boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
-        int qty = inv.getQuantity();
-        if (ledger) {
-            Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(
-                    deviceId, inventoryLotService::sellableQtyBySku);
-            qty = bySku.getOrDefault(skuId, 0);
-        }
+        // 与 DeviceSlotService.toInventoryDto / MerchantInventoryPortalService 同一条口径：
+        // 只有「柜 + SKU」有批次行才走账本可售，否则回退台账 quantity。
+        java.util.Set<String> lotSkus = lotSkusByDevice.computeIfAbsent(
+                deviceId, inventoryLotService::lotLedgerSkuIds);
+        Map<String, Integer> bySku = lotSkus.contains(skuId)
+                ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
+                : null;
+        int qty = SkuStockLevel.sellableQty(inv, lotSkus, bySku);
         return new DeviceInventoryDto(
                 deviceId, skuId,
                 qty, inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt(),

@@ -24,25 +24,15 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
     }
 
     /**
-     * 开门柜「台账口径」低库存行：{@code quantity <= low_threshold}。
+     * 开门柜「台账口径」低库存行，返回的 {@code quantity} 是**可售量**。
      *
-     * <p>🔴 刻意**不走** {@code effectiveSellableQty}（批次账本口径）：开门柜（判据=将邑绑定）由
-     * 端侧按 SKU 上报数量，没有货道/批次概念。批次口径用「该柜是否存在任意 lot 行」整体切换，
-     * 只要残留一条 lot 就会把「从未进过账本的 SKU」读成 0 可售 ⇒ 整柜误判缺货
-     * （2026-10-28 实测 EG943322621391：台账 2/1/1/4/4/4，批次口径算成 0/1/1/0/0/0）。
-     * 本方法与备货建议 {@code WarehouseService.suggestFromLowStock} 同源，保证
-     * 「首页说缺的，备货建议里一定有」。
+     * <p>判据/数量源与 {@code SkuStockLevel.of(sellable, low_threshold).warning()}、
+     * 备货建议 {@code WarehouseService.suggestFromLowStock} 同一条：可售 ≤ 阈值（含 0 缺货）。
+     * 可售按「柜 + SKU」粒度判断是否走批次账本（见 XML {@code effectiveSellableQty}）——
+     * 按柜整体切会把从未进过账本的 SKU 读成 0（2026-10-28 实测 EG943322621391）。
      */
-    default List<DeviceSkuInventory> findLowStockByDeviceIds(Collection<String> deviceIds) {
-        if (deviceIds == null || deviceIds.isEmpty()) {
-            return List.of();
-        }
-        return selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
-                .in(DeviceSkuInventory::getDeviceId, deviceIds)
-                .apply("quantity <= low_threshold")
-                .orderByAsc(DeviceSkuInventory::getDeviceId)
-                .orderByAsc(DeviceSkuInventory::getSkuId));
-    }
+    List<DeviceSkuInventory> findLowStockByDeviceIds(
+            @org.apache.ibatis.annotations.Param("deviceIds") Collection<String> deviceIds);
 
     /** 无设备过滤时的浏览上限，避免全表加载。 */
     default List<DeviceSkuInventory> findAllLimit(int limit) {
