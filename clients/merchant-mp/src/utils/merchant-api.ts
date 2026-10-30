@@ -920,6 +920,12 @@ export const merchantApi = {
       'POST',
       location && (location.latitude != null || location.longitude != null) ? location : undefined
     ),
+  /** CB-038 任务级取消：仅无已上架明细时可取消，已领未上柜的货由后端回仓 */
+  cancelReplenishmentTask: (taskId: number) =>
+    request<import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto>(
+      MerchantEndpoints.replenishmentTaskCancelEmpty(taskId),
+      'POST'
+    ),
   listReplenishmentEvidence: (taskId: number) =>
     request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
       MerchantEndpoints.replenishmentTaskEvidence(taskId)

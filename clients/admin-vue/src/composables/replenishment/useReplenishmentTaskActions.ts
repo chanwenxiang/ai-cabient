@@ -31,14 +31,17 @@ export type UseReplenishmentTaskActionsDeps = {
 };
 
 /**
- * 补货履约写动作：补货开门 / 取消空路线。
+ * 补货履约写动作：补货开门 / 取消空路线 / 取消单张空任务。
  * （2026-10-14，b96a74d4 后端下线 admin 代签到/完成上架/任务明细执行链——补货执行统一走
  * 商户端小程序 /merchant/replenishment/tasks/*；admin 仅保留补货开门（活端点）与路线收口。）
+ * 🔴 「取消任务」属**编排收口**（把没人执行的任务关掉、领出未上柜的货回仓），不是执行面：
+ * 它不代签到、不代上架、不碰明细，故不受上面那条「admin 执行链不恢复」的约束。
  * 从 ReplenishmentView 抽出，降低上帝页 script 体积与误改柜门逻辑风险（debt-tracker D4 / lessons #117）。
  */
 export function useReplenishmentTaskActions(deps: UseReplenishmentTaskActionsDeps) {
   const openDoorLoading = ref<number | null>(null);
   const cancelRouteLoading = ref<number | null>(null);
+  const cancelTaskLoading = ref<number | null>(null);
 
   function deviceOnline(deviceId?: string) {
     if (!deviceId) return false;
@@ -111,6 +114,37 @@ export function useReplenishmentTaskActions(deps: UseReplenishmentTaskActionsDep
     }
   }
 
+  function canCancelEmptyTask(task: ReplenishmentTaskRow) {
+    if (!task?.taskId) return false;
+    // 已上架明细由后端判（409），CANCELLED 的脏出库走路线级「收口脏出库」
+    return ['PENDING', 'IN_PROGRESS'].includes(String(task.status || ''));
+  }
+
+  async function cancelEmptyTask(task: ReplenishmentTaskRow) {
+    if (!task?.taskId) return;
+    try {
+      await ElMessageBox.confirm(
+        `确认取消任务 ${task.taskId}（${deps.deviceName(task.deviceId, task.deviceName)}）？\n` +
+          '仅「还没有上架记录」的任务可取消；本次领出但没上柜的货会退回仓库，' +
+          '已领出的出库单随之结清。',
+        '取消补货任务',
+        { type: 'warning', confirmButtonText: '确认取消' }
+      );
+    } catch {
+      return;
+    }
+    cancelTaskLoading.value = task.taskId ?? null;
+    try {
+      await api.request(AdminEndpoints.replenishmentTaskCancelEmpty(task.taskId), 'POST');
+      ElMessage.success(`任务 ${task.taskId} 已取消`);
+      await deps.reloadCurrentTab();
+    } catch (error) {
+      ElMessage.error(error instanceof Error ? error.message : '取消失败');
+    } finally {
+      cancelTaskLoading.value = null;
+    }
+  }
+
   async function openRestockDoor(task: ReplenishmentTaskRow) {
     if (!task?.checkInAt) {
       ElMessage.warning('请先到店签到后再补货开门');
@@ -160,13 +194,16 @@ export function useReplenishmentTaskActions(deps: UseReplenishmentTaskActionsDep
   return {
     openDoorLoading,
     cancelRouteLoading,
+    cancelTaskLoading,
     deviceOnline,
     deviceSalesLocked,
     canOpenRestock,
     openDoorHint,
     canCancelEmptyRoute,
-    showRouteCancelColumn,
+    canCancelEmptyTask,
     cancelEmptyRoute,
+    cancelEmptyTask,
+    showRouteCancelColumn,
     openRestockDoor
   };
 }

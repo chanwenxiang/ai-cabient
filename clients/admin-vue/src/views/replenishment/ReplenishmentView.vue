@@ -253,7 +253,7 @@
                           </el-table-column>
                           <el-table-column
                             label="操作"
-                            :width="canEdit ? 210 : 70"
+                            :width="canEdit ? 260 : 70"
                             align="center"
                             class-name="col-action"
                             fixed="right"
@@ -280,6 +280,15 @@
                                 v-else-if="canEdit && openDoorHint(scope.row) !== '无'"
                                 class="muted"
                                 >{{ openDoorHint(scope.row) }}</span
+                              >
+                              <el-button
+                                v-if="canEdit && canCancelEmptyTask(scope.row)"
+                                link
+                                type="danger"
+                                :loading="cancelTaskLoading === scope.row.taskId"
+                                data-testid="cancel-empty-task"
+                                @click.stop="cancelEmptyTask(scope.row)"
+                                >取消</el-button
                               >
                             </template>
                           </el-table-column>
@@ -1352,13 +1361,16 @@ function goWarehouseOutbound(outboundId: string | number) {
 const {
   openDoorLoading,
   cancelRouteLoading,
+  cancelTaskLoading,
   deviceOnline,
   deviceSalesLocked,
   canOpenRestock,
   openDoorHint,
   canCancelEmptyRoute,
+  canCancelEmptyTask,
   showRouteCancelColumn,
   cancelEmptyRoute,
+  cancelEmptyTask,
   openRestockDoor
 } = useReplenishmentTaskActions({
   devices,

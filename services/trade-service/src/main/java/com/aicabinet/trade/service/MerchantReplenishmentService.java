@@ -261,6 +261,20 @@ public class MerchantReplenishmentService {
     }
 
     /**
+     * 商户/补货员取消任务：判据完全复用运营侧
+     * {@link ReplenishmentService#cancelEmptyTask}（无已上架明细才可取消，已领未上柜的货回仓）。
+     * 作用域与 {@code completeTask} 同款（FIELD 包设备范围），不额外加「必须本人负责」的门。
+     */
+    @Transactional
+    public ReplenishmentTaskDto cancelEmptyTask(Long userId, Long taskId) {
+        ReplenishmentTask task = requireScopedTask(userId, taskId);
+        ReplenishmentTaskDto result = replenishmentService.cancelEmptyTask(userId, taskId);
+        auditService.appendLog(userId, "MERCHANT_REPLENISHMENT_CANCEL", REPLENISHMENT_TASK,
+                String.valueOf(taskId), DEVICEID + task.getDeviceId());
+        return result;
+    }
+
+    /**
      * 商户现场完成：补货开门 / 现场凭证是否必填由系统参数控制（默认均 true）。
      * 运营后台 complete 不走本入口。
      */

@@ -363,6 +363,9 @@ export const AdminEndpoints = {
       : `${ops}/replenishment/shortage?${query.toString()}`,
   replenishmentRouteCancelEmpty: (routeId: string | number) =>
     `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
+  /** CB-038 任务级：只取消单张任务，不像路线级那样连带同路线其它任务 */
+  replenishmentTaskCancelEmpty: (taskId: string | number) =>
+    `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/cancel-empty`,
   /** C3 商品模板（铺货模板）：设备货道陈列存为模板 / 套用（V368） */
   slotTemplates: () => `${ops}/slot-templates`,
   slotTemplateSaveFromDevice: () => `${ops}/slot-templates`,

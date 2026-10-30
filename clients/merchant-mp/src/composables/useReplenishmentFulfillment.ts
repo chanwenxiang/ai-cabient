@@ -552,12 +552,48 @@ export function useReplenishmentFulfillment(opts: {
     }
   }
 
+  /**
+   * 取消本任务（CB-038 任务级）。判官在服务端：有已上架明细必 409，
+   * 这里不复制 `applied` 判据，避免客户端拿着旧明细把人误导成「不能取消」。
+   */
+  async function cancelTask() {
+    const taskId = requireSelectedTaskId();
+    if (taskId == null || opts.submitting.value) return;
+    if (!opts.canRequest.value) {
+      showError('无补货操作权限');
+      return;
+    }
+    const ok = await opts.askConfirm({
+      title: '取消补货任务',
+      content:
+        '仅「还没有上架记录」的任务能取消：本次领出但没上柜的货会退回仓库，任务随即从备货清单消失。已上架的请继续点完成。',
+      confirmText: '确认取消',
+      cancelText: '返回'
+    });
+    if (!ok) return;
+    opts.submitting.value = true;
+    try {
+      opts.selected.value = (await merchantApi.cancelReplenishmentTask(taskId)) as Task;
+      opts.clearDoorState(taskId);
+      showSuccess('任务已取消');
+      await opts.reloadList();
+      const fresh = opts.allTasks.value.find((t) => t.taskId === taskId);
+      if (fresh) opts.selected.value = { ...fresh };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '取消失败';
+      showLongError(msg, '取消失败', 3600);
+    } finally {
+      opts.submitting.value = false;
+    }
+  }
+
   return {
     checkIn,
     openDoor,
     canAdjustLineQty,
     adjustQty,
     confirmLines,
-    completeTask
+    completeTask,
+    cancelTask
   };
 }

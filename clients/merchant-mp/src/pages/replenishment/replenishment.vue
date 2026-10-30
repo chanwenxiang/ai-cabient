@@ -314,6 +314,16 @@
             :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
             @click="openDoor"
           />
+          <app-button
+            v-if="
+              canRequest && selected?.status !== 'COMPLETED' && selected?.status !== 'CANCELLED'
+            "
+            data-testid="replenish-cancel"
+            variant="outline"
+            :disabled="submitting"
+            label="取消任务"
+            @click="cancelTask"
+          />
           <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
             只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
@@ -642,38 +652,39 @@ const statusTabItems = computed(() =>
   statusOptions.value.map((s) => ({ key: s.value, label: s.label }))
 );
 
-const { checkIn, openDoor, adjustQty, confirmLines, completeTask } = useReplenishmentFulfillment({
-  selected,
-  lines,
-  linesConfirmed,
-  evidenceItems,
-  submitting,
-  doorOpened,
-  openSessionId,
-  skipLocationCheck,
-  lineSummaryMap,
-  allTasks,
-  canRequest,
-  canSkipLocation,
-  requireReplenishmentEvidence,
-  requireReplenishmentDoor,
-  requireReplenishmentCheckInLocation,
-  checkInMaxDistanceM,
-  detailIsPullOff,
-  askConfirm,
-  getSkipCheckInLocation,
-  persistDoorState,
-  clearDoorState,
-  syncTaskInList,
-  reloadList: load,
-  addEvidence,
-  isPullOffType,
-  isDoorCabinet: () => doorCabinet.value,
-  inventoryCaps,
-  headroomBySku,
-  formatLineSummary,
-  slotHeadroom
-});
+const { checkIn, openDoor, adjustQty, confirmLines, completeTask, cancelTask } =
+  useReplenishmentFulfillment({
+    selected,
+    lines,
+    linesConfirmed,
+    evidenceItems,
+    submitting,
+    doorOpened,
+    openSessionId,
+    skipLocationCheck,
+    lineSummaryMap,
+    allTasks,
+    canRequest,
+    canSkipLocation,
+    requireReplenishmentEvidence,
+    requireReplenishmentDoor,
+    requireReplenishmentCheckInLocation,
+    checkInMaxDistanceM,
+    detailIsPullOff,
+    askConfirm,
+    getSkipCheckInLocation,
+    persistDoorState,
+    clearDoorState,
+    syncTaskInList,
+    reloadList: load,
+    addEvidence,
+    isPullOffType,
+    isDoorCabinet: () => doorCabinet.value,
+    inventoryCaps,
+    headroomBySku,
+    formatLineSummary,
+    slotHeadroom
+  });
 
 /**
  * 存量任务行超过可补量时按上限收敛（2026-10-28 用户实测，D28-A5 改用后端下发口径）：

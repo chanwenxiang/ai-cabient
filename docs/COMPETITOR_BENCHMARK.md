@@ -1371,6 +1371,7 @@
   1. **采纳「恢复 6 个运营编排端点」**（原路径/权限挂回 `OpsReplenishmentController`）：`POST /replenishment/plan`、`POST /replenishment/suggest/create-task`、`POST /replenishment/routes/{id}/cancel-empty`、`GET /expiry/alerts`、`POST /expiry/alerts/ensure`、`POST /expiry/alerts/{taskId}/create-replenishment`。竞品证明「系统生成补货计划/建议任务/效期处置」是头部标配且是效率来源，我方服务层已实现，误删即倒退。
   2. **采纳「admin 任务执行链 5 端点不恢复 + 死 UI 删除」**：代签到/完成上架/任务明细编辑/证据上传属于**执行面**，已由商户端小程序承接（补货员 APP 收任务→签到→开门→上传→完成，丰e 模式同构）；admin 保留补货开门（应急，活端点 `/ops/restock/open-door`）与路线收口。执行链 UI（打卡/完成/明细抽屉/证据/「仅待分配」筛选）与 5 个端点 builder 已删，钉死于 check-admin-endpoint-paths（EXEMPT 清零）。
   3. **有意不同**：效期告警存在**两份数据**——设备侧 PullOffTask（/expiry/alerts，恢复）与分仓维度（/warehouse/expiry-alerts，未删过），前端 endpoints 注释已声明二者不可混用。
+  4. **2026-10-30 补充（任务级取消两端接线，仍属编排收口）**：`ReplenishmentService.cancelEmptyTask` 服务层当时已实现但无 Controller 接线（「写了没接线」），历史测试任务只能 SQL 置 CANCELLED。本轮补挂 `POST /api/v2/ops/admin/replenishment/tasks/{taskId}/cancel-empty`（ops:replenishment:edit，只吃单张任务——路线级会连带同路线其它任务）与 `POST /api/v2/merchant/replenishment/tasks/{taskId}/cancel-empty`（merchant:replenishment:request，`requireScopedTask` 作用域与 completeTask 同款）。判官在服务端：无已上架明细才可取消、已领未上柜的货回仓、出库随之结清；COMPLETED 409、CANCELLED 幂等收口（javadoc 明写刻意设计）。admin 侧 UI 有意不进「执行链」约束（不代签到/不代上架/不碰明细），商户端小程序补「取消任务」按钮（已完成/已取消态不显示）。
 
 ### CB-039 【新】在线客服触点：小程序原生客服会话（还 CB-019 的 backlog「补在线客服触点」）
 
@@ -2596,3 +2597,19 @@
   ③ **不采纳**「柜级 Σqty ≤ Σcap × stockout_threshold_pct 即视为缺货/触发补货」：柜级只保留**填充率**（Σmin(qty,cap)/Σcap）作为显示指标，不参与派单。反例——4 款各上限 4、售罄 1 款时 Σ=12，pct=50 时判据要求 Σ≤8 ⇒ 占比判据说「不用补」，而实际有整款空缺必须补；反过来全柜只剩 2 件分散在 4 款时 Σ=2 触发，但每款都还有货、未必该按「缺货」处理。
   ④ **采纳单一判定出处**：admin 卡片 / 设备概览 KPI / 库存健康 / 商户首页低库存 / 备货建议，共用服务端同一处判定，数量源统一为 **SKU 级可售量**（有批次账本时取批次合计，与 `effectiveSellableQty` 同源），前端不再各算一遍——这是「商户端与后台数据一致」的结构性保证，不是靠改文案对齐。
   ⑤ **商户级 `stockout_threshold_pct` 对开门柜零生效**（`resolveStockoutThresholdPct` 仅被货道路径调用）：不再把它当开门柜缺货阈值展示，文案按柜型收敛，避免留一个不接线的旋钮。
+
+---
+
+### CB-077 【新】设备侧故障单（固件自动上报）入库并在后台/商户端设备详情下钻展示——告警来源是设备自报，不是消费者报修
+
+> 触发：2026-10-30 真机 EG943322621391（CQYB10720）四次开门均上报 `FaultOrderRequest[errorCode=null, errorMsg=摄像头打开失败]`，跨重启稳定复现；当前网关 `uploadFaultOrder` 仅打日志（一期仅审计），后台与商户端对设备侧故障零可见。用户拍板：设备诊断接入后台与商户 Web 后台（商户端=Web 后台，非小程序；形态=纯列表，先不接待办/大屏）。
+
+- **竞品做法**（引用 CB-031 已登记证据，2026-10-10 取证，本轮回读台账原文未另开新源）：
+  - **友宝 UBOX**：设备告警「点进去就能看到具体故障原因」——告警条目即下钻入口，故障原因具体到条目级。
+  - **映翰通 AI 售货机云平台**：「持续监测设备状态，实时接收故障告警，帮助团队更快响应」——设备监控与告警闭环。
+  - **Nayax Management Suite**：dashboard 总览销售、机器数据**与告警**，可下钻机器级。
+- **对照主体**（3 家，均 CB-031 已登记）：友宝 UBOX ｜ 映翰通 ｜ Nayax
+- **证据**：同 CB-031 证据链接（<http://www.hnfcjr.com/soft/65211.html> ｜ <https://www.inhand.com.cn/products/ai-vending-cloud/> ｜ <https://www.nayax.com/nl/management-suite/>）。
+- **取证日期**：2026-10-10
+- **我们的结论**：**采纳**：①固件故障单（将邑 `POST /jiangyi/api/order/uploadFaultOrder`）从仅审计升级为入库——新表 `device_fault_order`（device_id/identifier/order_no/error_code/error_msg/source/reported_at），与消费者手动报修表 `device_fault_report` **分表不混用**（语义不同：自报遥测 vs 人工工单，后者有 user_id/issue_type/描述字段）。②后台运维设备详情与商户 Web 后台设备详情各加「故障记录」列表卡（时间/errorMsg/errorCode），按 CB-031「点进去看具体原因」下钻范式；一期纯列表，不接待办/大屏告警（后续再议）。③故障单不参与结算/资金路径，不建差异台账（与铁律 80 同源的克制原则：单据事实单表记，不衍生库存/资金语义）。
+- **有意不同**：友宝/映翰通的故障告警含推送/阈值配置；我们一期只做入库+列表，推送与阈值留观察项（与 `isAutoUploadVideo=false` 同一克制基调）。

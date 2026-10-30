@@ -1118,6 +1118,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/restock-door-opened": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restockDoorOpened"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/restock-door-closed": {
         parameters: {
             query?: never;
@@ -1352,6 +1368,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["doorState"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/jiangyi/device-fault-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deviceFaultOrder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2473,6 +2505,22 @@ export interface paths {
         get: operations["blacklist"];
         put?: never;
         post: operations["addBlacklist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/replenishment/tasks/{taskId}/cancel-empty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelEmptyTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5232,6 +5280,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["checkInReplenishmentTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/replenishment/tasks/{taskId}/cancel-empty": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelReplenishmentTask"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9052,6 +9116,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/fault-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["faultOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/class-decode": {
         parameters: {
             query?: never;
@@ -10340,6 +10420,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["jiangyiGatherStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/fault-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceFaultOrders"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12890,6 +12986,13 @@ export interface components {
             doorState?: string;
             lockState?: string;
         };
+        DeviceFaultOrderRequest: {
+            deviceId?: string;
+            identifier?: string;
+            orderNo?: string;
+            errorCode?: string;
+            errorMsg?: string;
+        };
         ApiResponseJiangyiClassMapping: {
             /** Format: int32 */
             code?: number;
@@ -13922,32 +14025,11 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
         };
-        CreateFromSuggestionRequest: {
-            deviceId?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-        };
-        ApiResponseReplenishmentRouteDto: {
+        ApiResponseReplenishmentTaskDto: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["ReplenishmentRouteDto"];
-        };
-        ReplenishmentRouteDto: {
-            /** Format: int64 */
-            routeId?: number;
-            routeName?: string;
-            /** Format: int64 */
-            assigneeUserId?: number;
-            /** Format: date */
-            plannedDate?: string;
-            status?: string;
-            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: int32 */
-            totalDistanceM?: number;
-            waypoints?: components["schemas"]["RouteWaypointDto"][];
+            data?: components["schemas"]["ReplenishmentTaskDto"];
         };
         ReplenishmentTaskDto: {
             /** Format: int64 */
@@ -13981,6 +14063,33 @@ export interface components {
             evidenceCount?: number;
             lineSummary?: string;
             deviceHasCoords?: boolean;
+        };
+        CreateFromSuggestionRequest: {
+            deviceId?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+        };
+        ApiResponseReplenishmentRouteDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentRouteDto"];
+        };
+        ReplenishmentRouteDto: {
+            /** Format: int64 */
+            routeId?: number;
+            routeName?: string;
+            /** Format: int64 */
+            assigneeUserId?: number;
+            /** Format: date */
+            plannedDate?: string;
+            status?: string;
+            tasks?: components["schemas"]["ReplenishmentTaskDto"][];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            totalDistanceM?: number;
+            waypoints?: components["schemas"]["RouteWaypointDto"][];
         };
         RouteWaypointDto: {
             /** Format: int32 */
@@ -15478,12 +15587,6 @@ export interface components {
             latitude?: number;
             /** Format: double */
             longitude?: number;
-        };
-        ApiResponseReplenishmentTaskDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentTaskDto"];
         };
         ReplenishmentCheckInRequest: {
             /** Format: double */
@@ -18747,6 +18850,23 @@ export interface components {
             createdAt?: string;
             /** Format: date-time */
             finishedAt?: string;
+        };
+        ApiResponseListFaultListItem: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["FaultListItem"][];
+        };
+        FaultListItem: {
+            /** Format: int64 */
+            id?: number;
+            deviceId?: string;
+            identifier?: string;
+            orderNo?: string;
+            errorCode?: string;
+            errorMsg?: string;
+            /** Format: date-time */
+            reportedAt?: string;
         };
         ApiResponseDoorStateView: {
             /** Format: int32 */
@@ -23107,6 +23227,29 @@ export interface operations {
             };
         };
     };
+    restockDoorOpened: {
+        parameters: {
+            query: {
+                deviceId: string;
+                sessionId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBoolean"];
+                };
+            };
+        };
+    };
     restockDoorClosed: {
         parameters: {
             query: {
@@ -23449,6 +23592,30 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DoorStateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    deviceFaultOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeviceFaultOrderRequest"];
             };
         };
         responses: {
@@ -25364,6 +25531,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    cancelEmptyTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
                 };
             };
         };
@@ -30406,6 +30595,28 @@ export interface operations {
                 "application/json": components["schemas"]["ReplenishmentCheckInRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentTaskDto"];
+                };
+            };
+        };
+    };
+    cancelReplenishmentTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -36076,6 +36287,30 @@ export interface operations {
             };
         };
     };
+    faultOrders: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListFaultListItem"];
+                };
+            };
+        };
+    };
     classDecode: {
         parameters: {
             query: {
@@ -37877,6 +38112,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantGatherStatusDto"];
+                };
+            };
+        };
+    };
+    deviceFaultOrders: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListFaultListItem"];
                 };
             };
         };

@@ -139,6 +139,40 @@ class MerchantReplenishmentCompleteGatesTest {
     }
 
     @Test
+    void cancelEmptyTask_delegatesAndAudits() {
+        scopedTask();
+        ReplenishmentTaskDto dto = org.mockito.Mockito.mock(ReplenishmentTaskDto.class);
+        when(replenishmentService.cancelEmptyTask(100L, 9L)).thenReturn(dto);
+
+        service.cancelEmptyTask(100L, 9L);
+
+        verify(replenishmentService).cancelEmptyTask(100L, 9L);
+        verify(auditService).appendLog(
+                100L, "MERCHANT_REPLENISHMENT_CANCEL", "REPLENISHMENT_TASK", "9", "deviceId=CAB-001");
+    }
+
+    /** 作用域门与 completeTask 同款：柜机不在本人 FIELD 包内即拒，且绝不落到执行侧。 */
+    @Test
+    void cancelEmptyTask_rejectsDeviceOutsideFieldScope() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(9L);
+        task.setDeviceId("CAB-OTHER");
+        task.setStatus("PENDING");
+        when(taskRepository.findById(9L)).thenReturn(Optional.of(task));
+        doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED))
+                .when(merchantFeaturePackService)
+                .requireDevicePack(eq(100L), eq("CAB-OTHER"), eq(MerchantFeaturePacks.FIELD));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.cancelEmptyTask(100L, 9L));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(replenishmentService, never()).cancelEmptyTask(anyLong(), anyLong());
+        verify(auditService, never()).appendLog(
+                anyLong(), eq("MERCHANT_REPLENISHMENT_CANCEL"), eq("REPLENISHMENT_TASK"), eq("9"),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void assertDeviceInFieldScope_mapsForbidden() {
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-X");

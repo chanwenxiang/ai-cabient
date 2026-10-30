@@ -191,6 +191,15 @@ public class OpsReplenishmentController {
         return ApiResponse.ok(replenishmentAdminService.cancelEmptyRoute(operatorId(request), routeId));
     }
 
+    /** CB-038 任务级补挂：只取消单张任务，路线级 cancel-empty 会连带吃掉同路线的其它任务。 */
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/tasks/{taskId}/cancel-empty")
+    public ApiResponse<ReplenishmentTaskDto> cancelEmptyTask(
+            HttpServletRequest request,
+            @PathVariable Long taskId) {
+        return ApiResponse.ok(replenishmentAdminService.cancelEmptyTask(operatorId(request), taskId));
+    }
+
     /** 设备侧效期告警（PullOffTask 拉下架任务）；与分仓维度的 /warehouse/expiry-alerts 不是同一份数据。 */
     @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/expiry/alerts")

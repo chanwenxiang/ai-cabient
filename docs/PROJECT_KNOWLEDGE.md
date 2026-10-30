@@ -669,6 +669,23 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（CB-077 设备故障单入库+双端展示；缺陷①盘点会话类型漏分支②会话设备名快照缺补货/盘点落库；消费者开门「摄像头打开失败」设备侧定性）
+
+- **CB-077**：gateway `uploadFaultOrder` → trade `device_fault_order`（**V416**，与消费者报修 `device_fault_report` 分表）→ 运维设备概览「故障记录」卡 + 商户 mp 设备详情卡（有故障才显示）。真机实证：当日 15:56 故障单已实时落库。推送/阈值告警留观察（台账 CB-077 拍板：纯列表）。
+- **缺陷①**：`DeviceValidationService.sessionKind()` 漏 STOCKTAKE 分支（结算侧 `isNonConsumerSession` 早含、展示侧漏 → 盘点开门显示成「消费」）；字典 `session_kind` 补 `STOCKTAKE=盘点`（SysDictBootstrap + shared-dict 同源）。
+- **缺陷②**：会话设备名快照只挂消费者开门——补货（OpsService）/盘点（MerchantDevicePortalService）落库不回填 → 列表回退显示编号；**V417** 存量仅补空回填（幂等）。
+- **消费者开门「摄像头打开失败」定性（当日 6 次/跨重启）**：指令链全绿（下发→ACK→watchdog 撤销）；设备自报当前模型 txt 仍为 **09-30 旧文件**、我方 `jiangyi_model_deployment` 0 行 ⇒ **排除模型缺失**；固件有独立「模型加载失败」文案未用 ⇒ 主嫌疑=识别摄像头 UVC（cam=0 有 10-22 断开前科、10-26 采集双摄长跑）。已转售后；现场处置=冷断电+重插 USB。购买识别最后一次成功仍为 10-22 17:02，中间无购买流测试点。
+- **新缺口登记（→ 台账 G-18）**：`replenishmentHistoryVideo/create` 404——补货录像 STS 直传成功后回传 `{historyNo=补货会话id, videoUrls[左右]}` 被我方 404，视频地址永不落库。
+
+### 2026-10-30（CB-038 任务级补货任务取消两端接线：服务层「写了没接线」补齐 Controller + 双端 UI + 真凭证 e2e）
+
+- **背景**：补货任务无任务级取消接口（运营端只有路线级 cancel-empty，只吃空路线且批量；商户端零取消入口），历史测试任务只能 SQL 置 CANCELLED。`ReplenishmentService.cancelEmptyTask`（AU-111 任务锁版）早已实现但无 Controller 接线。用户拍板：**两端都接、仅空任务可取消**（复用既有服务判据）。
+- **后端**：`POST /api/v2/ops/admin/replenishment/tasks/{taskId}/cancel-empty`（`OpsReplenishmentController`，ops:replenishment:edit——只吃单张任务，路线级会连带同路线其它任务）+ `POST /api/v2/merchant/replenishment/tasks/{taskId}/cancel-empty`（`MerchantPortalController` → `MerchantReplenishmentService.cancelEmptyTask`：`requireScopedTask` 作用域与 completeTask 同款 + `MERCHANT_REPLENISHMENT_CANCEL` 审计）。判官在服务端：无已上架明细才可取消、已领未上柜回仓、出库结清；COMPLETED 409；CANCELLED 幂等收口（javadoc 明写刻意设计，非缺陷）。
+- **前端**：admin `ReplenishmentView` 任务行加「取消」按钮（PENDING/IN_PROGRESS 才显示，确认弹窗说明回仓语义，`data-testid="cancel-empty-task"`）；composable 注释明确「取消=编排收口」不受 CB-038 结论 2「admin 执行链不恢复」约束（不代签到/不代上架/不碰明细）。mp `replenishment.vue` 加「取消任务」按钮（COMPLETED/CANCELLED 不显示），`useReplenishmentFulfillment.cancelTask` 刻意不复制 applied 判据（客户端旧明细会误导），409 文案走 showLongError。
+- **契约**：`gen:api-types` 重跑（干净 worktree + 只拷 3 个后端文件起 jar 现抓 spec，净差=两条新路径）；`openapi.ts` 工作区现态另含 peer CB-077 fault-orders 路径（混栈容器 regen 所致，peer Java 落库后自然对齐，提交信息留痕）。
+- **验证**：后端定向 `MerchantReplenishmentCompleteGatesTest` 10/0 + `ReplenishmentServiceEmptyTaskTest` 6/0；admin vitest 116/116、mp vitest 235/235（含新 `useReplenishmentFulfillment.cancel.test.ts` 4 条）、双端 vue-tsc 0 错。**e2e（真凭证）**：超管取消任务 9 ✅ CANCELLED、商户（100000002/MCH-DEFAULT）取消任务 11 ✅ CANCELLED + 审计行 log_id=284、重复取消幂等返回 ✅（与 javadoc 一致）。两笔历史测试任务（10-28 遗留）就此免 SQL 清掉。
+- 并发隔离：`MerchantPortalController`/两端 `endpoints.ts`/`merchant-api.ts` 均混 peer CB-077 hunk ⇒ 提交按 `@@` 拆 patch（lessons #364 流程）。
+
 ### 2026-10-30（G2-11 ⑪ 落地：商户范围对话框改服务端搜索口径——目录钳 100 不再静默少列）
 
 - **缺陷**：admin 运营账号「商户范围」对话框走 `adminCatalogQuery` 伪全量（要 size=500），服务端 `MerchantService.listMerchantsPage` 钳到 100，UI 只读 `data.items` 不读 total ⇒ 商户超 100 家后勾选列表**静默少列**，运营既勾不到也不知道少了谁（当前库 16 家未咬到，条件性缺陷；2026-10-29 简报 B 档）。
@@ -676,6 +693,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - 📌 **刻意不动**：`AdminEndpoints.merchantsCatalog`（size=500）另有 `DeviceListView`/`useDeviceLifecycleActions` 两处消费，语义不动；请求降 100 只发生在运营台对话框。无关键字时不再拉 500——目录超 100 家时首屏本就只能看到前 100，靠 total 提示 + 搜索补全，与 `admin-catalog-query.ts` 头注释「业务量超上限改远程搜索」同口径。
 - 🧪 验证：prettier/eslint 0 error、`vue-tsc --noEmit` 全量 0 错、`admin-catalog-query.test.ts` 3/3（工具零改动）；仓内 14 个前端测试全为 utils/composables/directives 级、无视图级测试先例，按惯例不加组件测试。后端零改动 ⇒ 无 regen shared-types。
 - 并发隔离：`endpoints.ts` 混 peer 3 处 hunk ⇒ `git apply --cached` 只暂存本条 6 行（`.tmp/ep-mine.patch`）。
+
+### 2026-10-30（补货开门回执的会话判定从网关 tracker 挪到 trade：15s watchdog 会先清登记，慢回执即丢——`36f7662d` A 档的残余口子）
+
+- **缺陷（代码级，非真机新证）**：A 档让网关在 WS door ack 后读 `CommandTracker.isStock` 判「这条 ack 是不是补货门」。但 OPEN 登记本身就是 **15s 超时项**——`SessionWatchdog` 一到点就 `evict(kind, sessionId)`，`evict` 连元数据 hash 一起删；此后到达的 `sendOpenStockDoorSure` 读不到标记 ⇒ 不转发 ⇒ trade 照旧 90s `CANCELLED` + OPEN_TIMEOUT + 「再次开门」409。真机实测回执 140ms，可 WS 抖动/重连后的首帧不在这 15 秒保证内，等于把「会话能不能推进」挂在一条兜底队列的存活期上。
+- **改法＝把权威判定交给持有状态的那一方**：网关不再判会话类型，`DeviceWebSocketHandler.forwardDoorAck` 对 `sendOpenStockDoorSure`/`openDoorSure` 一律按 sessionId 转发；trade 新内部端点 `POST /internal/v1/jiangyi/restock-door-opened?deviceId=&sessionId=` → `SessionDoorService.applyRestockDoorOpened`：`findById` 后三道闸（会话存在 / `deviceId` 一致 / `isRestockSession`）任一不过即 false no-op，过了才走与模拟器**完全同一条** `handleDoorEvent(OPEN)`（`onDoorOpened` 只对 OPENING 生效 ⇒ 重复回执天然幂等）。消费/盘点/运维会话的门事件仍只走各自 HTTP 面，半径不动。
+- **顺带删掉的死件**：`CommandTracker` 的 `stock` hash 字段、5 参 `register` 重载、`isStock()`——判定挪走后它们没有任何读者，留着就是「改一处忘一处」的陷阱；`OpenDoorController` 回 4 参登记，`request.stock()` 此后只决定下发哪个 WS 帧。
+- 🔴 **刻意不修的那半**：关门上报晚于 90s 扫描时 `applyRestockDoorClosed` 仍只匹配 OPENING/SHOPPING ⇒ no-op。不自动复活 CANCELLED 会话（状态机、审计、资损面都要开新口子），手动「确认核对」仍是逃生口。
+- 🧪 实跑：trade 全量 **2566 条 0 失败**（新 `RestockDoorOpenReportTest` 6/0：OPENING→SHOPPING 不快照不结算 / 重复回执幂等 / 消费会话不进锁 / 设备不符 / 无此会话 / 空参不查询；`RestockDoorCloseReportTest` 4/0 未动），jiangyi-gateway 全量 **149 条 0 失败**（`DeviceWebSocketHandlerTest` 20/0：补货 ack 转发 / 消费 ack 也转发由 trade 判 / 转发异常吞掉）。
+- 🧪 **契约现抓的干净树做法**（本轮关键，别学「直接抓脏树」）：新增内部端点属 API 形状改动 ⇒ 必须 regen `openapi.ts`。用正在跑的脏树起 jar 抓 spec，生成物净差 **144+/29−**——里面混着 peer 未提交的 `/api/v2/ops|merchant/replenishment/tasks/{taskId}/cancel-empty` 两条路径，烤进我这笔就是「把别人的契约写进我的提交」。⇒ `git worktree add --detach` 到 HEAD、只拷我的 6 个 Java 文件、`mvn -o -B -pl services/trade-service -am package -DskipTests`、对**一次性临时容器**（`postgres:16-alpine` 15435 + `redis:7-alpine` 6380，CI 同款 env，不碰共享 dev 栈）起 jar 现抓 ⇒ regen 净差 **39 行、只有本端点**；用完 `docker stop` + `git worktree remove --force`。
+- ⚠️ 同轮两条工具坑：①`mvn package` **不带 `-am`** 会把 `.m2` 里陈旧的 common-core 烤进 fat jar ⇒ 启动后 `/v3/api-docs` 抛 `TypeNotPresentException: ReplenishmentHeadroomDto`（该类 10-29 才加），又一次「编译类结论一律 `-am`」的同族假象；②Windows 上 `spring-boot:repackage` 失败会留下**损坏 jar**（`invalid LOC header`），后续同目录构建连吃两红，判据是先 `rm -f target/*.jar*` 再 package。
 
 ### 2026-10-30（D28 待拍板第 3 项查证为 no-op，顺带修掉查出来的真缺陷：开门柜在效期 tab 被「货道已满」假锁死）
 
@@ -980,7 +1007,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ### 2026-10-27（将邑真机补货会话修通：开门回执/关门上报接进 trade 生命周期 + 零货道补货豁免——EG943322621391 两轮同型复现实锤）
 
 - 🔴 **真机补货链路只有两条回执，此前一条都没接进会话生命周期**：WS `sendOpenStockDoorSure`（msgContent=补货会话 id，实测 140ms 即回）在网关只撤销 15s CommandTracker 登记；HTTP `uploadAddGoodsCloseStatus`（`{deviceNum, addGoodsId:"", lockStatus:"success"}`，**无会话号**）在 DeviceCompatController 只记日志。⇒ trade 侧会话恒卡 OPENING，90s 超时扫描必转 CANCELLED + OPEN_TIMEOUT 异常，小程序「已开门，关门后继续核对上架」等一个永不到来的事件，「再次开门」还吃 409（幽灵会话占柜）。2026-10-27 15:07/15:56 两轮真机试跑 100% 同型复现；模拟器链路（MQTT door-event）一直是通的，所以收尾 E「开门指令能下去」的验收测不出这个洞。
-- **落地形态（半径最小）**：①`CommandTracker.register` 加 `stock` 标记（OpenDoorController 按请求的 `stock=true` 写入 hash，4 参旧重载保留委托 false）→ WS door ack 在 `complete` 成功后读 `isStock`，仅补货会话转发 `DoorEventRequest(OPEN)`；消费开门回执（openDoorSure）行为不变（其门事件本就走 HTTP uploadDoorState 面）。②`uploadAddGoodsCloseStatus` lockStatus=success → 网关新 `TradeInternalClient.restockDoorClosed` → trade 新内部端点 `POST /internal/v1/jiangyi/restock-door-closed?deviceId=` → `SessionDoorService.applyRestockDoorClosed`：按设备找最新活跃补货会话（`replenishment_task_id` 非空或历史 `RESTOCK:` 幂等键，state∈{OPENING,SHOPPING}），走与模拟器**完全同一条** `handleDoorEvent(CLOSED)`——OPENING 孤儿关门→SHOPPING，SHOPPING→closeTime+快照+COMPLETED。trade 侧门生命周期**零改动**。转发失败一律 warn 不重试（90s 超时兜底仍在）。
+- **落地形态（半径最小）**：①`CommandTracker.register` 加 `stock` 标记（OpenDoorController 按请求的 `stock=true` 写入 hash，4 参旧重载保留委托 false）→ WS door ack 在 `complete` 成功后读 `isStock`，仅补货会话转发 `DoorEventRequest(OPEN)`；消费开门回执（openDoorSure）行为不变（其门事件本就走 HTTP uploadDoorState 面）。🔴 **2026-10-30 已废弃**：OPEN 登记是 15s 超时项，watchdog 先 `evict` 就连 hash 一起删，慢回执读不到 `stock` ⇒ 判定改到 trade 侧，见 2026-10-30 条目；`stock` 字段/5 参重载/`isStock` 一并删除。②`uploadAddGoodsCloseStatus` lockStatus=success → 网关新 `TradeInternalClient.restockDoorClosed` → trade 新内部端点 `POST /internal/v1/jiangyi/restock-door-closed?deviceId=` → `SessionDoorService.applyRestockDoorClosed`：按设备找最新活跃补货会话（`replenishment_task_id` 非空或历史 `RESTOCK:` 幂等键，state∈{OPENING,SHOPPING}），走与模拟器**完全同一条** `handleDoorEvent(CLOSED)`——OPENING 孤儿关门→SHOPPING，SHOPPING→closeTime+快照+COMPLETED。trade 侧门生命周期**零改动**。转发失败一律 warn 不重试（90s 超时兜底仍在）。
 - **开门柜零货道豁免**：`persistRestockLines` 开头加 `hasSkuSlots=false → 整行落 slotId=null`（与完成链 `restockOutboundLineWithoutSlots` 同口径）——否则清掉脏货道后「确认核对→提交」会 400「无可用货道容量」。「开门柜没有格子」为用户拍板口径。
 - **配套数据清理（dev EG943322621391）**：删 7 行脏 `device_slot`（A1-A4/B1=演示种子 assigned_at 全 NULL + B2/B4 手写挂接）+ 6 行演示 SKU 零库存 `device_sku_inventory`（SKU-DEMO-001/MILK/NOODLE/SNACK/SODA/WATER，quantity 全 0）。🔴 两个边界：**场景限制载体是 `sku_scene_limit`（sku×scene→max_qty），与 device_slot 完全独立**，清货道不碰限制；货道页 `listSlots` **不过滤 enabled**——「停用」清不掉页面，必须删行。**B3 留而未删**：被任务 5 的待交接出库行（`warehouse_outbound_line` FK RESTRICT）挂着，须先取消任务 5（空任务可取消）再删；B3 的 max_level=8 手写值也是「0/12」「建议 12」假容量的另一半来源。
 - 🧪 实跑：jiangyi-gateway 全量 0 失败（含新钉 DeviceWebSocketHandlerTest 20/0：stock 回执转发 OPEN / 非 stock 不转发 / trade 不可达吞掉；DeviceCompatControllerTest 11/0：success 才转发 / 失败不转发 / 无鉴权不转发 / trade 挂了仍回 data:null）；trade 全量 **2435 条 `<testcase>`，仅 6 红且经 stash 实证在 HEAD 上同样红**（`TempBindingProbeTest` 端口 bind 探针 + `JiangyiOnboardingRegisterSqlIT` 上下文加载——纯本机环境既有问题，与本次无关）；新增 RestockDoorCloseReportTest 4/0（OPENING 孤儿推进/SHOPPING 快照完成/无会话幂等 false/空设备号不查询）+ ReplenishmentSubmitLinesQuantityGateTest 7/0（零货道落 null 行/有货道照旧分配）。

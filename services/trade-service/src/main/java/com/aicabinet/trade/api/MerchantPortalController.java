@@ -734,6 +734,15 @@ public class MerchantPortalController {
                 .completeTask(userId(request), taskId, location));
     }
 
+    /** 取消任务（CB-038 任务级）：仅无已上架明细时可取消，已领未上柜的货自动回仓。 */
+    @RequiresPermissions("merchant:replenishment:request")
+    @PostMapping("/replenishment/tasks/{taskId}/cancel-empty")
+    public ApiResponse<ReplenishmentTaskDto> cancelReplenishmentTask(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(support.merchantReplenishmentService()
+                .cancelEmptyTask(userId(request), taskId));
+    }
+
     @RequiresPermissions("merchant:replenishment:request")
     @PostMapping(value = "/replenishment/tasks/{taskId}/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<FileAttachmentDto> uploadReplenishmentEvidence(

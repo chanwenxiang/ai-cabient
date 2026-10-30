@@ -114,6 +114,12 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/open-door`,
   replenishmentTaskComplete: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/complete`,
+  /**
+   * CB-038 任务级取消：只吃「无已上架明细」的任务，已领未上柜的货由后端回仓收口。
+   * 已有上架明细时后端回 409（`任务已有上架记录，不能按空任务取消`），判官在服务端。
+   */
+  replenishmentTaskCancelEmpty: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/cancel-empty`,
   /** 补货证据上传/下载（非 JSON，仍走 Endpoints 防裸拼） */
   replenishmentTaskEvidence: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,
