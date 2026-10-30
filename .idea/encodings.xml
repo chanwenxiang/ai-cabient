@@ -7,6 +7,8 @@
     <file url="file://$PROJECT_DIR$/services/common/common-core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/services/device-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/services/device-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/jiangyi-gateway/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/services/jiangyi-gateway/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/services/trade-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/services/trade-service/src/main/java/com/aicabinet/trade/payment/AlipaySignUtil.java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/services/trade-service/src/main/resources" charset="UTF-8" />

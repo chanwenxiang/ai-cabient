@@ -16,6 +16,7 @@
         </processorPath>
         <module name="device-simulator" />
         <module name="device-service" />
+        <module name="jiangyi-gateway" />
         <module name="trade-service" />
         <module name="common-core" />
       </profile>
@@ -27,6 +28,7 @@
       <module name="common-core" options="-parameters" />
       <module name="device-service" options="-parameters" />
       <module name="device-simulator" options="-parameters" />
+      <module name="jiangyi-gateway" options="-parameters" />
       <module name="trade-service" options="-parameters" />
     </option>
   </component>
