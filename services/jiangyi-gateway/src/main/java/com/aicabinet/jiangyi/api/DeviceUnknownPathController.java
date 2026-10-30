@@ -27,8 +27,8 @@ import java.util.Map;
  * 清单决定补哪条。</p>
  *
  * <p>刻意保持失败的几类（理由见 docs/JIANGYI_GATEWAY_DESIGN.md §5）：OTA（{@code deviceApp/*}）、
- * 特征包（{@code feature/*}）、将邑自有桶（{@code token/getAliyunAkToken}）、补货历史
- * （{@code replenishmentHistory*}），以及一切资金前缀（{@code order/**}、{@code orderProduct/**}、
+ * 特征包（{@code feature/*}）、将邑自有桶（{@code token/getAliyunAkToken}）、
+ * {@code replenishmentHistoryBatch/uploadOpenMsg}（补货开门消息，非视频上报），以及一切资金前缀（{@code order/**}、{@code orderProduct/**}、
  * {@code device/pokerOrder/**}）：资金类上报宁可让设备侧看到失败并重试/告警，也不能被我方吞成成功。
  * （2026-10-20 起 {@code domainConfig/*} 已从本清单移出，改由 {@link DomainConfigController} 自钉。）</p>
  */

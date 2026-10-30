@@ -148,4 +148,69 @@ class AliyunOssAndVideoReportControllerTest {
         assertEquals(400, resp.get("status"));
         assertTrue(resp.containsKey("msg"));
     }
+
+    // ---------- replenishmentHistoryVideo/create（G-18，2026-10-30 真机实路径）----------
+
+    @Test
+    void replenishmentHistoryVideoAcceptsRealDevicePayload() {
+        // 2026-10-30 15:59 真机报文原样：单号键是 historyNo=补货会话 id（非 orderNo/transactionId），
+        // videoUrls 为左右双摄数组——此前 404 丢 URL，兼容链必须覆盖到 historyNo
+        Map<String, Object> body = Map.of(
+                "historyNo", "1793346732967695429570",
+                "serialNum", 1,
+                "videoQuantity", 1,
+                "videoUrls", List.of(
+                        "https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/EG943322621391//1793347072473left_output.mp4",
+                        "https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/EG943322621391//1793347072473right_output.mp4"));
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(), body);
+        assertEquals(200, resp.get("status"));
+        verify(tradeInternalClient).orderVideoReport(eq(DEVICE_ID), eq("1793346732967695429570"),
+                eq(1), eq(1), anyList());
+    }
+
+    @Test
+    void replenishmentHistoryVideoFallsBackToTransactionIdAndDefaults() {
+        // setOrderNoVideo 同款报文习惯：无 orderNo 只有 transactionId；serial/videoQuantity 缺省回 1
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(),
+                Map.of("transactionId", " 1792657421176609136722 "));
+        assertEquals(200, resp.get("status"));
+        verify(tradeInternalClient).orderVideoReport(eq(DEVICE_ID), eq("1792657421176609136722"),
+                eq(1), eq(1), eq(List.of()));
+    }
+
+    @Test
+    void replenishmentHistoryVideoSplitsCommaSeparatedUrls() {
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(),
+                Map.of("orderNo", "ORD9", "videoUrls", "http://oss/l.mp4 , http://oss/r.mp4"));
+        assertEquals(200, resp.get("status"));
+        verify(tradeInternalClient).orderVideoReport(DEVICE_ID, "ORD9", 1, 1,
+                List.of("http://oss/l.mp4", "http://oss/r.mp4"));
+    }
+
+    @Test
+    void replenishmentHistoryVideoJunkIntegersFallBackToDefaults() {
+        // 铁律固件不可信：serialNum="x" 不炸 500，回默认 1 照常落库
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(),
+                Map.of("orderNo", "ORD9", "serialNum", "x", "videoQuantity", "0"));
+        assertEquals(200, resp.get("status"));
+        verify(tradeInternalClient).orderVideoReport(DEVICE_ID, "ORD9", 1, 1, List.of());
+    }
+
+    @Test
+    void replenishmentHistoryVideoMissingAllIdentifiersReturns400() {
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(),
+                Map.of("serialNum", 1, "videoUrls", List.of("http://oss/a.mp4")));
+        assertEquals(400, resp.get("status"));
+        verify(tradeInternalClient, never()).orderVideoReport(
+                anyString(), anyString(), anyInt(), anyInt(), anyList());
+    }
+
+    @Test
+    void replenishmentHistoryVideoTradeFailureStillReturns200() {
+        doThrow(new IllegalStateException("trade down")).when(tradeInternalClient)
+                .orderVideoReport(anyString(), anyString(), anyInt(), anyInt(), anyList());
+        Map<String, Object> resp = videoController.replenishmentHistoryVideo(authedRequest(),
+                Map.of("orderNo", "ORD9"));
+        assertEquals(200, resp.get("status"));
+    }
 }
