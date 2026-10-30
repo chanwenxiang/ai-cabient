@@ -596,6 +596,7 @@ export declare const DICT: {
         readonly CONSUMER: "消费";
         readonly RESTOCK: "补货";
         readonly OPS: "运维";
+        readonly STOCKTAKE: "盘点";
         /** 历史值，与 CONSUMER 同义 */
         readonly SHOPPING: "消费";
     };

@@ -64,7 +64,10 @@ class MerchantDevicePortalServiceTest {
                 merchantRepository, distributedLockService, merchantSelfServiceGate,
                 jiangyiGatherService, inventoryLotService, merchantOpsPolicyService,
                 deviceValidationService, jiangyiDeviceDirectory, opsEventRepository,
-                inventoryRepository, sessionService, self);
+                inventoryRepository, sessionService, self,
+                new DisplaySnapshotHelper(
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceInfoMapper.class),
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.MerchantMapper.class)));
     }
 
     @Test

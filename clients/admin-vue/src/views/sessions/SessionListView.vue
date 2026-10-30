@@ -46,6 +46,7 @@
           <el-option label="消费" value="CONSUMER" />
           <el-option label="补货" value="RESTOCK" />
           <el-option label="运维" value="OPS" />
+          <el-option label="盘点" value="STOCKTAKE" />
         </el-select>
       </el-form-item>
       <el-form-item label="时间">
@@ -686,6 +687,7 @@ function sessionKindLabel(kind?: string) {
 function sessionKindType(kind?: string) {
   if (kind === 'RESTOCK') return 'warning';
   if (kind === 'OPS') return 'info';
+  if (kind === 'STOCKTAKE') return 'warning';
   return 'success';
 }
 

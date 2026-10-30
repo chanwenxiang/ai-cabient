@@ -230,6 +230,9 @@ export const AdminEndpoints = {
   /** 门磁状态：POST=下发查询（§4.3.2.12），GET=最近一次上报快照（§4.2.16） */
   deviceJiangyiDoorState: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/door-state`,
+  /** 设备侧故障单（CB-077）：固件自报（如摄像头打开失败），reported_at 降序 */
+  deviceJiangyiFaultOrders: (deviceId: string, limit = 20) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/fault-orders?limit=${limit}`,
   /** 机器重启（§4.3.2.1，无回执） */
   deviceJiangyiReboot: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/reboot`,

@@ -196,7 +196,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
                 "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费")));
         map.put("session_kind", t("会话类型", m(
-                "CONSUMER", "消费", "RESTOCK", "补货", "OPS", "运维", "SHOPPING", "消费")));
+                "CONSUMER", "消费", "RESTOCK", "补货", "OPS", "运维", "SHOPPING", "消费",
+                "STOCKTAKE", "盘点")));
         map.put("restock_line_type", t("补货行类型", m(
                 "RESTOCK", "上架", "PULL_OFF", "下架", "REMOVE", "下架", "PULL", "下架")));
         map.put("ops_alert_type", t("运维告警类型", m(

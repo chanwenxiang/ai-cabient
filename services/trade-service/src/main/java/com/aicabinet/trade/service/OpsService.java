@@ -32,6 +32,8 @@ public class OpsService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final OpsService self;
     private final ApiRateLimitService apiRateLimitService;
+    /** 会话设备名快照（写入时固化；补货开门此前不回填 → 列表显示编号，2026-10-30 修复）。 */
+    private final DisplaySnapshotHelper displaySnapshotHelper;
 
     public OpsService(SessionService sessionService,
                       DeviceValidationService deviceValidationService,
@@ -41,7 +43,8 @@ public class OpsService {
                       SkuCatalogMapper skuCatalogRepository,
                       DistributedLockService distributedLockService,
                       @Lazy OpsService self,
-                      ApiRateLimitService apiRateLimitService) {
+                      ApiRateLimitService apiRateLimitService,
+                      DisplaySnapshotHelper displaySnapshotHelper) {
         this.sessionService = sessionService;
         this.deviceValidationService = deviceValidationService;
         this.deviceClient = deviceClient;
@@ -51,6 +54,7 @@ public class OpsService {
         this.distributedLockService = distributedLockService;
         this.self = self;
         this.apiRateLimitService = apiRateLimitService;
+        this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +108,8 @@ public class OpsService {
         session.setReplenishmentTaskId(lockedTask.getTaskId());
         session.setIdempotencyKey("RESTOCK:" + lockedTask.getTaskId() + ":" + sessionId);
         session.setState(com.aicabinet.common.enums.SessionState.OPENING);
+        // 设备名快照写入时固化（与消费者开门同款）：缺了会话列表只好回退显示设备编号
+        displaySnapshotHelper.applySessionDeviceName(session);
         sessionRepository.save(session);
 
         if (!"IN_PROGRESS".equals(lockedTask.getStatus())) {

@@ -35,7 +35,10 @@ class OpsServiceConcurrencyTest {
     void setUp() {
         service = new OpsService(sessionService, deviceValidationService, deviceClient,
                 sessionRepository, taskRepository, skuCatalogRepository, distributedLockService, null,
-                apiRateLimitService);
+                apiRateLimitService,
+                new DisplaySnapshotHelper(
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceInfoMapper.class),
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.MerchantMapper.class)));
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

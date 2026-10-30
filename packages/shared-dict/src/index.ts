@@ -626,6 +626,7 @@ export const DICT = {
     CONSUMER: '消费',
     RESTOCK: '补货',
     OPS: '运维',
+    STOCKTAKE: '盘点',
     /** 历史值，与 CONSUMER 同义 */
     SHOPPING: '消费'
   },

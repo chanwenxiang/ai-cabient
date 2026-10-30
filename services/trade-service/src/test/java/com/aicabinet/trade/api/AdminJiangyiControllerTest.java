@@ -55,12 +55,13 @@ class AdminJiangyiControllerTest {
     @Mock private com.aicabinet.trade.service.JiangyiShelfService shelfService;
     @Mock private com.aicabinet.trade.service.JiangyiGatherConsoleService gatherConsoleService;
     @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
+    @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
                 mappingReviewService, learningLibraryService, shelfService,
-                gatherConsoleService, flowSummaryService);
+                gatherConsoleService, flowSummaryService, deviceFaultOrderService);
     }
 
     private JiangyiDevice boundDevice() {

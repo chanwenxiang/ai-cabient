@@ -69,7 +69,10 @@ class MerchantPortalConcurrencyTest {
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceOpsEventMapper.class),
                 org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class),
                 org.mockito.Mockito.mock(SessionService.class),
-                org.mockito.Mockito.mock(MerchantDevicePortalService.class));
+                org.mockito.Mockito.mock(MerchantDevicePortalService.class),
+                new DisplaySnapshotHelper(
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceInfoMapper.class),
+                        org.mockito.Mockito.mock(com.aicabinet.trade.mapper.MerchantMapper.class)));
         teamAdminService = new MerchantTeamAdminService(
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 userInfoRepository, userAccountRepository, userMerchantRepository,

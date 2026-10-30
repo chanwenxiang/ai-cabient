@@ -5,10 +5,12 @@ import com.aicabinet.common.dto.JiangyiBindingViewDto;
 import com.aicabinet.common.dto.JiangyiClassMappingDto;
 import com.aicabinet.common.dto.JiangyiDeviceDto;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.domain.DeviceFaultOrder;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
+import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFlowSummaryService;
 import com.aicabinet.trade.service.JiangyiGatherConsoleService;
@@ -61,6 +63,7 @@ public class AdminJiangyiController {
     private final JiangyiShelfService jiangyiShelfService;
     private final JiangyiGatherConsoleService jiangyiGatherConsoleService;
     private final JiangyiFlowSummaryService jiangyiFlowSummaryService;
+    private final DeviceFaultOrderService deviceFaultOrderService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
@@ -72,7 +75,8 @@ public class AdminJiangyiController {
                                   JiangyiLearningLibraryService jiangyiLearningLibraryService,
                                   JiangyiShelfService jiangyiShelfService,
                                   JiangyiGatherConsoleService jiangyiGatherConsoleService,
-                                  JiangyiFlowSummaryService jiangyiFlowSummaryService) {
+                                  JiangyiFlowSummaryService jiangyiFlowSummaryService,
+                                  DeviceFaultOrderService deviceFaultOrderService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
@@ -84,6 +88,7 @@ public class AdminJiangyiController {
         this.jiangyiShelfService = jiangyiShelfService;
         this.jiangyiGatherConsoleService = jiangyiGatherConsoleService;
         this.jiangyiFlowSummaryService = jiangyiFlowSummaryService;
+        this.deviceFaultOrderService = deviceFaultOrderService;
     }
 
     /**
@@ -349,6 +354,19 @@ public class AdminJiangyiController {
     public ApiResponse<JiangyiDeviceOpsService.DoorStateView> doorState(
             @PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(jiangyiDeviceOpsService.doorState(deviceId));
+    }
+
+    /**
+     * 设备侧故障单列表（CB-077，V416）：固件自报故障（如摄像头打开失败）最近 N 条，
+     * reported_at 降序。纯列表展示，不接待办/红点（台账拍板）；permission 与
+     * signal/door-state 同口（铁律 66：同一面板取址口径统一）。
+     */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/fault-orders")
+    public ApiResponse<List<DeviceFaultOrderService.FaultListItem>> faultOrders(
+            @PathVariable("deviceId") String deviceId,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return ApiResponse.ok(deviceFaultOrderService.listByDevice(deviceId, limit));
     }
 
     // ---------- 模型同步面（CB-023 二期） ----------

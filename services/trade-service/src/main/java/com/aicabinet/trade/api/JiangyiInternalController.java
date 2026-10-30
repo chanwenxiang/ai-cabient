@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.JiangyiModelDeployment;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.domain.JiangyiRecognitionReport;
 import com.aicabinet.trade.service.DevicePresenceService;
+import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
@@ -68,6 +69,7 @@ public class JiangyiInternalController {
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
     private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
     private final SessionDoorService sessionDoorService;
+    private final DeviceFaultOrderService deviceFaultOrderService;
 
     public JiangyiInternalController(JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                      JiangyiClassMappingService jiangyiClassMappingService,
@@ -82,7 +84,8 @@ public class JiangyiInternalController {
                                      JiangyiRecognitionReportService jiangyiRecognitionReportService,
                                      JiangyiMappingReviewService jiangyiMappingReviewService,
                                      JiangyiDeviceOpsService jiangyiDeviceOpsService,
-                                     SessionDoorService sessionDoorService) {
+                                     SessionDoorService sessionDoorService,
+                                     DeviceFaultOrderService deviceFaultOrderService) {
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiRecognitionTimeoutService = jiangyiRecognitionTimeoutService;
@@ -97,6 +100,7 @@ public class JiangyiInternalController {
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
         this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
         this.sessionDoorService = sessionDoorService;
+        this.deviceFaultOrderService = deviceFaultOrderService;
     }
 
     // ---------- 设备面 ----------
@@ -251,6 +255,18 @@ public class JiangyiInternalController {
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         return ApiResponse.ok(jiangyiOrderVideoService.findRecentByDevice(deviceId, limit));
+    }
+
+    /**
+     * 设备侧故障单落库（CB-077，V416 device_fault_order，gateway 转发
+     * 将邑 §5.2.x uploadFaultOrder，如 errorMsg=摄像头打开失败）。
+     * 一行一报不去重——同一故障跨会话/跨重启重复出现正是诊断要看的硬件级事实。
+     */
+    @PostMapping("/device-fault-orders")
+    public ApiResponse<Void> deviceFaultOrder(@RequestBody DeviceFaultOrderRequest body) {
+        deviceFaultOrderService.recordFault(body.deviceId(), body.identifier(),
+                body.orderNo(), body.errorCode(), body.errorMsg());
+        return ApiResponse.ok(null);
     }
 
     // ---------- 映射面 ----------
@@ -411,6 +427,10 @@ public class JiangyiInternalController {
     /** 与 gateway TradeInternalClient.OrderVideoReportRequest 对齐（videoUrls 可空=该片失败留痕）。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
                                    Integer videoQuantity, List<String> videoUrls) {}
+
+    /** 与 gateway TradeInternalClient.DeviceFaultOrderRequest 对齐（CB-077）。 */
+    record DeviceFaultOrderRequest(String deviceId, String identifier, String orderNo,
+                                   String errorCode, String errorMsg) {}
     /** 与 gateway TradeInternalClient.DeviceSignalRequest 对齐（§4.2.15 signalStrength 0-4）。 */
     record SignalRequest(Integer signalStrength) {}
     /** 与 gateway TradeInternalClient.DeviceDoorStateRequest 对齐（§4.2.16 doorState/lockState）。 */

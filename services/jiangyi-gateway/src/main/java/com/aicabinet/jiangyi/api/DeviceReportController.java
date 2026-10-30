@@ -469,11 +469,22 @@ public class DeviceReportController {
         return ok();
     }
 
-    /** 故障单（§5.2.x）：一期仅审计；会话生命周期由 watchdog 兜底。 */
+    /**
+     * 故障单（§5.2.x）：CB-077 起转发 trade 入库（device_fault_order）供后台/商户端
+     * 设备详情「故障记录」展示；转发失败仅记 warn（fire-and-forget，不阻断设备面）。
+     * 会话生命周期仍由 watchdog 兜底，本端点不驱动任何状态机。
+     */
     @PostMapping("/jiangyi/api/order/uploadFaultOrder")
     public Map<String, Object> uploadFaultOrder(HttpServletRequest request,
                                                 @RequestBody FaultOrderRequest body) {
         log.warn("jiangyi fault order deviceId={} body={}", device(request), body);
+        try {
+            tradeInternalClient.deviceFaultOrder(device(request), identifier(request),
+                    body.orderNo(), body.errorCode(), body.errorMsg());
+        } catch (Exception e) {
+            log.warn("jiangyi fault order forward failed deviceId={} orderNo={}: {}",
+                    device(request), body.orderNo(), e.getMessage());
+        }
         return ok();
     }
 
@@ -573,6 +584,12 @@ public class DeviceReportController {
     private static String device(HttpServletRequest request) {
         Object attr = request.getAttribute(DeviceAuthInterceptor.ATTR_DEVICE_ID);
         return attr == null ? "unknown" : attr.toString();
+    }
+
+    /** 鉴权拦截器解出的厂商标识（CQYB10720 等）；缺失回 null，不落 "null" 字符串。 */
+    private static String identifier(HttpServletRequest request) {
+        Object attr = request.getAttribute(DeviceAuthInterceptor.ATTR_IDENTIFIER);
+        return attr == null ? null : attr.toString();
     }
 
     private static Map<String, Object> ok() {

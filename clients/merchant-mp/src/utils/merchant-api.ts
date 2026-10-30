@@ -580,6 +580,9 @@ export const merchantApi = {
       'POST',
       body
     ),
+  /** CB-077：设备侧故障单（固件自报，如摄像头打开失败），reported_at 降序 */
+  deviceFaultOrders: (id: string, limit = 20) =>
+    request<DeviceFaultOrderItem[]>(MerchantEndpoints.deviceFaultOrders(id, limit)),
   jiangyiGatherStatus: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto>(
       MerchantEndpoints.jiangyiGatherStatus(id)
@@ -1168,6 +1171,17 @@ export type MerchantDisputeTicket = OpenApiMerchantDisputeSummaryDto & {
 export type MerchantDisputeDetailView = OpenApiDisputeTicketDto & {
   lastMessage?: string;
 };
+
+/** CB-077：设备侧故障单行（固件自报）。openapi 生成类型就绪后可换 OpenApi 别名。 */
+export interface DeviceFaultOrderItem {
+  id: number;
+  deviceId: string;
+  identifier?: string | null;
+  orderNo?: string | null;
+  errorCode?: string | null;
+  errorMsg?: string | null;
+  reportedAt: string;
+}
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
   if (!me?.merchants?.length) return false;

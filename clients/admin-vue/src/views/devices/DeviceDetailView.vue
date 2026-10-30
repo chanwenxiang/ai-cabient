@@ -406,6 +406,8 @@
 
     <DeviceJiangyiControlCard :device-id="deviceId" :can-edit="canEditDevice" />
 
+    <DeviceFaultOrderCard :device-id="deviceId" />
+
     <el-tabs v-model="tab" class="detail-tabs">
       <el-tab-pane label="在售商品" name="slots">
         <el-card class="page-card slots-pane-card" shadow="never">
@@ -932,6 +934,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import DeviceAssetDeploymentCard from '@/components/device/DeviceAssetDeploymentCard.vue';
 import DeviceJiangyiCard from '@/components/device/DeviceJiangyiCard.vue';
 import DeviceJiangyiControlCard from '@/components/device/DeviceJiangyiControlCard.vue';
+import DeviceFaultOrderCard from '@/components/device/DeviceFaultOrderCard.vue';
 // V350（CB-037）：单柜定价——行内编辑覆盖价/启停/恢复基准，不走弹窗
 import DevicePricingCard from '@/components/device/DevicePricingCard.vue';
 import DeviceRelatedRecordsTab from '@/components/device/DeviceRelatedRecordsTab.vue';

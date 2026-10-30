@@ -297,6 +297,12 @@ public class DeviceValidationService {
         if (isRestockSession(session)) {
             return "RESTOCK";
         }
+        // CB-077 前的缺陷修复（2026-10-30 用户截图实锤）：盘点开门会话此前落到默认 CONSUMER，
+        // 列表「类型」显示成「消费」。结算侧 isNonConsumerSession 一直含 STOCKTAKE（不扣款），
+        // 展示侧漏分支——两套口径必须同源（铁律 16）。
+        if (isStocktakeSession(session)) {
+            return "STOCKTAKE";
+        }
         return "CONSUMER";
     }
 }

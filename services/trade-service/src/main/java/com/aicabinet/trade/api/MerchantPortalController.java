@@ -10,8 +10,10 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.AuthService;
+import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
+import com.aicabinet.trade.service.MerchantScopeService;
 import com.aicabinet.trade.service.ProcurementService;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.validation.Valid;
@@ -44,17 +46,24 @@ public class MerchantPortalController {
     private final AdminDeviceOpsService deviceOpsService;
     /** CB-050 扩展：商户端自助改密 */
     private final AuthService authService;
+    /** CB-077：设备侧故障单（固件自报，如摄像头打开失败）展示 */
+    private final DeviceFaultOrderService deviceFaultOrderService;
+    private final MerchantScopeService merchantScopeService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
                                     ProcurementService procurementService,
                                     AdminDeviceOpsService deviceOpsService,
-                                    AuthService authService) {
+                                    AuthService authService,
+                                    DeviceFaultOrderService deviceFaultOrderService,
+                                    MerchantScopeService merchantScopeService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
         this.deviceOpsService = deviceOpsService;
         this.authService = authService;
+        this.deviceFaultOrderService = deviceFaultOrderService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @GetMapping("/me")
@@ -111,6 +120,20 @@ public class MerchantPortalController {
     public ApiResponse<DeviceDetailDto> deviceDetail(
             HttpServletRequest request, @PathVariable String deviceId) {
         return ApiResponse.ok(merchantPortalService.getDeviceDetail(userId(request), deviceId));
+    }
+
+    /**
+     * CB-077：设备侧故障单列表（固件自报，如「摄像头打开失败」），reported_at 降序。
+     * 归属校验与 deviceDetail 同源（merchantScopeService.requireDeviceAccess）——
+     * 只看自己名下柜机的故障，不回他人设备信息。
+     */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/fault-orders")
+    public ApiResponse<List<DeviceFaultOrderService.FaultListItem>> deviceFaultOrders(
+            HttpServletRequest request, @PathVariable String deviceId,
+            @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        merchantScopeService.requireDeviceAccess(userId(request), deviceId);
+        return ApiResponse.ok(deviceFaultOrderService.listByDevice(deviceId, limit));
     }
 
     /** CB-050：柜机详情 KPI 条（今日销售额/今日订单量/本月销售额） */

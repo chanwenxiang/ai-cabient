@@ -156,6 +156,9 @@ export const MerchantEndpoints = {
   deviceSettings: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/settings`,
   deviceDetail: (id: string) => `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}`,
+  /** 设备侧故障单（CB-077）：固件自报（如摄像头打开失败），reported_at 降序 */
+  deviceFaultOrders: (id: string, limit = 20) =>
+    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/fault-orders?limit=${limit}`,
   /** 将邑采集模式（CB-023 商户端补充）：状态 / 进入 / 退出 */
   jiangyiGatherStatus: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/status`,

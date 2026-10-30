@@ -71,6 +71,8 @@ public class MerchantDevicePortalService {
     private final com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository;
     private final SessionService sessionService;
     private final MerchantDevicePortalService self;
+    /** 会话设备名快照（写入时固化）；盘点开门此前不回填 → 列表显示编号，2026-10-30 修复。 */
+    private final DisplaySnapshotHelper displaySnapshotHelper;
 
     public MerchantDevicePortalService(PermissionService permissionService,
                                        MerchantPortalGuard merchantPortalGuard,
@@ -94,7 +96,8 @@ public class MerchantDevicePortalService {
                                        com.aicabinet.trade.mapper.DeviceOpsEventMapper opsEventRepository,
                                        com.aicabinet.trade.mapper.DeviceSkuInventoryMapper inventoryRepository,
                                        @org.springframework.context.annotation.Lazy SessionService sessionService,
-                                       @org.springframework.context.annotation.Lazy MerchantDevicePortalService self) {
+                                       @org.springframework.context.annotation.Lazy MerchantDevicePortalService self,
+                                       DisplaySnapshotHelper displaySnapshotHelper) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -118,6 +121,7 @@ public class MerchantDevicePortalService {
         this.inventoryRepository = inventoryRepository;
         this.sessionService = sessionService;
         this.self = self;
+        this.displaySnapshotHelper = displaySnapshotHelper;
     }
 
     @Transactional(readOnly = true)
@@ -257,6 +261,8 @@ public class MerchantDevicePortalService {
         session.setDeviceId(deviceId);
         session.setIdempotencyKey("STOCKTAKE:" + userId + ":" + sessionId);
         session.setState(SessionState.OPENING);
+        // 设备名快照写入时固化（与消费者开门同款）：缺了会话列表只好回退显示设备编号
+        displaySnapshotHelper.applySessionDeviceName(session);
         sessionRepository.save(session);
     }
 

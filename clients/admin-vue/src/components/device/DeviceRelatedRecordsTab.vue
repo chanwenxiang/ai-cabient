@@ -20,9 +20,8 @@ const emit = defineEmits<{
 }>();
 
 function sessionKindLabel(kind?: string | null) {
-  if (kind === 'RESTOCK') return '补货';
-  if (kind === 'OPS') return '运维';
-  return '消费';
+  // 与 SessionListView 同源走 session_kind 字典（STOCKTAKE=盘点此前漏分支显示成「消费」，2026-10-30 修复）
+  return displayLabel('session_kind', kind, '消费');
 }
 </script>
 

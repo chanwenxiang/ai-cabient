@@ -353,6 +353,30 @@
             </view>
           </view>
         </view>
+
+        <!-- CB-077：设备侧故障记录（固件自报，如摄像头打开失败）。有故障才显示——
+             没故障时不占版面；跨重启重复出现=硬件级，提示联系平台/厂商检修。 -->
+        <view v-if="faults.length" class="card" v-show="activeTab === 'overview'">
+          <view class="row">
+            <text class="section">故障记录（设备自报）</text>
+            <text class="meta">最近 {{ faults.length }} 条</text>
+          </view>
+          <view v-for="f in faults" :key="f.id" class="velocity-row">
+            <view class="velocity-main">
+              <text class="sku-name" :class="{ 'fault-critical': isCriticalFault(f) }">{{
+                f.errorMsg || '（无描述）'
+              }}</text>
+              <text class="meta">{{ formatFaultTime(f.reportedAt) }}</text>
+            </view>
+            <view class="velocity-data">
+              <text v-if="f.errorCode">{{ f.errorCode }}</text>
+              <text v-if="f.orderNo" class="meta">单号 {{ f.orderNo }}</text>
+            </view>
+          </view>
+          <view class="fault-hint">
+            <text>故障由柜机自动上报；同一故障反复出现请反馈平台安排现场检修。</text>
+          </view>
+        </view>
       </view>
 
       <!-- H5 可访问确认框：进入/退出采集模式前确认（退出营业影响大） -->
@@ -375,6 +399,7 @@ import { showError, showSuccess } from '@/utils/notify';
 import { computed, ref, watch } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
+import type { DeviceFaultOrderItem } from '@/utils/merchant-api';
 import {
   useMerchantMe,
   canEditPlanogramForMerchant,
@@ -422,6 +447,8 @@ const savingSlots = ref(false);
 const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
 const velocity = ref<MerchantSkuVelocity[]>([]);
+// CB-077：设备侧故障记录（固件自报）。有故障才渲染卡片。
+const faults = ref<DeviceFaultOrderItem[]>([]);
 const isPreferred = ref(false);
 
 // CB-050：信息区扩展字段（来自 deviceDetail.device=AdminDeviceDto）+ KPI 汇总 + 设备控制
@@ -547,6 +574,19 @@ const sceneText = computed(() =>
   sceneType.value ? dictLabel('device_scene_type', sceneType.value) || sceneType.value : ''
 );
 const assignedAtText = computed(() => (deployedAt.value ? formatDateTime(deployedAt.value) : ''));
+
+// ===== CB-077：故障记录辅助 =====
+/** 摄像头类故障标红：识别开门柜摄像头故障=柜子不可用（2026-10-30 CQYB10720 实锤）。 */
+function isCriticalFault(f: DeviceFaultOrderItem): boolean {
+  return /摄像头|camera/i.test(f.errorMsg ?? '');
+}
+function formatFaultTime(reportedAt: string): string {
+  try {
+    return formatDateTime(reportedAt);
+  } catch {
+    return reportedAt;
+  }
+}
 const lastOnlineText = computed(() =>
   lastOnlineAt.value ? formatDateTime(lastOnlineAt.value) : '无'
 );
@@ -652,7 +692,7 @@ async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
   // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
-  const [list, vel, gather, training, detail, kpi] = await Promise.all([
+  const [list, vel, gather, training, detail, kpi, faultRows] = await Promise.all([
     softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
@@ -688,11 +728,18 @@ async function loadDeviceExtras(seq: number) {
         )
       : Promise.resolve(
           null as import('@aicabinet/shared-types').OpenApiMerchantDeviceSalesSummaryDto | null
-        )
+        ),
+    // CB-077：故障单（固件自报）。接口失败软兜底为空数组=卡片不显示，不阻塞详情页
+    softFallback(
+      merchantApi.deviceFaultOrders(deviceId.value),
+      [] as DeviceFaultOrderItem[],
+      '故障记录'
+    )
   ]);
   if (seq !== loadSeq) return;
   slots.value = list;
   velocity.value = vel;
+  faults.value = faultRows;
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
   const inventoryRows = (
     detail as {
@@ -997,6 +1044,17 @@ async function saveSlots() {
   background: #f9f1eb;
   padding: 2rpx 10rpx;
   border-radius: var(--radius-pill);
+}
+
+/* CB-077：故障记录。摄像头类标红 + 提示行，间距放卡片自身（铁律 39）。 */
+.velocity-main .sku-name.fault-critical {
+  color: var(--danger, #dc2626);
+}
+.fault-hint {
+  margin-top: 12rpx;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
 }
 
 .head-main {

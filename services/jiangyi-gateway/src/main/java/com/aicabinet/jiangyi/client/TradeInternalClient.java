@@ -237,6 +237,21 @@ public class TradeInternalClient {
     }
 
     /**
+     * 设备侧故障单转发（CB-077，trade device_fault_order）：将邑 §5.2.x uploadFaultOrder
+     * 的 errorMsg（如「摄像头打开失败」）入库，后台/商户端设备详情展示。
+     * fire-and-forget：调用方吞异常记 warn（铁律同 recognition-report，存库失败不阻断设备面）。
+     */
+    public void deviceFaultOrder(String deviceId, String identifier, String orderNo,
+                                 String errorCode, String errorMsg) {
+        post("/internal/v1/jiangyi/device-fault-orders",
+                new DeviceFaultOrderRequest(deviceId, identifier, orderNo, errorCode, errorMsg));
+    }
+
+    /** 与 trade JiangyiInternalController.DeviceFaultOrderRequest 对齐（CB-077）。 */
+    record DeviceFaultOrderRequest(String deviceId, String identifier, String orderNo,
+                                   String errorCode, String errorMsg) {}
+
+    /**
      * 信号强度转发（V363，图2 对照）：§4.2.15 getDeviceSimInfo 的 signalStrength 0-4
      * → trade device_info.signal_strength 落库。转发失败仅影响展示，调用方记 warn 不重试。
      */
