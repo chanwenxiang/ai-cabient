@@ -677,6 +677,7 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - **不进库的两类**：`.idea/*` 三个文件（用户明示忽略，仍是脏的）；`tmp-precheck/MerchantSplitsView.vue`、`tmp-precheck/device-detail.vue` 是某会话 09:21 做的预检 scratch 副本、既未跟踪也没被 gitignore ⇒ **移入 `.tmp/tmp-precheck-20261030/`**（`.gitignore:146` 覆盖）而不是删除，树里只留用户的 `.idea`。
 - ⚠️ **PII 随公开仓库发布**：`docs/figures/alipay-zhima-payafteruse-inquiry-email-body.txt` 与 `wechat-payscore-appeal-email-body.txt` 含联系人姓名 + 手机号 + 支付宝 PID/应用 ID + 微信商户号。归因判据：这些标识在 HEAD 里已分别存在于 5/4/11/1/4 个文件，属**既有暴露类别**而非新增；两封正文的新增长串经扫描无 PEM/base64 私钥体，只有 `infra/.env.production` 这个**路径名**的文字提及。邮件正文要真发出去就得带联系方式，故按项目既有惯例入库并**不擅自脱敏**；若要改成「发送时再填」的脱敏版，需要用户拍板（会削弱这份稿子作为发出版本的可追溯性）。
 - **上一批（A4）CI 回查结论**：`97219366` 的 `build` / `admin-artifacts` / `mini-programs` / `e2e-h5` 全 `success`，`integration` 已排队进入 `in_progress` ⇒ 我造成的那个 `build` 红（测试桩传 `null` 的 NPE）确实被 `3466e724` 修掉了，不再是被 skipped 的连带红。
+- **本批 `72cdf637` 远端五作业 `completed/success` 全绿**（`build` / `admin-artifacts` / `mini-programs` / `e2e-h5` / `integration`）。`admin-artifacts` 绿＝保真重建的产物与 Linux CI 字节一致；`mini-programs` 绿＝peer 改的两个 merchant-mp 页能编过。
 
 ### 2026-10-30（D28-A4 收口：货位账「与仓库账一致」这句没有实现方签字的断言，从注释与页面文案里摘掉）
 
