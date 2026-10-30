@@ -425,9 +425,10 @@
 | R5 | 半天 | 🔴 放样本、拉门（出图=柜机自身摄像头，**无需厂商 App**） | （云侧审核结果） | 🔴 是 | 中（G-6 可能打不开门 + G-5 无采集向导⇒手动脚本） |
 | R3 | 15min + 复跑 | 取一瓶 | — | 否 | 🔴 覆盖柜上模型 ⇒ **排在 R1/R4/R5/R6 之后** |
 | R7 | 待拍板 | 🔴 盯锁 | 建议要厂商 | 否 | 🔴 会开锁，单跑 |
+| **R9** | **15min** | **🔴 取一瓶** | **—** | **否** | **🔴 干净取货=判别第四档/AIDL 档的唯一样本；只取 1 瓶、不碰其它货道、不放回** |
 
-**建议顺序**：`R0 → R2 → R1 →（结算复跑）→ R6 → R4 → R5 → R3 →（结算复跑）→ R7 另议`。
-依据：把「可能改变设备档位」的 R1 放前面，让后面每轮都在**已知的 M_NAME** 下跑；把唯一有覆盖副作用的 R3 放最后，前面各轮跑完才看得出它改变了什么。
+**建议顺序**：`R0 → R2 → R1 →（结算复跑）→ R6 → R4 → R5 → R3 →（结算复跑）→ R9 → R7 另议`。
+依据：把「可能改变设备档位」的 R1 放前面，让后面每轮都在**已知的 M_NAME** 下跑；把唯一有覆盖副作用的 R3 放最后，前面各轮跑完才看得出它改变了什么；**R9 放 R3 之后**——它判别的是"哪条腿上报"，必须在映射复核/模型覆盖稳定后再取货（R8 之后的在售面）。
 
 ### 9B.11 每轮结果怎么落（不留聊天里）
 
@@ -457,6 +458,47 @@
 🔴 **本轮的失败面是我方刻意设计，别当新缺陷**：识别归一 fail-closed——报文里**任一行**解析不到 SKU 就整单转争议（`RecognitionNormalizer.normalize` + `DeviceReportController.java:276-288` `JIANGYI_CLASS_MAPPING_MISS`）。所以现场**只放这 4 款**；放 20 号加多宝 500ml、或 30/31 号康师傅（现 DISABLED）都会把整单打废。库存 4 行 qty=4/cap=4 也是同一原因：无 lot 柜扣成负数即 409，账面必须 ≥ 设备可能上报的件数。
 
 **判据（跑完在此追加一行）**：一次开门取 2 款以上 ⇒ `jiangyi_recognition_report` 新行 `outcome=FORWARDED` 且 `recognition_result` 含 **≥2 个 classId**、订单金额=对应单价之和、库存逐款递减、会话 COMPLETED。若只出 1 款 ⇒ 先分「设备只报了一件」还是「第二件解析失败被丢」，看同一 report 行的原始 JSON 再归因。
+
+### 9B.13 R9｜干净扫码取货 · 判别"第四档" vs "AIDL 档"（2026-10-29 19:4x 设计，🔴 明天现场跑）
+
+**这一轮要回答的唯一问题（H-20 的判别探针）**：真机**成功取货并结算**时，设备到底走哪条腿上报识别结果——
+
+| 判据 | 结论 | 我方下一步 |
+|---|---|---|
+| `orderProduct/addRecognitionGoodsToOrder` **命中**（含裸/`/device` 两种拼写）⇒ | **文档档**（§4.2.10 已接，钱类前缀） | 无需改代码；核对金额不采信设备、映射 fail-closed 是否按预期 |
+| `pokerOrderProduct/addProductsToOrder` **命中**（当前 404 ⇒ `JIANGYI_PATH_UNIMPLEMENTED`）⇒ | **第四档**（`UploadInfo2Server.smali:349` 的 `COMMON_URL`+裸串路径） | **需要按实 payload 补路由**；在此之前"零上行=AIDL 档"不成立 |
+| 两腿都 0 命中，但会话 **COMPLETED + 扣款** ⇒ | **AIDL 档**（设备本地成单，服务器只收结果） | 文档档/第四档均不适用，`addProductsToOrder` 无需实现 |
+| 两腿都 0 命中，且会话转 DISPUTED ⇒ | 不是"档"的问题，是**映射/金额 fail-closed** | 回 §9B.12 的映射复核判据，不归本条 |
+
+**为什么必须跑这轮**：H-20 明确「本轮没有「识别成功」样本——两次都是设备主动转人工」，所以「AIDL 档最可能」只是**无成功样本时的外推**，既不证实也不证伪。明天拿到**一次干净取货**才能判。
+
+**前置（明天开测前 10 分钟，按 §9B.2 R0）**：
+1. 映射复核闸门：`GET /api/v2/ops/admin/jiangyi/mapping-status` 的 `verified=true` 且 `classesVersion == jiangyi_device.classes_version`；不等先做复核（§9B.12 的 V400 步骤）。
+2. 在售面：本柜 ACTIVE 映射行在售（§9B.12 的 4 行或当前实测行）。
+3. 设备在线：网关日志有 `jiangyi ws` 心跳或 `jiangyi_device.last_ws_online_at` 在最近 10 分钟内。
+4. **不清零、不重置**设备侧 M_NAME 档位（R1 才动它；R9 必须在已知档位下跑）。
+
+**步骤（现场）**：
+- 只取 **1 瓶**（建议 29 号 雪碧330ml，或当前 ACTIVE 的唯一款）；**手不碰其它货道、不放回、取完即关门**。
+- 扫码开门 → 取货 → 关门 → 等结算（≤2 分钟）。
+- 记录开关门/结算时间戳。
+
+**判据收集（跑完 5 分钟，全部留原文）**：
+```powershell
+# ① 设备上报路径（判据核心）—— 认**路径**，别认事件名：setOrderNoVideo（D-4）每 3 分钟也刷 JIANGYI_PATH_UNIMPLEMENTED，会把②③④之外的噪声带进来
+docker logs --since 20m ai-cabinet-jiangyi-gateway-1 2>&1 |
+  Select-String 'addRecognitionGoodsToOrder|addProductsToOrder|setOrderNoVideo|PATH_UNIMPLEMENTED'
+# ② 下行/上行 WS 消息类型 tally
+docker logs --since 20m ai-cabinet-jiangyi-gateway-1 2>&1 | Select-String 'ws downstream|jiangyi ws'
+# ③ 会话结果
+docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
+  "select session_id, state, total_amount_cents, fail_reason, created_at, completed_at from shopping_session order by created_at desc limit 3"
+# ④ 识别上报行
+docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
+  "select report_id, outcome, reported_at, left(recognition_result,400) from jiangyi_recognition_report order by reported_at desc limit 3"
+```
+
+**判据落表（追加到 §9B.11 表）**：`R9 | 2026-10-30 | PASS/PART/FAIL | ①②③④ 原文 | 命中的是哪条腿 | 档位结论`。
 
 ---
 
@@ -696,7 +738,62 @@
 - **2026-10-26 商品学习库（§9C）验证与 regen 姿势留档**：新增 `GET /api/v2/ops/admin/jiangyi/learning-library` 后 `check-admin-endpoint-paths` 会红（门禁读的是**已提交**的 `packages/shared-types/src/generated/openapi.ts`）⇒ 必须重生成 spec 才能转绿。本次**没有**重建 dev 栈（会烤进并行会话未提交的脏文件），而是：`git worktree add --detach <HEAD>` → **只**把我方改动的 13 个 java + V406 拷进工作树 → `mvn -o -pl services/trade-service -am -Dmaven.test.skip=true package` → 在 dev postgres 建**一次性空库**（Flyway 实跑 403 条到 v406）→ 宿主 `java -jar` 起在 18199（Kafka 指死地址、`--spring.kafka.listener.auto-startup=false`、XXL/stale-monitor/devops/AI/对账等定时全关；🔴 Redisson 启动即连 Redis，dev Redis 有 requirepass ⇒ **必须**注入 `REDIS_PASSWORD`，否则 `NOAUTH` 起不来）→ `curl /v3/api-docs` → `OPENAPI_FILE=… pnpm gen:api-types` → 删库 + 删工作树。
   两个坑：① `OPENAPI_IGNORE_CACHE=1` 会**无视 `OPENAPI_FILE` 去抓 `OPENAPI_URL` 默认的 18080**（现役容器跑的是旧代码）⇒ 会把**旧 spec 反灌**进 `.tmp/live-openapi.json`，正确姿势是只用 `OPENAPI_FILE`、**不加** `IGNORE_CACHE`；② 判绿前先看 `git diff --stat packages/shared-types/`：本次应为**单个文件 +122 行 0 删除**（除新 path 块外无其它 hunk），有别的 hunk 说明抓到了别人代码的 spec。最终门禁：`check-admin-endpoint-paths` **409 条前端引用全命中，后端 638 条 paths，豁免 0**。
 
-## 12. 相关文档
+## 12. 对账结论（2026-10-29，D-4/D-5 + 接口对账）
+
+**A. D-4 `order/setOrderNoVideo` 无限重试 —— 根因已实锤（非我方代码缺陷）**
+
+- 现象：真机每 3 分钟对**同一** `transactionId=1792657421176609136722`（一笔 **CANCELLED** 会话）POST `/order/setOrderNoVideo`，body `{tenantType=common, serialNum=1, videoQuantity=1, transactionId=…}`，全 404、无退避。
+- 根因两层：① **厂商私有协议**——`.tmp/jy563/smali/…/generateOrderVideo/tool/OrderVedioInfo2Server.smali:1022/:1140` 用 `Constans.COMMON_URL + "/order/setOrderNoVideo"` 打过来，V1.13/V16 全文 0 命中；② 我方 `DeviceUnknownPathController` **刻意 404**（属"资金前缀保护名单" `order/**`，目的是不吞任何钱类上报），固件拿不到 success 就无脑重试。
+- 后果：非功能阻断，是**日志噪声 + 固件无限重试**（每 3 分钟一次，直到会话清理或设备重启）。
+- 处置：**维持 404 + WARN**（`JIANGYI_PATH_UNIMPLEMENTED` 台账已记）；**不能自己编响应体**，必须拿到厂商期望的 success 形状才能实现。待办：向厂商问一句。
+
+**B. D-5 8 条 WS 下行里 7 条从没发给真机 —— 根因是"没有触发路径"，非 bug**
+
+单门柜真正有动作的下行共 **8 条**，当前窗口（10-28 起）真机实发只有 1 条（`sendOpenStockDoor` ×3）：
+
+| # | msgType | 触发者 | 窗口内实发 |
+|---|---|---|---|
+| 1 | `sendOpenStockDoor` | 补货任务签到（自动） | ✅ 3 |
+| 2 | `openDoor`（购物） | 消费者扫码（自动） | ❌ 0 |
+| 3 | `updateModel` | 设备绑定/模型同步（自动） | ❌ 0（**卡在模型目录为空** §G-2） |
+| 4–8 | `sendUploadErrorOrderVideos` / `getDeviceInfo` / `closeDoor` / `reboot` / `getDoorState` | **运营后台手动按钮，无自动调用者** | ❌ 0 |
+
+- **窗口差异**：10-22 旧窗口 `openDoor` 发过 11 次、`sendUploadErrorOrderVideos` 6 次（做过购物+拉视频）；10-28 新窗口只有补货开门 3 次（窗口内没人做购物/拉视频）。所以"7 条没发"是**当前窗口事实**，不是全时段事实。
+- 结论：**不是缺陷，是"实现了但从未触发"**。验证手段 = §9B R2–R4（运营后台逐按钮 + 真机放货重跑），**不是改代码**。
+
+**C. 接口对账总判（V16 §4.2 + §4.3.2 + V1.13）**
+
+| 面 | 厂商 | 我方 | 判定 |
+|---|---|---|---|
+| 设备面 HTTP §4.2 | 17 | 17 | ✅ 全覆盖；偏差集中在 §4.2.4 拓扑硬编码、§4.2.5 `data:"0"` 语义未实锤、§4.2.9 真机走 `uploadDeviceOpenStatus` |
+| WS 下行 §4.3.2 | 17 条 | 10 个 msgType | ✅ 单门柜相关全覆盖；6 条 ⛔单门/可选、1 条 ❌无需求；`setOrderNoVideo` 属固件私有 |
+| 我方→将邑 出向 | V1.13 34 + V16 | 16 | ⛔ 20 条选型一致（模式一不落将邑云）；真缺口=§4.3.3–4.3.14 采集编排 12 条全无（§G-5） |
+| WS 上行 | 1（heartBeat） | 5 类 + 未知 WARN 台账 | ✅ |
+
+**真正的风险（按爆炸半径）**：
+
+| 编号 | 风险 | 性质 | 需要什么 |
+|---|---|---|---|
+| 🔴 | `addProductsToOrder` 路由未注册（§3 A′，H-20） | **唯一"漏了可能真咬人"的接口**；真机走第四档则 404 | 一次**干净取货**样本 ⇒ §9B.13 R9 |
+| 🔴 | `setOrderNoVideo` 无限重试（D-4） | 噪声/固件重试 | 厂商期望响应形状 |
+| 🟡 | §4.2.4 拓扑硬编码 `doorNum=1/locks=[1]` | 多门柜隐患；库里无拓扑列 | 加拓扑列 + 逐台建档 |
+| 🟡 | §4.2.5 `data:"0"` 语义 | 未实锤（文档示例与说明栏自相矛盾） | 厂商一句确认 |
+
+**D. 单门柜专项**
+
+- 3 条双门指令（§4.3.2.3/.5/.8）不接 ⛔ 正确，文档自证"一笔订单只能开一个门"。
+- `§4.2.4` 硬编码 `doorNum=1/locks=[1]` 恰好匹配单门柜，但库里**无拓扑列** ⇒ 多门柜时是"我方声称"非实测。
+- `closeDoor` 固件分支可疑：`DealSocketMsg.smali:1667` 走 `LOCKS=[1]`→`LOCKS=[2]`+`usbNumRu/Rb`，**像双门维护语义**；单门柜第二次锁是否报错未真机验证。若现场关门无效，先查采集会话是否仍占用（`BusinessSessionGuard.captureBusy()` 为真时直接 return 并 TTS）。
+- `§4.2.9 openDoubleDoorError` 对单门柜永不触发，仅审计，正确。
+
+**E. 明日 R9 判据速查（详见 §9B.13）**
+
+- `addRecognitionGoodsToOrder` 命中 ⇒ 文档档，无需改代码。
+- `addProductsToOrder` 命中（当前 404 ⇒ `JIANGYI_PATH_UNIMPLEMENTED`）⇒ 第四档，**需按实 payload 补路由**。
+- 两腿 0 命中但 COMPLETED+扣款 ⇒ AIDL 档，`addProductsToOrder` 无需实现。
+- 两腿 0 命中且 DISPUTED ⇒ 是映射/金额 fail-closed，回 §9B.12 映射复核，不归本条。
+
+## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）
 - `docs/archive/audit/AUDIT_TRACK_E_JIANGYI_INTERFACE_GAP_2026-10-13.md`（E-2 选型结论仍有效；R2 与 confirmActivate 已实现）
