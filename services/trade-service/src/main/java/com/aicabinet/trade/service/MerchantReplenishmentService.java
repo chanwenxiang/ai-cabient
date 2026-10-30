@@ -95,16 +95,25 @@ public class MerchantReplenishmentService {
 
     /**
      * A 方案「手动生成备货单」预览（2026-10-29）：不依赖阈值、可提前生成——逐柜按
-     * 「补满」口径（{@code WarehouseService.suggestForDevice(dev, true)}：上限−实际−在途，
+     * 「补满」口径（{@code WarehouseService.prepRowsForDevice}：上限−实际−在途，
      * 货道无缺口时回落低库存/ROP 建议）给出事前规划视图，与首页备货清单（进行中任务
      * 出库行的事后反推，{@code replenishmentPrepList}）互补。
      *
-     * <p>范围=本人 FIELD 包设备（与备货清单同一条范围判据）；无缺口柜不返回。
+     * <p>范围=本人 FIELD 包设备（与备货清单同一条范围判据）。无商品的柜不返回。
      * 确认生成由前端逐柜调 {@link #selfInitiateTask}（幂等键/出库/明细复用既有链路，
      * 不加备货单实体——A 方案轻量口径，B 方案草稿实体未立项）。</p>
+     *
+     * <p>两页分工（2026-10-30 用户拍板）：备货单页只列有缺口的行（默认），
+     * 手动生成页要柜内全量在架商品（{@code includeZero=true}，建议量 0 也保留）。</p>
      */
     @Transactional(readOnly = true)
     public List<MerchantPrepPreviewGroupDto> prepPreview(Long userId) {
+        return prepPreview(userId, false);
+    }
+
+    /** @param includeZero true=柜内全部在架商品（建议量 0 也保留）；false=只列建议量 &gt; 0 的行 */
+    @Transactional(readOnly = true)
+    public List<MerchantPrepPreviewGroupDto> prepPreview(Long userId, boolean includeZero) {
         permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
@@ -117,11 +126,14 @@ public class MerchantReplenishmentService {
             // 单柜失败（如台账异常）不拖垮整张预览：跳过该柜，交由确认环节的逐柜提交给出明确报错
             List<ReplenishmentSuggestDto> suggestions;
             try {
-                suggestions = warehouseService.suggestForDevice(deviceId, true).stream()
-                        .filter(s -> s.suggestQty() > 0)
-                        .toList();
+                suggestions = warehouseService.prepRowsForDevice(deviceId);
             } catch (ResponseStatusException ex) {
                 continue;
+            }
+            if (!includeZero) {
+                suggestions = suggestions.stream()
+                        .filter(s -> s.suggestQty() > 0)
+                        .toList();
             }
             if (suggestions.isEmpty()) {
                 continue;

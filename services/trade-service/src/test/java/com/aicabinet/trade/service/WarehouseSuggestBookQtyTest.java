@@ -69,8 +69,20 @@ class WarehouseSuggestBookQtyTest {
 
     private WarehouseService service;
 
+    /** 目录桩：建议只收 ACTIVE（2026-10-30 在架判据），本类夹具 SKU 全部在架。 */
+    private static List<com.aicabinet.trade.domain.SkuCatalog> catalogs(String... skuIds) {
+        return java.util.Arrays.stream(skuIds).map(skuId -> {
+            com.aicabinet.trade.domain.SkuCatalog c = new com.aicabinet.trade.domain.SkuCatalog();
+            c.setSkuId(skuId);
+            c.setStatus("ACTIVE");
+            return c;
+        }).toList();
+    }
+
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(skuCatalogRepository.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(catalogs("100013", "100014", "100015", "100016"));
         service = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
@@ -165,6 +177,29 @@ class WarehouseSuggestBookQtyTest {
                 .findFirst().orElseThrow().suggestQty());
         assertEquals(3, out.stream().filter(s -> s.skuId().equals("100014"))
                 .findFirst().orElseThrow().suggestQty());
+    }
+
+    @Test
+    void prepRows_doorCabinet_listsWholeCabinetIncludingFullSkus() {
+        // 「手动生成备货单」全量口径（2026-10-30 用户拍板）：柜内所有在架商品都列，
+        // 建议量 0 的已满行也要保留（备货员看整柜现状，不是只挑缺货）
+        when(deviceSlotService.isDoorCabinet("EG-1")).thenReturn(true);
+        when(inTransitService.qtyBySkuForDevice("EG-1")).thenReturn(Map.of());
+        when(deviceInventoryRepository.findByIdDeviceId("EG-1"))
+                .thenReturn(List.of(inv("100013", 2, 4, 0), inv("100014", 4, 4, 0)));
+        when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
+
+        List<ReplenishmentSuggestDto> out = service.prepRowsForDevice("EG-1");
+
+        assertEquals(2, out.size());
+        ReplenishmentSuggestDto partial = out.stream()
+                .filter(s -> s.skuId().equals("100013")).findFirst().orElseThrow();
+        assertEquals(2, partial.suggestQty());
+        assertEquals(2, partial.currentQty());
+        ReplenishmentSuggestDto full = out.stream()
+                .filter(s -> s.skuId().equals("100014")).findFirst().orElseThrow();
+        assertEquals(0, full.suggestQty(), "已满商品的建议量应为 0，但仍须出现在列表里");
+        assertEquals(4, full.capacity());
     }
 
     @Test

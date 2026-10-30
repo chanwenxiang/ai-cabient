@@ -27,8 +27,21 @@
     ]]>
   </sql>
 
+  <!--
+    在架判据：sku_catalog.status=ACTIVE。与开门柜指标（DeviceSlotService.doorCabinetStockStats）、
+    设备详情已上架商品同一过滤 —— 下架品不该再进「缺货/低库存」待办与补货建议
+    （2026-10-30 用户拍板；实测 500909625160 上 6 个已下架演示 SKU 仍在待办里计缺货）。
+    注意：库存列表本身仍展示下架行（实货还在柜里），只收窄判据。
+  -->
+  <sql id="onShelfSkuOnly">
+    <![CDATA[
+    EXISTS (SELECT 1 FROM sku_catalog s WHERE s.sku_id = i.sku_id AND s.status = 'ACTIVE')
+    ]]>
+  </sql>
+
   <sql id="lowStockPredicate">
     (<include refid="effectiveSellableQty"/>) <![CDATA[ <= i.low_threshold ]]>
+    AND <include refid="onShelfSkuOnly"/>
   </sql>
 
   <!--

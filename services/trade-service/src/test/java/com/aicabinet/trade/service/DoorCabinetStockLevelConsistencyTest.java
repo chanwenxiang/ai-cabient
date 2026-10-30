@@ -225,10 +225,8 @@ class DoorCabinetStockLevelConsistencyTest {
     }
 
     // ══ 6. 备货建议 / 备货单 ═══════════════════════════════════════════════
-    @Test
-    void replenishmentSuggest_triggerSetMatchesWarnSet() {
-        DeviceSkuInventoryMapper deviceInventory = mock(DeviceSkuInventoryMapper.class);
-        when(deviceInventory.findByIdDeviceId(DEV)).thenReturn(inventoryRows());
+    /** 备货建议服务：只关心台账行与 SKU 目录两处输入，其余腿打桩成空。 */
+    private WarehouseService suggestService(DeviceSkuInventoryMapper deviceInventory, SkuCatalogMapper catalog) {
         DeviceSlotService slotService = mock(DeviceSlotService.class);
         when(slotService.isDoorCabinet(DEV)).thenReturn(true);
         when(slotService.suggestSlotsForDevice(DEV)).thenReturn(List.of());
@@ -241,15 +239,25 @@ class DoorCabinetStockLevelConsistencyTest {
                 mock(WarehouseInboundMapper.class), mock(WarehouseInboundLineMapper.class),
                 mock(WarehouseOutboundMapper.class), mock(WarehouseOutboundLineMapper.class),
                 mock(WarehouseMovementMapper.class), deviceInventory, mock(ReplenishmentTaskMapper.class),
-                mock(ReplenishmentRouteMapper.class), mock(SkuCatalogMapper.class), slotService, velocity,
+                mock(ReplenishmentRouteMapper.class), catalog, slotService, velocity,
                 inTransit, lotLedger(), mock(DistributedLockService.class),
                 mock(DisplaySnapshotHelper.class), mock(DeviceInfoMapper.class), null,
                 mock(UserInfoMapper.class), mock(PermissionService.class),
                 mock(MerchantScopeService.class), mock(AdminAuditService.class),
                 mock(WarehouseManagerMapper.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
+        return svc;
+    }
 
-        List<ReplenishmentSuggestDto> suggests = svc.suggestForDevice(DEV);
+    @Test
+    void replenishmentSuggest_triggerSetMatchesWarnSet() {
+        DeviceSkuInventoryMapper deviceInventory = mock(DeviceSkuInventoryMapper.class);
+        when(deviceInventory.findByIdDeviceId(DEV)).thenReturn(inventoryRows());
+        // 在架判据（2026-10-30）：建议只收 sku_catalog.status=ACTIVE，夹具四个 SKU 全部在架
+        SkuCatalogMapper catalog = mock(SkuCatalogMapper.class);
+        when(catalog.selectList(any())).thenReturn(activeCatalog());
+
+        List<ReplenishmentSuggestDto> suggests = suggestService(deviceInventory, catalog).suggestForDevice(DEV);
 
         assertEquals(WARN_SKUS, suggests.stream().map(ReplenishmentSuggestDto::skuId).sorted().toList(),
                 "备货建议触发集合=缺货/低库存集合（一张备货单就能覆盖首页说缺的）");
@@ -258,6 +266,32 @@ class DoorCabinetStockLevelConsistencyTest {
         assertEquals(4, suggestBySku.get("SKU-A"));
         assertEquals(4, suggestBySku.get("SKU-B"), "按可售 0 补到容量 4，不是按台账 3 只补 1");
         assertEquals(3, suggestBySku.get("SKU-D"));
+    }
+
+    /**
+     * 在架判据（2026-10-30 用户拍板）：缺货/低库存待办与补货建议都只收 ACTIVE。
+     * 反例来自真库——500909625160 上 6 个已下架演示 SKU（库存 0）仍在工作台里计缺货。
+     */
+    @Test
+    void replenishmentSuggest_skipsDelistedSku() {
+        DeviceSkuInventoryMapper deviceInventory = mock(DeviceSkuInventoryMapper.class);
+        List<DeviceSkuInventory> rows = new ArrayList<>(inventoryRows());
+        rows.add(inv("SKU-E", 0, 4, 2));
+        when(deviceInventory.findByIdDeviceId(DEV)).thenReturn(rows);
+        SkuCatalogMapper catalog = mock(SkuCatalogMapper.class);
+        List<SkuCatalog> skus = new ArrayList<>(activeCatalog());
+        SkuCatalog delisted = new SkuCatalog();
+        delisted.setSkuId("SKU-E");
+        delisted.setSkuName("SKU-E-已下架");
+        delisted.setStatus("INACTIVE");
+        skus.add(delisted);
+        when(catalog.selectList(any())).thenReturn(skus);
+
+        List<ReplenishmentSuggestDto> suggests = suggestService(deviceInventory, catalog).suggestForDevice(DEV);
+
+        assertTrue(suggests.stream().noneMatch(s -> "SKU-E".equals(s.skuId())),
+                "已下架 SKU 不得进补货建议（不应再让商户为下架品领货）");
+        assertEquals(WARN_SKUS, suggests.stream().map(ReplenishmentSuggestDto::skuId).sorted().toList());
     }
 
     // ══ 7. SQL 侧单源：低库存类 select 共用同一条谓词 ═══════════════════════
@@ -269,6 +303,8 @@ class DoorCabinetStockLevelConsistencyTest {
         assertTrue(predicate.group(1).contains("effectiveSellableQty"),
                 "判据数量源必须走批次可售（effectiveSellableQty），不能用台账 quantity 裸列");
         assertTrue(predicate.group(1).contains("i.low_threshold"), "判据上限是逐 SKU 低库存阈值");
+        assertTrue(predicate.group(1).contains("onShelfSkuOnly"),
+                "判据必须只收在架 SKU（sku_catalog.status=ACTIVE），下架品不进待办/建议");
 
         Matcher deployed = Pattern.compile("<sql id=\"deployedDeviceOnly\">([\\s\\S]*?)</sql>").matcher(xml);
         assertTrue(deployed.find(), "投放柜过滤片段必须存在（避免把下线/回收柜算进缺货指标）");

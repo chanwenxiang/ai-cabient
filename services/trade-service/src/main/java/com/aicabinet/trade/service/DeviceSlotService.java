@@ -813,6 +813,20 @@ public class DeviceSlotService {
      */
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForOutboundFill(String deviceId) {
+        return suggestSlotsForOutboundFill(deviceId, false);
+    }
+
+    /**
+     * 全量视图（2026-10-30 用户拍板）：不筛 {@code suggestQty>0}——「生成备货单」要列出
+     * 柜内所有在架商品，已满的行也要显示现状。其它调用方一律走上面两个触发型方法。
+     */
+    @Transactional(readOnly = true)
+    public List<SlotReplenishmentSuggestDto> suggestSlotsForOutboundFillAll(String deviceId) {
+        return suggestSlotsForOutboundFill(deviceId, true);
+    }
+
+    private List<SlotReplenishmentSuggestDto> suggestSlotsForOutboundFill(String deviceId,
+                                                                         boolean includeZero) {
         requireDevice(deviceId);
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
         Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
@@ -821,7 +835,7 @@ public class DeviceSlotService {
                 .filter(s -> s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank())
                 .filter(s -> s.getParLevel() > 0)
                 .map(s -> buildSlotSuggest(deviceId, s, bookBySlot, velocityBySku, true))
-                .filter(s -> s.suggestQty() > 0)
+                .filter(s -> includeZero || s.suggestQty() > 0)
                 .toList();
     }
 

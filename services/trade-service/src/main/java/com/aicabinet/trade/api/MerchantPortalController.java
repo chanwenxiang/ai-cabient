@@ -663,12 +663,17 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.replenishmentPrepList(userId(request)));
     }
 
-    /** 「手动生成备货单」预览（A 方案）：按柜分组、按「补满」口径（上限−实际−在途），与阈值自动建议同源。 */
+    /**
+     * 「备货单预览」：按柜分组、按「补满」口径（上限−实际−在途），与阈值自动建议同源。
+     * includeZero=true 时列出柜内全部在架商品（手动生成页），默认只列有缺口的行（备货单页）。
+     */
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/prep-preview")
     public ApiResponse<List<com.aicabinet.common.dto.MerchantPrepPreviewGroupDto>> replenishmentPrepPreview(
-            HttpServletRequest request) {
-        return ApiResponse.ok(support.merchantReplenishmentService().prepPreview(userId(request)));
+            HttpServletRequest request,
+            @RequestParam(name = "includeZero", required = false) Boolean includeZero) {
+        return ApiResponse.ok(support.merchantReplenishmentService()
+                .prepPreview(userId(request), Boolean.TRUE.equals(includeZero)));
     }
 
     @RequiresPermissions("merchant:replenishment:view")

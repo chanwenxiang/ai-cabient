@@ -294,8 +294,9 @@ const INJECTS = [
   {
     name: '商户端备货页退回「· 在途」',
     file: F.mpPrep,
-    from: '> · 未上柜 {{ item.inTransitQty }}</text>',
-    to: '> · 在途 {{ item.inTransitQty }}</text>',
+    // 2026-10-30 手动生成页改成一行式库存文案（去卡片框），锚点跟着换成新文案
+    from: ' · 已领未上柜 {{ item.inTransitQty }}',
+    to: ' · 在途 {{ item.inTransitQty }}',
     expect: '仍有「· 在途」'
   },
   // ── R5 新叙事在位 ──────────────────────────────────────────────────────────

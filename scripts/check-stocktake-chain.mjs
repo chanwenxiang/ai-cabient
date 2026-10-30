@@ -24,7 +24,8 @@
  *
  * C 前端入口
  *   - device-stocktake.vue 必须调用 openStocktakeDoor / submitDoorStocktake；
- *   - home.vue 备货单区必须有 goDeviceStocktake 入口。
+ *   - 首页快捷入口（home.vue）留「柜机盘点」——不带 deviceId，到盘点页再扫码选柜；
+ *   - 柜机详情（device-detail.vue）必须带 deviceId 跳盘点页（按柜盘点、不开错门）。
  *
  * 永远 fail-closed：锚点找不到一律 FAIL。
  *   node scripts/check-stocktake-chain.mjs
@@ -52,7 +53,8 @@ const FILES = {
   mapper:
     'services/trade-service/src/main/java/com/aicabinet/trade/mapper/ShoppingSessionMapper.java',
   stocktakePage: 'clients/merchant-mp/src/pages/device-stocktake/device-stocktake.vue',
-  home: 'clients/merchant-mp/src/pages/home/home.vue'
+  home: 'clients/merchant-mp/src/pages/home/home.vue',
+  deviceDetail: 'clients/merchant-mp/src/pages/device-detail/device-detail.vue'
 };
 
 for (const [k, rel] of Object.entries(FILES)) {
@@ -131,8 +133,24 @@ if (recogIdx !== -1 && stIdx > recogIdx) {
 for (const api of ['openStocktakeDoor', 'submitDoorStocktake']) {
   if (!src.stocktakePage.includes(api)) fail(`device-stocktake.vue 缺 ${api} 调用`);
 }
+// 盘点入口一：首页快捷项（扫码选柜，不带 deviceId）
 if (!src.home.includes('goDeviceStocktake')) {
-  fail('home.vue 缺 goDeviceStocktake——首页备货单区盘点入口被移除');
+  fail('home.vue 缺 goDeviceStocktake——首页快捷项「柜机盘点」入口被移除');
+}
+const homeNav = src.home.match(/goDeviceStocktake\(\)\s*\{[\s\S]{0,300}?\}/);
+if (!homeNav || !homeNav[0].includes('/pages/device-stocktake/device-stocktake')) {
+  fail('home.vue 的 goDeviceStocktake 未跳盘点页');
+}
+// 盘点入口二：柜机详情（按柜盘点）。必须带 deviceId：不带就只能靠扫码选柜，开错门风险高
+if (!src.deviceDetail.includes('goDeviceStocktake')) {
+  fail('device-detail.vue 缺 goDeviceStocktake——柜机详情盘点入口被移除');
+}
+const stocktakeNav = src.deviceDetail.match(/goDeviceStocktake\(\)\s*\{[\s\S]{0,300}?\}/);
+if (
+  !stocktakeNav ||
+  !stocktakeNav[0].includes('/pages/device-stocktake/device-stocktake?deviceId=')
+) {
+  fail('device-detail.vue 的 goDeviceStocktake 未带 deviceId 跳盘点页（会开错柜的门）');
 }
 
 console.log(

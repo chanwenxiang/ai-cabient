@@ -6,7 +6,6 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.common.dto.MerchantSkuPerformanceDto;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
-import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.DeviceSlotMapper;
@@ -72,8 +71,6 @@ class MerchantAnalyticsServiceTest {
         List<Object[]> skuRows = new java.util.ArrayList<>();
         skuRows.add(new Object[]{"sku-1", "汽水", 2L, 800L, 200L});
         when(lineRepository.skuBreakdownByDevicesSince(any(), any())).thenReturn(skuRows);
-        when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of());
-        when(slotRepository.listByDeviceIds(any())).thenReturn(List.of());
 
         MerchantAnalyticsOverviewDto dto = service.overview(1L, 7);
 
@@ -94,7 +91,7 @@ class MerchantAnalyticsServiceTest {
     }
 
     @Test
-    void overview_topSkus_onlyCurrentCabinetSkus() {
+    void overview_topSkus_keepsDelistedSkusThatSold() {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.BIZ))
                 .thenReturn(Set.of("cab-1"));
         when(lineRepository.sumRevenueByDeviceIdsSince(any(), any())).thenReturn(1750L);
@@ -109,11 +106,6 @@ class MerchantAnalyticsServiceTest {
         skuRows.add(new Object[]{"SKU-OFF", "纯牛奶 250ml", 3L, 1350L, 750L});
         skuRows.add(new Object[]{"SKU-ON", "汽水", 1L, 400L, 200L});
         when(lineRepository.skuBreakdownByDevicesSince(any(), any())).thenReturn(skuRows);
-        when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of());
-        DeviceSlot slot = new DeviceSlot();
-        slot.setEnabled(true);
-        slot.setAssignedSkuId("SKU-ON");
-        when(slotRepository.listByDeviceIds(any())).thenReturn(List.of(slot));
         SkuCatalog onCab = new SkuCatalog();
         onCab.setSkuId("SKU-ON");
         onCab.setSkuName("汽水");
@@ -122,9 +114,10 @@ class MerchantAnalyticsServiceTest {
 
         MerchantAnalyticsOverviewDto dto = service.overview(1L, 7);
 
-        assertEquals(1, dto.topSkus().size());
-        assertEquals("SKU-ON", dto.topSkus().get(0).skuId());
-        assertEquals("汽水 330ml", dto.topSkus().get(0).skuName());
+        assertEquals(2, dto.topSkus().size());
+        assertEquals("SKU-OFF", dto.topSkus().get(0).skuId());
+        assertEquals("SKU-ON", dto.topSkus().get(1).skuId());
+        assertEquals("汽水 330ml", dto.topSkus().get(1).skuName());
         assertEquals(4, dto.orderCount());
     }
 
@@ -142,7 +135,7 @@ class MerchantAnalyticsServiceTest {
         when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of(stocked));
         when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
         when(slotRepository.listByDeviceIds(any())).thenReturn(List.of());
-        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of());
+        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of(activeSku("SKU-ON")));
 
         List<MerchantSkuPerformanceDto> rows = service.skuPerformance(1L, 7);
 
@@ -175,12 +168,44 @@ class MerchantAnalyticsServiceTest {
         when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of(stocked));
         when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
         when(slotRepository.listByDeviceIds(any())).thenReturn(List.of());
-        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of());
+        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of(activeSku("SKU-STOCK")));
 
         List<MerchantSkuPerformanceDto> rows = service.skuPerformance(1L, 7);
 
         assertEquals(1, rows.size());
         assertEquals("SKU-STOCK", rows.get(0).skuId());
         assertEquals(0, rows.get(0).qtySold());
+    }
+
+    @Test
+    void skuPerformance_excludesDelistedSkuStillHoldingBookStock() {
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("cab-1"));
+        when(lineRepository.skuBreakdownByDevicesSince(any(), any())).thenReturn(List.of());
+        DeviceSkuInventory delisted = new DeviceSkuInventory();
+        delisted.setId(new DeviceSkuInventoryId("cab-1", "SKU-DEL"));
+        delisted.setQuantity(4);
+        DeviceSkuInventory stocked = new DeviceSkuInventory();
+        stocked.setId(new DeviceSkuInventoryId("cab-1", "SKU-ON"));
+        stocked.setQuantity(4);
+        when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of(delisted, stocked));
+        when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
+        when(slotRepository.listByDeviceIds(any())).thenReturn(List.of());
+        SkuCatalog delistedCatalog = activeSku("SKU-DEL");
+        delistedCatalog.setStatus("INACTIVE");
+        when(skuCatalogRepository.findAllById(any())).thenReturn(List.of(activeSku("SKU-ON"), delistedCatalog));
+
+        List<MerchantSkuPerformanceDto> rows = service.skuPerformance(1L, 7);
+
+        assertEquals(1, rows.size());
+        assertEquals("SKU-ON", rows.get(0).skuId());
+    }
+
+    private static SkuCatalog activeSku(String skuId) {
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId(skuId);
+        sku.setSkuName(skuId);
+        sku.setStatus("ACTIVE");
+        return sku;
     }
 }

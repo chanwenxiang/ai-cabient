@@ -406,6 +406,96 @@ public class WarehouseService {
      */
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId, boolean fillToPar) {
+        return onlyOnShelf(doSuggestForDevice(deviceId, fillToPar));
+    }
+
+    /**
+     * 补货建议只收在架商品（2026-10-30 用户拍板）：三条建议腿（货道 PAR / 低库存 / ROP）
+     * 原先都不过 sku_catalog.status，下架品照样被建议补货。判据与 lowStockPredicate、
+     * 开门柜指标同一条 —— 下架只是档案状态，柜里的实货另走效期/盘点处理。
+     */
+    private List<ReplenishmentSuggestDto> onlyOnShelf(List<ReplenishmentSuggestDto> rows) {
+        if (rows.isEmpty()) {
+            return rows;
+        }
+        Set<String> skuIds = rows.stream().map(ReplenishmentSuggestDto::skuId)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.toSet());
+        if (skuIds.isEmpty()) {
+            return rows;
+        }
+        Set<String> onShelf = skuCatalogRepository.selectList(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<SkuCatalog>lambdaQuery()
+                                .in(SkuCatalog::getSkuId, skuIds))
+                .stream()
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .map(SkuCatalog::getSkuId)
+                .collect(Collectors.toSet());
+        return rows.stream().filter(r -> onShelf.contains(r.skuId())).toList();
+    }
+
+    /**
+     * 「生成备货单」全量视图（2026-10-30 用户拍板）：列出柜内<b>在架商品全集</b>，
+     * 建议量为 0 的行也返回——备货员要看整柜现状，不是只挑缺货行。
+     *
+     * <p>建议量口径仍是「补满」：上限（台账容量 / 货道 PAR）− 账面 − 已领未上柜。
+     * 货道柜的商品全集=货道图（同 SKU 多货道聚合），开门柜的商品全集=台账行
+     * （`device_slot` 对开门柜是死数据，不参与）。</p>
+     */
+    @Transactional(readOnly = true)
+    public List<ReplenishmentSuggestDto> prepRowsForDevice(String deviceId) {
+        String dev = deviceId.trim();
+        Map<String, Integer> inTransitBySku = inTransitService.qtyBySkuForDevice(dev);
+        Map<String, ReplenishmentSuggestDto> triggered = self.suggestForDevice(deviceId, true).stream()
+                .collect(Collectors.toMap(ReplenishmentSuggestDto::skuId, s -> s, (a, b) -> a));
+        Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(dev);
+        // skuId -> [账面, 上限, 建议(未扣在途)]
+        Map<String, int[]> agg = new LinkedHashMap<>();
+        if (deviceSlotService.isDoorCabinet(dev)) {
+            for (DeviceSkuInventory inv : deviceInventoryRepository.findByIdDeviceId(dev)) {
+                String skuId = inv.getId().getSkuId();
+                if (skuId == null || skuId.isBlank()) {
+                    continue;
+                }
+                int book = bookQtyForSuggest(dev, skuId, inv.getQuantity(), lotSkus);
+                int capacity = inv.getCapacity();
+                // 容量未设（0）时不上限，交给触发型建议兜底（不要读成「不用补」）
+                int rawSuggest = capacity > 0 ? Math.max(0, capacity - book) : 0;
+                agg.put(skuId, new int[] {book, capacity, rawSuggest});
+            }
+        } else {
+            for (SlotReplenishmentSuggestDto slot : deviceSlotService.suggestSlotsForOutboundFillAll(dev)) {
+                int cap = Math.max(0, Math.min(slot.parLevel(),
+                        slot.maxLevel() > 0 ? slot.maxLevel() : slot.parLevel()));
+                int[] a = agg.computeIfAbsent(slot.skuId(), k -> new int[3]);
+                a[0] += slot.bookQty();
+                a[1] += cap;
+                a[2] += slot.suggestQty();
+            }
+        }
+        // 触发型建议里有、全集里没有的 SKU（无台账/无货道的 ROP 腿）：补进来，别漏
+        triggered.values().forEach(s -> agg.computeIfAbsent(
+                s.skuId(), k -> new int[] {s.currentQty(), s.capacity(), Math.max(0, s.suggestQty())}));
+        List<ReplenishmentSuggestDto> out = new ArrayList<>();
+        agg.forEach((skuId, a) -> {
+            ReplenishmentSuggestDto hit = triggered.get(skuId);
+            int inTransit = inTransitBySku.getOrDefault(skuId, 0);
+            int suggest = Math.max(0, a[2] - inTransit);
+            if (a[1] <= 0 && hit != null) {
+                suggest = Math.max(suggest, hit.suggestQty());
+            }
+            out.add(new ReplenishmentSuggestDto(
+                    dev, skuId, a[0], a[1], hit == null ? 0 : hit.lowThreshold(), suggest, inTransit,
+                    hit == null ? 0 : hit.soldQty7d(),
+                    hit == null ? 0 : hit.soldQty14d(),
+                    hit == null ? 0 : hit.ropPoint(),
+                    hit == null ? "PAR" : hit.suggestReason()));
+        });
+        // 与补货建议同一条「只收在架商品」判据（2026-10-30 拍板）：下架品不进货
+        return onlyOnShelf(out);
+    }
+
+    private List<ReplenishmentSuggestDto> doSuggestForDevice(String deviceId, boolean fillToPar) {
         String dev = deviceId.trim();
         Map<String, Integer> inTransitBySku = inTransitService.qtyBySkuForDevice(dev);
         Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);

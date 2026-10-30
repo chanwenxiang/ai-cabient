@@ -63,8 +63,8 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-
 import java.util.Map;
+import java.util.Set;
 
 import java.util.stream.Collectors;
 
@@ -211,12 +211,35 @@ public class ReplenishmentService {
                 .map(inv -> toInventoryDto(inv, sellableByDevice, lotSkusByDevice))
                 .toList();
         if (lowStockOnly) {
-            return dtos.stream()
+            // 低库存/缺货面只收在架 SKU（2026-10-30 拍板）：下架行可能仍压着账面，
+            // 清零前靠假库存隐身、清零后会被读成缺货——都不得进「需补货」视图。
+            // 判据与 WarehouseService.onlyOnShelf / DeviceAssetService 缺货面同一条。
+            return onShelfOnly(dtos.stream()
                     .filter(d -> SkuStockLevel.of(d.quantity(), d.lowThreshold()).warning())
-                    .toList();
+                    .toList());
         }
         return dtos;
 
+    }
+
+    /** 低库存面过滤：只保留 {@code sku_catalog.status=ACTIVE} 的行。 */
+    private List<DeviceInventoryDto> onShelfOnly(List<DeviceInventoryDto> rows) {
+        if (rows.isEmpty()) {
+            return rows;
+        }
+        Set<String> skuIds = rows.stream().map(DeviceInventoryDto::skuId)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(Collectors.toSet());
+        if (skuIds.isEmpty()) {
+            return rows;
+        }
+        Set<String> onShelf = skuCatalogMapper.selectList(Wrappers.<com.aicabinet.trade.domain.SkuCatalog>lambdaQuery()
+                        .in(com.aicabinet.trade.domain.SkuCatalog::getSkuId, skuIds))
+                .stream()
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .map(com.aicabinet.trade.domain.SkuCatalog::getSkuId)
+                .collect(Collectors.toSet());
+        return rows.stream().filter(d -> onShelf.contains(d.skuId())).toList();
     }
 
 

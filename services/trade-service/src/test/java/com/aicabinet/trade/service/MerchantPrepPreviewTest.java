@@ -29,9 +29,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * A 方案「手动生成备货单」预览（2026-10-29）：逐柜 fillToPar 建议 → 按柜分组预览组。
- * 钉住四件事：范围=FIELD 包、口径走 {@code suggestForDevice(dev, true)}（补满），
- * 无缺口柜不返回，目录缺失回落 skuId/「支」/packQty=1。
+ * 备货单预览（2026-10-29 建页，2026-10-30 两页分工）：逐柜商品 → 按柜分组。
+ * 钉住五件事：范围=FIELD 包、口径走 {@code prepRowsForDevice}（补满）、
+ * 默认只列缺口行而 {@code includeZero=true} 列柜内全量、无商品柜不返回，
+ * 目录缺失回落 skuId/「支」/packQty=1。
  */
 @ExtendWith(MockitoExtension.class)
 class MerchantPrepPreviewTest {
@@ -65,7 +66,7 @@ class MerchantPrepPreviewTest {
     void preview_buildsGroupsFromFillToParSuggestions() {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
                 .thenReturn(Set.of("DEV-1"));
-        when(warehouseService.suggestForDevice(eq("DEV-1"), eq(true))).thenReturn(List.of(
+        when(warehouseService.prepRowsForDevice("DEV-1")).thenReturn(List.of(
                 suggest("SKU-B", 2, 10, 1, 7),
                 suggest("SKU-A", 0, 8, 0, 8)));
         SkuCatalog b = new SkuCatalog();
@@ -103,15 +104,15 @@ class MerchantPrepPreviewTest {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
                 .thenReturn(Set.of());
         assertTrue(service.prepPreview(1L).isEmpty());
-        verify(warehouseService, never()).suggestForDevice(any(), eq(true));
+        verify(warehouseService, never()).prepRowsForDevice(any());
     }
 
     @Test
     void preview_deviceWithoutGap_isOmitted() {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
                 .thenReturn(Set.of("DEV-1", "DEV-2"));
-        when(warehouseService.suggestForDevice(eq("DEV-1"), eq(true))).thenReturn(List.of());
-        when(warehouseService.suggestForDevice(eq("DEV-2"), eq(true))).thenReturn(List.of(
+        when(warehouseService.prepRowsForDevice("DEV-1")).thenReturn(List.of());
+        when(warehouseService.prepRowsForDevice("DEV-2")).thenReturn(List.of(
                 suggest("SKU-A", 1, 5, 0, 4)));
         when(skuCatalogRepository.selectList(any())).thenReturn(List.of());
         when(deviceRepository.findById("DEV-2")).thenReturn(java.util.Optional.empty());
@@ -128,20 +129,39 @@ class MerchantPrepPreviewTest {
     }
 
     @Test
-    void preview_zeroSuggestRows_filteredOut() {
+    void preview_defaultHidesFullRows_includeZeroKeepsWholeCabinetList() {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
                 .thenReturn(Set.of("DEV-1"));
-        when(warehouseService.suggestForDevice(eq("DEV-1"), eq(true))).thenReturn(List.of(
+        when(warehouseService.prepRowsForDevice("DEV-1")).thenReturn(List.of(
                 suggest("SKU-A", 5, 5, 0, 0),
                 suggest("SKU-B", 1, 6, 2, 3)));
         when(skuCatalogRepository.selectList(any())).thenReturn(List.of());
         when(deviceRepository.findById("DEV-1")).thenReturn(java.util.Optional.empty());
 
-        List<MerchantPrepPreviewGroupDto> out = service.prepPreview(1L);
+        // 备货单页（默认）：只列有缺口的行，已满商品（建议 0）不出现
+        List<MerchantPrepPreviewGroupDto> shortageOnly = service.prepPreview(1L);
+        assertEquals(1, shortageOnly.size());
+        assertEquals(1, shortageOnly.get(0).items().size());
+        assertEquals("SKU-B", shortageOnly.get(0).items().get(0).skuId());
 
-        assertEquals(1, out.size());
-        assertEquals(1, out.get(0).items().size());
-        assertEquals("SKU-B", out.get(0).items().get(0).skuId());
+        // 手动生成页（includeZero=true）：柜内全量在架商品，建议 0 也列
+        List<MerchantPrepPreviewGroupDto> whole = service.prepPreview(1L, true);
+        assertEquals(1, whole.size());
+        assertEquals(2, whole.get(0).items().size());
+        assertEquals("SKU-B", whole.get(0).items().get(0).skuId());
+        assertEquals("SKU-A", whole.get(0).items().get(1).skuId());
+        assertEquals(0, whole.get(0).items().get(1).suggestQty());
+    }
+
+    @Test
+    void preview_wholeCabinetFull_isOmittedFromShortageViewOnly() {
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("DEV-1"));
+        when(warehouseService.prepRowsForDevice("DEV-1")).thenReturn(List.of(
+                suggest("SKU-A", 5, 5, 0, 0)));
+
+        assertTrue(service.prepPreview(1L).isEmpty());
+        assertEquals(1, service.prepPreview(1L, true).size());
     }
 
     @Test

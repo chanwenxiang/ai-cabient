@@ -132,10 +132,11 @@ public class MerchantAnalyticsService {
         long avgUnit = itemQty > 0 ? revenue / itemQty : 0;
 
         StockoutEstimate stockout = estimateStockoutLoss(deviceIds, skuRows, window);
-        Set<String> onCabinet = currentCabinetSkuIds(deviceIds);
-        Map<String, String> catalogNames = catalogDisplayNames(onCabinet);
-        List<MerchantSkuSalesDto> topSkus = mapSkuSales(skuRows, 50).stream()
-                .filter(s -> onCabinet.contains(s.skuId()))
+        // 热销榜看全量成交：下架品只要卖过就该看得见，商户才可能据此决定重新上架（2026-10-30 拍板）。
+        List<MerchantSkuSalesDto> soldSkus = mapSkuSales(skuRows, 50);
+        Map<String, String> catalogNames = catalogDisplayNames(
+                soldSkus.stream().map(MerchantSkuSalesDto::skuId).collect(Collectors.toSet()));
+        List<MerchantSkuSalesDto> topSkus = soldSkus.stream()
                 .map(s -> overlaySkuName(s, catalogNames))
                 .limit(20)
                 .toList();
@@ -266,7 +267,19 @@ public class MerchantAnalyticsService {
         if (skuIds.isEmpty()) {
             return List.of();
         }
-        skuCatalogRepository.findAllById(skuIds).forEach(s -> names.put(s.getSkuId(), skuDisplayName(s)));
+        Set<String> onSale = new HashSet<>();
+        skuCatalogRepository.findAllById(skuIds).forEach(s -> {
+            names.put(s.getSkuId(), skuDisplayName(s));
+            if ("ACTIVE".equalsIgnoreCase(s.getStatus())) {
+                onSale.add(s.getSkuId());
+            }
+        });
+        // 下架不清账面库存，故在架态须单独判：否则下架品会永久挂着「无销量 · 可考虑下架」自相矛盾。
+        // 判据与 DeviceAssetService 的缺货/低库存面同一条。
+        skuIds.retainAll(onSale);
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
 
         List<Long> positiveSales = skuIds.stream()
                 .map(id -> sales.getOrDefault(id, new long[3])[0])
@@ -318,7 +331,8 @@ public class MerchantAnalyticsService {
     }
 
     /**
-     * 当前柜在售商品：库存>0 或已绑启用货道。历史成交但已下架的 SKU 不进商品分析。
+     * 柜内候选商品：账面库存&gt;0 或已绑启用货道。注意这是账面态，不含上架判定
+     * （{@code sku_catalog.status}）——下架不会清零账面库存，需要「在架」语义的调用方自己再过滤。
      */
     Set<String> currentCabinetSkuIds(Set<String> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {

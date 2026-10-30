@@ -93,6 +93,18 @@ public class MerchantInventoryPortalService {
         this.warehouseInventoryRepository = warehouseInventoryRepository;
     }
 
+    /**
+     * 商户库存台账全量列表。
+     * <p>
+     * 🔴 刻意不按 sku_catalog.status 过滤（2026-10-30 拍板）：下架只改商品档案，不级联清
+     * 柜×商品台账行，实货还在柜里——过滤会让库存凭空消失。与设备详情的「在架商品」列表
+     * （{@code DeviceSlotService.getDeviceDetail} 只收 ACTIVE）是两种用途，别顺手对齐。
+     * 缺货/低库存/补货建议另一条路（{@code lowStockPredicate}、{@code WarehouseService}
+     * 建议腿）才只看在架 SKU。
+     * <p>
+     * 注意：本接口当前无前端消费者；若日后接列表页，需要先给 DTO 补 sku 状态字段，
+     * 才能把下架行灰标成「已下架」，否则前端无法区分。
+     */
     @Transactional(readOnly = true)
     public List<DeviceInventoryDto> listInventory(Long userId, String deviceId, boolean lowStockOnly) {
         permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
@@ -120,6 +132,14 @@ public class MerchantInventoryPortalService {
 
         Map<String, Set<String>> ledgerSkusByDevice = new HashMap<>();
         Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
+        // 「低库存」面只收在架 SKU（2026-10-30 拍板）：下架行可能仍压账面、清零后会被读成缺货。
+        // 全量台账列表（lowStockOnly=false）刻意不过滤——见本方法 javadoc，别顺手对齐。
+        Set<String> onShelf = lowStockOnly
+                ? onShelfSkuIds(rows.stream()
+                        .map(i -> i.getId().getSkuId())
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                : Set.of();
         return rows.stream()
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
                 .map(i -> {
@@ -137,10 +157,26 @@ public class MerchantInventoryPortalService {
                             dev, i.getId().getSkuId(), qty, i.getCapacity(), i.getLowThreshold(),
                             i.getUpdatedAt(), i.getVersion(), i.getLastRestockQty());
                 })
-                // 「低库存」筛选含缺货（CB-076：0 < 可售 ≤ 阈值 才叫低库存，缺货单独一档但同属需补货）
+                // 「低库存」筛选含缺货（CB-076：0 < 可售 ≤ 阈值 才叫低库存，缺货单独一档但同属需补货），且只收在架 SKU
                 .filter(d -> !lowStockOnly
-                        || SkuStockLevel.of(d.quantity(), d.lowThreshold()).warning())
+                        || (onShelf.contains(d.skuId())
+                                && SkuStockLevel.of(d.quantity(), d.lowThreshold()).warning()))
                 .toList();
+    }
+
+    /** 在架 SKU 集合：{@code sku_catalog.status=ACTIVE}（与 WarehouseService.onlyOnShelf 同判据）。 */
+    private Set<String> onShelfSkuIds(Collection<String> skuIds) {
+        if (skuIds == null || skuIds.isEmpty()) {
+            return Set.of();
+        }
+        return skuCatalogMapper
+                .selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
+                        .<com.aicabinet.trade.domain.SkuCatalog>lambdaQuery()
+                        .in(com.aicabinet.trade.domain.SkuCatalog::getSkuId, skuIds))
+                .stream()
+                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .map(com.aicabinet.trade.domain.SkuCatalog::getSkuId)
+                .collect(Collectors.toSet());
     }
 
     @Transactional(readOnly = true)
@@ -223,9 +259,18 @@ public class MerchantInventoryPortalService {
         Map<String, Integer> sellableBySku = lotSkus.isEmpty()
                 ? Map.of()
                 : inventoryLotService.sellableQtyBySku(deviceId);
+        List<DeviceSkuInventory> invRows = inventoryRepository.findByIdDeviceId(deviceId);
+        // 下架 SKU 不进缺货面（2026-10-30 拍板，与 DeviceAssetService 缺货面同判据）
+        Set<String> onShelf = onShelfSkuIds(invRows.stream()
+                .map(i -> i.getId().getSkuId())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
         int pendingSkus = 0;
         int shortageQty = 0;
-        for (DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
+        for (DeviceSkuInventory inv : invRows) {
+            if (!onShelf.contains(inv.getId().getSkuId())) {
+                continue;
+            }
             int sellable = Math.max(SkuStockLevel.sellableQty(inv, lotSkus, sellableBySku), 0);
             if (!SkuStockLevel.of(sellable, inv.getLowThreshold()).warning()) {
                 continue;
@@ -308,6 +353,8 @@ public class MerchantInventoryPortalService {
         // deviceId -> skuId -> 需备数量（支）
         Map<String, Map<String, Integer>> unitsByDeviceSku = new java.util.LinkedHashMap<>();
         Map<String, Set<Long>> taskIdsByDevice = new java.util.LinkedHashMap<>();
+        // deviceId -> 最近一张任务创建时间（备货单「已生成」排序用）
+        Map<String, java.time.Instant> lastTaskAtByDevice = new java.util.LinkedHashMap<>();
         // deviceId + '\u0000' + skuId -> 该柜出库单挂的分仓集合（同仓多任务不重复计库存）
         Map<String, Set<String>> warehousesByDeviceSku = new java.util.LinkedHashMap<>();
         for (ReplenishmentTask task : tasks) {
@@ -328,6 +375,10 @@ public class MerchantInventoryPortalService {
                         .merge(line.getSkuId(), line.getQuantity(), Integer::sum);
                 taskIdsByDevice.computeIfAbsent(task.getDeviceId(), k -> new java.util.LinkedHashSet<>())
                         .add(task.getTaskId());
+                if (task.getCreatedAt() != null) {
+                    lastTaskAtByDevice.merge(task.getDeviceId(), task.getCreatedAt(),
+                            (a, b) -> a.isAfter(b) ? a : b);
+                }
                 warehousesByDeviceSku
                         .computeIfAbsent(task.getDeviceId() + '\u0000' + line.getSkuId(),
                                 k -> new java.util.HashSet<>())
@@ -352,6 +403,7 @@ public class MerchantInventoryPortalService {
         Map<String, DeviceInfo> deviceById = deviceRepository.selectBatchIds(unitsByDeviceSku.keySet())
                 .stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, d -> d, (a, b) -> a));
+        Map<String, Map<String, Integer>> capByDeviceSku = loadPrepCapUnits(unitsByDeviceSku.keySet());
         List<MerchantPrepGroupDto> out = new java.util.ArrayList<>();
         for (Map.Entry<String, Map<String, Integer>> deviceEntry : unitsByDeviceSku.entrySet()) {
             String deviceId = deviceEntry.getKey();
@@ -359,7 +411,13 @@ public class MerchantInventoryPortalService {
             List<MerchantPrepItemDto> items = new java.util.ArrayList<>();
             for (Map.Entry<String, Integer> skuEntry : deviceEntry.getValue().entrySet()) {
                 String skuId = skuEntry.getKey();
-                int totalUnits = skuEntry.getValue();
+                // 任务线相加可能超过柜内容量（2026-10-30 实测：同柜同 SKU 两条进行中任务各 3，
+                // 相加备 6，而容量只有 4）。备货量按「还能放进柜多少」钳制，放不下的不领。
+                int totalUnits = Math.min(skuEntry.getValue(),
+                        capByDeviceSku.getOrDefault(deviceId, Map.of()).getOrDefault(skuId, Integer.MAX_VALUE));
+                if (totalUnits <= 0) {
+                    continue;
+                }
                 com.aicabinet.trade.domain.SkuCatalog catalog = catalogBySku.get(skuId);
                 int packQty = Math.max(1, catalog == null ? 1 : catalog.getPackQty());
                 int stockUnits = warehousesByDeviceSku.getOrDefault(deviceId + '\u0000' + skuId,
@@ -392,9 +450,43 @@ public class MerchantInventoryPortalService {
                     deviceId,
                     device == null ? deviceId : device.getDeviceName(),
                     taskIdsByDevice.getOrDefault(deviceId, java.util.Set.of()).size(),
+                    lastTaskAtByDevice.get(deviceId),
                     items));
         }
         out.sort(java.util.Comparator.comparing(MerchantPrepGroupDto::deviceId));
+        return out;
+    }
+
+    /**
+     * 备货量上限（柜×SKU）= 柜内容量 − 可售量，即「这次还能往柜里放多少」。
+     * <p>
+     * 只对设了容量的台账行生效：开门柜按商品设 capacity；货道柜容量列恒 0 ⇒ 不设上限，
+     * 沿用任务线数量（货道柜的容量在货道 par 上，不在这一列）。可售量取
+     * {@link SkuStockLevel} 同一出处，避免备货单与设备详情对同一 SKU 报两个数。
+     */
+    private Map<String, Map<String, Integer>> loadPrepCapUnits(Set<String> deviceIds) {
+        Map<String, Map<String, Integer>> out = new HashMap<>();
+        for (String deviceId : deviceIds) {
+            List<DeviceSkuInventory> rows = inventoryRepository.findByIdDeviceId(deviceId);
+            if (rows == null || rows.isEmpty()) {
+                continue;
+            }
+            Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
+            Map<String, Integer> sellableBySku = lotSkus == null || lotSkus.isEmpty()
+                    ? null
+                    : inventoryLotService.sellableQtyBySku(deviceId);
+            Map<String, Integer> caps = new HashMap<>();
+            for (DeviceSkuInventory row : rows) {
+                if (row.getCapacity() <= 0) {
+                    continue;
+                }
+                int sellable = SkuStockLevel.sellableQty(row, lotSkus, sellableBySku);
+                caps.put(row.getId().getSkuId(), Math.max(0, row.getCapacity() - sellable));
+            }
+            if (!caps.isEmpty()) {
+                out.put(deviceId, caps);
+            }
+        }
         return out;
     }
 

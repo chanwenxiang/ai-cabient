@@ -1,5 +1,6 @@
 package com.aicabinet.common.dto;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -13,6 +14,8 @@ public record MerchantPrepGroupDto(
         String deviceName,
         /** 本柜待备货的任务数（PENDING + IN_PROGRESS） */
         int taskCount,
+        /** 本柜最近一张补货任务的创建时间——备货单「已生成」按它排序（无任务时为 null） */
+        Instant lastTaskAt,
         /** 本柜需备商品（按需备数量降序） */
         List<MerchantPrepItemDto> items
 ) {}

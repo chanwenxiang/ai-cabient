@@ -19703,6 +19703,8 @@ export interface components {
             deviceName?: string;
             /** Format: int32 */
             taskCount?: number;
+            /** Format: date-time */
+            lastTaskAt?: string;
             items?: components["schemas"]["MerchantPrepItemDto"][];
         };
         MerchantPrepItemDto: {
@@ -37216,7 +37218,9 @@ export interface operations {
     };
     replenishmentPrepPreview: {
         parameters: {
-            query?: never;
+            query?: {
+                includeZero?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
