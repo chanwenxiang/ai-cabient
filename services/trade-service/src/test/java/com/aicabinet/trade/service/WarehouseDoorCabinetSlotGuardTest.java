@@ -123,6 +123,11 @@ class WarehouseDoorCabinetSlotGuardTest {
         row.setCapacity(4);
         row.setLowThreshold(3);
         when(deviceInventoryRepository.findByIdDeviceId(device)).thenReturn(List.of(row));
+        // 在架判据（2026-10-30）：建议只收 sku_catalog.status=ACTIVE（本用例只验柜型分流，SKU 在架）
+        com.aicabinet.trade.domain.SkuCatalog catalogRow = new com.aicabinet.trade.domain.SkuCatalog();
+        catalogRow.setSkuId(SKU);
+        catalogRow.setStatus("ACTIVE");
+        lenient().when(skuCatalogRepository.selectList(any())).thenReturn(List.of(catalogRow));
         // 残留货道行：hasSkuSlots 仍为真——这正是旧实现误封顶的入口
         lenient().when(deviceSlotService.hasSkuSlots(device, SKU)).thenReturn(true);
     }

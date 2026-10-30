@@ -374,12 +374,15 @@ class DoorCabinetStockLevelConsistencyTest {
         MerchantFeaturePackService packs = mock(MerchantFeaturePackService.class);
         // null = 不做功能包过滤（生产里两种取值都要能走通；这里只验口径）
         when(packs.allowedDeviceIdsForPack(any(), any())).thenReturn(null);
+        // 在架判据（2026-10-30）：缺货面/低库存面只收 sku_catalog.status=ACTIVE，夹具四个 SKU 全部在架
+        SkuCatalogMapper catalog = mock(SkuCatalogMapper.class);
+        when(catalog.selectList(any())).thenReturn(activeCatalog());
         return new MerchantInventoryPortalService(
                 mock(PermissionService.class), mock(MerchantPortalGuard.class),
                 packs, inventory, lots,
                 mock(PullOffTaskMapper.class), slotService, mock(ReplenishmentTaskMapper.class),
                 mock(ReplenishmentTaskLineMapper.class), mock(ReplenishmentRouteMapper.class),
-                deviceRepository, mock(FileAttachmentService.class), mock(SkuCatalogMapper.class),
+                deviceRepository, mock(FileAttachmentService.class), catalog,
                 mock(WarehouseOutboundMapper.class), mock(WarehouseOutboundLineMapper.class),
                 mock(WarehouseInventoryMapper.class));
     }
