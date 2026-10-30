@@ -286,6 +286,12 @@ export const AdminEndpoints = {
       : `${ops}/merchants?${query.toString()}`,
   /** 商户目录下拉（size=500，见 admin-catalog-query / D7） */
   merchantsCatalog: `${ops}/merchants?${adminCatalogQuery()}`,
+  /**
+   * 商户范围对话框专用分页查询（G2-11 ⑪）：服务端 q 模糊匹配（编号/名称）+ size 降为 100，
+   * 目录超 100 家后不再静默截断，靠 total 提示 + 关键字查找补全。
+   */
+  merchantsCatalogPage: (extra?: Record<string, string | number>) =>
+    `${ops}/merchants?${adminCatalogQuery(extra)}`,
   merchantsProfitSharingStatus: `${ops}/merchants/profit-sharing/status`,
   merchantsRevenueSplits: (query: URLSearchParams | string) =>
     typeof query === 'string'

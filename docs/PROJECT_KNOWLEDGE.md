@@ -669,6 +669,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-30（G2-11 ⑪ 落地：商户范围对话框改服务端搜索口径——目录钳 100 不再静默少列）
+
+- **缺陷**：admin 运营账号「商户范围」对话框走 `adminCatalogQuery` 伪全量（要 size=500），服务端 `MerchantService.listMerchantsPage` 钳到 100，UI 只读 `data.items` 不读 total ⇒ 商户超 100 家后勾选列表**静默少列**，运营既勾不到也不知道少了谁（当前库 16 家未咬到，条件性缺陷；2026-10-29 简报 B 档）。
+- **修法（零后端/零迁移/零契约变更）**：`endpoints.ts` 新增 `merchantsCatalogPage(extra)` 构建器（复用 `adminCatalogQuery`，请求降为 size=100 + 服务端 `q` 模糊匹配——`MerchantMapper.searchPage` 本就按编号/名称 like）；`OperatorManageView` 对话框加关键字搜索条（回车/清除/按钮触发）+「共 N 家，当前显示 M 家」total 提示 +「已选（不在当前列表）」独立勾选组，已选商户跨搜索页可见可取消；打开对话框清残留关键字并按无关键字口径重拉第一页。`loadMerchants(q)` 竞态防护沿用 `loadSeq`，loading 清理也走 isCurrent 防 stale 复位。
+- 📌 **刻意不动**：`AdminEndpoints.merchantsCatalog`（size=500）另有 `DeviceListView`/`useDeviceLifecycleActions` 两处消费，语义不动；请求降 100 只发生在运营台对话框。无关键字时不再拉 500——目录超 100 家时首屏本就只能看到前 100，靠 total 提示 + 搜索补全，与 `admin-catalog-query.ts` 头注释「业务量超上限改远程搜索」同口径。
+- 🧪 验证：prettier/eslint 0 error、`vue-tsc --noEmit` 全量 0 错、`admin-catalog-query.test.ts` 3/3（工具零改动）；仓内 14 个前端测试全为 utils/composables/directives 级、无视图级测试先例，按惯例不加组件测试。后端零改动 ⇒ 无 regen shared-types。
+- 并发隔离：`endpoints.ts` 混 peer 3 处 hunk ⇒ `git apply --cached` 只暂存本条 6 行（`.tmp/ep-mine.patch`）。
+
 ### 2026-10-30（D28 待拍板第 3 项查证为 no-op，顺带修掉查出来的真缺陷：开门柜在效期 tab 被「货道已满」假锁死）
 
 - **授权原话**：「按推荐来，先修 1」＋「还有②③④也按照你的推荐做」。② A4 另一档（全链路写 bin + 对账）= **不动，继续等拍板**；③ mp release 产物 = **停在 appid 上**（见末条）；④ `.tmp/uat-ab9fa4a2/` 两个 compose 覆盖层 = **我不动**，只交证据与命令。

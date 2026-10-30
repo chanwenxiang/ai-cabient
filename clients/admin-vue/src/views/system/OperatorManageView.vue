@@ -422,13 +422,54 @@
           title="数据范围说明"
           description="勾选商户后，该账号可见这些商户及其全部下级商户的设备与订单/补货/看板数据（下级由商户层级自动带入，无需勾选，本列表不显示下级）。不勾选任何商户 = 无任何商户范围，该账号登录商户门户会被拒（403「账号未绑定任何商户」）；超级管理员不能进商户门户，请使用运营后台。可再通过「货柜范围」限定到部分柜机。"
         />
+        <!-- G2-11 ⑪：商户目录超 100 家后服务端截断曾静默少列；改为服务端关键字搜索 + total 提示 -->
+        <div class="merchant-search-bar">
+          <el-input
+            v-model="merchantSearch"
+            clearable
+            :prefix-icon="Search"
+            placeholder="输入商户名称或编号关键字查找"
+            style="width: 260px"
+            @keyup.enter="searchMerchantCatalog"
+            @clear="searchMerchantCatalog"
+          />
+          <el-button :loading="merchantCatalogLoading" @click="searchMerchantCatalog"
+            >查找</el-button
+          >
+          <span v-if="merchantCatalogTotal !== null" class="muted merchant-total-hint">
+            共 {{ merchantCatalogTotal }} 家，当前显示 {{ merchants.length }} 家<template
+              v-if="merchantCatalogTotal > merchants.length"
+            >
+              ，未显示的请输入关键字查找</template
+            >
+          </span>
+        </div>
         <el-checkbox-group v-if="merchants.length" v-model="merchantIds" class="merchant-group">
           <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
             {{ m.merchantName }}
             <span class="muted">· 编号 {{ m.merchantId }} · {{ m.deviceCount ?? 0 }} 台设备</span>
           </el-checkbox>
         </el-checkbox-group>
-        <el-empty v-else-if="!merchantScopeLoading" description="暂无商户可分配" :image-size="64" />
+        <el-empty
+          v-else-if="!merchantScopeLoading"
+          :description="merchantSearch ? '没有匹配的商户' : '暂无商户可分配'"
+          :image-size="64"
+        />
+        <template v-if="selectedOutsideCurrent.length">
+          <div class="merchant-outside-title">
+            已选（不在当前列表，{{ selectedOutsideCurrent.length }} 家）
+          </div>
+          <el-checkbox-group v-model="merchantIds" class="merchant-group">
+            <el-checkbox
+              v-for="m in selectedOutsideCurrent"
+              :key="m.merchantId"
+              :label="m.merchantId"
+            >
+              {{ m.merchantName || '商户' }}
+              <span class="muted">· 编号 {{ m.merchantId }}</span>
+            </el-checkbox>
+          </el-checkbox-group>
+        </template>
       </div>
       <template #footer>
         <el-button @click="merchantDlg = false">取消</el-button>
@@ -506,7 +547,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Key, Monitor, OfficeBuilding, Unlock } from '@element-plus/icons-vue';
+import {
+  Delete,
+  EditPen,
+  Key,
+  Monitor,
+  OfficeBuilding,
+  Search,
+  Unlock
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -592,6 +641,22 @@ const merchantScopeLoading = ref(false);
 const deviceScopeLoading = ref(false);
 const merchantIds = ref<string[]>([]);
 const merchantScopeOriginal = ref<string[]>([]);
+// G2-11 ⑪：商户范围对话框目录改为服务端搜索口径（size=100 + q 模糊匹配 + total 提示），
+// 商户超 100 家后不再静默少列；已选但不在当前结果中的商户单独列出，保证可见可取消。
+const MERCHANT_SCOPE_PAGE_SIZE = 100;
+const merchantSearch = ref('');
+const merchantCatalogTotal = ref<number | null>(null);
+const merchantCatalogLoading = ref(false);
+const selectedOutsideCurrent = computed<MerchantRow[]>(() => {
+  const known = new Map(merchants.value.map((m) => [m.merchantId, m]));
+  return merchantIds.value
+    .filter((id) => !known.has(id))
+    .map((id) => ({
+      merchantId: id,
+      merchantName: known.get(id)?.merchantName ?? '',
+      deviceCount: undefined
+    }));
+});
 const deviceIds = ref<string[]>([]);
 const routeCodes = ref<string[]>([]);
 const deviceScopeMode = ref('ALL');
@@ -798,18 +863,32 @@ async function loadRoles() {
   }
 }
 
-async function loadMerchants() {
+async function loadMerchants(q?: string) {
   const seq = loadSeq.begin('loadMerchants');
+  merchantCatalogLoading.value = true;
   try {
-    const data = await api.request<{ items?: MerchantRow[] }>(
-      AdminEndpoints.merchantsCatalog,
+    const keyword = q?.trim();
+    const extra: Record<string, string | number> = keyword
+      ? { q: keyword, size: MERCHANT_SCOPE_PAGE_SIZE }
+      : { size: MERCHANT_SCOPE_PAGE_SIZE };
+    const data = await api.request<{ items?: MerchantRow[]; total?: number }>(
+      AdminEndpoints.merchantsCatalogPage(extra),
       'GET'
     );
+    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     merchants.value = data.items || [];
+    merchantCatalogTotal.value = data.total ?? merchants.value.length;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
     merchants.value = [];
+    merchantCatalogTotal.value = null;
+  } finally {
+    if (loadSeq.isCurrent(seq, 'loadMerchants')) merchantCatalogLoading.value = false;
   }
+}
+
+function searchMerchantCatalog() {
+  void loadMerchants(merchantSearch.value);
 }
 
 function syncRouteQuery() {
@@ -1052,10 +1131,15 @@ async function saveRoles() {
 async function openMerchants(row: OperatorRow) {
   currentUserId.value = row.userId;
   merchantIds.value = [];
+  merchantScopeOriginal.value = [];
+  // 上次搜索残留的关键字先清掉；有残留或目录未加载时按无关键字口径重新拉第一页
+  const needCatalogLoad = !!merchantSearch.value || !merchants.value.length;
+  merchantSearch.value = '';
+  merchantCatalogTotal.value = null;
   merchantDlg.value = true;
   merchantScopeLoading.value = true;
   try {
-    if (!merchants.value.length) await loadMerchants();
+    if (needCatalogLoad) await loadMerchants();
     const data = await api.request<{ merchantIds: string[] }>(
       AdminEndpoints.rbacUserMerchants(row.userId),
       'GET'
@@ -1332,5 +1416,21 @@ onActivated(() => {
 /* 角色勾选改两列后，左右两列的组标题对齐（首列标题不再额外上间距） */
 .role-cols .role-group-title:first-child {
   margin-top: 4px;
+}
+/* G2-11 ⑪：商户范围对话框搜索条 + total 提示 */
+.merchant-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.merchant-total-hint {
+  font-size: var(--admin-font-size-sm);
+}
+.merchant-outside-title {
+  margin: 12px 0 4px;
+  font-size: var(--admin-font-size-table);
+  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 </style>
