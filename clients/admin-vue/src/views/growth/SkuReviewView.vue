@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">选品诊断</span>
             <span class="hint"
-              >动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内在售商品</span
+              >动销诊断；下架会停售 SKU。替换 SKU 仅备注建议，不会改柜内在售商品 ·
+              「原价营收」＝明细原价合计（未扣券/优惠），与财务实收口径不同</span
             >
           </div>
         </div>
@@ -104,7 +105,7 @@
             label-class-name="col-status"
           />
           <el-table-column
-            label="营收(元)"
+            label="原价营收(元)"
             width="110"
             align="center"
             class-name="col-money"
@@ -214,7 +215,7 @@ const csvOptions: CrudCsvOptions = {
     '分类',
     '动销表现',
     '销量',
-    '营收(元)',
+    '原价营收(元)',
     '库存天数',
     '评审状态',
     '建议',
