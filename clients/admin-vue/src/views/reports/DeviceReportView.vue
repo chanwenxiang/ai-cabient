@@ -435,7 +435,9 @@ function deviceReportDeviceCountHint(ready: boolean) {
 
 function deviceReportOfflineHint(ready: boolean) {
   if (!ready) return UI_COPY.loading;
-  if (offlineTotal.value) return '点击筛选离线';
+  // MA-008：本页 KPI 跟随设备台账＝全量（含未投放/已退役柜）；运营工作台同名 KPI 只算投放柜。
+  // 两侧口径都是刻意的（不许顺手对齐），差别必须写在页面上，否则运营会当成数据对不上。
+  if (offlineTotal.value) return '全量口径（含未投放/已退役柜；工作台只算投放柜）· 点击筛选离线';
   return '全部在线';
 }
 
