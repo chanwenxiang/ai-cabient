@@ -7816,6 +7816,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/rbac/merchants/{merchantId}/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["merchantUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/rbac/me/two-factor/status": {
         parameters: {
             query?: never;
@@ -11207,6 +11223,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["removeBlacklist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/rbac/users/{userId}/merchants/{merchantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["revokeMerchant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -17474,6 +17506,29 @@ export interface components {
             size?: number;
             /** Format: int64 */
             total?: number;
+        };
+        ApiResponseOpsMerchantUsersDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["OpsMerchantUsersDto"];
+        };
+        OpsMerchantUserDto: {
+            /** Format: int64 */
+            userId?: number;
+            phoneNumber?: string;
+            name?: string;
+            status?: string;
+            /** Format: int64 */
+            createdBy?: number;
+            createdByName?: string;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        OpsMerchantUsersDto: {
+            merchantId?: string;
+            merchantName?: string;
+            users?: components["schemas"]["OpsMerchantUserDto"][];
         };
         ApiResponseTwoFactorStatusDto: {
             /** Format: int32 */
@@ -34426,6 +34481,28 @@ export interface operations {
             };
         };
     };
+    merchantUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                merchantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOpsMerchantUsersDto"];
+                };
+            };
+        };
+    };
     twoFactorStatus: {
         parameters: {
             query?: never;
@@ -39161,6 +39238,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    revokeMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+                merchantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOpsUserMerchantsDto"];
                 };
             };
         };

@@ -713,6 +713,12 @@ export const AdminEndpoints = {
     `${ops}/rbac/users/${encodeURIComponent(String(userId))}/roles`,
   rbacUserMerchants: (userId: string | number) =>
     `${ops}/rbac/users/${encodeURIComponent(String(userId))}/merchants`,
+  /** G2-11 ⑦：按商户反查授权账号（商户列表 → 已授权账号） */
+  rbacMerchantUsers: (merchantId: string) =>
+    `${ops}/rbac/merchants/${encodeURIComponent(merchantId)}/users`,
+  /** G2-11 ⑦：单行回收（只摘这一条绑定，不做自动级联） */
+  rbacUserMerchantRevoke: (userId: string | number, merchantId: string) =>
+    `${ops}/rbac/users/${encodeURIComponent(String(userId))}/merchants/${encodeURIComponent(merchantId)}`,
   rbacUserDevices: (userId: string | number) =>
     `${ops}/rbac/users/${encodeURIComponent(String(userId))}/devices`,
   rbacMe: `${ops}/rbac/me`,

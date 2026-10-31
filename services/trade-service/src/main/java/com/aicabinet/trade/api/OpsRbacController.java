@@ -209,6 +209,25 @@ public class OpsRbacController {
         return ApiResponse.ok(rbacService.assignMerchants(operatorId(request), userId, merchantIds));
     }
 
+    // G2-11 ⑦：按商户反查「这家商户还授权给谁」——缩权/离职交接前的唯一反查入口
+    @RequiresPermissions(value = {"ops:rbac:assign", "ops:rbac:assign:device"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/rbac/merchants/{merchantId}/users")
+    public ApiResponse<OpsMerchantUsersDto> merchantUsers(
+            HttpServletRequest request,
+            @PathVariable String merchantId) {
+        return ApiResponse.ok(rbacService.listMerchantUsers(operatorId(request), merchantId));
+    }
+
+    // G2-11 ⑦：单行回收，刻意不做自动级联（下属账号的独立授权需人工逐个确认）
+    @RequiresPermissions("ops:rbac:assign:merchant")
+    @DeleteMapping("/rbac/users/{userId}/merchants/{merchantId}")
+    public ApiResponse<OpsUserMerchantsDto> revokeMerchant(
+            HttpServletRequest request,
+            @PathVariable Long userId,
+            @PathVariable String merchantId) {
+        return ApiResponse.ok(rbacService.revokeMerchant(operatorId(request), userId, merchantId));
+    }
+
     @GetMapping("/rbac/me/permissions")
     public ApiResponse<java.util.Set<String>> myPermissions(HttpServletRequest request) {
         return ApiResponse.ok(rbacService.myPermissions(operatorId(request)));

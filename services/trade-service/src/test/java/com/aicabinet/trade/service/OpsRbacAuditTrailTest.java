@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -247,5 +248,97 @@ class OpsRbacAuditTrailTest {
 
         assertTrue(detail.endsWith("...(截断)"), detail);
         assertTrue(detail.length() <= 512, "detail 长度 " + detail.length());
+    }
+
+    // ===== G2-11 ⑦：按商户反查授权账号 + 单行回收（不做自动级联）=====
+
+    private static com.aicabinet.trade.domain.Merchant merchant(String merchantId) {
+        com.aicabinet.trade.domain.Merchant m = new com.aicabinet.trade.domain.Merchant();
+        m.setMerchantId(merchantId);
+        m.setMerchantName("商户" + merchantId);
+        return m;
+    }
+
+    @Test
+    void revokeMerchant_removesOnlyThatBinding_andAuditsBeforeAfter() {
+        allowLock(OpsRbacService.opsOperatorLockKey(TARGET));
+        when(userInfoRepository.existsById(TARGET)).thenReturn(true);
+        when(merchantRepository.findById("M001")).thenReturn(Optional.of(merchant("M001")));
+        when(merchantScopeService.allowedMerchantIds(ACTOR)).thenReturn(null);
+        when(userMerchantRepository.findByIdUserId(TARGET)).thenReturn(bindings(TARGET, "M001", "M002"));
+
+        service.revokeMerchant(ACTOR, TARGET, "M001");
+
+        verify(userMerchantRepository).deleteByIdUserIdAndMerchantId(TARGET, "M001");
+        // 单行回收：绝不能退化成整删整插，否则同账号的 M002 被静默连带
+        verify(userMerchantRepository, never()).deleteByIdUserId(anyLong());
+        verify(auditService).appendLog(eq(ACTOR), eq("OPS_USER_MERCHANT_REVOKE"), eq("USER"),
+                eq(String.valueOf(TARGET)), eq("merchants=M001,M002->M002"));
+    }
+
+    @Test
+    void revokeMerchant_notBound_isIdempotentNoOpWithoutAudit() {
+        allowLock(OpsRbacService.opsOperatorLockKey(TARGET));
+        when(userInfoRepository.existsById(TARGET)).thenReturn(true);
+        when(merchantRepository.findById("M001")).thenReturn(Optional.of(merchant("M001")));
+        when(merchantScopeService.allowedMerchantIds(ACTOR)).thenReturn(null);
+        when(userMerchantRepository.findByIdUserId(TARGET)).thenReturn(bindings(TARGET, "M002"));
+
+        var result = service.revokeMerchant(ACTOR, TARGET, "M001");
+
+        assertEquals(List.of("M002"), result.merchantIds());
+        verify(userMerchantRepository, never()).deleteByIdUserIdAndMerchantId(anyLong(), anyString());
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void revokeMerchant_outsideOperatorScope_isForbiddenWithoutSideEffect() {
+        allowLock(OpsRbacService.opsOperatorLockKey(TARGET));
+        when(userInfoRepository.existsById(TARGET)).thenReturn(true);
+        when(merchantRepository.findById("M001")).thenReturn(Optional.of(merchant("M001")));
+        when(merchantScopeService.allowedMerchantIds(ACTOR)).thenReturn(java.util.Set.of("M002"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.revokeMerchant(ACTOR, TARGET, "M001"));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        verify(userMerchantRepository, never()).deleteByIdUserIdAndMerchantId(anyLong(), anyString());
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void listMerchantUsers_returnsMaskedAccountsWithGrantProvenance_andKeepsOrphanRow() {
+        long orphan = 100_000_009L;
+        OpsUserMerchant granted = new OpsUserMerchant(TARGET, "M001");
+        granted.setCreatedBy(ACTOR);
+        granted.setCreatedAt(java.time.Instant.parse("2026-10-28T03:00:00Z"));
+        when(merchantRepository.findById("M001")).thenReturn(Optional.of(merchant("M001")));
+        when(merchantScopeService.allowedMerchantIds(ACTOR)).thenReturn(null);
+        when(userMerchantRepository.findByMerchantId("M001")).thenReturn(List.of(granted, new OpsUserMerchant(orphan, "M001")));
+        when(userInfoRepository.findAllById(any())).thenAnswer(inv -> {
+            java.util.Collection<?> ids = inv.getArgument(0);
+            if (ids.contains(TARGET)) {
+                return List.of(operator(TARGET, "13900000002"));
+            }
+            if (ids.contains(ACTOR)) {
+                return List.of(operator(ACTOR, "13800000001"));
+            }
+            return List.of();
+        });
+
+        var result = service.listMerchantUsers(ACTOR, "M001");
+
+        assertEquals("M001", result.merchantId());
+        assertEquals("商户M001", result.merchantName());
+        assertEquals(2, result.users().size());
+        var row = result.users().get(0);
+        assertEquals(TARGET, row.userId());
+        assertEquals("139****0002", row.phoneNumber());
+        assertEquals(ACTOR, row.createdBy());
+        assertEquals("运营", row.createdByName());
+        // 账号行缺失的孤儿绑定仍要可见（否则永远没有回收入口）
+        var orphanRow = result.users().get(1);
+        assertEquals(orphan, orphanRow.userId());
+        assertNull(orphanRow.name());
     }
 }

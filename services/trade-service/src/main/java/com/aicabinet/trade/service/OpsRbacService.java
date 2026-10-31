@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.util.PhoneMask;
+import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OpsPermission;
 import com.aicabinet.trade.domain.OpsRole;
 import com.aicabinet.trade.domain.OpsRolePermission;
@@ -38,7 +39,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -685,6 +689,88 @@ public class OpsRbacService {
         auditService.appendLog(operatorId, "OPS_USER_MERCHANT_ASSIGN", "USER", String.valueOf(userId),
                 scopeAuditDetail(before, after));
         return self.getUserMerchants(operatorId, userId);
+    }
+
+    /**
+     * G2-11 ⑦：按商户反查授权账号。此前只有「账号 → 商户」单向读面——扩权会静默扩散到下属
+     * （子商户继承父级范围），却没有任何入口回答「这家商户现在还授权给谁」。
+     */
+    @Transactional(readOnly = true)
+    public OpsMerchantUsersDto listMerchantUsers(Long operatorId, String merchantId) {
+        // 与 controller 的 assign / assign:device 双轨对齐：只授 device 细分码的角色也能看范围
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN, "ops:rbac:assign:device");
+        Merchant merchant = requireMerchantInScope(operatorId, merchantId);
+        List<OpsUserMerchant> bindings = userMerchantRepository.findByMerchantId(merchant.getMerchantId());
+        Map<Long, UserInfo> users = new HashMap<>();
+        for (UserInfo user : userInfoRepository.findAllById(
+                bindings.stream().map(OpsUserMerchant::getUserId).distinct().toList())) {
+            users.put(user.getUserId(), user);
+        }
+        Map<Long, String> creatorNames = new HashMap<>();
+        for (UserInfo creator : userInfoRepository.findAllById(
+                bindings.stream().map(OpsUserMerchant::getCreatedBy).filter(Objects::nonNull).distinct().toList())) {
+            creatorNames.put(creator.getUserId(), creator.getName());
+        }
+        List<OpsMerchantUserDto> rows = new ArrayList<>();
+        for (OpsUserMerchant binding : bindings) {
+            UserInfo user = users.get(binding.getUserId());
+            Long createdBy = binding.getCreatedBy();
+            rows.add(new OpsMerchantUserDto(
+                    binding.getUserId(),
+                    user == null ? null : PhoneMask.mask(user.getPhoneNumber()),
+                    user == null ? null : user.getName(),
+                    user == null ? null : user.getStatus(),
+                    createdBy,
+                    createdBy == null ? null : creatorNames.getOrDefault(createdBy, String.valueOf(createdBy)),
+                    binding.getCreatedAt()));
+        }
+        return new OpsMerchantUsersDto(merchant.getMerchantId(), merchant.getMerchantName(), rows);
+    }
+
+    /**
+     * G2-11 ⑦：单行回收——只摘掉这一条绑定，不做自动级联。
+     *
+     * <p>刻意不回收下属账号的授权：子商户是独立授权事实，静默批量回收会误伤仍在履职的人；
+     * 运营应在反查清单里逐个确认后再收。
+     */
+    @Transactional
+    public OpsUserMerchantsDto revokeMerchant(Long operatorId, Long userId, String merchantId) {
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:merchant");
+        return runWithOperatorLock(userId, () -> doRevokeMerchant(operatorId, userId, merchantId));
+    }
+
+    private OpsUserMerchantsDto doRevokeMerchant(Long operatorId, Long userId, String merchantId) {
+        ensureOperatorAccount(userId);
+        Merchant merchant = requireMerchantInScope(operatorId, merchantId);
+        String id = merchant.getMerchantId();
+        List<String> before = userMerchantRepository.findByIdUserId(userId).stream()
+                .map(m -> m.getId().getMerchantId())
+                .toList();
+        if (!before.contains(id)) {
+            // 幂等：未绑定视为已达终态；无变更不写审计
+            return new OpsUserMerchantsDto(userId, before);
+        }
+        userMerchantRepository.deleteByIdUserIdAndMerchantId(userId, id);
+        List<String> after = before.stream().filter(existing -> !existing.equals(id)).toList();
+        auditService.appendLog(operatorId, "OPS_USER_MERCHANT_REVOKE", "USER", String.valueOf(userId),
+                scopeAuditDetail(before, after));
+        return new OpsUserMerchantsDto(userId, after);
+    }
+
+    /** 商户必须存在且落在操作者自己的数据范围内，否则反查/回收都会成为越权探针。 */
+    private Merchant requireMerchantInScope(Long operatorId, String merchantId) {
+        if (merchantId == null || merchantId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        String id = merchantId.trim();
+        Merchant merchant = merchantRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        ApiMessages.INVALID_REQUEST + "：merchantId=" + id));
+        Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
+        if (allowed != null && !allowed.contains(id)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
+        }
+        return merchant;
     }
 
     /** 审计 detail 单侧字符上限：两侧 + 前缀须稳落在 {@link AdminAuditService} 的 512 截断兜底之内。 */

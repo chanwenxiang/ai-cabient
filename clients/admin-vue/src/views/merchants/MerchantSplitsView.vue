@@ -122,8 +122,11 @@
               row-key="merchantId"
               selectable
               :show-refresh="false"
+              :actions="canViewMerchantScope ? merchantScopeActions : undefined"
+              :action-width="110"
               empty-text="暂无商户"
               sort-field-label="商户编号"
+              @action="onMerchantScopeAction"
             >
               <el-table-column
                 prop="merchantId"
@@ -745,13 +748,78 @@
         >
       </template>
     </el-dialog>
+
+    <!-- G2-11 ⑦：按商户反查授权账号（此前只有「账号 → 商户」单向读面，缩权/交接没有反查入口） -->
+    <el-dialog
+      v-model="scopeDlg"
+      :title="`已授权账号 · ${scopeMerchant?.merchantName || scopeMerchant?.merchantId || ''}`"
+      class="dialog-wide"
+      destroy-on-close
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="status-banner"
+        title="只能回收「直接绑定」；继承来的访问要改上级授权"
+        description="商户范围按组织树实时级联：绑定父商户即覆盖其全部下级（含以后新增的下级）。因此某家商户的可见权可能来自上级绑定——本清单列出的是直接绑定到该商户的账号，要从根本上收回某人的访问，请回到「运营账号 → 商户范围」调整其父级授权。"
+      />
+      <div v-loading="scopeLoading">
+        <el-table :data="scopeUsers" size="small" empty-text="暂无直接授权账号">
+          <el-table-column label="账号" min-width="160">
+            <template #default="{ row }">
+              <span>{{ row.name || '（账号已不存在）' }}</span>
+              <span class="muted"> · {{ row.userId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="手机号" width="130">
+            <template #default="{ row }">{{ row.phoneNumber || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90" align="center" class-name="col-status">
+            <template #default="{ row }">
+              <el-tag v-if="row.status" size="small" effect="plain">{{ row.status }}</el-tag>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="授权人 / 时间" min-width="200">
+            <template #default="{ row }">
+              <span v-if="row.createdAt" class="cell-datetime">
+                {{ row.createdByName || row.createdBy }} ·
+                {{ formatDateTime(row.createdAt) }}
+              </span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="canRevokeMerchantScope"
+            label="操作"
+            width="90"
+            align="center"
+            class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-button
+                link
+                type="danger"
+                :loading="revokingUserId === row.userId"
+                @click="revokeScopeUser(row)"
+                >回收</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <el-button @click="scopeDlg = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { CircleCheck, Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
+import { CircleCheck, Refresh, RefreshRight, Upload, User } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
@@ -822,6 +890,103 @@ const crudSplits = useCrudTable<RevenueSplit>({
   },
   errorMessage: '分账明细加载失败'
 });
+
+// G2-11 ⑦：商户 → 已授权账号的反查抽屉。读面与「账号 → 商户」同权限双轨，
+// 回收额外要 assign:merchant（与 PUT 商户范围同码）。
+type MerchantScopeUserRow = {
+  userId: number;
+  phoneNumber?: string | null;
+  name?: string | null;
+  status?: string | null;
+  createdBy?: number | null;
+  createdByName?: string | null;
+  createdAt?: string | null;
+};
+type MerchantScopeUsers = {
+  merchantId: string;
+  merchantName?: string;
+  users?: MerchantScopeUserRow[];
+};
+const canViewMerchantScope = computed(
+  () => auth.hasPerm('ops:rbac:assign') || auth.hasPerm('ops:rbac:assign:device')
+);
+const canRevokeMerchantScope = computed(() => auth.hasPerm('ops:rbac:assign:merchant'));
+const scopeDlg = ref(false);
+const scopeMerchant = ref<MerchantDto | null>(null);
+const scopeUsers = ref<MerchantScopeUserRow[]>([]);
+const scopeLoading = ref(false);
+const revokingUserId = ref<number | null>(null);
+
+function merchantScopeActions(): CrudRowAction[] {
+  if (!canViewMerchantScope.value) return [];
+  return [
+    {
+      key: 'scopeUsers',
+      label: '已授权账号',
+      icon: User,
+      perm: ['ops:rbac:assign', 'ops:rbac:assign:device']
+    }
+  ];
+}
+
+function onMerchantScopeAction({ key, row }: { key: string; row: MerchantDto }) {
+  if (key === 'scopeUsers') void openMerchantScope(row);
+}
+
+async function openMerchantScope(row: MerchantDto) {
+  scopeMerchant.value = row;
+  scopeUsers.value = [];
+  scopeDlg.value = true;
+  await loadMerchantScopeUsers();
+}
+
+async function loadMerchantScopeUsers() {
+  const merchant = scopeMerchant.value;
+  if (!merchant) return;
+  const seq = loadSeq.begin('merchantScopeUsers');
+  scopeLoading.value = true;
+  try {
+    const data = await api.request<MerchantScopeUsers>(
+      AdminEndpoints.rbacMerchantUsers(merchant.merchantId),
+      'GET'
+    );
+    if (!loadSeq.isCurrent(seq, 'merchantScopeUsers')) return;
+    scopeUsers.value = data.users || [];
+  } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'merchantScopeUsers')) return;
+    scopeUsers.value = [];
+    ElMessage.error(errorMessage(e, '加载授权账号失败'));
+  } finally {
+    if (loadSeq.isCurrent(seq, 'merchantScopeUsers')) scopeLoading.value = false;
+  }
+}
+
+async function revokeScopeUser(row: MerchantScopeUserRow) {
+  const merchant = scopeMerchant.value;
+  if (!merchant || !canRevokeMerchantScope.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `回收「${row.name || row.userId}」对商户 ${merchant.merchantName || merchant.merchantId} 的直接授权？只摘掉这一条绑定，不影响该账号的其它商户；其下属账号的授权也不会自动回收。`,
+      '回收商户授权',
+      { type: 'warning', confirmButtonText: '回收' }
+    );
+  } catch {
+    return;
+  }
+  revokingUserId.value = row.userId;
+  try {
+    await api.request(
+      AdminEndpoints.rbacUserMerchantRevoke(row.userId, merchant.merchantId),
+      'DELETE'
+    );
+    ElMessage.success('已回收该商户授权');
+    await loadMerchantScopeUsers();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '回收失败'));
+  } finally {
+    revokingUserId.value = null;
+  }
+}
 
 function resetMerchantFilters() {
   merchantKeyword.value = '';
