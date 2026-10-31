@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
@@ -142,7 +143,7 @@ public class DeviceSlotService {
             }
         }
         Set<String> activeSkuIds = catalogRows.stream()
-                .filter(s -> "ACTIVE".equals(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .map(SkuCatalog::getSkuId)
                 .collect(Collectors.toSet());
         List<DeviceInventoryDto> skuInventory = inventoryRows.stream()
@@ -1483,7 +1484,7 @@ public class DeviceSlotService {
                                         .map(DeviceSkuInventory::getSkuId)
                                         .toList()))
                 .stream()
-                .filter(s -> "ACTIVE".equals(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .map(SkuCatalog::getSkuId)
                 .collect(Collectors.toSet());
         // 数量源与详情页卡片同源（CB-076）：按「柜 + SKU」粒度判是否建账——整柜判会把

@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -236,7 +237,7 @@ public class ReplenishmentService {
         Set<String> onShelf = skuCatalogMapper.selectList(Wrappers.<com.aicabinet.trade.domain.SkuCatalog>lambdaQuery()
                         .in(com.aicabinet.trade.domain.SkuCatalog::getSkuId, skuIds))
                 .stream()
-                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .map(com.aicabinet.trade.domain.SkuCatalog::getSkuId)
                 .collect(Collectors.toSet());
         return rows.stream().filter(d -> onShelf.contains(d.skuId())).toList();

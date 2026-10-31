@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.support.DeviceLocationSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -174,7 +175,7 @@ public class MerchantInventoryPortalService {
                         .<com.aicabinet.trade.domain.SkuCatalog>lambdaQuery()
                         .in(com.aicabinet.trade.domain.SkuCatalog::getSkuId, skuIds))
                 .stream()
-                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .map(com.aicabinet.trade.domain.SkuCatalog::getSkuId)
                 .collect(Collectors.toSet());
     }

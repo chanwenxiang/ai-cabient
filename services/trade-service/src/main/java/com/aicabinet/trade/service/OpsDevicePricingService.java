@@ -13,6 +13,7 @@ import com.aicabinet.trade.mapper.DeviceSkuPriceMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.OptimisticLocking;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuPriceBounds;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -89,7 +90,7 @@ public class OpsDevicePricingService {
         // 却列出一排 demo SKU）。口径与消费者目录/设备详情「在售商品」一致（只认 ACTIVE）。
         return skuIds.stream()
                 .map(skuMap::get)
-                .filter(sku -> sku != null && "ACTIVE".equals(sku.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .sorted((a, b) -> a.getSkuId().compareTo(b.getSkuId()))
                 .map(sku -> toRow(deviceId, device.getDeviceName(), sku,
                         overrides.get(sku.getSkuId()), qtyBySku.getOrDefault(sku.getSkuId(), 0)))

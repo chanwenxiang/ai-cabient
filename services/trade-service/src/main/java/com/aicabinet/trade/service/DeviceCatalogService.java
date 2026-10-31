@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,7 +66,7 @@ public class DeviceCatalogService {
         }
 
         Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
-                .filter(s -> "ACTIVE".equals(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
 
         List<DeviceProductDto> result = new ArrayList<>();

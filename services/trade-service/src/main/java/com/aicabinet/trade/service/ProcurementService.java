@@ -5,6 +5,7 @@ import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -236,7 +237,7 @@ public class ProcurementService {
     public List<SatelliteSkuOptionDto> listSatelliteSkus(Long operatorId) {
         requireOperatorManagedWarehouse(operatorId);
         return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
-                .filter(s -> s.getStatus() != null && "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 // 2026-10-14 修复：此前直接对每个 SKU 调 catalogUnitCost，目录里只要有一条
                 // 未维护采购价的商品（种子/同步路径漏维护），整个「可采购商品」列表就 400，
                 // 小程序采购页 Promise.all 全挂整页「加载失败」。列表语义是「可采购」——

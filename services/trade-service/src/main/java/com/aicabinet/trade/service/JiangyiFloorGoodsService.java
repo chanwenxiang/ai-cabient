@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,7 +112,7 @@ public class JiangyiFloorGoodsService {
                         deviceId, mapping.getClassId(), skuId);
                 continue;
             }
-            if (!"ACTIVE".equals(sku.getStatus())) {
+            if (!SkuOnShelf.isOnShelf(sku)) {
                 log.info("jiangyi floor goods skip non-ACTIVE sku deviceId={} classId={} skuId={} status={}",
                         deviceId, mapping.getClassId(), skuId, sku.getStatus());
                 continue;

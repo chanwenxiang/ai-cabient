@@ -13,6 +13,7 @@ import com.aicabinet.trade.mapper.JiangyiClassMappingMapper;
 import com.aicabinet.trade.mapper.JiangyiDeviceMapper;
 import com.aicabinet.trade.mapper.JiangyiModelDeploymentMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -240,7 +241,7 @@ public class JiangyiModelSyncService {
             if (sku.getBarcode() == null || sku.getBarcode().isBlank() || sku.getSkuId() == null) {
                 continue;
             }
-            if (!"ACTIVE".equalsIgnoreCase(sku.getStatus())) {
+            if (!SkuOnShelf.isOnShelf(sku)) {
                 continue;
             }
             skusByBarcode.computeIfAbsent(sku.getBarcode().trim(), k -> new ArrayList<>()).add(sku);

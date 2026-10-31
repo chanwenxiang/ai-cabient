@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.support.OptimisticLocking;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuPriceBounds;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -245,7 +246,7 @@ public class MerchantSkuPricingService {
             return List.of();
         }
         Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
-                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
         Map<String, Integer> qtyBySku = resolveSellableQtyBySku(deviceId, invRows, skuIds);
         Map<String, DeviceSkuPrice> overrides = overrideByDevice.getOrDefault(deviceId, Map.of());

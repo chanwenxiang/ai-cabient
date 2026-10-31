@@ -7,6 +7,7 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.DeviceNameSupport;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -200,7 +201,7 @@ public class DemoDataService {
     }
 
     private boolean isChargeableSkuEntity(SkuCatalog sku) {
-        return sku.isVisionEnabled() && "ACTIVE".equalsIgnoreCase(sku.getStatus());
+        return sku.isVisionEnabled() && SkuOnShelf.isOnShelf(sku);
     }
 
     private DemoContext buildContext(String deviceId, String warehouseId) {

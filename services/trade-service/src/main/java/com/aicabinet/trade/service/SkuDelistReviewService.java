@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuDelistReviewMapper;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +85,7 @@ public class SkuDelistReviewService {
         for (SkuCatalog sku : skus.values()) {
             // 已下架（INACTIVE）SKU 不再进诊断：停售商品继续出「无销量」建议是噪音（2026-10-21 用户拍板）
             if (sku == null || sku.getSkuId() == null || sku.getSkuId().isBlank()
-                    || "INACTIVE".equals(sku.getStatus())) {
+                    || SkuOnShelf.isDelisted(sku)) {
                 continue;
             }
             upsertSkuReview(sku, sales, stock, window);
@@ -178,7 +179,7 @@ public class SkuDelistReviewService {
                 // 已下架 SKU 不出现在诊断列表（与 searchPage 的 notExists 口径一致）
                 .filter(r -> {
                     SkuCatalog sku = skus.get(r.getSkuId());
-                    return sku == null || !"INACTIVE".equals(sku.getStatus());
+                    return sku == null || !SkuOnShelf.isDelisted(sku);
                 })
                 .map(r -> toDto(r, skus.get(r.getSkuId()), skus))
                 .toList();

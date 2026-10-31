@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.common.util.PhoneMask;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -428,7 +429,7 @@ public class WarehouseService {
                         com.baomidou.mybatisplus.core.toolkit.Wrappers.<SkuCatalog>lambdaQuery()
                                 .in(SkuCatalog::getSkuId, skuIds))
                 .stream()
-                .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
+                .filter(SkuOnShelf::isOnShelf)
                 .map(SkuCatalog::getSkuId)
                 .collect(Collectors.toSet());
         return rows.stream().filter(r -> onShelf.contains(r.skuId())).toList();

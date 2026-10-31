@@ -23,6 +23,7 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.support.SkuDisplayNames;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -337,7 +338,7 @@ public class MerchantWorkbenchQueryService {
         Set<String> onShelf = new HashSet<>();
         for (var sku : skuCatalogRepository.findBySkuIds(skuIds)) {
             nameBySku.put(sku.getSkuId(), SkuDisplayNames.of(sku));
-            if ("ACTIVE".equalsIgnoreCase(sku.getStatus())) {
+            if (SkuOnShelf.isOnShelf(sku)) {
                 onShelf.add(sku.getSkuId());
             }
         }

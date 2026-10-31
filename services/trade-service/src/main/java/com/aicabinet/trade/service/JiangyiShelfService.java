@@ -8,6 +8,7 @@ import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuPriceBounds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +119,7 @@ public class JiangyiShelfService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "挂接指向的 SKU 不存在：" + link.getSkuId());
         }
-        if (!"ACTIVE".equals(sku.getStatus())) {
+        if (!SkuOnShelf.isOnShelf(sku)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "SKU " + sku.getSkuId() + " 非在售状态（" + sku.getStatus() + "），不能上架");
         }

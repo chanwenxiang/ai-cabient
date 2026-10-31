@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
@@ -337,7 +338,7 @@ public class DeviceAssetService {
             DeviceInfo device = devices.get(row.getDeviceId());
             // 在架判据与 lowStockPredicate / 开门柜指标同一条（2026-10-30）：下架 SKU 不进缺货/低库存面
             SkuCatalog catalog = skus.get(row.getSkuId());
-            if (catalog == null || !"ACTIVE".equalsIgnoreCase(catalog.getStatus())) {
+            if (!SkuOnShelf.isOnShelf(catalog)) {
                 continue;
             }
             if (device != null) {

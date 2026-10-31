@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.PullOffTaskMapper;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.aicabinet.trade.support.SkuOnShelf;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -270,7 +271,7 @@ public class MerchantAnalyticsService {
         Set<String> onSale = new HashSet<>();
         skuCatalogRepository.findAllById(skuIds).forEach(s -> {
             names.put(s.getSkuId(), skuDisplayName(s));
-            if ("ACTIVE".equalsIgnoreCase(s.getStatus())) {
+            if (SkuOnShelf.isOnShelf(s)) {
                 onSale.add(s.getSkuId());
             }
         });
@@ -440,7 +441,7 @@ public class MerchantAnalyticsService {
         Set<String> onShelf = new HashSet<>();
         skuCatalogRepository.findAllById(stock.keySet())
                 .forEach(s -> {
-                    if ("ACTIVE".equalsIgnoreCase(s.getStatus())) {
+                    if (SkuOnShelf.isOnShelf(s)) {
                         onShelf.add(s.getSkuId());
                     }
                 });
