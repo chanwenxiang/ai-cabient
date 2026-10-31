@@ -19,7 +19,7 @@
 | R3 | 设备商品 | 10 + 设备详情动态页（分 2 批） | ✅ 完成（2026-10-31，锚 `7cda6af7`；MA-008~011 全修；批 2 商品面零新缺陷） | rounds/R03-devices.md |
 | R4 | 仓储 | 8（对账单页已登记） + `/print` 隐藏页（分 2 批） | ✅ 完成（2026-10-31；MA-013 打印页居中轮内修；其余零缺陷） | rounds/R04-warehouse.md |
 | R5 | 履约仓储 | 4（Step 0 重拉一致） | ✅ 完成（2026-10-31，锚 `bc760fab`；零缺陷，两条文案待拍板） | rounds/R05-fulfillment.md |
-| R6 | 财务商户 | 16（分 6a-1 / 6a-2 / 6b 三批） | 🟡 进行中（6a-1 六页 + 6a-2 五页完成；MA-014/015 已修，MA-016 待拍板；6b 五页未开始） | rounds/R06-finance.md |
+| R6 | 财务商户 | 16（分 6a-1 / 6a-2 / 6b 三批） | ✅ 完成（2026-10-31；MA-014/015 修完、MA-016 拍板 wontfix；新增资金对账脚本与 4 条费率钉测） | rounds/R06-finance.md |
 | R7 | 增长风控 | 11 | 未开始 | rounds/R07-growth.md |
 | R8 | 系统 | 15 + 登录/错误页 + 权限矩阵专项 | 未开始 | rounds/R08-system.md |
 | R9 | 双小程序为主 → 后台联动点验 | consumer-mp 23 页 / merchant-mp 35 页 | 未开始 | rounds/R09-miniprograms.md |
