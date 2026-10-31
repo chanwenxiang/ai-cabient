@@ -33955,6 +33955,7 @@ export interface operations {
                 q?: string;
                 stuckOnly?: boolean;
                 stuckMinutes?: number;
+                kind?: string;
             };
             header?: never;
             path?: never;
@@ -33985,6 +33986,7 @@ export interface operations {
                 q?: string;
                 stuckOnly?: boolean;
                 stuckMinutes?: number;
+                kind?: string;
             };
             header?: never;
             path?: never;

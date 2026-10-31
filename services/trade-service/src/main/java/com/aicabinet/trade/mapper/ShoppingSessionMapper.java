@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.support.SessionKind;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;
@@ -363,7 +364,9 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             java.time.Instant createdFrom,
             java.time.Instant createdTo,
             String keyword,
-            java.time.Instant updatedBefore) {}
+            java.time.Instant updatedBefore,
+            /** 会话类型（CONSUMER/RESTOCK/OPS/STOCKTAKE）；空=不筛。口径与 `DeviceValidationService.sessionKind` 同源。 */
+            String sessionKind) {}
 
     /** 运营会话列表：按更新时间倒序（同刻回落创建时间），与页面「更新时间」列及排序按钮一致。 */
     default Page<ShoppingSession> findByFiltersOrderByUpdatedAtDesc(
@@ -421,6 +424,52 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         if (criteria.updatedBefore() != null) {
             q.le(ShoppingSession::getUpdatedAt, criteria.updatedBefore());
         }
+        applySessionKindFilter(q, criteria.sessionKind());
+    }
+
+    /**
+     * 运营列表「类型」筛选（MA-007）：条件必须与 {@code DeviceValidationService.sessionKind} 的
+     * **判定顺序**等价——OPS &gt; RESTOCK &gt; STOCKTAKE &gt; CONSUMER，前缀字面量取自
+     * {@link SessionKind}（同源，铁律 16）。
+     *
+     * <p>🔴 取反一律写成「{@code key IS NULL OR key NOT LIKE ...}」：SQL 里 {@code NOT LIKE} 对
+     * NULL 求值为 NULL，直接 {@code notLikeRight} 会把幂等键为空的历史消费者会话整批判掉。
+     */
+    private static void applySessionKindFilter(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q,
+            String kind) {
+        if (kind == null || kind.isBlank()) {
+            return;
+        }
+        switch (kind) {
+            case SessionKind.OPS -> q.likeRight(ShoppingSession::getIdempotencyKey, SessionKind.OPS_REMOTE_KEY_PREFIX);
+            case SessionKind.RESTOCK -> {
+                notKeyPrefix(q, SessionKind.OPS_REMOTE_KEY_PREFIX);
+                q.and(w -> w.isNotNull(ShoppingSession::getReplenishmentTaskId)
+                        .or()
+                        .likeRight(ShoppingSession::getIdempotencyKey, SessionKind.RESTOCK_KEY_PREFIX));
+            }
+            case SessionKind.STOCKTAKE -> {
+                notKeyPrefix(q, SessionKind.OPS_REMOTE_KEY_PREFIX);
+                q.isNull(ShoppingSession::getReplenishmentTaskId);
+                notKeyPrefix(q, SessionKind.RESTOCK_KEY_PREFIX);
+                q.likeRight(ShoppingSession::getIdempotencyKey, SessionKind.STOCKTAKE_KEY_PREFIX);
+            }
+            case SessionKind.CONSUMER -> {
+                notKeyPrefix(q, SessionKind.OPS_REMOTE_KEY_PREFIX);
+                q.isNull(ShoppingSession::getReplenishmentTaskId);
+                notKeyPrefix(q, SessionKind.RESTOCK_KEY_PREFIX);
+                notKeyPrefix(q, SessionKind.STOCKTAKE_KEY_PREFIX);
+            }
+            default -> throw new IllegalArgumentException("unknown session kind: " + kind);
+        }
+    }
+
+    private static void notKeyPrefix(
+            com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ShoppingSession> q, String prefix) {
+        q.and(w -> w.isNull(ShoppingSession::getIdempotencyKey)
+                .or()
+                .notLikeRight(ShoppingSession::getIdempotencyKey, prefix));
     }
 
     private static void applySessionKeywordFilter(

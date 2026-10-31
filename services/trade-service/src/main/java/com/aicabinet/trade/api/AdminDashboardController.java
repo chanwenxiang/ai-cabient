@@ -12,6 +12,7 @@ import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.OpsDeviceAdminService;
 import com.aicabinet.trade.service.OpsSessionOrderQueryService;
 import com.aicabinet.trade.support.CacheNames;
+import com.aicabinet.trade.support.SessionKind;
 import com.aicabinet.trade.service.SystemConfigService;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.servlet.http.HttpServletRequest;
@@ -281,11 +282,17 @@ public class AdminDashboardController {
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
-            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
+            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes,
+            /** 会话类型筛选（MA-007）：此前只在前端对当前页过滤，跨页漏数据。 */
+            @RequestParam(name = "kind", required = false) String kind) {
+        String normalizedKind = SessionKind.normalize(kind);
+        if (kind != null && !kind.isBlank() && normalizedKind == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知会话类型：" + kind);
+        }
         return ApiResponse.ok(adminService.listSessions(
                 operatorId(request), new OpsSessionOrderQueryService.SessionListQuery(
                         page, size, deviceId, state, sessionId, userId, from, to, q,
-                        stuckOnly, stuckMinutes)));
+                        stuckOnly, stuckMinutes, normalizedKind)));
     }
 
     @RequiresPermissions("ops:session:export")
@@ -300,13 +307,19 @@ public class AdminDashboardController {
             @RequestParam(name = "to", required = false) Instant to,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "stuckOnly", defaultValue = "false") boolean stuckOnly,
-            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes) {
+            @RequestParam(name = "stuckMinutes", defaultValue = "30") int stuckMinutes,
+            @RequestParam(name = "kind", required = false) String kind) {
+        String normalizedKind = SessionKind.normalize(kind);
+        if (kind != null && !kind.isBlank() && normalizedKind == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知会话类型：" + kind);
+        }
         // AU-192（批次 9）：导出/下载类接口补审计留痕——合法运营拖取订单/会话数据可追责
+        // 留痕带 kind：导出范围与页面筛选同源（MA-007），事后能还原拖的是哪一类。
         auditService.appendLog(operatorId(request), "EXPORT", "SESSION_CSV",
-                deviceId, "state=" + state + ",from=" + from + ",to=" + to);
+                deviceId, "state=" + state + ",from=" + from + ",to=" + to + ",kind=" + normalizedKind);
         byte[] csv = adminService.exportSessionsCsv(
                 operatorId(request), new OpsSessionOrderQueryService.SessionExportQuery(
-                        deviceId, state, sessionId, userId, from, to, q, stuckOnly, stuckMinutes));
+                        deviceId, state, sessionId, userId, from, to, q, stuckOnly, stuckMinutes, normalizedKind));
         return csvAttachment("sessions.csv", csv);
     }
 

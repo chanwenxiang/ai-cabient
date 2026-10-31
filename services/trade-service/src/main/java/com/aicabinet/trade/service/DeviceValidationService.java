@@ -13,6 +13,7 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
+import com.aicabinet.trade.support.SessionKind;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -267,13 +268,13 @@ public class DeviceValidationService {
             return true;
         }
         String key = session.getIdempotencyKey();
-        return key != null && key.startsWith("RESTOCK:");
+        return key != null && key.startsWith(SessionKind.RESTOCK_KEY_PREFIX);
     }
 
     /** 运维远程开门会话：不结算、不出单，仅占柜与留痕。 */
     static boolean isOpsRemoteSession(ShoppingSession session) {
         String key = session.getIdempotencyKey();
-        return key != null && key.startsWith("OPS_REMOTE:");
+        return key != null && key.startsWith(SessionKind.OPS_REMOTE_KEY_PREFIX);
     }
 
     /**
@@ -282,7 +283,7 @@ public class DeviceValidationService {
      */
     static boolean isStocktakeSession(ShoppingSession session) {
         String key = session.getIdempotencyKey();
-        return key != null && key.startsWith("STOCKTAKE:");
+        return key != null && key.startsWith(SessionKind.STOCKTAKE_KEY_PREFIX);
     }
 
     /** 非消费者购物会话（补货 / 运维 / 盘点），关门后不走扣款结算。 */
@@ -290,19 +291,19 @@ public class DeviceValidationService {
         return isRestockSession(session) || isOpsRemoteSession(session) || isStocktakeSession(session);
     }
 
-    static String sessionKind(ShoppingSession session) {
+    public static String sessionKind(ShoppingSession session) {
         if (isOpsRemoteSession(session)) {
-            return "OPS";
+            return SessionKind.OPS;
         }
         if (isRestockSession(session)) {
-            return "RESTOCK";
+            return SessionKind.RESTOCK;
         }
         // CB-077 前的缺陷修复（2026-10-30 用户截图实锤）：盘点开门会话此前落到默认 CONSUMER，
         // 列表「类型」显示成「消费」。结算侧 isNonConsumerSession 一直含 STOCKTAKE（不扣款），
         // 展示侧漏分支——两套口径必须同源（铁律 16）。
         if (isStocktakeSession(session)) {
-            return "STOCKTAKE";
+            return SessionKind.STOCKTAKE;
         }
-        return "CONSUMER";
+        return SessionKind.CONSUMER;
     }
 }

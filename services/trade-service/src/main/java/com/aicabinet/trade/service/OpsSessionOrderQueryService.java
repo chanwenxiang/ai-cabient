@@ -96,7 +96,7 @@ public class OpsSessionOrderQueryService {
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
         return listSessions(operatorId, new SessionListQuery(
-                page, size, deviceId, state, null, null, null, null, null, false, 30));
+                page, size, deviceId, state, null, null, null, null, null, false, 30, null));
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, SessionListQuery query) {
@@ -113,7 +113,7 @@ public class OpsSessionOrderQueryService {
                 operatorId,
                 new SessionQueryCriteria(
                         query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), updatedBefore),
+                        query.from(), query.to(), query.keyword(), updatedBefore, query.sessionKind()),
                 pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toSessionDto).toList(),
@@ -126,7 +126,9 @@ public class OpsSessionOrderQueryService {
     public record SessionListQuery(
             int page, int size, String deviceId, SessionState state,
             String sessionId, Long userId, Instant from, Instant to, String keyword,
-            boolean stuckOnly, int stuckMinutes) {}
+            boolean stuckOnly, int stuckMinutes,
+            /** 会话类型（CONSUMER/RESTOCK/OPS/STOCKTAKE），MA-007 起服务端化；空=不筛。 */
+            String sessionKind) {}
 
     @Transactional(readOnly = true)
     public PageResult<OrderReadModel> listOrders(Long operatorId, int page, int size, String deviceId) {
@@ -327,11 +329,13 @@ public class OpsSessionOrderQueryService {
     public record SessionExportQuery(
             String deviceId, SessionState state,
             String sessionId, Long userId, Instant from, Instant to, String keyword,
-            boolean stuckOnly, int stuckMinutes) {}
+            boolean stuckOnly, int stuckMinutes,
+            /** 与列表同一套类型口径（MA-007）：导出必须跟筛选走，否则导出结果与页面不一致。 */
+            String sessionKind) {}
 
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
         return exportSessionsCsv(operatorId, new SessionExportQuery(
-                deviceId, state, null, null, null, null, null, false, 30));
+                deviceId, state, null, null, null, null, null, false, 30, null));
     }
 
     public byte[] exportSessionsCsv(Long operatorId, SessionExportQuery query) {
@@ -347,7 +351,7 @@ public class OpsSessionOrderQueryService {
                 operatorId,
                 new SessionQueryCriteria(
                         query.deviceId(), query.state(), stuckStates, query.sessionId(), query.userId(),
-                        query.from(), query.to(), query.keyword(), updatedBefore),
+                        query.from(), query.to(), query.keyword(), updatedBefore, query.sessionKind()),
                 pageable);
         StringBuilder sb = new StringBuilder(
                 "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,failReason,"
@@ -377,7 +381,7 @@ public class OpsSessionOrderQueryService {
     private record SessionQueryCriteria(
             String deviceId, SessionState state, Collection<SessionState> states,
             String sessionId, Long userId,
-            Instant from, Instant to, String keyword, Instant updatedBefore) {}
+            Instant from, Instant to, String keyword, Instant updatedBefore, String sessionKind) {}
 
     private record OrderQueryCriteria(
             String deviceId, String status, Instant createdBefore, Instant createdFrom, Instant createdTo,
@@ -404,7 +408,8 @@ public class OpsSessionOrderQueryService {
                         criteria.from(),
                         criteria.to(),
                         blankToNull(criteria.keyword()),
-                        criteria.updatedBefore()),
+                        criteria.updatedBefore(),
+                        criteria.sessionKind()),
                 pageable);
     }
 

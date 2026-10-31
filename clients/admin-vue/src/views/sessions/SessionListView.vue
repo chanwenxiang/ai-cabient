@@ -462,13 +462,6 @@ const crud = useCrudTable<SessionRow>({
     }
     await maybeOpenFocusedSession(rows);
 
-    if (kindFilter.value) {
-      const before = rows.length;
-      rows = rows.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
-      // 本页有剔除 → total 跟过滤后（禁「共 N + 空表」#205）；全保留 → 仍用服务端 total 以翻页
-      const total = rows.length < before ? rows.length : (data.total ?? 0);
-      return { items: rows, total };
-    }
     return { items: rows, total: data.total ?? 0 };
   },
   // 按更新时间倒序（后端同口径按 updated_at DESC 分页）；滞留会话仍置顶跟进
@@ -523,6 +516,8 @@ function appendSessionFilters(q: URLSearchParams) {
     q.set('stuckOnly', 'true');
     q.set('stuckMinutes', String(STALE_MINUTES));
   }
+  // MA-007：类型必须进 query 由后端筛（原先在 fetchPage 里对当前页 filter，跨页漏数据）
+  if (kindFilter.value) q.set('kind', kindFilter.value);
 }
 
 async function onExport() {
