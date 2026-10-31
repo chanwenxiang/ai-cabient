@@ -13,6 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-013 | P3 | fixed | admin `/print`（打印预览） | 纸张固定 720px + 左右 40px 内边距 ⇒ 窄视口（702px）溢出、`margin:auto` 失效看着偏左 | 用户 / 2026-10-31 | 见明细 |
 | MA-012 | P2 | fixed | admin `/ad-campaigns`（关键词） | 关键词为前端本页过滤（`data.items.filter`），`total` 仍取服务端 ⇒ 行数与「共 N 条」不符、跨页命中丢失（MA-007/011 同族，由新门禁扫出） | Qoder R3 门禁 / 2026-10-31 | `check:list-filter-server-side` |
 | MA-011 | P2 | fixed | admin `/device-ops`（关键词） | 关键词是**前端本页过滤**（`filterByKeyword` + 页内条数顶替 total），与 MA-007 同类：命中第 2 页的事件搜不到、总数谎报 | Qoder R3 / 2026-10-31 | 同 MA-007 族 |
 | MA-010 | P2 | fixed（档 A → 已加 from/to） | admin `/device-ops` 设备运维 | 列表后端写死「近 14 天」窗口（100 条事件只显 54），前端既无提示也无日期筛选 ⇒ 14 天前的事件在页面上永久不可见，而「共 54 条」看着像全量 | Qoder R3 / 2026-10-31 | 见明细 |
@@ -162,6 +163,16 @@
   - `/sessions` 与 `/sessions/export` 均加 `kind` 参数，未知值 **400**（不静默忽略筛选）；导出审计留痕带上 kind，事后能还原拖的是哪一类。`openapi.ts` 同批 regen（+2 行）。
   - 前端：`kind` 进 query，删掉 `fetchPage` 内的 `rows.filter(...)` 与「页内条数顶替 total」逻辑。
   - 验证腿（四腿齐）：① `SessionKindFilterSqlIT` 真库 2/2 绿（SQL 过滤结果逐个等于 `sessionKind()`、四类之和=全表、NULL 键留在 CONSUMER）；② 既有 `DeviceValidationServiceSessionKindTest` 3/3 绿；③ API 真值：已完成∩消费 **17**（RESTOCK 4 + STOCKTAKE 3 + OPS 0，四类之和=24=已完成全量）；④ 活栈 UI 重建产物后：**共 17 条 / 17 行**，请求 `?state=COMPLETED&kind=CONSUMER`，console 0 error。
+
+### MA-013 打印预览纸张在窄视口溢出、不居中
+
+- 级别/状态：P3 / **fixed**（2026-10-31；发现锚 `5fd3e04a`（用户在 R4 实测中指出）→ 修复锚 `1f18d352` + 产物 `a3aa3097`）
+- 端与页面：admin `/print`（采购收货单 / 拣货单预览）
+- 复现：内置浏览器 702px 打开 `/print?type=picking&outboundId=15` → 纸张右侧被截、页面横向滚动；`margin: 24px auto` 因内容宽（720+80）> 视口而失效，视觉上贴左。
+- 根因：`.print-sheet { width:720px; padding:32px 40px }` 未计入内边距、无上限收缩。
+- 修复：`box-sizing:border-box; width:min(720px, calc(100% - 32px))` + `@media (max-width:760px)` 收紧内边距；`@media print` 原有 100%/margin:0 规则不动（打印纸面不受影响）。
+- 验证（无头 Playwright 两个宽度）：702 → 宽 670、左右各 16、无横向滚动；1600 → 宽 720、左右各 440；均 `centered=true`。证据 `evidence/R04-print-centered-702.png` / `-1600.png`。
+- 关联：R4 批 2「/print 打印单据」维度 5。
 
 ### MA-012 投放计划「关键词」为前端本页过滤，行数与总数不符
 
