@@ -111,8 +111,12 @@ public class SmsCodeService {
             }
             return false;
         }
-        entry.setUsedAt(Instant.now());
-        codeRepository.save(entry);
+        // MA-017：条件更新抢占；抢不到说明并发请求已消费同一码 ⇒ 按失败处理，
+        // 但**不计入失败次数**（不是用户输错，避免误烧下一条码）。
+        if (!codeRepository.markUsedIfUnused(entry.getId())) {
+            log.warn("sms code already consumed by concurrent request phone={}", maskPhone(normalized));
+            return false;
+        }
         clearVerifyFailures(normalized);
         return true;
     }
@@ -170,10 +174,7 @@ public class SmsCodeService {
 
     private void markLatestUsed(String phoneNumber) {
         codeRepository.findTopByPhoneNumberAndUsedAtIsNullOrderByCreatedAtDesc(phoneNumber)
-                .ifPresent(entry -> {
-                    entry.setUsedAt(Instant.now());
-                    codeRepository.save(entry);
-                });
+                .ifPresent(entry -> codeRepository.markUsedIfUnused(entry.getId()));
     }
 
     private String generateCode() {

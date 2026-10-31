@@ -14,6 +14,7 @@
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 | MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
+| MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-013 | P3 | fixed | admin `/print`（打印预览） | 纸张固定 720px + 左右 40px 内边距 ⇒ 窄视口（702px）溢出、`margin:auto` 失效看着偏左 | 用户 / 2026-10-31 | 见明细 |
@@ -185,6 +186,16 @@
   - 规则 SQL 前后对比（真库）：旧规则命中 **2** 条（正是那两笔 10-22 订单）→ 新规则 **0** 条，其余订单不受影响（库里只有这 2 笔 PAID）。
   - 活栈验证：容器重建后调用 `POST /consistency/run` → `failCount = 3`（仅剩三条争议 CROSS_LINK），SALE 误报消失；记录表状态 FAIL 5 → **3**。
   - 说明：**未**动 dispute 规则（MA-016 待拍板）。
+
+### MA-017 短信验证码校验非原子，并发可双花
+
+- 级别/状态：P3 / **fixed**（2026-10-31，Qoder R7；发现锚 `04d946c7` → 修复锚（本批））
+- 端与接口：consumer `POST /api/v2/auth/login`（及后台重置密码同链路）→ `SmsCodeService.verifyCode`
+- 复现（代码判据 + 钉测）：旧实现 `findTopBy...` 读出未用码 → `entry.setUsedAt(now); save(entry)`，两步之间无行锁/无条件更新 ⇒ 两个并发请求都能读到未用、都判定成功。
+- 影响：同一手机号同一码可在并发窗口内被消费两次（例如两个登录请求同时换取会话）；不改余额/资金，故定 P3。
+- 修复：新增 `SmsVerificationCodeMapper.markUsedIfUnused(id)`（`UPDATE ... SET used_at=now WHERE id=? AND used_at IS NULL`，返回是否抢到）；`verifyCode` 成功分支改为条件抢占，抢不到 ⇒ 判失败但**不计失败次数**（避免误烧新码）；mock 码分支的 `markLatestUsed` 同改。
+- 钉测：新增 `SmsCodeServiceTest` 4 条（正确码走原子消费 / 并发已消费不计失败 / 过期码标记已用 / 第 5 次错码烧码），4/4 绿。
+- 说明：dev 的 `SMS_MOCK_CODE` 会让配置的万能码短路校验（仅 mock 开启时生效，生产由 `ProductionStartupValidator` 禁止），故双花的活栈复现需关 mock-code；本轮以钉测为判据。
 
 ### MA-016 争议「已结案但无关联订单」是否一律算不一致（待拍板）
 
