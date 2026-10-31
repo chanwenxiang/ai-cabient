@@ -88,7 +88,11 @@ merchant-mp：main=5 sub=30 total=35
 
 - 视图源码：`clients/admin-vue/src/views/devices/DeviceOpsMonitorView.vue`；后端 `CompetitiveGapService.listDeviceOpsEvents`
 - 九维要点：表头 9 列（事件ID/类型/级别/设备名称/设备编号/标题/详情/账龄/时间）；筛选 类型/级别/设备/关键词**全部服务端**；排序按钮切换 `sortDir=asc|desc` 走请求；导出 + 列设置在位；console 0 error。
-- 发现：**MA-010（P2）**——后端硬编码 `now-14d ~ now`（`CompetitiveGapService.java:376-380`），`device_ops_event` 全表 100 条（OFFLINE 45 / NO_SALES 28 / FAULT 21 / AISLE_AUDIT 6，孤儿行 0）而页面 `共 54 条`，且**没有日期控件**、hint 也不提窗口 ⇒ 运营会把 54 当全量。档 A 文案已修（`7dce0f04`+产物 `8a7c9418`，活栈复验文案已渲染）；**是否放开窗口/加 from-to 需拍板**（该查询被商户端理货-盘点复用，CB-050 注释）。
+- 发现两条，用户拍板后均已修：
+  - **MA-010（P2）** 后端硬编码 `now-14d ~ now`（`CompetitiveGapService.java:376-380`）且页面无日期控件 ⇒ 运营把「共 54 条」当全量。**已加 `from`/`to`（都可空，都空仍回落 14 天 ⇒ 商户端理货-盘点复用行为不变）+ 前端「时间」daterange**；活栈验证：选 10-01~10-31 → 请求带 `from/to`、`共 80 条`；不选 `共 44 条`；同刻 SQL `all=80 / within14d=44` 完全一致。
+  - **MA-011（P2）** 关键词是**前端本页过滤**（`filterByKeyword` + 页内条数顶替 total，MA-007 同族）⇒ 只在第 2 页的事件搜不到。**已服务端化**（`q` 参数，匹配 事件ID/设备编号/标题/详情），活栈验证：取第 2 页首条事件 ID 搜索 → `total=1`（修复前必 0）。
+  - 🔴 集成踩坑（记进交接注记）：daterange 的 v-model 默认是 **Date 对象**，按 number 判 `Number.isFinite` 会永远不带参数；必须 `value-format="x"`。
+  - 🔴 数据漂移说明：dev mock 会在**读接口**按需补演示事件（`ensureSyntheticOfflineEvents` / `ensureNoSalesEvents`），所以本页「共 N 条」在多次刷新间会小幅变化（本轮 73 → 80），属预期，不是回归。
 
 ### 页面：设备可用性（`/device-kpi`）｜无选项卡（KPI 卡 + 日期选择）
 
@@ -118,12 +122,40 @@ merchant-mp：main=5 sub=30 total=35
 | P1 | 0 | — |
 | P2 | 1 | MA-008（轮内已修） |
 | P3 | 1 | MA-009（轮内已修） |
-| P2 | +1 | MA-010（档 A 已修；放开窗口待拍板） |
+| P2 | +2 | MA-010（from/to 已加）· MA-011（关键词服务端化） |
+
+## 已删除数据留档（拍板：清两台遗留柜，2026-10-31）
+
+用户拍板「两台遗留柜要清」。删除前按 33 张 `FK → device_info` 的表逐张计数，再在**单事务**里按依赖顺序删除（第一次执行被 `replenishment_task_line` 外键挡下并**整体回滚**，补上该表后成功）：
+
+```sql
+BEGIN;
+DELETE FROM dispute_ticket WHERE session_id IN (SELECT session_id FROM shopping_session WHERE device_id IN ('719325384517','EG879147199289'));
+DELETE FROM cabinet_order WHERE device_id IN (...);
+DELETE FROM shopping_session WHERE device_id IN (...);
+DELETE FROM replenishment_task_line WHERE task_id IN (SELECT task_id FROM replenishment_task WHERE device_id IN (...));
+DELETE FROM replenishment_task WHERE device_id IN (...);
+-- 再对 33 张 FK 表逐张 DELETE ... WHERE device_id IN (...)
+DELETE FROM device_info WHERE device_id IN (...);
+COMMIT;
+```
+
+删除量：`device_info` 2（剩 3 台）· `cabinet_order` 5（**全部 0 元**）· `shopping_session` 7（含 2 DISPUTED）· `dispute_ticket` 2 · `replenishment_task_line` 6 + `replenishment_task` 1 · `device_slot` 16 · `device_sku_inventory` 6 · `device_temperature_reading` **64001** · `device_ops_event` 27 · `ops_exception` 18 · `device_lifecycle_event` 1。
+
+**删除后新基线（后续轮次以此为准）**：设备 3 台（演示智能柜 `/ 门店二号柜 CAB-OTHER / 将邑测试机`，全部离线）· 订单 **8**（零元 6，营收仍 **¥5.00**）· 会话 **64** · 争议 OPEN **20** · 运维事件 **73**（近 14 天 37）· 异常 OPEN **29** · 温度读数 0。
+
+业务行原始 JSON（可原样重插，`.tmp` 里的副本不入库）：
+
+```json
+{"orders":"见 .tmp/r3-clean-orders.json（5 行，均 total_amount_cents=0 / status=PAID / 2026-10-08）"}
+{"sessions":"见 .tmp/r3-clean-sessions.json（7 行：5 COMPLETED 关联上述订单 + 2 DISPUTED 无订单）"}
+{"disputes":"见 .tmp/r3-clean-disputes.json（2 行，随会话一并删除）"}
+```
 
 ## 需用户拍板
 
 1. **`/device-ops` 的 14 天窗口要不要放开或做成可选日期范围**：档 A 文案已把口径说清（MA-010），但 14 天前的事件在本页永久不可查。放开会影响**商户端理货记录-盘点**（复用同一查询，CB-050）。我倾向：加 `from/to` 参数、默认仍是 14 天（行为不变），前端加日期控件——这样两端可见性都不变，运营需要时能自己拉宽。
-2. **`719325384517`（名称=编号，INBOUND）与 `EG规则验证柜-可删`（RETIRED）两台遗留柜要不要清**：名字里就写着「可删」。它们会持续出现在 `/device-ops` 设备下拉与 `/devices` 列表里，干扰计数对账（本轮已按「不清、注明」处理）。
+2. ~~两台遗留柜要不要清~~ → **已拍板：清**（2026-10-31 执行完毕，留档见上节）。
 
 ## 需用户配合（真机）
 
@@ -135,6 +167,9 @@ merchant-mp：main=5 sub=30 total=35
 
 ## 给下一轮的交接注记
 
+- 🔴 终端里直接 `curl` 中文 query 会按 **GBK** 发出去，服务端 UTF-8 匹配恒 0（曾误判「中文关键词搜不到」）；验中文必须用 `node`/`--data-urlencode` 走 UTF-8。
+- 🔴 Element Plus `type="daterange"` 的 v-model 默认回 **Date 对象**；按 number 判 `Number.isFinite` 会永远不带 from/to ⇒ 必须 `value-format="x"`。
+- 🔴 `/device-ops` 两次刷新条数会变：dev mock 在读接口里按需补演示事件（`ensureSyntheticOfflineEvents`/`ensureNoSalesEvents`），不是回归。
 - 🔴 Playwright 点 `el-select` 选项**必须精确匹配文本**（`.filter({ hasText: new RegExp('^\s*X\s*$') })`），`has-text("投放")` 会命中「未投放」⇒ 曾据此差点误领一条 P1（详见 `/devices` 维度 2 下方的排除记录）。同理：`waitForURL(/\/admin\//)` 会把 `/admin/login` 判成已登录。
 - 探针里区分「列表请求」与「KPI 探针请求」：本页 KPI 是 8 个 `size=1` 的并发计数请求且**都带当前筛选参数**，只按 URL 前缀过滤会把它们误当成列表请求。
 - 线索 #2 已转正为 MA-008 并闭合 ⇒ `ISSUES.md` 的「待复核线索」区现在只剩历史条目。

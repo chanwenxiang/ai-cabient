@@ -13,7 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
-| MA-011 | P2 | open | admin `/device-ops`（关键词） | 关键词是**前端本页过滤**（`filterByKeyword` + 页内条数顶替 total），与 MA-007 同类：命中第 2 页的事件搜不到、总数谎报 | Qoder R3 / 2026-10-31 | 同 MA-007 族 |
+| MA-011 | P2 | fixed | admin `/device-ops`（关键词） | 关键词是**前端本页过滤**（`filterByKeyword` + 页内条数顶替 total），与 MA-007 同类：命中第 2 页的事件搜不到、总数谎报 | Qoder R3 / 2026-10-31 | 同 MA-007 族 |
 | MA-010 | P2 | fixed（档 A → 已加 from/to） | admin `/device-ops` 设备运维 | 列表后端写死「近 14 天」窗口（100 条事件只显 54），前端既无提示也无日期筛选 ⇒ 14 天前的事件在页面上永久不可见，而「共 54 条」看着像全量 | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-009 | P3 | fixed | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-008 | P2 | fixed | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
@@ -164,7 +164,7 @@
 
 ### MA-011 设备运维「关键词」为前端本页过滤，跨页搜不到且总数谎报
 
-- 级别/状态：P2 / **open**（轮内即修，与 MA-010 同批）
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R3；发现锚 `54b807dd` → 修复锚 `f9bdf3f6` + 产物 `2bf02669`）
 - 端与页面：admin `/device-ops` 设备运维 → 关键词
 - 发现人/日期/HEAD：Qoder R3 / 2026-10-31 / 发现锚 `54b807dd`
 - 复现步骤：列表 `size=50`、总 54 条 ⇒ 第 2 页只有 4 条；输入一个只命中第 2 页事件的 ID/详情关键词 → 后端仍只返回第 1 页 50 条，前端在这 50 条里 `.filter()` ⇒ **0 条**，且 total 被替换成 0。
@@ -173,11 +173,13 @@
 - 证据：代码判据 + MA-007 同族实测（同一台机、同样的页内过滤写法）
 - 源码定位：`clients/admin-vue/src/views/devices/DeviceOpsMonitorView.vue:241`（修复后该方法删除）
 - 关联：MA-007（`/sessions` 类型筛选同族）；R2 提出的门禁候选 `check:list-filter-must-be-server-side` 正是为这类设的。
-- 修复记录：（待填）
+- 修复记录：2026-10-31 fixed（`f9bdf3f6` + 产物 `2bf02669`）。`/device-ops/events` 加 `q`（匹配 事件ID/设备编号/标题/详情，mapper 里 `LIKE` + `CAST(event_id AS TEXT)`），前端关键词进 query 并**删除 `filterByKeyword` 与「页内条数顶替 total」**。
+  - 活栈/API 验证：取放宽窗口下**第 2 页首条事件 ID（69）**做关键词 → `total=1`（修复前这种只在第 2 页的事件必然 0 条）；
+  - 同批实测中文关键词 `设备离线`：API 14 天窗口内 27 条 = SQL `title LIKE '%设备离线%' AND created_at > now()-14d` 27 条（终端直接 curl 中文会因 GBK 编码得 0，必须用 UTF-8 编码发请求——这条也记进交接注记）。
 
 ### MA-010 设备运维列表后端写死 14 天窗口，前端不交代也不可改
 
-- 级别/状态：P2 / **fixed（档 A 文案）**（2026-10-31，Qoder R3；发现锚 `e326601f` → 修复锚 `7dce0f04` + 产物 `8a7c9418`）；🔴 是否放开 14 天窗口 / 加 from-to 参数仍是**待拍板**
+- 级别/状态：P2 / **fixed（含 from/to 参数）**（2026-10-31，Qoder R3；发现锚 `e326601f` → 修复锚 `7dce0f04` 文案 + `f9bdf3f6` 参数 + 产物 `2bf02669`）
 - 端与页面：admin `/device-ops` 设备运维（事件列表）
 - 发现人/日期/HEAD：Qoder R3 / 2026-10-31 / 发现锚 `e326601f`
 - 复现步骤：
@@ -191,7 +193,9 @@
 - 联动影响：`/device-kpi` 的「离线事件」是**另一条口径**（今日上海时区新建的 `DEVICE_OFFLINE` 异常数，实测 2 = SQL 2 ✅ 正确），两者别混；商户端理货记录-盘点复用同一查询（CB-050 注释）⇒ 也受同一 14 天窗口影响。
 - 关联：与 MA-008 同族（口径不交代）；与 MA-009（截断不交代总数）同族。
 - 修复记录：2026-10-31 fixed 档 A（`7dce0f04` + 产物 `8a7c9418`）。页面 hint 追加「仅统计近 14 天事件（后端固定窗口，更早事件本页不返回，故『共 N 条』不是全量）」。活栈复验：文案已渲染、分页仍 `共 54 条`、console 0 error（`evidence/R03-device-ops-pass.png`）。
-  - **未做**（需拍板，不擅自动后端）：放开窗口或加 `from/to` 参数。理由：`listDeviceOpsEvents` 被**商户端理货记录-盘点复用**（CB-050 注释），改窗口会同时改变商户端可见集；且 `device_ops_event` 目前 100 行里 46 行是 14 天前的演示/历史数据。
+  - **用户拍板（2026-10-31）：加 from/to 参数**，已落地（`f9bdf3f6`）：`/device-ops/events` 新增可选 `from`/`to`，**两者都空时仍回落既有 14 天默认窗口** ⇒ 商户端理货-盘点（CB-050 同一查询）行为不变。前端加「时间」daterange，右端取当天 23:59:59.999。
+  - 活栈验证：选 2026-10-01~10-31 → 请求带 `from=2026-09-30T16:00:00.000Z&to=2026-10-31T15:59:59.999Z`，列表 `共 80 条`；不选 → `共 44 条`；同刻 SQL `all=80 / within14d=44` **完全一致**。
+  - 🔴 集成踩坑：Element Plus daterange 默认 v-model 回 **Date 对象**，而代码按 `number` 判 `Number.isFinite` ⇒ 一开始永远不带 from/to；加 `value-format="x"` 才通（已修 `0c5d76b6` 系列）。
   - 同轮澄清：`/device-kpi` 的「离线事件」是**另一条口径**（今日上海时区新建的 `DEVICE_OFFLINE` 异常数），实测页面 2 = SQL `created_at >= 2026-10-31 00:00+08` 的 2 ✅ 正确，与本条无关，别混。
 
 ### MA-009 设备详情「关联单据」截断 8 条且无总数、无段级查看全部入口
