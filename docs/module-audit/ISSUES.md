@@ -13,6 +13,8 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-015 | P2 | open | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
+| MA-016 | P3 | open | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-013 | P3 | fixed | admin `/print`（打印预览） | 纸张固定 720px + 左右 40px 内边距 ⇒ 窄视口（702px）溢出、`margin:auto` 失效看着偏左 | 用户 / 2026-10-31 | 见明细 |
 | MA-012 | P2 | fixed | admin `/ad-campaigns`（关键词） | 关键词为前端本页过滤（`data.items.filter`），`total` 仍取服务端 ⇒ 行数与「共 N 条」不符、跨页命中丢失（MA-007/011 同族，由新门禁扫出） | Qoder R3 门禁 / 2026-10-31 | `check:list-filter-server-side` |
@@ -164,6 +166,28 @@
   - `/sessions` 与 `/sessions/export` 均加 `kind` 参数，未知值 **400**（不静默忽略筛选）；导出审计留痕带上 kind，事后能还原拖的是哪一类。`openapi.ts` 同批 regen（+2 行）。
   - 前端：`kind` 进 query，删掉 `fetchPage` 内的 `rows.filter(...)` 与「页内条数顶替 total」逻辑。
   - 验证腿（四腿齐）：① `SessionKindFilterSqlIT` 真库 2/2 绿（SQL 过滤结果逐个等于 `sessionKind()`、四类之和=全表、NULL 键留在 CONSUMER）；② 既有 `DeviceValidationServiceSessionKindTest` 3/3 绿；③ API 真值：已完成∩消费 **17**（RESTOCK 4 + STOCKTAKE 3 + OPS 0，四类之和=24=已完成全量）；④ 活栈 UI 重建产物后：**共 17 条 / 17 行**，请求 `?state=COMPLETED&kind=CONSUMER`，console 0 error。
+
+### MA-015 一致性巡检对「无批次历史订单」误报 MISSING_SALE
+
+- 级别/状态：P2 / **open**（轮内即修：规则加前提条件）
+- 端与页面：admin `/consistency` 数据一致性 → 巡检规则 `checkCrossLinkMissingSale`（CROSS_LINK/A）
+- 发现人/日期/HEAD：Qoder R6 / 2026-10-31 / 发现锚 `d5c22e8c`
+- 复现：页面 `未通过 5`，其中 2 条为 `SALE|1792659779535535992400` / `SALE|1792659650288345016481`，文案「已付有货且柜机有批次账本，但缺少 SALE+ORDER 库存流水」。
+- 真值：两单 2026-10-22 支付，`cabinet_order_line.batch_no` **为空**（当时无批次，走无批次扣减，`inventory_deducted=true`）；该柜批次账本 `device_sku_lot` 最早 2026-10-26 建立 ⇒ **下单时刻不可能有 SALE 批次流水**；全库 `inventory_movement` 中 `SALE` = 0 条（只有 ADJ/SELL_OFF/RESTOCK）。
+- 根因：规则只判断「设备现在存在批次账本」，未要求「订单行本身带批次」（`DataConsistencyService.checkCrossLinkMissingSale:1207-1224`）。
+- 期望 / 实际：只对「从批次中扣减的销售」要求 SALE 流水 / 历史无批次订单被永久判红，检测器噪音会让人不信这张表。
+- 证据：上述 SQL 真值 + 规则源码
+- 源码定位：`services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java:1207-1224`
+- 关联：与 [[project-real-cabinet-settlement-test]] 的真柜结算时序一致（先有订单、后建批次）。
+- 修复记录：（待填）
+
+### MA-016 争议「已结案但无关联订单」是否一律算不一致（待拍板）
+
+- 级别/状态：P3 / **open（待拍板）**
+- 端与页面：admin `/consistency` → `checkCrossLinkDispute`
+- 现象：3 条 `DSP|…`「争议已结案但缺少关联订单」，对应会话 `COMPLETED` 且 `order_id` 为空（顾客开门未购 / 识别争议未成单）。
+- 规则：`RESOLVED/CLOSED` 且会话无订单 ⇒ 记 CROSS_LINK（`DataConsistencyService:1273-1284`）。
+- 待定：无购买争议是否本就允许结案无单？若允许，规则应加「争议类型/结案结论」前提；若不允许，则是这 3 条数据的问题（需人工处理而非改规则）。**不擅自改规则**。
 
 ### MA-014 「账务明细」默认只查近 7 天且不交代，空态误导
 
