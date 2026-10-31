@@ -70,6 +70,7 @@
         <el-date-picker
           v-model="dateRange"
           type="daterange"
+          value-format="x"
           unlink-panels
           range-separator="至"
           start-placeholder="起"
