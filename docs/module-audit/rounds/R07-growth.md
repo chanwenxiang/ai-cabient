@@ -134,6 +134,11 @@
 
 两条新门禁均接入聚合链（wiring 实测：84 引用 / 98 个 check 脚本全部接线）；`/100` 不含 `*100`（百分比换算）。
 
+补充扫描（用户追加：字典与配置两类）：
+
+- **配置类**：`@Value("${…:默认值}")` 内联默认值 **62 处**。逐条看后属 Spring 常规兜底（`xxljob.enabled:false`、服务 URL 的 localhost 默认值等），且关键项已有既有门禁兜底：`check:config-passthrough`、`check:config-properties-binding`、`check:env-placeholders`、`check:compose-ports`，外加 `ProductionStartupValidator` 拦生产环境的 localhost/mock 配置 ⇒ **不新增门禁**（加了也是误报为主）。
+- **字典类**：已有 5 条覆盖（`check:exception-type-dict`、`check:warehouse-movement-dict`、`check:selfpickup-copy`、`check:frontend-perm-codes`、本轮新增 `check:no-inline-dict-display`）。**未覆盖的缺口**：后端把状态字面量直接比较/写入（如 `"ACTIVE".equals(...)`）——改动面大、误报率高，登记为候选门禁，需先跑一遍存量误报率再决定是否上线。
+
 修复：`PlatformFundView` 的 `{{ row.status === 'ACTIVE' ? '启用' : row.status }}` → `displayLabel('enable_status', row.status, '未知')`（不再回退裸码）。
 
 ## 发现汇总
