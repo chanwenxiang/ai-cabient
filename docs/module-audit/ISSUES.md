@@ -13,7 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
-| MA-009 | P3 | open | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
+| MA-009 | P3 | fixed | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-008 | P2 | fixed | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
 | MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 
@@ -162,7 +162,7 @@
 
 ### MA-009 设备详情「关联单据」截断 8 条且无总数、无段级查看全部入口
 
-- 级别/状态：P3 / **open**（轮内即修）
+- 级别/状态：P3 / **fixed**（2026-10-31，Qoder R3；发现锚 `2b4046a3` → 修复锚 `3f877459` + 产物 `34068cd0`）
 - 端与页面：admin `/devices/:id` → 关联单据 tab（`DeviceRelatedRecordsTab.vue`）
 - 发现人/日期/HEAD：Qoder R3 / 2026-10-31 / 发现锚 `2b4046a3`
 - 复现步骤：
@@ -175,7 +175,10 @@
 - 源码定位：`clients/admin-vue/src/components/device/DeviceRelatedRecordsTab.vue:30,131`（两个 `section-title`）
 - 联动影响：`/devices` 列表页的「关联记录」入口同组件 ⇒ 一并受益。
 - 关联：与 R2 MA-007 同族（截断/口径不交代），但本条是**展示层缺交代**，非取数错误。
-- 修复记录：（待填）
+- 修复记录：2026-10-31 fixed（`3f877459` + 产物 `34068cd0`）。段级标题同行加「共 N 条 · 查看全部」，**仅当 `total > 已渲染行数` 才出现**（不截断就不显示），点击复用组件既有的 `open-sessions` / `open-orders` emit，不新增跳转实现。
+  - 活栈复验（真 Chrome 1600）：将邑柜「最近开门记录」显 **共 62 条 · 查看全部**，点击落 `/admin/sessions?deviceId=EG943322621391` 且列表 `共 62 条`（深链两页都支持）；
+  - 负向判据同测：同柜「最近订单」8 条未截断 ⇒ **不显示链接**；演示柜 2 条会话 ⇒ 两段都无链接；
+  - 证据 `evidence/R03-device-detail-related.png`；console 0 error。
 
 ### MA-008 「离线设备」在设备报表与工作台是两个口径，报表侧不交代口径
 
