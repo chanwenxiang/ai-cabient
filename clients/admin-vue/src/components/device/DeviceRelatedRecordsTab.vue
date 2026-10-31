@@ -10,6 +10,9 @@ defineProps<{
   hydrated: boolean;
   sessions: SessionDto[];
   orders: OrderReadModel[];
+  /** 段级总数（列表只取最近 8 条，总数用于「共 N 条 · 查看全部」，MA-009） */
+  sessionTotal: number;
+  orderTotal: number;
   canAccessSessions: boolean;
   canAccessOrders: boolean;
 }>();
@@ -27,7 +30,17 @@ function sessionKindLabel(kind?: string | null) {
 
 <template>
   <div>
-    <h4 class="section-title">最近开门记录</h4>
+    <h4 class="section-title">
+      最近开门记录
+      <el-button
+        v-if="sessionTotal > sessions.length"
+        link
+        type="primary"
+        class="section-more"
+        @click="emit('open-sessions', { deviceId })"
+        >共 {{ sessionTotal }} 条 · 查看全部</el-button
+      >
+    </h4>
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
@@ -128,7 +141,17 @@ function sessionKindLabel(kind?: string | null) {
       </div>
     </div>
 
-    <h4 class="section-title">最近订单</h4>
+    <h4 class="section-title">
+      最近订单
+      <el-button
+        v-if="orderTotal > orders.length"
+        link
+        type="primary"
+        class="section-more"
+        @click="emit('open-orders', { deviceId })"
+        >共 {{ orderTotal }} 条 · 查看全部</el-button
+      >
+    </h4>
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <el-table
@@ -232,6 +255,12 @@ function sessionKindLabel(kind?: string | null) {
   margin: 0 0 10px;
   font-size: var(--admin-font-size-title);
   font-weight: 600;
+}
+/* MA-009：段级「共 N 条 · 查看全部」跟标题同行，字号降一级、不加粗，别抢标题权重 */
+.section-more {
+  margin-left: 8px;
+  font-size: var(--admin-font-size-body);
+  font-weight: 400;
 }
 .section-title + .table-scroll {
   margin-bottom: 18px;

@@ -739,6 +739,8 @@
           :hydrated="relatedHydrated"
           :sessions="sessions"
           :orders="orders"
+          :session-total="sessionTotal"
+          :order-total="orderTotal"
           :can-access-sessions="canAccessPath('/sessions')"
           :can-access-orders="canAccessPath('/orders')"
           @open-sessions="
