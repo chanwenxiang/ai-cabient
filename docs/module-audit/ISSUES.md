@@ -13,7 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
-| MA-008 | P2 | open | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
+| MA-008 | P2 | fixed | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
 | MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
@@ -161,7 +161,7 @@
 
 ### MA-008 「离线设备」在设备报表与工作台是两个口径，报表侧不交代口径
 
-- 级别/状态：P2 / **open**（轮内即修，纯文案档 A）
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R3；发现锚 `35804dd5` → 修复锚 `7ad59bbc` + 产物 `c4ccfde9`）
 - 端与页面：admin `/reports` 设备报表 KPI「离线设备」 vs `/dashboard` 运营工作台待办「离线设备」
 - 发现人/日期/HEAD：Qoder R3 / 2026-10-31 / 发现锚 `35804dd5`（由 R1 遗留的**线索 #2** 转正）
 - 复现步骤：
@@ -174,7 +174,10 @@
 - 源码定位：`clients/admin-vue/src/views/reports/DeviceReportView.vue:436-440`（hint 未标口径）、`services/.../OpsWorkbenchQueryService.java:631-643`
 - 联动影响：商户端工作台 `MerchantWorkbenchQueryService` 也各有一套离线计数口径（R9 点验，不在本条范围）。
 - 关联：R1 线索 #2（本条即其转正）；先例＝R1「缺货建议 tab 恒空」按档 A 纯文案落地（`24e2a900`）。
-- 修复记录：（待填）
+- 修复记录：2026-10-31 fixed（`7ad59bbc` + 产物 `c4ccfde9`），**档 A 纯文案**（沿用 R1「缺货建议 tab」先例）。`deviceReportOfflineHint` 由「点击筛选离线」改为「全量口径（含未投放/已退役柜；工作台只算投放柜）· 点击筛选离线」。
+  - 两侧计数逻辑**一行未动**：工作台只算 DEPLOYED 是 `OpsWorkbenchQueryService.countOfflineDevices:631-643` 注释写明的刻意设计（避免 INBOUND 孤儿柜抬高），报表列表本就是全设备台账 ⇒ 不许顺手对齐。
+  - 活栈复验（真 Chrome 1600）：报表 KPI 文本渲染出全量口径说明且值=5，同一会话工作台=3；证据 `evidence/R03-reports-offline-kpi.png`；console 0 error。
+  - 顺带印证 R2 删夹具后的新基线在报表页同步生效：累计营收 ¥5.00、订单 13。
 
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）→ ✅ 已复现并转正为 MA-008（2026-10-31）
 
