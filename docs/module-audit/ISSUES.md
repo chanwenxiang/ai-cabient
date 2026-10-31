@@ -13,7 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
-| MA-015 | P2 | open | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
+| MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | open | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-013 | P3 | fixed | admin `/print`（打印预览） | 纸张固定 720px + 左右 40px 内边距 ⇒ 窄视口（702px）溢出、`margin:auto` 失效看着偏左 | 用户 / 2026-10-31 | 见明细 |
@@ -169,7 +169,7 @@
 
 ### MA-015 一致性巡检对「无批次历史订单」误报 MISSING_SALE
 
-- 级别/状态：P2 / **open**（轮内即修：规则加前提条件）
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R6；发现锚 `d5c22e8c` → 修复锚 `（本批）` + 容器重建后巡检复跑）
 - 端与页面：admin `/consistency` 数据一致性 → 巡检规则 `checkCrossLinkMissingSale`（CROSS_LINK/A）
 - 发现人/日期/HEAD：Qoder R6 / 2026-10-31 / 发现锚 `d5c22e8c`
 - 复现：页面 `未通过 5`，其中 2 条为 `SALE|1792659779535535992400` / `SALE|1792659650288345016481`，文案「已付有货且柜机有批次账本，但缺少 SALE+ORDER 库存流水」。
@@ -179,7 +179,12 @@
 - 证据：上述 SQL 真值 + 规则源码
 - 源码定位：`services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java:1207-1224`
 - 关联：与 [[project-real-cabinet-settlement-test]] 的真柜结算时序一致（先有订单、后建批次）。
-- 修复记录：（待填）
+- 修复记录：2026-10-31 fixed。`checkCrossLinkMissingSale` 的「缺 SALE 流水」分支增加前提
+  `EXISTS (SELECT 1 FROM cabinet_order_line bl WHERE bl.order_id = o.order_id AND COALESCE(bl.batch_no,'') <> '')`
+  ——只有「从批次扣减」的销售才可能产生批次流水；并加注释说明历史无批次订单的时序。
+  - 规则 SQL 前后对比（真库）：旧规则命中 **2** 条（正是那两笔 10-22 订单）→ 新规则 **0** 条，其余订单不受影响（库里只有这 2 笔 PAID）。
+  - 活栈验证：容器重建后调用 `POST /consistency/run` → `failCount = 3`（仅剩三条争议 CROSS_LINK），SALE 误报消失；记录表状态 FAIL 5 → **3**。
+  - 说明：**未**动 dispute 规则（MA-016 待拍板）。
 
 ### MA-016 争议「已结案但无关联订单」是否一律算不一致（待拍板）
 

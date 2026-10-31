@@ -1215,6 +1215,11 @@ public class DataConsistencyService {
                 + "  o.inventory_deducted = FALSE "
                 + "  OR ("
                 + "    EXISTS (SELECT 1 FROM device_sku_lot l WHERE l.device_id = o.device_id) "
+                // MA-015（2026-10-31）：只有「从批次里扣减」的销售才可能产生 SALE 流水。历史订单下单时
+                // 可能还没有批次账本（行 batch_no 为空、走无批次扣减），设备后来才建批次 ⇒ 这类订单
+                // 不该被永久判红。要求订单行本身带批次再检查流水。
+                + "    AND EXISTS (SELECT 1 FROM cabinet_order_line bl "
+                + "      WHERE bl.order_id = o.order_id AND COALESCE(bl.batch_no,'') <> '') "
                 + "    AND NOT EXISTS ("
                 + "      SELECT 1 FROM inventory_movement m "
                 + "      WHERE m.movement_type = 'SALE' AND m.ref_type = 'ORDER' AND m.ref_id = o.order_id"
