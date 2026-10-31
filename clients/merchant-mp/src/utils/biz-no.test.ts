@@ -19,3 +19,22 @@ describe('displayBizNo / 盘点单可读单号', () => {
     expect(displayBizNo('1793190291682519060459')).toBe('1793190291682519060459');
   });
 });
+
+/**
+ * MA-006（2026-10-31 R2）：`displayBizNo` 末段曾兜底「取全部数字」，
+ * 于是列表显示的单号既搜不回来（后台按显示值 q=20001 → 0 条），
+ * 又与同行「复制单号」给出的真值不一致。修复＝走到末段的可读编号一律原样。
+ */
+describe('displayBizNo / 混合字母编号不得被剥成假短号（MA-006）', () => {
+  it('E2E-TAIL-0001 原样（修复前显示成 20001，按 20001 搜不到）', () => {
+    expect(displayBizNo('E2E-TAIL-0001')).toBe('E2E-TAIL-0001');
+  });
+
+  it('AUDIT-R1-0001 原样（修复前剥成 10001，与 SKU 编号撞形）', () => {
+    expect(displayBizNo('AUDIT-R1-0001')).toBe('AUDIT-R1-0001');
+  });
+
+  it('既有约定不动：台账/流水前缀剥完已是纯数字的，仍显示数字段', () => {
+    expect(displayBizNo('PO-12')).toBe('12');
+  });
+});

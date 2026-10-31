@@ -306,8 +306,11 @@ export function displayBizNo(id?: string | number | null, empty: string = EMPTY.
     if (digits) return digits;
   }
 
-  const digitsOnly = raw.replace(/\D/g, '');
-  return digitsOnly.length >= 4 ? digitsOnly : raw;
+  // 🔴 MA-006（2026-10-31）：这里曾经兜底成「取全部数字」（`E2E-TAIL-0001` → `20001`），
+  // 于是列表显示的单号既搜不回来、又与同行「复制单号」（真值）不一致——与下面
+  // shortBizNo 的 @deprecated 理由同一条。走到这一行的都是「剥完已知前缀仍含字母」的
+  // 混合编号，数字段并不等价于该编号本身 ⇒ 原样展示。
+  return raw;
 }
 
 /** 十六进制 → 十进制字符串；不依赖 BigInt（兼容旧微信基础库）。 */
