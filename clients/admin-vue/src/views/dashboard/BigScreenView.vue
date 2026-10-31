@@ -1896,6 +1896,25 @@ onBeforeUnmount(() => {
     min-height: 100vh;
     overflow: auto;
   }
+  /* MA-R1（P3）：标题列 nowrap+字距与两侧 min-width:0 的 1fr 轨道相撞——品牌文案
+     溢出轨道叠到标题上、右侧换行撑破 68px 定高压住 KPI。窄屏改两行 flex：
+     首行品牌/操作，标题换行独占整行居中，高度自适应。 */
+  .bs-header {
+    display: flex;
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 68px;
+    padding: 8px 20px;
+    row-gap: 4px;
+  }
+  .bs-side--right {
+    margin-left: auto;
+  }
+  .bs-title-wrap {
+    order: 3;
+    flex: 1 1 100%;
+    justify-content: center;
+  }
   .bs-kpis {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
