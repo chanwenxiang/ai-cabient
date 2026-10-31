@@ -957,6 +957,23 @@ export function actorDisplayName(input: {
   return `账号 ${id}`;
 }
 
+/**
+ * 下拉选项要排除的**历史别名值**（MA-018，2026-10-31 用户拍板 B 案）。
+ *
+ * 背景：`SysDictBootstrap` 为历史数据保留了两套词表（如 `feedback_status` 的
+ * HANDLED/REPLIED 都叫「已回复」），导致筛选下拉出现同名两项。
+ * 处理：**只收敛选项列表**，不动字典数据 —— `displayLabel()` 仍能渲染历史值的标签。
+ * 新增别名请连带迁移说明；`enable_status` 刻意不在此表（账号类/通用类两套词表都仍在使用）。
+ */
+const DICT_OPTION_EXCLUDED_VALUES: Record<string, readonly string[]> = {
+  feedback_status: ['REPLIED'],
+  ops_alert_type: ['RECONCILIATION_MISMATCH'],
+  restock_line_type: ['PULL', 'REMOVE'],
+  session_kind: ['SHOPPING'],
+  split_status: ['FAILED', 'SUBMITTED'],
+  warehouse_movement_type: ['INBOUND_MANUAL']
+};
+
 export function dictOptions(type: DictType | string): { value: string; label: string }[] {
   const baseline = (DICT as Record<string, Record<string, string>>)[type];
   const override = runtimeOverrides[type];
@@ -966,19 +983,29 @@ export function dictOptions(type: DictType | string): { value: string; label: st
   // category_code 的 baseline 是空表，本变更对其行为无影响）
   if (isOpsManagedDict(type)) {
     if (runtimeLoaded && override && Object.keys(override).length > 0) {
-      return entriesToOptions(override);
+      return withoutAliases(type, entriesToOptions(override));
     }
-    return entriesToOptions(baseline);
+    return withoutAliases(type, entriesToOptions(baseline));
   }
 
   // 系统枚举：runtime 已成功且该类型有 ACTIVE 覆盖 → 只用覆盖（停用项立即从下拉消失）
   if (runtimeLoaded && override && Object.keys(override).length) {
-    return entriesToOptions(override);
+    return withoutAliases(type, entriesToOptions(override));
   }
   if (override && Object.keys(override).length) {
-    return entriesToOptions(override);
+    return withoutAliases(type, entriesToOptions(override));
   }
-  return entriesToOptions(baseline);
+  return withoutAliases(type, entriesToOptions(baseline));
+}
+
+/** 剔除该 type 配置的历史别名值（只影响下拉选项，不影响 label 解析）。 */
+function withoutAliases(
+  type: DictType | string,
+  options: { value: string; label: string }[]
+): { value: string; label: string }[] {
+  const excluded = DICT_OPTION_EXCLUDED_VALUES[String(type)];
+  if (!excluded || excluded.length === 0) return options;
+  return options.filter((o) => !excluded.includes(o.value));
 }
 
 export function dictTagType(code: string | null | undefined): DictTagType {
