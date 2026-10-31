@@ -29993,6 +29993,8 @@ export interface operations {
             query?: {
                 page?: number;
                 size?: number;
+                q?: string;
+                status?: string;
             };
             header?: never;
             path?: never;

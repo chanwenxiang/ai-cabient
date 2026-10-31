@@ -26,8 +26,23 @@ public interface AdCampaignMapper extends BaseTradeMapper<AdCampaign> {
 
     /** page 为 0-based。 */
     default Page<AdCampaign> searchPage(int page, int size) {
-        return selectPage(new Page<>(page + 1L, size),
-                Wrappers.<AdCampaign>lambdaQuery().orderByDesc(AdCampaign::getCreatedAt));
+        return searchPage(page, size, null, null);
+    }
+
+    /**
+     * MA-012：关键词与状态进 SQL（原先前端只过滤当前页、total 仍取服务端 ⇒ 行数与总数不符）。
+     * q 匹配 活动名称 / 状态值；status 精确匹配（前端把状态中文标签翻成值再传）。
+     */
+    default Page<AdCampaign> searchPage(int page, int size, String q, String status) {
+        var query = Wrappers.<AdCampaign>lambdaQuery().orderByDesc(AdCampaign::getCreatedAt);
+        if (status != null && !status.isBlank()) {
+            query.eq(AdCampaign::getStatus, status.trim().toUpperCase());
+        }
+        if (q != null && !q.isBlank()) {
+            String kw = q.trim();
+            query.and(w -> w.like(AdCampaign::getName, kw).or().like(AdCampaign::getStatus, kw));
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 
     default List<AdCampaign> findRunningInWindow(Instant now) {

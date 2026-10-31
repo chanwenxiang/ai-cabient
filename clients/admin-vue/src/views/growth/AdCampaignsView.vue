@@ -287,41 +287,36 @@ import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { DEFAULT_DATETIME_RANGE_TIME } from '@/utils/date-time-presets';
-import { displayLabel } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 
 const keyword = ref('');
 const saving = ref(false);
 const batchLoading = ref<'stop' | ''>('');
 
-function matchKeyword(row: AdCampaignDto, kw: string) {
-  return (
-    String(row.name || '')
-      .toLowerCase()
-      .includes(kw) ||
-    statusLabel(row.status).toLowerCase().includes(kw) ||
-    String(row.status || '')
-      .toLowerCase()
-      .includes(kw)
-  );
-}
-
 // 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建
 const crud = useCrudTable<AdCampaignDto>({
   rowKey: (r) => r.campaignId,
   fetchPage: async (params) => {
-    const q = new URLSearchParams({
+    const qs = new URLSearchParams({
       page: String(params.page), // 0 起（useCrudTable 已换算）
       size: String(params.size)
     });
+    // MA-012：关键词/状态进 query 由后端过滤（原先只过滤当前页、total 仍取服务端 ⇒ 行数≠总数）。
+    // 状态是中文标签时（如「投放中」）翻成值再作为 status 参数，保持原有「按标签搜」的可用性。
+    const kw = keyword.value.trim();
+    if (kw) {
+      qs.set('q', kw);
+      const byLabel = dictOptions('ad_campaign_status').find(
+        (o) => o.label === kw || o.label.includes(kw)
+      );
+      if (byLabel) qs.set('status', byLabel.value);
+    }
     const data = await api.request<{ items: AdCampaignDto[]; total: number }>(
-      AdminEndpoints.adCampaignsList(q),
+      AdminEndpoints.adCampaignsList(qs),
       'GET'
     );
-    // 关键词沿用前端过滤（只作用于当前页，与原 displayRows 行为一致），total 仍取服务端值
-    const kw = keyword.value.trim().toLowerCase();
-    const items = kw ? (data.items || []).filter((r) => matchKeyword(r, kw)) : data.items || [];
-    return { items, total: Number(data.total) || 0 };
+    return { items: data.items || [], total: Number(data.total) || 0 };
   },
   // 投放 ID 本地排序（替代原 useIdColumnSort 表头排序，改由壳内「按 ID 升/降序」切换）
   sort: { prop: 'campaignId', mode: 'local' }

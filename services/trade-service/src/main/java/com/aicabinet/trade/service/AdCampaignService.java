@@ -71,9 +71,15 @@ public class AdCampaignService {
 
     @Transactional(readOnly = true)
     public PageResult<AdCampaignDto> list(int page, int size) {
+        return list(page, size, null, null);
+    }
+
+    /** MA-012：关键词/状态由后端过滤，total 与命中集合一致。 */
+    @Transactional(readOnly = true)
+    public PageResult<AdCampaignDto> list(int page, int size, String q, String status) {
         int p = Math.max(0, page);
         int s = Math.min(Math.max(1, size), 500);
-        Page<AdCampaign> result = campaignRepository.searchPage(p, s);
+        Page<AdCampaign> result = campaignRepository.searchPage(p, s, q, status);
         List<AdCampaignDto> items = result.getRecords().stream().map(this::toDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }

@@ -1,0 +1,17 @@
+[
+  {
+    "file": "clients/admin-vue/src/views/orders/OrderListView.vue",
+    "count": 1,
+    "reason": "overdueOnly 的页内安全网：后端已按 overdue=1 扫描（PENDING+创建时间早于阈值），这层 filter 只是对混合页的兜底，不过滤就不影响总数；已在 OrderListView.vue:861 注释说明"
+  },
+  {
+    "file": "clients/admin-vue/src/views/sessions/SessionListView.vue",
+    "count": 1,
+    "reason": "焦点会话去重：路由指定 sessionId 但不在当前页时单查一条置顶，用 filter 排除重复行；是拼接不是筛选，total 仍取服务端值"
+  },
+  {
+    "file": "clients/admin-vue/src/views/system/RoleManageView.vue",
+    "count": 1,
+    "reason": "角色接口无分页：fetchPage 拉全量后在内存里按关键词/状态过滤并切片，total=sorted.length 是过滤后的全量（非页内），跨页语义正确；后端分页属 R8 系统轮的可选优化"
+  }
+]

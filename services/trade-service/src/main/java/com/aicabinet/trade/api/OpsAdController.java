@@ -70,8 +70,11 @@ public class OpsAdController {
     public ApiResponse<PageResult<AdCampaignDto>> adCampaigns(
             HttpServletRequest request,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(adCampaignService.list(page, size));
+            @RequestParam(defaultValue = "20") int size,
+            /** MA-012：关键词（名称/状态值）与状态精确筛选，进 SQL。 */
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status) {
+        return ApiResponse.ok(adCampaignService.list(page, size, q, status));
     }
 
     @RequiresPermissions("ops:ad:list")
