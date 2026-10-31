@@ -13,6 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-012 | P2 | open | admin `/ad-campaigns`（关键词） | 关键词为前端本页过滤（`data.items.filter`），`total` 仍取服务端 ⇒ 行数与「共 N 条」不符、跨页命中丢失（MA-007/011 同族，由新门禁扫出） | Qoder R3 门禁 / 2026-10-31 | `check:list-filter-server-side` |
 | MA-011 | P2 | fixed | admin `/device-ops`（关键词） | 关键词是**前端本页过滤**（`filterByKeyword` + 页内条数顶替 total），与 MA-007 同类：命中第 2 页的事件搜不到、总数谎报 | Qoder R3 / 2026-10-31 | 同 MA-007 族 |
 | MA-010 | P2 | fixed（档 A → 已加 from/to） | admin `/device-ops` 设备运维 | 列表后端写死「近 14 天」窗口（100 条事件只显 54），前端既无提示也无日期筛选 ⇒ 14 天前的事件在页面上永久不可见，而「共 54 条」看着像全量 | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-009 | P3 | fixed | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
@@ -161,6 +162,19 @@
   - `/sessions` 与 `/sessions/export` 均加 `kind` 参数，未知值 **400**（不静默忽略筛选）；导出审计留痕带上 kind，事后能还原拖的是哪一类。`openapi.ts` 同批 regen（+2 行）。
   - 前端：`kind` 进 query，删掉 `fetchPage` 内的 `rows.filter(...)` 与「页内条数顶替 total」逻辑。
   - 验证腿（四腿齐）：① `SessionKindFilterSqlIT` 真库 2/2 绿（SQL 过滤结果逐个等于 `sessionKind()`、四类之和=全表、NULL 键留在 CONSUMER）；② 既有 `DeviceValidationServiceSessionKindTest` 3/3 绿；③ API 真值：已完成∩消费 **17**（RESTOCK 4 + STOCKTAKE 3 + OPS 0，四类之和=24=已完成全量）；④ 活栈 UI 重建产物后：**共 17 条 / 17 行**，请求 `?state=COMPLETED&kind=CONSUMER`，console 0 error。
+
+### MA-012 投放计划「关键词」为前端本页过滤，行数与总数不符
+
+- 级别/状态：P2 / **open**（轮内即修）
+- 端与页面：admin `/ad-campaigns` 投放计划 → 关键词
+- 发现人/日期/HEAD：Qoder R3（新门禁 `check:list-filter-must-be-server-side` 首扫）/ 2026-10-31 / 发现锚 `423bdfe4`
+- 复现步骤：`AdCampaignsView.vue:312-325` fetchPage 里 `const items = kw ? (data.items||[]).filter(matchKeyword) : …`，`total` 仍 `Number(data.total)`；若某关键词只命中第 2 页的行，则列表为空但底部仍显示「共 N 条」；若命中当前页 3 行，则显示 3 行 + 「共 20 条」。
+- 期望 / 实际：关键词服务端过滤、`total` 与命中集合一致 / 只过滤当前页且总数不联动。
+- 根因：同 MA-007/MA-011（注释「关键词沿用前端过滤（只作用于当前页，与原 displayRows 行为一致），total 仍取服务端值」）。
+- 证据：代码判据 + 门禁首扫输出
+- 源码定位：`clients/admin-vue/src/views/growth/AdCampaignsView.vue:322-324`
+- 关联：MA-007 / MA-011；门禁 `scripts/check-list-filter-server-side.mjs`（本轮落地）
+- 修复记录：（待填）
 
 ### MA-011 设备运维「关键词」为前端本页过滤，跨页搜不到且总数谎报
 
