@@ -388,7 +388,7 @@
           <el-form-item> </el-form-item>
           <el-form-item label="关键词">
             <el-checkbox v-model="fulfillmentUnassignedOnly" @change="page = 1">
-              仅待分配货道{{ unassignedHintCount ? ` (${unassignedHintCount})` : '' }}
+              仅含待分配行{{ unassignedHintCount ? ` (${unassignedHintCount})` : '' }}
             </el-checkbox>
             <el-input
               v-model="fulfillmentKeyword"
@@ -601,7 +601,7 @@
               </el-table-column>
               <el-table-column
                 prop="slotCode"
-                label="货道"
+                label="位置"
                 width="90"
                 class-name="col-text"
                 label-class-name="col-text"
@@ -875,7 +875,7 @@ const tab = ref('routes');
 const TAB_DESC: Record<string, string> = {
   routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
   fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
-  shortage: '缺货建议（按货道）：只列货道柜低于安全库存的货道；开门柜无货道，请看「库存健康」',
+  shortage: '缺货建议（按位置）：只列货道柜低于安全库存的货道；开门柜无货道，请看「库存健康」',
   expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
@@ -1127,7 +1127,7 @@ const { onExport: exportFulfillment } = useListCsv({
 
 const { onExport: exportShortages } = useListCsv({
   filePrefix: '缺货建议',
-  headers: ['设备', '货道', '商品', '账面', '最低', '目标', '状态'],
+  headers: ['设备', '位置', '商品', '账面', '最低', '目标', '状态'],
   toRows: () =>
     crudShortages
       .pickSelected(crudShortages.items)

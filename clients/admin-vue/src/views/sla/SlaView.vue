@@ -129,13 +129,14 @@ const statTiles = computed(() => {
       value: `${d?.doorOpenSuccess ?? 0}/${d?.doorOpenAttempts ?? 0}`
     },
     {
-      label: '设备在线率',
+      // 与同排「快照日期」区分：这三个是**当前**口径（服务端 #194/#198 刻意对齐工作台）
+      label: '设备在线率（当前）',
       value: (d?.deviceTotal ?? 0) === 0 ? '暂无' : pct(d?.deviceOnlineRate)
     },
     { label: '开门均时长', value: formatDoorDurationMs(d?.avgRecognizeMs) },
     { label: '开门时长 P95', value: formatDoorDurationMs(d?.p95RecognizeMs) },
-    { label: '设备总数', value: String(d?.deviceTotal ?? 0) },
-    { label: '在线峰值', value: String(d?.deviceOnlinePeak ?? 0) }
+    { label: '设备总数（当前）', value: String(d?.deviceTotal ?? 0) },
+    { label: '在线峰值（含当前）', value: String(d?.deviceOnlinePeak ?? 0) }
   ];
 });
 
