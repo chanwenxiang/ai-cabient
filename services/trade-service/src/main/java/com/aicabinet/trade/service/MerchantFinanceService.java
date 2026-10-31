@@ -161,20 +161,7 @@ public class MerchantFinanceService {
         if (sessionId == null || sessionId.isBlank()) {
             return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
         }
-        List<JiangyiOrderVideoService.PlayUrlView> rows = jiangyiOrderVideoService.playByOrderNo(sessionId);
-        if (rows.isEmpty()) {
-            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
-        }
-        List<OrderVideoPlaylistDto.Clip> clips = new ArrayList<>();
-        for (JiangyiOrderVideoService.PlayUrlView row : rows) {
-            int total = row.videoQuantity() == null ? 0 : row.videoQuantity();
-            for (JiangyiOrderVideoService.PlayUrlItem item : row.items()) {
-                // channel 保留上报数组内位置：同片多摄像头时前端才能区分，不再出现两个同名「第 N 段」
-                clips.add(new OrderVideoPlaylistDto.Clip(row.serialNum(), total, item.index(),
-                        item.url(), item.playable(), item.reason()));
-            }
-        }
-        return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_JIANGYI, clips);
+        return JiangyiOrderVideoService.playlist(jiangyiOrderVideoService.playByOrderNo(sessionId));
     }
 
     @Transactional(readOnly = true)

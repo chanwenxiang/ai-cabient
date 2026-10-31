@@ -24,7 +24,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -128,7 +131,7 @@ public class OpsExceptionService {
         }
         var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, archived,
                 scopedDevices, pageable);
-        return new PageResult<>(result.getContent().stream().map(x -> toDto(x, false)).toList(),
+        return new PageResult<>(toListDtos(result.getContent()),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
@@ -156,7 +159,7 @@ public class OpsExceptionService {
         } else {
             result = repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, statusFilter, pageable);
         }
-        return new PageResult<>(result.getContent().stream().map(x -> toDto(x, false)).toList(),
+        return new PageResult<>(toListDtos(result.getContent()),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
@@ -589,14 +592,43 @@ public class OpsExceptionService {
         }
     }
     private OpsExceptionDto toDto(OpsException i) {
-        return toDto(i, true);
+        return toDto(i, true, null);
     }
 
     /**
-     * @param includeVideoPreview 录像地址是否现场签发。列表路径传 false（真实网络调用，
-     *        逐行签发=N+1，2026-10-11 收尾D）；详情/单行操作才签发。
+     * 列表路径一次批量取会话（orderId/userId 回填仍需会话，但不该逐行查库），
+     * 且不签发录像地址——点播时前端再取详情现签，与争议列表同口径。
      */
-    private OpsExceptionDto toDto(OpsException i, boolean includeVideoPreview) {
+    private List<OpsExceptionDto> toListDtos(List<OpsException> rows) {
+        Map<String, ShoppingSession> sessionCache = prefetchSessions(rows);
+        return rows.stream().map(row -> toDto(row, false, sessionCache)).toList();
+    }
+
+    private Map<String, ShoppingSession> prefetchSessions(List<OpsException> rows) {
+        Set<String> sessionIds = new LinkedHashSet<>();
+        for (OpsException row : rows) {
+            String sessionId = row.getSessionId();
+            if (sessionId != null && !sessionId.isBlank()) {
+                sessionIds.add(sessionId);
+            }
+        }
+        if (sessionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ShoppingSession> cache = new HashMap<>();
+        for (ShoppingSession session : support.sessionRepository().findAllById(sessionIds)) {
+            cache.put(session.getSessionId(), session);
+        }
+        return cache;
+    }
+
+    /**
+     * @param includeVideoPreview 录像地址是否现场签发。签发=MinIO statObject 真实网络调用 +
+     *        将邑台账查询，列表逐行签发即 N+1（2026-10-11 收尾D）；详情/单行操作才签发。
+     * @param sessionCache 列表路径用 selectBatchIds 预取的会话；null=按行查库。
+     */
+    private OpsExceptionDto toDto(OpsException i, boolean includeVideoPreview,
+                                  Map<String, ShoppingSession> sessionCache) {
         Instant sla = i.getSlaDueAt();
         boolean open = "OPEN".equals(i.getStatus()) || PROCESSING.equals(i.getStatus());
         boolean overdue = open && sla != null && Instant.now().isAfter(sla);
@@ -605,25 +637,27 @@ public class OpsExceptionService {
         String videoPreviewUrl = null;
         java.util.List<String> previewUrls = java.util.List.of();
         // 审单落账后会话已有 orderId/userId，但历史异常行可能未回写；列表展示时从会话补齐。
-        // 同时取会话录像地址：旧边缘 MinIO 预签名优先，将邑柜机台账兜底（将邑柜机不写
+        // 录像：旧边缘 MinIO 预签名优先，将邑柜机台账兜底（将邑柜机不写
         // shopping_session.video_uri，CB-030）—— 与争议工作台 DisputeService.toDto 同口径，
         // 授权沿用本工作台既有的会话录像口径（ops:session:*），不改用 ops:device:video 独立授权。
-        if (i.getSessionId() != null && !i.getSessionId().isBlank()) {
-            var session = support.sessionRepository().findById(i.getSessionId());
+        String sessionId = i.getSessionId();
+        if (sessionId != null && !sessionId.isBlank()) {
+            ShoppingSession session = sessionCache != null
+                    ? sessionCache.get(sessionId)
+                    : support.sessionRepository().findById(sessionId).orElse(null);
             if (orderId == null || orderId.isBlank()) {
-                orderId = session.map(ShoppingSession::getOrderId)
-                        .filter(id -> id != null && !id.isBlank())
-                        .orElse(null);
+                String fromSession = session == null ? null : session.getOrderId();
+                orderId = fromSession == null || fromSession.isBlank() ? null : fromSession;
             }
             if (userId == null) {
-                userId = session.map(ShoppingSession::getUserId).orElse(null);
+                userId = session == null ? null : session.getUserId();
             }
-            String videoUri = session.map(ShoppingSession::getVideoUri).orElse(null);
-            var minio = support.minioVideoService().presignPlaybackUrl(videoUri);
-            if (minio.isPresent()) {
-                previewUrls = java.util.List.of(minio.get());
-            } else {
-                previewUrls = jiangyiVideoFallbackUrls(i.getSessionId());
+            if (includeVideoPreview) {
+                String videoUri = session == null ? null : session.getVideoUri();
+                var minio = support.minioVideoService().presignPlaybackUrl(videoUri);
+                previewUrls = minio.isPresent()
+                        ? java.util.List.of(minio.get())
+                        : jiangyiVideoFallbackUrls(sessionId);
             }
         }
         videoPreviewUrl = previewUrls.isEmpty() ? null : previewUrls.get(0);

@@ -120,6 +120,12 @@ export const MerchantEndpoints = {
    */
   replenishmentTaskCancelEmpty: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/cancel-empty`,
+  /**
+   * CB-078：补货作业录像（与订单购物视频同形：短时效预签名分片；失败片如实回 playable=false）。
+   * 数据源是将邑按 `historyNo`（= 补货会话号）上报的录像台账，与消费者订单视频同一套读口径。
+   */
+  replenishmentTaskVideos: (taskId: number | string) =>
+    `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/videos`,
   /** 补货证据上传/下载（非 JSON，仍走 Endpoints 防裸拼） */
   replenishmentTaskEvidence: (taskId: number | string) =>
     `${API_PREFIX}/merchant/replenishment/tasks/${encodeURIComponent(String(taskId))}/evidence`,

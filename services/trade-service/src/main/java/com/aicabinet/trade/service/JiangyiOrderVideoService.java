@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -134,6 +135,17 @@ public class JiangyiOrderVideoService {
     }
 
     /**
+     * 按补货任务取全部分片的播放视图（CB-078 商户自查本柜补货作业录像）。
+     *
+     * <p>取数与 {@link #findByTask} 完全同一（orderNo=补货会话 id），差别只在逐片签发短时效地址。</p>
+     */
+    public List<PlayUrlView> playByTask(Long taskId) {
+        return findByTask(taskId).stream()
+                .map(this::toPlayUrlView)
+                .toList();
+    }
+
+    /**
      * 按设备查最近上报原始行——仅供网络隔离的内部面（JiangyiInternalController）使用，
      * 运营台走 {@link #listRecentByDeviceRedacted}（DC-11）。
      */
@@ -231,5 +243,27 @@ public class JiangyiOrderVideoService {
             return new PlayUrlItem(index, ref, false, true, null);
         }
         return new PlayUrlItem(index, target.get().url(), true, true, null);
+    }
+
+    /**
+     * 播放视图 → 商户端回放清单（CB-030 订单视频 / CB-078 补货视频的<b>唯一</b>展平处）。
+     *
+     * <p>🔴 {@code channel} 取 {@code item.index()}（上报数组内位置），不做「上/下摄像头」之类语义命名：
+     * 同一片多路时前端只凭 serialNum+total 会渲染出两个同名「第 N 段」（2026-10-10 商户端 e2e 暴露）。
+     * 该展平此前在 {@code MerchantFinanceService.orderVideos} 里另写一遍，两处各改必然再次分叉，故收在此。</p>
+     */
+    public static OrderVideoPlaylistDto playlist(List<PlayUrlView> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_NONE, List.of());
+        }
+        List<OrderVideoPlaylistDto.Clip> clips = new ArrayList<>();
+        for (PlayUrlView row : rows) {
+            int total = row.videoQuantity() == null ? 0 : row.videoQuantity();
+            for (PlayUrlItem item : row.items()) {
+                clips.add(new OrderVideoPlaylistDto.Clip(row.serialNum(), total, item.index(),
+                        item.url(), item.playable(), item.reason()));
+            }
+        }
+        return new OrderVideoPlaylistDto(OrderVideoPlaylistDto.SOURCE_JIANGYI, clips);
     }
 }

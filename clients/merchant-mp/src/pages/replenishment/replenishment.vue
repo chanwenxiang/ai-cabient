@@ -344,6 +344,8 @@
             @add="addEvidence"
           />
 
+          <ReplenishVideoSection @open="openTaskVideos" />
+
           <ReplenishLinesSection
             :lines="lines"
             :detail-loading="detailLoading"
@@ -410,6 +412,7 @@ import ReplenishDetailSheet from '@/components/ReplenishDetailSheet.vue';
 import ReplenishEvidenceSection from '@/components/ReplenishEvidenceSection.vue';
 import ReplenishLinesSection from '@/components/ReplenishLinesSection.vue';
 import ReplenishStepBar from '@/components/ReplenishStepBar.vue';
+import ReplenishVideoSection from '@/components/ReplenishVideoSection.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
@@ -651,6 +654,19 @@ const {
 const statusTabItems = computed(() =>
   statusOptions.value.map((s) => ({ key: s.value, label: s.label }))
 );
+
+/** CB-078：补货录像回放。与订单购物视频共用播放页，只是数据源按 taskId 取台账。 */
+function openTaskVideos() {
+  const task = selected.value;
+  if (!task?.taskId) return;
+  const query = [
+    `taskId=${encodeURIComponent(String(task.taskId))}`,
+    task.deviceId ? `deviceId=${encodeURIComponent(String(task.deviceId))}` : ''
+  ]
+    .filter(Boolean)
+    .join('&');
+  uni.navigateTo({ url: `/pages/video/video?${query}` });
+}
 
 const { checkIn, openDoor, adjustQty, confirmLines, completeTask, cancelTask } =
   useReplenishmentFulfillment({

@@ -215,19 +215,23 @@ const preferredLabel = computed(() => {
   return hit?.deviceName || preferredId.value || '未设置';
 });
 
+// CB-050 扩展：组织切换上下文——选定组织后只看该组织的柜机（后端本就全树放行）
+// 列表、chip 计数、空态必须都基于这一层，否则同屏出现「全部 4」与 1 张卡
+const scopedDevices = computed(() => {
+  const org = getOrgFilter();
+  return org ? devices.value.filter((d) => d.merchantId === org) : devices.value;
+});
+
 const visibleDevices = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  // CB-050 扩展：组织切换上下文——选定组织后只看该组织的柜机（后端本就全树放行）
-  const org = getOrgFilter();
-  const list = devices.value.filter((d) => {
+  const list = scopedDevices.value.filter((d) => {
     let statusMatch = true;
     if (filter.value === 'online') statusMatch = !!d.online;
     else if (filter.value === 'offline') statusMatch = !d.online;
     else if (filter.value === 'locked') statusMatch = !!d.salesLocked;
     const keywordMatch = !q || `${d.deviceName || ''} ${d.deviceId}`.toLowerCase().includes(q);
     const preferredMatch = !onlyPreferred.value || d.deviceId === preferredId.value;
-    const orgMatch = !org || d.merchantId === org;
-    return statusMatch && keywordMatch && preferredMatch && orgMatch;
+    return statusMatch && keywordMatch && preferredMatch;
   });
   if (!preferredId.value) return list;
   return [...list].sort((a, b) => {
@@ -239,13 +243,13 @@ const visibleDevices = computed(() => {
 
 const emptyHint = computed(() => {
   if (onlyPreferred.value && preferredId.value) return '常驻柜不在当前筛选结果中';
-  return devices.value.length ? '没有符合条件的柜机' : '暂无柜机';
+  return scopedDevices.value.length ? '没有符合条件的柜机' : '暂无柜机';
 });
 
 function countFor(value: 'all' | 'online' | 'offline' | 'locked') {
-  if (value === 'all') return devices.value.length;
-  if (value === 'locked') return devices.value.filter((d) => !!d.salesLocked).length;
-  return devices.value.filter((d) => (value === 'online' ? d.online : !d.online)).length;
+  if (value === 'all') return scopedDevices.value.length;
+  if (value === 'locked') return scopedDevices.value.filter((d) => !!d.salesLocked).length;
+  return scopedDevices.value.filter((d) => (value === 'online' ? d.online : !d.online)).length;
 }
 
 const deviceStatusTabs = computed(() =>

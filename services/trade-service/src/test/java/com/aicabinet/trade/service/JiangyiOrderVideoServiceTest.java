@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.client.JiangyiGatewayClient;
 import com.aicabinet.trade.domain.JiangyiOrderVideo;
 import com.aicabinet.trade.domain.ShoppingSession;
+import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.mapper.JiangyiOrderVideoMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -212,6 +213,61 @@ class JiangyiOrderVideoServiceTest {
                 .thenReturn(java.util.List.of());
 
         assertTrue(service.findByTask(9L).isEmpty());
+    }
+
+    // ---------- 商户端回放清单（CB-078 补货作业录像 / CB-030 订单录像共用）----------
+
+    @Test
+    void playByTask_signsEveryShardAcrossRestockOpens() {
+        ShoppingSession restock = new ShoppingSession();
+        restock.setSessionId("STK-A");
+        Mockito.when(sessionMapper.findByReplenishmentTaskId(9L)).thenReturn(List.of(restock));
+        // 协议 §4.2.14：一次上报的 videoUrls 是数组（左右两路摄像头同片上报）
+        JiangyiOrderVideo twoCameras = row("jiangyi-video/left.mp4,jiangyi-video/right.mp4");
+        Mockito.when(mapper.findByOrderNo("STK-A")).thenReturn(List.of(twoCameras));
+        Mockito.when(gatewayClient.presignGet("jiangyi-video/left.mp4"))
+                .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.signed("https://signed-left", "e")));
+        Mockito.when(gatewayClient.presignGet("jiangyi-video/right.mp4"))
+                .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.signed("https://signed-right", "e")));
+
+        OrderVideoPlaylistDto dto = JiangyiOrderVideoService.playlist(service.playByTask(9L));
+
+        assertEquals(OrderVideoPlaylistDto.SOURCE_JIANGYI, dto.source());
+        assertEquals(2, dto.clips().size());
+        assertEquals("https://signed-left", dto.clips().get(0).url());
+        assertEquals("https://signed-right", dto.clips().get(1).url());
+    }
+
+    @Test
+    void playlist_keepsChannelPerCameraWithinSameShard() {
+        // 🔴 钉住那条踩过的坑：同一 serialNum 的多路摄像头必须靠 channel（上报数组内位置）区分，
+        // 展平时丢掉位置，前端就会渲染出两个同名「第 N 段」而无法分辨。
+        OrderVideoPlaylistDto dto = JiangyiOrderVideoService.playlist(List.of(viewOfTwoCameras()));
+
+        assertEquals(2, dto.clips().size());
+        assertEquals(1, dto.clips().get(0).serialNum());
+        assertEquals(1, dto.clips().get(0).channel());
+        assertEquals("https://u/1", dto.clips().get(0).url());
+        assertEquals(2, dto.clips().get(1).channel());
+        assertFalse(dto.clips().get(1).playable());
+        assertEquals("该片生成或上传失败", dto.clips().get(1).reason());
+    }
+
+    private JiangyiOrderVideoService.PlayUrlView viewOfTwoCameras() {
+        return new JiangyiOrderVideoService.PlayUrlView(7L, "STK-A", "100000000001", 1, 1,
+                Instant.parse("2026-10-31T02:00:00Z"),
+                List.of(new JiangyiOrderVideoService.PlayUrlItem(1, "https://u/1", true, true, null),
+                        new JiangyiOrderVideoService.PlayUrlItem(2, null, false, false, "该片生成或上传失败")));
+    }
+
+    @Test
+    void playlist_ofNoRows_isNoneSourceNotAnError() {
+        // 商户端语义：这次补货没录像＝空清单（NONE），不是 404、不是异常
+        assertEquals(OrderVideoPlaylistDto.SOURCE_NONE,
+                JiangyiOrderVideoService.playlist(List.of()).source());
+        assertEquals(OrderVideoPlaylistDto.SOURCE_NONE,
+                JiangyiOrderVideoService.playlist(null).source());
+        assertTrue(JiangyiOrderVideoService.playlist(List.of()).clips().isEmpty());
     }
 
     // ---------- 上报归属（审计 AU-040）----------

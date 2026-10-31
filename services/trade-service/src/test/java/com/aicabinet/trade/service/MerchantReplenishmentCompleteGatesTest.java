@@ -51,7 +51,7 @@ class MerchantReplenishmentCompleteGatesTest {
                 permissionService, merchantFeaturePackService, merchantPortalGuard, replenishmentService,
                 null, null, auditService, deviceRepository, null,
                 null, taskRepository, fileAttachmentService,
-                null, shoppingSessionRepository, systemConfigService, merchantScopeService);
+                null, shoppingSessionRepository, systemConfigService, merchantScopeService, null);
         org.mockito.Mockito.lenient()
                 .when(systemConfigService.getBoolean(
                         SystemConfigService.REPLENISHMENT_COMPLETE_REQUIRE_EVIDENCE, true))

@@ -9,18 +9,56 @@ export type MerchantVideoErrorView = {
   showCopy: boolean;
 };
 
+/** 纠错文案的语境：订单购物视频 / 补货作业录像（CB-078 复用同一播放页）。 */
+export type MerchantVideoMode = 'order' | 'replenish';
+
+export type OrderVideoEntryOrder = {
+  orderId?: string | null;
+  sessionId?: string | null;
+  status?: string | null;
+};
+
+/**
+ * 订单详情是否展示「查看购物视频」入口。
+ *
+ * 后端 `orders/{orderId}/videos` 只按 sessionId 取将邑台账、不按订单状态过滤；无录像时播放页
+ * 给空态。异常单（争议中 / 已取消）此前被状态白名单挡在商户侧，只能绕到争议页看录像。
+ */
+const ORDER_VIDEO_STATUSES = new Set([
+  'PAID',
+  'COMPLETED',
+  'REFUNDED',
+  'PARTIAL_REFUNDED',
+  'DISPUTED',
+  'CANCELLED'
+]);
+
+export function canShowOrderVideo(order: OrderVideoEntryOrder | null | undefined): boolean {
+  if (!order?.sessionId || !order.orderId) return false;
+  return ORDER_VIDEO_STATUSES.has(String(order.status || '').toUpperCase());
+}
+
 /** 把下载/播放失败收成用户可读文案。404=对象不存在，禁止再引导「复制链接」。 */
-export function merchantVideoErrorView(err: unknown): MerchantVideoErrorView {
+export function merchantVideoErrorView(
+  err: unknown,
+  mode: MerchantVideoMode = 'order'
+): MerchantVideoErrorView {
   const raw = err instanceof Error ? err.message : String(err || '');
   if (/401|未登录|登录已失效/.test(raw)) {
     return { title: '请重新登录', desc: '登录过期后无法拉取录像', showCopy: false };
   }
   if (/404|暂无|不存在|无法读取/.test(raw)) {
-    return {
-      title: '暂无购物视频',
-      desc: '本单没有可播放的录像。超时免单、模拟柜或文件未上传时常见。',
-      showCopy: false
-    };
+    return mode === 'replenish'
+      ? {
+          title: '暂无补货录像',
+          desc: '本次补货没有可播放的录像。柜机未上报录像时常见。',
+          showCopy: false
+        }
+      : {
+          title: '暂无购物视频',
+          desc: '本单没有可播放的录像。超时免单、模拟柜或文件未上传时常见。',
+          showCopy: false
+        };
   }
   return {
     title: '视频加载失败',

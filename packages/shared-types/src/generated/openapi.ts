@@ -9884,6 +9884,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/replenishment/tasks/{taskId}/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["replenishmentTaskVideos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/replenishment/tasks/{taskId}/headroom": {
         parameters: {
             query?: never;
@@ -19772,6 +19788,27 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PurchaseOrderDto"][];
         };
+        ApiResponseOrderVideoPlaylistDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["OrderVideoPlaylistDto"];
+        };
+        Clip: {
+            /** Format: int32 */
+            serialNum?: number;
+            /** Format: int32 */
+            total?: number;
+            /** Format: int32 */
+            channel?: number;
+            url?: string;
+            playable?: boolean;
+            reason?: string;
+        };
+        OrderVideoPlaylistDto: {
+            source?: string;
+            clips?: components["schemas"]["Clip"][];
+        };
         ApiResponseListReplenishmentHeadroomDto: {
             /** Format: int32 */
             code?: number;
@@ -19968,27 +20005,6 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["OrderReadModel_Merchant"];
-        };
-        ApiResponseOrderVideoPlaylistDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["OrderVideoPlaylistDto"];
-        };
-        Clip: {
-            /** Format: int32 */
-            serialNum?: number;
-            /** Format: int32 */
-            total?: number;
-            /** Format: int32 */
-            channel?: number;
-            url?: string;
-            playable?: boolean;
-            reason?: string;
-        };
-        OrderVideoPlaylistDto: {
-            source?: string;
-            clips?: components["schemas"]["Clip"][];
         };
         ApiResponseListNotificationDto: {
             /** Format: int32 */
@@ -37417,6 +37433,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListReplenishmentTaskDto"];
+                };
+            };
+        };
+    };
+    replenishmentTaskVideos: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOrderVideoPlaylistDto"];
                 };
             };
         };

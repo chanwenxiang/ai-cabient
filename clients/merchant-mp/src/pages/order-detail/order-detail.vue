@@ -139,6 +139,7 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import { canShowOrderVideo } from '@/utils/order-video-url';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -227,12 +228,7 @@ const linesEmptyText = computed(() => {
 });
 
 /** 有会话且已产生账单的订单可查看录像（由后端 /merchant/orders/{id}/video 鉴权拉流） */
-const canShowVideo = computed(() => {
-  const o = order.value;
-  if (!o?.sessionId || !o.orderId) return false;
-  const s = String(o.status || '').toUpperCase();
-  return s === 'PAID' || s === 'COMPLETED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED';
-});
+const canShowVideo = computed(() => canShowOrderVideo(order.value));
 
 /**
  * 首屏由 onLoad 负责；onShow 只在「已初始化」后补拉。

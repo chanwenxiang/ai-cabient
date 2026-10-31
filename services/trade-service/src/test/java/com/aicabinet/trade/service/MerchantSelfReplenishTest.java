@@ -68,7 +68,8 @@ class MerchantSelfReplenishTest {
                 replenishmentService, null, warehouseService,
                 Mockito.mock(AdminAuditService.class), deviceRepository, skuCatalogRepository,
                 routeRepository, taskRepository, Mockito.mock(FileAttachmentService.class),
-                distributedLockService, null, null, merchantScopeService);
+                distributedLockService, null, null, merchantScopeService,
+                Mockito.mock(JiangyiOrderVideoService.class));
     }
 
     private MerchantSelfReplenishRequest body() {

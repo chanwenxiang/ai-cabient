@@ -53,7 +53,7 @@ class MerchantPrepPreviewTest {
                 permissionService, merchantFeaturePackService, merchantPortalGuard, replenishmentService,
                 null, warehouseService, null, deviceRepository, skuCatalogRepository,
                 null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
     }
 
     private ReplenishmentSuggestDto suggest(String skuId, int currentQty, int capacity,

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
+import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DisplayIds;
@@ -47,6 +48,7 @@ public class MerchantReplenishmentService {
     private final ShoppingSessionMapper shoppingSessionRepository;
     private final SystemConfigService systemConfigService;
     private final MerchantScopeService merchantScopeService;
+    private final JiangyiOrderVideoService jiangyiOrderVideoService;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantFeaturePackService merchantFeaturePackService,
@@ -63,7 +65,8 @@ public class MerchantReplenishmentService {
                                         DistributedLockService distributedLockService,
                                         ShoppingSessionMapper shoppingSessionRepository,
                                         SystemConfigService systemConfigService,
-                                        MerchantScopeService merchantScopeService) {
+                                        MerchantScopeService merchantScopeService,
+                                        JiangyiOrderVideoService jiangyiOrderVideoService) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
@@ -80,6 +83,7 @@ public class MerchantReplenishmentService {
         this.shoppingSessionRepository = shoppingSessionRepository;
         this.systemConfigService = systemConfigService;
         this.merchantScopeService = merchantScopeService;
+        this.jiangyiOrderVideoService = jiangyiOrderVideoService;
     }
 
     @Transactional(readOnly = true)
@@ -548,6 +552,26 @@ public class MerchantReplenishmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return fileAttachmentService.listReplenishmentEvidence(taskId);
+    }
+
+    /**
+     * 商户自查本柜补货作业录像（CB-078）：只读、按任务、逐片短时效签名。
+     *
+     * <p>闸与 {@link #listTaskEvidence} 同一套。权限点<b>刻意复用</b>补货页既有的
+     * {@code merchant:replenishment:view} 而<b>不复用</b>运营侧 {@code ops:device:video}：
+     * 商户与运营是两个授权主体，给商户开录像不等于给商户开运营后台权限。</p>
+     *
+     * <p>🔴 不出对象键：清单里的 url 是服务端逐片签发的预签名地址（DC-11 受控读路径，同 CB-029/030），
+     * 设备上报的原始地址一律不外发。无台账行回 {@code source=NONE}、空清单，不是 404。</p>
+     */
+    @Transactional(readOnly = true)
+    public OrderVideoPlaylistDto listTaskVideos(Long userId, Long taskId) {
+        permissionService.requirePermission(userId, MERCHANT_REPLENISHMENT_VIEW);
+        merchantPortalGuard.requireAccess(userId);
+        ReplenishmentTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
+        return JiangyiOrderVideoService.playlist(jiangyiOrderVideoService.playByTask(taskId));
     }
 
     @Transactional(readOnly = true)

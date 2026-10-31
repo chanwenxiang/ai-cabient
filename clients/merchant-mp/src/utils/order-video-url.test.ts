@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canShowOrderVideo,
   clipLabel,
   merchantVideoErrorView,
   pickPlayableClips,
@@ -17,6 +18,41 @@ describe('merchantVideoErrorView', () => {
     const view = merchantVideoErrorView(new Error('视频文件不存在或无法读取'));
     expect(view.title).toBe('暂无购物视频');
     expect(view.showCopy).toBe(false);
+  });
+
+  it('CB-078：补货录话语境下 404 说「补货录像」，不串成购物视频', () => {
+    const view = merchantVideoErrorView(new Error('下载失败 (404)'), 'replenish');
+    expect(view.title).toBe('暂无补货录像');
+    expect(view.desc).toContain('本次补货');
+    expect(view.showCopy).toBe(false);
+  });
+});
+
+describe('canShowOrderVideo · 异常单也放行', () => {
+  const base = { orderId: 'ORD-1', sessionId: 'S-1' };
+
+  it('正常单与异常单（争议中 / 已取消）都显示录像入口', () => {
+    for (const status of [
+      'PAID',
+      'COMPLETED',
+      'REFUNDED',
+      'PARTIAL_REFUNDED',
+      'DISPUTED',
+      'CANCELLED'
+    ]) {
+      expect(canShowOrderVideo({ ...base, status })).toBe(true);
+    }
+  });
+
+  it('状态大小写不敏感', () => {
+    expect(canShowOrderVideo({ ...base, status: 'disputed' })).toBe(true);
+  });
+
+  it('未支付/无会话/无订单号不显示', () => {
+    expect(canShowOrderVideo({ ...base, status: 'UNPAID' })).toBe(false);
+    expect(canShowOrderVideo({ orderId: 'ORD-1', status: 'DISPUTED' })).toBe(false);
+    expect(canShowOrderVideo({ sessionId: 'S-1', status: 'DISPUTED' })).toBe(false);
+    expect(canShowOrderVideo(null)).toBe(false);
   });
 });
 

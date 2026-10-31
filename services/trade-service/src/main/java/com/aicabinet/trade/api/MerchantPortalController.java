@@ -792,6 +792,20 @@ public class MerchantPortalController {
         support.merchantReplenishmentService().streamTaskEvidence(userId(request), taskId, fileId, response);
     }
 
+    /**
+     * CB-078：补货作业录像（商户自查本柜）。返回形态与 {@code /orders/{orderId}/videos} 一致——
+     * {@code JIANGYI} 给逐片短时效预签名地址，{@code NONE} 表示该任务暂无录像（不是 404）。
+     *
+     * <p>🔴 权限点用补货页既有的 {@code merchant:replenishment:view}，不复用运营侧
+     * {@code ops:device:video}；对象键不出网（DC-11），不做下载/导出入口（台账 CB-078 结论④）。</p>
+     */
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/tasks/{taskId}/videos")
+    public ApiResponse<OrderVideoPlaylistDto> replenishmentTaskVideos(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(support.merchantReplenishmentService().listTaskVideos(userId(request), taskId));
+    }
+
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/suggestions")
     public ApiResponse<List<ReplenishmentSuggestDto>> replenishmentSuggestions(
