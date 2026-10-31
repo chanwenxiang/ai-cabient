@@ -84,6 +84,24 @@ merchant-mp：main=5 sub=30 total=35
 - 发现：**MA-009**（P3，关联单据两张表各截 8 条、`total` 早已取回却只用于空态判断 ⇒ 62 次开门的柜看着只有 8 次，且段级无查看全部入口）——轮内已修（`3f877459`+产物 `34068cd0`），正负向都验：将邑柜显「共 62 条 · 查看全部」并可跳 `/sessions?deviceId=`；未截断的「最近订单」（8=8）与演示柜（2 条）都**不显示**链接。
 - 探针坑（记进交接注记）：`.section-more` 用 Playwright `click()` 会因内部滚动容器超时，改 `evaluate(el => el.click())` 可稳定触发；`allTextContents()` 会连隐藏 pane 一起取，判可见必须用 `:visible`。
 
+### 页面：设备运维（`/device-ops`）｜无选项卡（列表 + 筛选）
+
+- 视图源码：`clients/admin-vue/src/views/devices/DeviceOpsMonitorView.vue`；后端 `CompetitiveGapService.listDeviceOpsEvents`
+- 九维要点：表头 9 列（事件ID/类型/级别/设备名称/设备编号/标题/详情/账龄/时间）；筛选 类型/级别/设备/关键词**全部服务端**；排序按钮切换 `sortDir=asc|desc` 走请求；导出 + 列设置在位；console 0 error。
+- 发现：**MA-010（P2）**——后端硬编码 `now-14d ~ now`（`CompetitiveGapService.java:376-380`），`device_ops_event` 全表 100 条（OFFLINE 45 / NO_SALES 28 / FAULT 21 / AISLE_AUDIT 6，孤儿行 0）而页面 `共 54 条`，且**没有日期控件**、hint 也不提窗口 ⇒ 运营会把 54 当全量。档 A 文案已修（`7dce0f04`+产物 `8a7c9418`，活栈复验文案已渲染）；**是否放开窗口/加 from-to 需拍板**（该查询被商户端理货-盘点复用，CB-050 注释）。
+
+### 页面：设备可用性（`/device-kpi`）｜无选项卡（KPI 卡 + 日期选择）
+
+- 九维要点：hint 交代「默认当天实时口径；选择日期后查询该日快照」；KPI 卡 7 项（设备总数 5 / 离线事件 2 / 自动锁机 0 / 自动解锁 0 / 人工解锁 0 / 平均锁定时长 暂无样本 / 平均恢复时长 7.28h / 人工介入率 无解锁）；console 0 error；证据 `evidence/R03-device-kpi-pass.png`。
+- 数值对真值：设备总数 5 = `count(*) from device_info` ✅；**离线事件 2 = 今日（Asia/Shanghai）新建的 `DEVICE_OFFLINE` 异常数** ✅（我先按「离线段重叠设备数」手搓 SQL 得 3，差点误报——真实口径是**当日新建事件数**，见 `DeviceAvailabilityKpiDto.offlineEvents` 注释；改按 mapper 谓词复算后精确等于 2）。
+- 观察项（不领号）：`device_availability_kpi_daily` 最新行是 2026-10-24（日作业 17:10 UTC 写），今天无行 ⇒ 当天走实时计算，与 hint 一致；另 `ops_exception` 里 `DEVICE_OFFLINE` 有 4 行 `device_id` 为空，KPI 的**按设备离线时长**循环会跳过它们（`deviceId == null || isBlank() → continue`）⇒ 属数据质量问题，记给 R11 造数纪律（异常必须带设备）。
+
+### 页面：投放地图（`/device-map`）｜无选项卡（地图 + 落点）
+
+- 九维要点：工具条「查询 / 刷新 / 共 4 个柜机落点 / 详情」；底图用**高德栅格瓦片**（`webrd0x.is.autonavi.com`，外网依赖）；console 0 error；证据 `evidence/R03-device-map-pass.png`。
+- 数值对真值：4 个落点 = `latitude/longitude 均非空` 的设备数 ✅（5 台中仅 `EG879147199289` 退役柜无坐标，正确不画点）。
+- 待深测（批 1 收尾）：地图 marker 点击 → 详情跳转、无坐标柜的提示、外网瓦片不可达时的降级表现（本地能连外网，未断网验证）。
+
 ### 页面：设备报表（`/reports`，R1 已测页）｜本轮只补开轮发现的 MA-008
 
 - 发现：**MA-008**（P2，`/reports` 与 `/dashboard` 同名 KPI「离线设备」5 vs 3，报表侧不标口径）
@@ -100,10 +118,12 @@ merchant-mp：main=5 sub=30 total=35
 | P1 | 0 | — |
 | P2 | 1 | MA-008（轮内已修） |
 | P3 | 1 | MA-009（轮内已修） |
+| P2 | +1 | MA-010（档 A 已修；放开窗口待拍板） |
 
 ## 需用户拍板
 
-- （待填）
+1. **`/device-ops` 的 14 天窗口要不要放开或做成可选日期范围**：档 A 文案已把口径说清（MA-010），但 14 天前的事件在本页永久不可查。放开会影响**商户端理货记录-盘点**（复用同一查询，CB-050）。我倾向：加 `from/to` 参数、默认仍是 14 天（行为不变），前端加日期控件——这样两端可见性都不变，运营需要时能自己拉宽。
+2. **`719325384517`（名称=编号，INBOUND）与 `EG规则验证柜-可删`（RETIRED）两台遗留柜要不要清**：名字里就写着「可删」。它们会持续出现在 `/device-ops` 设备下拉与 `/devices` 列表里，干扰计数对账（本轮已按「不清、注明」处理）。
 
 ## 需用户配合（真机）
 
