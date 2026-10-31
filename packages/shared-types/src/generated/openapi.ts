@@ -36582,6 +36582,9 @@ export interface operations {
                 page?: number;
                 size?: number;
                 sortDir?: string;
+                from?: string;
+                to?: string;
+                q?: string;
             };
             header?: never;
             path?: never;

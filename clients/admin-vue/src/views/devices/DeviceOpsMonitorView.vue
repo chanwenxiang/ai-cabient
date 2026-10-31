@@ -66,6 +66,18 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item label="时间">
+        <el-date-picker
+          v-model="dateRange"
+          type="daterange"
+          unlink-panels
+          range-separator="至"
+          start-placeholder="起"
+          end-placeholder="止"
+          style="width: 300px"
+          @change="search"
+        />
+      </el-form-item>
       <el-form-item label="关键词">
         <el-input
           v-model="keyword"
@@ -216,25 +228,14 @@ const eventType = ref('');
 const severity = ref('');
 const deviceFilter = ref('');
 const keyword = ref('');
+/** MA-010：可选时间范围；留空＝后端默认近 14 天 */
+const dateRange = ref<[number, number] | null>(null);
 
 const eventTypeOptions = useDictOptions('device_ops_event');
 const riskSeverityDict = useDictOptions('risk_severity');
 const severityOptions = computed(() =>
   riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
-
-/** 关键词为纯前端过滤（后端无该参数）：原 displayItems 计算属性前移到取数处，total 仍取服务端值 */
-function filterByKeyword(rows: OpsEvent[]): OpsEvent[] {
-  const kw = keyword.value.trim().toLowerCase();
-  if (!kw) return rows;
-  return rows.filter((row) => {
-    const idMatch = String(row.eventId).includes(kw);
-    const rawDetail = (row.detail || '').toLowerCase();
-    const detailMatch =
-      rawDetail.includes(kw) || formatEventDetail(row.detail).toLowerCase().includes(kw);
-    return idMatch || detailMatch;
-  });
-}
 
 // 列表状态机统一交给 CrudTable：分页 / 排序 / 多选 / 竞态 / 空态 全部内建。
 // 首查依赖 loadDeviceOptions（设备筛选项）先就绪，故 autoLoad:false，onMounted 显式首查。
@@ -252,18 +253,24 @@ const crud = useCrudTable<OpsEvent>({
     if (eventType.value) q.set('eventType', eventType.value);
     if (severity.value) q.set('severity', severity.value);
     if (deviceFilter.value) q.set('deviceId', deviceFilter.value);
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (dateRange.value?.length === 2) {
+      const [fromMs, toMs] = dateRange.value;
+      if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
+      if (Number.isFinite(toMs)) {
+        // 右端取当天 23:59:59.999，避免选同一天时把当天事件漏掉
+        const end = new Date(toMs);
+        end.setHours(23, 59, 59, 999);
+        q.set('to', end.toISOString());
+      }
+    }
     const data = await api.request<{ items: OpsEvent[]; total?: number }>(
       AdminEndpoints.deviceOpsEventsList(q),
       'GET'
     );
     const items = data.items || [];
-    const filtered = filterByKeyword(items);
-    const serverTotal = Number(data.total ?? items.length);
-    // 关键词为前端本页过滤：有剔除时 total 必须跟可见行一致，禁空表仍显示服务端全量（同 lessons #205/#208）
-    return {
-      items: filtered,
-      total: filtered.length === items.length ? serverTotal : filtered.length
-    };
+    // MA-011：关键词已进 SQL（后端 <q>），不再对当前页过滤，total 直接用服务端值
+    return { items, total: Number(data.total ?? items.length) };
   },
   // 后端固定按 eventId 排序、仅接收方向（默认升序）；方向由壳内「升/降序」按钮驱动重查
   sort: { prop: 'eventId', mode: 'server', defaultDir: 'asc' }

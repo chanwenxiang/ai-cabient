@@ -21,7 +21,9 @@ public interface DeviceOpsEventMapper extends BaseTradeMapper<DeviceOpsEvent> {
             Instant to,
             int page,
             int size,
-            boolean eventIdAsc) {}
+            boolean eventIdAsc,
+            /** 关键词（MA-011）：匹配 事件ID / 设备编号 / 标题 / 详情；空=不筛。 */
+            String keyword) {}
 
     default Page<DeviceOpsEvent> search(DeviceOpsEventSearchCriteria criteria) {
         var q = Wrappers.<DeviceOpsEvent>lambdaQuery();
@@ -46,6 +48,13 @@ public interface DeviceOpsEventMapper extends BaseTradeMapper<DeviceOpsEvent> {
         }
         if (criteria.to() != null) {
             q.le(DeviceOpsEvent::getCreatedAt, criteria.to());
+        }
+        if (criteria.keyword() != null && !criteria.keyword().isBlank()) {
+            String kw = criteria.keyword().trim();
+            q.and(w -> w.like(DeviceOpsEvent::getTitle, kw)
+                    .or().like(DeviceOpsEvent::getDetail, kw)
+                    .or().like(DeviceOpsEvent::getDeviceId, kw)
+                    .or().apply("CAST(event_id AS TEXT) LIKE {0}", "%" + kw + "%"));
         }
         return selectPage(new Page<>(criteria.page() + 1L, criteria.size()), q);
     }

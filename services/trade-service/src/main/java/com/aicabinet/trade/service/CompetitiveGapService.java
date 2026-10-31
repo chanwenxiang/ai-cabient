@@ -342,7 +342,16 @@ public class CompetitiveGapService {
     @Transactional
     public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
                                                              int page, int size, boolean eventIdAsc) {
-        return self.listDeviceOpsEvents(operatorId, eventType, null, null, page, size, eventIdAsc);
+        // 商户端理货-盘点走这里：不带时间范围 ⇒ 保持既有 14 天默认窗口（MA-010 拍板：默认不变）
+        return self.listDeviceOpsEvents(operatorId, eventType, null, null, page, size, eventIdAsc, null, null, null);
+    }
+
+    @Transactional
+    public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
+                                                             String severity, String deviceId,
+                                                             int page, int size, boolean eventIdAsc) {
+        return self.listDeviceOpsEvents(operatorId, eventType, severity, deviceId, page, size, eventIdAsc,
+                null, null, null);
     }
 
     @Transactional
@@ -353,7 +362,12 @@ public class CompetitiveGapService {
             String deviceId,
             int page,
             int size,
-            boolean eventIdAsc) {
+            boolean eventIdAsc,
+            /** 可选时间范围（MA-010）：两者都空时回落既有「近 14 天」默认窗口，商户端行为不变。 */
+            Instant from,
+            Instant to,
+            /** 关键词（MA-011）：原先在前端对本页过滤，跨页搜不到；现进 SQL。 */
+            String keyword) {
         // CB-050：商户端理货记录-盘点复用本查询——商户用户凭 merchant:devices:detail 也可读
         // （范围仍被 allowedDeviceIds 收敛到本人可见设备，无越权面）
         permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list",
@@ -372,10 +386,13 @@ public class CompetitiveGapService {
         }
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
+        Instant now = Instant.now();
+        Instant toBound = to != null ? to : now;
+        Instant fromBound = from != null ? from : toBound.minusSeconds(86400L * 14);
         var result = deviceOpsEventMapper.search(new DeviceOpsEventMapper.DeviceOpsEventSearchCriteria(
                 allowed, eventType, severity, deviceId,
-                Instant.now().minusSeconds(86400L * 14), Instant.now(),
-                p, s, eventIdAsc));
+                fromBound, toBound.plusSeconds(1), // +1s：区间右开，避免丢掉 to 那一毫秒
+                p, s, eventIdAsc, keyword));
         Set<String> nameIds = result.getRecords().stream()
                 .map(DeviceOpsEvent::getDeviceId)
                 .filter(Objects::nonNull)

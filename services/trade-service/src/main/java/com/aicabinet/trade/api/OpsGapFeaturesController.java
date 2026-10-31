@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -188,10 +189,15 @@ public class OpsGapFeaturesController {
             @RequestParam(required = false) String deviceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "asc") String sortDir,
+            /** 可选时间范围（MA-010）；都不传 ⇒ 服务层回落近 14 天默认窗口。 */
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            /** 关键词（MA-011）：匹配 事件ID/设备编号/标题/详情，服务端过滤。 */
+            @RequestParam(required = false) String q) {
         boolean eventIdAsc = !"desc".equalsIgnoreCase(sortDir);
         return ApiResponse.ok(gapService.listDeviceOpsEvents(
-                operatorId(request), eventType, severity, deviceId, page, size, eventIdAsc));
+                operatorId(request), eventType, severity, deviceId, page, size, eventIdAsc, from, to, q));
     }
 
     @RequiresPermissions("ops:device:list")
