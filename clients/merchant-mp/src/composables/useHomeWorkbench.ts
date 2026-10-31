@@ -17,6 +17,7 @@ import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getOrgFilter } from '@/utils/org-filter';
+import { orgDeviceScope, keepRowsInOrg } from '@/utils/org-scope';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { formatMerchantNames, merchantBindingState } from '@/utils/merchant-display';
@@ -421,8 +422,17 @@ export function useHomeWorkbench() {
     }
     deviceMap.value = map;
     applyTaskPreview(tasks as TaskRow[]);
+    // CB-079 档 A 补口：备货单是操作入口，按「操作入口跟组织」判据与待办/补货任务同规则收窄
+    const prepScope = orgDeviceScope(
+      getOrgFilter(),
+      (devices as { deviceId?: string; merchantId?: string }[]) || []
+    );
     prepList.value = canReplenishment.value
-      ? ((prep || []) as import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[])
+      ? keepRowsInOrg(
+          (prep || []) as import('@aicabinet/shared-types').OpenApiMerchantPrepGroupDto[],
+          prepScope,
+          (g) => g.deviceId
+        )
       : [];
   }
 
