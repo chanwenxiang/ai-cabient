@@ -39,7 +39,7 @@
           start-placeholder="开始"
           end-placeholder="结束"
         />
-        <span class="range-hint">支持跨月，单次不超过 90 天</span>
+        <span class="range-hint">支持跨月，单次不超过 90 天；留空＝「账务明细」只看近 7 天</span>
       </el-form-item>
       <el-form-item label="关键词">
         <el-input
@@ -457,9 +457,13 @@ const billEmptyDescription = computed(() =>
   appliedKeyword.value ? `未找到匹配「${appliedKeyword.value}」的日账单` : '暂无账单'
 );
 
-const ledgerEmptyDescription = computed(() =>
-  appliedKeyword.value ? `未找到匹配「${appliedKeyword.value}」的账务明细` : '暂无流水'
-);
+const ledgerEmptyDescription = computed(() => {
+  if (appliedKeyword.value) return `未找到匹配「${appliedKeyword.value}」的账务明细`;
+  // MA-014：后端留空默认只查近 7 天，空态必须把窗口说出来，否则会被当成「没有数据」
+  if (!range.value?.[0] || !range.value?.[1])
+    return '近 7 天暂无流水（账期留空时只看近 7 天；可选账期查看更早）';
+  return '该账期内暂无流水';
+});
 
 // 页内 CSV（选中优先）保留在页面：页头导出按钮两个 Tab 共用，日账单无选中时走后端整单导出
 const { onExport: exportBillsCsv } = useListCsv({
