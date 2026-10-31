@@ -208,7 +208,7 @@ COMMIT;
 
 - 本轮 P0/P1 = 0 ⇒ **无轮末批次**。四条 MA（008 P2 / 009 P3 / 010 P2 / 011 P2）全部轮内修完并各自带活栈验证。
 - 批 2 六页零新缺陷：所有「差 1 条 / 0 条」都经查是我真值 SQL 漏 `is_deleted`（逻辑删除）所致，页面正确。
-- 门禁化候选（工作法第 8 步）：本轮再次印证 `check:list-filter-must-be-server-side` 的覆盖面——MA-011 与 MA-007 是同一写法；建议 R4 开始前先实现该门禁（allowlist：`OrderListView` 的 `overdueOnly` 页内安全网）。
+- 门禁化收口（工作法第 8 步）：**`check:list-filter-server-side` 已上线**（用户拍板「先实现修复，再开 R4」）。首扫 50 个 `fetchPage` / 命中 4 处：仅 `/ad-campaigns` 是真缺陷（MA-012，已修），另 3 处进棘轮白名单并写明依据（`/orders` overdueOnly 后端已扫的安全网、`/sessions` 焦点会话去重、`/roles` 接口无分页的全量内存过滤）。门禁带 9 条自测断言 + 聚合链接线（wiring 门禁：82 引用 / 96 个 check 脚本全部可达）。
 
 ## 给下一轮的交接注记
 

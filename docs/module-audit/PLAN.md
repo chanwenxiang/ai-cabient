@@ -117,7 +117,7 @@ merchant-mp：主页 `login/home/devices/alerts/mine` + 分包 `device-detail, p
 | `check:fixed-window-kpi`：DTO 同现 `xxx7d`+`xxx30d` 时，对应服务必须同时出现 `minusDays(6)` 与 `minusDays(29)` 两个字面窗口，禁止只按入参 `days` 单窗口计数 | MA-001（`days=7` 时 30d 口径被吞成 0、`days=90` 时被虚增） | ⚠️ 半可判：先只对 `UserBehavior*` 这一族开，误报面小 | R6/R7 前评估 |
 | `check:truncation-constant`：服务里出现 `subList(0, N)` 必须用**带注释的命名常量**，且返回 DTO 必须有 `xxxTotal` 全量字段 | MA-002（沉睡名单静默截断 20 条、KPI 显示 22） | ✅ 可判（正则 + DTO 字段名） | R6 前评估 |
 | `check:admin-copy-window-consistency`：弹窗/说明文案里写「近 {{ x }} 天」「最多 N 人」时，N 必须取后端字段而非本地参数 | MA-003（弹窗显「20 人（近 7 天沉睡名单）」，实际口径是 30-90 天全量） | ❌ 静态易误报 ⇒ **降级为 page-checklist 必测项**（文案口径 × 数据窗口一致性） | 已入模板 |
-| `check:list-filter-must-be-server-side`：admin 视图 `fetchPage` 内出现 `rows.filter(` 或让 `displayItems` 参与分页 ⇒ 红（显式 allowlist + 理由） | MA-007（R2 `/sessions` 类型筛选页内过滤 ⇒ 跨页漏数据 + `total` 谎报，导出同源受害） | ✅ 可判（正则扫 `fetchPage` 函数体） | **R2 轮末就上**（本类缺陷已抓到 1 条，面广：所有 CrudTable 页） |
+| ~~`check:list-filter-must-be-server-side`~~ **已上线为 `check:list-filter-server-side`（2026-10-31）**：扫 admin 视图 `fetchPage` 方法体，对「本页行」`.filter(` ⇒ 红（棘轮白名单只减不增 + 锚点 ≥15 个 fetchPage + 自测 9 条） | MA-007 / MA-011 / MA-012（三次同类实证） | ✅ 可判 | ✅ **已落地并接入聚合链**（首扫 4 处：1 真缺陷 + 3 白名单），见 `scripts/check-list-filter-server-side.mjs` |
 | `check:dict-label-render`：admin 视图不得把字典 value 裸绑到展示位（品类/状态/类型列必须过翻译） | R1 销售报表/大屏「裸码 1」 | ⚠️ 需先全仓扫一遍现存误报率再定范围 | R3/R6 前评估 |
 
 
