@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -331,10 +332,20 @@ public class MerchantWorkbenchQueryService {
         if (rows.isEmpty()) {
             return 0;
         }
-        Map<String, String> nameBySku = new LinkedHashMap<>();
         List<String> skuIds = rows.stream().map(DeviceSkuInventory::getSkuId).distinct().toList();
+        Map<String, String> nameBySku = new LinkedHashMap<>();
+        Set<String> onShelf = new HashSet<>();
         for (var sku : skuCatalogRepository.findBySkuIds(skuIds)) {
             nameBySku.put(sku.getSkuId(), SkuDisplayNames.of(sku));
+            if ("ACTIVE".equalsIgnoreCase(sku.getStatus())) {
+                onShelf.add(sku.getSkuId());
+            }
+        }
+        // 低库存面只算在架 SKU（2026-10-30 拍板，与商户/运营库存页、洞察同一条判据）：
+        // 下架行清零后会被读成「库存偏低」，连低库存提醒也会替商户催它已放弃的商品。
+        rows = rows.stream().filter(row -> onShelf.contains(row.getSkuId())).toList();
+        if (rows.isEmpty()) {
+            return 0;
         }
         for (DeviceSkuInventory row : rows) {
             if (items.size() < WORKBENCH_ITEM_CAP) {

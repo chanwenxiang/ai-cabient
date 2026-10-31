@@ -122,6 +122,44 @@ class MerchantAnalyticsServiceTest {
     }
 
     @Test
+    void overview_stockoutEstimate_skipsDelistedZeroStockSku() {
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("cab-1"));
+        when(lineRepository.sumRevenueByDeviceIdsSince(any(), any())).thenReturn(2150L);
+        when(lineRepository.sumCogsByDeviceIdsSince(any(), any())).thenReturn(1150L);
+        when(writeOffRepository.sumCostCentsByDeviceIdsSince(any(), any())).thenReturn(0L);
+        when(lineRepository.sumRevenueByDeviceIdsBetween(any(), any(), any())).thenReturn(0L);
+        when(lineRepository.sumCogsByDeviceIdsBetween(any(), any(), any())).thenReturn(0L);
+        when(orderRepository.countBillableByDeviceIdInAndCreatedAtBetween(any(), any(), any()))
+                .thenReturn(5L);
+        when(orderRepository.sumTotalAmountByDeviceIdInSince(any(), any())).thenReturn(2150L);
+        List<Object[]> skuRows = new java.util.ArrayList<>();
+        // 下架品清零后账面 0、窗口内仍卖过 ⇒ 不得计入「缺货 N 种 · 估损」
+        skuRows.add(new Object[]{"SKU-DEL", "已下架汽水", 3L, 1350L, 750L});
+        skuRows.add(new Object[]{"SKU-OOS", "在售汽水", 2L, 800L, 400L});
+        when(lineRepository.skuBreakdownByDevicesSince(any(), any())).thenReturn(skuRows);
+        DeviceSkuInventory delisted = new DeviceSkuInventory();
+        delisted.setId(new DeviceSkuInventoryId("cab-1", "SKU-DEL"));
+        delisted.setQuantity(0);
+        DeviceSkuInventory oos = new DeviceSkuInventory();
+        oos.setId(new DeviceSkuInventoryId("cab-1", "SKU-OOS"));
+        oos.setQuantity(0);
+        when(inventoryRepository.findByIdDeviceIdIn(any())).thenReturn(List.of(delisted, oos));
+        when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
+        SkuCatalog delistedCatalog = activeSku("SKU-DEL");
+        delistedCatalog.setStatus("INACTIVE");
+        when(skuCatalogRepository.findAllById(any()))
+                .thenReturn(List.of(activeSku("SKU-OOS"), delistedCatalog));
+
+        MerchantAnalyticsOverviewDto dto = service.overview(1L, 7);
+
+        assertEquals(1, dto.stockoutSkuCount());
+        // 仅在售缺货 SKU 计损：日均 2/7 × 件均毛利 200 × 窗口 7 = 400
+        assertEquals(400L, dto.stockoutLossEstimateCents());
+        assertEquals(2, dto.topSkus().size());
+    }
+
+    @Test
     void skuPerformance_medianIgnoresOffCabinetSales() {
         when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.BIZ))
                 .thenReturn(Set.of("cab-1"));

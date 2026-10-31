@@ -437,7 +437,19 @@ public class MerchantAnalyticsService {
         }
         int oosCount = 0;
         long loss = 0;
+        Set<String> onShelf = new HashSet<>();
+        skuCatalogRepository.findAllById(stock.keySet())
+                .forEach(s -> {
+                    if ("ACTIVE".equalsIgnoreCase(s.getStatus())) {
+                        onShelf.add(s.getSkuId());
+                    }
+                });
         for (Map.Entry<String, Long> e : stock.entrySet()) {
+            // 缺货面只算在架 SKU（2026-10-30 拍板，与 skuPerformance / 低库存面同一条判据）：
+            // 下架品清零后账面 0，窗口内又卖过，否则会被读成「缺货 N 种 · 估损」。
+            if (!onShelf.contains(e.getKey())) {
+                continue;
+            }
             if (e.getValue() <= 0) {
                 long[] v = sales.get(e.getKey());
                 if (v != null && v[0] > 0) {

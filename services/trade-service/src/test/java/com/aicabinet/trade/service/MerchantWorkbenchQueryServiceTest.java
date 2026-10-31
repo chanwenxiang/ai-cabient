@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.MerchantWorkbenchDto;
 import com.aicabinet.common.dto.OpsActionItemDto;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
@@ -110,7 +111,8 @@ class MerchantWorkbenchQueryServiceTest {
                 .thenReturn(List.of(
                         inventory("EG-DOOR", "100013", 2, 4, 3),
                         inventory("EG-DOOR", "100014", 1, 4, 1)));
-        when(skuCatalogRepository.findBySkuIds(anyList())).thenReturn(List.of());
+        when(skuCatalogRepository.findBySkuIds(anyList()))
+                .thenReturn(List.of(catalog("100013", "ACTIVE"), catalog("100014", "ACTIVE")));
 
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
         long n = service.appendLowStockItems(items, Set.of("EG-DOOR"));
@@ -121,6 +123,28 @@ class MerchantWorkbenchQueryServiceTest {
                 "开门柜不应产生货道口径条目：" + items);
         assertTrue(items.get(0).detail().contains("阈值 3 件"));
         verify(deviceSlotService, never()).listShortageSlots(anyString());
+    }
+
+    /**
+     * 低库存面只算在架 SKU（2026-10-30 拍板）：下架行清零后账面 0/低于阈值，
+     * 不过滤就会替商户催它已经放弃的商品（首页计数 + 低库存提醒同源）。
+     */
+    @Test
+    void appendLowStockItems_doorCabinet_skipsDelistedSkus() {
+        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+        when(inventoryRepository.findLowStockByDeviceIds(anyList()))
+                .thenReturn(List.of(
+                        inventory("EG-DOOR", "100013", 0, 4, 2),
+                        inventory("EG-DOOR", "100016", 0, 4, 2)));
+        when(skuCatalogRepository.findBySkuIds(anyList()))
+                .thenReturn(List.of(catalog("100013", "ACTIVE"), catalog("100016", "INACTIVE")));
+
+        List<OpsActionItemDto> items = new java.util.ArrayList<>();
+        long n = service.appendLowStockItems(items, Set.of("EG-DOOR"));
+
+        assertEquals(1, n);
+        assertEquals(1, items.size());
+        assertEquals("100013", items.get(0).skuId());
     }
 
     /** 有货道柜保持原货道口径（不能因为开门柜改造把有货道柜也切到台账）。 */
@@ -147,5 +171,13 @@ class MerchantWorkbenchQueryServiceTest {
         inv.setCapacity(capacity);
         inv.setLowThreshold(lowThreshold);
         return inv;
+    }
+
+    private static SkuCatalog catalog(String skuId, String status) {
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId(skuId);
+        sku.setSkuName(skuId + "-名称");
+        sku.setStatus(status);
+        return sku;
     }
 }
