@@ -12,6 +12,7 @@
 | MA-003 | P3 | fixed | admin `/user-analysis`（召回弹窗） | 「目标人数（近 {{days}} 天沉睡名单）」文案与实际不符：沉睡窗口固定 30-90 天，与所选 days 无关 | Qoder R1 / 2026-10-31 | |
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
+| MA-006 | P2 | open | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -110,6 +111,24 @@
 - 源码定位：`clients/admin-vue/src/views/dashboard/BigScreenView.vue`（+19 行窄视口样式）
 - 联动影响：无（纯展示层）。
 - 修复记录：2026-10-31 fixed。样式层收口，未动布局结构；产物随 `0eb90b49` 提交。🔴 **未解债**：无自动用例（1280/1920 双视口截图断言待 R10 补），且**严格 1920px 投屏档本轮未测**（见 R01 报告大屏节）。
+
+### MA-006 `displayBizNo` 兜底把可读编号剥成假短号，显示的单号搜不到
+
+- 级别/状态：P2 / **open**（领号即提交，修复后转 fixed）
+- 端与页面：首发 admin `/orders`（订单号列 + 详情抽屉「订单号」）；根因在三端共享函数 `packages/shared-uni/src/format.ts` 的 `displayBizNo` ⇒ **merchant-mp / consumer-mp 所有用它展示单号的位置同受影响**
+- 发现人/日期/HEAD：Qoder R2 / 2026-10-31 / `8e12c11f`
+- 复现步骤：
+  1) `/orders` 关闭「隐藏零元单」→ 第三行订单号列显示 **`20001`**；同页 API 真值是 `E2E-TAIL-0001`（`GET /api/v2/ops/admin/orders?page=0&size=10&excludeZero=1` 实测三行：`1792659779535535992400`、`1792659650288345016481`、`E2E-TAIL-0001`）；
+  2) 关键词框输入 `20001` → 查询 → 请求 `q=20001&excludeZero=1` → **共 0 条 / 空态「暂无订单」**；
+  3) 输入真值 `E2E-TAIL-0001` → 共 1 条（证明不是搜索功能坏，是显示值不可搜）；
+  4) 同一行「更多操作 → 复制单号」复制的是 `row.orderId`（真值，`OrderListView.vue:1134` `copyOrderId(row.orderId)`）⇒ **同一行显示与复制不一致**。
+- 期望 / 实际：列表显示的单号可直接用于搜索与对账 / 显示的是剥出来的假短号。
+- 根因：`displayBizNo` 末段兜底 `const digitsOnly = raw.replace(/\D/g, ''); return digitsOnly.length >= 4 ? digitsOnly : raw;`（format.ts:308-309）。对「剥完已知前缀后仍含字母」的可读编号，它取纯数字：`E2E-TAIL-0001` → `20001`（丢掉首字母 `E` 与 `TAIL` 段）；按同一条规则，本轮造数前缀 `AUDIT-R1-0001` 会被显示成 `10001`（与 SKU 编号 `10001` 撞形）。
+- 证据：`evidence/R02-orders-list.png`（第三行显示 `20001`）、`evidence/R02-orders-displayid-search-miss.png`（关键词 `20001` → 暂无订单）；上述两组 API 响应
+- 源码定位：`packages/shared-uni/src/format.ts:268-310`（`displayBizNo`）；调用面含 `clients/admin-vue/src/views/orders/OrderListView.vue:139+`、`components/device/DeviceRelatedRecordsTab.vue`、`components/warehouse/WarehouseMovementsTab.vue` 等
+- 联动影响：任何展示 `displayBizNo(...)` 的列表/详情/弹窗（三端）都可能给出不可回查的短号；客服/运营按屏幕上的号去搜必然 0 结果。
+- 关联：**项目已对该类缺陷定过性**——同文件 `shortBizNo` 的 `@deprecated` 注释（2026-09-18 起）理由就是「列表取末尾 N 位、详情页给全号 ⇒ 同一单号两处对不上，客服按列表号搜不到」。既有钉测（`clients/merchant-mp/src/utils/biz-no.test.ts`）只锁了「PD 可读单号原样」「纯数字原样」，**没有覆盖本兜底分支** ⇒ 属漏网回归面。
+- 修复记录：（待填）
 
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）
 
