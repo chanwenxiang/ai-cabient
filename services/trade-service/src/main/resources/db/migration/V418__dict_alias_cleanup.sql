@@ -1,3 +1,4 @@
+-- MIGRATION_KIND: backfill
 -- MA-018 字典历史别名收敛（用户 2026-10-31 拍板：彻底清除；测试阶段无历史包袱）
 -- 顺序：先迁数据到规范值 → 再删别名/死值字典行 → 再拆 enable_status 的 DISABLED（改由 bin_status 承担）
 -- 说明：
