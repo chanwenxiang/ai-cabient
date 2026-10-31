@@ -11,7 +11,7 @@
 | 批次 | 页面 | 状态 |
 |------|------|------|
 | 7a | `/phone-verify` `/risk` `/promotions` `/coupons` `/ad-assets` `/ad-campaigns` | ✅ 完成（前两页代码审查；后四页数值全对） |
-| 7b | `/points-redeem` `/member-levels` `/marketing-roi` `/notifications` `/feedback` | 未开始 |
+| 7b | `/points-redeem` `/member-levels` `/marketing-roi` `/notifications` `/feedback` | ✅ 完成（数值全对；feedback 暴露字典重名 → MA-018） |
 
 ## 代码审查（用户指定先看 `/phone-verify` 与 `/risk` 的核心代码）
 
@@ -112,6 +112,14 @@
 - 列表 1 = SQL `ad_campaign` 1 ✅；首行「演示屏保投放」：素材 **1 个** = `ad_campaign_item` 1 ✅；**柜机屏 0 台定向 / 柜机数 0** = `ad_campaign_device` 0 ✅；**曝光 0 / 完播 0** = `ad_play_event` 0（`ad_revenue_daily` 0）✅；行操作 编辑/停止；console 0 error。
 - 备注：本页关键词已按 **MA-012** 改服务端过滤（`?q=` 进 SQL，状态标签翻值再传 `status`），本批复测未出现「行数与总数不符」。
 
+## 逐页结果（7b）
+
+- **积分兑换管理**（`/points-redeem`）：6 = SQL `points_redeem_item` 6 ✅；首行「满 20 减 5 券 · 需 100 积分 · 库存/已兑 2000/0」；表头含 所需积分/兑换优惠券/券定义/可兑/排序/状态；console 0 error。
+- **会员等级规则**（`/member-levels`）：4 = SQL `member_level_rule` 4 ✅；首行「普通会员 ¥0.00~¥1000.00 / 下一档积分门槛 0 / 倍率 1 / 折扣 无」；行操作 编辑/停用；console 0 error。
+- **活动效果分析**（`/marketing-roi`）：3 = SQL `promotion_activity` 3 ✅；首行「新客开门礼 预算 ¥20000 / 已用 ¥2.00 / **发券 2 / 核销 1**」——与 `user_coupon` 2 张（1 张 USED）**完全一致** ✅；console 0 error。
+- **消息记录**（`/notifications`）：**36** = SQL `notification_log` 36 ✅（页内 20 条为分页）；首行「订单支付成功 · 消费者 · 关联单号 1792572…」；工具栏 发送站内信/删除选中（写，未提交）；console 0 error。
+- **用户反馈**（`/feedback`）：0 = SQL `user_feedback` 0 ✅（空态「暂无反馈」）；🔴 状态筛选出现两个「已回复」→ 已升级为字典级问题 **MA-018**（见上节「字典同名标签盘点」），门禁已上线。
+
 ## 发现汇总
 
 | 级别 | 数量 | 编号 |
@@ -119,7 +127,7 @@
 | P0 | 0 | — |
 | P1 | 0 | — |
 | P2 | 0 | — |
-| P3 | 1 | MA-017（验证码并发双花，已修） |
+| P3 | 2 | MA-017（验证码并发双花，已修）· MA-018（字典 8 组同名标签，门禁已加、清理待拍板） |
 
 ## 给下一轮的交接注记
 
