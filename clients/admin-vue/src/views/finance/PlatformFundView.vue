@@ -66,7 +66,9 @@
       >
         <template #default="{ row }">
           <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-            {{ row.status === 'ACTIVE' ? '启用' : row.status }}
+            {{
+              row.status === 'ACTIVE' ? '启用' : displayLabel('enable_status', row.status, '未知')
+            }}
           </el-tag>
         </template>
       </el-table-column>
@@ -207,6 +209,7 @@
 
 <script setup lang="ts">
 import { yuanTextZero as yuan } from '@/utils/display';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { computed, reactive, ref } from 'vue';
 import { Download, EditPen, Plus, Tickets } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
