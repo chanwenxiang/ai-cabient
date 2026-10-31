@@ -141,6 +141,10 @@ public class OpsCatalogAdminService {
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
         String oldImageUrl = sku.getImageUrl();
+        // 审计留痕取改前值：status 变化（上下架）此前完全无痕（MA-R1 下架无留痕），先存快照
+        String beforeStatus = sku.getStatus();
+        Integer beforePriceCents = sku.getPriceCents();
+        String beforeCategory = sku.getCategory();
         String barcode = trimToNull(request.barcode());
         assertBarcodeUnique(barcode, skuId);
         assertNameSpecUnique(request.skuName(), request.spec(), skuId);
@@ -157,8 +161,20 @@ public class OpsCatalogAdminService {
         if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
             fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
+        // MA-R1：status/price/category 变化此前完全无痕（100016-18 何时下架全靠猜），逐字段记前后值
+        StringBuilder changed = new StringBuilder();
+        if (!java.util.Objects.equals(beforeStatus, sku.getStatus())) {
+            changed.append(" status:").append(beforeStatus).append("->").append(sku.getStatus());
+        }
+        if (!java.util.Objects.equals(beforePriceCents, sku.getPriceCents())) {
+            changed.append(" price:").append(beforePriceCents).append("->").append(sku.getPriceCents());
+        }
+        if (!java.util.Objects.equals(beforeCategory, sku.getCategory())) {
+            changed.append(" category:").append(beforeCategory).append("->").append(sku.getCategory());
+        }
         auditService.appendLog(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
-                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
+                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents()
+                        + changed);
         return sku.toDto(request.sceneLimits());
     }
 

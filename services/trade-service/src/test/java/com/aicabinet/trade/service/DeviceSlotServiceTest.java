@@ -235,6 +235,16 @@ class DeviceSlotServiceTest {
                 .toList();
         assertTrue(skuIds.contains("SKU-ACTIVE-001"), "在售 SKU 应保留在设备详情");
         assertFalse(skuIds.contains("SKU-DELISTED-001"), "已下架 SKU 不应出现在设备详情已上架列表");
+        // CB-080：下架不清台账行，残留死账单独出一份给 admin 可见可清（小程序端忽略该字段）
+        List<String> delistedIds = detail.delistedInventory().stream()
+                .map(com.aicabinet.common.dto.DeviceInventoryDto::skuId)
+                .toList();
+        assertTrue(delistedIds.contains("SKU-DELISTED-001"), "已下架 SKU 的残留台账行应进 delistedInventory");
+        assertFalse(delistedIds.contains("SKU-ACTIVE-001"), "在售 SKU 不得混入 delistedInventory");
+        var delistedRowDto = detail.delistedInventory().stream()
+                .filter(d -> d.skuId().equals("SKU-DELISTED-001"))
+                .findFirst().orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(5, delistedRowDto.quantity(), "残留行账面应原样透出");
     }
 
     /**

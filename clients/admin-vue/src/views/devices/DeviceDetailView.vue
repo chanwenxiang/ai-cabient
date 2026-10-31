@@ -531,6 +531,29 @@
             </div>
           </div>
 
+          <!-- CB-080：已下架 SKU 的残留台账（死账），可见可清 -->
+          <div v-if="slotsHydrated && delistedCards.length" class="delisted-residual">
+            <div class="delisted-residual-title">
+              已下架残留台账（{{
+                delistedCards.length
+              }}）——下架不清账面，商品重新激活后原账面自动恢复；确认柜内无实物可逐条清除
+            </div>
+            <div v-for="row in delistedCards" :key="row.skuId" class="delisted-residual-row">
+              <span class="delisted-residual-name">{{ row.skuName }}</span>
+              <span class="muted"
+                >商品ID {{ row.skuId }} · 账面 {{ row.quantity }} · 容量 {{ row.capacity }}</span
+              >
+              <el-button
+                v-hasPermi="['ops:device:edit']"
+                size="small"
+                type="danger"
+                plain
+                @click="onClearDelistedRow(row)"
+                >清除</el-button
+              >
+            </div>
+          </div>
+
           <el-empty
             v-if="slotsHydrated && !skuCards.length"
             description="暂无在售商品，点上方「上架商品」选品上架"
@@ -1024,6 +1047,8 @@ interface DeviceDetail {
   metrics: Metrics;
   slots: DeviceSlot[];
   skuInventory?: DeviceInventoryRow[];
+  /** CB-080：SKU 已下架但台账行仍残留的死账（不随下架自动清；admin 端可见可清） */
+  delistedInventory?: DeviceInventoryRow[];
 }
 
 const route = useRoute();
@@ -1193,6 +1218,7 @@ const canRegenerateDeviceId = computed(
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
 const slots = ref<DeviceSlot[]>([]);
 const skuInventory = ref<DeviceInventoryRow[]>([]);
+const delistedInventory = ref<DeviceInventoryRow[]>([]);
 const {
   applying,
   slotsRefreshing,
@@ -1459,6 +1485,39 @@ async function submitInventory() {
   }
 }
 
+/** CB-080：已下架 SKU 的残留台账行——展示与清除（不动 sku_catalog 档案状态） */
+const delistedCards = computed(() =>
+  delistedInventory.value.map((inv) => {
+    const sku = skus.value.find((k) => k.skuId === inv.skuId);
+    return {
+      skuId: inv.skuId,
+      skuName: sku?.skuName || inv.skuId,
+      quantity: inv.quantity,
+      capacity: inv.capacity,
+      updatedAt: inv.updatedAt
+    };
+  })
+);
+
+async function onClearDelistedRow(row: { skuId: string; skuName: string }) {
+  try {
+    await ElMessageBox.confirm(
+      `「${row.skuName}」已下架，本柜仍残留台账行。清除后此柜不再保留该商品的账面与容量配置，是否继续？`,
+      '清除残留台账',
+      { type: 'warning', confirmButtonText: '清除', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.deviceSkuInventoryDelete(deviceId, row.skuId), 'DELETE');
+    ElMessage.success('已清除');
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '清除失败'));
+  }
+}
+
 async function onRemoveInventory(card: SkuCard) {
   try {
     await ElMessageBox.confirm(
@@ -1649,6 +1708,7 @@ async function loadDetail() {
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   skuInventory.value = detail.skuInventory || [];
+  delistedInventory.value = detail.delistedInventory || [];
   slotsHydrated.value = true;
   syncTempDraftFromMetrics(detail.metrics?.targetTempC);
   await Promise.all([
@@ -2112,6 +2172,31 @@ onActivated(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 12px;
+}
+/* CB-080：已下架残留台账块——弱化呈现，不做卡片底色 */
+.delisted-residual {
+  margin-top: 16px;
+}
+.delisted-residual-title {
+  margin-bottom: 8px;
+  font-size: var(--admin-font-size-sm);
+  color: var(--el-text-color-secondary);
+}
+.delisted-residual-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 0;
+  font-size: var(--admin-font-size-sm);
+}
+.delisted-residual-row .muted {
+  flex: 1;
+  min-width: 200px;
+}
+.delisted-residual-name {
+  min-width: 160px;
+  font-weight: 600;
 }
 /*
  * 在售商品加载占位钉一块高度：原来只有一行文字，hydration 后换成卡片墙/空态块，

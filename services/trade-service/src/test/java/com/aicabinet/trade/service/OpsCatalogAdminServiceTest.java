@@ -208,6 +208,42 @@ class OpsCatalogAdminServiceTest {
         assertEquals(null, captor.getValue().getOperationScope());
     }
 
+    /** MA-R1：下架（status 变化）此前审计 detail 完全无痕——100016-18 何时下架全靠猜。 */
+    @Test
+    void updateSku_statusChangeRecordedInAuditDetail() {
+        SkuCatalog existing = new SkuCatalog();
+        existing.setSkuId("100016");
+        existing.setSkuName("可乐330");
+        existing.setStatus("ACTIVE");
+        existing.setPriceCents(350);
+        when(skuCatalogRepository.findById("100016")).thenReturn(java.util.Optional.of(existing));
+        when(skuCatalogRepository.existsByBarcode(null, "100016")).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐330", null, "100016")).thenReturn(false);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
+
+        UpsertSkuRequest req = new UpsertSkuRequest(
+                "100016", "可乐330", 350, 500, true,
+                null, null, null, null, "INACTIVE",
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, "件", 1, null, null, null,
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
+
+        service.updateSku(10001L, "100016", req);
+
+        org.mockito.ArgumentCaptor<String> detailCaptor =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(10001L),
+                org.mockito.ArgumentMatchers.eq("SKU_UPDATE"),
+                org.mockito.ArgumentMatchers.eq("SKU"),
+                org.mockito.ArgumentMatchers.eq("100016"),
+                detailCaptor.capture());
+        String detail = detailCaptor.getValue();
+        org.junit.jupiter.api.Assertions.assertTrue(detail.contains("status:ACTIVE->INACTIVE"),
+                "audit detail must record status transition, got: " + detail);
+    }
+
     /** V404 字典门桩：字典恒空 ⇒ 服务回落 KNOWN_SCENES（与改造前行为一致） */
     private static SysDictService sceneDictStub() {
         SysDictService stub = org.mockito.Mockito.mock(SysDictService.class);

@@ -151,11 +151,19 @@ public class DeviceSlotService {
                 .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus,
                         skuNameById.get(inv.getSkuId()), skuImageById.get(inv.getSkuId())))
                 .toList();
+        // CB-080（2026-10-31 拍板）：下架**不**自动清柜×商品台账行（货可能还在柜里，清了重新上架
+        // 会账面凭空 0 ⇒ 过量补货；竞品口径下架只收敛补货面、库存真相靠盘点纠偏）。残留行此前
+        // 在详情页完全不可见，死账只能 SQL 手删——单独出一份给 admin 端可见可清，小程序端忽略。
+        List<DeviceInventoryDto> delistedInventory = inventoryRows.stream()
+                .filter(inv -> !activeSkuIds.contains(inv.getSkuId()))
+                .map(inv -> toInventoryDto(inv, sellableBySku, lotLedgerSkus,
+                        skuNameById.get(inv.getSkuId()), skuImageById.get(inv.getSkuId())))
+                .toList();
         // 「最近会话」语义=当前进行中的会话，没有则回落最近一次（含已完结），
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
         var lastSession = shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(deviceId).orElse(null);
         AdminDeviceDto deviceDto = toAdminDeviceDto(device, lastSession);
-        return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory);
+        return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory, delistedInventory);
     }
 
     @Transactional(readOnly = true)

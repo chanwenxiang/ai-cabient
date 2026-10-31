@@ -19012,6 +19012,7 @@ export interface components {
             metrics?: components["schemas"]["DeviceOpsMetricsDto"];
             slots?: components["schemas"]["DeviceSlotDto"][];
             skuInventory?: components["schemas"]["DeviceInventoryDto"][];
+            delistedInventory?: components["schemas"]["DeviceInventoryDto"][];
         };
         DeviceOpsMetricsDto: {
             deviceId?: string;
