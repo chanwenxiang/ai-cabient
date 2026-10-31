@@ -669,6 +669,14 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-10-31（开门柜效期 tab 运行时三面挣齐；「货道柜反证」由用户拍板作废；admin「缺货建议」tab 恒空的口径改成实话）
+
+- **运行时证据链闭合**（本机 dev 栈，零改码零重建）：被服务的 `ReplenishmentView-*.js` sha256 与工作树提交版逐字节一致 → `/api/v2/ops/admin/expiry/alerts` 回 `{restockHeadroom:0, doorCabinet:true}` → Playwright 该行「补货任务」`disabled=null` 且无 `is-disabled` → **真点一次**得 `POST /expiry/alerts/1/create-replenishment` **200**，落 `route 18`/`task 20`/`line 67`（**`slot_id NULL`**，门柜不变式端到端成立）/`notification_log 36`、`pull_off_task 1 → RESOLVED`；随后单事务逆序删除 + 把 `pull_off_task 1` 复位 `OPEN`/`resolved_at NULL`，四表行数逐表回到探针前（routes 17 / tasks 14 / lines 38 / notif 35），共享 dev 库只烧掉序列号。
+- **用户拍板**：「货道柜应禁用，我们系统没有货道了」⇒ `expiryRestockEnabled` 的货道柜分支语义保留、**活栈反证作废**，钉测 `listOpenPullOffTasksPage_doorCabinet_flagsCabinetAndSkipsSlotProbe` 即终态。活库数据形状支持该说法：5 台柜只有 `EG943322621391` BOUND 且 `device_slot` 0 行；其余 4 台（1 RETIRED + 3 未绑定）各 8 货道行但 **0 在架批次 / 0 效期行** ⇒ 效期 tab 只可能出现门柜行。
+- 🔴 **同轮暴露的口径空洞（本轮改掉措辞，未动契约）**：admin「缺货建议」tab 的行**只能**由 `device_slot` 构造（`ReplenishmentService.listShortagePage:326` → `DeviceSlotService.listShortageRows`，三处排除开门柜 `:268`/`:357`/`:363`），车队只有开门柜后**这张 tab 恒空**、`一键规划补货` 按钮（`v-if="canEdit && shortageDevices.length"`）永不出现，而 tab 描述还在承诺「各柜机低于安全库存的商品，可一键生成补货规划」。**能力没丢**：`StockHealthView` 走台账 + `SkuStockLevel`（`:346`/`:516`）不排除门柜，其 `一键补货规划（N 台）`（`:18`）是现役入口。
+- **改动面（档 A：纯文案）**：`ReplenishmentView.vue:878` tab 描述 → 「缺货建议（按货道）：只列货道柜低于安全库存的货道；开门柜无货道，请看『库存健康』」；`:585` 空态 → 「货道柜无缺货/低库存货道；开门柜请看『库存健康』」。台账 `admin-vue-debt-tracker.md` D26 追加同日结论。`admin` 产物随后由保真脚本单独成笔。
+- **否决掉的替代档**（留此防下次重开）：B 把门柜按台账口径并进这张表 = 动 `ReplenishmentShortageRowDto` 契约 → regen openapi + 两端 + 产物，买不到新能力；C 删 tab = 删运营入口，需用户明示（且 2026-10-29 已拍板不做按柜型条件显示那类分支）。
+
 ### 2026-10-30（G2-11 ⑤ 落地：授权配置类越权拒绝落 admin_audit_log——「没绑商户打不开」运营台可查了）
 
 - **缺陷**：`AccessDeniedAudit.denied()` 只 `log.warn` + metric，零落库 ⇒「账号没绑商户所以打不开」这类**配置事故**运营台查不到任何记录，只能翻容器日志；10s 去重还会把重复拒绝并成 1 条（2026-10-29 简报 B 档）。

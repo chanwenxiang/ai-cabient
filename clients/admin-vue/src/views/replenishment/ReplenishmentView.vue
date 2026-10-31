@@ -582,7 +582,7 @@
               :table="crudShortages"
               row-key="slotKey"
               selectable
-              empty-text="当前无缺货/低库存货道"
+              empty-text="货道柜无缺货/低库存货道；开门柜请看「库存健康」"
               :actions="canEdit ? shortageRowActions : undefined"
               :action-width="100"
               @action="onShortageAction"
@@ -875,7 +875,7 @@ const tab = ref('routes');
 const TAB_DESC: Record<string, string> = {
   routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
   fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
-  shortage: '缺货建议：各柜机低于安全库存的商品，可一键生成补货规划，或按设备直接生成补货任务',
+  shortage: '缺货建议（按货道）：只列货道柜低于安全库存的货道；开门柜无货道，请看「库存健康」',
   expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
