@@ -13,6 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-007 | P1 | open | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -132,6 +133,25 @@
   - 回归：`clients/merchant-mp/src/utils/biz-no.test.ts` 新增 3 例（`E2E-TAIL-0001`/`AUDIT-R1-0001` 原样 + `PO-12`→`12` 保持），6/6 绿；
   - 活栈复验（产物 `4715e6d9`，硬刷 ignoreCache）：`/orders` 第 9 行订单号由「20001」变 **`E2E-TAIL-0001`**，关键词输入该显示值 → 共 1 条（修复前 0 条）。证据 `evidence/R02-orders-displayid-fixed-searchable.png`。
   - 影响面：`displayBizNo` 三端 34 个文件在用；生产真实单号是纯数字（早分支原样返回），本改动只改「混合字母编号」这一类。
+
+### MA-007 开门记录「类型」筛选只在当前页生效，结果漏数据且分页总数谎报
+
+- 级别/状态：P1 / **open**（按 2026-10-31 新节奏，P0/P1 轮末统一批次修）
+- 端与页面：admin `/sessions` 开门记录 → 筛选行「类型」下拉（消费/补货/运维/盘点）
+- 发现人/日期/HEAD：Qoder R2 / 2026-10-31 / 发现锚 `fc5a6bde`
+- 复现步骤：
+  1) 打开 `/sessions`「全部」→ `共 72 条`（= SQL `select count(*) from shopping_session` = 21 CANCELLED + 24 COMPLETED + 22 DISPUTED + 5 FAILED ✅）；
+  2) 点「已完成」tab → `共 24 条`（= SQL 真值 ✅，服务端参数 `state=COMPLETED`）；
+  3) 类型选「消费」→ UI 变 **`共 13 条`**，而网络面板显示这次查询的请求仍是 `/api/v2/ops/admin/sessions?page=0&size=20&state=COMPLETED`（**没有类型参数**）；
+  4) 真值对照：`GET /sessions?page=0&size=200&state=COMPLETED` → 24 条里 `sessionKind=CONSUMER` 有 **17** 条 ⇒ 少 4 条（落在第 2 页，被页内过滤吃掉）。
+- 期望 / 实际：类型筛选应服务端生效、返回该筛选下全量并可翻页 / 只过滤当前页 20 行，且把 `total` 替换成过滤后的页内条数。
+- 根因：`clients/admin-vue/src/views/sessions/SessionListView.vue:465-470` —— `fetchPage` 内 `rows = rows.filter(r => (r.sessionKind || 'CONSUMER') === kindFilter.value)`，随后 `const total = rows.length < before ? rows.length : (data.total ?? 0)`。该处注释写着「本页有剔除 → total 跟过滤后（禁「共 N + 空表」#205）」⇒ **是修 lessons #205 时用「页内计数」替代，代价换成了跨页漏数据**。
+- 后端侧：`AdminDashboardController.java:271-284` 的 `/ops/admin/sessions` 参数集里**没有 kind/sessionKind** ⇒ 正解需要后端加参数 + mapper 过滤 + 前端把 `kindFilter` 进 query，并 regen openapi/shared-types（预检 `openapi-regen` 门禁会拦，见记忆坑：改 Controller 加参数必须 regen）。
+- 联动影响：`useListCsv` 的 `pickSelected(crud.displayItems)` 同源 ⇒ **导出也只含当前页过滤结果**；`stuckOnly`/滞留置顶等其它页内过滤若与类型叠加，同样受本页内过滤语义影响。
+- 证据：`.tmp` 探针（API 24 条中 CONSUMER=17）+ UI 三次观测（72 / 24 / 13）与请求 URL 记录；截图见 `evidence/R02-sessions-*.png`
+- 关联：lessons #205（「共 N + 空表」旧缺陷，本次是其反向代价）；与 MA-006 同属「界面显示值 ≠ 可回查真值」类。
+- 门禁化候选：PLAN 台账新增一条 —— **列表页客户端 `rows.filter(` 出现在 `fetchPage` 内即红**（除显式 allowlist），强制「筛选必须服务端化」。这条 R2 抓到两次（MA-006 是显示层，本条是取数层），值得钉。
+- 修复记录：（待填，轮末批次）
 
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）
 
