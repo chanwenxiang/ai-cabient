@@ -120,6 +120,22 @@
 - **消息记录**（`/notifications`）：**36** = SQL `notification_log` 36 ✅（页内 20 条为分页）；首行「订单支付成功 · 消费者 · 关联单号 1792572…」；工具栏 发送站内信/删除选中（写，未提交）；console 0 error。
 - **用户反馈**（`/feedback`）：0 = SQL `user_feedback` 0 ✅（空态「暂无反馈」）；🔴 状态筛选出现两个「已回复」→ 已升级为字典级问题 **MA-018**（见上节「字典同名标签盘点」），门禁已上线。
 
+## 硬编码全量扫描（用户 2026-10-31 追加要求：「不只字典，所有硬编码」）
+
+按「会造成漂移 / 资损 / 安全风险」筛选，三类有结论：
+
+| 类别 | 扫描面 | 结果 | 处置 |
+|------|--------|------|------|
+| 前端直写 API 路径 | admin `views/components` | **0 处真实硬写**（3 处全在 `money-ui-contracts.test.ts` 的端点断言里） | 无需门禁 |
+| 前端 host/端口 | admin `src` | 3 处且均合理（DevOps 默认 `http://localhost:9090` 回退、Observability 的 `curl` 示例、布局注释） | 记录 |
+| 模板内「枚举 → 中文」 | admin 全部 `.vue` | **9 文件 / 10 处**（含 1 处 `: row.status` **裸码回退**，已修） | **新门禁 `check:no-inline-dict-display`**（棘轮白名单，每条写理由） |
+| 视图内「分 → 元」手算 `/100` | admin `views/components` | **28 文件 / 113 处**存量 | **新门禁 `check:no-inline-money-math`**（文件+计数棘轮，只减不增） |
+| 后端 host/域名 | trade-service `main/java` | 命中均为配置默认值（`@Value(...:localhost)`）、启动校验器（禁 CORS 里出现 localhost）与注释 | 无缺陷 |
+
+两条新门禁均接入聚合链（wiring 实测：84 引用 / 98 个 check 脚本全部接线）；`/100` 不含 `*100`（百分比换算）。
+
+修复：`PlatformFundView` 的 `{{ row.status === 'ACTIVE' ? '启用' : row.status }}` → `displayLabel('enable_status', row.status, '未知')`（不再回退裸码）。
+
 ## 发现汇总
 
 | 级别 | 数量 | 编号 |
