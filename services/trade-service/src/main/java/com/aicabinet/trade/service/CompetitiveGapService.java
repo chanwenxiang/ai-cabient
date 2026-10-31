@@ -55,6 +55,7 @@ public class CompetitiveGapService {
     private final OpsUserRouteScopeMapper routeScopeMapper;
     private final DistributedLockService distributedLockService;
     private final SkuCatalogMapper skuCatalogMapper;
+    private final SysDictService sysDictService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CompetitiveGapService self;
 
@@ -75,7 +76,8 @@ public class CompetitiveGapService {
                                  SecurityProperties securityProperties,
                                  OpsUserRouteScopeMapper routeScopeMapper,
                                  DistributedLockService distributedLockService,
-                                 SkuCatalogMapper skuCatalogMapper, @Lazy CompetitiveGapService self) {
+                                 SkuCatalogMapper skuCatalogMapper,
+                                 SysDictService sysDictService, @Lazy CompetitiveGapService self) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -94,6 +96,7 @@ public class CompetitiveGapService {
         this.routeScopeMapper = routeScopeMapper;
         this.distributedLockService = distributedLockService;
         this.skuCatalogMapper = skuCatalogMapper;
+        this.sysDictService = sysDictService;
         this.self = self;
     }
 
@@ -837,11 +840,14 @@ public class CompetitiveGapService {
         return out;
     }
 
-    /** 品类维：商品行按 sku_catalog.category 归并（目录缺失或未填时归入「未分类」）。 */
+    /** 品类维：商品行按 sku_catalog.category 归并（目录缺失或未填时归入「未分类」）。
+     * category 存的是 category_code 字典值（如「1」），报表面不能裸显字典码——
+     * 与消费者目录（DeviceCatalogService.displayCategory）同一翻译口径：字典命中的翻成
+     * 中文标签，未收录的历史自由文本（饮料/零食）原样透出。 */
     private List<SalesReportRowDto> aggregateByCategory(Set<String> deviceIds, Instant start, Instant end) {
+        Map<String, String> categoryLabels = sysDictService.labelMapOf("category_code");
         Map<String, String> skuCategory = skuCatalogMapper.findAllByOrderBySkuIdAsc().stream()
-                .collect(Collectors.toMap(SkuCatalog::getSkuId,
-                        s -> s.getCategory() == null || s.getCategory().isBlank() ? UNCATEGORY_LABEL : s.getCategory(),
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> categoryLabel(s.getCategory(), categoryLabels),
                         (a, b) -> a));
         Map<String, Agg> map = new HashMap<>();
         for (SalesReportRowDto r : aggregateByProduct(deviceIds, start, end)) {
@@ -861,6 +867,14 @@ public class CompetitiveGapService {
                         e.getValue().refundOrders))
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
+    }
+
+    /** 品类展示值：空=未分类；字典码翻成中文标签；字典未收录的历史自由文本原样返回。 */
+    private static String categoryLabel(String raw, Map<String, String> categoryLabels) {
+        if (raw == null || raw.isBlank()) {
+            return UNCATEGORY_LABEL;
+        }
+        return categoryLabels.getOrDefault(raw.trim().toUpperCase(), raw);
     }
 
     private List<SalesReportRowDto> aggregateByDevice(Set<String> deviceIds, Instant start, Instant end) {

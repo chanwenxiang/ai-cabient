@@ -80,7 +80,8 @@ class CompetitiveGapServiceDeviceScopeValidationTest {
                 roleTemplateMapper, deviceOpsEventMapper, deviceInfoMapper, phoneVerifyLogMapper,
                 merchantMapper, orderMapper, lineMapper, merchantScopeService, permissionService,
                 auditService, salesLockService, new SecurityProperties(false),
-                routeScopeMapper, distributedLockService, skuCatalogMapper, null);
+                routeScopeMapper, distributedLockService, skuCatalogMapper,
+                org.mockito.Mockito.mock(SysDictService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         lenient().when(distributedLockService.tryLock(LOCK_KEY, 60L, 5L)).thenReturn(true);
         lenient().when(deviceScopePrefMapper.findByIdForUpdate(anyLong())).thenReturn(Optional.empty());

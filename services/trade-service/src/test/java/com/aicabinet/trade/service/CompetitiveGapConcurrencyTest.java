@@ -47,7 +47,8 @@ class CompetitiveGapConcurrencyTest {
                 roleTemplateMapper, deviceOpsEventMapper, deviceInfoMapper, phoneVerifyLogMapper,
                 merchantMapper, orderMapper, lineMapper, merchantScopeService, permissionService,
                 auditService, salesLockService, new SecurityProperties(false),
-                routeScopeMapper, distributedLockService, skuCatalogMapper, null);
+                routeScopeMapper, distributedLockService, skuCatalogMapper,
+                org.mockito.Mockito.mock(SysDictService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

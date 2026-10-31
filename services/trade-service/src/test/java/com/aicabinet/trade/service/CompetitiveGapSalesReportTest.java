@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /** salesReport CATEGORY 维：商品行按 sku_catalog.category 归并、未知 SKU 归入「未分类」。 */
@@ -51,6 +52,7 @@ class CompetitiveGapSalesReportTest {
     @Mock private OpsUserRouteScopeMapper routeScopeMapper;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SkuCatalogMapper skuCatalogMapper;
+    @Mock private SysDictService sysDictService;
 
     private CompetitiveGapService service;
 
@@ -60,8 +62,10 @@ class CompetitiveGapSalesReportTest {
                 roleTemplateMapper, deviceOpsEventMapper, deviceInfoMapper, phoneVerifyLogMapper,
                 merchantMapper, orderMapper, lineMapper, merchantScopeService, permissionService,
                 auditService, salesLockService, new SecurityProperties(false),
-                routeScopeMapper, distributedLockService, skuCatalogMapper, null);
+                routeScopeMapper, distributedLockService, skuCatalogMapper, sysDictService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        // 历史夹具把自由文本（「饮料/零食」）当 category 存值；字典映射缺省给空 = 原样透出
+        lenient().when(sysDictService.labelMapOf("category_code")).thenReturn(java.util.Map.of());
     }
 
     private static Object[] skuRow(String skuId, String skuName, long qty, long revenue, long cogs,
@@ -122,6 +126,26 @@ class CompetitiveGapSalesReportTest {
         assertEquals("未分类", rows.get(0).dimKey());
         assertEquals(300, rows.get(0).revenueCents());
         assertEquals(100, rows.get(0).marginCents());
+    }
+
+    /** MA-R1：category 存的是 category_code 字典值（如「1」），报表不得裸显字典码。 */
+    @Test
+    void salesReport_categoryDim_translatesDictCodeToLabel() {
+        when(sysDictService.labelMapOf("category_code")).thenReturn(java.util.Map.of("1", "饮料"));
+        when(merchantScopeService.allowedDeviceIds(1L)).thenReturn(null);
+        when(lineMapper.skuBreakdownBetween(any(), any())).thenReturn(
+                java.util.Collections.singletonList(
+                        skuRow("SKU-A", "可乐", 1, 500, 300, 1, 0, 0)));
+        when(skuCatalogMapper.findAllByOrderBySkuIdAsc()).thenReturn(List.of(
+                sku("SKU-A", "1")
+        ));
+
+        List<SalesReportRowDto> rows =
+                service.salesReport(1L, "category", "2026-09-01", "2026-09-07");
+
+        assertEquals(1, rows.size());
+        assertEquals("饮料", rows.get(0).dimKey());
+        assertEquals("饮料", rows.get(0).dimLabel());
     }
 
     @Test
