@@ -1010,6 +1010,9 @@ export const AUDIT_ACTION_LABELS = {
     PROFIT_SHARING_REFRESH: '刷新分账',
     SPLIT_LEDGER_CONFIRM: '确认分账入账',
     OPS_USER_DEVICE_SCOPE: '用户设备范围',
+    /** G2-11 ⑦：商户范围授权/召回（detail 为 merchants=旧->新） */
+    OPS_USER_MERCHANT_ASSIGN: '商户范围授权',
+    OPS_USER_MERCHANT_REVOKE: '回收商户授权',
     OPS_EXCEPTION_CLAIM: '领取异常',
     OPS_EXCEPTION_TRANSFER: '转派异常',
     OPS_EXCEPTION_NOTE: '异常备注',
