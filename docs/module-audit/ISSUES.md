@@ -10,6 +10,8 @@
 | MA-001 | P2 | fixed | admin `/user-analysis`（后端口径） | 30 天口径 KPI 随所选窗口漂移：days=7 时活跃/新增「30 天」显示 0（真值 2），days=90 时显示 24（真值 2） | Qoder R1 / 2026-10-31 | |
 | MA-002 | P3 | fixed | admin `/user-analysis` | 沉睡名单静默截断 20 条：KPI=22 但表格/CSV 导出/召回弹窗「目标人数」均按 20 显示且无截断提示 | Qoder R1 / 2026-10-31 | |
 | MA-003 | P3 | fixed | admin `/user-analysis`（召回弹窗） | 「目标人数（近 {{days}} 天沉睡名单）」文案与实际不符：沉睡窗口固定 30-90 天，与所选 days 无关 | Qoder R1 / 2026-10-31 | |
+| MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
+| MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -41,7 +43,7 @@
 -->
 
 ### MA-001 用户分析「30 天」口径 KPI 随所选窗口漂移（active30/new30 与 active7 同源）
-- 级别/状态：P2 / open
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R1；修复锚 `43a4efe0` + 产物 `c3e0e44d`）
 - 端与页面：admin `/user-analysis`（根因在后端 UserBehaviorAnalyticsService）
 - 发现人/日期/HEAD：Qoder R1 / 2026-10-31 / `0eb90b49`
 - 环境：本地 docker（trade:18080），运营超管账号
@@ -57,7 +59,7 @@
 - 修复记录：2026-10-31 fixed（commit 见 R1 批次）。`computeWindowMetrics` 改三窗口独立计数（7d/30d 固定 + days 窗口），订单查询取 `min(sinceWin, since30)` 并集；钉测 `summary_days7_active30AndNew30_stayFixed30dWindow`、`summary_days90_active30_notInflated_andDormantList_notTruncatedAt20`（UserBehaviorAnalyticsServiceTest，4/4 绿）；活栈容器重建后探针 days=7/30/90：active30 恒 2、new30 恒 2、orders 随窗口（0/14/14）。口径依据 CB-081。
 
 ### MA-002 沉睡名单静默截断 20 条，导出与召回弹窗按截断值显示
-- 级别/状态：P3 / open
+- 级别/状态：P3 / **fixed**（2026-10-31，Qoder R1；修复锚 `43a4efe0` + 产物 `c3e0e44d`）
 - 端与页面：admin `/user-analysis`（沉睡用户表格 + 导出沉睡名单 + 召回弹窗）
 - 发现人/日期/HEAD：Qoder R1 / 2026-10-31 / `0eb90b49`
 - 环境：本地 docker（trade:18080）；回填 22 个 30-90 天沉睡用户（user_id 1990000001-22，已清理复原）
@@ -74,7 +76,7 @@
 - 修复记录：2026-10-31 fixed。截断 20→`MAX_DORMANT_RETURNED=1000`（与 `UserRecallService.MAX_RECALL_USERS` 对齐）；回填 22 个沉睡用户复测：KPI=22、表格 22 行、导出同源。UI 回归截图 evidence/R01-useranalysis-fixed-dialog-22-full.png。测试数据已清理（0/0）。
 
 ### MA-003 召回弹窗「近 {{days}} 天沉睡名单」文案与实际固定 30-90 天窗口不符
-- 级别/状态：P3 / open
+- 级别/状态：P3 / **fixed**（2026-10-31，Qoder R1；修复锚 `43a4efe0` + 产物 `c3e0e44d`）
 - 端与页面：admin `/user-analysis`（一键召回弹窗）
 - 发现人/日期/HEAD：Qoder R1 / 2026-10-31 / `0eb90b49`
 - 环境：同 MA-002
@@ -84,6 +86,31 @@
 - 源码定位：`clients/admin-vue/src/views/growth/UserAnalysisView.vue:191`
 - 联动影响：纯文案；行为本身一致（前后端都用同一固定窗口名单）。
 - 修复记录：2026-10-31 fixed。`UserAnalysisView.vue` 弹窗改「{{ s?.dormantUsers30d ?? 0 }} 人（30-90 天沉睡名单，最多 1000 人）」——人数取全量 KPI 字段、窗口文案写死真实口径；复测弹窗显示「22 人（30-90 天沉睡名单）」。
+### MA-004 品类维度显示裸字典码「1」（销售报表 + 大屏同源）
+
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R1；修复锚 `355bb308`）
+- 端与页面：admin `/sales-reports`（销售报表 → 品类维度）与 `/big-screen`（品类销量榜）——同一后端方法，两页同时受影响
+- 发现人/日期/HEAD：Qoder R1 / 2026-10-31 / 发现于 R1 轮内（开轮基线 `4a96b0af`；精确观测 SHA 未记，故不假装精确定位）
+- 复现步骤：1) `/sales-reports` 选品类维度出报表 → 类目列显示 `1` 而非中文品类名；2) `/big-screen` 品类榜同样显示裸码
+- 期望 / 实际：与消费者目录一致的中文品类标签 / 直接透出 `sku_catalog.category` 里存的 `category_code` 字典值
+- 根因：`CompetitiveGapService.aggregateByCategory` 归并键取 `sku_catalog.category`（存的是 `category_code` 字典值），此前**未过 `SysDictService` 翻译**就进展示字段。
+- 证据：无独立截图（缺陷与结论记在 [rounds/R01-overview.md](rounds/R01-overview.md) 的 `/sales-reports`、`/big-screen` 两节）
+- 源码定位：`services/trade-service/src/main/java/com/aicabinet/trade/service/CompetitiveGapService.java`（`aggregateByCategory`，修复后构造函数多注入 `SysDictService`）
+- 联动影响：任何复用该品类维聚合结果的读面（报表导出 CSV 同列）都会带裸码。
+- 修复记录：2026-10-31 fixed（`355bb308`）。与消费者目录同口径经 `SysDictService` 翻中文；**未收录的历史自由文本原样透出、空值仍归「未分类」**（刻意不改成 fail-closed 报错，避免历史数据把整张报表打死）。钉测 `CompetitiveGapSalesReportTest.salesReport_categoryDim_translatesDictCodeToLabel`。回归索引见 [regression-index.md](regression-index.md)。
+
+### MA-005 运营大屏头部在窄视口下标题与右侧信息重叠溢出
+
+- 级别/状态：P3 / **fixed**（2026-10-31，Qoder R1；修复锚 `5a62f77e` + 产物 `0eb90b49`）
+- 端与页面：admin `/big-screen`（全屏路由，头部区）
+- 发现人/日期/HEAD：Qoder R1 / 2026-10-31 / 发现于 R1 轮内（开轮基线 `4a96b0af`）
+- 复现步骤：1) 浏览器窗口收窄（非 1920 投屏档）；2) 头部标题与右侧时间/指标区互相压字、溢出容器
+- 期望 / 实际：窄视口下不重叠（可换行/收缩）/ 绝对定位头部两坨文字打架
+- 证据：`evidence/R01-big-screen.png`（修复前重叠）、`evidence/R01-big-screen-narrow-fixed-558.png`（修复后同视口档复验）
+- 源码定位：`clients/admin-vue/src/views/dashboard/BigScreenView.vue`（+19 行窄视口样式）
+- 联动影响：无（纯展示层）。
+- 修复记录：2026-10-31 fixed。样式层收口，未动布局结构；产物随 `0eb90b49` 提交。🔴 **未解债**：无自动用例（1280/1920 双视口截图断言待 R10 补），且**严格 1920px 投屏档本轮未测**（见 R01 报告大屏节）。
+
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）
 
 - **来源**（R01 会话，2026-10-31）：设备报表 `/reports` 显「离线设备 5」（全部设备），工作台 `/admin` 显「离线设备 3」（疑 deployed/投放柜口径）。同词不同数，运营无法判断哪个是真。
