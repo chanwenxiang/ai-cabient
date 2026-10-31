@@ -14,6 +14,7 @@
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 | MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
+| MA-018 | P3 | open | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT` 已加 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |
@@ -186,6 +187,27 @@
   - 规则 SQL 前后对比（真库）：旧规则命中 **2** 条（正是那两笔 10-22 订单）→ 新规则 **0** 条，其余订单不受影响（库里只有这 2 笔 PAID）。
   - 活栈验证：容器重建后调用 `POST /consistency/run` → `failCount = 3`（仅剩三条争议 CROSS_LINK），SALE 误报消失；记录表状态 FAIL 5 → **3**。
   - 说明：**未**动 dispute 规则（MA-016 待拍板）。
+
+### MA-018 字典同名标签 8 组（下拉重复项）
+
+- 级别/状态：P3 / **open（门禁已加，清理方向待拍板）**
+- 端与页面：admin 各页字典下拉（首见 `/feedback` 状态筛选「已回复」出现两次）
+- 发现人/日期/HEAD：用户 2026-10-31 指出 → Qoder R7 全量排查 / 锚 `c433222e`
+- 复现：`/feedback` 状态筛选出现「已回复」两次；全量 SQL 扫出 **8 组**同 type 同 label 的 ACTIVE 项。
+- 根因：`SysDictBootstrap` **刻意**为历史数据保留了兼容别名（两套词表并存），例如
+  `split_status` 同时种 `WECHAT_SUBMITTED`/`SUBMITTED`（都叫「已提交」）、
+  `session_kind` 把 `SHOPPING`（其实是 `session_state` 的值）也种成「消费」。
+  这不是散落手工数据；只在**下拉选项**层表现为重复。
+- 门禁（已上线）：`DictLabelUniquenessIT`（Testcontainers + Flyway 全量迁移后断言 ACTIVE 字典无同名标签，
+  棘轮白名单 8 组双向校验：新增重名红 / 清单多余红），已登记 `check-docker-tests-guarded`（job=integration）。
+  首次实跑证据：`实际：{enable_status|停用=…, feedback_status|已回复=HANDLED,REPLIED, …}`。
+- 清理方向（待拍板）：
+  A. 清理式：每组定规范值，旧值停用/删除 + 迁历史数据（历史标签可能掉回裸码）；
+  B. **选项层收敛（推荐）**：字典保留全部值用于历史渲染，只在「下拉选项」返回规范值（配 canonical 清单）——不动数据、不丢历史标签。
+- 规范值证据：feedback→HANDLED（UserFeedbackService:118 写）、ops_alert→RECON_MISMATCH（ReconciliationService:216/283）、
+  restock_line→PULL_OFF（ReplenishmentService:82/1705，读取端仍兼容 PULL/REMOVE）、split_status→WECHAT_*（RevenueSplitService:27）、
+  warehouse_movement→MANUAL_INBOUND（WarehouseService:261）。
+- 修复记录：（待选题后填）
 
 ### MA-017 短信验证码校验非原子，并发可双花
 

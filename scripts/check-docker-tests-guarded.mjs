@@ -214,6 +214,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/DictLabelUniquenessIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '字典同名标签门禁 —— 迁移里字典插入有 4 种以上写法，静态正则漏报率高，' +
+        '只有「全量迁移跑完后的库」才是真值；棘轮白名单 8 组历史重名双向校验' +
+        '（新增重名红、清单多余红）'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/SessionKindFilterSqlIT.java',
     {
       job: 'integration',
