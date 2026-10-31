@@ -226,6 +226,80 @@ class RevenueSplitServiceTest {
         verify(profitSharingService, never()).submitSplit(any(), any(), anyString());
     }
 
+    // ── 平台抽成比例（platformRateBps）的金额正确性：此前全仓测试无一处用非零 bps ──────────
+    // 公式：gross = netCents（冻结毛额 − refunded）；platform = floor(gross * bps / 10000)；
+    //       merchant = gross - platform（整数除法产生的零头归商户，保证两段之和恒等于 gross）。
+
+    private CabinetOrder splitOrder(String orderId, int totalCents, int paidCents, int refundedCents) {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId(orderId);
+        order.setDeviceId("CAB-1");
+        order.setTotalAmountCents(totalCents);
+        order.setPaidAmountCents(paidCents);
+        order.setRefundedCents(refundedCents);
+        return order;
+    }
+
+    private void stubSplitPath(String orderId, int platformRateBps) {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-1");
+        device.setMerchantId("M-1");
+        Merchant merchant = new Merchant();
+        merchant.setMerchantId("M-1");
+        merchant.setStatus("ACTIVE");
+        merchant.setPlatformRateBps(platformRateBps);
+        // 无 wechatReceiverId ⇒ 即使 platform>0 也走 LEDGER_ONLY（仅记账），不触达微信分账
+        when(splitRepository.findByOrderIdForUpdate(orderId)).thenReturn(Optional.empty());
+        when(deviceRepository.findById("CAB-1")).thenReturn(Optional.of(device));
+        when(merchantRepository.findById("M-1")).thenReturn(Optional.of(merchant));
+        when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    @Test
+    void recordSplit_platformRate500_appliesFivePercent_roundedDown() {
+        stubSplitPath("O-R500", 500);
+        OrderRevenueSplit split = service.recordSplit(splitOrder("O-R500", 1000, 1000, 0)).orElseThrow();
+
+        assertEquals(1000L, split.getGrossCents(), "毛额应取冻结实付");
+        assertEquals(50L, split.getPlatformCents(), "1000 × 5% 应抽 50 分");
+        assertEquals(950L, split.getMerchantCents(), "商户应得 950 分");
+        assertEquals(1000L, split.getPlatformCents() + split.getMerchantCents(),
+                "平台+商户必须恒等于毛额（不允许丢分或多分）");
+        assertEquals("LEDGER_ONLY", split.getStatus(), "无微信接收方 ⇒ 仅记账");
+    }
+
+    @Test
+    void recordSplit_oddAmount_floorsPlatform_zeroRemainderGoesToMerchant() {
+        stubSplitPath("O-ODD", 500);
+        // 333 × 5% = 16.65 ⇒ 向下取整 16，零头 0.65 归商户（317）
+        OrderRevenueSplit split = service.recordSplit(splitOrder("O-ODD", 333, 333, 0)).orElseThrow();
+
+        assertEquals(16L, split.getPlatformCents());
+        assertEquals(317L, split.getMerchantCents());
+        assertEquals(333L, split.getPlatformCents() + split.getMerchantCents());
+    }
+
+    @Test
+    void recordSplit_partialRefund_usesNetBase_notTotal() {
+        stubSplitPath("O-REF", 500);
+        // total/paid 1000，已退 400 ⇒ 分账基数 600（AU-182 净额口径）⇒ 平台 30 / 商户 570
+        OrderRevenueSplit split = service.recordSplit(splitOrder("O-REF", 1000, 1000, 400)).orElseThrow();
+
+        assertEquals(600L, split.getGrossCents(), "部分退款后应按净额 600 分账，而不是 1000");
+        assertEquals(30L, split.getPlatformCents());
+        assertEquals(570L, split.getMerchantCents());
+    }
+
+    @Test
+    void recordSplit_zeroRate_merchantGetsWholeGross() {
+        stubSplitPath("O-R0", 0);
+        OrderRevenueSplit split = service.recordSplit(splitOrder("O-R0", 875, 0, 0)).orElseThrow();
+
+        assertEquals(0L, split.getPlatformCents(), "费率为 0（V382 默认）时平台不抽成");
+        assertEquals(875L, split.getMerchantCents(), "商户应得全额 875 分");
+        assertEquals("LEDGER_ONLY", split.getStatus());
+    }
+
     @Test
     void confirmLedgerOnly_acquiresLockAndCreditsWallet() {
         OrderRevenueSplit split = new OrderRevenueSplit();

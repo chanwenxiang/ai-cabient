@@ -57,6 +57,47 @@
 - 列表 0 = SQL `merchant_fee_ledger` 0 ✅（空态「暂无数据」）；工具栏含「按日期重跑日扣」（写操作，未提交）；筛选 状态/费用类型（空=全部）。
 - 数据缺口：无日扣记录 ⇒ 欠费催缴与锁柜口径**未演练**（留 R11）。
 
+## 费率与金额正确性验证（用户 2026-10-31 要求：不能只看 0）
+
+### 计算口径（代码锚点，先钉死再验数）
+
+| 项 | 公式 | 代码位置 |
+|----|------|----------|
+| 分账基数 | `gross = 冻结实付(paid, 0 回落 total) − refunded` | `CommissionBaseCalc.netCents`（AU-182 净额口径） |
+| 平台抽成 | `platform = floor(gross × platform_rate_bps / 10000)` | `RevenueSplitService.doRecordSplit`（110-112 行） |
+| 商户份额 | `merchant = gross − platform`（整数除法的零头**归商户**，两段和恒等于 gross） | 同上 |
+| 日账单 | `credited/pending = Σ split.merchant`（按状态）；`platform = Σ split.platform` | `FundBillService`（167-185 行） |
+| 通道费 | `floor(Σgross × fund.channel_fee_bps / 10000)`，有对账实结则**实结优先**（CB-020③）；**单独展示、不从商户入账扣** | `FundBillChannelFeeRateTest` + `system_config:fund.channel_fee_bps=60` |
+
+### 新增钉测（此前全仓没有一处用非零 `platformRateBps`）
+
+`RevenueSplitServiceTest` 新增 4 条，连同既有用例 **24/24 绿**：
+
+| 用例 | 输入 | 期望 |
+|------|------|------|
+| 5% 正常 | gross 1000 @ 500bps | platform **50** / merchant **950**，和 = 1000 |
+| 除不尽的零头 | gross 333 @ 500bps（16.65） | platform **16**（向下取整）/ merchant **317**，和 = 333（不丢分不贪分） |
+| 部分退款 | total/paid 1000，退 400 ⇒ 基数 600 @ 500bps | platform **30** / merchant **570**（按净额，不是 1000） |
+| 费率为 0（V382 默认） | gross 875 @ 0bps | platform **0** / merchant **875** |
+
+### 真库三层对账（可复用脚本 `seeds/money-recheck.sql`，只读）
+
+6 段全部通过（`mismatch = 0`）：
+1. 每份分账 `platform == floor(gross×bps/10000)` 且 `platform+merchant == gross`；
+2. 分账毛额 == 订单净额（`COALESCE(NULLIF(paid,0),total) − refunded`）；
+3. 钱包 `SPLIT_CREDIT` 合计 == 分账 `merchant_cents` 合计（按商户）；
+4. 日×商户聚合 `gross == platform + credited + pending`；
+5. 通道费配置在合法区间（0–1000，超界回落 60）；
+6. 逐单公式复算表（人工可读）。
+
+**实值对照（2026-10-22）**：gross **500 分** × 60bps = **3 分**，与页面「通道费 ¥0.03（估）」一致；当日无对账实结 ⇒ 走估算 ✅；平台抽成 0（V382）⇒ 商户入账 500 = 钱包两笔 `SPLIT_CREDIT`（150 + 350）✅。三处（订单 / 分账+钱包 / 日报表）互相闭合。
+
+### 缺口与边界（写清楚，避免扯皮）
+
+- **非零平台抽成在活栈无样本**（所有商户费率 0）：数学正确性由单测覆盖；要「活栈也挣到非零数字」，需先把某商户 `platformRateBps` 调 >0 再产生一笔真实订单走结算 —— 属 **R11 全流程轮**（本期不擅自改共享库费率）。
+- 通道费「估」与「实结」是两种口径，页面已用「（估）」区分；对账导入实结后自动优先（CB-020③，单测 `dailyBill_actualFeeFromRecon_distributedByGrossShare` 已钉）。
+- 记录链：`order → order_revenue_split → wallet_ledger(SPLIT_CREDIT) → 日账单聚合`，任何一层都能用 `money-recheck.sql` 重算复现。
+
 ## 发现汇总
 
 | 级别 | 数量 | 编号 |
@@ -80,5 +121,8 @@
 
 ## 给下一轮的交接注记
 
+- **资金口径一律先跑 `docs/module-audit/seeds/money-recheck.sql`**（只读，6 段 0 才算过），再谈页面数字；R11 造非零费率样本时复用同一脚本。
+- 平台抽成零头**归商户**（整数除法），别改成四舍五入——已有钉测锁定。
+- 通道费不参与商户入账（钱包按 merchant_cents 全额入），别把「通道费」从 credited 里再扣一次。
 - `/fund/ledger` 默认近 7 天是**后端既定行为**，别为了「让页面有数据」去放宽窗口；要更早数据就选账期。
 - 资金类页面一律先看口径文案再对数：通道费带「（估）」、平台抽成 0（V382）、分账 Mock 已启用。
