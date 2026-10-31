@@ -14,6 +14,7 @@
       <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub" :class="{ 'sub--unbound': isMerchantUnbound }">{{ headerSubLine }}</text>
+        <text v-if="orgNote" class="sub sub--org">{{ orgNote }}</text>
       </view>
 
       <view v-if="canPortalOverview" class="card ops-overview">
@@ -359,6 +360,7 @@ const {
   isMerchantUnbound,
   canPortalOverview,
   headerSubLine,
+  orgNote,
   homeEmptyTitle,
   homeEmptyHint,
   canReplenishment,
@@ -498,6 +500,10 @@ useAutoRefresh({
 .sub--unbound {
   opacity: 1;
   color: var(--warning-soft, #fff7ed);
+}
+.sub--org {
+  font-size: var(--font-size-xs, 22rpx);
+  opacity: 0.72;
 }
 
 .scan-card {

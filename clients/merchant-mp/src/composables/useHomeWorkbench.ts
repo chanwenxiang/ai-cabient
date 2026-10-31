@@ -16,6 +16,7 @@ import {
 import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
+import { getOrgFilter } from '@/utils/org-filter';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { formatMerchantNames, merchantBindingState } from '@/utils/merchant-display';
@@ -99,6 +100,8 @@ export function useHomeWorkbench() {
   const scanning = ref(false);
   const error = ref('');
   const meName = ref('');
+  /** CB-079 档 A：选了组织时页头标注概览口径为全树合计（KPI 数据面不收窄）。 */
+  const orgNote = ref('');
   const merchantNames = ref('');
   const revenueToday = ref('暂无');
   /** 近 N 日销量件数（analytics.itemQtySold），首页「近7天销量」 */
@@ -399,6 +402,13 @@ export function useHomeWorkbench() {
     ] = bundle;
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
+    const org = getOrgFilter();
+    if (org) {
+      const orgName = profile.merchants?.find((m) => m.merchantId === org)?.merchantName || org;
+      orgNote.value = `当前组织：${orgName} · 首页概览为全部组织合计`;
+    } else {
+      orgNote.value = '';
+    }
     latestAnnouncement.value = announcements?.[0] || null;
     stats.value = s as Record<string, unknown>;
     const days = trend?.last7Days || [];
@@ -457,6 +467,7 @@ export function useHomeWorkbench() {
     scanning,
     error,
     meName,
+    orgNote,
     merchantNames,
     revenueToday,
     salesQty7d,

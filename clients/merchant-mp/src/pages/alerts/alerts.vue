@@ -126,6 +126,8 @@ import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { useAutoRefresh } from '@/composables/use-auto-refresh';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
+import { getOrgFilter } from '@/utils/org-filter';
+import { orgDeviceScope, keepRowsInOrg } from '@/utils/org-scope';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import {
@@ -352,10 +354,14 @@ async function load() {
       })),
       expiryRows: expiryRows || []
     });
-    items.value = deduped;
-    slotDiscrepancies.value = slotRows || [];
-    // Tab 徽标始终按「全部」合计（与 useHomeWorkbench 同源函数），不随 chip 筛选缩小
-    const all = countTodoCategories(deduped);
+    // CB-079 档 A：待办明细按所选组织收窄；无 deviceId 的账号级条目保留（组织管不到）。
+    // 设备表拉空时 fail-open 不收窄，避免接口抖动把待办整页清空。
+    const scope = orgDeviceScope(getOrgFilter(), deviceRows || []);
+    const dedupedInOrg = keepRowsInOrg(deduped, scope, (a) => a.deviceId);
+    items.value = dedupedInOrg;
+    slotDiscrepancies.value = keepRowsInOrg(slotRows || [], scope, (s) => s.deviceId);
+    // Tab 徽标与 chips 同源：按组织过滤后的列表合计（与 useHomeWorkbench 同一函数）
+    const all = countTodoCategories(dedupedInOrg);
     setAlertsTabBadge(all.disputes + all.offline + all.lowStock + all.expiry);
   } catch (e) {
     if (seq !== loadSeq) return;

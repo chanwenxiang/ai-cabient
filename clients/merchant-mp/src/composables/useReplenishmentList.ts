@@ -2,6 +2,8 @@ import { computed, ref, type Ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-api';
+import { getOrgFilter } from '@/utils/org-filter';
+import { orgDeviceScope, keepRowsInOrg } from '@/utils/org-scope';
 import type {
   MerchantDeviceInfo,
   MerchantSkuPricing,
@@ -49,9 +51,15 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
   const lowStockList = ref<OpenApiMerchantShortageSummaryDto[]>([]);
   const status = ref('');
   const filterDeviceId = ref('');
+  /** CB-079 档 A：组织收窄只作用展示层；allTasks 保持全量供扫码/深链回查。 */
+  const orgScope = ref<Set<string> | null>(null);
+
+  const inOrgTasks = computed(() =>
+    keepRowsInOrg(allTasks.value, orgScope.value, (t) => t.deviceId)
+  );
 
   const tasks = computed(() => {
-    let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
+    let rows = inOrgTasks.value.filter((t) => t.status !== 'CANCELLED');
     if (filterDeviceId.value) {
       rows = filterTasksByDevice(rows, filterDeviceId.value.trim().toUpperCase());
     }
@@ -64,11 +72,11 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
 
   const pendingCount = computed(
     () =>
-      allTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED')
+      inOrgTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED')
         .length
   );
   const completedCount = computed(
-    () => allTasks.value.filter((item) => item.status === 'COMPLETED').length
+    () => inOrgTasks.value.filter((item) => item.status === 'COMPLETED').length
   );
 
   function evidenceCountOf(taskId?: number) {
@@ -117,7 +125,12 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     allTasks.value = taskRows || [];
     devices.value = deviceRows;
     efficiency.value = eff;
-    lowStockList.value = (lowStockRows || []).slice(0, 5);
+    // 设备表为空时 orgDeviceScope 回 null＝不收窄（fail-open），与待办页同规则
+    orgScope.value = orgDeviceScope(getOrgFilter(), deviceRows || []);
+    lowStockList.value = keepRowsInOrg(lowStockRows || [], orgScope.value, (s) => s.deviceId).slice(
+      0,
+      5
+    );
     seedListAggregates(allTasks.value);
   }
 

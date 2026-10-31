@@ -72,7 +72,9 @@
       @close="orgSheetVisible = false"
     >
       <text class="dialog-title">切换组织</text>
-      <text class="hint">切换后柜机列表与工作台按所选组织过滤；不影响账号权限</text>
+      <text class="hint"
+        >切换后柜机列表、订单、待办与补货任务按所选组织过滤；首页概览仍为全部组织合计；不影响账号权限</text
+      >
       <scroll-view scroll-y class="sheet-scroll">
         <view class="org-list">
           <view
