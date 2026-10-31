@@ -214,6 +214,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/SessionKindFilterSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉 MA-007 的会话「类型」筛选 —— ShoppingSessionMapper 的 lambda 条件生成的 WHERE ' +
+        '在单测里（mock mapper）不会被数据库执行，且要真库才能验「NOT LIKE 对 NULL 求值为 NULL」' +
+        '会不会把无幂等键的消费者会话整批判掉，同时断言 SQL 过滤 ⇔ Java sessionKind() 同源'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/PullOffTaskDeviceFilterSqlIT.java',
     {
       job: 'integration',
