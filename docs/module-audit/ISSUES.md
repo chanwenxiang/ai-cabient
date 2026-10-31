@@ -13,6 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-009 | P3 | open | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-008 | P2 | fixed | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
 | MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 
@@ -158,6 +159,23 @@
   - `/sessions` 与 `/sessions/export` 均加 `kind` 参数，未知值 **400**（不静默忽略筛选）；导出审计留痕带上 kind，事后能还原拖的是哪一类。`openapi.ts` 同批 regen（+2 行）。
   - 前端：`kind` 进 query，删掉 `fetchPage` 内的 `rows.filter(...)` 与「页内条数顶替 total」逻辑。
   - 验证腿（四腿齐）：① `SessionKindFilterSqlIT` 真库 2/2 绿（SQL 过滤结果逐个等于 `sessionKind()`、四类之和=全表、NULL 键留在 CONSUMER）；② 既有 `DeviceValidationServiceSessionKindTest` 3/3 绿；③ API 真值：已完成∩消费 **17**（RESTOCK 4 + STOCKTAKE 3 + OPS 0，四类之和=24=已完成全量）；④ 活栈 UI 重建产物后：**共 17 条 / 17 行**，请求 `?state=COMPLETED&kind=CONSUMER`，console 0 error。
+
+### MA-009 设备详情「关联单据」截断 8 条且无总数、无段级查看全部入口
+
+- 级别/状态：P3 / **open**（轮内即修）
+- 端与页面：admin `/devices/:id` → 关联单据 tab（`DeviceRelatedRecordsTab.vue`）
+- 发现人/日期/HEAD：Qoder R3 / 2026-10-31 / 发现锚 `2b4046a3`
+- 复现步骤：
+  1) 打开将邑测试机详情 `EG943322621391`（SQL 真值：`shopping_session` 62 条、`cabinet_order` 8 条）→ 关联单据 tab；
+  2) 「最近开门记录」「最近订单」两张表各渲染 8 行（共 16 行），**页面上没有任何地方说明开门记录其实有 62 条**；
+  3) 想查全量只能自己想去 `/sessions` 再按设备筛——段级没有跳转入口，只有行级（点某条会话号才跳 `/sessions?deviceId=…&sessionId=…`）。
+- 期望 / 实际：截断要同时给出总数与查看全部入口 / 只写「最近」，运营会以为该柜就这 8 次开门。
+- 根因：`useDeviceRelatedRecords.ts:25-45` 两张表都按 `page=0&size=8` 取数，但**同时把 `total` 存进了 `sessionTotal` / `orderTotal`**；父页 `DeviceDetailView.vue:1215-1216` 只拿这两个总数判断「是否全空」，模板里从未渲染 ⇒ 数据在手却没用。
+- 证据：`.tmp/r3-detail.json`（将邑柜 关联单据 rows=16）+ 上述 SQL 真值；截图 `evidence/R03-device-detail-related.png`（修复后）
+- 源码定位：`clients/admin-vue/src/components/device/DeviceRelatedRecordsTab.vue:30,131`（两个 `section-title`）
+- 联动影响：`/devices` 列表页的「关联记录」入口同组件 ⇒ 一并受益。
+- 关联：与 R2 MA-007 同族（截断/口径不交代），但本条是**展示层缺交代**，非取数错误。
+- 修复记录：（待填）
 
 ### MA-008 「离线设备」在设备报表与工作台是两个口径，报表侧不交代口径
 
