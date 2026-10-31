@@ -16,7 +16,7 @@
 | R0 | 环境基线（一次性前置，建议新增） | — | ✅ 通过（2026-10-31，HEAD `cb904b71`，见轮报告） | rounds/R00-baseline.md |
 | R1 | 概览 | 9（Step 0 重拉一致） | ✅ 完成（2026-10-31，锚 `c3e0e44d`；MA-001~003 已修已推，线索 #2 待领号） | rounds/R01-overview.md |
 | R2 | 交易履约 | 4（Step 0 重拉一致） | ✅ 完成（2026-10-31，锚 `9637a884`；MA-006 P2 轮内修、MA-007 P1 轮末修，3 条待拍板） | rounds/R02-trade.md |
-| R3 | 设备商品 | 10 + 设备详情动态页（分 2 批） | 🟡 进行中（锚 `c4ccfde9`；MA-008 已修，批 1 设备面在测） | rounds/R03-devices.md |
+| R3 | 设备商品 | 10 + 设备详情动态页（分 2 批） | ✅ 完成（2026-10-31，锚 `7cda6af7`；MA-008~011 全修；批 2 商品面零新缺陷） | rounds/R03-devices.md |
 | R4 | 仓储 | 8（对账单页已登记，线索 #1 收口） + `/print` 隐藏页 | 未开始 | rounds/R04-warehouse.md |
 | R5 | 履约仓储 | 4 | 未开始 | rounds/R05-fulfillment.md |
 | R6 | 财务商户 | 16（建议分 6a 资金账单 / 6b 商户提现 两批推进） | 未开始 | rounds/R06-finance.md |
