@@ -2726,3 +2726,30 @@
   2. **采纳并已落地「死账可见可清」**：`DeviceDetailDto` 新增 `delistedInventory`（已下架 SKU 的残留台账行，admin 详情页单独区块展示「账面/容量 + 清除」入口；小程序端忽略该字段，10-22「下架不再显示在架」口径不变）。确认柜内无实物后由运营逐条清除，替代 SQL 手删。
   3. **保留行的正面价值**：SKU 重新激活（INACTIVE→ACTIVE）后原卡片自动恢复且账面/容量不丢——这正是竞品「纠偏而非删除」语义的等价实现。
   4. **配套修复（同批）**：`SKU_UPDATE` 审计 detail 逐字段记 status/price/category 前后值（原 detail 只记 code/name/price ⇒ 100016-18 何时下架全靠猜，MA-R1）。
+
+### CB-081 【新】用户分析页口径：活跃/新增是固定窗口指标（7d/30d 各自独立），沉睡名单导出须全量、召回文案与真实窗口一致
+
+> 触发：module-audit R1 审计 `/user-analysis` 实跑复现三缺陷（MA-001/002/003）：①KPI「30 天」口径随所选时间窗漂移（days=7 显示 0、days=90 显示 24，真值 2）；②沉睡名单后端静默截 20 条，导出 CSV 与召回弹窗「目标人数」按截断值显示；③召回弹窗写「近 {{days}} 天沉睡名单」而实际窗口固定 30-90 天。
+
+- **竞品做法**：
+  - **友宝 UBOX**（⭕ 官方 coop_brand 页，2026-10-31 检索）：「APP 营销 友宝 APP 推送直达用户的产品和活动优惠券」——同行具备「按用户触达优惠券」的召回通道；官方页未公开其活跃/沉睡的窗口定义（**未查到**口径细节，不编造）。
+  - **丰e足食**（⭕ 官方 about 页 + 🟡 招股书报道）：官方自述「运营建立在对消费者交易数据、点位行为数据的实时收集和分析之上」「借助大数据分析……无人零售全流程数字化管理」；招股书披露 2025 年**平均复购率约 46.7%**——复购率是同行的内建经营指标，即「复购/活跃」类用户分析是同行业态标配。
+  - **友盟+ U-App**（⭕ 官方文档，跨行业范式补充）：「过去 7 日活跃用户：过去 7 日（不含今日）的活跃用户数（去重）；过去 30 日活跃用户：过去 30 日……」——7 日/30 日是**各自独立的固定窗口**，与页面可选统计范围（按天/周/月）互不干扰；没有任何一条把「过去 30 日」跟随筛选窗口伸缩。
+  - **AppsFlyer**（⭕ 官方术语表，跨行业范式补充）：DAU/WAU/MAU 定义为「在 24 小时/7 天/30 天窗口期内互动的唯一用户数」——窗口写死在指标名里。
+  - **有赞 CRM**（⭕ 官方帮助中心，跨行业范式补充）：「客户查询页……**未输入筛选条件，点击『导出』，导出店铺全部客户数据**；输入筛选条件，则导出符合筛选条件的客户数据」；客户分群「近 90 天购买金额大于 300 元」圈人后跳客户列表导出——名单导出的语义是**筛选条件命中的全量**，不存在「后台只给前 20 条、导出跟着截断」的形态；沉睡召回（RFM Recency 分层）的窗口是**业务口径写死**（如「近 90 天未消费」），圈选与触达同一口径。
+- **对照主体**（5 家，开门柜直接同行 2 家）：友宝UBOX ｜ 丰e足食 ｜ 友盟+ ｜ AppsFlyer ｜ 有赞（CRM/微商城）
+- **证据**：
+  - <http://www.ubox.cn/coop_brand.html> （⭕ 友宝官方：营销服务/APP 优惠券直达推送）
+  - <https://www.feng1.com/zh-CN/about> （⭕ 丰e足食官方：交易数据/点位行为数据实时收集分析）
+  - <https://mp.ofweek.com/ecep/a156714434617> （🟡 丰e足食招股书报道：2025 平均复购率 46.7%）
+  - <https://developer.umeng.com/docs/67953/detail/67994> （⭕ 友盟官方：活跃成分固定窗口模型说明）
+  - <https://developer.umeng.com/docs/119267/detail/119436> （⭕ 友盟官方：可选时间范围与指标并列——筛选范围与固定窗口指标是两层）
+  - <https://www.appsflyer-gcr.cn/glossary/active-users/> （⭕ AppsFlyer 官方术语表：DAU/WAU/MAU 固定窗口定义）
+  - <https://help.youzan.com/displaylist/detail_5_5-2-47285> 、<https://help.youzan.com/displaylist/detail_4_4-2-47266> （⭕ 有赞官方：客户数据导出=筛选条件命中全量）
+  - 我方一手：`UserBehaviorAnalyticsService.java`（原 computeWindowMetrics 把 active30 与 active7 在同一 days 窗口循环计数）、实跑探针（days=7/30/90 三档，库内真值 2）与截图 docs/module-audit/evidence/R01-useranalysis-*.png
+- **取证日期**：2026-10-31
+- **我们的结论**：
+  1. **采纳固定窗口口径**（友盟/AppsFlyer 同形态）：`activeUsers7d/newUsers7d/repeatBuyer7d` 恒为近 7 天、`activeUsers30d/newUsers30d` 恒为近 30 天，**不随** `days` 参数漂移；`days` 只圈定「订单数/营收/客单价」三个窗口指标（UI 标注「窗口期平均」）。修复 `computeWindowMetrics` 为三窗口独立计数（[UserBehaviorAnalyticsService.java:118](../services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java)）。
+  2. **采纳全量导出**（有赞同形态）：沉睡名单返回上限 20→1000，与 `UserRecallService.MAX_RECALL_USERS` 对齐（后端本就按全量名单发券+通知，前端却按 20 条截断展示/导出，数字互相矛盾）。UI 表格与导出同源后 KPI=表格=弹窗目标人数。
+  3. **采纳文案对齐**：召回弹窗改「{dormantUsers30d} 人（30-90 天沉睡名单，最多 1000 人）」——人数取全量 KPI 字段而非截断列表长度，窗口文案写死真实口径。
+  4. **有意不同**：不做有赞式「自定义沉睡规则/RFM 自定义窗口」——我方页面 hint 明示「基于订单数据，无额外埋点」，固定 30-90 天是轻量实现的刻意选择，不在本次扩配置面。

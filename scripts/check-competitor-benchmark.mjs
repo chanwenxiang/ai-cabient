@@ -160,6 +160,10 @@ const SUBJECT_ALIASES = [
   { re: /阿里云|aliyun/i, id: '阿里云', kind: 'cross' },
   { re: /腾讯云|tencent\s?cloud/i, id: '腾讯云', kind: 'cross' },
   { re: /华为云|huaweicloud/i, id: '华为云', kind: 'cross' },
+  // CB-081 用户分析口径：友盟/AppsFlyer 是固定窗口活跃指标的公开规格来源，有赞是名单全量导出范式（均跨行业，不可顶替同行）
+  { re: /友盟|umeng/i, id: '友盟+', kind: 'cross' },
+  { re: /appsflyer/i, id: 'AppsFlyer', kind: 'cross' },
+  { re: /有赞|youzan/i, id: '有赞', kind: 'cross' },
   // CB-058 会员积分账本口径：把积分做成「有流水的账户」的公开规格群体，全在跨行业
   // （电商会员/零售品牌/银行卡奖励积分/零售 ERP）——开门柜同行无公开积分规格，只能借范式。
   { re: /京豆/i, id: '京东京豆', kind: 'cross' },

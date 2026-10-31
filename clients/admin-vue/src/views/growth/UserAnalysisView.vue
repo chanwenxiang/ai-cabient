@@ -187,9 +187,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="目标人数">
-          <span
-            >{{ s?.dormantUsers?.length ?? 0 }} 人（近 {{ days }} 天沉睡名单，最多 1000 人）</span
-          >
+          <span>{{ s?.dormantUsers30d ?? 0 }} 人（30-90 天沉睡名单，最多 1000 人）</span>
         </el-form-item>
       </el-form>
       <template #footer>

@@ -28,6 +28,11 @@ import java.util.Map;
 public class UserBehaviorAnalyticsService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
+    /**
+     * 沉睡名单返回上限。与 {@link UserRecallService#MAX_RECALL_USERS} 对齐：低于它导出的
+     * 名单才完整（MA-002：原 20 条静默截断，KPI 全量而列表/导出/召回弹窗按截断值显示）。
+     */
+    private static final int MAX_DORMANT_RETURNED = 1000;
 
     private final CabinetOrderMapper orderRepository;
     private final UserInfoMapper userInfoRepository;
@@ -38,23 +43,32 @@ public class UserBehaviorAnalyticsService {
         this.userInfoRepository = userInfoRepository;
     }
 
+    /**
+     * ⚠️ 口径（MA-001 修复后）：「活跃/新增/复购」是<b>固定窗口</b>指标——7d 恒为近 7 天、
+     * 30d 恒为近 30 天（对齐友盟「过去 7 日/30 日活跃用户」的固定窗口语义），<b>不随</b>
+     * {@code days} 参数漂移；{@code days} 只圈定「订单数/营收/客单价」这三个窗口指标。
+     * 沉睡窗口恒为 30-90 天，也与 days 无关。
+     */
     @Transactional(readOnly = true)
     public UserBehaviorSummaryDto summary(int days) {
         int window = Math.min(Math.max(days, 7), 90);
-        Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        Instant sinceWin = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        Instant since7 = LocalDate.now(ZONE).minusDays(6).atStartOfDay(ZONE).toInstant();
         Instant since30 = LocalDate.now(ZONE).minusDays(29).atStartOfDay(ZONE).toInstant();
         Instant dormantCutoff = LocalDate.now(ZONE).minusDays(30).atStartOfDay(ZONE).toInstant();
         Instant dormantFloor = LocalDate.now(ZONE).minusDays(90).atStartOfDay(ZONE).toInstant();
 
-        List<CabinetOrder> windowOrders = paid(orderRepository.findByCreatedAtAfter(since));
+        // 取三个窗口的并集起点（days>30 时 sinceWin 更早；days<30 时 since30 更早）
+        Instant fetchSince = sinceWin.isBefore(since30) ? sinceWin : since30;
+        List<CabinetOrder> windowOrders = paid(orderRepository.findByCreatedAtAfter(fetchSince));
         // S-P2-3：按用户 SQL 聚合，禁止 findAll 拉全表订单实体
         Map<Long, UserAgg> agg = loadUserAggFromDb();
-        WindowMetrics windowMetrics = computeWindowMetrics(windowOrders, agg, since, since30);
+        WindowMetrics windowMetrics = computeWindowMetrics(windowOrders, agg, sinceWin, since7, since30);
         List<UserBehaviorRowDto> dormant = findDormantUsers(agg, dormantCutoff, dormantFloor);
         int dormantTotal = dormant.size();
         dormant.sort(Comparator.comparing(UserBehaviorRowDto::lastOrderAt).reversed());
-        if (dormant.size() > 20) {
-            dormant = dormant.subList(0, 20);
+        if (dormant.size() > MAX_DORMANT_RETURNED) {
+            dormant = dormant.subList(0, MAX_DORMANT_RETURNED);
         }
 
         List<UserBehaviorRowDto> topRepeat = agg.entrySet().stream()
@@ -103,38 +117,50 @@ public class UserBehaviorAnalyticsService {
         return agg;
     }
 
-    private static WindowMetrics computeWindowMetrics(List<CabinetOrder> windowOrders, Map<Long, UserAgg> agg,
-                                                      Instant since, Instant since30) {
-        Map<Long, Integer> windowCount = new HashMap<>();
+    private static WindowMetrics computeWindowMetrics(List<CabinetOrder> orders, Map<Long, UserAgg> agg,
+                                                      Instant sinceWin, Instant since7, Instant since30) {
+        // 三个固定/窗口各自独立计数；orders 已是并集（fetchSince = min(sinceWin, since30)）
+        Map<Long, Integer> count7 = new HashMap<>();
+        Map<Long, Integer> count30 = new HashMap<>();
         long windowOrdersCount = 0;
         long windowRevenue = 0;
-        for (CabinetOrder o : windowOrders) {
+        for (CabinetOrder o : orders) {
             if (o.getUserId() == null) {
                 continue;
             }
-            windowCount.merge(o.getUserId(), 1, Integer::sum);
-            windowOrdersCount++;
-            windowRevenue += o.getTotalAmountCents();
+            Instant at = o.getCreatedAt();
+            if (at != null && !at.isBefore(sinceWin)) {
+                windowOrdersCount++;
+                windowRevenue += o.getTotalAmountCents();
+            }
+            if (at != null && !at.isBefore(since7)) {
+                count7.merge(o.getUserId(), 1, Integer::sum);
+            }
+            if (at != null && !at.isBefore(since30)) {
+                count30.merge(o.getUserId(), 1, Integer::sum);
+            }
         }
-        int active7 = 0;
-        int active30 = 0;
+        int active7 = count7.size();
+        int active30 = count30.size();
         int new7 = 0;
         int new30 = 0;
         int repeat7 = 0;
-        for (Map.Entry<Long, Integer> e : windowCount.entrySet()) {
+        for (Map.Entry<Long, Integer> e : count30.entrySet()) {
             UserAgg u = agg.get(e.getKey());
             Instant uFirst = u != null ? u.firstOrderAt : null;
-            if (e.getValue() >= 2) {
-                repeat7++;
-            }
-            if (uFirst != null && uFirst.compareTo(since) >= 0) {
-                new7++;
-            }
             if (uFirst != null && uFirst.compareTo(since30) >= 0) {
                 new30++;
             }
-            active7++;
-            active30++;
+        }
+        for (Map.Entry<Long, Integer> e : count7.entrySet()) {
+            UserAgg u = agg.get(e.getKey());
+            Instant uFirst = u != null ? u.firstOrderAt : null;
+            if (uFirst != null && uFirst.compareTo(since7) >= 0) {
+                new7++;
+            }
+            if (e.getValue() >= 2) {
+                repeat7++;
+            }
         }
         return new WindowMetrics(active7, active30, new7, new30, repeat7, windowOrdersCount, windowRevenue);
     }

@@ -78,4 +78,58 @@ class UserBehaviorAnalyticsServiceTest {
         assertEquals(1875.0, s.avgOrderValueCents(), 0.001);
         verify(orderRepository, never()).findAll();
     }
+
+    /** MA-001：「活跃/新增 30 天」是固定窗口，不随 days 收窄——days=7 时 30 天口径仍须数到 7 天外的用户。 */
+    @Test
+    void summary_days7_active30AndNew30_stayFixed30dWindow() {
+        UserBehaviorAnalyticsService service = new UserBehaviorAnalyticsService(orderRepository, userInfoRepository);
+        Instant now = Instant.now();
+        Instant d15 = now.minus(15, ChronoUnit.DAYS); // 7 天外、30 天内
+
+        List<CabinetOrder> orders = List.of(
+                order(1L, 1000, now, "PAID"),
+                order(2L, 500, d15, "PAID"));
+        List<Object[]> userAgg = List.of(
+                new Object[]{1L, 1L, 1000L, now, now},
+                new Object[]{2L, 1L, 500L, d15, d15});
+
+        when(orderRepository.findByCreatedAtAfter(any())).thenReturn(orders);
+        when(orderRepository.aggregatePaidOrdersByUser()).thenReturn(userAgg);
+
+        UserBehaviorSummaryDto s = service.summary(7);
+
+        assertEquals(1, s.activeUsers7d());
+        assertEquals(2, s.activeUsers30d()); // 修复前：0（30 天口径被 7 天窗口吞掉）
+        assertEquals(1, s.newUsers7d());
+        assertEquals(2, s.newUsers30d());    // 修复前：0
+        assertEquals(1, s.totalOrders());    // 订单/营收仍是 days 窗口指标
+    }
+
+    /** MA-001：days=90 时「30 天」口径不得被 90 天窗口虚增；沉睡名单 20 条不再静默截断（MA-002）。 */
+    @Test
+    void summary_days90_active30_notInflated_andDormantList_notTruncatedAt20() {
+        UserBehaviorAnalyticsService service = new UserBehaviorAnalyticsService(orderRepository, userInfoRepository);
+        Instant now = Instant.now();
+        Instant d45 = now.minus(45, ChronoUnit.DAYS);
+
+        List<Object[]> userAgg = new java.util.ArrayList<>();
+        userAgg.add(new Object[]{1L, 1L, 100L, now, now});
+        List<CabinetOrder> orders = new java.util.ArrayList<>(List.of(order(1L, 100, now, "PAID")));
+        for (long uid = 100; uid < 130; uid++) { // 30 个沉睡用户（45 天前最后一单）
+            userAgg.add(new Object[]{uid, 1L, 100L, d45, d45});
+            orders.add(order(uid, 100, d45, "PAID"));
+        }
+
+        when(orderRepository.findByCreatedAtAfter(any())).thenReturn(orders);
+        when(orderRepository.aggregatePaidOrdersByUser()).thenReturn(userAgg);
+        when(userInfoRepository.findById(any(Long.class)))
+                .thenAnswer(inv -> java.util.Optional.empty());
+
+        UserBehaviorSummaryDto s = service.summary(90);
+
+        assertEquals(1, s.activeUsers7d());
+        assertEquals(1, s.activeUsers30d()); // 修复前：31（90 天窗口活跃全部计入「30 天」）
+        assertEquals(30, s.dormantUsers30d());
+        assertEquals(30, s.dormantUsers().size()); // 修复前：截 20
+    }
 }
