@@ -327,11 +327,19 @@ onMounted(load);
   color: #909399;
 }
 .print-sheet {
-  width: 720px;
+  /* 固定 720px + 左右 40px 内边距在窄视口（如 702px 内置浏览器）会溢出 ⇒ margin:auto 失效、看着偏左。
+     改成随视口收缩并把内边距计入宽度，任何宽度都居中；打印媒体查询里另有 100% 宽度覆盖。 */
+  box-sizing: border-box;
+  width: min(720px, calc(100% - 32px));
   margin: 24px auto;
   padding: 32px 40px;
   background: #fff;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+@media (max-width: 760px) {
+  .print-sheet {
+    padding: 20px 16px;
+  }
 }
 .sheet-head {
   display: flex;
