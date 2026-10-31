@@ -170,7 +170,6 @@ export declare const DICT: {
     readonly feedback_status: {
         readonly PENDING: "待处理";
         readonly HANDLED: "已回复";
-        readonly REPLIED: "已回复";
         readonly CLOSED: "已关闭";
     };
     readonly split_status: {
@@ -179,9 +178,7 @@ export declare const DICT: {
         readonly ACCRUED: "待分账";
         readonly WECHAT_SUBMITTED: "已提交";
         readonly WECHAT_FAILED: "失败";
-        readonly SUBMITTED: "已提交";
         readonly SUCCESS: "成功";
-        readonly FAILED: "失败";
         readonly SETTLED: "已完结";
         readonly VOIDED: "已冲正";
     };
@@ -268,7 +265,6 @@ export declare const DICT: {
     readonly enable_status: {
         readonly ACTIVE: "启用";
         readonly INACTIVE: "停用";
-        readonly DISABLED: "停用";
         readonly ENDED: "已结束";
         readonly DRAFT: "草稿";
         readonly STOPPED: "已停止";
@@ -395,7 +391,6 @@ export declare const DICT: {
         readonly PURCHASE_RECEIVE: "采购收货";
         readonly PURCHASE_RETURN: "采购退货";
         readonly MANUAL_INBOUND: "手工入库";
-        readonly INBOUND_MANUAL: "手工入库";
         readonly OUTBOUND: "出库";
         readonly OUTBOUND_SHIP: "领货出库";
         readonly OUTBOUND_CANCEL: "领货撤销回库";
@@ -602,14 +597,10 @@ export declare const DICT: {
         readonly RESTOCK: "补货";
         readonly OPS: "运维";
         readonly STOCKTAKE: "盘点";
-        /** 历史值，与 CONSUMER 同义 */
-        readonly SHOPPING: "消费";
     };
     readonly restock_line_type: {
         readonly RESTOCK: "上架";
         readonly PULL_OFF: "下架";
-        readonly REMOVE: "下架";
-        readonly PULL: "下架";
     };
     readonly ops_alert_type: {
         readonly DISPUTE: "账单争议";
@@ -620,7 +611,6 @@ export declare const DICT: {
         readonly LOW_STOCK: "库存不足";
         readonly REPLENISHMENT: "补货任务";
         readonly RECON_MISMATCH: "对账差异";
-        readonly RECONCILIATION_MISMATCH: "对账差异";
         readonly SPLIT_EXCEPTION: "分账异常";
         readonly PROFIT_SHARING_RETURN_FAILED: "分账回退失败";
         readonly PROFIT_SHARING_MANUAL_SUPPLEMENT: "分账需人工补账";

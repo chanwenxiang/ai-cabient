@@ -13,8 +13,8 @@ describe('dictOptions / 历史别名值不进下拉（MA-018）', () => {
     expect(replies.map((o) => o.value)).toEqual(['HANDLED']);
   });
 
-  it('feedback_status：历史值 REPLIED 仍能解析出中文标签（老数据不裸码）', () => {
-    expect(displayLabel('feedback_status', 'REPLIED', '未知')).toBe('已回复');
+  it('feedback_status：REPLIED 已由 V418 迁走，标签回落默认值（不再有历史值）', () => {
+    expect(displayLabel('feedback_status', 'REPLIED', '未知')).toBe('未知');
   });
 
   it('session_kind：SHOPPING（其实是 session_state 的值）不出现在选项里', () => {
@@ -37,6 +37,6 @@ describe('dictOptions / 历史别名值不进下拉（MA-018）', () => {
   it('bin_status：货位状态独立字典（ACTIVE 启用 / DISABLED 停用）', () => {
     const values = dictOptions('bin_status').map((o) => o.value);
     expect(values).toEqual(['ACTIVE', 'DISABLED']);
-    expect(displayLabel('enable_status', 'DISABLED', '未知')).toBe('停用');
+    expect(displayLabel('bin_status', 'DISABLED', '未知')).toBe('停用');
   });
 });

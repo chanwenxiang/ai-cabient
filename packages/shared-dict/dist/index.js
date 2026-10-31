@@ -194,7 +194,6 @@ export const DICT = {
     feedback_status: {
         PENDING: '待处理',
         HANDLED: '已回复',
-        REPLIED: '已回复',
         CLOSED: '已关闭'
     },
     split_status: {
@@ -203,9 +202,7 @@ export const DICT = {
         ACCRUED: '待分账',
         WECHAT_SUBMITTED: '已提交',
         WECHAT_FAILED: '失败',
-        SUBMITTED: '已提交',
         SUCCESS: '成功',
-        FAILED: '失败',
         SETTLED: '已完结',
         VOIDED: '已冲正'
     },
@@ -285,8 +282,6 @@ export const DICT = {
     enable_status: {
         ACTIVE: '启用',
         INACTIVE: '停用',
-        // MA-018：DISABLED 已拆到 bin_status（货位状态）；这里保留仅用于「万一还有历史行」的标签渲染
-        DISABLED: '停用',
         ENDED: '已结束',
         DRAFT: '草稿',
         STOPPED: '已停止'
@@ -413,7 +408,6 @@ export const DICT = {
         PURCHASE_RECEIVE: '采购收货',
         PURCHASE_RETURN: '采购退货',
         MANUAL_INBOUND: '手工入库',
-        INBOUND_MANUAL: '手工入库',
         OUTBOUND: '出库',
         OUTBOUND_SHIP: '领货出库',
         OUTBOUND_CANCEL: '领货撤销回库',
@@ -608,15 +602,11 @@ export const DICT = {
         CONSUMER: '消费',
         RESTOCK: '补货',
         OPS: '运维',
-        STOCKTAKE: '盘点',
-        /** 历史值，与 CONSUMER 同义 */
-        SHOPPING: '消费'
+        STOCKTAKE: '盘点'
     },
     restock_line_type: {
         RESTOCK: '上架',
-        PULL_OFF: '下架',
-        REMOVE: '下架',
-        PULL: '下架'
+        PULL_OFF: '下架'
     },
     ops_alert_type: {
         DISPUTE: '账单争议',
@@ -627,7 +617,6 @@ export const DICT = {
         LOW_STOCK: '库存不足',
         REPLENISHMENT: '补货任务',
         RECON_MISMATCH: '对账差异',
-        RECONCILIATION_MISMATCH: '对账差异',
         SPLIT_EXCEPTION: '分账异常',
         PROFIT_SHARING_RETURN_FAILED: '分账回退失败',
         PROFIT_SHARING_MANUAL_SUPPLEMENT: '分账需人工补账',
