@@ -58,7 +58,7 @@ const emit = defineEmits<{
       >
         <template #default="{ row }">
           <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-            {{ displayLabel('enable_status', row.status) }}
+            {{ displayLabel('bin_status', row.status) }}
           </el-tag>
         </template>
       </el-table-column>

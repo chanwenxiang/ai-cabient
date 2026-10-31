@@ -29,8 +29,14 @@ describe('dictOptions / 历史别名值不进下拉（MA-018）', () => {
     expect(values).toContain('WECHAT_SUBMITTED');
   });
 
-  it('enable_status：两套词表刻意并存，不收敛（仍有多个「停用」）', () => {
+  it('enable_status：DISABLED 已拆到 bin_status，下拉只剩一个「停用」', () => {
     const disabled = dictOptions('enable_status').filter((o) => o.label === '停用');
-    expect(disabled.length).toBeGreaterThan(1);
+    expect(disabled.map((o) => o.value)).toEqual(['INACTIVE']);
+  });
+
+  it('bin_status：货位状态独立字典（ACTIVE 启用 / DISABLED 停用）', () => {
+    const values = dictOptions('bin_status').map((o) => o.value);
+    expect(values).toEqual(['ACTIVE', 'DISABLED']);
+    expect(displayLabel('enable_status', 'DISABLED', '未知')).toBe('停用');
   });
 });

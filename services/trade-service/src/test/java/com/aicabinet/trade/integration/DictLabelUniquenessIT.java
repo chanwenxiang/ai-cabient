@@ -49,21 +49,12 @@ class DictLabelUniquenessIT {
     static final Map<String, List<String>> KNOWN_DUPLICATES = new LinkedHashMap<>();
 
     static {
-        // 启用状态：两张不同表分别用 ENABLED/DISABLED 与 ACTIVE/INACTIVE，标签都叫「停用」
-        KNOWN_DUPLICATES.put("enable_status", List.of("停用"));
-        // 反馈状态：现用 HANDLED（UserFeedbackService 写），REPLIED 为历史值
-        KNOWN_DUPLICATES.put("feedback_status", List.of("已回复"));
-        // 告警类型：RECONCILIATION_MISMATCH 与 RECON_MISMATCH 并存（历史改名未收敛）
-        KNOWN_DUPLICATES.put("ops_alert_type", List.of("对账差异"));
-        // 补货行类型：下架有三种写法（PULL / PULL_OFF / REMOVE）
-        KNOWN_DUPLICATES.put("restock_line_type", List.of("下架"));
-        // 会话类型：SHOPPING 其实是 session_state 的值，混进了 session_kind
-        KNOWN_DUPLICATES.put("session_kind", List.of("消费"));
-        // 分账状态：带 WECHAT_ 前缀的新值与旧值并存
-        KNOWN_DUPLICATES.put("split_status", List.of("失败", "已提交"));
-        // 库存流水类型：INBOUND_MANUAL 与 MANUAL_INBOUND 并存
-        KNOWN_DUPLICATES.put("warehouse_movement_type", List.of("手工入库"));
+        // 2026-10-31 MA-018 已按用户拍板「彻底清除」：
+        //   V418 迁数据 + 删别名/死值字典行，SysDictBootstrap 同步去种子，
+        //   enable_status 的 DISABLED 拆到 bin_status。
+        // ⇒ 干净迁移库里不应再有任何同名标签；若本测试变红，说明新代码又引入了重名。
     }
+
 
     @Container
     @SuppressWarnings("resource")

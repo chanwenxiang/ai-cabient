@@ -309,10 +309,16 @@ export const DICT = {
   enable_status: {
     ACTIVE: '启用',
     INACTIVE: '停用',
+    // MA-018：DISABLED 已拆到 bin_status（货位状态）；这里保留仅用于「万一还有历史行」的标签渲染
     DISABLED: '停用',
     ENDED: '已结束',
     DRAFT: '草稿',
     STOPPED: '已停止'
+  },
+  /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
+  bin_status: {
+    ACTIVE: '启用',
+    DISABLED: '停用'
   },
   /** 商户/线长钱包流水 · 关联业务类型 */
   wallet_ref_type: {
@@ -971,7 +977,9 @@ const DICT_OPTION_EXCLUDED_VALUES: Record<string, readonly string[]> = {
   restock_line_type: ['PULL', 'REMOVE'],
   session_kind: ['SHOPPING'],
   split_status: ['FAILED', 'SUBMITTED'],
-  warehouse_movement_type: ['INBOUND_MANUAL']
+  warehouse_movement_type: ['INBOUND_MANUAL'],
+  // DISABLED 已拆到 bin_status；enable_status 下拉不再提供（baseline 仍保留标签用于历史渲染）
+  enable_status: ['DISABLED']
 };
 
 export function dictOptions(type: DictType | string): { value: string; label: string }[] {

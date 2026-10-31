@@ -273,6 +273,11 @@ export declare const DICT: {
         readonly DRAFT: "草稿";
         readonly STOPPED: "已停止";
     };
+    /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
+    readonly bin_status: {
+        readonly ACTIVE: "启用";
+        readonly DISABLED: "停用";
+    };
     /** 商户/线长钱包流水 · 关联业务类型 */
     readonly wallet_ref_type: {
         readonly ORDER: "订单";
