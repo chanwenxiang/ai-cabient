@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">订单管理</span>
             <span class="hint"
-              >支付 / 退款状态分列；未支付订单支持账龄追缴；可按订单或按商品行导出</span
+              >支付 / 退款状态分列；未支付订单支持账龄追缴；可按订单或按商品行导出 ·
+              未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）</span
             >
           </div>
         </div>

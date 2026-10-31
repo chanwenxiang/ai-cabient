@@ -6,8 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">开门记录</span>
             <span class="hint"
-              >按设备 / 会话状态筛选；活跃态超过
-              {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进</span
+              >按设备 / 会话状态筛选；活跃态超过 {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进 ·
+              导出两种口径：未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）</span
             >
           </div>
         </div>

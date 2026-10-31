@@ -128,11 +128,33 @@ merchant-mp：main=5 sub=30 total=35
 | P2 | 1 | MA-006（轮内已修，`56100ddc`+产物 `4715e6d9`） |
 | P3 | 0 | — |
 
-## 需用户拍板
+## 需用户拍板 → 2026-10-31 已拍板「按推荐做」，三条全部落地
 
-1. **导出口径两套表头（系统性，非本页缺陷）**：同一页「导出」下拉里，勾了行 → 前端 `useListCsv` 出**中文表头**（`订单号,会话,…`）；未勾选/全量 → 走服务端 `orders/export`，表头是**英文字段名**（`orderId,sessionId,…`，见 `OpsSessionOrderQueryService.java:288`）。全仓 7 处服务端导出都是英文字段名 ⇒ 这是既定约定，我没有顺手改。**要不要统一成中文表头？**（改=服务端 7 处 + 可能影响既有对账脚本/`check:csv-escape`；不改=建议至少在 UI 上说明两种导出的差异）
-2. **`E2E-TAIL-0001` 这类 E2E 遗留单**（设备 `CAB-OTHER`、0 商品行、金额 350 分）要不要清掉？它不是 UI 缺陷的成因（MA-006 已按函数层修），但会长期污染 R2/R6 的数值对账基线。
-3. **争议「认领工单」要不要加二次确认或补「取消认领」**：现状是点击即 POST、UI 无回退入口（`DisputeListView.vue:634` + `claimSelected:1286`）。要么加确认（轻），要么给转派/释放（重）。我倾向**先加确认 + 按钮上显当前处理人**，成本最低且能挡住误点。
+| # | 议题 | 决定与落点 |
+|---|------|------------|
+| 1 | 服务端导出英文字段表头 vs 前端选中导出中文表头（全仓 7 处服务端导出都是英文 ⇒ 既定约定） | **不改表头**（避免动 7 处服务端 + 影响既有对账脚本/`check:csv-escape`），改为**在页面上说清两种口径**：`/orders` 与 `/sessions` 头部 hint 各加一句「未勾选=服务端按当前筛选导出（表头为字段名），勾选行=前端导出（中文表头）」 |
+| 2 | `E2E-TAIL-0001` 这类 E2E 遗留单要不要清 | **清掉**（先留档再删，见下节）。删后基线：订单 14→**13**、会话 72→**71**、累计营收 850→**500 分（¥5.00）**、零元单仍 11 笔。R01 报告已加基线订正注记 |
+| 3 | 争议「认领工单」点击即 POST、UI 无「取消认领」 | **加二次确认 + 按钮上显当前处理人**：`claimSelected` 前置 `ElMessageBox.confirm`（文案含「认领后本页没有取消认领入口」），按钮标签变 `认领工单（当前：X）` / `认领工单（当前未认领）` |
+
+### 已删除数据留档（拍板 2，可原样重插）
+
+删除前逐表查过引用：`cabinet_order_line` / `dispute_ticket` / `invoice_request` / `ops_exception` / `order_revenue_split` / `payment_operation` / `payscore_order` / `recognition_result` / `revenue_share_detail` / `user_coupon` / `user_feedback` / `wallet_ledger` **全部 0 行引用** ⇒ 无级联面。删除语句（同一事务，先子后父）：
+
+```sql
+BEGIN;
+DELETE FROM cabinet_order WHERE order_id='E2E-TAIL-0001';
+DELETE FROM shopping_session WHERE session_id='E2ETAILS0000000000001';
+COMMIT;
+```
+
+原始行（`row_to_json` 导出，恢复时按此重插）：
+
+```json
+{"order_id":"E2E-TAIL-0001","session_id":"E2ETAILS0000000000001","user_id":10001,"device_id":"CAB-OTHER","total_amount_cents":350,"status":"PAID","created_at":"2026-10-16T08:39:42.409+00:00","pay_channel":"BALANCE","pay_trade_no":null,"inventory_deducted":false,"payment_operation_id":null,"coupon_discount_cents":0,"member_discount_cents":0,"pay_score_used":false,"refunded_cents":0,"paid_amount_cents":0}
+{"session_id":"E2ETAILS0000000000001","user_id":10001,"device_id":"CAB-OTHER","state":"COMPLETED","order_id":null,"upload_status":"NONE","camera_fusion_mode":"SINGLE","dispute_flag":false,"coupon_discount_cents":0,"preauth_cents":0,"preauth_status":"NONE","device_name":"门店二号柜"}
+```
+
+判它是夹具的依据：`total_amount_cents=350` 但 `paid_amount_cents=0`、`pay_trade_no`/`payment_operation_id` 均空、`inventory_deducted=false`、设备 `CAB-OTHER`（非真柜）、无商品行。
 
 ## 需用户配合（真机）
 

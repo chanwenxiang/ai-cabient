@@ -631,7 +631,11 @@
               plain
               :loading="claiming"
               @click="claimSelected"
-              >认领工单</el-button
+              >{{
+                selected?.assignee
+                  ? `认领工单（当前：${selected.assignee}）`
+                  : '认领工单（当前未认领）'
+              }}</el-button
             >
             <el-button
               v-if="hasPriorBill"
@@ -1285,6 +1289,19 @@ async function submitDisputeResolve(
 
 async function claimSelected() {
   if (!selected.value?.ticketId || claiming.value) return;
+  // MA-007 同轮收口（用户 2026-10-31 拍板）：认领是点击即 POST 的写操作，且本页没有
+  // 「取消认领 / 转派」入口 ⇒ 误点会把工单处理人改错且界面不可回退，必须先确认。
+  try {
+    await ElMessageBox.confirm(
+      `确认把争议 ${selected.value.ticketId} 认领到当前账号？` +
+        (selected.value.assignee ? `当前处理人：${selected.value.assignee}。` : '当前未认领。') +
+        '认领后本页没有取消认领入口，如需改派请由新处理人重新认领。',
+      '认领工单',
+      { type: 'warning' }
+    );
+  } catch {
+    return;
+  }
   claiming.value = true;
   try {
     const updated = await api.request<DisputeTicketDto>(
