@@ -12,7 +12,7 @@
 | MA-003 | P3 | fixed | admin `/user-analysis`（召回弹窗） | 「目标人数（近 {{days}} 天沉睡名单）」文案与实际不符：沉睡窗口固定 30-90 天，与所选 days 无关 | Qoder R1 / 2026-10-31 | |
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
-| MA-006 | P2 | open | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
+| MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -114,7 +114,7 @@
 
 ### MA-006 `displayBizNo` 兜底把可读编号剥成假短号，显示的单号搜不到
 
-- 级别/状态：P2 / **open**（领号即提交，修复后转 fixed）
+- 级别/状态：P2 / **fixed**（2026-10-31，Qoder R2；发现锚 `8e12c11f` → 修复锚 `56100ddc` + 产物 `4715e6d9`）
 - 端与页面：首发 admin `/orders`（订单号列 + 详情抽屉「订单号」）；根因在三端共享函数 `packages/shared-uni/src/format.ts` 的 `displayBizNo` ⇒ **merchant-mp / consumer-mp 所有用它展示单号的位置同受影响**
 - 发现人/日期/HEAD：Qoder R2 / 2026-10-31 / `8e12c11f`
 - 复现步骤：
@@ -128,7 +128,10 @@
 - 源码定位：`packages/shared-uni/src/format.ts:268-310`（`displayBizNo`）；调用面含 `clients/admin-vue/src/views/orders/OrderListView.vue:139+`、`components/device/DeviceRelatedRecordsTab.vue`、`components/warehouse/WarehouseMovementsTab.vue` 等
 - 联动影响：任何展示 `displayBizNo(...)` 的列表/详情/弹窗（三端）都可能给出不可回查的短号；客服/运营按屏幕上的号去搜必然 0 结果。
 - 关联：**项目已对该类缺陷定过性**——同文件 `shortBizNo` 的 `@deprecated` 注释（2026-09-18 起）理由就是「列表取末尾 N 位、详情页给全号 ⇒ 同一单号两处对不上，客服按列表号搜不到」。既有钉测（`clients/merchant-mp/src/utils/biz-no.test.ts`）只锁了「PD 可读单号原样」「纯数字原样」，**没有覆盖本兜底分支** ⇒ 属漏网回归面。
-- 修复记录：（待填）
+- 修复记录：2026-10-31 fixed（`56100ddc`）。`displayBizNo` 末段兜底由「取全部数字」改为**原样返回**——走到该分支的都是「剥完已知前缀仍含字母」的混合编号，数字段不等价于编号本身；已知前缀剥完是纯数字的（`PO-12`→`12`）约定**不动**。
+  - 回归：`clients/merchant-mp/src/utils/biz-no.test.ts` 新增 3 例（`E2E-TAIL-0001`/`AUDIT-R1-0001` 原样 + `PO-12`→`12` 保持），6/6 绿；
+  - 活栈复验（产物 `4715e6d9`，硬刷 ignoreCache）：`/orders` 第 9 行订单号由「20001」变 **`E2E-TAIL-0001`**，关键词输入该显示值 → 共 1 条（修复前 0 条）。证据 `evidence/R02-orders-displayid-fixed-searchable.png`。
+  - 影响面：`displayBizNo` 三端 34 个文件在用；生产真实单号是纯数字（早分支原样返回），本改动只改「混合字母编号」这一类。
 
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）
 
