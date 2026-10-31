@@ -13,7 +13,7 @@
 | MA-004 | P2 | fixed | admin `/sales-reports` + `/big-screen`（品类维度） | 品类维度直接渲染字典 value 裸码（显示「1」而非品类中文名），两处同源（`CompetitiveGapService.aggregateByCategory`） | Qoder R1 / 2026-10-31 | 355bb308 |
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
-| MA-007 | P1 | open | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
+| MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -136,7 +136,7 @@
 
 ### MA-007 开门记录「类型」筛选只在当前页生效，结果漏数据且分页总数谎报
 
-- 级别/状态：P1 / **open**（按 2026-10-31 新节奏，P0/P1 轮末统一批次修）
+- 级别/状态：P1 / **fixed**（2026-10-31，Qoder R2 轮末批次；发现锚 `fc5a6bde` → 修复锚 `124e03ff` + 产物 `9637a884`）
 - 端与页面：admin `/sessions` 开门记录 → 筛选行「类型」下拉（消费/补货/运维/盘点）
 - 发现人/日期/HEAD：Qoder R2 / 2026-10-31 / 发现锚 `fc5a6bde`
 - 复现步骤：
@@ -151,7 +151,12 @@
 - 证据：`.tmp` 探针（API 24 条中 CONSUMER=17）+ UI 三次观测（72 / 24 / 13）与请求 URL 记录；截图见 `evidence/R02-sessions-*.png`
 - 关联：lessons #205（「共 N + 空表」旧缺陷，本次是其反向代价）；与 MA-006 同属「界面显示值 ≠ 可回查真值」类。
 - 门禁化候选：PLAN 台账新增一条 —— **列表页客户端 `rows.filter(` 出现在 `fetchPage` 内即红**（除显式 allowlist），强制「筛选必须服务端化」。这条 R2 抓到两次（MA-006 是显示层，本条是取数层），值得钉。
-- 修复记录：（待填，轮末批次）
+- 修复记录：2026-10-31 fixed（`124e03ff` + 产物 `9637a884`）。
+  - **同源做法**：新增 `support/SessionKind`（类型名 + 幂等键前缀的唯一字面量源），`DeviceValidationService` 的三个谓词改读同一批常量，mapper 条件也从这里取 ⇒ 没有把规则抄成第二份 SQL 字符串（铁律 16）。
+  - 筛选进 `SessionFilterCriteria.sessionKind`，条件与 Java 判定顺序等价（OPS > RESTOCK > STOCKTAKE > CONSUMER）；🔴 取反一律写 `key IS NULL OR key NOT LIKE ...`——`NOT LIKE` 对 NULL 求值为 NULL，直接 `notLikeRight` 会把**没有幂等键的消费者会话整批判掉**（IT 里专门钉了这条）。
+  - `/sessions` 与 `/sessions/export` 均加 `kind` 参数，未知值 **400**（不静默忽略筛选）；导出审计留痕带上 kind，事后能还原拖的是哪一类。`openapi.ts` 同批 regen（+2 行）。
+  - 前端：`kind` 进 query，删掉 `fetchPage` 内的 `rows.filter(...)` 与「页内条数顶替 total」逻辑。
+  - 验证腿（四腿齐）：① `SessionKindFilterSqlIT` 真库 2/2 绿（SQL 过滤结果逐个等于 `sessionKind()`、四类之和=全表、NULL 键留在 CONSUMER）；② 既有 `DeviceValidationServiceSessionKindTest` 3/3 绿；③ API 真值：已完成∩消费 **17**（RESTOCK 4 + STOCKTAKE 3 + OPS 0，四类之和=24=已完成全量）；④ 活栈 UI 重建产物后：**共 17 条 / 17 行**，请求 `?state=COMPLETED&kind=CONSUMER`，console 0 error。
 
 ### 线索 #2：设备报表 vs 工作台「离线设备」同词两口径（R1，未复现未领号）
 
