@@ -18,6 +18,7 @@
 | MA-020 | P1 | **待拍板**（未动码） | admin `/login` | 「记住账号密码」默认勾选，登录口令以 base64（可逆）常驻 `localStorage.admin_password`，只有取消勾选才清；资金后台凭据在浏览器侧一步可还原 | Qoder R8 / 2026-11-01 | 推荐档 B：应用不再存口令，交浏览器密码管理器 |
 | MA-021 | P2 | fixed（V421） | admin `/menus` + 角色权限树 | 4 个「前后端零引用」页面权限码仍 ACTIVE（H51 只改了前端 perm），菜单管理显示成启用页、角色树勾了不生效＝幽灵菜单 | Qoder R8 / 2026-11-01 | 沿用 V386 RETIRED 口径；`ops:operlog`/`ops:pricing:view`/`ops:nav:*` 判据不同刻意保留 |
 | MA-022 | P3 | fixed | admin `/devops` + `/observability` | dev（vite）端内嵌看板恒 404：在线探针由后端发起说「在线」，iframe 走同源 `/devops/grafana` 而 vite 只代理 `/api` ⇒ 「卡片在线、嵌入区空白」自相矛盾 | Qoder R8 / 2026-11-01 | 生产形态（网关挂 /admin）已实证 200，非产品缺陷 |
+| MA-023 | P2 | 部分 fixed（展示侧）/ 记账侧**待拍板** | consumer-mp `pages/index` 商品卡 + `cabinet_order` 优惠拆解 | 会员 98 折在两层都不现身：商品卡下发目录价 350、活动价按 343 再减 100 ⇒「原价 ¥3.50 − 1.00 ≠ 实付 ¥2.43」；且 `member_discount_cents` 全仓无写入者恒 0，而巡检对账式正在消费该列 | Qoder R9 / 2026-11-01 | rounds/R09-miniprograms.md |
 | MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
@@ -371,7 +372,7 @@
 
 ### MA-021 4 个前后端零引用的页面权限码以 ACTIVE 留在权限表＝幽灵菜单（P2，已修）
 
-- 级别/状态：P2 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 见本条末尾提交号）
+- 级别/状态：P2 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 `55bac20f`）
 - 端与页面：admin `/menus` 菜单管理、`/roles` 角色权限树（数据源同一张 `ops_permission`）
 - 复现步骤：
   1) `select perm_code,status,perm_type from ops_permission where perm_code in ('ops:ad:campaign:list','ops:bigscreen:view','ops:sku-vision:list','ops:vision:list')` ⇒ 四行 `C / ACTIVE`；
@@ -387,7 +388,7 @@
 
 ### MA-022 dev 端内嵌看板恒 404，与同页「在线」判定自相矛盾（P3，已修）
 
-- 级别/状态：P3 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 见本条末尾提交号）
+- 级别/状态：P3 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 `55bac20f`）
 - 端与页面：admin `/devops` DevOps 中心、`/observability` 日志中心
 - 复现步骤：vite dev（`:3100`）登录后开这两页 ⇒ console 分别 1 条、6 条 404，全落在 `/devops/grafana/d/ai-cabinet-*`；同页四张卡却显示「Grafana 看板 · 在线」。
 - 根因：在线探针是**后端**发起（`DevOpsHubService` 打 `aicabinet.devops.grafana-url`，容器网络内可达），而 iframe 用**浏览器同源路径** `/devops/grafana/…`；vite `server.proxy` 原先只有 `/api` ⇒ dev 下该前缀由 vite 直接 404。
@@ -396,4 +397,23 @@
   - 实跑证据：另起临时 dev（`:3199`，不动在跑的 `:3100`）后 `GET /devops/grafana/api/health` → **200**（改前同路径 404）。
   - 该文件不参与打包（只影响 dev server），故本轮不需重建 admin 产物。
 - 关联观察（未领号）：`/observability` 六个 iframe 一次全挂（`v-for` + `v-show`，刻意换切页即时性），代价是打开即并发 6 个看板查询——留 R10 横切面评估「首次访问才挂载」。
+
+### MA-023 会员折扣在「商品卡」与「订单账」两层都不现身（P2，展示侧已修 / 记账侧待拍板）
+
+- 级别/状态：P2 / **展示侧 fixed、记账侧待拍板**（2026-11-01，Qoder R9 批 1；发现锚 `55bac20f` → 修复锚 见本条末尾提交号）
+- 端与页面：consumer-mp `pages/index/index` 商品卡（原价/活动价）+ 三端订单优惠拆解（`cabinet_order.member_discount_cents`）
+- 真值链（同一笔真单 `1793498414728440537903` 逐源钉）：
+  `sku_catalog.price_cents` **350** →（会员 98 折，`MemberService.applyMemberPriceDiscount:377-395`）→ **343** →（活动 4 `SKU_REDUCE reduce_cents=100`）→ **243**；
+  订单行 `unit_price_cents=243 / activity_discount_cents=100`，订单头 `total=243 / paid=243 / member_discount=0 / coupon_discount=0`；
+  排除其它定价来源：`device_sku_price` 无该 SKU 行、`near_expiry_price_cents` 为空。
+- 子缺陷 ①（展示侧，已修）：商品卡的 `priceCents` 下发的是**目录价**，而 `activityPriceCents` 按**会员后价**再减 ⇒ 卡面「原价 ¥3.50 / ¥2.43 罐 / 活动价」三者减不平（差 0.07 无处解释）；非活动商品同样「显示 3.50、结算 3.43」。
+  - 修复：`DeviceCatalogService:97-110` 的 `priceCents` 改为本用户无活动时的应付单价（会员价；`NearbyDeviceService` 走 `listProducts(deviceId)` → `userId=null` → 原价透传，不受影响）。
+  - 单测：`DeviceCatalogServiceTest.listProducts_priceCentsIsWhatThisUserPaysWithoutActivity` 钉 `priceCents=343`、`activityPriceCents=243`、差额=100；整类 **8/0/0**（surefire `tests="8" failures="0" errors="0"` 实取）。
+  - 🔴 运行时复验未做（dev 容器仍是旧 jar）——不谎报已上线；重建后重跑 `.tmp/r9-consumer-walk.cjs` 看卡面三数即可。
+- 子缺陷 ②（记账侧，待拍板）：`cabinet_order.member_discount_cents` **全仓无写入者**（`grep setMemberDiscountCents` 在 `main/java` 0 命中），恒 0；而 `DataConsistencyService:1557-1580` 的对账式 `lineSum − coupon − member = payableFromLines` 正在读它 ⇒ 会员折扣在账面上完全隐身，商户分账与按比例退款读的是账面金额，拿不到这一层。
+  - 为什么不当轮修：这是**资金字段语义 + 巡检规则联动**（一旦补值，PAID_GROSS_MISMATCH / ORDER_AMOUNT 两条规则可能从「平」变「不平」），按本程序既定边界与记忆规则（资金须数字实证）应单独一批做：结算写入该列 → 巡检口径复核 → 三端明细加「会员优惠」行 → 非零钉测 + `money-recheck.sql` 四层互证 + 留痕。
+- 证据：卡面三数取自 automator 文本快照（`pages/index/index` 渲染节点：`活动价 | 原价 ¥3.50 | ¥2.43/罐`）+ 上述 SQL/API 逐源取值，见 rounds/R09-miniprograms.md 批 1 表。
+  🔴 取证缺口：`evidence/R09/pages_index_index.png` 存下来的是**落地页**（同路由被第二次访问覆盖，购物态未留图）——不拿它对价格下结论，重建后的复验轮补图。
+- 关联：CB-082 v1 的活动价展示链（本轮把「原价可减出实付」补为硬判据）；R8 MA-020 同属「三端明细可解释性」族。
+
 

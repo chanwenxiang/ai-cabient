@@ -103,8 +103,11 @@ public class DeviceCatalogService {
                     sku.getSkuName(),
                     sku.getSpec(),
                     sku.getUnit(),
-                    // priceCents 保持原价（其它读面按原价展示）；活动价单独下发，前端取优
-                    basePrice,
+                    // MA-023：priceCents = **本用户无活动时的应付单价**（会员价，无会员折扣时即目录价），
+                    // 与结算侧 `SettlementOrderSupport:90` 取的会员价同值。此前这里下发目录价，
+                    // 而会员实际按 98 折结算 ⇒ 商品卡「原价 3.50 + 活动立减 1.00」算不出实付 2.43
+                    // （差的 0.07 是没入账的会员折扣）。划线价必须能减出实付，否则等于虚标原价。
+                    memberPrice,
                     qty,
                     sku.getImageUrl(),
                     displayCategory(sku.getCategory(), categoryLabels),

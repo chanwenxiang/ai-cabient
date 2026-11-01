@@ -194,6 +194,33 @@ class DeviceCatalogServiceTest {
                 "空分类原样返回，不做翻译也不报错");
     }
 
+    @Test
+    @DisplayName("商品卡的划线价＝本用户无活动时的应付单价（MA-023：原价 3.50 减 1.00 活动算不出实付 2.43）")
+    void listProducts_priceCentsIsWhatThisUserPaysWithoutActivity() {
+        when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of(new DeviceSkuLot()));
+        when(lotRepository.sumSellableBySkuOnEnabledSlots(DEVICE_ID))
+                .thenReturn(List.<Object[]>of(row("SKU-MEMBER-001", 6)));
+        when(skuCatalogRepository.findAllById(any()))
+                .thenReturn(List.of(sku("SKU-MEMBER-001", "雪碧柠檬味汽水330ml")));
+        when(skuPricingService.loadPromoPolicy()).thenReturn(null);
+        when(skuPricingService.resolveUnitPriceCents(anyString(), any(SkuCatalog.class),
+                nullable(PricingPromoPolicy.class))).thenReturn(350);
+        // 会员 98 折：350 → 343（与结算侧 SettlementOrderSupport 走同一个函数，这里钉的是「同序」）
+        when(memberService.applyMemberPriceDiscount(10001L, 350)).thenReturn(343);
+        // 活动立减 1.00 的计价基准是会员价 343 ⇒ 活动价 243
+        when(promotionPricingService.resolveUnitPrice(10001L, DEVICE_ID, null, "SKU-MEMBER-001", 343))
+                .thenReturn(java.util.Optional.of(new PromotionPricingService.Applied(4L, 243, 100)));
+
+        DeviceProductDto p = service.listProducts(DEVICE_ID, 10001L).get(0);
+
+        assertEquals(343, p.priceCents(),
+                "划线价必须是「本用户无活动时的应付单价」——下发目录价 350 会让 350−1.00≠2.43，等于虚标原价");
+        assertEquals(243, p.activityPriceCents().intValue(), "活动价按会员后价再减 1.00");
+        assertEquals(4L, p.activityId());
+        assertEquals(100, p.priceCents() - p.activityPriceCents(),
+                "商品卡上「原价 − 活动价」必须等于活动减额，消费者才能自己算平");
+    }
+
     private static DeviceProductDto bySku(List<DeviceProductDto> list, String skuId) {
         return list.stream().filter(p -> p.skuId().equals(skuId)).findFirst().orElseThrow();
     }

@@ -1,6 +1,6 @@
 # R8 系统（15 页 + 登录/错误页 + 权限矩阵专项）
 
-- **锚**：发现锚 `d79c52fe`（HEAD 以 `git rev-parse --short HEAD` 为准）；修复锚见本批末尾提交号。
+- **锚**：发现锚 `d79c52fe`（HEAD 以 `git rev-parse --short HEAD` 为准）；修复锚＝批 1 源码 `d913c59f` + 产物 `911ebf4b`、批 2 `55bac20f`。
 - **环境**：本机 dev 栈（trade `:18080`、nginx `:80`、admin vite `:3100`）；UI 一律 Playwright 驱动本机真 Chrome（headless 批量探针 + 关键页截图）。
 - **进度**：批 1（6 页）✅ 完成 —— `/operators` `/roles` `/departments` `/approvals` `/menus` `/dicts`；批 2（9 页 + 登录/错误页 + 权限矩阵）✅ 完成 —— `/system-configs` `/alert-rules` `/scheduled-tasks` `/org-sites` `/announcements` `/audit` `/devops` `/observability` `/profile` + `/login` `/forbidden` `/not-found`。**R8 全模块收口**。
 
