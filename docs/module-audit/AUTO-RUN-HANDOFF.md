@@ -92,7 +92,7 @@
 
 | R10 三端横切 | 🟡 **主体完成**（`rounds/R10-crosscut.md`，锚 `914b166e`）：10.1 状态名/金额/时区三维度确认**单源**（admin 也 import shared-uni）；10.2 权限闭环三方对账 ⇒ **A∖B / C∩B非ACTIVE / C∖B 三条危险方向全 0**，真幽灵码 4 个领 **MA-036**（含一条脚本假阳性护栏：`ops:audit:recent` 是非注解用法）；10.3 回归复跑 103 例 Java + 2 IT BUILD SUCCESS + preflight 0。**遗留 4 条**写在 R10 §10.4（门禁未落 / 8 处 toLocaleString / MA-036 迁移 / 全部结论建立在旧镜像上） |
 | R10 首查项（缺货口径） | ✅ 判为**已拍板的刻意兼容**（`replenishment.vue:88` 注释 CB-076「项」兼容两柜型）⇒ 不领号；另发现 shortage-summary 端点静默忽略 `?deviceId=`（前端未传，无影响） |
-| MA-036（4 个 ACTIVE 幽灵权限码） | ⬜ 沿用 V421 RETIRED 口径；属写面，需先与运营确认不是「预留位」 |
+| MA-036（4 个 ACTIVE 幽灵权限码） | ✅ 已落地（`V427`，2026-11-02 06:4x 接手批）：本人复核四码确为零引用后连同 `ops:operlog` 一起 RETIRED（该父行 MA-021 的保留理由随子节点被证伪而消失）；`ops:pricing:view` 有 2 个在用子节点 ⇒ 继续保留。dev 事务内试跑 `UPDATE 5` 后回滚，等 trade 重启生效 |
 | MA-031（待办类型标签「未知」） | ✅ 已修：shared-dict 基线补 `OPEN_TIMEOUT`/`RESTOCK_TASK_TIMEOUT`/`SLOT_DISCREPANCY`/`INVENTORY_MISMATCH` + `DOOR_OPEN_TOO_LONG` 让位改名「长时间未关门」+ dist 重烤 + `SysDictBootstrap` 同值 + `V426`（backfill）；`DictLabelUniquenessIT` 1/0/0、活体「未知」0 次。🔴 唯一未落点：admin 侧读的 `sys_dict_data` 要等 trade 容器重启才应用 V426（活栈有他在用，见下行） |
 | R11 业务流转全链路 | 🟡 **段 1 交付**（`rounds/R11-e2e-flows.md`）：消费下单→开门→端侧识别→结算→分账→商户钱包，会员单六层互证全平（含「会员+券同时生效只减一次」的反例护栏）。🔴 段 2 的四条前置（第 2 仓 / 争议退款+月结提现 / 公告造数 / 活栈复走）已按「谁做-做什么-看哪张表」写在轮报告 §「段 2+ 待做」 |
 | MA-022 在 `:3100` 的复验 | ⬜ 需人工重启 vite（会动别的会话），暂挂 |
