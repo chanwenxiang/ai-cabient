@@ -3,7 +3,9 @@
 --
 -- 判据（R10 §10.2 三方对账 B∖(A∪C) 收敛到 20 候选 → 逐一复核 → 本批又亲自复核一遍）：
 --   `grep -rn -F <码> services/*/src clients/*/src packages/*/src scripts`（排除 dist）四码**全部 0 命中**；
---   动态拼码形态 `hasPerm(`${…}`)` 经查只出现在「读 nav 配置对象」的 4 处，不构成字符串拼接；
+--   动态拼码形态（hasPerm 传模板串）经查只出现在「读 nav 配置对象」的 4 处，不构成字符串拼接；
+--   🔴 本文件不得出现美元符号+花括号的模板字面量：Flyway 连注释一起做占位符替换，
+--      写了会让 trade-service 启动即失败（2026-11-02 本批踩过并已修正，判据见 lessons）。
 --   R10 顺带抓出一条脚本假阳性护栏：`ops:audit:recent` 在 `AdminDashboardController` /
 --   `OpsAuditQueryService` 以**非注解**形式使用，而只扫 `@RequiresPermissions` 字面量的 A 集会漏看 ⇒ 不领号。
 --
