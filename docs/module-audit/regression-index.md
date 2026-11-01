@@ -23,6 +23,7 @@
 | MA-029 consumer 结果页「商品合计 − 各档 = 实付」基准 = gross | P1 | 无（人工判据：`pages/result` 商品明细卡首行数字 = 后端 `grossAmountCents`，且与会员/活动/券三行相减等于「实付金额」） | — | — | **无**（被 `:18080` 镜像卡住：须先重建到含 MA-029 的镜像并造一笔会员单 ⇒ 归 R11） |
 | R10.2 权限闭环三方对账（后端码 ⊆ 表行；前端导航引用的行必须 ACTIVE） | P3 | `scripts/audit-perm-closure.mjs`（三方集合差集；本轮三条危险方向 0 条、真幽灵 4 个） | `scripts/audit-perm-closure.mjs` | `node scripts/audit-perm-closure.mjs`（从仓库根跑，需活库；🔴 未进 `check:audit-gates`，落门禁时 A 集要扩成「注解 + 字符串用法」双扫，否则 `ops:audit:recent` 这类非注解用法会被误判成幽灵码） | 无（分析脚本，非钉测；MA-036 修完再决定固化） |
 | MA-035 公告详情缺参数不得显示「请检查网络后重试」 | P3 | 无（人工判据：两端 `pages/announcements/detail` 无 id 深链时，页面出现「请检查网络后重试」或「重试」按钮即红） | `packages/shared-uni/src/announcements.ts:98-102` | — | **无**（轮末文案批补：改文案 + 加 mp vitest 判据） |
+| R11 段1 会员单全链路（结算→分账→钱包）四层互证 + 「会员+券同时生效只减一次」 | P1 | `memberOrder_settlesOnceAndMoneyClosesAcrossFourLayers` | `services/trade-service/src/test/java/com/aicabinet/trade/e2e/MemberOrderChainE2ETest.java` | `mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.failIfNoSpecifiedTests=false test`（真 PG + 真 Redis，Flyway V1→V425 从零；断言含 `member > 0`、两条恒等式、两端读面、`platform+merchant=gross=实付`、台账↔账户、全库折后式违规 0） | 钉测 |
 
 ## 补债规则
 

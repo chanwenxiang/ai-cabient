@@ -99,6 +99,18 @@ const GUARDED = new Map([
     { job: 'build', why: '同左：surefire + build job 守卫的自动扫' }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/e2e/MemberOrderChainE2ETest.java',
+    {
+      job: 'build',
+      why:
+        'surefire 跑（*Test.java）+ build job 守卫自动扫。R11 段 1 的会员单全链路四层互证：' +
+        '真 HTTP（开门→关门停 RECOGNIZING→端侧 edge-results 采纳）+ 真库（Flyway V1→V425 从零）' +
+        '+ 分账（platform+merchant=gross=实付、0 抽成档 LEDGER_ONLY）+ 钱包（SPLIT_CREDIT↔账户余额）。' +
+        '用例先断言 SILVER 档位 pct>0 再要求 member>0——档位为 0 时 ①「只折一次」与 ②「折两次」' +
+        '在数字上不可区分，这条腿就会假绿，所以它必须真的被跑到'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/ReconciliationIntegrationTest.java',
     {
       job: 'build',
