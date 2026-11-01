@@ -770,7 +770,14 @@ export const DICT = {
         RECOGNITION_NEEDS_REVIEW: '识别需人工审核',
         UPLOAD_STUCK: '视频上传滞留',
         SALES_LOCKED: '柜机停售',
-        DOOR_OPEN_TOO_LONG: '开门超时'
+        // MA-031（2026-11-02 R9）：待办四源能产出的类型必须全在此表内，否则行首渲染成「未知」。
+        // 🔴 DOOR_OPEN_TOO_LONG 让位成「长时间未关门」（与 exception_type 同义），
+        //    把「开门超时」留给真正的 OPEN_TIMEOUT —— 否则撞 DictLabelUniquenessIT（同 type 禁重名）。
+        DOOR_OPEN_TOO_LONG: '长时间未关门',
+        OPEN_TIMEOUT: '开门超时',
+        RESTOCK_TASK_TIMEOUT: '补货任务超时',
+        SLOT_DISCREPANCY: '货道账实差异',
+        INVENTORY_MISMATCH: '库存差异'
     },
     /** 商品类目：运营在字典管理维护；runtime 为准 */
     category_code: {},

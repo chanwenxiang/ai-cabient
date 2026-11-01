@@ -803,7 +803,11 @@ export declare const DICT: {
         readonly RECOGNITION_NEEDS_REVIEW: "识别需人工审核";
         readonly UPLOAD_STUCK: "视频上传滞留";
         readonly SALES_LOCKED: "柜机停售";
-        readonly DOOR_OPEN_TOO_LONG: "开门超时";
+        readonly DOOR_OPEN_TOO_LONG: "长时间未关门";
+        readonly OPEN_TIMEOUT: "开门超时";
+        readonly RESTOCK_TASK_TIMEOUT: "补货任务超时";
+        readonly SLOT_DISCREPANCY: "货道账实差异";
+        readonly INVENTORY_MISMATCH: "库存差异";
     };
     /** 商品类目：运营在字典管理维护；runtime 为准 */
     readonly category_code: Record<string, string>;

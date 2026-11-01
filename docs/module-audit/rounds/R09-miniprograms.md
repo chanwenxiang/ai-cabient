@@ -329,6 +329,29 @@ CI 复核（§5.1 遗留动作）：批 2 那跑 **success**（`41332885775`）�
 证据链：`vue-tsc` 两端退出 0；`pnpm build:packages` 退出 0（shared-uni 无 dist 产物，源码即消费）；merchant vitest 该文件 2/2；截图 `b7-m71…m74`；`pre-push-ci-preflight` 退出 0。
 🔴 同轮把「查证后不领号」的两条也记在批内：business 页「全店待结算 ?」是刻意 `help-q` 帮助按钮；`avgOrderText`（`business-display.ts:12-21`）目前**无页面调用**，其「客单」字样由测试断言 `toContain('客单')` 钉住，未随 MA-034 改名（避免为不存在的展示面改标签）。
 
+## 轮末文案批收尾：MA-031 字典四件套（2026-11-02，值守最后一次提交）
+
+四条攒项里唯一需要动「字典三处 + 迁移」的那条，按 MA-018 立下的同值纪律一次改齐：
+
+| 落点 | 改动 | 为什么必须同批 |
+|------|------|----------------|
+| `packages/shared-dict/src/index.ts`（`merchant_alert_type` 基线） | 补 `OPEN_TIMEOUT`=开门超时、`RESTOCK_TASK_TIMEOUT`=补货任务超时、`SLOT_DISCREPANCY`=货道账实差异、`INVENTORY_MISMATCH`=库存差异；`DOOR_OPEN_TOO_LONG` 改「长时间未关门」 | **mp 端读基线**（小程序不查库），改这里才消「未知」 |
+| `pnpm build:packages` | 重烤 `packages/shared-dict/dist` | 门禁 `check:shared-dist-fresh` 判「源码 ≠ 产物」即红 |
+| `SysDictBootstrap:283`（启动补种） | 同样 4 值 + 改名 | 新库/`none` 环境靠它补种，漏它则「新环境又有未知」 |
+| `V426__merchant_alert_type_backfill_restock_and_door_labels.sql` | 4 条条件 INSERT + 1 条改名 UPDATE（均幂等守卫） | **admin 端读 `sys_dict_data`**，不迁移则三端不同名 |
+
+🔴 `DOOR_OPEN_TOO_LONG` 必须让位：V298 当年把它写成「开门超时」，而 `exception_type` 的分工是
+`DOOR_OPEN_TOO_LONG`=长时间未关门、`OPEN_TIMEOUT`=开门超时。若直接加 `OPEN_TIMEOUT`=「开门超时」，
+同一 `dict_type` 下会出现两个同名 ACTIVE 项 ⇒ 撞 `DictLabelUniquenessIT`（该门禁要求重名集合与
+`KNOWN_DUPLICATES` **完全相等**，而清单在 MA-018「彻底清除」后是空的）。这既是修 MA-031 的前置，
+也顺手把 V298 留下的语义串位纠正过来。
+
+验证：`DictLabelUniquenessIT`（真库 Flyway 从零含 V426）**1/0/0**；`pnpm build:packages` 退出 0；
+重烤 `build:mp-weixin:dev` + `cli auto :9420` 后实跑 `pages/alerts` ⇒ **「未知」出现 0 次**，
+两行改读「开门超时 / 补货任务超时」，四卡仍 48/4/7/1=60（MA-030 未回退）。截图 `b8-m81_*`。
+⚠️ 未落点（诚实）：`sys_dict_data` 的改动要等 trade 容器重启才应用（V426 尚未进活库，活库仍是 v424）
+⇒ admin 侧标签本轮没复验；`:80` 上仍有真实浏览器会话在轮询，值守期不重建共享容器（见 §5 说明）。
+
 ## 待拍板 / 待办
 
 1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
@@ -344,4 +367,4 @@ CI 复核（§5.1 遗留动作）：批 2 那跑 **success**（`41332885775`）�
 11. ~~**M 批 6 待走**~~ ✅ **商户端 35/35 走完**（2026-11-02 六批：6+6+6+6+6+5）。轮内战果＝MA-030/033 已修并活体复验、MA-031/032/034/035 领号 open、批 3/批 5/批 6 各带「查证后不领号」证据；六批写面零提交、`shopping_session` 零新增。
     🔴 遗留三条「未挣」（都已在正文标注根因/前置）：① 公告内容腿（`announcement` 0 行，需 R11 造 AUDIT- 公告）；② 仓拓扑退化（`warehouse` 仅 1 行 ⇒ R11 需新增第二个仓才能把「采购→分仓→上柜」跑成真链路）；③ 提现确认框手续费披露（合成输入坏 + `page.data()` 混淆键 ⇒ 只能人工点一次或用 Playwright 辅助）。
     🔴 商户端重建镜像前的读数都建立在 `:18080` = `f9905080`（不含 MA-029）⇒ 会员入账形态的三端读数一律待镜像重建后复走（并入 R11）。
-12. **R9 商户端轮末文案批**（已攒 4 条，一次做完免得反复重烤产物/迁移）：MA-031（`merchant_alert_type` 缺 4 值 ⇒ 待办行「未知」，要基线+dist+`SysDictBootstrap`+DB 字典迁移，注意与 `DictLabelUniquenessIT` 同名门禁）、MA-032（盘点 DRAFT「实盘=账面 · 差异 0（0 行）」语义）、MA-034（客单两套实现：后端 `MerchantAnalyticsService:124-126` 与 `business-display.ts:77-80 rowAov` **必须同批改**）、MA-035（公告详情缺参数文案，shared-uni 一处修两端 + 重烤 dist）。
+12. ~~**R9 商户端轮末文案批**（4 条一起做）~~ ✅ **4/4 完成**（MA-032 / MA-034 / MA-035 见上节，MA-031 见「轮末文案批收尾」节）。本轮累计商户端战果：MA-030/031/032/033/034/035 全部已修并活体复验；剩余唯一未落点是 admin 侧字典标签要等 trade 重启（V426 未进活库）。

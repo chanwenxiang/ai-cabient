@@ -87,13 +87,13 @@
 | MA-020 / 021 / 022 / 023① / 024 / 025 / 026 / 027 / 028 | ✅ 已落地，活库 v424 上运行时复验通过（见 R09 轮报告） |
 | **MA-029（方案 A）** | ✅ 已落地（2026-11-02 本批）：② 减项实为 **5 处**（改单重算 / 比例退写侧 / 比例退**预估侧** / 巡检**检测式 SQL** / 脏券清理抹会员），① 入账 + `V425` 改 ② 形种子 + 结果页基准改 gross；四层实证齐（新钉测 8 例 + 指定套件 20 类 0 fail + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 0 违规）；详见 `rounds/R09-miniprograms.md`「MA-029 方案 A 落地」 |
 | MA-029 端到端腿 | ✅ **已以仓内 E2E 形态挣得**（R11 段 1 `MemberOrderChainE2ETest`，真 HTTP + 真库 + 分账 + 钱包六层互证，非零 `member=14`）。⬜ 剩余小嘴：**活栈**复走（`:18080` 重建到含 MA-029 的 HEAD）——本轮探测到 `:80` 上有真实浏览器会话在轮询 admin（nginx 实证 18:32 仍在），值守期不重建共享容器 ⇒ 列为段 2 前置 |
-| R9 merchant-mp 35 页 | ✅ **35/35 走完**（六批 6+6+6+6+6+5，2026-11-02）；MA-030/033 已修并活体复验；MA-031/032/034/035 领号 open（已攒成「轮末文案批」一条，见下行）；三条「未挣」与前置写在 `rounds/R09-miniprograms.md` 待拍板 #11 |
-| R9 轮末文案批 | 🟡 **3/4 完成**：MA-032（盘点待录入改「实盘 未录入（默认同账面）」）、MA-034（两处标注同批改：「客单(实付)/件均(原价)」+「单均原价」）、MA-035（shared-uni 一处修两端 + 2 例钉测）均已活体复验，见 `rounds/R09` 「轮末文案批」表 |
-| MA-031（唯一剩下的轮末项） | ⬜ 字典侧四件套：shared-dict 基线 `merchant_alert_type` 补 `OPEN_TIMEOUT`/`RESTOCK_TASK_TIMEOUT`/`SLOT_DISCREPANCY`/`INVENTORY_MISMATCH` 4 值 + `pnpm build:packages` 重烤 dist + `SysDictBootstrap` 默认值 + 一条字典迁移；🔴 同时把 `DOOR_OPEN_TOO_LONG` 标签改「长时间未关门」给 `OPEN_TIMEOUT`=「开门超时」让位，否则撞 `DictLabelUniquenessIT`；判据 = 待办页 0 行「未知」 |
+| R9 merchant-mp 35 页 | ✅ **35/35 走完 + 轮末文案批 4/4 收口**（六批 6+6+6+6+6+5；MA-030/031/032/033/034/035 全部已修并活体复验）。🔴 三条「未挣」仍在：公告内容腿需造数、仓拓扑只有 1 仓、提现确认框披露 ⇒ 见 `rounds/R09-miniprograms.md` 待拍板 #11（全部并入 R11 段 2 前置） |
+| R9 轮末文案批 | ✅ **4/4 完成**：MA-032（盘点待录入改「实盘 未录入（默认同账面）」）、MA-034（两处标注同批改：「客单(实付)/件均(原价)」+「单均原价」）、MA-035（shared-uni 一处修两端 + 2 例钉测）、MA-031（字典四件套：shared-dict 基线 + dist 重烤 + SysDictBootstrap + V426 迁移）全部活体复验 |
+
 | R10 三端横切 | 🟡 **主体完成**（`rounds/R10-crosscut.md`，锚 `914b166e`）：10.1 状态名/金额/时区三维度确认**单源**（admin 也 import shared-uni）；10.2 权限闭环三方对账 ⇒ **A∖B / C∩B非ACTIVE / C∖B 三条危险方向全 0**，真幽灵码 4 个领 **MA-036**（含一条脚本假阳性护栏：`ops:audit:recent` 是非注解用法）；10.3 回归复跑 103 例 Java + 2 IT BUILD SUCCESS + preflight 0。**遗留 4 条**写在 R10 §10.4（门禁未落 / 8 处 toLocaleString / MA-036 迁移 / 全部结论建立在旧镜像上） |
 | R10 首查项（缺货口径） | ✅ 判为**已拍板的刻意兼容**（`replenishment.vue:88` 注释 CB-076「项」兼容两柜型）⇒ 不领号；另发现 shortage-summary 端点静默忽略 `?deviceId=`（前端未传，无影响） |
 | MA-036（4 个 ACTIVE 幽灵权限码） | ⬜ 沿用 V421 RETIRED 口径；属写面，需先与运营确认不是「预留位」 |
-| MA-031（待办类型标签「未知」） | ⬜ 轮末批：shared-dict 基线 4 值 + dist 重烤 + SysDictBootstrap + DB 字典迁移；判据 = 待办页 0 行「未知」 |
+| MA-031（待办类型标签「未知」） | ✅ 已修：shared-dict 基线补 `OPEN_TIMEOUT`/`RESTOCK_TASK_TIMEOUT`/`SLOT_DISCREPANCY`/`INVENTORY_MISMATCH` + `DOOR_OPEN_TOO_LONG` 让位改名「长时间未关门」+ dist 重烤 + `SysDictBootstrap` 同值 + `V426`（backfill）；`DictLabelUniquenessIT` 1/0/0、活体「未知」0 次。🔴 唯一未落点：admin 侧读的 `sys_dict_data` 要等 trade 容器重启才应用 V426（活栈有他在用，见下行） |
 | R11 业务流转全链路 | 🟡 **段 1 交付**（`rounds/R11-e2e-flows.md`）：消费下单→开门→端侧识别→结算→分账→商户钱包，会员单六层互证全平（含「会员+券同时生效只减一次」的反例护栏）。🔴 段 2 的四条前置（第 2 仓 / 争议退款+月结提现 / 公告造数 / 活栈复走）已按「谁做-做什么-看哪张表」写在轮报告 §「段 2+ 待做」 |
 | MA-022 在 `:3100` 的复验 | ⬜ 需人工重启 vite（会动别的会话），暂挂 |
 
