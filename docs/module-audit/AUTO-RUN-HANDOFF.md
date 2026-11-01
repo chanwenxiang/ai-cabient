@@ -87,7 +87,9 @@
 | MA-020 / 021 / 022 / 023① / 024 / 025 / 026 / 027 / 028 | ✅ 已落地，活库 v424 上运行时复验通过（见 R09 轮报告） |
 | **MA-029（方案 A）** | ✅ 已落地（2026-11-02 本批）：② 减项实为 **5 处**（改单重算 / 比例退写侧 / 比例退**预估侧** / 巡检**检测式 SQL** / 脏券清理抹会员），① 入账 + `V425` 改 ② 形种子 + 结果页基准改 gross；四层实证齐（新钉测 8 例 + 指定套件 20 类 0 fail + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 0 违规）；详见 `rounds/R09-miniprograms.md`「MA-029 方案 A 落地」 |
 | MA-029 活栈 HTTP 会员单 | ⬜ 需在重建 `:18080`（新镜像含本批）后验 ⇒ 并入 **R11** 全链路那一轮（那轮本就要用新镜像跑一遍会员单）；脏树期不动共享容器 |
-| R9 merchant-mp 35 页 | 🟡 **30/35**（批 1 主页 6 + 批 2 履约 6 + 批 3 交易/消息 6 + 批 4 财务 6 + 批 5 采购/配置/报表/公告 6）；MA-030/033 已修并活体复验，MA-031/032/034/035 领号 open，批 3/批 5 各带「查证后不领号」证据 ← **从这里接 M 批 6（还剩 5 页：team / password-change / policy / prep-generate / prep-list）** |
+| R9 merchant-mp 35 页 | ✅ **35/35 走完**（六批 6+6+6+6+6+5，2026-11-02）；MA-030/033 已修并活体复验；MA-031/032/034/035 领号 open（已攒成「轮末文案批」一条，见下行）；三条「未挣」与前置写在 `rounds/R09-miniprograms.md` 待拍板 #11 |
+| R9 轮末文案批（4 条一起做） | ⬜ MA-031（`merchant_alert_type` 缺 4 值，要基线+dist+SysDictBootstrap+字典迁移，注意 `DictLabelUniquenessIT` 同名门禁）/ MA-032（盘点 DRAFT 语义）/ MA-034（客单两套实现：后端 `MerchantAnalyticsService:124-126` 与 `business-display.ts:77-80 rowAov` **必须同批**）/ MA-035（`shared-uni/src/announcements.ts:98-102` 一处修两端 + 重烤 dist） |
+| R10 第 1 步（已定首查项） | ⬜ `演示智能柜` 在补货任务页「6 项缺货 · 缺口 36 件」vs 备货单「待补 1 种」⇒ 用 `/merchant/replenishment/shortage-summary` 与备货单取数逐字段对根因；判为设计则登记「同名不同物」清单，判为缺陷则按 MA-034 同族领号 |
 | MA-031（待办类型标签「未知」） | ⬜ 轮末批：shared-dict 基线 4 值 + dist 重烤 + SysDictBootstrap + DB 字典迁移；判据 = 待办页 0 行「未知」 |
 | R10 三端横切 | ⬜ 未开始 |
 | R11 业务流转全链路 | ⬜ 未开始 |
