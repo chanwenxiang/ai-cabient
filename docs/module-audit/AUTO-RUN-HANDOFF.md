@@ -96,6 +96,8 @@
 | MA-031（待办类型标签「未知」） | ✅ 已修：shared-dict 基线补 `OPEN_TIMEOUT`/`RESTOCK_TASK_TIMEOUT`/`SLOT_DISCREPANCY`/`INVENTORY_MISMATCH` + `DOOR_OPEN_TOO_LONG` 让位改名「长时间未关门」+ dist 重烤 + `SysDictBootstrap` 同值 + `V426`（backfill）；`DictLabelUniquenessIT` 1/0/0、活体「未知」0 次。🔴 唯一未落点：admin 侧读的 `sys_dict_data` 要等 trade 容器重启才应用 V426（活栈有他在用，见下行） |
 | R11 业务流转全链路 | 🟡 **段 1 交付**（`rounds/R11-e2e-flows.md`）：消费下单→开门→端侧识别→结算→分账→商户钱包，会员单六层互证全平（含「会员+券同时生效只减一次」的反例护栏）。🔴 段 2 的四条前置（第 2 仓 / 争议退款+月结提现 / 公告造数 / 活栈复走）已按「谁做-做什么-看哪张表」写在轮报告 §「段 2+ 待做」 |
 | MA-022 在 `:3100` 的复验 | ⬜ 需人工重启 vite（会动别的会话），暂挂 |
+| 活栈复走（用户 06:4x 批准重启 trade） | 🟡 **部分完成**（2026-11-02 07:0x）：镜像重建到 `8912bcd2`、health 200、0 ERROR、Flyway 高水位 **v427**（V425/426/427 全落）；MA-036 五行活库确认 RETIRED、MA-031 字典「未知」0 命中、**MA-023① 真端挣到**（小程序商品卡实测「原价 ¥3.43 / ¥2.43 罐」，改前是 3.50）。🔴 **未挣**：MA-029 的活栈真单腿——`.tmp/mp-buy-cb082-2.cjs` 跑到「翻将邑绑定」后 `fetch failed`（trade 刚重启，模拟器/内部接口会话需重建），下单未闭环 ⇒ 下一会话先修这条脚本或直接走 `MemberOrderChainE2ETest` 的活栈版 |
+| 🔴 本会话自伤记录 | 我的 `V427` 注释里写了模板字面量（美元符+花括号），Flyway **连注释做占位符替换** ⇒ trade 启动即失败一次（`psql` dry-run 与 preflight 都看不到）。已改注释、重建、恢复，并记入 `docs/engineering/lessons-learned.md` **#370**：迁移文件禁写该形态，重启共享容器后必须看 `docker logs` 不能只看 health 码 |
 
 ## 5.1 本会话（2026-11-02 值守）推送后的 CI 状态（诚实记账，勿当「已绿」）
 
