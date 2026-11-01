@@ -279,6 +279,27 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
   1. 提现「申请提现」确认框文案（含手续费预估是否出现）⇒ 需要真实键入金额，automator 合成输入坏、`page.data()` 是混淆键；建议人工点一次或 R11 用 Playwright H5 复现（注意 H5 不作为验收权威，只能作辅助）。
   2. 会员入账形态在三端财务面的读数 ⇒ 等 `:18080` 换成含 MA-029 的镜像（M 批 5+ 前先重建一次，顺带把 MA-029 的活栈 HTTP 腿挣掉）。
 
+## M 批 5（merchant-mp 采购/配置/合规/报表/公告 6 页，2026-11-02）
+
+锚 HEAD `07d15a6a`；探针 v2；写面零提交（采购/税号/补货配置都只读到表单与「保存/提交」按钮，未点）；走查后 `shopping_session` 新增 0 行。
+CI 复核（§5.1 遗留动作）：批 2 那跑 **success**（`41332885775`）⇒ 与「抖动」判定一致；批 3/批 4/§5.1 三跑收口时仍 in_progress。
+
+### 逐页结论
+
+| # | 页面 | 结论 |
+|---|------|------|
+| m51 | `pages/purchase` | 收货仓「演示中心仓」+ hint「只进您负责的分仓」看着矛盾 ⇒ **查证后不领号**：`warehouse` 表只有 1 行（`WH-DEMO-001` 名「演示中心仓」、`manager_user_id=100000002` 即当前商户用户），后端 `ProcurementService:206-216 getSatelliteWarehouse → requireOperatorManagedWarehouse(本人负责)` 判据正确 ⇒ 是**种子命名遗留**（一个仓兼职本部/分仓）。🔴 对 R11 的前置影响：dev 仓拓扑退化成 1 个仓 ⇒「采购入库→分仓→上柜」全链路要真跑，需**新增**第二个仓（不删既有行） |
+| m52 | `pages/ops-config` | 「缺货提醒阈值 由平台在柜机『库存台账』按商品统一设置，商户端不可修改」= 权限边界写在界面上 ✅；三个开关（补货后拍照/盘点拍照/按补货单补货）语义清楚 |
+| m53 | `pages/tax` | 表单四字段 + 逐项 placeholder 说明（「与营业执照一致」「18 位统一社会信用代码」）✅；当前商户名只读回显 |
+| m54 | `pages/cabinet-reports` | 🔴 **MA-034 升级为「同屏算不平」**：同窗同柜（将邑测试机 10-04–11-02、2 单、营收 ¥7.00）本页显示**客单 ¥3.50**，而 `pages/business` 显示 **¥2.50** —— 本页用 `business-display.ts:77-80 rowAov = revenueCents/orderCount`（原价分子），后端字段用 `orderRevenue(实付)/orderCount` ⇒ 同一概念两套实现、两页两个数。修法必须一次覆盖两处 |
+| m55 | `pages/announcements` | 空态「暂无平台公告 / 运营发布的维护、活动与规则通知会出现在这里」✅（`announcement` 表 dev 实为 **0 行**，见下「未挣」） |
+| m56 | `pages/announcements/detail` | 🔴 **MA-035（P3，open）**：无 id 深链显示「公告不存在」+ 默认副文案「请检查网络后重试」+ 必然失败的「重试」，三处都骗用户；根因单点 `packages/shared-uni/src/announcements.ts:98-102`，**两端共用同一 composable**（consumer 也 import）⇒ 改一次修两端。同族先例：`device-detail.vue:609-614` 已按「参数缺失≠网络故障」修过 |
+
+### 未挣 / 造数欠账（交 R11）
+
+- 公告**内容腿**：`announcement` 0 行 ⇒ 列表与详情只能验空态。R11 造数清单要加一条 `AUDIT-` 公告（走运营端正规写入口，让校验生效），然后复走 m55/m56 两条腿 + 消费端同名两页。
+- 仓拓扑：见 m51 行尾（R11 需要第二个仓才能把「采购→分仓→上柜」跑成真链路）。
+
 ## 待拍板 / 待办
 
 1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
@@ -291,6 +312,7 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 8. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。
 9. **MA-031（P3，open）**：`merchant_alert_type` 基线缺 4 个待办类型 ⇒ 行首显示「未知」；轮末文案批一次做齐（基线 + dist 重烤 + `SysDictBootstrap` + DB 字典迁移），判据 = 待办页 0 行「未知」。同批可并：待办卡片把厂商原文 `设备 uploadOrderError errorMsg：…` 直送商户（M 批 1 观察项 #2）。
 10. **MA-032（P3，open）**：仓库盘点「待录入」单显示 `实盘 = 账面 · 差异 0（0 行）` 的语义问题——先判「明盘默认=账面」是否本就是拍板设计（`备货单/盘点` 有「只提交与台账有差异的商品」的既有口径），再决定改文案还是改预填；不建议顺手把 counted 置 0（会让明盘失去默认值便利）。
-11. **M 批 5+ 待走**（还剩 11 页）：批 5 建议 6 页 `purchase, ops-config, tax, cabinet-reports, announcements, announcements/detail`；批 6 收尾 5 页 `team, password-change, policy, prep-generate, prep-list`。
+11. **M 批 6 待走**（还剩 5 页）：`team, password-change, policy, prep-generate, prep-list`。
     🔴 财务批的既有判据（别重新发明）：`money-recheck.sql` 7a/7c 已随 MA-029 扩段；0 抽成档＝`LEDGER_ONLY`（PROJECT_KNOWLEDGE §6.2）；提现费 6‰ 不封顶可按商户覆盖（10-16 拍板）；商户钱包与线长钱包是两个不同域（`line-wallet` ≠ 分账）。
     🔴 批 5 前先做一次「`:18080` 重建到含 MA-029 的镜像」，顺带把 MA-029 的活栈 HTTP 会员单腿和 M 批 4 未挣的提现确认框文案一起收掉（重建属共享容器动作：必须干净树 + 先确认无他会话在用）。
+12. **R9 商户端轮末文案批**（已攒 4 条，一次做完免得反复重烤产物/迁移）：MA-031（`merchant_alert_type` 缺 4 值 ⇒ 待办行「未知」，要基线+dist+`SysDictBootstrap`+DB 字典迁移，注意与 `DictLabelUniquenessIT` 同名门禁）、MA-032（盘点 DRAFT「实盘=账面 · 差异 0（0 行）」语义）、MA-034（客单两套实现：后端 `MerchantAnalyticsService:124-126` 与 `business-display.ts:77-80 rowAov` **必须同批改**）、MA-035（公告详情缺参数文案，shared-uni 一处修两端 + 重烤 dist）。
