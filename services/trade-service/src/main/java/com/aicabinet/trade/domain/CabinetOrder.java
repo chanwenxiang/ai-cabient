@@ -67,6 +67,11 @@ public class CabinetOrder {
     /** v1 活动优惠合计（CB-082）：命活动价的订单不再用券 */
     private int activityDiscountCents;
 
+    /**
+     * 会员优惠留档（分）＝ Σ(目录价 − 会员价) × 数量（MA-029 方案 A，2026-11-02 起有写入者）。
+     * 折扣本身已在 {@code cabinet_order_line.unit_price_cents} 里生效过一次，本列**不是订单级减项**；
+     * 应付永远是「行合计 − 券」。
+     */
     private int memberDiscountCents;
 
     /**

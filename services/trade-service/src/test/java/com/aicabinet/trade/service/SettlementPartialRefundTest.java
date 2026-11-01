@@ -176,6 +176,54 @@ class SettlementPartialRefundTest {
         assertEquals(800, order.getTotalAmountCents(), "estimate must not mutate source order");
     }
 
+    /**
+     * MA-029 方案 A：会员档是留档、不是减项 ⇒ 退款额 = 被退行的行金额。
+     * 原单 1×392（会员价，目录 400 ⇒ 留档 8）+ 2×300；退 SKU-A ⇒ 应退 392、剩余 600。
+     * 若按旧 ②口径把留档再减一次，剩余应付会算成 595 ⇒ 多退 5 分（资损）。
+     * 预估与写侧必须同额（铁律 51）。
+     */
+    @Test
+    void partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-M2");
+        order.setSessionId("S-M2");
+        order.setDeviceId("CAB-001");
+        order.setUserId(10001L);
+        order.setGrossAmountCents(1000);
+        order.setMemberDiscountCents(8);
+        order.setTotalAmountCents(992);
+        order.setStatus("PAID");
+        order.setInventoryDeducted(false);
+        order.setLines(new ArrayList<>(List.of(
+                line("SKU-A", "A", 1, 392, "B1"),
+                line("SKU-B", "B", 2, 300, "B2"))));
+
+        int estimate = settlementService.estimatePartialRefundCents(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)));
+        assertEquals(392, estimate);
+
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-M2")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-M2")).thenReturn(Optional.of(order));
+        doNothing().when(orderLineRepository).deleteByOrderId(anyString());
+        when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderPaymentService.refundOrder(any(), anyInt(), anyString(), any())).thenReturn(true);
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
+
+        var result = settlementService.partialRefund(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)),
+                false,
+                "member archive must not reduce payable");
+
+        assertEquals(392, result.refundedCents());
+        assertEquals(600, order.getTotalAmountCents());
+        // 留档随剩余规模等比缩减：round(8 × 600 / 992) = 5
+        assertEquals(5, order.getMemberDiscountCents());
+        assertEquals(1, order.getLines().size());
+    }
+
     @Test
     void partialRefund_allLines_becomesFullRefunded() {
         CabinetOrder order = new CabinetOrder();

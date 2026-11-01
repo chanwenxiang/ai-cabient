@@ -297,6 +297,9 @@ public class SettlementPartialRefundService {
     /**
      * 只读预估：与写侧 {@code applyProportionalRefundPayable} 同一比例摊口径（铁律 51：预估与写侧一致），
      * 但不写券状态——纯计算版（{@code CouponService.proportionalCouponDiscount}）。
+     *
+     * <p>MA-029 方案 A：应付 = 剩余行合计 − 券；会员档按比例缩减只作留档，不再进应付。
+     * 写侧去掉会员减项时这里必须同步去掉，否则「预估退款额 ≠ 实际退款额」＝资损（同 2026-10-15 教训）。
      */
     private void applyPartialRefundPayablePreview(CabinetOrder order, int oldSubtotal, int newSubtotal) {
         int safeOld = Math.max(0, oldSubtotal);
@@ -309,6 +312,6 @@ public class SettlementPartialRefundService {
         int memberDisc = SettlementOrderSupport.scaleDiscountForPartialRefund(
                 Math.max(0, order.getMemberDiscountCents()), safeOld, safeNew);
         order.setMemberDiscountCents(memberDisc);
-        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc - memberDisc));
+        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc));
     }
 }

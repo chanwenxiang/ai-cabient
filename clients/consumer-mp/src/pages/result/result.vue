@@ -70,14 +70,11 @@
         </view>
         <text v-else class="empty-lines">本次未识别到取走商品</text>
         <view
-          v-if="
-            order.originalAmountCents != null &&
-            order.originalAmountCents !== order.totalAmountCents
-          "
+          v-if="baseCents > 0 && baseCents !== Number(order.totalAmountCents ?? 0)"
           class="sum-row"
         >
           <text class="sum-label">商品合计</text>
-          <text class="sum-value">{{ fmtMoney(order.originalAmountCents) }}</text>
+          <text class="sum-value">{{ fmtMoney(baseCents) }}</text>
         </view>
         <view v-if="Number(order.memberDiscountCents ?? 0) > 0" class="sum-row discount">
           <text class="sum-label">会员优惠</text>
@@ -375,6 +372,21 @@ const discountHint = computed(() => {
   if (hasMember) return '已享受会员优惠';
   if (hasCoupon) return '已自动选用最优优惠券';
   return '';
+});
+
+/**
+ * MA-029（2026-11-02）：优惠拆解的基准是「原价毛额」gross（全部优惠前），与订单详情页
+ * （MA-024）同口径。会员折扣自本批起真实入账 `memberDiscountCents`，而它已经在单价里减过
+ * 一次 ⇒ 若基准仍用 `originalAmountCents`（会员折后的行合计），本页会出现
+ * 「3.43 − 会员 0.07 − 活动 1.00 ≠ 实付 2.43」这种用户自己算不平的行。
+ * gross 缺失（老单/异常）时退回 `originalAmountCents`，不显示 0。
+ */
+const baseCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const gross = Math.max(0, Number(o.grossAmountCents ?? 0));
+  if (gross > 0) return gross;
+  return Math.max(0, Number(o.originalAmountCents ?? 0));
 });
 
 function lineMeta(line: OrderLineDto) {

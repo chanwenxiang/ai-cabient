@@ -231,8 +231,13 @@ class SettlementConfirmDisputeTest {
         verify(revenueSplitService).adjustSplitAfterOrderChange(order, 600);
     }
 
+    /**
+     * MA-029 方案 A（①是权威口径）：会员折扣只在单价里生效<b>一次</b>。
+     * 目录价 400 → 会员价 392（SILVER 2%）；争议改成 3 件 ⇒ 行合计 1176、应付 = 行合计 − 券 = 1176。
+     * 旧 ②口径会拿留档列 `member_discount_cents` 再减一次（1176 − 24 = 1152）＝重复扣减少收 24 分。
+     */
     @Test
-    void confirmDisputedItems_withMemberDiscount_preservesDiscountOnRecalc() {
+    void confirmDisputedItems_memberDiscountAppliedOnceNotTwice() {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-D4");
         session.setUserId(10001L);
@@ -244,11 +249,13 @@ class SettlementConfirmDisputeTest {
         order.setUserId(10001L);
         order.setDeviceId("CAB-1");
         order.setStatus("DISPUTED");
-        order.setMemberDiscountCents(100);
-        order.setOriginalAmountCents(800);
-        order.setTotalAmountCents(700);
+        // 原单：2 件会员价 392 ⇒ 行合计 784；会员留档 16（Σ(400−392)×2）、毛额 800
+        order.setMemberDiscountCents(16);
+        order.setGrossAmountCents(800);
+        order.setOriginalAmountCents(784);
+        order.setTotalAmountCents(784);
         order.setInventoryDeducted(true);
-        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 2, 400))));
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 2, 392))));
 
         SkuCatalog sku = new SkuCatalog();
         sku.setSkuId("SKU-A");
@@ -258,24 +265,29 @@ class SettlementConfirmDisputeTest {
         when(orderRepository.findByIdForUpdate("O-D4")).thenReturn(Optional.of(order));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-1", sku)).thenReturn(400);
-        when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(400);
+        when(memberService.applyMemberPriceDiscount(10001L, 400)).thenReturn(392);
         when(slotRepository.findByIdDeviceId("CAB-1")).thenReturn(List.of());
+        when(userValidationService.canChargeViaPasswordFree(10001L, null)).thenReturn(true);
         when(inventoryService.adjustForOrder(anyString(), anyList(), anyList(), anyMap(), any())).thenReturn(Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        doNothing().when(orderPaymentService).applyPaymentDelta(any(), eq(400));
+        doNothing().when(orderPaymentService).applyPaymentDelta(any(), eq(392));
 
         var result = settlementService.confirmDisputedItems(
                 session,
                 List.of(new RecognizedItem("SKU-A", 3, 1f)));
 
-        assertEquals(700, result.originalAmountCents());
-        assertEquals(1100, result.finalAmountCents());
-        assertEquals(400, result.adjustmentCents());
-        assertEquals(100, order.getMemberDiscountCents());
-        assertEquals(1100, order.getTotalAmountCents());
-        verify(revenueSplitService).adjustSplitAfterOrderChange(order, 700);
+        assertEquals(784, result.originalAmountCents());
+        assertEquals(1176, result.finalAmountCents());
+        assertEquals(392, result.adjustmentCents());
+        // 留档列随新行重算：Σ(400−392)×3 = 24，毛额 1200
+        assertEquals(24, order.getMemberDiscountCents());
+        assertEquals(1200, order.getGrossAmountCents());
+        // 应付里会员只减过一次：恒等式 gross − member − activity − coupon = total
+        assertEquals(1200 - 24 - 0 - 0, order.getTotalAmountCents());
+        assertEquals(1176, order.getTotalAmountCents());
+        verify(revenueSplitService).adjustSplitAfterOrderChange(order, 784);
     }
 
     /** D3: CONFIRM 加价余额不足 → 412；库存与支付未动。 */

@@ -138,6 +138,19 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/MemberDiscountLedgerSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java。' +
+        'MA-029 方案 A（会员折扣只折一次）的「活库真单」腿：真 Flyway V1→V425 从零 + 真 SILVER 2% 档位种子' +
+        '+ 真生产写入口 SettlementOrderSupport.applyItemsToOrder + 真 mapper 落库，' +
+        '再在同一库跑恒等式与巡检折后式对账 SQL（违规必须 0 行）。' +
+        '入账列 member_discount_cents 是「只有真库才暴露」的那类：列映射/NOT NULL 默认值/' +
+        'V425 是否真的把 V252 的 ② 形种子改成 ① 形，Mockito 单测与字符串断言都证不了'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/OpsAuditSensitiveSummarySqlIT.java',
     {
       job: 'integration',

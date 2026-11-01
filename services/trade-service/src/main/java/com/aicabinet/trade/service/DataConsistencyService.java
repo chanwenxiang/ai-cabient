@@ -254,14 +254,21 @@ public class DataConsistencyService {
         return failed == null ? 0 : failed.size();
     }
 
-    /** PAID/PARTIAL_REFUNDED 订单头金额 vs 明细折后合计（明细 − 券/会员折扣；不含 DISPUTED）。 */
+    /**
+     * PAID/PARTIAL_REFUNDED 订单头金额 vs 明细折后合计（明细 − 券；不含 DISPUTED）。
+     *
+     * <p>MA-029 方案 A（2026-11-02）：会员/活动折扣都在 {@code line_amount_cents} 的单价里
+     * 已经生效，所以应收 = 行合计 − 券。本式以前还减了一次 {@code member_discount_cents}，
+     * 在该列恒 0 时看着对；结算一开始真实入账会员折扣，这条就会把每单会员折扣误报成不一致
+     * （与 813bb20e 拆掉的修复侧那条雷同形）。会员档自本批起只是留档，仍随消息打印供人工看差额构成。
+     */
     void checkOrderConsistency() {
         String sql = "SELECT o.order_id, o.total_amount_cents, "
                 + "COALESCE(SUM(ol.line_amount_cents), 0) AS line_subtotal, "
                 + "COALESCE(o.coupon_discount_cents, 0) AS coupon_discount, "
                 + "COALESCE(o.member_discount_cents, 0) AS member_discount, "
                 + "COALESCE(SUM(ol.line_amount_cents), 0) "
-                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) AS payable_from_lines, "
+                + "- COALESCE(o.coupon_discount_cents, 0) AS payable_from_lines, "
                 + "COALESCE((SELECT SUM(" + PaymentOperationTypes.netCaseSql("po.") + ") FROM payment_operation po "
                 + "  WHERE po.order_id = o.order_id AND po.status = 'COMPLETED' "
                 + "  AND " + PaymentOperationTypes.netTypesFilterSql("po.") + "), 0) AS net_paid "
@@ -269,7 +276,7 @@ public class DataConsistencyService {
                 + "WHERE o.status IN ('PAID', 'PARTIAL_REFUNDED') "
                 + "GROUP BY o.order_id, o.total_amount_cents, o.coupon_discount_cents, o.member_discount_cents "
                 + "HAVING o.total_amount_cents <> COALESCE(SUM(ol.line_amount_cents), 0) "
-                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) "
+                + "- COALESCE(o.coupon_discount_cents, 0) "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -1613,15 +1620,19 @@ public class DataConsistencyService {
     private record OrderAmountSnapshot(int header, int paid, int lineSum, int couponDiscountCents,
                                        int memberDiscountCents, int payableFromLines, int lineCount) {}
 
-    /** 实付=明细原价但券/会员字段未生效：清除脏元数据并尝试退还券占用。 */
+    /**
+     * 实付=明细原价但券字段未生效：清除脏券元数据并尝试退还券占用。
+     *
+     * <p>MA-029 方案 A：会员档自本批起是「含在行金额里」的合法留档（`gross − member − activity
+     * − coupon = total` 的一环），不是残留字段，因此这里刻意**只清券**、不动会员。
+     */
     private FixOutcome clearStaleCouponFields(String orderId, int couponDiscount, int memberDiscount) {
         jdbcTemplate.update(
-                "UPDATE cabinet_order SET coupon_id = NULL, coupon_discount_cents = 0, "
-                        + "member_discount_cents = 0 WHERE order_id = ?",
+                "UPDATE cabinet_order SET coupon_id = NULL, coupon_discount_cents = 0 WHERE order_id = ?",
                 orderId);
         int released = couponService.releaseStaleUsedCouponsForOrder(orderId);
-        return FixOutcome.ok("实付与明细一致，已清除未生效的券/折扣字段"
-                + "（券 " + couponDiscount + "，会员 " + memberDiscount
+        return FixOutcome.ok("实付与明细一致，已清除未生效的券字段"
+                + "（券 " + couponDiscount + "，会员留档 " + memberDiscount + " 保持不变"
                 + "；释放错绑核销券 " + released + " 张）");
     }
 

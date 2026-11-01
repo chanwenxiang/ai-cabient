@@ -79,6 +79,7 @@ public class SettlementOrderSupport {
         long total = 0;
         long originalTotal = 0;
         long activityDiscountTotal = 0;
+        long memberDiscountTotal = 0;
         long grossTotal = 0;
         for (RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
@@ -88,14 +89,15 @@ public class SettlementOrderSupport {
             // 少量明细**调用，不是商品目录那种 O(N) 热路径；每单额外几次配置查询可忽略，
             // 而少一次重载改动能把改动面收敛在定价服务内部，不动结算链的既有测试桩。
             int listUnitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
-            int unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), listUnitPrice);
-            // MA-023②（本轮刻意**不**把会员差额写进 member_discount_cents）：
-            // 会员折扣在本仓有两套并存机制——① 本方法把会员价直接算进单价（行金额已含折扣）；
-            // ② `recalculatePayableAfterLineChange` / `applyProportionalRefundPayable` 把
-            // `member_discount_cents` 当**订单级减项**再扣一次。历史上该列无写入者恒 0，所以②是死支。
-            // 一旦按①的差额写这列，②就会重复扣减 ⇒ 直接少收钱（资损）。
-            // 因此本列的入账必须先定「哪套是权威」的人工决策（见 rounds/R09 MA-023②）；
-            // 这里只累计**原价毛额**（纯展示/对账用，不参与应付计算）。
+            int memberUnitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), listUnitPrice);
+            int unitPrice = memberUnitPrice;
+            // MA-029 方案 A（2026-11-02 拍板，①是权威口径）：会员折扣**只体现在单价里**，
+            // `member_discount_cents` 落成 Σ(目录价 − 会员价) × 数量 的**留档值**，
+            // 不参与应付（应付 = 行合计 − 券）。因此本列与 gross/activity/coupon 一起满足
+            //     gross − member − activity − coupon = total
+            // 历史上的 ②「把本列当订单级减项再扣一次」已在同批删除，否则等于重复扣减＝少收钱。
+            memberDiscountTotal += (long) Math.max(0, listUnitPrice - memberUnitPrice) * item.quantity();
+            requireCentsInColumnRange("会员优惠合计", memberDiscountTotal);
             grossTotal += (long) listUnitPrice * item.quantity();
             requireCentsInColumnRange("订单原价合计", grossTotal);
             // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且优于当前单价时生效）；
@@ -139,8 +141,9 @@ public class SettlementOrderSupport {
         order.setOriginalAmountCents((int) originalTotal);
         order.setTotalAmountCents((int) total);
         order.setActivityDiscountCents((int) activityDiscountTotal);
-        // MA-023②：只落「原价毛额」这一列（展示/对账用，不参与应付计算）。
-        // 会员折扣的入账刻意留人工决策——见上方注释的两套机制冲突。
+        // MA-029 方案 A：会员优惠留档入账（Σ 目录价 − 会员价 × 数量），配合 V424 的 gross
+        // 让恒等式 gross − member − activity − coupon = total 成立；本列不参与任何应付计算。
+        order.setMemberDiscountCents((int) memberDiscountTotal);
         order.setGrossAmountCents((int) grossTotal);
     }
 
@@ -152,7 +155,13 @@ public class SettlementOrderSupport {
         }
     }
 
-    /** 争议改单后按新明细重算折后应付（保留已绑券/会员折扣字段）。 */
+    /**
+     * 争议改单后按新明细重算折后应付。
+     *
+     * <p>MA-029 方案 A（2026-11-02）：<b>应付 = 行合计 − 券</b>。行金额里的单价已是「会员折后 +
+     * 活动折后」，会员/活动折扣都在行内生效过一次，因此 {@code member_discount_cents} 只作留档
+     * （沿用旧口径夹取，防止脏数据把留档撑爆），<b>不再当订单级减项</b>——再减一次等于重复扣减＝少收钱。
+     */
     void recalculatePayableAfterLineChange(CabinetOrder order) {
         // AU-038 同族：行数多时 mapToInt().sum() 同样会溢出为负，改用 long 累加后夹列域
         long subtotalLong = order.getLines().stream()
@@ -169,14 +178,18 @@ public class SettlementOrderSupport {
         int memberDisc = Math.min(Math.max(0, order.getMemberDiscountCents()),
                 Math.max(0, subtotal - couponDisc));
         order.setMemberDiscountCents(memberDisc);
-        order.setTotalAmountCents(Math.max(0, subtotal - couponDisc - memberDisc));
+        order.setTotalAmountCents(Math.max(0, subtotal - couponDisc));
     }
 
     /**
      * CB-045 拍板（2026-10-15 政府消费券式 + 比例摊）：部分退应付 = 比例摊。
-     * 券抵扣与会员折扣都按 oldSubtotal→newSubtotal 比例缩减（每元固定摊销、不重算门槛），
+     * 券抵扣按 oldSubtotal→newSubtotal 比例缩减（每元固定摊销、不重算门槛），
      * 券是否返还由 {@link CouponService#settleAfterPartialRefund} 按全额/部分分流处理。
      * 与争议改单的 {@link #recalculatePayableAfterLineChange}（门槛重算式）刻意分开——两链路口径不同。
+     *
+     * <p>MA-029 方案 A（2026-11-02）：应付 = <b>剩余行合计 − 券</b>；会员/活动折扣都在行金额里
+     * 已经生效，不再作为订单级减项。会员档仍按同一比例缩减<b>只为留档</b>，让「退款后优惠拆解」
+     * 与剩余商品规模相称。
      */
     void applyProportionalRefundPayable(CabinetOrder order, int oldSubtotal, int newSubtotal) {
         int safeOld = Math.max(0, oldSubtotal);
@@ -189,7 +202,7 @@ public class SettlementOrderSupport {
         int memberDisc = scaleDiscountForPartialRefund(Math.max(0, order.getMemberDiscountCents()),
                 safeOld, safeNew);
         order.setMemberDiscountCents(memberDisc);
-        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc - memberDisc));
+        order.setTotalAmountCents(Math.max(0, safeNew - couponDisc));
     }
 
     /** 比例摊缩放（纯数学）：优惠 × (剩余原价/原价总额)，只减不增。 */
