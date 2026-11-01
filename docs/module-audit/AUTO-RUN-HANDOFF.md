@@ -14,6 +14,11 @@
   `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -At -c "select max(version::int) from flyway_schema_history where success;"`
   （下一个空号也请按这条现算，别照抄本行）
 - 工作树必须干净才动共享容器；脏树时**逐文件归因**，别把别人的未提交源码烤进产物。
+- 微信开发者工具报 `getRootFactory Not Define Env`（点预览时）＝**编译缓存陈旧**，与仓库代码无关：
+  `cli.bat cache --clean compile --project <dist/dev/mp-weixin>` 后 `cli.bat preview --project <同路径> --qr-format terminal` 即通过
+  （2026-11-02 商户端/消费端各验一次，35/23 页均编译成功）。自动化实例（`cli auto --auto-port 9420/9421`）里点预览尤其容易撞上。
+- 🔴 迁移文件里**禁止**出现美元符+花括号的模板字面量：Flyway 连注释一起做占位符替换，会让 trade 启动即失败（lessons #370）。
+  原地修一条「已入 dev 但从未成功应用」的迁移是允许的，但必须在提交信息与 lessons 留证据（#371）；否则一律「保留旧文件 + 新增迁移」。
 
 ## 1. 第一优先：MA-029 落地（✅ 已于 2026-11-02 值守批落地，勿重做；下面是当时的口径与连带面清单，供 R10/R11 复核）
 
