@@ -90,6 +90,12 @@ export function useAnnouncementDetail(
 ) {
   const loading = ref(true);
   const error = ref('');
+  /**
+   * MA-035：区分「入口没带公告编号」与「公告真的不存在/网络失败」。
+   * 前者重试读的还是那个空 id ⇒ 必然再失败一次，所以此时既不能给「请检查网络后重试」的
+   * 提示，也不能挂重试按钮（同族判据见 device-detail「参数缺失属入口问题，不是网络故障」）。
+   */
+  const missingId = ref(false);
   const item = ref<AnnouncementDto | null>(null);
   let announceId = 0;
 
@@ -97,9 +103,11 @@ export function useAnnouncementDetail(
     if (typeof id === 'number') announceId = id;
     if (!announceId) {
       loading.value = false;
-      error.value = '公告不存在';
+      missingId.value = true;
+      error.value = '缺少公告编号';
       return;
     }
+    missingId.value = false;
     loading.value = !item.value;
     error.value = '';
     try {
@@ -134,6 +142,7 @@ export function useAnnouncementDetail(
   return {
     loading,
     error,
+    missingId,
     item,
     load,
     formatTime,

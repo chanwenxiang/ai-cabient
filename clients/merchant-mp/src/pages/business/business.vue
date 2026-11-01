@@ -41,8 +41,10 @@
               >
             </view>
             <view class="hero-meta">
-              <text>客单 {{ money(analytics.avgOrderValueCents) }}</text>
-              <text>件均 {{ money(analytics.avgUnitPriceCents) }}</text>
+              <!-- MA-034：两个数的分子本来就不同（客单取实付合计、件均取行原价），
+                   不标注会让商户拿「营收 ÷ 单数」去核客单而算不平。 -->
+              <text>客单(实付) {{ money(analytics.avgOrderValueCents) }}</text>
+              <text>件均(原价) {{ money(analytics.avgUnitPriceCents) }}</text>
             </view>
             <view v-if="hasRevenueChange || hasMarginChange" class="hero-meta">
               <text v-if="hasRevenueChange" :class="changeClass(analytics.revenueChangePct)"

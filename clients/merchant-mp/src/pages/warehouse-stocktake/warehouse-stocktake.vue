@@ -39,10 +39,18 @@
               stocktakeStatusLabel(st.status)
             }}</text>
           </view>
+          <!-- MA-032：明盘单在创建时就把 counted 预填成账面（DB 实证 9 行全 PENDING、
+               counted=book），所以「待录入」态显示「实盘 502 · 差异 0（0 行）」会被读成
+               「已核平无差异」。数字没撒谎，撒谎的是状态语义 ⇒ 未录入时不报差异。 -->
           <text class="sku-meta">
-            {{ stocktakeModeLabel(st.mode) }} · 账面 {{ st.bookQty }} · 实盘
-            {{ st.countedQty ?? '—' }} · 差异 {{ st.diffQty ?? 0 }}（{{ st.diffLineCount ?? 0 }}
-            行）
+            {{ stocktakeModeLabel(st.mode) }} · 账面 {{ st.bookQty }} ·
+            <template v-if="st.status === 'DRAFT'">实盘 未录入（默认同账面）</template>
+            <template v-else
+              >实盘 {{ st.countedQty ?? '—' }} · 差异 {{ st.diffQty ?? 0 }}（{{
+                st.diffLineCount ?? 0
+              }}
+              行）</template
+            >
           </text>
           <text class="sku-meta">{{ fmtTime(st.createdAt) }}</text>
         </view>

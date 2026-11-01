@@ -67,7 +67,7 @@
             <view class="sku-main">
               <text class="sku-name">{{ skuTitleWithQty(r.dimLabel || r.dimKey, r.qty) }}</text>
               <text class="sku-rec"
-                >{{ r.orderCount || 0 }}单 · 客单 {{ money(rowAov(r)) }} · 毛利
+                >{{ r.orderCount || 0 }}单 · 单均原价 {{ money(rowAov(r)) }} · 毛利
                 {{ money(r.marginCents) }}</text
               >
             </view>

@@ -3,7 +3,13 @@
     <app-nav-bar title="公告详情" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading && !item" class="card state">{{ UI_COPY.loading }}</view>
-      <error-state v-else-if="error && !item" :title="error" @retry="() => load()" />
+      <error-state
+        v-else-if="error && !item"
+        :title="error"
+        :hint="missingId ? '请从「通知公告」列表点开一条公告' : '请检查网络后重试'"
+        :show-retry="!missingId"
+        @retry="() => load()"
+      />
       <view v-else-if="item" class="card article">
         <view class="meta">
           <text
@@ -28,7 +34,7 @@ import { useAnnouncementDetail } from '@aicabinet/shared-uni/announcements';
 import { merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
-const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
+const { loading, error, missingId, item, load, formatTime, priorityLabel, priorityClass } =
   useAnnouncementDetail((id) => merchantApi.getAnnouncement(id));
 
 onLoad((query) => {

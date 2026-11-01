@@ -4,7 +4,10 @@
     <view v-if="loading && !item" class="state">{{ UI_COPY.loading }}</view>
     <view v-else-if="error && !item" class="state">
       <text class="err">{{ error }}</text>
-      <app-button label="重试" @click="() => load()" />
+      <!-- MA-035：没带公告编号时「重试」读的还是同一个空 id，永远不可能成功 ⇒ 不给重试，改成指路 -->
+      <text v-if="missingId" class="hint">请从「通知公告」列表点开一条公告</text>
+      <app-button v-if="!missingId" label="重试" @click="() => load()" />
+      <app-button v-else label="返回公告列表" @click="goList" />
     </view>
     <view v-else-if="item" class="article">
       <view class="meta">
@@ -32,8 +35,15 @@ import { useAnnouncementDetail } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
-const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
+const { loading, error, missingId, item, load, formatTime, priorityLabel, priorityClass } =
   useAnnouncementDetail((id) => consumerApi.getAnnouncement(id));
+
+function goList() {
+  uni.redirectTo({
+    url: '/pages/announcements/announcements',
+    fail: () => uni.reLaunch({ url: '/pages/announcements/announcements' })
+  });
+}
 
 function typeLabel(t?: string) {
   const v = String(t || '').toUpperCase();
@@ -74,6 +84,11 @@ onLoad((query) => {
 }
 .err {
   color: var(--color-danger);
+  text-align: center;
+}
+.hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
   text-align: center;
 }
 .retry {
