@@ -18,6 +18,18 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
      * c0=day(yyyy-MM-DD)，c1=qty，c2=salesCents，c3=cogsCents，c4=orderCount。
      * deviceIds：null=不过滤；空集合=无可见设备（上层短路）；单元素=指定设备。
      */
+    /**
+     * v1 活动核销限制（CB-082）：统计某活动已核销的订单数；userId 非空时只算该用户。
+     * 订单行带 activity_id 即视为该活动已核销。
+     */
+    @org.apache.ibatis.annotations.Select("""
+        SELECT COUNT(DISTINCT l.order_id) FROM cabinet_order_line l
+        WHERE l.activity_id = #{activityId}
+          AND (#{userId} IS NULL OR EXISTS (
+                SELECT 1 FROM cabinet_order o WHERE o.order_id = l.order_id AND o.user_id = #{userId}))
+        """)
+    long countOrdersForActivity(@Param("activityId") Long activityId, @Param("userId") Long userId);
+
     List<LinkedHashMap<String, Object>> selectMerchantBillSalesByDay(
             @Param("merchantIds") Collection<String> merchantIds,
             @Param("start") Instant start,

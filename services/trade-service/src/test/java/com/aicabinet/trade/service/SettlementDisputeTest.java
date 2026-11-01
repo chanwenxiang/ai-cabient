@@ -75,7 +75,7 @@ class SettlementDisputeTest {
         SettlementOrderSupport orderSupport = new SettlementOrderSupport(
                 skuCatalogRepository, orderRepository, orderLineRepository, slotRepository,
                 skuPricingService, memberService, couponService, null,
-                revenueSplitService, orderPaymentService, systemConfigService, orderViewAssembler);
+                revenueSplitService, orderPaymentService, systemConfigService, orderViewAssembler, null);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,
                 null, null, null, null, null,

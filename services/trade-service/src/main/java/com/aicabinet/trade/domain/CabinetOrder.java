@@ -64,6 +64,9 @@ public class CabinetOrder {
 
     private int couponDiscountCents;
 
+    /** v1 活动优惠合计（CB-082）：命活动价的订单不再用券 */
+    private int activityDiscountCents;
+
     private int memberDiscountCents;
 
     private Long promotionId;

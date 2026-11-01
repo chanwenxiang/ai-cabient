@@ -52,7 +52,7 @@ class SettlementPartialRefundTest {
         SettlementOrderSupport orderSupport = new SettlementOrderSupport(
                 null, orderRepository, orderLineRepository, null,
                 null, null, couponService, null,
-                revenueSplitService, orderPaymentService, null, orderViewAssembler);
+                revenueSplitService, orderPaymentService, null, orderViewAssembler, null);
         settlementService = new SettlementService(
                 null, orderRepository,
                 null, null, null, null, null,

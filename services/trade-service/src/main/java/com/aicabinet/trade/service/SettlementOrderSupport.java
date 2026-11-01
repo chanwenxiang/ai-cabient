@@ -42,6 +42,8 @@ public class SettlementOrderSupport {
     private final OrderPaymentService orderPaymentService;
     private final SystemConfigService systemConfigService;
     private final OrderViewAssembler orderViewAssembler;
+    /** v1 活动定价（CB-082）；单测里常为 null（不启用活动价） */
+    private final PromotionPricingService promotionPricingService;
 
     public SettlementOrderSupport(SkuCatalogMapper skuCatalogRepository,
                                   CabinetOrderMapper orderRepository,
@@ -54,7 +56,8 @@ public class SettlementOrderSupport {
                                   RevenueSplitService revenueSplitService,
                                   OrderPaymentService orderPaymentService,
                                   SystemConfigService systemConfigService,
-                                  OrderViewAssembler orderViewAssembler) {
+                                  OrderViewAssembler orderViewAssembler,
+                                  PromotionPricingService promotionPricingService) {
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
@@ -67,12 +70,15 @@ public class SettlementOrderSupport {
         this.orderPaymentService = orderPaymentService;
         this.systemConfigService = systemConfigService;
         this.orderViewAssembler = orderViewAssembler;
+        this.promotionPricingService = promotionPricingService;
     }
 
     void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         long total = 0;
+        long originalTotal = 0;
+        long activityDiscountTotal = 0;
         for (RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -82,6 +88,20 @@ public class SettlementOrderSupport {
             // 而少一次重载改动能把改动面收敛在定价服务内部，不动结算链的既有测试桩。
             int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
             unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
+            // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且优于当前单价时生效）；
+            // 订单头记 activity_discount_cents ⇒ 结算据此**禁用券**（活动优先）。
+            java.util.Optional<PromotionPricingService.Applied> activity =
+                    promotionPricingService == null ? java.util.Optional.empty()
+                            : promotionPricingService.resolveUnitPrice(
+                                    order.getUserId(), order.getDeviceId(), sku.getSkuId(), unitPrice);
+            int baseUnitPrice = unitPrice;
+            Long lineActivityId = null;
+            long lineActivityDiscount = 0;
+            if (activity.isPresent()) {
+                lineActivityId = activity.get().activityId();
+                unitPrice = activity.get().unitPriceCents();
+                lineActivityDiscount = (long) activity.get().discountPerUnitCents() * item.quantity();
+            }
             // AU-038：金额一律按 long 算再夹进列域（int 分）。此前 unitPrice * quantity 是
             // int 乘法，上报侧 quantity 无上界 ⇒ 溢出为负的行金额/合计，而 chargeOrder 见负额
             // 直接跳过扣款并标 PAID（等于零元白拿），故必须在写入前拒绝。
@@ -89,6 +109,9 @@ public class SettlementOrderSupport {
             requireCentsInColumnRange("订单行金额（SKU " + item.skuId() + "）", lineAmount);
             total += lineAmount;
             requireCentsInColumnRange("订单合计", total);
+            originalTotal += (long) baseUnitPrice * item.quantity();
+            requireCentsInColumnRange("订单原价合计", originalTotal);
+            activityDiscountTotal += lineActivityDiscount;
 
             CabinetOrderLine line = new CabinetOrderLine();
             line.setSkuId(sku.getSkuId());
@@ -96,13 +119,16 @@ public class SettlementOrderSupport {
             line.setQuantity(item.quantity());
             line.setUnitPriceCents(unitPrice);
             line.setLineAmountCents((int) lineAmount);
+            line.setActivityId(lineActivityId);
+            line.setActivityDiscountCents((int) lineActivityDiscount);
             line.setUnitCostCents(sku.getPurchaseCostCents());
             line.setConfidence(item.confidence());
             line.setSlotId(slotBySku.get(sku.getSkuId()));
             order.addLine(line);
         }
-        order.setOriginalAmountCents((int) total);
+        order.setOriginalAmountCents((int) originalTotal);
         order.setTotalAmountCents((int) total);
+        order.setActivityDiscountCents((int) activityDiscountTotal);
     }
 
     /** 金额列域是 int（分）：越界即已溢出风险，显式 400 拒绝而不是写负额落库（AU-038）。 */

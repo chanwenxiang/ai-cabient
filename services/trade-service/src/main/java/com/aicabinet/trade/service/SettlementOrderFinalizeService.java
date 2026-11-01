@@ -81,7 +81,10 @@ public class SettlementOrderFinalizeService {
                                  List<RecognizedItem> items) {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
-        CouponService.BestCoupon appliedCoupon = selectBestCouponForOrder(order);
+        // v1 活动（CB-082）：命中活动价的订单**禁用券**（用户 2026-11-01 拍板：活动优先）
+        CouponService.BestCoupon appliedCoupon = order.getActivityDiscountCents() > 0
+                ? null
+                : selectBestCouponForOrder(order);
         boolean unpaid = detectUnpaidBeforeCharge(session, order);
         if (unpaid) {
             appliedCoupon = null;

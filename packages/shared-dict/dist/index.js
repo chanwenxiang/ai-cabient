@@ -270,7 +270,11 @@ export const DICT = {
         BUY_GIFT: '买赠',
         SECOND_HALF: '第二件半价',
         NEW_USER: '新客',
-        POINTS: '积分'
+        POINTS: '积分',
+        // v1 可执行的 SKU 级活动（CB-082）
+        SKU_REDUCE: '商品立减',
+        SKU_DISCOUNT: '商品折扣',
+        SKU_FIXED_PRICE: '一口价'
     },
     coupon_type: {
         AMOUNT_OFF: '满减券',

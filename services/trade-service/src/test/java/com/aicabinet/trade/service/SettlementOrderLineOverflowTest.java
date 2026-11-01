@@ -55,7 +55,7 @@ class SettlementOrderLineOverflowTest {
         support = new SettlementOrderSupport(
                 skuCatalogRepository, orderRepository, orderLineRepository, slotRepository,
                 skuPricingService, memberService, couponService, null,
-                revenueSplitService, orderPaymentService, systemConfigService, new OrderViewAssembler());
+                revenueSplitService, orderPaymentService, systemConfigService, new OrderViewAssembler(), null);
     }
 
     private void givenPrice(int unitPriceCents) {

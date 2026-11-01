@@ -27,6 +27,10 @@ public class CabinetOrderLine {
 
     private int lineAmountCents;
 
+    /** v1 活动留痕（CB-082）：命中的活动与行优惠额 */
+    private Long activityId;
+    private int activityDiscountCents;
+
     private Float confidence;
 
     private String batchNo;

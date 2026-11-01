@@ -33,6 +33,11 @@ public class PromotionActivity {
 
     private int userLimit = 1;
 
+    /** v1 活动定价参数（按 activity_type 取其一；CB-082） */
+    private Integer reduceCents;
+    private Integer discountBps;
+    private Integer fixedPriceCents;
+
     private String deviceScope = "ALL";
 
     @TableField(typeHandler = JsonStringTypeHandler.class)

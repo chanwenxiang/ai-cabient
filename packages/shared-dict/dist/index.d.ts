@@ -254,6 +254,9 @@ export declare const DICT: {
         readonly SECOND_HALF: "第二件半价";
         readonly NEW_USER: "新客";
         readonly POINTS: "积分";
+        readonly SKU_REDUCE: "商品立减";
+        readonly SKU_DISCOUNT: "商品折扣";
+        readonly SKU_FIXED_PRICE: "一口价";
     };
     readonly coupon_type: {
         readonly AMOUNT_OFF: "满减券";
