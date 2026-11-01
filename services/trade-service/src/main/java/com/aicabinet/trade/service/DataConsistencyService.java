@@ -1560,13 +1560,20 @@ public class DataConsistencyService {
         int lineCount = queryInt(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
                 orderId);
+        // MA-023②前置拆雷：`line_amount_cents` 存的是**会员折后 + 活动折后**的单价 × 数量，
+        // 会员折扣已经含在行金额里；再减一次 `member_discount_cents` 是重复扣减。
+        // 此前该列恒 0（全仓无写入者）所以公式看着对；一旦结算开始真实入账会员折扣，
+        // 这条 `payableFromLines` 会立刻偏小，并把下面的自动修复逻辑带偏 ⇒ 先把口径改对。
         return new OrderAmountSnapshot(header, paid, lineSum, couponDiscountCents, memberDiscountCents,
-                lineSum - couponDiscountCents - memberDiscountCents, lineCount);
+                lineSum - couponDiscountCents, lineCount);
     }
 
     private FixOutcome tryClearStaleCouponMismatch(String orderId, OrderAmountSnapshot snap) {
+        // 本分支治的是「**券**字段残留」：paid==header==lineSum 说明券从未真正扣过，而头里还挂着
+        // coupon_discount_cents。会员折扣不是残留字段（它含在行金额里、且合法 >0），
+        // 不能因为 member>0 就触发这条清理，否则会把合法的会员折扣一起抹成 0。
         if (snap.paid() == snap.header() && snap.paid() == snap.lineSum()
-                && (snap.couponDiscountCents() > 0 || snap.memberDiscountCents() > 0)
+                && snap.couponDiscountCents() > 0
                 && snap.payableFromLines() != snap.header()) {
             return clearStaleCouponFields(orderId, snap.couponDiscountCents(), snap.memberDiscountCents());
         }

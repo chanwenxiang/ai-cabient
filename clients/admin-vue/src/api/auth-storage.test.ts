@@ -27,7 +27,8 @@ describe('auth-storage · MA-020 登出抹掉历史口令', () => {
       admin_token_expires: '999',
       admin_permissions: '[]',
       admin_active_nav: '[]',
-      admin_password: Buffer.from('123456').toString('base64'),
+      // btoa('123456') 的产物；这里只是历史遗留值，测试不依赖它能解回什么
+      admin_password: 'MTIzNDU2',
       admin_remember_password: '1',
       admin_remember_phone: '1',
       admin_phone: '13900000001'
