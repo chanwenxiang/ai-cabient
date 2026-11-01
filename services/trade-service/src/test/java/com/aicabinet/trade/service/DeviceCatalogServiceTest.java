@@ -55,13 +55,16 @@ class DeviceCatalogServiceTest {
     private MerchantSkuPricingService skuPricingService;
     @Mock
     private SysDictService sysDictService;
+    @Mock
+    private PromotionPricingService promotionPricingService;
 
     private DeviceCatalogService service;
 
     @BeforeEach
     void setUp() {
         service = new DeviceCatalogService(
-                inventoryRepository, lotRepository, skuCatalogRepository, skuPricingService, sysDictService);
+                inventoryRepository, lotRepository, skuCatalogRepository, skuPricingService, sysDictService,
+                promotionPricingService);
     }
 
     @Test

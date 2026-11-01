@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.MarketingBannerDto;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
+import com.aicabinet.trade.mapper.PromotionPlacementMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,8 @@ class ConsumerMarketingBannersTest {
     @Mock private CouponService couponService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ApiRateLimitService apiRateLimitService;
+    @Mock private PromotionPlacementMapper placementRepository;
+    @Mock private PromotionPricingService promotionPricingService;
 
     private ConsumerMarketingService service;
 
@@ -41,7 +44,8 @@ class ConsumerMarketingBannersTest {
     void setUp() {
         service = new ConsumerMarketingService(promotionService, adCampaignService, activityRepository,
                 couponDefinitionRepository, userCouponRepository, couponService, distributedLockService,
-                apiRateLimitService, "/pages/coupons/coupons");
+                apiRateLimitService, placementRepository, promotionPricingService,
+                "/pages/coupons/coupons");
     }
 
     @Test

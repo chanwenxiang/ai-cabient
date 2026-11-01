@@ -214,6 +214,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PromotionPricingMapperIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        '钉 CB-082 活动定价/展示位 SQL —— rule_config JSONB 的数组包含判断最初用 `?` 运算符，' +
+        '被 MyBatis 当 JDBC 占位符（“No value specified for parameter N”），单测全 mock mapper 拦不住；' +
+        '本 IT 在真迁移库上断 ALL/SPECIFIC/MERCHANT 三种范围命中与跨柜/跨 SKU 不命中'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/DictLabelUniquenessIT.java',
     {
       job: 'integration',

@@ -83,12 +83,19 @@
           <text class="sum-label">会员优惠</text>
           <text class="sum-value">减{{ fmtMoney(order.memberDiscountCents) }}</text>
         </view>
+        <view v-if="Number(order.activityDiscountCents ?? 0) > 0" class="sum-row discount">
+          <text class="sum-label">活动优惠</text>
+          <text class="sum-value">减{{ fmtMoney(order.activityDiscountCents) }}</text>
+        </view>
         <view v-if="Number(order.couponDiscountCents ?? 0) > 0" class="sum-row discount">
           <text class="sum-label">优惠券抵扣</text>
           <text class="sum-value">减{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
+        <text v-if="Number(order.activityDiscountCents ?? 0) > 0" class="coupon-hint"
+          >本单已享活动价，不再叠加优惠券</text
+        >
         <text
-          v-if="
+          v-else-if="
             Number(order.couponDiscountCents ?? 0) > 0 || Number(order.memberDiscountCents ?? 0) > 0
           "
           class="coupon-hint"
@@ -167,6 +174,31 @@
       </view>
     </view>
 
+    <!-- CB-082：关门后活动弹窗（运营配置，二选一位置；同活动当天只弹一次） -->
+    <view
+      v-if="popupVisible && afterClosePopup"
+      class="promo-popup-mask"
+      data-testid="promo-popup-after-close"
+      @click="closeAfterClosePopup"
+    >
+      <view class="promo-popup-card" @click.stop="() => {}">
+        <image
+          v-if="popupImageUrl"
+          class="promo-popup-img"
+          :src="popupImageUrl"
+          mode="widthFix"
+          @click="onAfterClosePopupTap"
+        />
+        <text
+          role="button"
+          class="promo-popup-close"
+          aria-label="关闭活动弹窗"
+          @click="closeAfterClosePopup"
+          >×</text
+        >
+      </view>
+    </view>
+
     <OrderAppealSheet
       :visible="showDispute"
       surface="result"
@@ -192,7 +224,9 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess, showConfirm, requestOrderSubscribe } from '@/utils/notify';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { consumerApi } from '@/utils/consumer-api';
+import { consumerApi, type MarketingPopup } from '@/utils/consumer-api';
+import { absoluteImageUrl } from '@/utils/product-thumb';
+import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { fmtMoney, formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
@@ -230,6 +264,51 @@ const error = ref('');
 const recognizing = ref(false);
 const order = ref<OrderDetailDto | null>(null);
 const statusLabel = ref('');
+
+/**
+ * CB-082：关门后活动弹窗。与开门前弹窗互斥（后台配置端保证）；
+ * 同一活动每天最多弹一次，失败静默不影响账单页。
+ */
+const afterClosePopup = ref<MarketingPopup | null>(null);
+const popupVisible = ref(false);
+const popupImageUrl = computed(() => absoluteImageUrl(afterClosePopup.value?.imageUrl));
+const POPUP_SEEN_PREFIX = 'promoPopupAfterCloseSeen:';
+let popupChecked = false;
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+async function maybeShowAfterClosePopup(device?: string) {
+  if (popupChecked) return;
+  popupChecked = true;
+  try {
+    const list = await consumerApi.marketingPopups('POPUP_AFTER_CLOSE', device || undefined);
+    const popup = (list || [])[0];
+    if (!popup?.imageUrl) return;
+    if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
+    afterClosePopup.value = popup;
+    popupVisible.value = true;
+  } catch {
+    // 弹窗失败静默
+  }
+}
+
+function closeAfterClosePopup() {
+  if (afterClosePopup.value) {
+    uni.setStorageSync(POPUP_SEEN_PREFIX + afterClosePopup.value.activityId, todayKey());
+  }
+  popupVisible.value = false;
+}
+
+function onAfterClosePopupTap() {
+  const target = afterClosePopup.value?.ctaPath;
+  closeAfterClosePopup();
+  if (target && isSafeCampaignPath(target)) {
+    openCampaignPath(target);
+  }
+}
 const statusTone = computed(() => {
   const s = (order.value?.status || '').toUpperCase();
   if (s === 'DISPUTED') return 'warn';
@@ -456,6 +535,10 @@ function applyOrderSnapshot(next: OrderDetailDto) {
   if (next?.status === 'REFUNDED') {
     refundDone.value = true;
     disputeFiled.value = true;
+  }
+  // 账单已出（终态）才弹「关门后」活动窗，避免在识别中途打断
+  if (isOrderTerminal(next?.status)) {
+    void maybeShowAfterClosePopup(next?.deviceId || deviceId.value);
   }
 }
 
@@ -1071,5 +1154,43 @@ function goHelp() {
  */
 .btn-slot {
   margin-top: 20rpx;
+}
+
+/* CB-082 关门后活动弹窗 */
+.promo-popup-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.55);
+  padding: 60rpx 48rpx;
+  box-sizing: border-box;
+}
+.promo-popup-card {
+  position: relative;
+  width: 100%;
+  max-width: 640rpx;
+  border-radius: var(--radius-card, 24rpx);
+  overflow: hidden;
+  background: var(--card-bg, #ffffff);
+}
+.promo-popup-img {
+  display: block;
+  width: 100%;
+}
+.promo-popup-close {
+  position: absolute;
+  top: 12rpx;
+  right: 16rpx;
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.45);
+  color: #ffffff;
+  font-size: 32rpx;
 }
 </style>

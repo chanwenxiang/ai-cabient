@@ -258,6 +258,12 @@ export declare const DICT: {
         readonly SKU_DISCOUNT: "商品折扣";
         readonly SKU_FIXED_PRICE: "一口价";
     };
+    /** 活动展示位（CB-082）：banner 必选，两个弹窗位互斥 */
+    readonly promotion_placement_position: {
+        readonly BANNER: "轮播横幅";
+        readonly POPUP_BEFORE_OPEN: "开门前弹窗";
+        readonly POPUP_AFTER_CLOSE: "关门后弹窗";
+    };
     readonly coupon_type: {
         readonly AMOUNT_OFF: "满减券";
         readonly PERCENT_OFF: "折扣券";

@@ -11,5 +11,9 @@ public record DeviceProductDto(
         int quantity,
         String imageUrl,
         String category,
-        String description
+        String description,
+        /** CB-082：命中的活动价（分，已取最优活动）；无活动为 null。 */
+        Integer activityPriceCents,
+        /** CB-082：命中的活动 id；无活动为 null。 */
+        Long activityId
 ) {}

@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.common.dto.MarketingBannerDto;
 import com.aicabinet.common.dto.MarketingCampaignDto;
+import com.aicabinet.common.dto.MarketingPopupDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.SessionCookieService;
@@ -49,6 +50,17 @@ public class MarketingController {
     public ApiResponse<List<MarketingBannerDto>> banners(
             @RequestParam(name = "deviceId", required = false) String deviceId) {
         return ApiResponse.ok(marketingService.banners(deviceId));
+    }
+
+    /**
+     * 活动弹窗（CB-082）：position=POPUP_BEFORE_OPEN（开门前）/ POPUP_AFTER_CLOSE（关门后）。
+     * 游客可见（与 banners 同口径）；两个弹窗位在配置端互斥，接口最多返回 1 条。
+     */
+    @GetMapping("/popups")
+    public ApiResponse<List<MarketingPopupDto>> popups(
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "position") String position) {
+        return ApiResponse.ok(marketingService.popups(deviceId, position));
     }
 
     /**

@@ -29,6 +29,7 @@ public final class OrderReadModelFixtures {
                 totalAmountCents,
                 0,
                 0,
+                0,
                 status,
                 "BALANCE",
                 0,

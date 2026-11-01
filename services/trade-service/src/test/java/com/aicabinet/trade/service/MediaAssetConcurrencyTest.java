@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.UpsertMediaAssetRequest;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
+import com.aicabinet.trade.mapper.PromotionPlacementMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,7 @@ class MediaAssetConcurrencyTest {
 
     @Mock private MediaAssetMapper assetRepository;
     @Mock private AdCampaignItemMapper campaignItemMapper;
+    @Mock private PromotionPlacementMapper placementMapper;
     @Mock private MinioVideoService minioVideoService;
     @Mock private DistributedLockService distributedLockService;
 
@@ -29,7 +31,7 @@ class MediaAssetConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new MediaAssetService(assetRepository, campaignItemMapper, minioVideoService, distributedLockService);
+        service = new MediaAssetService(assetRepository, campaignItemMapper, placementMapper, minioVideoService, distributedLockService);
     }
 
     @Test

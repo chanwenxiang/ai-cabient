@@ -89,6 +89,23 @@ aicabinet:
   checkout:
     balance-only: ${CHECKOUT_BALANCE_ONLY:false}
     preauth-cents: ${CHECKOUT_PREAUTH_CENTS:2000}
+  # CB-082 活动展示位图片尺寸口径（前后端同值；后台配置只做即时提示，服务端按素材真实像素校验）
+  promotion:
+    placement:
+      banner:
+        min-width: ${PROMO_BANNER_MIN_WIDTH:600}
+        max-width: ${PROMO_BANNER_MAX_WIDTH:2000}
+        min-height: ${PROMO_BANNER_MIN_HEIGHT:200}
+        max-height: ${PROMO_BANNER_MAX_HEIGHT:800}
+        min-aspect: ${PROMO_BANNER_MIN_ASPECT:1.8}
+        max-aspect: ${PROMO_BANNER_MAX_ASPECT:3.5}
+      popup:
+        min-width: ${PROMO_POPUP_MIN_WIDTH:600}
+        max-width: ${PROMO_POPUP_MAX_WIDTH:1500}
+        min-height: ${PROMO_POPUP_MIN_HEIGHT:800}
+        max-height: ${PROMO_POPUP_MAX_HEIGHT:2000}
+        min-aspect: ${PROMO_POPUP_MIN_ASPECT:0.5}
+        max-aspect: ${PROMO_POPUP_MAX_ASPECT:0.9}
   fee-bill:
     # 每月自动出账（租金+流量费）；账期默认=配置时区下「今天+offset」个月
     auto-generate-enabled: ${FEE_BILL_AUTO_GENERATE_ENABLED:true}

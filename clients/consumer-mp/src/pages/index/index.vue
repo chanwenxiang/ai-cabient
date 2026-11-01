@@ -171,6 +171,11 @@
               <text v-if="!specRedundant(p.skuName, p.spec)" class="product-spec">{{
                 p.spec
               }}</text>
+              <!-- CB-082：命中活动价的商品打「活动价」标并回显原价 -->
+              <view v-if="activityPriceOf(p)" class="product-activity">
+                <text class="product-activity-tag">活动价</text>
+                <text class="product-origin-price">原价 {{ fmtMoney(p.priceCents) }}</text>
+              </view>
               <!--
                 微信支付分品牌标签（CB-067 /《微信支付分合作品牌线上应用规范》P14）：
                 商品展示页的标签用于「强调权益感知、驱动开通决策」。
@@ -401,6 +406,31 @@
       </view>
     </view>
 
+    <!-- CB-082：开门前活动弹窗（运营配置，二选一位置；同活动当天只弹一次） -->
+    <view
+      v-if="popupVisible && beforeOpenPopup"
+      class="promo-popup-mask"
+      data-testid="promo-popup-before-open"
+      @click="closeBeforeOpenPopup"
+    >
+      <view class="promo-popup-card" @click.stop="noop">
+        <image
+          v-if="popupImageUrl"
+          class="promo-popup-img"
+          :src="popupImageUrl"
+          mode="widthFix"
+          @click="onBeforeOpenPopupTap"
+        />
+        <text
+          role="button"
+          class="promo-popup-close"
+          aria-label="关闭活动弹窗"
+          @click="closeBeforeOpenPopup"
+          >×</text
+        >
+      </view>
+    </view>
+
     <PrivacyConsentModal
       :visible="showPrivacy"
       policy-url="/pages/policy/detail?type=privacy"
@@ -433,7 +463,8 @@ import {
   clearOpenAttempt,
   consumerApi,
   ensureConsumerAuth,
-  isConsumerLoggedIn
+  isConsumerLoggedIn,
+  type MarketingPopup
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { applyTabBarSkin } from '@/utils/tabbar-skin';
@@ -493,7 +524,8 @@ import {
   seedConsumerFlags
 } from '@/utils/feature-flags';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
-import { productGlyph, productThumb } from '@/utils/product-thumb';
+import { absoluteImageUrl, productGlyph, productThumb } from '@/utils/product-thumb';
+import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { hapticLight, hapticMedium } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
@@ -669,6 +701,55 @@ const detailVisible = ref(false);
  * fail-closed：默认 false ⇒ 首页不渲染广告位，与接入前完全一致。
  */
 const adBannerVisible = ref(false);
+
+/**
+ * CB-082：开门前活动弹窗。运营在后台按活动配置（与关门后弹窗互斥）；
+ * 同一活动每天最多弹一次（本地存储记日期），失败静默不打扰开门主流程。
+ */
+const beforeOpenPopup = ref<MarketingPopup | null>(null);
+const popupVisible = ref(false);
+const popupImageUrl = computed(() => absoluteImageUrl(beforeOpenPopup.value?.imageUrl));
+const POPUP_SEEN_PREFIX = 'promoPopupSeen:';
+let popupChecked = false;
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+async function maybeShowBeforeOpenPopup() {
+  if (popupChecked || !showLanding.value || showPrivacy.value) return;
+  popupChecked = true;
+  try {
+    const list = await consumerApi.marketingPopups(
+      'POPUP_BEFORE_OPEN',
+      deviceId.value || undefined
+    );
+    const popup = (list || [])[0];
+    if (!popup?.imageUrl) return;
+    if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
+    beforeOpenPopup.value = popup;
+    popupVisible.value = true;
+  } catch {
+    // 弹窗失败静默：不得阻塞扫码开门
+  }
+}
+
+function closeBeforeOpenPopup() {
+  if (beforeOpenPopup.value) {
+    uni.setStorageSync(POPUP_SEEN_PREFIX + beforeOpenPopup.value.activityId, todayKey());
+  }
+  popupVisible.value = false;
+}
+
+function onBeforeOpenPopupTap() {
+  const target = beforeOpenPopup.value?.ctaPath;
+  closeBeforeOpenPopup();
+  if (target && isSafeCampaignPath(target)) {
+    openCampaignPath(target);
+  }
+}
+
 /** 当前打开详情的商品（null = 弹层关闭）。 */
 const detailProduct = ref<DeviceProduct | null>(null);
 const openingSeconds = ref(90);
@@ -1067,6 +1148,7 @@ onShow(async () => {
   refreshLandingPad();
   await loadConsumerConfig();
   if (seq !== showSeq) return;
+  void maybeShowBeforeOpenPopup();
   await ensureConsumerAuth();
   if (seq !== showSeq) return;
   if (isConsumerLoggedIn()) {
@@ -1130,7 +1212,21 @@ function showThumb(p: DeviceProduct) {
  */
 function productPriceLabel(p: DeviceProduct) {
   const unit = (p.unit || '').trim() || '件';
-  return `${fmtMoney(p.priceCents)}/${unit}`;
+  return `${fmtMoney(effectivePriceCents(p))}/${unit}`;
+}
+
+/** CB-082：活动价（分）；无活动或活动价不低于原价时按原价。 */
+function effectivePriceCents(p: DeviceProduct) {
+  const activity = Number(p.activityPriceCents);
+  if (Number.isFinite(activity) && activity > 0 && activity < p.priceCents) {
+    return activity;
+  }
+  return p.priceCents;
+}
+
+function activityPriceOf(p: DeviceProduct) {
+  const activity = Number(p.activityPriceCents);
+  return Number.isFinite(activity) && activity > 0 && activity < p.priceCents ? activity : 0;
 }
 
 async function resetDevice() {
@@ -1896,7 +1992,7 @@ const selectedAmountCents = computed(() => {
   let total = 0;
   for (const [skuId, qty] of Object.entries(selected.value)) {
     const p = byId.get(skuId);
-    if (p) total += p.priceCents * qty;
+    if (p) total += effectivePriceCents(p) * qty;
   }
   return total;
 });
@@ -1912,8 +2008,8 @@ const selectedLines = computed<LiveCartSheetLine[]>(() => {
       skuId,
       skuName: p.skuName,
       quantity: qty,
-      unitPriceCents: p.priceCents,
-      lineAmountCents: p.priceCents * qty,
+      unitPriceCents: effectivePriceCents(p),
+      lineAmountCents: effectivePriceCents(p) * qty,
       imageUrl: productThumb(p),
       glyph: productGlyph(p)
     });
@@ -3033,6 +3129,67 @@ function stopDevicePoll() {
   color: var(--text-subtle, #888);
   text-align: center;
   line-height: 1.5;
+}
+
+/* CB-082 活动价标（商品卡） */
+.product-activity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  margin-top: 4rpx;
+}
+.product-activity-tag {
+  padding: 2rpx 10rpx;
+  border-radius: var(--radius-pill, 999rpx);
+  background: #fef3c7;
+  color: #b45309;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1.4;
+}
+.product-origin-price {
+  font-size: var(--font-size-xs);
+  color: var(--text-subtle, #9ca3af);
+  text-decoration: line-through;
+}
+
+/* CB-082 开门前活动弹窗 */
+.promo-popup-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.55);
+  padding: 60rpx 48rpx;
+  box-sizing: border-box;
+}
+.promo-popup-card {
+  position: relative;
+  width: 100%;
+  max-width: 640rpx;
+  border-radius: var(--radius-card, 24rpx);
+  overflow: hidden;
+  background: var(--card-bg, #ffffff);
+}
+.promo-popup-img {
+  display: block;
+  width: 100%;
+}
+.promo-popup-close {
+  position: absolute;
+  top: 12rpx;
+  right: 16rpx;
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 44rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.45);
+  color: #ffffff;
+  font-size: 32rpx;
 }
 </style>
 

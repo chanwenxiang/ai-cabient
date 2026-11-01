@@ -1047,6 +1047,9 @@ export const AdminEndpoints = {
     `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}/launch`,
   promotionStop: (activityId: string | number) =>
     `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}/stop`,
+  /** CB-082 活动展示位：banner 必选，开门前/关门后弹窗二选一 */
+  promotionPlacements: (activityId: string | number) =>
+    `${API_PREFIX}/ops/promotions/${encodeURIComponent(String(activityId))}/placements`,
 
   announcementsList: (query: URLSearchParams | string) =>
     typeof query === 'string'

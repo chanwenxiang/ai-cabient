@@ -14,5 +14,9 @@ public record PromotionActivityDto(
     int userLimit,
     String deviceScope,
     String ruleConfig,
-    String description
+    String description,
+    /** CB-082 活动定价参数（按 activityType 取其一）。 */
+    Integer reduceCents,
+    Integer discountBps,
+    Integer fixedPriceCents
 ) {}

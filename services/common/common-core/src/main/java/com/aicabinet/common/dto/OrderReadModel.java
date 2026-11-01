@@ -24,6 +24,8 @@ public record OrderReadModel(
         @JsonView(OrderViews.Public.class) int originalAmountCents,
         @JsonView(OrderViews.Public.class) int couponDiscountCents,
         @JsonView(OrderViews.Public.class) int memberDiscountCents,
+        /** CB-082：活动价优惠合计（分）；活动优先禁券，与券抵扣不会同时非零。 */
+        @JsonView(OrderViews.Public.class) int activityDiscountCents,
         @JsonView(OrderViews.Public.class) String status,
         @JsonView(OrderViews.Public.class) String payChannel,
         @JsonView(OrderViews.Public.class) int lineCount,

@@ -10,5 +10,8 @@ public record MediaAssetDto(
         String previewUrl,
         int durationSeconds,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        /** 图片像素尺寸；视频或无法解析时为 null（CB-082 展示位校验用）。 */
+        Integer imageWidth,
+        Integer imageHeight
 ) {}

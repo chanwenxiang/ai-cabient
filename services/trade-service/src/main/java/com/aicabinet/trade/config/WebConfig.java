@@ -77,6 +77,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/public/**",
                         // 营销活动/轮播（游客可见；领券 /claim 仍需登录）
                         "/api/v2/marketing/banners",
+                        "/api/v2/marketing/popups",
                         "/api/v2/marketing/campaigns/active");
     }
 

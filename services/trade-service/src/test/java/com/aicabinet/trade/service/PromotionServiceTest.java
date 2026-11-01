@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.CreatePromotionRequest;
 import com.aicabinet.trade.domain.PromotionActivity;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
+import com.aicabinet.trade.mapper.PromotionPlacementMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,12 +25,14 @@ import static org.mockito.Mockito.*;
 class PromotionServiceTest {
 
     @Mock private PromotionActivityMapper repository;
+    @Mock private PromotionPlacementMapper placementRepository;
     @Mock private DistributedLockService distributedLockService;
     private PromotionService promotionService;
 
     @BeforeEach
     void setUp() {
-        promotionService = new PromotionService(repository, distributedLockService, null);
+        promotionService = new PromotionService(repository, distributedLockService,
+                new PromotionActivityValidator(new ObjectMapper(), placementRepository), null);
         org.springframework.test.util.ReflectionTestUtils.setField(promotionService, "self", promotionService);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
@@ -38,7 +42,8 @@ class PromotionServiceTest {
         var req = new CreatePromotionRequest(
                 "国庆活动", "FULL_REDUCE",
                 Instant.now(), Instant.now().plus(7, ChronoUnit.DAYS),
-                1000000L, 1, "ALL", "{\"threshold\":1000,\"discount\":200}", "测试活动");
+                1000000L, 1, "ALL", "{\"threshold\":1000,\"discount\":200}", "测试活动",
+                null, null, null);
         when(repository.save(any())).thenAnswer(i -> {
             var a = (PromotionActivity) i.getArgument(0);
             a.setActivityId(1L);

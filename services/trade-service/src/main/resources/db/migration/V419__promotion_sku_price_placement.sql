@@ -51,6 +51,12 @@ ALTER TABLE cabinet_order_line
     ADD COLUMN IF NOT EXISTS activity_discount_cents INT NOT NULL DEFAULT 0;
 
 -- 4) 字典：v1 三种可执行类型（既有 6 个类型保留用于历史活动展示）
+-- 🔴 空库必须先有 dict_type 行：字典类型由 SysDictBootstrap 在**启动时**播种，而 Flyway 在启动前跑，
+-- 直接插 sys_dict_data 会撞 sys_dict_data_dict_type_fkey（2026-11-01 空库 IT 实证）。
+INSERT INTO sys_dict_type (dict_type, dict_name, status, remark, sort_order)
+SELECT 'promotion_type', '营销活动类型', 'ACTIVE', '营销活动类型中文映射', 40
+WHERE NOT EXISTS (SELECT 1 FROM sys_dict_type WHERE dict_type = 'promotion_type');
+
 INSERT INTO sys_dict_data (dict_type, dict_value, dict_label, sort_order, status)
 SELECT v.dict_type, v.dict_value, v.dict_label, v.sort_order, 'ACTIVE'
 FROM (VALUES

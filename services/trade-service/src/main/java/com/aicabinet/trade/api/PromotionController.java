@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.PromotionPlacementService;
 import com.aicabinet.trade.service.PromotionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -14,9 +15,29 @@ import java.util.List;
 public class PromotionController {
 
     private final PromotionService promotionService;
+    private final PromotionPlacementService placementService;
 
-    public PromotionController(PromotionService promotionService) {
+    public PromotionController(PromotionService promotionService,
+                               PromotionPlacementService placementService) {
         this.promotionService = promotionService;
+        this.placementService = placementService;
+    }
+
+    /** 活动展示位（CB-082）：banner 必选，开门前/关门后弹窗二选一。 */
+    @RequiresPermissions("ops:promotion:list")
+    @GetMapping("/{id}/placements")
+    public ApiResponse<List<PromotionPlacementDto>> placements(
+            HttpServletRequest request, @PathVariable("id") Long id) {
+        return ApiResponse.ok(placementService.list(id));
+    }
+
+    @RequiresPermissions("ops:promotion:edit")
+    @PutMapping("/{id}/placements")
+    public ApiResponse<List<PromotionPlacementDto>> replacePlacements(
+            HttpServletRequest request,
+            @PathVariable("id") Long id,
+            @RequestBody List<UpsertPromotionPlacementRequest> items) {
+        return ApiResponse.ok(placementService.replace(id, items));
     }
 
     @RequiresPermissions("ops:promotion:list")

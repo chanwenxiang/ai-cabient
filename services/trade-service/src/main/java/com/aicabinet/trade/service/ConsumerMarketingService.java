@@ -4,11 +4,14 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.common.dto.MarketingBannerDto;
 import com.aicabinet.common.dto.MarketingCampaignDto;
+import com.aicabinet.common.dto.MarketingPopupDto;
 import com.aicabinet.common.dto.PromotionActivityDto;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.PromotionActivity;
+import com.aicabinet.trade.domain.PromotionPlacement;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
+import com.aicabinet.trade.mapper.PromotionPlacementMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -25,18 +28,25 @@ import java.util.function.Supplier;
 @Service
 public class ConsumerMarketingService {
     private static final String DISCOUNT = "DISCOUNT";
+    private static final String MARKETING_PAGE = "/pages/marketing/index";
     private static final Map<String, String> TYPE_LABELS = Map.of(
             DISCOUNT, "满减",
             "NEW_USER", "新客",
             "FLASH", "限时",
-            "GIFT", "赠品"
+            "GIFT", "赠品",
+            "SKU_REDUCE", "商品立减",
+            "SKU_DISCOUNT", "商品折扣",
+            "SKU_FIXED_PRICE", "一口价"
     );
 
     private static final Map<String, String> TYPE_EMOJI = Map.of(
             DISCOUNT, "🧊",
             "NEW_USER", "🎉",
             "FLASH", "⚡",
-            "GIFT", "🎁"
+            "GIFT", "🎁",
+            "SKU_REDUCE", "🏷",
+            "SKU_DISCOUNT", "🏷",
+            "SKU_FIXED_PRICE", "🏷"
     );
 
     private static final String[] TONES = {"mint", "amber", "sky", "rose"};
@@ -49,6 +59,8 @@ public class ConsumerMarketingService {
     private final CouponService couponService;
     private final DistributedLockService distributedLockService;
     private final ApiRateLimitService apiRateLimitService;
+    private final PromotionPlacementMapper placementRepository;
+    private final PromotionPricingService promotionPricingService;
     private final String couponsPagePath;
 
     public ConsumerMarketingService(PromotionService promotionService,
@@ -59,6 +71,8 @@ public class ConsumerMarketingService {
                                     CouponService couponService,
                                     DistributedLockService distributedLockService,
                                     ApiRateLimitService apiRateLimitService,
+                                    PromotionPlacementMapper placementRepository,
+                                    PromotionPricingService promotionPricingService,
                                     @Value("${aicabinet.consumer.coupons-page-path:/pages/coupons/coupons}") String couponsPagePath) {
         this.promotionService = promotionService;
         this.adCampaignService = adCampaignService;
@@ -68,6 +82,8 @@ public class ConsumerMarketingService {
         this.couponService = couponService;
         this.distributedLockService = distributedLockService;
         this.apiRateLimitService = apiRateLimitService;
+        this.placementRepository = placementRepository;
+        this.promotionPricingService = promotionPricingService;
         this.couponsPagePath = couponsPagePath;
     }
 
@@ -94,8 +110,13 @@ public class ConsumerMarketingService {
     /** P3-6：deviceId 可选——SPECIFIC 范围的小程序广告仅在对应柜机上下文返回。 */
     public List<MarketingBannerDto> banners(String deviceId) {
         List<MarketingBannerDto> banners = new ArrayList<>();
-        // P3-6：广告轮播位优先（MINI_PROGRAM 渠道投放，真图+深链；范围按 device_scope 过滤）
+        // CB-082：活动展示位最优先（运营为活动配的 banner 是真图，点击进活动页）
+        banners.addAll(activityBanners(deviceId, 5));
+        // P3-6：广告轮播位（MINI_PROGRAM 渠道投放，真图+深链；范围按 device_scope 过滤）
         for (AdCampaignService.MiniProgramBanner ad : adCampaignService.listMiniProgramBanners(5, deviceId)) {
+            if (banners.size() >= 5) {
+                break;
+            }
             banners.add(new MarketingBannerDto(
                     ad.campaignId(),
                     ad.title(),
@@ -109,10 +130,11 @@ public class ConsumerMarketingService {
                     ad.assetId()
             ));
         }
-        // 活动横幅补位（剩余位置）
+        // 活动横幅补位（剩余位置）；SKU 级活动已由展示位 banner 呈现，这里不重复
         int i = 0;
         for (MarketingCampaignDto c : activeCampaigns()) {
             if (banners.size() >= 5) break;
+            if (PromotionActivityValidator.isSkuActivity(c.type())) continue;
             banners.add(new MarketingBannerDto(
                     c.id(),
                     c.title(),
@@ -136,6 +158,79 @@ public class ConsumerMarketingService {
             ));
         }
         return banners;
+    }
+
+    /** 活动 banner（CB-082）：按企业/柜机范围取生效中的展示位，标题用活动名，点击进活动页。 */
+    private List<MarketingBannerDto> activityBanners(String deviceId, int limit) {
+        String merchantId = promotionPricingService.resolveMerchantId(deviceId);
+        List<PromotionPlacement> placements =
+                placementRepository.findActivePlacements(deviceId, merchantId, PromotionPlacementService.BANNER);
+        if (placements.isEmpty()) {
+            return List.of();
+        }
+        List<Long> activityIds = placements.stream().map(PromotionPlacement::getActivityId).distinct().toList();
+        Map<Long, PromotionActivity> activities = activityRepository.findAllById(activityIds).stream()
+                .collect(java.util.stream.Collectors.toMap(PromotionActivity::getActivityId, a -> a));
+        List<MarketingBannerDto> out = new ArrayList<>();
+        for (PromotionPlacement p : placements) {
+            if (out.size() >= limit) {
+                break;
+            }
+            PromotionActivity a = activities.get(p.getActivityId());
+            if (a == null) {
+                continue;
+            }
+            out.add(new MarketingBannerDto(
+                    a.getActivityId(),
+                    a.getActivityName(),
+                    a.getDescription() != null && !a.getDescription().isBlank()
+                            ? a.getDescription() : "限时活动价",
+                    "mint",
+                    "🏷",
+                    a.getActivityId(),
+                    MARKETING_PAGE,
+                    "/api/v2/media/ad-assets/" + p.getAssetId(),
+                    null,
+                    p.getAssetId()
+            ));
+        }
+        return out;
+    }
+
+    /** 活动弹窗（CB-082）：position ∈ POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE，互斥由配置端保证。 */
+    public List<MarketingPopupDto> popups(String deviceId, String position) {
+        String pos = position == null ? "" : position.trim().toUpperCase();
+        if (!PromotionPlacementService.POPUP_BEFORE_OPEN.equals(pos)
+                && !PromotionPlacementService.POPUP_AFTER_CLOSE.equals(pos)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知的弹窗位置: " + position);
+        }
+        String merchantId = promotionPricingService.resolveMerchantId(deviceId);
+        List<PromotionPlacement> placements =
+                placementRepository.findActivePlacements(deviceId, merchantId, pos);
+        if (placements.isEmpty()) {
+            return List.of();
+        }
+        List<Long> activityIds = placements.stream().map(PromotionPlacement::getActivityId).distinct().toList();
+        Map<Long, PromotionActivity> activities = activityRepository.findAllById(activityIds).stream()
+                .collect(java.util.stream.Collectors.toMap(PromotionActivity::getActivityId, a -> a));
+        List<MarketingPopupDto> out = new ArrayList<>();
+        for (PromotionPlacement p : placements) {
+            PromotionActivity a = activities.get(p.getActivityId());
+            if (a == null) {
+                continue;
+            }
+            out.add(new MarketingPopupDto(
+                    a.getActivityId(),
+                    a.getActivityName(),
+                    a.getDescription(),
+                    pos,
+                    "/api/v2/media/ad-assets/" + p.getAssetId(),
+                    MARKETING_PAGE,
+                    p.getImageWidth(),
+                    p.getImageHeight()
+            ));
+        }
+        return out;
     }
 
     @Transactional
@@ -206,6 +301,16 @@ public class ConsumerMarketingService {
 
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : DISCOUNT;
+        // CB-082：SKU 级活动不领券，直接引导到柜选购（活动价在商品列表按命中活动展示）
+        if (PromotionActivityValidator.isSkuActivity(type)) {
+            return new MarketingCampaignDto(
+                    p.activityId(), p.activityName(), p.description(), type,
+                    TYPE_LABELS.getOrDefault(type, "活动"),
+                    TONES[Math.floorMod(p.activityId() != null ? p.activityId().intValue() : 0, TONES.length)],
+                    TYPE_EMOJI.getOrDefault(type, "🏷"),
+                    p.startTime(), p.endTime(), p.status(),
+                    "到柜选购", "/pages/index/index", false, false);
+        }
         String ctaPath = couponsPagePath;
         // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
         String ctaLabel = "立即领取";

@@ -64,8 +64,11 @@ public class DeviceController {
     }
 
     @GetMapping("/{deviceId}/products")
-    public ApiResponse<List<DeviceProductDto>> products(@PathVariable String deviceId) {
-        return ApiResponse.ok(deviceCatalogService.listProducts(deviceId));
+    public ApiResponse<List<DeviceProductDto>> products(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        // CB-082：活动价的每人限次按当前登录用户判定；游客（无）按不限人次展示
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(deviceCatalogService.listProducts(deviceId, userId));
     }
 
     /**

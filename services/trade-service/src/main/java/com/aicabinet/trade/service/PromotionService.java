@@ -25,13 +25,17 @@ public class PromotionService {
 
     private final PromotionActivityMapper repository;
     private final DistributedLockService distributedLockService;
+    private final PromotionActivityValidator validator;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final PromotionService self;
 
     public PromotionService(PromotionActivityMapper repository,
-                            DistributedLockService distributedLockService, @Lazy PromotionService self) {
+                            DistributedLockService distributedLockService,
+                            PromotionActivityValidator validator,
+                            @Lazy PromotionService self) {
         this.repository = repository;
         this.distributedLockService = distributedLockService;
+        this.validator = validator;
         this.self = self;
     }
 
@@ -47,7 +51,11 @@ public class PromotionService {
         a.setDeviceScope(request.deviceScope());
         a.setRuleConfig(request.ruleConfig() != null ? request.ruleConfig() : "{}");
         a.setDescription(request.description());
+        a.setReduceCents(request.reduceCents());
+        a.setDiscountBps(request.discountBps());
+        a.setFixedPriceCents(request.fixedPriceCents());
         a.setStatus("DRAFT");
+        validator.validateForSave(a);
         repository.save(a);
         log.info("promotion created id={} name={}", a.getActivityId(), a.getActivityName());
         return toDto(a);
@@ -118,6 +126,10 @@ public class PromotionService {
             a.setRuleConfig(request.ruleConfig());
         }
         a.setDescription(request.description());
+        a.setReduceCents(request.reduceCents());
+        a.setDiscountBps(request.discountBps());
+        a.setFixedPriceCents(request.fixedPriceCents());
+        validator.validateForSave(a);
         repository.save(a);
         log.info("promotion updated id={}", activityId);
         return toDto(a);
@@ -125,6 +137,9 @@ public class PromotionService {
 
     @Transactional
     public PromotionActivityDto launch(Long activityId) {
+        PromotionActivity a = repository.findById(activityId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+        validator.validateForLaunch(a);
         return self.updateStatus(activityId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
     }
 
@@ -227,6 +242,7 @@ public class PromotionService {
                 a.getActivityId(), a.getActivityName(), a.getActivityType(),
                 a.getStatus(), a.getStartTime(), a.getEndTime(),
                 a.getBudgetCents(), a.getUsedCents(), a.getUserLimit(),
-                a.getDeviceScope(), a.getRuleConfig(), a.getDescription());
+                a.getDeviceScope(), a.getRuleConfig(), a.getDescription(),
+                a.getReduceCents(), a.getDiscountBps(), a.getFixedPriceCents());
     }
 }

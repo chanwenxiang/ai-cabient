@@ -26,17 +26,25 @@ public class DeviceCatalogService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final MerchantSkuPricingService skuPricingService;
     private final SysDictService sysDictService;
+    private final PromotionPricingService promotionPricingService;
 
     public DeviceCatalogService(DeviceSkuInventoryMapper inventoryRepository,
                                 DeviceSkuLotMapper lotRepository,
                                 SkuCatalogMapper skuCatalogRepository,
                                 MerchantSkuPricingService skuPricingService,
-                                SysDictService sysDictService) {
+                                SysDictService sysDictService,
+                                PromotionPricingService promotionPricingService) {
         this.inventoryRepository = inventoryRepository;
         this.lotRepository = lotRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.skuPricingService = skuPricingService;
         this.sysDictService = sysDictService;
+        this.promotionPricingService = promotionPricingService;
+    }
+
+    /** 无登录上下文（附近柜机预览等）：活动价按不限人次口径展示，结算仍以服务端命中为准。 */
+    public List<DeviceProductDto> listProducts(String deviceId) {
+        return listProducts(deviceId, null);
     }
 
     /**
@@ -45,7 +53,7 @@ public class DeviceCatalogService {
      * 若柜机尚无批次账本，则回退到 device_sku_inventory（旧数据兼容）。
      */
     @Transactional(readOnly = true)
-    public List<DeviceProductDto> listProducts(String deviceId) {
+    public List<DeviceProductDto> listProducts(String deviceId, Long userId) {
         String dev = deviceId != null ? deviceId.trim() : "";
         if (dev.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deviceId required");
@@ -76,20 +84,27 @@ public class DeviceCatalogService {
         // 消费者端直接显示会露出「1」这种字典码；此处统一翻译成中文标签（如「饮料」）。
         // 字典没配的值（历史自由文本如「零食」）原样返回，不吞掉。
         Map<String, String> categoryLabels = sysDictService.labelMapOf("category_code");
+        // CB-082：活动定价的设备→商户只解析一次，逐 SKU 只查候选活动
+        String merchantId = promotionPricingService.resolveMerchantId(dev);
         for (String skuId : skuIds) {
             SkuCatalog sku = skuMap.get(skuId);
             int qty = qtyBySku.getOrDefault(skuId, 0);
             if (sku != null && qty > 0) {
+                int basePrice = skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy);
+                var applied = promotionPricingService.resolveUnitPrice(userId, dev, merchantId, skuId, basePrice);
                 result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),
                     sku.getSpec(),
                     sku.getUnit(),
-                    skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy),
+                    // priceCents 保持原价（其它读面按原价展示）；活动价单独下发，前端取优
+                    basePrice,
                     qty,
                     sku.getImageUrl(),
                     displayCategory(sku.getCategory(), categoryLabels),
-                    sku.getDescription()
+                    sku.getDescription(),
+                    applied.map(PromotionPricingService.Applied::unitPriceCents).orElse(null),
+                    applied.map(PromotionPricingService.Applied::activityId).orElse(null)
             ));
             }
         }

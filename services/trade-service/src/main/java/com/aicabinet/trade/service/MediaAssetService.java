@@ -5,8 +5,10 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertMediaAssetRequest;
 import com.aicabinet.trade.domain.MediaAsset;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
+import com.aicabinet.trade.mapper.PromotionPlacementMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
+import com.aicabinet.trade.util.ImageDimensionReader;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -53,15 +55,19 @@ public class MediaAssetService {
 
     private final MediaAssetMapper assetRepository;
     private final AdCampaignItemMapper campaignItemMapper;
+    /** 活动展示位引用（CB-082）：素材被 banner/弹窗占用时不得删除。 */
+    private final PromotionPlacementMapper placementMapper;
     private final MinioVideoService minioVideoService;
     private final DistributedLockService distributedLockService;
 
     public MediaAssetService(MediaAssetMapper assetRepository,
                              AdCampaignItemMapper campaignItemMapper,
+                             PromotionPlacementMapper placementMapper,
                              MinioVideoService minioVideoService,
                              DistributedLockService distributedLockService) {
         this.assetRepository = assetRepository;
         this.campaignItemMapper = campaignItemMapper;
+        this.placementMapper = placementMapper;
         this.minioVideoService = minioVideoService;
         this.distributedLockService = distributedLockService;
     }
@@ -96,9 +102,15 @@ public class MediaAssetService {
         String ext = EXT_BY_TYPE.getOrDefault(contentType, "bin");
         String objectKey = "ad/" + LocalDate.now(ZoneId.of("Asia/Shanghai"))
                 + "/" + UUID.randomUUID().toString().replace("-", "") + "." + ext;
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件读取失败: " + e.getMessage());
+        }
         String storageUri;
         try {
-            storageUri = minioVideoService.putObject(objectKey, file.getBytes(), contentType)
+            storageUri = minioVideoService.putObject(objectKey, bytes, contentType)
                     .orElseThrow(() -> new ResponseStatusException(
                             HttpStatus.SERVICE_UNAVAILABLE, "文件上传失败"));
         } catch (ResponseStatusException e) {
@@ -111,6 +123,13 @@ public class MediaAssetService {
         asset.setAssetType(type);
         asset.setStorageUri(storageUri);
         asset.setDurationSeconds(resolveDurationSeconds(durationSeconds, type));
+        if (IMAGE.equals(type)) {
+            ImageDimensionReader.read(bytes)
+                    .ifPresent(dim -> {
+                        asset.setImageWidth(dim[0]);
+                        asset.setImageHeight(dim[1]);
+                    });
+        }
         asset.setStatus(STATUS_ACTIVE);
         asset.setUploadedBy(operatorId);
         assetRepository.insert(asset);
@@ -147,6 +166,11 @@ public class MediaAssetService {
         if (used > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "素材仍被 " + used + " 个投放计划引用，请先从计划中移除");
+        }
+        long placed = placementMapper.countByAssetId(assetId);
+        if (placed > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "素材仍被 " + placed + " 个活动展示位引用，请先调整活动展示位");
         }
         assetRepository.deleteById(assetId);
         // MinIO 对象尽力清理，失败不影响元数据删除结果
@@ -200,7 +224,8 @@ public class MediaAssetService {
         return new MediaAssetDto(
                 asset.getAssetId(), asset.getTitle(), asset.getAssetType(),
                 asset.getStorageUri(), preview, asset.getDurationSeconds(),
-                asset.getStatus(), asset.getCreatedAt());
+                asset.getStatus(), asset.getCreatedAt(),
+                asset.getImageWidth(), asset.getImageHeight());
     }
 
     private static String resolveAssetType(String requested, String contentType) {

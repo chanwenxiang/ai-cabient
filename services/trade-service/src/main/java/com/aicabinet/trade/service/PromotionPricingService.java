@@ -47,11 +47,15 @@ public class PromotionPricingService {
 
     /** 命中则返回**最低**的活动单价；未命中返回 empty。 */
     public Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String skuId, int baseUnitPriceCents) {
+        return resolveUnitPrice(userId, deviceId, resolveMerchantId(deviceId), skuId, baseUnitPriceCents);
+    }
+
+    /** 批量展示场景：merchantId 由调用方取一次，避免逐 SKU 重复查设备。 */
+    public Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String merchantId,
+                                              String skuId, int baseUnitPriceCents) {
         if (deviceId == null || skuId == null || baseUnitPriceCents <= MIN_PRICE_CENTS) {
             return Optional.empty();
         }
-        String merchantId = deviceRepository.findById(deviceId)
-                .map(DeviceInfo::getMerchantId).orElse(null);
         Applied best = null;
         for (PromotionActivity a : activityRepository.findPricedCandidates(deviceId, merchantId, skuId)) {
             Integer price = priceOf(a, baseUnitPriceCents);
@@ -67,6 +71,13 @@ public class PromotionPricingService {
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    public String resolveMerchantId(String deviceId) {
+        if (deviceId == null) {
+            return null;
+        }
+        return deviceRepository.findById(deviceId).map(DeviceInfo::getMerchantId).orElse(null);
     }
 
     private Integer priceOf(PromotionActivity a, int base) {

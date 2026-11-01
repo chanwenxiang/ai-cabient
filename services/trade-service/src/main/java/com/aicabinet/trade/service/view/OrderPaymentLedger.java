@@ -38,6 +38,7 @@ public final class OrderPaymentLedger {
                 original,
                 model.couponDiscountCents(),
                 model.memberDiscountCents(),
+                model.activityDiscountCents(),
                 status,
                 model.payChannel(),
                 model.lineCount(),

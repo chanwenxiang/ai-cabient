@@ -9,7 +9,7 @@ const CATEGORY_GLYPH: Record<string, string> = {
 };
 
 /** 相对路径补上 API 域名（后台上传的图片是 /api/v2/media/... 相对路径） */
-function absoluteImageUrl(url?: string | null): string {
+export function absoluteImageUrl(url?: string | null): string {
   const value = String(url || '').trim();
   if (!value) return '';
   if (/^https?:\/\//i.test(value) || value.startsWith('//')) return value;

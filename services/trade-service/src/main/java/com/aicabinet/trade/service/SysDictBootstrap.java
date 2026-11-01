@@ -173,7 +173,11 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "ALL", "全部用户", "MERCHANT", "商户", "CONSUMER", "消费者")));
         map.put("promotion_type", t("营销活动类型", m(
                 "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价",
-                "NEW_USER", "新客", "POINTS", "积分")));
+                "NEW_USER", "新客", "POINTS", "积分",
+                // CB-082 v1：SKU 级活动（定价引擎可执行）
+                "SKU_REDUCE", "商品立减", "SKU_DISCOUNT", "商品折扣", "SKU_FIXED_PRICE", "一口价")));
+        map.put("promotion_placement_position", t("活动展示位", m(
+                "BANNER", "轮播横幅", "POPUP_BEFORE_OPEN", "开门前弹窗", "POPUP_AFTER_CLOSE", "关门后弹窗")));
         map.put("coupon_type", t("优惠券类型", m(
                 "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券",
                 "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));

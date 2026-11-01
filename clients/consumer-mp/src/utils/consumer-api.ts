@@ -924,6 +924,9 @@ export const consumerApi = {
       { assetId, eventType },
       true
     ),
+  /** CB-082 活动弹窗：position=POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE，最多 1 条 */
+  marketingPopups: (position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE', deviceId?: string) =>
+    request<MarketingPopup[]>(ConsumerEndpoints.marketingPopups(position, deviceId), 'GET'),
   // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
     request<import('@aicabinet/shared-types').OpenApiMarketingCampaignDto[]>(
@@ -980,6 +983,18 @@ export type NotificationDto = import('@aicabinet/shared-types').OpenApiNotificat
 
 /** @deprecated 使用 OpenApiNotifyPrefDto */
 export type NotifyPrefDto = import('@aicabinet/shared-types').OpenApiNotifyPrefDto;
+
+/** CB-082 活动弹窗（后端 MarketingPopupDto）；无对应 shared-types 别名，就地声明 */
+export interface MarketingPopup {
+  activityId: number;
+  title?: string;
+  description?: string;
+  position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE' | string;
+  imageUrl?: string;
+  ctaPath?: string;
+  imageWidth?: number | null;
+  imageHeight?: number | null;
+}
 
 /** @deprecated 使用 OpenApiMarketingBannerDto */
 export type MarketingBannerDto = import('@aicabinet/shared-types').OpenApiMarketingBannerDto;

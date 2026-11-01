@@ -50,7 +50,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         com.aicabinet.trade.config.RoutePlanningProperties.class,
         com.aicabinet.trade.config.FeeBillProperties.class,
         com.aicabinet.trade.config.IdentityVerifyProperties.class,
-        com.aicabinet.trade.config.OpsAdminBootstrapProperties.class})
+        com.aicabinet.trade.config.OpsAdminBootstrapProperties.class,
+        com.aicabinet.trade.config.PromotionPlacementProperties.class})
 public class TradeServiceApplication {
 
     public static void main(String[] args) {

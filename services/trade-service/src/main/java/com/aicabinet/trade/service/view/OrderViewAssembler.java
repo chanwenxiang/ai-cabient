@@ -36,6 +36,7 @@ public class OrderViewAssembler {
         List<CabinetOrderLine> safeLines = lines == null ? List.of() : lines;
         int coupon = Math.max(0, order.getCouponDiscountCents());
         int member = Math.max(0, order.getMemberDiscountCents());
+        int activity = Math.max(0, order.getActivityDiscountCents());
         int original = originalAmountCents(order, coupon, member);
         String channel = normalizePayChannel(order);
         String tradeNo = (payTradeNo != null && !payTradeNo.isBlank())
@@ -54,6 +55,7 @@ public class OrderViewAssembler {
                 original,
                 coupon,
                 member,
+                activity,
                 order.getStatus(),
                 channel,
                 itemQty(safeLines),

@@ -115,6 +115,38 @@ export function bpsText(v: unknown, digits = 2, empty = EMPTY_STAT): string {
   return `${(n / 100).toFixed(digits)}%`;
 }
 
+/** 金额分 → 元（数值，表单回填用；空/非法按 0）。 */
+export function centsToYuanNumber(cents: unknown): number {
+  const n = Number(cents);
+  if (!Number.isFinite(n)) return 0;
+  return Math.trunc(n) / 100;
+}
+
+/** 金额分 → 元（无货币符号的两位小数，CSV 导出用）。 */
+export function centsToYuanFixed(cents: unknown): string {
+  const n = Math.trunc(Number(cents) || 0);
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+}
+
+/** 活动折扣：万分比 → 折（8500 ⇒ 8.5）。 */
+export function discountBpsToZhe(bps: unknown): number {
+  const n = Number(bps);
+  return Number.isFinite(n) ? n / 1000 : 0;
+}
+
+/** 活动折扣：折 → 万分比（8.5 ⇒ 8500）。 */
+export function zheToDiscountBps(zhe: unknown): number {
+  const n = Number(zhe);
+  return Number.isFinite(n) ? Math.round(n * 1000) : 0;
+}
+
+/** 活动折扣展示：万分比 →「8.5 折」。 */
+export function discountZheText(bps: unknown): string {
+  return `${discountBpsToZhe(bps).toFixed(1)} 折`;
+}
+
 /**
  * 元（表单输入）→ 分。经 toFixed(2) 再拆整/小位，避免 `0.29*100` 浮点误差。
  * @returns 非法输入返回 null

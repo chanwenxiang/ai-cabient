@@ -276,6 +276,12 @@ export const DICT = {
         SKU_DISCOUNT: '商品折扣',
         SKU_FIXED_PRICE: '一口价'
     },
+    /** 活动展示位（CB-082）：banner 必选，两个弹窗位互斥 */
+    promotion_placement_position: {
+        BANNER: '轮播横幅',
+        POPUP_BEFORE_OPEN: '开门前弹窗',
+        POPUP_AFTER_CLOSE: '关门后弹窗'
+    },
     coupon_type: {
         AMOUNT_OFF: '满减券',
         PERCENT_OFF: '折扣券',

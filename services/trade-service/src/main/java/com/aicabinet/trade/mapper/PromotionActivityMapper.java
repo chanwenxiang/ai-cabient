@@ -17,7 +17,11 @@ public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivi
     /**
      * v1 活动定价（CB-082）：按 设备/商户/SKU 找出**生效中**的可定价活动。
      * 范围约定沿用 rule_config JSON：`skuIds` / `deviceIds` / `merchantIds` 数组；
-     * device_scope ∈ ALL / SPECIFIC / MERCHANT。jsonb `?` 对数组判「是否包含该元素」。
+     * device_scope ∈ ALL / SPECIFIC / MERCHANT。
+     *
+     * <p>🔴 数组包含判断刻意用 {@code jsonb_array_elements_text(...) EXISTS} 而不是 jsonb 的
+     * {@code ?} 运算符：MyBatis 会把 {@code ?} 当 JDBC 参数占位符（实测
+     * “No value specified for parameter N”），这是 2026-11-01 首次真库联调才暴露的坑。
      */
     @Select("""
         SELECT * FROM promotion_activity
@@ -26,14 +30,19 @@ public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivi
           AND activity_type IN ('SKU_REDUCE', 'SKU_DISCOUNT', 'SKU_FIXED_PRICE')
           AND (start_time IS NULL OR start_time <= now())
           AND (end_time IS NULL OR end_time > now())
-          AND COALESCE(rule_config -> 'skuIds', '[]'::jsonb) ? #{skuId}
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(COALESCE(rule_config -> 'skuIds', '[]'::jsonb)) e
+            WHERE e = #{skuId})
           AND (
             UPPER(COALESCE(device_scope, 'ALL')) = 'ALL'
-            OR (UPPER(device_scope) = 'SPECIFIC'
-                AND COALESCE(rule_config -> 'deviceIds', '[]'::jsonb) ? #{deviceId})
+            OR (UPPER(device_scope) = 'SPECIFIC' AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(COALESCE(rule_config -> 'deviceIds', '[]'::jsonb)) e
+                WHERE e = #{deviceId}))
             OR (UPPER(device_scope) = 'MERCHANT'
-                AND #{merchantId} IS NOT NULL
-                AND COALESCE(rule_config -> 'merchantIds', '[]'::jsonb) ? #{merchantId})
+                AND CAST(#{merchantId} AS varchar) IS NOT NULL
+                AND EXISTS (
+                  SELECT 1 FROM jsonb_array_elements_text(COALESCE(rule_config -> 'merchantIds', '[]'::jsonb)) e
+                  WHERE e = #{merchantId}))
           )
         ORDER BY activity_id
         """)

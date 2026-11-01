@@ -1035,6 +1035,10 @@ export interface DeviceProduct {
   imageUrl?: string;
   /** 商品描述。后端 `DeviceProductDto` 早已下发该字段，此前手写类型漏了它 ⇒ 消费端拿不到、也无法展示。 */
   description?: string;
+  /** CB-082：命中的活动价（分，已取最优活动）；无活动为空。结算按服务端同一规则计价。 */
+  activityPriceCents?: number | null;
+  /** CB-082：命中的活动 id；无活动为空。 */
+  activityId?: number | null;
 }
 
 export interface FileDisputeRequest {
@@ -1267,6 +1271,8 @@ export interface OrderDetailDto {
   totalAmountCents: number;
   couponDiscountCents?: number;
   memberDiscountCents?: number;
+  /** CB-082：活动价优惠合计（分）；活动优先禁券，与券抵扣不会同时非零 */
+  activityDiscountCents?: number;
   originalAmountCents?: number;
   lines?: OrderLineDto[];
   createdAt?: string;

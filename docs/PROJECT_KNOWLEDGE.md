@@ -669,6 +669,16 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-01（CB-082 活动限定 SKU v1：立减/折扣/一口价 + 活动优先禁券 + 展示位；两处只有真库才暴露的缺陷）
+
+- **用户拍板**：v1 只做「商品立减 / 商品折扣 / 一口价」；活动价与券**不可同时生效（活动优先禁券）**；展示位 banner 必选、开门前与关门后弹窗二选一、每位置一张图并限制尺寸；不允许 0 元购；「指定商户」=该商户名下所有柜机；时间窗必填。竞品对照见 `docs/COMPETITOR_BENCHMARK.md` **CB-082**（友宝/丰e足食/有赞 3 家计分）。
+- **数据模型**：`V419`（`MIGRATION_KIND: backfill`）给 `promotion_activity` 加 `reduce_cents/discount_bps/fixed_price_cents`，新表 `promotion_placement(activity_id, position, asset_id, image_width, image_height)` 含「同活动同位置唯一 + 两弹窗位偏唯一」；`cabinet_order.activity_discount_cents` + `cabinet_order_line.activity_id/activity_discount_cents` 留痕。`V420` 给 `media_asset` 补 `image_width/image_height`（上传时读 PNG/JPEG/GIF/WebP 文件头）并种 `promotion_placement_position` 字典。
+- **定价与结算**：`PromotionPricingService`（按 device→merchant 解析、`rule_config.skuIds` 命中、ALL/SPECIFIC/MERCHANT 范围、每人/总单次限、多活动取最优、最低 1 分）；`SettlementOrderSupport` 逐行写活动价并把原价/优惠额写进订单与行；`SettlementOrderFinalizeService` 有活动优惠时 `appliedCoupon = null`（禁券）。
+- **管理端**：活动表单加参与 SKU 多选、三种价格参数、商户范围、总单数、必填时间窗；独立「展示位」弹窗（banner 必选 / 弹窗二选一 / 素材库上传 / 服务端按真实像素校验尺寸）。**消费端**：`/marketing/banners` 优先返回活动 banner，新 `/marketing/popups` 供开门前（首页）与关门后（结果页）弹窗（同活动当天只弹一次），商品读面 `/devices/{id}/products` 增 `activityPriceCents/activityId`，结果页展示「活动优惠」且提示不再叠加券。
+- 🔴 **真库才暴露的坑 1**：一开始用 jsonb `?` 运算符做数组包含判断，MyBatis 把 `?` 当 JDBC 占位符 ⇒ `No value specified for parameter N`（首页轮播/弹窗直接 500）。改用 `EXISTS (SELECT 1 FROM jsonb_array_elements_text(...) e WHERE e = #{x})`，并把 `#{merchantId} IS NOT NULL` 改为 `CAST(#{merchantId} AS varchar)`（PostgreSQL 无法推断裸参数类型，设备无柜码时同样 500）。
+- 🔴 **真库才暴露的坑 2**：V419 直接往 `sys_dict_data` 插 `promotion_type` 值，但字典类型是 `SysDictBootstrap` 启动时才种，Flyway 先跑 ⇒ 空库外键失败、全新环境起不来。V419 补 `INSERT INTO sys_dict_type … WHERE NOT EXISTS`（V418/V420 本就有该守卫）。
+- 🧪 证据：`PromotionPricingMapperIT`（真迁移库：三种范围命中/跨柜跨 SKU 不命中；立减 350−100=250；每人限 1 单后同用户不命中、他人仍命中）、`PromotionActivityValidatorTest` 10、`PromotionPlacementServiceTest` 7、`PromotionPricingServiceTest` 9、结算套件 30 全绿；dev 活栈 API 实测（负向：无 banner 400、双弹窗 400、正方形当 banner 400、未配 banner 直接启用 409）+ 管理端 Playwright 截图 + 消费端 H5 弹窗实测（图片 750×1000、关闭生效）；`money-recheck.sql` 六条全 0 mismatch。
+
 ### 2026-10-31（开门柜效期 tab 运行时三面挣齐；「货道柜反证」由用户拍板作废；admin「缺货建议」tab 恒空的口径改成实话）
 
 - **运行时证据链闭合**（本机 dev 栈，零改码零重建）：被服务的 `ReplenishmentView-*.js` sha256 与工作树提交版逐字节一致 → `/api/v2/ops/admin/expiry/alerts` 回 `{restockHeadroom:0, doorCabinet:true}` → Playwright 该行「补货任务」`disabled=null` 且无 `is-disabled` → **真点一次**得 `POST /expiry/alerts/1/create-replenishment` **200**，落 `route 18`/`task 20`/`line 67`（**`slot_id NULL`**，门柜不变式端到端成立）/`notification_log 36`、`pull_off_task 1 → RESOLVED`；随后单事务逆序删除 + 把 `pull_off_task 1` 复位 `OPEN`/`resolved_at NULL`，四表行数逐表回到探针前（routes 17 / tasks 14 / lines 38 / notif 35），共享 dev 库只烧掉序列号。

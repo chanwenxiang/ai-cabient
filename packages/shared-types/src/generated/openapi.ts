@@ -41,6 +41,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/promotions/{id}/placements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["placements"];
+        put: operations["replacePlacements"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/announcements/{id}": {
         parameters: {
             query?: never;
@@ -10812,6 +10828,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketing/popups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["popups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/marketing/campaigns/active": {
         parameters: {
             query?: never;
@@ -11407,6 +11439,12 @@ export interface components {
             deviceScope?: string;
             ruleConfig?: string;
             description?: string;
+            /** Format: int32 */
+            reduceCents?: number;
+            /** Format: int32 */
+            discountBps?: number;
+            /** Format: int32 */
+            fixedPriceCents?: number;
         };
         ApiResponsePromotionActivityDto: {
             /** Format: int32 */
@@ -11433,6 +11471,37 @@ export interface components {
             deviceScope?: string;
             ruleConfig?: string;
             description?: string;
+            /** Format: int32 */
+            reduceCents?: number;
+            /** Format: int32 */
+            discountBps?: number;
+            /** Format: int32 */
+            fixedPriceCents?: number;
+        };
+        UpsertPromotionPlacementRequest: {
+            position?: string;
+            /** Format: int64 */
+            assetId?: number;
+        };
+        ApiResponseListPromotionPlacementDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PromotionPlacementDto"][];
+        };
+        PromotionPlacementDto: {
+            /** Format: int64 */
+            placementId?: number;
+            /** Format: int64 */
+            activityId?: number;
+            position?: string;
+            /** Format: int64 */
+            assetId?: number;
+            /** Format: int32 */
+            imageWidth?: number;
+            /** Format: int32 */
+            imageHeight?: number;
+            previewUrl?: string;
         };
         Announcement: {
             /** Format: int64 */
@@ -12679,6 +12748,10 @@ export interface components {
             status?: string;
             /** Format: date-time */
             createdAt?: string;
+            /** Format: int32 */
+            imageWidth?: number;
+            /** Format: int32 */
+            imageHeight?: number;
         };
         MerchantTaxProfileDto: {
             merchantId?: string;
@@ -13274,6 +13347,8 @@ export interface components {
             couponDiscountCents?: number;
             /** Format: int32 */
             memberDiscountCents?: number;
+            /** Format: int32 */
+            activityDiscountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -13394,6 +13469,8 @@ export interface components {
             couponDiscountCents?: number;
             /** Format: int32 */
             memberDiscountCents?: number;
+            /** Format: int32 */
+            activityDiscountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -20467,6 +20544,25 @@ export interface components {
             message?: string;
             data?: components["schemas"]["NotifyPrefDto"][];
         };
+        ApiResponseListMarketingPopupDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["MarketingPopupDto"][];
+        };
+        MarketingPopupDto: {
+            /** Format: int64 */
+            activityId?: number;
+            title?: string;
+            description?: string;
+            position?: string;
+            imageUrl?: string;
+            ctaPath?: string;
+            /** Format: int32 */
+            imageWidth?: number;
+            /** Format: int32 */
+            imageHeight?: number;
+        };
         ApiResponseListMarketingCampaignDto: {
             /** Format: int32 */
             code?: number;
@@ -20562,6 +20658,10 @@ export interface components {
             imageUrl?: string;
             category?: string;
             description?: string;
+            /** Format: int32 */
+            activityPriceCents?: number;
+            /** Format: int64 */
+            activityId?: number;
         };
         ApiResponseListNearbyDeviceDto: {
             /** Format: int32 */
@@ -20700,6 +20800,8 @@ export interface components {
             couponDiscountCents?: number;
             /** Format: int32 */
             memberDiscountCents?: number;
+            /** Format: int32 */
+            activityDiscountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -20739,6 +20841,8 @@ export interface components {
             couponDiscountCents?: number;
             /** Format: int32 */
             memberDiscountCents?: number;
+            /** Format: int32 */
+            activityDiscountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -20833,6 +20937,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponsePromotionActivityDto"];
+                };
+            };
+        };
+    };
+    placements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPromotionPlacementDto"];
+                };
+            };
+        };
+    };
+    replacePlacements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertPromotionPlacementRequest"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPromotionPlacementDto"];
                 };
             };
         };
@@ -38706,6 +38858,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    popups: {
+        parameters: {
+            query: {
+                deviceId?: string;
+                position: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListMarketingPopupDto"];
+                };
             };
         };
     };
