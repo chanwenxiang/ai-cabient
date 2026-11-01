@@ -26,6 +26,11 @@ public record OrderReadModel(
         @JsonView(OrderViews.Public.class) int memberDiscountCents,
         /** CB-082：活动价优惠合计（分）；活动优先禁券，与券抵扣不会同时非零。 */
         @JsonView(OrderViews.Public.class) int activityDiscountCents,
+        /**
+         * MA-023②/024：全部优惠前毛额（分，落库列 {@code gross_amount_cents}）。
+         * 三端明细据此才能把「原价 − 会员 − 活动 − 券 = 实付」摆平；0 表示历史单未回填前的旧值。
+         */
+        @JsonView(OrderViews.Public.class) int grossAmountCents,
         @JsonView(OrderViews.Public.class) String status,
         @JsonView(OrderViews.Public.class) String payChannel,
         @JsonView(OrderViews.Public.class) int lineCount,

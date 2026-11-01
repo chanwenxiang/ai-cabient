@@ -43,22 +43,23 @@
           <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
           <view class="total-row">
             <text class="total-label">商品合计</text>
-            <text class="total-amount">{{
-              fmtMoney(order?.originalAmountCents ?? order?.totalAmountCents ?? 0)
-            }}</text>
+            <text class="total-amount">{{ fmtMoney(grossCents) }}</text>
           </view>
-          <view v-if="order?.couponDiscountCents != null" class="discount-row">
-            <text class="discount-label">优惠券抵扣</text>
-            <text class="discount-amount">减{{ fmtMoney(order.couponDiscountCents) }}</text>
-          </view>
-          <view v-if="Number(order?.memberDiscountCents ?? 0) > 0" class="discount-row">
+          <!-- MA-024：与购物结果页同口径把「会员 / 活动 / 券」三档摊开，
+               任何一档为 0 就不占行；合计 − 各档 = 实付 必须能被用户自己算平。 -->
+          <view v-if="memberShownCents > 0" class="discount-row">
             <text class="discount-label">会员优惠</text>
-            <text class="discount-amount">减{{ fmtMoney(order.memberDiscountCents) }}</text>
+            <text class="discount-amount">减{{ fmtMoney(memberShownCents) }}</text>
           </view>
-          <view
-            v-if="order?.couponDiscountCents != null || Number(order?.memberDiscountCents ?? 0) > 0"
-            class="total-row pay"
-          >
+          <view v-if="activityShownCents > 0" class="discount-row">
+            <text class="discount-label">活动优惠</text>
+            <text class="discount-amount">减{{ fmtMoney(activityShownCents) }}</text>
+          </view>
+          <view v-if="couponShownCents > 0" class="discount-row">
+            <text class="discount-label">优惠券抵扣</text>
+            <text class="discount-amount">减{{ fmtMoney(couponShownCents) }}</text>
+          </view>
+          <view class="total-row pay">
             <text class="total-label">实付</text>
             <text class="total-amount">{{ fmtMoney(order?.totalAmountCents ?? 0) }}</text>
           </view>
@@ -372,6 +373,36 @@ const orderContactPath = computed(
   () => `/pages/order-detail/order-detail?orderId=${encodeURIComponent(orderId.value || '')}`
 );
 const order = ref<OrderDetailDto | null>(null);
+
+/**
+ * MA-024：把「会员 / 活动 / 券」三档摊开，且保证「商品合计 − 各档 = 实付」用户能自己算平。
+ *
+ * 会员档优先取账面 `memberDiscountCents`；账面为 0 时（现行结算把会员价直接算进单价，
+ * 该列没有写入者——入账口径待人工定，见 rounds/R09 MA-023②）用
+ * `原价毛额 − 实付 − 活动 − 券` 反推，避免用户看到「原价 3.50、活动减 1.00、实付 2.43」
+ * 中间凭空少掉的 0.07。已退款单不反推（退款会让实付变小，会把退款额误标成会员优惠）。
+ */
+const grossCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  return Math.max(
+    0,
+    Number(o.grossAmountCents ?? o.originalAmountCents ?? o.totalAmountCents ?? 0)
+  );
+});
+const activityShownCents = computed(() =>
+  Math.max(0, Number(order.value?.activityDiscountCents ?? 0))
+);
+const couponShownCents = computed(() => Math.max(0, Number(order.value?.couponDiscountCents ?? 0)));
+const memberShownCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const booked = Math.max(0, Number(o.memberDiscountCents ?? 0));
+  if (booked > 0) return booked;
+  if (Math.max(0, Number(o.refundedCents ?? 0)) > 0) return 0;
+  const total = Math.max(0, Number(o.totalAmountCents ?? 0));
+  return Math.max(0, grossCents.value - total - activityShownCents.value - couponShownCents.value);
+});
 const loading = ref(true);
 const error = ref('');
 const showDispute = ref(false);

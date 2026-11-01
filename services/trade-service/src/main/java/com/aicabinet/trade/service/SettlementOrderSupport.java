@@ -79,6 +79,7 @@ public class SettlementOrderSupport {
         long total = 0;
         long originalTotal = 0;
         long activityDiscountTotal = 0;
+        long grossTotal = 0;
         for (RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
@@ -86,8 +87,17 @@ public class SettlementOrderSupport {
             // 这里刻意走 2 参重载（每条明细各自取一次策略快照）：本方法只在结算时对**一单的
             // 少量明细**调用，不是商品目录那种 O(N) 热路径；每单额外几次配置查询可忽略，
             // 而少一次重载改动能把改动面收敛在定价服务内部，不动结算链的既有测试桩。
-            int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
-            unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
+            int listUnitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
+            int unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), listUnitPrice);
+            // MA-023②（本轮刻意**不**把会员差额写进 member_discount_cents）：
+            // 会员折扣在本仓有两套并存机制——① 本方法把会员价直接算进单价（行金额已含折扣）；
+            // ② `recalculatePayableAfterLineChange` / `applyProportionalRefundPayable` 把
+            // `member_discount_cents` 当**订单级减项**再扣一次。历史上该列无写入者恒 0，所以②是死支。
+            // 一旦按①的差额写这列，②就会重复扣减 ⇒ 直接少收钱（资损）。
+            // 因此本列的入账必须先定「哪套是权威」的人工决策（见 rounds/R09 MA-023②）；
+            // 这里只累计**原价毛额**（纯展示/对账用，不参与应付计算）。
+            grossTotal += (long) listUnitPrice * item.quantity();
+            requireCentsInColumnRange("订单原价合计", grossTotal);
             // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且优于当前单价时生效）；
             // 订单头记 activity_discount_cents ⇒ 结算据此**禁用券**（活动优先）。
             java.util.Optional<PromotionPricingService.Applied> activity =
@@ -129,6 +139,9 @@ public class SettlementOrderSupport {
         order.setOriginalAmountCents((int) originalTotal);
         order.setTotalAmountCents((int) total);
         order.setActivityDiscountCents((int) activityDiscountTotal);
+        // MA-023②：只落「原价毛额」这一列（展示/对账用，不参与应付计算）。
+        // 会员折扣的入账刻意留人工决策——见上方注释的两套机制冲突。
+        order.setGrossAmountCents((int) grossTotal);
     }
 
     /** 金额列域是 int（分）：越界即已溢出风险，显式 400 拒绝而不是写负额落库（AU-038）。 */

@@ -94,7 +94,26 @@
 - 推荐：以 `min_spend_cents` 为准改券名（结算实际执行的是门槛），并加一条启动/CI 校验：券名里的「满 N」与 `min_spend_cents` 不符即红（同族先例＝字典标签一致性门禁 `DictLabelUniquenessIT`）。
 - 属演示种子数据，改动是改名不是删数据；因「名字与门槛谁是权威」是业务口径，值守期只登记。
 
+## 值守期落地记录（2026-11-01 深夜，用户授权「按你的推荐做，继续跑」）
+
+| 条 | 落地内容 | 证据 |
+|----|----------|------|
+| MA-020 | 后台不再保存口令；勾选改「记住账号」；历史明文在挂载/登录/登出三处无条件删 | `auth-storage.test.ts` 3/0；`vue-tsc` 退出 0 |
+| MA-025 | 余额明细可见性加 `balance_after_cents IS NOT NULL` | dev 真数据：排除 2 条微信通道、保留 2 条充值 |
+| MA-026 | `countUnusedNotExpired` + `effectiveStatus`（列表/计数/设优先同一判据） | `CouponServiceTest` 26/0 |
+| MA-027 | **方向被用户纠正**：4000182992 是实号 ⇒ `V423` 改配置侧 + 三处默认值 + 断言 | dev 事务内试跑命中 2 行后回滚 |
+| MA-028 | `V422` 按门槛改 3 张券名 + 写入口校验 `validateNameMatchesThreshold` | 试跑命中 3 行后回滚；测试含「满减券 ¥5」不误伤用例 |
+| MA-023②/024 | `V424` 新增 `gross_amount_cents`（DDL+回填）→ 实体/读模型/OpenAPI 属性/shared-types 打通；订单详情按「合计 − 会员 − 活动 − 券 = 实付」摊开，会员档账面为 0 时**反推**（已退款单不反推，防把退款额标成会员优惠） | V424 事务内试跑：`UPDATE 11`、恒等式违例 **0**、样本 gross=343/total=243/activity=100；`SettlementConfirmDisputeTest` 6/0、`OrderPaymentLedgerTest` 3/0、`OrderReadModelOpenApiCustomizerTest` 1/0、consumer `vue-tsc` 0 |
+| 巡检拆雷 | `payableFromLines` 去掉重复减会员；过期清理收窄到 `coupon>0` | `DataConsistencyServiceTest` 46/0 |
+
+### MA-029（本轮新领，P1，待拍板）：会员折扣两套机制并存，照抄「补入账」会重复扣减
+
+- 我在本批先按「① 单价里已折」的差额写了 `member_discount_cents`，`SettlementConfirmDisputeTest` 立刻把 500 分差异暴露成 strict-stub 失败：争议重算走的是 `recalculatePayableAfterLineChange`（`SettlementOrderSupport:169-172`），它把该列当**订单级减项再扣一次** ⇒ 若入账，同一笔会员折扣被扣两遍＝**少收钱**。
+- 已回退该写入（`SettlementOrderSupport` 现只落毛额，注释写明冲突），并把巡检侧的重复扣减先拆掉（`813bb20e`）。
+- 需要定的口径：**A** 单价内折为权威 ⇒ ②的两处订单级减项（争议重算、部分退款比例摊）改为「只展示不再减」；**B** 订单级减项为权威 ⇒ 结算不再把会员价算进单价，行金额恢复目录价。两条都会改变争议/部分退款的金额算法，且都牵动分账 ⇒ 属资金语义人工决策，值守期不硬改。
+
 ## 走查副作用（不是缺陷，但必须留痕）
+
 
 
 

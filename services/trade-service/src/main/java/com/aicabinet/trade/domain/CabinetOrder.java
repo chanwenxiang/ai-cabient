@@ -69,6 +69,13 @@ public class CabinetOrder {
 
     private int memberDiscountCents;
 
+    /**
+     * MA-023②/024：全部优惠前毛额（分）＝目录/柜机价 × 数量之和，落库列 `gross_amount_cents`。
+     * 恒等式 {@code gross − memberDiscount − activityDiscount − couponDiscount = totalAmount}
+     * （部分退款单例外：{@code total} 会因退款变小，本列保持原毛额，差额看 refundedCents）。
+     */
+    private int grossAmountCents;
+
     private Long promotionId;
 
     @TableField(exist = false)

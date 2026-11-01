@@ -39,6 +39,8 @@ public final class OrderPaymentLedger {
                 model.couponDiscountCents(),
                 model.memberDiscountCents(),
                 model.activityDiscountCents(),
+                // MA-023②：毛额是「原价合计」，不随部分退款变小（退款差额由 refundedCents 交代）
+                model.grossAmountCents(),
                 status,
                 model.payChannel(),
                 model.lineCount(),

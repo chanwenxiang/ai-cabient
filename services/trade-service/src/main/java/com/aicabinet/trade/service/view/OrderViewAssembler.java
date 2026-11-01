@@ -56,6 +56,7 @@ public class OrderViewAssembler {
                 coupon,
                 member,
                 activity,
+                Math.max(0, order.getGrossAmountCents()),
                 order.getStatus(),
                 channel,
                 itemQty(safeLines),

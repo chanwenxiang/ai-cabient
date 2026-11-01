@@ -1274,6 +1274,11 @@ export interface OrderDetailDto {
   /** CB-082：活动价优惠合计（分）；活动优先禁券，与券抵扣不会同时非零 */
   activityDiscountCents?: number;
   originalAmountCents?: number;
+  /**
+   * MA-023②/024：全部优惠前毛额（分，后端列 `gross_amount_cents`）。
+   * 订单详情据此摊出「会员/活动/券」三档，保证 合计 − 各档 = 实付 可自证。
+   */
+  grossAmountCents?: number;
   lines?: OrderLineDto[];
   createdAt?: string;
   refundedAt?: string;

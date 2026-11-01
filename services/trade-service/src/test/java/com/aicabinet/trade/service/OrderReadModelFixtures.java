@@ -30,6 +30,7 @@ public final class OrderReadModelFixtures {
                 0,
                 0,
                 0,
+                0,
                 status,
                 "BALANCE",
                 0,
