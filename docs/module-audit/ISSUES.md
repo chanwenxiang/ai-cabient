@@ -14,7 +14,8 @@
 | MA-005 | P3 | fixed | admin `/big-screen`（头部） | 窄视口（<1600px）下大屏头部标题与右侧信息重叠溢出 | Qoder R1 / 2026-10-31 | 5a62f77e + 产物 0eb90b49 |
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 | MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
-| MA-018 | P3 | open | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT` 已加 |
+| MA-019 | P2 | fixed（档 A） | admin `/menus` 菜单管理 | 提示语称侧栏叶子与「菜单 C」一一对应，实测 19 页共用他页权限码（`ops:warehouse:list` 一行管 8 页），停用一行会连带隐藏全部共用页且树上毫无提示；另有 `/recognition-demo` 幽灵 C 行（无路由无页面、3 角色持有） | Qoder R8 / 2026-11-01 | rounds/R08-system.md |
+| MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |

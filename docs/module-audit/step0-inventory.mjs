@@ -40,8 +40,10 @@ const covered = (p) => {
 const deadMenu = nav.filter((n) => !covered(n.path));
 const CHROME = new Set(['/login', '/forbidden', '/not-found', '/index.html', '/', '/redirect']);
 // 兼容重定向不是页面：`{ path: 'x', redirect: '/y' }` 形式（如 rbac→roles、oper-logs→audit）。
+// 🔴 兼容重定向的写法有两种：`{ path: 'x', redirect: ... }` 与 `{ path: 'x', name: 'y', redirect: (to) => ... }`
+// （`/warehouse` 就是后者，旧正则漏它 ⇒ 被当成「路由有、菜单未登记」的疑似死页）。
 const redirectOnly = new Set(
-  [...routerSrc.matchAll(/path:\s*'([^']+)'\s*,\s*redirect:/g)].map((m) => '/' + m[1].replace(/^\//, ''))
+  [...routerSrc.matchAll(/path:\s*'([^']+)'\s*,(?:[^{}]*?)redirect:/g)].map((m) => '/' + m[1].replace(/^\//, ''))
 );
 const unregistered = [
   ...new Set(

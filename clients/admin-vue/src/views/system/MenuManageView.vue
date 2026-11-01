@@ -6,8 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">菜单管理</span>
             <span class="hint"
-              >运营侧栏叶子菜单与本树 ACTIVE「菜单 C」一一对应（一级目录 =
-              侧栏分组）。停用菜单会从侧栏隐藏。商户树只用于角色授权，不驱动小程序排版：定价/结算/争议/分析入口在「我的」，权限仍挂经营工具；采购入库与补货任务同一权限，勾选补货任务即可。</span
+              >侧栏每一页挂一个权限码，但一个权限码可以被多页共用（见「侧栏页」列）：停用本行的菜单
+              C，共用它的全部侧栏页会一起隐藏。商户树只用于角色授权，不驱动小程序排版：定价/结算/争议/分析入口在「我的」，权限仍挂经营工具；采购入库与补货任务同一权限，勾选补货任务即可。</span
             >
           </div>
         </div>
@@ -102,6 +102,25 @@
           </el-table-column>
           <el-table-column label="路由" min-width="140" class-name="col-text">
             <template #default="{ row }">{{ row.path || '无' }}</template>
+          </el-table-column>
+          <el-table-column
+            label="侧栏页"
+            width="96"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag
+                v-if="row.permType === 'C' && navCountOf(row.permCode) > 1"
+                type="warning"
+                size="small"
+                effect="plain"
+                >{{ navCountOf(row.permCode) }} 页共用</el-tag
+              >
+              <span v-else-if="row.permType === 'C' && navCountOf(row.permCode) === 1">1 页</span>
+              <span v-else class="muted">—</span>
+            </template>
           </el-table-column>
           <el-table-column
             prop="sortOrder"
@@ -223,6 +242,7 @@ import { Delete, EditPen, Plus, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { NAV_ITEMS } from '@/config/menu';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
@@ -238,6 +258,20 @@ const auth = useAuthStore();
 const saving = ref(false);
 const typeFilter = ref('');
 const keyword = ref('');
+/**
+ * 侧栏页 → 权限码 的共用计数（MA-019）：一个 C 行可能同时驱动多个侧栏页，
+ * 停用时影响面就是这里算出来的 N，运营必须能在树上看出来。
+ */
+const NAV_COUNT_BY_PERM = NAV_ITEMS.reduce<Record<string, number>>((acc, item) => {
+  if (item.perm) acc[item.perm] = (acc[item.perm] || 0) + 1;
+  return acc;
+}, {});
+
+function navCountOf(permCode?: string) {
+  if (!permCode) return 0;
+  return NAV_COUNT_BY_PERM[permCode] || 0;
+}
+
 const scope = ref<MenuScope>('ops');
 const showInactive = ref(false);
 const tree = ref<PermRow[]>([]);
