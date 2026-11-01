@@ -21,6 +21,9 @@
 | MA-023 | P2 | 部分 fixed（展示侧）/ 记账侧**待拍板** | consumer-mp `pages/index` 商品卡 + `cabinet_order` 优惠拆解 | 会员 98 折在两层都不现身：商品卡下发目录价 350、活动价按 343 再减 100 ⇒「原价 ¥3.50 − 1.00 ≠ 实付 ¥2.43」；且 `member_discount_cents` 全仓无写入者恒 0，而巡检对账式正在消费该列 | Qoder R9 / 2026-11-01 | rounds/R09-miniprograms.md |
 | MA-024 | P2 | **待拍板**（未动） | consumer-mp `pages/order-detail` vs `pages/result` | 同一单结果页披露「活动优惠 减¥1.00」、订单详情页没有活动行；且 `cabinet_order` 无 `original_amount_cents` 列 ⇒ 读模型反推的「商品合计」是活动后金额，现在补行只会更对不上 | Qoder R9 / 2026-11-01 | 与 MA-023② 同根，建议合成一批 |
 | MA-025 | P2 | **待拍板**（未动） | consumer-mp `pages/balance` 余额明细 | 微信支付分的 `CHARGE`（通道 WECHAT、余额前后 NULL）被列进「余额明细」并显示「余额 ¥0.00」，而同页可用余额 140 未动 ⇒ 读成「余额被扣到 0」 | Qoder R9 / 2026-11-01 | 根因＝可见性查询不按通道过滤 + `value()` 把 null 兜底成 0 |
+| MA-026 | P2 | **待拍板**（未动） | consumer-mp `pages/coupons` + `pages/marketing` | 过期券（`expire_at` 已过 5 天）在读面仍算「未使用/1 张可用」且可设优先使用，而 `CouponService` 用券抛 409、自动选券直接排除 ⇒ 「提示可用、结算不选」自相矛盾 | Qoder R9 / 2026-11-01 | 置过期只靠日批（最近成功 10-24 02:00），读面无 `expire_at` 兜底 |
+| MA-027 | P2 | **待拍板**（未动） | consumer-mp `pages/help` vs `pages/policy` | 客服电话两个号：帮助中心读配置 `consumer.service_phone`=400-888-0018，用户协议/隐私政策正文硬编码 4000182992（3 处）⇒ 法定联系方式披露与实际客服号不一致 | Qoder R9 / 2026-11-01 | 推荐以配置为准做模板插值；法律措辞不由值守会话单方面定 |
+| MA-028 | P3 | **待拍板**（未动） | consumer-mp `pages/points/redeem` | 3 张兑换券券名与 `min_spend_cents` 不符（满100减20 实际满50、满50减10 实际满20、满20减5 实际无门槛），页面把券名与「满 X 可用」并排显示 | Qoder R9 / 2026-11-01 | 建议以门槛为准改名 + 加「券名满N ⇔ 门槛」校验门禁 |
 | MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |

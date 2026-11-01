@@ -3,7 +3,7 @@
 - **锚**：发现锚 `55bac20f`（R8 批 2 收口提交）；修复锚＝MA-023 展示侧 `a96b57c8`；MA-023②/024/025 未动码（待拍板）。
 - **环境**：本机 dev 栈；**微信开发者工具 + miniprogram-automator**（`ws://127.0.0.1:9421`，consumer 项目 `dist/dev/mp-weixin`），判据按用户 2026-10-27 的口径——只看 mp 真端，H5 红不阻塞。
 - **登录注入**：合成输入在 automator 上坏（记忆 `mp-automator-verify`），走 HTTP 短信登录（dev 验证码直读 `sms_verification_code`）+ `setStorageSync` 注 `consumer_token/consumer_user_id/consumer_token_expires/consumer_server_boot`，`mockWxMethod('scanCode')` 提供柜号。
-- **进度**：批 1 ✅（consumer 主包 7 页）；批 2 ✅（交易履约/账户分包 6 页：order-detail、dispute/detail、recharge、balance、coupons、messages）；批 3+（增长/公告/帮助等分包、merchant 35 页）未开始。
+- **进度**：consumer-mp **批 1+2+3 = 22/23 页**走完（第 23 页 `announcements/detail` 因 `announcement` 表 0 行无内容可看，留「造一条公告」后再点验）；**merchant-mp 35 页未开始**。本轮新领 MA-023～MA-028 六条，其中 MA-023 展示侧已修，其余五条待拍板。
 
 ## 批 1 逐页结论（consumer 主包 7 页）
 
@@ -60,7 +60,42 @@
 
 - 优惠券：`user_coupon` 唯一一张 `status=UNUSED` 但 `expire_at=2026-10-27` 已过 5 天，仍在「未使用」里且「设为优先使用」可点。置过期靠 `coupon-expire` 日批（`/scheduled-tasks` 显示最近一次执行 **2026-10-24 02:00**，本机夜间关机 ⇒ 批没跑）。**读侧是否按 `expire_at` 实时判过期未钉到源码**（本轮没找到券列表的过滤条件），批 3 或 R10 补钉；若读侧确实只认 status，则应领号（券在页面上「可用」而结算必拒）。
 
+## 批 3 逐页结论（consumer 剩余分包 9 页）
+
+| 页面 | 数据/口径核对（真值来源） | 交互与写面 | 结论 |
+|------|---------------------------|------------|------|
+| `pages/marketing/index` 热门活动 | 3 张活动卡（含本轮 CB-082 测试活动「活动价核验（测试）10/31–11/08 · 到柜选购」，形态与 SKU 型活动一致）；「我的优惠券 **1 张可用**」 | 「立即领取 / 到柜选购 / 查看券包」为写面与跳转，未点 | **MA-026（P2）**：那张券 `expire_at=2026-10-27` 已过 5 天，读面仍算「可用」 |
+| `pages/member/index` 会员中心 | 银卡会员、累计消费 ¥1,284.86、可用积分 124、倍率 1.2、**「结算享 2% 会员折扣」**——与 MA-023 里 350→343 反推出的 2% 互证（同一档折扣两处口径对上）；等级表 4 档门槛 🔴 未与 `member_level_rule` 逐行对（批 4 补） | 只读 | 无缺陷（对账深度不足已标注） |
+| `pages/points/points` 积分明细 | 可用 124 = 累计 124 · 已用 0（页内自洽）；「升级还差 376 积分」＝金卡 500 分门槛 − 当前 124；3 条流水（+2/+2/+120，含一条「演示积分补齐」种子）。🔴 未与 `member_points_log` 逐行对（该表按 `member_id` 键、无 user_id 直连列，本轮未追）——留批 4 补 | 只读；「去兑换」跳转 | 无缺陷（对账深度不足已标注） |
+| `pages/points/redeem` 积分兑换 | 6 档券与 `coupon_definition` 逐行对（面额/门槛/积分/剩余份数） | 「兑换」为写面，未点 | **MA-028（P3）**：3 张券名与门槛不符（见下） |
+| `pages/announcements/announcements` | 「暂无通知公告」= `announcement` **0** 行 | — | 无缺陷 |
+| `pages/help/help` 帮助中心 | 客服热线 **400-888-0018** = `system_config.consumer.service_phone`；邮箱/入口齐；FAQ 8 条折叠 | 只读 | **MA-027（P2）**：与协议正文里的电话不是同一个号 |
+| `pages/report/report` 故障报修 | 表单四要素（柜机编号/问题类型/补充说明 0/200/联系电话）+ 处理说明 | **写面未提交** | 无缺陷 |
+| `pages/feedback/feedback` 意见反馈 | 反馈类型/内容 0/500/联系方式/柜机编号 | **写面未提交** | 无缺陷 |
+| `pages/policy/detail` 用户协议 | 版本 V1.2 / 更新日期 2026-08-08；正文含主体信息、《电商法》《价格法》《消保法》《民法典》条款引用；客服电话写作 **4000182992** | 只读 | **MA-027（P2）** |
+
+## MA-026（P2，待拍板未动）：过期券在读面仍算「可用」，选券/用券却按过期拒
+
+- 实测：`user_coupon` 唯一一张 `status=UNUSED`、`expire_at=2026-10-27`（已过 5 天）。消费者端三处仍当它可用——「我的优惠券」列在**未使用**且「设为优先使用」可点；「热门活动」页写「我的优惠券 **1 张可用 · 结算时自动选用最优券抵扣**」。
+- 但服务侧判据是另一套：`CouponService.requireValidUserCoupon:283-286` 用到券时若 `expireAt.isBefore(now)` ⇒ 就地翻成 EXPIRED 并抛 409「优惠券已过期」；`evaluateCoupon:477`（自动选最优券）直接把过期券排除。⇒ 「提示有一张可用、结算却一张都不选」是同一张券上的自相矛盾。
+- 为什么现在 status 还是 UNUSED：置过期靠 `coupon-expire` 日批（`/scheduled-tasks` 显示最近一次成功 **2026-10-24 02:00**，本机夜间关机 ⇒ 批没跑）。日批缺席时读面无兜底。
+- 推荐档 A（最小对症）：读面（列表 + 可用计数 + 可设优先的判据）统一加 `expire_at > now()`，与 `evaluateCoupon` 同判据；日批只作为「把状态落库」的留痕手段，不作为可见性唯一依据。改动集中在查询条件，不动券的资金语义。
+
+## MA-027（P2，待拍板未动）：客服电话两处不一致，协议正文是硬编码
+
+- 帮助中心读配置：`system_config.consumer.service_phone` = **400-888-0018**（`SystemConfigService:834/837` 种子，商户端同值；`PublicLegalServiceTest:14` 钉住 `help.supportPhone()` 必须是它）。
+- 用户协议正文硬编码：**4000182992**，出现三处（[policy/detail.vue:70 / :121 / :154](file:///D:/ai-generated%20code/ai-cabinet/clients/consumer-mp/src/pages/policy/detail.vue#L70)）——主体信息、个人信息保护联系方式、行使权利联系方式。隐私政策同页也是它。
+- 危害不是「不好看」：协议与隐私政策是**法定联系方式披露**，号码与实际客服号不一致，用户按协议拨打会打不通（或打到别处）。
+- 待拍板点：哪个号是真的？我推荐**以配置为准**（帮助中心/商户端/测试断言都用 400-888-0018），把协议正文三处改成读同一配置（模板插值，版本号与更新日期同步递增留痕）；若 4000182992 才是真号，则应改 `consumer.service_phone`/`merchant.service_phone` 两处配置并复核所有引用点。法律文本措辞不由值守会话单方面定，故只登记。
+
+## MA-028（P3，待拍板未动）：3 张积分兑换券的「券名门槛」与实际 `min_spend_cents` 不符
+
+`coupon_definition` 实测（面额/门槛分）：`满 100 减 20 券` = 2000/**5000（¥50）**；`满 50 减 10 券` = 1000/**2000（¥20）**；`满 20 减 5 券` = 500/**0（无门槛）**。兑换页把券名与「满 X 可用」并排显示 ⇒ 同一张卡自相矛盾（用户按名字理解门槛会错）。
+- 推荐：以 `min_spend_cents` 为准改券名（结算实际执行的是门槛），并加一条启动/CI 校验：券名里的「满 N」与 `min_spend_cents` 不符即红（同族先例＝字典标签一致性门禁 `DictLabelUniquenessIT`）。
+- 属演示种子数据，改动是改名不是删数据；因「名字与门槛谁是权威」是业务口径，值守期只登记。
+
 ## 走查副作用（不是缺陷，但必须留痕）
+
 
 
 - 「只读」走查里 `reLaunch('/pages/index/index?deviceId=…')` 在**微信端会直接开门**：[index.vue:1100-1103](file:///D:/ai-generated%20code/ai-cabinet/clients/consumer-mp/src/pages/index/index.vue#L1100-L1103) `if (launch.deviceId) { if (launch.autoOpen || !isH5.value) startShoppingFlow(...) }`；而 `autoOpen` 在 [packages/shared-uni/src/qrcode.ts:198-204](file:///D:/ai-generated%20code/ai-cabinet/packages/shared-uni/src/qrcode.ts#L198-L204) 是 `options.autoOpen==='1' || options.open==='1' || !!(deviceId)` ——**只要带柜号就一定为真**，`autoOpen=0` 关不掉。该坑在本页 :805-806 已有注释承认（并刻意让某条链路不带 deviceId 绕行）。
@@ -74,5 +109,7 @@
 1. **MA-023② + MA-024 合成一批**：订单缺「会员前/活动前毛额」这一档（`member_discount_cents` 无写入者、`original_amount_cents` 无列）⇒ 三端优惠拆解与巡检对账式都少一层。四件套＝结算写清毛额与各档优惠 + 巡检 `PAID_GROSS_MISMATCH/ORDER_AMOUNT` 口径复核 + 三端明细行（含 order-detail 活动行）+ 数字实证（非零钉测 + `money-recheck.sql` 四层互证 + 留痕）。
 2. **MA-025**：余额明细按通道过滤 + `balanceAfterCents` 恢复可空（牵 `BalanceTransactionDto` 类型与三端消费点，人工批做）。
 3. MA-020（R8，P1）后台口令常驻 localStorage 仍未动——等用户拍三档。
-4. 批 3 清单：consumer 剩余分包（marketing / member / points×2 / coupons 已看 / announcements×2 / help / policy / report / feedback）+ `dispute/detail` 用真实工单 id 复走 + 优惠券读侧过期判据补钉。
-5. `pages/index/index` 修复后的真端复验：需先重建 trade 镜像（**必须等共享树干净**，否则会把 peer 的脏源码烤进产物）。
+4. **MA-026**：过期券读面判据（推荐列表/计数/设优先统一加 `expire_at > now()`，与 `evaluateCoupon` 同判据）。
+5. **MA-027**：客服电话以哪个为准（推荐以 `consumer.service_phone` 为准，协议正文改插值）。
+6. **MA-028**：兑换券名与门槛谁是权威（推荐以 `min_spend_cents` 为准改名 + 上门禁）。
+7. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。
