@@ -1,4 +1,4 @@
--- MIGRATION_KIND: schema
+-- MIGRATION_KIND: backfill
 -- COMPETITOR_REF: CB-082
 -- 活动限定商品 v1（用户 2026-11-01 拍板）：仅 商品立减/商品折扣/一口价；活动价与券互斥；
 -- banner 必选 + 开门前/关门后弹窗二选一；范围 全部/柜机/商户；时间窗必填；不允许 0 元购。
@@ -10,10 +10,22 @@ ALTER TABLE promotion_activity
     ADD COLUMN IF NOT EXISTS discount_bps INT,
     ADD COLUMN IF NOT EXISTS fixed_price_cents INT;
 
-ALTER TABLE promotion_activity
-    ADD CONSTRAINT ck_promo_reduce_nonneg CHECK (reduce_cents IS NULL OR reduce_cents >= 0),
-    ADD CONSTRAINT ck_promo_bps_range CHECK (discount_bps IS NULL OR (discount_bps > 0 AND discount_bps < 10000)),
-    ADD CONSTRAINT ck_promo_fixed_price_min CHECK (fixed_price_cents IS NULL OR fixed_price_cents >= 1);
+-- 约束用条件块：迁移重放（先删 history 行再跑）时不炸
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_promo_reduce_nonneg') THEN
+        ALTER TABLE promotion_activity ADD CONSTRAINT ck_promo_reduce_nonneg
+            CHECK (reduce_cents IS NULL OR reduce_cents >= 0);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_promo_bps_range') THEN
+        ALTER TABLE promotion_activity ADD CONSTRAINT ck_promo_bps_range
+            CHECK (discount_bps IS NULL OR (discount_bps > 0 AND discount_bps < 10000));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_promo_fixed_price_min') THEN
+        ALTER TABLE promotion_activity ADD CONSTRAINT ck_promo_fixed_price_min
+            CHECK (fixed_price_cents IS NULL OR fixed_price_cents >= 1);
+    END IF;
+END $$;
 
 -- 2) 展示位：banner 必选（业务校验）；弹窗位每活动最多一个（DB 兜底）
 CREATE TABLE IF NOT EXISTS promotion_placement (
