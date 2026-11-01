@@ -235,6 +235,26 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 `.tmp/r9-merchant-walk.cjs`（v2 文本采集 + `START_INDEX`）、`.tmp/r9-merchant-api-probe.cjs`（PATHS 批量 GET）、`.tmp/r9-todo-types.cjs`（四源类型分布）、`.tmp/r9-self-replenish-probe.cjs` / `-data.cjs` / `-pick.cjs`（picker 实验）。
 🔴 新坑记录：① `page.data()` 在 uni-app Vue3 编译产物里是**混淆键**（`eO,uR,a,b…`），读不到业务状态 ⇒ 判状态只能靠 DOM 文本 + 后端接口对账；② 原生 `<picker>` 的选项层 automator 采不到，`page.callMethod('onDevicePick')` 报 `not exists`（setup 函数不挂到 page 实例）⇒ 「换柜机」这条交互无法脚本化，只能人工判据留给 R10。
 
+## M 批 3（merchant-mp 交易/消息面 6 页：orders / order-detail / disputes / video / messages / notify，2026-11-02）
+
+锚 HEAD `e054c02f`；探针 v2；写面零点击（notify 只读渲染，没点「保存/开启提醒」）；走查后 `shopping_session` 新增 0 行。
+🔴 **本批 0 条新领号**——三个「看着像缺陷」的现象全部查证到「不是产品缺陷」，逐条留证据（防后续会话重复调查）：
+
+| 现象（快照原话） | 查证 | 结论 |
+|------------------|------|------|
+| 消息中心出现「商户名称：产文祥 结算周期：2026年10月13日」，而当前账号是 默认直营商户 ⇒ 疑似**跨商户消息泄漏（本可判 P1）** | `notification_log` id=11 `merchant_id=MCH-DEFAULT`、body 写 产文祥；`merchant` 表现只有 MCH-DEFAULT=默认直营商户 / MCH-OTHER=演示商户B；取数代码 `MerchantDailyIncomeNotifyScheduler:156-158` = `merchantRepository.findById().map(getMerchantName).orElse(id)` ⇒ 正文是**发送时的名称快照**，该商户后来被改名；同期最新一条 id=42（11-02）正文已是「默认直营商户」✅ | **不领号**：不是收件人错，是历史快照。R11 若要判「通知正文跟随改名」再单独立项 |
+| 消息「任务已分配…涉及 **719325384517**。」显示裸设备号 | `select count(*) from device_info where device_id='719325384517'` = **0** ⇒ 该柜机已被前几轮演示清理删掉；正文同样是发送时取不到名称的回退 | **观察项**（非产品缺陷：数据是历史清理的后遗症）。若要改，方向是「设备已删除」而不是裸号 |
+| 订单详情「流水号 1793498414728440537903」与「订单号」一模一样 ⇒ 疑似把订单号当流水号（MA-006 同族） | DB：该单 `pay_trade_no = MOCK-PS-1793498414728440537903`、`payment_operation_id` 空；模板 `order-detail.vue:75-79` 有 `v-if="payTradeNo \|\| paymentOperationId"` 守卫并走 `displayBizNo` ⇒ 剥掉 `MOCK-PS-` 前缀后剩下的数字段本来就等于订单号 | **不领号**：dev mock 流水的号码形态所致；真微信支付流水号不同源不会撞。留 R11 用真流水复验 |
+
+### 逐页结论（无缺陷也要留痕）
+
+- `pages/orders`：状态 chips（全部/已支付/已退款/争议中/已取消）+ 时间 chips（全部时间/今天/近7天/近30天）+ **零元单**开关在位（10-22 拍板的「隐藏零元单」口径已改成显式开关）；「导出当前柜机的全部订单（状态/时间筛选不适用于导出）」是**主动交代导出与筛选不一致**的诚实文案 ✅；券减单显示「优惠减¥2.00 / ¥1.50 / 原价 ¥3.50」三数自减得平（1.50 = 3.50 − 2.00）✅；开门柜行不带货道、货道柜行带「货道A1」与 10-28 拍板一致 ✅。
+- `pages/order-detail`：已扣 ¥2.43 / 实收 ¥2.43 两数取自支付流水（`OrderPaymentLedger`）；批次 `SIM-CB082` 显示为模拟柜上报的模拟批次，与 dev mock 一致；分账状态「仅记账」= `LEDGER_ONLY`（0 抽成档）✅；「查看柜机 / 查看购物视频 / 相关争议」三个跳转入口齐。
+- `pages/disputes`：三 tab（待审核/已结案/已关闭）+ SLA（剩余 34 小时 / 已超时）+「有录像」标记 + 工单号原样展示（MA-006 修复形态）✅。
+- `pages/video`：空态文案「本单没有可播放的录像。超时免单、模拟柜或文件未上传时常见。」= 把 10-31 查到的「正常单视频不上 OSS 是固件策略」翻译成了人话 ✅，且给「重新加载 / 返回订单详情」两条出路。
+- `pages/messages`：8 类 chips + 未读 15；日结收入消息带「关联单号：20261101」；补货消息带「关联单号：22/21/19…」可回溯任务 ✅。
+- `pages/notify`：微信绑定态「未绑定」+ 8 类提醒勾选 + 保存；未绑定态仍展示类型清单（点了保存会怎样未验——写面纪律，留给 R11 或人工）。
+
 ## 待拍板 / 待办
 
 1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
@@ -247,4 +267,5 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 8. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。
 9. **MA-031（P3，open）**：`merchant_alert_type` 基线缺 4 个待办类型 ⇒ 行首显示「未知」；轮末文案批一次做齐（基线 + dist 重烤 + `SysDictBootstrap` + DB 字典迁移），判据 = 待办页 0 行「未知」。同批可并：待办卡片把厂商原文 `设备 uploadOrderError errorMsg：…` 直送商户（M 批 1 观察项 #2）。
 10. **MA-032（P3，open）**：仓库盘点「待录入」单显示 `实盘 = 账面 · 差异 0（0 行）` 的语义问题——先判「明盘默认=账面」是否本就是拍板设计（`备货单/盘点` 有「只提交与台账有差异的商品」的既有口径），再决定改文案还是改预填；不建议顺手把 counted 置 0（会让明盘失去默认值便利）。
-11. **M 批 3+ 待走**（还剩 23 页）：`ops-config, purchase, notify, video, messages, announcements(2), business, tax, cabinet-reports, settlements, bills, splits, wallet, line-wallet, disputes, orders, order-detail, team, password-change, policy, prep-generate, prep-list`（按 履约/财务/账号 三组分三批，每批 ≤6 页 + 收尾一批）。
+11. **M 批 4+ 待走**（还剩 17 页）：批 4 财务 6 页 `settlements, bills, splits, wallet, line-wallet, business`；批 5 增长/报表 6 页 `tax, cabinet-reports, ops-config, purchase, announcements, announcements/detail`；批 6 账号与收尾 5 页 `team, password-change, policy, prep-generate, prep-list`。
+    🔴 财务批的既有判据（别重新发明）：`money-recheck.sql` 7a/7c 已随 MA-029 扩段；0 抽成档＝`LEDGER_ONLY`（PROJECT_KNOWLEDGE §6.2）；提现费 6‰ 不封顶可按商户覆盖（10-16 拍板）；商户钱包与线长钱包是两个不同域（`line-wallet` ≠ 分账）。
