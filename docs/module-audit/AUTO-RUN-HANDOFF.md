@@ -9,11 +9,13 @@
 - 活栈：docker compose `-f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml`；
   trade `:18080`、网关 `:80`、admin vite `:3100`（**可能是别的会话在用，别重启**）、
   Grafana `:13000`、Prometheus `:9090`、模拟器容器 `device-simulator`（柜 `500909625160`）。
-- Flyway 高水位 **v424**（活库已应用）；下一个空号请现算：
+- Flyway 高水位：**代码侧 V425**（MA-029 的 ② 形种子 backfill）；**活库仍停在 v424**，
+  V425 要等 trade 镜像重建/重启时才应用 ⇒ 动共享栈前先现算一次：
   `docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -At -c "select max(version::int) from flyway_schema_history where success;"`
+  （下一个空号也请按这条现算，别照抄本行）
 - 工作树必须干净才动共享容器；脏树时**逐文件归因**，别把别人的未提交源码烤进产物。
 
-## 1. 第一优先：MA-029 落地（用户已批准方案 A）
+## 1. 第一优先：MA-029 落地（✅ 已于 2026-11-02 值守批落地，勿重做；下面是当时的口径与连带面清单，供 R10/R11 复核）
 
 台账：`docs/module-audit/ISSUES.md` 的 MA-029（P1）。语义冲突：会员折扣有两套并存机制——
 ①`SettlementOrderSupport.applyItemsToOrder` 把会员价算进单价（行金额已含折扣）；
@@ -78,7 +80,8 @@
 | R0–R8 后台全模块 | ✅ 完成（R8 收口于 `55bac20f`） |
 | R9 consumer 22/23 页 | ✅ 完成（`announcements/detail` 无公告数据可看） |
 | MA-020 / 021 / 022 / 023① / 024 / 025 / 026 / 027 / 028 | ✅ 已落地，活库 v424 上运行时复验通过（见 R09 轮报告） |
-| **MA-029（方案 A）** | ⬜ 未开始 ← **从这里接** |
+| **MA-029（方案 A）** | ✅ 已落地（2026-11-02 本批）：② 减项实为 **5 处**（改单重算 / 比例退写侧 / 比例退**预估侧** / 巡检**检测式 SQL** / 脏券清理抹会员），① 入账 + `V425` 改 ② 形种子 + 结果页基准改 gross；四层实证齐（新钉测 8 例 + 指定套件 20 类 0 fail + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 0 违规）；详见 `rounds/R09-miniprograms.md`「MA-029 方案 A 落地」 |
+| MA-029 活栈 HTTP 会员单 | ⬜ 需在重建 `:18080`（新镜像含本批）后验 ⇒ 并入 **R11** 全链路那一轮（那轮本就要用新镜像跑一遍会员单）；脏树期不动共享容器 |
 | R9 merchant-mp 35 页 | ⬜ 未开始 |
 | R10 三端横切 | ⬜ 未开始 |
 | R11 业务流转全链路 | ⬜ 未开始 |

@@ -93,3 +93,37 @@ FROM order_revenue_split s
 JOIN merchant m ON m.merchant_id = s.merchant_id
 ORDER BY s.created_at DESC
 LIMIT 10;
+
+-- 7) 订单优惠四列恒等式（MA-029 方案 A，2026-11-02）：期望 0 行。
+--    口径锚点：应付 = Σ 行金额 − 券；会员/活动都在单价里各减一次，三列（gross/member/activity）是留档不是减项。
+--    gross = 0 的行跳过（老单没快照；V424 已把历史行按恒等式反推成 >0，故 0 只可能是新写的零元单）。
+--    部分退款单 total 会因退款变小而 gross 保持原毛额 ⇒ 只查未退清单据。
+\echo '== 7a) 恒等式违规（期望 0 行）=='
+SELECT o.order_id, o.status, o.gross_amount_cents AS gross, o.member_discount_cents AS member,
+       o.activity_discount_cents AS activity, o.coupon_discount_cents AS coupon, o.total_amount_cents AS total,
+       o.gross_amount_cents - o.member_discount_cents - o.activity_discount_cents
+         - o.coupon_discount_cents - o.total_amount_cents AS diff_cents
+FROM cabinet_order o
+WHERE o.status = 'PAID'
+  AND o.gross_amount_cents > 0
+  AND o.gross_amount_cents - COALESCE(o.member_discount_cents, 0) - COALESCE(o.activity_discount_cents, 0)
+        - COALESCE(o.coupon_discount_cents, 0) <> o.total_amount_cents
+ORDER BY o.created_at DESC;
+
+\echo '== 7b) 折后式与会员档：会员 > 0 的单不得被「行合计 − 券」判成不一致（期望 0 行，巡检同式）=='
+SELECT o.order_id, o.total_amount_cents AS header,
+       COALESCE(SUM(ol.line_amount_cents), 0) AS line_subtotal,
+       COALESCE(o.coupon_discount_cents, 0) AS coupon,
+       COALESCE(o.member_discount_cents, 0) AS member
+FROM cabinet_order o
+LEFT JOIN cabinet_order_line ol ON ol.order_id = o.order_id
+WHERE o.status IN ('PAID', 'PARTIAL_REFUNDED')
+GROUP BY o.order_id, o.total_amount_cents, o.coupon_discount_cents, o.member_discount_cents
+HAVING o.total_amount_cents <> COALESCE(SUM(ol.line_amount_cents), 0) - COALESCE(o.coupon_discount_cents, 0)
+   AND COALESCE(o.member_discount_cents, 0) > 0;
+
+\echo '== 7c) 入账可见性：会员档 > 0 的真实单（期望：入账上线后 > 0；若长期为 0 说明入账链没跑起来）=='
+SELECT count(*) AS orders_with_member_archive,
+       COALESCE(SUM(o.member_discount_cents), 0) AS member_cents_total
+FROM cabinet_order o
+WHERE COALESCE(o.member_discount_cents, 0) > 0;

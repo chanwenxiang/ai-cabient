@@ -140,9 +140,44 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 - 探针自身的取证缺口（记给后续批次）：截图按 `page.path` 落盘，**同路由二次访问互相覆盖** ⇒ `evidence/R09/pages_index_index.png` 留下的是落地页而非购物态；本轮价格结论只建立在文本快照 + SQL 上。批 2 起探针按「路由 + 序号」命名，购物态必须留图。
 - 另：`.gitignore:103` 有 `*verify*.png` 规则，`pages/verify/verify` 的截图**天然不入库**（该页结论以文本快照为证）；后续批次命名时避开 `verify` 子串。
 
+## MA-029 方案 A 落地（2026-11-02 值守批，用户已批准「①为权威」）
+
+四步按交接书 §1 落齐，**同一批提交**。落地时把 ② 的算术全仓扫了一遍，实际是 **5 处**而不是交接书写的 2 处（少一处就会造出「预估≠写侧」或「巡检永久误报」）：
+
+| # | 站点 | 改前（②） | 改后（①） |
+|---|------|-----------|-----------|
+| 1 | `SettlementOrderSupport.recalculatePayableAfterLineChange` | `total = 行合计 − 券 − 会员` | `total = 行合计 − 券`；会员档只夹取留档 |
+| 2 | `SettlementOrderSupport.applyProportionalRefundPayable` | `total = 剩余行合计 − 券 − 比例会员` | `total = 剩余行合计 − 券`；会员档仍按比例缩减**只为留档** |
+| 3 | `SettlementPartialRefundService.applyPartialRefundPayablePreview`（只读预估腿，交接书未列） | 同 ② | 与写侧同式（铁律 51：预估≠写侧＝资损，2026-10-15 已踩过） |
+| 4 | `DataConsistencyService.checkOrderConsistency` 检测 SQL 的 `payable_from_lines` 与 `HAVING`（交接书未列） | `line − coupon − member` | `line − coupon`；`member_discount` 仍在 SELECT/GROUP BY 里供消息打印 |
+| 5 | `DataConsistencyService.clearStaleCouponFields`（交接书未列） | 顺手把 `member_discount_cents = 0` 一起抹 | 只清券；会员是合法留档，抹了等于毁 `gross − member − activity − coupon = total` 的一环 |
+
+第 4 处特别说明：`813bb20e` 当时只拆了**修复侧**那条雷（`loadOrderAmountSnapshot`），检测式这条还留着 ⇒ 入账一开就会把**每一单会员折扣**都报成 ORDER_AMOUNT 不一致，且因 `member>0` 落进「多行明细与头金额不一致，需人工」这条修不掉的分支。
+
+入账侧（步骤 2）：`applyItemsToOrder` 现写 `memberDiscountTotal = Σ(目录价 − 会员价) × 数量`，与 V424 的 `gross_amount_cents` 一起让恒等式在**每一单**成立；会员档用 `Math.max(0, …)` 夹住（防止上游实现给出「会员价 > 目录价」把留档写成负数）。
+
+历史数据（步骤 4）：不回填真实业务单金额（`member` 历史恒 0 ⇒ 去掉减法是恒等变换）。**活库实测坐实**：
+`select count(*) from cabinet_order where coalesce(member_discount_cents,0) > 0` ⇒ `aicabinet` 与 `aicabinet_openapi_1024` 两个库都 **0 行**。
+唯一例外是 V252 的 UAT/dev 演示种子（`unit=line=500`、`member=59`、`total=441`）——它是 ② 形，在新检测式下会永久误报 ⇒ 补 **V425**（`MIGRATION_KIND: backfill`）把**明细行**改成 ① 形（`unit=line=441`，订单头四列不动，V424 已把 gross 反推成 500）；守卫取 V252 完整指纹 + `line_amount_cents = 500` ⇒ 幂等、dev 现网 0 行命中。
+
+测试（步骤 3）：
+- `SettlementConfirmDisputeTest.confirmDisputedItems_withMemberDiscount_preservesDiscountOnRecalc` →
+  改名 **`confirmDisputedItems_memberDiscountAppliedOnceNotTwice`**，按 ① 真形重写（目录 400 → 会员 392，3 件 ⇒ 1176；旧断言 1100 是 ② 的假想语义，② 落到 ① 数据上会得到 1152＝少收 24 分）。
+- 🔴 交接书预警的两条连带 fixture（`withCoupon_…` 期望 800 得 784、`increase_balanceInsufficient_…` 异常类型变化）**没有挂**：这两条的 fixture 里 `member_discount_cents` 恒 0，`recalculate` 的会员夹取本就是 no-op ⇒ 无需改动，6/6 全绿。反证了「上一轮的 784 来自另一种实现」，本批实现更收敛。
+- 新增 `SettlementMemberDiscountOnceTest`（6 例，含要求的**反例钉测**：会员 + 活动同时命中 ⇒ `gross 1200 − member 24 − activity 150 = total 1026`，② 会给 1002）+ `SettlementPartialRefundTest.partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide`（预估 392 == 写侧 392，② 会多退 5 分）。
+- 指定验证命令 `mvn -pl services/trade-service -am -Dtest='Settlement*Test,Dispute*Test,DataConsistencyServiceTest,OrderPaymentLedgerTest'`：**20 个测试类 0 fail 0 error**（新类 surefire `tests="0"` 是 @Nested 老少报，按 XML `<testcase>` 实取 6）。
+
+数字实证四层（资金改动铁律）：
+1. 非零钉测：上表新单测全部用非零会员额（7/16/24 分）断言，0 额一律红。
+2. 活库真单：新增 `MemberDiscountLedgerSqlIT`（Testcontainers 真 Postgres，Flyway **V1→V425 从零**，真 `MemberService` + 真 SILVER 2% 种子 + 真 `applyItemsToOrder` + 真 mapper 落库）⇒ 350×3 单读回 `gross 1050 / member 21 / activity 0 / coupon 0 / total 1029`，并在同一库跑独立对账 SQL：**恒等式违规 0 行**、**会员档 > 0 却被折后式判不一致 0 行**、**V252 ② 形残留 0 行**；`Tests run: 2, Failures: 0, Errors: 0`（failsafe 报告 `<testcase>` = 2）。IT 里先断言 `会员单价 < 目录单价` 才谈恒等式——否则 ①/② 在数字上不可区分，属假绿。
+3. 活库（dev v424）只读对账：恒等式违规 **0**；新折后式在全量 11 单上误报 **0**；`member>0` 历史行 **0**。
+4. 展示层互证：`member_discount_cents` 入账后，consumer `pages/order-detail`（MA-024 已按 `gross` 摊开、账面优先）自然平；`pages/result` 原以 `originalAmountCents`（会员折后行合计）为基准再列「会员优惠」行 ⇒ 入账后会显示「3.43 − 0.07 − 1.00 ≠ 实付 2.43」这种用户自己算不平的行 ⇒ 本批把基准改成 `grossAmountCents`（缺失才退回 `originalAmountCents`），与 order-detail 同口径。
+
+运行时腿（诚实标注）：**活栈 HTTP 会员单未验** —— `:18080` 现跑镜像是 `f9905080`（不含本批），要挣这条得重建共享容器；本批按值守硬约束「脏树不动共享容器」停在提交前，把这条留给 R11 全链路（那一轮本来就要用新镜像跑一遍会员单结算）。IT 已覆盖「真库 + 真生产写入口 + 真 SQL」，缺的只是 HTTP/门/识别那半条链。
+
 ## 待拍板 / 待办
 
-1. **MA-023② + MA-024 合成一批**：订单缺「会员前/活动前毛额」这一档（`member_discount_cents` 无写入者、`original_amount_cents` 无列）⇒ 三端优惠拆解与巡检对账式都少一层。四件套＝结算写清毛额与各档优惠 + 巡检 `PAID_GROSS_MISMATCH/ORDER_AMOUNT` 口径复核 + 三端明细行（含 order-detail 活动行）+ 数字实证（非零钉测 + `money-recheck.sql` 四层互证 + 留痕）。
+1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
 3. ~~**MA-025**~~ 见下方第 7 条（已落地）。
 2. ~~MA-020（R8，P1）~~ ✅ 已落地（档 B）：`LoginView` 不再预填/写入口令，勾选项改名「记住账号」，`admin_password` 与开关键在**挂载、登录、登出**三处无条件删除；`auth-storage.test.ts` 3 例钉住「勾选着也删」「手机号照旧保留」「取消勾选照旧清手机号」。
 4. ~~**MA-026**~~ ✅ 已落地（读面判据统一到 `expire_at`）：`UserCouponMapper.countUnusedNotExpired` + `CouponService.effectiveStatus`（列表按有效状态筛、下发有效状态）⇒ 「未使用」页签、「N 张可用」计数、「设为优先使用」三处同时收口；`CouponServiceTest` 26/0。

@@ -15,6 +15,12 @@
 | R1 销售报表/大屏品类维度裸字典码「1」（提交 `355bb308`） | P2 | `salesReport_categoryDim_translatesDictCodeToLabel` | `services/trade-service/src/test/java/com/aicabinet/trade/service/CompetitiveGapSalesReportTest.java` | `mvn -pl services/trade-service -am test -Dtest=CompetitiveGapSalesReportTest` | 钉测 |
 | R1 大屏头部窄视口重叠（提交 `5a62f77e` + 产物 `0eb90b49`） | P3 | 无（人工复验 `evidence/R01-big-screen-narrow-fixed-558.png`） | — | — | **无**（R10 补 1280/1920 双视口截图断言） |
 | CB-080 下架 SKU 台账行「可见可清」 | P2 | `getDeviceDetail_filtersDelistedSkuFromSkuInventory` | `services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceSlotServiceTest.java:188` | `mvn -pl services/trade-service -am test -Dtest=DeviceSlotServiceTest` | 钉测 |
+| MA-029 会员+活动同时命中只折一次（恒等式 1200−24−150=1026） | P1 | `SettlementMemberDiscountOnceTest`（6 例：入账/反例/非会员/改单重算/比例退写侧/无券比例退） | `services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementMemberDiscountOnceTest.java:88,108` | `mvn -pl services/trade-service -am test -Dtest=SettlementMemberDiscountOnceTest` | 钉测 |
+| MA-029 争议改单不再减第二次会员（1176 而非 1152） | P1 | `confirmDisputedItems_memberDiscountAppliedOnceNotTwice` | `services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementConfirmDisputeTest.java:240` | `mvn -pl services/trade-service -am test -Dtest=SettlementConfirmDisputeTest` | 钉测 |
+| MA-029 退款「预估 == 写侧」且会员档不进应付（392 而非 397） | P1 | `partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide` | `services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementPartialRefundTest.java:186` | `mvn -pl services/trade-service -am test -Dtest=SettlementPartialRefundTest` | 钉测 |
+| MA-029 活库真单：生产写入口 + 真 SILVER 2% 种子 + 恒等式/巡检式对账 SQL 全 0 违规 | P1 | `MemberDiscountLedgerSqlIT`（2 例） | `services/trade-service/src/test/java/com/aicabinet/trade/service/MemberDiscountLedgerSqlIT.java:118,167` | `mvn -pl services/trade-service -am verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=MemberDiscountLedgerSqlIT -Dfailsafe.failIfNoSpecifiedTests=false` | 钉测（IT） |
+| MA-029 活库每次造钱后复跑（恒等式 + 折后式 + 入账可见性三段） | P1 | `money-recheck.sql` 7a/7b/7c | `docs/module-audit/seeds/money-recheck.sql` | `docker exec -i ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -f - < docs/module-audit/seeds/money-recheck.sql` | 只读脚本（R11 必跑） |
+| MA-029 consumer 结果页「商品合计 − 各档 = 实付」基准 = gross | P1 | 无（人工判据：`pages/result` 商品明细卡首行数字 = 后端 `grossAmountCents`，且与会员/活动/券三行相减等于「实付金额」） | — | — | **无**（R10 补 automator 文本快照断言，需先在活栈重建后造一笔会员单） |
 
 ## 补债规则
 

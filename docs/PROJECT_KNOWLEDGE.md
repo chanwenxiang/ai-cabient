@@ -155,6 +155,20 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 **门禁**：`pnpm check:money-yuan-prefix`（已入 `check:audit-gates`）钉两件事——① 模板写字面 `¥` 又调用「自带 `¥`」的函数（渲染成 `¥¥12.34`、负额 `¥-¥5.00`；2026-10-16 清掉商户端 16 处 + 运营台 25 处）；② `.replace(/^¥/, '')` 剥符号手术（锚 `^` 对 `-¥5.00` 不匹配 ⇒ 只剥了正数）。它**先解析每个文件里标识符的绑定来源**再判，不做全局字符串匹配（第一版全局匹配误报 27 处）。
 
+### 6.3 订单优惠四列的权威口径（2026-11-02 MA-029 方案 A 拍板，勿「顺手对齐」）
+
+**不变式**：应付永远是 `total = Σ 行金额 − coupon`；会员与活动折扣**只在 `cabinet_order_line.unit_price_cents` 里各减一次**（先会员价、再活动价），`member_discount_cents` / `activity_discount_cents` / `gross_amount_cents` 三列都是**留档不是减项**。四列一起满足：
+
+```
+gross − member − activity − coupon = total      （部分退款单例外：total 变小、gross 保持原毛额，差额看 refunded_cents）
+```
+
+- 历史上 ②「把 `member_discount_cents` 当订单级减项再扣一次」与 ① 并存，靠该列恒 0（全仓无写入者）潜伏。照抄「补个入账」而不删 ② = **重复扣减＝少收钱**。写入口 `SettlementOrderSupport.applyItemsToOrder` 自 2026-11-02 起按 Σ(目录价 − 会员价) × 数量 入账。
+- ② 的算术散在 **5 处**，改口径必须一起扫：改单重算、按比例退写侧、**按比例退只读预估侧**（铁律 51 预估≠写侧＝资损）、**巡检 `checkOrderConsistency` 的检测 SQL**（漏改会让每单会员折扣永久误报，且落进「需人工」那条修不掉的分支）、脏券清理里那句 `member_discount_cents = 0`。
+- 会员档不做「应付上限夹取」的减法用途：`recalculatePayableAfterLineChange` 仍夹一次纯属防脏数据撑爆留档列，**不影响应付**。
+- 唯一 ② 形的历史行是 V252 的 local/dev/uat 演示种子 ⇒ 由 `V425`（backfill）把**明细行**改成 ① 形，订单头金额列一律不回填。
+- 钉测：`SettlementMemberDiscountOnceTest`（含「会员 + 活动同时命中只折一次」反例）、`SettlementConfirmDisputeTest.confirmDisputedItems_memberDiscountAppliedOnceNotTwice`、`SettlementPartialRefundTest.partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide`、活库真单 `MemberDiscountLedgerSqlIT`。
+
 ---
 
 ## 7. 文档与规则索引
@@ -668,6 +682,15 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-02（MA-029 方案 A：会员折扣只折一次——② 的算术原来散在 5 处，不是交接书写的 2 处）
+
+- **拍板**：会员折扣以 ①「会员价直接算进单价」为权威（②「把 `member_discount_cents` 当订单级减项再扣一次」历史上靠该列无写入者恒 0 潜伏；选 ② 等于重写定价链，已否决）。应付恒等式收口为 `total = Σ 行金额 − coupon`，四列满足 `gross − member − activity − coupon = total`（详见 §6.3）。
+- **落地面（5 处减项 + 1 处入账 + 1 笔 backfill）**：`SettlementOrderSupport`（入账 + 改单重算 + 按比例退写侧）、`SettlementPartialRefundService.applyPartialRefundPayablePreview`（只读预估腿——漏改就是「预估 397 / 实退 392」这种资损级不一致，铁律 51）、`DataConsistencyService.checkOrderConsistency` 检测 SQL（🔴 `813bb20e` 当时只拆了**修复侧**，检测式这条还留着 ⇒ 入账一开每一单会员折扣都被永久误报，且因 `member>0` 落进「需人工」修不掉的分支）、`clearStaleCouponFields` 不再顺手抹会员留档、`V425`（backfill）把 V252 演示种子从 ② 形改成 ① 形（只改明细行，订单头金额列一律不回填）。
+- **展示层连带**：consumer `pages/result` 的「商品合计」原来取 `originalAmountCents`（会员折后的行合计）却又列「会员优惠」行 ⇒ 入账后会显示「3.43 − 0.07 − 1.00 ≠ 实付 2.43」；基准改成 `grossAmountCents`（缺失才退回），与 `pages/order-detail`（MA-024）同口径。
+- 🧪 证据四层：新单测 `SettlementMemberDiscountOnceTest` 6 例（含「会员 + 活动同时命中只折一次」反例：1200−24−150=1026，② 会给 1002）+ 争议重算改名重写成 ① 真形（400→392×3=1176，② 落 ① 数据会给 1152）+ 部分退「预估==写侧」1 例 ⇒ 指定套件 20 个测试类 **0 fail 0 error**；活库真单 `MemberDiscountLedgerSqlIT`（Testcontainers 真 PG、Flyway **V1→V425 从零**、真 `MemberService` + 真 SILVER 2% 种子 + 真 `applyItemsToOrder` + 真 mapper 落库）读回 `gross 1050 / member 21 / total 1029` 并在同库跑独立对账 SQL：恒等式违规 0、会员档 >0 被折后式误报 0、V252 ② 形残留 0（2/0/0）；dev 活库（v424）只读对账：恒等式违规 **0**、新折后式在全量 11 单误报 **0**、`member>0` 历史行 **0**（⇒「历史恒 0、去减法是恒等变换」成立）。
+- 🔴 两条「预警的连带 fixture」实为**不挂**：`withCoupon_…`/`increase_balanceInsufficient_…` 的 fixture 里会员档恒 0，`recalculate` 的夹取本就是 no-op ⇒ 无需改动，6/6 绿。教训同前：交接书里的数字要自己复算，不能当既成事实照抄。
+- ⚠️ 未挣：活栈 HTTP 会员单结算（`:18080` 现跑镜像 `f9905080` 不含本批，脏树不动共享容器）⇒ 留给 R11 全链路那一轮（那轮本来就要用新镜像跑一遍会员单）。
 
 ### 2026-11-01（CB-082 活动限定 SKU v1：立减/折扣/一口价 + 活动优先禁券 + 展示位；两处只有真库才暴露的缺陷）
 
