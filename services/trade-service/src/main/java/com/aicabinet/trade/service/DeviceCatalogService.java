@@ -27,19 +27,23 @@ public class DeviceCatalogService {
     private final MerchantSkuPricingService skuPricingService;
     private final SysDictService sysDictService;
     private final PromotionPricingService promotionPricingService;
+    /** 会员价必须在活动价之前应用，与结算链 {@code SettlementOrderSupport} 同序，否则「显示价≠实付」。 */
+    private final MemberService memberService;
 
     public DeviceCatalogService(DeviceSkuInventoryMapper inventoryRepository,
                                 DeviceSkuLotMapper lotRepository,
                                 SkuCatalogMapper skuCatalogRepository,
                                 MerchantSkuPricingService skuPricingService,
                                 SysDictService sysDictService,
-                                PromotionPricingService promotionPricingService) {
+                                PromotionPricingService promotionPricingService,
+                                MemberService memberService) {
         this.inventoryRepository = inventoryRepository;
         this.lotRepository = lotRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.skuPricingService = skuPricingService;
         this.sysDictService = sysDictService;
         this.promotionPricingService = promotionPricingService;
+        this.memberService = memberService;
     }
 
     /** 无登录上下文（附近柜机预览等）：活动价按不限人次口径展示，结算仍以服务端命中为准。 */
@@ -91,7 +95,9 @@ public class DeviceCatalogService {
             int qty = qtyBySku.getOrDefault(skuId, 0);
             if (sku != null && qty > 0) {
                 int basePrice = skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy);
-                var applied = promotionPricingService.resolveUnitPrice(userId, dev, merchantId, skuId, basePrice);
+                // 与结算同序：先会员价，再活动价（活动价覆盖会员价之后的单价）
+                int memberPrice = memberService.applyMemberPriceDiscount(userId, basePrice);
+                var applied = promotionPricingService.resolveUnitPrice(userId, dev, merchantId, skuId, memberPrice);
                 result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),

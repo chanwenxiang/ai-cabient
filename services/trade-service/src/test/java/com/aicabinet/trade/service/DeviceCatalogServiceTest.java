@@ -22,8 +22,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +59,8 @@ class DeviceCatalogServiceTest {
     private SysDictService sysDictService;
     @Mock
     private PromotionPricingService promotionPricingService;
+    @Mock
+    private MemberService memberService;
 
     private DeviceCatalogService service;
 
@@ -64,7 +68,10 @@ class DeviceCatalogServiceTest {
     void setUp() {
         service = new DeviceCatalogService(
                 inventoryRepository, lotRepository, skuCatalogRepository, skuPricingService, sysDictService,
-                promotionPricingService);
+                promotionPricingService, memberService);
+        // 默认无会员折扣（原价透传）；需要会员价的用例自行覆写
+        lenient().when(memberService.applyMemberPriceDiscount(any(), anyInt()))
+                .thenAnswer(inv -> inv.getArgument(1));
     }
 
     @Test

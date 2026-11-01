@@ -22,7 +22,7 @@
     >
       <swiper-item v-for="(s, i) in slides" :key="String(s.adCampaignId) + '-' + i">
         <view role="button" class="mab-card" @click="onTap(i)">
-          <image class="mab-img" :src="s.imageUrl || ''" mode="aspectFill" />
+          <image class="mab-img" :src="absoluteImageUrl(s.imageUrl)" mode="aspectFill" />
           <view class="mab-scrim" aria-hidden="true" />
           <view class="mab-copy">
             <text class="mab-title">{{ s.title }}</text>
@@ -38,14 +38,18 @@
 import { ref, watch } from 'vue';
 import { consumerApi, type MarketingBannerDto } from '@/utils/consumer-api';
 import { openCampaignPath } from '@/utils/campaign-path';
+import { absoluteImageUrl } from '@/utils/product-thumb';
 
 /**
  * 设备上下文（可选）：有柜码时带上，让后端过滤 SPECIFIC 投放范围
  * （index.vue:53 v-else 分支传入；无柜码场景只出 ALL 范围广告）。
  */
 const props = defineProps<{ deviceId?: string | null }>();
+/** CB-082：把「本槽位是否有内容」交给首页决定是否回落到设备投放位（避免同屏双轮播）。 */
+const emit = defineEmits<{ 'slot-visible': [boolean] }>();
 
 const slides = ref<MarketingBannerDto[]>([]);
+watch(slides, (v) => emit('slot-visible', v.length > 0), { immediate: true });
 /** 实例内去重：campaignId+assetId+事件 各一次（服务端另有 60s 窗口兜底）。 */
 const reported = new Set<string>();
 
@@ -97,7 +101,8 @@ function report(banner: MarketingBannerDto, eventType: 'IMPRESSION' | 'CLICK') {
 <style scoped>
 .mab {
   width: 100%;
-  margin: 0 0 20rpx;
+  /* 与顶部状态条留出呼吸位（用户 2026-11-01 反馈：轮播图顶到导航条上） */
+  margin: 28rpx 0 20rpx;
 }
 .mab-swiper {
   height: 280rpx;

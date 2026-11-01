@@ -44,13 +44,16 @@
         开启后由组件按优先级择一渲染：自有投放 → 腾讯流量主广告 → 占位图。
         ⚠️ 本开关只管「位置可见性」；广告收益对账/入账属 F4 后续切片，不在其语义内。
       -->
-      <DeviceAdBanner v-if="deviceId && adBannerVisible" :device-id="deviceId" />
       <!--
-        P3-6：营销轮播位（marketing/banners 的 MINI_PROGRAM 渠道广告）。
-        与上面设备位互斥：设备位关闭（开关关/无柜码）时顶上，避免同屏双轮播。
-        :device-id 供 SPECIFIC 投放范围过滤（无柜码时只出 ALL 范围广告）。
+        CB-082：营销轮播位优先（活动展示位 banner + MINI_PROGRAM 渠道投放，真图）。
+        设备投放位只在本槽位没有营销内容时兜底 —— 两者仍互斥，避免同屏双轮播。
+        :device-id 供 SPECIFIC 范围过滤（无柜码时只出 ALL 范围）。
       -->
-      <MarketingAdBanner v-else :device-id="deviceId" />
+      <MarketingAdBanner :device-id="deviceId" @slot-visible="marketingSlotVisible = $event" />
+      <DeviceAdBanner
+        v-if="deviceId && adBannerVisible && !marketingSlotVisible"
+        :device-id="deviceId"
+      />
 
       <view
         v-if="reviewSessionId && !sessionActive"
@@ -701,6 +704,8 @@ const detailVisible = ref(false);
  * fail-closed：默认 false ⇒ 首页不渲染广告位，与接入前完全一致。
  */
 const adBannerVisible = ref(false);
+/** 营销轮播位是否已有内容（有则不再渲染设备投放位，避免双轮播） */
+const marketingSlotVisible = ref(false);
 
 /**
  * CB-082：开门前活动弹窗。运营在后台按活动配置（与关门后弹窗互斥）；

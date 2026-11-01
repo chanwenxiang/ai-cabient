@@ -678,6 +678,8 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 - 🔴 **真库才暴露的坑 1**：一开始用 jsonb `?` 运算符做数组包含判断，MyBatis 把 `?` 当 JDBC 占位符 ⇒ `No value specified for parameter N`（首页轮播/弹窗直接 500）。改用 `EXISTS (SELECT 1 FROM jsonb_array_elements_text(...) e WHERE e = #{x})`，并把 `#{merchantId} IS NOT NULL` 改为 `CAST(#{merchantId} AS varchar)`（PostgreSQL 无法推断裸参数类型，设备无柜码时同样 500）。
 - 🔴 **真库才暴露的坑 2**：V419 直接往 `sys_dict_data` 插 `promotion_type` 值，但字典类型是 `SysDictBootstrap` 启动时才种，Flyway 先跑 ⇒ 空库外键失败、全新环境起不来。V419 补 `INSERT INTO sys_dict_type … WHERE NOT EXISTS`（V418/V420 本就有该守卫）。
 - 🧪 证据：`PromotionPricingMapperIT`（真迁移库：三种范围命中/跨柜跨 SKU 不命中；立减 350−100=250；每人限 1 单后同用户不命中、他人仍命中）、`PromotionActivityValidatorTest` 10、`PromotionPlacementServiceTest` 7、`PromotionPricingServiceTest` 9、结算套件 30 全绿；dev 活栈 API 实测（负向：无 banner 400、双弹窗 400、正方形当 banner 400、未配 banner 直接启用 409）+ 管理端 Playwright 截图 + 消费端 H5 弹窗实测（图片 750×1000、关闭生效）；`money-recheck.sql` 六条全 0 mismatch。
+- **2026-11-01 小程序实测补丁**（演示柜 500909625160，微信开发者工具 automator 驱动）：①货架轮播位原先被 `consumer.ad_banner.enabled=true` 独占，活动 banner 永远不显示 ⇒ 改为营销轮播位优先、设备投放位在其无内容时兜底（`MarketingAdBanner` 上报 slot-visible，父组件据此互斥）；②`MarketingAdBanner`/营销页直接用相对 `imageUrl`，小程序 `<image>` 按包内路径解析必 404 ⇒ 统一 `absoluteImageUrl()`；③展示价与实付不一致：结算链「先会员价、再活动价」，商品读面只算了活动价（会员 10001 显示 ¥2.50，实付 ¥2.43）⇒ `DeviceCatalogService` 同步先应用会员价再解析活动价（显示=实付）；④轮播位与顶部状态条贴死，加 28rpx 上边距。
+- **实测结果**：模拟柜开门 → 商品卡「活动价 / 原价 ¥3.50 / ¥2.43/罐」→ 关门后上报端侧识别（`POST /internal/v1/vision/edge-results`，modelVersion 非 mock）→ 订单 `PAID`：`total_amount_cents=243`、`activity_discount_cents=100`、`coupon_discount_cents=0`；结果页「实付 ¥2.43 / 活动优惠 减¥1.00 / 本单已享活动价，不再叠加优惠券」。
 
 ### 2026-10-31（开门柜效期 tab 运行时三面挣齐；「货道柜反证」由用户拍板作废；admin「缺货建议」tab 恒空的口径改成实话）
 

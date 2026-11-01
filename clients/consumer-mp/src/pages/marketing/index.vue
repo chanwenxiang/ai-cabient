@@ -18,7 +18,12 @@
               :class="b.imageUrl ? 'banner-card--media' : 'tone-' + b.tone"
               @click="onBannerTap(b)"
             >
-              <image v-if="b.imageUrl" class="banner-media" :src="b.imageUrl" mode="aspectFill" />
+              <image
+                v-if="b.imageUrl"
+                class="banner-media"
+                :src="absoluteImageUrl(b.imageUrl)"
+                mode="aspectFill"
+              />
               <view v-if="b.imageUrl" class="banner-scrim" aria-hidden="true" />
               <view class="banner-copy">
                 <text class="banner-title">{{ b.title }}</text>
@@ -112,6 +117,7 @@ import {
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
+import { absoluteImageUrl } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -129,7 +135,8 @@ const banners = ref<MarketingBannerDto[]>([]);
 onShareAppMessage(() => ({
   title: SHARE_TITLE,
   path: SHARE_PATH,
-  imageUrl: banners.value.find((b) => !!b.imageUrl)?.imageUrl || '/static/share-card.jpg'
+  imageUrl:
+    absoluteImageUrl(banners.value.find((b) => !!b.imageUrl)?.imageUrl) || '/static/share-card.jpg'
 }));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 
