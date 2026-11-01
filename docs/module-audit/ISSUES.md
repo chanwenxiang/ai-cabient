@@ -19,6 +19,8 @@
 | MA-021 | P2 | fixed（V421） | admin `/menus` + 角色权限树 | 4 个「前后端零引用」页面权限码仍 ACTIVE（H51 只改了前端 perm），菜单管理显示成启用页、角色树勾了不生效＝幽灵菜单 | Qoder R8 / 2026-11-01 | 沿用 V386 RETIRED 口径；`ops:operlog`/`ops:pricing:view`/`ops:nav:*` 判据不同刻意保留 |
 | MA-022 | P3 | fixed | admin `/devops` + `/observability` | dev（vite）端内嵌看板恒 404：在线探针由后端发起说「在线」，iframe 走同源 `/devops/grafana` 而 vite 只代理 `/api` ⇒ 「卡片在线、嵌入区空白」自相矛盾 | Qoder R8 / 2026-11-01 | 生产形态（网关挂 /admin）已实证 200，非产品缺陷 |
 | MA-023 | P2 | 部分 fixed（展示侧）/ 记账侧**待拍板** | consumer-mp `pages/index` 商品卡 + `cabinet_order` 优惠拆解 | 会员 98 折在两层都不现身：商品卡下发目录价 350、活动价按 343 再减 100 ⇒「原价 ¥3.50 − 1.00 ≠ 实付 ¥2.43」；且 `member_discount_cents` 全仓无写入者恒 0，而巡检对账式正在消费该列 | Qoder R9 / 2026-11-01 | rounds/R09-miniprograms.md |
+| MA-024 | P2 | **待拍板**（未动） | consumer-mp `pages/order-detail` vs `pages/result` | 同一单结果页披露「活动优惠 减¥1.00」、订单详情页没有活动行；且 `cabinet_order` 无 `original_amount_cents` 列 ⇒ 读模型反推的「商品合计」是活动后金额，现在补行只会更对不上 | Qoder R9 / 2026-11-01 | 与 MA-023② 同根，建议合成一批 |
+| MA-025 | P2 | **待拍板**（未动） | consumer-mp `pages/balance` 余额明细 | 微信支付分的 `CHARGE`（通道 WECHAT、余额前后 NULL）被列进「余额明细」并显示「余额 ¥0.00」，而同页可用余额 140 未动 ⇒ 读成「余额被扣到 0」 | Qoder R9 / 2026-11-01 | 根因＝可见性查询不按通道过滤 + `value()` 把 null 兜底成 0 |
 | MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
@@ -400,7 +402,7 @@
 
 ### MA-023 会员折扣在「商品卡」与「订单账」两层都不现身（P2，展示侧已修 / 记账侧待拍板）
 
-- 级别/状态：P2 / **展示侧 fixed、记账侧待拍板**（2026-11-01，Qoder R9 批 1；发现锚 `55bac20f` → 修复锚 见本条末尾提交号）
+- 级别/状态：P2 / **展示侧 fixed、记账侧待拍板**（2026-11-01，Qoder R9 批 1；发现锚 `55bac20f` → 修复锚 `a96b57c8`）
 - 端与页面：consumer-mp `pages/index/index` 商品卡（原价/活动价）+ 三端订单优惠拆解（`cabinet_order.member_discount_cents`）
 - 真值链（同一笔真单 `1793498414728440537903` 逐源钉）：
   `sku_catalog.price_cents` **350** →（会员 98 折，`MemberService.applyMemberPriceDiscount:377-395`）→ **343** →（活动 4 `SKU_REDUCE reduce_cents=100`）→ **243**；

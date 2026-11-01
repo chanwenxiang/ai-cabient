@@ -1,9 +1,9 @@
 # R9 双小程序（consumer-mp 23 页 / merchant-mp 35 页）
 
-- **锚**：发现锚 `55bac20f`（R8 批 2 收口提交）；修复锚见本批末尾提交号。
+- **锚**：发现锚 `55bac20f`（R8 批 2 收口提交）；修复锚＝MA-023 展示侧 `a96b57c8`；MA-023②/024/025 未动码（待拍板）。
 - **环境**：本机 dev 栈；**微信开发者工具 + miniprogram-automator**（`ws://127.0.0.1:9421`，consumer 项目 `dist/dev/mp-weixin`），判据按用户 2026-10-27 的口径——只看 mp 真端，H5 红不阻塞。
 - **登录注入**：合成输入在 automator 上坏（记忆 `mp-automator-verify`），走 HTTP 短信登录（dev 验证码直读 `sms_verification_code`）+ `setStorageSync` 注 `consumer_token/consumer_user_id/consumer_token_expires/consumer_server_boot`，`mockWxMethod('scanCode')` 提供柜号。
-- **进度**：批 1 ✅（consumer 主包 7 页）；批 2（consumer 交易履约分包 6 页）、批 3+（增长/账户分包、merchant 35 页）未开始。
+- **进度**：批 1 ✅（consumer 主包 7 页）；批 2 ✅（交易履约/账户分包 6 页：order-detail、dispute/detail、recharge、balance、coupons、messages）；批 3+（增长/公告/帮助等分包、merchant 35 页）未开始。
 
 ## 批 1 逐页结论（consumer 主包 7 页）
 
@@ -30,7 +30,38 @@
    - 影响面：消费者/商户/运营看到的优惠拆解都缺「会员」这一档（商户分账、按比例退款读的是账面金额，不是推导）。
    - 建议：**单独一批做**，四件套＝结算写入该列（与 `SettlementOrderSupport` 同序）+ 巡检口径复核（PAID_GROSS_MISMATCH / ORDER_AMOUNT 两条规则）+ 三端明细加「会员优惠」行 + 数字实证（非零钉测 + `money-recheck.sql` 四层互证 + 留痕）。值守期不擅动资金字段是本程序的既定边界。
 
+## 批 2 逐页结论（consumer 分包 6 页）
+
+| 页面 | 数据/口径核对（真值来源） | 交互与写面 | 结论 |
+|------|---------------------------|------------|------|
+| `pages/order-detail/order-detail` 订单详情 | 用真单 `1793498414728440537903`：明细 单价 ¥2.43 ×1、批次 SIM-CB082、货道 A1、商品合计 ¥2.43、优惠券抵扣 减¥0.00、实付 ¥2.43、流水号/扣款时间/柜机齐 | 只读页；「立即退款/提交申诉」入口未点（写面） | **MA-024（P2）待拍板**：同一单在 `result` 页显「活动优惠 减¥1.00」，本页**没有活动行**，且「商品合计」用的是活动后金额 ⇒ 两读面优惠披露不一致 |
+| `pages/dispute/detail` 账单审核 | 以 orderId+sessionId 进入得「争议工单不存在」——该页取的是**争议工单 id**（探针传参形态不对，非产品缺陷）；空态文案正确、无 console 错误 | — | 无缺陷（批 3 用真实工单 id 复走） |
+| `pages/recharge/recharge` 余额充值 | 当前余额 ¥140.00 = `user_account.balance_cents` 14000；退余额待审 1 条（BR-DEMO-001 ¥5.00，2026-10-07）与 `balance_refund_request` 一致；充值记录 2 条 ¥20 与 `payment_operation` RECHARGE 行一致 | 「体验充值」「申请退余额」为写面，本批只看不点 | 无缺陷。页内「模拟支付(无真实进件)…/体验充值仅用于联调验证」在 `v-else-if="devTools"` 块内（recharge.vue:178-182），**非生产可见**；字符串来自后端 `paymentModeHint`，仓内无硬编码 |
+| `pages/balance/balance` 余额明细 | 4 行流水与 `payment_operation` 逐行对：两条 `CHARGE 243 channel=WECHAT balance_before/after=NULL` + 两条 `RECHARGE 2000`（余额 12000→14000） | 只读；下拉刷新/触底加载 | **MA-025（P2）待拍板**：非余额通道的扣款被列进「余额明细」，且缺失的余额快照被兜底成 `¥0.00` 显示 |
+| `pages/coupons/coupons` 我的优惠券 | 1 张「新人立减 ¥2」，`user_coupon.status=UNUSED`、`expire_at=2026-10-27`（已过期 5 天）；芯片 全部/未使用/已使用/已过期 | 「设为优先使用」为写面，未点 | 观察项（见下），本轮不领号 |
+| `pages/messages/messages` 消息中心 | 芯片 全部 12 / 未读 10 / 订单 7 / 售后 / 优惠券 1 / 充值 2；列表首条与 `payment_operation` 订单号逐一对应；零元单文案「已支付 0 元」与账面一致 | 「开启微信消息提醒」为订阅写面，未点 | 无缺陷（计数与 `notification_log` 同窗口一致，未逐条展开核对 12 条正文） |
+
+## MA-024（P2，待拍板未动）：同一笔订单，结果页披露活动优惠、订单详情页不披露
+
+- 同一单 `1793498414728440537903`：`pages/result/result` 有「活动优惠 减¥1.00 + 本单已享活动价，不再叠加优惠券」（CB-082 本轮加的行）；`pages/order-detail/order-detail` 只有 优惠券抵扣 / 会员优惠 两行（[order-detail.vue:50-57](file:///D:/ai-generated%20code/ai-cabinet/clients/consumer-mp/src/pages/order-detail/order-detail.vue#L50-L57)），**没有活动行**。
+- 更深一层：本页「商品合计」取 `originalAmountCents ?? totalAmountCents`，而 `cabinet_order` **没有 `original_amount_cents` 列**（只有 total/paid/member/activity/coupon 五列）⇒ 读模型反推的「原价」= 243（含不回活动那 100），所以就算现在补一行「活动优惠 减¥1.00」，页面会变成「合计 2.43 − 1.00 ≠ 实付 2.43」，**更不自洽**。
+- 结论：这不是加一行模板能修的事，与 MA-023② 是同一个根：**订单缺「活动前/会员前毛额」这一档**。建议**与 MA-023② 合成一批做**（毛额语义 + 三端明细 + 巡检对账式复核 + 数字实证），本轮刻意不做半修（会制造新的对不上）。
+
+## MA-025（P2，待拍板未动）：「余额明细」混入非余额通道扣款，并把空余额快照显示成 ¥0.00
+
+- 实测：两条 `CHARGE` 的 `channel=WECHAT`、`balance_before_cents/balance_after_cents` **均为 NULL**（微信支付分先取后付，全程没动余额），但页面把它们列进「余额明细」并显示「购物扣款 −¥2.43 · 余额 ¥0.00」；同页头部「可用余额 ¥140.00」纹丝不动 ⇒ 消费者会读成「余额被扣到 0」。
+- 根因两处（都在后端）：
+  1. 可见性查询只剔纯冻结/释放（[PaymentOperationMapper.java:32-42](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java#L32-L42) `HOLD_OPERATION_TYPES`），**不按通道过滤**；
+  2. `BalanceLedgerService.toDto` 用 `value()` 把 `null` 兜底成 `0`（[BalanceLedgerService.java:237-244](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceLedgerService.java#L237-L244)），而前端只在 `balanceAfterCents != null` 时渲染 ⇒ 0 永远被渲染。
+- 推荐档 A（最小且对症）：可见性查询加「真正动过余额」判据（`balance_after_cents IS NOT NULL` 或 `channel='BALANCE'`），同时 `balanceAfterCents` 改回可空（前端已有 `!= null` 门，天然不再显示假快照）。非余额支付留在「我的订单」。
+- 为什么不值守期做：`BalanceTransactionDto` 字段类型变化会牵 shared-types / 三端消费点，且 `value()` 的 null→0 兜底是他处也在用的公共函数——属"改一处要复核三端"的资金读面，按既定边界留给人工批。
+
+## 观察项（批 2，未领号）
+
+- 优惠券：`user_coupon` 唯一一张 `status=UNUSED` 但 `expire_at=2026-10-27` 已过 5 天，仍在「未使用」里且「设为优先使用」可点。置过期靠 `coupon-expire` 日批（`/scheduled-tasks` 显示最近一次执行 **2026-10-24 02:00**，本机夜间关机 ⇒ 批没跑）。**读侧是否按 `expire_at` 实时判过期未钉到源码**（本轮没找到券列表的过滤条件），批 3 或 R10 补钉；若读侧确实只认 status，则应领号（券在页面上「可用」而结算必拒）。
+
 ## 走查副作用（不是缺陷，但必须留痕）
+
 
 - 「只读」走查里 `reLaunch('/pages/index/index?deviceId=…')` 在**微信端会直接开门**：[index.vue:1100-1103](file:///D:/ai-generated%20code/ai-cabinet/clients/consumer-mp/src/pages/index/index.vue#L1100-L1103) `if (launch.deviceId) { if (launch.autoOpen || !isH5.value) startShoppingFlow(...) }`；而 `autoOpen` 在 [packages/shared-uni/src/qrcode.ts:198-204](file:///D:/ai-generated%20code/ai-cabinet/packages/shared-uni/src/qrcode.ts#L198-L204) 是 `options.autoOpen==='1' || options.open==='1' || !!(deviceId)` ——**只要带柜号就一定为真**，`autoOpen=0` 关不掉。该坑在本页 :805-806 已有注释承认（并刻意让某条链路不带 deviceId 绕行）。
 - 隔离实验（`.tmp/r9-autoopen.cjs`，逐步查 `shopping_session` 新行）：①不 mock scanCode、纯首页 ⇒ 新会话 **0**；②只 mock scanCode、首页不带 deviceId ⇒ **0**；③带 `?deviceId=` ⇒ **1**。⇒ 结论：首页不会自己扫码，**带柜号深链即开门**是设计路径（真机需先扫柜门码，不存在误开）。
@@ -40,7 +71,8 @@
 
 ## 待拍板 / 待办
 
-1. **MA-023 记账侧**（会员折扣入账 + 巡检口径联动），见上「建议单独一批做」。
-2. MA-020（R8，P1）后台口令常驻 localStorage 仍未动——等用户拍三档。
-3. 批 2 清单：consumer 交易履约分包 `order-detail / dispute / recharge / balance / result` 已完成部分只补 order-detail、dispute；写面（申请退款、争议提交、充值下单）只开框验确认门。
-4. `pages/index/index` 修复后的真端复验：需先重建 trade 镜像（**必须等共享树干净**，否则会把 peer 的脏源码烤进产物）。
+1. **MA-023② + MA-024 合成一批**：订单缺「会员前/活动前毛额」这一档（`member_discount_cents` 无写入者、`original_amount_cents` 无列）⇒ 三端优惠拆解与巡检对账式都少一层。四件套＝结算写清毛额与各档优惠 + 巡检 `PAID_GROSS_MISMATCH/ORDER_AMOUNT` 口径复核 + 三端明细行（含 order-detail 活动行）+ 数字实证（非零钉测 + `money-recheck.sql` 四层互证 + 留痕）。
+2. **MA-025**：余额明细按通道过滤 + `balanceAfterCents` 恢复可空（牵 `BalanceTransactionDto` 类型与三端消费点，人工批做）。
+3. MA-020（R8，P1）后台口令常驻 localStorage 仍未动——等用户拍三档。
+4. 批 3 清单：consumer 剩余分包（marketing / member / points×2 / coupons 已看 / announcements×2 / help / policy / report / feedback）+ `dispute/detail` 用真实工单 id 复走 + 优惠券读侧过期判据补钉。
+5. `pages/index/index` 修复后的真端复验：需先重建 trade 镜像（**必须等共享树干净**，否则会把 peer 的脏源码烤进产物）。
