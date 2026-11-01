@@ -18,7 +18,11 @@
             <text class="label">补货明细</text>
             <text role="button" class="hint" @click="loadDraft">刷新建议</text>
           </view>
-          <text class="hint block-hint">已按缺货与销量建议预填数量，可直接调整</text>
+          <!-- MA-033：这句在「无明细」时是假话（下面紧跟着就是「该柜机暂无在架商品」），
+               两句互相打脸 ⇒ 只在真有预填行时才显示。 -->
+          <text v-if="draftLines.length" class="hint block-hint"
+            >已按缺货与销量建议预填数量，可直接调整</text
+          >
           <view v-if="draftLoading" class="empty-inline">{{ loadingLabel('建议') }}</view>
           <view v-else-if="!draftLines.length" class="empty-inline">
             该柜机暂无在架商品（商品已下架或柜内无台账）

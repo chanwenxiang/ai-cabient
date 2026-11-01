@@ -213,6 +213,28 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 - 探针从**仓库根**跑（`node .tmp/r9-merchant-walk.cjs`）——脚本里截图路径是相对路径，在 `.tmp/` 下执行会写到 `.tmp/docs/…` 造成「以为没出图」。
 - 命名 `b<批>-<序号>_<路由>.png`，序号必须**批内全局唯一**且不复用；写面页只开确认框、不点确定。
 
+## M 批 2（merchant-mp 履约写面 6 页：定价/补货任务/自主补货/仓库盘点/柜机盘点/理货记录，2026-11-02）
+
+**探针方法升级（影响全部后续批次读数）**：v1 只采 `text` 节点 ⇒ **直接写在 `view` 里的文案全漏**（本页族实测漏掉 self-replenish 的空态句、pricing 的柜机选择条、tally 的两 tab 计数），差点把「空态」误报成「明细没渲染」。v2 同时采 `text` + `view`，并按精确重复/超长拼接过滤。改名后的图：`b2-m1x*`＝v1 读数（修前），`b2-m2x*`＝v2 读数（修后）。
+
+**写面纪律**：6 页全部只看渲染，一个「提交/过账/开门」按钮都没点；`发起补货（0 种）`、`提交实盘调账`、`完成并过账` 都只读到 label。走查后 `shopping_session` 新增 0 行（同批 1 复验）。
+
+### 逐页结论
+
+| # | 页面 | v2 读数 | 结论 |
+|---|------|---------|------|
+| m21 | `pages/self-replenish` | 14 节点 | 🔴 **MA-033（已修）**：空明细时同时显示「已按缺货与销量建议预填数量」与「该柜机暂无在架商品」两句打脸话。根因链已查实：默认选中 门店二号柜，`/merchant/replenishment/suggestions?deviceId=CAB-OTHER` 返回 `[]`（该柜 7 个货道 `assignedSkuId` 全 null），而提示行是无条件渲染 ⇒ 加 `v-if="draftLines.length"`；修后活体复验只剩一句实话 + 按钮「发起补货（0 种）」 |
+| m22 | `pages/pricing` | 31 节点 | 4 行覆盖价（雪碧×2 柜、加多宝、康师傅）基准/可改区间/当前价三数自洽；「柜机：全部柜机 + 调价历史」入口在位。v1 看到的「同一句出现两遍」经核对是**探针父子节点重复**（`text` 外层含内层），不是产品缺陷 ⇒ 不领号 |
+| m23 | `pages/warehouse-stocktake` | 18 节点 | 🔴 **MA-032（open）**：待录入单显示 `明盘 · 账面 502 · 实盘 502 · 差异 0（0 行）`。DB 实证 `PD20261028-001` = `DRAFT/OPEN`、9 行全 `PENDING`、`counted_qty` 创建时按账面预填 ⇒ 数字忠实于数据，但「差异 0（0 行）」的语义会被读成「已核平」；建议 DRAFT 态显示「实盘 未录入（默认同账面）」（`warehouse-stocktake.vue:43-44` 的 `?? '—'` 只兜 null，兜不到「预填等于账面」） |
+| m24 | `pages/tally-records` | 10 节点 | 「盘点（…）」看着像加载卡住 ⇒ **查证后不领号**：`tally-records.vue:65-92` 的 `load()` 只拉当前 tab（默认 restock），另一侧 `stocktakeLoaded` 本就 false ⇒ `'…'` 是「未加载」的既定 affordance（lazy-by-design）。空态文案「近 30 天没有配货记录」诚实 ✅ |
+| m25 | `pages/device-stocktake` | 25 节点 | 开门柜实盘 3 行（雪碧 4 / 冰红茶 1 / 加多宝 1）与设备详情、真柜台账一致 ✅；🟡 观察项（未领号）：文案「开门柜：**已按**门禁式开门，清点后按商品提交实盘」是过去式，而本次是 `?deviceId=` 深链进入、没有扫码也没有开门 ⇒ 两种读法（①陈述流程设计 ②声称已开门）。留轮末/ R10 文案批定夺，判据 = 未开门时不得用完成时态 |
+| m26 | `pages/replenishment` | 86 节点 | KPI「2 待处理 / 2 已完成 / 今日完成率 0%」与任务列表（22 待处理、21 进行中、17/8 已完成）不矛盾——已完成两条是 10-30/11-01 而非今日；「缺货巡柜」显示 演示智能柜 6 项缺货·缺口 36 件、将邑 2 项·缺口 6 件，与 `/shortage-summary` 口径一致（CB-076 单源） |
+
+### 本轮取证脚本
+
+`.tmp/r9-merchant-walk.cjs`（v2 文本采集 + `START_INDEX`）、`.tmp/r9-merchant-api-probe.cjs`（PATHS 批量 GET）、`.tmp/r9-todo-types.cjs`（四源类型分布）、`.tmp/r9-self-replenish-probe.cjs` / `-data.cjs` / `-pick.cjs`（picker 实验）。
+🔴 新坑记录：① `page.data()` 在 uni-app Vue3 编译产物里是**混淆键**（`eO,uR,a,b…`），读不到业务状态 ⇒ 判状态只能靠 DOM 文本 + 后端接口对账；② 原生 `<picker>` 的选项层 automator 采不到，`page.callMethod('onDevicePick')` 报 `not exists`（setup 函数不挂到 page 实例）⇒ 「换柜机」这条交互无法脚本化，只能人工判据留给 R10。
+
 ## 待拍板 / 待办
 
 1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
@@ -223,3 +245,6 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 6. ~~**MA-028**~~ ✅ 已落地：`V422` 按门槛改 3 张券名（满 50 减 20 / 满 20 减 10 / 无门槛减 5），并加写入口校验 `CouponService.validateNameMatchesThreshold`（只认「满 N 减」这种带数字的承诺，「满减券 ¥5」不误伤；「无门槛」+门槛>0 也拒）。🔴 查证补充：这三张券是 V163 演示数据，**V345 已在 prod/staging（`seed_env='none'`）整行删除** ⇒ V422 在生产命中 0 行，真正长期有效的是写入口校验。
 7. **MA-025** ✅ 已落地（读面判据）：`findVisibleByUserIdOrderByCreatedAtDesc` 加 `balance_after_cents IS NOT NULL`（判据取「有没有余额快照」而不是 channel，将来「微信单退到余额」仍会出现）。dev 真数据验证：改后 余额明细 命中 2 条 RECHARGE、排除 2 条 WECHAT CHARGE（正是页面上「购物扣款 −¥2.43 · 余额 ¥0.00」那两行）。🔴 留观察：`BalanceLedgerService.toDto` 的 `value()` null→0 兜底仍在（现不可达），`BalanceTransactionDto` 两个余额字段仍是 `int`——改可空要牵三端与 openapi，未在本批做。
 8. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。
+9. **MA-031（P3，open）**：`merchant_alert_type` 基线缺 4 个待办类型 ⇒ 行首显示「未知」；轮末文案批一次做齐（基线 + dist 重烤 + `SysDictBootstrap` + DB 字典迁移），判据 = 待办页 0 行「未知」。同批可并：待办卡片把厂商原文 `设备 uploadOrderError errorMsg：…` 直送商户（M 批 1 观察项 #2）。
+10. **MA-032（P3，open）**：仓库盘点「待录入」单显示 `实盘 = 账面 · 差异 0（0 行）` 的语义问题——先判「明盘默认=账面」是否本就是拍板设计（`备货单/盘点` 有「只提交与台账有差异的商品」的既有口径），再决定改文案还是改预填；不建议顺手把 counted 置 0（会让明盘失去默认值便利）。
+11. **M 批 3+ 待走**（还剩 23 页）：`ops-config, purchase, notify, video, messages, announcements(2), business, tax, cabinet-reports, settlements, bills, splits, wallet, line-wallet, disputes, orders, order-detail, team, password-change, policy, prep-generate, prep-list`（按 履约/财务/账号 三组分三批，每批 ≤6 页 + 收尾一批）。
