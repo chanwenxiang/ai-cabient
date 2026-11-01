@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { matchTodoKpiCategory, mergeTodoItems, summarizeTodoItems } from './todo-list';
+import {
+  matchTodoKpiCategory,
+  mergeTodoItems,
+  summarizeTodoItems,
+  todoBadgeCount
+} from './todo-list';
 import type {
   TodoListItem,
   TodoSourceAction,
@@ -326,5 +331,55 @@ describe('matchTodoKpiCategory', () => {
   });
   it('OPEN_TIMEOUT 归故障卡——否则徽标≠待办总数（2026-10-27 实测 37 vs 41）', () => {
     expect(matchTodoKpiCategory('OPEN_TIMEOUT', 'offline')).toBe(true);
+  });
+});
+
+/**
+ * MA-030（2026-11-02 R9 实测）：首页快捷入口角标 60 与待办页四卡合计 58 同屏不一致。
+ * 根因是 `RESTOCK_TASK_TIMEOUT`（补货任务超时）没有归属卡——四卡合计里少它 2 行。
+ * 与 OPEN_TIMEOUT 同形，所以修法相同：归卡 + 用「全类型覆盖」不变式把这类回归钉死。
+ */
+describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（MA-030）', () => {
+  /** 2026-11-02 从活体待办页四个数据源实取的类型全集（`.tmp/r9-todo-types.cjs`） */
+  const OBSERVED_TYPES = [
+    'DISPUTE',
+    'RECOGNITION_FAILED',
+    'RECOGNITION_TIMEOUT',
+    'DEVICE_OFFLINE',
+    'DEVICE_FAULT',
+    'SALES_LOCKED',
+    'DOOR_OPEN_TOO_LONG',
+    'UPLOAD_STUCK',
+    'OPEN_TIMEOUT',
+    'LOW_STOCK',
+    'SLOT_DISCREPANCY',
+    'INVENTORY_MISMATCH',
+    'REPLENISHMENT',
+    'REPLENISHMENT_REQUIRED',
+    'RESTOCK_TASK_TIMEOUT',
+    'EXPIRY'
+  ];
+  const rows = (types: string[]) =>
+    types.map((t, i) => ({
+      type: t,
+      typeLabel: t,
+      title: 'T:' + t,
+      detail: 'D',
+      deviceId: 'DEV-' + i
+    })) as unknown as TodoListItem[];
+
+  it('全部已知类型都被四卡覆盖 ⇒ 徽标 == 列表行数（新增类型未归卡时本例必红）', () => {
+    const items = rows(OBSERVED_TYPES);
+    expect(todoBadgeCount(items)).toBe(items.length);
+  });
+
+  it('RESTOCK_TASK_TIMEOUT 归库存/补货卡（此前未归卡 ⇒ 60 vs 58）', () => {
+    expect(matchTodoKpiCategory('RESTOCK_TASK_TIMEOUT', 'stock')).toBe(true);
+    expect(todoBadgeCount(rows(['RESTOCK_TASK_TIMEOUT']))).toBe(1);
+  });
+
+  it('未归卡的类型会被这条不变式抓住（护栏方向自证：徽标 < 行数）', () => {
+    const items = rows(['SOME_FUTURE_TYPE']);
+    expect(todoBadgeCount(items)).toBeLessThan(items.length);
   });
 });

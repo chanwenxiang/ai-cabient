@@ -134,6 +134,7 @@ import {
   countTodoCategories,
   matchTodoKpiCategory,
   mergeTodoItems,
+  todoBadgeCount,
   type TodoKpiKey
 } from '@/utils/todo-list';
 import type { MerchantMe, OpenApiSlotDiscrepancyAlertDto } from '@aicabinet/shared-types';
@@ -360,9 +361,8 @@ async function load() {
     const dedupedInOrg = keepRowsInOrg(deduped, scope, (a) => a.deviceId);
     items.value = dedupedInOrg;
     slotDiscrepancies.value = keepRowsInOrg(slotRows || [], scope, (s) => s.deviceId);
-    // Tab 徽标与 chips 同源：按组织过滤后的列表合计（与 useHomeWorkbench 同一函数）
-    const all = countTodoCategories(dedupedInOrg);
-    setAlertsTabBadge(all.disputes + all.offline + all.lowStock + all.expiry);
+    // Tab 徽标走与首页同一函数（MA-030：此前两处各自算，出现同屏「60 vs 58」）
+    setAlertsTabBadge(todoBadgeCount(dedupedInOrg));
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';

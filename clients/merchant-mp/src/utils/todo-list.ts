@@ -217,7 +217,10 @@ const TODO_CATEGORY_STOCK = [
   'SLOT_DISCREPANCY',
   'INVENTORY_MISMATCH',
   'REPLENISHMENT',
-  'REPLENISHMENT_REQUIRED'
+  'REPLENISHMENT_REQUIRED',
+  // 2026-11-02（R9 MA-030）：补货任务超时（签到超时自动取消）也是「库存/补货」待办——
+  // 此前未归卡，导致首页徽标(60) ≠ 待办页四卡合计(58)，与 2026-10-27 OPEN_TIMEOUT 同形缺陷
+  'RESTOCK_TASK_TIMEOUT'
 ];
 
 /** 待办页四卡：审核 / 故障 / 库存 / 临期 */
@@ -248,4 +251,16 @@ export function countTodoCategories(items: TodoListItem[]): {
     lowStock: items.filter((i) => matchTodoKpiCategory(i.type, 'stock')).length,
     expiry: items.filter((i) => matchTodoKpiCategory(i.type, 'expiry')).length
   };
+}
+
+/**
+ * 任何「待办总数」徽标的唯一算法（首页快捷入口角标 + 底部 tab 角标都走它）。
+ *
+ * <p>口径＝四卡归类合计，而不是 `items.length`：徽标必须能被用户「把四卡加起来」复算。
+ * 两者应当恒等——`todo-list.test.ts` 用全类型清单钉住这条不变式（2026-11-02 MA-030：
+ * `RESTOCK_TASK_TIMEOUT` 未归卡时首页角标 60、待办页四卡合计 58，同一屏两个「待办数」对不上）。
+ */
+export function todoBadgeCount(items: TodoListItem[]): number {
+  const c = countTodoCategories(items);
+  return c.disputes + c.offline + c.lowStock + c.expiry;
 }

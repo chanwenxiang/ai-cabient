@@ -24,7 +24,7 @@ import { formatMerchantNames, merchantBindingState } from '@/utils/merchant-disp
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import {
   mergeTodoItems,
-  countTodoCategories,
+  todoBadgeCount,
   summarizeTodoItems,
   type TodoSourceException,
   type TodoSourceExpiry,
@@ -344,10 +344,12 @@ export function useHomeWorkbench() {
           expiryRows: expiryRows || []
         })
       : [];
-    pendingCount.value = mergedTodos.length;
-    // 徽标与待办四卡同源：共享 countTodoCategories（alerts 页也走此函数并按柜机 chip 重算）
-    const cat = countTodoCategories(mergedTodos);
-    setAlertsTabBadge(cat.disputes + cat.offline + cat.lowStock + cat.expiry);
+    // 🔴 MA-030（2026-11-02）：首页角标与底部 tab 角标必须同一个数——此前这里是
+    // `mergedTodos.length`（全量）而 tab 角标是四卡合计（归类），出现同屏「60 vs 58」。
+    // 统一走 todoBadgeCount；「全量 == 归类」由 todo-list.test.ts 的全类型清单钉住。
+    const badge = todoBadgeCount(mergedTodos);
+    pendingCount.value = badge;
+    setAlertsTabBadge(badge);
     // F1-UX：概况卡补货员分支需要「停售柜机」数
     lockedCount.value = mergedTodos.filter(
       (a) => String(a.type).toUpperCase() === 'SALES_LOCKED'

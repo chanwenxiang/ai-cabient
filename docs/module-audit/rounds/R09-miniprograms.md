@@ -175,6 +175,44 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 
 运行时腿（诚实标注）：**活栈 HTTP 会员单未验** —— `:18080` 现跑镜像是 `f9905080`（不含本批），要挣这条得重建共享容器；本批按值守硬约束「脏树不动共享容器」停在提交前，把这条留给 R11 全链路（那一轮本来就要用新镜像跑一遍会员单结算）。IT 已覆盖「真库 + 真生产写入口 + 真 SQL」，缺的只是 HTTP/门/识别那半条链。
 
+## M 批 1（merchant-mp 主页 5 页 + 设备详情，2026-11-02 值守）
+
+**环境与锚点**：锚 HEAD `1df3d484`（MA-029 已落地并推）；商户端 IDE 用 `cli.bat auto --project clients/merchant-mp/dist/dev/mp-weixin --auto-port 9420` 新起实例（consumer 的 `:9421` 实例没动）；产物先按固定串比对确认不是旧码（`replace(/\D/g` 0 命中、`[-_][A-Z]*\d` 1 命中 ⇒ MA-006 那次改动在产物里），改完 MA-030 后重烤 `build:mp-weixin:dev` 并再次 `auto`。
+登录走 HTTP `/api/v2/auth/merchant-password-login`（账号 13800138001）+ `setStorageSync('merchant_token'|'merchant_user_id')` 注入（合成输入事件在 0.13.0 仍坏，与配方一致）。探针 `.tmp/r9-merchant-walk.cjs`、类型取证 `.tmp/r9-todo-types.cjs`。
+
+🔴 **零副作用实证**：走查后 `select ... from shopping_session where created_at > now() - interval '3 hours'` = **0 行**（与 consumer 批「带柜号深链即开门」不同，商户端主页 reLaunch 不触发开门）。写面本轮一个都没提交。
+
+### 逐页结论
+
+| # | 页面 | 渲染 | 结论 |
+|---|------|------|------|
+| m1 | `pages/login/login` | 8 节点 | 只有「手机号/密码」两输入 + 副标题；无「记住密码」类残留（MA-020 只涉 admin，此处本就不存口令）✅ |
+| m2 | `pages/home/home` | 52 节点 | KPI 与 workbench 逐字段对得上（24 争议 / 8 低库存 / 1 临期 / 0 退款 = `/api/v2/merchant/workbench` 的 openDisputes/lowStockItems/expiryAlerts/refundOrders）；🔴 **MA-030**：快捷入口角标 60 ≠ 待办页四卡合计 58 |
+| m3 | `pages/devices/devices` | 41 节点 | chips 全部 3 / 在线 1 / 离线 2 / 停售 1 与 API 三台柜状态一致；卡片同时给「今日收入 ¥0.00」「填充率」「最近补货/核对」时间戳，未发现口径打架 |
+| m4 | `pages/alerts/alerts` | 371 节点 | 四卡合计 58（48/4/5/1）⇒ 修后 60（48/4/**7**/1）；🔴 **MA-031**：`补货任务超时`、`开门超时` 两行的类型标签渲染成「未知」；观察项：厂商原文直接进卡片明细「设备 uploadOrderError errorMsg：开门时间过长…」 |
+| m5 | `pages/mine/mine` | 59 节点 | 入口清单与 35 页路由一致（无幽灵入口）；客服热线 4000182992 与 MA-027 拍板的实号同源 ✅；组织名「默认直营商户、演示商户B」+「点击切换可见组织」= CB-079 档 A 落地形态 |
+| m6 | `pages/device-detail/device-detail` | 99 节点 | 开门柜（将邑）显示「在架商品 / 开门柜按商品备货，无货道概念」= 10-30 拍板口径 ✅；在架 3 行与 10-31 台账 6→3 一致；采集学习进度可读 |
+
+### MA-030（P2，轮内已修）细节
+
+- 根因：`useHomeWorkbench.ts` 里同一函数把首页角标算成 `mergedTodos.length`（全量），tab 角标算成 `countTodoCategories()` 合计（归类）；而归类表缺 `RESTOCK_TASK_TIMEOUT`（活体 2 行，来自 `merchant/exceptions?status=OPEN`）⇒ 60 vs 58。
+- 取证：`.tmp/r9-todo-types.cjs` 把四源类型全列了一遍（24 ACTION:DISPUTE / 23 EXCEPTION:RECOGNITION_FAILED / 8 ACTION:LOW_STOCK / **2 EXCEPTION:RESTOCK_TASK_TIMEOUT** / …），差额精确等于 2 ⇒ 不是猜测。
+- 修法：沿用 2026-10-27 `OPEN_TIMEOUT` 归卡的同形解法——`RESTOCK_TASK_TIMEOUT` 进 `TODO_CATEGORY_STOCK`；再新增**单源** `todoBadgeCount()`，首页与 alerts 两处徽标都改走它（漂移由构造消除，而不只靠类型表补全）。
+- 证据四层：① `todo-list.test.ts` 新增 3 例，含「全类型清单 ⇒ 徽标==列表行数」不变式；**先红再绿**实证（临时摘掉归卡 ⇒ 2 failed，恢复 ⇒ 29 passed）；② `vue-tsc --noEmit` 退出 0；③ 重烤产物 + 活体复验：home 角标 60、alerts 四卡 48/4/7/1 = 60，两数同屏一致；④ 图证 `evidence/R09/b1-02_pages_home_home_pre-fix.png` / `b1-04_pages_alerts_alerts_pre-fix.png`（修前）与 `b1-07`/`b1-08`（修后）。
+- 取证缺口（诚实记）：修前 alerts 的截图与修后截图由同一次探针的两轮跑出，文件名靠 `_pre-fix` / `_post-fix` 区分；`m0x` 序号是按「本次运行」计数、重跑会覆盖，**后续批次探针必须带 `START_INDEX`**（已记进下方配方欠账）。
+
+### 观察项（未领号，留给轮末文案批 / R10）
+
+1. 首页「库存偏低 8」（`workbench.lowStockItems`，分母=**商品数**）与待办页「库存卡 7」（分母=**待办条目数**）不是同一个量纲。两个数都合法，但同名不同物、又同屏出现，R10「同一端点三端口径」需要点名是否要在文案上区分（如「N 种商品」vs「N 条待办」）。
+2. 待办卡片明细里出现厂商原文 `设备 uploadOrderError errorMsg：开门时间过长，会话已 fail-closed 转人工审核` ⇒ 技术黑话外泄给商户（`merchantAlertTitle` 只做了「设备→柜机」替换）。属文案层，倾向并入 MA-031 那批一起处理（同一族：读面把内部码/原文直送用户）。
+3. `alertTypeLabel` 对未知类型返回「未知」而不是回退到标题，导致行首「未知 | 补货任务超时」自我矛盾（标题明明是可读的）——已并入 MA-031 的修法判据。
+
+### 商户端走查配方补丁（给 M 批 2+）
+
+- `cli.bat auto` 可以在同一台机同时跑 consumer(:9421) 与 merchant(:9420) 两个实例，本批实证互不影响。
+- 探针从**仓库根**跑（`node .tmp/r9-merchant-walk.cjs`）——脚本里截图路径是相对路径，在 `.tmp/` 下执行会写到 `.tmp/docs/…` 造成「以为没出图」。
+- 命名 `b<批>-<序号>_<路由>.png`，序号必须**批内全局唯一**且不复用；写面页只开确认框、不点确定。
+
 ## 待拍板 / 待办
 
 1. ~~**MA-023② + MA-024 合成一批**~~ ✅ 已落地（毛额列 V424 + 巡检口径 + 三端明细行 + **MA-029 方案 A 入账**，2026-11-02 见上节）：结算写清毛额与各档优惠、巡检 `ORDER_AMOUNT` 折后式改为「行合计 − 券」、consumer 结果页/详情页按 `合计−会员−活动−券=实付` 摊开、数字实证＝非零钉测 + `MemberDiscountLedgerSqlIT` 活库真单 + dev 只读对账 + 展示层互证。
