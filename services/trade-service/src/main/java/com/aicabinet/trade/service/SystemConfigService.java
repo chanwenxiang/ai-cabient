@@ -831,10 +831,14 @@ public class SystemConfigService {
     }
 
     private void ensureDefaults() {
-        upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
+        // MA-027：客服电话种子从 V55 的占位号 400-888-0018 换成**已通过微信支付客服电话认证**的
+        // 实号 4000182992（见 docs/figures/payscore-form-fill-pack.md §55，账单详情页已展示该号；
+        // 同一份 public-legal.json 的协议/隐私政策正文三处也写它）。
+        // 占位号此前只在「帮助中心 + 公开配置」这一侧，导致协议里的号与实际可拨的号不是同一个。
+        upsertIfAbsent(CONSUMER_SERVICE_PHONE, "4000182992", "C端客服电话");
         upsertIfAbsent(REPLENISH_AUTO_TASK_ENABLED, "true",
                 "缺货自动建补货任务（按台账阈值/补货点触发，同柜已有进行中任务即跳过）");
-        upsertIfAbsent(MERCHANT_SERVICE_PHONE, "400-888-0018", "商户端客服电话");
+        upsertIfAbsent(MERCHANT_SERVICE_PHONE, "4000182992", "商户端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "cwx@easygovm.com",
                 "运营支持邮箱（下发 C 端公开配置 supportEmail）");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72",

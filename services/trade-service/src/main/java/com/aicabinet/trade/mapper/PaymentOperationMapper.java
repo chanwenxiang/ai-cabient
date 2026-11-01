@@ -45,6 +45,12 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
         var result = selectPage(mpPage, Wrappers.<PaymentOperation>lambdaQuery()
                 .eq(PaymentOperation::getUserId, userId)
                 .notIn(PaymentOperation::getOperationType, HOLD_OPERATION_TYPES)
+                // MA-025：余额明细只收「真的动过余额」的流水。微信支付分/微信通道扣款全程不碰钱包，
+                // 其 balance_before/after 落 NULL；这类行混进来后，`BalanceLedgerService.toDto` 的
+                // null→0 兜底会在页面上显示成「购物扣款 −¥2.43 · 余额 ¥0.00」，而同页可用余额没动
+                // ⇒ 消费者读成「余额被扣到 0」。判据取「有没有余额快照」而不是 channel，
+                // 这样将来「微信单退到余额」这类 channel=WECHAT 但确实动了余额的行仍会正常出现。
+                .isNotNull(PaymentOperation::getBalanceAfterCents)
                 .orderByDesc(PaymentOperation::getCreatedAt));
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }

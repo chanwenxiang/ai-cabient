@@ -83,10 +83,10 @@ export function clearAuthStorage(): void {
     if (localStorage.getItem('admin_remember_phone') === '0') {
       localStorage.removeItem('admin_phone');
     }
-    // 记住密码同口径（2026-10-22）：取消勾选（'0'）= 登出即清；勾选 = 保留供下次预填。
-    if (localStorage.getItem('admin_remember_password') === '0') {
-      localStorage.removeItem('admin_password');
-    }
+    // MA-020（2026-11-01 审计订正）：应用侧不再存口令 ⇒ 登出一律抹掉历史版本留下的
+    // `admin_password`（base64 可逆明文），不再看 `admin_remember_password` 开关。
+    localStorage.removeItem('admin_password');
+    localStorage.removeItem('admin_remember_password');
   }
 }
 

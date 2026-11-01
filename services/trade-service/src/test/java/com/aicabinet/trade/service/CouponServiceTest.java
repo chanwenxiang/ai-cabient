@@ -13,6 +13,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -211,6 +212,68 @@ class CouponServiceTest {
         assertEquals("测试券", result.get(0).couponName());
         verify(definitionRepository, times(1)).findAllById(anyCollection());
         verify(definitionRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("MA-026：日批没跑时，过期券不得在读面冒充「未使用/可用」")
+    void listUserCoupons_excludesExpiredButStillUnusedRows() {
+        UserCoupon stale = userCoupon(1L, "UNUSED", Instant.now().minus(5, ChronoUnit.DAYS));
+        UserCoupon fresh = userCoupon(2L, "UNUSED", Instant.now().plus(5, ChronoUnit.DAYS));
+        when(userCouponRepository.findByUserIdAndStatus(10001L, "UNUSED"))
+                .thenReturn(List.of(stale, fresh));
+        when(definitionRepository.findAllById(anyCollection())).thenReturn(List.of());
+
+        var listed = couponService.listUserCoupons(10001L, "UNUSED");
+        assertEquals(List.of(2L), listed.stream().map(c -> c.couponId()).toList(),
+                "库里还是 UNUSED 但已过 expire_at 的券不该留在「未使用」页签里");
+
+        // 不带筛选时仍要出现，但状态必须是有效状态 EXPIRED（前端据此禁掉「设为优先使用」）
+        when(userCouponRepository.findByUserIdOrderByCreatedAtDesc(10001L)).thenReturn(List.of(stale));
+        var all = couponService.listUserCoupons(10001L, null);
+        assertEquals("EXPIRED", all.get(0).status(), "读面下发的必须是有效状态，与 useCoupon/selectBestCoupon 同判据");
+
+        // 可用张数走「UNUSED 且未过期」，不再用裸 status 计数
+        when(userCouponRepository.countUnusedNotExpired(anyLong(), any())).thenReturn(1L);
+        assertEquals(1L, couponService.countAvailable(10001L));
+        verify(userCouponRepository, never()).countByUserIdAndStatus(anyLong(), anyString());
+    }
+
+    @Test
+    @DisplayName("MA-026：effectiveStatus 只把「UNUSED 且已过期」翻成 EXPIRED，其它状态原样")
+    void effectiveStatus_onlyFlipsUnusedPastExpiry() {
+        Instant now = Instant.now();
+        assertEquals("EXPIRED", CouponService.effectiveStatus(userCoupon(1L, "UNUSED", now.minusSeconds(1)), now));
+        assertEquals("UNUSED", CouponService.effectiveStatus(userCoupon(2L, "UNUSED", now.plusSeconds(1)), now));
+        assertEquals("UNUSED", CouponService.effectiveStatus(userCoupon(3L, "UNUSED", null), now));
+        assertEquals("USED", CouponService.effectiveStatus(userCoupon(4L, "USED", now.minusSeconds(1)), now));
+    }
+
+    @Test
+    @DisplayName("MA-028：券名里的「满 N 减」必须等于最低消费，不含数字门槛的名字不受约束")
+    void validateNameMatchesThreshold_rejectsContradictingNames() {
+        // 名字承诺与门槛不符 ⇒ 拒（这正是 dev 库里 id 4/5/6 三张演示券的形态）
+        assertThrows(ResponseStatusException.class,
+                () -> CouponService.validateNameMatchesThreshold("满 100 减 20 券", 5000));
+        assertThrows(ResponseStatusException.class,
+                () -> CouponService.validateNameMatchesThreshold("满 20 减 5 券", 0));
+        // 对齐后放行
+        CouponService.validateNameMatchesThreshold("满 50 减 20 券", 5000);
+        CouponService.validateNameMatchesThreshold("无门槛减 5 券", 0);
+        CouponService.validateNameMatchesThreshold("满 99.9 减 10 券", 9990);
+        // 「满减券 ¥5」没有数字门槛承诺，不该被误拦
+        CouponService.validateNameMatchesThreshold("满减券 ¥5", 2000);
+        CouponService.validateNameMatchesThreshold("新人立减 ¥2", 0);
+    }
+
+    private static UserCoupon userCoupon(Long id, String status, Instant expireAt) {
+        UserCoupon uc = new UserCoupon();
+        uc.setCouponId(id);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setCouponCode("TEST" + id);
+        uc.setStatus(status);
+        uc.setExpireAt(expireAt);
+        return uc;
     }
 
     @Test

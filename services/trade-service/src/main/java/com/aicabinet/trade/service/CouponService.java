@@ -31,6 +31,10 @@ public class CouponService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUPON_CODE_LENGTH = 12;
 
+    /** MA-028：券名里的「满 N」门槛承诺（N 允许小数，如「满 99.9 减 10 券」）。 */
+    private static final java.util.regex.Pattern COUPON_NAME_THRESHOLD_PATTERN =
+            java.util.regex.Pattern.compile("满\\s*(\\d+(?:\\.\\d+)?)\\s*(?:元|块)?\\s*减");
+
     private final ScheduledTaskService taskService;
     private final CouponDefinitionMapper definitionRepository;
     private final UserCouponMapper userCouponRepository;
@@ -212,18 +216,23 @@ public class CouponService {
     // ── 用户查询 ────────────────────────────────────────
 
     public List<CouponDto> listUserCoupons(Long userId, String statusFilter) {
-        List<UserCoupon> coupons = (statusFilter != null && !statusFilter.isBlank())
+        boolean filterUnused = statusFilter != null && !statusFilter.isBlank();
+        List<UserCoupon> coupons = filterUnused
                 ? userCouponRepository.findByUserIdAndStatus(userId, statusFilter)
                 : userCouponRepository.findByUserIdOrderByCreatedAtDesc(userId);
         Map<Long, CouponDefinition> defs = loadDefinitionsByIds(
                 coupons.stream().map(UserCoupon::getCouponDefId).toList());
+        // MA-026：按「有效状态」再筛一次——库里 UNUSED 但已过 expire_at 的券（日批没跑时会出现）
+        // 不该出现在「未使用」页签里，也不该被前端当成可用券提供「设为优先使用」。
+        Instant now = Instant.now();
         return coupons.stream()
-                .map(uc -> toDto(uc, defs.get(uc.getCouponDefId())))
+                .map(uc -> toDto(uc, defs.get(uc.getCouponDefId()), now))
+                .filter(dto -> !filterUnused || statusFilter.equalsIgnoreCase(dto.status()))
                 .toList();
     }
 
     public long countAvailable(Long userId) {
-        return userCouponRepository.countByUserIdAndStatus(userId, CabinetConstants.COUPON_STATUS_UNUSED);
+        return userCouponRepository.countUnusedNotExpired(userId, Instant.now());
     }
 
     // ── 核销 ────────────────────────────────────────────
@@ -731,6 +740,36 @@ public class CouponService {
 
     // ── DTO ──────────────────────────────────────────────
 
+    /**
+     * MA-028：券名里的门槛承诺必须与 {@code min_spend_cents} 一致。
+     *
+     * <p>成因：积分兑换页把「券名」与「满 X 可用」并排显示，dev 库里三张券（满 100 减 20 实际满 50、
+     * 满 50 减 10 实际满 20、满 20 减 5 实际无门槛）自相矛盾——用户按名字理解门槛必错。
+     * 结算执行的是 {@code min_spend_cents}，所以**名字必须服从门槛**，这里在写入口拦住新的错配
+     * （历史行由 {@code V422} 改名）。
+     *
+     * <p>只认「满 + 数字」这种明确承诺：「满减券 ¥5」这类不含数字门槛的名字不受约束。
+     */
+    static void validateNameMatchesThreshold(String couponName, int minSpendCents) {
+        if (couponName == null || couponName.isBlank()) {
+            return;
+        }
+        String name = couponName.trim();
+        java.util.regex.Matcher claimed = COUPON_NAME_THRESHOLD_PATTERN.matcher(name);
+        if (claimed.find()) {
+            int claimedCents = (int) Math.round(Double.parseDouble(claimed.group(1)) * 100);
+            if (claimedCents != minSpendCents) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "券名里的「满 " + claimed.group(1) + " 元」与最低消费 "
+                                + String.format("%.2f", minSpendCents / 100.0) + " 元不符，请改名字或改门槛");
+            }
+        }
+        if (name.contains("无门槛") && minSpendCents > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "券名写了「无门槛」但最低消费不是 0，请改名字或把门槛清零");
+        }
+    }
+
     private void validateDefinitionRequest(
             String couponName,
             String couponType,
@@ -754,6 +793,7 @@ public class CouponService {
         if (minSpendCents < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最低消费不能为负数");
         }
+        validateNameMatchesThreshold(couponName, minSpendCents);
         String type = couponType.trim();
         if ("PERCENT_OFF".equals(type)) {
             if (discountPercent == null || discountPercent < 1 || discountPercent > 99) {
@@ -851,6 +891,27 @@ public class CouponService {
     }
 
     private CouponDto toDto(UserCoupon uc, CouponDefinition def) {
+        return toDto(uc, def, Instant.now());
+    }
+
+    /**
+     * MA-026：读面下发的状态要带「有效状态」，不是库里那一列的原样。
+     *
+     * <p>库里 {@code status} 只在日批（{@code expireOverdueCoupons}）或真正用券时才翻成 EXPIRED；
+     * 批没跑时它会停在 UNUSED，而 {@code useCoupon}（{@code requireValidUserCoupon}）与
+     * {@code selectBestCoupon}（{@code evaluateCoupon}）都按 {@code expire_at} 拒绝/排除。
+     * 三处判据必须一致，否则消费者端会出现「1 张可用 · 结算自动选最优券」而结算一张都不选。
+     */
+    static String effectiveStatus(UserCoupon uc, Instant now) {
+        if (CabinetConstants.COUPON_STATUS_UNUSED.equals(uc.getStatus())
+                && uc.getExpireAt() != null
+                && uc.getExpireAt().isBefore(now)) {
+            return CabinetConstants.COUPON_STATUS_EXPIRED;
+        }
+        return uc.getStatus();
+    }
+
+    private CouponDto toDto(UserCoupon uc, CouponDefinition def, Instant now) {
         String name = def != null ? def.getCouponName() : "未知优惠券";
         String type = def != null ? def.getCouponType() : "AMOUNT_OFF";
         int denomination;
@@ -868,7 +929,7 @@ public class CouponService {
                 type,
                 denomination,
                 minSpend,
-                uc.getStatus(),
+                effectiveStatus(uc, now),
                 uc.getExpireAt(),
                 uc.getReceivedAt(),
                 uc.getUsedAt(),

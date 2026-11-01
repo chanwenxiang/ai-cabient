@@ -34,6 +34,22 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
     return c == null ? 0 : c;
     }
 
+    /**
+     * MA-026：真正「可用」的张数＝状态 UNUSED **且未过 expire_at**。
+     *
+     * <p>不能只看 status：置过期依赖 {@code coupon-expire} 日批（{@code expireOverdueCoupons}），
+     * 批没跑（夜间关机、调度停摆）时库里会留着一堆 UNUSED 的过期券，消费者端因此报
+     * 「N 张可用 · 结算自动选最优券」，而 {@code selectBestCoupon}/{@code useCoupon}
+     * 都按 expire_at 拒绝/排除 ⇒ 提示与结算自相矛盾。读面必须自带 expire 判据。
+     */
+    default long countUnusedNotExpired(Long userId, Instant now) {
+    Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery()
+            .eq(UserCoupon::getUserId, userId)
+            .eq(UserCoupon::getStatus, "UNUSED")
+            .ge(UserCoupon::getExpireAt, now));
+    return c == null ? 0 : c;
+    }
+
     default List<UserCoupon> findByStatusAndExpireAtBefore(String status, Instant now) {
     return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getStatus, status).lt(UserCoupon::getExpireAt, now));
     }

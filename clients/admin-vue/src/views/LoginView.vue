@@ -93,7 +93,7 @@
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
           <div class="remember-group">
-            <el-checkbox v-model="rememberCredentials" size="small">记住账号密码</el-checkbox>
+            <el-checkbox v-model="rememberCredentials" size="small">记住账号</el-checkbox>
           </div>
           <button type="button" class="link-btn" @click="openReset">忘记密码？</button>
         </div>
@@ -289,36 +289,30 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 
 /**
- * 记住账号密码（2026-10-22 用户拍板：原「记住账号」「记住密码」两勾选合并为一个）：
- * 勾选（默认）= 跨登录会话预填账号与密码；显式取消 = 都不预填、登出即清。
- * 兼容旧开关：任一旧标记未显式取消（≠'0'）即视为勾选。
- * 密码存的是 base64 编码（便利性混淆，非安全边界；防的是 devtools 里一眼明文）。
- * 清除口径与 admin_phone 对齐：登出/取消勾选才清，开关键本身永不清。
+ * 记住账号（MA-020，2026-11-01 审计订正）：应用侧**不再保存登录口令**。
+ *
+ * 原实现（2026-10-22 拍板「两勾选合并为一个」时沿用）把口令 `btoa` 后写进
+ * `localStorage.admin_password`，注释自认「便利性混淆，非安全边界」——但这是管提现、
+ * 分账、改价的资金后台：base64 一步可还原，任何 admin 源上的 XSS、任何有 storage 权限的
+ * 浏览器扩展、任何能开 devtools 的人都能拿走明文口令并重放登录；且只有「取消勾选」才清，
+ * 默认勾选的用户登出后口令仍留机。那次拍板的主题是「两个勾选合并成一个」，并未评估凭据留存面，
+ * 故此处按审计推荐档 B 收口：勾选只记手机号，口令交给浏览器密码管理器（体验等价，凭据进 OS 级保管）。
+ *
+ * 兼容：`admin_password` 键在挂载时与登出时**无条件删除**（清历史明文），开关键
+ * `admin_remember_password` 不再读也不写，留着不影响任何判据。
  */
 const PW_STORE_KEY = 'admin_password';
 const PW_FLAG_KEY = 'admin_remember_password';
-function readRememberedPassword(): string {
-  try {
-    if (localStorage.getItem(PW_FLAG_KEY) === '0') return '';
-    const raw = localStorage.getItem(PW_STORE_KEY);
-    if (!raw) return '';
-    return atob(raw);
-  } catch {
-    return '';
-  }
-}
-
-const rememberCredentials = ref(
-  localStorage.getItem('admin_remember_phone') !== '0' || localStorage.getItem(PW_FLAG_KEY) !== '0'
-);
+const rememberCredentials = ref(localStorage.getItem('admin_remember_phone') !== '0');
 /**
  * A-1：不做演示口令预填。
  * 原实现用 `ENABLE_TEST_TOOLS || isDemoPhone(phone.value)` 决定是否预填演示口令——只把门控关了一半：
  * isDemoPhone 只看 localStorage.admin_phone（开发期写过一次就永久留存），
  * 于是生产构建同样会预填口令，等于内置一个可用口令的资金后台入口。
  * 现在一律留空（靠浏览器密码管理器）；内置账号只存在于后端 seed。
+ * MA-020 追加：连「用户自己勾过记住密码」这条历史路径也一并关掉（见上方注释），口令框恒初始为空。
  */
-const password = ref(readRememberedPassword());
+const password = ref('');
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -684,6 +678,9 @@ function onResetClosed() {
 }
 
 onMounted(async () => {
+  // MA-020：打开登录页即抹掉历史版本存的口令（不依赖用户是否登出/是否改勾选）
+  localStorage.removeItem(PW_STORE_KEY);
+  localStorage.removeItem(PW_FLAG_KEY);
   void brandStore.load();
   await loadCaptcha();
   await nextTick();
@@ -695,19 +692,16 @@ onMounted(async () => {
 });
 
 async function finishLogin(normalizedPhone: string) {
+  // MA-020：只记手机号；`admin_password` 无论勾没勾都删（清掉历史版本留下的可逆明文）
   if (rememberCredentials.value) {
     localStorage.setItem('admin_remember_phone', '1');
     localStorage.setItem('admin_phone', normalizedPhone);
-    if (password.value) {
-      localStorage.setItem(PW_FLAG_KEY, '1');
-      localStorage.setItem(PW_STORE_KEY, btoa(password.value));
-    }
   } else {
     localStorage.removeItem('admin_phone');
-    localStorage.removeItem(PW_STORE_KEY);
     localStorage.setItem('admin_remember_phone', '0');
-    localStorage.setItem(PW_FLAG_KEY, '0');
   }
+  localStorage.removeItem(PW_STORE_KEY);
+  localStorage.removeItem(PW_FLAG_KEY);
   const home = resolveHomePath(auth);
   const requested = safeRedirectPath(route.query.redirect, home);
   const nav = findNavByPath(requested);

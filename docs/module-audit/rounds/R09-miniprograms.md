@@ -107,9 +107,10 @@
 ## 待拍板 / 待办
 
 1. **MA-023② + MA-024 合成一批**：订单缺「会员前/活动前毛额」这一档（`member_discount_cents` 无写入者、`original_amount_cents` 无列）⇒ 三端优惠拆解与巡检对账式都少一层。四件套＝结算写清毛额与各档优惠 + 巡检 `PAID_GROSS_MISMATCH/ORDER_AMOUNT` 口径复核 + 三端明细行（含 order-detail 活动行）+ 数字实证（非零钉测 + `money-recheck.sql` 四层互证 + 留痕）。
-2. **MA-025**：余额明细按通道过滤 + `balanceAfterCents` 恢复可空（牵 `BalanceTransactionDto` 类型与三端消费点，人工批做）。
-3. MA-020（R8，P1）后台口令常驻 localStorage 仍未动——等用户拍三档。
-4. **MA-026**：过期券读面判据（推荐列表/计数/设优先统一加 `expire_at > now()`，与 `evaluateCoupon` 同判据）。
-5. **MA-027**：客服电话以哪个为准（推荐以 `consumer.service_phone` 为准，协议正文改插值）。
-6. **MA-028**：兑换券名与门槛谁是权威（推荐以 `min_spend_cents` 为准改名 + 上门禁）。
-7. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。
+3. ~~**MA-025**~~ 见下方第 7 条（已落地）。
+2. ~~MA-020（R8，P1）~~ ✅ 已落地（档 B）：`LoginView` 不再预填/写入口令，勾选项改名「记住账号」，`admin_password` 与开关键在**挂载、登录、登出**三处无条件删除；`auth-storage.test.ts` 3 例钉住「勾选着也删」「手机号照旧保留」「取消勾选照旧清手机号」。
+4. ~~**MA-026**~~ ✅ 已落地（读面判据统一到 `expire_at`）：`UserCouponMapper.countUnusedNotExpired` + `CouponService.effectiveStatus`（列表按有效状态筛、下发有效状态）⇒ 「未使用」页签、「N 张可用」计数、「设为优先使用」三处同时收口；`CouponServiceTest` 26/0。
+5. ~~**MA-027**~~ ✅ 已落地，**方向被用户当场纠正**：我原本推荐「以配置为准」，用户 2026-11-01 确认 **4000182992 才是实号**（`docs/figures/payscore-form-fill-pack.md` §55 记它已通过微信支付客服电话认证并展示在账单详情页；`public-legal.json` 协议正文三处也是它）⇒ 改成**动配置侧、不动法律文本**：`V423` 把 `consumer/merchant.service_phone` 从 V55 占位号 400-888-0018 改到实号（守卫：只改仍等于占位号的行），同步 `SystemConfigService.ensureDefaults`、`ops/feature-flags.json` 两处 default、`public-legal.json` 的 `help.supportPhone`、`PublicLegalServiceTest` 断言。
+6. ~~**MA-028**~~ ✅ 已落地：`V422` 按门槛改 3 张券名（满 50 减 20 / 满 20 减 10 / 无门槛减 5），并加写入口校验 `CouponService.validateNameMatchesThreshold`（只认「满 N 减」这种带数字的承诺，「满减券 ¥5」不误伤；「无门槛」+门槛>0 也拒）。🔴 查证补充：这三张券是 V163 演示数据，**V345 已在 prod/staging（`seed_env='none'`）整行删除** ⇒ V422 在生产命中 0 行，真正长期有效的是写入口校验。
+7. **MA-025** ✅ 已落地（读面判据）：`findVisibleByUserIdOrderByCreatedAtDesc` 加 `balance_after_cents IS NOT NULL`（判据取「有没有余额快照」而不是 channel，将来「微信单退到余额」仍会出现）。dev 真数据验证：改后 余额明细 命中 2 条 RECHARGE、排除 2 条 WECHAT CHARGE（正是页面上「购物扣款 −¥2.43 · 余额 ¥0.00」那两行）。🔴 留观察：`BalanceLedgerService.toDto` 的 `value()` null→0 兜底仍在（现不可达），`BalanceTransactionDto` 两个余额字段仍是 `int`——改可空要牵三端与 openapi，未在本批做。
+8. 批 4 清单：**merchant-mp 35 页**（登录/首页/设备/告警/我的 5 主页 + 30 分包）；另补 consumer `announcements/detail`（需先有一条公告）、`member_level_rule` 与积分流水的逐行对账、`dispute/detail` 用真实工单 id 复走。

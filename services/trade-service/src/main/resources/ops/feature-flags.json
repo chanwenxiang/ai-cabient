@@ -308,14 +308,14 @@
       "key": "consumer.service_phone",
       "group": "客户端展示",
       "type": "TEXT",
-      "default": "400-888-0018",
+      "default": "4000182992",
       "description": "C端客服电话"
     },
     {
       "key": "merchant.service_phone",
       "group": "客户端展示",
       "type": "TEXT",
-      "default": "400-888-0018",
+      "default": "4000182992",
       "description": "商户端客服电话（merchantPublicConfig 下发 servicePhone）"
     },
     {

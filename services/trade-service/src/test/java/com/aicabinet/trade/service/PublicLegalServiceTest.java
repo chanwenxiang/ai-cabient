@@ -11,7 +11,7 @@ class PublicLegalServiceTest {
     @Test
     void helpHasFaqsAndHotline() {
         var help = new PublicLegalService().help();
-        assertEquals("400-888-0018", help.supportPhone());
+        assertEquals("4000182992", help.supportPhone());
         assertEquals(8, help.faqs().size());
         assertTrue(help.faqs().get(0).q().contains("开门"));
     }
