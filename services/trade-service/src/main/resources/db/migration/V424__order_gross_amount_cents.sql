@@ -1,4 +1,4 @@
--- MIGRATION_KIND: schema
+-- MIGRATION_KIND: backfill
 -- COMPETITOR_REF: CB-082
 -- R9（2026-11-01，MA-023② + MA-024）：给订单补一列「全部优惠前毛额」`gross_amount_cents`。
 --
