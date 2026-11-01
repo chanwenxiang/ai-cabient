@@ -56,6 +56,15 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_DEV_PROXY || 'http://localhost:8080',
           changeOrigin: true,
           headers: { Origin: env.VITE_DEV_ORIGIN || 'http://localhost' }
+        },
+        // 「DevOps 中心 / 日志中心」的同源内嵌路径（后端下发 /devops/grafana/…）。
+        // 生产由网关 nginx 反代并加一层 Basic；dev 服务器原本没有这条前缀 ⇒ iframe 恒 404，
+        // 而同一页的在线探针是后端发起的（能连上），于是出现「卡片显示在线、嵌入区空白」。
+        // 这里直连 Grafana 发布端口（compose: 127.0.0.1:13000:3000，root_url 已含 /devops/grafana/
+        // 子路径，故前缀不用 rewrite）；网关那层 Basic 在 dev 不需要，只需登录 Grafana 一次。
+        '/devops': {
+          target: env.VITE_DEV_DEVOPS_TARGET || 'http://127.0.0.1:13000',
+          changeOrigin: true
         }
       }
     },

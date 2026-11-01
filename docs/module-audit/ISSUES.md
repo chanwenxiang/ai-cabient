@@ -15,6 +15,9 @@
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 | MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-019 | P2 | fixed（档 A） | admin `/menus` 菜单管理 | 提示语称侧栏叶子与「菜单 C」一一对应，实测 19 页共用他页权限码（`ops:warehouse:list` 一行管 8 页），停用一行会连带隐藏全部共用页且树上毫无提示；另有 `/recognition-demo` 幽灵 C 行（无路由无页面、3 角色持有） | Qoder R8 / 2026-11-01 | rounds/R08-system.md |
+| MA-020 | P1 | **待拍板**（未动码） | admin `/login` | 「记住账号密码」默认勾选，登录口令以 base64（可逆）常驻 `localStorage.admin_password`，只有取消勾选才清；资金后台凭据在浏览器侧一步可还原 | Qoder R8 / 2026-11-01 | 推荐档 B：应用不再存口令，交浏览器密码管理器 |
+| MA-021 | P2 | fixed（V421） | admin `/menus` + 角色权限树 | 4 个「前后端零引用」页面权限码仍 ACTIVE（H51 只改了前端 perm），菜单管理显示成启用页、角色树勾了不生效＝幽灵菜单 | Qoder R8 / 2026-11-01 | 沿用 V386 RETIRED 口径；`ops:operlog`/`ops:pricing:view`/`ops:nav:*` 判据不同刻意保留 |
+| MA-022 | P3 | fixed | admin `/devops` + `/observability` | dev（vite）端内嵌看板恒 404：在线探针由后端发起说「在线」，iframe 走同源 `/devops/grafana` 而 vite 只代理 `/api` ⇒ 「卡片在线、嵌入区空白」自相矛盾 | Qoder R8 / 2026-11-01 | 生产形态（网关挂 /admin）已实证 200，非产品缺陷 |
 | MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
 | MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
@@ -349,3 +352,48 @@
 - **来源**（R01 会话，2026-10-31）：设备报表 `/reports` 显「离线设备 5」（全部设备），工作台 `/admin` 显「离线设备 3」（疑 deployed/投放柜口径）。同词不同数，运营无法判断哪个是真。
 - **未复现原因**：dev 库设备行会随环境变动，两处取数函数体未逐行比对，按入账前提（实跑复现才入账）暂不领号。
 - **下一步**：读两处取数函数体 + `device_info` 行数/lifecycle 分布，判定是缺陷还是口径差；若为口径差，按「汇总行=全集、子集列表」惯例加口径标注而非对齐（参考记忆规则：negation/口径类先查权威模型）。
+
+### MA-020 后台把可逆还原的登录口令常驻 localStorage，且「记住」默认开启（P1，待拍板）
+
+- 级别/状态：P1 / **待拍板**（2026-11-01，Qoder R8 批 2；值守期间按「实在需要我」处理，未动码）
+- 端与页面：admin `/login`（+ 登出清态 `api/auth-storage.ts`）
+- 发现人/日期/HEAD：Qoder R8 / 2026-11-01 / 发现锚 `911ebf4b`
+- 复现步骤：
+  1) 未登录打开 `/login`：勾选项唯一、默认「√ 记住账号密码」，口令框初始长度 0（A-1「不预填演示口令」仍成立）；
+  2) 用 `13900000001` 登录一次；
+  3) 读 `localStorage`：`admin_password` 存在，`atob(admin_password) === 本次登录口令`（探针判据 `true`），`admin_remember_password="1"`，`admin_phone` 同在；
+  4) 登出（保持勾选）再读：值仍在（[auth-storage.ts:87-89](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/api/auth-storage.ts#L87-L89) 只在取消勾选即 `'0'` 时清）。
+- 期望 / 实际：期望凭据不由页面脚本持有；实际是「任何 admin 源上的 XSS / 任何有 storage 权限的扩展 / 任何能开 devtools 的人」一步还原明文口令并可重放登录，而这个后台管提现、分账、改价。
+- 根因/沿革：[LoginView.vue:291-309](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/src/views/LoginView.vue#L291-L309) 注释自认「base64 编码（便利性混淆，非安全边界）」。2026-10-22 的拍板主题是「两勾选合并为一个」，并未评估凭据在浏览器侧可逆留存这一层 ⇒ 本条不是推翻那次拍板，而是补上它没覆盖的风险面。
+- 证据：`.tmp/r8-login.mjs` 探针输出（键名 + 判据，未打印口令）；截图 `evidence/R08_login-fresh.png`
+- 三档与推荐：A 保持现状（须把注释/hint 改成「明文可逆存本机」，别再写「非安全边界」）；**B 推荐**——应用不再写 `admin_password`、进页即清历史值，勾选改名「记住账号」，口令交给浏览器密码管理器（体验等价、凭据进 OS 级保管、脚本读不到；改动面 LoginView 两处 + auth-storage 一处，无迁移无后端）；C 折中 sessionStorage（关标签即失，XSS 窗口仍在，代码比 B 多收益比 B 小）。
+- 关联：rounds/R08-system.md 待拍板 #3；同页正向结论（勾选项、忘记密码弹窗、验证码）均无缺陷。
+
+### MA-021 4 个前后端零引用的页面权限码以 ACTIVE 留在权限表＝幽灵菜单（P2，已修）
+
+- 级别/状态：P2 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 见本条末尾提交号）
+- 端与页面：admin `/menus` 菜单管理、`/roles` 角色权限树（数据源同一张 `ops_permission`）
+- 复现步骤：
+  1) `select perm_code,status,perm_type from ops_permission where perm_code in ('ops:ad:campaign:list','ops:bigscreen:view','ops:sku-vision:list','ops:vision:list')` ⇒ 四行 `C / ACTIVE`；
+  2) 全仓（排除 node_modules/dist/target/db-migration/docs）检索这四个码 ⇒ **0** 命中；`menu.ts` 里只剩解释性注释（:35、:188、:441），侧栏 56 个 `NAV_ITEMS.perm` 全集不含它们；
+  3) 菜单管理页（`rbacPermissionsIncludeInactive`）把它们显示成启用中的页面；角色编辑树（`RoleManageView.vue:402` 取 `rbacPermissions` 即 ACTIVE 全集）可把它们勾给角色——当前分别有 2/4/3/2 个角色持有。
+- 期望 / 实际：期望「勾了=能打开」；实际勾了既不放开页面也不放开接口。
+- 根因：H51 那轮修「导航码 ≠ 后端校验码」时只改了前端一侧，被换下的行没处理（V154/V170/V144/V14-V109 种子原样 ACTIVE）。
+- 修复记录：`V421__retire_phantom_page_perms.sql` 置 **RETIRED 不删行**（V386 `ops:session:upload` 先例：授权行与审计历史保留，`OpsPermissionMapper` 两条读查询带 `p.status='ACTIVE'` ⇒ 即刻失效）。
+  - 实跑证据：dev 库事务内 dry-run（`BEGIN` → 迁移体 → `ROLLBACK`）得 `UPDATE 4`，四行 ACTIVE→RETIRED，同前缀 `ops:vision:export` 未误伤；迁移幂等（`AND status <> 'RETIRED'`），空库顺序无新依赖（纯 DML，不动历史迁移）。
+  - **判据不同、刻意保留**（勿顺手对齐，已写进迁移头）：`ops:operlog`(290)/`ops:pricing:view`(718) 各带一个在用 F 子节点（`ops:operlog:export`、`ops:pricing:edit` 前后端均有实引用）；`ops:nav:*` 7 个 M 目录行按设计不进代码（侧栏分组由「有无可见子页」推导，`config/sidebar.ts:176-184`）；`ops:recognition-demo:view` 由两条门禁按 V138 显式豁免，去留属 R8 待拍板 #1。
+  - 权限矩阵正向同轮全绿：56 个导航码逐个都有 ACTIVE C/M 行（0 缺失、0 INACTIVE）。
+- 后续建议（本轮未做，避免脏树期加 CI 红面）：把「反向」判据做成静态门禁——新迁移里 INSERT 的 C/M 码必须出现在导航 perm / 后端字面量 / 被引用的 F 子节点的父行 / 后续 RETIRED 语句之一。当前 `check-menu-permissions`、`check-frontend-perm-codes` 只查正向。
+
+### MA-022 dev 端内嵌看板恒 404，与同页「在线」判定自相矛盾（P3，已修）
+
+- 级别/状态：P3 / **fixed**（2026-11-01，Qoder R8 批 2；发现锚 `911ebf4b` → 修复锚 见本条末尾提交号）
+- 端与页面：admin `/devops` DevOps 中心、`/observability` 日志中心
+- 复现步骤：vite dev（`:3100`）登录后开这两页 ⇒ console 分别 1 条、6 条 404，全落在 `/devops/grafana/d/ai-cabinet-*`；同页四张卡却显示「Grafana 看板 · 在线」。
+- 根因：在线探针是**后端**发起（`DevOpsHubService` 打 `aicabinet.devops.grafana-url`，容器网络内可达），而 iframe 用**浏览器同源路径** `/devops/grafana/…`；vite `server.proxy` 原先只有 `/api` ⇒ dev 下该前缀由 vite 直接 404。
+- 生产形态不是缺陷（已实证）：带 htpasswd 凭据 `curl http://127.0.0.1/devops/grafana/d/ai-cabinet-overview/…` → **200**（网关 Basic + Grafana 自身登录，`GF_AUTH_ANONYMOUS_ENABLED=false`、网关剥 `Authorization`，见 `infra/gateway/nginx-full.conf:167-192`）。
+- 修复记录：[vite.config.ts:60-68](file:///D:/ai-generated%20code/ai-cabinet/clients/admin-vue/vite.config.ts#L60-L68) 增 `/devops` 代理，默认 `http://127.0.0.1:13000`（compose 已发布该端口，root_url 含子路径故无需 rewrite），可用 `VITE_DEV_DEVOPS_TARGET` 覆盖；不动生产链、不写凭据。
+  - 实跑证据：另起临时 dev（`:3199`，不动在跑的 `:3100`）后 `GET /devops/grafana/api/health` → **200**（改前同路径 404）。
+  - 该文件不参与打包（只影响 dev server），故本轮不需重建 admin 产物。
+- 关联观察（未领号）：`/observability` 六个 iframe 一次全挂（`v-for` + `v-show`，刻意换切页即时性），代价是打开即并发 6 个看板查询——留 R10 横切面评估「首次访问才挂载」。
+
