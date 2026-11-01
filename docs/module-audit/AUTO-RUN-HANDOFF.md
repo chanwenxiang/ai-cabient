@@ -93,6 +93,19 @@
 | R11 业务流转全链路 | ⬜ 未开始 |
 | MA-022 在 `:3100` 的复验 | ⬜ 需人工重启 vite（会动别的会话），暂挂 |
 
+## 5.1 本会话（2026-11-02 值守）推送后的 CI 状态（诚实记账，勿当「已绿」）
+
+- 本地 `node scripts/pre-push-ci-preflight.mjs` 四批各跑一次，**全部退出 0**（聚合链 84 门禁 0 失败）。
+- 远端 run：`MA-029 落地留痕` = **success**（含 integration job ⇒ 新 IT 在 CI 的 Docker 里真跑了）。
+- `MA-030` = **failure**，红在 `JiangyiGatherConsoleServiceTest.vendorFailureStillUnlocksAndRecordsPhase:140`
+  —— 该用例用 `await(...terminal())` 轮询异步终态，本地 `-Dtest=JiangyiGatherConsoleServiceTest` **退出 0**；
+  且**纯文档提交 `f9905080` 那一跑也红**，红的是另一个用例（device-service `EmqxSharedSubscriptionIT` Errors: 1）
+  ⇒ 判定＝**既有 CI 抖动（异步等待/共享 runner 负载），与本会话改动无因果关系**。
+  下一会话若再见到这两个名字红，先按「重跑 + 本地复跑同名单测」归因，别顺着改业务码；
+  若要根治抖动，方向是给这两类 `await` 轮询加显式超时上界与可注入时钟（属测试加固，另立 MA）。
+- 截止本会话收口时，批 2/3/4 三个 run 仍在 in_progress（未看到结论），**下一条接手第一件事**：
+  `gh run list --limit 5` 看这三个的结论，若红仍集中在上面两个抖动名，记录并重跑；若是新面红，按本文件 §4 归因。
+
 ## 6. 全部完成的判据
 
 §5 表内所有行都是 ✅ 或明确标注「需人工 + 原因」，且 `docs/module-audit/PLAN.md` 的 R9/R10/R11 三行
