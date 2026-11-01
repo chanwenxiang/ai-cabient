@@ -20,7 +20,9 @@
 | MA-029 退款「预估 == 写侧」且会员档不进应付（392 而非 397） | P1 | `partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide` | `services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementPartialRefundTest.java:186` | `mvn -pl services/trade-service -am test -Dtest=SettlementPartialRefundTest` | 钉测 |
 | MA-029 活库真单：生产写入口 + 真 SILVER 2% 种子 + 恒等式/巡检式对账 SQL 全 0 违规 | P1 | `MemberDiscountLedgerSqlIT`（2 例） | `services/trade-service/src/test/java/com/aicabinet/trade/service/MemberDiscountLedgerSqlIT.java:118,167` | `mvn -pl services/trade-service -am verify -Dtest=NONE -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=MemberDiscountLedgerSqlIT -Dfailsafe.failIfNoSpecifiedTests=false` | 钉测（IT） |
 | MA-029 活库每次造钱后复跑（恒等式 + 折后式 + 入账可见性三段） | P1 | `money-recheck.sql` 7a/7b/7c | `docs/module-audit/seeds/money-recheck.sql` | `docker exec -i ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -f - < docs/module-audit/seeds/money-recheck.sql` | 只读脚本（R11 必跑） |
-| MA-029 consumer 结果页「商品合计 − 各档 = 实付」基准 = gross | P1 | 无（人工判据：`pages/result` 商品明细卡首行数字 = 后端 `grossAmountCents`，且与会员/活动/券三行相减等于「实付金额」） | — | — | **无**（R10 补 automator 文本快照断言，需先在活栈重建后造一笔会员单） |
+| MA-029 consumer 结果页「商品合计 − 各档 = 实付」基准 = gross | P1 | 无（人工判据：`pages/result` 商品明细卡首行数字 = 后端 `grossAmountCents`，且与会员/活动/券三行相减等于「实付金额」） | — | — | **无**（被 `:18080` 镜像卡住：须先重建到含 MA-029 的镜像并造一笔会员单 ⇒ 归 R11） |
+| R10.2 权限闭环三方对账（后端码 ⊆ 表行；前端导航引用的行必须 ACTIVE） | P3 | `scripts/audit-perm-closure.mjs`（三方集合差集；本轮三条危险方向 0 条、真幽灵 4 个） | `scripts/audit-perm-closure.mjs` | `node scripts/audit-perm-closure.mjs`（从仓库根跑，需活库；🔴 未进 `check:audit-gates`，落门禁时 A 集要扩成「注解 + 字符串用法」双扫，否则 `ops:audit:recent` 这类非注解用法会被误判成幽灵码） | 无（分析脚本，非钉测；MA-036 修完再决定固化） |
+| MA-035 公告详情缺参数不得显示「请检查网络后重试」 | P3 | 无（人工判据：两端 `pages/announcements/detail` 无 id 深链时，页面出现「请检查网络后重试」或「重试」按钮即红） | `packages/shared-uni/src/announcements.ts:98-102` | — | **无**（轮末文案批补：改文案 + 加 mp vitest 判据） |
 
 ## 补债规则
 

@@ -89,9 +89,10 @@
 | MA-029 活栈 HTTP 会员单 | ⬜ 需在重建 `:18080`（新镜像含本批）后验 ⇒ 并入 **R11** 全链路那一轮（那轮本就要用新镜像跑一遍会员单）；脏树期不动共享容器 |
 | R9 merchant-mp 35 页 | ✅ **35/35 走完**（六批 6+6+6+6+6+5，2026-11-02）；MA-030/033 已修并活体复验；MA-031/032/034/035 领号 open（已攒成「轮末文案批」一条，见下行）；三条「未挣」与前置写在 `rounds/R09-miniprograms.md` 待拍板 #11 |
 | R9 轮末文案批（4 条一起做） | ⬜ MA-031（`merchant_alert_type` 缺 4 值，要基线+dist+SysDictBootstrap+字典迁移，注意 `DictLabelUniquenessIT` 同名门禁）/ MA-032（盘点 DRAFT 语义）/ MA-034（客单两套实现：后端 `MerchantAnalyticsService:124-126` 与 `business-display.ts:77-80 rowAov` **必须同批**）/ MA-035（`shared-uni/src/announcements.ts:98-102` 一处修两端 + 重烤 dist） |
-| R10 第 1 步（已定首查项） | ⬜ `演示智能柜` 在补货任务页「6 项缺货 · 缺口 36 件」vs 备货单「待补 1 种」⇒ 用 `/merchant/replenishment/shortage-summary` 与备货单取数逐字段对根因；判为设计则登记「同名不同物」清单，判为缺陷则按 MA-034 同族领号 |
+| R10 三端横切 | 🟡 **主体完成**（`rounds/R10-crosscut.md`，锚 `914b166e`）：10.1 状态名/金额/时区三维度确认**单源**（admin 也 import shared-uni）；10.2 权限闭环三方对账 ⇒ **A∖B / C∩B非ACTIVE / C∖B 三条危险方向全 0**，真幽灵码 4 个领 **MA-036**（含一条脚本假阳性护栏：`ops:audit:recent` 是非注解用法）；10.3 回归复跑 103 例 Java + 2 IT BUILD SUCCESS + preflight 0。**遗留 4 条**写在 R10 §10.4（门禁未落 / 8 处 toLocaleString / MA-036 迁移 / 全部结论建立在旧镜像上） |
+| R10 首查项（缺货口径） | ✅ 判为**已拍板的刻意兼容**（`replenishment.vue:88` 注释 CB-076「项」兼容两柜型）⇒ 不领号；另发现 shortage-summary 端点静默忽略 `?deviceId=`（前端未传，无影响） |
+| MA-036（4 个 ACTIVE 幽灵权限码） | ⬜ 沿用 V421 RETIRED 口径；属写面，需先与运营确认不是「预留位」 |
 | MA-031（待办类型标签「未知」） | ⬜ 轮末批：shared-dict 基线 4 值 + dist 重烤 + SysDictBootstrap + DB 字典迁移；判据 = 待办页 0 行「未知」 |
-| R10 三端横切 | ⬜ 未开始 |
 | R11 业务流转全链路 | ⬜ 未开始 |
 | MA-022 在 `:3100` 的复验 | ⬜ 需人工重启 vite（会动别的会话），暂挂 |
 
