@@ -13349,6 +13349,8 @@ export interface components {
             memberDiscountCents?: number;
             /** Format: int32 */
             activityDiscountCents?: number;
+            /** Format: int32 */
+            grossAmountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -13471,6 +13473,8 @@ export interface components {
             memberDiscountCents?: number;
             /** Format: int32 */
             activityDiscountCents?: number;
+            /** Format: int32 */
+            grossAmountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -20802,6 +20806,8 @@ export interface components {
             memberDiscountCents?: number;
             /** Format: int32 */
             activityDiscountCents?: number;
+            /** Format: int32 */
+            grossAmountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
@@ -20843,6 +20849,8 @@ export interface components {
             memberDiscountCents?: number;
             /** Format: int32 */
             activityDiscountCents?: number;
+            /** Format: int32 */
+            grossAmountCents?: number;
             status?: string;
             payChannel?: string;
             /** Format: int32 */
