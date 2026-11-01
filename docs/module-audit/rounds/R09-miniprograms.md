@@ -112,7 +112,24 @@
 - 已回退该写入（`SettlementOrderSupport` 现只落毛额，注释写明冲突），并把巡检侧的重复扣减先拆掉（`813bb20e`）。
 - 需要定的口径：**A** 单价内折为权威 ⇒ ②的两处订单级减项（争议重算、部分退款比例摊）改为「只展示不再减」；**B** 订单级减项为权威 ⇒ 结算不再把会员价算进单价，行金额恢复目录价。两条都会改变争议/部分退款的金额算法，且都牵动分账 ⇒ 属资金语义人工决策，值守期不硬改。
 
+## 运行时复验（trade 镜像重建后，活库 v424，2026-11-01 23:53+）
+
+Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrations`，`/actuator/health` 200。
+
+| 条 | 复验方式 | 结果 |
+|----|----------|------|
+| MA-021 | `select perm_code,status from ops_permission where perm_code in (4 个)` | 四行全部 **RETIRED**（含既有 `ops:session:upload` 同形）✅ |
+| MA-023① | `GET /api/v2/devices/500909625160/products`（**不敲门**，避免开门副作用） | `priceCents=343`（会员后价）、`activityPriceCents=243` ⇒ 卡面 3.43 − 1.00 = 2.43 自洽 ✅；`member_level_rule` 里 SILVER 2% 与 350→343 对上 |
+| MA-024 | automator 打开 `pages/order-detail`（先重烤 `dist/dev/mp-weixin`，产物内已含 `grossAmountCents`/`活动优惠`） | 页面渲染「商品合计 ¥3.43 \| 活动优惠 减¥1.00 \| 实付 ¥2.43」✅（历史单 gross 由回填得来＝会员后价 ⇒ 会员档为 0，符合迁移头写明的人工近似） |
+| MA-025 | automator 打开 `pages/balance` | 只剩 2 条「余额充值 +¥20（余额 140/120）」，**微信通道那两行「购物扣款 −¥2.43 · 余额 ¥0.00」已消失** ✅ |
+| MA-026 | automator 打开 `pages/coupons` + `pages/marketing` | 券卡打上「已过期」角标（库里 status 仍是 UNUSED ⇒ 证明是读面有效状态在起作用）；活动页文案从「1 张可用」变 **0 张可用** ✅ |
+| MA-027 | automator 打开 `pages/help` + SQL | 页面显示 **4000182992**；`consumer/merchant.service_phone` 两行配置同为 4000182992 ✅ |
+| MA-028 | 迁移在活库执行（V422 命中 3 行）+ 写入口单测 | 券名已改（试跑阶段 `UPDATE 3`），新增错配由 `validateNameMatchesThreshold` 拦（用例含「满减券 ¥5」不误伤）✅ |
+
+未复验项（诚实记录）：MA-022 只在临时 dev（`:3199`）上挣到 200，**没有在跑的 `:3100` 上复验**——那需要重启别人可能在用的 vite 进程，值守期不动它；MA-020 属前端行为（不再写 localStorage），单测已钉，活浏览器复验留人工。
+
 ## 走查副作用（不是缺陷，但必须留痕）
+
 
 
 
