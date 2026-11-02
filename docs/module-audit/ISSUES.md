@@ -140,6 +140,27 @@
 
 | MA-126 | P3 | open | 提现等全仓 `@Positive` 字段的 400 文案 | R17 活栈实测：amountCents=0/-500 都回「amountCents不能为空」——根因 `@Positive` 默认消息 "must be greater than 0"（严格大于）不匹配 ApiMessages 的 RANGE_MIN_PATTERN（只匹配 "greater than or equal to" 形式）落兜底误报；2026-10-23 生产实证修过 @Min/@Max 同款（代码注释在位），漏了 @Positive 形式，误导性完全相同 | ZCode R17批1 / 2026-11-03 | rounds/R17-runtime-flows.md |
 
+| MA-127 | P2 | open | 活动优惠行三端铺开不齐 | activityDiscountCents 在 merchant-mp **全端 0 引用**、admin 订单明细/差额说明无活动行；admin 列表优惠列却含活动（05ec42c8）⇒ 同一活动单 consumer 详情能自证而 merchant 明细「已扣−会员≠实收」、admin 列表与自家明细对不上；MA-023/024 修复面只铺了 consumer | ZCode R16 / 2026-11-03 | rounds/R16-cross-end-static.md |
+| MA-128 | P2 | open | merchant-mp 订单详情「已扣/实收」 | 取 originalAmountCents：部分退后该列被重写为「剩余折后行合计」，前端再减一次 refunded ⇒ 半退单显示「实收 ¥0.00」（真实净收 ¥1.21）；且与钱包/分账基数 paidAmountCents 同单不同数（3.43 vs 2.43）；主会话已复核前端代码 | ZCode R16 / 2026-11-03 | |
+| MA-129 | P2 | open | 部分退款单 consumer 优惠拆解自证 | MA-049 把 member/activity 等比缩而 gross 不缩（V424 契约前提是优惠不缩）⇒ 半退单「合计−各档=1.22」缺口 1.75 而退款行只交代 1.21，剩 0.53（被缩掉的优惠）无行解释——MA-024 页面承诺「用户自己能算平」在所有部分退优惠单失效；需与巡检折后式一起拍板 | ZCode R16 / 2026-11-03 | |
+| MA-130 | P2 | open | merchant-mp `pages/tally-records` 理货记录 | 整页裸英文：lineTypeLabel 只认 **PUT_ON**（页面发明的幽灵键，后端全仓 0 处写 PUT_ON、实际写 RESTOCK）⇒ 配货 Tab 每行 chip 显示 "RESTOCK"；taskStatus 只译 COMPLETED，PENDING/IN_PROGRESS/CANCELLED 裸码；主会话已复核 | ZCode R16 / 2026-11-03 | |
+| MA-131 | P2 | open | admin `DeviceRentalView` 租赁账单 | 本地 map/筛选键 **VOIDED** ≠ 后端常量 FEE_BILL_STATUS_VOID=**"VOID"** ⇒ 作废账单状态列裸码且「已作废」筛选永远查空；UNPAID 同族字典叫「待付」此处叫「未付」两词；主会话已复核 | ZCode R16 / 2026-11-03 | |
+| MA-132 | P2 | open | wallet_entry_type 字典 | 缺后端真实写入的 COMMISSION_CLAWBACK/WITHDRAW_FEE（基线+DB 双缺）⇒ admin 资金页流水显示「未知」、merchant-mp 靠 remark 兜底显示中文——同流水两端不同词（V379 迁移注释还把 CLAWBACK 列入幂等白名单，字典却没回填） | ZCode R16 / 2026-11-03 | |
+| MA-133 | P2 | open | admin `LineRoutesView` 钱包流水弹窗 | entryType 裸码直出（STAFF_COMMISSION_DAILY/WITHDRAW_PAYOUT 等）；同数据 LineManagerView 走字典出中文——staff 系枚举从未入任何字典 | ZCode R16 / 2026-11-03 | |
+| MA-134 | P2 | open | purchase_order_status | MA-031 同构复发：SysDictBootstrap 仅 4 值，缺在写的 PENDING_APPROVAL/REJECTED（ensureMissingDictItems 永不自愈）；admin「待审批」vs merchant-mp「待审核」两词，mp fallback 把未知值显示「处理中」 | ZCode R16 / 2026-11-03 | |
+| MA-135 | P2 | open | notification_biz_type | 缺后端真实下发的 DAILY_INCOME/FEE_REMINDER（每日批量落库的高频行）⇒ admin 站内信记录页整片「未知」、merchant-mp 本地 map 显示中文；写入点新增值没回填字典与 MA-132 同模式 | ZCode R16 / 2026-11-03 | |
+| MA-136 | P2 | open | stocktake_status | 同值两套词：admin 走字典（草稿/盘点中/已调整）vs merchant-mp 本地 map（待录入/录入中/已过账）+ 未知值裸码兜底；违反 shared-dict「前端不得自行改文案」既定口径（expiry_urgency 曾为此立 lint 红线） | ZCode R16 / 2026-11-03 | |
+| MA-137 | P3 | open | shared-types 手写 OrderReadModel/OrderSummary | 缺 activityDiscountCents/grossAmountCents（生成物有）⇒ consumer 订单列表要补活动标签时 TS 无字段可用（MA-127 列表漏活动的直接诱因）；建议补字段或切 OpenApi 别名+加「手写接口 vs 生成物 diff」门禁 | ZCode R16 / 2026-11-03 | |
+| MA-138 | P3 | open | check-no-inline-money-math 门禁盲区 | 只扫 views/components 的 .vue，composables/*.ts 残留 3 处手算（useWarehouseEntityDialogs.ts:102,226,266）不受棘轮约束；DIRS 加 composables 收编 | ZCode R16 / 2026-11-03 | |
+| MA-139 | P3 | open | 提现 feeCents 空态两口径 | merchant「—（未结算/免收可区分）」vs admin `feeCents || 0` 显示「¥0.00」——null 被抹平后「未结算」与「免收」在 admin 不可区分；admin 费用列改三态对齐 | ZCode R16 / 2026-11-03 | |
+| MA-140 | P3 | open | wallet_ref_type 缺 SPLIT_REV | 后端真实写入（RevenueSplitService:473）但基线/DB 均无 ⇒ admin 显示「关联/未知」vs mp 本地「分账冲正」同流水两词 | ZCode R16 / 2026-11-03 | |
+| MA-141 | P3 | open | wallet_entry_type.SPLIT_REVERSE 措辞漂移 | DB/迁移「分账退回」vs shared 基线「分账冲正」——runtime 加载状态不同则显示不同词（低频窗口）；择一统一（DB 侧改需幂等 UPDATE，参照 V415 范式） | ZCode R16 / 2026-11-03 | |
+| MA-142 | P3 | open | 站内信 bizType 三端三词 | DISPUTE：consumer「售后」/merchant「争议」/字典「争议」；活动 vs 用户召回混用——分受众话术可理解但未登记为「有意差异」，对齐时无据可查；至少 shared-dict 注释钉住 | ZCode R16 / 2026-11-03 | |
+| MA-143 | P3 | open | exception_type 基线缺 15 值 | DB 33 值 vs 基线 19 值（G7 补集+将邑码只落 DB）；admin 靠 runtime 正常，runtime 未加载首屏 ExceptionListView 落「未知」；双 mp 不直接渲染故 P3 | ZCode R16 / 2026-11-03 | |
+| MA-144 | P3 | open | 反向缺：DB 有基线无的 4 类型 | sku_operation_scope/ops_fee_type/device_fault_code/risk_disposition_status——runtime 未加载时 SkuListView 首屏闪「未知」；违反 shared-dict 契约后半句「then seed here」 | ZCode R16 / 2026-11-03 | |
+| MA-145 | P3 | open | 基线独有 10 类型从未种子 | balance_refund_status/user_role/wallet_ref_type/wallet_ledger_type/consistency_diag_code/merchant_settlement_bill_status/close_sheet_*/expiry_urgency——字典管理不可见、runtime 常态性缺类型（结构性欠账，暂无可见故障） | ZCode R16 / 2026-11-03 | |
+| MA-146 | P3 | open | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -789,3 +810,25 @@
 - 源码定位：`ApiMessages.java:245-268`（formatValidationFieldError：非 CJK 消息走 RANGE_MIN_PATTERN → @Positive 的 "must be greater than 0" 无 "or equal to" 不匹配 → 落末尾兜底 label+"不能为空"）；对照 :259-261 的 2026-10-23 生产实证注释（修的就是 @Min/@Max 同款误导）
 - 复现：活栈实测 amountCents=0 与 -500 均回「amountCents不能为空」（应「必须为正数」类文案）；`WithdrawApplyRequest` 用 @NotNull @Positive。
 - 修法方向：RANGE_MIN_PATTERN 扩形式（"must be greater than 0" → 「必须为正数」），或改用 @Min(1)/@Positive(message=中文)；补 ApiMessagesTest 钉测。
+
+### MA-127 ~ MA-136（P2，证据与修法锚 rounds/R16-cross-end-static.md）
+
+- MA-127 活动行铺开：merchant order-detail.vue:38-45/orders.vue:109-121、admin OrderListView.vue:481-491/977-987、dispute-amount-note.ts:39-52 按 MA-024 同款摊开+类型补字段（merchant `OrderDetail` 与 admin `OrderAmountInput` 补 activityDiscountCents）。
+- MA-128 merchant order-detail.vue:198-218 chargedCents 改以支付流水为源（total+refunded 或读模型下发 ledger charged），与钱包/分账基数 paidAmountCents 对齐；后端 original 重写语义需注释拍板（SettlementOrderSupport.applyProportionalRefundPayable:246）。
+- MA-129 与巡检折后式（DataConsistencyService:1626）一起拍板：①部分退不动 member/activity 留档（回退 MA-049 等比缩）靠 gross−各档−已退=实付；②读面新增「剩余毛额」推导。二选一后页面基准同步改。
+- MA-130 tally-records.vue:169-176,234 改 displayLabel('restock_line_type'/'replenishment_task_status')（与 useReplenishmentDisplay.isPullOffType 反判口径统一）。
+- MA-131 DeviceRentalView.vue:55,433-446 键改 VOID + UNPAID 词与费用账单字典族统一。
+- MA-132/133/135：字典三处（迁移+基线+SysDictBootstrap）补 COMMISSION_CLAWBACK/WITHDRAW_FEE/STAFF_*/WITHDRAW_PAYOUT/DAILY_INCOME/FEE_REMINDER（DictLabelUniquenessIT 同 type 禁重名）；LineRoutesView.vue:232 改 displayLabel。
+- MA-134 SysDictBootstrap:312-313 补 2 值 + mp purchase-display.ts 对齐措辞或改 displayLabel。
+- MA-136 warehouse-stocktake.ts:61-71 改 displayLabel（若「录入/过账」是商户侧刻意话术则改字典两源）。
+
+### MA-137 ~ MA-146（P3，明细从简，锚 rounds/R16-cross-end-static.md）
+
+- MA-137 packages/shared-types/src/index.ts:402-438 补两字段或切别名；门禁「手写接口 vs 生成物 diff」。
+- MA-138 scripts/check-no-inline-money-math.mjs:16-18 DIRS 加 composables（.ts）；存量 3 处迁 centsToYuanNumber。
+- MA-139 MerchantWithdrawView.vue:255 改三态（== null → 未结算）。
+- MA-140 基线+DB 补 SPLIT_REV=分账冲正；mp 本地 map 收敛到字典。
+- MA-141 择词统一两源（SPLIT_REVERSE）。
+- MA-142 shared-dict 注释钉「DISPUTE 分受众话术」口径。
+- MA-143/144/145 字典两源对齐批量回补（一批迁移+基线 PR 全收）。
+- MA-146 repair CLOSED 死值删除或状态机补齐；内联漂移顺手改。
