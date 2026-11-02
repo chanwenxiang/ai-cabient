@@ -64,3 +64,11 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
   支付流水 `CHARGE:243:COMPLETED` + `REFUND:243:COMPLETED` 对平；
   **退款后 `gross=350 / total=243 / member=7 / activity=100` 原样保留**（拆解不被退款破坏，退款额正好等于实付）。
 - 未做：**提现半条**。`POST /api/v2/merchant/wallet/withdraw` + `/{requestId}/review|payout` 需商户端登录态（超管/商户两套 token），本轮上下文不足，列为下一步。
+
+## R11 段 2 · B2 提现半条（2026-11-02 完成）
+
+- 前置：`MCH-DEFAULT` 商户资质不全（缺法人/执照）时申请被 403 挡住（正确行为）。本轮临时补 `legal_person`/`business_license_url` 跑通，**结束后已清回 NULL**。
+- 申请：`POST /api/v2/merchant/wallet/withdraw {amountCents:1000}` ⇒ 直接 `PAID`（`remark=低于审核阈值自动通过`，未走人工 review）。
+- **出款通道 = MOCK**：请求行 `gateway=MOCK`、`remark=仅 Mock 成功（记账打款，未发起真实转账）` ⇒ 佐证 dev 不会真打款（这也是本轮不点真实 payout 的依据）。
+- 账实：`WITHDRAW_FREEZE −1000 → WITHDRAW_FEE −6（6‰）→ WITHDRAW_PAID −994`，余额 50986 → 49992，差额正好 994；状态机一次到底，无 `PAYING` 重入。
+- 结论：提现申请→（自动）审核→记账打款 全链在 dev 可复现，费率 6‰、净额、余额三者自洽。
