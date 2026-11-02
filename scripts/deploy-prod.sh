@@ -108,6 +108,8 @@ cd "$DIR"
 # AU-185：服务器侧预检 + 指纹留痕（解包后应与仓库一致；sha 打进部署日志可追漂移）
 [ -f infra/docker-compose.prod-server.yml ] || { echo "❌ 服务器缺 infra/docker-compose.prod-server.yml（解包异常？）"; exit 1; }
 sha256sum infra/docker-compose.yml infra/docker-compose.apps.yml infra/docker-compose.production.yml infra/docker-compose.prod-server.yml
+# 上线清单 P0：拒绝开发默认密钥（base compose 的 `${KEY:-dev默认}` 会静默生效）
+bash scripts/check-prod-env-secrets.sh infra/.env.production
 C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
 $C build trade-service 2>&1 | tail -2
 $C up -d --no-deps --force-recreate trade-service 2>&1 | tail -1
