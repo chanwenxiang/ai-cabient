@@ -876,8 +876,8 @@ onMounted(() => load({ silent: true }));
 .stat-tile {
   background: var(--el-fill-color-light);
   border: 1px solid var(--layout-border);
-  border-radius: var(--admin-radius-lg, var(--radius-control));
-  padding: 14px 16px;
+  border-radius: 10px;
+  padding: 12px 14px;
   height: 100%;
   box-sizing: border-box;
   text-align: center;

@@ -320,10 +320,10 @@ function barHeight(orders: number) {
   margin-bottom: 8px;
 }
 .kpi-card {
-  padding: 14px;
-  border: 1px solid var(--el-border-color-lighter);
+  padding: 12px 14px;
+  border: 1px solid var(--layout-border, #ebeef5);
   border-radius: 10px;
-  background: var(--el-fill-color-blank);
+  background: var(--el-fill-color-light);
   text-align: center;
 }
 .kpi-n {

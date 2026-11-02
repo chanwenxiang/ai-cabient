@@ -4,13 +4,19 @@
  * 禁止 `import * as echarts from 'echarts'` 全量引入（全量 dist 约 1MB）。
  */
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
+import {
+  GridComponent,
+  LegendComponent,
+  TitleComponent,
+  TooltipComponent
+} from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { BarSeriesOption, LineSeriesOption, PieSeriesOption } from 'echarts/charts';
 import type {
   GridComponentOption,
   LegendComponentOption,
+  TitleComponentOption,
   TooltipComponentOption
 } from 'echarts/components';
 import type { ComposeOption } from 'echarts/core';
@@ -21,6 +27,7 @@ echarts.use([
   PieChart,
   GridComponent,
   LegendComponent,
+  TitleComponent,
   TooltipComponent,
   CanvasRenderer
 ]);
@@ -33,6 +40,7 @@ export type EChartsOption = ComposeOption<
   | PieSeriesOption
   | GridComponentOption
   | LegendComponentOption
+  | TitleComponentOption
   | TooltipComponentOption
 >;
 

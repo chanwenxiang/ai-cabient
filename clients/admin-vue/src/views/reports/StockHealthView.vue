@@ -661,11 +661,26 @@ watch(
   text-align: center;
   font: inherit;
   color: inherit;
-  border: none;
   cursor: default;
   background: var(--el-fill-color-light);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border: 1px solid var(--layout-border, #ebeef5);
+  border-radius: 10px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+}
+/* 与财务/设备报表同口径：白卡 + 左侧 3px 色条，警示只用色条不改底色 */
+.kpi-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #2dd4bf;
+}
+.kpi-tile.warn::before {
+  background: var(--el-color-warning, #e6a23c);
 }
 .kpi-tile.warn {
   background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));

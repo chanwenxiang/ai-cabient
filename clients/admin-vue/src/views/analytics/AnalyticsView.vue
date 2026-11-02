@@ -662,7 +662,7 @@ onMounted(load);
 }
 .stats-row .stat-tile {
   border-radius: 10px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   margin-bottom: 4px;
   border: 1px solid var(--layout-border);
   background: var(--el-fill-color-light);

@@ -66,7 +66,7 @@
           <el-table-column
             prop="userId"
             label="用户ID"
-            width="100"
+            width="90"
             class-name="col-text"
             label-class-name="col-text"
           />
@@ -83,7 +83,7 @@
           />
           <el-table-column
             label="累计消费"
-            width="110"
+            width="100"
             align="center"
             class-name="col-status"
             label-class-name="col-status"
@@ -136,14 +136,14 @@
           <el-table-column
             prop="orderCount"
             label="累计订单"
-            width="90"
+            width="80"
             align="center"
             class-name="col-status"
             label-class-name="col-status"
           />
           <el-table-column
             label="上次消费"
-            width="140"
+            width="130"
             align="center"
             class-name="col-status"
             label-class-name="col-status"
@@ -366,14 +366,14 @@ function lastTime(value?: string | number | null) {
 <style scoped>
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
 }
 .kpi-card {
-  padding: 18px;
-  border-radius: 14px;
-  background: #f7faf8;
-  border: 1px solid #eef2ef;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--layout-border, #ebeef5);
   text-align: center;
 }
 .kpi-label {

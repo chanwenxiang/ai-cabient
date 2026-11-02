@@ -130,10 +130,10 @@ onMounted(load);
   gap: 14px;
 }
 .kpi-card {
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  padding: 14px 16px;
-  background: var(--el-bg-color);
+  border: 1px solid var(--layout-border, #ebeef5);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--el-fill-color-light);
   text-align: center;
 }
 .kpi-label {

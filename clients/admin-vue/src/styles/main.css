@@ -2854,7 +2854,7 @@ a:focus-visible {
 .ops-board__tile,
 .quick-tile,
 .bs-kpi {
-  border-radius: var(--admin-radius, 8px);
+  border-radius: 10px;
   text-align: center;
 }
 

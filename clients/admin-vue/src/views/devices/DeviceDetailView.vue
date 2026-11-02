@@ -2071,10 +2071,10 @@ onActivated(() => {
   text-align: center;
   font: inherit;
   color: inherit;
-  border: none;
+  border: 1px solid var(--layout-border, #ebeef5);
   cursor: default;
   background: var(--el-fill-color-light);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 8px;
 }
