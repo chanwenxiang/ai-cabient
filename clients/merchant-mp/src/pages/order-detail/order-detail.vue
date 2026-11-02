@@ -240,6 +240,12 @@ onLoad((opt) => {
   const q = (opt || {}) as Record<string, string | undefined>;
   orderId.value = String(q.orderId || q.id || '').trim();
   booted = true;
+  if (!orderId.value) {
+    // 缺参不是网络问题：老实现直接 load() 会拉一个空 id 的 GET ⇒ 页面显示「请检查网络后重试」
+    error.value = '缺少订单号，请从订单列表进入';
+    loading.value = false;
+    return;
+  }
   void load();
 });
 /**
