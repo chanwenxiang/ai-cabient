@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -142,6 +143,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException ex) {
         String message = "缺少参数: " + ex.getParameterName();
         log.warn("missing request parameter {} {}", RequestCorrelation.summary(), ex.getParameterName());
+        return withTrace(ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), message)));
+    }
+
+    /**
+     * 缺请求头同样是「请求不合法」而非服务端故障：微信/支付宝回调少了 `Wechatpay-Timestamp`
+     * 这类头时会落到这里（本地重启实测：修复前 500、修复后 400），避免渠道探测刷 ERROR 日志。
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingHeader(MissingRequestHeaderException ex) {
+        String message = "缺少请求头: " + ex.getHeaderName();
+        log.warn("missing request header {} {}", RequestCorrelation.summary(), ex.getHeaderName());
         return withTrace(ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(HttpStatus.BAD_REQUEST.value(), message)));
     }

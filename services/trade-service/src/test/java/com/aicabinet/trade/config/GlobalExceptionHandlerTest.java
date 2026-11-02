@@ -106,8 +106,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void handleResponseStatus_wrappingIntegrityViolation_mapsTo409() {
-        var integrity = new org.springframework.dao.DataIntegrityViolationException(
+    void handleResponseStatus_wrappingIntegrityViolation_mapsTo409() {        var integrity = new org.springframework.dao.DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"uk_merchant_withdraw_request_no\"");
         var ex = new ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR, "wallet", integrity);
@@ -120,5 +119,20 @@ class GlobalExceptionHandlerTest {
         assertTrue(res.getBody().message().startsWith("数据校验未通过"));
         assertTrue(!res.getBody().message().contains("uk_merchant_withdraw_request_no"),
                 "约束名不得回落客户端");
+    }
+
+    @Test
+    void handleMissingHeader_mapsTo400_notFiveHundred() throws Exception {
+        var method = GlobalExceptionHandler.class.getDeclaredMethod(
+                "handleMissingHeader", org.springframework.web.bind.MissingRequestHeaderException.class);
+        var ex = new org.springframework.web.bind.MissingRequestHeaderException(
+                "Wechatpay-Timestamp", new org.springframework.core.MethodParameter(method, 0));
+
+        var res = handler.handleMissingHeader(ex);
+
+        assertEquals(HttpStatus.BAD_REQUEST.value(), res.getStatusCode().value(),
+                "回调少带 Wechatpay-* 头是请求不合法，不得冒 500");
+        assertNotNull(res.getBody());
+        assertTrue(res.getBody().message().contains("Wechatpay-Timestamp"));
     }
 }
