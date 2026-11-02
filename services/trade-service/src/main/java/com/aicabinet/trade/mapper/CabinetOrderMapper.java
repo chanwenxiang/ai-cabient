@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Update;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -25,6 +26,25 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
     /** 仅当 payment_operation_id 为空时写入，避免并发回填覆盖。 */
     int backfillPaymentOperationIdIfAbsent(@Param("orderId") String orderId, @Param("operationId") String operationId);
+
+    /**
+     * MA-067：显式把订单的券字段摘干净。MP 的 {@code updateById} **跳过 null 字段**，
+     * 所以 {@code order.setCouponId(null) + save()} 对**已 insert 过**的订单根本落不到库
+     * （2026-11-02 活栈实测：扣款失败转 PENDING 的单仍挂着 coupon_id，而那张券在
+     * {@code user_coupon} 里仍是 UNUSED ⇒ 「券已绑单但未核销」的悬空态；后续按
+     * {@code order.getCouponId()} 重算折扣的链路会对一张没收的券再折一次 = 少收钱）。
+     */
+    @Update("""
+        UPDATE cabinet_order
+        SET coupon_id = NULL,
+            coupon_discount_cents = 0,
+            total_amount_cents = #{totalAmountCents},
+            updated_at = #{updatedAt}
+        WHERE order_id = #{orderId}
+        """)
+    int clearOrderCouponSelection(@Param("orderId") String orderId,
+                                  @Param("totalAmountCents") int totalAmountCents,
+                                  @Param("updatedAt") Instant updatedAt);
 
     default Optional<CabinetOrder> findBySessionId(String sessionId) {
     return Optional.ofNullable(selectOne(Wrappers.<CabinetOrder>lambdaQuery().eq(CabinetOrder::getSessionId, sessionId)));

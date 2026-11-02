@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -207,8 +208,7 @@ public class SettlementOrderFinalizeService {
             }
             // 扣款失败转待支付：同样不占券，补扣时再选
             clearCouponSelection(order);
-            order.setStatus("PENDING");
-            orderRepository.save(order);
+            markPendingAndDropCoupon(order);
             // 🔴 记风控事件（阶段=CHARGE_FAILED：已尝试扣款但失败，与 PRE_CHARGE 语义不同）
             riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
                     order.getOrderId(), "CHARGE_FAILED", order.getTotalAmountCents());
@@ -223,8 +223,7 @@ public class SettlementOrderFinalizeService {
     /** F1-B：chargeOrder 信号化不足后的 PENDING 收尾（与 catch 路径共用）。 */
     private boolean finishUnpaidOrderAfterCharge(ShoppingSession session, CabinetOrder order, String reason) {
         clearCouponSelection(order);
-        order.setStatus("PENDING");
-        orderRepository.save(order);
+        markPendingAndDropCoupon(order);
         // 🔴 记风控事件（信号化不足：扣款已发出但没收到回执，欠款原因与前两者都不同）
         riskControlService.onUnpaidOrderCreated(order.getUserId(), order.getDeviceId(),
                 order.getOrderId(), "CHARGE_UNCONFIRMED", order.getTotalAmountCents());
@@ -278,12 +277,28 @@ public class SettlementOrderFinalizeService {
     }
 
     /**
+     * 转待支付的落库（MA-067）：{@code save} 走 MP 的 {@code updateById}，**null 字段被跳过** ⇒
+     * 只把实体上的 couponId 置空根本落不到库，必须再发一条显式 UPDATE。否则留下
+     * 「券已绑单但未核销」的悬空态（user_coupon 仍 UNUSED，而订单带着 coupon_id），
+     * 后续按 {@code order.getCouponId()} 重算折扣的链路会对一张没收的券再折一次。
+     */
+    private void markPendingAndDropCoupon(CabinetOrder order) {
+        order.setStatus("PENDING");
+        orderRepository.save(order);
+        orderRepository.clearOrderCouponSelection(order.getOrderId(), order.getTotalAmountCents(), Instant.now());
+    }
+
+    /**
      * 待支付不占券：还原应付为**折前**金额并清空券字段。
      *
      * <p>折前金额必须按 {@code total + couponDiscount} 取：活动单在选券前就跳过
      * {@link #selectBestCouponForOrder}，其 {@code originalAmountCents} 仍是活动前合计
      * （会员价合计）。若直接用它还原，PENDING 会把活动优惠也一起还原掉，导致待支付金额、
      * 风控事件和催缴短信都虚高一个活动优惠额。</p>
+     *
+     * <p>🔴 本方法只改内存对象：订单**已 insert 过**时调用方必须再走
+     * {@link #markPendingAndDropCoupon}（MA-067），否则 {@code updateById} 跳过 null，
+     * 库里的 coupon_id 清不掉。</p>
      */
     static void clearCouponSelection(CabinetOrder order) {
         int original = order.getTotalAmountCents() + Math.max(0, order.getCouponDiscountCents());

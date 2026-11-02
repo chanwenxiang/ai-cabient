@@ -45,6 +45,35 @@
 | MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
 | MA-037 | P1 | fixed（V428，活栈实证） | admin `/warehouse-transfers` 新建调拨 | 跨仓调拨创建**必然 500**：`warehouse_transfer_line` 的检查约束 `chk_wh_transfer_loss = (received_qty + loss_qty) = quantity` 与创建期插入语义冲突——创建时服务写 `received_qty=0, loss_qty=0` 而 `quantity>0` ⇒ 约束立即违反；接口把 DB 异常直接冒成 500「系统繁忙」而非 4xx | Qoder R11 / 2026-11-02 | 证据：traceId `f46acef186cc`，`Failing row contains (5, 2, 100013, '', null, 1, 0, 0, null, null)`；库存前后一致（失败不改库存这点是对的）。修法二选一：①创建只插 `quantity`、把 loss 约束改成 `received_qty+loss_qty <= quantity` 且仅 `RECEIVED` 状态要求相等；②创建即写 `received_qty=quantity, loss_qty=0` 再在 receive 时回填真实值。需产品定 loss 口径 |
 | MA-038 | P2 | fixed（创建期校验，活栈实证） | admin `/warehouse-transfers` 收货 | 调拨**收货必然 500**：`warehouse_inventory.expiry_date` 为 NOT NULL，而 `WarehouseTransferService.doReceive` 用 `new LotSpec(sku,batchNo,null,line.getExpiryDate())` 入库、调拨行常无有效期（创建接口也不校验）⇒ 收货时 500「系统繁忙」 | Qoder R11 / 2026-11-02 | 证据 traceId `f4f7927fb786`：`null value in column "expiry_date" of relation "warehouse_inventory"`；传输单 1793586826720675318377 停在 `SHIPPED`（源仓已扣 46→45）。修法：创建校验 `expiryDate` 必填（400）或收货时从源批次继承；同时把 `DataIntegrityViolationException` 映射为 409/400 |
+| MA-039 | P1 | fixed（钉测 + 活栈实证，含无活动对照腿） | 消费者 `/orders/{id}/pay` + admin 待支付「代收」 | 补扣链没有「活动价订单禁用券」闸：活动价 PENDING 单在补缴/代收时在**活动价小计上再选一张最优券**，违反 CB-082「活动优先」拍板 ⇒ 少收一张券面额 | Qoder 三端审计 / 2026-11-02 | `UnpaidOrderService:441`；主链闸 `SettlementOrderFinalizeService:84` |
+| MA-040 | P2 | fixed（钉测 + 活栈实证） | 结算转 PENDING 的落库金额 | 活动单转待支付时 `clearCouponSelection` 按 `originalAmountCents`（**活动前**合计）还原应付 ⇒ PENDING `total` 虚高一个活动优惠额，风控事件与催缴短信同错；补扣时才按行金额纠回 | Qoder 三端审计（复核时新挖） / 2026-11-02 | `SettlementOrderFinalizeService:281` |
+| MA-041 | P1 | fixed（活栈 UI 实证 8/8） | admin `/warehouse/fulfillment` 新建调拨弹窗 | MA-038 只把**后端**收紧成批次/有效期必填，表单根本没有有效期控件且批次标注「可空」⇒ 运营台任何填写组合都 400，故障从「收货 500」前移成「创建 400」，写路径整条断 | Qoder 三端审计 轨 C / 2026-11-02 | `WarehouseTransferDialogs.vue` + `useWarehouseTransfers.ts`；回归脚本 `scripts/verify-warehouse-transfer-form.mjs` |
+| MA-042 | P1 | fixed（脚本级） | `scripts/cleanup-test-data.ps1` | 仍 DELETE 两张 V431 已 DROP 的表（`revenue_share_detail`/`promotion_device`），单事务 `ON_ERROR_STOP=1` ⇒ 首条即 `relation does not exist`，四份 UAT 跑批文档依赖的清库链必失败 | Qoder 三端审计 轨 B / 2026-11-02 | AU-186/FS-15 同型第三次 |
+| MA-043 | P2 | fixed（钉测 3 例 + 活栈实证） | 争议确认改单重算 | `applyItemsToOrder` 按**当前**活动重定价所有行，`recalculatePayableAfterLineChange` 又照折旧券 ⇒ 券单在新配活动期间被双折；且活动过期时旧行会丢活动价、本单还把自己算进 `user_limit` | Qoder 三端审计 轨 A1 / 2026-11-02 | 拍板：成交即定价（沿用原单活动决策） |
+| MA-044 | P2 | fixed（钉测 + 真库 IT） | 活动限购 `user_limit`/`totalOrderLimit` | check-then-act 无锁：两柜并发结算可双吃活动价（`findByIdForUpdate` 早已存在但定价链没人调） | Qoder 三端审计 轨 A1 / 2026-11-02 | `PromotionPricingService.resolveUnitPriceForOrder` |
+| MA-045 | P2 | fixed（钉测 + 活栈实证） | 按行部分退款重试 | 渠道退款成功、本地 prepare/finalize 失败后，同参重试命中 COMPLETED 幂等键被直接 409 ⇒ 本地 total/行/status 永远补不上（远端钱已退） | Qoder 三端审计 轨 A2 / 2026-11-02 | `[LOCAL_PREPARED]` 标记与 prepare 同事务 |
+| MA-046 | P2 | fixed（单测；启用当天看日志） | `profit-sharing-retry` 调度器 | 调度器方法自带 `@Transactional`，把 `submitSplit` 的 B2 三段式 HTTP 又包回 DB 事务；且逐行无 catch ⇒ 一条坏行抛异常整批回滚、后面的失败分账永不重试（当前分账休眠） | Qoder 三端审计 轨 A2 / 2026-11-02 | 报告原例「receiver 缺失」经复核不成立（`recordSplit` 已落 LEDGER_ONLY） |
+| MA-047 | P2 | fixed（钉测 + 活栈实证） | `/api/v2/payment/payscore/notify` | 支付分回调漏在 `WebConfig` 免登录白名单外（wechat/alipay 回调都在）⇒ 微信回调必 401，`DONE` 无法把 PENDING 自愈为 PAID，欠款闸误伤正常用户 | Qoder 三端审计 轨 A2 / 2026-11-02 | 活栈实测：修后 400（缺头），对照 `/api/v2/orders` 仍 401 |
+| MA-048 | P2 | fixed（runbook 项，非代码） | 部署前置 / V431 | V431 的逐表 0 行守卫是**环境依赖**的：V222 曾向 `revenue_share_detail` 补最多 5 行演示数据，从未清库的存量库会在生产部署时 Flyway fail-loud 阻断启动 | Qoder 三端审计 轨 B / 2026-11-02 | 两库实测已越过 V434/V433 ⇒ 只对将来的新生产库生效 |
+| MA-049 | P3 | fixed（钉测） | 部分退优惠拆解 | 只等比缩会员留档、活动留档不缩 ⇒ 部分退后「商品合计 − 各档 ≠ 实付」展示对不平 | Qoder 三端审计 / 2026-11-02 | 写侧与预估侧同步 |
+| MA-050 | P3 | fixed（钉测） | 争议重算会员留档 | `memberDisc = min(member, subtotal−coupon)` 在 >50% 会员折扣档把留档夹小，写坏 `gross−member−activity−coupon=total` | Qoder 三端审计 / 2026-11-02 | 留档列不进应付 |
+| MA-051 | P3 | fixed（钉测） | 读面「原价/优惠」 | `OrderViewAssembler.originalAmountCents` 兜底只加 coupon+member，漏 activity ⇒ 活动单「原价」少一个活动优惠额；admin 两处优惠汇总同样漏（列表 + 设备关联单据） | Qoder 三端审计 / 2026-11-02 | — |
+| MA-052 | P3 | fixed（钉测） | 券全额抵扣的 0 元单 | `chargeOrder` 在 `total<=0` 直接 return，既不完结也不取消支付分开门单 ⇒ 远端留一张永不结算的 CREATED/DOING 服务单 | Qoder 三端审计 / 2026-11-02 | 取消失败落 `CANCEL_FAILED` 供对账 |
+| MA-053 | P3 | fixed（钉测） | 锁包装器异常出口 | 几十个 `runWith*Lock` 用 `catch (Exception) → ResponseStatusException(500)`，把 `DataIntegrityViolation` 从全局 409 通道截胡成 500（现实可触发=跨商户并发同 requestNo 提现） | Qoder 三端审计 / 2026-11-02 | 改为按 cause 链还原 409，不逐个改 wrapper |
+| MA-054 | P3 | fixed | 运营「刷新分账」 | `refreshSplitStatus` 带 `@Transactional`，在事务（含行锁）内做微信查单 GET | Qoder 三端审计 / 2026-11-02 | HTTP 出事务、落库短事务 |
+| MA-055 | P3 | fixed | admin `/stock-health` | 注释写「警示只用色条不改底色」，但 `.kpi-tile.warn` 黄底规则还在（脚本改注释漏同步，本批唯一实锤） | Qoder 三端审计 轨 C / 2026-11-02 | — |
+| MA-056 | P3 | fixed | admin `/dashboard` | quick-row/quick-tile/page-pager 等约 70 行死 CSS（模板早已换成 zone-* 家族） | Qoder 三端审计 轨 C / 2026-11-02 | — |
+| MA-057 | P3 | fixed | admin `/devices/:id` + `/devices` | 设备 KPI 数值仍是 `display-md`(22px)/600，未跟规范 24px·700 | Qoder 三端审计 轨 C / 2026-11-02 | — |
+| MA-058 | P3 | fixed（活栈 UI 实证） | admin `/warehouse/fulfillment` 新建调拨弹窗 | 一行一字段，违反 `form-grid` 两列拼排规范（采购/实体弹窗都是两列） | Qoder 三端审计 轨 C / 2026-11-02 | 随 MA-041 同批改；同一脚本 A2 判据验证 |
+| MA-059 | P3 | fixed | merchant-mp `pages/self-replenish` | `.input` 三套互斥规则并存（80/88/88 + 8rpx/20rpx/token 圆角），前两套是死 CSS | Qoder 三端审计 轨 E / 2026-11-02 | 产物级复验：只剩一套 |
+| MA-060 | P3 | fixed | merchant-mp `pages/device-detail` + `pages/mine` | 表单输入统一批（88rpx + `--radius-control` + `#f1f5f9`）漏了这两页，仍是 80rpx/8px/`--page-bg` | Qoder 三端审计 轨 E / 2026-11-02 | 产物级复验：0 处 80rpx |
+| MA-061 | P3 | fixed | shared-uni `theme.css` | `ui-btn*`/`ui-thumb*`/`ui-row`/`ui-num`/`ui-caption`/`ui-divider`/`ui-empty`/`ui-group-title`/`ui-section-title`/`app-mono`/`app-icon--sm|md` 全仓零引用（各页自己复制度量 ⇒ 漂移源） | Qoder 三端审计 轨 E / 2026-11-02 | 删前逐一交叉核对动态类名形态 |
+| MA-062 | P3 | fixed | shared-uni `empty-state` | 显式传 `icon="glyph"` 且 kind 缺省时，第二个分支不放图、掉到文本分支 ⇒ 把字符串 "glyph" 当图标渲染 | Qoder 三端审计 轨 E / 2026-11-02 | — |
+| MA-063 | P3 | fixed | consumer-mp + merchant-mp | `absoluteImageUrl` 两端各一份逐字相同实现（当前无漂移，但属结构性重复） | Qoder 三端审计 轨 D/E / 2026-11-02 | 收进 `shared-uni/product-image` |
+| MA-064 | P3 | fixed | `docs/TROUBLESHOOTING_GUIDE.md` | 排障 SQL 仍指 `idempotency_keys`（本就拼错且 V431 已删）、`payments`/`orders`/`revenue_share_tasks` 三张不存在的表，还教人手改订单/插流水 | Qoder 三端审计 轨 B / 2026-11-02 | 同批给历史 `wipe-business.sql` 加「勿重跑」头 |
+| MA-065 | P3 | fixed（钉测 + 活栈实证） | 支付/支付分回调 | 白名单落地后实测：缺 `Wechatpay-Timestamp` 等请求头冒 **500**（全局只映射了缺参数、没映射缺请求头）⇒ 渠道探测刷 ERROR 日志 | Qoder 活栈复验 / 2026-11-02 | 改 400，`GlobalExceptionHandlerTest` 8 例 |
+| MA-066 | P2 | fixed（钉测 4 例 + 活栈实证） | 争议确认/结算的欠款转待支付链 | 余额不足被吞掉转 PENDING 后，事务早被标 rollback-only ⇒ 提交抛 `UnexpectedRollbackException` 500，订单/工单/风控整链回滚（编程式 `TransactionTemplate` 无 noRollbackFor + `chargeOrder` 只放行 `BalanceInsufficientException`） | Qoder 活栈资金链复现 / 2026-11-02 | 账本收下该 412、出锁出事务后再抛并折成业务信号；同型第三例（P1-1/BUG-007） |
+| MA-067 | P2 | fixed（钉测 1 例 + 活栈实证） | 结算「待支付不占券」落库 | `clearCouponSelection` 把 couponId 置 null，但订单此时已 insert ⇒ `save` 走 MP `updateById` **跳过 null**，库里仍留 coupon_id 而 `user_coupon` 仍 UNUSED（券没核销却挂在单上）；后续按 `order.getCouponId()` 重算的链路会对没收的券再折一次 | Qoder 活栈资金链复现 / 2026-11-02 | 新增显式 UPDATE `clearOrderCouponSelection` + `markPendingAndDropCoupon` 两支都走；e2e 腿 2 钉 PENDING 行 coupon_id=NULL |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -434,3 +463,134 @@
 - 关联：CB-082 v1 的活动价展示链（本轮把「原价可减出实付」补为硬判据）；R8 MA-020 同属「三端明细可解释性」族。
 
 
+
+### MA-039 补扣链缺「活动单禁券」闸（少收一张券面额）
+- 级别/状态：P1 / **fixed（钉测 + 活栈实证，含无活动对照腿）**（2026-11-02，Qoder 三端审计；修复锚 `05ec42c8` + 产物 `f3f078ce`）
+- 端与页面：消费者 `POST /api/v2/orders/{id}/pay` 与 admin 待支付「代收」（同一 `markPaid` 链）
+- 发现人/日期/HEAD：Qoder 三端审计（轨 A1） / 2026-11-02 / `285bb48e`
+- 期望 / 实际：CB-082 拍板「活动价与券二选一，活动优先」⇒ 活动价单补缴仍自动选最优券再减一张
+- 源码定位：`UnpaidOrderService.applyBestCouponForCollect`（主链闸在 `SettlementOrderFinalizeService:84`）
+- 触发链（静态推演）：结算余额不足 → PENDING（活动单本就不带券）→ 充值 → `collectByUser` → `markPaid`
+- 修复记录：补 `activityDiscountCents > 0 ⇒ 不选券、清券字段、应付=活动价小计`；钉测 `UnpaidOrderConcurrencyTest.collectByUser_activityOrder_doesNotStackCoupon`
+- 活栈实证（2026-11-02，`scripts/e2e-activity-unpaid-collect.ps1` 腿 1）：真柜模拟购物 → 余额不足转 PENDING
+  → 充值后 `POST /api/v2/orders/{id}/pay` ⇒ `coupon_id` 仍 NULL、券抵扣仍 0、渠道实扣 486、余额 5000→4514、
+  那张 ¥2 无门槛券仍 UNUSED；**对照腿**（停掉活动、同人同档券）补缴时券被照常选中并核销
+  （486 = 700 − 14 − 0 − 200）⇒ 证明「不复用」是活动闸的效果，不是券不够格
+- ⚠️ 订正：**报告原稿的第二半「补扣时覆写 gross 毛额列」是误报**——`originalAmountCents` 是 `@TableField(exist=false)` 瞬态字段，全仓无 `original_amount_cents` 列，`gross_amount_cents` 唯一写入点在 `SettlementOrderSupport`；真实缺陷另立 **MA-040**（lessons #379）
+
+### MA-040 活动单转 PENDING 把活动优惠一起还原（待支付金额虚高）
+- 级别/状态：P2 / **fixed（钉测 + 活栈实证）**（同上批）
+- 现象：`clearCouponSelection` 用 `originalAmountCents` 还原「折前应付」，而活动单的该值是**活动前**合计 ⇒ PENDING 落库 total = 活动价 + 活动优惠（例：应 1026 落 1176），风控事件与催缴短信同源
+- 修复记录：改为按 `total + couponDiscount` 还原；钉测 `SettlementOrderFinalizeAmountTest` 两例（券单/活动单）
+- 活栈实证（同脚本腿 1 直接读库）：PENDING 落库 `total_amount_cents=486`，恒等式
+  `gross 700 − member 14 − activity 200 − coupon 0 = 486` 成立；修复前这里会落 700（虚高 200，
+  催缴短信与风控事件同源虚高）
+
+### MA-041 admin 新建调拨表单缺有效期、批次标注可空（写路径整条断）
+- 级别/状态：P1 / **fixed（代码 + 产物 + 活栈 UI 实证）**
+- 端与页面：admin `/warehouse/fulfillment` 仓储履约 → 仓间调拨 tab → 新建调拨
+  （⚠️ 路由不是 `/warehouse/transfers`：`clients/admin-vue/src/router/index.ts:13` 的 `ROUTE_TAB_SUB` 把 `transfers` 映射到 `fulfillment`，`/admin/warehouse` 直接落地 `/admin/warehouse/master`）
+- 现象：MA-038 只把后端收紧成「批次/有效期必填否则 400」，弹窗无有效期控件、批次 placeholder「可空」、payload 从不发 `expiryDate` ⇒ 任何填写组合都 400；台账 MA-038 的「活栈实证」是 API 直调，UI 路径没复验
+- 修复记录：`WarehouseTransferDialogs.vue` 补有效期日期控件 + 批次必填 + 两列 `form-grid`（顺带收 MA-058）；`useWarehouseTransfers.ts` 校验 + payload 透传 `expiryDate`
+- 活栈 UI 实证（2026-11-02，Playwright 驱动本机真 Chrome + localhost/admin，8 判据全过）：
+  A1 弹窗有「有效期」必填项 / A2 `form-grid` 两列（`396.005px 396.005px`）/ A3 批次占位符已不含「可空」/
+  B1 批次留空被前端拦下（toast 出现且 `posts=0`，不发 POST）/ C1 创建请求发出 /
+  C2 payload 带 `batchNo=B-VERIFY-20261102` + `expiryDate=2027-01-31` / C3 后端 `http=200 code=0` /
+  C4 UI 提示「调拨单已创建」并刷新列表（transferId=7）
+- 回归脚本：`scripts/verify-warehouse-transfer-form.mjs`（跑完自动 `POST /transfers/{id}/cancel` 收尾，库里只留序列烧号）
+  截图 `docs/module-audit/evidence/MA-041-transfer-form-created.png`
+
+### MA-042 清库脚本仍 DELETE 两张已 DROP 表
+- 级别/状态：P1 / **fixed**（脚本级；下一次清库链跑批即验证）
+- 证据：`cleanup-test-data.ps1` 单事务 + `ON_ERROR_STOP=1`，`revenue_share_detail`（1 处）与 `promotion_device`（2 处）已被 V431 DROP ⇒ 首条即 relation does not exist
+- 影响面：`BROWSER_FULL_UAT_PLAN`/`BROWSER_MIN_UAT`/`MASTER_TEST_PLAN`/`docs/uat/FULL_TEST_SESSION_PROMPT` 等跑批文档都依赖该脚本
+- 修复记录：删三处引用并注明 V431；复查 V431 全部 11 张表 ⇒ 脚本已无第四处；历史 `docs/uat-screenshots/2026-09-12/wipe-business.sql` 加「勿重跑」头
+- 门禁候选（未做）：删表后自动扫 scripts/docs 引用——AU-186/FS-15 同型第三次
+
+### MA-043 争议改单按当前活动重定价 + 旧券照折（双折）
+- 级别/状态：P2 / **fixed（钉测 3 例）**
+- 拍板（用户 2026-11-02 授权按推荐）：**成交即定价**——改单沿用原单每行的活动决策（`activity_id` + 每件减额），原单没活动的行不捡新活动，只有新增 SKU 按当前规则定价；此时订单级仍走「活动优先禁券」
+- 竞品依据：Shopify 官方草稿单 price lock（未锁定才跟目录最新价）+「编辑订单后部分折扣不会重新计算」
+- 修复记录：`SettlementOrderSupport.applyItemsToOrder(order, items, preserved)` + `preservedActivityFromLines`，`SettlementConfirmDisputeService` prepare/finalize 两处都传；`recalculatePayableAfterLineChange` 补活动禁券闸
+- 活栈实证（2026-11-02 腿 1b）：结案后的活动单（单价 243 / activity_id=4 / 活动留档 200）先把活动 STOP，
+  再重开争议工单 CONFIRM **同一份 items** ⇒ 走「已有订单」的改单分支：total 486 不变、行三列逐字不变、
+  `payment_operation` CHARGE COMPLETED 仍 1 条（补差 0 ⇒ 未二次扣款）；按当前活动重算会跳到 686
+- 未挣：新增 SKU 在改单时用**当前**现价（只钉测覆盖，活栈单只有 1 款商品）
+
+### MA-044 活动限购 check-then-act 可并发穿透
+- 级别/状态：P2 / **fixed（单测 + 真库 IT）**
+- 现象：`withinUsageLimits` 只读计数无锁；结算锁粒度是 `session:settle:{sessionId}`，同账号两柜并发可双吃活动价；代码里也无「单用户只允许一个进行中会话」约束
+- 修复记录：新增 `resolveUnitPriceForOrder`（结算/改单链按 activityId 升序锁活动行，锁随外层事务提交释放；展示链不加锁），计数排除本单 `countOrdersForActivityExcluding`；钉测 `PromotionPricingServiceTest` + `PromotionPricingMapperIT` 真库两断言
+
+### MA-045 部分退款「渠道成功、本地收尾失败」后 409 死路
+- 级别/状态：P2 / **fixed（钉测 1 例 + 活栈实证）**
+- 活栈实证（2026-11-02 腿 4）：2 件的活动单先退 1 件（`PARTIAL_REFUNDED`、已退 243），再**原样重复同一笔**
+  退款请求 ⇒ 第二次返回成功而非 409「请勿重复提交」；`REFUND COMPLETED` 仍 1 条、`refunded_cents` 仍 243
+  （未被二次摊薄）。注：1 件的单会直接退成 `REFUNDED`，被上层「订单已退款」前置闸拦下，走不到幂等恢复分支
+  ⇒ 复现夹具必须买 2 件退 1 件
+- 未挣：落点②「渠道已退、prepare 未跑（行还在）」与③「prepare 已跑、finalize 未跑」需故障注入，活栈未覆盖
+- 现象：C04 注释承诺「同参安全重试」，实际 `refundOrder` 对 COMPLETED 幂等键返回 false ⇒ 直接 409，本地 total/行/status 永远补不上（钱已在远端退掉）
+- 修复记录：按行集指纹反查已完成流水（`findCompletedRefundByFingerprint`）→ 恢复本地 prepare/finalize；prepare 与 `payment_operation.reason` 的 `[LOCAL_PREPARED]` 标记**同事务**写入，重试见标记即只补 finalize，避免重复扣行；无法判定时保留 409 交人工
+
+### MA-046 分账重试调度器把微信 HTTP 包进外层事务 + 坏行中断整批
+- 级别/状态：P2 / **fixed（单测 1 例；分账未启用 ⇒ 启用当天看一轮日志）**
+- 订正：报告原例「receiver 缺失的行排队头」不成立——`recordSplit` 对 receiver 为空的商户直接落 `LEDGER_ONLY`，不会进 `WECHAT_FAILED` 队列；真机制是「无逐行 catch ⇒ 一条抛异常整批回滚」+「>20 条永久失败行占满 top20 窗口」
+- 修复记录：调度器与三个批方法去 `@Transactional`；HTTP 全部移到事务外（`applyReturnOutcome`/`persistSplit` 短事务走 self 代理）；逐行 try/catch + 跳过行留日志；`WeChatProfitSharingRetryIsolationTest` 钉「一条坏行不得让其余行未执行」
+
+### MA-047 支付分回调漏免登录白名单
+- 级别/状态：P2 / **fixed（钉测 + 活栈实证，本地与服务器双验）**
+- 活栈证据：修后 `POST /api/v2/payment/payscore/notify` = **400**（缺 `Wechatpay-*` 头，说明已进控制器），对照 `/api/v2/orders` = 401（其余端点未放宽）；本地 `:18080` 与服务器 `:8180` 各测一次
+- 修复记录：`WebConfig.AUTH_EXCLUDE_PATTERNS` 提为常量并登记 payscore 路径；`AuthWhitelistTest` 用控制器真实映射反查白名单（防新增回调端点漏登记）
+- 前置依赖：整链仍未接通（`PAYSCORE_SERVICE_ID`/`PAYSCORE_PERMISSION_NOTIFY_URL` 未配 ⇒ 真实签约恒 501）
+
+### MA-048 V431 删表守卫是环境依赖的（部署前置检查）
+- 级别/状态：P2 / **fixed（runbook 项，不改代码）**
+- 机制：V222 曾向 `revenue_share_detail` 补最多 5 行演示数据；V431 逐表 `count(*)>0` 即 RAISE（fail-loud 设计如此）⇒ 从未清库的存量库部署时启动阻断
+- 实测现状：本机 dev `max(version::int)=434`、服务器 V433（11 张表 DROP 前均 0 行）⇒ **本轮无任何清库/改数待办**；检查只对将来的新生产库生效
+- 修复记录：`DEPLOYMENT_CHECKLIST §3.1.4` 补逐表 count SQL + 点名该表 + 写明「不得为了过迁移注释守卫」
+
+### MA-065 缺 Wechatpay 请求头冒 500（MA-047 落地后活栈新挖）
+- 级别/状态：P3 / **fixed（钉测 1 例 + 活栈复验）**
+- 现象：全局只映射了 `MissingServletRequestParameterException`，没映射 `MissingRequestHeaderException` ⇒ 渠道探测/漏带头就落通用 500「系统繁忙」并刷 ERROR
+- 修复记录：`GlobalExceptionHandler.handleMissingHeader` → 400 + 头部名；`d09e4865`
+
+### MA-066 欠款转待支付把事务标成 rollback-only（争议确认必 500、整链回滚）
+- 级别/状态：P2 / **fixed（钉测 4 例 + 活栈实证）**
+- 来源：MA-039/MA-040 活栈资金链复现时挖出（非原报告条目）
+- 现象：余额不足用户走「争议确认 CONFIRM 生成订单」这条链，`finalizeOrder` 内 `chargeOrder` 扣款失败被吞掉转 PENDING，
+  但提交时抛 `UnexpectedRollbackException: marked as rollback-only` ⇒ HTTP 500，订单/工单/风控事件/通知**整链回滚**，
+  运营台反复点确认都失败（活栈两次实测：traceId 3655c048ccbe、4269c229eea7）
+- 根因（两处叠加，缺一不成立）：
+  1. `BalanceLedgerService.change` 用**编程式** `TransactionTemplate`（无 `noRollbackFor` 概念），回调里抛出的
+     412 `ResponseStatusException` 会把**参与**的外层事务标成 rollback-only；
+  2. `chargeOrder` 只声明 `noRollbackFor = BalanceInsufficientException`，而账本抛的是 `ResponseStatusException` ⇒
+     跨代理边界时按默认规则同样标 rollback-only（F1-B 的「信号链不毒化事务」只覆盖了 `captureForCharge` 那一支）
+- 修复记录：账本在回调内收下「余额不足」412、事务与锁退出后再抛（`BalanceLedgerServiceTest` 2 例：
+  `insufficientBalance_participatingTxIsCommittedNotRolledBack` 断言 `commit` 被调、`rollback` 从未被调；
+  `otherLedgerFailure_stillRollsBackParticipatingTx` 反向钉住其它异常仍回滚）；
+  `OrderPaymentService.changeBalanceForCharge` 把该 412 折成 `BalanceInsufficientException`
+  （`OrderPaymentSelectedChannelTest` 2 例；`GlobalExceptionHandler` 仍映射 412 ⇒ HTTP 口径不变）
+- 同型第三例：审计 P1-1（`runWithOrderPaymentLock` 原样穿透两种类型）、BUG-007（412 前置校验挪到动账之前）
+
+### MA-067 「待支付不占券」只改了内存对象（coupon_id 悬空留在库里）
+- 级别/状态：P2 / **fixed（钉测 1 例 + 活栈实证）**
+- 现象：`SettlementOrderFinalizeService.clearCouponSelection` 把 `couponId` 置 null、抵扣清零、应付还原，
+  随后 `orderRepository.save(order)`。但**扣款失败转 PENDING**这一支里订单已在 `finalizeOrder` 早期 insert 过 ⇒
+  `BaseTradeMapper.save` 走 MP `updateById`，**null 字段被跳过** ⇒ 库里 `coupon_id` 仍是那张券，
+  而 `user_coupon` 仍 `UNUSED`、`coupon_discount_cents` 已归 0（2026-11-02 活栈实测：PENDING 行 total=343、券抵扣=0、coupon_id=4）
+- 影响：①订单显示「用了券」但券其实没收（`admin` 优惠拆解列/消费者单详情同源）；
+  ②`recalculatePayableAfterLineChange`、`applyProportionalRefundPayable` 都读 `order.getCouponId()` 重算券抵扣
+  ⇒ 对一张从未核销的券再折一次 = 少收/多退；③补扣 `applyBestCouponForCollect` 见 coupon_id 非空就直接按旧券折，
+  跳过「门槛 + 设备范围」重选（实测腿 2 恰好折了同一张 ¥2 券，金额正确纯属同额巧合）
+- 修复记录：新增 `CabinetOrderMapper.clearOrderCouponSelection`（显式 UPDATE 置空 coupon_id/券抵扣并写回应付），
+  两支「已 insert 后转 PENDING」的收尾统一走 `markPendingAndDropCoupon`；`clearCouponSelection` 的 javadoc
+  明写「只改内存对象，已 insert 的订单必须再走 markPendingAndDropCoupon」；
+  钉测 `SettlementOrderFinalizeAmountTest#chargeFailPending_issuesExplicitCouponClearUpdate`
+  （stub 券选中→扣款 412 ⇒ 断言显式 UPDATE 被调用且金额是还原后的 343）
+- 活栈判据：`scripts/e2e-activity-unpaid-collect.ps1` 腿 2 直接断言 PENDING 行 `coupon_id IS NULL`
+- 遗留数据：修复前生成的 PENDING 单可能留悬空 coupon_id；上线后只读判据
+  `SELECT count(*) FROM cabinet_order o JOIN user_coupon c ON c.coupon_id=o.coupon_id WHERE o.status='PENDING' AND c.status='UNUSED'`
+
+### 本批口径说明（2026-11-02 三端审计）
+- 报告标题 **P1×3 / P2×6 / P3×18**；明细可数的 P3 只有 16 条，已按 MA-049…MA-064 + MA-065 全部入账，**差的 1–2 条 P3 明细报告里没展开**（需原作者补出后另行领号，不并入现有号）。
+- 两条报告结论被复核订正：MA-039 的「gross 覆写」段（误报，见 lessons #379）、MA-046 的「receiver 缺失坏行」例（机制换掉，见 lessons #380）。

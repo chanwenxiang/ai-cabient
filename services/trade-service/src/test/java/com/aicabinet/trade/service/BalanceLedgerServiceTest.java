@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -55,6 +56,44 @@ class BalanceLedgerServiceTest {
         assertThrows(ResponseStatusException.class,
                 () -> service.change(7L, -101, "CHARGE", "O1", "charge-1", "order charge"));
         verify(operationRepository, never()).saveAndFlush(any());
+    }
+
+    /**
+     * MA-066（2026-11-02 活栈实测）：「余额不足」不得把事务送上 rollback 路径。
+     *
+     * <p>{@code TransactionTemplate} 是编程式事务、没有 noRollbackFor：回调抛出的 RuntimeException
+     * 会把**参与**的外层结算事务标成 rollback-only。上层 {@code chargeOrder}
+     * （noRollbackFor=BalanceInsufficientException）吞掉信号转 PENDING 后照常提交，只会抛
+     * {@code UnexpectedRollbackException} ⇒ 争议 CONFIRM 给欠款用户生成待支付单必 500，
+     * 订单/工单/风控整链回滚。判据=同一个 mock 事务管理器上 commit 被调用、rollback 从未被调用。</p>
+     */
+    @Test void insufficientBalance_participatingTxIsCommittedNotRolledBack() {
+        PlatformTransactionManager txm = mock(PlatformTransactionManager.class);
+        BalanceLedgerService s = new BalanceLedgerService(accountRepository, operationRepository,
+                distributedLockService, new TransactionTemplate(txm));
+        when(operationRepository.findByIdempotencyKey("charge-low")).thenReturn(Optional.empty());
+        when(accountRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(account(7L, 100)));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> s.change(7L, -101, "CHARGE", "O1", "charge-low", "order charge"));
+
+        assertEquals(HttpStatus.PRECONDITION_FAILED, ex.getStatusCode());
+        verify(txm).commit(any());
+        verify(txm, never()).rollback(any());
+        verify(operationRepository, never()).saveAndFlush(any());
+    }
+
+    /** 反过来钉住「只有余额不足走信号路径」：其它原因的失败仍必须回滚，别把放行当万能兜底。 */
+    @Test void otherLedgerFailure_stillRollsBackParticipatingTx() {
+        PlatformTransactionManager txm = mock(PlatformTransactionManager.class);
+        BalanceLedgerService s = new BalanceLedgerService(accountRepository, operationRepository,
+                distributedLockService, new TransactionTemplate(txm));
+
+        assertThrows(ResponseStatusException.class,
+                () -> s.change(7L, 0, "CHARGE", "O2", "charge-zero", "order charge"));
+
+        verify(txm).rollback(any());
+        verify(txm, never()).commit(any());
     }
 
     @Test void repeatedIdempotencyKey_returnsOriginalWithoutChangingBalance() {

@@ -24,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -115,6 +116,50 @@ class OrderPaymentSelectedChannelTest {
         assertEquals("OP-SEL-BAL", order.getPaymentOperationId());
         assertEquals(8500, order.getBalanceAfterCents());
         verifyNoInteractions(payScoreService);
+    }
+
+    /**
+     * MA-066：账本的「余额不足」必须折成 F1-B 的 {@link BalanceInsufficientException} 信号。
+     *
+     * <p>账本抛的是 412 {@code ResponseStatusException}，而 {@code chargeOrder} 的
+     * {@code noRollbackFor} 只放行 {@code BalanceInsufficientException} ⇒ 原样上抛会把参与
+     * 的事务标成 rollback-only，上层吞掉异常转 PENDING 后照常提交 ⇒
+     * {@code UnexpectedRollbackException} 500，订单/工单/风控整链回滚
+     * （2026-11-02 活栈实测：争议 CONFIRM 给余额不足的用户生成欠款单必 500）。</p>
+     */
+    @Test
+    void explicitBalance_ledgerInsufficient_surfacesAsBusinessSignalNotResponseStatus() {
+        CabinetOrder order = order("O-SEL-LOWBAL", 500);
+        stubLockAndOrder(order);
+        when(userInfoRepository.findById(CONSUMER_ID)).thenReturn(Optional.of(user()));
+        when(balanceLedgerService.change(anyLong(), anyInt(), eq("CHARGE"),
+                eq("O-SEL-LOWBAL"), eq("CHARGE:O-SEL-LOWBAL:500"), anyString()))
+                .thenThrow(new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        ApiMessages.INSUFFICIENT_BALANCE));
+
+        BalanceInsufficientException ex = assertThrows(BalanceInsufficientException.class,
+                () -> service.chargeOrder(order, "BALANCE"));
+
+        assertEquals(ApiMessages.INSUFFICIENT_BALANCE, ex.getMessage());
+        // 扣款没成功 ⇒ 订单不得挂上流水号（转 PENDING 由上层收尾）
+        assertNull(order.getPaymentOperationId());
+    }
+
+    /** 只有「余额不足」这一类才转信号；同为 412 的其它原因必须原样上抛，别把事务放行当万能兜底。 */
+    @Test
+    void explicitBalance_ledgerOtherPreconditionFailure_propagatesUnchanged() {
+        CabinetOrder order = order("O-SEL-OTHER412", 500);
+        stubLockAndOrder(order);
+        when(userInfoRepository.findById(CONSUMER_ID)).thenReturn(Optional.of(user()));
+        when(balanceLedgerService.change(anyLong(), anyInt(), eq("CHARGE"),
+                eq("O-SEL-OTHER412"), eq("CHARGE:O-SEL-OTHER412:500"), anyString()))
+                .thenThrow(new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        ApiMessages.PAY_CHANNEL_NOT_READY));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.chargeOrder(order, "BALANCE"));
+
+        assertEquals(ApiMessages.PAY_CHANNEL_NOT_READY, ex.getReason());
     }
 
     /** 渠道选择开关的入口值来自请求体；空白/纯空格必须等价于「未传」＝走自动决策，而不是当成非法渠道 412。 */

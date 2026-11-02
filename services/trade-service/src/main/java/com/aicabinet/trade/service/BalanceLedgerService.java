@@ -42,11 +42,38 @@ public class BalanceLedgerService {
      * 加锁在事务之外：若事务直接包住 change 整体，DB 连接会在等待 Redis 分布式锁期间就被
      * 占用，同用户高并发时最多可挂住 min(pool, 等锁请求数) 个连接。现在的顺序是
      * 锁 → 开事务 → 提交 → 解锁，等锁阶段零连接占用。
+     *
+     * <p>MA-066：「余额不足」是**转待支付的业务信号**，不是回滚理由。编程式事务
+     * （{@code TransactionTemplate}）没有 {@code noRollbackFor} 概念——回调里逃逸出去的
+     * **任何** RuntimeException 都会把参与的全局事务标成 rollback-only，上层吞掉异常后照常
+     * 提交只会抛 {@code UnexpectedRollbackException}（2026-11-02 活栈实测：争议 CONFIRM 给
+     * 余额不足的用户生成欠款单必 500，订单/工单/风控整链回滚）。这里在回调内收下异常、
+     * 事务与锁都退出后再抛：判额发生在扣减之前，写侧本就未发生，语义与原实现一致。</p>
      */
     public PaymentOperation change(Long userId, int deltaCents, String businessType,
                                    String businessId, String idempotencyKey, String reason) {
-        return runWithBalanceLock(userId, () -> txTemplate.execute(tx -> doChange(userId, deltaCents,
-                businessType, businessId, idempotencyKey, reason)));
+        final ResponseStatusException[] insufficient = new ResponseStatusException[1];
+        PaymentOperation result = runWithBalanceLock(userId, () -> txTemplate.execute(tx -> {
+            try {
+                return doChange(userId, deltaCents, businessType, businessId, idempotencyKey, reason);
+            } catch (ResponseStatusException e) {
+                if (!isInsufficientBalance(e)) {
+                    throw e;
+                }
+                insufficient[0] = e;
+                return null;
+            }
+        }));
+        if (insufficient[0] != null) {
+            throw insufficient[0];
+        }
+        return result;
+    }
+
+    /** 只有账本自己的「余额不足」412 走信号路径；其它 4xx/5xx 仍按原样回滚。 */
+    private static boolean isInsufficientBalance(ResponseStatusException e) {
+        return e.getStatusCode() == HttpStatus.PRECONDITION_FAILED
+                && ApiMessages.INSUFFICIENT_BALANCE.equals(e.getReason());
     }
 
     private PaymentOperation doChange(Long userId, int deltaCents, String businessType,

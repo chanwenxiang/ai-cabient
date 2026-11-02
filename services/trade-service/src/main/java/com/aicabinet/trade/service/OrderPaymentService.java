@@ -462,11 +462,33 @@ public class OrderPaymentService {
         // 合计必须恰为应付——此处不再另记任何 CHARGE（原「CHARGE:PREAUTH」块与终段全额 CHARGE
         // 均为重复记账，实测净额 140/200/200，OrderPaymentChargeInvariantTest 钉住三场景）。
         if (remainDebit > 0) {
-            var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, CHARGE,
-                    order.getOrderId(), idemKey, "order charge");
+            var operation = changeBalanceForCharge(order, remainDebit, idemKey);
             order.setPaymentOperationId(operation.getOperationId());
             order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
             order.setBalanceAfterCents(operation.getBalanceAfterCents());
+        }
+    }
+
+    /**
+     * MA-066：账本的「余额不足」是 412 {@code ResponseStatusException}，不在
+     * {@code chargeOrder} 的 {@code noRollbackFor} 名单里 ⇒ 参与事务被标 rollback-only，
+     * 上层按欠款转 PENDING 后照常提交反而抛 {@code UnexpectedRollbackException}
+     * （活栈实测：争议 CONFIRM 给余额不足的用户生成欠款单 → 500、订单/工单/风控整链回滚）。
+     * 这里折成 F1-B 同款业务信号：{@code GlobalExceptionHandler} 仍映射 412，HTTP 口径不变。
+     */
+    private PaymentOperation changeBalanceForCharge(CabinetOrder order, int remainDebit, String idemKey) {
+        try {
+            return balanceLedgerService.change(order.getUserId(), -remainDebit, CHARGE,
+                    order.getOrderId(), idemKey, "order charge");
+        } catch (ResponseStatusException e) {
+            String reason = e.getReason();
+            boolean insufficient = e.getStatusCode() == HttpStatus.PRECONDITION_FAILED
+                    && reason != null
+                    && (reason.contains("余额") || reason.toLowerCase().contains("insufficient"));
+            if (!insufficient) {
+                throw e;
+            }
+            throw new BalanceInsufficientException(reason);
         }
     }
 
