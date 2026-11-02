@@ -67,3 +67,12 @@
 6. 加分项（非阻塞）：把两侧扫描抽成 `scripts/lib/perm-scan.mjs`，静态门禁复用 A/C 两集做**正向**检查（已存在），IT 只补反向。
 
 **判据**：真库上三方向（`A∖B`、`C∩B 非 ACTIVE`、`C∖B`）全 0；负向自测必须红；`mvn verify` 该 IT 通过。
+
+## 10.6 `BalanceTransactionDto` 余额字段改可空 —— **已评估后放弃**（2026-11-02）
+
+- 动机：MA-025 之后可见性查询已排除「非余额通道」流水，但 `toDto` 仍把 null 兜成 0，将来若有新通道带 null 快照会显示假的「余额 ¥0.00」。
+- 试改结果：DTO 两个字段 `int → Integer` + 原样透传，`BalanceLedgerServiceTest 13/0` 通过；
+  **但 `check-openapi-regen-required` 判红**——生成的 schema 里这两个字段本来就是 `?: number`（可选），
+  `Integer` 只多一个 `nullable` 语义、生成器不体现 ⇒ 变更集里没有 `generated/openapi.ts`，门禁要求必须有。
+- 结论：**撤回**（`git revert`）。理由：客户端本来就要处理 undefined，这改动零收益；要真做，得先让生成器表达 `nullable`，属独立小工程。
+- 现状安全：MA-025 的可达性已由可见性查询封住（该类行根本不出现在余额明细里），假 ¥0.00 不会被渲染。
