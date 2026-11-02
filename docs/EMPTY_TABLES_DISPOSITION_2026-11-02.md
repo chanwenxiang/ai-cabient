@@ -3,10 +3,10 @@
 > **范围**：本机 dev 库 `aicabinet`（Postgres，`127.0.0.1:15433`）中 **0 行**的 75 张业务表。
 > **数据源**：`pg_class` + 每表 `count(*)` 精确统计（**不是 `pg_stat_user_tables` 估算**）；代码证据取当前工作区 `services/trade-service/src/main/java` 主代码、Mapper、Controller、`scheduled_task` 注册表。
 > **结论**：必须补种子 **0 张**；保留 **64 张**；建议废弃 **11 张**。
-> **执行状态（2026-11-02，已执行）**：V429（补注释）、V430（标废弃）、V431（DROP 11 张）均已由 Flyway 应用；库内 **180 表 / 64 张空表 / 0 张无表注释 / 0 个无字段注释**。
-> **备份**：删除前已 `pg_dump` 到 `.tmp/backup_deprecated_tables_2026-11-02.sql`（43KB，11 张表结构+数据；均 0 行）。
-> **生产注意**：V431 目前只在 dev 执行；生产部署前仍须逐表 `count(*)` 并保留备份（迁移内已有 0 行守卫，>0 会拒绝删除）。
-> **仓库/回滚注意**：V429–V431 已应用但**尚未提交**；不要用 `pre-v431` 旧镜像直接连当前库（Flyway 会因缺少已应用迁移而 validate 失败）。备份只含 11 张被删表，不含 `flyway_schema_history`；完整回退需从完整库备份恢复。
+> **执行状态（2026-11-02，已执行）**：V429（补注释）、V430（标废弃）、V431（DROP 11 张）、V432（DROP `rate_limit_config`）均已由 Flyway 应用；库内 **179 表 / 64 张空表 / 0 张无表注释 / 0 个无字段注释**。
+> **备份**：`.tmp/backup_deprecated_tables_2026-11-02.sql`（11 张表）与 `.tmp/backup_rate_limit_config_2026-11-02.sql`（5 行种子配置）。
+> **生产注意**：V431/V432 目前只在 dev 执行；生产部署前仍须逐表 `count(*)` 并保留备份（迁移内已有行数守卫，形态不符会拒绝删除）。
+> **仓库/回滚注意**：V429–V432 已应用（本批一并提交）；不要用 `pre-v432`/`pre-v431` 旧镜像直接连当前库（Flyway 会因缺少已应用迁移而 validate 失败）。备份不含 `flyway_schema_history`；完整回退需从完整库备份恢复。
 
 ---
 
@@ -19,7 +19,8 @@
 | **废弃（已执行）** | **11** | 2026-11-02 已由 V431 DROP；备份见文件头 |
 | 合计 | **75** | 与删除前库内 0 行表数一致 |
 
-> 执行后：**191 → 180 表；空表 75 → 64；表注释缺口 22 → 0；字段注释缺口 463 → 0**。
+> 执行后：**191 → 179 表；空表 75 → 64；表注释缺口 22 → 0；字段注释缺口 463 → 0**。
+> 另：旧 B1 的 `rate_limit_config`（5 行种子配置，零代码引用）已由 V432 删除，不在 75 张空表内。
 
 > **先纠正一个易误判点**：`external_import_template` **不是空表**（7 行，`R__seed_external_import_templates.sql` 已生效）。空的是 `external_import_batch` / `external_product` / `external_product_mapping` / `external_channel_flow`，它们要等真正导入一次才有数据。
 
@@ -76,7 +77,7 @@
 ### 2.1 与《孤儿表定策》（2026-09-20）的关系
 
 - 旧文件 [ORPHAN_TABLE_DISPOSITION.md](ORPHAN_TABLE_DISPOSITION.md) 的范围是「Flyway 建表中代码零引用的表」，不是「0 行表」；本次范围是后者。
-- 旧文件的 B1（`sys_oper_log` / `rate_limit_config` / `rate_limit_record`）结论是「应删但本批不执行」；本文件只承接前两张（`rate_limit_config` 有 5 行，不在 75 张空表范围内）。
+- 旧文件的 B1 三张已全部删除：`sys_oper_log`、`rate_limit_record` 随 V431；`rate_limit_config` 随 V432（5 行种子配置，零代码引用，不在 75 张空表内）。
 - 旧文件把 `promotion_device` 判为「合法占位、保留」；本文件基于「活动范围已由 `promotion_activity.device_scope` 取代」改判废弃，并已于 2026-11-02 执行 DROP。
 - 旧文件的 B2「其余零引用表保留为占位」是当时的默认处置；本次逐表复核后，把其中确有替代机制的表升级为废弃并执行；旧定策的占位状态作废。
 
@@ -167,7 +168,7 @@
 
 | 表 | 说明 |
 |---|---|
-| `ad_revenue_daily` | `AdRevenueSyncService` 只有单测引用，无生产调用，`scheduled_task` 里也没有广告收益任务。**接调度前等于死表**；要么补接线，要么改判废弃。 |
+| `ad_revenue_daily` | `AdRevenueSyncService` 只有单测引用，无生产调用，`scheduled_task` 里也没有广告收益任务。**接调度前等于死表**；要么补接线，要么改判废弃。2026-11-02 复核后保持待接线，不删；待产品决定是否接调度/入口。 |
 
 ### 3.5 刻意不落库（1）
 
@@ -210,7 +211,7 @@
 
 1. **废弃（dev 已完成）**：代码引用已清；V431 已应用。生产部署前按第 5 条复核；迁移头已带 `MIGRATION_REVIEWED: yes` / `LOCK_RISK` / 备份回滚说明。
 2. **演示种子**：按 §4.2 分组补非资金种子；禁止 seed §4.3。
-3. **`ad_revenue_daily`**：拍板「补调度/入口」还是「改判废弃」；在拍板前保持现状。
+3. **`ad_revenue_daily`**：2026-11-02 复核后保持待接线，不删；待产品拍板是否接调度/入口。
 4. **旧清库脚本（历史证据）**：`docs/uat-screenshots/2026-09-12/wipe-business.sql` 仍列出已 DROP 的表，已与当前 schema 不一致；勿直接重跑，若要复用先删掉这些表名。
 5. **生产复核（仍未做）**：V431 的 0 行守卫会在生产任一表 >0 行时 fail-loud；上线前仍须逐表 `count(*)` 并保留备份。
 
@@ -252,3 +253,4 @@ SELECT tbl FROM rc WHERE n = 0 ORDER BY tbl;
 | 2026-11-02 | 第一批：`idempotency_key` 代码下线（删 5 个文件）；V430 写好 11 张表废弃注释（未应用）；支付/幂等 4 个测试类 45/45 绿。 |
 | 2026-11-02 | 第二批准备（当时未执行）：11 张表已 `pg_dump` 到 `.tmp/backup_deprecated_tables_2026-11-02.sql`；V431 DROP 脚本放 `.tmp/V431__drop_deprecated_tables.sql.pending`，未进 migration 目录；同日随后执行，见下一行。 |
 | 2026-11-02 | 第二批执行：镜像重建后 Flyway 应用 V429/V430/V431；11 张表 DROP；库内 180 表 / 64 空 / 0 注释缺口；trade-service 启动 20.6s、health 200、无 ERROR。 |
+| 2026-11-02 | 追加：V432 删除零引用的 `rate_limit_config`（5 行种子配置，已备份）；库内 179 表 / 64 空 / 注释缺口 0。 |

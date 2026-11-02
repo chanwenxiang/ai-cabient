@@ -1,6 +1,6 @@
 # 孤儿表定策（2026-09-19 初版 / **2026-09-20 重取并更正**）
 
-> **2026-11-02 更新**：`sys_oper_log`、`rate_limit_record` 已随 `V431__drop_deprecated_tables.sql` 删除；`rate_limit_config` 仍有 5 行、未删除。当前空表的逐张处置与执行结果见 [EMPTY_TABLES_DISPOSITION_2026-11-02.md](EMPTY_TABLES_DISPOSITION_2026-11-02.md)。
+> **2026-11-02 更新**：`sys_oper_log`、`rate_limit_record` 已随 `V431__drop_deprecated_tables.sql` 删除；`rate_limit_config` 已随 `V432__drop_unused_rate_limit_config.sql` 删除（5 行种子配置，零代码引用）。当前空表的逐张处置与执行结果见 [EMPTY_TABLES_DISPOSITION_2026-11-02.md](EMPTY_TABLES_DISPOSITION_2026-11-02.md)。
 
 > **范围**：Flyway 建表 **185** 张中，判定基础修好后**最终存活 155 张**，其中代码里**零引用**的 **13** 张该留还是该删、要不要建门禁。
 >
