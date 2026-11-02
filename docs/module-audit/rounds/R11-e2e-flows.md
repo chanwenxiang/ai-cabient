@@ -100,3 +100,11 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 - `create` **500 → 200** ✅（transferNo `1793586826720675318377`，DRAFT）；补 `batchNo=B-WH-SPRITE330-01` 后 `ship` **200** ✅（源仓 46→45，状态 SHIPPED）。
 - `receive` **500** ⇒ 新领 **MA-038**：`warehouse_inventory.expiry_date` NOT NULL，而调拨行无有效期、创建不校验 ⇒ 收货 500（应 4xx）。传输单停在 `SHIPPED`。
 - 未验完：两仓合计需把 `warehouse_in_transit` 一起算（本轮该表查询未见行，需确认 ship 是否写出途明细）——留 MA-038 修完一并核。
+
+## R11 段 2 · B1 完成（2026-11-02，MA-037/038 修复后活栈实证）
+
+- `create 200 → ship 200 → receive 200`，传输单 `1793587083605683879154` 终态 **RECEIVED**。
+- 库存：`WH-DEMO-001` 45 → **44**，`WH-DEMO-002` 0 → **1**，`sku 100013` 合计 **45 不变** ✅（B1 判据）。
+- MA-037 修复：V428 把行约束放宽为 `received+loss <= quantity`（「收齐相等」由 `TransferLossValidator` 在收货时强制）。
+- MA-038 修复：创建期校验 `batchNo` 非空 + `expiryDate` 非空（缺则 400 指明 sku/批次），避免"创建成功→收货 500"。
+- 遗留：`DataIntegrityViolationException → 4xx` 的全局映射未做（横切，单独一条）；备货单「按全柜在架 SKU 汇总」口径沿用 R4/R9 已钉结论，本批未重复实测。
