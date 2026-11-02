@@ -11482,6 +11482,8 @@ export interface components {
             position?: string;
             /** Format: int64 */
             assetId?: number;
+            /** Format: int32 */
+            sortOrder?: number;
         };
         ApiResponseListPromotionPlacementDto: {
             /** Format: int32 */
@@ -11501,6 +11503,8 @@ export interface components {
             imageWidth?: number;
             /** Format: int32 */
             imageHeight?: number;
+            /** Format: int32 */
+            sortOrder?: number;
             previewUrl?: string;
         };
         Announcement: {
