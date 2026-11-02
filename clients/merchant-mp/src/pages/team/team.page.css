@@ -135,12 +135,14 @@
   margin-top: 8rpx;
 }
 .status-tag {
+  /* 正常态（启用中）不该抢眼：10 行绿色粗体是噪音；只有停用才需要警示色 */
   font-size: var(--font-size-caption);
-  color: var(--brand);
-  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  font-weight: 400;
 }
 .status-tag.off {
   color: var(--warning, #b45309);
+  font-weight: 600;
 }
 .inactive {
   font-size: var(--font-size-caption);
