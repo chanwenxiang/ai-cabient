@@ -10,7 +10,7 @@
 |----|----|----------------------------------------------------|------|
 | 1 | 身份/RBAC/商户/钱包/系统 | 1a: Account, Auth, OpsRbac, Department, OpsOrg, MerchantAdmin, MerchantOnboarding, SysDict, DictRuntime, SystemConfig, AdminDataManage；1b: MerchantPortal, MerchantWallet, MerchantWithdraw, LineManager, LineWithdraw, OpsStaffWallet, OpsPayoutAccount, LinePromoTask, Approval, ScheduledTask, PublicConfig, CabinetOpenLanding | ✅ 完成（137 写端点，P2×3/P3×11 → MA-068~081） |
 | 2 | 交易/订单/支付/优惠/回调 | Session, Order, Payment, Dispute, ConsumerDispute, Coupon, Promotion, Marketing, OpsAd, ConsumerBalanceRefund, AdminBalanceRefund, WeChatNotify, AlipayNotify, PayScoreNotify, DevMockPayment, DevMockAlipayPayment, DevMockRecharge | ✅ 完成（45 写端点，P3×8 → MA-082~089） |
-| 3 | 资金财务/增长/报表 | OpsFinance, OpsPlatformFund, OpsMerchantFeeLedger, OpsMachinePayeeBill, InvoiceAdmin, DeviceDataFeeBill, SiteRentBill, SiteRentSplit, Member, AdminGrowth, OpsRisk, OpsAnalytics, AdminDashboard, DeviceAvailabilityKpi, ReplenishmentReport | 未开工 |
+| 3 | 资金财务/增长/报表 | OpsFinance, OpsPlatformFund, OpsMerchantFeeLedger, OpsMachinePayeeBill, InvoiceAdmin, DeviceDataFeeBill, SiteRentBill, SiteRentSplit, Member, AdminGrowth, OpsRisk, OpsAnalytics, AdminDashboard, DeviceAvailabilityKpi, ReplenishmentReport | ✅ 完成（55 写端点，P2×1+P3×9 → MA-090~099） |
 | 4 | 仓储/履约/补货/异常 | OpsWarehouse, WarehouseTransfer, OpsProcurement, OpsReplenishment, OpsLineRoute, MerchantWarehouseStocktake, SlotTemplate, OpsExternalImport, RepairTicket, UserFeedback, ConsumerFeedback, OpsException, MerchantOpsException, OpsCommercial | 未开工 |
 | 5 | 设备/将邑/内部/通知/杂项 | Device, DeviceMqttCredential, DeviceHttpCredential, DeviceInternal, DeviceAvailability…(其余), OpsDeviceRental, OpsDeviceEnv, OpsJiangyi*, AdminJiangyi*, SessionInternal, VisionInternal, JiangyiInternal, SmsInternal, OpsAlertInternal, DemoDataInternal, OpsDevOps, OpsOta, DataConsistency, Media, Announcement×3, Notification×2, **OpsController（最大，单独）** | 未开工 |
 
@@ -34,4 +34,14 @@
 - **总体健康度**：无 P0/P1/P2。消费端 11 个写端点「JWT→资源归属→状态机→锁」四件套齐全（非本人 404/403 防探测），**客户端零金额入参**（全部服务端以分计算）；三个渠道回调验签先行+金额全比对+nonce 防重放；三个 DevMock 端点四重门禁（@ConditionalOnProperty+白名单不含+服务层 fail-closed+生产启动抛异常）无生产可达。
 - **P3×8**（MA-082~089）：营销域运营写审计缺失（15 端点合并）、batch-issue DTO 零约束、素材 status 自由串、活动 activityType/budget 负数 fail-open、投放时间窗倒挂、DTO @Size 漏网、微信退款回调 refund_id 缺失幂等键塌缩（防御性）、余额退款 DTO 上限口径。
 - **判「不是缺陷」定性**：回调对未知 out_trade_no 回 204（渠道查单自愈兜底 C12/H11）；prepay 幂等键跨用户统一 409（无信息泄露）；缺 mchid 放行（验签已是信任锚，比对属纵深）；广告 launch/stop 与 edit 共用 ops:ad:edit（menu.ts H51 注释钉明）；退款 restoreInventory 三态 Boolean（javadoc 钉死）。
+- 未挣：无。
+
+
+## 批 3 战果（2026-11-03 凌晨，锚 `d1ad4521`）
+
+- **覆盖**：15 Controller / 55 写端点（3a 资金财务 21 + 3b 增长风控报表 34；OpsAnalytics/DeviceAvailabilityKpi/ReplenishmentReport 三者纯 GET 已逐一确认无写面）。
+- **总体健康度**：无 P0/P1。资金主链纵深防御扎实（权限双闸/分布式锁+行锁/状态机短路/appendLog 齐备——SiteRentBill/DeviceDataFeeBill/SiteRentSplit 是全仓范本）；缺口集中在 **2026-10-14 新开的机器账单链**（shareBps 无界+零留痕+裸 parse，建议整链一次回补）与增长域「配置写校验+审计」两件套（与批 1/2 同构模式）。
+- **P2×1**（MA-090）：机器账单分成比例无界（持续性资金乘数，V356 新链全仓唯一没闸的 bps）。
+- **P3×9**（MA-091~099）：三处资金销账零操作者归因、财务面 5 端点无审计、平台资金池负数充值、billMonth 裸 parse、会员等级规则零校验（死档）、兑换商品负积分成本（积分铸造）、黑名单解除零留痕、增长域审计缺失、一键召回无幂等。
+- **判「不是缺陷」定性**：平台资金池手工登记无幂等键（外部事实登记+月度核对兜底）；MachinePayeeBill 用 ops:device:edit（554353ba 拍板）；fee settle 权限 edit→adjust（类注释钉明）；platform_fund_flow 本身即带 operatorId 的不可删台账（域内审计完备）；机器账单 settle 无 VOID 态（域无作废功能）；SiteRent allocate 分摊口径 javadoc 大段钉明勿动；sku-review/run 挂 list 码（页面级设计自洽）；AdminDeviceOpsService 服务层码比注解松（控制器更严先拦）；min_spent 全链路元无混用。
 - 未挣：无。

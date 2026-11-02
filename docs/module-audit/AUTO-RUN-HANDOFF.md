@@ -153,5 +153,6 @@
 - **T0**：✅ 关闭（MA-039~067 由修复会话代领，本会话对账无缺号；见 T0-INBOX 对账结论）。
 - **R12 批 1**：✅ 完成（23 Controller/137 写端点，P2×3/P3×11 → MA-068~081；轮报告 rounds/R12-write-surface.md 含五批分组表）。
 - **R12 批 2**：✅ 完成（17 Controller/45 写端点，P3×8 → MA-082~089，2026-11-03 凌晨）。
-- **下一枪动作**：执行**批 3**（资金财务/增长/报表 15 个 Controller：OpsFinance, OpsPlatformFund, OpsMerchantFeeLedger, OpsMachinePayeeBill, InvoiceAdmin, DeviceDataFeeBill, SiteRentBill, SiteRentSplit, Member, AdminGrowth, OpsRisk, OpsAnalytics, AdminDashboard, DeviceAvailabilityKpi, ReplenishmentReport——见 rounds/R12-write-surface.md 分组表），2 只读子代理并行；新发现从 **MA-090** 起领号（先回读 ISSUES.md 防撞号）。
+- **R12 批 3**：✅ 完成（15 Controller/55 写端点，P2×1+P3×9 → MA-090~099，2026-11-03 凌晨）。
+- **下一枪动作**：执行**批 4**（仓储/履约/补货/异常 14 个 Controller：OpsWarehouse, WarehouseTransfer, OpsProcurement, OpsReplenishment, OpsLineRoute, MerchantWarehouseStocktake, SlotTemplate, OpsExternalImport, RepairTicket, UserFeedback, ConsumerFeedback, OpsException, MerchantOpsException, OpsCommercial——见 rounds/R12-write-surface.md 分组表），2 只读子代理并行；新发现从 **MA-100** 起领号（先回读 ISSUES.md 防撞号）。
 - 🔴 接手修复会话在同一工作树活跃：git add 只加 docs/module-audit/ 显式路径；ISSUES.md 只追加；发现冲突立即停手落盘。

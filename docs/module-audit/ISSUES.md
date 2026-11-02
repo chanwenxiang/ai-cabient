@@ -99,6 +99,17 @@
 | MA-088 | P3 | open | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
 | MA-089 | P3 | open | `POST /api/v2/account/balance-refunds` | DTO @Max(500_000) 硬编码与服务端可配置上限 BALANCE_REFUND_MAX_CENTS 口径不一致——配置只能收紧不能放宽；对照充值 DTO 无 @Max 全由 DC-6 裁决，两 DTO 风格矛盾 | ZCode R12批2 / 2026-11-03 | |
 
+| MA-090 | P2 | open | `PUT /ops/admin/machine-payee-bills/config/{deviceId}` | 机器账单分成比例 shareBps 无界直落（>10000 可生成超 GMV 五倍的分成账单且每账期持续生效）；同仓三处先例都有闸（SiteRentSplit 400 / FundBill 钉测 / allocate 钳位），与 MA-069（线长佣金）完全同构；次要：enabled 无 0/1 约束（垃圾值使该柜从出账面消失）、payeeName null→500 | ZCode R12批3 / 2026-11-03 | rounds/R12-write-surface.md |
+| MA-091 | P3 | open | 商户费用台账结清 / 机器账单结清 / 按日重跑日扣 | 三处资金处置动作零操作者归因（连 operatorId 参数都没有；rerun-daily-fees 是批量真扣钱包 WalletEngine.debitIfAbsentAllowNegative）；MA-074 同类 | ZCode R12批3 / 2026-11-03 | |
+| MA-092 | P3 | open | 发票开具/驳回、机器账单出账、对账重跑 | 财务面 5 写端点无 /audit 审计（对照 SiteRentBill/DeviceDataFeeBill 全有 appendLog）；ReconciliationService.runDaily 的 operatorId 传而不用，重跑删旧重建无痕 | ZCode R12批3 / 2026-11-03 | |
+| MA-093 | P3 | open | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
+| MA-094 | P3 | open | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
+| MA-095 | P3 | open | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
+| MA-096 | P3 | open | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
+| MA-097 | P3 | open | `DELETE /ops/admin/risk/blacklist/{userId}` | 黑名单解除零留痕（add 有 BLACKLIST_ADD 事件含 by，remove 完全无痕迹）——被收买账号可无声解除作弊者；一行改动级 | ZCode R12批3 / 2026-11-03 | |
+| MA-098 | P3 | open | 增长域运营写（MemberLevelAdmin/PointsRedeem/UserRecall/Notification/SkuDelistReview 6 服务 9 端点） | 审计整体缺失（grep 零 appendLog），同批 OpsRisk/DeviceOps/AdCampaign/MemberFinance 全有——MA-082 同构；等级规则叠加价格+积分双资金乘数 | ZCode R12批3 / 2026-11-03 | |
+| MA-099 | P3 | open | `POST /ops/admin/growth/user-recall` | 一键召回无顺序重放幂等：锁只防并发不防重放，双击=同批用户每人多发一张券+通知（maxIssueCount 只限总量）；对照订单积分有 existsByMemberAndSource 唯一索引幂等 | ZCode R12批3 / 2026-11-03 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -667,3 +678,21 @@
 - MA-087 CreateCouponRequest/UpdateCouponRequest/UpsertAdCampaignRequest/UpsertMediaAssetRequest/CreateSessionRequest.idempotencyKey 补 @Size 对齐列宽
 - MA-088 PaymentService.java:387,451 refund_id 空白时应告警 return 或键改 orderId+refundId（:451 现态键塌缩）
 - MA-089 ApplyBalanceRefundRequest.java:8 @Max(500_000) 与 BalanceRefundService.java:133 可配置上限二选一对齐
+
+### MA-090 机器账单分成比例无界（持续性资金乘数，P2）
+- 级别/状态：P2 / open
+- 端与页面：`PUT /api/v2/ops/admin/machine-payee-bills/config/{deviceId}`（ops:device:edit）
+- 源码定位：`MachinePayeeBillService.saveConfig:151-159`（整 body 直落零校验）→ `upsertShareBill:79,94`（bps 仅拦 ≤0，`gmv*bps/10000` 直出账）；V356 `share_bps INT` 无 CHECK
+- 复现推理：PUT config `{shareBps:50000,...}` → 200；`POST /generate?billMonth=2026-10` → SHARE 账单=GMV×5，且每个后续账期持续生效。三处兄弟先例（SiteRentSplitService.java:72-74 / FundBillChannelFeeRateTest / SiteRentBill.allocate）都有闸，判漏网非设计。
+- 修法方向：saveConfig 校验 shareBps 0..10000、electricAmountCents≥0、enabled∈{0,1}、payeeName 非空；可加 DB CHECK 兜底。
+
+### MA-091 ~ MA-099（P3，明细从简，锚 rounds/R12-write-surface.md 批 3）
+- MA-091 OpsMerchantFeeLedgerController.java:57-65 + MerchantFeeLedgerService.java:39-57 + MachinePayeeBill settle：补 operatorId 透传 + settled_by 列或 appendLog（SiteRentBill V309 现成范式）
+- MA-092 InvoiceService.java:130-161（issue/reject 无 issuedBy 无 appendLog）+ MachinePayeeBillService.java:52-64 + ReconciliationService.java:117-127（operatorId 传而不用）
+- MA-093 PlatformFundService.java:127-131,154-162 recharge 前置 amountCents<=0→400；Controller Map 取参 DTO 化（3dd6152f 有先例）
+- MA-094 OpsMachinePayeeBillController.java:44-46 改用 FeeBillMonthResolver.requireValid + 未来账期守卫
+- MA-095 MemberLevelAdminService.java:66-99：min/max≥0 且 min<max、pointsRate≥0、priceDiscountPct 0-90 对齐读侧、status 白名单、levelCode/Name @Size
+- MA-096 PointsRedeemService.java:166-181：pointsCost≥0、stockTotal≥0、couponDefId 非空且存在且 ACTIVE
+- MA-097 RiskControlService.java:167-173 removeBlacklist 补 recordEvent("BLACKLIST_REMOVE", by=operatorId)；顺手 addBlacklist 校验 userId 存在/expiresAt 未来
+- MA-098 对齐 MA-082 修法：MEMBER_LEVEL_UPSERT/POINTS_REDEEM_UPSERT/USER_RECALL/NOTIFY_* 补 appendLog
+- MA-099 UserRecallService.java:42-93：召回幂等键（请求体传入+短窗去重）或 per-user 限频；body 解析包 400
