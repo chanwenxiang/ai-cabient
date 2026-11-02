@@ -22,10 +22,10 @@ public record BalanceTransactionDto(
         int amountCents,
 
         @Schema(description = "变动前可用余额（分）")
-        Integer balanceBeforeCents,
+        int balanceBeforeCents,
 
         @Schema(description = "变动后可用余额（分）")
-        Integer balanceAfterCents,
+        int balanceAfterCents,
 
         @Schema(description = "变动原因/备注")
         String reason,
