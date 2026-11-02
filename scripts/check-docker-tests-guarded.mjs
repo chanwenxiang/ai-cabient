@@ -382,6 +382,18 @@ const GUARDED = new Map([
         '（UAT §7.20 ⓱19）。列约束与服务口径是否相反只有真 SQL 能证，本 IT 走 Testcontainers PG16 ' +
         '钉 information_schema 可空性 + insert(NULL)→selectById→收货回写 updateById 三链'
     }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PermClosureSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'R10 §10.5 权限闭环反向门禁：B 集（库里 ACTIVE C/M）只有真库知道，静态门禁从迁移种子半解析会误红。' +
+        'A 集双扫注解与编程式检查（ops:audit:recent 非注解用法是既有反例）+ C 集前端引用 ⇒ ' +
+        'B∖(A∪C)/A∖ALL/C∖ALL/C∩非ACTIVE 全 0；含插入假幽灵码的负向自测（必须报出再回滚），' +
+        '防查询写错时门禁恒真绿'
+    }
   ]
 ]);
 
