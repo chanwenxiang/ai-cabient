@@ -154,6 +154,15 @@ class PromotionPricingMapperIT {
                 "每人限 1 单：已核销后同一用户不应再命中");
         assertTrue(pricingService.resolveUnitPrice(9002L, DEVICE, "SKU-A", 350).isPresent(),
                 "其他用户仍应命中（副作用不得外溢）");
+
+        // P2-4：争议改单重算时本单自己已带 activity_id ⇒ 计数必须排除本单，
+        // 否则 user_limit=1 的单在改单时会反而丢掉活动价（真 SQL 才能验到这条 <> 条件）。
+        var reprice = pricingService.resolveUnitPriceForOrder(9001L, DEVICE, "IT-PROMO-1", "SKU-A", 350);
+        assertTrue(reprice.isPresent(), "改单重算不得把本单算进 user_limit");
+        assertEquals(250, reprice.get().unitPriceCents());
+        // 但换一单（真正超限）仍必须被拦下
+        assertTrue(pricingService.resolveUnitPriceForOrder(9001L, DEVICE, "IT-PROMO-2", "SKU-A", 350).isEmpty(),
+                "排除本单只对当前单生效，他人/他单仍受 user_limit 约束");
     }
 
     @Test

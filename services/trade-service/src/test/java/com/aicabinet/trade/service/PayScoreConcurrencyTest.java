@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.domain.PayScoreOrder;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.AgreementChargeClient;
@@ -14,8 +15,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,5 +68,22 @@ class PayScoreConcurrencyTest {
                 () -> service.signAlipayAgreement(901L));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void cancelWechatOrderForSession_cancelsRemoteAndMarksLocal() {
+        when(payScoreProperties.enabled()).thenReturn(true);
+        when(weChatPayScoreClient.isContractReady()).thenReturn(true);
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        PayScoreOrder po = new PayScoreOrder();
+        po.setOutOrderNo("S-ZERO");
+        po.setOrderState("CREATED");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+
+        service.cancelWechatOrderForSession("S-ZERO", "零元订单");
+
+        verify(weChatPayScoreClient).cancelServiceOrder("S-ZERO", "零元订单");
+        verify(payScoreOrderMapper).updateById(po);
+        assertEquals("CANCELLED", po.getOrderState());
     }
 }

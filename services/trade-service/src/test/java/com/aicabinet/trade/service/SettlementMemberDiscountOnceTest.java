@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.service.view.OrderViewAssembler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -88,7 +91,8 @@ class SettlementMemberDiscountOnceTest {
         void memberOnly_booksArchiveAndPaysOnce() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 350, 343);
-            when(promotionPricingService.resolveUnitPrice(anyLong(), anyString(), anyString(), anyInt()))
+            when(promotionPricingService.resolveUnitPriceForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
                     .thenReturn(Optional.empty());
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 1, 1f)));
@@ -108,7 +112,8 @@ class SettlementMemberDiscountOnceTest {
         void memberAndActivityTogether_discountsEachExactlyOnce() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 400, 392);
-            when(promotionPricingService.resolveUnitPrice(10001L, "CAB-9", "SKU-A", 392))
+            when(promotionPricingService.resolveUnitPriceForOrder(
+                    eq(10001L), eq("CAB-9"), anyString(), eq("SKU-A"), eq(392)))
                     .thenReturn(Optional.of(new PromotionPricingService.Applied(7L, 342, 50)));
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 3, 1f)));
@@ -129,7 +134,8 @@ class SettlementMemberDiscountOnceTest {
         void nonMember_booksZeroArchive() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 400, 400);
-            when(promotionPricingService.resolveUnitPrice(anyLong(), anyString(), anyString(), anyInt()))
+            when(promotionPricingService.resolveUnitPriceForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
                     .thenReturn(Optional.empty());
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 2, 1f)));
@@ -191,6 +197,76 @@ class SettlementMemberDiscountOnceTest {
 
             assertEquals(16, order.getMemberDiscountCents());
             assertEquals(784, order.getTotalAmountCents());
+        }
+    }
+
+    /**
+     * P2-4：争议改单沿用原单活动决策（成交即定价，对齐 Shopify 草稿单 price lock 口径）——
+     * 原单有活动的行不因「此刻活动已撤」丢价；原单没活动的行也不因「此刻新配活动」变成活动+券双折。
+     */
+    @Nested
+    class DisputeRepriceKeepsOriginalActivity {
+
+        @Test
+        @DisplayName("原单有活动的行：不读当前活动，按每件减额沿用")
+        void existingLine_keepsOriginalActivityPrice() {
+            CabinetOrder order = orderWithDevice("CAB-9");
+            CabinetOrderLine original = line("SKU-A", 2, 250);
+            original.setActivityId(9L);
+            original.setActivityDiscountCents(100); // 每件减 50
+            stubSku("SKU-A", "CAB-9", 300, 300);
+
+            support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 3, 1f)),
+                    SettlementOrderSupport.preservedActivityFromLines(List.of(original)));
+
+            CabinetOrderLine repriced = order.getLines().get(0);
+            assertEquals(250, repriced.getUnitPriceCents(), "沿用原单每件减 50");
+            assertEquals(9L, repriced.getActivityId(), "活动归属仍是原活动");
+            assertEquals(150, order.getActivityDiscountCents());
+            assertEquals(900, order.getGrossAmountCents());
+            assertEquals(900 - 0 - 150 - 0, order.getTotalAmountCents());
+            verifyNoInteractions(promotionPricingService);
+        }
+
+        @Test
+        @DisplayName("原单没活动的行：新配活动也不套上去（避免活动+券双折）")
+        void existingLine_withoutActivity_ignoresNewActivity() {
+            CabinetOrder order = orderWithDevice("CAB-9");
+            CabinetOrderLine original = line("SKU-A", 2, 300);
+            stubSku("SKU-A", "CAB-9", 300, 300);
+            // lenient：改单链根本不该再问当前活动；留着桩是为了「即使此刻配了活动也不生效」
+            org.mockito.Mockito.lenient().when(promotionPricingService.resolveUnitPriceForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+                    .thenReturn(Optional.of(new PromotionPricingService.Applied(12L, 200, 100)));
+
+            support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 3, 1f)),
+                    SettlementOrderSupport.preservedActivityFromLines(List.of(original)));
+
+            assertEquals(0, order.getActivityDiscountCents());
+            assertEquals(300, order.getLines().get(0).getUnitPriceCents());
+            assertEquals(900, order.getTotalAmountCents());
+            org.mockito.Mockito.verify(promotionPricingService, org.mockito.Mockito.never())
+                    .resolveUnitPriceForOrder(anyLong(), anyString(), anyString(), anyString(), anyInt());
+        }
+
+        @Test
+        @DisplayName("改单新增的 SKU：按当前规则定价（原单没有决策可沿用）")
+        void addedSku_usesCurrentActivity() {
+            CabinetOrder order = orderWithDevice("CAB-9");
+            CabinetOrderLine original = line("SKU-A", 1, 300);
+            stubSku("SKU-NEW", "CAB-9", 500, 500);
+            when(promotionPricingService.resolveUnitPriceForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+                    .thenReturn(Optional.of(new PromotionPricingService.Applied(21L, 450, 50)));
+
+            support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-NEW", 2, 1f)),
+                    SettlementOrderSupport.preservedActivityFromLines(List.of(original)));
+
+            CabinetOrderLine added = order.getLines().get(0);
+            assertEquals(450, added.getUnitPriceCents());
+            assertEquals(21L, added.getActivityId());
+            assertEquals(100, order.getActivityDiscountCents());
+            assertEquals(900, order.getTotalAmountCents());
         }
     }
 

@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
+import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -406,5 +407,36 @@ class SettlementPartialRefundTest {
         verify(orderPaymentService).refundOrder(
                 eq(order), eq(400), anyString(),
                 argThat(key -> key != null && key.contains(":L:")));
+    }
+
+    /** P2-6：渠道已退、本地 finalize 未跑 ⇒ 同参重试补本地收尾，不再 409/不再调渠道。 */
+    @Test
+    void partialRefund_channelAlreadyCompleted_resumesLocalFinalize() {
+        CabinetOrder order = paidOrder();
+        order.setRefundedCents(400); // finalizeLiveOrderRefund 已累加本次退款
+
+        PaymentOperation completed = new PaymentOperation();
+        completed.setOrderId("O-R");
+        completed.setAmountCents(400);
+
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
+        doNothing().when(orderLineRepository).deleteByOrderId(anyString());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), anyBoolean());
+        when(orderPaymentService.findCompletedRefundByFingerprint(eq("O-R"), anyString()))
+                .thenReturn(Optional.of(completed));
+
+        var result = settlementService.partialRefund(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)),
+                false,
+                "retry after channel success");
+
+        assertEquals(400, result.refundedCents());
+        assertEquals("PARTIAL_REFUNDED", result.status());
+        verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString(), any());
+        assertEquals(600, order.getTotalAmountCents());
+        assertEquals(400, order.getRefundedCents());
     }
 }

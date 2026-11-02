@@ -38,6 +38,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
     notes: '',
     skuId: '',
     batchNo: '',
+    expiryDate: '',
     quantity: 1
   });
 
@@ -48,6 +49,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
       notes: '',
       skuId: '',
       batchNo: '',
+      expiryDate: '',
       quantity: 1
     });
     await deps.loadWarehousesSoft();
@@ -61,6 +63,16 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
       !transferForm.skuId.trim()
     ) {
       ElMessage.warning('请填写调出/调入仓与 SKU');
+      return;
+    }
+    // MA-038：后端收货按 SKU+批次入库，且 warehouse_inventory.expiry_date 非空
+    // ⇒ 创建期就要求批次/有效期，避免「创建成功、收货 400/500」。
+    if (!transferForm.batchNo.trim()) {
+      ElMessage.warning('请填写批次号');
+      return;
+    }
+    if (!transferForm.expiryDate) {
+      ElMessage.warning('请选择有效期');
       return;
     }
     // P2：数量必须为正整数；后端是最后防线，客户端先拦一道
@@ -81,7 +93,8 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
         lines: [
           {
             skuId: transferForm.skuId.trim(),
-            batchNo: transferForm.batchNo || '',
+            batchNo: transferForm.batchNo.trim(),
+            expiryDate: transferForm.expiryDate,
             quantity: transferForm.quantity
           }
         ]

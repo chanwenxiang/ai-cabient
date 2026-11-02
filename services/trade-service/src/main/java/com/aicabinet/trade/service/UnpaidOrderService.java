@@ -445,6 +445,15 @@ public class UnpaidOrderService {
                     : order.getTotalAmountCents();
         }
         order.setOriginalAmountCents(subtotal);
+        // CB-082（用户 2026-11-01 拍板「活动优先」）：活动价订单禁用券。
+        // 结算主链在 SettlementOrderFinalizeService 已有同一道闸；补扣/代收链此前漏抄，
+        // 会在活动价上再叠一张券（少收一张券面额）。
+        if (order.getActivityDiscountCents() > 0) {
+            order.setCouponId(null);
+            order.setCouponDiscountCents(0);
+            order.setTotalAmountCents(subtotal);
+            return null;
+        }
         if (order.getCouponId() != null) {
             int discount = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
             if (discount <= 0) {

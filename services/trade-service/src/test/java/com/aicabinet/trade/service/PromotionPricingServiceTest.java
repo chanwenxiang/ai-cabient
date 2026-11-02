@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -145,6 +146,22 @@ class PromotionPricingServiceTest {
         candidates(activity(10, "SECOND_HALF", null, null, null, 0, null));
         assertTrue(service.resolveUnitPrice(10001L, DEVICE, SKU, 1000).isEmpty());
         assertEquals(0L, countCalls());
+    }
+
+    @Test
+    @DisplayName("结算链：锁活动行，并排除本单后再判限购")
+    void forOrder_locksActivityRow_andExcludesCurrentOrder() {
+        PromotionActivity a = activity(6, "SKU_REDUCE", 100, null, null, 1, null);
+        candidates(a);
+        when(activityRepository.findByIdForUpdate(6L)).thenReturn(Optional.of(a));
+        // 本单已带 activity_id；若把自己算进去，user_limit=1 会误判超限
+        when(orderLineRepository.countOrdersForActivityExcluding(6L, 10001L, "O-CUR")).thenReturn(0L);
+
+        var applied = service.resolveUnitPriceForOrder(10001L, DEVICE, "O-CUR", SKU, 1000).orElseThrow();
+
+        assertEquals(900, applied.unitPriceCents());
+        verify(activityRepository).findByIdForUpdate(6L);
+        verify(orderLineRepository).countOrdersForActivityExcluding(6L, 10001L, "O-CUR");
     }
 
     private long countCalls() {

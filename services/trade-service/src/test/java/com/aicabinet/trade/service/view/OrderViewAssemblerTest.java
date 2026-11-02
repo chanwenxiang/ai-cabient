@@ -60,4 +60,18 @@ class OrderViewAssemblerTest {
         assertEquals("柜A", model.deviceName());
         assertNull(model.lines());
     }
+
+    @Test
+    void originalAmount_includesActivityDiscount() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-ACT");
+        order.setTotalAmountCents(800);
+        order.setMemberDiscountCents(50);
+        order.setActivityDiscountCents(100);
+
+        OrderReadModel model = assembler.assembleSummary(
+                order, List.of(), "SETTLED", null, null, null);
+
+        assertEquals(950, model.originalAmountCents(), "原价必须把活动优惠也加回");
+    }
 }

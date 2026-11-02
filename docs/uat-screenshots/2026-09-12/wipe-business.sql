@@ -1,3 +1,7 @@
+-- ⚠️ 历史证据（2026-09-06 手工清库留档），**勿对当前 schema 重跑**：
+--    本文件 TRUNCATE 的 promotion_device / revenue_share_detail / rate_limit_record /
+--    sys_oper_log / rate_limit_config 已被 V431/V432 DROP（2026-11-02），重跑必 relation does not exist。
+--    现行清库入口是 `scripts/cleanup-test-data.ps1`。
 -- Full cleanup 2026-09-06 (no IF EXISTS — PG TRUNCATE syntax)
 
 TRUNCATE TABLE ad_campaign_device, promotion_device, line_device,

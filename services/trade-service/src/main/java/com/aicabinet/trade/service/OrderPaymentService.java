@@ -35,6 +35,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -140,6 +141,8 @@ public class OrderPaymentService {
         if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);
             releaseSessionPreauth(order);
+            // 券全额抵扣的 0 元单不会完结支付分订单；不取消会留一张远端未完结服务单。
+            payScoreService.cancelWechatOrderForSession(order.getSessionId(), "零元订单");
             return;
         }
         runWithOrderPaymentLock(order.getOrderId(), locked -> {
@@ -496,6 +499,47 @@ public class OrderPaymentService {
     /** 已完成退款合计（分）。 */
     public int refundedCompletedCents(String orderId) {
         return paymentOperationRepository.refundedCompletedCents(orderId);
+    }
+
+    /**
+     * 按「订单 + 退款行集指纹」查已完成的退款流水（部分退重试恢复用）。
+     *
+     * <p>按行部分退款的幂等键是 {@code REFUND:<orderId>:<amount>:L:<fingerprint>}；
+     * 重试时当前行集可能已被本地 prepare 扣减，无法先算出 amount，故用指纹前缀反查。</p>
+     */
+    public Optional<PaymentOperation> findCompletedRefundByFingerprint(String orderId, String fingerprint) {
+        if (orderId == null || orderId.isBlank() || fingerprint == null || fingerprint.isBlank()) {
+            return Optional.empty();
+        }
+        return paymentOperationRepository.selectList(Wrappers.<PaymentOperation>lambdaQuery()
+                        .eq(PaymentOperation::getOrderId, orderId)
+                        .eq(PaymentOperation::getOperationType, REFUND)
+                        .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
+                        .likeRight(PaymentOperation::getIdempotencyKey, "REFUND:" + orderId + ":")
+                        .like(PaymentOperation::getIdempotencyKey, ":L:" + fingerprint)
+                        .orderByDesc(PaymentOperation::getCreatedAt))
+                .stream().findFirst();
+    }
+
+    /** 部分退 prepare 已提交的本地标记（与 prepare 同事务写入，用于重试时跳过二次扣行）。 */
+    public static final String PARTIAL_REFUND_PREPARED_MARKER = "[LOCAL_PREPARED]";
+
+    @Transactional
+    public void markPartialRefundPrepared(String orderId, String fingerprint) {
+        findCompletedRefundByFingerprint(orderId, fingerprint).ifPresent(op -> {
+            String reason = op.getReason() == null ? "" : op.getReason();
+            if (!reason.contains(PARTIAL_REFUND_PREPARED_MARKER)) {
+                op.setReason(reason + " " + PARTIAL_REFUND_PREPARED_MARKER);
+                paymentOperationRepository.updateById(op);
+            }
+        });
+    }
+
+    public boolean isPartialRefundPrepared(String orderId, String fingerprint) {
+        return findCompletedRefundByFingerprint(orderId, fingerprint)
+                .map(op -> op.getReason() != null
+                        && op.getReason().contains(PARTIAL_REFUND_PREPARED_MARKER))
+                .orElse(false);
     }
 
     /** L2-1：卡单痕迹查询（CHARGE_PENDING 超时告警巡检用）。 */

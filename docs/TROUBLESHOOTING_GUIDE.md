@@ -266,26 +266,27 @@ redis-cli FLUSHDB  # 谨慎使用
 grep "payment_callback" /var/log/trade-service.log
 `
 
-**步骤2**: 查询支付记录
-`sql
-SELECT * FROM payments WHERE order_id = 'xxx';
-SELECT * FROM orders WHERE id = 'xxx';
-`
+**步骤2**: 查询订单与支付流水（真实表名）
+```sql
+SELECT * FROM cabinet_order WHERE order_id = 'xxx';
+SELECT * FROM payment_operation WHERE order_id = 'xxx' ORDER BY created_at;
+```
 
-**步骤3**: 查看幂等记录
-`sql
-SELECT * FROM idempotency_keys WHERE idempotency_key = 'xxx';
-`
+**步骤3**: 查看幂等记录（幂等键在 payment_operation，不再有 idempotency_keys 表）
+```sql
+SELECT * FROM payment_operation WHERE idempotency_key = 'xxx';
+```
 
 **解决方案**:
-`sql
--- 手动补单
-UPDATE orders SET status = 'PAID' WHERE id = 'xxx';
-INSERT INTO payments (order_id, status, ...) VALUES ('xxx', 'SUCCESS', ...);
-
--- 重新触发分账
-INSERT INTO revenue_share_tasks (order_id, status) VALUES ('xxx', 'PENDING');
-`
+> 🔴 不要手工 `UPDATE cabinet_order` / 插 `payment_operation` 补单——资金列与流水必须同源，
+> 手改会绕过 F-9 冻结毛额与对账。改状态走运营台；补分账走 `order_revenue_split` 的
+> 「提交/重试分账」入口，不要新建 `revenue_share_tasks`（该表不存在，分账明细在
+> `order_revenue_split`）。
+```sql
+-- 只读核对：订单与分账当前状态
+SELECT order_id, status, total_amount_cents, refunded_cents FROM cabinet_order WHERE order_id = 'xxx';
+SELECT split_id, status, merchant_cents, failure_reason FROM order_revenue_split WHERE order_id = 'xxx';
+```
 
 ---
 

@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,11 @@ public class PromotionPricingService {
     private static final int MIN_PRICE_CENTS = 1;
 
     public record Applied(long activityId, int unitPriceCents, int discountPerUnitCents) {}
+
+    /** 结算链兜底用的最低单价（与「不允许 0 元购」同口径）。 */
+    public static int minPriceCents() {
+        return MIN_PRICE_CENTS;
+    }
 
     private final PromotionActivityMapper activityRepository;
     private final CabinetOrderLineMapper orderLineRepository;
@@ -53,16 +59,45 @@ public class PromotionPricingService {
     /** 批量展示场景：merchantId 由调用方取一次，避免逐 SKU 重复查设备。 */
     public Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String merchantId,
                                               String skuId, int baseUnitPriceCents) {
+        return resolveUnitPrice(userId, deviceId, merchantId, skuId, baseUnitPriceCents, null, false);
+    }
+
+    /**
+     * 结算/争议改单专用：先锁候选活动行再判限购，并把**本单自身**已核销的行排除在计数外。
+     *
+     * <p>限购是 check-then-act：两个会话并发结算时都能读到旧计数。行锁随外层结算事务
+     * 提交释放，后到的事务在锁内重算时能看到先到方已提交的订单行，从而串行化。</p>
+     */
+    public Optional<Applied> resolveUnitPriceForOrder(Long userId, String deviceId, String orderId,
+                                                      String skuId, int baseUnitPriceCents) {
+        return resolveUnitPrice(userId, deviceId, resolveMerchantId(deviceId), skuId,
+                baseUnitPriceCents, orderId, true);
+    }
+
+    private Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String merchantId,
+                                               String skuId, int baseUnitPriceCents,
+                                               String excludeOrderId, boolean lockRows) {
         if (deviceId == null || skuId == null || baseUnitPriceCents <= MIN_PRICE_CENTS) {
             return Optional.empty();
         }
+        List<PromotionActivity> candidates = activityRepository.findPricedCandidates(deviceId, merchantId, skuId);
+        if (lockRows) {
+            // 固定加锁顺序，避免多活动并发时交叉死锁
+            candidates = candidates.stream()
+                    .sorted(java.util.Comparator.comparing(PromotionActivity::getActivityId))
+                    .toList();
+        }
         Applied best = null;
-        for (PromotionActivity a : activityRepository.findPricedCandidates(deviceId, merchantId, skuId)) {
+        for (PromotionActivity candidate : candidates) {
+            PromotionActivity a = candidate;
+            if (lockRows) {
+                a = activityRepository.findByIdForUpdate(a.getActivityId()).orElse(a);
+            }
             Integer price = priceOf(a, baseUnitPriceCents);
             if (price == null || price >= baseUnitPriceCents || price < MIN_PRICE_CENTS) {
                 continue;
             }
-            if (!withinUsageLimits(a, userId)) {
+            if (!withinUsageLimits(a, userId, excludeOrderId)) {
                 continue;
             }
             int discount = baseUnitPriceCents - price;
@@ -93,17 +128,23 @@ public class PromotionPricingService {
     }
 
     /** user_limit>0 ⇒ 每人最多 N 单；totalOrderLimit>0 ⇒ 活动总共最多 N 单。 */
-    private boolean withinUsageLimits(PromotionActivity a, Long userId) {
+    private boolean withinUsageLimits(PromotionActivity a, Long userId, String excludeOrderId) {
         if (a.getUserLimit() > 0 && userId != null
-                && orderLineRepository.countOrdersForActivity(a.getActivityId(), userId) >= a.getUserLimit()) {
+                && countOrders(a.getActivityId(), userId, excludeOrderId) >= a.getUserLimit()) {
             return false;
         }
         long totalLimit = readTotalOrderLimit(a);
         if (totalLimit > 0
-                && orderLineRepository.countOrdersForActivity(a.getActivityId(), null) >= totalLimit) {
+                && countOrders(a.getActivityId(), null, excludeOrderId) >= totalLimit) {
             return false;
         }
         return true;
+    }
+
+    private long countOrders(Long activityId, Long userId, String excludeOrderId) {
+        return excludeOrderId == null
+                ? orderLineRepository.countOrdersForActivity(activityId, userId)
+                : orderLineRepository.countOrdersForActivityExcluding(activityId, userId, excludeOrderId);
     }
 
     private long readTotalOrderLimit(PromotionActivity a) {

@@ -104,4 +104,21 @@ class GlobalExceptionHandlerTest {
         assertTrue(body.message().startsWith("数据校验未通过"), "客户端只拿可读话术");
         assertTrue(!body.message().contains("chk_wh_transfer_loss"), "约束名不得回落客户端");
     }
+
+    @Test
+    void handleResponseStatus_wrappingIntegrityViolation_mapsTo409() {
+        var integrity = new org.springframework.dao.DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_merchant_withdraw_request_no\"");
+        var ex = new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, "wallet", integrity);
+
+        var res = handler.handleResponseStatus(ex);
+
+        assertEquals(HttpStatus.CONFLICT.value(), res.getStatusCode().value(),
+                "锁包装器把 DB 完整性异常包成 500 时，仍应回到全局 409 口径");
+        assertNotNull(res.getBody());
+        assertTrue(res.getBody().message().startsWith("数据校验未通过"));
+        assertTrue(!res.getBody().message().contains("uk_merchant_withdraw_request_no"),
+                "约束名不得回落客户端");
+    }
 }

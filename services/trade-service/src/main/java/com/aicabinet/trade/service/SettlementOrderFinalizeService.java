@@ -277,11 +277,18 @@ public class SettlementOrderFinalizeService {
         return pick;
     }
 
-    /** 待支付不占券：还原应付为折前金额并清空券字段。 */
-    private static void clearCouponSelection(CabinetOrder order) {
-        int original = order.getOriginalAmountCents();
+    /**
+     * 待支付不占券：还原应付为**折前**金额并清空券字段。
+     *
+     * <p>折前金额必须按 {@code total + couponDiscount} 取：活动单在选券前就跳过
+     * {@link #selectBestCouponForOrder}，其 {@code originalAmountCents} 仍是活动前合计
+     * （会员价合计）。若直接用它还原，PENDING 会把活动优惠也一起还原掉，导致待支付金额、
+     * 风控事件和催缴短信都虚高一个活动优惠额。</p>
+     */
+    static void clearCouponSelection(CabinetOrder order) {
+        int original = order.getTotalAmountCents() + Math.max(0, order.getCouponDiscountCents());
         if (original <= 0) {
-            original = order.getTotalAmountCents() + Math.max(0, order.getCouponDiscountCents());
+            original = Math.max(0, order.getOriginalAmountCents());
         }
         order.setCouponId(null);
         order.setCouponDiscountCents(0);

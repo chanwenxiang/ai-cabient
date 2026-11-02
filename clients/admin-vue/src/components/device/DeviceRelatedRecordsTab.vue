@@ -204,12 +204,17 @@ function sessionKindLabel(kind?: string | null) {
             <template #default="{ row }">
               <span
                 v-if="
-                  Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0) > 0
+                  Number(row.couponDiscountCents || 0) +
+                    Number(row.memberDiscountCents || 0) +
+                    Number(row.activityDiscountCents || 0) >
+                  0
                 "
               >
                 -¥{{
                   (
-                    (Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0)) /
+                    (Number(row.couponDiscountCents || 0) +
+                      Number(row.memberDiscountCents || 0) +
+                      Number(row.activityDiscountCents || 0)) /
                     100
                   ).toFixed(2)
                 }}

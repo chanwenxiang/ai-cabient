@@ -1232,17 +1232,18 @@ async function saveSlots() {
 .pref-star.on {
   color: var(--warning, #f59e0b);
 }
+/* 表单输入统一（88rpx + --radius-control + #f1f5f9），与 purchase/tax/team 等页一致 */
 .input {
   display: block;
   width: 100%;
-  height: 80rpx;
-  min-height: 80rpx;
-  line-height: 80rpx;
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #ededed);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 0 12px;
+  background: #f1f5f9;
+  border: 1rpx solid var(--color-border);
+  border-radius: var(--radius-control, 12px);
+  padding: 0 24rpx;
   margin: 0;
   font-size: var(--font-size-md);
   color: var(--text-primary, #0f172a);

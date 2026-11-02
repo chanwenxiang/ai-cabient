@@ -520,17 +520,18 @@ async function onLogout() {
   font-size: var(--font-size-caption);
   color: var(--text-muted);
 }
+/* 表单输入统一（88rpx + --radius-control + #f1f5f9），与 purchase/tax/team 等页一致 */
 .input {
   display: block;
   width: 100%;
-  height: 80rpx;
-  min-height: 80rpx;
-  line-height: 80rpx;
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #ededed);
+  background: #f1f5f9;
   border: 1rpx solid var(--color-border);
-  border-radius: var(--radius-control);
-  padding: 0 20rpx;
+  border-radius: var(--radius-control, 12px);
+  padding: 0 24rpx;
   margin-bottom: 16rpx;
   font-size: var(--font-size-md);
   color: var(--text-primary, #0f172a);

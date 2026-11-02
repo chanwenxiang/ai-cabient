@@ -53,6 +53,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
         String raw = ex.getReason() != null ? ex.getReason() : ex.getStatusCode().toString();
         if (ex.getStatusCode().is5xxServerError()) {
+            // 锁包装器统一 catch (Exception e) → ResponseStatusException(500, e)，
+            // 会把 DataIntegrityViolation 从全局 409 通道里“截胡”成 500。
+            // 在统一出口按 cause 链还原成 409，避免逐个改几十个 wrapper。
+            org.springframework.dao.DataIntegrityViolationException integrity =
+                    findIntegrityViolation(ex.getCause());
+            if (integrity != null) {
+                return handleDataIntegrityViolation(integrity);
+            }
             // 原始 reason（可能带 mapper/SQL/SQLSTATE）连栈一起落日志，客户端只拿通用话术。
             log.error("response status error {} {}", RequestCorrelation.summary(), raw, ex);
             String clientMessage = looksLikeInternalDetail(raw) ? internalErrorMessage() : ApiMessages.translate(raw);
@@ -61,6 +69,17 @@ public class GlobalExceptionHandler {
         }
         return withTrace(ResponseEntity.status(ex.getStatusCode())
                 .body(ApiResponse.error(ex.getStatusCode().value(), ApiMessages.translate(raw))));
+    }
+
+    private static org.springframework.dao.DataIntegrityViolationException findIntegrityViolation(Throwable cause) {
+        Throwable current = cause;
+        while (current != null) {
+            if (current instanceof org.springframework.dao.DataIntegrityViolationException integrity) {
+                return integrity;
+            }
+            current = current.getCause();
+        }
+        return null;
     }
 
     /**

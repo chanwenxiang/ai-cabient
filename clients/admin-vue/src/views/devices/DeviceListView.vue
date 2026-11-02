@@ -1359,7 +1359,7 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .ops-board__value {
-  font-size: var(--admin-font-size-display-md);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;

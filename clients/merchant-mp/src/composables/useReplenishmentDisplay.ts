@@ -1,16 +1,10 @@
 import type { Ref } from 'vue';
 import type { DeviceSlot, MerchantSkuPricing } from '@aicabinet/shared-types';
-import { API_BASE_URL } from '@/config/api';
+import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
+
+export { absoluteImageUrl };
 
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
-
-export function absoluteImageUrl(url?: string | null): string {
-  const value = String(url || '').trim();
-  if (!value) return '';
-  if (/^https?:\/\//i.test(value) || value.startsWith('//')) return value;
-  const base = (API_BASE_URL || '').replace(/\/$/, '');
-  return `${base}${value.startsWith('/') ? value : '/' + value}`;
-}
 
 export function isPullOffType(type?: string | null) {
   const code = String(type || 'RESTOCK').toUpperCase();

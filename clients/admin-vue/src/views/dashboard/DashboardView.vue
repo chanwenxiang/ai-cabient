@@ -899,8 +899,7 @@ onMounted(() => load({ silent: true }));
 .stat-tile.warn {
   border-color: color-mix(in srgb, var(--danger) 35%, var(--layout-border));
 }
-.stat-tile.warn .stat-value,
-.quick-tile.warn .quick-value {
+.stat-tile.warn .stat-value {
   color: var(--danger);
 }
 .stat-label {
@@ -919,56 +918,6 @@ onMounted(() => load({ silent: true }));
   color: var(--layout-muted);
   margin-top: 8px;
 }
-.quick-row {
-  margin-bottom: 4px;
-}
-.quick-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--layout-border);
-  border-radius: var(--admin-radius-lg, var(--radius-control));
-  background: var(--el-fill-color-blank, var(--layout-card));
-  cursor: pointer;
-  text-align: center;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s ease,
-    background 0.15s ease;
-}
-.quick-tile:hover,
-.quick-tile:focus-visible {
-  transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--app-primary, var(--brand)) 40%, var(--layout-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, var(--brand)) 18%, transparent);
-  outline: none;
-}
-.quick-tile.muted {
-  opacity: 0.55;
-}
-.quick-tile.warn {
-  border-color: color-mix(in srgb, var(--danger) 28%, var(--layout-border));
-  background: color-mix(in srgb, var(--danger) 4%, var(--layout-card));
-}
-.quick-label {
-  color: var(--layout-muted);
-  font-size: var(--admin-font-size-table);
-}
-.quick-value {
-  font-size: var(--admin-font-size-display-lg);
-  font-weight: 700;
-  margin-top: 6px;
-  line-height: 1.15;
-  color: var(--layout-text);
-}
-.empty-quick {
-  margin: 0 0 12px;
-  color: var(--layout-muted);
-  font-size: var(--admin-font-size-table);
-}
 .table-toolbar {
   display: flex;
   justify-content: space-between;
@@ -984,10 +933,5 @@ onMounted(() => load({ silent: true }));
 .action-table :deep(th.col-text > .cell),
 .action-table :deep(td.col-text > .cell) {
   text-align: center;
-}
-.page-pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 12px;
 }
 </style>

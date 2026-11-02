@@ -140,12 +140,6 @@ uni-button {
   line-height: 1.2;
 }
 
-/* 等宽工具类：三端单号/代码统一引用 */
-.app-mono {
-  font-family: var(--app-font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
 /*
  * 轻量图标工具类（G08 起步）：不引入图标字体依赖，用 CSS 画关键符号。
  * 用法：<view class="app-icon app-icon--chevron" aria-hidden="true" />
@@ -157,16 +151,6 @@ uni-button {
   flex-shrink: 0;
   box-sizing: border-box;
   color: currentColor;
-}
-.app-icon--sm {
-  width: 1em;
-  height: 1em;
-  font-size: 20px;
-}
-.app-icon--md {
-  width: 1.25em;
-  height: 1.25em;
-  font-size: 24px;
 }
 .app-icon--circle {
   width: 2.5em;
@@ -283,99 +267,7 @@ uni-button {
   box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
 }
 
-.ui-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.ui-section-title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
-  line-height: 1.4;
-}
-
-.ui-caption {
-  font-size: 22rpx;
-  color: var(--color-text-muted, #94a3b8);
-  line-height: 1.5;
-}
-
-.ui-divider {
-  height: 1px;
-  background: var(--color-border, #eef2f7);
-  margin: 20rpx 0;
-}
-
-/* 按钮：触屏最小 88rpx 高（44px），主/次/幽灵三档 */
-.ui-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 88rpx;
-  padding: 0 40rpx;
-  border-radius: 20rpx;
-  font-size: 30rpx;
-  font-weight: 600;
-  line-height: 1;
-  border: none;
-  transition: opacity 0.15s ease;
-}
-.ui-btn:active {
-  opacity: 0.82;
-}
-.ui-btn--primary {
-  background: var(--brand, #0d9488);
-  color: #ffffff;
-}
-.ui-btn--ghost {
-  background: var(--color-bg-card, #ffffff);
-  color: var(--color-text-primary, #0f172a);
-  border: 1px solid var(--color-border, #e2e8f0);
-}
-.ui-btn--block {
-  width: 100%;
-}
-
-/* 商品缩略图：无图时用首字 + 品牌淡底，别留空白方块 */
-.ui-thumb {
-  width: 96rpx;
-  height: 96rpx;
-  flex: 0 0 96rpx;
-  border-radius: 20rpx;
-  overflow: hidden;
-  background: var(--brand-soft, #f0fdfa);
-}
-.ui-thumb__fallback {
-  width: 96rpx;
-  height: 96rpx;
-  flex: 0 0 96rpx;
-  border-radius: 20rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--brand-soft, #f0fdfa);
-  color: var(--brand, #0d9488);
-  font-size: 40rpx;
-  font-weight: 600;
-}
-
-/* 数量输入：触屏友好，居中对齐数字 */
-.ui-num {
-  width: 132rpx;
-  height: 76rpx;
-  text-align: center;
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
-  background: #f8fafc;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: 16rpx;
-}
-
-/* 搜索框 / 筛选 chips / 分组标题 / 空态（商户端页面逐页对齐用） */
+/* 搜索框 / 筛选 chips（商户端页面逐页对齐用） */
 .ui-search {
   height: 88rpx;
   padding: 0 24rpx;
@@ -395,25 +287,5 @@ uni-button {
   border-radius: 999rpx;
   background: #f1f5f9;
   color: var(--color-text-secondary, #475569);
-  font-size: 26rpx;
-}
-.ui-chip--active {
-  background: var(--brand-soft, #f0fdfa);
-  color: var(--brand, #0d9488);
-  font-weight: 600;
-}
-.ui-group-title {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #334155;
-  padding: 8rpx 4rpx 12rpx;
-}
-.ui-empty {
-  padding: 96rpx 32rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16rpx;
-  color: var(--color-text-muted, #94a3b8);
   font-size: 26rpx;
 }

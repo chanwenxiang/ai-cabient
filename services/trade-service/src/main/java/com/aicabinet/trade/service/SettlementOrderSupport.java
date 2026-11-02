@@ -73,7 +73,42 @@ public class SettlementOrderSupport {
         this.promotionPricingService = promotionPricingService;
     }
 
+    /**
+     * 争议改单沿用原单活动决策时的「每单位活动减额」。
+     *
+     * <p>成交即定价：已下单的 SKU 不应因为后台此刻配了/撤了活动而改变结算价
+     * （Shopify 草稿单的 price lock 同形态）。{@code null} 值 = 原单该 SKU **没参加活动**，
+     * 改单时也不套用当前活动。</p>
+     */
+    record PreservedActivity(Long activityId, int discountPerUnitCents) {}
+
+    /** 从原单明细提取「哪个 SKU 参加了哪个活动、每件减多少」，供改单重算沿用。 */
+    static Map<String, PreservedActivity> preservedActivityFromLines(List<CabinetOrderLine> lines) {
+        Map<String, PreservedActivity> preserved = new java.util.HashMap<>();
+        if (lines == null) {
+            return preserved;
+        }
+        for (CabinetOrderLine line : lines) {
+            if (line.getSkuId() == null) {
+                continue;
+            }
+            int qty = Math.max(1, line.getQuantity());
+            if (line.getActivityId() != null && line.getActivityDiscountCents() > 0) {
+                preserved.put(line.getSkuId(),
+                        new PreservedActivity(line.getActivityId(), line.getActivityDiscountCents() / qty));
+            } else {
+                preserved.put(line.getSkuId(), null);
+            }
+        }
+        return preserved;
+    }
+
     void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items) {
+        applyItemsToOrder(order, items, Map.of());
+    }
+
+    void applyItemsToOrder(CabinetOrder order, List<RecognizedItem> items,
+                           Map<String, PreservedActivity> preservedActivityBySku) {
         order.getLines().clear();
         Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         long total = 0;
@@ -102,17 +137,28 @@ public class SettlementOrderSupport {
             requireCentsInColumnRange("订单原价合计", grossTotal);
             // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且优于当前单价时生效）；
             // 订单头记 activity_discount_cents ⇒ 结算据此**禁用券**（活动优先）。
-            java.util.Optional<PromotionPricingService.Applied> activity =
-                    promotionPricingService == null ? java.util.Optional.empty()
-                            : promotionPricingService.resolveUnitPrice(
-                                    order.getUserId(), order.getDeviceId(), sku.getSkuId(), unitPrice);
+            // 改单传 preserved 时按原单决策定价，不再读当前活动（成交即锁定）。
             int baseUnitPrice = unitPrice;
             Long lineActivityId = null;
             long lineActivityDiscount = 0;
-            if (activity.isPresent()) {
-                lineActivityId = activity.get().activityId();
-                unitPrice = activity.get().unitPriceCents();
-                lineActivityDiscount = (long) activity.get().discountPerUnitCents() * item.quantity();
+            if (preservedActivityBySku.containsKey(sku.getSkuId())) {
+                PreservedActivity preserved = preservedActivityBySku.get(sku.getSkuId());
+                if (preserved != null) {
+                    lineActivityId = preserved.activityId();
+                    unitPrice = Math.max(PromotionPricingService.minPriceCents(), baseUnitPrice - preserved.discountPerUnitCents());
+                    lineActivityDiscount = (long) (baseUnitPrice - unitPrice) * item.quantity();
+                }
+            } else {
+                java.util.Optional<PromotionPricingService.Applied> activity =
+                        promotionPricingService == null ? java.util.Optional.empty()
+                                : promotionPricingService.resolveUnitPriceForOrder(
+                                        order.getUserId(), order.getDeviceId(), order.getOrderId(),
+                                        sku.getSkuId(), unitPrice);
+                if (activity.isPresent()) {
+                    lineActivityId = activity.get().activityId();
+                    unitPrice = activity.get().unitPriceCents();
+                    lineActivityDiscount = (long) activity.get().discountPerUnitCents() * item.quantity();
+                }
             }
             // AU-038：金额一律按 long 算再夹进列域（int 分）。此前 unitPrice * quantity 是
             // int 乘法，上报侧 quantity 无上界 ⇒ 溢出为负的行金额/合计，而 chargeOrder 见负额
@@ -171,13 +217,16 @@ public class SettlementOrderSupport {
         int subtotal = (int) subtotalLong;
         order.setOriginalAmountCents(subtotal);
         int couponDisc = 0;
-        if (order.getCouponId() != null && subtotal > 0) {
+        // CB-082：活动价与券不叠加（活动优先）。争议改单会按当前活动重定价，
+        // 券单若此时命中活动，必须和结算主链/补扣链一样跳过券，否则双折。
+        if (order.getActivityDiscountCents() <= 0 && order.getCouponId() != null && subtotal > 0) {
             couponDisc = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
         }
         order.setCouponDiscountCents(couponDisc);
-        int memberDisc = Math.min(Math.max(0, order.getMemberDiscountCents()),
-                Math.max(0, subtotal - couponDisc));
-        order.setMemberDiscountCents(memberDisc);
+        // MA-029 后 member_discount_cents 只是留档，不参与应付。夹取到 subtotal−coupon
+        // 会让高折扣单（member > subtotal）的留档变小，破坏
+        // gross − member − activity − coupon = total 的拆解恒等式。
+        order.setMemberDiscountCents(Math.max(0, order.getMemberDiscountCents()));
         order.setTotalAmountCents(Math.max(0, subtotal - couponDisc));
     }
 
@@ -202,6 +251,9 @@ public class SettlementOrderSupport {
         int memberDisc = scaleDiscountForPartialRefund(Math.max(0, order.getMemberDiscountCents()),
                 safeOld, safeNew);
         order.setMemberDiscountCents(memberDisc);
+        // P3：活动留档与会员留档同口径等比缩，否则部分退后拆解展示对不平
+        order.setActivityDiscountCents(scaleDiscountForPartialRefund(
+                Math.max(0, order.getActivityDiscountCents()), safeOld, safeNew));
         order.setTotalAmountCents(Math.max(0, safeNew - couponDisc));
     }
 

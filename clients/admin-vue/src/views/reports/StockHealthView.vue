@@ -682,9 +682,6 @@ watch(
 .kpi-tile.warn::before {
   background: var(--el-color-warning, #e6a23c);
 }
-.kpi-tile.warn {
-  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
-}
 .kpi-label {
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);

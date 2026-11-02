@@ -2086,8 +2086,8 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .stat-value {
-  font-size: var(--admin-font-size-display-md);
-  font-weight: 600;
+  font-size: var(--admin-font-size-display-lg);
+  font-weight: 700;
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
 }

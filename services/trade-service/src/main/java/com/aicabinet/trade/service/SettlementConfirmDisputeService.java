@@ -179,7 +179,9 @@ public class SettlementConfirmDisputeService {
                         (a, b) -> a));
 
         int originalPayable = order.getTotalAmountCents();
-        orderSupport.applyItemsToOrder(order, items);
+        // 成交即定价：原单已有行沿用其活动决策，改单不读当前活动（P2-4 的根因）
+        orderSupport.applyItemsToOrder(order, items,
+                SettlementOrderSupport.preservedActivityFromLines(order.getLines()));
         orderSupport.recalculatePayableAfterLineChange(order);
         int finalTotal = order.getTotalAmountCents();
         int delta = finalTotal - originalPayable;
@@ -204,7 +206,8 @@ public class SettlementConfirmDisputeService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         orderSupport.hydrateOrderLines(order);
         // 重放行改（与 prepare 同口径；结算分布式锁期间数据不变），再执行库存调整（C06）
-        orderSupport.applyItemsToOrder(order, prep.newItems());
+        orderSupport.applyItemsToOrder(order, prep.newItems(),
+                SettlementOrderSupport.preservedActivityFromLines(order.getLines()));
         orderSupport.recalculatePayableAfterLineChange(order);
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");

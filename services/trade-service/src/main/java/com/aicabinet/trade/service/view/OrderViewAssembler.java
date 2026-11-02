@@ -115,7 +115,10 @@ public class OrderViewAssembler {
         if (order.getOriginalAmountCents() > 0) {
             return order.getOriginalAmountCents();
         }
-        return order.getTotalAmountCents() + coupon + member;
+        // MA-029 后会员/活动折扣都在行金额里；把三档优惠加回才是「全部优惠前原价」。
+        // 漏掉 activityDiscountCents 会让活动单的原价少一个活动优惠额（P3）。
+        return order.getTotalAmountCents() + coupon + member
+                + Math.max(0, order.getActivityDiscountCents());
     }
 
     public static int itemQty(List<CabinetOrderLine> lines) {

@@ -147,7 +147,8 @@ DELETE FROM dispute_message;
 DELETE FROM dispute_ticket;
 
 -- order dependents that block delete
-DELETE FROM revenue_share_detail;
+-- V431 已 DROP revenue_share_detail（明细已并入 order_revenue_split）；这里再引用会让
+-- 整个单事务在首条 DELETE 就 relation does not exist，清库链必失败。
 DELETE FROM order_revenue_split;
 DELETE FROM payscore_order WHERE order_id IS NOT NULL;
 UPDATE user_coupon SET order_id = NULL, device_id = NULL WHERE order_id IS NOT NULL OR device_id IS NOT NULL;
@@ -226,7 +227,6 @@ DELETE FROM warehouse_inventory;
 
 -- Drop orphan CAB-001 forever
 DELETE FROM device_sku_price WHERE device_id = 'CAB-001';
-DELETE FROM promotion_device WHERE device_id = 'CAB-001';
 DELETE FROM device_slot WHERE device_id = 'CAB-001';
 DELETE FROM device_temp_plan_entry WHERE plan_id IN (SELECT plan_id FROM device_temp_plan WHERE device_id = 'CAB-001');
 DELETE FROM device_temp_plan WHERE device_id = 'CAB-001';
@@ -249,8 +249,8 @@ COMMIT;
         }
         $purge = $purge.Replace("COMMIT;", @"
 -- WipePlatform: empty stage for S1 (keep users/RBAC only)
+-- V431 已 DROP promotion_device（投放范围已并入 promotion_activity.device_scope）。
 DELETE FROM device_sku_price;
-DELETE FROM promotion_device;
 DELETE FROM device_temperature_reading;
 DELETE FROM device_availability_kpi_daily;
 DELETE FROM device_info;

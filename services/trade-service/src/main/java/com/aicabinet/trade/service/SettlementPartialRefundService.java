@@ -70,16 +70,41 @@ public class SettlementPartialRefundService {
         if (order == null || refundLines == null || refundLines.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
         }
-        int refundCents = self.planPartialRefundCents(order.getOrderId(), refundLines);
+        String fingerprint = refundLinesFingerprint(refundLines);
+        int refundCents;
+        try {
+            refundCents = self.planPartialRefundCents(order.getOrderId(), refundLines);
+        } catch (ResponseStatusException e) {
+            // prepare 已把行扣减掉时，重试规划会 400/409；若渠道退款已完成，走本地恢复路径
+            var completed = orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
+            if (completed.isPresent()) {
+                return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore,
+                        completed.get().getAmountCents());
+            }
+            throw e;
+        }
+        // 渠道已退的同参重试：先恢复本地收尾，不再调用渠道、也不 409
+        var completedBeforeChannel =
+                orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
+        if (completedBeforeChannel.isPresent()
+                && completedBeforeChannel.get().getAmountCents() == refundCents) {
+            return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore, refundCents);
+        }
         // AU-174：支付层动账前捕获真实「已退累计」，杜绝 finalize 二次累加
         int priorRefundedBeforeChannel = Math.max(0, order.getRefundedCents());
         // AU-175：幂等键带行集指纹——同单同额、不同商品行的两笔退款是合法业务，
         // 不得被 M02 的「订单+金额」键误判为重放而静默跳过渠道退款
         String idemKeyOverride = "REFUND:" + order.getOrderId() + ":" + refundCents
-                + ":L:" + refundLinesFingerprint(refundLines);
+                + ":L:" + fingerprint;
         boolean channelExecuted = orderPaymentService.refundOrder(order, refundCents,
                 reason == null ? "按行部分退款" : reason, idemKeyOverride);
         if (!channelExecuted) {
+            // 渠道退款已完成（幂等命中）不能直接 409：第一次可能只完成了渠道/支付流水，
+            // 本地行、应付、状态还没收尾。这里按同一指纹恢复本地 prepare/finalize。
+            var completed = orderPaymentService.findCompletedRefundByFingerprint(order.getOrderId(), fingerprint);
+            if (completed.isPresent() && completed.get().getAmountCents() == refundCents) {
+                return resumeLocalPartialRefund(order.getOrderId(), refundLines, defaultRestore, refundCents);
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "该订单已存在相同金额与商品行的退款记录，请勿重复提交；如需继续请调整退款行或金额");
         }
@@ -105,6 +130,70 @@ public class SettlementPartialRefundService {
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
+    }
+
+    /**
+     * 渠道已退、本地未收尾时的恢复：同一幂等键重试不再 409，而是把本地 prepare/finalize 补完。
+     *
+     * <p>三种落点：①已 finalize ⇒ 幂等成功；②prepare 未跑（行还在）⇒ 重跑 prepare+finalize；
+     * ③prepare 已跑（请求行已被扣到不足）⇒ 只补 finalize。若行仍足够而无法判断是否已 prepare，
+     * 保持原 409（宁可让人工核，也不重复退款）。</p>
+     */
+    private PartialRefundResult resumeLocalPartialRefund(String orderId,
+                                                         List<OrderRefundRequest.PartialRefundLine> refundLines,
+                                                         boolean defaultRestore,
+                                                         int refundCents) {
+        CabinetOrder fresh = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        int priorRefunded = Math.max(0, fresh.getRefundedCents() - refundCents);
+        if (("REFUNDED".equals(fresh.getStatus()) || "PARTIAL_REFUNDED".equals(fresh.getStatus()))
+                && fresh.getRefundedCents() >= priorRefunded + refundCents) {
+            log.info("partial refund retry already finalized order={} refundCents={} status={}",
+                    orderId, refundCents, fresh.getStatus());
+            return new PartialRefundResult(refundCents, fresh.getStatus(), false);
+        }
+        // prepare 与「本地已扣行」标记同事务提交；有标记就只补 finalize，绝不重复扣行
+        if (orderPaymentService.isPartialRefundPrepared(
+                orderId, refundLinesFingerprint(refundLines))) {
+            return finalizeOnly(fresh, refundCents, priorRefunded);
+        }
+        try {
+            PartialRefundPrep prep = self.preparePartialRefund(
+                    orderId, refundLines, defaultRestore, priorRefunded);
+            return self.finalizePartialRefund(prep);
+        } catch (ResponseStatusException e) {
+            orderSupport.hydrateOrderLines(fresh);
+            if (!refundLinesAlreadyRemoved(fresh, refundLines)) {
+                throw e;
+            }
+            return finalizeOnly(fresh, refundCents, priorRefunded);
+        }
+    }
+
+    private PartialRefundResult finalizeOnly(CabinetOrder fresh, int refundCents, int priorRefunded) {
+        orderSupport.hydrateOrderLines(fresh);
+        boolean remainingEmpty = fresh.getLines() == null || fresh.getLines().isEmpty();
+        log.info("partial refund retry resumes at finalize order={} refundCents={} remainingEmpty={}",
+                fresh.getOrderId(), refundCents, remainingEmpty);
+        return self.finalizePartialRefund(new PartialRefundPrep(
+                fresh, refundCents, priorRefunded, remainingEmpty, false));
+    }
+
+    /** 请求的每一行都已扣到不足 ⇒ prepare 已提交过；只要有一行还够，就不能判定为重试。 */
+    private static boolean refundLinesAlreadyRemoved(CabinetOrder order,
+                                                     List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        Map<String, CabinetOrderLine> bySku = SettlementPartialRefundMath.mergeLinesBySku(order.getLines());
+        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
+            if (req == null || req.skuId() == null || req.skuId().isBlank()) {
+                continue;
+            }
+            CabinetOrderLine line = bySku.get(req.skuId().trim());
+            int available = line == null ? 0 : line.getQuantity();
+            if (available >= req.quantity()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -166,6 +255,9 @@ public class SettlementPartialRefundService {
         int priorRefunded = Math.max(0, priorRefundedBeforeChannel);
         orderRepository.save(order);
         orderSupport.replaceOrderLines(order);
+        // 与 prepare 同事务打标：重试时据此判定「行已扣过」，避免同参数重复退款
+        orderPaymentService.markPartialRefundPrepared(
+                order.getOrderId(), refundLinesFingerprint(refundLines));
         return new PartialRefundPrep(order, refundCents, priorRefunded, remaining.isEmpty(), partition.anyRestored());
     }
 
@@ -312,6 +404,9 @@ public class SettlementPartialRefundService {
         int memberDisc = SettlementOrderSupport.scaleDiscountForPartialRefund(
                 Math.max(0, order.getMemberDiscountCents()), safeOld, safeNew);
         order.setMemberDiscountCents(memberDisc);
+        // 与写侧 applyProportionalRefundPayable 同步：活动留档也等比缩
+        order.setActivityDiscountCents(SettlementOrderSupport.scaleDiscountForPartialRefund(
+                Math.max(0, order.getActivityDiscountCents()), safeOld, safeNew));
         order.setTotalAmountCents(Math.max(0, safeNew - couponDisc));
     }
 }

@@ -167,6 +167,37 @@ WHERE version IN ('398','399','400','401','402') ORDER BY installed_rank;
 - [ ] 部署后再查一次上面那条 SQL：398–402 均为 `success = t`
 - 🔴 已发布过的迁移文件**不得改名、不得改内容**；新增迁移号必须**大于当前最大号**（推送前 `check:migration-number-order` 与预检会拦）
 
+### 3.1.4 V431 删表前置检查（逐库必查）
+
+> V431 会先逐表 `count(*)`，任何一张 >0 就 `RAISE EXCEPTION` 拒绝删除（fail-loud，设计如此）。
+> 「11 张均 0 行」只在跑过清库脚本的本机 dev 成立；V222 曾向 `revenue_share_detail` 补最多 5 行演示数据，
+> 从未清库的存量库可能仍有行 ⇒ 部署时 Flyway 启动阻断。**不要为了过迁移去注释守卫**。
+
+> 仅对**尚未应用 V431**的库执行；已到 V431+ 的库这些表已不存在，跳过本节（Flyway history 查 `431` 是否 success 即可）。
+>
+> **现状（2026-11-02 实测/留痕）**：本机 dev `max(version::int)=434`、服务器测试环境 `120.25.246.179` V433（见
+> `docs/EMPTY_TABLES_DISPOSITION_2026-11-02.md`）——两者都已越过 V431，**本节对现有环境无待办**；
+> 只有将来新建生产库、或从 V431 之前的备份重建时才需要跑。
+
+```sql
+SELECT 'data_discrepancy' AS t, count(*) FROM data_discrepancy
+UNION ALL SELECT 'data_quality_check', count(*) FROM data_quality_check
+UNION ALL SELECT 'idempotency_key', count(*) FROM idempotency_key
+UNION ALL SELECT 'payscore_contract', count(*) FROM payscore_contract
+UNION ALL SELECT 'promotion_device', count(*) FROM promotion_device
+UNION ALL SELECT 'rate_limit_record', count(*) FROM rate_limit_record
+UNION ALL SELECT 'revenue_share_detail', count(*) FROM revenue_share_detail
+UNION ALL SELECT 'revenue_share_rule', count(*) FROM revenue_share_rule
+UNION ALL SELECT 'sys_oper_log', count(*) FROM sys_oper_log
+UNION ALL SELECT 'user_login_log', count(*) FROM user_login_log
+UNION ALL SELECT 'wechat_binding', count(*) FROM wechat_binding;
+```
+
+- [ ] 已对目标库执行上表并留档（结果：**\_\_\_\_\_\_\_\_\_\_**）
+- [ ] **`revenue_share_detail` 行数已单独确认**（V222 演示数据的已知命中点）；>0 时先人工定处置（备份/迁移/确认可删），
+      不得直接注释 V431 守卫
+- [ ] 部署后 `docker logs <trade-service>` 无 `拒绝删除 ...` 异常；Flyway 到 V431 及以后
+
 ### 3.2 部署命令
 
 ```bash

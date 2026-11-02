@@ -974,8 +974,16 @@ function money(cents?: number) {
   return centsToYuanDigits(cents);
 }
 
-function orderDiscountCents(row: { couponDiscountCents?: number; memberDiscountCents?: number }) {
-  return Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0);
+function orderDiscountCents(row: {
+  couponDiscountCents?: number;
+  memberDiscountCents?: number;
+  activityDiscountCents?: number;
+}) {
+  return (
+    Number(row.couponDiscountCents || 0) +
+    Number(row.memberDiscountCents || 0) +
+    Number(row.activityDiscountCents || 0)
+  );
 }
 
 function refundPolicyLabel(policy?: string | null) {

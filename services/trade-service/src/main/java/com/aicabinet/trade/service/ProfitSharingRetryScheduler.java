@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -41,8 +40,11 @@ public class ProfitSharingRetryScheduler {
         this.taskService = taskService;
     }
 
+    /**
+     * 调度入口**不加事务**：内部 submitSplit 是「短事务 → HTTP → 短事务」三段式，
+     * 外层事务会让微信 HTTP 又被包进 DB 事务，且任一坏行抛错会回滚整批。
+     */
     @Scheduled(fixedRate = 900_000)
-    @Transactional
     public void retryFailedSplits() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(PROFIT_SHARING_RETRY, 600)) {

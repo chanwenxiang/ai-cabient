@@ -1,3 +1,14 @@
+import { API_BASE_URL } from './api-base';
+
+/** 相对路径补上 API 域名（后台上传的图片是 /api/v2/media/... 相对路径）。两端共用一份。 */
+export function absoluteImageUrl(url?: string | null): string {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('//')) return value;
+  const base = (API_BASE_URL || '').replace(/\/$/, '');
+  return `${base}${value.startsWith('/') ? value : '/' + value}`;
+}
+
 /**
  * 三端共用订单文本解析。
  *

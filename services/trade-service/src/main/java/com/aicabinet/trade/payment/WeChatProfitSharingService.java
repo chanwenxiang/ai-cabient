@@ -215,8 +215,8 @@ public class WeChatProfitSharingService {
 
     /**
      * 分账回退：部分退款/全额退款时从接收方回退已分金额。
+     * 纯渠道调用，不写库——不要加事务（调用方若在事务内，HTTP 仍会占用该事务，见 P2-7）。
      */
-    @Transactional
     public ReturnSubmitOutcome returnMerchantShare(OrderRevenueSplit split,
                                                    Merchant merchant,
                                                    long returnCents,
@@ -298,26 +298,29 @@ public class WeChatProfitSharingService {
     }
 
     /**
-     * 轮询待确认的分账回退并同步本地 split。
+     * 轮询待确认的分账回退并同步本地 split：微信查单 HTTP 在事务外，落库走短事务。
      */
-    @Transactional
     public boolean refreshPendingReturn(OrderRevenueSplit split) {
         if (split == null || split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
             return false;
         }
         ReturnSubmitOutcome outcome = queryReturnOutcome(split.getWechatPendingReturnNo());
-        return applyReturnOutcome(split, outcome);
+        return self.applyReturnOutcome(split, outcome);
     }
 
-    @Transactional
+    /** 批量轮询；单条异常只记日志，不能让一条坏行中断整批。 */
     public int pollPendingReturns(List<OrderRevenueSplit> splits) {
         if (!isApiReady() || splits == null || splits.isEmpty()) {
             return 0;
         }
         int updated = 0;
         for (OrderRevenueSplit split : splits) {
-            if (self.refreshPendingReturn(split)) {
-                updated++;
+            try {
+                if (self.refreshPendingReturn(split)) {
+                    updated++;
+                }
+            } catch (Exception e) {
+                log.warn("wechat profit sharing return poll failed splitId={}", split.getSplitId(), e);
             }
         }
         return updated;
@@ -325,16 +328,20 @@ public class WeChatProfitSharingService {
 
     /**
      * 重试失败的分账回退（failureReason 含「分账回退未成功」且记录了 pending 信息）。
+     * 批方法不加事务：HTTP 在事务外，单条结果由 {@link #applyReturnOutcome} 短事务落库。
      */
-    @Transactional
     public int retryFailedReturns(List<OrderRevenueSplit> splits, Map<String, Merchant> merchantsById) {
         if (!isApiReady() || splits == null || splits.isEmpty()) {
             return 0;
         }
         int retried = 0;
         for (OrderRevenueSplit split : splits) {
-            if (retrySingleFailedReturn(split, merchantsById)) {
-                retried++;
+            try {
+                if (retrySingleFailedReturn(split, merchantsById)) {
+                    retried++;
+                }
+            } catch (Exception e) {
+                log.warn("wechat profit sharing return retry failed splitId={}", split.getSplitId(), e);
             }
         }
         return retried;
@@ -358,11 +365,13 @@ public class WeChatProfitSharingService {
                 returnCents,
                 split.getWechatPendingReturnNo(),
                 split.getFailureReason() != null ? split.getFailureReason() : "分账回退重试");
-        applyReturnOutcome(split, outcome);
+        self.applyReturnOutcome(split, outcome);
         return outcome != ReturnSubmitOutcome.FAILED;
     }
 
-    private boolean applyReturnOutcome(OrderRevenueSplit split, ReturnSubmitOutcome outcome) {
+    /** 短事务：只把查单/回退结果落到 split，不包含任何渠道 HTTP。 */
+    @Transactional
+    public boolean applyReturnOutcome(OrderRevenueSplit split, ReturnSubmitOutcome outcome) {
         if (split == null || outcome == null) {
             return false;
         }
@@ -415,9 +424,8 @@ public class WeChatProfitSharingService {
     }
 
     /**
-     * 查询微信分账单状态并同步本地记录。
+     * 查询微信分账单状态并同步本地记录：查单 HTTP 在事务外，落库走短事务。
      */
-    @Transactional
     public OrderRevenueSplit refreshSplitStatus(OrderRevenueSplit split) {
         if (!isApiReady()) {
             throw new IllegalStateException("WeChat profit sharing is not enabled or pay is not configured");
@@ -433,7 +441,7 @@ public class WeChatProfitSharingService {
         if (profitSharingProperties.mockEnabled()) {
             applyRemoteState(split, "FINISHED", null);
             log.info("mock profit sharing refreshed splitId={} status={}", split.getSplitId(), split.getStatus());
-            return splitRepository.save(split);
+            return self.persistSplit(split);
         }
         try {
             String encodedOut = URLEncoder.encode(outOrderNo.trim(), StandardCharsets.UTF_8);
@@ -442,12 +450,18 @@ public class WeChatProfitSharingService {
             JsonNode resp = weChatPayV3Client.get(path);
             String state = resp.path("state").asText("");
             applyRemoteState(split, state, resp.path("fail_reason").asText(null));
-            return splitRepository.save(split);
+            return self.persistSplit(split);
         } catch (Exception e) {
             split.setFailureReason(truncate(e.getMessage()));
             log.warn("wechat profit sharing query failed splitId={}", split.getSplitId(), e);
-            return splitRepository.save(split);
+            return self.persistSplit(split);
         }
+    }
+
+    /** 短事务：只落 split 状态，不包含任何渠道 HTTP。 */
+    @Transactional
+    public OrderRevenueSplit persistSplit(OrderRevenueSplit split) {
+        return splitRepository.save(split);
     }
 
     /**
@@ -460,11 +474,19 @@ public class WeChatProfitSharingService {
         }
         int retried = 0;
         for (OrderRevenueSplit split : splits) {
-            Merchant merchant = merchantsById.get(split.getMerchantId());
-            String wxTxn = split.getWechatTransactionId();
-            if (merchant != null && wxTxn != null && !wxTxn.isBlank()) {
-                self.submitSplit(split, merchant, wxTxn);
-                retried++;
+            // 单条坏行只跳过自己：旧实现让异常冒到调度器，整批回滚且后面的失败分账永不重试。
+            try {
+                Merchant merchant = merchantsById.get(split.getMerchantId());
+                String wxTxn = split.getWechatTransactionId();
+                if (merchant != null && wxTxn != null && !wxTxn.isBlank()) {
+                    self.submitSplit(split, merchant, wxTxn);
+                    retried++;
+                } else {
+                    log.warn("profit sharing retry skipped splitId={} merchant={} wxTxnBlank={}",
+                            split.getSplitId(), split.getMerchantId(), wxTxn == null || wxTxn.isBlank());
+                }
+            } catch (Exception e) {
+                log.warn("profit sharing retry failed splitId={}", split.getSplitId(), e);
             }
         }
         return retried;

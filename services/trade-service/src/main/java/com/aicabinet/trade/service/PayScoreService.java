@@ -422,6 +422,42 @@ public class PayScoreService {
     }
 
     /**
+     * 零元订单收口：取消该会话未完结的支付分单，避免远端留一张永远不结算的服务单。
+     *
+     * <p>券全额抵扣时 {@code totalAmountCents=0}，不会走「完结+异步扣款」；若不取消，
+     * 微信侧订单会一直停在 CREATED/DOING。取消失败留 {@code CANCEL_FAILED} 供对账/人工处置。</p>
+     */
+    @Transactional
+    public void cancelWechatOrderForSession(String sessionId, String reason) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
+        PayScoreOrder po = payScoreOrderMapper.selectList(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<PayScoreOrder>()
+                        .eq(PayScoreOrder::getOutOrderNo, sessionId)
+                        .in(PayScoreOrder::getOrderState, List.of("CREATED", "DOING")))
+                .stream().findFirst().orElse(null);
+        if (po == null) {
+            return;
+        }
+        if (wechatRealChannelReady()) {
+            try {
+                weChatPayScoreClient.cancelServiceOrder(sessionId, reason);
+            } catch (Exception e) {
+                po.setOrderState("CANCEL_FAILED");
+                po.setServiceEndTime(Instant.now());
+                payScoreOrderMapper.updateById(po);
+                log.error("wechat payscore cancel failed session={} err={}", sessionId, e.getMessage(), e);
+                return;
+            }
+        }
+        po.setOrderState("CANCELLED");
+        po.setServiceEndTime(Instant.now());
+        payScoreOrderMapper.updateById(po);
+        log.info("wechat payscore order cancelled session={} reason={}", sessionId, reason);
+    }
+
+    /**
      * 开通支付宝免密。
      * <ul>
      *   <li>mock：即时写入真实协议号并 active</li>

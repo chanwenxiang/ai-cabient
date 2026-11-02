@@ -683,6 +683,17 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-02（三端审计 P1×3/P2×6/P3×18 收口：补扣链禁券、PENDING 金额、调拨表单、清库脚本、分账重试、支付分白名单）
+
+- **资金链一致性**：`UnpaidOrderService.applyBestCouponForCollect` 补「活动价订单禁用券」闸（与结算主链同口径）；`SettlementOrderFinalizeService.clearCouponSelection` 改按 `total + couponDiscount` 还原折前应付，活动单转 PENDING 不再把活动优惠一起还原掉（待支付/风控/催缴金额不再虚高）；`SettlementOrderSupport.recalculatePayableAfterLineChange` 活动优先禁券；活动限购计数排除本单并在结算/改单链锁活动行（`PromotionPricingService.resolveUnitPriceForOrder`）。
+- **争议改单定价口径拍板（用户 2026-11-02 授权按推荐）**：**成交即定价**——改单沿用原单每行的活动决策（`activity_id` + 每件减额），既不因「此刻活动已撤/过期」丢价，也不因「此刻新配活动」把活动价静默带进旧行（P2-4 的根因）；**只有原单没有的新增 SKU** 才按当前规则定价，此时若命中活动，订单级仍走「活动优先禁券」。竞品依据：Shopify 官方对草稿订单提供 *price lock*（未锁定才会自动跟目录最新价），并明确「编辑订单后部分折扣不会重新计算」——已有订单的价格与折扣是成交时点的既定事实。`SettlementOrderSupport.applyItemsToOrder(order, items, preservedActivityBySku)` + `preservedActivityFromLines`；`SettlementConfirmDisputeService` prepare/finalize 两处都传。
+- **部分退款可恢复重试**：`SettlementPartialRefundService` 渠道已退同参重试不再 409，按同一行集指纹补本地 prepare/finalize；prepare 与 `payment_operation.reason` 的 `[LOCAL_PREPARED]` 标记同事务写入，避免重复扣行。`OrderPaymentService.findCompletedRefundByFingerprint` 为反查入口。
+- **渠道/调度**：`ProfitSharingRetryScheduler` 去掉外层事务，分账 HTTP 回到 B2 三段式；`pollPendingReturns`/`retryFailedReturns`/`refreshSplitStatus` 的 HTTP 移出事务、落库短事务、逐行隔离；支付分回调 `/api/v2/payment/payscore/notify` 加入免登录白名单；0 元券单取消未完结支付分单。
+- **DB/部署**：清库脚本删除 `revenue_share_detail`/`promotion_device` 三处已被 V431 DROP 的 DELETE；`DEPLOYMENT_CHECKLIST §3.1.4` 增加 V431 逐表 count 前置检查（点名 `revenue_share_detail` 的 V222 演示数据）；`GlobalExceptionHandler` 对 `ResponseStatusException(500)` 的 cause 链还原 `DataIntegrityViolation → 409`，覆盖几十个锁包装器。
+  - **V431 前置检查的现状（用户授权按推荐处置）**：两个在用库都已越过 V431 —— 本机 dev 实测 `max(version::int)=434`，服务器测试环境 `120.25.246.179` 按 `docs/EMPTY_TABLES_DISPOSITION_2026-11-02.md` 已到 V433 且 11 张表 DROP 前均 0 行 ⇒ **本轮不需要任何清库/改数动作**；§3.1.4 的检查只对**将来真正的新生产库**（或从更早备份重建的库）生效。
+- **前端/文档**：admin 调拨表单补有效期（`value-format=YYYY-MM-DD`）与批次必填、两列 `form-grid`；StockHealthView 删 `.warn` 黄底、DashboardView 删约 70 行 quick/pager 死 CSS、DeviceDetail/DeviceList KPI `display-md(22px) → display-lg(24px)`；merchant 表单统一补 device-detail/mine、self-replenish 三套 `.input` 合并；shared-uni theme.css 删零引用通用类、empty-state 显式 `icon="glyph"` 渲染默认字形、`absoluteImageUrl` 收进 `shared-uni/product-image`；TROUBLESHOOTING_GUIDE 死表名 `idempotency_keys`/`payments`/`orders` 订正为真实表。
+- 🧪 验证：trade-service 全量单测 **2662/0/0**（456 个 surefire 报告，按 `<testcase>` 计数与汇总行一致）；真库 IT `PromotionPricingMapperIT` 3 例（新增断言：改单排除本单后仍按 250 命中、换单仍受 user_limit 拦下）、`MemberDiscountLedgerSqlIT` 2 例，Testcontainers 从 V1 升序跑到 V434；admin/consumer/merchant `vue-tsc` 0 error；vitest **131/169/253** 全绿；定向门禁 `no-inline-money-math`/`mp-defect-classes`/`shared-uni-asset-consistency`/`mp-css-token-fallback`/`line-endings`/`shared-component-sync` 全绿。
+
 ### 2026-11-02（MA-029 方案 A：会员折扣只折一次——② 的算术原来散在 5 处，不是交接书写的 2 处）
 
 - **拍板**：会员折扣以 ①「会员价直接算进单价」为权威（②「把 `member_discount_cents` 当订单级减项再扣一次」历史上靠该列无写入者恒 0 潜伏；选 ② 等于重写定价链，已否决）。应付恒等式收口为 `total = Σ 行金额 − coupon`，四列满足 `gross − member − activity − coupon = total`（详见 §6.3）。

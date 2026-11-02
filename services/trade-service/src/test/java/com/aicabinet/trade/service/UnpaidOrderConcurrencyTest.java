@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -15,12 +16,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -98,6 +104,41 @@ class UnpaidOrderConcurrencyTest {
 
         org.mockito.Mockito.verify(orderRepository).findByIdForUpdate("O-OK");
         org.mockito.Mockito.verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-OK"));
+    }
+
+    /**
+     * CB-082：活动价 PENDING 单补扣时不得再叠券——与结算主链同口径（活动优先）。
+     */
+    @Test
+    void collectByUser_activityOrder_doesNotStackCoupon() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-ACT");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setSessionId("S-ACT");
+        order.setDeviceId("CAB-ACT");
+        order.setActivityDiscountCents(150);
+        order.setTotalAmountCents(1026);
+        CabinetOrderLine line = new CabinetOrderLine();
+        line.setSkuId("SKU-A");
+        line.setQuantity(3);
+        line.setUnitPriceCents(342);
+        line.setLineAmountCents(1026);
+        order.setLines(new java.util.ArrayList<>(List.of(line)));
+
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-ACT"), 60L, 5L))
+                .thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-ACT")).thenReturn(Optional.of(order));
+        when(orderPaymentService.netCompletedCents("O-ACT")).thenReturn(0);
+        when(settlementService.getOrderBySession("S-ACT")).thenReturn(null);
+
+        service.collectByUser(10001L, "O-ACT", null);
+
+        verify(couponService, never()).selectBestCoupon(any(), anyInt(), any());
+        assertEquals(1026, order.getTotalAmountCents(), "活动价必须保持，不得再减券");
+        assertEquals(0, order.getCouponDiscountCents());
+        assertNull(order.getCouponId());
     }
 
     /** F1-C 净额三分支①：冲抵净额已覆盖应付 ⇒ 直接收口 PAID，绝不重复扣款。 */

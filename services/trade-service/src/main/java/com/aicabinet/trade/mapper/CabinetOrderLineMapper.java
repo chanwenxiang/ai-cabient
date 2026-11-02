@@ -30,6 +30,21 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
         """)
     long countOrdersForActivity(@Param("activityId") Long activityId, @Param("userId") Long userId);
 
+    /**
+     * 同口径计数，但排除指定订单：争议改单重算时本单已带 activity_id，
+     * 不排除会把自己算进 user_limit（user_limit=1 时反而丢失活动价）。
+     */
+    @org.apache.ibatis.annotations.Select("""
+        SELECT COUNT(DISTINCT l.order_id) FROM cabinet_order_line l
+        WHERE l.activity_id = #{activityId}
+          AND (#{userId} IS NULL OR EXISTS (
+                SELECT 1 FROM cabinet_order o WHERE o.order_id = l.order_id AND o.user_id = #{userId}))
+          AND l.order_id <> #{excludeOrderId}
+        """)
+    long countOrdersForActivityExcluding(@Param("activityId") Long activityId,
+                                         @Param("userId") Long userId,
+                                         @Param("excludeOrderId") String excludeOrderId);
+
     List<LinkedHashMap<String, Object>> selectMerchantBillSalesByDay(
             @Param("merchantIds") Collection<String> merchantIds,
             @Param("start") Instant start,

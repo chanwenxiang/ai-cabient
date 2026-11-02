@@ -1,5 +1,7 @@
 import type { DeviceProduct } from '@aicabinet/shared-types';
-import { API_BASE_URL } from '@/config/api';
+import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
+
+export { absoluteImageUrl };
 
 const CATEGORY_GLYPH: Record<string, string> = {
   饮料: '饮',
@@ -7,15 +9,6 @@ const CATEGORY_GLYPH: Record<string, string> = {
   乳品: '乳',
   方便食品: '面'
 };
-
-/** 相对路径补上 API 域名（后台上传的图片是 /api/v2/media/... 相对路径） */
-export function absoluteImageUrl(url?: string | null): string {
-  const value = String(url || '').trim();
-  if (!value) return '';
-  if (/^https?:\/\//i.test(value) || value.startsWith('//')) return value;
-  const base = (API_BASE_URL || '').replace(/\/$/, '');
-  return `${base}${value.startsWith('/') ? value : '/' + value}`;
-}
 
 /**
  * 商品图：仅取后台上传地址。
