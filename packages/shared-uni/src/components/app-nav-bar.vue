@@ -140,9 +140,10 @@ export default {
   margin: 0;
   /* 胶囊几何失败时也不能塌成 0 高，否则搜索会顶进微信胶囊 */
   min-height: 76px;
-  background: #ffffff;
-  color: #0f172a;
-  border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
+  /* 品牌绿顶栏（2026-11-02 用户要求：两端统一绿色，避免白底观感寡淡） */
+  background: var(--brand, #0d9488);
+  color: #ffffff;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.12);
 }
 .app-nav-row {
   position: relative;
