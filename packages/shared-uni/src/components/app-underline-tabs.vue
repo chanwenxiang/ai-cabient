@@ -130,6 +130,9 @@ function onPick(key: string) {
   padding: 0 12rpx;
 }
 .wx-tab-label {
+  /* 2026-11-02 全局观感：标签从「纯文字」改胶囊，选中态给淡色底，比下划线更清晰 */
+  padding: 10rpx 24rpx;
+  border-radius: 999rpx;
   font-size: var(--font-size-lg, 30rpx);
   line-height: 1.2;
   color: var(--text-muted, #64748b);
@@ -141,6 +144,8 @@ function onPick(key: string) {
 .wx-tab.active .wx-tab-label {
   color: var(--brand, #0d9488);
   font-weight: 600;
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
 }
 .wx-tab-badge {
   margin-left: 8rpx;
@@ -166,6 +171,6 @@ function onPick(key: string) {
   background: transparent;
 }
 .wx-tab.active .wx-tab-ink {
-  background: var(--brand, #0d9488);
+  display: none;
 }
 </style>
