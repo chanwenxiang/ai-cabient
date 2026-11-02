@@ -12,7 +12,7 @@
 | 2 | 交易/订单/支付/优惠/回调 | Session, Order, Payment, Dispute, ConsumerDispute, Coupon, Promotion, Marketing, OpsAd, ConsumerBalanceRefund, AdminBalanceRefund, WeChatNotify, AlipayNotify, PayScoreNotify, DevMockPayment, DevMockAlipayPayment, DevMockRecharge | ✅ 完成（45 写端点，P3×8 → MA-082~089） |
 | 3 | 资金财务/增长/报表 | OpsFinance, OpsPlatformFund, OpsMerchantFeeLedger, OpsMachinePayeeBill, InvoiceAdmin, DeviceDataFeeBill, SiteRentBill, SiteRentSplit, Member, AdminGrowth, OpsRisk, OpsAnalytics, AdminDashboard, DeviceAvailabilityKpi, ReplenishmentReport | ✅ 完成（55 写端点，P2×1+P3×9 → MA-090~099） |
 | 4 | 仓储/履约/补货/异常 | OpsWarehouse, WarehouseTransfer, OpsProcurement, OpsReplenishment, OpsLineRoute, MerchantWarehouseStocktake, SlotTemplate, OpsExternalImport, RepairTicket, UserFeedback, ConsumerFeedback, OpsException, MerchantOpsException, OpsCommercial | ✅ 完成（79 写端点，P2×2+P3×13 → MA-100~114） |
-| 5 | 设备/将邑/内部/通知/杂项 | Device, DeviceMqttCredential, DeviceHttpCredential, DeviceInternal, DeviceAvailability…(其余), OpsDeviceRental, OpsDeviceEnv, OpsJiangyi*, AdminJiangyi*, SessionInternal, VisionInternal, JiangyiInternal, SmsInternal, OpsAlertInternal, DemoDataInternal, OpsDevOps, OpsOta, DataConsistency, Media, Announcement×3, Notification×2, **OpsController（最大，单独）** | 未开工 |
+| 5 | 设备/将邑/内部/通知/杂项 | Device, DeviceMqttCredential, DeviceHttpCredential, DeviceInternal, OpsDeviceRental, OpsDeviceEnv, AdminJiangyi×2, JiangyiInternal, SessionInternal, VisionInternal, SmsInternal, OpsAlertInternal, DemoDataInternal, OpsDevOps, OpsOta, DataConsistency, Media, Announcement×3, Notification×2, OpsController | ✅ 完成（98 写端点，P2×2+P3×9 → MA-115~125；注：Ops 大杂烩已按域抽出，现存 OpsController 仅 2 端点） |
 
 > 注意：批次表覆盖 95 个 Controller（PLAN 旧写 85 为过期数字）。OpsController 体量大，批 5 如超载可拆 5a/5b。
 
@@ -54,3 +54,19 @@
 - **P3×13**（MA-102~114）：调拨取消零审计、月结处置/效期建任务无锁双挂、PUT /inventory 零校验、PO review 注解死分支、调拨收货未知 lineId 静默全额入库、SlotTemplate 绕开门柜守卫、线路缺必填 500/幽灵线长、无主仓闸两旁路、工单列宽三级链断裂、反馈查看权限可硬删、retry 幂等 marker 错位、批量指派 "null"、@Size 家族补点。
 - **判「不是缺陷」定性**：moveBetweenBins 不写流水（D28-A4 刻意）；cleanupStaleOutbounds 无外层事务（P1-4 刻意）；createTaskFromSuggestion 不防重（注释在位）；月结盘盈自动 SURPLUS；LineCommissionJob javadoc「只记台账」已过时随 MA-100 一并修；外部导入权限沿用仓库域（铁律 57）；CommercialFlow 演示闸双保险；retry 对将邑柜拦截刻意。
 - 未挣：无。
+
+## 批 5 战果（2026-11-03 凌晨，锚 `fe098186`）
+
+- **覆盖**：24 Controller（去重 23）/ 98 写端点（5a 设备/将邑/内部 84 + 5b 杂项/OpsController 14）。
+- **总体健康度**：无 P0/P1。**鉴权面全量收口**：84+14 端点零裸奔（/internal/** 全被 fleet key+CIDR 覆盖且路径一一对应、设备面 3 pattern 一机一密精确对齐、jiangyi-gateway 设备 token 链 HS256+BOUND+tokenVersion 实证在位、14/14 权限码全部可溯源）；一致性修复对 15 类高危类型显式拒绝自动修。
+- **P2×2**（均主会话亲自复核）：MA-115 OTA 发布/下架零归因（operatorId 传而不用）；MA-116 一致性修复零归因+error_message 覆写证据。两者都是「改数据/推固件级」运维动作，与 MA-091/097/102 构成「高危写零归因」家族主链。
+- **P3×9**（MA-117~125）：将邑运营写面 ~30 端点审计缺失、租赁月退参数静默吞错、凭据签发孤儿、心跳 NaN 500、internal 遗留入口绕守卫、公告自由串/零归因、fix 重放假成功、OTA 入参缺口。
+- **判「不是缺陷」定性**：heartbeat 走 fleet key（device-service 转发面刻意）；registerUnknown 自动建档（信任面内）；anomaly-events 不校验设备存在（非结算驱动）；OTA 设备侧防降级+unpublish 回落语义自洽；sonar/scan 仅 log.info（最轻档）；SmsInternal latest-code 生产 403；DemoDataInternal 四重门禁（铁律 77 端点面成立）；LineCommissionJob javadoc 漂移已随 MA-100 记录。
+- 未挣：无。
+
+## R12 全轮总结（五批收官）
+
+- **覆盖**：95 Controller / 395 写端点全量四查，产出逐端点覆盖矩阵（各批战果节）。
+- **结论**：无 P0/P1、**零裸奔写端点**——鉴权纵深防御（默认拒绝+切面+服务层二次+拦截器路径精确对齐）经全量验证成立。资金面核心链（结算/退款/分账/提现/回调）此前六轨已深审，本轮补齐了外围全部写面。
+- **发现**：58 条（MA-068~125）= **P2×7 / P3×51**。P2 家族归纳：①佣金/分成参数无界×3（MA-069/090/100，建议一次同模式收口）；②跨租户/污染写×2（MA-068 盘点凭证、MA-101 导入重灌）；③高危运维零归因×2（MA-115 OTA、MA-116 一致性修复）。P3 高频家族：审计留痕缺口（~15 端点组）、400/500 口径（~10 处）、@Size/列宽家族（~8 处）——建议修时分三个批次按家族扫。
+- **判「不是缺陷」定性记录**：~40 条分散在各批战果节（防后续会话把刻意设计改坏）。

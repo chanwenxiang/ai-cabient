@@ -155,5 +155,6 @@
 - **R12 批 2**：✅ 完成（17 Controller/45 写端点，P3×8 → MA-082~089，2026-11-03 凌晨）。
 - **R12 批 3**：✅ 完成（15 Controller/55 写端点，P2×1+P3×9 → MA-090~099，2026-11-03 凌晨）。
 - **R12 批 4**：✅ 完成（14 Controller/79 写端点，P2×2+P3×13 → MA-100~114，2026-11-03 凌晨；两条 P2 主会话已亲自复核源码）。
-- **下一枪动作**：执行**批 5（R12 收官批）**（设备/将邑/内部/通知/杂项 + 最大的 OpsController：Device, DeviceMqttCredential, DeviceHttpCredential, DeviceInternal, OpsDeviceRental, OpsDeviceEnv, AdminJiangyiController, AdminJiangyiCatalogController, JiangyiInternal, SessionInternal, VisionInternal, SmsInternal, OpsAlertInternal, DemoDataInternal, OpsDevOps, OpsOta, DataConsistency, Media, Announcement, ConsumerAnnouncement, MerchantAnnouncement, ConsumerNotification, MerchantNotification, OpsController——24 个，OpsController 大可拆 5a/5b），2 只读子代理并行；新发现从 **MA-115** 起领号（先回读 ISSUES.md 防撞号）。批 5 完成后 R12 全轮收官，按 PLAN 顺序进 R17（活栈，先验健康）。
+- **R12 批 5**：✅ 完成（23 Controller/98 写端点，P2×2+P3×9 → MA-115~125）。**R12 全轮收官**：95 Controller / 395 写端点，58 条（P2×7/P3×51），无 P0/P1，零裸奔；总结见 rounds/R12-write-surface.md 末节。
+- **下一枪动作**：进入 **R17 资金剧本运行时**（活栈轮）。先验健康：`"/c/Program Files/Docker/Docker/resources/bin/docker" ps` 容器在跑 + `curl -s http://127.0.0.1:18080/api/v2/announcements` 返回 code=0；连续两次失败记「未挣：栈不可用」——但 R13/R14/R15 也是活栈轮，若栈不可用则整夜只剩静态工作已尽，落盘后空转等待即可。栈健康则按 PLAN R17 剧本跑批 1（会员×活动×券 8 组合 × 全额/部分退 × 分账/钱包/券返还三面），沿用 R11 造数模式，通道全 mock 绝不真打款；新发现从 **MA-126** 起领号。
 - 🔴 接手修复会话在同一工作树活跃：git add 只加 docs/module-audit/ 显式路径；ISSUES.md 只追加；发现冲突立即停手落盘。

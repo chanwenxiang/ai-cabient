@@ -126,6 +126,18 @@
 | MA-113 | P3 | open | `POST /ops/admin/repair-tickets/batch-assign` | `{"assignee": null}` 经 String.valueOf 变字面量 "null" 入库；ticketIds 非数字 NumberFormatException→500（应 400） | ZCode R12批4 / 2026-11-03 | |
 | MA-114 | P3 | open | @Size 家族补点（批4b） | 外部导入 personOverride 无 @Size(列60)；维修单 title(128)/remark(512) 无 @Size——并入 MA-087/110 批次修 | ZCode R12批4 / 2026-11-03 | |
 
+| MA-115 | P2 | open | `POST /ops/admin/ota/releases` + `/{id}/unpublish` | OTA 固件发布/下架零审计零归因：operatorId 传而不用（OtaService.java:69-70 收下即弃）、表无列、连 log.info 都没有——推错固件全车队瘫痪的最高危动作出事无法回答「谁推的哪个包」；主会话复核 grep OtaService 全文 0 处留痕 | ZCode R12批5 / 2026-11-03 | rounds/R12-write-surface.md |
+| MA-116 | P2 | open | `POST /ops/admin/consistency/{recordId}/fix` | 数据一致性修复零归因 + 修复结果覆写原始不一致描述（error_message 被覆盖=「当初为什么不一致」证据被抹）；fix 链直改订单头金额/清券/触发真实退款；类内 logChange 脚手架全仓零调用（出生即死）；修错了无法追责 | ZCode R12批5 / 2026-11-03 | |
+| MA-117 | P3 | open | 将邑运营写面 ~30 端点 | 审计留痕整体缺失（Onboarding/ClassMapping/ModelSync/Gather/SkuJiangyiLink 五服务 0 appendLog；含租户级 setTenantDomain 厂商云写、识别映射对位锚改写、deleteInJiangyi 不可逆删除）；同域 JiangyiDeviceOpsService 六处范本在，借它回补 | ZCode R12批5 / 2026-11-03 | |
+| MA-118 | P3 | open | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
+| MA-119 | P3 | open | 设备 MQTT/HTTP 凭据签发 | 不校验 device_info 存在性：12 位数字手滑一位即签出孤儿活跃凭据（明文 secret 回显一次）；同场景将邑入驻有现成闸（registerForDevice 防孤儿），凭据签发漏配 | ZCode R12批5 / 2026-11-03 | |
+| MA-120 | P3 | open | `POST /internal/v1/devices/{id}/heartbeat` | 心跳环境读数零界：NaN/Infinity→BigDecimal.valueOf 抛异常→心跳 500（且在 presence 更新之后）；1e8 量级直落污染环境看板；同源 signal 0-4 静默丢、OTA pct clamp 先例在，本条漏网 | ZCode R12批5 / 2026-11-03 | |
+| MA-121 | P3 | open | JiangyiInternal 遗留入口 | /onboarding/register 缺「柜机档案存在」闸（运营面 registerForDevice 有，internal 直连底层无）；/class-mappings upsert 收自由串 status/source（"active" 小写成死行）；grep 证实无代码调用方（运维脚本入口）+fleet key 保护故 P3 | ZCode R12批5 / 2026-11-03 | |
+| MA-122 | P3 | open | `POST/PUT /ops/announcements` | 公告 create/update 裸 Map 零校验：title>256/priority 9+字符→22001 500；targetScope 拼错（"CONSUER"）静默落库发布成三端不可见公告（MA-078/084/087 家族新点位） | ZCode R12批5 / 2026-11-03 | |
+| MA-123 | P3 | open | 公告 update/publish/archive | 零操作者归因零审计（operator_id 只在 create 落库，V220 加 FK 证明留痕是既定口径）；publish 无状态机：ARCHIVED 可复活、重复发布刷新 publishAt 重排消费端 | ZCode R12批5 / 2026-11-03 | |
+| MA-124 | P3 | open | `POST /ops/admin/consistency/{id}/fix` 重放 | 无 status 闸：FIXED 记录可重放，fixInventoryMismatch 用记录快照旧库存值回写覆盖当前（脏窗口）；fixPaymentAmount 重放被 M02 幂等键吞掉却回「已退多收 X 分」假成功（refundOrder 返回值未检查，javadoc 明说必须检测） | ZCode R12批5 / 2026-11-03 | |
+| MA-125 | P3 | open | `POST /ops/admin/ota/releases` | 入参缺口：重复版本撞唯一索引 500 而非 409；channel 自由串拼错（"stabel"）=发布静默不可见；grayPercent>100 无钳制；presignTtlSeconds 无上界（可配一年有效预签名 URL）；降级推送设备侧有兜底判部分刻意 | ZCode R12批5 / 2026-11-03 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -743,3 +755,28 @@
 - MA-112 OpsExceptionController.java:111-115 marker 常量化统一英文格式（recordAction:413/resolveByAction:432 同改）
 - MA-113 RepairTicketController.java:88-101 assignee 显式 null 判断 + ticketIds try/catch 400
 - MA-114 外部导入 personOverride @Size(60) + 维修单 title/remark @Size（并入 MA-087/110 批次修）
+
+### MA-115 OTA 固件发布/下架零归因（全仓最高危运维动作）
+- 级别/状态：P2 / open
+- 端与页面：`POST /api/v2/ops/admin/ota/releases`、`POST .../{releaseId}/unpublish`
+- 源码定位：`OpsOtaController.java:33-45` → `OtaService.publishRelease:69-103`（operatorId 收下后全文未用）、`unpublishRelease:106-120`；`OtaRelease` 无 operator 字段（V9 无列）
+- 主会话复核（2026-11-03）：grep OtaService 全文 appendLog/logChange 0 命中，属实。
+- 修法方向：publish/unpublish 双端 appendLog（OTA_PUBLISH/OTA_UNPUBLISH）或补 operator_id 列；与 MA-116 一批修。
+
+### MA-116 数据一致性修复零归因 + 证据覆写
+- 级别/状态：P2 / open
+- 端与页面：`POST /api/v2/ops/admin/consistency/{recordId}/fix`（ops:consistency:fix）
+- 源码定位：`DataConsistencyService.java:1440-1467`（fixInconsistencyDetailed 无 operatorId 参数）、`:1453-1458`（error_message 覆写）、`:1604-1618`（tryAlignHeaderToPayable 直改订单头）、`:1743-1761`（fixPaymentAmount 触发真实退款）；`:176 logChange` 全仓零调用
+- 主会话复核（2026-11-03）：grep 仅剩 logChange 定义 1 处（零调用点），属实。
+- 修法方向：data_consistency_record 补 fixed_by + fix 链传 operatorId + appendLog；error_message 改追加不改写（保留原始不一致描述）。
+
+### MA-117 ~ MA-125（P3，明细从简，锚 rounds/R12-write-surface.md 批 5）
+- MA-117 JiangyiOnboardingService.java:62-369、JiangyiClassMappingService.java:34-45、JiangyiModelSyncService、JiangyiGatherService.java:142-328、SkuJiangyiLinkService.java:256-430 五服务零 appendLog；优先 tenant-domain/class-mapping/deleteInJiangyi/shelf 四类（范本 JiangyiDeviceOpsService.java:68-206）
+- MA-118 OpsDeviceRentalController.java:49-57,119-132 longOrNull/intOrNull catch 后静默 null（改 DTO+@Valid 或至少 warn/400）
+- MA-119 DeviceMqttCredentialService.java:54-80 + DeviceHttpCredentialService.java:52-79 签发前补 deviceMapper.selectById（404）
+- MA-120 DeviceInternalController.java:73-87 → DeviceEnvService.java:39-52,90-99 各指标物理界（湿度 0-100 等），越界照 updateSignal 口径静默丢
+- MA-121 JiangyiInternalController.java:407-422 register 补档案存在闸；:343-362 status/source 白名单归一
+- MA-122 AnnouncementController.java:41-60 Map 改 DTO + targetScope 白名单(ALL/CONSUMER/MERCHANT) + priority 白名单 + @Size
+- MA-123 AnnouncementService.java:144-199 三端点补 operatorId + appendLog；publish/archive 状态机或钉注释
+- MA-124 DataConsistencyService.java:1445-1450 doFix 入口拒绝非 FAIL 记录；:1743-1761 fixPaymentAmount 检查 refundOrder 返回值
+- MA-125 OtaService.java:71-92 发布前同渠道版本比较拒降级/同版 409、channel 白名单、grayPercent 1..100、presignTtl 上限
