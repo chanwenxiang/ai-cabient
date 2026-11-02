@@ -86,3 +86,10 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 - 后台路径由 `clients/admin-vue/src/api/endpoints.ts:22`（`ops = /api/v2/ops/admin`）+ `:89` 推出。
 - **一次误判已排除**：先用商户账号（`15156276077`，库里角色＝`merchant/商户管理员`）读后台得 403，一度疑为「超管缺 `ops:order:list`」；查库确认该账号根本不是运营角色 ⇒ 403 属正确鉴权，**不领号**。换运营账号（`13900000001`）即 200。
 - 结论：MA-029 新口径（gross/member/activity）在三端读面一致，无口径分叉；退款后 `total=0 / refunded=243` 也三端一致。
+
+## R11 段 2 · B1 第 2 个仓（2026-11-02 部分完成 → 卡 MA-037）
+
+- 已造 `WH-DEMO-002 演示二号仓`（ACTIVE），`warehouse` 现为 2 条。
+- 调拨创建 `POST /api/v2/ops/admin/warehouse/transfers` 返回 **500**（traceId `f46acef186cc`）：DB 检查约束 `chk_wh_transfer_loss = (received_qty+loss_qty)=quantity` 与创建期写入 `0/0` 冲突 ⇒ **正常调拨必炸**，领 **MA-037（P1）**。
+- 侧证：失败后库存前后完全一致（`sku 100013` 合计 46 未变）⇒「失败不改库存」这条是对的。
+- 待 MA-037 修完再补：调拨 ship/receive 后两仓数量总和不变、备货单汇总按全柜在架 SKU。

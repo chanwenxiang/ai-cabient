@@ -43,6 +43,7 @@
 | MA-009 | P3 | fixed | admin `/devices/:id`（关联单据 tab） | 两张表各只取最近 8 条，段级既无总数也无「查看全部」入口（总数已取回却只用于空态判断） | Qoder R3 / 2026-10-31 | 见明细 |
 | MA-008 | P2 | fixed | admin `/reports` vs `/dashboard`（同名 KPI） | 「离线设备」两处不同数（报表 5 / 工作台 3）且报表侧不标口径：报表=全量含未投放/已退役，工作台=仅 DEPLOYED（刻意设计） | Qoder R3 / 2026-10-31 | 线索 #2 转正 |
 | MA-007 | P1 | fixed | admin `/sessions`（类型筛选） | 「类型」筛选是**客户端只对当前页生效**：已完成+消费 显 13 条，真值 17 条，且 `total` 被换成页内过滤后条数 ⇒ 结果不全、分页总数不可信、导出同源 | Qoder R2 / 2026-10-31 | 见明细；lessons #205 |
+| MA-037 | P1 | **open（R11 B1 现场发现）** | admin `/warehouse-transfers` 新建调拨 | 跨仓调拨创建**必然 500**：`warehouse_transfer_line` 的检查约束 `chk_wh_transfer_loss = (received_qty + loss_qty) = quantity` 与创建期插入语义冲突——创建时服务写 `received_qty=0, loss_qty=0` 而 `quantity>0` ⇒ 约束立即违反；接口把 DB 异常直接冒成 500「系统繁忙」而非 4xx | Qoder R11 / 2026-11-02 | 证据：traceId `f46acef186cc`，`Failing row contains (5, 2, 100013, '', null, 1, 0, 0, null, null)`；库存前后一致（失败不改库存这点是对的）。修法二选一：①创建只插 `quantity`、把 loss 约束改成 `received_qty+loss_qty <= quantity` 且仅 `RECEIVED` 状态要求相等；②创建即写 `received_qty=quantity, loss_qty=0` 再在 receive 时回填真实值。需产品定 loss 口径 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
