@@ -484,6 +484,13 @@ public class OpsAlertDispatcher {
                     payloadFor(channel, type, title, message, text, Map.of()));
             probes.add(new ChannelProbe(channel.name(), delivery.delivered(), delivery.detail()));
         }
+        // 邮件渠道没有 URL，不在 CHANNELS 里；测试发送必须也覆盖它，否则「已配置邮箱却返回空」会被误读成没配上。
+        if ("true".equalsIgnoreCase(systemConfigService.getValue(
+                SystemConfigService.OPS_ALERT_EMAIL_ENABLED, "false"))) {
+            boolean delivered = tryEmail(type, title, message, Map.of());
+            probes.add(new ChannelProbe("EMAIL", delivered,
+                    delivered ? null : "SMTP 投递失败（端口仅支持 465 SSL；详见服务日志）"));
+        }
         return probes;
     }
 

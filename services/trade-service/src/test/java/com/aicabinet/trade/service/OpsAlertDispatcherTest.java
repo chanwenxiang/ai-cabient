@@ -53,7 +53,7 @@ class OpsAlertDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), new SmtpAlertMailer(), org.mockito.Mockito.mock(com.aicabinet.trade.sms.AliyunSmsSender.class)));
+        dispatcher = spy(new OpsAlertDispatcher(systemConfigService, RestClient.builder(), org.mockito.Mockito.mock(SmtpAlertMailer.class), org.mockito.Mockito.mock(com.aicabinet.trade.sms.AliyunSmsSender.class)));
         doReturn(ACCEPTED_BODY).when(dispatcher).postJson(anyString(), any());
     }
 
@@ -296,6 +296,30 @@ class OpsAlertDispatcherTest {
     @Test
     void probeChannels_shouldSkipUnconfiguredChannels() {
         assertTrue(dispatcher.probeChannels("ALERT_CHANNEL_TEST", "标题", "正文").isEmpty());
+    }
+
+    @Test
+    void probeChannels_shouldIncludeEmailChannelWhenEnabled() {
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_ENABLED, "false"))
+                .thenReturn("true");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_SMTP_HOST, ""))
+                .thenReturn("smtp.qiye.aliyun.com");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_SMTP_PORT, "465"))
+                .thenReturn("465");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_USERNAME, ""))
+                .thenReturn("ops@example.com");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_PASSWORD, ""))
+                .thenReturn("secret");
+        when(systemConfigService.getValue(SystemConfigService.OPS_ALERT_EMAIL_TO, ""))
+                .thenReturn("ops@example.com");
+
+        List<OpsAlertDispatcher.ChannelProbe> probes =
+                dispatcher.probeChannels("ALERT_CHANNEL_TEST", "标题", "正文");
+
+        assertEquals(1, probes.size());
+        assertEquals("EMAIL", probes.get(0).channel());
+        assertTrue(probes.get(0).delivered());
+        assertNull(probes.get(0).detail());
     }
 
     /** 试发遇到异常也要返回值：否则页面只看到 500，拿不到「是哪个渠道、为什么」。 */
