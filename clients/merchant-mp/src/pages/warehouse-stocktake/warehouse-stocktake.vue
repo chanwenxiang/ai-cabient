@@ -11,7 +11,7 @@
         </view>
 
         <app-underline-tabs
-          layout="auto"
+          layout="scroll"
           :items="statusTabs"
           :value="statusTab"
           @change="onStatusTab"

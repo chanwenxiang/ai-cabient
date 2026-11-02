@@ -13,7 +13,7 @@
       共 8 处引用），只删按钮不删计数。
     -->
     <app-nav-bar title="消息中心" />
-    <app-underline-tabs layout="auto" :items="msgTabItems" :value="filter" @change="onMsgTab" />
+    <app-underline-tabs layout="scroll" :items="msgTabItems" :value="filter" @change="onMsgTab" />
     <view class="page-body">
       <view v-if="showSubscribeBanner" class="subscribe-banner">
         <view class="subscribe-copy">

@@ -2,7 +2,7 @@
   <view class="page-root">
     <app-nav-bar title="消息中心" home-url="/pages/home/home" />
     <app-underline-tabs
-      layout="auto"
+      layout="scroll"
       :items="filterTabs"
       :value="filter"
       @change="onFilterChange"
