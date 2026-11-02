@@ -2,7 +2,7 @@
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
     <app-underline-tabs
-      layout="auto"
+      layout="scroll"
       :items="statusTabItems"
       :value="filter"
       @change="onStatusTab"
