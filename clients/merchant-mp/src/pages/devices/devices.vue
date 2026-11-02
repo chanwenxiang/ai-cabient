@@ -615,11 +615,12 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   padding: 16rpx var(--page-gutter, 24rpx) 12rpx;
 }
 .search {
-  height: 72rpx;
+  /* 对齐 ui-search：高 88rpx、20rpx 圆角、浅灰底（原来 72rpx/8rpx/白底，显得单薄） */
+  height: 88rpx;
   box-sizing: border-box;
-  background: #fff;
+  background: #f1f5f9;
   border: none;
-  border-radius: 8rpx;
+  border-radius: 20rpx;
   padding: 0 28rpx;
   font-size: var(--font-size-body);
 }
@@ -753,5 +754,22 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .stat-chip-warn {
   color: var(--warning, #b45309);
   background: var(--warning-soft, #fff7ed);
+}
+
+/* 对齐 ui-chip 度量：筛选行统一成胶囊（原来纯文字切换，选中态只靠颜色） */
+.aux-link {
+  display: inline-flex;
+  align-items: center;
+  height: 60rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  font-size: 26rpx;
+  color: var(--color-text-secondary, #475569);
+}
+.aux-link.active {
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
+  font-weight: 600;
 }
 </style>
