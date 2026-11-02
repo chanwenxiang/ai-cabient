@@ -237,7 +237,9 @@ public class BalanceLedgerService {
     private BalanceTransactionDto toDto(PaymentOperation operation) {
         return new BalanceTransactionDto(operation.getOperationId(), operation.getUserId(),
                 operation.getOperationType(), operation.getOrderId(), resolveSignedAmount(operation),
-                value(operation.getBalanceBeforeCents()), value(operation.getBalanceAfterCents()),
+                // MA-025 收尾：余额快照照实传 null（非余额通道本来就没有快照），
+                // 不要用 0 冒充——前端靠 null 决定是否渲染「余额 X」那一行。
+                operation.getBalanceBeforeCents(), operation.getBalanceAfterCents(),
                 operation.getReason(), operation.getCreatedAt());
     }
 
