@@ -138,6 +138,8 @@
 | MA-124 | P3 | open | `POST /ops/admin/consistency/{id}/fix` 重放 | 无 status 闸：FIXED 记录可重放，fixInventoryMismatch 用记录快照旧库存值回写覆盖当前（脏窗口）；fixPaymentAmount 重放被 M02 幂等键吞掉却回「已退多收 X 分」假成功（refundOrder 返回值未检查，javadoc 明说必须检测） | ZCode R12批5 / 2026-11-03 | |
 | MA-125 | P3 | open | `POST /ops/admin/ota/releases` | 入参缺口：重复版本撞唯一索引 500 而非 409；channel 自由串拼错（"stabel"）=发布静默不可见；grayPercent>100 无钳制；presignTtlSeconds 无上界（可配一年有效预签名 URL）；降级推送设备侧有兜底判部分刻意 | ZCode R12批5 / 2026-11-03 | |
 
+| MA-126 | P3 | open | 提现等全仓 `@Positive` 字段的 400 文案 | R17 活栈实测：amountCents=0/-500 都回「amountCents不能为空」——根因 `@Positive` 默认消息 "must be greater than 0"（严格大于）不匹配 ApiMessages 的 RANGE_MIN_PATTERN（只匹配 "greater than or equal to" 形式）落兜底误报；2026-10-23 生产实证修过 @Min/@Max 同款（代码注释在位），漏了 @Positive 形式，误导性完全相同 | ZCode R17批1 / 2026-11-03 | rounds/R17-runtime-flows.md |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -780,3 +782,10 @@
 - MA-123 AnnouncementService.java:144-199 三端点补 operatorId + appendLog；publish/archive 状态机或钉注释
 - MA-124 DataConsistencyService.java:1445-1450 doFix 入口拒绝非 FAIL 记录；:1743-1761 fixPaymentAmount 检查 refundOrder 返回值
 - MA-125 OtaService.java:71-92 发布前同渠道版本比较拒降级/同版 409、channel 白名单、grayPercent 1..100、presignTtl 上限
+
+### MA-126 @Positive 校验失败误报「不能为空」（R17 活栈实测发现）
+- 级别/状态：P3 / open
+- 端与页面：`POST /api/v2/ops/admin/merchant-wallets/{id}/withdraw`（实测）——全仓所有用 @Positive 的 DTO 字段同面
+- 源码定位：`ApiMessages.java:245-268`（formatValidationFieldError：非 CJK 消息走 RANGE_MIN_PATTERN → @Positive 的 "must be greater than 0" 无 "or equal to" 不匹配 → 落末尾兜底 label+"不能为空"）；对照 :259-261 的 2026-10-23 生产实证注释（修的就是 @Min/@Max 同款误导）
+- 复现：活栈实测 amountCents=0 与 -500 均回「amountCents不能为空」（应「必须为正数」类文案）；`WithdrawApplyRequest` 用 @NotNull @Positive。
+- 修法方向：RANGE_MIN_PATTERN 扩形式（"must be greater than 0" → 「必须为正数」），或改用 @Min(1)/@Positive(message=中文)；补 ApiMessagesTest 钉测。
