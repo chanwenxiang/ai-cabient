@@ -15,7 +15,7 @@
 | MA-006 | P2 | fixed | 三端共享 `displayBizNo`（admin `/orders` 首发） | 列表显示的单号是剥出来的假短号（`E2E-TAIL-0001`→「20001」），按显示值搜索 0 结果，且同行「复制单号」给的是真值 | Qoder R2 / 2026-10-31 | 见明细 |
 | MA-015 | P2 | fixed | admin `/consistency`（巡检规则） | 巡检把「下单时无批次」的历史订单判成 MISSING_SALE（规则只看设备现在有无批次账本，不看订单行是否带批次）⇒ 本轮 5 条 FAIL 里 2 条是误报 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-019 | P2 | fixed（档 A） | admin `/menus` 菜单管理 | 提示语称侧栏叶子与「菜单 C」一一对应，实测 19 页共用他页权限码（`ops:warehouse:list` 一行管 8 页），停用一行会连带隐藏全部共用页且树上毫无提示；另有 `/recognition-demo` 幽灵 C 行（无路由无页面、3 角色持有） | Qoder R8 / 2026-11-01 | rounds/R08-system.md |
-| MA-020 | P1 | **待拍板**（未动码） | admin `/login` | 「记住账号密码」默认勾选，登录口令以 base64（可逆）常驻 `localStorage.admin_password`，只有取消勾选才清；资金后台凭据在浏览器侧一步可还原 | Qoder R8 / 2026-11-01 | 推荐档 B：应用不再存口令，交浏览器密码管理器 |
+| MA-020 | P1 | fixed（档 B，`b2da3814`） | admin `/login` | 「记住账号密码」默认勾选，登录口令以 base64（可逆）常驻 `localStorage.admin_password`，只有取消勾选才清；资金后台凭据在浏览器侧一步可还原 | Qoder R8 / 2026-11-01 | 档 B 已落地：口令不再落地、历史明文三处无条件清除；`auth-storage.test.ts` 3/0 + 活栈登录实测 `admin_password` 不存在；另见 R09 轮报告「值守期落地记录」 |
 | MA-021 | P2 | fixed（V421） | admin `/menus` + 角色权限树 | 4 个「前后端零引用」页面权限码仍 ACTIVE（H51 只改了前端 perm），菜单管理显示成启用页、角色树勾了不生效＝幽灵菜单 | Qoder R8 / 2026-11-01 | 沿用 V386 RETIRED 口径；`ops:operlog`/`ops:pricing:view`/`ops:nav:*` 判据不同刻意保留 |
 | MA-022 | P3 | fixed | admin `/devops` + `/observability` | dev（vite）端内嵌看板恒 404：在线探针由后端发起说「在线」，iframe 走同源 `/devops/grafana` 而 vite 只代理 `/api` ⇒ 「卡片在线、嵌入区空白」自相矛盾 | Qoder R8 / 2026-11-01 | 生产形态（网关挂 /admin）已实证 200，非产品缺陷 |
 | MA-023 | P2 | 展示侧 fixed（`a96b57c8`）/ 记账侧随 MA-029 闭合 | consumer-mp `pages/index` 商品卡 + `cabinet_order` 优惠拆解 | 会员 98 折在两层都不现身：商品卡下发目录价 350、活动价按 343 再减 100 ⇒「原价 ¥3.50 − 1.00 ≠ 实付 ¥2.43」；且 `member_discount_cents` 全仓无写入者恒 0，而巡检对账式正在消费该列 | Qoder R9 / 2026-11-01 | 原价列 V424 已落；巡检折后式已拆雷（`813bb20e`）；入账与检测式于 2026-11-02 随 MA-029 落齐 |
@@ -367,9 +367,11 @@
 - **未复现原因**：dev 库设备行会随环境变动，两处取数函数体未逐行比对，按入账前提（实跑复现才入账）暂不领号。
 - **下一步**：读两处取数函数体 + `device_info` 行数/lifecycle 分布，判定是缺陷还是口径差；若为口径差，按「汇总行=全集、子集列表」惯例加口径标注而非对齐（参考记忆规则：negation/口径类先查权威模型）。
 
-### MA-020 后台把可逆还原的登录口令常驻 localStorage，且「记住」默认开启（P1，待拍板）
+### MA-020 后台把可逆还原的登录口令常驻 localStorage，且「记住」默认开启（P1，档 B 已修）
 
-- 级别/状态：P1 / **待拍板**（2026-11-01，Qoder R8 批 2；值守期间按「实在需要我」处理，未动码）
+- 级别/状态：P1 / **fixed**（2026-11-02 用户授权「按你的推荐做」后落档 B；发现锚 `911ebf4b` → 修复锚 `b2da3814`）
+- 修复记录：`LoginView` 不再 `btoa` 写 `admin_password`、口令框恒空、勾选项改名「记住账号」；`api/auth-storage.ts` 登出一律删 `admin_password`/`admin_remember_password`；登录页 `onMounted` 也删一次（覆盖「从不登出」的用户）。
+  证据：`clients/admin-vue/src/api/auth-storage.test.ts` 3 例（勾选着也删 / 手机号照旧保留 / 取消勾选照旧清手机号）全绿；admin 产物已由 CI 保真重建提交（`d913c59f`→`b2da3814` 之后的产物批）；活栈复验见 R09 轮报告「值守期落地记录」。
 - 端与页面：admin `/login`（+ 登出清态 `api/auth-storage.ts`）
 - 发现人/日期/HEAD：Qoder R8 / 2026-11-01 / 发现锚 `911ebf4b`
 - 复现步骤：

@@ -117,6 +117,31 @@
 - 截止本会话收口时，批 2/3/4 三个 run 仍在 in_progress（未看到结论），**下一条接手第一件事**：
   `gh run list --limit 5` 看这三个的结论，若红仍集中在上面两个抖动名，记录并重跑；若是新面红，按本文件 §4 归因。
 
+## 5.2 剩余三项执行清单（每项：谁做 → 做什么 → 判据）
+
+### A. MA-029 活栈真单腿（唯一「代码已绿、活栈未闭环」的一条）
+
+1. **谁做**：值守会话。**做什么**：修 `.tmp/mp-buy-cb082-2.cjs` 的收尾——它把演示柜 `jiangyi_device.status` 翻成 `BOUND` 后靠 `finally` 恢复 `RETIRED`，中途 `fetch failed` 就没跑到（已被 `check:jiangyi-ui-copy-and-fixtures` 抓到一次）。改成「先登记、后翻转、`try/finally` 必恢复」，并在脚本开头先断言当前是 `RETIRED`。
+2. **做什么**：重跑脚本跑完一单（模拟器 `AICABINET_SIM_SHOPPING_MS=20000`，门开→端侧识别→关门结算）。若 `fetch failed` 复现，先 `docker ps` 确认 trade 容器与 `jiangyi-gateway` 都在，再查 `docker logs ai-cabinet-trade-service-1 --since 2m | grep -i error`，别直接改业务码。
+3. **判据**（三项同时成立才算挣到）：
+   - 新订单行：`select gross_amount_cents, total_amount_cents, member_discount_cents, activity_discount_cents from cabinet_order order by created_at desc limit 1` ⇒ `gross − member − activity − coupon = total` 且 `member>0`（银卡 2%：350→343 应记 7）；
+   - 消费端订单详情渲染「商品合计 / 会员优惠 / 活动优惠 / 券 / 实付」五档且能减平；
+   - 脚本退出时 `select status from jiangyi_device where device_id='500909625160'` = **RETIRED**，随后 `node scripts/check-jiangyi-ui-copy-and-fixtures.mjs` 退出 0。
+
+### B. R11 段 2（四条前置，逐条可独立收口）
+
+| # | 谁做 | 做什么 | 判据 |
+|---|------|--------|------|
+| B1 第 2 个仓 | 值守会话 | 造第 2 个 `warehouse`（1 仓→2 仓），走一次跨仓调拨与「生成备货单」 | 调拨后两仓 `quantity` 之和不变；备货单汇总行按全柜在架 SKU 算（不是只看缺口行） |
+| B2 争议退款 + 月结提现 | 值守会话 | 一笔争议单走 CONFIRM 结案 → 退款；再跑月结提现 | `refunded_cents` 与支付流水对平；提现申请在 `withdraw` 侧状态机连贯（不出现 PAYING 重入）；金额只用 dev mock |
+| B3 公告造数 | 值守会话 | 新建 1 条公告（`announcement` 表当前 0 行），再走 consumer `announcements` 列表 + `announcements/detail` | 列表条数=1；详情页正常渲染且**不再出现「请检查网络后重试」**（MA-035 判据） |
+| B4 活栈复走 | 值守会话 | 全部三端在同一 HEAD 上重读会员单（admin 订单列表/商户端/消费端） | 三处「会员优惠」行数值一致，且与 `cabinet_order` 账面同值 |
+
+### C. R10 遗留两条
+
+1. **`check:perm-closure` 门禁落地**：把 `.tmp/r10-perm-closure.mjs` 搬进 `scripts/` → A 集改成「`@RequiresPermissions` 注解 **+** `hasPerm`/`requirePermission` 字符串用法」双扫（反例护栏：`ops:audit:recent` 是非注解用法，必须被认作「有引用」）→ 加白名单文件（`ops:nav:*`、realm 根、V421/V427 已 RETIRED 的）→ 负向自测（造一个假幽灵码必须红）→ 进 `run-audit-gates` 聚合链。**判据**：真库上跑 `A∖B`、`C∩B非ACTIVE`、`C∖B` 三方向全 0；故意加一条幽灵码时门禁退出 1。
+2. **8 处 admin `toLocaleString*`**：逐处判「是否展示金额」——**是** ⇒ 改走 `@/utils/display` 的 cents→元 helper（金额禁止 `toLocaleString` 直接格式化分）；**否**（纯计数/日期）⇒ 原地加一行注释说明用途。**判据**：`grep -rn "toLocaleString" clients/admin-vue/src` 每处都有归属（改走 helper 或注释），且 `pnpm -C clients/admin-vue test` 绿。
+
 ## 6. 全部完成的判据
 
 §5 表内所有行都是 ✅ 或明确标注「需人工 + 原因」，且 `docs/module-audit/PLAN.md` 的 R9/R10/R11 三行
