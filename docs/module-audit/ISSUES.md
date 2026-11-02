@@ -90,6 +90,15 @@
 | MA-080 | P3 | open | `PUT /ops/admin/org/nodes` | 组织节点 upsert 只拦「上级是自己」，不查父级存在性也不查祖先环（parent_id 无 FK，对照 DepartmentService 有完整防护）⇒ 环中节点双双缺席 roots，整棵子树从 /org/tree 静默消失 | ZCode R12批1 / 2026-11-02 | |
 | MA-081 | P3 | open | `POST /account/bind-openid`（mock-only） | 重复绑定他人已占 openId 撞 uk_user_wx_open_id 唯一索引→500 而非 409；生产 403 门禁在，仅 mock 环境报错语义问题 | ZCode R12批1 / 2026-11-02 | |
 
+| MA-082 | P3 | open | 营销域运营写面（券模板/发券/活动上下架/展示位/素材 5 服务 15 端点） | 审计留痕整体缺失（零处 appendLog），同域兄弟 AdCampaignService 四处全有 AD_CAMPAIGN_* 审计 ⇒ 券面值改动/活动上下架/素材删除在 /audit 页不可查 | ZCode R12批2 / 2026-11-03 | rounds/R12-write-surface.md |
+| MA-083 | P3 | open | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
+| MA-084 | P3 | open | `PUT /ops/admin/ad/assets/{id}` | 素材 status 自由串直落（MA-078 同构）：垃圾值静默从全部 ACTIVE 过滤面消失、超 16 字符 22001→500 | ZCode R12批2 / 2026-11-03 | |
+| MA-085 | P3 | open | `POST/PUT /ops/promotions` | activityType 无白名单（垃圾类型经 launch 直接 ACTIVE 进消费端可见列表，非 SKU 类型跳过全部校验）；budgetCents 负数直落使预算守卫 fail-open（`budget>0 &&` 守卫），与 user_limit「0/负=不限」钉测口径不一致 | ZCode R12批2 / 2026-11-03 | |
+| MA-086 | P3 | open | `POST/PUT /ops/admin/ad/campaigns` | 投放计划时间窗倒挂不拦（startAt>endAt 静默接受→计划永不生效、轮播静默空转）；同域 Promotion 面有拦，兄弟端点不一致 | ZCode R12批2 / 2026-11-03 | |
+| MA-087 | P3 | open | 营销域字符串 DTO | couponName/campaignName/mediaTitle/idempotencyKey 缺 @Size，超长撞列宽 22001→500（本仓已有 FileDisputeRequest @Size(256) 等成熟先例，属漏网） | ZCode R12批2 / 2026-11-03 | |
+| MA-088 | P3 | open | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
+| MA-089 | P3 | open | `POST /api/v2/account/balance-refunds` | DTO @Max(500_000) 硬编码与服务端可配置上限 BALANCE_REFUND_MAX_CENTS 口径不一致——配置只能收紧不能放宽；对照充值 DTO 无 @Max 全由 DC-6 裁决，两 DTO 风格矛盾 | ZCode R12批2 / 2026-11-03 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -643,3 +652,18 @@
 - MA-079 字典类型硬删无内置类型门槛，联动 resolveNodeType fail-open（SysDictService:251-265,76-80）
 - MA-080 组织节点 upsert 缺父级存在性/祖先环校验，环致子树从 tree() 静默消失（OrgService:114-149；对照 DepartmentService:100-114,263-275）
 - MA-081 bind-openid 重复绑定 500 而非 409（AccountController:78-87、AccountService:222-229、V301 唯一索引；mock-only）
+
+### MA-082 营销域运营写面审计留痕整体缺失（15 端点合并登记）
+- 级别/状态：P3 / open
+- 位置：CouponService.java:77-214（模板/发券）、PromotionService.java:42-149（活动/上下架）、PromotionPlacementService.java:70-84（展示位）、MediaAssetService.java:91-182（素材）
+- 证据：五服务零 appendLog（grep 证实）；同域 AdCampaignService.java:156-200 四处全有 AD_CAMPAIGN_*；争议域 DisputeService 三处全有。判「漏网」依据：同包兄弟服务都是后加功能统一落审计，非「营销域约定不审计」。
+- 修法方向：照 AdCampaignService 模式补 COUPON_DEF_UPSERT/COUPON_ISSUE/PROMOTION_LAUNCH/STOP/PLACEMENT_REPLACE/MEDIA_ASSET_DELETE 动作码。
+
+### MA-083 ~ MA-089（P3，明细从简，锚 rounds/R12-write-surface.md 批 2）
+- MA-083 BatchIssueCouponRequest/IssueCouponRequest 零校验注解（common-core dto；修法 @NotNull + @Size(max=1000)）
+- MA-084 MediaAssetService.java:148-150 status trim+toUpperCase 直落（白名单 ACTIVE/INACTIVE + @Size(16)）
+- MA-085 PromotionService.java:44-56 activityType/budgetCents 原样落库；:162-166 `budget>0 &&` 负数 fail-open（白名单归一 + @Min(0) + 钉「0=不限」口径）
+- MA-086 AdCampaignService.java:136-137,149-150 无 endAt.isAfter(startAt) 校验（对照 PromotionService:112-115）
+- MA-087 CreateCouponRequest/UpdateCouponRequest/UpsertAdCampaignRequest/UpsertMediaAssetRequest/CreateSessionRequest.idempotencyKey 补 @Size 对齐列宽
+- MA-088 PaymentService.java:387,451 refund_id 空白时应告警 return 或键改 orderId+refundId（:451 现态键塌缩）
+- MA-089 ApplyBalanceRefundRequest.java:8 @Max(500_000) 与 BalanceRefundService.java:133 可配置上限二选一对齐
