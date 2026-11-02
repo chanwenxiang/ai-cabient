@@ -183,3 +183,23 @@
   margin-top: 8rpx;
   width: 100%;
 }
+
+/* 对齐 ui-chip 度量：维度切换（商品/毛利）此前是纯文字，没有选中态可辨识 */
+.aux-link {
+  display: inline-flex;
+  align-items: center;
+  height: 60rpx;
+  padding: 0 24rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  font-size: 26rpx;
+  color: var(--color-text-secondary, #475569);
+}
+.aux-link.active {
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
+  font-weight: 600;
+}
+.report-dims {
+  gap: 12rpx;
+}
