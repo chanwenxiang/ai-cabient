@@ -87,4 +87,21 @@ class GlobalExceptionHandlerTest {
         assertNotNull(body);
         assertEquals("无权查看该商户钱包", body.message());
     }
+
+    @Test
+    void handleDataIntegrityViolation_mapsTo409_andHidesSqlDetail() {
+        MDC.put(RequestCorrelation.TRACE_ID, "fedcba9876543210trace");
+        var ex = new org.springframework.dao.DataIntegrityViolationException(
+                "### Error updating database. Cause: PSQLException",
+                new java.sql.SQLException("violates check constraint \"chk_wh_transfer_loss\""));
+
+        var res = handler.handleDataIntegrityViolation(ex);
+
+        assertEquals(HttpStatus.CONFLICT.value(), res.getStatusCode().value());
+        assertEquals("fedcba9876543210trace", res.getHeaders().getFirst(GlobalExceptionHandler.TRACE_HEADER));
+        var body = res.getBody();
+        assertNotNull(body);
+        assertTrue(body.message().startsWith("数据校验未通过"), "客户端只拿可读话术");
+        assertTrue(!body.message().contains("chk_wh_transfer_loss"), "约束名不得回落客户端");
+    }
 }

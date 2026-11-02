@@ -34,6 +34,21 @@ public class GlobalExceptionHandler {
             "### the error may", "### sql:", "### cause:", "sql state [", "nested exception",
             "org.springframework", "java.sql", "mapper.java", "cause: ", "stacktrace");
 
+    /**
+     * MA-037/MA-038 教训：DB 约束/完整性冲突此前直接冒成 **500「系统繁忙」**，
+     * 两个真实现场是「调拨行违反 loss 约束」和「收货时 expiry_date 非空」。
+     * 这类错误是**请求数据不合法**，不是服务端故障，统一映射 409 + 可读话术，
+     * 原始 SQL/约束名只进日志（不回落客户端），并保留 trace 便于定位。
+     */
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        String root = ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : ex.getMessage();
+        log.error("data integrity violation {} {}", RequestCorrelation.summary(), root, ex);
+        return withTrace(ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(HttpStatus.CONFLICT.value(), "数据校验未通过：请检查必填项与唯一性后重试")));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatus(ResponseStatusException ex) {
         String raw = ex.getReason() != null ? ex.getReason() : ex.getStatusCode().toString();
