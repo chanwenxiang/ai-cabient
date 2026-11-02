@@ -11,8 +11,10 @@
       mode="aspectFit"
       aria-hidden="true"
     />
+    <!-- 2026-11-02：kind 缺省时 glyph 类没有实际图形，只渲染出一个空心方框（像图片没加载）。
+         无具体 kind 就不画图标，只留文案。 -->
     <view
-      v-else-if="useGlyph"
+      v-else-if="useGlyph && (kind || 'default') !== 'default'"
       class="empty-icon app-icon app-icon--circle empty-glyph"
       :class="'empty-glyph--' + (kind || 'default')"
       aria-hidden="true"

@@ -611,12 +611,13 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
 }
 .search-input {
-  height: 72rpx;
+  /* 对齐 ui-search：88rpx / 20rpx / #f1f5f9（原 72/8/#f7f7f7） */
+  height: 88rpx;
   box-sizing: border-box;
-  background: #f7f7f7;
+  background: #f1f5f9;
   border: none;
-  border-radius: 8rpx;
-  padding: 0 26rpx;
+  border-radius: 20rpx;
+  padding: 0 28rpx;
   font-size: var(--font-size-body);
 }
 .filter-aux {
