@@ -110,6 +110,22 @@
 | MA-098 | P3 | open | 增长域运营写（MemberLevelAdmin/PointsRedeem/UserRecall/Notification/SkuDelistReview 6 服务 9 端点） | 审计整体缺失（grep 零 appendLog），同批 OpsRisk/DeviceOps/AdCampaign/MemberFinance 全有——MA-082 同构；等级规则叠加价格+积分双资金乘数 | ZCode R12批3 / 2026-11-03 | |
 | MA-099 | P3 | open | `POST /ops/admin/growth/user-recall` | 一键召回无顺序重放幂等：锁只防并发不防重放，双击=同批用户每人多发一张券+通知（maxIssueCount 只限总量）；对照订单积分有 existsByMemberAndSource 唯一索引幂等 | ZCode R12批3 / 2026-11-03 | |
 
+| MA-100 | P2 | open | `PUT /ops/admin/line-routes/{routeId}/members` | 线路成员佣金参数（rateBps/perUnitCents/basis）无界零校验直落且零审计，LineCommissionJob 按 bps 计佣直接 creditIfAbsent 入补货员可提现钱包（bps=1000000=100倍GMV）；同族第三例（MA-069 线长佣金/MA-090 机器账单分成），G2-13 已给 LineManager 落了 before/after 审计先例，本端点漏网 | ZCode R12批4 / 2026-11-03 | rounds/R12-write-surface.md |
+| MA-101 | P2 | open | `POST /ops/admin/external-import/batches/{id}/commit` | 外部导入同渠道同账期可多批次重复 commit（只挡同批次重提交，无 channel+period 闸，V347 无部分唯一索引），月结 flowBySku 无条件 sum ⇒ 盘点/外调口径翻倍；COMMITTED 批次不可删，错数据无补救只能三倍重导 | ZCode R12批4 / 2026-11-03 | |
+| MA-102 | P3 | open | `POST /ops/admin/warehouse/transfers/{id}/cancel` | 调拨取消零审计零操作者（同单 create/ship/receive 三兄弟全有 WH_TRANSFER_* 审计，表亦无 cancelled_by）；状态机仅 DRAFT，改动零风险 | ZCode R12批4 / 2026-11-03 | |
+| MA-103 | P3 | open | 月结差异处置 + 效期建补货任务 | `POST /close-sheets/{id}/lines/{lineId}/disposition` 与 `POST /expiry/alerts/{taskId}/create-replenishment` 先读后写无锁无版本：并发双击可双挂索赔台账（两条 inventory_write_off）或双建路线任务；同域标准是锁+FOR UPDATE，本面漏配 | ZCode R12批4 / 2026-11-03 | |
+| MA-104 | P3 | open | `PUT /ops/admin/inventory` | 直写柜机库存汇总零校验（无 @Valid，DTO 零注解）：负数 quantity 污染短缺计算、空 deviceId/skuId 造主键残行；lot 账本设备已被 sync 挡住，非账本老设备暴露 | ZCode R12批4 / 2026-11-03 | |
+| MA-105 | P3 | open | `POST /ops/admin/purchase-orders/{id}/review` | 注解 OR(edit, finance:view) 是死分支——服务端只认 ops:procurement:edit ⇒ 持 finance:view 过注解门后必 403（MA-070 双轨同族，fail-closed 无安全洞但误导权限配置者） | ZCode R12批4 / 2026-11-03 | |
+| MA-106 | P3 | open | `POST /ops/admin/warehouse/transfers/{id}/receive` | 收货登记未知/缺 lineId 的行被静默按「全部到齐」入账（reported map miss → 按发运量全额入库）——在途损耗黑洞恰是 V314 要堵的场景；应校验 lineId 全部 ∈ 本单行 | ZCode R12批4 / 2026-11-03 | |
+| MA-107 | P3 | open | `POST /ops/admin/slot-templates/{id}/apply/{deviceId}` | 套用模板绕过「开门柜无货道」写守卫（DeviceSlotService 同类入口都有 assertNotDoorCabinet，注释明说 fail-closed，此处漏配）；目标设备不存在时 FK 500 而非 400 | ZCode R12批4 / 2026-11-03 | |
+| MA-108 | P3 | open | `POST/PUT /ops/admin/line-routes` | create 缺 routeName/managerId → PG NOT NULL 违约 500（应 400）；update 的 managerId 不校验存在性，幽灵线长进 monthlySummary 财务聚合 | ZCode R12批4 / 2026-11-03 | |
+| MA-109 | P3 | open | 「入库不落无主仓」闸门两旁路 | P2-8 治理闸只在 inbound/receivePurchaseStock/returnPurchaseStock 三处；binStockChange 原语被货位入库与调拨收货复用且不设闸，显式传无主仓照样进（缓解：ops:warehouse:edit 门内+可调拨救回） | ZCode R12批4 / 2026-11-03 | |
+| MA-110 | P3 | open | 维修工单/异常结案列宽链断裂 | repair_ticket.remark(512)/event.remark(255) 双落列，256~512 字关单必失败；resolveWithRepair 三级列宽 detail(1000)→remark(512)→event(255) 拼接后超限（MA-087 同族新点位） | ZCode R12批4 / 2026-11-03 | |
+| MA-111 | P3 | open | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
+| MA-112 | P3 | open | `POST /ops/admin/exceptions/{id}/retry` | 幂等 marker 格式错位：Controller 查英文 `idempotencyKey=`、Service 写中文「幂等键：」⇒ alreadyProcessed 恒 false，幂等承诺失效（同文件 manualResolve 用英文自洽反证非设计；下层 409 兜底故 P3） | ZCode R12批4 / 2026-11-03 | |
+| MA-113 | P3 | open | `POST /ops/admin/repair-tickets/batch-assign` | `{"assignee": null}` 经 String.valueOf 变字面量 "null" 入库；ticketIds 非数字 NumberFormatException→500（应 400） | ZCode R12批4 / 2026-11-03 | |
+| MA-114 | P3 | open | @Size 家族补点（批4b） | 外部导入 personOverride 无 @Size(列60)；维修单 title(128)/remark(512) 无 @Size——并入 MA-087/110 批次修 | ZCode R12批4 / 2026-11-03 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -696,3 +712,34 @@
 - MA-097 RiskControlService.java:167-173 removeBlacklist 补 recordEvent("BLACKLIST_REMOVE", by=operatorId)；顺手 addBlacklist 校验 userId 存在/expiresAt 未来
 - MA-098 对齐 MA-082 修法：MEMBER_LEVEL_UPSERT/POINTS_REDEEM_UPSERT/USER_RECALL/NOTIFY_* 补 appendLog
 - MA-099 UserRecallService.java:42-93：召回幂等键（请求体传入+短窗去重）或 per-user 限频；body 解析包 400
+
+### MA-100 线路成员佣金参数无界零审计（资金分配参数，与 MA-069/090 同族第三例）
+- 级别/状态：P2 / open
+- 端与页面：`PUT /api/v2/ops/admin/line-routes/{routeId}/members`（ops:replenishment:edit）
+- 源码定位：`OpsLineRouteController.java:74-81`（@RequestBody 无 @Valid）→ `LineRouteAdminService.upsertMember:105-122`（三佣金字段直落）；消费链 `LineCommissionJob.java:218-323`（`gmv*bps/10000` → `staffWalletService.creditIfAbsent(...,"COMMISSION",...)` 入可提现钱包，:318）
+- 主会话复核（2026-11-03）：已亲自读源码确认零校验 + creditIfAbsent 直入钱包属实。
+- 复现推理：PUT 写 commissionRateBps=1000000 → 次日回扫按该 bps 全额入钱包。G2-13 先例：LineManagerService 对同类参数已落 before/after appendLog——本端点漏网。
+- 修法方向：bps 0~10000、perUnitCents≥0 设上界、basis/role 白名单（MANAGER/STAFF · GMV/RESTOCK_QTY）、userId 存在校验、变更落 before/after 审计；建议与 MA-069/MA-090 一次同模式收口（三处「佣金/分成参数无界」）。
+
+### MA-101 外部导入同账期多批次重复 commit（数据灌入口静默污染）
+- 级别/状态：P2 / open
+- 端与页面：`POST /api/v2/ops/admin/external-import/batches/{batchId}/commit`
+- 源码定位：`ExternalChannelImportService.java:294-299`（只挡同批次重提交）；V347 无 (channel_code, period_label) 唯一约束；消费侧 `WarehouseMonthlyCloseService.flowBySku:426-444` 无条件 Integer::sum
+- 主会话复核（2026-11-03）：已亲自读源码确认 commit 闸只判 batch.status。
+- 复现推理：preview→commit(batch1)→再 preview 同渠道同账期→commit(batch2)→流水翻倍、月结盘点/外调列翻倍；COMMITTED 不可删 ⇒ 只能三倍重导。
+- 修法方向：commit 前查同 channel+period 已 COMMITTED 批次则 409（或显式 supersede 作废旧批留痕）+ partial unique index 兜底。
+
+### MA-102 ~ MA-114（P3，明细从简，锚 rounds/R12-write-surface.md 批 4）
+- MA-102 WarehouseTransferService.doCancel:222-237 补 operatorId + WH_TRANSFER_CANCEL appendLog
+- MA-103 WarehouseMonthlyCloseSheetService:157-185,341-372 + ReplenishmentService:1601-1634 套锁+FOR UPDATE（或 @Version）
+- MA-104 OpsReplenishmentController.java:59-63 + DeviceInventoryDto 补 @NotBlank/@Min(0)
+- MA-105 OpsProcurementController.java:132-142 注解 OR 与服务端单权限二选一对齐
+- MA-106 WarehouseTransferService.java:174-206 校验 reported lineId ∈ 本单行
+- MA-107 SlotTemplateService.apply:130-201 补 assertNotDoorCabinet + requireDevice
+- MA-108 OpsLineRouteController.java:40-56 缺必填 400 化 + managerId 存在性
+- MA-109 WarehouseService.binStockChange:379-395 补 requireManagedOutboundWarehouse 或注释豁免依据
+- MA-110 RepairTicketService.java:271-275 + OpsExceptionService.java:255-264 列宽截断（255/512/1000 三级）
+- MA-111 UserFeedbackController.java:43-50 新增 ops:feedback:delete 码 + 软删或 appendLog
+- MA-112 OpsExceptionController.java:111-115 marker 常量化统一英文格式（recordAction:413/resolveByAction:432 同改）
+- MA-113 RepairTicketController.java:88-101 assignee 显式 null 判断 + ticketIds try/catch 400
+- MA-114 外部导入 personOverride @Size(60) + 维修单 title/remark @Size（并入 MA-087/110 批次修）
