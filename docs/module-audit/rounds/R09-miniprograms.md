@@ -126,7 +126,7 @@ Flyway 实跑：`Migrating … 421/422/423/424 → Successfully applied 4 migrat
 | MA-027 | automator 打开 `pages/help` + SQL | 页面显示 **4000182992**；`consumer/merchant.service_phone` 两行配置同为 4000182992 ✅ |
 | MA-028 | 迁移在活库执行（V422 命中 3 行）+ 写入口单测 | 券名已改（试跑阶段 `UPDATE 3`），新增错配由 `validateNameMatchesThreshold` 拦（用例含「满减券 ¥5」不误伤）✅ |
 
-未复验项（诚实记录）：MA-022 只在临时 dev（`:3199`）上挣到 200，**没有在跑的 `:3100` 上复验**——那需要重启别人可能在用的 vite 进程，值守期不动它；MA-020 属前端行为（不再写 localStorage），单测已钉，活浏览器复验留人工。
+未复验项 → ✅ 已补验：MA-022 在真实 `:3100` 上（2026-11-02 07:2x 用户批准重启该 vite）`/devops/grafana/api/health` = **200**、两个看板 URL = **302**（跳 Grafana 登录，改前是 404）、admin 首页 200 ⇒ 卡片「在线」与嵌入区终于一致。MA-020 属前端行为（不再写 localStorage），单测已钉，活浏览器复验仍留人工。
 
 ## 走查副作用（不是缺陷，但必须留痕）
 
