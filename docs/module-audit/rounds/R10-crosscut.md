@@ -49,12 +49,18 @@
 
 ## 10.4 本轮未覆盖（留给 R11 / 下一会话）
 
-1. `check:perm-closure` 门禁未落（脚本已可复用，缺：把 A 集扩成「注解 + 字符串用法」双扫 + 白名单文件 + 负向自测 + 入 `run-audit-gates` 聚合链）。
+1. ~~`check:perm-closure` 门禁未落~~ ✅ 已落（2026-11-02，提交 `3d0e999e`）：以集成测试 `PermClosureSqlIT` 实现（§10.5），不再单独做静态门禁（B 集只有真库知道）。
 2. ~~8 处 admin `toLocale*` 未判用途~~ ✅ 已判完（2026-11-02）：8 处中 **4 处**是带 `{hour12:false, timeZone:'Asia/Shanghai'}` 的时间显示（正确，不动）；另 **4 处**在 `useReplenishmentRoutePlanning.ts` 用 `toLocaleDateString('zh-CN')` 拼**补货路线名**、**未带时区**（跨零点会与平台日期不一致）⇒ 已补 `timeZone:'Asia/Shanghai'`，`vue-tsc` 退出 0。无金额格式化误用。
 3. ~~MA-036 的 RETIRED 迁移未做~~ ✅ 已做（`V427`，2026-11-02 接手批）：4 个幽灵 + `ops:operlog` 共 5 行置 RETIRED；判据与「为什么把父行也带上」写在迁移头。dev 事务内试跑 `UPDATE 5` 后回滚。剩：`check:perm-closure` 门禁仍未落。
 4. R10 全部结论建立在 `:18080` 旧镜像上 ⇒ **凡涉及 MA-029 新口径的三端读数，必须在 R11 重建镜像后复走一遍**（含会员单在 admin 订单列表/商户端/消费端三处的「会员优惠」行是否一致）。
 
-## 10.5 `check:perm-closure` 落地方案（唯一未完成项，设计已定）
+## 10.5 `PermClosureSqlIT`：权限闭环反向门禁（已实现）
+
+> ✅ **已实现（2026-11-02，提交 `3d0e999e`）**：`services/trade-service/src/test/java/com/aicabinet/trade/integration/PermClosureSqlIT.java`
+> （failsafe / CI `integration` job；已登记 `scripts/check-docker-tests-guarded.mjs`）。
+> 3 例：① 闭环方向全 0（B∖(A∪C)、A∖ALL、C∖ALL、C∩非ACTIVE、A∩非ACTIVE）；② A 集双扫护栏（`ops:audit:recent` 注解 `value={}` + `requireAnyPermission` 两形态都必须收入）；
+> ③ 负向自测（插入 `ops:__negative_probe__:view` 后必须报出，事务回滚）。实测：fresh 库 `tests=3/errors=0/failures=0`；dev 库（v428）四方向全 0（A=186 / C=197 / B=89 / ALL=241，白名单 14 行）。
+> 变异验证：把检测函数改成恒返回空后，负向自测按预期变红（`expected: <true> but was: <false>`）。
 
 **为什么不能只做静态门禁**：本门禁的核心是「库里的 ACTIVE 权限码 ⊆ 代码引用集」，B 集（`ops_permission` 行）只有连库才知道；而哥门禁链是无库的静态链。种子里解析 B 集又极脆（三种 INSERT 变体 + 后续 RETIRED 抵扣 + 幂等 ON CONFLICT），半解析会误红。
 
