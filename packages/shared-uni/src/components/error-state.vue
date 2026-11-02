@@ -1,8 +1,8 @@
 <template>
   <view class="error-state" :class="{ compact }">
     <text class="error-icon app-icon app-icon--circle" aria-hidden="true">!</text>
-    <text class="error-title">{{ title }}</text>
-    <text v-if="hint" class="error-hint">{{ hint }}</text>
+    <text class="error-title">{{ shownTitle }}</text>
+    <text v-if="shownHint" class="error-hint">{{ shownHint }}</text>
     <app-button
       v-if="showRetry"
       class="error-retry"
@@ -18,9 +18,15 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(
+import { computed } from 'vue';
+const DEFAULT_TITLE = '加载失败';
+const DEFAULT_HINT = '请检查网络后重试';
+
+const props = withDefaults(
   defineProps<{
     title?: string;
+    /** 兼容写法：调用方常用 :message= 传业务原因（2026-11-02 前该属性被忽略 ⇒ 永远显示默认文案） */
+    message?: string;
     hint?: string;
     showRetry?: boolean;
     retryText?: string;
@@ -28,8 +34,9 @@ withDefaults(
     compact?: boolean;
   }>(),
   {
-    title: '加载失败',
-    hint: '请检查网络后重试',
+    title: DEFAULT_TITLE,
+    message: '',
+    hint: DEFAULT_HINT,
     showRetry: true,
     retryText: '重试',
     retrying: false,
@@ -38,6 +45,18 @@ withDefaults(
 );
 
 defineEmits<{ retry: [] }>();
+
+/**
+ * 2026-11-02：业务错误被「请检查网络后重试」带偏的根因在这里——
+ * 调用方把后端原因塞进 title（如「没有已指定您为负责人的分仓…」），组件仍默认附上网络提示，
+ * 用户会去查网络。规则：title 已是具体业务原因时不再追加网络提示，只有通用标题才提示。
+ */
+const shownTitle = computed(() =>
+  props.title !== DEFAULT_TITLE ? props.title : props.message || DEFAULT_TITLE
+);
+const shownHint = computed(() =>
+  props.hint === DEFAULT_HINT && shownTitle.value !== DEFAULT_TITLE ? '' : props.hint
+);
 </script>
 
 <script lang="ts">
