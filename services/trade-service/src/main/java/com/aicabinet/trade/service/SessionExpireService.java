@@ -387,7 +387,7 @@ public class SessionExpireService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "开门超时",
-                    "开门命令在90秒内未得到设备响应");
+                    "开门命令在60秒内未得到设备响应");
             log.warn("opening session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {
