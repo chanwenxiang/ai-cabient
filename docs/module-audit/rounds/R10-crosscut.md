@@ -53,3 +53,17 @@
 2. ~~8 处 admin `toLocale*` 未判用途~~ ✅ 已判完（2026-11-02）：8 处中 **4 处**是带 `{hour12:false, timeZone:'Asia/Shanghai'}` 的时间显示（正确，不动）；另 **4 处**在 `useReplenishmentRoutePlanning.ts` 用 `toLocaleDateString('zh-CN')` 拼**补货路线名**、**未带时区**（跨零点会与平台日期不一致）⇒ 已补 `timeZone:'Asia/Shanghai'`，`vue-tsc` 退出 0。无金额格式化误用。
 3. ~~MA-036 的 RETIRED 迁移未做~~ ✅ 已做（`V427`，2026-11-02 接手批）：4 个幽灵 + `ops:operlog` 共 5 行置 RETIRED；判据与「为什么把父行也带上」写在迁移头。dev 事务内试跑 `UPDATE 5` 后回滚。剩：`check:perm-closure` 门禁仍未落。
 4. R10 全部结论建立在 `:18080` 旧镜像上 ⇒ **凡涉及 MA-029 新口径的三端读数，必须在 R11 重建镜像后复走一遍**（含会员单在 admin 订单列表/商户端/消费端三处的「会员优惠」行是否一致）。
+
+## 10.5 `check:perm-closure` 落地方案（唯一未完成项，设计已定）
+
+**为什么不能只做静态门禁**：本门禁的核心是「库里的 ACTIVE 权限码 ⊆ 代码引用集」，B 集（`ops_permission` 行）只有连库才知道；而哥门禁链是无库的静态链。种子里解析 B 集又极脆（三种 INSERT 变体 + 后续 RETIRED 抵扣 + 幂等 ON CONFLICT），半解析会误红。
+
+**落点（推荐）**：新增一个 **IT**（`PermClosureSqlIT`），跑在 CI 的 `integration` job（有 docker + 迁移后的真库）：
+1. B 集：`SELECT perm_code, perm_type, status FROM ops_permission`（只取 ACTIVE 且 type ∈ C/M）。
+2. A 集：扫 `services/**/*.java` 里 **`@RequiresPermissions` 注解字面量 + `hasPerm|requirePermission|hasAnyPermission` 的字符串实参**（🔴 必须双扫——`ops:audit:recent` 就是非注解用法，只扫注解会把它误判成幽灵）。
+3. C 集：扫 `clients/admin-vue/src/config/menu.ts` 的 `perm:` + `clients/**/src/**/*.{ts,vue}` 里散落权限码字面量。
+4. 断言：`B ∖ (A ∪ C) = ∅`，白名单只允许三类：`ops:nav:*`（结构目录行）、realm 根（`ops`/`merchant`）、V421/V427 已 RETIRED 的（本就不在 ACTIVE 集）。
+5. 负向自测：测试内插入一行假幽灵码（如 `ops:__negative_probe__:view`）后断言检测函数**必须**报出它，再回滚——防止"查询写错 ⇒ 恒真绿"。
+6. 加分项（非阻塞）：把两侧扫描抽成 `scripts/lib/perm-scan.mjs`，静态门禁复用 A/C 两集做**正向**检查（已存在），IT 只补反向。
+
+**判据**：真库上三方向（`A∖B`、`C∩B 非 ACTIVE`、`C∖B`）全 0；负向自测必须红；`mvn verify` 该 IT 通过。
