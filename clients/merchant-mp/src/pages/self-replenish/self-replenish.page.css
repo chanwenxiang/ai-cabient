@@ -161,3 +161,39 @@
   padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
+
+/* 对齐 ui-search / ui-num 度量：目标柜机与备注输入原为 8rpx 小圆角灰底 */
+.input {
+  height: 88rpx;
+  border-radius: 20rpx;
+  background: #f1f5f9;
+  padding: 0 28rpx;
+}
+textarea,
+.textarea {
+  min-height: 140rpx;
+  border-radius: 20rpx;
+  background: #f1f5f9;
+  padding: 20rpx 28rpx;
+  box-sizing: border-box;
+}
+
+/* 2026-11-02：表单输入统一（88rpx 高 + 仓库 token --radius-control + #f1f5f9 底）
+   四页此前 80/80/88 与 8rpx/12rpx 混用 */
+.input {
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: var(--radius-control, 12px);
+  background: #f1f5f9;
+}
+
+textarea,
+.textarea {
+  min-height: 140rpx;
+  padding: 20rpx 24rpx;
+  border-radius: var(--radius-control, 12px);
+  background: #f1f5f9;
+  box-sizing: border-box;
+}
