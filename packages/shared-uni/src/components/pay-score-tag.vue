@@ -1,12 +1,12 @@
 <template>
   <view class="ps-tag" :class="[`ps-tag--${variant}`, { 'ps-tag--scored': showScore }]">
-    <image class="ps-tag__logo" :src="logoSrc" mode="widthFix" />
+    <!-- 路径必须写字面量：script setup 里的 const 在小程序端编译后取不到（o.logoSrc 为空） -->
+    <image class="ps-tag__logo" src="/static/payscore/payscore-logo.png" mode="widthFix" />
     <text class="ps-tag__brand">微信支付分</text>
     <view class="ps-tag__sep" />
-    <text class="ps-tag__biz">{{ bizText }}</text>
-    <view v-if="showScore" class="ps-tag__score-wrap">
-      <text class="ps-tag__score">{{ scoreText }}</text>
-    </view>
+    <!-- 分数版用分数文案占业务词位：官方合作品牌横幅是单行「微信支付分 | 550分及以上优享」 -->
+    <text v-if="showScore" class="ps-tag__score">{{ scoreText }}</text>
+    <text v-else class="ps-tag__biz">{{ bizText }}</text>
   </view>
 </template>
 
@@ -16,7 +16,8 @@
  *
  * 🔴 规范硬约束（评审逐条看，违反即退回）：
  *   · 标语**文字不可增删/更改**——「微信支付分」四字与业务词不可改、不可缩写；
- *   · **不得在标语周围添加任何文本**（所以分数版必须与标语分离成块，不可紧贴成一行文案）；
+ *   · **不得在标语周围添加任何文本**（分数版把分数写在业务词位、保持单行，
+ *     不额外加说明文字——同行（大黄鹅）首页底部即此形态，2026-11-02 用户按截图校正）；
  *   · **不得改变比例关系 / 结构**——logo 边长 = 文字高度 X，logo↔文字间距 = 1/4X，
  *     文字↔竖线间距 = 1/4X，竖线宽 = 1/4X（规范 P4 标注）；
  *   · 字体**不可更改**（苹方 regular）、字号**不小于 22px(@2x)**；
@@ -50,7 +51,6 @@ const props = withDefaults(
   }
 );
 
-const logoSrc = '/static/payscore/payscore-logo.png';
 const bizText = props.biz;
 const scoreText = props.score;
 </script>
@@ -124,22 +124,32 @@ const scoreText = props.score;
 }
 
 /*
- * 带分数要求版：规范 P5 要求分数文案**独立成块**（不得与标语同行挤成一句话），
- * 且标语周围不得添加文本 ⇒ 分数块另起一行。
+ * 分数版：官方合作品牌横幅形态——单行「微信支付分 | 550分及以上优享」，
+ * 分数占业务词位，字号随场景收小（2026-11-02 用户按同行截图校正）。
  */
 .ps-tag--scored {
-  flex-wrap: wrap;
+  height: auto;
+  min-height: 20px;
+  flex-wrap: nowrap;
 }
-
-.ps-tag__score-wrap {
-  width: 100%;
-  margin-top: 2px;
+.ps-tag--scored .ps-tag__logo {
+  width: 14px;
+  height: 14px;
 }
-
-.ps-tag__score {
-  font-size: 22px;
-  line-height: 30px;
+.ps-tag--scored .ps-tag__brand,
+.ps-tag--scored .ps-tag__score {
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 400;
   color: #666666;
+}
+.ps-tag--scored .ps-tag__brand {
+  margin-left: 3.5px;
+}
+.ps-tag--scored .ps-tag__sep {
+  width: 1px;
+  height: 14px;
+  margin: 0 7px;
+  background: rgba(102, 102, 102, 0.5);
 }
 </style>

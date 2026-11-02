@@ -114,11 +114,22 @@ for (const dir of targets) {
   const after = `${json.appid}|${json.setting.urlCheck}`;
   if (before === after) {
     console.log(`ok       ${file} (${after})`);
-    continue;
+  } else {
+    writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+    patched += 1;
+    console.log(`patched  ${file} (${before} -> ${after})`);
   }
-  writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+
+  // 开发者工具的「不校验合法域名」开关存在 project.private.config.json，且会覆盖
+  // project.config.json；只改前者会导致 dev 下所有请求被域名校验拦掉（2026-11-02 实测）。
+  const privateFile = join(dir, 'project.private.config.json');
+  if (!existsSync(privateFile)) continue;
+  const priv = JSON.parse(readFileSync(privateFile, 'utf8'));
+  if (priv.setting?.urlCheck === urlCheck) continue;
+  priv.setting = { ...(priv.setting || {}), urlCheck };
+  writeFileSync(privateFile, `${JSON.stringify(priv, null, 2)}\n`);
   patched += 1;
-  console.log(`patched  ${file} (${before} -> ${after})`);
+  console.log(`patched  ${privateFile} (urlCheck -> ${urlCheck})`);
 }
 
 if (!patched && skipped === targets.length) {

@@ -13,10 +13,6 @@
         <view class="landing-head" :style="landingHeadStyle">
           <text class="brand">AI开门柜</text>
           <text class="tagline">扫码开门 · 拿了就走</text>
-          <view class="pay-badge">
-            <text class="pay-badge-icon">✓</text>
-            <text class="pay-badge-text">关门自动结算</text>
-          </view>
         </view>
       </view>
 
@@ -133,6 +129,15 @@
         >
           手动输入柜机编号
         </text>
+      </view>
+
+      <!--
+        微信支付分品牌标语（2026-11-02 用户要求：首页底部，按同行横幅形态）：
+        单行「微信支付分 | 550分及以上优享」，细胶囊承托保证深色照片上可读；
+        业务词位由分数文案占据（组件 show-score）。
+      -->
+      <view class="landing-score">
+        <pay-score-tag variant="slogan" show-score />
       </view>
     </view>
 
@@ -345,24 +350,12 @@ export default {
   display: block;
   line-height: 1.4;
 }
-.pay-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6rpx;
-  margin-top: 20rpx;
-  padding: 8rpx 18rpx;
-  border-radius: var(--radius-pill);
-  background: rgba(15, 63, 60, 0.55);
-  border: 1rpx solid rgba(255, 255, 255, 0.32);
-}
-.pay-badge-icon {
-  color: var(--white);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-}
-.pay-badge-text {
-  color: var(--white);
-  font-size: var(--font-size-xs);
+.landing-score {
+  flex-shrink: 0;
+  margin-top: 10rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .landing-action {
