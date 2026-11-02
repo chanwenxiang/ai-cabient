@@ -378,15 +378,15 @@ function lastTime(value?: string | number | null) {
 }
 .kpi-label {
   display: block;
-  font-size: var(--admin-font-size-table);
-  color: #6b7280;
+  font-size: var(--admin-font-size-hint);
+  color: var(--layout-muted);
 }
 .kpi-value {
   display: block;
   margin-top: 6px;
-  font-size: var(--admin-font-size-display-xl);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
-  color: #065f46;
+  color: var(--layout-text);
 }
 .kpi-value.warn {
   color: #b45309;

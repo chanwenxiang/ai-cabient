@@ -641,8 +641,8 @@ watch(
   font-size: var(--admin-font-size-title);
 }
 .hint {
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-hint);
+  color: var(--layout-muted);
 }
 .kpi-row {
   display: grid;
@@ -691,8 +691,8 @@ watch(
 }
 .kpi-value {
   margin-top: 4px;
-  font-size: var(--admin-font-size-display);
-  font-weight: 600;
+  font-size: var(--admin-font-size-display-lg);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .kpi-hint {

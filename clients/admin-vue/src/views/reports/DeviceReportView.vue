@@ -746,13 +746,13 @@ onActivated(() => {
 }
 
 .kpi-label {
-  font-size: var(--admin-font-size-table);
+  font-size: var(--admin-font-size-hint);
   color: var(--layout-muted);
   line-height: 1.3;
 }
 
 .kpi-value {
-  font-size: clamp(18px, 2.4vw, 22px);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   margin-top: 0;
   line-height: 1.2;

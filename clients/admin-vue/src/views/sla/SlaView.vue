@@ -180,13 +180,13 @@ onMounted(load);
   font: inherit;
 }
 .stat-label {
-  color: var(--el-text-color-secondary);
-  font-size: var(--admin-font-size-table);
+  color: var(--layout-muted);
+  font-size: var(--admin-font-size-hint);
   margin-bottom: 6px;
 }
 .stat-value {
-  font-size: var(--admin-font-size-display);
-  font-weight: 600;
+  font-size: var(--admin-font-size-display-lg);
+  font-weight: 700;
 }
 .stat-hint {
   margin-top: 4px;

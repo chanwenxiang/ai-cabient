@@ -1764,7 +1764,7 @@ onActivated(() => {
   ) !important;
 }
 .status-tabs {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 .export-caret {
   opacity: 0.7;

@@ -137,13 +137,13 @@ onMounted(load);
   text-align: center;
 }
 .kpi-label {
-  font-size: var(--admin-font-size-table);
-  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-hint);
+  color: var(--layout-muted);
   margin-bottom: 8px;
 }
 .kpi-value {
-  font-size: var(--admin-font-size-display-md);
-  font-weight: 600;
-  color: var(--el-text-color-primary);
+  font-size: var(--admin-font-size-display-lg);
+  font-weight: 700;
+  color: var(--layout-text);
 }
 </style>

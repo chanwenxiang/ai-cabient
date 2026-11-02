@@ -629,7 +629,7 @@ onMounted(async () => {
 }
 .kpi-value {
   margin-top: 4px;
-  font-size: var(--admin-font-size-display);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--layout-text, #1e293b);

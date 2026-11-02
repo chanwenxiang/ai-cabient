@@ -707,7 +707,7 @@ onMounted(load);
   background: #fbbf24;
 }
 .stat-label {
-  font-size: var(--admin-font-size-table);
+  font-size: var(--admin-font-size-hint);
   color: var(--layout-muted);
 }
 .stat-value {

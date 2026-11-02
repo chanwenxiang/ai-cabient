@@ -329,12 +329,12 @@ function barHeight(orders: number) {
 .kpi-n {
   font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
-  color: var(--el-color-primary);
+  color: var(--layout-text);
 }
 .kpi-l {
   margin-top: 4px;
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-secondary);
+  font-size: var(--admin-font-size-hint);
+  color: var(--layout-muted);
 }
 .section-title {
   margin: 16px 0 10px;

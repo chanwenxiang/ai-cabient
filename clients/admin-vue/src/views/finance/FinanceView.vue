@@ -618,11 +618,11 @@ watch(
   outline: none;
 }
 .kpi-label {
-  font-size: var(--admin-font-size-table);
+  font-size: var(--admin-font-size-hint);
   color: var(--layout-muted);
 }
 .kpi-value {
-  font-size: var(--admin-font-size-display);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   margin-top: 4px;
   color: var(--layout-text);

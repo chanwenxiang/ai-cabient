@@ -904,11 +904,11 @@ onMounted(() => load({ silent: true }));
   color: var(--danger);
 }
 .stat-label {
-  font-size: var(--admin-font-size-table);
+  font-size: var(--admin-font-size-hint);
   color: var(--layout-muted);
 }
 .stat-value {
-  font-size: var(--admin-font-size-display-xl);
+  font-size: var(--admin-font-size-display-lg);
   font-weight: 700;
   margin-top: 6px;
   line-height: 1.2;
