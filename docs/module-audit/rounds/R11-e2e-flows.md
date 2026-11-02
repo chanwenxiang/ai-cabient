@@ -48,3 +48,10 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 4. **活栈复走**：确认 `:80` 无人在用后重建 trade 镜像到含 MA-029 的 HEAD（顺带应用 V425），
    用模拟器柜 `500909625160` 真跑一笔会员单，复验 admin/商户端/消费端三处「会员优惠」行一致，
    并跑 `docs/module-audit/seeds/money-recheck.sql` 七段（7c 应 > 0 行 ⇒ 证明入账链真的在活库跑起来）。
+
+## R11 段 2 · B3 公告读面（2026-11-02 完成）
+
+- 造数：`announcement` 直插一条 `announce_id=9900000001 / status=PUBLISHED / publish_at=now`（表主键是 **bigint**，起初用字符串 id 插失败，已改正）。**留在 dev 库不删**，后续读面回归可复用。
+- API：`GET /api/v2/announcements` 返回该条；`GET /api/v2/announcements/9900000001` 返回详情（公开读，无需鉴权）。
+- 真端（automator 9421）：列表页显示「通知公告 / 系统 / 新 / 2026-11-02 10:07 / R11 造数公告」；详情页显示标题+正文+时间；**「请检查网络后重试」出现 false** ⇒ MA-035 的判据通过。
+- 结论：公告读面在「有数据」时也正常，之前 0 行只是没数据，不是缺陷。
