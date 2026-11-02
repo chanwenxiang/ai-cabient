@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>🔴 缺陷（2026-09-23 取证）：原 {@code EXCLUDED_TABLES} 是纯枚举 7 张，而同族的
  * {@code ops_user_department} / {@code ops_user_device_scope} / {@code ops_user_device_scope_pref} /
  * {@code ops_user_merchant} / {@code ops_user_route_scope} 与 {@code ops_2fa_recovery_code}
- * 全漏在保护外（另有 {@code sys_oper_log} / {@code system_config} / {@code user_account}）。
+ * 全漏在保护外（另有 {@code system_config} / {@code user_account}）。
  * 即「权限 / 凭据 / 资金」语义的表有 9 张可经通用通道增删改 —— 尤其是
  * {@code ops_2fa_recovery_code}（改写 {@code code_hash} 即绕过 2FA）。</p>
  *
@@ -48,7 +48,6 @@ class AdminDataManageTablePolicyTest {
     private static final Set<String> EXPLICITLY_EXCLUDED = Set.of(
             "flyway_schema_history",
             "admin_audit_log",
-            "sys_oper_log",
             "ops_permission",
             "ops_2fa_recovery_code",
             "system_config",
@@ -160,9 +159,9 @@ class AdminDataManageTablePolicyTest {
         List<String> mustBlock = List.of(
                 "password_hash", // user_info：改它=接管账号，读它=离线爆破
                 "totp_secret", // user_info：读它=直接生成该管理员的一次性密码
-                "session_key", // wechat_binding：微信会话密钥
+                "session_key", // 历史 wechat_binding；表已删，列名仍按凭据列拦截
                 "code_hash", // ops_2fa_recovery_code
-                "request_hash", // idempotency_key：改它可绕过幂等
+                "request_hash", // 历史 idempotency_key；表已删，列名仍按凭据列拦截
                 "api_token",
                 "credential_id",
                 "password_salt");

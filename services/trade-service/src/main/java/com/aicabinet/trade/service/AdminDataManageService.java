@@ -50,8 +50,8 @@ public class AdminDataManageService {
      * {@code ops_user_department} / {@code ops_user_device_scope} /
      * {@code ops_user_device_scope_pref} / {@code ops_user_merchant} /
      * {@code ops_user_route_scope}（{@code ops_user_role} 之外的整族）与
-     * {@code ops_2fa_recovery_code} 全部漏在保护外，另有 {@code sys_oper_log} /
-     * {@code system_config} / {@code user_account} 同类漏项 —— 实测库里 157 张表，
+     * {@code ops_2fa_recovery_code} 全部漏在保护外，另有 {@code system_config} /
+     * {@code user_account} 同类漏项 —— 实测库里 157 张表，
      * 命中「后台权限 / 凭据 / 资金」语义却有 **9** 张不在名单里，全部可被通用通道
      * 增删改。失效形态是 **fail-open**：新增一张敏感表，没有任何东西会提醒你补清单，
      * 而 enumerate 式清单**必漂**（与 {@link #deleteProtectedTables()} 的「由 schema 推导、
@@ -67,7 +67,6 @@ public class AdminDataManageService {
             "flyway_schema_history",
             // 审计 / 操作日志：有各自的管理页
             "admin_audit_log",
-            "sys_oper_log",
             // 权限树
             "ops_permission",
             // 两步验证恢复码（user_id + code_hash）：改写即可绕过或锁死 2FA
@@ -115,8 +114,8 @@ public class AdminDataManageService {
     private static final String CREDENTIAL_COLUMN_SUFFIX = "_hash";
 
     /**
-     * 模式表达不了的精确列名：{@code wechat_binding.session_key}（微信会话密钥，
-     * 拿到可解密/冒用）。⚠️ 刻意**不**用裸 {@code _key} 后缀 —— 那会误伤
+     * 模式表达不了的精确列名：{@code session_key}（历史 wechat_binding 的微信会话密钥，
+     * 表已于 V431 删除；保留列名黑名单，防止未来同名凭据列）。⚠️ 刻意**不**用裸 {@code _key} 后缀 —— 那会误伤
      * {@code task_key}/{@code dept_key}/{@code role_key}/{@code config_key}/{@code dedup_key}
      * 等一大批**业务标识**列（都是运营订正数据的正常对象）。
      */

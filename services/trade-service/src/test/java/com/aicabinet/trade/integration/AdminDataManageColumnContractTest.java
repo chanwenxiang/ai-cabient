@@ -325,7 +325,6 @@ class AdminDataManageColumnContractTest {
             "ops_user_merchant",
             "ops_user_route_scope",
             "ops_2fa_recovery_code",
-            "sys_oper_log",
             "system_config",
             "user_account");
 

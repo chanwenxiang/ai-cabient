@@ -135,7 +135,7 @@ class ConsumerE2ETest {
      * <p>只删 PENDING（即从未进入扣款的直插行）：这类行在库中**只有它自己**——`payment_operation`
      * 与 `cabinet_order_line` 均为 `ON DELETE CASCADE` 且本就没有子行，`order_revenue_split` /
      * `user_coupon` / `payscore_order` / `ops_exception` 为 `SET NULL`，而 `shopping_session.order_id`
-     * 自引用从未被赋值。**已扣款订单不删**：其 `revenue_share_detail` / `invoice_request` 外键是
+     * 自引用从未被赋值。**已扣款订单不删**：其 `invoice_request` 外键是
      * `RESTRICT`（真库 `pg_constraint.confdeltype='r'`），删订单会直接报外键错误，且那条 PAID 订单
      * 本身是合法的业务终态，抹掉反而让派生对账数据（分成、钱包）失去来源。
      *

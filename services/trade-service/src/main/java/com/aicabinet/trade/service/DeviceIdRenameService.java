@@ -45,8 +45,6 @@ public class DeviceIdRenameService {
 
             "line_device",
 
-            "promotion_device",
-
             "ad_campaign_device",
 
             "pull_off_task",
