@@ -98,6 +98,20 @@ public class WarehouseTransferService {
         order.setUpdatedAt(Instant.now());
         orderMapper.insert(order);
 
+        // MA-038：创建期就把「收货入库必需的数据」校验住，别让它在 receive 阶段变成 500。
+        // warehouse_inventory.expiry_date 是 NOT NULL，且发货/收货都按 (sku, batch_no) 找库存，
+        // 两者缺一都会在后续环节撞库约束；这里直接 400 并指明是哪一行。
+        for (CreateWarehouseTransferRequest.Line line : req.lines()) {
+            if (line.batchNo() == null || line.batchNo().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "调拨行必须填写批次号（发货按 SKU+批次扣减库存）：sku=" + line.skuId());
+            }
+            if (line.expiryDate() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "调拨行必须填写有效期（收货入库要求 expiry_date 非空）：sku=" + line.skuId()
+                                + " 批次=" + line.batchNo().trim());
+            }
+        }
         for (CreateWarehouseTransferRequest.Line line : req.lines()) {
             WarehouseTransferLine row = new WarehouseTransferLine();
             row.setTransferId(order.getTransferId());
