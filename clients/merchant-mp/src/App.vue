@@ -722,4 +722,13 @@ input {
   }
 }
 /* #endif */
+
+/* 全局基底：卡片/分区标题（页面自有 padding/背景仍优先，这里只统一几何与字重） */
+.card {
+  border-radius: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
+.section {
+  font-weight: 600;
+}
 </style>
