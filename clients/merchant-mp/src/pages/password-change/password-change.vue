@@ -95,4 +95,15 @@ async function submit() {
   color: #909399;
   text-align: center;
 }
+
+/* 表单输入统一（88rpx + --radius-control + #f1f5f9），与其他表单页一致 */
+.input {
+  height: 88rpx;
+  min-height: 88rpx;
+  padding: 0 24rpx;
+  border: none;
+  border-radius: var(--radius-control, 12px);
+  background: #f1f5f9;
+  box-sizing: border-box;
+}
 </style>

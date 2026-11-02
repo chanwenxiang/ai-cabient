@@ -112,3 +112,13 @@
   padding: 40rpx 8rpx;
   color: var(--text-subtle);
 }
+
+/* 表单输入统一（88rpx + --radius-control + #f1f5f9），与 purchase/team 等页一致 */
+.input {
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: var(--radius-control, 12px);
+  background: #f1f5f9;
+}
