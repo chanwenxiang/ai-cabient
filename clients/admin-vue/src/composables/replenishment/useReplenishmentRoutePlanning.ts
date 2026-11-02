@@ -124,7 +124,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     void deps.loadDeviceRefs();
     const focus = deps.focusDeviceId.value.trim();
     fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN')} 补货路线`,
+      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} 补货路线`,
       deviceIds: focus ? [focus] : []
     });
     void loadAssignees();
@@ -158,7 +158,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
       return;
     }
     fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
+      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} 缺货补货`,
       deviceIds: target
     });
     void loadAssignees();
@@ -172,7 +172,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     await deps.loadDeviceRefs();
     const focus = deps.focusDeviceId.value;
     fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
+      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} 缺货补货`,
       deviceIds: focus && ids.includes(focus) ? [focus] : ids
     });
     void loadAssignees();
@@ -183,7 +183,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     if (!deviceId) return;
     void deps.loadDeviceRefs();
     fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN')} ${deviceId} 补货`,
+      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} ${deviceId} 补货`,
       deviceIds: [deviceId]
     });
     void loadAssignees();

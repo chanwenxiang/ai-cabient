@@ -50,6 +50,6 @@
 ## 10.4 本轮未覆盖（留给 R11 / 下一会话）
 
 1. `check:perm-closure` 门禁未落（脚本已可复用，缺：把 A 集扩成「注解 + 字符串用法」双扫 + 白名单文件 + 负向自测 + 入 `run-audit-gates` 聚合链）。
-2. 8 处 admin `toLocaleString*` 未逐一判用途。
+2. ~~8 处 admin `toLocale*` 未判用途~~ ✅ 已判完（2026-11-02）：8 处中 **4 处**是带 `{hour12:false, timeZone:'Asia/Shanghai'}` 的时间显示（正确，不动）；另 **4 处**在 `useReplenishmentRoutePlanning.ts` 用 `toLocaleDateString('zh-CN')` 拼**补货路线名**、**未带时区**（跨零点会与平台日期不一致）⇒ 已补 `timeZone:'Asia/Shanghai'`，`vue-tsc` 退出 0。无金额格式化误用。
 3. ~~MA-036 的 RETIRED 迁移未做~~ ✅ 已做（`V427`，2026-11-02 接手批）：4 个幽灵 + `ops:operlog` 共 5 行置 RETIRED；判据与「为什么把父行也带上」写在迁移头。dev 事务内试跑 `UPDATE 5` 后回滚。剩：`check:perm-closure` 门禁仍未落。
 4. R10 全部结论建立在 `:18080` 旧镜像上 ⇒ **凡涉及 MA-029 新口径的三端读数，必须在 R11 重建镜像后复走一遍**（含会员单在 admin 订单列表/商户端/消费端三处的「会员优惠」行是否一致）。
