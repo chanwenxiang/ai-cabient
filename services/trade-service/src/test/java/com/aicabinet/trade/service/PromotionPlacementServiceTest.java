@@ -59,7 +59,7 @@ class PromotionPlacementServiceTest {
     void replace_requiresBanner() {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 1000)));
         List<UpsertPromotionPlacementRequest> items = List.of(
-                new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 2L));
+                new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 2L, null));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service.replace(1L, items));
         assertEquals(400, e.getStatusCode().value());
@@ -70,9 +70,9 @@ class PromotionPlacementServiceTest {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 300)));
         when(assetRepository.findById(3L)).thenReturn(Optional.of(image(3, 750, 1000)));
         List<UpsertPromotionPlacementRequest> items = List.of(
-                new UpsertPromotionPlacementRequest("BANNER", 2L),
-                new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 3L),
-                new UpsertPromotionPlacementRequest("POPUP_AFTER_CLOSE", 3L));
+                new UpsertPromotionPlacementRequest("BANNER", 2L, null),
+                new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 3L, null),
+                new UpsertPromotionPlacementRequest("POPUP_AFTER_CLOSE", 3L, null));
         assertThrows(ResponseStatusException.class, () -> service.replace(1L, items));
         verify(placementRepository, never())
                 .delete(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
@@ -82,7 +82,7 @@ class PromotionPlacementServiceTest {
     void replace_rejectsBadBannerAspect() {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 750)));
         List<UpsertPromotionPlacementRequest> items = List.of(
-                new UpsertPromotionPlacementRequest("BANNER", 2L));
+                new UpsertPromotionPlacementRequest("BANNER", 2L, null));
         assertThrows(ResponseStatusException.class, () -> service.replace(1L, items));
     }
 
@@ -90,7 +90,7 @@ class PromotionPlacementServiceTest {
     void replace_acceptsBannerOnly() {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 300)));
         when(placementRepository.findByActivityId(1L)).thenReturn(List.of());
-        assertDoesNotThrowReplace(List.of(new UpsertPromotionPlacementRequest("BANNER", 2L)));
+        assertDoesNotThrowReplace(List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, null)));
     }
 
     @Test
@@ -99,7 +99,7 @@ class PromotionPlacementServiceTest {
         video.setAssetType("VIDEO");
         when(assetRepository.findById(5L)).thenReturn(Optional.of(video));
         assertThrows(ResponseStatusException.class, () -> service.replace(1L,
-                List.of(new UpsertPromotionPlacementRequest("BANNER", 5L))));
+                List.of(new UpsertPromotionPlacementRequest("BANNER", 5L, null))));
     }
 
     @Test
@@ -109,7 +109,7 @@ class PromotionPlacementServiceTest {
         active.setStatus("ACTIVE");
         when(activityRepository.findById(9L)).thenReturn(Optional.of(active));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.replace(9L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L))));
+                () -> service.replace(9L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, null))));
         assertEquals(409, e.getStatusCode().value());
     }
 
@@ -126,6 +126,17 @@ class PromotionPlacementServiceTest {
         List<PromotionPlacementDto> result = service.list(1L);
         assertEquals(1, result.size());
         assertEquals("/api/v2/media/ad-assets/2", result.get(0).previewUrl());
+    }
+
+    @Test
+    void replace_persistsBannerSortOrderForCarouselOrdering() {
+        when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 300)));
+        when(placementRepository.findByActivityId(1L)).thenReturn(List.of());
+        service.replace(1L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, 30)));
+        org.mockito.ArgumentCaptor<PromotionPlacement> captor =
+                org.mockito.ArgumentCaptor.forClass(PromotionPlacement.class);
+        verify(placementRepository).insert(captor.capture());
+        assertEquals(30, captor.getValue().getSortOrder());
     }
 
     private void assertDoesNotThrowReplace(List<UpsertPromotionPlacementRequest> items) {

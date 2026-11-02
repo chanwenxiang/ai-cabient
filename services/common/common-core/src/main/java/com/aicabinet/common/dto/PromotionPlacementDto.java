@@ -11,6 +11,8 @@ public record PromotionPlacementDto(
         Long assetId,
         Integer imageWidth,
         Integer imageHeight,
+        /** 轮播顺序：数值小在前（V434） */
+        Integer sortOrder,
         /** 同源素材预览地址 /api/v2/media/ad-assets/{assetId} */
         String previewUrl
 ) {}

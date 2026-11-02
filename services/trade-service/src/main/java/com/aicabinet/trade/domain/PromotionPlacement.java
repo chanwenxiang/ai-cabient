@@ -26,5 +26,8 @@ public class PromotionPlacement {
 
     private Integer imageHeight;
 
+    /** 轮播顺序：数值小在前；相同值按 activity_id/placement_id（V434）。 */
+    private Integer sortOrder;
+
     private Instant createdAt;
 }

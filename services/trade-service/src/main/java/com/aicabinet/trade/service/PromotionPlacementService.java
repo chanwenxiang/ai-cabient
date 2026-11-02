@@ -129,6 +129,8 @@ public class PromotionPlacementService {
             p.setAssetId(asset.getAssetId());
             p.setImageWidth(asset.getImageWidth());
             p.setImageHeight(asset.getImageHeight());
+            p.setSortOrder(Math.max(0, Math.min(9999,
+                    item.sortOrder() == null ? 0 : item.sortOrder())));
             p.setCreatedAt(Instant.now());
             result.add(p);
         }
@@ -167,7 +169,7 @@ public class PromotionPlacementService {
     private PromotionPlacementDto toDto(PromotionPlacement p) {
         return new PromotionPlacementDto(
                 p.getPlacementId(), p.getActivityId(), p.getPosition(), p.getAssetId(),
-                p.getImageWidth(), p.getImageHeight(),
+                p.getImageWidth(), p.getImageHeight(), p.getSortOrder(),
                 "/api/v2/media/ad-assets/" + p.getAssetId());
     }
 

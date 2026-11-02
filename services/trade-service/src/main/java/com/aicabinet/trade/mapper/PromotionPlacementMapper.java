@@ -35,7 +35,7 @@ public interface PromotionPlacementMapper extends BaseTradeMapper<PromotionPlace
                   SELECT 1 FROM jsonb_array_elements_text(COALESCE(a.rule_config -> 'merchantIds', '[]'::jsonb)) e
                   WHERE e = #{merchantId}))
           )
-        ORDER BY a.activity_id, p.placement_id
+        ORDER BY p.sort_order, a.activity_id, p.placement_id
         """)
     List<PromotionPlacement> findActivePlacements(@Param("deviceId") String deviceId,
                                                   @Param("merchantId") String merchantId,
@@ -44,6 +44,7 @@ public interface PromotionPlacementMapper extends BaseTradeMapper<PromotionPlace
     default List<PromotionPlacement> findByActivityId(Long activityId) {
         return selectList(Wrappers.<PromotionPlacement>lambdaQuery()
                 .eq(PromotionPlacement::getActivityId, activityId)
+                .orderByAsc(PromotionPlacement::getSortOrder)
                 .orderByAsc(PromotionPlacement::getPlacementId));
     }
 

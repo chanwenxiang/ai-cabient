@@ -411,6 +411,19 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
+            <el-form-item label="轮播顺序">
+              <el-input-number
+                v-model="placementForm.bannerSortOrder"
+                :min="0"
+                :max="9999"
+                :step="10"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">数值小在前；相同值按活动编号</div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="上传">
               <el-button :loading="uploading === 'BANNER'" @click="pickFile('BANNER')"
                 >上传新图</el-button
@@ -558,6 +571,7 @@ interface ImageAsset {
 
 interface PlacementDto {
   placementId: number;
+  sortOrder?: number;
   activityId: number;
   position: string;
   assetId: number;
@@ -981,9 +995,10 @@ const placementSaving = ref(false);
 const imageAssets = ref<ImageAsset[]>([]);
 const placementForm = ref<{
   bannerAssetId: number | null;
+  bannerSortOrder: number;
   popupPosition: 'NONE' | 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE';
   popupAssetId: number | null;
-}>({ bannerAssetId: null, popupPosition: 'NONE', popupAssetId: null });
+}>({ bannerAssetId: null, bannerSortOrder: 0, popupPosition: 'NONE', popupAssetId: null });
 const uploading = ref<'BANNER' | 'POPUP' | ''>('');
 const uploadTarget = ref<'BANNER' | 'POPUP'>('BANNER');
 const bannerFileInput = ref<HTMLInputElement | null>(null);
@@ -1018,7 +1033,12 @@ async function openPlacements(row: PromotionRow) {
   const inlineRow = { activityId: row.activityId, activityName: row.activityName || '' };
   placementActivityId.value = inlineRow.activityId;
   placementActivityName.value = inlineRow.activityName || `活动 ${row.activityId}`;
-  placementForm.value = { bannerAssetId: null, popupPosition: 'NONE', popupAssetId: null };
+  placementForm.value = {
+    bannerAssetId: null,
+    bannerSortOrder: 0,
+    popupPosition: 'NONE',
+    popupAssetId: null
+  };
   placementVisible.value = true;
   await loadImageAssets();
   try {
@@ -1027,8 +1047,10 @@ async function openPlacements(row: PromotionRow) {
       'GET'
     );
     for (const p of items || []) {
-      if (p.position === 'BANNER') placementForm.value.bannerAssetId = p.assetId;
-      else if (p.position === 'POPUP_BEFORE_OPEN' || p.position === 'POPUP_AFTER_CLOSE') {
+      if (p.position === 'BANNER') {
+        placementForm.value.bannerAssetId = p.assetId;
+        placementForm.value.bannerSortOrder = p.sortOrder ?? 0;
+      } else if (p.position === 'POPUP_BEFORE_OPEN' || p.position === 'POPUP_AFTER_CLOSE') {
         placementForm.value.popupPosition = p.position;
         placementForm.value.popupAssetId = p.assetId;
       }
@@ -1091,14 +1113,14 @@ async function savePlacements() {
   if (!f.bannerAssetId) return ElMessage.warning('请选择轮播横幅图片');
   const bannerErr = assertSize('BANNER', f.bannerAssetId);
   if (bannerErr) return ElMessage.warning(`轮播横幅：${bannerErr}`);
-  const items: { position: string; assetId: number }[] = [
-    { position: 'BANNER', assetId: f.bannerAssetId }
+  const items: { position: string; assetId: number; sortOrder: number }[] = [
+    { position: 'BANNER', assetId: f.bannerAssetId, sortOrder: f.bannerSortOrder ?? 0 }
   ];
   if (f.popupPosition !== 'NONE') {
     if (!f.popupAssetId) return ElMessage.warning('请选择弹窗图片');
     const popupErr = assertSize(f.popupPosition, f.popupAssetId);
     if (popupErr) return ElMessage.warning(`弹窗：${popupErr}`);
-    items.push({ position: f.popupPosition, assetId: f.popupAssetId });
+    items.push({ position: f.popupPosition, assetId: f.popupAssetId, sortOrder: 0 });
   }
   placementSaving.value = true;
   try {

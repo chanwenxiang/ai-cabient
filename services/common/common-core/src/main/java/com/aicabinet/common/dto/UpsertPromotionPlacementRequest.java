@@ -6,5 +6,7 @@ package com.aicabinet.common.dto;
  */
 public record UpsertPromotionPlacementRequest(
         String position,
-        Long assetId
+        Long assetId,
+        /** 轮播顺序：数值小在前；null=0。仅 BANNER 有意义，弹窗位忽略。 */
+        Integer sortOrder
 ) {}
