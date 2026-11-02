@@ -19,9 +19,6 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-const DEFAULT_TITLE = '加载失败';
-const DEFAULT_HINT = '请检查网络后重试';
-
 const props = withDefaults(
   defineProps<{
     title?: string;
@@ -34,9 +31,9 @@ const props = withDefaults(
     compact?: boolean;
   }>(),
   {
-    title: DEFAULT_TITLE,
+    title: '加载失败',
     message: '',
-    hint: DEFAULT_HINT,
+    hint: '请检查网络后重试',
     showRetry: true,
     retryText: '重试',
     retrying: false,
@@ -52,10 +49,10 @@ defineEmits<{ retry: [] }>();
  * 用户会去查网络。规则：title 已是具体业务原因时不再追加网络提示，只有通用标题才提示。
  */
 const shownTitle = computed(() =>
-  props.title !== DEFAULT_TITLE ? props.title : props.message || DEFAULT_TITLE
+  props.title !== '加载失败' ? props.title : props.message || '加载失败'
 );
 const shownHint = computed(() =>
-  props.hint === DEFAULT_HINT && shownTitle.value !== DEFAULT_TITLE ? '' : props.hint
+  props.hint === '请检查网络后重试' && shownTitle.value !== '加载失败' ? '' : props.hint
 );
 </script>
 
