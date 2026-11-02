@@ -92,7 +92,12 @@
         </view>
       </view>
 
-      <app-underline-tabs layout="auto" :items="statusTabItems" :value="status" @change="changeStatus" />
+      <app-underline-tabs
+        layout="auto"
+        :items="statusTabItems"
+        :value="status"
+        @change="changeStatus"
+      />
 
       <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
       <error-state

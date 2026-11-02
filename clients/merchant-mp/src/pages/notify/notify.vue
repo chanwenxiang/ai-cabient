@@ -177,5 +177,4 @@ onShow(async () => {
 });
 </script>
 
-<style scoped src="./notify.page.css">
-</style>
+<style scoped src="./notify.page.css"></style>

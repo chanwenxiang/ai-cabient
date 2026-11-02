@@ -1,7 +1,12 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="我的优惠券" />
-    <app-underline-tabs layout="auto" :items="couponTabItems" :value="activeTab" @change="onCouponTab" />
+    <app-underline-tabs
+      layout="auto"
+      :items="couponTabItems"
+      :value="activeTab"
+      @change="onCouponTab"
+    />
     <view class="page-body">
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view

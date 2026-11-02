@@ -1,7 +1,12 @@
 <template>
   <view class="page page-fill">
     <app-nav-bar title="我的订单" home-url="/pages/index/index" />
-    <app-underline-tabs layout="auto" :items="statusTabItems" :value="filter" @change="onStatusTab" />
+    <app-underline-tabs
+      layout="auto"
+      :items="statusTabItems"
+      :value="filter"
+      @change="onStatusTab"
+    />
     <view v-if="booting" class="state-wrap"
       ><text class="meta">{{ UI_COPY.loading }}</text></view
     >

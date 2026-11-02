@@ -307,5 +307,4 @@ async function submit() {
 }
 </script>
 
-<style scoped src="./prep-generate.page.css">
-</style>
+<style scoped src="./prep-generate.page.css"></style>

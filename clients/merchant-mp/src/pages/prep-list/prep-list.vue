@@ -461,5 +461,4 @@ async function submit() {
 }
 </script>
 
-<style scoped src="./prep-list.page.css">
-</style>
+<style scoped src="./prep-list.page.css"></style>
