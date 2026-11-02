@@ -269,3 +269,108 @@ uni-button {
   isolation: isolate;
   background: var(--card-bg, #fff);
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * 通用组件类（两端小程序共用；页面优先复用，别再各写一套）
+ * 仅 mp 侧引用（admin 走 main.css 的 Element Plus 语义，互相独立）。
+ * 几何一律 rpx：375 宽下 2rpx = 1px。
+ * ───────────────────────────────────────────────────────────── */
+.ui-card {
+  background: var(--color-bg-card, #ffffff);
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
+
+.ui-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.ui-section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--color-text-primary, #0f172a);
+  line-height: 1.4;
+}
+
+.ui-caption {
+  font-size: 22rpx;
+  color: var(--color-text-muted, #94a3b8);
+  line-height: 1.5;
+}
+
+.ui-divider {
+  height: 1px;
+  background: var(--color-border, #eef2f7);
+  margin: 20rpx 0;
+}
+
+/* 按钮：触屏最小 88rpx 高（44px），主/次/幽灵三档 */
+.ui-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88rpx;
+  padding: 0 40rpx;
+  border-radius: 20rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1;
+  border: none;
+  transition: opacity 0.15s ease;
+}
+.ui-btn:active {
+  opacity: 0.82;
+}
+.ui-btn--primary {
+  background: var(--brand, #0d9488);
+  color: #ffffff;
+}
+.ui-btn--ghost {
+  background: var(--color-bg-card, #ffffff);
+  color: var(--color-text-primary, #0f172a);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+.ui-btn--block {
+  width: 100%;
+}
+
+/* 商品缩略图：无图时用首字 + 品牌淡底，别留空白方块 */
+.ui-thumb {
+  width: 96rpx;
+  height: 96rpx;
+  flex: 0 0 96rpx;
+  border-radius: 20rpx;
+  overflow: hidden;
+  background: var(--brand-soft, #f0fdfa);
+}
+.ui-thumb__fallback {
+  width: 96rpx;
+  height: 96rpx;
+  flex: 0 0 96rpx;
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+/* 数量输入：触屏友好，居中对齐数字 */
+.ui-num {
+  width: 132rpx;
+  height: 76rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--color-text-primary, #0f172a);
+  background: #f8fafc;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 16rpx;
+}

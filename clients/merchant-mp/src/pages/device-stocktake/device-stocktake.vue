@@ -11,6 +11,7 @@ import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { absoluteImageUrl } from '@/composables/useReplenishmentDisplay';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
@@ -100,7 +101,8 @@ async function loadDevice(autoOpen = false) {
           skuId: String(g.skuId),
           skuName: g.skuName,
           quantity: g.quantity,
-          imageUrl: g.imageUrl ?? null
+          // 图片地址必须绝对化，否则小程序端加载不到、只渲染空白方块（与补货页同源 helper）
+          imageUrl: absoluteImageUrl(g.imageUrl) || null
         }));
       goods.value = rows;
       // 实盘预填台账数：覆盖式语义，没动到的行=无差异，提交时自动过滤
@@ -371,7 +373,13 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
                 <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
               </view>
               <view v-for="g in goods" :key="g.skuId" class="goods-row">
-                <image v-if="g.imageUrl" :src="g.imageUrl" mode="aspectFill" class="goods-img" />
+                <image
+                  v-if="g.imageUrl"
+                  :src="g.imageUrl"
+                  mode="aspectFill"
+                  class="goods-img"
+                  @error="g.imageUrl = null"
+                />
                 <view v-else class="goods-img goods-img-fallback">
                   <text>{{ (g.skuName || g.skuId).slice(0, 1) }}</text>
                 </view>
@@ -590,5 +598,42 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
   border-radius: 8rpx;
   padding: 8rpx 12rpx;
   font-size: 26rpx;
+}
+
+/* —— 统一到 shared-uni 的组件度量（本页覆盖，勿各页再散写） —— */
+.card {
+  border-radius: 24rpx;
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
+.section {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--color-text-primary, #0f172a);
+}
+.goods-img,
+.goods-img-fallback {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 20rpx;
+}
+.goods-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft, #f0fdfa);
+  color: var(--brand, #0d9488);
+  font-size: 40rpx;
+  font-weight: 600;
+}
+.stock-input {
+  width: 132rpx;
+  height: 76rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  background: #f8fafc;
+  border-radius: 16rpx;
 }
 </style>
