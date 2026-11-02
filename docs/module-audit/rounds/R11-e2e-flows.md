@@ -72,3 +72,17 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 - **出款通道 = MOCK**：请求行 `gateway=MOCK`、`remark=仅 Mock 成功（记账打款，未发起真实转账）` ⇒ 佐证 dev 不会真打款（这也是本轮不点真实 payout 的依据）。
 - 账实：`WITHDRAW_FREEZE −1000 → WITHDRAW_FEE −6（6‰）→ WITHDRAW_PAID −994`，余额 50986 → 49992，差额正好 994；状态机一次到底，无 `PAYING` 重入。
 - 结论：提现申请→（自动）审核→记账打款 全链在 dev 可复现，费率 6‰、净额、余额三者自洽。
+
+## R11 段 2 · B4 三端同读（2026-11-02 完成）
+
+同一张会员+活动单 `1793584809445376908254`（已全额退款），三端各读一次，**六个数逐个相同**：
+
+| 端 | 接口 | gross | total | member | activity | refunded | 状态 |
+|----|------|-------|-------|--------|----------|----------|------|
+| 消费端 | `GET /api/v2/orders/{id}` | 350 | 0 | 7 | 100 | 243 | REFUNDED |
+| 商户端 | `GET /api/v2/merchant/orders/{id}` | 350 | 0 | 7 | 100 | 243 | REFUNDED |
+| 后台 | `GET /api/v2/ops/admin/orders/{id}` | 350 | 0 | 7 | 100 | 243 | REFUNDED |
+
+- 后台路径由 `clients/admin-vue/src/api/endpoints.ts:22`（`ops = /api/v2/ops/admin`）+ `:89` 推出。
+- **一次误判已排除**：先用商户账号（`15156276077`，库里角色＝`merchant/商户管理员`）读后台得 403，一度疑为「超管缺 `ops:order:list`」；查库确认该账号根本不是运营角色 ⇒ 403 属正确鉴权，**不领号**。换运营账号（`13900000001`）即 200。
+- 结论：MA-029 新口径（gross/member/activity）在三端读面一致，无口径分叉；退款后 `total=0 / refunded=243` 也三端一致。
