@@ -733,4 +733,11 @@ async function onLogout() {
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* 分组标题可读性：原来 22rpx 浅灰，几乎看不见（只改字号/字重/颜色，margin 与组间距逻辑不动） */
+.section-label {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #334155;
+}
 </style>
