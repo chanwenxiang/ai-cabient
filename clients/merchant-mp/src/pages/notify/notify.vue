@@ -178,10 +178,4 @@ onShow(async () => {
 </script>
 
 <style scoped src="./notify.page.css">
-/* 分组标题可读性（同「我的」页口径：22→26rpx、600、#334155） */
-.field-label {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: #334155;
-}
 </style>

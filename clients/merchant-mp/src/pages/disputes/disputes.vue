@@ -1,7 +1,7 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="争议处理" home-url="/pages/home/home" />
-    <app-underline-tabs :items="tabs" :value="activeTab" @change="switchTab" />
+    <app-underline-tabs layout="auto" :items="tabs" :value="activeTab" @change="switchTab" />
     <view class="page-body">
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view

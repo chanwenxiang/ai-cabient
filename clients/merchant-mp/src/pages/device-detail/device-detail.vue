@@ -111,7 +111,7 @@
         <!-- 选项式详情页签（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 -->
         <!-- 2026-10-28：改用全局 app-underline-tabs，自带选中态/下划线样式；此前 .detail-tabs
              只有模板没有对应样式，渲染成无选中态、无下划线的纯文本。 -->
-        <app-underline-tabs :items="detailTabs" :value="activeTab" @change="onDetailTab" />
+        <app-underline-tabs layout="auto" :items="detailTabs" :value="activeTab" @change="onDetailTab" />
 
         <!-- CB-050：快捷操作宫格（收拢散落入口） -->
         <view class="card" v-show="activeTab === 'overview'">

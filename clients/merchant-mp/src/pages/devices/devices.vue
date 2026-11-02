@@ -25,7 +25,7 @@
         <text class="tool-label">补货任务</text>
       </view>
     </view>
-    <app-underline-tabs :items="deviceStatusTabs" :value="filter" @change="setDeviceFilter" />
+    <app-underline-tabs layout="auto" :items="deviceStatusTabs" :value="filter" @change="setDeviceFilter" />
     <view class="filters">
       <input
         v-model="keyword"

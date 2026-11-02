@@ -1,7 +1,7 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="结算对账" home-url="/pages/home/home" />
-    <app-underline-tabs :items="rangeTabs" :value="rangePreset" @change="onRangeTab" />
+    <app-underline-tabs layout="auto" :items="rangeTabs" :value="rangePreset" @change="onRangeTab" />
     <view class="page-body">
       <view class="period-card">
         <view v-if="hasZeroRows" class="filter-aux">

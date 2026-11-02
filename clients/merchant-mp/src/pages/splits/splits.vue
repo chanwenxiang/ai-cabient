@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <app-nav-bar title="分账明细" home-url="/pages/home/home" />
-    <app-underline-tabs :items="splitTabs" :value="tab" @change="switchTab" />
+    <app-underline-tabs layout="auto" :items="splitTabs" :value="tab" @change="switchTab" />
     <view class="page-body">
       <view v-if="focusOrderId" class="focus-banner">
         <text class="focus-text">已定位订单 {{ displayBizNo(focusOrderId) }}</text>

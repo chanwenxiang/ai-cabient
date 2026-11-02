@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <app-nav-bar title="经营分析" home-url="/pages/home/home" />
-    <app-underline-tabs :items="periodTabs" :value="String(days)" @change="onPeriodTab" />
+    <app-underline-tabs layout="auto" :items="periodTabs" :value="String(days)" @change="onPeriodTab" />
     <view class="page-body">
       <view v-if="cabinetPickerLabels.length" class="period-card">
         <picker

@@ -1,7 +1,7 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="消息中心" home-url="/pages/home/home" />
-    <app-underline-tabs :items="filterTabs" :value="filter" @change="onFilterChange" />
+    <app-underline-tabs layout="auto" :items="filterTabs" :value="filter" @change="onFilterChange" />
     <view class="page-body">
       <view v-if="loading && !list.length" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view

@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <app-nav-bar title="采购入库" home-url="/pages/home/home" />
-    <app-underline-tabs :items="modeTabs" :value="mode" @change="onModeTab" />
+    <app-underline-tabs layout="auto" :items="modeTabs" :value="mode" @change="onModeTab" />
     <view class="page-body">
       <view v-if="mode === 'create'" class="panel">
         <view v-if="pageError" class="card">

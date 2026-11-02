@@ -10,7 +10,7 @@
           <text class="hint">仅本人负责的分仓可盘点</text>
         </view>
 
-        <app-underline-tabs :items="statusTabs" :value="statusTab" @change="onStatusTab" />
+        <app-underline-tabs layout="auto" :items="statusTabs" :value="statusTab" @change="onStatusTab" />
 
         <!-- 2026-10-28：分仓解析失败必须常驻错误态（此前只弹一次 toast，页面永久停在「加载中…」） -->
         <view v-if="warehouseGate.state === 'error'" class="card">
