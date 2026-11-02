@@ -133,11 +133,11 @@
 
       <!--
         微信支付分品牌标语（2026-11-02 用户要求：首页底部，按同行横幅形态）：
-        单行「微信支付分 | 550分及以上优享」，细胶囊承托保证深色照片上可读；
-        业务词位由分数文案占据（组件 show-score）。
+        单行「微信支付分 | 550分及以上优享」，不加底板、与首页同底色；
+        深色照片上用 light 白字（官方 logo 保留原色）。
       -->
       <view class="landing-score">
-        <pay-score-tag variant="slogan" show-score />
+        <pay-score-tag variant="slogan" show-score tone="light" />
       </view>
     </view>
 
@@ -353,9 +353,8 @@ export default {
 .landing-score {
   flex-shrink: 0;
   margin-top: 10rpx;
-  padding: 8rpx 20rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 0;
+  background: transparent;
 }
 
 .landing-action {

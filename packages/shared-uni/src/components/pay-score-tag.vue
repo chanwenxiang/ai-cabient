@@ -1,5 +1,11 @@
 <template>
-  <view class="ps-tag" :class="[`ps-tag--${variant}`, { 'ps-tag--scored': showScore }]">
+  <view
+    class="ps-tag"
+    :class="[
+      `ps-tag--${variant}`,
+      { 'ps-tag--scored': showScore, 'ps-tag--light': tone === 'light' }
+    ]"
+  >
     <!-- 路径必须写字面量：script setup 里的 const 在小程序端编译后取不到（o.logoSrc 为空） -->
     <image class="ps-tag__logo" src="/static/payscore/payscore-logo.png" mode="widthFix" />
     <text class="ps-tag__brand">微信支付分</text>
@@ -42,12 +48,15 @@ const props = withDefaults(
     showScore?: boolean;
     /** 分数文案，如「550分及以上优享」 */
     score?: string;
+    /** dark = 深色文字（浅底，默认）；light = 白字（深色/照片底，用于首页底部） */
+    tone?: 'dark' | 'light';
   }>(),
   {
     variant: 'label',
     biz: '先取后付',
     showScore: false,
-    score: '550分及以上优享'
+    score: '550分及以上优享',
+    tone: 'dark'
   }
 );
 
@@ -151,5 +160,15 @@ const scoreText = props.score;
   height: 14px;
   margin: 0 7px;
   background: rgba(102, 102, 102, 0.5);
+}
+
+/* 深色/照片底：官方 logo 保留原色，文字与分割线转白，不再加白色底板 */
+.ps-tag--light .ps-tag__brand,
+.ps-tag--light .ps-tag__biz,
+.ps-tag--light .ps-tag__score {
+  color: rgba(255, 255, 255, 0.92);
+}
+.ps-tag--light .ps-tag__sep {
+  background: rgba(255, 255, 255, 0.55);
 }
 </style>
