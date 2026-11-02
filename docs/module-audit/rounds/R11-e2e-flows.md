@@ -93,3 +93,10 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 - 调拨创建 `POST /api/v2/ops/admin/warehouse/transfers` 返回 **500**（traceId `f46acef186cc`）：DB 检查约束 `chk_wh_transfer_loss = (received_qty+loss_qty)=quantity` 与创建期写入 `0/0` 冲突 ⇒ **正常调拨必炸**，领 **MA-037（P1）**。
 - 侧证：失败后库存前后完全一致（`sku 100013` 合计 46 未变）⇒「失败不改库存」这条是对的。
 - 待 MA-037 修完再补：调拨 ship/receive 后两仓数量总和不变、备货单汇总按全柜在架 SKU。
+
+## R11 段 2 · B1 复跑（2026-11-02，MA-037 修复后）
+
+- V428 已生效（活库 v428，约束 `received+loss <= quantity`）。
+- `create` **500 → 200** ✅（transferNo `1793586826720675318377`，DRAFT）；补 `batchNo=B-WH-SPRITE330-01` 后 `ship` **200** ✅（源仓 46→45，状态 SHIPPED）。
+- `receive` **500** ⇒ 新领 **MA-038**：`warehouse_inventory.expiry_date` NOT NULL，而调拨行无有效期、创建不校验 ⇒ 收货 500（应 4xx）。传输单停在 `SHIPPED`。
+- 未验完：两仓合计需把 `warehouse_in_transit` 一起算（本轮该表查询未见行，需确认 ship 是否写出途明细）——留 MA-038 修完一并核。
