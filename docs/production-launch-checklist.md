@@ -10,7 +10,7 @@
 - 完成至少 1,000 次真实拿取/放回组合测试，分别统计商品、数量和组合订单准确率。
 - 配置真实微信/支付宝支付商户号、证书、回调域名和退款权限。
 - 关闭所有 mock 支付、mock 短信、mock 识别和测试余额入口。
-- 完成生产数据库、Redis、对象存储和消息系统的高可用、备份与恢复演练。（**2026-11-02 部分完成**：PG 做了 pg_dump→临时库恢复演练，179 张表与抽样行数一致、恢复 2s；已装 `scripts/backup-postgres.sh` 每日 02:30 cron：本机 7 天 + 流式上传 MinIO `db-backups` 保留 30 天；⚠️ MinIO 与 PG 仍同机，**真异地**需再把桶同步到外部 OSS（待凭据）；Redis/MinIO/EMQX 的恢复未演练）
+- 完成生产数据库、Redis、对象存储和消息系统的高可用、备份与恢复演练。（**2026-11-02 部分完成**：PG 做了 pg_dump→临时库恢复演练，179 张表与抽样行数一致、恢复 2s；已装 `scripts/backup-postgres.sh` 每日 02:30 cron：本机 7 天 + 流式上传 MinIO `db-backups` 保留 30 天；⚠️ MinIO 与 PG 仍同机，**真异地**需再把桶同步到外部 OSS（待凭据）；Redis/MinIO/EMQX 恢复演练已完成：Redis AOF 快照起临时实例复现探针键、MinIO 备份对象回读 sha256 一致、EMQX 重启后 2 个客户端自动重连；⚠️ EMQX `--force-recreate`（容器层重建 + bootstrap 重导）未演练，需在设备离线窗口做）
 - 所有密钥改用密钥管理服务或部署平台 Secret，不得保留仓库默认密钥（**2026-11-02 已加部署期校验**：`scripts/check-prod-env-secrets.sh` 在 `deploy-prod.sh` build 前运行，缺项/仍是 `aicabinet`·`devredis`·`minioadmin`·`dev-*`·`ci-*` 等开发默认值即中止，只输出键名）。
 - 完成资金账本、订单、库存、退款和分账的日终对账。
 - Testcontainers 集成测试必须在 CI 中全部执行，不能保留跳过状态。
