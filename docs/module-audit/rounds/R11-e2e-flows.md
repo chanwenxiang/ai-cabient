@@ -55,3 +55,12 @@ mvn -pl services/trade-service -am -Dtest=MemberOrderChainE2ETest -Dsurefire.fai
 - API：`GET /api/v2/announcements` 返回该条；`GET /api/v2/announcements/9900000001` 返回详情（公开读，无需鉴权）。
 - 真端（automator 9421）：列表页显示「通知公告 / 系统 / 新 / 2026-11-02 10:07 / R11 造数公告」；详情页显示标题+正文+时间；**「请检查网络后重试」出现 false** ⇒ MA-035 的判据通过。
 - 结论：公告读面在「有数据」时也正常，之前 0 行只是没数据，不是缺陷。
+
+## R11 段 2 · B2 退款半条（2026-11-02 完成）
+
+- 入口：`POST /api/v2/orders/{orderId}/refund`（消费端 token；body 必须有 `reason`，空则 400「原因不能为空」）。
+- **24 小时窗口是硬的**：对 11-01 09:55 那单调用返回 409「已超过自助退款时限（24 小时），请提交申诉」⇒ 属正确行为，记为正例。
+- 正跑（今天 10:00 的会员+活动单 `1793584809445376908254`）：返回 200，`status=REFUNDED / refundedCents=243 / 库存已回库`；
+  支付流水 `CHARGE:243:COMPLETED` + `REFUND:243:COMPLETED` 对平；
+  **退款后 `gross=350 / total=243 / member=7 / activity=100` 原样保留**（拆解不被退款破坏，退款额正好等于实付）。
+- 未做：**提现半条**。`POST /api/v2/merchant/wallet/withdraw` + `/{requestId}/review|payout` 需商户端登录态（超管/商户两套 token），本轮上下文不足，列为下一步。
