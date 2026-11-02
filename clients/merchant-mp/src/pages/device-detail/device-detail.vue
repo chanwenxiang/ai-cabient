@@ -1417,4 +1417,10 @@ async function saveSlots() {
   background: var(--color-fill, #f7f8fa);
   font-size: 28rpx;
 }
+
+/* —— 统一卡片度量（与 shared-uni/theme.css 的 ui-card 同口径；只动圆角/阴影） —— */
+.card {
+  border-radius: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
 </style>
