@@ -743,7 +743,12 @@ public class SystemConfigService {
         boolean created = existing.isEmpty();
         SystemConfig config = existing.orElseGet(SystemConfig::new);
         config.setConfigKey(key);
-        config.setConfigValue(value == null ? "" : value);
+        // 敏感键：列表接口下发的是掩码；前端原样回传掩码表示「不修改」。
+        String incoming = value == null ? "" : value;
+        if (isSensitiveKey(key) && MASKED_VALUE.equals(incoming)) {
+            incoming = oldValue == null ? "" : oldValue;
+        }
+        config.setConfigValue(incoming);
         if (description != null && !description.isBlank()) {
             config.setDescription(description);
         } else if (config.getDescription() == null) {
@@ -798,13 +803,14 @@ public class SystemConfigService {
         long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;
         SystemConfigHistory history = new SystemConfigHistory();
         history.setConfigKey(key);
-        history.setOldValue(oldValue);
-        history.setNewValue(newValue);
+        // 敏感键的历史同样脱敏：授权码/令牌不能借「版本对比」页面回读。
+        history.setOldValue(maskValue(key, oldValue));
+        history.setNewValue(maskValue(key, newValue));
         history.setOperatorId(op);
         history.setCreatedAt(Instant.now());
         historyRepository.save(history);
         auditService.appendLog(op, action, CONFIG_AUDIT_TARGET_TYPE, key,
-                describeChange(oldValue, newValue));
+                describeChange(maskValue(key, oldValue), maskValue(key, newValue)));
     }
 
     /** 变更摘要（仅用于审计 detail，会被 appendLog 截到 512 字符）。 */
@@ -1136,10 +1142,29 @@ public class SystemConfigService {
         }
     }
 
+    /** 敏感配置的脱敏占位：查询返回它；写入收到它表示保持原值。 */
+    public static final String MASKED_VALUE = "******";
+
+    /** 密码/密钥/令牌类键：这些值不得经列表接口或审计历史明文外泄。 */
+    static boolean isSensitiveKey(String key) {
+        if (key == null) return false;
+        String k = key.toLowerCase(java.util.Locale.ROOT);
+        return k.contains("password")
+                || k.contains("secret")
+                || k.contains("token")
+                || k.contains("access_key")
+                || k.contains("private_key")
+                || k.contains("webhook");
+    }
+
+    static String maskValue(String key, String value) {
+        return isSensitiveKey(key) && value != null && !value.isBlank() ? MASKED_VALUE : value;
+    }
+
     private static SystemConfigDto toDto(SystemConfig config) {
         return new SystemConfigDto(
                 config.getConfigKey(),
-                config.getConfigValue(),
+                maskValue(config.getConfigKey(), config.getConfigValue()),
                 config.getDescription(),
                 config.getUpdatedAt()
         );
