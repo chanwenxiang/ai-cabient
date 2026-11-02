@@ -75,6 +75,21 @@
 | MA-066 | P2 | fixed（钉测 4 例 + 活栈实证） | 争议确认/结算的欠款转待支付链 | 余额不足被吞掉转 PENDING 后，事务早被标 rollback-only ⇒ 提交抛 `UnexpectedRollbackException` 500，订单/工单/风控整链回滚（编程式 `TransactionTemplate` 无 noRollbackFor + `chargeOrder` 只放行 `BalanceInsufficientException`） | Qoder 活栈资金链复现 / 2026-11-02 | 账本收下该 412、出锁出事务后再抛并折成业务信号；同型第三例（P1-1/BUG-007） |
 | MA-067 | P2 | fixed（钉测 1 例 + 活栈实证） | 结算「待支付不占券」落库 | `clearCouponSelection` 把 couponId 置 null，但订单此时已 insert ⇒ `save` 走 MP `updateById` **跳过 null**，库里仍留 coupon_id 而 `user_coupon` 仍 UNUSED（券没核销却挂在单上）；后续按 `order.getCouponId()` 重算的链路会对没收的券再折一次 | Qoder 活栈资金链复现 / 2026-11-02 | 新增显式 UPDATE `clearOrderCouponSelection` + `markPendingAndDropCoupon` 两支都走；e2e 腿 2 钉 PENDING 行 coupon_id=NULL |
 
+| MA-068 | P2 | open | merchant-mp `POST /merchant/devices/{id}/stocktake-evidence` | 盘点凭证上传缺设备归属校验（同 Controller 全部设备写端点都过 requireDevicePack，唯独上传漏）⇒ 商户 A 可对商户 B 柜机挂任意照片/灌图，盘点凭证链可跨租户污染 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
+| MA-069 | P2 | open | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
+| MA-070 | P2 | open | admin `/org-sites` 组织与点位 | 权限码双轨：Controller 注解 ops:org:*、服务层强制 ops:device:*（AND），唯 DELETE 是 OR ⇒ 只授 ops:org:* 的角色「页面 403、增改 403、删除却放行」，删比改松方向反常 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
+| MA-071 | P3 | open | OpsRbacService 三个分配端点 | 整删整插 body 裸 List 无去重，重复 ID 触发复合主键 DuplicateKey→500（应 200 去重或 400）；roles/{id}/permissions、users/{id}/roles、users/{id}/merchants 三处 | ZCode R12批1 / 2026-11-02 | |
+| MA-072 | P3 | open | 运营改密/2FA 关闭 | PUT /rbac/me/password、two-factor/confirm、/disable 零审计留痕——同 Controller 其它 14 处 RBAC 写全留痕（CB-021），账号接管链关键事件审计页不可见；商户端改密反而有 PASSWORD_CHANGE | ZCode R12批1 / 2026-11-02 | |
+| MA-073 | P3 | open | 提现「申请」动作（商户+线长） | review/payout/cancel 三兄弟全有 MERCHANT_WITHDRAW_* 审计，唯独 APPLY 无；运营代提在低于阈值自动打款分支下操作者三处不可归因（线长侧 submitter 恒 null） | ZCode R12批1 / 2026-11-02 | |
+| MA-074 | P3 | open | `POST /ops/admin/staff-wallets/{id}/payout` | 补货员钱包打款标记（资金出账销账动作）无操作者审计；同族 LINE_MANAGER_ADJUST/MERCHANT_WITHDRAW_PAYOUT 均有 | ZCode R12批1 / 2026-11-02 | |
+| MA-075 | P3 | open | `PATCH /ops/admin/line-managers/{id}` | userId 换绑/改名/改手机不进 LINE_MANAGER_UPDATE 审计（只有佣金/状态变化才记）；userId 是 CB-066 实名守卫锚点，longVal 不校验用户存在可绑到不存在/他人 ID | ZCode R12批1 / 2026-11-02 | |
+| MA-076 | P3 | open | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号 | ZCode R12批1 / 2026-11-02 | |
+| MA-077 | P3 | open | OpsPayoutAccountController 收款账户 | ownerType 无白名单：未知值落到 else 分支 `ops:finance:view`（只读权限可写）且垃圾值原样入库；无资金影响（提现链只认 LINE_MANAGER/MERCHANT） | ZCode R12批1 / 2026-11-02 | |
+| MA-078 | P3 | open | `POST /ops/admin/merchants` | merchant.status 自由字符串直落：无白名单（"OPEN" 等静默生效使商户从 ACTIVE 过滤面消失）、超 16 字符触发 PG 22001→500 而非 400 | ZCode R12批1 / 2026-11-02 | |
+| MA-079 | P3 | open | `DELETE /ops/admin/dicts/types/{dictType}` | 可硬删代码内置字典类型（ORG_NODE_TYPE 等白名单权威来源），删除后 resolveNodeType fail-open 放行任意值；fail-open 本身是 javadoc 钉的设计，缺的是内置类型删除门槛 | ZCode R12批1 / 2026-11-02 | |
+| MA-080 | P3 | open | `PUT /ops/admin/org/nodes` | 组织节点 upsert 只拦「上级是自己」，不查父级存在性也不查祖先环（parent_id 无 FK，对照 DepartmentService 有完整防护）⇒ 环中节点双双缺席 roots，整棵子树从 /org/tree 静默消失 | ZCode R12批1 / 2026-11-02 | |
+| MA-081 | P3 | open | `POST /account/bind-openid`（mock-only） | 重复绑定他人已占 openId 撞 uk_user_wx_open_id 唯一索引→500 而非 409；生产 403 门禁在，仅 mock 环境报错语义问题 | ZCode R12批1 / 2026-11-02 | |
+
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
 ### 线索 #1：供应商对账单页面疑似不可达（R4 复核）→ ✅ 已实证并收口（D28-B15，2026-10-29）
@@ -594,3 +609,37 @@
 ### 本批口径说明（2026-11-02 三端审计）
 - 报告标题 **P1×3 / P2×6 / P3×18**；明细可数的 P3 只有 16 条，已按 MA-049…MA-064 + MA-065 全部入账，**差的 1–2 条 P3 明细报告里没展开**（需原作者补出后另行领号，不并入现有号）。
 - 两条报告结论被复核订正：MA-039 的「gross 覆写」段（误报，见 lessons #379）、MA-046 的「receiver 缺失坏行」例（机制换掉，见 lessons #380）。
+
+### MA-068 盘点凭证上传缺设备归属校验（跨商户写）
+- 级别/状态：P2 / open
+- 端与页面：`POST /api/v2/merchant/devices/{deviceId}/stocktake-evidence`
+- 源码定位：`MerchantPortalService.java:278-283` → `FileAttachmentService.uploadDeviceStocktakeEvidence:375-414`（只校验非空/张数/大小/图片类型，按 refType=DEVICE_STOCKTAKE 直落）
+- 复现推理：商户 A（有 merchant:slots:edit）对商户 B 的 deviceId POST multipart → 200，照片挂进 B 的盘点凭证链（photoStocktake 强制凭证政策可被跨租户污染）；同 Controller 其余设备写端点全过 requireDevicePack，本端点连读路径 streamStocktakeEvidence:286-293 都有 requireDeviceAccess，唯独上传漏。
+- 修法方向：uploadStocktakeEvidence 补 `requireDevicePack(userId, deviceId, FIELD)` 一行收口。
+
+### MA-069 线长佣金参数无界直落（持续性资金乘数）
+- 级别/状态：P2 / open
+- 端与页面：`POST /api/v2/ops/admin/line-managers`、`PATCH /{managerId}`
+- 源码定位：`LineManagerController.java:52-63` + `LineManagerService.java:129-130,187-191`；资金落点 `LineCommissionJob.doPostCommissionTx:186-204`
+- 复现推理：rateBps=50000（GMV 5 倍佣金）/负 fixedCents 均可入库，佣金按日真实入钱包；对照先例=商户钱包调账 ±1 亿分限幅（WalletAdjustRequest javadoc）。负数被 Job `commission<=0` 兜住、修改有审计，判校验缺失非设计。
+- 修法方向：create/update 对 rateBps 限 [0,10000]、fixedCents 限 [0,上限]，超限 400。
+
+### MA-070 「组织与点位」权限码双轨（AND/OR 混用，删比改松）
+- 级别/状态：P2 / open
+- 端与页面：admin `/org-sites`（OpsOrgController.java:43-107）
+- 源码定位：`OrgService.java:26,80,115,154,191`（AND 强制 ops:device:*）vs `:209 deleteNode requireAnyPermission("ops:org:edit", device:edit)`（OR）；SiteContractService:84,119 同形
+- 复现推理：只授 `ops:org:*` 的角色（V170 语义）→ 页面 403、增改 403、DELETE 成功；无提权面（收紧方向），属一致性/可用性缺陷。
+- 修法方向：服务层统一 requireAnyPermission（与 delete、与 OpsRbacController:182 双轨先例一致）。
+
+### MA-071 ~ MA-081（P3，明细从简，锚 rounds/R12-write-surface.md 批 1 战果）
+- MA-071 RBAC 三个整删整插分配端点重复 ID → DuplicateKey 500（OpsRbacService.java:361-375,622-630,670-688；修法 LinkedHashSet 去重）
+- MA-072 运营改密/2FA confirm/disable 三处零审计（OpsRbacService:558-570、OpsTwoFactorService:108-128,157-182）
+- MA-073 提现 APPLY 动作无审计 + 运营代提低于阈值自动打款分支操作者不可归因（MerchantWithdrawService:230-257,424-494；LineManagerController:106-114 submitter 恒 null）
+- MA-074 补货员钱包 payout 打款标记无操作者审计（OpsStaffWalletController:47-66）
+- MA-075 线长 PATCH 换绑 userId/改名/改手机不进审计，longVal 不校验用户存在（LineManagerService:145-166,168-199）
+- MA-076 商户补货配置与开票税务资料两处配置写无审计（CompetitiveGapService:301-328、InvoiceService:174-204）
+- MA-077 收款账户 ownerType 无白名单、未知值落只读权限分支可写（OpsPayoutAccountController:52-103）
+- MA-078 merchant.status 自由串直落（MerchantService:151-152 + V15 列定义；白名单归一 + @Size(16)）
+- MA-079 字典类型硬删无内置类型门槛，联动 resolveNodeType fail-open（SysDictService:251-265,76-80）
+- MA-080 组织节点 upsert 缺父级存在性/祖先环校验，环致子树从 tree() 静默消失（OrgService:114-149；对照 DepartmentService:100-114,263-275）
+- MA-081 bind-openid 重复绑定 500 而非 409（AccountController:78-87、AccountService:222-229、V301 唯一索引；mock-only）

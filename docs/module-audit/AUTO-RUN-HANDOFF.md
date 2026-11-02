@@ -146,3 +146,11 @@
 
 §5 表内所有行都是 ✅ 或明确标注「需人工 + 原因」，且 `docs/module-audit/PLAN.md` 的 R9/R10/R11 三行
 状态更新为完成、最后一次 `pre-push-ci-preflight` 退出 0、远端 tip 与本地一致、CI 无本会话引入的红。
+
+## R12–R17 过夜自动跑断点（2026-11-02 晚）
+
+- **驱动器**：定时自动化 `automation-cd7b6a5d`（每 45 分钟一枪共 12 枪）+ 闲时任务 offpeak-4ab2e85c 兜底；互斥锁 `.tmp/r12-overnight.lock`（mtime<100 分钟视为在跑）。
+- **T0**：✅ 关闭（MA-039~067 由修复会话代领，本会话对账无缺号；见 T0-INBOX 对账结论）。
+- **R12 批 1**：✅ 完成（23 Controller/137 写端点，P2×3/P3×11 → MA-068~081；轮报告 rounds/R12-write-surface.md 含五批分组表）。
+- **下一枪动作**：按 rounds/R12-write-surface.md 的分组表执行**批 2**（交易/订单/支付/优惠/回调 17 个 Controller），2 个只读子代理并行，四查方法论同批 1；新发现从 **MA-082** 起领号（先回读 ISSUES.md 防撞号——修复会话仍在活跃）。批 2-5 完成后按 PLAN 顺序进 R17。
+- 🔴 接手修复会话在同一工作树活跃：git add 只加 docs/module-audit/ 显式路径；ISSUES.md 只追加；发现冲突立即停手落盘。
