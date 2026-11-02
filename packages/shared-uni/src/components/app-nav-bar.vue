@@ -51,7 +51,8 @@ const props = withDefaults(
     title: '',
     bg: 'var(--nav-bar-bg, #ffffff)',
     // 小程序内联 style 对 CSS 变量偶发解析失败，标题会掉成正文色；默认用实色深字（白导航）
-    color: '#0f172a',
+    // 顶栏改品牌绿后标题必须是白字（内联 style 对 CSS 变量偶发解析失败，故用实色）
+    color: '#ffffff',
     homeUrl: '/pages/index/index',
     hideBack: false
   }

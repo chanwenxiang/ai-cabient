@@ -97,7 +97,7 @@ uni-page-body {
   --color-bg-page: var(--page-bg);
   --page-tint: #ededed;
   --page-bg: #ededed;
-  --nav-bar-bg: #ffffff;
+  --nav-bar-bg: #0d9488;
   --page-gutter: 24rpx;
   --spacing-sm: 12rpx;
   --spacing-md: 16rpx;

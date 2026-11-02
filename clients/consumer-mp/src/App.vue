@@ -72,7 +72,7 @@ uni-page-body {
   --on-deep-opacity-92: 0.92;
   --on-deep-opacity-95: 0.95;
   /* 自定义导航栏（AppNavBar）在消费端的提亮底色 */
-  --nav-bar-bg: #ffffff;
+  --nav-bar-bg: #0d9488;
   --color-primary: var(--brand);
   --color-primary-deep: var(--brand-deep);
   --color-primary-soft: var(--brand-soft);
