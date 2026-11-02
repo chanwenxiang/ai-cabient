@@ -1,7 +1,12 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="柜机订单" home-url="/pages/home/home" />
-    <app-underline-tabs :items="statusTabItems" :value="status" @change="setStatus" />
+    <app-underline-tabs
+      layout="scroll"
+      :items="statusTabItems"
+      :value="status"
+      @change="setStatus"
+    />
     <view class="page-body">
       <view v-if="booting" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view

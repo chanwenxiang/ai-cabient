@@ -702,4 +702,15 @@ useAutoRefresh({
 .resolve-btn::after {
   border: none;
 }
+
+/* KPI 字号层级：数字 48rpx/700、标签 24rpx 灰（颜色语义保持原样：红/灰/橙/绿） */
+.kpi-card .n {
+  font-size: 48rpx;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.kpi-card .l {
+  font-size: 24rpx;
+  color: #64748b;
+}
 </style>

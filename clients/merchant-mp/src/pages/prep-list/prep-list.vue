@@ -461,4 +461,12 @@ async function submit() {
 }
 </script>
 
-<style scoped src="./prep-list.page.css"></style>
+<style scoped src="./prep-list.page.css">
+/* 对齐 ui-search：88rpx 高、20rpx 圆角、浅灰底（原 64/8/白，和柜机列表不一致） */
+.filter-input {
+  height: 88rpx;
+  border-radius: 20rpx;
+  background: #f1f5f9;
+  padding: 0 28rpx;
+}
+</style>

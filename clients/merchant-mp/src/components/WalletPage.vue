@@ -490,8 +490,9 @@ useAutoRefresh({
   margin-bottom: 16rpx;
   padding: 0 28rpx;
   box-sizing: border-box;
-  background: var(--page-bg, #ededed);
-  border: 1rpx solid var(--color-border);
+  /* 2026-11-02：灰底+灰边看起来像禁用态；改白底 + 浅边，输入区更像可编辑控件 */
+  background: #ffffff;
+  border: 1rpx solid #e2e8f0;
   border-radius: var(--radius-panel);
 }
 .amount-input {
