@@ -4,10 +4,10 @@
 > **数据源**：`pg_class` + 每表 `count(*)` 精确统计（**不是 `pg_stat_user_tables` 估算**）；代码证据取当前工作区 `services/trade-service/src/main/java` 主代码、Mapper、Controller、`scheduled_task` 注册表。
 > **结论**：必须补种子 **0 张**；保留 **64 张**；建议废弃 **11 张**。
 > **执行状态（2026-11-02，已执行）**：V429（补注释）、V430（标废弃）、V431（DROP 11 张）、V432（DROP `rate_limit_config`）均已由 Flyway 应用；库内 **179 表 / 64 张空表 / 0 张无表注释 / 0 个无字段注释**。
-> **备份**：`.tmp/backup_deprecated_tables_2026-11-02.sql`（11 张表）与 `.tmp/backup_rate_limit_config_2026-11-02.sql`（5 行种子配置）。
+> **备份**：服务器全库备份 `/data/backups/aicabinet-pre-v432-20261102-171420.dump`（1.1MB）。本机 `.tmp` 的 11 表/`rate_limit_config` 备份已按用户要求删除（2026-11-02）。
 > **服务器测试环境（2026-11-02）**：`120.25.246.179` 已部署 HEAD `18ae1760`，Flyway **V433**（含 peer 的 V433 敏感配置脱敏）；179 表 / 0 表注释缺口 / 0 字段注释缺口；trade healthy，admin/API 200。
 > **服务器部署注意**：V431/V432 已在 dev 与服务器测试环境执行；再部署仍须全库备份 + 逐表 `count(*)`（迁移内行数守卫，形态不符会拒绝删除）。
-> **仓库/回滚注意**：V429–V433 已应用（服务器 V433；本地 dev 也已 433）；不要用 `pre-v432`/`pre-v431` 旧镜像直接连当前库（Flyway 会因缺少已应用迁移而 validate 失败）。备份不含 `flyway_schema_history`；完整回退需从完整库备份恢复。
+> **仓库/回滚注意**：V429–V433 已应用（服务器 V433；本地 dev 也已 433）；本机 `pre-v432`/`pre-v431` 回滚 tag 已删除。回退需从完整库备份恢复（服务器备份只覆盖服务器，本机无专用备份）。
 
 ---
 
@@ -256,3 +256,4 @@ SELECT tbl FROM rc WHERE n = 0 ORDER BY tbl;
 | 2026-11-02 | 第二批执行：镜像重建后 Flyway 应用 V429/V430/V431；11 张表 DROP；库内 180 表 / 64 空 / 0 注释缺口；trade-service 启动 20.6s、health 200、无 ERROR。 |
 | 2026-11-02 | 追加：V432 删除零引用的 `rate_limit_config`（5 行种子配置，已备份）；库内 179 表 / 64 空 / 注释缺口 0。 |
 | 2026-11-02 | 服务器测试环境 `120.25.246.179` 部署 HEAD `18ae1760`；Flyway 429→433、179 表、注释缺口 0、trade healthy、admin/API 200；部署前全库备份 `/data/backups/aicabinet-pre-v432-20261102-171420.dump`。 |
+| 2026-11-02 | 按用户要求删除本机 `pre-v432` tag 和 `.tmp` 两份 SQL 备份；服务器全库备份保留。 |
