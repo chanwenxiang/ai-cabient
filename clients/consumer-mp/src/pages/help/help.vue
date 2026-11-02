@@ -321,6 +321,15 @@ function goOrders() {
 .support-row--contact::after {
   border: none;
 }
+/*
+ * 真机（非开发者工具）的 button 组件会把内容按 `text-align:center` 排，
+ * 只给外层设 left 不够（框架 button 选择器更具体），必须显式落到中间列与文字。
+ */
+.support-row--contact .support-main,
+.support-row--contact .support-label,
+.support-row--contact .support-value {
+  text-align: left;
+}
 .support-row-hover {
   opacity: 0.85;
 }
