@@ -698,6 +698,21 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **MA-089**：去掉 `ApplyBalanceRefundRequest` 的 `@Max`（Bean 校验先拦 ⇒ DC-6 配置只能收紧不能放宽，
   与充值侧口径矛盾）。已核实 springdoc 不把 `maximum` 写进生成物 ⇒ **无需 regen shared-types**（这条决定了它能不能单独落）。
 
+### 2026-11-03（批次C′：复核判为「P3 名义但实碰钱/鉴权」的先收——MA-085/088/089/093/118/119）
+
+- 顺序按爆炸半径而非级别标签：展示类（MA-127/128/129）排在资金与鉴权面之后。
+- **MA-119**：两个设备凭据服务原来只要「12 位数字」就签发 ACTIVE 凭据（明文 secret 回显），
+  现必须先存在设备（404）；钉测 1 例。**MA-085**：`budgetCents < 0` 让 reserve 的 `budget > 0` 整体跳过
+  （used_cents 无上限推进 = 资金闸失效）→ 400；`activityType` 必填 + 入库前归一大写
+  （mapper 的 `IN ('SKU_REDUCE',...)` 是精确匹配，小写存进去该活动静默退出定价面）；钉测 4 例。
+  类型**全量白名单没做**：实测词表至少含非 SKU 的 `FULL_REDUCE`（既有测试在用），盲列会打断真实类型 ⇒ 待拍板。
+- **MA-088**：回调缺 `refund_id` 时幂等键退化成常量 `channel-refund-sync:null`，第二笔命中同键
+  就「不扣余额、单据照涨」（幽灵余额）。现在拒绝入账 + 专项告警转人工；
+  🔴 **键字面量刻意不改**——微信会重投通知，老库已存旧键流水，改格式会让部署后重投被当新键重复扣。
+- **MA-093 / MA-118** 各留一处残留（Controller 裸 Map/裸取参），与 MA-104/108 的「裸 Map 统一 DTO 化」并批。
+- **MA-089**：去掉 `ApplyBalanceRefundRequest` 的 `@Max`（Bean 校验先拦 ⇒ DC-6 配置只能收紧不能放宽，
+  与充值侧口径矛盾）。已核实 springdoc 不把 `maximum` 写进生成物 ⇒ **无需 regen shared-types**（这条决定了它能不能单独落）。
+
 ### 2026-11-03（批次C：全额退返还券 MA-147——单源复用，顺序是硬约束）
 
 - `SettlementWaiveRefundService.finalizeWaiveRefund` 原来全文零券处理：钱退了、已核销券不返还、活动预算永久占用。
@@ -713,6 +728,18 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `settleAfterPartialRefund` 的 `newSubtotal<=0` 分支本身 ⇒ waive 与「退到零行」两条路径同覆盖。
   并**撤销** `check-mybatis-null-clear` 对 CouponService 的整条豁免（那句「别处会清」只对 PENDING 链成立），
   门禁头部新增「豁免纪律」。全量重跑后报数（教训 #390/#391）。
+### 2026-11-03（批次H：MA-091 归因 + 一条「本地不可能诚实满足」的门禁取证）
+
+- MA-091：周期费用 `settle` 与 `rerun-daily-fees` 从 Controller 透传 operator 并写 `admin_audit_log`
+  （rerun 那条分支经 `debitIfAbsentAllowNegative` **真扣商户钱包**却零归因）；不加 V355 `settled_by` 列 ⇒ 零迁移。
+  `settle` 的已 SETTLED 早退分支刻意不重复留痕。既有 rerun 守卫用例 5 例复跑绿。
+- 🔴 推送前发现 `check:openapi-regen-required` 红，且**该红在本地无法诚实消除**：springdoc 不导出 `required`/`min`/`max`
+  ⇒ DTO 校验注解的真实形状差为 0；门禁自身规定「净差为空 ⇒ 仍按原判据红」；而 18080 是**旧 jar 的共享容器**，
+  用它 regen 只会得到同一份文件，没有可提交内容。选择：不重建共享栈、不塞空提交，
+  把取证与 spec 哈希入册（教训 #393）后推送，让 CI 用自己新鲜构建的 trade jar 做权威判定。
+  备份：`.tmp/openapi.pre-regen-1103.ts`（sha256 前 16 位 `173cc4751292fef6`，1087153 字节）——
+  将来任何 regen 结果都必须先与它比对并逐行看 diff，不得盲目采纳。
+
 ### 2026-11-03（批次F：四项拍板落地——其中 MA-149 我推翻了自己的推荐）
 
 - **MA-070**（组织/点位权限双轨）按档 A 落地：服务层收成注解宣称的 any-permission 集 ⇒ 只持 `ops:org:edit`
