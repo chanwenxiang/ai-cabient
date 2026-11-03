@@ -28,11 +28,14 @@ public class AnnouncementService {
 
     private final AnnouncementMapper repository;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
 
     public AnnouncementService(AnnouncementMapper repository,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               AdminAuditService auditService) {
         this.repository = repository;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
     }
 
     public List<Announcement> listAll() {
@@ -142,11 +145,14 @@ public class AnnouncementService {
     }
 
     @Transactional
-    public Announcement update(Long announceId, String title, String content, String targetScope, String priority) {
-        return runWithAnnouncementLock(announceId, () -> doUpdate(announceId, title, content, targetScope, priority));
+    public Announcement update(Long operatorId, Long announceId, String title, String content,
+                               String targetScope, String priority) {
+        return runWithAnnouncementLock(announceId,
+                () -> doUpdate(operatorId, announceId, title, content, targetScope, priority));
     }
 
-    private Announcement doUpdate(Long announceId, String title, String content, String targetScope, String priority) {
+    private Announcement doUpdate(Long operatorId, Long announceId, String title, String content,
+                                  String targetScope, String priority) {
         Announcement a = repository.findByIdForUpdate(announceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         if ("ARCHIVED".equals(a.getStatus())) {
@@ -168,32 +174,44 @@ public class AnnouncementService {
         }
         a.setUpdatedAt(Instant.now());
         repository.save(a);
+        // MA-123：编辑公告此前零留痕零操作者
+        auditService.appendLog(operatorId, "ANNOUNCEMENT_UPDATE", "ANNOUNCEMENT",
+                String.valueOf(announceId), "title=" + a.getTitle() + ",status=" + a.getStatus());
         log.info("announcement updated id={} title={}", announceId, a.getTitle());
         return a;
     }
 
     @Transactional
-    public Announcement publish(Long announceId) {
+    public Announcement publish(Long operatorId, Long announceId) {
         return runWithAnnouncementLock(announceId, () -> {
             Announcement a = repository.findByIdForUpdate(announceId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
+            // MA-123：已发布的再点「发布」原来会把 publishAt 刷新 ⇒ 消费端排序/置顶被重排。
+            // 幂等返回，不重写时间戳、也不重复留痕。
+            if (STATUS_PUBLISHED.equals(a.getStatus())) {
+                return a;
+            }
             a.setStatus(STATUS_PUBLISHED);
             a.setPublishAt(Instant.now());
             a.setUpdatedAt(Instant.now());
             repository.save(a);
+            auditService.appendLog(operatorId, "ANNOUNCEMENT_PUBLISH", "ANNOUNCEMENT",
+                    String.valueOf(announceId), "title=" + a.getTitle());
             log.info("announcement published id={} title={}", announceId, a.getTitle());
             return a;
         });
     }
 
     @Transactional
-    public Announcement archive(Long announceId) {
+    public Announcement archive(Long operatorId, Long announceId) {
         return runWithAnnouncementLock(announceId, () -> {
             Announcement a = repository.findByIdForUpdate(announceId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             a.setStatus("ARCHIVED");
             a.setUpdatedAt(Instant.now());
             repository.save(a);
+            auditService.appendLog(operatorId, "ANNOUNCEMENT_ARCHIVE", "ANNOUNCEMENT",
+                    String.valueOf(announceId), "title=" + a.getTitle());
             return a;
         });
     }

@@ -51,23 +51,27 @@ public class AnnouncementController {
     @RequiresPermissions("ops:announcement:edit")
     @PutMapping("/{id}")
     public ApiResponse<Announcement> update(
+            HttpServletRequest request,
             @PathVariable("id") Long id,
             @RequestBody Map<String, String> body) {
+        Long opId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(announcementService.update(
-                id,
+                opId, id,
                 body.get("title"), body.get("content"),
                 body.get("targetScope"), body.get("priority")));
     }
 
     @RequiresPermissions("ops:announcement:publish")
     @PostMapping("/{id}/publish")
-    public ApiResponse<Announcement> publish(@PathVariable("id") Long id) {
-        return ApiResponse.ok(announcementService.publish(id));
+    public ApiResponse<Announcement> publish(HttpServletRequest request, @PathVariable("id") Long id) {
+        return ApiResponse.ok(announcementService.publish(
+                (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID), id));
     }
 
     @RequiresPermissions("ops:announcement:edit")
     @PostMapping("/{id}/archive")
-    public ApiResponse<Announcement> archive(@PathVariable("id") Long id) {
-        return ApiResponse.ok(announcementService.archive(id));
+    public ApiResponse<Announcement> archive(HttpServletRequest request, @PathVariable("id") Long id) {
+        return ApiResponse.ok(announcementService.archive(
+                (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID), id));
     }
 }

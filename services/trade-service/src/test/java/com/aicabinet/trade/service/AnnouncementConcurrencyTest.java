@@ -24,7 +24,8 @@ class AnnouncementConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new AnnouncementService(repository, distributedLockService);
+        service = new AnnouncementService(repository, distributedLockService,
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test
@@ -34,7 +35,7 @@ class AnnouncementConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.publish(1L));
+                () -> service.publish(9001L, 1L));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -46,7 +47,7 @@ class AnnouncementConcurrencyTest {
                 .thenReturn(true);
         when(repository.findByIdForUpdate(2L)).thenReturn(java.util.Optional.empty());
 
-        assertThrows(ResponseStatusException.class, () -> service.archive(2L));
+        assertThrows(ResponseStatusException.class, () -> service.archive(9001L, 2L));
 
         verify(distributedLockService).unlock(AnnouncementService.announcementLockKey(2L));
     }

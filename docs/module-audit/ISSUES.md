@@ -136,7 +136,7 @@
 | MA-120 | P3 | open | `POST /internal/v1/devices/{id}/heartbeat` | 心跳环境读数零界：NaN/Infinity→BigDecimal.valueOf 抛异常→心跳 500（且在 presence 更新之后）；1e8 量级直落污染环境看板；同源 signal 0-4 静默丢、OTA pct clamp 先例在，本条漏网 | ZCode R12批5 / 2026-11-03 | |
 | MA-121 | P3 | open | JiangyiInternal 遗留入口 | /onboarding/register 缺「柜机档案存在」闸（运营面 registerForDevice 有，internal 直连底层无）；/class-mappings upsert 收自由串 status/source（"active" 小写成死行）；grep 证实无代码调用方（运维脚本入口）+fleet key 保护故 P3 | ZCode R12批5 / 2026-11-03 | |
 | MA-122 | P3 | open | `POST/PUT /ops/announcements` | 公告 create/update 裸 Map 零校验：title>256/priority 9+字符→22001 500；targetScope 拼错（"CONSUER"）静默落库发布成三端不可见公告（MA-078/084/087 家族新点位） | ZCode R12批5 / 2026-11-03 | |
-| MA-123 | P3 | open | 公告 update/publish/archive | 零操作者归因零审计（operator_id 只在 create 落库，V220 加 FK 证明留痕是既定口径）；publish 无状态机：ARCHIVED 可复活、重复发布刷新 publishAt 重排消费端 | ZCode R12批5 / 2026-11-03 | |
+| MA-123 | P3 | fixed（三端点留痕 + 重复发布幂等） | 公告 update/publish/archive | 零操作者归因零审计（operator_id 只在 create 落库，V220 加 FK 证明留痕是既定口径）；publish 无状态机：ARCHIVED 可复活、重复发布刷新 publishAt 重排消费端 | ZCode R12批5 / 2026-11-03 | |
 | MA-124 | P3 | fixed（不重放+退款回执） | `POST /ops/admin/consistency/{id}/fix` 重放 | 无 status 闸：FIXED 记录可重放，fixInventoryMismatch 用记录快照旧库存值回写覆盖当前（脏窗口）；fixPaymentAmount 重放被 M02 幂等键吞掉却回「已退多收 X 分」假成功（refundOrder 返回值未检查，javadoc 明说必须检测） | ZCode R12批5 / 2026-11-03 | |
 | MA-125 | P3 | open | `POST /ops/admin/ota/releases` | 入参缺口：重复版本撞唯一索引 500 而非 409；channel 自由串拼错（"stabel"）=发布静默不可见；grayPercent>100 无钳制；presignTtlSeconds 无上界（可配一年有效预签名 URL）；降级推送设备侧有兜底判部分刻意 | ZCode R12批5 / 2026-11-03 | |
 
