@@ -33,6 +33,7 @@ type OrderAmountInput = {
   totalAmountCents?: number | null;
   couponDiscountCents?: number | null;
   memberDiscountCents?: number | null;
+  activityDiscountCents?: number | null;
 };
 
 /** IMP-026 延伸：订单原价与实付差额说明 */
@@ -43,9 +44,12 @@ export function orderAmountDiffNote(order?: OrderAmountInput | null): string {
   if (original <= 0 || total < 0 || original === total) return '';
   const coupon = Number(order.couponDiscountCents ?? 0);
   const member = Number(order.memberDiscountCents ?? 0);
+  // MA-127：活动优惠也是差额的一部分，漏掉它会让「原价 − 各行优惠 ≠ 实付」无法解释
+  const activity = Number(order.activityDiscountCents ?? 0);
   const parts: string[] = [];
   if (coupon > 0) parts.push(`券 ${fmtMoney(coupon)}`);
   if (member > 0) parts.push(`会员 ${fmtMoney(member)}`);
+  if (activity > 0) parts.push(`活动 ${fmtMoney(activity)}`);
   const reason =
     parts.length > 0 ? parts.join('、') : `差额 ${fmtMoney(Math.abs(original - total))}`;
   return `原价 ${fmtMoney(original)}，实付 ${fmtMoney(total)}（${reason}）`;

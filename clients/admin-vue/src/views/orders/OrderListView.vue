@@ -486,6 +486,12 @@
               label="会员优惠"
               >-¥{{ money(detail.memberDiscountCents) }}</el-descriptions-item
             >
+            <!-- MA-127：列表的优惠列一直含活动，明细却只列券/会员 ⇒ 同一单列表与明细对不平 -->
+            <el-descriptions-item
+              v-if="Number(detail.activityDiscountCents || 0) > 0"
+              label="活动优惠"
+              >-¥{{ money(detail.activityDiscountCents) }}</el-descriptions-item
+            >
             <el-descriptions-item v-if="selectedOrderAmountDiffNote" label="差额说明">
               <span class="amount-diff">{{ selectedOrderAmountDiffNote }}</span>
             </el-descriptions-item>

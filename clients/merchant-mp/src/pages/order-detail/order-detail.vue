@@ -43,6 +43,10 @@
             <text>会员优惠</text>
             <text>减{{ money(order.memberDiscountCents) }}</text>
           </view>
+          <view v-if="Number(order.activityDiscountCents || 0) > 0" class="sum-row">
+            <text>活动优惠</text>
+            <text>减{{ money(order.activityDiscountCents) }}</text>
+          </view>
           <view v-if="refundCents > 0" class="sum-row">
             <text>已退</text>
             <text>{{ money(refundCents) }}</text>
@@ -167,6 +171,8 @@ type OrderDetail = {
   totalAmountCents?: number;
   couponDiscountCents?: number;
   memberDiscountCents?: number;
+  /** MA-127：后端一直下发，此前本端全端 0 引用 ⇒ 活动单「已扣−会员−券≠实收」无法自证 */
+  activityDiscountCents?: number;
   originalAmountCents?: number;
   refundPolicy?: string;
   refundedAt?: string;
@@ -198,13 +204,19 @@ const refundCents = computed(() => {
 const chargedCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
-  const original = Number(o.originalAmountCents || 0);
-  if (original > 0) return original;
+  // MA-128：**不能**用 originalAmountCents —— 部分退后它被后端重写成「剩余折后行合计」
+  // （SettlementOrderSupport.applyProportionalRefundPayable），前端再减一次已退 ⇒
+  // 半退单显示「实收 ¥0.00」（真实净收 ¥1.21），且与钱包/分账基数 paidAmountCents 同单不同数。
+  // 恒等式：已扣 = 当前应付 + 已退；实收 = 当前应付（全额退时当前应付为 0，两者仍自洽）。
   return Number(o.totalAmountCents || 0) + refundCents.value;
 });
 
-/** 商户实收 = 已扣 − 已退（与支付流水净额一致）。 */
-const receivedCents = computed(() => Math.max(0, chargedCents.value - refundCents.value));
+/** 商户实收 = 当前应付（后端已把退款扣减体现在 totalAmountCents 上）。 */
+const receivedCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  return Number(o.totalAmountCents || 0);
+});
 
 /** 全额退展示退款额；其余展示实收。 */
 const heroAmountCents = computed(() => {

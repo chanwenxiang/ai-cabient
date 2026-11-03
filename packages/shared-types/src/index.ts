@@ -409,6 +409,10 @@ export interface OrderReadModel {
   merchantName?: string;
   totalAmountCents: number;
   originalAmountCents?: number;
+  /** MA-127：活动优惠额。后端 {@code OrderReadModel} 一直下发（@JsonView Public），
+   *  但手写类型缺这一列 ⇒ merchant-mp 全端 0 引用、admin 明细也没有活动行，
+   *  同一活动单在列表（含活动）与明细（只列券/会员）之间对不平。 */
+  activityDiscountCents?: number;
   status?: string;
   payChannel?: string;
   lineCount?: number;
