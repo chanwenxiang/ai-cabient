@@ -64,6 +64,16 @@ export function localizeConsumerDisputeReason(reason?: string | null): string {
  * 消费者端：争议/人工审核卡片文案。
  * 优先使用后端派生字段（consumerReview*），旧响应回退本地拼装。
  */
+/**
+ * C 端降噪（UI 统一 Phase 2.1，2026-11-03）：后端 reason 会拼「｜设备原文：<vendor>」
+ * 供运营排查（cam=1、classId 列表等）；对消费者这是无意义的技术噪音。
+ * 本函数剥掉该段——完整记录在争议详情/运营后台仍可见。
+ */
+function stripVendorTail(s: string): string {
+  const i = s.indexOf('｜设备原文：');
+  return i >= 0 ? s.slice(0, i) : s;
+}
+
 export function consumerDisputeReviewCopy(
   ticket?: Pick<
     DisputeTicketDto,
@@ -92,7 +102,7 @@ export function consumerDisputeReviewCopy(
   }
 
   const raw = (ticket?.reason || '').trim();
-  const reason = localizeDisputeReason(raw);
+  const reason = stripVendorTail(localizeDisputeReason(raw));
 
   if (isTerminalStatus(ticket?.status)) {
     return {

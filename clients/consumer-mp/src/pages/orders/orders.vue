@@ -473,7 +473,10 @@ function filterCountSuffix(value: OrderStatusFilter) {
   return ` ${countBy(value)}`;
 }
 function orderIdDisplay(id?: string) {
-  return displayBizNo(id, '暂无单号');
+  const no = displayBizNo(id, '暂无单号');
+  // 纯数字雪花单号（22 位）对用户无阅读价值：缩略为前 6…后 4（详情页仍可看全串/复制）。
+  if (/^\d{13,}$/.test(no)) return `${no.slice(0, 6)}…${no.slice(-4)}`;
+  return no;
 }
 function deviceDisplay(o: { deviceId?: string; deviceName?: string } | string | undefined) {
   if (!o) return '无柜机';
