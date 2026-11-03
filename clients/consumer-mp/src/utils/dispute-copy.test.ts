@@ -23,8 +23,7 @@ describe('consumerDisputeReviewCopy 设备原文剥离', () => {
 
   it('timeout 类 reason 统一为固定用户文案（既有行为顺带钉住）', () => {
     const copy = consumerDisputeReviewCopy({
-      reason:
-        '识别超时（设备上报异常订单），已转人工审核，本次暂未扣款｜设备原文：cam=1',
+      reason: '识别超时（设备上报异常订单），已转人工审核，本次暂未扣款｜设备原文：cam=1',
       status: 'OPEN',
       billedAmountCents: 150,
       refundedAmountCents: 0,
