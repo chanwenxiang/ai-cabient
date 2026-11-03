@@ -60,7 +60,8 @@ class MerchantTaxProfileScopeTest {
         MerchantPortalGuard guard = new MerchantPortalGuard(
                 permissionService, merchantScopeService, cabinetMetrics, accessDeniedAudit);
         service = new InvoiceService(invoiceRepository, taxProfileRepository, orderRepository,
-                deviceRepository, permissionService, merchantScopeService, distributedLockService, guard);
+                deviceRepository, permissionService, merchantScopeService, distributedLockService, guard,
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
 
         when(merchantScopeService.isGlobalScope(UNBOUND_USER)).thenReturn(true);
         when(merchantScopeService.isGlobalScope(BOUND_USER)).thenReturn(false);

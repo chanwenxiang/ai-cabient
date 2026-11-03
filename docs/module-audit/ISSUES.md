@@ -81,8 +81,8 @@
 | MA-069 | P2 | fixed（限幅单源+门禁） | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-070 | P2 | fixed（档 A：服务层按注解放宽） | admin `/org-sites` 组织与点位 | 权限码双轨：Controller 注解 ops:org:*、服务层强制 ops:device:*（AND），唯 DELETE 是 OR ⇒ 只授 ops:org:* 的角色「页面 403、增改 403、删除却放行」，删比改松方向反常 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-071 | P3 | open | OpsRbacService 三个分配端点 | 整删整插 body 裸 List 无去重，重复 ID 触发复合主键 DuplicateKey→500（应 200 去重或 400）；roles/{id}/permissions、users/{id}/roles、users/{id}/merchants 三处 | ZCode R12批1 / 2026-11-02 | |
-| MA-072 | P3 | open | 运营改密/2FA 关闭 | PUT /rbac/me/password、two-factor/confirm、/disable 零审计留痕——同 Controller 其它 14 处 RBAC 写全留痕（CB-021），账号接管链关键事件审计页不可见；商户端改密反而有 PASSWORD_CHANGE | ZCode R12批1 / 2026-11-02 | |
-| MA-073 | P3 | open | 提现「申请」动作（商户+线长） | review/payout/cancel 三兄弟全有 MERCHANT_WITHDRAW_* 审计，唯独 APPLY 无；运营代提在低于阈值自动打款分支下操作者三处不可归因（线长侧 submitter 恒 null） | ZCode R12批1 / 2026-11-02 | |
+| MA-072 | P3 | fixed（改密 + 2FA 开关三处留痕） | 运营改密/2FA 关闭 | PUT /rbac/me/password、two-factor/confirm、/disable 零审计留痕——同 Controller 其它 14 处 RBAC 写全留痕（CB-021），账号接管链关键事件审计页不可见；商户端改密反而有 PASSWORD_CHANGE | ZCode R12批1 / 2026-11-02 | |
+| MA-073 | P3 | fixed（商户/线长提现申请留痕；系统重试仍记为系统） | 提现「申请」动作（商户+线长） | review/payout/cancel 三兄弟全有 MERCHANT_WITHDRAW_* 审计，唯独 APPLY 无；运营代提在低于阈值自动打款分支下操作者三处不可归因（线长侧 submitter 恒 null） | ZCode R12批1 / 2026-11-02 | |
 | MA-074 | P3 | fixed（钉测 2 例，幂等命中不留痕） | `POST /ops/admin/staff-wallets/{id}/payout` | 补货员钱包打款标记（资金出账销账动作）无操作者审计；同族 LINE_MANAGER_ADJUST/MERCHANT_WITHDRAW_PAYOUT 均有 | ZCode R12批1 / 2026-11-02 | |
 | MA-075 | P3 | fixed（快照留痕） | `PATCH /ops/admin/line-managers/{id}` | userId 换绑/改名/改手机不进 LINE_MANAGER_UPDATE 审计（只有佣金/状态变化才记）；userId 是 CB-066 实名守卫锚点，longVal 不校验用户存在可绑到不存在/他人 ID | ZCode R12批1 / 2026-11-02 | |
 | MA-076 | P3 | open | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号 | ZCode R12批1 / 2026-11-02 | |
@@ -1100,3 +1100,18 @@
 - **MA-129**（拍板②）：部分退后 member/activity 等比缩而 gross 不缩 ⇒「合计 − 各档」比实付多一截。
   有退款时显示「剩余商品合计 = 实付 + 券 + 会员 + 活动」——**不新增后端字段**，
   因此不需要 openapi regen；改后端加「剩余毛额」列会为一行展示付出一次 regen 成本。
+
+### 批次K｜审计族 2 条（MA-072 / MA-073）
+
+- **MA-072 运营账号动作**：他人重置有 `OPS_OPERATOR_RESET_PASSWORD`，而**自助改密零留痕**、
+  2FA 开/关也不记 ⇒ 账号接管链（改密 → 开关 2FA → 操作）在审计页上断了一截。
+  三处各补一条事件，detail 不落任何密码/secret/恢复码材料。
+- **MA-073 提现申请**：这是提现全族唯一无留痕的动作（审核 REVIEW / 打款 PAYOUT / 取消 CANCEL 都有）。
+  商户链与线长链的**两个分支都补** APPLY 事件：待审核分支（进审批流前）与「低于阈值自动通过」分支
+  （该分支不落 review 记录，只有这条审计能回答「谁提的」）。
+  线长侧 `apply()` 原把 `submitterUserId` 传 null ⇒ 现从 controller 的 `operator(request)` 透传；
+  **controller 签名未变**（已有 request 形参），因此无需 openapi regen。
+- **残留（显式）**：`executePayout(requestId)` 仍不带操作者——自动打款分支的归因靠
+  「申请事件 + 审批事件」两步串起来；调度/重试路径本就无人工操作者（应记 system）。
+  若要逐笔打到「谁触发了这次打款」，需要给 executePayout 加 operator 形参并贯穿 3 个调用点，
+  属独立小批（不是本条的阻塞项）。

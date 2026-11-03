@@ -36,7 +36,8 @@ class InvoiceConcurrencyTest {
     void setUp() {
         service = new InvoiceService(invoiceRepository, taxProfileRepository, orderRepository,
                 deviceRepository, permissionService, merchantScopeService, distributedLockService,
-                merchantPortalGuard);
+                merchantPortalGuard,
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test

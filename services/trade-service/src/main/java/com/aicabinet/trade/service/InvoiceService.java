@@ -40,6 +40,7 @@ public class InvoiceService {
     private final MerchantScopeService merchantScopeService;
     private final DistributedLockService distributedLockService;
     private final com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard;
+    private final AdminAuditService auditService;
 
     public InvoiceService(InvoiceRequestMapper invoiceRepository,
                           MerchantTaxProfileMapper taxProfileRepository,
@@ -48,7 +49,8 @@ public class InvoiceService {
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
                           DistributedLockService distributedLockService,
-                          com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard) {
+                          com.aicabinet.trade.support.MerchantPortalGuard merchantPortalGuard,
+                          AdminAuditService auditService) {
         this.invoiceRepository = invoiceRepository;
         this.taxProfileRepository = taxProfileRepository;
         this.orderRepository = orderRepository;
@@ -57,6 +59,7 @@ public class InvoiceService {
         this.merchantScopeService = merchantScopeService;
         this.distributedLockService = distributedLockService;
         this.merchantPortalGuard = merchantPortalGuard;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -139,6 +142,9 @@ public class InvoiceService {
             row.setIssuedAt(Instant.now());
             row.setUpdatedAt(Instant.now());
             invoiceRepository.updateById(row);
+            // MA-092：开票是财务凭证动作，此前零留痕
+            auditService.appendLog(operatorId, "INVOICE_ISSUE", "INVOICE_REQUEST",
+                    String.valueOf(invoiceId), "order=" + row.getOrderId() + ",status=ISSUED");
             return toDto(row);
         });
     }
@@ -156,6 +162,9 @@ public class InvoiceService {
             row.setRejectReason(reason == null || reason.isBlank() ? "不符合开票条件" : reason.trim());
             row.setUpdatedAt(Instant.now());
             invoiceRepository.updateById(row);
+            auditService.appendLog(operatorId, "INVOICE_REJECT", "INVOICE_REQUEST",
+                    String.valueOf(invoiceId),
+                    "order=" + row.getOrderId() + ",reason=" + row.getRejectReason());
             return toDto(row);
         });
     }
@@ -199,7 +208,21 @@ public class InvoiceService {
         } else {
             taxProfileRepository.updateById(p);
         }
+        // MA-076：开票税务资料含**银行账号**（PII），此前零留痕。只记「谁改的 / 新建还是修改 /
+        // 账号后四位 / 公司名」，不落完整账号与税号（审计表面向全员可读）。
+        auditService.appendLog(userId, "MERCHANT_TAX_PROFILE_UPDATE", "MERCHANT_TAX_PROFILE", merchantId,
+                (insert ? "新建" : "修改") + ",company=" + p.getCompanyName()
+                        + ",bankAccount尾号=" + tail4(p.getBankAccount()));
         return toTaxDto(p);
+    }
+
+    /** 只取后四位，避免把 PII 写进审计。 */
+    private static String tail4(String value) {
+        if (value == null || value.isBlank()) {
+            return "-";
+        }
+        String v = value.trim();
+        return v.length() <= 4 ? "****" : v.substring(v.length() - 4);
     }
 
     /**
