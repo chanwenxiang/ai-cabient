@@ -1025,33 +1025,6 @@
   不在没有 regen 的情况下先动后端。
 
 
-### 批次C′｜复核判为「P3 名义但实碰钱/鉴权」的那批（先于展示类收口）
-
-- **MA-119 设备凭据签发**（鉴权面）：`requireDeviceId` 只验「12 位数字」，不验设备存在 ⇒
-  手滑一位就签出一条 ACTIVE 孤儿凭据并把明文 secret 回显。HTTP 与 MQTT 两个签发服务同修
-  （`requireDeviceExists` → 404），钉测 1 例（`issue_unknownDevice_rejectedWithNotFound`）。
-- **MA-085 活动预算/类型**：`budgetCents < 0` → 400（负数会让 reserveBudget 的 `budget > 0` 整体跳过，
-  used_cents 无上限推进 = 资金闸失效）；`activityType` 必填 + 入库前归一大写（判定侧
-  `equalsIgnoreCase` 看着没事，`PromotionActivityMapper:30` 的 `IN ('SKU_REDUCE',...)` 是精确匹配，
-  存小写该活动静默退出定价面）。钉测 4 例（含「0 = 不限额」仍放行）。
-  **残留**：完整 activityType 白名单没做——词表实测至少含非 SKU 的 `FULL_REDUCE`（既有测试在用），
-  盲列白名单会打断真实类型，需先拍板词表。
-- **MA-093 平台资金池**：`recharge` 补「必须 > 0」，负数不再以充值语义扣余额、也不再绕过
-  `adjust` 的「必须填原因」闸。**残留**：`OpsPlatformFundController` 的 `(Number) body.get("amountCents")`
-  仍是裸取参（传字符串 → ClassCastException），DTO 化留待与 MA-104/108 同族一起收。
-- **MA-088 微信退款同步幂等键**：回调缺 `refund_id` 时原来照入账，键退化成常量
-  `"channel-refund-sync:null"` ⇒ 不同订单的第二笔命中同键时余额不扣、单据照涨（幽灵余额）。
-  现在**拒绝入账 + 发 `WECHAT_REFUND_SYNC_MISSING_REFUND_ID` 告警**转人工。
-  🔴 **键格式刻意不动**：微信会重投通知，老库已存在旧键流水，改字面量会让部署后的重投被当新键重复扣一次
-  （与「锁 key 字面量不可改」同源）。
-- **MA-118 押金登记裸 Map**：`longOrNull/intOrNull` 原来吞掉 `NumberFormatException` 返回 null，
-  「填了但填错」与「没填」不可区分 ⇒ 月退额静默丢失、`contractYears` 静默落默认 5 年，
-  而商户余额已经真扣。现按字段名 400（`monthlyRefundCents/refundStartMonth/expireRewardCents/`
-  `installFeeDeductCents/contractYears` 五个入参全覆盖）。**残留**：Controller 未 DTO 化（同 MA-093 残留并入同族批）。
-- **MA-089 退款上限双口径**：`ApplyBalanceRefundRequest` 去掉了 `@Max(500_000)`——Bean 校验先拦会让
-  DC-6 的 `BALANCE_REFUND_MAX_CENTS` 只能收紧不能放宽，与充值侧（纯配置）矛盾。
-  已核实 `@Max` 不进 OpenAPI 生成物（springdoc 不导出 bean-validation 的 maximum），**无需 regen shared-types**。
-
 ### 批次G｜「级别标低了的」资金/权限面（3 条）
 
 - **MA-083 批量发券**：`BatchIssueCouponRequest` 补 `@NotNull/@NotEmpty/@Size(max=1000)`。
