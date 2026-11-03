@@ -142,16 +142,16 @@
 
 | MA-126 | P3 | open | 提现等全仓 `@Positive` 字段的 400 文案 | R17 活栈实测：amountCents=0/-500 都回「amountCents不能为空」——根因 `@Positive` 默认消息 "must be greater than 0"（严格大于）不匹配 ApiMessages 的 RANGE_MIN_PATTERN（只匹配 "greater than or equal to" 形式）落兜底误报；2026-10-23 生产实证修过 @Min/@Max 同款（代码注释在位），漏了 @Positive 形式，误导性完全相同 | ZCode R17批1 / 2026-11-03 | rounds/R17-runtime-flows.md |
 
-| MA-127 | P2 | open | 活动优惠行三端铺开不齐 | activityDiscountCents 在 merchant-mp **全端 0 引用**、admin 订单明细/差额说明无活动行；admin 列表优惠列却含活动（05ec42c8）⇒ 同一活动单 consumer 详情能自证而 merchant 明细「已扣−会员≠实收」、admin 列表与自家明细对不上；MA-023/024 修复面只铺了 consumer | ZCode R16 / 2026-11-03 | rounds/R16-cross-end-static.md |
-| MA-128 | P2 | open | merchant-mp 订单详情「已扣/实收」 | 取 originalAmountCents：部分退后该列被重写为「剩余折后行合计」，前端再减一次 refunded ⇒ 半退单显示「实收 ¥0.00」（真实净收 ¥1.21）；且与钱包/分账基数 paidAmountCents 同单不同数（3.43 vs 2.43）；主会话已复核前端代码 | ZCode R16 / 2026-11-03 | |
-| MA-129 | P2 | open | 部分退款单 consumer 优惠拆解自证 | MA-049 把 member/activity 等比缩而 gross 不缩（V424 契约前提是优惠不缩）⇒ 半退单「合计−各档=1.22」缺口 1.75 而退款行只交代 1.21，剩 0.53（被缩掉的优惠）无行解释——MA-024 页面承诺「用户自己能算平」在所有部分退优惠单失效；需与巡检折后式一起拍板 | ZCode R16 / 2026-11-03 | |
-| MA-130 | P2 | open | merchant-mp `pages/tally-records` 理货记录 | 整页裸英文：lineTypeLabel 只认 **PUT_ON**（页面发明的幽灵键，后端全仓 0 处写 PUT_ON、实际写 RESTOCK）⇒ 配货 Tab 每行 chip 显示 "RESTOCK"；taskStatus 只译 COMPLETED，PENDING/IN_PROGRESS/CANCELLED 裸码；主会话已复核 | ZCode R16 / 2026-11-03 | |
-| MA-131 | P2 | open | admin `DeviceRentalView` 租赁账单 | 本地 map/筛选键 **VOIDED** ≠ 后端常量 FEE_BILL_STATUS_VOID=**"VOID"** ⇒ 作废账单状态列裸码且「已作废」筛选永远查空；UNPAID 同族字典叫「待付」此处叫「未付」两词；主会话已复核 | ZCode R16 / 2026-11-03 | |
-| MA-132 | P2 | open | wallet_entry_type 字典 | 缺后端真实写入的 COMMISSION_CLAWBACK/WITHDRAW_FEE（基线+DB 双缺）⇒ admin 资金页流水显示「未知」、merchant-mp 靠 remark 兜底显示中文——同流水两端不同词（V379 迁移注释还把 CLAWBACK 列入幂等白名单，字典却没回填） | ZCode R16 / 2026-11-03 | |
-| MA-133 | P2 | open | admin `LineRoutesView` 钱包流水弹窗 | entryType 裸码直出（STAFF_COMMISSION_DAILY/WITHDRAW_PAYOUT 等）；同数据 LineManagerView 走字典出中文——staff 系枚举从未入任何字典 | ZCode R16 / 2026-11-03 | |
-| MA-134 | P2 | open | purchase_order_status | MA-031 同构复发：SysDictBootstrap 仅 4 值，缺在写的 PENDING_APPROVAL/REJECTED（ensureMissingDictItems 永不自愈）；admin「待审批」vs merchant-mp「待审核」两词，mp fallback 把未知值显示「处理中」 | ZCode R16 / 2026-11-03 | |
-| MA-135 | P2 | open | notification_biz_type | 缺后端真实下发的 DAILY_INCOME/FEE_REMINDER（每日批量落库的高频行）⇒ admin 站内信记录页整片「未知」、merchant-mp 本地 map 显示中文；写入点新增值没回填字典与 MA-132 同模式 | ZCode R16 / 2026-11-03 | |
-| MA-136 | P2 | open | stocktake_status | 同值两套词：admin 走字典（草稿/盘点中/已调整）vs merchant-mp 本地 map（待录入/录入中/已过账）+ 未知值裸码兜底；违反 shared-dict「前端不得自行改文案」既定口径（expiry_urgency 曾为此立 lint 红线） | ZCode R16 / 2026-11-03 | |
+| MA-127 | P2 | fixed（三端活动优惠行铺齐） | 活动优惠行三端铺开不齐 | activityDiscountCents 在 merchant-mp **全端 0 引用**、admin 订单明细/差额说明无活动行；admin 列表优惠列却含活动（05ec42c8）⇒ 同一活动单 consumer 详情能自证而 merchant 明细「已扣−会员≠实收」、admin 列表与自家明细对不上；MA-023/024 修复面只铺了 consumer | ZCode R16 / 2026-11-03 | rounds/R16-cross-end-static.md |
+| MA-128 | P2 | fixed（已扣/实收改恒等式） | merchant-mp 订单详情「已扣/实收」 | 取 originalAmountCents：部分退后该列被重写为「剩余折后行合计」，前端再减一次 refunded ⇒ 半退单显示「实收 ¥0.00」（真实净收 ¥1.21）；且与钱包/分账基数 paidAmountCents 同单不同数（3.43 vs 2.43）；主会话已复核前端代码 | ZCode R16 / 2026-11-03 | |
+| MA-129 | P2 | fixed（拍板②：剩余合计行，零后端字段） | 部分退款单 consumer 优惠拆解自证 | MA-049 把 member/activity 等比缩而 gross 不缩（V424 契约前提是优惠不缩）⇒ 半退单「合计−各档=1.22」缺口 1.75 而退款行只交代 1.21，剩 0.53（被缩掉的优惠）无行解释——MA-024 页面承诺「用户自己能算平」在所有部分退优惠单失效；需与巡检折后式一起拍板 | ZCode R16 / 2026-11-03 | |
+| MA-130 | P2 | fixed（改走 restock_line_type 字典） | merchant-mp `pages/tally-records` 理货记录 | 整页裸英文：lineTypeLabel 只认 **PUT_ON**（页面发明的幽灵键，后端全仓 0 处写 PUT_ON、实际写 RESTOCK）⇒ 配货 Tab 每行 chip 显示 "RESTOCK"；taskStatus 只译 COMPLETED，PENDING/IN_PROGRESS/CANCELLED 裸码；主会话已复核 | ZCode R16 / 2026-11-03 | |
+| MA-131 | P2 | fixed（VOIDED→VOID + 新字典类型 V436） | admin `DeviceRentalView` 租赁账单 | 本地 map/筛选键 **VOIDED** ≠ 后端常量 FEE_BILL_STATUS_VOID=**"VOID"** ⇒ 作废账单状态列裸码且「已作废」筛选永远查空；UNPAID 同族字典叫「待付」此处叫「未付」两词；主会话已复核 | ZCode R16 / 2026-11-03 | |
+| MA-132 | P2 | fixed（V436 补两值） | wallet_entry_type 字典 | 缺后端真实写入的 COMMISSION_CLAWBACK/WITHDRAW_FEE（基线+DB 双缺）⇒ admin 资金页流水显示「未知」、merchant-mp 靠 remark 兜底显示中文——同流水两端不同词（V379 迁移注释还把 CLAWBACK 列入幂等白名单，字典却没回填） | ZCode R16 / 2026-11-03 | |
+| MA-133 | P2 | fixed（entryType 改字典；WITHDRAW_PAYOUT 由 V436 补） | admin `LineRoutesView` 钱包流水弹窗 | entryType 裸码直出（STAFF_COMMISSION_DAILY/WITHDRAW_PAYOUT 等）；同数据 LineManagerView 走字典出中文——staff 系枚举从未入任何字典 | ZCode R16 / 2026-11-03 | |
+| MA-134 | P2 | fixed（V436 补两值 + 自愈目录） | purchase_order_status | MA-031 同构复发：SysDictBootstrap 仅 4 值，缺在写的 PENDING_APPROVAL/REJECTED（ensureMissingDictItems 永不自愈）；admin「待审批」vs merchant-mp「待审核」两词，mp fallback 把未知值显示「处理中」 | ZCode R16 / 2026-11-03 | |
+| MA-135 | P2 | fixed（V436 补两值 + 自愈目录新增该类型） | notification_biz_type | 缺后端真实下发的 DAILY_INCOME/FEE_REMINDER（每日批量落库的高频行）⇒ admin 站内信记录页整片「未知」、merchant-mp 本地 map 显示中文；写入点新增值没回填字典与 MA-132 同模式 | ZCode R16 / 2026-11-03 | |
+| MA-136 | P2 | fixed（盘点状态改字典单源） | stocktake_status | 同值两套词：admin 走字典（草稿/盘点中/已调整）vs merchant-mp 本地 map（待录入/录入中/已过账）+ 未知值裸码兜底；违反 shared-dict「前端不得自行改文案」既定口径（expiry_urgency 曾为此立 lint 红线） | ZCode R16 / 2026-11-03 | |
 | MA-137 | P3 | open | shared-types 手写 OrderReadModel/OrderSummary | 缺 activityDiscountCents/grossAmountCents（生成物有）⇒ consumer 订单列表要补活动标签时 TS 无字段可用（MA-127 列表漏活动的直接诱因）；建议补字段或切 OpenApi 别名+加「手写接口 vs 生成物 diff」门禁 | ZCode R16 / 2026-11-03 | |
 | MA-138 | P3 | open | check-no-inline-money-math 门禁盲区 | 只扫 views/components 的 .vue，composables/*.ts 残留 3 处手算（useWarehouseEntityDialogs.ts:102,226,266）不受棘轮约束；DIRS 加 composables 收编 | ZCode R16 / 2026-11-03 | |
 | MA-139 | P3 | open | 提现 feeCents 空态两口径 | merchant「—（未结算/免收可区分）」vs admin `feeCents || 0` 显示「¥0.00」——null 被抹平后「未结算」与「免收」在 admin 不可区分；admin 费用列改三态对齐 | ZCode R16 / 2026-11-03 | |
@@ -1071,3 +1071,32 @@
   ③基线与当前的**映射签名**（HTTP 方法注解+路径+返回类型）逐条相等 ⇒ 挪路由/改响应类型一律拒绝豁免。
   7 条用例钉住（`check-openapi-regen-required.test.mjs`）：未登记仍红、登记后绿、改路径红、
   改返回类型红、条目漂移红、DTO 试图豁免红，且原有红/绿/回归/fail-closed 用例零退化。
+
+### 批次J｜P2 清零：字典回填 7 条 + 跨端金额展示 3 条
+
+**字典族（MA-130~136，7 条）**
+- **V436 迁移**补齐「后端在写、字典没有」的 7 个值（`COMMISSION_CLAWBACK`/`WITHDRAW_FEE`/
+  `WITHDRAW_PAYOUT`/`DAILY_INCOME`/`FEE_REMINDER`/`PENDING_APPROVAL`/`REJECTED`），
+  并新建 `device_rental_bill_status`；`SysDictBootstrap` 与 `packages/shared-dict` 同批同步
+  （新库/存量库/运行期自愈三条路径同一套词），dist 已重建。
+- 🔴 **V436 我自己写错两处，被 fresh-DB Flyway 链抓出**（静态门禁看不见 SQL 语义）：
+  ① `VALUES` 只有 4 列却 `SELECT v.remark`（语法错）；② 更关键——全新库里
+  `purchase_order_status` 等 **dict_type 行根本不存在**（只由运行期 `SysDictBootstrap` 自愈补出），
+  而 `sys_dict_data` 有 FK 指向 `dict_type` ⇒「迁移先跑、类型还没建」必然 FK 违约。
+  现在四个类型一律 insert-if-absent。`DictLabelUniquenessIT`（V1→V436）1/1 绿。
+- **MA-131 是功能性缺陷**：admin 把作废写作 `VOIDED`，后端常量是 `VOID` ⇒ 状态裸码 +
+  「已作废」筛选值传到 mapper 的 `eq(status)` 后**恒查空**。改 `displayLabel` + 新字典类型。
+- **前端三处删自造 map 改单源**：商户理货记录（`PUT_ON` 是页面发明的键，后端写 `RESTOCK`）/
+  商户盘点状态（待录入/录入中/已过账 vs admin 草稿/盘点中/已调整）/ 运营线路页 `entryType` 裸码。
+  盘点状态未知值原样露裸码，现兜底「未知」。
+
+**跨端金额展示（MA-127/128/129，3 条）**
+- **MA-128**：商户明细「已扣」原来优先取 `originalAmountCents`，而部分退后该列被后端重写成
+  「剩余折后行合计」（`SettlementOrderSupport.applyProportionalRefundPayable`），前端再减一次已退
+  ⇒ 半退单显示**实收 ¥0.00**（真实净收 ¥1.21）。改为恒等式：已扣 = 当前应付 + 已退；实收 = 当前应付。
+- **MA-127**：`activityDiscountCents` 后端一直下发，但手写 `OrderReadModel` 缺这一列 ⇒
+  merchant-mp 全端 0 引用、admin 明细只列券/会员，而列表优惠列含活动 ⇒ 同一单列表与明细对不平。
+  补类型 + 三处展示（admin 明细、mp 明细、差额说明）。
+- **MA-129**（拍板②）：部分退后 member/activity 等比缩而 gross 不缩 ⇒「合计 − 各档」比实付多一截。
+  有退款时显示「剩余商品合计 = 实付 + 券 + 会员 + 活动」——**不新增后端字段**，
+  因此不需要 openapi regen；改后端加「剩余毛额」列会为一行展示付出一次 regen 成本。
