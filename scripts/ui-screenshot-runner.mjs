@@ -25,6 +25,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -48,6 +49,9 @@ const surfaces = (
 ).filter((s) => PAGES[s]);
 const themeArg = argOf('theme', 'both');
 const themes = themeArg === 'both' ? ['light', 'dark'] : themeArg.split(',');
+/** 判 CHANGED 的差异像素占比阈值（%）与单通道容差（抗压缩/亚像素噪声） */
+const diffThreshold = Number(argOf('diff-threshold', '0.2'));
+const diffTol = Number(argOf('diff-tol', '8'));
 const promote = argv.includes('--promote');
 const mode = argOf('mode', 'capture');
 
@@ -73,17 +77,105 @@ function hashOf(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex').slice(0, 12);
 }
 
-/** current 与 baseline 比对；无基线记 NEW，不同记 CHANGED（人工复核），相同 SAME */
+/**
+ * 极简 PNG 解码（仅 8-bit RGB/RGBA，无交织）：用于像素级比对。
+ * 为什么不用哈希判等：同一页面两次截图的 PNG 压缩结果可能差几个字节（无内容差异），
+ * 哈希会把这种噪声报成 CHANGED，人工复核会被淹掉。
+ */
+function decodePng(file) {
+  const b = fs.readFileSync(file);
+  if (b.readUInt32BE(0) !== 0x89504e47) return null;
+  let o = 8;
+  let w = 0;
+  let h = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  let interlace = 0;
+  const idat = [];
+  while (o + 8 <= b.length) {
+    const len = b.readUInt32BE(o);
+    const type = b.toString('ascii', o + 4, o + 8);
+    if (type === 'IHDR') {
+      w = b.readUInt32BE(o + 8);
+      h = b.readUInt32BE(o + 12);
+      bitDepth = b[o + 16];
+      colorType = b[o + 17];
+      interlace = b[o + 28];
+    } else if (type === 'IDAT') {
+      idat.push(b.subarray(o + 8, o + 8 + len));
+    } else if (type === 'IEND') break;
+    o += 12 + len;
+  }
+  if (bitDepth !== 8 || interlace !== 0 || (colorType !== 6 && colorType !== 2)) return null;
+  const ch = colorType === 6 ? 4 : 3;
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = w * ch;
+  const out = Buffer.alloc(h * stride);
+  const paeth = (a, bb, c) => {
+    const p = a + bb - c;
+    const pa = Math.abs(p - a);
+    const pb = Math.abs(p - bb);
+    const pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? bb : c;
+  };
+  let pos = 0;
+  for (let y = 0; y < h; y++) {
+    const filter = raw[pos++];
+    const line = raw.subarray(pos, pos + stride);
+    pos += stride;
+    const cur = out.subarray(y * stride, (y + 1) * stride);
+    const prev = y > 0 ? out.subarray((y - 1) * stride, y * stride) : null;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= ch ? cur[x - ch] : 0;
+      const up = prev ? prev[x] : 0;
+      const c = prev && x >= ch ? prev[x - ch] : 0;
+      let v = line[x];
+      if (filter === 1) v += a;
+      else if (filter === 2) v += up;
+      else if (filter === 3) v += (a + up) >> 1;
+      else if (filter === 4) v += paeth(a, up, c);
+      cur[x] = v & 0xff;
+    }
+  }
+  return { w, h, ch, data: out };
+}
+
+/** 差异像素占比（%）；单通道差值 > tol 才算不同像素；解不出/尺寸不同 ⇒ 视为全差 */
+function diffPct(fileA, fileB, tol = 8) {
+  if (hashOf(fileA) === hashOf(fileB)) return 0;
+  const a = decodePng(fileA);
+  const b = decodePng(fileB);
+  if (!a || !b || a.w !== b.w || a.h !== b.h || a.ch !== b.ch) return 100;
+  const px = a.w * a.h;
+  let diff = 0;
+  for (let i = 0; i < px; i++) {
+    const o = i * a.ch;
+    let same = true;
+    for (let k = 0; k < 3; k++) {
+      if (Math.abs(a.data[o + k] - b.data[o + k]) > tol) {
+        same = false;
+        break;
+      }
+    }
+    if (!same) diff++;
+  }
+  return (diff / px) * 100;
+}
+
+/** current 与 baseline 比对；无基线记 NEW，差异超阈值记 CHANGED（人工复核） */
 function compareToBaseline(shotFile, surface, label) {
   const rel = path.relative(path.join(BASE, 'current'), shotFile);
   const baseFile = path.join(BASE, 'baseline', rel);
   if (!fs.existsSync(baseFile)) return rec(surface, label, 'NEW', path.basename(shotFile));
-  const same = hashOf(shotFile) === hashOf(baseFile);
+  const pct = diffPct(shotFile, baseFile, diffTol);
+  if (pct <= diffThreshold) {
+    return rec(surface, label, 'SAME', pct > 0 ? `差 ${pct.toFixed(3)}%（阈值内）` : '');
+  }
   return rec(
     surface,
     label,
-    same ? 'SAME' : 'CHANGED',
-    same ? '' : `看 current/${rel} vs baseline/${rel}`
+    'CHANGED',
+    `差 ${pct.toFixed(2)}% > ${diffThreshold}% ⇒ 看 current/${rel} vs baseline/${rel}`
   );
 }
 
@@ -369,7 +461,30 @@ async function runMp(surface) {
   await mp.disconnect();
 }
 
+/** 判据自检：同图=0%、两页互比必须显著>0（防解码/比对写错导致「永远 SAME」假绿） */
+function selfTest() {
+  const dir = path.join(BASE, 'current', 'admin');
+  if (!fs.existsSync(dir)) return console.log('[selftest] SKIP：无 current/admin 截图可用作样本');
+  const pngs = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.png'))
+    .slice(0, 2);
+  if (pngs.length < 2) return console.log('[selftest] SKIP：样本不足 2 张');
+  const [a, b] = pngs.map((f) => path.join(dir, f));
+  const same = diffPct(a, a, diffTol);
+  const cross = diffPct(a, b, diffTol);
+  const ok = same === 0 && cross > diffThreshold;
+  console.log(
+    `[selftest] ${ok ? 'OK' : 'FAIL'} 同图=${same}% 互比=${cross.toFixed(2)}%（阈值 ${diffThreshold}%）`
+  );
+  if (!ok) process.exitCode = 1;
+}
+
 (async () => {
+  if (argv.includes('--selftest')) {
+    selfTest();
+    return;
+  }
   ensureDirs();
   console.log(
     `[ui-baseline] surfaces=${surfaces.join(',')} mode=${mode} theme=${themes.join(',')}`

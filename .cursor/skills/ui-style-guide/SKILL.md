@@ -83,7 +83,7 @@ node scripts/pre-push-ci-preflight.mjs       # 推送前全链（规则 pre-push
 node scripts/ui-screenshot-runner.mjs --surface=all   # 三端截图+健康检查（本地用，不进 CI；见 §5 前置）
 ```
 
-- 截图 runner 判读：`FAIL`=白屏/console error/骨架屏 7s 未复位（真回归，必须修）；`CHANGED`=与基线字节不同（数据变化也会触发，交人工看 `current/` vs `baseline/`）；`--promote` 把当前一轮认作新基线。页面清单在 `scripts/ui-screenshot-pages.json`（加页面改 JSON，勿硬编码）。
+- 截图 runner 判读：`FAIL`=白屏/console error/骨架屏 7s 未复位（真回归，必须修）；`CHANGED`=**像素差异占比 > 0.2%**（数据变化也会触发，交人工看 `current/` vs `baseline/`）；`--promote` 把当前一轮认作新基线；`--selftest` 验判据本身（同图必须 0%、两页互比必须显著，防「永远 SAME」假绿）。页面清单在 `scripts/ui-screenshot-pages.json`（加页面改 JSON，勿硬编码）。
 
 ## 7. 已拍板禁区（勿顺手改）
 
