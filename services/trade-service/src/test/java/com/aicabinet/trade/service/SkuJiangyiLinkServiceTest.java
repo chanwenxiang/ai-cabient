@@ -44,10 +44,11 @@ class SkuJiangyiLinkServiceTest {
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private SkuCatalogMapper skuCatalogMapper;
     @Mock private JiangyiGatherClient jiangyiGatherClient;
+    @Mock private AdminAuditService auditService;
 
     private SkuJiangyiLinkService service() {
         return new SkuJiangyiLinkService(linkMapper, skuCatalogMapper, jiangyiGatherClient,
-                "https://public.example.com");
+                "https://public.example.com", auditService);
     }
 
     private SkuCatalog sku(String barcode) {
@@ -69,7 +70,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().bind(SKU_ID, 88L, "农夫山泉", "6901234567890"));
+                () -> service().bind(1L, SKU_ID, 88L, "农夫山泉", "6901234567890"));
         assertEquals(409, e.getStatusCode().value());
         verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
     }
@@ -80,7 +81,7 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.byProduct("88")).thenReturn(Optional.empty());
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
 
-        JiangyiSkuJiangyiLink link = service().bind(SKU_ID, 88L, "农夫山泉", "6900000000009");
+        JiangyiSkuJiangyiLink link = service().bind(1L, SKU_ID, 88L, "农夫山泉", "6900000000009");
 
         assertEquals("BOUND", link.getSyncStatus());
         assertEquals("6900000000009", link.getBarCode());
@@ -92,7 +93,7 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.byProduct("88")).thenReturn(Optional.empty());
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku(null));
 
-        JiangyiSkuJiangyiLink link = service().bind(SKU_ID, 88L, "农夫山泉", null);
+        JiangyiSkuJiangyiLink link = service().bind(1L, SKU_ID, 88L, "农夫山泉", null);
 
         assertEquals("BOUND", link.getSyncStatus());
         ArgumentCaptor<JiangyiSkuJiangyiLink> captor = ArgumentCaptor.forClass(JiangyiSkuJiangyiLink.class);
@@ -111,7 +112,7 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.byProduct("88")).thenReturn(Optional.of(retired));
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
 
-        JiangyiSkuJiangyiLink link = service().bind(SKU_ID, 88L, "农夫山泉", "6901234567890");
+        JiangyiSkuJiangyiLink link = service().bind(1L, SKU_ID, 88L, "农夫山泉", "6901234567890");
 
         assertEquals(9L, link.getId());
         assertEquals(SKU_ID, link.getSkuId());
@@ -126,7 +127,7 @@ class SkuJiangyiLinkServiceTest {
         when(jiangyiGatherClient.productCreate(any())).thenThrow(new IllegalStateException("将邑 500"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+                () -> service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                         "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                         "http://img/1.png", null, "bottle", "6901234567890")));
         assertEquals(502, e.getStatusCode().value());
@@ -138,7 +139,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
         when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
 
-        JiangyiSkuJiangyiLink link = service().createInJiangyi(SKU_ID,
+        JiangyiSkuJiangyiLink link = service().createInJiangyi(1L, SKU_ID,
                 new SkuJiangyiLinkService.ProductCreateSpec(
                         "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                         "http://img/1.png", null, "bottle", "6901234567890"));
@@ -155,7 +156,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
 
-        service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+        service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                 "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                 " ", null, "bottle", "6901234567890"));
 
@@ -173,7 +174,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
         when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
 
-        service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+        service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                 "330ml雪碧柠檬味汽水", "330ml", 4465L, "雪碧", "1.5", "3.0",
                 "", null, "bottle", "6928804010145"));
 
@@ -189,7 +190,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().createInJiangyi(SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
+                () -> service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                         "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                         "", null, "bottle", "6901234567890")));
         assertEquals(409, e.getStatusCode().value());
@@ -202,7 +203,7 @@ class SkuJiangyiLinkServiceTest {
     void pullTextName_withoutOwnBarcodeIsRejected() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku(null));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pullTextName(SKU_ID));
+                () -> service().pullTextName(1L, SKU_ID));
         assertEquals(409, e.getStatusCode().value());
     }
 
@@ -218,7 +219,7 @@ class SkuJiangyiLinkServiceTest {
         link.setJiangyiProductId("123");
         when(linkMapper.listBySku(SKU_ID)).thenReturn(List.of(link));
 
-        int updated = service().pullTextName(SKU_ID);
+        int updated = service().pullTextName(1L, SKU_ID);
 
         assertEquals(1, updated);
         assertEquals("农夫山泉 550ml", link.getJiangyiTextName());
@@ -230,7 +231,7 @@ class SkuJiangyiLinkServiceTest {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
         when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of());
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pullTextName(SKU_ID));
+                () -> service().pullTextName(1L, SKU_ID));
         assertEquals(404, e.getStatusCode().value());
     }
 
@@ -243,7 +244,7 @@ class SkuJiangyiLinkServiceTest {
                         "kkkl_xb_qsnmw_pttz_330ml", "6901234567890"),
                 new LearnableProduct(2L, "test雪碧听装330ml", "test_xb_tz330ml", "6901234567890")));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pullTextName(SKU_ID));
+                () -> service().pullTextName(1L, SKU_ID));
 
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("kkkl_xb_qsnmw_pttz_330ml"));
@@ -264,7 +265,7 @@ class SkuJiangyiLinkServiceTest {
         link.setSkuId(SKU_ID);
         when(linkMapper.listBySku(SKU_ID)).thenReturn(List.of(link));
 
-        assertEquals(1, service().pullTextName(SKU_ID));
+        assertEquals(1, service().pullTextName(1L, SKU_ID));
         assertEquals("kkkl_xb_qsnmw_pttz_330ml", link.getJiangyiTextName());
     }
 
@@ -274,7 +275,7 @@ class SkuJiangyiLinkServiceTest {
         when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of(
                 new LearnableProduct(1L, "雪碧 330ml", null, "6901234567890")));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pullTextName(SKU_ID));
+                () -> service().pullTextName(1L, SKU_ID));
 
         assertEquals(404, e.getStatusCode().value());
         assertTrue(e.getReason().contains("没有 textName"));
@@ -465,7 +466,7 @@ class SkuJiangyiLinkServiceTest {
     void unbind_missingLinkIs404AndExistingGoesRetired() {
         when(linkMapper.selectById(404L)).thenReturn(null);
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().unbind(SKU_ID, 404L));
+                () -> service().unbind(1L, SKU_ID, 404L));
         assertEquals(404, e.getStatusCode().value());
 
         JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
@@ -473,7 +474,7 @@ class SkuJiangyiLinkServiceTest {
         link.setSkuId(SKU_ID);
         link.setSyncStatus("BOUND");
         when(linkMapper.selectById(9L)).thenReturn(link);
-        service().unbind(SKU_ID, 9L);
+        service().unbind(1L, SKU_ID, 9L);
         assertEquals("RETIRED", link.getSyncStatus());
         verify(linkMapper).updateById(link);
     }
@@ -488,7 +489,7 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.selectById(9L)).thenReturn(link);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().unbind(SKU_ID, 9L));
+                () -> service().unbind(1L, SKU_ID, 9L));
         assertEquals(404, e.getStatusCode().value());
         verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
     }
@@ -509,11 +510,16 @@ class SkuJiangyiLinkServiceTest {
         JiangyiSkuJiangyiLink link = vendorLink(9L, "CREATED", "41159");
         when(linkMapper.selectById(9L)).thenReturn(link);
 
-        service().deleteFromJiangyi(SKU_ID, 9L);
+        service().deleteFromJiangyi(1L, SKU_ID, 9L);
 
         verify(jiangyiGatherClient).productDelete(41159L);
         assertEquals("RETIRED", link.getSyncStatus());
         verify(linkMapper).updateById(link);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_SKU_LINK_DELETE"),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_SKU_LINK"),
+                org.mockito.ArgumentMatchers.eq("9"),
+                org.mockito.ArgumentMatchers.contains("jiangyiProductId=41159"));
     }
 
     @Test
@@ -522,7 +528,7 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.selectById(9L)).thenReturn(vendorLink(9L, "BOUND", "1018"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().deleteFromJiangyi(SKU_ID, 9L));
+                () -> service().deleteFromJiangyi(1L, SKU_ID, 9L));
 
         assertEquals(409, e.getStatusCode().value());
         verify(jiangyiGatherClient, never()).productDelete(anyLong());
@@ -537,7 +543,7 @@ class SkuJiangyiLinkServiceTest {
                 .when(jiangyiGatherClient).productDelete(41159L);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().deleteFromJiangyi(SKU_ID, 9L));
+                () -> service().deleteFromJiangyi(1L, SKU_ID, 9L));
 
         assertEquals(502, e.getStatusCode().value());
         assertEquals("CREATED", link.getSyncStatus());
@@ -581,7 +587,7 @@ class SkuJiangyiLinkServiceTest {
     void bind_unknownSkuIs404() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(null);
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().bind(SKU_ID, 88L, "x", null));
+                () -> service().bind(1L, SKU_ID, 88L, "x", null));
         assertEquals(404, e.getStatusCode().value());
     }
 

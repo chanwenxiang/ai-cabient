@@ -74,15 +74,18 @@ public class SkuJiangyiLinkService {
     private final SkuCatalogMapper skuCatalogMapper;
     private final JiangyiGatherClient jiangyiGatherClient;
     private final String publicBaseUrl;
+    private final AdminAuditService auditService;
 
     public SkuJiangyiLinkService(JiangyiSkuJiangyiLinkMapper linkMapper,
                                  SkuCatalogMapper skuCatalogMapper,
                                  JiangyiGatherClient jiangyiGatherClient,
-                                 @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl) {
+                                 @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl,
+                                 AdminAuditService auditService) {
         this.linkMapper = linkMapper;
         this.skuCatalogMapper = skuCatalogMapper;
         this.jiangyiGatherClient = jiangyiGatherClient;
         this.publicBaseUrl = publicBaseUrl;
+        this.auditService = auditService;
     }
 
     public List<JiangyiSkuJiangyiLink> listLinks(String skuId) {
@@ -253,7 +256,8 @@ public class SkuJiangyiLinkService {
      * 双方 barCode 不一致只留痕不阻断——69 码是罐身固有属性，同款不同包装版本条码本就不同
      * （2026-10-21 拍板）；识别扣款走 classId 映射、不读本关联，挂错仍可在识别映射页纠正。
      */
-    public JiangyiSkuJiangyiLink bind(String skuId, long jiangyiProductId, String jiangyiName, String barCode) {
+    public JiangyiSkuJiangyiLink bind(Long operatorId, String skuId, long jiangyiProductId,
+                                      String jiangyiName, String barCode) {
         requireSku(skuId);
         linkMapper.byProduct(String.valueOf(jiangyiProductId)).ifPresent(existing -> {
             if (!"RETIRED".equals(existing.getSyncStatus())) {
@@ -285,6 +289,10 @@ public class SkuJiangyiLinkService {
             linkMapper.updateById(link);
         }
         log.info("jiangyi sku link bound skuId={} jiangyiProductId={}", skuId, jiangyiProductId);
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_BIND", "JIANGYI_SKU_LINK",
+                link.getId() == null ? skuId : String.valueOf(link.getId()),
+                "skuId=" + skuId + ",jiangyiProductId=" + jiangyiProductId
+                        + ",jiangyiName=" + jiangyiName + ",barCode=" + barCode);
         return link;
     }
 
@@ -296,7 +304,7 @@ public class SkuJiangyiLinkService {
      * 的商品主图（imageUrl）；两边都没有则 409 提示先登记图片——此前弹窗恒发空串，
      * 把「主图缺失」拖到将邑 500 才暴露，运营无从下手。</p>
      */
-    public JiangyiSkuJiangyiLink createInJiangyi(String skuId, ProductCreateSpec spec) {
+    public JiangyiSkuJiangyiLink createInJiangyi(Long operatorId, String skuId, ProductCreateSpec spec) {
         SkuCatalog sku = requireSku(skuId);
         String mainImg = absoluteImageUrl(spec.mainImg() != null && !spec.mainImg().isBlank()
                 ? spec.mainImg()
@@ -339,6 +347,10 @@ public class SkuJiangyiLinkService {
         link.setUpdatedAt(now);
         linkMapper.insert(link);
         log.info("jiangyi sku link created-in-jiangyi skuId={} productId={}", skuId, productId);
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_CREATE", "JIANGYI_SKU_LINK",
+                link.getId() == null ? skuId : String.valueOf(link.getId()),
+                "skuId=" + skuId + ",jiangyiProductId=" + productId + ",name=" + spec.name()
+                        + ",catId=" + spec.catId() + ",barCode=" + spec.barCode());
         return link;
     }
 
@@ -349,7 +361,7 @@ public class SkuJiangyiLinkService {
      * <p>闸门只放 CREATED：BOUND 指向将邑标准库里本来就有的商品，那是共享条目，
      * 删它会波及别的商户，我方无权处置（要断开走 {@link #unbind}）。</p>
      */
-    public void deleteFromJiangyi(String skuId, long linkId) {
+    public void deleteFromJiangyi(Long operatorId, String skuId, long linkId) {
         JiangyiSkuJiangyiLink link = requireLink(skuId, linkId);
         if (!"CREATED".equals(link.getSyncStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -367,6 +379,9 @@ public class SkuJiangyiLinkService {
         linkMapper.updateById(link);
         log.info("jiangyi sku link deleted-in-jiangyi skuId={} linkId={} jiangyiProductId={}",
                 skuId, linkId, link.getJiangyiProductId());
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_DELETE", "JIANGYI_SKU_LINK",
+                String.valueOf(linkId),
+                "skuId=" + skuId + ",jiangyiProductId=" + link.getJiangyiProductId());
     }
 
     /**
@@ -379,7 +394,7 @@ public class SkuJiangyiLinkService {
      * <b>条码精确相等且 textName 唯一</b>的结果；多值一律 409 并列出候选，
      * 由人工在识别映射页指定。</p>
      */
-    public int pullTextName(String skuId) {
+    public int pullTextName(Long operatorId, String skuId) {
         SkuCatalog sku = requireSku(skuId);
         if (sku.getBarcode() == null || sku.getBarcode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "我方 SKU 未登记条形码，无法按条码回填");
@@ -419,17 +434,22 @@ public class SkuJiangyiLinkService {
             linkMapper.updateById(link);
             updated++;
         }
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_PULL_TEXT", "JIANGYI_SKU_LINK",
+                skuId, "textName=" + textName + ",rows=" + updated);
         return updated;
     }
 
     /** 解挂（RETIRED 留痕，不物理删）。 */
-    public void unbind(String skuId, long linkId) {
+    public void unbind(Long operatorId, String skuId, long linkId) {
         JiangyiSkuJiangyiLink link = requireLink(skuId, linkId);
         link.setSyncStatus("RETIRED");
         link.setUpdatedAt(Instant.now());
         linkMapper.updateById(link);
         log.info("jiangyi sku link unbound linkId={} skuId={} jiangyiProductId={}",
                 linkId, link.getSkuId(), link.getJiangyiProductId());
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_UNBIND", "JIANGYI_SKU_LINK",
+                String.valueOf(linkId),
+                "skuId=" + skuId + ",jiangyiProductId=" + link.getJiangyiProductId());
     }
 
     /** 挂接行必须属于路径上的那个 SKU——否则同一条 link 能从任意 skuId 路径被改。 */

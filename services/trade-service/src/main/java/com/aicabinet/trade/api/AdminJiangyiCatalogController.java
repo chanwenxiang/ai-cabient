@@ -1,10 +1,12 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.service.SkuJiangyiLinkService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -73,45 +75,55 @@ public class AdminJiangyiCatalogController {
     /** 挂接既有将邑商品（唯一冲突 409；条码不一致仅记日志/前端提示，不阻断）。 */
     @RequiresPermissions("ops:sku:edit")
     @PutMapping("/skus/{skuId}/jiangyi-link")
-    public ApiResponse<JiangyiSkuJiangyiLink> bind(@PathVariable("skuId") String skuId,
+    public ApiResponse<JiangyiSkuJiangyiLink> bind(HttpServletRequest request,
+                                                   @PathVariable("skuId") String skuId,
                                                    @Valid @RequestBody BindRequest body) {
-        return ApiResponse.ok(skuJiangyiLinkService.bind(skuId, body.jiangyiProductId(),
-                body.jiangyiName(), body.barCode()));
+        return ApiResponse.ok(skuJiangyiLinkService.bind(operatorId(request), skuId,
+                body.jiangyiProductId(), body.jiangyiName(), body.barCode()));
     }
 
     /** 我方商品新增到将邑商品库（§4.1.5；成功才落挂接，无半挂态）。 */
     @RequiresPermissions("ops:sku:edit")
     @PostMapping("/skus/{skuId}/jiangyi-link/create")
-    public ApiResponse<JiangyiSkuJiangyiLink> create(@PathVariable("skuId") String skuId,
+    public ApiResponse<JiangyiSkuJiangyiLink> create(HttpServletRequest request,
+                                                     @PathVariable("skuId") String skuId,
                                                      @Valid @RequestBody CreateRequest body) {
-        return ApiResponse.ok(skuJiangyiLinkService.createInJiangyi(skuId, new SkuJiangyiLinkService.ProductCreateSpec(
-                body.name(), body.specs(), body.catId(), body.brandName(), body.purchasePrice(),
-                body.salePrice(), body.mainImg(), body.color(), body.category(), body.barCode())));
+        return ApiResponse.ok(skuJiangyiLinkService.createInJiangyi(operatorId(request), skuId,
+                new SkuJiangyiLinkService.ProductCreateSpec(
+                        body.name(), body.specs(), body.catId(), body.brandName(), body.purchasePrice(),
+                        body.salePrice(), body.mainImg(), body.color(), body.category(), body.barCode())));
     }
 
     /** 学习完成后按条码回填 text_name（classes 预生成的商品归属依据）。 */
     @RequiresPermissions("ops:sku:edit")
     @PostMapping("/skus/{skuId}/jiangyi-link/pull-text-name")
-    public ApiResponse<Integer> pullTextName(@PathVariable("skuId") String skuId) {
-        return ApiResponse.ok(skuJiangyiLinkService.pullTextName(skuId));
+    public ApiResponse<Integer> pullTextName(HttpServletRequest request,
+                                             @PathVariable("skuId") String skuId) {
+        return ApiResponse.ok(skuJiangyiLinkService.pullTextName(operatorId(request), skuId));
     }
 
     /** 我方新增到将邑的商品从将邑删除（§4.1.6，不可逆；BOUND 一律 409）。 */
     @RequiresPermissions("ops:sku:edit")
     @DeleteMapping("/skus/{skuId}/jiangyi-link/{linkId}/jiangyi-product")
-    public ApiResponse<Void> deleteInJiangyi(@PathVariable("skuId") String skuId,
+    public ApiResponse<Void> deleteInJiangyi(HttpServletRequest request,
+                                             @PathVariable("skuId") String skuId,
                                              @PathVariable("linkId") long linkId) {
-        skuJiangyiLinkService.deleteFromJiangyi(skuId, linkId);
+        skuJiangyiLinkService.deleteFromJiangyi(operatorId(request), skuId, linkId);
         return ApiResponse.ok(null);
     }
 
     /** 解挂（RETIRED 留痕）。 */
     @RequiresPermissions("ops:sku:edit")
     @DeleteMapping("/skus/{skuId}/jiangyi-link/{linkId}")
-    public ApiResponse<Void> unbind(@PathVariable("skuId") String skuId,
+    public ApiResponse<Void> unbind(HttpServletRequest request,
+                                    @PathVariable("skuId") String skuId,
                                     @PathVariable("linkId") long linkId) {
-        skuJiangyiLinkService.unbind(skuId, linkId);
+        skuJiangyiLinkService.unbind(operatorId(request), skuId, linkId);
         return ApiResponse.ok(null);
+    }
+
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 
     // ---------- 请求体 ----------

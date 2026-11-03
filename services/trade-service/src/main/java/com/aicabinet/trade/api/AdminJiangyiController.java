@@ -268,6 +268,7 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:edit")
     @PutMapping("/devices/{deviceId}/jiangyi/class-mappings/{classId}")
     public ApiResponse<JiangyiClassMappingDto> upsertMapping(
+            HttpServletRequest request,
             @PathVariable("deviceId") String deviceId,
             @PathVariable("classId") Integer classId,
             @Valid @RequestBody MappingUpsertRequest body) {
@@ -279,17 +280,18 @@ public class AdminJiangyiController {
         mapping.setSkuId(blankToNull(body.skuId()));
         mapping.setStatus(Boolean.TRUE.equals(body.active()) ? "ACTIVE" : "DISABLED");
         mapping.setSource("MANUAL");
-        return ApiResponse.ok(toDto(jiangyiClassMappingService.upsert(mapping)));
+        return ApiResponse.ok(toDto(jiangyiClassMappingService.upsert(operatorId(request), mapping)));
     }
 
     /** 启停（停用即时生效：下次识别解析即 fail-closed）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/class-mappings/{classId}/status")
-    public ApiResponse<Integer> setMappingStatus(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Integer> setMappingStatus(HttpServletRequest request,
+                                                 @PathVariable("deviceId") String deviceId,
                                                  @PathVariable("classId") Integer classId,
                                                  @Valid @RequestBody MappingStatusRequest body) {
         return ApiResponse.ok(jiangyiClassMappingService.setStatus(
-                deviceId, classId, Boolean.TRUE.equals(body.active())));
+                operatorId(request), deviceId, classId, Boolean.TRUE.equals(body.active())));
     }
 
     // ---------- 设备控制面（V363，图2 对照，2026-10-15） ----------

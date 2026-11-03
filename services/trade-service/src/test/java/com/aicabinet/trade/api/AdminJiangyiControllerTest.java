@@ -57,6 +57,10 @@ class AdminJiangyiControllerTest {
     @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
     @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
 
+    private static jakarta.servlet.http.HttpServletRequest req() {
+        return org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
+    }
+
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
@@ -211,14 +215,14 @@ class AdminJiangyiControllerTest {
         saved.setTextName("农夫山泉 550ml");
         saved.setStatus("ACTIVE");
         saved.setSource("MANUAL");
-        when(mappingService.upsert(any())).thenReturn(saved);
+        when(mappingService.upsert(any(), any())).thenReturn(saved);
 
         var body = new AdminJiangyiController.MappingUpsertRequest(
                 " SKU-WATER-001 ", "农夫山泉 550ml", null, Boolean.TRUE);
-        JiangyiClassMappingDto dto = controller().upsertMapping(DEVICE_ID, 101, body).data();
+        JiangyiClassMappingDto dto = controller().upsertMapping(req(), DEVICE_ID, 101, body).data();
 
         ArgumentCaptor<JiangyiClassMapping> captor = ArgumentCaptor.forClass(JiangyiClassMapping.class);
-        verify(mappingService).upsert(captor.capture());
+        verify(mappingService).upsert(any(), captor.capture());
         JiangyiClassMapping passed = captor.getValue();
         assertEquals(DEVICE_ID, passed.getDeviceId());
         assertEquals(101, passed.getClassId());
@@ -236,24 +240,24 @@ class AdminJiangyiControllerTest {
         saved.setSkuId("SKU-WATER-001");
         saved.setStatus("DISABLED");
         saved.setSource("MANUAL");
-        when(mappingService.upsert(any())).thenReturn(saved);
+        when(mappingService.upsert(any(), any())).thenReturn(saved);
 
         var body = new AdminJiangyiController.MappingUpsertRequest("SKU-WATER-001", null, null, null);
-        controller().upsertMapping(DEVICE_ID, 101, body);
+        controller().upsertMapping(req(), DEVICE_ID, 101, body);
 
         ArgumentCaptor<JiangyiClassMapping> captor = ArgumentCaptor.forClass(JiangyiClassMapping.class);
-        verify(mappingService).upsert(captor.capture());
+        verify(mappingService).upsert(any(), captor.capture());
         assertEquals("DISABLED", captor.getValue().getStatus());
     }
 
     @Test
     void setMappingStatusPassesThroughBoolean() {
-        when(mappingService.setStatus(DEVICE_ID, 101, false)).thenReturn(1);
+        when(mappingService.setStatus(any(), eq(DEVICE_ID), eq(101), eq(false))).thenReturn(1);
 
-        controller().setMappingStatus(DEVICE_ID, 101,
+        controller().setMappingStatus(req(), DEVICE_ID, 101,
                 new AdminJiangyiController.MappingStatusRequest(Boolean.FALSE));
 
-        verify(mappingService).setStatus(DEVICE_ID, 101, false);
+        verify(mappingService).setStatus(any(), eq(DEVICE_ID), eq(101), eq(false));
     }
 
     // ---------- 采集编排面（CB-023 二期） ----------

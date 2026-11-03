@@ -349,7 +349,7 @@ public class JiangyiInternalController {
         mapping.setSkuId(body.skuId());
         mapping.setStatus(body.status() == null || body.status().isBlank() ? "DISABLED" : body.status());
         mapping.setSource(body.source() == null || body.source().isBlank() ? "MANUAL" : body.source());
-        return ApiResponse.ok(jiangyiClassMappingService.upsert(mapping));
+        return ApiResponse.ok(jiangyiClassMappingService.upsert(null, mapping));
     }
 
     /** 启停（MODEL_SYNC 预生成行人工确认后激活）。 */
@@ -358,7 +358,7 @@ public class JiangyiInternalController {
                                                  @PathVariable("classId") Integer classId,
                                                  @RequestBody MappingStatusRequest body) {
         return ApiResponse.ok(jiangyiClassMappingService.setStatus(
-                deviceId, classId, Boolean.TRUE.equals(body.active())));
+                null, deviceId, classId, Boolean.TRUE.equals(body.active())));
     }
 
     // ---------- 超时面 ----------

@@ -20,9 +20,12 @@ import java.util.Optional;
 public class JiangyiClassMappingService {
 
     private final JiangyiClassMappingMapper jiangyiClassMappingMapper;
+    private final AdminAuditService auditService;
 
-    public JiangyiClassMappingService(JiangyiClassMappingMapper jiangyiClassMappingMapper) {
+    public JiangyiClassMappingService(JiangyiClassMappingMapper jiangyiClassMappingMapper,
+                                      AdminAuditService auditService) {
         this.jiangyiClassMappingMapper = jiangyiClassMappingMapper;
+        this.auditService = auditService;
     }
 
     /** ACTIVE 映射点查；empty = 未命中（调用方 fail-closed）。 */
@@ -38,14 +41,24 @@ public class JiangyiClassMappingService {
     }
 
     /** 幂等 upsert（admin 人工建立 / 后续模型同步预生成共用入口）。 */
-    public JiangyiClassMapping upsert(JiangyiClassMapping mapping) {
+    public JiangyiClassMapping upsert(Long operatorId, JiangyiClassMapping mapping) {
         jiangyiClassMappingMapper.upsert(mapping);
-        return jiangyiClassMappingMapper.findOne(mapping.getDeviceId(), mapping.getClassId())
+        JiangyiClassMapping saved = jiangyiClassMappingMapper
+                .findOne(mapping.getDeviceId(), mapping.getClassId())
                 .orElse(mapping);
+        auditService.appendLog(operatorId, "JIANGYI_CLASS_MAPPING_UPSERT", "JIANGYI_CLASS_MAPPING",
+                mapping.getDeviceId() + ":" + mapping.getClassId(),
+                "modelName=" + mapping.getModelName() + ",textName=" + mapping.getTextName()
+                        + ",skuId=" + mapping.getSkuId() + ",status=" + mapping.getStatus()
+                        + ",source=" + mapping.getSource());
+        return saved;
     }
 
     /** MODEL_SYNC 预生成行人工确认后激活；停用即时生效（下次解析即 fail-closed）。 */
-    public int setStatus(String deviceId, Integer classId, boolean active) {
-        return jiangyiClassMappingMapper.setStatus(deviceId, classId, active);
+    public int setStatus(Long operatorId, String deviceId, Integer classId, boolean active) {
+        int rows = jiangyiClassMappingMapper.setStatus(deviceId, classId, active);
+        auditService.appendLog(operatorId, "JIANGYI_CLASS_MAPPING_STATUS", "JIANGYI_CLASS_MAPPING",
+                deviceId + ":" + classId, "active=" + active + ",rows=" + rows);
+        return rows;
     }
 }
