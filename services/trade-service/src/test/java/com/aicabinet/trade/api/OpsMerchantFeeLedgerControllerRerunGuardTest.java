@@ -30,7 +30,7 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     private final MerchantDailyIncomeNotifyScheduler scheduler =
             mock(MerchantDailyIncomeNotifyScheduler.class);
     private final OpsMerchantFeeLedgerController controller = new OpsMerchantFeeLedgerController(
-            mock(MerchantFeeLedgerService.class), scheduler);
+            mock(MerchantFeeLedgerService.class), mock(com.aicabinet.trade.service.AdminAuditService.class), scheduler);
 
     /** 与被测代码同一时区，否则「昨天」在两个时区里能差一天。 */
     private static LocalDate today() {
@@ -41,7 +41,7 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     @DisplayName("跑今天=提前扣当天的费 ⇒ 400，且不落到扣款逻辑")
     void rejectsToday() {
         ResponseStatusException thrown = assertThrows(ResponseStatusException.class,
-                () -> controller.rerunDailyFees(today().toString()));
+                () -> controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), today().toString()));
         assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
         assertTrue(thrown.getReason().contains("不晚于昨天"), thrown.getReason());
         verify(scheduler, never()).rerunDailyFees(any());
@@ -51,7 +51,7 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     @DisplayName("跑未来日期同样拒绝")
     void rejectsFutureDate() {
         ResponseStatusException thrown = assertThrows(ResponseStatusException.class,
-                () -> controller.rerunDailyFees(today().plusDays(7).toString()));
+                () -> controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), today().plusDays(7).toString()));
         assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
         verify(scheduler, never()).rerunDailyFees(any());
     }
@@ -61,7 +61,7 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     void rejectsBeyondLookbackWindow() {
         String tooOld = today().minusDays(OpsMerchantFeeLedgerController.RERUN_LOOKBACK_DAYS + 1).toString();
         ResponseStatusException thrown = assertThrows(ResponseStatusException.class,
-                () -> controller.rerunDailyFees(tooOld));
+                () -> controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), tooOld));
         assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode());
         assertTrue(thrown.getReason().contains(String.valueOf(
                 OpsMerchantFeeLedgerController.RERUN_LOOKBACK_DAYS)), thrown.getReason());
@@ -73,7 +73,7 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     void rejectsUnparseableDate() {
         for (String bad : new String[] {"2026-13-45", "昨天", "2026/10/15", ""}) {
             ResponseStatusException thrown = assertThrows(ResponseStatusException.class,
-                    () -> controller.rerunDailyFees(bad), bad);
+                    () -> controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), bad), bad);
             assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatusCode(), bad);
         }
         verify(scheduler, never()).rerunDailyFees(any());
@@ -84,12 +84,12 @@ class OpsMerchantFeeLedgerControllerRerunGuardTest {
     void acceptsYesterdayAndLookbackEdge() {
         when(scheduler.rerunDailyFees(any())).thenReturn(12_300L);
 
-        var yesterday = controller.rerunDailyFees(today().minusDays(1).toString());
+        var yesterday = controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), today().minusDays(1).toString());
         assertEquals(today().minusDays(1).toString(), yesterday.data().get("feeDate"));
         assertEquals(12_300L, yesterday.data().get("chargedCents"));
 
         String edge = today().minusDays(OpsMerchantFeeLedgerController.RERUN_LOOKBACK_DAYS).toString();
-        controller.rerunDailyFees(edge);
+        controller.rerunDailyFees(mock(jakarta.servlet.http.HttpServletRequest.class), edge);
 
         verify(scheduler).rerunDailyFees(today().minusDays(1));
         verify(scheduler).rerunDailyFees(LocalDate.parse(edge));

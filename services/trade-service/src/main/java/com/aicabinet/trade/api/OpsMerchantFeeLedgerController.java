@@ -1,9 +1,12 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.trade.auth.AuthInterceptor;
+import jakarta.servlet.http.HttpServletRequest;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.MerchantFeeLedger;
 import com.aicabinet.trade.service.MerchantDailyIncomeNotifyScheduler;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.MerchantFeeLedgerService;
 import com.aicabinet.trade.support.ScheduleZones;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,11 +37,13 @@ public class OpsMerchantFeeLedgerController {
     static final int RERUN_LOOKBACK_DAYS = 92;
 
     private final MerchantFeeLedgerService feeLedgerService;
+    private final AdminAuditService auditService;
     private final MerchantDailyIncomeNotifyScheduler feeScheduler;
 
-    public OpsMerchantFeeLedgerController(MerchantFeeLedgerService feeLedgerService,
+    public OpsMerchantFeeLedgerController(MerchantFeeLedgerService feeLedgerService, AdminAuditService auditService,
                                           MerchantDailyIncomeNotifyScheduler feeScheduler) {
         this.feeLedgerService = feeLedgerService;
+        this.auditService = auditService;
         this.feeScheduler = feeScheduler;
     }
 
@@ -54,15 +59,15 @@ public class OpsMerchantFeeLedgerController {
     @Operation(summary = "标记结清（线下收款后；幂等：已结清直接返回）")
     @PostMapping("/{ledgerId}/settle")
     @RequiresPermissions("ops:merchant-withdraw:adjust")
-    public ApiResponse<MerchantFeeLedger> settle(@PathVariable Long ledgerId,
+    public ApiResponse<MerchantFeeLedger> settle(HttpServletRequest request,@PathVariable Long ledgerId,
                                                  @RequestParam(required = false) String remark) {
-        return ApiResponse.ok(feeLedgerService.settle(ledgerId, remark));
+        return ApiResponse.ok(feeLedgerService.settle(operatorId(request), ledgerId, remark));
     }
 
     @Operation(summary = "按日期重跑周期费用日扣（F-4 拍板：漏扣不自动补，人工带日期补跑）")
     @PostMapping("/rerun-daily-fees")
     @RequiresPermissions("ops:merchant-withdraw:adjust")
-    public ApiResponse<Map<String, Object>> rerunDailyFees(@RequestParam String feeDate) {
+    public ApiResponse<Map<String, Object>> rerunDailyFees(HttpServletRequest request, @RequestParam String feeDate) {
         LocalDate date = parseFeeDate(feeDate);
         LocalDate today = LocalDate.now(ScheduleZones.ZONE);
         if (date.isAfter(today.minusDays(1))) {
@@ -75,6 +80,9 @@ public class OpsMerchantFeeLedgerController {
                     "feeDate 回溯不得超过 " + RERUN_LOOKBACK_DAYS + " 天（久历史请走线下对账）");
         }
         long charged = feeScheduler.rerunDailyFees(date);
+        // MA-091：这条分支会经 debitIfAbsentAllowNegative **真扣商户钱包**，此前零归因
+        auditService.appendLog(operatorId(request), "MERCHANT_FEE_RERUN_DAILY", "MERCHANT_FEE_LEDGER",
+                date.toString(), "chargedCents=" + charged);
         return ApiResponse.ok(Map.of(
                 "feeDate", date.toString(),
                 "chargedCents", charged,
@@ -88,4 +96,8 @@ public class OpsMerchantFeeLedgerController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feeDate 须为 YYYY-MM-DD");
         }
     }
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
 }
