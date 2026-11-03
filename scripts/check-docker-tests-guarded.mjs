@@ -240,6 +240,18 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/CloseClaimAndExpiryTaskRowLockSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；MA-103 两条腿的行锁语义只有真 PG 能证：单测里 mapper 是 mock，' +
+        'findByIdForUpdate 生成的 FOR UPDATE 从不落到数据库。本 IT 两线程同放行走同一行，' +
+        '断「恰 1 成功 + 恰 1 个 409」且 inventory_write_off / from-expiry 任务各只 1 行；' +
+        '已做反向对照——撤锁改回 selectById 重跑两条腿同时红（expected:<1> but was:<2>），' +
+        '证明断言盯的是双挂索赔/双建任务本体，不是同义反复'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/WithdrawClaimForPayoutSqlIT.java',
     {
       job: 'integration',
