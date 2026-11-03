@@ -33,9 +33,7 @@
         <text class="todo-go app-link-chevron">去处理</text>
       </view>
 
-      <view v-if="loading && !list.length" class="loading">
-        <text>{{ UI_COPY.loading }}</text>
-      </view>
+      <list-skeleton v-if="loading && !list.length" :rows="4" label="消息" />
       <error-state
         v-else-if="loadError && !list.length"
         :title="loadError"
@@ -108,7 +106,6 @@ import {
   type NotifyPrefDto
 } from '@/utils/consumer-api';
 import { softFallback } from '@/utils/soft-fallback';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   displayBizNo,
   formatDateTimeMinute,

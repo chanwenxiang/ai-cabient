@@ -211,6 +211,13 @@
   padding: 8rpx 0 4rpx;
 }
 .aux-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88rpx;
+  min-height: 88rpx;
+  padding: 0 8rpx;
+  box-sizing: border-box;
   font-size: 26rpx;
   color: var(--text-muted);
   line-height: 1.4;
@@ -435,7 +442,12 @@
   flex-wrap: wrap;
 }
 .foot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
   padding: 14rpx 28rpx;
+  box-sizing: border-box;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-body);
   color: var(--color-link-secondary);

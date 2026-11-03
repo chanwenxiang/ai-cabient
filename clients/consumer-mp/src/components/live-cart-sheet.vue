@@ -133,7 +133,7 @@ const totalAmountCents = computed(() =>
   max-height: 72vh;
   background: var(--card-bg, #ffffff);
   border-radius: var(--radius-card) 28rpx 0 0;
-  padding: 4rpx 28rpx 24rpx;
+  padding: 4rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;

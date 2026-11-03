@@ -11,7 +11,7 @@
         <view class="invite-go app-link-chevron" aria-hidden="true">去邀请</view>
       </view>
 
-      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="成员" />
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
@@ -176,7 +176,6 @@ import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import AppSheet from '@/components/AppSheet.vue';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantTeamRoleDto, MerchantUserDto } from '@aicabinet/shared-types';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { teamMemberTitle, teamRoleLabel, teamStatusLabel } from '@/utils/team-display';
 
 const { me, refresh: refreshMe } = useMerchantMe();

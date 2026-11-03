@@ -53,6 +53,8 @@
               :key="'metric-' + m.value"
               class="aux-link"
               :class="{ active: chartMetric === m.value }"
+              role="button"
+              :aria-label="m.label"
               @click="chartMetric = m.value"
               >{{ m.label }}</text
             >

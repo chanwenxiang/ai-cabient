@@ -67,8 +67,8 @@
 .btn-refund {
   margin: 0;
   min-width: 180rpx;
-  min-height: 72rpx;
-  height: 72rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   padding: 0 var(--page-gutter, 24rpx);
   background: var(--card-bg, #ffffff);
   color: var(--brand);

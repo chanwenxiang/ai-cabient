@@ -72,7 +72,7 @@
           :label="submitting ? '提交中…' : `发起补货（${selectedCount} 种）`"
           @click="submit"
         />
-        <text class="submit-hint">提交后直接生成分仓出库与补货任务，无需审批</text>
+        <text class="submit-hint">提交后直接生成补货任务，从仓库领货即可，无需审批</text>
         <text v-if="!canRequest" class="err">当前账号无补货权限</text>
       </view>
     </view>

@@ -530,8 +530,8 @@
   width: auto;
   min-width: 200rpx;
   padding: 0 28rpx;
-  height: 72rpx;
-  line-height: 72rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   border-radius: var(--radius-card);
   background: var(--brand);
   color: var(--white);

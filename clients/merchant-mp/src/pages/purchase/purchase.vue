@@ -58,9 +58,7 @@
         <view v-if="listError" class="card">
           <error-state :message="listError" retry-label="重试" @retry="loadOrders" />
         </view>
-        <view v-else-if="listLoading && !orders.length" class="card empty-inline">{{
-          loadingLabel('采购单')
-        }}</view>
+        <list-skeleton v-else-if="listLoading && !orders.length" :rows="3" label="采购单" />
         <empty-state
           v-else-if="!orders.length"
           title="暂无采购单"

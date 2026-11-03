@@ -15,7 +15,7 @@
         <view class="card-head">
           <text class="card-title">流水记录</text>
         </view>
-        <view v-if="loading && !transactions.length" class="empty">{{ UI_COPY.loading }}</view>
+        <list-skeleton v-if="loading && !transactions.length" :rows="4" label="流水" />
         <error-state
           v-else-if="loadError && !transactions.length"
           :title="loadError"

@@ -8,7 +8,7 @@
         <text role="button" class="focus-clear" @click="clearFocusOrder">清除</text>
       </view>
 
-      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="分账" />
       <error-state v-else-if="error && !list.length" :title="error" @retry="retryLoad" />
       <empty-state
         v-else-if="!list.length"

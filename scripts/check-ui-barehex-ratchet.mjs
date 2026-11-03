@@ -29,7 +29,7 @@ const PRINT_ONLY = process.argv.includes('--print');
 
 const BASELINES = {
   admin: { hex6: 251, hex3: 47, hex8: 1, rgba: 144 },
-  mp: { hex6: 1052, hex3: 79, hex8: 0, rgba: 166 }
+  mp: { hex6: 1048, hex3: 79, hex8: 0, rgba: 166 }
 };
 
 const ADMIN_GLOBS = [

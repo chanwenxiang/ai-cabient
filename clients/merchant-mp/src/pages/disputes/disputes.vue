@@ -3,9 +3,7 @@
     <app-nav-bar title="争议处理" home-url="/pages/home/home" />
     <app-underline-tabs layout="auto" :items="tabs" :value="activeTab" @change="switchTab" />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="loading"
-        ><text>{{ UI_COPY.loading }}</text></view
-      >
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="争议" />
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"

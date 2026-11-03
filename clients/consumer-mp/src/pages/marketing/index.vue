@@ -23,6 +23,7 @@
                 class="banner-media"
                 :src="absoluteImageUrl(b.imageUrl)"
                 mode="aspectFill"
+                lazy-load
               />
               <view v-if="b.imageUrl" class="banner-scrim" aria-hidden="true" />
               <view class="banner-copy">
@@ -51,7 +52,7 @@
         </view>
 
         <view class="section-title">进行中</view>
-        <view v-if="loading && !campaigns.length" class="empty">{{ UI_COPY.loading }}</view>
+        <list-skeleton v-if="loading && !campaigns.length" :rows="3" label="活动" />
         <error-state
           v-else-if="loadError && !campaigns.length"
           :title="loadError"
@@ -119,7 +120,6 @@ import {
 import { menuIcon } from '@/utils/menu-icon';
 import { absoluteImageUrl } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 /*
  * F3 原生分享（竞品标配，本仓此前两端 0 命中）。

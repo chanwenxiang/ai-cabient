@@ -35,6 +35,8 @@
             type="number"
             maxlength="11"
             aria-label="手机号"
+            autocomplete="username"
+            :focus="focusField === 'phone'"
             placeholder="请输入11位手机号…"
             placeholder-class="ph"
             confirm-type="next"
@@ -48,6 +50,8 @@
             class="input"
             password
             aria-label="密码"
+            autocomplete="current-password"
+            :focus="focusField === 'password'"
             placeholder="请输入登录密码…"
             placeholder-class="ph"
             confirm-type="go"
@@ -64,6 +68,8 @@
               v-model="captchaCode"
               class="input"
               aria-label="图形验证码"
+              autocomplete="one-time-code"
+              :focus="focusField === 'captcha'"
               placeholder="图形验证码"
               placeholder-class="ph"
               :style="{ flex: '1' }"
@@ -79,9 +85,14 @@
               :style="{ width: '120px', height: '40px' }"
               @click="loadCaptcha"
             />
-            <text v-else data-testid="login-captcha-placeholder" @click="loadCaptcha">{{
-              captchaLoading ? '加载中…' : '点击获取'
-            }}</text>
+            <text
+              v-else
+              data-testid="login-captcha-placeholder"
+              role="button"
+              aria-label="点击刷新图形验证码"
+              @click="loadCaptcha"
+              >{{ captchaLoading ? '加载中…' : '点击获取' }}</text
+            >
           </view>
         </view>
 
@@ -179,6 +190,11 @@ const phone = ref(isDev && demoPhone ? demoPhone : '');
 const password = ref(isDev && demoPassword ? demoPassword : '');
 const loading = ref(false);
 const err = ref('');
+const focusField = ref('');
+
+function focusInput(name: string) {
+  focusField.value = name;
+}
 
 function persistCredentials() {
   // A6⑥：不再持久化任何登录凭据（手机号/密码均属 PII，明文落 storage 无安全边界）。
@@ -204,10 +220,17 @@ async function onLogin() {
   const pwd = password.value;
   if (!/^1\d{10}$/.test(phoneNumber)) {
     err.value = '请输入11位手机号';
+    focusInput('phone');
     return;
   }
   if (!pwd) {
     err.value = '请输入登录密码';
+    focusInput('password');
+    return;
+  }
+  if (captchaRequired.value && !captchaCode.value.trim()) {
+    err.value = '请输入图形验证码';
+    focusInput('captcha');
     return;
   }
   loading.value = true;
@@ -235,6 +258,7 @@ async function onLogin() {
       void loadCaptcha();
     }
     err.value = msg;
+    focusInput(captchaRequired.value ? 'captcha' : 'password');
   } finally {
     loading.value = false;
   }

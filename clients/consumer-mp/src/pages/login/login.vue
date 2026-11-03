@@ -102,6 +102,9 @@
               type="number"
               maxlength="11"
               :value="phone"
+              aria-label="手机号"
+              autocomplete="username"
+              :focus="focusField === 'phone'"
               placeholder="请输入11位手机号"
               placeholder-class="ph"
               @input="phone = eventInputValue($event)"
@@ -114,6 +117,9 @@
               class="input"
               password
               :value="password"
+              aria-label="密码"
+              autocomplete="current-password"
+              :focus="focusField === 'password'"
               placeholder="请输入登录密码"
               placeholder-class="ph"
               @input="password = eventInputValue($event)"
@@ -127,6 +133,9 @@
                 class="input flex"
                 maxlength="8"
                 :value="captchaCode"
+                aria-label="图形验证码"
+                autocomplete="one-time-code"
+                :focus="focusField === 'captcha'"
                 placeholder="图形验证码"
                 placeholder-class="ph"
                 @input="captchaCode = eventInputValue($event)"
@@ -163,6 +172,9 @@
                   class="input flex"
                   maxlength="8"
                   :value="captchaCode"
+                  aria-label="图形验证码"
+                  autocomplete="one-time-code"
+                  :focus="focusField === 'captcha'"
                   placeholder="图形验证码"
                   placeholder-class="ph"
                   @input="captchaCode = eventInputValue($event)"
@@ -193,6 +205,9 @@
                   type="number"
                   maxlength="6"
                   :value="code"
+                  aria-label="短信验证码"
+                  autocomplete="one-time-code"
+                  :focus="focusField === 'code'"
                   placeholder="请输入验证码"
                   placeholder-class="ph"
                   @input="code = eventInputValue($event)"
@@ -318,6 +333,7 @@ const loading = ref(false);
 const sendingCode = ref(false);
 const wxMode = ref(false);
 const err = ref('');
+const focusField = ref('');
 const codeCooldown = ref(0);
 const loginPadStyle = ref({ paddingTop: getBelowCapsulePadPx(10) + 'px' });
 function refreshLoginPad() {
@@ -561,11 +577,13 @@ async function onSendCode() {
   phone.value = phoneNum;
   if (!/^1\d{10}$/.test(phoneNum)) {
     err.value = '请输入11位有效手机号';
+    focusInput('phone');
     return;
   }
   if (!captchaId.value || !captchaCode.value.trim()) {
     err.value = '请先填写图形验证码';
     if (!captchaImage.value) void loadCaptcha();
+    focusInput('captcha');
     return;
   }
   sendingCode.value = true;
@@ -588,12 +606,17 @@ async function onSendCode() {
   }
 }
 
+function focusInput(name: string) {
+  focusField.value = name;
+}
+
 function resolvePhoneInput(): string | null {
   let phoneNum = phone.value.trim();
   if (!phoneNum) phoneNum = readDomFieldValue('input');
   phone.value = phoneNum;
   if (!/^1\d{10}$/.test(phoneNum)) {
     err.value = '请输入11位有效手机号';
+    focusInput('phone');
     return null;
   }
   return phoneNum;
@@ -606,6 +629,7 @@ function validateLoginCredentials(): boolean {
     password.value = pwd;
     if (!pwd) {
       err.value = '请输入登录密码';
+      focusInput('password');
       return false;
     }
     return true;
@@ -613,10 +637,12 @@ function validateLoginCredentials(): boolean {
   let sms = code.value.trim();
   if (!sms) {
     err.value = '请输入验证码';
+    focusInput('code');
     return false;
   }
   if (!/^\d{4,6}$/.test(sms)) {
     err.value = '请输入4-6位验证码';
+    focusInput('code');
     return false;
   }
   code.value = sms;
@@ -655,6 +681,7 @@ async function performPhoneLogin(phoneNum: string) {
       // P2：连续失败后后端要求验证码；且验证码一次性消费，失败后必须刷新
       captchaRequired.value = true;
       void loadCaptcha();
+      focusInput('captcha');
       throw e;
     }
   } else {
@@ -675,6 +702,7 @@ async function onLogin() {
     await performPhoneLogin(phoneNum);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '验证失败';
+    focusInput(captchaRequired.value ? 'captcha' : 'password');
   } finally {
     loading.value = false;
   }

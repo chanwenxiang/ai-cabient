@@ -8,9 +8,7 @@
         <text class="balance-action app-link-chevron">明细</text>
       </view>
 
-      <view v-if="loading && !items.length" class="loading"
-        ><text>{{ UI_COPY.loading }}</text></view
-      >
+      <list-skeleton v-if="loading && !items.length" :rows="4" label="积分商品" />
       <error-state
         v-else-if="loadError && !items.length"
         :title="loadError"
@@ -73,7 +71,6 @@ import { ref } from 'vue';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onShow } from '@dcloudio/uni-app';
 import { centsToYuanDigits } from '@aicabinet/shared-uni/format';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   consumerApi,
   ensureConsumerAuth,

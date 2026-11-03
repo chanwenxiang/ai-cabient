@@ -99,7 +99,7 @@
         @change="changeStatus"
       />
 
-      <view v-if="loading && !allTasks.length" class="empty">{{ loadingLabel('任务') }}</view>
+      <list-skeleton v-if="loading && !allTasks.length" :rows="4" label="补货任务" />
       <error-state
         v-else-if="loadError && !allTasks.length"
         :title="loadError"
@@ -172,7 +172,7 @@
             >计划 {{ formatDateOnly(task.plannedDate) }}</text
           >
           <text v-if="task.checkInAt" class="task-chip">已签到</text>
-          <text v-if="task.outboundId" class="task-chip">出库 {{ task.outboundId }}</text>
+          <text v-if="task.outboundId" class="task-chip">领货 {{ task.outboundId }}</text>
           <text v-if="evidenceCountOf(task.taskId) > 0" class="task-chip">
             凭证 {{ evidenceCountOf(task.taskId) }} 张
           </text>
@@ -407,7 +407,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';

@@ -58,7 +58,7 @@
       </view>
     </view>
 
-    <view v-if="loading && !items.length" class="card">{{ UI_COPY.loading }}</view>
+    <list-skeleton v-if="loading && !items.length" :rows="3" label="待办" />
     <error-state v-else-if="error && !items.length" :title="error" @retry="load" />
     <view v-else>
       <view
@@ -138,7 +138,6 @@ import {
   type TodoKpiKey
 } from '@/utils/todo-list';
 import type { MerchantMe, OpenApiSlotDiscrepancyAlertDto } from '@aicabinet/shared-types';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
@@ -685,8 +684,8 @@ useAutoRefresh({
   min-width: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
-  height: 72rpx;
-  min-height: 72rpx;
+  height: 88rpx;
+  min-height: 88rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
   background: var(--brand, #0d9488);

@@ -7,9 +7,9 @@
       :value="filter"
       @change="onStatusTab"
     />
-    <view v-if="booting" class="state-wrap"
-      ><text class="meta">{{ UI_COPY.loading }}</text></view
-    >
+    <view v-if="booting" class="state-wrap">
+      <list-skeleton :rows="4" label="订单" />
+    </view>
     <empty-state
       v-else-if="error && !orders.length"
       class="state-wrap"
@@ -135,11 +135,11 @@
           </view>
         </view>
 
-        <view
+        <list-skeleton
           v-if="loading && !orders.length && !reviewingDisputes.length"
-          class="state-wrap inline"
-          ><text class="meta">刷新中…</text></view
-        >
+          :rows="4"
+          label="订单"
+        />
         <empty-state
           v-else-if="!orders.length && !reviewingDisputes.length"
           class="state-wrap"

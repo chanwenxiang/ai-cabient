@@ -2,7 +2,7 @@
   <view class="page">
     <app-nav-bar title="通知公告" home-url="/pages/home/home" />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="card state">{{ UI_COPY.loading }}</view>
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="公告" />
       <error-state v-else-if="error && !list.length" :title="error" @retry="load" />
       <empty-state
         v-else-if="!list.length"
@@ -43,7 +43,6 @@
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const {
   loading,

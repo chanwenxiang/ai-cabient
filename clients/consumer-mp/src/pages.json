@@ -300,7 +300,9 @@
       "^app-underline-tabs$": "@aicabinet/shared-uni/components/app-underline-tabs.vue",
       "^empty-state$": "@aicabinet/shared-uni/components/empty-state.vue",
       "^error-state$": "@aicabinet/shared-uni/components/error-state.vue",
-      "^pay-score-tag$": "@aicabinet/shared-uni/components/pay-score-tag.vue"
+      "^pay-score-tag$": "@aicabinet/shared-uni/components/pay-score-tag.vue",
+      "^help-tip$": "@aicabinet/shared-uni/components/help-tip.vue",
+      "^list-skeleton$": "@aicabinet/shared-uni/components/list-skeleton.vue"
     }
   }
 }

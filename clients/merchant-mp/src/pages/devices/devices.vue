@@ -39,15 +39,6 @@
         aria-label="搜索柜机名称或编号"
         placeholder="搜索柜机名称或编号…"
       />
-      <view class="filter-aux">
-        <text
-          role="button"
-          class="aux-link"
-          :class="{ active: onlyPreferred }"
-          @click="toggleOnlyPreferred"
-          >常驻柜</text
-        >
-      </view>
       <view v-if="preferredId" class="pref-hint">
         <text>常驻：{{ preferredLabel }}</text>
         <text role="button" aria-label="清除常驻柜" class="pref-clear" @click="clearPreferred"
@@ -55,7 +46,7 @@
         >
       </view>
     </view>
-    <view v-if="loading && !devices.length" class="card">{{ UI_COPY.loading }}</view>
+    <list-skeleton v-if="loading && !devices.length" :rows="3" label="柜机" />
     <error-state
       v-else-if="error && !devices.length"
       :title="error"
@@ -207,7 +198,6 @@ const devices = ref<(MerchantDeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
 const filter = ref<'all' | 'online' | 'offline' | 'locked'>('all');
 const preferredId = ref('');
-const onlyPreferred = ref(false);
 const filters = [
   { label: '全部', value: 'all' as const },
   { label: '在线', value: 'online' as const },
@@ -235,8 +225,7 @@ const visibleDevices = computed(() => {
     else if (filter.value === 'offline') statusMatch = !d.online;
     else if (filter.value === 'locked') statusMatch = !!d.salesLocked;
     const keywordMatch = !q || `${d.deviceName || ''} ${d.deviceId}`.toLowerCase().includes(q);
-    const preferredMatch = !onlyPreferred.value || d.deviceId === preferredId.value;
-    return statusMatch && keywordMatch && preferredMatch;
+    return statusMatch && keywordMatch;
   });
   if (!preferredId.value) return list;
   return [...list].sort((a, b) => {
@@ -246,10 +235,7 @@ const visibleDevices = computed(() => {
   });
 });
 
-const emptyHint = computed(() => {
-  if (onlyPreferred.value && preferredId.value) return '常驻柜不在当前筛选结果中';
-  return scopedDevices.value.length ? '没有符合条件的柜机' : '暂无柜机';
-});
+const emptyHint = computed(() => (scopedDevices.value.length ? '没有符合条件的柜机' : '暂无柜机'));
 
 function countFor(value: 'all' | 'online' | 'offline' | 'locked') {
   if (value === 'all') return scopedDevices.value.length;
@@ -269,20 +255,11 @@ function setDeviceFilter(key: string) {
   filter.value = key as typeof filter.value;
 }
 
-function toggleOnlyPreferred() {
-  if (!preferredId.value) {
-    showError('先点 ★ 设常驻柜');
-    return;
-  }
-  onlyPreferred.value = !onlyPreferred.value;
-}
-
 function togglePreferred(id?: string) {
   if (!id) return;
   if (preferredId.value === id) {
     clearPreferredDeviceId();
     preferredId.value = '';
-    onlyPreferred.value = false;
     showSuccess('已取消常驻');
     return;
   }
@@ -294,7 +271,6 @@ function togglePreferred(id?: string) {
 function clearPreferred() {
   clearPreferredDeviceId();
   preferredId.value = '';
-  onlyPreferred.value = false;
 }
 
 async function load() {
@@ -632,18 +608,6 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .chips {
   display: none;
 }
-.filter-aux {
-  display: flex;
-  margin-top: 12rpx;
-}
-.aux-link {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-.aux-link.active {
-  color: var(--brand);
-  font-weight: 600;
-}
 .pref-hint {
   margin-top: 12rpx;
   display: flex;
@@ -759,22 +723,5 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
 .stat-chip-warn {
   color: var(--warning, #b45309);
   background: var(--warning-soft, #fff7ed);
-}
-
-/* 对齐 ui-chip 度量：筛选行统一成胶囊（原来纯文字切换，选中态只靠颜色） */
-.aux-link {
-  display: inline-flex;
-  align-items: center;
-  height: 60rpx;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  background: #f1f5f9;
-  font-size: 26rpx;
-  color: var(--color-text-secondary, #475569);
-}
-.aux-link.active {
-  background: var(--brand-soft, #f0fdfa);
-  color: var(--brand, #0d9488);
-  font-weight: 600;
 }
 </style>

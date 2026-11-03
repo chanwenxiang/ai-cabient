@@ -8,9 +8,7 @@
       @change="onFilterChange"
     />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="loading"
-        ><text>{{ UI_COPY.loading }}</text></view
-      >
+      <list-skeleton v-if="loading && !list.length" :rows="4" label="消息" />
       <error-state
         v-else-if="loadError && !list.length"
         :title="loadError"
@@ -62,7 +60,6 @@ import { merchantApi, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { OpenApiNotificationDto } from '@aicabinet/shared-types';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   displayBizNo,
   formatDateTimeMinute,

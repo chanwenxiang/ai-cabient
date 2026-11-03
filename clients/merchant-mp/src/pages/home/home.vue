@@ -540,9 +540,9 @@ useAutoRefresh({
   /* 与「我的 → 开启提醒」同款：浅底深字，避免实心主按钮抢视觉 */
   margin: 0;
   flex-shrink: 0;
-  min-height: 72rpx;
-  height: 72rpx;
-  line-height: 72rpx;
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   padding: 0 28rpx;
   border: none;
   border-radius: var(--radius-card);

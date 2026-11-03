@@ -71,6 +71,7 @@
             class="evidence-img"
             :src="evidenceSrc(img)"
             mode="aspectFill"
+            lazy-load
             role="button"
             aria-label="预览申诉附图"
             @click="previewEvidence(img)"

@@ -250,6 +250,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  box-sizing: border-box;
   gap: 6rpx;
 }
 .quick-icon {

@@ -8,9 +8,7 @@
       @change="onCouponTab"
     />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="loading"
-        ><text>{{ UI_COPY.loading }}</text></view
-      >
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="优惠券" />
       <error-state
         v-else-if="loadError && !list.length"
         :title="loadError"
@@ -82,7 +80,6 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const tabs = [
   { key: '', label: '全部' },

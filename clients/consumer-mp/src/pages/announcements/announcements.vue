@@ -2,7 +2,7 @@
   <view class="page page-root">
     <app-nav-bar title="通知公告" />
     <view class="page-body">
-      <view v-if="loading && !list.length" class="state">{{ UI_COPY.loading }}</view>
+      <list-skeleton v-if="loading && !list.length" :rows="3" label="公告" />
       <view v-else-if="error && !list.length" class="state">
         <text class="err">{{ error }}</text>
         <app-button label="重试" @click="load" />
@@ -51,7 +51,6 @@
 import { onShow } from '@dcloudio/uni-app';
 import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
-import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 const {
   loading,

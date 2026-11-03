@@ -21,7 +21,7 @@
           <text v-else class="meta tip">点右侧价格框改价，离开即保存；清空则恢复基准价</text>
         </view>
 
-        <view v-if="loading && !rows.length" class="card">{{ UI_COPY.loading }}</view>
+        <list-skeleton v-if="loading && !rows.length" :rows="4" label="价格" />
         <error-state v-else-if="error && !rows.length" :title="error" @retry="() => load(false)" />
         <view v-else>
           <view v-if="error" class="banner-err">

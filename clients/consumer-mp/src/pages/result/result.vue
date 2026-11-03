@@ -176,14 +176,18 @@
       v-if="popupVisible && afterClosePopup"
       class="promo-popup-mask"
       data-testid="promo-popup-after-close"
+      role="button"
+      aria-label="关闭活动弹窗"
       @click="closeAfterClosePopup"
     >
-      <view class="promo-popup-card" @click.stop="() => {}">
+      <view class="promo-popup-card" role="presentation" @click.stop="() => {}">
         <image
           v-if="popupImageUrl"
           class="promo-popup-img"
           :src="popupImageUrl"
           mode="widthFix"
+          role="button"
+          aria-label="查看活动详情"
           @click="onAfterClosePopupTap"
         />
         <text

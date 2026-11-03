@@ -16,7 +16,7 @@
 | 端 | 全局基建 | 缺口 |
 |----|----------|------|
 | admin | `src/styles/main.css`：字号阶（display/hero/table/hint…）+ 布局色（--layout-*）+ `--z-*` 齐备 | 语义层已补（Phase 1）→ **6 位裸 hex 251 处**（Phase 2.3 财务页迁移后；另有 3 位 47、8 位 1、rgba 144，已全部纳入门禁） |
-| 双小程序 | **共用 `packages/shared-uni/src/theme.css`（95 token）**，App.vue 全局导入 | token 存在但页面不遵守 → **6 位裸 hex 1052 处**（Phase 2.1/2.2/3 迁移后；另有 3 位 79、rgba 166，已全部纳入门禁）；提示类名 30+ 种（含页面语义类） |
+| 双小程序 | **共用 `packages/shared-uni/src/theme.css`（95 token）**，App.vue 全局导入 | token 存在但页面不遵守 → **6 位裸 hex 1048 处**（Phase 2.1/2.2/3/4 迁移后；另有 3 位 79、rgba 166，已全部纳入门禁）；提示类名 30+ 种（含页面语义类） |
 
 ## Phase 1 + 1.5 · 令牌语义层与三阶（1 天，纯 token 不动页面）
 
@@ -54,7 +54,7 @@
 | 阴影 | `--shadow-card/-dropdown/-modal` 三档递进 | 两档弱化（mp 阴影宜轻） |
 
 - **Element Plus 语义色接线（已实施）**：`--el-color-success/warning/danger/info/error` + `light-3/5/7/8/9` + `dark-2` + `-rgb` 全部映射到 `--color-*`，亮/暗两套混色口径；浏览器实测 success 按钮亮色 `rgb(5,150,105)`、暗色 `rgb(52,211,153)`。
-- **DoD**：新增「裸色值棘轮门禁」——admin **hex6 251 / hex3 47 / hex8 1 / rgba 144**、mp **hex6 1052 / hex3 79 / hex8 0 / rgba 166** 四项分别只减不增（`check:ui-barehex-ratchet`）；范围已含两端 components，排除 theme.css / App.vue / styles/main.css 等令牌定义文件；带负向自检与空 scope 断言。
+- **DoD**：新增「裸色值棘轮门禁」——admin **hex6 251 / hex3 47 / hex8 1 / rgba 144**、mp **hex6 1048 / hex3 79 / hex8 0 / rgba 166** 四项分别只减不增（`check:ui-barehex-ratchet`）；范围已含两端 components，排除 theme.css / App.vue / styles/main.css 等令牌定义文件；带负向自检与空 scope 断言。
 
 ## Phase 2 · 最痛三页迁移（2 天）
 
@@ -96,6 +96,15 @@
 - 焦点态 focus-visible / 图标按钮 aria-label / safe-area / 图片显式尺寸+懒加载 / 表单细节（autocomplete、错误聚焦首字段）
 - 自绘控件对齐 WeUI 交互形态（按钮高度/主次态/cell 形态/弹窗双钮顺序）——借规范不引库
 - DoD：清单内条目清零或登记 wontfix
+- **实施进度（2026-11-03）**：
+  - a11y：mp clickables 433/433（100%），icons 35/35；补 9 处 role/aria；admin dialog 门禁绿。
+  - 热区：微信模拟器量 orders/mine/home/business/devices/replenishment 等 9 页，small=0；aux-link / foot-btn / scan-btn / help-tip / mine quick-item 改「88rpx 热区 + 小视觉」；devices「常驻柜」筛选按用户拍板移除（保留设备行 ★ 与「清除常驻」）。
+  - safe-area：live-cart-sheet 补 env；HomeCartBar / AppSheet / open-prep-drawer / order-appeal-sheet / order-detail 已有。
+  - 表单：两端登录补 aria-label / autocomplete + 错误聚焦首字段；admin 登录已有 autocomplete。
+  - 图片：商品格 / 活动 banner / 申诉附图补 `lazy-load`；显式尺寸沿用 CSS 类。
+  - 按钮/弹窗：refund / alerts / empty-scan / divider-toggle 72→88rpx；AppConfirmDialog 取消左 / 确认右；app-button 主按钮已 88rpx。
+  - 加载：操作按钮 spinner 沿用 app-button `loading`；列表骨架屏 2026-11-03 补齐——shared-uni 新增 `list-skeleton`（3 端令牌、WXSS 无 color-mix、prefers-reduced-motion 降级），easycom 注册两端 + `OPTIONAL_SHARED_COMPONENTS` 拍平；消费端 7 页 / 商户端 10 页列表加载态由「加载中…」文字换骨架（消费端 orders 首载走页级 `booting` 门，该门一并换骨架）。消费端订单页微信模拟器截图实证（`.tmp/phase2-verify/phase4-skeleton-consumer-orders.png`，sk-card=4）；商户端实证受限于该 IDE 实例 mockWxMethod/`wx.request` 补丁均无法拦截请求（消费端实例可以，同版本行为不一致），以构建产物（17 页 usingComponents+wxml 含组件）+ 同组件同接线作证。
+  - 补货措辞对齐「自提自送」铁律：商户端「出库 N」chip→「领货 N」、明细提示「有出库明细」→「有领货明细」、自补货提交提示去「分仓出库」字样（[useWarehouseOutbounds.ts:20] 铁律）。
 
 ## Phase 6 · 防回归 + 规范落仓（0.5 天）
 

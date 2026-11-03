@@ -160,6 +160,7 @@
                   class="product-img"
                   :src="productThumb(p)"
                   mode="aspectFill"
+                  lazy-load
                   @error="onThumbError(p.skuId)"
                 />
                 <text v-else class="product-mark">{{ productGlyph(p) }}</text>
@@ -202,6 +203,8 @@
                   v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
                   class="product-stepper"
                   :class="{ 'is-empty': selectedQty(p) <= 0 }"
+                  role="group"
+                  aria-label="数量选择"
                   @click.stop="noop"
                 >
                   <text
@@ -414,14 +417,18 @@
       v-if="popupVisible && beforeOpenPopup"
       class="promo-popup-mask"
       data-testid="promo-popup-before-open"
+      role="button"
+      aria-label="关闭活动弹窗"
       @click="closeBeforeOpenPopup"
     >
-      <view class="promo-popup-card" @click.stop="noop">
+      <view class="promo-popup-card" role="presentation" @click.stop="noop">
         <image
           v-if="popupImageUrl"
           class="promo-popup-img"
           :src="popupImageUrl"
           mode="widthFix"
+          role="button"
+          aria-label="查看活动详情"
           @click="onBeforeOpenPopupTap"
         />
         <text
