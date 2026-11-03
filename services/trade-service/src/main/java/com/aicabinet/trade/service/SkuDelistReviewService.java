@@ -44,6 +44,7 @@ public class SkuDelistReviewService {
     private final SkuDelistReviewMapper reviewRepository;
     private final InventoryLotService inventoryLotService;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final SkuDelistReviewService self;
 
@@ -52,24 +53,30 @@ public class SkuDelistReviewService {
                                   SkuCatalogMapper skuCatalogRepository,
                                   SkuDelistReviewMapper reviewRepository,
                                   InventoryLotService inventoryLotService,
-                                  DistributedLockService distributedLockService, @Lazy SkuDelistReviewService self) {
+                                  DistributedLockService distributedLockService,
+                                  AdminAuditService auditService,
+                                  @Lazy SkuDelistReviewService self) {
         this.lineRepository = lineRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.reviewRepository = reviewRepository;
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
         this.self = self;
     }
 
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
     @Transactional
-    public List<SkuDelistReviewDto> runReview(int days) {
+    public List<SkuDelistReviewDto> runReview(Long operatorId, int days) {
         if (!distributedLockService.tryLock(REVIEW_BATCH_LOCK_KEY, 120, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "选品评审刷新中，请稍后重试");
         }
         try {
-            return doRunReview(days);
+            List<SkuDelistReviewDto> rows = doRunReview(days);
+            auditService.appendLog(operatorId, "SKU_DELIST_REVIEW_RUN", "SKU_DELIST_REVIEW", "-",
+                    "days=" + days + ",rows=" + rows.size());
+            return rows;
         } finally {
             distributedLockService.unlock(REVIEW_BATCH_LOCK_KEY);
         }
@@ -235,6 +242,9 @@ public class SkuDelistReviewService {
 
         Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
                 .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
+        auditService.appendLog(operatorId, "SKU_DELIST_DECIDE", "SKU", skuId,
+                "action=" + act + ",status=" + review.getReviewStatus()
+                        + ",replaceSkuId=" + replaceSkuId + ",reason=" + reason);
         return toDto(review, skus.get(skuId), skus);
     }
 

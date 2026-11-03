@@ -73,16 +73,20 @@ public class AdminGrowthController {
 
     @RequiresPermissions("ops:points:edit")
     @PutMapping("/points-redeem")
-    public ApiResponse<PointsRedeemItemDto> upsertRedeemItem(@RequestBody PointsRedeemItemDto body) {
-        return ApiResponse.ok(pointsRedeemService.adminUpsert(body));
+    public ApiResponse<PointsRedeemItemDto> upsertRedeemItem(
+            HttpServletRequest request,
+            @RequestBody PointsRedeemItemDto body) {
+        return ApiResponse.ok(pointsRedeemService.adminUpsert(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:points:edit")
     @PostMapping("/points-redeem/{itemId}/status")
     public ApiResponse<PointsRedeemItemDto> setRedeemItemStatus(
+            HttpServletRequest request,
             @PathVariable Long itemId,
             @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(pointsRedeemService.adminSetStatus(itemId, body.getOrDefault("status", "INACTIVE")));
+        return ApiResponse.ok(pointsRedeemService.adminSetStatus(
+                operatorId(request), itemId, body.getOrDefault("status", "INACTIVE")));
     }
 
     // ---------- 选品诊断 ----------
@@ -98,8 +102,9 @@ public class AdminGrowthController {
     @RequiresPermissions("ops:sku-review:list")
     @PostMapping("/sku-review/run")
     public ApiResponse<List<SkuDelistReviewDto>> runSkuReview(
+            HttpServletRequest request,
             @RequestParam(defaultValue = "30") int days) {
-        return ApiResponse.ok(skuReviewService.runReview(days));
+        return ApiResponse.ok(skuReviewService.runReview(operatorId(request), days));
     }
 
     @RequiresPermissions("ops:sku-review:edit")
@@ -207,22 +212,28 @@ public class AdminGrowthController {
 
     @RequiresPermissions("ops:member-level:edit")
     @PostMapping("/member-levels")
-    public ApiResponse<MemberLevelRuleDto> createMemberLevel(@RequestBody MemberLevelRuleDto body) {
-        return ApiResponse.ok(memberLevelAdminService.create(body));
+    public ApiResponse<MemberLevelRuleDto> createMemberLevel(
+            HttpServletRequest request,
+            @RequestBody MemberLevelRuleDto body) {
+        return ApiResponse.ok(memberLevelAdminService.create(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:member-level:edit")
     @PutMapping("/member-levels")
-    public ApiResponse<MemberLevelRuleDto> updateMemberLevel(@RequestBody MemberLevelRuleDto body) {
-        return ApiResponse.ok(memberLevelAdminService.update(body));
+    public ApiResponse<MemberLevelRuleDto> updateMemberLevel(
+            HttpServletRequest request,
+            @RequestBody MemberLevelRuleDto body) {
+        return ApiResponse.ok(memberLevelAdminService.update(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:member-level:edit")
     @PostMapping("/member-levels/{id}/status")
     public ApiResponse<MemberLevelRuleDto> setMemberLevelStatus(
+            HttpServletRequest request,
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(memberLevelAdminService.setStatus(id, body.getOrDefault("status", "INACTIVE")));
+        return ApiResponse.ok(memberLevelAdminService.setStatus(
+                operatorId(request), id, body.getOrDefault("status", "INACTIVE")));
     }
 
     private static Long operatorId(HttpServletRequest request) {

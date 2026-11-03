@@ -46,6 +46,7 @@ public class NotificationService {
     private final ExternalNotificationDispatcher externalDispatcher;
     private final ObjectProvider<NotificationDispatchProducer> producerProvider;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final NotificationService self;
 
@@ -55,7 +56,9 @@ public class NotificationService {
                                ConsumerNotifyPrefService notifyPrefService,
                                ExternalNotificationDispatcher externalDispatcher,
                                ObjectProvider<NotificationDispatchProducer> producerProvider,
-                               DistributedLockService distributedLockService, @Lazy NotificationService self) {
+                               DistributedLockService distributedLockService,
+                               AdminAuditService auditService,
+                               @Lazy NotificationService self) {
         this.templateRepository = templateRepository;
         this.logRepository = logRepository;
         this.channelSwitch = channelSwitch;
@@ -63,6 +66,7 @@ public class NotificationService {
         this.externalDispatcher = externalDispatcher;
         this.producerProvider = producerProvider;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
         this.self = self;
     }
 
@@ -343,6 +347,8 @@ public class NotificationService {
             logEntry.setTitle(title);
             logEntry.setBody(content);
             logRepository.updateById(logEntry);
+            auditService.appendLog(operatorId, "NOTIFY_UPDATE", "NOTIFICATION_LOG",
+                    String.valueOf(id), "title=" + title);
             log.info("manual notification updated by={} id={}", operatorId, id);
             return toDto(logEntry);
         });
@@ -358,6 +364,9 @@ public class NotificationService {
             NotificationLog logEntry = logRepository.findByIdForUpdate(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
             logRepository.deleteById(logEntry.getId());
+            auditService.appendLog(operatorId, "NOTIFY_DELETE", "NOTIFICATION_LOG",
+                    String.valueOf(id), "audience=" + logEntry.getAudience()
+                            + ",userId=" + logEntry.getUserId() + ",merchantId=" + logEntry.getMerchantId());
             log.info("manual notification deleted by={} id={}", operatorId, id);
             return null;
         });
@@ -409,6 +418,10 @@ public class NotificationService {
         logEntry.setStatus("SENT");
         logEntry.setCreatedAt(Instant.now());
         logRepository.save(logEntry);
+        auditService.appendLog(operatorId, "NOTIFY_SEND", "NOTIFICATION_LOG",
+                String.valueOf(logEntry.getId()),
+                "audience=" + audience + ",userId=" + userId + ",merchantId=" + merchantId
+                        + ",bizType=" + bizType + ",title=" + title);
         log.info("manual notification sent by={} audience={} userId={} merchantId={} id={}",
                 operatorId, audience, userId, merchantId, logEntry.getId());
         return toDto(logEntry);

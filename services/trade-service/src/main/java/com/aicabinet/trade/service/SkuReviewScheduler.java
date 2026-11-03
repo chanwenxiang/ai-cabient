@@ -33,7 +33,7 @@ public class SkuReviewScheduler {
         boolean failed = false;
         String summary = "本次无选品评审数据";
         try {
-            int rows = skuReviewService.runReview(30).size();
+            int rows = skuReviewService.runReview(null, 30).size();
             summary = rows <= 0 ? "本次无选品评审数据" : "刷新选品评审 " + rows + " 条";
             if (rows > 0) {
                 log.info("daily sku review refreshed rows={}", rows);

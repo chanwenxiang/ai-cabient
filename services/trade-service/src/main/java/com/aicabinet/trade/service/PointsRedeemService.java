@@ -36,6 +36,7 @@ public class PointsRedeemService {
     private final CouponService couponService;
     private final CouponDefinitionMapper couponDefinitionRepository;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
 
     public PointsRedeemService(MemberService memberService,
                                MemberMapper memberRepository,
@@ -43,7 +44,8 @@ public class PointsRedeemService {
                                PointsRedeemItemMapper redeemItemRepository,
                                CouponService couponService,
                                CouponDefinitionMapper couponDefinitionRepository,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               AdminAuditService auditService) {
         this.memberService = memberService;
         this.memberRepository = memberRepository;
         this.pointsLogRepository = pointsLogRepository;
@@ -51,6 +53,7 @@ public class PointsRedeemService {
         this.couponService = couponService;
         this.couponDefinitionRepository = couponDefinitionRepository;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -171,7 +174,7 @@ public class PointsRedeemService {
      * {@code stockTotal} 为负让库存口径失真；指向不存在/已停用的券模板则整项一兑就 400/409。
      */
     @Transactional
-    public PointsRedeemItemDto adminUpsert(PointsRedeemItemDto dto) {
+    public PointsRedeemItemDto adminUpsert(Long operatorId, PointsRedeemItemDto dto) {
         requireRedeemParams(dto);
         PointsRedeemItem item = dto.itemId() != null
                 ? redeemItemRepository.findById(dto.itemId())
@@ -186,7 +189,13 @@ public class PointsRedeemService {
         item.setSortOrder(dto.sortOrder());
         item.setStatus(requireRedeemStatus(dto.status()));
         item.setUpdatedAt(Instant.now());
-        return toDto(redeemItemRepository.save(item));
+        PointsRedeemItem saved = redeemItemRepository.save(item);
+        auditService.appendLog(operatorId, "POINTS_REDEEM_UPSERT", "POINTS_REDEEM_ITEM",
+                String.valueOf(saved.getItemId()),
+                "title=" + saved.getTitle() + ",pointsCost=" + saved.getPointsCost()
+                        + ",couponDefId=" + saved.getCouponDefId()
+                        + ",stockTotal=" + saved.getStockTotal() + ",status=" + saved.getStatus());
+        return toDto(saved);
     }
 
     /**
@@ -235,12 +244,15 @@ public class PointsRedeemService {
     }
 
     @Transactional
-    public PointsRedeemItemDto adminSetStatus(Long itemId, String status) {
+    public PointsRedeemItemDto adminSetStatus(Long operatorId, Long itemId, String status) {
         PointsRedeemItem item = redeemItemRepository.findById(itemId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换项不存在"));
         item.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(status) ? CabinetConstants.PROMOTION_STATUS_ACTIVE : "INACTIVE");
         item.setUpdatedAt(Instant.now());
-        return toDto(redeemItemRepository.save(item));
+        PointsRedeemItem saved = redeemItemRepository.save(item);
+        auditService.appendLog(operatorId, "POINTS_REDEEM_STATUS", "POINTS_REDEEM_ITEM",
+                String.valueOf(saved.getItemId()), "status=" + saved.getStatus());
+        return toDto(saved);
     }
 
     private PointsRedeemItemDto toDto(PointsRedeemItem item) {

@@ -43,6 +43,7 @@ class PointsRedeemServiceTest {
     @Mock private CouponService couponService;
     @Mock private CouponDefinitionMapper couponDefinitionRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     @InjectMocks private PointsRedeemService service;
 
@@ -165,5 +166,34 @@ class PointsRedeemServiceTest {
         assertEquals(1, rows.size());
         assertEquals("满 20 减 5 券", rows.get(0).couponName());
         assertEquals(8, rows.get(0).availableStock());
+    }
+
+    @Test
+    void adminUpsert_and_status_shouldAuditOperator() {
+        CouponDefinition def = new CouponDefinition();
+        def.setCouponDefId(2L);
+        def.setCouponName("满 20 减 5 券");
+        def.setStatus("ACTIVE");
+        when(couponDefinitionRepository.findById(2L)).thenReturn(Optional.of(def));
+        when(redeemItemRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {
+            PointsRedeemItem saved = inv.getArgument(0);
+            saved.setItemId(7L);
+            return saved;
+        });
+        PointsRedeemItem persisted = item(10, 0, 100);
+        persisted.setItemId(7L);
+        when(redeemItemRepository.findById(7L)).thenReturn(Optional.of(persisted));
+        PointsRedeemItemDto dto = new PointsRedeemItemDto(null, "满 20 减 5 券", null, "🎁",
+                100, 2L, null, 10, 0, 10, 1, "ACTIVE", null);
+
+        service.adminUpsert(42L, dto);
+        service.adminSetStatus(42L, 7L, "INACTIVE");
+
+        verify(auditService).appendLog(eq(42L), eq("POINTS_REDEEM_UPSERT"),
+                eq("POINTS_REDEEM_ITEM"), eq("7"),
+                org.mockito.ArgumentMatchers.contains("pointsCost=100"));
+        verify(auditService).appendLog(eq(42L), eq("POINTS_REDEEM_STATUS"),
+                eq("POINTS_REDEEM_ITEM"), eq("7"),
+                org.mockito.ArgumentMatchers.contains("status=INACTIVE"));
     }
 }

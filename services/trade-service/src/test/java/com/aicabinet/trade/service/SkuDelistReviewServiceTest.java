@@ -34,6 +34,7 @@ class SkuDelistReviewServiceTest {
     @Mock private SkuDelistReviewMapper reviewRepository;
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     private SkuDelistReviewService service() {
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
@@ -41,7 +42,8 @@ class SkuDelistReviewServiceTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         SkuDelistReviewService svc = new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService, null);
+                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService,
+                auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;
     }
@@ -74,7 +76,7 @@ class SkuDelistReviewServiceTest {
         when(reviewRepository.findBySkuId(anyString())).thenReturn(Optional.empty());
         when(reviewRepository.findAll()).thenReturn(List.of());
 
-        List<SkuDelistReviewDto> result = service.runReview(30);
+        List<SkuDelistReviewDto> result = service.runReview(1L, 30);
 
         assertEquals(0, result.size()); // list() 返回空（mock 未持久化）；重点验证 insert 被调用
         verify(reviewRepository, org.mockito.Mockito.times(2)).insert(any(SkuDelistReview.class));
@@ -90,7 +92,7 @@ class SkuDelistReviewServiceTest {
         when(reviewRepository.findBySkuId(anyString())).thenReturn(Optional.empty());
         when(reviewRepository.findAll()).thenReturn(List.of());
 
-        service.runReview(30);
+        service.runReview(1L, 30);
 
         // 已下架 SKU 不建评审行：负向漂移=去掉过滤后此断言会变 2 次
         verify(reviewRepository, org.mockito.Mockito.times(1)).insert(any(SkuDelistReview.class));
@@ -136,6 +138,11 @@ class SkuDelistReviewServiceTest {
         assertEquals("INACTIVE", sku.getStatus());
         verify(reviewRepository).save(review);
         verify(skuCatalogRepository).save(sku);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("SKU_DELIST_DECIDE"),
+                org.mockito.ArgumentMatchers.eq("SKU"),
+                org.mockito.ArgumentMatchers.eq("SKU-A"),
+                org.mockito.ArgumentMatchers.contains("action=DELIST"));
     }
 
     @Test

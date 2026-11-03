@@ -27,13 +27,15 @@ class SkuDelistReviewConcurrencyTest {
     @Mock private SkuDelistReviewMapper reviewRepository;
     @Mock private InventoryLotService inventoryLotService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     private SkuDelistReviewService service;
 
     @BeforeEach
     void setUp() {
         service = new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService, null);
+                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService,
+                auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -44,7 +46,7 @@ class SkuDelistReviewConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.runReview(30));
+                () -> service.runReview(1L, 30));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

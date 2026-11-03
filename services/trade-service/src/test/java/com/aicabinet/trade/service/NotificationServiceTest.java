@@ -36,6 +36,7 @@ class NotificationServiceTest {
     @Mock private ObjectProvider<NotificationDispatchProducer> producerProvider;
     @Mock private NotificationDispatchProducer producer;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     private NotificationService service(boolean async) {
         when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
@@ -43,7 +44,7 @@ class NotificationServiceTest {
                 .thenReturn(true);
         NotificationService svc = new NotificationService(templateRepository, logRepository,
                 new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, async)), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService, null);
+                externalDispatcher, producerProvider, distributedLockService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;
     }
@@ -142,6 +143,11 @@ class NotificationServiceTest {
         assertEquals("新标题", dto.title());
         assertEquals("新内容", dto.body());
         verify(logRepository).updateById(existing);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("NOTIFY_UPDATE"),
+                org.mockito.ArgumentMatchers.eq("NOTIFICATION_LOG"),
+                org.mockito.ArgumentMatchers.eq("9"),
+                org.mockito.ArgumentMatchers.contains("title=新标题"));
     }
 
     @Test
@@ -154,5 +160,10 @@ class NotificationServiceTest {
         service.deleteManual(1L, 11L);
 
         verify(logRepository).deleteById(11L);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("NOTIFY_DELETE"),
+                org.mockito.ArgumentMatchers.eq("NOTIFICATION_LOG"),
+                org.mockito.ArgumentMatchers.eq("11"),
+                org.mockito.ArgumentMatchers.anyString());
     }
 }

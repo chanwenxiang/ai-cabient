@@ -27,6 +27,7 @@ class NotificationConcurrencyTest {
     @Mock private ExternalNotificationDispatcher externalDispatcher;
     @Mock private ObjectProvider<NotificationDispatchProducer> producerProvider;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     private NotificationService service;
 
@@ -34,7 +35,7 @@ class NotificationConcurrencyTest {
     void setUp() {
         service = new NotificationService(templateRepository, logRepository,
                 new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(false, false, false)), notifyPrefService,
-                externalDispatcher, producerProvider, distributedLockService, null);
+                externalDispatcher, producerProvider, distributedLockService, auditService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 

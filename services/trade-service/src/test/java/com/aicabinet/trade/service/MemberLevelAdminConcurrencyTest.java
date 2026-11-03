@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.MemberLevelRuleDto;
+import com.aicabinet.trade.domain.MemberLevelRule;
 import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,12 +23,13 @@ class MemberLevelAdminConcurrencyTest {
 
     @Mock private MemberLevelRuleMapper levelRuleRepository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
 
     private MemberLevelAdminService service;
 
     @BeforeEach
     void setUp() {
-        service = new MemberLevelAdminService(levelRuleRepository, distributedLockService);
+        service = new MemberLevelAdminService(levelRuleRepository, distributedLockService, auditService);
     }
 
     @Test
@@ -37,7 +39,7 @@ class MemberLevelAdminConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.upsert(new MemberLevelRuleDto(
+                () -> service.upsert(1L, new MemberLevelRuleDto(
                         null, "GOLD", "黄金", null, null, 0,
                         BigDecimal.ONE, BigDecimal.ZERO, 1, "ACTIVE")));
 
@@ -51,7 +53,7 @@ class MemberLevelAdminConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.setStatus(3L, "INACTIVE"));
+                () -> service.setStatus(1L, 3L, "INACTIVE"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -63,8 +65,32 @@ class MemberLevelAdminConcurrencyTest {
                 .thenReturn(true);
         when(levelRuleRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.empty());
 
-        assertThrows(ResponseStatusException.class, () -> service.setStatus(4L, "ACTIVE"));
+        assertThrows(ResponseStatusException.class, () -> service.setStatus(1L, 4L, "ACTIVE"));
 
         verify(distributedLockService).unlock(MemberLevelAdminService.levelIdLockKey(4L));
+    }
+
+    @Test
+    void create_shouldAuditOperator() {
+        when(distributedLockService.tryLock(
+                MemberLevelAdminService.levelCodeLockKey("GOLD"), 60L, 5L)).thenReturn(true);
+        when(levelRuleRepository.findByLevelCode("GOLD")).thenReturn(java.util.Optional.empty());
+        when(levelRuleRepository.findByLevelCodeForUpdate("GOLD")).thenReturn(java.util.Optional.empty());
+        when(levelRuleRepository.save(org.mockito.ArgumentMatchers.any(MemberLevelRule.class)))
+                .thenAnswer(inv -> {
+                    MemberLevelRule rule = inv.getArgument(0);
+                    rule.setId(5L);
+                    return rule;
+                });
+
+        service.create(9L, new MemberLevelRuleDto(
+                null, "GOLD", "黄金", null, null, 0,
+                BigDecimal.ONE, BigDecimal.ZERO, 1, "ACTIVE"));
+
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(9L),
+                org.mockito.ArgumentMatchers.eq("MEMBER_LEVEL_UPSERT"),
+                org.mockito.ArgumentMatchers.eq("MEMBER_LEVEL"),
+                org.mockito.ArgumentMatchers.eq("5"),
+                org.mockito.ArgumentMatchers.contains("code=GOLD"));
     }
 }

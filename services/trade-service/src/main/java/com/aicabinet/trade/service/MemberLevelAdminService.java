@@ -20,11 +20,14 @@ public class MemberLevelAdminService {
 
     private final MemberLevelRuleMapper levelRuleRepository;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
 
     public MemberLevelAdminService(MemberLevelRuleMapper levelRuleRepository,
-                                   DistributedLockService distributedLockService) {
+                                   DistributedLockService distributedLockService,
+                                   AdminAuditService auditService) {
         this.levelRuleRepository = levelRuleRepository;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -36,34 +39,34 @@ public class MemberLevelAdminService {
     }
 
     @Transactional
-    public MemberLevelRuleDto create(MemberLevelRuleDto dto) {
+    public MemberLevelRuleDto create(Long operatorId, MemberLevelRuleDto dto) {
         if (dto != null && dto.id() != null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新建等级请勿传 id，请使用 POST");
         }
-        return upsert(dto);
+        return upsert(operatorId, dto);
     }
 
     @Transactional
-    public MemberLevelRuleDto update(MemberLevelRuleDto dto) {
+    public MemberLevelRuleDto update(Long operatorId, MemberLevelRuleDto dto) {
         if (dto == null || dto.id() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "更新等级须指定 id，请使用 PUT");
         }
-        return upsert(dto);
+        return upsert(operatorId, dto);
     }
 
     @Transactional
-    public MemberLevelRuleDto upsert(MemberLevelRuleDto dto) {
+    public MemberLevelRuleDto upsert(Long operatorId, MemberLevelRuleDto dto) {
         if (dto == null || dto.levelCode() == null || dto.levelCode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "等级编码不能为空");
         }
         String code = dto.levelCode().trim().toUpperCase();
         if (dto.id() != null) {
-            return runWithLevelIdLock(dto.id(), () -> doUpsert(dto, code));
+            return runWithLevelIdLock(dto.id(), () -> doUpsert(operatorId, dto, code));
         }
-        return runWithLevelCodeLock(code, () -> doUpsert(dto, code));
+        return runWithLevelCodeLock(code, () -> doUpsert(operatorId, dto, code));
     }
 
-    private MemberLevelRuleDto doUpsert(MemberLevelRuleDto dto, String code) {
+    private MemberLevelRuleDto doUpsert(Long operatorId, MemberLevelRuleDto dto, String code) {
         MemberLevelRule rule;
         if (dto.id() != null) {
             rule = levelRuleRepository.findByIdForUpdate(dto.id())
@@ -95,17 +98,27 @@ public class MemberLevelAdminService {
         rule.setSortorder(dto.sortOrder());
         rule.setStatus(dto.status() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : dto.status());
         rule.setUpdatedAt(Instant.now());
-        return toDto(levelRuleRepository.save(rule));
+        MemberLevelRuleDto saved = toDto(levelRuleRepository.save(rule));
+        auditService.appendLog(operatorId, "MEMBER_LEVEL_UPSERT", "MEMBER_LEVEL",
+                String.valueOf(saved.id()),
+                "code=" + saved.levelCode() + ",name=" + saved.levelName()
+                        + ",minSpent=" + saved.minSpent() + ",maxSpent=" + saved.maxSpent()
+                        + ",minPoints=" + saved.minPoints() + ",pointsRate=" + saved.pointsRate()
+                        + ",priceDiscountPct=" + saved.priceDiscountPct() + ",status=" + saved.status());
+        return saved;
     }
 
     @Transactional
-    public MemberLevelRuleDto setStatus(Long id, String status) {
+    public MemberLevelRuleDto setStatus(Long operatorId, Long id, String status) {
         return runWithLevelIdLock(id, () -> {
             MemberLevelRule rule = levelRuleRepository.findByIdForUpdate(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"));
             rule.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(status) ? CabinetConstants.PROMOTION_STATUS_ACTIVE : "INACTIVE");
             rule.setUpdatedAt(Instant.now());
-            return toDto(levelRuleRepository.save(rule));
+            MemberLevelRuleDto saved = toDto(levelRuleRepository.save(rule));
+            auditService.appendLog(operatorId, "MEMBER_LEVEL_STATUS", "MEMBER_LEVEL",
+                    String.valueOf(saved.id()), "code=" + saved.levelCode() + ",status=" + saved.status());
+            return saved;
         });
     }
 
