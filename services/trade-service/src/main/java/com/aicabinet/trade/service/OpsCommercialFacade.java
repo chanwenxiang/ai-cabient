@@ -107,7 +107,7 @@ public class OpsCommercialFacade {
 
     public void removeBlacklist(Long operatorId, Long userId) {
         permissionService.requirePermission(operatorId, PERM_OPS_RISK_BLACKLIST);
-        riskControlService.removeBlacklist(userId);
+        riskControlService.removeBlacklist(operatorId, userId);
     }
 
     public List<PaymentReconciliationDto> listReconciliation(Long operatorId, java.time.LocalDate from,

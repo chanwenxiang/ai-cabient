@@ -164,10 +164,19 @@ public class RiskControlService {
         });
     }
 
+    /**
+     * 解除黑名单。MA-097：原来 {@code addBlacklist} 记 {@code BLACKLIST_ADD}（带 by），
+     * 而解除**一条事件都不记**——被收买的账号可以无声放行作弊用户，事后查不到是谁解的。
+     * 现在与添加侧同规格：operatorId 进事件详情，且必须在行锁内（避免与加黑并发交错）。
+     */
     @Transactional
-    public void removeBlacklist(Long userId) {
+    public void removeBlacklist(Long operatorId, Long userId) {
         runWithBlacklistLock(userId, () -> {
-            blacklistRepository.findByIdForUpdate(userId).ifPresent(blacklistRepository::delete);
+            blacklistRepository.findByIdForUpdate(userId).ifPresent(bl -> {
+                blacklistRepository.delete(bl);
+                recordEvent(userId, null, "BLACKLIST_REMOVE", "INFO", Map.of("by", operatorId));
+                log.info("user unblacklisted userId={} by={}", userId, operatorId);
+            });
             return null;
         });
     }

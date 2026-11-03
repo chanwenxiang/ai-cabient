@@ -59,7 +59,8 @@ class RiskControlConcurrencyTest {
         bl.setUserId(10002L);
         when(blacklistRepository.findByIdForUpdate(10002L)).thenReturn(java.util.Optional.of(bl));
 
-        service.removeBlacklist(10002L);
+        // MA-097：解除必须带操作者（与 BLACKLIST_ADD 同款归因）
+        service.removeBlacklist(9001L, 10002L);
 
         verify(blacklistRepository).delete(bl);
         verify(distributedLockService).unlock(RiskControlService.blacklistLockKey(10002L));
