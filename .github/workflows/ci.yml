@@ -629,7 +629,11 @@ jobs:
           echo "OK: static/admin 与源码同源"
 
   mini-programs:
-    runs-on: ubuntu-latest
+    # 固定 runner 镜像：ubuntu-latest 滚到 ubuntu26.04 后，Playwright 安装浏览器直接失败
+    # （CI 原文：Failed to install browsers / Error: Playwright does not support chromium on ubuntu26.04-x64），
+    # 三个端的所有 UI 用例都跑不起来——这是基础设施不兼容，不是产品缺陷，勿改用例或上调 UAT_MAX_FAIL。
+    # 待 Playwright 支持新镜像后可改回 ubuntu-latest。
+    runs-on: ubuntu-24.04
     # 仓库 .npmrc 为 Windows/Cursor 配置了 script-shell=cmd.exe；Linux CI 须改回 bash
     env:
       npm_config_script_shell: /bin/bash
@@ -776,7 +780,8 @@ jobs:
   # 因此本条流水线的首要价值是：让「整轮崩溃」和「新增失败」不再静默通过。
   # 已知缺陷（余额流水 ¥0.00 等）用 UAT_MAX_FAIL 基线显式记录，修复后请下调。
   e2e-h5:
-    runs-on: ubuntu-latest
+    # 同 mini-programs：Playwright 在 ubuntu26.04 runner 上装不上 chromium，固定到 24.04
+    runs-on: ubuntu-24.04
     env:
       npm_config_script_shell: /bin/bash
       # H5 dev server 的 /api 代理指向直跑的后端（CI 无 nginx 网关）
