@@ -279,6 +279,9 @@ public class MerchantPortalService {
                                                      org.springframework.web.multipart.MultipartFile file) {
         permissionService.requirePermission(userId, "merchant:slots:edit");
         merchantPortalGuard.requireAccess(userId);
+        // MA-068：写侧必须与回看面（streamStocktakeEvidence）同闸——只按权限码放行会漏掉设备归属，
+        // 商户 A 的凭证能挂到商户 B 的柜机上，盘点证据链跨租户污染。
+        merchantScopeService.requireDeviceAccess(userId, deviceId);
         return fileAttachmentService.uploadDeviceStocktakeEvidence(userId, deviceId, file);
     }
 

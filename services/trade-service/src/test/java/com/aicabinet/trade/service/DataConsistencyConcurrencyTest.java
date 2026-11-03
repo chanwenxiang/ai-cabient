@@ -29,6 +29,8 @@ class DataConsistencyConcurrencyTest {
     @Mock private DataConsistencyRecordMapper consistencyRepository;
     @Mock private JdbcTemplate jdbcTemplate;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private AdminAuditService auditService;
+    private static final Long OPERATOR = 9001L;
 
     private DataConsistencyService service;
 
@@ -36,7 +38,7 @@ class DataConsistencyConcurrencyTest {
     void setUp() {
         service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
                 new com.fasterxml.jackson.databind.ObjectMapper(), null, distributedLockService,
-                null, null, null, null);
+                null, null, null, auditService, null);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -47,7 +49,7 @@ class DataConsistencyConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.fixInconsistencyDetailed(5L));
+                () -> service.fixInconsistencyDetailed(OPERATOR, 5L));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

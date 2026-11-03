@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.LineManagerDto;
 import com.aicabinet.common.dto.LineWalletLedgerDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.util.PhoneMask;
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineWalletAccount;
@@ -14,6 +15,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.support.CommissionParamBounds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
@@ -124,10 +126,12 @@ public class LineManagerService {
         manager.setPhone(phone.trim());
         manager.setStatus(STATUS_ACTIVE);
         manager.setWxOpenid(trim(stringVal(body.get(WXOPENID))));
-        manager.setUserId(longVal(body.get(USERID)));
+        manager.setUserId(requireBindableUserId(longVal(body.get(USERID))));
         manager.setOrgName(trim(stringVal(body.get(ORGNAME))));
-        manager.setCommissionRateBps(intVal(body.get(COMMISSIONRATEBPS), 200));
-        manager.setCommissionFixedCents(intVal(body.get(COMMISSIONFIXEDCENTS), 0));
+        manager.setCommissionRateBps(CommissionParamBounds.requireBps(
+                "commissionRateBps", intVal(body.get(COMMISSIONRATEBPS), 200)));
+        manager.setCommissionFixedCents(CommissionParamBounds.requireFixedCents(
+                "commissionFixedCents", intVal(body.get(COMMISSIONFIXEDCENTS), 0)));
         manager.setCreatedAt(now);
         manager.setUpdatedAt(now);
         managerMapper.insert(manager);
@@ -146,23 +150,29 @@ public class LineManagerService {
     public LineManagerDto update(Long operatorId, long managerId, Map<String, Object> body) {
         permissionService.requirePermission(operatorId, PERM_OPS_LINE_MANAGER_EDIT);
         LineManager manager = requireManager(managerId);
-        Integer rateBefore = manager.getCommissionRateBps();
-        Integer fixedBefore = manager.getCommissionFixedCents();
-        String statusBefore = manager.getStatus();
+        String before = auditSnapshot(manager);
         applyLineManagerUpdates(manager, managerId, body);
         manager.setUpdatedAt(Instant.now());
         managerMapper.updateById(manager);
-        // G2-13 发现补审计：佣金参数是资金分配参数，变更必须留 before/after
-        if (!Objects.equals(rateBefore, manager.getCommissionRateBps())
-                || !Objects.equals(fixedBefore, manager.getCommissionFixedCents())
-                || !Objects.equals(statusBefore, manager.getStatus())) {
+        // G2-13 发现补审计：佣金参数是资金分配参数，变更必须留 before/after。
+        // MA-075：留痕面从「三字段」收成「整张快照」——换绑 userId/改名/改手机原来静默落库，
+        // 而换绑直接决定「佣金打给谁 + CB-066 实名锚指向谁」，比改费率更需要可追责。
+        String after = auditSnapshot(manager);
+        if (!before.equals(after)) {
             auditService.appendLog(operatorId, "LINE_MANAGER_UPDATE", "LINE_MANAGER",
-                    String.valueOf(managerId),
-                    "rateBps=" + rateBefore + "->" + manager.getCommissionRateBps()
-                            + ",fixedCents=" + fixedBefore + "->" + manager.getCommissionFixedCents()
-                            + ",status=" + statusBefore + "->" + manager.getStatus());
+                    String.valueOf(managerId), before + " -> " + after);
         }
         return toDto(manager);
+    }
+
+    /** 本端点可改写字段的前/后快照（手机号按 create 侧同规掩码）。 */
+    private static String auditSnapshot(LineManager m) {
+        return "name=" + m.getManagerName()
+                + ",phone=" + PhoneMask.mask(m.getPhone())
+                + ",userId=" + m.getUserId()
+                + ",rateBps=" + m.getCommissionRateBps()
+                + ",fixedCents=" + m.getCommissionFixedCents()
+                + ",status=" + m.getStatus();
     }
 
     private void applyLineManagerUpdates(LineManager manager, long managerId, Map<String, Object> body) {
@@ -179,23 +189,47 @@ public class LineManagerService {
             manager.setWxOpenid(trim(stringVal(body.get(WXOPENID))));
         }
         if (body.containsKey(USERID)) {
-            manager.setUserId(longVal(body.get(USERID)));
+            manager.setUserId(requireBindableUserId(longVal(body.get(USERID))));
         }
         if (body.containsKey(ORGNAME)) {
             manager.setOrgName(trim(stringVal(body.get(ORGNAME))));
         }
         if (body.containsKey(COMMISSIONRATEBPS)) {
-            manager.setCommissionRateBps(intVal(body.get(COMMISSIONRATEBPS), manager.getCommissionRateBps()));
+            manager.setCommissionRateBps(CommissionParamBounds.requireBps("commissionRateBps",
+                    intVal(body.get(COMMISSIONRATEBPS), manager.getCommissionRateBps())));
         }
         if (body.containsKey(COMMISSIONFIXEDCENTS)) {
-            manager.setCommissionFixedCents(intVal(body.get(COMMISSIONFIXEDCENTS), manager.getCommissionFixedCents()));
+            manager.setCommissionFixedCents(CommissionParamBounds.requireFixedCents("commissionFixedCents",
+                    intVal(body.get(COMMISSIONFIXEDCENTS), manager.getCommissionFixedCents())));
         }
         if (body.containsKey("status")) {
             String status = stringVal(body.get("status"));
             if (status != null && !status.isBlank()) {
-                manager.setStatus(status.trim().toUpperCase(Locale.ROOT));
+                manager.setStatus(requireManagerStatus(status.trim().toUpperCase(Locale.ROOT)));
             }
         }
+    }
+
+    /**
+     * MA-075：换绑必须绑到真实存在的账号。绑幽灵/他人 userId 会让线长钱包与 CB-066 实名锚
+     * 指向不存在的主体（{@code LineCommissionJob} 按 manager.userId 找实名，找不到即静默不返佣）。
+     */
+    private Long requireBindableUserId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        if (userInfoMapper.selectById(userId) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "userId 不存在，不能换绑");
+        }
+        return userId;
+    }
+
+    /** 状态只认字典 {@code line_manager_status} 的两个值；垃圾值会让线长从计佣面静默消失。 */
+    private static String requireManagerStatus(String status) {
+        if (!STATUS_ACTIVE.equals(status) && !CabinetConstants.SKU_STATUS_DISABLED.equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 只能是 ACTIVE/DISABLED");
+        }
+        return status;
     }
 
     private void applyLineManagerPhone(LineManager manager, long managerId, String phone) {

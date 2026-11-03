@@ -26,6 +26,7 @@ class OtaConcurrencyTest {
     @Mock private OtaCdnService otaCdnService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private AdminAuditService auditService;
 
     private OtaService service;
 
@@ -38,7 +39,8 @@ class OtaConcurrencyTest {
                 otaCdnService,
                 new ObjectMapper(),
                 distributedLockService,
-                systemConfigService);
+                systemConfigService,
+                auditService);
     }
 
     @Test

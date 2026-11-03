@@ -9,7 +9,10 @@ import com.aicabinet.trade.mapper.CommissionClawbackMapper;
 import com.aicabinet.trade.mapper.LineCommissionDailyMapper;
 import com.aicabinet.trade.mapper.LineRouteMapper;
 import com.aicabinet.trade.mapper.LineRouteMemberMapper;
+import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.mapper.StaffCommissionDailyMapper;
+import com.aicabinet.trade.support.CommissionParamBounds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,25 +34,40 @@ import java.util.function.Function;
 @Service
 public class LineRouteAdminService {
 
+    /** V358 列注释即词表：role=MANAGER/STAFF，basis=GMV/RESTOCK_QTY。 */
+    private static final java.util.Set<String> MEMBER_ROLES = java.util.Set.of("MANAGER", "STAFF");
+    private static final java.util.Set<String> MEMBER_BASES = java.util.Set.of("GMV", "RESTOCK_QTY");
+    private static final int ROUTE_NAME_MAX = 64;
+    private static final int ROUTE_REMARK_MAX = 200;
+
     private final LineRouteMapper routeMapper;
     private final LineRouteMemberMapper memberMapper;
     private final SystemConfigService systemConfigService;
     private final LineCommissionDailyMapper lineCommissionDailyMapper;
     private final StaffCommissionDailyMapper staffCommissionDailyMapper;
     private final CommissionClawbackMapper clawbackMapper;
+    private final LineManagerMapper lineManagerMapper;
+    private final UserInfoMapper userInfoMapper;
+    private final AdminAuditService auditService;
 
     public LineRouteAdminService(LineRouteMapper routeMapper,
                                  LineRouteMemberMapper memberMapper,
                                  SystemConfigService systemConfigService,
                                  LineCommissionDailyMapper lineCommissionDailyMapper,
                                  StaffCommissionDailyMapper staffCommissionDailyMapper,
-                                 CommissionClawbackMapper clawbackMapper) {
+                                 CommissionClawbackMapper clawbackMapper,
+                                 LineManagerMapper lineManagerMapper,
+                                 UserInfoMapper userInfoMapper,
+                                 AdminAuditService auditService) {
         this.routeMapper = routeMapper;
         this.memberMapper = memberMapper;
         this.systemConfigService = systemConfigService;
         this.lineCommissionDailyMapper = lineCommissionDailyMapper;
         this.staffCommissionDailyMapper = staffCommissionDailyMapper;
         this.clawbackMapper = clawbackMapper;
+        this.lineManagerMapper = lineManagerMapper;
+        this.userInfoMapper = userInfoMapper;
+        this.auditService = auditService;
     }
 
     /** 线路列表（含归档）。 */
@@ -60,6 +78,7 @@ public class LineRouteAdminService {
     /** 新建线路。 */
     public LineRoute create(LineRoute route) {
         route.setId(null);
+        applyRouteFields(route, route);
         routeMapper.insert(route);
         return route;
     }
@@ -79,8 +98,35 @@ public class LineRouteAdminService {
         if (body.getRemark() != null) {
             route.setRemark(body.getRemark());
         }
+        applyRouteFields(route, route);
         routeMapper.updateById(route);
         return route;
+    }
+
+    /**
+     * MA-108：线路行的必填/引用闸。{@code manager_id} 与 {@code route_name} 在 V358 都是
+     * NOT NULL 但**无外键**——裸实体直落既允许幽灵线长（指向不存在的 manager_id），
+     * 也让缺字段只撞成一个没有字段名的泛化 409。
+     */
+    private void applyRouteFields(LineRoute source, LineRoute target) {
+        String name = source.getRouteName();
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "routeName 必填");
+        }
+        if (name.trim().length() > ROUTE_NAME_MAX) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "routeName 超长（最多 " + ROUTE_NAME_MAX + " 字符）");
+        }
+        target.setRouteName(name.trim());
+        if (source.getRemark() != null && source.getRemark().length() > ROUTE_REMARK_MAX) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "remark 超长（最多 " + ROUTE_REMARK_MAX + " 字符）");
+        }
+        Long managerId = source.getManagerId();
+        if (managerId == null || lineManagerMapper.selectById(managerId) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "managerId 不存在（须是已建线长）");
+        }
+        target.setManagerId(managerId);
     }
 
     /** 归档（可增减，不物理删除）。 */
@@ -100,34 +146,80 @@ public class LineRouteAdminService {
                 .orderByAsc(LineRouteMember::getId));
     }
 
-    /** 添加/更新成员（同人同角色唯一，存在即更新提成配置）。 */
+    /**
+     * 添加/更新成员（同人同角色唯一，存在即更新提成配置）。
+     *
+     * <p>MA-100：这三列（basis/rateBps/perUnitCents）被 {@code LineCommissionJob} 逐日乘进
+     * <b>补货员可提现钱包</b>（{@code staffWalletService.creditIfAbsent}），此前既无限幅也无留痕——
+     * 与 MA-069（线长佣金）同族，只是这里连「谁改的」都查不到。
+     */
     @Transactional
-    public LineRouteMember upsertMember(Long routeId, LineRouteMember body) {
+    public LineRouteMember upsertMember(Long operatorId, Long routeId, LineRouteMember body) {
+        String role = requireEnum("role", body.getRole(), MEMBER_ROLES);
+        if (body.getUserId() == null || userInfoMapper.selectById(body.getUserId()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "userId 不存在，不能挂进线路成员");
+        }
+        String basis = body.getCommissionBasis() == null || body.getCommissionBasis().isBlank()
+                ? "GMV" : requireEnum("commissionBasis", body.getCommissionBasis(), MEMBER_BASES);
+        int rateBps = body.getCommissionRateBps() == null
+                ? 0 : CommissionParamBounds.requireBps("commissionRateBps", body.getCommissionRateBps());
+        long perUnitCents = body.getCommissionPerUnitCents() == null
+                ? 0L : CommissionParamBounds.requireCents("commissionPerUnitCents", body.getCommissionPerUnitCents());
+
         LineRouteMember existing = memberMapper.selectOne(Wrappers.<LineRouteMember>lambdaQuery()
                 .eq(LineRouteMember::getRouteId, routeId)
                 .eq(LineRouteMember::getUserId, body.getUserId())
-                .eq(LineRouteMember::getRole, body.getRole()));
+                .eq(LineRouteMember::getRole, role));
+        String detail = "basis=" + basis + ",rateBps=" + rateBps + ",perUnitCents=" + perUnitCents;
         if (existing != null) {
-            existing.setCommissionBasis(body.getCommissionBasis());
-            existing.setCommissionRateBps(body.getCommissionRateBps());
-            existing.setCommissionPerUnitCents(body.getCommissionPerUnitCents());
+            String before = "basis=" + existing.getCommissionBasis()
+                    + ",rateBps=" + existing.getCommissionRateBps()
+                    + ",perUnitCents=" + existing.getCommissionPerUnitCents()
+                    + ",status=" + existing.getStatus();
+            existing.setCommissionBasis(basis);
+            existing.setCommissionRateBps(rateBps);
+            existing.setCommissionPerUnitCents(perUnitCents);
             existing.setStatus("ACTIVE");
             memberMapper.updateById(existing);
+            auditService.appendLog(operatorId, "LINE_ROUTE_MEMBER_UPDATE", "LINE_ROUTE_MEMBER",
+                    String.valueOf(existing.getId()), before + " -> " + detail + ",status=ACTIVE");
             return existing;
         }
         body.setRouteId(routeId);
+        body.setRole(role);
+        body.setCommissionBasis(basis);
+        body.setCommissionRateBps(rateBps);
+        body.setCommissionPerUnitCents(perUnitCents);
         body.setStatus("ACTIVE");
         memberMapper.insert(body);
+        auditService.appendLog(operatorId, "LINE_ROUTE_MEMBER_CREATE", "LINE_ROUTE_MEMBER",
+                String.valueOf(body.getId()),
+                "route=" + routeId + ",userId=" + body.getUserId() + ",role=" + role + "," + detail);
         return body;
     }
 
     /** 移除成员。 */
-    public void removeMember(Long routeId, Long memberId) {
+    @Transactional
+    public void removeMember(Long operatorId, Long routeId, Long memberId) {
         LineRouteMember member = memberMapper.selectById(memberId);
         if (member == null || !routeId.equals(member.getRouteId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在");
         }
         memberMapper.deleteById(memberId);
+        // MA-100：删成员同样切断一条佣金链，留痕口径与增/改一致
+        auditService.appendLog(operatorId, "LINE_ROUTE_MEMBER_REMOVE", "LINE_ROUTE_MEMBER",
+                String.valueOf(memberId),
+                "route=" + routeId + ",userId=" + member.getUserId() + ",role=" + member.getRole());
+    }
+
+    /** 枚举值归一 + 白名单闸（V358 列注释即字典，写错值只会让该成员从计佣面静默消失）。 */
+    private static String requireEnum(String field, String value, java.util.Set<String> allowed) {
+        String upper = value.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!allowed.contains(upper)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    field + " 只能是 " + String.join("/", allowed));
+        }
+        return upper;
     }
 
     /**

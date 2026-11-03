@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.MachinePositionConfig;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.MachinePayeeBillMapper;
 import com.aicabinet.trade.mapper.MachinePositionConfigMapper;
+import com.aicabinet.trade.support.CommissionParamBounds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,13 @@ import java.util.Set;
 public class MachinePayeeBillService {
     private static final Logger log = LoggerFactory.getLogger(MachinePayeeBillService.class);
     private static final Set<String> PAID_STATUSES = Set.of("PAID", "COMPLETED");
+    /** 电费类型只认这两个值（V356 列注释 + V429 表注释同源；按量档因无计量暂缓）。 */
+    private static final Set<String> ELECTRIC_TYPES = Set.of("NONE", "FIXED");
+    /** 月电费上限（分）= ¥10,000：数量级防线，口径同 {@link CommissionParamBounds#FIXED_CENTS_MAX}。 */
+    private static final long ELECTRIC_AMOUNT_MAX_CENTS = 1_000_000L;
+    private static final int PAYEE_NAME_MAX = 64;
+    private static final int PAYEE_PHONE_MAX = 20;
+    private static final int WELFARE_INFO_MAX = 200;
 
     private final MachinePositionConfigMapper configMapper;
     private final MachinePayeeBillMapper billMapper;
@@ -147,15 +155,62 @@ public class MachinePayeeBillService {
         return configMapper.selectById(deviceId);
     }
 
-    /** 保存点位费用配置（费用项随时可改，只影响后续账期）。 */
+    /**
+     * 保存点位费用配置（费用项随时可改，只影响后续账期）。
+     *
+     * <p>MA-090：这份配置按柜<b>长期生效</b>，出账时按 {@code gmv * shareBps / 10000} 直接生成
+     * 应付账单——裸实体直落曾允许 shareBps&gt;10000（5 倍 GMV 分成）与 enabled 垃圾值
+     * （{@code generateMonthly} 只筛 {@code enabled = 1}，写 2 就等于整柜从出账面消失）。
+     * 同仓三处先例都有闸（SiteRentSplitService 400 / SiteRentBillService 钳位 / FundBillService 回落），
+     * 本处统一到 {@link CommissionParamBounds}。
+     *
+     * <p>刻意<b>只校验非 null 字段</b>：MyBatis-Plus 的 {@code updateById} 跳过 null
+     * （见 lessons #384），PUT 省略字段语义是「保持原值」，把 null 当 0 会静默清配置。
+     */
     public void saveConfig(String deviceId, MachinePositionConfig cfg) {
         cfg.setDeviceId(deviceId);
+        if (cfg.getShareBps() != null) {
+            cfg.setShareBps(CommissionParamBounds.requireBps("shareBps", cfg.getShareBps()));
+        }
+        if (cfg.getElectricAmountCents() != null) {
+            long electric = cfg.getElectricAmountCents();
+            if (electric < 0 || electric > ELECTRIC_AMOUNT_MAX_CENTS) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "electricAmountCents 须在 0.." + ELECTRIC_AMOUNT_MAX_CENTS + " 分/月");
+            }
+        }
+        if (cfg.getElectricType() != null && !cfg.getElectricType().isBlank()) {
+            String type = cfg.getElectricType().trim().toUpperCase(java.util.Locale.ROOT);
+            if (!ELECTRIC_TYPES.contains(type)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "electricType 只能是 NONE/FIXED");
+            }
+            cfg.setElectricType(type);
+        }
+        if (cfg.getEnabled() != null && cfg.getEnabled() != 0 && cfg.getEnabled() != 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "enabled 只能是 0/1");
+        }
+        if (cfg.getPayeeName() == null || cfg.getPayeeName().isBlank()) {
+            // 列本身 NOT NULL（V356），缺它只会撞成笼统 409 —— 提前 400 指名道姓
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payeeName 必填（场地方收款人）");
+        }
+        cfg.setPayeeName(requireMaxLength("payeeName", cfg.getPayeeName().trim(), PAYEE_NAME_MAX));
+        cfg.setPayeePhone(requireMaxLength("payeePhone", cfg.getPayeePhone(), PAYEE_PHONE_MAX));
+        cfg.setWelfareInfo(requireMaxLength("welfareInfo", cfg.getWelfareInfo(), WELFARE_INFO_MAX));
         cfg.setUpdatedAt(Instant.now());
         if (configMapper.selectById(deviceId) == null) {
             configMapper.insert(cfg);
         } else {
             configMapper.updateById(cfg);
         }
+    }
+
+    /** 超长值撞列宽只会得到全局兜底的泛化 409（22001），这里按目标列宽给出 400+字段名。 */
+    private static String requireMaxLength(String field, String value, int max) {
+        if (value != null && value.length() > max) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    field + " 超长（最多 " + max + " 字符）");
+        }
+        return value;
     }
 
     private long nvl(Long v) {

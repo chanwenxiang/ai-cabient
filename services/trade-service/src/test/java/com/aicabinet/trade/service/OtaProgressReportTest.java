@@ -46,13 +46,14 @@ class OtaProgressReportTest {
     @Mock private OtaCdnService otaCdnService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private AdminAuditService auditService;
 
     private OtaService service;
 
     @BeforeEach
     void setUp() {
         service = new OtaService(releaseRepository, deviceRepository, reportRepository,
-                otaCdnService, new ObjectMapper(), distributedLockService, systemConfigService);
+                otaCdnService, new ObjectMapper(), distributedLockService, systemConfigService, auditService);
     }
 
     private void switchOn() {

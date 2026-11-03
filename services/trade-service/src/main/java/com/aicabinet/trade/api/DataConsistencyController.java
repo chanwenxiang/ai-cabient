@@ -1,9 +1,11 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.DataConsistencyRecord;
 import com.aicabinet.trade.service.DataConsistencyService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -27,6 +29,10 @@ public class DataConsistencyController {
         this.consistencyService = consistencyService;
     }
 
+    private static Long operator(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
     @RequiresPermissions("ops:consistency:list")
     @GetMapping("/failures")
     public ApiResponse<List<DataConsistencyRecord>> failures() {
@@ -43,8 +49,10 @@ public class DataConsistencyController {
 
     @RequiresPermissions("ops:consistency:fix")
     @PostMapping("/{recordId}/fix")
-    public ApiResponse<FixResponse> fix(@PathVariable Long recordId) {
-        DataConsistencyService.FixOutcome outcome = consistencyService.fixInconsistencyDetailed(recordId);
+    public ApiResponse<FixResponse> fix(@PathVariable Long recordId, HttpServletRequest request) {
+        // MA-116：修复会直改订单金额/清券/触发真实退款，操作者必须进到审计里
+        DataConsistencyService.FixOutcome outcome = consistencyService.fixInconsistencyDetailed(
+                operator(request), recordId);
         return ApiResponse.ok(new FixResponse(recordId, outcome.fixed(), outcome.message()));
     }
 

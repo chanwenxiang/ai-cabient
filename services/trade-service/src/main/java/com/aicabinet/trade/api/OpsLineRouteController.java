@@ -1,12 +1,14 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.LineRoute;
 import com.aicabinet.trade.domain.LineRouteMember;
 import com.aicabinet.trade.service.LineRouteAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -74,18 +76,24 @@ public class OpsLineRouteController {
     @PutMapping("/{routeId}/members")
     @RequiresPermissions("ops:replenishment:edit")
     public ApiResponse<Void> upsertMember(@PathVariable Long routeId,
-                                          @RequestBody LineRouteMember member) {
+                                          @RequestBody LineRouteMember member,
+                                          HttpServletRequest request) {
         // 返回形状保持 Void（与既有 openapi types 一致；前端不消费返回体）
-        lineRouteAdminService.upsertMember(routeId, member);
+        lineRouteAdminService.upsertMember(operator(request), routeId, member);
         return ApiResponse.ok(null);
     }
 
     @Operation(summary = "移除成员")
     @DeleteMapping("/{routeId}/members/{memberId}")
     @RequiresPermissions("ops:replenishment:edit")
-    public ApiResponse<Void> removeMember(@PathVariable Long routeId, @PathVariable Long memberId) {
-        lineRouteAdminService.removeMember(routeId, memberId);
+    public ApiResponse<Void> removeMember(@PathVariable Long routeId, @PathVariable Long memberId,
+                                          HttpServletRequest request) {
+        lineRouteAdminService.removeMember(operator(request), routeId, memberId);
         return ApiResponse.ok(null);
+    }
+
+    private static Long operator(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 
     @Operation(summary = "岗位月合计（线长销售提成 + 补货员佣金，供财务对账；佣金=已发-退款冲回）")

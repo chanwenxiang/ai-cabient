@@ -116,4 +116,20 @@ class MerchantPortalConcurrencyTest {
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
+
+    @Test
+    void uploadStocktakeEvidence_rejectsDeviceOutsideMerchantScope() {
+        // MA-068：同文件的回看面（streamStocktakeEvidence）一直有设备归属闸，写侧却只看权限码，
+        // 商户 A 的凭证能挂到商户 B 的柜机上。这里钉住「归属闸在写文件之前跑」。
+        org.mockito.Mockito.doThrow(new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "无权访问该设备"))
+                .when(merchantScopeService).requireDeviceAccess(1L, "DEV-9");
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.uploadStocktakeEvidence(1L, "DEV-9", null));
+        org.junit.jupiter.api.Assertions.assertEquals(org.springframework.http.HttpStatus.FORBIDDEN,
+                ex.getStatusCode());
+    }
 }

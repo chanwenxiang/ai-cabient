@@ -41,6 +41,9 @@ class DataConsistencyServiceTest {
     @Mock CouponService couponService;
     @Mock CabinetOrderMapper cabinetOrderRepository;
     @Mock OrderPaymentService orderPaymentService;
+    @Mock AdminAuditService auditService;
+
+    private static final Long OPERATOR = 9001L;
 
     DataConsistencyService service;
 
@@ -52,9 +55,11 @@ class DataConsistencyServiceTest {
     void setUp() {
         service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
                 new ObjectMapper(), taskService, distributedLockService, couponService,
-                cabinetOrderRepository, orderPaymentService, null);
+                cabinetOrderRepository, orderPaymentService, auditService, null);
         ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+        // MA-124：修复链现在读 refundOrder 的返回值（false=未确认即不得回报「已退多收」）
+        lenient().when(orderPaymentService.refundOrder(any(), anyInt(), anyString())).thenReturn(true);
     }
 
     @Test
@@ -156,7 +161,7 @@ class DataConsistencyServiceTest {
 
         when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(31L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 31L);
 
         assertFalse(outcome.fixed());
         assertTrue(outcome.message().contains("仅巡检"));
@@ -231,6 +236,8 @@ class DataConsistencyServiceTest {
         consistencyRecord.setExpectedValue("150");
         consistencyRecord.setActualValue("350");
         consistencyRecord.setStatus(DataConsistencyService.STATUS_FAIL);
+        // MA-116② 的前值：巡检当时写下的成因，修复后必须仍在
+        consistencyRecord.setErrorMessage("头 150 ≠ 行合计 350");
 
         when(consistencyRepository.findByIdForUpdate(3L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-FIX")))
@@ -251,10 +258,36 @@ class DataConsistencyServiceTest {
                 eq(150), eq(150), eq("O-FIX")))
                 .thenReturn(1);
 
-        assertTrue(service.fixInconsistency(3L));
+        assertTrue(service.fixInconsistency(OPERATOR, 3L));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
         assertNotNull(consistencyRecord.getFixedAt());
         verify(consistencyRepository).save(consistencyRecord);
+
+        // MA-116①：修复必须留下「谁做的」（原来连 operatorId 都没进服务）
+        verify(auditService).appendLog(eq(OPERATOR), eq("CONSISTENCY_FIX"),
+                eq("DATA_CONSISTENCY_RECORD"), eq("3"), contains("checkKey=O-FIX"));
+        // MA-116②：巡检当时的不一致描述不得被修复结果覆盖
+        assertTrue(consistencyRecord.getErrorMessage().startsWith("头 150 ≠ 行合计 350"),
+                consistencyRecord.getErrorMessage());
+        assertTrue(consistencyRecord.getErrorMessage().contains("[FIX "), consistencyRecord.getErrorMessage());
+    }
+
+    @Test
+    void fixInconsistency_alreadyFixedRecord_isNotReplayed() {
+        // MA-124：FIXED 记录可反复点修复 ⇒ 同一笔多收金额被重复走真实退款分支
+        DataConsistencyRecord consistencyRecord = new DataConsistencyRecord();
+        consistencyRecord.setId(77L);
+        consistencyRecord.setCheckType("ORDER_AMOUNT");
+        consistencyRecord.setCheckKey("O-REPLAY");
+        consistencyRecord.setStatus(DataConsistencyService.STATUS_FIXED);
+        when(consistencyRepository.findByIdForUpdate(77L)).thenReturn(java.util.Optional.of(consistencyRecord));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 77L);
+
+        assertTrue(!outcome.fixed());
+        assertTrue(outcome.message().contains("已是 FIXED"), outcome.message());
+        verify(consistencyRepository, never()).save(any());
+        verify(auditService, never()).appendLog(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -282,7 +315,7 @@ class DataConsistencyServiceTest {
                 .thenReturn(1);
         when(couponService.releaseStaleUsedCouponsForOrder("O-STALE")).thenReturn(1);
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(9L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 9L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("清除未生效"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -328,7 +361,7 @@ class DataConsistencyServiceTest {
                 120,
                 "O-NOPAY")).thenReturn(1);
 
-        assertTrue(service.fixInconsistency(5L));
+        assertTrue(service.fixInconsistency(OPERATOR, 5L));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
     }
 
@@ -344,11 +377,11 @@ class DataConsistencyServiceTest {
 
         when(consistencyRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.of(consistencyRecord));
 
-        assertFalse(service.fixInconsistency(4L));
+        assertFalse(service.fixInconsistency(OPERATOR, 4L));
         assertEquals(DataConsistencyService.STATUS_FAIL, consistencyRecord.getStatus());
         verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString());
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(4L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 4L);
         assertFalse(outcome.fixed());
         assertTrue(outcome.message().contains("补扣") || outcome.message().contains("调账"));
     }
@@ -370,7 +403,7 @@ class DataConsistencyServiceTest {
         when(consistencyRepository.findByIdForUpdate(12L)).thenReturn(java.util.Optional.of(consistencyRecord));
         when(cabinetOrderRepository.findByIdForUpdate("O-SNACK")).thenReturn(java.util.Optional.of(order));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(12L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 12L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("1"));
         verify(orderPaymentService).refundOrder(order, 1, "一致性修复退多收");
@@ -380,7 +413,7 @@ class DataConsistencyServiceTest {
     @Test
     void fixInconsistencyDetailed_missingRecord() {
         when(consistencyRepository.findByIdForUpdate(99L)).thenReturn(java.util.Optional.empty());
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(99L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 99L);
         assertFalse(outcome.fixed());
         assertEquals("记录不存在", outcome.message());
     }
@@ -439,7 +472,7 @@ class DataConsistencyServiceTest {
         when(jdbcTemplate.update(startsWith("UPDATE device_sku_inventory"), eq("12"), eq("DEV-1"), eq("SKU-9")))
                 .thenReturn(1);
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(8L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 8L);
 
         assertTrue(outcome.fixed());
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -571,7 +604,7 @@ class DataConsistencyServiceTest {
         paidOrder.setStatus("PAID");
         when(cabinetOrderRepository.findByIdForUpdate("O-L1")).thenReturn(java.util.Optional.of(paidOrder));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(10L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 10L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("1503"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -594,7 +627,7 @@ class DataConsistencyServiceTest {
         when(jdbcTemplate.update(startsWith("UPDATE cabinet_order SET coupon_id = NULL"), eq("O-COUP")))
                 .thenReturn(0);
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(11L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 11L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("6"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -678,7 +711,7 @@ class DataConsistencyServiceTest {
         record.setStatus(DataConsistencyService.STATUS_FAIL);
         when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(31L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 31L);
 
         assertFalse(outcome.fixed(), "一键把汇总摊成 lot 行是 B 档（会翻转结算 FEFO 与可售口径），必须拒绝");
         assertTrue(outcome.message().contains("仅巡检记录"),
@@ -782,7 +815,7 @@ class DataConsistencyServiceTest {
         when(jdbcTemplate.update(startsWith("INSERT INTO device_sku_inventory"),
                 eq("CAB-X"), eq("SKU-Y"), eq(7))).thenReturn(1);
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(21L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 21L);
         assertTrue(outcome.fixed());
         assertTrue(outcome.message().contains("7"));
         assertEquals(DataConsistencyService.STATUS_FIXED, consistencyRecord.getStatus());
@@ -798,7 +831,7 @@ class DataConsistencyServiceTest {
 
         when(consistencyRepository.findByIdForUpdate(22L)).thenReturn(java.util.Optional.of(consistencyRecord));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(22L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 22L);
 
         assertFalse(outcome.fixed());
         assertTrue(outcome.message().contains("仅巡检"));
@@ -851,7 +884,7 @@ class DataConsistencyServiceTest {
 
         when(consistencyRepository.findByIdForUpdate(23L)).thenReturn(java.util.Optional.of(consistencyRecord));
 
-        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(23L);
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(OPERATOR, 23L);
         assertFalse(outcome.fixed());
         assertTrue(outcome.message().contains("人工"));
     }

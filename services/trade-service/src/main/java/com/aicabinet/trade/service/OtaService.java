@@ -42,6 +42,7 @@ public class OtaService {
     private final ObjectMapper objectMapper;
     private final DistributedLockService distributedLockService;
     private final SystemConfigService systemConfigService;
+    private final AdminAuditService auditService;
 
     public OtaService(OtaReleaseMapper releaseRepository,
                       DeviceInfoMapper deviceRepository,
@@ -49,7 +50,8 @@ public class OtaService {
                       OtaCdnService otaCdnService,
                       ObjectMapper objectMapper,
                       DistributedLockService distributedLockService,
-                      SystemConfigService systemConfigService) {
+                      SystemConfigService systemConfigService,
+                      AdminAuditService auditService) {
         this.releaseRepository = releaseRepository;
         this.deviceRepository = deviceRepository;
         this.reportRepository = reportRepository;
@@ -57,6 +59,7 @@ public class OtaService {
         this.objectMapper = objectMapper;
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -99,16 +102,24 @@ public class OtaService {
         }
         release.setStatus(STATUS_PUBLISHED);
         release.setPublishedAt(Instant.now());
-        return toDto(releaseRepository.save(release));
+        OtaRelease saved = releaseRepository.save(release);
+        // MA-115：发布即全车队推送，出事必须能回答「谁推的哪个包」
+        auditService.appendLog(operatorId, "OTA_PUBLISH", "OTA_RELEASE", String.valueOf(saved.getReleaseId()),
+                "version=" + saved.getAppVersion() + ",channel=" + saved.getChannel()
+                        + ",checksum=" + checksum.substring(0, 12)
+                        + ",grayPercent=" + saved.getGrayPercent()
+                        + ",mandatory=" + saved.isMandatory()
+                        + ",allowlist=" + (body.deviceAllowlist() == null ? 0 : body.deviceAllowlist().size()));
+        return toDto(saved);
     }
 
     /** 下架（回滚）：停止向设备推送该版本，设备端 check 将回落到更早的已发布版本。 */
     @Transactional
     public OtaReleaseDto unpublishRelease(Long operatorId, Long releaseId) {
-        return runWithReleaseLock(releaseId, () -> doUnpublishRelease(releaseId));
+        return runWithReleaseLock(releaseId, () -> doUnpublishRelease(operatorId, releaseId));
     }
 
-    private OtaReleaseDto doUnpublishRelease(Long releaseId) {
+    private OtaReleaseDto doUnpublishRelease(Long operatorId, Long releaseId) {
         OtaRelease release = releaseRepository.findByIdForUpdate(releaseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "发布版本不存在"));
         if (!STATUS_PUBLISHED.equalsIgnoreCase(release.getStatus())) {
@@ -116,6 +127,9 @@ public class OtaService {
         }
         release.setStatus("UNPUBLISHED");
         releaseRepository.save(release);
+        auditService.appendLog(operatorId, "OTA_UNPUBLISH", "OTA_RELEASE", String.valueOf(releaseId),
+                "version=" + release.getAppVersion() + ",channel=" + release.getChannel()
+                        + ",checksum=" + release.getChecksumSha256().substring(0, 12));
         return toDto(release);
     }
 

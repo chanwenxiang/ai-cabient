@@ -297,6 +297,23 @@ public class ExternalChannelImportService {
         if (!ExternalImportBatch.STATUS_PARSED.equals(batch.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该批次已提交，不可重复提交");
         }
+        // MA-101：闸门原来只管「同一批次不能提交两次」，同渠道同账期的**另一份**批次全放行。
+        // 而月结 flowBySku 对 (period_label, warehouse_id, op_type) 无条件 sum
+        // （WarehouseMonthlyCloseService），第二份 COMMITTED 直接翻倍盘点/外调口径；
+        // COMMITTED 批次又不可删（见 deleteBatch 的状态闸），错账没有补救入口。
+        ExternalImportBatch committedSibling = batchMapper.selectOne(
+                Wrappers.<ExternalImportBatch>lambdaQuery()
+                        .eq(ExternalImportBatch::getChannelCode, batch.getChannelCode())
+                        .eq(ExternalImportBatch::getPeriodLabel, batch.getPeriodLabel())
+                        .eq(ExternalImportBatch::getStatus, ExternalImportBatch.STATUS_COMMITTED)
+                        .ne(ExternalImportBatch::getBatchId, batchId)
+                        .last("LIMIT 1"));
+        if (committedSibling != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "同渠道同账期已有已提交批次 batchId=" + committedSibling.getBatchId()
+                            + "（" + batch.getChannelCode() + "/" + batch.getPeriodLabel()
+                            + "）；再提交会让月结数量翻倍");
+        }
         ExternalImportTemplate template = requireTemplate(batch.getChannelCode());
         Map<String, String> overrides = request == null || request.personWarehouseOverrides() == null
                 ? Map.of() : request.personWarehouseOverrides();

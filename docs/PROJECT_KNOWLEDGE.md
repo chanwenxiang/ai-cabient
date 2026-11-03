@@ -683,6 +683,33 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-03（80 条 open 逐条回源码复核 → 批次A/B 收口：资金参数限幅单源 + 两条零归因；MA-081 撤账、9 条 500 口径订正、新增 MA-149）
+
+- **先复核再修**：80 条 open（P2×19 / P3×61）全部回源码取证，主会话对每一条要修的证据**亲自重读**。
+  结果：多数为真；**MA-081 不成立**（撞 `uk_user_wx_open_id` 已被 `DataIntegrityViolation→409` 通道还原），
+  9 条「→500」类措辞过期（084/087/096/104/107/108/113/122/125，实际 409/400，真问题是话术泛化），
+  4 条部分成立（071/133/134/143，其中 133 把 refType 当成 entryType、134「永不自愈」措辞不准）。
+  复核中新领 **MA-149**（P2）：`ops:sku:import` 在注解 OR 集里是 V106 已授的**真码**，
+  但服务层只认 `ops:sku:edit` ⇒ 只授「导入商品」的运营建/改商品恒 403（MA-105 同族却更可达）。
+- **资金参数限幅单源**：新增 `support/CommissionParamBounds`（bps 0..`CabinetConstants.SHARE_BPS_FULL`、分/件 0..5000），
+  MA-069（线长 create/update）、MA-090（机器账单点位配置）、MA-100（线路成员三列）三处同批改走它；
+  越界一律 400 且话术指名道姓。**刻意不做成参数配置旋钮**（长期乘数宁可改代码留评审）。
+  防复发：`check:commission-param-bounds`（棘轮双向 + 锚点「写侧文件 <5 即红」），
+  `SiteRentSplitService`/`SiteRentBillService` 两处自带闸先例进白名单并写明原因。
+- **越权写与重复 commit**：MA-068 盘点凭证补 `requireDeviceAccess`（与同文件回看面同规）；
+  MA-077 未知 `ownerType` 原来兜到只读码 `ops:finance:view` 即可写收款账户 ⇒ 白名单（`ops:finance:edit` 本仓不存在，勿臆造）；
+  MA-101 commit 前置查同 (channelCode, periodLabel) 的 COMMITTED 兄弟批次命中即 409，
+  **未加 DB 唯一索引**——现网可能已有重复行，带数据依赖的迁移要先看 count；
+  MA-075 线长审计条件从「三字段」收成整张快照（换绑 userId 不再静默）+ userId 存在性 400；MA-108 幽灵 managerId 400。
+- **零归因两条**：MA-115 OTA 发布/下架落 `OTA_PUBLISH/OTA_UNPUBLISH` 审计（走现成 `admin_audit_log`，**零迁移**；
+  台账「表无列」半句不准——缺的只是 operator 列）；MA-116 一致性修复从 Controller 透传 operator + `CONSISTENCY_FIX` 审计，
+  `error_message` 由整值覆盖改**追加**（巡检成因得以保留），同批收 **MA-124**（FIXED 不重放；两处 `refundOrder` 开始检查返回值，
+  false 不得回报「已退多收」）。
+- 台账数字订正（现算）：共 **148** 行、MA-001~067 实为 67 条（MA-016 wontfix、MA-023 只收展示侧）、
+  open = P2×19 / P3×61（R17-FINAL 记 18/62，漏的 **MA-135** 恰是 P2 字典回填项 ⇒ 按族批量修会真漏一条）。
+- 🧪 验证：新增钉测 21 例（Bounds 4 + 点位配置 7 + 线路成员 8 + OTA 归因 2）+ MA-068/116/124 各 1 例并入既有测试类；
+  `check:commission-param-bounds` 绿并已接入 `check:audit-gates` 聚合链（wiring 自报 87 引用全有定义 / 101 脚本全接线）。
+
 ### 2026-11-03（活栈资金链复验收口 + 争议自动免单后台旋钮；MA-066/067 + MA-148（撞号后改）三条新账）
 
 - 🧪 **活栈资金链复验**（新增 `scripts/e2e-activity-unpaid-collect.ps1`，**49 条判据全绿**，含无活动对照腿）：

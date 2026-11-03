@@ -1,0 +1,10 @@
+{
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentBillService.java": {
+    "count": 1,
+    "reason": "MA-069 之前就有的先例：出账侧用 Math.max(0, bps)/SHARE_BPS_FULL 钳位 + 只读已校验规则，不写运营入参"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentSplitService.java": {
+    "count": 1,
+    "reason": "MA-069 记录里点名的对照先例：doReplaceRules 自带 shareBps 0..10000 + fixedCents ≥ 0 内联 400 闸（:72-84）"
+  }
+}
