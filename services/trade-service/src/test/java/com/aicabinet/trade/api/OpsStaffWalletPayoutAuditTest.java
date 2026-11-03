@@ -55,7 +55,7 @@ class OpsStaffWalletPayoutAuditTest {
         when(staffWalletService.payoutIfAbsent(anyLong(), anyLong(), anyString(), anyString(),
                 anyString(), anyString())).thenReturn(true);
 
-        controller.payout(request, 7781L, body());
+        controller.payout(7781L, body(), request);
 
         verify(auditService).appendLog(eq(9001L), eq("STAFF_WALLET_PAYOUT"), eq("STAFF_WALLET"),
                 eq("7781"), contains("requestNo=REQ-1"));
@@ -67,7 +67,7 @@ class OpsStaffWalletPayoutAuditTest {
         when(staffWalletService.payoutIfAbsent(anyLong(), anyLong(), anyString(), anyString(),
                 anyString(), anyString())).thenReturn(false);
 
-        controller.payout(request, 7781L, body());
+        controller.payout(7781L, body(), request);
 
         verify(auditService, never()).appendLog(any(), anyString(), anyString(), anyString(), anyString());
     }

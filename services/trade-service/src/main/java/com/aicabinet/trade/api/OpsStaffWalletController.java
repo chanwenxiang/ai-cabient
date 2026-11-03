@@ -56,9 +56,9 @@ public class OpsStaffWalletController {
     @Operation(summary = "标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水）")
     @PostMapping("/{staffUserId}/payout")
     @RequiresPermissions("ops:line-manager:edit")
-    public ApiResponse<Boolean> payout(HttpServletRequest request,
-                                       @PathVariable long staffUserId,
-                                       @RequestBody Map<String, Object> body) {
+    public ApiResponse<Boolean> payout(@PathVariable long staffUserId,
+                                       @RequestBody Map<String, Object> body,
+                                       HttpServletRequest request) {
         long amountCents = Long.parseLong(String.valueOf(body.get("amountCents")).trim());
         String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
         // 🔴 幂等键（审计 🔴5）：前端每次打开打款弹窗生成一个 requestNo，重复提交/网络重试
