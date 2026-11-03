@@ -114,7 +114,7 @@
 
 | MA-100 | P2 | fixed（限幅+留痕） | `PUT /ops/admin/line-routes/{routeId}/members` | 线路成员佣金参数（rateBps/perUnitCents/basis）无界零校验直落且零审计，LineCommissionJob 按 bps 计佣直接 creditIfAbsent 入补货员可提现钱包（bps=1000000=100倍GMV）；同族第三例（MA-069 线长佣金/MA-090 机器账单分成），G2-13 已给 LineManager 落了 before/after 审计先例，本端点漏网 | ZCode R12批4 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-101 | P2 | fixed（409 + V435 唯一索引） | `POST /ops/admin/external-import/batches/{id}/commit` | 外部导入同渠道同账期可多批次重复 commit（只挡同批次重提交，无 channel+period 闸，V347 无部分唯一索引），月结 flowBySku 无条件 sum ⇒ 盘点/外调口径翻倍；COMMITTED 批次不可删，错数据无补救只能三倍重导 | ZCode R12批4 / 2026-11-03 | |
-| MA-102 | P3 | open | `POST /ops/admin/warehouse/transfers/{id}/cancel` | 调拨取消零审计零操作者（同单 create/ship/receive 三兄弟全有 WH_TRANSFER_* 审计，表亦无 cancelled_by）；状态机仅 DRAFT，改动零风险 | ZCode R12批4 / 2026-11-03 | |
+| MA-102 | P3 | fixed（留痕已接；调用点断言待补） | `POST /ops/admin/warehouse/transfers/{id}/cancel` | 调拨取消零审计零操作者（同单 create/ship/receive 三兄弟全有 WH_TRANSFER_* 审计，表亦无 cancelled_by）；状态机仅 DRAFT，改动零风险 | ZCode R12批4 / 2026-11-03 | |
 | MA-103 | P3 | fixed（行锁读；真并发 IT 待补） | 月结差异处置 + 效期建补货任务 | `POST /close-sheets/{id}/lines/{lineId}/disposition` 与 `POST /expiry/alerts/{taskId}/create-replenishment` 先读后写无锁无版本：并发双击可双挂索赔台账（两条 inventory_write_off）或双建路线任务；同域标准是锁+FOR UPDATE，本面漏配 | ZCode R12批4 / 2026-11-03 | |
 | MA-104 | P3 | open | `PUT /ops/admin/inventory` | 直写柜机库存汇总零校验（无 @Valid，DTO 零注解）：负数 quantity 污染短缺计算、空 deviceId/skuId 造主键残行；lot 账本设备已被 sync 挡住，非账本老设备暴露 | ZCode R12批4 / 2026-11-03 | |
 | MA-105 | P3 | fixed（收窄注解） | `POST /ops/admin/purchase-orders/{id}/review` | 注解 OR(edit, finance:view) 是死分支——服务端只认 ops:procurement:edit ⇒ 持 finance:view 过注解门后必 403（MA-070 双轨同族，fail-closed 无安全洞但误导权限配置者） | ZCode R12批4 / 2026-11-03 | |
