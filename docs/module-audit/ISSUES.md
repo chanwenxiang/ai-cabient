@@ -115,7 +115,7 @@
 | MA-100 | P2 | fixed（限幅+留痕） | `PUT /ops/admin/line-routes/{routeId}/members` | 线路成员佣金参数（rateBps/perUnitCents/basis）无界零校验直落且零审计，LineCommissionJob 按 bps 计佣直接 creditIfAbsent 入补货员可提现钱包（bps=1000000=100倍GMV）；同族第三例（MA-069 线长佣金/MA-090 机器账单分成），G2-13 已给 LineManager 落了 before/after 审计先例，本端点漏网 | ZCode R12批4 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-101 | P2 | fixed（409 + V435 唯一索引） | `POST /ops/admin/external-import/batches/{id}/commit` | 外部导入同渠道同账期可多批次重复 commit（只挡同批次重提交，无 channel+period 闸，V347 无部分唯一索引），月结 flowBySku 无条件 sum ⇒ 盘点/外调口径翻倍；COMMITTED 批次不可删，错数据无补救只能三倍重导 | ZCode R12批4 / 2026-11-03 | |
 | MA-102 | P3 | fixed（留痕 + 调用点断言） | `POST /ops/admin/warehouse/transfers/{id}/cancel` | 调拨取消零审计零操作者（同单 create/ship/receive 三兄弟全有 WH_TRANSFER_* 审计，表亦无 cancelled_by）；状态机仅 DRAFT，改动零风险。收口：cancel 成功路径 verify 钉住 WH_TRANSFER_CANCEL/操作者/单号 | ZCode R12批4 / 2026-11-03 | |
-| MA-103 | P3 | fixed（行锁读；真并发 IT 待补） | 月结差异处置 + 效期建补货任务 | `POST /close-sheets/{id}/lines/{lineId}/disposition` 与 `POST /expiry/alerts/{taskId}/create-replenishment` 先读后写无锁无版本：并发双击可双挂索赔台账（两条 inventory_write_off）或双建路线任务；同域标准是锁+FOR UPDATE，本面漏配 | ZCode R12批4 / 2026-11-03 | |
+| MA-103 | P3 | fixed（行锁读 + 真并发 IT，含反向对照） | 月结差异处置 + 效期建补货任务 | `POST /close-sheets/{id}/lines/{lineId}/disposition` 与 `POST /expiry/alerts/{taskId}/create-replenishment` 先读后写无锁无版本：并发双击可双挂索赔台账（两条 inventory_write_off）或双建路线任务；同域标准是锁+FOR UPDATE，本面漏配 | ZCode R12批4 / 2026-11-03 | |
 | MA-104 | P3 | fixed（非空 + 非负写侧闸） | `PUT /ops/admin/inventory` | 直写柜机库存汇总零校验（无 @Valid，DTO 零注解）：负数 quantity 污染短缺计算、空 deviceId/skuId 造主键残行；lot 账本设备已被 sync 挡住，非账本老设备暴露 | ZCode R12批4 / 2026-11-03 | |
 | MA-105 | P3 | fixed（收窄注解） | `POST /ops/admin/purchase-orders/{id}/review` | 注解 OR(edit, finance:view) 是死分支——服务端只认 ops:procurement:edit ⇒ 持 finance:view 过注解门后必 403（MA-070 双轨同族，fail-closed 无安全洞但误导权限配置者） | ZCode R12批4 / 2026-11-03 | |
 | MA-106 | P3 | fixed（未知 lineId fail-closed 400） | `POST /ops/admin/warehouse/transfers/{id}/receive` | 收货登记未知/缺 lineId 的行被静默按「全部到齐」入账（reported map miss → 按发运量全额入库）——在途损耗黑洞恰是 V314 要堵的场景；应校验 lineId 全部 ∈ 本单行 | ZCode R12批4 / 2026-11-03 | |
@@ -1134,3 +1134,10 @@
 > `class redefinition failed` / `NoClassDefFoundError` / `Could not modify all classes`（Mockito/ByteBuddy 类加载态被并发改写）。
 > 已按纪律重跑 `mvn -pl services/trade-service -am clean test` 单独验证，结论以那次为准。
 > 教训与 #390 同源：**同一模块内任何时刻只能有一个 mvn**。
+
+### 批次 M｜MA-103 真并发 IT（含反向对照）
+
+- 新增 `CloseClaimAndExpiryTaskRowLockSqlIT`：Testcontainers PG + Redis，两条腿各起 2 线程、同一闸门外放行打**同一行**。
+- 判据（有锁态）：`inventory_write_off`（按本次 claimNo）恰 1 行、`replenishment_task` 中 `notes LIKE 'from-exppiry:<taskId>%'` 恰 1 条；两个结果**必为 1 成功 + 1 个 409**（409 由服务层「已处置/已处理」判据给出，不是时间错开的运气）；行状态 CLAIM + `claim_write_off_id` 回写、告警 RESOLVED + `resolved_at`。实测 2/2 绿。
+- **反向对照（证明这条 IT 能抓缺陷，不是同义反复）**：临时把两处读改回无锁 `selectById`（其余逻辑不动）重跑 ⇒ **两条腿同时红**，原文 `同一盘亏行挂出多笔索赔台账 … expected: <1> but was: <2>`、`同一条临期告警双建补货任务 … expected: <1> but was: <2>`——正是台账写的双挂本体。改完立即 `git checkout --` 复原（已核：`NEGATIVE-CONTROL` 计数 0，工作树该两文件无残留）。
+- 播种教训：`pull_off_task.device_id` 有 FK，而 V2 的演示设备在后续清库迁移里已被删 ⇒ 首跑 `DataIntegrityViolation`。IT 自播 device/sku/warehouse（`ON CONFLICT DO NOTHING`），不依赖演示数据。
