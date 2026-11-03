@@ -11,6 +11,19 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
 
+    /**
+     * 写路径行锁读（MA-103）。{@code ReplenishmentService.createTaskFromPullOff} 原来是
+     * {@code findById → 判 OPEN → 建路线+任务+RESTOCK 行 → 置 RESOLVED}，
+     * 两个并发请求都读到 OPEN ⇒ 同一条临期告警**双建补货任务**（重复出勤、重复扣货）。
+     * 行锁后第二个事务醒来已是 RESOLVED ⇒ 走既有「该临期告警已处理」409。
+     */
+    default Optional<PullOffTask> findByIdForUpdate(Long taskId) {
+        return Optional.ofNullable(selectOne(
+                Wrappers.<PullOffTask>lambdaQuery()
+                        .eq(PullOffTask::getTaskId, taskId)
+                        .last("FOR UPDATE")));
+    }
+
     default long countByStatus(String status) {
     Long c = selectCount(Wrappers.<PullOffTask>lambdaQuery().eq(PullOffTask::getStatus, status));
     return c == null ? 0 : c;

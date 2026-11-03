@@ -162,7 +162,10 @@ public class WarehouseMonthlyCloseSheetService {
         if (!WarehouseMonthlyCloseSheet.STATUS_APPROVED.equals(sheet.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "月结单审批后才可处置差异");
         }
-        WarehouseMonthlyCloseLine line = lineMapper.selectById(lineId);
+        // MA-103：行锁读。原来是 selectById → 判 PENDING → insert 索赔台账 → updateById，
+        // 并发双击同一行会各读到一次 PENDING，于是同一条盘亏挂出两笔 inventory_write_off
+        // （索赔=资金动作），而处置在设计上不可逆。锁本行后，后到的事务醒来看到 CLAIM ⇒ 走下面那条 409。
+        WarehouseMonthlyCloseLine line = lineMapper.findByIdForUpdate(lineId).orElse(null);
         if (line == null || !closeId.equals(line.getCloseId())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "月结行不存在");
         }

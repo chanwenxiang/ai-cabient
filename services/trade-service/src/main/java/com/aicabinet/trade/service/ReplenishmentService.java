@@ -1601,7 +1601,10 @@ public class ReplenishmentService {
     @Transactional
     public ReplenishmentRouteDto createTaskFromPullOff(Long operatorId, Long pullOffTaskId,
                                                        CreateFromExpiryRequest request) {
-        PullOffTask pull = pullOffTaskRepository.findById(pullOffTaskId)
+        // MA-103：行锁读「临期告警」这一行再做判-建-改。原来 findById 后判 OPEN 就建路线+任务+RESTOCK 行，
+        // 并发双击 = 同一条告警双建补货任务（重复出勤、重复扣货）。锁行后第二个事务看到 RESOLVED ⇒ 409。
+        // 刻意不给 pull_off_task 加 @Version：那要迁移加列，且会把「判后写」变成需要到处处理重试的乐观锁语义。
+        PullOffTask pull = pullOffTaskRepository.findByIdForUpdate(pullOffTaskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "临期告警不存在"));
         if (!"OPEN".equalsIgnoreCase(pull.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该临期告警已处理");

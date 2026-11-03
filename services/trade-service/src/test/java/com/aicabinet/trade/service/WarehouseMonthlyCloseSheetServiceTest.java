@@ -58,6 +58,10 @@ class WarehouseMonthlyCloseSheetServiceTest {
 
     @BeforeEach
     void setUp() {
+        // MA-103：服务改成行锁读 findByIdForUpdate；Mockito 不委托接口 default 方法，
+        // 不 stub 就返回空 Optional ⇒ 用例全变「月结行不存在」404。代理回 selectById，保留各用例原打桩。
+        org.mockito.Mockito.lenient().when(lineMapper.findByIdForUpdate(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> java.util.Optional.ofNullable(lineMapper.selectById(inv.getArgument(0))));
         service = new WarehouseMonthlyCloseSheetService(
                 sheetMapper, lineMapper, closeCalculator, skuCatalogMapper, writeOffMapper,
                 userInfoMapper, warehouseMapper);

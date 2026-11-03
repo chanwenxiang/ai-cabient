@@ -54,6 +54,11 @@ class ReplenishmentServiceOutboundTest {
 
     @BeforeEach
     void setUp() {
+        // MA-103：服务改成行锁读 findByIdForUpdate；Mockito 不会把接口 default 方法委托给真实实现，
+        // 不显式 stub 就会返回空 Optional ⇒ 全部用例变成「临期告警不存在」404。这里代理回 findById，
+        // 保留各用例原有的 findById(77L) 打桩不动。
+        lenient().when(pullOffTaskRepository.findByIdForUpdate(any()))
+                .thenAnswer(inv -> pullOffTaskRepository.findById(inv.getArgument(0)));
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
