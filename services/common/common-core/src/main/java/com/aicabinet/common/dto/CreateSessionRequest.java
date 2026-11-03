@@ -1,10 +1,11 @@
 package com.aicabinet.common.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record CreateSessionRequest(
         @NotBlank String deviceId,
-        @NotBlank String idempotencyKey,
+        @NotBlank @Size(max = 128) String idempotencyKey,
         String entryChannel,
         Long preferredCouponId
 ) {

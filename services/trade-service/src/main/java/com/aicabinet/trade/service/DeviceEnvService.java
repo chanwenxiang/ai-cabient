@@ -71,14 +71,29 @@ public class DeviceEnvService {
                 .toList();
     }
 
+    /** MA-120：各读数的物理合理区间；越界值是固件异常读数，钳进区间防止污染环境看板。 */
+    private static final java.util.Map<String, double[]> ENV_BOUNDS = java.util.Map.of(
+            METRIC_HUMIDITY, new double[]{0, 100},
+            METRIC_VOLTAGE, new double[]{0, 1000},
+            METRIC_POWER, new double[]{0, 100_000});
+
     private void recordIfPresent(String deviceId, String metricType, Double value) {
         if (deviceId == null || deviceId.isBlank() || value == null) {
             return;
         }
+        // MA-120：NaN/Infinity 会让 BigDecimal.valueOf 抛异常 → 心跳 500（且发生在 presence 更新之后）
+        if (!Double.isFinite(value)) {
+            return;
+        }
+        double bounded = value;
+        double[] bounds = ENV_BOUNDS.get(metricType);
+        if (bounds != null) {
+            bounded = Math.max(bounds[0], Math.min(bounds[1], value));
+        }
         DeviceEnvReading row = new DeviceEnvReading();
         row.setDeviceId(deviceId);
         row.setMetricType(metricType);
-        row.setValue(BigDecimal.valueOf(value).setScale(2, java.math.RoundingMode.HALF_UP));
+        row.setValue(BigDecimal.valueOf(bounded).setScale(2, java.math.RoundingMode.HALF_UP));
         row.setReportedAt(Instant.now());
         readingRepository.insert(row);
     }

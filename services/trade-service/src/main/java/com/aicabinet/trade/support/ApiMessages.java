@@ -266,6 +266,11 @@ public final class ApiMessages {
         if (max.matches()) {
             return label + "不能高于" + max.group(1);
         }
+        // MA-126：@Positive 默认消息（must be greater than 0，无 "or equal to"）此前不匹配上面
+        // 两个 Pattern，落兜底被误报成「xxx不能为空」——R17 活栈实测提现 amountCents=0/-500 即此。
+        if ("must be greater than 0".equals(trimmed)) {
+            return label + "必须大于0";
+        }
         if (trimmed.startsWith(label)) {
             return trimmed;
         }

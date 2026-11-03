@@ -152,7 +152,12 @@ public class MediaAssetService {
         asset.setTitle(request.title().trim());
         asset.setDurationSeconds(Math.max(0, request.durationSeconds()));
         if (request.status() != null && !request.status().isBlank()) {
-            asset.setStatus(request.status().trim().toUpperCase());
+            // MA-084：status 落白名单——垃圾值静默从全部 ACTIVE 过滤面消失，超 16 字符 22001→500
+            String status = request.status().trim().toUpperCase();
+            if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
+            }
+            asset.setStatus(status);
         }
         assetRepository.updateById(asset);
         auditService.appendLog(operatorId, "MEDIA_ASSET_UPDATE", "MEDIA_ASSET", String.valueOf(assetId),

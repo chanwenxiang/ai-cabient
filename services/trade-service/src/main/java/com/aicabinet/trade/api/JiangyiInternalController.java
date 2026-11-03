@@ -21,6 +21,8 @@ import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import com.aicabinet.trade.service.JiangyiRecognitionReportService;
 import com.aicabinet.trade.service.JiangyiRecognitionTimeoutService;
 import com.aicabinet.trade.service.SkuJiangyiLinkService;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
@@ -347,8 +349,19 @@ public class JiangyiInternalController {
         mapping.setModelName(body.modelName());
         mapping.setTextName(body.textName());
         mapping.setSkuId(body.skuId());
-        mapping.setStatus(body.status() == null || body.status().isBlank() ? "DISABLED" : body.status());
-        mapping.setSource(body.source() == null || body.source().isBlank() ? "MANUAL" : body.source());
+        // MA-121：status/source 落白名单——"active" 小写会写成永久死行（识别解析不认）
+        String status = body.status() == null || body.status().isBlank()
+                ? "DISABLED" : body.status().trim().toUpperCase();
+        if (!"ACTIVE".equals(status) && !"DISABLED".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/DISABLED");
+        }
+        String source = body.source() == null || body.source().isBlank()
+                ? "MANUAL" : body.source().trim().toUpperCase();
+        if (!"MANUAL".equals(source) && !"MODEL_SYNC".equals(source)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "source 仅支持 MANUAL/MODEL_SYNC");
+        }
+        mapping.setStatus(status);
+        mapping.setSource(source);
         return ApiResponse.ok(jiangyiClassMappingService.upsert(null, mapping));
     }
 
@@ -406,7 +419,9 @@ public class JiangyiInternalController {
 
     @PostMapping("/onboarding/register")
     public ApiResponse<JiangyiDevice> register(@RequestBody RegisterRequest body) {
-        return ApiResponse.ok(jiangyiOnboardingService.register(
+        // MA-121：直连底层 register 会给不存在于设备管理的柜机造将邑绑定行；
+        // 运营面 registerForDevice 有「柜机档案存在」闸，内部面同闸（fail-closed）
+        return ApiResponse.ok(jiangyiOnboardingService.registerForDevice(
                 body.deviceId(), body.deviceSn(), body.modelName()));
     }
 

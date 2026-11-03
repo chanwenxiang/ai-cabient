@@ -67,6 +67,8 @@ public class MemberLevelAdminService {
     }
 
     private MemberLevelRuleDto doUpsert(Long operatorId, MemberLevelRuleDto dto, String code) {
+        // MA-095：写侧口径对齐读侧——区间倒挂=静默死档、负倍率=该档返积分恒 0、status 自由串静默失效
+        requireLevelParams(dto);
         MemberLevelRule rule;
         if (dto.id() != null) {
             rule = levelRuleRepository.findByIdForUpdate(dto.id())
@@ -106,6 +108,37 @@ public class MemberLevelAdminService {
                         + ",minPoints=" + saved.minPoints() + ",pointsRate=" + saved.pointsRate()
                         + ",priceDiscountPct=" + saved.priceDiscountPct() + ",status=" + saved.status());
         return saved;
+    }
+
+    /** MA-095：区间/倍率/折扣/状态写侧闸（读侧 priceDiscountPct 有 ≤90 钳制，写侧对齐）。 */
+    private static void requireLevelParams(MemberLevelRuleDto dto) {
+        if (dto.minSpent() != null && dto.minSpent().signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minSpent 不能为负");
+        }
+        if (dto.maxSpent() != null && dto.maxSpent().signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "maxSpent 不能为负");
+        }
+        if (dto.minSpent() != null && dto.maxSpent() != null
+                && dto.minSpent().compareTo(dto.maxSpent()) >= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minSpent 必须小于 maxSpent");
+        }
+        if (dto.minPoints() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minPoints 不能为负");
+        }
+        if (dto.pointsRate() != null && dto.pointsRate().signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "pointsRate 不能为负（负数=该档返积分恒 0 的死档）");
+        }
+        if (dto.priceDiscountPct() != null
+                && (dto.priceDiscountPct().signum() < 0
+                    || dto.priceDiscountPct().compareTo(BigDecimal.valueOf(90)) > 0)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "priceDiscountPct 须在 0-90 之间");
+        }
+        if (dto.status() != null && !dto.status().isBlank()) {
+            String status = dto.status().trim().toUpperCase();
+            if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(status) && !"INACTIVE".equals(status)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
+            }
+        }
     }
 
     @Transactional

@@ -249,6 +249,16 @@ public class ReplenishmentService {
 
     public DeviceInventoryDto upsertInventory(Long operatorId, DeviceInventoryDto body) {
 
+        // MA-104：负 quantity 污染短缺计算、空 deviceId/skuId 造主键残行——写侧闸
+        if (body.deviceId() == null || body.deviceId().isBlank()
+                || body.skuId() == null || body.skuId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "deviceId/skuId 必填");
+        }
+        if (body.quantity() < 0 || body.capacity() < 0 || body.lowThreshold() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "quantity/capacity/lowThreshold 不能为负");
+        }
+
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(body.deviceId(), body.skuId());
 
         var existing = inventoryRepository.findById(id);

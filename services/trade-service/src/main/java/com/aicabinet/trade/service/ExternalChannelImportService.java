@@ -120,6 +120,14 @@ public class ExternalChannelImportService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "该渠道人员来源=人工指定，请填写线长姓名");
         }
+        if (manualPerson && personOverride.trim().length() > 60) {
+            // MA-114：person_override VARCHAR(60)，超长是 22001→500
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "线长姓名最长 60 字");
+        }
+        if (manualPerson && personOverride.trim().length() > 60) {
+            // MA-114：person_override VARCHAR(60)，超长是 22001→500
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "线长姓名最长 60 字");
+        }
         ExternalChannelFileParser.ParseResult parsed =
                 fileParser.parse(content, fileName, template, manualPerson ? personOverride.trim() : null);
         if (parsed.rows().isEmpty()) {

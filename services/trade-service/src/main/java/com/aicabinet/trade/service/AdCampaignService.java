@@ -104,6 +104,11 @@ public class AdCampaignService {
     }
 
     private AdCampaignDto doUpsert(Long operatorId, Long campaignId, UpsertAdCampaignRequest request) {
+        // MA-086：时间窗倒挂静默接受=计划永不生效、轮播静默空转（对齐同域 Promotion 校验）
+        if (request.startAt() != null && request.endAt() != null
+                && !request.endAt().isAfter(request.startAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "结束时间需晚于开始时间");
+        }
         if (request.assetIds() == null || request.assetIds().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划至少需要一个素材");
         }

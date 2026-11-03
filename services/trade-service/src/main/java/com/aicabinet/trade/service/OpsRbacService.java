@@ -361,7 +361,8 @@ public class OpsRbacService {
         rolePermissionRepository.deleteByIdRoleId(roleId);
         java.util.List<String> assignedCodes = new java.util.ArrayList<>();
         if (permissionIds != null) {
-            for (Long permissionId : permissionIds) {
+            // MA-071：重复 ID 撞复合主键 500，去重后幂等接受
+            for (Long permissionId : java.util.List.copyOf(new java.util.LinkedHashSet<>(permissionIds))) {
                 OpsPermission permission = permissionRepository.findById(permissionId)
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 ApiMessages.INVALID_REQUEST + "：permissionId=" + permissionId));
@@ -625,7 +626,12 @@ public class OpsRbacService {
         }
         userRoleRepository.deleteByIdUserId(userId);
         StringBuilder roleKeys = new StringBuilder();
-        for (OpsRole role : resolved) {
+        // MA-071：重复 roleId 撞复合主键 500，按 roleId 去重
+        java.util.List<OpsRole> distinctRoles = resolved.stream()
+                .collect(java.util.stream.Collectors.toMap(OpsRole::getRoleId, r -> r,
+                        (a, b) -> a, java.util.LinkedHashMap::new))
+                .values().stream().toList();
+        for (OpsRole role : distinctRoles) {
             userRoleRepository.insert(new OpsUserRole(userId, role.getRoleId()));
             if (roleKeys.length() > 0) {
                 roleKeys.append(',');
@@ -672,7 +678,8 @@ public class OpsRbacService {
         userMerchantRepository.deleteByIdUserId(userId);
         List<String> after = new ArrayList<>();
         if (merchantIds != null) {
-            for (String merchantId : merchantIds) {
+            // MA-071：重复 merchantId 撞复合主键 500，去重后幂等接受
+            for (String merchantId : new java.util.LinkedHashSet<>(merchantIds)) {
                 if (merchantId == null || merchantId.isBlank()) {
                     continue;
                 }

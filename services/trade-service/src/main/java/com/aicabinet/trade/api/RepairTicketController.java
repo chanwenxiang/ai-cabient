@@ -8,7 +8,9 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.RepairTicketService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -91,13 +93,21 @@ public class RepairTicketController {
             @RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
         List<Object> rawIds = (List<Object>) body.getOrDefault("ticketIds", List.of());
-        List<Long> ids = rawIds.stream()
-                .map(o -> Long.valueOf(String.valueOf(o)))
-                .toList();
+        List<Long> ids;
+        try {
+            ids = rawIds.stream()
+                    .map(o -> Long.valueOf(String.valueOf(o)))
+                    .toList();
+        } catch (NumberFormatException e) {
+            // MA-113：非数字 ticketIds 此前 NumberFormatException→500
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ticketIds 必须是数字");
+        }
+        Object assignee = body.get(ASSIGNEE);
         return ApiResponse.ok(repairTicketService.batchAssign(
                 operator(request),
                 ids,
-                String.valueOf(body.getOrDefault(ASSIGNEE, ""))));
+                // MA-113：{"assignee": null} 经 String.valueOf 会变成字面量 "null" 入库
+                assignee == null ? "" : String.valueOf(assignee)));
     }
 
     @RequiresPermissions("ops:repair:edit")

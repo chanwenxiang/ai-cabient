@@ -252,6 +252,10 @@ public class SysDictService {
     public void deleteType(Long operatorId, String dictType) {
         permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
         String type = requireText(dictType, "字典类型").trim();
+        // MA-079：内置类型（org_node_type 等）是代码侧白名单权威来源，硬删后 fail-open 放行任意值
+        if (SysDictBootstrap.isBuiltinDictType(type)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "代码内置字典类型不可删除：" + type);
+        }
         runWithDictTypeLock(type, () -> {
             SysDictType entity = typeRepository.findByIdForUpdate(type)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "字典类型不存在"));

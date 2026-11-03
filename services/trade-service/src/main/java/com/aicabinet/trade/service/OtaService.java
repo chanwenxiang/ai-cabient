@@ -82,17 +82,30 @@ public class OtaService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "checksumSha256 必填且须为 64 位十六进制（edge 端强制校验）");
         }
+        // MA-125：channel 落白名单——拼错（"stabel"）会让发布静默不可见
+        String channel = body.channel() == null || body.channel().isBlank()
+                ? "stable" : body.channel().trim().toLowerCase();
+        if (!"stable".equals(channel) && !"beta".equals(channel)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支持 stable/beta");
+        }
         OtaRelease release = new OtaRelease();
         release.setAppVersion(body.appVersion());
-        release.setChannel(body.channel() != null ? body.channel() : "stable");
+        release.setChannel(channel);
         release.setDownloadUrl(body.downloadUrl());
         release.setObjectStorageUri(body.objectStorageUri());
         release.setChecksumSha256(checksum);
         release.setReleaseNotes(body.releaseNotes());
         release.setMandatory(body.mandatory());
         release.setMinVersion(body.minVersion());
-        release.setGrayPercent(body.grayPercent() > 0 ? body.grayPercent() : 100);
-        release.setPresignTtlSeconds(body.presignTtlSeconds() > 0 ? body.presignTtlSeconds() : 3600);
+        // MA-125：grayPercent 钳 0-100（未传仍按 100 全量）；presignTtlSeconds 设上界（防配出一年有效预签名）
+        release.setGrayPercent(body.grayPercent() > 0 ? Math.min(100, body.grayPercent()) : 100);
+        release.setPresignTtlSeconds(body.presignTtlSeconds() > 0
+                ? Math.min(86_400, body.presignTtlSeconds()) : 3600);
+        if (releaseRepository.findByVersionAndChannel(release.getAppVersion(), channel) != null) {
+            // MA-125：重复版本此前撞唯一索引 500
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该版本在 " + channel + " 渠道已存在，请换版本号或走更新");
+        }
         if (body.deviceAllowlist() != null && !body.deviceAllowlist().isEmpty()) {
             try {
                 release.setDeviceAllowlist(objectMapper.writeValueAsString(body.deviceAllowlist()));

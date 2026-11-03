@@ -131,17 +131,44 @@ public class AnnouncementService {
 
     @Transactional
     public Announcement create(String title, String content, String targetScope, String priority, Long operatorId) {
+        // MA-122：create 此前零校验——title>256 / priority>8 字符 22001→500，scope 拼错静默不可见
+        requireAnnouncementFields(title, content, targetScope, priority);
         Announcement a = new Announcement();
-        a.setTitle(title);
+        a.setTitle(title.trim());
         a.setContent(content);
         a.setAnnounceType("SYSTEM");
-        a.setTargetScope(targetScope != null ? targetScope : "ALL");
-        a.setPriority(priority != null ? priority : "NORMAL");
+        a.setTargetScope(targetScope != null ? targetScope.trim().toUpperCase() : "ALL");
+        a.setPriority(priority != null ? priority.trim().toUpperCase() : "NORMAL");
         a.setStatus("DRAFT");
         a.setOperatorId(operatorId);
         repository.save(a);
         log.info("announcement created id={} title={}", a.getAnnounceId(), title);
         return a;
+    }
+
+    /** MA-122：标题 ≤256 / targetScope 与 priority 白名单（列宽 256/32/8，超限是 22001→500）。 */
+    private void requireAnnouncementFields(String title, String content, String targetScope, String priority) {
+        if (title == null || title.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题不能为空");
+        }
+        if (title.trim().length() > 256) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题最长 256 字");
+        }
+        if (content == null || content.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内容不能为空");
+        }
+        if (targetScope != null && !targetScope.isBlank()
+                && !Set.of("ALL", "MERCHANT", "CONSUMER")
+                        .contains(targetScope.trim().toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "targetScope 仅支持 ALL/MERCHANT/CONSUMER");
+        }
+        if (priority != null && !priority.isBlank()
+                && !Set.of("LOW", "NORMAL", "HIGH", "URGENT")
+                        .contains(priority.trim().toUpperCase())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "priority 仅支持 LOW/NORMAL/HIGH/URGENT");
+        }
     }
 
     @Transactional
@@ -158,19 +185,18 @@ public class AnnouncementService {
         if ("ARCHIVED".equals(a.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已归档公告不可编辑");
         }
-        if (title == null || title.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题不能为空");
-        }
+        // MA-122：update 与 create 同一套字段校验
+        requireAnnouncementFields(title, content, targetScope, priority);
         if (content == null || content.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "内容不能为空");
         }
         a.setTitle(title.trim());
         a.setContent(content.trim());
         if (targetScope != null && !targetScope.isBlank()) {
-            a.setTargetScope(targetScope.trim());
+            a.setTargetScope(targetScope.trim().toUpperCase());
         }
         if (priority != null && !priority.isBlank()) {
-            a.setPriority(priority.trim());
+            a.setPriority(priority.trim().toUpperCase());
         }
         a.setUpdatedAt(Instant.now());
         repository.save(a);

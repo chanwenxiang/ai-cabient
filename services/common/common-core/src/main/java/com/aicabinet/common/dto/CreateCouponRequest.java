@@ -1,14 +1,16 @@
 package com.aicabinet.common.dto;
 
+import jakarta.validation.constraints.Size;
+
 public record CreateCouponRequest(
-    String couponName,
+    @Size(max = 128) String couponName,
     String couponType,
     int denominationCents,
     int minSpendCents,
     Integer discountPercent,
     int validityDays,
     int maxIssueCount,
-    String description,
+    @Size(max = 500) String description,
     Long activityId,
     /** V319 券可用范围类型：ALL / DEVICE / MERCHANT。空白按 ALL（不限制）。 */
     String scopeType,

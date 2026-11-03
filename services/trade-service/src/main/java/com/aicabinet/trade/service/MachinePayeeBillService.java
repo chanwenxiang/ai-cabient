@@ -47,13 +47,16 @@ public class MachinePayeeBillService {
     private final MachinePositionConfigMapper configMapper;
     private final MachinePayeeBillMapper billMapper;
     private final CabinetOrderMapper orderMapper;
+    private final AdminAuditService auditService;
 
     public MachinePayeeBillService(MachinePositionConfigMapper configMapper,
                                    MachinePayeeBillMapper billMapper,
-                                   CabinetOrderMapper orderMapper) {
+                                   CabinetOrderMapper orderMapper,
+                                   AdminAuditService auditService) {
         this.configMapper = configMapper;
         this.billMapper = billMapper;
         this.orderMapper = orderMapper;
+        this.auditService = auditService;
     }
 
     /** 出某账期（上月）机器账单，返回生成笔数。唯一键幂等，重复执行只补缺失项。 */
@@ -139,8 +142,8 @@ public class MachinePayeeBillService {
                 .orderByDesc(MachinePayeeBill::getBillId));
     }
 
-    /** 标记结清（线下收款后）。 */
-    public void settle(Long billId) {
+    /** 标记结清（线下收款后）。MA-091：资金处置动作补操作者归因。 */
+    public void settle(Long operatorId, Long billId) {
         MachinePayeeBill bill = billMapper.selectById(billId);
         if (bill == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "账单不存在");
@@ -148,6 +151,8 @@ public class MachinePayeeBillService {
         bill.setStatus("SETTLED");
         bill.setSettledAt(Instant.now());
         billMapper.updateById(bill);
+        auditService.appendLog(operatorId, "MACHINE_PAYEE_BILL_SETTLE", "MACHINE_PAYEE_BILL",
+                String.valueOf(billId), "billMonth=" + bill.getBillMonth());
     }
 
     /** 点位费用配置（按柜）。 */

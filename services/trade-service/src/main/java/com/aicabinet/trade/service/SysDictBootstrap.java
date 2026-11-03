@@ -135,6 +135,11 @@ public class SysDictBootstrap implements ApplicationRunner {
 
     private record SeedType(String name, Map<String, String> items) {}
 
+    /** MA-079：代码内置字典类型（OrgService 等以它为写入白名单），运营台不得硬删。 */
+    public static boolean isBuiltinDictType(String dictType) {
+        return seedCatalog().containsKey(dictType);
+    }
+
     private static Map<String, SeedType> seedCatalog() {
         Map<String, SeedType> map = new LinkedHashMap<>();
         map.put("device_type", t("设备类型", m("AI_CABINET_V1", "AI智能柜 V1")));

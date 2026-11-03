@@ -5,6 +5,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.MachinePayeeBill;
 import com.aicabinet.trade.domain.MachinePositionConfig;
 import com.aicabinet.trade.service.MachinePayeeBillService;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -17,7 +18,8 @@ import java.util.List;
 /**
  * 机器账单（付场地方，V356）：列表 / 手动出账 / 标记结清 / 点位费用配置。
  * 权限沿用设备域口径（ops:device:list 查看 / ops:device:edit 操作），费用项随时可改。
- * 查询/处置逻辑在 {@link MachinePayeeBillService}（架构门禁：Controller 禁直调 Mapper）。
+ * 查询/处置逻辑在 {@link MachinePayeeBillService}
+ * （架构门禁：Controller 禁直调 Mapper）。
  */
 @Tag(name = "Ops 机器账单（付场地方）")
 @RestController
@@ -42,14 +44,24 @@ public class OpsMachinePayeeBillController {
     @PostMapping("/generate")
     @RequiresPermissions("ops:device:edit")
     public ApiResponse<Integer> generate(@RequestParam("billMonth") String billMonth) {
-        return ApiResponse.ok(billService.generateMonthly(YearMonth.parse(billMonth)));
+        // MA-094：裸 YearMonth.parse 非法账期 DateTimeParseException→500；顺带拦未来账期
+        YearMonth month;
+        try {
+            month = YearMonth.parse(billMonth.trim());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "billMonth 须为 YYYY-MM");
+        }
+        if (month.isAfter(YearMonth.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "billMonth 不能是未来账期");
+        }
+        return ApiResponse.ok(billService.generateMonthly(month));
     }
 
     @Operation(summary = "标记结清（线下收款后）")
     @PostMapping("/{billId}/settle")
     @RequiresPermissions("ops:device:edit")
-    public ApiResponse<Void> settle(@PathVariable Long billId) {
-        billService.settle(billId);
+    public ApiResponse<Void> settle(HttpServletRequest request, @PathVariable Long billId) {
+        billService.settle(operatorId(request), billId);
         return ApiResponse.ok(null);
     }
 
@@ -66,5 +78,9 @@ public class OpsMachinePayeeBillController {
     public ApiResponse<Void> saveConfig(@PathVariable String deviceId, @RequestBody MachinePositionConfig cfg) {
         billService.saveConfig(deviceId, cfg);
         return ApiResponse.ok(null);
+    }
+
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID);
     }
 }

@@ -124,6 +124,8 @@ public class OrgService {
         if (request.parentId() != null && request.parentId().equals(request.nodeId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不能是自己");
         }
+        // MA-080：parent_id 无 FK——悬空父/祖先环会让节点双双缺席 roots，整棵子树从 /org/tree 静默消失
+        validateParentNode(request.nodeId(), request.parentId());
         OpsOrgNode node;
         if (request.nodeId() == null) {
             node = new OpsOrgNode();
@@ -150,6 +152,26 @@ public class OrgService {
                     String.valueOf(node.getNodeId()), NAME + name);
         }
         return toDto(node, deviceOrgRepository.findByNodeId(node.getNodeId()));
+    }
+
+    /** MA-080：父级存在性 + 祖先环检测（对照 DepartmentService.validateParentDepartment 三件套）。 */
+    private void validateParentNode(Long nodeId, Long parentId) {
+        if (parentId == null) {
+            return;
+        }
+        OpsOrgNode parent = nodeRepository.selectById(parentId);
+        if (parent == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级组织不存在");
+        }
+        Long cursor = parentId;
+        int guard = 0;
+        while (cursor != null && guard++ < 64) {
+            if (cursor.equals(nodeId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能将上级设为自己的下级（会成环）");
+            }
+            OpsOrgNode p = nodeRepository.selectById(cursor);
+            cursor = p == null ? null : p.getParentId();
+        }
     }
 
     @Transactional

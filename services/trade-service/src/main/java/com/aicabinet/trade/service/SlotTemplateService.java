@@ -47,6 +47,7 @@ public class SlotTemplateService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceInfoMapper deviceRepository;
     private final SkuSceneLimitService skuSceneLimitService;
+    private final DeviceSlotService deviceSlotService;
 
     public SlotTemplateService(SlotTemplateMapper templateRepository,
                                SlotTemplateLineMapper lineRepository,
@@ -54,7 +55,8 @@ public class SlotTemplateService {
                                DeviceSkuPriceMapper priceRepository,
                                SkuCatalogMapper skuCatalogRepository,
                                DeviceInfoMapper deviceRepository,
-                               SkuSceneLimitService skuSceneLimitService) {
+                               SkuSceneLimitService skuSceneLimitService,
+                               DeviceSlotService deviceSlotService) {
         this.templateRepository = templateRepository;
         this.lineRepository = lineRepository;
         this.slotRepository = slotRepository;
@@ -62,6 +64,7 @@ public class SlotTemplateService {
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceRepository = deviceRepository;
         this.skuSceneLimitService = skuSceneLimitService;
+        this.deviceSlotService = deviceSlotService;
     }
 
     /** 模板 + 行全量（运营台列表用）。 */
@@ -134,6 +137,11 @@ public class SlotTemplateService {
         if (template == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "模板不存在：" + templateId);
         }
+        // MA-107：套用此前绕过「开门柜无货道」写守卫，且目标设备不存在是 FK 500 而非 400
+        if (deviceRepository.findById(targetDeviceId).orElse(null) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标设备不存在：" + targetDeviceId);
+        }
+        deviceSlotService.assertNotDoorCabinet(targetDeviceId);
         List<SlotTemplateLine> lines = lineRepository.findByTemplateId(templateId);
         // 场景上架限额（CB-049 扩展）：套用路径超限跳过该行（不炸事务，与机型模板同语义）；
         // 柜子无场景 / 商品无该场景条目 = 不限制

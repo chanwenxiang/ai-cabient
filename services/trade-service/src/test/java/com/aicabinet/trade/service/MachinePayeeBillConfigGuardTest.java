@@ -38,7 +38,8 @@ class MachinePayeeBillConfigGuardTest {
 
     @BeforeEach
     void setUp() {
-        service = new MachinePayeeBillService(configMapper, billMapper, null);
+        service = new MachinePayeeBillService(configMapper, billMapper, null,
+                org.mockito.Mockito.mock(AdminAuditService.class));
         when(configMapper.selectById("DEV-1")).thenReturn(null);
     }
 

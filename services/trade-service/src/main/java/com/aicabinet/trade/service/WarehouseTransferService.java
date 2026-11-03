@@ -182,6 +182,17 @@ public class WarehouseTransferService {
                 : command.lines().stream().collect(java.util.stream.Collectors.toMap(
                         ReceiveLine::lineId, l -> l, (a, b) -> a));
 
+        // MA-106：登记里未知/不属于本单的 lineId 此前被静默忽略，其损耗数字凭空消失
+        // （在途损耗黑洞正是 V314 要堵的场景）——fail-closed
+        java.util.Set<Long> knownLineIds = lineMapper.findByTransferId(transferId).stream()
+                .map(WarehouseTransferLine::getLineId)
+                .collect(java.util.stream.Collectors.toSet());
+        for (Long reportedLineId : reported.keySet()) {
+            if (!knownLineIds.contains(reportedLineId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "收货登记包含不属于本调拨单的行：lineId=" + reportedLineId);
+            }
+        }
         for (WarehouseTransferLine line : lineMapper.findByTransferId(transferId)) {
             ReceiveLine r = reported.get(line.getLineId());
             // 校验 + 归一化（算术护栏在 TransferLossValidator，可单测）

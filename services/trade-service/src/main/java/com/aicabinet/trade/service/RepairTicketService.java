@@ -165,6 +165,14 @@ public class RepairTicketService {
     private RepairTicketDto doCreate(Long operatorId, String deviceId, String title, String faultType,
                                      String assignee, String priority, String remark) {
         Instant now = Instant.now();
+        if (title.trim().length() > 128) {
+            // MA-114：title VARCHAR(128)，超长 22001→500
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "工单标题最长 128 字");
+        }
+        if (remark != null && remark.length() > 512) {
+            // MA-114：remark VARCHAR(512)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "工单备注最长 512 字");
+        }
         RepairTicket ticket = new RepairTicket();
         ticket.setDeviceId(deviceId);
         displaySnapshotHelper.applyRepairSnapshot(ticket);
@@ -196,11 +204,21 @@ public class RepairTicketService {
         if ("DONE".equals(ticket.getStatus()) || STATUS_CANCELLED.equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已关闭工单不可编辑");
         }
-        if (title != null && !title.isBlank()) ticket.setTitle(title.trim());
+        if (title != null && !title.isBlank()) {
+            if (title.trim().length() > 128) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "工单标题最长 128 字");
+            }
+            ticket.setTitle(title.trim());
+        }
         if (faultType != null) ticket.setFaultType(trimToNull(faultType));
         if (assignee != null) ticket.setAssignee(trimToNull(assignee));
         if (priority != null && !priority.isBlank()) ticket.setPriority(normalizePriority(priority));
-        if (remark != null) ticket.setRemark(trimToNull(remark));
+        if (remark != null) {
+            if (remark.length() > 512) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "工单备注最长 512 字");
+            }
+            ticket.setRemark(trimToNull(remark));
+        }
         ticket.setUpdatedAt(Instant.now());
         ticketMapper.updateById(ticket);
         appendEvent(ticketId, ticket.getStatus(), ticket.getStatus(), "UPDATE", operatorId, remark);

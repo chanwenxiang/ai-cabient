@@ -53,6 +53,7 @@ class SlotTemplateServiceTest {
     @Mock SkuCatalogMapper skuCatalogMapper;
     @Mock com.aicabinet.trade.mapper.DeviceInfoMapper deviceMapper;
     @Mock com.aicabinet.trade.mapper.SkuSceneLimitMapper skuSceneLimitMapper;
+    @Mock DeviceSlotService deviceSlotService;
 
     private SlotTemplateService service;
 
@@ -62,10 +63,12 @@ class SlotTemplateServiceTest {
                 skuCatalogMapper, deviceMapper,
                 new SkuSceneLimitService(skuSceneLimitMapper, skuCatalogMapper,
                         org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class),
-                        sceneDictStub()));
+                        sceneDictStub()), deviceSlotService);
         // 场景限额（CB-049 扩展）：测试柜无场景 → limitQtyBySku 返回空 Map（不限制）
         lenient().when(deviceMapper.findById(org.mockito.ArgumentMatchers.anyString()))
                 .thenReturn(Optional.empty());
+        // MA-107：apply 现在要求目标设备存在；D2 给一个最小档案（sceneType=null → 场景限额不限制）
+        lenient().when(deviceMapper.findById("D2")).thenReturn(Optional.of(new com.aicabinet.trade.domain.DeviceInfo()));
         lenient().when(templateMapper.selectCount(any())).thenReturn(0L);
         lenient().when(templateMapper.insert(any(SlotTemplate.class))).thenAnswer(inv -> {
             inv.getArgument(0, SlotTemplate.class).setTemplateId(9L);

@@ -256,6 +256,11 @@ public class OpsExceptionService {
                     ? "消费者设备报修" : item.getTitle().trim();
             String remark = (item.getDetail() == null ? "" : item.getDetail().trim() + "; ")
                     + "来自异常 " + exceptionId;
+            // MA-110：列宽链 detail(1000)→remark(512)→event.remark(255)，末端最窄；
+            // 256~512 字关单时 event 落库必炸，统一截到 255（detail 全文仍在 ops_exception.detail）
+            if (remark.length() > 255) {
+                remark = remark.substring(0, 255);
+            }
             var ticket = support.repairTicketService().create(
                     operatorId,
                     item.getDeviceId(),

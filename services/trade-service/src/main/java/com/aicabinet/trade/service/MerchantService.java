@@ -148,8 +148,13 @@ public class MerchantService {
         // 要抽成由运营在「平台抽成（%）」里显式填。
         merchant.setPlatformRateBps(request.platformRateBps() != null ? request.platformRateBps() : 0);
         merchant.setWechatReceiverId(blankToNull(request.wechatReceiverId()));
-        merchant.setStatus(request.status() != null && !request.status().isBlank()
-                ? request.status().trim() : "ACTIVE");
+        // MA-078：status 落白名单——垃圾值会静默从 ACTIVE 过滤面消失，超 16 字符是 PG 22001→500
+        String status = request.status() == null || request.status().isBlank()
+                ? "ACTIVE" : request.status().trim().toUpperCase();
+        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 仅支持 ACTIVE/INACTIVE");
+        }
+        merchant.setStatus(status);
         merchant.setRemark(blankToNull(request.remark()));
         if (request.allowMerchantPlanogramEdit() != null) {
             merchant.setAllowMerchantPlanogramEdit(request.allowMerchantPlanogramEdit());

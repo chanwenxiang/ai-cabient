@@ -33,4 +33,12 @@ public interface OtaReleaseMapper extends BaseTradeMapper<OtaRelease> {
     return Optional.ofNullable(selectOne(Wrappers.<OtaRelease>lambdaQuery().eq(OtaRelease::getChannel, channel).eq(OtaRelease::getStatus, status).orderByDesc(OtaRelease::getPublishedAt).last("LIMIT 1")));
     }
 
+    /** MA-125：发布前重复版本预检（唯一索引 idx_ota_version_channel）。 */
+    default OtaRelease findByVersionAndChannel(String appVersion, String channel) {
+        return selectOne(Wrappers.<OtaRelease>lambdaQuery()
+                .eq(OtaRelease::getAppVersion, appVersion)
+                .eq(OtaRelease::getChannel, channel)
+                .last("LIMIT 1"));
+    }
+
 }

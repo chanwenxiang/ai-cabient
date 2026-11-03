@@ -386,6 +386,9 @@ public class WarehouseService {
         warehouseRepository.findById(wh).orElseThrow(() -> notFound(WAREHOUSE));
         LotSpec lot = command.lot();
         if (command.deltaQty() > 0) {
+            // MA-109：入库方向与 inbound 三处同闸——P2-8 治理原只罩三个入口，
+            // 货位入库/调拨收货复用本原语时显式传无主仓照样进（库存搁浅）
+            requireManagedOutboundWarehouse(wh);
             addWarehouseStock(wh, lot.skuId(), lot.batchNo(), lot.productionDate(), lot.expiryDate(), command.deltaQty());
         } else {
             deductWarehouseStock(wh, lot.skuId(), lot.batchNo(), -command.deltaQty());
