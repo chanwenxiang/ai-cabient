@@ -49,6 +49,14 @@ uni-page-body {
   --brand-wx: #07c160;
   --brand-soft: #f0fdfa;
   --brand-mist: #ccfbf1;
+
+  /* —— 语义色 + 间距阶（theme.css Phase 1 同步兜底）—— */
+  --color-pos: #16a34a;
+  --color-neg: #b91c1c;
+  --gap-xs: 8rpx;
+  --gap-sm: 16rpx;
+  --gap-md: 24rpx;
+  --gap-lg: 32rpx;
   /*
    * 令牌兜底：theme.css 把令牌声明在 :root 上。
    * WebView 渲染器（本项目 app.json 未开 skyline）下 :root 命中 <html>，可正常继承；

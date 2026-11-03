@@ -223,6 +223,8 @@ export interface DonutPart {
 }
 
 /** 大屏环形图默认色板（HTML 图例与图表共用，保证两侧颜色一致）。 */
+// 权威源已迁移至 main.css --chart-1..6（UI 样式统一计划 Phase 1）——值逐字一致，改色只改那边。
+// 单源化（运行时读 CSS 变量）留待 Phase 2 图表页迁移时一并处理。
 export const DONUT_PALETTE = ['#2dd4bf', '#38bdf8', '#a78bfa', '#fbbf24', '#f472b6', '#4ade80'];
 
 export function donutColor(index: number): string {

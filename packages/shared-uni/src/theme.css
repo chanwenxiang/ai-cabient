@@ -56,6 +56,16 @@
   --radius-control: 12px;
   --radius-tag: 8px;
 
+  /* —— 金额涨跌语义（UI 样式统一计划 Phase 1）—— */
+  --color-pos: var(--success);
+  --color-neg: var(--danger);
+
+  /* —— 间距阶（小程序 rpx；Web 端不使用本组）—— */
+  --gap-xs: 8rpx;
+  --gap-sm: 16rpx;
+  --gap-md: 24rpx;
+  --gap-lg: 32rpx;
+
   --text-primary: #0f172a;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;

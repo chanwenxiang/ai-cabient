@@ -85,6 +85,14 @@ uni-page-body {
   --brand-soft: #f0fdfa;
   --brand-tint: #ccfbf1;
   --brand-mist: #ccfbf1;
+
+  /* —— 语义色 + 间距阶（theme.css Phase 1 同步兜底）—— */
+  --color-pos: #16a34a;
+  --color-neg: #b91c1c;
+  --gap-xs: 8rpx;
+  --gap-sm: 16rpx;
+  --gap-md: 24rpx;
+  --gap-lg: 32rpx;
   --color-primary: var(--brand);
   --color-primary-deep: var(--brand-deep);
   --color-primary-soft: var(--brand-soft);

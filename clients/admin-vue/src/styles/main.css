@@ -68,6 +68,37 @@
   --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 42%, transparent);
   --admin-scrollbar-track: color-mix(in srgb, var(--layout-border) 40%, transparent);
   --admin-scrollbar-size: 6px;
+
+  /* —— 语义色板（UI 样式统一计划 Phase 1，2026-11-03）——
+   * 状态四色 + 数据系列（echarts.ts DONUT_PALETTE 同源）+ KPI 强调映射。
+   * 新代码禁止裸业务 hex，一律引用本组令牌（棘轮门禁 check:ui-barehex-ratchet）。 */
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #0284c7;
+  --chart-1: #2dd4bf;
+  --chart-2: #38bdf8;
+  --chart-3: #a78bfa;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --chart-6: #4ade80;
+  --kpi-accent-revenue: var(--chart-1);
+  --kpi-accent-cost: #94a3b8;
+  --kpi-accent-profit: #f59e0b;
+  --kpi-accent-rate: var(--chart-3);
+  /* —— 间距阶 —— */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  /* —— 阴影三阶（卡片 < 下拉 < 弹窗）—— */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-dropdown: 0 4px 12px rgba(15, 23, 42, 0.12);
+  --shadow-modal: 0 8px 32px rgba(15, 23, 42, 0.2);
 }
 
 /* 侧栏与主区交界：去掉 EP 菜单右边框 / 亚像素缝，避免「中间竖条」 */
@@ -91,6 +122,13 @@
   --layout-hover: rgba(255, 255, 255, 0.06);
   --layout-card: #1a2332;
   color-scheme: dark;
+
+  /* 语义色暗色变体：暗底提亮一档保对比（数据系列 --chart-* / 间距 / 阴影继承 light 值） */
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+  --color-info: #38bdf8;
+  --kpi-accent-cost: #8fa8c7;
 
   /* Element Plus 深色令牌：避免表格斑马纹/卡片仍用白底 */
   --el-bg-color: var(--layout-card);
