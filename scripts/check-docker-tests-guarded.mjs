@@ -111,6 +111,18 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/e2e/SettlementComboMatrixE2ETest.java',
+    {
+      job: 'build',
+      why:
+        'surefire 跑（*Test.java）+ build job 守卫自动扫。R17 批 2 的会员×活动×券组合矩阵端到端腿：' +
+        '8 组合（恒等式 gross−member−activity−coupon=total + 折后式 Σ行−券=total）+ ' +
+        'CB-082 活动优先禁券（1-1-1 组合券保持 UNUSED）+ 全额退三面（券/分账/钱包）+ ' +
+        '部分退三面（预估==写侧、gross 不变、钱包净额=剩余份额）+ 补扣链（MA-039 补扣不占券、' +
+        'MA-040/066/067）。关键断言带非零前置（活动立减>0、SILVER pct>0、券面额>0），否则退化假绿'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/ReconciliationIntegrationTest.java',
     {
       job: 'build',
