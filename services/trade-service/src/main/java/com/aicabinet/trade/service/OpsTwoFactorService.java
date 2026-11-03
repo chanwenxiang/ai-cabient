@@ -44,6 +44,7 @@ public class OpsTwoFactorService {
     private final JwtService jwtService;
     private final AuthService authService;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
     private final byte[] recoveryPepper;
 
     public OpsTwoFactorService(UserInfoMapper userInfoRepository,
@@ -52,13 +53,15 @@ public class OpsTwoFactorService {
                                JwtService jwtService,
                                AuthService authService,
                                DistributedLockService distributedLockService,
-                               AuthProperties authProperties) {
+                               AuthProperties authProperties,
+                               AdminAuditService auditService) {
         this.userInfoRepository = userInfoRepository;
         this.recoveryRepository = recoveryRepository;
         this.totpService = totpService;
         this.jwtService = jwtService;
         this.authService = authService;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
         String secret = authProperties == null ? null : authProperties.jwtSecret();
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("aicabinet.auth.jwt-secret required for 2FA recovery hash");
@@ -122,6 +125,8 @@ public class OpsTwoFactorService {
         }
         user.setTotpEnabled(true);
         userInfoRepository.save(user);
+        // MA-072：2FA 开关是账号接管的最后一道门，开启/关闭都必须留痕（不落 secret/token）
+        auditService.appendLog(operatorId, "OPS_2FA_ENABLE", "USER", String.valueOf(operatorId), null);
     }
 
     @Transactional(readOnly = true)
@@ -178,6 +183,7 @@ public class OpsTwoFactorService {
                 .set(UserInfo::isTotpEnabled, false)
                 .set(UserInfo::getTotpSecret, null)
                 .set(UserInfo::getUpdatedAt, Instant.now()));
+        auditService.appendLog(operatorId, "OPS_2FA_DISABLE", "USER", String.valueOf(operatorId), null);
         recoveryRepository.deleteByUserId(operatorId);
     }
 

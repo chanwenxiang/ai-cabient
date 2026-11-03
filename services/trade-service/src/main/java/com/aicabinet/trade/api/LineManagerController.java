@@ -110,7 +110,7 @@ public class LineManagerController {
         long amount = body.get(AMOUNTCENTS) instanceof Number n ? n.longValue()
                 : Long.parseLong(String.valueOf(body.get(AMOUNTCENTS)));
         String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
-        return ApiResponse.ok(lineWithdrawService.apply(managerId, amount, requestNo));
+        return ApiResponse.ok(lineWithdrawService.apply(operator(request), managerId, amount, requestNo));
     }
 
     @RequiresPermissions(value = {"ops:line-manager:list", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)

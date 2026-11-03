@@ -567,6 +567,10 @@ public class OpsRbacService {
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userInfoRepository.save(user);
+        // MA-072：自助改密此前零留痕——他人重置有 OPS_OPERATOR_RESET_PASSWORD，自己改却查不到，
+        // 账号接管链（先改密再操作）在审计页上断了一截。不落任何密码材料。
+        auditService.appendLog(operatorId, "OPS_OPERATOR_PWD_CHANGE", "USER",
+                String.valueOf(operatorId), "自助修改密码");
     }
 
     @Transactional(readOnly = true)

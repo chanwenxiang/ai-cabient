@@ -100,7 +100,7 @@ class LineWithdrawConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.apply(7L, 10_000L, "REQ-1"));
+                () -> service.apply(9001L, 7L, 10_000L, "REQ-1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -145,7 +145,7 @@ class LineWithdrawConcurrencyTest {
         when(payoutService.payout(any(), eq(manager), any())).thenReturn(
                 new LineWithdrawPayoutService.PayoutResult(true, "MOCK", "PAY-1", "ok"));
 
-        LineWithdrawRequestDto dto = service.apply(8L, 10_000L, "REQ-2");
+        LineWithdrawRequestDto dto = service.apply(9001L, 8L, 10_000L, "REQ-2");
 
         assertEquals("PAID", dto.status());
         verify(lineWalletService).freezeForWithdraw(eq(8L), eq(10_000L), any(), any(), any());

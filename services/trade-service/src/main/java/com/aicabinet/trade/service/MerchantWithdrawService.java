@@ -472,6 +472,11 @@ public class MerchantWithdrawService {
         if (amountCents >= policy.merchantReviewThresholdCents()) {
             request.setStatus("PENDING_REVIEW");
             withdrawMapper.insert(request);
+            // MA-073：提现申请全族唯一无留痕的动作（审核/打款/取消都有）⇒ 事后无法回答「谁提的这笔」
+            auditService.appendLog(submitterUserId, "MERCHANT_WITHDRAW_APPLY", BIZ_MERCHANT_WITHDRAW,
+                    String.valueOf(request.getRequestId()),
+                    "amountCents=" + amountCents + ",requestNo=" + request.getRequestNo()
+                            + ",status=" + request.getStatus());
             applyIdemKey(request);
             merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
@@ -487,6 +492,11 @@ public class MerchantWithdrawService {
         request.setReviewRemark("低于审核阈值自动通过");
         request.setReviewedAt(now);
         withdrawMapper.insert(request);
+        // MA-073：低额自动通过的申请同样要留痕（此分支不落 review，只有本行能回答「谁提的」）
+        auditService.appendLog(submitterUserId, "MERCHANT_WITHDRAW_APPLY", BIZ_MERCHANT_WITHDRAW,
+                String.valueOf(request.getRequestId()),
+                "amountCents=" + amountCents + ",requestNo=" + request.getRequestNo()
+                        + ",status=" + request.getStatus() + "（低于阈值自动通过）");
         applyIdemKey(request);
         merchantWalletService.freezeForWithdraw(merchant.getMerchantId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");

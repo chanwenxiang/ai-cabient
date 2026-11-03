@@ -135,13 +135,14 @@ public class LineWithdrawService {
         return payoutService.modeInfo();
     }
 
-    public LineWithdrawRequestDto apply(long managerId, long amountCents, String requestNo) {
+    public LineWithdrawRequestDto apply(Long operatorId, long managerId, long amountCents, String requestNo) {
         LineManager manager = lineManagerService.requireManager(managerId);
         // 🔴 V321 线长实名门禁。必须在 createWithdraw 之前 ——
         //    createWithdraw 会开钱包锁并可能直接打款。
         //    校验依据是 manager.user_id（线长绑定的用户），不是 managerId 本身。
         withdrawEligibilityService.requireLineWithdrawEligible(manager.getUserId());
-        return createWithdraw(manager, amountCents, requestNo, null);
+        // MA-073：申请留痕需要真实操作者（原为 null）
+        return createWithdraw(manager, amountCents, requestNo, operatorId);
     }
 
     public LineWithdrawRequestDto merchantApply(Long userId, long amountCents, String requestNo) {
@@ -335,6 +336,11 @@ public class LineWithdrawService {
         if (amountCents >= policy.lineReviewThresholdCents()) {
             request.setStatus("PENDING_REVIEW");
             withdrawMapper.insert(request);
+            // MA-073：提现申请全族唯一无留痕的动作（审核/打款/取消都有）
+            auditService.appendLog(submitterUserId, "LINE_WITHDRAW_APPLY", BIZ_LINE_WITHDRAW,
+                    String.valueOf(request.getRequestId()),
+                    "amountCents=" + amountCents + ",requestNo=" + request.getRequestNo()
+                            + ",status=" + request.getStatus());
             applyIdemKey(request);
             lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                     WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
@@ -350,6 +356,10 @@ public class LineWithdrawService {
         request.setReviewRemark("低于审核阈值自动通过");
         request.setReviewedAt(now);
         withdrawMapper.insert(request);
+        auditService.appendLog(submitterUserId, "LINE_WITHDRAW_APPLY", BIZ_LINE_WITHDRAW,
+                String.valueOf(request.getRequestId()),
+                "amountCents=" + amountCents + ",requestNo=" + request.getRequestNo()
+                        + ",status=" + request.getStatus() + "（低于阈值自动通过）");
         applyIdemKey(request);
         lineWalletService.freezeForWithdraw(manager.getManagerId(), amountCents,
                 WITHDRAW, String.valueOf(request.getRequestId()), "提现申请冻结");
