@@ -15891,8 +15891,8 @@ export interface components {
         };
         BatchIssueCouponRequest: {
             /** Format: int64 */
-            couponDefId?: number;
-            userIds?: number[];
+            couponDefId: number;
+            userIds: number[];
         };
         ApiResponseListCouponDto: {
             /** Format: int32 */
