@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -54,6 +56,10 @@ class DisputeAutoWaiveSchedulerTest {
                 .thenReturn(0);
         // 配置缺省走 properties 兜底
         lenient().when(systemConfigService.getInt(anyString(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(inv -> inv.getArgument(1));
+        // 🔴 @Mock 的 getBoolean 默认返回 **false**：总开关改成读 SystemConfig 后，
+        //    不补这条兜底桩会让「env=true 应扫」的用例集体变红（且是静默不扫，不是断言报错）。
+        lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
         scheduler = new DisputeAutoWaiveScheduler(properties(false), systemConfigService, disputeRepository,
                 disputeService, sessionRepository, jdbcTemplate, alertDispatcher, taskService);
@@ -89,6 +95,36 @@ class DisputeAutoWaiveSchedulerTest {
     void disabled_doesNotScan() {
         scheduler.autoWaive();
         verify(disputeRepository, never()).findOpenTimeoutUnclaimedCreatedBefore(any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    /** 参数配置是权威：库里写了 false，env 兜底 true 也必须让位（运营在后台关掉的开关不能被 env 悄悄翻回来）。 */
+    @Test
+    void configFalse_overridesEnvTrue_andDoesNotScan() {
+        enable();
+        when(systemConfigService.getBoolean(
+                eq(SystemConfigService.DISPUTE_AUTO_WAIVE_ENABLED), anyBoolean())).thenReturn(false);
+
+        scheduler.autoWaive();
+
+        verify(disputeRepository, never())
+                .findOpenTimeoutUnclaimedCreatedBefore(any(), org.mockito.ArgumentMatchers.anyInt());
+        // 台账要能区分「参数配置关的」与「env 兜底关的」，否则运营看不出是谁关的
+        verify(taskService).finish(eq("dispute-auto-waive"), eq("SUCCESS"),
+                argThat(msg -> msg != null && msg.contains("参数配置")), anyLong());
+    }
+
+    /** 反向：库里 true 可以把 env=false 抬起来（新库还没配 env 时也能在后台直接开）。 */
+    @Test
+    void configTrue_enablesEvenWhenEnvFalse() {
+        when(systemConfigService.getBoolean(
+                eq(SystemConfigService.DISPUTE_AUTO_WAIVE_ENABLED), anyBoolean())).thenReturn(true);
+        stubSession("S-CFG", 300L);
+        when(disputeRepository.findOpenTimeoutUnclaimedCreatedBefore(any(), eq(200)))
+                .thenReturn(List.of(ticket("T-CFG", "S-CFG")));
+
+        scheduler.autoWaive();
+
+        verify(disputeRepository, times(1)).findOpenTimeoutUnclaimedCreatedBefore(any(), eq(200));
     }
 
     @Test

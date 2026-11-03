@@ -159,6 +159,7 @@ public class SystemConfigService {
     public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
             "merchant.notify.incident_cooldown_minutes";
     public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
+    public static final String DISPUTE_AUTO_WAIVE_ENABLED = "dispute.auto_waive.enabled";
     public static final String DISPUTE_AUTO_WAIVE_HOURS = "dispute.auto_waive.hours";
     public static final String DISPUTE_AUTO_WAIVE_MAX_PER_ROUND = "dispute.auto_waive.max_per_round";
     public static final String DISPUTE_AUTO_WAIVE_PER_USER_MAX = "dispute.auto_waive.per_user_max";
@@ -462,6 +463,17 @@ public class SystemConfigService {
      */
     static final java.util.Set<String> FUND_POSITIVE_LIMIT_KEYS = java.util.Set.of(
             RECHARGE_MAX_CENTS, BALANCE_REFUND_MAX_CENTS, REFUND_SELF_MAX_CENTS);
+
+    /**
+     * 「开关即资金动作」的非数值键：不能塞进 {@link #FUND_GUARDED_KEYS}——那个集合同时挂
+     * {@link #validateFundKeyValue} 的**整数**校验，布尔值会被当场 400。
+     *
+     * <p>但它们同样必须**无视审计总开关留痕**：{@code ops.config.audit.enabled} 一旦被关掉
+     * （dev 实测就是 false），非资金族键的写入既没有 {@code system_config_history} 也没有
+     * {@code admin_audit_log} ⇒ 「谁把自动免单打开了」无从追。登记在这里的键走强制留痕（MA-068）。</p>
+     */
+    static final java.util.Set<String> AUDIT_FORCED_SWITCH_KEYS = java.util.Set.of(
+            DISPUTE_AUTO_WAIVE_ENABLED);
 
     /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
     private static void validateFundKeyValue(String key, String value) {
@@ -797,7 +809,7 @@ public class SystemConfigService {
     private void recordChangeIfEnabled(String key, String oldValue, String newValue,
                                       Long operatorId, String action) {
         boolean on = self.getBoolean(OPS_CONFIG_AUDIT_ENABLED, true);
-        if (!on && !FUND_GUARDED_KEYS.contains(key)) {
+        if (!on && !FUND_GUARDED_KEYS.contains(key) && !AUDIT_FORCED_SWITCH_KEYS.contains(key)) {
             return;
         }
         long op = operatorId == null ? SYSTEM_OPERATOR_ID : operatorId;
@@ -954,7 +966,12 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
-        // P3-4 争议超时自动免单：调参后台可调（总开关 enabled 留环境变量 AICABINET_DISPUTE_AUTO_WAIVE_ENABLED，fail-closed）
+        // P3-4 争议超时自动免单：调参与总开关都在本页（即时生效），env 只作兜底默认。
+        // 🔴 seed 用**小写字面量** "false" 而非 FALSE 常量，才能与注册表 default 逐字对齐并保持 type=BOOLEAN（门禁 R5）。
+        upsertIfAbsent(DISPUTE_AUTO_WAIVE_ENABLED, "false",
+                "争议超时自动免单总开关：false=仍照常扫描但一律不免单（台账记「候选 N/免单 0」）；"
+                        + "true=按下方阈值自动免单。与「系统→定时任务」的 dispute-auto-waive 开关分工："
+                        + "那边关掉=整个任务不跑（无扫描无留痕），这边关掉=跑但不放钱");
         upsertIfAbsent(DISPUTE_AUTO_WAIVE_HOURS, "72",
                 "争议超时自动免单：OPEN 未认领超时单免单阈值（小时）");
         upsertIfAbsent(DISPUTE_AUTO_WAIVE_MAX_PER_ROUND, "50",

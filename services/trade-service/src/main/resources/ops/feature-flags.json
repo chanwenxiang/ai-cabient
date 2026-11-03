@@ -409,11 +409,18 @@
       "description": "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）"
     },
     {
+      "key": "dispute.auto_waive.enabled",
+      "group": "争议工单",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "争议超时自动免单总开关：true=按阈值自动免单；false=仍扫描但一律不免单（台账留候选数）。与「系统→定时任务」的 dispute-auto-waive 开关分工：那边关掉=整个任务不跑，这边关掉=跑但不放钱"
+    },
+    {
       "key": "dispute.auto_waive.hours",
       "group": "争议工单",
       "type": "NUMBER",
       "default": "72",
-      "description": "争议超时自动免单：OPEN 未认领超时单免单阈值（小时）；总开关在环境变量",
+      "description": "争议超时自动免单：OPEN 未认领超时单免单阈值（小时）；总开关见 dispute.auto_waive.enabled",
       "unit": "小时"
     },
     {

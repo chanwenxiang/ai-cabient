@@ -160,6 +160,21 @@ class SystemConfigFundKeyGuardTest {
         verify(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 
+    /**
+     * MA-068：布尔型「资金动作开关」（自动免单）不在 FUND_GUARDED_KEYS 里（那里的校验只吃整数，
+     * 塞进去会把 "true"/"false" 判成 400），但审计总开关关掉时同样必须留痕——
+     * 否则「谁把免单打开了」在 dev/线上都查不到（实测 dev 的 ops.config.audit.enabled 就是 false）。
+     */
+    @Test
+    void upsert_auditForcedSwitchKey_auditExplicitlyDisabled_stillLeavesHistory() {
+        auditSwitchRow("false");
+
+        service.upsert(SystemConfigService.DISPUTE_AUTO_WAIVE_ENABLED, "true", "d", 9L);
+
+        verify(historyRepository).save(any(SystemConfigHistory.class));
+        verify(auditService).appendLog(anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
     @Test
     void delete_fundKey_auditExplicitlyDisabled_stillLeavesHistory() {
         auditSwitchRow("false");

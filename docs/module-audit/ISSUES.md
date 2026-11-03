@@ -74,6 +74,7 @@
 | MA-065 | P3 | fixed（钉测 + 活栈实证） | 支付/支付分回调 | 白名单落地后实测：缺 `Wechatpay-Timestamp` 等请求头冒 **500**（全局只映射了缺参数、没映射缺请求头）⇒ 渠道探测刷 ERROR 日志 | Qoder 活栈复验 / 2026-11-02 | 改 400，`GlobalExceptionHandlerTest` 8 例 |
 | MA-066 | P2 | fixed（钉测 4 例 + 活栈实证） | 争议确认/结算的欠款转待支付链 | 余额不足被吞掉转 PENDING 后，事务早被标 rollback-only ⇒ 提交抛 `UnexpectedRollbackException` 500，订单/工单/风控整链回滚（编程式 `TransactionTemplate` 无 noRollbackFor + `chargeOrder` 只放行 `BalanceInsufficientException`） | Qoder 活栈资金链复现 / 2026-11-02 | 账本收下该 412、出锁出事务后再抛并折成业务信号；同型第三例（P1-1/BUG-007） |
 | MA-067 | P2 | fixed（钉测 1 例 + 活栈实证） | 结算「待支付不占券」落库 | `clearCouponSelection` 把 couponId 置 null，但订单此时已 insert ⇒ `save` 走 MP `updateById` **跳过 null**，库里仍留 coupon_id 而 `user_coupon` 仍 UNUSED（券没核销却挂在单上）；后续按 `order.getCouponId()` 重算的链路会对没收的券再折一次 | Qoder 活栈资金链复现 / 2026-11-02 | 新增显式 UPDATE `clearOrderCouponSelection` + `markPendingAndDropCoupon` 两支都走；e2e 腿 2 钉 PENDING 行 coupon_id=NULL |
+| MA-148 | P3 | fixed（钉测 1 例 + 活栈实证） | 参数配置写侧留痕 | 审计总开关 `ops.config.audit.enabled=false`（dev 实测就是 false）时只有 `FUND_GUARDED_KEYS` 强制留痕；而「开关即资金动作」的**布尔键进不了那个集合**（`validateFundKeyValue` 只吃整数，写 `"true"` 当场 400）⇒ 谁把争议自动免单打开了，历史与审计双零 | Qoder 旋钮落地时自查 / 2026-11-03 | 新增 `AUDIT_FORCED_SWITCH_KEYS`（只管留痕、不管值校验），`recordChangeIfEnabled` 一并放行 |
 
 | MA-068 | P2 | open | merchant-mp `POST /merchant/devices/{id}/stocktake-evidence` | 盘点凭证上传缺设备归属校验（同 Controller 全部设备写端点都过 requireDevicePack，唯独上传漏）⇒ 商户 A 可对商户 B 柜机挂任意照片/灌图，盘点凭证链可跨租户污染 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-069 | P2 | open | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
@@ -603,7 +604,12 @@
 - 活栈实证（2026-11-02 腿 1b）：结案后的活动单（单价 243 / activity_id=4 / 活动留档 200）先把活动 STOP，
   再重开争议工单 CONFIRM **同一份 items** ⇒ 走「已有订单」的改单分支：total 486 不变、行三列逐字不变、
   `payment_operation` CHARGE COMPLETED 仍 1 条（补差 0 ⇒ 未二次扣款）；按当前活动重算会跳到 686
-- 未挣：新增 SKU 在改单时用**当前**现价（只钉测覆盖，活栈单只有 1 款商品）
+- 活栈实证·腿 5（2026-11-03 补齐，同一单同一次 CONFIRM 里 items=100013×2 + 100014×1）：
+  原行 `2|486|1` 逐字不变（活动 4 已停仍守 243/件），新增行 `unit_price=293 / activity_id=6`（343 会员价再减 50）
+  ⇒ 两半口径同时成立；`total=779=行合计`、`coupon_id=NULL`（新增行命中活动 ⇒ 订单级仍禁券）、
+  补差走 `ADJUST_CHARGE|293` 一条且余额 4514→4221 恰等于新行金额
+- ⚠️ 判据曾假红两次：① `seed-demo-data.ps1` 的 `fallbackSkuId` 会随在售面变化改挑 SKU（腿 5 给 100014 建账面后
+  整轮错位）⇒ 现在 $Sku 以**夹具活动的目标 SKU** 为准；② 改单补差是 `ADJUST_CHARGE` 不是 `CHARGE`
 
 ### MA-044 活动限购 check-then-act 可并发穿透
 - 级别/状态：P2 / **fixed（单测 + 真库 IT）**
@@ -616,7 +622,12 @@
   退款请求 ⇒ 第二次返回成功而非 409「请勿重复提交」；`REFUND COMPLETED` 仍 1 条、`refunded_cents` 仍 243
   （未被二次摊薄）。注：1 件的单会直接退成 `REFUNDED`，被上层「订单已退款」前置闸拦下，走不到幂等恢复分支
   ⇒ 复现夹具必须买 2 件退 1 件
-- 未挣：落点②「渠道已退、prepare 未跑（行还在）」与③「prepare 已跑、finalize 未跑」需故障注入，活栈未覆盖
+- 活栈实证·落点②③（2026-11-03 补齐，**状态级注入**：拿一次真实成功退款后的库状态往回倒，不往生产码塞故障钩子）：
+  ①全完成后同参重放 ⇒ 200 幂等、金额与已退累计不变；
+  ③行/库存留在退款后、状态回 PAID、已退归 0、标记保留 ⇒ 重放只补 finalize，收敛回基准态、`REFUND COMPLETED` 仍 1 条；
+  ②行/库存/应付全部回退到退款前并抹掉 `[LOCAL_PREPARED]` ⇒ 重放重跑 prepare+finalize，
+    行只扣一次（`1|243|1`）、库存只回补一次（`9|9`）、渠道零二次调用。
+    每一落点还顺带钉住「可售批次 == 汇总账面」的自洽判据
 - 现象：C04 注释承诺「同参安全重试」，实际 `refundOrder` 对 COMPLETED 幂等键返回 false ⇒ 直接 409，本地 total/行/status 永远补不上（钱已在远端退掉）
 - 修复记录：按行集指纹反查已完成流水（`findCompletedRefundByFingerprint`）→ 恢复本地 prepare/finalize；prepare 与 `payment_operation.reason` 的 `[LOCAL_PREPARED]` 标记**同事务**写入，重试见标记即只补 finalize，避免重复扣行；无法判定时保留 409 交人工
 
@@ -678,6 +689,23 @@
 - 活栈判据：`scripts/e2e-activity-unpaid-collect.ps1` 腿 2 直接断言 PENDING 行 `coupon_id IS NULL`
 - 遗留数据：修复前生成的 PENDING 单可能留悬空 coupon_id；上线后只读判据
   `SELECT count(*) FROM cabinet_order o JOIN user_coupon c ON c.coupon_id=o.coupon_id WHERE o.status='PENDING' AND c.status='UNUSED'`
+
+### MA-148 布尔型「资金动作开关」在审计总开关关闭时零留痕
+- 级别/状态：P3 / **fixed（钉测 1 例 + 活栈实证）**
+- 来源：给争议自动免单做后台旋钮时自查发现（编号原取 MA-068，与并行会话撞号后改 148）（`docs/P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md §8`）
+- 现象：`SystemConfigService.recordChangeIfEnabled` 只在 `ops.config.audit.enabled` 为真、或键在
+  `FUND_GUARDED_KEYS` 时才写 `system_config_history` + `admin_audit_log`。dev 库里该开关是 **false**（实测），
+  而 `dispute.auto_waive.enabled` 这类布尔键**加不进** `FUND_GUARDED_KEYS`：那个集合同时挂
+  `validateFundKeyValue`（`Long.parseLong`），写 `"true"` 会当场 400
+  ⇒ 「谁把自动免单打开了」这条最该追责的信息，历史与审计两边都查不到
+- 与 lessons #319 的关系：那轮删掉的是**没有活消费者的** `ALWAYS_AUDITED_KEYS`；本键是真实需要强制留痕的
+  第一个布尔资金开关 ⇒ 只留「一个集合 + 一个条件」，不重建值域白名单那套
+- 修复记录：新增 `AUDIT_FORCED_SWITCH_KEYS = {dispute.auto_waive.enabled}`（**只管留痕，不做值校验**），
+  `recordChangeIfEnabled` 判断加上该集合；钉测 `SystemConfigFundKeyGuardTest#upsert_auditForcedSwitchKey_auditExplicitlyDisabled_stillLeavesHistory`；
+  活栈 `scripts/verify-auto-waive-knob.mjs` K5：审计开关=false 的当前库里，开关键写两次 ⇒ 历史与审计各 +2，
+  同时对照普通调参键 `dispute.auto_waive.hours` 仍 0 条（按设计，非本集合的键继续受总开关约束）
+- ⚠️ 未做（刻意）：没有把审计总开关本身改成默认开——库里那行 `false` 是既有环境事实，
+  要不要在 dev/线上打开它是另一件事（要动就得连带说明「所有参数写入都会进审计表」的量级影响）
 
 ### 本批口径说明（2026-11-02 三端审计）
 - 报告标题 **P1×3 / P2×6 / P3×18**；明细可数的 P3 只有 16 条，已按 MA-049…MA-064 + MA-065 全部入账，**差的 1–2 条 P3 明细报告里没展开**（需原作者补出后另行领号，不并入现有号）。

@@ -22,8 +22,9 @@ import java.util.Map;
  * P3-4 争议超时自动免单（docs/P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md）。
  *
  * <p>门控（设计稿 §3，全部满足才免单）：OPEN + 超时来源（reason 前缀「识别超时」）+
- * 未认领（assignee 为空）+ 创建早于阈值（默认 72h）；护栏：总开关默认 OFF、
- * 单轮上限、单用户滚动窗口上限（历史按 operator_note='AUTO_WAIVE' 统计）。
+ * 未认领（assignee 为空）+ 创建早于阈值（默认 72h）；护栏：总开关默认 OFF（参数配置页
+ * {@code dispute.auto_waive.enabled} 优先，env 兜底）、单轮上限、单用户滚动窗口上限
+ * （历史按 operator_note='AUTO_WAIVE' 统计）。
  * 资金事实：超时单从未扣款且预授权已释放（C09），WAIVE 对未扣款单返 0——零资金移动纯结案。</p>
  */
 @Service
@@ -60,6 +61,19 @@ public class DisputeAutoWaiveScheduler {
         this.taskService = taskService;
     }
 
+    /**
+     * 总开关取值优先级：参数配置页（{@code dispute.auto_waive.enabled}）&gt; 环境变量
+     * {@code AICABINET_DISPUTE_AUTO_WAIVE_ENABLED}（后者只作库里没有该键时的兜底默认）。
+     *
+     * <p>🔴 这把闸的语义是「跑但不放钱」：关掉后每轮仍扫描，台账里照常记候选单数，
+     * 事后能回答「这段时间本会免掉几单」。要整轮不跑（连扫描和留痕都不要），
+     * 用「系统 → 定时任务」里 {@code dispute-auto-waive} 那条的开关（另一把闸，权限 ops:task:edit）。</p>
+     */
+    boolean waiveEnabled() {
+        return systemConfigService.getBoolean(
+                SystemConfigService.DISPUTE_AUTO_WAIVE_ENABLED, properties.enabled());
+    }
+
     @Scheduled(fixedRate = 900_000)
     public void autoWaive() {
         long start = System.nanoTime();
@@ -69,7 +83,10 @@ public class DisputeAutoWaiveScheduler {
         boolean failed = false;
         String summary = "争议自动免单未启用";
         try {
-            if (!properties.enabled()) {
+            if (!waiveEnabled()) {
+                summary = properties.enabled()
+                        ? "争议自动免单已由参数配置关闭（任务照常扫描，一律不免单）"
+                        : "争议自动免单未启用（env 兜底关闭）";
                 return;
             }
             summary = runOnce();

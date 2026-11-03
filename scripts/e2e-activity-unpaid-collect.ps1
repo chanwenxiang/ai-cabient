@@ -11,9 +11,11 @@
 #       ⇒ 证明这张券确实够格（门槛/范围都过），腿 1 不复用券的唯一原因就是活动闸。
 #   腿 1b（MA-043）：腿 1 的单结案后把活动停掉，重开工单再 CONFIRM 同一份 items ⇒ 走「已有订单」的改单分支。
 #       判据：单价/活动归属/活动留档逐字不变，补差为 0（不新增扣款流水）。按当前活动重算会跳到 686。
-#   腿 4（MA-045）：2 件的单先退 1 件（PARTIAL_REFUNDED），再原样重复同一笔退款请求。
-#       判据：第二次不再 409 死路，且不产生第二笔 REFUND 流水、已退累计不变。
-#       （1 件的单会直接退成 REFUNDED，被上层「订单已退款」前置闸拦掉，走不到幂等恢复分支 ⇒ 所以 Qty=2）
+#   腿 4（MA-045）：2 件的单先退 1 件成 PARTIAL_REFUNDED，然后三种「渠道已退成功」的本地落点各重放一次同一笔请求：
+#       ①全完成（幂等）；③prepare 已提交、finalize 没跑（倒装状态：行/库存留在退款后，状态回 PAID、已退归 0、标记保留）；
+#       ②prepare 完全没跑（行/库存/应付全回退到退款前，并抹掉 [LOCAL_PREPARED] 标记）。
+#       判据：三次重放都不 409、都收敛回基准态（金额/状态/行/库存逐项相等），且 REFUND COMPLETED 始终只有 1 条。
+#       （1 件的单会直接退成 REFUNDED，被上层「订单已退款」前置闸拦下，走不到幂等恢复分支 ⇒ 所以 Qty=2）
 #
 # 夹具与回滚：临时把测试柜 deposit_cents 降到 100 分（让余额不足必然发生）、投放草稿活动、发一张无门槛券。
 # 活动状态与设备押金在 finally 里原值还原；订单/券行留在库里（与既有 e2e 脚本同口径），末尾打印增量。
@@ -117,6 +119,95 @@ function Reset-E2eFixtureRateLimits {
     Write-Host "    已清限流计数 user=$UserId device=$DevId（DEL 命中 $deleted / session_create 残余=$residual）"
 }
 
+function Get-LineSnapshot {
+    param([string]$OrderId, [string]$SkuId)
+    # 部分退会把行改写（件数/行金额），倒装崩溃现场时要按这两个值复原
+    $sql = @"
+SELECT COALESCE(sum(quantity),0) || '|' || COALESCE(sum(line_amount_cents),0) || '|' || count(*)
+FROM cabinet_order_line WHERE order_id = '$OrderId' AND sku_id = '$SkuId';
+"@
+    return (Invoke-E2ePsql -Sql $sql).Trim()
+}
+
+function Get-StockSnapshot {
+    param([string]$DeviceId, [string]$SkuId)
+    $sql = @"
+SELECT COALESCE((SELECT sum(quantity) FROM device_sku_lot WHERE device_id = '$DeviceId' AND sku_id = '$SkuId'
+                AND status IN ('ON_SALE','NEAR_EXPIRY')),0) || '|' ||
+       COALESCE((SELECT quantity FROM device_sku_inventory WHERE device_id = '$DeviceId' AND sku_id = '$SkuId'),0);
+"@
+    return (Invoke-E2ePsql -Sql $sql).Trim()
+}
+
+function Invoke-RefundTry {
+    param([string]$OrderId, $Body)
+    try {
+        $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+            -Path "/api/v2/ops/admin/orders/$OrderId/refund" -Headers $script:Ops -Body $Body
+        return $null
+    } catch {
+        return ($_.Exception.Message -replace '\s+', ' ')
+    }
+}
+
+function Set-FixtureStock {
+    param([string]$DevId, [string]$SkuId, [int]$Qty)
+    # 账面值夹具（与既有 e2e 一致：演示柜的 quantity 本就是手写账面，不是盘点）
+    $sql = @"
+UPDATE device_sku_lot SET quantity = $Qty, status = 'ON_SALE' WHERE device_id = '$DevId' AND sku_id = '$SkuId';
+UPDATE device_sku_inventory SET quantity = $Qty WHERE device_id = '$DevId' AND sku_id = '$SkuId';
+"@
+    $null = Invoke-E2ePsql -Sql $sql
+    Write-Host "    账面库存置为 $Qty（lot + 汇总同步）"
+    return Get-StockSnapshot -DeviceId $DevId -SkuId $SkuId
+}
+
+function Assert-StockConsistent {
+    param([string]$StockSpec, [string]$Tag)
+    # 汇总账面必须等于「可售批次之和」：syncAggregateInventory 就是按这个口径覆盖写回的，
+    # 两者不等说明批次状态/效期把货藏起来了（或有人绕着改了汇总）。
+    $p = $StockSpec.Split('|')
+    Assert-Pass ($p[0] -eq $p[1]) "$Tag 库存自洽：可售批次 $($p[0]) == 汇总账面 $($p[1])"
+}
+
+function Get-RefundOpRow {
+    param([string]$OrderId)
+    $sql = @"
+SELECT idempotency_key || '~' || amount_cents::text || '~' || COALESCE(reason,'')
+FROM payment_operation WHERE order_id = '$OrderId' AND operation_type = 'REFUND' AND status = 'COMPLETED'
+ORDER BY created_at DESC LIMIT 1;
+"@
+    $raw = (Invoke-E2ePsql -Sql $sql).Trim()
+    $p = $raw.Split('~')
+    return [pscustomobject]@{ IdemKey = $p[0]; Amount = [int]$p[1]; Reason = $p[2] }
+}
+
+<# 把订单倒回「渠道退款已完成、本地只跑到某一步」的崩溃现场（状态级注入，不往生产码塞故障钩子）：
+   · PreparedOnly=false ⇒ 行/库存/应付全部回到退款前，并抹掉 [LOCAL_PREPARED] 标记（落点②）
+   · PreparedOnly=true  ⇒ 行与库存保持退款后，只把状态/已退累计回退（落点③：prepare 已提交、finalize 没跑） #>
+function Set-RefundCrashState {
+    param(
+        [string]$OrderId, [string]$SkuId, [string]$DevId,
+        [int]$Total, [string]$LineSpec, [string]$StockSpec,
+        [bool]$Prepared, [string]$IdemKey, [string]$Reason
+    )
+    $lp = $LineSpec.Split('|')
+    $sp = $StockSpec.Split('|')
+    $marker = if ($Prepared) { " [LOCAL_PREPARED]" } else { "" }
+    $reason = ($Reason -replace ' \[LOCAL_PREPARED\]', '') + $marker
+    $reason = $reason -replace "'", "''"
+    $sql = @"
+UPDATE cabinet_order SET status = 'PAID', total_amount_cents = $Total, refunded_cents = 0,
+       refunded_at = NULL, updated_at = NOW() WHERE order_id = '$OrderId';
+UPDATE cabinet_order_line SET quantity = $($lp[0]), line_amount_cents = $($lp[1])
+       WHERE order_id = '$OrderId' AND sku_id = '$SkuId';
+UPDATE device_sku_lot SET quantity = $($sp[0]), status = 'ON_SALE' WHERE device_id = '$DevId' AND sku_id = '$SkuId';
+UPDATE device_sku_inventory SET quantity = $($sp[1]) WHERE device_id = '$DevId' AND sku_id = '$SkuId';
+UPDATE payment_operation SET reason = '$reason' WHERE idempotency_key = '$IdemKey';
+"@
+    $null = Invoke-E2ePsql -Sql $sql
+}
+
 function Invoke-ShoppingRound([string]$Tag) {
     $script:TicketId = $null
     Reset-E2eFixtureRateLimits -UserId $script:UserId -DevId $script:DeviceId
@@ -163,6 +254,15 @@ try {
     $script:DeviceId = $DeviceId
     $Phone = [string]$demo.consumerPhone
     $Sku = if ($demo.fallbackSkuId) { [string]$demo.fallbackSkuId } else { Resolve-E2eTestSku -DeviceId $DeviceId }
+    # 🔴 $Sku 必须以**夹具活动的目标 SKU** 为准，不能信 seed-demo-data 的 fallbackSkuId：
+    #    那个值是「当前有货的某款」按库里的数据挑的，腿 5 给 100014 建了账面之后它就会改挑 100014
+    #    （实测 2026-11-03：整轮判据因此集体错位）。活动 4 打的是 100013，购物就必须买 100013。
+    $skuActSql = @"
+SELECT e FROM promotion_activity a, jsonb_array_elements_text(COALESCE(a.rule_config -> 'skuIds', '[]'::jsonb)) e
+WHERE a.activity_id = $ActivityId ORDER BY e LIMIT 1;
+"@
+    $SkuFromActivity = (Invoke-E2ePsql -Sql $skuActSql).Trim()
+    if ($SkuFromActivity) { $Sku = $SkuFromActivity }
     # 单笔 2 件：腿 4（MA-045）要「退 1 件留 1 件」才做得到部分退款后的同参重试，1 件的单会直接退成 REFUNDED，
     # 被上层「订单已退款」前置闸拦掉，走不到幂等恢复那条分支。
     $Qty = 2
@@ -241,9 +341,17 @@ WHERE a.activity_id = $ActivityId AND e = '$Sku';
     if (-not $SlotCode) { throw "SKU $Sku 在设备 $DeviceId 上没有已启用的货道，模拟器无法上报" }
     # 每跑一轮吃掉 1 件账面库存；批次账本在用（deviceUsesLotLedger）时手改汇总表会被 lot 覆盖，
     # 缺货就直接 409「sellable lot inventory insufficient」。判据提前查，别等 CONFIRM 才报错。
-    $sellable = [int](Invoke-E2ePsql -Sql "SELECT COALESCE(sum(quantity),0) FROM device_sku_lot WHERE device_id = '$DeviceId' AND sku_id = '$Sku' AND status = 'ACTIVE';")
+    # 🔴 批次状态域是 ON_SALE / NEAR_EXPIRY / DEPLETED（DeviceSkuLot.status 默认 ON_SALE），
+    #    **没有 ACTIVE 这个值**。手写夹具成 ACTIVE 会让批次对消费者不可售：
+    #    sumSellableQuantity 只认 IN ('ON_SALE','NEAR_EXPIRY')，开门直接 409，
+    #    且 syncAggregateInventory 会把汇总账面覆盖成 0（2026-11-02 本脚本自己踩过）。
+    $sellableSql = @"
+SELECT COALESCE(sum(quantity),0) FROM device_sku_lot
+WHERE device_id = '$DeviceId' AND sku_id = '$Sku' AND status IN ('ON_SALE','NEAR_EXPIRY');
+"@
+    $sellable = [int](Invoke-E2ePsql -Sql $sellableSql)
     if ($sellable -lt 2) {
-        throw "演示柜 $Sku 可售批次库存只有 $sellable（本脚本要 2 件）⇒ 先按 RESTOCK 补账面：UPDATE device_sku_lot SET quantity=8, status='ACTIVE' WHERE device_id='$DeviceId' AND sku_id='$Sku'"
+        throw "演示柜 $Sku 可售批次库存只有 $sellable（本脚本要 2 件）⇒ 先补账面：UPDATE device_sku_lot SET quantity=8, status='ON_SALE' WHERE device_id='$DeviceId' AND sku_id='$Sku'"
     }
     Write-Host "    上报货道 $Sku -> $SlotCode（可售批次 $sellable 件）"
     Set-SimCartOnRealSlot -SkuId $Sku -Qty $Qty -SlotCode $SlotCode
@@ -314,6 +422,109 @@ WHERE a.activity_id = $ActivityId AND e = '$Sku';
     Assert-Pass ($chargeCount -eq "1") "MA-043：补差为 0 ⇒ 未新增扣款流水（CHARGE COMPLETED=$chargeCount）"
     Assert-Pass ($after1b.Status -in @("PAID", "COMPLETED")) "MA-043：改单后订单回到已结清（$($after1b.Status)）"
 
+    # ============ 腿 5（MA-043 另一半）：改单**新增**的 SKU 必须按当前规则定价 ============
+    # 同一次改单里同时验两件事：原有行沿用成交时的活动决策（腿 1b 已证），新增行读当下活动。
+    # 演示柜在售只有 100013 ⇒ 为 $Sku2 建账面批次与汇总（跑完**刻意保留**：删掉会让这单的销售流水对不上批次，
+    # 触发巡检 MISSING_SALE；等价于「新 SKU 上架后卖掉一件」的正常终态）。
+    $Sku2 = "100014"
+    if ($Sku2 -eq $Sku) { throw "腿5 需要第二款 SKU，但 $Sku2 就是主测 SKU——换一个或先修正夹具活动的目标 SKU" }
+    $Sku2ListPrice = [int](Invoke-E2ePsql -Sql "SELECT price_cents FROM sku_catalog WHERE sku_id = '$Sku2';")
+    $Sku2PreExisted = (Invoke-E2ePsql -Sql "SELECT count(*) FROM device_sku_inventory WHERE device_id = '$DeviceId' AND sku_id = '$Sku2';").Trim()
+    $script:Sku2Cleanup = $Sku2PreExisted -eq "0"
+    $bannerAsset = (Invoke-E2ePsql -Sql "SELECT asset_id FROM promotion_placement WHERE position = 'BANNER' ORDER BY activity_id LIMIT 1;").Trim()
+    if (-not $bannerAsset -or -not $Sku2ListPrice) { throw "腿5 前置缺失：bannerAsset=$bannerAsset sku2Price=$Sku2ListPrice" }
+    $invSql2 = @"
+INSERT INTO device_sku_inventory (device_id, sku_id, quantity, capacity, low_threshold, version, updated_at)
+VALUES ('$DeviceId', '$Sku2', 8, 10, 2, 0, NOW())
+ON CONFLICT (device_id, sku_id) DO UPDATE SET quantity = 8, updated_at = NOW();
+INSERT INTO device_sku_lot (lot_id, device_id, sku_id, batch_no, expiry_date, quantity, slot_id, status, created_at, updated_at)
+SELECT 'E2EMA043B', '$DeviceId', '$Sku2', 'E2E-MA043', (CURRENT_DATE + 180), 8, 'A2', 'ON_SALE', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM device_sku_lot WHERE device_id = '$DeviceId' AND sku_id = '$Sku2' AND batch_no = 'E2E-MA043');
+"@
+    $null = Invoke-E2ePsql -Sql $invSql2
+
+    $actBody = @{
+        activityName = "MA043-新增行现价-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        activityType = "SKU_REDUCE"
+        startTime = [DateTime]::UtcNow.AddMinutes(-60).ToString("o")
+        endTime = [DateTime]::UtcNow.AddDays(7).ToString("o")
+        budgetCents = 0
+        userLimit = 0
+        deviceScope = "ALL"
+        ruleConfig = (@{ deviceIds = @(); merchantIds = @(); skuIds = @($Sku2); totalOrderLimit = 0 } | ConvertTo-Json -Compress)
+        description = "e2e MA-043 腿5：新增行按当前活动定价"
+        reduceCents = 50
+    }
+    # 可重跑：上一轮留下的 ACTIVE 活动 B 会被复用（定价取最优，同折扣时低编号先赢 ⇒ 不能盲目再建一个）
+    $reuseSql = @"
+SELECT activity_id FROM promotion_activity a
+WHERE a.is_deleted = FALSE AND a.status = 'ACTIVE' AND a.activity_type = 'SKU_REDUCE'
+  AND COALESCE(a.reduce_cents, 0) = 50 AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements_text(COALESCE(a.rule_config -> 'skuIds', '[]'::jsonb)) e WHERE e = '$Sku2')
+ORDER BY a.activity_id LIMIT 1;
+"@
+    $ActivityB = [long]("0" + (Invoke-E2ePsql -Sql $reuseSql).Trim())
+    if ($ActivityB -gt 0) {
+        Write-Host "    复用已有的 $Sku2 活动 B=$ActivityB（上一轮残留，避免两个同额活动抢定价）"
+    } else {
+        $actBResp = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/ops/promotions" -Headers $Ops -Body $actBody
+        $ActivityB = [long]$actBResp.activityId
+        if (-not $ActivityB) { throw "腿5 创建活动 B 失败：$($actBResp | ConvertTo-Json -Compress)" }
+    }
+    $script:ActivityB = $ActivityB
+    # 🔴 单个 placement 不能用 Invoke-E2eApi：e2e-lib 的 `$Body | ConvertTo-Json` 会把
+    #    1 元素数组拆成裸对象（后端收到 `{"position":...}` 而非 `[{"position":...}]`）⇒ 400「请求体格式错误」。
+    #    这里直接发手写 JSON 数组，绕开序列化陷阱（两个以上元素时不会踩，但夹具只挂一张横幅）。
+    $placedCount = [int](Invoke-E2ePsql -Sql "SELECT count(*) FROM promotion_placement WHERE activity_id = $ActivityB AND position = 'BANNER';")
+    if ($placedCount -lt 1) {
+        $placeResp = Invoke-RestMethod -Method PUT -Uri "$BaseUrl/api/v2/ops/promotions/$ActivityB/placements" `
+            -Headers $Ops -ContentType 'application/json' `
+            -Body ('[{"position":"BANNER","assetId":' + [long]$bannerAsset + '}]')
+        if ([int]$placeResp.code -ne 0) { throw "配置活动 B 展示位失败：code=$($placeResp.code) msg=$($placeResp.message)" }
+    }
+    $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/ops/promotions/$ActivityB/launch" -Headers $Ops
+    $actBStatus = (Invoke-E2ePsql -Sql "SELECT status FROM promotion_activity WHERE activity_id = $ActivityB;").Trim()
+    Assert-Pass ($actBStatus -eq "ACTIVE") "腿5：活动 B=$ActivityB（$Sku2 立减 50）已投放（status=$actBStatus）"
+
+    $before5 = Get-LineSnapshot -OrderId $leg1.OrderId -SkuId $Sku
+    $balBefore5 = [int](Invoke-E2ePsql -Sql "SELECT balance_cents FROM user_account WHERE user_id = $UserId;")
+    $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+        -Path "/api/v2/ops/disputes/$($leg1.TicketId)/reopen" -Headers $Ops -Body @{ note = 'e2e MA-043 新增行复验' }
+    $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+        -Path "/api/v2/ops/disputes/$($leg1.TicketId)/resolve" -Headers $Ops -Body @{
+        resolutionType = "CONFIRM"
+        videoReviewed  = $true
+        items          = @(@{ skuId = $Sku; quantity = $Qty }, @{ skuId = $Sku2; quantity = 1 })
+    }
+    $r5 = Get-OrderRow $leg1.OrderId
+    $oldLine5 = Get-LineSnapshot -OrderId $leg1.OrderId -SkuId $Sku
+    $newLine5 = (Invoke-E2ePsql -Sql "SELECT unit_price_cents || '|' || COALESCE(activity_id::text,'NULL') FROM cabinet_order_line WHERE order_id = '$($leg1.OrderId)' AND sku_id = '$Sku2';").Trim()
+    $lineSum5 = (Invoke-E2ePsql -Sql "SELECT COALESCE(sum(line_amount_cents),0) FROM cabinet_order_line WHERE order_id = '$($leg1.OrderId)';").Trim()
+    # 🔴 改单补差走 ADJUST_CHARGE（OrderPaymentService.chargeDisputeDelta），**不是** CHARGE：
+    #    按 CHARGE 计数判「有没有补收」必假红（实测第一轮就被这条判据骗过一次）
+    $chargeSql = @"
+SELECT operation_type || '|' || amount_cents FROM payment_operation
+WHERE order_id = '$($leg1.OrderId)' AND status = 'COMPLETED' ORDER BY created_at;
+"@
+    $ops5 = (Invoke-E2ePsql -Sql $chargeSql)
+    $adjust5 = @($ops5 -split "\r?\n" | Where-Object { $_ -like 'ADJUST_CHARGE|*' })
+    $balAfter5 = [int](Invoke-E2ePsql -Sql "SELECT balance_cents FROM user_account WHERE user_id = $UserId;")
+    $newUnit5 = [int]$newLine5.Split('|')[0]
+    Write-Host ("    腿5 改单后 total=" + $r5.Total + " 行合计=" + $lineSum5 + " 原行=" + $oldLine5 +
+        " 新增行=" + $newLine5 + " 券=" + $r5.CouponDisc + "/" + $r5.CouponId +
+        " 流水=" + (($ops5 -split "\r?\n") -join ' / ') + " 余额 $balBefore5→$balAfter5")
+
+    Assert-Pass ($oldLine5 -eq $before5) "MA-043：新增行的同时，原 100013 行仍逐字不变（$oldLine5）"
+    Assert-Pass ($newLine5.Split('|')[1] -eq "$ActivityB") "MA-043：新增行按**当前**活动定价（activity_id=$ActivityB）"
+    Assert-Pass ([int]$newLine5.Split('|')[0] -lt $Sku2ListPrice) `
+        "MA-043：新增行单价低于目录价（$($newLine5.Split('|')[0]) < $Sku2ListPrice ⇒ 确实读到当下规则，不是漏定价）"
+    Assert-Pass ($r5.Total -eq [int]$lineSum5) "MA-043：改单应付=行合计（$($r5.Total)，新增行命中活动 ⇒ 订单级仍禁券）"
+    Assert-Pass ($r5.CouponDisc -eq 0 -and $r5.CouponId -eq "NULL") "MA-043：带活动的改单不叠券（coupon_id=$($r5.CouponId)）"
+    Assert-Pass ($adjust5.Count -eq 1) "MA-043：新增行产生一条补差流水 ADJUST_CHARGE（实得 $($adjust5.Count) 条）"
+    Assert-Pass (($balBefore5 - $balAfter5) -eq $newUnit5) `
+        "MA-043：补差实扣=新增行金额（$balBefore5 → $balAfter5 = $newUnit5）"
+
+
     Set-SimCartOnRealSlot -SkuId $Sku -Qty $Qty -SlotCode $SlotCode
     $null = Set-E2eConsumerBalance -BalanceCents $DepositCents -Phone $Phone
     Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
@@ -348,34 +559,73 @@ WHERE a.activity_id = $ActivityId AND e = '$Sku';
     Assert-Pass ($usedCouponOrder -eq $leg2.OrderId) "券的 order_id 回写到本单（$usedCouponOrder）"
     Write-Host ("    本轮新发券 $CouponId 状态=$mineStatus（未被选中就是 UNUSED，属正常）")
 
-    # ============ 腿 4（MA-045）：同一笔按行退款重复提交必须可恢复，不再 409 死路 ============
-    # 修复前：渠道已退成功、同参重试命中「订单+金额」幂等键 → 409「请勿重复提交」，
-    #         本地行/应付/状态永远补不上（渠道成功 + 本地收尾失败 = 死路）。
-    # 修复后：按行集指纹反查已完成退款流水 → resumeLocalPartialRefund → 幂等成功返回。
+    # ============ 腿 4（MA-045）：渠道已退成功之后，三种本地落点都必须收敛 ============
+    # 落点①渠道+本地全完成 ⇒ 幂等成功；落点③prepare 已提交、finalize 没跑 ⇒ 只补 finalize；
+    # 落点②prepare 完全没跑（行/库存/应付都在退款前）⇒ 重跑 prepare+finalize，且绝不再调用渠道。
+    # 注入方式是**状态级**（拿一次真实成功退款后的库状态往回倒），不往生产代码里塞故障钩子。
+    $OrderId4 = $leg1.OrderId
     $refundBody = @{
         reason = "e2e MA-045 按行退款（腿1 活动单）"
         lines  = @(@{ skuId = $Sku; quantity = 1; restoreInventory = $true })
     }
-    $rf1 = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-        -Path "/api/v2/ops/admin/orders/$($leg1.OrderId)/refund" -Headers $Ops -Body $refundBody
-    $r1c = Get-OrderRow $leg1.OrderId
-    Write-Host ("    腿4 首次退款 status=" + $r1c.Status + " refunded=" + $r1c.Refunded + " total=" + $r1c.Total)
-    Assert-Pass ($r1c.Status -eq "PARTIAL_REFUNDED") "腿4：退 1 件留 1 件 ⇒ 部分退款（status=$($r1c.Status)）"
+    # 容量 10：账面先压到 8，退 1 件回补 1 件才看得见（贴着容量会被夹住，判据失去牙齿）
+    $null = Set-FixtureStock -DevId $DeviceId -SkuId $Sku -Qty 8
+    $preRow = Get-OrderRow $OrderId4
+    $preLine = Get-LineSnapshot -OrderId $OrderId4 -SkuId $Sku
+    $preStock = Get-StockSnapshot -DeviceId $DeviceId -SkuId $Sku
+    $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+        -Path "/api/v2/ops/admin/orders/$OrderId4/refund" -Headers $Ops -Body $refundBody
+    $gold = Get-OrderRow $OrderId4
+    $goldLine = Get-LineSnapshot -OrderId $OrderId4 -SkuId $Sku
+    $goldStock = Get-StockSnapshot -DeviceId $DeviceId -SkuId $Sku
+    $op = Get-RefundOpRow -OrderId $OrderId4
+    $hasMarker = $op.Reason.Contains('[LOCAL_PREPARED]')
+    Write-Host ("    腿4 基准：退款前 total=$($preRow.Total) 行=$($preLine) 库存=$($preStock) ⇒ 退款后 " +
+        "$($gold.Status) total=$($gold.Total) refunded=$($gold.Refunded) 行=$($goldLine) 库存=$($goldStock) 幂等键=$($op.IdemKey)")
 
-    $dupErr = $null
-    try {
-        $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-            -Path "/api/v2/ops/admin/orders/$($leg1.OrderId)/refund" -Headers $Ops -Body $refundBody
-    } catch {
-        $dupErr = $_.Exception.Message
-    }
-    $refundRows = (Invoke-E2ePsql -Sql "SELECT count(*) FROM payment_operation WHERE order_id = '$($leg1.OrderId)' AND operation_type='REFUND' AND status='COMPLETED';").Trim()
-    $r1d = Get-OrderRow $leg1.OrderId
-    if ($dupErr) { Write-Host ("    腿4 重复退款返回：" + $dupErr.Substring(0, [Math]::Min(160, $dupErr.Length))) }
-    Assert-Pass (-not $dupErr) ("MA-045：同参重复退款不再 409 死路（修复前必 409「请勿重复提交」）" + $(if ($dupErr) { " ⇒ 实际：" + $dupErr.Substring(0, [Math]::Min(120, $dupErr.Length)) } else { "" }))
-    Assert-Pass ($refundRows -eq "1") "MA-045：重复提交没有二次退款（REFUND COMPLETED=$refundRows）"
-    Assert-Pass ($r1d.Total -eq $r1c.Total) "MA-045：重复提交后订单金额未被二次摊薄（$($r1d.Total)）"
-    Assert-Pass ($r1d.Refunded -eq $r1c.Refunded) "MA-045：重复提交后已退累计未变（$($r1d.Refunded)）"
+    Assert-Pass ($gold.Status -eq "PARTIAL_REFUNDED" -and $gold.Refunded -eq $op.Amount) `
+        "腿4：退 1 件留 1 件 ⇒ PARTIAL_REFUNDED，已退累计=渠道退款额（$($gold.Refunded)）"
+    Assert-Pass $hasMarker "腿4：prepare 与 [LOCAL_PREPARED] 标记同事务落库"
+    Assert-StockConsistent -StockSpec $goldStock -Tag "腿4 基准"
+
+    # ---- 落点①：一切完成后同参重放 ----
+    $errOne = Invoke-RefundTry -OrderId $OrderId4 -Body $refundBody
+    $rOne = Get-OrderRow $OrderId4
+    Assert-Pass (-not $errOne) ("落点①：同参重复退款不再 409 死路（修复前必 409「请勿重复提交」）" +
+        $(if ($errOne) { " ⇒ 实际：$errOne" } else { "" }))
+    Assert-Pass ($rOne.Total -eq $gold.Total -and $rOne.Refunded -eq $gold.Refunded) `
+        "落点①：金额与已退累计未被二次摊薄（$($rOne.Total)/$($rOne.Refunded)）"
+
+    # ---- 落点③：prepare 已提交、finalize 没跑（行与库存留在退款后，状态/已退回退，标记保留）----
+    Set-RefundCrashState -OrderId $OrderId4 -SkuId $Sku -DevId $DeviceId -Total $gold.Total `
+        -LineSpec $goldLine -StockSpec $goldStock -Prepared $true -IdemKey $op.IdemKey -Reason $op.Reason
+    Write-Host "    注入落点③：状态回 PAID、已退归 0、行与库存留在退款后、标记保留"
+    $errThree = Invoke-RefundTry -OrderId $OrderId4 -Body $refundBody
+    $rThree = Get-OrderRow $OrderId4
+    $stockThree = Get-StockSnapshot -DeviceId $DeviceId -SkuId $Sku
+    $cntThree = (Invoke-E2ePsql -Sql "SELECT count(*) FROM payment_operation WHERE order_id = '$OrderId4' AND operation_type='REFUND' AND status='COMPLETED';").Trim()
+    Assert-Pass (-not $errThree) ("落点③：只补 finalize 即可收敛，不再 409" + $(if ($errThree) { " ⇒ 实际：$errThree" } else { "" }))
+    Assert-Pass ($rThree.Status -eq $gold.Status -and $rThree.Total -eq $gold.Total -and $rThree.Refunded -eq $gold.Refunded) `
+        "落点③：收敛到基准态（$($rThree.Status) total=$($rThree.Total) refunded=$($rThree.Refunded)）"
+    Assert-Pass ($cntThree -eq "1") "落点③：渠道未被二次调用（REFUND COMPLETED=$cntThree）"
+    Assert-StockConsistent -StockSpec $stockThree -Tag "落点③"
+
+    # ---- 落点②：渠道已退、prepare 完全没跑（行/库存/应付全回退，标记抹掉）----
+    Set-RefundCrashState -OrderId $OrderId4 -SkuId $Sku -DevId $DeviceId -Total $preRow.Total `
+        -LineSpec $preLine -StockSpec $preStock -Prepared $false -IdemKey $op.IdemKey -Reason $op.Reason
+    Write-Host "    注入落点②：行/库存/应付全部回到退款前，并抹掉 [LOCAL_PREPARED] 标记"
+    $errTwo = Invoke-RefundTry -OrderId $OrderId4 -Body $refundBody
+    $rTwo = Get-OrderRow $OrderId4
+    $lineTwo = Get-LineSnapshot -OrderId $OrderId4 -SkuId $Sku
+    $stockTwo = Get-StockSnapshot -DeviceId $DeviceId -SkuId $Sku
+    $cntTwo = (Invoke-E2ePsql -Sql "SELECT count(*) FROM payment_operation WHERE order_id = '$OrderId4' AND operation_type='REFUND' AND status='COMPLETED';").Trim()
+    Assert-Pass (-not $errTwo) ("落点②：重跑 prepare+finalize 收敛，不再 409" + $(if ($errTwo) { " ⇒ 实际：$errTwo" } else { "" }))
+    Assert-Pass ($rTwo.Status -eq $gold.Status -and $rTwo.Total -eq $gold.Total -and $rTwo.Refunded -eq $gold.Refunded) `
+        "落点②：收敛到基准态（$($rTwo.Status) total=$($rTwo.Total) refunded=$($rTwo.Refunded)）"
+    Assert-Pass ($lineTwo -eq $goldLine) "落点②：行只被扣了一次（$lineTwo = 基准 $goldLine）"
+    Assert-Pass ($stockTwo -eq $goldStock) "落点②：库存只回补了一次（$stockTwo = 基准 $goldStock）"
+    Assert-Pass ($cntTwo -eq "1") "落点②：渠道未被二次调用（REFUND COMPLETED=$cntTwo）"
+    Assert-StockConsistent -StockSpec $stockTwo -Tag "落点②"
 
     $ordersAfter = [int](Invoke-E2ePsql -Sql "SELECT count(*) FROM cabinet_order;")
     Write-Host ""
@@ -393,6 +643,10 @@ WHERE a.activity_id = $ActivityId AND e = '$Sku';
         $null = Invoke-E2ePsql -Sql "UPDATE device_info SET deposit_cents = $dep WHERE device_id = '$DeviceId';"
         Write-Host "    设备 $DeviceId deposit_cents 还原为 $depositWas"
     }
+    if ($script:ActivityB) {
+        $st = (Invoke-E2ePsql -Sql "SELECT status FROM promotion_activity WHERE activity_id = $script:ActivityB;").Trim()
+        Write-Host "    残留（刻意保留，与夹具活动 4 同性质）：活动 $script:ActivityB status=$st；演示柜 100014 的账面批次/汇总与它的销售流水一起留着，删了会让台账 MISSING_SALE"
+    }
     Exit-E2eLock $lock
 }
 
@@ -405,3 +659,6 @@ if ($Failures.Count -gt 0) {
 Write-Host ""
 Write-Host "RESULT: PASS（MA-039/040 活动单补扣与 PENDING 金额 + MA-043 争议沿用原单活动决策 + MA-045 同参退款可恢复 + MA-066/067 欠款落库，含无活动对照腿）"
 exit 0
+
+
+

@@ -683,6 +683,42 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-03（活栈资金链复验收口 + 争议自动免单后台旋钮；MA-066/067 + MA-148（撞号后改）三条新账）
+
+- 🧪 **活栈资金链复验**（新增 `scripts/e2e-activity-unpaid-collect.ps1`，**49 条判据全绿**，含无活动对照腿）：
+  模拟柜购物 → 余额不足转 PENDING → 补缴 → 停活动后重开争议改单 → 同一次改单里再新增一款 SKU →
+  按行退款三种崩溃现场（①全完成 / ③prepare 跑过 finalize 没跑 / ②prepare 完全没跑）同参重放。
+  实证数字：PENDING `total=486 = 700−14−200−0`（修复前 700）；补缴后 `coupon_id` 仍 NULL、实扣 486、券仍 UNUSED；
+  停活动后改单行单价/`activity_id`/留档逐字不变且不新增扣款；新增行 `293 = 343−50` 挂新活动、补差走
+  `ADJUST_CHARGE`、余额 4514→4221；三落点重放都 200、`REFUND COMPLETED` 恒 1、行与库存都只动一次。
+- 🔴 **MA-066 欠款转待支付毒化事务**（活栈实测必 500，订单/工单/风控整链回滚）：编程式
+  `TransactionTemplate` 没有 `noRollbackFor`，`chargeOrder` 又只放行业务异常 ⇒
+  修法=账本在回调内收下「余额不足」、出锁出事务后再抛 + `changeBalanceForCharge` 折成
+  `BalanceInsufficientException`（HTTP 仍 412，口径不变）。**F1-B 当年只修了预授权冲抵那一支**。
+- 🔴 **MA-067「待支付不占券」只改了内存对象**：MP `updateById` 跳过 null ⇒ 已 insert 的订单清不掉 `coupon_id`
+  （券没核销却挂在单上，改单/部分退按它重算 = 对没收的券再折一次）。修法=显式 UPDATE
+  `clearOrderCouponSelection` + 两支收尾统一走 `markPendingAndDropCoupon`。**判据必须读库**。
+- 🔴 **MA-148 布尔型资金动作开关零留痕**：审计总开关（dev 库里=false）关闭时只有 `FUND_GUARDED_KEYS`
+  强制留痕，而布尔键进不了那个集合（其值校验只吃整数）⇒ 新增 `AUDIT_FORCED_SWITCH_KEYS`（只管留痕、不做值校验）。
+- 🎛 **争议自动免单做成后台旋钮**（用户拍板 A 案）：`dispute.auto_waive.enabled`（参数配置→争议工单，
+  BOOLEAN，seed `false`；优先级 SystemConfig > env > 代码兜底）。语义分工写进键描述与
+  `docs/P3_4_DISPUTE_AUTO_WAIVE_DESIGN.md §8`：**这把闸关掉=照常扫描但一律不免单**（台账留候选数、可复盘），
+  「系统→定时任务」那把关掉=整个 job 不跑。`scripts/verify-auto-waive-knob.mjs` K1–K6 全绿
+  （dev env=true 被库值 false 盖住 ⇒ OPEN 工单 32→32；抬阈值到 999999 证明确实进了扫描分支）。
+  ⚠️ 副作用：该行一旦播种即为 false ⇒ **dev 名义上的 env=true 被盖住**；实测此前每轮都是「候选 14 免单 0
+  防薅跳过 14」，净行为不变，要真免单请在后台打开。
+- 🧯 本轮踩到的**夹具/环境事实**（都写进了 lessons #386）：批次状态域是 `ON_SALE/NEAR_EXPIRY/DEPLETED`
+  （手写 `ACTIVE` 会让批次对消费者不可售 + 把汇总同步成 0，dev 演示柜已被我修回 `ON_SALE`）；
+  `seed-demo-data.ps1` 的 `fallbackSkuId` 会随在售面漂移 ⇒ 回归脚本自己按夹具活动的目标 SKU 钉；
+  改单补差的流水类型是 `ADJUST_CHARGE` 不是 `CHARGE`；e2e-lib 的 `$Body | ConvertTo-Json` 会把单元素数组
+  拆成裸对象（placement PUT 必 400）；`ApiRateLimitService` 是小时窗口 ⇒ 回归脚本自清本夹具主体的计数键。
+- 📌 dev 基线增量：`cabinet_order` 24 → 28（新增 4 单，含腿 5 的双行单与退款单）、演示柜 500909625160
+  在售多出 100014（账面批次 + 汇总 + 销售流水，刻意保留以免台账 MISSING_SALE）、`user_coupon` 若干张 ¥2 试跑券残留。
+- 🧪 本轮验证：trade-service 全量单测 **2672/0/0**（457 份 surefire 报告，按 `<testcase>` 计数）；
+  新增钉测 4 例（`DisputeAutoWaiveSchedulerTest` 配置覆盖 env 两向 + `SystemConfigFundKeyGuardTest` 强制留痕
+  + 前一批的 MA-066/067 判据）；`check:feature-flags` 全绿（115 个开关 / seed 与注册表逐字一致）；
+  两条活栈脚本各自全绿（`e2e-activity-unpaid-collect.ps1` 49 判据、`verify-auto-waive-knob.mjs` K1–K6）。
+
 ### 2026-11-02（三端审计 P1×3/P2×6/P3×18 收口：补扣链禁券、PENDING 金额、调拨表单、清库脚本、分账重试、支付分白名单）
 
 - **资金链一致性**：`UnpaidOrderService.applyBestCouponForCollect` 补「活动价订单禁用券」闸（与结算主链同口径）；`SettlementOrderFinalizeService.clearCouponSelection` 改按 `total + couponDiscount` 还原折前应付，活动单转 PENDING 不再把活动优惠一起还原掉（待支付/风控/催缴金额不再虚高）；`SettlementOrderSupport.recalculatePayableAfterLineChange` 活动优先禁券；活动限购计数排除本单并在结算/改单链锁活动行（`PromotionPricingService.resolveUnitPriceForOrder`）。

@@ -32,7 +32,7 @@
 **动作**：复用现有 `resolveTicket`（system 操作者身份）走 `WAIVE` + `restoreInventory=false` 显式传参——审计、状态对齐（WAIVE→REFUNDED 兜底）、会话收口全部复用既有链路，不另写旁路（`DisputeService.java:594,605-617`）。
 
 **护栏**：
-- 总开关 `dispute.auto-waive.enabled` **默认 OFF**（fail-closed，先灰度再开）；
+- 总开关 `dispute.auto_waive.enabled` **默认 OFF**（fail-closed，先灰度再开；2026-11-03 起该键落库，运营台「参数配置 → 争议工单」可直接关，取值优先级 SystemConfig > env，见 §7 末）；
 - 单轮批量上限（如 50 张/轮），防首开洪水；
 - 同一用户滚动窗口自动免单次数上限（如 7 天 ≤3 次，防「制造识别失败白拿货」薅羊毛；超限单留人工）——上限触发时发风控事件（挂 `RiskControlService` 现有体系）；
 - 每轮结果汇总走 `OpsAlertDispatcher`（免单张数/总金额=0/超限跳过数），失败也必须可观测。
@@ -59,6 +59,7 @@
 1. **阈值 = 72h**：跨完整周末；行业争议处理 SLA 惯例 48–72h，自动层做最后兜底不抢人工；
 2. **防薅 = 滚动 7 天单用户 ≤3 次**（历史按 `operator_note='AUTO_WAIVE'` 统计）：电商自动退款防滥用常规口径，超限单留人工并发告警摘要；
 3. **灰度 = properties `aicabinet.dispute-auto-waive.enabled` 默认 false**（fail-closed）：dev 可开观察，production 评审后再开；XXL 任务即使被触发也在未启用时空转。
+   ⚠️ 2026-11-03 订正：这句只描述「库里没有该键时」的兜底——一旦 `dispute.auto_waive.enabled` 落库（seed 即落），**它以库值为准**，env 不再是权威。
 
 ## 7. 实施记录（2026-10-01）
 
@@ -72,3 +73,26 @@
 1. 默认阈值 72h 是否合适（或 48h）？
 2. 单用户防薅窗口（7 天 ≤3 次）数值口径；
 3. 首发是否直接在 dev 打开开关观察一周再上 production。
+
+---
+
+## 8. 2026-11-03 追加：总开关做成后台旋钮（用户「争议过时间自动免单是否可以关闭」→ 拍板 A 案）
+
+- **键**：`dispute.auto_waive.enabled`（SystemConfig，分组「争议工单」，type BOOLEAN，seed `false`）。
+  取值优先级 **SystemConfig > env > 代码兜底**，与其它调参键同口径；`getBoolean` 的兜底实参就是
+  `properties.enabled()` ⇒ **库里没有该行时才轮到 env**（新库/未播种环境仍按 env 走，fail-closed 不变）。
+- **语义分工（两把闸不是重复旋钮，写进了键描述）**：
+  - 这里关掉 = 任务**照常每 15 分钟扫描**，一律不免单，台账 `last_message` 写
+    「争议自动免单已由参数配置关闭（任务照常扫描，一律不免单）」⇒ 事后能回答「这段时间本会免掉几单」；
+  - 「系统 → 定时任务」的 `dispute-auto-waive` 开关（`scheduled_task.enabled`，权限 `ops:task:edit`）关掉 =
+    `tryBegin` 直接 `recordSkip("task disabled")`，连扫描和留痕都没有。
+- **强制留痕（顺带补的 MA-148）**：`SystemConfigService.AUDIT_FORCED_SWITCH_KEYS` 收这个键——
+  它**不能**进 `FUND_GUARDED_KEYS`（那里的写侧校验只吃整数，`"true"/"false"` 会被 400），
+  但和资金族一样无视 `ops.config.audit.enabled` 落 `system_config_history` + `admin_audit_log`；
+  此前 dev 的审计总开关是 `false`，任何人打开免单都不会留痕。
+- **验证**：`scripts/verify-auto-waive-knob.mjs` K1–K6 全绿（K3 实证「dev env=true 但库里 false ⇒ 零免单，
+  OPEN 工单 32→32」；K4 用 `hours=999999` 抬阈值 ⇒ 「候选 0 张」证明进了扫描分支且不动别人的工单；
+  K5 实证开关键在审计开关=false 时仍留痕）；`DisputeAutoWaiveSchedulerTest` 补 2 例（配置覆盖 env 两个方向），
+  `SystemConfigFundKeyGuardTest` 补 1 例（强制留痕）；`check:feature-flags` R1/R2/R3/R5 全绿。
+- **对 dev 的即时影响**：这行一旦播种就是 `false` ⇒ dev 名义上的 `AICABINET_DISPUTE_AUTO_WAIVE_ENABLED=true`
+  被盖住。实测此前每轮都是「候选 14，免单 0，防薅跳过 14」，**净行为没变**，要真免单请在后台把开关打开。
