@@ -63,6 +63,7 @@ description: >-
 - admin 用 Playwright headed Chrome，亮/暗都看；`:3100` 起不来用独立端口，**不要杀用户的 dev server**。
 - 骨架屏/加载态这类瞬时状态：`mockWxMethod('request', fn)` 挂起目标 URL 可冻住画面（consumer 实例实测可用；merchant 实例可能拦不到，改看构建产物 + usingComponents）。
 - 验收交付 = **只对本次实际改动页面**拍「同会话、同数据快照」前后对比；不做 130+ 全量归档，证据留 `.tmp`（gitignore）。
+- 🔴 **网络变更后先重烤 mp env**：两端 `.env.development` 由 `scripts/sync-consumer-mp-api.mjs` 烤的是**当时局域网 IP**，且 `clients/*/.env.development.local` 优先级更高。IP 漂移时请求连不到网关 ⇒ 列表永远停在加载态（骨架屏/「加载中…」），极易误判成前端 bug。判据：网关 access log 里**没有**模拟器的请求。修法：`node scripts/sync-consumer-mp-api.mjs` + 手工核对 `.local`，再 `build:mp-weixin:dev` 重烤。
 
 ## 6. 门禁命令（改 UI 后自查）
 
