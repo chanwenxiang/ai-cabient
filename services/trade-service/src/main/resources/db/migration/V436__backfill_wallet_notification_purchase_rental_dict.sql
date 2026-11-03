@@ -26,12 +26,22 @@
 -- 同步义务：本迁移的每个值都必须同时出现在 SysDictBootstrap.seedCatalog()
 -- 与 packages/shared-dict 基线里（三源一致，见 check:warehouse-movement-dict 同族判据）。
 
+-- 类型行必须在这里也兜一遍：全新库里 purchase_order_status 等类型**只由运行期
+-- SysDictBootstrap 自愈补出，迁移里没有**（dict_data 有 FK 指向 dict_type，
+-- 靠 bootstrap 建类型意味着「迁移先跑、类型还没建」时必然 FK 违约——这一条是被
+-- DictLabelUniquenessIT 的 fresh-DB Flyway 链抓出来的，静态门禁看不见）。
 INSERT INTO sys_dict_type (dict_type, dict_name, status, sort_order, remark)
-SELECT 'device_rental_bill_status', '设备租赁账单状态', 'ACTIVE', 0, 'device_rental_bill.status'
-WHERE NOT EXISTS (SELECT 1 FROM sys_dict_type WHERE dict_type = 'device_rental_bill_status');
+SELECT v.dict_type, v.dict_name, 'ACTIVE', 0, v.remark
+FROM (VALUES
+    ('wallet_entry_type'::varchar,        '钱包流水类型'::varchar,    'wallet_ledger.entry_type'::varchar),
+    ('notification_biz_type',             '站内信业务类型',            'notification_log.biz_type'),
+    ('purchase_order_status',             '采购单状态',                'purchase_order.status'),
+    ('device_rental_bill_status',         '设备租赁账单状态',          'device_rental_bill.status')
+) AS v(dict_type, dict_name, remark)
+WHERE NOT EXISTS (SELECT 1 FROM sys_dict_type t WHERE t.dict_type = v.dict_type);
 
-INSERT INTO sys_dict_data (dict_type, dict_value, dict_label, sort_order, status, remark)
-SELECT v.dict_type, v.dict_value, v.dict_label, v.sort_order, 'ACTIVE', v.remark
+INSERT INTO sys_dict_data (dict_type, dict_value, dict_label, sort_order, status)
+SELECT v.dict_type, v.dict_value, v.dict_label, v.sort_order, 'ACTIVE'
 FROM (VALUES
     ('wallet_entry_type'::varchar, 'COMMISSION_CLAWBACK'::varchar, '佣金冲回'::varchar, 15),
     ('wallet_entry_type',          'WITHDRAW_FEE',                 '提现手续费',        16),
