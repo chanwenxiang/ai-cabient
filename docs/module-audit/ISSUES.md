@@ -85,7 +85,7 @@
 | MA-073 | P3 | fixed（商户/线长提现申请留痕；系统重试仍记为系统） | 提现「申请」动作（商户+线长） | review/payout/cancel 三兄弟全有 MERCHANT_WITHDRAW_* 审计，唯独 APPLY 无；运营代提在低于阈值自动打款分支下操作者三处不可归因（线长侧 submitter 恒 null） | ZCode R12批1 / 2026-11-02 | |
 | MA-074 | P3 | fixed（钉测 2 例，幂等命中不留痕） | `POST /ops/admin/staff-wallets/{id}/payout` | 补货员钱包打款标记（资金出账销账动作）无操作者审计；同族 LINE_MANAGER_ADJUST/MERCHANT_WITHDRAW_PAYOUT 均有 | ZCode R12批1 / 2026-11-02 | |
 | MA-075 | P3 | fixed（快照留痕） | `PATCH /ops/admin/line-managers/{id}` | userId 换绑/改名/改手机不进 LINE_MANAGER_UPDATE 审计（只有佣金/状态变化才记）；userId 是 CB-066 实名守卫锚点，longVal 不校验用户存在可绑到不存在/他人 ID | ZCode R12批1 / 2026-11-02 | |
-| MA-076 | P3 | open | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号 | ZCode R12批1 / 2026-11-02 | |
+| MA-076 | P3 | fixed（部分：税务资料已留痕；补货配置待单做） | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号 | ZCode R12批1 / 2026-11-02 | |
 | MA-077 | P3 | fixed（白名单 400） | OpsPayoutAccountController 收款账户 | ownerType 无白名单：未知值落到 else 分支 `ops:finance:view`（只读权限可写）且垃圾值原样入库；无资金影响（提现链只认 LINE_MANAGER/MERCHANT） | ZCode R12批1 / 2026-11-02 | |
 | MA-078 | P3 | open | `POST /ops/admin/merchants` | merchant.status 自由字符串直落：无白名单（"OPEN" 等静默生效使商户从 ACTIVE 过滤面消失）、超 16 字符触发 PG 22001→500 而非 400 | ZCode R12批1 / 2026-11-02 | |
 | MA-079 | P3 | open | `DELETE /ops/admin/dicts/types/{dictType}` | 可硬删代码内置字典类型（ORG_NODE_TYPE 等白名单权威来源），删除后 resolveNodeType fail-open 放行任意值；fail-open 本身是 javadoc 钉的设计，缺的是内置类型删除门槛 | ZCode R12批1 / 2026-11-02 | |
@@ -103,7 +103,7 @@
 
 | MA-090 | P2 | fixed（钉测 7 例） | `PUT /ops/admin/machine-payee-bills/config/{deviceId}` | 机器账单分成比例 shareBps 无界直落（>10000 可生成超 GMV 五倍的分成账单且每账期持续生效）；同仓三处先例都有闸（SiteRentSplit 400 / FundBill 钉测 / allocate 钳位），与 MA-069（线长佣金）完全同构；次要：enabled 无 0/1 约束（垃圾值使该柜从出账面消失）、payeeName null→500 | ZCode R12批3 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-091 | P3 | open | 商户费用台账结清 / 机器账单结清 / 按日重跑日扣 | 三处资金处置动作零操作者归因（连 operatorId 参数都没有；rerun-daily-fees 是批量真扣钱包 WalletEngine.debitIfAbsentAllowNegative）；MA-074 同类 | ZCode R12批3 / 2026-11-03 | |
-| MA-092 | P3 | open | 发票开具/驳回、机器账单出账、对账重跑 | 财务面 5 写端点无 /audit 审计（对照 SiteRentBill/DeviceDataFeeBill 全有 appendLog）；ReconciliationService.runDaily 的 operatorId 传而不用，重跑删旧重建无痕 | ZCode R12批3 / 2026-11-03 | |
+| MA-092 | P3 | fixed（部分：开票/驳回已留痕；对账重跑仍未动） | 发票开具/驳回、机器账单出账、对账重跑 | 财务面 5 写端点无 /audit 审计（对照 SiteRentBill/DeviceDataFeeBill 全有 appendLog）；ReconciliationService.runDaily 的 operatorId 传而不用，重跑删旧重建无痕 | ZCode R12批3 / 2026-11-03 | |
 | MA-093 | P3 | fixed（部分：充值正数闸） | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
 | MA-094 | P3 | open | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
 | MA-095 | P3 | open | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
@@ -1115,3 +1115,22 @@
   「申请事件 + 审批事件」两步串起来；调度/重试路径本就无人工操作者（应记 system）。
   若要逐笔打到「谁触发了这次打款」，需要给 executePayout 加 operator 形参并贯穿 3 个调用点，
   属独立小批（不是本条的阻塞项）。
+
+### 批次L｜财务留痕两条（MA-092 部分 / MA-076 部分），各自把残留写清
+
+- **MA-092 开票链**：`InvoiceService` 补 `AdminAuditService`——`issue`/`reject` 是财务凭证动作，
+  此前**全类零留痕**。detail 记 `orderId`（`InvoiceRequest` 没有 merchantId 字段，按实体实际字段来）。
+  **残留**：同一族的「对账重跑（`ReconciliationService.runDaily` 先删旧 recon+行再重建）」仍未留痕，
+  且 `OpsFinanceAdminService`（机器账单出账/结清）也未动。
+- **MA-076 税务资料**：保存含**银行账号**（PII），现只记「谁改的 / 新建还是修改 / 账号后四位 / 公司名」，
+  不落完整账号与税号（审计表面向全员可读）。
+  **残留**：同条的另一半 `CompetitiveGapService`（商户补货配置）本轮**刻意未动**——构造器 20 个参数、
+  4 处调用点（其中一处是 20 个 null 字面量），为一条留痕把改动面扩到 5 处，收益与风险不成比例。
+  下批单做该条，届时把 `CompetitiveGapConcurrencyTest` / `CompetitiveGapSalesReportTest` /
+  `CompetitiveGapServiceDeviceScopeValidationTest` / `MerchantPortalConcurrencyTest` 四处一并补 mock。
+
+> 🔴 **本轮操作失误（不是代码问题）**：我在后台全量套件仍在跑时又启动了定向 `mvn`，两个进程同时写
+> `target/classes`，导致那次全量出现 30 failures + 323 errors，错误全是
+> `class redefinition failed` / `NoClassDefFoundError` / `Could not modify all classes`（Mockito/ByteBuddy 类加载态被并发改写）。
+> 已按纪律重跑 `mvn -pl services/trade-service -am clean test` 单独验证，结论以那次为准。
+> 教训与 #390 同源：**同一模块内任何时刻只能有一个 mvn**。
