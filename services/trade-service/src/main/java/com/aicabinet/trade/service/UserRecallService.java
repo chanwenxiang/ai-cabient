@@ -39,10 +39,25 @@ public class UserRecallService {
         this.distributedLockService = distributedLockService;
     }
 
+    /**
+     * MA-099：锁只防并发不防顺序重放——双击=同批用户每人多发一张券。
+     * 请求体带 requestId 时按幂等键去重（10 分钟窗，获锁即标记、不释放）；
+     * 未带键时退化为同券 60 秒短窗去重，挡住双击/重试风暴。
+     */
     @Transactional
-    public UserRecallResult recall(Long operatorId, Long couponDefId, Integer days, List<Long> userIds) {
+    public UserRecallResult recall(Long operatorId, String requestId, Long couponDefId,
+                                   Integer days, List<Long> userIds) {
         if (couponDefId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择召回优惠券");
+        }
+        if (requestId != null && !requestId.isBlank()) {
+            if (!distributedLockService.tryLock(recallRequestKey(requestId.trim()), 600, 0)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "该召回请求已受理（requestId 重复），请勿重复提交；如需再次召回请换 requestId");
+            }
+        } else if (!distributedLockService.tryLock(recallWindowKey(couponDefId), 60, 0)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "同券召回间隔过短（60 秒内已触发过），如确需立即再次召回请在请求中携带 requestId");
         }
         return runWithRecallCouponLock(couponDefId, () -> doRecall(operatorId, couponDefId, days, userIds));
     }
@@ -94,6 +109,14 @@ public class UserRecallService {
 
     static String recallCouponLockKey(long couponDefId) {
         return "user-recall:coupon:" + couponDefId;
+    }
+
+    static String recallRequestKey(String requestId) {
+        return "user-recall:req:" + requestId;
+    }
+
+    static String recallWindowKey(long couponDefId) {
+        return "user-recall:win:" + couponDefId;
     }
 
     private <T> T runWithRecallCouponLock(long couponDefId, Supplier<T> action) {

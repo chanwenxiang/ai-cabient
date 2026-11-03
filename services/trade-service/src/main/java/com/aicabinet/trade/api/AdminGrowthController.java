@@ -22,15 +22,16 @@ import com.aicabinet.trade.service.SkuDelistReviewService;
 import com.aicabinet.trade.service.UserBehaviorAnalyticsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -135,16 +136,25 @@ public class AdminGrowthController {
     @PostMapping("/user-recall")
     public ApiResponse<UserRecallResult> userRecall(HttpServletRequest request,
                                                      @RequestBody Map<String, Object> body) {
-        Long couponDefId = body.get("couponDefId") == null
-                ? null
-                : Long.valueOf(String.valueOf(body.get("couponDefId")));
-        Integer days = body.get("days") == null
-                ? null
-                : Integer.valueOf(String.valueOf(body.get("days")));
-        List<Long> userIds = body.get("userIds") instanceof List<?> list
-                ? list.stream().map(String::valueOf).map(Long::valueOf).toList()
-                : null;
-        return ApiResponse.ok(userRecallService.recall(operatorId(request), couponDefId, days, userIds));
+        Long couponDefId;
+        Integer days;
+        List<Long> userIds;
+        try {
+            couponDefId = body.get("couponDefId") == null
+                    ? null
+                    : Long.valueOf(String.valueOf(body.get("couponDefId")));
+            days = body.get("days") == null
+                    ? null
+                    : Integer.valueOf(String.valueOf(body.get("days")));
+            userIds = body.get("userIds") instanceof List<?> list
+                    ? list.stream().map(String::valueOf).map(Long::valueOf).toList()
+                    : null;
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "couponDefId/days/userIds 存在非法数值");
+        }
+        Object requestId = body.get("requestId");
+        return ApiResponse.ok(userRecallService.recall(operatorId(request),
+                requestId instanceof String s ? s : null, couponDefId, days, userIds));
     }
 
     // ---------- 营销活动效果分析 ----------
