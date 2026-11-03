@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.JiangyiBindingViewDto;
 import com.aicabinet.common.dto.JiangyiClassMappingDto;
 import com.aicabinet.common.dto.JiangyiDeviceDto;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.DeviceFaultOrder;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
@@ -199,16 +200,20 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/jiangyi/tenant-domain")
     public ApiResponse<JiangyiOnboardingService.TenantDomainView> setTenantDomain(
+            HttpServletRequest request,
             @Valid @RequestBody TenantDomainRequest body) {
         return ApiResponse.ok(jiangyiOnboardingService.setTenantDomain(
+                (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID),
                 body.domain().trim(), blankToNull(body.socketUrl())));
     }
 
     /** 退役：拒绝一切后续路由与上报（gateway 校验 status）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/retire")
-    public ApiResponse<JiangyiDeviceDto> retire(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.retire(deviceId)));
+    public ApiResponse<JiangyiDeviceDto> retire(HttpServletRequest request,
+                                                @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(toDto(jiangyiOnboardingService.retire(
+                (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID), deviceId)));
     }
 
     /** 修改 SN（仅 UNBOUND）：登记抄错的纠正入口；SN 全局唯一，BOUND 须退役重登记。 */

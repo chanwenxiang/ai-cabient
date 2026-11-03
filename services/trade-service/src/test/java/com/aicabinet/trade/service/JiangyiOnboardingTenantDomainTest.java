@@ -41,6 +41,7 @@ class JiangyiOnboardingTenantDomainTest {
     private JiangyiOnboardingService service(String secret) {
         return new JiangyiOnboardingService(jiangyiDeviceMapper, deviceInfoMapper,
                 jiangyiMerchantClient, jiangyiDeviceDirectory, systemConfigService,
+                org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class),
                 TENANT_ID, secret);
     }
 
@@ -48,7 +49,7 @@ class JiangyiOnboardingTenantDomainTest {
     void rejectsDomainWithoutJiangyiApiTail() {
         // 漏尾段 = 设备切到一个我方 nginx 不路由的地址，比不切更难查，必须 fail-fast
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> service("s").setTenantDomain("https://gate.example.com", null));
+                () -> service("s").setTenantDomain(null, "https://gate.example.com", null));
         assertTrue(ex.getMessage().contains("/jiangyi/api"));
         verify(jiangyiMerchantClient, never()).setDomain(anyLong(), anyString(), anyString(), anyString());
     }
@@ -56,14 +57,14 @@ class JiangyiOnboardingTenantDomainTest {
     @Test
     void requiresTenantCredentials() {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> service("").setTenantDomain("https://gate.example.com/jiangyi/api", null));
+                () -> service("").setTenantDomain(null, "https://gate.example.com/jiangyi/api", null));
         assertTrue(ex.getMessage().contains("JIANGYI_TENANT_ID"));
     }
 
     @Test
     void derivesSocketUrlAndPersistsLatestValues() {
         JiangyiOnboardingService.TenantDomainView view = service("secret")
-                .setTenantDomain("https://gate.example.com/jiangyi/api/", "");
+                .setTenantDomain(null, "https://gate.example.com/jiangyi/api/", "");
 
         // 尾斜杠被归一化；socketUrl 缺省=推导，且只取 scheme+authority
         assertEquals("https://gate.example.com/jiangyi/api", view.domain());
@@ -85,7 +86,7 @@ class JiangyiOnboardingTenantDomainTest {
     @Test
     void keepsProvidedSocketUrlWhenGiven() {
         JiangyiOnboardingService.TenantDomainView view = service("secret")
-                .setTenantDomain("https://gate.example.com/jiangyi/api", "wss://other.example.com/websocket/device/");
+                .setTenantDomain(null, "https://gate.example.com/jiangyi/api", "wss://other.example.com/websocket/device/");
 
         assertEquals("wss://other.example.com/websocket/device/", view.socketUrl());
         verify(jiangyiMerchantClient).setDomain(eq(TENANT_ID), eq("secret"),

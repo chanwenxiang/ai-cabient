@@ -130,7 +130,7 @@
 
 | MA-115 | P2 | fixed（钉测 2 例） | `POST /ops/admin/ota/releases` + `/{id}/unpublish` | OTA 固件发布/下架零审计零归因：operatorId 传而不用（OtaService.java:69-70 收下即弃）、表无列、连 log.info 都没有——推错固件全车队瘫痪的最高危动作出事无法回答「谁推的哪个包」；主会话复核 grep OtaService 全文 0 处留痕 | ZCode R12批5 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-116 | P2 | fixed（归因+追加） | `POST /ops/admin/consistency/{recordId}/fix` | 数据一致性修复零归因 + 修复结果覆写原始不一致描述（error_message 被覆盖=「当初为什么不一致」证据被抹）；fix 链直改订单头金额/清券/触发真实退款；类内 logChange 脚手架全仓零调用（出生即死）；修错了无法追责 | ZCode R12批5 / 2026-11-03 | |
-| MA-117 | P3 | open | 将邑运营写面 ~30 端点 | 审计留痕整体缺失（Onboarding/ClassMapping/ModelSync/Gather/SkuJiangyiLink 五服务 0 appendLog；含租户级 setTenantDomain 厂商云写、识别映射对位锚改写、deleteInJiangyi 不可逆删除）；同域 JiangyiDeviceOpsService 六处范本在，借它回补 | ZCode R12批5 / 2026-11-03 | |
+| MA-117 | P3 | fixed（部分：tenant-domain/retire 已留痕；其余 4 服务待补） | 将邑运营写面 ~30 端点 | 审计留痕整体缺失（Onboarding/ClassMapping/ModelSync/Gather/SkuJiangyiLink 五服务 0 appendLog；含租户级 setTenantDomain 厂商云写、识别映射对位锚改写、deleteInJiangyi 不可逆删除）；同域 JiangyiDeviceOpsService 六处范本在，借它回补 | ZCode R12批5 / 2026-11-03 | |
 | MA-118 | P3 | fixed（部分：非整数 400） | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
 | MA-119 | P3 | fixed（钉测 1 例） | 设备 MQTT/HTTP 凭据签发 | 不校验 device_info 存在性：12 位数字手滑一位即签出孤儿活跃凭据（明文 secret 回显一次）；同场景将邑入驻有现成闸（registerForDevice 防孤儿），凭据签发漏配 | ZCode R12批5 / 2026-11-03 | |
 | MA-120 | P3 | open | `POST /internal/v1/devices/{id}/heartbeat` | 心跳环境读数零界：NaN/Infinity→BigDecimal.valueOf 抛异常→心跳 500（且在 presence 更新之后）；1e8 量级直落污染环境看板；同源 signal 0-4 静默丢、OTA pct clamp 先例在，本条漏网 | ZCode R12批5 / 2026-11-03 | |

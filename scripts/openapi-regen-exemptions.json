@@ -6,5 +6,9 @@
   "services/trade-service/src/main/java/com/aicabinet/trade/api/AnnouncementController.java": {
     "endpoint": "/{id}/publish",
     "reason": "MA-123：update/publish/archive 只追加 HttpServletRequest 以取操作者做留痕；请求体/路径/返回类型未变（映射签名与基线逐条相等），spec 不含这类服务端形参"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java": {
+    "endpoint": "/jiangyi/tenant-domain",
+    "reason": "MA-117：tenant-domain/retire 只追加 HttpServletRequest 取操作者做留痕；请求体/路径/返回类型未变（映射签名与基线逐条相等）"
   }
 }

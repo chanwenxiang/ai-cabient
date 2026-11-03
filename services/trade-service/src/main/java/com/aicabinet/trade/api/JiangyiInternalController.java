@@ -418,7 +418,7 @@ public class JiangyiInternalController {
 
     @PostMapping("/onboarding/{deviceId}/retire")
     public ApiResponse<JiangyiDevice> retire(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiOnboardingService.retire(deviceId));
+        return ApiResponse.ok(jiangyiOnboardingService.retire(null, deviceId));
     }
 
     // ---------- 请求体 ----------

@@ -39,6 +39,7 @@ public class JiangyiOnboardingService {
     private final JiangyiMerchantClient jiangyiMerchantClient;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
     private final SystemConfigService systemConfigService;
+    private final AdminAuditService auditService;
     private final long tenantId;
     private final String secret;
 
@@ -47,6 +48,7 @@ public class JiangyiOnboardingService {
                                     JiangyiMerchantClient jiangyiMerchantClient,
                                     JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                     SystemConfigService systemConfigService,
+                                    AdminAuditService auditService,
                                     @Value("${JIANGYI_TENANT_ID:0}") long tenantId,
                                     @Value("${JIANGYI_SECRET:}") String secret) {
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
@@ -54,6 +56,7 @@ public class JiangyiOnboardingService {
         this.jiangyiMerchantClient = jiangyiMerchantClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.systemConfigService = systemConfigService;
+        this.auditService = auditService;
         this.tenantId = tenantId;
         this.secret = secret;
     }
@@ -144,7 +147,7 @@ public class JiangyiOnboardingService {
      * <p>成功后把最近下发值落 SystemConfig（jiangyi.tenant.domain / socketUrl / pushedAt），
      * 供参数设置页回显。这是对厂商云<b>共享状态</b>的写：租户下所有设备都会受影响。</p>
      */
-    public TenantDomainView setTenantDomain(String domain, String socketUrl) {
+    public TenantDomainView setTenantDomain(Long operatorId, String domain, String socketUrl) {
         if (tenantId <= 0 || secret == null || secret.isBlank()) {
             throw new IllegalStateException("将邑租户凭据未配置（JIANGYI_TENANT_ID/JIANGYI_SECRET）");
         }
@@ -169,6 +172,10 @@ public class JiangyiOnboardingService {
         systemConfigService.upsert("jiangyi.tenant.socketUrl", effectiveSocketUrl, "将邑接入：websocket地址（租户级，最近一次 setDomain 下发值）");
         systemConfigService.upsert("jiangyi.tenant.pushedAt", pushedAt, "将邑接入：最近一次 setDomain 下发时间");
         log.info("jiangyi tenant setDomain done domain={} socketUrl={}", d, effectiveSocketUrl);
+        // MA-117：这是对**厂商云共享状态**的写——租户下所有设备的上报/WS 目标随之切换，
+        // 出事必须能回答「谁切的、切到哪」，此前零归因。
+        auditService.appendLog(operatorId, "JIANGYI_TENANT_DOMAIN_SET", "JIANGYI_TENANT",
+                String.valueOf(tenantId), "domain=" + d + ",socketUrl=" + effectiveSocketUrl);
         return new TenantDomainView(d, effectiveSocketUrl, pushedAt);
     }
 
@@ -198,7 +205,7 @@ public class JiangyiOnboardingService {
     }
 
     /** 退役：拒绝一切后续路由与上报（gateway 校验 status）。 */
-    public JiangyiDevice retire(String deviceId) {
+    public JiangyiDevice retire(Long operatorId, String deviceId) {
         JiangyiDevice device = jiangyiDeviceMapper.selectById(deviceId);
         if (device == null) {
             throw new IllegalStateException("将邑设备不存在：deviceId=" + deviceId);
@@ -207,6 +214,10 @@ public class JiangyiOnboardingService {
         device.setUpdatedAt(Instant.now());
         jiangyiDeviceMapper.updateById(device);
         jiangyiDeviceDirectory.evict(deviceId);
+        // MA-117：退役=拒绝一切后续路由与上报（gateway 校验 status），不可逆；operatorId 为 null
+        // 表示内部通道（JiangyiInternalController）触发，如实记为 system 归因。
+        auditService.appendLog(operatorId, "JIANGYI_DEVICE_RETIRE", "JIANGYI_DEVICE", deviceId,
+                operatorId == null ? "by=system(internal)" : "by=ops");
         log.info("jiangyi device retired deviceId={}", deviceId);
         return device;
     }
