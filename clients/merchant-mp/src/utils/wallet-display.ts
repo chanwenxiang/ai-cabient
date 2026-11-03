@@ -6,8 +6,8 @@ const LEDGER_DICTS = ['wallet_entry_type', 'wallet_ledger_type'] as const;
 const REF_TYPE_LABEL: Record<string, string> = {
   SPLIT: '分账单',
   SPLIT_REV: '分账冲正',
-  SPLIT_PARTIAL: '分账单',
-  SPLIT_PARTIAL_REV: '分账冲正',
+  SPLIT_PARTIAL: '分账增额',
+  SPLIT_PARTIAL_REV: '分账增额冲正',
   ORDER: '订单',
   WITHDRAW: '提现',
   ADJUST: '调账'

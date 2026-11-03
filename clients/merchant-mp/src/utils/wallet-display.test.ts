@@ -4,9 +4,9 @@ import { walletLedgerRefText, walletLedgerRemark, walletLedgerTitle } from './wa
 describe('walletLedgerTitle', () => {
   it('分账入账/冲正不再显示未知', () => {
     expect(walletLedgerTitle('SPLIT_CREDIT')).toBe('分账入账');
-    expect(walletLedgerTitle('SPLIT_PARTIAL_CREDIT')).toBe('分账入账');
+    expect(walletLedgerTitle('SPLIT_PARTIAL_CREDIT')).toBe('分账增额入账');
     expect(walletLedgerTitle('SPLIT_REVERSE')).toBe('分账冲正');
-    expect(walletLedgerTitle('SPLIT_PARTIAL_REVERSE')).toBe('分账冲正');
+    expect(walletLedgerTitle('SPLIT_PARTIAL_REVERSE')).toBe('分账增额冲正');
   });
 
   it('字典没有时用备注中文头', () => {
