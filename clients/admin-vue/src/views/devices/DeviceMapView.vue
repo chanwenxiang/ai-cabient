@@ -213,7 +213,7 @@ async function load() {
     await nextTick();
     renderMarkers();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
   } finally {
     listHydrated.value = true;
     loading.value = false;

@@ -1296,7 +1296,7 @@ async function openApplyTemplateDialog() {
     applyTemplateId.value = templateList.value[0]?.templateId ?? null;
     applyTemplateVisible.value = true;
   } catch (e) {
-    ElMessage.error(errorMessage(e, '模板列表加载失败'));
+    ElMessage.error(errorMessage(e, '模板列表加载失败，请重试'));
   } finally {
     templateApplying.value = false;
   }
@@ -1769,7 +1769,7 @@ async function reload() {
     metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
-    ElMessage.error(errorMessage(e, '加载失败'));
+    ElMessage.error(errorMessage(e, '加载失败，请重试'));
     metricsHydrated.value = true;
     slotsHydrated.value = true;
     markRepairHydrated();
@@ -1800,7 +1800,7 @@ onMounted(async () => {
     metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
-    ElMessage.error(errorMessage(e, '加载失败'));
+    ElMessage.error(errorMessage(e, '加载失败，请重试'));
     metricsHydrated.value = true;
     slotsHydrated.value = true;
     markRepairHydrated();

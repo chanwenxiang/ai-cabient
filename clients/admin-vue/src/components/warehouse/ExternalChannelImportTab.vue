@@ -199,7 +199,7 @@ async function commitPreview() {
   await ElMessageBox.confirm(
     `确认把 ${batch.channelName} ${batch.periodLabel} 的 ${batch.rowsMapped} 行聚合入渠道流水？提交后批次锁死不可改。`,
     '确认提交',
-    { type: 'warning' }
+    { type: 'warning', confirmButtonText: '确认提交' }
   );
   try {
     const data = await api.request<BatchDto>(
@@ -218,7 +218,7 @@ async function commitPreview() {
     await loadFlows();
     innerTab.value = 'batches';
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '提交失败');
+    ElMessage.error(e instanceof Error ? e.message : '提交失败，请重试');
   }
 }
 
@@ -226,7 +226,8 @@ async function discardPreview() {
   const batch = previewBatch.value;
   if (!batch) return;
   await ElMessageBox.confirm('放弃该解析批次？（留痕删除，可重新上传）', '放弃', {
-    type: 'warning'
+    type: 'warning',
+    confirmButtonText: '确认放弃'
   });
   try {
     await api.request(AdminEndpoints.externalImportBatch(batch.batchId), 'DELETE');
@@ -257,7 +258,7 @@ async function loadBatches() {
     batches.value = data.items ?? [];
     batchesTotal.value = data.total ?? batches.value.length;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '批次加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '批次加载失败，请刷新重试');
   } finally {
     batchesLoading.value = false;
   }
@@ -273,7 +274,7 @@ async function openBatchDetail(batch: BatchDto) {
     );
     batchDetailVisible.value = true;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '批次详情加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '批次详情加载失败，请刷新重试');
   }
 }
 
@@ -301,7 +302,7 @@ async function loadProducts() {
     );
     products.value = data.items ?? [];
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '外部商品加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '外部商品加载失败，请刷新重试');
   } finally {
     productsLoading.value = false;
   }
@@ -347,7 +348,7 @@ async function saveBind() {
     await loadProducts();
     if (previewBatch.value) await refreshPreviewState();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '绑定失败');
+    ElMessage.error(e instanceof Error ? e.message : '放弃失败，请重试');
   }
 }
 
@@ -356,7 +357,8 @@ async function removeBind(product: ProductDto) {
     `解绑「${product.externalName}」→ ${product.mappedSkuName ?? ''}？`,
     '解绑',
     {
-      type: 'warning'
+      type: 'warning',
+      confirmButtonText: '解绑'
     }
   );
   try {
@@ -399,7 +401,7 @@ async function loadFlows() {
     );
     flows.value = data ?? [];
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '流水加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '流水加载失败，请刷新重试');
   } finally {
     flowsLoading.value = false;
   }

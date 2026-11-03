@@ -4,7 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">资金账单</span>
+            <span class="title"
+              >资金账单<HelpTip
+                content="T+1：当日流水通常次日入账；通道费标注（实结）= 对账账单回填，未标注（估）= 按配置费率估算；平台抽成取自分账记账"
+                aria-label="T+1 资金账单口径"
+            /></span>
             <span class="hint">日汇总拆费项 + 账务明细；T+1 入账节奏</span>
           </div>
         </div>
@@ -21,14 +25,6 @@
         </div>
       </div>
     </template>
-
-    <el-alert
-      type="info"
-      closable
-      show-icon
-      class="t1-alert"
-      title="T+1：当日流水通常次日入账；通道费标注（实结）= 对账账单回填，未标注（估）= 按配置费率估算；平台抽成取自分账记账"
-    />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSearch">
       <el-form-item label="账期">
@@ -333,6 +329,7 @@ import { yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import CrudTable from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
@@ -571,7 +568,7 @@ async function loadLedger() {
     clearLedgerSelection();
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
-    ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败，请重试');
   } finally {
     ledgerLoadingInflight = Math.max(0, ledgerLoadingInflight - 1);
     if (ledgerLoadingInflight === 0) ledgerLoading.value = false;

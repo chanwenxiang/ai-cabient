@@ -200,6 +200,7 @@
   font-weight: 700;
   line-height: 1.2;
   margin: 6rpx 0 10rpx;
+  font-variant-numeric: tabular-nums;
 }
 .hero-eq {
   display: flex;
@@ -261,9 +262,10 @@
   font-weight: 700;
   margin-top: 4rpx;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .kpi-value.warn {
-  color: var(--warning, #d97706);
+  color: var(--color-warning);
 }
 .kpi-value.danger {
   color: var(--color-danger);
@@ -485,18 +487,6 @@
   display: block;
   line-height: 1.5;
   word-break: break-word;
-}
-.help-q {
-  width: 32rpx;
-  height: 32rpx;
-  line-height: 32rpx;
-  text-align: center;
-  border-radius: 50%;
-  background: var(--color-border-subtle, #e2e8f0);
-  color: var(--text-muted);
-  font-size: 22rpx;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 .title-with-help {
   display: flex;

@@ -166,7 +166,7 @@ async function review(row: BalanceRefundRequestDto, approve: boolean) {
     await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    ElMessage.error(e instanceof Error ? e.message : '操作失败，请重试');
   }
 }
 
@@ -217,7 +217,7 @@ async function batchReviewAll(approve: boolean) {
     await crud.load();
   } catch (e) {
     if (e === 'cancel' || e === 'close') return;
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    ElMessage.error(e instanceof Error ? e.message : '操作失败，请重试');
   } finally {
     batchLoading.value = '';
   }

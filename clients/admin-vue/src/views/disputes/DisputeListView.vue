@@ -736,7 +736,7 @@ const draftLines = ref<{ skuId: string; quantity: number }[]>([]);
 // 首查依赖路由查询参数（status/category/reviewCode/keyword/ticketId）先落位，故 autoLoad:false，onMounted 显式首查。
 const crud = useCrudTable<DisputeTicketDto>({
   rowKey: (r) => r.ticketId,
-  errorMessage: '加载失败',
+  errorMessage: '加载失败，请重试',
   autoLoad: false,
   fetchPage: async (params) => {
     const data = await api.request<PageResult<DisputeTicketDto>>(

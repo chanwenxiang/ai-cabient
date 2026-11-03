@@ -18,7 +18,11 @@
           <div class="page-card-head">
             <div class="page-card-head__meta">
               <div class="page-card-head__title">
-                <span class="title">财务毛利</span>
+                <span class="title"
+                  >财务毛利<HelpTip
+                    content="今日数据实时计算；历史日在日切后固化，固化后即使修改采购成本也不回溯。可手动「固化昨日毛利」。日资金账单见「资金账单」菜单。"
+                    aria-label="毛利固化规则"
+                /></span>
                 <span class="hint">上方为今日快照；趋势与商品 TOP 受下方天数范围影响</span>
               </div>
             </div>
@@ -33,15 +37,6 @@
             </div>
           </div>
         </template>
-
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="margin-lock-alert"
-          title="毛利固化规则"
-          description="今日数据实时计算；历史日在日切后固化，固化后即使修改采购成本也不回溯。可手动「固化昨日毛利」。日资金账单见「资金账单」菜单。"
-        />
 
         <el-row :gutter="12" class="kpi-row">
           <el-col v-for="item in kpiTiles" :key="item.label" :xs="12" :sm="8" :md="4">
@@ -115,30 +110,24 @@
             />
           </Transition>
           <template #footer>
-            <span class="chart-legend-item"><i style="background: #2dd4bf" />营收</span>
-            <span class="chart-legend-item"><i style="background: #60a5fa" />成本</span>
-            <span class="chart-legend-item"><i style="background: #fbbf24" />毛利</span>
+            <span class="chart-legend-item"><i style="background: var(--chart-1)" />营收</span>
+            <span class="chart-legend-item"><i style="background: var(--chart-2)" />成本</span>
+            <span class="chart-legend-item"><i style="background: var(--chart-4)" />毛利</span>
           </template>
         </ChartPanel>
 
         <ChartPanel title="累计快照" fill compact>
-          <el-descriptions :column="1" border size="small" class="snapshot-desc">
-            <el-descriptions-item label="累计营收">{{
-              crud.hydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="累计成本">{{
-              crud.hydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '…'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="累计毛利">{{
-              crud.hydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '…'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="今日报废金额">{{
-              crud.hydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '…'
-            }}</el-descriptions-item>
-            <el-descriptions-item label="今日报废件数">{{
-              crud.hydrated ? stats.writeOffTodayQty || 0 : '…'
-            }}</el-descriptions-item>
-          </el-descriptions>
+          <div class="snapshot-grid">
+            <div
+              v-for="item in snapshotTiles"
+              :key="item.label"
+              class="kpi-tile snapshot-tile"
+              :class="item.accent"
+            >
+              <div class="kpi-label">{{ item.label }}</div>
+              <div class="kpi-value">{{ item.value }}</div>
+            </div>
+          </div>
         </ChartPanel>
       </div>
 
@@ -253,11 +242,12 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import ChartPanel from '@/components/ChartPanel.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
 import EChart from '@/components/EChart.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { seriesOption, type ChartKind, type EChartsOption } from '@/utils/echarts';
+import { DONUT_PALETTE, seriesOption, type ChartKind, type EChartsOption } from '@/utils/echarts';
 import { formatYuan, shortDate } from '@/utils/charts';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -325,7 +315,7 @@ const crud = useCrudTable<FinanceSku>({
       return data.topSkus || [];
     } catch (e) {
       // 整页错误态（el-result）由页面维护；错误提示交给 useCrudTable 统一弹出
-      loadError.value = e instanceof Error ? e.message : '加载失败';
+      loadError.value = e instanceof Error ? e.message : '加载失败，请重试';
       throw e;
     }
   },
@@ -407,41 +397,41 @@ function buildFinanceKpiTiles(
     {
       label: '今日营收',
       value: financeKpiMoney(ready, stats.value.revenueTodayCents || 0),
-      accent: 'accent-teal',
+      accent: 'accent-revenue',
       path: canAnalytics ? '/analytics' : undefined,
       hint: revenueHint
     },
     {
       label: '今日成本',
       value: financeKpiMoney(ready, stats.value.cogsTodayCents || 0),
-      accent: 'accent-blue',
+      accent: 'accent-cost',
       hint: loadingHint
     },
     {
       label: '今日毛利',
       value: financeKpiMoney(ready, marginCents),
-      accent: 'accent-amber',
+      accent: 'accent-profit',
       warn: ready && marginCents < 0,
       hint: loadingHint
     },
     {
       label: '今日毛利率',
       value: ready ? `${marginRate.toFixed(1)}%` : '…',
-      accent: 'accent-violet',
+      accent: 'accent-rate',
       warn: ready && marginRate < 0,
       hint: loadingHint
     },
     {
       label: '今日订单',
       value: ready ? String(stats.value.orderToday || 0) : '…',
-      accent: 'accent-teal',
+      accent: 'accent-orders',
       path: canOrders ? '/orders' : undefined,
       hint: ordersHint
     },
     {
       label: '今日客单',
       value: financeKpiMoney(ready, stats.value.averageOrderValueTodayCents || 0),
-      accent: 'accent-blue',
+      accent: 'accent-aov',
       hint: loadingHint
     }
   ];
@@ -459,14 +449,54 @@ const kpiTiles = computed(() => {
   );
 });
 
+/** 累计快照：与上方 KPI 卡同款视觉（左侧语义色条 + 标签/数值） */
+const snapshotTiles = computed(() => {
+  const ready = crud.hydrated;
+  return [
+    {
+      label: '累计营收',
+      value: financeKpiMoney(ready, stats.value.revenueTotalCents || 0),
+      accent: 'accent-revenue'
+    },
+    {
+      label: '累计成本',
+      value: financeKpiMoney(ready, stats.value.cogsTotalCents || 0),
+      accent: 'accent-cost'
+    },
+    {
+      label: '累计毛利',
+      value: financeKpiMoney(ready, stats.value.grossMarginTotalCents || 0),
+      accent: 'accent-profit'
+    },
+    {
+      label: '今日报废金额',
+      value: financeKpiMoney(ready, stats.value.writeOffTodayCents || 0),
+      accent: 'accent-warn'
+    },
+    {
+      label: '今日报废件数',
+      value: ready ? String(stats.value.writeOffTodayQty || 0) : '…',
+      accent: 'accent-warn'
+    }
+  ];
+});
+
 const chartOption = computed<EChartsOption | null>(() => {
   if (!daily.value.length) return null;
   return seriesOption({
     labels: daily.value.map((d) => shortDate(d.date)),
     series: [
-      { name: '营收', values: daily.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' },
-      { name: '成本', values: daily.value.map((d) => d.cogsCents / 100), color: '#60a5fa' },
-      { name: '毛利', values: daily.value.map((d) => d.grossMarginCents / 100), color: '#fbbf24' }
+      {
+        name: '营收',
+        values: daily.value.map((d) => d.revenueCents / 100),
+        color: DONUT_PALETTE[0]
+      },
+      { name: '成本', values: daily.value.map((d) => d.cogsCents / 100), color: DONUT_PALETTE[1] },
+      {
+        name: '毛利',
+        values: daily.value.map((d) => d.grossMarginCents / 100),
+        color: DONUT_PALETTE[3]
+      }
     ],
     kind: chartKind.value,
     formatY: (v) => formatYuan(v * 100),
@@ -568,9 +598,6 @@ watch(
 .kpi-row {
   margin-bottom: 4px;
 }
-.margin-lock-alert {
-  margin-bottom: 12px;
-}
 .kpi-tile {
   background: var(--el-fill-color-light);
   border: 1px solid var(--layout-border);
@@ -591,17 +618,26 @@ watch(
   bottom: 0;
   width: 3px;
 }
-.kpi-tile.accent-teal::before {
-  background: #2dd4bf;
+.kpi-tile.accent-revenue::before {
+  background: var(--kpi-accent-revenue);
 }
-.kpi-tile.accent-blue::before {
-  background: #60a5fa;
+.kpi-tile.accent-cost::before {
+  background: var(--kpi-accent-cost);
 }
-.kpi-tile.accent-violet::before {
-  background: #a78bfa;
+.kpi-tile.accent-profit::before {
+  background: var(--kpi-accent-profit);
 }
-.kpi-tile.accent-amber::before {
-  background: #fbbf24;
+.kpi-tile.accent-rate::before {
+  background: var(--kpi-accent-rate);
+}
+.kpi-tile.accent-orders::before {
+  background: var(--kpi-accent-orders);
+}
+.kpi-tile.accent-aov::before {
+  background: var(--kpi-accent-aov);
+}
+.kpi-tile.accent-warn::before {
+  background: var(--color-warning);
 }
 .kpi-tile.is-clickable {
   cursor: pointer;
@@ -613,8 +649,8 @@ watch(
 .kpi-tile.is-clickable:hover,
 .kpi-tile.is-clickable:focus-visible {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 16%, transparent);
+  border-color: color-mix(in srgb, var(--app-primary) 40%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary) 16%, transparent);
   outline: none;
 }
 .kpi-label {
@@ -633,18 +669,19 @@ watch(
   margin-top: 6px;
 }
 .warn {
-  color: #dc2626;
+  color: var(--color-danger);
 }
 .sku-panel {
   margin-top: 16px;
 }
-.snapshot-desc :deep(.el-descriptions__table) {
-  height: 100%;
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
 }
-.snapshot-desc :deep(.el-descriptions__cell) {
-  vertical-align: middle;
-}
-.snapshot-desc :deep(.el-descriptions__label) {
-  width: 110px;
+.snapshot-tile {
+  margin-bottom: 0;
+  height: auto;
 }
 </style>

@@ -78,15 +78,11 @@
               @keyup.enter="loadConfig"
             />
             <el-button type="primary" @click="loadConfig">查询配置</el-button>
+            <HelpTip
+              content="费用项随时可改，只影响后续账期；场地方不是系统用户，收款人为文本快照，线下结算。"
+              aria-label="费用配置口径"
+            />
           </div>
-          <el-alert
-            v-if="configLoaded"
-            type="info"
-            :closable="false"
-            show-icon
-            title="费用项随时可改，只影响后续账期；场地方不是系统用户，收款人为文本快照，线下结算。"
-            style="margin-bottom: 10px"
-          />
           <el-form v-if="configLoaded" label-width="160px" style="max-width: 560px">
             <el-form-item label="柜机 deviceId">
               <el-input v-model="configForm.deviceId" disabled />
@@ -162,6 +158,7 @@ import { Check } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 
 interface MachinePayeeBill {

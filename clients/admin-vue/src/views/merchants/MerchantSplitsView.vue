@@ -32,13 +32,13 @@
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="组织树" name="org">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          title="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户按自身抽成比例结算，上级通过组织归属汇总经营数据（非自动再抽成）。"
-          class="status-banner"
-        />
+        <div class="rule-help">
+          <span>组织与抽成口径</span>
+          <HelpTip
+            content="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户按自身抽成比例结算，上级通过组织归属汇总经营数据（非自动再抽成）。"
+            aria-label="组织与抽成口径"
+          />
+        </div>
         <div class="org-toolbar">
           <el-button v-if="canEdit" type="primary" @click="openOrgEdit()">新建商户</el-button>
           <el-button :icon="Refresh" :loading="loadingMerchants" @click="loadMerchants"
@@ -88,13 +88,13 @@
       </el-tab-pane>
 
       <el-tab-pane label="商户列表" name="merchants">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          title="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
-          class="status-banner"
-        />
+        <div class="rule-help">
+          <span>功能包口径</span>
+          <HelpTip
+            content="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
+            aria-label="功能包口径"
+          />
+        </div>
         <el-form
           inline
           class="filter-bar filter-bar--compact"
@@ -290,13 +290,13 @@
       </el-tab-pane>
 
       <el-tab-pane label="运营配置" name="ops-config">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="status-banner"
-          title="组织级备货/理货策略；变更前请通知理货员。"
-        />
+        <div class="rule-help">
+          <span>理货策略</span>
+          <HelpTip
+            content="组织级备货/理货策略，变更前请通知理货员。开启「盘点/补货拍照」后，盘点接口必须带 photoEvidenceUrl；「并发订单上限」>0 时开门建会话会拦截超限。"
+            aria-label="理货策略口径"
+          />
+        </div>
         <el-form inline class="filter-bar">
           <el-form-item label="商户">
             <el-select
@@ -316,15 +316,6 @@
           </el-form-item>
         </el-form>
         <div v-loading="opsConfigLoading" style="min-height: 120px">
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            class="mb-12"
-            title="理货策略强校验"
-            description="开启「盘点/补货拍照」后，盘点接口必须带 photoEvidenceUrl；「并发订单上限」>0 时开门建会话会拦截超限。"
-            style="margin-bottom: 12px"
-          />
           <el-form v-if="opsConfig" label-width="auto" style="max-width: 640px">
             <el-form-item label="备货类型">
               <el-radio-group v-model="opsConfig.stockingType">
@@ -452,14 +443,13 @@
             </span>
           </template>
         </el-alert>
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="status-banner"
-          title="仅记账 / 记账模式"
-          description="余额扣款订单通常为「仅记账」：商户份额已入钱包，不调用微信分账。可用「确认完结」移出待跟进；配置接收方并绑定微信交易号后再点「提交」走真实分账。"
-        />
+        <div class="rule-help">
+          <span>仅记账 / 记账模式</span>
+          <HelpTip
+            content="余额扣款订单通常为「仅记账」：商户份额已入钱包，不调用微信分账。可用「确认完结」移出待跟进；配置接收方并绑定微信交易号后再点「提交」走真实分账。"
+            aria-label="仅记账 / 记账模式"
+          />
+        </div>
 
         <el-form
           inline
@@ -756,14 +746,13 @@
       class="dialog-wide"
       destroy-on-close
     >
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        class="status-banner"
-        title="只能回收「直接绑定」；继承来的访问要改上级授权"
-        description="商户范围按组织树实时级联：绑定父商户即覆盖其全部下级（含以后新增的下级）。因此某家商户的可见权可能来自上级绑定——本清单列出的是直接绑定到该商户的账号，要从根本上收回某人的访问，请回到「运营账号 → 商户范围」调整其父级授权。"
-      />
+      <div class="rule-help">
+        <span>授权回收口径</span>
+        <HelpTip
+          content="只能回收「直接绑定」；继承来的访问要改上级授权。商户范围按组织树实时级联：绑定父商户即覆盖其全部下级（含以后新增的下级）。因此某家商户的可见权可能来自上级绑定——本清单列出的是直接绑定到该商户的账号，要从根本上收回某人的访问，请回到「运营账号 → 商户范围」调整其父级授权。"
+          aria-label="授权回收口径"
+        />
+      </div>
       <div v-loading="scopeLoading">
         <el-table :data="scopeUsers" size="small" empty-text="暂无直接授权账号">
           <el-table-column label="账号" min-width="160">
@@ -825,6 +814,7 @@ import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useListCsv } from '@/composables/useListCsv';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -1792,6 +1782,14 @@ onActivated(() => {
 }
 .status-banner {
   margin-bottom: 12px;
+}
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .status-meta {
   margin-left: 8px;

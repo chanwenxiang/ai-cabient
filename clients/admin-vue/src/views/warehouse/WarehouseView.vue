@@ -5,7 +5,11 @@
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">{{ pageTitle }}</span>
+              <span class="title"
+                >{{ pageTitle
+                }}<span v-if="tabDescription" data-testid="warehouse-tab-desc"
+                  ><HelpTip :content="tabDescription" aria-label="本页说明" /></span
+              ></span>
               <span class="hint">{{ pageHint }}</span>
             </div>
           </div>
@@ -289,15 +293,13 @@
         </el-form-item>
       </el-form>
 
-      <el-alert
-        v-if="tab === 'transit'"
-        type="info"
-        :closable="false"
-        show-icon
-        class="transit-flow-hint"
-        data-testid="transit-flow-hint"
-        title="已领未上柜 = 补货员已从分仓领出、尚未在柜确认上柜。到柜由补货员完成任务后自动入账并结清；本页不办理回仓入库。"
-      />
+      <div v-if="tab === 'transit'" class="rule-help" data-testid="transit-flow-hint">
+        <span>已领未上柜口径</span>
+        <HelpTip
+          content="已领未上柜 = 补货员已从分仓领出、尚未在柜确认上柜。到柜由补货员完成任务后自动入账并结清；本页不办理回仓入库。"
+          aria-label="已领未上柜口径"
+        />
+      </div>
 
       <el-alert
         v-if="
@@ -367,16 +369,6 @@
           >{{ n.title }}</router-link
         >
       </div>
-
-      <el-alert
-        v-if="tabDescription"
-        type="info"
-        :closable="false"
-        show-icon
-        class="tab-desc-hint"
-        data-testid="warehouse-tab-desc"
-        :title="tabDescription"
-      />
 
       <el-empty
         v-if="onlyNoVisibleTabs"
@@ -761,6 +753,7 @@ import { ElMessage } from 'element-plus';
 import { type CrudRowAction } from '@/components/CrudTable.vue';
 import type { TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import WarehouseBinDialogs from '@/components/warehouse/WarehouseBinDialogs.vue';
 import WarehouseEntityDialogs from '@/components/warehouse/WarehouseEntityDialogs.vue';
 import WarehouseOutboundDialogs from '@/components/warehouse/WarehouseOutboundDialogs.vue';
@@ -1091,7 +1084,7 @@ const TAB_DESC: Record<string, string> = {
   transfers: '仓间调拨：库存在两个仓库间的调拨，生成调拨单与双向流水',
   outbounds:
     '出库单：按柜机建单 → 备货 → 领货（自提自送，无运输段）；领走但没上柜的差额在「已领未上柜」结清'
-  // transit 不设通用描述：该 tab 有专属说明条（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
+  // transit 不设通用描述：该 tab 有专属口径问号（transit-flow-hint，含签收/上架/不办回仓语义），避免同屏双提示
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
 
@@ -1859,9 +1852,6 @@ function setInboundDialog(open: boolean) {
   gap: 12px;
   flex-wrap: wrap;
 }
-.tab-desc-hint {
-  margin: 0 0 12px;
-}
 .warehouse-tab-groups {
   display: flex;
   flex-wrap: wrap;
@@ -1896,9 +1886,13 @@ function setInboundDialog(open: boolean) {
   color: var(--el-color-primary);
   font-weight: 600;
 }
-.transit-flow-hint {
-  margin-bottom: 12px;
-  flex-shrink: 0;
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .tab-group-count {
   margin-left: 4px;

@@ -223,16 +223,13 @@
           </el-col>
         </el-row>
 
-        <div class="form-group-title">角色与组织</div>
-        <el-form-item v-if="!form.userId" label="角色">
-          <el-alert
-            type="info"
-            :closable="false"
-            show-icon
-            class="role-hint"
-            title="角色说明"
-            description="新建默认不勾选任何角色。超级管理员不在此列出。两类补货员共用补货小程序现场作业，靠「商户范围」区分可见柜机/任务；后台仅做调度与仓库。选补货相关角色后请务必绑定商户。"
+        <div class="form-group-title">
+          角色与组织<HelpTip
+            content="新建默认不勾选任何角色。超级管理员不在此列出。两类补货员共用补货小程序现场作业，靠「商户范围」区分可见柜机/任务；后台仅做调度与仓库。选补货相关角色后请务必绑定商户。"
+            aria-label="角色说明"
           />
+        </div>
+        <el-form-item v-if="!form.userId" label="角色">
           <el-row :gutter="16" class="role-cols">
             <el-col :span="12">
               <div class="role-group-title">平台角色（可登后台；补货员另须绑商户登小程序）</div>
@@ -414,14 +411,13 @@
       destroy-on-close
     >
       <div v-loading="merchantScopeLoading" class="scope-dlg-body">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="scope-alert"
-          title="数据范围说明"
-          description="勾选商户后，该账号可见这些商户及其全部下级商户的设备与订单/补货/看板数据（下级由商户层级自动带入，无需勾选，本列表不显示下级）。级联是实时的：父商户下以后新增的下级商户会自动纳入，不会回写到本清单；要收回某家商户的直接授权，可在「商户与分账 → 商户列表 → 已授权账号」按商户反查后逐条回收。不勾选任何商户 = 无任何商户范围，该账号登录商户门户会被拒（403「账号未绑定任何商户」）；超级管理员不能进商户门户，请使用运营后台。可再通过「货柜范围」限定到部分柜机。"
-        />
+        <div class="rule-help">
+          <span>数据范围说明</span>
+          <HelpTip
+            content="勾选商户后，该账号可见这些商户及其全部下级商户的设备与订单/补货/看板数据（下级由商户层级自动带入，无需勾选，本列表不显示下级）。级联是实时的：父商户下以后新增的下级商户会自动纳入，不会回写到本清单；要收回某家商户的直接授权，可在「商户与分账 → 商户列表 → 已授权账号」按商户反查后逐条回收。不勾选任何商户 = 无任何商户范围，该账号登录商户门户会被拒（403「账号未绑定任何商户」）；超级管理员不能进商户门户，请使用运营后台。可再通过「货柜范围」限定到部分柜机。"
+            aria-label="数据范围说明"
+          />
+        </div>
         <!-- G2-11 ⑪：商户目录超 100 家后服务端截断曾静默少列；改为服务端关键字搜索 + total 提示 -->
         <div class="merchant-search-bar">
           <el-input
@@ -485,14 +481,13 @@
 
     <el-dialog v-model="deviceDlg" title="货柜范围" class="dialog-wide" destroy-on-close>
       <div v-loading="deviceScopeLoading" class="scope-dlg-body">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          class="scope-alert"
-          title="人员货柜范围"
-          description="全部 = 商户范围内的所有柜；勾选柜机 = 仅限选中的设备；线路 = 按设备的线路编号筛选。"
-        />
+        <div class="rule-help">
+          <span>人员货柜范围</span>
+          <HelpTip
+            content="全部 = 商户范围内的所有柜；勾选柜机 = 仅限选中的设备；线路 = 按设备的线路编号筛选。"
+            aria-label="人员货柜范围"
+          />
+        </div>
         <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
           <el-radio value="ALL">全部货柜</el-radio>
           <el-radio value="DEVICE_IDS">勾选柜机</el-radio>
@@ -560,6 +555,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useAuthStore } from '@/stores/auth';
@@ -1348,6 +1344,14 @@ onActivated(() => {
 }
 .scope-alert {
   margin-bottom: 12px;
+}
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .merchant-group {
   display: flex;

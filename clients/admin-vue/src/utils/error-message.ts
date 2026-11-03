@@ -1,5 +1,5 @@
 /** 从 unknown 提取可读错误文案（Element Plus / 业务 Error）。 */
-export function errorMessage(error: unknown, fallback = '操作失败'): string {
+export function errorMessage(error: unknown, fallback = '操作失败，请重试或联系管理员'): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === 'string' && error) return error;
   if (error && typeof error === 'object' && 'message' in error) {

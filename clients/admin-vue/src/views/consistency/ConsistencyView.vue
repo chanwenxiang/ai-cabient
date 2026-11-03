@@ -4,7 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">数据一致性</span>
+            <span class="title"
+              >数据一致性<HelpTip
+                content="默认只记录未通过项、不自动改数。覆盖订单/支付/库存汇总与孤儿批、积分余额与恒等式、发券与超配额、用户/商户/线路钱包、退款、行金额、券核销、分账金额与缺失、货道 SKU/容量/盘点、仓存负库存等。订单金额、库存类与积分恒等式等可点「修复」；支付/退款/分账/钱包偏差请走退款或调账。"
+                aria-label="一致性巡检说明"
+            /></span>
             <span class="hint"
               >巡检订单/支付/库存批次/积分/券/钱包/分账/货道/仓存；未通过项可按规则修复</span
             >
@@ -17,15 +21,6 @@
         </div>
       </div>
     </template>
-
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      class="t1-alert"
-      title="一致性巡检说明"
-      description="默认只记录未通过项、不自动改数。覆盖订单/支付/库存汇总与孤儿批、积分余额与恒等式、发券与超配额、用户/商户/线路钱包、退款、行金额、券核销、分账金额与缺失、货道 SKU/容量/盘点、仓存负库存等。订单金额、库存类与积分恒等式等可点「修复」；支付/退款/分账/钱包偏差请走退款或调账。"
-    />
 
     <div class="kpi-tags">
       <el-tag size="small" type="danger">未通过 {{ crud.hydrated ? failCount : '…' }}</el-tag>
@@ -185,6 +180,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel, formatConsistencyValue } from '@aicabinet/shared-dict';

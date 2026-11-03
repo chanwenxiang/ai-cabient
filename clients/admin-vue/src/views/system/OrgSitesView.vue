@@ -213,13 +213,13 @@
       </el-tab-pane>
 
       <el-tab-pane label="费用账单" name="bills">
-        <el-alert
-          type="info"
-          :closable="false"
-          show-icon
-          title="租金按合同月费×分账出账；流量费按柜机「流量费(分/天) × 当月天数」出账。本页面是人工回退台账（常规由每日自动扣钱包，日扣成功后费用行直接记结清），标记已付仅改台账、不自动打款/扣款。账期留空时按系统配置偏移推算。"
-          style="margin-bottom: 12px"
-        />
+        <div class="rule-help">
+          <span>费用账单口径</span>
+          <HelpTip
+            content="租金按合同月费×分账出账；流量费按柜机「流量费(分/天) × 当月天数」出账。本页面是人工回退台账（常规由每日自动扣钱包，日扣成功后费用行直接记结清），标记已付仅改台账、不自动打款/扣款。账期留空时按系统配置偏移推算。"
+            aria-label="费用账单口径"
+          />
+        </div>
         <div class="org-toolbar">
           <el-radio-group v-model="feeBillKind" size="small" @change="onFeeBillKindChange">
             <el-radio-button value="SITE_RENT">场地租金</el-radio-button>
@@ -572,13 +572,13 @@
       destroy-on-close
       class="dialog-wide rent-split-dialog"
     >
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        title="出账时先从场地月费扣除各方固定金额，剩余部分按份额拆分（份额合计须为 100%）。分账合计恒等于场地月费。标记已付不会自动打款。"
-        style="margin-bottom: 12px"
-      />
+      <div class="rule-help">
+        <span>租金分账口径</span>
+        <HelpTip
+          content="出账时先从场地月费扣除各方固定金额，剩余部分按份额拆分（份额合计须为 100%）。分账合计恒等于场地月费。标记已付不会自动打款。"
+          aria-label="租金分账口径"
+        />
+      </div>
       <div class="rent-sum" :class="{ 'is-ok': rentShareSumOk, 'is-bad': !rentShareSumOk }">
         份额合计 <strong>{{ rentShareSumPct.toFixed(2) }}%</strong>
         <span v-if="rentShareSumOk">（已满 100%，可保存）</span>
@@ -707,6 +707,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { yuanToCents } from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import AddressPicker from '@/components/AddressPicker.vue';
 import PagePager from '@/components/PagePager.vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
@@ -1433,6 +1434,14 @@ async function voidDataFeeBill(row: DeviceDataFeeBillDto) {
 </script>
 
 <style scoped>
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
 .org-toolbar {
   display: flex;
   flex-wrap: wrap;

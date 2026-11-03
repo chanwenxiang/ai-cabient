@@ -69,7 +69,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       );
       stocktakeDetailDialog.value = true;
     } catch (e) {
-      ElMessage.error(errorMessage(e, '加载失败'));
+      ElMessage.error(errorMessage(e, '加载失败，请重试'));
     }
   }
 

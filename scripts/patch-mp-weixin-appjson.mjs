@@ -35,7 +35,7 @@ const REQUIRED_SHARED_COMPONENTS = [
  * merchant-mp 无页面引用）。uni 按需编译 ⇒ 未引用端的 dist 里没有产物，
  * 不能进 REQUIRED（assert 会对无引用端必红）；有则拍平、无则跳过。
  */
-const OPTIONAL_SHARED_COMPONENTS = ['pay-score-tag'];
+const OPTIONAL_SHARED_COMPONENTS = ['pay-score-tag', 'help-tip'];
 const SHARED_COMPONENTS = [
   ...REQUIRED_SHARED_COMPONENTS,
   ...OPTIONAL_SHARED_COMPONENTS,

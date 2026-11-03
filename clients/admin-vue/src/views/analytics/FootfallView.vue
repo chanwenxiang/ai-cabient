@@ -271,7 +271,7 @@ async function load() {
     }
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
   } finally {
     loading.value = false;
   }

@@ -64,22 +64,14 @@
             <view class="kpi-cell">
               <view class="kpi-label-row">
                 <text class="kpi-label">全店待结算</text>
-                <text
-                  class="help-q"
-                  role="button"
-                  aria-label="待结算说明"
-                  @click="explainSettlement"
-                  >?</text
-                >
+                <help-tip label="待结算说明" @tap="explainSettlement" />
               </view>
               <text class="kpi-value warn">{{ money(settlement.pendingAmountCents) }}</text>
             </view>
             <view class="kpi-cell">
               <view class="kpi-label-row">
                 <text class="kpi-label">全店本月已结</text>
-                <text class="help-q" role="button" aria-label="已结说明" @click="explainSettlement"
-                  >?</text
-                >
+                <help-tip label="已结说明" @tap="explainSettlement" />
               </view>
               <text class="kpi-value">{{ money(settlement.settledMonthCents) }}</text>
             </view>
@@ -114,9 +106,7 @@
           <view class="section-head">
             <view class="title-with-help">
               <text class="section-title">AI 经营洞察</text>
-              <text class="help-q" role="button" aria-label="洞察说明" @click="explainInsight"
-                >?</text
-              >
+              <help-tip label="洞察说明" @tap="explainInsight" />
             </view>
             <text class="section-sub">{{ formatInsightTime(aiInsight?.generatedAt) }}</text>
           </view>
@@ -171,6 +161,7 @@
 import { computed, ref } from 'vue';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { showError } from '@/utils/notify';
+import HelpTip from '@aicabinet/shared-uni/components/help-tip.vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import {
   changeClass,

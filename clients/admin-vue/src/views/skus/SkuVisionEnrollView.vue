@@ -4,7 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">识别入驻</span>
+            <span class="title"
+              >识别入驻<HelpTip
+                content="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第⑤⑥步），无需采集。只有将邑库里没有的新商品才需要柜内采集学习——在学习库「开始采集」发起，把商品摆在柜机摄像头前缓慢扫动约 45 秒（厂商门槛：每摄 ≥500 张轨迹裁图），全程无需人工上传图片；管理后台上传的商品图片仅用于展示，不参与识别训练。"
+                aria-label="采集说明"
+            /></span>
             <span class="hint">
               识别能力在将邑端侧（云端不做识别）；让柜机「认识」一件商品 = 挂接 + 采集 + 学习出模型
             </span>
@@ -21,14 +25,6 @@
         </div>
       </div>
     </template>
-
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="不是每个商品都要采集"
-      description="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第⑤⑥步），无需采集。只有将邑库里没有的新商品才需要柜内采集学习——在学习库「开始采集」发起，把商品摆在柜机摄像头前缓慢扫动约 45 秒（厂商门槛：每摄 ≥500 张轨迹裁图），全程无需人工上传图片；管理后台上传的商品图片仅用于展示，不参与识别训练。"
-    />
 
     <VisionFlowSteps :active="1" />
 
@@ -56,20 +52,20 @@
       </el-step>
     </el-steps>
 
-    <el-alert
-      class="jy-faq"
-      type="warning"
-      :closable="false"
-      show-icon
-      title="常见问题"
-      description="采集期间柜机停止营业（顾客开门会提示「柜机正在商品采集上新，暂停开放」）；学习触发后由将邑云端异步完成，完成后在「识别映射」页核对 classId ↔ SKU 对照并激活；激活错误的映射会直接导致错误扣款，请逐行核对后再激活。"
-    />
+    <div class="jy-faq-help">
+      <span>常见问题</span>
+      <HelpTip
+        content="采集期间柜机停止营业（顾客开门会提示「柜机正在商品采集上新，暂停开放」）；学习触发后由将邑云端异步完成，完成后在「识别映射」页核对 classId ↔ SKU 对照并激活；激活错误的映射会直接导致错误扣款，请逐行核对后再激活。"
+        aria-label="常见问题"
+      />
+    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { useNavAccess } from '@/composables/useNavAccess';
 import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
+import HelpTip from '@/components/HelpTip.vue';
 
 /**
  * 识别入驻（CB-023 改造）：云端识别方案废弃后，本页改为将邑识别体系入驻指引。
@@ -208,7 +204,12 @@ const steps: StepView[] = [
   font-size: 12px;
   color: var(--el-text-color-tertiary);
 }
-.jy-faq {
-  margin-top: 8px;
+.jy-faq-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 </style>

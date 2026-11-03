@@ -683,7 +683,7 @@ const manualConfirmItems = computed(() =>
 // 首查依赖路由查询参数（status/severity/overdue）先落位，故 autoLoad:false，onMounted 显式首查。
 const crud = useCrudTable<OpsException>({
   rowKey: (r) => r.exceptionId,
-  errorMessage: '加载失败',
+  errorMessage: '加载失败，请重试',
   autoLoad: false,
   fetchPage: async (params) => {
     const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });

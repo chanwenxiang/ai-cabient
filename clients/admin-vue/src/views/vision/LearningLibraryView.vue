@@ -590,13 +590,13 @@
     </el-dialog>
 
     <el-dialog v-model="gatherCheckVisible" title="采集审核列表" width="780px">
-      <el-alert
-        class="dialog-alert"
-        type="info"
-        :closable="false"
-        show-icon
-        title="采集回传后先过厂商审核：wait=待审核，通过（pass）才进可学习名单，驳回（reject）要重新采集"
-      />
+      <div class="rule-help">
+        <span>采集审核口径</span>
+        <HelpTip
+          content="采集回传后先过厂商审核：wait=待审核，通过（pass）才进可学习名单，驳回（reject）要重新采集"
+          aria-label="采集审核口径"
+        />
+      </div>
       <div class="dialog-toolbar">
         <el-input
           v-model="gatherCheckProductId"
@@ -828,6 +828,7 @@ import { useAuthStore } from '@/stores/auth';
 import { errorMessage } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
+import HelpTip from '@/components/HelpTip.vue';
 
 /**
  * 商品学习库（租户级）：将邑云端的模型与「可学习商品名单」是商户资产，一次学习全部柜机共用；
@@ -1651,6 +1652,14 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .dialog-alert {
   margin-bottom: 12px;

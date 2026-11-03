@@ -112,7 +112,7 @@
             aria-hidden="true"
           />
           <text class="quick-label">补货任务</text>
-          <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
+          <text v-if="pendingTaskCount" class="quick-badge">{{ badgeText(pendingTaskCount) }}</text>
         </view>
         <view
           v-if="canDevices"
@@ -138,7 +138,7 @@
         >
           <image class="quick-icon" :src="menuIcon('prep')" mode="aspectFit" aria-hidden="true" />
           <text class="quick-label">备货单</text>
-          <text v-if="prepGroupCount" class="quick-badge">{{ prepGroupCount }}</text>
+          <text v-if="prepGroupCount" class="quick-badge">{{ badgeText(prepGroupCount) }}</text>
         </view>
         <view
           v-if="canStocktake"
@@ -169,7 +169,7 @@
             aria-hidden="true"
           />
           <text class="quick-label">待办事项</text>
-          <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
+          <text v-if="pendingCount" class="quick-badge">{{ badgeText(pendingCount) }}</text>
         </view>
         <!-- 竞品惯例：经营/营收入口应在首屏可及，而非只藏在页尾「经营工具」网格里 -->
         <view
@@ -384,6 +384,11 @@ const {
 
 /** 备货单概览（CB-073）：台数 / 商品种数，明细在备货单页 */
 const prepGroupCount = computed(() => prepList.value.length);
+/** 角标 99+ 封顶（与 todo-badge.ts 同口径；完整计数仍用于逻辑判断） */
+function badgeText(count?: number | null) {
+  const n = Number(count ?? 0);
+  return n > 99 ? '99+' : String(n);
+}
 /** 盘点门（与盘点页、柜机详情同一条：merchant:slots:edit） */
 const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
 const prepSkuCount = computed(() =>
@@ -468,17 +473,12 @@ useAutoRefresh({
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: var(--page-bg, #ededed);
+  background: var(--page-bg);
 }
 .dash-header {
-  background: linear-gradient(
-    165deg,
-    var(--brand-deep, #115e59) 0%,
-    var(--brand, #0d9488) 55%,
-    var(--brand, #0d9488) 100%
-  );
+  background: linear-gradient(165deg, var(--brand-deep) 0%, var(--brand) 55%, var(--brand) 100%);
   padding: 12rpx var(--page-gutter, 24rpx) 28rpx;
-  color: #ffffff;
+  color: var(--white);
   border-radius: 0;
   margin: 0;
   box-sizing: border-box;
@@ -488,18 +488,18 @@ useAutoRefresh({
   font-size: var(--font-size-xl);
   font-weight: 700;
   display: block;
-  color: #ffffff;
+  color: var(--white);
 }
 .sub {
   font-size: var(--font-size-sm);
   opacity: 0.85;
   display: block;
   margin-top: 4rpx;
-  color: #ffffff;
+  color: var(--white);
 }
 .sub--unbound {
   opacity: 1;
-  color: var(--warning-soft, #fff7ed);
+  color: var(--warning-soft);
 }
 .sub--org {
   font-size: var(--font-size-xs, 22rpx);
@@ -510,7 +510,7 @@ useAutoRefresh({
   margin: 12rpx var(--page-gutter, 24rpx) 0;
   position: relative;
   z-index: 2;
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-control);
   padding: 16rpx 18rpx;
   display: flex;
@@ -527,7 +527,7 @@ useAutoRefresh({
   display: block;
   font-size: var(--font-size-md);
   font-weight: 700;
-  color: var(--brand-deep, #115e59);
+  color: var(--brand-deep);
 }
 .scan-desc {
   display: block;
@@ -546,8 +546,8 @@ useAutoRefresh({
   padding: 0 28rpx;
   border: none;
   border-radius: var(--radius-card);
-  background: var(--brand-soft, #f0fdfa);
-  color: var(--brand, #0d9488);
+  background: var(--brand-soft);
+  color: var(--brand);
   font-size: var(--font-size-caption);
   font-weight: 600;
   box-shadow: none;
@@ -570,7 +570,7 @@ useAutoRefresh({
   /* 一排三个：6 个入口正好两行；权限少的账号剩余项自动撑宽 */
   flex: 1 1 calc((100% - 24rpx) / 3);
   min-width: 0;
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-panel);
   padding: 18rpx 10rpx;
   text-align: center;
@@ -585,7 +585,7 @@ useAutoRefresh({
   margin: 0 auto;
   border-radius: var(--radius-card);
   background: var(--brand-soft);
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-size: var(--font-size-h3);
   font-weight: 700;
   line-height: 76rpx;
@@ -594,7 +594,7 @@ useAutoRefresh({
   display: block;
   margin-top: 8rpx;
   font-size: var(--font-size-caption);
-  color: var(--text-muted, #334155);
+  color: var(--text-muted);
   font-weight: 600;
 }
 .quick-badge {
@@ -617,7 +617,7 @@ useAutoRefresh({
   padding: 32rpx;
   width: auto;
   max-width: none;
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-card);
   border: none;
   box-shadow: none;
@@ -629,7 +629,7 @@ useAutoRefresh({
   display: flex;
   align-items: center;
   gap: 14rpx;
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-card);
   border: none;
   box-shadow: none;
@@ -644,18 +644,18 @@ useAutoRefresh({
   min-width: 0;
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .home-notice-title--empty {
   font-weight: 500;
-  color: var(--text-muted, #334155);
+  color: var(--text-muted);
 }
 .home-notice-more {
   flex-shrink: 0;
-  color: var(--text-subtle, #cbd5e1);
+  color: var(--text-subtle);
   width: 0.55em;
   height: 0.55em;
   font-size: var(--font-size-md);
@@ -674,12 +674,12 @@ useAutoRefresh({
 .section {
   font-weight: 700;
   font-size: var(--font-size-lg);
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
 }
 .section-more {
   /* 必须用 view 而不是 text：mp-weixin 的 text 不吃 inline-flex，::after 会被卡片圆角裁成另一种箭头 */
   flex-shrink: 0;
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-size: var(--font-size-body);
   font-weight: 600;
   white-space: nowrap;
@@ -692,7 +692,7 @@ useAutoRefresh({
   display: block;
   margin: 0 0 12rpx;
   font-size: var(--font-size-sm);
-  color: var(--brand, #0d9488);
+  color: var(--brand);
 }
 .empty-inline {
   padding: 16rpx 0 4rpx;
@@ -713,7 +713,7 @@ useAutoRefresh({
   display: block;
   margin-top: 8rpx;
   font-size: var(--font-size-sm);
-  color: var(--text-subtle, #cbd5e1);
+  color: var(--text-subtle);
 }
 /* 备货单入口（2026-10-30）：明细搬进 pages/prep-list，首页只留一行概览 */
 .prep-entry {
@@ -731,7 +731,7 @@ useAutoRefresh({
   display: block;
   font-size: var(--font-size-lg);
   font-weight: 700;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
 }
 .prep-entry-sub {
   display: block;
@@ -743,7 +743,7 @@ useAutoRefresh({
   display: flex;
   align-items: center;
   padding: 20rpx 0;
-  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+  border-top: 1rpx solid var(--color-border-subtle);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -768,7 +768,7 @@ useAutoRefresh({
   display: block;
   font-size: var(--font-size-md);
   font-weight: 600;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -778,7 +778,7 @@ useAutoRefresh({
   padding: 2rpx 10rpx;
   border-radius: var(--radius-tag);
   background: var(--brand-tint, var(--brand-mist));
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
@@ -791,7 +791,7 @@ useAutoRefresh({
 .task-go {
   flex: 0 0 120rpx;
   width: 120rpx;
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
@@ -802,7 +802,7 @@ useAutoRefresh({
   display: flex;
   align-items: flex-start;
   padding: 14rpx 0;
-  border-top: 1rpx solid var(--color-border-subtle, #f1f5f9);
+  border-top: 1rpx solid var(--color-border-subtle);
   gap: 12rpx;
 }
 .todo-row-hover {
@@ -814,7 +814,7 @@ useAutoRefresh({
   flex: 0 0 auto;
   margin: 13rpx 2rpx 0 0;
   border-radius: 50%;
-  background: var(--warning, #f59e0b);
+  background: var(--color-warning);
 }
 .todo-copy {
   min-width: 0;
@@ -824,7 +824,7 @@ useAutoRefresh({
   flex: 0 0 120rpx;
   width: 120rpx;
   margin-top: 4rpx;
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-size: var(--font-size-body);
   font-weight: 600;
   text-align: right;
@@ -833,7 +833,7 @@ useAutoRefresh({
 .todo-title {
   display: block;
   font-size: var(--font-size-body);
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
 }
 .todo-detail {
   display: block;
@@ -849,7 +849,7 @@ useAutoRefresh({
   display: flex;
   margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 28rpx 16rpx 24rpx;
-  background: var(--card-bg, #ffffff);
+  background: var(--card-bg);
   border-radius: var(--radius-panel, 24rpx);
   width: auto;
   box-sizing: border-box;
@@ -865,10 +865,11 @@ useAutoRefresh({
 .ov-num {
   font-size: 20px;
   font-weight: 800;
-  color: var(--text-primary, #0f172a);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .ov-num.warn {
-  color: #d97706;
+  color: var(--color-warning);
 }
 .ov-label {
   font-size: 20rpx;
@@ -895,10 +896,11 @@ useAutoRefresh({
 .kpi-value {
   display: block;
   margin-top: 6rpx;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--brand, #0d9488);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .err {
   color: var(--color-danger);
@@ -907,7 +909,7 @@ useAutoRefresh({
   margin: 16rpx var(--page-gutter, 24rpx) 0;
   padding: 18rpx 22rpx;
   border-radius: var(--radius-panel);
-  background: #f9eded;
+  background: var(--danger-soft);
   color: var(--color-danger);
   font-size: var(--font-size-caption);
   display: flex;
@@ -916,7 +918,7 @@ useAutoRefresh({
   gap: 16rpx;
 }
 .banner-retry {
-  color: var(--brand, #0d9488);
+  color: var(--brand);
   font-weight: 600;
   flex-shrink: 0;
 }

@@ -114,7 +114,7 @@ async function load() {
       'GET'
     );
   } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
   } finally {
     loading.value = false;
   }

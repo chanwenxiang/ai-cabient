@@ -1680,7 +1680,7 @@ async function onScan() {
       showError('浏览器请手动输入柜机编号');
       return;
     }
-    showError('扫码取消或失败');
+    showError('扫码取消或失败，请重试或手动输入柜机编号');
     return;
   }
   const parsed = parseCabinetScan(raw);
@@ -1692,7 +1692,7 @@ async function onScan() {
     landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码。';
     landingErrorKind.value = 'device_not_found';
     if (showManualEntry.value) showManual.value = true;
-    showError('无法识别柜机二维码');
+    showError('无法识别柜机二维码，请对准柜门专用码重试或手动输入柜机编号');
     return;
   }
   startShoppingFlow(parsed.deviceId, parsed.channel);
@@ -1968,11 +1968,11 @@ function addProduct(p: DeviceProduct) {
   const max = stockOf(p);
   const cur = selected.value[p.skuId] || 0;
   if (max <= 0) {
-    showError('暂无可选');
+    showError('该商品暂无可选库存');
     return;
   }
   if (cur >= max) {
-    showError('无法再加');
+    showError('已达可购上限，无法再加');
     return;
   }
   selected.value = { ...selected.value, [p.skuId]: cur + 1 };

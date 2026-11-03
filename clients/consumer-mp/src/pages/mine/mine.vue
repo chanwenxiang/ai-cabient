@@ -314,7 +314,7 @@
             <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信充值' }}</text>
             <text class="menu-desc">{{ wechatPayLive ? '调起微信支付' : '体验到账 ¥20' }}</text>
           </view>
-          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中…' : '充 ¥20' }}</text>
         </view>
         <view
           v-if="alipayRechargeEnabled"
@@ -330,7 +330,7 @@
               mockRechargeEnabled ? '体验到账 ¥20' : '跳转收银台充 ¥20'
             }}</text>
           </view>
-          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中…' : '充 ¥20' }}</text>
         </view>
         <view
           v-if="mockRechargeEnabled"
@@ -344,7 +344,7 @@
             <text class="menu-title">余额充值</text>
             <text class="menu-desc">体验到账 ¥20，不真实扣款</text>
           </view>
-          <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
+          <text class="menu-badge">{{ rechargeLoading ? '处理中…' : '充 ¥20' }}</text>
         </view>
         <view role="button" class="menu-cell" @click="goLogin">
           <image class="menu-icon" :src="menuIcon('phone')" mode="aspectFit" />

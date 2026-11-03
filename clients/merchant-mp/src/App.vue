@@ -166,6 +166,7 @@ uni-page-body {
   --info-soft: #e0f2fe;
   --warning-soft: #fff7ed;
   --danger-soft: #fef2f2;
+  --success-soft: #e8f8ef;
   --accent-rose: #be185d;
   --accent-rose-soft: #fce7f3;
   --surface-muted: #f4f7f5;

@@ -5,7 +5,11 @@
         <div class="page-card-head">
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
-              <span class="title">商户费率台账</span>
+              <span class="title"
+                >商户费率台账<HelpTip
+                  content="口径（2026-10-16 拍板）：每日 00:20 从商户钱包真扣周期费用（租金=月额 ÷ 当月天数、流量费=分/天且不分租赁/买断），扣款成功后才写这一行并直接记「已结清」。费用为 0 或未配置的柜机不扣钱也不写行；只有「未结清 PENDING」才计入欠费催缴，未结清里最老一行满 7 天（系统参数 merchant.overdue.lock_days）锁柜，结清自动复机。"
+                  aria-label="商户费率台账口径"
+              /></span>
               <span class="hint">周期费用日扣流水 · 未结清计入欠费催缴与锁柜口径</span>
             </div>
           </div>
@@ -76,14 +80,6 @@
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="180" />
       </CrudTable>
-
-      <el-alert
-        class="tip"
-        type="info"
-        :closable="false"
-        show-icon
-        title="口径（2026-10-16 拍板）：每日 00:20 从商户钱包真扣周期费用（租金=月额 ÷ 当月天数、流量费=分/天且不分租赁/买断），扣款成功后才写这一行并直接记「已结清」。费用为 0 或未配置的柜机不扣钱也不写行；只有「未结清 PENDING」才计入欠费催缴，未结清里最老一行满 7 天（系统参数 merchant.overdue.lock_days）锁柜，结清自动复机。"
-      />
     </el-card>
 
     <el-dialog v-model="rerunVisible" title="按日期重跑周期费用日扣" width="480px">
@@ -120,6 +116,7 @@ import { Check } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';

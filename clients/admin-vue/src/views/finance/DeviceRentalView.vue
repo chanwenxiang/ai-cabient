@@ -4,7 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">设备租赁</span>
+            <span class="title"
+              >设备租赁<HelpTip
+                content="押金是负债不是收入：登记→扣款抵欠（累计不超过本金）→退租结算返还；月租账单按月出账，逾期未付自动锁柜（欠租解锁不影响维修/风控锁）"
+                aria-label="设备租赁口径"
+            /></span>
             <span class="hint"
               >押金收据化 + 月租应收账单（CB-034）；登记即按收取方式处置：ONLINE
               从商户余额真扣、OFFLINE 只做收据化登记</span
@@ -25,14 +29,6 @@
         </div>
       </div>
     </template>
-
-    <el-alert
-      type="info"
-      closable
-      show-icon
-      class="t1-alert"
-      title="押金是负债不是收入：登记→扣款抵欠（累计不超过本金）→退租结算返还；月租账单按月出账，逾期未付自动锁柜（欠租解锁不影响维修/风控锁）"
-    />
 
     <el-tabs v-model="tab">
       <!-- 月租账单 -->
@@ -354,6 +350,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { displayLabel } from '@aicabinet/shared-dict';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
@@ -428,7 +425,7 @@ const billsCrud = useCrudTable<RentalBill>({
       'GET'
     );
   },
-  errorMessage: '账单加载失败'
+  errorMessage: '账单加载失败，请重试'
 });
 
 // MA-131：原先本地 map 把作废写成 `VOIDED`，而后端常量是 FEE_BILL_STATUS_VOID=`VOID`
@@ -479,7 +476,7 @@ async function markPaid(row: RentalBill) {
     ElMessage.success('已标记已付');
     await billsCrud.refresh();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    ElMessage.error(e instanceof Error ? e.message : '操作失败，请重试');
   } finally {
     submitting.value = false;
   }
@@ -501,7 +498,7 @@ async function voidBill(row: RentalBill) {
     ElMessage.success('已作废');
     await billsCrud.refresh();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    ElMessage.error(e instanceof Error ? e.message : '操作失败，请重试');
   } finally {
     submitting.value = false;
   }
@@ -528,7 +525,7 @@ const depositsCrud = useCrudTable<RentalDeposit>({
     const data = await api.request<RentalDeposit[]>(AdminEndpoints.rentalDeposits, 'GET');
     return Array.isArray(data) ? data : [];
   },
-  errorMessage: '押金加载失败'
+  errorMessage: '押金加载失败，请重试'
 });
 
 function depositActions(row: RentalDeposit): CrudRowAction[] {
@@ -677,7 +674,7 @@ const eventsCrud = useCrudTable<DepositEvent>({
     );
     return Array.isArray(data) ? data : [];
   },
-  errorMessage: '流水加载失败'
+  errorMessage: '流水加载失败，请重试'
 });
 
 const EVENT_LABELS: Record<string, string> = {

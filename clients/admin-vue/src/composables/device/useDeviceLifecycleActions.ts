@@ -101,7 +101,7 @@ export function useDeviceLifecycleActions(deps: UseDeviceLifecycleActionsDeps) {
           {
             inputValue: remark,
             inputValidator: (v) => !!String(v || '').trim() || '必须填写备注',
-            confirmButtonText: '确认',
+            confirmButtonText: `确认${deps.lifecycleActionLabel(action)}`,
             type: action === 'RETIRE' ? 'warning' : undefined
           }
         );
@@ -112,7 +112,7 @@ export function useDeviceLifecycleActions(deps: UseDeviceLifecycleActionsDeps) {
           deps.lifecycleActionLabel(action),
           {
             type: 'warning',
-            confirmButtonText: '确认',
+            confirmButtonText: `确认${deps.lifecycleActionLabel(action)}`,
             cancelButtonText: '取消'
           }
         );

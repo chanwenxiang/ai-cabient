@@ -576,7 +576,7 @@ async function load(opts?: { resetSeries?: boolean }) {
     if (!loadSeq.isCurrent(seq)) return;
     if (!s && !t && !o && !f) {
       loadFailed.value = true;
-      ElMessage.error('经营分析数据加载失败');
+      ElMessage.error('经营分析数据加载失败，请重试');
       return;
     }
     stats.value = s || {};
@@ -587,7 +587,7 @@ async function load(opts?: { resetSeries?: boolean }) {
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
     loadFailed.value = true;
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
   } finally {
     listHydrated.value = true;
     loading.value = false;

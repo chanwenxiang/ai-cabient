@@ -44,7 +44,7 @@ export async function scanCabinetDeviceId(): Promise<string> {
     if (isBrowserH5()) {
       return promptManualDeviceId();
     }
-    showError('扫码取消或失败');
+    showError('扫码取消或失败，请重试或手动输入柜机编号');
     return '';
   }
   const parsed = parseCabinetScan(raw);

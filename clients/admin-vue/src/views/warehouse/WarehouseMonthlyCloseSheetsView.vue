@@ -171,13 +171,13 @@
           }}</el-descriptions-item>
         </el-descriptions>
 
-        <el-alert
-          v-if="detail && detail.openingSource !== 'PERIOD_CLOSE'"
-          type="warning"
-          :closable="false"
-          class="block"
-          title="期初为账面值：上一账期无实盘可结转，期初列按账面流水结转（请核对）"
-        />
+        <div v-if="detail && detail.openingSource !== 'PERIOD_CLOSE'" class="rule-help">
+          <span>期初口径</span>
+          <HelpTip
+            content="期初为账面值：上一账期无实盘可结转，期初列按账面流水结转（请核对）"
+            aria-label="期初口径"
+          />
+        </div>
 
         <el-alert
           v-if="driftInfo && !driftInfo.consistent"
@@ -520,6 +520,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { textOrNone, yuanTextZero } from '@/utils/display';
 
@@ -875,6 +876,14 @@ async function exportCsv() {
 <style scoped>
 .block {
   margin-bottom: 12px;
+}
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 .drawer-actions {
   display: flex;

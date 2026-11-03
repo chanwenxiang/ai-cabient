@@ -172,7 +172,9 @@ export function useCrudTable<T>(options: CrudTableOptions<T>): CrudTableControll
         loadFailed.value = true;
         // 数据还是上一次成功的那页 ⇒ 页码必须跟着回去，否则分页器在撒谎
         page.value = shownPage;
-        ElMessage.error(e instanceof Error ? e.message : options.errorMessage || '加载失败');
+        ElMessage.error(
+          e instanceof Error ? e.message : options.errorMessage || '加载失败，请重试'
+        );
       }
     } finally {
       if (!silent) {

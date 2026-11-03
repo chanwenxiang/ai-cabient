@@ -244,7 +244,7 @@ const crud = useCrudTable<OpsEvent>({
   rowKey: (r) => r.eventId,
   pageSize: 50,
   autoLoad: false,
-  errorMessage: '加载失败',
+  errorMessage: '加载失败，请重试',
   fetchPage: async (params) => {
     const q = new URLSearchParams({
       page: String(params.page), // 0 起（useCrudTable 已换算）

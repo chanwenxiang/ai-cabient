@@ -359,7 +359,11 @@ async function inlineReview(task: ApprovalTask, approve: boolean) {
     await ElMessageBox.confirm(
       approve ? `确认通过 ${subject}（${task.nodeName || '当前节点'}）？` : `确认驳回 ${subject}？`,
       approve ? '审批通过' : '审批驳回',
-      { type: approve ? 'info' : 'warning', appendTo: 'body' }
+      {
+        type: approve ? 'info' : 'warning',
+        appendTo: 'body',
+        confirmButtonText: approve ? '通过' : '驳回'
+      }
     );
   } catch {
     return;

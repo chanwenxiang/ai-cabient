@@ -4,7 +4,11 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">对账</span>
+            <span class="title"
+              >对账<HelpTip
+                content="对账按 T+1 核对渠道账单与本账流水。状态「存在差异」可能因金额轧差或单据未匹配：未匹配笔数=账单对不上单号的行数；差额=渠道合计−本账合计（可为负）。二者可独立出现。"
+                aria-label="T+1 结算说明"
+            /></span>
             <span class="hint">按渠道 / 状态筛选；金额差额与未匹配笔数标红，可查看明细</span>
           </div>
         </div>
@@ -14,15 +18,6 @@
         </div>
       </div>
     </template>
-
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      class="t1-alert"
-      title="T+1 结算说明"
-      description="对账按 T+1 核对渠道账单与本账流水。状态「存在差异」可能因金额轧差或单据未匹配：未匹配笔数=账单对不上单号的行数；差额=渠道合计−本账合计（可为负）。二者可独立出现。"
-    />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
@@ -338,6 +333,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';

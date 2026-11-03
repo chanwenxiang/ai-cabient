@@ -20,6 +20,12 @@
   outline-offset: 2px;
 }
 
+/* HelpTip 弹层是 teleport 到 body 的，scoped 样式够不到，放全局 */
+.help-tip-popper {
+  max-width: 460px;
+  line-height: 1.6;
+}
+
 :root,
 [data-theme='light'] {
   /* 覆盖 Element Plus 默认 Helvetica Neue 栈，与三端 --app-font 一致 */
@@ -82,10 +88,56 @@
   --chart-4: #fbbf24;
   --chart-5: #f472b6;
   --chart-6: #4ade80;
-  --kpi-accent-revenue: var(--chart-1);
+  --kpi-accent-revenue: var(--app-primary);
   --kpi-accent-cost: #94a3b8;
   --kpi-accent-profit: #f59e0b;
   --kpi-accent-rate: var(--chart-3);
+  --kpi-accent-orders: var(--color-info);
+  --kpi-accent-aov: var(--color-info);
+  /* —— Element Plus 语义色接线：el-button/el-tag/el-alert/el-form 与 --color-* 同源 ——
+   * light-x = 混白 70/50/30/20/10%，dark-2 = 混黑 80%（与 EP 默认口径一致）；
+   * -rgb 供 rgba(var(--el-color-*-rgb), a) 的半透明底色，改基色时须同步这三元组。 */
+  --el-color-success: var(--color-success);
+  --el-color-success-light-3: color-mix(in srgb, var(--color-success) 70%, #fff);
+  --el-color-success-light-5: color-mix(in srgb, var(--color-success) 50%, #fff);
+  --el-color-success-light-7: color-mix(in srgb, var(--color-success) 30%, #fff);
+  --el-color-success-light-8: color-mix(in srgb, var(--color-success) 20%, #fff);
+  --el-color-success-light-9: color-mix(in srgb, var(--color-success) 10%, #fff);
+  --el-color-success-dark-2: color-mix(in srgb, var(--color-success) 80%, #000);
+  --el-color-success-rgb: 5, 150, 105;
+  --el-color-warning: var(--color-warning);
+  --el-color-warning-light-3: color-mix(in srgb, var(--color-warning) 70%, #fff);
+  --el-color-warning-light-5: color-mix(in srgb, var(--color-warning) 50%, #fff);
+  --el-color-warning-light-7: color-mix(in srgb, var(--color-warning) 30%, #fff);
+  --el-color-warning-light-8: color-mix(in srgb, var(--color-warning) 20%, #fff);
+  --el-color-warning-light-9: color-mix(in srgb, var(--color-warning) 10%, #fff);
+  --el-color-warning-dark-2: color-mix(in srgb, var(--color-warning) 80%, #000);
+  --el-color-warning-rgb: 217, 119, 6;
+  --el-color-danger: var(--color-danger);
+  --el-color-danger-light-3: color-mix(in srgb, var(--color-danger) 70%, #fff);
+  --el-color-danger-light-5: color-mix(in srgb, var(--color-danger) 50%, #fff);
+  --el-color-danger-light-7: color-mix(in srgb, var(--color-danger) 30%, #fff);
+  --el-color-danger-light-8: color-mix(in srgb, var(--color-danger) 20%, #fff);
+  --el-color-danger-light-9: color-mix(in srgb, var(--color-danger) 10%, #fff);
+  --el-color-danger-dark-2: color-mix(in srgb, var(--color-danger) 80%, #000);
+  --el-color-danger-rgb: 220, 38, 38;
+  --el-color-info: var(--color-info);
+  --el-color-info-light-3: color-mix(in srgb, var(--color-info) 70%, #fff);
+  --el-color-info-light-5: color-mix(in srgb, var(--color-info) 50%, #fff);
+  --el-color-info-light-7: color-mix(in srgb, var(--color-info) 30%, #fff);
+  --el-color-info-light-8: color-mix(in srgb, var(--color-info) 20%, #fff);
+  --el-color-info-light-9: color-mix(in srgb, var(--color-info) 10%, #fff);
+  --el-color-info-dark-2: color-mix(in srgb, var(--color-info) 80%, #000);
+  --el-color-info-rgb: 2, 132, 199;
+  /* el-alert type=error / el-message error 走 error 变量，与 danger 同源 */
+  --el-color-error: var(--el-color-danger);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+  --el-color-error-rgb: var(--el-color-danger-rgb);
   /* —— 间距阶 —— */
   --space-1: 4px;
   --space-2: 8px;
@@ -129,6 +181,48 @@
   --color-danger: #f87171;
   --color-info: #38bdf8;
   --kpi-accent-cost: #8fa8c7;
+
+  /* Element Plus 语义色暗色口径：base 跟随暗色 --color-*；light-x 混暗底，dark-2 提亮 */
+  --el-color-success: var(--color-success);
+  --el-color-success-light-3: color-mix(in srgb, var(--color-success) 70%, #141414);
+  --el-color-success-light-5: color-mix(in srgb, var(--color-success) 50%, #141414);
+  --el-color-success-light-7: color-mix(in srgb, var(--color-success) 30%, #141414);
+  --el-color-success-light-8: color-mix(in srgb, var(--color-success) 20%, #141414);
+  --el-color-success-light-9: color-mix(in srgb, var(--color-success) 10%, #141414);
+  --el-color-success-dark-2: color-mix(in srgb, var(--color-success) 80%, #fff);
+  --el-color-success-rgb: 52, 211, 153;
+  --el-color-warning: var(--color-warning);
+  --el-color-warning-light-3: color-mix(in srgb, var(--color-warning) 70%, #141414);
+  --el-color-warning-light-5: color-mix(in srgb, var(--color-warning) 50%, #141414);
+  --el-color-warning-light-7: color-mix(in srgb, var(--color-warning) 30%, #141414);
+  --el-color-warning-light-8: color-mix(in srgb, var(--color-warning) 20%, #141414);
+  --el-color-warning-light-9: color-mix(in srgb, var(--color-warning) 10%, #141414);
+  --el-color-warning-dark-2: color-mix(in srgb, var(--color-warning) 80%, #fff);
+  --el-color-warning-rgb: 251, 191, 36;
+  --el-color-danger: var(--color-danger);
+  --el-color-danger-light-3: color-mix(in srgb, var(--color-danger) 70%, #141414);
+  --el-color-danger-light-5: color-mix(in srgb, var(--color-danger) 50%, #141414);
+  --el-color-danger-light-7: color-mix(in srgb, var(--color-danger) 30%, #141414);
+  --el-color-danger-light-8: color-mix(in srgb, var(--color-danger) 20%, #141414);
+  --el-color-danger-light-9: color-mix(in srgb, var(--color-danger) 10%, #141414);
+  --el-color-danger-dark-2: color-mix(in srgb, var(--color-danger) 80%, #fff);
+  --el-color-danger-rgb: 248, 113, 113;
+  --el-color-info: var(--color-info);
+  --el-color-info-light-3: color-mix(in srgb, var(--color-info) 70%, #141414);
+  --el-color-info-light-5: color-mix(in srgb, var(--color-info) 50%, #141414);
+  --el-color-info-light-7: color-mix(in srgb, var(--color-info) 30%, #141414);
+  --el-color-info-light-8: color-mix(in srgb, var(--color-info) 20%, #141414);
+  --el-color-info-light-9: color-mix(in srgb, var(--color-info) 10%, #141414);
+  --el-color-info-dark-2: color-mix(in srgb, var(--color-info) 80%, #fff);
+  --el-color-info-rgb: 56, 189, 248;
+  --el-color-error: var(--el-color-danger);
+  --el-color-error-light-3: var(--el-color-danger-light-3);
+  --el-color-error-light-5: var(--el-color-danger-light-5);
+  --el-color-error-light-7: var(--el-color-danger-light-7);
+  --el-color-error-light-8: var(--el-color-danger-light-8);
+  --el-color-error-light-9: var(--el-color-danger-light-9);
+  --el-color-error-dark-2: var(--el-color-danger-dark-2);
+  --el-color-error-rgb: var(--el-color-danger-rgb);
 
   /* Element Plus 深色令牌：避免表格斑马纹/卡片仍用白底 */
   --el-bg-color: var(--layout-card);

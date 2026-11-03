@@ -567,7 +567,7 @@ export function useWarehouseTabLoader(deps: UseWarehouseTabLoaderDeps) {
     } catch (e) {
       if (!deps.loadSeq.isCurrent(seq, 'loadTab')) return;
       failed = true;
-      ElMessage.error(errorMessage(e, '加载失败'));
+      ElMessage.error(errorMessage(e, '加载失败，请重试'));
     } finally {
       const left = Math.max(0, (tabInflight.get(name) || 1) - 1);
       if (left === 0) tabInflight.delete(name);

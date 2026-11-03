@@ -763,7 +763,7 @@ async function load(opts?: { silent?: boolean }) {
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
     if (!opts?.silent) {
-      ElMessage.error(e instanceof Error ? e.message : '加载失败');
+      ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
     }
   } finally {
     dashboardLoadingInflight = Math.max(0, dashboardLoadingInflight - 1);

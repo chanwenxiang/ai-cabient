@@ -289,14 +289,6 @@ function onStatusChange() {
       </div>
     </template>
 
-    <el-alert
-      type="warning"
-      :closable="false"
-      show-icon
-      class="mb"
-      title="仅状态：点「开具」只把申请标为已开具，不会生成税控发票、PDF 或发送邮件"
-    />
-
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
         <el-select v-model="statusTab" style="width: 140px" @change="onStatusChange">

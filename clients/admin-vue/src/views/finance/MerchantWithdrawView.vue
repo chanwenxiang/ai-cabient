@@ -336,13 +336,13 @@
       <!-- 按商户提现费率覆盖（2026-10-16 拍板：默认 6‰、不写死、可按商户配）：
            写入 sys_config key merchant.withdraw.fee_bps.{商户号}，后端读路径 merchantFeeBpsFor 已支持 -->
       <el-tab-pane v-if="auth.hasPerm('ops:config:edit')" label="提现费率" name="fee">
-        <el-alert
-          class="mb"
-          type="info"
-          :closable="false"
-          show-icon
-          title="手续费在提现申请时快照：到账 = 申请额 − 固定费 − 申请额 × 万分比。全局默认 60 万分比（6‰，对齐老系统标准档）；此处只配单个商户的降档或免收。单笔上限 ¥10000 内 6‰ 最多 ¥60，封顶留 0=不封顶（配 ¥25/¥50 几乎永不触发）。"
-        />
+        <div class="rule-help">
+          <span>提现费率口径</span>
+          <HelpTip
+            content="手续费在提现申请时快照：到账 = 申请额 − 固定费 − 申请额 × 万分比。全局默认 60 万分比（6‰，对齐老系统标准档）；此处只配单个商户的降档或免收。单笔上限 ¥10000 内 6‰ 最多 ¥60，封顶留 0=不封顶（配 ¥25/¥50 几乎永不触发）。"
+            aria-label="提现费率口径"
+          />
+        </div>
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="loadFeePolicy">
           <el-form-item label="商户编号">
             <el-input
@@ -609,6 +609,7 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
+import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
@@ -1182,6 +1183,14 @@ onMounted(reload);
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.rule-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 /* V307 收款方/渠道对账列：主行关键值 + 副行补充信息 */
 .payee-cell {
