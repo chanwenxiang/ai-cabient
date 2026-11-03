@@ -222,10 +222,11 @@ public class WarehouseTransferService {
     @Transactional
     public WarehouseTransferDto cancel(Long operatorId, Long transferId) {
         permissionService.requirePermission(operatorId, PERM_OPS_WAREHOUSE_EDIT);
-        return runWithTransferLock(transferId, () -> doCancel(transferId));
+        return runWithTransferLock(transferId, () -> doCancel(operatorId, transferId));
     }
 
-    private WarehouseTransferDto doCancel(Long transferId) {
+    /** MA-102：取消此前是 WH_TRANSFER 四个动作里唯一不留痕的（CREATE/SHIP/RECEIVE 都有）。 */
+    private WarehouseTransferDto doCancel(Long operatorId, Long transferId) {
         WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!CabinetConstants.PROMOTION_STATUS_DRAFT.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可取消");
@@ -233,6 +234,7 @@ public class WarehouseTransferService {
         order.setStatus("CANCELLED");
         order.setUpdatedAt(Instant.now());
         orderMapper.updateById(order);
+        auditService.appendLog(operatorId, "WH_TRANSFER_CANCEL", TRANSFER, order.getTransferNo(), null);
         return toDto(order);
     }
 
