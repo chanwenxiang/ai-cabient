@@ -45,6 +45,8 @@ public class CouponService {
     private final PromotionService promotionService;
     /** V319：范围判定需要柜机所属商户。 */
     private final DeviceInfoMapper deviceInfoMapper;
+    /** MA-082：券定义/发券是**直接占用活动预算**的写面，此前全类零留痕。 */
+    private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final CouponService self;
 
@@ -57,6 +59,7 @@ public class CouponService {
                          DistributedLockService distributedLockService,
                          PromotionService promotionService,
                          DeviceInfoMapper deviceInfoMapper,
+                         AdminAuditService auditService,
                          @Lazy CouponService self) {
         this.taskService = taskService;
         this.definitionRepository = definitionRepository;
@@ -69,13 +72,14 @@ public class CouponService {
         // 🔴 V319：范围判定需要「柜机 → 商户」映射（scope_type=MERCHANT 时比对）。
         //    复用既有 mapper，不另建服务。
         this.deviceInfoMapper = deviceInfoMapper;
+        this.auditService = auditService;
         this.self = self;
     }
 
     // ── 优惠券定义管理 ─────────────────────────────────
 
     @Transactional
-    public CouponDefinitionDto createDefinition(CreateCouponRequest request) {
+    public CouponDefinitionDto createDefinition(Long operatorId, CreateCouponRequest request) {
         validateDefinitionRequest(
                 request.couponName(),
                 request.couponType(),
@@ -102,11 +106,16 @@ public class CouponService {
         definitionRepository.save(def);
         log.info("coupon definition created id={} name={} activityId={}",
                 def.getCouponDefId(), def.getCouponName(), def.getActivityId());
+        // MA-082：券模板即预算载体（面额/限发数），建券此前零留痕
+        auditService.appendLog(operatorId, "COUPON_DEF_CREATE", "COUPON_DEF",
+                String.valueOf(def.getCouponDefId()),
+                "name=" + def.getCouponName() + ",type=" + def.getCouponType()
+                        + ",activityId=" + def.getActivityId() + ",maxIssue=" + def.getMaxIssueCount());
         return toDefDto(def);
     }
 
     @Transactional
-    public CouponDefinitionDto updateDefinition(Long couponDefId, UpdateCouponRequest request) {
+    public CouponDefinitionDto updateDefinition(Long operatorId, Long couponDefId, UpdateCouponRequest request) {
         CouponDefinition def = definitionRepository.findById(couponDefId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         validateDefinitionRequest(
@@ -132,6 +141,10 @@ public class CouponService {
         applyScope(def, request.scopeType(), request.scopeMerchantId(), request.scopeDeviceIds());
         definitionRepository.save(def);
         log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
+        auditService.appendLog(operatorId, "COUPON_DEF_UPDATE", "COUPON_DEF",
+                String.valueOf(def.getCouponDefId()),
+                "name=" + def.getCouponName() + ",type=" + def.getCouponType()
+                        + ",activityId=" + def.getActivityId());
         return toDefDto(def);
     }
 
@@ -152,7 +165,7 @@ public class CouponService {
     }
 
     @Transactional
-    public CouponDefinitionDto setDefinitionStatus(Long couponDefId, String status) {
+    public CouponDefinitionDto setDefinitionStatus(Long operatorId, Long couponDefId, String status) {
         String normalized = status == null ? "" : status.trim().toUpperCase();
         if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(normalized) && !"INACTIVE".equals(normalized)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态仅支持 ACTIVE 或 INACTIVE");
@@ -162,13 +175,16 @@ public class CouponService {
         def.setStatus(normalized);
         definitionRepository.save(def);
         log.info("coupon definition status id={} status={}", couponDefId, normalized);
+        // MA-082：上下架券模板 = 停/启用一条真实资金抵扣通道
+        auditService.appendLog(operatorId, "COUPON_DEF_STATUS", "COUPON_DEF",
+                String.valueOf(couponDefId), "status=" + normalized);
         return toDefDto(def);
     }
 
     // ── 发券 ────────────────────────────────────────────
 
     @Transactional
-    public CouponDto issueToUser(Long userId, Long couponDefId) {
+    public CouponDto issueToUser(Long operatorId, Long userId, Long couponDefId) {
         String lockKey = "coupon:issue:" + couponDefId;
         if (!distributedLockService.tryLock(lockKey, 30, 3)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "发券繁忙，请稍后重试");
@@ -202,6 +218,11 @@ public class CouponService {
             definitionRepository.save(def);
 
             log.info("coupon issued userId={} couponId={} code={}", userId, uc.getCouponId(), uc.getCouponCode());
+            // MA-082：发券即按面额占用活动预算（reserveBudgetOnClaim 在上方），必须能回答「谁发的」
+            auditService.appendLog(operatorId, "COUPON_ISSUE", "USER_COUPON",
+                    String.valueOf(uc.getCouponId()),
+                    "userId=" + userId + ",couponDefId=" + couponDefId
+                            + (operatorId == null ? ",by=system" : ""));
             return toDto(uc, def);
         } finally {
             distributedLockService.unlock(lockKey);
@@ -209,8 +230,17 @@ public class CouponService {
     }
 
     @Transactional
-    public List<CouponDto> batchIssue(Long couponDefId, List<Long> userIds) {
-        return userIds.stream().map(uid -> self.issueToUser(uid, couponDefId)).toList();
+    public List<CouponDto> batchIssue(Long operatorId, Long couponDefId, List<Long> userIds) {
+        return userIds.stream().map(uid -> self.issueToUser(operatorId, uid, couponDefId)).toList();
+    }
+
+    /**
+     * 系统发券（积分兑换/召回等无运营操作者的路径）：operatorId 记 null，
+     * 审计里如实标 by=system，不伪装成运营动作。
+     */
+    @Transactional
+    public CouponDto issueToUser(Long userId, Long couponDefId) {
+        return self.issueToUser(null, userId, couponDefId);
     }
 
     // ── 用户查询 ────────────────────────────────────────

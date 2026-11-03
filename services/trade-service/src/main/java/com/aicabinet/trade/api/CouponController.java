@@ -60,7 +60,7 @@ public class CouponController {
     public ApiResponse<CouponDefinitionDto> createDefinition(
             HttpServletRequest request,
             @Valid @RequestBody CreateCouponRequest body) {
-        return ApiResponse.ok(couponService.createDefinition(body));
+        return ApiResponse.ok(couponService.createDefinition(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:coupon:edit")
@@ -69,7 +69,7 @@ public class CouponController {
             HttpServletRequest request,
             @PathVariable("id") Long id,
             @Valid @RequestBody UpdateCouponRequest body) {
-        return ApiResponse.ok(couponService.updateDefinition(id, body));
+        return ApiResponse.ok(couponService.updateDefinition(operatorId(request), id, body));
     }
 
     @RequiresPermissions("ops:coupon:edit")
@@ -78,7 +78,7 @@ public class CouponController {
             HttpServletRequest request,
             @PathVariable("id") Long id,
             @RequestParam("status") String status) {
-        return ApiResponse.ok(couponService.setDefinitionStatus(id, status));
+        return ApiResponse.ok(couponService.setDefinitionStatus(operatorId(request), id, status));
     }
 
     @RequiresPermissions("ops:coupon:create")
@@ -86,7 +86,7 @@ public class CouponController {
     public ApiResponse<CouponDto> issue(
             HttpServletRequest request,
             @Valid @RequestBody IssueCouponRequest body) {
-        return ApiResponse.ok(couponService.issueToUser(body.userId(), body.couponDefId()));
+        return ApiResponse.ok(couponService.issueToUser(operatorId(request), body.userId(), body.couponDefId()));
     }
 
     @RequiresPermissions("ops:coupon:create")
@@ -94,6 +94,9 @@ public class CouponController {
     public ApiResponse<List<CouponDto>> batchIssue(
             HttpServletRequest request,
             @Valid @RequestBody BatchIssueCouponRequest body) {
-        return ApiResponse.ok(couponService.batchIssue(body.couponDefId(), body.userIds()));
+        return ApiResponse.ok(couponService.batchIssue(operatorId(request), body.couponDefId(), body.userIds()));
+    }
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 }

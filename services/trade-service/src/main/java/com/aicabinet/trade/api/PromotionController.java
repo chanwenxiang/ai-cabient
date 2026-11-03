@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.PromotionPlacementService;
 import com.aicabinet.trade.service.PromotionService;
@@ -37,7 +38,7 @@ public class PromotionController {
             HttpServletRequest request,
             @PathVariable("id") Long id,
             @RequestBody List<UpsertPromotionPlacementRequest> items) {
-        return ApiResponse.ok(placementService.replace(id, items));
+        return ApiResponse.ok(placementService.replace(operatorId(request), id, items));
     }
 
     @RequiresPermissions("ops:promotion:list")
@@ -68,7 +69,7 @@ public class PromotionController {
     public ApiResponse<PromotionActivityDto> create(
             HttpServletRequest request,
             @Valid @RequestBody CreatePromotionRequest body) {
-        return ApiResponse.ok(promotionService.create(body));
+        return ApiResponse.ok(promotionService.create(operatorId(request), body));
     }
 
     @RequiresPermissions("ops:promotion:edit")
@@ -77,18 +78,21 @@ public class PromotionController {
             HttpServletRequest request,
             @PathVariable("id") Long id,
             @Valid @RequestBody CreatePromotionRequest body) {
-        return ApiResponse.ok(promotionService.update(id, body));
+        return ApiResponse.ok(promotionService.update(operatorId(request), id, body));
     }
 
     @RequiresPermissions("ops:promotion:launch")
     @PostMapping("/{id}/launch")
     public ApiResponse<PromotionActivityDto> launch(HttpServletRequest request, @PathVariable("id") Long id) {
-        return ApiResponse.ok(promotionService.launch(id));
+        return ApiResponse.ok(promotionService.launch(operatorId(request), id));
     }
 
     @RequiresPermissions("ops:promotion:stop")
     @PostMapping("/{id}/stop")
     public ApiResponse<PromotionActivityDto> stop(HttpServletRequest request, @PathVariable("id") Long id) {
-        return ApiResponse.ok(promotionService.stop(id));
+        return ApiResponse.ok(promotionService.stop(operatorId(request), id));
+    }
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 }

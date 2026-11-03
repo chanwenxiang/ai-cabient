@@ -38,7 +38,7 @@ class PromotionPlacementServiceTest {
     @BeforeEach
     void setUp() {
         service = new PromotionPlacementService(activityRepository, placementRepository, assetRepository,
-                new PromotionPlacementProperties(null, null));
+                new PromotionPlacementProperties(null, null), org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
         PromotionActivity a = new PromotionActivity();
         a.setActivityId(1L);
         a.setStatus("DRAFT");
@@ -61,7 +61,7 @@ class PromotionPlacementServiceTest {
         List<UpsertPromotionPlacementRequest> items = List.of(
                 new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 2L, null));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.replace(1L, items));
+                () -> service.replace(9001L, 1L, items));
         assertEquals(400, e.getStatusCode().value());
     }
 
@@ -73,7 +73,7 @@ class PromotionPlacementServiceTest {
                 new UpsertPromotionPlacementRequest("BANNER", 2L, null),
                 new UpsertPromotionPlacementRequest("POPUP_BEFORE_OPEN", 3L, null),
                 new UpsertPromotionPlacementRequest("POPUP_AFTER_CLOSE", 3L, null));
-        assertThrows(ResponseStatusException.class, () -> service.replace(1L, items));
+        assertThrows(ResponseStatusException.class, () -> service.replace(9001L, 1L, items));
         verify(placementRepository, never())
                 .delete(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
     }
@@ -83,7 +83,7 @@ class PromotionPlacementServiceTest {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 750)));
         List<UpsertPromotionPlacementRequest> items = List.of(
                 new UpsertPromotionPlacementRequest("BANNER", 2L, null));
-        assertThrows(ResponseStatusException.class, () -> service.replace(1L, items));
+        assertThrows(ResponseStatusException.class, () -> service.replace(9001L, 1L, items));
     }
 
     @Test
@@ -98,7 +98,7 @@ class PromotionPlacementServiceTest {
         MediaAsset video = image(5, 750, 300);
         video.setAssetType("VIDEO");
         when(assetRepository.findById(5L)).thenReturn(Optional.of(video));
-        assertThrows(ResponseStatusException.class, () -> service.replace(1L,
+        assertThrows(ResponseStatusException.class, () -> service.replace(9001L, 1L,
                 List.of(new UpsertPromotionPlacementRequest("BANNER", 5L, null))));
     }
 
@@ -109,7 +109,7 @@ class PromotionPlacementServiceTest {
         active.setStatus("ACTIVE");
         when(activityRepository.findById(9L)).thenReturn(Optional.of(active));
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service.replace(9L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, null))));
+                () -> service.replace(9001L, 9L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, null))));
         assertEquals(409, e.getStatusCode().value());
     }
 
@@ -132,7 +132,7 @@ class PromotionPlacementServiceTest {
     void replace_persistsBannerSortOrderForCarouselOrdering() {
         when(assetRepository.findById(2L)).thenReturn(Optional.of(image(2, 750, 300)));
         when(placementRepository.findByActivityId(1L)).thenReturn(List.of());
-        service.replace(1L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, 30)));
+        service.replace(9001L, 1L, List.of(new UpsertPromotionPlacementRequest("BANNER", 2L, 30)));
         org.mockito.ArgumentCaptor<PromotionPlacement> captor =
                 org.mockito.ArgumentCaptor.forClass(PromotionPlacement.class);
         verify(placementRepository).insert(captor.capture());
@@ -140,7 +140,7 @@ class PromotionPlacementServiceTest {
     }
 
     private void assertDoesNotThrowReplace(List<UpsertPromotionPlacementRequest> items) {
-        service.replace(1L, items);
+        service.replace(9001L, 1L, items);
         verify(placementRepository).insert(any(PromotionPlacement.class));
     }
 }

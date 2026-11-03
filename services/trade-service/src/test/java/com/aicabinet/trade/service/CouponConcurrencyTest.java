@@ -39,7 +39,7 @@ class CouponConcurrencyTest {
     void setUp() {
         couponService = new CouponService(
                 taskService, definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                orderLineRepository, distributedLockService, promotionService, deviceInfoMapper, null);
+                orderLineRepository, distributedLockService, promotionService, deviceInfoMapper, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
     }
 

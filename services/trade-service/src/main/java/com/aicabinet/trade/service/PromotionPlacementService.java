@@ -48,15 +48,19 @@ public class PromotionPlacementService {
     private final PromotionPlacementMapper placementRepository;
     private final MediaAssetMapper assetRepository;
     private final PromotionPlacementProperties properties;
+    /** MA-082：展示位替换直接决定消费端轮播内容，此前零留痕。 */
+    private final AdminAuditService auditService;
 
     public PromotionPlacementService(PromotionActivityMapper activityRepository,
                                      PromotionPlacementMapper placementRepository,
                                      MediaAssetMapper assetRepository,
-                                     PromotionPlacementProperties properties) {
+                                     PromotionPlacementProperties properties,
+                                     AdminAuditService auditService) {
         this.activityRepository = activityRepository;
         this.placementRepository = placementRepository;
         this.assetRepository = assetRepository;
         this.properties = properties;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +71,7 @@ public class PromotionPlacementService {
 
     /** 全量替换（弹窗位互斥由本方法保证；DB 唯一索引兜底并发）。 */
     @Transactional
-    public List<PromotionPlacementDto> replace(Long activityId, List<UpsertPromotionPlacementRequest> items) {
+    public List<PromotionPlacementDto> replace(Long operatorId, Long activityId, List<UpsertPromotionPlacementRequest> items) {
         PromotionActivity activity = requireActivity(activityId);
         if (ACTIVITY_ACTIVE.equalsIgnoreCase(activity.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "进行中的活动请先停止再编辑展示位");
@@ -80,6 +84,8 @@ public class PromotionPlacementService {
             placementRepository.insert(p);
         }
         log.info("promotion placements replaced activity={} count={}", activityId, resolved.size());
+        auditService.appendLog(operatorId, "PROMOTION_PLACEMENT_REPLACE", "PROMOTION",
+                String.valueOf(activityId), "count=" + resolved.size());
         return placementRepository.findByActivityId(activityId).stream().map(this::toDto).toList();
     }
 

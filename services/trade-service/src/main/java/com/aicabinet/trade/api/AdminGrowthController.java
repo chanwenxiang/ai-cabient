@@ -128,7 +128,8 @@ public class AdminGrowthController {
 
     @RequiresPermissions(value = {"ops:user-analysis:view", "ops:coupon:create"}, logical = RequiresPermissions.Logical.AND)
     @PostMapping("/user-recall")
-    public ApiResponse<UserRecallResult> userRecall(@RequestBody Map<String, Object> body) {
+    public ApiResponse<UserRecallResult> userRecall(HttpServletRequest request,
+                                                     @RequestBody Map<String, Object> body) {
         Long couponDefId = body.get("couponDefId") == null
                 ? null
                 : Long.valueOf(String.valueOf(body.get("couponDefId")));
@@ -138,7 +139,7 @@ public class AdminGrowthController {
         List<Long> userIds = body.get("userIds") instanceof List<?> list
                 ? list.stream().map(String::valueOf).map(Long::valueOf).toList()
                 : null;
-        return ApiResponse.ok(userRecallService.recall(couponDefId, days, userIds));
+        return ApiResponse.ok(userRecallService.recall(operatorId(request), couponDefId, days, userIds));
     }
 
     // ---------- 营销活动效果分析 ----------

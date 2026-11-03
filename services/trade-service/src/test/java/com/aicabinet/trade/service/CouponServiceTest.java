@@ -50,7 +50,7 @@ class CouponServiceTest {
     void setUp() {
         couponService = new CouponService(
                 taskService, definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                orderLineRepository, distributedLockService, promotionService, deviceInfoMapper, null);
+                orderLineRepository, distributedLockService, promotionService, deviceInfoMapper, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "self", couponService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
@@ -61,7 +61,7 @@ class CouponServiceTest {
         var req = new CreateCouponRequest("测试券", "AMOUNT_OFF", 500, 0, null, 30, 100, "测试");
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = couponService.createDefinition(req);
+        var result = couponService.createDefinition(9001L, req);
 
         assertNotNull(result);
         assertEquals("测试券", result.couponName());
@@ -78,7 +78,7 @@ class CouponServiceTest {
         var req = new CreateCouponRequest("预算券", "AMOUNT_OFF", 100, 100, null, 7, 10, "T-102", 1L);
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = couponService.createDefinition(req);
+        var result = couponService.createDefinition(9001L, req);
 
         assertEquals(1L, result.activityId());
         verify(promotionService, times(1)).requireExists(1L);
@@ -90,7 +90,7 @@ class CouponServiceTest {
     void createDefinition_shouldRejectBlankName() {
         var req = new CreateCouponRequest("  ", "AMOUNT_OFF", 500, 0, null, 30, 100, "测试");
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> couponService.createDefinition(req));
+                () -> couponService.createDefinition(9001L, req));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
@@ -98,7 +98,7 @@ class CouponServiceTest {
     void createDefinition_shouldRejectAmountOffWithoutDenomination() {
         var req = new CreateCouponRequest("坏券", "AMOUNT_OFF", 0, 0, null, 30, 100, "测试");
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> couponService.createDefinition(req));
+                () -> couponService.createDefinition(9001L, req));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
@@ -106,7 +106,7 @@ class CouponServiceTest {
     void createDefinition_shouldRejectPercentOffWithoutRate() {
         var req = new CreateCouponRequest("坏折扣", "PERCENT_OFF", 0, 0, null, 30, 100, "测试");
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> couponService.createDefinition(req));
+                () -> couponService.createDefinition(9001L, req));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
 
@@ -127,7 +127,7 @@ class CouponServiceTest {
         when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = couponService.updateDefinition(1L, req);
+        var result = couponService.updateDefinition(9001L, 1L, req);
 
         assertEquals("新券", result.couponName());
         assertEquals("PERCENT_OFF", result.couponType());
@@ -144,7 +144,7 @@ class CouponServiceTest {
         when(definitionRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResponseStatusException.class,
-                () -> couponService.updateDefinition(99L,
+                () -> couponService.updateDefinition(9001L, 99L,
                         new UpdateCouponRequest("x", "AMOUNT_OFF", 100, 0, null, 30, 100, null)));
     }
 
@@ -167,7 +167,7 @@ class CouponServiceTest {
         when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(userCouponRepository.countByCouponDefId(1L)).thenReturn(1L);
 
-        var result = couponService.issueToUser(10001L, 1L);
+        var result = couponService.issueToUser(9001L, 10001L, 1L);
 
         assertNotNull(result);
         assertEquals("UNUSED", result.status());
@@ -184,7 +184,7 @@ class CouponServiceTest {
         when(definitionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(def));
 
         assertThrows(ResponseStatusException.class,
-                () -> couponService.issueToUser(10001L, 1L));
+                () -> couponService.issueToUser(9001L, 10001L, 1L));
     }
 
     @Test
@@ -347,7 +347,7 @@ class CouponServiceTest {
         });
         when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        couponService.issueToUser(10001L, 10L);
+        couponService.issueToUser(9001L, 10001L, 10L);
 
         verify(promotionService).reserveBudgetOnClaim(99L, 300);
     }

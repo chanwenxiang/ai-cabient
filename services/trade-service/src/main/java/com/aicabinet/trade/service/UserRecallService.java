@@ -40,14 +40,14 @@ public class UserRecallService {
     }
 
     @Transactional
-    public UserRecallResult recall(Long couponDefId, Integer days, List<Long> userIds) {
+    public UserRecallResult recall(Long operatorId, Long couponDefId, Integer days, List<Long> userIds) {
         if (couponDefId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择召回优惠券");
         }
-        return runWithRecallCouponLock(couponDefId, () -> doRecall(couponDefId, days, userIds));
+        return runWithRecallCouponLock(couponDefId, () -> doRecall(operatorId, couponDefId, days, userIds));
     }
 
-    private UserRecallResult doRecall(Long couponDefId, Integer days, List<Long> userIds) {
+    private UserRecallResult doRecall(Long operatorId, Long couponDefId, Integer days, List<Long> userIds) {
         CouponDefinition def = couponDefinitionRepository.findByIdForUpdate(couponDefId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
         if (!"ACTIVE".equalsIgnoreCase(def.getStatus())) {
@@ -72,7 +72,7 @@ public class UserRecallService {
         }
 
         String couponName = def.getCouponName() == null ? "优惠券" : def.getCouponName();
-        couponService.batchIssue(couponDefId, targets);
+        couponService.batchIssue(operatorId, couponDefId, targets);
 
         int notified = 0;
         for (Long userId : targets) {

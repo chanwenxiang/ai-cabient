@@ -24,7 +24,7 @@ class PromotionBudgetConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        promotionService = new PromotionService(repository, distributedLockService, null, null);
+        promotionService = new PromotionService(repository, distributedLockService, null, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(promotionService, "self", promotionService);
     }
 

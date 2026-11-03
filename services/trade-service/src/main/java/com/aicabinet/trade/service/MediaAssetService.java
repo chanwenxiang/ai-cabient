@@ -59,17 +59,21 @@ public class MediaAssetService {
     private final PromotionPlacementMapper placementMapper;
     private final MinioVideoService minioVideoService;
     private final DistributedLockService distributedLockService;
+    /** MA-082：素材上传/改名/删除影响消费端轮播，此前零留痕。 */
+    private final AdminAuditService auditService;
 
     public MediaAssetService(MediaAssetMapper assetRepository,
                              AdCampaignItemMapper campaignItemMapper,
                              PromotionPlacementMapper placementMapper,
                              MinioVideoService minioVideoService,
-                             DistributedLockService distributedLockService) {
+                             DistributedLockService distributedLockService,
+                             AdminAuditService auditService) {
         this.assetRepository = assetRepository;
         this.campaignItemMapper = campaignItemMapper;
         this.placementMapper = placementMapper;
         this.minioVideoService = minioVideoService;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -133,15 +137,17 @@ public class MediaAssetService {
         asset.setStatus(STATUS_ACTIVE);
         asset.setUploadedBy(operatorId);
         assetRepository.insert(asset);
+        auditService.appendLog(operatorId, "MEDIA_ASSET_UPLOAD", "MEDIA_ASSET",
+                String.valueOf(asset.getAssetId()), "title=" + asset.getTitle() + ",type=" + asset.getAssetType());
         return toDto(asset);
     }
 
     @Transactional
-    public MediaAssetDto update(Long assetId, UpsertMediaAssetRequest request) {
-        return runWithMediaAssetLock(assetId, () -> doUpdate(assetId, request));
+    public MediaAssetDto update(Long operatorId, Long assetId, UpsertMediaAssetRequest request) {
+        return runWithMediaAssetLock(assetId, () -> doUpdate(operatorId, assetId, request));
     }
 
-    private MediaAssetDto doUpdate(Long assetId, UpsertMediaAssetRequest request) {
+    private MediaAssetDto doUpdate(Long operatorId, Long assetId, UpsertMediaAssetRequest request) {
         MediaAsset asset = requireAssetForUpdate(assetId);
         asset.setTitle(request.title().trim());
         asset.setDurationSeconds(Math.max(0, request.durationSeconds()));
@@ -149,18 +155,20 @@ public class MediaAssetService {
             asset.setStatus(request.status().trim().toUpperCase());
         }
         assetRepository.updateById(asset);
+        auditService.appendLog(operatorId, "MEDIA_ASSET_UPDATE", "MEDIA_ASSET", String.valueOf(assetId),
+                "title=" + asset.getTitle() + ",status=" + asset.getStatus());
         return toDto(asset);
     }
 
     @Transactional
-    public void delete(Long assetId) {
+    public void delete(Long operatorId, Long assetId) {
         runWithMediaAssetLock(assetId, () -> {
-            doDelete(assetId);
+            doDelete(operatorId, assetId);
             return null;
         });
     }
 
-    private void doDelete(Long assetId) {
+    private void doDelete(Long operatorId, Long assetId) {
         MediaAsset asset = requireAssetForUpdate(assetId);
         long used = campaignItemMapper.countByAssetId(assetId);
         if (used > 0) {
@@ -173,6 +181,7 @@ public class MediaAssetService {
                     "素材仍被 " + placed + " 个活动展示位引用，请先调整活动展示位");
         }
         assetRepository.deleteById(assetId);
+        auditService.appendLog(operatorId, "MEDIA_ASSET_DELETE", "MEDIA_ASSET", String.valueOf(assetId), null);
         // MinIO 对象尽力清理，失败不影响元数据删除结果
         try {
             minioVideoService.removeObject(asset.getStorageUri());

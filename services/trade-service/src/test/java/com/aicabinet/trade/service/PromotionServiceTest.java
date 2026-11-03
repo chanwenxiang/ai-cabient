@@ -32,7 +32,7 @@ class PromotionServiceTest {
     @BeforeEach
     void setUp() {
         promotionService = new PromotionService(repository, distributedLockService,
-                new PromotionActivityValidator(new ObjectMapper(), placementRepository), null);
+                new PromotionActivityValidator(new ObjectMapper(), placementRepository), org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(promotionService, "self", promotionService);
         lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
@@ -50,7 +50,7 @@ class PromotionServiceTest {
             return a;
         });
 
-        var result = promotionService.create(req);
+        var result = promotionService.create(9001L, req);
 
         assertEquals("国庆活动", result.activityName());
         assertEquals("FULL_REDUCE", result.activityType());
@@ -70,7 +70,7 @@ class PromotionServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(activity));
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = promotionService.launch(1L);
+        var result = promotionService.launch(9001L, 1L);
 
         assertEquals("ACTIVE", result.status());
     }
@@ -83,7 +83,7 @@ class PromotionServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(activity));
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        var result = promotionService.stop(1L);
+        var result = promotionService.stop(9001L, 1L);
 
         assertEquals("STOPPED", result.status());
     }
@@ -92,7 +92,7 @@ class PromotionServiceTest {
     void updateStatus_shouldThrow_whenNotFound() {
         when(repository.findById(999L)).thenReturn(Optional.empty());
         assertThrows(ResponseStatusException.class,
-                () -> promotionService.updateStatus(999L, "ACTIVE"));
+                () -> promotionService.updateStatus(9001L, 999L, "ACTIVE"));
     }
 
     @Test
@@ -177,7 +177,7 @@ class PromotionServiceTest {
                 "{}", null, null, null, null);
         org.springframework.web.server.ResponseStatusException ex =
                 assertThrows(org.springframework.web.server.ResponseStatusException.class,
-                        () -> promotionService.create(req));
+                        () -> promotionService.create(9001L, req));
         assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertTrue(ex.getReason().contains("budgetCents"), ex.getReason());
         verify(repository, never()).save(any());
@@ -188,7 +188,7 @@ class PromotionServiceTest {
         var req = new CreatePromotionRequest("不限额", "FULL_REDUCE", null, null, 0L, 1, "ALL",
                 "{}", null, null, null, null);
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
-        assertEquals(0L, promotionService.create(req).budgetCents());
+        assertEquals(0L, promotionService.create(9001L, req).budgetCents());
     }
 
     @Test
@@ -198,7 +198,7 @@ class PromotionServiceTest {
         var req = new CreatePromotionRequest("小写类型", " full_reduce ", null, null, 100L, 1, "ALL",
                 "{}", null, null, null, null);
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
-        assertEquals("FULL_REDUCE", promotionService.create(req).activityType());
+        assertEquals("FULL_REDUCE", promotionService.create(9001L, req).activityType());
     }
 
     @Test
@@ -206,6 +206,6 @@ class PromotionServiceTest {
         var req = new CreatePromotionRequest("空类型", "  ", null, null, 100L, 1, "ALL",
                 "{}", null, null, null, null);
         assertTrue(assertThrows(org.springframework.web.server.ResponseStatusException.class,
-                () -> promotionService.create(req)).getReason().contains("activityType"));
+                () -> promotionService.create(9001L, req)).getReason().contains("activityType"));
     }
 }

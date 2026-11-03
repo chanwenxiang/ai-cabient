@@ -10,5 +10,21 @@
   "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java": {
     "endpoint": "/jiangyi/tenant-domain",
     "reason": "MA-117：tenant-domain/retire 只追加 HttpServletRequest 取操作者做留痕；请求体/路径/返回类型未变（映射签名与基线逐条相等）"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/CouponController.java": {
+    "endpoint": "/batch-issue",
+    "reason": "MA-082：券定义/发券写端点只追加 HttpServletRequest 以取操作者做留痕；请求体/路径/返回类型未变（映射签名与基线逐条相等）"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminGrowthController.java": {
+    "endpoint": "/user-recall",
+    "reason": "MA-082：召回发券端点只追加 HttpServletRequest 取操作者；请求体/路径/返回类型未变"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/PromotionController.java": {
+    "endpoint": "/placements",
+    "reason": "MA-082：活动 create/update/launch/stop 与展示位 replace 只追加 HttpServletRequest 取操作者做留痕；请求体/路径/返回类型未变"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsAdController.java": {
+    "endpoint": "/ad/assets",
+    "reason": "MA-082：素材 update/delete 只追加 HttpServletRequest 取操作者；请求体/路径/返回类型未变"
   }
 }

@@ -40,7 +40,7 @@ class MediaAssetUploadSecurityTest {
 
     @BeforeEach
     void setUp() {
-        service = new MediaAssetService(assetRepository, campaignItemMapper, placementMapper, minioVideoService, distributedLockService);
+        service = new MediaAssetService(assetRepository, campaignItemMapper, placementMapper, minioVideoService, distributedLockService, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test

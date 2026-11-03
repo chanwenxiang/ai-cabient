@@ -39,7 +39,7 @@ class UserRecallConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.recall(77L, 30, List.of(100L)));
+                () -> service.recall(9001L, 77L, 30, List.of(100L)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

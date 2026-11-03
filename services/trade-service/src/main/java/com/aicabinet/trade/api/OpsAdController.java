@@ -54,14 +54,14 @@ public class OpsAdController {
             HttpServletRequest request,
             @PathVariable Long assetId,
             @Valid @RequestBody UpsertMediaAssetRequest body) {
-        return ApiResponse.ok(mediaAssetService.update(assetId, body));
+        return ApiResponse.ok(mediaAssetService.update(operatorId(request), assetId, body));
     }
 
     @RequiresPermissions("ops:ad:edit")
     @DeleteMapping("/ad/assets/{assetId}")
     public ApiResponse<Void> deleteAdAsset(
             HttpServletRequest request, @PathVariable Long assetId) {
-        mediaAssetService.delete(assetId);
+        mediaAssetService.delete(operatorId(request), assetId);
         return ApiResponse.ok(null);
     }
 

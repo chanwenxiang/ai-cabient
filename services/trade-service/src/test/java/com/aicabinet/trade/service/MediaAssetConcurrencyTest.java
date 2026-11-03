@@ -31,7 +31,7 @@ class MediaAssetConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        service = new MediaAssetService(assetRepository, campaignItemMapper, placementMapper, minioVideoService, distributedLockService);
+        service = new MediaAssetService(assetRepository, campaignItemMapper, placementMapper, minioVideoService, distributedLockService, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test
@@ -41,7 +41,7 @@ class MediaAssetConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.update(3L, new UpsertMediaAssetRequest("标题", 10, "ACTIVE")));
+                () -> service.update(9001L, 3L, new UpsertMediaAssetRequest("标题", 10, "ACTIVE")));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -53,7 +53,7 @@ class MediaAssetConcurrencyTest {
                 .thenReturn(true);
         when(assetRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.empty());
 
-        assertThrows(ResponseStatusException.class, () -> service.delete(4L));
+        assertThrows(ResponseStatusException.class, () -> service.delete(9001L, 4L));
 
         verify(distributedLockService).unlock(MediaAssetService.mediaAssetLockKey(4L));
     }

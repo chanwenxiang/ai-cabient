@@ -26,21 +26,25 @@ public class PromotionService {
     private final PromotionActivityMapper repository;
     private final DistributedLockService distributedLockService;
     private final PromotionActivityValidator validator;
+    /** MA-082：活动上下架/改规则直接决定定价与预算，此前零留痕。 */
+    private final AdminAuditService auditService;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final PromotionService self;
 
     public PromotionService(PromotionActivityMapper repository,
                             DistributedLockService distributedLockService,
                             PromotionActivityValidator validator,
+                            AdminAuditService auditService,
                             @Lazy PromotionService self) {
         this.repository = repository;
         this.distributedLockService = distributedLockService;
         this.validator = validator;
+        this.auditService = auditService;
         this.self = self;
     }
 
     @Transactional
-    public PromotionActivityDto create(CreatePromotionRequest request) {
+    public PromotionActivityDto create(Long operatorId, CreatePromotionRequest request) {
         PromotionActivity a = new PromotionActivity();
         a.setActivityName(request.activityName());
         a.setActivityType(normalizedActivityType(request.activityType()));
@@ -58,6 +62,8 @@ public class PromotionService {
         validator.validateForSave(a);
         repository.save(a);
         log.info("promotion created id={} name={}", a.getActivityId(), a.getActivityName());
+        auditService.appendLog(operatorId, "PROMOTION_CREATE", "PROMOTION", String.valueOf(a.getActivityId()),
+                "type=" + a.getActivityType() + ",budgetCents=" + a.getBudgetCents());
         return toDto(a);
     }
 
@@ -93,17 +99,19 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionActivityDto updateStatus(Long activityId, String status) {
+    public PromotionActivityDto updateStatus(Long operatorId, Long activityId, String status) {
         PromotionActivity a = repository.findById(activityId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         a.setStatus(status);
         repository.save(a);
         log.info("promotion {} status={}", activityId, status);
+        auditService.appendLog(operatorId, "PROMOTION_STATUS", "PROMOTION", String.valueOf(activityId),
+                "status=" + status);
         return toDto(a);
     }
 
     @Transactional
-    public PromotionActivityDto update(Long activityId, CreatePromotionRequest request) {
+    public PromotionActivityDto update(Long operatorId, Long activityId, CreatePromotionRequest request) {
         PromotionActivity a = repository.findById(activityId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         if (CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(a.getStatus())) {
@@ -132,20 +140,22 @@ public class PromotionService {
         validator.validateForSave(a);
         repository.save(a);
         log.info("promotion updated id={}", activityId);
+        auditService.appendLog(operatorId, "PROMOTION_UPDATE", "PROMOTION", String.valueOf(activityId),
+                "type=" + a.getActivityType() + ",budgetCents=" + a.getBudgetCents());
         return toDto(a);
     }
 
     @Transactional
-    public PromotionActivityDto launch(Long activityId) {
+    public PromotionActivityDto launch(Long operatorId, Long activityId) {
         PromotionActivity a = repository.findById(activityId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         validator.validateForLaunch(a);
-        return self.updateStatus(activityId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
+        return self.updateStatus(operatorId, activityId, CabinetConstants.PROMOTION_STATUS_ACTIVE);
     }
 
     @Transactional
-    public PromotionActivityDto stop(Long activityId) {
-        return self.updateStatus(activityId, "STOPPED");
+    public PromotionActivityDto stop(Long operatorId, Long activityId) {
+        return self.updateStatus(operatorId, activityId, "STOPPED");
     }
 
     @Transactional
