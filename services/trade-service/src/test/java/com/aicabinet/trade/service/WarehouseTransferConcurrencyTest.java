@@ -59,4 +59,24 @@ class WarehouseTransferConcurrencyTest {
 
         verify(distributedLockService).unlock(WarehouseTransferService.transferLockKey(7L));
     }
+
+    @Test
+    void cancel_shouldAuditOperatorAndTransferNo() {
+        when(distributedLockService.tryLock(
+                WarehouseTransferService.transferLockKey(7L), 60L, 5L)).thenReturn(true);
+        com.aicabinet.trade.domain.WarehouseTransferOrder order =
+                new com.aicabinet.trade.domain.WarehouseTransferOrder();
+        order.setTransferId(7L);
+        order.setTransferNo("TR-7");
+        order.setStatus("DRAFT");
+        when(orderMapper.findByIdForUpdate(7L)).thenReturn(java.util.Optional.of(order));
+
+        service.cancel(1L, 7L);
+
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("WH_TRANSFER_CANCEL"),
+                org.mockito.ArgumentMatchers.eq("TRANSFER"),
+                org.mockito.ArgumentMatchers.eq("TR-7"),
+                org.mockito.ArgumentMatchers.isNull());
+    }
 }
