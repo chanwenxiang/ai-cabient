@@ -708,6 +708,11 @@ gross − member − activity − coupon = total      （部分退款单例外�
   「返还后订单头不得再挂 coupon_id」；钉测 2 例用 `InOrder` 钉死顺序（`SettlementWaiveCouponReturnTest`）。
   `releaseStaleUsedCouponsForOrder` 只治错绑脏券，不能当本条修法。
 
+- 🔴 **二版**：一版只清内存（`setCouponId(null)+save`）被自家 Docker 矩阵断言抓住（`coupon_id 实际=6`），
+  根因仍是 MP `updateById` 跳 null。显式 SQL `clearOrderCouponColumns`（只清券列、不动应付）改放进
+  `settleAfterPartialRefund` 的 `newSubtotal<=0` 分支本身 ⇒ waive 与「退到零行」两条路径同覆盖。
+  并**撤销** `check-mybatis-null-clear` 对 CouponService 的整条豁免（那句「别处会清」只对 PENDING 链成立），
+  门禁头部新增「豁免纪律」。全量重跑后报数（教训 #390/#391）。
 ### 2026-11-03（80 条 open 逐条回源码复核 → 批次A/B 收口：资金参数限幅单源 + 两条零归因；MA-081 撤账、9 条 500 口径订正、新增 MA-149）
 
 - **先复核再修**：80 条 open（P2×19 / P3×61）全部回源码取证，主会话对每一条要修的证据**亲自重读**。

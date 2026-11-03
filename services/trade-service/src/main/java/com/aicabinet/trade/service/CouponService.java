@@ -579,6 +579,11 @@ public class CouponService {
             }
             order.setCouponId(null);
             order.setCouponDiscountCents(0);
+            // MA-147：内存里清了不等于落库——updateById 跳过 null（lessons #384）。
+            // 显式清列放在这里（单源），让 waive 与「退到零行」两条调用路径都不会留下脏 coupon_id。
+            if (order.getOrderId() != null) {
+                orderRepository.clearOrderCouponColumns(order.getOrderId(), Instant.now());
+            }
             return 0;
         }
         int priorDiscount = Math.max(0, order.getCouponDiscountCents());

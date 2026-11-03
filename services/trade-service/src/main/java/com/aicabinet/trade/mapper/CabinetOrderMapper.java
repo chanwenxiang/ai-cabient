@@ -46,6 +46,23 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                                   @Param("totalAmountCents") int totalAmountCents,
                                   @Param("updatedAt") Instant updatedAt);
 
+    /**
+     * MA-147：全额退返还券后清订单头的券列，但<b>不动应付</b>（退款场景的 total 是既成事实，
+     * 脏的只有券列）。
+     *
+     * <p>为什么必须显式 SQL：{@code updateById} 跳过 null 字段——{@code setCouponId(null) + save()}
+     * 看着对，库里仍挂旧 {@code coupon_id}。Docker 组合矩阵 E2E 实测抓到：券已回 UNUSED、
+     * 订单头却仍 {@code coupon_id=6} ⇒ 读面显示「这张单用过券且已退还」，两头都对不上账。
+     */
+    @Update("""
+        UPDATE cabinet_order
+        SET coupon_id = NULL,
+            coupon_discount_cents = 0,
+            updated_at = #{updatedAt}
+        WHERE order_id = #{orderId}
+        """)
+    int clearOrderCouponColumns(@Param("orderId") String orderId, @Param("updatedAt") Instant updatedAt);
+
     default Optional<CabinetOrder> findBySessionId(String sessionId) {
     return Optional.ofNullable(selectOne(Wrappers.<CabinetOrder>lambdaQuery().eq(CabinetOrder::getSessionId, sessionId)));
     }

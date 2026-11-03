@@ -8,6 +8,12 @@
  * 启发式：`setXxx(null)` 之后 4 行内出现 `.updateById(` 或 `.save(` 即命中，
  * 逐条人工判定后：真缺陷改 wrapper；确属无清列意图的（如重建新对象、字段本就
  * 不可空）加入下方 ALLOWLIST（键=文件路径，值=理由），不得无理由豁免。
+ *
+ * 🔴 豁免纪律（MA-147 的教训）：理由里写「**别处会清列**」的，必须点名覆盖**全部**调用链；
+ * 只覆盖部分路径的豁免等于给缺陷发通行证——原 CouponService 条目声称「DB 清列由 finalize 链负责」，
+ * 实际只有扣款失败转 PENDING 那条链清了，全额退路径的 coupon_id 一直留脏，门禁恒绿而缺陷在跑。
+ * 正解是把显式清列**移进清列动作的归属点本身**（现在是 `CouponService.settleAfterPartialRefund`
+ * 调 `clearOrderCouponColumns`），让 `clear[A-Z]` 缓解判定自然成立，然后**撤销该文件的豁免**。
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, sep } from 'node:path';
@@ -25,10 +31,6 @@ const ALLOWLIST = new Map([
   [
     'services/trade-service/src/main/java/com/aicabinet/trade/api/OpsLineRouteController.java',
     '成员 upsert：member.setId(null) 是 IdType.AUTO 自增主键 insert 前置空（非清列意图）；更新分支走 updateById(existing) 不含 null 清列'
-  ],
-  [
-    'services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java',
-    'order.setCouponId(null) 为内存投影；DB 清列由 SettlementOrderFinalizeService.clearCouponSelection 调用链负责（跨实体窗口误联）'
   ],
   [
     'services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeService.java',

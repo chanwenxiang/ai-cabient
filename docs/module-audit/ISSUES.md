@@ -163,7 +163,7 @@
 | MA-145 | P3 | open | 基线独有 10 类型从未种子 | balance_refund_status/user_role/wallet_ref_type/wallet_ledger_type/consistency_diag_code/merchant_settlement_bill_status/close_sheet_*/expiry_urgency——字典管理不可见、runtime 常态性缺类型（结构性欠账，暂无可见故障） | ZCode R16 / 2026-11-03 | |
 | MA-146 | P3 | open | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | |
 
-| MA-147 | P2 | fixed（钉测 2 例 + 矩阵断言翻转） | 消费端全额退 `POST /orders/{id}/refund`（无 lines） | 全额退**不返还已核销券**：waive 路径（SettlementWaiveRefundService.waiveAndRefund）全文 0 处券处理，券返还（restoreUsedToUnused+活动预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund:573-583）；R17 矩阵 E2E 实测全额退后 user_coupon 仍 USED（MemberOrderChain 同库可见）；券面额随退款被吞且活动预算不释放；类注释无「刻意不返还」声明 | ZCode R17批2 / 2026-11-03 | rounds/R17-runtime-flows.md |
+| MA-147 | P2 | fixed（显式清列+矩阵真库断言，门禁豁免已撤销） | 消费端全额退 `POST /orders/{id}/refund`（无 lines） | 全额退**不返还已核销券**：waive 路径（SettlementWaiveRefundService.waiveAndRefund）全文 0 处券处理，券返还（restoreUsedToUnused+活动预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund:573-583）；R17 矩阵 E2E 实测全额退后 user_coupon 仍 USED（MemberOrderChain 同库可见）；券面额随退款被吞且活动预算不释放；类注释无「刻意不返还」声明 | ZCode R17批2 / 2026-11-03 | rounds/R17-runtime-flows.md |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -953,6 +953,20 @@
   由 CI 跑，本地不重跑。
 - 顺带证实：`releaseStaleUsedCouponsForOrder`（一致性修复在用）只治「错绑/未生效」的脏券，
   不覆盖正常全额退 ⇒ 不能拿它当 MA-147 的修法。
+
+#### MA-147 二版：一版修复被自己加的真库断言抓住（同批撤销门禁豁免）
+
+- 一版只做了内存清列（`setCouponId(null)` + `save`）——**Docker 组合矩阵跑到这条新断言就红了**：
+  `MA-147：券返还后订单头不得再挂 coupon_id，实际=6`。根因还是 MyBatis-Plus `updateById` 跳 null
+  （lessons #384），`user_coupon` 已回 UNUSED 而 `cabinet_order.coupon_id` 原封不动。
+- 二版把显式 SQL 放进**清列动作的归属点本身**：`CabinetOrderMapper.clearOrderCouponColumns`
+  （只清券列、**不动应付**），由 `CouponService.settleAfterPartialRefund` 的 `newSubtotal<=0` 分支调用 ⇒
+  waive 与「退到零行」两条路径都覆盖，不在调用方各抄一遍。矩阵件复跑：1 testcase / 0 failure，
+  打印实证 `couponBack=UNUSED` 且断言 `coupon_id IS NULL`。
+- 🔴 **这条缺陷曾被门禁的豁免条目掩护**：`check-mybatis-null-clear` 的 CouponService 条目写着
+  「DB 清列由 `SettlementOrderFinalizeService.clearCouponSelection` 调用链负责」——那句只对
+  扣款失败转 PENDING 那条链成立。已把该文件的**整条豁免撤销**（改完靠 `clear[A-Z]` 缓解判定自然通过），
+  并在门禁头部写进豁免纪律：理由里声称「别处会清」必须覆盖**全部**调用链，否则就是给缺陷发通行证。
 
 
 ### 批次C′｜复核判为「P3 名义但实碰钱/鉴权」的那批（先于展示类收口）
