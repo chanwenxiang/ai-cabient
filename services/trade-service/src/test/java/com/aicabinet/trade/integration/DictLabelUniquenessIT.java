@@ -1,8 +1,12 @@
 package com.aicabinet.trade.integration;
 
+import com.aicabinet.trade.service.RepairTicketService;
+import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +22,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -34,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>已清理的条目还留在清单里 ⇒ 红（提示同步下调，防清单腐烂）。</li>
  * </ul>
  * 清理某个历史重名后，请同步删除对应条目并写清迁移号。</p>
+ * <p>第二个用例（MA-146/V438）把「字典值 = 状态机可写状态」钉住：字典里多出一个任何写入点都产不出的值，
+ * 就是后台筛选里的幽灵选项；少一个则说明状态机新增了状态却没人给它标签。</p>
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
@@ -103,5 +110,24 @@ class DictLabelUniquenessIT {
                         + "  实际：" + actual + "\n"
                         + "  白名单：" + expected + "\n"
                         + "  处理：清理历史重名后删除白名单条目；新代码引入的重名必须改掉而不是加白名单。");
+    }
+
+    @Test
+    @DisplayName("repair_ticket_status 字典值集合 = 工单状态机可写状态集合（幽灵选项 / 漏标签双向钉测）")
+    void repairTicketDictValues_mustMatchStateMachineWritableStatuses() throws Exception {
+        Field field = RepairTicketService.class.getDeclaredField("STATUSES");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Set<String> writable = (Set<String>) field.get(null);
+
+        Set<String> dictValues = new HashSet<>(jdbc.queryForList(
+                "SELECT dict_value FROM sys_dict_data "
+                        + "WHERE dict_type = 'repair_ticket_status' AND status = 'ACTIVE'",
+                String.class));
+
+        assertEquals(new java.util.TreeSet<>(writable), new java.util.TreeSet<>(dictValues),
+                "维修工单状态字典与 RepairTicketService.STATUSES 不一致："
+                        + "库里多出的值 = 后台筛选里点了也永远查不到单的幽灵选项（MA-146/V438）；"
+                        + "库里缺少的值 = 新状态没有标签，界面会显示裸码。");
     }
 }

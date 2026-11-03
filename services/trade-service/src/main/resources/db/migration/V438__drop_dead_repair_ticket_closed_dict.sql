@@ -1,0 +1,12 @@
+-- MIGRATION_KIND: backfill
+-- MA-146 死字典值清理：repair_ticket_status.CLOSED
+-- 判据（2026-11-03 实取，dev 库 aicabinet）：
+--   1) RepairTicketService.STATUSES = {OPEN, IN_PROGRESS, DONE, CANCELLED}，转接表里没有指向 CLOSED 的边，
+--      `git log -S "CLOSED" -- RepairTicketService.java` 零命中 ⇒ 该值从未被任何版本写过；
+--   2) dev 库 repair_ticket 表 0 行 ⇒ 删字典行不产生「值在库里、标签没了」的历史行；
+--   3) 该行的唯一效果是后台「维修工单」状态筛选多出一个恒空的「已关闭」选项（statusOptions 读库）。
+-- 三源一致：SysDictBootstrap.seedCatalog() 已同批去掉 CLOSED，packages/shared-dict 基线本就没有它。
+-- ROLLBACK: INSERT INTO sys_dict_data (dict_type, dict_value, dict_label, sort_order, status, remark)
+--           SELECT 'repair_ticket_status', 'CLOSED', '已关闭', 50, 'ACTIVE', 'legacy closed'
+--           （即 V178 的原插入语句）
+DELETE FROM sys_dict_data WHERE dict_type = 'repair_ticket_status' AND dict_value = 'CLOSED';

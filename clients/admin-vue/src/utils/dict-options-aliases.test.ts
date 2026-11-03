@@ -34,6 +34,14 @@ describe('dictOptions / 历史别名值不进下拉（MA-018）', () => {
     expect(disabled.map((o) => o.value)).toEqual(['INACTIVE']);
   });
 
+  it('enable_status：一型两义——DRAFT/STOPPED 是营销活动状态在用的键（MA-146 复核订正）', () => {
+    // PromotionService 建单即写 DRAFT、stop() 写 STOPPED，而库/种子里 enable_status 只有
+    // ACTIVE/INACTIVE/ENDED 三值 ⇒ 这两键的唯一用处是让活动状态仍能被译名。
+    // 把它们当「冗余」删掉 ⇒ 活动列表的「草稿/已停止」洗成「未知」（原判定错在只看字典没看消费方）。
+    expect(displayLabel('enable_status', 'DRAFT', '未知')).toBe('草稿');
+    expect(displayLabel('enable_status', 'STOPPED', '未知')).toBe('已停止');
+  });
+
   it('bin_status：货位状态独立字典（ACTIVE 启用 / DISABLED 停用）', () => {
     const values = dictOptions('bin_status').map((o) => o.value);
     expect(values).toEqual(['ACTIVE', 'DISABLED']);

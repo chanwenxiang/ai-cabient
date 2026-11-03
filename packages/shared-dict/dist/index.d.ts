@@ -278,7 +278,12 @@ export declare const DICT: {
         readonly FREE_SHIPPING: "免运费";
         readonly EXCHANGE: "兑换券";
     };
-    /** 通用启用态（优惠券/活动等） */
+    /**
+     * 通用启用态（优惠券/活动等）+ **一型两义**：PromotionsView 用同一型渲染营销活动状态，
+     * DRAFT/STOPPED 只服务于后者（`PromotionService` 建单即写 DRAFT、`stop()` 写 STOPPED）。
+     * 库/种子只有 ACTIVE/INACTIVE/ENDED ⇒ 运行时下拉不出这两项，但 `displayLabel` 靠基线兜底译名；
+     * **删这两键会把「草稿/已停止」洗成「未知」**（MA-146 复核订正，勿顺手对齐）。
+     */
     readonly enable_status: {
         readonly ACTIVE: "启用";
         readonly INACTIVE: "停用";

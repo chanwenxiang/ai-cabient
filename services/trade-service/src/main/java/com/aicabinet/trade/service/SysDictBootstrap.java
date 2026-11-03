@@ -168,9 +168,10 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "IDLE", "未投放", "INBOUND", "入库", "DEPLOYED", "投放", "RETURNING", "返厂中", "RETIRED", "退役")));
         map.put("device_coop_mode", t("设备合作方式", m(
                 "SELF", "自营", "FRANCHISE", "加盟", "CONSIGN", "联营")));
+        // 无 CLOSED：RepairTicketService 状态机写不出 CLOSED，该值是后台筛选里的幽灵选项（MA-146，V438 删库行）
         map.put("repair_ticket_status", t("维修工单状态", m(
                 "OPEN", "待处理", STATUS_IN_PROGRESS, "处理中", "DONE", "已完成",
-                STATUS_CANCELLED, "已取消", STATUS_CLOSED, "已关闭")));
+                STATUS_CANCELLED, "已取消")));
         map.put("line_manager_status", t("线长状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));
         map.put("announcement_status", t("公告状态", m(
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", "PUBLISHED", "已发布", "ARCHIVED", "已归档")));

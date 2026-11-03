@@ -150,13 +150,15 @@ function typeLabel(t?: string) {
 }
 
 function statusLabel(s?: string) {
-  return displayLabel('feedback_status', s, '处理中');
+  // MA-146：兜底不能写「处理中」——未知/空状态会被洗成看似正常的进度
+  return displayLabel('feedback_status', s, '—');
 }
 
 function statusClass(s?: string) {
+  if (s === 'PENDING') return 'pending';
   if (s === 'HANDLED' || s === 'REPLIED') return 'ok';
   if (s === 'CLOSED') return 'muted';
-  return 'pending';
+  return 'muted';
 }
 
 function formatTime(t?: string) {

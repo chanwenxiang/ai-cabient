@@ -161,7 +161,7 @@
 | MA-143 | P3 | fixed（基线补齐 14 值，与 DB 33 值对齐） | exception_type 基线缺 15 值 | DB 33 值 vs 基线 19 值（G7 补集+将邑码只落 DB）；admin 靠 runtime 正常，runtime 未加载首屏 ExceptionListView 落「未知」；双 mp 不直接渲染故 P3 | ZCode R16 / 2026-11-03 | |
 | MA-144 | P3 | fixed（4 类型补基线） | 反向缺：DB 有基线无的 4 类型 | sku_operation_scope/ops_fee_type/device_fault_code/risk_disposition_status——runtime 未加载时 SkuListView 首屏闪「未知」；违反 shared-dict 契约后半句「then seed here」 | ZCode R16 / 2026-11-03 | |
 | MA-145 | P3 | fixed（10 类型入 seedCatalog + V437 回填 DB） | 基线独有 10 类型从未种子 | balance_refund_status/user_role/wallet_ref_type/wallet_ledger_type/consistency_diag_code/merchant_settlement_bill_status/close_sheet_*/expiry_urgency——字典管理不可见、runtime 常态性缺类型（结构性欠账，暂无可见故障） | ZCode R16 / 2026-11-03 | |
-| MA-146 | P3 | fixed（部分：AdAssetsView/MerchantOnboardingView 对齐字典；死值清理与 feedback 兜底待办） | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | |
+| MA-146 | P3 | fixed（批次 O 收口：CLOSED 死值删+幽灵选项 IT、enable_status 基线收 3 值、feedback 未知态显「—」） | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | 活 dev 库仍留 CLOSED 行（未对共享栈跑迁移），新库/CI 已由 V438 删除 |
 
 | MA-147 | P2 | fixed（显式清列+矩阵真库断言，门禁豁免已撤销） | 消费端全额退 `POST /orders/{id}/refund`（无 lines） | 全额退**不返还已核销券**：waive 路径（SettlementWaiveRefundService.waiveAndRefund）全文 0 处券处理，券返还（restoreUsedToUnused+活动预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund:573-583）；R17 矩阵 E2E 实测全额退后 user_coupon 仍 USED（MemberOrderChain 同库可见）；券面额随退款被吞且活动预算不释放；类注释无「刻意不返还」声明 | ZCode R17批2 / 2026-11-03 | rounds/R17-runtime-flows.md |
 
@@ -1157,3 +1157,17 @@
 
 - 顺带修掉一处「测试写坏源码」的操作失误：批量 `Edit` 替换时把 `PointsRedeemServiceTest` 审计用例的收尾断言吃掉了，补回后原断言仍在。
 - 另记一次工具层自伤：用 `node -e` 对整个 ISSUES.md 做正则时 `[^】]*` 字符类**跨行**吞掉 1127 行；`git checkout --` 复原后改为逐行精确替换（改前后都跑了一次行数/行数账/open 计数核对）。批量文档改写禁用可跨行的字符类。
+
+### 批次 O｜MA-146 三条残项收口，其中一条**原判定被源码推翻**（2026-11-03 深夜）
+
+| 残项 | 处置 | 判据（全部现取，非引用台账措辞） |
+|---|---|---|
+| repair_ticket_status.CLOSED | 种子去值 + `V438` 删库行 | `RepairTicketService.STATUSES={OPEN,IN_PROGRESS,DONE,CANCELLED}`、转接表无边、`git log -S "CLOSED" -- RepairTicketService.java` 零命中 ⇒ 任何版本都写不出该值；dev 库 `repair_ticket` **0 行** ⇒ 删字典行不会造出「值在库里、标签没了」的历史行 |
+| enable_status 基线 DRAFT/STOPPED | **不删**（订正为刻意分叉）+ 钉测 1 例 | 我按台账「冗余」动手删过一次，随即被消费方推翻：`PromotionsView.statusLabel` 用 `displayLabel('enable_status', …)` 渲染活动状态，而 `PromotionService:61` 建单即写 DRAFT、`:158` 写 STOPPED，库/种子只有 3 值 ⇒ 这两键是唯一译名来源。删掉的后果是活动列表「草稿/已停止」洗成「未知」 |
+| consumer feedback 未知态兜底「处理中」 | 改显「—」，且未知态不再套 pending 黄条 | `feedback.vue:153` 原写法会把空状态/未知码洗成看似正常的进度；`displayLabel` 的兜底串就是给调用方决定「未知显示什么」的地方，传进度词等于自我掩盖。人工判据 = 「我的反馈」列表行右侧状态文字 |
+
+- 新钉测两条都是**先跑红再改绿**的：
+  - `DictLabelUniquenessIT#repairTicketDictValues_mustMatchStateMachineWritableStatuses`（真库全链 V1→V438）：注回种子的 `STATUS_CLOSED` ⇒ `Tests run: 2, Failures: 1` 且红的正是这条；撤注后 `tests=2 failures=0`。多值=幽灵选项、少值=新状态没标签，两个方向一起拦。
+  - `dict-options-aliases.test.ts` 新例：从基线删掉 DRAFT/STOPPED ⇒ `1 failed | 6 passed`；补回 ⇒ 7 例全绿。
+- 活的共享 dev 库里 **CLOSED 那一行仍在**（本轮按铁律未对 18080 栈跑迁移）⇒ 后台筛选此刻仍看得见「已关闭」，新库/CI 由 V438 收敛；重部署后自动消失，判「还是灰的/还有」先比容器镜像与 V438 提交先后。
+- 台账核对：149 行、open=0 未变；MA-146 由 `fixed（部分…）` 转全量 `fixed`，并把「活库未迁移」写进残留列。
