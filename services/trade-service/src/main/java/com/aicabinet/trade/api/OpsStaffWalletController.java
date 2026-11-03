@@ -1,12 +1,15 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.StaffWalletAccount;
 import com.aicabinet.trade.domain.StaffWalletLedger;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.StaffWalletService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
@@ -25,9 +28,15 @@ import java.util.Map;
 public class OpsStaffWalletController {
 
     private final StaffWalletService staffWalletService;
+    private final AdminAuditService auditService;
 
-    public OpsStaffWalletController(StaffWalletService staffWalletService) {
+    public OpsStaffWalletController(StaffWalletService staffWalletService, AdminAuditService auditService) {
         this.staffWalletService = staffWalletService;
+        this.auditService = auditService;
+    }
+
+    private static Long operator(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 
     @Operation(summary = "补货员钱包余额列表")
@@ -47,7 +56,8 @@ public class OpsStaffWalletController {
     @Operation(summary = "标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水）")
     @PostMapping("/{staffUserId}/payout")
     @RequiresPermissions("ops:line-manager:edit")
-    public ApiResponse<Boolean> payout(@PathVariable long staffUserId,
+    public ApiResponse<Boolean> payout(HttpServletRequest request,
+                                       @PathVariable long staffUserId,
                                        @RequestBody Map<String, Object> body) {
         long amountCents = Long.parseLong(String.valueOf(body.get("amountCents")).trim());
         String remark = body.get("remark") == null ? null : String.valueOf(body.get("remark"));
@@ -62,6 +72,14 @@ public class OpsStaffWalletController {
         boolean applied = staffWalletService.payoutIfAbsent(staffUserId, amountCents,
                 "WITHDRAW_PAYOUT", "STAFF_WITHDRAW", requestNo,
                 remark == null ? "线下打款出账" : remark);
+        // MA-074：这是**真金出账**的销账动作，此前全类零留痕、也没取操作者
+        // （同族 ADJUST/PAYOUT 都有台账）。幂等命中（applied=false）刻意不留痕——
+        // 那笔出账在首次标记时已记过，重放再记会让审计里出现两笔不存在的出款。
+        if (applied) {
+            auditService.appendLog(operator(request), "STAFF_WALLET_PAYOUT", "STAFF_WALLET",
+                    String.valueOf(staffUserId),
+                    "amountCents=" + amountCents + ",requestNo=" + requestNo);
+        }
         return ApiResponse.ok(applied);
     }
 }
