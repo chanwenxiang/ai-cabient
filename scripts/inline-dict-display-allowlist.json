@@ -25,11 +25,6 @@
     "reason": "该状态无对应字典类型或属产品化文案（在用/已结清），沿用页面文案；R8 字典治理时统一"
   },
   {
-    "file": "clients/admin-vue/src/views/growth/AdAssetsView.vue",
-    "count": 1,
-    "reason": "该状态无对应字典类型或属产品化文案（在用/已结清），沿用页面文案；R8 字典治理时统一"
-  },
-  {
     "file": "clients/admin-vue/src/views/growth/MemberLevelsView.vue",
     "count": 1,
     "reason": "该状态无对应字典类型或属产品化文案（在用/已结清），沿用页面文案；R8 字典治理时统一"
