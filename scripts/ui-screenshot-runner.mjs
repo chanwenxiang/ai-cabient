@@ -357,7 +357,12 @@ async function runMp(surface) {
         await sleep(1200);
         await captureOne(pg);
       } catch (e2) {
-        rec(surface, pg.name, 'FAIL', `重试仍失败: ${e2.message.slice(0, 100)}`);
+        rec(
+          surface,
+          pg.name,
+          'FAIL',
+          `首次 ${e.message.slice(0, 40)} ⇒ 重试仍失败 ${e2.message.slice(0, 60)}`
+        );
       }
     }
   }
