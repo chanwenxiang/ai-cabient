@@ -28,13 +28,16 @@ public class UserFeedbackService {
     private final UserFeedbackMapper repository;
     private final PermissionService permissionService;
     private final DistributedLockService distributedLockService;
+    private final AdminAuditService auditService;
 
     public UserFeedbackService(UserFeedbackMapper repository,
                                PermissionService permissionService,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               AdminAuditService auditService) {
         this.repository = repository;
         this.permissionService = permissionService;
         this.distributedLockService = distributedLockService;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -120,17 +123,30 @@ public class UserFeedbackService {
         return toDto(repository.save(item), false);
     }
 
+    /**
+     * 删除用户反馈。
+     *
+     * <p>MA-111：原来「有查看权（{@code ops:feedback}）就能删」，且 {@code deleteById} 是**物理删**、
+     * 全类零留痕 ⇒ 用户原文被抹掉后无法回答谁删的。现在写侧只认回复码
+     * {@code ops:feedback:reply}（与 {@code reply()} 同闸），并在删前把**非 PII 摘要**落审计
+     * （不写 content/contactInfo 正文，只记类型、状态、正文长度——审计表是全员可读的）。
+     */
     @Transactional
     public void delete(Long operatorId, Long feedbackId) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_FEEDBACK, PERM_OPS_FEEDBACK_REPLY);
+        permissionService.requirePermission(operatorId, PERM_OPS_FEEDBACK_REPLY);
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }
         runWithFeedbackLock(feedbackId, () -> {
-            if (repository.findByIdForUpdate(feedbackId).isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在");
-            }
+            UserFeedback feedback = repository.findByIdForUpdate(feedbackId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在"));
             repository.deleteById(feedbackId);
+            auditService.appendLog(operatorId, "USER_FEEDBACK_DELETE", "USER_FEEDBACK",
+                    String.valueOf(feedbackId),
+                    "type=" + feedback.getFeedbackType() + ",status=" + feedback.getStatus()
+                            + ",replied=" + (feedback.getReply() != null && !feedback.getReply().isBlank())
+                            + ",contentLength="
+                            + (feedback.getContent() == null ? 0 : feedback.getContent().length()));
             return null;
         });
     }

@@ -40,7 +40,8 @@ public class UserFeedbackController {
         return ApiResponse.ok(feedbackService.reply(operatorId(request), feedbackId, body));
     }
 
-    @RequiresPermissions(value = {"ops:feedback", "ops:feedback:reply"}, logical = RequiresPermissions.Logical.OR)
+    // MA-111：删除是**物理删**用户原文，不能由查看码（ops:feedback）触发——与 reply() 同闸只认回复码
+    @RequiresPermissions("ops:feedback:reply")
     @DeleteMapping("/{feedbackId}")
     public ApiResponse<Void> delete(
             HttpServletRequest request,

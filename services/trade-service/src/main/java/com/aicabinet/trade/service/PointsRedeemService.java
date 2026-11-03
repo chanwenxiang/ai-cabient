@@ -162,8 +162,17 @@ public class PointsRedeemService {
         }
     }
 
+    /**
+     * 兑换项增改（运营台）。
+     *
+     * <p>MA-096：这些字段是**积分 → 可兑资产**的兑换率，原来原样落库零校验：
+     * {@code pointsCost} 为负时，兑换判定 {@code available < cost} 恒假，扣积分那段
+     * 变成 {@code available - (负数)} ⇒ **每兑一次给会员倒增积分**（可反复刷 = 持续铸分）；
+     * {@code stockTotal} 为负让库存口径失真；指向不存在/已停用的券模板则整项一兑就 400/409。
+     */
     @Transactional
     public PointsRedeemItemDto adminUpsert(PointsRedeemItemDto dto) {
+        requireRedeemParams(dto);
         PointsRedeemItem item = dto.itemId() != null
                 ? redeemItemRepository.findById(dto.itemId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换项不存在"))
@@ -175,9 +184,54 @@ public class PointsRedeemService {
         item.setCouponDefId(dto.couponDefId());
         item.setStockTotal(dto.stockTotal());
         item.setSortOrder(dto.sortOrder());
-        item.setStatus(dto.status() == null ? CabinetConstants.PROMOTION_STATUS_ACTIVE : dto.status());
+        item.setStatus(requireRedeemStatus(dto.status()));
         item.setUpdatedAt(Instant.now());
         return toDto(redeemItemRepository.save(item));
+    }
+
+    /**
+     * MA-096：兑换率与库存的写侧闸（积分为负 = 兑换即铸分）。
+     * 判定用 {@code available < cost}，负 cost 让这个门恒假，随后
+     * {@code available - cost} 反而给会员**倒增**积分，可反复刷。
+     */
+    private void requireRedeemParams(PointsRedeemItemDto dto) {
+        if (dto.title() == null || dto.title().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title 必填");
+        }
+        if (dto.pointsCost() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "pointsCost 不得为负（负数会让兑换时倒增积分 = 持续铸分）");
+        }
+        if (dto.stockTotal() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "stockTotal 不得为负");
+        }
+        if (dto.sortOrder() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sortOrder 不得为负");
+        }
+        if (dto.couponDefId() == null) {
+            // 列本就 NOT NULL（V163），缺它只会撞成没有字段名的泛化 409
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "couponDefId 必填（兑换发放的券模板）");
+        }
+        CouponDefinition def = couponDefinitionRepository.findById(dto.couponDefId()).orElse(null);
+        if (def == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "券模板不存在：" + dto.couponDefId());
+        }
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(def.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "券模板当前状态是 " + def.getStatus() + "，不能挂成在架兑换项（用户一点兑换就失败）");
+        }
+    }
+
+    /** 状态词表与券模板同源（ACTIVE/INACTIVE）；写错的值会让兑换项静默下线。 */
+    private static String requireRedeemStatus(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return CabinetConstants.PROMOTION_STATUS_ACTIVE;
+        }
+        String status = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!CabinetConstants.PROMOTION_STATUS_ACTIVE.equals(status) && !"INACTIVE".equals(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 只能是 ACTIVE/INACTIVE");
+        }
+        return status;
     }
 
     @Transactional

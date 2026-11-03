@@ -93,7 +93,7 @@
 | MA-081 | P3 | 复核不成立（撤账，见文末批次A/B收口节） | `POST /account/bind-openid`（mock-only） | 重复绑定他人已占 openId 撞 uk_user_wx_open_id 唯一索引→500 而非 409；生产 403 门禁在，仅 mock 环境报错语义问题 | ZCode R12批1 / 2026-11-02 | |
 
 | MA-082 | P3 | open | 营销域运营写面（券模板/发券/活动上下架/展示位/素材 5 服务 15 端点） | 审计留痕整体缺失（零处 appendLog），同域兄弟 AdCampaignService 四处全有 AD_CAMPAIGN_* 审计 ⇒ 券面值改动/活动上下架/素材删除在 /audit 页不可查 | ZCode R12批2 / 2026-11-03 | rounds/R12-write-surface.md |
-| MA-083 | P3 | open | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
+| MA-083 | P3 | fixed（部分：DTO 约束，钉测待补） | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
 | MA-084 | P3 | open | `PUT /ops/admin/ad/assets/{id}` | 素材 status 自由串直落（MA-078 同构）：垃圾值静默从全部 ACTIVE 过滤面消失、超 16 字符 22001→500 | ZCode R12批2 / 2026-11-03 | |
 | MA-085 | P3 | fixed（闭集+钉测 7 例） | `POST/PUT /ops/promotions` | activityType 无白名单（垃圾类型经 launch 直接 ACTIVE 进消费端可见列表，非 SKU 类型跳过全部校验）；budgetCents 负数直落使预算守卫 fail-open（`budget>0 &&` 守卫），与 user_limit「0/负=不限」钉测口径不一致 | ZCode R12批2 / 2026-11-03 | |
 | MA-086 | P3 | open | `POST/PUT /ops/admin/ad/campaigns` | 投放计划时间窗倒挂不拦（startAt>endAt 静默接受→计划永不生效、轮播静默空转）；同域 Promotion 面有拦，兄弟端点不一致 | ZCode R12批2 / 2026-11-03 | |
@@ -107,7 +107,7 @@
 | MA-093 | P3 | fixed（部分：充值正数闸） | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
 | MA-094 | P3 | open | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
 | MA-095 | P3 | open | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
-| MA-096 | P3 | open | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
+| MA-096 | P3 | fixed（部分：写侧闸，钉测待补） | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
 | MA-097 | P3 | open | `DELETE /ops/admin/risk/blacklist/{userId}` | 黑名单解除零留痕（add 有 BLACKLIST_ADD 事件含 by，remove 完全无痕迹）——被收买账号可无声解除作弊者；一行改动级 | ZCode R12批3 / 2026-11-03 | |
 | MA-098 | P3 | open | 增长域运营写（MemberLevelAdmin/PointsRedeem/UserRecall/Notification/SkuDelistReview 6 服务 9 端点） | 审计整体缺失（grep 零 appendLog），同批 OpsRisk/DeviceOps/AdCampaign/MemberFinance 全有——MA-082 同构；等级规则叠加价格+积分双资金乘数 | ZCode R12批3 / 2026-11-03 | |
 | MA-099 | P3 | open | `POST /ops/admin/growth/user-recall` | 一键召回无顺序重放幂等：锁只防并发不防重放，双击=同批用户每人多发一张券+通知（maxIssueCount 只限总量）；对照订单积分有 existsByMemberAndSource 唯一索引幂等 | ZCode R12批3 / 2026-11-03 | |
@@ -123,7 +123,7 @@
 | MA-108 | P3 | fixed（幽灵线长 400） | `POST/PUT /ops/admin/line-routes` | create 缺 routeName/managerId → PG NOT NULL 违约 500（应 400）；update 的 managerId 不校验存在性，幽灵线长进 monthlySummary 财务聚合 | ZCode R12批4 / 2026-11-03 | |
 | MA-109 | P3 | open | 「入库不落无主仓」闸门两旁路 | P2-8 治理闸只在 inbound/receivePurchaseStock/returnPurchaseStock 三处；binStockChange 原语被货位入库与调拨收货复用且不设闸，显式传无主仓照样进（缓解：ops:warehouse:edit 门内+可调拨救回） | ZCode R12批4 / 2026-11-03 | |
 | MA-110 | P3 | open | 维修工单/异常结案列宽链断裂 | repair_ticket.remark(512)/event.remark(255) 双落列，256~512 字关单必失败；resolveWithRepair 三级列宽 detail(1000)→remark(512)→event(255) 拼接后超限（MA-087 同族新点位） | ZCode R12批4 / 2026-11-03 | |
-| MA-111 | P3 | open | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
+| MA-111 | P3 | fixed（部分：改窄+留痕，钉测待补） | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
 | MA-112 | P3 | open | `POST /ops/admin/exceptions/{id}/retry` | 幂等 marker 格式错位：Controller 查英文 `idempotencyKey=`、Service 写中文「幂等键：」⇒ alreadyProcessed 恒 false，幂等承诺失效（同文件 manualResolve 用英文自洽反证非设计；下层 409 兜底故 P3） | ZCode R12批4 / 2026-11-03 | |
 | MA-113 | P3 | open | `POST /ops/admin/repair-tickets/batch-assign` | `{"assignee": null}` 经 String.valueOf 变字面量 "null" 入库；ticketIds 非数字 NumberFormatException→500（应 400） | ZCode R12批4 / 2026-11-03 | |
 | MA-114 | P3 | open | @Size 家族补点（批4b） | 外部导入 personOverride 无 @Size(列60)；维修单 title(128)/remark(512) 无 @Size——并入 MA-087/110 批次修 | ZCode R12批4 / 2026-11-03 | |
@@ -1023,3 +1023,54 @@
   **不动资金算式**）——选 ① 要回退两处等比缩并重新回归「预估==写侧」，风险直接把展示问题变成资损面。
   状态仍是 open：本条含读模型字段新增，须与 MA-127/128 同批做 **shared-types regen**（openapi 形状变了），
   不在没有 regen 的情况下先动后端。
+
+
+### 批次C′｜复核判为「P3 名义但实碰钱/鉴权」的那批（先于展示类收口）
+
+- **MA-119 设备凭据签发**（鉴权面）：`requireDeviceId` 只验「12 位数字」，不验设备存在 ⇒
+  手滑一位就签出一条 ACTIVE 孤儿凭据并把明文 secret 回显。HTTP 与 MQTT 两个签发服务同修
+  （`requireDeviceExists` → 404），钉测 1 例（`issue_unknownDevice_rejectedWithNotFound`）。
+- **MA-085 活动预算/类型**：`budgetCents < 0` → 400（负数会让 reserveBudget 的 `budget > 0` 整体跳过，
+  used_cents 无上限推进 = 资金闸失效）；`activityType` 必填 + 入库前归一大写（判定侧
+  `equalsIgnoreCase` 看着没事，`PromotionActivityMapper:30` 的 `IN ('SKU_REDUCE',...)` 是精确匹配，
+  存小写该活动静默退出定价面）。钉测 4 例（含「0 = 不限额」仍放行）。
+  **残留**：完整 activityType 白名单没做——词表实测至少含非 SKU 的 `FULL_REDUCE`（既有测试在用），
+  盲列白名单会打断真实类型，需先拍板词表。
+- **MA-093 平台资金池**：`recharge` 补「必须 > 0」，负数不再以充值语义扣余额、也不再绕过
+  `adjust` 的「必须填原因」闸。**残留**：`OpsPlatformFundController` 的 `(Number) body.get("amountCents")`
+  仍是裸取参（传字符串 → ClassCastException），DTO 化留待与 MA-104/108 同族一起收。
+- **MA-088 微信退款同步幂等键**：回调缺 `refund_id` 时原来照入账，键退化成常量
+  `"channel-refund-sync:null"` ⇒ 不同订单的第二笔命中同键时余额不扣、单据照涨（幽灵余额）。
+  现在**拒绝入账 + 发 `WECHAT_REFUND_SYNC_MISSING_REFUND_ID` 告警**转人工。
+  🔴 **键格式刻意不动**：微信会重投通知，老库已存在旧键流水，改字面量会让部署后的重投被当新键重复扣一次
+  （与「锁 key 字面量不可改」同源）。
+- **MA-118 押金登记裸 Map**：`longOrNull/intOrNull` 原来吞掉 `NumberFormatException` 返回 null，
+  「填了但填错」与「没填」不可区分 ⇒ 月退额静默丢失、`contractYears` 静默落默认 5 年，
+  而商户余额已经真扣。现按字段名 400（`monthlyRefundCents/refundStartMonth/expireRewardCents/`
+  `installFeeDeductCents/contractYears` 五个入参全覆盖）。**残留**：Controller 未 DTO 化（同 MA-093 残留并入同族批）。
+- **MA-089 退款上限双口径**：`ApplyBalanceRefundRequest` 去掉了 `@Max(500_000)`——Bean 校验先拦会让
+  DC-6 的 `BALANCE_REFUND_MAX_CENTS` 只能收紧不能放宽，与充值侧（纯配置）矛盾。
+  已核实 `@Max` 不进 OpenAPI 生成物（springdoc 不导出 bean-validation 的 maximum），**无需 regen shared-types**。
+
+### 批次G｜「级别标低了的」资金/权限面（3 条）
+
+- **MA-083 批量发券**：`BatchIssueCouponRequest` 补 `@NotNull/@NotEmpty/@Size(max=1000)`。
+  原来裸 List 直接进 `userIds.stream()` ⇒ null 即 NPE→500；万级 id 单事务逐张持
+  `coupon_def` 行锁且**逐张占用活动预算**（发券即 reserve）。
+  🔴 关键取证：`packages/shared-types/src/generated/openapi.ts` 里
+  `maximum/minimum/maxItems/maxLength` **0 命中** ⇒ springdoc 不导出 bean-validation ⇒
+  **加 DTO 校验注解不需要 regen shared-types**（这条决定了整个「裸 Map/校验口径」族能不能批量推）。
+- **MA-096 积分兑换**：`adminUpsert` 原样落库 ⇒ `pointsCost` 为负时 `available < cost` 恒假，
+  随后 `available - cost` 给会员**倒增积分**（反复刷 = 持续铸分）。写侧闸：pointsCost/stockTotal/
+  sortOrder 非负、couponDefId 必填且券模板必须存在**且 ACTIVE**（挂停用券 = 用户一点就失败）、
+  status 收成 ACTIVE/INACTIVE 并归一。
+- **MA-111 反馈硬删**：原来「持查看码 `ops:feedback` 就能物理删用户原文」且全类零留痕。
+  现删侧与 `reply()` 同闸只认 `ops:feedback:reply`，删前落 `USER_FEEDBACK_DELETE`，
+  detail 只记 type/status/是否已回复/正文长度（不落 content 与 contactInfo——审计表面向全员可读）。
+  ⚠️ 落码时我一次批量替换把 `GET /feedbacks` 也收窄成了回复码（只持查看码者连列表打不开），
+  已当场回退那一处。教训：按字符串批量改注解必须逐处核对 HTTP 方法。
+
+- **仍欠钉测（显式登记）**：MA-083/096/111 + 前批 088/093/118 共 6 条只有代码级证据。
+  下批补「能失败」的用例：083 越界 400、096 负积分被拒且不改余额、111 查看码 403 + 删后审计可读。
+- **MA-091 / MA-103 本轮未动**：091 需 Controller→Service 的 operator 透传与 V355 `settled_by` 取舍；
+  103 是双挂索赔台账/双建任务的锁改造（照 `WarehouseTransferService:256-259` 范式）。排下批首站。

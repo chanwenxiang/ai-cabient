@@ -32,7 +32,7 @@ class UserFeedbackConcurrencyTest {
     void setUp() {
         doNothing().when(permissionService).requirePermission(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString());
-        service = new UserFeedbackService(repository, permissionService, distributedLockService);
+        service = new UserFeedbackService(repository, permissionService, distributedLockService, org.mockito.Mockito.mock(com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test
