@@ -88,5 +88,8 @@ class OpsExceptionManualResolveTest {
                 "ops-waive-EX-TEST-001", "E2E test");
 
         verify(disputeService).closeOpenTicketForSession(eq(10001L), eq("S-TEST-001"), eq("WAIVE"), eq(List.of()));
+        verify(auditService).appendLog(eq(10001L), eq("OPS_EXCEPTION_MANUAL_RESOLVE"),
+                eq("OPS_EXCEPTION"), eq("EX-TEST-001"),
+                org.mockito.ArgumentMatchers.contains("idempotencyKey=ops-waive-EX-TEST-001"));
     }
 }

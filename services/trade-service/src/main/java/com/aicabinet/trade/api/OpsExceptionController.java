@@ -109,7 +109,7 @@ public class OpsExceptionController {
                 body.items(), body.idempotencyKey(), body.reason()));
     }
     private boolean alreadyProcessed(OpsExceptionDetailDto detail, String idempotencyKey) {
-        String marker = "idempotencyKey=" + idempotencyKey;
+        String marker = com.aicabinet.trade.service.OpsExceptionService.IDEMPOTENCY_MARKER + idempotencyKey;
         return detail.actions().stream().anyMatch(action -> action.detail() != null
                 && action.detail().contains(marker));
     }

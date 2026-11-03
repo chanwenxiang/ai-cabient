@@ -34,6 +34,8 @@ import java.util.Set;
 public class OpsExceptionService {
     private static final Logger log = LoggerFactory.getLogger(OpsExceptionService.class);
     private static final String OPS_EXCEPTION = "OPS_EXCEPTION";
+    /** 审计明细里的幂等标记：写入侧与控制器 alreadyProcessed 必须共用同一格式（MA-112）。 */
+    public static final String IDEMPOTENCY_MARKER = "idempotencyKey=";
     private static final String PROCESSING = "PROCESSING";
     private static final String STATUS_RESOLVED = "RESOLVED";
     /** 离线超时自动锁机产生的故障标题；设备恢复在线且未锁机/解锁后应自动关闭，避免商户待办滞后。 */
@@ -411,7 +413,7 @@ public class OpsExceptionService {
             item.setStatus(PROCESSING);
             repository.save(item);
             support.auditService().appendLog(operatorId, action, OPS_EXCEPTION, exceptionId,
-                    "幂等键：" + idempotencyKey + "；" + trim(detail));
+                    IDEMPOTENCY_MARKER + idempotencyKey + "；" + trim(detail));
             return toDto(item);
         });
     }
@@ -430,7 +432,7 @@ public class OpsExceptionService {
             item.setResolvedAt(Instant.now());
             repository.save(item);
             support.auditService().appendLog(operatorId, action, OPS_EXCEPTION, exceptionId,
-                    "幂等键：" + idempotencyKey + "；结果：" + trim(result));
+                    IDEMPOTENCY_MARKER + idempotencyKey + "；结果：" + trim(result));
             return toDto(item);
         });
     }
@@ -454,7 +456,7 @@ public class OpsExceptionService {
                 "SETTLEMENT_FAILED").contains(item.getExceptionType())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常类型不支持人工商品或资金处置");
         }
-        String marker = "idempotencyKey=" + idempotencyKey;
+        String marker = IDEMPOTENCY_MARKER + idempotencyKey;
         boolean replay = support.auditRepository().findByTargetTypeAndTargetIdOrderByCreatedAtAsc(
                         OPS_EXCEPTION, exceptionId).stream()
                 .anyMatch(log -> log.getDetail() != null && log.getDetail().contains(marker));

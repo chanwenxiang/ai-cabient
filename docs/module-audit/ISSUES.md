@@ -124,7 +124,7 @@
 | MA-109 | P3 | open | 「入库不落无主仓」闸门两旁路 | P2-8 治理闸只在 inbound/receivePurchaseStock/returnPurchaseStock 三处；binStockChange 原语被货位入库与调拨收货复用且不设闸，显式传无主仓照样进（缓解：ops:warehouse:edit 门内+可调拨救回） | ZCode R12批4 / 2026-11-03 | |
 | MA-110 | P3 | open | 维修工单/异常结案列宽链断裂 | repair_ticket.remark(512)/event.remark(255) 双落列，256~512 字关单必失败；resolveWithRepair 三级列宽 detail(1000)→remark(512)→event(255) 拼接后超限（MA-087 同族新点位） | ZCode R12批4 / 2026-11-03 | |
 | MA-111 | P3 | fixed（部分：改窄+留痕，钉测待补） | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
-| MA-112 | P3 | open | `POST /ops/admin/exceptions/{id}/retry` | 幂等 marker 格式错位：Controller 查英文 `idempotencyKey=`、Service 写中文「幂等键：」⇒ alreadyProcessed 恒 false，幂等承诺失效（同文件 manualResolve 用英文自洽反证非设计；下层 409 兜底故 P3） | ZCode R12批4 / 2026-11-03 | |
+| MA-112 | P3 | fixed（marker 单源 IDEMPOTENCY_MARKER） | `POST /ops/admin/exceptions/{id}/retry` | 幂等 marker 格式错位：Controller 查英文 `idempotencyKey=`、Service 写中文「幂等键：」⇒ alreadyProcessed 恒 false，幂等承诺失效（同文件 manualResolve 用英文自洽反证非设计；下层 409 兜底故 P3）。收口：三处写入 + 控制器读取共用 `OpsExceptionService.IDEMPOTENCY_MARKER`，manualResolve 审计断言钉住 | ZCode R12批4 / 2026-11-03 | |
 | MA-113 | P3 | open | `POST /ops/admin/repair-tickets/batch-assign` | `{"assignee": null}` 经 String.valueOf 变字面量 "null" 入库；ticketIds 非数字 NumberFormatException→500（应 400） | ZCode R12批4 / 2026-11-03 | |
 | MA-114 | P3 | open | @Size 家族补点（批4b） | 外部导入 personOverride 无 @Size(列60)；维修单 title(128)/remark(512) 无 @Size——并入 MA-087/110 批次修 | ZCode R12批4 / 2026-11-03 | |
 
