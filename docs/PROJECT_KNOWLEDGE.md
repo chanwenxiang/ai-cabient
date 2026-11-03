@@ -728,6 +728,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `settleAfterPartialRefund` 的 `newSubtotal<=0` 分支本身 ⇒ waive 与「退到零行」两条路径同覆盖。
   并**撤销** `check-mybatis-null-clear` 对 CouponService 的整条豁免（那句「别处会清」只对 PENDING 链成立），
   门禁头部新增「豁免纪律」。全量重跑后报数（教训 #390/#391）。
+### 2026-11-03（🔴 撤回本轮一条错误结论：加 `@NotNull` **必须** regen，CI 判得对）
+
+- 下一节（批次H）里「`check:openapi-regen-required` 在本地不可能被诚实满足」**是错的**，且随 `087e51f9` 已推到 dev；CI 的 build 作业（run 41578384431 / job 125727163985）正是按该门禁判**红**。
+- 错因：`openapi.ts` 是 openapi-typescript 生成的 **TS 类型**文件，`required` 的表现形式是**属性去掉 `?`**，我去 grep JSON-Schema 关键字 `maximum/minimum/maxItems/required`（恒 0 命中），把「有形状差」读成「无差」。对照实证：`WxLoginRequest.code: string` ← Java `@NotBlank`；`BatchIssueCouponRequest.couponDefId?: number` 在加 `@NotNull` 后应变非可选 ⇒ MA-083 确实改形状，**regen 是真欠账**。
+- 正确判据（教训 #394，#393 已标勿照它行事）：**存在性约束**（`@NotNull/@NotEmpty/@NotBlank`）进类型 ⇒ 必须 regen；**数值/长度界**（`@Min/@Max/@Size`）不进类型 ⇒ 无形状差。方法论：门禁/CI 与我的取证冲突时，默认我的取证错。
+- 待办见任务 #25（含 regen 的安全做法与比对基准 `.tmp/openapi.pre-regen-1103.ts` = `173cc4751292fef6`）。
+
 ### 2026-11-03（批次H：MA-091 归因 + 一条「本地不可能诚实满足」的门禁取证）
 
 - MA-091：周期费用 `settle` 与 `rerun-daily-fees` 从 Controller 透传 operator 并写 `admin_audit_log`

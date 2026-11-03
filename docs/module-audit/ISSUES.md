@@ -1027,12 +1027,12 @@
 
 ### 批次G｜「级别标低了的」资金/权限面（3 条）
 
-- **MA-083 批量发券**：`BatchIssueCouponRequest` 补 `@NotNull/@NotEmpty/@Size(max=1000)`。
+- **MA-083 批量发券（代码已修，**regen 欠账未清 → 任务 #25**）**：`BatchIssueCouponRequest` 补 `@NotNull/@NotEmpty/@Size(max=1000)`。
   原来裸 List 直接进 `userIds.stream()` ⇒ null 即 NPE→500；万级 id 单事务逐张持
   `coupon_def` 行锁且**逐张占用活动预算**（发券即 reserve）。
   🔴 关键取证：`packages/shared-types/src/generated/openapi.ts` 里
   `maximum/minimum/maxItems/maxLength` **0 命中** ⇒ springdoc 不导出 bean-validation ⇒
-  **加 DTO 校验注解不需要 regen shared-types**（这条决定了整个「裸 Map/校验口径」族能不能批量推）。
+  ~~加 DTO 校验注解不需要 regen shared-types~~ 🔴 **此句已被 CI 证伪（教训 #394）**：`@NotNull/@NotEmpty` 会改 TS 类型（required=去掉 `?`）⇒ **必须 regen**；只有 `@Min/@Max/@Size` 这类数值/长度界不进类型 ⇒ 无形状差。
 - **MA-096 积分兑换**：`adminUpsert` 原样落库 ⇒ `pointsCost` 为负时 `available < cost` 恒假，
   随后 `available - cost` 给会员**倒增积分**（反复刷 = 持续铸分）。写侧闸：pointsCost/stockTotal/
   sortOrder 非负、couponDefId 必填且券模板必须存在**且 ACTIVE**（挂停用券 = 用户一点就失败）、
