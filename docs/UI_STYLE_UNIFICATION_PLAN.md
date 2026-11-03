@@ -30,7 +30,7 @@
 | `--color-warning` | `#d97706` | 警示/待处理（amber-600） |
 | `--color-danger` | `#dc2626` | 危险/失败（red-600） |
 | `--color-info` | `#0284c7` | 信息/中性提示（sky-600） |
-| `--chart-1..6` | `#2dd4bf #38bdf8 #a78bfa #fbbf24 #f472b6 #4ade80` | 数据系列=现有 DONUT_PALETTE 上户口（echarts.ts 仍硬编码，单源化待 Phase 2） |
+| `--chart-1..6` | `#2dd4bf #38bdf8 #a78bfa #fbbf24 #f472b6 #4ade80` | 数据系列=现有 DONUT_PALETTE 上户口；`echarts.ts` 两处（DONUT_PALETTE 定义 + 大屏主题）已单源化（2026-11-03）；剩 `AnalyticsView.vue` 6 处内联色值按 C 档「碰到就迁」 |
 | `--kpi-accent-revenue` | `var(--app-primary)` | 营收=跟随 admin 主色（可换 teal/blue/violet/orange） |
 | `--kpi-accent-cost` | `#94a3b8` | 成本=中性 slate |
 | `--kpi-accent-profit` | `#f59e0b` | 毛利=amber |
@@ -99,6 +99,7 @@
 - **实施进度（2026-11-03）**：
   - a11y：mp clickables 433/433（100%），icons 35/35；补 9 处 role/aria；admin dialog 门禁绿。
   - 热区：微信模拟器量 orders/mine/home/business/devices/replenishment 等 9 页，small=0；aux-link / foot-btn / scan-btn / help-tip / mine quick-item 改「88rpx 热区 + 小视觉」；devices「常驻柜」筛选按用户拍板移除（保留设备行 ★ 与「清除常驻」）。
+  - 热区门禁落仓（2026-11-03 补）：`scripts/check-mp-touch-target-ratchet.mjs`（静态判据：模板可点元素 + CSS 显式 rpx 宽高 ⇒ 短边 <88rpx 记违规；padding/只写单边不判，伪元素与后代选择器不连坐基类）。**首扫抓到运行时探针漏掉的 5 处真小热区**：consumer `order-appeal-sheet .evidence-del 32×32`、`index .stepper-btn 44×44`、`index`/`result .promo-popup-close 48×48`、merchant `ReplenishLinesSection .qty-btn 56×56` ⇒ 基线钉 5（只减不增），修法统一「热区/视觉分离」。已接进 `check:audit-gates`（接线门禁确认 104 个 check-*.mjs 全接线），负向对照（基线压 4）正确报红。
   - safe-area：live-cart-sheet 补 env；HomeCartBar / AppSheet / open-prep-drawer / order-appeal-sheet / order-detail 已有。
   - 表单：两端登录补 aria-label / autocomplete + 错误聚焦首字段；admin 登录已有 autocomplete。
   - 图片：商品格 / 活动 banner / 申诉附图补 `lazy-load`；显式尺寸沿用 CSS 类。
@@ -108,7 +109,7 @@
 
 ## Phase 6 · 防回归 + 规范落仓（0.5 天）
 
-- 截图基线棘轮：R13 截图 runner **未存仓，需新写**；现有 CI 只有 e2e-h5 且 admin `-Pskip-admin-ui`，三端截图无法在 CI 跑 ⇒ 定位为本地 pre-push + 交付前人工复核（待确认）
+- 截图基线棘轮：R13 截图 runner **未存仓，需新写**；现有 CI 只有 e2e-h5 且 admin `-Pskip-admin-ui`，三端截图无法在 CI 跑 ⇒ 定位为本地 pre-push + 交付前人工复核（✅ 2026-11-03 用户拍板此定位，runner 已落仓，见下）
 - `ui-style-guide` skill 落仓：语义色板/四层提示/三阶/三态/WeUI 对齐表——未来会话自动遵守
 - 最终验收：只对本次实际改动的页面复跑探针 + 交付「同会话、同数据快照」前后对比；**不做 130+ 全量归档**
 - **实施进度（2026-11-03）**：

@@ -76,6 +76,7 @@ description: >-
 pnpm check:ui-barehex-ratchet        # 裸色棘轮（只减不增）
 pnpm check:admin-banner-ratchet      # admin 常驻 el-alert 棘轮（基线 52）
 node scripts/check-mp-a11y-coverage.mjs      # mp role/aria 覆盖（阈值 95%）
+node scripts/check-mp-touch-target-ratchet.mjs # mp 小热区棘轮（<88rpx，基线 5 只减不增；--print 看清单）
 node scripts/check-mp-css-token-fallback.mjs # 两端 page 块 95 令牌兜底
 node scripts/check-wxss-no-color-mix.mjs     # WXSS 无 color-mix
 node scripts/sync-shared-uni-components.mjs --check  # shared 组件无本地副本

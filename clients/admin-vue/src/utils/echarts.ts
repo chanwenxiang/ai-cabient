@@ -318,7 +318,7 @@ export function registerBigScreenTheme(): void {
   bigScreenThemeRegistered = true;
   echarts.registerTheme(BIGSCREEN_THEME, {
     textStyle: { fontFamily: CHART_FONT_FAMILY },
-    color: ['#2dd4bf', '#38bdf8', '#a78bfa', '#fbbf24', '#f472b6', '#4ade80'],
+    color: DONUT_PALETTE,
     backgroundColor: 'transparent',
     axisPointer: {
       lineStyle: { color: 'rgba(148, 197, 255, 0.4)' }
