@@ -198,6 +198,26 @@ UNION ALL SELECT 'wechat_binding', count(*) FROM wechat_binding;
       不得直接注释 V431 守卫
 - [ ] 部署后 `docker logs <trade-service>` 无 `拒绝删除 ...` 异常；Flyway 到 V431 及以后
 
+### 3.1.5 V435 外部导入唯一索引前置检查（逐库必查）
+
+> V435 给 `external_import_batch` 加**部分唯一索引** `(channel_code, period_label) WHERE status='COMMITTED'`
+> （MA-101：同渠道同账期提交两份会让月结 `flowBySku` 的无条件 sum 把盘点/外调数量翻倍，且 COMMITTED 批次不可删）。
+> 索引本身不判存量数据——**若库里已有重复的 COMMITTED 组合，Flyway 迁移会直接失败并阻断启动**。
+> 2026-11-03 取证：本机 dev 库 `external_import_batch` 共 0 行 ⇒ 本机无风险；服务器测试库与其它库上线前必须跑下面的计数。
+
+```sql
+-- 判据：返回 0 行才可直接上线；非 0 行需先人工并账（保留一份、其余批次状态改为作废并留痕），再上线
+SELECT channel_code, period_label, count(*) AS committed_batches,
+       string_agg(batch_id::text, ',' ORDER BY batch_id) AS batch_ids
+FROM external_import_batch
+WHERE status = 'COMMITTED'
+GROUP BY channel_code, period_label
+HAVING count(*) > 1;
+```
+
+> 服务层已先在 `commit` 前拦同渠道同账期的兄弟批次（409），索引兜的是并发双提交；
+> **不要为了过迁移去注释索引或删历史批次**——删批次等于抹掉月结取数的来源。
+
 ### 3.2 部署命令
 
 ```bash

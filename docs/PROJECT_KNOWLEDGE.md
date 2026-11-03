@@ -713,6 +713,22 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `settleAfterPartialRefund` 的 `newSubtotal<=0` 分支本身 ⇒ waive 与「退到零行」两条路径同覆盖。
   并**撤销** `check-mybatis-null-clear` 对 CouponService 的整条豁免（那句「别处会清」只对 PENDING 链成立），
   门禁头部新增「豁免纪律」。全量重跑后报数（教训 #390/#391）。
+### 2026-11-03（批次F：四项拍板落地——其中 MA-149 我推翻了自己的推荐）
+
+- **MA-070**（组织/点位权限双轨）按档 A 落地：服务层收成注解宣称的 any-permission 集 ⇒ 只持 `ops:org:edit`
+  的角色从此能管组织节点（**这是扩权，已明示**）；`SiteContractService.doUpsert` 同修抹平「删比改松」。
+- **MA-105** 收窄注解为单码（行为等价：原先持 `ops:finance:view` 也是 403）——不给只读码 advertise 写动作。
+- 🔴 **MA-149 推翻原推荐**：原前提「导入岗被挡在自己的活外」经取证不成立——`ops:sku:import` 全仓无导入端点用它把关，
+  三处 OR 里唯一真生效的是纯读 `GET /skus/barcode-lookup`。故建/改商品**收窄**、条码查询**保留 OR**；
+  没有按原推荐放宽服务层（教训 #392：收窄=行为等价，放宽=真扩权，前提必须先验）。
+- **MA-085 补齐闭集**：权威源取字典 `promotion_type` 九值（V180 种子 + OBS-006；dev 库实测 4 值 + 用例 FULL_REDUCE），
+  `validateForSave` 首判；钉测 3 例（真实值放行 / `AMOUNT_OFF` 券类型被拒 / 空白被拒）。
+- **MA-101 上 V435**：部分唯一索引 `(channel_code, period_label) WHERE status='COMMITTED'`，
+  仿 V431 先例**先 count 重复组 → >0 就 RAISE EXCEPTION**；本机 dev 表 0 行，其它库判据写进
+  `DEPLOYMENT_CHECKLIST §3.1.5`（勿注释守卫、勿删历史批次）。索引兜并发双提交，服务层 409 兜顺序重放。
+- **MA-129 拍板选 ②**（读模型加「剩余毛额」列 + consumer 加一行），但**保持 open**：它要动 openapi 形状，
+  必须与 MA-127/128 同批做 shared-types regen，不在没 regen 的前提下先改后端。
+
 ### 2026-11-03（80 条 open 逐条回源码复核 → 批次A/B 收口：资金参数限幅单源 + 两条零归因；MA-081 撤账、9 条 500 口径订正、新增 MA-149）
 
 - **先复核再修**：80 条 open（P2×19 / P3×61）全部回源码取证，主会话对每一条要修的证据**亲自重读**。

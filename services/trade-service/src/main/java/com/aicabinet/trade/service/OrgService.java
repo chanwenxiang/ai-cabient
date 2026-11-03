@@ -77,7 +77,10 @@ public class OrgService {
 
     @Transactional(readOnly = true)
     public List<OrgNodeDto> tree(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        // MA-070：注解面（OpsOrgController）一直 advertise `ops:org:list`，服务层却只认
+        // `ops:device:list` ⇒ 有效权限是两者 AND，只授组织域的角色连树都读不到。
+        // 与本类 deleteNode(:209) 已有的 any-permission 口径对齐（拍板：按注解宣称的意图放宽，而非收窄注解）。
+        permissionService.requireAnyPermission(operatorId, "ops:org:list", "ops:device:list");
         Map<Long, List<String>> devicesByNode = new HashMap<>();
         for (OpsDeviceOrg mapping : deviceOrgRepository.findAll()) {
             devicesByNode.computeIfAbsent(mapping.getNodeId(), k -> new ArrayList<>())
@@ -112,7 +115,8 @@ public class OrgService {
     }
 
     private OrgNodeDto doUpsertNode(Long operatorId, UpsertOrgNodeRequest request) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
+        // MA-070：与注解 OR 集对齐（ops:org:edit 或 ops:device:edit 任一即可，同 deleteNode 口径）
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
         String name = request.name().trim();
         if (name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "组织名称不能为空");
@@ -151,7 +155,8 @@ public class OrgService {
     @Transactional
     public OrgNodeDto toggleNode(Long operatorId, Long nodeId, boolean enabled) {
         return runWithOrgNodeLock(nodeId, () -> {
-            permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
+            // MA-070：与注解 OR 集对齐（ops:org:edit 或 ops:device:edit 任一即可，同 deleteNode 口径）
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
             OpsOrgNode node = requireNodeForUpdate(nodeId);
             node.setEnabled(enabled);
             node.setUpdatedAt(Instant.now());
@@ -188,7 +193,8 @@ public class OrgService {
     }
 
     private OrgNodeDto doAssignDevices(Long operatorId, Long nodeId, List<String> normalized) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
+        // MA-070：与注解 OR 集对齐（ops:org:edit 或 ops:device:edit 任一即可，同 deleteNode 口径）
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", PERM_OPS_DEVICE_EDIT);
         OpsOrgNode node = requireNodeForUpdate(nodeId);
         deviceOrgRepository.deleteByDeviceIds(normalized);
         deviceOrgRepository.deleteByNodeId(nodeId);

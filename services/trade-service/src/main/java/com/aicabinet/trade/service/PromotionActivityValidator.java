@@ -20,6 +20,17 @@ public class PromotionActivityValidator {
 
     public static final Set<String> SKU_TYPES = Set.of(
             "SKU_REDUCE", "SKU_DISCOUNT", "SKU_FIXED_PRICE");
+    /**
+     * MA-085：活动类型闭集 = 字典 {@code promotion_type} 的九个值（种子见 V180__promotion_and_consistency_dict_labels，
+     * OBS-006 补 NEW_USER/POINTS；dev 库实测在用 DISCOUNT/NEW_USER/POINTS/SKU_REDUCE，既有用例还用 FULL_REDUCE）。
+     *
+     * <p>为什么必须闭集：类型是**定价分支的开关**——不在表内的值既不走 SKU 定价、也不被任何
+     * switch 命中，却能被 launch 成 ACTIVE（原样落库无人拦）。写错的类型只会静默「活动在线但不生效」。
+     * 字典新增类型时这里必须同步，否则新类型会被自己拦死（fail-closed 是刻意的：先让代码知道）。
+     */
+    public static final Set<String> SUPPORTED_TYPES = Set.of(
+            "BUY_GIFT", "DISCOUNT", "FULL_REDUCE", "NEW_USER", "POINTS",
+            "SECOND_HALF", "SKU_DISCOUNT", "SKU_FIXED_PRICE", "SKU_REDUCE");
     private static final Set<String> SCOPES = Set.of("ALL", "SPECIFIC", "MERCHANT");
 
     private final ObjectMapper objectMapper;
@@ -37,6 +48,7 @@ public class PromotionActivityValidator {
 
     /** 创建/编辑保存时校验（允许草稿状态，但 SKU 级活动的时间窗/商品/价格必须齐）。 */
     public void validateForSave(PromotionActivity a) {
+        requireKnownType(a);
         boolean sku = isSkuActivity(a.getActivityType());
         if (sku) {
             if (a.getStartTime() == null || a.getEndTime() == null) {
@@ -60,6 +72,15 @@ public class PromotionActivityValidator {
         if (isSkuActivity(a.getActivityType())
                 && placementRepository.countByActivityIdAndPosition(a.getActivityId(), "BANNER") < 1) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "请先配置轮播横幅图片再启用活动");
+        }
+    }
+
+    private static void requireKnownType(PromotionActivity a) {
+        String raw = a.getActivityType();
+        String type = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_TYPES.contains(type)) {
+            throw badRequest("activityType 不在字典 promotion_type 内：" + raw
+                    + "（可用值 " + String.join("/", new java.util.TreeSet<>(SUPPORTED_TYPES)) + "）");
         }
     }
 

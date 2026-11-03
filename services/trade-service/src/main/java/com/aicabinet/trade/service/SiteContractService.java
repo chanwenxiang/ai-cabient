@@ -81,7 +81,9 @@ public class SiteContractService {
     }
 
     private SiteContractDto doUpsert(Long operatorId, String id, UpsertSiteContractRequest request) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
+        // MA-070 同族：原来 upsert 只认 ops:device:edit，而 delete(:119) 已是 any-permission
+        // (org:edit, device:edit) ⇒ 「删比改松」的方向反常。按删除侧口径对齐。
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
         DeviceInfo device = deviceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在: " + id));
         if (request.startDate() != null && request.endDate() != null

@@ -63,6 +63,9 @@ class PromotionServiceTest {
     void launch_shouldSetActive() {
         var activity = new PromotionActivity();
         activity.setActivityId(1L);
+        // MA-085：launch 走 validateForLaunch→validateForSave，类型现在必须在字典 promotion_type 闭集内
+        // （DB 列 activity_type 本就是 NOT NULL，空类型从来存不进真库）
+        activity.setActivityType("FULL_REDUCE");
         activity.setStatus("DRAFT");
         when(repository.findById(1L)).thenReturn(Optional.of(activity));
         when(repository.save(any())).thenAnswer(i -> i.getArgument(0));

@@ -128,4 +128,31 @@ class PromotionActivityValidatorTest {
         when(placementRepository.countByActivityIdAndPosition(1L, "BANNER")).thenReturn(1L);
         assertDoesNotThrow(() -> validator.validateForLaunch(a));
     }
+
+    // ── MA-085：类型闭集（权威源 = 字典 promotion_type，种子见 V180）──────────────────
+    @Test
+    void knownDictionaryTypes_stillPassValidation() {
+        // 库里实测在用的四个非/半 SKU 类型不能被自己的白名单拦死
+        for (String type : new String[] { "DISCOUNT", "NEW_USER", "POINTS", "FULL_REDUCE" }) {
+            final String t = type;
+            org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                    () -> validator.validateForSave(activity(t)), t);
+        }
+    }
+
+    @Test
+    void couponTypeUsedAsActivityType_rejectedBecauseItWouldLaunchButNeverPrice() {
+        // AMOUNT_OFF 是券类型（CouponService:355），不是活动类型：
+        // 原来它落库后既不走 SKU 定价也不被任何 switch 命中，却能 launch 成 ACTIVE ⇒ 活动在线但不生效
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> validator.validateForSave(activity("AMOUNT_OFF")));
+        assertEquals(400, e.getStatusCode().value());
+        org.junit.jupiter.api.Assertions.assertTrue(e.getReason().contains("promotion_type"), e.getReason());
+    }
+
+    @Test
+    void blankActivityType_rejected() {
+        assertThrows(ResponseStatusException.class, () -> validator.validateForSave(activity(null)));
+        assertThrows(ResponseStatusException.class, () -> validator.validateForSave(activity("   ")));
+    }
 }

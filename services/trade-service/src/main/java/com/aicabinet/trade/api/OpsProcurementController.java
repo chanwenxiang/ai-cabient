@@ -129,7 +129,10 @@ public class OpsProcurementController {
         return ApiResponse.ok(procurementService.createPurchaseOrder(operatorId(request), body));
     }
 
-    @RequiresPermissions(value = {"ops:procurement:edit", "ops:finance:view"}, logical = RequiresPermissions.Logical.OR)
+    // MA-105：原来 OR{ops:procurement:edit, ops:finance:view}，而服务端 requireWarehouseWrite
+    // 只认 ops:procurement:edit ⇒ finance:view 分支过门后必 403（fail-closed 无越权面，但误导配置者）。
+    // 拍板收窄注解：不给「只读财务码」 advertise 一个它永远做不到的写动作。
+    @RequiresPermissions("ops:procurement:edit")
     @PostMapping("/purchase-orders/{purchaseOrderId}/review")
     public ApiResponse<PurchaseOrderDto> reviewPurchaseOrder(
             HttpServletRequest request,

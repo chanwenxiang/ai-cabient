@@ -514,7 +514,11 @@ public class AdminDashboardController {
                 () -> adminService.listDeviceRefs(opId)));
     }
 
-    @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
+    // MA-149：收窄成单码。`ops:sku:import` 在本仓**没有任何导入端点用它把关**（V106 只建了按钮码，
+    // 三处注解里唯一下方条码查询是真生效的），而建/改商品的服务层 OpsCatalogAdminService 只认
+    // ops:sku:edit ⇒ 这里的 OR 是死分支。刻意不把服务层放宽成「import 也能建改单个商品」：
+    // 那是给一个按钮码扩写权限，无意图证据。
+    @RequiresPermissions("ops:sku:edit")
     @PostMapping("/skus")
     public ApiResponse<SkuCatalogDto> createSku(
             HttpServletRequest request,
@@ -524,7 +528,8 @@ public class AdminDashboardController {
         return ApiResponse.ok(created);
     }
 
-    @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
+    // MA-149：同 createSku，收窄成 ops:sku:edit（服务层 updateSku 也只认这一个码）
+    @RequiresPermissions("ops:sku:edit")
     @PutMapping("/skus/{skuId}")
     public ApiResponse<SkuCatalogDto> updateSku(
             HttpServletRequest request,
@@ -544,6 +549,8 @@ public class AdminDashboardController {
     }
 
     /** CB-025：按条码查编码中心注册库官方资料（聚合接口代理），商品建档自动带出名称/品牌/规格。 */
+    // MA-149：这一处**刻意保留 OR** —— 它是纯读代理、服务层不再二次判码，OR 在这里是真生效的
+    // （持 ops:sku:import 的建档/导入岗确实要查条码带出资料）。收窄它会真的打断该岗。
     @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/skus/barcode-lookup")
     public ApiResponse<BarcodeLookupDto> barcodeLookup(@RequestParam("code") String code) {
