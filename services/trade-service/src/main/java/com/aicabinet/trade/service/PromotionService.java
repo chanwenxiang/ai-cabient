@@ -43,10 +43,10 @@ public class PromotionService {
     public PromotionActivityDto create(CreatePromotionRequest request) {
         PromotionActivity a = new PromotionActivity();
         a.setActivityName(request.activityName());
-        a.setActivityType(request.activityType());
+        a.setActivityType(normalizedActivityType(request.activityType()));
         a.setStartTime(request.startTime());
         a.setEndTime(request.endTime());
-        a.setBudgetCents(request.budgetCents());
+        a.setBudgetCents(requireNonNegativeBudget(request.budgetCents()));
         a.setUserLimit(request.userLimit());
         a.setDeviceScope(request.deviceScope());
         a.setRuleConfig(request.ruleConfig() != null ? request.ruleConfig() : "{}");
@@ -114,10 +114,10 @@ public class PromotionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "结束时间需晚于开始时间");
         }
         a.setActivityName(request.activityName());
-        a.setActivityType(request.activityType());
+        a.setActivityType(normalizedActivityType(request.activityType()));
         a.setStartTime(request.startTime());
         a.setEndTime(request.endTime());
-        a.setBudgetCents(request.budgetCents());
+        a.setBudgetCents(requireNonNegativeBudget(request.budgetCents()));
         a.setUserLimit(request.userLimit());
         if (request.deviceScope() != null) {
             a.setDeviceScope(request.deviceScope());
@@ -244,5 +244,27 @@ public class PromotionService {
                 a.getBudgetCents(), a.getUsedCents(), a.getUserLimit(),
                 a.getDeviceScope(), a.getRuleConfig(), a.getDescription(),
                 a.getReduceCents(), a.getDiscountBps(), a.getFixedPriceCents());
+    }
+    /**
+     * MA-085：活动类型必填入库前先归一大写。判定侧多处用 equalsIgnoreCase 看着没事，
+     * 但 {@code PromotionActivityMapper:30} 的定价筛选是 {@code activity_type IN ('SKU_REDUCE',...)}——
+     * 存成小写就静默不参与活动定价面。
+     */
+    private static String normalizedActivityType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "activityType 必填");
+        }
+        return raw.trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * MA-085：预算非负（0=不限额是既定语义）。负数会让 reserveBudget 的
+     * {@code budget > 0} 闸整体跳过，used_cents 变成无上限推进 ⇒ 活动预算这的资金闸形同虚设。
+     */
+    private static long requireNonNegativeBudget(long budgetCents) {
+        if (budgetCents < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "budgetCents 不得为负（0 = 不限额）");
+        }
+        return budgetCents;
     }
 }

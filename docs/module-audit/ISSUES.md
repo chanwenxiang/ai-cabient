@@ -95,16 +95,16 @@
 | MA-082 | P3 | open | 营销域运营写面（券模板/发券/活动上下架/展示位/素材 5 服务 15 端点） | 审计留痕整体缺失（零处 appendLog），同域兄弟 AdCampaignService 四处全有 AD_CAMPAIGN_* 审计 ⇒ 券面值改动/活动上下架/素材删除在 /audit 页不可查 | ZCode R12批2 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-083 | P3 | open | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
 | MA-084 | P3 | open | `PUT /ops/admin/ad/assets/{id}` | 素材 status 自由串直落（MA-078 同构）：垃圾值静默从全部 ACTIVE 过滤面消失、超 16 字符 22001→500 | ZCode R12批2 / 2026-11-03 | |
-| MA-085 | P3 | open | `POST/PUT /ops/promotions` | activityType 无白名单（垃圾类型经 launch 直接 ACTIVE 进消费端可见列表，非 SKU 类型跳过全部校验）；budgetCents 负数直落使预算守卫 fail-open（`budget>0 &&` 守卫），与 user_limit「0/负=不限」钉测口径不一致 | ZCode R12批2 / 2026-11-03 | |
+| MA-085 | P3 | fixed（部分：钉测 4 例，残留见批次C′） | `POST/PUT /ops/promotions` | activityType 无白名单（垃圾类型经 launch 直接 ACTIVE 进消费端可见列表，非 SKU 类型跳过全部校验）；budgetCents 负数直落使预算守卫 fail-open（`budget>0 &&` 守卫），与 user_limit「0/负=不限」钉测口径不一致 | ZCode R12批2 / 2026-11-03 | |
 | MA-086 | P3 | open | `POST/PUT /ops/admin/ad/campaigns` | 投放计划时间窗倒挂不拦（startAt>endAt 静默接受→计划永不生效、轮播静默空转）；同域 Promotion 面有拦，兄弟端点不一致 | ZCode R12批2 / 2026-11-03 | |
 | MA-087 | P3 | open | 营销域字符串 DTO | couponName/campaignName/mediaTitle/idempotencyKey 缺 @Size，超长撞列宽 22001→500（本仓已有 FileDisputeRequest @Size(256) 等成熟先例，属漏网） | ZCode R12批2 / 2026-11-03 | |
-| MA-088 | P3 | open | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
-| MA-089 | P3 | open | `POST /api/v2/account/balance-refunds` | DTO @Max(500_000) 硬编码与服务端可配置上限 BALANCE_REFUND_MAX_CENTS 口径不一致——配置只能收紧不能放宽；对照充值 DTO 无 @Max 全由 DC-6 裁决，两 DTO 风格矛盾 | ZCode R12批2 / 2026-11-03 | |
+| MA-088 | P3 | fixed（部分：拒绝入账+告警，钉测待补） | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
+| MA-089 | P3 | fixed（去 DTO @Max） | `POST /api/v2/account/balance-refunds` | DTO @Max(500_000) 硬编码与服务端可配置上限 BALANCE_REFUND_MAX_CENTS 口径不一致——配置只能收紧不能放宽；对照充值 DTO 无 @Max 全由 DC-6 裁决，两 DTO 风格矛盾 | ZCode R12批2 / 2026-11-03 | |
 
 | MA-090 | P2 | fixed（钉测 7 例） | `PUT /ops/admin/machine-payee-bills/config/{deviceId}` | 机器账单分成比例 shareBps 无界直落（>10000 可生成超 GMV 五倍的分成账单且每账期持续生效）；同仓三处先例都有闸（SiteRentSplit 400 / FundBill 钉测 / allocate 钳位），与 MA-069（线长佣金）完全同构；次要：enabled 无 0/1 约束（垃圾值使该柜从出账面消失）、payeeName null→500 | ZCode R12批3 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-091 | P3 | open | 商户费用台账结清 / 机器账单结清 / 按日重跑日扣 | 三处资金处置动作零操作者归因（连 operatorId 参数都没有；rerun-daily-fees 是批量真扣钱包 WalletEngine.debitIfAbsentAllowNegative）；MA-074 同类 | ZCode R12批3 / 2026-11-03 | |
 | MA-092 | P3 | open | 发票开具/驳回、机器账单出账、对账重跑 | 财务面 5 写端点无 /audit 审计（对照 SiteRentBill/DeviceDataFeeBill 全有 appendLog）；ReconciliationService.runDaily 的 operatorId 传而不用，重跑删旧重建无痕 | ZCode R12批3 / 2026-11-03 | |
-| MA-093 | P3 | open | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
+| MA-093 | P3 | fixed（部分：充值正数闸） | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
 | MA-094 | P3 | open | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
 | MA-095 | P3 | open | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
 | MA-096 | P3 | open | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
@@ -131,8 +131,8 @@
 | MA-115 | P2 | fixed（钉测 2 例） | `POST /ops/admin/ota/releases` + `/{id}/unpublish` | OTA 固件发布/下架零审计零归因：operatorId 传而不用（OtaService.java:69-70 收下即弃）、表无列、连 log.info 都没有——推错固件全车队瘫痪的最高危动作出事无法回答「谁推的哪个包」；主会话复核 grep OtaService 全文 0 处留痕 | ZCode R12批5 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-116 | P2 | fixed（归因+追加） | `POST /ops/admin/consistency/{recordId}/fix` | 数据一致性修复零归因 + 修复结果覆写原始不一致描述（error_message 被覆盖=「当初为什么不一致」证据被抹）；fix 链直改订单头金额/清券/触发真实退款；类内 logChange 脚手架全仓零调用（出生即死）；修错了无法追责 | ZCode R12批5 / 2026-11-03 | |
 | MA-117 | P3 | open | 将邑运营写面 ~30 端点 | 审计留痕整体缺失（Onboarding/ClassMapping/ModelSync/Gather/SkuJiangyiLink 五服务 0 appendLog；含租户级 setTenantDomain 厂商云写、识别映射对位锚改写、deleteInJiangyi 不可逆删除）；同域 JiangyiDeviceOpsService 六处范本在，借它回补 | ZCode R12批5 / 2026-11-03 | |
-| MA-118 | P3 | open | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
-| MA-119 | P3 | open | 设备 MQTT/HTTP 凭据签发 | 不校验 device_info 存在性：12 位数字手滑一位即签出孤儿活跃凭据（明文 secret 回显一次）；同场景将邑入驻有现成闸（registerForDevice 防孤儿），凭据签发漏配 | ZCode R12批5 / 2026-11-03 | |
+| MA-118 | P3 | fixed（部分：非整数 400） | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
+| MA-119 | P3 | fixed（钉测 1 例） | 设备 MQTT/HTTP 凭据签发 | 不校验 device_info 存在性：12 位数字手滑一位即签出孤儿活跃凭据（明文 secret 回显一次）；同场景将邑入驻有现成闸（registerForDevice 防孤儿），凭据签发漏配 | ZCode R12批5 / 2026-11-03 | |
 | MA-120 | P3 | open | `POST /internal/v1/devices/{id}/heartbeat` | 心跳环境读数零界：NaN/Infinity→BigDecimal.valueOf 抛异常→心跳 500（且在 presence 更新之后）；1e8 量级直落污染环境看板；同源 signal 0-4 静默丢、OTA pct clamp 先例在，本条漏网 | ZCode R12批5 / 2026-11-03 | |
 | MA-121 | P3 | open | JiangyiInternal 遗留入口 | /onboarding/register 缺「柜机档案存在」闸（运营面 registerForDevice 有，internal 直连底层无）；/class-mappings upsert 收自由串 status/source（"active" 小写成死行）；grep 证实无代码调用方（运维脚本入口）+fleet key 保护故 P3 | ZCode R12批5 / 2026-11-03 | |
 | MA-122 | P3 | open | `POST/PUT /ops/announcements` | 公告 create/update 裸 Map 零校验：title>256/priority 9+字符→22001 500；targetScope 拼错（"CONSUER"）静默落库发布成三端不可见公告（MA-078/084/087 家族新点位） | ZCode R12批5 / 2026-11-03 | |
@@ -953,3 +953,31 @@
   由 CI 跑，本地不重跑。
 - 顺带证实：`releaseStaleUsedCouponsForOrder`（一致性修复在用）只治「错绑/未生效」的脏券，
   不覆盖正常全额退 ⇒ 不能拿它当 MA-147 的修法。
+
+
+### 批次C′｜复核判为「P3 名义但实碰钱/鉴权」的那批（先于展示类收口）
+
+- **MA-119 设备凭据签发**（鉴权面）：`requireDeviceId` 只验「12 位数字」，不验设备存在 ⇒
+  手滑一位就签出一条 ACTIVE 孤儿凭据并把明文 secret 回显。HTTP 与 MQTT 两个签发服务同修
+  （`requireDeviceExists` → 404），钉测 1 例（`issue_unknownDevice_rejectedWithNotFound`）。
+- **MA-085 活动预算/类型**：`budgetCents < 0` → 400（负数会让 reserveBudget 的 `budget > 0` 整体跳过，
+  used_cents 无上限推进 = 资金闸失效）；`activityType` 必填 + 入库前归一大写（判定侧
+  `equalsIgnoreCase` 看着没事，`PromotionActivityMapper:30` 的 `IN ('SKU_REDUCE',...)` 是精确匹配，
+  存小写该活动静默退出定价面）。钉测 4 例（含「0 = 不限额」仍放行）。
+  **残留**：完整 activityType 白名单没做——词表实测至少含非 SKU 的 `FULL_REDUCE`（既有测试在用），
+  盲列白名单会打断真实类型，需先拍板词表。
+- **MA-093 平台资金池**：`recharge` 补「必须 > 0」，负数不再以充值语义扣余额、也不再绕过
+  `adjust` 的「必须填原因」闸。**残留**：`OpsPlatformFundController` 的 `(Number) body.get("amountCents")`
+  仍是裸取参（传字符串 → ClassCastException），DTO 化留待与 MA-104/108 同族一起收。
+- **MA-088 微信退款同步幂等键**：回调缺 `refund_id` 时原来照入账，键退化成常量
+  `"channel-refund-sync:null"` ⇒ 不同订单的第二笔命中同键时余额不扣、单据照涨（幽灵余额）。
+  现在**拒绝入账 + 发 `WECHAT_REFUND_SYNC_MISSING_REFUND_ID` 告警**转人工。
+  🔴 **键格式刻意不动**：微信会重投通知，老库已存在旧键流水，改字面量会让部署后的重投被当新键重复扣一次
+  （与「锁 key 字面量不可改」同源）。
+- **MA-118 押金登记裸 Map**：`longOrNull/intOrNull` 原来吞掉 `NumberFormatException` 返回 null，
+  「填了但填错」与「没填」不可区分 ⇒ 月退额静默丢失、`contractYears` 静默落默认 5 年，
+  而商户余额已经真扣。现按字段名 400（`monthlyRefundCents/refundStartMonth/expireRewardCents/`
+  `installFeeDeductCents/contractYears` 五个入参全覆盖）。**残留**：Controller 未 DTO 化（同 MA-093 残留并入同族批）。
+- **MA-089 退款上限双口径**：`ApplyBalanceRefundRequest` 去掉了 `@Max(500_000)`——Bean 校验先拦会让
+  DC-6 的 `BALANCE_REFUND_MAX_CENTS` 只能收紧不能放宽，与充值侧（纯配置）矛盾。
+  已核实 `@Max` 不进 OpenAPI 生成物（springdoc 不导出 bean-validation 的 maximum），**无需 regen shared-types**。

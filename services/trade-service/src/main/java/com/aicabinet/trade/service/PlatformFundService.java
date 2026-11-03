@@ -124,9 +124,17 @@ public class PlatformFundService {
         return account;
     }
 
-    /** 充值登记（财务往渠道账户打钱后登记，正数）。 */
+    /**
+     * 充值登记（财务往渠道账户打钱后登记，正数）。
+     *
+     * <p>MA-093：原来只有 manualFlow 的「≠0」兜着，负数会以 TYPE_RECHARGE 语义落账并扣余额——
+     * 既绕过 {@link #adjust} 的「必须填原因」闸，又让台账按充值口径解释一笔出账。
+     */
     @Transactional
     public PlatformFundAccount recharge(long accountId, long amountCents, Long operatorId, String remark) {
+        if (amountCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "充值金额必须大于 0（负数请走人工调整并填原因）");
+        }
         return manualFlow(accountId, PlatformFundFlow.TYPE_RECHARGE, amountCents, operatorId, remark);
     }
 

@@ -683,6 +683,21 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-03（批次C′：复核判为「P3 名义但实碰钱/鉴权」的先收——MA-085/088/089/093/118/119）
+
+- 顺序按爆炸半径而非级别标签：展示类（MA-127/128/129）排在资金与鉴权面之后。
+- **MA-119**：两个设备凭据服务原来只要「12 位数字」就签发 ACTIVE 凭据（明文 secret 回显），
+  现必须先存在设备（404）；钉测 1 例。**MA-085**：`budgetCents < 0` 让 reserve 的 `budget > 0` 整体跳过
+  （used_cents 无上限推进 = 资金闸失效）→ 400；`activityType` 必填 + 入库前归一大写
+  （mapper 的 `IN ('SKU_REDUCE',...)` 是精确匹配，小写存进去该活动静默退出定价面）；钉测 4 例。
+  类型**全量白名单没做**：实测词表至少含非 SKU 的 `FULL_REDUCE`（既有测试在用），盲列会打断真实类型 ⇒ 待拍板。
+- **MA-088**：回调缺 `refund_id` 时幂等键退化成常量 `channel-refund-sync:null`，第二笔命中同键
+  就「不扣余额、单据照涨」（幽灵余额）。现在拒绝入账 + 专项告警转人工；
+  🔴 **键字面量刻意不改**——微信会重投通知，老库已存旧键流水，改格式会让部署后重投被当新键重复扣。
+- **MA-093 / MA-118** 各留一处残留（Controller 裸 Map/裸取参），与 MA-104/108 的「裸 Map 统一 DTO 化」并批。
+- **MA-089**：去掉 `ApplyBalanceRefundRequest` 的 `@Max`（Bean 校验先拦 ⇒ DC-6 配置只能收紧不能放宽，
+  与充值侧口径矛盾）。已核实 springdoc 不把 `maximum` 写进生成物 ⇒ **无需 regen shared-types**（这条决定了它能不能单独落）。
+
 ### 2026-11-03（批次C：全额退返还券 MA-147——单源复用，顺序是硬约束）
 
 - `SettlementWaiveRefundService.finalizeWaiveRefund` 原来全文零券处理：钱退了、已核销券不返还、活动预算永久占用。

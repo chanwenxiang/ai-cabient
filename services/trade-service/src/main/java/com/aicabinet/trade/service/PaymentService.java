@@ -390,6 +390,17 @@ public class PaymentService {
             log.warn("wechat refund notify missing out_trade_no refundId={}", refundId);
             return;
         }
+        // MA-088：缺 refund_id 的回调原来照入账，幂等键退化成常量 "channel-refund-sync:null"——
+        // 不同订单的第二笔命中同一键时 BalanceLedgerService 直接返回旧流水**不扣款**，单据却照涨 ⇒ 幽灵余额。
+        // 只在缺关键字段时拒绝入账并转人工；键格式**刻意不动**——微信会重投通知，
+        // 老库已存在旧键流水，改字面量会让部署后的重投被当成新键重复扣一次。
+        if (refundId == null || refundId.isBlank()) {
+            log.error("wechat refund notify missing refund_id orderId={} status={} —— 缺幂等键，拒绝入账",
+                    outTradeNo, refundStatus);
+            opsAlertDispatcher.send("WECHAT_REFUND_SYNC_MISSING_REFUND_ID", "微信退款回调缺 refund_id",
+                    "orderId=" + outTradeNo + " 需人工核对（缺幂等键，未入账）");
+            return;
+        }
         if (!STATUS_SUCCESS.equals(refundStatus)) {
             if ("ABNORMAL".equals(refundStatus)) {
                 log.error("wechat refund notify abnormal confirmed orderId={} refundId={}", outTradeNo, refundId);

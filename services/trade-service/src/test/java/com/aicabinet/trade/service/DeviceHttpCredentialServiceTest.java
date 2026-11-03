@@ -31,11 +31,16 @@ class DeviceHttpCredentialServiceTest {
     @Mock
     private DeviceHttpCredentialMapper repository;
 
+    @Mock
+    private com.aicabinet.trade.mapper.DeviceInfoMapper deviceRepository;
+
     private DeviceHttpCredentialService service;
 
     @BeforeEach
     void setUp() {
-        service = new DeviceHttpCredentialService(repository);
+        org.mockito.Mockito.lenient().when(deviceRepository.selectById(any())).thenReturn(
+                org.mockito.Mockito.mock(com.aicabinet.trade.domain.DeviceInfo.class));
+        service = new DeviceHttpCredentialService(repository, deviceRepository);
     }
 
     @Test
@@ -111,5 +116,18 @@ class DeviceHttpCredentialServiceTest {
         cred.setStatus("ACTIVE");
         cred.setIssuedAt(Instant.now());
         return cred;
+    }
+
+    @Test
+    void issue_unknownDevice_rejectedWithNotFound() {
+        // MA-119：deviceId 只要 12 位数字就放行过 —— 手滑一位即签出一条 ACTIVE 孤儿凭据（明文 secret 还会回显）。
+        when(deviceRepository.selectById(any())).thenReturn(null);
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.issue("123456789012", 1L));
+        assertThat(ex.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
+        assertThat(ex.getReason()).contains("设备不存在");
+        verify(repository, org.mockito.Mockito.never()).save(any());
     }
 }

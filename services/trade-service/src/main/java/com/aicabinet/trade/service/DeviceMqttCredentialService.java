@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceMqttCredential;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceMqttCredentialMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
@@ -39,10 +40,12 @@ public class DeviceMqttCredentialService {
     private static final int SECRET_BYTES = 32;
 
     private final DeviceMqttCredentialMapper repository;
+    private final DeviceInfoMapper deviceRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public DeviceMqttCredentialService(DeviceMqttCredentialMapper repository) {
+    public DeviceMqttCredentialService(DeviceMqttCredentialMapper repository, DeviceInfoMapper deviceRepository) {
         this.repository = repository;
+        this.deviceRepository = deviceRepository;
     }
 
     public record IssuedCredential(String deviceId, String username, String secret,
@@ -53,6 +56,8 @@ public class DeviceMqttCredentialService {
     @Transactional
     public IssuedCredential issue(String deviceId, Long operatorId) {
         String id = requireDeviceId(deviceId);
+        // MA-119：原来只验「12 位数字」不验设备存在 ⇒ 手滑一位就签出一条 ACTIVE 孤儿凭据（还把明文 secret 回显给调用方）
+        requireDeviceExists(id);
         String secret = randomSecret();
         String hash = sha256Hex(secret);
         Instant now = Instant.now();
@@ -111,6 +116,13 @@ public class DeviceMqttCredentialService {
     /** 生成器（内部通道）读取 ACTIVE 凭据行：含明文 secret，仅限内部管理端点调用。 */
     public List<DeviceMqttCredential> listActiveForBootstrap() {
         return repository.findByStatusOrderByDeviceId(STATUS_ACTIVE);
+    }
+
+    /** 凭据只能签给真实存在的设备：孤儿 ACTIVE 行会长期留在网关的可鉴权面上。 */
+    private void requireDeviceExists(String deviceId) {
+        if (deviceRepository.selectById(deviceId) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在：" + deviceId + "，不签发凭据");
+        }
     }
 
     private String requireDeviceId(String deviceId) {

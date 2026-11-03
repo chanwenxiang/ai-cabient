@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceHttpCredential;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceHttpCredentialMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
@@ -37,10 +38,12 @@ public class DeviceHttpCredentialService {
     private static final int SECRET_BYTES = 32;
 
     private final DeviceHttpCredentialMapper repository;
+    private final DeviceInfoMapper deviceRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public DeviceHttpCredentialService(DeviceHttpCredentialMapper repository) {
+    public DeviceHttpCredentialService(DeviceHttpCredentialMapper repository, DeviceInfoMapper deviceRepository) {
         this.repository = repository;
+        this.deviceRepository = deviceRepository;
     }
 
     public record IssuedCredential(String deviceId, String secret,
@@ -51,6 +54,8 @@ public class DeviceHttpCredentialService {
     @Transactional
     public IssuedCredential issue(String deviceId, Long operatorId) {
         String id = requireDeviceId(deviceId);
+        // MA-119：原来只验「12 位数字」不验设备存在 ⇒ 手滑一位就签出一条 ACTIVE 孤儿凭据（还把明文 secret 回显给调用方）
+        requireDeviceExists(id);
         String secret = randomSecret();
         String hash = sha256Hex(secret);
         Instant now = Instant.now();
@@ -120,6 +125,13 @@ public class DeviceHttpCredentialService {
         byte[] provided = sha256Hex(secret).getBytes(StandardCharsets.UTF_8);
         byte[] expected = cred.getSecretSha256().getBytes(StandardCharsets.UTF_8);
         return MessageDigest.isEqual(provided, expected);
+    }
+
+    /** 凭据只能签给真实存在的设备：孤儿 ACTIVE 行会长期留在网关的可鉴权面上。 */
+    private void requireDeviceExists(String deviceId) {
+        if (deviceRepository.selectById(deviceId) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在：" + deviceId + "，不签发凭据");
+        }
     }
 
     private String requireDeviceId(String deviceId) {

@@ -165,4 +165,44 @@ class PromotionServiceTest {
 
         assertEquals(0, PromotionService.budgetReserveCents(null));
     }
+
+    // ── MA-085：预算与类型的写侧闸 ─────────────────────────────────────────────
+    @Test
+    void create_negativeBudget_rejectedBecauseReserveGuardWouldFailOpen() {
+        // 负预算让 reserveBudget 的「budget > 0」整体跳过 ⇒ used_cents 无上限推进，资金闸形同虚设
+        var req = new CreatePromotionRequest("负预算", "FULL_REDUCE", null, null, -1L, 1, "ALL",
+                "{}", null, null, null, null);
+        org.springframework.web.server.ResponseStatusException ex =
+                assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                        () -> promotionService.create(req));
+        assertEquals(org.springframework.http.HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("budgetCents"), ex.getReason());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void create_zeroBudgetIsStillAllowedBecauseZeroMeansUnlimited() {
+        var req = new CreatePromotionRequest("不限额", "FULL_REDUCE", null, null, 0L, 1, "ALL",
+                "{}", null, null, null, null);
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertEquals(0L, promotionService.create(req).budgetCents());
+    }
+
+    @Test
+    void create_lowercaseActivityType_isNormalizedForMapperInFilter() {
+        // 判定侧多处 equalsIgnoreCase 看着没事，但 PromotionActivityMapper:30 的定价筛选是
+        // activity_type IN ('SKU_REDUCE',...) ⇒ 存小写会让该活动静默退出定价面
+        var req = new CreatePromotionRequest("小写类型", " full_reduce ", null, null, 100L, 1, "ALL",
+                "{}", null, null, null, null);
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+        assertEquals("FULL_REDUCE", promotionService.create(req).activityType());
+    }
+
+    @Test
+    void create_blankActivityType_rejected() {
+        var req = new CreatePromotionRequest("空类型", "  ", null, null, 100L, 1, "ALL",
+                "{}", null, null, null, null);
+        assertTrue(assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                () -> promotionService.create(req)).getReason().contains("activityType"));
+    }
 }

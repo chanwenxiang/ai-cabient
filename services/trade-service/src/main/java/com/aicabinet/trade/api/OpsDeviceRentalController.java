@@ -9,7 +9,9 @@ import com.aicabinet.trade.domain.DeviceRentalDeposit;
 import com.aicabinet.trade.domain.DeviceRentalDepositEvent;
 import com.aicabinet.trade.service.DeviceRentalService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -50,10 +52,12 @@ public class OpsDeviceRentalController {
                                                             HttpServletRequest request) {
         return ApiResponse.ok(rentalService.registerDeposit(operatorId(request), str(body.get("deviceId")),
                 amount(body), str(body.get("remark")),
-                longOrNull(body.get("monthlyRefundCents")), intOrNull(body.get("refundStartMonth")),
-                longOrNull(body.get("expireRewardCents")),
-                longOrNull(body.get("installFeeDeductCents")), boolOrNull(body.get("installFeeClawbackEnabled")),
-                intOrNull(body.get("contractYears"))));
+                longOrNull("monthlyRefundCents", body.get("monthlyRefundCents")),
+                intOrNull("refundStartMonth", body.get("refundStartMonth")),
+                longOrNull("expireRewardCents", body.get("expireRewardCents")),
+                longOrNull("installFeeDeductCents", body.get("installFeeDeductCents")),
+                boolOrNull(body.get("installFeeClawbackEnabled")),
+                intOrNull("contractYears", body.get("contractYears"))));
     }
 
     @RequiresPermissions("ops:rental:manage")
@@ -116,14 +120,28 @@ public class OpsDeviceRentalController {
         return n == null ? 0L : n.longValue();
     }
 
-    private static Long longOrNull(Object v) {
-        if (v == null) return null;
-        try { return Long.parseLong(String.valueOf(v).trim()); } catch (NumberFormatException e) { return null; }
+    private static Long longOrNull(String field, Object v) {
+        if (v == null || String.valueOf(v).isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(String.valueOf(v).trim());
+        } catch (NumberFormatException e) {
+            // MA-118：原来吞掉 NumberFormatException 返回 null ⇒ 「填了但填错」和「没填」不可区分，
+            // 月退额静默丢失、contractYears 静默落到默认 5 年（而押金已经真扣了商户余额）
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " 必须是整数");
+        }
     }
 
-    private static Integer intOrNull(Object v) {
-        if (v == null) return null;
-        try { return Integer.parseInt(String.valueOf(v).trim()); } catch (NumberFormatException e) { return null; }
+    private static Integer intOrNull(String field, Object v) {
+        Long parsed = longOrNull(field, v);
+        if (parsed == null) {
+            return null;
+        }
+        if (parsed > Integer.MAX_VALUE || parsed < Integer.MIN_VALUE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " 超出可接受范围");
+        }
+        return parsed.intValue();
     }
 
     private static Boolean boolOrNull(Object v) {
