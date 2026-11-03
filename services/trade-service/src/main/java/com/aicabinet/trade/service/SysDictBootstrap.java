@@ -448,14 +448,14 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("wallet_ref_type", t("钱包关联类型", m(
                 "ORDER", "订单", "WITHDRAW", "提现", "OPS_ADJUST", "运营调账",
                 "COMMISSION_DAILY", "日结佣金", "SPLIT", "分账", "SPLIT_PARTIAL", "分账增额",
-                "SPLIT_PARTIAL_REV", "分账冲正", "SPLIT_REV", "分账冲正",
+                "SPLIT_PARTIAL_REV", "分账增额冲正", "SPLIT_REV", "分账冲正",
                 "RECHARGE", "充值", "REFUND", "退款", "SEED", "演示初始")));
         map.put("wallet_ledger_type", t("钱包账务类型", m(
                 "MERCHANT_CREDIT", "商户入账", "LINE_COMMISSION", "线长佣金",
                 "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻",
                 "WITHDRAW_PAID", "提现打款", "ADJUST", "调账", "REVERSE", "冲正",
-                "SPLIT_CREDIT", "分账入账", "SPLIT_PARTIAL_CREDIT", "分账入账",
-                "SPLIT_REVERSE", "分账冲正", "SPLIT_PARTIAL_REVERSE", "分账冲正")));
+                "SPLIT_CREDIT", "分账入账", "SPLIT_PARTIAL_CREDIT", "分账增额入账",
+                "SPLIT_REVERSE", "分账冲正", "SPLIT_PARTIAL_REVERSE", "分账增额冲正")));
         map.put("consistency_diag_code", t("一致性诊断码", m(
                 "SALE_OK", "应有 SALE 扣库流水", "MISSING_SALE", "缺少 SALE 扣库流水",
                 "INVENTORY_FLAG", "未标记已扣库", "REFUND_OR_KEPT", "应有退款/留货库存流水",

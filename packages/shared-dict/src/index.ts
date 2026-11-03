@@ -362,7 +362,7 @@ export const DICT = {
     COMMISSION_DAILY: '日结佣金',
     SPLIT: '分账',
     SPLIT_PARTIAL: '分账增额',
-    SPLIT_PARTIAL_REV: '分账冲正',
+    SPLIT_PARTIAL_REV: '分账增额冲正',
     // MA-140：RevenueSplitService 冲正实际写入的 ref_type，基线缺项=两端显示「关联/未知」
     SPLIT_REV: '分账冲正',
     RECHARGE: '充值',
@@ -391,9 +391,9 @@ export const DICT = {
     ADJUST: '调账',
     REVERSE: '冲正',
     SPLIT_CREDIT: '分账入账',
-    SPLIT_PARTIAL_CREDIT: '分账入账',
+    SPLIT_PARTIAL_CREDIT: '分账增额入账',
     SPLIT_REVERSE: '分账冲正',
-    SPLIT_PARTIAL_REVERSE: '分账冲正'
+    SPLIT_PARTIAL_REVERSE: '分账增额冲正'
   },
   fund_direction: {
     IN: '收入',
@@ -666,9 +666,9 @@ export const DICT = {
     WITHDRAW_RELEASE: '提现解冻',
     WITHDRAW_PAID: '提现打款',
     SPLIT_CREDIT: '分账入账',
-    SPLIT_PARTIAL_CREDIT: '分账入账',
+    SPLIT_PARTIAL_CREDIT: '分账增额入账',
     SPLIT_REVERSE: '分账冲正',
-    SPLIT_PARTIAL_REVERSE: '分账冲正',
+    SPLIT_PARTIAL_REVERSE: '分账增额冲正',
     RECHARGE: '充值',
     RECHARGE_REFUND: '充值退款',
     BALANCE_REFUND: '余额退款',
