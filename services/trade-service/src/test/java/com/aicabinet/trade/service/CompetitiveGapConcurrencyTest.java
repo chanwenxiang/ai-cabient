@@ -81,6 +81,25 @@ class CompetitiveGapConcurrencyTest {
     }
 
     @Test
+    void saveOpsConfig_shouldAuditOperator() {
+        when(distributedLockService.tryLock(
+                MerchantService.merchantLockKey("M-100"), 60L, 5L)).thenReturn(true);
+        when(opsConfigMapper.findByIdForUpdate("M-100")).thenReturn(java.util.Optional.empty());
+
+        service.saveOpsConfig(1L, "M-100",
+                new com.aicabinet.common.dto.MerchantOpsConfigDto(
+                        "M-100", "CAPACITY", 50, "INDEPENDENT",
+                        true, "ADD_QTY", false, false, 0));
+
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("MERCHANT_OPS_CONFIG_SAVE"),
+                org.mockito.ArgumentMatchers.eq("MERCHANT_OPS_CONFIG"),
+                org.mockito.ArgumentMatchers.eq("M-100"),
+                org.mockito.ArgumentMatchers.contains("tallyMode=INDEPENDENT"));
+        verify(distributedLockService).unlock(MerchantService.merchantLockKey("M-100"));
+    }
+
+    @Test
     void deletePhoneVerify_whenRecordMissing_unlocksLock() {
         when(distributedLockService.tryLock(
                 CompetitiveGapService.phoneVerifyLogLockKey(55L), 60L, 5L))

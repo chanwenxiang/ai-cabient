@@ -295,16 +295,16 @@ public class CompetitiveGapService {
     public MerchantOpsConfigDto saveOpsConfig(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
         permissionService.requirePermission(operatorId, "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-        return saveOpsConfigInternal(merchantId, body);
+        return saveOpsConfigInternal(operatorId, merchantId, body);
     }
 
     /** 无权限检查版本：供商户门户复用（门户侧自行校验成员身份与商户范围）。 */
     @Transactional
-    public MerchantOpsConfigDto saveOpsConfigInternal(String merchantId, MerchantOpsConfigDto body) {
-        return runWithMerchantLock(merchantId, () -> doSaveOpsConfig(merchantId, body));
+    public MerchantOpsConfigDto saveOpsConfigInternal(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
+        return runWithMerchantLock(merchantId, () -> doSaveOpsConfig(operatorId, merchantId, body));
     }
 
-    private MerchantOpsConfigDto doSaveOpsConfig(String merchantId, MerchantOpsConfigDto body) {
+    private MerchantOpsConfigDto doSaveOpsConfig(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
         MerchantOpsConfig cfg = opsConfigMapper.findByIdForUpdate(merchantId).orElseGet(MerchantOpsConfig::new);
         cfg.setMerchantId(merchantId);
         cfg.setStockingType(nz(body.stockingType(), "CAPACITY"));
@@ -324,6 +324,11 @@ public class CompetitiveGapService {
         cfg.setMaxInflightOrders(Math.max(0, Math.min(2, body.maxInflightOrders())));
         cfg.setUpdatedAt(Instant.now());
         opsConfigMapper.save(cfg);
+        auditService.appendLog(operatorId, "MERCHANT_OPS_CONFIG_SAVE", "MERCHANT_OPS_CONFIG", merchantId,
+                "stockingType=" + cfg.getStockingType() + ",stockoutThresholdPct=" + cfg.getStockoutThresholdPct()
+                        + ",tallyMode=" + cfg.getTallyMode() + ",useStockingList=" + cfg.getUseStockingList()
+                        + ",replenishInputType=" + cfg.getReplenishInputType()
+                        + ",maxInflightOrders=" + cfg.getMaxInflightOrders());
         return toOpsConfigDto(cfg);
     }
 

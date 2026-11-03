@@ -224,7 +224,7 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         permissionService.requirePermission(userId, "merchant:replenishment:request");
         String target = resolveMyMerchant(userId, merchantId);
-        return competitiveGapService.saveOpsConfigInternal(target, body);
+        return competitiveGapService.saveOpsConfigInternal(userId, target, body);
     }
 
     private String resolveMyMerchant(Long userId, String merchantId) {
