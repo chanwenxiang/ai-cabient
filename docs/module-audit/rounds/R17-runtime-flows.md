@@ -35,3 +35,45 @@
 ### 未挣 / 待批
 
 - **8 组合矩阵（活动×券×会员全组合）+ 部分退路径 + 余额+微信组合支付**未跑：活栈路需要消费端 token + 模拟柜开门机械（automator 不可无人值守）；干净路径是扩展 `MemberOrderChainE2ETest` 成矩阵——但**写测试代码越过「审/修」线，需用户拍板**（R11 段 1 有「E2E 形态交付」先例）。两案留批 2：①授权写矩阵 E2E；②白天活栈人工跑。
+
+## 批 2（2026-11-03 上午，用户授权矩阵 E2E，R11 段 1 先例）
+
+**交付物**：`services/trade-service/src/test/java/com/aicabinet/trade/e2e/SettlementComboMatrixE2ETest.java`（入仓随 CI，Testcontainers 真 PG 全链真 HTTP）。
+**结果**：1/0 绿；与 `MemberOrderChainE2ETest` 同跑回归 2/0。
+
+### ① 8 组合矩阵（会员×活动×券，全链真结算）
+
+| 组合 | gross | member | activity | coupon | total | lineSum | 券状态 | 关键判据 |
+|------|-------|--------|----------|--------|-------|---------|--------|----------|
+| 0-0-0 | 700 | 0 | 0 | 0 | 700 | 700 | - | 毛额=目录价×2，恒等式 ✓ |
+| 1-0-0 | 700 | 14 | 0 | 0 | 686 | 686 | - | member=gross−Σ行（只在单价折一次）✓ |
+| 0-1-0 | 700 | 0 | 200 | 0 | 500 | 500 | - | activity 端到端 ✓ |
+| 0-0-1 | 700 | 0 | 0 | 200 | 500 | 700 | **USED** | 券自动选用+核销 ✓ |
+| 1-1-0 | 700 | 14 | 200 | 0 | 486 | 486 | - | 先会员后活动、member+activity=gross−Σ行 ✓ |
+| 1-1-1 | 700 | 14 | 200 | **0** | 486 | 486 | **UNUSED** | 🔴 **CB-082 活动优先禁券端到端实锤**（有券在手也未被占用） |
+| 1-0-1 | 700 | 14 | 0 | 200 | 486 | 686 | USED | 会员+券可叠加 ✓ |
+| 0-1-1 | 700 | 0 | 200 | 0 | 500 | 500 | UNUSED | 活动禁券（无会员形态）✓ |
+
+每组合同时断言：恒等式 `gross−member−activity−coupon=total`、折后式 `Σ行−coupon=total`、**consumer 与 merchant 读面五字段逐一等于落库（R16 运行时·订单实体腿）**。
+
+### ② 全额退三面（独立券单链）
+
+退款 150/150 对平、订单 REFUNDED、**分账 VOIDED、钱包净额冲平（SPLIT_CREDIT +150 / SPLIT_REVERSE −150，按 ref_id 求和=0）**；券仍 USED ⇒ **新发现 MA-147（P2）**，测试已按「已知行为」钉断言（修复后翻转即回归位）。
+
+### ③ 部分退三面（会员+活动 qty=2 退 1）
+
+refunded=243（=实付一半，预估==写侧端到端）、gross=700 不变（V424 契约）、折后式闭合、**分账保份额 LEDGER_ONLY 且钱包净额=剩余商户份额 243（SPLIT_PARTIAL_REVERSE 差额冲回已入账，AU-182 端到端实证）**；MA-129 已知缺口实测留痕：拆解缺口 350（gross 700 − member 7 − activity 100 − total 243），与静态审计结论一致。
+
+### ④ 补扣链腿（MA-039 端到端）
+
+剧本：余额充足开门（冻结 300）→ 购物后 balance 改 350 → 结算 capture 300 后余款不足 ⇒ MA-066 信号转 **PENDING**（pendingTotal=486 原样保留=MA-040 ✓、PENDING 不占券=MA-067 ✓）→ 充值 → pay ⇒ **paidCoupon=0、couponUser=UNUSED（MA-039 补扣禁券端到端实锤）**、分账/钱包正常闭合。
+
+### 过程发现（不入账的环境/测试契约认知）
+
+- `CheckoutProperties.resolvePreauthCents` 0 值回落 `MIN_BALANCE_CENTS=2000`（防呆）——关预授权的正确姿势是 device.deposit_cents 与 system_config 同改；
+- 预授权冻结只动 frozen 列、capture 才扣 balance 列——「低余额开门被拦 vs 结算转 PENDING」是两道不同的闸；
+- 11 条链同用户会撞 session 限流 20/h 与风控开门 5/h（测试属性放宽）。
+
+### 未挣
+
+- **余额+微信组合支付**（R17 批 3 剩余项）：需要微信渠道 mock 环境的 prepay/capture 联动，Testcontainers 单渠道 mock 覆盖不到，留待下次（活栈或 CI 扩展）。
