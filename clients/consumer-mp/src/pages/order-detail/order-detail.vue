@@ -42,8 +42,12 @@
           </view>
           <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
           <view class="total-row">
-            <text class="total-label">商品合计</text>
-            <text class="total-amount">{{ fmtMoney(grossCents) }}</text>
+            <text class="total-label">{{
+              refundedShownCents > 0 ? '剩余商品合计' : '商品合计'
+            }}</text>
+            <text class="total-amount">{{
+              fmtMoney(refundedShownCents > 0 ? remainingGrossCents : grossCents)
+            }}</text>
           </view>
           <!-- MA-024：与购物结果页同口径把「会员 / 活动 / 券」三档摊开，
                任何一档为 0 就不占行；合计 − 各档 = 实付 必须能被用户自己算平。 -->
@@ -394,6 +398,21 @@ const activityShownCents = computed(() =>
   Math.max(0, Number(order.value?.activityDiscountCents ?? 0))
 );
 const couponShownCents = computed(() => Math.max(0, Number(order.value?.couponDiscountCents ?? 0)));
+/**
+ * MA-129（拍板：选②「补一行剩余合计」，不动资金算式）：
+ * 部分退后后端把 member/activity 等比缩、gross **不缩**（OrderPaymentLedger 契约：毛额不随
+ * 部分退款变小），于是「商品合计 − 三档」比实付多出一截，且退款行只交代现金退款额，
+ * 用户算不平 MA-024 承诺的「合计 − 各档 = 实付」。
+ * 不新增后端字段：剩余毛额由四列恒等式直接得出（剩余合计 = 实付 + 券 + 会员 + 活动）。
+ */
+const remainingGrossCents = computed(
+  () =>
+    Number(order.value?.totalAmountCents ?? 0) +
+    memberShownCents.value +
+    activityShownCents.value +
+    couponShownCents.value
+);
+const refundedShownCents = computed(() => Math.max(0, Number(order.value?.refundedCents ?? 0)));
 const memberShownCents = computed(() => {
   const o = order.value;
   if (!o) return 0;
