@@ -16,6 +16,7 @@
     "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-rbac --filter @aicabinet/shared-api build",
     "check:shared": "pnpm build:packages && pnpm --filter @aicabinet/shared-rbac test && pnpm check:nav-perms",
     "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
+    "ui:screenshot": "node scripts/ui-screenshot-runner.mjs",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
     "check:admin-table-align": "node scripts/check-admin-table-align.mjs",
     "check:admin-page-size": "node scripts/check-admin-page-size.mjs",

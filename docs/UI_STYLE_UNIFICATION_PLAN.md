@@ -115,7 +115,8 @@
   - ✅ Skill 已落 `.cursor/skills/ui-style-guide/SKILL.md`（硬规则/色板三阶速查/四层提示+组件/文案口径/验收面/门禁命令/已拍板禁区七节），并登记进 `ai-cabinet-dev-test` 路由表 + `PROJECT_KNOWLEDGE.md` §7.1；路由表原「小程序 UI → Playwright/H5」已订正为**微信开发者工具模拟器（非 H5）**。
   - ✅ 最终验收复跑：三端单测 consumer 172 / merchant 253 / admin 131 全绿（与 Phase 2 基线一致，零回归）；消费端 7 个改动列表页 + 商户端 14 个改动页在微信模拟器实跑 **bad=0**（骨架屏全部正常复位、真实数据渲染：订单 29 / 余额 ¥47.57 / 消息 77 未读）；admin 本轮无新改动（Phase 2.3/3 的 Chrome 亮/暗实证仍有效）。
   - ⚠️ 复跑中发现并修复的环境问题（非代码缺陷）：本机 WLAN IP 由 `192.168.0.26` 变为 `192.168.0.199`，两端 `.env.development` / merchant `.env.development.local` 仍烤旧 IP ⇒ 请求连不到网关、列表停在骨架屏（旧版会同样停在「加载中…」）。跑 `node scripts/sync-consumer-mp-api.mjs` 重选 + 手工更新 `.local` 后重烤即恢复。**网络变更后跑 mp 验收前必须先重烤 env**，否则会把 IP 漂移误判成骨架屏 bug。
-  - ⏳ 剩 1 项待拍板：截图基线棘轮 runner 的定位（本地 pre-push + 交付前人工复核）——用户确认后再写。
+  - ✅ 截图基线 runner 已写（用户认可「本地 pre-push + 交付前人工复核」定位）：`scripts/ui-screenshot-runner.mjs` + 页面清单 `scripts/ui-screenshot-pages.json`。三模式 capture/`--promote`/`--mode=check`，健康判据=白屏/console error/骨架屏 7s 未复位记 FAIL，其余与基线字节比对给 SAME/CHANGED（CHANGED 交人工看两张图，数据变化也会触发）；截图与基线都在 `.tmp/ui-baseline/`（gitignore，与「不入库」拍板一致）。**三端端到端实跑**：admin 9 页 × 亮/暗 18 张 FAIL=0（暗色主题、HelpTip 问号、真实订单列表均在）、consumer 7 页、merchant 14 页 FAIL=0。
+  - ⚠️ 实跑中抓到的两个**环境坑**（都不是样式回归，已写进 skill §5）：① 商户端 `dist/dev` 的 wxml/wxss scoped 哈希不一致（`a1958b82` vs `0cd09a48`）⇒ 模拟器整页无样式，根因是**另一会话在用的 `uni.js` 增量 watcher 与全量构建交叉写 dist/dev**（该会话 src 30 分钟内仍在改 ⇒ watcher 不能杀）⇒ 验收面切 `dist/build/mp-weixin` 即恢复；② admin `:3100` 的 vite 依赖预构建缓存过期 ⇒ 动态 import 回 504 Outdated Optimize Dep ⇒ `/orders` `/devices` `/warehouse` 只剩「跳到主内容」，**需用户重启 dev server**（runner 已能识别并在 FAIL 文案里点破）。
 
 ## 依赖与工具
 
