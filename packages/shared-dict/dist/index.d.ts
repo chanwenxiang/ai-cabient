@@ -292,6 +292,27 @@ export declare const DICT: {
         readonly DISABLED: "停用";
     };
     /** 商户/线长钱包流水 · 关联业务类型 */
+    readonly sku_operation_scope: {
+        readonly DIRECT: "直营";
+        readonly NON_DIRECT: "非直营";
+    };
+    readonly ops_fee_type: {
+        readonly SITE_RENT: "场地租金";
+        readonly DATA_FEE: "流量费";
+    };
+    readonly device_fault_code: {
+        readonly OFFLINE_TIMEOUT: "离线超时";
+        readonly TEMP_ABNORMAL: "温度异常";
+        readonly DOOR_STUCK: "门锁异常";
+        readonly CAMERA_FAULT: "摄像头故障";
+        readonly NETWORK_UNSTABLE: "网络不稳";
+        readonly POWER_FAULT: "供电异常";
+    };
+    readonly risk_disposition_status: {
+        readonly OPEN: "待处置";
+        readonly AUTO_CLEARED: "自动结清";
+        readonly ACKED: "已确认";
+    };
     readonly wallet_ref_type: {
         readonly ORDER: "订单";
         readonly WITHDRAW: "提现";
@@ -299,7 +320,8 @@ export declare const DICT: {
         readonly COMMISSION_DAILY: "日结佣金";
         readonly SPLIT: "分账";
         readonly SPLIT_PARTIAL: "分账增额";
-        readonly SPLIT_PARTIAL_REV: "分账冲正";
+        readonly SPLIT_PARTIAL_REV: "分账增额冲正";
+        readonly SPLIT_REV: "分账冲正";
         readonly RECHARGE: "充值";
         readonly REFUND: "退款";
         readonly SEED: "演示初始";
@@ -326,9 +348,9 @@ export declare const DICT: {
         readonly ADJUST: "调账";
         readonly REVERSE: "冲正";
         readonly SPLIT_CREDIT: "分账入账";
-        readonly SPLIT_PARTIAL_CREDIT: "分账入账";
+        readonly SPLIT_PARTIAL_CREDIT: "分账增额入账";
         readonly SPLIT_REVERSE: "分账冲正";
-        readonly SPLIT_PARTIAL_REVERSE: "分账冲正";
+        readonly SPLIT_PARTIAL_REVERSE: "分账增额冲正";
     };
     readonly fund_direction: {
         readonly IN: "收入";
@@ -503,6 +525,20 @@ export declare const DICT: {
         readonly SETTLEMENT_STUCK: "结算滞留";
         readonly INVENTORY_MISMATCH: "库存差异";
         readonly SLOT_DISCREPANCY: "货道账实差异";
+        readonly JIANGYI_CLASS_MAPPING_MISS: "将邑识别映射未命中";
+        readonly TEMP_ABNORMAL: "温度异常";
+        readonly RESTOCK_SESSION_TIMEOUT: "补货会话超时";
+        readonly RESTOCK_RECOGNITION_TIMEOUT: "补货识别超时";
+        readonly RESTOCK_TASK_TIMEOUT: "补货任务超时";
+        readonly FAILED_SESSION_HOLD_CLEAR: "会话预授权悬挂已清扫";
+        readonly DISPUTE_ADJUST_MISMATCH: "争议补差账实漂移";
+        readonly COUPON_MARKUSED_FAILED: "券核销失败";
+        readonly CHARGE_PENDING_STALE: "渠道扣款回执超时";
+        readonly UNPAID_CANCEL_NET_BLOCKED: "待支付净入账阻断取消";
+        readonly SCHEDULED_TASK_STALE: "定时任务停摆";
+        readonly SCHEDULING_POOL_CAPACITY_RISK: "调度并发超连接池上限";
+        readonly XXL_JOB_WIRING_BROKEN: "XXL-JOB 执行器接线异常";
+        readonly SPLIT_EXCEPTION: "分账待跟进";
         readonly VISION_ANOMALY: "视觉异常（端侧）";
     };
     readonly ops_exception_action: {
@@ -596,9 +632,9 @@ export declare const DICT: {
         readonly WITHDRAW_RELEASE: "提现解冻";
         readonly WITHDRAW_PAID: "提现打款";
         readonly SPLIT_CREDIT: "分账入账";
-        readonly SPLIT_PARTIAL_CREDIT: "分账入账";
+        readonly SPLIT_PARTIAL_CREDIT: "分账增额入账";
         readonly SPLIT_REVERSE: "分账冲正";
-        readonly SPLIT_PARTIAL_REVERSE: "分账冲正";
+        readonly SPLIT_PARTIAL_REVERSE: "分账增额冲正";
         readonly RECHARGE: "充值";
         readonly RECHARGE_REFUND: "充值退款";
         readonly BALANCE_REFUND: "余额退款";

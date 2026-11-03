@@ -131,6 +131,8 @@ export const DICT = {
         ALIPAY: '支付宝'
     },
     /** 站内信 / notification_log.biz_type */
+    // MA-142：DISPUTE 在 consumer 端展示「售后」、merchant 端展示「争议」是**有意**的受众话术差异
+    // （双方对同一业务的惯用词不同），对齐口径时以此为据，不要当缺陷改；活动触达复用营销组值。
     notification_biz_type: {
         ORDER: '订单',
         RECHARGE: '充值',
@@ -307,6 +309,28 @@ export const DICT = {
         DISABLED: '停用'
     },
     /** 商户/线长钱包流水 · 关联业务类型 */
+    // MA-144：DB（V349）有、基线无——runtime 未加载时 SkuListView 首屏闪「未知」
+    sku_operation_scope: {
+        DIRECT: '直营',
+        NON_DIRECT: '非直营'
+    },
+    ops_fee_type: {
+        SITE_RENT: '场地租金',
+        DATA_FEE: '流量费'
+    },
+    device_fault_code: {
+        OFFLINE_TIMEOUT: '离线超时',
+        TEMP_ABNORMAL: '温度异常',
+        DOOR_STUCK: '门锁异常',
+        CAMERA_FAULT: '摄像头故障',
+        NETWORK_UNSTABLE: '网络不稳',
+        POWER_FAULT: '供电异常'
+    },
+    risk_disposition_status: {
+        OPEN: '待处置',
+        AUTO_CLEARED: '自动结清',
+        ACKED: '已确认'
+    },
     wallet_ref_type: {
         ORDER: '订单',
         WITHDRAW: '提现',
@@ -314,7 +338,9 @@ export const DICT = {
         COMMISSION_DAILY: '日结佣金',
         SPLIT: '分账',
         SPLIT_PARTIAL: '分账增额',
-        SPLIT_PARTIAL_REV: '分账冲正',
+        SPLIT_PARTIAL_REV: '分账增额冲正',
+        // MA-140：RevenueSplitService 冲正实际写入的 ref_type，基线缺项=两端显示「关联/未知」
+        SPLIT_REV: '分账冲正',
         RECHARGE: '充值',
         REFUND: '退款',
         SEED: '演示初始'
@@ -341,9 +367,9 @@ export const DICT = {
         ADJUST: '调账',
         REVERSE: '冲正',
         SPLIT_CREDIT: '分账入账',
-        SPLIT_PARTIAL_CREDIT: '分账入账',
+        SPLIT_PARTIAL_CREDIT: '分账增额入账',
         SPLIT_REVERSE: '分账冲正',
-        SPLIT_PARTIAL_REVERSE: '分账冲正'
+        SPLIT_PARTIAL_REVERSE: '分账增额冲正'
     },
     fund_direction: {
         IN: '收入',
@@ -509,6 +535,22 @@ export const DICT = {
         SETTLEMENT_STUCK: '结算滞留',
         INVENTORY_MISMATCH: '库存差异',
         SLOT_DISCREPANCY: '货道账实差异',
+        // MA-143：以下 14 值此前只在 DB/Bootstrap（G7 §7.27 补集 + 将邑码），
+        // runtime 未加载时 admin 首屏落「未知」——三源对齐
+        JIANGYI_CLASS_MAPPING_MISS: '将邑识别映射未命中',
+        TEMP_ABNORMAL: '温度异常',
+        RESTOCK_SESSION_TIMEOUT: '补货会话超时',
+        RESTOCK_RECOGNITION_TIMEOUT: '补货识别超时',
+        RESTOCK_TASK_TIMEOUT: '补货任务超时',
+        FAILED_SESSION_HOLD_CLEAR: '会话预授权悬挂已清扫',
+        DISPUTE_ADJUST_MISMATCH: '争议补差账实漂移',
+        COUPON_MARKUSED_FAILED: '券核销失败',
+        CHARGE_PENDING_STALE: '渠道扣款回执超时',
+        UNPAID_CANCEL_NET_BLOCKED: '待支付净入账阻断取消',
+        SCHEDULED_TASK_STALE: '定时任务停摆',
+        SCHEDULING_POOL_CAPACITY_RISK: '调度并发超连接池上限',
+        XXL_JOB_WIRING_BROKEN: 'XXL-JOB 执行器接线异常',
+        SPLIT_EXCEPTION: '分账待跟进',
         VISION_ANOMALY: '视觉异常（端侧）'
     },
     ops_exception_action: {
@@ -600,9 +642,9 @@ export const DICT = {
         WITHDRAW_RELEASE: '提现解冻',
         WITHDRAW_PAID: '提现打款',
         SPLIT_CREDIT: '分账入账',
-        SPLIT_PARTIAL_CREDIT: '分账入账',
+        SPLIT_PARTIAL_CREDIT: '分账增额入账',
         SPLIT_REVERSE: '分账冲正',
-        SPLIT_PARTIAL_REVERSE: '分账冲正',
+        SPLIT_PARTIAL_REVERSE: '分账增额冲正',
         RECHARGE: '充值',
         RECHARGE_REFUND: '充值退款',
         BALANCE_REFUND: '余额退款',
