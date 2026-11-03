@@ -201,7 +201,23 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻", "WITHDRAW_PAID", "提现打款",
                 "SPLIT_CREDIT", "分账入账", "SPLIT_REVERSE", "分账退回",
                 "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
-                "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费")));
+                "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费",
+                // V436（MA-132/133）：后端真实写入但字典缺项，补种必须与迁移同步
+                "COMMISSION_CLAWBACK", "佣金冲回", "WITHDRAW_FEE", "提现手续费",
+                "WITHDRAW_PAYOUT", "提现出账")));
+        // V436（MA-135）：notification_log.biz_type 此前根本不在自愈目录里
+        // （V225 只种了 11 值，DAILY_INCOME/FEE_REMINDER 是后来调度器新增的下发值）
+        // ⇒ ensureMissingDictItems 连「该类型存在」都不知道，永远补不出来。
+        map.put("notification_biz_type", t("站内信业务类型", m(
+                "ORDER", "订单", "RECHARGE", "充值", "REPLENISHMENT", "补货",
+                "DISPUTE", "争议/售后", "COUPON", "优惠券", "POINTS", "积分",
+                "RECALL", "用户召回", "MERCHANT", "商户通知", "SETTLEMENT", "结算",
+                "SESSION", "购物会话", "OPS_MANUAL", "运营手工",
+                "DAILY_INCOME", "日结收入", "FEE_REMINDER", "欠费提醒")));
+        // V436（MA-131）：设备租赁账单状态此前无字典，admin 自造 map 把作废写成 VOIDED
+        // 而后端常量是 VOID ⇒ 状态裸码 +「已作废」筛选恒空。词表对齐同族 site_rent_bill_status。
+        map.put("device_rental_bill_status", t("设备租赁账单状态", m(
+                "UNPAID", "待付", "PAID", "已付", "VOID", "已作废")));
         map.put("session_kind", t("会话类型", m(
                 "CONSUMER", "消费", "RESTOCK", "补货", "OPS", "运维", "STOCKTAKE", "盘点")));
         map.put("restock_line_type", t("补货行类型", m(
@@ -310,7 +326,11 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
         map.put("supplier_status", t("供应商状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用")));
         map.put("purchase_order_status", t("采购单状态", m(
-                CREATED, "待收货", "PARTIAL_RECEIVED", "部分收货", RECEIVED, "已收货", STATUS_CANCELLED, "已取消")));
+                // V436（MA-134）：PENDING_APPROVAL/REJECTED 是 ProcurementService 在写的值，
+                // 目录缺它们 ⇒ 自愈补不出来，admin「待审批」与 mp「待审核」两词并存
+                CREATED, "待收货", "PARTIAL_RECEIVED", "部分收货", RECEIVED, "已收货",
+                STATUS_CANCELLED, "已取消", "PENDING_APPROVAL", "待审批",
+                STATUS_REJECTED, "已驳回")));
         map.put("warehouse_status", t("仓库状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "正常", INACTIVE, "停用")));
         map.put("warehouse_outbound_status", t("出库单状态", m(
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "待拣货", "PICKED", "已拣货", "SHIPPED", "已领出", STATUS_CANCELLED, "已取消")));

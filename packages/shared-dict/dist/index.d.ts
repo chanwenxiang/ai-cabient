@@ -119,6 +119,14 @@ export declare const DICT: {
         readonly SETTLEMENT: "结算";
         readonly SESSION: "购物会话";
         readonly OPS_MANUAL: "运营手工";
+        readonly DAILY_INCOME: "日结收入";
+        readonly FEE_REMINDER: "欠费提醒";
+    };
+    /** 设备租赁账单状态（V436，MA-131）：词表与 site_rent_bill_status 同族对齐 */
+    readonly device_rental_bill_status: {
+        readonly UNPAID: "待付";
+        readonly PAID: "已付";
+        readonly VOID: "已作废";
     };
     readonly recharge_status: {
         readonly CREATED: "已创建";
@@ -600,6 +608,9 @@ export declare const DICT: {
         readonly SETTLE: "结算入账";
         readonly PAYOUT: "打款";
         readonly FEE: "手续费";
+        readonly COMMISSION_CLAWBACK: "佣金冲回";
+        readonly WITHDRAW_FEE: "提现手续费";
+        readonly WITHDRAW_PAYOUT: "提现出账";
     };
     readonly session_kind: {
         readonly CONSUMER: "消费";

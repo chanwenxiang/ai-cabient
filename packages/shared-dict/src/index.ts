@@ -166,8 +166,13 @@ export const DICT = {
     MERCHANT: '商户通知',
     SETTLEMENT: '结算',
     SESSION: '购物会话',
-    OPS_MANUAL: '运营手工'
+    OPS_MANUAL: '运营手工',
+    // V436（MA-135）：每日批量落库的两个高频值，缺它们 admin 站内信页整片「未知」
+    DAILY_INCOME: '日结收入',
+    FEE_REMINDER: '欠费提醒'
   },
+  /** 设备租赁账单状态（V436，MA-131）：词表与 site_rent_bill_status 同族对齐 */
+  device_rental_bill_status: { UNPAID: '待付', PAID: '已付', VOID: '已作废' },
   recharge_status: {
     CREATED: '已创建',
     PENDING: '待支付',
@@ -630,7 +635,11 @@ export const DICT = {
     REFUND: '退款',
     SETTLE: '结算入账',
     PAYOUT: '打款',
-    FEE: '手续费'
+    FEE: '手续费',
+    // V436（MA-132/133）：后端真实写入但字典缺项（佣金冲回 / 提现手续费 / 补货员出账）
+    COMMISSION_CLAWBACK: '佣金冲回',
+    WITHDRAW_FEE: '提现手续费',
+    WITHDRAW_PAYOUT: '提现出账'
   },
   session_kind: {
     CONSUMER: '消费',

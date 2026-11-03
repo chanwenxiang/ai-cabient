@@ -52,7 +52,7 @@
             <el-select v-model="billStatus" clearable placeholder="全部" style="width: 120px">
               <el-option label="未付" value="UNPAID" />
               <el-option label="已付" value="PAID" />
-              <el-option label="已作废" value="VOIDED" />
+              <el-option label="已作废" value="VOID" />
             </el-select>
           </el-form-item>
           <el-form-item label="设备">
@@ -352,6 +352,7 @@ import { CircleCheck, CircleClose, Money, Refresh, Tickets } from '@element-plus
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { displayLabel } from '@aicabinet/shared-dict';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
@@ -430,19 +431,16 @@ const billsCrud = useCrudTable<RentalBill>({
   errorMessage: '账单加载失败'
 });
 
-const BILL_LABELS: Record<string, string> = {
-  UNPAID: '未付',
-  PAID: '已付',
-  VOIDED: '已作废'
-};
-
+// MA-131：原先本地 map 把作废写成 `VOIDED`，而后端常量是 FEE_BILL_STATUS_VOID=`VOID`
+// ⇒ 状态列裸显 "VOID"、且「已作废」筛选值传到 mapper 的 eq(status) 后恒查空。
+// 改走 shared-dict 单源（V436 已补 device_rental_bill_status），词表与 site_rent_bill_status 对齐。
 function billLabel(s: string) {
-  return BILL_LABELS[s] || s;
+  return displayLabel('device_rental_bill_status', s, '未知状态');
 }
 
 function billTagType(s: string) {
   if (s === 'PAID') return 'success';
-  if (s === 'VOIDED') return 'info';
+  if (s === 'VOID') return 'info';
   return 'danger';
 }
 
