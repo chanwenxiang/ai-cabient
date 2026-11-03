@@ -30,7 +30,7 @@ class SettlementSessionSettleConcurrencyTest {
     void setUp() {
         SettlementWaiveRefundService waiveRefundService = new SettlementWaiveRefundService(
                 sessionRepository, orderRepository, null,
-                null, null, null, distributedLockService, null);
+                null, null, null, distributedLockService, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,

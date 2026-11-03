@@ -592,6 +592,18 @@ public class CouponService {
         return newDiscount;
     }
 
+    /**
+     * 全额退的券结清（MA-147）。<b>单源仍在 {@link #settleAfterPartialRefund}</b>——
+     * 全额退就是它的 {@code newSubtotal <= 0} 分支（USED→UNUSED 的 CAS + 仅当券定义带
+     * activity_id 才回补预算）。包一层只为让调用方表达意图，别处不再抄第二遍返还逻辑。
+     *
+     * @param order 调用方须在 save <b>之前</b>调：本方法会清 couponId 并把抵扣归零
+     */
+    @Transactional
+    public int settleAfterFullRefund(CabinetOrder order) {
+        return settleAfterPartialRefund(order, 0, 0);
+    }
+
     private void releasePromotionBudgetIfAny(CouponDefinition def) {
         if (def == null || def.getActivityId() == null) {
             return;

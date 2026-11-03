@@ -39,6 +39,7 @@ class SettlementWaiveInventoryTest {
     @Mock InventoryService inventoryService;
     @Mock OrderPaymentService orderPaymentService;
     @Mock RevenueSplitService revenueSplitService;
+    @Mock CouponService couponService;
     @Mock ShoppingSessionMapper sessionRepository;
     @Mock DistributedLockService distributedLockService;
 
@@ -49,7 +50,7 @@ class SettlementWaiveInventoryTest {
         SettlementWaiveRefundService waiveRefundService = new SettlementWaiveRefundService(
                 sessionRepository, orderRepository, null,
                 orderPaymentService, inventoryService, revenueSplitService,
-                distributedLockService, null);
+                distributedLockService, couponService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(waiveRefundService, "self", waiveRefundService);
         settlementService = new SettlementService(
                 sessionRepository, orderRepository,

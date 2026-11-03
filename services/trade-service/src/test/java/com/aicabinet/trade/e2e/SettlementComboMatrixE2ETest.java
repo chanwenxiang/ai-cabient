@@ -173,12 +173,15 @@ class SettlementComboMatrixE2ETest {
         OrderRow fr = readOrderRow(fullRefundOrder);
         assertEquals("REFUNDED", fr.status(), "全额退终态");
         assertEquals(frTotal, fr.refunded(), "全额退退款额=实付");
-        // 🔴 MA-147（本矩阵实测领号，P2）：全额退不返还已核销券——waiveAndRefund 路径全文无券处理，
-        // 券返还（restoreUsedToUnused + 预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund）。
-        // 修复后请把下一行断言翻转为 "UNUSED"（本行即回归测试位）。
-        assertEquals("USED", jdbc.queryForObject(
+        // MA-147 已修（2026-11-03 批次C）：全额退的券结清走 CouponService.settleAfterFullRefund
+        // （单源仍是 settleAfterPartialRefund 的 newSubtotal<=0 分支），本行即登记时预留的回归位。
+        assertEquals("UNUSED", jdbc.queryForObject(
                 "SELECT status FROM user_coupon WHERE coupon_id = ?", String.class, fullRefundCouponId),
-                "MA-147 已知行为：全额退后券仍 USED（修复后翻转此断言）");
+                "MA-147：全额退必须把已核销券返还账户（USED→UNUSED）");
+        Object couponIdAfterRefund = jdbc.queryForObject(
+                "SELECT coupon_id FROM cabinet_order WHERE order_id = ?", Object.class, fullRefundOrder);
+        assertTrue(couponIdAfterRefund == null,
+                "MA-147：券返还后订单头不得再挂 coupon_id，实际=" + couponIdAfterRefund);
         Map<String, Object> frSplit = jdbc.queryForMap(
                 "SELECT split_id, status FROM order_revenue_split WHERE order_id = ?", fullRefundOrder);
         String frSplitStatus = String.valueOf(frSplit.get("status"));

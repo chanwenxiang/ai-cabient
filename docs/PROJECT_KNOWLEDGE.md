@@ -683,6 +683,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-03（批次C：全额退返还券 MA-147——单源复用，顺序是硬约束）
+
+- `SettlementWaiveRefundService.finalizeWaiveRefund` 原来全文零券处理：钱退了、已核销券不返还、活动预算永久占用。
+  修法是把**已有**的全额退分支接上——`CouponService.settleAfterFullRefund` 只是 `settleAfterPartialRefund(order, 0, 0)`
+  的具名包装（预算回补仍以 `activity_id` 为条件），waive 侧不抄第二遍。调用点必须在 `save` **之前**：
+  结清会清 `coupon_id`/抵扣归零，save 之后改内存不落库。
+- 对端会话在 `SettlementComboMatrixE2ETest` 预留的「修复后翻转此断言」回归位已翻成 `UNUSED`，并加断言
+  「返还后订单头不得再挂 coupon_id」；钉测 2 例用 `InOrder` 钉死顺序（`SettlementWaiveCouponReturnTest`）。
+  `releaseStaleUsedCouponsForOrder` 只治错绑脏券，不能当本条修法。
+
 ### 2026-11-03（80 条 open 逐条回源码复核 → 批次A/B 收口：资金参数限幅单源 + 两条零归因；MA-081 撤账、9 条 500 口径订正、新增 MA-149）
 
 - **先复核再修**：80 条 open（P2×19 / P3×61）全部回源码取证，主会话对每一条要修的证据**亲自重读**。

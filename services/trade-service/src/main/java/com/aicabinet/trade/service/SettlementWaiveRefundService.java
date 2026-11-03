@@ -36,6 +36,7 @@ public class SettlementWaiveRefundService {
     private final InventoryService inventoryService;
     private final RevenueSplitService revenueSplitService;
     private final DistributedLockService distributedLockService;
+    private final CouponService couponService;
     private final SettlementWaiveRefundService self;
 
     public SettlementWaiveRefundService(ShoppingSessionMapper sessionRepository,
@@ -45,6 +46,7 @@ public class SettlementWaiveRefundService {
                                         InventoryService inventoryService,
                                         RevenueSplitService revenueSplitService,
                                         DistributedLockService distributedLockService,
+                                        CouponService couponService,
                                         @Lazy SettlementWaiveRefundService self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -53,6 +55,7 @@ public class SettlementWaiveRefundService {
         this.inventoryService = inventoryService;
         this.revenueSplitService = revenueSplitService;
         this.distributedLockService = distributedLockService;
+        this.couponService = couponService;
         this.self = self;
     }
 
@@ -125,6 +128,10 @@ public class SettlementWaiveRefundService {
             performWaiveRestore(order);
         }
         order.setStatus(CabinetConstants.ORDER_STATUS_REFUNDED);
+        // MA-147：全额退（争议免单/运营全额退款）此前全文零券处理——已核销券不返还、
+        // 活动预算永久占用。结清单源在 CouponService，且必须在 save 之前调：
+        // 它清 couponId / 把抵扣归零，save 之后只改内存不会落库。
+        couponService.settleAfterFullRefund(order);
         orderRepository.save(order);
         revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
         log.info("争议免单退款完成 order={} refund={} channel={} restoreInventory={}",
