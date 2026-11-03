@@ -1138,6 +1138,6 @@
 ### 批次 M｜MA-103 真并发 IT（含反向对照）
 
 - 新增 `CloseClaimAndExpiryTaskRowLockSqlIT`：Testcontainers PG + Redis，两条腿各起 2 线程、同一闸门外放行打**同一行**。
-- 判据（有锁态）：`inventory_write_off`（按本次 claimNo）恰 1 行、`replenishment_task` 中 `notes LIKE 'from-exppiry:<taskId>%'` 恰 1 条；两个结果**必为 1 成功 + 1 个 409**（409 由服务层「已处置/已处理」判据给出，不是时间错开的运气）；行状态 CLAIM + `claim_write_off_id` 回写、告警 RESOLVED + `resolved_at`。实测 2/2 绿。
+- 判据（有锁态）：`inventory_write_off`（按本次 claimNo）恰 1 行、`replenishment_task` 中 `notes LIKE 'from-expiry:<taskId>%'` 恰 1 条；两个结果**必为 1 成功 + 1 个 409**（409 由服务层「已处置/已处理」判据给出，不是时间错开的运气）；行状态 CLAIM + `claim_write_off_id` 回写、告警 RESOLVED + `resolved_at`。实测 2/2 绿。
 - **反向对照（证明这条 IT 能抓缺陷，不是同义反复）**：临时把两处读改回无锁 `selectById`（其余逻辑不动）重跑 ⇒ **两条腿同时红**，原文 `同一盘亏行挂出多笔索赔台账 … expected: <1> but was: <2>`、`同一条临期告警双建补货任务 … expected: <1> but was: <2>`——正是台账写的双挂本体。改完立即 `git checkout --` 复原（已核：`NEGATIVE-CONTROL` 计数 0，工作树该两文件无残留）。
 - 播种教训：`pull_off_task.device_id` 有 FK，而 V2 的演示设备在后续清库迁移里已被删 ⇒ 首跑 `DataIntegrityViolation`。IT 自播 device/sku/warehouse（`ON CONFLICT DO NOTHING`），不依赖演示数据。
