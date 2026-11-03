@@ -83,7 +83,7 @@
 | MA-071 | P3 | open | OpsRbacService 三个分配端点 | 整删整插 body 裸 List 无去重，重复 ID 触发复合主键 DuplicateKey→500（应 200 去重或 400）；roles/{id}/permissions、users/{id}/roles、users/{id}/merchants 三处 | ZCode R12批1 / 2026-11-02 | |
 | MA-072 | P3 | open | 运营改密/2FA 关闭 | PUT /rbac/me/password、two-factor/confirm、/disable 零审计留痕——同 Controller 其它 14 处 RBAC 写全留痕（CB-021），账号接管链关键事件审计页不可见；商户端改密反而有 PASSWORD_CHANGE | ZCode R12批1 / 2026-11-02 | |
 | MA-073 | P3 | open | 提现「申请」动作（商户+线长） | review/payout/cancel 三兄弟全有 MERCHANT_WITHDRAW_* 审计，唯独 APPLY 无；运营代提在低于阈值自动打款分支下操作者三处不可归因（线长侧 submitter 恒 null） | ZCode R12批1 / 2026-11-02 | |
-| MA-074 | P3 | open | `POST /ops/admin/staff-wallets/{id}/payout` | 补货员钱包打款标记（资金出账销账动作）无操作者审计；同族 LINE_MANAGER_ADJUST/MERCHANT_WITHDRAW_PAYOUT 均有 | ZCode R12批1 / 2026-11-02 | |
+| MA-074 | P3 | fixed（钉测 2 例，幂等命中不留痕） | `POST /ops/admin/staff-wallets/{id}/payout` | 补货员钱包打款标记（资金出账销账动作）无操作者审计；同族 LINE_MANAGER_ADJUST/MERCHANT_WITHDRAW_PAYOUT 均有 | ZCode R12批1 / 2026-11-02 | |
 | MA-075 | P3 | fixed（快照留痕） | `PATCH /ops/admin/line-managers/{id}` | userId 换绑/改名/改手机不进 LINE_MANAGER_UPDATE 审计（只有佣金/状态变化才记）；userId 是 CB-066 实名守卫锚点，longVal 不校验用户存在可绑到不存在/他人 ID | ZCode R12批1 / 2026-11-02 | |
 | MA-076 | P3 | open | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号 | ZCode R12批1 / 2026-11-02 | |
 | MA-077 | P3 | fixed（白名单 400） | OpsPayoutAccountController 收款账户 | ownerType 无白名单：未知值落到 else 分支 `ops:finance:view`（只读权限可写）且垃圾值原样入库；无资金影响（提现链只认 LINE_MANAGER/MERCHANT） | ZCode R12批1 / 2026-11-02 | |
@@ -108,7 +108,7 @@
 | MA-094 | P3 | open | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
 | MA-095 | P3 | open | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
 | MA-096 | P3 | fixed（部分：写侧闸，钉测待补） | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
-| MA-097 | P3 | open | `DELETE /ops/admin/risk/blacklist/{userId}` | 黑名单解除零留痕（add 有 BLACKLIST_ADD 事件含 by，remove 完全无痕迹）——被收买账号可无声解除作弊者；一行改动级 | ZCode R12批3 / 2026-11-03 | |
+| MA-097 | P3 | fixed（解除补记 BLACKLIST_REMOVE） | `DELETE /ops/admin/risk/blacklist/{userId}` | 黑名单解除零留痕（add 有 BLACKLIST_ADD 事件含 by，remove 完全无痕迹）——被收买账号可无声解除作弊者；一行改动级 | ZCode R12批3 / 2026-11-03 | |
 | MA-098 | P3 | open | 增长域运营写（MemberLevelAdmin/PointsRedeem/UserRecall/Notification/SkuDelistReview 6 服务 9 端点） | 审计整体缺失（grep 零 appendLog），同批 OpsRisk/DeviceOps/AdCampaign/MemberFinance 全有——MA-082 同构；等级规则叠加价格+积分双资金乘数 | ZCode R12批3 / 2026-11-03 | |
 | MA-099 | P3 | open | `POST /ops/admin/growth/user-recall` | 一键召回无顺序重放幂等：锁只防并发不防重放，双击=同批用户每人多发一张券+通知（maxIssueCount 只限总量）；对照订单积分有 existsByMemberAndSource 唯一索引幂等 | ZCode R12批3 / 2026-11-03 | |
 
@@ -1047,3 +1047,27 @@
   下批补「能失败」的用例：083 越界 400、096 负积分被拒且不改余额、111 查看码 403 + 删后审计可读。
 - **MA-091 / MA-103 本轮未动**：091 需 Controller→Service 的 operator 透传与 V355 `settled_by` 取舍；
   103 是双挂索赔台账/双建任务的锁改造（照 `WarehouseTransferService:256-259` 范式）。排下批首站。
+
+### 批次I｜审计族前两条 + 一条门禁设计缺陷的受控收口（MA-097 / MA-074 / 豁免通道）
+
+- **MA-097 黑名单解除归因**：`addBlacklist` 记 `BLACKLIST_ADD`（带 by），`removeBlacklist` 连
+  operatorId 都不接、零事件 ⇒ 被收买的账号可以**无声放行作弊用户**，事后查不到谁解的。
+  现在行锁内删成功后记 `BLACKLIST_REMOVE`（detail 带 by）；两个调用方本就持有 operatorId，
+  直接透传，**不留兼容重载**。
+- **MA-074 补货员钱包出账归因**：`payout` 是真金销账，此前全类零留痕。审计放在 controller
+  （与 `OpsPayoutAccountController` 同范式，不动 `payoutIfAbsent` 签名——那条线还有调度器调用方）。
+  🔴 **幂等命中（applied=false）刻意不留痕**：那笔出账首次标记时已记过，重放再记等于审计里
+  凭空多出一次出款。钉测 2 例分别钉「标记成功必留痕（含 requestNo）」与「幂等命中不留痕」。
+- 🔴 **撞出一条门禁设计缺陷并受控修掉**：`check-openapi-regen-required` 把「变更行里含
+  `@PathVariable/@RequestBody`」当成形状改动，而**往参数表里插一个服务端形参必然替换掉那一行**
+  （git 连被替换的旧行也算变更行）；spec 里根本没有 `HttpServletRequest` 这类参数 ⇒ 净差恒为空，
+  而代码 `s.covered = delta.length > 0 && ...` 把空净差判为「未覆盖」⇒ **这类改动结构性不可通过**。
+  审计族有半数都要加 operator 参数，等于整族被堵死。
+  此前 `OpsLineRouteController` 也加过 request 参数，只是恰好和 MA-083 的 DTO regen 挤在同一次
+  推送里才过 CI —— 不是它被正确放行了，这点必须说清。
+- **修法=受控豁免，不是放宽判据**：新增 `scripts/openapi-regen-exemptions.json`，三条硬约束
+  ①**只对 controller 生效，DTO 永不豁免**（`@NotNull` 改 required 不产生新 property key，
+  正是 MA-083 那次真该 regen 的情形）；②登记的 endpoint 字面量必须仍在该文件源码里（条目漂移即失效）；
+  ③基线与当前的**映射签名**（HTTP 方法注解+路径+返回类型）逐条相等 ⇒ 挪路由/改响应类型一律拒绝豁免。
+  7 条用例钉住（`check-openapi-regen-required.test.mjs`）：未登记仍红、登记后绿、改路径红、
+  改返回类型红、条目漂移红、DTO 试图豁免红，且原有红/绿/回归/fail-closed 用例零退化。

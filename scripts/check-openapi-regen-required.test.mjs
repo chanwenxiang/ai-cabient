@@ -217,6 +217,122 @@ const gateShaBefore = createHash('md5')
   .digest('hex');
 
 try {
+  // 🔴 受控豁免（MA-074 引入）：只放行「给 controller 追加服务端形参」，四类越界必须仍红
+  const EX = 'scripts/openapi-regen-exemptions.json';
+  const CTRL_A = `package com.aicabinet.trade.api;
+public class DemoController {
+    @GetMapping("/ping")
+    public ApiResponse<String> ping(
+            @RequestParam("q") String q) {
+        return ApiResponse.ok(q);
+    }
+}
+`;
+  // 只在参数表尾部加 HttpServletRequest：形状行（行首 @RequestParam）被替换 ⇒ 启发式命中，
+  // 但 spec 里根本没有这类服务端形参，净差恒为空 ⇒ 这正是 MA-074 撞上的结构性不可满足
+  const CTRL_B = CTRL_A.replace(
+    '@RequestParam("q") String q) {',
+    '@RequestParam("q") String q,\n            HttpServletRequest request) {'
+  );
+  const EX_OK = JSON.stringify({
+    'services/trade-service/src/main/java/com/aicabinet/trade/api/DemoController.java': {
+      endpoint: '/ping',
+      reason: 'selftest：仅加服务端形参'
+    }
+  });
+  check('前置：豁免确实改变了判定（A≠B，形状行有差异）', CTRL_A !== CTRL_B);
+
+  await freshRepo({ [CTRL]: CTRL_B }, { [CTRL]: CTRL_A });
+  await commit();
+  check(
+    '豁免基线：未登记时 controller 加形参仍红（默认没放松）',
+    (await runGate({ OPENAPI_BASE_REF: 'HEAD~1' })).status === 1
+  );
+
+  await freshRepo({ [CTRL]: CTRL_B, [EX]: EX_OK }, { [CTRL]: CTRL_A });
+  await commit();
+  let ex = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check(
+    '绿：登记匹配 + 映射签名一致 ⇒ 豁免生效 rc=0',
+    ex.status === 0,
+    `实际 rc=${ex.status} ${ex.stdout || ''}`
+  );
+
+  // ①映射路径被改：不能借豁免偷偷挪路由
+  await freshRepo(
+    {
+      [CTRL]: CTRL_B.replace('/ping', '/ping-moved'),
+      [EX]: EX_OK
+    },
+    { [CTRL]: CTRL_A }
+  );
+  await commit();
+  ex = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check(
+    '红：改了 @GetMapping 路径 ⇒ 映射签名不一致，拒绝豁免',
+    ex.status === 1,
+    `实际 rc=${ex.status}`
+  );
+
+  // ②返回类型被改
+  await freshRepo(
+    {
+      [CTRL]: CTRL_B.replace('ApiResponse<String>', 'ApiResponse<Integer>'),
+      [EX]: EX_OK
+    },
+    { [CTRL]: CTRL_A }
+  );
+  await commit();
+  ex = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check('红：改了返回类型 ⇒ 拒绝豁免', ex.status === 1, `实际 rc=${ex.status}`);
+
+  // ③登记条目漂移（endpoint 已不在文件里）
+  await freshRepo(
+    {
+      [CTRL]: CTRL_B,
+      [EX]: JSON.stringify({
+        'services/trade-service/src/main/java/com/aicabinet/trade/api/DemoController.java': {
+          endpoint: '/gone',
+          reason: 'selftest：条目漂移'
+        }
+      })
+    },
+    { [CTRL]: CTRL_A }
+  );
+  await commit();
+  ex = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check(
+    '红：登记的 endpoint 不在源码中 ⇒ 条目漂移，拒绝豁免',
+    ex.status === 1,
+    `实际 rc=${ex.status}`
+  );
+
+  // ④DTO 永不豁免（MA-083 那类 required 变化就藏在 DTO 里）
+  const DTO_A =
+    'package com.aicabinet.trade.dto;\npublic class DemoRequest {\n    private String deviceId;\n}\n';
+  const DTO_B =
+    'package com.aicabinet.trade.dto;\npublic class DemoRequest {\n    private String deviceId;\n    private String note;\n}\n';
+  await freshRepo(
+    {
+      [CTRL]: CTRL_A,
+      [DTO]: DTO_B,
+      [EX]: JSON.stringify({
+        'services/trade-service/src/main/java/com/aicabinet/trade/dto/DemoRequest.java': {
+          endpoint: '/ping',
+          reason: 'selftest：DTO 试图豁免'
+        }
+      })
+    },
+    { [CTRL]: CTRL_A, [DTO]: DTO_A }
+  );
+  await commit();
+  ex = await runGate({ OPENAPI_BASE_REF: 'HEAD~1' });
+  check(
+    '红：DTO 即使登记也不豁免（@NotNull 类改动正藏在这里）',
+    ex.status === 1,
+    `实际 rc=${ex.status}`
+  );
+
   // ① 已提交的 Controller 形状改动，没带 openapi.ts ⇒ 必须红
   await freshRepo({ [CTRL]: CTRL_SHAPE });
   await commit();

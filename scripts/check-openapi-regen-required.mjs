@@ -46,6 +46,11 @@
  * 临时 git 仓库里跑，不碰真实树）。
  *
  *   node scripts/check-openapi-regen-required.mjs
+ *
+ * 受控豁免（MA-074）：`scripts/openapi-regen-exemptions.json` 只放行「给 controller 追加
+ * HttpServletRequest 这类服务端形参」——它必然碰到形状行而 spec 又确实不含这类参数。
+ * 三条硬约束（只对 controller 生效、登记的 endpoint 必须仍在源码中、映射签名与基线逐条相等）
+ * 由 `check-openapi-regen-required.test.mjs` 的 7 条用例钉住，含「DTO 不得豁免」那条。
  */
 import { gitAsync } from './lib/async-spawn.mjs';
 import { existsSync, readFileSync } from 'node:fs';
@@ -55,6 +60,34 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-openapi-regen-required]';
 const GENERATED = 'packages/shared-types/src/generated/openapi.ts';
+
+const EXEMPTION_FILE = process.env.OPENAPI_EXEMPTIONS_FILE
+  ? resolve(ROOT, process.env.OPENAPI_EXEMPTIONS_FILE)
+  : join(ROOT, 'scripts', 'openapi-regen-exemptions.json');
+const EXEMPTIONS = existsSync(EXEMPTION_FILE)
+  ? JSON.parse(readFileSync(EXEMPTION_FILE, 'utf8'))
+  : {};
+
+/**
+ * 映射签名：HTTP 方法注解（含其路径字面量）+ 方法返回类型。
+ * 豁免必须「签名逐条相等」，所以删路由、改路径、改响应类型都会让豁免失效——
+ * 这三类恰恰是真正会改 spec 的动作。参数列表里的服务端形参（HttpServletRequest 等）
+ * 不进签名，正是要放行的那一类。
+ */
+function mappingSignature(src) {
+  const out = [];
+  for (const l of src.split(/\r?\n/)) {
+    const t = l.trim();
+    const m = /^@(Get|Post|Put|Delete|Patch)Mapping(?:\(([^)]*)\))?/.exec(t);
+    if (m) out.push(`${m[1]}:${(m[2] || '').replace(/["\s]/g, '')}`);
+    const r =
+      /^\s*public\s+(ApiResponse<[^>]*>|ResponseEntity<[^>]*>|[A-Za-z][\w<>,. ]*)\s+\w+\s*\(/.exec(
+        t
+      );
+    if (r) out.push(`ret:${r[1].replace(/\s+/g, '')}`);
+  }
+  return out.sort();
+}
 
 const isController = (p) =>
   /\.java$/.test(p) &&
@@ -336,9 +369,54 @@ async function main() {
     if (path.startsWith('services/jiangyi-gateway/')) continue;
     const diff = await diffText(path);
     if (!diff) continue;
-    const hit = pickShapeHitSigned(path, changedContentLinesWithSign(diff), await javaSource(path));
-    if (hit) suspects.push({ path, sign: hit.sign, line: hit.line.trim() });
+    const src = await javaSource(path);
+    const hit = pickShapeHitSigned(path, changedContentLinesWithSign(diff), src);
+    if (hit)
+      suspects.push({
+        path,
+        sign: hit.sign,
+        line: hit.line.trim(),
+        controller: isController(path)
+      });
   }
+
+  /**
+   * 受控豁免（MA-074 引入）：只放「给 controller 方法追加服务端形参」这一类——
+   * 典型是加 `HttpServletRequest request` 取操作者做审计留痕（审计族一半的修法都要它）。
+   * 这类改动**必然**碰到 `@PathVariable/@RequestBody` 所在行（git 把被替换的旧行也算变更行），
+   * 于是被形状启发式命中；而 spec 里根本没有这类参数，净差恒为空 ⇒ 门禁结构性不可满足。
+   *
+   * 三条硬约束，缺一条就不豁免（防 G-18 那类「本地说没改、CI 说改了」的反向假绿）：
+   *   ① 只对 controller 生效，**DTO 永不豁免**（`@NotNull` 改 required 不产生新 property key，
+   *      正是 MA-083 那次真该 regen 的情形）；
+   *   ② 登记里的 endpoint 字面量必须仍出现在该文件当前源码里（条目漂移即失效）；
+   *   ③ 基线与当前的**映射签名**（HTTP 方法注解 + 路径 + 返回类型）必须逐条相等——
+   *      删路由、改路径、改响应类型都会让签名变化，从而拒绝豁免。
+   */
+  const exempted = [];
+  const kept = [];
+  for (const s of suspects) {
+    const entry = s.controller ? EXEMPTIONS[s.path] : undefined;
+    if (!entry) {
+      kept.push(s);
+      continue;
+    }
+    const current = await javaSource(s.path);
+    if (!entry.endpoint || !current.includes(entry.endpoint)) {
+      s.exemptFail = '登记里的 endpoint 已不在该文件源码中（条目漂移）';
+      kept.push(s);
+      continue;
+    }
+    const atBase = await gitAsync(['show', `${base}:${s.path}`], { cwd: ROOT });
+    if (mappingSignature(atBase.out || '').join('|') !== mappingSignature(current).join('|')) {
+      s.exemptFail = '映射签名（HTTP 方法/路径/返回类型）与基线不一致';
+      kept.push(s);
+      continue;
+    }
+    exempted.push({ path: s.path, reason: entry.reason });
+  }
+  suspects.length = 0;
+  suspects.push(...kept);
 
   if (suspects.length && !set.has(GENERATED)) {
     const why = await coverageVerdict();
@@ -408,6 +486,11 @@ async function main() {
   }
 
   console.log(
-    `${TAG} OK：${suspects.length ? `检测到 ${suspects.length} 处 API 形状改动，变更集已包含 ${GENERATED}` : '变更集内无 API 形状改动'}`
+    `${TAG} OK：${suspects.length ? `检测到 ${suspects.length} 处 API 形状改动，变更集已包含 ${GENERATED}` : '变更集内无 API 形状改动'}` +
+      (exempted.length
+        ? `；另有 ${exempted.length} 处按登记豁免（仅 controller 服务端形参，映射签名与基线逐条相等）：${exempted
+            .map((e) => e.path.split('/').pop())
+            .join(', ')}`
+        : '')
   );
 }
