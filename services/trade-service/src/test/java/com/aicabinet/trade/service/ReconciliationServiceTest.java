@@ -36,6 +36,7 @@ class ReconciliationServiceTest {
     @Mock private CabinetMetrics cabinetMetrics;
     @Mock private DistributedLockService distributedLockService;
     @Mock private SystemConfigService systemConfigService;
+    @Mock private AdminAuditService auditService;
 
     private ReconciliationService service;
 
@@ -44,7 +45,7 @@ class ReconciliationServiceTest {
         ReconciliationServiceSupport support = new ReconciliationServiceSupport(
                 billLineRepository, paymentOperationRepository, rechargeRepository,
                 billProviderRegistry, new ObjectMapper(), cabinetMetrics, distributedLockService);
-        service = new ReconciliationService(reconRepository, support, null, null, systemConfigService);
+        service = new ReconciliationService(reconRepository, support, null, null, systemConfigService, auditService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
@@ -86,6 +87,11 @@ class ReconciliationServiceTest {
         assertEquals(350, result.ledgerTotal());
         assertEquals(1, result.matchedCount());
         verify(cabinetMetrics, never()).recordReconciliationMismatch();
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(100000001L),
+                org.mockito.ArgumentMatchers.eq("RECONCILIATION_RUN"),
+                org.mockito.ArgumentMatchers.eq("PAYMENT_RECONCILIATION"),
+                org.mockito.ArgumentMatchers.eq("1"),
+                org.mockito.ArgumentMatchers.contains("rebuilt=false"));
     }
 
     @Test

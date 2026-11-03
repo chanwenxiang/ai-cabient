@@ -40,6 +40,7 @@ public class ReconciliationService {
     private final OpsAlertDispatcher alertDispatcher;
     /** CB-020③：读配置通道费率（bps）做实结/配置差异告警；null 容错走默认 60bps（同 FundBillService）。 */
     private final SystemConfigService systemConfigService;
+    private final AdminAuditService auditService;
 
     /** 费率差异告警的绝对阈值（bps）：实结费率与配置费率差超过 1% 即提示复核。 */
     static final long FEE_RATE_ALERT_ABS_BPS = 100;
@@ -50,12 +51,14 @@ public class ReconciliationService {
                                  ReconciliationServiceSupport support,
                                  @Lazy ReconciliationService self,
                                  OpsAlertDispatcher alertDispatcher,
-                                 SystemConfigService systemConfigService) {
+                                 SystemConfigService systemConfigService,
+                                 AdminAuditService auditService) {
         this.reconRepository = reconRepository;
         this.support = support;
         this.self = self;
         this.alertDispatcher = alertDispatcher;
         this.systemConfigService = systemConfigService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -117,12 +120,20 @@ public class ReconciliationService {
     public PaymentReconciliationDto runDaily(Long operatorId, LocalDate date, String channel) {
         String ch = channel != null ? channel.toUpperCase() : CabinetConstants.PAY_CHANNEL_WECHAT;
         return runWithDailyLock(date, ch, () -> {
-            reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
-                support.billLineRepository().deleteByReconId(existing.getReconId());
-                reconRepository.delete(existing);
+            boolean rebuilt = false;
+            var existing = reconRepository.findByReconDateAndChannel(date, ch);
+            if (existing.isPresent()) {
+                support.billLineRepository().deleteByReconId(existing.get().getReconId());
+                reconRepository.delete(existing.get());
                 reconRepository.flush();
-            });
-            return toDto(doReconcile(date, ch));
+                rebuilt = true;
+            }
+            PaymentReconciliationDto dto = toDto(doReconcile(date, ch));
+            auditService.appendLog(operatorId, "RECONCILIATION_RUN", "PAYMENT_RECONCILIATION",
+                    String.valueOf(dto.reconId()),
+                    "date=" + date + ",channel=" + ch + ",rebuilt=" + rebuilt
+                            + ",diffCents=" + dto.diffCents() + ",status=" + dto.status());
+            return dto;
         });
     }
 
