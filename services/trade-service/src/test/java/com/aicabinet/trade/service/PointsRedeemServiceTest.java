@@ -196,4 +196,66 @@ class PointsRedeemServiceTest {
                 eq("POINTS_REDEEM_ITEM"), eq("7"),
                 org.mockito.ArgumentMatchers.contains("status=INACTIVE"));
     }
+
+    // ── MA-096 写侧闸钉测（防重构回退：兑换率参数是「积分→可兑资产」的汇率）──
+
+    private static PointsRedeemItemDto redeemDto(String title, int pointsCost, Long couponDefId,
+                                                 int stockTotal, int sortOrder, String status) {
+        return new PointsRedeemItemDto(null, title, null, "🎁", pointsCost, couponDefId, null,
+                stockTotal, 0, stockTotal, sortOrder, status, null);
+    }
+
+    private void stubCouponDef(long couponDefId, String status) {
+        CouponDefinition def = new CouponDefinition();
+        def.setCouponDefId(couponDefId);
+        def.setStatus(status);
+        when(couponDefinitionRepository.findById(couponDefId)).thenReturn(Optional.of(def));
+    }
+
+    private void assertRedeemRejected(String fragment, PointsRedeemItemDto dto) {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.adminUpsert(42L, dto));
+        assertEquals(400, ex.getStatusCode().value(), fragment + " ⇒ " + ex.getReason());
+        org.junit.jupiter.api.Assertions.assertTrue(ex.getReason() != null && ex.getReason().contains(fragment),
+                "文案漂移成泛化 400：" + ex.getReason());
+        verify(redeemItemRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void adminUpsert_paramGates_reject400BeforeAnyDbRead() {
+        assertRedeemRejected("title 必填", redeemDto("  ", 100, 2L, 10, 1, "ACTIVE"));
+        // 负 pointsCost 是铸分参数：判定 available < cost 恒假，扣积分变成倒增
+        assertRedeemRejected("pointsCost 不得为负", redeemDto("券", -1, 2L, 10, 1, "ACTIVE"));
+        assertRedeemRejected("stockTotal 不得为负", redeemDto("券", 100, 2L, -1, 1, "ACTIVE"));
+        assertRedeemRejected("sortOrder 不得为负", redeemDto("券", 100, 2L, 10, -1, "ACTIVE"));
+        assertRedeemRejected("couponDefId 必填", redeemDto("券", 100, null, 10, 1, "ACTIVE"));
+        // couponDefId 为 null 时必须先判空再打库（否则撞成无字段名的泛化 409）
+        verify(couponDefinitionRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void adminUpsert_missingCouponDef_rejected400() {
+        when(couponDefinitionRepository.findById(2L)).thenReturn(Optional.empty());
+        assertRedeemRejected("券模板不存在：2", redeemDto("券", 100, 2L, 10, 1, "ACTIVE"));
+    }
+
+    @Test
+    void adminUpsert_inactiveCouponDef_rejected400() {
+        stubCouponDef(2L, "DRAFT");
+        assertRedeemRejected("不能挂成在架兑换项", redeemDto("券", 100, 2L, 10, 1, "ACTIVE"));
+    }
+
+    @Test
+    void adminUpsert_normalizesStatus_trimUpperCaseAndDefaultActive() {
+        stubCouponDef(2L, "ACTIVE");
+        when(redeemItemRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.adminUpsert(42L, redeemDto("券", 100, 2L, 10, 1, " inactive "));
+        service.adminUpsert(42L, redeemDto("券", 100, 2L, 10, 1, null));
+
+        ArgumentCaptor<PointsRedeemItem> captor = ArgumentCaptor.forClass(PointsRedeemItem.class);
+        verify(redeemItemRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertEquals("INACTIVE", captor.getAllValues().get(0).getStatus(), "status 须 trim+大写归一");
+        assertEquals("ACTIVE", captor.getAllValues().get(1).getStatus(), "未传 status 默认在架");
+    }
 }

@@ -93,21 +93,21 @@
 | MA-081 | P3 | 复核不成立（撤账，见文末批次A/B收口节） | `POST /account/bind-openid`（mock-only） | 重复绑定他人已占 openId 撞 uk_user_wx_open_id 唯一索引→500 而非 409；生产 403 门禁在，仅 mock 环境报错语义问题 | ZCode R12批1 / 2026-11-02 | |
 
 | MA-082 | P3 | fixed（券/活动/展示位/素材四服务留痕） | 营销域运营写面（券模板/发券/活动上下架/展示位/素材 5 服务 15 端点） | 审计留痕整体缺失（零处 appendLog），同域兄弟 AdCampaignService 四处全有 AD_CAMPAIGN_* 审计 ⇒ 券面值改动/活动上下架/素材删除在 /audit 页不可查 | ZCode R12批2 / 2026-11-03 | rounds/R12-write-surface.md |
-| MA-083 | P3 | fixed（部分：DTO 约束，钉测待补） | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
+| MA-083 | P3 | fixed（DTO 约束 + Validator 钉测） | `POST /coupons/batch-issue` + `/issue` | DTO 零约束：userIds=null → NPE 500（应 400）；userIds 无上限（万级元素长事务持 coupon_def 行锁）；对照充值 DTO 有完整 @Min/@Size | ZCode R12批2 / 2026-11-03 | |
 | MA-084 | P3 | fixed（status 白名单） | `PUT /ops/admin/ad/assets/{id}` | 素材 status 自由串直落（MA-078 同构）：垃圾值静默从全部 ACTIVE 过滤面消失、超 16 字符 22001→500 | ZCode R12批2 / 2026-11-03 | |
 | MA-085 | P3 | fixed（闭集+钉测 7 例） | `POST/PUT /ops/promotions` | activityType 无白名单（垃圾类型经 launch 直接 ACTIVE 进消费端可见列表，非 SKU 类型跳过全部校验）；budgetCents 负数直落使预算守卫 fail-open（`budget>0 &&` 守卫），与 user_limit「0/负=不限」钉测口径不一致 | ZCode R12批2 / 2026-11-03 | |
 | MA-086 | P3 | fixed（时间窗倒挂 400，对齐 Promotion） | `POST/PUT /ops/admin/ad/campaigns` | 投放计划时间窗倒挂不拦（startAt>endAt 静默接受→计划永不生效、轮播静默空转）；同域 Promotion 面有拦，兄弟端点不一致 | ZCode R12批2 / 2026-11-03 | |
 | MA-087 | P3 | fixed（@Size 补齐，先例 FileDisputeRequest） | 营销域字符串 DTO | couponName/campaignName/mediaTitle/idempotencyKey 缺 @Size，超长撞列宽 22001→500（本仓已有 FileDisputeRequest @Size(256) 等成熟先例，属漏网） | ZCode R12批2 / 2026-11-03 | |
-| MA-088 | P3 | fixed（部分：拒绝入账+告警，钉测待补） | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
+| MA-088 | P3 | fixed（拒入账+告警，双例钉测） | `POST /api/v2/payment/wechat/refund-notify` | refund_id 缺失时幂等键塌缩为全局字面量 `channel-refund-sync:null` 且不含 orderId ⇒ 理论上不同订单第二笔退款扣余额被静默吞掉而 refunded_cents 照常推进（幽灵余额窗口）；微信 v3 实际必带该字段，防御性加固 | ZCode R12批2 / 2026-11-03 | |
 | MA-089 | P3 | fixed（去 DTO @Max） | `POST /api/v2/account/balance-refunds` | DTO @Max(500_000) 硬编码与服务端可配置上限 BALANCE_REFUND_MAX_CENTS 口径不一致——配置只能收紧不能放宽；对照充值 DTO 无 @Max 全由 DC-6 裁决，两 DTO 风格矛盾 | ZCode R12批2 / 2026-11-03 | |
 
 | MA-090 | P2 | fixed（钉测 7 例） | `PUT /ops/admin/machine-payee-bills/config/{deviceId}` | 机器账单分成比例 shareBps 无界直落（>10000 可生成超 GMV 五倍的分成账单且每账期持续生效）；同仓三处先例都有闸（SiteRentSplit 400 / FundBill 钉测 / allocate 钳位），与 MA-069（线长佣金）完全同构；次要：enabled 无 0/1 约束（垃圾值使该柜从出账面消失）、payeeName null→500 | ZCode R12批3 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-091 | P3 | fixed（机器账单结清补归因；费用台账/重跑此前已接） | 商户费用台账结清 / 机器账单结清 / 按日重跑日扣 | 三处资金处置动作零操作者归因（连 operatorId 参数都没有；rerun-daily-fees 是批量真扣钱包 WalletEngine.debitIfAbsentAllowNegative）；MA-074 同类 | ZCode R12批3 / 2026-11-03 | |
 | MA-092 | P3 | fixed（开票/驳回/机器账单/对账重跑全留痕） | 发票开具/驳回、机器账单出账、对账重跑 | 财务面 5 写端点无 /audit 审计（对照 SiteRentBill/DeviceDataFeeBill 全有 appendLog）；ReconciliationService.runDaily 的 operatorId 传而不用，重跑删旧重建无痕。收口：`RECONCILIATION_RUN`（date/channel/rebuilt/diff/status）+ verify 钉测 | ZCode R12批3 / 2026-11-03 | |
-| MA-093 | P3 | fixed（部分：充值正数闸） | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
+| MA-093 | P3 | fixed（充值正数闸 + 零落账钉测） | `POST /ops/admin/platform-fund/accounts/{id}/recharge` | 负数「充值」直落：以 TYPE_RECHARGE 语义落负数出账流水扣余额，绕过 adjust 的必填原因口径（V341 三闸类型语义失真）；Controller 用 Map 手工取参，字符串金额 ClassCastException→500 | ZCode R12批3 / 2026-11-03 | |
 | MA-094 | P3 | fixed（非法账期 400 + 未来账期守卫） | `POST /ops/admin/machine-payee-bills/generate` | billMonth 裸 YearMonth.parse：非法账期 DateTimeParseException→500（同域 SiteRentBill/DeviceDataFeeBill 都走 FeeBillMonthResolver 400）；顺带无未来账期守卫 | ZCode R12批3 / 2026-11-03 | |
 | MA-095 | P3 | fixed（区间/倍率/折扣/状态写侧闸） | `POST/PUT /ops/admin/growth/member-levels` | 会员等级规则零入参校验：区间倒挂 min>max 恒 false=静默死档、负 pointsRate 该档返积分恒 0、status 自由串静默失效；读侧 priceDiscountPct 有钳制（≤90）故无资金直损，写侧应对齐口径 | ZCode R12批3 / 2026-11-03 | |
-| MA-096 | P3 | fixed（部分：写侧闸，钉测待补） | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
+| MA-096 | P3 | fixed（写侧闸 + 七分支钉测） | `PUT /ops/admin/growth/points-redeem` | 兑换商品 pointsCost 负数直落=持续性积分铸造参数（消费端 redeem 负 cost 使可用积分倒增）；0=免费兑；couponDefId 可 null/不存在（带病上架每次兑换必失败）；与 MA-069/MA-085 同类 | ZCode R12批3 / 2026-11-03 | |
 | MA-097 | P3 | fixed（解除补记 BLACKLIST_REMOVE） | `DELETE /ops/admin/risk/blacklist/{userId}` | 黑名单解除零留痕（add 有 BLACKLIST_ADD 事件含 by，remove 完全无痕迹）——被收买账号可无声解除作弊者；一行改动级 | ZCode R12批3 / 2026-11-03 | |
 | MA-098 | P3 | fixed（增长域 8 写端点全留痕） | 增长域运营写（MemberLevelAdmin/PointsRedeem/UserRecall/Notification/SkuDelistReview 6 服务 9 端点） | 审计整体缺失（grep 零 appendLog），同批 OpsRisk/DeviceOps/AdCampaign/MemberFinance 全有——MA-082 同构；等级规则叠加价格+积分双资金乘数。修法：`MEMBER_LEVEL_UPSERT/STATUS`、`POINTS_REDEEM_UPSERT/STATUS`、`SKU_DELIST_REVIEW_RUN/DECIDE`、`NOTIFY_SEND/UPDATE/DELETE` 九类 appendLog + 控制器透传 operatorId；钉测 4 处 verify | ZCode R12批3 / 2026-11-03 | |
 | MA-099 | P3 | fixed（requestId 幂等键 + 同券 60s 短窗） | `POST /ops/admin/growth/user-recall` | 一键召回无顺序重放幂等：锁只防并发不防重放，双击=同批用户每人多发一张券+通知（maxIssueCount 只限总量）；对照订单积分有 existsByMemberAndSource 唯一索引幂等。收口：body 可带 requestId（Redis NX 10 分钟标记，重放 409 不再发券）；未带键退化为同券 60 秒短窗去重；body 解析错误改 400；4 条钉测 | ZCode R12批3 / 2026-11-03 | |
@@ -123,7 +123,7 @@
 | MA-108 | P3 | fixed（幽灵线长 400） | `POST/PUT /ops/admin/line-routes` | create 缺 routeName/managerId → PG NOT NULL 违约 500（应 400）；update 的 managerId 不校验存在性，幽灵线长进 monthlySummary 财务聚合 | ZCode R12批4 / 2026-11-03 | |
 | MA-109 | P3 | fixed（binStockChange 入库方向同闸） | 「入库不落无主仓」闸门两旁路 | P2-8 治理闸只在 inbound/receivePurchaseStock/returnPurchaseStock 三处；binStockChange 原语被货位入库与调拨收货复用且不设闸，显式传无主仓照样进（缓解：ops:warehouse:edit 门内+可调拨救回） | ZCode R12批4 / 2026-11-03 | |
 | MA-110 | P3 | fixed（remark 链截断到 255） | 维修工单/异常结案列宽链断裂 | repair_ticket.remark(512)/event.remark(255) 双落列，256~512 字关单必失败；resolveWithRepair 三级列宽 detail(1000)→remark(512)→event(255) 拼接后超限（MA-087 同族新点位） | ZCode R12批4 / 2026-11-03 | |
-| MA-111 | P3 | fixed（部分：改窄+留痕，钉测待补） | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
+| MA-111 | P3 | fixed（改窄+留痕+注解反射钉测） | `DELETE /ops/feedback/{id}` | 用户反馈查看权限即可物理硬删且零审计（reply 反而要求严格 :reply 码；权限字典缺 delete 码）；无痕删用户输入 | ZCode R12批4 / 2026-11-03 | |
 | MA-112 | P3 | fixed（marker 单源 IDEMPOTENCY_MARKER） | `POST /ops/admin/exceptions/{id}/retry` | 幂等 marker 格式错位：Controller 查英文 `idempotencyKey=`、Service 写中文「幂等键：」⇒ alreadyProcessed 恒 false，幂等承诺失效（同文件 manualResolve 用英文自洽反证非设计；下层 409 兜底故 P3）。收口：三处写入 + 控制器读取共用 `OpsExceptionService.IDEMPOTENCY_MARKER`，manualResolve 审计断言钉住 | ZCode R12批4 / 2026-11-03 | |
 | MA-113 | P3 | fixed（assignee null 陷阱 + ticketIds 400） | `POST /ops/admin/repair-tickets/batch-assign` | `{"assignee": null}` 经 String.valueOf 变字面量 "null" 入库；ticketIds 非数字 NumberFormatException→500（应 400） | ZCode R12批4 / 2026-11-03 | |
 | MA-114 | P3 | fixed（personOverride 60 / title 128 / remark 512 闸） | @Size 家族补点（批4b） | 外部导入 personOverride 无 @Size(列60)；维修单 title(128)/remark(512) 无 @Size——并入 MA-087/110 批次修 | ZCode R12批4 / 2026-11-03 | |
@@ -131,7 +131,7 @@
 | MA-115 | P2 | fixed（钉测 2 例） | `POST /ops/admin/ota/releases` + `/{id}/unpublish` | OTA 固件发布/下架零审计零归因：operatorId 传而不用（OtaService.java:69-70 收下即弃）、表无列、连 log.info 都没有——推错固件全车队瘫痪的最高危动作出事无法回答「谁推的哪个包」；主会话复核 grep OtaService 全文 0 处留痕 | ZCode R12批5 / 2026-11-03 | rounds/R12-write-surface.md |
 | MA-116 | P2 | fixed（归因+追加） | `POST /ops/admin/consistency/{recordId}/fix` | 数据一致性修复零归因 + 修复结果覆写原始不一致描述（error_message 被覆盖=「当初为什么不一致」证据被抹）；fix 链直改订单头金额/清券/触发真实退款；类内 logChange 脚手架全仓零调用（出生即死）；修错了无法追责 | ZCode R12批5 / 2026-11-03 | |
 | MA-117 | P3 | fixed（五服务 + shelf 全留痕） | 将邑运营写面 ~30 端点 | 审计留痕整体缺失（Onboarding/ClassMapping/ModelSync/Gather/SkuJiangyiLink 五服务 0 appendLog；含租户级 setTenantDomain 厂商云写、识别映射对位锚改写、deleteInJiangyi 不可逆删除）；同域 JiangyiDeviceOpsService 六处范本在，借它回补。修法：`JIANGYI_CLASS_MAPPING_*`、`JIANGYI_SKU_LINK_*`、`JIANGYI_GATHER_*`、`JIANGYI_TRAINING_*`、`JIANGYI_MODEL_PREGENERATE/ACTIVATE/PUSH` + 商户采集入口透传 userId；内部接口/回调按系统 null；三处 verify 钉测 | ZCode R12批5 / 2026-11-03 | |
-| MA-118 | P3 | fixed（部分：非整数 400） | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
+| MA-118 | P3 | fixed（非整数 400 + 反向锁钉测） | `POST /ops/admin/device-rental/deposits` | 原始 Map 数值参数静默吞错：monthlyRefundCents 非数字被 catch 后静默 null=「无月退」、contractYears 落默认 5——押金月退链（真扣真退商户余额）关键参数静默缩水无 400 反馈（与 MA-094 裸 parse 是同族两端，一个炸一个吞） | ZCode R12批5 / 2026-11-03 | |
 | MA-119 | P3 | fixed（钉测 1 例） | 设备 MQTT/HTTP 凭据签发 | 不校验 device_info 存在性：12 位数字手滑一位即签出孤儿活跃凭据（明文 secret 回显一次）；同场景将邑入驻有现成闸（registerForDevice 防孤儿），凭据签发漏配 | ZCode R12批5 / 2026-11-03 | |
 | MA-120 | P3 | fixed（NaN/Inf 丢弃 + 三读数物理区间钳制） | `POST /internal/v1/devices/{id}/heartbeat` | 心跳环境读数零界：NaN/Infinity→BigDecimal.valueOf 抛异常→心跳 500（且在 presence 更新之后）；1e8 量级直落污染环境看板；同源 signal 0-4 静默丢、OTA pct clamp 先例在，本条漏网 | ZCode R12批5 / 2026-11-03 | |
 | MA-121 | P3 | fixed（register 走 registerForDevice 闸；status/source 白名单） | JiangyiInternal 遗留入口 | /onboarding/register 缺「柜机档案存在」闸（运营面 registerForDevice 有，internal 直连底层无）；/class-mappings upsert 收自由串 status/source（"active" 小写成死行）；grep 证实无代码调用方（运维脚本入口）+fleet key 保护故 P3 | ZCode R12批5 / 2026-11-03 | |
@@ -1043,8 +1043,10 @@
   ⚠️ 落码时我一次批量替换把 `GET /feedbacks` 也收窄成了回复码（只持查看码者连列表打不开），
   已当场回退那一处。教训：按字符串批量改注解必须逐处核对 HTTP 方法。
 
-- **仍欠钉测（显式登记）**：MA-083/096/111 + 前批 088/093/118 共 6 条只有代码级证据。
-  下批补「能失败」的用例：083 越界 400、096 负积分被拒且不改余额、111 查看码 403 + 删后审计可读。
+- **钉测已补齐（批次 N）**：MA-083/096/111 + 前批 088/093/118 六条由「只有代码级证据」升级为断言型用例，
+  明细见文末「批次 N」。过程中两处自纠值得下轮沿用：① 别把「想要的行为」当「现状」写断言
+  （我先写了「0 分兑换被拒」，实读实现只拦负数 ⇒ 删例）；② 字符串长度别心算
+  （`contentLength` 我写 15、实际 17，靠断言失败才发现）。
 - **MA-091 / MA-103 本轮未动**：091 需 Controller→Service 的 operator 透传与 V355 `settled_by` 取舍；
   103 是双挂索赔台账/双建任务的锁改造（照 `WarehouseTransferService:256-259` 范式）。排下批首站。
 
@@ -1141,3 +1143,17 @@
 - 判据（有锁态）：`inventory_write_off`（按本次 claimNo）恰 1 行、`replenishment_task` 中 `notes LIKE 'from-expiry:<taskId>%'` 恰 1 条；两个结果**必为 1 成功 + 1 个 409**（409 由服务层「已处置/已处理」判据给出，不是时间错开的运气）；行状态 CLAIM + `claim_write_off_id` 回写、告警 RESOLVED + `resolved_at`。实测 2/2 绿。
 - **反向对照（证明这条 IT 能抓缺陷，不是同义反复）**：临时把两处读改回无锁 `selectById`（其余逻辑不动）重跑 ⇒ **两条腿同时红**，原文 `同一盘亏行挂出多笔索赔台账 … expected: <1> but was: <2>`、`同一条临期告警双建补货任务 … expected: <1> but was: <2>`——正是台账写的双挂本体。改完立即 `git checkout --` 复原（已核：`NEGATIVE-CONTROL` 计数 0，工作树该两文件无残留）。
 - 播种教训：`pull_off_task.device_id` 有 FK，而 V2 的演示设备在后续清库迁移里已被删 ⇒ 首跑 `DataIntegrityViolation`。IT 自播 device/sku/warehouse（`ON CONFLICT DO NOTHING`），不依赖演示数据。
+
+### 批次 N｜六条「代码级修复」补断言型钉测（2026-11-03 晚）
+
+| 缺陷 | 新用例 | 钉住什么 |
+|---|---|---|
+| 083 | `CouponRequestDtoValidationTest`（5 例，Validator 直校 DTO） | `couponDefId` 缺失、`userIds` null **与空数组分别**被拒、1001 拒（文案含 1000）而 **1000 必须放行**（否则上限=永远发不出去） |
+| 096 | `PointsRedeemServiceTest` 新增 4 例 | title/pointsCost/stockTotal/sortOrder/couponDefId 五条 400 分支各带**指名声**、`券模板不存在：2`、非 ACTIVE 被拒；status ` inactive `→INACTIVE、null→ACTIVE；每条都验 `save` 从未被调用（**校验必须先于落库**） |
+| 088 | `PaymentServiceTest` 新增 2 例 | 缺 `refund_id` 与**空白串**都走同一道闸：不抛（仍 204 终止重投）+ 告警 `WECHAT_REFUND_SYNC_MISSING_REFUND_ID` + `balanceLedgerService.change` 与 `findById` **一次都不调** |
+| 093 | `PlatformFundServiceTest` 新增 1 例 | 负数/零「充值」400 且**码不许漂**、`adjustBalance`/`insert` 零调用（含控制器缺字段→0L 这条链路） |
+| 111 | `UserFeedbackConcurrencyTest` 新增 2 例 | 服务层只认 `ops:feedback:reply`；审计 detail **逐字等值**且不含手机号；再用反射钉控制器注解字面量（403 由切面抛，注解漂回查看码即红） |
+| 118 | `OpsDeviceRentalControllerDepositBodyTest`（4 例，新建） | 非整数 `monthlyRefundCents`/`contractYears` 400 且服务不被调；**反向锁**：空白串与键缺席仍按 null 放行（防「顺手收紧」打断老前端）；字符串数字照收且**按声明顺序**到达服务层 |
+
+- 顺带修掉一处「测试写坏源码」的操作失误：批量 `Edit` 替换时把 `PointsRedeemServiceTest` 审计用例的收尾断言吃掉了，补回后原断言仍在。
+- 另记一次工具层自伤：用 `node -e` 对整个 ISSUES.md 做正则时 `[^】]*` 字符类**跨行**吞掉 1127 行；`git checkout --` 复原后改为逐行精确替换（改前后都跑了一次行数/行数账/open 计数核对）。批量文档改写禁用可跨行的字符类。

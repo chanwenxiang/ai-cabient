@@ -527,4 +527,37 @@ class PaymentServiceTest {
                 contains("R-POOR"), anyMap());
         verify(rechargeOrderRepository, never()).findByIdForUpdate(anyString());
     }
+
+    /**
+     * MA-088 钉测：缺 {@code refund_id} 会让幂等键塌缩成全局字面量
+     * {@code channel-refund-sync:null}，且该键不含订单号 ⇒ 不同订单的第二笔退款会被
+     * 静默去吞（不退余额但 {@code refunded_cents} 照常推进 = 幽灵余额窗口）。
+     * 现行为是「拒绝入账 + 告警 + 仍返回 204 终止微信重投」，三件事一起钉。
+     */
+    @Test
+    void handleWeChatRefundNotify_missingRefundId_rejectsCreditAndAlerts() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-NOID", null, "", "SUCCESS", 100));
+
+        assertDoesNotThrow(() ->
+                paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial"));
+
+        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
+                anyString(), contains("R-NOID"));
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(rechargeOrderRepository, never()).findById(anyString());
+    }
+
+    /** {@code refund_id} 是空白串（不是缺失）也必须走同一道闸——判据是 isBlank 半边。 */
+    @Test
+    void handleWeChatRefundNotify_blankRefundId_rejectsCreditAndAlerts() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-BLANK", "   ", "", "SUCCESS", 100));
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
+                anyString(), contains("R-BLANK"));
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
 }

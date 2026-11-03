@@ -176,6 +176,29 @@ class PlatformFundServiceTest {
                 .hasMessageContaining("原因");
     }
 
+    /**
+     * MA-093 钉测：负数「充值」必须被 400 拒掉。它原来以 {@code TYPE_RECHARGE} 语义落一条
+     * 负数出账流水直接扣余额 ⇒ 绕过 adjust 的「必填原因」口径，V341 三闸的类型语义失真。
+     */
+    @Test
+    void recharge_nonPositive_rejected400_andTouchesNothing() {
+        assertThatThrownBy(() -> service.recharge(1L, -500L, 77L, "伪装成充值的出账"))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("充值金额必须大于 0");
+        // 控制器缺 amountCents 时是按 0L 传进来的 ⇒ 同一道闸必须接住，别当成「另一回事」
+        assertThatThrownBy(() -> service.recharge(1L, 0L, 77L, "零元充值"))
+                .hasMessageContaining("充值金额必须大于 0");
+
+        var ex = org.assertj.core.api.Assertions.catchThrowableOfType(
+                () -> service.recharge(1L, -1L, 77L, "x"),
+                org.springframework.web.server.ResponseStatusException.class);
+        assertThat(ex.getStatusCode().value())
+                .isEqualTo(400);   // 码不许漂成 500/422：前端据此提示「去人工调整」
+
+        verify(accountMapper, never()).adjustBalance(anyLong(), anyLong());
+        verify(flowMapper, never()).insert(any(PlatformFundFlow.class));
+    }
+
     @Test
     void createAccount_duplicateChannel_conflict() {
         when(accountMapper.findByChannel("WECHAT")).thenReturn(Optional.of(wechatAccount(0L)));
