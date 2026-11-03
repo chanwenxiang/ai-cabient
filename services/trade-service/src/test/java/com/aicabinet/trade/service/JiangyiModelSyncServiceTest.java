@@ -79,10 +79,11 @@ class JiangyiModelSyncServiceTest {
     @Mock private JiangyiModelDeploymentMapper deploymentMapper;
     @Mock private JiangyiGatewayClient jiangyiGatewayClient;
     @Mock private com.aicabinet.trade.mapper.SkuCatalogMapper skuCatalogMapper;
+    @Mock private AdminAuditService auditService;
 
     private JiangyiModelSyncService service() {
         JiangyiModelSyncService svc = new JiangyiModelSyncService(jiangyiGatherClient, jiangyiDeviceMapper,
-                jiangyiClassMappingMapper, deploymentMapper, jiangyiGatewayClient, skuCatalogMapper);
+                jiangyiClassMappingMapper, deploymentMapper, jiangyiGatewayClient, skuCatalogMapper, auditService);
         // AU-183：白名单注入本地 HttpServer host（守卫默认仅将邑域）
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "allowedModelHosts",
                 java.util.List.of("hunanjysmart.com", "http://localhost", "http://127.0.0.1"));
@@ -108,7 +109,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice(null));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModel(DEVICE_ID, MODEL_NAME));
+                () -> service().pushModel(1L, DEVICE_ID, MODEL_NAME));
         assertEquals(409, e.getStatusCode().value());
         verify(deploymentMapper, org.mockito.Mockito.never())
                 .insert(any(JiangyiModelDeployment.class));
@@ -120,7 +121,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(modelFile("88")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModel(DEVICE_ID, "不存在的模型"));
+                () -> service().pushModel(1L, DEVICE_ID, "不存在的模型"));
         assertEquals(404, e.getStatusCode().value());
     }
 
@@ -131,7 +132,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(modelFile("88")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModel(DEVICE_ID, MODEL_NAME));
+                () -> service().pushModel(1L, DEVICE_ID, MODEL_NAME));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("机型不匹配"));
     }
@@ -143,7 +144,7 @@ class JiangyiModelSyncServiceTest {
         when(deploymentMapper.hasPendingSent(DEVICE_ID)).thenReturn(true);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModel(DEVICE_ID, MODEL_NAME));
+                () -> service().pushModel(1L, DEVICE_ID, MODEL_NAME));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("未完成的模型下发"));
     }
@@ -162,7 +163,7 @@ class JiangyiModelSyncServiceTest {
                 .modelPush(eq(DEVICE_ID), anyLong(), anyString(), anyString(), anyString(), anyInt());
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModel(DEVICE_ID, MODEL_NAME));
+                () -> service().pushModel(1L, DEVICE_ID, MODEL_NAME));
         assertEquals(502, e.getStatusCode().value());
         verify(deploymentMapper).fail(eq(55L), anyString(), any());
     }
@@ -178,9 +179,14 @@ class JiangyiModelSyncServiceTest {
             return 1;
         }).when(deploymentMapper).insert(any(JiangyiModelDeployment.class));
 
-        long deploymentId = service().pushModel(DEVICE_ID, MODEL_NAME);
+        long deploymentId = service().pushModel(1L, DEVICE_ID, MODEL_NAME);
 
         assertEquals(56L, deploymentId);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_MODEL_PUSH"),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_DEVICE"),
+                org.mockito.ArgumentMatchers.eq(DEVICE_ID),
+                org.mockito.ArgumentMatchers.contains("deploymentId=56"));
         ArgumentCaptor<JiangyiModelDeployment> captor =
                 ArgumentCaptor.forClass(JiangyiModelDeployment.class);
         verify(deploymentMapper).insert(captor.capture());
@@ -205,7 +211,7 @@ class JiangyiModelSyncServiceTest {
             return 1;
         }).when(deploymentMapper).insert(any(JiangyiModelDeployment.class));
 
-        long id = service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+        long id = service().pushModelByUrl(1L, DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
                 MODEL_NAME, "http://oss/explicit.rknn", classesUrl, 2));
 
         assertEquals(57L, id);
@@ -226,7 +232,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+                () -> service().pushModelByUrl(1L, DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
                         MODEL_NAME, "http://oss/m.rknn", " ", 2)));
         assertEquals(400, e.getStatusCode().value());
         verify(deploymentMapper, org.mockito.Mockito.never())
@@ -239,7 +245,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
 
         assertThrows(JiangyiClassesParser.ClassesParseRejectException.class,
-                () -> service().pushModelByUrl(DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
+                () -> service().pushModelByUrl(1L, DEVICE_ID, new JiangyiModelSyncService.ExplicitModel(
                         MODEL_NAME, "http://oss/m.rknn", classesUrl, 3)));
         verify(deploymentMapper, org.mockito.Mockito.never())
                 .insert(any(JiangyiModelDeployment.class));
@@ -250,7 +256,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice("76"));
         when(jiangyiGatherClient.learnableProducts()).thenReturn(List.of());
 
-        int written = service().pregenerateForDeviceByUrl(DEVICE_ID,
+        int written = service().pregenerateForDeviceByUrl(1L, DEVICE_ID,
                 new JiangyiModelSyncService.ExplicitModel(MODEL_NAME, "http://oss/m.rknn", classesUrl, 2), 0);
 
         assertEquals(2, written);
@@ -353,7 +359,7 @@ class JiangyiModelSyncServiceTest {
     void activatePregeneratedRequiresBoundDevice() {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(null);
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().activatePregenerated(DEVICE_ID, MODEL_NAME));
+                () -> service().activatePregenerated(1L, DEVICE_ID, MODEL_NAME));
         assertEquals(404, e.getStatusCode().value());
     }
 
@@ -363,7 +369,7 @@ class JiangyiModelSyncServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(modelFile("88")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service().pregenerateForDevice(DEVICE_ID, MODEL_NAME, 0));
+                () -> service().pregenerateForDevice(1L, DEVICE_ID, MODEL_NAME, 0));
         assertEquals(409, e.getStatusCode().value());
         verify(jiangyiClassMappingMapper, org.mockito.Mockito.never())
                 .upsert(any(com.aicabinet.trade.domain.JiangyiClassMapping.class));

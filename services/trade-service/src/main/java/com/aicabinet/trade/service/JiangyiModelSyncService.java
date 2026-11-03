@@ -54,6 +54,7 @@ public class JiangyiModelSyncService {
     private final JiangyiModelDeploymentMapper deploymentMapper;
     private final JiangyiGatewayClient jiangyiGatewayClient;
     private final SkuCatalogMapper skuCatalogMapper;
+    private final AdminAuditService auditService;
     /** 拉取 classes.txt（将邑 OSS 外链，不带内部凭据）。 */
     private final RestClient publicHttp = RestClient.create();
 
@@ -62,13 +63,15 @@ public class JiangyiModelSyncService {
                                    JiangyiClassMappingMapper jiangyiClassMappingMapper,
                                    JiangyiModelDeploymentMapper deploymentMapper,
                                    JiangyiGatewayClient jiangyiGatewayClient,
-                                   SkuCatalogMapper skuCatalogMapper) {
+                                   SkuCatalogMapper skuCatalogMapper,
+                                   AdminAuditService auditService) {
         this.jiangyiGatherClient = jiangyiGatherClient;
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
         this.jiangyiClassMappingMapper = jiangyiClassMappingMapper;
         this.deploymentMapper = deploymentMapper;
         this.jiangyiGatewayClient = jiangyiGatewayClient;
         this.skuCatalogMapper = skuCatalogMapper;
+        this.auditService = auditService;
     }
 
     // ---------- 预览 ----------
@@ -277,12 +280,15 @@ public class JiangyiModelSyncService {
     }
 
     /** 模型 classes → 该设备映射预生成（source=MODEL_SYNC，status=DISABLED）。返回写入行数。 */
-    public int pregenerateForDevice(String deviceId, String modelName, int classIdBase) {
+    public int pregenerateForDevice(Long operatorId, String deviceId, String modelName, int classIdBase) {
         JiangyiDevice device = requireBoundDevice(deviceId);
         JiangyiModelFile model = requireModel(modelName);
         // 预生成同样按机型过滤：非本机型模型不生成映射（发了也下发不了，避免无效 DISABLED 行污染人工确认面）
         requireModelCompatible(device, model);
-        return writePregenerated(deviceId, modelName, parseClasses(model, classIdBase).rows());
+        int rows = writePregenerated(deviceId, modelName, parseClasses(model, classIdBase).rows());
+        auditService.appendLog(operatorId, "JIANGYI_MODEL_PREGENERATE", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + modelName + ",classIdBase=" + classIdBase + ",rows=" + rows);
+        return rows;
     }
 
     /**
@@ -292,11 +298,14 @@ public class JiangyiModelSyncService {
      * 型号对不对由操作人对 modelUrl 文件名负责（G-15 记的 rk3576 嫌疑）。其余校验与
      * {@link #pregenerateForDevice} 同：BOUND + classes 过 SSRF 白名单 + 行数==quantity。</p>
      */
-    public int pregenerateForDeviceByUrl(String deviceId, ExplicitModel model, int classIdBase) {
+    public int pregenerateForDeviceByUrl(Long operatorId, String deviceId, ExplicitModel model, int classIdBase) {
         requireBoundDevice(deviceId);
         model.requireComplete();
-        return writePregenerated(deviceId, model.modelName().trim(),
+        int rows = writePregenerated(deviceId, model.modelName().trim(),
                 parseClasses(model.textUrl().trim(), model.quantity(), classIdBase).rows());
+        auditService.appendLog(operatorId, "JIANGYI_MODEL_PREGENERATE", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + model.modelName() + ",classIdBase=" + classIdBase + ",rows=" + rows);
+        return rows;
     }
 
     private int writePregenerated(String deviceId, String modelName,
@@ -327,25 +336,30 @@ public class JiangyiModelSyncService {
     }
 
     /** 批量激活某设备某模型的全部预生成行（人工确认后一次性生效）。 */
-    public int activatePregenerated(String deviceId, String modelName) {
+    public int activatePregenerated(Long operatorId, String deviceId, String modelName) {
         requireBoundDevice(deviceId);
         int activated = jiangyiClassMappingMapper.activatePregenerated(deviceId, modelName);
         log.info("jiangyi model-sync activated deviceId={} modelName={} rows={}", deviceId, modelName, activated);
+        auditService.appendLog(operatorId, "JIANGYI_MODEL_ACTIVATE", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + modelName + ",rows=" + activated);
         return activated;
     }
 
     // ---------- 下发 / 回执 ----------
 
     /** 下发模型到设备（BOUND + 机型字符串相等 + 无未决 SENT 幂等）→ 落 SENT 审计 → 调 gateway。 */
-    public long pushModel(String deviceId, String modelName) {
+    public long pushModel(Long operatorId, String deviceId, String modelName) {
         JiangyiDevice device = requireBoundDevice(deviceId);
         requireRegisteredControlModel(device);
         JiangyiModelFile model = requireModel(modelName);
         requireModelCompatible(device, model);
         JiangyiClassesParser.ParsedClasses parsed = parseClasses(model, 0);
 
-        return recordAndPush(device, String.valueOf(model.id()), model.modelName(),
+        long deploymentId = recordAndPush(device, String.valueOf(model.id()), model.modelName(),
                 model.modelUrl(), model.modelTextUrl(), model.quantity(), parsed.classesVersion());
+        auditService.appendLog(operatorId, "JIANGYI_MODEL_PUSH", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + model.modelName() + ",deploymentId=" + deploymentId);
+        return deploymentId;
     }
 
     /**
@@ -354,15 +368,18 @@ public class JiangyiModelSyncService {
      * 行数==quantity（错位映射一旦激活就是错钱）。去掉的只有 `requireModel` 那道我方自加的
      * 门 —— 真机日志证明 `updateModel` 载荷本来就是裸 URL（G-15/G-16）。</p>
      */
-    public long pushModelByUrl(String deviceId, ExplicitModel model) {
+    public long pushModelByUrl(Long operatorId, String deviceId, ExplicitModel model) {
         JiangyiDevice device = requireBoundDevice(deviceId);
         requireRegisteredControlModel(device);
         model.requireComplete();
         JiangyiClassesParser.ParsedClasses parsed =
                 parseClasses(model.textUrl().trim(), model.quantity(), 0);
 
-        return recordAndPush(device, null, model.modelName().trim(), model.modelUrl().trim(),
+        long deploymentId = recordAndPush(device, null, model.modelName().trim(), model.modelUrl().trim(),
                 model.textUrl().trim(), model.quantity(), parsed.classesVersion());
+        auditService.appendLog(operatorId, "JIANGYI_MODEL_PUSH", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + model.modelName() + ",deploymentId=" + deploymentId);
+        return deploymentId;
     }
 
     /** 落 SENT 审计 → 网关下发；网关侧失败即标 FAILED（两条下发路径共用）。 */

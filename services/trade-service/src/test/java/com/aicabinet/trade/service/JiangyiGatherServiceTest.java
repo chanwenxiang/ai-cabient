@@ -54,10 +54,11 @@ class JiangyiGatherServiceTest {
     @Mock private JiangyiTrainingTicketMapper ticketMapper;
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private SkuCatalogMapper skuCatalogMapper;
+    @Mock private AdminAuditService auditService;
 
     private JiangyiGatherService service(String publicBaseUrl) {
         return new JiangyiGatherService(jiangyiGatherClient, jiangyiDeviceMapper,
-                ticketMapper, linkMapper, skuCatalogMapper, publicBaseUrl);
+                ticketMapper, linkMapper, skuCatalogMapper, publicBaseUrl, auditService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -221,7 +222,7 @@ class JiangyiGatherServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice());
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("").startTraining(DEVICE_ID, SKU_ID, "model"));
+                () -> service("").startTraining(1L, DEVICE_ID, SKU_ID, "model"));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("JIANGYI_PUBLIC_BASE_URL"));
     }
@@ -233,7 +234,7 @@ class JiangyiGatherServiceTest {
         when(ticketMapper.findPendingBySku(SKU_ID)).thenReturn(Optional.of(existing));
 
         JiangyiTrainingTicket result = service("https://public")
-                .startTraining(DEVICE_ID, SKU_ID, "model");
+                .startTraining(1L, DEVICE_ID, SKU_ID, "model");
 
         assertEquals(TICKET_ID, result.getFinishNotifyId());
         verify(ticketMapper, never()).insert(any(JiangyiTrainingTicket.class));
@@ -249,7 +250,7 @@ class JiangyiGatherServiceTest {
                 .when(jiangyiGatherClient).commitTraining(anyString(), anyString(), anyString());
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startTraining(DEVICE_ID, SKU_ID, "model"));
+                () -> service("https://public").startTraining(1L, DEVICE_ID, SKU_ID, "model"));
         assertEquals(502, e.getStatusCode().value());
         // ticket 已 insert 但随即 fail（一次性凭据不残留 PENDING）
         verify(ticketMapper).insert(any(JiangyiTrainingTicket.class));
@@ -267,7 +268,7 @@ class JiangyiGatherServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(model("模型v1")));
 
         JiangyiGatherService.BatchTrainingResult result = service("https://public")
-                .startTrainingBatch(DEVICE_ID, List.of("SKU-A", "SKU-B"), "模型v1");
+                .startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A", "SKU-B"), "模型v1");
 
         assertEquals(2, result.count());
         assertEquals(List.of("SKU-A", "SKU-B"),
@@ -286,7 +287,7 @@ class JiangyiGatherServiceTest {
         when(ticketMapper.listPendingBySkus(List.of("SKU-A"))).thenReturn(List.of(pendingTicket("88")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v1"));
+                () -> service("https://public").startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A"), "模型v1"));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("在途"));
         verify(jiangyiGatherClient, never()).commitTraining(anyString(), anyString(), anyString());
@@ -298,7 +299,7 @@ class JiangyiGatherServiceTest {
         when(linkMapper.listBySku("SKU-A")).thenReturn(List.of());
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v1"));
+                () -> service("https://public").startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A"), "模型v1"));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("未挂将邑商品"));
         verify(ticketMapper, never()).insert(any(JiangyiTrainingTicket.class));
@@ -312,7 +313,7 @@ class JiangyiGatherServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of(model("模型v1")));
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v2"));
+                () -> service("https://public").startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A"), "模型v2"));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("模型v1"));
         verify(jiangyiGatherClient, never()).commitTraining(anyString(), anyString(), anyString());
@@ -329,7 +330,7 @@ class JiangyiGatherServiceTest {
                 List.of(modelRenamedByVendor("426_20261027_76_1", "模型v1")));
 
         JiangyiGatherService.BatchTrainingResult result = service("https://public")
-                .startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v1");
+                .startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A"), "模型v1");
 
         assertEquals(1, result.count());
         verify(jiangyiGatherClient).commitTraining(eq("模型v1"), anyString(), anyString());
@@ -344,7 +345,7 @@ class JiangyiGatherServiceTest {
         when(jiangyiGatherClient.modelFiles()).thenReturn(List.of());
 
         JiangyiGatherService.BatchTrainingResult result = service("https://public")
-                .startTrainingBatch(DEVICE_ID, List.of("SKU-A"), "模型v1");
+                .startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A"), "模型v1");
 
         assertEquals(1, result.count());
         verify(jiangyiGatherClient).commitTraining(eq("模型v1"), anyString(), anyString());
@@ -362,7 +363,7 @@ class JiangyiGatherServiceTest {
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
                 () -> service("https://public")
-                        .startTrainingBatch(DEVICE_ID, List.of("SKU-A", "SKU-B"), "模型v1"));
+                        .startTrainingBatch(1L, DEVICE_ID, List.of("SKU-A", "SKU-B"), "模型v1"));
         assertEquals(502, e.getStatusCode().value());
         verify(ticketMapper, times(2)).finishById(any(), eq(false), any());
     }
@@ -429,7 +430,7 @@ class JiangyiGatherServiceTest {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(d);
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startGather(DEVICE_ID, "1"));
+                () -> service("https://public").startGather(1L, DEVICE_ID, "1"));
         assertEquals(409, e.getStatusCode().value());
         verify(jiangyiGatherClient, never()).gatherOpenDoor(anyString(), anyString());
     }
@@ -441,7 +442,7 @@ class JiangyiGatherServiceTest {
                 .when(jiangyiGatherClient).gatherOpenDoor(eq("CQYB11253"), anyString());
 
         ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> service("https://public").startGather(DEVICE_ID, "1"));
+                () -> service("https://public").startGather(1L, DEVICE_ID, "1"));
         assertEquals(502, e.getStatusCode().value());
         // 成对语义：置锁 → 失败必须回滚
         verify(jiangyiDeviceMapper).markGatherLocked(eq(DEVICE_ID), any());
@@ -452,11 +453,16 @@ class JiangyiGatherServiceTest {
     void startGather_successLocksAndOpens() {
         when(jiangyiDeviceMapper.selectById(DEVICE_ID)).thenReturn(boundDevice());
 
-        service("https://public").startGather(DEVICE_ID, "1");
+        service("https://public").startGather(1L, DEVICE_ID, "1");
 
         verify(jiangyiDeviceMapper).markGatherLocked(eq(DEVICE_ID), any());
         verify(jiangyiGatherClient).gatherOpenDoor("CQYB11253", "1");
         verify(jiangyiDeviceMapper, never()).markGatherUnlocked(anyString(), any());
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_GATHER_START"),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_DEVICE"),
+                org.mockito.ArgumentMatchers.eq(DEVICE_ID),
+                org.mockito.ArgumentMatchers.contains("doorPosition=1"));
     }
 
     @Test

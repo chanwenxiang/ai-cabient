@@ -63,19 +63,22 @@ public class JiangyiGatherService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final SkuCatalogMapper skuCatalogMapper;
     private final String publicBaseUrl;
+    private final AdminAuditService auditService;
 
     public JiangyiGatherService(JiangyiGatherClient jiangyiGatherClient,
                                 JiangyiDeviceMapper jiangyiDeviceMapper,
                                 JiangyiTrainingTicketMapper ticketMapper,
                                 JiangyiSkuJiangyiLinkMapper linkMapper,
                                 SkuCatalogMapper skuCatalogMapper,
-                                @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl) {
+                                @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl,
+                                AdminAuditService auditService) {
         this.jiangyiGatherClient = jiangyiGatherClient;
         this.jiangyiDeviceMapper = jiangyiDeviceMapper;
         this.ticketMapper = ticketMapper;
         this.linkMapper = linkMapper;
         this.skuCatalogMapper = skuCatalogMapper;
         this.publicBaseUrl = publicBaseUrl;
+        this.auditService = auditService;
     }
 
     /** 采集模式是否生效（营业开门链路 409 判据；即时查库，不走缓存——模式切换必须立即生效）。 */
@@ -139,7 +142,7 @@ public class JiangyiGatherService {
     }
 
     /** 进入采集模式：BOUND + 未锁 → 置锁 → 将邑侧采集开门（§4.2.3）。 */
-    public void startGather(String deviceId, String doorPosition) {
+    public void startGather(Long operatorId, String deviceId, String doorPosition) {
         JiangyiDevice device = requireBoundDevice(deviceId);
         if (device.getGatherLockedAt() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已在采集模式中");
@@ -157,13 +160,16 @@ public class JiangyiGatherService {
                     "将邑采集开门失败：" + e.getMessage());
         }
         log.info("jiangyi gather started deviceId={} identifier={} door={}", deviceId, device.getIdentifier(), doorPosition);
+        auditService.appendLog(operatorId, "JIANGYI_GATHER_START", "JIANGYI_DEVICE", deviceId,
+                "identifier=" + device.getIdentifier() + ",doorPosition=" + doorPosition);
     }
 
     /** 退出采集模式（admin 手动；恢复营业）。 */
-    public void exitGatherMode(String deviceId) {
+    public void exitGatherMode(Long operatorId, String deviceId) {
         requireBoundDevice(deviceId);
         jiangyiDeviceMapper.markGatherUnlocked(deviceId, Instant.now());
         log.info("jiangyi gather exited deviceId={}", deviceId);
+        auditService.appendLog(operatorId, "JIANGYI_GATHER_EXIT", "JIANGYI_DEVICE", deviceId, "exited");
     }
 
     /** 进度聚合：开门状态 + 待采集 + 学习中 + 审核列表（productIds=全部，§4.4.6 可空）。 */
@@ -186,7 +192,7 @@ public class JiangyiGatherService {
      * <p>学习实际是集合粒度，这个入口只用于「只学一个商品」的场景；多个商品请用
      * {@link #startTrainingBatch}，否则会重复触发同一模型的训练。</p>
      */
-    public JiangyiTrainingTicket startTraining(String deviceId, String skuId, String modelName) {
+    public JiangyiTrainingTicket startTraining(Long operatorId, String deviceId, String skuId, String modelName) {
         requireBoundDevice(deviceId);
         requirePublicBaseUrl();
         var existing = ticketMapper.findPendingBySku(skuId);
@@ -205,6 +211,8 @@ public class JiangyiGatherService {
         }
         log.info("jiangyi training started deviceId={} skuId={} modelName={} ticket={}",
                 deviceId, skuId, modelName, finishNotifyId);
+        auditService.appendLog(operatorId, "JIANGYI_TRAINING_START", "JIANGYI_DEVICE", deviceId,
+                "skuId=" + skuId + ",modelName=" + modelName + ",ticket=" + finishNotifyId);
         return ticket;
     }
 
@@ -219,7 +227,7 @@ public class JiangyiGatherService {
      *
      * <p>厂商调用失败时整批票据置 FAILED 并抛 502——票据集与厂商侧状态不能一半一半。</p>
      */
-    public BatchTrainingResult startTrainingBatch(String deviceId, List<String> skuIds, String modelName) {
+    public BatchTrainingResult startTrainingBatch(Long operatorId, String deviceId, List<String> skuIds, String modelName) {
         requireBoundDevice(deviceId);
         requirePublicBaseUrl();
         String model = modelName == null ? "" : modelName.trim();
@@ -277,6 +285,8 @@ public class JiangyiGatherService {
         }
         log.info("jiangyi batch training started deviceId={} modelName={} skus={} tickets={}",
                 deviceId, model, productIdBySku.keySet(), finishNotifyId);
+        auditService.appendLog(operatorId, "JIANGYI_TRAINING_BATCH", "JIANGYI_DEVICE", deviceId,
+                "modelName=" + model + ",skus=" + productIdBySku.keySet() + ",tickets=" + tickets.size());
         return new BatchTrainingResult(deviceId, model, tickets.size(),
                 tickets.stream().map(t -> new BatchTrainingItem(t.getId(), t.getSkuId(),
                         t.getJiangyiProductId(), t.getStatus())).toList());

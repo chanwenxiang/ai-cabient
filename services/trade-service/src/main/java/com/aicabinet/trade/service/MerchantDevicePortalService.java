@@ -168,7 +168,7 @@ public class MerchantDevicePortalService {
         permissionService.requirePermission(userId, "merchant:devices:edit");
         merchantPortalGuard.requireAccess(userId);
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        jiangyiGatherService.startGather(deviceId, doorPosition);
+        jiangyiGatherService.startGather(userId, deviceId, doorPosition);
     }
 
     /** 退出采集模式（恢复营业）。 */
@@ -176,7 +176,7 @@ public class MerchantDevicePortalService {
         permissionService.requirePermission(userId, "merchant:devices:edit");
         merchantPortalGuard.requireAccess(userId);
         merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        jiangyiGatherService.exitGatherMode(deviceId);
+        jiangyiGatherService.exitGatherMode(userId, deviceId);
     }
 
     /** 只读学习进度：本地票据聚合（不读厂商读面），权限与归属同一套闸门。 */

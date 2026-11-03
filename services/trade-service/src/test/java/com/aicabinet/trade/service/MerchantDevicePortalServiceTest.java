@@ -155,21 +155,21 @@ class MerchantDevicePortalServiceTest {
 
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
         org.mockito.Mockito.verify(jiangyiGatherService, org.mockito.Mockito.never())
-                .startGather(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+                .startGather(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void jiangyiGatherStart_delegatesWithDoorPosition() {
         service.startJiangyiGather(1L, "CAB-JY", "1");
 
-        org.mockito.Mockito.verify(jiangyiGatherService).startGather("CAB-JY", "1");
+        org.mockito.Mockito.verify(jiangyiGatherService).startGather(1L, "CAB-JY", "1");
     }
 
     @Test
     void jiangyiGatherExit_delegatesAfterOwnershipChecks() {
         service.exitJiangyiGather(1L, "CAB-JY");
 
-        org.mockito.Mockito.verify(jiangyiGatherService).exitGatherMode("CAB-JY");
+        org.mockito.Mockito.verify(jiangyiGatherService).exitGatherMode(1L, "CAB-JY");
         org.mockito.Mockito.verify(merchantFeaturePackService).requireDevicePack(
                 1L, "CAB-JY", MerchantFeaturePacks.FIELD);
     }

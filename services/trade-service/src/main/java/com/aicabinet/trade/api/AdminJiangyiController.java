@@ -389,27 +389,31 @@ public class AdminJiangyiController {
     /** 映射预生成：模型 classes → 该设备 MODEL_SYNC/DISABLED 行（sku_id 保留既有）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/model-sync")
-    public ApiResponse<Integer> modelSync(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Integer> modelSync(HttpServletRequest request,
+                                          @PathVariable("deviceId") String deviceId,
                                           @Valid @RequestBody ModelSyncRequest body) {
-        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDevice(
+        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDevice(operatorId(request),
                 deviceId, body.modelName().trim(), body.classIdBase() == null ? 0 : body.classIdBase()));
     }
 
     /** 批量激活某设备某模型的预生成行（人工确认对照表后一次性生效）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/class-mappings/activate")
-    public ApiResponse<Integer> activatePregenerated(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Integer> activatePregenerated(HttpServletRequest request,
+                                                     @PathVariable("deviceId") String deviceId,
                                                      @Valid @RequestBody ModelSyncRequest body) {
         return ApiResponse.ok(jiangyiModelSyncService.activatePregenerated(
-                deviceId, body.modelName().trim()));
+                operatorId(request), deviceId, body.modelName().trim()));
     }
 
     /** 下发模型到设备（BOUND+机型匹配+无未决 SENT；updateModel 经 gateway WS 下发）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/model-push")
-    public ApiResponse<Long> modelPush(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Long> modelPush(HttpServletRequest request,
+                                       @PathVariable("deviceId") String deviceId,
                                        @Valid @RequestBody ModelSyncRequest body) {
-        return ApiResponse.ok(jiangyiModelSyncService.pushModel(deviceId, body.modelName().trim()));
+        return ApiResponse.ok(jiangyiModelSyncService.pushModel(
+                operatorId(request), deviceId, body.modelName().trim()));
     }
 
     /**
@@ -418,18 +422,21 @@ public class AdminJiangyiController {
      */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/model-sync-explicit")
-    public ApiResponse<Integer> modelSyncExplicit(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Integer> modelSyncExplicit(HttpServletRequest request,
+                                                  @PathVariable("deviceId") String deviceId,
                                                   @RequestBody ExplicitModelRequest body) {
-        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDeviceByUrl(
+        return ApiResponse.ok(jiangyiModelSyncService.pregenerateForDeviceByUrl(operatorId(request),
                 deviceId, body.toSpec(), body.classIdBase() == null ? 0 : body.classIdBase()));
     }
 
     /** 显式 URL 下发（台账 G-14）：不查 §4.4.4，直接组 V16 §4.3.2.9 updateModel 经网关 WS 发出。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/model-push-explicit")
-    public ApiResponse<Long> modelPushExplicit(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Long> modelPushExplicit(HttpServletRequest request,
+                                               @PathVariable("deviceId") String deviceId,
                                                @RequestBody ExplicitModelRequest body) {
-        return ApiResponse.ok(jiangyiModelSyncService.pushModelByUrl(deviceId, body.toSpec()));
+        return ApiResponse.ok(jiangyiModelSyncService.pushModelByUrl(
+                operatorId(request), deviceId, body.toSpec()));
     }
 
     /**
@@ -503,17 +510,20 @@ public class AdminJiangyiController {
     /** 进入采集模式：置锁（营业开门即 409）→ 将邑侧采集开门；开门失败自动回滚锁。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/gather/start")
-    public ApiResponse<Void> startGather(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Void> startGather(HttpServletRequest request,
+                                         @PathVariable("deviceId") String deviceId,
                                          @RequestBody(required = false) GatherStartRequest body) {
-        jiangyiGatherService.startGather(deviceId, body == null ? null : blankToNull(body.doorPosition()));
+        jiangyiGatherService.startGather(operatorId(request), deviceId,
+                body == null ? null : blankToNull(body.doorPosition()));
         return ApiResponse.ok(null);
     }
 
     /** 退出采集模式（恢复营业）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/gather/exit")
-    public ApiResponse<Void> exitGather(@PathVariable("deviceId") String deviceId) {
-        jiangyiGatherService.exitGatherMode(deviceId);
+    public ApiResponse<Void> exitGather(HttpServletRequest request,
+                                        @PathVariable("deviceId") String deviceId) {
+        jiangyiGatherService.exitGatherMode(operatorId(request), deviceId);
         return ApiResponse.ok(null);
     }
 
@@ -528,10 +538,11 @@ public class AdminJiangyiController {
     /** 触发学习（幂等：同 SKU 有 PENDING 凭据直接返回既有 ticket）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/gather/training")
-    public ApiResponse<Long> startTraining(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<Long> startTraining(HttpServletRequest request,
+                                           @PathVariable("deviceId") String deviceId,
                                            @Valid @RequestBody TrainingRequest body) {
         return ApiResponse.ok(jiangyiGatherService.startTraining(
-                deviceId, body.skuId().trim(), body.modelName().trim()).getId());
+                operatorId(request), deviceId, body.skuId().trim(), body.modelName().trim()).getId());
     }
 
     /**
@@ -541,9 +552,10 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/jiangyi/gather/training/batch")
     public ApiResponse<JiangyiGatherService.BatchTrainingResult> startTrainingBatch(
+            HttpServletRequest request,
             @Valid @RequestBody TrainingBatchRequest body) {
         return ApiResponse.ok(jiangyiGatherService.startTrainingBatch(
-                body.deviceId().trim(), body.skuIds(), body.modelName()));
+                operatorId(request), body.deviceId().trim(), body.skuIds(), body.modelName()));
     }
 
     /**

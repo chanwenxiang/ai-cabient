@@ -264,17 +264,17 @@ class AdminJiangyiControllerTest {
 
     @Test
     void startGather_nullBodyMeansNullDoorPosition() {
-        controller().startGather(DEVICE_ID, null);
-        verify(gatherService).startGather(DEVICE_ID, null);
+        controller().startGather(req(), DEVICE_ID, null);
+        verify(gatherService).startGather(any(), eq(DEVICE_ID), eq(null));
 
-        controller().startGather(DEVICE_ID, new AdminJiangyiController.GatherStartRequest(" 1 "));
-        verify(gatherService).startGather(DEVICE_ID, "1");
+        controller().startGather(req(), DEVICE_ID, new AdminJiangyiController.GatherStartRequest(" 1 "));
+        verify(gatherService).startGather(any(), eq(DEVICE_ID), eq("1"));
     }
 
     @Test
     void exitGatherDelegates() {
-        controller().exitGather(DEVICE_ID);
-        verify(gatherService).exitGatherMode(DEVICE_ID);
+        controller().exitGather(req(), DEVICE_ID);
+        verify(gatherService).exitGatherMode(any(), eq(DEVICE_ID));
     }
 
     @Test
@@ -282,10 +282,10 @@ class AdminJiangyiControllerTest {
         com.aicabinet.trade.domain.JiangyiTrainingTicket ticket =
                 new com.aicabinet.trade.domain.JiangyiTrainingTicket();
         ticket.setId(77L);
-        when(gatherService.startTraining(DEVICE_ID, "SKU-WATER-001", "JY-DOOR-01-model"))
+        when(gatherService.startTraining(any(), eq(DEVICE_ID), eq("SKU-WATER-001"), eq("JY-DOOR-01-model")))
                 .thenReturn(ticket);
 
-        Long id = controller().startTraining(DEVICE_ID,
+        Long id = controller().startTraining(req(), DEVICE_ID,
                 new AdminJiangyiController.TrainingRequest(" SKU-WATER-001 ", " JY-DOOR-01-model ")).data();
 
         assertEquals(77L, id);
