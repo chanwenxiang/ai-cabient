@@ -55,8 +55,9 @@ describe('labels', () => {
   });
 
   it('status/mode 文案', () => {
-    expect(stocktakeStatusLabel('IN_PROGRESS')).toBe('录入中');
-    expect(stocktakeStatusLabel('WEIRD')).toBe('WEIRD');
+    // MA-136：改走 shared-dict 后与 admin 同词（盘点中），不再是自造的「录入中」
+    expect(stocktakeStatusLabel('IN_PROGRESS')).toBe('盘点中');
+    expect(stocktakeStatusLabel('WEIRD')).toBe('未知');
     expect(stocktakeModeLabel('BLIND')).toBe('盲盘');
     expect(stocktakeModeLabel('OPEN')).toBe('明盘');
     expect(stocktakeLineStateClass('DIFF')).toBe('diff');

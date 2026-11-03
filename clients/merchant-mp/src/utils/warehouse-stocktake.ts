@@ -3,6 +3,8 @@
  * 与后端 StocktakeDiffReason（common-core）逐字对齐——方向填反服务端 400，这里先在 UI 限制可选项。
  */
 
+import { displayLabel } from '@aicabinet/shared-dict';
+
 export interface DiffReasonOption {
   value: string;
   label: string;
@@ -57,17 +59,22 @@ export function diffDirectionLabel(diffQty: number | null | undefined): string {
   return diffQty < 0 ? '盘亏' : '盘盈';
 }
 
+// MA-136：这些是自造文案（待录入/录入中/已过账），与 admin 走的字典
+// （草稿/盘点中/已调整）是同一批值的两套词 ⇒ 同一条盘点单两端各说各话。
+// 改走 shared-dict 单源；未知值兜底「未知」而不是裸码。
 export const STOCKTAKE_STATUS_LABELS: Record<string, string> = {
-  DRAFT: '待录入',
-  IN_PROGRESS: '录入中',
-  COMPLETED: '已完成',
-  ADJUSTED: '已过账',
-  CANCELLED: '已取消'
+  DRAFT: displayLabel('stocktake_status', 'DRAFT', '未知'),
+  IN_PROGRESS: displayLabel('stocktake_status', 'IN_PROGRESS', '未知'),
+  COMPLETED: displayLabel('stocktake_status', 'COMPLETED', '未知'),
+  ADJUSTED: displayLabel('stocktake_status', 'ADJUSTED', '未知'),
+  CANCELLED: displayLabel('stocktake_status', 'CANCELLED', '未知')
 };
 
 export function stocktakeStatusLabel(status: string | null | undefined): string {
-  if (!status) return status ?? '';
-  return STOCKTAKE_STATUS_LABELS[status] ?? status;
+  if (!status) {
+    return '未知';
+  }
+  return displayLabel('stocktake_status', status, '未知');
 }
 
 export function stocktakeModeLabel(mode: string | null | undefined): string {

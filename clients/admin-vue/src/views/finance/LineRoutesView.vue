@@ -229,7 +229,14 @@
         <el-table-column label="时间" width="170">
           <template #default="{ row }">{{ formatDateTimeMinute(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column prop="entryType" label="类型" width="150" />
+        <!-- MA-133：原来 prop="entryType" 直出裸码（STAFF_COMMISSION_DAILY/WITHDRAW_PAYOUT…），
+             而同数据的 LineManagerView 走字典出中文 ⇒ 同一条流水两个页面各说各话。
+             改走 shared-dict（V436 已补 WITHDRAW_PAYOUT/COMMISSION_CLAWBACK/WITHDRAW_FEE）。 -->
+        <el-table-column label="类型" width="150">
+          <template #default="{ row }">
+            {{ displayLabel('wallet_entry_type', row.entryType, '未知') }}
+          </template>
+        </el-table-column>
         <el-table-column label="金额（元）" width="110">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
@@ -252,6 +259,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 interface LineRoute {
   id: number;

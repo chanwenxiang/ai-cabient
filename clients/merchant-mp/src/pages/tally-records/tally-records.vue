@@ -7,6 +7,7 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import type {
   OpenApiPageResultDeviceOpsEventDto,
@@ -166,10 +167,15 @@ function switchMode(m: 'restock' | 'stocktake') {
   void load();
 }
 
+// MA-130：本地 map 只认 `PUT_ON`——那是这一页发明的键，后端全仓 0 处写入，
+// 实际写的是 RESTOCK（上架）/ PULL_OFF（下架）⇒ 配货 Tab 每行 chip 裸显 "RESTOCK"。
+// 改走 shared-dict 单源（restock_line_type / replenishment_task_status，V171 已种）。
 function lineTypeLabel(t: string): string {
-  if (t === 'PUT_ON') return '上架';
-  if (t === 'PULL_OFF') return '下架';
-  return t || '调整';
+  return displayLabel('restock_line_type', t, '未知类型');
+}
+
+function taskStatusLabel(s: string): string {
+  return displayLabel('replenishment_task_status', s, '未知状态');
 }
 
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
@@ -231,7 +237,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
             </view>
             <text class="meta">
               {{ r.slotId ? `货道 ${r.slotId} · ` : '' }}{{ r.operatorName || '未知操作员' }} ·
-              {{ r.taskStatus === 'COMPLETED' ? '已完成' : r.taskStatus }}
+              {{ taskStatusLabel(r.taskStatus) }}
             </text>
           </view>
           <view v-if="restockLoaded && !restockRows.length" class="card">
