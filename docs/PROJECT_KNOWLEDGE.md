@@ -182,6 +182,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整联调 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 服务边界 / 识别链路 |
 | [FRONTEND_PRODUCT_DECISIONS.md](FRONTEND_PRODUCT_DECISIONS.md) | 三端产品边界 |
+| [UI_STYLE_UNIFICATION_PLAN.md](UI_STYLE_UNIFICATION_PLAN.md) | **三端样式统一（2026-11-03 定稿 v2，Phase 1–4 已实施）**：令牌语义层/裸色棘轮/提示四层+HelpTip/骨架屏/热区 88rpx/文案口径；写改任何 UI 前先读 Skill **`ui-style-guide`**（`.cursor/skills/ui-style-guide/`），其 §7 列了已拍板禁区（单号全量、原文剥离非折叠、KPI 营收随主色、补货禁「发运」字样） |
 | [THREE_END_FULL_REVIEW_2026-09-27.md](archive/audit/THREE_END_FULL_REVIEW_2026-09-27.md)（已归档） | 三端全面审查结论（无 P0/11 P1，**已全部修在位**）、mock 开关总表、接真前 checklist | 历史取证；缺陷编号与修复状态以 [AUDIT_LEDGER_2026-10-13.md](AUDIT_LEDGER_2026-10-13.md) 为准；其余旧审计快照同在 `docs/archive/audit/`（定性见其 README） |
 | [engineering/lessons-learned.md](engineering/lessons-learned.md) | 踩坑总册 |
 | [engineering/admin-vue-debt-tracker.md](engineering/admin-vue-debt-tracker.md) | 运营后台技术债进度（D1–D25 已清） |

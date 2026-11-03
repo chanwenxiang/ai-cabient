@@ -40,9 +40,9 @@ description: >-
 | 安全扫描 / SQLi / XSS | `security-scan` | fetch（拉 guidelines） |
 | 提交/PR 前审查 | `code-review` | GitHub（PR） |
 | 管理后台 / H5 UI 验收 | `browser-real-testing` / `playwright` | **Playwright MCP/CLI**（回退 IDE Browser） |
-| 小程序 UI | `ui-implementation`；二审 `zhipu-ui-acceptance` | Playwright/H5；dist 核对 |
+| 小程序 UI | **`ui-style-guide`（项目规范优先）** → `ui-implementation`；二审 `zhipu-ui-acceptance` | **微信开发者工具模拟器（mp-weixin，非 H5）**+ automator 配方；dist 核对 |
 | 用户录屏 / mp4 / 页面切换动效 | `read-video`（抽帧）+ MCP `media-context`（若已启用） | — |
-| UI 规范/a11y | `web-design-guidelines` | fetch |
+| UI 规范/a11y | **`ui-style-guide`（令牌/四层提示/热区/棘轮）** + `web-design-guidelines` | fetch |
 | 视觉方向 | `frontend-design` | — |
 | 全栈联调 | `fullstack-web-development` | Context7；Playwright |
 | Bug | `systematic-debugging` | Sentry；shell |
