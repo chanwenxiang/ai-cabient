@@ -204,7 +204,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "ADJUST", "运营调整", "COMMISSION", "佣金入账", "COMMISSION_DAILY", "日结佣金",
                 "BOUNTY", "地推赏金",
                 "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻", "WITHDRAW_PAID", "提现打款",
-                "SPLIT_CREDIT", "分账入账", "SPLIT_REVERSE", "分账退回",
+                "SPLIT_CREDIT", "分账入账", "SPLIT_REVERSE", "分账冲正",
                 "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
                 "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费",
                 // V436（MA-132/133）：后端真实写入但字典缺项，补种必须与迁移同步
@@ -438,6 +438,40 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "HQ", "总部", "REGION", "区域", "BRANCH", "分公司")));
         // 类目以运营字典为准；种子仅保证类型存在（项由运营后台维护）
         map.put("category_code", t("类目", m()));
+        // MA-145：以下 10 个类型此前只在 shared-dict 基线（前端产物直接吃基线），
+        // DB/Bootstrap 均缺席 → 字典管理不可见、runtime 常态性缺类型。词条与基线逐字对齐。
+        map.put("balance_refund_status", t("余额退款状态", m(
+                "PENDING_REVIEW", "待审核", "REFUNDED", "已退款",
+                "REJECTED", "已驳回", "FAILED", "失败")));
+        map.put("user_role", t("用户角色", m(
+                "CONSUMER", "消费者", "OPERATOR", "运营账号", "MERCHANT", "商户", "OPS", "运营")));
+        map.put("wallet_ref_type", t("钱包关联类型", m(
+                "ORDER", "订单", "WITHDRAW", "提现", "OPS_ADJUST", "运营调账",
+                "COMMISSION_DAILY", "日结佣金", "SPLIT", "分账", "SPLIT_PARTIAL", "分账增额",
+                "SPLIT_PARTIAL_REV", "分账冲正", "SPLIT_REV", "分账冲正",
+                "RECHARGE", "充值", "REFUND", "退款", "SEED", "演示初始")));
+        map.put("wallet_ledger_type", t("钱包账务类型", m(
+                "MERCHANT_CREDIT", "商户入账", "LINE_COMMISSION", "线长佣金",
+                "WITHDRAW_FREEZE", "提现冻结", "WITHDRAW_RELEASE", "提现解冻",
+                "WITHDRAW_PAID", "提现打款", "ADJUST", "调账", "REVERSE", "冲正",
+                "SPLIT_CREDIT", "分账入账", "SPLIT_PARTIAL_CREDIT", "分账入账",
+                "SPLIT_REVERSE", "分账冲正", "SPLIT_PARTIAL_REVERSE", "分账冲正")));
+        map.put("consistency_diag_code", t("一致性诊断码", m(
+                "SALE_OK", "应有 SALE 扣库流水", "MISSING_SALE", "缺少 SALE 扣库流水",
+                "INVENTORY_FLAG", "未标记已扣库", "REFUND_OR_KEPT", "应有退款/留货库存流水",
+                "MISSING", "缺少退款/留货库存流水", "LINKED", "应有关联订单")));
+        map.put("merchant_settlement_bill_status", t("商户结算单状态", m(
+                "PENDING", "待确认", "CONFIRMED", "已确认")));
+        map.put("close_sheet_status", t("月结单状态", m(
+                "DRAFT", "未审批", "APPROVED", "已审批")));
+        map.put("close_sheet_opening_source", t("月结期初来源", m(
+                "PERIOD_CLOSE", "上期实盘结转", "BOOK", "账面结转")));
+        map.put("close_sheet_disposition", t("月结差异处置", m(
+                "PENDING", "待认定", "CLAIM", "已索赔",
+                "NORMAL_LOSS", "正常损耗", "SURPLUS", "盘盈待查")));
+        map.put("expiry_urgency", t("临期紧急度", m(
+                "EXPIRED", "已过期", "URGENT", "紧急（≤7天）",
+                "SOON", "临近（≤30天）", "NORMAL", "正常")));
         return map;
     }
 

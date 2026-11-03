@@ -2,7 +2,7 @@ import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { yuanToCents } from '@/utils/display';
+import { yuanToCents, centsToYuanNumber } from '@/utils/display';
 import { errorMessage } from '@/utils/error-message';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 import type { PageResult } from '@aicabinet/shared-types';
@@ -99,7 +99,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     lines: []
   });
 
-  const payMaxYuan = computed(() => Number((payTarget.value.balanceCents || 0) / 100));
+  const payMaxYuan = computed(() => centsToYuanNumber(payTarget.value.balanceCents || 0));
 
   function managerOptionLabel(op: { userId: number; name?: string; phoneNumber?: string }) {
     const name = (op.name || '').trim() || '未命名';
@@ -223,7 +223,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
       contactName: row?.contactName || '',
       contactPhone: row?.contactPhone || '',
       paymentTermsDays: row?.paymentTermsDays || 30,
-      creditLimitYuan: row?.creditLimitCents == null ? 0 : Number(row.creditLimitCents) / 100,
+      creditLimitYuan: row?.creditLimitCents == null ? 0 : centsToYuanNumber(row.creditLimitCents),
       status: row?.status || 'ACTIVE'
     });
     supplierDialog.value = true;
@@ -263,7 +263,7 @@ export function useWarehouseEntityDialogs(deps: UseWarehouseEntityDialogsDeps) {
     // P2：整行替换而非合并——Object.assign 会残留上一行字段造成串显
     payTarget.value = { ...row };
     paymentForm.payableId = row.payableId;
-    paymentForm.amountYuan = Number((Number(row.balanceCents) || 0) / 100);
+    paymentForm.amountYuan = centsToYuanNumber(row.balanceCents || 0);
     paymentForm.notes = '';
     paymentDialog.value = true;
   }

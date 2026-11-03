@@ -252,7 +252,8 @@
               class-name="col-money"
               label-class-name="col-money"
             >
-              <template #default="{ row }">{{ yuan(row.feeCents || 0) }}</template>
+              <template #default="{ row }">{{ row.feeCents == null ? '—' : yuan(row.feeCents) + (Number(row.feeCents) === 0 ? '（免收）' : '')
+              }}</template>
             </el-table-column>
             <el-table-column
               prop="status"

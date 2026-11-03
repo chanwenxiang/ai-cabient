@@ -150,7 +150,7 @@
           >
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                {{ row.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE') }}
+                {{ displayLabel('enable_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -252,7 +252,7 @@ const csvOptions: CrudCsvOptions = {
       r.title,
       typeLabel(r.assetType),
       r.durationSeconds ?? '',
-      r.status === 'ACTIVE' ? '在用' : displayLabel('enable_status', 'INACTIVE'),
+      displayLabel('enable_status', r.status),
       formatDateTime(r.createdAt)
     ])
 };

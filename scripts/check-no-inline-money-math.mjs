@@ -23,7 +23,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-no-inline-money-math]';
 const DIRS = [
   join('clients', 'admin-vue', 'src', 'views'),
-  join('clients', 'admin-vue', 'src', 'components')
+  join('clients', 'admin-vue', 'src', 'components'),
+  join('clients', 'admin-vue', 'src', 'composables')
 ];
 const ALLOWLIST = join('scripts', 'inline-money-math-allowlist.json');
 const MIN_FILES = 100;
@@ -33,7 +34,8 @@ function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (name.endsWith('.vue')) out.push(p);
+    // MA-138：composables 目录是 .ts（utils 同理），一并纳入棘轮
+    else if (name.endsWith('.vue') || name.endsWith('.ts')) out.push(p);
   }
   return out;
 }

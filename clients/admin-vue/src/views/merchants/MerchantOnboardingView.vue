@@ -57,7 +57,7 @@
         <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
           <el-option value="WECHAT" label="微信" />
           <el-option value="ALIPAY" label="支付宝" />
-          <el-option value="PAYSCORE" label="支付分" />
+          <el-option value="PAYSCORE" label="微信支付分" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
@@ -156,7 +156,7 @@
         <el-select v-model="form.channel" :disabled="!!form.onboardingId" style="width: 100%">
           <el-option value="WECHAT" label="微信" />
           <el-option value="ALIPAY" label="支付宝" />
-          <el-option value="PAYSCORE" label="支付分" />
+          <el-option value="PAYSCORE" label="微信支付分" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
@@ -200,6 +200,7 @@ import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components
 import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 interface OnboardRow {
   onboardingId: number;
@@ -346,13 +347,7 @@ const form = reactive({
 });
 
 function channelLabel(c?: string) {
-  return (
-    ({ WECHAT: '微信', ALIPAY: '支付宝', PAYSCORE: '支付分' } as Record<string, string>)[
-      String(c || '')
-    ] ||
-    c ||
-    ''
-  );
+  return displayLabel('pay_channel', c || '');
 }
 function statusLabel(s?: string) {
   return (

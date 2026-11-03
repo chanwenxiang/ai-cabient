@@ -88,8 +88,8 @@
 | MA-076 | P3 | fixed（税务资料 + 补货配置均留痕） | 商户补货配置 + 开票税务资料 | PUT /merchant/ops-config（CompetitiveGapService:301）与 PUT /merchant/tax-profile（InvoiceService:174）两处配置类写无审计；税务资料含银行账号。补货配置收口：`MERCHANT_OPS_CONFIG_SAVE`（阈值/模式/开关全量快照）+ 商户门户透传 userId + verify 钉测 | ZCode R12批1 / 2026-11-02 | |
 | MA-077 | P3 | fixed（白名单 400） | OpsPayoutAccountController 收款账户 | ownerType 无白名单：未知值落到 else 分支 `ops:finance:view`（只读权限可写）且垃圾值原样入库；无资金影响（提现链只认 LINE_MANAGER/MERCHANT） | ZCode R12批1 / 2026-11-02 | |
 | MA-078 | P3 | fixed（status 白名单 ACTIVE/INACTIVE） | `POST /ops/admin/merchants` | merchant.status 自由字符串直落：无白名单（"OPEN" 等静默生效使商户从 ACTIVE 过滤面消失）、超 16 字符触发 PG 22001→500 而非 400 | ZCode R12批1 / 2026-11-02 | |
-| MA-079 | P3 | open | `DELETE /ops/admin/dicts/types/{dictType}` | 可硬删代码内置字典类型（ORG_NODE_TYPE 等白名单权威来源），删除后 resolveNodeType fail-open 放行任意值；fail-open 本身是 javadoc 钉的设计，缺的是内置类型删除门槛 | ZCode R12批1 / 2026-11-02 | |
-| MA-080 | P3 | open | `PUT /ops/admin/org/nodes` | 组织节点 upsert 只拦「上级是自己」，不查父级存在性也不查祖先环（parent_id 无 FK，对照 DepartmentService 有完整防护）⇒ 环中节点双双缺席 roots，整棵子树从 /org/tree 静默消失 | ZCode R12批1 / 2026-11-02 | |
+| MA-079 | P3 | fixed（内置类型 409 禁删） | `DELETE /ops/admin/dicts/types/{dictType}` | 可硬删代码内置字典类型（ORG_NODE_TYPE 等白名单权威来源），删除后 resolveNodeType fail-open 放行任意值；fail-open 本身是 javadoc 钉的设计，缺的是内置类型删除门槛 | ZCode R12批1 / 2026-11-02 | |
+| MA-080 | P3 | fixed（父级存在 + 祖先环检测） | `PUT /ops/admin/org/nodes` | 组织节点 upsert 只拦「上级是自己」，不查父级存在性也不查祖先环（parent_id 无 FK，对照 DepartmentService 有完整防护）⇒ 环中节点双双缺席 roots，整棵子树从 /org/tree 静默消失 | ZCode R12批1 / 2026-11-02 | |
 | MA-081 | P3 | 复核不成立（撤账，见文末批次A/B收口节） | `POST /account/bind-openid`（mock-only） | 重复绑定他人已占 openId 撞 uk_user_wx_open_id 唯一索引→500 而非 409；生产 403 门禁在，仅 mock 环境报错语义问题 | ZCode R12批1 / 2026-11-02 | |
 
 | MA-082 | P3 | fixed（券/活动/展示位/素材四服务留痕） | 营销域运营写面（券模板/发券/活动上下架/展示位/素材 5 服务 15 端点） | 审计留痕整体缺失（零处 appendLog），同域兄弟 AdCampaignService 四处全有 AD_CAMPAIGN_* 审计 ⇒ 券面值改动/活动上下架/素材删除在 /audit 页不可查 | ZCode R12批2 / 2026-11-03 | rounds/R12-write-surface.md |
@@ -152,16 +152,16 @@
 | MA-134 | P2 | fixed（V436 补两值 + 自愈目录） | purchase_order_status | MA-031 同构复发：SysDictBootstrap 仅 4 值，缺在写的 PENDING_APPROVAL/REJECTED（ensureMissingDictItems 永不自愈）；admin「待审批」vs merchant-mp「待审核」两词，mp fallback 把未知值显示「处理中」 | ZCode R16 / 2026-11-03 | |
 | MA-135 | P2 | fixed（V436 补两值 + 自愈目录新增该类型） | notification_biz_type | 缺后端真实下发的 DAILY_INCOME/FEE_REMINDER（每日批量落库的高频行）⇒ admin 站内信记录页整片「未知」、merchant-mp 本地 map 显示中文；写入点新增值没回填字典与 MA-132 同模式 | ZCode R16 / 2026-11-03 | |
 | MA-136 | P2 | fixed（盘点状态改字典单源） | stocktake_status | 同值两套词：admin 走字典（草稿/盘点中/已调整）vs merchant-mp 本地 map（待录入/录入中/已过账）+ 未知值裸码兜底；违反 shared-dict「前端不得自行改文案」既定口径（expiry_urgency 曾为此立 lint 红线） | ZCode R16 / 2026-11-03 | |
-| MA-137 | P3 | open | shared-types 手写 OrderReadModel/OrderSummary | 缺 activityDiscountCents/grossAmountCents（生成物有）⇒ consumer 订单列表要补活动标签时 TS 无字段可用（MA-127 列表漏活动的直接诱因）；建议补字段或切 OpenApi 别名+加「手写接口 vs 生成物 diff」门禁 | ZCode R16 / 2026-11-03 | |
-| MA-138 | P3 | open | check-no-inline-money-math 门禁盲区 | 只扫 views/components 的 .vue，composables/*.ts 残留 3 处手算（useWarehouseEntityDialogs.ts:102,226,266）不受棘轮约束；DIRS 加 composables 收编 | ZCode R16 / 2026-11-03 | |
-| MA-139 | P3 | open | 提现 feeCents 空态两口径 | merchant「—（未结算/免收可区分）」vs admin `feeCents || 0` 显示「¥0.00」——null 被抹平后「未结算」与「免收」在 admin 不可区分；admin 费用列改三态对齐 | ZCode R16 / 2026-11-03 | |
-| MA-140 | P3 | open | wallet_ref_type 缺 SPLIT_REV | 后端真实写入（RevenueSplitService:473）但基线/DB 均无 ⇒ admin 显示「关联/未知」vs mp 本地「分账冲正」同流水两词 | ZCode R16 / 2026-11-03 | |
-| MA-141 | P3 | open | wallet_entry_type.SPLIT_REVERSE 措辞漂移 | DB/迁移「分账退回」vs shared 基线「分账冲正」——runtime 加载状态不同则显示不同词（低频窗口）；择一统一（DB 侧改需幂等 UPDATE，参照 V415 范式） | ZCode R16 / 2026-11-03 | |
-| MA-142 | P3 | open | 站内信 bizType 三端三词 | DISPUTE：consumer「售后」/merchant「争议」/字典「争议」；活动 vs 用户召回混用——分受众话术可理解但未登记为「有意差异」，对齐时无据可查；至少 shared-dict 注释钉住 | ZCode R16 / 2026-11-03 | |
-| MA-143 | P3 | open | exception_type 基线缺 15 值 | DB 33 值 vs 基线 19 值（G7 补集+将邑码只落 DB）；admin 靠 runtime 正常，runtime 未加载首屏 ExceptionListView 落「未知」；双 mp 不直接渲染故 P3 | ZCode R16 / 2026-11-03 | |
-| MA-144 | P3 | open | 反向缺：DB 有基线无的 4 类型 | sku_operation_scope/ops_fee_type/device_fault_code/risk_disposition_status——runtime 未加载时 SkuListView 首屏闪「未知」；违反 shared-dict 契约后半句「then seed here」 | ZCode R16 / 2026-11-03 | |
-| MA-145 | P3 | open | 基线独有 10 类型从未种子 | balance_refund_status/user_role/wallet_ref_type/wallet_ledger_type/consistency_diag_code/merchant_settlement_bill_status/close_sheet_*/expiry_urgency——字典管理不可见、runtime 常态性缺类型（结构性欠账，暂无可见故障） | ZCode R16 / 2026-11-03 | |
-| MA-146 | P3 | open | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | |
+| MA-137 | P3 | fixed（OrderReadModel 补 grossAmountCents） | shared-types 手写 OrderReadModel/OrderSummary | 缺 activityDiscountCents/grossAmountCents（生成物有）⇒ consumer 订单列表要补活动标签时 TS 无字段可用（MA-127 列表漏活动的直接诱因）；建议补字段或切 OpenApi 别名+加「手写接口 vs 生成物 diff」门禁 | ZCode R16 / 2026-11-03 | |
+| MA-138 | P3 | fixed（门禁收编 composables/*.ts，3 处手算改 centsToYuanNumber） | check-no-inline-money-math 门禁盲区 | 只扫 views/components 的 .vue，composables/*.ts 残留 3 处手算（useWarehouseEntityDialogs.ts:102,226,266）不受棘轮约束；DIRS 加 composables 收编 | ZCode R16 / 2026-11-03 | |
+| MA-139 | P3 | fixed（admin 费用列三态：—/金额/（免收）） | 提现 feeCents 空态两口径 | merchant「—（未结算/免收可区分）」vs admin `feeCents || 0` 显示「¥0.00」——null 被抹平后「未结算」与「免收」在 admin 不可区分；admin 费用列改三态对齐 | ZCode R16 / 2026-11-03 | |
+| MA-140 | P3 | fixed（SPLIT_REV 入基线/Bootstrap/V437） | wallet_ref_type 缺 SPLIT_REV | 后端真实写入（RevenueSplitService:473）但基线/DB 均无 ⇒ admin 显示「关联/未知」vs mp 本地「分账冲正」同流水两词 | ZCode R16 / 2026-11-03 | |
+| MA-141 | P3 | fixed（SPLIT_REVERSE 三源统一「分账冲正」，V437 带守卫 UPDATE） | wallet_entry_type.SPLIT_REVERSE 措辞漂移 | DB/迁移「分账退回」vs shared 基线「分账冲正」——runtime 加载状态不同则显示不同词（低频窗口）；择一统一（DB 侧改需幂等 UPDATE，参照 V415 范式） | ZCode R16 / 2026-11-03 | |
+| MA-142 | P3 | fixed（shared-dict 注释钉住分受众话术差异） | 站内信 bizType 三端三词 | DISPUTE：consumer「售后」/merchant「争议」/字典「争议」；活动 vs 用户召回混用——分受众话术可理解但未登记为「有意差异」，对齐时无据可查；至少 shared-dict 注释钉住 | ZCode R16 / 2026-11-03 | |
+| MA-143 | P3 | fixed（基线补齐 14 值，与 DB 33 值对齐） | exception_type 基线缺 15 值 | DB 33 值 vs 基线 19 值（G7 补集+将邑码只落 DB）；admin 靠 runtime 正常，runtime 未加载首屏 ExceptionListView 落「未知」；双 mp 不直接渲染故 P3 | ZCode R16 / 2026-11-03 | |
+| MA-144 | P3 | fixed（4 类型补基线） | 反向缺：DB 有基线无的 4 类型 | sku_operation_scope/ops_fee_type/device_fault_code/risk_disposition_status——runtime 未加载时 SkuListView 首屏闪「未知」；违反 shared-dict 契约后半句「then seed here」 | ZCode R16 / 2026-11-03 | |
+| MA-145 | P3 | fixed（10 类型入 seedCatalog + V437 回填 DB） | 基线独有 10 类型从未种子 | balance_refund_status/user_role/wallet_ref_type/wallet_ledger_type/consistency_diag_code/merchant_settlement_bill_status/close_sheet_*/expiry_urgency——字典管理不可见、runtime 常态性缺类型（结构性欠账，暂无可见故障） | ZCode R16 / 2026-11-03 | |
+| MA-146 | P3 | fixed（部分：AdAssetsView/MerchantOnboardingView 对齐字典；死值清理与 feedback 兜底待办） | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | |
 
 | MA-147 | P2 | fixed（显式清列+矩阵真库断言，门禁豁免已撤销） | 消费端全额退 `POST /orders/{id}/refund`（无 lines） | 全额退**不返还已核销券**：waive 路径（SettlementWaiveRefundService.waiveAndRefund）全文 0 处券处理，券返还（restoreUsedToUnused+活动预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund:573-583）；R17 矩阵 E2E 实测全额退后 user_coupon 仍 USED（MemberOrderChain 同库可见）；券面额随退款被吞且活动预算不释放；类注释无「刻意不返还」声明 | ZCode R17批2 / 2026-11-03 | rounds/R17-runtime-flows.md |
 
