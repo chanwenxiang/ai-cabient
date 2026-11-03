@@ -1171,3 +1171,29 @@
   - `dict-options-aliases.test.ts` 新例：从基线删掉 DRAFT/STOPPED ⇒ `1 failed | 6 passed`；补回 ⇒ 7 例全绿。
 - 活的共享 dev 库里 **CLOSED 那一行仍在**（本轮按铁律未对 18080 栈跑迁移）⇒ 后台筛选此刻仍看得见「已关闭」，新库/CI 由 V438 收敛；重部署后自动消失，判「还是灰的/还有」先比容器镜像与 V438 提交先后。
 - 台账核对：149 行、open=0 未变；MA-146 由 `fixed（部分…）` 转全量 `fixed`，并把「活库未迁移」写进残留列。
+
+### 批次 P｜权限矩阵专项落地成门禁（2026-11-03 深夜，补 regression-index 里那条「待补」）
+
+**判据方向先说清，只拦一侧**：切面是 OR（注解任一码即放行），服务层是 AND（路径上每道 `require*` 都得满足）。
+⇒ 真缺陷形态 = **注解里存在某个码 X，而路径上某道校验不接受 X**：只持 X 的人「前端看得到按钮、点下去必 403」，正是 MA-070/105/149/111 那一族。
+反方向（注解比服务窄）是刻意双门的常见形态，本门禁只记 info 不判红——把两侧都判红会逼出一堆无意义的对齐改动。
+
+`scripts/check-permission-matrix.mjs` 实树数字：629 处注解 / 598 绑到方法 / **196 个端点两侧都有校验**，其中 **12 条**命中幽灵码形态，全部登记进 `scripts/permission-matrix-exemptions.json`。
+豁免通道带三条硬约束（不是「登记了事」）：上限 12 **只许减不许加**；条目缺 `family/reason/ask` 即红；登记的端点一旦不再冲突就报「清单腐烂」并拒绝。
+负向用例 13 条：`node scripts/check-permission-matrix.test.mjs`。其中两条专门钉本轮自己踩的坑：
+
+1. **CRLF 偏移漂移**：按 `lines[k].length + 1` 累加行首偏移，在 CRLF 文件里每行少算 1 字符 ⇒ 方法体切片整体错位 ⇒ 服务层校验被读丢，「两侧都有校验」从 196 掉到 119。**这类退化不会报错，只会安静地少查 77 个端点**，所以必须留 CRLF 与 LF 同判的用例。
+2. **跨行签名绑定**：`public X create(\n @RequestBody ..\n) {` 必须仍能绑对，否则同一个坑换个形式再来一遍。
+
+#### 12 条按族归类，每族只问一个问题
+
+| 族 | 端点 | 现状（可证部分） | 两档与爆炸半径 | 我的推荐 |
+|---|---|---|---|---|
+| A RBAC 柜机范围子码「能改看不到」 | `OpsGapFeaturesController#userDevices`、`OpsRbacController#userRoles`、`OpsRbacController#userMerchants` | 写侧 `CompetitiveGapService:129` 是 `requireAnyPermission(operatorId, "ops:rbac:assign:device", PERM_OPS_RBAC_ASSIGN)` 两码都收；三个**读**端点服务层只收 `ops:rbac:assign` ⇒ 子码角色一进用户详情就 403 | ① 读端点并受子码（与写侧同形）：只放开「看范围/角色/商户」，不碰任何写面；② 注解删子码：承认子码角色不该看这三面，代价是它连自己刚改的范围都查不到 | **① 读侧并受**——与写侧同形、零写面变化 |
+| B 字典导入角色单条补录被拒 | `SysDictController#upsertType`、`SysDictController#createItem` | 注解 `{ops:dict:edit, ops:dict:import}`，服务层只认 `ops:dict:edit` ⇒ import-only 用户单条补录 403 | ① 服务层并受 import：等于给 import 角色两个单条写面（真扩权）；② 注解删 import：批量导入角色永远只能批量 | **②**，但前提是「import 角色只有批量入口」确实是有意的——我手里没有第二处证据，所以这条要你确认而不是我替你定 |
+| C 写/导出路径按**读码**上闸 | `OpsGapFeaturesController#createPhoneVerify`、`#updatePhoneVerify`、`#deletePhoneVerify`、`#exportStockHealth` | 注解是写码（edit/delete/export），服务层只认 `ops:phone-verify:list` / `ops:user:list` / 三个 list ⇒ 服务层对写侧形同虚设，真正的门只剩注解 | ① 服务层换成对应写码：写侧闸门在服务层真正成立；今天「持写码但不持那把读码」的人会被放行，集合确实变大（属修方向性缺陷，但仍需知情）；② 保持现状：双门继续，写侧继续只靠切面 | **①**——这是「写侧缺闸」，不是权宜对齐；因涉及放宽一批人，必须你点头 |
+| D 单码双门三例（本意各差一句话） | `MerchantPortalController#saveMyOpsConfig`（注解 view，服务要 request）、`AdminJiangyiController#shelveLearnedProduct`（注解 device:edit + 服务连道要 pricing:edit 与 replenishment:edit ⇒ 三码齐才能上架）、`OpsOrgController#siteContracts`（注解 org:list，服务要 device:list） | 三例的共同点：注解只有那一个码，**删掉就空**（=把双门拆成单门=扩权），所以只能改服务层或确认本意 | 每例一句话即可定：配置保存该认 view 还是 request？上架到底要几码？组织页的站点合同按 org 域还是 device 域？ | 待你给口径；A、C 两族我可以先落地 |
+
+- 本批**未改任何 Java/前端行为**：只加门禁脚本 + 负向用例 + 豁免清单 + package.json 接线（聚合链 90 ⇒ 92，全绿）。
+- 台账 149 行、open=0 不变；regression-index 里 MA-070/105/149 那行的「待补」已换成可执行命令。
+- 遗留（下一轮候选，本批不动）：402 个端点是 `no-service-check`（有注解、服务层无校验）。多数是「只靠切面保护」的正常读接口，但**其中 POST/PUT/DELETE 那一档**如果也零服务层校验，就是另一类缺陷（切面被绕过=直接调用即长驱直入）。收窄到写方法再测一次才有意义。

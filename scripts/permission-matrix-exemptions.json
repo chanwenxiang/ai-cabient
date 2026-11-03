@@ -1,0 +1,86 @@
+[
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java#shelveLearnedProduct",
+    "family": "E-多道校验叠成三码门",
+    "reason": "切面按注解放行，服务层 JiangyiShelfService.shelve 要 ops:pricing:edit 且 JiangyiShelfService.shelve 要 ops:replenishment:edit ⇒ 注解码持有人 {ops:device:edit} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "服务连道 require 要 pricing:edit 与 replenishment:edit，注解另要 device:edit ⇒ 三码齐才能上架。哪个集合是本意？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantPortalController.java#saveMyOpsConfig",
+    "family": "D-视图码注解配请求码服务",
+    "reason": "切面按注解放行，服务层 MerchantPortalService.saveMyOpsConfig 要 merchant:replenishment:request ⇒ 注解码持有人 {merchant:replenishment:view} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "注解 merchant:replenishment:view，服务要 request：收窄注解会让「只有 request 码」的人过不了切面（今天他们能过服务但过不了注解=其实也不能），改注解等于换门，需确认哪码才是本意。",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java#userDevices",
+    "family": "A-RBAC 柜机范围子码读不到",
+    "reason": "切面按注解放行，服务层 CompetitiveGapService.getUserDeviceScope 要 ops:rbac:assign ⇒ 注解码持有人 {ops:rbac:assign:device} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "ops:rbac:assign:device 持有人能改柜机范围却读不到（服务层只认 ops:rbac:assign）：读端点是否应并受该子码？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java#createPhoneVerify",
+    "family": "C-写路径按读码上闸",
+    "reason": "切面按注解放行，服务层 CompetitiveGapService.recordPhoneVerify 要 ops:phone-verify:list/ops:user:list ⇒ 注解码持有人 {ops:phone-verify:edit} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "create/update/delete 的注解是写码，但服务层只认 phone-verify:list / user:list（读码）：谁写错了？改注解=拆双门（扩权），改服务=可能放宽写侧。",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java#updatePhoneVerify",
+    "family": "C-写路径按读码上闸",
+    "reason": "切面按注解放行，服务层 CompetitiveGapService.updatePhoneVerify 要 ops:phone-verify:list/ops:user:list ⇒ 注解码持有人 {ops:phone-verify:edit} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "create/update/delete 的注解是写码，但服务层只认 phone-verify:list / user:list（读码）：谁写错了？改注解=拆双门（扩权），改服务=可能放宽写侧。",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java#deletePhoneVerify",
+    "family": "C-写路径按读码上闸",
+    "reason": "切面按注解放行，服务层 CompetitiveGapService.deletePhoneVerify 要 ops:phone-verify:list/ops:user:list ⇒ 注解码持有人 {ops:phone-verify:delete} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "create/update/delete 的注解是写码，但服务层只认 phone-verify:list / user:list（读码）：谁写错了？改注解=拆双门（扩权），改服务=可能放宽写侧。",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java#exportStockHealth",
+    "family": "C-写路径按读码上闸",
+    "reason": "切面按注解放行，服务层 DeviceAssetService.stockHealth 要 ops:device:list/ops:replenishment:list/ops:stock-health:list ⇒ 注解码持有人 {ops:stock-health:export} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "导出注解 ops:stock-health:export，服务按三个读码放行：export 码是否该并进服务校验集合？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsOrgController.java#siteContracts",
+    "family": "F-读端点按别的域要码",
+    "reason": "切面按注解放行，服务层 SiteContractService.listPage 要 ops:device:list ⇒ 注解码持有人 {ops:org:list} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "组织页站点合同列表被要求 ops:device:list（MA-070 同族残留）：服务层并受 ops:org:list，还是给组织角色 device:list？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#userRoles",
+    "family": "A-RBAC 柜机范围子码读不到",
+    "reason": "切面按注解放行，服务层 OpsRbacService.getUserRoles 要 ops:rbac:assign ⇒ 注解码持有人 {ops:rbac:assign:device} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "ops:rbac:assign:device 持有人能改柜机范围却读不到（服务层只认 ops:rbac:assign）：读端点是否应并受该子码？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#userMerchants",
+    "family": "A-RBAC 柜机范围子码读不到",
+    "reason": "切面按注解放行，服务层 OpsRbacService.getUserMerchants 要 ops:rbac:assign ⇒ 注解码持有人 {ops:rbac:assign:device} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "ops:rbac:assign:device 持有人能改柜机范围却读不到（服务层只认 ops:rbac:assign）：读端点是否应并受该子码？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SysDictController.java#upsertType",
+    "family": "B-字典导入角色单条补录被拒",
+    "reason": "切面按注解放行，服务层 SysDictService.upsertType 要 ops:dict:edit ⇒ 注解码持有人 {ops:dict:import} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "ops:dict:import 持有人走 upsertType/createItem 会吃 403：导入是否本就该带单条写权（服务层并受 import），还是注解不该给 import？",
+    "resolved": false
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SysDictController.java#createItem",
+    "family": "B-字典导入角色单条补录被拒",
+    "reason": "切面按注解放行，服务层 SysDictService.upsertItem 要 ops:dict:edit ⇒ 注解码持有人 {ops:dict:import} 必 403（幽灵按钮形态）。存量登记，非认可。",
+    "ask": "ops:dict:import 持有人走 upsertType/createItem 会吃 403：导入是否本就该带单条写权（服务层并受 import），还是注解不该给 import？",
+    "resolved": false
+  }
+]
