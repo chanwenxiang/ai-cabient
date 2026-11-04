@@ -547,7 +547,6 @@ const excludes = authExcludePatterns();
 const writeHandlers = [];
 for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
   const src = readFileSync(f, 'utf8');
-  const consts = constantsOf(src);
   const lines = src.split(/\r?\n/);
   const starts = lineStartsOf(src);
   const fields = {};
