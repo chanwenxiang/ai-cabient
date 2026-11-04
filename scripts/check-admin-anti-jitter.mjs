@@ -29,6 +29,17 @@ function walkVue(dir, acc = []) {
   return acc;
 }
 
+function walkCss(dir, acc = []) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name === 'node_modules' || ent.name === 'dist') continue;
+      walkCss(p, acc);
+    } else if (ent.name.endsWith('.css')) acc.push(p);
+  }
+  return acc;
+}
+
 function fail(msg) {
   errors.push(msg);
 }
@@ -286,6 +297,37 @@ for (const [name, src] of [
     fail(
       'K: table-scroll-fit measureOverflow 须在 clientWidth≤0 时清 table-scroll--h 并返回 false'
     );
+  }
+}
+
+// ——— L) 悬停/聚焦状态禁止改几何（移动鼠标不该让内容上下/左右位移） ———
+// 现象：鼠标掠过 KPI 瓦片、列表操作按钮时，卡片/按钮各自上移 1px 再落回，
+// 视觉上就是「移鼠标整页上下抖」。悬停只允许换色/描边/阴影 —— 三者都不改几何。
+{
+  const GEOM_RE =
+    /(?:^|[;{\s])(?:transform\s*:\s*(?!none)[^;}]+|translate\s*:[^;}]+|scale\s*:[^;}]+|rotate\s*:[^;}]+|margin(?:-[a-z]+)?\s*:\s*[^;}]+|padding(?:-[a-z]+)?\s*:\s*[^;}]+|(?:min-|max-)?(?:width|height)\s*:\s*[^;}]+|(?:top|left|right|bottom)\s*:\s*[^;}]+|inset\s*:[^;}]+|border(?:-[a-z]+)?-width\s*:\s*[^;}]+|letter-spacing\s*:[^;}]+|line-height\s*:\s*[^;}]+|font-size\s*:\s*[^;}]+|font-weight\s*:\s*[^;}]+|gap\s*:\s*[^;}]+)/;
+  // 无障碍跳转链接：聚焦时从屏外移入视野，属于刻意位移
+  const HOVER_GEOM_ALLOW = [{ file: 'styles/main.css', sel: '.skip-link:focus-visible' }];
+  const adminSrc = path.join(root, 'clients/admin-vue/src');
+  const styleFiles = [...walkVue(adminSrc), ...walkCss(adminSrc)];
+  for (const abs of styleFiles) {
+    const rel = path.relative(root, abs).replace(/\\/g, '/');
+    const css = stripComments(fs.readFileSync(abs, 'utf8')).replace(/<!--[\s\S]*?-->/g, '');
+    for (const raw of css.split('}')) {
+      const brace = raw.indexOf('{');
+      if (brace < 0) continue;
+      const sel = `${raw.slice(0, brace).replace(/\s+/g, ' ').trim()}`
+        .replace(/<\/?style[^>]*>/g, '')
+        .trim();
+      if (!/:hover|:focus-visible/.test(sel)) continue;
+      if (HOVER_GEOM_ALLOW.some((w) => rel.endsWith(w.file) && sel.includes(w.sel))) continue;
+      const hit = GEOM_RE.exec(raw.slice(brace + 1));
+      if (hit) {
+        fail(
+          `L: ${rel} 的悬停/聚焦规则禁止改几何（${sel.slice(-90)} → ${hit[0].trim()}）；改色/描边/阴影即可`
+        );
+      }
+    }
   }
 }
 

@@ -684,12 +684,10 @@ onMounted(load);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+    box-shadow 0.15s ease;
 }
 .stat-tile.is-clickable:hover,
 .stat-tile.is-clickable:focus-visible {
-  transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 16%, transparent);
   outline: none;

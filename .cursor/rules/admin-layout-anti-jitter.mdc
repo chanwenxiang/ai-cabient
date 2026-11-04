@@ -22,6 +22,7 @@ alwaysApply: false
 | H | 长文案悬停浮层盖住邻列/操作列 | `show-overflow-tooltip` 的 EP 浮层挂在表内，横滚+sticky 时错位 | **全后台禁止** `show-overflow-tooltip`；全局 `installTableCellNativeTitle`；可选手写 `.cell-ellipsis` + `:title` |
 | J | 移鼠标（含维修工单等任意列表）整页微抖 | 高 DPR 下侧栏 `220px`→219.99，主列曾 `margin-left:-1px` 与侧栏重叠≈1px，合成层亚像素重绘 | 侧栏宽按 `devicePixelRatio` **对齐设备像素**；**禁止** `.layout-content{margin-left:-1px}`；交界用 cover 条；壳高 `pinLayoutViewportHeight` ≥2px 回滞 |
 | K | 列表移鼠标换行仍像抖（几何已稳） | EP `.el-table--enable-row-transition` 给 td `background-color 0.25s`；sticky 操作列同步缓动；隐藏 tab/`clientWidth=0` 误加 `--h` | **必须** `main.css`：`.el-table--enable-row-transition … td { transition: none !important }`；嵌套子表**禁止**硬编码 `table-scroll--h`；`measureOverflow` 在 `clientWidth≤0` 时清 `--h` 返回 false |
+| L | 移鼠标 KPI 瓦片/操作按钮「点一下头」（用户报整页上下抖） | 悬停/聚焦规则里写了 `transform: translateY(-1px)`（4 个 KPI 页 + 大屏 KPI + TableActions），配 0.15s transition，鼠标掠过即上下位移 | **必须**悬停/聚焦只改 `color` / `background` / `border-color` / `box-shadow`；**禁改几何**（transform/padding/margin/width/height/top/left/inset/border-width/gap/font-*）。门禁表 L 扫全 `src/**/*.{vue,css}`，唯一白名单 `.skip-link:focus-visible` |
 
 ## 主区硬约束
 
@@ -34,7 +35,8 @@ alwaysApply: false
 7. 浮动横滑条几何取整 + ≥2px 回滞。  
 8. 操作列右侧 sticky（见上表 A）；壳层高度整数 `--layout-vh-px`（≥2px 回滞）；侧栏宽设备像素对齐；侧栏滚动条隐藏。  
 8b. **禁止** `.layout-content { margin-left: -1px }`（高 DPR 负间隙抖，见表 J）。
-8c. **必须**关掉 EP 行悬停背景过渡（见表 K）；展开行内嵌套表勿硬编码 `.table-scroll--h`。
+8c. **必须**关掉 EP 行悬停背景过渡（见表 K）；展开行内嵌套表勿硬编码 `.table-scroll--h`。  
+8d. **悬停/聚焦只准换色**（color/background/border-color/box-shadow），禁任何几何变化（见表 L）；吸附/位移类反馈一律改描边或阴影。
 
 ## 审单抽屉（ResizableDrawer）
 
@@ -80,3 +82,4 @@ alwaysApply: false
 | 「按钮 wrap 一下也行」 | 否；滚动条闪动会闪行；用 nowrap。 |
 | 「数量列再窄一点省地方」 | 否；小于 150px 会盖「删除」。 |
 | 「用 show-overflow-tooltip 看全文」 | 否；浮层会盖邻列。全局原生 title / cell-ellipsis + title。 |
+| 「hover 上浮 1px 更有质感」 | **否**。1px 位移+transition 就是「移鼠标整页抖」的来源（表 L）；用描边/阴影表达可点。 |

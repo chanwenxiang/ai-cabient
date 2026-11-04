@@ -133,7 +133,6 @@ const more = computed(() => {
     color 0.15s ease,
     background 0.15s ease,
     border-color 0.15s ease,
-    transform 0.15s ease,
     box-shadow 0.15s ease;
 }
 .action-icon-btn.is-primary {
@@ -147,7 +146,6 @@ const more = computed(() => {
   background: color-mix(in srgb, var(--app-primary, #0f766e) 12%, var(--layout-card, #ffffff));
   border-color: color-mix(in srgb, var(--app-primary, #0f766e) 45%, var(--layout-border, #ebeef5));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary, #0f766e) 18%, transparent);
-  transform: translateY(-1px);
 }
 .action-icon-btn:disabled {
   opacity: 0.45;

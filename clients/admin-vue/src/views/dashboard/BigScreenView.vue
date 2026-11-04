@@ -1363,15 +1363,13 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition:
     border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+    box-shadow 0.2s ease;
 }
 .bs-kpi.is-clickable:hover {
   border-color: rgba(45, 212, 191, 0.55);
   box-shadow:
     inset 0 0 26px rgba(45, 212, 191, 0.08),
     0 0 18px rgba(45, 212, 191, 0.18);
-  transform: translateY(-1px);
 }
 .bs-rank.is-clickable,
 .bs-action.is-clickable {
