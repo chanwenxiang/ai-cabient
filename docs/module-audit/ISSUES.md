@@ -169,6 +169,8 @@
 | MA-146 | P3 | fixed（批次 O 收口：CLOSED 死值删+幽灵选项 IT、enable_status 基线收 3 值、feedback 未知态显「—」） | 死字典值与局部内联漂移 | repair_ticket_status.CLOSED 状态机写不出（幽灵选项）；enable_status 基线冗余 DRAFT/STOPPED；AdAssetsView 内联三元与同页字典混用；MerchantOnboardingView PAYSCORE→支付分 vs 字典「微信支付分」；consumer feedback 未知状态兜底「处理中」掩盖 | ZCode R16 / 2026-11-03 | 活 dev 库仍留 CLOSED 行（未对共享栈跑迁移），新库/CI 已由 V438 删除 |
 
 | MA-147 | P2 | fixed（显式清列+矩阵真库断言，门禁豁免已撤销） | 消费端全额退 `POST /orders/{id}/refund`（无 lines） | 全额退**不返还已核销券**：waive 路径（SettlementWaiveRefundService.waiveAndRefund）全文 0 处券处理，券返还（restoreUsedToUnused+活动预算释放）只接在比例退路径（CouponService.settleAfterPartialRefund:573-583）；R17 矩阵 E2E 实测全额退后 user_coupon 仍 USED（MemberOrderChain 同库可见）；券面额随退款被吞且活动预算不释放；类注释无「刻意不返还」声明 | ZCode R17批2 / 2026-11-03 | rounds/R17-runtime-flows.md |
+| MA-155 | P3 | open | merchant-mp `pages/mine` 导航「发起补货」描述 | 菜单描述仍写「缺啥补啥，直接生成**分仓出库**与补货任务」（`config/merchant-nav.ts:197`，经 `mine.vue` 的 `menu-desc` 直接渲染），与 2026-10-29 拍板的「补货＝自提自送；领货/上柜/领而未上」口径不一致——同批已把提交提示里的「分仓出库」删掉，导航描述漏改 | Delta R18 / 2026-11-04 | 铁律 80；`UI_STYLE_UNIFICATION_PLAN.md` Phase 4「补货措辞对齐」条。静态可证（常量直出 UI），商户端模拟器本轮 BLOCKED 未出截图 |
+| MA-156 | P3 | open | 双小程序 `packages/shared-uni` `app-button` sm/compact 变体 | 可点按钮本体 72rpx（消费端模拟器实测 **37px**）低于项目自定 88rpx 热区阈值，且该变体**没有** `::after` 负 inset 扩展（`app-button.wxss` 里只有 `.app-btn:after{border:none}`）；而 `check-mp-touch-target-ratchet` 报「小热区 0/0（扫 95 文件）」⇒ 这一类「组件内尺寸变体」不在门禁判据覆盖面内。全仓 `compact` 用法 22 处（consumer 5 / merchant 17） | Delta R18 / 2026-11-04 | 实测页 `consumer-mp pages/recharge`「提交申请」；判据同 Phase 4「可点元素 <88rpx 清单」。修法二选一：给 sm/compact 补 `::after` 扩展，或把门禁判据扩到组件变体类 |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
