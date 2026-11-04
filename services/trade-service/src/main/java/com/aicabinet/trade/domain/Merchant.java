@@ -39,8 +39,6 @@ public class Merchant {
 
     private String alertContactPhone;
 
-    private boolean allowMerchantPlanogramEdit = false;
-
     private boolean allowMerchantPricingEdit = false;
 
     /** 功能包：现场作业 */

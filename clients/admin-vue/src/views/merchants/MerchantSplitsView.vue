@@ -91,7 +91,7 @@
         <div class="rule-help">
           <span>功能包口径</span>
           <HelpTip
-            content="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
+            content="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改价为包内细粒度写开关。"
             aria-label="功能包口径"
           />
         </div>
@@ -200,22 +200,6 @@
                     :aria-label="`${row.merchantName}功能包：团队与设置`"
                     title="功能包：商户设置 / 团队成员"
                     @change="(v: boolean) => toggleFlag(row, 'packTeam', v)"
-                  />
-                </template>
-              </el-table-column>
-              <el-table-column
-                label="商户改货道"
-                width="110"
-                class-name="col-text"
-                label-class-name="col-text"
-              >
-                <template #default="{ row }">
-                  <el-switch
-                    :model-value="row.allowMerchantPlanogramEdit"
-                    :disabled="!canEdit || row.packFieldEnabled === false"
-                    :aria-label="`${row.merchantName}允许修改货道`"
-                    :title="`${row.merchantName}：允许修改货道`"
-                    @change="(v: boolean) => toggleFlag(row, 'planogram', v)"
                   />
                 </template>
               </el-table-column>
@@ -1130,17 +1114,7 @@ const exportButtonLabel = computed(() =>
 // 双路线导出（页头按钮按 tab 切换数据源）：保留 useListCsv，数据源换成 crud 控制器
 const { onExport: exportMerchants } = useListCsv({
   filePrefix: '商户',
-  headers: [
-    '商户编号',
-    '名称',
-    '抽成',
-    '现场作业',
-    '经营工具',
-    '团队设置',
-    '商户改货道',
-    '商户改价',
-    '设备数'
-  ],
+  headers: ['商户编号', '名称', '抽成', '现场作业', '经营工具', '团队设置', '商户改价', '设备数'],
   toRows: () => {
     const source = tab.value === 'merchants' ? crudMerchants.displayItems : merchants.value;
     return crudMerchants
@@ -1152,7 +1126,6 @@ const { onExport: exportMerchants } = useListCsv({
         row.packFieldEnabled === false ? '否' : '是',
         row.packBizEnabled === false ? '否' : '是',
         row.packTeamEnabled === false ? '否' : '是',
-        row.allowMerchantPlanogramEdit ? '是' : '否',
         row.allowMerchantPricingEdit ? '是' : '否',
         row.deviceCount ?? 0
       ]);
@@ -1488,7 +1461,7 @@ async function doRefresh(row: RevenueSplit) {
 
 async function toggleFlag(
   row: MerchantDto,
-  kind: 'planogram' | 'pricing' | 'packField' | 'packBiz' | 'packTeam',
+  kind: 'pricing' | 'packField' | 'packBiz' | 'packTeam',
   value: boolean
 ) {
   if (!canEdit.value) return;
@@ -1502,14 +1475,12 @@ async function toggleFlag(
       status: row.status,
       remark: row.remark,
       parentMerchantId: row.parentMerchantId ?? '',
-      allowMerchantPlanogramEdit: kind === 'planogram' ? value : row.allowMerchantPlanogramEdit,
       allowMerchantPricingEdit: kind === 'pricing' ? value : row.allowMerchantPricingEdit,
       packFieldEnabled: kind === 'packField' ? value : row.packFieldEnabled !== false,
       packBizEnabled: kind === 'packBiz' ? value : row.packBizEnabled !== false,
       packTeamEnabled: kind === 'packTeam' ? value : row.packTeamEnabled !== false
     });
-    if (kind === 'planogram') row.allowMerchantPlanogramEdit = value;
-    else if (kind === 'pricing') row.allowMerchantPricingEdit = value;
+    if (kind === 'pricing') row.allowMerchantPricingEdit = value;
     else if (kind === 'packField') row.packFieldEnabled = value;
     else if (kind === 'packBiz') row.packBizEnabled = value;
     else row.packTeamEnabled = value;
@@ -1568,7 +1539,6 @@ async function saveOrg() {
       status: f.status || 'ACTIVE',
       remark: existing?.remark,
       parentMerchantId: f.parentMerchantId || '',
-      allowMerchantPlanogramEdit: existing?.allowMerchantPlanogramEdit ?? false,
       allowMerchantPricingEdit: existing?.allowMerchantPricingEdit ?? false,
       packFieldEnabled: existing?.packFieldEnabled !== false,
       packBizEnabled: existing?.packBizEnabled !== false,

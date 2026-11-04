@@ -517,7 +517,7 @@ public class MerchantDevicePortalService {
                 m.getAlertContactName(), m.getAlertContactPhone(),
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
                 m.getRemark(), deviceCount,
-                m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.isAllowMerchantPricingEdit(),
                 m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt()

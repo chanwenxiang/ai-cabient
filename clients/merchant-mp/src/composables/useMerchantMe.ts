@@ -35,7 +35,6 @@ export function stripMerchantGrants(me: MerchantMe): MerchantMe {
     merchants: (me.merchants || []).map((m) => ({
       ...m,
       allowMerchantPricingEdit: false,
-      allowMerchantPlanogramEdit: false,
       packFieldEnabled: false,
       packBizEnabled: false,
       packTeamEnabled: false

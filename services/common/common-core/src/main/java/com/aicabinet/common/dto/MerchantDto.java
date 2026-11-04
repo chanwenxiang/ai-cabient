@@ -13,7 +13,6 @@ public record MerchantDto(
         String status,
         String remark,
         long deviceCount,
-        boolean allowMerchantPlanogramEdit,
         boolean allowMerchantPricingEdit,
         boolean packFieldEnabled,
         boolean packBizEnabled,

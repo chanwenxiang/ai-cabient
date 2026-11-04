@@ -281,7 +281,6 @@ export interface MerchantDto {
   status: string;
   remark?: string;
   deviceCount?: number;
-  allowMerchantPlanogramEdit?: boolean;
   allowMerchantPricingEdit?: boolean;
   /** 功能包：现场作业 */
   packFieldEnabled?: boolean;

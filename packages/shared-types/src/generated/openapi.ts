@@ -14360,7 +14360,6 @@ export interface components {
             wechatReceiverId?: string;
             status?: string;
             remark?: string;
-            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;
@@ -14386,7 +14385,6 @@ export interface components {
             remark?: string;
             /** Format: int64 */
             deviceCount?: number;
-            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;

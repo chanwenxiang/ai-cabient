@@ -13,7 +13,6 @@ public record UpsertMerchantRequest(
         String wechatReceiverId,
         String status,
         String remark,
-        Boolean allowMerchantPlanogramEdit,
         Boolean allowMerchantPricingEdit,
         Boolean packFieldEnabled,
         Boolean packBizEnabled,
