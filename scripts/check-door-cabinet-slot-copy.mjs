@@ -29,7 +29,8 @@ const SCOPES = [
  *  useDeviceSlotActions 6；消费者端 orders.vue 也有 3 处——那是最该先切的）。
  *  同日第一档已切完**消费者端**（orders 的货道标签+解析、order-detail 行内「· 货道 X」、
  *  result 的 lineMeta 货道段，共 5 处 / 3 文件）⇒ 84 处 / 23 文件。
- *  同日第二档（商户端可达性复核）后为 **83 处 / 23 文件**。
+ *  同日第二档（商户端可达性复核）后为 83 处 / 23 文件；批 3b 首刀删掉 admin 货道 UI 后
+ *  （useDeviceSlotActions 6 处 + 设备详情 4 处）为 **73 处 / 21 文件**。
  *  🔴 **命中数 ≠ 可见数**：逐处核过可达性，剩 83 处里绝大多数位于 `isDoorCabinet()` 守卫之内、
  *  或 `!isDoorCabinet` 的模板分支里（slotHint / stockDeltaText / 货道编辑格 / 「缺货 N 个货道」的
  *  非门柜分支…），开门柜用户看不到；它们属批 3b 要整段删掉的机件，不值为「降计数」去改写。
@@ -37,7 +38,7 @@ const SCOPES = [
  *  🔴 S1a 教训（2026-11-04）：曾打算下线 mp「柜机盘点」页，**删前回查发现它同时承载开门柜盘点**
  *  （`isDoorCabinet` 分支 + `deviceDoorStocktake`）⇒ 整页删除已回退。凡「看起来是货道专属」的
  *  页面/组件，删前必须按 `isDoorCabinet` / `deviceDoorStocktake` 一类关键字反查一遍。 */
-const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 83);
+const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 73);
 const TERM = '货道';
 
 function isDir(p) {
