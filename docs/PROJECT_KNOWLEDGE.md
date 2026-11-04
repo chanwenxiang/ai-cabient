@@ -684,6 +684,31 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 第三刀：货道机件里「不可达」的写面删除——321 行 + SlotStocktakeRequest DTO）
+
+- **判据不是「没人调」而是「从入口到不了」**（一次性脚本 `.tmp/slot-reachability.mjs`，未入库，
+  复用姿势见 lessons #412）：先取「被 `DeviceSlotService` 之外的 main 源以
+  `.方法名(` 引用」的方法为根，再在类内做 BFS（**逐重载取全部方法体**——第一版只取首个声明体，
+  把 `doRecordRestock`/`doEnsureDefaultSlots` 误判成死码，已修）。剩下不可达的一律删。
+  另一个坑：camelCase 边界使 `grep applyPlanogramTemplate` **匹配不到** `doApplyPlanogramTemplate`，
+  差点把还在用的模板机件当成死码。
+- 删（4 个岛）：货道编辑（`upsertSlots`/`doUpsertSlots`/`persistUpsertSlot`/`applyUpsertFields`/
+  `validateUpsert`/`assertSceneLimitBeforePersist`/`assertSkuLimit`/`listSlots`/`assertNotDoorCabinet`）、
+  单货道实盘（`stocktakeSlot`/`doStocktakeSlot`/`assertQuantityWithinSlotCapacity`/`newEvent`/
+  `runWithDeviceInventoryLock`）、货道分配（`allocateSkuCountsToSlots` 及其 3 个私有助手）、
+  两个对外 `applyPlanogramTemplate` 重载。共 321 行 + `SlotStocktakeRequest` DTO（彻底零引用）。
+- 保留：`doApplyPlanogramTemplate`/`resolveTemplateSkuId`（建柜 `ensureDefaultSlots` 在用）、
+  `UpsertDeviceSlotRequest`（模板在用）、`DeviceDetailDto.slots` 与 KPI、`applyPhysical*`/FEFO/`clamp`
+  （可达，只是对开门柜恒空转——属遗留行处置，不在本刀）。
+- **防回潮**：`check:stocktake-chain` 新增 D 段——生成契约里不得再出现 5 条 slots 端点、
+  `DeviceSlotService` 不得再有 `upsertSlots` 签名。注入假 path 实测 exit=1，产物逐字节还原。
+- ⚠️ 未做（下一条待拍板）：**生产者还在建货道行**——`OpsDeviceAdminService:463` 与
+  `DemoDataService:149` 仍调 `ensureDefaultSlots`（本机 dev 库实测：真柜 `EG943322621391`
+  与 `719325384517` 均 0 行，两个遗留/演示柜各 8 行）。断源会让新柜彻底没有货道行，
+  是可见行为变更，按「退场先断生产者」单独一轮。
+- 验证：trade 单测 **2765** 绿（少 2 = 删掉的两个 409 钉测）；无 IT 触达 slots；
+  `main` 源零残留引用；preflight 96 门禁 0 失败。
+
 ### 2026-11-04（批 3b 第二刀：merchant 侧货道面退场——3 端点 + mp 读面/写面；机件本体仍留）
 
 - **范围**：后端删 `GET|PUT /merchant/devices/{id}/slots`、`POST /slots/stocktake` 与两层 portal
