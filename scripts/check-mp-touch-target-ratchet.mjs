@@ -32,6 +32,8 @@ const MIN_TOUCH_RPX = 88;
  *   consumer coupons .coupon-pick 高 48 / index .category-chip 52 / messages .subscribe-btn 64 /
  *   points .redeem-btn 60；merchant ReplenishLinesSection .scan-line 52 / mine .menu-cell 84；
  *   shared-uni app-button .app-btn--text 64、privacy-consent-modal .privacy-btn 80。
+ * 2026-11-04 同一轮把这 8 处按「热区/视觉分离」修完（视觉尺寸不动、纵向热区扩到 88rpx、
+ * 横向补 min-width: 88rpx 让判据可证）⇒ 本档归 0，改为「硬禁新增」。
  * 另一档 `UNVERIFIABLE_BASELINE`=235 是「量不出热区的可点类」（旧版当合规放行的那批），
  * 不是都算 bug，而是没证据说达标；随页面改到就补显式尺寸/满宽，把基线往下调。
  */
@@ -41,7 +43,7 @@ const MIN_TOUCH_RPX = 88;
  *  - TOUCH_UNVERIFIABLE_BASELINE：量不出热区的可点类（旧版把它们当合规静默放行）。
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
-const BASELINE = Number(process.env.TOUCH_BASELINE || 8);
+const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
 const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 235);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */

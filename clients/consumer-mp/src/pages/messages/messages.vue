@@ -592,6 +592,9 @@ function formatTime(t?: string) {
   color: var(--text-muted);
 }
 .subscribe-btn {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   margin: 0;
   padding: 0 26rpx;
   min-height: 64rpx;
@@ -605,5 +608,11 @@ function formatTime(t?: string) {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+}
+
+.subscribe-btn::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 </style>

@@ -308,6 +308,9 @@ function pickForNextOpen(c: CouponDto) {
   color: var(--text-subtle);
 }
 .coupon-pick {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -319,6 +322,12 @@ function pickForNextOpen(c: CouponDto) {
   border-radius: var(--radius-pill);
   background: var(--brand-soft);
   border: 1rpx solid var(--brand-mist, #a7f3d0);
+}
+
+.coupon-pick::after {
+  content: '';
+  position: absolute;
+  inset: -20rpx 0;
 }
 .coupon-pick.on {
   background: var(--brand-deep);

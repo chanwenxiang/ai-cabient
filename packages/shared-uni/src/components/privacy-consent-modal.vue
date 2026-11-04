@@ -134,6 +134,9 @@ function onDecline() {
   margin-top: 32rpx;
 }
 .privacy-btn {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   flex: 1;
   height: 80rpx;
   line-height: 80rpx;
@@ -141,6 +144,12 @@ function onDecline() {
   font-size: var(--font-size-md, 28rpx);
   border: none;
   padding: 0;
+}
+
+.privacy-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4rpx 0;
 }
 .privacy-btn.secondary {
   background: var(--page-bg, #f8fafc);

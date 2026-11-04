@@ -153,6 +153,9 @@ export default { name: 'AppButton' };
   color: var(--white, #ffffff);
 }
 .app-btn--text {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   background: transparent;
   color: var(--color-link, var(--brand, #0d9488));
   min-height: 64rpx;
@@ -160,6 +163,12 @@ export default { name: 'AppButton' };
   padding: 8rpx 12rpx;
   box-shadow: none;
   font-weight: 600;
+}
+
+.app-btn--text::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 .app-btn--alipay {
   background: linear-gradient(135deg, var(--brand-alipay, #1677ff), #4096ff);

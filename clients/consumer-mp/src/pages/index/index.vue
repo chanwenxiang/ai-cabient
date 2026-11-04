@@ -2573,6 +2573,8 @@ function stopDevicePoll() {
   box-sizing: border-box;
 }
 .category-chip {
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   display: inline-flex;
   align-items: center;
   height: 52rpx;
@@ -2586,6 +2588,12 @@ function stopDevicePoll() {
   flex-shrink: 0;
   /* 热区扩展：只上下外扩（横向外扩会压到相邻 chip），触控 ≥88rpx */
   position: relative;
+}
+
+.category-chip::after {
+  content: '';
+  position: absolute;
+  inset: -18rpx 0;
 }
 .category-chip::after {
   content: '';

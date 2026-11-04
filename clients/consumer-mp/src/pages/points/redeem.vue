@@ -290,6 +290,9 @@ function goPoints() {
   color: var(--warning, #d97706);
 }
 .redeem-btn {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   margin: 0;
   padding: 0 28rpx;
   height: 60rpx;
@@ -298,6 +301,12 @@ function goPoints() {
   font-size: var(--font-size-caption);
   color: var(--white);
   background: var(--brand);
+}
+
+.redeem-btn::after {
+  content: '';
+  position: absolute;
+  inset: -14rpx 0;
 }
 .redeem-btn.disabled {
   background: #c7d1cb;

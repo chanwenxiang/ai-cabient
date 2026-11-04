@@ -641,6 +641,9 @@ async function onLogout() {
   overflow: hidden;
 }
 .menu-cell {
+  position: relative;
+  /* 热区/视觉分离：视觉尺寸不变，可点范围纵向 ≥88rpx；min-width 让横向可证 */
+  min-width: 88rpx;
   background: transparent;
   border-radius: 0;
   padding: 20rpx 22rpx;
@@ -653,6 +656,12 @@ async function onLogout() {
   box-shadow: none;
   min-height: 84rpx;
   box-sizing: border-box;
+}
+
+.menu-cell::after {
+  content: '';
+  position: absolute;
+  inset: -2rpx 0;
 }
 .menu-cell:last-child {
   border-bottom: none;

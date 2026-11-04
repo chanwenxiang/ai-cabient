@@ -684,6 +684,20 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（热区基线债清零：MA-159 判据变严后暴露的 8 处全部修掉，棘轮 8 → 0）
+
+- MA-159 修完判据后重扫出的 **8 处可证不达标**逐条修掉，全部用仓库既有的「热区/视觉分离」——
+  **视觉尺寸不动**，纵向用 `::after { position:absolute; inset: -Xrpx 0 }` 把可点范围扩到 88rpx，
+  横向补 `min-width: 88rpx` 让判据**算得出**（否则只会从「不达标」掉进「不可验」那一档）：
+  `.coupon-pick` 48→−20、`.category-chip` 52→−18、`.subscribe-btn` 64→−12、`.redeem-btn` 60→−14
+  （consumer）；`.scan-line` 52→−18、`.menu-cell` 84→−2（merchant）；`.app-btn--text` 64→−12、
+  `.privacy-btn` 80→−4（shared-uni）。
+- **为什么只扩纵向**：横向扩会压到相邻元素的可点窗口（如 chip 之间只有 12rpx 间距），纵向扩不抢邻居。
+- 棘轮：`TOUCH_BASELINE` **8 → 0**（这一档从此是「硬禁新增」）；`TOUCH_UNVERIFIABLE_BASELINE` 仍 235
+  ——那 235 处是「量不出热区的可点类」，不是都算 bug，随页面改到再逐个补显式尺寸并下调。
+- 验证：门禁两档 `0/0` 与 `235/235`、`--selftest` 23 项、两端 `vue-tsc` + `vitest` 绿、
+  两端 `build:mp-weixin`（release）绿、prettier 绿。
+
 ### 2026-11-04（3b 近失纠正：mp「柜机盘点」**不是**货道专属页——它同时承载开门柜盘点）
 
 - 我按「货道专属页」准备下线 `clients/merchant-mp/src/pages/device-stocktake`（639 行、7 处「货道」），
