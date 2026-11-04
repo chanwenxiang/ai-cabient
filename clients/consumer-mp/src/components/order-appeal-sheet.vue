@@ -324,6 +324,12 @@ function onReasonInput(e: unknown) {
   color: var(--white);
   text-align: center;
 }
+/* 热区/视觉分离：本体 32/36rpx，可点范围扩到 88/92rpx（门禁口径 88rpx） */
+.evidence-del::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx;
+}
 .evidence-del.surface-order-detail {
   width: 36rpx;
   height: 36rpx;

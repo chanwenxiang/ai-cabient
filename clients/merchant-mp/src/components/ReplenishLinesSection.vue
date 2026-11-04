@@ -357,6 +357,7 @@ function isCapacityWarn(line: Line) {
   opacity: 0.5;
 }
 .qty-btn {
+  position: relative;
   width: 56rpx;
   height: 56rpx;
   line-height: 56rpx;
@@ -367,6 +368,12 @@ function isCapacityWarn(line: Line) {
   font-size: var(--font-size-lg);
   font-weight: 700;
   box-shadow: 0 2rpx 8rpx rgba(13, 148, 136, 0.12);
+}
+/* 热区/视觉分离：本体 56rpx，可点范围扩到 92rpx（门禁口径 88rpx） */
+.qty-btn::after {
+  content: '';
+  position: absolute;
+  inset: -18rpx;
 }
 .fact {
   padding: 6rpx 12rpx;

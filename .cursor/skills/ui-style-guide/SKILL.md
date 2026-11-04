@@ -13,16 +13,17 @@ description: >-
 
 ## 1. 硬规则（新代码违反即返工）
 
-| 规则                     | 说明                                                                                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 颜色必用令牌             | 裸 hex 棘轮**只减不增**：`pnpm check:ui-barehex-ratchet`（admin hex6/hex3/hex8/rgba、mp 同四项）。迁完一页就把降下来的数写回脚本基线      |
-| `var()` 兜底色也算裸 hex | 新组件写 `var(--card-bg)`，**不要** `var(--x, #fff)`——两端 theme.css/App.vue 已保证 95 令牌全量兜底（`check:mp-css-token-fallback`）      |
-| WXSS 禁 `color-mix()`    | 小程序样式里不许；`color-mix` 只允许出现在 admin `main.css`（`check:wxss-no-color-mix`）                                                  |
-| 提示四层                 | 见 §3；**规则/口径解释禁止常驻横幅**（admin `check:admin-banner-ratchet` 基线 52，只减不增）                                              |
-| 热区 ≥ 88rpx             | 可点元素热区 88rpx，视觉可以更小 = **热区/视觉分离**（外层 hit 容器 + `margin:-28rpx` 负边距，参考 `shared-uni/components/help-tip.vue`） |
-| 数字排版                 | 金额/单号/计数一律 `font-variant-numeric: tabular-nums`；KPI 数字 mp=20px/800、admin 走 `.kpi-*` 类                                       |
-| 单号全量展示             | ❌ 不做「前 6…后 4」缩略（运营核对需要，`f14a8319` 已撤销过一次）                                                                         |
-| 补货措辞                 | 仓→柜=补货员**自提自送**：界面动词只写「领货 / 上柜」，禁「发运 / 签收 / 在途 / 出库」字样（发运只属于采购）                              |
+| 规则                     | 说明                                                                                                                                                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 颜色必用令牌             | 裸 hex 棘轮**只减不增**：`pnpm check:ui-barehex-ratchet`（admin hex6/hex3/hex8/rgba、mp 同四项）。迁完一页就把降下来的数写回脚本基线                                                                                                                                            |
+| `var()` 兜底色也算裸 hex | 新组件写 `var(--card-bg)`，**不要** `var(--x, #fff)`——两端 theme.css/App.vue 已保证 95 令牌全量兜底（`check:mp-css-token-fallback`）                                                                                                                                            |
+| WXSS 禁 `color-mix()`    | 小程序样式里不许；`color-mix` 只允许出现在 admin `main.css`（`check:wxss-no-color-mix`）                                                                                                                                                                                        |
+| 提示四层                 | 见 §3；**规则/口径解释禁止常驻横幅**（admin `check:admin-banner-ratchet` 基线 52，只减不增）                                                                                                                                                                                    |
+| 热区 ≥ 88rpx             | 可点元素热区 88rpx，视觉可以更小 = **热区/视觉分离**，两种写法都被门禁接受：① 外层 hit 容器 ≥88rpx + 负边距（参考 `shared-uni/components/help-tip.vue`）；② 本体小但配 `.X::after{content:"";position:absolute;inset:-Nrpx}` 扩到 本体+2N（参考 consumer index `.stepper-btn`） |
+| 数字排版                 | 金额/单号/计数一律 `font-variant-numeric: tabular-nums`；KPI 数字 mp=20px/800、admin 走 `.kpi-*` 类                                                                                                                                                                             |
+| 单号全量展示             | ❌ 不做「前 6…后 4」缩略（运营核对需要，`f14a8319` 已撤销过一次）                                                                                                                                                                                                               |
+| 补货措辞                 | 仓→柜=补货员**自提自送**：界面动词只写「领货 / 上柜」，禁「发运 / 签收 / 在途 / 出库」字样（发运只属于采购）                                                                                                                                                                    |
+| 禁彩色 emoji 图标        | mp 渲染内容不许出现彩色 emoji（U+1F300–U+1FAFF / 区域指示符 / VS16）：微信端字体渲染不一致、不能随主题着色、读屏会念符号名。要图标走 `app-icon` CSS 形态或 shared-uni 组件。单色排版符号（`✓ → ★ ☑ ✕ ↑`）允许保留（实测 17 文件 35 个）；门禁 `check:mp-emoji-icon` 基线恒 0    |
 
 ## 2. 语义色板与三阶（速查）
 
@@ -76,7 +77,8 @@ description: >-
 pnpm check:ui-barehex-ratchet        # 裸色棘轮（只减不增）
 pnpm check:admin-banner-ratchet      # admin 常驻 el-alert 棘轮（基线 52）
 node scripts/check-mp-a11y-coverage.mjs      # mp role/aria 覆盖（阈值 95%）
-node scripts/check-mp-touch-target-ratchet.mjs # mp 小热区棘轮（<88rpx，基线 5 只减不增；--print 看清单）
+node scripts/check-mp-touch-target-ratchet.mjs # mp 小热区棘轮（<88rpx，基线 0；--print 看清单）
+node scripts/check-mp-emoji-icon.mjs          # mp 渲染内容禁彩色 emoji（基线恒 0）
 node scripts/check-mp-css-token-fallback.mjs # 两端 page 块 95 令牌兜底
 node scripts/check-wxss-no-color-mix.mjs     # WXSS 无 color-mix
 node scripts/sync-shared-uni-components.mjs --check  # shared 组件无本地副本
@@ -88,4 +90,4 @@ node scripts/ui-screenshot-runner.mjs --surface=all   # 三端截图+健康检�
 
 ## 7. 已拍板禁区（勿顺手改）
 
-单号缩略 ❌ ｜ 设备原文折叠 ❌（是剥离） ｜ KPI 营收写死颜色 ❌（跟 `--app-primary`） ｜ 全量基线图集 ❌ ｜ 存量颜色一次性 codemod ❌（碰到就迁） ｜ devices 页「常驻柜」筛选 ❌ 已按用户拍板删除（保留设备行 ★ 与「清除常驻」） ｜ mp emoji 当图标 = 已知混用（41 文件），未拍板前不新增不批量改。
+单号缩略 ❌ ｜ 设备原文折叠 ❌（是剥离） ｜ KPI 营收写死颜色 ❌（跟 `--app-primary`） ｜ 全量基线图集 ❌ ｜ 存量颜色一次性 codemod ❌（碰到就迁） ｜ devices 页「常驻柜」筛选 ❌ 已按用户拍板删除（保留设备行 ★ 与「清除常驻」） ｜ mp 彩色 emoji 当图标 ❌ 已拍板禁止（门禁基线 0）；单色排版符号 `✓ → ★` 保留、不批量替换（原「41 文件」含注释标记，实测渲染内容 0 彩色 / 35 单色）。

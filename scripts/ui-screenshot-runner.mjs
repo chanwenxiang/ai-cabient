@@ -49,8 +49,11 @@ const surfaces = (
 ).filter((s) => PAGES[s]);
 const themeArg = argOf('theme', 'both');
 const themes = themeArg === 'both' ? ['light', 'dark'] : themeArg.split(',');
-/** 判 CHANGED 的差异像素占比阈值（%）与单通道容差（抗压缩/亚像素噪声） */
-const diffThreshold = Number(argOf('diff-threshold', '0.2'));
+/**
+ * 判 CHANGED 的差异像素占比阈值（%）与单通道容差（抗压缩/亚像素噪声）。
+ * 0.5% 是实测噪声底：mp 截图带模拟器状态栏时钟，每次必差 0.07–0.2%。
+ */
+const diffThreshold = Number(argOf('diff-threshold', '0.5'));
 const diffTol = Number(argOf('diff-tol', '8'));
 const promote = argv.includes('--promote');
 const mode = argOf('mode', 'capture');
@@ -106,11 +109,10 @@ function decodePng(file) {
     } else if (type === 'IEND') break;
     o += 12 + len;
   }
-  if (bitDepth !== 8 || interlace !== 0 || (colorType !== 6 && colorType !== 2)) return null;
+  if (bitDepth !== 8 || (colorType !== 6 && colorType !== 2)) return null;
   const ch = colorType === 6 ? 4 : 3;
   const raw = zlib.inflateSync(Buffer.concat(idat));
-  const stride = w * ch;
-  const out = Buffer.alloc(h * stride);
+  const out = Buffer.alloc(h * w * ch);
   const paeth = (a, bb, c) => {
     const p = a + bb - c;
     const pa = Math.abs(p - a);
@@ -118,13 +120,9 @@ function decodePng(file) {
     const pc = Math.abs(p - c);
     return pa <= pb && pa <= pc ? a : pb <= pc ? bb : c;
   };
-  let pos = 0;
-  for (let y = 0; y < h; y++) {
-    const filter = raw[pos++];
-    const line = raw.subarray(pos, pos + stride);
-    pos += stride;
-    const cur = out.subarray(y * stride, (y + 1) * stride);
-    const prev = y > 0 ? out.subarray((y - 1) * stride, y * stride) : null;
+  /** 一行反滤波：filter=0..4，prev 为该 pass 内的上一行 */
+  const unfilterRow = (line, prev, stride, filter) => {
+    const cur = Buffer.alloc(stride);
     for (let x = 0; x < stride; x++) {
       const a = x >= ch ? cur[x - ch] : 0;
       const up = prev ? prev[x] : 0;
@@ -135,6 +133,50 @@ function decodePng(file) {
       else if (filter === 3) v += (a + up) >> 1;
       else if (filter === 4) v += paeth(a, up, c);
       cur[x] = v & 0xff;
+    }
+    return cur;
+  };
+  let pos = 0;
+  if (interlace === 0) {
+    const stride = w * ch;
+    let prev = null;
+    for (let y = 0; y < h; y++) {
+      const filter = raw[pos++];
+      const line = raw.subarray(pos, pos + stride);
+      pos += stride;
+      const done = unfilterRow(line, prev, stride, filter);
+      done.copy(out, y * stride);
+      prev = done;
+    }
+    return { w, h, ch, data: out };
+  }
+  if (interlace !== 1) return null;
+  // Adam7：微信截图是隔行 PNG，必须逐 pass 解再散回整图，否则判等会退化成「全差」
+  const PASSES = [
+    [0, 0, 8, 8],
+    [4, 0, 8, 8],
+    [0, 4, 4, 8],
+    [2, 2, 4, 4],
+    [0, 1, 2, 4],
+    [1, 1, 2, 2],
+    [0, 0, 1, 2]
+  ];
+  for (const [xoff, yoff, xstep, ystep] of PASSES) {
+    const pw = Math.ceil((w - xoff) / xstep);
+    const ph = Math.ceil((h - yoff) / ystep);
+    if (pw <= 0 || ph <= 0) continue;
+    const stride = pw * ch;
+    let prev = null;
+    for (let py = 0; py < ph; py++) {
+      const filter = raw[pos++];
+      const line = raw.subarray(pos, pos + stride);
+      pos += stride;
+      const done = unfilterRow(line, prev, stride, filter);
+      const y = yoff + py * ystep;
+      for (let px = 0; px < pw; px++) {
+        done.copy(out, (y * w + xoff + px * xstep) * ch, px * ch, px * ch + ch);
+      }
+      prev = done;
     }
   }
   return { w, h, ch, data: out };
@@ -477,6 +519,21 @@ function selfTest() {
   console.log(
     `[selftest] ${ok ? 'OK' : 'FAIL'} 同图=${same}% 互比=${cross.toFixed(2)}%（阈值 ${diffThreshold}%）`
   );
+  // 隔行 PNG（微信截图）必须能解码；解不出会退化成「100% 假差异」淹没复核
+  const mpDir = path.join(BASE, 'current', 'consumer-mp');
+  if (fs.existsSync(mpDir)) {
+    const first = fs.readdirSync(mpDir).filter((f) => f.endsWith('.png'))[0];
+    if (first) {
+      const p = path.join(mpDir, first);
+      const d = decodePng(p);
+      const self = diffPct(p, p, diffTol);
+      const good = !!d && self === 0;
+      console.log(
+        `  [${good ? 'ok' : 'BAD'}] 隔行 PNG 解码 ${first} ⇒ ${d ? d.w + 'x' + d.h : 'null'} 同图=${self}%`
+      );
+      if (!good) return (process.exitCode = 1);
+    }
+  }
   if (!ok) process.exitCode = 1;
 }
 

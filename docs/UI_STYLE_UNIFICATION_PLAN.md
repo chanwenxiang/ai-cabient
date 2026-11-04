@@ -62,6 +62,7 @@
 2. **merchant 工作台**：四个统计数字统一 KPI 数字类（20px/800/tabular-nums，与顶部 `ov-num` 同口径）；快速角标 99+ 封顶（tabBar 角标 `todo-badge.ts` 原已封顶）；页面裸色清零（−39 hex6）
 3. **admin 财务毛利**：KPI 色条走 `--kpi-accent-*` 语义映射（营收＝`var(--app-primary)` 随主色；成本=slate、毛利=amber、率=violet、订单/客单=info）；「累计快照」改为 2 列 KPI 卡同款；趋势图例/系列改用 `--chart-*`/`DONUT_PALETTE`；页面裸色清零（−13 hex6）
 - 附带：图标盘点——事实：`app-icon` 是 CSS 绘制 3 形态（chevron/back/circle），**不是图标字体**；实际混用 = mp 41 个文件的 emoji 字形 + admin 30 处 Element 图标（Refresh 占 22）。清单 1h 内出；待拍板：mp 是否禁止 emoji 当图标
+  - **2026-11-03 订正 + 拍板**：原「41 文件 emoji」把源码注释里的标记符号（🔴 ⇒ →）也算进去了。剥掉注释后实测：mp **渲染内容里彩色 emoji = 0 处**，剩下 17 文件 35 个是 `✓ → ★ ☑ ✕ ↑ ↩` 单色排版符号，与 CSS 自绘 `app-icon` 观感一致 ⇒ **不做批量替换**；规则改为「硬禁新增彩色 emoji」，落门禁 `check:mp-emoji-icon`（基线恒 0，`--selftest` 覆盖彩色/注释/单色/VS16 四类判据）。
 - DoD：三页「同会话、同数据快照」前后对比 + 其余页面 smoke（无白屏/新增 403）
 - **实施进度（2026-11-03）**：2.1/2.2/2.3 代码、单测（consumer 172 / merchant 253 / admin 131）、三端 type-check、mp-weixin 构建、裸色棘轮全绿；视觉验收已完成——consumer 订单页 + merchant 工作台走**微信模拟器（非 H5）**，admin 财务毛利走**真实 Chrome（亮/暗）**；证据在 `.tmp/phase2-verify/`（gitignored），before 仅用 R13/R14/R15 参考图对照
 
@@ -99,7 +100,7 @@
 - **实施进度（2026-11-03）**：
   - a11y：mp clickables 433/433（100%），icons 35/35；补 9 处 role/aria；admin dialog 门禁绿。
   - 热区：微信模拟器量 orders/mine/home/business/devices/replenishment 等 9 页，small=0；aux-link / foot-btn / scan-btn / help-tip / mine quick-item 改「88rpx 热区 + 小视觉」；devices「常驻柜」筛选按用户拍板移除（保留设备行 ★ 与「清除常驻」）。
-  - 热区门禁落仓（2026-11-03 补）：`scripts/check-mp-touch-target-ratchet.mjs`（静态判据：模板可点元素 + CSS 显式 rpx 宽高 ⇒ 短边 <88rpx 记违规；padding/只写单边不判，伪元素与后代选择器不连坐基类）。**首扫抓到运行时探针漏掉的 5 处真小热区**：consumer `order-appeal-sheet .evidence-del 32×32`、`index .stepper-btn 44×44`、`index`/`result .promo-popup-close 48×48`、merchant `ReplenishLinesSection .qty-btn 56×56` ⇒ 基线钉 5（只减不增），修法统一「热区/视觉分离」。已接进 `check:audit-gates`（接线门禁确认 104 个 check-*.mjs 全接线），负向对照（基线压 4）正确报红。
+  - 热区门禁落仓（2026-11-03 补）：`scripts/check-mp-touch-target-ratchet.mjs`（静态判据：模板可点元素 + CSS 显式 rpx 宽高 ⇒ 有效短边 <88rpx 记违规；padding/只写单边不判、后代选择器不连坐基类；**认得两种合规写法**=本体 ≥88 或 `.X::after{position:absolute;inset:-Nrpx}` 热区扩展）。首扫抓到运行时探针漏掉的 5 处，同日全部清零 ⇒ **基线 0**（再犯即红）：`evidence-del 32`→`inset:-28`、`promo-popup-close 48`×2→`inset:-22`、`qty-btn 56`→`position:relative`+`inset:-18`；`stepper-btn 44` 本就有 `inset:-22` ⇒ 属门禁初版误报，已把判据修对并补自检用例。已接进 `check:audit-gates`，负向对照（基线压 1）正确报红；三条新规则核对已编进 wxss。
   - safe-area：live-cart-sheet 补 env；HomeCartBar / AppSheet / open-prep-drawer / order-appeal-sheet / order-detail 已有。
   - 表单：两端登录补 aria-label / autocomplete + 错误聚焦首字段；admin 登录已有 autocomplete。
   - 图片：商品格 / 活动 banner / 申诉附图补 `lazy-load`；显式尺寸沿用 CSS 类。
@@ -115,8 +116,10 @@
 - **实施进度（2026-11-03）**：
   - ✅ Skill 已落 `.cursor/skills/ui-style-guide/SKILL.md`（硬规则/色板三阶速查/四层提示+组件/文案口径/验收面/门禁命令/已拍板禁区七节），并登记进 `ai-cabinet-dev-test` 路由表 + `PROJECT_KNOWLEDGE.md` §7.1；路由表原「小程序 UI → Playwright/H5」已订正为**微信开发者工具模拟器（非 H5）**。
   - ✅ 最终验收复跑：三端单测 consumer 172 / merchant 253 / admin 131 全绿（与 Phase 2 基线一致，零回归）；消费端 7 个改动列表页 + 商户端 14 个改动页在微信模拟器实跑 **bad=0**（骨架屏全部正常复位、真实数据渲染：订单 29 / 余额 ¥47.57 / 消息 77 未读）；admin 本轮无新改动（Phase 2.3/3 的 Chrome 亮/暗实证仍有效）。
+  - ✅ 收尾三件（2026-11-03 深夜批）：① 5 处小热区清零 + 门禁认得伪元素热区惯用法（见 Phase 4）；② **新增 `check:mp-emoji-icon`**——渲染内容硬禁彩色 emoji（基线 0，实测本来就 0），订正了本文「41 文件 emoji」的口径（含注释标记）；③ 删掉 echarts 大屏暗色主题死代码（`BIGSCREEN_THEME`/`registerBigScreenTheme` 无调用方、`EChart` 的 `theme` prop 无人传，大屏各图本就逐图显式配色）。
+  - 🔴 runner 自身两个判据 bug 已修：mp 截图是 **Adam7 隔行 PNG**，初版解码器不支持隔行 ⇒ 21 页全报「差 100%」；补 Adam7 逐 pass 解 + `--selftest` 增「隔行同图必须 0%」。另：mp 截图含模拟器状态栏时钟 ⇒ 噪声底实测 0.05–0.2%，阈值由 0.2% 放宽到 **0.5%**（`--diff-threshold` 可调），否则每页天天假 CHANGED。
   - ⚠️ 复跑中发现并修复的环境问题（非代码缺陷）：本机 WLAN IP 由 `192.168.0.26` 变为 `192.168.0.199`，两端 `.env.development` / merchant `.env.development.local` 仍烤旧 IP ⇒ 请求连不到网关、列表停在骨架屏（旧版会同样停在「加载中…」）。跑 `node scripts/sync-consumer-mp-api.mjs` 重选 + 手工更新 `.local` 后重烤即恢复。**网络变更后跑 mp 验收前必须先重烤 env**，否则会把 IP 漂移误判成骨架屏 bug。
-  - ✅ 截图基线 runner 已写（用户认可「本地 pre-push + 交付前人工复核」定位）：`scripts/ui-screenshot-runner.mjs` + 页面清单 `scripts/ui-screenshot-pages.json`。三模式 capture/`--promote`/`--mode=check` + `--selftest`，健康判据=白屏/console error/骨架屏 7s 未复位记 FAIL，其余按**像素差异占比**（阈值 0.2%，内置无依赖 PNG 解码）给 SAME/CHANGED——初版用哈希判等，同页两次截图差 3 字节就报 CHANGED，会把人工复核淹掉，故换像素比。截图与基线都在 `.tmp/ui-baseline/`（gitignore，与「不入库」拍板一致）。**三端端到端实跑**：admin 9 页 × 亮/暗 18 张 FAIL=0（暗色主题、HelpTip 问号、真实订单列表均在）、consumer 7 页、merchant 14 页 FAIL=0。
+  - ✅ 截图基线 runner 已写（用户认可「本地 pre-push + 交付前人工复核」定位）：`scripts/ui-screenshot-runner.mjs` + 页面清单 `scripts/ui-screenshot-pages.json`。三模式 capture/`--promote`/`--mode=check` + `--selftest`，健康判据=白屏/console error/骨架屏 7s 未复位记 FAIL，其余按**像素差异占比**（阈值 0.5%，内置无依赖 PNG 解码，支持 Adam7 隔行）给 SAME/CHANGED——初版用哈希判等，同页两次截图差 3 字节就报 CHANGED，会把人工复核淹掉，故换像素比。截图与基线都在 `.tmp/ui-baseline/`（gitignore，与「不入库」拍板一致）。**三端端到端实跑**：admin 9 页 × 亮/暗 18 张 FAIL=0（暗色主题、HelpTip 问号、真实订单列表均在）、consumer 7 页、merchant 14 页 FAIL=0。
   - ✅ `:3100` 已按用户指示重启（旧进程 11/2 08:55 起、依赖预构建缓存过期），重启后 `/orders` `/devices` `/warehouse` 亮/暗全部挂载正常；18 张与基线比对 **FAIL=0 / CHANGED=0**（此前两张暗色图的 CHANGED 实测差 0.001%，是 PNG 压缩噪声）。
   - ⚠️ 实跑中抓到的两个**环境坑**（都不是样式回归，已写进 skill §5）：① 商户端 `dist/dev` 的 wxml/wxss scoped 哈希不一致（`a1958b82` vs `0cd09a48`）⇒ 模拟器整页无样式，根因是**另一会话在用的 `uni.js` 增量 watcher 与全量构建交叉写 dist/dev**（该会话 src 30 分钟内仍在改 ⇒ watcher 不能杀）⇒ 验收面切 `dist/build/mp-weixin` 即恢复；② admin `:3100` 的 vite 依赖预构建缓存过期 ⇒ 动态 import 回 504 Outdated Optimize Dep ⇒ `/orders` `/devices` `/warehouse` 只剩「跳到主内容」，**需用户重启 dev server**（runner 已能识别并在 FAIL 文案里点破）。
 

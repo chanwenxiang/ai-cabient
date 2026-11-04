@@ -307,21 +307,3 @@ export function donutOption(opts: {
     ]
   };
 }
-
-/** 运营大屏暗色主题：注册一次，EChart 组件通过 theme="bigscreen-dark" 引用。 */
-export const BIGSCREEN_THEME = 'bigscreen-dark';
-
-let bigScreenThemeRegistered = false;
-
-export function registerBigScreenTheme(): void {
-  if (bigScreenThemeRegistered) return;
-  bigScreenThemeRegistered = true;
-  echarts.registerTheme(BIGSCREEN_THEME, {
-    textStyle: { fontFamily: CHART_FONT_FAMILY },
-    color: DONUT_PALETTE,
-    backgroundColor: 'transparent',
-    axisPointer: {
-      lineStyle: { color: 'rgba(148, 197, 255, 0.4)' }
-    }
-  });
-}

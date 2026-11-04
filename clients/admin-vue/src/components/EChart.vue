@@ -31,8 +31,6 @@ const props = withDefaults(
     /** 失败文案；有值时展示重试 */
     error?: string;
     emptyText?: string;
-    /** echarts 注册主题名（如 bigscreen-dark） */
-    theme?: string;
     /** 画布高度 px；不传时占满父容器 */
     height?: number;
     /** 画布宽度 px；不传时占满父容器（环形图在 auto 网格列里需要显式宽） */
@@ -42,7 +40,6 @@ const props = withDefaults(
     loading: false,
     error: '',
     emptyText: '',
-    theme: undefined,
     height: undefined,
     width: undefined
   }
@@ -61,7 +58,7 @@ let resizeObserver: ResizeObserver | null = null;
 
 function ensureChart() {
   if (chart || !hostRef.value) return;
-  chart = echarts.init(hostRef.value, props.theme);
+  chart = echarts.init(hostRef.value);
   resizeObserver = new ResizeObserver(() => chart?.resize());
   resizeObserver.observe(hostRef.value);
 }

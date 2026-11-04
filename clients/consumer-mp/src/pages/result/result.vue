@@ -1209,4 +1209,10 @@ function goHelp() {
   color: #ffffff;
   font-size: 32rpx;
 }
+/* 热区/视觉分离：本体 48rpx，可点范围扩到 92rpx（门禁口径 88rpx） */
+.promo-popup-close::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx;
+}
 </style>

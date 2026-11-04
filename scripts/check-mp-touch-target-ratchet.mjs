@@ -25,7 +25,7 @@ const MIN_TOUCH_RPX = 88;
  * 修法统一用「热区/视觉分离」（外层 hit 容器 88rpx + 负边距，参考 shared-uni help-tip）；
  * 改一处就把本值调小，并跑 `--print` 核对。
  */
-const BASELINE = Number(process.env.TOUCH_BASELINE || 5);
+const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
@@ -52,10 +52,21 @@ function statExists(p) {
 }
 
 const CSS_VALUE_RE = /(?<![-\w])(width|height|min-height)\s*:\s*([0-9.]+)rpx/g;
+const INSET_NEG_RE = /(?:^|[;\s])inset\s*:\s*-([0-9.]+)rpx/;
 
-/** 从样式文本抽 class ⇒ { width, height, minHeight } */
+/**
+ * 从样式文本抽 class ⇒ { width, height, minHeight, hit }
+ * hit = 伪元素热区扩展的单侧余量（有效热区 = 尺寸 + 2×hit）。
+ */
 export function parseClassSizes(cssText) {
   const sizes = new Map();
+  const touch = (name) => {
+    const existing = sizes.get(name);
+    if (existing) return existing;
+    const created = {};
+    sizes.set(name, created);
+    return created;
+  };
   // 按规则块切：`sel { decls }`
   const blockRe = /([^{}]+)\{([^{}]*)\}/g;
   let m;
@@ -64,19 +75,30 @@ export function parseClassSizes(cssText) {
     for (const rawSel of m[1].split(',')) {
       const sel = rawSel.trim();
       if (!sel || sel.startsWith('@')) continue;
-      // 伪元素（::after/::before）的声明不是元素本体 ⇒ 整条跳过
-      if (sel.includes('::')) continue;
+      const pseudo = sel.match(/::(after|before)\b/);
       // 只认「最后一个复合选择器」上的类：`.a .b` 的声明是给 .b 的，不该记到 .a 头上
-      const lastCompound =
-        sel
-          .split(/[\s>+~]+/)
-          .filter(Boolean)
-          .pop() || '';
-      const cls = lastCompound.match(/\.[A-Za-z][\w-]*/g);
+      const head = pseudo ? sel.slice(0, pseudo.index) : sel;
+      const lastCompound = head
+        .split(/[\s>+~]+/)
+        .filter(Boolean)
+        .pop();
+      const cls = lastCompound ? lastCompound.match(/\.[A-Za-z][\w-]*/g) : null;
       if (!cls) continue;
+      if (pseudo) {
+        // 伪元素只有在「绝对定位 + 负 inset」时才是热区扩展，否则是装饰（图形/圆点）
+        if (!/position\s*:\s*absolute/.test(decls)) continue;
+        const ins = decls.match(INSET_NEG_RE);
+        if (!ins) continue;
+        const extra = Number(ins[1]);
+        if (!Number.isFinite(extra)) continue;
+        for (const c of cls) {
+          const rec = touch(c.slice(1));
+          rec.hit = Math.max(rec.hit || 0, extra);
+        }
+        continue;
+      }
       for (const c of cls) {
-        const name = c.slice(1);
-        const rec = sizes.get(name) || {};
+        const rec = touch(c.slice(1));
         let v;
         CSS_VALUE_RE.lastIndex = 0;
         while ((v = CSS_VALUE_RE.exec(decls))) {
@@ -87,7 +109,6 @@ export function parseClassSizes(cssText) {
           else if (prop === 'height') rec.height = px;
           else rec.minHeight = px;
         }
-        if (Object.keys(rec).length) sizes.set(name, rec);
       }
     }
   }
@@ -111,11 +132,12 @@ export function collectClickableClasses(tpl) {
   return out;
 }
 
-/** 判据：显式同时有宽与高（或 min-height）且短边 < 88rpx ⇒ 违规 */
+/** 判据：显式同时有宽与高（或 min-height），算上伪元素热区后短边仍 < 88rpx ⇒ 违规 */
 export function isViolation(size) {
-  const h = size.height ?? size.minHeight;
-  if (typeof size.width !== 'number' || typeof h !== 'number') return false;
-  return Math.min(size.width, h) < MIN_TOUCH_RPX;
+  const h0 = size.height ?? size.minHeight;
+  if (typeof size.width !== 'number' || typeof h0 !== 'number') return false;
+  const pad = (size.hit || 0) * 2;
+  return Math.min(size.width + pad, h0 + pad) < MIN_TOUCH_RPX;
 }
 
 function selfTest() {
@@ -125,6 +147,24 @@ function selfTest() {
     { css: '.a{width:40rpx}', cls: 'a', want: false, why: '只写宽不判（量不出高）' },
     { css: '.a{padding:12rpx}', cls: 'a', want: false, why: 'padding 撑开的不判' },
     { css: '.a{width:200rpx;min-height:88rpx}', cls: 'a', want: false, why: 'min-height 达标' },
+    {
+      css: '.a{width:44rpx;height:44rpx}\n.a::after{content:"";position:absolute;inset:-22rpx}',
+      cls: 'a',
+      want: false,
+      why: '伪元素热区扩展 44+44=88（.stepper-btn 惯用法）'
+    },
+    {
+      css: '.a{width:44rpx;height:44rpx}\n.a::after{content:"";position:absolute;inset:4rpx}',
+      cls: 'a',
+      want: true,
+      why: '正 inset 不是热区 ⇒ 仍判违规'
+    },
+    {
+      css: '.a{width:44rpx;height:44rpx}\n.a::after{content:"";width:10rpx;height:10rpx}',
+      cls: 'a',
+      want: true,
+      why: '非绝对定位的伪元素是装饰 ⇒ 仍判违规'
+    },
     {
       css: '.a{width:32rpx;height:32rpx}\n.a-hit{width:88rpx;height:88rpx}',
       cls: 'a-hit',
@@ -141,7 +181,7 @@ function selfTest() {
       css: '.a{width:200rpx;height:88rpx}\n.a.is-x::after{width:64rpx;height:6rpx}',
       cls: 'a',
       want: false,
-      why: '伪元素规则整条跳过'
+      why: '装饰性伪元素不污染基类尺寸'
     }
   ];
   let bad = 0;
