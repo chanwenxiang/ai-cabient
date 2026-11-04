@@ -215,7 +215,10 @@ const BANNED = [
   ['filterComposable', ['暂无在途', '到柜签收']],
   ['routeActions', ['已发运未签收', '脏出库/在途']],
   ['menu', ['调拨与在途']],
-  ['merchantNav', ['分仓出库', '出库与补货任务']], /* MA-155：mine 导航描述在门禁白名单盲区（2026-11-04 实测） */
+  [
+    'merchantNav',
+    ['分仓出库', '出库与补货任务']
+  ] /* MA-155：mine 导航描述在门禁白名单盲区（2026-11-04 实测） */,
   ['router', ['调拨与在途']],
   ['dashboard', ['签收超时']],
   ['bigScreen', ["IN_TRANSIT_OVERDUE: '在途'"]],
