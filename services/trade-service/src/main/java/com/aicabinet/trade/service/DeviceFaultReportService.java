@@ -66,6 +66,8 @@ public class DeviceFaultReportService {
 
     private final SysDictService sysDictService;
 
+    private final ApiRateLimitService apiRateLimitService;
+
 
 
     public DeviceFaultReportService(DeviceFaultReportMapper repository,
@@ -76,7 +78,9 @@ public class DeviceFaultReportService {
 
                                     DistributedLockService distributedLockService,
 
-                                    SysDictService sysDictService) {
+                                    SysDictService sysDictService,
+
+                                    ApiRateLimitService apiRateLimitService) {
 
         this.repository = repository;
 
@@ -88,6 +92,8 @@ public class DeviceFaultReportService {
 
         this.sysDictService = sysDictService;
 
+        this.apiRateLimitService = apiRateLimitService;
+
     }
 
 
@@ -98,6 +104,9 @@ public class DeviceFaultReportService {
 
         // deviceId 大小写敏感（与 device_info 原样一致）；旧版 toUpperCase 会把小写 ID 转成不存在的柜机
         String id = deviceId.trim();
+
+        // 限流放在抢锁之前：被拒的重复上报既不占 (user,device) 锁，也走不到落库与推运营告警
+        apiRateLimitService.assertFaultReportAllowed(userId);
 
         return runWithFaultReportLock(userId, id, () -> doReport(userId, id, request));
 

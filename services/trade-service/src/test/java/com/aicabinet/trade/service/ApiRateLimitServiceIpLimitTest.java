@@ -25,7 +25,7 @@ import static org.mockito.Mockito.when;
 class ApiRateLimitServiceIpLimitTest {
 
     private static final RateLimitProperties PROPS =
-            new RateLimitProperties(true, 20, 30, 20, 30, 60);
+            new RateLimitProperties(true, 20, 30, 20, 30, 60, 10);
 
     @Mock private RedissonClient redisson;
     @Mock private RAtomicLong counter;
@@ -67,7 +67,7 @@ class ApiRateLimitServiceIpLimitTest {
                 ApiRateLimitService.ACTION_OPEN_LANDING, null, 20, "msg"));
 
         ApiRateLimitService disabled = new ApiRateLimitService(redisson,
-                new RateLimitProperties(false, 20, 30, 20, 30, 60));
+                new RateLimitProperties(false, 20, 30, 20, 30, 60, 10));
         assertDoesNotThrow(() -> disabled.assertIpAllowed(
                 ApiRateLimitService.ACTION_OPEN_LANDING, "1.2.3.4", 20, "msg"));
     }

@@ -27,6 +27,7 @@ class RateLimitPropertiesBindingTest {
         source.put("aicabinet.rate-limit.max-session-creates-per-hour", "13");
         source.put("aicabinet.rate-limit.max-open-doors-per-hour", "14");
         source.put("aicabinet.rate-limit.max-open-doors-per-device-per-hour", "15");
+        source.put("aicabinet.rate-limit.max-fault-reports-per-hour", "16");
 
         RateLimitProperties props = bind(source);
 
@@ -36,6 +37,7 @@ class RateLimitPropertiesBindingTest {
         assertEquals(13, props.maxSessionCreatesPerHour());
         assertEquals(14, props.maxOpenDoorsPerHour());
         assertEquals(15, props.maxOpenDoorsPerDevicePerHour());
+        assertEquals(16, props.maxFaultReportsPerHour());
     }
 
     @Test
@@ -54,6 +56,7 @@ class RateLimitPropertiesBindingTest {
         assertEquals(20, props.maxSessionCreatesPerHour());
         assertEquals(30, props.maxOpenDoorsPerHour());
         assertEquals(60, props.maxOpenDoorsPerDevicePerHour());
+        assertEquals(10, props.maxFaultReportsPerHour());
     }
 
     @Test
@@ -68,17 +71,19 @@ class RateLimitPropertiesBindingTest {
         assertEquals(20, props.maxSessionCreatesPerHour());
         assertEquals(30, props.maxOpenDoorsPerHour());
         assertEquals(60, props.maxOpenDoorsPerDevicePerHour());
+        assertEquals(10, props.maxFaultReportsPerHour());
     }
 
     @Test
     void compactConstructorClampsNonPositiveToDefaults() {
-        RateLimitProperties props = new RateLimitProperties(true, 0, -1, 0, 0, 0);
+        RateLimitProperties props = new RateLimitProperties(true, 0, -1, 0, 0, 0, 0);
 
         assertEquals(20, props.maxCouponClaimsPerHour());
         assertEquals(30, props.maxOrderPaysPerHour());
         assertEquals(20, props.maxSessionCreatesPerHour());
         assertEquals(30, props.maxOpenDoorsPerHour());
         assertEquals(60, props.maxOpenDoorsPerDevicePerHour());
+        assertEquals(10, props.maxFaultReportsPerHour());
     }
 
     private static RateLimitProperties bind(Map<String, ?> source) {

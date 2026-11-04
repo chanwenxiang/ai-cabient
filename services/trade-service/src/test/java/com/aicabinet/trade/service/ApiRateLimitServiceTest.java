@@ -32,7 +32,7 @@ class ApiRateLimitServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 20, 30, 60));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 20, 30, 60, 2));
     }
 
     @Test
@@ -61,7 +61,7 @@ class ApiRateLimitServiceTest {
 
     @Test
     void assertOrderPayAllowed_whenDisabled_skipsRedis() {
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2, 20, 30, 60));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(false, 2, 2, 20, 30, 60, 2));
 
         service.assertOrderPayAllowed(10001L);
 
@@ -72,7 +72,7 @@ class ApiRateLimitServiceTest {
     void assertSessionCreateAllowed_whenAtLimit_rejects() {
         when(redisson.getAtomicLong(anyString())).thenReturn(counter);
         when(counter.get()).thenReturn(2L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2, 2));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.assertSessionCreateAllowed(10001L));
@@ -89,7 +89,7 @@ class ApiRateLimitServiceTest {
         when(counter.incrementAndGet()).thenReturn(1L);
         when(deviceCounter.get()).thenReturn(0L);
         when(deviceCounter.incrementAndGet()).thenReturn(1L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2, 2));
 
         service.assertOpenDoorAllowed(10001L, "DEV-1");
 
@@ -104,7 +104,7 @@ class ApiRateLimitServiceTest {
         when(counter.get()).thenReturn(0L);
         when(counter.incrementAndGet()).thenReturn(1L);
         when(deviceCounter.get()).thenReturn(2L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2, 2));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.assertOpenDoorAllowed(10001L, "DEV-1"));
@@ -120,10 +120,34 @@ class ApiRateLimitServiceTest {
         when(redisson.getAtomicLong(eq("aicabinet:rate:open_door:10001"))).thenReturn(counter);
         when(counter.get()).thenReturn(0L);
         when(counter.incrementAndGet()).thenReturn(1L);
-        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2));
+        service = new ApiRateLimitService(redisson, new RateLimitProperties(true, 2, 2, 2, 2, 2, 2));
 
         service.assertOpenDoorAllowed(10001L, "  ");
 
         verify(redisson, times(1)).getAtomicLong(anyString());
+    }
+
+    @Test
+    void assertFaultReportAllowed_whenUnderLimit_countsUserKey() {
+        when(redisson.getAtomicLong(eq("aicabinet:rate:fault_report:10001"))).thenReturn(counter);
+        when(counter.get()).thenReturn(0L);
+        when(counter.incrementAndGet()).thenReturn(1L);
+
+        service.assertFaultReportAllowed(10001L);
+
+        verify(counter).expire(java.time.Duration.ofHours(1));
+    }
+
+    @Test
+    void assertFaultReportAllowed_whenAtLimit_rejectsAndDoesNotCount() {
+        when(redisson.getAtomicLong(eq("aicabinet:rate:fault_report:10001"))).thenReturn(counter);
+        when(counter.get()).thenReturn(2L);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.assertFaultReportAllowed(10001L));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
+        assertEquals(ApiMessages.TOO_MANY_FAULT_REPORTS, ex.getReason());
+        verify(counter, never()).incrementAndGet();
     }
 }

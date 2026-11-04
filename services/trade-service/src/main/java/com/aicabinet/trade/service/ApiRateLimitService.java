@@ -32,6 +32,7 @@ public class ApiRateLimitService {
     public static final String ACTION_OPEN_DOOR = "open_door";
     public static final String ACTION_OPEN_DOOR_DEVICE = "open_door_device";
     public static final String ACTION_OPEN_LANDING = "open_landing";
+    public static final String ACTION_FAULT_REPORT = "fault_report";
 
     private final RedissonClient redisson;
     private final RateLimitProperties properties;
@@ -66,6 +67,15 @@ public class ApiRateLimitService {
             assertAllowed(ACTION_OPEN_DOOR_DEVICE, deviceId.trim(), userId,
                     properties.maxOpenDoorsPerDevicePerHour(), ApiMessages.TOO_MANY_OPENS);
         }
+    }
+
+    /**
+     * 报修限流：按用户小时窗口计数，防脚本刷工单与运营告警。
+     * 刻意不按柜机维度共用计数器——同一台真坏的柜机应有多个消费者各能报一次。
+     */
+    public void assertFaultReportAllowed(Long userId) {
+        assertAllowed(ACTION_FAULT_REPORT, String.valueOf(userId), userId, properties.maxFaultReportsPerHour(),
+                ApiMessages.TOO_MANY_FAULT_REPORTS);
     }
 
     /**
