@@ -22,10 +22,11 @@ R1–R17 已把「页面遍历 / 395 写端点静态审计 / 资金矩阵 / 跨�
 | 消费端小程序（模拟器） | 23/23 页元素级 | **0 缺陷**（1 处守卫重定向属设计） | `mp-elements-consumer.json` |
 | 消费端专项 | 弹窗热区 + 关闭生效 + 打点入库；异常态与自愈 | **PASS**（此前「无法实证」的一条腿已挣） | `mp-popup-probe.json`、`mp-fault-probe.json` |
 | 商户端小程序（模拟器） | 35/35 页元素级 | **3 处 `aux-link` 触控过小（MA-157）**，其余 0 缺陷；1 处 `.help-tip` 假红 | `mp-elements-merchant.json` |
+| 商户端复核（§7） | 3 条修复 + 门禁判据 | MA-155 PASS / MA-156 PASS / **MA-157 半修仍 open** / 新领 MA-159 | `ma-verify.json` |
 | 商户端（非 UI） | 8 个读接口真凭证 + 4 项静态门禁 | **PASS 8/8、门禁 4/4 绿** | `l3-merchant-api.json` |
 | 活动位 L3 | 效果表 API ↔ 独立 SQL 复算 + 2 条负向 | **PASS**（2 行逐字段一致，负向均 0） | `l3-placement.json` |
 
-新增缺陷 3 条，均待拍板/在办：**MA-155**（补货措辞残留「分仓出库」）、**MA-156**（按钮 sm/compact 变体 37px 且不在热区门禁覆盖面内）、**MA-157**（商户端 `aux-link` 触控 14–31px，与消费端同形控件 45px 差 2–3 倍）。
+新增缺陷 3 条，**已于 2026-11-04 17:00 复核闭环（见 §7）**：MA-155 真修好、MA-156 修好（勉强达标）、MA-157 只修了纵向仍 open；另新领 **MA-159**（热区门禁判据结构性盲区）。
 
 ## 2. 基线取证（先证明「测的是哪份代码」）
 
@@ -106,11 +107,25 @@ R1–R17 已把「页面遍历 / 395 写端点静态审计 / 资金矩阵 / 跨�
 - 1092×606 只代表窄桌面，不代表 iPad/平板断点。
 - 商户端 35 页是在 **390×844** 设备档（消费端为 390×762）跑的；跨档结论未做。
 
-## 7. 需用户拍板
+## 7. 复核：并发会话的修复是否真到位（2026-11-04 17:00）
 
-1. **MA-156**：`app-button` 的 sm/compact（72rpx）是要「补 `::after` 热区扩展到 88rpx」，还是承认「紧凑按钮是设计选择、门禁白名单化」？两者都合理，但**门禁必须与选择一致**，否则同类会继续在覆盖盲区里增长。
-2. **MA-157**：商户端 `aux-link`（14–31px）与消费端（45px）差 2–3 倍。是「商户端补齐到 88rpx」，还是「文本类次级筛选接受更小热区、把阈值改成 88rpx 只约束主操作」？这决定 `check-mp-touch-target-ratchet` 的判据边界。
-3. **MA-155** 措辞：导航描述改「直接生成领货单与补货任务」，还是保留「分仓出库」（若业务上确实有分仓出库单这一实体，则铁律 80 的措辞口径需要再确认边界）。
+`dfb794b9` 把三条都标了 fixed，`70d2bbaf` 又补了它自己弄坏的 `cabinet-reports.page.css`。按铁律 7「核实提交≠核实代码」，我重编 dev 产物后用 automator 实测：
+
+| 编号 | 提交声称 | 实测 | 判 |
+|---|---|---|---|
+| MA-155 | desc 改「领货上柜」+ 入门禁白名单 | 渲染态 `.menu-desc` 读到「缺啥补啥，**直接生成补货任务并领货上柜**」，全页无「分仓出库」 | **PASS** |
+| MA-156 | sm/compact 补 `::after` −8rpx（72+16=88） | 「导航到柜」本体 37px + 两侧各 4.2px = **45.3px**（阈值 44.4）；0×0 的「停售/重启柜机」是 `v-if` 隐藏态，不计 | **PASS（余量 0.9px）** |
+| MA-157 | 三页 aux-link 伪元素 −28rpx | **只扩纵向**：等效高 22+29.2=51.1 达标，但 `inset:-28rpx **0**` 左右为 0 ⇒ 等效宽 26/32/33/37/39px，8 样本 5 不达标；`settlements` 的「零元单」本体仅 14px 高，纵向外扩后也只有 43.1px | **FAIL（半修）** |
+
+**为什么门禁没拦住 MA-157 残留**（本轮新发现，已领 MA-159）：`isViolation()` 首行要求「显式 width **且** 显式 height」，否则直接 `return false` —— 而 `.aux-link` 靠 padding/内容撑开（解析结果只有 `{hit:28}`），`.app-btn--sm` 有高无宽（`{hit:8,minHeight:72,height:72}`），两者**恒放行**。故 `dfb794b9` 里「热区门禁补扫 `shared-uni/components`」对判定结果**零收益**（实测解析 app-button.vue 18 个类、orders/settlements 各 44 个类，违规数全为 0）。另外 `INSET_NEG_RE` 只取 `inset` 的第一个值，`inset:-28rpx 0` 会被当成四向 28rpx ⇒ 一旦该类将来补了显式宽高，横向还会被**高估 56rpx**。
+
+> 构建坑（本轮踩到）：`build:mp-weixin` 是 production 模式，读 `.env.production.local` ⇒ 产物基址是 `https://cabinet.easygovm.com`，本地跑必然 401、token 被 `handleUnauthorized` 清掉、每页被守卫踢回 login（看起来像「守卫失效」）。本地实测必须用 `build:mp-weixin:dev`（基址 `http://127.0.0.1`）；强行给 production 构建塞 `VITE_API_BASE_URL=http://127.0.0.1` 会被 `validate-miniapp-env.mjs` 正确拦下。
+
+## 8. 需用户拍板
+
+1. ~~**MA-156**~~ 已按「补热区到 88rpx」收口并通过实测，无需再拍。
+2. **MA-157（本轮唯一未闭环）**：横向该扩多少？实测相邻文本链间距仅约 12–16px，左右各扩 9px 就会**让相邻热区重叠**（后者压前者，点哪算哪不确定）。三个方向：① 纵向方案扩成四向 `inset:-28rpx -12rpx` 并接受重叠；② 改成 chip 形态（`cabinet-reports` 已这么做，实测 50×60 达标，视觉也更清晰）；③ 承认「文本类次级筛选」豁免，把判据边界写清并让门禁白名单化。
+3. ~~**MA-155**~~ 已按「领货上柜」收口。
 
 ## 8. 复跑方式
 
@@ -130,6 +145,10 @@ node .tmp/three-end-delta-20261104/mp-fault-probe.mjs
 MSYS_NO_PATHCONV=1 MP_END=merchant AUTO_PORT=9452 node .tmp/three-end-delta-20261104/mp-elements.mjs
 node .tmp/three-end-delta-20261104/l3-merchant-api.mjs
 node .tmp/three-end-delta-20261104/l3-placement.mjs
+
+# §7 复核（必须先 build:mp-weixin:dev 重编，否则产物基址是线上域名 ⇒ 全部被守卫踢回 login）
+pnpm --filter @aicabinet/merchant-mp build:mp-weixin:dev
+MSYS_NO_PATHCONV=1 AUTO_PORT=9452 MP_END=merchant node .tmp/three-end-delta-20261104/ma-verify.mjs
 ```
 
 > 🔴 环境坑（本轮踩到，留给下一轮）：**切换端时不要 `cli quit`** —— 它会把开发者工具 GUI 一起关掉，而本沙箱里重启 GUI 会被安全策略拦（启动流程调 `reg.exe`），只能请用户手动打开。正确做法是直接对另一个工程再跑一次 `cli auto --project … --auto-port …`。
