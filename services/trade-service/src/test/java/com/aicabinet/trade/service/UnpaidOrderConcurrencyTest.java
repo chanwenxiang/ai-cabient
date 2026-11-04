@@ -83,6 +83,47 @@ class UnpaidOrderConcurrencyTest {
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
 
+    // ── MA-154：支付入口的归属闸（钱会动的那条；此前只钉过「锁忙」与本人正向）──────
+
+    @Test
+    void collectByUser_foreignUser_notFoundAndNothingCharged() {
+        CabinetOrder other = new CabinetOrder();
+        other.setOrderId("O-OWN");
+        other.setUserId(20002L);
+        other.setStatus("PENDING");
+        other.setSessionId("S-OWN");
+        other.setTotalAmountCents(500);
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-OWN"), 60L, 5L)).thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-OWN")).thenReturn(Optional.of(other));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.collectByUser(10001L, "O-OWN", null));
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode(),
+                "他人订单要回 404（不确认订单号存在），而且绝不能走到扣款");
+        verify(orderLineRepository, never()).findByOrderId("O-OWN");
+        verify(orderRepository, never()).save(any(CabinetOrder.class));
+    }
+
+    @Test
+    void collectByUser_owner_passesOwnershipGate() {
+        // 正向对照：本人过得了归属门——用「状态非 PENDING」的 409 证明失败原因不是归属，
+        // 否则「闸写反成只放行非本人」也能让上一条保持绿
+        CabinetOrder mine = new CabinetOrder();
+        mine.setOrderId("O-MINE");
+        mine.setUserId(10001L);
+        mine.setStatus("PAID");
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-MINE"), 60L, 5L)).thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-MINE")).thenReturn(Optional.of(mine));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.collectByUser(10001L, "O-MINE", null));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode(), "应停在状态门而不是归属门");
+    }
+
     @Test
     void collectByUser_acquiresLockAndLoadsOrderForUpdate() {
         CabinetOrder order = new CabinetOrder();

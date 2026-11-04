@@ -149,6 +149,53 @@ class DisputeOrderRefundTest {
         verify(settlementService, times(1)).waiveAndRefund(any(), anyBoolean());
     }
 
+    // ── MA-154：消费者自助退款（钱会动的那条）的归属闸 ──────────────────────────
+    //
+    // 第一轮核过 `DisputeService#refundByConsumer` 有归属校验，但此前只钉过 operator 侧，
+    // 消费者侧一条都没有——而这条的失败码是 404（刻意不泄露「订单号存在」）。
+
+    @Test
+    void refundByConsumer_foreignUser_notFoundAndNoMoneyMoves() {
+        CabinetOrder other = new CabinetOrder();
+        other.setOrderId("O-OWN-9");
+        other.setUserId(20002L);
+        other.setStatus("PAID");
+        other.setTotalAmountCents(1200);
+        when(orderRepository.findByIdForUpdate("O-OWN-9")).thenReturn(Optional.of(other));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.refundByConsumer(10001L, "O-OWN-9",
+                        new OrderRefundRequest("替别人退款", null, false, null)));
+
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, ex.getStatusCode(),
+                "他人订单要回 404 而不是 403——403 等于确认这个订单号存在");
+        verify(settlementService, org.mockito.Mockito.never()).waiveAndRefund(any(), anyBoolean());
+    }
+
+    @Test
+    void refundByConsumer_owner_isNotStoppedByOwnershipGate() {
+        // 正向对照：本人**不**该被归属门挡。本类把退款策略/结算依赖留成 mock/null，
+        // 本人路径会继续往下走并以别的错误结束——这里只断言「不是 404」，
+        // 因为要钉的恰恰是「闸没写反成只放行非本人」，不关心后面的门长什么样。
+        CabinetOrder mine = new CabinetOrder();
+        mine.setOrderId("O-MINE-9");
+        mine.setUserId(10001L);
+        mine.setStatus("PAID");
+        mine.setTotalAmountCents(1200);
+        when(orderRepository.findByIdForUpdate("O-MINE-9")).thenReturn(Optional.of(mine));
+
+        Throwable thrown = null;
+        try {
+            service.refundByConsumer(10001L, "O-MINE-9", new OrderRefundRequest("本人退款理由", null, false, null));
+        } catch (Throwable t) {
+            thrown = t;
+        }
+        if (thrown instanceof ResponseStatusException rse) {
+            org.junit.jupiter.api.Assertions.assertNotEquals(org.springframework.http.HttpStatus.NOT_FOUND,
+                    rse.getStatusCode(), "本人不得停在归属门");
+        }
+    }
+
     /** D9: 部分退至 REFUNDED → session COMPLETED。 */
     @Test
     void refundByOperator_partialToRefunded_completesSession() {
