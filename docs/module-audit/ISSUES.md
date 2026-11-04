@@ -1331,6 +1331,14 @@ C 只有「开门页设备投放位」整个功能决定下线，才连带删端
 消费者口令登录后打 6 条用例：开门前曝光/点击、关门后曝光各 200，未知位置 400、无主体 400、未登录 401；
 库里回读 `POPUP_BEFORE_OPEN / IMPRESSION / user=10001 / device=NULL / activity=6` 等 **3 行**（`device_id` 全 NULL，
 即不再伪装柜机号），随后按 `event_id > 基线最大号` 圈定删干净、行数复原到基线 0。探针：`.tmp/live-placement-round-1104.mjs`。
-**仍未跑的是小程序 UI 那一腿**（弹窗真的渲染并触发上报）：卡点是 dev 库 `promotion_placement` 里
-**一条 `POPUP_*` 投放行都没有**（只有 activity 6 的 BANNER 一条），所以弹窗接口恒回空数组、组件不会渲染。
-要么授权我插一条 popup 投放行（跑完删），要么在后台「活动投放」里真配一条 —— 这不是代码缺口，是数据没配。
+**小程序 UI 那一腿也已跑绿（2026-11-04 12:5x，微信开发者工具 + automator 0.12.1，auto 端口 9422 避开 peer 的 9420/9421）**。
+前提确认：dev 库 `promotion_placement` 里原本**一条 `POPUP_*` 投放行都没有**（只有 activity 6 的 BANNER），
+所以弹窗接口恒回空数组、组件不渲染 —— 这是**数据没配**，不是代码缺口。经用户授权临时插一条一次性
+activity（`SKU_DISCOUNT`/ACTIVE/ALL）+ 一条 `POPUP_BEFORE_OPEN` 投放行，登录后进首页实测 6 项全过：
+① `.promo-popup-mask` 与关闭按钮渲染出来（截图 `.tmp/mp-popup-1104.png`）；② 展示即报 `IMPRESSION` 落库，
+行形态 `POPUP_BEFORE_OPEN / user=10001 / device=NULL`；③ 点图片报 `CLICK` 落库；④ 后台读面
+`GET …/marketing-roi/placements` 回 `{position:POPUP_BEFORE_OPEN, subjectKind:ACTIVITY, exposureCount:1, exposureUsers:1, clickCount:1, exposurePerUser:1, maxExposurePerUser:1, unattributedCount:0}`，
+主体名取到临时活动名；⑤ 三项计数在 finally 里删净复原（activity 5 / placement 1 / 事件 0，与播种前逐项相等）。
+⚠️ 诚实边界：截图里弹窗**图片没出图**（复用了 asset 7，其对象不在 dev MinIO 里），所以这一轮证的是
+「弹窗结构 + 打点链路」，不是「素材渲染」；探针 `.tmp/mp-popup-ui-round-1104.mjs`。
+automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不可用 ⇒ 判据一律走 DOM 选择器 + 库里行。
