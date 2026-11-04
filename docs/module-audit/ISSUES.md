@@ -1306,8 +1306,9 @@ MA-150 保持 open 且更收窄：`/api/v2/devices/{deviceId}/ad-play` 在新口
 | schema | `V440`：`campaign_id` / `device_id` 放开 NOT NULL，并补 `ck_ad_play_subject CHECK (campaign_id IS NOT NULL OR activity_id IS NOT NULL)`——放开非空是为了让两类主体各自成立，底线改由 CHECK 守，不留「谁都能塞一行无主事件」的口子 |
 | 后端 | `AdPlayEventMapper.aggregatePlacementsSince`（按 位置×主体×主体id 汇总曝光/已归因人数/点击/未归因行）+ `peakExposurePerUserSince`（两层 group-by，先 (位,主体,人) 再取人级最大，只统计 `user_id IS NOT NULL`）；`MarketingRoiService#placements(days)` 把两趟结果并成 `PlacementEffectRowDto`，窗口钳在 7–90 天 |
 | API | 新端点 `GET /api/v2/ops/admin/growth/marketing-roi/placements?days=`（注解 `ops:marketing-roi:view`，服务层同名 `requirePermission` ⇒ 两侧都有门）；`openapi.ts` 与端点**同批**由现抓 spec 重打 |
-| 后台 | `MarketingRoiView.vue` 主表下加「活动位效果（按展示位）」表：位置/主体/曝光次数/曝光人数/人均曝光/单用户峰值/点击次数/未归因行，取数失败只清本表不连带主表；位置译名走字典 `promotion_placement_position`，主体名缺失回落 `#id` |
+| 后台 | `MarketingRoiView.vue` 主表下加「活动位效果（按展示位）」表：位置/主体/曝光次数/曝光人数/人均曝光/单用户峰值/点击次数/未归因行，取数失败只在本表位置提示不连带主表（`useCrudTable` 的 `errorMessage`）；位置译名走字典 `promotion_placement_position`，主体名缺失回落 `#id`。**首版直接写裸表格标签被 `check-admin-table-gate` 拦下**（该闸 CI-only ⇒ 本地预检全绿、CI 红），改成第二套 `useCrudTable`+`CrudTable`，并把 `gate:admin-tables` 接进聚合链（94→95） |
 | 真库钉测 | `PlacementEffectSqlIT` 2 例（一次性 Testcontainers 空库 V1→440）：① 三新列经 mapper 写进可读回、`position` 在 PG 里同时是函数名所以列引用必须实测、未归因行不进 `COUNT(DISTINCT user_id)`、峰值取人级最大（2 而非总次数 4）、ACT/CAM 两套主体名各取各表；② **反向**用例——两主体全空的行必须被 `ck_ad_play_subject` 拒掉，并把约束名断言进去（防止红在别的约束上） |
+| 浏览器真验 | throwaway 三件套（自建 jar :18099 + 一次性 PG :25433 + 一次性 Redis :26379 + vite :3210，共享 18080/15433/6379/3100 全程未动）播种后断言：`开门前弹窗｜新品8折·弹窗活动｜4｜2｜2.0｜2｜1｜1` 与 `轮播横幅｜新品8折·广告计划｜1｜1｜1.0｜1｜0｜0`，两张 `.crud-table`、零 console/pageerror（截图 `.tmp/ui-placements-1104.png`）。踩到隔离栈老坑：vite 代理把 `Origin` 改写成 `http://localhost` ⇒ 后端 CORS 恒 403，要 `VITE_DEV_ORIGIN=http://localhost:5173`（允许列表里有） |
 
 **为什么必须自播两个主体**：`campaign_id` 有 FK 指向 `ad_campaign`（V217 加的，建表迁移里看不到），
 `activity_id` 没有 FK——弹窗行只靠服务层「活动必须存在且 ACTIVE」拦，DB 层不兜底。首跑先撞

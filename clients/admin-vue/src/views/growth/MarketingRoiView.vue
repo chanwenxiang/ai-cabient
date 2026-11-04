@@ -153,27 +153,75 @@
         人均与峰值只按已归因（有登录主体）的行算，未归因行单独列出——把它们混进分母会把人均压成假低值
       </span>
     </el-divider>
-    <el-table
-      v-loading="placementsLoading"
-      :data="placements"
-      size="small"
-      empty-text="暂无打点数据（弹窗位打点随新版小程序生效）"
-    >
-      <el-table-column label="位置" min-width="140">
+    <CrudTable :table="placementsCrud" empty-text="暂无打点数据（弹窗位打点随新版小程序生效）">
+      <el-table-column
+        label="位置"
+        min-width="140"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ positionLabel(row.position) }}</template>
       </el-table-column>
-      <el-table-column label="主体" min-width="180">
+      <el-table-column
+        label="主体"
+        min-width="180"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ row.subjectName || '#' + row.subjectId }}</template>
       </el-table-column>
-      <el-table-column prop="exposureCount" label="曝光次数" width="100" />
-      <el-table-column prop="exposureUsers" label="曝光人数" width="100" />
-      <el-table-column label="人均曝光" width="100">
+      <el-table-column
+        prop="exposureCount"
+        label="曝光次数"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="exposureUsers"
+        label="曝光人数"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        label="人均曝光"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      >
         <template #default="{ row }">{{ perUserText(row) }}</template>
       </el-table-column>
-      <el-table-column prop="maxExposurePerUser" label="单用户峰值" width="110" />
-      <el-table-column prop="clickCount" label="点击次数" width="100" />
-      <el-table-column prop="unattributedCount" label="未归因行" width="100" />
-    </el-table>
+      <el-table-column
+        prop="maxExposurePerUser"
+        label="单用户峰值"
+        width="110"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="clickCount"
+        label="点击次数"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+      <el-table-column
+        prop="unattributedCount"
+        label="未归因行"
+        width="100"
+        align="center"
+        class-name="col-status"
+        label-class-name="col-status"
+      />
+    </CrudTable>
   </el-card>
 </template>
 
@@ -216,23 +264,23 @@ type PlacementRow = {
 
 const days = ref(30);
 const keyword = ref('');
-const placements = ref<PlacementRow[]>([]);
-const placementsLoading = ref(false);
 
-/** 活动位数据与主表同窗口，但失败不连带主表：只记日志、清空本表。 */
-async function loadPlacements() {
-  placementsLoading.value = true;
-  try {
-    placements.value = await api.request<PlacementRow[]>(
+/**
+ * 活动位效果与主表同一个窗口，状态机同样交给 CrudTable（直接写裸表格标签会被
+ * admin-table-gate 拦，见 scripts/admin-table-gate-baseline.json：只减不增）。
+ * 取数失败只在本表位置提示，不连带主表——所以 errorMessage 说清范围。
+ */
+const placementsCrud = useCrudTable<PlacementRow>({
+  rowKey: (r) => `${r.position}|${r.subjectKind}|${r.subjectId ?? 'no-subject'}`,
+  fetchPage: async (params) => {
+    const list = await api.request<PlacementRow[]>(
       AdminEndpoints.growthMarketingRoiPlacements(days.value)
     );
-  } catch (e) {
-    placements.value = [];
-    console.warn('[marketing-roi] placements failed:', String(e));
-  } finally {
-    placementsLoading.value = false;
-  }
-}
+    const start = params.page * params.size;
+    return { items: list.slice(start, start + params.size), total: list.length };
+  },
+  errorMessage: '活动位效果加载失败（不影响上方 ROI 主表）'
+});
 
 function positionLabel(p: string) {
   return displayLabel('promotion_placement_position', p, p || '未知');
@@ -295,15 +343,13 @@ const csvOptions: CrudCsvOptions = {
 
 function search() {
   void crud.search();
-  void loadPlacements();
+  void placementsCrud.search();
 }
 function reset() {
   keyword.value = '';
   void crud.search();
-  void loadPlacements();
+  void placementsCrud.search();
 }
-
-void loadPlacements();
 
 function typeLabel(t: string) {
   return displayLabel('promotion_type', t, '活动');
