@@ -76,6 +76,7 @@
 | MA-067 | P2 | fixed（钉测 1 例 + 活栈实证） | 结算「待支付不占券」落库 | `clearCouponSelection` 把 couponId 置 null，但订单此时已 insert ⇒ `save` 走 MP `updateById` **跳过 null**，库里仍留 coupon_id 而 `user_coupon` 仍 UNUSED（券没核销却挂在单上）；后续按 `order.getCouponId()` 重算的链路会对没收的券再折一次 | Qoder 活栈资金链复现 / 2026-11-02 | 新增显式 UPDATE `clearOrderCouponSelection` + `markPendingAndDropCoupon` 两支都走；e2e 腿 2 钉 PENDING 行 coupon_id=NULL |
 | MA-148 | P3 | fixed（钉测 1 例 + 活栈实证） | 参数配置写侧留痕 | 审计总开关 `ops.config.audit.enabled=false`（dev 实测就是 false）时只有 `FUND_GUARDED_KEYS` 强制留痕；而「开关即资金动作」的**布尔键进不了那个集合**（`validateFundKeyValue` 只吃整数，写 `"true"` 当场 400）⇒ 谁把争议自动免单打开了，历史与审计双零 | Qoder 旋钮落地时自查 / 2026-11-03 | 新增 `AUDIT_FORCED_SWITCH_KEYS`（只管留痕、不管值校验），`recordChangeIfEnabled` 一并放行 |
 | MA-149 | P2 | fixed（收窄两处注解；条码查询保留 OR） | `POST/PUT /ops/admin/skus`（建/改商品） | 注解 `OR{ops:sku:edit, ops:sku:import}`（AdminDashboardController.java:517/:527）与服务层单码 `ops:sku:edit`（OpsCatalogAdminService.java:115/:140）双轨：`ops:sku:import` 是 V106 已授角色的**真码**，只授「导入商品」的运营过注解门后建/改商品恒 403，只能靠 `ops:*` 通配绕过（MA-105 同族，但那条的 `ops:finance:view` 分支更少被授） | Qoder 批次A/B 复核时挖出 / 2026-11-03 | 新增 |
+| MA-150 | P3 | open（已登记，修法待拍板） | 广告打点回写无归属校验 | `POST /api/v2/devices/{deviceId}/ad-play`（`DeviceController#adPlay`）既不取登录主体、服务层 `recordPlayEvent` 也不校验调用者能否写这台柜机 ⇒ 任意登录用户可给任意 deviceId 伪造曝光/完播/点击，污染投放 ROI 与 `MarketingRoiView` 报表；同族两条（`MarketingController#adEvent` 有 userId 空判、`DeviceController#faultReport` 把 userId 写进工单归属）已由规则 2 归类为 self-service，唯此条归 `unverified-write` | 权限矩阵规则 2 首跑 / 2026-11-04 | 两档：① 挂到 `/internal/v1/devices/*/ad-play`（WebConfig 已给这条路径配一机一密拦截器，设备写自己 = 天然归属）② 事件行加 userId 并按调用者过滤。①会改变现网调用面，需确认是谁在打这条 |
 
 | MA-068 | P2 | fixed（钉测 1 例） | merchant-mp `POST /merchant/devices/{id}/stocktake-evidence` | 盘点凭证上传缺设备归属校验（同 Controller 全部设备写端点都过 requireDevicePack，唯独上传漏）⇒ 商户 A 可对商户 B 柜机挂任意照片/灌图，盘点凭证链可跨租户污染 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-069 | P2 | fixed（限幅单源+门禁） | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
@@ -1219,3 +1220,37 @@
 - 验证腿：定向小测（受影响服务/控制器的全部用例）→ 聚合链 93 道 → 15 条门禁负向用例 → 全量 `clean verify` + `pre-push-ci-preflight`。
   本轮全量在**独立 worktree** 跑：共享 `services/common/common-core/target/*.jar` 被同机另一个 mvn 构建（jacoco fork）占用，
   `clean` 删不掉 ⇒ 在主树连跑两次都是 `Failed to delete`（构建失败，不是代码失败）。跑完的数与命令记在 `regression-index.md` 本批行里。
+
+### 批次 R｜权限矩阵规则 2：写端点必须能归入一种授权类别（2026-11-04，用户「按照你的推荐做」）
+
+**要拦的失效面不是批次 Q 那一族**，而是它看不见的那一侧：规则 1 只遍历「已经有注解的端点」，
+所以**新增一个没有任何门的写端点，规则 1 永远不会响**。这轮把这条补上。
+
+判据（可推导优先，推不出来才要求显式声明）：
+
+| 类别 | 怎么判出来 | 今天条数 |
+|---|---|---|
+| `ops-perm` | 方法/类上有 `@RequiresPermissions`，或方法体/本类私有门里有 `require*Permission*`，或它调用的服务方法带校验 | 324 |
+| `machine-token` | 完整路径以 `/internal/` 开头（`WebConfig` 把 `/internal/**` 交给 fleet-key 拦截器，三条设备路径走一机一密） | 31 |
+| `pre-auth` | 命中 `WebConfig.AUTH_EXCLUDE_PATTERNS`（默认拒绝 `/api/v2/**`，只有这张表放行；表是**读源码现取**的，不是我抄的清单） | 18 |
+| `dev-only` | 类上有 `@ConditionalOnProperty(mock-enabled)` / `@Profile`——生产这个 bean 根本不存在（`ProductionStartupValidator` 拒 mock-enabled） | 3 |
+| `unclassified` → 基线 | 上面都推不出来 ⇒ 必须在 `scripts/permission-matrix-unclassified-writes.json` 里有 `{ep, category, reason}` | **37** |
+
+- 全量：**413 个写动词处理器**（POST/PUT/PATCH/DELETE，GET 不计）。锚点 `MIN_WRITE_HANDLERS=200`：识别数掉一半即红。
+- 37 条基线里 36 条是 `self-service`（消费者/商户/运营账号只能改自己的数据，主体一律取自 `AuthInterceptor.ATTR_USER_ID`），1 条 `unverified-write` ⇒ 新登记 **MA-150**（`DeviceController#adPlay` 伪造任意 deviceId 的投放打点）。
+- 基线只许减：`UNCLASSIFIED_CAP=37` 写死在脚本里；清单条目一旦能自动归类就报「腐烂」；缺 `category/reason` 或 category 不在允许集合 ⇒ fail-closed。
+- 🔴 **明确不覆盖的轴**：`self-service` 只声明「授权类别」，**不证明归属校验**。IDOR（服务层到底有没有按 userId 过滤 orderId/sessionId）是另一条轴，本门禁不判——批次 Q 的 C 族已经见过「服务层拿读码当写门」这类形态，说明这条轴值得单独立项，但不在本批范围。
+
+#### 我这轮先造了假阳性，两条都记下来
+
+1. **跨行注解**：`@RequiresPermissions(value = {...},\n        logical = ...OR)` 的尾行既不以 `@` 开头也不是注释，
+   按「只吞 @ 行」的回溯会从那里断掉 ⇒ `OpsExternalImportController` 的 5 个端点被我误报成「没门」。
+2. **私有门与换名**：`OpsPayoutAccountController` 的 create/disable/setDefault 走本类私有方法 `requireOwnerPermission(...)`，
+   我的正则只认 `require(Any)?Permission` ⇒ 又是假阳性；`AdminDashboardController#collectUnpaidOrder` 同族。
+   修法：正则放宽成 `require[A-Za-z]*Permission`，并加**同文件一跳展开**（深度上限 3，命中即算有门）。
+
+⇒ 49 条初测里 12 条是我自己的解析噪声；剩下 37 条才进基线。规则 2 的负向用例共 6 条：
+裸写端点必红、补注解必绿、`/internal/**` 必绿、`@ConditionalOnProperty` 必绿、基线腐烂必红、基线超上限必红。
+（另修了一个自己写的洞：上限原来默认 `unclearedRaw.length` ⇒ 「往里加条目」永远不红。）
+
+- 验证腿：21 条负向用例全过；聚合链 93 道（含 `check:permission-matrix` 与 `-negative`）；台账 150 行、open=1（就是 MA-150）。

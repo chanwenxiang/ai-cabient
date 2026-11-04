@@ -419,6 +419,261 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
   }
 }
 
+// ── 规则 2：每个写动词处理器必须能归入恰好一种授权类别 ──────────────────
+//
+// 为什么要这条：规则 1 只看「已有注解的端点里注解码能不能过服务层」。
+// 真正的失效面是另一个：**新增一个写端点，谁都没给它上门**，而规则 1 看不见它（它没有注解）。
+// 本仓的默认拒绝在 WebConfig 里：`/api/v2/**` 一律要求登录，只有 AUTH_EXCLUDE_PATTERNS 显式放行；
+// `/internal/**` 走 fleet key 拦截器，设备面三条走一机一密。⇒ 类别可以从这些**既有事实**推导，
+// 不需要给 ~200 个写端点在服务层再抄一遍 require*（那会打断传 null operatorId 的内部/系统调用方）。
+const WEB_CONFIG = join(
+  ROOT,
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'config',
+  'WebConfig.java'
+);
+const UNCLED = process.env.PERM_UNCLASSIFIED
+  ? resolve(process.env.PERM_UNCLASSIFIED)
+  : join(ROOT, 'scripts', 'permission-matrix-unclassified-writes.json');
+// ratchet：上限=基线条数（批次 R 首测 37 条），只许减；清理一轮后把这里调小
+const UNCLASSIFIED_CAP = Number(process.env.PERM_UNCLASSIFIED_CAP ?? 37);
+// 锚点：2026-11-04 实测写动词处理器 422 个（GET 不算）。掉一半说明映射解析退化。
+const MIN_WRITE_HANDLERS = Number(process.env.PERM_MIN_WRITE ?? 200);
+const CATEGORIES = new Set([
+  'ops-perm',
+  'consumer-session',
+  'pre-auth',
+  'machine-token',
+  'signature-webhook',
+  'self-service',
+  'dev-only',
+  // 写入的归属既没有权限码也没有主体绑定（例如事件上报接口接受任意 deviceId）——
+  // 允许登记，但每条必须在清单里指向一个已登记的缺陷，不许长期挂着
+  'unverified-write'
+]);
+
+function authExcludePatterns() {
+  const src = readFileSync(WEB_CONFIG, 'utf8');
+  const m = src.match(/AUTH_EXCLUDE_PATTERNS\s*=\s*List\.of\(([\s\S]*?)\);/);
+  if (!m) fail('读不到 WebConfig.AUTH_EXCLUDE_PATTERNS ⇒ 无法判 pre-auth 类别（解析退化，不给绿）');
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+}
+
+function antMatch(p, pat) {
+  const rx =
+    '^' +
+    pat
+      .split('/')
+      .map((seg) =>
+        seg === '**' ? '.*' : seg === '*' ? '[^/]*' : seg.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      )
+      .join('/') +
+    '$';
+  return new RegExp(rx).test(p);
+}
+
+/**
+ * 取方法声明之前的注解行与紧邻注释行（`// authz: xxx` 声明靠后者）。
+ *
+ * 🔴 必须处理跨行注解：`@RequiresPermissions(value = {...},\n        logical = ...OR)` 的尾行
+ * 既不以 `@` 开头也没有注释前缀，按「只吞 @ 行」的写法会从那里断掉 ⇒ 注解被当成不存在
+ * （首版就是这么把 OpsExternalImportController 的 5 个端点误判成「没门」的）。
+ */
+function precedingBlock(lines, methodIdx) {
+  const ann = [];
+  const comments = [];
+  let b = 0; // 向上走时的括号净深度
+  for (let k = methodIdx - 1; k >= 0; k--) {
+    const s = lines[k].trim();
+    if (s === '') continue;
+    const opens = (s.match(/\(/g) || []).length;
+    const closes = (s.match(/\)/g) || []).length;
+    if (b === 0 && (s.startsWith('//') || s.startsWith('*') || s.startsWith('/*'))) {
+      comments.unshift(s);
+      continue;
+    }
+    if (b !== 0 || s.startsWith('@') || closes > opens) {
+      ann.unshift(s);
+      b += opens - closes;
+      continue;
+    }
+    break;
+  }
+  return { ann: ann.join(' '), comments: comments.join(' ') };
+}
+
+/** 授权调用可能包在本类私有门里（requireOwnerPermission 之类），所以按名字放宽并做同文件一跳展开。 */
+const PERM_CALL_RE = /require[A-Za-z]*Permission[sA-Za-z]*\s*\(/;
+
+function sameFilePermGate(src, lines, starts, handlerName, handlerBody) {
+  const bodies = new Map();
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    const m = t.match(
+      /^(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\],.?\s]+\s+(\w+)\s*\(/
+    );
+    if (!m || t.startsWith('@')) continue;
+    const body = methodBody(src, starts, lines, i);
+    if (body) bodies.set(m[1], body);
+  }
+  const seen = new Set([handlerName]);
+  let frontier = [handlerBody];
+  for (let depth = 0; depth < 3 && frontier.length; depth++) {
+    const next = [];
+    for (const body of frontier) {
+      if (PERM_CALL_RE.test(body)) return true;
+      for (const m of body.matchAll(/(?:^|[^\w.])(\w+)\s*\(/g)) {
+        const name = m[1];
+        if (seen.has(name)) continue;
+        const b2 = bodies.get(name);
+        if (!b2) continue;
+        seen.add(name);
+        next.push(b2);
+      }
+    }
+    frontier = next;
+  }
+  return frontier.some((b) => PERM_CALL_RE.test(b));
+}
+
+const excludes = authExcludePatterns();
+const writeHandlers = [];
+for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
+  const src = readFileSync(f, 'utf8');
+  const consts = constantsOf(src);
+  const lines = src.split(/\r?\n/);
+  const starts = lineStartsOf(src);
+  const fields = {};
+  for (const m of src.matchAll(/private\s+final\s+(\w*(?:Service|Api|Manager))\s+(\w+)\s*;/g)) {
+    fields[m[2]] = m[1];
+  }
+  const classIdx = lines.findIndex((l) => /^(public\s+)?(final\s+)?class\s/.test(l.trim()));
+  const classHead = lines.slice(0, Math.max(classIdx, 0)).join(' ');
+  const classBase =
+    (classHead.match(/@RequestMapping\(\s*(?:value\s*=\s*)?"([^"]*)"/) || [])[1] || '';
+  const classHasPerm = /@RequiresPermissions/.test(classHead);
+
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    const sig = t.match(/^(?:public|protected)\s+[\w<>\[\],.?\s]+\s+(\w+)\s*\(/);
+    if (!sig || t.startsWith('@')) continue;
+    const blk = precedingBlock(lines, i);
+    const mapM = blk.ann.match(
+      /@(Post|Put|Patch|Delete)Mapping\b(?:\(\s*(?:value\s*=\s*)?"([^"]*)")?/
+    );
+    if (!mapM) continue;
+    const rel = mapM[2] || '';
+    const full = (classBase + (rel.startsWith('/') || rel === '' ? rel : '/' + rel)).replace(
+      /\/{2,}/g,
+      '/'
+    );
+    const body = methodBody(src, starts, lines, i) || '';
+    const ep = `${relative(ROOT, f).replace(/\\/g, '/')}#${sig[1]}`;
+    const tag = (blk.comments.match(/authz:\s*([a-z-]+)/) || [])[1];
+
+    let derived = null;
+    if (full.startsWith('/internal/')) derived = 'machine-token';
+    else if (excludes.some((p) => antMatch(full, p))) derived = 'pre-auth';
+    // dev/mock 专用 bean：@ConditionalOnProperty(aicabinet.security.mock-enabled) 或 @Profile，
+    // 生产/staging 根本不开这个 bean（ProductionStartupValidator 拒 mock-enabled=true），
+    // 拿它当「没门」是误报——见 DevMockPaymentController 类注释。
+    else if (/@ConditionalOnProperty\b|@Profile\b/.test(classHead)) derived = 'dev-only';
+    else {
+      const ownPerm = /@RequiresPermissions/.test(blk.ann) || classHasPerm;
+      const selfCheck =
+        PERM_CALL_RE.test(body) || sameFilePermGate(src, lines, starts, sig[1], body);
+      let svcCheck = false;
+      for (const m of body.matchAll(/\b(\w+)\.(\w+)\s*\(/g)) {
+        const type = fields[m[1]];
+        if (!type) continue;
+        const map = serviceChecks(type);
+        if (map && map.get(m[2])) svcCheck = true;
+      }
+      if (ownPerm || selfCheck || svcCheck) derived = 'ops-perm';
+    }
+    const category = derived || tag || 'unclassified';
+    if (derived && tag && derived !== tag) {
+      writeHandlers.push({
+        ep,
+        verb: mapM[1].toUpperCase(),
+        path: full,
+        category,
+        conflict: `${derived} vs 声明 ${tag}`
+      });
+    } else {
+      writeHandlers.push({
+        ep,
+        verb: mapM[1].toUpperCase(),
+        path: full,
+        category,
+        declaredOnly: !derived && !!tag,
+        conflict: null
+      });
+    }
+  }
+}
+
+if (writeHandlers.length < MIN_WRITE_HANDLERS) {
+  fail(
+    `写动词处理器只识别到 ${writeHandlers.length} 个 < 锚点 ${MIN_WRITE_HANDLERS} ⇒ 映射/签名解析退化`
+  );
+}
+const conflicts = writeHandlers.filter((w) => w.conflict);
+const unclassified = writeHandlers.filter((w) => w.category === 'unclassified');
+const declaredBad = writeHandlers.filter((w) => w.declaredOnly && !CATEGORIES.has(w.category));
+const unclearedRaw = existsSync(UNCLED) ? JSON.parse(readFileSync(UNCLED, 'utf8')) : [];
+if (!Array.isArray(unclearedRaw)) fail(`${UNCLED} 必须是数组`);
+// 🔴 上限取自脚本里的 UNCLASSIFIED_CAP（默认 37），不能默认等于清单长度——
+//    那样「往里加条目」永远不会红（第一版就是这么写的）。
+const MAX_UNCLEARED = UNCLASSIFIED_CAP;
+if (unclearedRaw.length > MAX_UNCLEARED) {
+  fail(
+    `未分类写端点清单 ${unclearedRaw.length} 条 > 上限 ${MAX_UNCLEARED} ⇒ 只能减不能加：` +
+      '新写端点必须自带门（注解/服务层 require*）或 `// authz: <类别>` 声明'
+  );
+}
+for (const e of unclearedRaw) {
+  if (!e || typeof e !== 'object') fail(`${UNCLED} 每项必须是对象`);
+  for (const k of ['ep', 'category', 'reason']) {
+    if (!String(e[k] || '').trim()) fail(`${UNCLED} 条目 ${e.ep || '?'} 缺 ${k}`);
+  }
+  if (!CATEGORIES.has(e.category))
+    fail(`${UNCLED} 条目 ${e.ep} 的 category=${e.category} 不在允许集合`);
+}
+const uncleared = new Map(unclearedRaw.map((e) => [e.ep, e]));
+const unclearedSeen = new Set();
+const rule2Problems = [];
+for (const w of unclassified) {
+  if (uncleared.has(w.ep)) {
+    unclearedSeen.add(w.ep);
+    continue;
+  }
+  rule2Problems.push(
+    `${w.ep}  [${w.verb} ${w.path}]\n    既没有 @RequiresPermissions、控制器/服务层也没有 require* 调用，` +
+      `也不在 WebConfig 的 pre-auth 白名单或 /internal/** 里 ⇒ 只靠「默认要求登录」保护，没有授权门。` +
+      `\n    处理：补权限注解（推荐），或确实属于消费者自助/验签回调时加一行 \`// authz: <类别>\` 声明并写清凭什么`
+  );
+}
+for (const w of conflicts) {
+  rule2Problems.push(`${w.ep}：可推导类别 ${w.conflict} 冲突 ⇒ 删掉多余声明或修正注解`);
+}
+for (const w of declaredBad) {
+  rule2Problems.push(`${w.ep}：声明的类别 ${w.category} 不在允许集合 ${[...CATEGORIES].join('/')}`);
+}
+const staleUncleared = [...uncleared.keys()].filter((k) => !unclearedSeen.has(k));
+if (staleUncleared.length) {
+  rule2Problems.push(
+    `未分类清单腐烂（这些端点现在已能自动归类，请删除）：\n    ` + staleUncleared.join('\n    ')
+  );
+}
+
 const ghosts = rows.filter((r) => r.kind === 'ghost-code');
 const exemptRaw = existsSync(EXEMPT) ? JSON.parse(readFileSync(EXEMPT, 'utf8')) : [];
 if (!Array.isArray(exemptRaw)) fail(`${EXEMPT} 必须是数组`);
@@ -470,6 +725,8 @@ if (boundMethods < MIN_BOUND_METHODS)
 if (bothSides < MIN_BOTH_SIDES)
   fail(`两侧都有校验的端点 ${bothSides} < 锚点 ${MIN_BOTH_SIDES} ⇒ 服务层解析退化`);
 
+problems.push(...rule2Problems);
+
 if (JSON_OUT) {
   console.log(
     JSON.stringify({
@@ -477,24 +734,33 @@ if (JSON_OUT) {
       boundMethods,
       bothSides,
       ghostCount: ghosts.length,
+      writeHandlers: writeHandlers.length,
+      unclassified: unclassified.length,
+      baseline: unclearedRaw.length,
       problems: problems.length
     })
   );
 } else if (DUMP) {
   writeFileSync(join(ROOT, '.tmp', 'permission-matrix.json'), JSON.stringify(rows, null, 2));
+  writeFileSync(
+    join(ROOT, '.tmp', 'permission-write-handlers.json'),
+    JSON.stringify(writeHandlers, null, 2)
+  );
   console.log(
-    `${TAG} 矩阵已写 .tmp/permission-matrix.json：${rows.length} 行（幽灵 ${ghosts.length}）`
+    `${TAG} 矩阵已写 .tmp/permission-matrix.json：${rows.length} 行（幽灵 ${ghosts.length}）；` +
+      `写处理器清单 .tmp/permission-write-handlers.json：${writeHandlers.length} 行`
   );
 }
 
 if (problems.length) {
   console.error(
-    `${TAG} FAIL：${problems.length} 条「切面放行、服务层必 403」的端点（幽灵按钮族，MA-070/105/149 同族）\n\n` +
+    `${TAG} FAIL：${problems.length} 条问题（幽灵按钮族 MA-070/105/149 同族 + 规则 2 未分类/冲突/腐烂）\n\n` +
       problems.join('\n\n')
   );
   process.exit(1);
 }
 console.log(
   `${TAG} OK：注解 ${totalAnnotations} 处 / 方法级绑定 ${boundMethods} / 两侧都有校验 ${bothSides}，` +
-    `幽灵码端点 ${ghosts.length}（豁免 ${exemptSeen.size}），无清单腐烂`
+    `幽灵码 ${ghosts.length}（豁免 ${exemptSeen.size}）；` +
+    `写动词处理器 ${writeHandlers.length} 个，未分类 ${unclassified.length}（基线 ${unclearedRaw.length}，上限 ${MAX_UNCLEARED}），冲突 0，无清单腐烂`
 );

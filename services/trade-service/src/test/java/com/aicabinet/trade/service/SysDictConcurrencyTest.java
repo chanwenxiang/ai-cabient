@@ -13,7 +13,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,8 +28,8 @@ class SysDictConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        doNothing().when(permissionService).requirePermission(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString());
+        // 批次 Q：upsertType/upsertItem 现在走 requireAnyPermission(edit, import)。
+        // 这里不再打桩——void 方法在 mock 上默认就是 no-op，写死方法名反而会在换闸形时留下 UnnecessaryStubbing。
         service = new SysDictService(typeRepository, dataRepository, permissionService, null, distributedLockService);
     }
 

@@ -1,0 +1,261 @@
+[
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#bindOpenId",
+    "method": "POST /api/v2/account/bind-openid",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#deleteOwnAccount",
+    "method": "POST /api/v2/account/delete-account",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#setPayPreferred",
+    "method": "PUT /api/v2/account/pay-preferred",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#signAlipayAgreement",
+    "method": "POST /api/v2/account/alipay-agreement/sign",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#signPayScore",
+    "method": "POST /api/v2/account/payscore/sign",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#unsignPayContract",
+    "method": "POST /api/v2/account/pay-contract/unsign",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#updateNickname",
+    "method": "PUT /api/v2/account/nickname",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#verifyIdentity",
+    "method": "POST /api/v2/account/verify",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerBalanceRefundController.java#apply",
+    "method": "POST /api/v2/account/balance-refunds",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerDisputeController.java#file",
+    "method": "POST /api/v2/disputes",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerDisputeController.java#uploadEvidence",
+    "method": "POST /api/v2/disputes/evidence",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerFeedbackController.java#submit",
+    "method": "POST /api/v2/feedback",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerNotificationController.java#markAllRead",
+    "method": "POST /api/v2/member/notifications/read-all",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerNotificationController.java#markRead",
+    "method": "POST /api/v2/member/notifications/{id}/read",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerNotificationController.java#updatePref",
+    "method": "PUT /api/v2/member/notifications/prefs",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/CouponController.java#useCoupon",
+    "method": "POST /api/v2/coupons/use",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java#adPlay",
+    "method": "POST /api/v2/devices/{deviceId}/ad-play",
+    "category": "unverified-write",
+    "reason": "开门页广告播放回写：路径带任意 deviceId，控制器不取登录主体、服务层 recordPlayEvent 也不校验调用者是否有权写这台柜机的打点 ⇒ 投放 ROI 可被任意账号伪造（MA-150 已登记，待拍板：改走 /internal/** + 一机一密，还是让消费者主体进事件行）",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java#faultReport",
+    "method": "POST /api/v2/devices/{deviceId}/fault-report",
+    "category": "self-service",
+    "reason": "柜机故障上报：userId 取自登录态并写进工单归属（DeviceFaultReportService.report(userId, deviceId, …)），任意登录用户报任意柜机是产品预期",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/MarketingController.java#adEvent",
+    "method": "POST /api/v2/marketing/ads/{campaignId}/events",
+    "category": "self-service",
+    "reason": "小程序轮播曝光/点击：方法体先判 userId==null ⇒ 401（防匿名刷量），deviceId 语义是 MP-U{userId} 即调用者自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/MarketingController.java#claim",
+    "method": "POST /api/v2/marketing/campaigns/{id}/claim",
+    "category": "self-service",
+    "reason": "领券：主体取登录用户，券库存与限领在服务层按用户判（MA-021/MA-073 一族已加过闸）",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/MemberController.java#redeem",
+    "method": "POST /api/v2/member/redeem",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantPortalController.java#passwordChange",
+    "method": "POST /api/v2/merchant/password-change",
+    "category": "self-service",
+    "reason": "商户管理员改自己的登录密码：主体取自会话，鉴权走当前密码/2FA 校验而非权限码",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#changeMyPassword",
+    "method": "PUT /api/v2/ops/admin/rbac/me/password",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#confirmTwoFactor",
+    "method": "POST /api/v2/ops/admin/rbac/me/two-factor/confirm",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#disableTwoFactor",
+    "method": "POST /api/v2/ops/admin/rbac/me/two-factor/disable",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#sendPhoneChangeSmsCode",
+    "method": "POST /api/v2/ops/admin/rbac/me/phone-sms-code",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#updateMyProfile",
+    "method": "PUT /api/v2/ops/admin/rbac/me",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java#uploadMyAvatar",
+    "method": "POST /api/v2/ops/admin/rbac/me/avatar",
+    "category": "self-service",
+    "reason": "运营账号自助面（改自己密码 / 2FA 确认与关闭 / 换绑手机验证码 / 个人资料 / 头像）：主体只从 AuthInterceptor.ATTR_USER_ID 取，不需要 ops: 权限码；越权面 = 只能改自己",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OrderController.java#applyInvoice",
+    "method": "POST /api/v2/orders/{orderId}/invoice",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OrderController.java#payPending",
+    "method": "POST /api/v2/orders/{orderId}/pay",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/OrderController.java#refund",
+    "method": "POST /api/v2/orders/{orderId}/refund",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java#cancelRecharge",
+    "method": "POST /api/v2/payment/recharge/{orderId}/cancel",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java#rechargePrepay",
+    "method": "POST /api/v2/payment/recharge/prepay",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java#cancel",
+    "method": "POST /api/v2/sessions/{sessionId}/cancel",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java#create",
+    "method": "POST /api/v2/sessions",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java#demoClose",
+    "method": "POST /api/v2/sessions/{sessionId}/demo-close",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  },
+  {
+    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java#updateCart",
+    "method": "PUT /api/v2/sessions/{sessionId}/cart",
+    "category": "self-service",
+    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
+    "reviewed": "2026-11-04 批次 R"
+  }
+]

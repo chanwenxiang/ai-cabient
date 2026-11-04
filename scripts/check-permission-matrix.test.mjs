@@ -83,26 +83,70 @@ function mkTree({ annotation, service, crlf = false }) {
   writeFileSync(join(SANDBOX, 'service', 'FooService.java'), service.replace(/\n/g, eol));
 }
 
-async function runGate({ exempt = null, anchors = true, maxExemptions = null } = {}) {
+async function runGate({
+  exempt = null,
+  anchors = true,
+  maxExemptions = null,
+  extraEnv = {},
+  rule1Anchors = true
+} = {}) {
   const env = {
     ...process.env,
     PERM_MATRIX_ROOT: SANDBOX,
     PERM_MIN_JAVA_FILES: '1',
-    PERM_MIN_ANNOTATIONS: '1',
-    PERM_MIN_BOUND: '1',
-    PERM_MIN_BOTH: '1'
+    PERM_MIN_ANNOTATIONS: rule1Anchors ? '1' : '0',
+    PERM_MIN_BOUND: rule1Anchors ? '1' : '0',
+    PERM_MIN_BOTH: rule1Anchors ? '1' : '0',
+    PERM_MIN_WRITE: '0', // 规则 1 夹具里没有写映射，别让 write 锚点把用例拦在规则 2 之前
+    ...extraEnv
   };
   if (!anchors) {
     delete env.PERM_MIN_JAVA_FILES;
     delete env.PERM_MIN_ANNOTATIONS;
     delete env.PERM_MIN_BOUND;
     delete env.PERM_MIN_BOTH;
+    delete env.PERM_MIN_WRITE;
   }
   if (maxExemptions != null) env.PERM_MAX_EXEMPTIONS = String(maxExemptions);
   if (exempt) env.PERM_MATRIX_EXEMPTIONS = join(SANDBOX, 'exemptions.json');
   else env.PERM_MATRIX_EXEMPTIONS = join(SANDBOX, 'no-such-file.json');
+  // 🔴 规则 2 的基线一律指到沙箱文件：指到真实清单的话，夹具跑出来的永远是
+  // 「真树 37 条全腐烂」，该绿的用例会被基线噪声判红。
+  env.PERM_UNCLASSIFIED = join(SANDBOX, 'unclassified.json');
+  if (!existsSync(env.PERM_UNCLASSIFIED)) {
+    writeFileSync(env.PERM_UNCLASSIFIED, '[]\n');
+  }
+  if (env.PERM_UNCLASSIFIED_CAP == null) env.PERM_UNCLASSIFIED_CAP = '99';
   const r = await runAsync(process.execPath, [GATE], { env, cwd: ROOT });
   return { code: r.status ?? 1, out: `${r.stdout || ''}${r.stderr || ''}` };
+}
+
+/** 规则 2 夹具：一个没有任何授权痕迹的写端点，可换基路径与类注解 */
+function bareCtrl(opts = {}) {
+  const { verb = 'Post', path = '/api/v2/things', classAnn = '', body = 'return "ok";' } = opts;
+  return `package com.aicabinet.trade.api;
+
+@RestController
+@RequestMapping("/api/v2")
+${classAnn}
+public class FooWriteController {
+    @${verb}Mapping("${path.replace('/api/v2', '')}")
+    public String doIt() {
+        ${body}
+    }
+}
+`;
+}
+
+/** 规则 2 用：往沙箱里只放一组控制器/服务文件 */
+function mkFiles(files) {
+  rmSync(SANDBOX, { recursive: true, force: true });
+  mkdirSync(join(SANDBOX, 'api'), { recursive: true });
+  mkdirSync(join(SANDBOX, 'service'), { recursive: true });
+  for (const [name, content] of Object.entries(files)) {
+    const sub = name.startsWith('api/') ? 'api' : 'service';
+    writeFileSync(join(SANDBOX, sub, name.split('/')[1]), content.replace(/\n/g, '\n'));
+  }
 }
 
 const gateSrc = readFileSync(GATE, 'utf8');
@@ -271,6 +315,103 @@ try {
     stale.out.slice(0, 300)
   );
 
+  // 12) 规则 2：裸写端点（没注解、没 require*、不在白名单、不在 /internal）⇒ 必须红
+  mkFiles({ 'api/FooWriteController.java': bareCtrl() });
+  const bare = await runGate({ rule1Anchors: false });
+  check(
+    '规则 2：无授权痕迹的 POST ⇒ 红并点名端点与路径',
+    bare.code === 1 &&
+      /FooWriteController\.java#doIt/.test(bare.out) &&
+      /POST \/api\/v2\/things/.test(bare.out),
+    bare.out.slice(0, 300)
+  );
+
+  // 13) 补了权限注解 ⇒ 归 ops-perm，不再算问题
+  mkFiles({
+    'api/FooWriteController.java': bareCtrl().replace(
+      '    @PostMapping("/things")',
+      '    @RequiresPermissions("ops:x:edit")\n    @PostMapping("/things")'
+    )
+  });
+  const gated = await runGate({ rule1Anchors: false });
+  check('规则 2：有 @RequiresPermissions 的 POST ⇒ 绿', gated.code === 0, gated.out.slice(0, 300));
+
+  // 14) /internal/** 走 fleet key 拦截器 ⇒ machine-token，不该要求权限码
+  mkFiles({
+    'api/FooWriteController.java': bareCtrl({ path: '/internal/v1/things' }).replace(
+      '@RequestMapping("/api/v2")',
+      '@RequestMapping("/internal/v1")'
+    )
+  });
+  const internal = await runGate({ rule1Anchors: false });
+  check(
+    '规则 2：/internal/** 写端点 ⇒ 绿（machine-token）',
+    internal.code === 0,
+    internal.out.slice(0, 300)
+  );
+
+  // 15) dev/mock 专用 bean（生产不开）⇒ dev-only，不该算没门
+  mkFiles({
+    'api/FooWriteController.java': bareCtrl({
+      classAnn:
+        '@ConditionalOnProperty(name = "aicabinet.security.mock-enabled", havingValue = "true")'
+    })
+  });
+  const devOnly = await runGate({ rule1Anchors: false });
+  check(
+    '规则 2：@ConditionalOnProperty 的 dev bean ⇒ 绿（dev-only）',
+    devOnly.code === 0,
+    devOnly.out.slice(0, 300)
+  );
+
+  // 16) 基线腐烂：登记的端点其实已能自动归类 ⇒ 红
+  mkFiles({
+    'api/FooWriteController.java': bareCtrl().replace(
+      '    @PostMapping("/things")',
+      '    @RequiresPermissions("ops:x:edit")\n    @PostMapping("/things")'
+    )
+  });
+  writeFileSync(
+    join(SANDBOX, 'unclassified.json'),
+    JSON.stringify(
+      [{ ep: 'x/y/FooWriteController.java#doIt', category: 'self-service', reason: 'r' }],
+      null,
+      2
+    )
+  );
+  const staleUncl = await runGate({
+    extraEnv: { PERM_UNCLASSIFIED: join(SANDBOX, 'unclassified.json'), PERM_UNCLASSIFIED_CAP: '9' },
+    rule1Anchors: false
+  });
+  check(
+    '规则 2：基线里有已可归类的条目 ⇒ 红（腐烂）',
+    staleUncl.code === 1 && /腐烂/.test(staleUncl.out),
+    staleUncl.out.slice(0, 300)
+  );
+
+  // 17) 基线超上限 ⇒ 红（只许减不许加）
+  mkFiles({ 'api/FooWriteController.java': bareCtrl() });
+  writeFileSync(
+    join(SANDBOX, 'unclassified.json'),
+    JSON.stringify(
+      [
+        { ep: '.tmp/a/FooWriteController.java#doIt', category: 'self-service', reason: 'r' },
+        { ep: '.tmp/b/FooWriteController.java#doIt', category: 'self-service', reason: 'r' }
+      ],
+      null,
+      2
+    )
+  );
+  const overCapUncl = await runGate({
+    extraEnv: { PERM_UNCLASSIFIED_CAP: '1' },
+    rule1Anchors: false
+  });
+  check(
+    '规则 2：未分类清单 > 上限 ⇒ 红（新写端点必须自带门或显式声明）',
+    overCapUncl.code === 1 && /只能减不能加/.test(overCapUncl.out),
+    overCapUncl.out.slice(0, 300)
+  );
+
   // 12) 工件未被测试写坏
   check('门禁脚本未被改动', readFileSync(GATE, 'utf8') === gateSrc);
   check('真实豁免清单未被改动', readFileSync(EXEMPT, 'utf8') === exemptSrc);
@@ -283,4 +424,6 @@ if (failures) {
   console.error(`${TAG} FAIL：${failures} 个用例红`);
   process.exit(1);
 }
-console.log(`${TAG} OK：负向用例全过（CRLF / 跨行签名绑定 / 分支权限 三组回归钉）`);
+console.log(
+  `${TAG} OK：负向用例全过（规则 1：CRLF / 跨行签名 / 分支权限三组回归钉；规则 2：裸写端点·internal·dev bean·腐烂·超上限六条）`
+);
