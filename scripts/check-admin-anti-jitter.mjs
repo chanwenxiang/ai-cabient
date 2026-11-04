@@ -319,6 +319,9 @@ for (const [name, src] of [
       const sel = `${raw.slice(0, brace).replace(/\s+/g, ' ').trim()}`
         .replace(/<\/?style[^>]*>/g, '')
         .trim();
+      // at-rule（如 `@media (hover: hover)`）的前导文本也含 ":hover"，但它不是选择器；
+      // 不跳过会把它包裹的正常声明当悬停规则判红（假红）。
+      if (sel.startsWith('@')) continue;
       if (!/:hover|:focus-visible/.test(sel)) continue;
       if (HOVER_GEOM_ALLOW.some((w) => rel.endsWith(w.file) && sel.includes(w.sel))) continue;
       const hit = GEOM_RE.exec(raw.slice(brace + 1));
