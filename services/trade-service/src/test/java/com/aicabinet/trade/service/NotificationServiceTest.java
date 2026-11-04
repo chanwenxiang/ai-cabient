@@ -8,6 +8,8 @@ import com.aicabinet.trade.messaging.NotificationDispatchProducer;
 import com.aicabinet.trade.mapper.NotificationLogMapper;
 import com.aicabinet.trade.mapper.NotificationTemplateMapper;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -20,6 +22,9 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -165,5 +170,38 @@ class NotificationServiceTest {
                 org.mockito.ArgumentMatchers.eq("NOTIFICATION_LOG"),
                 org.mockito.ArgumentMatchers.eq("11"),
                 org.mockito.ArgumentMatchers.anyString());
+    }
+
+    // ── MA-154：消费者「标记已读」的归属闸（第一轮核过有闸，但此前无任何用例钉住）──
+
+    @Test
+    void markConsumerRead_foreignUser_forbiddenAndNotMarked() {
+        NotificationService service = service(false);
+        NotificationLog other = new NotificationLog();
+        other.setId(77L);
+        other.setUserId(2002L);
+        when(logRepository.findByIdForUpdate(77L)).thenReturn(Optional.of(other));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.markConsumerRead(1001L, 77L));
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+        assertNull(other.getReadAt(), "被拒时不得先把 readAt 写上");
+        verify(logRepository, never()).save(any(NotificationLog.class));
+    }
+
+    @Test
+    void markConsumerRead_owner_marksRead() {
+        // 正向对照：本人必须过得去，否则上面那条「403」可能是闸写反了造成的假绿
+        NotificationService service = service(false);
+        NotificationLog mine = new NotificationLog();
+        mine.setId(78L);
+        mine.setUserId(1001L);
+        when(logRepository.findByIdForUpdate(78L)).thenReturn(Optional.of(mine));
+
+        service.markConsumerRead(1001L, 78L);
+
+        assertNotNull(mine.getReadAt());
+        verify(logRepository).save(mine);
     }
 }
