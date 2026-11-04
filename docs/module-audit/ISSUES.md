@@ -1390,4 +1390,4 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 | 契约 | 无形状改动：429 走既有 `ResponseStatusException`，全仓控制器**没有任何一处**用 springdoc 标注过 429 ⇒ 不需 regen（预检 `openapi-regen` 亦判无形状差） |
 | 测试 | `ApiRateLimitServiceTest` 7→9（键名钉 `aicabinet:rate:fault_report:{userId}`、超限 429 且不回写计数）；`DeviceFaultReportConcurrencyTest` 1→3（超限 ⇒ 429 且 never tryLock / never save / never 推告警；正向对照 ⇒ 未超限照常落单并释放锁，同时让「闸被删掉」因未消费桩 + verify 立刻红）；`RateLimitPropertiesBindingTest` 四向补新键。定向跑 9+3+4+3 全绿 |
 | 连带改动 | record 多一个组件会连坐构造点：本次改 9 处 `new RateLimitProperties(...)`（3 个测试类 + 绑定测试的钳位用例） |
-| 证据边界 | 档②「同一未结案工单幂等合并」仍未做（更贴业务但要动工单状态机），留作后续；`/fault-report` 的**归属**面本来就正确，本批没动 |
+| 证据边界 | 档②「同一未结案工单幂等合并」仍未做（更贴业务但要动工单状态机），留作后续；`/fault-report` 的**归属**面本来就正确，本批没动。**活栈未复验**：dev 共享容器要重烤才带这条闸，而重建会把并发会话此刻未提交的 admin 源码一起烤进去（整棵脏树部署），故本批只以「定向 19 例 + 该模块 `clean verify` 全量」为证 |
