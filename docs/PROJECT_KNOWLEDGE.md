@@ -684,6 +684,29 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（修 MA-159：热区门禁三处「恒放行」——判据改成「单边可证即判」+ inset 按边展开 + 动态类前缀）
+
+- 审计那句「补扫 shared-uni/components 的判定收益是 0」成立，根因三处（我逐处回源码核过）：
+  ① `isViolation` 第一行要求**显式宽且显式高**，否则 `return false` ⇒ `.aux-link`（padding 撑开，只解出
+     `{hit:28}`）与 `.app-btn--sm`（有高无宽）永远进不了判据；
+  ② `inset` 简写只取第一个值 ⇒ `inset: -28rpx 0` 被当成**四向** 28rpx（横向虚增 56rpx，一旦补了显式宽高就假绿）；
+  ③ `if (size && …)` 让「类在别处定义 / 只有 padding」的直接跳过；且同一标签同时写 `class` 与 `:class` 时
+     只取第一个 ⇒ 模板字符串拼的 `` `app-btn--${size}` `` 整串丢失，`.app-btn--sm` 永远不出现。
+- 顺带修一个可测性缺陷：模块被 `import` 时会直接跑 `main()`（审计此前为了复用解析器只能绕开）。
+  现在只有**直接执行**才跑 main，`parseClassSizes` / `collectClickableClasses` / `violationKind` /
+  `expandInsetShorthand` 可安全导出复用。
+- **新判据**：可证热区 = 显式 `width/min-width`（或 `width:100%`）+ 显式 `height/min-height`
+  + 伪元素负 `inset` 按四边分别累加（正值是内缩，不加分）。**任一条边可证且 < 88rpx 即判**；
+  两条边都算不出的归入独立一档 `unverifiable`，照样由基线兜着——不再「看不见就当合规」。
+- 修复后重扫（104 文件）：**可证不达标 8 处**（基线 8）：consumer `.coupon-pick` 48 / `.category-chip` 52 /
+  `.subscribe-btn` 64 / `.redeem-btn` 60；merchant `.scan-line` 52 / `.menu-cell` 84；
+  shared-uni `.app-btn--text` 64 / `.privacy-btn` 80。**不可验 235 处**（基线 235），
+  其中 `.aux-link` 现已可见并正确解析为「纵 56 / 横 0」，`.app-btn--sm` 为「72+16=88 纵向达标、横向不可验」。
+- 自检 23 项（沙箱合成样式）：88 边界 / 单边可证 / padding / 满宽 / inset 1–4 值展开 / 无单位零 /
+  动态前缀 / 后代选择器不误伤 / 装饰伪元素不污染。
+- 🔴 本笔**只修判据，不改产品样式**：那 8 处与 235 处是基线债，随页面改到时补显式尺寸并下调基线；
+  别把「基线兜着」当成「已经合规」。
+
 ### 2026-11-04（批 3b 第一档：消费者端「货道」措辞清零，并修掉一个 slotId 当身份用的重复 key 隐患）
 
 - 切掉 5 处 / 3 文件，消费者端「货道 / slotId」现为零：
