@@ -26,8 +26,10 @@ const SCOPES = [
 /** 🔴 显式常量，不是文件清单长度；批 3b 每清一档就下调这里。
  *  2026-11-04 首建实测 89 处 / 26 文件（大头：merchant device-detail 12、useReplenishmentDisplay 9、
  *  admin ReplenishmentView 8、MerchantSplitsView 7、ReplenishLinesSection 7、device-stocktake 7、
- *  useDeviceSlotActions 6；消费者端 orders.vue 也有 3 处——那是最该先切的）。*/
-const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 89);
+ *  useDeviceSlotActions 6；消费者端 orders.vue 也有 3 处——那是最该先切的）。
+ *  同日第一档已切完**消费者端**（orders 的货道标签+解析、order-detail 行内「· 货道 X」、
+ *  result 的 lineMeta 货道段，共 5 处 / 3 文件）⇒ 现基线 84 处 / 23 文件，消费者端为零。*/
+const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 84);
 const TERM = '货道';
 
 function isDir(p) {

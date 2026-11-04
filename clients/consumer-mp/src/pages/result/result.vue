@@ -409,7 +409,6 @@ const baseCents = computed(() => {
 
 function lineMeta(line: OrderLineDto) {
   const parts: string[] = [];
-  if (line.slotId) parts.push(`货道 ${line.slotId}`);
   if (line.batchNo) parts.push(`批次 ${line.batchNo}`);
   return parts.join(' · ');
 }

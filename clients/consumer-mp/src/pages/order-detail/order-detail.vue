@@ -21,8 +21,8 @@
         <view class="section">
           <text class="section-title">商品清单</text>
           <view
-            v-for="item in order?.lines || []"
-            :key="item.skuId + '-' + (item.slotId || '')"
+            v-for="(item, idx) in order?.lines || []"
+            :key="`${item.skuId || 'line'}-${item.batchNo || idx}`"
             class="item-row"
           >
             <view class="item-thumb item-mark" aria-hidden="true">{{
@@ -31,8 +31,7 @@
             <view class="item-info">
               <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
               <text class="item-qty"
-                >x{{ item.quantity }}{{ item.slotId ? ` · 货道 ${item.slotId}` : ''
-                }}{{ item.batchNo ? ` · 批次 ${item.batchNo}` : '' }}</text
+                >x{{ item.quantity }}{{ item.batchNo ? ` · 批次 ${item.batchNo}` : '' }}</text
               >
               <text v-if="item.unitPriceCents != null" class="item-unit"
                 >单价 {{ fmtMoney(item.unitPriceCents) }}</text

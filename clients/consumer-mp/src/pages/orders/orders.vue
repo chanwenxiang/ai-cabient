@@ -198,9 +198,6 @@
                       >{{ o.lineCount }} 件</text
                     >
                     <text class="order-tag">{{ payChannelText(o.payChannel) }}</text>
-                    <text v-for="slot in slotTags(o)" :key="slot" class="order-tag slot">{{
-                      slot
-                    }}</text>
                     <!-- 后端 couponDiscountCents 为 primitive int（无券恒 0），必须 > 0 才算有券 -->
                     <text v-if="Number(o.couponDiscountCents ?? 0) > 0" class="order-tag soft"
                       >券减{{ fmtMoney(o.couponDiscountCents) }}</text
@@ -509,15 +506,6 @@ function refundCents(o: OrderSummary) {
   // M-6：只信服务端 refundedCents
   const n = Number(o.refundedCents ?? 0);
   return Number.isFinite(n) && n > 0 ? n : 0;
-}
-function slotTags(o: OrderSummary): string[] {
-  const raw = String(o.lineSummary || '');
-  const found = raw.match(/货道\s*([A-Za-z0-9_-]+)/g) || [];
-  const slots = found
-    .map((s) => s.replace(/^货道\s*/, '').trim())
-    .filter(Boolean)
-    .map((s) => `货道${s}`);
-  return [...new Set(slots)].slice(0, 3);
 }
 function canInvoiceHint(o: OrderSummary) {
   const s = String(o.status || '');

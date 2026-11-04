@@ -684,6 +684,22 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 第一档：消费者端「货道」措辞清零，并修掉一个 slotId 当身份用的重复 key 隐患）
+
+- 切掉 5 处 / 3 文件，消费者端「货道 / slotId」现为零：
+  `orders.vue` 的 `slotTags()`（从 `lineSummary` 正则抠「货道XX」再渲染成标签）连同模板里的 `v-for` 标签、
+  `order-detail.vue` 行内 `· 货道 X`、`result.vue` 的 `lineMeta` 货道段。
+- 🔴 **删措辞时必须一起看的那一类**：`order-detail.vue` 的 `v-for :key="item.skuId + '-' + (item.slotId || '')"`
+  —— 开门柜 `slotId` 恒 null ⇒ 同一 SKU 的两行（多批次）会**撞成重复 key**。已改成
+  `` `${item.skuId || 'line'}-${item.batchNo || idx}` ``。同类残留留给商户端那一档：
+  `ReplenishLinesSection.vue:21` 的 `line.lineId || \`${skuId}-${batchNo}-${slotId}\``——
+  草稿行没有 lineId 时同样会撞（开门柜 slotId 全 null）。
+- 棘轮基线 89 → **84**（26 → 23 文件）。下一档目标按刻度排序：merchant `device-detail.vue` 12、
+  `useReplenishmentDisplay.ts` 9、admin `ReplenishmentView.vue` 8、`MerchantSplitsView.vue` 7、
+  `device-stocktake.vue` 7、`useDeviceSlotActions.ts` 6。
+- 验证：consumer `vue-tsc` 绿、vitest **172 例**绿、`build:mp-weixin`（release）绿、prettier 绿、
+  棘轮 `--selftest` 与实跑都按新基线通过（判据「相等才通过」）。本档不动后端、不改 API 形状 ⇒ 无需 regen。
+
 ### 2026-11-04（批 3b 前置：把「开门柜界面不许出现货道字样」钉成只降棘轮；并记 3b-1/3b-2 不可分）
 
 - **摸完才敢说不可分**：3b-1（读面：`DeviceDetailDto.slots` + 两端货道渲染）与 3b-2（写面 + 算式）
