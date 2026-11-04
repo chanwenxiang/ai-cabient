@@ -65,7 +65,9 @@ description: >-
 - admin 某页只剩「跳到主内容」≈ **vite 依赖预构建缓存过期**（动态 import 回 504 `Outdated Optimize Dep`），不是页面缺陷：让用户重启 dev server，或用 `vite --port <自有端口>` 起一份隔离的。
 - 骨架屏/加载态这类瞬时状态：`mockWxMethod('request', fn)` 挂起目标 URL 可冻住画面（consumer 实例实测可用；merchant 实例可能拦不到，改看构建产物 + usingComponents）。
 - 验收交付 = **只对本次实际改动页面**拍「同会话、同数据快照」前后对比；不做 130+ 全量归档，证据留 `.tmp`（gitignore）。
-- 🔴 **网络变更后先重烤 mp env**：两端 `.env.development` 由 `scripts/sync-consumer-mp-api.mjs` 烤的是**当时局域网 IP**，且 `clients/*/.env.development.local` 优先级更高。IP 漂移时请求连不到网关 ⇒ 列表永远停在加载态（骨架屏/「加载中…」），极易误判成前端 bug。判据：网关 access log 里**没有**模拟器的请求。修法：`node scripts/sync-consumer-mp-api.mjs` + 手工核对 `.local`，再 `build:mp-weixin:dev` 重烤。
+- 🔴 **开发者工具里验证一律钉环回 `http://127.0.0.1`**（2026-11-04 用户拍板）：写 `clients/{consumer,merchant}-mp/.env.development.local` 的 `VITE_API_BASE_URL=http://127.0.0.1`，再 `build:mp-weixin:dev` 重烤。原因：WLAN IP 会漂（本机一天内 `.26→.199→.26` 来回两次），而 `.env.development` 是 `sync-consumer-mp-api.mjs` 按「当时的 LAN IP」生成的 ⇒ 漂移后请求全挂、列表停在加载态。**只有真机预览/扫码才把该文件临时改成局域网 IP**（手机与电脑同 WLAN），用完改回环回。
+  - 判据顺序（别一上来怀疑前端）：① `mp.callWxMethod('request', {url:'http://127.0.0.1/api/v2/auth/server-boot'})` 通不通；② 网关 access log 里有没有模拟器请求；③ 产物烤进的基址 `grep -rho "http://1[0-9.]*" dist/*/mp-weixin/`；④ 都对但页面仍旧 ⇒ 编译缓存陈旧：`cli quit` → 删 `%LOCALAPPDATA%/微信开发者工具/User Data/<hash>/WeappCache/WeappCompileCache` → 重开（`cli cache --clean compile` 对内联常量不够）。
+- 🔴 **网络变更后先重烤 mp env**：两端 `.env.development` 由 `scripts/sync-consumer-mp-api.mjs` 烤的是**当时局域网 IP**，且 `clients/*/.env.development.local` 优先级更高。IP 漂移时请求连不到网关 ⇒ 列表永远停在加载态（骨架屏/「加载中…」），极易误判成前端 bug。修法见上一条。
 - 🔴 **整页无样式（大字裸排/图标巨物/tabbar 变文字）＝`dist/dev` 被交叉写坏**，不是样式回归。判据：同页 wxml 与 wxss 的 scoped 哈希必须相等——
   `grep -o 'data-v-[a-z0-9]*' dist/dev/mp-weixin/pages/home/home.wxml | sort -u` 对 `.wxss` 同样取一次；不等即坏。
   成因：另一会话的 `uni.js -p mp-weixin` 增量 watcher 与你的全量 `build:mp-weixin:dev` 交叉写 `dist/dev`。

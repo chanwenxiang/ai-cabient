@@ -40,6 +40,9 @@ function probe(base) {
  * 1. 显式 `MP_API_BASE_URL` / `VITE_API_BASE_URL`
  * 2. 可达的局域网 IP（真机预览；探测失败则不用，禁止写死超时 IP）
  * 3. 环回（微信开发者工具模拟器本机兜底）
+ * 🔴 本脚本只写 `.env.development`；各端的 `.env.development.local` 优先级更高且会覆盖本脚本的结果。
+ *    2026-11-04 用户拍板：开发者工具验证期把该 local 文件钉成 `http://127.0.0.1`（免疫 WLAN 换 IP），
+ *    只有真机预览/扫码才临时改成局域网 IP。
  * 注意：生产构建走 release env（validate-miniapp-env + inject --mode release），
  * 不经过本脚本；发布前无需改此默认，仅需确认 release 配置不含局域网 IP。
  */
