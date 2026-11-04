@@ -1284,7 +1284,16 @@
 🔴 这里刻意**没有**用共享 dev 库/18080 容器：`DemoDataService` 与 `SysDictBootstrap` 无开关，boot 上去会把演示数据「ensure」回来，污染 peer 刚清过的台账（我自己记着的坑）。
 
 **这批明确没做**：不设任何配额/阈值（0 行真实数据下阈值只能是猜的死旋钮）；ROI 报表的「按位置分桶 + 人均/单用户最大次数」两列留下一批（那要动 admin 源码并重建产物）。
-MA-150 保持 open 且更收窄：`/api/v2/devices/{deviceId}/ad-play` 在新口落地后**确认仍无调用方** ⇒ 定性为死写面，建议删除或改由设备凭据口承载。
+MA-150 保持 open，**但定性被我下一轮推翻**（原话「确认仍无调用方 ⇒ 死写面」是错的，见批次 T 小节的订正）：
+`/api/v2/devices/{deviceId}/ad-play` 是在用的——`clients/consumer-mp/src/components/device-ad-banner.vue:174/:191/:204`
+经 `consumerApi.reportAdPlay`（`utils/consumer-api.ts:659`）上报，组件挂载点在 `pages/index/index.vue:53`
+（`v-if="deviceId && adBannerVisible && !marketingSlotVisible"`，与 CB-082 营销轮播互斥兜底）。我漏判的原因：只 grep 了
+包装名 `deviceAdPlay` 在 `.vue` 里的命中，没 grep 方法名 `reportAdPlay` ⇒ 结论作废，**不能按死代码删**。
+缺陷本体不变：任何登录用户都能给**任意已存在的设备**写曝光/完播/点击（`device_id` 有 FK 指向 `device_info`，
+所以只能伪造成真柜号、不能凭空造号），而去重键 `(device, campaign, asset, type)` 不含人 ⇒ 换 assetId/eventType 就多计。
+三档待拍板：A 取登录主体写 `user_id` 并要求该 deviceId 与调用者有活动/近期会话（最小，归因+伪造一起关掉，前端不动）；
+B 让该组件改走批次 S 的 `/placement-events`（写面收敛成一个口，但要给 COMPLETE 定语义）；
+C 只有「开门页设备投放位」整个功能决定下线，才连带删端点 + `reportAdPlay` 包装 + `ConsumerEndpoints.deviceAdPlay`。
 
 ### 批次 T｜活动位效果按展示位分桶 + 两条真库底线（2026-11-04，用户：「我们没有柜机屏幕，做 ROI『按 position 分桶 + 人均/单用户最大次数』」+「首页和开门前应该是同一个，按照你的节奏做」）
 
@@ -1314,7 +1323,14 @@ MA-150 保持 open 且更收窄：`/api/v2/devices/{deviceId}/ad-play` 在新口
 `activity_id` 没有 FK——弹窗行只靠服务层「活动必须存在且 ACTIVE」拦，DB 层不兜底。首跑先撞
 `asset_id` 的 FK（V217，指向 `media_asset`），本用例不测素材维度，留空即可。
 
-**这批明确没做**：不动 `/api/v2/devices/{deviceId}/ad-play`（MA-150 仍 open，等用户对「死写面删除 vs 改由设备凭据口承载」拍板）；
+**这批明确没做**：不动 `/api/v2/devices/{deviceId}/ad-play`（MA-150 仍 open；用户已授权删除的前提「零调用方」经复核不成立，见上一段订正）；
 不给弹窗位设任何配额/阈值；不改 banner 位的主体口径（banner 仍挂 `AdCampaign`）；
-弹窗位打点的**真机那一轮**还没跑（需重烤 `build:mp-weixin:dev`，判据是库里出现
-`position='POPUP_BEFORE_OPEN'` 且 `user_id` 非空、`device_id` 为 NULL 的行）。
+**活栈那一轮已跑（2026-11-04 12:3x，共享 dev 栈）**：为应用 V438–V440 用 origin tip 重烤了 trade 镜像
+（`infra/docker-compose.full.yml` + `win-ports.yml`，Flyway 把 dev 库从 V434 一路升到 **V440**，
+`ad_play_event` 现有 `activity_id/position/user_id` 三列 + `ck_ad_play_subject`，`/v3/api-docs` 里两条新路径都在）。
+消费者口令登录后打 6 条用例：开门前曝光/点击、关门后曝光各 200，未知位置 400、无主体 400、未登录 401；
+库里回读 `POPUP_BEFORE_OPEN / IMPRESSION / user=10001 / device=NULL / activity=6` 等 **3 行**（`device_id` 全 NULL，
+即不再伪装柜机号），随后按 `event_id > 基线最大号` 圈定删干净、行数复原到基线 0。探针：`.tmp/live-placement-round-1104.mjs`。
+**仍未跑的是小程序 UI 那一腿**（弹窗真的渲染并触发上报）：卡点是 dev 库 `promotion_placement` 里
+**一条 `POPUP_*` 投放行都没有**（只有 activity 6 的 BANNER 一条），所以弹窗接口恒回空数组、组件不会渲染。
+要么授权我插一条 popup 投放行（跑完删），要么在后台「活动投放」里真配一条 —— 这不是代码缺口，是数据没配。
