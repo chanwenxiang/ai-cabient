@@ -551,14 +551,9 @@ public class DeviceSimulator implements MqttCallbackExtended {
         if (sku == null || sku.isBlank()) {
             return null;
         }
-        // 默认按开门柜口径：重力增量只带 SKU，不带货道号（slotId 缺省 null ⇒ 服务端走 SKU 分摊）。
-        // 仅当显式给出 AICABINET_SIM_GRAVITY_SLOT 时才保留货道口径——货道级 E2E（e2e-inventory-phase-a.ps1）靠它。
+        // 开门柜口径（2026-11-04 拍板）：重力增量只带 SKU，不带货道号；货道档位随货道概念一起退场。
         try {
-            String slot = env("AICABINET_SIM_GRAVITY_SLOT", null);
-            Map<String, Object> item = slot == null || slot.isBlank()
-                    ? Map.of("skuId", sku.trim(), "delta", -1)
-                    : Map.of("skuId", sku.trim(), "delta", -1, "slotId", slot.trim());
-            return mapper.writeValueAsString(List.of(item));
+            return mapper.writeValueAsString(List.of(Map.of("skuId", sku.trim(), "delta", -1)));
         } catch (Exception e) {
             return null;
         }

@@ -1,4 +1,5 @@
 ﻿# Phase A E2E: replenishment lines, FEFO lots, expiry stats, MQTT shopping
+# 口径（2026-11-04）：开门柜——RESTOCK 明细不带货道号，重力增量只带 SKU；货道链已随「开门柜不设货道概念」退场。
 
 param(
     [string]$BaseUrl = "http://localhost:8080",
@@ -24,14 +25,6 @@ if (-not $OpsPhone) { $OpsPhone = "13900000001" }
 if (-not $ConsumerPhone) { $ConsumerPhone = $demoCtx.consumerPhone }
 if (-not $DeviceId) { $DeviceId = $demoCtx.deviceId }
 if (-not $SkuId) { $SkuId = "SKU-DEMO-001" }
-
-function Get-E2eSlotForSku {
-    param([string]$Sku, [hashtable]$Auth)
-    $slots = Invoke-Api -Method GET -Path "/api/v2/ops/admin/devices/${DeviceId}/slots" -Headers $Auth
-    $match = @($slots | Where-Object { $_.assignedSkuId -eq $Sku -and $_.enabled } | Select-Object -First 1)
-    if ($match.Count -lt 1) { throw "no planogram slot for sku $Sku on $DeviceId" }
-    return $match[0]
-}
 
 function Invoke-Api {
     param(
@@ -84,12 +77,10 @@ $route = Invoke-Api -Method POST -Path "/api/v2/ops/admin/replenishment/routes" 
 $taskId = $route.tasks[0].taskId
 Write-Host "    taskId=$taskId"
 
-$slot = Get-E2eSlotForSku -Sku $SkuId -Auth $opsAuth
-$slotId = $slot.slotCode
-$maxLevel = if ($slot.maxLevel -gt 0) { $slot.maxLevel } else { 8 }
-$room = $maxLevel - $slot.bookQty
-$restockQty = [Math]::Min(8, [Math]::Max(0, $room))
-Write-Host "    planogram slot=$slotId book=$($slot.bookQty) max=$maxLevel restockQty=$restockQty"
+# 开门柜：无货道可查，RESTOCK 件数取固定 3（台账 capacity 缺行时后端按「不设限」放行；
+# 有容量且不足时这里当场 4xx，比静默跳过更能暴露问题）
+$restockQty = 3
+Write-Host "    door-cabinet restock qty=$restockQty"
 
 $batchNo = $null
 if ($restockQty -ge 1) {
@@ -106,7 +97,6 @@ if ($restockQty -ge 1) {
                 productionDate  = $prod
                 expiryDate      = $expiry
                 quantity        = $restockQty
-                slotId          = $slotId
             }
         )
     }
@@ -118,7 +108,7 @@ if ($restockQty -ge 1) {
     if ($completed.status -ne "COMPLETED") { throw "task not completed: $($completed.status)" }
     Write-Host "    task completed"
 } else {
-    Write-Host "==> 4-5. Skip RESTOCK (slot full); use existing lots for FEFO check"
+    Write-Host "==> 4-5. Skip RESTOCK (no headroom); use existing lots for FEFO check"
 }
 
 Write-Host "==> 6. Verify device lots"
@@ -166,7 +156,6 @@ try {
     } else {
         Write-Host "    door path=mqtt"
         $env:AICABINET_SIM_GRAVITY_SKU = $SkuId
-        $env:AICABINET_SIM_GRAVITY_SLOT = $slotId
         $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $consumerAuth `
             -RepoRoot $Root -MqttBroker $MqttBroker -InternalApiKey $InternalApiKey
         $sessionId = $mqtt.SessionId

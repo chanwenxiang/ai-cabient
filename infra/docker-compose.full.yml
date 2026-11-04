@@ -388,7 +388,7 @@ services:
       AICABINET_SIM_SHOPPING_MS: "${AICABINET_SIM_SHOPPING_MS:-0}"
       AICABINET_SIM_GRAVITY_JSON: "${AICABINET_SIM_GRAVITY_JSON:-[]}"
       AICABINET_SIM_GRAVITY_SKU: "${AICABINET_SIM_GRAVITY_SKU:-}"
-      # 不再默认发 A1：开门柜口径下重力增量只带 SKU（要货道口径请显式给 AICABINET_SIM_GRAVITY_SLOT）
+      # 开门柜口径：重力增量只带 SKU。货道档位已随「开门柜不设货道概念」退场（2026-11-04），别再加分支。
       # 测试关门页：http://localhost:${AICABINET_SIM_HTTP_PORT:-18089}/ （SHOPPING_MS=0 时点按钮关门）
       AICABINET_SIM_HTTP_PORT: "18089"
       # 联调温控：心跳上报柜内温度并向目标收敛

@@ -684,6 +684,23 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（「开门柜不设货道概念」第四批＝3a：断掉最后一个能产出货道数据的入口）
+
+- 模拟器：`resolveGravityJson` 的显式货道分支整删——不再读 `AICABINET_SIM_GRAVITY_SLOT`，重力增量恒
+  只带 `{skuId, delta}`。第三批留下的「显式设 env 才走货道」口子到此关闭（上一条里那句已作废，见本条）。
+- `scripts/e2e-inventory-phase-a.ps1` 由**货道链改成开门柜链**（它同时出现在 `verify-step1.ps1`、
+  `DEPLOYMENT_CHECKLIST §Phase A`、`MASTER_TEST_PLAN` 里 ⇒ 只能改口径不能删）：去掉
+  `Get-E2eSlotForSku`（查 planogram，无货道即 throw）、RESTOCK 明细不再带 `slotId`、件数改固定 3
+  （台账缺容量行时后端 fail-open 不设限；有容量且不足会当场 4xx，比静默跳过更能暴露问题），
+  「Skip RESTOCK (slot full)」改成 `(no headroom)`。BOM 与 CRLF 原样保留。
+- 🔴 **本批只改文本、没跑这条 E2E**：跑它要整套栈 + 真库（会写补货明细/批次/订单），共享 dev 库未经批准不动。
+  判据留在这里：改后脚本的 6-9 步（按 batchNo 查 lot、聚合库存、dashboard 效期字段、FEFO 扣减）与柜型无关，
+  真跑一次即自证。
+- 规模实测（决定 3b 怎么排）：`services/trade-service/src/test` 里 **40 个测试类**引用 `DeviceSlot/slotCode/slotId`，
+  主代码含「货道」字样的文件 88 个 ⇒ 3b（删货道代码本体 + `DeviceDetailDto.slots` + 两端 UI + 盘点/建议/差异告警/
+  实测同步/FEFO per-slot/`ReplenishmentService` 货道分支）**必须单独一整轮**做，配一次全量 `mvn verify`（含 Docker IT），
+  不能见缝插针。
+
 ### 2026-11-04（「开门柜不设货道概念」第三批：slot_template 整套退场——它本来就是死 UI）
 
 - **取证先于动手**：`openSaveTemplateDialog` / `openApplyTemplateDialog` 全仓零调用 ⇒「存为陈列模板 /
