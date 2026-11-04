@@ -63,7 +63,11 @@ description: >-
 - **小程序只用微信开发者工具**（mp-weixin 产物），H5 不是验收面。consumer 自动化口 9421 / merchant 9420，配方见 memory `reference-mp-automator-verify`。
 - admin 用 Playwright headed Chrome，亮/暗都看；`:3100` 起不来用独立端口，**不要杀用户的 dev server**。
 - admin 某页只剩「跳到主内容」≈ **vite 依赖预构建缓存过期**（动态 import 回 504 `Outdated Optimize Dep`），不是页面缺陷：让用户重启 dev server，或用 `vite --port <自有端口>` 起一份隔离的。
-- 骨架屏/加载态这类瞬时状态：`mockWxMethod('request', fn)` 挂起目标 URL 可冻住画面（consumer 实例实测可用；merchant 实例可能拦不到，改看构建产物 + usingComponents）。
+- 骨架屏/加载态这类瞬时状态可以**冻住再截图**（两端实例都行，2026-11-04 商户端实测 `sk-card=4`）：
+  1. `mp.evaluate(() => { wx.__origRequest = wx.request; })` 先存原始函数；
+  2. `mp.mockWxMethod('request', function (o) { if (/目标路径/.test(o.url)) return new Promise(() => {}); return new Promise(res => wx.__origRequest(Object.assign({}, o, { success: res }))); })` —— 只挂起目标请求，其余透传（否则页面外壳/权限数据也一起没了）；
+  3. 截图后**必须** `mp.restoreWxMethod('request')` 或重开工程，mock 会跨 disconnect 残留。
+  4. 先跑对照：静态 mock 全回 599，若列表数据消失说明拦截生效；仍出真实数据 = 没拦到（多为跑的是旧产物/旧基址，先按上面「钉环回 + 清 WeappCompileCache」两条排查）。
 - 验收交付 = **只对本次实际改动页面**拍「同会话、同数据快照」前后对比；不做 130+ 全量归档，证据留 `.tmp`（gitignore）。
 - 🔴 **开发者工具里验证一律钉环回 `http://127.0.0.1`**（2026-11-04 用户拍板）：写 `clients/{consumer,merchant}-mp/.env.development.local` 的 `VITE_API_BASE_URL=http://127.0.0.1`，再 `build:mp-weixin:dev` 重烤。原因：WLAN IP 会漂（本机一天内 `.26→.199→.26` 来回两次），而 `.env.development` 是 `sync-consumer-mp-api.mjs` 按「当时的 LAN IP」生成的 ⇒ 漂移后请求全挂、列表停在加载态。**只有真机预览/扫码才把该文件临时改成局域网 IP**（手机与电脑同 WLAN），用完改回环回。
   - 判据顺序（别一上来怀疑前端）：① `mp.callWxMethod('request', {url:'http://127.0.0.1/api/v2/auth/server-boot'})` 通不通；② 网关 access log 里有没有模拟器请求；③ 产物烤进的基址 `grep -rho "http://1[0-9.]*" dist/*/mp-weixin/`；④ 都对但页面仍旧 ⇒ 编译缓存陈旧：`cli quit` → 删 `%LOCALAPPDATA%/微信开发者工具/User Data/<hash>/WeappCache/WeappCompileCache` → 重开（`cli cache --clean compile` 对内联常量不够）。

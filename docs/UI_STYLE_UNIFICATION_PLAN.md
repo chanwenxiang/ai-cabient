@@ -105,7 +105,7 @@
   - 表单：两端登录补 aria-label / autocomplete + 错误聚焦首字段；admin 登录已有 autocomplete。
   - 图片：商品格 / 活动 banner / 申诉附图补 `lazy-load`；显式尺寸沿用 CSS 类。
   - 按钮/弹窗：refund / alerts / empty-scan / divider-toggle 72→88rpx；AppConfirmDialog 取消左 / 确认右；app-button 主按钮已 88rpx。
-  - 加载：操作按钮 spinner 沿用 app-button `loading`；列表骨架屏 2026-11-03 补齐——shared-uni 新增 `list-skeleton`（3 端令牌、WXSS 无 color-mix、prefers-reduced-motion 降级），easycom 注册两端 + `OPTIONAL_SHARED_COMPONENTS` 拍平；消费端 7 页 / 商户端 10 页列表加载态由「加载中…」文字换骨架（消费端 orders 首载走页级 `booting` 门，该门一并换骨架）。消费端订单页微信模拟器截图实证（`.tmp/phase2-verify/phase4-skeleton-consumer-orders.png`，sk-card=4）；商户端实证受限于该 IDE 实例 mockWxMethod/`wx.request` 补丁均无法拦截请求（消费端实例可以，同版本行为不一致），以构建产物（17 页 usingComponents+wxml 含组件）+ 同组件同接线作证。
+  - 加载：操作按钮 spinner 沿用 app-button `loading`；列表骨架屏 2026-11-03 补齐——shared-uni 新增 `list-skeleton`（3 端令牌、WXSS 无 color-mix、prefers-reduced-motion 降级），easycom 注册两端 + `OPTIONAL_SHARED_COMPONENTS` 拍平；消费端 7 页 / 商户端 10 页列表加载态由「加载中…」文字换骨架（消费端 orders 首载走页级 `booting` 门，该门一并换骨架）。消费端订单页微信模拟器截图实证（`.tmp/phase2-verify/phase4-skeleton-consumer-orders.png`，sk-card=4）；商户端实证曾记为「该 IDE 实例 mockWxMethod/`wx.request` 补丁均无法拦截请求」——**2026-11-04 推翻**：对照实验（静态 mock 全回 599 时 `task-card` 4→0）证明拦得到，之前失效的是跑着旧基址/旧产物的实例。已用「先 `evaluate` 存原始 `wx.request` ⇒ mock 里只挂起 `replenishment/tasks`、其余透传」冻住商户端补货列表并截图（`.tmp/ui-baseline/freeze-merchant-replenishment-skeleton.png`，`sk-card=4`、首块 390×73px），配方与「用完必须 `restoreWxMethod`」写进 skill §5。
   - 补货措辞对齐「自提自送」铁律：商户端「出库 N」chip→「领货 N」、明细提示「有出库明细」→「有领货明细」、自补货提交提示去「分仓出库」字样（[useWarehouseOutbounds.ts:20] 铁律）。
 
 ## Phase 6 · 防回归 + 规范落仓（0.5 天）
