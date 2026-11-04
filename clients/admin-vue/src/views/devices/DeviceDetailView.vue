@@ -756,144 +756,6 @@
         />
       </el-tab-pane>
     </el-tabs>
-
-    <!-- CB-028 弹窗规范：dialog-wide + 字段分组两列（与商品建档弹窗同款 form-group-title） -->
-    <el-dialog
-      v-model="editorVisible"
-      :title="`编辑货道 ${editForm.slotCode}`"
-      class="dialog-wide"
-      :close-on-click-modal="false"
-    >
-      <el-form label-width="auto">
-        <div class="form-group-title">陈列配置</div>
-        <el-row :gutter="16">
-          <el-col :span="24">
-            <el-form-item label="商品">
-              <el-select
-                v-model="editForm.assignedSkuId"
-                filterable
-                clearable
-                placeholder="选择商品"
-                style="width: 100%"
-              >
-                <el-option
-                  v-for="s in skus"
-                  :key="s.skuId"
-                  :label="`${s.skuName} (${s.skuId})`"
-                  :value="s.skuId"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="目标陈列">
-              <el-input-number v-model="editForm.parLevel" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="最低库存">
-              <el-input-number v-model="editForm.minLevel" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="最大容量">
-              <el-input-number v-model="editForm.maxLevel" :min="0" style="width: 100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item :label="displayLabel('enable_status', 'ACTIVE')">
-              <el-switch v-model="editForm.enabled" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <!-- 🔴 2026-09-24：整块按 canStocktake 隐藏。无 `ops:replenishment:edit` 时
-             这三个字段点下去只会 403（后端 stocktake 要该权限），且「保存配置」也提交不了它们
-             ⇒ 与其给一个改不生效的输入框，不如根本不渲染（连分组标题一起）。
-             判据：后端 OpsReplenishmentController#stocktakeSlot 的 @RequiresPermissions。 -->
-        <template v-if="canStocktake">
-          <div class="form-group-title">现场盘点</div>
-          <el-row :gutter="16">
-            <el-col :span="12">
-              <el-form-item label="账面库存">
-                <span>{{ editForm.bookQty }}</span>
-                <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
-                  · 账实差异 {{ editForm.qtyDiff }}</span
-                >
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="实盘数量">
-                <el-input-number v-model="editForm.physicalQty" :min="0" style="width: 100%" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="调账面">
-            <el-checkbox v-model="editForm.adjustBookQty">按实盘回写该货道批次库存</el-checkbox>
-          </el-form-item>
-        </template>
-      </el-form>
-      <template #footer>
-        <el-button @click="editorVisible = false">取消</el-button>
-        <!-- 权限只由 canStocktake 一处表达（= ops:replenishment:edit），不再叠 v-hasPermi，
-             避免「同一权限两条通道」再次各自漂移。 -->
-        <el-button v-if="canStocktake" :loading="stocktaking" @click="stocktakeSlot"
-          >仅记实盘</el-button
-        >
-        <el-button
-          v-if="canStocktake"
-          type="warning"
-          :loading="stocktaking"
-          @click="stocktakeAndAdjust"
-        >
-          按实盘调账面
-        </el-button>
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="primary"
-          :loading="saving"
-          @click="saveSlot"
-          >保存配置</el-button
-        >
-      </template>
-    </el-dialog>
-
-    <!-- 图1 对照（叮当小柜，2026-10-15）：商品排序——交换货道展示坐标，不改 SKU 绑定 -->
-    <el-dialog v-model="sortDialogVisible" title="商品排序" width="520px">
-      <div class="muted" style="margin-bottom: 8px">
-        调整商品在货柜中的展示顺序（按陈列网格 行×列
-        排布），保存时会交换货道的展示坐标，不改动商品绑定。
-      </div>
-      <div v-loading="sortSaving" class="sort-list">
-        <div v-for="(row, idx) in sortRows" :key="row.slotCode" class="sort-row">
-          <span class="sort-idx">{{ idx + 1 }}</span>
-          <span class="sort-code">{{ row.slotCode }}</span>
-          <span class="sort-name">{{ row.skuName || row.assignedSkuId || '未配置' }}</span>
-          <span class="sort-actions">
-            <el-button size="small" :disabled="idx === 0" @click="moveSortRow(idx, -1)"
-              >上移</el-button
-            >
-            <el-button
-              size="small"
-              :disabled="idx === sortRows.length - 1"
-              @click="moveSortRow(idx, 1)"
-              >下移</el-button
-            >
-          </span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="sortDialogVisible = false">取消</el-button>
-        <el-button
-          v-hasPermi="['ops:device:edit']"
-          type="primary"
-          :loading="sortSaving"
-          @click="saveSort"
-          >保存排序</el-button
-        >
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -923,11 +785,10 @@ import { useDeviceLifecycleActions } from '@/composables/device/useDeviceLifecyc
 import { useDevicePricing } from '@/composables/device/useDevicePricing';
 import { useDeviceRelatedRecords } from '@/composables/device/useDeviceRelatedRecords';
 import { useDeviceRemoteOps } from '@/composables/device/useDeviceRemoteOps';
-import { useDeviceSlotActions } from '@/composables/device/useDeviceSlotActions';
 import { useDeviceTempEnv } from '@/composables/device/useDeviceTempEnv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import type { DeviceSlot, SkuCatalog } from '@aicabinet/shared-types';
+import type { SkuCatalog } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
@@ -1000,7 +861,6 @@ interface DeviceInventoryRow {
 interface DeviceDetail {
   device: DeviceRow;
   metrics: Metrics;
-  slots: DeviceSlot[];
   skuInventory?: DeviceInventoryRow[];
   /** CB-080：SKU 已下架但台账行仍残留的死账（不随下架自动清；admin 端可见可清） */
   delistedInventory?: DeviceInventoryRow[];
@@ -1017,7 +877,8 @@ const deviceId = route.params.id as string;
  */
 const jiangyiRegistered = ref(false);
 /** 缺货/低库存的计数单位：开门柜按商品计，货道柜按货道计（与后端 isDoorCabinet 同一判据） */
-const stockUnitLabel = computed(() => (jiangyiRegistered.value ? '商品' : '货道'));
+// 货道概念已退场：设备详情只按商品计
+const stockUnitLabel = '商品';
 const jiangyiSn = ref('');
 watch(
   () => deviceId,
@@ -1038,18 +899,12 @@ watch(
   { immediate: true }
 );
 
-const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 // 单柜定价（V350，CB-037）：改价走独立权限点 ops:pricing:edit（资金敏感，与商户端对称）；
 // 查看沿用面板口径 ops:device:list（能进详情页即可看，铁律 66）
 const canEditPricing = computed(() => auth.hasPerm('ops:pricing:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditTempPlan = computed(() => auth.hasPerm('ops:device:edit'));
-/**
- * 盘点 / 调账的权限口径**必须与后端一致**：`OpsReplenishmentController.stocktakeSlot`
- * 要的是 `ops:replenishment:edit`，而模板里两个实盘按钮原先用 `ops:device:edit` 判显隐 ——
- * 有 device:edit 没有 replenishment:edit 的账号会「按钮可见、点了 403」。
- */
-const canStocktake = computed(() => auth.hasPerm('ops:replenishment:edit'));
+
 const {
   sessions,
   orders,
@@ -1171,29 +1026,8 @@ const canRegenerateDeviceId = computed(
     orderTotal.value === 0
 );
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
-const slots = ref<DeviceSlot[]>([]);
 const skuInventory = ref<DeviceInventoryRow[]>([]);
 const delistedInventory = ref<DeviceInventoryRow[]>([]);
-const {
-  applying,
-  slotsRefreshing,
-  saving,
-  stocktaking,
-  editorVisible,
-  editForm,
-  applyTemplate,
-  refreshSlots,
-  openEditor,
-  stocktakeSlot,
-  stocktakeAndAdjust,
-  saveSlot
-} = useDeviceSlotActions({
-  deviceId,
-  slots,
-  canEditSlots,
-  canStocktake,
-  loadDetail: () => loadDetail()
-});
 
 const skus = ref<SkuCatalog[]>([]);
 const qrUrl = ref('');
@@ -1433,64 +1267,11 @@ async function onResetPricing() {
     const count = await api.request<number>(AdminEndpoints.devicePricingReset(deviceId), 'POST');
     ElMessage.success(count > 0 ? `已重置 ${count} 个覆盖价` : '该柜没有覆盖价，无需重置');
     await loadPricingRows();
-    await refreshSlots();
     pricingCardRef.value?.onActive(true);
   } catch (e) {
     ElMessage.error(errorMessage(e, '重置覆盖价失败'));
   } finally {
     resettingPrice.value = false;
-  }
-}
-
-const sortDialogVisible = ref(false);
-const sortSaving = ref(false);
-interface SortRow {
-  slotCode: string;
-  skuName?: string;
-  assignedSkuId?: string;
-  rowNo: number;
-  colNo: number;
-}
-const sortRows = ref<SortRow[]>([]);
-function openSortDialog() {
-  sortRows.value = [...slots.value]
-    .sort((a, b) => a.rowNo - b.rowNo || a.colNo - b.colNo || a.slotCode.localeCompare(b.slotCode))
-    .map((s) => ({
-      slotCode: s.slotCode,
-      skuName: s.assignedSkuName || undefined,
-      assignedSkuId: s.assignedSkuId || undefined,
-      rowNo: s.rowNo,
-      colNo: s.colNo
-    }));
-  sortDialogVisible.value = true;
-}
-function moveSortRow(idx: number, dir: -1 | 1) {
-  const target = idx + dir;
-  if (target < 0 || target >= sortRows.value.length) return;
-  const rows = [...sortRows.value];
-  [rows[idx], rows[target]] = [rows[target], rows[idx]];
-  sortRows.value = rows;
-}
-async function saveSort() {
-  sortSaving.value = true;
-  try {
-    // 坐标池：保持原网格形状（行×列集合不变），仅按新顺序重新分配坐标
-    const pool = [...slots.value]
-      .sort((a, b) => a.rowNo - b.rowNo || a.colNo - b.colNo)
-      .map((s) => ({ rowNo: s.rowNo, colNo: s.colNo }));
-    const body = sortRows.value.map((r, i) => ({
-      slotCode: r.slotCode,
-      rowNo: pool[i].rowNo,
-      colNo: pool[i].colNo
-    }));
-    await api.request<DeviceSlot[]>(AdminEndpoints.deviceSlots(deviceId), 'PUT', body);
-    sortDialogVisible.value = false;
-    ElMessage.success('商品排序已保存');
-    await refreshSlots();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '保存商品排序失败'));
-  } finally {
-    sortSaving.value = false;
   }
 }
 
@@ -1581,7 +1362,6 @@ async function loadDetail() {
   device.value = detail.device;
   syncRefundDraftFromDevice(detail.device?.refundPolicy);
   metrics.value = detail.metrics;
-  slots.value = detail.slots || [];
   skuInventory.value = detail.skuInventory || [];
   delistedInventory.value = detail.delistedInventory || [];
   slotsHydrated.value = true;
@@ -1969,11 +1749,6 @@ onActivated(() => {
   font-size: var(--admin-font-size-sm);
   color: var(--el-text-color-secondary);
 }
-.slot-diff.warn {
-  color: #c2410c;
-  margin-left: 6px;
-  font-size: var(--admin-font-size-sm);
-}
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -2171,38 +1946,6 @@ onActivated(() => {
 .sku-price-base {
   color: var(--el-text-color-secondary);
 }
-.sku-card-slots {
-  width: 100%;
-  border-top: 1px solid var(--el-border-color-lighter);
-  padding-top: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.sku-card-slots-title {
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-secondary);
-  margin-bottom: 4px;
-  overflow-wrap: anywhere;
-}
-.empty-slots {
-  margin-top: 16px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: var(--el-fill-color-lighter);
-}
-.empty-slots-title {
-  font-size: var(--admin-font-size-sm);
-  font-weight: 600;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 6px;
-}
-/* SlotInlineRow 展开态在卡片内/空货道区都要有呼吸感（scoped 深度选择器） */
-.sku-cards :deep(.slot-line-editor),
-.empty-slots :deep(.slot-line-editor) {
-  background: var(--el-fill-color-blank);
-}
 .sku-card-fields {
   width: 100%;
   font-size: var(--admin-font-size-sm);
@@ -2224,34 +1967,5 @@ onActivated(() => {
 /* el-button 相邻默认 margin-left:12px 会与 flex gap 叠加，归零用 gap 控距 */
 .sku-card-actions .el-button + .el-button {
   margin-left: 0;
-}
-.sort-list {
-  max-height: 420px;
-  overflow: auto;
-}
-.sort-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 4px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-.sort-idx {
-  width: 24px;
-  color: var(--el-text-color-secondary);
-  text-align: right;
-}
-.sort-code {
-  width: 56px;
-  font-weight: 600;
-}
-.sort-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sort-actions {
-  flex-shrink: 0;
 }
 </style>

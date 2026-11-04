@@ -654,22 +654,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/devices/{deviceId}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceSlots"];
-        put: operations["upsertDeviceSlots"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/devices/{deviceId}/sku-inventory": {
         parameters: {
             query?: never;
@@ -917,8 +901,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["deviceSlots_1"];
-        put: operations["upsertDeviceSlots_1"];
+        get: operations["deviceSlots"];
+        put: operations["upsertDeviceSlots"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4150,38 +4134,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/stocktake": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["stocktakeSlot"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/apply-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["applyPlanogramTemplate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/devices/{deviceId}/reset-hardware-binding": {
         parameters: {
             query?: never;
@@ -5487,7 +5439,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["stocktakeSlot_1"];
+        post: operations["stocktakeSlot"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12384,67 +12336,6 @@ export interface components {
             enabled?: boolean;
             entries?: components["schemas"]["DeviceTempPlanEntryDto"][];
         };
-        UpsertDeviceSlotRequest: {
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-        };
-        ApiResponseListDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"][];
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
-            skuImageUrl?: string;
-            skuBrand?: string;
-            skuSpec?: string;
-            skuBarcode?: string;
-            /** Format: date-time */
-            assignedAt?: string;
-            stockoutWarn?: boolean;
-        };
         UpsertDeviceSkuInventoryRequest: {
             skuId?: string;
             /** Format: int32 */
@@ -12739,6 +12630,67 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["MerchantTaxProfileDto"];
+        };
+        UpsertDeviceSlotRequest: {
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+        };
+        ApiResponseListDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"][];
+        };
+        DeviceSlotDto: {
+            deviceId?: string;
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            lastPhysicalQty?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            fillRatePct?: number;
+            stockStatus?: string;
+            /** Format: int32 */
+            qtyDiff?: number;
+            hasDiscrepancy?: boolean;
+            skuImageUrl?: string;
+            skuBrand?: string;
+            skuSpec?: string;
+            skuBarcode?: string;
+            /** Format: date-time */
+            assignedAt?: string;
+            stockoutWarn?: boolean;
         };
         ApiResponseNotifyPrefDto: {
             /** Format: int32 */
@@ -15302,23 +15254,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminDeviceDto"];
         };
-        SlotStocktakeRequest: {
-            slotCode: string;
-            /** Format: int32 */
-            physicalQty?: number;
-            adjustBookQty?: boolean;
-            photoEvidenceUrl?: string;
-            /** Format: double */
-            latitude?: number;
-            /** Format: double */
-            longitude?: number;
-        };
-        ApiResponseDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"];
-        };
         DeviceLifecycleRequest: {
             action?: string;
             merchantId?: string;
@@ -15725,6 +15660,23 @@ export interface components {
             messages?: components["schemas"]["DisputeMessageDto"][];
             canReply?: boolean;
             canResolve?: boolean;
+        };
+        SlotStocktakeRequest: {
+            slotCode: string;
+            /** Format: int32 */
+            physicalQty?: number;
+            adjustBookQty?: boolean;
+            photoEvidenceUrl?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+        };
+        ApiResponseDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"];
         };
         MerchantGatherStartRequest: {
             doorPosition?: string;
@@ -22391,54 +22343,6 @@ export interface operations {
             };
         };
     };
-    deviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    upsertDeviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
     upsertDeviceSkuInventory: {
         parameters: {
             query?: never;
@@ -23032,7 +22936,7 @@ export interface operations {
             };
         };
     };
-    deviceSlots_1: {
+    deviceSlots: {
         parameters: {
             query?: never;
             header?: never;
@@ -23054,7 +22958,7 @@ export interface operations {
             };
         };
     };
-    upsertDeviceSlots_1: {
+    upsertDeviceSlots: {
         parameters: {
             query?: never;
             header?: never;
@@ -28644,54 +28548,6 @@ export interface operations {
             };
         };
     };
-    stocktakeSlot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SlotStocktakeRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    applyPlanogramTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseInteger"];
-                };
-            };
-        };
-    };
     resetHardwareBinding: {
         parameters: {
             query?: never;
@@ -31052,7 +30908,7 @@ export interface operations {
             };
         };
     };
-    stocktakeSlot_1: {
+    stocktakeSlot: {
         parameters: {
             query?: never;
             header?: never;

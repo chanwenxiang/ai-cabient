@@ -684,6 +684,29 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 首刀：ops 侧货道面退场——4 个端点 + 12 个死方法 + admin 货道 UI）
+
+- **取证先行**：ops 货道端点只被 admin 用（`admin/endpoints.ts:142-146`、`useDeviceSlotActions`、
+  `DeviceDetailView:1486`）；mp 走自己那套 `/merchant/devices/{id}/slots`，且 mp「柜机盘点」页
+  **混载开门柜盘点**（`deviceStocktakeDoor`/`deviceDoorStocktake`）⇒ **merchant 侧一律不碰**。
+- 删（后端）：`OpsReplenishmentController` 的 `POST /slots/apply-template`、`GET|PUT /slots`、
+  `POST /slots/stocktake`；`OpsReplenishmentAdminService` 6 个方法（含零调用的
+  `slotReplenishmentSuggest` / `listSlotDiscrepancies`）；`OpsCommercialFacade` 6 个**本来就没调用方**的
+  同名方法。`DeviceSlotService` **整体保留**（merchant 侧与开门柜库存真相在用）。
+- 删（admin）：`useDeviceSlotActions.ts`、`SlotInlineRow.vue` 两个文件；设备详情页的「编辑货道」对话框、
+  「商品排序」对话框、组合式接线、排序状态与函数、以及只有它们在用的样式；`AdminEndpoints` 3 条。
+  🔴 这两个对话框的入口 `openEditor` / `openSortDialog` 本来**零调用**（eslint 一直报 unused）⇒ 纯死 UI。
+- 保留：`DeviceDetailDto.slots` 字段与 `GET /devices/{id}/detail`（详情页在用）；`stockUnitLabel` 恒为「商品」。
+  数据列 `device_slot` / `device_sku_lot.slot_id` 不删。
+- 生成物 **708 → 705 paths**（GET/PUT 同一 path + stocktake + apply-template 共 −3）。
+- 验证：admin `vue-tsc` 绿、eslint 仅剩 2 条 HEAD 既有 warning、prettier 绿；
+  **真 Chrome** 打开 `/admin/devices/EG943322621391` 8 项断言全过（在售商品 tab 在、设备信息在、
+  「编辑货道/保存货道/商品排序/陈列配置」全部消失、无 console 错误）；`mvn -pl services/trade-service -am test` 全绿；
+  regen 用一次性空库 `aicabinet_openapi_3b` + redis db14 + 端口 18092，用完 DROP/FLUSH。
+- ⚠️ 进程教训：先在脏工作树上跑了 `pnpm build:admin`（会把 peer 在制的 `stores/auth.ts` / `ProfileView.vue`
+  烤进产物）⇒ 已 `git checkout + git clean` 回退，并改为「先提交源码 → 再用
+  `build-admin-ci-fidelity.sh` 从 HEAD 干净重建产物」。
+
 ### 2026-11-04（热区基线债清零：MA-159 判据变严后暴露的 8 处全部修掉，棘轮 8 → 0）
 
 - MA-159 修完判据后重扫出的 **8 处可证不达标**逐条修掉，全部用仓库既有的「热区/视觉分离」——

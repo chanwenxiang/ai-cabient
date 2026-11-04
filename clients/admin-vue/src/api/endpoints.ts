@@ -139,11 +139,7 @@ export const AdminEndpoints = {
     `${ops}/devices/${encodeURIComponent(deviceId)}/reset-hardware-binding`,
   deviceRegenerateId: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/regenerate-id`,
-  deviceSlots: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/slots`,
-  deviceSlotsApplyTemplate: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/apply-template`,
-  deviceSlotsStocktake: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
+
   /** 单柜定价（V350，CB-037）：行内改覆盖价/启停/恢复基准；查看 ops:device:list、改价 ops:pricing:edit */
   devicePricing: (deviceId: string) => `${ops}/devices/${encodeURIComponent(deviceId)}/pricing`,
   /** 批量重置价格：清除该柜全部覆盖价恢复商品库默认价（图1 对照，2026-10-15） */
@@ -719,6 +715,8 @@ export const AdminEndpoints = {
   rbacMeNav: `${ops}/rbac/me/nav`,
   rbacMePassword: `${ops}/rbac/me/password`,
   rbacMeAvatar: `${ops}/rbac/me/avatar`,
+  rbacMePhoneSmsCode: (phoneNumber: string) =>
+    `${ops}/rbac/me/phone-sms-code?phoneNumber=${encodeURIComponent(phoneNumber)}`,
   rbacMeTwoFactorStatus: `${ops}/rbac/me/two-factor/status`,
   rbacMeTwoFactorEnroll: `${ops}/rbac/me/two-factor/enroll`,
   rbacMeTwoFactorConfirm: `${ops}/rbac/me/two-factor/confirm`,

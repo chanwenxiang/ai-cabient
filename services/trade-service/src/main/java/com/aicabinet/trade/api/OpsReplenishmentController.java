@@ -111,21 +111,11 @@ public class OpsReplenishmentController {
     }
 
 
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/devices/{deviceId}/slots/apply-template")
-    public ApiResponse<Integer> applyPlanogramTemplate(
-            HttpServletRequest request,
-            @PathVariable String deviceId) {
-        return ApiResponse.ok(replenishmentAdminService.applyPlanogramTemplate(operatorId(request), deviceId));
-    }
-
-    // --- 柜机详情 / 货道（2026-10-14 恢复）---
-    // 成因：b96a74d4（要货申请全链下线）删整块补货端点时，把下面 4 个**设备详情页在用**的
-    // 设备级端点一并带走（权限是 ops:device:list / ops:device:edit，与要货流无关，属误伤）。
-    // 前端 admin 设备详情页首屏 loadDetail、货道刷新/保存、现场盘点仍调这些路径，
-    // 失联后表现为：详情页数据全空 + 每次操作成功后回刷弹「资源不存在」（NoResourceFoundException
-    // 统一 404 文案）。service 方法（OpsReplenishmentAdminService#deviceDetail 等）一直健在，
-    // 此处按原路径/权限原样挂回；前端 AdminEndpoints.* 无需任何改动。
+    // --- 柜机详情（2026-10-14 恢复）---
+    // 成因：b96a74d4（要货申请全链下线）删整块补货端点时，把设备详情页在用的设备级端点一并带走
+    // （权限 ops:device:list，与要货流无关，属误伤）⇒ 详情页数据全空、操作后回刷弹 404。
+    // 🔴 2026-11-04：同批恢复的另外 3 条**货道**端点（GET/PUT /slots、POST /slots/stocktake）与
+    // POST /slots/apply-template 已按「开门柜不设货道概念」退场；detail 保留（它服务开门柜）。
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices/{deviceId}/detail")
     public ApiResponse<DeviceDetailDto> deviceDetail(
@@ -134,34 +124,8 @@ public class OpsReplenishmentController {
         return ApiResponse.ok(replenishmentAdminService.deviceDetail(operatorId(request), deviceId));
     }
 
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/devices/{deviceId}/slots")
-    public ApiResponse<List<DeviceSlotDto>> deviceSlots(
-            HttpServletRequest request,
-            @PathVariable String deviceId) {
-        return ApiResponse.ok(replenishmentAdminService.listDeviceSlots(operatorId(request), deviceId));
-    }
-
-    @RequiresPermissions("ops:device:edit")
-    @PutMapping("/devices/{deviceId}/slots")
-    public ApiResponse<List<DeviceSlotDto>> upsertDeviceSlots(
-            HttpServletRequest request,
-            @PathVariable String deviceId,
-            @RequestBody List<UpsertDeviceSlotRequest> body) {
-        return ApiResponse.ok(replenishmentAdminService.upsertDeviceSlots(operatorId(request), deviceId, body));
-    }
-
-    @RequiresPermissions("ops:replenishment:edit")
-    @PostMapping("/devices/{deviceId}/slots/stocktake")
-    public ApiResponse<DeviceSlotDto> stocktakeSlot(
-            HttpServletRequest request,
-            @PathVariable String deviceId,
-            @Valid @RequestBody SlotStocktakeRequest body) {
-        return ApiResponse.ok(replenishmentAdminService.stocktakeSlot(operatorId(request), deviceId, body));
-    }
-
     // --- 补货计划/建议/效期（2026-10-14 第二批恢复，CB-037/CB-038）---
-    // 成因：与上面 4 个设备级端点同批（b96a74d4）被整块删除，但均不在「要货下线」拍板范围内。
+    // 成因：与上面那批设备级端点同批（b96a74d4）被整块删除，但均不在「要货下线」拍板范围内。
     // 竞品佐证（CB-038）：丰e足食模式=系统自动生成补货计划/线路/效期处置任务、补货员只执行——
     // planRoute（自动规划建线）、createTaskFromSuggestion（建议一键生成任务）、
     // ensureExpiryAlert/createTaskFromExpiry（效期→拉下架→补货任务）正是该模式的本系统实现，

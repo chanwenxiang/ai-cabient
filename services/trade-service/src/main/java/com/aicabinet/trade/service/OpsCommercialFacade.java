@@ -236,11 +236,6 @@ public class OpsCommercialFacade {
         return replenishmentService.suggestForDevice(deviceId);
     }
 
-    public List<SlotReplenishmentSuggestDto> slotReplenishmentSuggest(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.suggestSlotsForDevice(deviceId);
-    }
-
     public ReplenishmentTaskDto checkInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.checkInTask(operatorId, taskId, body);
@@ -254,11 +249,6 @@ public class OpsCommercialFacade {
     public FinanceReportDto financeReport(Long operatorId, int days) {
         permissionService.requirePermission(operatorId, "ops:finance:view");
         return financeReportService.report(operatorId, days);
-    }
-
-    public int applyPlanogramTemplate(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
-        return deviceSlotService.applyPlanogramTemplate(operatorId, deviceId);
     }
 
     public WriteOffDto writeOff(Long operatorId, WriteOffRequest body) {
@@ -390,27 +380,6 @@ public class OpsCommercialFacade {
     public DeviceDetailDto deviceDetail(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
         return deviceSlotService.getDeviceDetail(operatorId, deviceId);
-    }
-
-    public List<DeviceSlotDto> listDeviceSlots(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
-        return deviceSlotService.listSlots(operatorId, deviceId);
-    }
-
-    public List<DeviceSlotDto> upsertDeviceSlots(Long operatorId, String deviceId,
-                                                  List<UpsertDeviceSlotRequest> body) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
-        return deviceSlotService.upsertSlots(operatorId, deviceId, body);
-    }
-
-    public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest body) {
-        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
-        return deviceSlotService.stocktakeSlot(operatorId, deviceId, body);
-    }
-
-    public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long operatorId, String deviceId) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_DEVICE_LIST, PERM_OPS_REPLENISHMENT_LIST);
-        return deviceSlotService.listDiscrepancyAlerts(operatorId, deviceId);
     }
 
     public void deleteDeviceSlot(Long operatorId, String deviceId, String slotCode) {
