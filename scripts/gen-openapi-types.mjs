@@ -20,6 +20,67 @@ import { OPENAPI_ALIAS_GROUPS, renderAliasGroupFile } from './openapi-alias-grou
 
 const require = createRequire(import.meta.url);
 
+/**
+ * 🔴 编码防线：springdoc 的 description 是中文，若取 spec 的链路把 UTF-8 按 latin-1/cp936 解一遍，
+ * 生成物里就会出现「高位引导字节 + 0x80–0xBF 连续字节」这类双重编码串（2026-11-04 批次 S 的 regen
+ * 就这样把 36 行中文注释写成乱码；本地门禁比的是旧容器照不出来，直到 CI 重打 HEAD 的 jar 才红）。
+ * 断言点放在取数处（缓存与现抓两条路），保证乱码 spec 不会先落盘再报错。
+ * 正常中文是 CJK（U+4E00+），不会命中该模式。
+ * 与 `check-openapi-types.mjs` 里的产物侧哨兵配对：那道拦「生成物已经写坏」，这道拦「输入就是坏的，
+ * 别动仓库」——两条链都留着，删任一条都会放开另一半路径。
+ */
+const MOJIBAKE_RE = /[\u00C2-\u00F3][\u0080-\u00BF]/;
+
+function findMojibake(text) {
+  const hits = [];
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (MOJIBAKE_RE.test(lines[i])) hits.push(`${i + 1}: ${lines[i].trim().slice(0, 72)}`);
+  }
+  return hits;
+}
+
+function assertNoMojibake(label, text) {
+  const hits = findMojibake(text);
+  if (!hits.length) return;
+  console.error(
+    `[gen-openapi-types] FAIL：${label} 检出 ${hits.length} 行双重编码乱码，拒绝落盘。\n` +
+      hits
+        .slice(0, 5)
+        .map((h) => `  - ${h}`)
+        .join('\n') +
+      `\n  成因通常是取 spec 的 shell/管道按本地代码页解码。修法：用 curl/Invoke-WebRequest -OutFile 写原始字节，` +
+      `或让本脚本自己 fetch（OPENAPI_URL=...），不要在 PowerShell 里把响应转成字符串再落盘。`
+  );
+  process.exit(1);
+}
+
+// ⚠️ 自检必须在任何取数/写盘之前短路——否则 `--selftest` 会顺手用缓存 spec 重写生成物（2026-11-04 踩过）
+if (process.argv.includes('--selftest')) {
+  const cases = [
+    { text: '/** 保存点位费用配置（费用项随时可改） */', want: 0, why: '正常中文放行' },
+    { text: '/** \u00e4\u00bf\u009d\u00e5\u00ad\u0098 */', want: 1, why: '双重编码必须拦' },
+    {
+      text: 'export type A = 1;\n/** \u00c3\u00a9\u00c3\u00a8 */',
+      want: 1,
+      why: '任意一行命中即拦'
+    }
+  ];
+  let bad = 0;
+  for (const c of cases) {
+    const got = findMojibake(c.text).length > 0 ? 1 : 0;
+    const ok = got === c.want;
+    if (!ok) bad++;
+    console.log(`  [${ok ? 'ok' : 'BAD'}] ${c.why} ⇒ ${got}`);
+  }
+  if (bad) {
+    console.error('[gen-openapi-types --selftest] FAIL');
+    process.exit(1);
+  }
+  console.log('[gen-openapi-types --selftest] 编码判据通过（未触发任何生成）');
+  process.exit(0);
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const outDir = join(root, 'packages', 'shared-types', 'src', 'generated');
@@ -44,6 +105,7 @@ async function resolveSpecPath() {
     console.log('[gen-openapi-types] OPENAPI_IGNORE_CACHE=1 → 跳过本地缓存，直接现抓');
   } else if (existsSync(openApiFile)) {
     const raw = readFileSync(openApiFile, 'utf8');
+    assertNoMojibake(`本地缓存 spec ${openApiFile}`, raw);
     const json = JSON.parse(raw);
     const pathCount = json?.paths ? Object.keys(json.paths).length : 0;
     if (pathCount === 0) {
@@ -71,6 +133,7 @@ async function resolveSpecPath() {
     process.exit(1);
   }
   const text = await res.text();
+  assertNoMojibake(`现抓 spec ${openApiUrl}`, text);
   const json = JSON.parse(text);
   const pathCount = json?.paths ? Object.keys(json.paths).length : 0;
   if (pathCount === 0) {

@@ -496,9 +496,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** ç¹ä½è´¹ç¨éç½®ï¼ææï¼ */
+        /** 点位费用配置（按柜） */
         get: operations["config"];
-        /** ä¿å­ç¹ä½è´¹ç¨éç½®ï¼è´¹ç¨é¡¹éæ¶å¯æ¹ï¼åªå½±ååç»­è´¦æï¼ */
+        /** 保存点位费用配置（费用项随时可改，只影响后续账期） */
         put: operations["saveConfig"];
         post?: never;
         delete?: never;
@@ -515,7 +515,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** ä¿®æ¹çº¿è·¯ï¼åç§°/çº¿é¿/å¤æ³¨ï¼ */
+        /** 修改线路（名称/线长/备注） */
         put: operations["update_3"];
         post?: never;
         delete?: never;
@@ -531,9 +531,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** çº¿è·¯æååè¡¨ï¼åäººå¯åè§è²ä¸¤è¡ï¼ */
+        /** 线路成员列表（同人可双角色两行） */
         get: operations["members"];
-        /** æ·»å /æ´æ°æåï¼åäººåè§è²å¯ä¸ï¼å­å¨å³æ´æ°ææéç½®ï¼ */
+        /** 添加/更新成员（同人同角色唯一，存在即更新提成配置） */
         put: operations["upsertMember"];
         post?: never;
         delete?: never;
@@ -2295,7 +2295,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** æ è®°çº¿ä¸ææ¬¾åºè´¦ï¼ä½é¢ä¸è¶³å³å¤±è´¥ï¼æ¯æ¬¡æ è®°=ä¸ç¬ç¬ç«åºè´¦æµæ°´ï¼ */
+        /** 标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水） */
         post: operations["payout"];
         delete?: never;
         options?: never;
@@ -3288,7 +3288,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** æ è®°ç»æ¸ï¼çº¿ä¸æ¶æ¬¾åï¼å¹ç­ï¼å·²ç»æ¸ç´æ¥è¿åï¼ */
+        /** 标记结清（线下收款后；幂等：已结清直接返回） */
         post: operations["settle"];
         delete?: never;
         options?: never;
@@ -3305,7 +3305,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** ææ¥æéè·å¨æè´¹ç¨æ¥æ£ï¼F-4 ææ¿ï¼æ¼æ£ä¸èªå¨è¡¥ï¼äººå·¥å¸¦æ¥æè¡¥è·ï¼ */
+        /** 按日期重跑周期费用日扣（F-4 拍板：漏扣不自动补，人工带日期补跑） */
         post: operations["rerunDailyFees"];
         delete?: never;
         options?: never;
@@ -3322,7 +3322,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** æ è®°ç»æ¸ï¼çº¿ä¸æ¶æ¬¾åï¼ */
+        /** 标记结清（线下收款后） */
         post: operations["settle_1"];
         delete?: never;
         options?: never;
@@ -3339,7 +3339,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** æå¨åºè´¦ï¼æå®è´¦æï¼å¹ç­ï¼ */
+        /** 手动出账（指定账期，幂等） */
         post: operations["generate"];
         delete?: never;
         options?: never;
@@ -3402,10 +3402,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** çº¿è·¯åè¡¨ï¼å«å½æ¡£ï¼ */
+        /** 线路列表（含归档） */
         get: operations["list_11"];
         put?: never;
-        /** æ°å»ºçº¿è·¯ */
+        /** 新建线路 */
         post: operations["create_10"];
         delete?: never;
         options?: never;
@@ -3422,7 +3422,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** å½æ¡£çº¿è·¯ï¼å¯å¢åï¼ä¸ç©çå ï¼ */
+        /** 归档线路（可增减，不物理删） */
         post: operations["archive_1"];
         delete?: never;
         options?: never;
@@ -7373,7 +7373,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** è¡¥è´§åé±åä½é¢åè¡¨ */
+        /** 补货员钱包余额列表 */
         get: operations["list_19"];
         put?: never;
         post?: never;
@@ -7390,7 +7390,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** æè¡¥è´§åé±åæµæ°´ */
+        /** 某补货员钱包流水 */
         get: operations["ledger"];
         put?: never;
         post?: never;
@@ -8239,7 +8239,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** å°è´¦åè¡¨ï¼æåæ·/ç¶æ/è´¹ç¨ç±»åè¿æ»¤ï¼ */
+        /** 台账列表（按商户/状态/费用类型过滤） */
         get: operations["list_23"];
         put?: never;
         post?: never;
@@ -8256,7 +8256,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** è´¦ååè¡¨ï¼æè´¦æ/ç¶æï¼ */
+        /** 账单列表（按账期/状态） */
         get: operations["list_24"];
         put?: never;
         post?: never;
@@ -8305,7 +8305,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** å²ä½æåè®¡ï¼çº¿é¿éå®ææ + è¡¥è´§åä½£éï¼ä¾è´¢å¡å¯¹è´¦ï¼ä½£é=å·²å-éæ¬¾å²åï¼ */
+        /** 岗位月合计（线长销售提成 + 补货员佣金，供财务对账；佣金=已发-退款冲回） */
         get: operations["monthlySummary"];
         put?: never;
         post?: never;
@@ -8322,7 +8322,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** æ»çº¿è·¯è´è´£äººï¼å¤äººï¼å¯éæ¶æ¹æï¼ */
+        /** 总线路负责人（多人，可随时改指） */
         get: operations["chiefManagers"];
         put?: never;
         post?: never;
@@ -11334,7 +11334,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** ç§»é¤æå */
+        /** 移除成员 */
         delete: operations["removeMember"];
         options?: never;
         head?: never;
@@ -15000,24 +15000,24 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
-        /** @description åºå­çç¹è°æ´è¯·æ± */
+        /** @description 库存盘点调整请求 */
         StocktakeAdjustRequest: {
-            /** @description è®¾å¤ ID */
+            /** @description 设备 ID */
             deviceId: string;
             /** @description SKU ID */
             skuId: string;
             /**
              * Format: int32
-             * @description çç¹åæ°é
+             * @description 盘点后数量
              */
             countedQuantity: number;
-            /** @description å¤æ³¨ */
+            /** @description 备注 */
             note?: string;
-            /** @description çç¹ç§çå­è¯ URLï¼åæ·å¼å¯ photoStocktake æ¶å¿å¡« */
+            /** @description 盘点照片凭证 URL；商户开启 photoStocktake 时必填 */
             photoEvidenceUrl?: string;
             /**
              * Format: int64
-             * @description å®¢æ·ç«¯çå°çåºå­çæ¬ãå·²æåºå­è¡æ¶å¿å¡«ï¼ç¼ºå¤±è¿å 400ï¼çæ¬å²çªè¿å 409ãæ°å»ºåºå­è¡æ¶å¯çç¥ã
+             * @description 客户端看到的库存版本。已有库存行时必填：缺失返回 400，版本冲突返回 409。新建库存行时可省略。
              */
             expectedVersion?: number;
         };
@@ -20760,39 +20760,39 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageResultBalanceTransactionDto"];
         };
-        /** @description ä½é¢æµæ°´ï¼æ¶è´¹èè´¦åæç»ï¼ */
+        /** @description 余额流水（消费者账单明细） */
         BalanceTransactionDto: {
-            /** @description æµæ°´å·ï¼= æ¯ä»æä½å· operationIdï¼ */
+            /** @description 流水号（= 支付操作号 operationId） */
             transactionId?: string;
             /**
              * Format: int64
-             * @description ç¨æ· ID
+             * @description 用户 ID
              */
             userId?: number;
-            /** @description ä¸å¡ç±»åï¼åå¼/æ£æ¬¾/éæ¬¾/é¢ææå»ç»ä¸éæ¾ç­ï¼å¦ CHARGEãADJUST_CHARGEãPREAUTH_FREEZEãPREAUTH_RELEASEï¼ */
+            /** @description 业务类型：充值/扣款/退款/预授权冻结与释放等（如 CHARGE、ADJUST_CHARGE、PREAUTH_FREEZE、PREAUTH_RELEASE） */
             businessType?: string;
-            /** @description å³èä¸å¡åå·ï¼éå¸¸ä¸ºè®¢åå·ï¼çº¯å»ç»/éæ¾ç±»æµæ°´å¯è½ä¸ºç©ºï¼ */
+            /** @description 关联业务单号（通常为订单号；纯冻结/释放类流水可能为空） */
             businessId?: string;
             /**
              * Format: int32
-             * @description å¸¦ç¬¦å·éé¢ï¼åï¼ï¼æ­£æ°=å¥è´¦ï¼è´æ°=åºè´¦ï¼çº¯å»ç»/éæ¾æä¸å¡æ¹ååç¬¦å·
+             * @description 带符号金额（分）：正数=入账，负数=出账；纯冻结/释放按业务方向取符号
              */
             amountCents?: number;
             /**
              * Format: int32
-             * @description åå¨åå¯ç¨ä½é¢ï¼åï¼
+             * @description 变动前可用余额（分）
              */
             balanceBeforeCents?: number;
             /**
              * Format: int32
-             * @description åå¨åå¯ç¨ä½é¢ï¼åï¼
+             * @description 变动后可用余额（分）
              */
             balanceAfterCents?: number;
-            /** @description åå¨åå /å¤æ³¨ */
+            /** @description 变动原因/备注 */
             reason?: string;
             /**
              * Format: date-time
-             * @description åçæ¶é´
+             * @description 发生时间
              */
             createdAt?: string;
         };
