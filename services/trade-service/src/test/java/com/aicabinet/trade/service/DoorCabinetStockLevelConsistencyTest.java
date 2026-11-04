@@ -356,7 +356,7 @@ class DoorCabinetStockLevelConsistencyTest {
                 slots, lots, devices, inventory, catalog, null, tasks,
                 mock(MerchantScopeService.class), null, null, lotLedger(), null,
                 mock(DistributedLockService.class), sessions, mock(CabinetOrderLineMapper.class),
-                mock(SkuSceneLimitService.class), null, jiangyi, null);
+                null, jiangyi, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         return svc;
     }

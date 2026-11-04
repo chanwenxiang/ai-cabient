@@ -65,7 +65,6 @@ public class OpsDeviceAdminService {
     private final CabinetOrderMapper orderRepository;
     private final DeviceIdService deviceIdService;
     private final DeviceIdRenameService deviceIdRenameService;
-    private final DeviceSlotService deviceSlotService;
     private final AdminAuditService auditService;
     private final RefundPolicyService refundPolicyService;
     private final WarehouseMapper warehouseRepository;
@@ -84,7 +83,6 @@ public class OpsDeviceAdminService {
                                  CabinetOrderMapper orderRepository,
                                  DeviceIdService deviceIdService,
                                  DeviceIdRenameService deviceIdRenameService,
-                                 DeviceSlotService deviceSlotService,
                                  AdminAuditService auditService,
                                  RefundPolicyService refundPolicyService,
                                  WarehouseMapper warehouseRepository,
@@ -102,7 +100,6 @@ public class OpsDeviceAdminService {
         this.orderRepository = orderRepository;
         this.deviceIdService = deviceIdService;
         this.deviceIdRenameService = deviceIdRenameService;
-        this.deviceSlotService = deviceSlotService;
         this.auditService = auditService;
         this.refundPolicyService = refundPolicyService;
         this.warehouseRepository = warehouseRepository;
@@ -460,7 +457,6 @@ public class OpsDeviceAdminService {
         created.setRemark(deploying ? "新建设备并投放" : "新建设备入库");
         created.setCreatedAt(Instant.now());
         lifecycleEventMapper.insert(created);
-        deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
         auditService.appendLog(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
         return toDeviceDto(device, null, false);
     }

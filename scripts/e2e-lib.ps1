@@ -1278,35 +1278,6 @@ function Restart-E2eDeviceSimulator {
     Start-Sleep -Seconds 12
 }
 
-# 设备无货道时补货建议必然为空（suggest 的数据源就是 device_slot）。
-# 实测 2026-09-18：默认柜机 330449777078 的 device_slot 是 **0 行** ⇒ suggestive 恒空 ⇒ plan 恒 400
-# 「当前无补货缺口」，脚本走不到第 5 步。产品侧创建设备时本就会自动套默认 planogram
-# （DeviceSlotService.ensureDefaultSlots），故这里按同一套路补齐，属于「恢复到产品默认状态」。
-function Ensure-E2eDeviceSlots {
-    param(
-        [string]$BaseUrl,
-        [hashtable]$OpsAuth,
-        [string]$DeviceId
-    )
-    $slots = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
-        -Path "/api/v2/ops/admin/devices/$DeviceId/slots" -Headers $OpsAuth)
-    if ($slots.Count -gt 0) {
-        Write-Host "    device slots=$($slots.Count)"
-        return $slots
-    }
-    Write-Warning "设备 $DeviceId 无货道（device_slot 0 行）⇒ 自动套用 planogram 模板补齐默认货道（会改动该柜机的货道配置）"
-    $created = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-        -Path "/api/v2/ops/admin/devices/$DeviceId/slots/apply-template" -Headers $OpsAuth
-    $slots = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
-        -Path "/api/v2/ops/admin/devices/$DeviceId/slots" -Headers $OpsAuth)
-    Write-Host "    applied planogram template: created=$created total=$($slots.Count)"
-    if ($slots.Count -eq 0) {
-        throw ("柜机 $DeviceId 套用 planogram 模板后仍无货道 —— 模板里的 SKU 可能不在商品目录中（" +
-            "resolveTemplateSkuId 会把缺失 SKU 的货道留空绑定）。请改用一个已配置货道的 -DeviceId。")
-    }
-    return $slots
-}
-
 # 在途出库会**抵消**补货缺口（服务端 inTransitBySku）：上一次 e2e 跑出来的 SHIPPED 出库单
 # 会让**这一轮**的 /replenishment/suggest 首查恒空。实测 2026-09-18：run3 留下的 outbound
 # 让 run4 直接判「无缺口」，脚本不可重复运行。处置走产品自身的安全路径 cancel-unreceived
@@ -1339,49 +1310,39 @@ function Clear-E2eReplenishmentInTransit {
 }
 
 # ── 造缺口（-ForceGap）──────────────────────────────────────────────────────────
-# 默认柜机 330449777078 的 8 条货道账面恰好**等于 max_level**（全满）⇒
-# /replenishment/suggest 恒 0 条 ⇒ 脚本跑**第二次**必然卡在第 3 步。这不是缺陷，是
-# 「库存真的不缺」这个合法稳态；但它让 E2E 不可重复运行，且现场看是「第 3 步恒 no gaps」。
-# 处置：显式开关 + 走产品自身的盘点接口把某条货道账面清零，制造**真实**缺口。
-#   · 端点 POST /api/v2/ops/admin/devices/{deviceId}/slots/stocktake
-#   · DeviceSlotService.doStocktakeSlot → InventoryLotService.stocktakeAdjustForSlot：
-#     delta = counted(0) - current(<0) 走扣减分支，把该 SKU 的 lot 减到 0 并记一条 ADJ 流水
-#   · 之后 suggestSlotsForDevice 判定 bookQty(0) < minLevel，于是产出缺口
+# 柜机台账恰好「满柜」时 /replenishment/suggest 恒 0 条 ⇒ 脚本跑第二次必然卡在第 3 步。
+# 这不是缺陷，是「库存真的不缺」的合法稳态；但它让 E2E 不可重复运行。
+# 处置：显式开关 + 走产品自身的 SKU 级库存维护（CB-051）把某个在架 SKU 的账面清零：
+#   · GET  /api/v2/ops/admin/inventory?deviceId=…      → 在售 SKU 与账面数
+#   · PUT  /api/v2/ops/admin/devices/{id}/sku-inventory → {skuId, quantity:0}
+#   之后缺口判据（单源 SkuStockLevel：台账在架 < 建议补到量）成立，suggest 非空。
 # 🔴 这会**写真实账面库存**（不是 mock），因此默认关闭；调用方必须显式传 -ForceGap。
-# 🔴 若该柜机所属商户开了 photoStocktake，stocktake 会 400「要求盘点必须上传照片凭证」——
-#    这里捕获后给出可执行指引，而不是把 400 原样抛成看不懂的错误。
-function Clear-E2eSlotToCreateGap {
+# 🔴 旧口径（POST /devices/{id}/slots/stocktake 逐货道清零）已随「开门柜去掉货道」退场。
+function Clear-E2eSkuToCreateGap {
     param(
         [string]$BaseUrl,
         [hashtable]$OpsAuth,
-        [string]$DeviceId,
-        [array]$Slots
+        [string]$DeviceId
     )
-    $candidates = @(@($Slots | Where-Object {
-                $_.enabled -and $_.assignedSkuId -and ([int]$_.maxLevel -gt 0)
-            }) | Sort-Object { [int]$_.bookQty } -Descending)
-    if ($candidates.Count -eq 0) {
-        throw ("-ForceGap 失败：柜机 $DeviceId 没有「已启用且已绑定 SKU」的货道，无法制造缺口。" +
-            "先确认 planogram 模板已套用、且模板里的 SKU 在商品目录中存在。")
+    $rows = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+        -Path "/api/v2/ops/admin/inventory?deviceId=$DeviceId" -Headers $OpsAuth)
+    $cands = @(@($rows | Where-Object { [int]$_.quantity -gt 0 }) |
+        Sort-Object { [int]$_.quantity } -Descending)
+    if ($cands.Count -eq 0) {
+        throw ("-ForceGap 失败：柜机 $DeviceId 台账里没有账面 > 0 的在架 SKU，无法制造缺口。" +
+            "先确认该柜机已按商品建档（GET /api/v2/ops/admin/inventory?deviceId=$DeviceId 有行）。")
     }
-    # 挑账面最多的那条：清零后缺口最大，suggest 必非空，也最贴近「满柜」这一真实场景。
-    $target = $candidates[0]
-    $slotCode = [string]$target.slotCode
-    $skuId = [string]$target.assignedSkuId
-    $bookBefore = [int]$target.bookQty
-    Write-Warning ("-ForceGap：将对 $DeviceId 的货道 $slotCode（SKU=$skuId）执行盘点清零 —— " +
-        "physicalQty=0 且 adjustBookQty=true，**账面由 $bookBefore 写为 0**（真实写入，非 mock）")
-    try {
-        $resp = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-            -Path "/api/v2/ops/admin/devices/$DeviceId/slots/stocktake" -Headers $OpsAuth `
-            -Body @{ slotCode = $slotCode; physicalQty = 0; adjustBookQty = $true }
-    } catch {
-        throw ("-ForceGap 的盘点清零被拒：$($_.Exception.Message)" +
-            "`n  若错误信息含「照片凭证」，说明该柜机所属商户开启了 photoStocktake 策略 ——" +
-            "`n  请换一台未开启该策略的柜机，或先按盘点接口要求上传 photoEvidenceUrl。")
-    }
-    Write-Host "    stocktake 清零完成: slot=$slotCode bookQty=$($resp.bookQty) lastPhysicalQty=$($resp.lastPhysicalQty)"
-    return $slotCode
+    # 挑账面最多的那个 SKU：清零后缺口最大，也最贴近「满柜」这一真实场景
+    $target = $cands[0]
+    $skuId = [string]$target.skuId
+    $before = [int]$target.quantity
+    Write-Warning ("-ForceGap：将对 $DeviceId 的 SKU=$skuId 执行台账清零 —— " +
+        "quantity 由 $before 写为 0（真实写入，非 mock）")
+    Invoke-E2eApi -BaseUrl $BaseUrl -Method PUT `
+        -Path "/api/v2/ops/admin/devices/$DeviceId/sku-inventory" -Headers $OpsAuth `
+        -Body @{ skuId = $skuId; quantity = 0 } | Out-Null
+    Write-Host "    台账清零完成: sku=$skuId quantity $before -> 0"
+    return $skuId
 }
 
 # plan 按设备全缺口生成出库；若某 SKU 有建议量但仓库无货会导致整单 400
@@ -1394,7 +1355,6 @@ function Prepare-E2eReplenishmentPlan {
         [switch]$ForceGap
     )
     $WarehouseId = Resolve-E2eTestWarehouse -WarehouseId $WarehouseId
-    $slots = @(Ensure-E2eDeviceSlots -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId)
     $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
         -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
     if ($suggestions.Count -eq 0) {
@@ -1407,15 +1367,15 @@ function Prepare-E2eReplenishmentPlan {
         }
     }
     if ($suggestions.Count -eq 0 -and $ForceGap) {
-        # 走产品自身的盘点接口造缺口（会写真实账面），再复查一次。
-        $gapSlot = Clear-E2eSlotToCreateGap -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId -Slots $slots
+        # 走产品自身的 SKU 级台账维护造缺口（会写真实账面），再复查一次。
+        $gapSku = Clear-E2eSkuToCreateGap -BaseUrl $BaseUrl -OpsAuth $OpsAuth -DeviceId $DeviceId
         $suggestions = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
             -Path "/api/v2/ops/admin/replenishment/suggest?deviceId=$DeviceId" -Headers $OpsAuth)
-        Write-Host "    -ForceGap: 货道 $gapSlot 账面已清零 → suggest=$($suggestions.Count) 条"
+        Write-Host "    -ForceGap: SKU $gapSku 台账已清零 → suggest=$($suggestions.Count) 条"
         if ($suggestions.Count -eq 0) {
-            throw ("-ForceGap 已把货道 $gapSlot 清零，但 suggest 仍为 0 条 ⇒ 缺口判据不是「账面 < minLevel」：" +
-                "请查这 3 条路径：①该货道 min_level 是否也是 0；②该 SKU 是否有在途抵消（inTransitBySku）；" +
-                "③suggestSlotsForDevice 是否因货道未启用/未绑定 SKU 而跳过它。")
+            throw ("-ForceGap 已把 SKU $gapSku 台账清零，但 suggest 仍为 0 条 ⇒ 缺口判据不看台账数：" +
+                "请查：①该 SKU 是否在 sku_catalog 里 status=ACTIVE（下架不进在售面）；" +
+                "②是否有在途补货单抵消（inTransitBySku）；③SkuStockLevel 的单源判据是否把该 SKU 判为不缺。")
         }
     }
     if ($suggestions.Count -eq 0) {
@@ -1425,14 +1385,13 @@ function Prepare-E2eReplenishmentPlan {
         throw @"
 柜机 $DeviceId 无补货缺口（/replenishment/suggest 返回 0 条）⇒ POST /replenishment/plan 必然 400「当前无补货缺口」，脚本走不到第 5 步。
 三种成因，按顺序自查：
-  1) 货道库存已 >= minLevel（真的不缺货，属正常状态，不是缺陷）——**本机默认柜机跑过一次后就是这个状态**；
-  2) 有货道但都没绑定 SKU（device_slot.assigned_sku_id 为空）；
+  1) 台账在架数已 >= 建议补到量（真的不缺货，属正常状态，不是缺陷）——**本机默认柜机跑过一次后就是这个状态**；
+  2) 柜机台账里没有 ACTIVE 商品的行（GET /api/v2/ops/admin/inventory?deviceId=$DeviceId 为空）；
   3) 在途补货单已把缺口抵消（inTransitBySku）。
 处置（任选其一）：
   · 自动造缺口（推荐，会写真实账面库存）：.\scripts\e2e-replenishment.ps1 -ForceGap
-  · 手工造缺口：POST /api/v2/ops/admin/devices/$DeviceId/slots/stocktake  body {"slotCode":"<货道>","physicalQty":0,"adjustBookQty":true}
-  · 换一台柜机：.\scripts\e2e-replenishment.ps1 -DeviceId <有货道且有缺口的柜机>
-  · 无货道：先 POST /api/v2/ops/admin/devices/$DeviceId/slots/apply-template（本脚本已自动做过一次，仍无货道说明模板 SKU 缺失）
+  · 手工造缺口：PUT /api/v2/ops/admin/devices/$DeviceId/sku-inventory  body {"skuId":"<在架 SKU>","quantity":0}
+  · 换一台柜机：.\scripts\e2e-replenishment.ps1 -DeviceId <台账有在架商品且有缺口的柜机>
 "@
     }
     $whInv = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `

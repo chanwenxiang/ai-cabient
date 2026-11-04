@@ -9,7 +9,6 @@ import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,9 +21,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,7 +54,7 @@ class DeviceSlotServiceTest {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, deviceRepository, null, skuCatalogRepository, null, null, null,
                 salesVelocityService, null, null, null, distributedLockService, null, null,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class), sceneDictStub()), null, jiangyiDeviceDirectory, null);
+                null, jiangyiDeviceDirectory, null);
         org.springframework.test.util.ReflectionTestUtils.setField(deviceSlotService, "self", deviceSlotService);
     }
 
@@ -158,31 +155,6 @@ class DeviceSlotServiceTest {
         verify(slotRepository).save(a1);
     }
 
-    /** BUG-015：清库后模板 SKU 不存在时，仍应建空货道，不可因 FK 导致创建设备事务回滚。 */
-    @Test
-    void ensureDefaultSlots_missingCatalogSku_createsSlotsWithoutSku() {
-        DeviceInfo device = new DeviceInfo();
-        device.setDeviceId(DEVICE_ID);
-        device.setDeviceType(PlanogramTemplateService.DEFAULT_DEVICE_TYPE);
-        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
-        when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
-        when(slotRepository.countByIdDeviceIdAndEnabledTrue(DEVICE_ID)).thenReturn(0L);
-        when(slotRepository.existsById(any())).thenReturn(false);
-
-        assertDoesNotThrow(() -> deviceSlotService.ensureDefaultSlots(DEVICE_ID));
-
-        ArgumentCaptor<DeviceSlot> captor = ArgumentCaptor.forClass(DeviceSlot.class);
-        verify(slotRepository, atLeastOnce()).save(captor.capture());
-        List<DeviceSlot> saved = captor.getAllValues();
-        assertFalse(saved.isEmpty());
-        assertEquals(PlanogramTemplateService.standardTemplate().size(), saved.size());
-        Set<String> assigned = saved.stream()
-                .map(DeviceSlot::getAssignedSkuId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toSet());
-        assertTrue(assigned.isEmpty(), "missing catalog SKUs must not be written to device_slot");
-    }
-
     /** 2026-10-22：商品管理下架（status≠ACTIVE）后，设备详情 skuInventory 不再返回该 SKU。 */
     @Test
     void getDeviceDetail_filtersDelistedSkuFromSkuInventory() {
@@ -196,7 +168,7 @@ class DeviceSlotServiceTest {
                 null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
                 salesVelocityService, null, inventoryLotService, null, distributedLockService,
                 shoppingSessionMapper, orderLineRepository,
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository, org.mockito.Mockito.mock(com.aicabinet.trade.mapper.DeviceSkuInventoryMapper.class), sceneDictStub()), null, jiangyiDeviceDirectory, null);
+                null, jiangyiDeviceDirectory, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
         DeviceInfo device = new DeviceInfo();
@@ -262,8 +234,7 @@ class DeviceSlotServiceTest {
                 null, taskRepository, org.mockito.Mockito.mock(MerchantScopeService.class),
                 salesVelocityService, null, inventoryLotService, null, distributedLockService,
                 shoppingSessionMapper, org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository,
-                        org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class), sceneDictStub()),
+                
                 null,
                 // computeMetrics 自 D28-F3 起先问一句「是不是开门柜」（分流两套指标口径），
                 // 这里要的是货道柜路径 ⇒ 给一个默认返回 false 的桩，别留 null（NPE 会把 fallback 断言掩盖掉）
@@ -349,8 +320,7 @@ class DeviceSlotServiceTest {
                 salesVelocityService, null, inventoryLotService, null, distributedLockService,
                 org.mockito.Mockito.mock(ShoppingSessionMapper.class),
                 org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
-                new SkuSceneLimitService(skuSceneLimitRepository, skuCatalogRepository,
-                        org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class), sceneDictStub()),
+                
                 null, jiangyiDeviceDirectory, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
         org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);

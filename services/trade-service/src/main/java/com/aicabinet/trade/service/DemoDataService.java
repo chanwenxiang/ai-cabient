@@ -68,7 +68,6 @@ public class DemoDataService {
     private final MerchantIdService merchantIdService;
     private final WarehouseSupplierIdService warehouseSupplierIdService;
     private final SupplierMapper supplierRepository;
-    private final DeviceSlotMapper deviceSlotMapper;
     private final OpsUserMerchantMapper userMerchantMapper;
     private final OpsUserRoleMapper opsUserRoleMapper;
     private final OpsRoleMapper opsRoleMapper;
@@ -95,7 +94,6 @@ public class DemoDataService {
                            MerchantIdService merchantIdService,
                            WarehouseSupplierIdService warehouseSupplierIdService,
                            SupplierMapper supplierRepository,
-                           DeviceSlotMapper deviceSlotMapper,
                            OpsUserMerchantMapper userMerchantMapper,
                            OpsUserRoleMapper opsUserRoleMapper,
                            OpsRoleMapper opsRoleMapper,
@@ -119,7 +117,6 @@ public class DemoDataService {
         this.merchantIdService = merchantIdService;
         this.warehouseSupplierIdService = warehouseSupplierIdService;
         this.supplierRepository = supplierRepository;
-        this.deviceSlotMapper = deviceSlotMapper;
         this.userMerchantMapper = userMerchantMapper;
         this.opsUserRoleMapper = opsUserRoleMapper;
         this.opsRoleMapper = opsRoleMapper;
@@ -146,8 +143,6 @@ public class DemoDataService {
             log.warn("skip demo seeding on jiangyi-bound device={}（真机库存以端侧/台账为准）", deviceId);
         } else {
             ensureDeviceInventory(deviceId);
-            deviceSlotService.ensureDefaultSlots(deviceId);
-            bindInventorySkuToSlots(deviceId);
         }
         String warehouseId = ensureWarehouse();
         ensureSupplier();
@@ -485,47 +480,6 @@ public class DemoDataService {
         if (bound > 0) {
             log.info("merchant portal bindings rebuilt count={} merchantId={}", bound, demoMerchantId);
         }
-    }
-
-    /**
-     * S1 台子补齐：把有库存的 SKU 依序绑到空货道（A1、A2…）。
-     * 模板默认空陈列（lessons #214），但订单行的货道号来自下单时的 slot 绑定——
-     * 不绑的话运营订单列表「货道」列永远「暂无」，且购物流程无法按货道出库。
-     * 🔴 必须 1 SKU=1 货道：结算回填 slot 的前提是「SKU 唯一绑定某货道」
-     *（SettlementOrderSupport.inferSlotBySku 对多货道 SKU 置 null）。
-     * 只填空货道、不动已有绑定；库存为 0 的 SKU 不绑（避免可售假象）。
-     */
-    private void bindInventorySkuToSlots(String deviceId) {
-        List<DeviceSlot> slots = deviceSlotMapper.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
-        java.util.LinkedHashMap<String, Integer> qtyBySku = new java.util.LinkedHashMap<>();
-        deviceSkuInventoryRepository.findByIdDeviceId(deviceId).forEach(inv ->
-                qtyBySku.put(inv.getSkuId(), inv.getQuantity()));
-        java.util.Set<String> usedSkus = new java.util.HashSet<>();
-        for (DeviceSlot slot : slots) {
-            if (slot.getAssignedSkuId() != null && !slot.getAssignedSkuId().isBlank()) {
-                usedSkus.add(slot.getAssignedSkuId());
-                continue;
-            }
-            String skuId = nextAvailableSku(qtyBySku, usedSkus);
-            if (skuId == null) {
-                break;
-            }
-            slot.setAssignedSkuId(skuId);
-            usedSkus.add(skuId);
-            deviceSlotMapper.save(slot);
-            log.info("demo slot bound device={} slot={} sku={}", deviceId, slot.getSlotCode(), skuId);
-        }
-    }
-
-    /** 取下一个有库存且未被占用（1 SKU=1 货道）的 SKU。 */
-    private String nextAvailableSku(java.util.LinkedHashMap<String, Integer> qtyBySku,
-                                    java.util.Set<String> usedSkus) {
-        for (java.util.Map.Entry<String, Integer> e : qtyBySku.entrySet()) {
-            if (!usedSkus.contains(e.getKey()) && e.getValue() != null && e.getValue() > 0) {
-                return e.getKey();
-            }
-        }
-        return null;
     }
 
     private Optional<String> resolveExistingWarehouseId() {

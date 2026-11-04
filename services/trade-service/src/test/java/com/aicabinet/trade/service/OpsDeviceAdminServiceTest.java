@@ -46,7 +46,6 @@ class OpsDeviceAdminServiceTest {
     @Mock CabinetOrderMapper orderRepository;
     @Mock DeviceIdService deviceIdService;
     @Mock DeviceIdRenameService deviceIdRenameService;
-    @Mock DeviceSlotService deviceSlotService;
     @Mock AdminAuditService auditService;
     @Mock RefundPolicyService refundPolicyService;
     @Mock WarehouseMapper warehouseRepository;
@@ -77,7 +76,7 @@ class OpsDeviceAdminServiceTest {
         service = new OpsDeviceAdminService(
                 permissionService, merchantScopeService, deviceRepository, sessionRepository,
                 merchantRepository, replenishmentTaskRepository, orderRepository,
-                deviceIdService, deviceIdRenameService, deviceSlotService, auditService, refundPolicyService,
+                deviceIdService, deviceIdRenameService, auditService, refundPolicyService,
                 warehouseRepository, onlineRateRepository, lifecycleEventMapper, jiangyiDeviceDirectory,
                 skuSceneLimitService, builtinSceneDict());
     }

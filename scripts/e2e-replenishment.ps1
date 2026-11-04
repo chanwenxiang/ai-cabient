@@ -3,18 +3,19 @@
 #   .\scripts\e2e-replenishment.ps1
 #   .\scripts\e2e-replenishment.ps1 -BaseUrl http://localhost:18080
 #   .\scripts\e2e-replenishment.ps1 -FieldOnly   # 现场补货线；若 plan 已挂出库单仍须 pick/ship，否则 complete 409
-#   .\scripts\e2e-replenishment.ps1 -ForceGap    # 无缺口时自动盘点清零一条货道造缺口（**会写真实账面库存**）
+#   .\scripts\e2e-replenishment.ps1 -ForceGap    # 无缺口时自动把某个在架 SKU 的台账清零造缺口（**会写真实账面库存**）
 #
 # 注意：-FieldOnly 不是「跳过出库」，而是「允许在无计划明细时提交现场 RESTOCK」。
 # 运营 plan 常会同步生成 outbound；完成任务前必须把关联出库单发运。
 #
 # ── -ForceGap 是干什么的（2026-09-19 补）────────────────────────────────────────
-# 补货建议的数据源是 device_slot：账面 < min_level 才有缺口。而**跑过一次本脚本后**，
-# 默认柜机的货道会被补到 max_level（全满）⇒ 之后 /replenishment/suggest 恒 0 条 ⇒
+# 补货建议的数据源是柜内在售台账（单源 SkuStockLevel，CB-076）：在架 < 建议补到量才有缺口。
+# 而**跑过一次本脚本后**，默认柜机会被补到上限（全满）⇒ 之后 /replenishment/suggest 恒 0 条 ⇒
 # 脚本第二次必在第 3 步失败。这是「库存真的不缺」的**合法稳态**，不是缺陷，但让 E2E
-# 不可重复运行。加了本开关后：无缺口时自动把账面最多的那条货道**盘点清零**，
+# 不可重复运行。加了本开关后：无缺口时自动把账面最多的那个 SKU **台账清零**，
 # 从而稳定造出真实缺口。
-# 🔴 它走的是产品自身的盘点接口（不是 DB 硬改），但**会写真实账面库存 + 记盘亏流水**，
+# 🔴 它走的是产品自身的 SKU 级台账维护接口（PUT /ops/admin/devices/{id}/sku-inventory，
+#    不是 DB 硬改），但**会写真实账面库存 + 记调整流水**，
 #    因此**默认关闭**，必须显式传 -ForceGap。
 #
 # ── 这个脚本归谁跑（2026-09-18 补写）────────────────────────────────────────────
@@ -24,8 +25,9 @@
 #     （`check:replenishment-checkin-contract`，聚合链第 2 位）**静态值级**守着，改文案/常量不改脚本即红；
 #   · 它的**实跑**由 `scripts/e2e-checkin-contract.ps1` 覆盖（带夹具，19/19），本脚本负责**全链路**。
 # ⚠️ 所以：别把「CI 里没跑它」读成「没被覆盖」（会白修）；也别把「本脚本绿」读成「CI 等价物」（会白信）。
-# 前置：目标柜机**必须有货道**（device_slot 非空），否则补货建议恒空 —— 脚本会自动套用
-# planogram 模板补齐；若仍无缺口，会**即刻**报错并给出处置方式，而不是把失败推迟到第 3 步。
+# 前置：目标柜机**台账里必须有在架 SKU**（GET /api/v2/ops/admin/inventory?deviceId= 有行），
+# 否则补货建议恒空；若仍无缺口，会**即刻**报错并给出处置方式，而不是把失败推迟到第 3 步。
+# 注：货道面（device_slot + planogram 模板）已于 2026-11-04 批 3b 退场，本脚本不再依赖它。
 
 param(
     [string]$BaseUrl = "",
@@ -41,11 +43,10 @@ param(
     #    真实的「指派人不存在」被完全盖住（2026-09-18 实测，追踪号 ecbe4dedbcc8）。
     [long]$MerchantUserId = 0,
     [string]$SkuId = "",
-    [string]$SlotId = "A1",
     [int]$Quantity = 1,
     [string]$InternalApiKey = "dev-internal-key-change-me",
     [switch]$FieldOnly,
-    # 无缺口时自动盘点清零一条货道以造出缺口（**会写真实账面库存**，默认关闭）
+    # 无缺口时自动把某个在架 SKU 的台账清零以造出缺口（**会写真实账面库存**，默认关闭）
     [switch]$ForceGap
 )
 
@@ -106,7 +107,7 @@ $today = (Get-Date).ToString("yyyy-MM-dd")
 # 用户可见名须中文（ui-copy-zh）；时间戳保唯一性
 $routeName = "回归补货路线 $today $([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())"
 
-Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps$(if ($ForceGap) { ' [-ForceGap: may zero a slot]' })"
+Write-Host "==> 2b. Ensure warehouse stock for device replenishment gaps$(if ($ForceGap) { ' [-ForceGap: may zero a SKU]' })"
 Prepare-E2eReplenishmentPlan -BaseUrl $BaseUrl -OpsAuth $opsAuth -DeviceId $DeviceId -ForceGap:$ForceGap
 
 Write-Host "==> 3. Plan replenishment route for $DeviceId"
@@ -281,35 +282,35 @@ $lines = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
 Write-Host "==> 8. Task lines count=$($lines.Count)"
 
 if ($lines.Count -eq 0) {
+    # 开门柜按商品上架：补货行不带货道（slotId 恒 null，与后端 4d335f3f 写面同口径）
     $pickSku = $null
-    $pickSlot = $null
     try {
-        $slots = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
-            -Path "/api/v2/ops/admin/devices/$DeviceId/slots" -Headers $opsAuth)
-        $room = $slots | Where-Object {
-            $_.enabled -and $_.assignedSkuId -and ([int]$_.maxLevel - [int]$_.bookQty) -ge 1
-        } | Sort-Object { [int]$_.maxLevel - [int]$_.bookQty } -Descending | Select-Object -First 1
+        $inv = @(Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+            -Path "/api/v2/ops/admin/inventory?deviceId=$DeviceId" -Headers $opsAuth)
+        $room = $inv | Where-Object { ([int]$_.capacity - [int]$_.quantity) -ge 1 } |
+            Sort-Object { [int]$_.capacity - [int]$_.quantity } -Descending | Select-Object -First 1
         if ($room) {
-            $pickSku = [string]$room.assignedSkuId
-            $pickSlot = [string]$room.slotCode
-            Write-Host "    auto-picked slot=$pickSlot sku=$pickSku headroom=$([int]$room.maxLevel - [int]$room.bookQty)"
+            $pickSku = [string]$room.skuId
+            Write-Host "    auto-picked sku=$pickSku book=$([int]$room.quantity) capacity=$([int]$room.capacity)"
+        } elseif ($inv.Count -gt 0) {
+            $pickSku = [string]$inv[0].skuId
+            Write-Host "    台账无余量，取首个在架 SKU=$pickSku（上限判官在后端提交校验）"
         }
     } catch {
-        Write-Warning "Slot lookup failed: $_"
+        Write-Warning "Device inventory lookup failed: $_"
     }
 
-    if (-not $pickSku -and $SkuId -and $SlotId) {
+    if (-not $pickSku -and $SkuId) {
         $pickSku = $SkuId
-        $pickSlot = $SlotId
-        Write-Host "    fallback to -SkuId/-SlotId params: slot=$pickSlot sku=$pickSku"
+        Write-Host "    fallback to -SkuId param: sku=$pickSku"
     }
 
-    if ($pickSku -and $pickSlot) {
+    if ($pickSku) {
         $expiry = (Get-Date).AddMonths(6).ToString("yyyy-MM-dd")
         $qty = [Math]::Max(1, $Quantity)
-        Write-Host "    submitting field RESTOCK line sku=$pickSku slot=$pickSlot qty=$qty expiry=$expiry"
+        Write-Host "    submitting field RESTOCK line sku=$pickSku qty=$qty expiry=$expiry"
         $json = @"
-{"lines":[{"lineType":"RESTOCK","skuId":"$pickSku","batchNo":"E2E-$today","productionDate":null,"expiryDate":"$expiry","quantity":$qty,"slotId":"$pickSlot","applied":false}]}
+{"lines":[{"lineType":"RESTOCK","skuId":"$pickSku","batchNo":"E2E-$today","productionDate":null,"expiryDate":"$expiry","quantity":$qty,"applied":false}]}
 "@
         $uri = "$BaseUrl/api/v2/merchant/replenishment/tasks/$taskId/lines"
         $resp = Invoke-RestMethod -Method POST -Uri $uri -Headers $mchAuth `
@@ -317,7 +318,7 @@ if ($lines.Count -eq 0) {
             -Body ([System.Text.Encoding]::UTF8.GetBytes($json))
         if ($resp.code -ne 0) { throw "API error: $($resp.message) (path=/lines)" }
     } else {
-        Write-Warning "No slot with headroom on $DeviceId; completing without RESTOCK lines"
+        Write-Warning "柜机 $DeviceId 台账没有可上架的 SKU，也没有 -SkuId；本次以空明细完成"
     }
 } else {
     Write-Host "    warehouse lines already present — skip re-submit"

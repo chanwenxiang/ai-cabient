@@ -74,7 +74,7 @@ class DemoDataServiceTest {
         return new DemoDataService(
                 null, null, deviceInfoMapper, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, jiangyiDeviceDirectory, null);
+                null, jiangyiDeviceDirectory, null);
     }
 
     private static DeviceInfo device(String deviceId, String merchantId, String onlineStatus,

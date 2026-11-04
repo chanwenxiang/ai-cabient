@@ -42,7 +42,6 @@ public class DeviceSlotService {
     private final DistributedLockService distributedLockService;
     private final ShoppingSessionMapper shoppingSessionMapper;
     private final CabinetOrderLineMapper orderLineRepository;
-    private final SkuSceneLimitService skuSceneLimitService;
     /** CB-050 扩展：盘点写 AISLE_AUDIT 运维事件（商户端理货记录数据源） */
     private final DeviceOpsEventMapper opsEventRepository;
     /** 设备 DTO 回填将邑厂商 SN（将邑柜无 IMEI，只能靠 SN 识别） */
@@ -65,7 +64,6 @@ public class DeviceSlotService {
                              DistributedLockService distributedLockService,
                              ShoppingSessionMapper shoppingSessionMapper,
                              CabinetOrderLineMapper orderLineRepository,
-                             SkuSceneLimitService skuSceneLimitService,
                              DeviceOpsEventMapper opsEventRepository,
                              JiangyiDeviceDirectory jiangyiDeviceDirectory,
                              @Lazy DeviceSlotService self) {
@@ -84,7 +82,6 @@ public class DeviceSlotService {
         this.distributedLockService = distributedLockService;
         this.shoppingSessionMapper = shoppingSessionMapper;
         this.orderLineRepository = orderLineRepository;
-        this.skuSceneLimitService = skuSceneLimitService;
         this.opsEventRepository = opsEventRepository;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.self = self;
@@ -971,122 +968,6 @@ public class DeviceSlotService {
         }
     }
 
-    @Transactional
-    public void ensureDefaultSlots(String deviceId) {
-        self.ensureDefaultSlots(deviceId, PlanogramTemplateService.DEFAULT_DEVICE_TYPE);
-    }
-
-    /** 新设备无货道时按设备类型套用默认 planogram。 */
-    @Transactional
-    public void ensureDefaultSlots(String deviceId, String deviceType) {
-        runWithDeviceSlotLock(deviceId, () -> {
-            doEnsureDefaultSlots(deviceId, deviceType);
-            return null;
-        });
-    }
-
-    private void doEnsureDefaultSlots(String deviceId, String deviceType) {
-        if (slotRepository.countByIdDeviceIdAndEnabledTrue(deviceId) > 0) {
-            return;
-        }
-        doApplyPlanogramTemplate(deviceId, deviceType);
-    }
-
-    private int doApplyPlanogramTemplate(String deviceId, String deviceType) {
-        DeviceInfo device = requireDevice(deviceId);
-        int created = 0;
-        int skippedMissingSku = 0;
-        int skippedSkuLimit = 0;
-        // 单柜 SKU 上限（图1 对照）：模板路径超限不抛错（建柜事务不允许炸），跳过绑定并计数
-        List<DeviceSlot> existingSlots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
-        Set<String> boundSkus = new LinkedHashSet<>(existingSlots.stream()
-                .map(DeviceSlot::getAssignedSkuId)
-                .filter(s -> s != null && !s.isBlank())
-                .toList());
-        // 场景上架限额（CB-049 扩展）：模板路径同「跳过+计数」语义；柜子无场景/商品无该场景条目=不限制
-        Map<String, Integer> sceneTotals = new HashMap<>();
-        for (DeviceSlot s : existingSlots) {
-            if (s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank()) {
-                sceneTotals.merge(s.getAssignedSkuId(), Math.max(s.getMaxLevel(), 0), Integer::sum);
-            }
-        }
-        Set<String> templateSkus = PlanogramTemplateService.templateFor(deviceType).stream()
-                .map(UpsertDeviceSlotRequest::assignedSkuId)
-                .filter(s -> s != null && !s.isBlank())
-                .collect(Collectors.toSet());
-        Map<String, Integer> sceneLimits =
-                skuSceneLimitService.limitQtyBySku(device.getSceneType(), templateSkus);
-        for (UpsertDeviceSlotRequest req : PlanogramTemplateService.templateFor(deviceType)) {
-            DeviceSlotId id = new DeviceSlotId(deviceId, req.slotCode());
-            if (slotRepository.existsById(id)) {
-                continue;
-            }
-            String assignedSkuId = resolveTemplateSkuId(deviceId, req.slotCode(), req.assignedSkuId());
-            if (req.assignedSkuId() != null && !req.assignedSkuId().isBlank() && assignedSkuId == null) {
-                skippedMissingSku++;
-            }
-            if (assignedSkuId != null && !boundSkus.contains(assignedSkuId)
-                    && boundSkus.size() >= MAX_SKUS_PER_DEVICE) {
-                log.warn("planogram template sku skipped by device sku limit device={} slot={} sku={}",
-                        deviceId, req.slotCode(), assignedSkuId);
-                assignedSkuId = null;
-                skippedSkuLimit++;
-            }
-            if (assignedSkuId != null) {
-                Integer cap = sceneLimits.get(assignedSkuId);
-                if (cap != null) {
-                    int addMax = req.maxLevel() != null && req.maxLevel() > 0
-                            ? req.maxLevel() : Math.max(req.parLevel(), 0);
-                    int projected = sceneTotals.getOrDefault(assignedSkuId, 0) + addMax;
-                    if (projected > cap) {
-                        log.warn("planogram template sku skipped by scene limit device={} slot={} sku={} projected={} cap={}",
-                                deviceId, req.slotCode(), assignedSkuId, projected, cap);
-                        assignedSkuId = null;
-                        skippedSkuLimit++;
-                    } else {
-                        sceneTotals.merge(assignedSkuId, addMax, Integer::sum);
-                    }
-                }
-            }
-            if (assignedSkuId != null) {
-                boundSkus.add(assignedSkuId);
-            }
-            DeviceSlot slot = new DeviceSlot();
-            slot.setId(id);
-            slot.setRowNo(req.rowNo());
-            slot.setColNo(req.colNo());
-            slot.setAssignedSkuId(assignedSkuId);
-            slot.setAssignedAt(assignedSkuId == null ? null : Instant.now());
-            slot.setParLevel(req.parLevel());
-            slot.setMinLevel(req.minLevel());
-            slot.setMaxLevel(req.maxLevel() != null && req.maxLevel() > 0 ? req.maxLevel() : req.parLevel());
-            slot.setEnabled(req.enabled() == null || req.enabled());
-            slotRepository.save(slot);
-            created++;
-        }
-        if (created > 0) {
-            log.info("planogram template applied device={} type={} slots={} skippedMissingSku={} skippedSkuLimit={}",
-                    deviceId, deviceType, created, skippedMissingSku, skippedSkuLimit);
-        }
-        return created;
-    }
-
-    /**
-     * 模板 SKU 在目录中不存在时返回 null，避免 device_slot FK 失败拖垮创建设备事务（BUG-015）。
-     */
-    private String resolveTemplateSkuId(String deviceId, String slotCode, String templateSkuId) {
-        if (templateSkuId == null || templateSkuId.isBlank()) {
-            return null;
-        }
-        String skuId = templateSkuId.trim();
-        if (skuCatalogRepository == null || skuCatalogRepository.findById(skuId).isEmpty()) {
-            log.warn("planogram template sku missing, leave slot unbound device={} slot={} sku={}",
-                    deviceId, slotCode, skuId);
-            return null;
-        }
-        return skuId;
-    }
-
     private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
                                                Map<String, Integer> bookBySlot) {
         String deviceId = device.getDeviceId();
@@ -1325,9 +1206,6 @@ public class DeviceSlotService {
                         && l.getExpiryDate().isAfter(LocalDate.now().minusDays(1))))
                 .count();
     }
-
-    /** 单柜在售 SKU 数上限（图1 对照，叮当小柜「已上架商品数 x/50」，2026-10-15）。 */
-    public static final int MAX_SKUS_PER_DEVICE = 50;
 
     /** 商户级缺货阈值（merchant_ops_config.stockout_threshold_pct，默认 50）；配置缺失时回落默认。 */
     private int resolveStockoutThresholdPct(String deviceId) {
