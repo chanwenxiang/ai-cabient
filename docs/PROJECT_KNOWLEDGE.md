@@ -684,6 +684,23 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第五刀：商户自助改货道守卫退场 + 清我自己的残留依赖）
+
+- `MerchantSelfServiceGate` 删 `requirePlanogramEdit` / `canEditPlanogram`：唯一调用方
+  `upsertDeviceSlots` 在第二刀已删 ⇒ 守卫无人调用；随之摘掉只有它们使用的
+  `DeviceInfoMapper` 与 `@Lazy self` 自代理（构造 4→2），类注释收窄为「只守自助改价」
+  （`requirePricingEdit` 仍在 `MerchantSkuPricingService:312` 生效）。
+- 🔴 **残留依赖是可达性分析的第二个盲区**（lessons #414）：`MerchantDevicePortalService` /
+  `MerchantPortalService` 还各自注入着 `merchantSelfServiceGate`，但字段/形参/赋值之外
+  没有任何调用点——javac 不报、门禁不报，第四刀之后才发现。判据补一条：
+  **按被删协作者的类型名再 grep 一遍**，出现只剩「声明/形参/赋值」三行即死依赖。
+- mp 删零调用方的 `canEditPlanogram()` 导出。
+- ⚠️ **`allowMerchantPlanogramEdit` 现在是死旋钮**：后端已无人读，admin
+  `MerchantSplitsView` 的「商户改货道」开关仍在写它（6 处引用）。连带退场要改
+  entity/DTO 形状 ⇒ openapi regen + `static/admin` 产物重打，单独一批，本轮不动形状。
+- 验证：trade 单测 **2760** 绿；merchant-mp `vue-tsc` + `vitest 248` 绿；
+  `prettier` 绿；preflight 96 门禁 0 失败。位置参改动由 `test-compile` 收口（3 处测试构造点）。
+
 ### 2026-11-05（批 3b 第四刀：断货道生产者——新柜不再建 `device_slot` 行，模板机件随删）
 
 - **生产者只有两处**：`OpsDeviceAdminService:463`（新建设备套默认 planogram）与
