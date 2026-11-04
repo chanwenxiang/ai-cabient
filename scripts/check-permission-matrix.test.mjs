@@ -58,15 +58,16 @@ public class FooController {
 `;
 }
 
-function svc(literal, useConst = false) {
+function svc(literal, useConst = false, branch = false) {
   const code = useConst ? 'PERM_CREATE' : `"${literal}"`;
+  const check = `permissionService.requirePermission(1L, ${code});`;
   return `package com.aicabinet.trade.service;
 
 public class FooService {
     ${useConst ? 'private static final String PERM_CREATE = "ops:doc:create";' : ''}
 
     public String create() {
-        permissionService.requirePermission(1L, ${code});
+        ${branch ? `if (priceCents != null) {\n            ${check}\n        }` : check}
         return "ok";
     }
 }
@@ -109,11 +110,12 @@ const exemptSrc = readFileSync(EXEMPT, 'utf8');
 
 try {
   // 1) 真实树：当前必须绿（存量已登记），且绿不是靠「读不到豁免清单」
+  const liveExempt = JSON.parse(readFileSync(EXEMPT, 'utf8')).length;
   const real = await runAsync(process.execPath, [GATE], { cwd: ROOT });
   const realOut = `${real.stdout || ''}${real.stderr || ''}`;
   check(
-    '真实树 exit=0 且报「豁免 12」',
-    (real.status ?? 1) === 0 && /豁免 12/.test(realOut),
+    `真实树 exit=0 且报「豁免 ${liveExempt}」（与清单条数一致，不是靠读不到清单）`,
+    (real.status ?? 1) === 0 && realOut.includes('豁免 ' + liveExempt),
     realOut.slice(0, 200)
   );
 
@@ -196,6 +198,25 @@ try {
     crlfCase.out.slice(0, 300)
   );
 
+  // 7b) 分支权限不算恒需：require 包在 `if (...)` 里 ⇒ 只在该分支生效，不得判成幽灵码
+  //     （批次 Q 实测纠正：`JiangyiShelfService.shelve` 按 priceCents/quantity 分权，首版被我误判）
+  mkTree({ annotation: ctrl(['ops:doc:edit']), service: svc('ops:doc:create', false, true) });
+  const branchCase = await runGate();
+  check(
+    'if 包裹的服务层校验 ⇒ 不判红（按字段分权是合法形态）',
+    branchCase.code === 0 && /OK/.test(branchCase.out),
+    branchCase.out.slice(0, 300)
+  );
+
+  // 7c) 同一把校验从 if 里拿出来 ⇒ 必须立刻判红（证明 7b 不是「看不见所以绿」）
+  mkTree({ annotation: ctrl(['ops:doc:edit']), service: svc('ops:doc:create', false, false) });
+  const unbranched = await runGate();
+  check(
+    '把同一道校验移出 if ⇒ 判红（分支判据可失败）',
+    unbranched.code === 1 && /FooController\.java#create/.test(unbranched.out),
+    unbranched.out.slice(0, 300)
+  );
+
   // 8) 解析退化锚：关掉 env 下调、用只含 1 个注解的合成树 ⇒ 必须红
   const degraded = await runGate({ anchors: false });
   check(
@@ -262,4 +283,4 @@ if (failures) {
   console.error(`${TAG} FAIL：${failures} 个用例红`);
   process.exit(1);
 }
-console.log(`${TAG} OK：负向用例全过（含 CRLF 与注解绑定两条回归钉）`);
+console.log(`${TAG} OK：负向用例全过（CRLF / 跨行签名绑定 / 分支权限 三组回归钉）`);

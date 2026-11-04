@@ -275,7 +275,8 @@ public class DeviceAssetService {
     public List<StockHealthRowDto> stockHealth(Long operatorId, String dimension,
                                                String merchantId, String routeCode, String lifecycleStatus,
                                                String deviceId) {
-        permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:device:list", "ops:replenishment:list");
+        // 批次 Q：导出端点注解是 ops:stock-health:export，此前这一串只认三个读码 ⇒ 只有导出码的人必 403
+        permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:stock-health:export", "ops:device:list", "ops:replenishment:list");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         String dim = normalizeStockHealthDimension(dimension);
         Map<String, DeviceInfo> devices = loadFilteredDevices(

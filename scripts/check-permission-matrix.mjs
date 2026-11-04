@@ -214,6 +214,79 @@ function witnesses(groups) {
   return acc;
 }
 
+/**
+ * 标出方法体里被 `if / else / for / while / switch` 包住的区间。
+ *
+ * 为什么必须分分支：`JiangyiShelfService.shelve` 的两道 require 分别包在
+ * `if (priceCents != null)` / `if (quantity != null)` 里 = 合法的「按字段分权」，
+ * 把它当恒需 AND 会造出假阳性（首版就把 `shelveLearnedProduct` 误判成幽灵按钮）。
+ * 块类型按 `{` 前面紧邻的文法判定；`->` 与 try/finally 视为恒执行（保守少判，不制造假红）。
+ */
+function condRanges(body) {
+  const ranges = [];
+  const stack = [];
+  let i = 0;
+  while (i < body.length) {
+    const c = body[i];
+    if (c === '"' || c === "'") {
+      i++;
+      while (i < body.length && body[i] !== c) {
+        if (body[i] === '\\') i++;
+        i++;
+      }
+      i++;
+      continue;
+    }
+    if (c === '/' && body[i + 1] === '/') {
+      while (i < body.length && body[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && body[i + 1] === '*') {
+      i += 2;
+      while (i < body.length && !(body[i] === '*' && body[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    if (c === '{') {
+      // `if (...) {` 的关键词不在 `{` 紧邻处：先剥尾部空白，若以 `)` 结尾就回找配对 `(`，
+      // 再看它前一个词；`else {` 直接命中。
+      const head = body.slice(0, i).replace(/\s+$/, '');
+      let cond = /(?:^|[^\w.])else$/.test(head);
+      if (!cond && head.endsWith(')')) {
+        let d = 0;
+        let j = head.length - 1;
+        for (; j >= 0; j--) {
+          if (head[j] === ')') d++;
+          else if (head[j] === '(') {
+            d--;
+            if (d === 0) break;
+          }
+        }
+        const kw = body
+          .slice(0, j)
+          .replace(/\s+$/, '')
+          .match(/(\w+)$/);
+        cond = !!kw && ['if', 'for', 'while', 'switch'].includes(kw[1]);
+      }
+      stack.push({ start: i, cond });
+      i++;
+      continue;
+    }
+    if (c === '}') {
+      const top = stack.pop();
+      if (top && top.cond) ranges.push([top.start, i]);
+      i++;
+      continue;
+    }
+    i++;
+  }
+  return ranges;
+}
+
+function isConditional(ranges, pos) {
+  return ranges.some(([s, e]) => pos > s && pos < e);
+}
+
 const files = walk(TRADE);
 const MIN_JAVA_FILES = Number(process.env.PERM_MIN_JAVA_FILES ?? 300);
 if (files.length < MIN_JAVA_FILES)
@@ -253,10 +326,11 @@ function serviceChecks(className) {
     if (!sig || t.startsWith('@')) continue;
     const body = methodBody(src, starts, lines, i);
     if (!body) continue;
+    const ranges = condRanges(body);
     const calls = [];
     for (const m of body.matchAll(/require(?:Any)?Permission\s*\(([^;]*?)\)/g)) {
       const set = codesOf(m[1], consts);
-      if (set.size) calls.push(set);
+      if (set.size) calls.push({ set, conditional: isConditional(ranges, m.index) });
     }
     if (calls.length) {
       const prev = map.get(sig[1]) || [];
@@ -291,6 +365,7 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
     const declared = new Set(groups.flatMap((g) => g.codes));
     const body = methodBody(src, starts, lines, i);
     if (!body) continue;
+    const ctrlRanges = condRanges(body);
     const checks = [];
     for (const m of body.matchAll(/\b(\w+)\.(\w+)\s*\(/g)) {
       const type = fields[m[1]];
@@ -298,13 +373,24 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
       const map = serviceChecks(type);
       if (!map) continue;
       const list = map.get(m[2]);
-      if (list) for (const set of list) checks.push({ via: `${type}.${m[2]}`, set });
+      if (!list) continue;
+      const callSiteBranch = isConditional(ctrlRanges, m.index);
+      for (const c of list) {
+        checks.push({
+          via: `${type}.${m[2]}`,
+          set: c.set,
+          conditional: callSiteBranch || c.conditional
+        });
+      }
     }
     for (const m of body.matchAll(/require(?:Any)?Permission\s*\(([^;]*?)\)/g)) {
       const set = codesOf(m[1], consts);
-      if (set.size) checks.push({ via: '(控制器自身)', set });
+      if (set.size)
+        checks.push({ via: '(控制器自身)', set, conditional: isConditional(ctrlRanges, m.index) });
     }
     const ep = `${relative(ROOT, f).replace(/\\/g, '/')}#${sig[1]}`;
+    const hardChecks = checks.filter((c) => !c.conditional);
+    const branchChecks = checks.filter((c) => c.conditional);
     if (!checks.length) {
       rows.push({ ep, declared: [...declared].sort(), checks: [], kind: 'no-service-check' });
       continue;
@@ -314,7 +400,7 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
     const bad = [];
     if (ws) {
       for (const w of ws) {
-        const failing = checks
+        const failing = hardChecks
           .filter((c) => ![...w].some((code) => c.set.has(code)))
           .map((c) => ({ via: c.via, accepts: [...c.set].sort() }));
         if (failing.length) bad.push({ witness: [...w].sort(), failing });
@@ -324,7 +410,8 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
       ep,
       declared: [...declared].sort(),
       groups: groups.map((g) => ({ codes: [...g.codes].sort(), logical: g.logical })),
-      checks: checks.map((c) => ({ via: c.via, accepts: [...c.set].sort() })),
+      checks: hardChecks.map((c) => ({ via: c.via, accepts: [...c.set].sort() })),
+      branchChecks: branchChecks.map((c) => ({ via: c.via, accepts: [...c.set].sort() })),
       bad,
       witnesses: ws ? ws.map((w) => [...w].sort()) : null,
       kind: ws ? (bad.length ? 'ghost-code' : 'ok') : 'too-many-groups'
@@ -335,9 +422,9 @@ for (const f of files.filter((p) => /[\\/]api[\\/]/.test(p)).sort()) {
 const ghosts = rows.filter((r) => r.kind === 'ghost-code');
 const exemptRaw = existsSync(EXEMPT) ? JSON.parse(readFileSync(EXEMPT, 'utf8')) : [];
 if (!Array.isArray(exemptRaw)) fail(`${EXEMPT} 必须是数组`);
-// 🔴 存量豁免只许减不许加：新增幽灵码必须当场修（收窄注解=可证等价；动服务层=需拍板），
+// 🔴 存量豁免只许减不许加（批次 Q 已把 12 条降到 1 条 = 拍板保留的双门）：新增幽灵码必须当场修（收窄注解=可证等价；动服务层=需拍板），
 //    不许「登记一条豁免」了事。上限见 docs/module-audit/ISSUES.md 的权限矩阵专项。
-const MAX_EXEMPTIONS = Number(process.env.PERM_MAX_EXEMPTIONS ?? 12);
+const MAX_EXEMPTIONS = Number(process.env.PERM_MAX_EXEMPTIONS ?? 1);
 if (exemptRaw.length > MAX_EXEMPTIONS) {
   fail(
     `豁免清单 ${exemptRaw.length} 条 > 上限 ${MAX_EXEMPTIONS} ⇒ 幽灵按钮只能修不能登记；` +

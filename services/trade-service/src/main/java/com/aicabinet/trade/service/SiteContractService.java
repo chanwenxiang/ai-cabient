@@ -58,7 +58,8 @@ public class SiteContractService {
 
     @Transactional(readOnly = true)
     public PageResult<SiteContractDto> listPage(Long operatorId, int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        // 批次 Q：组织页（注解 ops:org:list）读站点合同此前被 device 域单码拦住
+        permissionService.requireAnyPermission(operatorId, "ops:org:list", "ops:device:list");
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         Map<String, String> deviceNames = new HashMap<>();

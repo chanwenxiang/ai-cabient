@@ -20,6 +20,7 @@ import java.util.Map;
 public class SysDictService {
     private static final String PERM_OPS_DICT_LIST = "ops:dict:list";
     private static final String PERM_OPS_DICT_EDIT = "ops:dict:edit";
+    private static final String PERM_OPS_DICT_IMPORT = "ops:dict:import";
 
 
     private final SysDictTypeMapper typeRepository;
@@ -166,7 +167,8 @@ public class SysDictService {
 
     @Transactional
     public DictDtos.DictTypeDto upsertType(Long operatorId, DictDtos.DictTypeUpsertRequest req) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
+        // 批次 Q：CSV 导入按行走这里，只持 ops:dict:import 的角色此前必 403（前端 importPerm 已把按钮给他）
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_DICT_EDIT, PERM_OPS_DICT_IMPORT);
         String type = requireText(req.dictType(), "字典类型").trim().toLowerCase();
         return runWithDictTypeLock(type, () -> doUpsertType(operatorId, req, type));
     }
@@ -194,7 +196,7 @@ public class SysDictService {
     @Transactional
     public DictDtos.DictDataDto upsertItem(Long operatorId, String dictType, Long dictDataId,
                                            DictDtos.DictDataUpsertRequest req) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DICT_EDIT);
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_DICT_EDIT, PERM_OPS_DICT_IMPORT);
         String type = dictType.trim().toLowerCase();
         return runWithDictTypeLock(type, () -> doUpsertItem(operatorId, type, dictDataId, req));
     }

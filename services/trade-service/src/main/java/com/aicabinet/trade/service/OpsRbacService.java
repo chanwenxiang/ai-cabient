@@ -48,6 +48,7 @@ import java.util.Set;
 @Service
 public class OpsRbacService {
     private static final String PERM_OPS_RBAC_ASSIGN = "ops:rbac:assign";
+    private static final String PERM_OPS_RBAC_ASSIGN_DEVICE = "ops:rbac:assign:device";
     private static final String PERM_OPS_RBAC_ROLE = "ops:rbac:role";
     private static final String INACTIVE = "INACTIVE";
     private static final String ADMIN = "admin";
@@ -576,7 +577,8 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsUserRolesDto getUserRoles(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
+        // 批次 Q：柜机范围子码角色要能在用户详情页看到自己负责的范围（与 CompetitiveGapService 写侧同形）
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN_DEVICE, PERM_OPS_RBAC_ASSIGN);
         ensureOperatorAccount(userId);
         List<Long> roleIds = userRoleRepository.findByIdUserId(userId).stream()
                 .map(ur -> ur.getId().getRoleId())
@@ -654,7 +656,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsUserMerchantsDto getUserMerchants(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN_DEVICE, PERM_OPS_RBAC_ASSIGN);
         ensureOperatorAccount(userId);
         List<String> merchantIds = userMerchantRepository.findByIdUserId(userId).stream()
                 .map(m -> m.getId().getMerchantId())

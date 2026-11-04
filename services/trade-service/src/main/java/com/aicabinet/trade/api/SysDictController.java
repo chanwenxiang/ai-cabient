@@ -41,6 +41,9 @@ public class SysDictController {
         return ApiResponse.ok(dictService.listItems(operatorId(request), dictType));
     }
 
+    // 批次 Q 订正：本仓的惯例是 create/upsert 端点同时认 :edit 与 :import（见 AnnouncementController:40、
+    // CouponController:58、AdminDashboardController:554、OpsExternalImportController:54），
+    // 故服务层并受 import，而不是把 import 从注解删掉
     @RequiresPermissions(value = {"ops:dict:edit", "ops:dict:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/types")
     public ApiResponse<DictDtos.DictTypeDto> upsertType(

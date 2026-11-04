@@ -218,7 +218,13 @@ public class MerchantPortalService {
         return competitiveGapService.getOpsConfigInternal(target);
     }
 
-    /** 商户自助保存补货配置（仅能操作自己绑定的商户；权限 merchant:replenishment:list 由控制器校验）。 */
+    /**
+     * 商户自助保存补货配置（仅能操作自己绑定的商户）。
+     * 批次 Q 拍板保留的双门：控制器注解是 merchant:replenishment:view（商户端自助入口的粗门），
+     * 服务层 merchant:replenishment:request 才是「能改补货相关配置」的细门。此前注释写的
+     * 「list 由控制器校验」与两侧实现都不符（已订正）。把注解换成 request = 放进没有 view 的人，
+     * 删掉任何一边都是改访问集合 ⇒ 勿顺手对齐。
+     */
     @Transactional
     public MerchantOpsConfigDto saveMyOpsConfig(Long userId, String merchantId, MerchantOpsConfigDto body) {
         merchantPortalGuard.requireAccess(userId);

@@ -1197,3 +1197,25 @@
 - 本批**未改任何 Java/前端行为**：只加门禁脚本 + 负向用例 + 豁免清单 + package.json 接线（聚合链 90 ⇒ 92，全绿）。
 - 台账 149 行、open=0 不变；regression-index 里 MA-070/105/149 那行的「待补」已换成可执行命令。
 - 遗留（下一轮候选，本批不动）：402 个端点是 `no-service-check`（有注解、服务层无校验）。多数是「只靠切面保护」的正常读接口，但**其中 POST/PUT/DELETE 那一档**如果也零服务层校验，就是另一类缺陷（切面被绕过=直接调用即长驱直入）。收窄到写方法再测一次才有意义。
+
+### 批次 Q｜权限矩阵 12 条按拍板落地（2026-11-04，用户：「四族待拍板 按照你的推荐做」）
+
+先把**测量误差**认掉：批次 P 的 12 条里，`AdminJiangyiController#shelveLearnedProduct` 是我自己的假阳性。
+`JiangyiShelfService.shelve` 的两道 `requirePermission` 分别包在 `if (priceCents != null)` / `if (quantity != null)` 里，
+属合法的「按字段分权」，而首版把方法体内所有校验当成恒需 AND。⇒ 门禁加了分支判定（`condRanges`：按 `{` 前配对括号的关键词判 if/for/while/switch/else；
+`->` 与 try/finally 视为恒执行），并补两条**能失败**的负向用例（同一道校验放进 `if` ⇒ 绿；拿出来 ⇒ 红）。负向用例 13 ⇒ 15。
+
+| 族 | 落点（按符号，行号会漂） | 改法 | 谁被放宽 / 谁不受影响 |
+|---|---|---|---|
+| A | `CompetitiveGapService#getUserDeviceScope`、`OpsRbacService#getUserRoles`、`OpsRbacService#getUserMerchants` | 三个读端点从 `requirePermission(PERM_OPS_RBAC_ASSIGN)` 改为 `requireAnyPermission(PERM_OPS_RBAC_ASSIGN_DEVICE, PERM_OPS_RBAC_ASSIGN)`，与写侧 `assignUserDeviceScope` 同形；子码字面量收进常量，写侧那条裸串一并换掉 | **放宽**：只持 `ops:rbac:assign:device` 的角色现在能看到自己负责的范围/角色/商户（此前一进用户详情就 403）。零写面变化 |
+| B | `SysDictController#upsertType`、`SysDictController#createItem` + `SysDictService#upsertType`、`#upsertItem` | **推荐被新证据推翻并当场订正**：我原本推荐「注解删 `ops:dict:import`」，理由是「import 角色走批量入口」。查同仓惯例后反转——`AnnouncementController:40`、`CouponController:58`、`AdminDashboardController:554`、`OpsExternalImportController:54/72/97` 四处都是 create/upsert 端点**同时**认 `:edit` 与 `:import`。CSV 导入正是逐行走这两个端点（前端 `importPerm` 已经把按钮给了 import 角色），所以正解是**服务层并受 import**，注解保持 `{edit, import}` 不动 | **放宽**：只持 `ops:dict:import` 的角色现在真能导入字典类型/词条（此前前端按钮可见、每一行都在服务层 403）。**不放宽改与删**：PUT `/dict/{type}/items/{id}` 与 DELETE `/dict/types/{t}` 的注解仍是单码 `ops:dict:edit`，服务层虽然 `(edit OR import)`，有效门 = 注解 ∧ 服务层 = edit ⇒ 导入角色改不了也删不了既有项 |
+| C | `CompetitiveGapService#recordPhoneVerify`、`#updatePhoneVerify`（→ 要 `ops:phone-verify:edit`）、`#deletePhoneVerify`（→ 要 `ops:phone-verify:delete`）、`DeviceAssetService#stockHealth`（OR 集里补 `ops:stock-health:export`） | 写/导出路径的服务层校验从「读码」换成对应写码（导出那条是补码，因为它同时服务 `/reports/stock-health` 读端点，换掉会把读面打断） | **放宽**：持写码但不持 `phone-verify:list`/`user:list` 的人现在能在服务层过闸（此前只靠注解单门，服务层形同虚设）；持 `stock-health:export` 的人能导出 |
+| D | `SiteContractService#listPage` | `requirePermission("ops:device:list")` → `requireAnyPermission("ops:org:list", "ops:device:list")` | **放宽**：组织角色（`ops:org:list`）现在能读站点合同列表。`SiteContractService#list` 无调用方，未动 |
+| 保留 | `MerchantPortalService#saveMyOpsConfig` | 不动。双门（注解 `merchant:replenishment:view` 粗门 + 服务层 `request` 细门）是拍板结果；注解只剩一个码，删到空=拆门=扩权 | 无变化。javadoc 里同时订正了原来「权限 merchant:replenishment:list 由控制器校验」这句与两侧实现都不符的旧注释 |
+| 保留 | `JiangyiShelfService#shelve` | 不动（批次 P 的判定作废：分支权限合法）。`AdminJiangyiController#shelveLearnedProduct` 从豁免清单里移除，靠分支判定自然通过 | 无变化 |
+
+- 豁免清单从 12 条降到 **1 条**，`MAX_EXEMPTIONS` 默认值同步从 12 收到 1（下次谁想加豁免，必须先改这一行并在台账写理由）。
+- 权限矩阵本身不再是「待补」：`node scripts/check-permission-matrix.mjs` + 15 条负向用例进聚合链（92 道）。
+- 验证腿：定向小测（受影响服务/控制器的全部用例）→ 聚合链 93 道 → 15 条门禁负向用例 → 全量 `clean verify` + `pre-push-ci-preflight`。
+  本轮全量在**独立 worktree** 跑：共享 `services/common/common-core/target/*.jar` 被同机另一个 mvn 构建（jacoco fork）占用，
+  `clean` 删不掉 ⇒ 在主树连跑两次都是 `Failed to delete`（构建失败，不是代码失败）。跑完的数与命令记在 `regression-index.md` 本批行里。

@@ -27,6 +27,9 @@ import java.util.stream.Collectors;
 public class CompetitiveGapService {
     private static final String PERM_OPS_PHONE_VERIFY_LIST = "ops:phone-verify:list";
     private static final String PERM_OPS_RBAC_ASSIGN = "ops:rbac:assign";
+    private static final String PERM_OPS_RBAC_ASSIGN_DEVICE = "ops:rbac:assign:device";
+    private static final String PERM_OPS_PHONE_VERIFY_EDIT = "ops:phone-verify:edit";
+    private static final String PERM_OPS_PHONE_VERIFY_DELETE = "ops:phone-verify:delete";
     private static final String PERM_OPS_USER_LIST = "ops:user:list";
     private static final String DEVICE_IDS = "DEVICE_IDS";
     private static final String LIMIT_2000 = "LIMIT 2000";
@@ -104,7 +107,8 @@ public class CompetitiveGapService {
 
     @Transactional(readOnly = true)
     public OpsUserDeviceScopeDto getUserDeviceScope(Long operatorId, Long userId) {
-        permissionService.requirePermission(operatorId, PERM_OPS_RBAC_ASSIGN);
+        // 批次 Q：与写侧 assignUserDeviceScope 同形，否则 ops:rbac:assign:device 角色「能改范围却看不到范围」
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN_DEVICE, PERM_OPS_RBAC_ASSIGN);
         String mode = deviceScopePrefMapper.findById(userId)
                 .map(OpsUserDeviceScopePref::getScopeMode)
                 .orElse("ALL");
@@ -126,7 +130,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public OpsUserDeviceScopeDto assignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", PERM_OPS_RBAC_ASSIGN);
+        permissionService.requireAnyPermission(operatorId, PERM_OPS_RBAC_ASSIGN_DEVICE, PERM_OPS_RBAC_ASSIGN);
         return runWithDeviceScopeLock(userId, () -> doAssignUserDeviceScope(operatorId, userId, body));
     }
 
@@ -671,7 +675,8 @@ public class CompetitiveGapService {
 
     @Transactional
     public PhoneVerifyLogDto recordPhoneVerify(Long operatorId, PhoneVerifyLogDto body) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
+        // 批次 Q：写侧原本只按读码（list/user:list）上闸，真正的门只剩控制器注解
+        permissionService.requirePermission(operatorId, PERM_OPS_PHONE_VERIFY_EDIT);
         if (body.phone() == null || body.phone().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
         }
@@ -687,7 +692,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
+        permissionService.requirePermission(operatorId, PERM_OPS_PHONE_VERIFY_EDIT);
         return runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
     }
 
@@ -707,7 +712,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public void deletePhoneVerify(Long operatorId, Long logId) {
-        permissionService.requireAnyPermission(operatorId, PERM_OPS_PHONE_VERIFY_LIST, PERM_OPS_USER_LIST);
+        permissionService.requirePermission(operatorId, PERM_OPS_PHONE_VERIFY_DELETE);
         runWithPhoneVerifyLogLock(logId, () -> {
             doDeletePhoneVerify(logId);
             return null;
