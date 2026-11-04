@@ -684,6 +684,30 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第六刀：商户自助改货道开关连形状一起退场）
+
+- **先推送再动形状**：远端追平到 `e40209bf`（含前五刀 + peer 的 3 笔）之后才开这一刀——
+  它要改 API 形状，叠在未推的 11 笔上风险不对等。
+- 后端：`Merchant` 实体字段、`MerchantDto` / `UpsertMerchantRequest` 记录分量、
+  `MerchantService` 的写入分支全删；3 处 `new MerchantDto(...)` 与 3 处
+  `new UpsertMerchantRequest(...)`（测试）由 `test-compile` 收口，**不靠正则数位置参**。
+- 🔴 **数据列刻意保留**：`merchant.allow_merchant_planogram_edit` 是
+  `NOT NULL DEFAULT FALSE`（V49），实体不再映射 ⇒ 新建走 DB 默认值，零风险可逆；
+  要不要补 drop-column 迁移，等确认无回滚需求再单独做（区别于 `device_slot` 那两条列：
+  那组是用户明示「列不删」）。
+- admin：删「商户改货道」列 + `toggleFlag('planogram')` 分支 + 导出表头/行 + 组织保存回填，
+  功能包提示改「改价为包内细粒度写开关」；mp `useMerchantMe` 兜底对象去掉该键。
+- 契约与产物：openapi 仍 **703 paths**，spec 里两处 `allowMerchantPlanogramEdit` 消失
+  （`src/generated/openapi.ts` 净差 **3 行删除**，无夹带）；一次性库
+  `aicabinet_openapi_3b6` + redis db14 + :18094，用完 DROP/FLUSH；
+  产物用 `build-admin-ci-fidelity.sh`（容器内 clone HEAD 重建）⇒ 112 换 112 + index.html。
+- 验证：trade 单测 **2760** 绿；admin + merchant-mp `vue-tsc` 绿；mp `vitest 248` 绿；
+  eslint/prettier 绿；preflight 96 门禁 0 失败。
+  文案棘轮随本刀 **26 → 21**（删掉「商户改货道」列标题/aria/title + 导出表头 + 功能包提示）。
+- 仍待办：`merchant:slots:view` 权限码（V49 播的 225 号 + role 6 授权）已零消费者，
+  是下一个死旋钮；退场它需要新迁移删 `ops_permission` 行，且要先核
+  `check:permission-matrix` 对该码的期望，别顺手删。
+
 ### 2026-11-05（批 3b 第五刀：商户自助改货道守卫退场 + 清我自己的残留依赖）
 
 - `MerchantSelfServiceGate` 删 `requirePlanogramEdit` / `canEditPlanogram`：唯一调用方
