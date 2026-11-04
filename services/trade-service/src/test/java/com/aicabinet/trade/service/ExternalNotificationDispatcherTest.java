@@ -41,7 +41,6 @@ class ExternalNotificationDispatcherTest {
     @Mock private WeChatMiniAppClient weChatMiniAppClient;
     @Mock private WebhookSmsSender smsSender;
     @Mock private AliyunSmsSender aliyunSmsSender;
-    @Mock private SystemConfigService systemConfigService;
 
     private static final WeChatMiniAppProperties WECHAT_PROPS =
             new WeChatMiniAppProperties(false, null, null, "merchant-tpl", "pages/alerts/alerts",
@@ -51,7 +50,7 @@ class ExternalNotificationDispatcherTest {
         return new ExternalNotificationDispatcher(logRepository, userInfoRepository, templateRepository,
                 weChatMiniAppClient, WECHAT_PROPS, smsSender,
                 new NotifyChannelSwitchService(org.mockito.Mockito.mock(SystemConfigService.class), new NotificationProperties(wechat, sms, false)),
-                aliyunSmsSender, systemConfigService);
+                aliyunSmsSender);
     }
 
     private static NotificationDispatchMessage message() {
@@ -63,6 +62,14 @@ class ExternalNotificationDispatcherTest {
         NotificationTemplate tpl = new NotificationTemplate();
         tpl.setTemplateCode("order_paid");
         tpl.setChannels(channels);
+        return tpl;
+    }
+
+    private static NotificationTemplate template(String code, String channels, String aliyunTemplateCode) {
+        NotificationTemplate tpl = new NotificationTemplate();
+        tpl.setTemplateCode(code);
+        tpl.setChannels(channels);
+        tpl.setAliyunTemplateCode(aliyunTemplateCode);
         return tpl;
     }
 
@@ -91,15 +98,13 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
-    void dispatch_aliyunTemplatePath_mapsParamsAndSanitizesPhone() {
-        // 2026-10-20：带 smsParams 的消息走阿里云模板渲染（催缴），键名映射 + 客服电话清洗
+    void dispatch_aliyunTemplatePath_mapsParamsAndUsesRegisteredCode() {
+        // V441：CODE 来自模板行自身（未登记就不发），参数只保留模板声明的两组（不再注入 service_phone）
         ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
         when(aliyunSmsSender.isConfigured()).thenReturn(true);
-        when(systemConfigService.getValue(SystemConfigService.NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664"))
-                .thenReturn("SMS_512661664");
-        when(systemConfigService.getValue(SystemConfigService.CONSUMER_SERVICE_PHONE, ""))
-                .thenReturn("400-888-0018");
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,WECHAT_SUBSCRIBE,SMS", "SMS_512512665")));
 
         NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
                 "订单未支付提醒", "您的订单 O1 尚未支付 12.5 元", "ORDER", "O1",
@@ -109,10 +114,8 @@ class ExternalNotificationDispatcherTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, String>> captor =
                 ArgumentCaptor.forClass((Class<Map<String, String>>) (Class<?>) Map.class);
-        verify(aliyunSmsSender).sendMessage(eq("13800138000"), eq("SMS_512661664"), captor.capture());
-        assertEquals("O1", captor.getValue().get("order_no"));
-        assertEquals("12.5", captor.getValue().get("amount"));
-        assertEquals("4008880018", captor.getValue().get("service_phone"));
+        verify(aliyunSmsSender).sendMessage(eq("13800138000"), eq("SMS_512512665"), captor.capture());
+        assertEquals(Map.of("order_no", "O1", "amount", "12.5"), captor.getValue());
         verify(smsSender, never()).sendMessage(anyString(), anyString());
         ArgumentCaptor<NotificationLog> logCaptor = ArgumentCaptor.forClass(NotificationLog.class);
         verify(logRepository).save(logCaptor.capture());
@@ -120,10 +123,48 @@ class ExternalNotificationDispatcherTest {
     }
 
     @Test
-    void dispatch_webhookFallback_whenAliyunNotConfigured() {
-        // 带 smsParams 但阿里云未配齐 ⇒ 回退 webhook 文本通道（既有行为不变）
+    void dispatch_otherTemplatesNeverReuseDunningAliyunCode() {
+        // 回归（2026-11-04）：order_paid 与催缴同键 {orderId, amount}，此前会被套成催缴文案；
+        // 现在必须用该模板自己登记的 CODE。
         ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
         when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("order_paid", "IN_APP,WECHAT_SUBSCRIBE,SMS", "SMS_ORDER_PAID")));
+
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("order_paid", 100L,
+                "订单支付成功", "您的订单 O1 已支付 12 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12"));
+        dispatcher.dispatch(msg);
+
+        verify(aliyunSmsSender).sendMessage(eq("13800138000"), eq("SMS_ORDER_PAID"), anyMap());
+        verify(aliyunSmsSender, never()).sendMessage(anyString(), eq("SMS_512512665"), anyMap());
+    }
+
+    @Test
+    void dispatch_templateWithoutAliyunCodeFallsBackToWebhook() {
+        // 模板 channels 含 SMS 但没登记阿里云 CODE ⇒ 不得猜用别的模板，回退既有 webhook 文本通道
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", null)));
+
+        NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12.5 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12.5"));
+        dispatcher.dispatch(msg);
+
+        verify(aliyunSmsSender, never()).sendMessage(anyString(), anyString(), anyMap());
+        verify(smsSender).sendMessage(eq("13800138000"), anyString());
+    }
+
+    @Test
+    void dispatch_webhookFallback_whenAliyunNotConfigured() {
+        // 已登记 CODE 但阿里云未配齐 ⇒ 回退 webhook 文本通道（既有行为不变）
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", "SMS_512512665")));
         when(aliyunSmsSender.isConfigured()).thenReturn(false);
 
         NotificationDispatchMessage msg = new NotificationDispatchMessage("unpaid_order_dunning", 100L,

@@ -35,7 +35,6 @@ public class ExternalNotificationDispatcher {
     private final WebhookSmsSender smsSender;
     private final NotifyChannelSwitchService channelSwitch;
     private final AliyunSmsSender aliyunSmsSender;
-    private final SystemConfigService systemConfigService;
 
     public ExternalNotificationDispatcher(NotificationLogMapper logRepository,
                                           UserInfoMapper userInfoRepository,
@@ -44,8 +43,7 @@ public class ExternalNotificationDispatcher {
                                           WeChatMiniAppProperties weChatMiniAppProperties,
                                           WebhookSmsSender smsSender,
                                           NotifyChannelSwitchService channelSwitch,
-                                          AliyunSmsSender aliyunSmsSender,
-                                          SystemConfigService systemConfigService) {
+                                          AliyunSmsSender aliyunSmsSender) {
         this.logRepository = logRepository;
         this.userInfoRepository = userInfoRepository;
         this.templateRepository = templateRepository;
@@ -54,7 +52,6 @@ public class ExternalNotificationDispatcher {
         this.smsSender = smsSender;
         this.channelSwitch = channelSwitch;
         this.aliyunSmsSender = aliyunSmsSender;
-        this.systemConfigService = systemConfigService;
     }
 
     /** 按消息渠道配置分发微信订阅消息与短信；单渠道失败只记日志，不抛出。 */
@@ -101,12 +98,15 @@ public class ExternalNotificationDispatcher {
         if (user == null || user.getPhoneNumber() == null || user.getPhoneNumber().isBlank()) {
             return;
         }
-        if (!smsChannelConfigured(msg.templateCode())) {
+        NotificationTemplate template = msg.templateCode() == null || msg.templateCode().isBlank()
+                ? null
+                : templateRepository.findByCode(msg.templateCode()).orElse(null);
+        if (!smsChannelConfigured(template)) {
             // M09：模板未配置短信渠道（如微信-only）时不得因全局 sms-enabled 而双发
             log.info("sms skipped: template {} has no SMS channel, userId={}", msg.templateCode(), msg.userId());
             return;
         }
-        if (sendViaAliyunTemplate(msg, user.getPhoneNumber())) {
+        if (sendViaAliyunTemplate(msg, template, user.getPhoneNumber())) {
             saveLog(msg, "SMS");
             return;
         }
@@ -115,48 +115,52 @@ public class ExternalNotificationDispatcher {
     }
 
     /**
-     * 阿里云通知短信（模板渲染）：消息带结构化参数（smsParams）且阿里云四件套配齐时走模板发送。
-     * <p>键名映射：催缴链路内部参数是 orderId/amount（V325 站内信模板 {orderId} 键名，固定迁移不可改），
-     * 阿里云催缴模板变量是 order_no/amount/service_phone；并补 service_phone=运营台客服电话，
-     * 清洗为纯数字以适配阿里云「电话号码」属性（5~11 位）。阿里云未配置/无参数 ⇒ 返回 false
-     * 回退 webhook 文本通道（既有行为不变）。发送失败也回退 webhook，催缴不因单通道故障丢失。</p>
+     * 阿里云通知短信（模板渲染）：消息带结构化参数、且**该模板自己登记了**阿里云 CODE 时走模板发送。
+     * <p>CODE 来自 {@code notification_template.aliyun_template_code}（V441）——一条模板对一个 CODE，
+     * 不再有「全局催缴模板」兜底：没登记的模板绝不会被套成别的文案（此前 order_paid 会被套成催缴）。
+     * 键名映射：催缴链路内部参数是 orderId/amount（V325 站内信模板 {orderId} 键名，固定迁移不可改），
+     * 阿里云模板变量是 order_no/amount；发送前做纯键名归一化（orderId→order_no 且不保留原键），
+     * 保证「参数个数 = 模板变量个数」（阿里云硬要求，多传/少传都会被拒）。
+     * 阿里云未配齐/无参数/未登记 CODE ⇒ 返回 false 回退 webhook
+     * 文本通道；发送失败也回退，催缴不因单通道故障丢失。</p>
      */
-    private boolean sendViaAliyunTemplate(NotificationDispatchMessage msg, String phoneNumber) {
-        if (msg.smsParams() == null || msg.smsParams().isEmpty() || !aliyunSmsSender.isConfigured()) {
+    private boolean sendViaAliyunTemplate(
+            NotificationDispatchMessage msg, NotificationTemplate template, String phoneNumber) {
+        String aliyunTemplateCode = template == null ? null : blankToNull(template.getAliyunTemplateCode());
+        if (aliyunTemplateCode == null
+                || msg.smsParams() == null || msg.smsParams().isEmpty()
+                || !aliyunSmsSender.isConfigured()) {
             return false;
         }
-        String templateCode = systemConfigService.getValue(
-                SystemConfigService.NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664");
-        Map<String, String> params = new java.util.LinkedHashMap<>(msg.smsParams());
-        if (params.get("order_no") == null) {
-            params.put("order_no", params.get("orderId"));
+        Map<String, String> params = new java.util.LinkedHashMap<>();
+        msg.smsParams().forEach((k, v) -> {
+            if (!"orderId".equals(k)) {
+                params.put(k, v);
+            }
+        });
+        if (!params.containsKey("order_no") && msg.smsParams().get("orderId") != null) {
+            params.put("order_no", msg.smsParams().get("orderId"));
         }
-        params.put("service_phone", sanitizeDigits(systemConfigService.getValue(
-                SystemConfigService.CONSUMER_SERVICE_PHONE, "")));
         try {
-            aliyunSmsSender.sendMessage(phoneNumber, templateCode, params);
-            log.info("sms sent via aliyun template={} userId={}", templateCode, msg.userId());
+            aliyunSmsSender.sendMessage(phoneNumber, aliyunTemplateCode, params);
+            log.info("sms sent via aliyun template={} userId={}", aliyunTemplateCode, msg.userId());
             return true;
         } catch (Exception e) {
             log.warn("aliyun template sms failed userId={} template={}: {}",
-                    msg.userId(), templateCode, e.toString());
+                    msg.userId(), aliyunTemplateCode, e.toString());
             return false;
         }
     }
 
-    private static String sanitizeDigits(String raw) {
-        return raw == null ? "" : raw.replaceAll("[^0-9]", "");
+    private static String blankToNull(String raw) {
+        return raw == null || raw.isBlank() ? null : raw.trim();
     }
 
     /**
      * M09：按模板 channels（逗号分隔 IN_APP/WECHAT_SUBSCRIBE/SMS）判断短信渠道是否启用。
-     * 消息体只带 templateCode，故回查模板；模板缺失/无模板上下文时保持既有直发行为。
+     * 模板缺失/无模板上下文时保持既有直发行为。
      */
-    private boolean smsChannelConfigured(String templateCode) {
-        if (templateCode == null || templateCode.isBlank()) {
-            return true;
-        }
-        NotificationTemplate template = templateRepository.findByCode(templateCode).orElse(null);
+    private boolean smsChannelConfigured(NotificationTemplate template) {
         if (template == null) {
             return true;
         }

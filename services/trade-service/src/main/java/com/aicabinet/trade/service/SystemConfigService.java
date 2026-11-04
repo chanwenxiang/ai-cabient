@@ -280,8 +280,8 @@ public class SystemConfigService {
     public static final String NOTIFY_SMS_ENABLED = "notify.sms.enabled";
     /** 消息触达：通知异步派发（Kafka；取代 NOTIFY_ASYNC_ENABLED 环境变量）。 */
     public static final String NOTIFY_ASYNC_ENABLED = "notify.async.enabled";
-    /** 消息触达：欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone）。 */
-    public static final String NOTIFY_SMS_DUNNING_TEMPLATE = "notify.sms.dunning_template";
+    // 注：原 notify.sms.dunning_template 已随 V441 搬进 notification_template.aliyun_template_code
+    //（模板 ↔ 阿里云 CODE 一一对应；单一来源，不再有全局默认值）。
     /** 运营告警：邮件渠道开关（SMTP；与 webhook 类渠道并存，任一配置即参与分发）。 */
     public static final String OPS_ALERT_EMAIL_ENABLED = "ops.alert.email.enabled";
     /** 运营告警：SMTP 服务器（阿里企业邮箱 smtp.qiye.aliyun.com / 个人 smtp.aliyun.com）。 */
@@ -1112,12 +1112,9 @@ public class SystemConfigService {
                         + "取代环境变量 NOTIFY_WECHAT_ENABLED");
         upsertIfAbsent(NOTIFY_SMS_ENABLED, "false",
                 "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS "
-                        + "③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出");
+                        + "③ 该模板在 notification_template.aliyun_template_code 登记了阿里云 CODE）");
         upsertIfAbsent(NOTIFY_ASYNC_ENABLED, "false",
                 "通知异步派发（Kafka）；关闭时同步发送，会占用请求线程");
-        upsertIfAbsent(NOTIFY_SMS_DUNNING_TEMPLATE, "SMS_512661664",
-                "欠款催缴短信的阿里云模板 CODE（通知类模板，变量 order_no/amount/service_phone；"
-                        + "换模板时同步改正文变量并保持键名一致）");
         // 2026-10-20 邮件告警渠道（SMTP 手写客户端，零依赖）：enabled 只控制参与分发，
         // host/user/pass/to 四项全非空才算配置完成；授权码=邮箱「三方客户端安全密码」。
         upsertIfAbsent(OPS_ALERT_EMAIL_ENABLED, "false",

@@ -30,6 +30,9 @@ public class NotificationTemplate {
 
     private String bodyTemplate;
 
+    /** 该模板对应的阿里云短信模板 CODE；NULL = 不通过阿里云发短信（见 V441）。 */
+    private String aliyunTemplateCode;
+
     private String audience = "CONSUMER";
 
     private String status = "ACTIVE";
