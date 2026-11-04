@@ -39,6 +39,11 @@ public class PromotionPlacementService {
     public static final String POPUP_BEFORE_OPEN = "POPUP_BEFORE_OPEN";
     public static final String POPUP_AFTER_CLOSE = "POPUP_AFTER_CLOSE";
     private static final Set<String> POSITIONS = Set.of(BANNER, POPUP_BEFORE_OPEN, POPUP_AFTER_CLOSE);
+
+    /** 打点侧判据：位置字面量只此一份，别在控制器/服务层再抄一个集合。 */
+    public static boolean isKnownPosition(String position) {
+        return position != null && POSITIONS.contains(position.trim().toUpperCase());
+    }
     private static final Set<String> POPUPS = Set.of(POPUP_BEFORE_OPEN, POPUP_AFTER_CLOSE);
     private static final String ACTIVITY_ACTIVE = "ACTIVE";
 

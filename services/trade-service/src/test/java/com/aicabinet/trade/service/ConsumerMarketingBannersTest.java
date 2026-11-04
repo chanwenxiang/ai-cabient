@@ -19,6 +19,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.domain.PromotionActivity;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
  * P3-6：消费者 banners 混合口径——广告轮播位优先、活动横幅补位、全空静态兜底。
@@ -79,5 +86,61 @@ class ConsumerMarketingBannersTest {
         assertEquals(1, banners.size());
         assertTrue(banners.get(0).title().contains("领券"));
         assertNull(banners.get(0).imageUrl(), "兜底横幅仍为文案卡，无图片");
+    }
+
+
+    // ── 批次 S：展示位打点的入参校验 ──────────────────────────────────────
+    private static PromotionActivity activity(Long id, String status) {
+        PromotionActivity a = new PromotionActivity();
+        a.setActivityId(id);
+        a.setStatus(status);
+        return a;
+    }
+
+    @Test
+    void recordPlacementEvent_rejectsUnknownPosition() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.recordPlacementEvent(7L, "POPUP_WECHAT", 55L, null, null, "IMPRESSION"));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("展示位"));
+        verify(adCampaignService, never())
+                .recordPlacementEvent(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recordPlacementEvent_requiresActivityOrCampaign() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.recordPlacementEvent(7L, "BANNER", null, null, null, "IMPRESSION"));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(adCampaignService, never())
+                .recordPlacementEvent(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void recordPlacementEvent_rejectsMissingOrInactiveActivity() {
+        // 默认 mock 返回空列表 ⇒ 活动不存在
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.recordPlacementEvent(7L, "POPUP_BEFORE_OPEN", 55L, null, null, "IMPRESSION"));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+
+        when(activityRepository.findAllById(List.of(56L))).thenReturn(List.of(activity(56L, "DRAFT")));
+        ResponseStatusException ex2 = assertThrows(ResponseStatusException.class,
+                () -> service.recordPlacementEvent(7L, "POPUP_BEFORE_OPEN", 56L, null, null, "IMPRESSION"));
+        assertTrue(ex2.getReason().contains("活动不存在或已停用"));
+    }
+
+    @Test
+    void recordPlacementEvent_upperCasesPositionAndDelegates() {
+        when(activityRepository.findAllById(List.of(55L))).thenReturn(List.of(activity(55L, "ACTIVE")));
+        service.recordPlacementEvent(7L, " popup_before_open ", 55L, null, null, "CLICK");
+        verify(adCampaignService).recordPlacementEvent(
+                7L, "POPUP_BEFORE_OPEN", 55L, null, null, "CLICK");
+    }
+
+    @Test
+    void recordPlacementEvent_bannerWithCampaignOnlySkipsActivityLookup() {
+        service.recordPlacementEvent(7L, "BANNER", null, 3L, 9L, "IMPRESSION");
+        verify(adCampaignService).recordPlacementEvent(7L, "BANNER", null, 3L, 9L, "IMPRESSION");
+        verify(activityRepository, never()).findAllById(any());
     }
 }

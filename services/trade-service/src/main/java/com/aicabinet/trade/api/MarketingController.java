@@ -1,5 +1,6 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.common.dto.AdPlacementEventRequest;
 import com.aicabinet.common.dto.AdPlayEventRequest;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CouponDto;
@@ -44,6 +45,23 @@ public class MarketingController {
         this.adCampaignService = adCampaignService;
         this.jwtService = jwtService;
         this.sessionCookieService = sessionCookieService;
+    }
+
+    /**
+     * 展示位打点（批次 S）：首页 banner / 开门前 / 关门后三个位置共用一条上报口。
+     */
+    // authz: self-service —— 主体只从登录态取，写的也是调用者自己的曝光行，
+    // 不存在 ops:/merchant: 权限码这一层；未登录一律 401（防匿名刷量，与 adEvent 同策）。
+    @PostMapping("/placement-events")
+    public ApiResponse<Void> placementEvent(HttpServletRequest request,
+                                             @Valid @RequestBody AdPlacementEventRequest body) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        marketingService.recordPlacementEvent(userId, body.position(), body.activityId(),
+                body.campaignId(), body.assetId(), body.eventType());
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/banners")

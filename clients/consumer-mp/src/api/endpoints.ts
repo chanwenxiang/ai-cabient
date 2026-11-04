@@ -125,6 +125,8 @@ export const ConsumerEndpoints = {
   /** P3-6：小程序轮播位曝光/点击留痕（须登录） */
   marketingAdEvent: (campaignId: number) =>
     `${API_PREFIX}/marketing/ads/${encodeURIComponent(String(campaignId))}/events`,
+  /** 批次 S：展示位打点（首页 banner / 开门前 / 关门后共用一条口，主体取登录态） */
+  marketingPlacementEvent: `${API_PREFIX}/marketing/placement-events`,
   marketingPopups: (position: string, deviceId?: string) =>
     deviceId
       ? `${API_PREFIX}/marketing/popups?position=${encodeURIComponent(position)}&deviceId=${encodeURIComponent(deviceId)}`

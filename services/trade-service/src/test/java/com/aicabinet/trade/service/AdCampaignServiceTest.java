@@ -33,6 +33,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.aicabinet.trade.service.AdPlayEventDeduplicator.PlayEventKey;
+import org.mockito.ArgumentCaptor;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -330,5 +333,50 @@ class AdCampaignServiceTest {
         asset.setDurationSeconds(10);
         asset.setStatus("ACTIVE");
         return asset;
+    }
+
+
+    // ── 批次 S：展示位打点（弹窗位此前完全没有打点）────────────────────────
+    @Test
+    void recordPlacementEvent_shouldAttributeToUserAndPosition_notDevice() {
+        service.recordPlacementEvent(7L, "POPUP_BEFORE_OPEN", 55L, null, null, "impression");
+
+        ArgumentCaptor<AdPlayEvent> cap = ArgumentCaptor.forClass(AdPlayEvent.class);
+        verify(playEventRepository).insert(cap.capture());
+        AdPlayEvent ev = cap.getValue();
+        assertEquals(7L, ev.getUserId());
+        assertEquals("POPUP_BEFORE_OPEN", ev.getPosition());
+        assertEquals(55L, ev.getActivityId());
+        assertEquals("IMPRESSION", ev.getEventType());
+        // 🔴 小程序流量不再伪装成柜机号（此前是 MP-U{userId} 塞进 device_id）
+        assertNull(ev.getDeviceId());
+    }
+
+    @Test
+    void recordPlacementEvent_dedupsPerUser_notPerDevice() {
+        service.recordPlacementEvent(7L, "POPUP_AFTER_CLOSE", 55L, null, 9L, "IMPRESSION");
+        service.recordPlacementEvent(7L, "POPUP_AFTER_CLOSE", 55L, null, 9L, "IMPRESSION");
+        verify(playEventRepository, times(1)).insert(any(AdPlayEvent.class));
+
+        // 换一个人报同一位置同一活动 ⇒ 必须各算一次（按设备号去重时会被互相吞掉）
+        service.recordPlacementEvent(8L, "POPUP_AFTER_CLOSE", 55L, null, 9L, "IMPRESSION");
+        verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlacementEvent_sameUserDifferentPosition_isNotDeduped() {
+        service.recordPlacementEvent(7L, "POPUP_BEFORE_OPEN", 55L, null, 9L, "IMPRESSION");
+        service.recordPlacementEvent(7L, "POPUP_AFTER_CLOSE", 55L, null, 9L, "IMPRESSION");
+        verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void playEventKey_devicePathDedupsByDeviceAsBefore() {
+        AdPlayEventDeduplicator d = new AdPlayEventDeduplicator();
+        PlayEventKey k = new PlayEventKey("EG-1", null, null, 3L, 4L, "CLICK");
+        assertTrue(d.tryAcquire(k));
+        assertTrue(!d.tryAcquire(k),
+                "设备/柜机屏侧仍按设备号去重，且 position/activity 为空时键格式必须与旧版逐字一致"
+                        + "（否则 60s 窗口内的在途键会失效，等于放开一次重复上报）");
     }
 }

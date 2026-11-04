@@ -73,6 +73,10 @@ public class AdPlayEventDeduplicator {
             // 参数不全：调用方（recordPlayEvent）已有前置校验，这里放行而不是吞掉事件。
             return true;
         }
+        return acquire(key);
+    }
+
+    private boolean acquire(String key) {
         if (redis != null) {
             try {
                 Boolean first = redis.opsForValue().setIfAbsent(key, "1", WINDOW);
@@ -102,6 +106,10 @@ public class AdPlayEventDeduplicator {
         if (key == null) {
             return;
         }
+        releaseKey(key);
+    }
+
+    private void releaseKey(String key) {
         if (redis != null) {
             try {
                 redis.delete(key);
@@ -110,6 +118,53 @@ public class AdPlayEventDeduplicator {
             }
         }
         recent.remove(key);
+    }
+
+    /**
+     * 展示位打点的去重键。
+     *
+     * <p>subject 语义：小程序侧 = {@code U{userId}}（**按人去重**，此前是设备号 ⇒ 同一个人换 deviceId
+     * 就能绕开 60s 窗口），设备/柜机屏侧 = 真实 deviceId。
+     * position/activityId 参与键，是为了让「同一个活动位在开门前和关门后各报一次」不被互相吞掉。
+     */
+    public record PlayEventKey(String subject, String position, Long activityId, Long campaignId,
+                               Long assetId, String eventType) {
+    }
+
+    public boolean tryAcquire(PlayEventKey k) {
+        String key = dedupKey(k);
+        if (key == null) {
+            return true; // 参数不全 ⇒ 与旧路径同策：放行而不是吞事件
+        }
+        return acquire(key);
+    }
+
+    public void release(PlayEventKey k) {
+        String key = dedupKey(k);
+        if (key != null) {
+            releaseKey(key);
+        }
+    }
+
+    private static String dedupKey(PlayEventKey k) {
+        if (k == null || k.subject() == null || k.subject().isBlank()
+                || k.eventType() == null || k.eventType().isBlank()
+                || (k.activityId() == null && k.campaignId() == null)) {
+            return null;
+        }
+        if (k.position() == null && k.activityId() == null) {
+            // 设备/柜机屏路径：逐字保持旧键格式，免得 60s 窗口内在途键失效
+            if (k.campaignId() == null) {
+                return null;
+            }
+            return KEY_PREFIX + k.subject() + ':' + k.campaignId()
+                    + ':' + (k.assetId() == null ? "-" : k.assetId()) + ':' + k.eventType();
+        }
+        return KEY_PREFIX + k.subject() + ':' + k.position()
+                + ':' + (k.activityId() == null ? "-" : k.activityId())
+                + ':' + (k.campaignId() == null ? "-" : k.campaignId())
+                + ':' + (k.assetId() == null ? "-" : k.assetId())
+                + ':' + k.eventType();
     }
 
     private static String dedupKey(String deviceId, Long campaignId, Long assetId, String eventType) {

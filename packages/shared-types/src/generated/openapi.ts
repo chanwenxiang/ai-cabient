@@ -496,9 +496,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 点位费用配置（按柜） */
+        /** ç¹ä½è´¹ç¨éç½®ï¼ææï¼ */
         get: operations["config"];
-        /** 保存点位费用配置（费用项随时可改，只影响后续账期） */
+        /** ä¿å­ç¹ä½è´¹ç¨éç½®ï¼è´¹ç¨é¡¹éæ¶å¯æ¹ï¼åªå½±ååç»­è´¦æï¼ */
         put: operations["saveConfig"];
         post?: never;
         delete?: never;
@@ -515,7 +515,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** 修改线路（名称/线长/备注） */
+        /** ä¿®æ¹çº¿è·¯ï¼åç§°/çº¿é¿/å¤æ³¨ï¼ */
         put: operations["update_3"];
         post?: never;
         delete?: never;
@@ -531,9 +531,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 线路成员列表（同人可双角色两行） */
+        /** çº¿è·¯æååè¡¨ï¼åäººå¯åè§è²ä¸¤è¡ï¼ */
         get: operations["members"];
-        /** 添加/更新成员（同人同角色唯一，存在即更新提成配置） */
+        /** æ·»å /æ´æ°æåï¼åäººåè§è²å¯ä¸ï¼å­å¨å³æ´æ°ææéç½®ï¼ */
         put: operations["upsertMember"];
         post?: never;
         delete?: never;
@@ -2295,7 +2295,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 标记线下打款出账（余额不足即失败；每次标记=一笔独立出账流水） */
+        /** æ è®°çº¿ä¸ææ¬¾åºè´¦ï¼ä½é¢ä¸è¶³å³å¤±è´¥ï¼æ¯æ¬¡æ è®°=ä¸ç¬ç¬ç«åºè´¦æµæ°´ï¼ */
         post: operations["payout"];
         delete?: never;
         options?: never;
@@ -3288,7 +3288,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 标记结清（线下收款后；幂等：已结清直接返回） */
+        /** æ è®°ç»æ¸ï¼çº¿ä¸æ¶æ¬¾åï¼å¹ç­ï¼å·²ç»æ¸ç´æ¥è¿åï¼ */
         post: operations["settle"];
         delete?: never;
         options?: never;
@@ -3305,7 +3305,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 按日期重跑周期费用日扣（F-4 拍板：漏扣不自动补，人工带日期补跑） */
+        /** ææ¥æéè·å¨æè´¹ç¨æ¥æ£ï¼F-4 ææ¿ï¼æ¼æ£ä¸èªå¨è¡¥ï¼äººå·¥å¸¦æ¥æè¡¥è·ï¼ */
         post: operations["rerunDailyFees"];
         delete?: never;
         options?: never;
@@ -3322,7 +3322,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 标记结清（线下收款后） */
+        /** æ è®°ç»æ¸ï¼çº¿ä¸æ¶æ¬¾åï¼ */
         post: operations["settle_1"];
         delete?: never;
         options?: never;
@@ -3339,7 +3339,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 手动出账（指定账期，幂等） */
+        /** æå¨åºè´¦ï¼æå®è´¦æï¼å¹ç­ï¼ */
         post: operations["generate"];
         delete?: never;
         options?: never;
@@ -3402,10 +3402,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 线路列表（含归档） */
+        /** çº¿è·¯åè¡¨ï¼å«å½æ¡£ï¼ */
         get: operations["list_11"];
         put?: never;
-        /** 新建线路 */
+        /** æ°å»ºçº¿è·¯ */
         post: operations["create_10"];
         delete?: never;
         options?: never;
@@ -3422,7 +3422,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 归档线路（可增减，不物理删） */
+        /** å½æ¡£çº¿è·¯ï¼å¯å¢åï¼ä¸ç©çå ï¼ */
         post: operations["archive_1"];
         delete?: never;
         options?: never;
@@ -5638,6 +5638,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/marketing/placement-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["placementEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/marketing/campaigns/{id}/claim": {
         parameters: {
             query?: never;
@@ -7357,7 +7373,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 补货员钱包余额列表 */
+        /** è¡¥è´§åé±åä½é¢åè¡¨ */
         get: operations["list_19"];
         put?: never;
         post?: never;
@@ -7374,7 +7390,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 某补货员钱包流水 */
+        /** æè¡¥è´§åé±åæµæ°´ */
         get: operations["ledger"];
         put?: never;
         post?: never;
@@ -8223,7 +8239,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 台账列表（按商户/状态/费用类型过滤） */
+        /** å°è´¦åè¡¨ï¼æåæ·/ç¶æ/è´¹ç¨ç±»åè¿æ»¤ï¼ */
         get: operations["list_23"];
         put?: never;
         post?: never;
@@ -8240,7 +8256,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 账单列表（按账期/状态） */
+        /** è´¦ååè¡¨ï¼æè´¦æ/ç¶æï¼ */
         get: operations["list_24"];
         put?: never;
         post?: never;
@@ -8289,7 +8305,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 岗位月合计（线长销售提成 + 补货员佣金，供财务对账；佣金=已发-退款冲回） */
+        /** å²ä½æåè®¡ï¼çº¿é¿éå®ææ + è¡¥è´§åä½£éï¼ä¾è´¢å¡å¯¹è´¦ï¼ä½£é=å·²å-éæ¬¾å²åï¼ */
         get: operations["monthlySummary"];
         put?: never;
         post?: never;
@@ -8306,7 +8322,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 总线路负责人（多人，可随时改指） */
+        /** æ»çº¿è·¯è´è´£äººï¼å¤äººï¼å¯éæ¶æ¹æï¼ */
         get: operations["chiefManagers"];
         put?: never;
         post?: never;
@@ -11318,7 +11334,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 移除成员 */
+        /** ç§»é¤æå */
         delete: operations["removeMember"];
         options?: never;
         head?: never;
@@ -14984,24 +15000,24 @@ export interface components {
             /** Format: date-time */
             createdAt?: string;
         };
-        /** @description 库存盘点调整请求 */
+        /** @description åºå­çç¹è°æ´è¯·æ± */
         StocktakeAdjustRequest: {
-            /** @description 设备 ID */
+            /** @description è®¾å¤ ID */
             deviceId: string;
             /** @description SKU ID */
             skuId: string;
             /**
              * Format: int32
-             * @description 盘点后数量
+             * @description çç¹åæ°é
              */
             countedQuantity: number;
-            /** @description 备注 */
+            /** @description å¤æ³¨ */
             note?: string;
-            /** @description 盘点照片凭证 URL；商户开启 photoStocktake 时必填 */
+            /** @description çç¹ç§çå­è¯ URLï¼åæ·å¼å¯ photoStocktake æ¶å¿å¡« */
             photoEvidenceUrl?: string;
             /**
              * Format: int64
-             * @description 客户端看到的库存版本。已有库存行时必填：缺失返回 400，版本冲突返回 409。新建库存行时可省略。
+             * @description å®¢æ·ç«¯çå°çåºå­çæ¬ãå·²æåºå­è¡æ¶å¿å¡«ï¼ç¼ºå¤±è¿å 400ï¼çæ¬å²çªè¿å 409ãæ°å»ºåºå­è¡æ¶å¯çç¥ã
              */
             expectedVersion?: number;
         };
@@ -15834,6 +15850,16 @@ export interface components {
             couponCode?: string;
             deviceScope?: string;
             description?: string;
+        };
+        AdPlacementEventRequest: {
+            position: string;
+            /** Format: int64 */
+            activityId?: number;
+            /** Format: int64 */
+            campaignId?: number;
+            /** Format: int64 */
+            assetId?: number;
+            eventType: string;
         };
         SubmitFeedbackRequest: {
             feedbackType: string;
@@ -20734,39 +20760,39 @@ export interface components {
             message?: string;
             data?: components["schemas"]["PageResultBalanceTransactionDto"];
         };
-        /** @description 余额流水（消费者账单明细） */
+        /** @description ä½é¢æµæ°´ï¼æ¶è´¹èè´¦åæç»ï¼ */
         BalanceTransactionDto: {
-            /** @description 流水号（= 支付操作号 operationId） */
+            /** @description æµæ°´å·ï¼= æ¯ä»æä½å· operationIdï¼ */
             transactionId?: string;
             /**
              * Format: int64
-             * @description 用户 ID
+             * @description ç¨æ· ID
              */
             userId?: number;
-            /** @description 业务类型：充值/扣款/退款/预授权冻结与释放等（如 CHARGE、ADJUST_CHARGE、PREAUTH_FREEZE、PREAUTH_RELEASE） */
+            /** @description ä¸å¡ç±»åï¼åå¼/æ£æ¬¾/éæ¬¾/é¢ææå»ç»ä¸éæ¾ç­ï¼å¦ CHARGEãADJUST_CHARGEãPREAUTH_FREEZEãPREAUTH_RELEASEï¼ */
             businessType?: string;
-            /** @description 关联业务单号（通常为订单号；纯冻结/释放类流水可能为空） */
+            /** @description å³èä¸å¡åå·ï¼éå¸¸ä¸ºè®¢åå·ï¼çº¯å»ç»/éæ¾ç±»æµæ°´å¯è½ä¸ºç©ºï¼ */
             businessId?: string;
             /**
              * Format: int32
-             * @description 带符号金额（分）：正数=入账，负数=出账；纯冻结/释放按业务方向取符号
+             * @description å¸¦ç¬¦å·éé¢ï¼åï¼ï¼æ­£æ°=å¥è´¦ï¼è´æ°=åºè´¦ï¼çº¯å»ç»/éæ¾æä¸å¡æ¹ååç¬¦å·
              */
             amountCents?: number;
             /**
              * Format: int32
-             * @description 变动前可用余额（分）
+             * @description åå¨åå¯ç¨ä½é¢ï¼åï¼
              */
             balanceBeforeCents?: number;
             /**
              * Format: int32
-             * @description 变动后可用余额（分）
+             * @description åå¨åå¯ç¨ä½é¢ï¼åï¼
              */
             balanceAfterCents?: number;
-            /** @description 变动原因/备注 */
+            /** @description åå¨åå /å¤æ³¨ */
             reason?: string;
             /**
              * Format: date-time
-             * @description 发生时间
+             * @description åçæ¶é´
              */
             createdAt?: string;
         };
@@ -31342,6 +31368,30 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    placementEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdPlacementEventRequest"];
+            };
+        };
         responses: {
             /** @description OK */
             200: {

@@ -197,6 +197,28 @@ public class ConsumerMarketingService {
         return out;
     }
 
+    /**
+     * 展示位打点（批次 S）：位置必须在字典 {@code promotion_placement_position} 集合内，
+     * 活动必须存在且在售——否则 400（不静默接受，否则报表里会出现无人能看到的"幽灵位"）。
+     */
+    public void recordPlacementEvent(Long userId, String position, Long activityId, Long campaignId,
+                                     Long assetId, String eventType) {
+        String pos = position == null ? "" : position.trim().toUpperCase();
+        if (!PromotionPlacementService.isKnownPosition(pos)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知的展示位: " + position);
+        }
+        if (activityId == null && campaignId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "activityId 与 campaignId 至少给一个");
+        }
+        if (activityId != null
+                && activityRepository.findAllById(List.of(activityId)).stream()
+                        .noneMatch(a -> CabinetConstants.PROMOTION_STATUS_ACTIVE
+                                .equalsIgnoreCase(a.getStatus()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "活动不存在或已停用");
+        }
+        adCampaignService.recordPlacementEvent(userId, pos, activityId, campaignId, assetId, eventType);
+    }
+
     /** 活动弹窗（CB-082）：position ∈ POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE，互斥由配置端保证。 */
     public List<MarketingPopupDto> popups(String deviceId, String position) {
         String pos = position == null ? "" : position.trim().toUpperCase();

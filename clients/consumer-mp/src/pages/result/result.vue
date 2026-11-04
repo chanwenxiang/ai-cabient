@@ -291,9 +291,22 @@ async function maybeShowAfterClosePopup(device?: string) {
     if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
     afterClosePopup.value = popup;
     popupVisible.value = true;
+    reportPopup('POPUP_AFTER_CLOSE', popup.activityId, 'IMPRESSION');
   } catch {
     // 弹窗失败静默
   }
+}
+
+function reportPopup(
+  position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE',
+  activityId: number,
+  eventType: 'IMPRESSION' | 'CLICK'
+) {
+  consumerApi
+    .marketingPlacementEvent({ position, activityId, eventType })
+    .catch((e: unknown) =>
+      console.warn('[marketing] popup event dropped:', position, eventType, String(e))
+    );
 }
 
 function closeAfterClosePopup() {
@@ -305,6 +318,7 @@ function closeAfterClosePopup() {
 
 function onAfterClosePopupTap() {
   const target = afterClosePopup.value?.ctaPath;
+  reportPopup('POPUP_AFTER_CLOSE', afterClosePopup.value?.activityId as number, 'CLICK');
   closeAfterClosePopup();
   if (target && isSafeCampaignPath(target)) {
     openCampaignPath(target);

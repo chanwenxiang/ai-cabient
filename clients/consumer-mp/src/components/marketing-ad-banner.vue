@@ -94,7 +94,17 @@ function report(banner: MarketingBannerDto, eventType: 'IMPRESSION' | 'CLICK') {
   const key = eventType + ':' + banner.adCampaignId + ':' + banner.assetId;
   if (reported.has(key)) return;
   reported.add(key);
-  consumerApi.marketingAdEvent(banner.adCampaignId, banner.assetId, eventType).catch(() => {});
+  consumerApi
+    .marketingPlacementEvent({
+      position: 'BANNER',
+      campaignId: banner.adCampaignId,
+      assetId: banner.assetId,
+      eventType
+    })
+    .catch((e: unknown) => {
+      // 营销位失败仍不打扰用户，但不再无声吞掉：至少能在 console/日志里看到丢了多少
+      console.warn('[marketing] banner event dropped:', eventType, banner.adCampaignId, String(e));
+    });
 }
 </script>
 

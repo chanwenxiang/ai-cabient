@@ -742,9 +742,23 @@ async function maybeShowBeforeOpenPopup() {
     if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
     beforeOpenPopup.value = popup;
     popupVisible.value = true;
+    reportPopup('POPUP_BEFORE_OPEN', popup.activityId, 'IMPRESSION');
   } catch {
     // 弹窗失败静默：不得阻塞扫码开门
   }
+}
+
+function reportPopup(
+  position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE',
+  activityId: number,
+  eventType: 'IMPRESSION' | 'CLICK'
+) {
+  // 打点失败只记日志：弹窗体验不能被上报打断（与 banner 位同策），但要留痕
+  consumerApi
+    .marketingPlacementEvent({ position, activityId, eventType })
+    .catch((e: unknown) =>
+      console.warn('[marketing] popup event dropped:', position, eventType, String(e))
+    );
 }
 
 function closeBeforeOpenPopup() {
@@ -756,6 +770,7 @@ function closeBeforeOpenPopup() {
 
 function onBeforeOpenPopupTap() {
   const target = beforeOpenPopup.value?.ctaPath;
+  reportPopup('POPUP_BEFORE_OPEN', beforeOpenPopup.value?.activityId as number, 'CLICK');
   closeBeforeOpenPopup();
   if (target && isSafeCampaignPath(target)) {
     openCampaignPath(target);

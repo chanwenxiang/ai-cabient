@@ -77,6 +77,7 @@
 | MA-148 | P3 | fixed（钉测 1 例 + 活栈实证） | 参数配置写侧留痕 | 审计总开关 `ops.config.audit.enabled=false`（dev 实测就是 false）时只有 `FUND_GUARDED_KEYS` 强制留痕；而「开关即资金动作」的**布尔键进不了那个集合**（`validateFundKeyValue` 只吃整数，写 `"true"` 当场 400）⇒ 谁把争议自动免单打开了，历史与审计双零 | Qoder 旋钮落地时自查 / 2026-11-03 | 新增 `AUDIT_FORCED_SWITCH_KEYS`（只管留痕、不管值校验），`recordChangeIfEnabled` 一并放行 |
 | MA-149 | P2 | fixed（收窄两处注解；条码查询保留 OR） | `POST/PUT /ops/admin/skus`（建/改商品） | 注解 `OR{ops:sku:edit, ops:sku:import}`（AdminDashboardController.java:517/:527）与服务层单码 `ops:sku:edit`（OpsCatalogAdminService.java:115/:140）双轨：`ops:sku:import` 是 V106 已授角色的**真码**，只授「导入商品」的运营过注解门后建/改商品恒 403，只能靠 `ops:*` 通配绕过（MA-105 同族，但那条的 `ops:finance:view` 分支更少被授） | Qoder 批次A/B 复核时挖出 / 2026-11-03 | 新增 |
 | MA-150 | P3 | open（已登记，等流量主接入再定防刷强度） | 广告打点回写无归属主体 | `POST /api/v2/devices/{deviceId}/ad-play`（`DeviceController#adPlay`）既不取登录主体、服务层 `recordPlayEvent` 也不校验调用者能否写这台柜机；`ad_play_event`（V191）没有 user 列，去重键是 `(device, campaign, asset, type)` ⇒ 换 deviceId 即绕开 60s 窗口，事后也查不出这批曝光来自谁 | 权限矩阵规则 2 首跑 / 2026-11-04 | **口径订正（用户 2026-11-04）**：我们是**收益侧**——接腾讯广告做流量主赚钱，自有活动位放自己的活动，不是花钱投放；曝光面 = 首页 / 开门前 / 关门后（所以「绑会话才计数」的方案作废）。现无资金路径（实测：`ad_play_event`/`AdPlayEvent` 只被 `DeviceController`/`DeviceInternalController`/`MarketingController`/`AdCampaignService` 与 ROI 报表读，未进分账/费用台账/结算/佣金任何一处）⇒ 危害目前限于内部决策报表失真；接流量主后结算以腾讯后台为准，自刷反而踩对方反作弊，属于「绝不能自动补量」的合规问题而不是配额问题。待拍板的最小动作＝归因（加可空 `user_id` + 去重键含 user + 报表显式列「人均/单用户最大次数」），**不设配额阈值**（当前无真实流量分布，阈值只能是猜的死旋钮） |
+| MA-151 | P3 | fixed（批次 S：三列 + 三位置全打点 + 9 例钉测） | 开门前 / 关门后弹窗位完全无打点 | `MarketingController` 只有 `/ads/{campaignId}/events`（banner 组件在用），而 CB-082 的两个弹窗位（`POPUP_BEFORE_OPEN` 首页、`POPUP_AFTER_CLOSE` 结果页）从展示到点击一次都不上报 ⇒ 「这个活动位有多少人看过/点过」在弹窗位上是**空数据**；另外小程序主体此前被伪装成柜机号写入 `device_id`（`MP-U{userId}`），去重键也是设备维度 ⇒ 换 deviceId 就绕过 60s 窗口 | Qoder 批次 S / 2026-11-04 | 「多少人享受活动」不在本行——权威口径是 `cabinet_order.promotion_id + activity_discount_cents`（本批未动） |
 
 | MA-068 | P2 | fixed（钉测 1 例） | merchant-mp `POST /merchant/devices/{id}/stocktake-evidence` | 盘点凭证上传缺设备归属校验（同 Controller 全部设备写端点都过 requireDevicePack，唯独上传漏）⇒ 商户 A 可对商户 B 柜机挂任意照片/灌图，盘点凭证链可跨租户污染 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-069 | P2 | fixed（限幅单源+门禁） | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
@@ -1254,3 +1255,31 @@
 （另修了一个自己写的洞：上限原来默认 `unclearedRaw.length` ⇒ 「往里加条目」永远不红。）
 
 - 验证腿：21 条负向用例全过；聚合链 93 道（含 `check:permission-matrix` 与 `-negative`）；台账 150 行、open=1（就是 MA-150）。
+
+### 批次 S｜活动展示位打点补齐（2026-11-04，用户：「首页、开门前/关门后都可能有活动」+「按你的节奏做」）
+
+先纠我自己两处口径错误（都记进教训）：
+
+1. 我第一版把这件事定性成「曝光可被刷，加 `user_id` 归因」。用户举例问的其实是**「多少人享受了 8 折」**——那个数的权威根本不在打点表，
+   而在 `cabinet_order.promotion_id + activity_discount_cents`（今天就查得出，本批未动）。
+2. 我随后断言「开门前/关门后没有活动位」——**又错了**：那两个位置是存在的，只是走的是 CB-082 的**弹窗**
+   （字典 `promotion_placement_position` = `BANNER / POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE`，DTO `MarketingPopupDto`），
+   我当时只 grep 了轮播组件名。⇒ 真实缺陷是「弹窗位有渲染、零打点」（MA-151），不是「位置不存在」。
+
+**落地的东西**
+
+| 面 | 改动 |
+|---|---|
+| schema | `V439` 给 `ad_play_event` 加三列 `activity_id` / `position` / `user_id`（各带索引）+ 两条守卫式回填：`device_id ~ '^MP-U[0-9]+$'` 的行把号填进 `user_id`、这些行 `position` 补 `BANNER`；`device_id` 原样保留不改历史报表 |
+| 后端 | `AdCampaignService.recordPlacementEvent(userId, position, activityId, campaignId, assetId, type)`：**小程序事件 `device_id` 留 null**（不再伪装成柜机号）；去重键改为 `subject × position × activity × campaign × asset × type`，其中小程序 subject=`U{userId}`（**按人去重**）、设备侧仍是 deviceId；设备/柜机屏路径（position/activity 皆空）**逐字保持旧键格式**，不让 60s 窗口内在途键失效（有专测钉） |
+| 校验 | `ConsumerMarketingService.recordPlacementEvent`：位置必须在字典集合内、`activityId` 与 `campaignId` 至少一个、活动必须存在且 ACTIVE ⇒ 否则 400；位置判据复用 `PromotionPlacementService.isKnownPosition`（不再抄第二份字面量集合） |
+| API | 新端点 `POST /api/v2/marketing/placement-events`（`// authz: self-service` 声明，未登录 401）；`openapi.ts` 与端点改动**同批 regen**（门禁要求） |
+| 小程序 | banner 组件改走新口并带 `position='BANNER'`；`index.vue` 开门前弹窗、`result.vue` 关门后弹窗各补 `IMPRESSION`（展示时）与 `CLICK`（点 CTA 时）；上报失败从 `.catch(() => {})` 改为 `console.warn` 留痕（仍不打扰用户） |
+
+**新增 9 例钉测**（两类合计 27 例全绿）：按人落库且 `device_id` 为 null、同用户重复被吞/换用户各算一次、同用户不同位置各算一次、设备侧键格式与去重兼容、位置未知 400、两 id 全缺 400、活动缺失/停用 400、位置大小写归一并委派、banner-only 不查活动表。
+
+**顺带挣到的两条证据**：为出 spec 而起的一次性 postgres 上，全新空库 V1→**V439** 严格升序跑通、三列确实存在（`max(version::int)=439`）；
+🔴 这里刻意**没有**用共享 dev 库/18080 容器：`DemoDataService` 与 `SysDictBootstrap` 无开关，boot 上去会把演示数据「ensure」回来，污染 peer 刚清过的台账（我自己记着的坑）。
+
+**这批明确没做**：不设任何配额/阈值（0 行真实数据下阈值只能是猜的死旋钮）；ROI 报表的「按位置分桶 + 人均/单用户最大次数」两列留下一批（那要动 admin 源码并重建产物）。
+MA-150 保持 open 且更收窄：`/api/v2/devices/{deviceId}/ad-play` 在新口落地后**确认仍无调用方** ⇒ 定性为死写面，建议删除或改由设备凭据口承载。

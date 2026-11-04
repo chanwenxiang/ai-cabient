@@ -924,6 +924,17 @@ export const consumerApi = {
       { assetId, eventType },
       true
     ),
+  /**
+   * 批次 S：展示位打点。banner 位带 campaignId（AdCampaign），弹窗位带 activityId（PromotionActivity）
+   * ——两个 id 不塞同一列，所以参数是可选的。
+   */
+  marketingPlacementEvent: (body: {
+    position: 'BANNER' | 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE' | string;
+    activityId?: number;
+    campaignId?: number;
+    assetId?: number;
+    eventType: 'IMPRESSION' | 'CLICK';
+  }) => request<void>(ConsumerEndpoints.marketingPlacementEvent, 'POST', body, true),
   /** CB-082 活动弹窗：position=POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE，最多 1 条 */
   marketingPopups: (position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE', deviceId?: string) =>
     request<MarketingPopup[]>(ConsumerEndpoints.marketingPopups(position, deviceId), 'GET'),

@@ -299,10 +299,7 @@ public class AdCampaignService {
         if (deviceId == null || deviceId.isBlank() || campaignId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "campaignId/deviceId 必填");
         }
-        String type = eventType == null ? "" : eventType.trim().toUpperCase();
-        if (!type.equals("IMPRESSION") && !type.equals("COMPLETE") && !type.equals("CLICK")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支持 IMPRESSION/COMPLETE/CLICK");
-        }
+        String type = requirePlayEventType(eventType);
         AdCampaign campaign = requireCampaign(campaignId);
         // H44：仅统计投放中计划，且设备必须在投放范围内；越界/停用直接丢弃（不抛 4xx，防接口探测刷量）
         if (!"RUNNING".equalsIgnoreCase(campaign.getStatus())) {
@@ -338,6 +335,48 @@ public class AdCampaignService {
             playEventDeduplicator.release(deviceKey, campaignId, assetId, type);
             throw e;
         }
+    }
+
+    /**
+     * 展示位打点（批次 S）：主体是登录消费者，事件按「位置 × 活动 × 计划 × 素材」记，
+     * 因此 device_id 留 NULL——小程序流量不再伪装成柜机号。
+     *
+     * <p>与设备侧 {@link #recordPlayEvent} 共用同一张表但**不共用去重键语义**：
+     * 这里按人（{@code U{userId}}）去重，换 deviceId 绕不去 60s 窗口了。
+     */
+    @Transactional
+    public void recordPlacementEvent(Long userId, String position, Long activityId, Long campaignId,
+                                     Long assetId, String eventType) {
+        String type = requirePlayEventType(eventType);
+        AdPlayEventDeduplicator.PlayEventKey key = new AdPlayEventDeduplicator.PlayEventKey(
+                "U" + userId, position, activityId, campaignId, assetId, type);
+        if (!playEventDeduplicator.tryAcquire(key)) {
+            log.debug("placement event dropped: duplicate {} in dedup window (user={}, position={}, activity={})",
+                    type, userId, position, activityId);
+            return;
+        }
+        AdPlayEvent ev = new AdPlayEvent();
+        ev.setUserId(userId);
+        ev.setPosition(position);
+        ev.setActivityId(activityId);
+        ev.setCampaignId(campaignId);
+        ev.setAssetId(assetId);
+        ev.setEventType(type);
+        ev.setCreatedAt(Instant.now());
+        try {
+            playEventRepository.insert(ev);
+        } catch (RuntimeException e) {
+            playEventDeduplicator.release(key);
+            throw e;
+        }
+    }
+
+    private static String requirePlayEventType(String eventType) {
+        String type = eventType == null ? "" : eventType.trim().toUpperCase();
+        if (!type.equals("IMPRESSION") && !type.equals("COMPLETE") && !type.equals("CLICK")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支持 IMPRESSION/COMPLETE/CLICK");
+        }
+        return type;
     }
 
     private void replaceItems(Long campaignId, List<Long> assetIds) {
