@@ -851,6 +851,7 @@
 - MA-127 活动行铺开：merchant order-detail.vue:38-45/orders.vue:109-121、admin OrderListView.vue:481-491/977-987、dispute-amount-note.ts:39-52 按 MA-024 同款摊开+类型补字段（merchant `OrderDetail` 与 admin `OrderAmountInput` 补 activityDiscountCents）。
 - MA-128 merchant order-detail.vue:198-218 chargedCents 改以支付流水为源（total+refunded 或读模型下发 ledger charged），与钱包/分账基数 paidAmountCents 对齐；后端 original 重写语义需注释拍板（SettlementOrderSupport.applyProportionalRefundPayable:246）。
 - MA-129 与巡检折后式（DataConsistencyService:1626）一起拍板：①部分退不动 member/activity 留档（回退 MA-049 等比缩）靠 gross−各档−已退=实付；②读面新增「剩余毛额」推导。二选一后页面基准同步改。
+  ✅ 已选 ② 并按**零后端字段**落地（`d8ff932c`）：「剩余毛额」不落读模型，由前端四列恒等式算出，见上方批次F 块的订正。本条**状态以索引行 fixed 为准**，此处只留拍板前的选项原文。
 - MA-130 tally-records.vue:169-176,234 改 displayLabel('restock_line_type'/'replenishment_task_status')（与 useReplenishmentDisplay.isPullOffType 反判口径统一）。
 - MA-131 DeviceRentalView.vue:55,433-446 键改 VOID + UNPAID 词与费用账单字典族统一。
 - MA-132/133/135：字典三处（迁移+基线+SysDictBootstrap）补 COMMISSION_CLAWBACK/WITHDRAW_FEE/STAFF_*/WITHDRAW_PAYOUT/DAILY_INCOME/FEE_REMINDER（DictLabelUniquenessIT 同 type 禁重名）；LineRoutesView.vue:232 改 displayLabel。
@@ -1023,10 +1024,12 @@
   索引兜的是**并发双提交**（服务层 409 兜顺序重放）。
   前置取证：本机 dev 库 `external_import_batch` **0 行**；其它库上线判据写进
   `docs/DEPLOYMENT_CHECKLIST.md §3.1.5`（重复组非 0 要先人工并账，**勿注释守卫、勿删历史批次**）。
-- **MA-129 拍板选 ②**（读模型新增「剩余毛额」列 + consumer 拆解块加一行「剩余合计」，
-  **不动资金算式**）——选 ① 要回退两处等比缩并重新回归「预估==写侧」，风险直接把展示问题变成资损面。
-  状态仍是 open：本条含读模型字段新增，须与 MA-127/128 同批做 **shared-types regen**（openapi 形状变了），
-  不在没有 regen 的情况下先动后端。
+- **MA-129 拍板选 ②**（当时写成「读模型新增『剩余毛额』列 + consumer 拆解块加一行『剩余合计』，
+  **不动资金算式**」——选 ① 要回退两处等比缩并重新回归「预估==写侧」，风险直接把展示问题变成资损面）。
+  🔴 本块已被 `d8ff932c`（同日 14:56）的落地**订正**：最终**没有新增后端字段**，剩余毛额由前端四列恒等式
+  （实付+券+会员+活动）在 `clients/consumer-mp/src/pages/order-detail/order-detail.vue` 的
+  `remainingGrossCents` 里算出 ⇒ openapi 形状不变，原记「状态仍是 open、须与 MA-127/128 同批做
+  **shared-types regen**」的前置**不成立**（索引行 MA-129 = fixed 才是终态）。
 
 
 ### 批次G｜「级别标低了的」资金/权限面（3 条）

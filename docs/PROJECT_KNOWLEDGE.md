@@ -761,8 +761,10 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **MA-101 上 V435**：部分唯一索引 `(channel_code, period_label) WHERE status='COMMITTED'`，
   仿 V431 先例**先 count 重复组 → >0 就 RAISE EXCEPTION**；本机 dev 表 0 行，其它库判据写进
   `DEPLOYMENT_CHECKLIST §3.1.5`（勿注释守卫、勿删历史批次）。索引兜并发双提交，服务层 409 兜顺序重放。
-- **MA-129 拍板选 ②**（读模型加「剩余毛额」列 + consumer 加一行），但**保持 open**：它要动 openapi 形状，
-  必须与 MA-127/128 同批做 shared-types regen，不在没 regen 的前提下先改后端。
+- **MA-129 拍板选 ②**（当时写成「读模型加『剩余毛额』列 + consumer 加一行」，并称**保持 open**、须与 MA-127/128
+  同批做 shared-types regen）。🔴 本行已被 `d8ff932c`（2026-11-03 14:56）的落地**订正**：实际按
+  **零后端字段**收口——剩余毛额由前端四列恒等式（实付+券+会员+活动）算出
+  （`clients/consumer-mp/src/pages/order-detail/order-detail.vue` 的 `remainingGrossCents`），不动 openapi 形状 ⇒ 「须等 regen」这条前置不成立，别据此排期。
 
 ### 2026-11-03（80 条 open 逐条回源码复核 → 批次A/B 收口：资金参数限幅单源 + 两条零归因；MA-081 撤账、9 条 500 口径订正、新增 MA-149）
 
