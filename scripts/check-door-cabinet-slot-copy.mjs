@@ -33,7 +33,10 @@ const SCOPES = [
  *  🔴 **命中数 ≠ 可见数**：逐处核过可达性，剩 83 处里绝大多数位于 `isDoorCabinet()` 守卫之内、
  *  或 `!isDoorCabinet` 的模板分支里（slotHint / stockDeltaText / 货道编辑格 / 「缺货 N 个货道」的
  *  非门柜分支…），开门柜用户看不到；它们属批 3b 要整段删掉的机件，不值为「降计数」去改写。
- *  真正可见的只有已修掉的：device-detail 那句「无货道概念」解释文案。 */
+ *  真正可见的只有已修掉的：device-detail 那句「无货道概念」解释文案。
+ *  🔴 S1a 教训（2026-11-04）：曾打算下线 mp「柜机盘点」页，**删前回查发现它同时承载开门柜盘点**
+ *  （`isDoorCabinet` 分支 + `deviceDoorStocktake`）⇒ 整页删除已回退。凡「看起来是货道专属」的
+ *  页面/组件，删前必须按 `isDoorCabinet` / `deviceDoorStocktake` 一类关键字反查一遍。 */
 const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 83);
 const TERM = '货道';
 
