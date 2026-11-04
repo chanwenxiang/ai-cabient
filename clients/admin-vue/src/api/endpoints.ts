@@ -370,13 +370,6 @@ export const AdminEndpoints = {
   replenishmentTaskCancelEmpty: (taskId: string | number) =>
     `${ops}/replenishment/tasks/${encodeURIComponent(String(taskId))}/cancel-empty`,
   /** C3 商品模板（铺货模板）：设备货道陈列存为模板 / 套用（V368） */
-  slotTemplates: () => `${ops}/slot-templates`,
-  slotTemplateSaveFromDevice: () => `${ops}/slot-templates`,
-  slotTemplateApply: (templateId: number | string, deviceId: string) =>
-    `${ops}/slot-templates/${encodeURIComponent(String(templateId))}/apply/${encodeURIComponent(deviceId)}`,
-  slotTemplateDelete: (templateId: number | string) =>
-    `${ops}/slot-templates/${encodeURIComponent(String(templateId))}`,
-
   replenishmentReportStaff: (days: number | string) =>
     `${ops}/replenishment-report/staff?days=${encodeURIComponent(String(days))}`,
   /** C2 理货记录台账（老系统 stock_operator_record 对位）：补货任务行粒度只读流水 */

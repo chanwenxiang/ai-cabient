@@ -347,16 +347,6 @@ const GUARDED = new Map([
     }
   ],
   [
-    'services/trade-service/src/test/java/com/aicabinet/trade/integration/SlotTemplateMappingSqlIT.java',
-    {
-      job: 'integration',
-      why:
-        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
-        'AU-172（批次 3）：钉陈列模板 @TableId(value="id") 映射修复——insert/selectById/deleteById ' +
-        '三链真库走通（修复前拼 template_id 列全链 500，单测纯 Mockito 拦不住）'
-    }
-  ],
-  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletRefIdempotencySqlIT.java',
     {
       job: 'integration',

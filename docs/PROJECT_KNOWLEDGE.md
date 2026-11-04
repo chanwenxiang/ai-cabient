@@ -684,6 +684,29 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（「开门柜不设货道概念」第三批：slot_template 整套退场——它本来就是死 UI）
+
+- **取证先于动手**：`openSaveTemplateDialog` / `openApplyTemplateDialog` 全仓零调用 ⇒「存为陈列模板 /
+  套用陈列模板」两个对话框**没有触发入口**；admin 是唯一消费者（mp 无），`slotTemplateDelete` 也无调用方
+  ⇒ 整套是死 UI + 死接口，删除零可见变化。
+- 删：`SlotTemplateController`（3 path / 4 operation，权限码复用 `ops:device:list|edit` ⇒ 不动权限基线）、
+  `SlotTemplate` + `SlotTemplateLine` domain、两个 mapper、`SlotTemplateService`、`SlotTemplateServiceTest`、
+  `SlotTemplateMappingSqlIT`，并**同步摘 GUARDED 登记**。🔴 踩点：GUARDED 是 `[路径, {job, why}]` 成对结构，
+  只删路径行会留下畸形项，把 `check-docker-tests-guarded` 自己跑崩（`GUARDED.keys()` 交出 Object ⇒
+  `join(root, p)` ERR_INVALID_ARG_TYPE）；摘条目要按「整对」删。
+- 表 `slot_template` / `slot_template_line`（V368）**不删**：删列要迁移 + 回滚方案，收益只是视觉干净；
+  列留着、读面没了，风险最低。dev 那 16 行 `device_slot` 与 30 行带 `slot_id` 的订单行同样留档，
+  清行只作为一条运维 SQL，不写进迁移（UAT 也有模拟器数据）。
+- 生成物 708 paths（−3）；`list_N` 序号整体前移是 openapi-typescript 按同名 operation 编号的机械结果，
+  type-check 与预检 95 门禁全绿。
+- **下一批 = 钱面**（必须配一轮 Docker IT，别和读面批混）：货道盘点 `stocktakeSlot`（它会 `adjustBookQty`
+  调账面）、货道级补货建议 `suggestSlotsForDevice`、账实差异告警、`InventoryService` 4 处实测同步、
+  `clampDeviceOverCapacity`、FEFO 的 per-slot 分摊与 `allocateRestockQuantity`、`ReplenishmentService`
+  货道分支、`DeviceDetailDto.slots`（与 `computeMetrics` 的 KPI 绑在一起，属钱/库存邻接）、以及
+  `scripts/e2e-inventory-phase-a.ps1`——它是上述路径唯一的回归消费者，必须同批处理，不能提前删。
+- 另记一笔死码：`useDeviceSlotActions.applyTemplate`（走 `deviceSlotsApplyTemplate`）在 admin 里同样零调用，
+  HEAD 就带着这条 eslint unused warning——归下一批一起判，本批不顺手改。
+
 ### 2026-11-04（「开门柜不设货道概念」第二批：货道热区读面整体移除 + 模拟器默认口径）
 
 - 用户第三次重申该口径（10-31 已说「我们系统没有货道了」，同日下方记过「admin『缺货建议』tab 只能由
