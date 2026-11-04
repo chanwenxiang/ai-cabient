@@ -7,8 +7,6 @@ import com.aicabinet.trade.service.FootfallAnalyticsService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 /**
  * 客流 / 热区分析（从 {@link OpsCommercialController} 按域抽出；URL 不变）。
  */
@@ -31,15 +29,6 @@ public class OpsAnalyticsController {
             @RequestParam(name = "deviceLimit", defaultValue = "50") int deviceLimit,
             @RequestParam(name = "skuLimit", defaultValue = "20") int skuLimit) {
         return ApiResponse.ok(footfallAnalyticsService.analytics(days, deviceLimit, skuLimit));
-    }
-
-    @RequiresPermissions("ops:analytics:footfall:view")
-    @GetMapping("/analytics/footfall/slots")
-    public ApiResponse<List<SlotHeatDto>> footfallSlotHeat(
-            HttpServletRequest request,
-            @RequestParam String deviceId,
-            @RequestParam(name = "days", defaultValue = "7") int days) {
-        return ApiResponse.ok(footfallAnalyticsService.slotHeat(deviceId, days));
     }
 
     private static Long operatorId(HttpServletRequest request) {

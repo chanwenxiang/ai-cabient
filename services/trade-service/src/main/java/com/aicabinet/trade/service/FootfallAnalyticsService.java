@@ -5,14 +5,11 @@ import com.aicabinet.common.dto.FootfallDeviceDto;
 import com.aicabinet.common.dto.FootfallOverviewDto;
 import com.aicabinet.common.dto.HourlyHeatDto;
 import com.aicabinet.common.dto.SkuHeatDto;
-import com.aicabinet.common.dto.SlotHeatDto;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
-import com.aicabinet.trade.mapper.DeviceSlotMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +25,9 @@ import java.util.Map;
 
 /**
  * 客流 / 时段热区 / 坪效分析：以开门会话为客流、支付订单为转化，输出柜机坪效排行、
- * 24 小时时段热力与商品热区（货道级订单行暂未带货道字段，热区以商品维度呈现）。
+ * 24 小时时段热力与商品热区。
+ * 🔴 热区只到商品维度：本系统是开门柜，订单行不带货道坐标；货道级热区读面已按
+ * 「开门柜不设货道概念」的口径整体移除（2026-11-04），别再往回加。
  */
 @Service
 public class FootfallAnalyticsService {
@@ -39,18 +38,15 @@ public class FootfallAnalyticsService {
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
     private final DeviceInfoMapper deviceRepository;
-    private final DeviceSlotMapper slotRepository;
 
     public FootfallAnalyticsService(ShoppingSessionMapper sessionRepository,
                                     CabinetOrderMapper orderRepository,
                                     CabinetOrderLineMapper orderLineRepository,
-                                    DeviceInfoMapper deviceRepository,
-                                    DeviceSlotMapper slotRepository) {
+                                    DeviceInfoMapper deviceRepository) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.deviceRepository = deviceRepository;
-        this.slotRepository = slotRepository;
     }
 
     @Transactional(readOnly = true)
@@ -93,64 +89,6 @@ public class FootfallAnalyticsService {
         List<HourlyHeatDto> hourly = bucketByHour(paidOrders);
         List<SkuHeatDto> skus = skuHeat(since, skuLimit);
         return new FootfallAnalyticsDto(overview, devices, hourly, skus);
-    }
-
-    /** 货道级热区：按销量分位给热度等级（3=最热），行/列来自货道档案。 */
-    @Transactional(readOnly = true)
-    public List<SlotHeatDto> slotHeat(String deviceId, int days) {
-        int d = Math.max(1, Math.min(days, 90));
-        Instant since = Instant.now().minusSeconds(d * 86400L);
-        Map<String, DeviceSlot> slots = new HashMap<>();
-        for (DeviceSlot slot : slotRepository.findByIdDeviceId(deviceId)) {
-            slots.putIfAbsent(slot.getSlotCode(), slot);
-        }
-        List<SlotHeatDto> out = new ArrayList<>();
-        for (Object[] row : orderLineRepository.slotBreakdownByDeviceSince(deviceId, since)) {
-            String slotId = (String) row[0];
-            DeviceSlot slot = slots.get(slotId);
-            out.add(new SlotHeatDto(
-                    slotId,
-                    slot != null ? slot.getRowNo() : 1,
-                    slot != null ? slot.getColNo() : 1,
-                    (String) row[1],
-                    (String) row[2],
-                    ((Number) row[3]).longValue(),
-                    ((Number) row[4]).longValue(),
-                    0));
-        }
-        out.sort(Comparator.comparingLong(SlotHeatDto::qtySold).reversed());
-        return applyHeatLevels(out);
-    }
-
-    private static List<SlotHeatDto> applyHeatLevels(List<SlotHeatDto> sorted) {
-        int n = sorted.size();
-        List<SlotHeatDto> out = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            SlotHeatDto row = sorted.get(i);
-            out.add(new SlotHeatDto(
-                    row.slotId(), row.rowNo(), row.colNo(),
-                    row.skuId(), row.skuName(), row.qtySold(),
-                    row.revenueCents(),
-                    heatLevel(i, n)));
-        }
-        return out;
-    }
-
-    private static int heatLevel(int index, int total) {
-        if (total <= 1) {
-            return 0;
-        }
-        double ratio = (double) index / total;
-        if (ratio < 0.25) {
-            return 3;
-        }
-        if (ratio < 0.5) {
-            return 2;
-        }
-        if (ratio < 0.75) {
-            return 1;
-        }
-        return 0;
     }
 
     private static long countRepeatBuyers(List<CabinetOrder> paidOrders) {

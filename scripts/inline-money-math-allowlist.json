@@ -6,8 +6,8 @@
   },
   {
     "file": "clients/admin-vue/src/views/analytics/FootfallView.vue",
-    "count": 6,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 5,
+    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增（2026-11-04 货道热区读面移除，随删一处）"
   },
   {
     "file": "clients/admin-vue/src/views/dashboard/BigScreenView.vue",

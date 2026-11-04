@@ -1,14 +1,11 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.FootfallAnalyticsDto;
-import com.aicabinet.common.dto.SlotHeatDto;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
-import com.aicabinet.trade.mapper.DeviceSlotMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,14 +30,13 @@ class FootfallAnalyticsServiceTest {
     @Mock private CabinetOrderMapper orderRepository;
     @Mock private CabinetOrderLineMapper orderLineRepository;
     @Mock private DeviceInfoMapper deviceRepository;
-    @Mock private DeviceSlotMapper slotRepository;
 
     private FootfallAnalyticsService service;
 
     @BeforeEach
     void setUp() {
         service = new FootfallAnalyticsService(sessionRepository, orderRepository,
-                orderLineRepository, deviceRepository, slotRepository);
+                orderLineRepository, deviceRepository);
     }
 
     private static CabinetOrder order(String orderId, long userId, String deviceId, int cents, Instant createdAt) {
@@ -94,26 +90,6 @@ class FootfallAnalyticsServiceTest {
         assertEquals("SKU-1", dto.topSkus().get(0).skuId());
     }
 
-    @Test
-    void slotHeat_shouldAggregateBySlotWithHeatLevels() {
-        when(slotRepository.findByIdDeviceId(eq("CAB-001"))).thenReturn(List.of(
-                slot("A1", 1, 1, "SKU-1"), slot("B2", 2, 2, "SKU-2")));
-        when(orderLineRepository.slotBreakdownByDeviceSince(eq("CAB-001"), any())).thenReturn(List.<Object[]>of(
-                new Object[]{"A1", "SKU-1", "可乐", 30, 9000},
-                new Object[]{"B2", "SKU-2", "薯片", 5, 1500}));
-
-        List<SlotHeatDto> out = service.slotHeat("CAB-001", 7);
-
-        assertEquals(2, out.size());
-        assertEquals("A1", out.get(0).slotId());
-        assertEquals(30, out.get(0).qtySold());
-        // 销量最高 → 热度 3
-        assertEquals(3, out.get(0).heatLevel());
-        assertEquals("B2", out.get(1).slotId());
-        assertEquals(2, out.get(1).rowNo());
-        assertEquals(1, out.get(1).heatLevel());
-    }
-
     private static DeviceInfo device(String id, String name) {
         DeviceInfo d = new DeviceInfo();
         d.setDeviceId(id);
@@ -121,12 +97,4 @@ class FootfallAnalyticsServiceTest {
         return d;
     }
 
-    private static DeviceSlot slot(String code, int row, int col, String skuId) {
-        DeviceSlot s = new DeviceSlot();
-        s.setSlotCode(code);
-        s.setRowNo(row);
-        s.setColNo(col);
-        s.setAssignedSkuId(skuId);
-        return s;
-    }
 }

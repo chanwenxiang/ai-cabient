@@ -137,14 +137,6 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
         return ColumnMapRows.toObjectRows(selectSoldQtyDailySince(since), 3);
     }
 
-    /** 按货道聚合销量/营收（货道热区），仅统计有 slot_id 的订单行。 */
-    List<LinkedHashMap<String, Object>> selectSlotBreakdownByDeviceSince(
-            @Param("deviceId") String deviceId, @Param("since") Instant since);
-
-    default List<Object[]> slotBreakdownByDeviceSince(String deviceId, Instant since) {
-        return ColumnMapRows.toObjectRows(selectSlotBreakdownByDeviceSince(deviceId, since), 5);
-    }
-
     long sumCogsBetween(@Param("start") Instant start, @Param("end") Instant end);
 
     List<LinkedHashMap<String, Object>> selectSkuBreakdownSince(@Param("since") Instant since);

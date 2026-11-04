@@ -120,17 +120,6 @@ export interface FootfallAnalytics {
   topSkus: SkuHeat[];
 }
 
-export interface SlotHeat {
-  slotId: string;
-  rowNo: number;
-  colNo: number;
-  skuId: string;
-  skuName: string;
-  qtySold: number;
-  revenueCents: number;
-  heatLevel: number;
-}
-
 export interface OrgNodeDto {
   nodeId: number;
   parentId?: number;

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">客流坪效</span>
-            <span class="hint">开门客流 · 转化 · 时段热区 · 柜机坪效 · 货道热区（仅货道柜）</span>
+            <span class="hint">开门客流 · 转化 · 时段热区 · 柜机坪效</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -184,45 +184,6 @@
           </el-table-column>
         </el-table>
       </div>
-
-      <div class="section-head">
-        <h4 class="section-title section-title--inline">货道热区（仅货道柜，选择柜机）</h4>
-        <div class="slot-controls">
-          <el-select
-            v-model="slotDeviceId"
-            filterable
-            placeholder="选择柜机"
-            style="width: 220px"
-            @change="loadSlotHeat"
-          >
-            <el-option
-              v-for="d in data?.devices || []"
-              :key="d.deviceId"
-              :label="`${d.deviceName}（${d.deviceId}）`"
-              :value="d.deviceId"
-            />
-          </el-select>
-          <span class="legend"
-            ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i
-              class="dot h0"
-            />冷</span
-          >
-        </div>
-      </div>
-      <div v-if="slotHeat.length" class="slot-grid">
-        <div
-          v-for="s in slotHeat"
-          :key="s.slotId"
-          class="slot-cell"
-          :class="`heat-${s.heatLevel}`"
-          :title="`${s.slotId} · ${s.skuName} · ${s.qtySold} 件 · ¥${(s.revenueCents / 100).toFixed(2)}`"
-        >
-          <span class="slot-code">{{ s.slotId }}</span>
-          <span class="slot-sku">{{ s.skuName }}</span>
-          <span class="slot-qty">{{ s.qtySold }} 件</span>
-        </div>
-      </div>
-      <p v-else class="muted">选择货道柜查看货道热区；开门柜订单不含货道坐标，此处无数据</p>
     </div>
   </el-card>
 </template>
@@ -234,13 +195,11 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import type { FootfallAnalytics, SlotHeat } from '@aicabinet/shared-types';
+import type { FootfallAnalytics } from '@aicabinet/shared-types';
 
 const loading = ref(false);
 const days = ref(7);
 const data = ref<FootfallAnalytics | null>(null);
-const slotDeviceId = ref('');
-const slotHeat = ref<SlotHeat[]>([]);
 
 const topSkuRevenueTotal = computed(() =>
   (data.value?.topSkus || []).reduce((sum, row) => sum + Number(row.revenueCents || 0), 0)
@@ -250,8 +209,7 @@ onMounted(() => {
   load();
 });
 
-// 🔴 过期响应守卫（createLoadSeq）：天数/设备切换连发请求时，慢的旧响应不得覆盖新结果。
-// load 用默认通道，loadSlotHeat 用 'slot' 通道（与 load 并行触发，各自序号）。
+// 🔴 过期响应守卫（createLoadSeq）：天数切换连发请求时，慢的旧响应不得覆盖新结果。
 const loadSeq = createLoadSeq();
 
 async function load() {
@@ -262,36 +220,14 @@ async function load() {
       AdminEndpoints.analyticsFootfall(days.value),
       'GET'
     );
-    // 过时响应（更新的请求已在途）整体丢弃：不写数据、不联动货道热力
+    // 过时响应（更新的请求已在途）整体丢弃：不写数据
     if (!loadSeq.isCurrent(seq)) return;
     data.value = fresh;
-    if (data.value?.devices?.length && !slotDeviceId.value) {
-      slotDeviceId.value = data.value.devices[0].deviceId;
-      await loadSlotHeat();
-    }
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
     ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
   } finally {
     loading.value = false;
-  }
-}
-
-async function loadSlotHeat() {
-  if (!slotDeviceId.value) return;
-  const seq = loadSeq.begin('slot');
-  try {
-    const heat =
-      (await api.request<SlotHeat[]>(
-        AdminEndpoints.analyticsFootfallSlots(slotDeviceId.value, days.value),
-        'GET'
-      )) || [];
-    // 设备/天数连切：过时热力图不覆盖
-    if (!loadSeq.isCurrent(seq, 'slot')) return;
-    slotHeat.value = heat;
-  } catch {
-    if (!loadSeq.isCurrent(seq, 'slot')) return;
-    slotHeat.value = [];
   }
 }
 
@@ -402,84 +338,5 @@ function barHeight(orders: number) {
   margin-top: 4px;
   font-size: 10px;
   color: var(--el-text-color-secondary);
-}
-.slot-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.legend {
-  font-size: var(--admin-font-size-sm);
-  color: var(--el-text-color-secondary);
-}
-.dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  margin: 0 2px 0 6px;
-}
-.dot.h3 {
-  background: #dc2626;
-}
-.dot.h2 {
-  background: #f97316;
-}
-.dot.h1 {
-  background: #fbbf24;
-}
-.dot.h0 {
-  background: #e5e7eb;
-}
-.slot-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-}
-.slot-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--el-border-color-lighter);
-  min-width: 0;
-}
-.slot-cell.heat-3 {
-  background: #fee2e2;
-}
-.slot-cell.heat-2 {
-  background: #ffedd5;
-}
-.slot-cell.heat-1 {
-  background: #fef3c7;
-}
-.slot-cell.heat-0 {
-  background: #f9fafb;
-}
-.slot-code {
-  font-size: var(--admin-font-size-sm);
-  font-weight: 700;
-}
-.slot-sku {
-  font-size: var(--admin-font-size-sm);
-  color: #334155;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.slot-qty {
-  font-size: var(--admin-font-size-sm);
-  font-weight: 700;
-  color: #0f172a;
-  font-variant-numeric: tabular-nums;
-}
-.muted {
-  color: var(--el-text-color-secondary);
-  font-size: var(--admin-font-size-sm);
 }
 </style>

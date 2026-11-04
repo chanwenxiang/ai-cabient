@@ -973,8 +973,6 @@ export const AdminEndpoints = {
   consistencyFix: (failureId: string | number) =>
     `${ops}/consistency/${encodeURIComponent(String(failureId))}/fix`,
   analyticsFootfall: (days: number) => `${ops}/analytics/footfall?days=${days}`,
-  analyticsFootfallSlots: (deviceId: string, days: number) =>
-    `${ops}/analytics/footfall/slots?deviceId=${encodeURIComponent(deviceId)}&days=${days}`,
   /**
    * 地址 → 坐标。
    * 🔴 `city` / `district` 必须带上：不给定时高德全国模糊匹配，实测会把

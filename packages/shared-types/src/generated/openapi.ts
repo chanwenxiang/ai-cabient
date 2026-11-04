@@ -9580,22 +9580,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/analytics/footfall/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["footfallSlotHeat"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/merchant/workbench": {
         parameters: {
             query?: never;
@@ -19575,27 +19559,6 @@ export interface components {
             qtySold?: number;
             /** Format: int64 */
             revenueCents?: number;
-        };
-        ApiResponseListSlotHeatDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SlotHeatDto"][];
-        };
-        SlotHeatDto: {
-            slotId?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            skuId?: string;
-            skuName?: string;
-            /** Format: int64 */
-            qtySold?: number;
-            /** Format: int64 */
-            revenueCents?: number;
-            /** Format: int32 */
-            heatLevel?: number;
         };
         ApiResponsePageResultAdCampaignDto: {
             /** Format: int32 */
@@ -37236,29 +37199,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseFootfallAnalyticsDto"];
-                };
-            };
-        };
-    };
-    footfallSlotHeat: {
-        parameters: {
-            query: {
-                deviceId: string;
-                days?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSlotHeatDto"];
                 };
             };
         };
