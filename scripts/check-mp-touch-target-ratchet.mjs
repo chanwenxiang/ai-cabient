@@ -44,7 +44,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 235);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 220);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
@@ -220,6 +220,19 @@ export function violationKind(size) {
   return null;
 }
 
+/**
+ * 生效尺寸：BEM 修饰符 `x--y` 与基类 `x` 同时挂在元素上时，CSS 是**叠加**的。
+ * 解析器按类各记一条（不做级联），会把 `.app-btn--sm` 判成「横向量不出」——假「不可验」。
+ * 这里按命名约定把基类当默认值、修饰符自身声明的值优先（因此修饰符写小了照样判红）。
+ */
+export function effectiveSize(sizes, cls) {
+  const own = sizes.get(cls) || {};
+  const i = cls.indexOf('--');
+  if (i <= 0) return own;
+  const base = sizes.get(cls.slice(0, i));
+  return base ? { ...base, ...own } : own;
+}
+
 function selfTest() {
   const cases = [
     { css: '.a{width:72rpx;height:72rpx}', cls: 'a', want: 'undersized', why: '72×72 明显小于 88' },
@@ -296,11 +309,23 @@ function selfTest() {
       cls: 'a',
       want: null,
       why: '装饰性伪元素不污染基类尺寸'
+    },
+    {
+      css: '.app-btn{min-height:88rpx;min-width:88rpx}\n.app-btn--sm{height:72rpx}\n.app-btn--sm::after{content:"";position:absolute;inset:-8rpx}',
+      cls: 'app-btn--sm',
+      want: null,
+      why: 'BEM 修饰符继承基类：88 宽 + (72+16) 高 ⇒ 达标（旧版按类各记 ⇒ 假不可验）'
+    },
+    {
+      css: '.app-btn{min-height:88rpx;min-width:88rpx}\n.app-btn--bad{height:40rpx}',
+      cls: 'app-btn--bad',
+      want: 'undersized',
+      why: '修饰符自己写小了仍判红：继承只补默认值，不掩盖覆盖'
     }
   ];
   let bad = 0;
   for (const c of cases) {
-    const got = violationKind(parseClassSizes(c.css).get(c.cls) || {});
+    const got = violationKind(effectiveSize(parseClassSizes(c.css), c.cls));
     const ok = got === c.want;
     if (!ok) bad++;
     console.log(`  [${ok ? 'ok' : 'BAD'}] ${c.why} ⇒ ${got}`);
@@ -359,7 +384,7 @@ function main() {
     for (const cls of candidates) {
       // 🔴 旧版这里是 `if (size && isViolation(size))`：类在别处定义、或只有 padding 时
       // `sizes.get(cls)` 是 undefined ⇒ 直接跳过 = 第三种「静默放行」。改成空对象照样判。
-      const size = sizes.get(cls) || {};
+      const size = effectiveSize(sizes, cls);
       const kind = violationKind(size);
       if (!kind) continue;
       if (EXEMPT.some((e) => e.file === rel && e.class === cls)) continue;

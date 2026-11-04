@@ -693,9 +693,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
   （consumer）；`.scan-line` 52→−18、`.menu-cell` 84→−2（merchant）；`.app-btn--text` 64→−12、
   `.privacy-btn` 80→−4（shared-uni）。
 - **为什么只扩纵向**：横向扩会压到相邻元素的可点窗口（如 chip 之间只有 12rpx 间距），纵向扩不抢邻居。
-- 棘轮：`TOUCH_BASELINE` **8 → 0**（这一档从此是「硬禁新增」）；`TOUCH_UNVERIFIABLE_BASELINE` 仍 235
-  ——那 235 处是「量不出热区的可点类」，不是都算 bug，随页面改到再逐个补显式尺寸并下调。
-- 验证：门禁两档 `0/0` 与 `235/235`、`--selftest` 23 项、两端 `vue-tsc` + `vitest` 绿、
+- 棘轮：`TOUCH_BASELINE` **8 → 0**（这一档从此是「硬禁新增」）。
+- 同轮收尾「不可验」里的**假阳性**：解析器按类各记一条、不做级联，`app-btn--*` 变体全被判成
+  「横向量不出」——现在按 BEM 约定把 `x--y` 的基类当默认值（修饰符自己写小了**照样判红**，配了负向用例），
+  并给 `.app-btn` 基类补 `min-width: 88rpx`。`TOUCH_UNVERIFIABLE_BASELINE` **235 → 220**。
+- 仍留 4 条不可验：3 处 `.aux-link`（纵向已扩到 88，横向量不出）+ 1 处 `.app-btn-flex`。
+  `.aux-link` 横向要到 88 只能加宽盒子（挤动同行文本）或横向伪元素扩（盖邻居）⇒ 属 MA-157 的
+  **产品取舍**，不在门禁里硬改。
+- 验证：门禁两档 `0/0` 与 `220/220`、`--selftest` 24 项、两端 `vue-tsc` + `vitest` 绿、
   两端 `build:mp-weixin`（release）绿、prettier 绿。
 
 ### 2026-11-04（3b 近失纠正：mp「柜机盘点」**不是**货道专属页——它同时承载开门柜盘点）

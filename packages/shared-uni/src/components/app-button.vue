@@ -78,6 +78,9 @@ export default { name: 'AppButton' };
   margin: 0;
   min-height: 88rpx;
   height: 88rpx;
+  /* 横向可证下限：按钮本体靠 padding 撑宽，判据量不出；88rpx 是热区阈值本身，
+     内容更宽时不受影响（sm/text 等变体也继承这一条） */
+  min-width: 88rpx;
   padding: 0 36rpx;
   border-radius: var(--radius-btn, 16rpx);
   font-size: 34rpx;
