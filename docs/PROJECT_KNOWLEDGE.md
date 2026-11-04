@@ -684,6 +684,24 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 第二刀：merchant 侧货道面退场——3 端点 + mp 读面/写面；机件本体仍留）
+
+- **范围**：后端删 `GET|PUT /merchant/devices/{id}/slots`、`POST /slots/stocktake` 与两层 portal
+  包装（`MerchantPortalService` / `MerchantDevicePortalService`）；`DeviceSlotService` 机件、
+  `DeviceDetailDto.slots`、数据列**全部保留**（机件本体下一轮）。
+- **mp（按分支删，不删页）**：设备详情删货道网格/保存与「柜机盘点」快捷项（该入口自 2026-10-28 起本就对
+  开门柜隐藏）；盘点页删弹簧柜分支，非将邑柜改为明确「不支持在线盘点」；补货详情删货道容量/选货道/
+  待分配提示；自主补货草稿改为「在架台账为唯一骨架」（`buildDraftLines(suggestMap, rows)`，
+  台账读失败退回孤儿建议）。
+- **契约**：openapi 705 → 703 paths；`SlotStocktakeRequest` 随端点消失 ⇒ 删该别名与无消费方的
+  `DeviceSlot` / `UpsertDeviceSlotRequest` 手写接口。抓 spec 用一次性库 `aicabinet_openapi_3b2`
+  + redis db14 + :18093，用完 DROP/FLUSH（0 行乱码，diff 仅 2 个文件）。
+- **门禁**：货道文案棘轮 73 → 26；热区不可验 220 → 219；`check:stocktake-chain` 的「详情页必须有盘点
+  入口」改为**反向锚**「详情页不得有盘点入口」（开门要求人在柜边，入口只在首页扫码）。
+- 验证：trade `2767` 单测绿；merchant-mp `vue-tsc` 绿、`vitest 248` 绿、`build:mp-weixin:dev` 绿
+  （产物内「选择货道/保存货道/货道待分配」0 命中）；preflight 96 门禁 0 失败。
+  ⚠️ 本机未起微信开发者工具，mp 的真机/模拟器点检未做（按代码分支与产物字面量取证）。
+
 ### 2026-11-04（批 3b 首刀：ops 侧货道面退场——4 个端点 + 12 个死方法 + admin 货道 UI）
 
 - **取证先行**：ops 货道端点只被 admin 用（`admin/endpoints.ts:142-146`、`useDeviceSlotActions`、
