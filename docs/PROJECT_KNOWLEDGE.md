@@ -684,6 +684,34 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（「开门柜不设货道概念」第二批：货道热区读面整体移除 + 模拟器默认口径）
+
+- 用户第三次重申该口径（10-31 已说「我们系统没有货道了」，同日下方记过「admin『缺货建议』tab 只能由
+  `device_slot` 构造 ⇒ 车队只有开门柜后恒空」，那轮只改了措辞没动契约）。本批把 admin 客流坪效页的
+  「货道热区」**整条读面**删掉：端点 `GET /ops/admin/analytics/footfall/slots`、
+  `FootfallAnalyticsService.slotHeat/applyHeatLevels/heatLevel`、`CabinetOrderLineMapper.slotBreakdownByDeviceSince` + XML select、
+  `SlotHeatDto`、`shared-types` 手写 `SlotHeat`、前端整段与只有它在用的样式。源笔 `29d7f343` + 产物笔 `985f37bf`。
+- **为什么敢删（逐条回源码，不是推断）**：开门柜的钱与库存真相不依赖货道——写面 `DeviceSlotService.assertNotDoorCabinet`
+  对将邑柜恒 409，判据 `isDoorCabinet` 固定 jiangyi BOUND；`resolveDevicesForShortage` / `listDiscrepancyAlerts`
+  直接排除开门柜；`countSlotStock` 开门柜走 `doorCabinetStockStats`（台账 SKU）；`selectSumBookQtyBySlot` 的 SQL
+  自带 `slot_id IS NOT NULL`（真柜 9 条 lot 实测 slot_id 全 NULL ⇒ 恒空集，不 NPE）；销售/退款同步实测与
+  补货关门重力快照在 0 条货道时是 no-op；`InventoryLotService` 两处按货道在 `slotId==null` 时早 return。
+- **模拟器口径**：`DeviceSimulator.resolveGravityJson` 默认只发 `{skuId, delta}`，不再默认塞 `slotId=A1`；
+  显式设 `AICABINET_SIM_GRAVITY_SLOT` 才走货道——`scripts/e2e-inventory-phase-a.ps1` 是唯一跑货道链的 E2E
+  且**没接进 CI**（workflows / 聚合链 / package.json 均无），这个口子是给它留的。`infra/docker-compose.full.yml`
+  那行 `AICABINET_SIM_GRAVITY_SLOT: A1` 是死旋钮（同服务 `AICABINET_SIM_GRAVITY_JSON` 默认 `[]`，永远进不到
+  SKU/SLOT 分支），已删。
+- **仍活着的货道面（要退场须单独拍一批）**：设备详情「货道」tab、`slot_template` 三端点、货道盘点 `stocktakeSlot`、
+  货道级补货建议 `suggestSlotsForDevice`、账实差异告警。数据侧 `device_slot`（dev 现 16 行，属模拟器
+  `500909625160` 与 `CAB-OTHER`）和 `device_sku_lot.slot_id` 两列**都保留不动**。那批要同时过 FEFO／容量钳制／
+  关门快照／盘点差异四条钱面判据 + 全量 + regen，不能和读面清理混成一笔。
+- 订单行 `slot_id` 的唯一写入点是设备上报（`SettlementOrderSupport`）⇒ 之后新单恒 null；dev 库现有 30 行
+  （全部来自模拟器那台货道柜）保留，但已无按货道的读面。
+- 验证：`mvn -pl services/trade-service -am test-compile` 与 `FootfallAnalyticsServiceTest` 绿；regen 用一次性空库
+  `aicabinet_openapi_1104`（Flyway 从零 436 迁移）+ redis db15 + 端口 18091，用完 `DROP DATABASE` + `FLUSHDB 15`，
+  未碰 18080 与共享 dev 库；真 Chrome 打开 `/admin/footfall` 七项断言全过（含「整页不再出现货道」）；
+  预检 95 门禁 0 失败；`inline-money-math` 白名单随删一处下调 6→5（棘轮只减不增）。
+
 ### 2026-11-03（批次C′：复核判为「P3 名义但实碰钱/鉴权」的先收——MA-085/088/089/093/118/119）
 
 - 顺序按爆炸半径而非级别标签：展示类（MA-127/128/129）排在资金与鉴权面之后。
