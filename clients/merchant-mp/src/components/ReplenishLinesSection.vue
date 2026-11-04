@@ -17,8 +17,8 @@
       }}</view>
     </view>
     <view
-      v-for="line in lines"
-      :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`"
+      v-for="(line, idx) in lines"
+      :key="`${line.lineId || 'draft'}-${line.skuId}-${line.batchNo || idx}`"
       class="line-card"
     >
       <!-- 单行居中：名称 + 数量/扫码 + 货道标签，不再拆成多行堆叠 -->

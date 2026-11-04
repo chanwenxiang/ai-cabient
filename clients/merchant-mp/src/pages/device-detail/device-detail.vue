@@ -278,7 +278,7 @@
           <view class="row">
             <text class="section">{{ isDoorCabinet ? '在架商品' : '货道' }}</text>
             <text v-if="!isDoorCabinet && !canEditSlots" class="meta">暂无货道编辑权限</text>
-            <text v-else-if="isDoorCabinet" class="meta">开门柜按商品备货，无货道概念</text>
+            <text v-else-if="isDoorCabinet" class="meta">按商品备货，库存见下方「在架商品」</text>
           </view>
           <!-- 方案A 第一步：开门柜（将邑）不展示/不可存货道——在架商品走台账
                （skuInventory：商品名+库存/容量，与建议、补货同一口径） -->

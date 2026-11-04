@@ -684,6 +684,24 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 第二档：商户端按**可达性**复核——84 处里只有 1 处真可见；修那处 + 补货明细重复 key）
+
+- **不按计数改文案，按可达性**：逐处核过商户端 84 处「货道」——
+  · `useReplenishmentDisplay.ts` 8 处全在前提里（`slotHintImpl` 首行 `if (… || isDoorCabinet()) return ''`、
+    `stockDeltaText` 首行 `if (!code) return ''`（门柜 `slotId` 恒 null）、`noSlot` 分支带 `!isDoorCabinet()`）
+    ⇒ 开门柜拿到空串；
+  · `device-detail.vue` 的货道编辑格与「保存货道」在 `!isDoorCabinet` 的模板块内；「缺货 N 个货道」
+    是门柜分支的 else 支（门柜走「…个商品」）；
+  · **唯一真可见**：`:280`「开门柜按商品备货，无货道概念」——解释文案本身把词摆到用户眼前，
+    改成「按商品备货，库存见下方『在架商品』」。
+  结论：剩 83 处都在柜型守卫内、属批 3b 要整段删的机件，**不值为「降计数」去改写**。
+- 顺手修真 bug：`ReplenishLinesSection.vue` 的 `v-for :key` 原本是
+  `` line.lineId || `${skuId}-${batchNo}-${slotId}` `` —— 草稿行没有 `lineId`、开门柜 `slotId` 恒 null
+  ⇒ 同 SKU 同批次两行会撞 key。改成 `` `${lineId || 'draft'}-${skuId}-${batchNo || idx}` ``。
+- 刻度 84 → **83**（23 文件）；并把「命中数 ≠ 可见数」写进门禁注释，防止后人拿它当「可见泄漏数」用。
+- 验证：merchant `vue-tsc` 绿、vitest **253 例**绿、`build:mp-weixin`（release）绿、prettier 绿、
+  棘轮 `--selftest` 与实跑按 83 通过。不动后端/不改 API 形状 ⇒ 无需 regen。
+
 ### 2026-11-04（修 MA-159：热区门禁三处「恒放行」——判据改成「单边可证即判」+ inset 按边展开 + 动态类前缀）
 
 - 审计那句「补扫 shared-uni/components 的判定收益是 0」成立，根因三处（我逐处回源码核过）：
