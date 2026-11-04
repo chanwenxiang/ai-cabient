@@ -74,6 +74,7 @@ export default { name: 'AppButton' };
 
 <style scoped>
 .app-btn {
+  position: relative;
   margin: 0;
   min-height: 88rpx;
   height: 88rpx;
@@ -95,6 +96,14 @@ export default { name: 'AppButton' };
 .app-btn--block {
   width: 100%;
   align-self: stretch;
+}
+/* MA-156（2026-11-04）：sm/compact 本体 72rpx < 88rpx 热区阈值 ⇒ 伪元素四周扩 8rpx
+ * （72+16=88，touch-target 棘轮按「尺寸+2×hit」计）。compact 是历史别名，仍受支持。 */
+.app-btn--sm::after,
+.app-btn--compact::after {
+  content: '';
+  position: absolute;
+  inset: -8rpx;
 }
 /* size 档位：sm 72rpx / md 88rpx / lg 保持基线 88rpx。compact 是历史别名，仍受支持。 */
 .app-btn--sm {

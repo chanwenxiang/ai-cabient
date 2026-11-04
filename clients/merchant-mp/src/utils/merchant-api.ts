@@ -840,7 +840,7 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiMerchantShortageSummaryDto[]>(
       MerchantEndpoints.replenishmentShortageSummary
     ),
-  /** 自主补货：直接生成分仓出库 + 补货任务（无审批） */
+  /** 自主补货：直接生成补货任务并领货上柜（无审批） */
   selfInitiateReplenishment: (
     body: import('@aicabinet/shared-types').OpenApiMerchantSelfReplenishRequest
   ) =>

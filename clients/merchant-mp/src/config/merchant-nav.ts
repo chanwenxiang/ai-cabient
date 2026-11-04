@@ -194,7 +194,7 @@ export const MERCHANT_MORE_NAV: MerchantNavItem[] = [
   {
     key: 'self-replenish',
     title: '发起补货',
-    desc: '缺啥补啥，直接生成分仓出库与补货任务',
+    desc: '缺啥补啥，直接生成补货任务并领货上柜',
     url: '/pages/self-replenish/self-replenish',
     perm: 'merchant:replenishment:view',
     pack: 'field',

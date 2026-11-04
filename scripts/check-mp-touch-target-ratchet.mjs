@@ -30,7 +30,12 @@ const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
 
-const SCOPES = ['clients/consumer-mp/src', 'clients/merchant-mp/src'];
+const SCOPES = [
+  'clients/consumer-mp/src',
+  'clients/merchant-mp/src',
+  // MA-156：组件内部尺寸变体（如 app-button sm/compact 72rpx）此前是扫描盲区
+  'packages/shared-uni/src/components',
+];
 
 function walk(dir, out = []) {
   if (!statExists(dir)) return out;

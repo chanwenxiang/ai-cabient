@@ -57,6 +57,7 @@ const FILES = {
     'services/trade-service/src/main/java/com/aicabinet/trade/service/OpsWorkbenchQueryService.java',
   mpFulfillment: 'clients/merchant-mp/src/composables/useReplenishmentFulfillment.ts',
   mpPrep: 'clients/merchant-mp/src/pages/prep-generate/prep-generate.vue',
+  merchantNav: 'clients/merchant-mp/src/config/merchant-nav.ts',
   pageMaster: 'clients/admin-vue/src/views/warehouse/WarehouseMasterPage.vue',
   pageProcurement: 'clients/admin-vue/src/views/warehouse/WarehouseProcurementPage.vue',
   pageStock: 'clients/admin-vue/src/views/warehouse/WarehouseStockPage.vue',
@@ -214,6 +215,7 @@ const BANNED = [
   ['filterComposable', ['暂无在途', '到柜签收']],
   ['routeActions', ['已发运未签收', '脏出库/在途']],
   ['menu', ['调拨与在途']],
+  ['merchantNav', ['分仓出库', '出库与补货任务']], /* MA-155：mine 导航描述在门禁白名单盲区（2026-11-04 实测） */
   ['router', ['调拨与在途']],
   ['dashboard', ['签收超时']],
   ['bigScreen', ["IN_TRANSIT_OVERDUE: '在途'"]],
@@ -278,6 +280,17 @@ for (const key of ['pageMaster', 'pageProcurement', 'pageStock', 'pageFulfillmen
   if (!src[key]) continue;
   if (!/(^|\s)hint="/.test(src[key])) {
     problems.push(`${FILES[key]} 没传 hint 属性 —— 子页说明落回了整页兜底文案，四个子页同说一句`);
+  }
+}
+
+if (!src.merchantNav) {
+  problems.push('merchant-mp 的 merchant-nav.ts 读不到——发起补货导航描述无从校验');
+} else {
+  const navDesc = src.merchantNav.match(/desc: '(缺啥补啥[^']*)'/);
+  if (!navDesc) {
+    problems.push('merchant-nav 里找不到「缺啥补啥」发起补货描述（可能已改写，请重订门禁锚）');
+  } else if (!/领货上柜/.test(navDesc[1]) || /出库/.test(navDesc[1])) {
+    problems.push(`发起补货描述未对齐「领货上柜」口径：${navDesc[1]}`);
   }
 }
 

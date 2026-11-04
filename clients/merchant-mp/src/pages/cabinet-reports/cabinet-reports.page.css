@@ -43,7 +43,14 @@
   margin: 8rpx 0 16rpx;
 }
 .aux-link {
+  position: relative;
   padding: 8rpx 16rpx 8rpx 0;
+}
+.aux-link::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx 0;
+}
   font-size: var(--font-size-sm);
   color: var(--text-muted, #475569);
 }

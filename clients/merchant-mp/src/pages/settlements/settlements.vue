@@ -563,8 +563,14 @@ function onExport() {
   margin-bottom: 12rpx;
 }
 .aux-link {
+  position: relative;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
+}
+.aux-link::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx 0;
 }
 .aux-link.active {
   color: var(--brand);

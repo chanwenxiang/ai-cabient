@@ -628,10 +628,16 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   margin-top: 14rpx;
 }
 .aux-link {
+  position: relative;
   padding: 8rpx 4rpx;
   font-size: var(--font-size-sm);
   color: var(--text-muted, #475569);
   flex-shrink: 0;
+}
+.aux-link::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx 0;
 }
 .aux-link.active {
   color: var(--brand);

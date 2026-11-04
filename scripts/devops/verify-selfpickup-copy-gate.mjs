@@ -50,6 +50,7 @@ const F = {
   workbench: `${TRADE}/service/OpsWorkbenchQueryService.java`,
   mpFulfillment: `${MP}/composables/useReplenishmentFulfillment.ts`,
   mpPrep: `${MP}/pages/prep-generate/prep-generate.vue`,
+  merchantNav: `${MP}/config/merchant-nav.ts`, // MA-155：正门禁 FILES 新增，沙箱拷贝清单同步
   pageStock: `${ADMIN}/views/warehouse/WarehouseStockPage.vue`
 };
 
@@ -73,6 +74,7 @@ const TARGETS = [
   F.workbench,
   F.mpFulfillment,
   F.mpPrep,
+  F.merchantNav,
   `${ADMIN}/views/warehouse/WarehouseMasterPage.vue`,
   F.pageStock,
   `${ADMIN}/views/warehouse/WarehouseProcurementPage.vue`,
