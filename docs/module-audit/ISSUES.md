@@ -78,6 +78,8 @@
 | MA-149 | P2 | fixed（收窄两处注解；条码查询保留 OR） | `POST/PUT /ops/admin/skus`（建/改商品） | 注解 `OR{ops:sku:edit, ops:sku:import}`（AdminDashboardController.java:517/:527）与服务层单码 `ops:sku:edit`（OpsCatalogAdminService.java:115/:140）双轨：`ops:sku:import` 是 V106 已授角色的**真码**，只授「导入商品」的运营过注解门后建/改商品恒 403，只能靠 `ops:*` 通配绕过（MA-105 同族，但那条的 `ops:finance:view` 分支更少被授） | Qoder 批次A/B 复核时挖出 / 2026-11-03 | 新增 |
 | MA-150 | P3 | open（已登记，等流量主接入再定防刷强度） | 广告打点回写无归属主体 | `POST /api/v2/devices/{deviceId}/ad-play`（`DeviceController#adPlay`）既不取登录主体、服务层 `recordPlayEvent` 也不校验调用者能否写这台柜机；`ad_play_event`（V191）没有 user 列，去重键是 `(device, campaign, asset, type)` ⇒ 换 deviceId 即绕开 60s 窗口，事后也查不出这批曝光来自谁 | 权限矩阵规则 2 首跑 / 2026-11-04 | **口径订正（用户 2026-11-04）**：我们是**收益侧**——接腾讯广告做流量主赚钱，自有活动位放自己的活动，不是花钱投放；曝光面 = 首页 / 开门前 / 关门后（所以「绑会话才计数」的方案作废）。现无资金路径（实测：`ad_play_event`/`AdPlayEvent` 只被 `DeviceController`/`DeviceInternalController`/`MarketingController`/`AdCampaignService` 与 ROI 报表读，未进分账/费用台账/结算/佣金任何一处）⇒ 危害目前限于内部决策报表失真；接流量主后结算以腾讯后台为准，自刷反而踩对方反作弊，属于「绝不能自动补量」的合规问题而不是配额问题。待拍板的最小动作＝归因（加可空 `user_id` + 去重键含 user + 报表显式列「人均/单用户最大次数」），**不设配额阈值**（当前无真实流量分布，阈值只能是猜的死旋钮） |
 | MA-151 | P3 | fixed（批次 S：三列 + 三位置全打点 + 9 例钉测） | 开门前 / 关门后弹窗位完全无打点 | `MarketingController` 只有 `/ads/{campaignId}/events`（banner 组件在用），而 CB-082 的两个弹窗位（`POPUP_BEFORE_OPEN` 首页、`POPUP_AFTER_CLOSE` 结果页）从展示到点击一次都不上报 ⇒ 「这个活动位有多少人看过/点过」在弹窗位上是**空数据**；另外小程序主体此前被伪装成柜机号写入 `device_id`（`MP-U{userId}`），去重键也是设备维度 ⇒ 换 deviceId 就绕过 60s 窗口 | Qoder 批次 S / 2026-11-04 | 「多少人享受活动」不在本行——权威口径是 `cabinet_order.promotion_id + activity_discount_cents`（本批未动） |
+| MA-152 | P2 | fixed（批次 T：V440 放开两列 + 反向 CHECK IT） | 批次 S 的弹窗位打点**在真库 100% 插入失败**，而前端把它降成一条 console 噪音 | `ad_play_event`（V191）的 `campaign_id BIGINT NOT NULL` 与 `device_id VARCHAR(64) NOT NULL` 从没被放宽，而批次 S 的弹窗事件按设计**只有** `activity_id`（campaign_id/device_id 皆 null）⇒ 每一次 `POST /api/v2/marketing/placement-events` 都在 DB 层炸 `NotNullViolation`；MP 侧 `.catch(e => console.warn(...))` 把它吞成一条日志 ⇒ 真机上看不到任何异常，弹窗位仍是零数据，只是原因从「没上报」变成「上报必失败」。9 例单测全绿（mapper 是 mock，MyBatis-Plus 生成的 INSERT 从未被执行） | 批次 T 的 `PlacementEffectSqlIT` 首跑（2026-11-04） | 与 MA-151 同族但判据不同：那条是「代码不报」，这条是「报了也进不了库」。修法=`V440` 放开两列 NOT NULL，并补 `ck_ad_play_subject`（campaign_id 与 activity_id 至少一个）兜住底线，配一条**反向** IT 钉「两主体全空的行必须被拒」 |
+| MA-153 | P2 | fixed（编码还原由并发会话 `569ac0a6` 落仓；本批补**产物侧哨兵** + 批次 T 形状 regen） | regen 把 `openapi.ts` 里 460 个中文写成双重编码乱码，本地门禁全绿、CI 独红 | 批次 S 的 live regen 落盘的产物里所有 springdoc 中文描述变成「UTF-8 字节按 latin1 解码后再存 UTF-8」形态（`点位费用配置` ⇒ `ç¹ä½Mè´¹…`，`Buffer.from(x,'latin1').toString('utf8')` 可逐字节还原）；类型名与结构全是 ASCII ⇒ **形状门禁与结构校验都看不见**，只有 CI 起 HEAD 的 jar 抽真 spec 做 `git diff` 才红（`build` job:41761621025）。批次 S 的**形状**其实是对的：按现抓 spec 重打后「删除行去掉注释 = 0 行」 | Qoder 批次 T 归因 / 2026-11-04 | 取 spec 的那一步为何被码页污染没能复现（`.tmp` 里现存的 spec 全部干净），所以补的是**产物侧哨兵**而不是链路修法：`check-openapi-types.mjs` 现在对 `openapi.ts` + 8 个别名文件跑 `[\u00c2-\u00f3][\u0080-\u00bf]` 判定，命中即 exit 1；`check-openapi-types.test.mjs` 9 向钉测（含「正常中文注释不得误报」「缺失仍要红」「沙箱不碰真实树」）。peer 同期在 `gen-openapi-types.mjs` 加了落盘前防线，两处不重复：一个拦「写坏」，一个拦「已坏的推上去」 |
 
 | MA-068 | P2 | fixed（钉测 1 例） | merchant-mp `POST /merchant/devices/{id}/stocktake-evidence` | 盘点凭证上传缺设备归属校验（同 Controller 全部设备写端点都过 requireDevicePack，唯独上传漏）⇒ 商户 A 可对商户 B 柜机挂任意照片/灌图，盘点凭证链可跨租户污染 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
 | MA-069 | P2 | fixed（限幅单源+门禁） | `POST/PATCH /ops/admin/line-managers` 佣金参数 | 线长佣金 rateBps/fixedCents 裸 Map 无界直落（负数/50000bps=GMV5倍佣金都存得进），LineCommissionJob 按日真实入钱包 ⇒ 持续性资金乘数无范围校验；对照 WalletAdjustRequest ±1亿分先例 | ZCode R12批1 / 2026-11-02 | rounds/R12-write-surface.md |
@@ -1283,3 +1285,35 @@
 
 **这批明确没做**：不设任何配额/阈值（0 行真实数据下阈值只能是猜的死旋钮）；ROI 报表的「按位置分桶 + 人均/单用户最大次数」两列留下一批（那要动 admin 源码并重建产物）。
 MA-150 保持 open 且更收窄：`/api/v2/devices/{deviceId}/ad-play` 在新口落地后**确认仍无调用方** ⇒ 定性为死写面，建议删除或改由设备凭据口承载。
+
+### 批次 T｜活动位效果按展示位分桶 + 两条真库底线（2026-11-04，用户：「我们没有柜机屏幕，做 ROI『按 position 分桶 + 人均/单用户最大次数』」+「首页和开门前应该是同一个，按照你的节奏做」）
+
+这一批先被真库推翻了两件事，都进台账（MA-152 / MA-153），再谈新功能：
+
+1. **批次 S 的弹窗位打点其实一条都没进过库**。`ad_play_event` 的 `campaign_id` / `device_id` 自 V191 起都是
+   `NOT NULL`，而弹窗位按设计只有 `activity_id` ⇒ 每次 `POST /placement-events` 都在 DB 层炸
+   `NotNullViolation`；MP 侧 `.catch(e => console.warn(...))` 把它降成一行日志，真机上看不出任何异常。
+   9 例单测全绿是因为 mapper 是 mock——**MyBatis-Plus 生成的 INSERT 从未被任何数据库执行过**
+   （同型第三次撞上：`WithdrawClaimForPayoutSqlIT`、教训 #329/#330/#396）。
+2. **批次 S 的 openapi.ts 是坏的**：460 个中文全被写成双重编码乱码，形状门禁看不见，CI 的
+   `起 jar → 抽真 spec → git diff` 才红。批次 S 的**形状**没问题（按现抓 spec 重打后「非注释删除行 = 0」），
+   坏的只有编码。⇒ 乱码本体由并发会话 `569ac0a6` 用 latin1 反解还原、并给**生成侧**加防线；本批补的是**产物侧**哨兵（`check-openapi-types.mjs` 扫生成物，`check-openapi-types.test.mjs` 9 向钉住）+ 批次 T 新形状的 regen。
+
+**落地的东西**
+
+| 面 | 改动 |
+|---|---|
+| schema | `V440`：`campaign_id` / `device_id` 放开 NOT NULL，并补 `ck_ad_play_subject CHECK (campaign_id IS NOT NULL OR activity_id IS NOT NULL)`——放开非空是为了让两类主体各自成立，底线改由 CHECK 守，不留「谁都能塞一行无主事件」的口子 |
+| 后端 | `AdPlayEventMapper.aggregatePlacementsSince`（按 位置×主体×主体id 汇总曝光/已归因人数/点击/未归因行）+ `peakExposurePerUserSince`（两层 group-by，先 (位,主体,人) 再取人级最大，只统计 `user_id IS NOT NULL`）；`MarketingRoiService#placements(days)` 把两趟结果并成 `PlacementEffectRowDto`，窗口钳在 7–90 天 |
+| API | 新端点 `GET /api/v2/ops/admin/growth/marketing-roi/placements?days=`（注解 `ops:marketing-roi:view`，服务层同名 `requirePermission` ⇒ 两侧都有门）；`openapi.ts` 与端点**同批**由现抓 spec 重打 |
+| 后台 | `MarketingRoiView.vue` 主表下加「活动位效果（按展示位）」表：位置/主体/曝光次数/曝光人数/人均曝光/单用户峰值/点击次数/未归因行，取数失败只清本表不连带主表；位置译名走字典 `promotion_placement_position`，主体名缺失回落 `#id` |
+| 真库钉测 | `PlacementEffectSqlIT` 2 例（一次性 Testcontainers 空库 V1→440）：① 三新列经 mapper 写进可读回、`position` 在 PG 里同时是函数名所以列引用必须实测、未归因行不进 `COUNT(DISTINCT user_id)`、峰值取人级最大（2 而非总次数 4）、ACT/CAM 两套主体名各取各表；② **反向**用例——两主体全空的行必须被 `ck_ad_play_subject` 拒掉，并把约束名断言进去（防止红在别的约束上） |
+
+**为什么必须自播两个主体**：`campaign_id` 有 FK 指向 `ad_campaign`（V217 加的，建表迁移里看不到），
+`activity_id` 没有 FK——弹窗行只靠服务层「活动必须存在且 ACTIVE」拦，DB 层不兜底。首跑先撞
+`asset_id` 的 FK（V217，指向 `media_asset`），本用例不测素材维度，留空即可。
+
+**这批明确没做**：不动 `/api/v2/devices/{deviceId}/ad-play`（MA-150 仍 open，等用户对「死写面删除 vs 改由设备凭据口承载」拍板）；
+不给弹窗位设任何配额/阈值；不改 banner 位的主体口径（banner 仍挂 `AdCampaign`）；
+弹窗位打点的**真机那一轮**还没跑（需重烤 `build:mp-weixin:dev`，判据是库里出现
+`position='POPUP_BEFORE_OPEN'` 且 `user_id` 非空、`device_id` 为 NULL 的行）。

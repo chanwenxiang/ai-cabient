@@ -27,11 +27,14 @@ class MarketingRoiServiceTest {
     @Mock private CouponDefinitionMapper couponDefinitionRepository;
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private CabinetOrderMapper orderRepository;
+    @Mock private com.aicabinet.trade.mapper.AdPlayEventMapper playEventRepository;
+    @Mock private com.aicabinet.trade.mapper.AdCampaignMapper adCampaignRepository;
 
     @Test
     void list_shouldAggregateClaimRedeemAndRevenuePerActivity() {
         MarketingRoiService service = new MarketingRoiService(
-                activityRepository, couponDefinitionRepository, userCouponRepository, orderRepository);
+                activityRepository, couponDefinitionRepository, userCouponRepository, orderRepository,
+                playEventRepository, adCampaignRepository);
 
         PromotionActivity activity = new PromotionActivity();
         activity.setActivityId(1L);
@@ -78,5 +81,73 @@ class MarketingRoiServiceTest {
         assertEquals(2, row.orderCount());
         assertEquals(6000, row.orderRevenueCents());
         assertEquals(700, row.discountCents());
+    }
+
+    @Test
+    void placements_shouldDivideByAttributedUsersOnly_andReportPeakAndUnattributed() {
+        MarketingRoiService service = new MarketingRoiService(
+                activityRepository, couponDefinitionRepository, userCouponRepository, orderRepository,
+                playEventRepository, adCampaignRepository);
+
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("position", "POPUP_BEFORE_OPEN");
+        row.put("subject_kind", "ACTIVITY");
+        row.put("subject_id", 1L);
+        row.put("exposure_count", 10L);
+        row.put("exposure_users", 4L);
+        row.put("click_count", 2L);
+        row.put("unattributed_count", 6L);
+        when(playEventRepository.aggregatePlacementsSince(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(row));
+
+        java.util.Map<String, Object> peak = new java.util.LinkedHashMap<>();
+        peak.put("position", "POPUP_BEFORE_OPEN");
+        peak.put("subject_kind", "ACTIVITY");
+        peak.put("subject_id", 1L);
+        peak.put("max_exposure_per_user", 5L);
+        when(playEventRepository.peakExposurePerUserSince(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(peak));
+
+        PromotionActivity activity = new PromotionActivity();
+        activity.setActivityId(1L);
+        activity.setActivityName("夏日冰饮满减周");
+        when(activityRepository.findAllById(org.mockito.ArgumentMatchers.anyCollection()))
+                .thenReturn(List.of(activity));
+
+        var out = service.placements(30);
+
+        assertEquals(1, out.size());
+        var r = out.get(0);
+        // 人均 = 曝光 / 已归因人数（10/4），未归因那 6 行不进分母
+        assertEquals(2.5, r.exposurePerUser(), 1e-9);
+        assertEquals(5L, r.maxExposurePerUser());
+        assertEquals(6L, r.unattributedCount());
+        assertEquals("POPUP_BEFORE_OPEN", r.position());
+        assertEquals("夏日冰饮满减周", r.subjectName());
+    }
+
+    @Test
+    void placements_withoutAttributedRows_shouldNotInventAnAverage() {
+        MarketingRoiService service = new MarketingRoiService(
+                activityRepository, couponDefinitionRepository, userCouponRepository, orderRepository,
+                playEventRepository, adCampaignRepository);
+
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("position", "BANNER");
+        row.put("subject_kind", "AD_CAMPAIGN");
+        row.put("subject_id", 7L);
+        row.put("exposure_count", 9L);
+        row.put("exposure_users", 0L);
+        row.put("click_count", 0L);
+        row.put("unattributed_count", 9L);
+        when(playEventRepository.aggregatePlacementsSince(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(row));
+        when(playEventRepository.peakExposurePerUserSince(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        var r = service.placements(30).get(0);
+        // 全部未归因 ⇒ 人均必须记 0 而不是 9/0 的 NaN/Infinity，否则前端列会炸
+        assertEquals(0.0, r.exposurePerUser(), 1e-9);
+        assertEquals(0L, r.maxExposurePerUser());
     }
 }

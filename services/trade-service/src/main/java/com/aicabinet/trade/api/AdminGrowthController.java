@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.AdminManualNotificationRequest;
 import com.aicabinet.common.dto.AdminUpdateNotificationRequest;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import com.aicabinet.common.dto.MarketingRoiRowDto;
+import com.aicabinet.common.dto.PlacementEffectRowDto;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.PointsRedeemItemDto;
@@ -164,6 +165,17 @@ public class AdminGrowthController {
     public ApiResponse<List<MarketingRoiRowDto>> marketingRoi(
             @RequestParam(defaultValue = "30") int days) {
         return ApiResponse.ok(marketingRoiService.list(days));
+    }
+
+    /**
+     * 活动位效果（批次 T）：按「展示位 × 主体」分桶，含人均与单用户峰值。
+     * 复用 ops:marketing-roi:view——它就是同一张报表的读权限，不另立新码。
+     */
+    @RequiresPermissions("ops:marketing-roi:view")
+    @GetMapping("/marketing-roi/placements")
+    public ApiResponse<List<PlacementEffectRowDto>> marketingPlacementEffects(
+            @RequestParam(defaultValue = "30") int days) {
+        return ApiResponse.ok(marketingRoiService.placements(days));
     }
 
     // ---------- 消息记录 ----------

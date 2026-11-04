@@ -16,7 +16,9 @@ import { OPENAPI_ALIAS_GROUPS, OPENAPI_INDEX_REEXPORTS } from './openapi-alias-g
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const generatedDir = join(root, 'packages', 'shared-types', 'src', 'generated');
+const generatedDir = process.env.OPENAPI_GENERATED_DIR
+  ? resolve(root, process.env.OPENAPI_GENERATED_DIR)
+  : join(root, 'packages', 'shared-types', 'src', 'generated');
 const openapiTs = join(generatedDir, 'openapi.ts');
 const indexTs = join(root, 'packages', 'shared-types', 'src', 'index.ts');
 
@@ -42,6 +44,27 @@ for (const group of OPENAPI_ALIAS_GROUPS) {
 const openapiSrc = readFileSync(openapiTs, 'utf8');
 if (!openapiSrc.includes('OrderReadModel')) {
   fail('openapi.ts missing OrderReadModel schema');
+}
+
+/**
+ * 🔴 双重编码哨兵（2026-11-04 批次 S 实测自伤）：那次 regen 把 openapi.ts 里 460 个中文
+ * 全写成「UTF-8 字节被当 latin1 解码后再存成 UTF-8」的乱码（`点位费用配置` → `ç¹ä½Mè´¹…`），
+ * 形状门禁与类型校验都看不出问题，只有 CI 起 HEAD 的 jar 抽真 spec 做 `git diff` 才红。
+ * 这类乱码的特征是 «U+00C2–U+00F3 紧跟 U+0080–U+00BF»；正常的法文/德文变音符号后面
+ * 不会跟 C1 控制字符，所以不会误报。用 `OPENAPI_GENERATED_DIR` 指向沙箱副本可复现。
+ */
+const MOJIBAKE = /[\u00c2-\u00f3][\u0080-\u00bf]/g;
+for (const file of ['openapi.ts', ...OPENAPI_ALIAS_GROUPS.map((g) => g.file)]) {
+  const filePath = join(generatedDir, file);
+  if (!existsSync(filePath)) continue;
+  const hits = readFileSync(filePath, 'utf8').match(MOJIBAKE) || [];
+  if (hits.length) {
+    fail(
+      `${file} 有 ${hits.length} 处疑似双重编码乱码（样例 ${JSON.stringify(hits[0])}）：` +
+        'regen 的输入 spec 被控制台码页污染。正解：起当前 trade 后 ' +
+        'OPENAPI_IGNORE_CACHE=1 pnpm gen:api-types，别用 .tmp 里的旧 spec 反灌。'
+    );
+  }
 }
 
 const indexSrc = readFileSync(indexTs, 'utf8');

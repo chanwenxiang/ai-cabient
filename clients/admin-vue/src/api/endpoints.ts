@@ -813,6 +813,8 @@ export const AdminEndpoints = {
   growthUserAnalysis: (days: number) => `${ops}/growth/user-analysis?days=${days}`,
   growthUserRecall: `${ops}/growth/user-recall`,
   growthMarketingRoi: (days: number) => `${ops}/growth/marketing-roi?days=${days}`,
+  growthMarketingRoiPlacements: (days: number) =>
+    `${ops}/growth/marketing-roi/placements?days=${days}`,
   adAssets: `${ops}/ad/assets`,
   adAssetsList: (query: URLSearchParams | string) =>
     typeof query === 'string'

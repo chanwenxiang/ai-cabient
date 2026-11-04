@@ -8700,6 +8700,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/growth/marketing-roi/placements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["marketingPlacementEffects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/geo/status": {
         parameters: {
             query?: never;
@@ -18532,6 +18548,31 @@ export interface components {
             discountCents?: number;
             /** Format: double */
             redeemRate?: number;
+        };
+        ApiResponseListPlacementEffectRowDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PlacementEffectRowDto"][];
+        };
+        PlacementEffectRowDto: {
+            position?: string;
+            subjectKind?: string;
+            /** Format: int64 */
+            subjectId?: number;
+            subjectName?: string;
+            /** Format: int64 */
+            exposureCount?: number;
+            /** Format: int64 */
+            exposureUsers?: number;
+            /** Format: int64 */
+            clickCount?: number;
+            /** Format: double */
+            exposurePerUser?: number;
+            /** Format: int64 */
+            maxExposurePerUser?: number;
+            /** Format: int64 */
+            unattributedCount?: number;
         };
         ApiResponseMapStringBoolean: {
             /** Format: int32 */
@@ -35915,6 +35956,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListMarketingRoiRowDto"];
+                };
+            };
+        };
+    };
+    marketingPlacementEffects: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListPlacementEffectRowDto"];
                 };
             };
         };

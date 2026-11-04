@@ -146,6 +146,34 @@
         </template>
       </el-table-column>
     </CrudTable>
+
+    <el-divider content-position="left">
+      <span class="title">活动位效果（按展示位）</span>
+      <span class="hint">
+        人均与峰值只按已归因（有登录主体）的行算，未归因行单独列出——把它们混进分母会把人均压成假低值
+      </span>
+    </el-divider>
+    <el-table
+      v-loading="placementsLoading"
+      :data="placements"
+      size="small"
+      empty-text="暂无打点数据（弹窗位打点随新版小程序生效）"
+    >
+      <el-table-column label="位置" min-width="140">
+        <template #default="{ row }">{{ positionLabel(row.position) }}</template>
+      </el-table-column>
+      <el-table-column label="主体" min-width="180">
+        <template #default="{ row }">{{ row.subjectName || '#' + row.subjectId }}</template>
+      </el-table-column>
+      <el-table-column prop="exposureCount" label="曝光次数" width="100" />
+      <el-table-column prop="exposureUsers" label="曝光人数" width="100" />
+      <el-table-column label="人均曝光" width="100">
+        <template #default="{ row }">{{ perUserText(row) }}</template>
+      </el-table-column>
+      <el-table-column prop="maxExposurePerUser" label="单用户峰值" width="110" />
+      <el-table-column prop="clickCount" label="点击次数" width="100" />
+      <el-table-column prop="unattributedCount" label="未归因行" width="100" />
+    </el-table>
   </el-card>
 </template>
 
@@ -173,8 +201,46 @@ type RoiRow = {
   redeemRate: number;
 };
 
+type PlacementRow = {
+  position: string;
+  subjectKind: 'ACTIVITY' | 'AD_CAMPAIGN' | string;
+  subjectId: number | null;
+  subjectName: string | null;
+  exposureCount: number;
+  exposureUsers: number;
+  clickCount: number;
+  exposurePerUser: number;
+  maxExposurePerUser: number;
+  unattributedCount: number;
+};
+
 const days = ref(30);
 const keyword = ref('');
+const placements = ref<PlacementRow[]>([]);
+const placementsLoading = ref(false);
+
+/** 活动位数据与主表同窗口，但失败不连带主表：只记日志、清空本表。 */
+async function loadPlacements() {
+  placementsLoading.value = true;
+  try {
+    placements.value = await api.request<PlacementRow[]>(
+      AdminEndpoints.growthMarketingRoiPlacements(days.value)
+    );
+  } catch (e) {
+    placements.value = [];
+    console.warn('[marketing-roi] placements failed:', String(e));
+  } finally {
+    placementsLoading.value = false;
+  }
+}
+
+function positionLabel(p: string) {
+  return displayLabel('promotion_placement_position', p, p || '未知');
+}
+
+function perUserText(row: PlacementRow) {
+  return row.exposureUsers > 0 ? row.exposurePerUser.toFixed(1) : '—';
+}
 
 /** 关键词为纯前端过滤（接口无该参数）：原 displayList 计算属性前移到取数处，切片前先过滤保证分页计数一致 */
 function filterByKeyword(rows: RoiRow[]): RoiRow[] {
@@ -229,11 +295,15 @@ const csvOptions: CrudCsvOptions = {
 
 function search() {
   void crud.search();
+  void loadPlacements();
 }
 function reset() {
   keyword.value = '';
   void crud.search();
+  void loadPlacements();
 }
+
+void loadPlacements();
 
 function typeLabel(t: string) {
   return displayLabel('promotion_type', t, '活动');

@@ -70,6 +70,13 @@ function testSources() {
 // value = { job: 'build' | 'integration', why: 人话依据 }
 const GUARDED = new Map([
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PlacementEffectSqlIT.java',
+    {
+      job: 'integration',
+      why: 'failsafe 跑（*IT.java）；批次 T 的聚合 SQL 与 ad_play_event 三个新列的 MP 生成语句在单测里跑不到'
+    }
+  ],
+  [
     'services/device-service/src/test/java/com/aicabinet/device/mqtt/EdgeCloudMqttIntegrationIT.java',
     {
       job: 'integration',
