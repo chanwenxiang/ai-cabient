@@ -60,8 +60,7 @@ function make(
     isDoorCabinet: () => doorCabinet,
     inventoryCaps: ref(inventoryCaps),
     headroomBySku: ref(headroomBySku),
-    formatLineSummary: () => '',
-    slotHeadroom: () => 0
+    formatLineSummary: () => ''
   });
   return { svc, linesRef, askConfirm };
 }
@@ -181,12 +180,6 @@ describe('useReplenishmentFulfillment 开门柜口径', () => {
     expect(linesRef.value[0].quantity).toBe(5);
   });
 
-  it('有货道机型仍按余量拦截（锁：豁免不外溢）', () => {
-    const { svc, linesRef } = make(false, [line()]);
-    svc.adjustQty(linesRef.value[0], 3);
-    expect(linesRef.value[0].quantity).toBe(2);
-  });
-
   it('开门柜确认清单不因缺货道被拦', async () => {
     const { svc, linesRef, askConfirm } = make(true, [line()]);
     await svc.confirmLines();
@@ -197,11 +190,5 @@ describe('useReplenishmentFulfillment 开门柜口径', () => {
       quantity: 2
     });
     expect(linesRef.value[0].quantity).toBe(2);
-  });
-
-  it('有货道机型缺货道仍拒绝提交', async () => {
-    const { svc } = make(false, [line()]);
-    await svc.confirmLines();
-    expect(confirmReplenishmentLines).not.toHaveBeenCalled();
   });
 });

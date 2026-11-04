@@ -235,10 +235,6 @@ export type OpenApiDeviceDetailDto =
 export type OpenApiDeviceOpsCommandResultDto =
   import('./generated/openapi').components['schemas']['DeviceOpsCommandResultDto'];
 
-/** 柜机扫码盘点请求（`POST .../devices/{id}/slots/stocktake`，CB-050 扩展） */
-export type SlotStocktakeRequest =
-  import('./generated/openapi').components['schemas']['SlotStocktakeRequest'];
-
 /** 开门柜盘点提交（`POST .../devices/{id}/door-stocktake`，2026-10-28） */
 export type MerchantDoorStocktakeRequest =
   import('./generated/openapi').components['schemas']['MerchantDoorStocktakeRequest'];
@@ -272,47 +268,6 @@ export type OpenApiMerchantTrainingStatusDto =
 /** 商户「缺货巡柜」聚合行（货道级统一口径，缺口=建议 headroom，2026-10-15） */
 export type OpenApiMerchantShortageSummaryDto =
   import('./generated/openapi').components['schemas']['MerchantShortageSummaryDto'];
-
-export interface DeviceSlot {
-  deviceId: string;
-  slotCode: string;
-  rowNo: number;
-  colNo: number;
-  slotType?: string;
-  assignedSkuId?: string;
-  assignedSkuName?: string;
-  parLevel: number;
-  minLevel: number;
-  maxLevel: number;
-  enabled: boolean;
-  bookQty: number;
-  lastPhysicalQty?: number | null;
-  lastPhysicalAt?: string;
-  lastRestockAt?: string;
-  fillRatePct?: number;
-  stockStatus?: string;
-  qtyDiff?: number;
-  hasDiscrepancy?: boolean;
-  /** V362 起图1 对照新增：SKU 图片/品牌/规格/条码、上架时间、阈值口径缺货预警 */
-  skuImageUrl?: string | null;
-  skuBrand?: string | null;
-  skuSpec?: string | null;
-  skuBarcode?: string | null;
-  assignedAt?: string | null;
-  stockoutWarn?: boolean;
-}
-
-export interface UpsertDeviceSlotRequest {
-  slotCode: string;
-  rowNo?: number;
-  colNo?: number;
-  slotType?: string;
-  assignedSkuId?: string;
-  parLevel?: number;
-  minLevel?: number;
-  maxLevel?: number;
-  enabled?: boolean;
-}
 
 export interface MerchantDto {
   merchantId: string;

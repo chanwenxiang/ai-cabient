@@ -198,17 +198,6 @@ public class MerchantDevicePortalService {
     }
 
     /**
-     * CB-050 扩展：柜机扫码盘点（单货道实盘）。复用 admin 同一链路：
-     * opsPolicy 照片凭证强制 / 场景限额无关 / 账实差闭环不变；归属校验见 requireDeviceAccess。
-     */
-    public DeviceSlotDto stocktakeSlot(Long userId, String deviceId, SlotStocktakeRequest request) {
-        permissionService.requirePermission(userId, "merchant:slots:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        return deviceSlotService.stocktakeSlot(userId, deviceId, request);
-    }
-
-    /**
      * 商户盘点开门（2026-10-28）：开门柜逐商品盘点前的开门动作。
      * <p>流程=先扫码选中柜机（人在柜边）→ 本接口落 STOCKTAKE 会话并经
      * {@link DeviceServiceClient#requestOpenDoorStock} 下发将邑 sendOpenStockDoor（与补货开门
@@ -594,27 +583,6 @@ public class MerchantDevicePortalService {
             return false;
         }
         return Math.abs(d.getCurrentTempC() - d.getTargetTempC()) > 3;
-    }
-
-    @Transactional(readOnly = true)
-    public List<DeviceSlotDto> listDeviceSlots(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:slots:view");
-        merchantPortalGuard.requireAccess(userId);
-        // 开门柜无货道概念（判据=将邑绑定）：商户面读空，残留货道行不外泄，
-        // 否则补货详情的容量映射/设备详情的缺失提示会按脏行算错数。
-        if (deviceSlotService.isDoorCabinet(deviceId)) {
-            return List.of();
-        }
-        return deviceSlotService.listSlots(userId, deviceId);
-    }
-
-    @Transactional
-    public List<DeviceSlotDto> upsertDeviceSlots(Long userId, String deviceId,
-                                                 List<UpsertDeviceSlotRequest> body) {
-        permissionService.requirePermission(userId, "merchant:slots:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantSelfServiceGate.requirePlanogramEdit(userId, deviceId);
-        return deviceSlotService.upsertSlots(userId, deviceId, body);
     }
 
     private <T> T runWithDeviceSettingsLock(String deviceId, Supplier<T> action) {

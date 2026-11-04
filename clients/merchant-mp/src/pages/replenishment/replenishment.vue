@@ -358,7 +358,6 @@
             :outbound-id="selected?.outboundId"
             :can-edit="canRequest && !linesConfirmed"
             :completed="selected?.status === 'COMPLETED'"
-            :door-cabinet="doorCabinet"
             :scanning="scanning"
             :sku-name="skuName"
             :sku-thumb="skuThumb"
@@ -366,12 +365,8 @@
             :line-type-label="lineTypeLabel"
             :line-status-label="lineStatusLabel"
             :is-pull-off-type="isPullOffType"
-            :slot-options-for="slotOptionsFor"
-            :slot-hint="slotHint"
-            :slot-headroom="slotHeadroom"
             @adjust-qty="adjustQty"
             @scan-product="scanProduct"
-            @assign-slot="assignSlot"
           />
         </scroll-view>
 
@@ -436,7 +431,7 @@ import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { getSkipCheckInLocation, setSkipCheckInLocation } from '@/utils/checkin-location-pref';
 import { showDevTools } from '@/utils/runtime-flags';
 import { doorHeadroomForSku } from '@/utils/replenishment-headroom';
-import type { DeviceSlot, OpenApiReplenishmentHeadroomDto } from '@aicabinet/shared-types';
+import type { OpenApiReplenishmentHeadroomDto } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
@@ -534,9 +529,6 @@ const {
   persistDoorState,
   clearDoorState
 } = useReplenishmentDoorState();
-/** slotCode -> { maxLevel, bookQty } */
-const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
-const deviceSlotsList = ref<DeviceSlot[]>([]);
 /** skuId -> { quantity, capacity }：开门柜补货上限数据源（台账），详情打开时加载 */
 const inventoryCaps = ref<Record<string, { quantity: number; capacity: number }>>({});
 /**
@@ -574,8 +566,6 @@ const {
   sheetCloseArmed,
   detailLoading,
   submitting,
-  slotCaps,
-  deviceSlotsList,
   inventoryCaps,
   headroomBySku,
   focusTaskId,
@@ -591,22 +581,13 @@ const {
   skuName,
   skuThumb,
   productGlyph,
-  slotOptionsFor,
-  slotHeadroom,
-  slotHint,
   formatLineSummary,
   isPullOffType,
   lineTypeLabel,
   lineStatusLabel,
   displayTaskNotes,
   taskActionLabel
-} = useReplenishmentDisplay({
-  skus,
-  slotCaps,
-  deviceSlotsList,
-  // 开门柜（判据=将邑绑定）无货道概念：行摘要不提示待选货道
-  isDoorCabinet: () => doorCabinet.value
-});
+} = useReplenishmentDisplay({ skus });
 
 const {
   heroSubtitle,
@@ -627,8 +608,7 @@ const {
   routeLabel,
   load,
   clearDeviceFilter,
-  currentStep,
-  assignSlot
+  currentStep
 } = useReplenishmentShell({
   me,
   preferredId,
@@ -702,8 +682,7 @@ const { checkIn, openDoor, adjustQty, confirmLines, completeTask, cancelTask } =
     isDoorCabinet: () => doorCabinet.value,
     inventoryCaps,
     headroomBySku,
-    formatLineSummary,
-    slotHeadroom
+    formatLineSummary
   });
 
 /**

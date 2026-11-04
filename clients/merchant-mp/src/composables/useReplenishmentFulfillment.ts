@@ -121,7 +121,6 @@ export function useReplenishmentFulfillment(opts: {
    */
   headroomBySku: Ref<Record<string, OpenApiReplenishmentHeadroomDto>>;
   formatLineSummary: (rows: Line[]) => string;
-  slotHeadroom: (line: Line) => number;
 }) {
   async function obtainCheckInLocation(): Promise<{
     body: Record<string, number>;
@@ -321,12 +320,7 @@ export function useReplenishmentFulfillment(opts: {
       line.quantity = Math.max(0, cur + delta);
       return;
     }
-    const room = opts.slotHeadroom(line);
-    if (cur >= room) {
-      showError(room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`);
-      return;
-    }
-    line.quantity = Math.min(room, cur + delta);
+    line.quantity = Math.max(0, cur + delta);
   }
 
   function decreaseLineQty(line: Line, delta: number) {
@@ -340,22 +334,6 @@ export function useReplenishmentFulfillment(opts: {
     else decreaseLineQty(line, delta);
   }
 
-  function clampLinesToCapacity() {
-    // 开门柜没有货道容量这回事：台账容量由后端在建议/上架侧管，客户端不清零数量
-    if (opts.isDoorCabinet()) return false;
-    let changed = false;
-    for (const line of opts.lines.value) {
-      if (line.applied || opts.isPullOffType(line.lineType)) continue;
-      const room = opts.slotHeadroom(line);
-      const qty = Number(line.quantity) || 0;
-      if (qty > room) {
-        line.quantity = room;
-        changed = true;
-      }
-    }
-    return changed;
-  }
-
   function buildConfirmLinePayload(line: Line) {
     return {
       skuId: line.skuId,
@@ -363,63 +341,22 @@ export function useReplenishmentFulfillment(opts: {
       lineType: line.lineType || 'RESTOCK',
       batchNo: line.batchNo,
       productionDate: line.productionDate,
-      expiryDate: line.expiryDate,
-      slotId: line.slotId
+      expiryDate: line.expiryDate
     };
-  }
-
-  async function ensureLinesWithinCapacity(): Promise<boolean> {
-    if (opts.isDoorCabinet()) return true;
-    const over = opts.lines.value.filter(
-      (l) =>
-        !l.applied &&
-        !opts.isPullOffType(l.lineType) &&
-        (Number(l.quantity) || 0) > opts.slotHeadroom(l)
-    );
-    if (!over.length) return true;
-    const overSummary = over
-      .map((l) => `${l.slotId || '?'} 最多再补 ${opts.slotHeadroom(l)}`)
-      .join('；');
-    const ok = await opts.askConfirm({
-      title: '货道容量不足',
-      content: `${overSummary}。是否自动调低数量后继续？`,
-      confirmText: '自动调低',
-      cancelText: '手动改'
-    });
-    if (!ok) return false;
-    clampLinesToCapacity();
-    return true;
   }
 
   function validatePositiveLines(): Line[] | null {
     const positive = opts.lines.value.filter((l) => (Number(l.quantity) || 0) > 0);
     if (!positive.length) {
-      showError('调低后无有效数量，请换货道或取消该行');
-      return null;
-    }
-    const unassigned = opts.isDoorCabinet()
-      ? []
-      : positive.filter((l) => !opts.isPullOffType(l.lineType) && !String(l.slotId || '').trim());
-    if (unassigned.length) {
-      showError('请先为待分配行选择货道');
+      showError('调低后无有效数量，请取消该行');
       return null;
     }
     return positive;
   }
 
   async function handleConfirmLinesFailure(msg: string) {
-    if (!msg.includes('容量不足')) {
-      // 审计 2026-10-23 M3：后端逐行容量不足说明（含 SKU/货道明细）是长文案
-      showLongError(msg, '确认失败', 3600);
-      return;
-    }
-    const auto = await opts.askConfirm({
-      title: '确认失败',
-      content: `${msg}\n\n是否按货道余量自动调低？`,
-      confirmText: '自动调低',
-      cancelText: '知道了'
-    });
-    if (auto) clampLinesToCapacity();
+    // 审计 2026-10-23 M3：后端逐行容量不足说明（含 SKU 明细）是长文案
+    showLongError(msg, '确认失败', 3600);
   }
 
   async function confirmLines() {
@@ -429,7 +366,6 @@ export function useReplenishmentFulfillment(opts: {
       showError('无补货操作权限');
       return;
     }
-    if (!(await ensureLinesWithinCapacity())) return;
     const positive = validatePositiveLines();
     if (!positive) return;
     opts.submitting.value = true;
@@ -499,9 +435,7 @@ export function useReplenishmentFulfillment(opts: {
     return opts.askConfirm({
       title: pullOffCopy('确认全部上架', '确认全部下架'),
       content: pullOffCopy(
-        opts.isDoorCabinet()
-          ? '完成后将更新柜机库存、结清本次领出的货（没上的记为「领而未上」），请确认商品、批次无误。'
-          : '完成后将更新柜机库存、结清本次领出的货（没上的记为「领而未上」），请确认商品、批次和货道无误。',
+        '完成后将更新柜机库存、结清本次领出的货（没上的记为「领而未上」），请确认商品、批次无误。',
         '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
       ),
       confirmText: '确认完成',

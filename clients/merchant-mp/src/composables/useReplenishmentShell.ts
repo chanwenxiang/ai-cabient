@@ -216,19 +216,6 @@ export function useReplenishmentShell(opts: {
     return 1;
   }
 
-  function assignSlot(line: Line, opt: { slotCode: string; room: number }) {
-    if (!opt.slotCode) return;
-    if (opt.room <= 0) {
-      showError('该货道已满');
-      return;
-    }
-    line.slotId = opt.slotCode;
-    if ((Number(line.quantity) || 0) > opt.room) {
-      line.quantity = opt.room;
-    }
-    opts.linesConfirmed.value = false;
-  }
-
   return {
     heroSubtitle,
     efficiencyRateText,
@@ -248,7 +235,6 @@ export function useReplenishmentShell(opts: {
     routeLabel,
     load,
     clearDeviceFilter,
-    currentStep,
-    assignSlot
+    currentStep
   };
 }

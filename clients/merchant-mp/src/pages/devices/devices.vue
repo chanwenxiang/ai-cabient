@@ -401,8 +401,8 @@ function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: num
   const oos = Number(d.oosSlotCount || 0);
   const low = Number(d.lowStockSlotCount || 0);
   if (oos > 0 && low > 0) return `缺货 ${oos} · 低库存 ${low}`;
-  if (oos > 0) return `缺货货道 ${oos}`;
-  if (low > 0) return `低库存货道 ${low}`;
+  if (oos > 0) return `缺货 ${oos}`;
+  if (low > 0) return `低库存 ${low}`;
   return '';
 }
 </script>

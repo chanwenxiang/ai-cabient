@@ -1,5 +1,5 @@
 import type { Ref } from 'vue';
-import type { DeviceSlot, MerchantSkuPricing } from '@aicabinet/shared-types';
+import type { MerchantSkuPricing } from '@aicabinet/shared-types';
 import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
 
 export { absoluteImageUrl };
@@ -12,15 +12,9 @@ export function isPullOffType(type?: string | null) {
 }
 
 /**
- * 补货详情展示：SKU 名/图、货道余量、行摘要。
+ * 补货详情展示：SKU 名/图、行摘要。
  */
-export function useReplenishmentDisplay(opts: {
-  skus: Ref<MerchantSkuPricing[]>;
-  slotCaps: Ref<Record<string, { maxLevel: number; bookQty: number }>>;
-  deviceSlotsList: Ref<DeviceSlot[]>;
-  /** 开门柜（判据=将邑绑定）：无货道概念，行摘要不再提示「待选货道」 */
-  isDoorCabinet: () => boolean;
-}) {
+export function useReplenishmentDisplay(opts: { skus: Ref<MerchantSkuPricing[]> }) {
   function skuName(id: string) {
     const s = opts.skus.value.find((item) => item.skuId === id);
     return s?.skuName || id;
@@ -37,81 +31,17 @@ export function useReplenishmentDisplay(opts: {
     return name ? name.slice(0, 1) : '货';
   }
 
-  function slotOptionsFor(line: Line) {
-    return opts.deviceSlotsList.value
-      .filter((s) => s.enabled !== false)
-      .filter((s) => !s.assignedSkuId || s.assignedSkuId === line.skuId)
-      .map((s) => {
-        const slotCode = String(s.slotCode || '').toUpperCase();
-        const maxLevel = Number(s.maxLevel) || 0;
-        const bookQty = Number(s.bookQty) || 0;
-        const room = maxLevel > 0 ? Math.max(0, maxLevel - bookQty) : 99;
-        return { slotCode, room, label: s.assignedSkuName || slotCode };
-      })
-      .filter((s) => !!s.slotCode)
-      .sort((a, b) => b.room - a.room || a.slotCode.localeCompare(b.slotCode));
-  }
-
-  function slotHeadroom(line: Line): number {
-    const code = String(line.slotId || '').toUpperCase();
-    if (!code) {
-      const rooms = slotOptionsFor(line)
-        .map((o) => o.room)
-        .filter((n) => n > 0);
-      return rooms.length ? Math.max(...rooms) : 0;
-    }
-    const cap = opts.slotCaps.value[code];
-    if (!cap || cap.maxLevel <= 0) return 99;
-    return Math.max(0, cap.maxLevel - cap.bookQty);
-  }
-
-  function slotHintImpl(line: Line): string {
-    if (isPullOffType(line.lineType) || opts.isDoorCabinet()) return '';
-    const code = String(line.slotId || '').toUpperCase();
-    const cap = opts.slotCaps.value[code];
-    if (!cap || cap.maxLevel <= 0) return '';
-    const room = slotHeadroom(line);
-    if (room <= 0) return `这个货道已经放满，请把数量改为 0，或选其他货道`;
-    if ((Number(line.quantity) || 0) > room)
-      return `这个货道最多再放 ${room} 件，现在填了 ${line.quantity} 件，请减少数量`;
-    return `这个货道还能再放 ${room} 件`;
-  }
-
-  function slotHint(line: Line): string {
-    return slotHintImpl(line);
-  }
-
   function formatLineSummary(rows: Line[]): string {
     if (!rows.length) return '暂无明细行';
     const qty = rows.reduce((s, l) => s + Math.max(0, Number(l.quantity) || 0), 0);
     const pull = rows.filter((l) => isPullOffType(l.lineType)).length;
     const restock = rows.length - pull;
     const noExpiry = rows.filter((l) => !String(l.expiryDate || '').trim()).length;
-    const noSlot = rows.filter(
-      (l) => !String(l.slotId || '').trim() && !isPullOffType(l.lineType)
-    ).length;
     const parts = [`${rows.length} 行`, `共 ${qty} 件`];
     if (restock > 0) parts.push(`补货 ${restock}`);
     if (pull > 0) parts.push(`下架 ${pull}`);
-    if (noSlot > 0 && !opts.isDoorCabinet()) parts.push(`${noSlot} 行待选货道`);
     if (noExpiry > 0) parts.push(`${noExpiry} 行缺效期`);
     return parts.join(' · ');
-  }
-
-  function stockDeltaText(line: Line): string {
-    const code = String(line.slotId || '').toUpperCase();
-    if (!code) return '';
-    const cap = opts.slotCaps.value[code];
-    if (!cap) return '';
-    const qty = Math.max(0, Number(line.quantity) || 0);
-    if (isPullOffType(line.lineType)) {
-      const after = Math.max(0, cap.bookQty - qty);
-      const capacityHint = cap.maxLevel > 0 ? `，货道容量 ${cap.maxLevel} 件` : '';
-      return `这个货道现有 ${cap.bookQty} 件，下架 ${qty} 件后剩 ${after} 件${capacityHint}`;
-    }
-    const after = cap.bookQty + qty;
-    const capacityHint = cap.maxLevel > 0 ? `，货道容量 ${cap.maxLevel} 件` : '';
-    return `这个货道现有 ${cap.bookQty} 件，补 ${qty} 件后有 ${after} 件${capacityHint}`;
   }
 
   function lineTypeLabel(type?: string | null) {
@@ -172,11 +102,7 @@ export function useReplenishmentDisplay(opts: {
     skuName,
     skuThumb,
     productGlyph,
-    slotOptionsFor,
-    slotHeadroom,
-    slotHint,
     formatLineSummary,
-    stockDeltaText,
     isPullOffType,
     lineTypeLabel,
     lineStatusLabel,

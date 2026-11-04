@@ -55,8 +55,7 @@ function make(status: string, canRequest = true) {
     isDoorCabinet: () => true,
     inventoryCaps: ref({}),
     headroomBySku: ref({}),
-    formatLineSummary: () => '',
-    slotHeadroom: () => 0
+    formatLineSummary: () => ''
   });
   return { svc, selected, askConfirm, reloadList, allTasks };
 }

@@ -65,7 +65,7 @@
               <text class="info-val">{{ signalText }}</text>
             </view>
           </view>
-          <text v-if="slotStockHint" class="meta-line stock-warn">{{ slotStockHint }}</text>
+          <text v-if="goodsStockHint" class="meta-line stock-warn">{{ goodsStockHint }}</text>
           <text v-if="salesLocked" class="locked-banner"
             >柜机已锁机停售，消费者无法开门；补货仍可按任务操作{{
               salesLockReason ? `（${salesLockReason}）` : ''
@@ -150,15 +150,6 @@
               @click="goRequest"
             >
               <text>发起补货</text>
-            </view>
-            <view
-              v-if="canStocktake && !isDoorCabinet"
-              class="action-cell"
-              role="button"
-              aria-label="柜机盘点"
-              @click="goDeviceStocktake"
-            >
-              <text>柜机盘点</text>
             </view>
             <view class="action-cell" role="button" aria-label="理货记录" @click="goTallyRecords">
               <text>理货记录</text>
@@ -274,17 +265,15 @@
           />
         </view>
 
-        <view id="slotCard" class="card" v-show="activeTab === 'goods'">
+        <view id="goodsCard" class="card" v-show="activeTab === 'goods'">
           <view class="row">
-            <text class="section">{{ isDoorCabinet ? '在架商品' : '货道' }}</text>
-            <text v-if="!isDoorCabinet && !canEditSlots" class="meta">暂无货道编辑权限</text>
-            <text v-else-if="isDoorCabinet" class="meta">按商品备货，库存见下方「在架商品」</text>
+            <text class="section">在架商品</text>
+            <text class="meta">按商品备货，库存为台账在架数</text>
           </view>
-          <!-- 方案A 第一步：开门柜（将邑）不展示/不可存货道——在架商品走台账
-               （skuInventory：商品名+库存/容量，与建议、补货同一口径） -->
+          <!-- 在架商品走台账（skuInventory：商品名+库存/容量，与建议、补货同一口径） -->
           <!-- 2026-10-28 用户拍板：在架商品每种独占一行并带商品图（原 3 列格子太挤、没图）。
                图来自 SKU 目录 imageUrl（DeviceInventoryDto 顺路带出）；缺图用名称首字兜底。 -->
-          <view v-if="isDoorCabinet" class="goods-list">
+          <view class="goods-list">
             <view v-for="s in ledgerGoods" :key="s.skuId" class="goods-row">
               <image
                 v-if="s.imageUrl"
@@ -313,31 +302,6 @@
             </view>
             <text v-if="!ledgerGoods.length" class="meta">暂无在架商品</text>
           </view>
-          <template v-else>
-            <view class="slot-grid">
-              <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
-                <text class="slot-code">{{ s.slotCode }}</text>
-                <text class="slot-sku">{{ s.assignedSkuName || '空' }}</text>
-                <text class="meta slot-stock"
-                  >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
-                >
-                <input
-                  v-if="canEditSlots"
-                  v-model="slotPar[s.slotCode]"
-                  class="input-sm"
-                  type="number"
-                  placeholder="目标库存"
-                />
-              </view>
-            </view>
-            <view v-if="canEditSlots" class="slot-save-row">
-              <app-button
-                :loading="savingSlots"
-                :label="savingSlots ? '保存中…' : '保存货道'"
-                @click="saveSlots"
-              />
-            </view>
-          </template>
         </view>
 
         <view v-if="canAnalytics && velocity.length" class="card" v-show="activeTab === 'overview'">
@@ -405,11 +369,7 @@ import { computed, ref, watch } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import type { DeviceFaultOrderItem } from '@/utils/merchant-api';
-import {
-  useMerchantMe,
-  canEditPlanogramForMerchant,
-  seedMerchantMeDisplayCache
-} from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import {
   clearPreferredDeviceId,
   getPreferredDeviceId,
@@ -422,7 +382,6 @@ import { centsToYuanDigits, formatDateTime } from '@aicabinet/shared-uni/format'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
-  DeviceSlot,
   MerchantDeviceInfo,
   MerchantSkuVelocity,
   OpenApiMerchantDeviceSettingsDto,
@@ -448,9 +407,6 @@ const longitude = ref<number | null>(null);
 const formName = ref('');
 const formRemark = ref('');
 const saving = ref(false);
-const savingSlots = ref(false);
-const slots = ref<DeviceSlot[]>([]);
-const slotPar = ref<Record<string, string>>({});
 const velocity = ref<MerchantSkuVelocity[]>([]);
 // CB-077：设备侧故障记录（固件自报）。有故障才渲染卡片。
 const faults = ref<DeviceFaultOrderItem[]>([]);
@@ -482,7 +438,7 @@ function onDetailTab(key: string) {
 const detailTabs = computed(() => {
   const tabs: { key: DetailTab; label: string }[] = [
     { key: 'overview', label: '概览' },
-    { key: 'goods', label: isDoorCabinet.value ? '在架商品' : '货道' },
+    { key: 'goods', label: '在架商品' },
     { key: 'gather', label: '采集·识别' },
     { key: 'settings', label: '设置' }
   ];
@@ -495,8 +451,6 @@ watch(
     if (!bound && activeTab.value === 'gather') activeTab.value = 'overview';
   }
 );
-// 方案A 第一步：开门柜（将邑，bound=已绑定）按商品备货——货道编辑隐藏，改台账在架列表
-const isDoorCabinet = computed(() => jiangyiGather.value.bound);
 type LedgerGood = {
   skuId: string;
   skuName?: string | null;
@@ -532,43 +486,24 @@ const lifecycleLabel = computed(() =>
     ? dictLabel('device_lifecycle', lifecycleStatus.value) || lifecycleStatus.value
     : ''
 );
-const slotStockHint = computed(() => {
-  // 开门柜没有货道（判据=将邑绑定）：提示改由台账商品算，口径与后台设备详情 KPI 一致
-  if (isDoorCabinet.value) {
-    const goodsOos = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'OOS').length;
-    const goodsLow = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'LOW').length;
-    if (goodsOos > 0 && goodsLow > 0) return `缺货 ${goodsOos} 个商品 · 低库存 ${goodsLow} 个商品`;
-    if (goodsOos > 0) return `缺货 ${goodsOos} 个商品`;
-    if (goodsLow > 0) return `低库存 ${goodsLow} 个商品`;
-    return '';
-  }
-  const oos = slots.value.filter((s) => Number(s.bookQty || 0) <= 0 && !!s.assignedSkuId).length;
-  const low = slots.value.filter((s) => {
-    const qty = Number(s.bookQty || 0);
-    const min = Number(s.minLevel || 0);
-    return !!s.assignedSkuId && qty > 0 && min > 0 && qty <= min;
-  }).length;
-  if (oos > 0 && low > 0) return `缺货 ${oos} 个货道 · 低库存 ${low} 个货道`;
-  if (oos > 0) return `缺货 ${oos} 个货道`;
-  if (low > 0) return `低库存 ${low} 个货道`;
+const goodsStockHint = computed(() => {
+  // 提示由台账商品算，口径与后台设备详情 KPI 一致
+  const goodsOos = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'OOS').length;
+  const goodsLow = ledgerGoods.value.filter((g) => stockLevelOf(g) === 'LOW').length;
+  if (goodsOos > 0 && goodsLow > 0) return `缺货 ${goodsOos} 个商品 · 低库存 ${goodsLow} 个商品`;
+  if (goodsOos > 0) return `缺货 ${goodsOos} 个商品`;
+  if (goodsLow > 0) return `低库存 ${goodsLow} 个商品`;
   return '';
 });
 
 const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
-const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
 const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 const canAnalytics = computed(() => hasPerm(me.value, 'merchant:analytics:view'));
 const canControl = computed(() => hasPerm(me.value, 'merchant:device:control'));
-const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
 
 /** CB-050 扩展：快捷操作入口 */
-function goDeviceStocktake() {
-  uni.navigateTo({
-    url: `/pages/device-stocktake/device-stocktake?deviceId=${encodeURIComponent(deviceId.value)}`
-  });
-}
 function goTallyRecords() {
   uni.navigateTo({
     url: `/pages/tally-records/tally-records?deviceId=${encodeURIComponent(deviceId.value)}&name=${encodeURIComponent(deviceName.value)}`
@@ -675,14 +610,6 @@ function applyDeviceSettings(settings: OpenApiMerchantDeviceSettingsDto) {
   formRemark.value = settings.opsRemark || '';
 }
 
-function applySlotParLevels(list: DeviceSlot[]) {
-  const par: Record<string, string> = {};
-  list.forEach((s) => {
-    par[s.slotCode] = s.parLevel == null ? '' : String(s.parLevel);
-  });
-  slotPar.value = par;
-}
-
 function syncPreferredFlag() {
   isPreferred.value =
     String(getPreferredDeviceId() || '')
@@ -697,8 +624,7 @@ async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
   // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
-  const [list, vel, gather, training, detail, kpi, faultRows] = await Promise.all([
-    softFallback(merchantApi.deviceSlots(deviceId.value), [] as DeviceSlot[], '货道'),
+  const [vel, gather, training, detail, kpi, faultRows] = await Promise.all([
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
       : Promise.resolve([] as MerchantSkuVelocity[]),
@@ -742,7 +668,6 @@ async function loadDeviceExtras(seq: number) {
     )
   ]);
   if (seq !== loadSeq) return;
-  slots.value = list;
   velocity.value = vel;
   faults.value = faultRows;
   jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
@@ -773,7 +698,6 @@ async function loadDeviceExtras(seq: number) {
       deviceFields.signalStrength == null ? null : Number(deviceFields.signalStrength);
   }
   if (kpi) summary.value = kpi;
-  applySlotParLevels(list);
   syncPreferredFlag();
 }
 
@@ -803,12 +727,12 @@ async function sendCmd(command: 'LOCK' | 'UNLOCK' | 'REBOOT') {
   }
 }
 
-/** 快捷操作：滚到货道（在售商品）卡（选项式：先切到商品页签再定位） */
+/** 快捷操作：滚到在架商品卡（选项式：先切到商品页签再定位） */
 function scrollToSlots() {
   activeTab.value = 'goods';
   uni
     .createSelectorQuery()
-    .select('#slotCard')
+    .select('#goodsCard')
     .boundingClientRect((rect) => {
       const top = (rect as { top?: number } | null)?.top;
       if (top == null) return;
@@ -964,49 +888,6 @@ async function saveSettings() {
     showError(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
-  }
-}
-
-async function saveSlots() {
-  if (savingSlots.value) return;
-  const body: {
-    slotCode: string;
-    rowNo: number;
-    colNo: number;
-    slotType: string;
-    assignedSkuId?: string;
-    parLevel: number;
-    minLevel?: number;
-    maxLevel?: number;
-    enabled?: boolean;
-  }[] = [];
-  for (const s of slots.value) {
-    const par = Number(slotPar.value[s.slotCode] || s.parLevel);
-    if (!Number.isInteger(par) || par < 0) {
-      showError(`货道 ${s.slotCode} 容量无效`);
-      return;
-    }
-    body.push({
-      slotCode: s.slotCode,
-      rowNo: s.rowNo,
-      colNo: s.colNo,
-      slotType: s.slotType || '',
-      assignedSkuId: s.assignedSkuId,
-      parLevel: par,
-      minLevel: s.minLevel,
-      maxLevel: s.maxLevel,
-      enabled: s.enabled
-    });
-  }
-  savingSlots.value = true;
-  try {
-    await merchantApi.upsertSlots(deviceId.value, body);
-    showSuccess('货道已保存');
-    await loadDetail();
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '保存失败');
-  } finally {
-    savingSlots.value = false;
   }
 }
 </script>
@@ -1262,11 +1143,6 @@ async function saveSlots() {
   padding: 0 6px;
   color: var(--text-primary, #0f172a);
 }
-.slot-code {
-  font-weight: 600;
-  display: block;
-  font-size: var(--font-size-caption);
-}
 /* 在架商品行式列表（2026-10-28）：每商品独占一行 + 商品图；只服务开门柜分支 */
 .goods-list {
   display: flex;
@@ -1337,19 +1213,6 @@ async function saveSlots() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.slot-sku {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--text-primary, #0f172a);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.slot-stock {
-  display: block;
-  margin-top: 2rpx;
-}
 .action-row {
   display: flex;
   gap: 16rpx;
@@ -1380,10 +1243,6 @@ async function saveSlots() {
 .page-body {
   padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-}
-/* 保存货道与货道网格的间距：margin 写在自定义组件标签上小程序端不生效，改用页面容器 */
-.slot-save-row {
-  padding-top: 24rpx;
 }
 /* CB-050：KPI 条与快捷操作宫格 */
 .kpi-card {

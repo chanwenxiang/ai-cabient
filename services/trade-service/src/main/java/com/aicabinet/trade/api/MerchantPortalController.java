@@ -163,16 +163,6 @@ public class MerchantPortalController {
         return ApiResponse.ok(deviceOpsService.executeForMerchant(userId(request), deviceId, body));
     }
 
-    /** CB-050 扩展：柜机扫码盘点（单货道实盘；照片凭证按商户 ops-policy 强制）。 */
-    @RequiresPermissions("merchant:slots:edit")
-    @PostMapping("/devices/{deviceId}/slots/stocktake")
-    public ApiResponse<DeviceSlotDto> stocktakeSlot(
-            HttpServletRequest request,
-            @PathVariable String deviceId,
-            @Valid @RequestBody SlotStocktakeRequest body) {
-        return ApiResponse.ok(merchantPortalService.stocktakeSlot(userId(request), deviceId, body));
-    }
-
     /** 盘点开门（2026-10-28）：先扫码选中柜机（人在柜边）再发起；仅开门柜；关门即完成不结算。 */
     @RequiresPermissions("merchant:slots:edit")
     @PostMapping("/devices/{deviceId}/stocktake-door")
@@ -322,22 +312,6 @@ public class MerchantPortalController {
 
     /** 进入采集模式请求体（doorPosition 可选，与 admin 侧 GatherStartRequest 同形）。 */
     public record MerchantGatherStartRequest(String doorPosition) {}
-
-    @RequiresPermissions("merchant:slots:view")
-    @GetMapping("/devices/{deviceId}/slots")
-    public ApiResponse<List<DeviceSlotDto>> deviceSlots(
-            HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(merchantPortalService.listDeviceSlots(userId(request), deviceId));
-    }
-
-    @RequiresPermissions("merchant:slots:edit")
-    @PutMapping("/devices/{deviceId}/slots")
-    public ApiResponse<List<DeviceSlotDto>> upsertDeviceSlots(
-            HttpServletRequest request,
-            @PathVariable String deviceId,
-            @RequestBody List<UpsertDeviceSlotRequest> body) {
-        return ApiResponse.ok(merchantPortalService.upsertDeviceSlots(userId(request), deviceId, body));
-    }
 
     @RequiresPermissions("merchant:reports:view")
     @GetMapping("/device-reports")

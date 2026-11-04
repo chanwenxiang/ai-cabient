@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
- * 柜机盘点（CB-050 扩展，嗨便利对照）：扫码/选择柜机 → 按柜型分流。
- * - 弹簧柜（有货道）：逐货道实盘提交（原链路，只记录走 SLOT_DISCREPANCY 闭环）。
- * - 开门柜（将邑，2026-10-28）：盘点开门（先扫码选中柜机=人在柜边再开，关门即完成
- *   不结算）→ 逐商品实盘覆盖式提交（台账→实盘差值自动加/减，落批次台账）。
+ * 柜机盘点（开门柜）：扫码/选择柜机 → 盘点开门（先扫码选中柜机=人在柜边再开，关门即完成
+ * 不结算）→ 逐商品实盘覆盖式提交（台账→实盘差值自动加/减，落批次台账）。
+ * 非将邑柜不支持在线盘点（货道实盘链路已随「开门柜去掉货道」退场）。
  * 凭证照片按商户 ops-policy 强制（共用 stocktake-evidence 上传），可选附带定位（防伪）。
  */
 import { onLoad } from '@dcloudio/uni-app';
@@ -16,7 +15,6 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
-import type { DeviceSlot } from '@aicabinet/shared-types';
 
 interface StocktakeGoodsRow {
   skuId: string;
@@ -37,11 +35,6 @@ const deviceId = ref('');
 const deviceName = ref('');
 const loading = ref(false);
 const opening = ref(false);
-
-// ---- 弹簧柜（货道实盘，原链路） ----
-const slots = ref<DeviceSlot[]>([]);
-const physicalInputs = ref<Record<string, string>>({});
-const submitting = ref<Record<string, boolean>>({});
 
 // ---- 开门柜（商品实盘，2026-10-28） ----
 const isDoorCabinet = ref(false);
@@ -92,43 +85,34 @@ async function loadDevice(autoOpen = false) {
       bound = false; // 无 detail 权限/非将邑：按弹簧柜流程走
     }
     isDoorCabinet.value = bound;
-    if (bound) {
-      const detail = await merchantApi.deviceDetail(deviceId.value);
-      deviceName.value = detail.device?.deviceName || deviceId.value;
-      const rows: StocktakeGoodsRow[] = (detail.skuInventory ?? [])
-        .filter((g) => !!g.skuId)
-        .map((g) => ({
-          skuId: String(g.skuId),
-          skuName: g.skuName,
-          quantity: g.quantity,
-          // 图片地址必须绝对化，否则小程序端加载不到、只渲染空白方块（与补货页同源 helper）
-          imageUrl: absoluteImageUrl(g.imageUrl) || null
-        }));
-      goods.value = rows;
-      // 实盘预填台账数：覆盖式语义，没动到的行=无差异，提交时自动过滤
-      const inputs: Record<string, string> = {};
-      rows.forEach((g) => {
-        inputs[g.skuId] = String(g.quantity ?? 0);
-      });
-      goodsInputs.value = inputs;
-      slots.value = [];
-      if (!rows.length) {
-        showError('该柜台账暂无在架商品');
-      } else if (autoOpen) {
-        void executeOpenDoor();
-      }
-    } else {
-      const list = await merchantApi.deviceSlots(deviceId.value);
-      slots.value = list.filter((s) => !!s.assignedSkuId);
-      const inputs: Record<string, string> = {};
-      list.forEach((s) => {
-        inputs[s.slotCode] = s.bookQty == null ? '' : String(s.bookQty);
-      });
-      physicalInputs.value = inputs;
+    if (!bound) {
+      // 货道实盘随「开门柜去掉货道」退场：非将邑柜没有可用的盘点链路
       goods.value = [];
-      if (!slots.value.length) {
-        showError('该柜没有已绑定商品的货道');
-      }
+      showError('该柜不支持在线盘点：仅将邑开门柜支持按商品盘点');
+      return;
+    }
+    const detail = await merchantApi.deviceDetail(deviceId.value);
+    deviceName.value = detail.device?.deviceName || deviceId.value;
+    const rows: StocktakeGoodsRow[] = (detail.skuInventory ?? [])
+      .filter((g) => !!g.skuId)
+      .map((g) => ({
+        skuId: String(g.skuId),
+        skuName: g.skuName,
+        quantity: g.quantity,
+        // 图片地址必须绝对化，否则小程序端加载不到、只渲染空白方块（与补货页同源 helper）
+        imageUrl: absoluteImageUrl(g.imageUrl) || null
+      }));
+    goods.value = rows;
+    // 实盘预填台账数：覆盖式语义，没动到的行=无差异，提交时自动过滤
+    const inputs: Record<string, string> = {};
+    rows.forEach((g) => {
+      inputs[g.skuId] = String(g.quantity ?? 0);
+    });
+    goodsInputs.value = inputs;
+    if (!rows.length) {
+      showError('该柜台账暂无在架商品');
+    } else if (autoOpen) {
+      void executeOpenDoor();
     }
   } catch (e) {
     showError(e instanceof Error ? e.message : '加载柜机信息失败');
@@ -265,44 +249,6 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
     submittingDoor.value = false;
   }
 }
-
-// ---- 弹簧柜：单货道实盘（原链路） ----
-function submitStocktake(slot: DeviceSlot) {
-  const raw = physicalInputs.value[slot.slotCode];
-  const qty = Number(raw);
-  if (raw == null || raw === '' || Number.isNaN(qty) || qty < 0) {
-    showError(`请填写货道 ${slot.slotCode} 的实盘数量`);
-    return;
-  }
-  uni.showModal({
-    title: `盘点货道 ${slot.slotCode}`,
-    content: `系统 ${slot.bookQty} → 实盘 ${qty}${evidenceUrl.value ? '（含凭证）' : ''}。确认提交？`,
-    success: (res) => {
-      if (res.confirm) void doSubmit(slot, qty);
-    }
-  });
-}
-
-async function doSubmit(slot: DeviceSlot, qty: number) {
-  submitting.value = { ...submitting.value, [slot.slotCode]: true };
-  try {
-    const location = await fetchLocation();
-    await merchantApi.deviceSlotStocktake(deviceId.value, {
-      slotCode: slot.slotCode,
-      physicalQty: qty,
-      adjustBookQty: false,
-      photoEvidenceUrl: evidenceUrl.value || undefined,
-      latitude: location?.latitude,
-      longitude: location?.longitude
-    });
-    showSuccess(`货道 ${slot.slotCode} 已记录实盘`);
-    await loadDevice();
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '盘点提交失败');
-  } finally {
-    submitting.value = { ...submitting.value, [slot.slotCode]: false };
-  }
-}
 </script>
 
 <template>
@@ -320,9 +266,7 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
           <view v-else class="scan-done">
             <text class="title">柜机 {{ deviceName || deviceId }}</text>
             <text class="meta">{{
-              isDoorCabinet
-                ? '开门柜：已按门禁式开门，清点后按商品提交实盘'
-                : '弹簧柜：逐货道填写实盘数量后提交；照片凭证按商户要求强制'
+              isDoorCabinet ? '开门柜：已按门禁式开门，清点后按商品提交实盘' : '该柜不支持在线盘点'
             }}</text>
             <app-button
               variant="secondary"
@@ -415,50 +359,9 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
             </view>
           </template>
 
-          <!-- 弹簧柜：逐货道实盘（原链路） -->
-          <template v-else>
-            <view class="card">
-              <text class="section">盘点凭证</text>
-              <view class="evidence-row">
-                <app-button
-                  variant="secondary"
-                  compact
-                  :block="false"
-                  :label="evidenceUrl ? '已上传（重拍替换）' : '拍现场照'"
-                  @click="chooseEvidence"
-                />
-                <text v-if="evidenceUrl" class="meta">凭证已随本次盘点提交</text>
-              </view>
-            </view>
-
-            <view class="card">
-              <view class="row">
-                <text class="section">货道实盘</text>
-                <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
-              </view>
-              <view v-for="s in slots" :key="s.slotCode" class="stock-row">
-                <view class="stock-main">
-                  <text class="stock-code">{{ s.slotCode }}</text>
-                  <text class="meta">{{ s.assignedSkuName || s.assignedSkuId }}</text>
-                </view>
-                <text class="stock-book">系统 {{ s.bookQty ?? 0 }}</text>
-                <input
-                  v-model="physicalInputs[s.slotCode]"
-                  class="input stock-input"
-                  type="number"
-                  placeholder="实盘"
-                />
-                <app-button
-                  compact
-                  :block="false"
-                  :loading="!!submitting[s.slotCode]"
-                  label="提交"
-                  @click="submitStocktake(s)"
-                />
-              </view>
-              <text v-if="!loading && !slots.length" class="meta">暂无可盘点的货道</text>
-            </view>
-          </template>
+          <view v-else-if="!loading" class="card">
+            <text class="err">该柜不支持在线盘点：仅将邑开门柜支持按商品盘点</text>
+          </view>
         </template>
       </template>
     </view>
@@ -570,27 +473,6 @@ async function doSubmit(slot: DeviceSlot, qty: number) {
   padding: 16rpx;
   background: #f7f8fa;
   border-radius: 12rpx;
-}
-.stock-row {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-.stock-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.stock-code {
-  font-weight: 600;
-}
-.stock-book {
-  font-size: 24rpx;
-  color: #909399;
-  font-variant-numeric: tabular-nums;
 }
 .stock-input {
   width: 120rpx;

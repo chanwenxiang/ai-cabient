@@ -44,7 +44,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 220);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 219);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];

@@ -21,7 +21,7 @@
       :key="`${line.lineId || 'draft'}-${line.skuId}-${line.batchNo || idx}`"
       class="line-card"
     >
-      <!-- 单行居中：名称 + 数量/扫码 + 货道标签，不再拆成多行堆叠 -->
+      <!-- 单行居中：名称 + 数量/扫码 + 批次/效期标签，不再拆成多行堆叠 -->
       <view class="line-row">
         <image
           v-if="resolveSkuThumb(skuKey(line))"
@@ -62,9 +62,6 @@
         </view>
         <text v-else class="qty">× {{ line.quantity }}</text>
         <template v-if="!completed">
-          <text v-if="line.slotId" class="fact">货道 {{ line.slotId }}</text>
-          <!-- 方案A：开门柜按商品备货，无货道概念——空 slotId 不再显示「货道待分配」 -->
-          <text v-else-if="!doorCabinet" class="fact muted">货道待分配</text>
           <text v-if="line.batchNo" class="fact">批次 {{ line.batchNo }}</text>
           <text v-if="line.productionDate" class="fact">生产 {{ line.productionDate }}</text>
           <text v-if="line.expiryDate" class="fact">到期 {{ line.expiryDate }}</text>
@@ -74,36 +71,6 @@
         <text class="recap-line">{{ recapPrimary(line) }}</text>
         <text v-if="recapSecondary(line)" class="recap-line muted">{{ recapSecondary(line) }}</text>
       </view>
-      <view
-        v-if="
-          !doorCabinet && isLineEditable(line) && !resolveIsPullOff(line.lineType) && !line.slotId
-        "
-        class="slot-pick"
-      >
-        <text class="slot-pick-label">选择货道</text>
-        <view v-if="resolveSlotOptions(line).length" class="slot-chips">
-          <text
-            v-for="opt in resolveSlotOptions(line)"
-            role="button"
-            :key="opt.slotCode"
-            class="slot-chip"
-            :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
-            @click="$emit('assign-slot', line, opt)"
-            >{{ opt.slotCode }} · 余{{ opt.room }}</text
-          >
-        </view>
-        <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
-      </view>
-      <!-- 只保留满仓/超量警告；「现有/补后/还能再放」叙事句已删 -->
-      <view
-        v-if="!completed && line.slotId && isCapacityWarn(line)"
-        class="line-cap"
-        :class="{
-          full: resolveSlotHeadroom(line) <= 0,
-          warn: resolveSlotHeadroom(line) > 0 && (line.quantity ?? 0) > resolveSlotHeadroom(line)
-        }"
-        >{{ resolveSlotHint(line) }}</view
-      >
     </view>
   </view>
 </template>
@@ -114,7 +81,6 @@ import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { isPullOffType as lineIsPullOff } from '@/composables/useReplenishmentDisplay';
 
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
-type SlotOpt = { slotCode: string; room: number };
 type Fn<A extends unknown[], R> = ((...args: A) => R) | undefined;
 
 const props = defineProps<{
@@ -123,8 +89,6 @@ const props = defineProps<{
   completed?: boolean;
   pullOff?: boolean;
   scanning?: boolean;
-  /** 方案A：开门柜（将邑）按商品备货——隐藏货道角标/选货道 UI（2026-10-27 用户拍板） */
-  doorCabinet?: boolean;
   /** 父页布尔：有补货权限且明细未确认。小程序不能把函数当 prop 可靠传入。 */
   canEdit?: boolean;
   skuName?: (id: string) => string;
@@ -133,24 +97,16 @@ const props = defineProps<{
   lineTypeLabel?: (t?: string | null) => string;
   lineStatusLabel?: (line: Line) => string;
   isPullOffType?: (t?: string | null) => boolean;
-  slotOptionsFor?: (line: Line) => SlotOpt[];
-  slotHeadroom?: (line: Line) => number;
-  slotHint?: (line: Line) => string;
 }>();
 
 defineEmits<{
   'adjust-qty': [line: Line, delta: number];
   'scan-product': [line: Line];
-  'assign-slot': [line: Line, opt: SlotOpt];
 }>();
 
 const loadingText = computed(() => loadingLabel('明细'));
 
-const subtitle = computed(() => {
-  // 开门柜（判据=将邑绑定）无货道：不再让用户核对一个不存在的维度
-  if (props.doorCabinet) return props.pullOff ? '请逐项核对下架商品' : '请逐项核对商品、批次';
-  return props.pullOff ? '请逐项核对下架商品与货道' : '请逐项核对商品、批次和货道';
-});
+const subtitle = computed(() => (props.pullOff ? '请逐项核对下架商品' : '请逐项核对商品、批次'));
 
 function callFn<A extends unknown[], R>(fn: Fn<A, R>, fallback: R, ...args: A): R {
   return typeof fn === 'function' ? fn(...args) : fallback;
@@ -187,29 +143,13 @@ function resolveLineStatusLabel(line: Line) {
   return callFn(props.lineStatusLabel, fallback, line);
 }
 
-function resolveSlotOptions(line: Line) {
-  return callFn(props.slotOptionsFor, [] as SlotOpt[], line);
-}
-
-function resolveSlotHeadroom(line: Line) {
-  return callFn(props.slotHeadroom, 0, line);
-}
-
-function resolveSlotHint(line: Line) {
-  return callFn(props.slotHint, '', line);
-}
-
 /** 可改数量：父页允许编辑，且任务未完成、该行未入柜 */
 function isLineEditable(line: Line) {
   return !!props.canEdit && !props.completed && !line.applied;
 }
 
 function recapPrimary(line: Line) {
-  const parts = [
-    line.slotId ? `货道 ${line.slotId}` : '',
-    resolveLineTypeLabel(line.lineType),
-    `×${line.quantity ?? 0}`
-  ].filter(Boolean);
+  const parts = [resolveLineTypeLabel(line.lineType), `×${line.quantity ?? 0}`];
   return parts.join(' · ');
 }
 
@@ -222,13 +162,6 @@ function recapSecondary(line: Line) {
   ]
     .filter(Boolean)
     .join(' · ');
-}
-
-function isCapacityWarn(line: Line) {
-  if (resolveIsPullOff(line.lineType)) return false;
-  const room = resolveSlotHeadroom(line);
-  const qty = Number(line.quantity) || 0;
-  return room <= 0 || qty > room;
 }
 </script>
 
@@ -397,9 +330,6 @@ function isCapacityWarn(line: Line) {
   color: var(--brand, #0d9488);
   background: var(--brand-soft, #f0fdfa);
 }
-.fact.muted {
-  color: var(--text-subtle, #94a3b8);
-}
 .line-recap {
   display: flex;
   flex-direction: column;
@@ -418,62 +348,6 @@ function isCapacityWarn(line: Line) {
 .recap-line.muted {
   color: var(--text-subtle, #94a3b8);
   font-size: var(--font-size-xs, 20rpx);
-}
-.slot-pick {
-  margin-top: 12rpx;
-  text-align: center;
-}
-.slot-pick-label {
-  display: block;
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  margin-bottom: 8rpx;
-  font-weight: 600;
-}
-.slot-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10rpx;
-}
-.slot-chip {
-  padding: 8rpx 16rpx;
-  border-radius: var(--radius-pill);
-  background: var(--brand-soft);
-  color: var(--brand);
-  font-size: var(--font-size-sm);
-  border: 1rpx solid var(--brand-mist, #99f6e4);
-}
-.slot-chip.active {
-  background: var(--brand);
-  color: var(--white);
-  border-color: var(--brand);
-}
-.slot-chip.disabled {
-  background: var(--color-border);
-  color: var(--text-muted, #475569);
-  border-color: var(--text-subtle, #cbd5e1);
-}
-.slot-empty {
-  font-size: var(--font-size-sm);
-  color: var(--color-danger);
-}
-.line-cap {
-  margin-top: 12rpx;
-  padding: 10rpx 14rpx;
-  border-radius: var(--radius-control);
-  font-size: var(--font-size-sm);
-  color: var(--brand);
-  background: var(--brand-soft);
-  text-align: center;
-}
-.line-cap.warn {
-  color: var(--warning, #b45309);
-  background: #f9f1eb;
-}
-.line-cap.full {
-  color: var(--color-danger);
-  background: #f9eded;
 }
 .empty.small {
   padding: 24rpx 0;

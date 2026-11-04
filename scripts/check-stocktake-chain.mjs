@@ -25,7 +25,9 @@
  * C 前端入口
  *   - device-stocktake.vue 必须调用 openStocktakeDoor / submitDoorStocktake；
  *   - 首页快捷入口（home.vue）留「柜机盘点」——不带 deviceId，到盘点页再扫码选柜；
- *   - 柜机详情（device-detail.vue）必须带 deviceId 跳盘点页（按柜盘点、不开错门）。
+ *   - 柜机详情（device-detail.vue）**不得**提供盘点入口：开门柜盘点要求「人在柜边」，
+ *     入口统一留在首页（扫码选柜）/盘点页扫码；详情页再放入口等于多一条远程开门路径
+ *     （2026-10-28 起按柜型隐藏，弹簧柜退场后彻底移除）。
  *
  * 永远 fail-closed：锚点找不到一律 FAIL。
  *   node scripts/check-stocktake-chain.mjs
@@ -141,16 +143,10 @@ const homeNav = src.home.match(/goDeviceStocktake\(\)\s*\{[\s\S]{0,300}?\}/);
 if (!homeNav || !homeNav[0].includes('/pages/device-stocktake/device-stocktake')) {
   fail('home.vue 的 goDeviceStocktake 未跳盘点页');
 }
-// 盘点入口二：柜机详情（按柜盘点）。必须带 deviceId：不带就只能靠扫码选柜，开错门风险高
-if (!src.deviceDetail.includes('goDeviceStocktake')) {
-  fail('device-detail.vue 缺 goDeviceStocktake——柜机详情盘点入口被移除');
-}
-const stocktakeNav = src.deviceDetail.match(/goDeviceStocktake\(\)\s*\{[\s\S]{0,300}?\}/);
-if (
-  !stocktakeNav ||
-  !stocktakeNav[0].includes('/pages/device-stocktake/device-stocktake?deviceId=')
-) {
-  fail('device-detail.vue 的 goDeviceStocktake 未带 deviceId 跳盘点页（会开错柜的门）');
+// 盘点入口二（2026-11-04 退场）：柜机详情**不得**提供盘点入口——开门柜要求人在柜边，
+// 入口只在首页扫码选柜；详情页入口等于可远程点开的开门路径。
+if (src.deviceDetail.includes('goDeviceStocktake')) {
+  fail('device-detail.vue 又出现 goDeviceStocktake——详情页不应提供盘点开门入口（入口在首页扫码）');
 }
 
 console.log(

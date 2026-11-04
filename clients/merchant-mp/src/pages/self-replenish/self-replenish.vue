@@ -90,7 +90,6 @@ import { hasPerm, merchantApi, softFallback, isMerchantLoggedIn } from '@/utils/
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type {
-  DeviceSlot,
   MerchantDeviceInfo,
   OpenApiDeviceDetailDto,
   OpenApiReplenishmentSuggestDto
@@ -201,13 +200,12 @@ async function loadDraft() {
   const seq = ++draftSeq;
   draftLoading.value = true;
   try {
-    const [suggest, slots, detail] = await Promise.all([
+    const [suggest, detail] = await Promise.all([
       softFallback(
         merchantApi.replenishmentSuggestions(deviceId),
         [] as OpenApiReplenishmentSuggestDto[],
         '补货建议'
       ),
-      softFallback(merchantApi.deviceSlots(deviceId), [] as DeviceSlot[], '货道'),
       // 在架台账=补货明细骨架（CB-069）；读失败回 null ⇒ 退回货道口径，静默不打扰（有可用兜底）
       softFallback(
         merchantApi.deviceDetail(deviceId),
@@ -217,11 +215,7 @@ async function loadDraft() {
       )
     ]);
     if (seq !== draftSeq) return;
-    draftLines.value = buildDraftLines(
-      slots || [],
-      buildSuggestMap(suggest),
-      onShelfInventoryRows(detail)
-    );
+    draftLines.value = buildDraftLines(buildSuggestMap(suggest), onShelfInventoryRows(detail));
   } catch (e) {
     if (seq !== draftSeq) return;
     draftLines.value = [];

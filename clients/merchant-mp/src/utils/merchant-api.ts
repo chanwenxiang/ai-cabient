@@ -520,17 +520,6 @@ export const merchantApi = {
       'PATCH',
       body
     ),
-  deviceSlots: (id: string) =>
-    request<import('@aicabinet/shared-types').DeviceSlot[]>(MerchantEndpoints.deviceSlots(id)),
-  upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
-    request(MerchantEndpoints.deviceSlots(id), 'PUT', body),
-  /** CB-050 扩展：柜机扫码盘点（单货道实盘；凭证 URL 可选，按商户 ops-policy 强制） */
-  deviceSlotStocktake: (id: string, body: import('@aicabinet/shared-types').SlotStocktakeRequest) =>
-    request<import('@aicabinet/shared-types').DeviceSlot>(
-      MerchantEndpoints.deviceSlotStocktake(id),
-      'POST',
-      body
-    ),
   /** CB-050 扩展：柜机盘点凭证上传（返回附件含 url，回填盘点请求 photoEvidenceUrl） */
   uploadDeviceStocktakeEvidenceFile: (deviceId: string, filePath: string) =>
     uploadMerchantAuthedFile(

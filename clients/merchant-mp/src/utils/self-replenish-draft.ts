@@ -1,10 +1,9 @@
 /**
  * 自主补货草稿行合并。
  * 提交门闩见 `self-replenish-submit`。
- * 纯函数：在架台账 + 货道 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
+ * 纯函数：在架台账 + 补货建议 → DraftLine；禁止依赖 uni / merchantApi。
  */
 import type {
-  DeviceSlot,
   OpenApiDeviceDetailDto,
   OpenApiDeviceInventoryDto,
   OpenApiReplenishmentSuggestDto
@@ -52,61 +51,13 @@ export function buildSuggestMap(
  * 与设备详情「已上架商品」、消费者目录同口径 ⇒ 已下架/演示 SKU 不会进来。
  *
  * 🔴 `null`（详情读取失败）与 `[]`（柜里确实没有在架商品）必须分开：
- * 前者退回货道骨架（旧行为），后者是真空态，不能当成「没读到」而放行全部货道 SKU。
+ * 前者退回「孤儿建议」骨架，后者是真空态，不能当成「没读到」而放行全部建议 SKU。
  */
 export function onShelfInventoryRows(
   detail: OpenApiDeviceDetailDto | null | undefined
 ): OpenApiDeviceInventoryDto[] | null {
   const rows = detail?.skuInventory;
   return Array.isArray(rows) ? rows : null;
-}
-
-export function mergeSlotDraftLine(
-  bySku: Map<string, ReplenishDraftLine>,
-  slot: DeviceSlot,
-  sug: OpenApiReplenishmentSuggestDto | undefined,
-  onShelf?: Set<string> | null,
-  ledgerRow?: { quantity?: number; capacity?: number; skuName?: string | null } | null
-): string | undefined {
-  const skuId = String(slot.assignedSkuId || '').trim();
-  if (!skuId) return;
-  // 在架集合存在时，货道只作名称/容量注解：绑了已下架 SKU 的货道不进明细（2026-10-27 用户「补货应该只补柜里当前存在的 sku」）
-  if (onShelf && !onShelf.has(skuId)) return;
-  // 🔴 库存/容量以在架台账为真源（CB-069 + 2026-10-27 实测）：货道账面常为 0
-  // （补货落账不绑货道）、PAR 可与台账容量冲突——台账行存在时一律以台账为准，
-  // 货道只在台账行缺失（历史无账行）时兜底注解。
-  const hasLedger = ledgerRow != null;
-  const book = hasLedger ? Number(ledgerRow.quantity) || 0 : Number(slot.bookQty) || 0;
-  const capacity = hasLedger
-    ? Number(ledgerRow.capacity) || 0
-    : Number(slot.maxLevel ?? slot.parLevel) || 0;
-  const suggestQty = Number(sug?.suggestQty) || 0;
-  const soldQty7d = Number(sug?.soldQty7d) || 0;
-  const suggestReason = String(sug?.suggestReason || '');
-  const existing = bySku.get(skuId);
-  if (existing) {
-    if (!hasLedger) {
-      existing.currentQty += book;
-      existing.capacity += capacity;
-    }
-    existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
-    existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
-    if (suggestReason) existing.suggestReason = suggestReason;
-    return skuId;
-  }
-  const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
-  bySku.set(skuId, {
-    skuId,
-    skuName: String(ledgerRow?.skuName || slot.assignedSkuName || skuId),
-    currentQty: book,
-    capacity,
-    suggestQty,
-    soldQty7d,
-    suggestReason,
-    qty: defaultQty,
-    selected: defaultQty > 0
-  });
-  return skuId;
 }
 
 /**
@@ -167,27 +118,16 @@ export function mergeInventoryDraftLine(
  * 草稿组装：在架台账优先，货道只补名称/容量；台账读不到（rows=null）才退回「货道 + 孤儿建议」旧口径。
  * 在架态下**不再由孤儿建议新增行**——建议可能带着已下架 SKU 回来（CB-069）。
  */
+/**
+ * 草稿组装：在架台账为唯一骨架；台账读不到（rows=null）才退回「孤儿建议」口径。
+ * 在架态下**不再由孤儿建议新增行**——建议可能带着已下架 SKU 回来（CB-069）。
+ */
 export function buildDraftLines(
-  slots: DeviceSlot[],
   suggestMap: Map<string, OpenApiReplenishmentSuggestDto>,
   rows: OpenApiDeviceInventoryDto[] | null
 ): ReplenishDraftLine[] {
   const bySku = new Map<string, ReplenishDraftLine>();
   const rest = new Map(suggestMap);
-  const onShelf = rows ? new Set(rows.map((r) => String(r.skuId || '').trim())) : null;
-  const rowsBySku = new Map(
-    (rows || []).map((r) => [String(r.skuId || '').trim(), r] as const).filter(([k]) => !!k)
-  );
-  for (const slot of slots || []) {
-    const skuId = mergeSlotDraftLine(
-      bySku,
-      slot,
-      rest.get(String(slot.assignedSkuId || '').trim()),
-      onShelf,
-      rowsBySku.get(String(slot.assignedSkuId || '').trim()) || null
-    );
-    if (skuId) rest.delete(skuId);
-  }
   if (rows) {
     for (const row of rows) {
       const skuId = mergeInventoryDraftLine(bySku, row, rest.get(String(row.skuId || '').trim()));

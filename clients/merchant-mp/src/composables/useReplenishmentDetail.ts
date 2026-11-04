@@ -3,7 +3,6 @@ import { safeChooseImage } from '@aicabinet/shared-uni/safe-uni-call';
 import { showError } from '@/utils/notify';
 import { merchantApi, softFallback } from '@/utils/merchant-api';
 import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
-import type { DeviceSlot } from '@aicabinet/shared-types';
 import {
   mapReplenishmentEvidenceItems,
   mergeEvidenceCountMap
@@ -12,19 +11,6 @@ import {
 type Task = import('@aicabinet/shared-types').OpenApiReplenishmentTaskDto;
 type Line = import('@aicabinet/shared-types').OpenApiReplenishmentTaskLineDto;
 type Headroom = import('@aicabinet/shared-types').OpenApiReplenishmentHeadroomDto;
-
-export function buildSlotCapsFromSlots(slots: DeviceSlot[]) {
-  const map: Record<string, { maxLevel: number; bookQty: number }> = {};
-  for (const s of slots) {
-    const code = String(s.slotCode || '').toUpperCase();
-    if (!code) continue;
-    map[code] = {
-      maxLevel: Number(s.maxLevel) || 0,
-      bookQty: Number(s.bookQty) || 0
-    };
-  }
-  return map;
-}
 
 /**
  * 补货详情 sheet：深链打开、拉明细/货道/凭证、上传预览、关闭。
@@ -40,8 +26,6 @@ export function useReplenishmentDetail(opts: {
   sheetCloseArmed: Ref<boolean>;
   detailLoading: Ref<boolean>;
   submitting: Ref<boolean>;
-  slotCaps: Ref<Record<string, { maxLevel: number; bookQty: number }>>;
-  deviceSlotsList: Ref<DeviceSlot[]>;
   /**
    * 设备台账（键=skuId）：开门柜补货上限数据源（capacity − 在架）。
    * 打开详情时随货道一起并行拉取（deviceDetail.skuInventory）；拉失败置空=不设限，
@@ -142,8 +126,6 @@ export function useReplenishmentDetail(opts: {
     const taskId = opts.selected.value.taskId;
     if (typeof taskId === 'number') opts.restoreDoorState(taskId);
     opts.detailLoading.value = true;
-    opts.slotCaps.value = {};
-    opts.deviceSlotsList.value = [];
     opts.inventoryCaps.value = {};
     opts.headroomBySku.value = {};
   }
@@ -174,9 +156,8 @@ export function useReplenishmentDetail(opts: {
   async function loadTaskDetailResources(task: Task) {
     const taskId = task.taskId;
     if (typeof taskId !== 'number') return;
-    const [taskLines, slots, evidence, deviceDetail, headroomRows] = await Promise.all([
+    const [taskLines, evidence, deviceDetail, headroomRows] = await Promise.all([
       merchantApi.replenishmentTaskLines(taskId) as Promise<Line[]>,
-      softFallback(merchantApi.deviceSlots(task.deviceId!), [] as DeviceSlot[], '货道'),
       softFallback(merchantApi.listReplenishmentEvidence(taskId), [], '补货凭证'),
       // 台账只喂「开门柜数量上限」的降级档（后端没下发时才算 capacity − 在架），失败置空=不设限
       softFallback(
@@ -194,7 +175,6 @@ export function useReplenishmentDetail(opts: {
       )
     ]);
     opts.lines.value = taskLines;
-    opts.deviceSlotsList.value = (slots || []) as DeviceSlot[];
     const invMap: Record<string, { quantity: number; capacity: number }> = {};
     for (const inv of deviceDetail?.skuInventory || []) {
       const skuId = String(inv?.skuId || '').trim();
@@ -219,7 +199,6 @@ export function useReplenishmentDetail(opts: {
       taskId,
       mapped.length
     );
-    opts.slotCaps.value = buildSlotCapsFromSlots(opts.deviceSlotsList.value);
     await opts.syncDoorStateFromServer(taskId);
   }
 

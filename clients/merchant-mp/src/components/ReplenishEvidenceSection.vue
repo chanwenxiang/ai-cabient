@@ -70,7 +70,7 @@ const subtitle = computed(() => {
   if (props.items.length) return `已上传 ${props.items.length}/5 · 点图可放大核对`;
   return props.requireEvidence
     ? '须至少 1 张现场照片，最多 5 张'
-    : '选填：建议拍柜内/货道全景，最多 5 张';
+    : '选填：建议拍柜内全景，最多 5 张';
 });
 
 const countWarn = computed(

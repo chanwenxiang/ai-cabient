@@ -301,11 +301,6 @@ public class MerchantPortalService {
                 fileAttachmentService.requireDeviceStocktakeEvidence(deviceId, fileId), response);
     }
 
-    /** CB-050 扩展：柜机扫码盘点（单货道实盘，复用 admin 链路：照片凭证强制/账实差闭环不变）。 */
-    public DeviceSlotDto stocktakeSlot(Long userId, String deviceId, SlotStocktakeRequest request) {
-        return devicePortalService.stocktakeSlot(userId, deviceId, request);
-    }
-
     /** 盘点开门（2026-10-28）：开门柜逐商品盘点前的开门动作，见 MerchantDevicePortalService。 */
     public SessionDto openStocktakeDoor(Long userId, String deviceId) {
         return devicePortalService.openStocktakeDoor(userId, deviceId);
@@ -682,17 +677,6 @@ public class MerchantPortalService {
     private static String csv(String value) {
         // S3/审计 P1-7：统一走 CsvCells——补 \t\r 前缀覆盖
         return com.aicabinet.trade.support.CsvCells.escape(value);
-    }
-
-    @Transactional(readOnly = true)
-    public List<DeviceSlotDto> listDeviceSlots(Long userId, String deviceId) {
-        return devicePortalService.listDeviceSlots(userId, deviceId);
-    }
-
-    @Transactional
-    public List<DeviceSlotDto> upsertDeviceSlots(Long userId, String deviceId,
-                                                 List<UpsertDeviceSlotRequest> body) {
-        return devicePortalService.upsertDeviceSlots(userId, deviceId, body);
     }
 
     static String merchantProfileLockKey(long userId) {

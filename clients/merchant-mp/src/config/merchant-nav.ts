@@ -26,7 +26,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
   {
     key: 'devices',
     title: '柜机管理',
-    desc: '在线状态 · 货道库存',
+    desc: '在线状态 · 商品库存',
     url: '/pages/devices/devices',
     tab: true,
     perm: 'merchant:devices:list',
