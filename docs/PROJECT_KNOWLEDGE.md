@@ -684,6 +684,32 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第四刀：断货道生产者——新柜不再建 `device_slot` 行，模板机件随删）
+
+- **生产者只有两处**：`OpsDeviceAdminService:463`（新建设备套默认 planogram）与
+  `DemoDataService:149`（演示数据，早先已对将邑柜跳过）。两处一起断 ⇒ 建柜不再写货道行。
+  dev 库只读取证：真柜 `EG943322621391`、`719325384517` **本就 0 行**，只有两个遗留/演示柜各 8 行
+  ⇒ 对本产品零行为差；`V30__device_slot_planogram.sql` 的历史 INSERT 仍会在全新库留下演示行
+  （已应用迁移不可改，清行只作运维 SQL）。
+- 随删（同一把 BFS 复跑零孤儿）：`ensureDefaultSlots`×2 / `doEnsureDefaultSlots` /
+  `doApplyPlanogramTemplate` / `resolveTemplateSkuId`（−116 行）、`PlanogramTemplateService` + 测试、
+  `UpsertDeviceSlotRequest` DTO、`DeviceSlotService` 的 `SkuSceneLimitService` 依赖与
+  `MAX_SKUS_PER_DEVICE`。
+  ⚠️ 「单柜 50 个在售 SKU」上限的执行点本来只在绑货道时触发 ⇒ 对开门柜**从未生效**，
+  不是本轮引入的回归；要不要把上限挪到 SKU 台账上架路径，另议。
+- 🔴 **顺带还掉第一刀的工具债**（lessons #413）：`scripts/e2e-lib.ps1` 的
+  `Ensure-E2eDeviceSlots` / `Clear-E2eSlotToCreateGap` 与 `scripts/e2e-replenishment.ps1`
+  的兜底取货道，一直在调**第一刀就删掉的** ops `/slots` 端点——Java 编译与 96 门禁都照不到
+  PowerShell 工具，只有真跑才 404。`-ForceGap` 改走产品自身的 SKU 级台账维护
+  （`PUT /api/v2/ops/admin/devices/{id}/sku-inventory`，CB-051），现场 RESTOCK 行按开门柜口径
+  提交（不带 slotId）；两份 ps1 过 `[Parser]::ParseFile` 零错误，
+  `check:replenishment-checkin-contract` 值级对齐仍绿。
+- 构造位置参：`DeviceSlotService` 19 → 18 参，5 处 `new DeviceSlotService(...)` 逐处对齐
+  （`DoorCabinetStockLevelConsistencyTest` 用的是 `mock(SkuSceneLimitService.class)`，
+  与另外 4 处的 `new SkuSceneLimitService(...)` 形态不同 ⇒ 靠 test-compile 而不是靠正则收口）。
+- 验证：trade 单测 **2760** 绿（−5 = 建柜模板钉测 + PlanogramTemplateServiceTest 4 例）；
+  可达性复跑零孤儿；无未使用 import；preflight 96 门禁 0 失败。
+
 ### 2026-11-04（批 3b 第三刀：货道机件里「不可达」的写面删除——321 行 + SlotStocktakeRequest DTO）
 
 - **判据不是「没人调」而是「从入口到不了」**（一次性脚本 `.tmp/slot-reachability.mjs`，未入库，
