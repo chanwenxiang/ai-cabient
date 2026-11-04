@@ -6,6 +6,9 @@ import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.MerchantSubscribePrefMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +34,16 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class MerchantNotifyServiceSubscribeTest {
+
+    static {
+        // doUpdateSubscribe 用 Lambda(Update/Delete)Wrapper ⇒ 纯 Mockito 环境需手动注册 TableInfo 缓存，
+        // 否则单独跑本类（或 CI 的文件顺序不同）会抛
+        // MybatisPlusException: can not find lambda cache for this entity [MerchantSubscribePref]。
+        // 同仓先例：OpsWarehouseControllerTest / AccountDeleteOwnAccountTest。
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                MerchantSubscribePref.class);
+    }
 
     @Mock private MerchantPortalGuard merchantPortalGuard;
     @Mock private PermissionService permissionService;
