@@ -334,33 +334,6 @@ class DeviceSlotServiceTest {
         return stub;
     }
 
-    @Test
-    void upsertSlots_doorCabinet_conflict() {
-        org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
-
-        org.springframework.web.server.ResponseStatusException ex =
-                org.junit.jupiter.api.Assertions.assertThrows(
-                        org.springframework.web.server.ResponseStatusException.class,
-                        () -> deviceSlotService.upsertSlots(1L, "EG-DOOR", java.util.List.of()));
-
-        org.junit.jupiter.api.Assertions.assertEquals(
-                org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
-    }
-
-    @Test
-    void stocktakeSlot_doorCabinet_conflict() {
-        org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
-
-        org.springframework.web.server.ResponseStatusException ex =
-                org.junit.jupiter.api.Assertions.assertThrows(
-                        org.springframework.web.server.ResponseStatusException.class,
-                        () -> deviceSlotService.stocktakeSlot(1L, "EG-DOOR",
-                                new com.aicabinet.common.dto.SlotStocktakeRequest("A1", 5, null)));
-
-        org.junit.jupiter.api.Assertions.assertEquals(
-                org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
-    }
-
     /**
      * 开门柜（判据=将邑绑定）无货道概念：计数走台账 SKU 口径，与设备详情 KPI 同一判定/数量源
      * （CB-076：缺货=可售≤0，低库存=0<可售≤low_threshold）。残留货道行一律不参与。

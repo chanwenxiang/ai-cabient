@@ -90,17 +90,6 @@ public class DeviceSlotService {
         this.self = self;
     }
 
-    private DeviceOpsEvent newEvent(String deviceId, String eventType, String title, String detail) {
-        DeviceOpsEvent e = new DeviceOpsEvent();
-        e.setDeviceId(deviceId);
-        e.setEventType(eventType);
-        e.setSeverity("INFO");
-        e.setTitle(title);
-        e.setDetail(detail);
-        e.setCreatedAt(Instant.now());
-        return e;
-    }
-
     @Transactional(readOnly = true)
     public DeviceDetailDto getDeviceDetail(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
@@ -164,17 +153,6 @@ public class DeviceSlotService {
         var lastSession = shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(deviceId).orElse(null);
         AdminDeviceDto deviceDto = toAdminDeviceDto(device, lastSession);
         return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory, delistedInventory);
-    }
-
-    @Transactional(readOnly = true)
-    public List<DeviceSlotDto> listSlots(Long operatorId, String deviceId) {
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        int stockoutThresholdPct = resolveStockoutThresholdPct(deviceId);
-        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
-                .toList();
     }
 
     /**
@@ -634,53 +612,6 @@ public class DeviceSlotService {
         self.applyPhysicalAfterRestore(deviceId, slotQty, refId);
     }
 
-    /** 视觉 SKU 总量按货道账面比例分摊到各货道实测。 */
-    @Transactional
-    public int allocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,
-                                        String source, String refId) {
-        return runWithDeviceSlotLock(deviceId, () -> doAllocateSkuCountsToSlots(deviceId, skuTotals, source, refId));
-    }
-
-    private int doAllocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,
-                                           String source, String refId) {
-        requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        Map<String, Integer> physical = new HashMap<>();
-        for (Map.Entry<String, Integer> skuEntry : skuTotals.entrySet()) {
-            allocateSkuTotalToPhysical(deviceId, skuEntry.getKey(), skuEntry.getValue(), bookBySlot, physical);
-        }
-        return doApplyPhysicalSnapshot(deviceId, physical, source, refId);
-    }
-
-    private void allocateSkuTotalToPhysical(String deviceId, String skuId, int skuTotal,
-                                            Map<String, Integer> bookBySlot, Map<String, Integer> physical) {
-        List<SlotBookView> slots = self.listEnabledSlotsForSku(deviceId, skuId);
-        if (slots.isEmpty()) {
-            return;
-        }
-        int totalBook = slots.stream().mapToInt(s -> bookBySlot.getOrDefault(s.slotCode(), 0)).sum();
-        if (totalBook <= 0) {
-            physical.put(slots.get(0).slotCode(), skuTotal);
-            return;
-        }
-        distributeSkuTotalAcrossSlots(slots, skuTotal, totalBook, bookBySlot, physical);
-    }
-
-    private static void distributeSkuTotalAcrossSlots(List<SlotBookView> slots, int skuTotal, int totalBook,
-                                                      Map<String, Integer> bookBySlot,
-                                                      Map<String, Integer> physical) {
-        int remaining = skuTotal;
-        for (int i = 0; i < slots.size(); i++) {
-            SlotBookView slot = slots.get(i);
-            int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
-            int alloc = (i == slots.size() - 1)
-                    ? remaining
-                    : Math.min(remaining, (skuTotal * book) / totalBook);
-            physical.put(slot.slotCode(), alloc);
-            remaining -= alloc;
-        }
-    }
-
     @Transactional(readOnly = true)
     public Map<String, Integer> loadBookQtyBySlot(String deviceId) {
         return lotRepository.sumBookQtyBySlot(deviceId).stream()
@@ -889,27 +820,6 @@ public class DeviceSlotService {
                 velocity.soldQty7d(), velocity.ropPoint(), reason);
     }
 
-    @Transactional
-    public List<DeviceSlotDto> upsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
-        // 守卫先行：fail-closed 不依赖 scope 服务可用性
-        assertNotDoorCabinet(deviceId);
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        return runWithDeviceSlotLock(deviceId, () -> doUpsertSlots(operatorId, deviceId, requests));
-    }
-
-    /**
-     * 方案A第二步（2026-10-28 用户拍板）：将邑开门柜按商品备货、无货道概念——
-     * 所有货道<b>写</b>入口（保存货道/套模板/应用陈列）对将邑柜一律 409。
-     * mp 编辑器已隐藏，此守卫拦接口直绕（fail-closed）。
-     */
-    public void assertNotDoorCabinet(String deviceId) {
-        if (isDoorCabinet(deviceId)) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.CONFLICT,
-                    "开门柜按商品备货，无货道概念，不能保存货道配置");
-        }
-    }
-
     /**
      * 开门柜判据（2026-10-28 用户拍板：<b>固定为「将邑绑定」</b>）。
      * 全系统唯一口径——货道读面归零、写面 409、补货行不绑货道都以本方法为准；
@@ -918,168 +828,6 @@ public class DeviceSlotService {
     public boolean isDoorCabinet(String deviceId) {
         return deviceId != null && !deviceId.isBlank()
                 && jiangyiDeviceDirectory.isJiangyi(deviceId.trim());
-    }
-
-    private List<DeviceSlotDto> doUpsertSlots(Long operatorId, String deviceId, List<UpsertDeviceSlotRequest> requests) {
-        requireDevice(deviceId);
-        if (requests == null || requests.isEmpty()) {
-            throw badRequest("slots required");
-        }
-        // 场景上架限额预检（CB-049 扩展）：必须先按整批请求合并出「落库后」合计再校验——
-        // 同一请求里「A 货道容量减半、B 货道加倍」逐条看各自合法，合并后才可能超限
-        assertSceneLimitBeforePersist(deviceId, requests);
-        for (UpsertDeviceSlotRequest req : requests) {
-            persistUpsertSlot(deviceId, req);
-        }
-        return self.listSlots(operatorId, deviceId);
-    }
-
-    /**
-     * 场景上架限额预检（CB-049 扩展）：柜子须已设置投放场景；按请求合并出落库后
-     * 柜内各 SKU 的最大容量合计，超出该商品在此场景的限额即整批拒绝（400，带可读文案）。
-     * 商品未配置该场景的限额条目 = 不限制（限额是商品档案的可选约束，缺条目不拦上架）。
-     */
-    private void assertSceneLimitBeforePersist(String deviceId, List<UpsertDeviceSlotRequest> requests) {
-        DeviceInfo device = deviceRepository.findById(deviceId).orElseThrow(() -> notFound("device"));
-        boolean touchesBinding = requests.stream().anyMatch(r ->
-                (r.assignedSkuId() != null && !r.assignedSkuId().isBlank())
-                        || r.maxLevel() != null || r.parLevel() != null);
-        if (!touchesBinding) {
-            return;
-        }
-        Map<String, DeviceSlot> existing = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .collect(Collectors.toMap(DeviceSlot::getSlotCode, s -> s, (a, b) -> a));
-        Map<String, Integer> totals = new HashMap<>();
-        for (DeviceSlot s : existing.values()) {
-            if (s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank()) {
-                totals.merge(s.getAssignedSkuId(), Math.max(s.getMaxLevel(), 0), Integer::sum);
-            }
-        }
-        for (UpsertDeviceSlotRequest req : requests) {
-            String slotCode = req.slotCode().trim().toUpperCase();
-            DeviceSlot cur = existing.get(slotCode);
-            if (cur != null && cur.getAssignedSkuId() != null && !cur.getAssignedSkuId().isBlank()) {
-                // 先扣掉该货道旧绑定的贡献，再按请求叠加新值
-                totals.merge(cur.getAssignedSkuId(), -Math.max(cur.getMaxLevel(), 0), Integer::sum);
-            }
-            String sku = cur == null ? null : cur.getAssignedSkuId();
-            if (req.assignedSkuId() != null) {
-                sku = req.assignedSkuId().isBlank() ? null : req.assignedSkuId().trim();
-            }
-            int maxLevel = cur == null || cur.getMaxLevel() <= 0 ? 0 : cur.getMaxLevel();
-            if (req.maxLevel() != null) {
-                maxLevel = req.maxLevel();
-            }
-            int par = req.parLevel() != null ? req.parLevel() : (cur == null ? 0 : cur.getParLevel());
-            if (maxLevel <= 0 && par > 0) {
-                maxLevel = par; // 与 persistUpsertSlot 同规则
-            }
-            if (sku != null && !sku.isBlank()) {
-                totals.merge(sku, Math.max(maxLevel, 0), Integer::sum);
-            }
-        }
-        skuSceneLimitService.assertWithinSceneLimit(device, totals);
-    }
-
-    private void persistUpsertSlot(String deviceId, UpsertDeviceSlotRequest req) {
-        validateUpsert(req);
-        String slotCode = req.slotCode().trim().toUpperCase();
-        DeviceSlotId id = new DeviceSlotId(deviceId, slotCode);
-        DeviceSlot slot = slotRepository.findById(id).orElseGet(() -> {
-            DeviceSlot created = new DeviceSlot();
-            created.setId(id);
-            return created;
-        });
-        applyUpsertFields(deviceId, slot, req);
-        if (slot.getMaxLevel() <= 0 && slot.getParLevel() > 0) {
-            slot.setMaxLevel(slot.getParLevel());
-        }
-        slotRepository.save(slot);
-    }
-
-    private void applyUpsertFields(String deviceId, DeviceSlot slot, UpsertDeviceSlotRequest req) {
-        if (req.rowNo() != null) {
-            slot.setRowNo(req.rowNo());
-        }
-        if (req.colNo() != null) {
-            slot.setColNo(req.colNo());
-        }
-        if (req.slotType() != null && !req.slotType().isBlank()) {
-            slot.setSlotType(req.slotType().trim().toUpperCase());
-        }
-        if (req.assignedSkuId() != null) {
-            String sku = req.assignedSkuId().isBlank() ? null : req.assignedSkuId().trim();
-            if (sku != null) {
-                skuCatalogRepository.findById(sku)
-                        .orElseThrow(() -> badRequest("sku not found: " + sku));
-            }
-            // 换绑到不同 SKU 才刷新上架时间与上限校验（清空绑定也重置时间为 null）
-            if (!java.util.Objects.equals(sku, slot.getAssignedSkuId())) {
-                assertSkuLimit(deviceId, sku);
-                slot.setAssignedAt(sku == null ? null : Instant.now());
-            }
-            slot.setAssignedSkuId(sku);
-        }
-        if (req.parLevel() != null) {
-            slot.setParLevel(req.parLevel());
-        }
-        if (req.minLevel() != null) {
-            slot.setMinLevel(req.minLevel());
-        }
-        if (req.maxLevel() != null) {
-            slot.setMaxLevel(req.maxLevel());
-        }
-        if (req.enabled() != null) {
-            slot.setEnabled(req.enabled());
-        }
-    }
-
-    @Transactional
-    public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
-        assertNotDoorCabinet(deviceId);
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        return runWithDeviceInventoryLock(deviceId, () -> doStocktakeSlot(operatorId, deviceId, request));
-    }
-
-    private DeviceSlotDto doStocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
-        requireDevice(deviceId);
-        opsPolicyService.requirePhotoEvidence(deviceId, true, request.photoEvidenceUrl());
-        String slotCode = request.slotCode().trim().toUpperCase();
-        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode))
-                .orElseThrow(() -> notFound("slot"));
-        assertQuantityWithinSlotCapacity(slot, slotCode, request.physicalQty());
-        int bookBefore = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        slot.setLastPhysicalQty(request.physicalQty());
-        slot.setLastPhysicalAt(Instant.now());
-        slotRepository.save(slot);
-        // CB-050 扩展：盘点写入设备运维事件（AISLE_AUDIT），供商户端「理货记录-盘点」页回溯；
-        // 含系统库存→实盘差额、凭证有无、可选定位（凭证防伪）
-        String location = request.latitude() != null && request.longitude() != null
-                ? String.format("；定位 %.6f,%.6f", request.latitude(), request.longitude())
-                : "";
-        long diff = (long) request.physicalQty() - bookBefore;
-        opsEventRepository.insert(newEvent(deviceId, "AISLE_AUDIT",
-                "货道盘点 " + slotCode,
-                "货道 " + slotCode + "：系统 " + bookBefore + " → 实盘 " + request.physicalQty()
-                        + "（" + (diff > 0 ? "+" : "") + diff + "）"
-                        + (request.photoEvidenceUrl() != null && !request.photoEvidenceUrl().isBlank()
-                                ? "；凭证=有" : "；凭证=无")
-                        + location));
-
-        if (Boolean.TRUE.equals(request.adjustBookQty())) {
-            String skuId = slot.getAssignedSkuId();
-            if (skuId == null || skuId.isBlank()) {
-                throw badRequest("货道未绑定商品，无法按实盘调账面");
-            }
-            String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
-            inventoryLotService.stocktakeAdjustForSlot(
-                    deviceId, skuId.trim(), slotCode, request.physicalQty(), operatorId, refId);
-            log.info("slot stocktake adjusted device={} slot={} sku={} physical={} ref={}",
-                    deviceId, slotCode, skuId, request.physicalQty(), refId);
-        }
-
-        int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        return toSlotDto(slot, bookQty, resolveStockoutThresholdPct(deviceId));
     }
 
     /** 补货完成时刷新通道快照。 */
@@ -1179,14 +927,6 @@ public class DeviceSlotService {
         return slot.getParLevel() > 0 ? slot.getParLevel() : 0;
     }
 
-    private static void assertQuantityWithinSlotCapacity(DeviceSlot slot, String slotCode, int qty) {
-        int cap = resolveSlotCapacity(slot);
-        if (cap > 0 && qty > cap) {
-            throw badRequest(String.format(
-                    com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY, slotCode, cap, qty));
-        }
-    }
-
     private void doRecordRestock(String deviceId, String slotCode, boolean preservePhysical) {
         String normalized = slotCode.trim().toUpperCase();
         slotRepository.findById(new DeviceSlotId(deviceId, normalized)).ifPresent(slot -> {
@@ -1250,12 +990,6 @@ public class DeviceSlotService {
             return;
         }
         doApplyPlanogramTemplate(deviceId, deviceType);
-    }
-
-    /** 强制套用模板（仅填充缺失货道，不覆盖已有）。 */
-    @Transactional
-    public int applyPlanogramTemplate(String deviceId, String deviceType) {
-        return runWithDeviceSlotLock(deviceId, () -> doApplyPlanogramTemplate(deviceId, deviceType));
     }
 
     private int doApplyPlanogramTemplate(String deviceId, String deviceType) {
@@ -1351,15 +1085,6 @@ public class DeviceSlotService {
             return null;
         }
         return skuId;
-    }
-
-    /** 运营端：按设备类型套用 planogram（仅填充缺失货道）。 */
-    @Transactional
-    public int applyPlanogramTemplate(Long operatorId, String deviceId) {
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        assertNotDoorCabinet(deviceId);
-        DeviceInfo device = requireDevice(deviceId);
-        return runWithDeviceSlotLock(deviceId, () -> doApplyPlanogramTemplate(deviceId, device.getDeviceType()));
     }
 
     private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
@@ -1615,24 +1340,6 @@ public class DeviceSlotService {
         }
     }
 
-    /**
-     * 单柜 SKU 数上限校验（人工操作路径，超限抛 400）。
-     * 模板路径不走此方法：建柜事务不允许因上限炸掉，模板侧用跳过+计数（见 doApplyPlanogramTemplate）。
-     */
-    private void assertSkuLimit(String deviceId, String addingSkuId) {
-        if (addingSkuId == null) {
-            return;
-        }
-        long distinct = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .map(DeviceSlot::getAssignedSkuId)
-                .filter(s -> s != null && !s.isBlank() && !s.equals(addingSkuId))
-                .distinct()
-                .count();
-        if (distinct >= MAX_SKUS_PER_DEVICE) {
-            throw badRequest("该货柜已上架 " + distinct + " 个商品，达到单柜上限 " + MAX_SKUS_PER_DEVICE);
-        }
-    }
-
     private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty, int stockoutThresholdPct) {
         String deviceId = slot.getId().getDeviceId();
         String slotCode = slot.getId().getSlotCode();
@@ -1743,18 +1450,6 @@ public class DeviceSlotService {
                 .orElseThrow(() -> notFound("device"));
     }
 
-    private static void validateUpsert(UpsertDeviceSlotRequest req) {
-        if (req.slotCode() == null || req.slotCode().isBlank()) {
-            throw badRequest("slotCode required");
-        }
-        if (req.parLevel() != null && req.parLevel() < 0) {
-            throw badRequest("parLevel must be >= 0");
-        }
-        if (req.minLevel() != null && req.minLevel() < 0) {
-            throw badRequest("minLevel must be >= 0");
-        }
-    }
-
     private static ResponseStatusException notFound(String entity) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, entity + " not found");
     }
@@ -1779,22 +1474,6 @@ public class DeviceSlotService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
             distributedLockService.unlock(deviceSlotLockKey(deviceId));
-        }
-    }
-
-    private <T> T runWithDeviceInventoryLock(String deviceId, java.util.function.Supplier<T> action) {
-        String lockKey = InventoryService.deviceLockKey(deviceId);
-        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
-        }
-        try {
-            return action.get();
-        } catch (ResponseStatusException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
-        } finally {
-            distributedLockService.unlock(lockKey);
         }
     }
 

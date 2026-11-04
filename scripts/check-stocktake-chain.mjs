@@ -149,6 +149,35 @@ if (src.deviceDetail.includes('goDeviceStocktake')) {
   fail('device-detail.vue 又出现 goDeviceStocktake——详情页不应提供盘点开门入口（入口在首页扫码）');
 }
 
+// ── D 货道面已退场（防回潮）：契约里不得再出现任何 slots 端点 ─────────────
+// 2026-11-04 批 3b：ops 4 端点 + merchant 3 端点（GET|PUT /slots、POST /slots/stocktake）全删，
+// 货道写面/读面在服务端没有入口了。开门柜盘点只走 /stocktake-door + /door-stocktake。
+const contractPath = 'packages/shared-types/src/generated/openapi.ts';
+if (!existsSync(join(root, contractPath))) fail(`找不到生成契约 ${contractPath}`);
+const contract = readFileSync(join(root, contractPath), 'utf8');
+for (const dead of [
+  '"/api/v2/merchant/devices/{deviceId}/slots"',
+  '"/api/v2/merchant/devices/{deviceId}/slots/stocktake"',
+  '"/api/v2/ops/admin/devices/{deviceId}/slots"',
+  '"/api/v2/ops/admin/slots/stocktake"',
+  '"/api/v2/ops/admin/slots/apply-template"'
+]) {
+  if (contract.includes(`${dead}:`)) {
+    fail(`契约里又出现货道端点 ${dead}——货道面（批 3b）已退场，不得回潮`);
+  }
+}
+if (
+  readFileSync(
+    join(
+      root,
+      'services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceSlotService.java'
+    ),
+    'utf8'
+  ).includes('public List<DeviceSlotDto> upsertSlots(')
+) {
+  fail('DeviceSlotService 又出现 upsertSlots——货道编辑入口已随批 3b 删除');
+}
+
 console.log(
-  `${TAG} OK：盘点链 ${Object.keys(FILES).length} 文件锚点全在（能力/会话生命周期/入口）`
+  `${TAG} OK：盘点链 ${Object.keys(FILES).length} 文件锚点全在（能力/会话生命周期/入口/货道端点零回潮）`
 );
