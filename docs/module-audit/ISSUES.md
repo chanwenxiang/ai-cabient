@@ -1339,6 +1339,15 @@ activity（`SKU_DISCOUNT`/ACTIVE/ALL）+ 一条 `POPUP_BEFORE_OPEN` 投放行，
 行形态 `POPUP_BEFORE_OPEN / user=10001 / device=NULL`；③ 点图片报 `CLICK` 落库；④ 后台读面
 `GET …/marketing-roi/placements` 回 `{position:POPUP_BEFORE_OPEN, subjectKind:ACTIVITY, exposureCount:1, exposureUsers:1, clickCount:1, exposurePerUser:1, maxExposurePerUser:1, unattributedCount:0}`，
 主体名取到临时活动名；⑤ 三项计数在 finally 里删净复原（activity 5 / placement 1 / 事件 0，与播种前逐项相等）。
-⚠️ 诚实边界：截图里弹窗**图片没出图**（复用了 asset 7，其对象不在 dev MinIO 里），所以这一轮证的是
-「弹窗结构 + 打点链路」，不是「素材渲染」；探针 `.tmp/mp-popup-ui-round-1104.mjs`。
+🔴 **我在这轮写下的「图片没出图」是误判**：截图里那块蓝色就是 asset 7（`promo-banner-blue-750x300`）的内容，
+`GET /api/v2/media/ad-assets/{id}` 匿名与登录都是 200 + `image/png`。⇒ 该轮证的既包括结构/链路也包括素材渲染。
+探针 `.tmp/mp-popup-ui-round-1104.mjs`。
+
+**dev 已配一条常驻弹窗投放（用户授权，2026-11-04 13:0x）**：走运营真实顺序
+建活动 → 配展示位 → 上架（**顺序不能反**：`PromotionPlacementService` 对 ACTIVE 活动直接 409「请先停止再编辑展示位」，
+而 `launch` 又要求先有 BANNER）。结果 activity **11**「开门前弹窗演示（dev 常驻）」ACTIVE + placement 11(BANNER/asset 4) +
+placement 12(**POPUP_BEFORE_OPEN**/asset 5，750×1000)；消费者读面 `/marketing/popups?position=POPUP_BEFORE_OPEN` 拿到该条，
+小程序模拟器里弹窗带图渲染（`.tmp/mp-popup-live-1104.png`，src=`…/ad-assets/5`）、`IMPRESSION` 与 `CLICK` 落库、
+`device_id` 仍为 NULL。库里现有 2 行是**有意的演示数据**，别再当残留删掉；脚本 `.tmp/dev-config-popup-placement-1104.mjs`、
+`.tmp/mp-popup-live-check-1104.mjs`。
 automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不可用 ⇒ 判据一律走 DOM 选择器 + 库里行。
