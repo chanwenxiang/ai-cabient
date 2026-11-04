@@ -1,0 +1,174 @@
+/**
+ * 门禁：开门柜界面上「货道」字样的棘轮（只减不增）。
+ *
+ * 背景（2026-11-04 用户第三次重申「开门柜去掉货道概念」并已执行三批）：
+ * 货道机件（`DeviceSlotService` 的货道分支、slots CRUD、FEFO per-slot、盘点…）本体退场要动 40 个测试类
+ * 与一次全量 Docker IT，不可能一轮做完；但**用户可见文案**可以先钉住，否则一边删一边会被新代码加回来。
+ * 本门禁把「三端源码里非注释的『货道』出现次数」钉成只降不升的基线：
+ *   - 变多 ⇒ 直接红（新增可见货道措辞）。
+ *   - 变少 ⇒ 也红，要求把 BASELINE 下调到实测值（防基线虚高掩盖倒退）。
+ * 历史订单行里的 `·货道A1` 属**数据解析**（legacy 展示），不在本门禁范围内——它只出现在 *.test.ts 夹具，
+ * 而测试文件本就排除；真要清 legacy 文案请连同 `order-line-summary` 的解析一起在批 3b 里判。
+ *
+ * 自检：`node scripts/check-door-cabinet-slot-copy.mjs --selftest`（夹具在 .tmp 沙箱，绝不读真实树）。
+ * 打印实测：`--print`。
+ */
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+
+const ROOT = process.cwd();
+const SCOPES = [
+  'clients/admin-vue/src',
+  'clients/merchant-mp/src',
+  'clients/consumer-mp/src',
+  'packages/shared-uni/src'
+];
+/** 🔴 显式常量，不是文件清单长度；批 3b 每清一档就下调这里。
+ *  2026-11-04 首建实测 89 处 / 26 文件（大头：merchant device-detail 12、useReplenishmentDisplay 9、
+ *  admin ReplenishmentView 8、MerchantSplitsView 7、ReplenishLinesSection 7、device-stocktake 7、
+ *  useDeviceSlotActions 6；消费者端 orders.vue 也有 3 处——那是最该先切的）。*/
+const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 89);
+const TERM = '货道';
+
+function isDir(p) {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function walk(dir, out = []) {
+  if (!isDir(dir)) return out;
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'dist' || name === '.git') continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) walk(p, out);
+    // 测试夹具里的「货道」是在断言 legacy 数据解析，不是界面文案 ⇒ 排除
+    else if (/\.(vue|ts)$/.test(p) && !/\.(test|spec)\./.test(p) && !p.endsWith('.d.ts'))
+      out.push(p);
+  }
+  return out;
+}
+
+/** 剥掉块注释、行注释与 HTML 注释；字符串里的中文一律算「界面文案」 */
+function stripComments(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+}
+
+function countTerm(text) {
+  let n = 0;
+  for (let i = text.indexOf(TERM); i >= 0; i = text.indexOf(TERM, i + TERM.length)) n++;
+  return n;
+}
+
+/** 返回 [{file, count}]；scopeRoot 可注入，自检用沙箱 */
+export function scan(scopeRoot = ROOT) {
+  const rows = [];
+  for (const s of SCOPES) {
+    for (const f of walk(resolve(scopeRoot, s))) {
+      const n = countTerm(stripComments(readFileSync(f, 'utf8')));
+      if (n > 0) rows.push({ file: relative(scopeRoot, f).replace(/\\/g, '/'), count: n });
+    }
+  }
+  return rows.sort((a, b) => b.count - a.count);
+}
+
+function selfTest() {
+  const sandbox = join(ROOT, '.tmp', `slot-copy-selftest-${process.pid}`);
+  let failures = 0;
+  const check = (name, cond, extra = '') => {
+    console.log(`  [${cond ? 'ok' : 'RED'}] ${name}${extra ? ' —— ' + extra : ''}`);
+    if (!cond) failures++;
+  };
+  try {
+    rmSync(sandbox, { recursive: true, force: true });
+    for (const s of SCOPES) mkdirSync(join(sandbox, s), { recursive: true });
+    // 1) 注释里的不计
+    writeFileSync(
+      join(sandbox, 'clients/admin-vue/src/A.vue'),
+      '<template><div>ok</div></template>\n<script setup>\n// 这里提到' +
+        TERM +
+        '是注释\n/* 也是' +
+        TERM +
+        '注释 */\n</script>\n'
+    );
+    // 2) 字符串里的要计
+    writeFileSync(
+      join(sandbox, 'clients/admin-vue/src/B.vue'),
+      '<template><div>' + TERM + '热区</div><span label="' + TERM + '容量" /></template>\n'
+    );
+    // 3) 测试夹具不计
+    writeFileSync(
+      join(sandbox, 'clients/admin-vue/src/C.test.ts'),
+      `const s = '${TERM}A1';\nexport default s;`
+    );
+    const rows = scan(sandbox);
+    const total = rows.reduce((a, r) => a + r.count, 0);
+    check('注释里的「货道」不计', !rows.some((r) => r.file.endsWith('A.vue')));
+    check(
+      '模板文本与属性里的「货道」计 2 处',
+      total === 2,
+      `实测 ${total}：${JSON.stringify(rows)}`
+    );
+    check('*.test.ts 夹具不计', !rows.some((r) => r.file.endsWith('C.test.ts')));
+    // 4) 棘轮两条判据都要能红
+    const verdict = (baseline) =>
+      total > baseline ? 'red-over' : total < baseline ? 'red-under' : 'pass';
+    check('高于基线判红', verdict(1) === 'red-over');
+    check('低于基线判红（要求下调）', verdict(3) === 'red-under');
+    check('相等才通过', verdict(2) === 'pass');
+    // 5) 缺 scope 目录不崩（返回空而非异常）
+    const empty = scan(join(sandbox, 'nope'));
+    check('scope 不存在时返回空而不抛', Array.isArray(empty) && empty.length === 0);
+  } catch (e) {
+    check('自检未抛异常', false, String(e && e.message));
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+  if (failures) {
+    console.error(`[check-door-cabinet-slot-copy --selftest] FAIL ${failures} 项`);
+    process.exit(1);
+  }
+  console.log('[check-door-cabinet-slot-copy --selftest] 判据通过（沙箱已删，未读真实树）');
+  process.exit(0);
+}
+
+if (process.argv.includes('--selftest')) selfTest();
+
+const rows = scan();
+const total = rows.reduce((a, r) => a + r.count, 0);
+
+if (process.argv.includes('--print')) {
+  console.log(`实测「货道」可见文案出现次数 = ${total}（基线 ${BASELINE}），文件数 ${rows.length}`);
+  for (const r of rows.slice(0, 12)) console.log(`  ${r.count}  ${r.file}`);
+  process.exit(0);
+}
+
+const problems = [];
+if (total > BASELINE) {
+  problems.push(
+    `开门柜界面里的「货道」文案从基线 ${BASELINE} 涨到 ${total} 处。` +
+      '「开门柜不设货道概念」是已拍板口径（PK §12 2026-11-04 二/三/四批）：新界面请说「商品/库存」，' +
+      '不要新增货道措辞；批 3b 正在把机件本身删掉。'
+  );
+} else if (total < BASELINE) {
+  problems.push(
+    `实测 ${total} 处 < 基线 ${BASELINE} 处：棘轮只减不增，请把 BASELINE 下调到 ${total}` +
+      '（否则基线虚高会掩盖后续倒退）。'
+  );
+}
+
+if (problems.length) {
+  console.error(`[check-door-cabinet-slot-copy] FAIL：`);
+  for (const p of problems) console.error(`  - ${p}`);
+  console.error('  明细（前 12，按次数降序）：');
+  for (const r of rows.slice(0, 12)) console.error(`    ${r.count}  ${r.file}`);
+  process.exit(1);
+}
+console.log(
+  `[check-door-cabinet-slot-copy] OK：三端非注释「货道」文案 ${total} 处，与基线相等（批 3b 每清一档下调）`
+);

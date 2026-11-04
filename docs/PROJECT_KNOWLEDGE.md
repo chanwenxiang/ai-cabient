@@ -684,6 +684,26 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-04（批 3b 前置：把「开门柜界面不许出现货道字样」钉成只降棘轮；并记 3b-1/3b-2 不可分）
+
+- **摸完才敢说不可分**：3b-1（读面：`DeviceDetailDto.slots` + 两端货道渲染）与 3b-2（写面 + 算式）
+  不是两笔能各自闭环的活——只删前端就留下 `/devices/{id}/slots`、`slots/stocktake`、`slots/apply-template`
+  这些无调用方的死口；要连死口一起删就得掏空 `DeviceSlotService`（1250+ 行，且 `isDoorCabinet` /
+  `getDeviceDetail` / `computeDoorCabinetMetrics` 是开门柜**正在用**的）+ 40 个引用 slot API 的测试类
+  + 一次全量 `mvn verify`（含 Docker IT）。所以本轮不在共享树上起半套改动。
+- 先落**可回归的旋钮**：`scripts/check-door-cabinet-slot-copy.mjs`（已进聚合链；wiring 门禁报
+  96 引用 / 109 个 `check-*.mjs` 全接线）。判据 = 三端 `.vue/.ts`（排除 `*.test.*`、`.d.ts`、`dist`）
+  剥掉注释后「货道」出现次数，**只降不升**：变多直接红，变少也红并强制把基线下调到实测值
+  （防基线虚高掩盖倒退）。基线取脚本内显式常量 `89`（2026-11-04 实测，26 个文件）。
+- 刻度本身值得留着看：大头是 merchant `device-detail.vue` 12、`useReplenishmentDisplay.ts` 9、
+  admin `ReplenishmentView.vue` 8、`MerchantSplitsView.vue` 7、`device-stocktake.vue` 7、
+  `useDeviceSlotActions.ts` 6；🔴 **消费者端 `orders.vue` 也有 3 处**——那是最该先切的一档（用户直接看到）。
+- 7 向自检（夹具写在 `.tmp` 沙箱、跑完即删，绝不读真实树）：注释里的不计 / 模板文本与属性里的计 /
+  `*.test.ts` 不计 / 高于基线红 / 低于基线红 / 相等通过 / scope 缺失返回空而不抛。
+- 为什么排除测试夹具：`order-line-summary.test.ts` 里的「货道」是在断言 legacy 订单行 `·货道A1` 的解析，
+  属数据面不是界面文案；真要清 legacy 展示，随 3b 一起判，别混进文案棘轮。
+- **3b 的执行方式**：每清一档把 `BASELINE` 下调到实测值 ⇒ 机件可以分多轮删，界面文案不会倒退。
+
 ### 2026-11-04（「开门柜不设货道概念」第四批＝3a：断掉最后一个能产出货道数据的入口）
 
 - 模拟器：`resolveGravityJson` 的显式货道分支整删——不再读 `AICABINET_SIM_GRAVITY_SLOT`，重力增量恒
