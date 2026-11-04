@@ -45,7 +45,6 @@ class MerchantPortalConcurrencyTest {
     @Mock private com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper temperatureReadingRepository;
     @Mock private com.aicabinet.trade.client.DeviceServiceClient deviceServiceClient;
     @Mock private OperatorUserIdAllocator operatorUserIdAllocator;
-    @Mock private MerchantSelfServiceGate merchantSelfServiceGate;
     @Mock private JiangyiGatherService jiangyiGatherService;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
     @Mock private DistributedLockService distributedLockService;
@@ -61,7 +60,7 @@ class MerchantPortalConcurrencyTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
-                merchantRepository, distributedLockService, merchantSelfServiceGate,
+                merchantRepository, distributedLockService,
                 jiangyiGatherService, inventoryLotService,
                 org.mockito.Mockito.mock(MerchantOpsPolicyService.class),
                 org.mockito.Mockito.mock(DeviceValidationService.class),
@@ -85,7 +84,7 @@ class MerchantPortalConcurrencyTest {
                 orderRepository, splitRepository, sessionRepository, replenishmentTaskRepository,
                 replenishmentTaskLineRepository, replenishmentRouteRepository, disputeRepository, inventoryRepository, pullOffTaskRepository,
                 deviceSlotService, inventoryLotService, auditService, passwordEncoder, temperatureReadingRepository,
-                deviceServiceClient, operatorUserIdAllocator, merchantSelfServiceGate, merchantFeaturePackService, distributedLockService,
+                deviceServiceClient, operatorUserIdAllocator, merchantFeaturePackService, distributedLockService,
                 disputeService, null, devicePortalService, new TallyLedgerService(null), null, null, teamAdminService, null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }

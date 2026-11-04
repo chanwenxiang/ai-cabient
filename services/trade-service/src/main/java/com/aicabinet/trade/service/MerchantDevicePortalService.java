@@ -61,7 +61,6 @@ public class MerchantDevicePortalService {
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final MerchantMapper merchantRepository;
     private final DistributedLockService distributedLockService;
-    private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final JiangyiGatherService jiangyiGatherService;
     private final InventoryLotService inventoryLotService;
     private final MerchantOpsPolicyService merchantOpsPolicyService;
@@ -87,7 +86,6 @@ public class MerchantDevicePortalService {
                                        ReplenishmentTaskMapper replenishmentTaskRepository,
                                        MerchantMapper merchantRepository,
                                        DistributedLockService distributedLockService,
-                                       MerchantSelfServiceGate merchantSelfServiceGate,
                                        JiangyiGatherService jiangyiGatherService,
                                        InventoryLotService inventoryLotService,
                                        MerchantOpsPolicyService merchantOpsPolicyService,
@@ -111,7 +109,6 @@ public class MerchantDevicePortalService {
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.merchantRepository = merchantRepository;
         this.distributedLockService = distributedLockService;
-        this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.jiangyiGatherService = jiangyiGatherService;
         this.inventoryLotService = inventoryLotService;
         this.merchantOpsPolicyService = merchantOpsPolicyService;

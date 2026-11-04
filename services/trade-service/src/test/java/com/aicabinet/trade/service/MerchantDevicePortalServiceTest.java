@@ -42,7 +42,6 @@ class MerchantDevicePortalServiceTest {
     @Mock ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock MerchantMapper merchantRepository;
     @Mock DistributedLockService distributedLockService;
-    @Mock MerchantSelfServiceGate merchantSelfServiceGate;
     @Mock JiangyiGatherService jiangyiGatherService;
     @Mock InventoryLotService inventoryLotService;
     @Mock MerchantOpsPolicyService merchantOpsPolicyService;
@@ -61,7 +60,7 @@ class MerchantDevicePortalServiceTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
-                merchantRepository, distributedLockService, merchantSelfServiceGate,
+                merchantRepository, distributedLockService,
                 jiangyiGatherService, inventoryLotService, merchantOpsPolicyService,
                 deviceValidationService, jiangyiDeviceDirectory, opsEventRepository,
                 inventoryRepository, sessionService, self,

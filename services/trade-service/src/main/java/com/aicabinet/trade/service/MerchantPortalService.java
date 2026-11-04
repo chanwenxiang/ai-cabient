@@ -65,7 +65,6 @@ public class MerchantPortalService {
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
     private final DeviceServiceClient deviceServiceClient;
     private final OperatorUserIdAllocator operatorUserIdAllocator;
-    private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final DistributedLockService distributedLockService;
     private final DisputeService disputeService;
@@ -112,7 +111,6 @@ public class MerchantPortalService {
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
                                  DeviceServiceClient deviceServiceClient,
                                  OperatorUserIdAllocator operatorUserIdAllocator,
-                                 MerchantSelfServiceGate merchantSelfServiceGate,
                                  MerchantFeaturePackService merchantFeaturePackService,
                                  DistributedLockService distributedLockService,
                                  @Lazy DisputeService disputeService,
@@ -155,7 +153,6 @@ public class MerchantPortalService {
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.deviceServiceClient = deviceServiceClient;
         this.operatorUserIdAllocator = operatorUserIdAllocator;
-        this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.distributedLockService = distributedLockService;
         this.disputeService = disputeService;

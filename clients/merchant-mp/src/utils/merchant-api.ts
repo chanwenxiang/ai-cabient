@@ -1172,11 +1172,6 @@ export interface DeviceFaultOrderItem {
   reportedAt: string;
 }
 
-export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
-  if (!me?.merchants?.length) return false;
-  return me.merchants.some((m) => m.allowMerchantPlanogramEdit);
-}
-
 export function canEditPricing(me: import('@aicabinet/shared-types').MerchantMe | null) {
   if (!me?.merchants?.length) return false;
   return me.merchants.some((m) => m.allowMerchantPricingEdit);
