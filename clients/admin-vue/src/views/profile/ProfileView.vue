@@ -149,6 +149,27 @@
             placeholder="11 位手机号"
           />
         </el-form-item>
+        <el-form-item v-if="phoneChanged" label="短信验证码" required>
+          <div class="enroll-row">
+            <el-input
+              v-model="editForm.phoneSmsCode"
+              class="code-input"
+              maxlength="6"
+              inputmode="numeric"
+              placeholder="发往新号码的 6 位验证码"
+            />
+            <el-button
+              :disabled="smsCoolingForThisPhone"
+              :loading="smsSending"
+              @click="sendPhoneChangeCode"
+            >
+              {{ smsCoolingForThisPhone ? `${smsCooldown}s 后重发` : '获取验证码' }}
+            </el-button>
+          </div>
+          <p class="hint">
+            换绑手机号须校验发往<strong>新号码</strong>的短信验证码（C14）；号码未变则无需验证码。
+          </p>
+        </el-form-item>
         <el-form-item label="邮箱">
           <el-input
             v-model="editForm.email"
@@ -202,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { UploadRequestOptions } from 'element-plus';
@@ -230,8 +251,21 @@ const editForm = reactive({
   name: '',
   phoneNumber: '',
   email: '',
-  avatarUrl: ''
+  avatarUrl: '',
+  phoneSmsCode: ''
 });
+const originalPhone = ref('');
+const smsSending = ref(false);
+const smsCooldown = ref(0);
+/** 冷却按目标号码计：服务端节流是「同一手机号 60s」，换个新号不该被上一个号的倒计时挡住。 */
+const smsCooldownPhone = ref('');
+let smsTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 号码改动才要验证码：与后端 doUpdateMyProfile 的判据同形（不等才校验）。 */
+const phoneChanged = computed(() => originalPhone.value !== editForm.phoneNumber.trim());
+const smsCoolingForThisPhone = computed(
+  () => smsCooldown.value > 0 && smsCooldownPhone.value === editForm.phoneNumber.trim()
+);
 
 const pwdVisible = ref(false);
 const pwdSaving = ref(false);
@@ -244,6 +278,11 @@ const disableCode = ref('');
 
 onMounted(() => {
   void loadTwoFactorStatus();
+});
+
+onUnmounted(() => {
+  if (smsTimer) clearInterval(smsTimer);
+  smsTimer = null;
 });
 
 async function loadTwoFactorStatus() {
@@ -317,10 +356,45 @@ function copyText(text: string) {
 
 function openEditDialog() {
   editForm.name = auth.profile?.name || auth.displayName || '';
-  editForm.phoneNumber = auth.phone || auth.profile?.phoneNumber || '';
+  editForm.phoneNumber = auth.profile?.phoneNumber || auth.phone || '';
   editForm.email = auth.email || '';
   editForm.avatarUrl = auth.avatarUrl || '';
+  editForm.phoneSmsCode = '';
+  originalPhone.value = editForm.phoneNumber;
   editVisible.value = true;
+}
+
+function startSmsCooldown(phoneNumber: string) {
+  smsCooldownPhone.value = phoneNumber;
+  smsCooldown.value = 60;
+  if (smsTimer) clearInterval(smsTimer);
+  smsTimer = setInterval(() => {
+    smsCooldown.value -= 1;
+    if (smsCooldown.value <= 0 && smsTimer) {
+      clearInterval(smsTimer);
+      smsTimer = null;
+    }
+  }, 1000);
+}
+
+/** C14 换绑：验证码发往「新号码」，冷却与后端 SmsCodeService 的 60s 节流同值。 */
+async function sendPhoneChangeCode() {
+  const phoneNumber = editForm.phoneNumber.trim();
+  if (!/^1\d{10}$/.test(phoneNumber)) {
+    ElMessage.warning('请先输入 11 位新手机号');
+    return;
+  }
+  smsSending.value = true;
+  try {
+    await api.request<void>(AdminEndpoints.rbacMePhoneSmsCode(phoneNumber), 'POST');
+    ElMessage.success('验证码已发往新号码，5 分钟内有效');
+    editForm.phoneSmsCode = '';
+    startSmsCooldown(phoneNumber);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '验证码发送失败');
+  } finally {
+    smsSending.value = false;
+  }
 }
 
 async function uploadAvatar(options: UploadRequestOptions) {
@@ -377,15 +451,23 @@ async function submitProfile() {
     ElMessage.warning('邮箱格式不正确');
     return;
   }
+  const phoneSmsCode = editForm.phoneSmsCode.trim();
+  if (phoneChanged.value && !/^\d{6}$/.test(phoneSmsCode)) {
+    ElMessage.warning('换绑手机号需填写发往新号码的 6 位短信验证码');
+    return;
+  }
   editSaving.value = true;
   try {
     await auth.updateProfile({
       name,
       phoneNumber,
       email: email || null,
-      avatarUrl: editForm.avatarUrl.trim() || null
+      avatarUrl: editForm.avatarUrl.trim() || null,
+      phoneSmsCode: phoneChanged.value ? phoneSmsCode : null
     });
-    ElMessage.success('资料已保存');
+    ElMessage.success(phoneChanged.value ? '手机号已换绑' : '资料已保存');
+    originalPhone.value = phoneNumber;
+    editForm.phoneSmsCode = '';
     editVisible.value = false;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');

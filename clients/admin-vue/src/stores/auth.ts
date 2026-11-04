@@ -219,6 +219,7 @@ export const useAuthStore = defineStore('auth', () => {
     phoneNumber: string;
     email?: string | null;
     avatarUrl?: string | null;
+    phoneSmsCode?: string | null;
   }) {
     const me = await api.request<{
       userId: number | string;
@@ -235,7 +236,8 @@ export const useAuthStore = defineStore('auth', () => {
       name: payload.name,
       phoneNumber: payload.phoneNumber,
       email: payload.email || null,
-      avatarUrl: payload.avatarUrl || null
+      avatarUrl: payload.avatarUrl || null,
+      phoneSmsCode: payload.phoneSmsCode || null
     });
     profile.value = {
       userId: String(me.userId),
