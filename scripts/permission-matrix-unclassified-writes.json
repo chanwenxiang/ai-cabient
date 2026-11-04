@@ -114,9 +114,9 @@
   {
     "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java#adPlay",
     "method": "POST /api/v2/devices/{deviceId}/ad-play",
-    "category": "unverified-write",
-    "reason": "开门页/活动位广告打点回写（MP 侧，`consumer-api.ts:662` → `endpoints.ts:98`）：控制器不取登录主体，`AdCampaignService.recordPlayEvent` 只校验 campaign 是否 RUNNING、设备是否在投放范围与 `(device,campaign,asset,type)` 60s 去重 ⇒ 换 deviceId 即绕开去重，且 `ad_play_event` 无 user 列，事后查不出这批曝光来自谁。已登记 MA-150；口径经用户订正为「收益侧流量主 + 自有活动位，曝光面含首页/开门前/关门后」⇒ 不采用「绑会话才计数」，推荐做归因列与报表可见性，配额阈值等接了流量主有真实分布再谈。",
-    "reviewed": "2026-11-04 批次 R"
+    "category": "self-service",
+    "reason": "开门页设备投放位打点回写（MP 侧：`device-ad-banner.vue:174/:191/:204` → `consumer-api.ts:659 reportAdPlay`）。MA-150 批次 U 已按 A 档收口：控制器从登录态取 `userId`（空则 401），服务层把 `user_id` 与 `position=BANNER` 落列，去重键改为**按人**（`U{userId}` × 位置 × 计划 × 素材 × 事件类型）⇒ 旧结论「换 deviceId 即绕开 60s 窗口」已不成立。残余（不是 IDOR 的归属缺陷，是刷量倍率）：路径里的 `{deviceId}` 与调用者没有归属关系，`deviceScope=ALL` 的计划对 deviceId 完全不校验（`AdCampaignServiceTest#recordPlayEvent_allScopeAcceptsAnyDevice` 把它当契约钉住），`assetId` 也不校验是否属于该 campaign ⇒ 任何登录用户仍可为任意**已存在**的柜机（FK 兜底）造曝光行；后果限于投放 ROI 报表失真，不动钱（`ad_play_event` 不进分账/结算/佣金，流量主对账以渠道后台为准）。",
+    "reviewed": "2026-11-04 批次 U"
   },
   {
     "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java#faultReport",

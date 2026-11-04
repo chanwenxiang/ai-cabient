@@ -179,6 +179,74 @@ class AdCampaignServiceTest {
         verify(playEventRepository).insert(any(AdPlayEvent.class));
     }
 
+    // ── MA-150（A 档）：小程序侧上报按人归因 ──────────────────────────────────
+    //
+    // 改前的缺陷：这条口不取登录主体（device_id 是唯一维度），⇒ 任何登录用户都能给任意**已存在**的
+    // 柜机造曝光，且「换 deviceId」正好绕开 60s 去重窗口。下面四条把「归因 + 按人去重」钉住。
+
+    @Test
+    void recordPlayEvent_attributed_writesUserAndBannerPosition_andKeepsDeviceId() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-001", 3L, 100L, "IMPRESSION", 55L);
+
+        ArgumentCaptor<AdPlayEvent> captor = ArgumentCaptor.forClass(AdPlayEvent.class);
+        verify(playEventRepository).insert(captor.capture());
+        assertEquals(Long.valueOf(55L), captor.getValue().getUserId());
+        assertEquals("BANNER", captor.getValue().getPosition(),
+                "必须带位置，否则批次 T 的按位置报表会把这条落到 UNKNOWN 桶");
+        assertEquals("CAB-001", captor.getValue().getDeviceId(), "柜机维度要留着——按柜 ROI 靠它");
+    }
+
+    @Test
+    void recordPlayEvent_attributed_dedupesByPersonAcrossDevices() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-001", 3L, 100L, "IMPRESSION", 55L);
+        // 同一个人换柜机号：改前会各记一行（换 deviceId 即绕开窗口），现在必须被吞
+        service.recordPlayEvent("CAB-002", 3L, 100L, "IMPRESSION", 55L);
+
+        verify(playEventRepository, times(1)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_attributed_differentUsersEachCounted() {
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-001", 3L, 100L, "IMPRESSION", 55L);
+        service.recordPlayEvent("CAB-001", 3L, 100L, "IMPRESSION", 56L);
+
+        verify(playEventRepository, times(2)).insert(any(AdPlayEvent.class));
+    }
+
+    @Test
+    void recordPlayEvent_attributedWithoutDevice_skipsDeviceScopeCheckAndStopsMasquerading() {
+        // 小程序 adEvent 口改后传 device_id=null：没有柜可校，但也不再写 MP-U{userId} 伪装柜机号
+        when(campaignRepository.findById(2L)).thenReturn(Optional.of(campaign(2L, "RUNNING", "SPECIFIC")));
+
+        service.recordPlayEvent(null, 2L, 100L, "CLICK", 55L);
+
+        ArgumentCaptor<AdPlayEvent> captor = ArgumentCaptor.forClass(AdPlayEvent.class);
+        verify(playEventRepository).insert(captor.capture());
+        assertNull(captor.getValue().getDeviceId());
+        assertEquals(Long.valueOf(55L), captor.getValue().getUserId());
+    }
+
+    @Test
+    void recordPlayEvent_legacyOverload_keepsDeviceOnlySemantics() {
+        // 设备凭据口（/internal/v1/…，无登录主体）：device_id 照记，user_id/position 留 NULL，
+        // 去重键逐字保持历史格式（键格式一变，60s 窗口内的在途键会失效）
+        when(campaignRepository.findById(3L)).thenReturn(Optional.of(campaign(3L, "RUNNING", "ALL")));
+
+        service.recordPlayEvent("CAB-SCREEN", 3L, 100L, "IMPRESSION");
+
+        ArgumentCaptor<AdPlayEvent> captor = ArgumentCaptor.forClass(AdPlayEvent.class);
+        verify(playEventRepository).insert(captor.capture());
+        assertNull(captor.getValue().getUserId());
+        assertNull(captor.getValue().getPosition());
+        assertEquals("CAB-SCREEN", captor.getValue().getDeviceId());
+    }
+
     // ── 服务端去重（docs/AD_MONETIZATION_DESIGN.md §10 第 2 条）────────────────────
     //
     // 客户端去重（`impressed` / `completeTimers`）可被改包或脚本绕过，服务端是最后一道。

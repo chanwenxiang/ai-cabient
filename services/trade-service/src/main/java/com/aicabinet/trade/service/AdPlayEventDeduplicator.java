@@ -60,22 +60,6 @@ public class AdPlayEventDeduplicator {
         this.redis = redisProvider.getIfAvailable();
     }
 
-    /**
-     * 申领一次「计量资格」。
-     *
-     * @return {@code true} = 本窗口内首次，调用方**应当**落库；
-     *         {@code false} = 窗口内重复上报，调用方**应当**丢弃（静默丢弃，不抛 4xx —— 与
-     *         {@code recordPlayEvent} 对越界设备的处理一致，避免接口被用来探测/放大）。
-     */
-    public boolean tryAcquire(String deviceId, Long campaignId, Long assetId, String eventType) {
-        String key = dedupKey(deviceId, campaignId, assetId, eventType);
-        if (key == null) {
-            // 参数不全：调用方（recordPlayEvent）已有前置校验，这里放行而不是吞掉事件。
-            return true;
-        }
-        return acquire(key);
-    }
-
     private boolean acquire(String key) {
         if (redis != null) {
             try {
@@ -95,18 +79,6 @@ public class AdPlayEventDeduplicator {
             }
         }
         return localTryAcquire(key);
-    }
-
-    /**
-     * 归还资格：**落库失败时**调用，让同一窗口内的重试能重新落库
-     * （否则一次 DB 抖动会让这次真实曝光在本窗口内彻底丢失）。best-effort，失败只记日志。
-     */
-    public void release(String deviceId, Long campaignId, Long assetId, String eventType) {
-        String key = dedupKey(deviceId, campaignId, assetId, eventType);
-        if (key == null) {
-            return;
-        }
-        releaseKey(key);
     }
 
     private void releaseKey(String key) {
@@ -131,6 +103,11 @@ public class AdPlayEventDeduplicator {
                                Long assetId, String eventType) {
     }
 
+    /**
+     * 申领一次「计量资格」。🔴 唯一入口是 {@link PlayEventKey} 形态：设备维度与「人」维度的键格式差异
+     * 全部集中在 {@link #dedupKey(PlayEventKey)} 里。MA-150 之前这里另有一条按 deviceId 的四参重载，
+     * 生产已无人调用却仍留着——留着就是「谁都能再走一遍不带人的去重」的诱惑，故删。
+     */
     public boolean tryAcquire(PlayEventKey k) {
         String key = dedupKey(k);
         if (key == null) {
@@ -139,6 +116,10 @@ public class AdPlayEventDeduplicator {
         return acquire(key);
     }
 
+    /**
+     * 归还资格：**落库失败时**调用，让同一窗口内的重试能重新落库
+     * （否则一次 DB 抖动会让这次真实曝光在本窗口内彻底丢失）。best-effort，失败只记日志。
+     */
     public void release(PlayEventKey k) {
         String key = dedupKey(k);
         if (key != null) {
@@ -165,15 +146,6 @@ public class AdPlayEventDeduplicator {
                 + ':' + (k.campaignId() == null ? "-" : k.campaignId())
                 + ':' + (k.assetId() == null ? "-" : k.assetId())
                 + ':' + k.eventType();
-    }
-
-    private static String dedupKey(String deviceId, Long campaignId, Long assetId, String eventType) {
-        if (deviceId == null || deviceId.isBlank() || campaignId == null
-                || eventType == null || eventType.isBlank()) {
-            return null;
-        }
-        return KEY_PREFIX + deviceId + ':' + campaignId + ':' + (assetId == null ? "-" : assetId)
-                + ':' + eventType;
     }
 
     /**

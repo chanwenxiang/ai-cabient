@@ -42,14 +42,24 @@ class AdPlayEventDeduplicatorTest {
     @Mock StringRedisTemplate redis;
     @Mock ValueOperations<String, String> valueOps;
 
+    /**
+     * 设备/柜机屏侧的键形态：position 与 activityId 都为空 ⇒ dedupKey 逐字沿用历史格式
+     * （{@code prefix:device:campaign:asset:type}）。MA-150 之后生产入口只剩 PlayEventKey 一种，
+     * 本类就是在钉「旧格式没因为改口而漂移」。
+     */
+    private static AdPlayEventDeduplicator.PlayEventKey deviceKey(
+            String device, Long campaignId, Long assetId, String eventType) {
+        return new AdPlayEventDeduplicator.PlayEventKey(device, null, null, campaignId, assetId, eventType);
+    }
+
     /** 无 Redis（本地模式）：首次通过，窗口内重复被挡。 */
     @Test
     void local_firstAcquireTrue_thenDuplicateFalse() {
         AdPlayEventDeduplicator d = new AdPlayEventDeduplicator();
 
-        assertTrue(d.tryAcquire("CAB-1", 3L, 100L, "IMPRESSION"));
-        assertFalse(d.tryAcquire("CAB-1", 3L, 100L, "IMPRESSION"), "同组合第二次必须被挡");
-        assertFalse(d.tryAcquire("CAB-1", 3L, 100L, "IMPRESSION"));
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, "IMPRESSION")));
+        assertFalse(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, "IMPRESSION")), "同组合第二次必须被挡");
+        assertFalse(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, "IMPRESSION")));
     }
 
     /** 四个维度任一不同 ⇒ 不是同一组合，各自都要能记上。 */
@@ -57,13 +67,13 @@ class AdPlayEventDeduplicatorTest {
     void local_distinctCombinationsAreIndependent() {
         AdPlayEventDeduplicator d = new AdPlayEventDeduplicator();
 
-        assertTrue(d.tryAcquire("CAB-1", 3L, 100L, "IMPRESSION"));
-        assertTrue(d.tryAcquire("CAB-1", 3L, 100L, "COMPLETE"), "换事件类型");
-        assertTrue(d.tryAcquire("CAB-1", 3L, 101L, "IMPRESSION"), "换素材");
-        assertTrue(d.tryAcquire("CAB-1", 4L, 100L, "IMPRESSION"), "换计划");
-        assertTrue(d.tryAcquire("CAB-2", 3L, 100L, "IMPRESSION"), "换设备");
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, "IMPRESSION")));
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, "COMPLETE")), "换事件类型");
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, 101L, "IMPRESSION")), "换素材");
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 4L, 100L, "IMPRESSION")), "换计划");
+        assertTrue(d.tryAcquire(deviceKey("CAB-2", 3L, 100L, "IMPRESSION")), "换设备");
         // 素材缺失（-）与具体素材也要区分开
-        assertTrue(d.tryAcquire("CAB-1", 3L, null, "IMPRESSION"));
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, null, "IMPRESSION")));
     }
 
     /** 落库失败后归还资格 ⇒ 同窗口内重试仍可通过（否则一次 DB 抖动就永久吞掉这次曝光）。 */
@@ -71,12 +81,12 @@ class AdPlayEventDeduplicatorTest {
     void local_releaseAllowsRetryWithinWindow() {
         AdPlayEventDeduplicator d = new AdPlayEventDeduplicator();
 
-        assertTrue(d.tryAcquire("CAB-R", 3L, 100L, "CLICK"));
-        assertFalse(d.tryAcquire("CAB-R", 3L, 100L, "CLICK"));
+        assertTrue(d.tryAcquire(deviceKey("CAB-R", 3L, 100L, "CLICK")));
+        assertFalse(d.tryAcquire(deviceKey("CAB-R", 3L, 100L, "CLICK")));
 
-        d.release("CAB-R", 3L, 100L, "CLICK");
+        d.release(deviceKey("CAB-R", 3L, 100L, "CLICK"));
 
-        assertTrue(d.tryAcquire("CAB-R", 3L, 100L, "CLICK"), "归还后必须能重新申领");
+        assertTrue(d.tryAcquire(deviceKey("CAB-R", 3L, 100L, "CLICK")), "归还后必须能重新申领");
     }
 
     /** 参数不全（调用方已有前置校验）⇒ 放行，宁可不去重也不吞事件。 */
@@ -84,12 +94,12 @@ class AdPlayEventDeduplicatorTest {
     void local_incompleteArgsPassThrough() {
         AdPlayEventDeduplicator d = new AdPlayEventDeduplicator();
 
-        assertTrue(d.tryAcquire(null, 3L, 100L, "IMPRESSION"));
-        assertTrue(d.tryAcquire("  ", 3L, 100L, "IMPRESSION"));
-        assertTrue(d.tryAcquire("CAB-1", null, 100L, "IMPRESSION"));
-        assertTrue(d.tryAcquire("CAB-1", 3L, 100L, null));
+        assertTrue(d.tryAcquire(deviceKey(null, 3L, 100L, "IMPRESSION")));
+        assertTrue(d.tryAcquire(deviceKey("  ", 3L, 100L, "IMPRESSION")));
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", null, 100L, "IMPRESSION")));
+        assertTrue(d.tryAcquire(deviceKey("CAB-1", 3L, 100L, null)));
         // 不做去重 ⇒ 重复调用也应一直放行
-        assertTrue(d.tryAcquire(null, 3L, 100L, "IMPRESSION"));
+        assertTrue(d.tryAcquire(deviceKey(null, 3L, 100L, "IMPRESSION")));
     }
 
     /** Redis 模式：键跨实例共享（多副本部署时同一个组合只能记一次），且 TTL = 60s。 */
@@ -103,8 +113,8 @@ class AdPlayEventDeduplicatorTest {
         AdPlayEventDeduplicator a = new AdPlayEventDeduplicator(provider(redis));
         AdPlayEventDeduplicator b = new AdPlayEventDeduplicator(provider(redis));
 
-        assertTrue(a.tryAcquire("CAB-Q", 3L, 100L, "IMPRESSION"));
-        assertFalse(b.tryAcquire("CAB-Q", 3L, 100L, "IMPRESSION"), "另一实例必须被挡（共享键）");
+        assertTrue(a.tryAcquire(deviceKey("CAB-Q", 3L, 100L, "IMPRESSION")));
+        assertFalse(b.tryAcquire(deviceKey("CAB-Q", 3L, 100L, "IMPRESSION")), "另一实例必须被挡（共享键）");
 
         verify(valueOps, times(2)).setIfAbsent(
                 eq("aicabinet:ad-play-dedup:CAB-Q:3:100:IMPRESSION"),
@@ -119,8 +129,8 @@ class AdPlayEventDeduplicatorTest {
 
         AdPlayEventDeduplicator d = new AdPlayEventDeduplicator(provider(redis));
 
-        assertTrue(d.tryAcquire("CAB-F", 3L, 100L, "IMPRESSION"));
-        assertFalse(d.tryAcquire("CAB-F", 3L, 100L, "IMPRESSION"), "回退后仍要能挡重复");
+        assertTrue(d.tryAcquire(deviceKey("CAB-F", 3L, 100L, "IMPRESSION")));
+        assertFalse(d.tryAcquire(deviceKey("CAB-F", 3L, 100L, "IMPRESSION")), "回退后仍要能挡重复");
     }
 
     @SuppressWarnings("unchecked")

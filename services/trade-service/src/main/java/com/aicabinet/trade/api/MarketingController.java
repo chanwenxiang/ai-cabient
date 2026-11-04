@@ -82,8 +82,11 @@ public class MarketingController {
     }
 
     /**
-     * P3-6：小程序轮播位曝光/点击留痕。须登录（防匿名刷量）；
-     * deviceId 语义 = MP-U{userId}，服务端 60s 窗口去重（复用设备播放打点链路）。
+     * P3-6：小程序轮播位曝光/点击留痕。须登录（防匿名刷量）；服务端 60s 窗口按人去重。
+     *
+     * <p>MA-150 同族订正：不再把人的号伪装成柜机号写 {@code device_id}（旧写法 {@code "MP-U"+userId}），
+     * V439 已把历史 MP-U 行归位到 {@code user_id}，新行一律 {@code device_id=NULL} + {@code user_id} +
+     * {@code position='BANNER'}。
      */
     @PostMapping("/ads/{campaignId}/events")
     public ApiResponse<Void> adEvent(HttpServletRequest request,
@@ -93,9 +96,9 @@ public class MarketingController {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
-        adCampaignService.recordPlayEvent("MP-U" + userId, campaignId,
+        adCampaignService.recordPlayEvent(null, campaignId,
                 body == null ? null : body.assetId(),
-                body == null ? null : body.eventType());
+                body == null ? null : body.eventType(), userId);
         return ApiResponse.ok(null);
     }
 

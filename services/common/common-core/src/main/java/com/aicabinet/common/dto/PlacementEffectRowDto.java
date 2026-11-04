@@ -12,8 +12,9 @@ package com.aicabinet.common.dto;
  *   <li>{@code exposurePerUser = exposureCount / exposureUsers}，分母只算**已归因**（有 user_id）的行；</li>
  *   <li>{@code unattributedCount} 单独列出：设备侧上报与 V439 之前的历史行没有主体，
  *       混进分母会把人均压成假低值；</li>
- *   <li>{@code position='UNKNOWN'} = 迁移前 banner 位写 {@code MP-U{userId}} 那批行的归位兜底
- *       （V439 已把它们标成 BANNER，正常应为 0）。</li>
+ *   <li>{@code position='UNKNOWN'} = **设备/柜机屏侧**的行（一机一密口 {@code /internal/v1/…} 无登录主体，
+ *       不写 position）。迁移前小程序写 {@code MP-U{userId}} 那批历史行已由 V439 归位成 BANNER，
+ *       所以这一桶只应包含柜机屏/模拟器的量——出现「消费者 userId + UNKNOWN」就是回归。</li>
  * </ul>
  */
 public record PlacementEffectRowDto(

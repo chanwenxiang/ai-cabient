@@ -15,6 +15,7 @@ import com.aicabinet.trade.service.DeviceValidationService;
 import com.aicabinet.trade.service.NearbyDeviceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
@@ -87,12 +89,23 @@ public class DeviceController {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));
     }
 
-    /** 开门页推广位曝光/完播/点击回写，供投放 ROI（服务端 60s 窗口去重）。 */
+    /**
+     * 开门页推广位曝光/完播/点击回写，供投放 ROI（服务端 60s 窗口去重）。
+     *
+     * <p>MA-150（A 档）：主体从登录态取并交给服务层落 {@code user_id}、按人去重。
+     * 本路径不在 {@code WebConfig.AUTH_EXCLUDE_PATTERNS} 里（{@code /api/v2/**} 默认拒绝），
+     * 未登录本来就到不了这里；仍保留空值兜底 401，与 {@code MarketingController#adEvent} 同策。
+     */
     @PostMapping("/{deviceId}/ad-play")
     public ApiResponse<Void> adPlay(
+            HttpServletRequest request,
             @PathVariable String deviceId,
             @Valid @RequestBody AdPlayEventRequest body) {
-        adCampaignService.recordPlayEvent(deviceId, body.campaignId(), body.assetId(), body.eventType());
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        adCampaignService.recordPlayEvent(deviceId, body.campaignId(), body.assetId(), body.eventType(), userId);
         return ApiResponse.ok(null);
     }
 

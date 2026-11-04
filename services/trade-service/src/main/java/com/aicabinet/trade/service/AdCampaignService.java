@@ -288,15 +288,33 @@ public class AdCampaignService {
     }
 
     /**
-     * 小程序推广位回写曝光/完播/点击，供投放 ROI 留痕。
+     * 设备/柜机屏侧推广位回写（一机一密口 {@code /internal/v1/devices/{id}/ad-play}）。
      *
-     * <p>🔴 服务端**必须自己去重**：客户端（{@code device-ad-banner.vue}）的 {@code impressed} /
-     * {@code completeTimers} 只是内存 Set，改包或脚本可直接绕过；而本表是 ROI 的唯一数据源。
-     * 去重键 = 设备 × 计划 × 素材 × 事件类型，窗口 60s（见 {@link AdPlayEventDeduplicator}）。
+     * <p>这条没有登录主体 ⇒ 逐字保留旧语义与**旧去重键格式**（批次 S 的同款取舍：键格式一变，
+     * 60s 窗口内的在途键失效，等于放开一次重复上报）。
      */
     @Transactional
     public void recordPlayEvent(String deviceId, Long campaignId, Long assetId, String eventType) {
-        if (deviceId == null || deviceId.isBlank() || campaignId == null) {
+        recordPlayEvent(deviceId, campaignId, assetId, eventType, null);
+    }
+
+    /**
+     * 推广位回写曝光/完播/点击，供投放 ROI 留痕。
+     *
+     * <p>🔴 服务端**必须自己去重**：客户端（{@code device-ad-banner.vue}）的 {@code impressed} /
+     * {@code completeTimers} 只是内存 Set，改包或脚本可直接绕过；而本表是 ROI 的唯一数据源。
+     *
+     * <p>MA-150（A 档）：{@code userId} 非空（小程序登录用户上报）时，去重键按**人**
+     * （{@code U{userId}} × 位置 × 计划 × 素材 × 事件类型），并把 {@code user_id} 与
+     * {@code position='BANNER'} 落列——此前只按设备去重 ⇒ 任何登录用户都能给任意**已存在**的柜机
+     * 造曝光（{@code device_id} 有 FK 指向 {@code device_info}），且换 assetId/eventType 即绕开 60s 窗口。
+     * {@code userId} 为空（设备凭据口）时走旧键格式，{@code user_id}/{@code position} 留 NULL。
+     */
+    @Transactional
+    public void recordPlayEvent(String deviceId, Long campaignId, Long assetId, String eventType, Long userId) {
+        boolean attributed = userId != null && userId > 0;
+        String deviceKey = deviceId == null || deviceId.isBlank() ? null : deviceId.trim();
+        if (campaignId == null || (!attributed && deviceKey == null)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "campaignId/deviceId 必填");
         }
         String type = requirePlayEventType(eventType);
@@ -307,32 +325,40 @@ public class AdCampaignService {
                     campaignId, campaign.getStatus());
             return;
         }
-        if (!CHANNEL_MINI_PROGRAM.equals(campaign.getChannel())
+        // 设备范围只在「调用方报了柜机号」时校验：小程序侧 device_id 留空，没有柜可校
+        if (deviceKey != null && !CHANNEL_MINI_PROGRAM.equals(campaign.getChannel())
                 && SPECIFIC.equals(campaign.getDeviceScope())
                 && deviceRepository.findByCampaignId(campaignId).stream()
-                .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceId.trim()))) {
+                .noneMatch(d -> d.getDeviceId().equalsIgnoreCase(deviceKey))) {
             log.debug("ad play event dropped: device {} not in campaign {} device scope",
-                    deviceId, campaignId);
+                    deviceKey, campaignId);
             return;
         }
-        String deviceKey = deviceId.trim();
+        AdPlayEventDeduplicator.PlayEventKey key = attributed
+                ? new AdPlayEventDeduplicator.PlayEventKey(
+                        "U" + userId, PromotionPlacementService.BANNER, null, campaignId, assetId, type)
+                : new AdPlayEventDeduplicator.PlayEventKey(deviceKey, null, null, campaignId, assetId, type);
         // 窗口内重复上报：静默丢弃（同样不抛 4xx，理由与上面的越界丢弃一致）
-        if (!playEventDeduplicator.tryAcquire(deviceKey, campaignId, assetId, type)) {
-            log.debug("ad play event dropped: duplicate {} in dedup window (device={}, campaign={}, asset={})",
-                    type, deviceKey, campaignId, assetId);
+        if (!playEventDeduplicator.tryAcquire(key)) {
+            log.debug("ad play event dropped: duplicate {} in dedup window (user={}, device={}, campaign={}, asset={})",
+                    type, userId, deviceKey, campaignId, assetId);
             return;
         }
         AdPlayEvent ev = new AdPlayEvent();
         ev.setCampaignId(campaignId);
         ev.setDeviceId(deviceKey);
         ev.setAssetId(assetId);
+        if (attributed) {
+            ev.setUserId(userId);
+            ev.setPosition(PromotionPlacementService.BANNER);
+        }
         ev.setEventType(type);
         ev.setCreatedAt(Instant.now());
         try {
             playEventRepository.insert(ev);
         } catch (RuntimeException e) {
             // 落库失败 ⇒ 归还资格：同窗口内的重试仍能落库，避免一次 DB 抖动就让这次真实曝光彻底丢失
-            playEventDeduplicator.release(deviceKey, campaignId, assetId, type);
+            playEventDeduplicator.release(key);
             throw e;
         }
     }
