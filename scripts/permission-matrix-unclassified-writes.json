@@ -115,7 +115,7 @@
     "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java#adPlay",
     "method": "POST /api/v2/devices/{deviceId}/ad-play",
     "category": "unverified-write",
-    "reason": "开门页广告播放回写：路径带任意 deviceId，控制器不取登录主体、服务层 recordPlayEvent 也不校验调用者是否有权写这台柜机的打点 ⇒ 投放 ROI 可被任意账号伪造（MA-150 已登记，待拍板：改走 /internal/** + 一机一密，还是让消费者主体进事件行）",
+    "reason": "开门页/活动位广告打点回写（MP 侧，`consumer-api.ts:662` → `endpoints.ts:98`）：控制器不取登录主体，`AdCampaignService.recordPlayEvent` 只校验 campaign 是否 RUNNING、设备是否在投放范围与 `(device,campaign,asset,type)` 60s 去重 ⇒ 换 deviceId 即绕开去重，且 `ad_play_event` 无 user 列，事后查不出这批曝光来自谁。已登记 MA-150；口径经用户订正为「收益侧流量主 + 自有活动位，曝光面含首页/开门前/关门后」⇒ 不采用「绑会话才计数」，推荐做归因列与报表可见性，配额阈值等接了流量主有真实分布再谈。",
     "reviewed": "2026-11-04 批次 R"
   },
   {
