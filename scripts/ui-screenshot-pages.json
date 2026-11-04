@@ -1,5 +1,5 @@
 {
-  "_comment": "UI 截图基线 runner 的页面清单（scripts/ui-screenshot-runner.mjs 读取）。只登记「样式统一」批次实际改动过的页面；新增页面往里加，勿在脚本里硬编码。admin path 是 /admin 之后的路由；mp path 是 reLaunch 用的页面路径。",
+  "_comment": "UI 截图基线 runner 的页面清单（scripts/ui-screenshot-runner.mjs 读取）。只登记「样式统一」批次实际改动过的页面；新增页面往里加，勿在脚本里硬编码。admin path 是 /admin 之后的路由；mp path 是 reLaunch 用的页面路径。🔴 需要上下文才出内容的页面/浮层（result 结算页、订单详情、补货抽屉、活动弹窗、申诉浮层）不进本清单——它们会恒报 FAIL，改用一次性探针（先造/选数据再 tap 打开，参考 .tmp/overlay-merchant2.cjs）。",
   "admin": [
     {
       "name": "finance",
@@ -39,6 +39,14 @@
     }
   ],
   "consumer-mp": [
+    {
+      "name": "index",
+      "path": "/pages/index/index"
+    },
+    {
+      "name": "mine",
+      "path": "/pages/mine/mine"
+    },
     {
       "name": "orders",
       "path": "/pages/orders/orders"
