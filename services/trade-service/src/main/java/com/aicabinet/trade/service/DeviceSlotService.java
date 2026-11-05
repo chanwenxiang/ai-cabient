@@ -172,28 +172,6 @@ public class DeviceSlotService {
         public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0, null, null, null);
     }
 
-    @Transactional
-    public void deleteSlot(Long operatorId, String deviceId, String slotCode) {
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        runWithDeviceSlotLock(deviceId, () -> {
-            doDeleteSlot(deviceId, slotCode);
-            return null;
-        });
-    }
-
-    private void doDeleteSlot(String deviceId, String slotCode) {
-        requireDevice(deviceId);
-        String normalized = slotCode.trim().toUpperCase();
-        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, normalized))
-                .orElseThrow(() -> notFound("slot"));
-        int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
-        if (bookQty > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "slot has book inventory, disable instead of delete");
-        }
-        slotRepository.delete(slot);
-    }
-
     /**
      * 缺货建议全量行：低库存/OOS 货道，按 deviceId:slotCode 去重。
      * 「账实差异」腿随 SLOT_DISCREPANCY 告警面一起退场（批 3b 第十一刀）。

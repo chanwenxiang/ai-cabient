@@ -179,8 +179,4 @@ public class OpsReplenishmentAdminService {
         return deviceSlotService.getDeviceDetail(operatorId, deviceId);
     }
 
-    public void deleteDeviceSlot(Long operatorId, String deviceId, String slotCode) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
-        deviceSlotService.deleteSlot(operatorId, deviceId, slotCode);
-    }
 }

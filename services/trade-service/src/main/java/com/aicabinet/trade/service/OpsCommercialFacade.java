@@ -382,11 +382,6 @@ public class OpsCommercialFacade {
         return deviceSlotService.getDeviceDetail(operatorId, deviceId);
     }
 
-    public void deleteDeviceSlot(Long operatorId, String deviceId, String slotCode) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
-        deviceSlotService.deleteSlot(operatorId, deviceId, slotCode);
-    }
-
     public SlaMetricsDto sla(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:sla");
         return slaMetricsService.current(operatorId);
