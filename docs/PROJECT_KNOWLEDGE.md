@@ -684,6 +684,48 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十四刀 B：指标不再分柜型——台账/SKU 口径成为唯一来源，货道算式最后一处退场）
+
+- `computeMetrics` 里那条 `if (isDoorCabinet(deviceId)) return computeDoorCabinetMetrics(device)` **整段删除**：
+  指标改由 `ledgerStockMetrics(device)` 单源产出（判据 `SkuStockLevel`：缺货=可售≤0、低库存=0<可售≤逐 SKU
+  `low_threshold`、填充率=Σmin(库存,容量)×100/Σ容量）。**不是新写一套算式**——这条口径 2026-10-29 就存在，
+  本次只是把「货道口径」那条并列分支删掉，让所有柜型只走它。
+- mp 柜机卡片 `countSlotStock` 同改（原按柜型分流），连带删掉 `countSlotStockForSlotCabinet`、
+  `SlotFillStats` 记录与 `accumulateSlotFillStats` 累加器——**货道侧最后一处指标算式，全仓 0 残留**。
+- 字段改名（数字已经是商品数，留着 Slot 就是假名字）：`DeviceOpsMetricsDto.oosSlotCount/lowStockSlotCount`
+  → `oosSkuCount/lowStockSkuCount`；admin `DeviceDetailView`（8 处）与 `DeviceRemoteOpsCard`（2 处）跟改，
+  含子组件 prop `:oos-slot-count` → `:oos-sku-count`。
+- 未做（另一条 DTO 面，单独一刀）：后端 `SlotStockCounts` 与 mp 读的 `MerchantDeviceDto.oosSlotCount`
+  仍叫 *Slot —— 它走的是商户柜机列表那条链，改名要连 mp 一起判（且要确认卡片文案是否还提「货道」）。
+- 订正两处旧前提注释：`countSlotStock` 的 javadoc（原写「有货道柜⇒货道口径」已不成立）、
+  `DeviceSlotServiceTest:239` 那条「塞 false 桩逼走货道路径」。
+- 测试侧的真反馈：`DeviceSlotServiceTest` 3 例报 `UnnecessaryStubbing`——都是「给货道取数打的桩」
+  在新路径下不再被调用，删桩（不是放宽断言）；其中一例是「塞 `isJiangyi=true` 逼走货道」的桩，删掉后该类 10/0。
+  口径一致性钉测 `DoorCabinetStockLevelConsistencyTest` **8/0**（详情 KPI ↔ 商户卡片仍同数：
+  2 缺货 / 1 低库存 / 填充率 31%），`MerchantDevicePortalServiceTest` 13/0。
+- 契约：`oosSkuCount/lowStockSkuCount` 进生成契约；残留的 `oosSlotCount` **只在 `MerchantDeviceDto`**
+  （mp 柜机列表链，本刀刻意不碰）；乱码 0。两端 type-check 双绿；产物重建 225 文件、`库存准确率` 0 命中。
+- 验证：`mvn verify` **BUILD SUCCESS / MVN_EXIT=0 / failure-error 计数 0**，trade-service **2773/0**，
+  Total time 15:36。
+
+### 2026-11-05（第十四刀 A：「库存准确率」整条摘掉——台账口径下它没有数据源）
+
+- 用户拍板摘卡（原三选一里我推荐的那档）。**为什么必须摘**：这个数的分子是「账面 vs 货道实盘」，
+  实盘来自货道盘点，而盘点链在第十一刀 A 段已停跑；开门柜走的是 `computeDoorCabinetMetrics` 里
+  **硬编码 100** ⇒ 界面上一张恒 100% 的「库存准确率」，比不显示更坏（假绿比假红更毒）。
+- 删：admin `DeviceDetailView` 的「库存准确率」info-item + 本地 `Metrics.inventoryAccuracyPct` 字段；
+  `DeviceOpsMetricsDto.inventoryAccuracyPct` 分量，以及两个**零调用**的「兼容旧 12 / 20 字段构造」
+  （全仓 `new DeviceOpsMetricsDto(` 只剩 2 处且都是全量构造）；`DeviceSlotService` 里整条 accuracy 链——
+  `accuracy` 局部、`SlotFillStats` 的 `accuracySum/accuracySlots` 两字段、累加器里的实盘分支、
+  `physicalAccuracyPercent` 整个方法。**删掉的不是一张卡，是「再也算不出这个数」**。
+- 契约：paths **702 → 702**（不删端点）；`inventoryAccuracyPct` 在生成契约里 **0 残留**；乱码哨兵 0。
+- 前端：admin / merchant-mp `type-check` 双绿；产物重建 225 文件（哈希轮转），并**按字节反证**
+  「库存准确率」在 `static/admin` 全部 chunk 里 **0 命中**。
+- 未做（下一刀）：删货道分支本身（`computeMetrics:886` 的 `isDoorCabinet` 分流）。它牵动
+  `SlotFillStats` 的**第二处**使用（柜机卡片那条 `:178` 路径）与 `DeviceSlotServiceTest:239` 里
+  「给 JiangyiDeviceDirectory 塞 false 桩、逼走货道路径」的用例 ⇒ 属算式退场，单独一刀做，
+  不塞进这次「摘一张卡」。
+
 ### 2026-11-05（第十三刀 B1：`DeviceDetailDto.slots` 与 `DeviceSlotDto` 整条读面退场）
 
 - 🔴 **先订正我上一轮的推荐**：原话「B1 零 UI 风险」是从「三端没人读 `.slots`」推的，**推过头**——

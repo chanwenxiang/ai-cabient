@@ -18913,17 +18913,15 @@ export interface components {
             /** Format: int32 */
             oosRatePct?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
             totalBookQty?: number;
             /** Format: int32 */
             totalParLevel?: number;
             /** Format: date-time */
             lastRestockAt?: string;
-            /** Format: int32 */
-            inventoryAccuracyPct?: number;
             address?: string;
             /** Format: int32 */
             currentTempC?: number;

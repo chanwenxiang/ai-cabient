@@ -174,8 +174,6 @@ class DeviceSlotServiceTest {
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId(DEVICE_ID);
         when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
-        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of());
-        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of());
         when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of());
         when(taskRepository.findLastCompletedAtByDeviceId(DEVICE_ID)).thenReturn(Optional.empty());
         when(shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(DEVICE_ID)).thenReturn(Optional.empty());
@@ -236,16 +234,14 @@ class DeviceSlotServiceTest {
                 shoppingSessionMapper, org.mockito.Mockito.mock(CabinetOrderLineMapper.class),
                 
                 null,
-                // computeMetrics 自 D28-F3 起先问一句「是不是开门柜」（分流两套指标口径），
-                // 这里要的是货道柜路径 ⇒ 给一个默认返回 false 的桩，别留 null（NPE 会把 fallback 断言掩盖掉）
+                // 批 3b 第十四刀 B：指标不再按柜型分流（全柜型走台账口径），这里仍给一个桩只是
+                // 为了让 countSlotStock / 其它仍判柜型的读面走到可预期的分支，别留 null（NPE 会掩盖断言）
                 org.mockito.Mockito.mock(com.aicabinet.trade.service.JiangyiDeviceDirectory.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId(DEVICE_ID);
         when(deviceRepository.findById(DEVICE_ID)).thenReturn(Optional.of(device));
-        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of());
-        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of());
         when(taskRepository.findLastCompletedAtByDeviceId(DEVICE_ID)).thenReturn(Optional.empty());
         when(shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(DEVICE_ID)).thenReturn(Optional.empty());
         // 该柜已建账的 SKU 只有 LEDGED；UNLEDGED 一条批次都没有（含 DEPLETED 也没有）
@@ -323,7 +319,6 @@ class DeviceSlotServiceTest {
                 
                 null, jiangyiDeviceDirectory, null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
-        org.mockito.Mockito.when(jiangyiDeviceDirectory.isJiangyi("EG-DOOR")).thenReturn(true);
         when(taskRepository.findLastCompletedAtByDeviceId("EG-DOOR")).thenReturn(Optional.empty());
 
         DeviceSkuInventory soldOut = inventoryRow("SKU-SOLD-OUT", 0);

@@ -64,32 +64,32 @@
           <div
             class="stat-tile"
             role="group"
-            :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
+            :class="{ warn: metricsHydrated && (metrics?.oosSkuCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `缺货${stockUnitLabel} ${metrics?.oosSlotCount ?? 0}`
+                ? `缺货${stockUnitLabel} ${metrics?.oosSkuCount ?? 0}`
                 : `缺货${stockUnitLabel} ${UI_COPY.loading}`
             "
           >
             <div class="stat-label">缺货{{ stockUnitLabel }}</div>
             <div class="stat-value">
-              {{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}
+              {{ metricsHydrated ? (metrics?.oosSkuCount ?? 0) : '暂无' }}
             </div>
             <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </div>
           <div
             class="stat-tile"
             role="group"
-            :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
+            :class="{ warn: metricsHydrated && (metrics?.lowStockSkuCount || 0) > 0 }"
             :aria-label="
               metricsHydrated
-                ? `低库存${stockUnitLabel} ${metrics?.lowStockSlotCount ?? 0}`
+                ? `低库存${stockUnitLabel} ${metrics?.lowStockSkuCount ?? 0}`
                 : `低库存${stockUnitLabel} ${UI_COPY.loading}`
             "
           >
             <div class="stat-label">低库存{{ stockUnitLabel }}</div>
             <div class="stat-value">
-              {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
+              {{ metricsHydrated ? (metrics?.lowStockSkuCount ?? 0) : '暂无' }}
             </div>
             <div v-if="!metricsHydrated" class="stat-hint">{{ UI_COPY.loading }}</div>
           </div>
@@ -305,18 +305,6 @@
                     ? formatDateTime(metrics?.tempReportedAt) || '无'
                     : UI_COPY.loading
                 }}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">库存准确率</span>
-                <span class="info-value">
-                  {{
-                    metricsHydrated
-                      ? metrics?.inventoryAccuracyPct != null
-                        ? `${metrics.inventoryAccuracyPct}%`
-                        : '无'
-                      : UI_COPY.loading
-                  }}
-                </span>
               </div>
             </div>
           </section>
@@ -644,7 +632,7 @@
           :can-access-repair-tickets="canAccessPath('/repair-tickets')"
           :cmd-loading="cmdLoading"
           :sales-locked="!!metrics?.salesLocked"
-          :oos-slot-count="metrics?.oosSlotCount || 0"
+          :oos-sku-count="metrics?.oosSkuCount || 0"
           :refund-policy-draft="refundPolicyDraft"
           :refund-policy-saving="refundPolicySaving"
           :global-refund-policy="globalRefundPolicy"
@@ -829,8 +817,8 @@ interface LifecycleEventRow {
 
 interface Metrics {
   fillRatePct?: number;
-  oosSlotCount?: number;
-  lowStockSlotCount?: number;
+  oosSkuCount?: number;
+  lowStockSkuCount?: number;
   nearExpiryLotCount?: number;
   currentTempC?: number | null;
   targetTempC?: number | null;
@@ -844,7 +832,6 @@ interface Metrics {
   merchantContactName?: string;
   merchantContactPhone?: string;
   lastRestockAt?: string;
-  inventoryAccuracyPct?: number;
 }
 
 /** CB-051：柜×商品库存行（device_sku_inventory，开门柜库存口径） */

@@ -19,7 +19,7 @@ const props = defineProps<{
   canAccessRepairTickets: boolean;
   cmdLoading: string;
   salesLocked: boolean;
-  oosSlotCount: number;
+  oosSkuCount: number;
   refundPolicyDraft: string;
   refundPolicySaving: boolean;
   globalRefundPolicy: string;
@@ -136,7 +136,7 @@ watch(
             >缺货建议</el-button
           >
           <el-button
-            v-if="canAccessReplenishment && oosSlotCount > 0"
+            v-if="canAccessReplenishment && oosSkuCount > 0"
             v-hasPermi="['ops:replenishment:edit']"
             type="primary"
             @click="emit('go-plan-replenish')"

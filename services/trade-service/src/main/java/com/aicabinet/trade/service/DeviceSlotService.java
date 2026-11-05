@@ -90,9 +90,8 @@ public class DeviceSlotService {
     public DeviceDetailDto getDeviceDetail(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
-        DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
+        // 批 3b 第十四刀 B：指标不再分柜型——台账/SKU 口径是唯一来源（开门柜早已走它）
+        DeviceOpsMetricsDto metrics = ledgerStockMetrics(device);
         // 「该柜启用批次账本」和「本 SKU 进过批次账本」是两个粒度。只判前者，会把柜里
         // 从未建账的 SKU 一律读成 0——账面明明有货却恒显示缺货，且「编辑库存」保存后数字不动
         // （2026-10-26 雪碧实测：device_sku_inventory=2、device_sku_lot 零行、流水零条）。
@@ -149,9 +148,8 @@ public class DeviceSlotService {
 
     /**
      * 柜机缺货/低库存计数。供商户柜机列表默认排序（收藏柜 → 缺货最多）与卡片标签使用。
-     * · 有货道柜 ⇒ 启用且有目标库存的货道口径
-     * · 开门柜 ⇒ 台账 SKU 口径（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}），
-     *   DTO 字段名保留 *Slot 但语义是「商品」个数；无货道故 lastCheckAt 恒空。
+     * 口径＝在架 SKU 台账（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}，第十四刀 B 起**全柜型单源**）；
+     * DTO 字段名保留 *Slot 但语义是「商品」个数；无实盘故 lastCheckAt 恒空。
      *   🔴 此前开门柜恒返回 EMPTY ⇒ 商户卡片恒「0 缺货」，与后台设备详情 KPI 对不上。
      */
     @Transactional(readOnly = true)
@@ -159,39 +157,16 @@ public class DeviceSlotService {
         if (deviceId == null || deviceId.isBlank()) {
             return SlotStockCounts.EMPTY;
         }
-        if (isDoorCabinet(deviceId)) {
-            DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
-            if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
-                return SlotStockCounts.EMPTY;
-            }
-            return new SlotStockCounts(
-                    doorStats.oosCount(),
-                    doorStats.lowCount(),
-                    doorStats.fillRatePct(),
-                    null,
-                    taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
+        // 批 3b 第十四刀 B：卡片与详情同一口径（在架 SKU 台账），不再按柜型分流
+        DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
+        if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
+            return SlotStockCounts.EMPTY;
         }
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId.trim());
-        List<DeviceSlot> active = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId.trim()).stream()
-                .filter(s -> s.isEnabled() && s.getParLevel() > 0)
-                .toList();
-        SlotFillStats stats = accumulateSlotFillStats(active, bookBySlot);
-        // CB-050 扩展：柜机卡片指标——填充率、最近核对库存（最近实盘）、最近补货时间
-        Integer fillRatePct = stats.totalPar() > 0 ? stats.totalBook() * 100 / stats.totalPar() : null;
-        Instant lastCheckAt = active.stream()
-                .map(DeviceSlot::getLastPhysicalAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
-        Instant lastRestockAt = active.stream()
-                .map(DeviceSlot::getLastRestockAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
-        return new SlotStockCounts(stats.oosCount(), stats.lowCount(), fillRatePct, lastCheckAt, lastRestockAt);
+        return new SlotStockCounts(doorStats.oosCount(), doorStats.lowCount(), doorStats.fillRatePct(),
+                null, taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
     }
 
-    /** 缺货货道数 / 低库存货道数。 */
+    /** 缺货/低库存个数（台账口径下是商品数；字段名兼容保留 *Slot）。 */
     public record SlotStockCounts(int oosSlotCount, int lowStockSlotCount, Integer fillRatePct,
                                   Instant lastCheckAt, Instant lastRestockAt) {
         public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0, null, null, null);
@@ -875,65 +850,6 @@ public class DeviceSlotService {
         }
     }
 
-    private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
-                                               Map<String, Integer> bookBySlot) {
-        String deviceId = device.getDeviceId();
-        // 开门柜（判据=将邑绑定）无货道概念，货道台账恒空 ⇒ 货道口径恒 0（填充率 0%、缺货/低库存 0），
-        // 用户实测「柜里有货却显示没数据」（2026-10-29）。改走「在架 SKU 台账」口径分流：
-        // 只统计上架商品（device_sku_inventory 行 × sku_catalog ACTIVE，与详情页「已上架商品数」同源），
-        // 缺货=库存 0、低库存=0<库存≤逐 SKU low_threshold——与补货建议 suggestFromLowStock、
-        // 阈值自动任务、上架商品页「缺货」tag 同一旋钮（2026-10-29 用户拍板两档递进）。
-        if (isDoorCabinet(deviceId)) {
-            return computeDoorCabinetMetrics(device);
-        }
-        List<DeviceSlot> active = slots.stream()
-                .filter(s -> s.isEnabled() && s.getParLevel() > 0)
-                .toList();
-        SlotFillStats fillStats = accumulateSlotFillStats(active, bookBySlot);
-        int fillRate = fillStats.totalPar() > 0 ? (fillStats.totalBook() * 100 / fillStats.totalPar()) : 0;
-        int oosRate = active.isEmpty() ? 0 : (fillStats.oosCount() * 100 / active.size());
-        int accuracy = fillStats.accuracySlots() > 0
-                ? (fillStats.accuracySum() / fillStats.accuracySlots()) : 100;
-
-        Instant lastRestock = slots.stream()
-                .map(DeviceSlot::getLastRestockAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
-
-        // 设备级告警联系人为空时回落显示绑定商户的联系人/电话（运营后台设备概览用）
-        String[] merchantContacts = resolveMerchantContacts(device);
-        String merchantContactName = merchantContacts[0];
-        String merchantContactPhone = merchantContacts[1];
-
-        return new DeviceOpsMetricsDto(
-                deviceId,
-                slots.size(),
-                active.size(),
-                fillRate,
-                oosRate,
-                fillStats.oosCount(),
-                fillStats.lowCount(),
-                bookBySlot.values().stream().mapToInt(Integer::intValue).sum(),
-                fillStats.totalPar(),
-                lastRestock,
-                accuracy,
-                device.getAddress(),
-                device.getCurrentTempC(),
-                device.getTargetTempC(),
-                device.getTempReportedAt(),
-                device.salesLockedEnabled(),
-                device.getAppVersion(),
-                device.getFirmwareVersion(),
-                device.getAlertContactName(),
-                device.getAlertContactPhone(),
-                countNearExpiryLots(deviceId),
-                merchantContactName,
-                merchantContactPhone,
-                monthRevenueCents(deviceId)
-        );
-    }
-
     /** 设备级告警联系人为空时回落绑定商户联系人/电话（运营后台设备概览用，两条柜型共用）。 */
     private String[] resolveMerchantContacts(DeviceInfo device) {
         var boundMerchant = device.getMerchantId() == null || device.getMerchantId().isBlank()
@@ -946,7 +862,7 @@ public class DeviceSlotService {
     }
 
     /**
-     * 开门柜设备概览指标：在架 SKU 台账口径。
+     * 设备概览指标：在架 SKU 台账口径（**全柜型单源**；货道口径已在第十四刀 B 退场）。
      * 在架 = device_sku_inventory 有行且 sku_catalog.status=ACTIVE（与详情页「已上架商品数」、
      * 消费者目录同一过滤，已下架 SKU 的库存残留不参与）。填充率 = Σmin(库存,容量)×100/Σ容量；
      * 缺货商品 = 库存≤0；低库存商品 = 0<库存≤low_threshold（逐 SKU 阈值，与补货建议
@@ -954,7 +870,7 @@ public class DeviceSlotService {
      * {@link SkuStockLevel}（CB-076：缺货/低库存两档单源，建账 SKU 取批次合计）。
      * DTO 字段名保留 *SlotCount（兼容不动 API），开门柜下语义为「商品」个数。
      */
-    private DeviceOpsMetricsDto computeDoorCabinetMetrics(DeviceInfo device) {
+    private DeviceOpsMetricsDto ledgerStockMetrics(DeviceInfo device) {
         String deviceId = device.getDeviceId();
         DoorCabinetStockStats stats = doorCabinetStockStats(deviceId);
         int fillRate = stats.fillRatePct() == null ? 0 : stats.fillRatePct();
@@ -972,7 +888,6 @@ public class DeviceSlotService {
                 stats.totalBook(),
                 stats.totalCap(),
                 lastRestock,
-                100,
                 device.getAddress(),
                 device.getCurrentTempC(),
                 device.getTargetTempC(),
@@ -1060,48 +975,6 @@ public class DeviceSlotService {
         Instant start = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
         Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
         return orderLineRepository.sumRevenueByDeviceIdsBetween(java.util.List.of(deviceId), start, end);
-    }
-
-    private record SlotFillStats(int totalPar, int totalBook, int oosCount, int lowCount,
-                                 int accuracySum, int accuracySlots) {
-    }
-
-    private static SlotFillStats accumulateSlotFillStats(List<DeviceSlot> active,
-                                                         Map<String, Integer> bookBySlot) {
-        int totalPar = 0;
-        int totalBook = 0;
-        int oosCount = 0;
-        int lowCount = 0;
-        int accuracySum = 0;
-        int accuracySlots = 0;
-        for (DeviceSlot slot : active) {
-            String code = slot.getId().getSlotCode();
-            int par = slot.getParLevel();
-            int book = bookBySlot.getOrDefault(code, 0);
-            totalPar += par;
-            totalBook += Math.min(book, par);
-            if (book <= 0) {
-                oosCount++;
-            } else if (book <= slot.getMinLevel()) {
-                lowCount++;
-            }
-            if (slot.getLastPhysicalQty() != null) {
-                accuracySlots++;
-                accuracySum += physicalAccuracyPercent(book, slot.getLastPhysicalQty());
-            }
-        }
-        return new SlotFillStats(totalPar, totalBook, oosCount, lowCount, accuracySum, accuracySlots);
-    }
-
-    private static int physicalAccuracyPercent(int book, int physicalQty) {
-        if (book == 0 && physicalQty == 0) {
-            return 100;
-        }
-        if (book <= 0) {
-            return 0;
-        }
-        int diff = Math.abs(book - physicalQty);
-        return Math.max(0, 100 - (diff * 100 / book));
     }
 
     private int countNearExpiryLots(String deviceId) {

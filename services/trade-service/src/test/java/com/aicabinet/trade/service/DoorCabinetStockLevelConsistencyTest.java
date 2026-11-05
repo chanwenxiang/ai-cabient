@@ -155,8 +155,8 @@ class DoorCabinetStockLevelConsistencyTest {
 
         assertEquals(2, card.oosSlotCount(), "商户卡片：缺货 2（A 卖光 + B 批次扣光）");
         assertEquals(1, card.lowStockSlotCount(), "商户卡片：低库存 1（D）");
-        assertEquals(2, metrics.oosSlotCount(), "后台 KPI 必须与商户卡片同数");
-        assertEquals(1, metrics.lowStockSlotCount(), "后台 KPI 必须与商户卡片同数");
+        assertEquals(2, metrics.oosSkuCount(), "后台 KPI 必须与商户卡片同数（台账口径下是商品数）");
+        assertEquals(1, metrics.lowStockSkuCount(), "后台 KPI 必须与商户卡片同数（台账口径下是商品数）");
         assertEquals(Integer.valueOf(31), card.fillRatePct(),
                 "填充率 = Σmin(可售,容量)/Σ容量 = (0+0+4+1)/(4*4) 取整");
         assertEquals(31, metrics.fillRatePct(), "后台 KPI 填充率必须与商户卡片同源");
