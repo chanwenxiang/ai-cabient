@@ -44,7 +44,7 @@ class DuplicateCallbackTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
+    @Mock RestockGravityEvidenceService gravityEvidenceService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock DisputeTicketMapper disputeRepository;
     @Mock PermissionService permissionService;

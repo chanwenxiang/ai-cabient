@@ -11,21 +11,18 @@ import java.util.List;
 /**
  * 补货重力**证据**判定（原「关门快照回写货道实测」，该写面已随批 3b 第十五刀③退场）。
  *
- * <p>为什么留着这一类：{@code hasRealGravitySnapshot} 是补货完成时「保不保留关门实测」的判据
- * （P0-2），与货道无关，仍在用；而被它服务的回写链（重力 → 货道 {@code last_physical_qty}）
- * 对开门柜恒为空转——判据是 BOUND 柜 {@code device_slot} 恒 0 行，`listEnabledSlotsForSku`
- * 必然返回空、`applyPhysicalSnapshot` 收到空 map 直接返回 0。</p>
- *
- * <p>⚠️ 类名仍叫 Snapshot，但它已不再做任何快照/回写；改名留到收口批（会牵动 5 处注入点与测试）。</p>
+ * <p>{@code hasRealGravitySnapshot} 是补货完成时「保不保留关门实测」的判据（P0-2），
+ * 与货道无关，仍在用。类名已于批 3b 第二十一刀从 {@code RestockSnapshotService} 收口为
+ * {@code RestockGravityEvidenceService}——它只回答「有没有真实重力实测」，不做任何快照/回写。</p>
  */
 @Service
-public class RestockSnapshotService {
+public class RestockGravityEvidenceService {
 
     private final GravitySettlementHelper gravityHelper;
     private final ShoppingSessionMapper sessionRepository;
 
-    public RestockSnapshotService(GravitySettlementHelper gravityHelper,
-                                  ShoppingSessionMapper sessionRepository) {
+    public RestockGravityEvidenceService(GravitySettlementHelper gravityHelper,
+                                         ShoppingSessionMapper sessionRepository) {
         this.gravityHelper = gravityHelper;
         this.sessionRepository = sessionRepository;
     }

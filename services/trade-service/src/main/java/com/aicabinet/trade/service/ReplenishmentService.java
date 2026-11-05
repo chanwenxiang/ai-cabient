@@ -114,7 +114,7 @@ public class ReplenishmentService {
     private final DeviceInfoMapper deviceRepository;
 
     private final DeviceSlotService deviceSlotService;
-    private final RestockSnapshotService restockSnapshotService;
+    private final RestockGravityEvidenceService gravityEvidenceService;
 
     private final InTransitService inTransitService;
 
@@ -154,7 +154,7 @@ public class ReplenishmentService {
                                 DistributedLockService distributedLockService,
                                 SystemConfigService systemConfigService,
             SkuCatalogMapper skuCatalogMapper,
-                                RestockSnapshotService restockSnapshotService,
+                                RestockGravityEvidenceService gravityEvidenceService,
                                 @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
@@ -184,7 +184,7 @@ public class ReplenishmentService {
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
         this.skuCatalogMapper = skuCatalogMapper;
-        this.restockSnapshotService = restockSnapshotService;
+        this.gravityEvidenceService = gravityEvidenceService;
 
         this.self = self;
     }
@@ -959,8 +959,8 @@ public class ReplenishmentService {
 
     /** P0-2（2026-10-15）：本次补货会话是否留下真实重力实测（真实测 ⇒ 完成时不覆盖实盘）。 */
     private boolean hasRealRestockGravitySnapshot(ReplenishmentTask task) {
-        return restockSnapshotService != null
-                && restockSnapshotService.hasRealGravitySnapshot(task.getTaskId());
+        return gravityEvidenceService != null
+                && gravityEvidenceService.hasRealGravitySnapshot(task.getTaskId());
     }
 
     private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {

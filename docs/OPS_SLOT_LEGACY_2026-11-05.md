@@ -35,12 +35,13 @@ SELECT id, check_type, status FROM data_consistency_record
 | 引用悬空 | 0 | `device_slot` 里没有找不到 `device_info` 的行 |
 
 🔴 本表是**执行前快照**。§C 那 2 条未结案已按清单在 dev 结案（见 §C.1，复核值 0）；
-A 段那 16 行 `device_slot` 与 B 段 3 行 `lot.slot_id` **未执行**（等你或运维点头再动，属删数据）。
+A 段 16 行 `device_slot` 与 B 段 3 行 `lot.slot_id` **均已于 2026-11-05 晚执行完毕**（见 A.2）。
 
-⚠️ 这两台柜**都不是** `BOUND`，按代码判据 `isDoorCabinet()`（＝`jiangyi_device.status='BOUND'`，
-见 `JiangyiDeviceDirectory.isJiangyi:45-59`）都算「非开门柜」，所以**仍会被货道读面消费**
-（补货建议 `listShortageRows`、运营设备详情 `DeviceDetailDto.slots`…）。
-也就是说：**清空这 16 行会让这两台演示柜的货道视图变空**，但不会影响任何 BOUND 门柜（本就恒空）。
+⚠️ 这两台柜**都不是** `BOUND`（`isDoorCabinet()`＝`jiangyi_device.status='BOUND'`，见
+`JiangyiDeviceDirectory.isJiangyi:45-59`）。⚠️ 上版此处说「仍会被货道读面消费（`listShortageRows`、
+`DeviceDetailDto.slots`）」——**已过期**：两个读面分别随批 3b 第十九/十三刀删除，货道柜缺货分支随
+第二十刀删除。现在清掉这 16 行只会让 `suggestSlotsForDevice`（补货建议的货道支路）对这两台演示柜变空，
+不影响任何 BOUND 门柜（本就恒空）。
 
 ---
 
@@ -76,7 +77,25 @@ COMMIT;
   ⇒ 结论：`device_slot` 这 16 行**保留**。它们对生产没有任何影响（生产 BOUND 柜该表恒 0 行，
     且代码侧写面已随第十五刀 ①–⑤ 全部退场），清它们只能连同演示出库单一起下线，
     那是一次「演示数据整体清理」，需要单独拍板，不该在货道退场里顺手做。
-· 回滚：B 段只把 3 行的 slot_id 置空，原值未留存（演示数据，无审计价值）；A 段未动。
+· 回滚：B 段只把 3 行的 slot_id 置空，原值未留存（演示数据，无审计价值）；A 段当时未动。
+
+### A.2 执行记录（2026-11-05 晚，用户拍板后）：A 段已执行（最小化，不删账目行）
+
+```sql
+-- 备份先行（宿主 .tmp，不入库）：pg_dump --data-only -t device_slot -t warehouse_outbound_line
+BEGIN;
+UPDATE warehouse_outbound_line SET slot_id = NULL WHERE slot_id IS NOT NULL;   -- 6 行
+DELETE FROM device_slot;                                                        -- 16 行
+COMMIT;
+```
+
+- 关键判断：挡住删除的 6 行出库行全部属于**出库单 #2，状态 `CANCELLED`（2026-10-15 的演示单）**。
+  选择「把 `slot_id` 置 NULL」而不是删行/级联删：**账目行、SKU、数量原样保留**（复核：6 行、合计 42 件），
+  只摘掉已退场的货道维度。
+- 复核结果：`device_slot=0`、`warehouse_outbound_line.slot_id IS NOT NULL = 0`、
+  `device_sku_lot.slot_id IS NOT NULL = 0`、出库单 #2 行数与数量不变。
+- 回滚：`psql -f .tmp/slot-cleanup-backup-20261105.sql`（含两表全量数据行）后按需重放
+  `UPDATE ... SET slot_id=...` 的原值（备份里有）。
 
 ## B. `device_sku_lot.slot_id` 3 行置 NULL（可选）
 

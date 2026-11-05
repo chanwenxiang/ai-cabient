@@ -149,27 +149,27 @@ public class DeviceSlotService {
     /**
      * 柜机缺货/低库存计数。供商户柜机列表默认排序（收藏柜 → 缺货最多）与卡片标签使用。
      * 口径＝在架 SKU 台账（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}，第十四刀 B 起**全柜型单源**）；
-     * DTO 字段名保留 *Slot 但语义是「商品」个数；无实盘故 lastCheckAt 恒空。
+     * 计数是「商品」个数；无实盘故 lastCheckAt 恒空。
      *   🔴 此前开门柜恒返回 EMPTY ⇒ 商户卡片恒「0 缺货」，与后台设备详情 KPI 对不上。
      */
     @Transactional(readOnly = true)
-    public SlotStockCounts countSlotStock(String deviceId) {
+    public SkuStockCounts countSkuStock(String deviceId) {
         if (deviceId == null || deviceId.isBlank()) {
-            return SlotStockCounts.EMPTY;
+            return SkuStockCounts.EMPTY;
         }
         // 批 3b 第十四刀 B：卡片与详情同一口径（在架 SKU 台账），不再按柜型分流
         DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
         if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
-            return SlotStockCounts.EMPTY;
+            return SkuStockCounts.EMPTY;
         }
-        return new SlotStockCounts(doorStats.oosCount(), doorStats.lowCount(), doorStats.fillRatePct(),
+        return new SkuStockCounts(doorStats.oosCount(), doorStats.lowCount(), doorStats.fillRatePct(),
                 null, taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
     }
 
-    /** 缺货/低库存个数（台账口径下是商品数；字段名兼容保留 *Slot）。 */
-    public record SlotStockCounts(int oosSlotCount, int lowStockSlotCount, Integer fillRatePct,
+    /** 缺货/低库存个数（台账口径下是商品数；第二十一刀起字段名不再带 Slot）。 */
+    public record SkuStockCounts(int oosSkuCount, int lowStockSkuCount, Integer fillRatePct,
                                   Instant lastCheckAt, Instant lastRestockAt) {
-        public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0, null, null, null);
+        public static final SkuStockCounts EMPTY = new SkuStockCounts(0, 0, null, null, null);
     }
 
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */

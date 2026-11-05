@@ -495,10 +495,10 @@ public class MerchantDevicePortalService {
                         m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
                                 m.getMerchantId(), m.getMerchantName()),
                         (a, b) -> a));
-        Map<String, DeviceSlotService.SlotStockCounts> stockByDevice = devices.stream()
+        Map<String, DeviceSlotService.SkuStockCounts> stockByDevice = devices.stream()
                 .collect(Collectors.toMap(
                         DeviceInfo::getDeviceId,
-                        d -> deviceSlotService.countSlotStock(d.getDeviceId()),
+                        d -> deviceSlotService.countSkuStock(d.getDeviceId()),
                         (a, b) -> a));
 
         return devices.stream()
@@ -507,7 +507,7 @@ public class MerchantDevicePortalService {
                         activeByDevice.get(d.getDeviceId()),
                         replenishing.contains(d.getDeviceId()),
                         merchantNames,
-                        stockByDevice.getOrDefault(d.getDeviceId(), DeviceSlotService.SlotStockCounts.EMPTY)))
+                        stockByDevice.getOrDefault(d.getDeviceId(), DeviceSlotService.SkuStockCounts.EMPTY)))
                 .toList();
     }
 
@@ -527,9 +527,9 @@ public class MerchantDevicePortalService {
     private MerchantDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active,
                                        boolean replenishmentInProgress,
                                        Map<String, String> merchantNames,
-                                       DeviceSlotService.SlotStockCounts stock) {
-        DeviceSlotService.SlotStockCounts counts =
-                stock != null ? stock : DeviceSlotService.SlotStockCounts.EMPTY;
+                                       DeviceSlotService.SkuStockCounts stock) {
+        DeviceSlotService.SkuStockCounts counts =
+                stock != null ? stock : DeviceSlotService.SkuStockCounts.EMPTY;
         return new MerchantDeviceDto(
                 d.getDeviceId(), DeviceNameSupport.resolve(d.getDeviceId(), d.getDeviceName()), d.getDeviceType(), d.getOnlineStatus(),
                 d.getMerchantId(),
@@ -543,8 +543,8 @@ public class MerchantDevicePortalService {
                 d.getCurrentTempC(),
                 d.getTargetTempC(),
                 d.getLifecycleStatus(),
-                counts.lowStockSlotCount(),
-                counts.oosSlotCount(),
+                counts.lowStockSkuCount(),
+                counts.oosSkuCount(),
                 d.getSalesLockReason(),
                 d.getLatitude(),
                 d.getLongitude(),

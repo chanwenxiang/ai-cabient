@@ -684,6 +684,24 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（dev 演示数据收口：`device_slot` 16 行清零，账目行不动）
+
+- 挡 FK 的 6 行 `warehouse_outbound_line` 全属**出库单 #2（CANCELLED，2026-10-15 演示单）**。
+  处理方式＝先把 `slot_id` 置 NULL 再删槽位：**出库行、SKU、数量原样保留**（复核 6 行 / 42 件），
+  只摘掉已退场的货道维度。
+- 复核：`device_slot=0`、两张表 `slot_id IS NOT NULL` 全 0；备份在宿主 `.tmp/slot-cleanup-backup-20261105.sql`。
+- 影响：仅两台非 BOUND 演示柜的「货道支路补货建议」变空（BOUND 门柜本就 0 行）；钱/库存真相不动。
+  详见 `docs/OPS_SLOT_LEGACY_2026-11-05.md` §A.2。
+
+### 2026-11-05（第二十一刀：交付码去「货道」残留名——纯改名，零行为变更）
+
+- `RestockSnapshotService` → **`RestockGravityEvidenceService`**（它只回答「有没有真实重力实测」，
+  早就不做快照/回写）。注入点：`ReplenishmentService` 字段/构造参数、两个测试的 `@Mock`。
+- `DeviceSlotService.countSlotStock` → **`countSkuStock`**；返回记录 `SlotStockCounts` → **`SkuStockCounts`**，
+  字段 `oosSlotCount/lowStockSlotCount` → **`oosSkuCount/lowStockSkuCount`**（口径自第十四刀 B 起就是
+  SKU 台账，名字是最后一个假描述）。消费方：`MerchantDevicePortalService` 5 处 + 两个测试。
+- 无接口/契约变化（记录只在服务内部传递）；历史文档（审计台账/pass-notes）里的旧名不回改。
+
 ### 2026-11-05（MA-161 A2：组合单退款四层对账 IT 落地，并揪出「重试换键」双退风险）
 
 - 新增 `OrderPaymentComboRefundLedgerSqlIT`（Testcontainers Postgres+Redis，真 `OrderPaymentService`

@@ -36,7 +36,7 @@ class BalanceInsufficientSettlementTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
+    @Mock RestockGravityEvidenceService gravityEvidenceService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock CabinetOrderMapper orderRepository;
     @Mock DistributedLockService distributedLockService;

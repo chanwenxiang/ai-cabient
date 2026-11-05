@@ -208,7 +208,7 @@ class DeviceSlotServiceTest {
                 
                 null,
                 // 批 3b 第十四刀 B：指标不再按柜型分流（全柜型走台账口径），这里仍给一个桩只是
-                // 为了让 countSlotStock / 其它仍判柜型的读面走到可预期的分支，别留 null（NPE 会掩盖断言）
+                // 为了让 countSkuStock / 其它仍判柜型的读面走到可预期的分支，别留 null（NPE 会掩盖断言）
                 org.mockito.Mockito.mock(com.aicabinet.trade.service.JiangyiDeviceDirectory.class), null);
         org.springframework.test.util.ReflectionTestUtils.setField(svc, "self", svc);
 
@@ -279,7 +279,7 @@ class DeviceSlotServiceTest {
      * （CB-076：缺货=可售≤0，低库存=0<可售≤low_threshold）。残留货道行一律不参与。
      */
     @Test
-    void countSlotStock_doorCabinet_usesLedgerSkuCounts() {
+    void countSkuStock_doorCabinet_usesLedgerSkuCounts() {
         DeviceSkuInventoryMapper inventoryRepository = org.mockito.Mockito.mock(DeviceSkuInventoryMapper.class);
         ReplenishmentTaskMapper taskRepository = org.mockito.Mockito.mock(ReplenishmentTaskMapper.class);
         InventoryLotService inventoryLotService = org.mockito.Mockito.mock(InventoryLotService.class);
@@ -316,10 +316,10 @@ class DeviceSlotServiceTest {
         when(inventoryLotService.lotLedgerSkuIds("EG-DOOR")).thenReturn(Set.of("SKU-LOT-DRAINED"));
         when(inventoryLotService.sellableQtyBySku("EG-DOOR")).thenReturn(Map.of("SKU-LOT-DRAINED", 0));
 
-        DeviceSlotService.SlotStockCounts counts = svc.countSlotStock("EG-DOOR");
+        DeviceSlotService.SkuStockCounts counts = svc.countSkuStock("EG-DOOR");
 
-        assertEquals(2, counts.oosSlotCount(), "SKU-SOLD-OUT 与批次扣光的 SKU-LOT-DRAINED 都算缺货");
-        assertEquals(0, counts.lowStockSlotCount(), "已下架 SKU 不参与计数");
+        assertEquals(2, counts.oosSkuCount(), "SKU-SOLD-OUT 与批次扣光的 SKU-LOT-DRAINED 都算缺货");
+        assertEquals(0, counts.lowStockSkuCount(), "已下架 SKU 不参与计数");
         assertEquals(33, counts.fillRatePct(), "填充率 = Σmin(可售,容量)/Σ容量 = (0+0+4)/(4+4+4)");
         assertNull(counts.lastCheckAt(), "开门柜无货道盘点");
         org.mockito.Mockito.verify(slotRepository, org.mockito.Mockito.never())
