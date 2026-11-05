@@ -684,6 +684,32 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十三刀 B1：`DeviceDetailDto.slots` 与 `DeviceSlotDto` 整条读面退场）
+
+- 🔴 **先订正我上一轮的推荐**：原话「B1 零 UI 风险」是从「三端没人读 `.slots`」推的，**推过头**——
+  同一个 `DeviceDetailDto` 里的 `metrics` admin 是真读的
+  （`DeviceDetailView:1364 metrics.value = detail.metrics`、`:1368 targetTempC`、`:1375 salesLocked`）。
+  死码结论只覆盖被判的那个分量，兄弟字段要逐个判 ⇒ 本刀把范围**收到只摘 `slots`**，`metrics` 一个分量没动。
+- 删（都有实测支撑）：`DeviceDetailDto` 的 `List<DeviceSlotDto> slots` 分量、`DeviceSlotDto.java` 整文件
+  （全仓引用只剩 DTO 自身 + DeviceDetailDto + DeviceSlotService 三处）、`DeviceSlotService.toSlotDto`
+  整方法（30 行，唯一调用点随删）、随之失效的局部 `stockoutThresholdPct` 与死导入 `SkuDisplayNames`
+  （孤儿复扫 `.tmp/orphan-sweep.mjs` 抓出来的）。
+  非编译调用点也扫了：`scripts/*.ps1`、`*.mjs` 里没有任何 `detail.slots` 读取。
+- 契约：live spec **paths 702 → 702**（本刀不删端点，只删 schema），`DeviceSlotDto` 从
+  `components.schemas` 消失，`DeviceDetailDto.props` = `device/metrics/skuInventory/delistedInventory`；
+  双重编码哨兵 0。配方沿用 `.tmp/regen-3b13.sh`（临时库 `aicabinet_openapi_3b13` + redis db14 + :18097，
+  跑完 `DROP DATABASE … WITH (FORCE)` + FLUSHDB）。
+- 前端：**admin 与 merchant-mp `type-check` 双绿**（`slots` 是生成类型里的分量，真有人读就会红），
+  这是「没人读」的第二条独立证据，不只看 grep。
+- 产物：重建 `static/admin` **0 字节差**（类型编译期擦除，不进 bundle）⇒ 配对门禁走第十一刀那条
+  自证豁免（`ADMIN_PAIR_PROVE_INERT=1`，门禁自己重跑构建比字节，产物真变照样红）。
+- ⚠️ **B2 前必答的产品口径**（本刀刻意没碰）：`DeviceOpsMetricsDto` 24 分量里
+  `configuredSlotCount` / `activeSlotCount` / `oosRatePct` / `totalParLevel` **三端 0 引用**（纯载荷），
+  而 `fillRatePct` / `oosSlotCount` / `lowStockSlotCount` / `inventoryAccuracyPct` **admin+mp 都在读**
+  （`DeviceDetailView:55-92` 的「填充率/缺货/低库存」三张卡、`DeviceRemoteOpsCard:139` 的补货门）。
+  这几个数的分子分母都来自货道算式 ⇒ 对开门柜恒 0，属于「界面在显示、数字不是它的」那类空转面。
+  摘卡/换口径/保留，是**你拍板**的产品决定，不是我能在 B2 里顺手删代码解决的。
+
 ### 2026-11-05（MA-161 A1：组合单退款真的拆腿了——渠道腿按实扣额、余额腿走钱包；端到端钉测仍缺，见「缺口」）
 
 - 形状选择（决定于 A1 前读到的两个雷，见任务 #15）：**加 `channelLegCents` 分量，不改 `refundCents` 语义**。

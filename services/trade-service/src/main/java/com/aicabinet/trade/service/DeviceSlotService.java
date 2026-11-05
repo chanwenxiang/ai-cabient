@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
-import com.aicabinet.trade.support.SkuDisplayNames;
 import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -92,11 +91,7 @@ public class DeviceSlotService {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
         Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        int stockoutThresholdPct = resolveStockoutThresholdPct(deviceId);
         List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
-        List<DeviceSlotDto> slotDtos = slots.stream()
-                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
-                .toList();
         DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
         // 「该柜启用批次账本」和「本 SKU 进过批次账本」是两个粒度。只判前者，会把柜里
         // 从未建账的 SKU 一律读成 0——账面明明有货却恒显示缺货，且「编辑库存」保存后数字不动
@@ -149,7 +144,7 @@ public class DeviceSlotService {
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
         var lastSession = shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(deviceId).orElse(null);
         AdminDeviceDto deviceDto = toAdminDeviceDto(device, lastSession);
-        return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory, delistedInventory);
+        return new DeviceDetailDto(deviceDto, metrics, skuInventory, delistedInventory);
     }
 
     /**
@@ -1128,36 +1123,6 @@ public class DeviceSlotService {
             log.warn("resolve stockout threshold fallback device={} err={}", deviceId, e.getMessage());
             return 50;
         }
-    }
-
-    private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty, int stockoutThresholdPct) {
-        String deviceId = slot.getId().getDeviceId();
-        String slotCode = slot.getId().getSlotCode();
-        String skuId = slot.getAssignedSkuId();
-        SkuCatalog sku = skuId == null ? null : skuCatalogRepository.findById(skuId).orElse(null);
-        String skuName = sku == null ? null : SkuDisplayNames.of(sku);
-        int par = slot.getParLevel();
-        int fillRate = par > 0 ? (Math.min(bookQty, par) * 100 / par) : 0;
-        String stockStatus = resolveStockStatus(slot, bookQty);
-        Integer physical = slot.getLastPhysicalQty();
-        int qtyDiff = physical != null ? bookQty - physical : 0;
-        boolean hasDiscrepancy = physical != null && physical != bookQty;
-        // 图1 对照（叮当小柜，2026-10-15）：剩余库存 < 货柜容量的阈值% ⇒ 缺货预警（阈值=商户级配置，默认 50）
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
-        boolean stockoutWarn = slot.isEnabled() && cap > 0
-                && bookQty * 100L < cap * (long) stockoutThresholdPct;
-        return new DeviceSlotDto(
-                deviceId, slotCode, slot.getRowNo(), slot.getColNo(), slot.getSlotType(),
-                skuId, skuName, par, slot.getMinLevel(), slot.getMaxLevel(), slot.isEnabled(),
-                bookQty, physical, slot.getLastPhysicalAt(), slot.getLastRestockAt(),
-                fillRate, stockStatus, qtyDiff, hasDiscrepancy,
-                sku == null ? null : sku.getImageUrl(),
-                sku == null ? null : sku.getBrand(),
-                sku == null ? null : sku.getSpec(),
-                sku == null ? null : sku.getBarcode(),
-                slot.getAssignedAt(),
-                stockoutWarn
-        );
     }
 
     private static String resolveStockStatus(DeviceSlot slot, int bookQty) {

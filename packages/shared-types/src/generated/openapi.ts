@@ -18899,7 +18899,6 @@ export interface components {
         DeviceDetailDto: {
             device?: components["schemas"]["AdminDeviceDto"];
             metrics?: components["schemas"]["DeviceOpsMetricsDto"];
-            slots?: components["schemas"]["DeviceSlotDto"][];
             skuInventory?: components["schemas"]["DeviceInventoryDto"][];
             delistedInventory?: components["schemas"]["DeviceInventoryDto"][];
         };
@@ -18943,45 +18942,6 @@ export interface components {
             merchantContactPhone?: string;
             /** Format: int64 */
             monthRevenueCents?: number;
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
-            skuImageUrl?: string;
-            skuBrand?: string;
-            skuSpec?: string;
-            skuBarcode?: string;
-            /** Format: date-time */
-            assignedAt?: string;
-            stockoutWarn?: boolean;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */
