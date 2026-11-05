@@ -999,7 +999,6 @@ public class ReplenishmentService {
                 String.valueOf(taskId), preservePhysical);
         // CB-051 收尾：RESTOCK 行应用后按柜×商品写「上次配送后库存」快照
         snapshotLastRestockQty(task.getDeviceId(), pending);
-        deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
         if (expectReceive) {

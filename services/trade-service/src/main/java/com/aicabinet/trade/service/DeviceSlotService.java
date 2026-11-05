@@ -290,36 +290,6 @@ public class DeviceSlotService {
                                    int bookQty, int minLevel, int capacity, int parLevel,
                                    int thresholdPct) {}
 
-    /** 补货关门快照：批量回写货道实测数量（现仅剩超容量钳制内部使用，见 clampDeviceOverCapacity）。 */
-    @Transactional
-    public int applyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
-                                     String source, String refId) {
-        return runWithDeviceSlotLock(deviceId,
-                () -> doApplyPhysicalSnapshot(deviceId, slotPhysical, source, refId));
-    }
-
-    private int doApplyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
-                                        String source, String refId) {
-        requireDevice(deviceId);
-        int updated = 0;
-        Instant now = Instant.now();
-        for (Map.Entry<String, Integer> entry : slotPhysical.entrySet()) {
-            String slotCode = entry.getKey().trim().toUpperCase();
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-            if (slot == null || !slot.isEnabled()) {
-                continue;
-            }
-            slot.setLastPhysicalQty(Math.max(0, entry.getValue()));
-            slot.setLastPhysicalAt(now);
-            slotRepository.save(slot);
-            updated++;
-        }
-        if (updated > 0) {
-            log.info("physical snapshot device={} source={} ref={} slots={}", deviceId, source, refId, updated);
-        }
-        return updated;
-    }
-
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */
     @Transactional(readOnly = true)
     public Map<String, Integer> loadBookQtyBySlot(String deviceId) {
@@ -553,78 +523,6 @@ public class DeviceSlotService {
             doRecordRestock(deviceId, slotCode, preservePhysical);
             return null;
         });
-    }
-
-    /**
-     * 校正账面/实盘：超 max_level 的货道优先挪到同 SKU 空位，仍放不下则盘亏到上限。
-     */
-    @Transactional
-    public int clampDeviceOverCapacity(String deviceId) {
-        return runWithDeviceSlotLock(deviceId, () -> doClampDeviceOverCapacity(deviceId));
-    }
-
-    private int doClampDeviceOverCapacity(String deviceId) {
-        requireDevice(deviceId);
-        int slotsFixed = 0;
-        String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
-        List<String> clampedSlots = new ArrayList<>();
-        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
-            if (clampSingleSlotIfOverCapacity(deviceId, slot, refId)) {
-                slotsFixed++;
-                clampedSlots.add(slot.getId().getSlotCode());
-            }
-        }
-        if (!clampedSlots.isEmpty()) {
-            // P0-2（2026-10-15）：只同步被钳制货道的实盘（钳制后账面=物理事实），
-            // 其余货道的关门实测保留，不再全柜 BOOK_SYNC 抹平差异。
-            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-            Map<String, Integer> clampedPhysical = new LinkedHashMap<>();
-            for (String slotCode : clampedSlots) {
-                clampedPhysical.put(slotCode, bookBySlot.getOrDefault(slotCode, 0));
-            }
-            self.applyPhysicalSnapshot(deviceId, clampedPhysical, "BOOK_SYNC", refId);
-        }
-        return slotsFixed;
-    }
-
-    private boolean clampSingleSlotIfOverCapacity(String deviceId, DeviceSlot slot, String refId) {
-        if (!slot.isEnabled()) {
-            return false;
-        }
-        String slotCode = slot.getId().getSlotCode();
-        int cap = resolveSlotCapacity(slot);
-        String skuId = slot.getAssignedSkuId();
-        if (cap <= 0 || skuId == null || skuId.isBlank()) {
-            return false;
-        }
-        int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        if (book <= cap) {
-            return false;
-        }
-        resolveOverCapacitySurplus(deviceId, slotCode, skuId, cap, refId);
-        log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
-        return true;
-    }
-
-    private void resolveOverCapacitySurplus(String deviceId, String slotCode, String skuId, int cap, String refId) {
-        int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        int surplus = book - cap;
-        for (SlotRestockAllocation alloc : self.allocateRestockQuantity(deviceId, skuId, surplus)) {
-            inventoryLotService.transferBetweenSlots(
-                    deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
-            surplus -= alloc.quantity();
-        }
-        book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        if (book > cap) {
-            inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
-        }
-    }
-
-    private static int resolveSlotCapacity(DeviceSlot slot) {
-        if (slot.getMaxLevel() > 0) {
-            return slot.getMaxLevel();
-        }
-        return slot.getParLevel() > 0 ? slot.getParLevel() : 0;
     }
 
     private void doRecordRestock(String deviceId, String slotCode, boolean preservePhysical) {
