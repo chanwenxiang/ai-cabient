@@ -40,7 +40,7 @@ class InventoryLotConcurrencyTest {
                 .thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.deductFefo("DEV-LOT-1", "SKU-1", 1, "ORDER", "O-1", null));
+                () -> service.deductFefo("DEV-LOT-1", "SKU-1", 1, "ORDER", "O-1"));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

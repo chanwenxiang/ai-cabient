@@ -142,29 +142,21 @@ public class InventoryLotService {
     /** FEFO 扣减，返回主批次号与按货道扣减数量。 */
     @Transactional
     public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity, String refType, String refId) {
-        return self.deductFefo(deviceId, skuId, quantity, refType, refId, null);
-    }
-
-    @Transactional
-    public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity,
-                                       String refType, String refId, String slotId) {
-        return runWithDeviceLotLock(deviceId, () -> doDeductFefo(deviceId, skuId, quantity, refType, refId, slotId));
+        return runWithDeviceLotLock(deviceId, () -> doDeductFefo(deviceId, skuId, quantity, refType, refId));
     }
 
     private FefoDeductResult doDeductFefo(String deviceId, String skuId, int quantity,
-                                          String refType, String refId, String slotId) {
+                                          String refType, String refId) {
         if (quantity <= 0) {
-            return new FefoDeductResult(null, Map.of());
+            return new FefoDeductResult(null);
         }
         SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
         int blockDays = sku != null ? sku.getBlockSaleDaysBeforeExpiry() : 0;
         LocalDate today = LocalDate.now();
         LocalDate minExpiry = today.plusDays(blockDays);
 
-        List<DeviceSkuLot> lots = (slotId != null && !slotId.isBlank())
-                ? lotRepository.findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(
-                        deviceId, skuId, slotId.trim().toUpperCase())
-                : lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
+        // 批 3b 第十八刀：FEFO 不再有「按货道扣减」维度（开门柜无货道；真柜 lot.slot_id 恒 NULL）
+        List<DeviceSkuLot> lots = lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
         DeductionAccumulator acc = deductSellableLots(
                 deviceId, skuId, quantity, refType, refId, minExpiry, lots);
         if (acc.remaining() > 0) {
@@ -172,17 +164,16 @@ public class InventoryLotService {
                     "sellable lot inventory insufficient for sku=" + skuId + " need=" + quantity);
         }
         self.syncAggregateInventory(deviceId, skuId);
-        return new FefoDeductResult(acc.primaryBatch(), acc.slotQty());
+        return new FefoDeductResult(acc.primaryBatch());
     }
 
-    private record DeductionAccumulator(String primaryBatch, Map<String, Integer> slotQty, int remaining) {}
+    private record DeductionAccumulator(String primaryBatch, int remaining) {}
 
     private DeductionAccumulator deductSellableLots(String deviceId, String skuId, int quantity,
                                                     String refType, String refId, LocalDate minExpiry,
                                                     List<DeviceSkuLot> lots) {
         int remaining = quantity;
         String primaryBatch = null;
-        Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (DeviceSkuLot lot : lots) {
             if (remaining > 0) {
                 LotDeductionStep step = tryDeductFromSellableLot(
@@ -192,13 +183,12 @@ public class InventoryLotService {
                         primaryBatch = step.batchNo();
                     }
                     if (step.slotCode() != null) {
-                        slotQty.merge(step.slotCode(), step.taken(), Integer::sum);
                     }
                     remaining -= step.taken();
                 }
             }
         }
-        return new DeductionAccumulator(primaryBatch, slotQty, remaining);
+        return new DeductionAccumulator(primaryBatch, remaining);
     }
 
     private record LotDeductionStep(int taken, String batchNo, String slotCode) {}
@@ -227,7 +217,7 @@ public class InventoryLotService {
         return new LotDeductionStep(take, lot.getBatchNo(), slotCode);
     }
 
-    public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}
+    public record FefoDeductResult(String primaryBatch) {}
 
     public record LotMovementRef(String refType, String refId, Long operatorId) {}
 

@@ -110,7 +110,7 @@ class InventoryServiceTest {
 
         assertEquals(Map.of("SKU-DEMO-001", "BATCH-KEEP"), batches);
         verify(inventoryLotService, never()).restoreToBatch(any(), any(), any(), anyInt(), any(), any());
-        verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any(), any());
+        verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any());
     }
 
     /** 退货回库的库存流水必须挂 order_id（否则 CROSS_LINK B 退款缺审计永久 FAIL）。 */
