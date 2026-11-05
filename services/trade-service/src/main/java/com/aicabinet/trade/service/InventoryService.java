@@ -81,8 +81,6 @@ public class InventoryService {
                                                  String refId) {
         deviceValidationService.ensureSettlementAllowed(deviceId);
         Map<String, String> batchBySku = new HashMap<>();
-        Map<String, Integer> slotQtySold = new HashMap<>();
-        Map<String, Integer> skuQtySold = new HashMap<>();
         if (items == null || items.isEmpty()) {
             return batchBySku;
         }
@@ -91,22 +89,18 @@ public class InventoryService {
             if (item.quantity() <= 0) {
                 continue;
             }
-            skuQtySold.merge(item.skuId(), item.quantity(), Integer::sum);
             // 有批次账本时一律 FEFO：可售为 0 时禁止靠汇总表虚扣（会与消费者/货道账面不一致）
             if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
                         deviceId, item.skuId(), item.quantity(), ORDER, refId);
                 batchBySku.put(item.skuId(), result.primaryBatch());
-                result.slotQtyDeducted().forEach((slot, qty) -> slotQtySold.merge(slot, qty, Integer::sum));
             } else {
                 applyDelta(deviceId, item.skuId(), -item.quantity());
             }
         }
-        if (!slotQtySold.isEmpty()) {
-            deviceSlotService.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
-        } else {
-            deviceSlotService.applyPhysicalAfterSkuSale(deviceId, skuQtySold, refId);
-        }
+        // 批 3b 第十五刀②：货道实盘回写链退场——对 BOUND 柜 slotQty 恒空（无货道行），
+        // 原分支恒走 sku 变体；生产只有 BOUND 柜 ⇒ 行为不变。
+        // 货道实盘回写链已退场（第十五刀②）：BOUND 柜没有货道行，原调用恒为 no-op。
         return batchBySku;
     }
 
@@ -128,20 +122,14 @@ public class InventoryService {
         if (items == null || items.isEmpty()) {
             return;
         }
-        Map<String, Integer> slotQtyRestored = new HashMap<>();
-        Map<String, Integer> skuQtyRestored = new HashMap<>();
         boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
         for (RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
-            skuQtyRestored.merge(item.skuId(), item.quantity(), Integer::sum);
-            String slotId = restoreSingleItem(deviceId, item, batchBySku, lotLedger, orderId);
-            if (slotId != null && !slotId.isBlank()) {
-                slotQtyRestored.merge(slotId.trim().toUpperCase(), item.quantity(), Integer::sum);
-            }
+            restoreSingleItem(deviceId, item, batchBySku, lotLedger, orderId);
         }
-        applyPhysicalRestore(deviceId, slotQtyRestored, skuQtyRestored);
+        // 货道实测回写随第十五刀②退场（对 BOUND 柜本就没有货道行，此步原为 no-op）
     }
 
     private String restoreSingleItem(String deviceId, RecognizedItem item,
@@ -159,15 +147,6 @@ public class InventoryService {
         }
         applyDelta(deviceId, item.skuId(), item.quantity());
         return null;
-    }
-
-    private void applyPhysicalRestore(String deviceId, Map<String, Integer> slotQtyRestored,
-                                      Map<String, Integer> skuQtyRestored) {
-        if (!slotQtyRestored.isEmpty()) {
-            deviceSlotService.applyPhysicalAfterRestore(deviceId, slotQtyRestored, "REFUND");
-        } else {
-            deviceSlotService.applyPhysicalAfterSkuRestore(deviceId, skuQtyRestored, "REFUND");
-        }
     }
 
     /**

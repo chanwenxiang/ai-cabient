@@ -128,33 +128,6 @@ class DeviceSlotServiceTest {
         assertEquals(2, result.get(0).quantity());
     }
 
-    @Test
-    void applyPhysicalAfterSkuSale_decrementsSingleAssignedSlot() {
-        DeviceSlot a1 = slot("A1", "SKU-DEMO-001", 20);
-        a1.setLastPhysicalQty(14);
-        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of(a1));
-        when(lotRepository.sumBookQtyBySlot(DEVICE_ID))
-                .thenReturn(java.util.Collections.singletonList(new Object[]{"A1", 13}));
-        when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(a1));
-
-        deviceSlotService.applyPhysicalAfterSkuSale(DEVICE_ID, Map.of("SKU-DEMO-001", 1), "S-1");
-
-        assertEquals(13, a1.getLastPhysicalQty());
-        verify(slotRepository).save(a1);
-    }
-
-    @Test
-    void applyPhysicalAfterRestore_incrementsPhysical() {
-        DeviceSlot a1 = slot("A1", "SKU-DEMO-001", 20);
-        a1.setLastPhysicalQty(11);
-        when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(a1));
-
-        deviceSlotService.applyPhysicalAfterRestore(DEVICE_ID, Map.of("A1", 1), "REFUND");
-
-        assertEquals(12, a1.getLastPhysicalQty());
-        verify(slotRepository).save(a1);
-    }
-
     /** 2026-10-22：商品管理下架（status≠ACTIVE）后，设备详情 skuInventory 不再返回该 SKU。 */
     @Test
     void getDeviceDetail_filtersDelistedSkuFromSkuInventory() {

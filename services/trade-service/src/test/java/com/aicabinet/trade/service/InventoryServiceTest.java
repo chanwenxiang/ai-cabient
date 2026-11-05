@@ -98,7 +98,6 @@ class InventoryServiceTest {
         assertEquals("BATCH-A", batches.get("SKU-DEMO-001"));
         verify(inventoryLotService).restoreToBatch(
                 "CAB-001", "SKU-DEMO-001", "BATCH-A", 1, "ORDER", null);
-        verify(deviceSlotService).applyPhysicalAfterRestore(eq("CAB-001"), anyMap(), eq("REFUND"));
     }
 
     @Test
@@ -146,8 +145,6 @@ class InventoryServiceTest {
         assertTrue(ex.getReason().contains("sellable lot inventory insufficient"));
         verify(inventoryRepository, never()).findById(any());
         verify(inventoryRepository, never()).save(any());
-        verify(deviceSlotService, never()).applyPhysicalAfterSale(any(), any(), any());
-        verify(deviceSlotService, never()).applyPhysicalAfterSkuSale(any(), any(), any());
         verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
     }
 }
