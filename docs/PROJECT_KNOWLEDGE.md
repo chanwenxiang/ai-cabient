@@ -777,6 +777,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
   报 `expected 1.0 but NaN`：隔离单跑绿、**第二次全量 2762/0 失败** ⇒ 顺序性 flaky（与本刀无关，
   该文件最后一次改动是 `f030f09f`）。这是个独立待办：这条测试在共享套件里会随机红。
 - 遗留：dev 那 2 条 SLOT_* `FAIL` 记录不再被复查，需人工结案（不在本刀改数据）。
+  🔴 11-05 订正那句隐含前提：**应用内没有「只结案不修复」的动作**——`/fix` 是唯一置 FIXED 的入口，
+  而 `applyFix` 对 SLOT_* 落 default 直接拒绝 ⇒ 那 2 条永远挂着。判据、影响与三条选项见
+  [`docs/OPS_SLOT_LEGACY_2026-11-05.md`](./OPS_SLOT_LEGACY_2026-11-05.md) §C。
 - 验证：`test-compile` 绿、全量 **2762 绿**（第二轮）、preflight 97 门禁 0 失败。
   ✅ CI run `41964859119`（锚 `3625a17b`）**五档全绿**：admin-artifacts / build / e2e-h5 / mini-programs / integration。
 - 下一刀（B 段，需要 regen + 两端产物）：`SLOT_DISCREPANCY` 告警面退场
