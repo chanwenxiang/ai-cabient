@@ -686,12 +686,12 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ### 2026-11-05（FEFO 2/2 的「lot 行身份」实测：合并场景全零）
 
-- 2/2 要删 ，理论上会把 lot 行身份从  变成
-  ，从而可能**合并同组多行**。实测（dev 库）： 共 **12 行**、
-   **0 行**、按  分组的**重复组 = 0**
-  ⇒ 删这个维度**不可能合并任何现存行**，dev 与生产（BOUND 柜 lot.slot_id 全 NULL）都没数据效果。
-  剩余的只是代码路径收敛： 里  与两处
-   改走 SKU 维度， 随  一起变孤儿。
+- 2/2 要删 `RestockCommand.slotId`，理论上会把 lot 行身份从 `(device, sku, batch, slot)` 变成
+  `(device, sku, batch)`，从而可能**合并同组多行**。实测（dev 库）：`device_sku_lot` 共 **12 行**、
+  `slot_id IS NOT NULL` **0 行**、按 `(device_id, sku_id, batch_no)` 分组的**重复组 = 0**
+  ⇒ 删这个维度**不可能合并任何现存行**，dev 与生产（BOUND 柜 `lot.slot_id` 全 NULL）都没数据效果。
+  剩余的只是代码路径收敛：`doAddRestock` 里 `findByDeviceIdAndSkuIdAndBatchNoAndSlotId` 与两处
+  `lot.setSlotId` 改走 SKU 维度；`ensureSlotCapacity` 随 `RestockCommand.slotId` 一起变孤儿。
 - 结论：2/2 可当作**零数据影响**的纯代码收敛来做，做完只需 FEFO/入库定向 + 本批一次全量。
 
 ### 2026-11-05（下一刀 FEFO per-slot 的差异表：先证后删，代码未动）
