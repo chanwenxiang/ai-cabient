@@ -65,12 +65,6 @@ public class OpsReplenishmentAdminService {
         return replenishmentService.opsSummary();
     }
 
-    public ReplenishmentShortagePageDto listShortagePage(
-            Long operatorId, String deviceId, int page, int size) {
-        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listShortagePage(operatorId, deviceId, page, size);
-    }
-
     public ReplenishmentRouteDto planRoute(Long operatorId, PlanRouteRequest body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.planAndCreateRoute(operatorId, body);

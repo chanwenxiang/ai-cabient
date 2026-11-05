@@ -79,16 +79,6 @@ public class OpsReplenishmentController {
     }
 
     @RequiresPermissions("ops:replenishment:list")
-    @GetMapping("/replenishment/shortage")
-    public ApiResponse<ReplenishmentShortagePageDto> replenishmentShortage(
-            HttpServletRequest request,
-            @RequestParam(name = "deviceId", required = false) String deviceId,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(replenishmentAdminService.listShortagePage(operatorId(request), deviceId, page, size));
-    }
-
-    @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/replenishment/fulfillment-tasks")
     public ApiResponse<PageResult<ReplenishmentFulfillmentTaskDto>> fulfillmentTasks(
             HttpServletRequest request,

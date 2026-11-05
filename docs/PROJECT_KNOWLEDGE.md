@@ -684,6 +684,29 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十九刀：admin「缺货建议（按位置）」tab 整块下线——FE + BE + 契约 + 产物）
+
+- **用户拍板「选 1，整块下线」**（2026-10-30 曾记「C 删 tab 需用户明示」，即本条）。理由已在 10-30 取证：
+  该 tab 的行只能由 `device_slot` 构造，`resolveDevicesForShortage` 两个分支都按 `isDoorCabinet` 排除
+  ⇒ 对**只有开门柜的本产品**（判据=将邑绑定）**结构性恒空**，空态文案也自己承认「开门柜请看库存健康」。
+- **删面（BE）**：`GET /api/v2/ops/admin/replenishment/shortage`（Controller）→ `OpsReplenishmentAdminService` /
+  `OpsCommercialFacade` / `ReplenishmentService.listShortagePage` → `DeviceSlotService.listShortageRows` /
+  `collectLowStockShortageRows` / `maybePutLowStockShortageRow` / `resolveDevicesForShortage` / `shortageRowKey`；
+  DTO `ReplenishmentShortagePageDto` / `ReplenishmentShortageRowDto` 两个文件删除。
+  `scripts/inmemory-paging-allowlist.json` 同步删 `ReplenishmentService#listShortagePage`（否则判「条目腐烂」）。
+- **删面（FE）**：`ReplenishmentView` 的 shortage 面板 + `crudShortages` + 行操作（生成任务/补货规划）+ 一键规划 +
+  导出 + `AdminEndpoints.replenishmentShortage`；`useReplenishmentRoutePlanning` 的 `shortageDeviceIds` 依赖、
+  `planFromShortage`、`planSingleDevice`、`selectedDevicesWithoutShortage`；规划弹窗对应两 prop 与 `go-shortage` 事件。
+- **改道（不留死链）**：Dashboard `LOW_STOCK` → `/stock-health`（带 deviceId）；设备详情「缺货建议」按钮改名
+  「库存健康」→ `/stock-health?deviceId=`；设备详情与库存健康页的「一键规划补货」→ `/replenishment?plan=1&deviceIds=`
+  （`maybeAutoPlanFromQuery` 收窄：无 deviceIds/focus 时明确提示「未指定设备」，不再回落缺货集——该回落对门柜本恒空）。
+- **文案**：规划弹窗两条缺货提示合并为一条（满柜告警 + 「看看库存健康」链接）；临期 tab 的「货道已满」改为柜型中性的
+  「补货余量不足」（开门柜该分支不可达，但原措辞已不成立）。文案棘轮 **14 → 6**（剩：MerchantSplitsView 2、
+  ConsistencyView 译名 1、legacy 订单行解析 3，均按原口径保留）。
+- 契约：删端点 + 2 schema ⇒ regen `openapi.ts`；`build:admin` 产物同批提交。
+- **保留**：`isSlotShortage` / `listShortageSlots`（商户端 `shortage-summary` 仍在用）、`suggest/create-task` 端点
+  （定时任务 `AutoReplenishmentTaskService` 仍在调，只失去了 FE 行操作入口）。
+
 ### 2026-11-05（FEFO 2/2 的「lot 行身份」实测：合并场景全零）
 
 - 2/2 要删 `RestockCommand.slotId`，理论上会把 lot 行身份从 `(device, sku, batch, slot)` 变成
@@ -1623,7 +1646,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **用户拍板**：「货道柜应禁用，我们系统没有货道了」⇒ `expiryRestockEnabled` 的货道柜分支语义保留、**活栈反证作废**，钉测 `listOpenPullOffTasksPage_doorCabinet_flagsCabinetAndSkipsSlotProbe` 即终态。活库数据形状支持该说法：5 台柜只有 `EG943322621391` BOUND 且 `device_slot` 0 行；其余 4 台（1 RETIRED + 3 未绑定）各 8 货道行但 **0 在架批次 / 0 效期行** ⇒ 效期 tab 只可能出现门柜行。
 - 🔴 **同轮暴露的口径空洞（本轮改掉措辞，未动契约）**：admin「缺货建议」tab 的行**只能**由 `device_slot` 构造（`ReplenishmentService.listShortagePage:325` 于 `:327` 调 `DeviceSlotService.listShortageRows:286`，三处排除开门柜 `:269`/`:358`/`:364`），车队只有开门柜后**这张 tab 恒空**、`一键规划补货` 按钮（`v-if="canEdit && shortageDevices.length"`）永不出现，而 tab 描述还在承诺「各柜机低于安全库存的商品，可一键生成补货规划」。**能力没丢**：`views/reports/StockHealthView.vue:18` 的「一键补货规划（N 台）」取数走台账 + `SkuStockLevel`（`DeviceAssetService:347`/`:517`），不含那三处门柜排除。🔴 本条行号锚 `3dc1cb46`——同日 `a6498dbb`（在架判据单源化）已让同类指针整体 +1，复核按符号名 grep，勿照抄行号。
 - **改动面（档 A：纯文案）**：`ReplenishmentView.vue:878` tab 描述 → 「缺货建议（按货道）：只列货道柜低于安全库存的货道；开门柜无货道，请看『库存健康』」；`:585` 空态 → 「货道柜无缺货/低库存货道；开门柜请看『库存健康』」。台账 `admin-vue-debt-tracker.md` D26 追加同日结论。源笔 `24e2a900` + 产物笔 `e6c97106`（`build-admin-ci-fidelity.sh` 在干净检出 HEAD 重建，114 文件；全 chunk 换名是入口 `index-*.js` 哈希被每个 leaf 内联的级联——leaf 字节等长、只差那 8 个字符，先例同形 `c1ed0b9d`=114/`95c22980`=138）；预算门禁 OK（index 125.2KB≤130、总 JS 3413.6KB≤3500）。
-- **否决掉的替代档**（留此防下次重开）：B 把门柜按台账口径并进这张表 = 动 `ReplenishmentShortageRowDto` 契约 → regen openapi + 两端 + 产物，买不到新能力；C 删 tab = 删运营入口，需用户明示（且 2026-10-29 已拍板不做按柜型条件显示那类分支）。
+- **否决掉的替代档**（留此防下次重开）：B 把门柜按台账口径并进这张表 = 动 `ReplenishmentShortageRowDto` 契约 → regen openapi + 两端 + 产物，买不到新能力；C 删 tab = 删运营入口，需用户明示（且 2026-10-29 已拍板不做按柜型条件显示那类分支）。✅ 2026-11-05 用户已明示「整块下线」，见 §12 第十九刀。
 
 ### 2026-10-30（G2-11 ⑤ 落地：授权配置类越权拒绝落 admin_audit_log——「没绑商户打不开」运营台可查了）
 

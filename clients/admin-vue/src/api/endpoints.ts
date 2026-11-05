@@ -356,10 +356,6 @@ export const AdminEndpoints = {
     typeof query === 'string'
       ? `${ops}/replenishment/fulfillment-tasks?${query}`
       : `${ops}/replenishment/fulfillment-tasks?${query.toString()}`,
-  replenishmentShortage: (query: URLSearchParams | string) =>
-    typeof query === 'string'
-      ? `${ops}/replenishment/shortage?${query}`
-      : `${ops}/replenishment/shortage?${query.toString()}`,
   replenishmentRouteCancelEmpty: (routeId: string | number) =>
     `${ops}/replenishment/routes/${encodeURIComponent(String(routeId))}/cancel-empty`,
   /** CB-038 任务级：只取消单张任务，不像路线级那样连带同路线其它任务 */

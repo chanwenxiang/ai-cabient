@@ -133,7 +133,7 @@ watch(
         <div class="cmd-section-label">补货入口</div>
         <div class="cmd-bar">
           <el-button v-if="canAccessReplenishment" @click="emit('go-replenish')"
-            >缺货建议</el-button
+            >库存健康</el-button
           >
           <el-button
             v-if="canAccessReplenishment && oosSkuCount > 0"

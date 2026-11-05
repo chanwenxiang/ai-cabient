@@ -36,13 +36,16 @@ const SCOPES = [
  *  （useDeviceSlotActions 6 处 + 设备详情 4 处）为 **73 处 / 21 文件**。
  *  第十一刀（SLOT_DISCREPANCY 告警面退场）后 **18 处 / 8 文件**；第十二刀①再清 4 处「界面在说、
  *  代码不做」的假描述（ConsistencyView 巡检范围两处、menu.ts 搜索关键词、SkuListView 采购单位说明）
- *  ⇒ **14 处 / 6 文件**。剩量分两档，都不该现在改：`ReplenishmentView` 8 + `MerchantSplitsView` 2 +
- *  `ConsistencyView:397` 的「货道容量」译名 1 = 算式/历史行**仍然真实**（改了就是新的假描述，随 B 段消失）；
- *  legacy 订单行解析 3 处（order-line-summary / mp order-detail / tally-records）= 已拍板**不洗历史**。
+ *  ⇒ **14 处 / 6 文件**。
+ *  第十九刀（2026-11-05，用户拍板「整块下线」admin 缺货建议（按位置）tab）删掉该 tab 的 6 处
+ *  （空态提示、tab 说明、两处行操作文案）+ 把临期 tab 的「货道已满」改为柜型中性的「补货余量不足」
+ *  ⇒ **6 处 / 5 文件**。剩量两档：`MerchantSplitsView` 2 + `ConsistencyView:397` 的「货道容量」译名
+ *  1 = 算式/译名**仍然真实**（改了就是新的假描述，随 B 段消失）；legacy 订单行解析 3 处
+ *  （order-line-summary / mp order-detail / tally-records）= 已拍板**不洗历史**。
  *  🔴 S1a 教训（2026-11-04）：曾打算下线 mp「柜机盘点」页，**删前回查发现它同时承载开门柜盘点**
  *  （`isDoorCabinet` 分支 + `deviceDoorStocktake`）⇒ 整页删除已回退。凡「看起来是货道专属」的
  *  页面/组件，删前必须按 `isDoorCabinet` / `deviceDoorStocktake` 一类关键字反查一遍。 */
-const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 14);
+const BASELINE = Number(process.env.SLOT_COPY_BASELINE || 6);
 const TERM = '货道';
 
 /**

@@ -662,11 +662,10 @@ function goAction(row: OpsActionItem) {
       router.push({ path: '/sessions', query: { stuck: '1', ...q } });
       return;
     case 'LOW_STOCK':
+      router.push({ path: '/stock-health', query: q });
+      return;
     case 'REPLENISHMENT':
-      router.push({
-        path: '/replenishment',
-        query: { tab: row.type === 'LOW_STOCK' ? 'shortage' : 'routes', ...q }
-      });
+      router.push({ path: '/replenishment', query: { tab: 'routes', ...q } });
       return;
     case 'IN_TRANSIT_OVERDUE':
       router.push({ path: '/warehouse', query: { tab: 'transit', overdue: '1', ...q } });

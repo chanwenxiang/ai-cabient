@@ -1422,11 +1422,11 @@ async function reload() {
 }
 
 function goReplenish() {
-  goPath('/replenishment', { tab: 'shortage', deviceId });
+  goPath('/stock-health', { deviceId });
 }
 
 function goPlanReplenish() {
-  goPath('/replenishment', { tab: 'shortage', plan: '1', deviceId, deviceIds: deviceId });
+  goPath('/replenishment', { plan: '1', deviceId, deviceIds: deviceId });
 }
 
 function goRestockTasks() {

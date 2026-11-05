@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">补货调度</span>
-            <span class="hint">路线 / 履约取证 / 缺货；签到 GPS、用时与理货明细可核对现场履约</span>
+            <span class="hint"
+              >路线 / 履约取证 / 临期下架；签到 GPS、用时与理货明细可核对现场履约</span
+            >
           </div>
           <div class="kpi-tags">
             <button
@@ -566,93 +568,8 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="缺货建议" name="shortage">
-        <div class="shortage-toolbar">
-          <el-button
-            v-if="canEdit && shortageDevices.length"
-            type="primary"
-            @click="planFromShortage"
-          >
-            一键规划补货（{{ shortageDevices.length }} 台）
-          </el-button>
-        </div>
-        <div class="table-scroll">
-          <div class="table-scroll-inner">
-            <CrudTable
-              :table="crudShortages"
-              row-key="slotKey"
-              selectable
-              empty-text="货道柜无缺货/低库存货道；开门柜请看「库存健康」"
-              :actions="canEdit ? shortageRowActions : undefined"
-              :action-width="100"
-              @action="onShortageAction"
-            >
-              <el-table-column label="设备" min-width="120" class-name="col-text">
-                <template #default="{ row }">
-                  <button type="button" class="link-cell" @click="goDevice(row.deviceId)">
-                    {{ deviceName(row.deviceId, row.deviceName) }}
-                  </button>
-                </template>
-              </el-table-column>
-              <el-table-column label="设备ID" min-width="120" class-name="col-text">
-                <template #default="{ row }">
-                  <span class="cell-id">{{ row.deviceId }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column
-                prop="slotCode"
-                label="位置"
-                width="90"
-                class-name="col-text"
-                label-class-name="col-text"
-              />
-              <el-table-column
-                prop="assignedSkuName"
-                label="商品"
-                min-width="140"
-                class-name="col-text"
-              />
-              <el-table-column
-                prop="bookQty"
-                label="账面"
-                width="80"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="minLevel"
-                label="最低"
-                width="80"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              />
-              <el-table-column
-                prop="parLevel"
-                label="目标"
-                width="80"
-                class-name="col-text"
-                label-class-name="col-text"
-              />
-              <el-table-column
-                label="状态"
-                width="100"
-                align="center"
-                class-name="col-status"
-                label-class-name="col-status"
-              >
-                <template #default="{ row }">
-                  <el-tag :type="stockTagType(row)" size="small">{{ stockLabel(row) }}</el-tag>
-                </template>
-              </el-table-column>
-            </CrudTable>
-          </div>
-        </div>
-      </el-tab-pane>
-
       <el-tab-pane label="临期下架" name="expiry">
-        <div class="shortage-toolbar">
+        <div class="tab-toolbar">
           <el-alert
             type="warning"
             :closable="false"
@@ -744,7 +661,7 @@
                   >
                   <el-tooltip
                     :disabled="expiryRestockEnabled(row)"
-                    content="货道已满，请先下架腾出库存后再补货"
+                    content="补货余量不足，请先下架腾出库存后再补货"
                     placement="top"
                   >
                     <span class="expiry-restock-wrap">
@@ -788,13 +705,10 @@
       :assignee-loading="assigneeLoading"
       :assignee-options="assigneeOptions"
       :devices="devices"
-      :shortage-device-ids="shortageDeviceIds"
-      :selected-devices-without-shortage="selectedDevicesWithoutShortage"
       :assignee-option-label="assigneeOptionLabel"
       :plan-device-label="planDeviceLabel"
       @update:model-value="setPlanDialog"
       @create="createPlan"
-      @go-shortage="goShortageFromPlan"
       @go-stock-health="goStockHealthFromPlan"
     />
     <RestockVideoDialog ref="restockVideoDialog" />
@@ -804,12 +718,10 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Goods, Tickets } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import RestockVideoDialog from '@/components/replenishment/RestockVideoDialog.vue';
-import type { TableAction } from '@/components/TableActions.vue';
 import CrudTable from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -875,11 +787,10 @@ const tab = ref('routes');
 const TAB_DESC: Record<string, string> = {
   routes: '补货路线与任务：把缺货设备串成路线并生成补货任务，派给现场人员执行',
   fulfillment: '履约记录：签到 GPS、用时与现场照片，核对补货是否真实完成',
-  shortage: '缺货建议（按位置）：只列货道柜低于安全库存的货道；开门柜无货道，请看「库存健康」',
   expiry: '临期下架：仓库里临近有效期的批次，建议优先下架或换新'
 };
 const tabDescription = computed(() => TAB_DESC[tab.value] || '');
-const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'expiry', 'shortage']);
+const SERVER_PAGINATED_TABS = new Set(['routes', 'fulfillment', 'expiry']);
 const tabTotals = ref<Record<string, number>>({});
 const summary = ref({
   pendingTaskCount: 0,
@@ -893,11 +804,7 @@ const fulfillmentStatus = ref('');
 const routes = ref<Row[]>([]);
 const fulfillmentTasksList = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
-const shortages = ref<Row[]>([]);
-const shortageDeviceIds = ref<string[]>([]);
 const expiryAlerts = ref<Row[]>([]);
-
-const shortageDevices = computed(() => shortageDeviceIds.value);
 
 const plannedCount = computed(() => summary.value.plannedRouteCount);
 const pendingTaskCount = computed(() => summary.value.pendingTaskCount);
@@ -939,60 +846,6 @@ watch([focusDeviceId, fulfillmentStatus], () => {
   }
 });
 
-/** 缺货建议行操作（迁入 CrudTable 固定操作列；整列随 canEdit 显隐） */
-function shortageRowActions(_row: Row): TableAction[] {
-  return [
-    { key: 'restock', label: '补货（路线规划）', icon: Goods, type: 'primary' },
-    { key: 'create-task', label: '生成补货任务', icon: Tickets, type: 'success' }
-  ];
-}
-
-const creatingSuggestTask = ref(false);
-
-/**
- * CB-018①：按补货建议直接生成补货任务（不经路线规划）。
- * 后端按 suggestForDevice(deviceId) 的全部建议合并为一个 PENDING 任务（不做防重）；
- * 缺货行是 设备×货道 粒度，同设备任意行的按钮效果一致——先弹确认说明范围，防误触重复建任务。
- */
-async function createTaskFromSuggestion(deviceId: string) {
-  if (!deviceId || creatingSuggestTask.value) return;
-  try {
-    await ElMessageBox.confirm(
-      `将按设备 ${deviceId} 的全部补货建议生成 1 个待执行补货任务（覆盖其所有缺货货道），确认生成？`,
-      '生成补货任务',
-      { confirmButtonText: '生成', cancelButtonText: '取消', type: 'info' }
-    );
-  } catch {
-    return; // 用户取消
-  }
-  creatingSuggestTask.value = true;
-  try {
-    const created = await api.request<{
-      routeId: number | string;
-      tasks?: { taskId?: number | string }[];
-    }>(AdminEndpoints.replenishmentSuggestCreateTask, 'POST', { deviceId });
-    const firstTaskId = created?.tasks?.[0]?.taskId;
-    ElMessage.success(
-      firstTaskId != null
-        ? `补货任务 ${firstTaskId} 已生成（待执行，路线 ${created.routeId}）`
-        : `补货路线 ${created?.routeId ?? ''} 已生成`
-    );
-    await crudShortages.search();
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '补货任务生成失败');
-  } finally {
-    creatingSuggestTask.value = false;
-  }
-}
-
-async function onShortageAction({ key, row }: { key: string; row: Row }) {
-  if (key === 'create-task') {
-    await createTaskFromSuggestion(row.deviceId);
-    return;
-  }
-  planSingleDevice(row.deviceId);
-}
-
 // ── 主列表状态机统一交给 CrudTable（分页 / 多选 / 升降序 / 竞态 / 空态 内建）────────────
 // 首查依赖 onMounted 应用路由查询参数（tab / deviceId / plan），故全部 autoLoad:false，由 loadTab 显式首查。
 // 履约记录 tab 的关键词与「仅待分配」是拉取后逐键客户端过滤，CrudTable 无此数据钩子，该 tab 保持原 el-table。
@@ -1028,29 +881,6 @@ const crudRoutes = useCrudTable<Row>({
   }
 });
 
-const crudShortages = useCrudTable<Row>({
-  rowKey: (r) => r.slotKey || `${r.deviceId}-${r.slotCode}`,
-  errorMessage: '补货数据加载失败',
-  autoLoad: false,
-  fetchPage: async (params) => {
-    await loadSummary();
-    const extra: Record<string, string> = {};
-    if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
-    const data = await api.request<{
-      items: Row[];
-      total: number;
-      shortageDeviceIds: string[];
-    }>(AdminEndpoints.replenishmentShortage(replenishmentPageQuery(params, extra)), 'GET');
-    shortages.value = (data.items || []).map((row) => ({
-      ...row,
-      slotKey: row.slotKey || `${row.deviceId}:${row.slotCode || row.skuId || ''}`
-    }));
-    tabTotals.value = { ...tabTotals.value, shortage: Number(data.total) || 0 };
-    shortageDeviceIds.value = data.shortageDeviceIds || [];
-    return { items: shortages.value, total: Number(data.total) || 0 };
-  }
-});
-
 const crudExpiry = useCrudTable<Row>({
   rowKey: (r) => r.taskId || `${r.deviceId}-${r.lotId}-${r.skuId}`,
   errorMessage: '临期告警加载失败',
@@ -1073,7 +903,6 @@ const crudExpiry = useCrudTable<Row>({
 });
 
 const exportButtonLabel = computed(() => {
-  if (tab.value === 'shortage') return crudShortages.exportButtonLabel;
   if (tab.value === 'expiry') return crudExpiry.exportButtonLabel;
   if (tab.value === 'fulfillment') return fulfillmentExportLabel.value;
   return crudRoutes.exportButtonLabel;
@@ -1125,23 +954,6 @@ const { onExport: exportFulfillment } = useListCsv({
     ])
 });
 
-const { onExport: exportShortages } = useListCsv({
-  filePrefix: '缺货建议',
-  headers: ['设备', '位置', '商品', '账面', '最低', '目标', '状态'],
-  toRows: () =>
-    crudShortages
-      .pickSelected(crudShortages.items)
-      .map((row) => [
-        row.deviceName || row.deviceId,
-        row.slotCode,
-        row.assignedSkuName || '',
-        row.bookQty,
-        row.minLevel,
-        row.parLevel,
-        row.stockStatus || (row.bookQty <= 0 ? '缺货' : '低库存')
-      ])
-});
-
 const { onExport: exportExpiry } = useListCsv({
   filePrefix: '临期下架',
   headers: ['任务', '设备', 'SKU', '批次', '批次ID', '数量', '原因', '状态', '创建时间'],
@@ -1180,10 +992,6 @@ async function exportRoutesTab() {
 }
 
 async function onExport() {
-  if (tab.value === 'shortage') {
-    exportShortages();
-    return;
-  }
   if (tab.value === 'expiry') {
     exportExpiry();
     return;
@@ -1201,7 +1009,7 @@ function currentAssigneeId(): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
-/** Prefer API snapshot name; fall back to shortage/device list join. */
+/** Prefer API snapshot name; fall back to the device reference list. */
 function isGarbledDeviceName(name?: string | null): boolean {
   const s = name != null ? String(name).trim() : '';
   if (!s) return true;
@@ -1216,25 +1024,9 @@ function deviceName(deviceId?: string, snapshot?: string | null) {
   if (snap && !isGarbledDeviceName(snap)) return snap;
   const id = deviceId != null ? String(deviceId) : '';
   if (!id) return '无';
-  const fromShortage = shortages.value.find((item) => item.deviceId === id)?.deviceName;
-  if (fromShortage && !isGarbledDeviceName(fromShortage)) return fromShortage;
   const fromDevices = devices.value.find((item) => item.deviceId === id)?.deviceName;
   if (fromDevices && !isGarbledDeviceName(fromDevices)) return fromDevices;
   return id;
-}
-
-function stockLabel(row: Row) {
-  const code = String(row.stockStatus || '').toUpperCase();
-  if (code === 'OOS' || (row.bookQty ?? 0) <= 0) return '缺货';
-  if (code === 'LOW') return '低库存';
-  if (code === 'OK' || code === 'NORMAL') return displayLabel('warehouse_status', 'ACTIVE');
-  return row.stockStatus || ((row.bookQty ?? 0) <= (row.minLevel ?? 0) ? '低库存' : '缺货');
-}
-function stockTagType(row: Row) {
-  const label = stockLabel(row);
-  if (label === '缺货') return 'danger';
-  if (label === '低库存') return 'warning';
-  return 'info';
 }
 
 function goDevice(deviceId?: string) {
@@ -1335,9 +1127,6 @@ async function loadTab(name: string, force = false) {
     else if (name === 'fulfillment') {
       await loadSummary();
       await loadFulfillment();
-    } else if (name === 'shortage') {
-      await loadDeviceRefs();
-      await crudShortages.search();
     } else if (name === 'expiry') await crudExpiry.search();
   } catch (error) {
     if (!loadSeq.isCurrent(seq, 'loadTab')) return;
@@ -1393,7 +1182,6 @@ const {
   planForm,
   assigneeOptions,
   assigneeLoading,
-  selectedDevicesWithoutShortage,
   assigneeLabel,
   assigneeOptionLabel,
   planDeviceLabel,
@@ -1401,14 +1189,11 @@ const {
   openPlan,
   closePlan,
   maybeAutoPlanFromQuery,
-  planFromShortage,
-  planSingleDevice,
   createPlan
 } = useReplenishmentRoutePlanning({
   loadSeq,
   canEdit,
   focusDeviceId,
-  shortageDeviceIds,
   devices,
   currentUserId: currentAssigneeId,
   currentUserName: () => auth.displayName || '',
@@ -1429,14 +1214,6 @@ const {
 /** 显式 .value，避免模板 v-model 对解构 ref 赋值空操作导致「取消」关不掉 */
 function setPlanDialog(open: boolean) {
   planDialog.value = open;
-}
-
-function goShortageFromPlan() {
-  closePlan();
-  tab.value = 'shortage';
-  page.value = 1;
-  syncRouteQuery();
-  void loadTab('shortage', true);
 }
 
 function goStockHealthFromPlan() {
@@ -1471,7 +1248,7 @@ function clearDeviceFocus() {
 
 function applyRouteQuery() {
   let changed = false;
-  const allowed = ['routes', 'shortage', 'fulfillment', 'expiry'] as const;
+  const allowed = ['routes', 'fulfillment', 'expiry'] as const;
   const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
   if (allowed.includes(qTab as (typeof allowed)[number])) {
     if (tab.value !== qTab) {
@@ -1603,7 +1380,7 @@ function lineTypeLabel(type?: string) {
 
 function expiryRestockEnabled(row: Row) {
   // 开门柜按商品备货、无货道概念：柜型标志由服务端单源下发（PullOffTaskDto.doorCabinet，
-  // 判据=将邑绑定）。它的 restockHeadroom 恒 0，按余量门控会假锁「补货任务」并弹「货道已满」，
+  // 判据=将邑绑定）。它的 restockHeadroom 恒 0，按余量门控会假锁「补货任务」并弹「补货余量不足」，
   // 而后端 preparePullOffTaskPlan 对开门柜明确不设货道余量闸。
   if (row?.doorCabinet) return true;
   const headroom = Number(row?.restockHeadroom);
@@ -1613,7 +1390,7 @@ function expiryRestockEnabled(row: Row) {
 async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
   if (!row?.taskId || expiryActingId.value != null) return;
   if (lineType === 'RESTOCK' && !expiryRestockEnabled(row)) {
-    ElMessage.warning('货道已满，请先下架腾出库存后再补货');
+    ElMessage.warning('补货余量不足，请先下架腾出库存后再补货');
     return;
   }
   expiryActingId.value = Number(row.taskId);
@@ -1922,7 +1699,7 @@ onActivated(() => {
   margin-left: 6px;
   vertical-align: middle;
 }
-.shortage-toolbar {
+.tab-toolbar {
   display: flex;
   gap: 12px;
   align-items: center;

@@ -16,15 +16,12 @@ defineProps<{
   assigneeLoading: boolean;
   assigneeOptions: ReplenishmentAssigneeOption[];
   devices: ReplenishmentDeviceRef[];
-  shortageDeviceIds: string[];
-  selectedDevicesWithoutShortage: string[];
   assigneeOptionLabel: (op: ReplenishmentAssigneeOption) => string;
   planDeviceLabel: (device: ReplenishmentDeviceRef) => string;
 }>();
 
 const emit = defineEmits<{
   create: [];
-  'go-shortage': [];
   'go-stock-health': [];
 }>();
 
@@ -94,18 +91,11 @@ function closeDialog() {
             </div>
           </el-checkbox-group>
         </div>
-        <div v-if="!shortageDeviceIds.length" class="plan-hint">
-          当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或
-          <el-button link type="primary" native-type="button" @click="emit('go-shortage')"
-            >查看缺货建议</el-button
-          >、
+        <div class="plan-hint">
+          满柜时无法生成出库单。规划前可先看
           <el-button link type="primary" native-type="button" @click="emit('go-stock-health')"
             >库存健康</el-button
-          >。
-        </div>
-        <div v-else-if="selectedDevicesWithoutShortage.length" class="plan-hint">
-          所选设备中
-          {{ selectedDevicesWithoutShortage.join('、') }} 不在缺货建议内，满柜可能无法生成出库单。
+          >确认各柜断货/低库存商品。
         </div>
         <div class="plan-hint plan-hint-info">
           出库从柜机所属仓扣库存。请先在设备页指定所属仓库；同一路线柜机须同一仓。

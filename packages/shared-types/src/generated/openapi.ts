@@ -7560,22 +7560,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/replenishment/shortage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentShortage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/replenishment/routes": {
         parameters: {
             query?: never;
@@ -17130,37 +17114,6 @@ export interface components {
             plannedRouteCount?: number;
             /** Format: int64 */
             pendingRequestCount?: number;
-        };
-        ApiResponseReplenishmentShortagePageDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentShortagePageDto"];
-        };
-        ReplenishmentShortagePageDto: {
-            items?: components["schemas"]["ReplenishmentShortageRowDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-            shortageDeviceIds?: string[];
-        };
-        ReplenishmentShortageRowDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            skuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            parLevel?: number;
-            stockStatus?: string;
-            slotKey?: string;
         };
         ApiResponsePageResultReplenishmentRouteDto: {
             /** Format: int32 */
@@ -33948,30 +33901,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseReplenishmentOpsSummaryDto"];
-                };
-            };
-        };
-    };
-    replenishmentShortage: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentShortagePageDto"];
                 };
             };
         };
