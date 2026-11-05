@@ -385,6 +385,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RECOGNITION_STUCK", "识别滞留", "RECOGNITION_TIMEOUT", "识别超时",
                 "RECOGNITION_FAILED", "识别存疑需人工审核",
                 "JIANGYI_CLASS_MAPPING_MISS", "将邑识别映射未命中",
+                "JIANGYI_PARAMS_NOT_READY", "识别参数未就绪",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
                 "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
                 "INVENTORY_MISMATCH", "库存差异", "SLOT_DISCREPANCY", "货道账实差异",

@@ -19,19 +19,30 @@ import java.util.List;
  *
  * <p>克制原则（台账 CB-077 ③）：故障单只作展示/诊断，不参与结算/资金路径、
  * 不驱动会话状态机——会话生命周期由 watchdog 兜底不变。</p>
+ *
+ * <p>V16 §4.2.20 新增原因「商品识别参数未就绪」的处置（2026-11-05 拍板 A 档）：
+ * <b>只额外报一条独立运维告警</b>，仍不驱动会话状态机、不碰资金。理由见
+ * `docs/JIANGYI_INTERFACE_CHECKLIST.md` §12B：不加工时该单会被 10 秒开门超时清扫成
+ * 「设备未响应」，根因指错；A 档先把「看得见、说得清」补上，B 档（会话终结）待真机验证后再议。</p>
  */
 @Service
 public class DeviceFaultOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceFaultOrderService.class);
 
+    /** V16 §4.2.20 / §6.3 原文：设备拒绝开锁时的故障原因。 */
+    static final String MSG_PARAMS_NOT_READY = "商品识别参数未就绪";
+
     /** 固件原文不可信（铁律）：单字段入库前截断，防超长报文撑爆行。 */
     private static final int MAX_FIELD_LEN = 512;
 
     private final DeviceFaultOrderMapper deviceFaultOrderMapper;
+    private final OpsExceptionService opsExceptionService;
 
-    public DeviceFaultOrderService(DeviceFaultOrderMapper deviceFaultOrderMapper) {
+    public DeviceFaultOrderService(DeviceFaultOrderMapper deviceFaultOrderMapper,
+                                   OpsExceptionService opsExceptionService) {
         this.deviceFaultOrderMapper = deviceFaultOrderMapper;
+        this.opsExceptionService = opsExceptionService;
     }
 
     /**
@@ -47,6 +58,33 @@ public class DeviceFaultOrderService {
             log.warn("device fault order insert failed deviceId={} orderNo={}: {}",
                     deviceId, orderNo, e.getMessage());
         }
+        raiseIfParamsNotReady(deviceId, orderNo, errorMsg);
+    }
+
+    /**
+     * 「商品识别参数未就绪」→ 独立运维告警（按 orderNo 去重，同一单重投只留一条 OPEN）。
+     *
+     * <p>只读旁路：告警失败同样只记 warn，不影响故障单落库与设备侧 200。</p>
+     */
+    private void raiseIfParamsNotReady(String deviceId, String orderNo, String errorMsg) {
+        if (!isParamsNotReady(errorMsg)) {
+            return;
+        }
+        try {
+            opsExceptionService.report("JIANGYI_PARAMS_NOT_READY", "MEDIUM",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, orderNo, null),
+                    "商品识别参数未就绪",
+                    "设备拒绝开锁（V16 §6.3）：本柜识别参数未下发完成。处理：① 确认已调 §7.11 同步该层补货；"
+                            + "② 用 §7.10 查商品状态，未完成采集的按第七章补做；③ 用 §7.12 查下发进度，ready=true 后恢复。");
+        } catch (Exception e) {
+            log.warn("params-not-ready alert failed deviceId={} orderNo={}: {}",
+                    deviceId, orderNo, e.getMessage());
+        }
+    }
+
+    /** 固件原文可能带前后缀，按包含判定（文档原文「商品识别参数未就绪」）。 */
+    static boolean isParamsNotReady(String errorMsg) {
+        return errorMsg != null && errorMsg.contains(MSG_PARAMS_NOT_READY);
     }
 
     /** 设备详情「故障记录」列表行（纯列表，一期不接待办/红点）。 */
