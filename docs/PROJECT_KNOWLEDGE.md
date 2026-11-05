@@ -684,6 +684,24 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（下一刀 FEFO per-slot 的差异表：先证后删，代码未动）
+
+- 🔴 **订正我上一轮的口径**：`LotMovementRef` 是 `(refType, refId, operatorId)`，**没有 slotId** ⇒
+  我所说的「四层」里那一层不存在。真正要动的是 **三层**：
+  1. `deductFefo(..., slotId)` 的 **6 参重载**（生产只用 5 参、恒 `null`；6 参只被两个测试用）
+     + `doDeductFefo:164` 的按槽批次查询分支（`findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc`）；
+  2. `DeductionAccumulator.slotQty`（`:178`）→ `FefoDeductResult.slotQtyDeducted`（`:175`），
+     累加点在 `deductSellableLots:195`（按批次 step 的 `slotCode` 汇总）——**消费者已在第十五刀②断掉，
+     现在是纯产物**；
+  3. **入库侧**：`RestockCommand.slotId`（`:236`）→ `doAddRestock` 的 `ensureSlotCapacity:353` 与
+     `:358` 把 `slot_code` 写进 lot 行。这是活路径（补货入库/期初入库），不是死码。
+- 差异表判据（对生产 BOUND 柜）：①恒走 5 参 ⇒ 永远走「按 SKU 全量批次」查询，行为不变；
+  ②`slotQtyDeducted` 无消费者，删字段零影响；③入库时 `slotId` 为 `null`（无货道行可绑）⇒
+  `ensureSlotCapacity` 早退、lot 行 `slot_id` 保持 NULL（与 dev 实测「真柜 lot slot_id 全 NULL」一致）。
+- 未做原因：③ 在**每笔入库**路径上，且 `RestockCommand` 是 `InventoryLotService` 的对外入参；
+  删字段要连 `applyRestock` 调用链与测试一起改，属一次原子改动 ⇒ 留作下一段第一件事，改完跑
+  `InventoryLot*` 定向 + 本批唯一一次全量。
+
 ### 2026-11-05（第十五刀②：销售/售后后的货道实盘回写整链退场——差异表证明对 BOUND 柜是 no-op）
 
 - **差异表（先证后删）**：四个 `applyPhysicalAfter*` 的调用形态是
