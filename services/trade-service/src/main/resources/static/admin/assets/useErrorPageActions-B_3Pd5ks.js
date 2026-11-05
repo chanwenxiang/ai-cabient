@@ -1,0 +1,1 @@
+import{j as c}from"./ui-vendor-C0xYAxDS.js";import{c as s,O as a}from"./index-CUhD3L2C.js";function k(){const o=c(),n=s();function t(){return a(n)}function r(){o.replace(t())}function u(){var e;if(((e=window.history.state)==null?void 0:e.back)!=null){o.back();return}r()}return{resolveHome:t,goHome:r,goBack:u}}export{k as u};
