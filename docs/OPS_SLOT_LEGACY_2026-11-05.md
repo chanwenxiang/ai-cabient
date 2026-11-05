@@ -44,7 +44,7 @@ A 段那 16 行 `device_slot` 与 B 段 3 行 `lot.slot_id` **未执行**（等�
 
 ---
 
-## A. 清 `device_slot` 16 行（可选，风险低）
+## A. 清 `device_slot` 16 行（⚠️ 2026-11-05 实测：**删不动**，见 A.1）
 
 ```sql
 BEGIN;
@@ -65,6 +65,18 @@ COMMIT;
   真柜 lot 的 `slot_id` 为 NULL），所以不会改变任何订单/结算/余额数字。
 - 回滚：删的是演示柜配置，无业务流水；要恢复只能靠 `DemoDataService` 重新播种（不建议）。
   🔴 执行前先 `pg_dump -t device_slot`。
+
+### A.1 执行记录（2026-11-05，dev）：A 段**未执行**，B 段已执行
+
+· B 段已做：3 行 `device_sku_lot.slot_id` 置 NULL（现全表 0 行），事务内提交。
+· A 段被外键挡住，**刻意不绕**：
+  - 第一次 `DELETE FROM device_slot` 报 `device_sku_lot_device_slot_fkey`（先清 lot 引用即可绕过）；
+  - 再试报 `warehouse_outbound_line_device_slot_fkey`——**历史出库单行**（该两台演示柜有 6 行）
+    以 `(device_id, slot_id)` 引用这些槽位。删槽位就要么改出库行、要么级联删，动了出库账目证据。
+  ⇒ 结论：`device_slot` 这 16 行**保留**。它们对生产没有任何影响（生产 BOUND 柜该表恒 0 行，
+    且代码侧写面已随第十五刀 ①–⑤ 全部退场），清它们只能连同演示出库单一起下线，
+    那是一次「演示数据整体清理」，需要单独拍板，不该在货道退场里顺手做。
+· 回滚：B 段只把 3 行的 slot_id 置空，原值未留存（演示数据，无审计价值）；A 段未动。
 
 ## B. `device_sku_lot.slot_id` 3 行置 NULL（可选）
 
