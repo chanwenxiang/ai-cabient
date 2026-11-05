@@ -654,6 +654,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceSlots"];
+        put: operations["upsertDeviceSlots"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/sku-inventory": {
         parameters: {
             query?: never;
@@ -887,6 +903,22 @@ export interface paths {
         };
         get: operations["getMyOpsConfig"];
         put: operations["saveMyOpsConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deviceSlots_1"];
+        put: operations["upsertDeviceSlots_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4118,6 +4150,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/slots/stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stocktakeSlot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/slots/apply-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["applyPlanogramTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/reset-hardware-binding": {
         parameters: {
             query?: never;
@@ -5408,6 +5472,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["openStocktakeDoor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/devices/{deviceId}/slots/stocktake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stocktakeSlot_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7560,6 +7640,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/replenishment/shortage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["replenishmentShortage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/replenishment/routes": {
         parameters: {
             query?: never;
@@ -9556,6 +9652,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["stats_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/slot-discrepancies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["slotDiscrepancies"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12272,6 +12384,67 @@ export interface components {
             enabled?: boolean;
             entries?: components["schemas"]["DeviceTempPlanEntryDto"][];
         };
+        UpsertDeviceSlotRequest: {
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+        };
+        ApiResponseListDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"][];
+        };
+        DeviceSlotDto: {
+            deviceId?: string;
+            slotCode?: string;
+            /** Format: int32 */
+            rowNo?: number;
+            /** Format: int32 */
+            colNo?: number;
+            slotType?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            parLevel?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            maxLevel?: number;
+            enabled?: boolean;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            lastPhysicalQty?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
+            /** Format: date-time */
+            lastRestockAt?: string;
+            /** Format: int32 */
+            fillRatePct?: number;
+            stockStatus?: string;
+            /** Format: int32 */
+            qtyDiff?: number;
+            hasDiscrepancy?: boolean;
+            skuImageUrl?: string;
+            skuBrand?: string;
+            skuSpec?: string;
+            skuBarcode?: string;
+            /** Format: date-time */
+            assignedAt?: string;
+            stockoutWarn?: boolean;
+        };
         UpsertDeviceSkuInventoryRequest: {
             skuId?: string;
             /** Format: int32 */
@@ -14328,6 +14501,7 @@ export interface components {
             wechatReceiverId?: string;
             status?: string;
             remark?: string;
+            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;
@@ -14353,6 +14527,7 @@ export interface components {
             remark?: string;
             /** Format: int64 */
             deviceCount?: number;
+            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;
@@ -15126,6 +15301,23 @@ export interface components {
             code?: number;
             message?: string;
             data?: components["schemas"]["AdminDeviceDto"];
+        };
+        SlotStocktakeRequest: {
+            slotCode: string;
+            /** Format: int32 */
+            physicalQty?: number;
+            adjustBookQty?: boolean;
+            photoEvidenceUrl?: string;
+            /** Format: double */
+            latitude?: number;
+            /** Format: double */
+            longitude?: number;
+        };
+        ApiResponseDeviceSlotDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["DeviceSlotDto"];
         };
         DeviceLifecycleRequest: {
             action?: string;
@@ -16227,6 +16419,8 @@ export interface components {
             expiredLotCount?: number;
             /** Format: int64 */
             pullOffOpenCount?: number;
+            /** Format: int64 */
+            slotDiscrepancyCount?: number;
         };
         ApiResponseOpsDashboardBundleDto: {
             /** Format: int32 */
@@ -17114,6 +17308,37 @@ export interface components {
             plannedRouteCount?: number;
             /** Format: int64 */
             pendingRequestCount?: number;
+        };
+        ApiResponseReplenishmentShortagePageDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["ReplenishmentShortagePageDto"];
+        };
+        ReplenishmentShortagePageDto: {
+            items?: components["schemas"]["ReplenishmentShortageRowDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
+            shortageDeviceIds?: string[];
+        };
+        ReplenishmentShortageRowDto: {
+            deviceId?: string;
+            deviceName?: string;
+            slotCode?: string;
+            skuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            minLevel?: number;
+            /** Format: int32 */
+            parLevel?: number;
+            stockStatus?: string;
+            slotKey?: string;
         };
         ApiResponsePageResultReplenishmentRouteDto: {
             /** Format: int32 */
@@ -18852,6 +19077,7 @@ export interface components {
         DeviceDetailDto: {
             device?: components["schemas"]["AdminDeviceDto"];
             metrics?: components["schemas"]["DeviceOpsMetricsDto"];
+            slots?: components["schemas"]["DeviceSlotDto"][];
             skuInventory?: components["schemas"]["DeviceInventoryDto"][];
             delistedInventory?: components["schemas"]["DeviceInventoryDto"][];
         };
@@ -18866,15 +19092,17 @@ export interface components {
             /** Format: int32 */
             oosRatePct?: number;
             /** Format: int32 */
-            oosSkuCount?: number;
+            oosSlotCount?: number;
             /** Format: int32 */
-            lowStockSkuCount?: number;
+            lowStockSlotCount?: number;
             /** Format: int32 */
             totalBookQty?: number;
             /** Format: int32 */
             totalParLevel?: number;
             /** Format: date-time */
             lastRestockAt?: string;
+            /** Format: int32 */
+            inventoryAccuracyPct?: number;
             address?: string;
             /** Format: int32 */
             currentTempC?: number;
@@ -19309,6 +19537,8 @@ export interface components {
             /** Format: int64 */
             expiryAlerts?: number;
             /** Format: int64 */
+            slotDiscrepancies?: number;
+            /** Format: int64 */
             pendingSplits?: number;
             /** Format: int64 */
             refundOrders?: number;
@@ -19405,6 +19635,27 @@ export interface components {
             settledMonthCents?: number;
             /** Format: int64 */
             failedSplitCount?: number;
+        };
+        ApiResponseListSlotDiscrepancyAlertDto: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SlotDiscrepancyAlertDto"][];
+        };
+        SlotDiscrepancyAlertDto: {
+            deviceId?: string;
+            deviceName?: string;
+            slotCode?: string;
+            assignedSkuId?: string;
+            assignedSkuName?: string;
+            /** Format: int32 */
+            bookQty?: number;
+            /** Format: int32 */
+            physicalQty?: number;
+            /** Format: int32 */
+            qtyDiff?: number;
+            /** Format: date-time */
+            lastPhysicalAt?: string;
         };
         ApiResponseMerchantSettlementOverviewDto: {
             /** Format: int32 */
@@ -19924,9 +20175,9 @@ export interface components {
             targetTempC?: number;
             lifecycleStatus?: string;
             /** Format: int32 */
-            lowStockSkuCount?: number;
+            lowStockSlotCount?: number;
             /** Format: int32 */
-            oosSkuCount?: number;
+            oosSlotCount?: number;
             salesLockReason?: string;
             /** Format: double */
             latitude?: number;
@@ -22140,6 +22391,54 @@ export interface operations {
             };
         };
     };
+    deviceSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    upsertDeviceSlots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
     upsertDeviceSkuInventory: {
         parameters: {
             query?: never;
@@ -22729,6 +23028,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantOpsConfigDto"];
+                };
+            };
+        };
+    };
+    deviceSlots_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    upsertDeviceSlots_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
                 };
             };
         };
@@ -28297,6 +28644,54 @@ export interface operations {
             };
         };
     };
+    stocktakeSlot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotStocktakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
+                };
+            };
+        };
+    };
+    applyPlanogramTemplate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
     resetHardwareBinding: {
         parameters: {
             query?: never;
@@ -30653,6 +31048,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
+                };
+            };
+        };
+    };
+    stocktakeSlot_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotStocktakeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
                 };
             };
         };
@@ -33905,6 +34326,30 @@ export interface operations {
             };
         };
     };
+    replenishmentShortage: {
+        parameters: {
+            query?: {
+                deviceId?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseReplenishmentShortagePageDto"];
+                };
+            };
+        };
+    };
     routes: {
         parameters: {
             query?: {
@@ -36763,6 +37208,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantDashboardStatsDto"];
+                };
+            };
+        };
+    };
+    slotDiscrepancies: {
+        parameters: {
+            query?: {
+                deviceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListSlotDiscrepancyAlertDto"];
                 };
             };
         };
