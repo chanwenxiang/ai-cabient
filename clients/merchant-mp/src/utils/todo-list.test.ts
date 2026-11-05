@@ -352,7 +352,6 @@ describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（MA-030）', (
     'UPLOAD_STUCK',
     'OPEN_TIMEOUT',
     'LOW_STOCK',
-    'SLOT_DISCREPANCY',
     'INVENTORY_MISMATCH',
     'REPLENISHMENT',
     'REPLENISHMENT_REQUIRED',

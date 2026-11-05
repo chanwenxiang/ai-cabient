@@ -459,14 +459,6 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.listExpiryAlerts(userId(request)));
     }
 
-    @RequiresPermissions("merchant:inventory:view")
-    @GetMapping("/slot-discrepancies")
-    public ApiResponse<List<SlotDiscrepancyAlertDto>> slotDiscrepancies(
-            HttpServletRequest request,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(merchantPortalService.listSlotDiscrepancies(userId(request), deviceId));
-    }
-
     @RequiresPermissions("merchant:splits:list")
     @GetMapping("/revenue-splits")
     public ApiResponse<PageResult<RevenueSplitDto>> revenueSplits(

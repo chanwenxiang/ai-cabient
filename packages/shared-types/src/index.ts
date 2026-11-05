@@ -402,7 +402,6 @@ export type {
   OpenApiReplenishmentSuggestDto,
   OpenApiMerchantReplenishmentEfficiencyDto,
   OpenApiDeviceInventoryDto,
-  OpenApiSlotDiscrepancyAlertDto,
   OpenApiMerchantSelfReplenishRequest,
   OpenApiMerchantSelfReplenishLine,
   OpenApiReplenishmentTaskDto,
@@ -638,7 +637,6 @@ export interface MerchantWorkbench {
   offlineDevices: number;
   lowStockItems: number;
   expiryAlerts: number;
-  slotDiscrepancies?: number;
   pendingSplits?: number;
   refundOrders?: number;
   actionItems: {

@@ -224,72 +224,18 @@ public class DeviceSlotService {
         slotRepository.delete(slot);
     }
 
-    @Transactional(readOnly = true)
-    public long countDiscrepancies(Long operatorId) {
-        return self.listDiscrepancyAlerts(operatorId, null).size();
-    }
-
-    @Transactional(readOnly = true)
-    public List<SlotDiscrepancyAlertDto> listDiscrepancyAlerts(Long operatorId, String deviceIdFilter) {
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
-        if (allowed != null && allowed.isEmpty()) {
-            return List.of();
-        }
-        if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
-            String dev = deviceIdFilter.trim();
-            merchantScopeService.requireDeviceAccess(operatorId, dev);
-            // 开门柜不实盘（无货道），账实差异恒空；残留货道行不算差异
-            if (isDoorCabinet(dev)) {
-                return List.of();
-            }
-            return buildDiscrepanciesForDevice(dev);
-        }
-        List<DeviceSlot> candidates = slotRepository.findByEnabledTrueAndLastPhysicalQtyIsNotNull();
-        Map<String, String> deviceNames = new HashMap<>();
-        List<SlotDiscrepancyAlertDto> alerts = new ArrayList<>();
-        for (DeviceSlot slot : candidates) {
-            String deviceId = slot.getId().getDeviceId();
-            if (isDoorCabinet(deviceId)) {
-                continue;
-            }
-            if ((allowed == null || allowed.contains(deviceId)) && deviceRepository.existsById(deviceId)) {
-                alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
-            }
-        }
-        alerts.sort(Comparator
-                .comparing(SlotDiscrepancyAlertDto::deviceId)
-                .thenComparing(SlotDiscrepancyAlertDto::slotCode));
-        return alerts;
-    }
-
     /**
-     * 缺货建议全量行：账实差异 + 低库存/OOS 货道，按 deviceId:slotCode 去重。
+     * 缺货建议全量行：低库存/OOS 货道，按 deviceId:slotCode 去重。
+     * 「账实差异」腿随 SLOT_DISCREPANCY 告警面一起退场（批 3b 第十一刀）。
      */
     @Transactional(readOnly = true)
     public List<ReplenishmentShortageRowDto> listShortageRows(Long operatorId, String deviceIdFilter) {
         LinkedHashMap<String, ReplenishmentShortageRowDto> byKey = new LinkedHashMap<>();
-        collectDiscrepancyShortageRows(operatorId, deviceIdFilter, byKey);
         collectLowStockShortageRows(operatorId, deviceIdFilter, byKey);
         return byKey.values().stream()
                 .sorted(Comparator.comparing(ReplenishmentShortageRowDto::deviceId)
                         .thenComparing(ReplenishmentShortageRowDto::slotCode))
                 .toList();
-    }
-
-    private void collectDiscrepancyShortageRows(Long operatorId, String deviceIdFilter,
-                                                LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
-        for (SlotDiscrepancyAlertDto alert : self.listDiscrepancyAlerts(operatorId, deviceIdFilter)) {
-            String key = shortageRowKey(alert.deviceId(), alert.slotCode());
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(alert.deviceId(), alert.slotCode()))
-                    .orElse(null);
-            int minLevel = slot != null ? slot.getMinLevel() : 0;
-            int parLevel = slot != null ? slot.getParLevel() : 0;
-            String status = slot != null ? resolveStockStatus(slot, alert.bookQty()) : "LOW";
-            byKey.put(key, new ReplenishmentShortageRowDto(
-                    alert.deviceId(), alert.deviceName(), alert.slotCode(),
-                    alert.assignedSkuId(), alert.assignedSkuName(),
-                    alert.bookQty(), minLevel, parLevel, status, key));
-        }
     }
 
     private void collectLowStockShortageRows(Long operatorId, String deviceIdFilter,
@@ -395,40 +341,6 @@ public class DeviceSlotService {
     public record SlotShortageItem(String deviceId, String slotCode, String skuId,
                                    int bookQty, int minLevel, int capacity, int parLevel,
                                    int thresholdPct) {}
-
-    private List<SlotDiscrepancyAlertDto> buildDiscrepanciesForDevice(String deviceId) {
-        requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        Map<String, String> deviceNames = new HashMap<>();
-        return slotRepository.findByIdDeviceId(deviceId).stream()
-                .flatMap(slot -> buildDiscrepancyForSlot(slot, bookBySlot, deviceNames).stream())
-                .sorted(Comparator.comparing(SlotDiscrepancyAlertDto::slotCode))
-                .toList();
-    }
-
-    private List<SlotDiscrepancyAlertDto> buildDiscrepancyForSlot(DeviceSlot slot,
-                                                                    Map<String, Integer> bookBySlot,
-                                                                    Map<String, String> deviceNames) {
-        if (!slot.isEnabled() || slot.getLastPhysicalQty() == null) {
-            return List.of();
-        }
-        String deviceId = slot.getId().getDeviceId();
-        String slotCode = slot.getId().getSlotCode();
-        int bookQty = bookBySlot.getOrDefault(slotCode, 0);
-        int physicalQty = slot.getLastPhysicalQty();
-        if (bookQty == physicalQty) {
-            return List.of();
-        }
-        String deviceName = deviceNames.computeIfAbsent(deviceId, id ->
-                deviceRepository.findById(id).map(DeviceInfo::getDeviceName).orElse(id));
-        String skuId = slot.getAssignedSkuId();
-        String skuName = skuId == null ? null : skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getSkuName).orElse(null);
-        return List.of(new SlotDiscrepancyAlertDto(
-                deviceId, deviceName, slotCode, skuId, skuName,
-                bookQty, physicalQty, bookQty - physicalQty, slot.getLastPhysicalAt()
-        ));
-    }
 
     /** 补货关门快照：批量回写货道实测数量。 */
     @Transactional
@@ -837,8 +749,8 @@ public class DeviceSlotService {
      * 补货完成刷新通道快照。
      *
      * <p>P0-2 修复（2026-10-15）：{@code preservePhysical=true}（本次补货会话有真实重力实测）
-     * 时只刷新 {@code lastRestockAt}，**不覆盖关门快照写入的实测**——少上架/错上架的
-     * 账实差异必须留在 qtyDiff/hasDiscrepancy 里走 SLOT_DISCREPANCY 闭环。
+     * 时只刷新 {@code lastRestockAt}，**不覆盖关门快照写入的实测**——少上架/错上架留在
+     * qtyDiff/hasDiscrepancy 列里可追（原 SLOT_DISCREPANCY 告警面已随货道退场，批 3b 第十一刀）。
      * 无重力数据的柜机保持原行为（实盘=回写后账面）。</p>
      */
     @Transactional

@@ -231,9 +231,6 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/exceptions/${encodeURIComponent(id)}/resolve`,
   revenueSplits: `${API_PREFIX}/merchant/revenue-splits`,
   expiryAlerts: `${API_PREFIX}/merchant/expiry-alerts`,
-  slotDiscrepancies: `${API_PREFIX}/merchant/slot-discrepancies`,
-  slotDiscrepanciesByDevice: (deviceId: string) =>
-    `${API_PREFIX}/merchant/slot-discrepancies?deviceId=${encodeURIComponent(deviceId)}`,
   deviceReports: `${API_PREFIX}/merchant/device-reports`,
   profile: `${API_PREFIX}/merchant/profile`,
   notifications: (limit: number) => `${API_PREFIX}/merchant/notifications?limit=${limit}`,

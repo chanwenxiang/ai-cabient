@@ -43,7 +43,8 @@ public class RestockSnapshotService {
 
     /**
      * 该补货任务的关门会话是否产生过**真实重力实测**（P0-2，2026-10-15）：
-     * 有真实实测 ⇒ 补货完成时保留快照值，不用回写后账面覆盖（差异留给 SLOT_DISCREPANCY 闭环）。
+     * 有真实实测 ⇒ 补货完成时保留快照值，不用回写后账面覆盖（差异留在 qtyDiff 列可追；
+     * 原 SLOT_DISCREPANCY 告警面已随货道退场，批 3b 第十一刀）。
      * 会话 gravityDeltas 解析出任一非空增量即认定真实实测；无会话/无增量返回 false。
      */
     @Transactional(readOnly = true)

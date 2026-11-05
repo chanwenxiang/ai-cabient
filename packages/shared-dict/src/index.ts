@@ -563,6 +563,7 @@ export const DICT = {
     SETTLEMENT_FAILED: '结算失败',
     SETTLEMENT_STUCK: '结算滞留',
     INVENTORY_MISMATCH: '库存差异',
+    // 货道账实差异：批 3b 第十一刀停产者（V445 置 INACTIVE），键**保留**作历史行兜底译名，勿删
     SLOT_DISCREPANCY: '货道账实差异',
     // MA-143：以下 14 值此前只在 DB/Bootstrap（G7 §7.27 补集 + 将邑码），
     // runtime 未加载时 admin 首屏落「未知」——三源对齐
@@ -856,6 +857,7 @@ export const DICT = {
     DOOR_OPEN_TOO_LONG: '长时间未关门',
     OPEN_TIMEOUT: '开门超时',
     RESTOCK_TASK_TIMEOUT: '补货任务超时',
+    // 货道账实差异：批 3b 第十一刀停产者（V445 置 INACTIVE），键**保留**作历史行兜底译名，勿删
     SLOT_DISCREPANCY: '货道账实差异',
     INVENTORY_MISMATCH: '库存差异'
   },

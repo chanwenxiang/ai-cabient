@@ -283,17 +283,6 @@ public class MerchantInventoryPortalService {
     }
 
     @Transactional(readOnly = true)
-    public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, MERCHANT_INVENTORY_VIEW);
-        merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
-                userId, MerchantFeaturePacks.FIELD);
-        return deviceSlotService.listDiscrepancyAlerts(userId, deviceId).stream()
-                .filter(a -> inDeviceScope(allowed, a.deviceId()))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<ReplenishmentTaskDto> listReplenishmentTasks(Long userId, String status, String deviceId) {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantPortalGuard.requireAccess(userId);

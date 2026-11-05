@@ -100,19 +100,6 @@
         <app-button v-if="categoryFilter" label="查看全部" @click="categoryFilter = ''" />
         <app-button v-else label="查看柜机" @click="goDevices" />
       </empty-state>
-
-      <view v-if="visibleSlotDiscrepancies.length" class="card section-card">
-        <text class="section-title">货道差异（账实不符）</text>
-        <view v-for="(s, i) in visibleSlotDiscrepancies" :key="i" class="slot-row">
-          <view class="slot-main">
-            <text class="slot-name">{{ s.deviceName || s.deviceId }} · {{ s.slotCode }}</text>
-            <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '未绑定商品' }}</text>
-          </view>
-          <text class="slot-diff"
-            >账 {{ s.bookQty }} / 实 {{ s.physicalQty }} · 差 {{ s.qtyDiff }}</text
-          >
-        </view>
-      </view>
     </view>
   </view>
 </template>
@@ -137,7 +124,7 @@ import {
   todoBadgeCount,
   type TodoKpiKey
 } from '@/utils/todo-list';
-import type { MerchantMe, OpenApiSlotDiscrepancyAlertDto } from '@aicabinet/shared-types';
+import type { MerchantMe } from '@aicabinet/shared-types';
 import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
@@ -149,7 +136,6 @@ const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory
 const loading = ref(true);
 const error = ref('');
 const preferredId = ref('');
-const slotDiscrepancies = ref<OpenApiSlotDiscrepancyAlertDto[]>([]);
 type AlertRow = {
   type: string;
   typeLabel: string;
@@ -173,9 +159,6 @@ const deviceChips = computed(() => {
   const ids = new Set<string>();
   for (const a of items.value) {
     if (a.deviceId) ids.add(a.deviceId);
-  }
-  for (const s of slotDiscrepancies.value) {
-    if (s.deviceId) ids.add(s.deviceId);
   }
   return [...ids].map((id) => ({ deviceId: id, label: deviceNames.value[id] || id }));
 });
@@ -208,12 +191,6 @@ const visibleItems = computed(() => {
   const rows = deviceFilteredItems.value;
   if (!categoryFilter.value) return rows;
   return rows.filter((a) => matchTodoKpiCategory(a.type, categoryFilter.value as TodoKpiKey));
-});
-
-const visibleSlotDiscrepancies = computed(() => {
-  // 货道差异归库存类；选了其它四卡时隐藏
-  if (categoryFilter.value && categoryFilter.value !== 'stock') return [];
-  return slotDiscrepancies.value.filter((s) => matchDeviceFilter(s.deviceId));
 });
 
 /** 四卡数字只跟柜机 chip，不跟类别筛选（避免点卡后其它卡变 0） */
@@ -304,7 +281,7 @@ async function load() {
   if (!items.value.length) loading.value = true;
   error.value = '';
   try {
-    const [wb, exceptionPage, expiryRows, slotRows, deviceRows] = await Promise.all([
+    const [wb, exceptionPage, expiryRows, deviceRows] = await Promise.all([
       softFallback(
         merchantApi.workbench(),
         {
@@ -312,7 +289,6 @@ async function load() {
           openDisputes: 0,
           lowStockItems: 0,
           expiryAlerts: 0,
-          slotDiscrepancies: 0,
           actionItems: [] as {
             type: string;
             title: string;
@@ -326,11 +302,6 @@ async function load() {
       ),
       softFallback(merchantApi.openExceptions(100), { items: [], total: 0 }, '异常列表'),
       softFallback(merchantApi.expiryAlerts(), [], '效期告警'),
-      softFallback(
-        merchantApi.slotDiscrepancies(),
-        [] as OpenApiSlotDiscrepancyAlertDto[],
-        '货道差异'
-      ),
       // F1-UX：柜名映射——待办卡与筛选 chips 显示柜机名称而非 12 位编码
       softFallback(merchantApi.devices(), [], '柜机列表')
     ]);
@@ -359,7 +330,6 @@ async function load() {
     const scope = orgDeviceScope(getOrgFilter(), deviceRows || []);
     const dedupedInOrg = keepRowsInOrg(deduped, scope, (a) => a.deviceId);
     items.value = dedupedInOrg;
-    slotDiscrepancies.value = keepRowsInOrg(slotRows || [], scope, (s) => s.deviceId);
     // Tab 徽标走与首页同一函数（MA-030：此前两处各自算，出现同屏「60 vs 58」）
     setAlertsTabBadge(todoBadgeCount(dedupedInOrg));
   } catch (e) {
@@ -500,47 +470,6 @@ useAutoRefresh({
 }
 .nav-place {
   width: 100%;
-}
-.section-card {
-  margin-top: 18rpx;
-}
-.section-title {
-  display: block;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--brand-deep, #115e59);
-  margin-bottom: 12rpx;
-}
-.slot-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 14rpx 0;
-  border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
-}
-.slot-row:last-child {
-  border-bottom: none;
-}
-.slot-main {
-  flex: 1;
-  min-width: 0;
-}
-.slot-name {
-  display: block;
-  font-size: var(--font-size-body);
-  font-weight: 650;
-}
-.slot-sku {
-  display: block;
-  margin-top: 4rpx;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-.slot-diff {
-  font-size: var(--font-size-caption);
-  font-weight: 700;
-  color: var(--warning, #b45309);
 }
 
 .device-tab-bar {

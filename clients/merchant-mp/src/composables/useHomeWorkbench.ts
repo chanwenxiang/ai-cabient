@@ -44,7 +44,6 @@ const EMPTY_WORKBENCH: MerchantWorkbench = {
   openDisputes: 0,
   lowStockItems: 0,
   expiryAlerts: 0,
-  slotDiscrepancies: 0,
   actionItems: []
 };
 

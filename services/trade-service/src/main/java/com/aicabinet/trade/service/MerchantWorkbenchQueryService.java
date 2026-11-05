@@ -6,7 +6,6 @@ import com.aicabinet.common.dto.MerchantDashboardStatsDto;
 import com.aicabinet.common.dto.MerchantTrendDto;
 import com.aicabinet.common.dto.MerchantWorkbenchDto;
 import com.aicabinet.common.dto.OpsActionItemDto;
-import com.aicabinet.common.dto.SlotDiscrepancyAlertDto;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
@@ -226,7 +225,7 @@ public class MerchantWorkbenchQueryService {
         if (deviceIds != null && deviceIds.isEmpty()
                 && bizDeviceIds != null && bizDeviceIds.isEmpty()
                 && merchantIds != null && merchantIds.isEmpty()) {
-            return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, 0, List.of());
+            return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, List.of());
         }
 
         List<OpsActionItemDto> items = new ArrayList<>();
@@ -234,7 +233,6 @@ public class MerchantWorkbenchQueryService {
         long offline = appendOfflineDeviceItems(items, deviceIds);
         long lowStock = appendLowStockItems(items, deviceIds);
         long expiry = appendExpiryItems(items, deviceIds);
-        List<SlotDiscrepancyAlertDto> discrepancies = appendSlotDiscrepancyItems(items, deviceIds, userId);
         appendReplenishmentItems(items, deviceIds);
 
         long pendingSplits = merchantIds == null ? 0
@@ -257,7 +255,7 @@ public class MerchantWorkbenchQueryService {
 
         return new MerchantWorkbenchDto(
                 openDisputes, offline, lowStock, expiry,
-                discrepancies.size(), pendingSplits,
+                pendingSplits,
                 refundOrders,
                 items.stream().limit(100).toList()
         );
@@ -396,20 +394,6 @@ public class MerchantWorkbenchQueryService {
                         task.getDeviceId(), null, null, task.getSkuId(),
                         task.getTaskId(), task.getCreatedAt(), null)));
         return expiry;
-    }
-
-    private List<SlotDiscrepancyAlertDto> appendSlotDiscrepancyItems(List<OpsActionItemDto> items,
-                                                                     Set<String> deviceIds, Long userId) {
-        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
-                .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
-                .limit(WORKBENCH_ITEM_CAP)
-                .toList();
-        discrepancies.forEach(a -> items.add(new OpsActionItemDto(
-                "SLOT_DISCREPANCY", MEDIUM, "货道账实差异",
-                a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
-                a.deviceId(), null, null, a.assignedSkuId(),
-                null, a.lastPhysicalAt(), null)));
-        return discrepancies;
     }
 
     private void appendReplenishmentItems(List<OpsActionItemDto> items, Set<String> deviceIds) {

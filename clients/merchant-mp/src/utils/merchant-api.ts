@@ -19,7 +19,6 @@ import type {
   OpenApiNotificationDto,
   OpenApiReplenishmentSuggestDto,
   OpenApiMerchantReplenishmentEfficiencyDto,
-  OpenApiSlotDiscrepancyAlertDto,
   OpenApiUpdateMerchantProfileRequest,
   OpenApiDisputeTicketDto,
   OpenApiMerchantDisputeSummaryDto
@@ -978,13 +977,6 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').OpenApiPullOffTaskDto[]>(
       MerchantEndpoints.expiryAlerts
     ),
-  slotDiscrepancies: (deviceId?: string) => {
-    return request<OpenApiSlotDiscrepancyAlertDto[]>(
-      deviceId
-        ? MerchantEndpoints.slotDiscrepanciesByDevice(deviceId)
-        : MerchantEndpoints.slotDiscrepancies
-    );
-  },
   deviceReports: () =>
     request<import('@aicabinet/shared-types').OpenApiMerchantDeviceReportDto[]>(
       MerchantEndpoints.deviceReports

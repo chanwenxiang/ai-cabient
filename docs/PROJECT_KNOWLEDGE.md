@@ -684,6 +684,63 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十一刀：`SLOT_DISCREPANCY` 告警面整套退场——含交接里漏掉的运营 KPI）
+
+- 🔴 **先订正上一刀的交接清单**（两处都不对，见 lessons #418）：
+  ①真实端点是 `GET /api/v2/merchant/slot-discrepancies?deviceId=`，**没有** `{id}` 段；
+  ②漏了**运营侧**一整面：`OpsWorkbenchQueryService` 两处把 `deviceSlotService.countDiscrepancies()`
+  塞进 `AdminStatsDto.slotDiscrepancyCount`（admin-vue 源码不读该字段，所以「按前端有没有引用」筛会系统性漏）。
+  ⇒ 消费方全集这次按三段取：生成的 `openapi.ts`（契约面）+ Java 里 DTO 类名/记录分量（服务面）+ 三端 src 别名（界面面）。
+- 删（后端 9 处）：`MerchantPortalController.slotDiscrepancies` 端点、`MerchantPortalService.listSlotDiscrepancies`、
+  `MerchantInventoryPortalService.listSlotDiscrepancies`、`MerchantWorkbenchQueryService.appendSlotDiscrepancyItems`
+  + 调用点 + 构造分量、`MerchantNotifyService` 的常量/`ALLOWED_ALERT_TYPES` 项/`shouldNotify`/`buildSummary` 两处分支、
+  `OpsWorkbenchQueryService` 两处 KPI 入参、`SlotDiscrepancyAlertDto.java`（整文件）、
+  `DeviceSlotService.countDiscrepancies`/`listDiscrepancyAlerts`/`buildDiscrepanciesForDevice`/`buildDiscrepancyForSlot`、
+  `DeviceSlotMapper.findByEnabledTrueAndLastPhysicalQtyIsNotNull`（删完复跑找到的新孤儿）。
+- ⚠️ **一处口径变更（不是纯删码）**：`listShortageRows` 原先 =「账实差异 ∪ 低库存」，现在只剩低库存腿
+  （`collectDiscrepancyShortageRows` 随差异机件一起删）。对开门柜两腿都恒空（`resolveDevicesForShortage`
+  与差异腿都按 `isDoorCabinet` 排除），生产库 `device_slot` 恒 0 行 ⇒ 无实际影响；dev 遗留货道柜若曾有
+  「差 N」行，今后只按低库存/阈值口径出建议。
+- 删（前端 8 处）：mp `endpoints.ts` 两条、`merchant-api.ts` 方法 + 死导入、`alerts.vue` 差异卡片 + 取数腿 +
+  `visibleSlotDiscrepancies` + 6 条随之失效的样式、`useHomeWorkbench.ts` 空态字段、`todo-list.ts` 库存卡归类 + 其测试夹具、
+  `shared-uni/notify.ts` 订阅项、`shared-types` 的别名 re-export 与 `MerchantWorkbench.slotDiscrepancies`、
+  `scripts/openapi-alias-groups.mjs` 别名条目。
+- 字典（**三源 + 生产者四处**）：新迁移 `V445` 把 `merchant_alert_type` 与 `exception_type` 两行的
+  `SLOT_DISCREPANCY` 置 **INACTIVE**（不删行，沿用 V386/V421/V427/V444 惯例）；`SysDictBootstrap` 从
+  `merchant_alert_type`（:304 块）和 `exception_type`（:390）两个目录里摘掉该项。
+  🔴 两行的**来源不同**是现测出来的：dev 库里两行都 ACTIVE，而迁移目录里只有 V426 插 `merchant_alert_type`
+  ⇒ `exception_type` 那行是启动期 bootstrap 补的 ⇒ 只写迁移不摘 bootstrap，全新库还会长出第二行。
+  `shared-dict` 的两处 baseline 键（:566/:859）**刻意保留**并就地写了「勿删」注释——它是历史行唯一译名来源。
+- 取证（起真实例，不是静态推理）：
+  ① **退役不洗历史**：dev 库 853 个文本列全扫，除上述 2 行字典外**没有任何业务行**携带该值
+  （订阅偏好 0、推送日志 0）⇒ 删面不影响任何现存数据显示；
+  ② **全新生产档**：`aicabinet_openapi_3b11` 从 V1 严格升序跑到 **445**，结果 = 只剩
+  `merchant_alert_type=INACTIVE`（`exception_type` 那行根本没长出来）、
+  `status='ACTIVE' AND dict_label LIKE '%货道%'` 字典行 **0**、`device_slot` **0 行**。跑完 DROP 库 + FLUSHDB(14)。
+- 契约：live spec **703→702 paths**，语义 diff = 删 1 条 path、删 2 个 schema
+  （`SlotDiscrepancyAlertDto` + `ApiResponseList…`）、`MerchantWorkbenchDto` 少 1 分量、`AdminStatsDto` 20 分量，
+  **新增 0**（`.tmp/diff-openapi-3b11.mjs`，显式 `maxBuffer` 防 1MB 截断假象）；双重编码哨兵 0 命中。
+- 门禁：`check:door-cabinet-slot-copy` 加了**第二判据**——`SLOT_DISCREPANCY` / `SlotDiscrepancyAlertDto` /
+  `slot-discrepancies` 三个标识在 7 个「能重新长出界面」的作用域（后端 main + 三端 src + 生成的契约）
+  的**非注释**里出现即红；作用域刻意**不含** `packages/shared-dict/src`（那里它是字典键，不是文案），
+  理由写在门禁注释里。文案棘轮 **21→18**（mp 2 处 + shared-uni 1 处）。`--selftest` 由 7 例扩到 **10 例**，
+  新增 3 例含「代码里出现即判红」的注入用例（证这条判据会红，不是恒绿）。
+  🔴 未新建第 98 号门禁：同一口径（开门柜不许有货道面）的两条判据合在同一个守门人里。
+- 验证：`mvn verify` 全量 **BUILD SUCCESS**，trade-service surefire **2762 / 0 失败**，failsafe IT 同跑全过
+  （全日志 `Failures: [1-9]|Errors: [1-9]` grep 计数 **0**）；mp `vue-tsc --noEmit` 绿、vitest **38 文件 248 例全过**；
+  `build-admin.mjs` 重跑；`check:openapi-regen` 报「2 处形状改动 + 变更集已含 openapi.ts」通过；
+  `check:mp-defect-classes`（含 J 死导入类）269 文件 0 命中；`check:stocktake-chain` 1399 源/438 迁移 0 插入点；
+  `check:admin-endpoint-paths` 419 条前端引用全命中；孤儿依赖复扫（`.tmp/orphan-sweep.mjs`）四个改动类 **0 孤儿**。
+- 🔴 `check:admin-artifact-pairing` 对本批**结构性不可满足**：我改了 `packages/shared-dict|shared-types|shared-uni`
+  的 src（属它的「输入面」），但实测重跑 `build-admin.mjs` 后 `static/admin` **0 字节差**（注释、被擦除的类型、
+  mp 专用常量都不进 bundle）⇒ 没东西可提交，主判据却要求产物同批出现。
+  正解不是放宽主判据、也不是塞空提交，而是给它加**自证式豁免**：`ADMIN_PAIR_PROVE_INERT=1` 时门禁自己重跑构建
+  并比对工作树——构建前就脏 ⇒ 证据不可用红，构建后有任何字节差 ⇒ 照样红 ⇒ **豁免买不到「藏真改动」**；
+  配 4 条负向用例（--selftest 4→**8 例**）。推前用 `ADMIN_PAIR_PROVE_INERT=1 pnpm preflight` 一次性带上证明。
+- 遗留（B 类，后续单独一轮）：`DeviceDetailDto.slots` + `DeviceOpsMetricsDto` KPI（`DeviceSlotDto.qtyDiff/hasDiscrepancy`
+  就在这条读面上）、FEFO per-slot、`clampDeviceOverCapacity`、`ReplenishmentService` 的 slotId 分支。
+  运营侧 dev 的 2 条 SLOT_* `FAIL` 记录仍需人工结案。
+
 ### 2026-11-05（第十刀 A 段落地：三个 SLOT_* 一致性检查停跑，字典项 INACTIVE）
 
 - 按上面清单执行，与预判的差别只有一处：**没动 `ConsistencyView.vue`**（下拉来自字典，
@@ -702,9 +759,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
   该文件最后一次改动是 `f030f09f`）。这是个独立待办：这条测试在共享套件里会随机红。
 - 遗留：dev 那 2 条 SLOT_* `FAIL` 记录不再被复查，需人工结案（不在本刀改数据）。
 - 验证：`test-compile` 绿、全量 **2762 绿**（第二轮）、preflight 97 门禁 0 失败。
+  ✅ CI run `41964859119`（锚 `3625a17b`）**五档全绿**：admin-artifacts / build / e2e-h5 / mini-programs / integration。
 - 下一刀（B 段，需要 regen + 两端产物）：`SLOT_DISCREPANCY` 告警面退场
   （`GET /merchant/devices/{id}/slot-discrepancies` + workbench `slotDiscrepancies` 字段 +
   `MerchantNotifyService` 两处分支 + mp `alerts.vue`/`shared-uni/notify.ts` + 字典标签）。
+  ✅ **第十一刀已落**（见其上条目）。🔴 上面那句锚两处都不对：真实路径是
+  `GET /api/v2/merchant/slot-discrepancies?deviceId=`（无 `{id}` 段），且漏了运营侧
+  `AdminStatsDto.slotDiscrepancyCount` 一整面 ⇒ 交接锚一律现取，别照抄记忆（lessons #418）。
 
 ### 2026-11-05（第十刀开工清单：停掉三个 SLOT_* 一致性检查（取证与判据，落地见上一条））
 

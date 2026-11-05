@@ -192,8 +192,7 @@ public class OpsWorkbenchQueryService {
                 splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
                 inventoryLotService.countNearExpiryLots(),
                 inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
+                inventoryLotService.countOpenPullOffTasks()
         );
     }
 
@@ -589,13 +588,12 @@ public class OpsWorkbenchQueryService {
                 splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
                 inventoryLotService.countNearExpiryLots(),
                 inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
+                inventoryLotService.countOpenPullOffTasks()
         );
     }
 
     private static AdminStatsDto emptyStats() {
-        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
+        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0);
     }
 
     private long countOccupiedDevices(Set<String> scopedDevices) {
