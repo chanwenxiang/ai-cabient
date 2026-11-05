@@ -684,6 +684,26 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十五刀②：销售/售后后的货道实盘回写整链退场——差异表证明对 BOUND 柜是 no-op）
+
+- **差异表（先证后删）**：四个 `applyPhysicalAfter*` 的调用形态是
+  `if (!slotQty.isEmpty()) 走 slot 变体 else 走 sku 变体`；而 `slotQty` 对 BOUND 柜**恒空**——
+  `slotQtySold` 来自 FEFO 的 `slotQtyDeducted`（真柜 `lot.slot_id` 恒 NULL），`slotQtyRestored`
+  来自 lot 行的 `slotId`（同上）。而 `applyPhysicalAfterSkuSale` 内部本身也是「按 SKU 找货道分摊 →
+  调 slot 变体」，货道 0 行时同样空转 ⇒ **整链删除对生产是零行为变化**
+  （生产只有 BOUND 柜；dev 两台演示柜的货道盘面不再跟随销售/退款变化，属预期）。
+- 删（−192/+5）：`InventoryService` 的两个 slotQty 映射与分支（只留说明性注释）、私有
+  `applyPhysicalRestore`；`DeviceSlotService` 的 `applyPhysicalAfterSale`/`applyPhysicalAfterSkuSale`/
+  `applyPhysicalAfterRestore`/`applyPhysicalAfterSkuRestore` 四个方法与 `allocateSkuSaleToSlots`/
+  `sortedSlotsForSku` 两个分摊助手。连带断掉 `result.slotQtyDeducted()` 的消费
+  （FEFO 结果里该字段仍在，属下一批「FEFO per-slot」退场；本刀只断「扣完回写货道实测」这一步）。
+- 测试按规则处理：两个钉「货道实盘回写」的用例（skuSale 递减、restore 递增）随行为退场**删除**；
+  `InventoryServiceTest` 三条对已删方法的 verify 去掉，其余断言原样保留——不是放宽。
+- 🔴 过程中踩到并记下的坑：`InventoryService.java` 是 **CRLF**、`DeviceSlotService.java` 是 LF，
+  同一个替换脚本对两边必须分别归一化/还原，否则第一处 `indexOf` 静默失配（lessons #417 同族）。
+- 定向：`InventoryServiceTest`/`InventoryLot*`/`*Refund*`/`Settlement*`/`DoorCabinetStockLevelConsistencyTest`/
+  `DeviceSlotServiceTest` 全绿；全量 `mvn verify` 本批末尾跑一次再定论。
+
 ### 2026-11-05（第十五刀①：槽位「删」这一面退场——两个零调用门面 + deleteSlot）
 
 - 按可达性实测再动手：`OpsCommercialFacade.deleteDeviceSlot` 与
