@@ -317,7 +317,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "SLOT_DISCREPANCY", "货道账实差异", "INVENTORY_MISMATCH", "库存差异")));
         map.put("device_ops_event", t("设备运维事件", m(
                 "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",
-                "FAULT", "故障/锁机", "AISLE_AUDIT", "货道巡检", "MAINBOARD", "主板")));
+                "FAULT", "故障/锁机", "AISLE_AUDIT", "盘点巡检", "MAINBOARD", "主板")));
         map.put("repair_fault_type", t("维修故障类型", m(
                 "DOOR", "门锁", "COOLING", "制冷", "NETWORK", "网络",
                 PAYMENT, "支付", "VISION", "识别", "POWER", "供电", OTHER, "其他")));

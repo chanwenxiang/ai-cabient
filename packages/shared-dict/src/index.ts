@@ -409,7 +409,7 @@ export const DICT = {
     NO_SALES: '无销售',
     UNLOCK: '开锁',
     FAULT: '故障/锁机',
-    AISLE_AUDIT: '货道巡检',
+    AISLE_AUDIT: '盘点巡检',
     MAINBOARD: '主板'
   },
   repair_fault_type: {

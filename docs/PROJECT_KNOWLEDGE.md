@@ -684,6 +684,33 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第九刀：生产界面两处「货道」名字改口——V443 + 三源同改）
+
+- 用户口径确认：**不要「(遗留) 货道…」这种前缀**（那等于在界面留一个说不清的词）；
+  能改名的改名，改不了名的把功能停掉（后三类留下批做，需要全量 + 彩排 + 产物重打）。
+- 改的两处：① 字典 `device_ops_event.AISLE_AUDIT` 「货道巡检」→「**盘点巡检**」——该事件
+  由开门柜盘点写入（`MerchantDevicePortalService` 的 `setEventType("AISLE_AUDIT")`），
+  理货记录-盘点 tab 在读 ⇒ **码不能退役，只能改名**；
+  ② `ops_permission` 226 `merchant:slots:edit` 的 `perm_name` 「货道编辑」→
+  「**柜机盘点（含凭证）**」——它现在门的正是 `/stocktake-door`、`/door-stocktake`、
+  凭证上传三处（`MerchantPortalController:167/176/212`）。225 已随 V442 RETIRED，只在
+  includeInactive 可见 ⇒ 不动它的名字。
+- 三源同改（V438 姿势）：`packages/shared-dict/src/index.ts`（+ 重打入库的 dist）、
+  `SysDictBootstrap.java:320`、新增 `V443` 迁移改存量行。
+- 🔴 **实测出来的关键差别**：生产档全新库跑完 436 个迁移后 `sys_dict_data` **根本没有
+  AISLE_AUDIT 行**（该标签只由启动期 `SysDictBootstrap` 插入）⇒ 迁移的 UPDATE 命中 0 行，
+  新库靠 bootstrap 源码给对名字，**存量库靠 V443** 给对名字——两条路现在同一个词。
+  （若只改迁移不改 bootstrap，就会造出「新库无行 / 老库旧词」的第二漂移。）
+- 生产档链上实测（一次性库 `aicabinet_prodseed_probe`，`${seed_env}=none`，V1→V443 全跑 RC=0）：
+  `device_slot` 0 行；226 `perm_name=柜机盘点（含凭证）`；225 `RETIRED`；
+  跑完 DROP 库 + 删容器与宿主临时文件。⚠️ 中途两次假信号自己踩到并纠正：
+  `docker cp 源 目标`（目标已存在）会**嵌套**成 `目标/源`，导致 V443「不存在」；
+  `psql ... | tail -3` 把失败掩成 `CHAIN_OK` ⇒ 改成先落文件再 `echo RC=$?`。见 lessons #415。
+- 验证：`check:stocktake-chain` 绿（扫 436 迁移，E 段不变量不破）；preflight 96 门禁 0 失败。
+- 仍留（下一批，需要全量 + 彩排 + admin 产物重打）：`consistency_check_type` 三个
+  SLOT_* 检查（生产扫空表恒通过）与 `merchant_alert_type.SLOT_DISCREPANCY` 告警面
+  （生产永不触发）的**停跑/退场**，以及 `MerchantWorkbenchQueryService:407-411` 的服务端标题。
+
 ### 2026-11-05（批 3b 第八刀：把「生产不许长出货道」钉成实测 + 门禁不变量）
 
 - 用户口径：**测试环境残留无所谓，生产不许有** ⇒ 本轮不删名字，先拿证据回答「生产到底剩什么」。

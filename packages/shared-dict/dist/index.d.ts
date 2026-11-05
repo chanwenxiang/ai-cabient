@@ -366,7 +366,7 @@ export declare const DICT: {
         readonly NO_SALES: "无销售";
         readonly UNLOCK: "开锁";
         readonly FAULT: "故障/锁机";
-        readonly AISLE_AUDIT: "货道巡检";
+        readonly AISLE_AUDIT: "盘点巡检";
         readonly MAINBOARD: "主板";
     };
     readonly repair_fault_type: {
