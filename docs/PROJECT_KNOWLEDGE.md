@@ -684,6 +684,26 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十五刀①：槽位「删」这一面退场——两个零调用门面 + deleteSlot）
+
+- 按可达性实测再动手：`OpsCommercialFacade.deleteDeviceSlot` 与
+  `OpsReplenishmentAdminService.deleteDeviceSlot` **全仓零调用**（第九刀清 OpsCommercialFacade 死方法
+  时同一姿势）；前端 admin/mp 源码里 **0 处** `DELETE …/slots`；测试 0 引用
+  ⇒ 连带删 `DeviceSlotService.deleteSlot` / `doDeleteSlot`，以及「有账面库存不许删、只能禁用」那条
+  只对货道柜成立的判据。
+- 孤儿复扫：`notFound`/`requireDevice`/`runWithDeviceSlotLock`/`DeviceSlotId` 都仍有活引用，没被带走。
+- 定向：`DeviceSlotServiceTest` 10/0、`DoorCabinetStockLevelConsistencyTest` 8/0。
+- **下一刀（②）＝机件本体的钱/库存面**，调用点地图（外部调用数）：
+  `applyPhysicalAfterSale/SkuSale/Restore/SkuRestore`（InventoryService，**无柜型守卫**）、
+  `applyPhysicalSnapshot`/`syncPhysicalFromBook`/`listEnabledSlotsForSku`（RestockSnapshotService，无守卫）、
+  `clampDeviceOverCapacity`/`recordRestock`/`validateRestockLine`/`headroomForSlot`/`suggestSlotsForDevice`/
+  `listShortageRows`（ReplenishmentService，部分已有 `isDoorCabinet` 守卫）、
+  `suggestSlotsForOutboundFill(All)`（WarehouseService，已有守卫）。
+  开工前要先出「每处改动前后金额/库存差异表」：判据是这些方法对 **BOUND 柜（生产只有它）**
+  是否本来就是空转——它们都遍历 `device_slot`，而生产 BOUND 柜该表恒 0 行（V344 清除 + 无生产者），
+  **但**还必须逐个确认方法里有没有与行数无关的副作用（无条件改设备字段、无条件抛 409），
+  有副作用的就不是零影响，不能按「空转」直接删。
+
 ### 2026-11-05（第十四刀 B：指标不再分柜型——台账/SKU 口径成为唯一来源，货道算式最后一处退场）
 
 - `computeMetrics` 里那条 `if (isDoorCabinet(deviceId)) return computeDoorCabinetMetrics(device)` **整段删除**：
