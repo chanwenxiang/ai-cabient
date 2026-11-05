@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -85,27 +87,7 @@ class OrderPaymentChargeInvariantTest {
 
     @BeforeEach
     void setUp() {
-        service = new OrderPaymentService(
-                userInfoRepository,
-                payScoreService,
-                weChatPayClient,
-                alipayPayClient,
-                new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
-                new SecurityProperties(true),
-                paymentOperationRepository,
-                cabinetOrderRepository,
-                distributedLockService,
-                balanceLedgerService,
-                new CheckoutProperties(true, 2000),
-                sessionRepository,
-                consumerPreauthService,
-                null,
-                null,
-                null,
-                null,
-                memberService,
-                null);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+        service = buildService(true);
 
         // 内存表：幂等键读写
         lenient().when(paymentOperationRepository.findByIdempotencyKey(anyString()))
@@ -170,6 +152,35 @@ class OrderPaymentChargeInvariantTest {
                     store.put(key, op);
                     return op;
                 });
+    }
+
+    /**
+     * 20 参构造收口一处。{@code balanceOnly=false} 才允许渠道腿成交
+     * （余额专用环境下 {@code chargeWithSelectedChannel} 直接 412，测不到组合腿）。
+     */
+    private OrderPaymentService buildService(boolean balanceOnly) {
+        OrderPaymentService s = new OrderPaymentService(
+                userInfoRepository,
+                payScoreService,
+                weChatPayClient,
+                alipayPayClient,
+                new WeChatPayProperties(false, "", "", "", "", "", "", "", true),
+                new SecurityProperties(true),
+                paymentOperationRepository,
+                cabinetOrderRepository,
+                distributedLockService,
+                balanceLedgerService,
+                new CheckoutProperties(balanceOnly, 2000),
+                sessionRepository,
+                consumerPreauthService,
+                null,
+                null,
+                null,
+                null,
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(s, "self", s);
+        return s;
     }
 
     /** captureForCharge stub：按真实语义同步写 PREAUTH_CAPTURE 行（orderId 挂单，F1-A）。 */
@@ -247,6 +258,79 @@ class OrderPaymentChargeInvariantTest {
 
         assertEquals(TOTAL, netProduced(),
                 "无预授权：余额 CHARGE 100 单行（修前 CHARGE:PREAUTH 与余额行双记凑成 200）");
+    }
+
+    /**
+     * R17 批 3「余额+微信组合腿」：PENDING 单已由钱包预授权冲抵 60（上一次结算余额不足留下的
+     * {@code PREAUTH_CAPTURE} 行），消费者在结算页显式选微信补缴差额。
+     *
+     * <p>不变量与三条 BALANCE 用例同一条：净入账恰为应付。渠道腿若按 {@code totalAmountCents}
+     * 全额扣并记流水，用户实付 60+100=160，且微信侧账单也是一笔全额。
+     */
+    @Test
+    void partialCaptureThenWechatCollect_netEqualsTotalAndChannelChargesRemainder() {
+        service = buildService(false);
+        store.put("PREAUTH_CAPTURE:" + SESSION_ID + ":60", preauthCaptureRow(60));
+
+        UserInfo user = new UserInfo();
+        user.setUserId(USER_ID);
+        user.setPayscoreEnabled(true);
+        user.setPayscoreContractId("PSC-INV-1");
+        lenient().when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        int[] remoteAmountCents = new int[1];
+        lenient().when(payScoreService.chargeExplicit(any(), anyString(), anyInt(), anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    remoteAmountCents[0] = inv.getArgument(2, Integer.class);
+                    return new PayScoreService.ChargeResult(PayChannels.WECHAT, "TXN-INV-WECHAT");
+                });
+
+        service.chargeOrder(order(), PayChannels.WECHAT);
+
+        assertEquals(TOTAL - 60, remoteAmountCents[0],
+                "微信侧只应扣差额 40：60 已由钱包预授权冲抵");
+        assertEquals(TOTAL, netProduced(),
+                "组合腿净入账必须恰为应付 100（渠道腿按全额记 CHARGE 会凑成 160）");
+    }
+
+    /** 冲抵已覆盖全额时，即便选了微信也不向渠道发起扣款（差额=0）。 */
+    @Test
+    void fullCaptureThenWechatCollect_startsNoChannelCharge() {
+        service = buildService(false);
+        store.put("PREAUTH_CAPTURE:" + SESSION_ID + ":" + TOTAL, preauthCaptureRow(TOTAL));
+
+        UserInfo user = new UserInfo();
+        user.setUserId(USER_ID);
+        user.setPayscoreEnabled(true);
+        user.setPayscoreContractId("PSC-INV-1");
+        lenient().when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+
+        java.util.concurrent.atomic.AtomicBoolean remoteCalled =
+                new java.util.concurrent.atomic.AtomicBoolean();
+        lenient().when(payScoreService.chargeExplicit(any(), anyString(), anyInt(), anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    remoteCalled.set(true);
+                    return new PayScoreService.ChargeResult(PayChannels.WECHAT, "TXN-INV-WECHAT");
+                });
+
+        service.chargeOrder(order(), PayChannels.WECHAT);
+
+        assertFalse(remoteCalled.get(), "差额=0 不得再向渠道发起扣款");
+        assertEquals(TOTAL, netProduced(), "净入账保持 100，不因补缴追加");
+    }
+
+    /** 上一次结算余额不足时留下的冲抵行（真实写侧语义见 captureForCharge）。 */
+    private PaymentOperation preauthCaptureRow(int cents) {
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId("OP-PREAUTH-CAPTURE-" + cents);
+        op.setOrderId(ORDER_ID);
+        op.setOperationType("PREAUTH_CAPTURE");
+        op.setAmountCents(cents);
+        op.setChannel("BALANCE");
+        op.setStatus("COMPLETED");
+        op.setIdempotencyKey("PREAUTH_CAPTURE:" + SESSION_ID + ":" + cents);
+        op.setUserId(USER_ID);
+        return op;
     }
 
     /**

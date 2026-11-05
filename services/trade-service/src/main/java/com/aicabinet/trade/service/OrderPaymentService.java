@@ -180,6 +180,10 @@ public class OrderPaymentService {
      * 微信支付分（免确认）开门单：结算走「完结订单→微信异步扣款→回调改 PAID」
      * 而非同步代扣（CB-064）。本地订单置 PENDING——期间欠款闸（enforceUnpaidDebtBlock）
      * 与 {@link UnpaidDunningService} 催缴闭环接管，回调 {@code DONE} 后自愈为 PAID。
+     *
+     * <p>该腿按应付**全额**完结，不与 {@link #submitChannelCharge} 的差额口径对齐：免密会话开门时
+     * 根本不冻钱包（{@code ConsumerPreauthService.freezeForOpen} 的 {@code passwordFreeReady} 早退），
+     * 净入账恒 0，差额=全额。
      */
     private boolean tryCompleteWeChatPayScore(CabinetOrder order, ShoppingSession session) {
         if (session == null || securityProperties.mockEnabled() || !payScoreService.wechatRealChannelReady()) {
@@ -218,9 +222,15 @@ public class OrderPaymentService {
             // 余额专用环境（aicabinet.checkout.balance-only）：不接受免密渠道，同样不静默切回余额
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
         }
-        boolean charged = submitChannelCharge(order, user, session, idemKey,
-                () -> payScoreService.chargeExplicit(user, order.getOrderId(),
-                        order.getTotalAmountCents(), CHARGE_SUBJECT, channel),
+        int remainCents = remainingChargeCents(order);
+        if (remainCents <= 0) {
+            // 冲抵已覆盖应付（F1 竞态后重放）：不打渠道；实收来自钱包，渠道标记随实收
+            order.setPayChannel(PayChannels.BALANCE);
+            return;
+        }
+        boolean charged = submitChannelCharge(order, user, session, idemKey, remainCents,
+                () -> payScoreService.chargeExplicit(user, order.getOrderId(), remainCents,
+                        CHARGE_SUBJECT, channel),
                 "selected:" + channel);
         if (!charged) {
             // chargeExplicit 对非余额渠道「失败即抛」，返回 BALANCE 只可能源自金额非正（上面已拦）
@@ -252,10 +262,13 @@ public class OrderPaymentService {
         if (checkoutProperties.balanceOnly()) {
             return false;
         }
+        int remainCents = remainingChargeCents(order);
+        if (remainCents <= 0) {
+            return false; // 冲抵已覆盖应付：由余额腿按同一净额口径静默收口
+        }
         String origin = entryChannel == null || entryChannel.isBlank() ? "auto" : "auto:" + entryChannel;
-        return submitChannelCharge(order, user, session, idemKey,
-                () -> payScoreService.charge(user, order.getOrderId(), order.getTotalAmountCents(),
-                        CHARGE_SUBJECT, entryChannel),
+        return submitChannelCharge(order, user, session, idemKey, remainCents,
+                () -> payScoreService.charge(user, order.getOrderId(), remainCents, CHARGE_SUBJECT, entryChannel),
                 origin);
     }
 
@@ -263,10 +276,13 @@ public class OrderPaymentService {
      * 渠道扣款的公共部分（自动决策与显式选择共用同一套痕迹/落账语义）：
      * H41 CHARGE_PENDING 痕迹 → 提交渠道 → 成功则落 CHARGE 流水 + FINALIZED + 释放预授权。
      *
+     * <p>{@code chargeCents} 是**本次实扣差额**（应付 − 已入账净额），与余额腿同源同口径：
+     * 早前结算若已用钱包预授权冲抵一部分，渠道只能收剩下的差额，按应付全额扣会让用户重复付款。
+     *
      * @return {@code false} ⇒ 渠道判定为不可用（结果渠道为 BALANCE），**未扣任何款**，由调用方决定回落还是报错
      */
     private boolean submitChannelCharge(CabinetOrder order, UserInfo user, ShoppingSession session, String idemKey,
-                                        Supplier<PayScoreService.ChargeResult> submit, String origin) {
+                                        int chargeCents, Supplier<PayScoreService.ChargeResult> submit, String origin) {
         // H41: 渠道 HTTP 之前先以独立事务落 CHARGE_PENDING 并立即提交（mock 路径跳过，行为不变）
         if (!securityProperties.mockEnabled()) {
             self.recordChargePending(order);
@@ -286,15 +302,15 @@ public class OrderPaymentService {
         }
         order.setPayChannel(charge.channel());
         order.setPayTradeNo(charge.tradeNo());
-        recordOperation(order, CHARGE, order.getTotalAmountCents(), charge.channel(), idemKey,
+        recordOperation(order, CHARGE, chargeCents, charge.channel(), idemKey,
                 charge.tradeNo(), "order charge");
         self.finalizeChargePending(order.getOrderId(), charge.tradeNo());
-        recordPayScoreOrder(order, user, charge);
+        recordPayScoreOrder(order, user, charge, chargeCents);
         if (session != null) {
             consumerPreauthService.releaseIfFrozen(session);
         }
-        log.info("order charged channel={} order={} tradeNo={} origin={}",
-                charge.channel(), order.getOrderId(), charge.tradeNo(), origin);
+        log.info("order charged channel={} order={} tradeNo={} amount={} origin={}",
+                charge.channel(), order.getOrderId(), charge.tradeNo(), chargeCents, origin);
         return true;
     }
 
@@ -378,7 +394,8 @@ public class OrderPaymentService {
     }
 
     /** H64(a): 支付分/代扣渠道扣款成功后落 payscore_order 一行（含渠道单号与状态）。 */
-    private void recordPayScoreOrder(CabinetOrder order, UserInfo user, PayScoreService.ChargeResult charge) {
+    private void recordPayScoreOrder(CabinetOrder order, UserInfo user, PayScoreService.ChargeResult charge,
+                                     int chargeCents) {
         if (!PayChannels.WECHAT.equalsIgnoreCase(charge.channel()) || payScoreOrderMapper == null) {
             return;
         }
@@ -393,8 +410,9 @@ public class OrderPaymentService {
             psOrder.setOutOrderNo(order.getOrderId());
             psOrder.setServiceStartTime(Instant.now());
             psOrder.setServiceEndTime(Instant.now());
-            psOrder.setTotalAmountCents(order.getTotalAmountCents());
-            psOrder.setActualAmountCents(order.getTotalAmountCents());
+            // 记**实扣差额**而不是应付：与渠道侧真正扣掉的金额一致，否则痕迹行比微信账单虚高
+            psOrder.setTotalAmountCents(chargeCents);
+            psOrder.setActualAmountCents(chargeCents);
             psOrder.setOrderState("DONE");
             psOrder.setNeedUserConfirm(false);
             psOrder.setNeedCollection(false);
@@ -438,9 +456,14 @@ public class OrderPaymentService {
         }
     }
 
+    /** 本次应收差额 = 应付 − 已入账净额；余额腿与渠道腿必须共用这一条口径，否则组合腿会重复扣。 */
+    private int remainingChargeCents(CabinetOrder order) {
+        return order.getTotalAmountCents() - netCompletedCents(order.getOrderId());
+    }
+
     private void applyBalanceCharge(CabinetOrder order, ShoppingSession session, String idemKey) {
         // F1 净额口径：本次应收 = 应付 − 已完成净额（fresh 结算=全额；F1 竞态 PENDING 补扣=冲抵后差额）
-        int chargeAmount = order.getTotalAmountCents() - netCompletedCents(order.getOrderId());
+        int chargeAmount = remainingChargeCents(order);
         if (chargeAmount <= 0) {
             // 冲抵已覆盖全额（F1 竞态后 collect 场景）：净额已含冲抵，无需再扣
             return;
