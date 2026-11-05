@@ -684,6 +684,28 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第八刀：把「生产不许长出货道」钉成实测 + 门禁不变量）
+
+- 用户口径：**测试环境残留无所谓，生产不许有** ⇒ 本轮不删名字，先拿证据回答「生产到底剩什么」。
+- **实测（不是推演）**：把 435 个迁移按版本升序、`${seed_env}` 全替成 `none`（= 生产档），
+  在一次性库 `aicabinet_prodseed_probe` 里跑完整链（预建 `flyway_schema_history` 桩表，
+  V236/V237 会 COMMENT 它），结果：
+  `device_slot` **0 行**、`device_info`/`sku_catalog` 0 行（V344/V375 守卫生效）、
+  `merchant:slots:view=RETIRED` / `merchant:slots:edit=ACTIVE`；跑完 DROP 库 + 删容器/宿主临时目录。
+- 代码侧不变量：main 源 **零** `new DeviceSlot()`（1400 个 main 源全扫）；
+  四处 `slotRepository.save` 均是 `findById→改→save` ⇒ 只能更新既有行，**没有任何插入点**。
+  演示行的唯一来源是 V30（只播 CAB-001/CAB-OTHER），已被 V344 在生产档清除。
+- 护栏落在 `check:stocktake-chain` 新增 **E 段**：插入点复活 / 新迁移再播 `device_slot` /
+  V344 清除语句或 `seed_env` 守卫形态被改 ⇒ 红；配 `--selftest` 4 例（含 3 条负向），
+  判据是纯函数 `slotInvariantErrors(...)`，不吃仓库状态也能验它会红。
+- 🔴 **生产仍会让人看见的「货道」名字**（本轮只登记，不夹带进护栏批次）：
+  `ops_permission.perm_name` 的「货道编辑/货道查看」（角色管理树可见）、
+  字典 `consistency_check_type` 的 货道容量/货道盘点/货道SKU、
+  `merchant_alert_type.SLOT_DISCREPANCY`=货道账实差异，以及 `SysDictBootstrap`
+  里 `device_ops_event.AISLE_AUDIT`=「货道巡检」（该码仍由开门盘点写入，只该改名不该退役）。
+  这些要走「迁移 UPDATE 标签 + SysDictBootstrap 同批改 + 三源一致」的 V438 姿势单独做。
+- 验证：`--selftest` 4/4、真跑绿（扫 1400 源 / 435 迁移）；preflight 96 门禁 0 失败。
+
 ### 2026-11-05（批 3b 第七刀：退役 `merchant:slots:view` 幽灵权限码——沿用 RETIRED 口径）
 
 - 判据（V427 同规四路现扫）：`services/*/src clients/*/src packages/*/src scripts` 里该码

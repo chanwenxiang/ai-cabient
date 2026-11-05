@@ -31,9 +31,17 @@
  *
  * 永远 fail-closed：锚点找不到一律 FAIL。
  *   node scripts/check-stocktake-chain.mjs
+ *   node scripts/check-stocktake-chain.mjs --selftest   # 合成夹具验 E 段判据会红（4 例含负向）
+ *
+ * E 段「生产不变量」（2026-11-05 加，回应「测试环境可以乱，生产不能长出这些」）：
+ *   全新库按生产档（seed_env=none）实跑 V1→V442 的取证结果 = device_slot **0 行**
+ *   （V30 播的演示行由 V344 清除）、代码里 **零** `new DeviceSlot()` 插入点
+ *   （四处 slotRepository.save 全是 findById→改→save，只能更新既有行）。
+ *   本段把这两条钉成判据：插入点复活 / 新迁移再播 device_slot / V344 清除语句或
+ *   seed_env 守卫形态被改 ⇒ 一律红。
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -178,6 +186,122 @@ if (
   fail('DeviceSlotService 又出现 upsertSlots——货道编辑入口已随批 3b 删除');
 }
 
+// ── E 生产不变量：device_slot 只能减少，绝不能再长出来 ─────────────────
+// 背景：批 3b 断掉生产者后，main 源里**不存在任何** `new DeviceSlot()`，
+// 四处 `slotRepository.save(slot)` 全是 `findById(...)` 读到实体再改 ⇒ 只能更新既有行。
+// 演示行由 V344 在 seed_env='none'（=prod）下 `DELETE FROM device_slot` 清除。
+// ⇒ 生产库 device_slot 恒 0 行。本段把这条口径钉成机器判据：
+//   谁重新引入插入点/新播种迁移/拆掉 V344 的生产清除，这里先红，而不是等上线后肉眼发现。
+const MAIN_ROOT = join(root, 'services');
+const MIG_DIR = join(MAIN_ROOT, 'trade-service', 'src', 'main', 'resources', 'db', 'migration');
+
+function walkJava(dir, out) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    const st = statSync(p);
+    if (st.isDirectory()) {
+      if (name === 'target' || name === 'node_modules') continue;
+      walkJava(p, out);
+    } else if (name.endsWith('.java') && p.includes(`${sep}main${sep}java${sep}`)) {
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+/** 纯判据：喂源码与迁移文本，返回违规列表（--selftest 用合成夹具验它会红）。 */
+function slotInvariantErrors(sources, migrationTexts, guardText) {
+  const errs = [];
+  const inserts = Object.entries(sources)
+    .filter(([, t]) => t.includes('new DeviceSlot()'))
+    .map(([f]) => f);
+  if (inserts.length) {
+    errs.push(`货道行插入点复活：${inserts.join(', ')} ⇒ 生产库 device_slot 不再恒 0 行`);
+  }
+  const seeders = Object.entries(migrationTexts).filter(
+    ([f, t]) => f !== 'V30__device_slot_planogram.sql' && /INSERT\s+INTO\s+device_slot/i.test(t)
+  );
+  if (seeders.length) {
+    errs.push(`新迁移又播了货道种子：${seeders.map(([f]) => f).join(', ')}`);
+  }
+  if (
+    !/DELETE\s+FROM\s+device_slot\s+WHERE\s+device_id\s+IN\s*\('CAB-001',\s*'CAB-OTHER'\)/i.test(
+      guardText
+    )
+  ) {
+    errs.push(
+      'V344 缺「DELETE FROM device_slot WHERE device_id IN (CAB-001, CAB-OTHER)」——生产侧演示货道清除失效'
+    );
+  }
+  if (!guardText.includes('seed_env') || !guardText.includes("<> 'none'")) {
+    errs.push(
+      'V344 的 seed_env 守卫形态变了——生产清除可能改成全环境执行（会误删 dev/uat 彩排夹具）'
+    );
+  }
+  return errs;
+}
+
+if (process.argv.includes('--selftest')) {
+  const cleanSources = {
+    'DeviceSlotService.java':
+      'DeviceSlot slot = slotRepository.findById(id).orElse(null); slotRepository.save(slot);'
+  };
+  const dirtySources = { 'Foo.java': 'DeviceSlot s = new DeviceSlot(); slotRepository.save(s);' };
+  const guard =
+    "IF '${seed_env}' <> 'none' THEN RETURN; END IF;\nDELETE FROM device_slot WHERE device_id IN ('CAB-001', 'CAB-OTHER');";
+  const cases = [
+    {
+      want: 0,
+      why: '只有 findById→save（更新）⇒ 放行',
+      got: slotInvariantErrors(cleanSources, {}, guard).length
+    },
+    {
+      want: 1,
+      why: 'new DeviceSlot() ⇒ 必须红',
+      got: slotInvariantErrors(dirtySources, {}, guard).length
+    },
+    {
+      want: 1,
+      why: '新迁移再播 device_slot ⇒ 必须红',
+      got: slotInvariantErrors(
+        cleanSources,
+        { 'V999__seed.sql': 'INSERT INTO device_slot VALUES (1);' },
+        guard
+      ).length
+    },
+    {
+      want: 2,
+      why: 'V344 清除语句与 seed_env 守卫都缺 ⇒ 两条红',
+      got: slotInvariantErrors(cleanSources, {}, '').length
+    }
+  ];
+  let bad = 0;
+  for (const c of cases) {
+    const ok = c.got === c.want;
+    if (!ok) bad++;
+    console.log(`  [${ok ? 'ok' : 'BAD'}] ${c.why}（期望 ${c.want} 条，实得 ${c.got}）`);
+  }
+  if (bad) {
+    console.error(`${TAG} FAIL：--selftest ${bad} 例不符 ⇒ 判据可能恒绿`);
+    process.exit(1);
+  }
+  console.log(`${TAG} --selftest 通过（${cases.length} 例，含负向）`);
+  process.exit(0);
+}
+
+const javaSources = {};
+for (const f of walkJava(MAIN_ROOT, [])) javaSources[f] = readFileSync(f, 'utf8');
+const migrationTexts = {};
+for (const f of readdirSync(MIG_DIR)) {
+  if (f.endsWith('.sql')) migrationTexts[f] = readFileSync(join(MIG_DIR, f), 'utf8');
+}
+const guardFile = 'V344__production_demo_seed_guard.sql';
+if (!migrationTexts[guardFile]) fail(`找不到生产守卫迁移 ${guardFile}`);
+for (const msg of slotInvariantErrors(javaSources, migrationTexts, migrationTexts[guardFile]))
+  fail(msg);
+
 console.log(
-  `${TAG} OK：盘点链 ${Object.keys(FILES).length} 文件锚点全在（能力/会话生命周期/入口/货道端点零回潮）`
+  `${TAG} OK：盘点链 ${Object.keys(FILES).length} 文件锚点全在 + ` +
+    `货道不变量（扫描 ${Object.keys(javaSources).length} 个 main 源、` +
+    `${Object.keys(migrationTexts).length} 个迁移：零插入点、零新播种、V344 生产清除在位）`
 );
