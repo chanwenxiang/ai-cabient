@@ -703,6 +703,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **验证**：全量 `mvn -B verify` **3123 例 / 0 失败 / 0 错误**（trade-service 2795，比合并前 +28＝分支新增用例）；
   merchant-mp 与 consumer-mp `vue-tsc` 均 exit 0；merchant-mp vitest **248/248**；
   `pnpm build:merchant-mp`（release）成功、采集页已进 `pages.json`；文案棘轮仍 **6**（新 mp 页不带「货道」）。
+- 🔴 合并后本地暴露的两笔「分支自带、CI 会红」的问题（都在本批内修掉）：
+  ①分支三个文件没过 prettier（`pages.json`、`device-detail.vue`、`scripts/jiangyi-restock-probe.mjs`）
+  ⇒ 格式化后 mp `vue-tsc` 0 错、vitest 248/248、release 构建成功；
+  ②新采集页的 `.mini` / `.submit` 没有可算热区 ⇒ `check:mp-touch-target-ratchet`
+  从 219 涨到 221（「量不出」不许当合规）。按三端统一判据补 `height/min-height: 88rpx`
+  + `min-width: 168rpx`（`.submit` 满宽），基线回到 **219/219**，**没有抬基线**。
+- 产物配对门禁：本批 admin 输入只有 `packages/shared-types/src/generated/openapi.ts`（纯类型，编译期擦除），
+  走 `ADMIN_PAIR_PROVE_INERT=1` 的**自证豁免**——门禁自己重跑 `build-admin.mjs` 后
+  `static/admin` 与 HEAD 逐字节一致 ⇒ 判定不进产物（跑前临时挪开 `clients/admin-vue/.env.local`
+  防本机 VITE_* 污染，跑完原样还原并核 md5 相同）。
 - **未做**：mp 采集页在微信开发者工具的点击腿（需模拟器在场）；dev 活栈仍是 11-04 镜像，
   重建需另行授权（见「下一步」）。
 

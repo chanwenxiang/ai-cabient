@@ -175,8 +175,16 @@ async function submit() {
   padding: 12rpx 16rpx;
   font-size: 28rpx;
 }
+/* 热区按三端统一判据钉死（check:mp-touch-target-ratchet：短边 88rpx，两边都要能算出来） */
 .mini {
   margin: 0;
+  min-width: 168rpx;
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  box-sizing: border-box;
+  padding: 0 20rpx;
+  font-size: 26rpx;
 }
 .meta {
   display: flex;
@@ -209,6 +217,11 @@ async function submit() {
 }
 .submit {
   margin-top: 24rpx;
+  width: 100%;
+  height: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  box-sizing: border-box;
   background: #07c160;
   color: #ffffff;
   font-size: 30rpx;
