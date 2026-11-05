@@ -239,11 +239,15 @@ if (verdict.red) {
   process.exit(1);
 }
 const touchedInputs = files.filter((f) => ADMIN_INPUT_PATTERNS.some((re) => re.test(f))).length;
+const touchedArtifacts = files.filter((f) => f.startsWith(ARTIFACT_PREFIX)).length;
+const label = !touchedInputs
+  ? '（不触 admin 包）'
+  : touchedArtifacts
+    ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`
+    : `（含 ${touchedInputs} 个 admin 输入，经门禁重建自证不进产物）`;
 console.log(
   `[check-admin-artifact-pairing] OK：范围 ${mb.out.slice(0, 8)}..${head.slice(0, 8)} ` +
     `共 ${files.length} 文件` +
-    (touchedInputs
-      ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`
-      : '（不触 admin 包）') +
+    label +
     verdict.note
 );
