@@ -56,6 +56,7 @@ const policy = ref<JiangyiCapturePolicy | null>(null);
 const photos = ref<string[]>([]);
 const error = ref('');
 const submitting = ref(false);
+const picking = ref(false);
 
 const stateLabel = computed(() => state.value?.jiangyiState || '未知');
 const canSubmit = computed(
@@ -104,6 +105,10 @@ function scan() {
 }
 
 function take(index: number) {
+  if (picking.value) {
+    return;
+  }
+  picking.value = true;
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],
@@ -113,6 +118,9 @@ function take(index: number) {
       if (path) {
         photos.value[index] = path;
       }
+    },
+    complete() {
+      picking.value = false;
     }
   });
 }
