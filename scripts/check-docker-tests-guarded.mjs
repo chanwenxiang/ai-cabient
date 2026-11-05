@@ -372,6 +372,17 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/OrderPaymentComboRefundLedgerSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；integration job 守卫按源码自动扫全部 *IT.java；' +
+        'MA-161 A2：真 Postgres + 真 OrderPaymentService prepare→finalize 链，对组合单退款断言' +
+        '「渠道实扣 / 钱包冲抵 / 退款上限 / 痕迹行合计==退款额==refunded_cents」四层，' +
+        '并钉住重试复用同一幂等键（outRefundNo 稳定）与余额腿不重复累计——纯 mock 的金额演算证明不了'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/PaidAmountSnapshotSqlIT.java',
     {
       job: 'integration',
