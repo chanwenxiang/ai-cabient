@@ -199,8 +199,6 @@ class DoorCabinetStockLevelConsistencyTest {
     @Test
     void workbenchLowStockItems_renderSellableQty() {
         DeviceSkuInventoryMapper inventory = mock(DeviceSkuInventoryMapper.class);
-        DeviceSlotService slotService = mock(DeviceSlotService.class);
-        when(slotService.isDoorCabinet(DEV)).thenReturn(true);
         // SQL 层（lowStockPredicate + effectiveSellableQty）返回的就是可售量，第 6 条测试守这条 SQL
         when(inventory.findLowStockByDeviceIds(List.of(DEV)))
                 .thenReturn(List.of(inv("SKU-A", 0, 4, 2), inv("SKU-B", 0, 4, 1), inv("SKU-D", 1, 4, 2)));
@@ -211,7 +209,7 @@ class DoorCabinetStockLevelConsistencyTest {
                 mock(MerchantFeaturePackService.class), mock(DeviceInfoMapper.class),
                 mock(CabinetOrderMapper.class), mock(OrderRevenueSplitMapper.class),
                 mock(ShoppingSessionMapper.class), mock(DisputeTicketMapper.class), inventory,
-                mock(PullOffTaskMapper.class), slotService, mock(ReplenishmentTaskMapper.class),
+                mock(PullOffTaskMapper.class), mock(ReplenishmentTaskMapper.class),
                 catalog);
 
         List<OpsActionItemDto> items = new ArrayList<>();

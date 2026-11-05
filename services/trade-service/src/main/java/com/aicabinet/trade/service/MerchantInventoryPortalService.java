@@ -208,8 +208,9 @@ public class MerchantInventoryPortalService {
     }
 
     /**
-     * 商户「缺货巡柜」聚合（P2 口径统一，2026-10-15）：货道级 isSlotShortage 单源判定，
-     * 缺口件数与补货建议 headroom 同口径（补到 par、受 maxLevel 限幅）。按缺口货道数降序取前 5。
+     * 商户「缺货巡柜」聚合：SKU 台账口径单源（SkuStockLevel ≈ 备货建议 suggestFromLowStock），
+     * 缺口件数 = Σmax(容量−可售, 0)。按待补商品数降序取前 5。
+     * 批 3b 第二十刀：货道柜分支（isSlotShortage / 货道 headroom）整体退场。
      */
     @Transactional(readOnly = true)
     public List<MerchantShortageSummaryDto> listShortageSummary(Long userId) {
@@ -224,25 +225,7 @@ public class MerchantInventoryPortalService {
                 .filter(d -> inDeviceScope(allowed, d.getDeviceId()))
                 .toList();
         return devices.stream()
-                .map(dev -> {
-                    // 开门柜无货道（判据=将邑绑定）⇒ 走台账 SKU 口径（与备货建议 suggestFromLowStock
-                    // 同一条 SkuStockLevel 判据），不拿残留货道行凑数；此前直接排除会让商户端
-                    // 缺货巡柜永远看不到开门柜，与后台设备详情 KPI 对不上。
-                    if (deviceSlotService.isDoorCabinet(dev.getDeviceId())) {
-                        return doorCabinetShortage(dev);
-                    }
-                    List<DeviceSlotService.SlotShortageItem> slots =
-                            deviceSlotService.listShortageSlots(dev.getDeviceId());
-                    int shortageQty = slots.stream()
-                            .mapToInt(s -> {
-                                int target = s.parLevel() > 0 ? s.parLevel() : s.capacity();
-                                int cap = s.capacity() > 0 ? s.capacity() : target;
-                                return Math.max(0, Math.min(target, cap) - s.bookQty());
-                            })
-                            .sum();
-                    return new MerchantShortageSummaryDto(
-                            dev.getDeviceId(), dev.getDeviceName(), slots.size(), shortageQty);
-                })
+                .map(this::skuShortageRow)
                 .filter(r -> r.shortageSlots() > 0)
                 .sorted(Comparator.comparingInt(MerchantShortageSummaryDto::shortageSlots).reversed()
                         .thenComparing(Comparator.comparingInt(MerchantShortageSummaryDto::shortageQty).reversed()))
@@ -251,10 +234,10 @@ public class MerchantInventoryPortalService {
     }
 
     /**
-     * 开门柜缺货巡柜行：SKU 级两档（缺货=可售≤0；低库存=0<可售≤阈值，与 SkuStockLevel 同源）。
+     * 缺货巡柜行：SKU 级两档（缺货=可售≤0；低库存=0<可售≤阈值，与 SkuStockLevel 同源）。
      * shortageSlots 语义是「待补商品数」，shortageQty = Σmax(容量−可售, 0)。
      */
-    private MerchantShortageSummaryDto doorCabinetShortage(DeviceInfo dev) {
+    private MerchantShortageSummaryDto skuShortageRow(DeviceInfo dev) {
         String deviceId = dev.getDeviceId();
         Set<String> lotSkus = inventoryLotService.lotLedgerSkuIds(deviceId);
         Map<String, Integer> sellableBySku = lotSkus.isEmpty()

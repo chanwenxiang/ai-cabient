@@ -70,7 +70,6 @@ public class MerchantWorkbenchQueryService {
     private final DisputeTicketMapper disputeRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
-    private final DeviceSlotService deviceSlotService;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final SkuCatalogMapper skuCatalogRepository;
 
@@ -84,7 +83,6 @@ public class MerchantWorkbenchQueryService {
                                          DisputeTicketMapper disputeRepository,
                                          DeviceSkuInventoryMapper inventoryRepository,
                                          PullOffTaskMapper pullOffTaskRepository,
-                                         DeviceSlotService deviceSlotService,
                                          ReplenishmentTaskMapper replenishmentTaskRepository,
                                          SkuCatalogMapper skuCatalogRepository) {
         this.permissionService = permissionService;
@@ -97,7 +95,6 @@ public class MerchantWorkbenchQueryService {
         this.disputeRepository = disputeRepository;
         this.inventoryRepository = inventoryRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
-        this.deviceSlotService = deviceSlotService;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.skuCatalogRepository = skuCatalogRepository;
     }
@@ -298,32 +295,18 @@ public class MerchantWorkbenchQueryService {
         return offline;
     }
 
-    // 包内可见：供同包测试直接验证「开门柜台账口径 / 有货道柜货道口径」的分流，不必走整条 getWorkbench
+    // 包内可见：供同包测试直接验证低库存口径（台账阈值），不必走整条 getWorkbench
     long appendLowStockItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        // 口径按柜类型分流（2026-10-28 拍板「按后台阈值为准统一」）：
-        // · 开门柜（判据=将邑绑定）没有货道概念 ⇒ 台账口径 quantity <= device_sku_inventory.low_threshold
-        //   （后台「库存台账」逐 SKU 维护的阈值，与备货建议 suggestFromLowStock 同源）
-        // · 有货道柜 ⇒ 货道口径（minLevel 或 容量×商户阈值%），原逻辑不动
-        // 🔴 此前不分流：开门柜拿 device_slot 残留行凑数，首页「库存偏低 N」是货道假数
-        //   （2026-10-28 实测：开门柜 6 条假条目，台账真值 3 条）。
-        Iterable<String> scopeIds = deviceIds != null ? deviceIds
+        // 台账口径 quantity <= device_sku_inventory.low_threshold（后台「库存台账」逐 SKU 维护的阈值，
+        // 与备货建议 suggestFromLowStock 同源）。批 3b 第二十刀：货道柜分支整体退场，不再按柜型分流。
+        List<String> scopeIds = deviceIds != null ? new ArrayList<>(deviceIds)
                 : deviceRepository.findAllOrderByDeviceIdAsc().stream()
                         .map(DeviceInfo::getDeviceId).toList();
-        List<String> doorDeviceIds = new ArrayList<>();
-        List<String> slotDeviceIds = new ArrayList<>();
-        for (String deviceId : scopeIds) {
-            if (deviceSlotService.isDoorCabinet(deviceId)) {
-                doorDeviceIds.add(deviceId);
-            } else {
-                slotDeviceIds.add(deviceId);
-            }
-        }
-        return appendDoorCabinetLowStock(items, doorDeviceIds)
-                + appendSlotLowStock(items, slotDeviceIds);
+        return appendLedgerLowStock(items, scopeIds);
     }
 
-    /** 开门柜：台账口径（后台阈值），条目粒度=柜×SKU。 */
-    private long appendDoorCabinetLowStock(List<OpsActionItemDto> items, List<String> deviceIds) {
+    /** 台账口径（后台阈值），条目粒度=柜×SKU。 */
+    private long appendLedgerLowStock(List<OpsActionItemDto> items, List<String> deviceIds) {
         if (deviceIds.isEmpty()) {
             return 0;
         }
@@ -357,24 +340,6 @@ public class MerchantWorkbenchQueryService {
             }
         }
         return rows.size();
-    }
-
-    /** 有货道柜：货道口径（P1-3，2026-10-15），条目粒度=货道。 */
-    private long appendSlotLowStock(List<OpsActionItemDto> items, List<String> deviceIds) {
-        long lowStock = 0;
-        for (String deviceId : deviceIds) {
-            for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
-                lowStock++;
-                if (items.size() < WORKBENCH_ITEM_CAP) {
-                    items.add(new OpsActionItemDto(
-                            "LOW_STOCK", MEDIUM, "库存偏低",
-                            "货道 " + s.slotCode() + " 当前 " + s.bookQty() + " / 容量 " + s.capacity()
-                                    + "（阈值 " + s.thresholdPct() + "%）",
-                            s.deviceId(), null, null, s.skuId(), null, null, null));
-                }
-            }
-        }
-        return lowStock;
     }
 
     private long appendExpiryItems(List<OpsActionItemDto> items, Set<String> deviceIds) {

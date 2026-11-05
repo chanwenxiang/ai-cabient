@@ -4,7 +4,7 @@
  *
  * 棘轮门禁最危险的是「清单和实际一起失真」：解析器少算一处、清单也多一处，看起来仍然绿。
  * 所以这里既验证解析出的方法/行号，也逐条验证「未登记 / 多一处 / 少一处 / 条目失效 /
- * 空理由 / 非法 count / 清单缺失」都必须红，最后确认真仓 10 处 ↔ 10 条一一对应。
+ * 空理由 / 非法 count / 清单缺失」都必须红，最后确认真仓 9 处 ↔ 9 条一一对应。
  *
  *   node scripts/check-inmemory-paging.test.mjs
  */
@@ -202,11 +202,11 @@ function main() {
     });
     expectFinding(fixture, '锚点失效', '分页方法锚点', { minPageMethods: 99 });
 
-    // 9) 真仓：10 处 ↔ 10 条，方法数锚点满足
+    // 9) 真仓：9 处 ↔ 9 条，方法数锚点满足（批 3b 第十九刀删 listShortagePage 后 10→9）
     const live = checkProject(ROOT);
     assert(live.ok, `真仓应绿，实际 ${JSON.stringify(live.findings)}`);
-    assert(live.hits.length === 10, `真仓应有 10 处内存分页，实际 ${live.hits.length}`);
-    assert(live.allowlistCount === 10, `真仓应有 10 条清单，实际 ${live.allowlistCount}`);
+    assert(live.hits.length === 9, `真仓应有 9 处内存分页，实际 ${live.hits.length}`);
+    assert(live.allowlistCount === 9, `真仓应有 9 条清单，实际 ${live.allowlistCount}`);
     assert(live.pageMethods >= 60, `真仓分页方法数 ${live.pageMethods} 低于锚点`);
   } finally {
     rmSync(fixture, { recursive: true, force: true });

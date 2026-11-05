@@ -172,50 +172,6 @@ public class DeviceSlotService {
         public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0, null, null, null);
     }
 
-    /**
-     * 统一缺货口径（P1-3，2026-10-15）：启用且绑定了 SKU 的货道，
-     * 账面 ≤ minLevel（含 OOS）**或** 账面 < 容量×商户阈值%（默认 50，对齐叮当小柜
-     * 「剩余库存低于货柜容量的 X% 即缺货」）。缺货看板/工作台/推送/补货建议共用此判定，
-     * 预警说缺的货建议页一定有。
-     */
-    public static boolean isSlotShortage(DeviceSlot slot, int bookQty, int thresholdPct) {
-        if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
-            return false;
-        }
-        if (bookQty <= slot.getMinLevel()) {
-            return true;
-        }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
-        return cap > 0 && bookQty * 100L < cap * (long) thresholdPct;
-    }
-
-    /** 设备维度缺货货道清单（统一口径），供工作台/推送消费。 */
-    @Transactional(readOnly = true)
-    public List<SlotShortageItem> listShortageSlots(String deviceId) {
-        String dev = deviceId == null ? "" : deviceId.trim();
-        if (dev.isEmpty()) {
-            return List.of();
-        }
-        int thresholdPct = resolveStockoutThresholdPct(dev);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(dev);
-        List<SlotShortageItem> out = new ArrayList<>();
-        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(dev)) {
-            int book = bookBySlot.getOrDefault(slot.getId().getSlotCode(), 0);
-            if (isSlotShortage(slot, book, thresholdPct)) {
-                out.add(new SlotShortageItem(dev, slot.getId().getSlotCode(), slot.getAssignedSkuId(),
-                        book, slot.getMinLevel(),
-                        slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel(),
-                        slot.getParLevel(), thresholdPct));
-            }
-        }
-        return out;
-    }
-
-    /** 统一缺货口径条目（device_sku_lot 账面维度；库存数=货道账面，非 SKU 冗余列）。 */
-    public record SlotShortageItem(String deviceId, String slotCode, String skuId,
-                                   int bookQty, int minLevel, int capacity, int parLevel,
-                                   int thresholdPct) {}
-
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */
     @Transactional(readOnly = true)
     public Map<String, Integer> loadBookQtyBySlot(String deviceId) {

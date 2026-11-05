@@ -103,22 +103,20 @@ class MerchantInventoryPortalServiceTest {
     }
 
     @Test
-    void listShortageSummary_doorCabinet_excludedFromSlotShortage() {
-        // 开门柜无货道（判据=将邑绑定）：货道级缺货口径不成立，残留货道行不参与汇总
+    void listShortageSummary_usesSkuLedger_forAnyCabinet() {
+        // 批 3b 第二十刀：货道分支已退场 ⇒ 非开门柜同样走 SKU 台账（inventoryRepository），不读 device_slot
         when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
-                .thenReturn(Set.of("EG-DOOR", "CAB-GRAVITY"));
-        DeviceInfo door = new DeviceInfo();
-        door.setDeviceId("EG-DOOR");
+                .thenReturn(Set.of("CAB-GRAVITY"));
         DeviceInfo gravity = new DeviceInfo();
         gravity.setDeviceId("CAB-GRAVITY");
-        when(deviceRepository.findAll()).thenReturn(List.of(door, gravity));
-        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
-        when(deviceSlotService.listShortageSlots("CAB-GRAVITY")).thenReturn(List.of());
+        when(deviceRepository.findAll()).thenReturn(List.of(gravity));
+        when(inventoryRepository.findByIdDeviceId("CAB-GRAVITY")).thenReturn(List.of());
+        when(inventoryLotService.lotLedgerSkuIds("CAB-GRAVITY")).thenReturn(Set.of());
 
         List<com.aicabinet.common.dto.MerchantShortageSummaryDto> rows = service.listShortageSummary(9L);
 
         assertTrue(rows.isEmpty());
-        verify(deviceSlotService, never()).listShortageSlots("EG-DOOR");
+        verify(inventoryRepository).findByIdDeviceId("CAB-GRAVITY");
     }
 
     @Test
@@ -138,14 +136,13 @@ class MerchantInventoryPortalServiceTest {
     }
 
     @Test
-    void listShortageSummary_doorCabinet_skipsDelistedSkus() {
+    void listShortageSummary_skipsDelistedSkus() {
         // 下架 SKU 不进缺货面（2026-10-30 拍板）：qty=0 的下架行不得算进「待补商品数/缺货件数」
         when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
                 .thenReturn(Set.of("EG-DOOR"));
         DeviceInfo door = new DeviceInfo();
         door.setDeviceId("EG-DOOR");
         when(deviceRepository.findAll()).thenReturn(List.of(door));
-        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
         when(inventoryRepository.findByIdDeviceId("EG-DOOR"))
                 .thenReturn(List.of(invRow("EG-DOOR", "100013"), invRow("EG-DOOR", "100016")));
         when(inventoryLotService.lotLedgerSkuIds("EG-DOOR")).thenReturn(Set.of());

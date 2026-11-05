@@ -612,7 +612,7 @@ public class MerchantPortalController {
         return csvAttachment("merchant-device-reports.csv", csv);
     }
 
-    /** 商户「缺货巡柜」聚合（P2 口径统一，2026-10-15）：货道级 isSlotShortage 单源，缺口=建议 headroom。 */
+    /** 商户「缺货巡柜」聚合：SKU 台账口径单源（SkuStockLevel），缺口 = Σmax(容量−可售, 0)。 */
     @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/shortage-summary")
     public ApiResponse<List<com.aicabinet.common.dto.MerchantShortageSummaryDto>> shortageSummary(
