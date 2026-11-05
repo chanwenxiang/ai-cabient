@@ -684,6 +684,27 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第九刀收尾：CI 红 + 补上本地缺的「产物同步」判据，lessons #416）
+
+- 第九刀推上去 **CI 是红的**（`admin-artifacts`）：`AISLE_AUDIT` 标签被打进 admin bundle，
+  我只重打了 `shared-dict/dist` 却没重打 `static/admin`。取证：新产物含「盘点巡检」1 个文件、
+  改前 0 个 ⇒ 111 换 111 + index.html。
+- 修的时候**不碰 peer 的提交**：建 detached worktree 检出 `593fc8f1` → 容器内 fidelity 重建
+  → `b82c6696` → `git push origin HEAD:dev`（fast-forward）。代价如实报：本地 `dev` 与
+  `origin/dev` 分叉（落后 1 / 领先 2），peer 那两笔（含钱路 `d7b37278`）不由我 rebase/代推。
+- 🔴 **两个假绿信号**（都记进 #416）：① 本地 96 门禁**根本没有**「产物与源码同步」这条，
+  我那句「96/0 真绿」是盲区；② 后台 `gh run watch --exit-status` 被我接了管道再 echo，
+  退出码取自管道尾巴（恒 0），而那次 run 实际 `conclusion=failure`。
+- 新门禁 `check:admin-artifact-pairing`（聚合链 **97**）：待推范围改了 admin 输入
+  （`clients/admin-vue/src/`、`packages/*/src/`、`packages/shared-dict/dist/`）
+  却不同批带 `static/admin` ⇒ FAIL，并给出 fidelity 重建命令。
+  配 `--selftest` 4 例，其中一例就是本轮事故（改标签不重打必须红）；
+  已知误伤「只改注释」也会被拦——注释改不改 bundle 本地无法便宜证明，宁可让你跑一次构建。
+  落地时又撞 `check:gate-runtime-hygiene`（禁 `execFileSync`，WorkBuddy 下 EBUSY 会把
+  「没跑」判成「全红」）⇒ 改 `scripts/lib/async-spawn.mjs` 的 `gitAsync`。
+- 验证：`--selftest` 4/4；对当前范围（peer 的两笔，8 文件）判「不触 admin 包」不误伤；
+  preflight **97 门禁 0 失败**。
+
 ### 2026-11-05（批 3b 第九刀：生产界面两处「货道」名字改口——V443 + 三源同改）
 
 - 用户口径确认：**不要「(遗留) 货道…」这种前缀**（那等于在界面留一个说不清的词）；
