@@ -207,10 +207,12 @@ export type DeviceInfo = import('./generated/admin-models').OpenApiAdminDeviceDt
 /**
  * 商户端柜机列表读模型。
  *
- * `/api/v2/merchant/devices` **实际返回的是 `MerchantDeviceDto`**（含 `oosSlotCount` /
- * `lowStockSlotCount` / `lifecycleStatus` / `firmwareVersion` / `salesLockReason` / `routeCode`），
+ * `/api/v2/merchant/devices` **实际返回的是 `MerchantDeviceDto`**（含 `oosSkuCount` /
+ * `lowStockSkuCount` / `lifecycleStatus` / `firmwareVersion` / `salesLockReason` / `routeCode`），
  * 此前 `merchant-api.ts` 把它错标成 `DeviceInfo`（= `AdminDeviceDto`），导致
  * `devices.vue` 读这些字段时 vue-tsc 报「类型无公共属性」——运行时是对的，类型是错的。
+ * （字段名自第十八刀/第二十一刀起为 SKU 语义计数，旧的货道名计数已全仓删除——
+ * 这行刻意不写旧字段名，好让「grep 旧名 = 0」能当作退场判据用。）
  */
 export type MerchantDeviceInfo =
   import('./generated/openapi').components['schemas']['MerchantDeviceDto'];

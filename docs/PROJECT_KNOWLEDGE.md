@@ -684,6 +684,35 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（账本对账：§12 五条过期「未做」就地标注 + 台账 MA-157/159/161 定性）
+
+- 起因：用户问「只有这三件待办吗」，两路只读盘查（文档台账 / 代码与门禁）回来后发现**活文档自己在骗人**：
+  §12 里五条标着「未做/下一刀/遗留」的条目，实际已被后续刀次做完。逐条**先核代码再标注**，不凭记忆划掉：
+  - `:898`「未做（下一刀）：删 `computeMetrics` 的 `isDoorCabinet` 分流」⇒ 已闭（第十四刀 B，
+    现单源 `ledgerStockMetrics`，`computeMetrics` 这个名字在 main 里已不存在）
+  - `:1074`「遗留 B 类」5 项 ⇒ 4 项已闭，**FEFO per-slot 机件仍在但降级为「死数据门控」**：
+    `InventoryLotService:669/836/319/831` 的 `ensureSlotCapacity`/`resolvePrimarySlotCode`/`lot.setSlotId`
+    都在，可 resolver 先查 `device_slot`，而生产者已归零（见下条）⇒ 门柜永远不会再拿到非空 slot
+  - `:872`「未做：`SlotStockCounts`/`MerchantDeviceDto.oosSlotCount` 改名」⇒ 已闭（第十八刀 + 第二十一刀）。
+    复扫时发现还残 **1** 处命中——`packages/shared-types/src/index.ts:210` 的**注释**在引用旧字段名；
+    本批改掉后，四个旧标识在 `services/ clients/ packages/*/src scripts/*.mjs`（含注释）**全部 0 命中**：
+    `oosSlotCount` / `lowStockSlotCount` / `SlotStockCounts` / `countSlotStock`。
+    ⇒ 以后要证「货道计数字段已退场」，直接 grep 这四个名字即可，不必再逐链核。
+  - `:850`「下一刀（②）＝机件本体的钱/库存面」⇒ 那张调用点地图上的点逐个核对，**已全部落地**
+    （第十五刀②③、第十九/二十刀），仅剩空转的 `recordRestock`/`validateRestockLine`/`headroomForSlot`/
+    `suggestSlots*`，与上一条同性质
+  - `:1313`「⚠️ 未做：生产者还在建货道行」⇒ **已闭且证据更强**：`ensureDefaultSlots` 随第四刀 `0bef0349` 删除，
+    现 `grep "new DeviceSlot(" services/*/src/main` = **0**，main 里唯一一处 `slotRepository.save`
+    （`DeviceSlotService:419`）是 `findById().ifPresent` 的**更新**，不产生新行
+  ⇒ **结论：货道概念在本仓已「再也长不出新行」**，剩下的 slot 代码是纯机件残留（无数据可喂），
+  删不删属代码收敛，不再是资损面。这一句以后可直接引用，不用重新取证。
+- 台账三行：`MA-159` **open → fixed**（判据 2026-11-04 重写；今天由 jy-v16 新采集页**独立复验**——
+  `.mini`/`.submit` 无显式宽高被计入不可验档、把基线顶到 221>219 而挡住推送，正是老缺陷「恒放行」消失的反证）；
+  `MA-161` **open → fixed**（A1+A2 已落 + 四层对账 IT 2 例，剩活栈复跑属运维前置）；
+  `MA-157` **维持 open**（横向 26/32/33/37/39px 仍 <44.4px），补一句判据现会兜住新增同类。
+- 附带订正门禁头注释：`check-mp-touch-target-ratchet.mjs` 注释写 `UNVERIFIABLE_BASELINE=235`、
+  实际常量 219（与 lessons #421/#422 同族：注释不是判据，看常量）。
+
 ### 2026-11-06（将邑 V16 第七章分支合回 dev：9 笔 + 迁移 V446 + 契约重生成）
 
 - `feat/jiangyi-v16-restock`（ahead 9 / behind 31，工作树干净）以 `git merge dev` 并进分支，**零冲突**
@@ -848,6 +877,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 孤儿复扫：`notFound`/`requireDevice`/`runWithDeviceSlotLock`/`DeviceSlotId` 都仍有活引用，没被带走。
 - 定向：`DeviceSlotServiceTest` 10/0、`DoorCabinetStockLevelConsistencyTest` 8/0。
 - **下一刀（②）＝机件本体的钱/库存面**，调用点地图（外部调用数）：
+  ✅ **2026-11-06 对账：这张地图上的点已全部落地**——`applyPhysicalAfter*` 四兄弟与
+  `allocateSkuSaleToSlots` 随第十五刀②删、`applyPhysicalSnapshot`/`syncPhysicalFromBook`/
+  `listEnabledSlotsForSku` 随第十五刀③删（`RestockSnapshotService` 只剩 `hasRealGravitySnapshot`，
+  第二十一刀改名 `RestockGravityEvidenceService`）、`clampDeviceOverCapacity` 随第十五刀删、
+  `listShortageRows` 随第十九刀（tab 整块下线）+ 第二十刀（缺货分支）删、
+  `recordRestock`/`validateRestockLine`/`headroomForSlot`/`suggestSlotsForDevice`/
+  `suggestSlotsForOutboundFill(All)` 仍在（它们对门柜是 `device_slot` 空表 ⇒ 空转，见上一条对账的
+  「机件残留、不会再长数据」）。
   `applyPhysicalAfterSale/SkuSale/Restore/SkuRestore`（InventoryService，**无柜型守卫**）、
   `applyPhysicalSnapshot`/`syncPhysicalFromBook`/`listEnabledSlotsForSku`（RestockSnapshotService，无守卫）、
   `clampDeviceOverCapacity`/`recordRestock`/`validateRestockLine`/`headroomForSlot`/`suggestSlotsForDevice`/
@@ -871,6 +908,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
   含子组件 prop `:oos-slot-count` → `:oos-sku-count`。
 - 未做（另一条 DTO 面，单独一刀）：后端 `SlotStockCounts` 与 mp 读的 `MerchantDeviceDto.oosSlotCount`
   仍叫 *Slot —— 它走的是商户柜机列表那条链，改名要连 mp 一起判（且要确认卡片文案是否还提「货道」）。
+  ✅ **2026-11-06 对账：已闭**——第十八刀改 `MerchantDeviceDto`（mp `devices.vue:400` 读 `oosSkuCount`），
+  第二十一刀改 `SlotStockCounts`→`SkuStockCounts`、`countSlotStock`→`countSkuStock`
+  （`grep -rn "oosSlotCount" services/ clients/ packages/shared-types/src` 现 **0** 命中）。
 - 订正两处旧前提注释：`countSlotStock` 的 javadoc（原写「有货道柜⇒货道口径」已不成立）、
   `DeviceSlotServiceTest:239` 那条「塞 false 桩逼走货道路径」。
 - 测试侧的真反馈：`DeviceSlotServiceTest` 3 例报 `UnnecessaryStubbing`——都是「给货道取数打的桩」
@@ -899,6 +939,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `SlotFillStats` 的**第二处**使用（柜机卡片那条 `:178` 路径）与 `DeviceSlotServiceTest:239` 里
   「给 JiangyiDeviceDirectory 塞 false 桩、逼走货道路径」的用例 ⇒ 属算式退场，单独一刀做，
   不塞进这次「摘一张卡」。
+  ✅ **2026-11-06 对账：已闭**——第十四刀 B 起指标不再分柜型，`computeMetrics` 已不存在，
+  现为单源 `ledgerStockMetrics`（`DeviceSlotService:94`/`:474`）。
 
 ### 2026-11-05（第十三刀 B1：`DeviceDetailDto.slots` 与 `DeviceSlotDto` 整条读面退场）
 
@@ -1074,6 +1116,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 遗留（B 类，后续单独一轮）：`DeviceDetailDto.slots` + `DeviceOpsMetricsDto` KPI（`DeviceSlotDto.qtyDiff/hasDiscrepancy`
   就在这条读面上）、FEFO per-slot、`clampDeviceOverCapacity`、`ReplenishmentService` 的 slotId 分支。
   运营侧 dev 的 2 条 SLOT_* `FAIL` 记录仍需人工结案。
+  ◐ **2026-11-06 对账：本条 5 项里 4 项已闭，剩 1 项降级为「死数据门控」**——
+  `DeviceDetailDto.slots`/`DeviceSlotDto` 已删（第十三刀 B1/第十八刀，现分量为 device/metrics/skuInventory/delistedInventory）、
+  `clampDeviceOverCapacity` 与 `ReplenishmentService` 的 slotId 分支已删（第十五刀/第十八刀）、
+  2 条 SLOT_* `FAIL` 已人工结案（OPS 清单 §C.1，复核值 0）。
+  🔴 **FEFO per-slot 机件仍在**：`InventoryLotService` 仍有 `ensureSlotCapacity:669`、
+  `resolvePrimarySlotCode:836`、`lot.setSlotId`（`:319`/`:831`）。但它对门柜**不可能再触发**：
+  resolver 先查 `device_slot`，而生产者已归零（见上一条对账）⇒ 属「机件残留、不会再长数据」，
+  不再是钱路风险；彻底删机件列为下一轮（纯代码收敛，无行为变更）。
 
 ### 2026-11-05（第十刀 A 段落地：三个 SLOT_* 一致性检查停跑，字典项 INACTIVE）
 
@@ -1314,6 +1364,10 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `DemoDataService:149` 仍调 `ensureDefaultSlots`（本机 dev 库实测：真柜 `EG943322621391`
   与 `719325384517` 均 0 行，两个遗留/演示柜各 8 行）。断源会让新柜彻底没有货道行，
   是可见行为变更，按「退场先断生产者」单独一轮。
+  ✅ **2026-11-06 对账：本条已闭**——`ensureDefaultSlots` 随第四刀 `0bef0349` 删除，
+  现 `grep -rn "new DeviceSlot(" services/*/src/main` = **0**，main 里唯一一处
+  `slotRepository.save`（`DeviceSlotService:419`）是**更新已有行**（`findById(...).ifPresent`），
+  不产生新行 ⇒ 货道行再也长不出来；dev 残留 16 行已按运维 A.2 清零。
 - 验证：trade 单测 **2765** 绿（少 2 = 删掉的两个 409 钉测）；无 IT 触达 slots；
   `main` 源零残留引用；preflight 96 门禁 0 失败。
 
