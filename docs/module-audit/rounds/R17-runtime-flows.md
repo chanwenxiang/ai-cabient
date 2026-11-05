@@ -74,6 +74,14 @@ refunded=243（=实付一半，预估==写侧端到端）、gross=700 不变（V
 - 预授权冻结只动 frozen 列、capture 才扣 balance 列——「低余额开门被拦 vs 结算转 PENDING」是两道不同的闸；
 - 11 条链同用户会撞 session 限流 20/h 与风控开门 5/h（测试属性放宽）。
 
-### 未挣
+### 未挣 → 已挣（2026-11-05 批 3 收口）
 
-- **余额+微信组合支付**（R17 批 3 剩余项）：需要微信渠道 mock 环境的 prepay/capture 联动，Testcontainers 单渠道 mock 覆盖不到，留待下次（活栈或 CI 扩展）。
+- ~~**余额+微信组合支付**（R17 批 3 剩余项）：需要微信渠道 mock 环境的 prepay/capture 联动，Testcontainers 单渠道
+  mock 覆盖不到，留待下次（活栈或 CI 扩展）。~~
+  **前提判错，已当场收口**：`OrderPaymentChargeInvariantTest` 的内存 `payment_operation` 表 + 桩 `chargeExplicit`
+  就能造「钱包预授权已冲抵 60 → 选微信补缴」的前置态，不需要双渠道环境。一条用例即挣，且**抓出真缺陷**：
+  渠道腿按应付全额扣、余额腿按「应付−已入账净额」扣 ⇒ 组合单用户实付=冲抵+全额（`expected: <40> but was: <100>`）
+  ⇒ 入账 **MA-160（P1）**，修复锚 `d7b37278`（单源原语 `OrderPaymentService.remainingChargeCents`，三条腿共用）。
+  该类现 6/0，trade-service 全量 2762/0。
+- **本批未闭合**：MA-161 组合单退款仍按 `order.payChannel` 整笔压回单一渠道（修复把「静默少退用户」变成
+  「网关显式失败」，拆分退款需另拍板）。

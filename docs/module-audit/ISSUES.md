@@ -174,6 +174,8 @@
 | MA-157 | P2 | **open（部分修复 2026-11-04 16:00 复核）**：dfb794b9 只扩纵向 `inset:-28rpx 0` ⇒ 等效高 51.1px 达标，但**左右扩量为 0**，等效宽 26/32/33/37/39px 仍 < 44.4px（8 样本 5 不达标） | merchant-mp `pages/orders` / `pages/settlements` / `pages/cabinet-reports` 的 `.aux-link` | 时间筛选（近7天/近30天…）与「隐藏零元单」这类 `role="button"` 文本链接触控高度实测 **14px / 22px / 31px**（源码只给 `padding:8rpx …`，无 `::after` 扩展），远低于项目自定 88rpx（≈45.7px）；消费端同形控件实测 **45px** ⇒ 同一交互两端差 2–3 倍。与 `UI_STYLE_UNIFICATION_PLAN` Phase 4「aux-link 已改 88rpx 热区 + 小视觉、small=0」的记载**冲突**（那次清点未覆盖这三页） | Delta R18 / 2026-11-04 | 实测 `.tmp/three-end-delta-20261104/mp-elements-merchant.json`（heatSmall=4）。同批的 `.help-tip` 16px 判为假红：真命中层是 88rpx 的 `.help-tip-hit` 包裹层，`.help-tip` 只是内部图标。**2026-11-04 复核**（`build:mp-weixin:dev` 重编 dev 产物后 automator 实测，8 样本）：全部时间 48×51.1 PASS｜今天 26×51.1｜近7天 32×51.1｜近30天 39×51.1｜零元单(orders) 37×51.1｜零元单(settlements) 33×**43.1**｜商品/毛利 50×60.1 PASS ⇒ 纵向已解决，横向与 settlements 页纵横均未达标；证据 `.tmp/three-end-delta-20261104/ma-verify.json` |
 | MA-159 | P2 | open | `scripts/check-mp-touch-target-ratchet.mjs` 的 `isViolation()` / `INSET_NEG_RE` | 热区门禁对「靠 padding/内容撑开」的可点元素**结构上不判**：`isViolation` 首行要求显式宽且显式高，否则 `return false` ⇒ `.aux-link`（解析得 `{hit:28}`，无 width/height）、`.app-btn--sm`（`{hit:8,minHeight:72,height:72}`，**有高无宽**）恒放行。故 dfb794b9 所称「热区门禁补扫 `shared-uni/components` 关闭 MA-156 盲区」实测**判定收益为 0**（用门禁自身导出函数解析真实文件，加不加 `::after` 都是 false）。另 `INSET_NEG_RE` 只捕获 `inset` 第一个值，`inset:-28rpx 0`（只扩上下）被当四向 28rpx ⇒ 即便日后补了显式宽高，横向会被**高估 56rpx** —— 这正是 MA-157 残留能通过门禁的原因 | Delta R18 复核 / 2026-11-04 | 复现：`node --input-type=module -e "const m=await import('./scripts/check-mp-touch-target-ratchet.mjs'); ..."` 解析 `app-button.vue` / `settlements.vue`，见 2026-11-04 日志 |
 | MA-156 | P3 | fixed（dfb794b9：app-button sm/compact 伪元素 +8rpx（72+16=88）+ 门禁补扫 shared-uni/components；负向门禁沙箱清单同步 31 判据复验能红） | 双小程序 `packages/shared-uni` `app-button` sm/compact 变体 | 可点按钮本体 72rpx（消费端模拟器实测 **37px**）低于项目自定 88rpx 热区阈值，且该变体**没有** `::after` 负 inset 扩展（`app-button.wxss` 里只有 `.app-btn:after{border:none}`）；而 `check-mp-touch-target-ratchet` 报「小热区 0/0（扫 95 文件）」⇒ 这一类「组件内尺寸变体」不在门禁判据覆盖面内。全仓 `<app-button compact>` 实测 **10 处**（recharge 1 / device-detail 4 / device-stocktake 5；另有若干 `compact` 用在别类组件上） | Delta R18 / 2026-11-04 | 实测页 `consumer-mp pages/recharge`「提交申请」；判据同 Phase 4「可点元素 <88rpx 清单」。修法二选一：给 sm/compact 补 `::after` 扩展，或把门禁判据扩到组件变体类 |
+| MA-160 | P1 | fixed（`d7b37278`：两条渠道腿与余额腿共用单源 `remainingChargeCents`；差额≤0 不打渠道；痕迹行按实扣额） | 消费者补缴 `POST /orders/{id}/pay`（结算页选微信/支付宝）+ 自动决策渠道腿 | **「余额+渠道」组合腿重复扣**：PENDING 单若已被钱包预授权冲抵 N 分，`submitChannelCharge` 仍按 `totalAmountCents` 全额发起渠道扣款并记同额 CHARGE 流水 ⇒ 用户实付=冲抵+全额（钉测：冲抵 60 + 渠道 100 vs 应付 100），`freezePaidAmount` 随之把 160 冻成佣金基数；`markPaid` 的净额三分支只拦了「≥全额」那一档，其注释「补扣只收差额」在渠道腿从未实现（`applyBalanceCharge` 才减净额） | Qoder R17批3收口 / 2026-11-05 | 复现即红：`OrderPaymentChargeInvariantTest.partialCaptureThenWechatCollect_netEqualsTotalAndChannelChargesRemainder` 修前 `expected: <40> but was: <100>`；修后该类 6/0、trade-service 全量 2762/0。原判据链见 rounds/R17-runtime-flows.md 批 3 段 |
+| MA-161 | P1 | **open（待拍板：退款按渠道实扣额拆分）** | 组合单退款 `OrderPaymentService.prepareOrderRefund` → 微信/支付宝原路退 | 退款只按 `order.payChannel` 把整笔压回**单一**渠道：组合单（钱包冲抵 60 + 微信 40）全额退时 refund=100 打在只收 40 的微信交易上 ⇒ 被网关拒（MA-160 修前微信确实收了 100 所以退成功，但钱包那 60 永远不退＝静默少退用户）。即修法把「静默少退」变成「显式失败」，闭合还需按渠道拆分：渠道退 `min(退款额, 该渠道实扣)`，其余退余额 | Qoder R17批3收口 / 2026-11-05 | `OrderPaymentService.java:745-755`（渠道整笔判定）、`:1274-1287`（`resolveOriginalChargeTotalCents` 取 CHARGE+ADJUST 合计，天然不含 `PREAUTH_CAPTURE`）；未钉测（等口径） |
 
 ## 待复核线索（未入账，实跑复现后转 MA 编号）
 
@@ -1391,3 +1393,24 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 | 测试 | `ApiRateLimitServiceTest` 7→9（键名钉 `aicabinet:rate:fault_report:{userId}`、超限 429 且不回写计数）；`DeviceFaultReportConcurrencyTest` 1→3（超限 ⇒ 429 且 never tryLock / never save / never 推告警；正向对照 ⇒ 未超限照常落单并释放锁，同时让「闸被删掉」因未消费桩 + verify 立刻红）；`RateLimitPropertiesBindingTest` 四向补新键。定向跑 9+3+4+3 全绿 |
 | 连带改动 | record 多一个组件会连坐构造点：本次改 9 处 `new RateLimitProperties(...)`（3 个测试类 + 绑定测试的钳位用例） |
 | 证据边界 | 档②「同一未结案工单幂等合并」仍未做（更贴业务但要动工单状态机），留作后续；`/fault-report` 的**归属**面本来就正确，本批没动。**活栈未复验**：dev 共享容器要重烤才带这条闸，而重建会把并发会话此刻未提交的 admin 源码一起烤进去（整棵脏树部署），故本批只以「定向 19 例 + 该模块 `clean verify` 全量」为证 |
+
+### MA-160 组合腿重复扣（R17 批 3 收口，P1，锚 `d7b37278`）
+
+- **怎么判死的（不是推测）**：批 2 补扣链腿已在 E2E 造出「冲抵 300 → PENDING」这个真实前置态；而补缴换渠道
+  是**已上线入口**——consumer-mp 结算页有支付方式选择器并真传值（`clients/consumer-mp/src/pages/order-detail/order-detail.vue:820-824`
+  → `POST /api/v2/orders/{id}/pay` body.channel，`OrderController.java:77-85`）。前端给了入口＝产品已承诺该码可用，
+  后端不认它就是缺陷。不传 channel 的自动决策腿同样命中（`OrderPaymentService.java:171` 先试免密）。
+- **口径分叉的事实**（行号为修复锚 `d7b37278` 之后，复核请优先按符号 grep）：余额腿 `applyBalanceCharge:466`
+  按「应付 − `netCompletedCents`」扣；渠道腿 `chargeWithSelectedChannel:231`（显式）与 `submitChannelCharge:305`（流水）
+  都按「应付全额」。而 `PaymentOperationMapper.java:117-120` 自己写着
+  漏算冲抵行的后果就是「按全额重复扣」，`UnpaidOrderService.java:381-383` 注释亦称「补扣只收差额」
+  ⇒ 判为实现与既有拍板不一致，不是「补缴即重新全额收」的商业决策。
+- **修**：新增单源原语 `OrderPaymentService.remainingChargeCents(order)`，三条腿共用；差额 ≤0 不再向渠道发起扣款；
+  `recordPayScoreOrder` 痕迹行改记**实扣差额**（否则 payscore_order 比微信账单虚高）。
+- **刻意保留不对齐的一腿**：`tryCompleteWeChatPayScore` 仍按全额完结支付分订单——免密会话开门时
+  `ConsumerPreauthService.freezeForOpen` 的 `passwordFreeReady` 早退、根本不冻钱包 ⇒ 净入账恒 0，全额即差额。
+  理由已写进该方法 javadoc，后来者勿「顺手对齐」。
+- **测试**：`OrderPaymentChargeInvariantTest` 4→6 例（组合腿 + 差额=0 边界）。组合腿用例修前必红
+  （`expected: <40> but was: <100>`），修后 6/0；trade-service 全量 2762/0。
+- **未闭合**：MA-161——组合单退款仍按 `order.payChannel` 把整笔压回单一渠道，本批只把「静默少退用户」
+  变成「显式失败」，拆分退款需另拍板。
