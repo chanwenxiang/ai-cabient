@@ -684,6 +684,22 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（MA-161 A 档起手 A0：退款拆腿收成单源原语，尚未接调用方）
+
+- 实测码形（先读再估，收回「45 分钟」那句）：`resolveOriginalChargeTotalCents` 把订单**所有渠道**的
+  COMPLETED `CHARGE+ADJUST_CHARGE` 直接求和、**不按 channel 分组**；`prepareOrderRefund` 只按
+  `order.payChannel` 造**一条单腿** `OrderRefundPrep` ⇒ 组合单全额退会把 100 压给只收 40 的微信交易。
+- 本刀只做**零行为变更**的一步：新增 `OrderPaymentService.planRefundLegs(List<ChannelCharge>, refundCents)`
+  + `ChannelCharge`/`RefundLeg` 两个 record——渠道腿按 `min(待退, 该渠道实扣)`，其余由**余额腿**兜
+  （无网关上限、与用户资产同型）；两种不平情况都抛 **409 显式失败**，绝不静默调整金额。
+  现无任何调用方消费它 ⇒ **MA-161 仍是 open**，只是判据从此单源。
+- 钉测 `OrderPaymentRefundLegsTest` **9 例全过**，金额全非零：事故形态（微信 40 + 钱包 60 退 100 →
+  40/60 两条腿）、部分退、渠道实扣大于待退时不动余额腿、纯余额单、超实扣合计必 409、
+  以及「任意待退额下 Σ腿 == 退款额」的合计不变量（四层对账第一层）。
+- 下一步（A1/A2，钱路真改动）：`OrderRefundPrep` 改腿列表 → 退款执行链/`payment_operation` REFUND
+  痕迹行/幂等键/调用方（`recordRefundInitiated:351`、`:664`）全部跟改 → `mvn verify` + Docker IT。
+  这一段撑不出那个闭环，已按规矩停在 A0。
+
 ### 2026-11-05（第十二刀①：清掉 4 处「界面在说、代码不做」的货道假描述，棘轮 18→14）
 
 - 先按**可达性**把剩量分了三档（逐处读过，不是按计数动手）：

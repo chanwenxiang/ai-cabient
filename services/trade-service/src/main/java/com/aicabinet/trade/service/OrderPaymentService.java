@@ -34,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -1284,6 +1286,61 @@ public class OrderPaymentService {
             charged = Math.max(order.getTotalAmountCents(), refundCents);
         }
         return Math.max(charged, refundCents);
+    }
+
+    /** 一条渠道的实扣流水（MA-161 拆腿的输入）。 */
+    record ChannelCharge(String channel, int chargedCents, String payTradeNo) {}
+
+    /** 拆出来的一条退款腿。 */
+    record RefundLeg(String channel, int amountCents, String payTradeNo) {}
+
+    /**
+     * 退款拆腿的**唯一**判据（MA-161 A 档，本方法暂未被调用方消费，A1 接上）。
+     *
+     * <p>组合单（钱包冲抵 + 渠道补缴）的退款不能整笔压给 `order.payChannel` 一个渠道：
+     * 网关侧的交易只收了它实际那部分，超退会被拒（MA-160 修前是「微信确实收了 100」才退成功，
+     * 而钱包那 60 永远不退＝静默少退用户）。故按渠道实扣额截断，其余退回余额——
+     * 余额腿没有网关上限，且与用户资产同型。</p>
+     *
+     * <p>两条都必须**显式失败**，绝不静默调整金额：流水合计不足退款额、或余额腿兜不住其余，
+     * 都说明账面与判据打架，这时错退和少退一样有害。</p>
+     */
+    static List<RefundLeg> planRefundLegs(List<ChannelCharge> charges, int refundCents) {
+        List<RefundLeg> legs = new ArrayList<>();
+        if (refundCents <= 0) {
+            return legs;
+        }
+        int chargedTotal = charges.stream().mapToInt(ChannelCharge::chargedCents).sum();
+        if (chargedTotal < refundCents) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "退款额超出各渠道实扣额合计（" + refundCents + " > " + chargedTotal + "），拒绝拆分");
+        }
+        int balanceCharged = 0;
+        String balanceTradeNo = null;
+        int remaining = refundCents;
+        for (ChannelCharge charge : charges) {
+            if (PayChannels.BALANCE.equalsIgnoreCase(charge.channel())) {
+                balanceCharged += charge.chargedCents();
+                if (balanceTradeNo == null) {
+                    balanceTradeNo = charge.payTradeNo();
+                }
+                continue;
+            }
+            if (remaining <= 0 || charge.chargedCents() <= 0) {
+                continue;
+            }
+            int take = Math.min(remaining, charge.chargedCents());
+            legs.add(new RefundLeg(charge.channel(), take, charge.payTradeNo()));
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            if (balanceCharged < remaining) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "余额腿兜不住其余退款（" + remaining + " > 余额实扣 " + balanceCharged + "），拒绝拆分");
+            }
+            legs.add(new RefundLeg(PayChannels.BALANCE, remaining, balanceTradeNo));
+        }
+        return legs;
     }
 
     /** 支付操作创建时间，用作订单 paidAt。 */
