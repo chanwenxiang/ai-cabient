@@ -290,7 +290,7 @@ public class DeviceSlotService {
                                    int bookQty, int minLevel, int capacity, int parLevel,
                                    int thresholdPct) {}
 
-    /** 补货关门快照：批量回写货道实测数量。 */
+    /** 补货关门快照：批量回写货道实测数量（现仅剩超容量钳制内部使用，见 clampDeviceOverCapacity）。 */
     @Transactional
     public int applyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
                                      String source, String refId) {
@@ -320,18 +320,6 @@ public class DeviceSlotService {
         return updated;
     }
 
-    /** 无传感数据时：用账面数量刷新实测（降低误报）。 */
-    @Transactional
-    public int syncPhysicalFromBook(String deviceId, String refId) {
-        return runWithDeviceSlotLock(deviceId, () -> {
-            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-            if (bookBySlot.isEmpty()) {
-                return 0;
-            }
-            return doApplyPhysicalSnapshot(deviceId, bookBySlot, "BOOK_SYNC", refId);
-        });
-    }
-
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */
     @Transactional(readOnly = true)
     public Map<String, Integer> loadBookQtyBySlot(String deviceId) {
@@ -343,15 +331,6 @@ public class DeviceSlotService {
                 ));
     }
 
-    @Transactional(readOnly = true)
-    public List<SlotBookView> listEnabledSlotsForSku(String deviceId, String skuId) {
-        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
-                .map(s -> new SlotBookView(s.getId().getSlotCode(), s.getParLevel()))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<SkuQuantityDto> inventorySnapshot(String deviceId) {
         requireDevice(deviceId);
         if (inventoryLotService.deviceUsesLotLedger(deviceId)) {

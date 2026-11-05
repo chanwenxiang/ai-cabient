@@ -349,11 +349,6 @@ public class SessionExpireService {
         if (session.getCloseTime() == null) {
             session.setCloseTime(Instant.now());
         }
-        try {
-            restockSnapshotService.applySnapshot(session);
-        } catch (Exception e) {
-            log.warn("补货超时快照失败 {}，仍关闭会话", SessionLogContext.of(session), e);
-        }
         sessionService.transition(session, SessionState.COMPLETED);
         opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "补货识别超时", "补货关门后超过10分钟未完成货道快照");
         log.warn("restock recognizing session expired {}", SessionLogContext.of(session));

@@ -63,7 +63,6 @@ public class SessionRestockService {
                         () -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND)));
             }
             try {
-                restockSnapshotService.applySnapshot(ready);
                 return self.completeRestockSnapshot(sessionId);
             } catch (RuntimeException e) {
                 log.error("restock snapshot failed session={}", sessionId, e);
@@ -128,12 +127,6 @@ public class SessionRestockService {
             session.setFailReason(failReason);
             if (session.getCloseTime() == null) {
                 session.setCloseTime(Instant.now());
-            }
-            try {
-                restockSnapshotService.applySnapshot(session);
-            } catch (Exception e) {
-                log.warn("restock auto-close snapshot failed session={} task={}",
-                        session.getSessionId(), taskId, e);
             }
             sessionService.transition(session, SessionState.COMPLETED);
             domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),

@@ -43,9 +43,10 @@ class RestockDoorOpenReportTest {
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
     @Mock CabinetMetrics cabinetMetrics;
+    /** 批 3b 第十五刀③：快照回写已退场，但 SessionDoorService 仍注入它（依赖待清），这里先保留 mock */
+    @Mock RestockSnapshotService restockSnapshotService;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -101,8 +102,6 @@ class RestockDoorOpenReportTest {
         assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-1"));
         assertEquals(SessionState.SHOPPING, session.getState());
         assertNotNull(session.getOpenTime());
-        // 补货链路：开门不落快照、不结算（快照在关门才核销）
-        verify(restockSnapshotService, never()).applySnapshot(any());
         verify(settlementService, never()).settle(any());
     }
 

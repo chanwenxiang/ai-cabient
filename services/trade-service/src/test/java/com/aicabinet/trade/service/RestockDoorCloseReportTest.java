@@ -44,9 +44,10 @@ class RestockDoorCloseReportTest {
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
     @Mock CabinetMetrics cabinetMetrics;
+    /** 批 3b 第十五刀③：快照回写已退场，但 SessionDoorService 仍注入它（依赖待清），这里先保留 mock */
+    @Mock RestockSnapshotService restockSnapshotService;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -95,7 +96,6 @@ class RestockDoorCloseReportTest {
         assertTrue(doorService.applyRestockDoorClosed("EG943322621391"));
         assertEquals(SessionState.COMPLETED, session.getState());
         assertNotNull(session.getOpenTime());
-        verify(restockSnapshotService).applySnapshot(session);
     }
 
     @Test
@@ -109,7 +109,6 @@ class RestockDoorCloseReportTest {
         assertTrue(doorService.applyRestockDoorClosed("EG943322621391"));
         assertEquals(SessionState.COMPLETED, session.getState());
         assertNotNull(session.getCloseTime());
-        verify(restockSnapshotService).applySnapshot(session);
         // 消费链路不受影响：补货会话关门不结算
         verify(settlementService, never()).settle(any());
     }
@@ -120,7 +119,6 @@ class RestockDoorCloseReportTest {
                 List.of(SessionState.OPENING, SessionState.SHOPPING))).thenReturn(Optional.empty());
 
         assertFalse(doorService.applyRestockDoorClosed("EG-2"));
-        verify(restockSnapshotService, never()).applySnapshot(any());
     }
 
     @Test

@@ -213,7 +213,6 @@ public class SessionDoorService {
         }
 
         if (DeviceValidationService.isRestockSession(session)) {
-            restockSnapshotService.applySnapshot(session);
             sessionService.transition(session, SessionState.COMPLETED);
             log.info("restock door closed with gravity snapshot {}", SessionLogContext.of(session));
             return sessionService.toDto(session);
