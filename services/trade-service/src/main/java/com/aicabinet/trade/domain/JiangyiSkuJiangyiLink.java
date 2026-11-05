@@ -37,6 +37,18 @@ public class JiangyiSkuJiangyiLink {
 
     private String syncStatus;
 
+    /** V16 第七章 §7.2 商品状态快照；NULL=尚未查询/旧数据。 */
+    private String jiangyiState;
+
+    /** §7.5/§7.6 返回的 nextAction。 */
+    private String nextAction;
+
+    /** §7.2 state=REJECTED 的驳回原因原文。 */
+    private String rejectCause;
+
+    /** 最近一次查询商品状态的时间（§7.5/§7.10）。 */
+    private Instant stateCheckedAt;
+
     private Instant syncedAt;
 
     private Instant createdAt;
