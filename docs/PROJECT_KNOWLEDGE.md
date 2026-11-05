@@ -684,6 +684,29 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十二刀①：清掉 4 处「界面在说、代码不做」的货道假描述，棘轮 18→14）
+
+- 先按**可达性**把剩量分了三档（逐处读过，不是按计数动手）：
+  - ①**假描述**（本次改）：`ConsistencyView` 顶部说明「…覆盖…货道 SKU/容量/盘点…」与提示行
+    「巡检…分账/**货道**/仓存」——A 段已停跑三个 SLOT_* 巡检，宣称会查就是假话；
+    `menu.ts` 菜单关键词 `'货道'`——搜它仍命中「商户与分账」，而改货道陈列开关第六刀已退场，
+    等于留一条通向不存在的入口；`SkuListView` 采购单位说明「库存/**货道**/销售以「支」为单位」——
+    货道不再是库存维度。
+  - ②**描述仍然真实**，本次刻意不改（改了就是新的假描述）：`ReplenishmentView` 8 +
+    `MerchantSplitsView:313`「仅对有货道柜生效（按货道货量占容量比例判缺货）」（算式还在）+
+    `ConsistencyView:397` 的 `'货道容量'`（SLOT_* 历史行译名）⇒ 随 **B 段算式**一起消失。
+  - ③**历史数据解析**（已拍板不洗）：admin `order-line-summary` + mp `order-detail`/`tally-records`
+    共 3 处——老订单行里真写着「·货道A1」，洗掉会对不上旧账。
+- 判据：`check:door-cabinet-slot-copy` 基线 **18→14**（剩 6 文件，全在②③两档）；
+  补丁脚本 `.tmp/patch-3b12-1-copy.mjs` 每处断言命中 1 次、任一不符整体不写盘。
+- 产物：改了 admin 源 ⇒ 同批重打 `static/admin`，并**按字节反证**三段假描述在产物里 **0 命中**。
+- ⚠️ **未在浏览器点验**（四处都是 tooltip/hint/搜索关键词的纯文本删除，已用产物字节 + 4 个门禁
+  反证：no-inline-dict-display / admin-banner-ratchet / admin-anti-jitter / prettier 全绿）。
+  要 Playwright 真 Chrome 走一遍 `/admin/consistency`、`/admin/skus`、菜单搜索，说一声我补。
+- 下一刀顺序（用户已认可推荐）：**MA-161 组合单退款拆腿**（钱，先出「每渠道实扣额」差异表再动码）
+  → **B1 读面**（`DeviceDetailDto.slots` + `DeviceOpsMetricsDto`，实测三端不读 ⇒ 零 UI 风险）
+  → **B2 算式**（FEFO per-slot / clamp / slotId 分支，碰钱碰库存，需 Docker IT + 彩排 + 差异表确认）。
+
 ### 2026-11-05（补记：全量套件偶发红的真因是 Micrometer 弱引用，不是顺序污染）
 
 - 第十刀 A 段记的那条「`SchedulingPoolCapacitySelfCheckTest.selfCheck_whenProbeThrows_doesNotPropagate`
