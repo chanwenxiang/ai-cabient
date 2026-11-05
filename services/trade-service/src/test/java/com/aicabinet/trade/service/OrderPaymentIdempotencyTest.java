@@ -418,6 +418,8 @@ class OrderPaymentIdempotencyTest {
         order.setPayTradeNo("WX-TXN-1");
         stubOrderLock(order);
         stubNetCharged("O-COMBO-LEG", 1000);
+        // 幂等键的金额段取「请求额与毛实扣的较小者」（MA-161 A2 重试稳定性），与净额同源
+        when(paymentOperationRepository.chargedCompletedCents("O-COMBO-LEG")).thenReturn(1000);
         when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         when(paymentOperationRepository.findCompletedPaymentOpsByOrderId("O-COMBO-LEG"))
                 .thenReturn(List.of(

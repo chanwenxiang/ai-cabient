@@ -756,9 +756,16 @@ public class OrderPaymentService {
         int refundCents = Math.min(amountCents, netCharged);
         // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）；
         // AU-175：按行部分退款场景由调用方传行集指纹键覆盖。
+        // 🔴 MA-161 A2：键里的金额取「请求额与毛实扣的较小者」，**不取** refundCents（=与净额取小）。
+        // 拆腿单的余额腿在 prepare 内就落账，净额随之变小 ⇒ 若键按净额算，渠道失败后的重试会换一个键，
+        // deterministicRefundNo 随之变化，微信那边就变成**另一笔新退款**（双退风险）。毛额在退款前后不变，
+        // 同一请求的重试因此稳定复用一个 outRefundNo。
+        int grossCharged = paymentOperationRepository.chargedCompletedCents(locked.getOrderId());
+        // 毛额读不到（正常数据不可能：net>0 ⇒ 必有一条入账行）时退回净额，至少保证键里不是 0。
+        int keyAmount = grossCharged > 0 ? Math.min(amountCents, grossCharged) : refundCents;
         String idemKey = idemKeyOverride != null && !idemKeyOverride.isBlank()
                 ? idemKeyOverride
-                : "REFUND:" + locked.getOrderId() + ":" + refundCents;
+                : "REFUND:" + locked.getOrderId() + ":" + keyAmount;
         if (isCompleted(idemKey)) {
             return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, 0, reason, idemKey,
                     locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false);
@@ -985,6 +992,13 @@ public class OrderPaymentService {
 
     private void completeLocalRefund(CabinetOrder order, int amountCents, String reason,
                                      String idemKey, String channel) {
+        // MA-161 A2：拆腿后每条腿的幂等键带腿段（:渠道 / :BALANCE），而 prepareOrderRefund 的
+        // isCompleted(baseKey) 只看基键 ⇒ 渠道腿失败后的重试会**再进一次本方法**。账本按同一键写
+        // 流水且幂等，但下面 refundedCents 的累加不幂等——重试会把「已退金额」越加越大，而痕迹行
+        // 合计不变（四层对账当场穿孔）。已入账即整腿跳过。
+        if (paymentOperationRepository.findByIdempotencyKey(idemKey).isPresent()) {
+            return;
+        }
         if (PayChannels.WECHAT.equalsIgnoreCase(channel)) {
             if (!securityProperties.mockEnabled()) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);

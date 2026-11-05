@@ -684,6 +684,24 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（MA-161 A2：组合单退款四层对账 IT 落地，并揪出「重试换键」双退风险）
+
+- 新增 `OrderPaymentComboRefundLedgerSqlIT`（Testcontainers Postgres+Redis，真 `OrderPaymentService`
+  prepare→finalize 链，微信 properties 置为已配置但**不调 HTTP**）：组合单 600 钱包 + 400 微信，
+  退 1000 ⇒ 一次断言四层——①渠道实扣（WECHAT 400 / BALANCE 600）②钱包冲抵（余额腿 600 回钱包、
+  流水同步）③退款上限（每渠道退款 ≤ 其实扣、渠道腿上限=该渠道实扣 400）④痕迹行合计
+  == 退款额 == `cabinet_order.refunded_cents`；另有部分退 500（渠道腿吃满 400、钱包腿 100）用例。
+- 🔴 **IT 当场抓到一个 A1 引入的真缺陷**：拆腿后余额腿在 prepare 内落账，`netCompletedCents` 随之变小
+  ⇒ 渠道腿失败后**再次 prepare 会换幂等键**（`REFUND:<oid>:1000` → `REFUND:<oid>:400`），
+  `deterministicRefundNo` 跟着变，微信侧会把重试当成**另一笔新退款**（双退风险），且
+  `refundedCents` 会被余额腿重复累加。
+  修法两条：①键里的金额段改为「请求额与**毛**实扣取小」（毛额退款前后不变 ⇒ 重试稳定复用同一键/单号；
+  消费方只有 `likeRight("REFUND:<oid>:")` 前缀查询，不解析金额段）；②`completeLocalRefund` 先按腿键查
+  流水，已入账即整腿跳过，`refundedCents` 不再二次累加。
+- 已知边界（不修，留痕）：渠道失败后**人工**重发时 `prep.refundCents` 只剩残额，积分回扣按残额算
+  （调度器重试路径本就不回扣积分）——要彻底一致需把回扣挪到「整笔退款首次成功」的单点，另立条目。
+- 验证：IT 2/2；退款相关单测 136 例绿（`OrderPaymentIdempotencyTest.combo...` 增加 `chargedCompletedCents` 桩）。
+
 ### 2026-11-05（第二十刀：货道柜只读「缺货」分支整体退场——全柜型统一 SKU 台账口径）
 
 - **用户拍板「直接删掉那些不可达的货道代码」**。删的是最后三处「仅非开门柜才走」的缺货分支：
