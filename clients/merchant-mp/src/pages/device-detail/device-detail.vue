@@ -263,11 +263,7 @@
             :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
             @click="toggleGatherMode"
           />
-          <app-button
-            v-if="canEditDevice"
-            label="商品采集（手机拍照）"
-            @click="goJiangyiCapture"
-          />
+          <app-button v-if="canEditDevice" label="商品采集（手机拍照）" @click="goJiangyiCapture" />
         </view>
 
         <view id="goodsCard" class="card" v-show="activeTab === 'goods'">

@@ -420,8 +420,7 @@
           }
         }
       ]
-    }
-,
+    },
     {
       "root": "pages/jiangyi-capture",
       "pages": [

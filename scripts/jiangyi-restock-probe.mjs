@@ -25,12 +25,17 @@ const arg = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const device = arg('--device');
-const barcodes = (arg('--barcodes') || '').split(',').map((s) => s.trim()).filter(Boolean);
+const barcodes = (arg('--barcodes') || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 const mobile = process.env.JIANGYI_MERCHANT_MOBILE;
 const password = process.env.JIANGYI_MERCHANT_PASSWORD;
 if (!mobile || !password) {
-  console.error('缺少 JIANGYI_MERCHANT_MOBILE / JIANGYI_MERCHANT_PASSWORD（未配置则不发送任何请求）');
+  console.error(
+    '缺少 JIANGYI_MERCHANT_MOBILE / JIANGYI_MERCHANT_PASSWORD（未配置则不发送任何请求）'
+  );
   process.exit(2);
 }
 
@@ -39,9 +44,9 @@ async function post(path, body, token) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json; charset=UTF-8',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
-    body: JSON.stringify(body ?? {}),
+    body: JSON.stringify(body ?? {})
   });
   const text = await res.text();
   let json;
@@ -83,19 +88,29 @@ function report(title, resp) {
   const token = login.data;
   console.log(`login2 OK（token 长度 ${token.length}，不打印内容）`);
 
-  report('§7.19 商户类目 /product/categories', await post(`${PREFIX}/product/categories`, {}, token));
-  report('§7.7 拍摄要求 /phoneCapture/policy', await post(`${PREFIX}/phoneCapture/policy`, {}, token));
+  report(
+    '§7.19 商户类目 /product/categories',
+    await post(`${PREFIX}/product/categories`, {}, token)
+  );
+  report(
+    '§7.7 拍摄要求 /phoneCapture/policy',
+    await post(`${PREFIX}/phoneCapture/policy`, {}, token)
+  );
 
   if (barcodes.length) {
-    report(`§7.10 批量查状态 /product/status (${barcodes.length} 条)`,
-      await post(`${PREFIX}/product/status`, { barCodes: barcodes.slice(0, 100) }, token));
+    report(
+      `§7.10 批量查状态 /product/status (${barcodes.length} 条)`,
+      await post(`${PREFIX}/product/status`, { barCodes: barcodes.slice(0, 100) }, token)
+    );
   } else {
     console.log('\n=== §7.10 批量查状态 === 跳过（未传 --barcodes）');
   }
 
   if (device) {
-    report(`§7.13 当前货道 /restock/shelf (${device})`,
-      await post(`${PREFIX}/restock/shelf`, { deviceIdentifier: device }, token));
+    report(
+      `§7.13 当前货道 /restock/shelf (${device})`,
+      await post(`${PREFIX}/restock/shelf`, { deviceIdentifier: device }, token)
+    );
   } else {
     console.log('\n=== §7.13 当前货道 === 跳过（未传 --device）');
   }
