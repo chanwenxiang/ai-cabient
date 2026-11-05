@@ -98,7 +98,6 @@ class InventoryServiceTest {
         assertEquals("BATCH-A", batches.get("SKU-DEMO-001"));
         verify(inventoryLotService).restoreToBatch(
                 "CAB-001", "SKU-DEMO-001", "BATCH-A", 1, "ORDER", null);
-        verify(deviceSlotService).applyPhysicalAfterRestore(eq("CAB-001"), anyMap(), eq("REFUND"));
     }
 
     @Test
@@ -111,7 +110,7 @@ class InventoryServiceTest {
 
         assertEquals(Map.of("SKU-DEMO-001", "BATCH-KEEP"), batches);
         verify(inventoryLotService, never()).restoreToBatch(any(), any(), any(), anyInt(), any(), any());
-        verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any(), any());
+        verify(inventoryLotService, never()).deductFefo(any(), any(), anyInt(), any(), any());
     }
 
     /** 退货回库的库存流水必须挂 order_id（否则 CROSS_LINK B 退款缺审计永久 FAIL）。 */
@@ -146,8 +145,6 @@ class InventoryServiceTest {
         assertTrue(ex.getReason().contains("sellable lot inventory insufficient"));
         verify(inventoryRepository, never()).findById(any());
         verify(inventoryRepository, never()).save(any());
-        verify(deviceSlotService, never()).applyPhysicalAfterSale(any(), any(), any());
-        verify(deviceSlotService, never()).applyPhysicalAfterSkuSale(any(), any(), any());
         verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
     }
 }

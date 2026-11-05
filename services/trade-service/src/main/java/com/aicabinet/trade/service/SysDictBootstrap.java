@@ -307,13 +307,13 @@ public class SysDictBootstrap implements ApplicationRunner {
                 DEVICE_OFFLINE, "柜机离线", "DEVICE_FAULT", "柜机故障",
                 "SALES_LOCKED", "柜机停售",
                 DISPUTE, "消费争议", "SETTLEMENT_FAILED", "结算失败",
-                // MA-031：待办四源（exceptions / actionItems / expiry / slot 差异）能产出的类型
+                // MA-031：待办三源（exceptions / actionItems / expiry）能产出的类型
                 // 必须全在此表内，否则商户端待办行首渲染成「未知」。
                 // 🔴 DOOR_OPEN_TOO_LONG 改「长时间未关门」把「开门超时」让给 OPEN_TIMEOUT
                 //    （同一 dict_type 禁重名，由 DictLabelUniquenessIT 钉住）。
                 "DOOR_OPEN_TOO_LONG", "长时间未关门", "OPEN_TIMEOUT", "开门超时",
                 "RESTOCK_TASK_TIMEOUT", "补货任务超时",
-                "SLOT_DISCREPANCY", "货道账实差异", "INVENTORY_MISMATCH", "库存差异")));
+                "INVENTORY_MISMATCH", "库存差异")));
         map.put("device_ops_event", t("设备运维事件", m(
                 "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",
                 "FAULT", "故障/锁机", "AISLE_AUDIT", "盘点巡检", "MAINBOARD", "主板")));
@@ -388,7 +388,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "JIANGYI_PARAMS_NOT_READY", "识别参数未就绪",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
                 "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
-                "INVENTORY_MISMATCH", "库存差异", "SLOT_DISCREPANCY", "货道账实差异",
+                "INVENTORY_MISMATCH", "库存差异",
                 // 以下 14 类是代码真会写、但字典此前缺项的类型（G7 §7.27 FS-G7-5）：异常台按
                 // exception_type 渲染标签，缺项 ⇒ 行落了后台显示不出类型。标签取各 report 站点的 title 原文。
                 // 门禁 check:exception-type-dict 守住「report 字面量 ⊆ 本内置集」，新类型漏登记即红。

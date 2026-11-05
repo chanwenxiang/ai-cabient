@@ -101,7 +101,6 @@ export const MERCHANT_ALERT_TYPES = [
   { value: 'SALES_LOCKED', label: '柜机停售' },
   { value: 'LOW_STOCK', label: '低库存' },
   { value: 'EXPIRY', label: '临期下架' },
-  { value: 'SLOT_DISCREPANCY', label: '货道差异' },
   { value: 'REPLENISHMENT', label: '补货任务' },
   { value: 'EXCEPTION', label: '识别/故障异常' }
 ] as const;

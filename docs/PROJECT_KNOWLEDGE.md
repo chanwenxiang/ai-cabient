@@ -647,7 +647,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 | A2 | `check:channel-id-stability` | #97 / #225 | **已修（2026-10-24）**：`PaymentService.requireStableRefundNo` / `WeChatProfitSharingService.requireStableReturnNo` 对空单号 fail-closed；全额退款号改确定性 `RF-FULL-<orderId>`；`PayoutAccountService.newIdemKey` 去掉随机尾缀（`<prefix>:<requestId>`）；`LineWithdrawPayoutService`/`MerchantWithdrawPayoutService` 的 mock ref 不在渠道键范围 | 渠道幂等标识（`outRefundNo`/`outReturnNo`/`outRequestNo`/`idemKey`，含 setter 与 JSON 键）禁止随机/时间源；确定性生成器方法体内同样禁止；两个 fail-closed 守卫必须存在且**确实被调用**；零命中 = fail-closed；豁免须真实命中（否则红） | 静态（解析 + 方法体配对） | ✅ 已落地并接入聚合链；负向注入（`BizIds` 重回首、`newIdemKey` 加随机、删守卫调用）均实测变红。**已订正（2026-10-24，同日）**：复核发现 v3《商户预授权》没有 `out_request_no`（要求 `authorization_code`）、回调也没有该字段 ⇒ 原实现真实回调永不激活。已改请求字段、查询/解约路径与方法、回调按 `authorization_code` + `user_service_status` 分支（OPEN 激活 / CLOSE 停用 / 未知 WARN），并补 `service-id`/`permission-notify-url` 的 yml 绑定与 compose 透传；门禁里的 PayScore 豁免**已撤销**。契约由 `WeChatPayScoreClientTest` 5 例 + 回调 4 例钉住（CB-064）。 |
 | A4 | `check:config-properties-binding` | #336 ④ / #337 | **已落地（2026-10-24）**：首跑即揪出 14 处未绑定——`DisputeAutoWaiveProperties`（5）、`RopProperties`（6）、`RoutePlanningProperties`（2）三个类整段没有 yml 键，外加 `max-disputes-per7-days` 拼写差异；三段 13 键已补进 `application.yml` | 每个 `@ConfigurationProperties` 的必绑字段（record 无 `@DefaultValue`、class 字段无初始化器；集合/Map 为叶子；嵌套 record 递归）必须在**声明模块**的 `application*.yml` 有键；无 yml 的 `common-core` 才回落全局并集；豁免 `scripts/config-binding-waivers.json` 理由必填、失效即红；零类/零必绑字段各设下限（防解析退化假绿） | 静态（Java 源码 + yml 键树） + `config-properties-binding.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；与 `check:config-passthrough` 互补（后者看「已写的 `${KEY:}` 有没有透传」，本门禁看「键本身有没有」） |
 | A3 | `check:devmock-scope` | #25 | **已落地（2026-10-24）**：三个 `DevMock*Controller` 当前合规（`/api/v2/dev/payment/**` + `@ConditionalOnProperty(aicabinet.security.mock-enabled=true)`），`ProductionStartupValidator:137` 在 prod/staging 抛错；本门禁为纯防回潮 | ① `DevMock*Controller` 必须有类级 `@RequestMapping` 且值全部以 `/api/v2/dev/` 开头；② 任何 `@RestController` 的类级路由落在 `/api/v2/dev` 下（不论类名）都必须带 mock 条件；③ 类名含 `Mock` 的控制器同样必须带条件；④ 条件必须 `havingValue="true"` 且无 `matchIfMissing=true`；⑤ `ProductionStartupValidator` 必须仍抛出「mock-enabled=true」拒绝；⑥ 锚点：DevMock 类 ≥3、dev 路由类 ≥3，枚举为空即失败（防解析退化假绿） | 静态（注解解析） + `check-devmock-scope.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；负向注入（删条件 / 改回 `/api/v2/payment`）均实测先红后还原绿 |
-| B1 | `check:inmemory-paging` | #47 | **允许清单已冻结（2026-10-24）**：全仓 main 源共 **10 处**内存分页（8 个文件）——`FundBillService#listDailyBillsPage` / `#listLedger`、`OpsDeviceAdminService#listDevicesPaged` / `#deviceReports`（后两处不在原短名单里，逐点确认时补入）、`CompetitiveGapService#salesReportPage`、`DeviceAssetService#stockHealthPage`、`PurchaseSuggestionService#suggestPage`、`ReplenishmentService#listShortagePage`、`SupplierPayableService#listPayablesPage`（仅 `overdueOnly` 分支）、`WarehouseBinService#listBinStockPage`；非分页方法的 `subList(0,n)`（Top-N/调度批大小）不算 | 返回 `PageResult<…>` 或 `*PageDto` 的方法体内禁止 `.subList(`；清单键＝`文件#方法`，含 `count` 与理由；未登记 / 同方法多一处 / 少一处（已修未下调）/ 条目失效 / 空理由均红；分页方法数 <60 判解析器锚点失效（防「零命中」假绿） | 静态（棘轮允许清单） + `check-inmemory-paging.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；负向注入（同方法加一处 `subList`）实测红并报出两处行号，还原复绿 |
+| B1 | `check:inmemory-paging` | #47 | **允许清单已冻结（2026-10-24）**：全仓 main 源共 **9 处**内存分页（8 个文件；批 3b 第十九刀删 `ReplenishmentService#listShortagePage` 后 10→9，自检常量同步）——`FundBillService#listDailyBillsPage` / `#listLedger`、`OpsDeviceAdminService#listDevicesPaged` / `#deviceReports`（后两处不在原短名单里，逐点确认时补入）、`CompetitiveGapService#salesReportPage`、`DeviceAssetService#stockHealthPage`、`PurchaseSuggestionService#suggestPage`、`SupplierPayableService#listPayablesPage`（仅 `overdueOnly` 分支）、`WarehouseBinService#listBinStockPage`；非分页方法的 `subList(0,n)`（Top-N/调度批大小）不算 | 返回 `PageResult<…>` 或 `*PageDto` 的方法体内禁止 `.subList(`；清单键＝`文件#方法`，含 `count` 与理由；未登记 / 同方法多一处 / 少一处（已修未下调）/ 条目失效 / 空理由均红；分页方法数 <60 判解析器锚点失效（防「零命中」假绿） | 静态（棘轮允许清单） + `check-inmemory-paging.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；负向注入（同方法加一处 `subList`）实测红并报出两处行号，还原复绿 |
 | B2 | `check:scheduler-entity-save` | #243 | **允许清单已冻结（2026-10-24）**：24 个 `*Scheduler`/`*Job` 类中 **10 处**读改写（5 个类 / 10 个方法）——`CompensationTaskScheduler#processProfitSharingReturnTask` / `#deferProfitSharingReturnTask` / `#finishCompensationTask`、`PointsExpiryScheduler#remind` / `#expireMemberPoints` / `#markEarnLogsExpired`、`ReplenishmentTimeoutScheduler#expireOne` / `#finalizeRouteIfReady`、`CouponExpiryReminderScheduler#remind`、`RefundRetryScheduler#touch`。原清单里的 `PointsExpiryScheduler.java:182` **不计入**：那是 `new MemberPointsLog()` 后 `save`，属新建日志行（本规则按「可证明是本方法新建的实体」放行） | `*Scheduler`/`*Job` 类里 `save`/`insert` 的参数若不能证明是新实体（内联 `new`，或同方法内最近一次赋值 RHS 以 `new ` 开头 / 含 `.builder(`）即判读改写；`saveOrUpdate`/`updateById`/`saveBatch`/`updateBatchById` 一律判整实体；清单键＝`文件#方法`，含 `count` 与理由，未登记 / 同方法多一处 / 少一处 / 条目失效 / 空理由均红；Scheduler/Job 类数 <20 判锚点失效 | 静态（棘轮允许清单） + `check-scheduler-entity-save.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；负向注入（在 `RechargeOrderScheduler` 里加 `Object loaded = repo.findById(1L); repo.save(loaded);`）实测红并报出 `#probeGateInjection`，还原复绿 |
 | B3 | （不建门禁） | #90 | **2026-10-24 复核：无复现缺陷**。3 个 version 列中两张表已在数据层兜住——`DeviceSkuInventoryMapper#save` / `DeviceSkuPriceMapper#save` 都是 `where version=expected` + 版本 +1、0 行抛 409；两个 XML 只有 select，无旁路写入。`payout_account.version` 是**预留列**：无 `@Version`、无乐观锁拦截器，`insert` / `switchDefault` / `disable` 都不递增，V307 列注释「防止并发改账户」是目标态——已在 `PayoutAccount` 字段与 `PayoutAccountService#disable` 就地注明（写入口只有新建/设默认/停用；停用与设默认交错最坏是默认标记短暂指向停用账户，`resolveForApply` 的 ACTIVE 校验会拦，不动钱） | 有 `version` 列的表，更新入口必须走版本条件（`expectedVersion` 比对，或 mapper 层 `where version=?` + 递增） | —（真出现违反实例再补静态判据：mapper 外禁止裸 `updateById/update`） | 维持不加门禁：静态无法判定「入口是否该带 expectedVersion」，当前也无违反实例 |
 | B4 | `check:test-mockito-pitfalls` | #296 / #322 | **已落地（2026-10-24）**：450 个测试源文件、2252 处带 matcher 的调用、1056 处签名可唯一定位，当前三类写法零命中（教训行里的坑都已修好，本门禁为纯防回潮）。#322（mock 接口 `default` 方法不委托、桩打错路）**静态不可判定**，不在本门禁范围 | 扫 `services/**/src/test/java`：① `when(...)` 的目标方法返回 void → 红（void 用 doNothing/doThrow）；② `when`/`verify`（含 `verify(mock).method(...)` 链式）实参用 `anyInt`/`anyLong`/`anyString`… 而形参不是对应类型 → 红（如 `anyInt()` 桩 `long` 会静默失配）；③ `*Mapper` 接收者上的裸 `delete(any())` → 红（BaseMapper `delete(Wrapper)`/`delete(T)` 重载歧义），`(实体) any()` / `any(Wrapper.class)` 放行。签名索引覆盖全仓 main+test 源码，同名同参候选不唯一就跳过（宁可漏报不假阳）；锚点：测试文件 <350 / matcher 调用 <1000 / 可唯一定签名的调用 <500 均判解析退化 | 静态（测试源 + 全仓方法签名索引） + `check-test-mockito-pitfalls.test.mjs` 自测 | ✅ 已落地并接入聚合链与 CI；负向注入（`BalanceRefundAutoApproveTest` 里把 `anyInt()` 改成 `anyLong()` 桩 `int` 形参）实测红并报出文件:150 与形参序号，还原复绿 |
@@ -684,6 +684,365 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（dev 演示数据收口：`device_slot` 16 行清零，账目行不动）
+
+- 挡 FK 的 6 行 `warehouse_outbound_line` 全属**出库单 #2（CANCELLED，2026-10-15 演示单）**。
+  处理方式＝先把 `slot_id` 置 NULL 再删槽位：**出库行、SKU、数量原样保留**（复核 6 行 / 42 件），
+  只摘掉已退场的货道维度。
+- 复核：`device_slot=0`、两张表 `slot_id IS NOT NULL` 全 0；备份在宿主 `.tmp/slot-cleanup-backup-20261105.sql`。
+- 影响：仅两台非 BOUND 演示柜的「货道支路补货建议」变空（BOUND 门柜本就 0 行）；钱/库存真相不动。
+  详见 `docs/OPS_SLOT_LEGACY_2026-11-05.md` §A.2。
+
+### 2026-11-05（第二十一刀：交付码去「货道」残留名——纯改名，零行为变更）
+
+- `RestockSnapshotService` → **`RestockGravityEvidenceService`**（它只回答「有没有真实重力实测」，
+  早就不做快照/回写）。注入点：`ReplenishmentService` 字段/构造参数、两个测试的 `@Mock`。
+- `DeviceSlotService.countSlotStock` → **`countSkuStock`**；返回记录 `SlotStockCounts` → **`SkuStockCounts`**，
+  字段 `oosSlotCount/lowStockSlotCount` → **`oosSkuCount/lowStockSkuCount`**（口径自第十四刀 B 起就是
+  SKU 台账，名字是最后一个假描述）。消费方：`MerchantDevicePortalService` 5 处 + 两个测试。
+- 无接口/契约变化（记录只在服务内部传递）；历史文档（审计台账/pass-notes）里的旧名不回改。
+
+### 2026-11-05（MA-161 A2：组合单退款四层对账 IT 落地，并揪出「重试换键」双退风险）
+
+- 新增 `OrderPaymentComboRefundLedgerSqlIT`（Testcontainers Postgres+Redis，真 `OrderPaymentService`
+  prepare→finalize 链，微信 properties 置为已配置但**不调 HTTP**）：组合单 600 钱包 + 400 微信，
+  退 1000 ⇒ 一次断言四层——①渠道实扣（WECHAT 400 / BALANCE 600）②钱包冲抵（余额腿 600 回钱包、
+  流水同步）③退款上限（每渠道退款 ≤ 其实扣、渠道腿上限=该渠道实扣 400）④痕迹行合计
+  == 退款额 == `cabinet_order.refunded_cents`；另有部分退 500（渠道腿吃满 400、钱包腿 100）用例。
+- 🔴 **IT 当场抓到一个 A1 引入的真缺陷**：拆腿后余额腿在 prepare 内落账，`netCompletedCents` 随之变小
+  ⇒ 渠道腿失败后**再次 prepare 会换幂等键**（`REFUND:<oid>:1000` → `REFUND:<oid>:400`），
+  `deterministicRefundNo` 跟着变，微信侧会把重试当成**另一笔新退款**（双退风险），且
+  `refundedCents` 会被余额腿重复累加。
+  修法两条：①键里的金额段改为「请求额与**毛**实扣取小」（毛额退款前后不变 ⇒ 重试稳定复用同一键/单号；
+  消费方只有 `likeRight("REFUND:<oid>:")` 前缀查询，不解析金额段）；②`completeLocalRefund` 先按腿键查
+  流水，已入账即整腿跳过，`refundedCents` 不再二次累加。
+- 已知边界（不修，留痕）：渠道失败后**人工**重发时 `prep.refundCents` 只剩残额，积分回扣按残额算
+  （调度器重试路径本就不回扣积分）——要彻底一致需把回扣挪到「整笔退款首次成功」的单点，另立条目。
+- 验证：IT 2/2；退款相关单测 136 例绿（`OrderPaymentIdempotencyTest.combo...` 增加 `chargedCompletedCents` 桩）。
+
+### 2026-11-05（第二十刀：货道柜只读「缺货」分支整体退场——全柜型统一 SKU 台账口径）
+
+- **用户拍板「直接删掉那些不可达的货道代码」**。删的是最后三处「仅非开门柜才走」的缺货分支：
+  - `DeviceSlotService.isSlotShortage` / `listShortageSlots` / `SlotShortageItem`（连同售罄阈值/分钟级判据一并退场）；
+  - `MerchantInventoryPortalService.listShortageSummary` 的货道腿（`doorCabinetShortage` 改名 `skuShortageRow`，
+    全柜型走 SkuStockLevel：缺货=可售≤0、低库存=0<可售≤low_threshold，缺口=Σmax(容量−可售,0)）；
+  - `MerchantWorkbenchQueryService.appendLowStockItems` 与 `OpsWorkbenchQueryService.collectLowStockItems`
+    的柜型分流（`appendDoorCabinetLowStock`/`collectDoorCabinetLowStockItems` 改名 `*Ledger*`），
+    两个类因此不再依赖 `DeviceSlotService`（构造参数同步收窄）。
+- **口径影响**：非开门柜（历史/未绑定）的缺货与低库存从此也读 `device_sku_inventory`，不再读 `device_slot`
+  —— 这正是 2026-10-28「按后台阈值为准统一」拍板的延伸；对现网（全开门柜）零变化。
+- `MerchantShortageSummaryDto.shortageSlots` 语义保持「待补商品数」（CB-076），不改契约、不 regen。
+- 测试：三处「有货道柜保留货道口径」的用例改写为「历史货道柜同样走台账」；删 `UnnecessaryStubbing`
+  的 `isDoorCabinet` 桩。定向 30 例绿。
+
+### 2026-11-05（第十九刀：admin「缺货建议（按位置）」tab 整块下线——FE + BE + 契约 + 产物）
+
+- **用户拍板「选 1，整块下线」**（2026-10-30 曾记「C 删 tab 需用户明示」，即本条）。理由已在 10-30 取证：
+  该 tab 的行只能由 `device_slot` 构造，`resolveDevicesForShortage` 两个分支都按 `isDoorCabinet` 排除
+  ⇒ 对**只有开门柜的本产品**（判据=将邑绑定）**结构性恒空**，空态文案也自己承认「开门柜请看库存健康」。
+- **删面（BE）**：`GET /api/v2/ops/admin/replenishment/shortage`（Controller）→ `OpsReplenishmentAdminService` /
+  `OpsCommercialFacade` / `ReplenishmentService.listShortagePage` → `DeviceSlotService.listShortageRows` /
+  `collectLowStockShortageRows` / `maybePutLowStockShortageRow` / `resolveDevicesForShortage` / `shortageRowKey`；
+  DTO `ReplenishmentShortagePageDto` / `ReplenishmentShortageRowDto` 两个文件删除。
+  `scripts/inmemory-paging-allowlist.json` 同步删 `ReplenishmentService#listShortagePage`（否则判「条目腐烂」）。
+- **删面（FE）**：`ReplenishmentView` 的 shortage 面板 + `crudShortages` + 行操作（生成任务/补货规划）+ 一键规划 +
+  导出 + `AdminEndpoints.replenishmentShortage`；`useReplenishmentRoutePlanning` 的 `shortageDeviceIds` 依赖、
+  `planFromShortage`、`planSingleDevice`、`selectedDevicesWithoutShortage`；规划弹窗对应两 prop 与 `go-shortage` 事件。
+- **改道（不留死链）**：Dashboard `LOW_STOCK` → `/stock-health`（带 deviceId）；设备详情「缺货建议」按钮改名
+  「库存健康」→ `/stock-health?deviceId=`；设备详情与库存健康页的「一键规划补货」→ `/replenishment?plan=1&deviceIds=`
+  （`maybeAutoPlanFromQuery` 收窄：无 deviceIds/focus 时明确提示「未指定设备」，不再回落缺货集——该回落对门柜本恒空）。
+- **文案**：规划弹窗两条缺货提示合并为一条（满柜告警 + 「看看库存健康」链接）；临期 tab 的「货道已满」改为柜型中性的
+  「补货余量不足」（开门柜该分支不可达，但原措辞已不成立）。文案棘轮 **14 → 6**（剩：MerchantSplitsView 2、
+  ConsistencyView 译名 1、legacy 订单行解析 3，均按原口径保留）。
+- 契约：删端点 + 2 schema ⇒ regen `openapi.ts`；`build:admin` 产物同批提交。
+- **保留**：`isSlotShortage` / `listShortageSlots`（商户端 `shortage-summary` 仍在用）、`suggest/create-task` 端点
+  （定时任务 `AutoReplenishmentTaskService` 仍在调，只失去了 FE 行操作入口）。
+
+### 2026-11-05（FEFO 2/2 的「lot 行身份」实测：合并场景全零）
+
+- 2/2 要删 `RestockCommand.slotId`，理论上会把 lot 行身份从 `(device, sku, batch, slot)` 变成
+  `(device, sku, batch)`，从而可能**合并同组多行**。实测（dev 库）：`device_sku_lot` 共 **12 行**、
+  `slot_id IS NOT NULL` **0 行**、按 `(device_id, sku_id, batch_no)` 分组的**重复组 = 0**
+  ⇒ 删这个维度**不可能合并任何现存行**，dev 与生产（BOUND 柜 `lot.slot_id` 全 NULL）都没数据效果。
+  剩余的只是代码路径收敛：`doAddRestock` 里 `findByDeviceIdAndSkuIdAndBatchNoAndSlotId` 与两处
+  `lot.setSlotId` 改走 SKU 维度；`ensureSlotCapacity` 随 `RestockCommand.slotId` 一起变孤儿。
+- 结论：2/2 可当作**零数据影响**的纯代码收敛来做，做完只需 FEFO/入库定向 + 本批一次全量。
+
+### 2026-11-05（下一刀 FEFO per-slot 的差异表：先证后删，代码未动）
+
+- 🔴 **订正我上一轮的口径**：`LotMovementRef` 是 `(refType, refId, operatorId)`，**没有 slotId** ⇒
+  我所说的「四层」里那一层不存在。真正要动的是 **三层**：
+  1. `deductFefo(..., slotId)` 的 **6 参重载**（生产只用 5 参、恒 `null`；6 参只被两个测试用）
+     + `doDeductFefo:164` 的按槽批次查询分支（`findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc`）；
+  2. `DeductionAccumulator.slotQty`（`:178`）→ `FefoDeductResult.slotQtyDeducted`（`:175`），
+     累加点在 `deductSellableLots:195`（按批次 step 的 `slotCode` 汇总）——**消费者已在第十五刀②断掉，
+     现在是纯产物**；
+  3. **入库侧**：`RestockCommand.slotId`（`:236`）→ `doAddRestock` 的 `ensureSlotCapacity:353` 与
+     `:358` 把 `slot_code` 写进 lot 行。这是活路径（补货入库/期初入库），不是死码。
+- 差异表判据（对生产 BOUND 柜）：①恒走 5 参 ⇒ 永远走「按 SKU 全量批次」查询，行为不变；
+  ②`slotQtyDeducted` 无消费者，删字段零影响；③入库时 `slotId` 为 `null`（无货道行可绑）⇒
+  `ensureSlotCapacity` 早退、lot 行 `slot_id` 保持 NULL（与 dev 实测「真柜 lot slot_id 全 NULL」一致）。
+- 未做原因：③ 在**每笔入库**路径上，且 `RestockCommand` 是 `InventoryLotService` 的对外入参；
+  删字段要连 `applyRestock` 调用链与测试一起改，属一次原子改动 ⇒ 留作下一段第一件事，改完跑
+  `InventoryLot*` 定向 + 本批唯一一次全量。
+
+### 2026-11-05（第十五刀②：销售/售后后的货道实盘回写整链退场——差异表证明对 BOUND 柜是 no-op）
+
+- **差异表（先证后删）**：四个 `applyPhysicalAfter*` 的调用形态是
+  `if (!slotQty.isEmpty()) 走 slot 变体 else 走 sku 变体`；而 `slotQty` 对 BOUND 柜**恒空**——
+  `slotQtySold` 来自 FEFO 的 `slotQtyDeducted`（真柜 `lot.slot_id` 恒 NULL），`slotQtyRestored`
+  来自 lot 行的 `slotId`（同上）。而 `applyPhysicalAfterSkuSale` 内部本身也是「按 SKU 找货道分摊 →
+  调 slot 变体」，货道 0 行时同样空转 ⇒ **整链删除对生产是零行为变化**
+  （生产只有 BOUND 柜；dev 两台演示柜的货道盘面不再跟随销售/退款变化，属预期）。
+- 删（−192/+5）：`InventoryService` 的两个 slotQty 映射与分支（只留说明性注释）、私有
+  `applyPhysicalRestore`；`DeviceSlotService` 的 `applyPhysicalAfterSale`/`applyPhysicalAfterSkuSale`/
+  `applyPhysicalAfterRestore`/`applyPhysicalAfterSkuRestore` 四个方法与 `allocateSkuSaleToSlots`/
+  `sortedSlotsForSku` 两个分摊助手。连带断掉 `result.slotQtyDeducted()` 的消费
+  （FEFO 结果里该字段仍在，属下一批「FEFO per-slot」退场；本刀只断「扣完回写货道实测」这一步）。
+- 测试按规则处理：两个钉「货道实盘回写」的用例（skuSale 递减、restore 递增）随行为退场**删除**；
+  `InventoryServiceTest` 三条对已删方法的 verify 去掉，其余断言原样保留——不是放宽。
+- 🔴 过程中踩到并记下的坑：`InventoryService.java` 是 **CRLF**、`DeviceSlotService.java` 是 LF，
+  同一个替换脚本对两边必须分别归一化/还原，否则第一处 `indexOf` 静默失配（lessons #417 同族）。
+- 定向：`InventoryServiceTest`/`InventoryLot*`/`*Refund*`/`Settlement*`/`DoorCabinetStockLevelConsistencyTest`/
+  `DeviceSlotServiceTest` 全绿；全量 `mvn verify` 本批末尾跑一次再定论。
+
+### 2026-11-05（第十五刀①：槽位「删」这一面退场——两个零调用门面 + deleteSlot）
+
+- 按可达性实测再动手：`OpsCommercialFacade.deleteDeviceSlot` 与
+  `OpsReplenishmentAdminService.deleteDeviceSlot` **全仓零调用**（第九刀清 OpsCommercialFacade 死方法
+  时同一姿势）；前端 admin/mp 源码里 **0 处** `DELETE …/slots`；测试 0 引用
+  ⇒ 连带删 `DeviceSlotService.deleteSlot` / `doDeleteSlot`，以及「有账面库存不许删、只能禁用」那条
+  只对货道柜成立的判据。
+- 孤儿复扫：`notFound`/`requireDevice`/`runWithDeviceSlotLock`/`DeviceSlotId` 都仍有活引用，没被带走。
+- 定向：`DeviceSlotServiceTest` 10/0、`DoorCabinetStockLevelConsistencyTest` 8/0。
+- **下一刀（②）＝机件本体的钱/库存面**，调用点地图（外部调用数）：
+  `applyPhysicalAfterSale/SkuSale/Restore/SkuRestore`（InventoryService，**无柜型守卫**）、
+  `applyPhysicalSnapshot`/`syncPhysicalFromBook`/`listEnabledSlotsForSku`（RestockSnapshotService，无守卫）、
+  `clampDeviceOverCapacity`/`recordRestock`/`validateRestockLine`/`headroomForSlot`/`suggestSlotsForDevice`/
+  `listShortageRows`（ReplenishmentService，部分已有 `isDoorCabinet` 守卫）、
+  `suggestSlotsForOutboundFill(All)`（WarehouseService，已有守卫）。
+  开工前要先出「每处改动前后金额/库存差异表」：判据是这些方法对 **BOUND 柜（生产只有它）**
+  是否本来就是空转——它们都遍历 `device_slot`，而生产 BOUND 柜该表恒 0 行（V344 清除 + 无生产者），
+  **但**还必须逐个确认方法里有没有与行数无关的副作用（无条件改设备字段、无条件抛 409），
+  有副作用的就不是零影响，不能按「空转」直接删。
+
+### 2026-11-05（第十四刀 B：指标不再分柜型——台账/SKU 口径成为唯一来源，货道算式最后一处退场）
+
+- `computeMetrics` 里那条 `if (isDoorCabinet(deviceId)) return computeDoorCabinetMetrics(device)` **整段删除**：
+  指标改由 `ledgerStockMetrics(device)` 单源产出（判据 `SkuStockLevel`：缺货=可售≤0、低库存=0<可售≤逐 SKU
+  `low_threshold`、填充率=Σmin(库存,容量)×100/Σ容量）。**不是新写一套算式**——这条口径 2026-10-29 就存在，
+  本次只是把「货道口径」那条并列分支删掉，让所有柜型只走它。
+- mp 柜机卡片 `countSlotStock` 同改（原按柜型分流），连带删掉 `countSlotStockForSlotCabinet`、
+  `SlotFillStats` 记录与 `accumulateSlotFillStats` 累加器——**货道侧最后一处指标算式，全仓 0 残留**。
+- 字段改名（数字已经是商品数，留着 Slot 就是假名字）：`DeviceOpsMetricsDto.oosSlotCount/lowStockSlotCount`
+  → `oosSkuCount/lowStockSkuCount`；admin `DeviceDetailView`（8 处）与 `DeviceRemoteOpsCard`（2 处）跟改，
+  含子组件 prop `:oos-slot-count` → `:oos-sku-count`。
+- 未做（另一条 DTO 面，单独一刀）：后端 `SlotStockCounts` 与 mp 读的 `MerchantDeviceDto.oosSlotCount`
+  仍叫 *Slot —— 它走的是商户柜机列表那条链，改名要连 mp 一起判（且要确认卡片文案是否还提「货道」）。
+- 订正两处旧前提注释：`countSlotStock` 的 javadoc（原写「有货道柜⇒货道口径」已不成立）、
+  `DeviceSlotServiceTest:239` 那条「塞 false 桩逼走货道路径」。
+- 测试侧的真反馈：`DeviceSlotServiceTest` 3 例报 `UnnecessaryStubbing`——都是「给货道取数打的桩」
+  在新路径下不再被调用，删桩（不是放宽断言）；其中一例是「塞 `isJiangyi=true` 逼走货道」的桩，删掉后该类 10/0。
+  口径一致性钉测 `DoorCabinetStockLevelConsistencyTest` **8/0**（详情 KPI ↔ 商户卡片仍同数：
+  2 缺货 / 1 低库存 / 填充率 31%），`MerchantDevicePortalServiceTest` 13/0。
+- 契约：`oosSkuCount/lowStockSkuCount` 进生成契约；残留的 `oosSlotCount` **只在 `MerchantDeviceDto`**
+  （mp 柜机列表链，本刀刻意不碰）；乱码 0。两端 type-check 双绿；产物重建 225 文件、`库存准确率` 0 命中。
+- 验证：`mvn verify` **BUILD SUCCESS / MVN_EXIT=0 / failure-error 计数 0**，trade-service **2773/0**，
+  Total time 15:36。
+
+### 2026-11-05（第十四刀 A：「库存准确率」整条摘掉——台账口径下它没有数据源）
+
+- 用户拍板摘卡（原三选一里我推荐的那档）。**为什么必须摘**：这个数的分子是「账面 vs 货道实盘」，
+  实盘来自货道盘点，而盘点链在第十一刀 A 段已停跑；开门柜走的是 `computeDoorCabinetMetrics` 里
+  **硬编码 100** ⇒ 界面上一张恒 100% 的「库存准确率」，比不显示更坏（假绿比假红更毒）。
+- 删：admin `DeviceDetailView` 的「库存准确率」info-item + 本地 `Metrics.inventoryAccuracyPct` 字段；
+  `DeviceOpsMetricsDto.inventoryAccuracyPct` 分量，以及两个**零调用**的「兼容旧 12 / 20 字段构造」
+  （全仓 `new DeviceOpsMetricsDto(` 只剩 2 处且都是全量构造）；`DeviceSlotService` 里整条 accuracy 链——
+  `accuracy` 局部、`SlotFillStats` 的 `accuracySum/accuracySlots` 两字段、累加器里的实盘分支、
+  `physicalAccuracyPercent` 整个方法。**删掉的不是一张卡，是「再也算不出这个数」**。
+- 契约：paths **702 → 702**（不删端点）；`inventoryAccuracyPct` 在生成契约里 **0 残留**；乱码哨兵 0。
+- 前端：admin / merchant-mp `type-check` 双绿；产物重建 225 文件（哈希轮转），并**按字节反证**
+  「库存准确率」在 `static/admin` 全部 chunk 里 **0 命中**。
+- 未做（下一刀）：删货道分支本身（`computeMetrics:886` 的 `isDoorCabinet` 分流）。它牵动
+  `SlotFillStats` 的**第二处**使用（柜机卡片那条 `:178` 路径）与 `DeviceSlotServiceTest:239` 里
+  「给 JiangyiDeviceDirectory 塞 false 桩、逼走货道路径」的用例 ⇒ 属算式退场，单独一刀做，
+  不塞进这次「摘一张卡」。
+
+### 2026-11-05（第十三刀 B1：`DeviceDetailDto.slots` 与 `DeviceSlotDto` 整条读面退场）
+
+- 🔴 **先订正我上一轮的推荐**：原话「B1 零 UI 风险」是从「三端没人读 `.slots`」推的，**推过头**——
+  同一个 `DeviceDetailDto` 里的 `metrics` admin 是真读的
+  （`DeviceDetailView:1364 metrics.value = detail.metrics`、`:1368 targetTempC`、`:1375 salesLocked`）。
+  死码结论只覆盖被判的那个分量，兄弟字段要逐个判 ⇒ 本刀把范围**收到只摘 `slots`**，`metrics` 一个分量没动。
+- 删（都有实测支撑）：`DeviceDetailDto` 的 `List<DeviceSlotDto> slots` 分量、`DeviceSlotDto.java` 整文件
+  （全仓引用只剩 DTO 自身 + DeviceDetailDto + DeviceSlotService 三处）、`DeviceSlotService.toSlotDto`
+  整方法（30 行，唯一调用点随删）、随之失效的局部 `stockoutThresholdPct` 与死导入 `SkuDisplayNames`
+  （孤儿复扫 `.tmp/orphan-sweep.mjs` 抓出来的）。
+  非编译调用点也扫了：`scripts/*.ps1`、`*.mjs` 里没有任何 `detail.slots` 读取。
+- 契约：live spec **paths 702 → 702**（本刀不删端点，只删 schema），`DeviceSlotDto` 从
+  `components.schemas` 消失，`DeviceDetailDto.props` = `device/metrics/skuInventory/delistedInventory`；
+  双重编码哨兵 0。配方沿用 `.tmp/regen-3b13.sh`（临时库 `aicabinet_openapi_3b13` + redis db14 + :18097，
+  跑完 `DROP DATABASE … WITH (FORCE)` + FLUSHDB）。
+- 前端：**admin 与 merchant-mp `type-check` 双绿**（`slots` 是生成类型里的分量，真有人读就会红），
+  这是「没人读」的第二条独立证据，不只看 grep。
+- 产物：重建 `static/admin` **0 字节差**（类型编译期擦除，不进 bundle）⇒ 配对门禁走第十一刀那条
+  自证豁免（`ADMIN_PAIR_PROVE_INERT=1`，门禁自己重跑构建比字节，产物真变照样红）。
+- ⚠️ **B2 前必答的产品口径**（本刀刻意没碰）：`DeviceOpsMetricsDto` 24 分量里
+  `configuredSlotCount` / `activeSlotCount` / `oosRatePct` / `totalParLevel` **三端 0 引用**（纯载荷），
+  而 `fillRatePct` / `oosSlotCount` / `lowStockSlotCount` / `inventoryAccuracyPct` **admin+mp 都在读**
+  （`DeviceDetailView:55-92` 的「填充率/缺货/低库存」三张卡、`DeviceRemoteOpsCard:139` 的补货门）。
+  这几个数的分子分母都来自货道算式 ⇒ 对开门柜恒 0，属于「界面在显示、数字不是它的」那类空转面。
+  摘卡/换口径/保留，是**你拍板**的产品决定，不是我能在 B2 里顺手删代码解决的。
+
+### 2026-11-05（MA-161 A1：组合单退款真的拆腿了——渠道腿按实扣额、余额腿走钱包；端到端钉测仍缺，见「缺口」）
+
+- 形状选择（决定于 A1 前读到的两个雷，见任务 #15）：**加 `channelLegCents` 分量，不改 `refundCents` 语义**。
+  `OrderRefundPrep.channelRefundCents()` 在没拆腿时回退成 `refundCents` ⇒ 所有存量单渠道单**逐字不变**，
+  而 `refundOrder` 的积分回扣 `clawbackPointsQuietly(prep.userId(), prep.refundCents(), …)` 继续按总额算
+  （把 `refundCents` 改成渠道腿会静默少扣余额腿的积分，等于换个形式复现 MA-161）。
+- 取数口径单源化：新增 `channelChargeBreakdown(orderId)` 按渠道分组，类型集合与
+  `PaymentOperationMapper.netCompletedCents` **逐字一致**（`CHARGE+ADJUST_CHARGE+PREAUTH_CAPTURE` 减 `REFUND`），
+  不另造一份金额算法；`resolveOriginalChargeTotalCents(order, refund, channel)` 从此**按渠道**取上限
+  ——这一步只在「拆腿同时成立」时做，单独改它就是把 100 的退额静默削成 40（比原来的显式失败更坏）。
+- 五处金额改走渠道腿：`recordRefundInitiated` 的 REFUND_INITIATED 痕迹行、`finalizeLiveOrderRefund` 的
+  REFUND 行与 `refundedCents` 递进、微信 `createRefund` 的退款额与上限、支付宝 `refund`、两条日志。
+- 余额腿在 prepare 的**同一事务**内退钱包：`completeLocalRefund(balanceLeg, idemKey+":BALANCE", BALANCE)`。
+  重试不会双冲抵——`BalanceLedgerService.doChange:84-90` 先按幂等键查在就直接返回（读码确认，非假设）。
+- fail-closed 三支：分解合计 < 待退 ⇒ 409；余额腿兜不住其余 ⇒ 409；渠道腿多于一条或与
+  `order.payChannel` 不一致 ⇒ 409（本仓 `payChannel` 单值，不假设多渠道并存）。
+  分解合计为 0 而净额 > 0 时退回单腿并 `log.warn`——生产里两者同源不可能出现，只可能是旧数据/夹具，
+  但**静默**退回就等于把缺陷藏回去，所以必须留痕。
+- 测试侧：定向跑发现 4 个 `UnnecessaryStubbingException`，全是**旧取数口径的桩**（`selectList`），
+  已改绑到新调用（`OrderPaymentIdempotencyTest` 1 处、`OrderPaymentRefundRetryTraceTest` 3 处）；
+  `OrderPaymentRefundLegsTest` 9 例 + `OrderPayment*Test`/`SettlementPartialRefundTest`/
+  `DataConsistencyServiceTest` 定向全绿（MVN_EXIT=0），全量 `mvn verify` 在跑。
+- 🔴 **中途抓到并修掉一个自己造的回归**：第一版把「没拆出余额腿」判成 `balanceLeg == 0`，导致**纯余额单**
+  也走了新支路 ⇒ REFUND 幂等键多出 `:BALANCE` 段，而原键形状被重放短路/对账依赖。
+  改为按 `channelLegs.isEmpty()` 分流：没有渠道腿时**幂等键一字不改**，只有真拆腿才给渠道腿加渠道段。
+  （这条是「测试全绿≠没改坏」的实例：当时全量已经 BUILD SUCCESS，键形状没人断言。）
+- 端到端钉测已补：`OrderPaymentIdempotencyTest.comboRefund_splitsChannelLegAtActualChargeAndWalletLegForTheRest`
+  ——组合单（钱包冲抵 600 + 微信实收 400）全额退 1000 ⇒ ① `createRefund` 的退款额与上限都是 **400**；
+  ② 钱包腿入账 **600**，键 `REFUND:<oid>:1000:BALANCE`；③ `order.refundedCents == 1000`（腿合计==退款额）。
+  定向 `OrderPayment*Test`/`SettlementPartialRefundTest`/`DataConsistencyServiceTest`/`RefundRetry*` 全绿
+  （IdempotencyTest 11→12 例），修完键形状后全量 `mvn verify` 重跑中。
+- ⚠️ 状态：**MA-161 的拆分已实现并有端到端钉测**，还差 A2 的「四层对账 + Docker IT」与真柜/活栈复跑；
+  在此之前记作「已实现待证」，不写「已修」。
+
+### 2026-11-05（MA-161 A 档起手 A0：退款拆腿收成单源原语，尚未接调用方）
+
+- 实测码形（先读再估，收回「45 分钟」那句）：`resolveOriginalChargeTotalCents` 把订单**所有渠道**的
+  COMPLETED `CHARGE+ADJUST_CHARGE` 直接求和、**不按 channel 分组**；`prepareOrderRefund` 只按
+  `order.payChannel` 造**一条单腿** `OrderRefundPrep` ⇒ 组合单全额退会把 100 压给只收 40 的微信交易。
+- 本刀只做**零行为变更**的一步：新增 `OrderPaymentService.planRefundLegs(List<ChannelCharge>, refundCents)`
+  + `ChannelCharge`/`RefundLeg` 两个 record——渠道腿按 `min(待退, 该渠道实扣)`，其余由**余额腿**兜
+  （无网关上限、与用户资产同型）；两种不平情况都抛 **409 显式失败**，绝不静默调整金额。
+  现无任何调用方消费它 ⇒ **MA-161 仍是 open**，只是判据从此单源。
+- 钉测 `OrderPaymentRefundLegsTest` **9 例全过**，金额全非零：事故形态（微信 40 + 钱包 60 退 100 →
+  40/60 两条腿）、部分退、渠道实扣大于待退时不动余额腿、纯余额单、超实扣合计必 409、
+  以及「任意待退额下 Σ腿 == 退款额」的合计不变量（四层对账第一层）。
+- 下一步（A1/A2，钱路真改动）：`OrderRefundPrep` 改腿列表 → 退款执行链/`payment_operation` REFUND
+  痕迹行/幂等键/调用方（`recordRefundInitiated:351`、`:664`）全部跟改 → `mvn verify` + Docker IT。
+  这一段撑不出那个闭环，已按规矩停在 A0。
+
+### 2026-11-05（第十二刀①：清掉 4 处「界面在说、代码不做」的货道假描述，棘轮 18→14）
+
+- 先按**可达性**把剩量分了三档（逐处读过，不是按计数动手）：
+  - ①**假描述**（本次改）：`ConsistencyView` 顶部说明「…覆盖…货道 SKU/容量/盘点…」与提示行
+    「巡检…分账/**货道**/仓存」——A 段已停跑三个 SLOT_* 巡检，宣称会查就是假话；
+    `menu.ts` 菜单关键词 `'货道'`——搜它仍命中「商户与分账」，而改货道陈列开关第六刀已退场，
+    等于留一条通向不存在的入口；`SkuListView` 采购单位说明「库存/**货道**/销售以「支」为单位」——
+    货道不再是库存维度。
+  - ②**描述仍然真实**，本次刻意不改（改了就是新的假描述）：`ReplenishmentView` 8 +
+    `MerchantSplitsView:313`「仅对有货道柜生效（按货道货量占容量比例判缺货）」（算式还在）+
+    `ConsistencyView:397` 的 `'货道容量'`（SLOT_* 历史行译名）⇒ 随 **B 段算式**一起消失。
+  - ③**历史数据解析**（已拍板不洗）：admin `order-line-summary` + mp `order-detail`/`tally-records`
+    共 3 处——老订单行里真写着「·货道A1」，洗掉会对不上旧账。
+- 判据：`check:door-cabinet-slot-copy` 基线 **18→14**（剩 6 文件，全在②③两档）；
+  补丁脚本 `.tmp/patch-3b12-1-copy.mjs` 每处断言命中 1 次、任一不符整体不写盘。
+- 产物：改了 admin 源 ⇒ 同批重打 `static/admin`，并**按字节反证**三段假描述在产物里 **0 命中**。
+- ⚠️ **未在浏览器点验**（四处都是 tooltip/hint/搜索关键词的纯文本删除，已用产物字节 + 4 个门禁
+  反证：no-inline-dict-display / admin-banner-ratchet / admin-anti-jitter / prettier 全绿）。
+  要 Playwright 真 Chrome 走一遍 `/admin/consistency`、`/admin/skus`、菜单搜索，说一声我补。
+- 下一刀顺序（用户已认可推荐）：**MA-161 组合单退款拆腿**（钱，先出「每渠道实扣额」差异表再动码）
+  → **B1 读面**（`DeviceDetailDto.slots` + `DeviceOpsMetricsDto`，实测三端不读 ⇒ 零 UI 风险）
+  → **B2 算式**（FEFO per-slot / clamp / slotId 分支，碰钱碰库存，需 Docker IT + 彩排 + 差异表确认）。
+
+### 2026-11-05（补记：全量套件偶发红的真因是 Micrometer 弱引用，不是顺序污染）
+
+- 第十刀 A 段记的那条「`SchedulingPoolCapacitySelfCheckTest.selfCheck_whenProbeThrows_doesNotPropagate`
+  第一轮 `expected 1.0 but NaN`、隔离跑绿、第二轮全量也绿」已定位并修掉（lessons #420）。
+- 🔴 **不是顺序问题、也不是产品缺陷**：Micrometer 的 `Gauge` 用**弱引用**持有被观测对象。
+  测试写法是 `newSelfCheck(probe).selfCheck()`——被测实例当场被丢弃 ⇒ 装乐观初值 1 的那个
+  `AtomicLong` 只剩弱可达 ⇒ 只有在全量套件堆压大到真触发回收时才读回 `NaN`；单跑/第二轮不回收就恒绿。
+  生产里该 bean 由 Spring 长生命周期持有，**不会**出现这个形态。
+- 自证（同版本 jar，不动真实树）：`jshell --class-path micrometer-core-1.12.0` 两步——
+  丢弃被观测对象后 `gauge().value() = NaN`、保留时 `= 1.0`，与线上那条断言失败信息逐字对上。
+- 修法：两个自检测试都把被测实例**留到测试类字段**上（`subject = new ...`），不再就地丢弃；
+  并加一条反向钉测 `gaugeSurvivesGcBecauseTestRetainsSubject`（显式 `System.gc()` 后仍须读到 1.0；
+  没真回收时它也通过，回收了才有牙）。同族的 `XxlJobWiringSelfCheckTest` 一并修（同一写法）。
+- 验证：定向 `mvn test` 两类 **12 + 16 例全过**（`-Dsurefire.failIfNoSpecifiedTests=false`，
+  旧写法 `-DfailIfNoSpecifiedTests` 在 surefire 3.x 下会被 common-core 的「无匹配测试」判红）。
+  全量 `mvn verify` 待本轮末尾再跑一次。
+- ⚠️ 顺带记一条排查口径：以后看到「只在跑整包时才红、单跑就绿」的**指标/日志类**断言，
+  先问「它是不是只在堆压下来时才坏」——那是**可达性**问题（弱引用/GC），别先怀疑测试顺序。
+
+### 2026-11-05（第十一刀：`SLOT_DISCREPANCY` 告警面整套退场——含交接里漏掉的运营 KPI）
+
+- 🔴 **先订正上一刀的交接清单**（两处都不对，见 lessons #418）：
+  ①真实端点是 `GET /api/v2/merchant/slot-discrepancies?deviceId=`，**没有** `{id}` 段；
+  ②漏了**运营侧**一整面：`OpsWorkbenchQueryService` 两处把 `deviceSlotService.countDiscrepancies()`
+  塞进 `AdminStatsDto.slotDiscrepancyCount`（admin-vue 源码不读该字段，所以「按前端有没有引用」筛会系统性漏）。
+  ⇒ 消费方全集这次按三段取：生成的 `openapi.ts`（契约面）+ Java 里 DTO 类名/记录分量（服务面）+ 三端 src 别名（界面面）。
+- 删（后端 9 处）：`MerchantPortalController.slotDiscrepancies` 端点、`MerchantPortalService.listSlotDiscrepancies`、
+  `MerchantInventoryPortalService.listSlotDiscrepancies`、`MerchantWorkbenchQueryService.appendSlotDiscrepancyItems`
+  + 调用点 + 构造分量、`MerchantNotifyService` 的常量/`ALLOWED_ALERT_TYPES` 项/`shouldNotify`/`buildSummary` 两处分支、
+  `OpsWorkbenchQueryService` 两处 KPI 入参、`SlotDiscrepancyAlertDto.java`（整文件）、
+  `DeviceSlotService.countDiscrepancies`/`listDiscrepancyAlerts`/`buildDiscrepanciesForDevice`/`buildDiscrepancyForSlot`、
+  `DeviceSlotMapper.findByEnabledTrueAndLastPhysicalQtyIsNotNull`（删完复跑找到的新孤儿）。
+- ⚠️ **一处口径变更（不是纯删码）**：`listShortageRows` 原先 =「账实差异 ∪ 低库存」，现在只剩低库存腿
+  （`collectDiscrepancyShortageRows` 随差异机件一起删）。对开门柜两腿都恒空（`resolveDevicesForShortage`
+  与差异腿都按 `isDoorCabinet` 排除），生产库 `device_slot` 恒 0 行 ⇒ 无实际影响；dev 遗留货道柜若曾有
+  「差 N」行，今后只按低库存/阈值口径出建议。
+- 删（前端 8 处）：mp `endpoints.ts` 两条、`merchant-api.ts` 方法 + 死导入、`alerts.vue` 差异卡片 + 取数腿 +
+  `visibleSlotDiscrepancies` + 6 条随之失效的样式、`useHomeWorkbench.ts` 空态字段、`todo-list.ts` 库存卡归类 + 其测试夹具、
+  `shared-uni/notify.ts` 订阅项、`shared-types` 的别名 re-export 与 `MerchantWorkbench.slotDiscrepancies`、
+  `scripts/openapi-alias-groups.mjs` 别名条目。
+- 字典（**三源 + 生产者四处**）：新迁移 `V445` 把 `merchant_alert_type` 与 `exception_type` 两行的
+  `SLOT_DISCREPANCY` 置 **INACTIVE**（不删行，沿用 V386/V421/V427/V444 惯例）；`SysDictBootstrap` 从
+  `merchant_alert_type`（:304 块）和 `exception_type`（:390）两个目录里摘掉该项。
+  🔴 两行的**来源不同**是现测出来的：dev 库里两行都 ACTIVE，而迁移目录里只有 V426 插 `merchant_alert_type`
+  ⇒ `exception_type` 那行是启动期 bootstrap 补的 ⇒ 只写迁移不摘 bootstrap，全新库还会长出第二行。
+  `shared-dict` 的两处 baseline 键（:566/:859）**刻意保留**并就地写了「勿删」注释——它是历史行唯一译名来源。
+- 取证（起真实例，不是静态推理）：
+  ① **退役不洗历史**：dev 库 853 个文本列全扫，除上述 2 行字典外**没有任何业务行**携带该值
+  （订阅偏好 0、推送日志 0）⇒ 删面不影响任何现存数据显示；
+  ② **全新生产档**：`aicabinet_openapi_3b11` 从 V1 严格升序跑到 **445**，结果 = 只剩
+  `merchant_alert_type=INACTIVE`（`exception_type` 那行根本没长出来）、
+  `status='ACTIVE' AND dict_label LIKE '%货道%'` 字典行 **0**、`device_slot` **0 行**。跑完 DROP 库 + FLUSHDB(14)。
+- 契约：live spec **703→702 paths**，语义 diff = 删 1 条 path、删 2 个 schema
+  （`SlotDiscrepancyAlertDto` + `ApiResponseList…`）、`MerchantWorkbenchDto` 少 1 分量、`AdminStatsDto` 20 分量，
+  **新增 0**（`.tmp/diff-openapi-3b11.mjs`，显式 `maxBuffer` 防 1MB 截断假象）；双重编码哨兵 0 命中。
+- 门禁：`check:door-cabinet-slot-copy` 加了**第二判据**——`SLOT_DISCREPANCY` / `SlotDiscrepancyAlertDto` /
+  `slot-discrepancies` 三个标识在 7 个「能重新长出界面」的作用域（后端 main + 三端 src + 生成的契约）
+  的**非注释**里出现即红；作用域刻意**不含** `packages/shared-dict/src`（那里它是字典键，不是文案），
+  理由写在门禁注释里。文案棘轮 **21→18**（mp 2 处 + shared-uni 1 处）。`--selftest` 由 7 例扩到 **10 例**，
+  新增 3 例含「代码里出现即判红」的注入用例（证这条判据会红，不是恒绿）。
+  🔴 未新建第 98 号门禁：同一口径（开门柜不许有货道面）的两条判据合在同一个守门人里。
+- 验证：`mvn verify` 全量 **BUILD SUCCESS**，trade-service surefire **2762 / 0 失败**，failsafe IT 同跑全过
+  （全日志 `Failures: [1-9]|Errors: [1-9]` grep 计数 **0**）；mp `vue-tsc --noEmit` 绿、vitest **38 文件 248 例全过**；
+  `build-admin.mjs` 重跑；`check:openapi-regen` 报「2 处形状改动 + 变更集已含 openapi.ts」通过；
+  `check:mp-defect-classes`（含 J 死导入类）269 文件 0 命中；`check:stocktake-chain` 1399 源/438 迁移 0 插入点；
+  `check:admin-endpoint-paths` 419 条前端引用全命中；孤儿依赖复扫（`.tmp/orphan-sweep.mjs`）四个改动类 **0 孤儿**。
+- 🔴 `check:admin-artifact-pairing` 对本批**结构性不可满足**：我改了 `packages/shared-dict|shared-types|shared-uni`
+  的 src（属它的「输入面」），但实测重跑 `build-admin.mjs` 后 `static/admin` **0 字节差**（注释、被擦除的类型、
+  mp 专用常量都不进 bundle）⇒ 没东西可提交，主判据却要求产物同批出现。
+  正解不是放宽主判据、也不是塞空提交，而是给它加**自证式豁免**：`ADMIN_PAIR_PROVE_INERT=1` 时门禁自己重跑构建
+  并比对工作树——构建前就脏 ⇒ 证据不可用红，构建后有任何字节差 ⇒ 照样红 ⇒ **豁免买不到「藏真改动」**；
+  配 4 条负向用例（--selftest 4→**8 例**）。推前用 `ADMIN_PAIR_PROVE_INERT=1 pnpm preflight` 一次性带上证明。
+- 遗留（B 类，后续单独一轮）：`DeviceDetailDto.slots` + `DeviceOpsMetricsDto` KPI（`DeviceSlotDto.qtyDiff/hasDiscrepancy`
+  就在这条读面上）、FEFO per-slot、`clampDeviceOverCapacity`、`ReplenishmentService` 的 slotId 分支。
+  运营侧 dev 的 2 条 SLOT_* `FAIL` 记录仍需人工结案。
+
 ### 2026-11-05（第十刀 A 段落地：三个 SLOT_* 一致性检查停跑，字典项 INACTIVE）
 
 - 按上面清单执行，与预判的差别只有一处：**没动 `ConsistencyView.vue`**（下拉来自字典，
@@ -701,10 +1060,20 @@ gross − member − activity − coupon = total      （部分退款单例外�
   报 `expected 1.0 but NaN`：隔离单跑绿、**第二次全量 2762/0 失败** ⇒ 顺序性 flaky（与本刀无关，
   该文件最后一次改动是 `f030f09f`）。这是个独立待办：这条测试在共享套件里会随机红。
 - 遗留：dev 那 2 条 SLOT_* `FAIL` 记录不再被复查，需人工结案（不在本刀改数据）。
+  🔴 11-05 订正那句隐含前提：**应用内没有「只结案不修复」的动作**——`/fix` 是唯一置 FIXED 的入口，
+  而 `applyFix` 对 SLOT_* 落 default 直接拒绝 ⇒ 那 2 条永远挂着。判据、影响与三条选项见
+  [`docs/OPS_SLOT_LEGACY_2026-11-05.md`](./OPS_SLOT_LEGACY_2026-11-05.md) §C。
+  ✅ 2026-11-05 13:14 按**第 2 条**在 dev 结案（`id 152/156`，事务内两道硬闸 + md5 备份/回滚脚本，
+  原文案未被覆盖而是追加留痕）；复核 `SLOT_%` 未结案 = 0。⚠️ 该路径**不写 ops_audit_log**，
+  要审计可见只能走第 3 条补「人工结案」动作。A/B 两段（16 行 `device_slot`、3 行 `lot.slot_id`）**未执行**。
 - 验证：`test-compile` 绿、全量 **2762 绿**（第二轮）、preflight 97 门禁 0 失败。
+  ✅ CI run `41964859119`（锚 `3625a17b`）**五档全绿**：admin-artifacts / build / e2e-h5 / mini-programs / integration。
 - 下一刀（B 段，需要 regen + 两端产物）：`SLOT_DISCREPANCY` 告警面退场
   （`GET /merchant/devices/{id}/slot-discrepancies` + workbench `slotDiscrepancies` 字段 +
   `MerchantNotifyService` 两处分支 + mp `alerts.vue`/`shared-uni/notify.ts` + 字典标签）。
+  ✅ **第十一刀已落**（见其上条目）。🔴 上面那句锚两处都不对：真实路径是
+  `GET /api/v2/merchant/slot-discrepancies?deviceId=`（无 `{id}` 段），且漏了运营侧
+  `AdminStatsDto.slotDiscrepancyCount` 一整面 ⇒ 交接锚一律现取，别照抄记忆（lessons #418）。
 
 ### 2026-11-05（第十刀开工清单：停掉三个 SLOT_* 一致性检查（取证与判据，落地见上一条））
 
@@ -1328,7 +1697,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **用户拍板**：「货道柜应禁用，我们系统没有货道了」⇒ `expiryRestockEnabled` 的货道柜分支语义保留、**活栈反证作废**，钉测 `listOpenPullOffTasksPage_doorCabinet_flagsCabinetAndSkipsSlotProbe` 即终态。活库数据形状支持该说法：5 台柜只有 `EG943322621391` BOUND 且 `device_slot` 0 行；其余 4 台（1 RETIRED + 3 未绑定）各 8 货道行但 **0 在架批次 / 0 效期行** ⇒ 效期 tab 只可能出现门柜行。
 - 🔴 **同轮暴露的口径空洞（本轮改掉措辞，未动契约）**：admin「缺货建议」tab 的行**只能**由 `device_slot` 构造（`ReplenishmentService.listShortagePage:325` 于 `:327` 调 `DeviceSlotService.listShortageRows:286`，三处排除开门柜 `:269`/`:358`/`:364`），车队只有开门柜后**这张 tab 恒空**、`一键规划补货` 按钮（`v-if="canEdit && shortageDevices.length"`）永不出现，而 tab 描述还在承诺「各柜机低于安全库存的商品，可一键生成补货规划」。**能力没丢**：`views/reports/StockHealthView.vue:18` 的「一键补货规划（N 台）」取数走台账 + `SkuStockLevel`（`DeviceAssetService:347`/`:517`），不含那三处门柜排除。🔴 本条行号锚 `3dc1cb46`——同日 `a6498dbb`（在架判据单源化）已让同类指针整体 +1，复核按符号名 grep，勿照抄行号。
 - **改动面（档 A：纯文案）**：`ReplenishmentView.vue:878` tab 描述 → 「缺货建议（按货道）：只列货道柜低于安全库存的货道；开门柜无货道，请看『库存健康』」；`:585` 空态 → 「货道柜无缺货/低库存货道；开门柜请看『库存健康』」。台账 `admin-vue-debt-tracker.md` D26 追加同日结论。源笔 `24e2a900` + 产物笔 `e6c97106`（`build-admin-ci-fidelity.sh` 在干净检出 HEAD 重建，114 文件；全 chunk 换名是入口 `index-*.js` 哈希被每个 leaf 内联的级联——leaf 字节等长、只差那 8 个字符，先例同形 `c1ed0b9d`=114/`95c22980`=138）；预算门禁 OK（index 125.2KB≤130、总 JS 3413.6KB≤3500）。
-- **否决掉的替代档**（留此防下次重开）：B 把门柜按台账口径并进这张表 = 动 `ReplenishmentShortageRowDto` 契约 → regen openapi + 两端 + 产物，买不到新能力；C 删 tab = 删运营入口，需用户明示（且 2026-10-29 已拍板不做按柜型条件显示那类分支）。
+- **否决掉的替代档**（留此防下次重开）：B 把门柜按台账口径并进这张表 = 动 `ReplenishmentShortageRowDto` 契约 → regen openapi + 两端 + 产物，买不到新能力；C 删 tab = 删运营入口，需用户明示（且 2026-10-29 已拍板不做按柜型条件显示那类分支）。✅ 2026-11-05 用户已明示「整块下线」，见 §12 第十九刀。
 
 ### 2026-10-30（G2-11 ⑤ 落地：授权配置类越权拒绝落 admin_audit_log——「没绑商户打不开」运营台可查了）
 

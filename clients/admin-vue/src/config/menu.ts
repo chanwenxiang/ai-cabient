@@ -312,7 +312,7 @@ const BASE_NAV: NavItem[] = [
     title: '商户与分账',
     group: '财务商户',
     perm: 'ops:merchant:list',
-    keywords: ['商户', '分账', '开关', '货道']
+    keywords: ['商户', '分账', '开关']
   },
   {
     path: '/merchant-onboarding',

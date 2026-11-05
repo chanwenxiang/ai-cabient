@@ -449,11 +449,6 @@ public class MerchantPortalService {
         return inventoryPortalService.listExpiryAlerts(userId);
     }
 
-    @Transactional(readOnly = true)
-    public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
-        return inventoryPortalService.listSlotDiscrepancies(userId, deviceId);
-    }
-
     @Transactional
     public List<MerchantDto> updateProfile(Long userId, UpdateMerchantProfileRequest request) {
         permissionService.requirePermission(userId, "merchant:profile:edit");

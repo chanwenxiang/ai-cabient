@@ -1,4 +1,4 @@
-import { computed, reactive, ref, type ComputedRef, type Ref } from 'vue';
+import { reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -18,7 +18,6 @@ export type UseReplenishmentRoutePlanningDeps = {
   loadSeq: ReturnType<typeof createLoadSeq>;
   canEdit: ComputedRef<boolean> | Ref<boolean>;
   focusDeviceId: Ref<string>;
-  shortageDeviceIds: Ref<string[]>;
   devices: Ref<ReplenishmentDeviceRef[]>;
   /** P2：拿不到登录用户时返回 null（调用侧必须让用户显式选择负责人，禁止兜底 userId=1） */
   currentUserId: () => number | null;
@@ -48,11 +47,6 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     assigneeUserId: undefined as number | undefined,
     deviceIds: [] as string[]
   });
-
-  const shortageDevices = computed(() => deps.shortageDeviceIds.value);
-  const selectedDevicesWithoutShortage = computed(() =>
-    planForm.deviceIds.filter((id) => !shortageDevices.value.includes(id))
-  );
 
   function localDate() {
     const now = new Date();
@@ -144,16 +138,9 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
       .map((s) => s.trim())
       .filter(Boolean);
     const focus = deps.focusDeviceId.value.trim();
-    let target: string[];
-    if (ids.length) {
-      target = ids;
-    } else if (focus) {
-      target = [focus];
-    } else {
-      target = shortageDevices.value;
-    }
+    const target = ids.length ? ids : focus ? [focus] : [];
     if (!target.length) {
-      ElMessage.warning('暂无缺货柜机可规划，请先刷新缺货建议');
+      ElMessage.warning('未指定设备，无法自动规划补货路线');
       deps.clearPlanQuery();
       return;
     }
@@ -164,30 +151,6 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     void loadAssignees();
     planDialog.value = true;
     deps.clearPlanQuery();
-  }
-
-  async function planFromShortage() {
-    const ids = shortageDevices.value;
-    if (!ids.length) return ElMessage.warning('当前无缺货设备');
-    await deps.loadDeviceRefs();
-    const focus = deps.focusDeviceId.value;
-    fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} 缺货补货`,
-      deviceIds: focus && ids.includes(focus) ? [focus] : ids
-    });
-    void loadAssignees();
-    planDialog.value = true;
-  }
-
-  function planSingleDevice(deviceId: string) {
-    if (!deviceId) return;
-    void deps.loadDeviceRefs();
-    fillPlanForm({
-      routeName: `${new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' })} ${deviceId} 补货`,
-      deviceIds: [deviceId]
-    });
-    void loadAssignees();
-    planDialog.value = true;
   }
 
   async function createPlan() {
@@ -237,8 +200,6 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     planForm,
     assigneeOptions,
     assigneeLoading,
-    selectedDevicesWithoutShortage,
-    shortageDevices,
     assigneeLabel,
     assigneeOptionLabel,
     planDeviceLabel,
@@ -246,8 +207,6 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
     openPlan,
     closePlan,
     maybeAutoPlanFromQuery,
-    planFromShortage,
-    planSingleDevice,
     createPlan
   };
 }

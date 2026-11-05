@@ -35,7 +35,6 @@ class SessionServiceRecoveryTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -61,7 +60,6 @@ class SessionServiceRecoveryTest {
                 repository,
                 com.aicabinet.trade.config.SessionExpireProperties.defaults(),
                 cabinetMetrics,
-                restockSnapshotService,
                 opsExceptionService,
                 disputeService,
                 consumerPreauthService,

@@ -34,20 +34,17 @@ public class SessionRestockService {
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
     private final ShoppingSessionMapper repository;
-    private final RestockSnapshotService restockSnapshotService;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
     private final SessionService sessionService;
     private final SessionRestockService self;
 
     public SessionRestockService(ShoppingSessionMapper repository,
-                                 RestockSnapshotService restockSnapshotService,
                                  CabinetMetrics cabinetMetrics,
                                  DomainEventPublisher domainEventPublisher,
                                  @Lazy SessionService sessionService,
                                  @Lazy SessionRestockService self) {
         this.repository = repository;
-        this.restockSnapshotService = restockSnapshotService;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
         this.sessionService = sessionService;
@@ -63,7 +60,6 @@ public class SessionRestockService {
                         () -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND)));
             }
             try {
-                restockSnapshotService.applySnapshot(ready);
                 return self.completeRestockSnapshot(sessionId);
             } catch (RuntimeException e) {
                 log.error("restock snapshot failed session={}", sessionId, e);
@@ -128,12 +124,6 @@ public class SessionRestockService {
             session.setFailReason(failReason);
             if (session.getCloseTime() == null) {
                 session.setCloseTime(Instant.now());
-            }
-            try {
-                restockSnapshotService.applySnapshot(session);
-            } catch (Exception e) {
-                log.warn("restock auto-close snapshot failed session={} task={}",
-                        session.getSessionId(), taskId, e);
             }
             sessionService.transition(session, SessionState.COMPLETED);
             domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),

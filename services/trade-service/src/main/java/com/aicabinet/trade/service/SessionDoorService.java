@@ -32,7 +32,6 @@ public class SessionDoorService {
 
     private final ShoppingSessionMapper repository;
     private final GravitySettlementHelper gravityHelper;
-    private final RestockSnapshotService restockSnapshotService;
     private final SessionRestockService sessionRestockService;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
@@ -42,7 +41,6 @@ public class SessionDoorService {
 
     public SessionDoorService(ShoppingSessionMapper repository,
                               GravitySettlementHelper gravityHelper,
-                              RestockSnapshotService restockSnapshotService,
                               SessionRestockService sessionRestockService,
                               CabinetMetrics cabinetMetrics,
                               DomainEventPublisher domainEventPublisher,
@@ -51,7 +49,6 @@ public class SessionDoorService {
                               com.aicabinet.trade.service.JiangyiDeviceDirectory jiangyiDeviceDirectory) {
         this.repository = repository;
         this.gravityHelper = gravityHelper;
-        this.restockSnapshotService = restockSnapshotService;
         this.sessionRestockService = sessionRestockService;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
@@ -213,7 +210,6 @@ public class SessionDoorService {
         }
 
         if (DeviceValidationService.isRestockSession(session)) {
-            restockSnapshotService.applySnapshot(session);
             sessionService.transition(session, SessionState.COMPLETED);
             log.info("restock door closed with gravity snapshot {}", SessionLogContext.of(session));
             return sessionService.toDto(session);

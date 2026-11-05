@@ -86,7 +86,6 @@ public class OpsWorkbenchQueryService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final OrderRevenueSplitMapper splitRepository;
     private final InventoryLotService inventoryLotService;
-    private final DeviceSlotService deviceSlotService;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final PaymentReconciliationMapper reconciliationRepository;
     private final WarehouseInTransitMapper inTransitRepository;
@@ -105,7 +104,6 @@ public class OpsWorkbenchQueryService {
                                     DeviceSkuInventoryMapper inventoryRepository,
                                     OrderRevenueSplitMapper splitRepository,
                                     InventoryLotService inventoryLotService,
-                                    DeviceSlotService deviceSlotService,
                                     ReplenishmentTaskMapper replenishmentTaskRepository,
                                     PaymentReconciliationMapper reconciliationRepository,
                                     WarehouseInTransitMapper inTransitRepository,
@@ -123,7 +121,6 @@ public class OpsWorkbenchQueryService {
         this.inventoryRepository = inventoryRepository;
         this.splitRepository = splitRepository;
         this.inventoryLotService = inventoryLotService;
-        this.deviceSlotService = deviceSlotService;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.reconciliationRepository = reconciliationRepository;
         this.inTransitRepository = inTransitRepository;
@@ -192,8 +189,7 @@ public class OpsWorkbenchQueryService {
                 splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
                 inventoryLotService.countNearExpiryLots(),
                 inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
+                inventoryLotService.countOpenPullOffTasks()
         );
     }
 
@@ -257,27 +253,16 @@ public class OpsWorkbenchQueryService {
                 )));
     }
 
-    // 包内可见：供同包测试直接验证低库存口径分流（同商户端的 merchant/workbench 规则）
+    // 包内可见：供同包测试直接验证低库存口径（台账阈值；与商户端 MerchantWorkbenchQueryService 同规则）
     void collectLowStockItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        // 口径按柜类型分流（2026-10-28，与商户端 MerchantWorkbenchQueryService 同规则）：
-        // · 开门柜（判据=将邑绑定）无货道概念 ⇒ 台账口径 quantity <= low_threshold（后台阈值）
-        // · 有货道柜 ⇒ 货道口径（P1-3，2026-10-15：minLevel 或 容量×商户阈值%）
-        // 🔴 此前不分流：运营待办对开门柜也遍历 device_slot 残留行，出现「货道 A1」假条目，
-        //   且与同页 lowStock 指标（inventoryRepository.countLowStock，台账口径）自相矛盾。
-        List<String> doorDeviceIds = new ArrayList<>();
-        List<String> slotDeviceIds = new ArrayList<>();
-        for (String deviceId : resolveShortageDeviceIds(scopedDevices)) {
-            if (deviceSlotService.isDoorCabinet(deviceId)) {
-                doorDeviceIds.add(deviceId);
-            } else {
-                slotDeviceIds.add(deviceId);
-            }
-        }
-        collectDoorCabinetLowStockItems(doorDeviceIds, items);
-        collectSlotLowStockItems(slotDeviceIds, items);
+        // 台账口径 quantity <= low_threshold（后台阈值），与同页 lowStock 指标（countLowStock）同源。
+        // 批 3b 第二十刀：货道柜分支整体退场，不再按柜型分流。
+        List<String> deviceIds = new ArrayList<>();
+        resolveShortageDeviceIds(scopedDevices).forEach(deviceIds::add);
+        collectLedgerLowStockItems(deviceIds, items);
     }
 
-    private void collectDoorCabinetLowStockItems(List<String> deviceIds, List<OpsActionItemDto> items) {
+    private void collectLedgerLowStockItems(List<String> deviceIds, List<OpsActionItemDto> items) {
         if (deviceIds.isEmpty() || items.size() >= WORKBENCH_ITEM_CAP) {
             return;
         }
@@ -312,29 +297,6 @@ public class OpsWorkbenchQueryService {
         }
     }
 
-    private void collectSlotLowStockItems(List<String> deviceIds, List<OpsActionItemDto> items) {
-        for (String deviceId : deviceIds) {
-            for (DeviceSlotService.SlotShortageItem s : deviceSlotService.listShortageSlots(deviceId)) {
-                if (items.size() >= WORKBENCH_ITEM_CAP) {
-                    return;
-                }
-                items.add(new OpsActionItemDto(
-                        "LOW_STOCK",
-                        MEDIUM,
-                        "库存偏低",
-                        "货道 " + s.slotCode() + " 当前 " + s.bookQty() + " / 容量 " + s.capacity()
-                                + "（阈值 " + s.thresholdPct() + "%）",
-                        s.deviceId(),
-                        null,
-                        null,
-                        s.skuId(),
-                        null,
-                        null,
-                        null
-                ));
-            }
-        }
-    }
 
     /** 缺货巡检的设备范围：scoped=null（超管全量）时退化为全设备遍历（现有库规模可接受）。 */
     private Iterable<String> resolveShortageDeviceIds(Set<String> scopedDevices) {
@@ -589,13 +551,12 @@ public class OpsWorkbenchQueryService {
                 splitRepository.countByStatusIn(PENDING_SPLIT_STATUSES),
                 inventoryLotService.countNearExpiryLots(),
                 inventoryLotService.countExpiredLotsWithStock(),
-                inventoryLotService.countOpenPullOffTasks(),
-                deviceSlotService.countDiscrepancies(operatorId)
+                inventoryLotService.countOpenPullOffTasks()
         );
     }
 
     private static AdminStatsDto emptyStats() {
-        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
+        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0);
     }
 
     private long countOccupiedDevices(Set<String> scopedDevices) {

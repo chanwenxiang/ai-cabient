@@ -150,13 +150,13 @@ class DoorCabinetStockLevelConsistencyTest {
     @Test
     void deviceDetailKpi_andMerchantDeviceCard_agree() {
         DeviceSlotService svc = doorSlotService();
-        DeviceSlotService.SlotStockCounts card = svc.countSlotStock(DEV);
+        DeviceSlotService.SkuStockCounts card = svc.countSkuStock(DEV);
         var metrics = svc.getDeviceDetail(1L, DEV).metrics();
 
-        assertEquals(2, card.oosSlotCount(), "商户卡片：缺货 2（A 卖光 + B 批次扣光）");
-        assertEquals(1, card.lowStockSlotCount(), "商户卡片：低库存 1（D）");
-        assertEquals(2, metrics.oosSlotCount(), "后台 KPI 必须与商户卡片同数");
-        assertEquals(1, metrics.lowStockSlotCount(), "后台 KPI 必须与商户卡片同数");
+        assertEquals(2, card.oosSkuCount(), "商户卡片：缺货 2（A 卖光 + B 批次扣光）");
+        assertEquals(1, card.lowStockSkuCount(), "商户卡片：低库存 1（D）");
+        assertEquals(2, metrics.oosSkuCount(), "后台 KPI 必须与商户卡片同数（台账口径下是商品数）");
+        assertEquals(1, metrics.lowStockSkuCount(), "后台 KPI 必须与商户卡片同数（台账口径下是商品数）");
         assertEquals(Integer.valueOf(31), card.fillRatePct(),
                 "填充率 = Σmin(可售,容量)/Σ容量 = (0+0+4+1)/(4*4) 取整");
         assertEquals(31, metrics.fillRatePct(), "后台 KPI 填充率必须与商户卡片同源");
@@ -199,8 +199,6 @@ class DoorCabinetStockLevelConsistencyTest {
     @Test
     void workbenchLowStockItems_renderSellableQty() {
         DeviceSkuInventoryMapper inventory = mock(DeviceSkuInventoryMapper.class);
-        DeviceSlotService slotService = mock(DeviceSlotService.class);
-        when(slotService.isDoorCabinet(DEV)).thenReturn(true);
         // SQL 层（lowStockPredicate + effectiveSellableQty）返回的就是可售量，第 6 条测试守这条 SQL
         when(inventory.findLowStockByDeviceIds(List.of(DEV)))
                 .thenReturn(List.of(inv("SKU-A", 0, 4, 2), inv("SKU-B", 0, 4, 1), inv("SKU-D", 1, 4, 2)));
@@ -211,7 +209,7 @@ class DoorCabinetStockLevelConsistencyTest {
                 mock(MerchantFeaturePackService.class), mock(DeviceInfoMapper.class),
                 mock(CabinetOrderMapper.class), mock(OrderRevenueSplitMapper.class),
                 mock(ShoppingSessionMapper.class), mock(DisputeTicketMapper.class), inventory,
-                mock(PullOffTaskMapper.class), slotService, mock(ReplenishmentTaskMapper.class),
+                mock(PullOffTaskMapper.class), mock(ReplenishmentTaskMapper.class),
                 catalog);
 
         List<OpsActionItemDto> items = new ArrayList<>();

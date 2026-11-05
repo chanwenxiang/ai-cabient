@@ -7,7 +7,6 @@ public record MerchantWorkbenchDto(
         long offlineDevices,
         long lowStockItems,
         long expiryAlerts,
-        long slotDiscrepancies,
         long pendingSplits,
         long refundOrders,
         List<OpsActionItemDto> actionItems

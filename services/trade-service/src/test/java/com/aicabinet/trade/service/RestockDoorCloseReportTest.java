@@ -46,7 +46,6 @@ class RestockDoorCloseReportTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -67,7 +66,7 @@ class RestockDoorCloseReportTest {
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
-        doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
+        doorService = new SessionDoorService(repository, gravityHelper, null,
                 cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
@@ -95,7 +94,6 @@ class RestockDoorCloseReportTest {
         assertTrue(doorService.applyRestockDoorClosed("EG943322621391"));
         assertEquals(SessionState.COMPLETED, session.getState());
         assertNotNull(session.getOpenTime());
-        verify(restockSnapshotService).applySnapshot(session);
     }
 
     @Test
@@ -109,7 +107,6 @@ class RestockDoorCloseReportTest {
         assertTrue(doorService.applyRestockDoorClosed("EG943322621391"));
         assertEquals(SessionState.COMPLETED, session.getState());
         assertNotNull(session.getCloseTime());
-        verify(restockSnapshotService).applySnapshot(session);
         // 消费链路不受影响：补货会话关门不结算
         verify(settlementService, never()).settle(any());
     }
@@ -120,7 +117,6 @@ class RestockDoorCloseReportTest {
                 List.of(SessionState.OPENING, SessionState.SHOPPING))).thenReturn(Optional.empty());
 
         assertFalse(doorService.applyRestockDoorClosed("EG-2"));
-        verify(restockSnapshotService, never()).applySnapshot(any());
     }
 
     @Test

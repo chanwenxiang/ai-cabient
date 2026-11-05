@@ -114,7 +114,7 @@ public class ReplenishmentService {
     private final DeviceInfoMapper deviceRepository;
 
     private final DeviceSlotService deviceSlotService;
-    private final RestockSnapshotService restockSnapshotService;
+    private final RestockGravityEvidenceService gravityEvidenceService;
 
     private final InTransitService inTransitService;
 
@@ -154,7 +154,7 @@ public class ReplenishmentService {
                                 DistributedLockService distributedLockService,
                                 SystemConfigService systemConfigService,
             SkuCatalogMapper skuCatalogMapper,
-                                RestockSnapshotService restockSnapshotService,
+                                RestockGravityEvidenceService gravityEvidenceService,
                                 @Lazy ReplenishmentService self) {
 
         this.inventoryRepository = inventoryRepository;
@@ -184,7 +184,7 @@ public class ReplenishmentService {
         this.distributedLockService = distributedLockService;
         this.systemConfigService = systemConfigService;
         this.skuCatalogMapper = skuCatalogMapper;
-        this.restockSnapshotService = restockSnapshotService;
+        this.gravityEvidenceService = gravityEvidenceService;
 
         this.self = self;
     }
@@ -329,24 +329,6 @@ public class ReplenishmentService {
         var result = pullOffTaskRepository.searchPage("OPEN", deviceId, p, s);
         List<PullOffTaskDto> items = result.getRecords().stream().map(this::toPullOffDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
-    }
-
-    @Transactional(readOnly = true)
-    public ReplenishmentShortagePageDto listShortagePage(
-            Long operatorId, String deviceId, int page, int size) {
-        List<ReplenishmentShortageRowDto> all = deviceSlotService.listShortageRows(operatorId, deviceId);
-        int p = Math.max(page, 0);
-        int s = Math.min(Math.max(size, 1), 100);
-        int from = Math.min(p * s, all.size());
-        int to = Math.min(from + s, all.size());
-        List<ReplenishmentShortageRowDto> items = all.subList(from, to);
-        List<String> deviceIds = all.stream()
-                .map(ReplenishmentShortageRowDto::deviceId)
-                .filter(id -> id != null && !id.isBlank())
-                .distinct()
-                .sorted()
-                .toList();
-        return new ReplenishmentShortagePageDto(items, p, s, all.size(), deviceIds);
     }
 
     @Transactional(readOnly = true)
@@ -977,8 +959,8 @@ public class ReplenishmentService {
 
     /** P0-2（2026-10-15）：本次补货会话是否留下真实重力实测（真实测 ⇒ 完成时不覆盖实盘）。 */
     private boolean hasRealRestockGravitySnapshot(ReplenishmentTask task) {
-        return restockSnapshotService != null
-                && restockSnapshotService.hasRealGravitySnapshot(task.getTaskId());
+        return gravityEvidenceService != null
+                && gravityEvidenceService.hasRealGravitySnapshot(task.getTaskId());
     }
 
     private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {
@@ -999,7 +981,6 @@ public class ReplenishmentService {
                 String.valueOf(taskId), preservePhysical);
         // CB-051 收尾：RESTOCK 行应用后按柜×商品写「上次配送后库存」快照
         snapshotLastRestockQty(task.getDeviceId(), pending);
-        deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
         task.setStatus(STATUS_COMPLETED);
         task.setCompletedAt(Instant.now());
         if (expectReceive) {
@@ -1296,7 +1277,7 @@ public class ReplenishmentService {
             inventoryLotService.addRestock(
                     task.getDeviceId(), ol.getSkuId(),
                     new InventoryLotService.RestockCommand(
-                            ol.getBatchNo(), null, ol.getExpiryDate(), need, null,
+                            ol.getBatchNo(), null, ol.getExpiryDate(), need,
                             new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
             return need;
         }
@@ -1312,7 +1293,6 @@ public class ReplenishmentService {
                     task.getDeviceId(), ol.getSkuId(),
                     new InventoryLotService.RestockCommand(
                             ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
-                            alloc.slotCode(),
                             new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
             deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode(), preservePhysical);
             received += alloc.quantity();

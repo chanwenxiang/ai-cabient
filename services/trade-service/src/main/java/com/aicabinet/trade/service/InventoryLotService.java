@@ -142,29 +142,21 @@ public class InventoryLotService {
     /** FEFO 扣减，返回主批次号与按货道扣减数量。 */
     @Transactional
     public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity, String refType, String refId) {
-        return self.deductFefo(deviceId, skuId, quantity, refType, refId, null);
-    }
-
-    @Transactional
-    public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity,
-                                       String refType, String refId, String slotId) {
-        return runWithDeviceLotLock(deviceId, () -> doDeductFefo(deviceId, skuId, quantity, refType, refId, slotId));
+        return runWithDeviceLotLock(deviceId, () -> doDeductFefo(deviceId, skuId, quantity, refType, refId));
     }
 
     private FefoDeductResult doDeductFefo(String deviceId, String skuId, int quantity,
-                                          String refType, String refId, String slotId) {
+                                          String refType, String refId) {
         if (quantity <= 0) {
-            return new FefoDeductResult(null, Map.of());
+            return new FefoDeductResult(null);
         }
         SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
         int blockDays = sku != null ? sku.getBlockSaleDaysBeforeExpiry() : 0;
         LocalDate today = LocalDate.now();
         LocalDate minExpiry = today.plusDays(blockDays);
 
-        List<DeviceSkuLot> lots = (slotId != null && !slotId.isBlank())
-                ? lotRepository.findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(
-                        deviceId, skuId, slotId.trim().toUpperCase())
-                : lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
+        // 批 3b 第十八刀：FEFO 不再有「按货道扣减」维度（开门柜无货道；真柜 lot.slot_id 恒 NULL）
+        List<DeviceSkuLot> lots = lotRepository.findByDeviceIdAndSkuIdOrderByExpiryDateAsc(deviceId, skuId);
         DeductionAccumulator acc = deductSellableLots(
                 deviceId, skuId, quantity, refType, refId, minExpiry, lots);
         if (acc.remaining() > 0) {
@@ -172,17 +164,16 @@ public class InventoryLotService {
                     "sellable lot inventory insufficient for sku=" + skuId + " need=" + quantity);
         }
         self.syncAggregateInventory(deviceId, skuId);
-        return new FefoDeductResult(acc.primaryBatch(), acc.slotQty());
+        return new FefoDeductResult(acc.primaryBatch());
     }
 
-    private record DeductionAccumulator(String primaryBatch, Map<String, Integer> slotQty, int remaining) {}
+    private record DeductionAccumulator(String primaryBatch, int remaining) {}
 
     private DeductionAccumulator deductSellableLots(String deviceId, String skuId, int quantity,
                                                     String refType, String refId, LocalDate minExpiry,
                                                     List<DeviceSkuLot> lots) {
         int remaining = quantity;
         String primaryBatch = null;
-        Map<String, Integer> slotQty = new LinkedHashMap<>();
         for (DeviceSkuLot lot : lots) {
             if (remaining > 0) {
                 LotDeductionStep step = tryDeductFromSellableLot(
@@ -192,13 +183,12 @@ public class InventoryLotService {
                         primaryBatch = step.batchNo();
                     }
                     if (step.slotCode() != null) {
-                        slotQty.merge(step.slotCode(), step.taken(), Integer::sum);
                     }
                     remaining -= step.taken();
                 }
             }
         }
-        return new DeductionAccumulator(primaryBatch, slotQty, remaining);
+        return new DeductionAccumulator(primaryBatch, remaining);
     }
 
     private record LotDeductionStep(int taken, String batchNo, String slotCode) {}
@@ -227,7 +217,7 @@ public class InventoryLotService {
         return new LotDeductionStep(take, lot.getBatchNo(), slotCode);
     }
 
-    public record FefoDeductResult(String primaryBatch, Map<String, Integer> slotQtyDeducted) {}
+    public record FefoDeductResult(String primaryBatch) {}
 
     public record LotMovementRef(String refType, String refId, Long operatorId) {}
 
@@ -236,7 +226,7 @@ public class InventoryLotService {
 
     public record RestockCommand(
             String batchNo, LocalDate productionDate, LocalDate expiryDate,
-            int quantity, String slotId, LotMovementRef ref) {}
+            int quantity, LotMovementRef ref) {}
 
     private record BatchLotDeductCommand(
             String batchNo, int quantity, String movementType, LotMovementRef ref) {}
@@ -350,22 +340,14 @@ public class InventoryLotService {
 
     private void doAddRestock(String deviceId, String skuId, RestockCommand command) {
         validateRestockExpiry(skuId, command.expiryDate());
-        ensureSlotCapacity(deviceId, command.slotId(), command.quantity());
         String resolvedBatch = (command.batchNo() == null || command.batchNo().isBlank())
                 ? "B-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
                 : command.batchNo().trim();
 
-        String slotCode = (command.slotId() == null || command.slotId().isBlank())
-                ? null : command.slotId().trim().toUpperCase();
-        DeviceSkuLot lot = null;
-        if (slotCode != null) {
-            lot = lotRepository
-                    .findByDeviceIdAndSkuIdAndBatchNoAndSlotId(deviceId, skuId, resolvedBatch, slotCode)
-                    .orElse(null);
-        }
-        if (lot == null && slotCode == null) {
-            lot = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, resolvedBatch).orElse(null);
-        }
+        // 批 3b 第十八刀 2/2：入库不再有「按货道建账」维度——lot 行身份是 (device, sku, batch)。
+        // 生产 BOUND 柜原本就落这条路径（slot_id 恒 NULL），实测也不会合并任何现存行（12 行/0 带 slot/0 重复组）。
+        DeviceSkuLot lot = lotRepository
+                .findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, resolvedBatch).orElse(null);
         if (lot == null) {
             lot = new DeviceSkuLot();
             lot.setLotId("L" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
@@ -374,15 +356,11 @@ public class InventoryLotService {
             lot.setBatchNo(resolvedBatch);
             lot.setProductionDate(command.productionDate());
             lot.setExpiryDate(command.expiryDate());
-            lot.setSlotId(slotCode);
             lot.setStatus(ON_SALE);
             lot.setQuantity(0);
         }
         lot.setQuantity(lot.getQuantity() + command.quantity());
         lot.setStatus(resolveLotStatus(lot));
-        if (slotCode != null) {
-            lot.setSlotId(slotCode);
-        }
         lotRepository.save(lot);
         recordMovement(deviceId, skuId, new InventoryMovementCommand(
                 resolvedBatch, "RESTOCK", command.quantity(),
@@ -479,67 +457,10 @@ public class InventoryLotService {
             int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
             LocalDate expiry = LocalDate.now().plusDays(shelfDays);
             doAddRestock(deviceId, skuId, new RestockCommand(
-                    "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry, delta, null,
+                    "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry, delta,
                     new LotMovementRef(REPLENISH, refId, operatorId)));
         } else {
             deductFefoForRef(deviceId, skuId, -delta, "ADJ", "STOCKTAKE", refId, operatorId);
-        }
-        self.syncAggregateInventory(deviceId, skuId);
-    }
-
-    /**
-     * 按货道实盘回写账面：只动该货道上该 SKU 的批次，避免串道。
-     */
-    @Transactional
-    public void stocktakeAdjustForSlot(String deviceId, String skuId, String slotCode,
-                                       int countedQuantity, Long operatorId, String refId) {
-        runWithDeviceLotLock(deviceId, () -> {
-            doStocktakeAdjustForSlot(deviceId, skuId, slotCode, countedQuantity, operatorId, refId);
-            return null;
-        });
-    }
-
-    private void doStocktakeAdjustForSlot(String deviceId, String skuId, String slotCode,
-                                          int countedQuantity, Long operatorId, String refId) {
-        if (slotCode == null || slotCode.isBlank()) {
-            doStocktakeAdjust(deviceId, skuId, countedQuantity, operatorId, refId);
-            return;
-        }
-        String slot = slotCode.trim().toUpperCase();
-        ensureSlotBookTarget(deviceId, slot, countedQuantity);
-        List<DeviceSkuLot> lots = lotRepository
-                .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, slot);
-        int current = lots.stream().mapToInt(DeviceSkuLot::getQuantity).sum();
-        int delta = countedQuantity - current;
-        if (delta == 0) {
-            return;
-        }
-        if (delta > 0) {
-            SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
-            int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
-            LocalDate expiry = LocalDate.now().plusDays(shelfDays);
-            doAddRestock(deviceId, skuId, new RestockCommand(
-                    "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry, delta, slot,
-                    new LotMovementRef(REPLENISH, refId, operatorId)));
-            return;
-        }
-        int remaining = -delta;
-        for (DeviceSkuLot lot : lots) {
-            if (remaining > 0 && lot.getQuantity() > 0) {
-                int take = Math.min(lot.getQuantity(), remaining);
-                lot.setQuantity(lot.getQuantity() - take);
-                if (lot.getQuantity() == 0) {
-                    lot.setStatus(DEPLETED);
-                }
-                lotRepository.save(lot);
-                recordMovement(deviceId, skuId, new InventoryMovementCommand(
-                        lot.getBatchNo(), "ADJ", -take, new LotMovementRef("STOCKTAKE", refId, operatorId)));
-                remaining -= take;
-            }
-        }
-        if (remaining > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "货道 " + slot + " 账面不足以盘亏，差额 " + remaining);
         }
         self.syncAggregateInventory(deviceId, skuId);
     }
@@ -568,7 +489,7 @@ public class InventoryLotService {
                 }
             }
             doAddRestock(deviceId, line.getSkuId(), new RestockCommand(
-                    line.getBatchNo(), production, expiry, line.getQuantity(), line.getSlotId(),
+                    line.getBatchNo(), production, expiry, line.getQuantity(),
                     new LotMovementRef(REPLENISH, refId, operatorId)));
         } else if (PULL_OFF.equalsIgnoreCase(line.getLineType())) {
             doPullOff(deviceId, line.getSkuId(), line.getBatchNo(), line.getQuantity(), operatorId, refId);
@@ -745,74 +666,6 @@ public class InventoryLotService {
                 });
     }
 
-    /**
-     * 货道间挪货（容量校正：溢出货道 → 同 SKU 尚有容量的货道）。
-     */
-    @Transactional
-    public void transferBetweenSlots(String deviceId, String skuId, String fromSlotCode, String toSlotCode,
-                                     int quantity, Long operatorId, String refId) {
-        if (quantity <= 0) {
-            return;
-        }
-        runWithDeviceLotLock(deviceId, () -> {
-            doTransferBetweenSlots(deviceId, skuId, fromSlotCode, toSlotCode, quantity, operatorId, refId);
-            return null;
-        });
-    }
-
-    private void doTransferBetweenSlots(String deviceId, String skuId, String fromSlotCode, String toSlotCode,
-                                        int quantity, Long operatorId, String refId) {
-        String from = fromSlotCode.trim().toUpperCase();
-        String to = toSlotCode.trim().toUpperCase();
-        ensureSlotCapacity(deviceId, to, quantity);
-        List<DeviceSkuLot> lots = lotRepository
-                .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, from);
-        int remaining = quantity;
-        for (DeviceSkuLot lot : lots) {
-            if (remaining > 0 && lot.getQuantity() > 0) {
-                int take = Math.min(lot.getQuantity(), remaining);
-                String batch = lot.getBatchNo();
-                LocalDate production = lot.getProductionDate();
-                LocalDate expiry = lot.getExpiryDate();
-                lot.setQuantity(lot.getQuantity() - take);
-                if (lot.getQuantity() == 0) {
-                    lot.setStatus(DEPLETED);
-                }
-                lotRepository.save(lot);
-                recordMovement(deviceId, skuId, new InventoryMovementCommand(
-                        batch, "ADJ", -take, new LotMovementRef("SLOT_TRANSFER", refId, operatorId)));
-                doAddRestock(deviceId, skuId, new RestockCommand(
-                        batch, production, expiry, take, to,
-                        new LotMovementRef(REPLENISH, refId, operatorId)));
-                remaining -= take;
-            }
-        }
-        if (remaining > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "货道 " + from + " 可挪库存不足，还差 " + remaining);
-        }
-        self.syncAggregateInventory(deviceId, skuId);
-    }
-
-    /** 盘点/实盘目标数量不得超过货道容量。 */
-    private void ensureSlotBookTarget(String deviceId, String slotCode, int targetQty) {
-        if (targetQty < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "数量不能为负");
-        }
-        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode.trim().toUpperCase()))
-                .orElse(null);
-        if (slot == null) {
-            return;
-        }
-        int cap = slotCapacity(slot, 0);
-        if (cap > 0 && targetQty > cap) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    String.format(com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY,
-                            slotCode, cap, targetQty));
-        }
-    }
-
-    /** 有货道时校验补货后账面不超过 maxLevel / parLevel。 */
     private void ensureSlotCapacity(String deviceId, String slotId, int quantity) {
         if (slotId == null || slotId.isBlank() || quantity <= 0) {
             return;

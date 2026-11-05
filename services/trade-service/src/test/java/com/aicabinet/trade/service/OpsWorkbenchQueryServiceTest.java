@@ -48,7 +48,6 @@ class OpsWorkbenchQueryServiceTest {
     @Mock DeviceSkuInventoryMapper inventoryRepository;
     @Mock OrderRevenueSplitMapper splitRepository;
     @Mock InventoryLotService inventoryLotService;
-    @Mock DeviceSlotService deviceSlotService;
     @Mock ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock PaymentReconciliationMapper reconciliationRepository;
     @Mock WarehouseInTransitMapper inTransitRepository;
@@ -63,7 +62,7 @@ class OpsWorkbenchQueryServiceTest {
         service = new OpsWorkbenchQueryService(
                 permissionService, merchantScopeService, deviceRepository, sessionRepository,
                 orderRepository, disputeRepository, disputeSlaService, slaMetricsService,
-                inventoryRepository, splitRepository, inventoryLotService, deviceSlotService,
+                inventoryRepository, splitRepository, inventoryLotService,
                 replenishmentTaskRepository, reconciliationRepository, inTransitRepository,
                 exceptionRepository, sessionOrderQueryService, skuCatalogRepository);
     }
@@ -125,13 +124,11 @@ class OpsWorkbenchQueryServiceTest {
     }
 
     /**
-     * 运营待办对开门柜也必须走台账口径（同商户端首页规则）。
-     * 此前运营待办遍历残留货道行，既产生「货道 A1」假条目，又与同页 lowStock 指标
-     * （inventoryRepository.countLowStock，台账口径）自相矛盾。
+     * 运营待办走台账口径（同商户端首页规则），与同页 lowStock 指标（countLowStock）同源。
+     * 批 3b 第二十刀后全柜型单一口径（货道分支已删）。
      */
     @Test
-    void collectLowStockItems_doorCabinet_usesInventory_notSlots() {
-        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+    void collectLowStockItems_usesInventory_notSlots() {
         DeviceSkuInventory inv = new DeviceSkuInventory();
         inv.setDeviceId("EG-DOOR");
         inv.setSkuId("100013");
@@ -146,21 +143,26 @@ class OpsWorkbenchQueryServiceTest {
 
         assertEquals(1, items.size());
         assertTrue(items.get(0).detail().contains("阈值 3 件"), items.get(0).detail());
-        verify(deviceSlotService, never()).listShortageSlots(anyString());
     }
 
+    /** 口径不再按柜型分流：历史货道柜同样走台账阈值。 */
     @Test
-    void collectLowStockItems_slotCabinet_keepsSlots() {
-        when(deviceSlotService.isDoorCabinet("CAB-SLOT")).thenReturn(false);
-        when(deviceSlotService.listShortageSlots("CAB-SLOT")).thenReturn(List.of(
-                new DeviceSlotService.SlotShortageItem("CAB-SLOT", "A1", "SKU-1", 0, 2, 8, 8, 50)));
+    void collectLowStockItems_legacyCabinet_usesLedgerToo() {
+        DeviceSkuInventory inv = new DeviceSkuInventory();
+        inv.setDeviceId("CAB-SLOT");
+        inv.setSkuId("SKU-1");
+        inv.setQuantity(0);
+        inv.setCapacity(8);
+        inv.setLowThreshold(4);
+        when(inventoryRepository.findLowStockByDeviceIds(anyList())).thenReturn(List.of(inv));
+        when(skuCatalogRepository.findBySkuIds(anyList())).thenReturn(List.of());
 
         List<OpsActionItemDto> items = new ArrayList<>();
         service.collectLowStockItems(Set.of("CAB-SLOT"), items);
 
         assertEquals(1, items.size());
-        assertTrue(items.get(0).detail().startsWith("货道 A1"), items.get(0).detail());
-        verify(inventoryRepository, never()).findLowStockByDeviceIds(anyList());
+        assertTrue(items.get(0).detail().contains("阈值 4 件"), items.get(0).detail());
+        assertTrue(items.get(0).detail().indexOf("货道 ") < 0);
     }
 
     private static WarehouseInTransit line(Long transitId, Long outboundId, String deviceId,

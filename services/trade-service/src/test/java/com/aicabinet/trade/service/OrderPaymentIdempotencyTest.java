@@ -327,7 +327,11 @@ class OrderPaymentIdempotencyTest {
         when(cabinetOrderRepository.backfillPayTradeNoIfAbsent("O-WX-BACKFILL", "WX-LEGACY-TXN")).thenReturn(1);
         PaymentOperation charge = new PaymentOperation();
         charge.setAmountCents(500);
-        when(paymentOperationRepository.selectList(any())).thenReturn(List.of(charge));
+        charge.setOperationType("CHARGE");
+        charge.setChannel("WECHAT");
+        // MA-161：退款上限的取数口径换成「按渠道的 COMPLETED 流水分解」，不再跨渠道求和
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId("O-WX-BACKFILL"))
+                .thenReturn(List.of(charge));
 
         service.refundOrder(order, 500, "dispute waive");
 
@@ -377,6 +381,67 @@ class OrderPaymentIdempotencyTest {
         verify(cabinetOrderRepository).backfillPayTradeNoIfAbsent("O-ALI-BACKFILL", "ALI-LEGACY-TXN");
         verify(alipayPayClient, times(1)).refund(eq("O-ALI-BACKFILL"), anyString(), eq(300), anyString());
         verifyNoMoreInteractions(balanceLedgerService);
+    }
+
+    /**
+     * MA-161 端到端拆腿：组合单（钱包冲抵 600 + 微信实收 400）全额退 1000。
+     *
+     * <p>修前形态：整笔 1000 压给只收 400 的微信交易 ⇒ 网关拒（显式失败），钱包那 600 永远不退。
+     * 这里同时钉住三件事：①渠道腿金额与上限都只到 400；②余额腿在钱包侧入账 600；
+     * ③订单累计退款额推进到 1000（腿合计 == 退款额，四层对账的第一层）。</p>
+     */
+    @Test
+    void comboRefund_splitsChannelLegAtActualChargeAndWalletLegForTheRest() {
+        service = new OrderPaymentService(
+                userInfoRepository,
+                payScoreService,
+                weChatPayClient,
+                alipayPayClient,
+                new WeChatPayProperties(true, "app", "mch", "notify", "v3key", "serial", "key", "cert", true),
+                new SecurityProperties(false),
+                paymentOperationRepository,
+                cabinetOrderRepository,
+                distributedLockService,
+                balanceLedgerService,
+                new CheckoutProperties(true, 2000),
+                sessionRepository,
+                null,
+                null,
+                null,
+                null,
+                null,
+                memberService,
+                null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
+
+        CabinetOrder order = order("O-COMBO-LEG", 10001L, 1000, "WECHAT");
+        order.setPayTradeNo("WX-TXN-1");
+        stubOrderLock(order);
+        stubNetCharged("O-COMBO-LEG", 1000);
+        // 幂等键的金额段取「请求额与毛实扣的较小者」（MA-161 A2 重试稳定性），与净额同源
+        when(paymentOperationRepository.chargedCompletedCents("O-COMBO-LEG")).thenReturn(1000);
+        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId("O-COMBO-LEG"))
+                .thenReturn(List.of(
+                        chargeOp("WECHAT", 400),
+                        chargeOp("BALANCE", 600)));
+
+        service.refundOrder(order, 1000, "combo full refund");
+
+        verify(weChatPayClient).createRefund(
+                eq("O-COMBO-LEG"), anyString(), eq(400), eq(400), anyString());
+        verify(balanceLedgerService).change(eq(10001L), eq(600), eq("REFUND"),
+                eq("O-COMBO-LEG"), eq("REFUND:O-COMBO-LEG:1000:BALANCE"), any());
+        assertEquals(1000, order.getRefundedCents(),
+                "两腿都必须计入订单累计退款额，否则下一次退款会以为还能退 1000");
+    }
+
+    private static PaymentOperation chargeOp(String channel, int cents) {
+        PaymentOperation op = new PaymentOperation();
+        op.setChannel(channel);
+        op.setAmountCents(cents);
+        op.setOperationType("BALANCE".equals(channel) ? "PREAUTH_CAPTURE" : "CHARGE");
+        return op;
     }
 
     private void stubNetCharged(String orderId, int cents) {

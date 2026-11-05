@@ -45,7 +45,6 @@ class RestockDoorOpenReportTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -66,7 +65,7 @@ class RestockDoorOpenReportTest {
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
-        doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
+        doorService = new SessionDoorService(repository, gravityHelper, null,
                 cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);
@@ -101,8 +100,6 @@ class RestockDoorOpenReportTest {
         assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-1"));
         assertEquals(SessionState.SHOPPING, session.getState());
         assertNotNull(session.getOpenTime());
-        // 补货链路：开门不落快照、不结算（快照在关门才核销）
-        verify(restockSnapshotService, never()).applySnapshot(any());
         verify(settlementService, never()).settle(any());
     }
 

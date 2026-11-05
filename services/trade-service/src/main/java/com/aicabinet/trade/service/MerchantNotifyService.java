@@ -29,7 +29,6 @@ import com.aicabinet.trade.wechat.MiniAppTarget;
 
 @Service
 public class MerchantNotifyService {
-    private static final String SLOT_DISCREPANCY = "SLOT_DISCREPANCY";
     private static final String DEVICE_OFFLINE = "DEVICE_OFFLINE";
     private static final String SALES_LOCKED = "SALES_LOCKED";
     private static final String REPLENISHMENT = "REPLENISHMENT";
@@ -41,7 +40,7 @@ public class MerchantNotifyService {
 
     private static final Logger log = LoggerFactory.getLogger(MerchantNotifyService.class);
     private static final Set<String> ALLOWED_ALERT_TYPES = Set.of(
-            DISPUTE, DEVICE_OFFLINE, SALES_LOCKED, LOW_STOCK, EXPIRY, SLOT_DISCREPANCY, REPLENISHMENT, EXCEPTION);
+            DISPUTE, DEVICE_OFFLINE, SALES_LOCKED, LOW_STOCK, EXPIRY, REPLENISHMENT, EXCEPTION);
     private static final DateTimeFormatter TIME_FMT =
             DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.of("Asia/Shanghai"));
 
@@ -266,7 +265,6 @@ public class MerchantNotifyService {
         if (enabledTypes.contains(DEVICE_OFFLINE) && wb.offlineDevices() > 0) return true;
         if (enabledTypes.contains(LOW_STOCK) && wb.lowStockItems() > 0) return true;
         if (enabledTypes.contains(EXPIRY) && wb.expiryAlerts() > 0) return true;
-        if (enabledTypes.contains(SLOT_DISCREPANCY) && wb.slotDiscrepancies() > 0) return true;
         if (enabledTypes.contains(REPLENISHMENT) && countActionType(wb, REPLENISHMENT) > 0) return true;
         return enabledTypes.contains(EXCEPTION) && openExceptions > 0;
     }
@@ -284,9 +282,6 @@ public class MerchantNotifyService {
         }
         if (enabledTypes.contains(EXPIRY) && wb.expiryAlerts() > 0) {
             parts.add("效期" + wb.expiryAlerts());
-        }
-        if (enabledTypes.contains(SLOT_DISCREPANCY) && wb.slotDiscrepancies() > 0) {
-            parts.add("货道差异" + wb.slotDiscrepancies());
         }
         long replenishment = countActionType(wb, REPLENISHMENT);
         if (enabledTypes.contains(REPLENISHMENT) && replenishment > 0) {

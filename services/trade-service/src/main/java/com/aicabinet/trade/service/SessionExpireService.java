@@ -35,7 +35,6 @@ public class SessionExpireService {
     private final ShoppingSessionMapper repository;
     private final SessionExpireProperties sessionExpireProperties;
     private final CabinetMetrics cabinetMetrics;
-    private final RestockSnapshotService restockSnapshotService;
     private final OpsExceptionService opsExceptionService;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
@@ -46,7 +45,6 @@ public class SessionExpireService {
     public SessionExpireService(ShoppingSessionMapper repository,
                                 SessionExpireProperties sessionExpireProperties,
                                 CabinetMetrics cabinetMetrics,
-                                RestockSnapshotService restockSnapshotService,
                                 OpsExceptionService opsExceptionService,
                                 @Lazy DisputeService disputeService,
                                 ConsumerPreauthService consumerPreauthService,
@@ -58,7 +56,6 @@ public class SessionExpireService {
                 ? sessionExpireProperties
                 : SessionExpireProperties.defaults();
         this.cabinetMetrics = cabinetMetrics;
-        this.restockSnapshotService = restockSnapshotService;
         this.opsExceptionService = opsExceptionService;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
@@ -348,11 +345,6 @@ public class SessionExpireService {
         session.setFailReason("补货识别超时自动关闭");
         if (session.getCloseTime() == null) {
             session.setCloseTime(Instant.now());
-        }
-        try {
-            restockSnapshotService.applySnapshot(session);
-        } catch (Exception e) {
-            log.warn("补货超时快照失败 {}，仍关闭会话", SessionLogContext.of(session), e);
         }
         sessionService.transition(session, SessionState.COMPLETED);
         opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", new OpsExceptionService.ExceptionReport.ExceptionRefs(session.getDeviceId(), session.getSessionId(), session.getOrderId(), session.getUserId()), "补货识别超时", "补货关门后超过10分钟未完成货道快照");

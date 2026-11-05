@@ -39,11 +39,7 @@ export const OPENAPI_ALIAS_GROUPS = [
         schema: 'DeviceInventoryDto',
         comment: '设备库存行（含低库存列表）'
       },
-      {
-        name: 'OpenApiSlotDiscrepancyAlertDto',
-        schema: 'SlotDiscrepancyAlertDto',
-        comment: '货道账实差异告警'
-      },
+      // 2026-11-05 批 3b 第十一刀：SlotDiscrepancyAlertDto 随货道账实差异告警面退场，别名同批移除。
       // 2026-10-13 要货下线：MerchantReplenishmentRequest* / CreateMerchantReplenishmentRequest* 别名随 schema 删除；
       // SlotReplenishmentSuggestDto 已无后端 schema，一并移除。
       {

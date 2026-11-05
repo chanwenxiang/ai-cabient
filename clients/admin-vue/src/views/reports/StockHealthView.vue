@@ -490,7 +490,6 @@ function goPlanReplenishment(ids?: string[]) {
     return;
   }
   goPath('/replenishment', {
-    tab: 'shortage',
     plan: '1',
     deviceIds: deviceIds.join(',')
   });

@@ -43,7 +43,6 @@ class MerchantWorkbenchQueryServiceTest {
     @Mock DisputeTicketMapper disputeRepository;
     @Mock DeviceSkuInventoryMapper inventoryRepository;
     @Mock PullOffTaskMapper pullOffTaskRepository;
-    @Mock DeviceSlotService deviceSlotService;
     @Mock ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock com.aicabinet.trade.mapper.SkuCatalogMapper skuCatalogRepository;
 
@@ -55,7 +54,7 @@ class MerchantWorkbenchQueryServiceTest {
                 permissionService, merchantPortalGuard, merchantFeaturePackService,
                 deviceRepository, orderRepository, splitRepository, sessionRepository,
                 disputeRepository, inventoryRepository, pullOffTaskRepository,
-                deviceSlotService, replenishmentTaskRepository, skuCatalogRepository);
+                replenishmentTaskRepository, skuCatalogRepository);
     }
 
     @Test
@@ -99,14 +98,12 @@ class MerchantWorkbenchQueryServiceTest {
     }
 
     /**
-     * 开门柜（将邑绑定）没有货道概念：首页「库存偏低」必须走台账口径
-     * {@code quantity <= low_threshold}（后台阈值），不得再拿 device_slot 残留行凑数。
-     * 事故背景（2026-10-28）：EG943322621391 残留 6 条陈旧货道 ⇒ 首页显示「库存偏低 6」，
-     * 台账真值只有 3 条。
+     * 首页「库存偏低」走台账口径 {@code quantity <= low_threshold}（后台阈值），不拿 device_slot 凑数。
+     * 事故背景（2026-10-28）：EG943322621391 残留 6 条陈旧货道 ⇒ 首页显示「库存偏低 6」，台账真值 3 条。
+     * 批 3b 第二十刀后全柜型单一口径（货道分支已删）。
      */
     @Test
-    void appendLowStockItems_doorCabinet_usesInventoryThreshold_notResidualSlots() {
-        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+    void appendLowStockItems_usesInventoryThreshold_notResidualSlots() {
         when(inventoryRepository.findLowStockByDeviceIds(anyList()))
                 .thenReturn(List.of(
                         inventory("EG-DOOR", "100013", 2, 4, 3),
@@ -120,9 +117,8 @@ class MerchantWorkbenchQueryServiceTest {
         assertEquals(2, n);
         assertEquals(2, items.size());
         assertTrue(items.stream().noneMatch(i -> i.detail().startsWith("货道 ")),
-                "开门柜不应产生货道口径条目：" + items);
+                "不应产生货道口径条目：" + items);
         assertTrue(items.get(0).detail().contains("阈值 3 件"));
-        verify(deviceSlotService, never()).listShortageSlots(anyString());
     }
 
     /**
@@ -130,8 +126,7 @@ class MerchantWorkbenchQueryServiceTest {
      * 不过滤就会替商户催它已经放弃的商品（首页计数 + 低库存提醒同源）。
      */
     @Test
-    void appendLowStockItems_doorCabinet_skipsDelistedSkus() {
-        when(deviceSlotService.isDoorCabinet("EG-DOOR")).thenReturn(true);
+    void appendLowStockItems_skipsDelistedSkus() {
         when(inventoryRepository.findLowStockByDeviceIds(anyList()))
                 .thenReturn(List.of(
                         inventory("EG-DOOR", "100013", 0, 4, 2),
@@ -147,19 +142,21 @@ class MerchantWorkbenchQueryServiceTest {
         assertEquals("100013", items.get(0).skuId());
     }
 
-    /** 有货道柜保持原货道口径（不能因为开门柜改造把有货道柜也切到台账）。 */
+    /** 口径不再按柜型分流：非开门柜（历史货道柜）同样走台账阈值，不再读 device_slot。 */
     @Test
-    void appendLowStockItems_slotCabinet_keepsSlotScope() {
-        when(deviceSlotService.isDoorCabinet("CAB-SLOT")).thenReturn(false);
-        when(deviceSlotService.listShortageSlots("CAB-SLOT")).thenReturn(List.of(
-                new DeviceSlotService.SlotShortageItem("CAB-SLOT", "A1", "SKU-1", 0, 2, 8, 8, 50)));
+    void appendLowStockItems_legacyCabinet_usesLedgerToo() {
+        when(inventoryRepository.findLowStockByDeviceIds(anyList()))
+                .thenReturn(List.of(inventory("CAB-SLOT", "SKU-1", 0, 8, 4)));
+        when(skuCatalogRepository.findBySkuIds(anyList()))
+                .thenReturn(List.of(catalog("SKU-1", "ACTIVE")));
 
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
         long n = service.appendLowStockItems(items, Set.of("CAB-SLOT"));
 
         assertEquals(1, n);
-        assertEquals("货道 A1 当前 0 / 容量 8（阈值 50%）", items.get(0).detail());
-        verify(inventoryRepository, never()).findLowStockByDeviceIds(anyList());
+        assertEquals("库存偏低", items.get(0).title());
+        assertTrue(items.get(0).detail().contains("阈值 4 件"), items.get(0).detail());
+        assertTrue(items.get(0).detail().indexOf("货道 ") < 0);
     }
 
     private static com.aicabinet.trade.domain.DeviceSkuInventory inventory(

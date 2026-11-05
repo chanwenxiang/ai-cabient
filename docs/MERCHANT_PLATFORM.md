@@ -84,7 +84,7 @@
 | 柜机 | GET/PATCH | `/devices`, `/devices/{id}`, `/devices/{id}/settings` |
 | 订单 | GET | `/orders`, `/orders/{id}`, `/orders/export` |
 | 争议 | GET/POST | `/disputes`, `/disputes/{id}`, `/disputes/{id}/reply` |
-| 库存 | GET | `/inventory`, `/expiry-alerts`, `/slot-discrepancies` |
+| 库存 | GET | `/inventory`, `/expiry-alerts`（`/slot-discrepancies` 已于 2026-11-05 批 3b 第十一刀随货道告警面退场） |
 | 结算 | GET | `/settlements/overview`, `/daily`, `/batches`, `/export` |
 | 分账 | GET | `/revenue-splits`, `/revenue-splits/export` |
 | 定价 | GET/PATCH | `/pricing/skus`, `/pricing/skus/{skuId}`, `/pricing/history` |

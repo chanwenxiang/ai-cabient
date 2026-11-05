@@ -158,12 +158,6 @@ public class OpsCommercialFacade {
         return replenishmentService.opsSummary();
     }
 
-    public ReplenishmentShortagePageDto listShortagePage(
-            Long operatorId, String deviceId, int page, int size) {
-        permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listShortagePage(operatorId, deviceId, page, size);
-    }
-
     public ReplenishmentRouteDto planRoute(Long operatorId, PlanRouteRequest body) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_EDIT);
         return replenishmentService.planAndCreateRoute(operatorId, body);
@@ -380,11 +374,6 @@ public class OpsCommercialFacade {
     public DeviceDetailDto deviceDetail(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_LIST);
         return deviceSlotService.getDeviceDetail(operatorId, deviceId);
-    }
-
-    public void deleteDeviceSlot(Long operatorId, String deviceId, String slotCode) {
-        permissionService.requirePermission(operatorId, PERM_OPS_DEVICE_EDIT);
-        deviceSlotService.deleteSlot(operatorId, deviceId, slotCode);
     }
 
     public SlaMetricsDto sla(Long operatorId) {

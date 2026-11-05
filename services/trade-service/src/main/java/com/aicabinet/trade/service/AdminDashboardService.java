@@ -497,7 +497,7 @@ public class AdminDashboardService {
                 inventoryLotService.addRestock(deviceId, body.skuId(),
                         new InventoryLotService.RestockCommand(
                                 "B-ADMIN-" + adminExpiry, adminExpiry.minusDays(shelf), adminExpiry,
-                                delta, null,
+                                delta,
                                 new InventoryLotService.LotMovementRef("ADMIN_ADJUST", refId, operatorId)));
             } else if (delta < 0) {
                 inventoryLotService.pullOff(deviceId, body.skuId(), null, -delta, operatorId, refId);
@@ -523,7 +523,7 @@ public class AdminDashboardService {
             inventoryLotService.addRestock(deviceId, body.skuId(),
                     new InventoryLotService.RestockCommand(
                             "B-ADMIN-" + adminExpiry, adminExpiry.minusDays(shelf), adminExpiry,
-                            body.quantity(), null,
+                            body.quantity(),
                             new InventoryLotService.LotMovementRef("ADMIN_ADJUST", refId, operatorId)));
             inv = inventoryRepository.selectOne(
                     Wrappers.<DeviceSkuInventory>lambdaQuery()

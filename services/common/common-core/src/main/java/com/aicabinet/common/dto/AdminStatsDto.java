@@ -20,6 +20,5 @@ public record AdminStatsDto(
         long pendingSplitCount,
         long nearExpiryLotCount,
         long expiredLotCount,
-        long pullOffOpenCount,
-        long slotDiscrepancyCount
+        long pullOffOpenCount
 ) {}

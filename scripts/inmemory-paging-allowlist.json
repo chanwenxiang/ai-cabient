@@ -27,10 +27,6 @@
     "count": 1,
     "reason": "suggest(...) 对全 SKU 跑需求模型（预测/趋势）后排序；建议量本身是全量计算结果，无法直接 SQL 分页"
   },
-  "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentService.java#listShortagePage": {
-    "count": 1,
-    "reason": "listShortageRows 全量缺货行（货道×SKU）后才切片；缺口计算在 service 内，需先把 shortage 做成可分页查询"
-  },
   "services/trade-service/src/main/java/com/aicabinet/trade/service/SupplierPayableService.java#listPayablesPage": {
     "count": 1,
     "reason": "仅 overdueOnly=true 分支走 findAllByOrderByDueDateAsc 全量后内存过滤 isOverdue；非 overdue 分支已走 searchPage"

@@ -3,7 +3,6 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
-import com.aicabinet.trade.support.SkuDisplayNames;
 import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -91,13 +90,8 @@ public class DeviceSlotService {
     public DeviceDetailDto getDeviceDetail(Long operatorId, String deviceId) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        int stockoutThresholdPct = resolveStockoutThresholdPct(deviceId);
-        List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId);
-        List<DeviceSlotDto> slotDtos = slots.stream()
-                .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0), stockoutThresholdPct))
-                .toList();
-        DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
+        // 批 3b 第十四刀 B：指标不再分柜型——台账/SKU 口径是唯一来源（开门柜早已走它）
+        DeviceOpsMetricsDto metrics = ledgerStockMetrics(device);
         // 「该柜启用批次账本」和「本 SKU 进过批次账本」是两个粒度。只判前者，会把柜里
         // 从未建账的 SKU 一律读成 0——账面明明有货却恒显示缺货，且「编辑库存」保存后数字不动
         // （2026-10-26 雪碧实测：device_sku_inventory=2、device_sku_lot 零行、流水零条）。
@@ -149,466 +143,36 @@ public class DeviceSlotService {
         // 否则详情页在有历史会话时也显示「无」（2026-09-30 用户实测反馈）。
         var lastSession = shoppingSessionMapper.findFirstByDeviceIdOrderByCreatedAtDesc(deviceId).orElse(null);
         AdminDeviceDto deviceDto = toAdminDeviceDto(device, lastSession);
-        return new DeviceDetailDto(deviceDto, metrics, slotDtos, skuInventory, delistedInventory);
+        return new DeviceDetailDto(deviceDto, metrics, skuInventory, delistedInventory);
     }
 
     /**
      * 柜机缺货/低库存计数。供商户柜机列表默认排序（收藏柜 → 缺货最多）与卡片标签使用。
-     * · 有货道柜 ⇒ 启用且有目标库存的货道口径
-     * · 开门柜 ⇒ 台账 SKU 口径（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}），
-     *   DTO 字段名保留 *Slot 但语义是「商品」个数；无货道故 lastCheckAt 恒空。
+     * 口径＝在架 SKU 台账（与设备详情 KPI 同一个 {@link #doorCabinetStockStats}，第十四刀 B 起**全柜型单源**）；
+     * 计数是「商品」个数；无实盘故 lastCheckAt 恒空。
      *   🔴 此前开门柜恒返回 EMPTY ⇒ 商户卡片恒「0 缺货」，与后台设备详情 KPI 对不上。
      */
     @Transactional(readOnly = true)
-    public SlotStockCounts countSlotStock(String deviceId) {
+    public SkuStockCounts countSkuStock(String deviceId) {
         if (deviceId == null || deviceId.isBlank()) {
-            return SlotStockCounts.EMPTY;
+            return SkuStockCounts.EMPTY;
         }
-        if (isDoorCabinet(deviceId)) {
-            DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
-            if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
-                return SlotStockCounts.EMPTY;
-            }
-            return new SlotStockCounts(
-                    doorStats.oosCount(),
-                    doorStats.lowCount(),
-                    doorStats.fillRatePct(),
-                    null,
-                    taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
+        // 批 3b 第十四刀 B：卡片与详情同一口径（在架 SKU 台账），不再按柜型分流
+        DoorCabinetStockStats doorStats = doorCabinetStockStats(deviceId.trim());
+        if (doorStats.equals(DoorCabinetStockStats.EMPTY)) {
+            return SkuStockCounts.EMPTY;
         }
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId.trim());
-        List<DeviceSlot> active = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId.trim()).stream()
-                .filter(s -> s.isEnabled() && s.getParLevel() > 0)
-                .toList();
-        SlotFillStats stats = accumulateSlotFillStats(active, bookBySlot);
-        // CB-050 扩展：柜机卡片指标——填充率、最近核对库存（最近实盘）、最近补货时间
-        Integer fillRatePct = stats.totalPar() > 0 ? stats.totalBook() * 100 / stats.totalPar() : null;
-        Instant lastCheckAt = active.stream()
-                .map(DeviceSlot::getLastPhysicalAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
-        Instant lastRestockAt = active.stream()
-                .map(DeviceSlot::getLastRestockAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElse(null);
-        return new SlotStockCounts(stats.oosCount(), stats.lowCount(), fillRatePct, lastCheckAt, lastRestockAt);
+        return new SkuStockCounts(doorStats.oosCount(), doorStats.lowCount(), doorStats.fillRatePct(),
+                null, taskRepository.findLastCompletedAtByDeviceId(deviceId.trim()).orElse(null));
     }
 
-    /** 缺货货道数 / 低库存货道数。 */
-    public record SlotStockCounts(int oosSlotCount, int lowStockSlotCount, Integer fillRatePct,
+    /** 缺货/低库存个数（台账口径下是商品数；第二十一刀起字段名不再带 Slot）。 */
+    public record SkuStockCounts(int oosSkuCount, int lowStockSkuCount, Integer fillRatePct,
                                   Instant lastCheckAt, Instant lastRestockAt) {
-        public static final SlotStockCounts EMPTY = new SlotStockCounts(0, 0, null, null, null);
-    }
-
-    @Transactional
-    public void deleteSlot(Long operatorId, String deviceId, String slotCode) {
-        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        runWithDeviceSlotLock(deviceId, () -> {
-            doDeleteSlot(deviceId, slotCode);
-            return null;
-        });
-    }
-
-    private void doDeleteSlot(String deviceId, String slotCode) {
-        requireDevice(deviceId);
-        String normalized = slotCode.trim().toUpperCase();
-        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, normalized))
-                .orElseThrow(() -> notFound("slot"));
-        int bookQty = self.loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
-        if (bookQty > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "slot has book inventory, disable instead of delete");
-        }
-        slotRepository.delete(slot);
-    }
-
-    @Transactional(readOnly = true)
-    public long countDiscrepancies(Long operatorId) {
-        return self.listDiscrepancyAlerts(operatorId, null).size();
-    }
-
-    @Transactional(readOnly = true)
-    public List<SlotDiscrepancyAlertDto> listDiscrepancyAlerts(Long operatorId, String deviceIdFilter) {
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
-        if (allowed != null && allowed.isEmpty()) {
-            return List.of();
-        }
-        if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
-            String dev = deviceIdFilter.trim();
-            merchantScopeService.requireDeviceAccess(operatorId, dev);
-            // 开门柜不实盘（无货道），账实差异恒空；残留货道行不算差异
-            if (isDoorCabinet(dev)) {
-                return List.of();
-            }
-            return buildDiscrepanciesForDevice(dev);
-        }
-        List<DeviceSlot> candidates = slotRepository.findByEnabledTrueAndLastPhysicalQtyIsNotNull();
-        Map<String, String> deviceNames = new HashMap<>();
-        List<SlotDiscrepancyAlertDto> alerts = new ArrayList<>();
-        for (DeviceSlot slot : candidates) {
-            String deviceId = slot.getId().getDeviceId();
-            if (isDoorCabinet(deviceId)) {
-                continue;
-            }
-            if ((allowed == null || allowed.contains(deviceId)) && deviceRepository.existsById(deviceId)) {
-                alerts.addAll(buildDiscrepancyForSlot(slot, self.loadBookQtyBySlot(deviceId), deviceNames));
-            }
-        }
-        alerts.sort(Comparator
-                .comparing(SlotDiscrepancyAlertDto::deviceId)
-                .thenComparing(SlotDiscrepancyAlertDto::slotCode));
-        return alerts;
-    }
-
-    /**
-     * 缺货建议全量行：账实差异 + 低库存/OOS 货道，按 deviceId:slotCode 去重。
-     */
-    @Transactional(readOnly = true)
-    public List<ReplenishmentShortageRowDto> listShortageRows(Long operatorId, String deviceIdFilter) {
-        LinkedHashMap<String, ReplenishmentShortageRowDto> byKey = new LinkedHashMap<>();
-        collectDiscrepancyShortageRows(operatorId, deviceIdFilter, byKey);
-        collectLowStockShortageRows(operatorId, deviceIdFilter, byKey);
-        return byKey.values().stream()
-                .sorted(Comparator.comparing(ReplenishmentShortageRowDto::deviceId)
-                        .thenComparing(ReplenishmentShortageRowDto::slotCode))
-                .toList();
-    }
-
-    private void collectDiscrepancyShortageRows(Long operatorId, String deviceIdFilter,
-                                                LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
-        for (SlotDiscrepancyAlertDto alert : self.listDiscrepancyAlerts(operatorId, deviceIdFilter)) {
-            String key = shortageRowKey(alert.deviceId(), alert.slotCode());
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(alert.deviceId(), alert.slotCode()))
-                    .orElse(null);
-            int minLevel = slot != null ? slot.getMinLevel() : 0;
-            int parLevel = slot != null ? slot.getParLevel() : 0;
-            String status = slot != null ? resolveStockStatus(slot, alert.bookQty()) : "LOW";
-            byKey.put(key, new ReplenishmentShortageRowDto(
-                    alert.deviceId(), alert.deviceName(), alert.slotCode(),
-                    alert.assignedSkuId(), alert.assignedSkuName(),
-                    alert.bookQty(), minLevel, parLevel, status, key));
-        }
-    }
-
-    private void collectLowStockShortageRows(Long operatorId, String deviceIdFilter,
-                                             LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
-        for (DeviceInfo device : resolveDevicesForShortage(operatorId, deviceIdFilter)) {
-            String deviceId = device.getDeviceId();
-            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-            for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
-                maybePutLowStockShortageRow(device, slot, bookBySlot, byKey);
-            }
-        }
-    }
-
-    private void maybePutLowStockShortageRow(DeviceInfo device, DeviceSlot slot,
-                                             Map<String, Integer> bookBySlot,
-                                             LinkedHashMap<String, ReplenishmentShortageRowDto> byKey) {
-        if (!slot.isEnabled()) {
-            return;
-        }
-        String skuId = slot.getAssignedSkuId();
-        if (skuId == null || skuId.isBlank()) {
-            return;
-        }
-        String deviceId = device.getDeviceId();
-        String slotCode = slot.getId().getSlotCode();
-        String key = shortageRowKey(deviceId, slotCode);
-        if (byKey.containsKey(key)) {
-            return;
-        }
-        int bookQty = bookBySlot.getOrDefault(slotCode, 0);
-        String status = resolveStockStatus(slot, bookQty);
-        int thresholdPct = resolveStockoutThresholdPct(device.getDeviceId());
-        if (!isSlotShortage(slot, bookQty, thresholdPct)) {
-            return;
-        }
-        String skuName = skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getSkuName)
-                .orElse(null);
-        byKey.put(key, new ReplenishmentShortageRowDto(
-                deviceId, device.getDeviceName(), slotCode, skuId, skuName,
-                bookQty, slot.getMinLevel(), slot.getParLevel(), status, key));
-    }
-
-    private List<DeviceInfo> resolveDevicesForShortage(Long operatorId, String deviceIdFilter) {
-        if (deviceIdFilter != null && !deviceIdFilter.isBlank()) {
-            String dev = deviceIdFilter.trim();
-            merchantScopeService.requireDeviceAccess(operatorId, dev);
-            // 开门柜无货道：缺货行由台账/建议口径产出，货道级建议行对它是空集
-            if (isDoorCabinet(dev)) {
-                return List.of();
-            }
-            return deviceRepository.findById(dev).map(List::of).orElse(List.of());
-        }
-        return merchantScopeService.allowedDevices(operatorId).stream()
-                .filter(d -> !isDoorCabinet(d.getDeviceId()))
-                .toList();
-    }
-
-    private static String shortageRowKey(String deviceId, String slotCode) {
-        return deviceId + ":" + slotCode;
-    }
-
-    /**
-     * 统一缺货口径（P1-3，2026-10-15）：启用且绑定了 SKU 的货道，
-     * 账面 ≤ minLevel（含 OOS）**或** 账面 < 容量×商户阈值%（默认 50，对齐叮当小柜
-     * 「剩余库存低于货柜容量的 X% 即缺货」）。缺货看板/工作台/推送/补货建议共用此判定，
-     * 预警说缺的货建议页一定有。
-     */
-    public static boolean isSlotShortage(DeviceSlot slot, int bookQty, int thresholdPct) {
-        if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
-            return false;
-        }
-        if (bookQty <= slot.getMinLevel()) {
-            return true;
-        }
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
-        return cap > 0 && bookQty * 100L < cap * (long) thresholdPct;
-    }
-
-    /** 设备维度缺货货道清单（统一口径），供工作台/推送消费。 */
-    @Transactional(readOnly = true)
-    public List<SlotShortageItem> listShortageSlots(String deviceId) {
-        String dev = deviceId == null ? "" : deviceId.trim();
-        if (dev.isEmpty()) {
-            return List.of();
-        }
-        int thresholdPct = resolveStockoutThresholdPct(dev);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(dev);
-        List<SlotShortageItem> out = new ArrayList<>();
-        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(dev)) {
-            int book = bookBySlot.getOrDefault(slot.getId().getSlotCode(), 0);
-            if (isSlotShortage(slot, book, thresholdPct)) {
-                out.add(new SlotShortageItem(dev, slot.getId().getSlotCode(), slot.getAssignedSkuId(),
-                        book, slot.getMinLevel(),
-                        slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel(),
-                        slot.getParLevel(), thresholdPct));
-            }
-        }
-        return out;
-    }
-
-    /** 统一缺货口径条目（device_sku_lot 账面维度；库存数=货道账面，非 SKU 冗余列）。 */
-    public record SlotShortageItem(String deviceId, String slotCode, String skuId,
-                                   int bookQty, int minLevel, int capacity, int parLevel,
-                                   int thresholdPct) {}
-
-    private List<SlotDiscrepancyAlertDto> buildDiscrepanciesForDevice(String deviceId) {
-        requireDevice(deviceId);
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        Map<String, String> deviceNames = new HashMap<>();
-        return slotRepository.findByIdDeviceId(deviceId).stream()
-                .flatMap(slot -> buildDiscrepancyForSlot(slot, bookBySlot, deviceNames).stream())
-                .sorted(Comparator.comparing(SlotDiscrepancyAlertDto::slotCode))
-                .toList();
-    }
-
-    private List<SlotDiscrepancyAlertDto> buildDiscrepancyForSlot(DeviceSlot slot,
-                                                                    Map<String, Integer> bookBySlot,
-                                                                    Map<String, String> deviceNames) {
-        if (!slot.isEnabled() || slot.getLastPhysicalQty() == null) {
-            return List.of();
-        }
-        String deviceId = slot.getId().getDeviceId();
-        String slotCode = slot.getId().getSlotCode();
-        int bookQty = bookBySlot.getOrDefault(slotCode, 0);
-        int physicalQty = slot.getLastPhysicalQty();
-        if (bookQty == physicalQty) {
-            return List.of();
-        }
-        String deviceName = deviceNames.computeIfAbsent(deviceId, id ->
-                deviceRepository.findById(id).map(DeviceInfo::getDeviceName).orElse(id));
-        String skuId = slot.getAssignedSkuId();
-        String skuName = skuId == null ? null : skuCatalogRepository.findById(skuId)
-                .map(SkuCatalog::getSkuName).orElse(null);
-        return List.of(new SlotDiscrepancyAlertDto(
-                deviceId, deviceName, slotCode, skuId, skuName,
-                bookQty, physicalQty, bookQty - physicalQty, slot.getLastPhysicalAt()
-        ));
-    }
-
-    /** 补货关门快照：批量回写货道实测数量。 */
-    @Transactional
-    public int applyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
-                                     String source, String refId) {
-        return runWithDeviceSlotLock(deviceId,
-                () -> doApplyPhysicalSnapshot(deviceId, slotPhysical, source, refId));
-    }
-
-    private int doApplyPhysicalSnapshot(String deviceId, Map<String, Integer> slotPhysical,
-                                        String source, String refId) {
-        requireDevice(deviceId);
-        int updated = 0;
-        Instant now = Instant.now();
-        for (Map.Entry<String, Integer> entry : slotPhysical.entrySet()) {
-            String slotCode = entry.getKey().trim().toUpperCase();
-            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-            if (slot == null || !slot.isEnabled()) {
-                continue;
-            }
-            slot.setLastPhysicalQty(Math.max(0, entry.getValue()));
-            slot.setLastPhysicalAt(now);
-            slotRepository.save(slot);
-            updated++;
-        }
-        if (updated > 0) {
-            log.info("physical snapshot device={} source={} ref={} slots={}", deviceId, source, refId, updated);
-        }
-        return updated;
-    }
-
-    /** 无传感数据时：用账面数量刷新实测（降低误报）。 */
-    @Transactional
-    public int syncPhysicalFromBook(String deviceId, String refId) {
-        return runWithDeviceSlotLock(deviceId, () -> {
-            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-            if (bookBySlot.isEmpty()) {
-                return 0;
-            }
-            return doApplyPhysicalSnapshot(deviceId, bookBySlot, "BOOK_SYNC", refId);
-        });
+        public static final SkuStockCounts EMPTY = new SkuStockCounts(0, 0, null, null, null);
     }
 
     /** 销售扣减后同步货道实测数量（仅更新已有实测值的货道）。 */
-    @Transactional
-    public void applyPhysicalAfterSale(String deviceId, Map<String, Integer> slotQtySold, String refId) {
-        if (slotQtySold == null || slotQtySold.isEmpty()) {
-            return;
-        }
-        Instant now = Instant.now();
-        int updated = 0;
-        for (Map.Entry<String, Integer> entry : slotQtySold.entrySet()) {
-            int sold = entry.getValue() != null ? entry.getValue() : 0;
-            if (sold > 0) {
-                String slotCode = entry.getKey().trim().toUpperCase();
-                DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-                if (slot != null && slot.getLastPhysicalQty() != null) {
-                    slot.setLastPhysicalQty(Math.max(0, slot.getLastPhysicalQty() - sold));
-                    slot.setLastPhysicalAt(now);
-                    slotRepository.save(slot);
-                    updated++;
-                }
-            }
-        }
-        if (updated > 0) {
-            log.info("physical after sale device={} ref={} slots={}", deviceId, refId, updated);
-        }
-    }
-
-    /**
-     * 批次无 slotId 时：按 SKU 绑定货道分摊销售件数并扣减实测。
-     * 多货道时优先从账面较高的货道扣。
-     */
-    @Transactional
-    public void applyPhysicalAfterSkuSale(String deviceId, Map<String, Integer> skuQtySold, String refId) {
-        if (skuQtySold == null || skuQtySold.isEmpty()) {
-            return;
-        }
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        Map<String, Integer> slotQtySold = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> entry : skuQtySold.entrySet()) {
-            int remaining = entry.getValue() != null ? entry.getValue() : 0;
-            if (remaining <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
-                continue;
-            }
-            Map<String, Integer> allocated = allocateSkuSaleToSlots(deviceId, entry.getKey(), remaining, bookBySlot);
-            allocated.forEach((code, take) -> slotQtySold.merge(code, take, Integer::sum));
-        }
-        self.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
-    }
-
-    /** 按账面从高到低将销售件数分摊到同 SKU 货道。 */
-    private Map<String, Integer> allocateSkuSaleToSlots(String deviceId, String skuId, int quantity,
-                                                        Map<String, Integer> bookBySlot) {
-        List<DeviceSlot> slots = sortedSlotsForSku(deviceId, skuId, bookBySlot);
-        if (slots.isEmpty() || quantity <= 0) {
-            return Map.of();
-        }
-        Map<String, Integer> slotQtySold = new LinkedHashMap<>();
-        int remaining = quantity;
-        for (DeviceSlot slot : slots) {
-            if (remaining <= 0) {
-                break;
-            }
-            String code = slot.getId().getSlotCode();
-            int book = bookBySlot.getOrDefault(code, 0);
-            int take = (slots.size() == 1 || book <= 0) ? remaining : Math.min(book, remaining);
-            slotQtySold.merge(code, take, Integer::sum);
-            remaining -= take;
-        }
-        if (remaining > 0) {
-            slotQtySold.merge(slots.get(0).getId().getSlotCode(), remaining, Integer::sum);
-        }
-        return slotQtySold;
-    }
-
-    private List<DeviceSlot> sortedSlotsForSku(String deviceId, String skuId,
-                                               Map<String, Integer> bookBySlot) {
-        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
-                .sorted((a, b) -> Integer.compare(
-                        bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
-                        bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
-                .toList();
-    }
-
-    /** 退货/免单回库后同步货道实测（已有实测值则加回）。 */
-    @Transactional
-    public void applyPhysicalAfterRestore(String deviceId, Map<String, Integer> slotQtyRestored, String refId) {
-        if (slotQtyRestored == null || slotQtyRestored.isEmpty()) {
-            return;
-        }
-        Instant now = Instant.now();
-        int updated = 0;
-        for (Map.Entry<String, Integer> entry : slotQtyRestored.entrySet()) {
-            int qty = entry.getValue() != null ? entry.getValue() : 0;
-            if (qty > 0 && entry.getKey() != null && !entry.getKey().isBlank()) {
-                String slotCode = entry.getKey().trim().toUpperCase();
-                DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
-                if (slot != null && slot.getLastPhysicalQty() != null) {
-                    slot.setLastPhysicalQty(slot.getLastPhysicalQty() + qty);
-                    slot.setLastPhysicalAt(now);
-                    slotRepository.save(slot);
-                    updated++;
-                }
-            }
-        }
-        if (updated > 0) {
-            log.info("physical after restore device={} ref={} slots={}", deviceId, refId, updated);
-        }
-    }
-
-    /**
-     * 退货批次无 slotId 时：按 SKU 绑定货道分摊回加实测。
-     */
-    @Transactional
-    public void applyPhysicalAfterSkuRestore(String deviceId, Map<String, Integer> skuQtyRestored, String refId) {
-        if (skuQtyRestored == null || skuQtyRestored.isEmpty()) {
-            return;
-        }
-        Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-        Map<String, Integer> slotQty = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> entry : skuQtyRestored.entrySet()) {
-            int remaining = entry.getValue() != null ? entry.getValue() : 0;
-            if (remaining > 0 && entry.getKey() != null && !entry.getKey().isBlank()) {
-                List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                        .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
-                        .sorted((a, b) -> Integer.compare(
-                                bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
-                                bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
-                        .toList();
-                if (!slots.isEmpty()) {
-                    String code = slots.get(0).getId().getSlotCode();
-                    slotQty.merge(code, remaining, Integer::sum);
-                }
-            }
-        }
-        self.applyPhysicalAfterRestore(deviceId, slotQty, refId);
-    }
-
     @Transactional(readOnly = true)
     public Map<String, Integer> loadBookQtyBySlot(String deviceId) {
         return lotRepository.sumBookQtyBySlot(deviceId).stream()
@@ -619,15 +183,6 @@ public class DeviceSlotService {
                 ));
     }
 
-    @Transactional(readOnly = true)
-    public List<SlotBookView> listEnabledSlotsForSku(String deviceId, String skuId) {
-        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
-                .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
-                .map(s -> new SlotBookView(s.getId().getSlotCode(), s.getParLevel()))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<SkuQuantityDto> inventorySnapshot(String deviceId) {
         requireDevice(deviceId);
         if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
@@ -837,8 +392,8 @@ public class DeviceSlotService {
      * 补货完成刷新通道快照。
      *
      * <p>P0-2 修复（2026-10-15）：{@code preservePhysical=true}（本次补货会话有真实重力实测）
-     * 时只刷新 {@code lastRestockAt}，**不覆盖关门快照写入的实测**——少上架/错上架的
-     * 账实差异必须留在 qtyDiff/hasDiscrepancy 里走 SLOT_DISCREPANCY 闭环。
+     * 时只刷新 {@code lastRestockAt}，**不覆盖关门快照写入的实测**——少上架/错上架留在
+     * qtyDiff/hasDiscrepancy 列里可追（原 SLOT_DISCREPANCY 告警面已随货道退场，批 3b 第十一刀）。
      * 无重力数据的柜机保持原行为（实盘=回写后账面）。</p>
      */
     @Transactional
@@ -850,78 +405,6 @@ public class DeviceSlotService {
             doRecordRestock(deviceId, slotCode, preservePhysical);
             return null;
         });
-    }
-
-    /**
-     * 校正账面/实盘：超 max_level 的货道优先挪到同 SKU 空位，仍放不下则盘亏到上限。
-     */
-    @Transactional
-    public int clampDeviceOverCapacity(String deviceId) {
-        return runWithDeviceSlotLock(deviceId, () -> doClampDeviceOverCapacity(deviceId));
-    }
-
-    private int doClampDeviceOverCapacity(String deviceId) {
-        requireDevice(deviceId);
-        int slotsFixed = 0;
-        String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
-        List<String> clampedSlots = new ArrayList<>();
-        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
-            if (clampSingleSlotIfOverCapacity(deviceId, slot, refId)) {
-                slotsFixed++;
-                clampedSlots.add(slot.getId().getSlotCode());
-            }
-        }
-        if (!clampedSlots.isEmpty()) {
-            // P0-2（2026-10-15）：只同步被钳制货道的实盘（钳制后账面=物理事实），
-            // 其余货道的关门实测保留，不再全柜 BOOK_SYNC 抹平差异。
-            Map<String, Integer> bookBySlot = self.loadBookQtyBySlot(deviceId);
-            Map<String, Integer> clampedPhysical = new LinkedHashMap<>();
-            for (String slotCode : clampedSlots) {
-                clampedPhysical.put(slotCode, bookBySlot.getOrDefault(slotCode, 0));
-            }
-            self.applyPhysicalSnapshot(deviceId, clampedPhysical, "BOOK_SYNC", refId);
-        }
-        return slotsFixed;
-    }
-
-    private boolean clampSingleSlotIfOverCapacity(String deviceId, DeviceSlot slot, String refId) {
-        if (!slot.isEnabled()) {
-            return false;
-        }
-        String slotCode = slot.getId().getSlotCode();
-        int cap = resolveSlotCapacity(slot);
-        String skuId = slot.getAssignedSkuId();
-        if (cap <= 0 || skuId == null || skuId.isBlank()) {
-            return false;
-        }
-        int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        if (book <= cap) {
-            return false;
-        }
-        resolveOverCapacitySurplus(deviceId, slotCode, skuId, cap, refId);
-        log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
-        return true;
-    }
-
-    private void resolveOverCapacitySurplus(String deviceId, String slotCode, String skuId, int cap, String refId) {
-        int book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        int surplus = book - cap;
-        for (SlotRestockAllocation alloc : self.allocateRestockQuantity(deviceId, skuId, surplus)) {
-            inventoryLotService.transferBetweenSlots(
-                    deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
-            surplus -= alloc.quantity();
-        }
-        book = self.loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
-        if (book > cap) {
-            inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
-        }
-    }
-
-    private static int resolveSlotCapacity(DeviceSlot slot) {
-        if (slot.getMaxLevel() > 0) {
-            return slot.getMaxLevel();
-        }
-        return slot.getParLevel() > 0 ? slot.getParLevel() : 0;
     }
 
     private void doRecordRestock(String deviceId, String slotCode, boolean preservePhysical) {
@@ -968,65 +451,6 @@ public class DeviceSlotService {
         }
     }
 
-    private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
-                                               Map<String, Integer> bookBySlot) {
-        String deviceId = device.getDeviceId();
-        // 开门柜（判据=将邑绑定）无货道概念，货道台账恒空 ⇒ 货道口径恒 0（填充率 0%、缺货/低库存 0），
-        // 用户实测「柜里有货却显示没数据」（2026-10-29）。改走「在架 SKU 台账」口径分流：
-        // 只统计上架商品（device_sku_inventory 行 × sku_catalog ACTIVE，与详情页「已上架商品数」同源），
-        // 缺货=库存 0、低库存=0<库存≤逐 SKU low_threshold——与补货建议 suggestFromLowStock、
-        // 阈值自动任务、上架商品页「缺货」tag 同一旋钮（2026-10-29 用户拍板两档递进）。
-        if (isDoorCabinet(deviceId)) {
-            return computeDoorCabinetMetrics(device);
-        }
-        List<DeviceSlot> active = slots.stream()
-                .filter(s -> s.isEnabled() && s.getParLevel() > 0)
-                .toList();
-        SlotFillStats fillStats = accumulateSlotFillStats(active, bookBySlot);
-        int fillRate = fillStats.totalPar() > 0 ? (fillStats.totalBook() * 100 / fillStats.totalPar()) : 0;
-        int oosRate = active.isEmpty() ? 0 : (fillStats.oosCount() * 100 / active.size());
-        int accuracy = fillStats.accuracySlots() > 0
-                ? (fillStats.accuracySum() / fillStats.accuracySlots()) : 100;
-
-        Instant lastRestock = slots.stream()
-                .map(DeviceSlot::getLastRestockAt)
-                .filter(Objects::nonNull)
-                .max(Instant::compareTo)
-                .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
-
-        // 设备级告警联系人为空时回落显示绑定商户的联系人/电话（运营后台设备概览用）
-        String[] merchantContacts = resolveMerchantContacts(device);
-        String merchantContactName = merchantContacts[0];
-        String merchantContactPhone = merchantContacts[1];
-
-        return new DeviceOpsMetricsDto(
-                deviceId,
-                slots.size(),
-                active.size(),
-                fillRate,
-                oosRate,
-                fillStats.oosCount(),
-                fillStats.lowCount(),
-                bookBySlot.values().stream().mapToInt(Integer::intValue).sum(),
-                fillStats.totalPar(),
-                lastRestock,
-                accuracy,
-                device.getAddress(),
-                device.getCurrentTempC(),
-                device.getTargetTempC(),
-                device.getTempReportedAt(),
-                device.salesLockedEnabled(),
-                device.getAppVersion(),
-                device.getFirmwareVersion(),
-                device.getAlertContactName(),
-                device.getAlertContactPhone(),
-                countNearExpiryLots(deviceId),
-                merchantContactName,
-                merchantContactPhone,
-                monthRevenueCents(deviceId)
-        );
-    }
-
     /** 设备级告警联系人为空时回落绑定商户联系人/电话（运营后台设备概览用，两条柜型共用）。 */
     private String[] resolveMerchantContacts(DeviceInfo device) {
         var boundMerchant = device.getMerchantId() == null || device.getMerchantId().isBlank()
@@ -1039,7 +463,7 @@ public class DeviceSlotService {
     }
 
     /**
-     * 开门柜设备概览指标：在架 SKU 台账口径。
+     * 设备概览指标：在架 SKU 台账口径（**全柜型单源**；货道口径已在第十四刀 B 退场）。
      * 在架 = device_sku_inventory 有行且 sku_catalog.status=ACTIVE（与详情页「已上架商品数」、
      * 消费者目录同一过滤，已下架 SKU 的库存残留不参与）。填充率 = Σmin(库存,容量)×100/Σ容量；
      * 缺货商品 = 库存≤0；低库存商品 = 0<库存≤low_threshold（逐 SKU 阈值，与补货建议
@@ -1047,7 +471,7 @@ public class DeviceSlotService {
      * {@link SkuStockLevel}（CB-076：缺货/低库存两档单源，建账 SKU 取批次合计）。
      * DTO 字段名保留 *SlotCount（兼容不动 API），开门柜下语义为「商品」个数。
      */
-    private DeviceOpsMetricsDto computeDoorCabinetMetrics(DeviceInfo device) {
+    private DeviceOpsMetricsDto ledgerStockMetrics(DeviceInfo device) {
         String deviceId = device.getDeviceId();
         DoorCabinetStockStats stats = doorCabinetStockStats(deviceId);
         int fillRate = stats.fillRatePct() == null ? 0 : stats.fillRatePct();
@@ -1065,7 +489,6 @@ public class DeviceSlotService {
                 stats.totalBook(),
                 stats.totalCap(),
                 lastRestock,
-                100,
                 device.getAddress(),
                 device.getCurrentTempC(),
                 device.getTargetTempC(),
@@ -1155,48 +578,6 @@ public class DeviceSlotService {
         return orderLineRepository.sumRevenueByDeviceIdsBetween(java.util.List.of(deviceId), start, end);
     }
 
-    private record SlotFillStats(int totalPar, int totalBook, int oosCount, int lowCount,
-                                 int accuracySum, int accuracySlots) {
-    }
-
-    private static SlotFillStats accumulateSlotFillStats(List<DeviceSlot> active,
-                                                         Map<String, Integer> bookBySlot) {
-        int totalPar = 0;
-        int totalBook = 0;
-        int oosCount = 0;
-        int lowCount = 0;
-        int accuracySum = 0;
-        int accuracySlots = 0;
-        for (DeviceSlot slot : active) {
-            String code = slot.getId().getSlotCode();
-            int par = slot.getParLevel();
-            int book = bookBySlot.getOrDefault(code, 0);
-            totalPar += par;
-            totalBook += Math.min(book, par);
-            if (book <= 0) {
-                oosCount++;
-            } else if (book <= slot.getMinLevel()) {
-                lowCount++;
-            }
-            if (slot.getLastPhysicalQty() != null) {
-                accuracySlots++;
-                accuracySum += physicalAccuracyPercent(book, slot.getLastPhysicalQty());
-            }
-        }
-        return new SlotFillStats(totalPar, totalBook, oosCount, lowCount, accuracySum, accuracySlots);
-    }
-
-    private static int physicalAccuracyPercent(int book, int physicalQty) {
-        if (book == 0 && physicalQty == 0) {
-            return 100;
-        }
-        if (book <= 0) {
-            return 0;
-        }
-        int diff = Math.abs(book - physicalQty);
-        return Math.max(0, 100 - (diff * 100 / book));
-    }
-
     private int countNearExpiryLots(String deviceId) {
         LocalDate nearCutoff = LocalDate.now().plusDays(7);
         return (int) lotRepository.findByDeviceId(deviceId).stream()
@@ -1216,36 +597,6 @@ public class DeviceSlotService {
             log.warn("resolve stockout threshold fallback device={} err={}", deviceId, e.getMessage());
             return 50;
         }
-    }
-
-    private DeviceSlotDto toSlotDto(DeviceSlot slot, int bookQty, int stockoutThresholdPct) {
-        String deviceId = slot.getId().getDeviceId();
-        String slotCode = slot.getId().getSlotCode();
-        String skuId = slot.getAssignedSkuId();
-        SkuCatalog sku = skuId == null ? null : skuCatalogRepository.findById(skuId).orElse(null);
-        String skuName = sku == null ? null : SkuDisplayNames.of(sku);
-        int par = slot.getParLevel();
-        int fillRate = par > 0 ? (Math.min(bookQty, par) * 100 / par) : 0;
-        String stockStatus = resolveStockStatus(slot, bookQty);
-        Integer physical = slot.getLastPhysicalQty();
-        int qtyDiff = physical != null ? bookQty - physical : 0;
-        boolean hasDiscrepancy = physical != null && physical != bookQty;
-        // 图1 对照（叮当小柜，2026-10-15）：剩余库存 < 货柜容量的阈值% ⇒ 缺货预警（阈值=商户级配置，默认 50）
-        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
-        boolean stockoutWarn = slot.isEnabled() && cap > 0
-                && bookQty * 100L < cap * (long) stockoutThresholdPct;
-        return new DeviceSlotDto(
-                deviceId, slotCode, slot.getRowNo(), slot.getColNo(), slot.getSlotType(),
-                skuId, skuName, par, slot.getMinLevel(), slot.getMaxLevel(), slot.isEnabled(),
-                bookQty, physical, slot.getLastPhysicalAt(), slot.getLastRestockAt(),
-                fillRate, stockStatus, qtyDiff, hasDiscrepancy,
-                sku == null ? null : sku.getImageUrl(),
-                sku == null ? null : sku.getBrand(),
-                sku == null ? null : sku.getSpec(),
-                sku == null ? null : sku.getBarcode(),
-                slot.getAssignedAt(),
-                stockoutWarn
-        );
     }
 
     private static String resolveStockStatus(DeviceSlot slot, int bookQty) {

@@ -7560,22 +7560,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/replenishment/shortage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentShortage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/replenishment/routes": {
         parameters: {
             query?: never;
@@ -9572,22 +9556,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["stats_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/slot-discrepancies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["slotDiscrepancies"];
         put?: never;
         post?: never;
         delete?: never;
@@ -16259,8 +16227,6 @@ export interface components {
             expiredLotCount?: number;
             /** Format: int64 */
             pullOffOpenCount?: number;
-            /** Format: int64 */
-            slotDiscrepancyCount?: number;
         };
         ApiResponseOpsDashboardBundleDto: {
             /** Format: int32 */
@@ -17148,37 +17114,6 @@ export interface components {
             plannedRouteCount?: number;
             /** Format: int64 */
             pendingRequestCount?: number;
-        };
-        ApiResponseReplenishmentShortagePageDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentShortagePageDto"];
-        };
-        ReplenishmentShortagePageDto: {
-            items?: components["schemas"]["ReplenishmentShortageRowDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-            shortageDeviceIds?: string[];
-        };
-        ReplenishmentShortageRowDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            skuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            parLevel?: number;
-            stockStatus?: string;
-            slotKey?: string;
         };
         ApiResponsePageResultReplenishmentRouteDto: {
             /** Format: int32 */
@@ -18917,7 +18852,6 @@ export interface components {
         DeviceDetailDto: {
             device?: components["schemas"]["AdminDeviceDto"];
             metrics?: components["schemas"]["DeviceOpsMetricsDto"];
-            slots?: components["schemas"]["DeviceSlotDto"][];
             skuInventory?: components["schemas"]["DeviceInventoryDto"][];
             delistedInventory?: components["schemas"]["DeviceInventoryDto"][];
         };
@@ -18932,17 +18866,15 @@ export interface components {
             /** Format: int32 */
             oosRatePct?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
             totalBookQty?: number;
             /** Format: int32 */
             totalParLevel?: number;
             /** Format: date-time */
             lastRestockAt?: string;
-            /** Format: int32 */
-            inventoryAccuracyPct?: number;
             address?: string;
             /** Format: int32 */
             currentTempC?: number;
@@ -18961,45 +18893,6 @@ export interface components {
             merchantContactPhone?: string;
             /** Format: int64 */
             monthRevenueCents?: number;
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
-            skuImageUrl?: string;
-            skuBrand?: string;
-            skuSpec?: string;
-            skuBarcode?: string;
-            /** Format: date-time */
-            assignedAt?: string;
-            stockoutWarn?: boolean;
         };
         ApiResponseListDeviceRefDto: {
             /** Format: int32 */
@@ -19416,8 +19309,6 @@ export interface components {
             /** Format: int64 */
             expiryAlerts?: number;
             /** Format: int64 */
-            slotDiscrepancies?: number;
-            /** Format: int64 */
             pendingSplits?: number;
             /** Format: int64 */
             refundOrders?: number;
@@ -19514,27 +19405,6 @@ export interface components {
             settledMonthCents?: number;
             /** Format: int64 */
             failedSplitCount?: number;
-        };
-        ApiResponseListSlotDiscrepancyAlertDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SlotDiscrepancyAlertDto"][];
-        };
-        SlotDiscrepancyAlertDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            physicalQty?: number;
-            /** Format: int32 */
-            qtyDiff?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
         };
         ApiResponseMerchantSettlementOverviewDto: {
             /** Format: int32 */
@@ -20054,9 +19924,9 @@ export interface components {
             targetTempC?: number;
             lifecycleStatus?: string;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             salesLockReason?: string;
             /** Format: double */
             latitude?: number;
@@ -34035,30 +33905,6 @@ export interface operations {
             };
         };
     };
-    replenishmentShortage: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentShortagePageDto"];
-                };
-            };
-        };
-    };
     routes: {
         parameters: {
             query?: {
@@ -36917,28 +36763,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantDashboardStatsDto"];
-                };
-            };
-        };
-    };
-    slotDiscrepancies: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListSlotDiscrepancyAlertDto"];
                 };
             };
         };

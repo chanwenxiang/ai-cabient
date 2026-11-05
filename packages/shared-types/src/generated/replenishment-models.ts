@@ -12,8 +12,6 @@ export type OpenApiReplenishmentSuggestDto = components['schemas']['Replenishmen
 export type OpenApiMerchantReplenishmentEfficiencyDto = components['schemas']['MerchantReplenishmentEfficiencyDto'];
 /** 设备库存行（含低库存列表） */
 export type OpenApiDeviceInventoryDto = components['schemas']['DeviceInventoryDto'];
-/** 货道账实差异告警 */
-export type OpenApiSlotDiscrepancyAlertDto = components['schemas']['SlotDiscrepancyAlertDto'];
 /** 自主补货请求（无审批直接生效） */
 export type OpenApiMerchantSelfReplenishRequest = components['schemas']['MerchantSelfReplenishRequest'];
 /** 自主补货明细行 */

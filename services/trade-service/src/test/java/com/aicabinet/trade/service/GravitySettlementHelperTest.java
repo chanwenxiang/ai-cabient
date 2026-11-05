@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 重力**取证面**（DC-27 批2 之后本类的全部职责）：报文归一与净扣减换算，
- * 供补货盘点（{@code RestockSnapshotService}）、实时购物车与开门事件落库使用。
+ * 供补货重力证据（{@code RestockGravityEvidenceService}）、实时购物车与开门事件落库使用。
  *
  * <p>识别结算不再读取这些信号——{@code reconcileWithGravity}/{@code mergeWithVision}
  * 已随重力融合链退役删除，末了那条反射用例钉的就是「不可再加回来」。

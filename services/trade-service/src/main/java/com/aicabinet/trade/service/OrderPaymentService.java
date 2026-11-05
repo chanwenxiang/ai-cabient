@@ -34,7 +34,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -46,6 +49,7 @@ public class OrderPaymentService {
     private static final String REFUND = "REFUND";
     private static final String CHARGE = "CHARGE";
     private static final String ADJUST_CHARGE = "ADJUST_CHARGE";
+    private static final String PREAUTH_CAPTURE = "PREAUTH_CAPTURE";
     /** 渠道扣款描述（免密账单展示用）；自动决策与显式选择两条路径共用同一文案。 */
     private static final String CHARGE_SUBJECT = "AI开门柜购物";
 
@@ -357,7 +361,7 @@ public class OrderPaymentService {
         op.setOperationId(BizIds.nextNumeric());
         op.setOrderId(prep.orderId());
         op.setOperationType(REFUND);
-        op.setAmountCents(prep.refundCents());
+        op.setAmountCents(prep.channelRefundCents());
         op.setChannel(prep.channel());
         op.setStatus("REFUND_INITIATED");
         op.setIdempotencyKey(key);
@@ -691,6 +695,7 @@ public class OrderPaymentService {
             String orderId,
             long userId,
             int refundCents,
+            int channelLegCents,
             String reason,
             String idemKey,
             String channel,
@@ -698,6 +703,22 @@ public class OrderPaymentService {
             int originalChargeTotalCents,
             boolean skipped,
             boolean needsLiveChannel) {
+
+        /**
+         * 要交给渠道/本地渠道支路处理的那条腿的金额（MA-161）。
+         *
+         * <p>{@code refundCents} 的既有语义**不能动**：`:681` 的积分回扣与痕迹行合计都以它为准，
+         * 把它改成「渠道腿」会静默少算余额腿——正是本条缺陷要修的东西。所以这里加分量：
+         * 0 表示「没拆腿」⇒ 退化成 {@code refundCents}，存量单渠道单行为逐字不变。</p>
+         */
+        public int channelRefundCents() {
+            return channelLegCents > 0 ? channelLegCents : refundCents;
+        }
+
+        /** 本次退款里已由余额腿处理掉的金额（其余归渠道腿）。 */
+        public int balanceLegCents() {
+            return channelLegCents > 0 ? refundCents - channelLegCents : 0;
+        }
     }
 
     public record AdjustChargePrep(
@@ -730,27 +751,66 @@ public class OrderPaymentService {
         int netCharged = paymentOperationRepository.netCompletedCents(locked.getOrderId());
         if (netCharged <= 0) {
             log.warn("skip refund without prior charge order={} requested={}", locked.getOrderId(), amountCents);
-            return new OrderRefundPrep(orderId, locked.getUserId(), 0, reason, null, null, null, 0, true, false);
+            return new OrderRefundPrep(orderId, locked.getUserId(), 0, 0, reason, null, null, null, 0, true, false);
         }
         int refundCents = Math.min(amountCents, netCharged);
         // M02: 幂等键只含订单+金额（reason 可变，勿入键，否则同单同额不同文案会重复退款）；
         // AU-175：按行部分退款场景由调用方传行集指纹键覆盖。
+        // 🔴 MA-161 A2：键里的金额取「请求额与毛实扣的较小者」，**不取** refundCents（=与净额取小）。
+        // 拆腿单的余额腿在 prepare 内就落账，净额随之变小 ⇒ 若键按净额算，渠道失败后的重试会换一个键，
+        // deterministicRefundNo 随之变化，微信那边就变成**另一笔新退款**（双退风险）。毛额在退款前后不变，
+        // 同一请求的重试因此稳定复用一个 outRefundNo。
+        int grossCharged = paymentOperationRepository.chargedCompletedCents(locked.getOrderId());
+        // 毛额读不到（正常数据不可能：net>0 ⇒ 必有一条入账行）时退回净额，至少保证键里不是 0。
+        int keyAmount = grossCharged > 0 ? Math.min(amountCents, grossCharged) : refundCents;
         String idemKey = idemKeyOverride != null && !idemKeyOverride.isBlank()
                 ? idemKeyOverride
-                : "REFUND:" + locked.getOrderId() + ":" + refundCents;
+                : "REFUND:" + locked.getOrderId() + ":" + keyAmount;
         if (isCompleted(idemKey)) {
-            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
+            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, 0, reason, idemKey,
                     locked.getPayChannel(), locked.getPayTradeNo(), 0, true, false);
         }
         String channel = locked.getPayChannel() != null ? locked.getPayChannel() : PayChannels.BALANCE;
+        // MA-161：组合单（钱包冲抵 + 渠道补缴）不能把整笔压给一个渠道——网关那笔交易只收了它自己那条腿。
+        List<ChannelCharge> breakdown = channelChargeBreakdown(locked.getOrderId());
+        int breakdownTotal = breakdown.stream().mapToInt(ChannelCharge::chargedCents).sum();
+        List<RefundLeg> legs;
+        if (breakdownTotal <= 0) {
+            // 生产里不可能出现：netCompletedCents 与分解读的是同一批 COMPLETED 流水，
+            // net>0  ⇒ 分解必>0。走到这里只可能是流水缺失/旧数据 ⇒ 不拆腿，退回单渠道旧路径，
+            // 但必须 WARN 留痕——静默退回等于把 MA-161 又藏回去。
+            log.warn("refund leg breakdown empty despite net charged>0, fallback to single-leg "
+                    + "order={} net={} requested={}", locked.getOrderId(), netCharged, refundCents);
+            legs = List.of();
+        } else {
+            legs = planRefundLegs(breakdown, refundCents);
+        }
+        int balanceLeg = legAmount(legs, PayChannels.BALANCE);
+        List<RefundLeg> channelLegs = legs.stream()
+                .filter(l -> !PayChannels.BALANCE.equalsIgnoreCase(l.channel()))
+                .toList();
+        if (!channelLegs.isEmpty()) {
+            RefundLeg only = channelLegs.size() == 1 ? channelLegs.get(0) : null;
+            if (only == null || !only.channel().equalsIgnoreCase(channel)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "组合单退款需单一渠道腿与订单渠道一致，实为 " + channelLegs.size()
+                                + " 条渠道腿（本仓不支持多渠道并存的退款拆分）");
+            }
+            if (balanceLeg > 0) {
+                // 余额腿在本事务内就地退回钱包；键带渠道段，重试时靠它防重复冲抵。
+                completeLocalRefund(locked, balanceLeg, reason, idemKey + ":" + PayChannels.BALANCE,
+                        PayChannels.BALANCE);
+            }
+        }
+        int channelAmt = channelLegs.isEmpty() ? refundCents : channelLegs.get(0).amountCents();
         if (PayChannels.WECHAT.equalsIgnoreCase(channel) && weChatPayProperties.isConfigured()) {
             ensurePayTradeNo(locked);
             if (locked.getPayTradeNo() == null || locked.getPayTradeNo().isBlank()) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         "缺少微信支付交易号，无法原路退款");
             }
-            int totalCents = resolveOriginalChargeTotalCents(locked, refundCents);
-            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
+            int totalCents = resolveOriginalChargeTotalCents(locked, channelAmt, PayChannels.WECHAT);
+            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
                     PayChannels.WECHAT, locked.getPayTradeNo(), totalCents, false, true);
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(channel) && alipayPayClient.isConfigured()) {
@@ -759,12 +819,22 @@ public class OrderPaymentService {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                         "缺少支付宝交易号，无法原路退款");
             }
-            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
+            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
                     PayChannels.ALIPAY, locked.getPayTradeNo(), 0, false, true);
         }
-        completeLocalRefund(locked, refundCents, reason, idemKey, channel);
+        if (channelLegs.isEmpty()) {
+            // 没有渠道腿（纯余额单）：完全走既有本地支路，**幂等键形状一字不改**——
+            // 给它加渠道段会让按原键做的重放短路/对账找不到那笔退款。
+            completeLocalRefund(locked, refundCents, reason, idemKey, channel);
+            alertIfInvoicedOnFullRefund(locked, refundCents);
+            return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, 0, reason, idemKey,
+                    channel, locked.getPayTradeNo(), 0, false, false);
+        }
+        if (channelAmt > 0) {
+            completeLocalRefund(locked, channelAmt, reason, idemKey + ":" + channel, channel);
+        }
         alertIfInvoicedOnFullRefund(locked, refundCents);
-        return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, reason, idemKey,
+        return new OrderRefundPrep(orderId, locked.getUserId(), refundCents, channelAmt, reason, idemKey,
                 channel, locked.getPayTradeNo(), 0, false, false);
     }
 
@@ -784,14 +854,14 @@ public class OrderPaymentService {
         String reason = channelRefundStatus != null && !channelRefundStatus.isBlank()
                 ? prep.reason() + " [refund:" + channelRefundStatus + "]"
                 : prep.reason();
-        recordOperation(locked, REFUND, prep.refundCents(), prep.channel(), prep.idemKey(),
+        recordOperation(locked, REFUND, prep.channelRefundCents(), prep.channel(), prep.idemKey(),
                 outRefundNo, reason);
         locked.setRefundedAt(Instant.now());
-        locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + prep.refundCents());
+        locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + prep.channelRefundCents());
         cabinetOrderRepository.updateById(locked);
         alertIfInvoicedOnFullRefund(locked, prep.refundCents());
-        log.info("live channel order refund finalized order={} channel={} amount={} refundStatus={}",
-                prep.orderId(), prep.channel(), prep.refundCents(), channelRefundStatus);
+        log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
+                prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
     }
 
     /**
@@ -922,6 +992,13 @@ public class OrderPaymentService {
 
     private void completeLocalRefund(CabinetOrder order, int amountCents, String reason,
                                      String idemKey, String channel) {
+        // MA-161 A2：拆腿后每条腿的幂等键带腿段（:渠道 / :BALANCE），而 prepareOrderRefund 的
+        // isCompleted(baseKey) 只看基键 ⇒ 渠道腿失败后的重试会**再进一次本方法**。账本按同一键写
+        // 流水且幂等，但下面 refundedCents 的累加不幂等——重试会把「已退金额」越加越大，而痕迹行
+        // 合计不变（四层对账当场穿孔）。已入账即整腿跳过。
+        if (paymentOperationRepository.findByIdempotencyKey(idemKey).isPresent()) {
+            return;
+        }
         if (PayChannels.WECHAT.equalsIgnoreCase(channel)) {
             if (!securityProperties.mockEnabled()) {
                 throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
@@ -986,12 +1063,14 @@ public class OrderPaymentService {
             return true;
         }
         int refundCents = Math.max(0, trace.getAmountCents());
+        // 痕迹行记的就是**渠道腿**金额（recordRefundInitiated 用 channelRefundCents），
+        // 所以重发时两额相等；余额腿早已在 prepare 事务内落账，不在此路径。
         OrderRefundPrep prep = new OrderRefundPrep(
                 trace.getOrderId(), locked.getUserId() == null ? 0 : locked.getUserId(),
-                refundCents, "渠道退款重试闭环（原提交结果未达）", refundIdemKey,
+                refundCents, refundCents, "渠道退款重试闭环（原提交结果未达）", refundIdemKey,
                 trace.getChannel(), locked.getPayTradeNo(),
                 PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())
-                        ? resolveOriginalChargeTotalCents(locked, refundCents) : 0,
+                        ? resolveOriginalChargeTotalCents(locked, refundCents, trace.getChannel()) : 0,
                 false, true);
         if (PayChannels.WECHAT.equalsIgnoreCase(trace.getChannel())) {
             String outRefundNo = deterministicRefundNo(refundIdemKey);
@@ -1061,7 +1140,7 @@ public class OrderPaymentService {
         String reason = reasonOrDefault(prep.reason());
         if (PayChannels.WECHAT.equalsIgnoreCase(prep.channel())) {
             com.fasterxml.jackson.databind.JsonNode resp = weChatPayClient.createRefund(
-                    prep.orderId(), outRefundNo, prep.refundCents(),
+                    prep.orderId(), outRefundNo, prep.channelRefundCents(),
                     prep.originalChargeTotalCents(), reason);
             String status = weChatRefundStatus(resp);
             if ("ABNORMAL".equalsIgnoreCase(status)) {
@@ -1075,12 +1154,12 @@ public class OrderPaymentService {
                 }
             }
             log.info("wechat order refund order={} amount={} total={} refundStatus={} (原路退回零钱)",
-                    prep.orderId(), prep.refundCents(), prep.originalChargeTotalCents(), status);
+                    prep.orderId(), prep.channelRefundCents(), prep.originalChargeTotalCents(), status);
             return status;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(prep.channel())) {
-            alipayPayClient.refund(prep.orderId(), outRefundNo, prep.refundCents(), reason);
-            log.info("alipay order refund order={} amount={}", prep.orderId(), prep.refundCents());
+            alipayPayClient.refund(prep.orderId(), outRefundNo, prep.channelRefundCents(), reason);
+            log.info("alipay order refund order={} amount={}", prep.orderId(), prep.channelRefundCents());
             return "SUCCESS";
         }
         throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "不支持的退款渠道");
@@ -1271,19 +1350,111 @@ public class OrderPaymentService {
      * 与 {@link PaymentOperationMapper#netCompletedCents(String)} 口径一致）；
      * 无流水时回退到 max(当前订单额, 本次退款额)。
      */
-    private int resolveOriginalChargeTotalCents(CabinetOrder order, int refundCents) {
-        int charged = paymentOperationRepository.selectList(
-                        Wrappers.<PaymentOperation>lambdaQuery()
-                                .eq(PaymentOperation::getOrderId, order.getOrderId())
-                                .eq(PaymentOperation::getStatus, STATUS_COMPLETED)
-                                .in(PaymentOperation::getOperationType, CHARGE, ADJUST_CHARGE))
-                .stream()
-                .mapToInt(PaymentOperation::getAmountCents)
-                .sum();
+    /** 无流水时回退到 max(当前订单额, 本次退款额)。 */
+    private int resolveOriginalChargeTotalCents(CabinetOrder order, int refundCents, String channel) {
+        int charged = channelChargedCents(order.getOrderId(), channel);
         if (charged <= 0) {
             charged = Math.max(order.getTotalAmountCents(), refundCents);
         }
         return Math.max(charged, refundCents);
+    }
+
+    /**
+     * 该订单**按渠道**的入账流水分解（MA-161 拆腿的输入）。
+     *
+     * <p>类型集合与 {@code PaymentOperationMapper.netCompletedCents} 逐字一致
+     * （{@code CHARGE + ADJUST_CHARGE + PREAUTH_CAPTURE} 减 {@code REFUND}），只是多按 channel 分组——
+     * 换个算法就等于再造一份金额口径（铁律：口径单源）。</p>
+     */
+    private List<ChannelCharge> channelChargeBreakdown(String orderId) {
+        Map<String, int[]> byChannel = new java.util.LinkedHashMap<>();
+        Map<String, String> tradeByChannel = new java.util.LinkedHashMap<>();
+        for (PaymentOperation op : paymentOperationRepository.findCompletedPaymentOpsByOrderId(orderId)) {
+            String ch = op.getChannel() == null ? PayChannels.BALANCE : op.getChannel();
+            int signed = switch (op.getOperationType()) {
+                case CHARGE, ADJUST_CHARGE, PREAUTH_CAPTURE -> op.getAmountCents();
+                case REFUND -> -op.getAmountCents();
+                default -> 0;
+            };
+            if (signed == 0) {
+                continue;
+            }
+            byChannel.computeIfAbsent(ch, k -> new int[1])[0] += signed;
+            tradeByChannel.putIfAbsent(ch, op.getGatewayTradeNo());
+        }
+        List<ChannelCharge> out = new ArrayList<>();
+        for (Map.Entry<String, int[]> e : byChannel.entrySet()) {
+            out.add(new ChannelCharge(e.getKey(), Math.max(0, e.getValue()[0]), tradeByChannel.get(e.getKey())));
+        }
+        return out;
+    }
+
+    /** 某渠道的净入账额（渠道腿的上限口径）。 */
+    private int channelChargedCents(String orderId, String channel) {
+        return channelChargeBreakdown(orderId).stream()
+                .filter(c -> channel.equalsIgnoreCase(c.channel()))
+                .mapToInt(ChannelCharge::chargedCents)
+                .sum();
+    }
+
+    private static int legAmount(List<RefundLeg> legs, String channel) {
+        return legs.stream().filter(l -> channel.equalsIgnoreCase(l.channel()))
+                .mapToInt(RefundLeg::amountCents).sum();
+    }
+
+    /** 一条渠道的实扣流水（MA-161 拆腿的输入）。 */
+    record ChannelCharge(String channel, int chargedCents, String payTradeNo) {}
+
+    /** 拆出来的一条退款腿。 */
+    record RefundLeg(String channel, int amountCents, String payTradeNo) {}
+
+    /**
+     * 退款拆腿的**唯一**判据（MA-161 A 档，本方法暂未被调用方消费，A1 接上）。
+     *
+     * <p>组合单（钱包冲抵 + 渠道补缴）的退款不能整笔压给 `order.payChannel` 一个渠道：
+     * 网关侧的交易只收了它实际那部分，超退会被拒（MA-160 修前是「微信确实收了 100」才退成功，
+     * 而钱包那 60 永远不退＝静默少退用户）。故按渠道实扣额截断，其余退回余额——
+     * 余额腿没有网关上限，且与用户资产同型。</p>
+     *
+     * <p>两条都必须**显式失败**，绝不静默调整金额：流水合计不足退款额、或余额腿兜不住其余，
+     * 都说明账面与判据打架，这时错退和少退一样有害。</p>
+     */
+    static List<RefundLeg> planRefundLegs(List<ChannelCharge> charges, int refundCents) {
+        List<RefundLeg> legs = new ArrayList<>();
+        if (refundCents <= 0) {
+            return legs;
+        }
+        int chargedTotal = charges.stream().mapToInt(ChannelCharge::chargedCents).sum();
+        if (chargedTotal < refundCents) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "退款额超出各渠道实扣额合计（" + refundCents + " > " + chargedTotal + "），拒绝拆分");
+        }
+        int balanceCharged = 0;
+        String balanceTradeNo = null;
+        int remaining = refundCents;
+        for (ChannelCharge charge : charges) {
+            if (PayChannels.BALANCE.equalsIgnoreCase(charge.channel())) {
+                balanceCharged += charge.chargedCents();
+                if (balanceTradeNo == null) {
+                    balanceTradeNo = charge.payTradeNo();
+                }
+                continue;
+            }
+            if (remaining <= 0 || charge.chargedCents() <= 0) {
+                continue;
+            }
+            int take = Math.min(remaining, charge.chargedCents());
+            legs.add(new RefundLeg(charge.channel(), take, charge.payTradeNo()));
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            if (balanceCharged < remaining) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "余额腿兜不住其余退款（" + remaining + " > 余额实扣 " + balanceCharged + "），拒绝拆分");
+            }
+            legs.add(new RefundLeg(PayChannels.BALANCE, remaining, balanceTradeNo));
+        }
+        return legs;
     }
 
     /** 支付操作创建时间，用作订单 paidAt。 */

@@ -41,7 +41,6 @@ class SessionExpireRecognizingTest {
 
     @Mock private ShoppingSessionMapper repository;
     @Mock private CabinetMetrics cabinetMetrics;
-    @Mock private RestockSnapshotService restockSnapshotService;
     @Mock private OpsExceptionService opsExceptionService;
     @Mock private DisputeService disputeService;
     @Mock private ConsumerPreauthService consumerPreauthService;
@@ -57,7 +56,6 @@ class SessionExpireRecognizingTest {
                 repository,
                 SessionExpireProperties.defaults(),
                 cabinetMetrics,
-                restockSnapshotService,
                 opsExceptionService,
                 disputeService,
                 consumerPreauthService,

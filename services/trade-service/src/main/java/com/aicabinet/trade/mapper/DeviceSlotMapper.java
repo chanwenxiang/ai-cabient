@@ -26,12 +26,6 @@ public interface DeviceSlotMapper extends BaseTradeMapper<DeviceSlot> {
         return c == null ? 0 : c;
     }
 
-    default List<DeviceSlot> findByEnabledTrueAndLastPhysicalQtyIsNotNull() {
-        return selectList(Wrappers.<DeviceSlot>lambdaQuery()
-                .eq(DeviceSlot::isEnabled, true)
-                .isNotNull(DeviceSlot::getLastPhysicalQty));
-    }
-
     default List<DeviceSlot> findByIdDeviceId(String deviceId) {
         return selectList(Wrappers.<DeviceSlot>lambdaQuery().eq(DeviceSlot::getDeviceId, deviceId));
     }
