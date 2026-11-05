@@ -654,22 +654,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/devices/{deviceId}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceSlots"];
-        put: operations["upsertDeviceSlots"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/devices/{deviceId}/sku-inventory": {
         parameters: {
             query?: never;
@@ -903,22 +887,6 @@ export interface paths {
         };
         get: operations["getMyOpsConfig"];
         put: operations["saveMyOpsConfig"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/devices/{deviceId}/slots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["deviceSlots_1"];
-        put: operations["upsertDeviceSlots_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -3510,6 +3478,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/products/{barCode}/phone-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitPhoneCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/jiangyi/products/state/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["refreshProductStates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/jiangyi/products/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/jiangyi/order-videos/pull": {
         parameters: {
             query?: never;
@@ -4144,38 +4160,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["applyTempPlan"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/stocktake": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["stocktakeSlot"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/slots/apply-template": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["applyPlanogramTemplate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5158,6 +5142,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/merchant/skus/jiangyi-capture/{barCode}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["submitJiangyiPhoneCapture"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/skus/jiangyi-capture/{barCode}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadJiangyiCapturePhoto"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/merchant/satellite-purchase/orders": {
         parameters: {
             query?: never;
@@ -5472,22 +5488,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["openStocktakeDoor"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/devices/{deviceId}/slots/stocktake": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["stocktakeSlot_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7640,22 +7640,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/replenishment/shortage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["replenishmentShortage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/replenishment/routes": {
         parameters: {
             query?: never;
@@ -8364,6 +8348,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/jiangyi/products/{barCode}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["productState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/jiangyi/product-categories": {
         parameters: {
             query?: never;
@@ -8532,6 +8532,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["flowSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/jiangyi/capture/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["capturePolicy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9660,14 +9676,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/merchant/slot-discrepancies": {
+    "/api/v2/merchant/skus/jiangyi-capture/{barCode}/state": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["slotDiscrepancies"];
+        get: operations["jiangyiProductState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/merchant/skus/jiangyi-capture/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["jiangyiCapturePolicy"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11753,6 +11785,11 @@ export interface components {
             jiangyiTextName?: string;
             barCode?: string;
             syncStatus?: string;
+            jiangyiState?: string;
+            nextAction?: string;
+            rejectCause?: string;
+            /** Format: date-time */
+            stateCheckedAt?: string;
             /** Format: date-time */
             syncedAt?: string;
             /** Format: date-time */
@@ -12383,67 +12420,6 @@ export interface components {
             deviceId?: string;
             enabled?: boolean;
             entries?: components["schemas"]["DeviceTempPlanEntryDto"][];
-        };
-        UpsertDeviceSlotRequest: {
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-        };
-        ApiResponseListDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"][];
-        };
-        DeviceSlotDto: {
-            deviceId?: string;
-            slotCode?: string;
-            /** Format: int32 */
-            rowNo?: number;
-            /** Format: int32 */
-            colNo?: number;
-            slotType?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            parLevel?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            maxLevel?: number;
-            enabled?: boolean;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            lastPhysicalQty?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
-            /** Format: date-time */
-            lastRestockAt?: string;
-            /** Format: int32 */
-            fillRatePct?: number;
-            stockStatus?: string;
-            /** Format: int32 */
-            qtyDiff?: number;
-            hasDiscrepancy?: boolean;
-            skuImageUrl?: string;
-            skuBrand?: string;
-            skuSpec?: string;
-            skuBarcode?: string;
-            /** Format: date-time */
-            assignedAt?: string;
-            stockoutWarn?: boolean;
         };
         UpsertDeviceSkuInventoryRequest: {
             skuId?: string;
@@ -14501,7 +14477,6 @@ export interface components {
             wechatReceiverId?: string;
             status?: string;
             remark?: string;
-            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;
@@ -14527,7 +14502,6 @@ export interface components {
             remark?: string;
             /** Format: int64 */
             deviceCount?: number;
-            allowMerchantPlanogramEdit?: boolean;
             allowMerchantPricingEdit?: boolean;
             packFieldEnabled?: boolean;
             packBizEnabled?: boolean;
@@ -14776,6 +14750,25 @@ export interface components {
             domain?: string;
             socketUrl?: string;
             pushedAt?: string;
+        };
+        StateRefreshRequest: {
+            barCodes: string[];
+        };
+        ProductCreateRequest: {
+            barCode: string;
+            /** Format: int64 */
+            salePriceCents: number;
+            /** Format: int64 */
+            purchasePriceCents?: number;
+            name?: string;
+            brandName?: string;
+            specs?: string;
+            category?: string;
+            /** Format: int32 */
+            categoryId?: number;
+            /** Format: int32 */
+            colorId?: number;
+            mainImg?: string;
         };
         PullVideoRequest: {
             orderNo: string;
@@ -15302,23 +15295,6 @@ export interface components {
             message?: string;
             data?: components["schemas"]["AdminDeviceDto"];
         };
-        SlotStocktakeRequest: {
-            slotCode: string;
-            /** Format: int32 */
-            physicalQty?: number;
-            adjustBookQty?: boolean;
-            photoEvidenceUrl?: string;
-            /** Format: double */
-            latitude?: number;
-            /** Format: double */
-            longitude?: number;
-        };
-        ApiResponseDeviceSlotDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["DeviceSlotDto"];
-        };
         DeviceLifecycleRequest: {
             action?: string;
             merchantId?: string;
@@ -15642,6 +15618,15 @@ export interface components {
         };
         ResetMerchantUserPasswordRequest: {
             password?: string;
+        };
+        JiangyiCaptureSubmitRequest: {
+            imageUrls: string[];
+        };
+        ApiResponseString: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: string;
         };
         ReplenishmentTaskLineDto: {
             /** Format: int64 */
@@ -16078,12 +16063,6 @@ export interface components {
             code?: string;
             expiresAt?: string;
         };
-        ApiResponseString: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: string;
-        };
         ApiResponseListJiangyiOrderVideo: {
             /** Format: int32 */
             code?: number;
@@ -16419,8 +16398,6 @@ export interface components {
             expiredLotCount?: number;
             /** Format: int64 */
             pullOffOpenCount?: number;
-            /** Format: int64 */
-            slotDiscrepancyCount?: number;
         };
         ApiResponseOpsDashboardBundleDto: {
             /** Format: int32 */
@@ -17308,37 +17285,6 @@ export interface components {
             plannedRouteCount?: number;
             /** Format: int64 */
             pendingRequestCount?: number;
-        };
-        ApiResponseReplenishmentShortagePageDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ReplenishmentShortagePageDto"];
-        };
-        ReplenishmentShortagePageDto: {
-            items?: components["schemas"]["ReplenishmentShortageRowDto"][];
-            /** Format: int32 */
-            page?: number;
-            /** Format: int32 */
-            size?: number;
-            /** Format: int64 */
-            total?: number;
-            shortageDeviceIds?: string[];
-        };
-        ReplenishmentShortageRowDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            skuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            minLevel?: number;
-            /** Format: int32 */
-            parLevel?: number;
-            stockStatus?: string;
-            slotKey?: string;
         };
         ApiResponsePageResultReplenishmentRouteDto: {
             /** Format: int32 */
@@ -18304,6 +18250,17 @@ export interface components {
             models?: number;
             vendorError?: string;
         };
+        ApiResponsePhoneCapturePolicy: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["PhoneCapturePolicy"];
+        };
+        PhoneCapturePolicy: {
+            /** Format: int32 */
+            shotCount?: number;
+            shotHints?: string[];
+        };
         ApiResponsePageResultInvoiceRequestDto: {
             /** Format: int32 */
             code?: number;
@@ -19077,7 +19034,6 @@ export interface components {
         DeviceDetailDto: {
             device?: components["schemas"]["AdminDeviceDto"];
             metrics?: components["schemas"]["DeviceOpsMetricsDto"];
-            slots?: components["schemas"]["DeviceSlotDto"][];
             skuInventory?: components["schemas"]["DeviceInventoryDto"][];
             delistedInventory?: components["schemas"]["DeviceInventoryDto"][];
         };
@@ -19092,17 +19048,15 @@ export interface components {
             /** Format: int32 */
             oosRatePct?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
             totalBookQty?: number;
             /** Format: int32 */
             totalParLevel?: number;
             /** Format: date-time */
             lastRestockAt?: string;
-            /** Format: int32 */
-            inventoryAccuracyPct?: number;
             address?: string;
             /** Format: int32 */
             currentTempC?: number;
@@ -19537,8 +19491,6 @@ export interface components {
             /** Format: int64 */
             expiryAlerts?: number;
             /** Format: int64 */
-            slotDiscrepancies?: number;
-            /** Format: int64 */
             pendingSplits?: number;
             /** Format: int64 */
             refundOrders?: number;
@@ -19635,27 +19587,6 @@ export interface components {
             settledMonthCents?: number;
             /** Format: int64 */
             failedSplitCount?: number;
-        };
-        ApiResponseListSlotDiscrepancyAlertDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["SlotDiscrepancyAlertDto"][];
-        };
-        SlotDiscrepancyAlertDto: {
-            deviceId?: string;
-            deviceName?: string;
-            slotCode?: string;
-            assignedSkuId?: string;
-            assignedSkuName?: string;
-            /** Format: int32 */
-            bookQty?: number;
-            /** Format: int32 */
-            physicalQty?: number;
-            /** Format: int32 */
-            qtyDiff?: number;
-            /** Format: date-time */
-            lastPhysicalAt?: string;
         };
         ApiResponseMerchantSettlementOverviewDto: {
             /** Format: int32 */
@@ -20175,9 +20106,9 @@ export interface components {
             targetTempC?: number;
             lifecycleStatus?: string;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             salesLockReason?: string;
             /** Format: double */
             latitude?: number;
@@ -22391,54 +22322,6 @@ export interface operations {
             };
         };
     };
-    deviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    upsertDeviceSlots: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
     upsertDeviceSkuInventory: {
         parameters: {
             query?: never;
@@ -23028,54 +22911,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantOpsConfigDto"];
-                };
-            };
-        };
-    };
-    deviceSlots_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    upsertDeviceSlots_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpsertDeviceSlotRequest"][];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListDeviceSlotDto"];
                 };
             };
         };
@@ -27578,6 +27413,82 @@ export interface operations {
             };
         };
     };
+    submitPhoneCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    files: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                };
+            };
+        };
+    };
+    refreshProductStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StateRefreshRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseInteger"];
+                };
+            };
+        };
+    };
+    createProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                };
+            };
+        };
+    };
     pullOrderVideo: {
         parameters: {
             query?: never;
@@ -28640,54 +28551,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseDeviceTempPlanDto"];
-                };
-            };
-        };
-    };
-    stocktakeSlot: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SlotStocktakeRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
-                };
-            };
-        };
-    };
-    applyPlanogramTemplate: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseInteger"];
                 };
             };
         };
@@ -30494,6 +30357,61 @@ export interface operations {
             };
         };
     };
+    submitJiangyiPhoneCapture: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiangyiCaptureSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                };
+            };
+        };
+    };
+    uploadJiangyiCapturePhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseString"];
+                };
+            };
+        };
+    };
     satellitePurchaseOrders: {
         parameters: {
             query?: never;
@@ -31048,32 +30966,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
-                };
-            };
-        };
-    };
-    stocktakeSlot_1: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SlotStocktakeRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseDeviceSlotDto"];
                 };
             };
         };
@@ -34326,30 +34218,6 @@ export interface operations {
             };
         };
     };
-    replenishmentShortage: {
-        parameters: {
-            query?: {
-                deviceId?: string;
-                page?: number;
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseReplenishmentShortagePageDto"];
-                };
-            };
-        };
-    };
     routes: {
         parameters: {
             query?: {
@@ -35362,6 +35230,28 @@ export interface operations {
             };
         };
     };
+    productState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                };
+            };
+        };
+    };
     categories: {
         parameters: {
             query?: never;
@@ -35596,6 +35486,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseFlowSummaryView"];
+                };
+            };
+        };
+    };
+    capturePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePhoneCapturePolicy"];
                 };
             };
         };
@@ -37212,11 +37122,31 @@ export interface operations {
             };
         };
     };
-    slotDiscrepancies: {
+    jiangyiProductState: {
         parameters: {
-            query?: {
-                deviceId?: string;
+            query?: never;
+            header?: never;
+            path: {
+                barCode: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseJiangyiSkuJiangyiLink"];
+                };
+            };
+        };
+    };
+    jiangyiCapturePolicy: {
+        parameters: {
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -37229,7 +37159,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListSlotDiscrepancyAlertDto"];
+                    "*/*": components["schemas"]["ApiResponsePhoneCapturePolicy"];
                 };
             };
         };
