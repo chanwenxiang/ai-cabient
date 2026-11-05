@@ -263,6 +263,11 @@
             :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
             @click="toggleGatherMode"
           />
+          <app-button
+            v-if="canEditDevice"
+            label="商品采集（手机拍照）"
+            @click="goJiangyiCapture"
+          />
         </view>
 
         <view id="goodsCard" class="card" v-show="activeTab === 'goods'">
@@ -425,6 +430,10 @@ const cmdBusy = ref(false);
 
 // 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
 const jiangyiGather = ref({ bound: false, gatherLocked: false });
+
+function goJiangyiCapture() {
+  uni.navigateTo({ url: '/pages/jiangyi-capture/jiangyi-capture' });
+}
 
 // ===== 选项式详情（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 =====
 type DetailTab = 'overview' | 'goods' | 'gather' | 'settings';

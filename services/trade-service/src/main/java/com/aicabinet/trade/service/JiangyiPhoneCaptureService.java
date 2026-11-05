@@ -51,14 +51,47 @@ public class JiangyiPhoneCaptureService {
      * {@code NEW}（未建档）直接拒绝，避免把工单打到错误阶段。</p>
      */
     public Optional<JiangyiSkuJiangyiLink> submit(String barCode, List<Photo> photos) {
-        if (barCode == null || barCode.isBlank()) {
-            throw new IllegalArgumentException("barCode 不能为空");
-        }
         if (photos == null || photos.isEmpty()) {
             throw new IllegalArgumentException("照片不能为空（§7.9）");
         }
+        Long productId = prepare(barCode, photos.size());
+        List<String> vendorUrls = new ArrayList<>();
+        for (Photo photo : photos) {
+            vendorUrls.add(uploadPhoto(photo));
+        }
+        log.info("jiangyi phone capture submit barCode={} productId={} photos={}",
+                barCode, productId, vendorUrls.size());
+        return productStateService.submitPhoneCapture(productId, vendorUrls);
+    }
+
+    /**
+     * §7.9 直接按 §7.8 已上传的地址提交（小程序逐张上传后调用；地址必须是 7.8 返回的）。
+     */
+    public Optional<JiangyiSkuJiangyiLink> submitByUrls(String barCode, List<String> vendorUrls) {
+        if (vendorUrls == null || vendorUrls.isEmpty()) {
+            throw new IllegalArgumentException("图片地址不能为空（§7.9）");
+        }
+        Long productId = prepare(barCode, vendorUrls.size());
+        log.info("jiangyi phone capture submit-by-urls barCode={} productId={} photos={}",
+                barCode, productId, vendorUrls.size());
+        return productStateService.submitPhoneCapture(productId, vendorUrls);
+    }
+
+    /** §7.8 单张上传，返回厂商地址（供小程序逐张上传后统一提交）。 */
+    public String uploadPhoto(Photo photo) {
+        if (photo == null) {
+            throw new IllegalArgumentException("照片不能为空");
+        }
+        return client.uploadImage(photo.content(), photo.filename(), photo.contentType());
+    }
+
+    /** 张数按 §7.7、状态按 §7.2、productId 按 §7.5，三关都过才允许提交。 */
+    private Long prepare(String barCode, int photoCount) {
+        if (barCode == null || barCode.isBlank()) {
+            throw new IllegalArgumentException("barCode 不能为空");
+        }
         PhoneCapturePolicy policy = client.phoneCapturePolicy();
-        if (policy.shotCount() > 0 && photos.size() != policy.shotCount()) {
+        if (policy.shotCount() > 0 && photoCount != policy.shotCount()) {
             throw new IllegalArgumentException(
                     "照片张数必须等于 " + policy.shotCount() + "（§7.7/§7.9）");
         }
@@ -68,13 +101,7 @@ public class JiangyiPhoneCaptureService {
         if (productId == null) {
             throw new IllegalStateException("条码未建档，无法提交手机采集: " + barCode);
         }
-        List<String> vendorUrls = new ArrayList<>();
-        for (Photo photo : photos) {
-            vendorUrls.add(client.uploadImage(photo.content(), photo.filename(), photo.contentType()));
-        }
-        log.info("jiangyi phone capture submit barCode={} productId={} photos={}",
-                barCode, productId, vendorUrls.size());
-        return productStateService.submitPhoneCapture(productId, vendorUrls);
+        return productId;
     }
 
     private static void requireCapturable(ProductState current) {

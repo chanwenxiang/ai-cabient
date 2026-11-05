@@ -5,14 +5,18 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
+import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
+import com.aicabinet.trade.service.JiangyiPhoneCaptureService;
+import com.aicabinet.trade.service.JiangyiProductStateService;
 import com.aicabinet.trade.service.MerchantScopeService;
 import com.aicabinet.trade.service.ProcurementService;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -24,7 +28,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import java.io.IOException;
+import java.util.ArrayList;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -49,6 +56,8 @@ public class MerchantPortalController {
     /** CB-077：设备侧故障单（固件自报，如摄像头打开失败）展示 */
     private final DeviceFaultOrderService deviceFaultOrderService;
     private final MerchantScopeService merchantScopeService;
+    private final JiangyiProductStateService jiangyiProductStateService;
+    private final JiangyiPhoneCaptureService jiangyiPhoneCaptureService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
@@ -56,7 +65,9 @@ public class MerchantPortalController {
                                     AdminDeviceOpsService deviceOpsService,
                                     AuthService authService,
                                     DeviceFaultOrderService deviceFaultOrderService,
-                                    MerchantScopeService merchantScopeService) {
+                                    MerchantScopeService merchantScopeService,
+                                    JiangyiProductStateService jiangyiProductStateService,
+                                    JiangyiPhoneCaptureService jiangyiPhoneCaptureService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
@@ -64,6 +75,8 @@ public class MerchantPortalController {
         this.authService = authService;
         this.deviceFaultOrderService = deviceFaultOrderService;
         this.merchantScopeService = merchantScopeService;
+        this.jiangyiProductStateService = jiangyiProductStateService;
+        this.jiangyiPhoneCaptureService = jiangyiPhoneCaptureService;
     }
 
     @GetMapping("/me")
@@ -261,6 +274,52 @@ public class MerchantPortalController {
             @RequestBody UpdateMerchantDeviceSettingsRequest body) {
         return ApiResponse.ok(merchantPortalService.updateDeviceSettings(userId(request), deviceId, body));
     }
+
+
+    // ---------- 第七章商品采集（V16 2026-10-24）：小程序「商品录入」页 ----------
+
+    /** §7.7 拍摄要求（张数读 shotCount，前端不得硬编码）。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/skus/jiangyi-capture/policy")
+    public ApiResponse<PhoneCapturePolicy> jiangyiCapturePolicy() {
+        return ApiResponse.ok(jiangyiPhoneCaptureService.policy());
+    }
+
+    /** §7.5 按条码查状态（有写副作用：首次查询会为未采集商品建采集任务，仅限用户显式动作）。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/skus/jiangyi-capture/{barCode}/state")
+    public ApiResponse<JiangyiSkuJiangyiLink> jiangyiProductState(@PathVariable String barCode) {
+        return ApiResponse.ok(jiangyiProductStateService.check(barCode).orElse(null));
+    }
+
+    /** §7.8 单张上传（小程序逐张上传，返回厂商地址供提交用）。 */
+    @RequiresPermissions("merchant:devices:edit")
+    @PostMapping(path = "/skus/jiangyi-capture/{barCode}/photo",
+                 consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<String> uploadJiangyiCapturePhoto(
+            @PathVariable String barCode,
+            @RequestPart("file") MultipartFile file) {
+        try {
+            return ApiResponse.ok(jiangyiPhoneCaptureService.uploadPhoto(
+                    new JiangyiPhoneCaptureService.Photo(
+                            file.getBytes(), file.getOriginalFilename(), file.getContentType())));
+        } catch (IOException e) {
+            throw new IllegalStateException("读取上传图片失败", e);
+        }
+    }
+
+    /** §7.9 提交手机采集（imageUrls 必须全部来自 7.8，顺序与 shotHints 一致）。 */
+    @RequiresPermissions("merchant:devices:edit")
+    @PostMapping("/skus/jiangyi-capture/{barCode}/submit")
+    public ApiResponse<JiangyiSkuJiangyiLink> submitJiangyiPhoneCapture(
+            @PathVariable String barCode,
+            @Valid @RequestBody JiangyiCaptureSubmitRequest body) {
+        return ApiResponse.ok(
+                jiangyiPhoneCaptureService.submitByUrls(barCode, body.imageUrls()).orElse(null));
+    }
+
+    /** §7.9 请求体。 */
+    record JiangyiCaptureSubmitRequest(@jakarta.validation.constraints.NotNull List<String> imageUrls) {}
 
     // ---------- 将邑采集模式（CB-023 商户端补充）：小程序设备详情页入口，409 闸门与 admin 共用 ----------
 

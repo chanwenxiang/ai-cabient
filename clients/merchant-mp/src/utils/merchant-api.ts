@@ -1192,3 +1192,87 @@ export function alertTypeLabel(type: string) {
 export function merchantAlertTitle(_type: string, title: string) {
   return String(title || '').replaceAll('设备', '柜机');
 }
+
+// ---------- 将邑第七章：手机采集（V16 2026-10-24） ----------
+
+export interface JiangyiCapturePolicy {
+  shotCount: number;
+  shotHints: string[];
+}
+
+/** 厂商侧商品状态快照（落在我方挂接行上）。 */
+export interface JiangyiCaptureState {
+  barCode: string | null;
+  jiangyiState: string | null;
+  nextAction: string | null;
+  rejectCause: string | null;
+}
+
+export function fetchJiangyiCapturePolicy(): Promise<JiangyiCapturePolicy> {
+  return request<JiangyiCapturePolicy>(MerchantEndpoints.jiangyiCapturePolicy, 'GET');
+}
+
+/** §7.5 查状态（有写副作用：首次查询会为未采集商品建采集任务，只限用户显式点击）。 */
+export function fetchJiangyiCaptureState(barCode: string): Promise<JiangyiCaptureState | null> {
+  return request<JiangyiCaptureState | null>(MerchantEndpoints.jiangyiCaptureState(barCode), 'GET');
+}
+
+/** §7.9 提交（地址必须全部来自 uploadJiangyiCapturePhoto 的返回值）。 */
+export function submitJiangyiPhoneCapture(
+  barCode: string,
+  imageUrls: string[]
+): Promise<JiangyiCaptureState | null> {
+  return request<JiangyiCaptureState | null>(
+    MerchantEndpoints.jiangyiCaptureSubmit(barCode),
+    'POST',
+    { imageUrls }
+  );
+}
+
+/** §7.8 单张上传，返回厂商地址。 */
+export function uploadJiangyiCapturePhoto(barCode: string, filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!isMerchantLoggedIn()) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    const header: Record<string, string> = { 'X-Requested-With': 'XMLHttpRequest' };
+    const token = getToken();
+    if (token) header.Authorization = 'Bearer ' + token;
+    uni.uploadFile({
+      url: merchantAbsUrl(MerchantEndpoints.jiangyiCapturePhoto(barCode)),
+      filePath,
+      name: 'file',
+      header,
+      timeout: 30_000,
+      success(res) {
+        if (res.statusCode === 401) {
+          reject(new Error('UPLOAD_AUTH_EXPIRED'));
+          return;
+        }
+        try {
+          const body = JSON.parse(String(res.data || '{}')) as {
+            code?: number;
+            message?: string;
+            data?: unknown;
+          };
+          if (
+            res.statusCode >= 200 &&
+            res.statusCode < 300 &&
+            body?.code === 0 &&
+            typeof body.data === 'string'
+          ) {
+            resolve(body.data);
+            return;
+          }
+          reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
+        } catch {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail() {
+        reject(new Error('网络错误'));
+      }
+    });
+  });
+}

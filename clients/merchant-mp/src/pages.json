@@ -421,6 +421,19 @@
         }
       ]
     }
+,
+    {
+      "root": "pages/jiangyi-capture",
+      "pages": [
+        {
+          "path": "jiangyi-capture",
+          "style": {
+            "navigationBarTitleText": "商品采集",
+            "navigationStyle": "custom"
+          }
+        }
+      ]
+    }
   ],
   "preloadRule": {
     "pages/home/home": {

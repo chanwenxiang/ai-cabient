@@ -166,6 +166,13 @@ export const MerchantEndpoints = {
   deviceFaultOrders: (id: string, limit = 20) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/fault-orders?limit=${limit}`,
   /** 将邑采集模式（CB-023 商户端补充）：状态 / 进入 / 退出 */
+  jiangyiCapturePolicy: `${API_PREFIX}/merchant/skus/jiangyi-capture/policy`,
+  jiangyiCaptureState: (barCode: string) =>
+    `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/state`,
+  jiangyiCapturePhoto: (barCode: string) =>
+    `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/photo`,
+  jiangyiCaptureSubmit: (barCode: string) =>
+    `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/submit`,
   jiangyiGatherStatus: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/status`,
   jiangyiGatherStart: (id: string) =>
