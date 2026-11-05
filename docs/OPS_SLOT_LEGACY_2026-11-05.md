@@ -34,6 +34,9 @@ SELECT id, check_type, status FROM data_consistency_record
 | SLOT_* 未结案记录 | **2** | `SLOT_PHYSICAL` FAIL、`SLOT_SKU_MISMATCH` FAIL |
 | 引用悬空 | 0 | `device_slot` 里没有找不到 `device_info` 的行 |
 
+🔴 本表是**执行前快照**。§C 那 2 条未结案已按清单在 dev 结案（见 §C.1，复核值 0）；
+A 段那 16 行 `device_slot` 与 B 段 3 行 `lot.slot_id` **未执行**（等你或运维点头再动，属删数据）。
+
 ⚠️ 这两台柜**都不是** `BOUND`，按代码判据 `isDoorCabinet()`（＝`jiangyi_device.status='BOUND'`，
 见 `JiangyiDeviceDirectory.isJiangyi:45-59`）都算「非开门柜」，所以**仍会被货道读面消费**
 （补货建议 `listShortageRows`、运营设备详情 `DeviceDetailDto.slots`…）。
@@ -76,7 +79,7 @@ COMMIT;
 - 与真柜口径一致（`EG943322621391` 的 lot 行 `slot_id` 全 NULL）⇒ 这一步是**把演示数据对齐生产口径**。
 - 不做也不影响：货道相关算式对 RETIRED 柜仍会跑，但第 A 步清掉 `device_slot` 后自然无行可匹配。
 
-## C. 那 2 条 SLOT_* FAIL 记录 —— **应用内关不掉，需要你拍板**
+## C. 那 2 条 SLOT_* FAIL 记录 —— **应用内关不掉，需要你拍板**（✅ 已按第 2 条在 dev 执行）
 
 - 现状（逐行读过代码，非推测）：`POST /api/v2/ops/admin/consistency/{id}/fix` 是唯一能把记录
   改成 `FIXED` 的入口（`DataConsistencyService.doFixInconsistencyDetailed:1363-1399`），
@@ -107,6 +110,19 @@ COMMIT;
      不复用 `/fix` 的自动修复语义。这是产品级改动（要权限码、UI、测试），建议单独排一轮。
 - 我的建议：**dev 走第 2 条**（演示数据，无审计价值），**生产上线前不碰**（生产根本不会有这类行）；
   若以后仍会产生命中率高的「只巡检不可修」类型，再考虑第 3 条。
+
+### C.1 执行记录（2026-11-05 13:14:56 +08，dev 库 `aicabinet`，用户选第 2 条）
+
+| 项 | 值 |
+|---|---|
+| 命中行 | `id=152 SLOT_PHYSICAL`、`id=156 SLOT_SKU_MISMATCH`（`UPDATE 2`，`SLOT_CAPACITY` 无未结案行） |
+| 改前整值备份 | `.tmp/slot-fails-before-1105.txt`（md5：152=`e71a…4d5e`、156=`f97d…cf0c`）+ `.tmp/slot-fails-rawmsg-before-1105.txt` |
+| 改后 | `status=FIXED`、`fixed_at=2026-11-05 05:14:56.718911+00`、`msg_len` 16→93 / 41→118（**追加**留痕，原文「近30天盘点 2 ≠ 在架批 9」等未被覆盖，与 MA-116 的「不许整值覆盖证据」同语义） |
+| 复核 | `check_type LIKE 'SLOT_%' AND status<>'FIXED'` = **0**；`SLOT_% AND status='FIXED'` = 4（A 段前 2 条 + 本次 2 条）；`check:stocktake-chain` 判据不受影响 |
+| 执行脚本 | `.tmp/close-slot-fails-1105.sql`——事务内带两道硬闸（中文留痕必须 2 行都命中、不得残留未结案），任一不过即 ROLLBACK，不会留半套 |
+| 回滚脚本 | `.tmp/slot-fails-restore-1105.sql`——还原 status/fixed_at/整段 error_message，并用改前 **md5** 自证还原到位 |
+| ⚠️ 未做的部分 | 本路径**不写 `ops_audit_log`**（`CONSISTENCY_FIX` 审计只在 `/fix` 里追加）。若以后要在审计台可见，只能走第 3 条（补「人工结案」动作）。 |
+| 顺带发现 | dev 整表 `status<>'FIXED'` 仍有 **19** 条其他类型 FAIL，不属货道范围，未处理。 |
 
 ## D. 不建议做的事
 
