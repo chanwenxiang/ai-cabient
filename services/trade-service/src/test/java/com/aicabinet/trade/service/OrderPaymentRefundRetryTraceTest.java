@@ -120,7 +120,8 @@ class OrderPaymentRefundRetryTraceTest {
         when(paymentOperationRepository.findByIdempotencyKey("rk1")).thenReturn(Optional.empty());
         when(paymentOperationRepository.findByIdempotencyKey("REFUND:INIT:rk1")).thenReturn(Optional.empty());
         when(cabinetOrderRepository.selectById("O-RT-1")).thenReturn(order("O-RT-1"));
-        when(paymentOperationRepository.selectList(any())).thenReturn(Collections.emptyList());
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId(anyString()))
+                .thenReturn(Collections.emptyList());
         when(weChatPayV3Client.queryRefund(eq("O-RT-1"), anyString())).thenReturn(json("SUCCESS"));
         when(cabinetOrderRepository.findByIdForUpdate("O-RT-1")).thenReturn(Optional.of(order("O-RT-1")));
 
@@ -142,7 +143,8 @@ class OrderPaymentRefundRetryTraceTest {
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         when(paymentOperationRepository.findByIdempotencyKey("rk2")).thenReturn(Optional.empty());
         when(cabinetOrderRepository.selectById("O-RT-2")).thenReturn(order("O-RT-2"));
-        when(paymentOperationRepository.selectList(any())).thenReturn(Collections.emptyList());
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId(anyString()))
+                .thenReturn(Collections.emptyList());
         when(weChatPayV3Client.queryRefund(eq("O-RT-2"), anyString())).thenReturn(json("ABNORMAL"));
 
         boolean closed = service.retryFromInitiatedTrace(t);
@@ -162,7 +164,8 @@ class OrderPaymentRefundRetryTraceTest {
         when(paymentOperationRepository.findByIdempotencyKey("rk3")).thenReturn(Optional.empty());
         when(paymentOperationRepository.findByIdempotencyKey("REFUND:INIT:rk3")).thenReturn(Optional.empty());
         when(cabinetOrderRepository.selectById("O-RT-3")).thenReturn(order("O-RT-3"));
-        when(paymentOperationRepository.selectList(any())).thenReturn(Collections.emptyList());
+        when(paymentOperationRepository.findCompletedPaymentOpsByOrderId(anyString()))
+                .thenReturn(Collections.emptyList());
         when(weChatPayV3Client.queryRefund(eq("O-RT-3"), anyString())).thenReturn(json("PROCESSING"));
         when(weChatPayClient.createRefund(eq("O-RT-3"), anyString(), eq(800), eq(800), anyString()))
                 .thenReturn(json("SUCCESS"));

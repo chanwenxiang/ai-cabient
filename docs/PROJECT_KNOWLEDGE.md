@@ -684,6 +684,40 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（MA-161 A1：组合单退款真的拆腿了——渠道腿按实扣额、余额腿走钱包；端到端钉测仍缺，见「缺口」）
+
+- 形状选择（决定于 A1 前读到的两个雷，见任务 #15）：**加 `channelLegCents` 分量，不改 `refundCents` 语义**。
+  `OrderRefundPrep.channelRefundCents()` 在没拆腿时回退成 `refundCents` ⇒ 所有存量单渠道单**逐字不变**，
+  而 `refundOrder` 的积分回扣 `clawbackPointsQuietly(prep.userId(), prep.refundCents(), …)` 继续按总额算
+  （把 `refundCents` 改成渠道腿会静默少扣余额腿的积分，等于换个形式复现 MA-161）。
+- 取数口径单源化：新增 `channelChargeBreakdown(orderId)` 按渠道分组，类型集合与
+  `PaymentOperationMapper.netCompletedCents` **逐字一致**（`CHARGE+ADJUST_CHARGE+PREAUTH_CAPTURE` 减 `REFUND`），
+  不另造一份金额算法；`resolveOriginalChargeTotalCents(order, refund, channel)` 从此**按渠道**取上限
+  ——这一步只在「拆腿同时成立」时做，单独改它就是把 100 的退额静默削成 40（比原来的显式失败更坏）。
+- 五处金额改走渠道腿：`recordRefundInitiated` 的 REFUND_INITIATED 痕迹行、`finalizeLiveOrderRefund` 的
+  REFUND 行与 `refundedCents` 递进、微信 `createRefund` 的退款额与上限、支付宝 `refund`、两条日志。
+- 余额腿在 prepare 的**同一事务**内退钱包：`completeLocalRefund(balanceLeg, idemKey+":BALANCE", BALANCE)`。
+  重试不会双冲抵——`BalanceLedgerService.doChange:84-90` 先按幂等键查在就直接返回（读码确认，非假设）。
+- fail-closed 三支：分解合计 < 待退 ⇒ 409；余额腿兜不住其余 ⇒ 409；渠道腿多于一条或与
+  `order.payChannel` 不一致 ⇒ 409（本仓 `payChannel` 单值，不假设多渠道并存）。
+  分解合计为 0 而净额 > 0 时退回单腿并 `log.warn`——生产里两者同源不可能出现，只可能是旧数据/夹具，
+  但**静默**退回就等于把缺陷藏回去，所以必须留痕。
+- 测试侧：定向跑发现 4 个 `UnnecessaryStubbingException`，全是**旧取数口径的桩**（`selectList`），
+  已改绑到新调用（`OrderPaymentIdempotencyTest` 1 处、`OrderPaymentRefundRetryTraceTest` 3 处）；
+  `OrderPaymentRefundLegsTest` 9 例 + `OrderPayment*Test`/`SettlementPartialRefundTest`/
+  `DataConsistencyServiceTest` 定向全绿（MVN_EXIT=0），全量 `mvn verify` 在跑。
+- 🔴 **中途抓到并修掉一个自己造的回归**：第一版把「没拆出余额腿」判成 `balanceLeg == 0`，导致**纯余额单**
+  也走了新支路 ⇒ REFUND 幂等键多出 `:BALANCE` 段，而原键形状被重放短路/对账依赖。
+  改为按 `channelLegs.isEmpty()` 分流：没有渠道腿时**幂等键一字不改**，只有真拆腿才给渠道腿加渠道段。
+  （这条是「测试全绿≠没改坏」的实例：当时全量已经 BUILD SUCCESS，键形状没人断言。）
+- 端到端钉测已补：`OrderPaymentIdempotencyTest.comboRefund_splitsChannelLegAtActualChargeAndWalletLegForTheRest`
+  ——组合单（钱包冲抵 600 + 微信实收 400）全额退 1000 ⇒ ① `createRefund` 的退款额与上限都是 **400**；
+  ② 钱包腿入账 **600**，键 `REFUND:<oid>:1000:BALANCE`；③ `order.refundedCents == 1000`（腿合计==退款额）。
+  定向 `OrderPayment*Test`/`SettlementPartialRefundTest`/`DataConsistencyServiceTest`/`RefundRetry*` 全绿
+  （IdempotencyTest 11→12 例），修完键形状后全量 `mvn verify` 重跑中。
+- ⚠️ 状态：**MA-161 的拆分已实现并有端到端钉测**，还差 A2 的「四层对账 + Docker IT」与真柜/活栈复跑；
+  在此之前记作「已实现待证」，不写「已修」。
+
 ### 2026-11-05（MA-161 A 档起手 A0：退款拆腿收成单源原语，尚未接调用方）
 
 - 实测码形（先读再估，收回「45 分钟」那句）：`resolveOriginalChargeTotalCents` 把订单**所有渠道**的
