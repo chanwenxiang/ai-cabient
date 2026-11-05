@@ -684,6 +684,25 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（补记：全量套件偶发红的真因是 Micrometer 弱引用，不是顺序污染）
+
+- 第十刀 A 段记的那条「`SchedulingPoolCapacitySelfCheckTest.selfCheck_whenProbeThrows_doesNotPropagate`
+  第一轮 `expected 1.0 but NaN`、隔离跑绿、第二轮全量也绿」已定位并修掉（lessons #420）。
+- 🔴 **不是顺序问题、也不是产品缺陷**：Micrometer 的 `Gauge` 用**弱引用**持有被观测对象。
+  测试写法是 `newSelfCheck(probe).selfCheck()`——被测实例当场被丢弃 ⇒ 装乐观初值 1 的那个
+  `AtomicLong` 只剩弱可达 ⇒ 只有在全量套件堆压大到真触发回收时才读回 `NaN`；单跑/第二轮不回收就恒绿。
+  生产里该 bean 由 Spring 长生命周期持有，**不会**出现这个形态。
+- 自证（同版本 jar，不动真实树）：`jshell --class-path micrometer-core-1.12.0` 两步——
+  丢弃被观测对象后 `gauge().value() = NaN`、保留时 `= 1.0`，与线上那条断言失败信息逐字对上。
+- 修法：两个自检测试都把被测实例**留到测试类字段**上（`subject = new ...`），不再就地丢弃；
+  并加一条反向钉测 `gaugeSurvivesGcBecauseTestRetainsSubject`（显式 `System.gc()` 后仍须读到 1.0；
+  没真回收时它也通过，回收了才有牙）。同族的 `XxlJobWiringSelfCheckTest` 一并修（同一写法）。
+- 验证：定向 `mvn test` 两类 **12 + 16 例全过**（`-Dsurefire.failIfNoSpecifiedTests=false`，
+  旧写法 `-DfailIfNoSpecifiedTests` 在 surefire 3.x 下会被 common-core 的「无匹配测试」判红）。
+  全量 `mvn verify` 待本轮末尾再跑一次。
+- ⚠️ 顺带记一条排查口径：以后看到「只在跑整包时才红、单跑就绿」的**指标/日志类**断言，
+  先问「它是不是只在堆压下来时才坏」——那是**可达性**问题（弱引用/GC），别先怀疑测试顺序。
+
 ### 2026-11-05（第十一刀：`SLOT_DISCREPANCY` 告警面整套退场——含交接里漏掉的运营 KPI）
 
 - 🔴 **先订正上一刀的交接清单**（两处都不对，见 lessons #418）：

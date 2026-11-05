@@ -50,10 +50,18 @@ class XxlJobWiringSelfCheckTest {
         probedToken.set(null);
     }
 
+    /**
+     * 🔴 同 `SchedulingPoolCapacitySelfCheckTest`：Gauge 用**弱引用**持有被观测的 `wiringOk`，
+     * 被测实例一旦被丢弃，全量套件里的 GC 就能把 `gauge().value()` 洗成 NaN（隔离单跑恒绿）。
+     * 故这里必须把实例留到字段上，而不是 `return new ...`。
+     */
+    private XxlJobWiringSelfCheck subject;
+
     private XxlJobWiringSelfCheck newSelfCheck(String addresses, String token,
                                                XxlJobWiringSelfCheck.ProbeTransport transport) {
-        return new XxlJobWiringSelfCheck(exceptionService, alertDispatcher, addresses, token, "trade-service",
+        subject = new XxlJobWiringSelfCheck(exceptionService, alertDispatcher, addresses, token, "trade-service",
                 Duration.ofMillis(500), Duration.ZERO, transport, meterRegistry);
+        return subject;
     }
 
     private double gaugeValue() {

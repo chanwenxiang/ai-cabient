@@ -41,8 +41,17 @@ class SchedulingPoolCapacitySelfCheckTest {
     private final OpsAlertDispatcher alertDispatcher = mock(OpsAlertDispatcher.class);
     private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
+    /**
+     * 🔴 被测实例必须被测试自己**强引用住**。Micrometer 的 {@code Gauge} 用弱引用持有被观测对象
+     * （这里是被构造器注册的 {@code capacityOk}），一旦 {@code SelfCheck} 实例没人引用，GC 随时能回收
+     * 那个 AtomicLong ⇒ {@code gauge().value()} 读回 **NaN**。生产里它是 Spring 长生命周期 bean，
+     * 不会发生；只有单测会——且只在**全量套件**里偶发（堆压大到真回收了），隔离单跑恒绿。
+     */
+    private SchedulingPoolCapacitySelfCheck subject;
+
     private SchedulingPoolCapacitySelfCheck newSelfCheck(SchedulingPoolCapacitySelfCheck.CapacityProbe probe) {
-        return new SchedulingPoolCapacitySelfCheck(exceptionService, alertDispatcher, meterRegistry, probe);
+        subject = new SchedulingPoolCapacitySelfCheck(exceptionService, alertDispatcher, meterRegistry, probe);
+        return subject;
     }
 
     private static SchedulingPoolCapacitySelfCheck.Capacity capacity(int concurrency, int pool) {
@@ -206,5 +215,15 @@ class SchedulingPoolCapacitySelfCheckTest {
         assertEquals(1d, gaugeValue(), "无法判定时不得谎报风险（假红与假绿同害）");
         verify(exceptionService, never()).report(anyString(), anyString(), any(), anyString(), anyString());
         verify(alertDispatcher, never()).send(anyString(), anyString(), anyString(), anyMap());
+    }
+
+    @Test
+    void gaugeSurvivesGcBecauseTestRetainsSubject() {
+        // 钉住「全量套件偶发 expected 1.0 but NaN」那条路径：乐观初值 1 存在被测实例字段里，
+        // 而 Gauge 只**弱引用**它。没有上面 `subject` 字段时，这次显式回收就能把 value 洗成 NaN
+        // ——即本用例是那次事故的反向钉测（没回收时它照样通过，回收了才有牙）。
+        newSelfCheck(() -> capacity(4, 20)).selfCheck();
+        System.gc();
+        assertEquals(1d, gaugeValue(), "被测实例必须被测试强引用住，否则指标读数会被 GC 洗成 NaN");
     }
 }
