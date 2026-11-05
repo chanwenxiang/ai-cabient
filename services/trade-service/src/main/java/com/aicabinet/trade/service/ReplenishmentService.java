@@ -1295,7 +1295,7 @@ public class ReplenishmentService {
             inventoryLotService.addRestock(
                     task.getDeviceId(), ol.getSkuId(),
                     new InventoryLotService.RestockCommand(
-                            ol.getBatchNo(), null, ol.getExpiryDate(), need, null,
+                            ol.getBatchNo(), null, ol.getExpiryDate(), need,
                             new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
             return need;
         }
@@ -1311,7 +1311,6 @@ public class ReplenishmentService {
                     task.getDeviceId(), ol.getSkuId(),
                     new InventoryLotService.RestockCommand(
                             ol.getBatchNo(), null, ol.getExpiryDate(), alloc.quantity(),
-                            alloc.slotCode(),
                             new InventoryLotService.LotMovementRef("REPLENISH", refId, operatorId)));
             deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode(), preservePhysical);
             received += alloc.quantity();
