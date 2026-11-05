@@ -92,9 +92,9 @@ describe('buildDraftLines（在架台账为骨架，CB-069）', () => {
 describe('pickDefaultDeviceIndex', () => {
   it('prefers starred cabinet, else highest shortage', () => {
     const list = [
-      { deviceId: 'A', oosSlotCount: 1, lowStockSlotCount: 0 },
-      { deviceId: 'B', oosSlotCount: 4, lowStockSlotCount: 2 },
-      { deviceId: 'C', oosSlotCount: 0, lowStockSlotCount: 1 }
+      { deviceId: 'A', oosSkuCount: 1, lowStockSkuCount: 0 },
+      { deviceId: 'B', oosSkuCount: 4, lowStockSkuCount: 2 },
+      { deviceId: 'C', oosSkuCount: 0, lowStockSkuCount: 1 }
     ];
     expect(pickDefaultDeviceIndex(list, 'C')).toBe(2);
     expect(pickDefaultDeviceIndex(list)).toBe(1);

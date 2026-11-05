@@ -149,8 +149,8 @@ export function sortDraftLines(lines: ReplenishDraftLine[]): ReplenishDraftLine[
 
 type DevicePick = {
   deviceId?: string;
-  oosSlotCount?: number | null;
-  lowStockSlotCount?: number | null;
+  oosSkuCount?: number | null;
+  lowStockSkuCount?: number | null;
 };
 
 /** 收藏/常驻柜优先，否则缺货货道最多（缺货+低库存）。 */
@@ -171,7 +171,7 @@ export function pickDefaultDeviceIndex(list: DevicePick[], prefer?: string): num
   let best = 0;
   let bestScore = -1;
   list.forEach((d, i) => {
-    const score = (Number(d.oosSlotCount) || 0) + (Number(d.lowStockSlotCount) || 0);
+    const score = (Number(d.oosSkuCount) || 0) + (Number(d.lowStockSkuCount) || 0);
     if (score > bestScore) {
       bestScore = score;
       best = i;

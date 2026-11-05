@@ -21,8 +21,8 @@ public record MerchantDeviceDto(
         Integer targetTempC,
         String lifecycleStatus,
         /** 低库存/缺货货道数（可空，未统计时为 null） */
-        Integer lowStockSlotCount,
-        Integer oosSlotCount,
+        Integer lowStockSkuCount,
+        Integer oosSkuCount,
         /** 停售原因 */
         String salesLockReason,
         /** 点位坐标（外勤导航） */
@@ -74,13 +74,13 @@ public record MerchantDeviceDto(
             Integer currentTempC,
             Integer targetTempC,
             String lifecycleStatus,
-            Integer lowStockSlotCount,
-            Integer oosSlotCount
+            Integer lowStockSkuCount,
+            Integer oosSkuCount
     ) {
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, salesLocked,
                 address, routeCode, currentTempC, targetTempC, lifecycleStatus,
-                lowStockSlotCount, oosSlotCount, null, null, null, null, null, null, null);
+                lowStockSkuCount, oosSkuCount, null, null, null, null, null, null, null);
     }
 
     public MerchantDeviceDto(
@@ -100,13 +100,13 @@ public record MerchantDeviceDto(
             Integer currentTempC,
             Integer targetTempC,
             String lifecycleStatus,
-            Integer lowStockSlotCount,
-            Integer oosSlotCount,
+            Integer lowStockSkuCount,
+            Integer oosSkuCount,
             String salesLockReason
     ) {
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, salesLocked,
                 address, routeCode, currentTempC, targetTempC, lifecycleStatus,
-                lowStockSlotCount, oosSlotCount, salesLockReason, null, null, null, null, null, null);
+                lowStockSkuCount, oosSkuCount, salesLockReason, null, null, null, null, null, null);
     }
 }

@@ -19971,9 +19971,9 @@ export interface components {
             targetTempC?: number;
             lifecycleStatus?: string;
             /** Format: int32 */
-            lowStockSlotCount?: number;
+            lowStockSkuCount?: number;
             /** Format: int32 */
-            oosSlotCount?: number;
+            oosSkuCount?: number;
             salesLockReason?: string;
             /** Format: double */
             latitude?: number;

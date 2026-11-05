@@ -192,7 +192,7 @@ const loading = ref(true);
 const scanning = ref(false);
 const error = ref('');
 let loadSeq = 0;
-// /api/v2/merchant/devices 实际返回 MerchantDeviceDto（含 oosSlotCount/lifecycleStatus 等），
+// /api/v2/merchant/devices 实际返回 MerchantDeviceDto（含 oosSkuCount/lifecycleStatus 等），
 // 此前错标为 DeviceInfo(=AdminDeviceDto)，导致 stockSummary() 等读取被 vue-tsc 判为「无公共属性」
 const devices = ref<(MerchantDeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
@@ -397,9 +397,9 @@ function cardMetrics(d: {
   return parts.join(' · ');
 }
 
-function stockSummary(d: { oosSlotCount?: number | null; lowStockSlotCount?: number | null }) {
-  const oos = Number(d.oosSlotCount || 0);
-  const low = Number(d.lowStockSlotCount || 0);
+function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: number | null }) {
+  const oos = Number(d.oosSkuCount || 0);
+  const low = Number(d.lowStockSkuCount || 0);
   if (oos > 0 && low > 0) return `缺货 ${oos} · 低库存 ${low}`;
   if (oos > 0) return `缺货 ${oos}`;
   if (low > 0) return `低库存 ${low}`;
