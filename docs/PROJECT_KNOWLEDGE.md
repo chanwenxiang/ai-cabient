@@ -684,6 +684,28 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（批 3b 第七刀：退役 `merchant:slots:view` 幽灵权限码——沿用 RETIRED 口径）
+
+- 判据（V427 同规四路现扫）：`services/*/src clients/*/src packages/*/src scripts` 里该码
+  命中 5 个文件**全是** db/migration 历史播种（V49/V50/V121/V140/V265），非迁移命中 **0**；
+  它仅有的两个消费者已删净（ops `GET /devices/{id}/slots` = 第一刀、
+  merchant `GET /devices/{id}/slots` = 第二刀）。
+- 🔴 **姿势纠正**：我上一刀留的待办写的是「新迁移**删** `ops_permission` 行」——项目已有
+  先例是 **RETIRED 不删行、不删授权**（V386/V421/V427），生效点在
+  `mapper/OpsPermissionMapper.xml:17` 与 `:29` 两条 `p.status='ACTIVE'` 读过滤；
+  照先例走还保住「菜单管理 includeInactive 仍可见留痕」与既有审计关联。
+- 不动的部分：兄弟码 `merchant:slots:edit` 在用（`MerchantPortalController:167/176/212`
+  三处注解 + 服务层 3 处 `requirePermission`）⇒ 父行 202 有活子节点，父行/edit 都不动；
+  `packages/shared-rbac` 的 `merchant:slots:` 包前缀也保留（edit 仍需要）。
+- 方向核对：`check:frontend-perm-codes` / `check:nav-perms` / `PermissionCodeDriftTest`
+  都是「**引用 ⊆ 库/迁移**」单向，退役一个零引用码不会打脸；
+  `PermClosureSqlIT` 的锚点（allRows≥150 / activeRows≥60）与 RETIRED_GUARD 也不受影响。
+- 验证（真跑，不靠推演）：`mvn verify -Dit.test=PermClosureSqlIT` 在 **Testcontainers 全新库**
+  跑完整链，日志实见 `Migrating schema "public" to version "442 - retire merchant slots view perm"`，
+  IT **3/3 绿**、同轮 surefire **2760 绿**；preflight 96 门禁 0 失败。
+- ⚠️ dev/UAT 库要等下次启动才执行 V442（当前仍是 ACTIVE 行，但对任何人都不再生效路径上——
+  该码没有消费者）。
+
 ### 2026-11-05（批 3b 第六刀：商户自助改货道开关连形状一起退场）
 
 - **先推送再动形状**：远端追平到 `e40209bf`（含前五刀 + peer 的 3 笔）之后才开这一刀——
@@ -704,9 +726,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 验证：trade 单测 **2760** 绿；admin + merchant-mp `vue-tsc` 绿；mp `vitest 248` 绿；
   eslint/prettier 绿；preflight 96 门禁 0 失败。
   文案棘轮随本刀 **26 → 21**（删掉「商户改货道」列标题/aria/title + 导出表头 + 功能包提示）。
-- 仍待办：`merchant:slots:view` 权限码（V49 播的 225 号 + role 6 授权）已零消费者，
-  是下一个死旋钮；退场它需要新迁移删 `ops_permission` 行，且要先核
-  `check:permission-matrix` 对该码的期望，别顺手删。
+- 遗留死旋钮（下一刀处理，见「第七刀」）：`merchant:slots:view` 权限码已零消费者。
 
 ### 2026-11-05（批 3b 第五刀：商户自助改货道守卫退场 + 清我自己的残留依赖）
 
