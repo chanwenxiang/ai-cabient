@@ -684,6 +684,28 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（将邑 V16 第七章分支合回 dev：9 笔 + 迁移 V446 + 契约重生成）
+
+- `feat/jiangyi-v16-restock`（ahead 9 / behind 31，工作树干净）以 `git merge dev` 并进分支，**零冲突**
+  ——4 个两侧都改过的文件（`clients/merchant-mp/src/api/endpoints.ts`、`utils/merchant-api.ts`、
+  `MerchantPortalController.java`、`SysDictBootstrap.java`）都是不同 hunk，逐文件 `git diff dev..HEAD`
+  确认对 dev 侧是**纯新增**（我这批删的 slot 端点/字段没被复活）。
+- 迁移：分支带 `V446__jiangyi_product_state_snapshot.sql`，dev 最高 V445 ⇒ 无编号倒挂
+  （`check-migration-number-order` OK，新增 1 个）。
+- 🔴 **契约这一步出过一次事，值得记**：分支当初欠 `gen:api-types`；我第一笔 regen 听信门禁提示里
+  `OPENAPI_IGNORE_CACHE=1`，而该变量的语义是「无视本地 spec、现抓 `OPENAPI_URL`（默认 :18080）」
+  ⇒ 抓到的是活栈 **11-04 旧容器**，把已删除的 `/slots`、`/replenishment/shortage` 与
+  `MerchantDeviceDto.oosSlotCount` 灌回生成物（`vue-tsc` 在 `devices.vue` 报 TS2559 才暴露）。
+  已用受控探针（本树 `clean package` 的 jar + 一次性空库 + :18099 ⇒ 710 paths / slots 0 / shortage 0）
+  重生成并订正 `cf3c2b2b`。入册 **lessons #421**。
+  净结论：`openapi.ts` paths **701→710**（admin 4 条 + 商户 5 条新端点 + `ProductState` 等 schema），
+  diff vs `fd865142` = +403/−6，旧形状 0 命中。
+- **验证**：全量 `mvn -B verify` **3123 例 / 0 失败 / 0 错误**（trade-service 2795，比合并前 +28＝分支新增用例）；
+  merchant-mp 与 consumer-mp `vue-tsc` 均 exit 0；merchant-mp vitest **248/248**；
+  `pnpm build:merchant-mp`（release）成功、采集页已进 `pages.json`；文案棘轮仍 **6**（新 mp 页不带「货道」）。
+- **未做**：mp 采集页在微信开发者工具的点击腿（需模拟器在场）；dev 活栈仍是 11-04 镜像，
+  重建需另行授权（见「下一步」）。
+
 ### 2026-11-05（dev 演示数据收口：`device_slot` 16 行清零，账目行不动）
 
 - 挡 FK 的 6 行 `warehouse_outbound_line` 全属**出库单 #2（CANCELLED，2026-10-15 演示单）**。
