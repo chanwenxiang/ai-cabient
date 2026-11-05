@@ -684,6 +684,56 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-05（第十刀 A 段落地：三个 SLOT_* 一致性检查停跑，字典项 INACTIVE）
+
+- 按上面清单执行，与预判的差别只有一处：**没动 `ConsistencyView.vue`**（下拉来自字典，
+  不是前端硬编码）⇒ 本段零 admin 源改动、零产物重打、零 regen。
+- 删：`DataConsistencyService` 三处调用 + 三个方法体（4289 字符）+ 三个常量 +
+  手工修复 case 列表里的三项；`SysDictBootstrap` 的 `consistency_check_type` 目录摘掉三项
+  （否则全新库启动会把它们当缺行**重新插成 ACTIVE**）。
+- 加：`V444` 把三行 `sys_dict_data` 置 **INACTIVE**（不删——dev 有 4 条历史行靠它译名；
+  `dictLabel` 回落 shared-dict baseline，baseline 三行保留）。
+- 🔴 **实测取证（起真实例，不是静态推理）**：`mvn package` 后拿全新库
+  `aicabinet_v444_probe` 起 :18095，查询结果 = 三行均 `INACTIVE`、
+  且 `status='ACTIVE' AND dict_label LIKE '%货道%'` 的巡检类型 **0 行**
+  ⇒ 生产筛选下拉里不再出现「货道容量/货道盘点/货道SKU」，历史行标签仍读得出。跑完 DROP 库 + FLUSHDB。
+- ⚠️ 全量单测第一轮 2762 里 `SchedulingPoolCapacitySelfCheckTest.selfCheck_whenProbeThrows_doesNotPropagate`
+  报 `expected 1.0 but NaN`：隔离单跑绿、**第二次全量 2762/0 失败** ⇒ 顺序性 flaky（与本刀无关，
+  该文件最后一次改动是 `f030f09f`）。这是个独立待办：这条测试在共享套件里会随机红。
+- 遗留：dev 那 2 条 SLOT_* `FAIL` 记录不再被复查，需人工结案（不在本刀改数据）。
+- 验证：`test-compile` 绿、全量 **2762 绿**（第二轮）、preflight 97 门禁 0 失败。
+- 下一刀（B 段，需要 regen + 两端产物）：`SLOT_DISCREPANCY` 告警面退场
+  （`GET /merchant/devices/{id}/slot-discrepancies` + workbench `slotDiscrepancies` 字段 +
+  `MerchantNotifyService` 两处分支 + mp `alerts.vue`/`shared-uni/notify.ts` + 字典标签）。
+
+### 2026-11-05（第十刀开工清单：停掉三个 SLOT_* 一致性检查（取证与判据，落地见上一条））
+
+- 站点（全部现扫确认）：`DataConsistencyService`
+  调用点 `244-246`、三个方法体 `992-1075`（各自 `FROM device_slot` 扫空表 ⇒ 生产恒 0 行）、
+  常量 `61-63`、手工修复 case 列表 `1521-1528`。
+- 🔴 **改变原计划的两个发现**：
+  1. **字典 `consistency_check_type` 那三行不能按 V438 姿势删**——dev 库
+     `data_consistency_record` 实测有 **4 条** SLOT_* 历史行（`SLOT_PHYSICAL` FAIL 1 / FIXED 2、
+     `SLOT_SKU_MISMATCH` FAIL 1），而 `ConsistencyView:379` 的译名唯一来源就是这三行
+     （删了就变「未知类型」）。⇒ 正解是 `status='INACTIVE'`：`dictOptions` 只取 ACTIVE
+     （shared-dict:1047-1061 两处），生产筛选下拉即刻不再出现这三项。
+     ✅ 已核：`displayLabel` 走 `dictLabel`，而 `dictLabel`（shared-dict:913-927）先查 runtime 覆盖、
+     **回落 baseline `DICT` 映射**，baseline 里没有「状态」概念 ⇒ 历史行标签不依赖 DB 行 ACTIVE；
+     所以 **DB 置 INACTIVE + baseline 三行保留**（`shared-dict:745-747` 千万别跟着删，
+     删了才是真把历史行打成「未知类型」）。
+  2. 还有**第四个消费方**：`packages/shared-dict/src/index.ts:982-987` 用
+     `SLOT_CAPACITY`/`SLOT_PHYSICAL` 决定数值后缀「 件」；以及 shared-dict 的 baseline 三行
+     `745-747`。⇒ 属「标签三源之外再加一处渲染逻辑」，改前三方对齐，别只动 Java。
+- 连带口径：停跑后 dev 那 2 条 FAIL 记录再没有复查会一直挂着 ⇒ 要不要一并置 FIXED/关闭是运维决定，
+  不在本刀里顺手改。
+- 形状：本刀**不动 API**（`GET /merchant/devices/{id}/slot-discrepancies` 与 workbench 的
+  `slotDiscrepancies` 属下一刀「告警面退场」，那才需要 regen + 两端产物重打）。
+  若只动 admin 源（`ConsistencyView` 的标签/下拉）⇒ 新门禁 `check:admin-artifact-pairing` 会要求同批带 `static/admin`。
+- 怎么算验过（下一刀照此收口）：① `mvn -pl services/trade-service -am test` 全量绿 + 若动到 `*IT` 则 `verify`；
+  ② 生产档迁移链取证（配方见 lessons/`reference-prod-profile-migration-chain-proof`）；
+  ③ admin 真 Chrome 开 `/admin/consistency`：筛选下拉不再出现三项、历史行标签仍读得出；
+  ④ `check:door-cabinet-slot-copy` 计数按实际下降下调；⑤ preflight（现 97 门禁）0 失败 + CI 五档绿。
+
 ### 2026-11-05（第九刀收尾：CI 红 + 补上本地缺的「产物同步」判据，lessons #416）
 
 - 第九刀推上去 **CI 是红的**（`admin-artifacts`）：`AISLE_AUDIT` 标签被打进 admin bundle，

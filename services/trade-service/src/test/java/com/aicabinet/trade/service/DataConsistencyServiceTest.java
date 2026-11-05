@@ -776,28 +776,22 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void checkSlotAndWarehouseChecks_emitExpectedSql() {
+    void checkWarehouseCouponWalletChecks_emitExpectedSql() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
         when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
                 .thenReturn(List.of());
 
-        service.checkSlotSkuMismatchConsistency();
-        service.checkSlotCapacityConsistency();
-        service.checkSlotPhysicalConsistency();
         service.checkWarehouseNegativeConsistency();
         service.checkCouponOverQuotaConsistency();
         service.checkWalletLatestBalanceConsistency("LINE");
 
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, times(6)).queryForList(sqlCaptor.capture());
+        verify(jdbcTemplate, times(3)).queryForList(sqlCaptor.capture());
         List<String> sqls = sqlCaptor.getAllValues();
-        assertTrue(sqls.get(0).contains("assigned_sku_id"));
-        assertTrue(sqls.get(1).contains("max_level"));
-        assertTrue(sqls.get(2).contains("last_physical_qty"));
-        assertTrue(sqls.get(3).contains("warehouse_inventory"));
-        assertTrue(sqls.get(4).contains("max_issue_count"));
-        assertTrue(sqls.get(5).contains("wallet_account"));
-        assertTrue(sqls.get(5).contains("'LINE'"));
+        assertTrue(sqls.get(0).contains("warehouse_inventory"));
+        assertTrue(sqls.get(1).contains("max_issue_count"));
+        assertTrue(sqls.get(2).contains("wallet_account"));
+        assertTrue(sqls.get(2).contains("'LINE'"));
     }
 
     @Test

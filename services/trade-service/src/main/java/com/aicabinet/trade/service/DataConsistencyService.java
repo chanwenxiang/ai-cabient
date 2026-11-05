@@ -58,9 +58,6 @@ public class DataConsistencyService {
     private static final String POINTS_IDENTITY = "POINTS_IDENTITY";
     private static final String REVENUE_SPLIT_SUM = "REVENUE_SPLIT_SUM";
     private static final String REVENUE_SPLIT_MISSING = "REVENUE_SPLIT_MISSING";
-    private static final String SLOT_SKU_MISMATCH = "SLOT_SKU_MISMATCH";
-    private static final String SLOT_CAPACITY = "SLOT_CAPACITY";
-    private static final String SLOT_PHYSICAL = "SLOT_PHYSICAL";
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
     private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
@@ -241,9 +238,6 @@ public class DataConsistencyService {
             checkCouponUsedLinkConsistency();
             checkRevenueSplitSumConsistency();
             checkRevenueSplitMissingConsistency();
-            checkSlotSkuMismatchConsistency();
-            checkSlotCapacityConsistency();
-            checkSlotPhysicalConsistency();
             checkWarehouseNegativeConsistency();
             checkWarehouseLedgerConsistency();
             checkDeviceLedgerConsistency();
@@ -988,91 +982,6 @@ public class DataConsistencyService {
         resolveStaleFailuresIfComplete(REVENUE_SPLIT_MISSING, failing, rows.size());
     }
 
-    /** 货道绑定 SKU 与在架批次 SKU 不一致。 */
-    void checkSlotSkuMismatchConsistency() {
-        String sql = "SELECT l.device_id, l.slot_id AS slot_code, "
-                + "s.assigned_sku_id AS expected, l.sku_id AS actual, "
-                + "COALESCE(SUM(l.quantity), 0) AS lot_qty "
-                + "FROM device_sku_lot l "
-                + "JOIN device_slot s ON s.device_id = l.device_id AND s.slot_code = l.slot_id "
-                + "WHERE l.slot_id IS NOT NULL AND s.assigned_sku_id IS NOT NULL "
-                + "AND " + LOT_ON_SALE_STATUSES + " AND l.quantity > 0 "
-                + "AND l.sku_id <> s.assigned_sku_id "
-                + "GROUP BY l.device_id, l.slot_id, s.assigned_sku_id, l.sku_id "
-                + "LIMIT " + CHECK_BATCH;
-
-        Set<String> failing = new HashSet<>();
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-        for (Map<String, Object> row : rows) {
-            String key = row.get("device_id") + "|" + row.get("slot_code");
-            failing.add(key);
-            recordInconsistency(SLOT_SKU_MISMATCH, "device_slot",
-                    key,
-                    String.valueOf(row.get(EXPECTED)),
-                    String.valueOf(row.get(ACTUAL)),
-                    "货道绑定 " + row.get(EXPECTED) + " ≠ 在架批 SKU " + row.get(ACTUAL)
-                            + "（qty=" + row.get("lot_qty") + "）");
-        }
-        resolveStaleFailuresIfComplete(SLOT_SKU_MISMATCH, failing, rows.size());
-    }
-
-    /** 货道在架批合计超过 max_level。 */
-    void checkSlotCapacityConsistency() {
-        String sql = "SELECT s.device_id, s.slot_code, s.max_level AS expected, "
-                + "COALESCE(SUM(l.quantity), 0) AS actual "
-                + "FROM device_slot s "
-                + "LEFT JOIN device_sku_lot l ON l.device_id = s.device_id AND l.slot_id = s.slot_code "
-                + "AND " + LOT_ON_SALE_STATUSES + " "
-                + "WHERE s.max_level > 0 "
-                + "GROUP BY s.device_id, s.slot_code, s.max_level "
-                + "HAVING COALESCE(SUM(l.quantity), 0) > s.max_level "
-                + "LIMIT " + CHECK_BATCH;
-
-        Set<String> failing = new HashSet<>();
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-        for (Map<String, Object> row : rows) {
-            String key = row.get("device_id") + "|" + row.get("slot_code");
-            failing.add(key);
-            recordInconsistency(SLOT_CAPACITY, "device_slot",
-                    key,
-                    String.valueOf(row.get(EXPECTED)),
-                    String.valueOf(row.get(ACTUAL)),
-                    "在架 " + row.get(ACTUAL) + " 超过货道容量 " + row.get(EXPECTED));
-        }
-        resolveStaleFailuresIfComplete(SLOT_CAPACITY, failing, rows.size());
-    }
-
-    /**
-     * 近 30 天物理盘点数量 vs 货道在架批合计。
-     * 仅对有 last_physical_qty 且盘点时间在窗口内的货道告警。
-     */
-    void checkSlotPhysicalConsistency() {
-        String sql = "SELECT s.device_id, s.slot_code, s.last_physical_qty AS expected, "
-                + "COALESCE(SUM(l.quantity), 0) AS actual "
-                + "FROM device_slot s "
-                + "LEFT JOIN device_sku_lot l ON l.device_id = s.device_id AND l.slot_id = s.slot_code "
-                + "AND " + LOT_ON_SALE_STATUSES + " "
-                + "WHERE s.last_physical_qty IS NOT NULL "
-                + "AND s.last_physical_at IS NOT NULL "
-                + "AND s.last_physical_at >= (NOW() - INTERVAL '30 days') "
-                + "GROUP BY s.device_id, s.slot_code, s.last_physical_qty "
-                + "HAVING s.last_physical_qty IS DISTINCT FROM COALESCE(SUM(l.quantity), 0) "
-                + "LIMIT " + CHECK_BATCH;
-
-        Set<String> failing = new HashSet<>();
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-        for (Map<String, Object> row : rows) {
-            String key = row.get("device_id") + "|" + row.get("slot_code");
-            failing.add(key);
-            recordInconsistency(SLOT_PHYSICAL, "device_slot",
-                    key,
-                    String.valueOf(row.get(EXPECTED)),
-                    String.valueOf(row.get(ACTUAL)),
-                    "近30天盘点 " + row.get(EXPECTED) + " ≠ 在架批 " + row.get(ACTUAL));
-        }
-        resolveStaleFailuresIfComplete(SLOT_PHYSICAL, failing, rows.size());
-    }
-
     /** 仓存数量为负（明显账实异常）。 */
     void checkWarehouseNegativeConsistency() {
         String sql = "SELECT i.warehouse_id, i.sku_id, COALESCE(i.batch_no, '') AS batch_no, "
@@ -1519,8 +1428,8 @@ public class DataConsistencyService {
             case COUPON_USED_LINK -> fixCouponUsedLink(consistencyRecord);
             case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
             case REFUND_AMOUNT, WALLET_BALANCE,
-                 REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING, SLOT_SKU_MISMATCH,
-                 SLOT_CAPACITY, SLOT_PHYSICAL, WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
+                 REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING,
+                 WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
                  // 无批次账本的正解是「期初走真实补货/收货入库」，一键把汇总摊成 lot 行就是 B 档
                  // （会翻转结算 FEFO 与消费者可售口径），所以这里必须拒绝自动修，别落到 default 的
                  // 「不支持自动修复」——那条文案会把运营推去找开发而不是去补货。
