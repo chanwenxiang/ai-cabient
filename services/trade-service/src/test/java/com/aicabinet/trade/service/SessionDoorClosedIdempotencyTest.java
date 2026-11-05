@@ -40,7 +40,6 @@ class SessionDoorClosedIdempotencyTest {
     @Mock CabinetMetrics cabinetMetrics;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
@@ -61,7 +60,7 @@ class SessionDoorClosedIdempotencyTest {
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
-        doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
+        doorService = new SessionDoorService(repository, gravityHelper, null,
                 cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);

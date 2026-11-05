@@ -35,7 +35,6 @@ public class SessionExpireService {
     private final ShoppingSessionMapper repository;
     private final SessionExpireProperties sessionExpireProperties;
     private final CabinetMetrics cabinetMetrics;
-    private final RestockSnapshotService restockSnapshotService;
     private final OpsExceptionService opsExceptionService;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
@@ -46,7 +45,6 @@ public class SessionExpireService {
     public SessionExpireService(ShoppingSessionMapper repository,
                                 SessionExpireProperties sessionExpireProperties,
                                 CabinetMetrics cabinetMetrics,
-                                RestockSnapshotService restockSnapshotService,
                                 OpsExceptionService opsExceptionService,
                                 @Lazy DisputeService disputeService,
                                 ConsumerPreauthService consumerPreauthService,
@@ -58,7 +56,6 @@ public class SessionExpireService {
                 ? sessionExpireProperties
                 : SessionExpireProperties.defaults();
         this.cabinetMetrics = cabinetMetrics;
-        this.restockSnapshotService = restockSnapshotService;
         this.opsExceptionService = opsExceptionService;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;

@@ -44,8 +44,6 @@ class RestockDoorCloseReportTest {
     @Mock DeviceValidationService deviceValidationService;
     @Mock SettlementService settlementService;
     @Mock CabinetMetrics cabinetMetrics;
-    /** 批 3b 第十五刀③：快照回写已退场，但 SessionDoorService 仍注入它（依赖待清），这里先保留 mock */
-    @Mock RestockSnapshotService restockSnapshotService;
     @Mock DomainEventPublisher domainEventPublisher;
     @Mock GravitySettlementHelper gravityHelper;
     @Mock OpsExceptionService opsExceptionService;
@@ -68,7 +66,7 @@ class RestockDoorCloseReportTest {
         SessionSettleService settleService = new SessionSettleService(
                 repository, settlementService, cabinetMetrics, opsExceptionService, service);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionSettleService", settleService);
-        doorService = new SessionDoorService(repository, gravityHelper, restockSnapshotService, null,
+        doorService = new SessionDoorService(repository, gravityHelper, null,
                 cabinetMetrics, domainEventPublisher, service, null, jiangyiDeviceDirectory);
         org.springframework.test.util.ReflectionTestUtils.setField(doorService, "self", doorService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "sessionDoorService", doorService);

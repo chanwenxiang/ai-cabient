@@ -34,20 +34,17 @@ public class SessionRestockService {
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
     private final ShoppingSessionMapper repository;
-    private final RestockSnapshotService restockSnapshotService;
     private final CabinetMetrics cabinetMetrics;
     private final DomainEventPublisher domainEventPublisher;
     private final SessionService sessionService;
     private final SessionRestockService self;
 
     public SessionRestockService(ShoppingSessionMapper repository,
-                                 RestockSnapshotService restockSnapshotService,
                                  CabinetMetrics cabinetMetrics,
                                  DomainEventPublisher domainEventPublisher,
                                  @Lazy SessionService sessionService,
                                  @Lazy SessionRestockService self) {
         this.repository = repository;
-        this.restockSnapshotService = restockSnapshotService;
         this.cabinetMetrics = cabinetMetrics;
         this.domainEventPublisher = domainEventPublisher;
         this.sessionService = sessionService;
