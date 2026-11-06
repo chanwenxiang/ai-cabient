@@ -1,0 +1,8 @@
+# UAT 切栈 override（2026-11-04）：trade-service 指向 aicabinet_uat 空库跑 Flyway 全链。
+# 切回 dev：删掉本文件后重建 trade-service 即可（dev 库原封不动）。
+# 启动命令（铁律 69：只重建 trade-service，postgres 不动）：
+#   docker compose -p ai-cabinet -f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml -f infra/docker-compose.uat.yml up -d --no-deps --force-recreate trade-service
+services:
+  trade-service:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet_uat
