@@ -128,8 +128,8 @@
 }
 .step-btn {
   position: relative;
-  width: 56rpx;
-  height: 56rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: 50%;
   border: 1rpx solid var(--color-border);
   display: flex;
@@ -139,7 +139,7 @@
   color: var(--brand);
   line-height: 1;
 }
-/* 热区/视觉分离：四向外扩 16rpx ⇒ 两轴 56+32=88rpx。
+/* 热区/视觉分离：视觉 60rpx + 四向外扩 16rpx ⇒ 两轴 92rpx（56 会卡 88 边界，真机舍入实测 45.6px 不达标）。
    `.stepper` gap 10rpx + `.qty-val` min-width 92rpx ⇒ 两个按钮的扩展区相距甚远；
    行间由 `.line-row` 的 16rpx 上下 padding 撑出 32rpx 空档，与相邻行扩展恰好相接不重叠。 */
 .step-btn::after {

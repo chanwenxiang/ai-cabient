@@ -101,17 +101,18 @@
 }
 .qty-btn {
   position: relative;
-  width: 56rpx;
-  height: 56rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   color: var(--brand);
   text-align: center;
-  line-height: 56rpx;
+  line-height: 60rpx;
   font-size: var(--font-size-lg);
   font-weight: 600;
 }
-/* 热区/视觉分离：外扩 16rpx 四向 ⇒ 两轴均 88rpx（与 purchase 页同几何：行间空档 32rpx、
+/* 热区/视觉分离：视觉 60rpx + 四向外扩 16rpx ⇒ 两轴 92rpx（56 会卡 88 边界，真机舍入实测 45.6px 不达标）。
+   与 purchase 页同几何：行间空档 32rpx、
    `.qty-val` min-width 40rpx，两侧扩展不会相遇）。 */
 .qty-btn::after {
   content: '';

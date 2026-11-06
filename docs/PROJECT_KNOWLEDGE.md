@@ -691,7 +691,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
   用门禁自身导出函数 + 一层 `src`/`@import` 展开做量尺（`.tmp/measure-src-css-blindspot.mjs`，只读）：
   展开后**新增 87 条不可验 + 4 条 undersized**。
 - 那 4 条是真缺陷，已修：merchant-mp `prep-generate`/`prep-list` 的 `.step-btn`、`purchase`/`self-replenish`
-  的 `.qty-btn`，原来都是 **48×48rpx（24px）**，改「视觉 56rpx + `::after inset:-16rpx`」⇒ 两轴 88rpx。
+  的 `.qty-btn`，原来都是 **48×48rpx（24px）**，改「视觉 60rpx + `::after inset:-16rpx`」⇒ 两轴 92rpx。
+  🔴 **第一版「56rpx + 16」= 恰好 88rpx 被真机否掉**：automator 实测有效热区 45.6×45.6 < 45.76（88rpx@390px）——
+  亚像素舍入把「恰好卡线」吃穿。改 60rpx 后实测 **47.6×47.6（qty）/ 48.6×48.6（step）PASS**。
   🔴 外扩前逐页核了几何：行间空档 = `.line-row` 上下各 16rpx（合计 32 = 16+16，与相邻行**恰好相接不重叠**），
   横向 = `gap` + `.qty-val` 的 min-width（92/40rpx）富余，两按钮扩展区不相遇——这点必须先算，
   否则「热区分离」会变成相邻控件抢点击。
@@ -715,7 +717,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
   而 17 个页面用 `<style scoped src="./x.page.css">` 外置样式 ⇒ 这些页面的可点类**一条都不进判据**
   （cabinet-reports 的 `.aux-link` 在门禁两档清单里都查不到）。展开 `src=`/`@import` 后「不可验」档会一次性变多，
   属基线重定，不是顺手能改的小修——细节记在 ISSUES.md MA-159 行。
-- 仍欠：MA-157 的 automator 真尺寸复测需微信开发者工具实例（用户侧），故「≥44.4px」以 11-04 那轮实测 + 本次静态可证为准。
+- **真机复验（2026-11-06）**：DevTools automator 实测——orders 5 个 chip 全 **49×53.1**、settlements **49×53.1**
+  （原 33×43.1）、cabinet-reports **69×60.1**，全部 PASS；相邻 chip 间距 53 > 49 ⇒ 热区零相交。
+  MA-157 至此闭环（正文上方那条「未做 automator 复测」的欠账已还）。
 
 ### 2026-11-06（上线清单高水位订正；WarehouseService 的 N+1 判为不做）
 

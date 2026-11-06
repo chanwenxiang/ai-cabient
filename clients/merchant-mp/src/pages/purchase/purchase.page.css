@@ -98,17 +98,18 @@
 }
 .qty-btn {
   position: relative;
-  width: 56rpx;
-  height: 56rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   color: var(--brand);
   text-align: center;
-  line-height: 56rpx;
+  line-height: 60rpx;
   font-size: var(--font-size-lg);
   font-weight: 600;
 }
-/* 热区/视觉分离：外扩 16rpx 四向 ⇒ 两轴均 56+32=88rpx。
+/* 热区/视觉分离：视觉 60rpx + 四向外扩 16rpx ⇒ 两轴 92rpx。
+   不取 56rpx：56+32=88 恰好卡线，真机亚像素舍入会把有效热区算成 45.6px < 45.76px（实测）；92rpx 留出余量。
    上下两行 `.line-row` 各有 16rpx padding ⇒ 行间空档 32rpx，两行扩展恰好相接不重叠；
    左右与 `.qty-val`(min-width 40rpx) 之间只有各 8rpx 进入数字框，两按钮扩展区不会相遇。 */
 .qty-btn::after {

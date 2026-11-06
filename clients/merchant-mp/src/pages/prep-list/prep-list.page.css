@@ -232,8 +232,8 @@
 }
 .step-btn {
   position: relative;
-  width: 56rpx;
-  height: 56rpx;
+  width: 60rpx;
+  height: 60rpx;
   border-radius: 50%;
   border: 1rpx solid var(--color-border);
   display: flex;
@@ -243,7 +243,7 @@
   color: var(--brand);
   line-height: 1;
 }
-/* 热区/视觉分离：四向外扩 16rpx ⇒ 两轴 88rpx（同 prep-generate 页几何）。 */
+/* 热区/视觉分离：视觉 60rpx + 四向外扩 16rpx ⇒ 两轴 92rpx（56 会卡 88 边界，真机舍入实测 45.6px 不达标）。 */
 .step-btn::after {
   content: '';
   position: absolute;
