@@ -538,11 +538,13 @@ useAutoRefresh({
 }
 .scan-btn {
   /* 与「我的 → 开启提醒」同款：浅底深字，避免实心主按钮抢视觉 */
+  /* MA-162：88rpx 真机取整成 45.0px（差 0.76）⇒ 抬到 96rpx；补 min-width 让横向可证。 */
   margin: 0;
   flex-shrink: 0;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 88rpx;
+  min-width: 88rpx;
+  min-height: 96rpx;
+  height: 96rpx;
+  line-height: 96rpx;
   padding: 0 28rpx;
   border: none;
   border-radius: var(--radius-card);
@@ -624,6 +626,10 @@ useAutoRefresh({
   box-sizing: border-box;
 }
 .home-notice {
+  /* MA-162：真机 366×38，只差高度；整条横向可点 ⇒ 纵向热区分离。 */
+  position: relative;
+  min-width: 88rpx;
+  min-height: 72rpx;
   margin: 16rpx var(--page-gutter, 24rpx) 12rpx;
   padding: 18rpx 20rpx;
   display: flex;
@@ -633,6 +639,11 @@ useAutoRefresh({
   border-radius: var(--radius-card);
   border: none;
   box-shadow: none;
+}
+.home-notice::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 .home-notice-icon {
   width: 40rpx;
@@ -678,6 +689,13 @@ useAutoRefresh({
 }
 .section-more {
   /* 必须用 view 而不是 text：mp-weixin 的 text 不吃 inline-flex，::after 会被卡片圆角裁成另一种箭头 */
+  /* MA-162：真机 62×16。横向不扩（右侧无同排可点），纵向补热区。 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  min-height: 48rpx;
   flex-shrink: 0;
   color: var(--brand);
   font-size: var(--font-size-body);
@@ -854,13 +872,26 @@ useAutoRefresh({
   width: auto;
   box-sizing: border-box;
 }
+.section-more::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
+}
 .ov-item {
+  /* MA-162：真机 88×40，只差高度；同排 4 个可点项 ⇒ 不横向扩。 */
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4rpx;
-  min-width: 0;
+  min-width: 88rpx;
+  min-height: 80rpx;
+  position: relative;
+}
+.ov-item::after {
+  content: '';
+  position: absolute;
+  inset: -8rpx 0;
 }
 .ov-num {
   font-size: 20px;

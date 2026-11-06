@@ -654,13 +654,14 @@ async function onLogout() {
   border: none;
   border-bottom: 1rpx solid var(--color-border-subtle, #f1f5f9);
   box-shadow: none;
-  min-height: 84rpx;
+  min-height: 88rpx;
   box-sizing: border-box;
 }
 
 .menu-cell::after {
   content: '';
   position: absolute;
+  /* MA-162：行距=行高、没有间隙 ⇒ inset 不能大（会与相邻行热区重叠）；改为把行高抬到 88rpx。 */
   inset: -2rpx 0;
 }
 .menu-cell:last-child {
@@ -706,7 +707,17 @@ async function onLogout() {
   color: var(--color-danger);
 }
 .danger-cell {
+  /* MA-162：与 .menu-cell 同一元素（class="menu-cell danger-cell"），门禁按 class 逐个收候选 ⇒
+     这里补一份同样的可证尺寸；::after 值必须与 .menu-cell 一致（同元素只有一个伪元素，后者生效）。 */
+  min-width: 88rpx;
+  min-height: 88rpx;
+  position: relative;
   background: #fffafa;
+}
+.danger-cell::after {
+  content: '';
+  position: absolute;
+  inset: -2rpx 0;
 }
 .danger-cell .menu-icon {
   background: #f9eded;

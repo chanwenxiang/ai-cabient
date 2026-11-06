@@ -703,6 +703,12 @@ gross − member − activity − coupon = total      （部分退款单例外�
   正解是 `box-sizing: border-box` + 固定 `width`（≈原视觉宽），宽度可证且不位移。
 - **第四刀已落**：`pricing .history-btn` 68×25 ⇒ 真机 **67×47.9 PASS、与柜机选择器零相交**；门禁 299→**298**。
   这条宽度本来就达标，只补纵向（`min-height` + 纵向 `inset`），横向不扩。
+- **第五批（一次性 11 处）**：devices / home / mine / prep-generate / prep-list / replenishment 六页 ⇒ 门禁 298→**286**。
+  低难度项统一「`min-width`/`min-height` 让判据可证 + 只纵向 `inset`」（横向相邻控件多，不扩横向）；三处 88rpx 高但真机
+  只有 45.0px 的（`.scan-btn`/`.scan-primary`/`.clear-pill`）统一抬到 96rpx。
+  🔴 自造回退一次：`.menu-cell` 把 inset 从 -2rpx 加到 -8rpx 会让相邻菜单行热区重叠 8px（行距=行高、无间隙）⇒
+  改为 inset 不动、`min-height` 84→88rpx。⚠️ `.star` 13×16 未动：嵌在整卡可点的 `device-card` 内，
+  扩到 88rpx 只能盖住设备名或抢卡片点击，属产品取舍。
 
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 

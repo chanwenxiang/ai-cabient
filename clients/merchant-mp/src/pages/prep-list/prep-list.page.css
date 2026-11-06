@@ -83,6 +83,11 @@
   position: absolute;
   inset: -22rpx 0;
 }
+.tab::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx 0;
+}
 .tabs {
   display: flex;
   gap: 12rpx;
@@ -92,7 +97,11 @@
   border: 1rpx solid var(--color-border);
 }
 .tab {
+  /* MA-162：真机 177×32，只差高度。tab 横向相邻 ⇒ 只纵向扩。 */
+  position: relative;
   flex: 1;
+  min-width: 88rpx;
+  min-height: 72rpx;
   text-align: center;
   padding: 14rpx 0;
   border-radius: var(--radius-tag);
@@ -121,10 +130,19 @@
   border: 1rpx solid var(--color-border);
 }
 .group-head {
+  /* MA-162：真机 343×38，只差高度；同 prep-generate。 */
+  position: relative;
+  min-width: 88rpx;
+  min-height: 72rpx;
   display: flex;
   align-items: center;
   gap: 16rpx;
   padding-bottom: 10rpx;
+}
+.group-head::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 .group-copy {
   flex: 1;

@@ -27,10 +27,19 @@
   border: 1rpx solid var(--color-border);
 }
 .group-head {
+  /* MA-162：真机 343×38，只差高度；整行可点，横向相邻无其它可点 ⇒ 只纵向扩。 */
+  position: relative;
+  min-width: 88rpx;
+  min-height: 72rpx;
   display: flex;
   align-items: center;
   gap: 16rpx;
   padding-bottom: 10rpx;
+}
+.group-head::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 .check {
   width: 36rpx;

@@ -435,12 +435,19 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
 }
 .tool-item {
   flex: 1 1 0;
-  min-width: 0;
+  /* MA-162：真机 191×38，只差高度。横向相邻是同排其它 tool-item ⇒ 只纵向扩。 */
+  min-width: 88rpx;
+  min-height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 22rpx 12rpx 18rpx;
   position: relative;
+}
+.tool-item::after {
+  content: '';
+  position: absolute;
+  inset: -12rpx 0;
 }
 .tool-label {
   font-size: 30rpx;
@@ -571,6 +578,13 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   min-width: 0;
 }
 .nav-link {
+  /* MA-162：真机 38×16。同 aux-link 配方：min-width/min-height 让判据可证 + 纵向 inset。 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  min-height: 48rpx;
   flex-shrink: 0;
   margin: 0;
   padding: 0;
@@ -578,6 +592,11 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   font-weight: 600;
   color: var(--brand, #0d9488);
   line-height: 1.2;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
 }
 .nav-link-hover {
   opacity: 0.65;
