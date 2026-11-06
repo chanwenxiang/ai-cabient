@@ -684,6 +684,18 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
+
+- **问题**：`check-mp-touch-target-ratchet.mjs` 只从 `.vue` 的内联 `<style>` 抽 CSS，而 mp 侧 17 个页面用
+  `<style scoped src="./x.page.css">`（项目标准写法，另见 `check-vue-style-src-inline`）⇒ 这些页面**整页不进判据**，
+  既不判「小热区」也不进「不可验」。最常用的登录/我的/订单页都在其中。
+- **修法（用户拍板「按推荐」）**：新增 `collectCssFor` 展开 `<style src>` 与 `@import`——按**引用者目录**解析、
+  深度 ≤5 去环、文件缺失静默跳过（真缺失会让构建先失败，本门禁不替构建报错）。
+- **实测**：不可验 **217→303**、小热区 **0**；多出的 87 条正是「以前静默排除」的那批，4 条 undersized 已同批修到 92rpx。
+  🔴 这是**判据变严后的基线重定**，不是放宽——收口前那 87 条是「看不见」，现在至少进账、只减不增。
+- **负向用例（自检）**：`<style src>` 指向 40rpx ⇒ undersized；指向 88rpx ⇒ 合规；`@import` 链里的 40rpx 同样被抓；
+  src 文件缺失不崩。另用 `TOUCH_UNVERIFIABLE_BASELINE=302`（新增）与 `304`（腐烂）两个方向验证都 exit=1。
+
 ### 2026-11-06（步进器热区：门禁看不见的 4 处真小热区）
 
 - 给 MA-157 找根因时量出：`check-mp-touch-target-ratchet` 对 `<style scoped src="./x.page.css">` 的外置样式
@@ -713,10 +725,12 @@ gross − member − activity − coupon = total      （部分退款单例外�
   纵向统一 `min-height: 32rpx`（与伪元素 56rpx 合计 88 ⇒ 判据算得出）。
   🔴 横向**不用负 inset**：这些 chip 横向相邻且 `gap` 仅 8rpx，负 inset 会让相邻热区互相重叠，比小热区更糟。
   三页规则都在 release 产物里逐页 grep 到；`TOUCH_UNVERIFIABLE_BASELINE` 219→217 同笔下调（脚本对 216/218 两向都判红）。
-- 🔴 **新盲区（未修，待拍板）**：`check-mp-touch-target-ratchet.mjs:376` 对 `.css` 给空可点集、对 `.vue` 只抽内联 `<style>`，
-  而 17 个页面用 `<style scoped src="./x.page.css">` 外置样式 ⇒ 这些页面的可点类**一条都不进判据**
-  （cabinet-reports 的 `.aux-link` 在门禁两档清单里都查不到）。展开 `src=`/`@import` 后「不可验」档会一次性变多，
-  属基线重定，不是顺手能改的小修——细节记在 ISSUES.md MA-159 行。
+- ✅ **新盲区已收口（2026-11-06，用户拍板「按推荐」）**：`check-mp-touch-target-ratchet.mjs` 原先对 `.css` 给空可点集、
+  对 `.vue` 只抽内联 `<style>`，而 17 个页面用 `<style scoped src="./x.page.css">` 外置样式 ⇒ 这些页面的可点类
+  **一条都不进判据**。新增 `collectCssFor` 展开 `src=`/`@import`（按引用者目录、深 ≤5 去环、缺文件不崩），
+  实测**不可验 217→303、小热区仍 0**（多出来的 87 是「以前静默排除」的那批）；基线同笔重定并写明
+  「判据变严后的重定，不是放宽」；自检 +4 条（src 40rpx⇒undersized／88rpx⇒合规／@import 链／缺文件），
+  302 与 304 两向都 exit=1。细节见 ISSUES.md MA-159 行。
 - **真机复验（2026-11-06）**：DevTools automator 实测——orders 5 个 chip 全 **49×53.1**、settlements **49×53.1**
   （原 33×43.1）、cabinet-reports **69×60.1**，全部 PASS；相邻 chip 间距 53 > 49 ⇒ 热区零相交。
   MA-157 至此闭环（正文上方那条「未做 automator 复测」的欠账已还）。

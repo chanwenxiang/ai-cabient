@@ -4,6 +4,9 @@
  * 为什么静态：运行时量尺寸要微信开发者工具实例（9420/9421），pre-push 与 CI 都不该依赖它。
  * 判据：模板里可点 ⇒ 该类在 CSS 里的「可证热区」短边必须 ≥ 88rpx。
  *   可证热区 = 显式 width/min-width（或 width:100%）+ 显式 height/min-height + 伪元素负 inset 的按边扩展。
+ *   🔴 2026-11-06 MA-157 收口第四处盲区：**样式只在 `<style scoped src="./x.page.css">` 或 @import 里**
+ *      的页面（17 个）此前整页不进判据——`collectCssFor` 现在按引用者目录展开外置样式链，
+ *      自检覆盖「src 指向 40rpx ⇒ undersized / 88rpx ⇒ 合规 / @import 链同抓 / 缺文件不崩」。
  *   🔴 2026-11-04 MA-159 修掉三处「恒放行」：
  *     ① 旧版要求「显式宽**且**显式高」否则直接 return false ⇒ `.aux-link`（padding 撑开）与
  *        `.app-btn--sm`（有高无宽）永远算不出来、也永远不判；现在**单边可证就判**，
@@ -21,8 +24,9 @@
  * 复用：`parseClassSizes` / `collectClickableClasses` / `violationKind` / `expandInsetShorthand`
  * 已导出且 import 无副作用（main 只在本文件被直接执行时跑），审计复核可直接拿它解析真实文件。
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve } from 'node:path';
 
 const ROOT = process.cwd();
 const MIN_TOUCH_RPX = 88;
@@ -38,9 +42,11 @@ const MIN_TOUCH_RPX = 88;
  * 不是都算 bug，而是没证据说达标；随页面改到就补显式尺寸/满宽，把基线往下调。
  * 219→217（2026-11-06 MA-157）：merchant-mp orders/settlements 两页 `.aux-link` 补
  * `min-width: 88rpx` + `min-height: 32rpx`（与伪元素纵向 56rpx 合计 88）后两条边都可证 ⇒ 出档。
- * 🔴 同批发现新盲区：17 个页面用 `<style scoped src="./x.page.css">` 外置样式，本门禁只读
- * `<style>` 内联块 ⇒ 那些页面的可点类**一条都不进判据**（cabinet-reports 的 `.aux-link` 即在此列）。
- * 收口它会让不可验档一次性变多，属独立决策，未在本批动。
+ * 217→303（2026-11-06 用户拍板「按推荐」收口盲区）：`collectCssFor` 现在会展开
+ * `<style scoped src="./x.page.css">` 与 `@import`（此前 17 个页面**整页不进判据**）⇒
+ * 一次性多看见 87 条不可验（另 4 条 undersized 已同批修到 92rpx，现为 0）。
+ * 🔴 这是「判据变严后的重定基线」，不是放宽：收口前这 87 条是**静默排除**（更糟）；
+ * 从此以后这 17 页与内联样式页同权，新增可点目标必须能算出热区。
  */
 /**
  * 两条棘轮（都只减不增，2026-11-04 MA-159 之后分成两档）：
@@ -49,7 +55,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 217);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 303);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
@@ -180,6 +186,42 @@ export function parseClassSizes(cssText) {
 }
 
 /** 模板里可点元素用到的 class 集合（@click 或 role="button"） */
+/**
+ * 取一个 .vue 的「全部样式文本」：内联 `<style>` 块 + `<style src="…">` 外置文件 + `@import` 链。
+ *
+ * 🔴 2026-11-06（MA-157 收口）：旧实现只读内联块，而 mp 侧有 17 个页面写
+ * `<style scoped src="./x.page.css">`（这是项目标准写法，另见 check-vue-style-src-inline）⇒
+ * 这些页面的可点类**一条都不进判据**（既不判小热区也不进不可验）。
+ * 外部文件按「引用者所在目录」解析；深度 ≤ 5 且去环。文件不存在时静默跳过——
+ * 真缺失会让构建先失败，本门禁不替构建报错。
+ */
+export function collectCssFor(file, text) {
+  const seen = new Set();
+  const expandImports = (css, baseDir, depth) => {
+    let out = '';
+    for (const m of css.matchAll(/@import\s+(?:url\()?["']([^"']+)["']\)?/g)) {
+      out += '\n' + load(resolve(baseDir, m[1]), depth);
+    }
+    return out;
+  };
+  const load = (p, depth) => {
+    if (depth > 5 || seen.has(p)) return '';
+    seen.add(p);
+    let css;
+    try {
+      css = readFileSync(p, 'utf8');
+    } catch {
+      return '';
+    }
+    return css + expandImports(css, dirname(p), depth + 1);
+  };
+  let css = [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((x) => x[1]).join('\n');
+  for (const m of text.matchAll(/<style[^>]*\bsrc\s*=\s*"([^"]+)"[^>]*>/gi)) {
+    css += '\n' + load(resolve(dirname(file), m[1]), 0);
+  }
+  return css + expandImports(css, dirname(file), 1);
+}
+
 export function collectClickableClasses(tpl) {
   const out = new Set();
   const tagRe = /<(view|text|button|image|a|label|checkbox|switch)[^>]*>/gi;
@@ -358,6 +400,43 @@ function selfTest() {
   console.log(
     `  [${dynOk ? 'ok' : 'BAD'}] 模板字符串类名按前缀采集（app-btn--* ⇒ app-btn--sm 才会被判）`
   );
+  // 外置样式必须被展开（MA-157 收口判据）：`<style src>` 与 @import 两条链都要能算出尺寸
+  const tmp = mkdtempSync(join(tmpdir(), 'touch-ratchet-'));
+  const srcCases = [];
+  try {
+    writeFileSync(join(tmp, 'small.page.css'), '.btn{width:40rpx;height:40rpx}');
+    writeFileSync(join(tmp, 'ok.page.css'), '.btn{width:88rpx;height:88rpx}');
+    writeFileSync(join(tmp, 'imported.css'), '.btn{width:40rpx;height:40rpx}');
+    writeFileSync(
+      join(tmp, 'chain.page.css'),
+      '@import "./imported.css";\n.ok{width:88rpx;height:88rpx}'
+    );
+    const vue = (src) =>
+      `<template><view class="btn" @click="x"></view></template>\n<style scoped src="${src}"></style>`;
+    const kindOf = (css, cls) => violationKind(effectiveSize(parseClassSizes(css), cls));
+    srcCases.push([
+      '<style src> 指向 40rpx ⇒ undersized',
+      kindOf(collectCssFor(join(tmp, 'a.vue'), vue('./small.page.css')), 'btn') === 'undersized'
+    ]);
+    srcCases.push([
+      '<style src> 指向 88rpx ⇒ 合规',
+      kindOf(collectCssFor(join(tmp, 'b.vue'), vue('./ok.page.css')), 'btn') === null
+    ]);
+    srcCases.push([
+      '@import 链里的 40rpx 同样被抓到',
+      kindOf(collectCssFor(join(tmp, 'c.vue'), vue('./chain.page.css')), 'btn') === 'undersized'
+    ]);
+    srcCases.push([
+      'src 文件缺失不崩、返回空样式',
+      collectCssFor(join(tmp, 'd.vue'), vue('./nope.css')).trim() === ''
+    ]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+  for (const [why, ok] of srcCases) {
+    if (!ok) bad++;
+    console.log(`  [${ok ? 'ok' : 'BAD'}] ${why}`);
+  }
   if (bad || !clickable.has('a') || !dynOk) {
     console.error('[selftest] FAIL');
     process.exit(1);
@@ -372,10 +451,7 @@ function main() {
   const unverifiable = new Map();
   for (const f of files) {
     const text = readFileSync(f, 'utf8');
-    const styles = [...text.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
-      .map((x) => x[1])
-      .join('\n');
-    const cssText = /\.css$/.test(f) ? text : styles;
+    const cssText = /\.css$/.test(f) ? text : collectCssFor(f, text);
     if (!cssText.trim()) continue;
     const sizes = parseClassSizes(cssText);
     const clickables = /\.css$/.test(f) ? new Set() : collectClickableClasses(text);
