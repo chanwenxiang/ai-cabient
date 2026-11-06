@@ -23,7 +23,8 @@
             <view class="head-id">
               <text class="title">{{ deviceName }}</text>
               <text class="meta-line meta-status-row">
-                <text>{{ deviceId }} · </text>
+                <text :user-select="true">{{ deviceId }}</text>
+                <text> · </text>
                 <text class="app-status" :class="online ? 'is-online' : 'is-offline'">
                   <text class="app-status-dot" aria-hidden="true" />
                   {{ onlineLabel(online) }}
@@ -257,13 +258,19 @@
               placeholder="例如 1"
             />
           </view>
-          <app-button
-            v-if="canEditDevice"
-            :loading="gatherBusy"
-            :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
-            @click="toggleGatherMode"
-          />
-          <app-button v-if="canEditDevice" label="商品采集（手机拍照）" @click="goJiangyiCapture" />
+          <view class="gather-actions">
+            <app-button
+              v-if="canEditDevice"
+              :loading="gatherBusy"
+              :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
+              @click="toggleGatherMode"
+            />
+            <app-button
+              v-if="canEditDevice"
+              label="商品采集（手机拍照）"
+              @click="goJiangyiCapture"
+            />
+          </view>
         </view>
 
         <view id="goodsCard" class="card" v-show="activeTab === 'goods'">
@@ -380,6 +387,7 @@ import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import { centsToYuanDigits, formatDateTime } from '@aicabinet/shared-uni/format';
+import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
@@ -441,11 +449,13 @@ function onDetailTab(key: string) {
   }
 }
 const detailTabs = computed(() => {
-  const tabs: { key: DetailTab; label: string }[] = [
-    { key: 'overview', label: '概览' },
-    { key: 'goods', label: '在架商品' },
-    { key: 'gather', label: '采集·识别' },
-    { key: 'settings', label: '设置' }
+  // 页签文本按等分格宽度收短（4 格每格只放得下约 3 个 30rpx 汉字），
+  // 全称留在 ariaLabel 与卡片内一级标题里
+  const tabs: { key: DetailTab; label: string; ariaLabel: string }[] = [
+    { key: 'overview', label: '概览', ariaLabel: '概览' },
+    { key: 'goods', label: '商品', ariaLabel: '在架商品' },
+    { key: 'gather', label: '采集', ariaLabel: '采集与识别' },
+    { key: 'settings', label: '设置', ariaLabel: '设置' }
   ];
   return tabs;
 });
@@ -681,7 +691,11 @@ async function loadDeviceExtras(seq: number) {
       skuInventory?: LedgerGood[];
     } | null
   )?.skuInventory;
-  ledgerGoods.value = Array.isArray(inventoryRows) ? inventoryRows : [];
+  ledgerGoods.value = (Array.isArray(inventoryRows) ? inventoryRows : []).map((g) => ({
+    ...g,
+    // 后台存的是 /api/v2/media/... 相对路径，<image> 不吃相对地址（同 device-stocktake）
+    imageUrl: absoluteImageUrl(g.imageUrl) || null
+  }));
   gatherTraining.value = {
     modelName: training.modelName ?? null,
     status: training.status ?? null,
@@ -1052,6 +1066,14 @@ async function saveSettings() {
   color: var(--text-muted, #475569);
   line-height: 1.5;
   margin-bottom: 12rpx;
+}
+/* lessons 107：相邻 app-button 在小程序里零间距贴死（组件 wrapper 是 inline，
+   页面选择器又穿不进 .app-btn）⇒ 间距只能由这个块级父容器给 gap。 */
+.gather-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 20rpx;
 }
 .training-progress {
   display: block;

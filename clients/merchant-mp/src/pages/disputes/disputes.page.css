@@ -144,6 +144,10 @@
      纵向靠负 inset 外扩——`.card-foot` 上下只有边框与卡片内边距、无相邻可点元素，
      左侧 `.card-id` 是 flex:1 的不可点文本 ⇒ 两侧扩展都不会抢别人的点击。 */
   position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 88rpx;
   min-height: 48rpx;
   text-align: center;

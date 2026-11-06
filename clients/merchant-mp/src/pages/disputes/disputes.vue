@@ -61,14 +61,14 @@
           >
           <view class="card-foot">
             <text class="card-id">工单 {{ fullId(item.ticketId) }}</text>
-            <text
+            <view
               v-if="canReplyTicket(item)"
               role="button"
               class="reply-btn"
               @click.stop="onReply(item)"
-              >回复</text
+              >回复</view
             >
-            <text v-else class="reply-btn reply-btn--ghost">详情</text>
+            <view v-else class="reply-btn reply-btn--ghost">详情</view>
           </view>
         </view>
         <view v-if="hasMore" class="load-more" role="button" @click="loadMore">

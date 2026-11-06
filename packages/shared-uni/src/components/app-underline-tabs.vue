@@ -14,7 +14,7 @@
       class="wx-tab"
       :class="{ active: isActive(item.key) }"
       role="button"
-      :aria-label="item.label"
+      :aria-label="item.ariaLabel || item.label"
       @click="onPick(item.key)"
     >
       <text class="wx-tab-label">{{ item.label }}</text>
@@ -29,7 +29,7 @@
       class="wx-tab"
       :class="{ active: isActive(item.key) }"
       role="button"
-      :aria-label="item.label"
+      :aria-label="item.ariaLabel || item.label"
       @click="onPick(item.key)"
     >
       <text class="wx-tab-label">{{ item.label }}</text>
@@ -46,6 +46,8 @@ export type UnderlineTabItem = {
   key: string;
   label: string;
   badge?: string | number;
+  /** 屏幕阅读器用的全称。页签为了排进等分格会收短 label，无障碍名不该跟着丢字。 */
+  ariaLabel?: string;
 };
 
 const props = withDefaults(

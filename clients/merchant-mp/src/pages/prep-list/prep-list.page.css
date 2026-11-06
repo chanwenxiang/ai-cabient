@@ -100,6 +100,10 @@
   /* MA-162：真机 177×32，只差高度。tab 横向相邻 ⇒ 只纵向扩。 */
   position: relative;
   flex: 1;
+  /* min-height 落在内容盒上（未声明 border-box），不显式垂直居中时文字会贴顶 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 88rpx;
   min-height: 72rpx;
   text-align: center;

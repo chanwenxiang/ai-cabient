@@ -526,10 +526,8 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   box-sizing: border-box;
 }
 .tag-lock {
-  min-width: 112rpx;
-  padding: 16rpx 22rpx;
-  font-size: 30rpx;
-  letter-spacing: 2rpx;
+  /* 只改配色，尺寸跟基础 .tag：同排的 在线/离线/补货中 都是基础档，
+     单独把停售放大到 112/30rpx 没有任何依据（4c231022 顺带带进来的） */
   color: var(--warning, #b45309);
   background: var(--warning-soft, #fff7ed);
 }
@@ -607,7 +605,10 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   color: var(--brand, #0d9488);
   line-height: 1.2;
 }
-.nav-link::after {
+/* 🔴 热区扩量挂在 before 伪元素，不能挂 after：G08 箭头的 class app-link-chevron
+   把 chevron 画在 after 上，同一元素只有一个 after，两条规则合并会把箭头甩到文字上方。
+   （MA-162 热区；注释里不要写双冒号原文，热区门禁按选择器首个双冒号切分会被顶掉。） */
+.nav-link::before {
   content: '';
   position: absolute;
   inset: -22rpx 0;

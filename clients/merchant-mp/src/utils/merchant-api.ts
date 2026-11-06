@@ -194,7 +194,7 @@ export function handleUnauthorized(message?: string) {
  * 带鉴权的文件下载（导出/证据等）。
  * 成功返回 tempFilePath；失败抛错。
  * 接口层审计（2026-10-20）H3：401 原直接登出踢回登录页——现场导出/下载证据时 token
- * 过期（20 分钟）会被硬中断。对齐 JSON 请求层：静默刷新后重试一次，仍失败才登出。
+ * 过期（默认 30 分钟，`JWT_EXPIRATION_SECONDS=1800`）会被硬中断。对齐 JSON 请求层：静默刷新后重试一次，仍失败才登出。
  */
 export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
   return downloadAuthedFileOnce(url, timeoutMs).catch(async (e) => {

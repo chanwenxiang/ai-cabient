@@ -305,30 +305,32 @@
             {{ DEVICE_COORDS_MISSING_HINT }}
           </text>
 
-          <app-button
-            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-            data-testid="replenish-checkin"
-            :disabled="submitting || deviceCoordsMissing"
-            label="现场签到"
-            @click="checkIn"
-          />
-          <app-button
-            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-            data-testid="replenish-open-door"
-            :disabled="submitting"
-            :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
-            @click="openDoor"
-          />
-          <app-button
-            v-if="
-              canRequest && selected?.status !== 'COMPLETED' && selected?.status !== 'CANCELLED'
-            "
-            data-testid="replenish-cancel"
-            variant="outline"
-            :disabled="submitting"
-            label="取消任务"
-            @click="cancelTask"
-          />
+          <view class="sheet-actions">
+            <app-button
+              v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+              data-testid="replenish-checkin"
+              :disabled="submitting || deviceCoordsMissing"
+              label="现场签到"
+              @click="checkIn"
+            />
+            <app-button
+              v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+              data-testid="replenish-open-door"
+              :disabled="submitting"
+              :label="doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门'"
+              @click="openDoor"
+            />
+            <app-button
+              v-if="
+                canRequest && selected?.status !== 'COMPLETED' && selected?.status !== 'CANCELLED'
+              "
+              data-testid="replenish-cancel"
+              variant="outline"
+              :disabled="submitting"
+              label="取消任务"
+              @click="cancelTask"
+            />
+          </view>
           <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
             只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>

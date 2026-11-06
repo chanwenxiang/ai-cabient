@@ -230,8 +230,20 @@ export function useHomeWorkbench() {
 
   let loadSeq = 0;
 
-  async function fetchHomeProfile(seq: number): Promise<MerchantMe | null> {
+  /**
+   * 静默轮询里 profile 按 5 分钟节流：权限/套餐是运营的人工动作，15 秒拉一次整份资料
+   * （含 merchants/enabledPacks，实测响应 2.2KB）纯属浪费。手动下拉与 onShow 仍走真实请求，
+   * 所以「刚改了权限想立刻看到」这条路没被堵。
+   */
+  const ME_POLL_MIN_INTERVAL_MS = 5 * 60_000;
+  let lastMePollAt = 0;
+
+  async function fetchHomeProfile(seq: number, silent = false): Promise<MerchantMe | null> {
     hydrateFromCache();
+    if (silent && lastMePollAt && Date.now() - lastMePollAt < ME_POLL_MIN_INTERVAL_MS) {
+      return me.value;
+    }
+    lastMePollAt = Date.now();
     try {
       const profile = await refreshMe();
       if (seq !== loadSeq) return null;
@@ -452,7 +464,7 @@ export function useHomeWorkbench() {
     taskPreviewLoading.value = !taskPreviewBooted.value && canReplenishment.value;
     error.value = '';
     try {
-      const profile = await fetchHomeProfile(seq);
+      const profile = await fetchHomeProfile(seq, silent);
       if (!profile || seq !== loadSeq) return;
       const bundle = await fetchHomeDashboardBundle(silent);
       if (seq !== loadSeq) return;

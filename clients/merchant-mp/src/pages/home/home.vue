@@ -872,7 +872,11 @@ useAutoRefresh({
   width: auto;
   box-sizing: border-box;
 }
-.section-more::after {
+/* MA-162 热区扩量。🔴 扩量必须挂在 before 伪元素上：G08 箭头的 class
+   app-link-chevron 把图形画在 after 伪元素上，同一元素只有一个 after，
+   两条规则合并后箭头会变成「绝对定位大盒子 + 旋转 2px 边框」⇒ 飘到文字上方。
+   （注释里不要写双冒号原文，热区门禁按选择器里的第一个双冒号切分，会被顶掉。） */
+.section-more::before {
   content: '';
   position: absolute;
   inset: -22rpx 0;
