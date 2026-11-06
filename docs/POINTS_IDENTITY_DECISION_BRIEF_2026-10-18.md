@@ -1,5 +1,11 @@
 # 决策简报：`POINTS_IDENTITY` 的积分扣回口径（2026-10-18）
 
+> ✅ **已拍板并落地（A 档），本简报转归档**：`959a4694`「G10 POINTS_IDENTITY 写侧修复——扣回归入 used 桶 +
+> 撤自动回写 + 撤 max_points 死旋钮（CB-058）」。2026-11-06 逐条读码复核确认三项都在（详见 `PROJECT_KNOWLEDGE.md` G10 行）。
+> 未变的只有**存量数据**：dev 库那 32 分历史差需要人工 SQL 平账并留痕，代码不会再自己改总账。
+>
+> 以下为当时的取证与选项，保留作决策依据。
+>
 > 取证已完成、**一行代码未改**：见
 > [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)。
 > 本简报只解决「按哪个口径修 + 修到哪一层」，请拍板后再动代码。
