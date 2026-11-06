@@ -674,6 +674,7 @@ public class OpsDeviceAdminService {
 
     private Set<String> replenishingDeviceIds() {
         return replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
+                .filter(ReplenishmentTask::isRestockingNow)
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
     }

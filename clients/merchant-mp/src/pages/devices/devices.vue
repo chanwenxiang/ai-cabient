@@ -121,7 +121,8 @@
             <text v-else-if="d.replenishmentInProgress" class="tag tag-warn">{{
               UI_COPY.replenishing
             }}</text>
-            <text v-else class="tag" :class="d.online ? 'tag-on' : 'tag-off'">{{
+            <!-- 在线/离线常驻：2026-10-05 改卡片时把它做成三选一的末档，补货中/停售会把运行状态整个吞掉 -->
+            <text class="tag" :class="d.online ? 'tag-on' : 'tag-off'">{{
               onlineLabel(!!d.online)
             }}</text>
           </view>

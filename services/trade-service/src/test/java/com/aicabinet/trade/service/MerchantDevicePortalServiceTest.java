@@ -278,4 +278,32 @@ class MerchantDevicePortalServiceTest {
                 org.mockito.ArgumentMatchers.eq("EG-DOOR"), org.mockito.ArgumentMatchers.eq(true),
                 org.mockito.ArgumentMatchers.eq("https://evidence/a.jpg"));
     }
+
+    // ── 柜机卡片「补货中」判据（2026-11-06）：出库明细生成即置的 IN_PROGRESS 不算正在补货 ──
+    @Test
+    void listDevices_replenishingBadgeRequiresCheckIn() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("DEV-1");
+        device.setDeviceName("测试柜");
+        device.setOnlineStatus("OFFLINE");
+        com.aicabinet.trade.domain.ReplenishmentTask task = new com.aicabinet.trade.domain.ReplenishmentTask();
+        task.setDeviceId("DEV-1");
+        task.setStatus("IN_PROGRESS");
+        when(merchantFeaturePackService.allowedDevicesForPack(7L, MerchantFeaturePacks.FIELD))
+                .thenReturn(List.of(device));
+        when(replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500))
+                .thenReturn(List.of(task));
+        when(sessionRepository.findByStateIn(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
+        when(merchantRepository.findAll()).thenReturn(List.of());
+        when(deviceSlotService.countSkuStock("DEV-1"))
+                .thenReturn(DeviceSlotService.SkuStockCounts.EMPTY);
+
+        assertFalse(service.listDevices(7L).get(0).replenishmentInProgress(),
+                "补货员没到店（check_in_at 为空）不得显示补货中——否则一条挂着的旧任务会永久占住状态位");
+
+        task.setCheckInAt(java.time.Instant.now());
+        assertTrue(service.listDevices(7L).get(0).replenishmentInProgress(),
+                "已签到仍要显示补货中：只断言上一条的话，整块判据被删掉也会绿");
+    }
 }

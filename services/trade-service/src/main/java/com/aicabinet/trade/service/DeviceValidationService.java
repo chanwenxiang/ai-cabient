@@ -257,10 +257,11 @@ public class DeviceValidationService {
     /**
      * 仅「已签到」的进行中补货任务冻结购物/结算。
      * 出库明细生成会把任务标成 IN_PROGRESS，但商户尚未到店时不应挡消费者。
+     * 判据单源＝{@link ReplenishmentTask#isRestockingNow}（商户端「补货中」标签同源）。
      */
     private boolean hasInProgressReplenishmentTask(String deviceId) {
         return replenishmentTaskRepository.findByDeviceIdAndStatusIn(deviceId, List.of("IN_PROGRESS")).stream()
-                .anyMatch(t -> t.getCheckInAt() != null);
+                .anyMatch(ReplenishmentTask::isRestockingNow);
     }
 
     static boolean isRestockSession(ShoppingSession session) {

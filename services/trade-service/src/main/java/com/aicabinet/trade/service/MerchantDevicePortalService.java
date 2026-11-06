@@ -480,7 +480,9 @@ public class MerchantDevicePortalService {
     }
 
     private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
+        // 「补货中」只认已签到的任务：挂着没签到的 IN_PROGRESS（出库明细生成即置位）不该占住柜机状态位
         Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
+                .filter(ReplenishmentTask::isRestockingNow)
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
         Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
