@@ -2952,9 +2952,9 @@ function stopDevicePoll() {
   inset: -22rpx;
 }
 .stepper-btn.minus {
-  background: var(--white, #fff);
-  color: var(--text-muted, #666);
-  border: 1rpx solid var(--color-border, #ddd);
+  background: #f1f5f9;
+  color: #334155;
+  border: 1.5rpx solid #94a3b8;
 }
 .stepper-btn.plus {
   background: var(--brand, #0d9488);
@@ -3169,10 +3169,12 @@ function stopDevicePoll() {
 /* CB-082 活动价标（商品卡） */
 .product-activity {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
+  gap: 4rpx;
   margin-top: 4rpx;
+  line-height: 1.4;
 }
 .product-activity-tag {
   padding: 2rpx 10rpx;
@@ -3187,6 +3189,7 @@ function stopDevicePoll() {
   font-size: var(--font-size-xs);
   color: var(--text-subtle, #9ca3af);
   text-decoration: line-through;
+  white-space: nowrap;
 }
 
 /* CB-082 开门前活动弹窗 */
