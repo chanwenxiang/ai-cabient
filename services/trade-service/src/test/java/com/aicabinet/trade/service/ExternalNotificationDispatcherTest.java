@@ -17,14 +17,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -260,5 +263,65 @@ class ExternalNotificationDispatcherTest {
         dispatcher.dispatch(message());
 
         verify(smsSender).sendMessage(eq("13800138000"), anyString());
+    }
+
+    // ── SENT 语义三钉（2026-11-06 拍板 B 档：钉语义 + 改文案，回执采集暂不接）──
+
+    @Test
+    void sentStatusMeansChannelAccepted_notUserDelivery() {
+        // 钉「SENT 的唯一含义 = 渠道已受理」：阿里云返回 OK 即写 SENT，与用户是否收到无关
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("unpaid_order_dunning"))
+                .thenReturn(Optional.of(template("unpaid_order_dunning", "IN_APP,SMS", "SMS_512512665")));
+        when(aliyunSmsSender.isConfigured()).thenReturn(true);
+
+        dispatcher.dispatch(new NotificationDispatchMessage("unpaid_order_dunning", 100L,
+                "订单未支付提醒", "您的订单 O1 尚未支付 12.5 元", "ORDER", "O1",
+                Map.of("orderId", "O1", "amount", "12.5")));
+
+        verify(aliyunSmsSender).sendMessage(eq("13800138000"), eq("SMS_512512665"), anyMap());
+        ArgumentCaptor<NotificationLog> saved = ArgumentCaptor.forClass(NotificationLog.class);
+        verify(logRepository).save(saved.capture());
+        assertEquals("SENT", saved.getValue().getStatus());
+    }
+
+    @Test
+    void noSentLogWhenChannelCallFails() {
+        // 钉「渠道失败不得落 SENT」：dispatch 按设计吞掉渠道异常（只记 warn，不影响其它渠道），
+        // 但 saveLog 在发送调用之后 ⇒ 一行日志都不许写。SENT 不是「我们尝试过」。
+        ExternalNotificationDispatcher dispatcher = dispatcher(false, true);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user(null, "13800138000")));
+        when(templateRepository.findByCode("order_paid"))
+                .thenReturn(Optional.of(template("IN_APP,SMS")));
+        doThrow(new IllegalStateException("webhook down")).when(smsSender).sendMessage(anyString(), anyString());
+
+        dispatcher.dispatch(message());
+
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void noSentLogWhenWechatRejectsSubscribeSend() {
+        // 微信侧同一条契约：sendSubscribeMessage 返回 false（errcode≠0）⇒ 无受理、不落 SENT
+        ExternalNotificationDispatcher dispatcher = dispatcher(true, false);
+        when(userInfoRepository.findById(100L)).thenReturn(Optional.of(user("openid-1", null)));
+        when(weChatMiniAppClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap(),
+                eq(MiniAppTarget.CONSUMER))).thenReturn(false);
+
+        dispatcher.dispatch(message());
+
+        verify(logRepository, never()).save(any());
+    }
+
+    @Test
+    void notificationLogCarriesNoDeliveryReceiptSoSentCannotMeanArrival() {
+        // 表里没有到达/回执列 ⇒ 任何把 SENT 读成「到达率」的界面/报表都是错的。
+        // 将来真要接回执，必须同时新增列、改这条钉测与 javadoc 语义，不能悄悄把 SENT 升级成「已送达」。
+        for (java.lang.reflect.Field f : NotificationLog.class.getDeclaredFields()) {
+            String n = f.getName().toLowerCase(Locale.ROOT);
+            assertTrue(!n.contains("deliver") && !n.contains("receipt") && !n.contains("arrive"),
+                    () -> "notification_log 出现了投递/回执列：" + f.getName() + " ⇒ SENT 的语义必须重新定义");
+        }
     }
 }

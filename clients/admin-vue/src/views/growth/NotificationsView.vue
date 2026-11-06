@@ -287,7 +287,9 @@ async function doSend() {
       title: sendForm.title.trim(),
       body: sendForm.body.trim()
     });
-    ElMessage.success('已发送');
+    // 钉语义（2026-11-06 拍板 B 档）：后端 notification_log.status=SENT 只代表「渠道已受理」
+    // （阿里云 Code=OK / 微信 errcode=0），表里没有投递回执列 ⇒ 文案不得写成「已发送」暗示已送达。
+    ElMessage.success('渠道已受理（不代表用户已收到）');
     sendVisible.value = false;
     await crud.load();
   } catch (e) {

@@ -765,6 +765,26 @@ gross − member − activity − coupon = total      （部分退款单例外�
   （原 33×43.1）、cabinet-reports **69×60.1**，全部 PASS；相邻 chip 间距 53 > 49 ⇒ 热区零相交。
   MA-157 至此闭环（正文上方那条「未做 automator 复测」的欠账已还）。
 
+### 2026-11-06（`SENT` 语义拍板 B 档：钉住「渠道已受理」，回执采集暂不接）
+
+- **`SENT` 是什么**：`notification_log` 是「这条通知派发给某渠道」的审计行（模板/渠道/受众/业务单号/时间）。
+  `status` 全代码**只有一个写入值 `SENT`**（`ExternalNotificationDispatcher.saveLog` + `NotificationService` 两处 +
+  实体默认值），且**没有任何代码读它**；含义 = 渠道受理（阿里云 `Code=OK` / 微信 `errcode=0`），**不是用户已收到**。
+- 🔴 复核时我自己的假设被测试推翻了一次：本以为渠道抛错会冒到 `dispatch()`，实测 `dispatch` 按设计
+  **吞异常只记 warn**（不影响另一渠道），而 `saveLog` 在发送调用之后 ⇒ 失败确实不落 SENT。
+  钉测因此改成钉「失败一行都不写」，而不是钉「会抛」。
+- **落地（B 档，用户拍板）**：
+  ① 后台手动发送的提示由 `已发送` 改为 **`渠道已受理（不代表用户已收到）`**（列表本身不展示 status，误导面只有这一句）；
+  ② `ExternalNotificationDispatcherTest` 11→**15 例**，新增 4 条语义钉：受理即 SENT（捕获落库行断言值）、
+     短信通道抛错 ⇒ 零日志、微信返回 false ⇒ 零日志、**反射钉 `notification_log` 没有 deliver/receipt/arrive 列**
+     （将来真要接回执必须同时改这条钉测与语义，不能悄悄把 SENT 升级成「已送达」）。实测 `Tests run: 15, Failures: 0`。
+- **明确不做（C 档）**：接阿里云回执（`send_detail` 或回执回调 + 新增 `delivered_at` + 定时任务）。
+  理由：现在只有测试环境、短信 11-04 才配通、真实发送量≈0，且回执本身有延迟不保证——收益要等有量才成立。
+- 另记一条**本批踩到的构建事实**：改 admin 源码后我用本地 `build-admin.mjs` 重建，**112 个 chunk 全量重哈希**；
+  先怀疑 `.env.local`（`loadEnv(mode, dir, '')` 空前缀）注入，实测新旧产物都不含 `VITE_DEV_PROXY` ⇒ 假设错。
+  真因是 HEAD 里那份产物本来就出自 CI 同款容器（`e851864e`），本地 vite/node 重建必然整体不同 ⇒
+  本地产物树已还原，改走 `scripts/build-admin-ci-fidelity.sh`。
+
 ### 2026-11-06（上线清单高水位订正；WarehouseService 的 N+1 判为不做）
 
 - `docs/DEPLOYMENT_CHECKLIST.md` §3.1 的 Flyway 高水位原文写 **V405**，仓内实际 **V446**
