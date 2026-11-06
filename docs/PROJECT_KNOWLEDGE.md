@@ -684,6 +684,40 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（D5 前提订正：`/vision-mappings` 不是旧 YOLO 面，是活的将邑映射入口 ⇒ 不退场；附活栈取证数字）
+
+- 🔴 **定性推翻**（我今天上午自己写的「D5 旧 YOLO/阿里云识别映射管理面仍在线」）：
+  `VisionMappingView.vue` 标题就是「识别映射」，页内**全部**调 `AdminEndpoints.deviceJiangyi*`
+  （`deviceJiangyiMapping` PUT / `…MappingReviewStatus` / `…MappingRebuild` / `…MappingActivate` /
+  `…ModelSync|ModelPush|ModelDeployments`），顶部提示自己写着「识别在将邑端侧完成，云端不做识别」。
+  ⇒ 它是 V400 映射复核闸 + autoRebuild 的**唯一人工入口**，删掉等于让运营无法核对 classId↔SKU，
+  而页面自己的告警语是「激活错误的映射会直接导致错误扣款」。**结论：D5 不做退场。**
+- 旧链机件其实早就没了（三条独立证据，不用信我上午那句话）：`sku_vision_mapping` 表与
+  `sku_catalog` 三个旧识别列在 **V340**（2026-10-11，`JIANGYI_ONLY_FINAL_VERDICT` 批5）DROP 并备份留档；
+  Java 侧 `vision_mapping` 零引用；`menu.ts:188` 注脚「旧 `ops:vision:list` 随旧映射控制器删除（批5）」。
+- **唯一真实残留 = 命名**（目录 `views/vision/`、文件 `VisionMappingView.vue`、路由 path `vision-mappings`）。
+  三档：①**不动**（推荐——收益只是命名一致，无法证明价值）；②纯改名（文件+目录+router+menu.ts+sidebar.ts，
+  **不动 URL、不动权限**）⇒ 代价是一笔 admin 产物 fidelity 重打；③连路由 path 改 ⇒ 还要
+  `ops_permission.path` 迁移 + 打断已收藏的深链，不推荐。本条即结论，下次别再重开 D5。
+- **活栈取证**（本轮把本地 trade-service 用 `infra/.env` 重建后实测）：
+  ① env 逐键 sha256 比对 109 键，只有 1 个键与旧容器不等 = `AICABINET_DISPUTE_AUTO_WAIVE_ENABLED`
+     （true→false，11-06 拍板那条）⇒ 重建没有夹带任何配置漂移；`.env.sandbox` 不是这台的 env 源
+     （33 键不等，我此前记的那条是另一台/另一次重建的结论）；
+  ② Flyway V442→**V447**，启动 0 ERROR，开机即跑一轮巡检：加锁→`SUCCESS`→解锁，
+     摘要「短信到达率巡检未启用（env 兜底关闭）」；
+  ③ 运营台四面齐：参数配置 4/4 键（`false/20/3/5`，注：seed 走 `ensureDefaults()`，
+     只在 `listAll()` 即打开页面时补种——与 `dispute.auto_waive.enabled` 同款惰性）、
+     `feature-flags` 下发 4 条、定时任务列表可见「短信到达率巡检/OPS/每 60 分钟」、手动执行 code=0；
+  ④ 临时开闸真出外呼一轮（跑完已还原 false）：**查询 5/5 组合：回执 6 条 = 送达 3 / 发送中 2 / 失败 1，
+     失败占比 16%，码分布 {CONTENT_KEYWORD=1, DELIVERED=3, PENDING=2}**，未超阈值 20% ⇒ 不告警。
+     与 `scripts/sms-delivery-report.mjs` 当天手工跑的数字逐项一致 ⇒ Java 侧与 CLI 侧口径在真实数据上也合流。
+- **服务器部署按用户拍板等 peer 自己提交**：`deploy-prod.sh` 的干净工作区门被 peer 两个在改的
+  已跟踪文件挡住（`docs/PASSWORD_FREE_ONBOARDING_EMAILS_2026-10-26.md`、
+  `docs/module-audit/evidence/consumer-landing-score.png`），不替他提交也不 stash 他的手。
+  服务器现状（只读探到）：`/data/apps/ai-cabinet`，trade-service `:local` up 3 days healthy，
+  Flyway 高水位 **V434** ⇒ 部署等于连升 13 个号，而脚本自身**不做库备份**：真正部署前必须先
+  `scripts/backup-database.sh`（或服务器侧 pg_dump）并留前后计数。
+
 ### 2026-11-06（短信到达率巡检定时化：上一条「明确未做」按用户指令翻案，链路九件套一次落齐）
 
 - **翻案依据**：用户指令「把定时任务链路搭起来」。上一条里我写的「不做」理由是**怕为 0 流量造死面**，
@@ -762,6 +796,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **将邑旧链 D1–D5**：用户拍板「暂时不动，下午测试时看实际情况」⇒ 本批**不改代码**。
   已顺手核了两条：D1（叠加栈缺 `jiangyi-gateway`）**早不存在**（compose 有服务定义且 trade 指向它）；
   D5（旧 YOLO/阿里云识别映射管理面）**仍在线**（`VisionMappingView.vue` + 路由 `/vision-mappings`）。
+  🔴 同日按 HEAD 复核：这句**定性错了**——该页是活的将邑映射面，不是旧链残留，见顶部「D5 前提订正」条。
   D2/D3/D4 未逐条核，留到下午测试现场判（D3 是唯一资金面：EDGE 旧链会真扣款）。
 - 另订正两条我自己写下的过期说法（详见 G9/G10 行）：
   ① G9 隔离栈 CORS 早于我记录就落地了（`docker-compose.uat-isolated.yml:26`）；
