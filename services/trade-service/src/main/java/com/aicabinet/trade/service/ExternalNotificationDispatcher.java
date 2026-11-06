@@ -199,6 +199,8 @@ public class ExternalNotificationDispatcher {
         logEntry.setBody(msg.body());
         logEntry.setBizType(msg.bizType());
         logEntry.setBizId(msg.bizId());
+        // SENT = 渠道已受理（阿里云 Code=OK / 微信 errcode=0），不代表用户已收到；
+        // notification_log 没有投递回执字段，需要到达率时另接渠道回执查询。
         logEntry.setStatus("SENT");
         logEntry.setCreatedAt(Instant.now());
         logRepository.save(logEntry);
