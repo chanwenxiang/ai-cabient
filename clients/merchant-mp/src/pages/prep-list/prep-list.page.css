@@ -65,9 +65,23 @@
   flex-shrink: 0;
 }
 .tool-link {
+  /* MA-162：真机实测 44×14（< 88rpx=45.76px）。`.summary-tools` 是 flex 列容器且只有一个子元素，
+     纵向扩展不会盖到别的可点元素。min-width 取 96rpx 而非 88：88rpx 在真机被取整成 45.0px，
+     仍差 0.76px（与步进器同一个亚像素坑）。 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  min-height: 48rpx;
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--brand, #0d9488);
+}
+.tool-link::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
 }
 .tabs {
   display: flex;

@@ -47,8 +47,8 @@ const MIN_TOUCH_RPX = 88;
  * 一次性多看见 87 条不可验（另 4 条 undersized 已同批修到 92rpx，现为 0）。
  * 🔴 这是「判据变严后的重定基线」，不是放宽：收口前这 87 条是**静默排除**（更糟）；
  * 从此以后这 17 页与内联样式页同权，新增可点目标必须能算出热区。
- * 303→302（2026-11-06 MA-162 第一刀）：disputes `.reply-btn` 补 min-width/min-height +
- * 纵向 inset ⇒ 两条边可证且达标，出档。
+ * 303→302→300（2026-11-06 MA-162）：第一刀 disputes `.reply-btn`；第二刀 prep-list `.tool-link` 与
+ * self-replenish `.hint`——都是 min-width/min-height + 纵向 inset ⇒ 可证出档。
  */
 /**
  * 两条棘轮（都只减不增，2026-11-04 MA-159 之后分成两档）：
@@ -57,7 +57,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 302);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 300);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];

@@ -695,6 +695,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
   清单、优先级与复现配方见 ISSUES.md **MA-162**（open）。
 - **第一刀已落**：`disputes .reply-btn` 补 `min-width: 88rpx` + `min-height: 48rpx` + `::after inset:-22rpx 0`，
   门禁不可验 303→**302**；真机实测 32 处全 **67×54.9 PASS、零相交**（原 44×22）。
+- **第二刀已落**：prep-list `.tool-link`、self-replenish `.hint` 同配方 ⇒ 门禁 302→**300**，真机 **49×46.9 PASS**。
+  🔴 这两处 `min-width` 取 **96rpx**：88rpx 真机取整成 **45.0px**（< 45.76），和步进器同一个亚像素坑——
+  「恰好等于阈值」的设计在设备端会被吃穿，一律留 8rpx 余量。
 
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 

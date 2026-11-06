@@ -31,9 +31,24 @@
   max-height: 88rpx;
 }
 .hint {
+  /* MA-162：可点的「刷新建议」真机实测 44×14。同一 class 也用于不可点的「当前为常驻柜」——
+     给它补 min-height 只让那行高 25px（文字居中），可接受；不另加修饰类是因为门禁按
+     class 属性逐个收候选，基类留在标签上会永远停在「不可验」。
+     min-width 取 96rpx 而非 88：88rpx 真机取整成 45.0px，仍差 0.76px。 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  min-height: 48rpx;
   font-size: var(--font-size-sm);
   color: var(--brand);
   margin-top: 10rpx;
+}
+.hint::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
 }
 .row-between {
   display: flex;
