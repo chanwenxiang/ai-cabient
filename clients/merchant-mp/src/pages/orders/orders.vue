@@ -658,11 +658,28 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   flex-shrink: 0;
 }
 .filter-reset {
+  /* MA-162：真机 34×22。它在筛选行的第二行：上行 5 个 .aux-link 的热区向下多探 14.6px、
+     下方 7.8px 就是整宽导出按钮 ⇒ **只能向上/向右扩，左侧一点都不能动**（横向会撞进
+     aux-link 的热区，点在「全部时间」右下角会误触重置）。min-width/min-height 取接近现值的
+     66/44rpx，只为让判据可证，不改变观感。 */
+  position: relative;
   margin-left: auto;
+  /* 🔴 用 border-box + 固定 width，不用 min-width：min-width 作用在内容盒上，
+     会把盒子整体撑宽并（因 margin-left:auto）向左长 12px，正好撞进上行 aux-link 的热区。 */
+  box-sizing: border-box;
+  width: 68rpx;
+  min-height: 44rpx;
+  text-align: center;
+  white-space: nowrap;
   padding: 8rpx 12rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
   flex-shrink: 0;
+}
+.filter-reset::after {
+  content: '';
+  position: absolute;
+  inset: -36rpx -28rpx -12rpx 0;
 }
 .filter-panel .actions {
   margin-top: 16rpx;

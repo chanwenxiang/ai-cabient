@@ -698,6 +698,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **第二刀已落**：prep-list `.tool-link`、self-replenish `.hint` 同配方 ⇒ 门禁 302→**300**，真机 **49×46.9 PASS**。
   🔴 这两处 `min-width` 取 **96rpx**：88rpx 真机取整成 **45.0px**（< 45.76），和步进器同一个亚像素坑——
   「恰好等于阈值」的设计在设备端会被吃穿，一律留 8rpx 余量。
+- **第三刀已落**：`orders .filter-reset` 34×22 ⇒ 真机 **49.6×47 PASS、与 aux-link 和导出按钮零相交**；门禁 300→**299**。
+  🔴 第一版 `min-width` 失败——它作用在**内容盒**，配合 `margin-left:auto` 会把盒子整体左移 12px 撞进上行 aux-link 的热区；
+  正解是 `box-sizing: border-box` + 固定 `width`（≈原视觉宽），宽度可证且不位移。
 
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 
