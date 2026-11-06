@@ -684,6 +684,27 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（短信回执 C 档：原设计被探针推翻，改成交集口径的到达率巡检）
+
+- 🔴 **原设计废弃**（「给 `notification_log` 加 `delivered_at` 逐行回填」），依据是当场打的只读探针
+  （现行 `SMS_ALIYUN_*` 凭据直调 `QuerySendDetails`，http 200 / `Code=OK`）三条硬约束：
+  ① 返回体**没有 `BizId`** ⇒ 回执对不回具体某一行日志，同号同日多次发送（11-03 一天 17 条）根本分不开；
+  ② **查询窗口只有几天**（今天 11-06 只查得到 11-04，更早 `Total=0`）⇒ 事后补扫来不及；
+  ③ `notification_log` 里 **SMS 行 = 0**，真正有量的是验证码链（`sms_verification_code` 102 行，含真发与失败）。
+  探针还顺手纠正一个协议细节：查询侧参数名是 **`PhoneNumber`（单数）**，不是发送侧的 `PhoneNumbers`
+  （我第一次打就是被 `MissingPhoneNumber` 这条错误响应告知的）。
+- **交付**：`scripts/sms-delivery-report.mjs`（只读巡检，非门禁——CI 不该依赖外网）。按 `(号码,日)` 聚合
+  `DELIVERED / 发送中 / 失败码`，超阈值出码 **2**，凭据或库不可用出码 **3**（不当绿），正常 **0**。
+  凭据只从运行中容器 env 现取、号码只打印脱敏形式。
+- **实测数字**（窗口 3d，活栈）：回执行 6 = `DELIVERED 3` + `PENDING 2` + `CONTENT_KEYWORD 1`，
+  失败占比 16.7% < 阈值 20% ⇒ exit 0；把阈值调到 10% ⇒ **exit 2 真报警**；`--container=nope-x` ⇒ **exit 3**。
+  `--selftest` 7 条全过，其中包含「阈值必须能红」的正反对照与空输入不炸。
+- **明确未做**（不写死代码）：定时化 + ops-alert 通道接入。理由：`check:scheduled-task-seed` 要求任何
+  `tryBegin(TASK_KEY)` 都得有注册表条目 + `scheduled_task` 种子行 ⇒ 为 0 流量先造一条链路就是第二条消息里
+  那种「注册了但没人看见/没数据可跑」的死面。触发条件沿用：真实短信上量后再补（届时按窗口特性做近实时轮询）。
+- 另：npm 别名 `sms:delivery-report` **暂不加**——根 `package.json` 正被并发会话编辑（`check:mp-scoped-hash` 接线），
+  现在加会连带吞他的改动；等 `package.json` 干净时补一行即可。
+
 ### 2026-11-06（拍板两条：P3-4 自动免单**关闭**、将邑旧链**下午测试时再看**；顺带订正两条过期账）
 
 - **P3-4 争议超时自动免单**：用户拍板「不自动免单，关闭」。查生效链发现**它本来就没在跑**：
