@@ -684,6 +684,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（MA-162 新开：门禁收口后真机实测出 12 处小热区）
+
+- 门禁收口外置样式后，把新进账的 118 条 merchant 可点类**逐页真机量了一遍**（automator，dist/dev，390px ⇒ 88rpx=45.76px）：
+  **25 条有效热区不足**，剔除状态类/无动作容器后约 **12 条真候选**——最广的是 `disputes .reply-btn` 44×22（32 处），
+  另有 `orders .filter-reset` 34×22、`pricing .history-btn` 68×25、`prep-list .tool-link`/`self-replenish .hint` 44×14、
+  `devices .nav-link` 38×16 等。**这批以前根本测不到**（样式在外置 `.page.css` 里，门禁只读内联块）。
+- 修法不能一刀切：纵向负 inset 受行距约束（`.line-row` 空档 32rpx ⇒ 每侧 ≤16rpx）、横向受相邻 gap 约束（MA-157 的教训）；
+  每条先核容器几何再选「抬视觉 / 补 min-* / 不对称 inset」，用 `.tmp/ratchet-303-runtime.mjs` 复测「≥88rpx 且相邻零相交」。
+  清单、优先级与复现配方见 ISSUES.md **MA-162**（open）。
+
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 
 - **问题**：`check-mp-touch-target-ratchet.mjs` 只从 `.vue` 的内联 `<style>` 抽 CSS，而 mp 侧 17 个页面用
