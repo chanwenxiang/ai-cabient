@@ -545,6 +545,14 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   background: var(--page-tint, #f0fdfa);
 }
 .star {
+  /* MA-162：真机 13×16。给星星一个真实占位的 96rpx 槽位（字形靠左 ⇒ 视觉不位移），
+     纵向再用 ::after 补到 96rpx。它在整卡可点的 device-card 内，上下约 15px 环形带归开关——
+     嵌套小控件的固有取舍，按「开关优先」处理。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 96rpx;
+  min-height: 40rpx;
   color: var(--text-subtle, #cbd5e1);
   /* 2026-10-28：星星放名称旁，字号收敛 + 垂直居中（name-row 已 align-items:center） */
   font-size: 32rpx;
@@ -553,6 +561,11 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   position: relative;
   z-index: 1;
   flex-shrink: 0;
+}
+.star::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx 0;
 }
 .star.on {
   color: var(--warning, #f59e0b);
