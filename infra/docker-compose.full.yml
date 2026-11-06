@@ -140,8 +140,11 @@ services:
       dockerfile: infra/docker/trade-service.Dockerfile
     image: ai-cabinet/trade-service:${IMAGE_TAG:-local}
     environment:
-      # P3-4 dev 观察开关（production compose 不加，默认 OFF）：争议超时自动免单
-      AICABINET_DISPUTE_AUTO_WAIVE_ENABLED: "true"
+      # P3-4 争议超时自动免单：2026-11-06 用户拍板「不自动免单，关闭」⇒ 三层一致关掉。
+      # 此前这里写 "true" 只是 dev 观察用的 env 兜底，实际被参数配置页
+      # `dispute.auto_waive.enabled=false`（11-03 起，配置优先于 env）压住，所以从没真的跑；
+      # 但 env 与生效值不一致会误导后来者，故按拍板改成 false。
+      AICABINET_DISPUTE_AUTO_WAIVE_ENABLED: "false"
       SPRING_PROFILES_ACTIVE: dev
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet
       SPRING_DATASOURCE_USERNAME: aicabinet
