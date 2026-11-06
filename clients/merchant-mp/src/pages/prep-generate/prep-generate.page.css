@@ -127,8 +127,9 @@
   flex-shrink: 0;
 }
 .step-btn {
-  width: 48rpx;
-  height: 48rpx;
+  position: relative;
+  width: 56rpx;
+  height: 56rpx;
   border-radius: 50%;
   border: 1rpx solid var(--color-border);
   display: flex;
@@ -137,6 +138,14 @@
   font-size: var(--font-size-lg);
   color: var(--brand);
   line-height: 1;
+}
+/* 热区/视觉分离：四向外扩 16rpx ⇒ 两轴 56+32=88rpx。
+   `.stepper` gap 10rpx + `.qty-val` min-width 92rpx ⇒ 两个按钮的扩展区相距甚远；
+   行间由 `.line-row` 的 16rpx 上下 padding 撑出 32rpx 空档，与相邻行扩展恰好相接不重叠。 */
+.step-btn::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx;
 }
 .step-btn.is-off {
   opacity: 0.35;

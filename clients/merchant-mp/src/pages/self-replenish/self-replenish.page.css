@@ -100,15 +100,23 @@
   gap: 8rpx;
 }
 .qty-btn {
-  width: 48rpx;
-  height: 48rpx;
+  position: relative;
+  width: 56rpx;
+  height: 56rpx;
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   color: var(--brand);
   text-align: center;
-  line-height: 48rpx;
+  line-height: 56rpx;
   font-size: var(--font-size-lg);
   font-weight: 600;
+}
+/* 热区/视觉分离：外扩 16rpx 四向 ⇒ 两轴均 88rpx（与 purchase 页同几何：行间空档 32rpx、
+   `.qty-val` min-width 40rpx，两侧扩展不会相遇）。 */
+.qty-btn::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx;
 }
 .qty-val {
   min-width: 40rpx;

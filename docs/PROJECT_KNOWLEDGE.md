@@ -684,6 +684,20 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（步进器热区：门禁看不见的 4 处真小热区）
+
+- 给 MA-157 找根因时量出：`check-mp-touch-target-ratchet` 对 `<style scoped src="./x.page.css">` 的外置样式
+  **完全不解析**（17 个页面受影响），于是这些页面上的可点类既不判「小热区」也不进「不可验」。
+  用门禁自身导出函数 + 一层 `src`/`@import` 展开做量尺（`.tmp/measure-src-css-blindspot.mjs`，只读）：
+  展开后**新增 87 条不可验 + 4 条 undersized**。
+- 那 4 条是真缺陷，已修：merchant-mp `prep-generate`/`prep-list` 的 `.step-btn`、`purchase`/`self-replenish`
+  的 `.qty-btn`，原来都是 **48×48rpx（24px）**，改「视觉 56rpx + `::after inset:-16rpx`」⇒ 两轴 88rpx。
+  🔴 外扩前逐页核了几何：行间空档 = `.line-row` 上下各 16rpx（合计 32 = 16+16，与相邻行**恰好相接不重叠**），
+  横向 = `gap` + `.qty-val` 的 min-width（92/40rpx）富余，两按钮扩展区不相遇——这点必须先算，
+  否则「热区分离」会变成相邻控件抢点击。
+- 量尺复跑：undersized **4 → 0**；四页 release 产物的 `:after`（uni-app 展开成四边）逐页 grep 到。
+  **仍欠**：门禁本体没改，所以这 4 处一旦被改回去不会红——可证性押在「是否展开外置样式」的基线决策上（见 MA-159 行）。
+
 ### 2026-11-06（MA-157 横向热区收口 + rollup 断包修复：「工具链活着」的判据换掉）
 
 - **admin 构建其实一直是坏的**：`build-admin.mjs` 抛 `Cannot find module '@rollup/rollup-win32-x64-msvc'`。根因是昨夜那次

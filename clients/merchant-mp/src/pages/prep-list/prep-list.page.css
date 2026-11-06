@@ -231,8 +231,9 @@
   flex-shrink: 0;
 }
 .step-btn {
-  width: 48rpx;
-  height: 48rpx;
+  position: relative;
+  width: 56rpx;
+  height: 56rpx;
   border-radius: 50%;
   border: 1rpx solid var(--color-border);
   display: flex;
@@ -241,6 +242,12 @@
   font-size: var(--font-size-lg);
   color: var(--brand);
   line-height: 1;
+}
+/* 热区/视觉分离：四向外扩 16rpx ⇒ 两轴 88rpx（同 prep-generate 页几何）。 */
+.step-btn::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx;
 }
 .step-btn.is-off {
   opacity: 0.35;

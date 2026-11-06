@@ -97,15 +97,24 @@
   gap: 8rpx;
 }
 .qty-btn {
-  width: 48rpx;
-  height: 48rpx;
+  position: relative;
+  width: 56rpx;
+  height: 56rpx;
   border-radius: var(--radius-control);
   background: var(--brand-soft);
   color: var(--brand);
   text-align: center;
-  line-height: 48rpx;
+  line-height: 56rpx;
   font-size: var(--font-size-lg);
   font-weight: 600;
+}
+/* 热区/视觉分离：外扩 16rpx 四向 ⇒ 两轴均 56+32=88rpx。
+   上下两行 `.line-row` 各有 16rpx padding ⇒ 行间空档 32rpx，两行扩展恰好相接不重叠；
+   左右与 `.qty-val`(min-width 40rpx) 之间只有各 8rpx 进入数字框，两按钮扩展区不会相遇。 */
+.qty-btn::after {
+  content: '';
+  position: absolute;
+  inset: -16rpx;
 }
 .qty-val {
   min-width: 40rpx;
