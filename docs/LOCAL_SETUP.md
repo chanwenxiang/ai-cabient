@@ -243,7 +243,7 @@ cd ../merchant-mp
 npm run dev:mp-weixin
 ```
 
-微信开发者工具分别导入两个客户端的 `dist/dev/mp-weixin` 目录。
+微信开发者工具分别导入两个客户端的 `dist/dev/mp-weixin` 目录（该目录**只由 `dev:mp-weixin` watcher 写**；一次性构建的产物在 `dist/build/mp-weixin`，两者不可混进同一个目录，见 `ui-style-guide` skill §5）。
 
 ### 2. 配置 API 地址
 
@@ -289,14 +289,16 @@ $env:MP_WEIXIN_APPID_CONSUMER="wxXXXXXXXXXXXXXXXX"; npm run build:mp-weixin
 
 ### 6. 编译产物自检（别只看退出码）
 
-`build:mp-weixin:dev` 会产出**两份**：`dist/dev/mp-weixin`（开发者工具导入这个）
-与 `dist/build/mp-weixin`。两端编译完成后按下面几项回读磁盘：
+`build:mp-weixin:dev` 只产出**一份**：`dist/build/mp-weixin`（2026-11-06 起不再同步到
+`dist/dev`——两个生产者对同一份源码算出的 scoped 哈希不同，混写会让整页样式落空）。
+`dist/dev/mp-weixin` 归 `dev:mp-weixin` watcher 独占；开发者工具挂哪个目录取决于你在跑哪条命令。
+跑完一次性构建后按下面几项回读磁盘：
 
 | 检查项 | 怎么看 | 正常值 |
 |--------|--------|--------|
-| 四份产物都在 | `ls clients/*/dist/{dev,build}/mp-weixin` | consumer / merchant 各两份 |
+| 产物在位且样式哈希成对 | `pnpm check:mp-scoped-hash` | 每个存在的产物目录都报 OK（缺目录只 SKIP） |
 | appid 注入生效 | 读产物 `project.config.json` 的 `appid` | 有环境变量则真值，否则 `touristappid` |
-| 后端地址内联 | `grep -r "127.0.0.1" dist/dev/mp-weixin/common/vendor.js` | dev 应命中 `http://127.0.0.1` |
+| 后端地址内联 | `grep -r "127.0.0.1" dist/build/mp-weixin/common/vendor.js` | dev 应命中 `http://127.0.0.1` |
 | 源码没被污染 | `git status --porcelain` + 源码 `appid` 字段 | 只应看到 `docs/` 改动；源码 appid 仍为空 |
 
 两个容易误判的点：

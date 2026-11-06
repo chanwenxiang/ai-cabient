@@ -19,7 +19,7 @@ if errorlevel 1 (
 ) else (
   echo.
   echo [完成] 产物已指向最新 IP（见上方 mini-program API 一行）
-  echo 下一步：微信开发者工具点「编译」，手机重新点「预览」
+  echo 下一步：微信开发者工具「打开项目」选 clients\consumer-mp\dist\build\mp-weixin（不是 dist\dev——那个只由 dev:mp-weixin watcher 写），再点「编译」，手机重新点「预览」
 )
 echo.
 pause

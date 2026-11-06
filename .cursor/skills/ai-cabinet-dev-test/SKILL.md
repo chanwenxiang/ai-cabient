@@ -63,7 +63,7 @@ description: >-
 | trade-service | `:8080` 或 `:18080` |
 | 消费者 H5 | `pnpm --filter @aicabinet/consumer-mp dev:h5` → `:3002` |
 | 商户 H5 | `pnpm --filter @aicabinet/merchant-mp dev:h5` → `:3001` |
-| 微信小程序 | 开发者工具 → `clients/consumer-mp/dist/dev/mp-weixin`；**确认 dist mtime** |
+| 微信小程序 | 开发者工具 → `clients/consumer-mp/dist/dev/mp-weixin`（watcher 独占，跑 `dev:mp-weixin` 时才是新鲜的）；一次性构建看 `dist/build`；**确认 dist mtime** |
 
 ## 5. 小程序特别注意
 

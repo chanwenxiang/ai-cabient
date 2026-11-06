@@ -72,10 +72,10 @@ description: >-
 - 🔴 **开发者工具里验证一律钉环回 `http://127.0.0.1`**（2026-11-04 用户拍板）：写 `clients/{consumer,merchant}-mp/.env.development.local` 的 `VITE_API_BASE_URL=http://127.0.0.1`，再 `build:mp-weixin:dev` 重烤。原因：WLAN IP 会漂（本机一天内 `.26→.199→.26` 来回两次），而 `.env.development` 是 `sync-consumer-mp-api.mjs` 按「当时的 LAN IP」生成的 ⇒ 漂移后请求全挂、列表停在加载态。**只有真机预览/扫码才把该文件临时改成局域网 IP**（手机与电脑同 WLAN），用完改回环回。
   - 判据顺序（别一上来怀疑前端）：① `mp.callWxMethod('request', {url:'http://127.0.0.1/api/v2/auth/server-boot'})` 通不通；② 网关 access log 里有没有模拟器请求；③ 产物烤进的基址 `grep -rho "http://1[0-9.]*" dist/*/mp-weixin/`；④ 都对但页面仍旧 ⇒ 编译缓存陈旧：`cli quit` → 删 `%LOCALAPPDATA%/微信开发者工具/User Data/<hash>/WeappCache/WeappCompileCache` → 重开（`cli cache --clean compile` 对内联常量不够）。
 - 🔴 **网络变更后先重烤 mp env**：两端 `.env.development` 由 `scripts/sync-consumer-mp-api.mjs` 烤的是**当时局域网 IP**，且 `clients/*/.env.development.local` 优先级更高。IP 漂移时请求连不到网关 ⇒ 列表永远停在加载态（骨架屏/「加载中…」），极易误判成前端 bug。修法见上一条。
-- 🔴 **整页无样式（大字裸排/图标巨物/tabbar 变文字）＝`dist/dev` 被交叉写坏**，不是样式回归。判据：同页 wxml 与 wxss 的 scoped 哈希必须相等——
-  `grep -o 'data-v-[a-z0-9]*' dist/dev/mp-weixin/pages/home/home.wxml | sort -u` 对 `.wxss` 同样取一次；不等即坏。
-  成因：另一会话的 `uni.js -p mp-weixin` 增量 watcher 与你的全量 `build:mp-weixin:dev` 交叉写 `dist/dev`。
-  处置顺序：① 先查 `clients/*/src` 近 30 分钟是否有人改（有 ⇒ watcher 是在用的，**禁止杀**）；② 把开发者工具指到 `dist/build/mp-weixin`（watcher 不写它，通常内部一致）继续验收；③ 只有确认 watcher 是残留的才按旧配方杀进程 + 删两个 dist + 全量重烤 + 清 `WeappCompileCache`。
+- 🔴 **整页无样式（大字裸排/图标巨物/tabbar 变文字）＝产物被两个生产者混写**，不是样式回归。一条命令判：`pnpm check:mp-scoped-hash`（同页 wxml 的每个 `data-v-*` 必须出现在同名 wxss 里；缺一个即坏，也可手工 grep 单页）。
+  成因（2026-11-06 实证订正，比旧记的「拷贝撞车」更硬）：watcher 与一次性 `uni build` 对**同一份未改动的源码**算出的 scoped id 就不同（home.vue 全程没改：build 侧 wxml/wxss 同 `05765592`，watcher 重写的 wxss 是 `0cd09a48`），且 watcher 一次重建会重写全部 wxss、只重写改动那一页的 wxml ⇒ 目录里混过两种产物之后，任何一次重建都成片错位。
+  结构修法（已落地）：`dist/dev` 归 `dev:mp-weixin` watcher 独占；一次性 `build:mp-weixin:dev` 只写 `dist/build`（`scripts/sync-mp-weixin-dev-dist.mjs` 已删，别再加回来）。
+  处置顺序：① 先查 `clients/*/src` 近 30 分钟是否有人改（有 ⇒ watcher 是在用的，**禁止杀**）；② 把开发者工具指到 `dist/build/mp-weixin` 继续验收；③ 要修 `dist/dev` 只能让 watcher **冷启动一次全量重发**，不要用一次性构建去盖它；④ 只有确认 watcher 是残留的才按旧配方杀进程 + 删两个 dist + 全量重烤 + 清 `WeappCompileCache`。
 
 ## 6. 门禁命令（改 UI 后自查）
 
