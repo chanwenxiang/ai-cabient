@@ -1409,7 +1409,7 @@ public class OrderPaymentService {
     record RefundLeg(String channel, int amountCents, String payTradeNo) {}
 
     /**
-     * 退款拆腿的**唯一**判据（MA-161 A 档，本方法暂未被调用方消费，A1 接上）。
+     * 退款拆腿的**唯一**判据（MA-161 A 档；消费点见 `prepareOrderRefund` 的拆腿分支）。
      *
      * <p>组合单（钱包冲抵 + 渠道补缴）的退款不能整笔压给 `order.payChannel` 一个渠道：
      * 网关侧的交易只收了它实际那部分，超退会被拒（MA-160 修前是「微信确实收了 100」才退成功，
