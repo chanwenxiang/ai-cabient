@@ -8,20 +8,32 @@
  *   ③ `notification_log` 目前 SMS 行数 = 0，真正有量的是验证码链（`sms_verification_code`）。
  *   ⇒ 「给 notification_log 回填 delivered_at」这条原设计废弃；改为聚合口径的到达率巡检。
  *
- * 后台化（定时任务 + ops-alert 通道）留到上线有量再做：`check:scheduled-task-seed` 要求任何
- * tryBegin(TASK_KEY) 都必须有注册表 + 种子行，为 0 流量先造一条链路就是死代码。
+ * 后台化已于 2026-11-06 落地：`SmsDeliveryProbeScheduler`（每 60 分钟，默认 OFF）走同一条聚合口径，
+ * 超阈值时推 ops-alert + 写异常台账。本脚本保留作**即时排查**（人工触发、含窗口明细），
+ * 两侧共用夹具 `services/trade-service/src/test/resources/sms/delivery-receipts-golden.json`
+ * ⇒ 单独改任一侧口径即红。
  *
  * 凭据纪律：AccessKey 只从**运行中的容器 env** 现取（docker exec printenv），绝不打印；
  * 号码只打印脱敏形式；失败码是运营商侧字符串，可原样输出（排障要用）。
  *
  * 用法：
  *   node scripts/sms-delivery-report.mjs [--days=3] [--fail-ratio=0.2] [--json] [--container=NAME]
- *   node scripts/sms-delivery-report.mjs --selftest        （合成夹具验聚合与阈值真能红）
+ *   node scripts/sms-delivery-report.mjs --selftest        （合成夹具 + 共用黄金夹具验口径）
  *
  * 退出码：0 正常；2 超过失败占比阈值（报警语义）；3 凭据/容器不可用（无法判定，不当绿）。
  */
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** Java 巡检与本脚本共用的黄金夹具（口径单源锚点）。 */
+const GOLDEN_FIXTURE = path.join(
+  REPO_ROOT,
+  'services/trade-service/src/test/resources/sms/delivery-receipts-golden.json'
+);
 
 const CONTAINER =
   (process.argv.find((a) => a.startsWith('--container=')) || '').split('=')[1] ||
@@ -130,6 +142,43 @@ export function aggregate(rows) {
   return st;
 }
 
+// ── 共用黄金夹具：与 SmsDeliveryStatsTest 读同一份文件，任一侧改口径即红 ──
+function goldenFixtureChecks() {
+  const doc = JSON.parse(fs.readFileSync(GOLDEN_FIXTURE, 'utf8'));
+  const out = [];
+  for (const sc of doc.scenarios) {
+    const st = aggregate(sc.rows);
+    const e = sc.expected;
+    const counts =
+      st.total === e.total &&
+      st.delivered === e.delivered &&
+      st.pending === e.pending &&
+      st.failed === e.failed;
+    const codes =
+      JSON.stringify(
+        Object.fromEntries(
+          Object.keys(st.codes)
+            .sort()
+            .map((k) => [k, st.codes[k]])
+        )
+      ) ===
+      JSON.stringify(
+        Object.fromEntries(
+          Object.keys(e.codes)
+            .sort()
+            .map((k) => [k, e.codes[k]])
+        )
+      );
+    out.push([`${sc.name}: 计数与夹具一致`, counts]);
+    out.push([`${sc.name}: 码分布与夹具一致`, codes]);
+    for (const [t, want] of Object.entries(e.overThreshold)) {
+      // 本脚本用比值判定（不取整），与 Java isFailRatioOver 的精确比较同向
+      out.push([`${sc.name}: ${t}% 阈值判定=${want}`, st.failRatio > Number(t) / 100 === want]);
+    }
+  }
+  return out;
+}
+
 // ── 合成自检：证明聚合口径正确且阈值真能红（不是只能绿的旋钮）──
 function selfTest() {
   const mk = (status, errCode, date) => ({ SendStatus: status, ErrCode: errCode, SendDate: date });
@@ -145,6 +194,7 @@ function selfTest() {
     mk(2, 'MOBILE_NOT_ON_SERVICE', '2026-11-05 09:20:00')
   ]);
   const checks = [
+    ...goldenFixtureChecks(),
     [
       '健康样本 delivered=2 pending=1 failed=0',
       healthy.delivered === 2 && healthy.pending === 1 && healthy.failed === 0

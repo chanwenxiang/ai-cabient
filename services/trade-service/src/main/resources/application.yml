@@ -327,6 +327,13 @@ aicabinet:
     max-per-round: ${DISPUTE_AUTO_WAIVE_MAX_PER_ROUND:50}
     per-user-max: ${DISPUTE_AUTO_WAIVE_PER_USER_MAX:3}
     per-user-window-days: ${DISPUTE_AUTO_WAIVE_PER_USER_WINDOW_DAYS:7}
+  # C 档短信到达率巡检（默认 OFF：阿里云回执仅保留最近几天 + 当前无真实发送量，空跑外呼无意义）。
+  # 参数配置页的 sms.delivery_probe.* 优先级高于这里的 env 兜底。
+  sms-delivery-probe:
+    enabled: ${AICABINET_SMS_DELIVERY_PROBE_ENABLED:false}
+    fail-alert-percent: ${SMS_DELIVERY_PROBE_FAIL_ALERT_PERCENT:20}
+    lookback-days: ${SMS_DELIVERY_PROBE_LOOKBACK_DAYS:3}
+    min-sample: ${SMS_DELIVERY_PROBE_MIN_SAMPLE:5}
   dispute-sla:
     hours: ${DISPUTE_SLA_HOURS:48}
     reminder-hours-before: ${DISPUTE_SLA_REMINDER_HOURS:12}

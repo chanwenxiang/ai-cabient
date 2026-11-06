@@ -398,7 +398,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "COUPON_MARKUSED_FAILED", "券核销失败", "CHARGE_PENDING_STALE", "渠道扣款回执超时",
                 "UNPAID_CANCEL_NET_BLOCKED", "待支付净入账阻断取消", "SCHEDULED_TASK_STALE", "定时任务停摆",
                 "SCHEDULING_POOL_CAPACITY_RISK", "调度并发超连接池上限", "XXL_JOB_WIRING_BROKEN", "XXL-JOB 执行器接线异常",
-                "SPLIT_EXCEPTION", "分账待跟进", "VISION_ANOMALY", "视觉异常告警")));
+                "SPLIT_EXCEPTION", "分账待跟进", "VISION_ANOMALY", "视觉异常告警",
+                // C 档短信到达率巡检（SmsDeliveryProbeScheduler#alert），标签取告警标题原文
+                "SMS_DELIVERY_FAILURE_HIGH", "短信到达率异常")));
         map.put("device_fault_code", t("设备故障码", m(
                 "OFFLINE_TIMEOUT", "离线超时", "TEMP_ABNORMAL", "温度异常",
                 "DOOR_STUCK", "门锁异常", "CAMERA_FAULT", "摄像头故障",

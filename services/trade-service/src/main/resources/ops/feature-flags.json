@@ -42,6 +42,34 @@
       "description": "🔴 欠款催缴短信总闸（V326）：三道门全开才发（① 本开关 ② 模板 channels 含 SMS ③ 短信通道已配置）。当前催缴走 webhook 文本短信通道，未配 SMS_WEBHOOK_URL 前开了也发不出"
     },
     {
+      "key": "sms.delivery_probe.enabled",
+      "group": "消息触达",
+      "type": "BOOLEAN",
+      "default": "false",
+      "description": "短信到达率巡检总开关：开=每小时按 (号码,发送日) 调阿里云 QuerySendDetails，聚合送达/发送中/失败并超阈值告警；关=不外呼、不判定。与「系统→定时任务」的 sms-delivery-probe 开关分工：那边关掉=整个任务不跑（无执行记录），这边关掉=任务跑但不查询。默认关：阿里云回执只保留最近几天，且当前无真实发送量"
+    },
+    {
+      "key": "sms.delivery_probe.fail_alert_percent",
+      "group": "消息触达",
+      "type": "NUMBER",
+      "default": "20",
+      "description": "失败占比告警阈值（百分数，可填整数）：聚合失败占比**严格大于**该值才发 SMS_DELIVERY_FAILURE_HIGH；判定用精确比率而非取整后的百分比（5/24=20.83% 取整成 20% 会漏报）；受 min_sample 保护，小样本不判定"
+    },
+    {
+      "key": "sms.delivery_probe.lookback_days",
+      "group": "消息触达",
+      "type": "NUMBER",
+      "default": "3",
+      "description": "回查窗口（天）：代码内夹到 1..6。调大不会查到更久的数据——阿里云 QuerySendDetails 本身只保留最近几天"
+    },
+    {
+      "key": "sms.delivery_probe.min_sample",
+      "group": "消息触达",
+      "type": "NUMBER",
+      "default": "5",
+      "description": "最小样本量：窗口内回执行数低于该值本轮不判定（1 条失败＝100% 的噪音告警会把人训练成忽略告警）"
+    },
+    {
       "key": "ops.alert.escalation_sms_aliyun_template",
       "group": "运营告警",
       "type": "TEXT",

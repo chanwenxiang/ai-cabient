@@ -1,0 +1,358 @@
+{
+  "note": "阿里云 QuerySendDetails 聚合口径的唯一锚点。消费方有两个且必须同口径： Java SmsDeliveryStatsTest（定时巡检）与 scripts/sms-delivery-report.mjs --selftest（运维即时排查）。 改口径 ⇒ 两侧同时改，否则其中一侧红。",
+  "fieldNote": "字段名照抄阿里云响应体（PhoneNum 不是 PhoneNumber；SendStatus 1=发送中 2=失败 3=送达；ErrCode=DELIVERED 才算真送达）。",
+  "scenarios": [
+    {
+      "name": "healthy",
+      "rows": [
+        {
+          "PhoneNum": "13900000001",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:05",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000001",
+          "SendDate": "2026-11-06 10:01:00",
+          "ReceiveDate": "2026-11-06 10:01:04",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "15156276077",
+          "SendDate": "2026-11-06 10:02:00",
+          "ReceiveDate": null,
+          "SendStatus": 1,
+          "ErrCode": null,
+          "TemplateCode": "SMS_1"
+        }
+      ],
+      "expected": {
+        "total": 3,
+        "delivered": 2,
+        "pending": 1,
+        "failed": 0,
+        "codes": { "DELIVERED": 2, "PENDING": 1 },
+        "failPercent": 0,
+        "overThreshold": { "10": false, "20": false }
+      }
+    },
+    {
+      "name": "broken",
+      "rows": [
+        {
+          "PhoneNum": "13900000001",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:03",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000002",
+          "SendDate": "2026-11-05 09:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000003",
+          "SendDate": "2026-11-05 09:10:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000004",
+          "SendDate": "2026-11-05 09:20:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "MOBILE_NOT_ON_SERVICE",
+          "TemplateCode": "SMS_1"
+        }
+      ],
+      "expected": {
+        "total": 4,
+        "delivered": 1,
+        "pending": 0,
+        "failed": 3,
+        "codes": { "CONTENT_KEYWORD": 2, "DELIVERED": 1, "MOBILE_NOT_ON_SERVICE": 1 },
+        "failPercent": 75,
+        "overThreshold": { "10": true, "20": true }
+      }
+    },
+    {
+      "name": "empty",
+      "why": "total=0 不是「健康」：调用方必须按样本不足处理，这里只钉住「不炸、比率 0」。",
+      "rows": [],
+      "expected": {
+        "total": 0,
+        "delivered": 0,
+        "pending": 0,
+        "failed": 0,
+        "codes": {},
+        "failPercent": 0,
+        "overThreshold": { "20": false }
+      }
+    },
+    {
+      "name": "status3_is_not_delivery",
+      "why": "SendStatus=3 只代表「投递到运营商成功」，ErrCode 非 DELIVERED（含空串）时一律算失败—— 只看 3 就把关键词拒发读成送达。",
+      "rows": [
+        {
+          "PhoneNum": "13900000001",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000002",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:09",
+          "SendStatus": 3,
+          "ErrCode": "MOBILE_NOT_ON_SERVICE",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000003",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:09",
+          "SendStatus": 3,
+          "ErrCode": "",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000004",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        }
+      ],
+      "expected": {
+        "total": 4,
+        "delivered": 1,
+        "pending": 0,
+        "failed": 3,
+        "codes": { "CONTENT_KEYWORD": 1, "DELIVERED": 1, "MOBILE_NOT_ON_SERVICE": 1, "UNKNOWN": 1 },
+        "failPercent": 75,
+        "overThreshold": { "20": true, "75": false }
+      }
+    },
+    {
+      "name": "floor_would_under_alert",
+      "why": "5/24 = 20.83% ⇒ 向下取整成 20%，与阈值 20 比会漏报；判定必须用精确比率（Java isFailRatioOver / mjs failRatio）。",
+      "rows": [
+        {
+          "PhoneNum": "13900000001",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000002",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000003",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000004",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000005",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000006",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000007",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000008",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000009",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000010",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000011",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000012",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000013",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000014",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000015",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000016",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000017",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000018",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000019",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": "2026-11-06 10:00:02",
+          "SendStatus": 3,
+          "ErrCode": "DELIVERED",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000020",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000021",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000022",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000023",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        },
+        {
+          "PhoneNum": "13900000024",
+          "SendDate": "2026-11-06 10:00:00",
+          "ReceiveDate": null,
+          "SendStatus": 2,
+          "ErrCode": "CONTENT_KEYWORD",
+          "TemplateCode": "SMS_1"
+        }
+      ],
+      "expected": {
+        "total": 24,
+        "delivered": 19,
+        "pending": 0,
+        "failed": 5,
+        "codes": { "CONTENT_KEYWORD": 5, "DELIVERED": 19 },
+        "failPercent": 20,
+        "overThreshold": { "20": true, "21": false }
+      }
+    }
+  ]
+}

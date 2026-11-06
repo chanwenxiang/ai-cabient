@@ -63,6 +63,7 @@ public class ScheduledTaskRegistry {
                                  MerchantWorkbenchNotifyScheduler merchantWorkbenchNotifyScheduler,
                                  DisputeSlaScheduler disputeSlaScheduler,
                                  DisputeAutoWaiveScheduler disputeAutoWaiveScheduler,
+                                 SmsDeliveryProbeScheduler smsDeliveryProbeScheduler,
                                  ReplenishmentTimeoutScheduler replenishmentTimeoutScheduler,
                                  AutoReplenishmentTaskService autoReplenishmentTaskService,
                                  DataConsistencyService dataConsistencyService,
@@ -118,6 +119,9 @@ public class ScheduledTaskRegistry {
                 disputeSlaScheduler::checkDisputeSla);
         register("dispute-auto-waive", "争议超时自动免单", "OPS", V_15, 600,
                 disputeAutoWaiveScheduler::autoWaive);
+        // C 档短信到达率巡检：每小时按 (号码,日) 拉阿里云回执做聚合告警（默认关，见 sms.delivery_probe.enabled）
+        register("sms-delivery-probe", "短信到达率巡检", "OPS", "每 60 分钟", 600,
+                smsDeliveryProbeScheduler::probe);
         register("profit-sharing-retry", "分账重试", FINANCE, V_15, 600,
                 profitSharingRetryScheduler::retryFailedSplits);
         register("expiry-alert", "库存临期预警", "WAREHOUSE", "每 60 分钟", 600,

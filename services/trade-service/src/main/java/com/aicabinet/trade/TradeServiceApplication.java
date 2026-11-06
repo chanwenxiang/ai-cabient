@@ -46,6 +46,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         NotificationProperties.class,
         com.aicabinet.trade.config.DisputeSlaProperties.class,
         com.aicabinet.trade.config.DisputeAutoWaiveProperties.class,
+        com.aicabinet.trade.config.SmsDeliveryProbeProperties.class,
         com.aicabinet.trade.config.RopProperties.class,
         com.aicabinet.trade.config.RoutePlanningProperties.class,
         com.aicabinet.trade.config.FeeBillProperties.class,

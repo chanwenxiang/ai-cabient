@@ -280,6 +280,17 @@ public class SystemConfigService {
     public static final String NOTIFY_SMS_ENABLED = "notify.sms.enabled";
     /** 消息触达：通知异步派发（Kafka；取代 NOTIFY_ASYNC_ENABLED 环境变量）。 */
     public static final String NOTIFY_ASYNC_ENABLED = "notify.async.enabled";
+    /**
+     * 消息触达：短信到达率巡检总闸（C 档修订形态）。🔴 默认 false —— 阿里云回执只留最近几天，
+     * 无真实发送量时自动外呼没有意义（fail-closed）。
+     */
+    public static final String SMS_DELIVERY_PROBE_ENABLED = "sms.delivery_probe.enabled";
+    /** 失败占比告警阈值（整数百分比；NUMBER 注册表要求 default 为整数串，故不用小数）。 */
+    public static final String SMS_DELIVERY_PROBE_FAIL_ALERT_PERCENT = "sms.delivery_probe.fail_alert_percent";
+    /** 回查窗口（天）：受阿里云保留期约束，代码内再夹到 1..6。 */
+    public static final String SMS_DELIVERY_PROBE_LOOKBACK_DAYS = "sms.delivery_probe.lookback_days";
+    /** 最小样本量：低于该数不判定（1 条失败＝100%，会把人训练成忽略告警）。 */
+    public static final String SMS_DELIVERY_PROBE_MIN_SAMPLE = "sms.delivery_probe.min_sample";
     // 注：原 notify.sms.dunning_template 已随 V441 搬进 notification_template.aliyun_template_code
     //（模板 ↔ 阿里云 CODE 一一对应；单一来源，不再有全局默认值）。
     /** 运营告警：邮件渠道开关（SMTP；与 webhook 类渠道并存，任一配置即参与分发）。 */
@@ -1115,6 +1126,21 @@ public class SystemConfigService {
                         + "③ 该模板在 notification_template.aliyun_template_code 登记了阿里云 CODE）");
         upsertIfAbsent(NOTIFY_ASYNC_ENABLED, "false",
                 "通知异步派发（Kafka）；关闭时同步发送，会占用请求线程");
+        // 短信到达率巡检（C 档）：默认关（阿里云回执仅保留最近几天 + 当前无真实发送量）。
+        // 🔴 seed 字面量必须与 ops/feature-flags.json 的 default 逐字相等（门禁 R5），
+        // 且 NUMBER 型的 default 必须是整数串（R0）——所以阈值用「百分比整数 20」而不是 0.2。
+        upsertIfAbsent(SMS_DELIVERY_PROBE_ENABLED, "false",
+                "短信到达率巡检总开关：开=每小时按 (号码,发送日) 拉阿里云 QuerySendDetails，"
+                        + "聚合送达/发送中/失败并超阈值告警；关=不外呼、不判定。"
+                        + "与「系统→定时任务」的 sms-delivery-probe 开关分工：那边关掉=整个任务不跑（无执行记录），"
+                        + "这边关掉=任务跑但不查询");
+        upsertIfAbsent(SMS_DELIVERY_PROBE_FAIL_ALERT_PERCENT, "20",
+                "失败占比告警阈值（整数百分比）：聚合失败占比严格大于该值才告警"
+                        + "（判定用精确比率，20.83% 取整成 20% 会漏报）；受 min_sample 保护");
+        upsertIfAbsent(SMS_DELIVERY_PROBE_LOOKBACK_DAYS, "3",
+                "回查窗口（天）：代码夹在 1..6，超过阿里云回执保留期查不到东西");
+        upsertIfAbsent(SMS_DELIVERY_PROBE_MIN_SAMPLE, "5",
+                "最小样本量：窗口内回执行数低于该值本轮不判定（避免 1 条失败＝100% 的噪音告警）");
         // 2026-10-20 邮件告警渠道（SMTP 手写客户端，零依赖）：enabled 只控制参与分发，
         // host/user/pass/to 四项全非空才算配置完成；授权码=邮箱「三方客户端安全密码」。
         upsertIfAbsent(OPS_ALERT_EMAIL_ENABLED, "false",

@@ -684,6 +684,51 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（短信到达率巡检定时化：上一条「明确未做」按用户指令翻案，链路九件套一次落齐）
+
+- **翻案依据**：用户指令「把定时任务链路搭起来」。上一条里我写的「不做」理由是**怕为 0 流量造死面**，
+  而不是链路本身不可行 ⇒ 翻案不需要重新论证口径，只需要把「注册表 + 种子行 + 开关默认 OFF」这三件
+  配套补齐，让它在没量的时候**存在但不出声**（fail-closed）。
+- **落地的九处**（一处不落才算链路，少一环就是「注册了但跑不起来」）：
+  ① `AliyunSmsSender.querySendDetails()` + `SmsReceipt`/`ReceiptPage` + 纯函数 `parseSendDetails`/`rpcBody`/`postForm`
+     （发送与查询**共用同一份签名实现**，之前 `doSend` 里那串公共参数是就地重写的，已改为共用 `baseRpcParams`）；
+  ② `SmsDeliveryStats`——聚合口径**单源**（`of/isFailRatioOver/summary`）；
+  ③ `SmsDeliveryProbeScheduler`——`@Scheduled(fixedRate=1h)` + `tryBegin/finish` 集群护栏 +
+     超阈值双路可见（`OpsExceptionService.report("SMS_DELIVERY_FAILURE_HIGH","HIGH",…)` + `OpsAlertDispatcher.send`），
+     恢复后 `resolveSystem` 自动结案，同指纹 6h 内不重复刷屏；
+  ④ `V447__scheduled_task_sms_delivery_probe.sql`（`MIGRATION_KIND: backfill`，`ON CONFLICT DO NOTHING`）；
+  ⑤ `SystemConfigService` 四个键 seed；⑥ `feature-flags.json` 四条（分组「消息触达」）；
+  ⑦ `ScheduledTaskRegistry.register("sms-delivery-probe",…)`；⑧ `TradeServiceApplication` 的
+     `@EnableConfigurationProperties` 追加 `SmsDeliveryProbeProperties`；⑨ `application.yml` 的 env 兜底四项 + 字典登记。
+- 🔴 **两处「看起来对、实际会假绿」的坑，本轮当场钉死**：
+  ① **判定不能用取整后的百分比**：5/24 = 20.83% 向下取整成 20%，与阈值 20 比正好漏报 ⇒
+     `isFailRatioOver()` 用 `failed*100 > threshold*total` 精确比较，`failPercent()` 只用于展示；
+  ② **查询失败 ≠ 零失败**：阿里云凭据过期时 `QuerySendDetails` 回的是 **HTTP 200 + 业务码 + 零行**，
+     按「零行=零失败」消费就正好在通道坏掉那天报「全绿」⇒ `parseSendDetails` 见 `Code≠OK` 一律抛，
+     任务记 FAILED 而不是 SUCCESS。
+- **口径单源的做法（跨语言）**：新增黄金夹具
+  `services/trade-service/src/test/resources/sms/delivery-receipts-golden.json`，Java
+  `SmsDeliveryStatsTest` 与 `scripts/sms-delivery-report.mjs --selftest` **读同一份文件**（5 个场景 ×
+  计数/码分布/多档阈值判定），谁单独改口径谁红。已做变异验证：把「`SendStatus=3` 且 `ErrCode=DELIVERED`
+  才算送达」放宽成「`SendStatus=3`」后，Java 侧立刻红
+  （`status3_is_not_delivery.delivered expected 1 but was 3`），改回即绿。
+- **签名黄金向量不是自录**：`rpcBody` 的期望串由 **Python `hmac` 与 Node `crypto` 两份独立实现**
+  按阿里云 RPC 规范各自算出并互相核对（`rWonWUMj9o3fTEC5gaZR69Q1OK0=`）再写进测试——
+  把当前代码的输出录下来只能证明代码自洽，证明不了它对得上阿里云。
+- **实测数字**：`AliyunSmsSenderTest` 4→**11 例**、`SmsDeliveryStatsTest` 3 例、`SmsDeliveryProbeSchedulerTest` 13 例
+  （关闸不外呼／env 兜底关闭／凭据未配齐／窗口无数据／样本不足不判定／超阈值双路告警／同结果不重复告警／
+  恢复自动结案／组合数上界 60／租约未抢到不执行／成功与失败都写执行记录），定向三套合跑 `Tests run: 27, Failures: 0, Errors: 0`。
+  四个相关门禁自报 OK：`check:scheduled-task-seed`（注册表 41 ↔ 种子行 43）、`check:scheduled-task-trybegin`、
+  `check:feature-flags`（117 个开关）、`check:exception-type-dict`（report 站点 28 类 ⊆ 字典 34 类）。
+- **默认状态**：`sms.delivery_probe.enabled=false`（参数配置优先于 env，env 兜底也是 false）⇒
+  部署后**零外呼、零告警**；两把闸的分工与 P3-4 同款——参数配置关掉=任务跑但不查询，
+  「系统→定时任务」里关掉=整个任务不执行（连执行记录都没有）。
+- 顺带订正上一条的措辞：`SMS_DELIVERY_FAILURE_HIGH` 已进 `SysDictBootstrap` 的 `exception_type` 内置集
+  （标签「短信到达率异常」），否则异常台落行却渲染不出类型。
+- 🔴 上一条（C 档）与更前一条（`SENT` B 档）里「明确不做回执采集/定时任务」两句**就地作废**，
+  以本条为准；`notification_log` 仍**没有**送达列（本轮是聚合监控，不改 `SENT` 语义，
+  `ExternalNotificationDispatcherTest` 那条「反射钉死无 delivered/receipt 列」的钉测照旧为真）。
+
 ### 2026-11-06（短信回执 C 档：原设计被探针推翻，改成交集口径的到达率巡检）
 
 - 🔴 **原设计废弃**（「给 `notification_log` 加 `delivered_at` 逐行回填」），依据是当场打的只读探针
@@ -699,7 +744,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **实测数字**（窗口 3d，活栈）：回执行 6 = `DELIVERED 3` + `PENDING 2` + `CONTENT_KEYWORD 1`，
   失败占比 16.7% < 阈值 20% ⇒ exit 0；把阈值调到 10% ⇒ **exit 2 真报警**；`--container=nope-x` ⇒ **exit 3**。
   `--selftest` 7 条全过，其中包含「阈值必须能红」的正反对照与空输入不炸。
-- **明确未做**（不写死代码）：定时化 + ops-alert 通道接入。理由：`check:scheduled-task-seed` 要求任何
+- **明确未做**（不写死代码）：定时化 + ops-alert 通道接入。🔴 同日已按用户指令翻案落地，见上方「巡检定时化」条。理由：`check:scheduled-task-seed` 要求任何
   `tryBegin(TASK_KEY)` 都得有注册表条目 + `scheduled_task` 种子行 ⇒ 为 0 流量先造一条链路就是第二条消息里
   那种「注册了但没人看见/没数据可跑」的死面。触发条件沿用：真实短信上量后再补（届时按窗口特性做近实时轮询）。
 - 另：npm 别名 `sms:delivery-report` **暂不加**——根 `package.json` 正被并发会话编辑（`check:mp-scoped-hash` 接线），
@@ -817,6 +862,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
      短信通道抛错 ⇒ 零日志、微信返回 false ⇒ 零日志、**反射钉 `notification_log` 没有 deliver/receipt/arrive 列**
      （将来真要接回执必须同时改这条钉测与语义，不能悄悄把 SENT 升级成「已送达」）。实测 `Tests run: 15, Failures: 0`。
 - **明确不做（C 档）**：接阿里云回执（`send_detail` 或回执回调 + 新增 `delivered_at` + 定时任务）。
+  🔴 11-06 当天下午翻案：逐行回填那条被探针证伪，**聚合口径的定时巡检已落地**（见上方「巡检定时化」条）；
+  「不改 `SENT` 语义、不加送达列」这一半仍然有效。
   理由：现在只有测试环境、短信 11-04 才配通、真实发送量≈0，且回执本身有延迟不保证——收益要等有量才成立。
 - 另记一条**本批踩到的构建事实**：改 admin 源码后我用本地 `build-admin.mjs` 重建，**112 个 chunk 全量重哈希**；
   先怀疑 `.env.local`（`loadEnv(mode, dir, '')` 空前缀）注入，实测新旧产物都不含 `VITE_DEV_PROXY` ⇒ 假设错。
