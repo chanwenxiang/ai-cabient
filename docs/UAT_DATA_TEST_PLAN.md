@@ -71,3 +71,13 @@
 - 切回 dev：删 `infra/docker-compose.uat.yml` → 重建 trade-service（dev 库原封不动）
 - devtools 两端项目已指向 localhost（2026-11-03 修复），automator 端口 9420/9421 配方可用
 - 小程序**发布产物**必须从 `dist/build`（release 模式）重建上传——2026-11-06 曾发现 build 落后 src 5.3 小时（MA-162 等修复未进产物），已重建
+
+## 6 · 过夜自动执行附则（2026-11-07 夜，定时枪驱动）
+
+- **驱动器**：每 45 分钟一枪（共 12 枪）+ 互斥锁 `.tmp/uat-overnight.lock`（mtime<100 分钟=在跑，空转退出）。
+- **状态源**：本文件 + `docs/uat/rounds/` + `docs/uat/table-coverage.md` + `docs/module-audit/ISSUES.md`（新号从 **MA-164** 起，先回读防撞号）。
+- **环境现状**：trade 已切 `aicabinet_uat`（override：`docker-compose.uat.yml`+`sim-eg.yml`）；演示柜=EG307002410770（模拟器容器已订阅该柜 cmd、购物窗 120s）；心跳脚本 `.tmp/uat-heartbeat.sh`（每枪先确认在跑，死了就重启）；**绝不碰 dev 库 aicabinet**。
+- **消费者登录态**：真实微信登录（mock 已不触发）。token 经 automator 读：`callWxMethod('getStorageSync','consumer_token')`（devtools 需开着；端口死了用 cli auto --auto-port 9420 重拉）。过期走 refresh；再不行把消费端 UI 项记「待白天复验」继续其它流程。
+- **夜间形态**：API 链+库断言全速推进（与浏览器同链）；需真点 UI 的项记入「待白天 UI 复验」清单，不阻塞。computer-use 仅在屏幕未锁时可用。
+- **每轮纪律**：轮首/轮末快照对账（差额必须被业务解释）→ 库断言 → 审计核对 → 覆盖表打勾 → 轮报告落 `docs/uat/rounds/` → **只 commit 不 push**；P0 即停轮落盘。
+- **MA 记录**：缺陷当场领号入 ISSUES.md（open）；环境/基建待办记轮报告「环境待办」节。
