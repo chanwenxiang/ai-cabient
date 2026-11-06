@@ -197,9 +197,7 @@ function sessionKindLabel(kind?: string | null) {
             </template>
           </el-table-column>
           <el-table-column label="金额" width="100" class-name="col-money">
-            <template #default="{ row }"
-              >{{ yuanTextZero(row.totalAmountCents) }}</template
-            >
+            <template #default="{ row }">{{ yuanTextZero(row.totalAmountCents) }}</template>
           </el-table-column>
           <el-table-column label="优惠" width="88" class-name="col-money">
             <template #default="{ row }">
@@ -213,9 +211,11 @@ function sessionKindLabel(kind?: string | null) {
               >
                 {{
                   yuanText(
-                    -(Number(row.couponDiscountCents || 0) +
+                    -(
+                      Number(row.couponDiscountCents || 0) +
                       Number(row.memberDiscountCents || 0) +
-                      Number(row.activityDiscountCents || 0))
+                      Number(row.activityDiscountCents || 0)
+                    )
                   )
                 }}
               </span>

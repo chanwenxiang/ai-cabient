@@ -141,9 +141,7 @@
             label-class-name="col-status"
           >
             <template #default="{ row }">
-              <span v-if="row.preauthCents"
-                >{{ yuanText(row.preauthCents) }}</span
-              >
+              <span v-if="row.preauthCents">{{ yuanText(row.preauthCents) }}</span>
               <div v-if="preauthStatusLabel(row.preauthStatus)" class="muted tiny">
                 {{ preauthStatusLabel(row.preauthStatus) }}
               </div>

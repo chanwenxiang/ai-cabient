@@ -37,7 +37,9 @@
                此前直接绑 overridePriceCents + precision=0，运营输 3.5 会被截成 3 分（¥0.03）。 -->
           <el-input-number
             v-if="canEdit"
-            :model-value="row.overridePriceCents == null ? undefined : centsToYuanNumber(row.overridePriceCents)"
+            :model-value="
+              row.overridePriceCents == null ? undefined : centsToYuanNumber(row.overridePriceCents)
+            "
             :min="centsToYuanNumber(row.minPriceCents)"
             :max="centsToYuanNumber(row.maxPriceCents)"
             :precision="2"

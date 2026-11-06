@@ -229,9 +229,7 @@
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }"
-              >{{ yuanTextZero(row.avgOrderValueTotalCents) }}</template
-            >
+            <template #default="{ row }">{{ yuanTextZero(row.avgOrderValueTotalCents) }}</template>
           </el-table-column>
           <el-table-column
             prop="orderToday"
@@ -257,9 +255,7 @@
             class-name="col-status"
             label-class-name="col-status"
           >
-            <template #default="{ row }"
-              >{{ yuanTextZero(row.avgOrderValueTodayCents) }}</template
-            >
+            <template #default="{ row }">{{ yuanTextZero(row.avgOrderValueTodayCents) }}</template>
           </el-table-column>
           <el-table-column
             prop="sessionTotal"

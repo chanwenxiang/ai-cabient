@@ -113,9 +113,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }"
-              >{{ yuanTextZero(row.revenueCents) }}</template
-            >
+            <template #default="{ row }">{{ yuanTextZero(row.revenueCents) }}</template>
           </el-table-column>
         </el-table>
       </div>
@@ -148,9 +146,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }"
-              >{{ yuanTextZero(row.revenueCents) }}</template
-            >
+            <template #default="{ row }">{{ yuanTextZero(row.revenueCents) }}</template>
           </el-table-column>
           <el-table-column
             label="件均价"

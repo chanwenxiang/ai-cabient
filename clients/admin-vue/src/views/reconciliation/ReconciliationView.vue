@@ -273,9 +273,7 @@
               class-name="col-money"
               label-class-name="col-money"
             >
-              <template #default="{ row }"
-                >{{ yuanTextZero(row.amountCents) }}</template
-              >
+              <template #default="{ row }">{{ yuanTextZero(row.amountCents) }}</template>
             </el-table-column>
             <el-table-column
               label="交易类型"

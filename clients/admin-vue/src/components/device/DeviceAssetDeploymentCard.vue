@@ -45,13 +45,15 @@ const emit = defineEmits<{
  * 写回时四舍五入到分（避免 19.9 × 100 = 1989.99… 的浮点尾数）。
  */
 const depositYuan = computed({
-  get: () => (asset.value.depositCents == null ? undefined : centsToYuanNumber(asset.value.depositCents)),
+  get: () =>
+    asset.value.depositCents == null ? undefined : centsToYuanNumber(asset.value.depositCents),
   set: (v?: number) => {
     asset.value.depositCents = v == null ? undefined : Math.round(v * 100);
   }
 });
 const dataFeeYuan = computed({
-  get: () => (asset.value.dataFeeCents == null ? undefined : centsToYuanNumber(asset.value.dataFeeCents)),
+  get: () =>
+    asset.value.dataFeeCents == null ? undefined : centsToYuanNumber(asset.value.dataFeeCents),
   set: (v?: number) => {
     asset.value.dataFeeCents = v == null ? undefined : Math.round(v * 100);
   }

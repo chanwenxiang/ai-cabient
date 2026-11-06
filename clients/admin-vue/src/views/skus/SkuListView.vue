@@ -184,11 +184,7 @@
           </el-table-column>
           <el-table-column label="成本" width="84" align="center" class-name="col-money">
             <template #default="{ row }">
-              {{
-                row.purchaseCostCents != null
-                  ? `${yuanText(row.purchaseCostCents)}`
-                  : '无'
-              }}
+              {{ row.purchaseCostCents != null ? `${yuanText(row.purchaseCostCents)}` : '无' }}
             </template>
           </el-table-column>
           <el-table-column prop="category" label="类目" min-width="88" class-name="col-text">
@@ -486,7 +482,9 @@
             <el-form-item label="临期价(元)">
               <el-input-number
                 :model-value="
-                  form.nearExpiryPriceCents == null ? undefined : centsToYuanNumber(form.nearExpiryPriceCents)
+                  form.nearExpiryPriceCents == null
+                    ? undefined
+                    : centsToYuanNumber(form.nearExpiryPriceCents)
                 "
                 :min="0.01"
                 :step="0.1"
@@ -592,7 +590,13 @@ import {
   officialUnitTail,
   toEnglishSpecUnit
 } from '@/utils/barcode-spec-clean';
-import { yuanToCents, yuanText, yuanTextZero, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
+import {
+  yuanToCents,
+  yuanText,
+  yuanTextZero,
+  centsToYuanFixed,
+  centsToYuanNumber
+} from '@/utils/display';
 import { validateImageFile } from '@/utils/upload-validate';
 import type {
   BarcodeLookupDto,
@@ -1158,9 +1162,12 @@ function openEdit(row?: SkuCatalog) {
     form.unit = row.unit || '件';
     form.packQty = row.packQty ?? 1;
     form.priceYuan = centsToYuanNumber(row.priceCents);
-    form.costYuan = row.purchaseCostCents == null ? undefined : centsToYuanNumber(row.purchaseCostCents);
-    form.minPriceYuan = row.minPriceCents == null ? undefined : centsToYuanNumber(row.minPriceCents);
-    form.maxPriceYuan = row.maxPriceCents == null ? undefined : centsToYuanNumber(row.maxPriceCents);
+    form.costYuan =
+      row.purchaseCostCents == null ? undefined : centsToYuanNumber(row.purchaseCostCents);
+    form.minPriceYuan =
+      row.minPriceCents == null ? undefined : centsToYuanNumber(row.minPriceCents);
+    form.maxPriceYuan =
+      row.maxPriceCents == null ? undefined : centsToYuanNumber(row.maxPriceCents);
     form.category = normalizeCategoryToCode(row.category);
     form.weightGrams = row.weightGrams;
     form.status = row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';

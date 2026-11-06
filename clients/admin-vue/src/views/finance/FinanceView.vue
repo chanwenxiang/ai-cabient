@@ -173,9 +173,9 @@
               </el-table-column>
               <el-table-column label="毛利" min-width="110" align="center" class-name="col-money">
                 <template #default="{ row }">
-                  <span :class="{ warn: row.grossMarginCents < 0 }"
-                    >{{ yuanText(row.grossMarginCents) }}</span
-                  >
+                  <span :class="{ warn: row.grossMarginCents < 0 }">{{
+                    yuanText(row.grossMarginCents)
+                  }}</span>
                 </template>
               </el-table-column>
               <el-table-column
@@ -492,7 +492,11 @@ const chartOption = computed<EChartsOption | null>(() => {
         values: daily.value.map((d) => centsToYuanNumber(d.revenueCents)),
         color: DONUT_PALETTE[0]
       },
-      { name: '成本', values: daily.value.map((d) => centsToYuanNumber(d.cogsCents)), color: DONUT_PALETTE[1] },
+      {
+        name: '成本',
+        values: daily.value.map((d) => centsToYuanNumber(d.cogsCents)),
+        color: DONUT_PALETTE[1]
+      },
       {
         name: '毛利',
         values: daily.value.map((d) => centsToYuanNumber(d.grossMarginCents)),

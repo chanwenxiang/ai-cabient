@@ -479,7 +479,11 @@ const revenueOption = computed<EChartsOption | null>(() => {
   return seriesOption({
     labels: labels.value,
     series: [
-      { name: '营收', values: trend.value.map((d) => centsToYuanNumber(d.revenueCents)), color: '#2dd4bf' }
+      {
+        name: '营收',
+        values: trend.value.map((d) => centsToYuanNumber(d.revenueCents)),
+        color: '#2dd4bf'
+      }
     ],
     kind: revenueKind.value,
     formatY: (v) => formatYuan(v * 100),

@@ -165,9 +165,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }"
-                  >{{ yuanText(row.monthlyFeeCents) }}</template
-                >
+                <template #default="{ row }">{{ yuanText(row.monthlyFeeCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="起租"
@@ -314,9 +312,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }"
-                  >{{ yuanTextZero(row.amountCents) }}</template
-                >
+                <template #default="{ row }">{{ yuanTextZero(row.amountCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="状态"
@@ -384,9 +380,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }"
-                  >{{ yuanTextZero(row.amountCents) }}</template
-                >
+                <template #default="{ row }">{{ yuanTextZero(row.amountCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="状态"
@@ -705,7 +699,13 @@ import { Delete, Edit, Refresh, Share, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { yuanToCents, yuanText, yuanTextZero, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
+import {
+  yuanToCents,
+  yuanText,
+  yuanTextZero,
+  centsToYuanFixed,
+  centsToYuanNumber
+} from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import HelpTip from '@/components/HelpTip.vue';
 import AddressPicker from '@/components/AddressPicker.vue';
