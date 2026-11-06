@@ -27,7 +27,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
+              {{ listHydrated ? yuanTextZero(stats.revenueTodayCents) : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
@@ -217,7 +217,7 @@
           <ul v-if="orderChannelOption" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
+              {{ p.label }} {{ yuanTextZero(p.value) }}
               <span class="muted">（{{ p.count }} 单）</span>
             </li>
           </ul>
@@ -238,7 +238,7 @@
           <ul v-if="rechargeChannelOption" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
+              {{ p.label }} {{ yuanTextZero(p.value) }}
               <span class="muted">（{{ p.count }} 笔）</span>
             </li>
           </ul>
@@ -315,7 +315,7 @@
         <ChartPanel title="经营快照" compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">
-              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…' }}
+              {{ listHydrated ? yuanTextZero(stats.revenueTotalCents) : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="累计订单">
               {{ listHydrated ? stats.orderTotal || 0 : '…' }}
@@ -355,6 +355,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText, yuanTextZero, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
 import { computed, onMounted, ref, watch } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useRoute } from 'vue-router';
@@ -478,7 +479,7 @@ const revenueOption = computed<EChartsOption | null>(() => {
   return seriesOption({
     labels: labels.value,
     series: [
-      { name: '营收', values: trend.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' }
+      { name: '营收', values: trend.value.map((d) => centsToYuanNumber(d.revenueCents)), color: '#2dd4bf' }
     ],
     kind: revenueKind.value,
     formatY: (v) => formatYuan(v * 100),
@@ -519,8 +520,8 @@ const orderChannelOption = computed<EChartsOption | null>(() => {
   if (!parts.length || !parts.some((p) => p.value > 0)) return null;
   return donutOption({
     parts: parts.map((p) => ({ label: p.label, value: p.value, color: p.color })),
-    formatCenter: (cents) => (cents / 100).toFixed(2),
-    formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
+    formatCenter: (cents) => centsToYuanFixed(cents),
+    formatValue: (cents) => yuanText(cents),
     valueLabel: '金额'
   });
 });
@@ -530,8 +531,8 @@ const rechargeChannelOption = computed<EChartsOption | null>(() => {
   if (!parts.length || !parts.some((p) => p.value > 0)) return null;
   return donutOption({
     parts: parts.map((p) => ({ label: p.label, value: p.value, color: p.color })),
-    formatCenter: (cents) => (cents / 100).toFixed(2),
-    formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
+    formatCenter: (cents) => centsToYuanFixed(cents),
+    formatValue: (cents) => yuanText(cents),
     valueLabel: '金额'
   });
 });

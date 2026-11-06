@@ -210,7 +210,7 @@ import { useCrudTable } from '@/composables/useCrudTable';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { textOrNone, yuanTextZero as yuan, yuanToCents } from '@/utils/display';
+import { textOrNone, yuanTextZero as yuan, yuanToCents, centsToYuanFixed } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -301,7 +301,7 @@ const csvOptions: CrudCsvOptions = {
       row.nickname ?? '',
       roleLabel(row.role),
       row.verified ? '已实名' : '未实名',
-      ((row.balanceCents || 0) / 100).toFixed(2),
+      centsToYuanFixed(row.balanceCents),
       formatDateTime(row.createdAt)
     ])
 };

@@ -181,7 +181,7 @@
             <el-option
               v-for="c in couponDefs"
               :key="c.couponDefId"
-              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(2)}元）`"
+              :label="`${c.couponName}（${centsToYuanFixed(c.denominationCents)}元）`"
               :value="c.couponDefId"
             />
           </el-select>
@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextNone as yuan } from '@/utils/display';
+import { yuanTextNone as yuan, centsToYuanFixed } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { ElMessage } from 'element-plus';

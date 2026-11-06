@@ -111,7 +111,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">{{ (row.revenueCents / 100).toFixed(2) }}</template>
+            <template #default="{ row }">{{ centsToYuanFixed(row.revenueCents) }}</template>
           </el-table-column>
           <el-table-column
             prop="stockDays"
@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import { centsToYuanFixed } from '@/utils/display';
 import { ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose, Warning } from '@element-plus/icons-vue';
@@ -229,7 +230,7 @@ const csvOptions: CrudCsvOptions = {
       r.category || '',
       perfLabel(r.performanceLevel),
       r.salesQty,
-      (r.revenueCents / 100).toFixed(2),
+      centsToYuanFixed(r.revenueCents),
       r.stockDays ?? '',
       reviewLabel(r.reviewStatus),
       r.actionType || '',

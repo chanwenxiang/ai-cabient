@@ -1,137 +1,47 @@
 [
   {
     "file": "clients/admin-vue/src/views/analytics/AnalyticsView.vue",
-    "count": 11,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 2,
+    "reason": "非金额：图表 formatPct(v/100) 是百分比数值转比率（v 本身已是百分数），不是分→元"
   },
   {
     "file": "clients/admin-vue/src/views/analytics/FootfallView.vue",
-    "count": 5,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增（2026-11-04 货道热区读面移除，随删一处）"
+    "count": 1,
+    "reason": "非金额：单价除法 revenueCents/qtySold/100（除完才是单价，helper 只接受金额总额）"
   },
   {
     "file": "clients/admin-vue/src/views/dashboard/BigScreenView.vue",
-    "count": 5,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/dashboard/DashboardView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/disputes/DisputeListView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/exceptions/ExceptionListView.vue",
     "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "reason": "非金额：大屏轴标签 formatCenter 用 toFixed(0) 取整数元，现有 helper 只出两位小数"
   },
   {
     "file": "clients/admin-vue/src/views/finance/FinanceView.vue",
-    "count": 12,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 2,
+    "reason": "非金额：单价除法 revenueCents/qtySold/100 与 cogsCents/qtySold/100"
   },
   {
     "file": "clients/admin-vue/src/views/finance/LineManagerView.vue",
-    "count": 5,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/finance/LineRoutesView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 3,
+    "reason": "非金额：commissionRateBps→百分比（两处展示 + 一处表单回填），费率不是金额"
   },
   {
     "file": "clients/admin-vue/src/views/finance/MachinePayeeBillsView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/growth/PointsRedeemView.vue",
     "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/growth/SkuReviewView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/growth/UserAnalysisView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "reason": "非金额：shareBps→百分比提示文案，费率不是金额"
   },
   {
     "file": "clients/admin-vue/src/views/merchants/MerchantSplitsView.vue",
-    "count": 6,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/print/PrintView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/promotions/CouponsView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/reconciliation/ReconciliationView.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/reports/DeviceReportView.vue",
-    "count": 11,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 5,
+    "reason": "非金额：platformRateBps→百分比（展示/表单/导出五处），费率不是金额"
   },
   {
     "file": "clients/admin-vue/src/views/reports/SalesReportsView.vue",
-    "count": 7,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/sessions/SessionListView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/skus/SkuListView.vue",
-    "count": 9,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "count": 2,
+    "reason": "非金额：单价除法 revenue/orders/100 与 revenue/qty/100（导出用）"
   },
   {
     "file": "clients/admin-vue/src/views/system/OrgSitesView.vue",
-    "count": 9,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/users/UserListView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/views/warehouse/SupplierReconciliationView.vue",
-    "count": 1,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/components/device/DeviceAssetDeploymentCard.vue",
     "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/components/device/DevicePricingCard.vue",
-    "count": 3,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
-  },
-  {
-    "file": "clients/admin-vue/src/components/device/DeviceRelatedRecordsTab.vue",
-    "count": 2,
-    "reason": "存量分→元手算，待逐步改用 centsToYuanDigits/yuanTextZero；棘轮只减不增"
+    "reason": "非金额：shareBps→百分比（列表展示 + 表单回填），费率不是金额"
   }
 ]

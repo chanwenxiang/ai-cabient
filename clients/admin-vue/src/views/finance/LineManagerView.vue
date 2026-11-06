@@ -947,7 +947,7 @@ import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents, centsToYuanNumber } from '@/utils/display';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
 import {
   buildLineWithdrawReviewBody,
@@ -1116,7 +1116,7 @@ const promoForm = reactive({
 });
 /* 地推奖金同样按「元」录入、按「分」存储（后端契约不变） */
 const bountyYuan = computed({
-  get: () => (Number(promoForm.bountyCents) || 0) / 100,
+  get: () => centsToYuanNumber(promoForm.bountyCents),
   set: (v: number | undefined) => {
     promoForm.bountyCents = v == null ? 0 : Math.round(v * 100);
   }
@@ -1139,7 +1139,7 @@ const commissionPercent = computed({
   }
 });
 const commissionFixedYuan = computed({
-  get: () => (Number(form.commissionFixedCents) || 0) / 100,
+  get: () => centsToYuanNumber(form.commissionFixedCents),
   set: (v: number | undefined) => {
     form.commissionFixedCents = v == null ? 0 : Math.round(v * 100);
   }

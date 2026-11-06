@@ -268,7 +268,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { yuanTextZero as yuan, centsToYuanFixed } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import type { TableColumnCtx } from 'element-plus';
@@ -525,13 +525,13 @@ const { onExport: exportSelectedCsv } = useListCsv({
         r.dimLabel || '',
         orders,
         qty,
-        (revenue / 100).toFixed(2),
-        (refunded / 100).toFixed(2),
+        centsToYuanFixed(revenue),
+        centsToYuanFixed(refunded),
         Number(r.refundOrderCount || 0),
         revenue > 0 ? ((refunded / revenue) * 100).toFixed(1) : '',
-        (net / 100).toFixed(2),
-        ((r.cogsCents || 0) / 100).toFixed(2),
-        (margin / 100).toFixed(2),
+        centsToYuanFixed(net),
+        centsToYuanFixed(r.cogsCents),
+        centsToYuanFixed(margin),
         revenue > 0 ? ((margin / revenue) * 100).toFixed(1) : '',
         orders > 0 ? (revenue / orders / 100).toFixed(2) : '',
         qty > 0 ? (revenue / qty / 100).toFixed(2) : ''

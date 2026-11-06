@@ -487,7 +487,7 @@
                     <el-option
                       v-for="sku in skus"
                       :key="sku.skuId"
-                      :label="`${sku.skuName}（¥${((sku.priceCents ?? 0) / 100).toFixed(2)}）`"
+                      :label="`${sku.skuName}（${yuanTextZero(sku.priceCents)}）`"
                       :value="sku.skuId"
                     />
                   </el-select>
@@ -572,6 +572,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero } from '@/utils/display';
 import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {

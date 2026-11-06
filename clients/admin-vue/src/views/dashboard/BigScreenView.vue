@@ -219,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextNone as yuan } from '@/utils/display';
+import { yuanTextNone as yuan, centsToYuanNumber } from '@/utils/display';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -502,7 +502,7 @@ const trendOption = computed<EChartsOption | null>(() => {
       {
         name: '营收（元）',
         type: 'line',
-        data: days.map((d) => Math.round(d.revenueCents) / 100),
+        data: days.map((d) => centsToYuanNumber(Math.round(d.revenueCents))),
         yAxisIndex: 1,
         smooth: true,
         symbol: 'circle',
@@ -547,7 +547,7 @@ const categoryOption = computed<EChartsOption | null>(() => {
     dark: true,
     radius: ['58%', '82%'],
     formatCenter: (cents) => (cents / 100).toFixed(0),
-    formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
+    formatValue: (cents) => yuan(cents),
     valueLabel: '营收'
   });
 });
@@ -568,7 +568,7 @@ const regionOption = computed<EChartsOption | null>(() => {
     series: [
       {
         name: '今日营收（元）',
-        values: entries.map(([, v]) => Math.round(v) / 100),
+        values: entries.map(([, v]) => centsToYuanNumber(Math.round(v))),
         color: '#38bdf8',
         kind: 'bar'
       }
@@ -720,7 +720,7 @@ function goAction(item: OpsActionItem) {
 
 /* ---------- 格式化 ---------- */
 function yuanShort(cents: number) {
-  const v = cents / 100;
+  const v = centsToYuanNumber(cents);
   if (v >= 10000) return `¥${(v / 10000).toFixed(1)}w`;
   return `¥${v.toFixed(v >= 100 ? 0 : 2)}`;
 }

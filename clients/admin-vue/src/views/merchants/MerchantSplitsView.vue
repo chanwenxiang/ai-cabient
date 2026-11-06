@@ -790,6 +790,7 @@
 </template>
 
 <script setup lang="ts">
+import { centsToYuanFixed } from '@/utils/display';
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleCheck, Refresh, RefreshRight, Upload, User } from '@element-plus/icons-vue';
@@ -1149,7 +1150,7 @@ const { onExport: exportSplits } = useListCsv({
 });
 
 function money(cents?: number) {
-  return ((cents || 0) / 100).toFixed(2);
+  return centsToYuanFixed(cents);
 }
 
 function onExport() {

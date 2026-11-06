@@ -110,7 +110,7 @@ const monthDate = computed<Date | null>(() => {
  * CSV 导出：一行对账单 + 交叉验证说明，供与供应商线下核对（一期不做系统内收票登记）。
  *
  * 金额列要**纯数字**（表格软件直接求和/做差），所以走 `centsToYuanDigits` 而不是 `yuanText`：
- * 此前 7 处手写 `(cents / 100).toFixed(2)` 是第 4 套换算（负额、精度都与界面口径无关）。
+ * 此前 7 处手写分→元换算是第 4 套换算（负额、精度都与界面口径无关）。
  */
 function exportCsv() {
   const r = result.value;

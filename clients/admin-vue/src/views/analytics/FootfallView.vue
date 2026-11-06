@@ -34,7 +34,7 @@
           <div class="kpi-l">开门转化率</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-n">¥{{ ((data.overview.avgOrderValueCents ?? 0) / 100).toFixed(2) }}</div>
+          <div class="kpi-n">{{ yuanTextZero(data.overview.avgOrderValueCents) }}</div>
           <div class="kpi-l">客单价</div>
         </div>
         <div class="kpi-card">
@@ -53,7 +53,7 @@
           <div
             class="hour-bar"
             :style="{ height: barHeight(h.orders) }"
-            :title="`${h.hour} 时：${h.orders} 单 · ¥${(h.revenueCents / 100).toFixed(2)}`"
+            :title="`${h.hour} 时：${h.orders} 单 · ${yuanText(h.revenueCents)}`"
           />
           <span class="hour-label">{{ h.hour }}</span>
         </div>
@@ -114,7 +114,7 @@
             label-class-name="col-money"
           >
             <template #default="{ row }"
-              >¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template
+              >{{ yuanTextZero(row.revenueCents) }}</template
             >
           </el-table-column>
         </el-table>
@@ -149,7 +149,7 @@
             label-class-name="col-money"
           >
             <template #default="{ row }"
-              >¥{{ ((row.revenueCents ?? 0) / 100).toFixed(2) }}</template
+              >{{ yuanTextZero(row.revenueCents) }}</template
             >
           </el-table-column>
           <el-table-column
@@ -189,6 +189,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText, yuanTextZero } from '@/utils/display';
 import { computed, onMounted, ref } from 'vue';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { Refresh } from '@element-plus/icons-vue';

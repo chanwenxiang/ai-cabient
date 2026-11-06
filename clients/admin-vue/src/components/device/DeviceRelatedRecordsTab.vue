@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { yuanText, yuanTextZero } from '@/utils/display';
 import { View } from '@element-plus/icons-vue';
 import TableActions from '@/components/TableActions.vue';
 import type { OrderReadModel, SessionDto } from '@aicabinet/shared-types';
@@ -197,7 +198,7 @@ function sessionKindLabel(kind?: string | null) {
           </el-table-column>
           <el-table-column label="金额" width="100" class-name="col-money">
             <template #default="{ row }"
-              >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
+              >{{ yuanTextZero(row.totalAmountCents) }}</template
             >
           </el-table-column>
           <el-table-column label="优惠" width="88" class-name="col-money">
@@ -210,13 +211,12 @@ function sessionKindLabel(kind?: string | null) {
                   0
                 "
               >
-                -¥{{
-                  (
-                    (Number(row.couponDiscountCents || 0) +
+                {{
+                  yuanText(
+                    -(Number(row.couponDiscountCents || 0) +
                       Number(row.memberDiscountCents || 0) +
-                      Number(row.activityDiscountCents || 0)) /
-                    100
-                  ).toFixed(2)
+                      Number(row.activityDiscountCents || 0))
+                  )
                 }}
               </span>
               <span v-else class="muted">暂无</span>

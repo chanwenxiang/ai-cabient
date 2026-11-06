@@ -274,7 +274,7 @@
               label-class-name="col-money"
             >
               <template #default="{ row }"
-                >¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template
+                >{{ yuanTextZero(row.amountCents) }}</template
               >
             </el-table-column>
             <el-table-column
@@ -326,6 +326,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero } from '@/utils/display';
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { View } from '@element-plus/icons-vue';
@@ -415,8 +416,7 @@ const amountOnlyMismatch = computed(() => {
 function formatCents(cents: unknown) {
   const n = Number(cents ?? 0);
   if (!Number.isFinite(n)) return '¥0.00';
-  const sign = n < 0 ? '-' : '';
-  return `${sign}¥${(Math.abs(n) / 100).toFixed(2)}`;
+  return yuanTextZero(n);
 }
 
 function localDate() {

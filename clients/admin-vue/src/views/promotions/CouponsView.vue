@@ -390,7 +390,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { SwitchButton, Ticket, EditPen } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents, centsToYuanFixed } from '@/utils/display';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
@@ -680,8 +680,8 @@ function openEdit(row: OpenApiCouponDefinitionDto) {
   createForm.value = {
     couponName: row.couponName || '',
     couponType: row.couponType || 'AMOUNT_OFF',
-    denominationYuan: Number(((Number(row.denominationCents) || 0) / 100).toFixed(2)) || 1,
-    minSpendYuan: Number(((Number(row.minSpendCents) || 0) / 100).toFixed(2)),
+    denominationYuan: Number(centsToYuanFixed(row.denominationCents)) || 1,
+    minSpendYuan: Number(centsToYuanFixed(row.minSpendCents)),
     discountPercent: row.discountPercent ?? null,
     validityDays: row.validityDays || 30,
     maxIssueCount: row.maxIssueCount || 0,

@@ -166,15 +166,15 @@
                 label-class-name="col-status"
               />
               <el-table-column label="营收" min-width="110" align="center" class-name="col-money">
-                <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+                <template #default="{ row }">{{ yuanText(row.revenueCents) }}</template>
               </el-table-column>
               <el-table-column label="成本" min-width="110" align="center" class-name="col-money">
-                <template #default="{ row }">¥{{ (row.cogsCents / 100).toFixed(2) }}</template>
+                <template #default="{ row }">{{ yuanText(row.cogsCents) }}</template>
               </el-table-column>
               <el-table-column label="毛利" min-width="110" align="center" class-name="col-money">
                 <template #default="{ row }">
                   <span :class="{ warn: row.grossMarginCents < 0 }"
-                    >¥{{ (row.grossMarginCents / 100).toFixed(2) }}</span
+                    >{{ yuanText(row.grossMarginCents) }}</span
                   >
                 </template>
               </el-table-column>
@@ -235,6 +235,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
@@ -331,9 +332,9 @@ const csvOptions: CrudCsvOptions = {
       row.skuId,
       row.skuName,
       row.qtySold,
-      (row.revenueCents / 100).toFixed(2),
-      (row.cogsCents / 100).toFixed(2),
-      (row.grossMarginCents / 100).toFixed(2),
+      centsToYuanFixed(row.revenueCents),
+      centsToYuanFixed(row.cogsCents),
+      centsToYuanFixed(row.grossMarginCents),
       `${skuMarginRateDisplay(row)}`
     ])
 };
@@ -371,7 +372,7 @@ function kpiNavHint(ready: boolean, canNavigate: boolean, navigateLabel: string)
 }
 
 function financeKpiMoney(ready: boolean, cents: number) {
-  return ready ? `¥${(cents / 100).toFixed(2)}` : '…';
+  return ready ? yuanText(cents) : '…';
 }
 
 type FinanceKpiTile = {
@@ -488,13 +489,13 @@ const chartOption = computed<EChartsOption | null>(() => {
     series: [
       {
         name: '营收',
-        values: daily.value.map((d) => d.revenueCents / 100),
+        values: daily.value.map((d) => centsToYuanNumber(d.revenueCents)),
         color: DONUT_PALETTE[0]
       },
-      { name: '成本', values: daily.value.map((d) => d.cogsCents / 100), color: DONUT_PALETTE[1] },
+      { name: '成本', values: daily.value.map((d) => centsToYuanNumber(d.cogsCents)), color: DONUT_PALETTE[1] },
       {
         name: '毛利',
-        values: daily.value.map((d) => d.grossMarginCents / 100),
+        values: daily.value.map((d) => centsToYuanNumber(d.grossMarginCents)),
         color: DONUT_PALETTE[3]
       }
     ],

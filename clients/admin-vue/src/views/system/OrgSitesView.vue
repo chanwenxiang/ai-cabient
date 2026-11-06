@@ -166,7 +166,7 @@
                 label-class-name="col-status"
               >
                 <template #default="{ row }"
-                  >¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template
+                  >{{ yuanText(row.monthlyFeeCents) }}</template
                 >
               </el-table-column>
               <el-table-column
@@ -305,7 +305,7 @@
                 class-name="col-status"
                 label-class-name="col-status"
               >
-                <template #default="{ row }">¥{{ (row.baseFeeCents / 100).toFixed(2) }}</template>
+                <template #default="{ row }">{{ yuanText(row.baseFeeCents) }}</template>
               </el-table-column>
               <el-table-column
                 label="应付"
@@ -315,7 +315,7 @@
                 label-class-name="col-status"
               >
                 <template #default="{ row }"
-                  >¥{{ ((row.amountCents ?? 0) / 100).toFixed(2) }}</template
+                  >{{ yuanTextZero(row.amountCents) }}</template
                 >
               </el-table-column>
               <el-table-column
@@ -385,7 +385,7 @@
                 label-class-name="col-status"
               >
                 <template #default="{ row }"
-                  >¥{{ ((row.amountCents ?? 0) / 100).toFixed(2) }}</template
+                  >{{ yuanTextZero(row.amountCents) }}</template
                 >
               </el-table-column>
               <el-table-column
@@ -705,7 +705,7 @@ import { Delete, Edit, Refresh, Share, Tickets } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
-import { yuanToCents } from '@/utils/display';
+import { yuanToCents, yuanText, yuanTextZero, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import HelpTip from '@/components/HelpTip.vue';
 import AddressPicker from '@/components/AddressPicker.vue';
@@ -790,7 +790,7 @@ const contractCsv: CrudCsvOptions = {
       r.siteName,
       r.address || '',
       r.landlordName || '',
-      (r.monthlyFeeCents / 100).toFixed(2),
+      centsToYuanFixed(r.monthlyFeeCents),
       r.startDate || '',
       r.endDate || '',
       contractStatusLabel(r.status)
@@ -1132,7 +1132,7 @@ function openContract(row: SiteContractDto | null) {
     landlordPhone: row?.landlordPhone ?? '',
     startDate: row?.startDate ?? '',
     endDate: row?.endDate ?? '',
-    monthlyFeeYuan: (row?.monthlyFeeCents ?? 0) / 100,
+    monthlyFeeYuan: centsToYuanNumber(row?.monthlyFeeCents),
     remark: row?.remark ?? ''
   };
   contractVisible.value = true;
@@ -1203,7 +1203,7 @@ async function openRentSplit(row: SiteContractDto) {
         partyType: r.partyType,
         partyId: r.partyId || '',
         sharePct: Number(r.shareBps || 0) / 100,
-        fixedYuan: Number(r.fixedCents || 0) / 100,
+        fixedYuan: centsToYuanNumber(r.fixedCents),
         effectiveFrom: r.effectiveFrom || '',
         effectiveTo: r.effectiveTo || '',
         status: r.status || 'ACTIVE'

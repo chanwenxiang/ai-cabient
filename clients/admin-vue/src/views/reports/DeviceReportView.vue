@@ -220,7 +220,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">¥{{ (row.revenueTotalCents / 100).toFixed(2) }}</template>
+            <template #default="{ row }">{{ yuanText(row.revenueTotalCents) }}</template>
           </el-table-column>
           <el-table-column
             label="累计客单"
@@ -230,7 +230,7 @@
             label-class-name="col-status"
           >
             <template #default="{ row }"
-              >¥{{ ((row.avgOrderValueTotalCents || 0) / 100).toFixed(2) }}</template
+              >{{ yuanTextZero(row.avgOrderValueTotalCents) }}</template
             >
           </el-table-column>
           <el-table-column
@@ -248,7 +248,7 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">¥{{ (row.revenueTodayCents / 100).toFixed(2) }}</template>
+            <template #default="{ row }">{{ yuanText(row.revenueTodayCents) }}</template>
           </el-table-column>
           <el-table-column
             label="今日客单"
@@ -258,7 +258,7 @@
             label-class-name="col-status"
           >
             <template #default="{ row }"
-              >¥{{ ((row.avgOrderValueTodayCents || 0) / 100).toFixed(2) }}</template
+              >{{ yuanTextZero(row.avgOrderValueTodayCents) }}</template
             >
           </el-table-column>
           <el-table-column
@@ -284,6 +284,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText, yuanTextZero, centsToYuanNumber } from '@/utils/display';
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { View } from '@element-plus/icons-vue';
@@ -409,7 +410,7 @@ const dailyRevenueOption = computed<EChartsOption | null>(() => {
     series: [
       {
         name: deviceId.value ? '该柜机营收' : '全站营收',
-        values: labels.map((d) => (byDate.get(d) || 0) / 100),
+        values: labels.map((d) => centsToYuanNumber(byDate.get(d) || 0)),
         color: '#2dd4bf'
       }
     ],
@@ -474,13 +475,13 @@ const kpiTiles = computed(() => {
     },
     {
       label: '累计营收',
-      value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '…',
+      value: ready ? yuanText(sum.value.revenueTotal) : '…',
       accent: 'accent-violet',
       hint: ready ? pageHint || `订单 ${sum.value.orderTotal}` : UI_COPY.loading
     },
     {
       label: '今日营收',
-      value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '…',
+      value: ready ? yuanText(sum.value.revenueToday) : '…',
       accent: 'accent-blue',
       hint: ready ? pageHint : UI_COPY.loading
     }
@@ -524,11 +525,11 @@ const csvOptions: CrudCsvOptions = {
       row.currentTempC == null ? '' : `${row.currentTempC}°C`,
       row.firmwareVersion || '',
       row.orderTotal,
-      `¥${(row.revenueTotalCents / 100).toFixed(2)}`,
-      `¥${((row.avgOrderValueTotalCents || 0) / 100).toFixed(2)}`,
+      `${yuanText(row.revenueTotalCents)}`,
+      `${yuanTextZero(row.avgOrderValueTotalCents)}`,
       row.orderToday,
-      `¥${(row.revenueTodayCents / 100).toFixed(2)}`,
-      `¥${((row.avgOrderValueTodayCents || 0) / 100).toFixed(2)}`,
+      `${yuanText(row.revenueTodayCents)}`,
+      `${yuanTextZero(row.avgOrderValueTodayCents)}`,
       row.sessionTotal,
       row.sessionActive
     ])

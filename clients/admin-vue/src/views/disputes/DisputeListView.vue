@@ -602,7 +602,7 @@
                   <el-option
                     v-for="sku in skus"
                     :key="sku.skuId"
-                    :label="`${sku.skuName}（¥${((sku.priceCents || 0) / 100).toFixed(2)}）`"
+                    :label="`${sku.skuName}（${yuanTextZero(sku.priceCents)}）`"
                     :value="sku.skuId"
                   />
                 </el-select>
@@ -671,6 +671,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero, centsToYuanFixed } from '@/utils/display';
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -912,7 +913,7 @@ async function loadEmbedVideo(sessionId?: string, force = false, previewUrl?: st
 }
 
 function money(cents?: number) {
-  return ((cents || 0) / 100).toFixed(2);
+  return centsToYuanFixed(cents);
 }
 
 function evidenceCount(row: { evidence?: unknown[] | null }) {

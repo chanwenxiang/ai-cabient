@@ -37,9 +37,9 @@
                此前直接绑 overridePriceCents + precision=0，运营输 3.5 会被截成 3 分（¥0.03）。 -->
           <el-input-number
             v-if="canEdit"
-            :model-value="row.overridePriceCents == null ? undefined : row.overridePriceCents / 100"
-            :min="row.minPriceCents / 100"
-            :max="row.maxPriceCents / 100"
+            :model-value="row.overridePriceCents == null ? undefined : centsToYuanNumber(row.overridePriceCents)"
+            :min="centsToYuanNumber(row.minPriceCents)"
+            :max="centsToYuanNumber(row.maxPriceCents)"
             :precision="2"
             :step="0.5"
             :controls="false"
@@ -118,7 +118,7 @@
  * 低于进货成本仅黄色提示不阻断（拍板：清仓/引流打折放行，知情即可）。
  */
 import { toRef } from 'vue';
-import { yuanTextZero as yuan, yuanToCents } from '@/utils/display';
+import { yuanTextZero as yuan, yuanToCents, centsToYuanNumber } from '@/utils/display';
 import { useDevicePricing, type DevicePricingRow } from '@/composables/device/useDevicePricing';
 
 const props = defineProps<{

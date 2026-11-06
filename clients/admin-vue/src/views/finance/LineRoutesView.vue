@@ -250,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { yuanTextZero as yuan, centsToYuanNumber } from '@/utils/display';
 import { onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
@@ -551,7 +551,7 @@ async function onWalletAction(payload: { key: string; row: Wallet }): Promise<vo
 
 function openPayout(row: Wallet): void {
   activeWallet.value = row;
-  payoutYuan.value = Math.max(0.01, (row.balanceCents ?? 0) / 100);
+  payoutYuan.value = Math.max(0.01, centsToYuanNumber(row.balanceCents));
   payoutRemark.value = '';
   payoutRequestNo.value =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto

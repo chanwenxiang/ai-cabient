@@ -180,13 +180,13 @@
             </template>
           </el-table-column>
           <el-table-column label="售价" width="84" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
+            <template #default="{ row }">{{ yuanTextZero(row.priceCents) }}</template>
           </el-table-column>
           <el-table-column label="成本" width="84" align="center" class-name="col-money">
             <template #default="{ row }">
               {{
                 row.purchaseCostCents != null
-                  ? `¥${(row.purchaseCostCents / 100).toFixed(2)}`
+                  ? `${yuanText(row.purchaseCostCents)}`
                   : '无'
               }}
             </template>
@@ -486,7 +486,7 @@
             <el-form-item label="临期价(元)">
               <el-input-number
                 :model-value="
-                  form.nearExpiryPriceCents == null ? undefined : form.nearExpiryPriceCents / 100
+                  form.nearExpiryPriceCents == null ? undefined : centsToYuanNumber(form.nearExpiryPriceCents)
                 "
                 :min="0.01"
                 :step="0.1"
@@ -592,7 +592,7 @@ import {
   officialUnitTail,
   toEnglishSpecUnit
 } from '@/utils/barcode-spec-clean';
-import { yuanToCents } from '@/utils/display';
+import { yuanToCents, yuanText, yuanTextZero, centsToYuanFixed, centsToYuanNumber } from '@/utils/display';
 import { validateImageFile } from '@/utils/upload-validate';
 import type {
   BarcodeLookupDto,
@@ -709,8 +709,8 @@ const csvOptions: CrudCsvOptions = {
       row.unit || '件',
       row.operationScope ? operationScopeLabel(row.operationScope) : '未分类',
       sceneLimitsToCsv(row.sceneLimits),
-      ((row.priceCents || 0) / 100).toFixed(2),
-      row.purchaseCostCents == null ? '' : (row.purchaseCostCents / 100).toFixed(2),
+      centsToYuanFixed(row.priceCents),
+      row.purchaseCostCents == null ? '' : centsToYuanFixed(row.purchaseCostCents),
       categoryLabel(row.category) || '',
       skuStatusLabel(row.status),
       formatDateTime(row.createdAt),
@@ -1157,10 +1157,10 @@ function openEdit(row?: SkuCatalog) {
     form.spec = toEnglishSpecUnit(row.spec || '');
     form.unit = row.unit || '件';
     form.packQty = row.packQty ?? 1;
-    form.priceYuan = (row.priceCents || 0) / 100;
-    form.costYuan = row.purchaseCostCents == null ? undefined : row.purchaseCostCents / 100;
-    form.minPriceYuan = row.minPriceCents == null ? undefined : row.minPriceCents / 100;
-    form.maxPriceYuan = row.maxPriceCents == null ? undefined : row.maxPriceCents / 100;
+    form.priceYuan = centsToYuanNumber(row.priceCents);
+    form.costYuan = row.purchaseCostCents == null ? undefined : centsToYuanNumber(row.purchaseCostCents);
+    form.minPriceYuan = row.minPriceCents == null ? undefined : centsToYuanNumber(row.minPriceCents);
+    form.maxPriceYuan = row.maxPriceCents == null ? undefined : centsToYuanNumber(row.maxPriceCents);
     form.category = normalizeCategoryToCode(row.category);
     form.weightGrams = row.weightGrams;
     form.status = row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';

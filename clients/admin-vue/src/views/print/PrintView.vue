@@ -123,6 +123,7 @@
 </template>
 
 <script setup lang="ts">
+import { centsToYuanFixed } from '@/utils/display';
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -174,7 +175,7 @@ function nameOf(rows: Row[], keyField: string, nameField: string, id?: string) {
   return rows.find((r) => String(r[keyField]) === String(id))?.[nameField] || id;
 }
 function money(cents: number) {
-  return ((Number(cents) || 0) / 100).toFixed(2);
+  return centsToYuanFixed(cents);
 }
 
 function hasPrintableData(): boolean {

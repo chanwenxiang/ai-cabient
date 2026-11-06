@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { centsToYuanNumber } from '@/utils/display';
 import { computed } from 'vue';
 import AddressPicker from '@/components/AddressPicker.vue';
 import type { DeviceAssetForm } from '@/composables/device/useDeviceAsset';
@@ -44,13 +45,13 @@ const emit = defineEmits<{
  * 写回时四舍五入到分（避免 19.9 × 100 = 1989.99… 的浮点尾数）。
  */
 const depositYuan = computed({
-  get: () => (asset.value.depositCents == null ? undefined : asset.value.depositCents / 100),
+  get: () => (asset.value.depositCents == null ? undefined : centsToYuanNumber(asset.value.depositCents)),
   set: (v?: number) => {
     asset.value.depositCents = v == null ? undefined : Math.round(v * 100);
   }
 });
 const dataFeeYuan = computed({
-  get: () => (asset.value.dataFeeCents == null ? undefined : asset.value.dataFeeCents / 100),
+  get: () => (asset.value.dataFeeCents == null ? undefined : centsToYuanNumber(asset.value.dataFeeCents)),
   set: (v?: number) => {
     asset.value.dataFeeCents = v == null ? undefined : Math.round(v * 100);
   }

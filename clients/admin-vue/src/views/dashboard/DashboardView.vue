@@ -99,7 +99,7 @@
             :tabindex="canAccessPath('/finance') ? 0 : undefined"
             :aria-label="
               canAccessPath('/finance')
-                ? `今日营收 ${listHydrated ? '¥' + ((stats.revenueTodayCents || 0) / 100).toFixed(2) : '加载中'}`
+                ? `今日营收 ${listHydrated ? yuanTextZero(stats.revenueTodayCents) : '加载中'}`
                 : undefined
             "
             @click="goPath('/finance')"
@@ -108,7 +108,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
+              {{ listHydrated ? yuanTextZero(stats.revenueTodayCents) : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
@@ -282,6 +282,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanTextZero } from '@/utils/display';
 import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';

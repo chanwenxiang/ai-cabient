@@ -142,7 +142,7 @@
           >
             <template #default="{ row }">
               <span v-if="row.preauthCents"
-                >¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span
+                >{{ yuanText(row.preauthCents) }}</span
               >
               <div v-if="preauthStatusLabel(row.preauthStatus)" class="muted tiny">
                 {{ preauthStatusLabel(row.preauthStatus) }}
@@ -358,6 +358,7 @@
 </template>
 
 <script setup lang="ts">
+import { yuanText } from '@/utils/display';
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleClose, Clock, CopyDocument, VideoCamera, View } from '@element-plus/icons-vue';
