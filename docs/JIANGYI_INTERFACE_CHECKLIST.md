@@ -849,6 +849,34 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
 清理：新版没有删除商品接口，测试商品用旧版 `/merchant/product/delete` 清；7.11 的语义是
 「该层最终库存」，测试后要重新提交**真实在架清单**，否则该层商品会被下架。
 
+### 12B.2 门禁打开后的真跑留痕（2026-11-06，设备 `V9.10.860_ID-OK#CD_WB`）
+
+**门禁判据成立**：17:01 起探针 7.7/7.10 由 503 变 200。§7.6 真建档三发：雪碧→`NEED_PHONE`（41758）、
+康师傅→命中已有 41175、加多宝→**`READY`（41759）**。§7.11 单层提交 `historyNo=B261106615830001`，
+§7.12 约 **4 秒**到 `ready=true / APPLIED 1-1`。§7.13 `datas` 元素结构实测补出（文档缺）：
+`datas[].{floorNum, floorOrientation, dtos[].{productId, productName, salePrice, stock,
+stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePrice, mainImg}}`。
+
+**开门两腿分开验**（17:10 补货腿 / 18:06–18:08 消费腿）：
+
+| 腿 | 结果 | 证据 |
+|---|---|---|
+| 补货开门 `sendOpenStockDoor` | ✅ ack `completed=true` 121 ms | 会话 SHOPPING；前置=负责人 GPS 签到（`check_in_at/lat/lng`，表**无** `updated_at`） |
+| 消费者开门 17:04 / 17:06 | ❌ §4.2.7 上报 `摄像头打开失败` | `device_fault_order` id 12/13（与 10-30 升级前同一句话） |
+| 消费者开门 18:06:37 | 🟡 锁开但**没人拉门** | `lock OK` 18:06:40 → §4.2.8 `doorStatus=fail` 18:06:54（**拉门窗口约 14 s**）→ 会话 FAILED「将邑设备上报拉门失败」 |
+| 消费者开门 18:08:43 | 🟡 **全链跑通到识别**，识别置信度不足 | `lock OK` :45 → door-event OPEN :50 → 关门回执 :55 → §4.2.12 `errorMsg=人工复核`、`detail=开门后调光未确认:cam=1,reason=local_scene_change；原图证据不足，保留复核` :57 → 会话 DISPUTED（未扣款）→ STS :09:12 → `uploadVideoUrl` 落库 18:10:34（左+右双摄 mp4，10-30 以来第一批真视频） |
+
+**由此钉住的口径**：
+
+1. 🔴 摄像头打不开的故障**已由厂商本次升级消除**（18:06 起 `device_fault_order` 零新增）。剩余卡点从「硬件打不开」变成「识别置信度不足→转人工复核」。
+2. §4.2.8 的 fail **不等于故障**——设备开锁后等人拉门约 14 s，无人拉即上报 fail 并回锁；消费开门测试**必须有人在柜前拉门**，否则只能验到 `lock OK`。
+3. DISPUTED 是设计正确的收口：设备自报「原图证据不足」时我方**不采信、不扣款**，转人工复核结案（§12 争议结案走 CONFIRM）。
+4. `deviceInfo/getPValue`、`order/pValueByTransactionId` 本轮 **0 次调用** ⇒「开门后调光未确认」是设备内部自动曝光判定，与我方回 `data:null` **无关**（别再往我方回执上找原因）。
+5. 17:10 那轮补货会话由 `expireStaleRestockShoppingSessions` 在 30 分钟后自动关闭（17:41 CANCELLED「补货会话超时自动关闭」）——正常「完成/取消」路径同样会关会话，无需登记待办。
+
+**残留在厂商侧，下次真卖前必须处理**：柜机第 1 层现按测试清单同步为 6 件加多宝（41759），
+须按真实在架清单重提 §7.11；41758/41759 已建档，新版无删除接口。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）
