@@ -684,6 +684,25 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（MA-157 横向热区收口 + rollup 断包修复：「工具链活着」的判据换掉）
+
+- **admin 构建其实一直是坏的**：`build-admin.mjs` 抛 `Cannot find module '@rollup/rollup-win32-x64-msvc'`。根因是昨夜那次
+  `pnpm install --force` 被 :3100 dev server 锁住 esbuild 而 EPERM 中途退出，该 optional 二进制包目录只剩 `.node`，
+  `package.json` 没写回 ⇒ 按包名解析必失败；之后 pnpm 谎报 `Already up to date`。**type-check 走 esbuild、Java 走 Maven，
+  都不碰 rollup**，所以我先前那句「工具链活着」只对了一半。判据从此改成「真跑一次生产构建」（lessons #423）。
+- 修法是就地补而非重装：按结构判据全量扫 `.pnpm` 证明**只伤一个包**，再从 registry 取同版本 tarball、
+  `sha256sum` 比对盘上二进制（相同 ⇒ 坏的只是元数据），补回 `package.json`/`README.md`。**没动别人的 dev server**。
+- **MA-157（P2，台账唯一 open）收口**：merchant-mp `orders`/`settlements`/`cabinet-reports` 三页 `.aux-link` 横向热区
+  26–39px → `min-width: 88rpx`；settlements 原先零 padding（纵向 43.1px）补 `padding: 8rpx 4rpx` 对齐 orders 配方；
+  纵向统一 `min-height: 32rpx`（与伪元素 56rpx 合计 88 ⇒ 判据算得出）。
+  🔴 横向**不用负 inset**：这些 chip 横向相邻且 `gap` 仅 8rpx，负 inset 会让相邻热区互相重叠，比小热区更糟。
+  三页规则都在 release 产物里逐页 grep 到；`TOUCH_UNVERIFIABLE_BASELINE` 219→217 同笔下调（脚本对 216/218 两向都判红）。
+- 🔴 **新盲区（未修，待拍板）**：`check-mp-touch-target-ratchet.mjs:376` 对 `.css` 给空可点集、对 `.vue` 只抽内联 `<style>`，
+  而 17 个页面用 `<style scoped src="./x.page.css">` 外置样式 ⇒ 这些页面的可点类**一条都不进判据**
+  （cabinet-reports 的 `.aux-link` 在门禁两档清单里都查不到）。展开 `src=`/`@import` 后「不可验」档会一次性变多，
+  属基线重定，不是顺手能改的小修——细节记在 ISSUES.md MA-159 行。
+- 仍欠：MA-157 的 automator 真尺寸复测需微信开发者工具实例（用户侧），故「≥44.4px」以 11-04 那轮实测 + 本次静态可证为准。
+
 ### 2026-11-06（上线清单高水位订正；WarehouseService 的 N+1 判为不做）
 
 - `docs/DEPLOYMENT_CHECKLIST.md` §3.1 的 Flyway 高水位原文写 **V405**，仓内实际 **V446**

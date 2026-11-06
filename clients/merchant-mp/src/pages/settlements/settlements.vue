@@ -564,6 +564,13 @@ function onExport() {
 }
 .aux-link {
   position: relative;
+  /* MA-157：本页原先无任何 padding，纵向热区实测 43.1px、横向 33px 双双不达标。
+     padding 对齐 orders 页（实测同配方纵向 51.1px），横向用 min-width 而非负 inset——
+     负 inset 会和相邻可点元素热区重叠。 */
+  padding: 8rpx 4rpx;
+  min-width: 88rpx;
+  min-height: 32rpx;
+  text-align: center;
   font-size: var(--font-size-sm);
   color: var(--text-muted);
 }

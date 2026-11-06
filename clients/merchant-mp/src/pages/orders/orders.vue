@@ -630,6 +630,11 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
 .aux-link {
   position: relative;
   padding: 8rpx 4rpx;
+  /* MA-157：横向热区此前只靠内容撑开（实测 26–39px < 88rpx）。用 min-width 而非负 inset，
+     是因为这些 chip 横向相邻且间隙仅 8rpx——负 inset 会让相邻热区互相重叠，比小热区更糟。 */
+  min-width: 88rpx;
+  min-height: 32rpx;
+  text-align: center;
   font-size: var(--font-size-sm);
   color: var(--text-muted, #475569);
   flex-shrink: 0;

@@ -34,8 +34,13 @@ const MIN_TOUCH_RPX = 88;
  *   shared-uni app-button .app-btn--text 64、privacy-consent-modal .privacy-btn 80。
  * 2026-11-04 同一轮把这 8 处按「热区/视觉分离」修完（视觉尺寸不动、纵向热区扩到 88rpx、
  * 横向补 min-width: 88rpx 让判据可证）⇒ 本档归 0，改为「硬禁新增」。
- * 另一档 `UNVERIFIABLE_BASELINE`=219 是「量不出热区的可点类」（旧版当合规放行的那批），
+ * 另一档 `UNVERIFIABLE_BASELINE` 是「量不出热区的可点类」（旧版当合规放行的那批），
  * 不是都算 bug，而是没证据说达标；随页面改到就补显式尺寸/满宽，把基线往下调。
+ * 219→217（2026-11-06 MA-157）：merchant-mp orders/settlements 两页 `.aux-link` 补
+ * `min-width: 88rpx` + `min-height: 32rpx`（与伪元素纵向 56rpx 合计 88）后两条边都可证 ⇒ 出档。
+ * 🔴 同批发现新盲区：17 个页面用 `<style scoped src="./x.page.css">` 外置样式，本门禁只读
+ * `<style>` 内联块 ⇒ 那些页面的可点类**一条都不进判据**（cabinet-reports 的 `.aux-link` 即在此列）。
+ * 收口它会让不可验档一次性变多，属独立决策，未在本批动。
  */
 /**
  * 两条棘轮（都只减不增，2026-11-04 MA-159 之后分成两档）：
@@ -44,7 +49,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 219);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 217);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];

@@ -194,7 +194,11 @@
 .aux-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 60rpx;
+  /* MA-157：height 已显式（60+伪元素 56=116 可证），唯独横向无量可算；补 min-width 让判据成立，
+     实测本行宽 50px 已达标，此值只做下限兜底。 */
+  min-width: 88rpx;
   padding: 0 24rpx;
   border-radius: 999rpx;
   background: #f1f5f9;
