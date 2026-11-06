@@ -378,6 +378,16 @@ async function savePrice(p: MerchantSkuPricing) {
 }
 
 .history-btn {
+  /* MA-162：真机 68×25——宽度已达标（≥88rpx=45.76px），只有高度不够。
+     上下是卡片内边距与 44px 卡间距、无可点元素 ⇒ 纵向可放心扩；横向**不扩**，
+     左侧 8px 外就是柜机选择器（可点）。固定 width 只为让判据可证：border-box 下
+     不改变视觉宽，也不会像 min-width 那样撑内容盒把盒子左移（见 orders .filter-reset）。 */
+  position: relative;
+  box-sizing: border-box;
+  width: 130rpx;
+  min-height: 48rpx;
+  text-align: center;
+  white-space: nowrap;
   flex-shrink: 0;
   margin: 0;
   padding: 8rpx 20rpx;
@@ -387,6 +397,11 @@ async function savePrice(p: MerchantSkuPricing) {
   font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1.4;
+}
+.history-btn::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
 }
 
 .dialog-head {

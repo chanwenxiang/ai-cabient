@@ -49,7 +49,8 @@ const MIN_TOUCH_RPX = 88;
  * 从此以后这 17 页与内联样式页同权，新增可点目标必须能算出热区。
  * 303→302→300（2026-11-06 MA-162）：第一刀 disputes `.reply-btn`；第二刀 prep-list `.tool-link` 与
  * self-replenish `.hint`；第三刀 orders `.filter-reset`（受上游 aux-link 热区与下方导出按钮夹击，
- * 只能向上/右扩，且必须 border-box + 固定 width——min-width 撑的是内容盒，会左移撞热区）⇒ 300→299。
+ * 只能向上/右扩，且必须 border-box + 固定 width——min-width 撑的是内容盒，会左移撞热区）；
+ * 第四刀 pricing `.history-btn`（宽已达标、只补高度）⇒ 299→298。
  */
 /**
  * 两条棘轮（都只减不增，2026-11-04 MA-159 之后分成两档）：
@@ -58,7 +59,7 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 299);
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 298);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];

@@ -701,6 +701,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **第三刀已落**：`orders .filter-reset` 34×22 ⇒ 真机 **49.6×47 PASS、与 aux-link 和导出按钮零相交**；门禁 300→**299**。
   🔴 第一版 `min-width` 失败——它作用在**内容盒**，配合 `margin-left:auto` 会把盒子整体左移 12px 撞进上行 aux-link 的热区；
   正解是 `box-sizing: border-box` + 固定 `width`（≈原视觉宽），宽度可证且不位移。
+- **第四刀已落**：`pricing .history-btn` 68×25 ⇒ 真机 **67×47.9 PASS、与柜机选择器零相交**；门禁 299→**298**。
+  这条宽度本来就达标，只补纵向（`min-height` + 纵向 `inset`），横向不扩。
 
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 
