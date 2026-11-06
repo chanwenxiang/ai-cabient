@@ -693,6 +693,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 修法不能一刀切：纵向负 inset 受行距约束（`.line-row` 空档 32rpx ⇒ 每侧 ≤16rpx）、横向受相邻 gap 约束（MA-157 的教训）；
   每条先核容器几何再选「抬视觉 / 补 min-* / 不对称 inset」，用 `.tmp/ratchet-303-runtime.mjs` 复测「≥88rpx 且相邻零相交」。
   清单、优先级与复现配方见 ISSUES.md **MA-162**（open）。
+- **第一刀已落**：`disputes .reply-btn` 补 `min-width: 88rpx` + `min-height: 48rpx` + `::after inset:-22rpx 0`，
+  门禁不可验 303→**302**；真机实测 32 处全 **67×54.9 PASS、零相交**（原 44×22）。
 
 ### 2026-11-06（热区门禁收口外置样式：不可验 217→303，判据变严后的重定）
 

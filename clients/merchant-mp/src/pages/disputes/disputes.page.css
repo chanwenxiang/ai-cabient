@@ -140,12 +140,24 @@
 }
 .reply-btn {
   flex-shrink: 0;
+  /* MA-162：真机实测 44×22（< 88rpx=45.76px）。横向补 min-width 让药丸真实变宽；
+     纵向靠负 inset 外扩——`.card-foot` 上下只有边框与卡片内边距、无相邻可点元素，
+     左侧 `.card-id` 是 flex:1 的不可点文本 ⇒ 两侧扩展都不会抢别人的点击。 */
+  position: relative;
+  min-width: 88rpx;
+  min-height: 48rpx;
+  text-align: center;
   padding: 8rpx 22rpx;
   border-radius: var(--radius-pill);
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--white);
   background: var(--brand);
+}
+.reply-btn::after {
+  content: '';
+  position: absolute;
+  inset: -22rpx 0;
 }
 .reply-btn--ghost {
   color: var(--brand);
