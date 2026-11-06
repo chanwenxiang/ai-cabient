@@ -45,7 +45,7 @@
 ## 建议首期切片
 
 ```
-C10b（easycom 直指 package）与 M9 对齐（mp 风险知情延后）；C9 保持 deferred
+C10b（easycom 直指 package）**已收口（2026-11-06 逐条核实）**：`pages.json` easycom 8 个组件（app-nav-bar / app-button / app-underline-tabs / empty-state / error-state / pay-score-tag / help-tip / list-skeleton）全部指向 `@aicabinet/shared-uni/components/*`，`src/components/` 只剩 8 个业务组件（HomeCartBar、HomeLanding、device-ad-banner、live-cart-sheet、marketing-ad-banner、open-prep-drawer、order-appeal-sheet、wx-ad-slot）；`privacy-consent-modal` 走显式 import 不经 easycom。证据：`sync-shared-uni-components --check` 自报「9 组件均直指 package，2 端无本地副本（C10b/M9 收口）」、`style-full-audit --check` 0 副本、`npm run build:mp-weixin` RC=0 且产物里 app-button.* 等共享组件成对生成、`check:mp-scoped-hash` OK。C9 保持 deferred
 ```
 
 **C5 首刀边界**：只抽无 UI 的会话/开门 composable；**禁止**同 PR 改落地页布局与视觉。  

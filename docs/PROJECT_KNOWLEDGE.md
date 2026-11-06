@@ -628,8 +628,8 @@ gross − member − activity − coupon = total      （部分退款单例外�
 | G2 | 设备地图抖动若已修，总册尚无专行 | 确认根因后写入 lessons + 本 Changelog |
 | G3 | 部分 evidence 未回链到总册行号 | 修相关域时顺手补「门禁/文件」列 |
 | G4 | admin-vue 技术债 | D1–D25 **已清**（见 `admin-vue-debt-tracker`） |
-| G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
-| G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
+| G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；**C10b easycom→package 已收口（2026-11-06 核实）**：8 个 easycom 组件全指 `@aicabinet/shared-uni`，本地 `components/` 只剩业务组件，`sync-shared-uni-components --check` 与 `npm run build:mp-weixin`（RC=0，产物含共享组件、scoped 哈希成对）双证 |
+| G6 | merchant-mp 技术债 | M1–M12 **done**（M9 已于 2026-10-01 核实收口；本行旧写法「余 M9」是滞后记录） |
 | G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅ `3cc19429`、批 6 旧视频链 ✅ `cd74d31c`+`5c80a4c9`+`fac98345`、vision-async Kafka 链 ✅ `f30635ba`、`MinioVideoService` 死注入 ✅ `f7516c77`、`UPLOAD_STUCK` 扫描族 + `ops:session:upload` 权限码 ✅ V386、reserved Kafka SCRAM 用户 `vision` ✅ `aa9d409a`、自研 `edge/android-app` 整模块退役 ✅（分支 `chore/retire-android-app`，2026-10-18；批 6 待拍板的 android-app 多摄开关随整模块删除一并了结）（分支 `chore/dc27-remove-vision` 已 ff 合入 `dev`）。识别现役唯一入口 `POST /internal/v1/vision/edge-results`（HTTP；Kafka `aicabinet.vision.recognize.*` 已随 `f30635ba` 退役） |
 | G8 | 运营台内联分→元换算 | **已收口（2026-11-06）**：原条目写「98 处/32 文件」，现算实为 **107 处/27 文件**（数字过期两个方向）。按用户拍板「先收窄口径」：只换真金额展示 → 27 个文件改完，棘轮 **107 → 19**（9 文件），剩下的全部是**非金额**（bps 费率 `*Bps/100`、图表整数轴标签 `toFixed(0)`、单价除法 `revenueCents/qty/100`），逐条在白名单写明理由。负额口径顺带统一为 `-¥5.00` | `check:no-inline-money-math`（棘轮 + 清单腐烂双向）、`yuanText/centsToYuanFixed/centsToYuanNumber` |
 | G9 | 隔离栈 admin UI **浏览器里登录不了**（403 `Invalid CORS request`）：`docker-compose.full.yml:179` `CORS_ORIGIN:-http://localhost` 未跟 28080 端口重映射对齐 | 纯 API 驱动器不带 `Origin` ⇒ 测不出来。本轮只本机 `CORS_ORIGIN=http://localhost:28080` 临时绕过。**已落地（2026-11-06 复核，不再是待拍板）**：`docker-compose.uat-isolated.yml:26` 已钉 `CORS_ORIGIN: http://localhost:28080` ⇒ 隔离栈运营台开箱可用，无需再拍 |
@@ -683,6 +683,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-06（C10b 核实为「早已收口」：consumer easycom 已直指 package，欠的是台账）
+
+- 用户要求做 C10b。逐条核实后**代码无改动**：`clients/consumer-mp/src/pages.json` 的 easycom 8 个组件
+  已全部指向 `@aicabinet/shared-uni/components/*`（与 merchant 同款）；`src/components/` 只剩 8 个业务组件；
+  `privacy-consent-modal` 走显式 import。该配置最后一次改动是 `b68aa43a`（UI 统一 Phase 4），之后一直如此。
+- 三条独立证据：`sync-shared-uni-components --check` 自报「9 组件均直指 package，2 端无本地副本」、
+  `style-full-audit --check` 0 副本、`npm run build:mp-weixin` **RC=0**（产物里 app-button.* 等共享组件成对生成、
+  无 resolve 告警、`check-mp-scoped-hash` OK）。
+- ⇒ 「C10b 延迟」是 debt-tracker 的**滞后记录**（与 M9 同一形态：10-01 就已收口）。已订正 tracker 与 §10 G5/G6。
 
 ### 2026-11-06（G8 收口：admin 内联分→元 107→19，门禁口径收窄到「真金额」）
 
