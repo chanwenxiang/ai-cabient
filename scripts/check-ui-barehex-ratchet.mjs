@@ -27,9 +27,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-ui-barehex-ratchet]';
 const PRINT_ONLY = process.argv.includes('--print');
 
+/**
+ * 基线取「剥注释后」的真实计数。2026-11-06 接注释剥离时一并下调：
+ * admin hex3 47→40；mp hex6 1048→1026、hex3 79→69、rgba 166→161（合计 44 处伪命中来自注释文字）。
+ */
 const BASELINES = {
-  admin: { hex6: 251, hex3: 47, hex8: 1, rgba: 144 },
-  mp: { hex6: 1048, hex3: 79, hex8: 0, rgba: 166 }
+  admin: { hex6: 239, hex3: 40, hex8: 1, rgba: 144 },
+  mp: { hex6: 1026, hex3: 69, hex8: 0, rgba: 161 }
 };
 
 const ADMIN_GLOBS = [
@@ -108,13 +112,35 @@ function expandGlob(glob) {
   return files;
 }
 
-/** 统计一段文本的四类裸色值。 */
+/**
+ * 计数前剥注释：门禁量的是「代码里的裸色值」，注释里的 `#107`、`<!-- #fff -->` 不是色值。
+ * 2026-11-06 实测：两处 `lessons #107` 注释把 mp.hex3 顶到 81 > 基线 79，全仓注释内还有
+ * 28 处同类伪命中 ⇒ 不剥注释时，任何人写一句带 `#数字` 的留痕都会把这条棘轮判红。
+ * 🔴 `//` 只在**前面不是冒号**时才算行注释起点：否则 `url(https://cdn/x.png) #ffffff`
+ * 会被从 `//` 起整行吃掉，连带漏计后面的真色值（selftest 的 d.vue 专门钉这一条）。
+ */
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+const BLOCK_COMMENT_RE = /\/\*[\s\S]*?\*\//g;
+const LINE_COMMENT_RE = /(^|[^:])\/\/[^\n]*/gm;
+
+function stripComments(text) {
+  return (
+    text
+      .replace(HTML_COMMENT_RE, ' ')
+      // 块注释先于行注释剥：`// 见 /* ... */` 这类嵌套写法不留死角
+      .replace(BLOCK_COMMENT_RE, ' ')
+      .replace(LINE_COMMENT_RE, '$1')
+  );
+}
+
+/** 统计一段文本的四类裸色值（先剥注释，再匹配）。 */
 export function countColors(text) {
+  const code = stripComments(String(text));
   return {
-    hex6: (text.match(HEX6_RE) || []).length,
-    hex3: (text.match(HEX3_RE) || []).length,
-    hex8: (text.match(HEX8_RE) || []).length,
-    rgba: (text.match(RGB_RE) || []).length
+    hex6: (code.match(HEX6_RE) || []).length,
+    hex3: (code.match(HEX3_RE) || []).length,
+    hex8: (code.match(HEX8_RE) || []).length,
+    rgba: (code.match(RGB_RE) || []).length
   };
 }
 
@@ -141,15 +167,28 @@ function hasPath(counts, segment) {
   const fake = {
     'a.vue': '#2dd4bf #fff #ffffff rgba(0, 0, 0, 0.2) rgba(var(--x), 0.2)',
     'b.vue': 'no color here',
-    'c.css': '#FFFFFF #ABC #12345678'
+    'c.css': '#FFFFFF #ABC #12345678',
+    // 注释里的 `#107`/`#fff`/`#ABC`/`#123456` 一律不算；URL 里的 `//` 不得吃掉后面的真色值
+    'd.vue':
+      '/* 见 lessons #107 与 #fff 的说明 */\n' +
+      'background: url(https://cdn.example.com/a.png) #ffffff; // 尾注 #123456 不算\n' +
+      '<!-- 模板注释里的 #ABC 也不算 -->'
   };
   const agg = totalOf(
     Object.fromEntries(Object.entries(fake).map(([id, text]) => [id, countColors(text)]))
   );
-  if (agg.hex6 !== 3) fail(`selftest: hex6 应为 3，实际 ${agg.hex6}`);
+  if (agg.hex6 !== 4) fail(`selftest: hex6 应为 4，实际 ${agg.hex6}`);
   if (agg.hex3 !== 2) fail(`selftest: hex3 应为 2，实际 ${agg.hex3}`);
   if (agg.hex8 !== 1) fail(`selftest: hex8 应为 1，实际 ${agg.hex8}`);
   if (agg.rgba !== 1) fail(`selftest: rgba 应为 1（var() 用法不算），实际 ${agg.rgba}`);
+
+  // 剥注释三态各自钉死：剥多了（URL 吃掉真色值 ⇒ hex6 掉到 0）与剥少了（注释里的算进来）都要红。
+  const d = countColors(fake['d.vue']);
+  if (d.hex6 !== 1 || d.hex3 !== 0 || d.hex8 !== 0) {
+    fail(
+      `selftest: 注释剥离判据漂移（d.vue 应 hex6=1/hex3=0/hex8=0，实际 hex6=${d.hex6} hex3=${d.hex3} hex8=${d.hex8}）`
+    );
+  }
 
   // 负向：超基线必须报出、等于基线不得误报、components 路径必须能被识别。
   const above = { total: { hex6: 2, hex3: 0, hex8: 0, rgba: 0 } };
