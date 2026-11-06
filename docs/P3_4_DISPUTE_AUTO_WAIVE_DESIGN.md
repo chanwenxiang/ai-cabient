@@ -1,6 +1,9 @@
 # P3-4 争议「无证据超时自动免单」设计稿
 
-> **日期**：2026-10-01 ｜ **状态**：**已实施（2026-10-01 用户授权按建议判断；开关默认 OFF，dev 观察）**
+> **日期**：2026-10-01 ｜ **状态**：**已实施，2026-11-06 用户拍板「不自动免单，关闭」**——三层一致 OFF：
+> 参数配置 `dispute.auto_waive.enabled=false`（生效层，11-03 起就是 false）、compose env 也从 `"true"` 改 `"false"`
+> （消除「env 说开、实际没开」的误导源）、production 本就不设。实测 `operator_note='AUTO_WAIVE'` 仅 10-26(3)/11-02(3)，
+> 11-03 之后零新增 ⇒ 这功能从没在生产/日常数据里真的免过单。要重启须重新拍板。
 > **来源**：`docs/SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md` §6.3 / §14.1 P3-4——借鉴旧弹簧柜 `RyTask.refundForWaitingFall`（超 30s 未出货自动原路退款，`mis-quartz\RyTask.java:413-441`）的思想。
 > **纪律**：本文全部现状经源码核实（`文件:行号`）；资金路径必须有评审拍板后才实施。
 
