@@ -63,12 +63,6 @@ public class SessionCookieService {
         return resolveToken(request, Realm.ADMIN);
     }
 
-    /** @deprecated 请用 {@link #resolveToken(HttpServletRequest, Realm)}；默认消费者 Cookie。 */
-    @Deprecated
-    public String resolveToken(HttpServletRequest request) {
-        return resolveToken(request, Realm.CONSUMER);
-    }
-
     public String resolveToken(HttpServletRequest request, Realm realm) {
         if (!authProperties.cookieEnabled() || realm == null) {
             return null;
@@ -130,23 +124,11 @@ public class SessionCookieService {
         response.addCookie(createCookie(cookieName(realm), token, maxAge));
     }
 
-    /** @deprecated 请用带 Realm 的重载；默认写消费者 Cookie。 */
-    @Deprecated
-    public void writeSessionCookie(HttpServletResponse response, String token) {
-        writeSessionCookie(response, token, Realm.CONSUMER);
-    }
-
     public void clearSessionCookie(HttpServletResponse response, Realm realm) {
         if (realm == null) {
             return;
         }
         response.addCookie(createCookie(cookieName(realm), "", 0));
-    }
-
-    /** @deprecated 请用带 Realm 的重载；默认清消费者 Cookie。 */
-    @Deprecated
-    public void clearSessionCookie(HttpServletResponse response) {
-        clearSessionCookie(response, Realm.CONSUMER);
     }
 
     private static String cookieName(Realm realm) {

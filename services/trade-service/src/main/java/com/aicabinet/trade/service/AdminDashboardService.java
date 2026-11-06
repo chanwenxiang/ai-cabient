@@ -295,12 +295,6 @@ public class AdminDashboardService {
         return deviceAdminService.deviceDailyRevenue(operatorId, deviceId, days);
     }
 
-    /** @deprecated 兼容旧调用：返回全量列表 */
-    @Deprecated(since = "2026-08", forRemoval = false)
-    @SuppressWarnings("java:S1133")
-    public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
-        return deviceAdminService.deviceReports(operatorId);
-    }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {
         return auditQueryService.listAuditLogs(operatorId, page, size, logIdAsc);

@@ -684,6 +684,37 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（上线清单高水位订正；WarehouseService 的 N+1 判为不做）
+
+- `docs/DEPLOYMENT_CHECKLIST.md` §3.1 的 Flyway 高水位原文写 **V405**，仓内实际 **V446**
+  （V406…V445 是 10-30 之后的审计/货道退场批，V446 随 jy-v16 合入）⇒ 运营照清单核对会验错 41 个号。
+  已订正，并把**现算命令**写进条目本身（`ls db/migration | sed … | sort -n | tail -1`），
+  免得这个硬编码数字下次再腐烂——与「号一律现算」的既有铁律一致。
+- 🔴 **判为不做**：盘查报出的 `WarehouseService.managerDtosOf:1856` N+1。读码结论是该处
+  `warehouseManagerRepository.listByWarehouseId` 打的是**配置表**（个位数仓 × 每仓 1~3 人），
+  注释自己写了「N+1 可接受」；改 IN + group by 换来的是多一张分组映射的复杂度与一条新的判据，
+  **收益无法证明**（无实测延迟、无规模增长路径）⇒ 按「不给无法证明收益的改动开门」不动，
+  本条即结论，下次别再重新评估。
+- 同类被读码后排除的还有：`AdRevenueDaily`「未做换算」（微信 `income` 本就返分，是正确的不换算）、
+  `CouponDefinition.deviceScope`（已定案保留列）、`check-scheduling-vs-db-pool` 的「尚未实现」旧措辞
+  （自检类已存在，注释在描述已落地实现）。
+
+### 2026-11-06（死重载退场：5 个 `@Deprecated` 兼容方法全删——「兼容层」也要有可达性判据）
+
+- 盘查（两路 Explore + 自核）报出「main 零调用方的 `@Deprecated` 兼容层」，逐条按可达性复验后删除：
+  - `SessionCookieService.resolveToken(request)` / `writeSessionCookie(response, token)` /
+    `clearSessionCookie(response)`：三个单/双参重载全仓 0 调用点（含测试），且无 Spring 反射型注解；
+    带 `Realm` 的重载是唯一活路径，默认 CONSUMER 的旧语义留着只会让人误写错域（admin 会话被当消费者解）。
+  - `AdminDashboardService.deviceReports(operatorId)` → `OpsDeviceAdminService.deviceReports(operatorId)`：
+    **一条死链**——前者 0 调用点（控制器走分页版 `:565/:572`），后者唯一调用点就是前者。
+    两处都带 `@SuppressWarnings("java:S1133")`（"deprecated 代码应移除"）——规则早就提示过，没人收口。
+- 🔴 自我订正两处过程错误（都记进 lessons 方向）：① 第一次试图用空 `old_string` 做删除＝创建文件；
+  ② 删 `AdminDashboardService` 包装时我先把它内部改成调 6 参分页版（等于把死代码换成重复逻辑），
+  发现后回退为整块删除。**教训：删除类改动要一次到位「删整块」，不要顺手改写内部调用。**
+- 未删的同名方法：`MerchantDevicePortalService.deviceReports(userId)` / `MerchantPortalService.deviceReports(userId)`
+  是**商户侧活路径**（`:460` 自调、控制器 `:377` 在用），只是重名，不在本刀范围。
+- 验证：`test-compile` 绿；本批全量 `mvn -B verify` 见下条结果。
+
 ### 2026-11-06（账本对账：§12 五条过期「未做」就地标注 + 台账 MA-157/159/161 定性）
 
 - 起因：用户问「只有这三件待办吗」，两路只读盘查（文档台账 / 代码与门禁）回来后发现**活文档自己在骗人**：

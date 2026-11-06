@@ -353,13 +353,6 @@ public class OpsDeviceAdminService {
         );
     }
 
-    /** @deprecated 兼容旧调用：返回全量列表 */
-    @Deprecated(since = "2026-08", forRemoval = false)
-    @SuppressWarnings("java:S1133")
-    public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
-        return deviceReports(operatorId, 0, 10_000, null, null, null).items();
-    }
-
     /**
      * CB-018①：柜机×日营收序列。口径与设备报表「累计/今日营收」一致（SUM(total_amount_cents)
      * 不过滤状态），日序列求和可与累计对平；天数走 {@link OpsAnalyticsQueryService#normalizeTrendDays}
