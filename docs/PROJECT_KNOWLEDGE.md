@@ -694,8 +694,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
   部署解包只覆盖同名文件、**不删**已被仓库删掉的文件 ⇒ 23 个货道退场批删掉的源文件仍留在树里被 maven 编译
   （`RestockSnapshotService.java` 调 `DeviceSlotService.applyPhysicalSnapshot(...)`，两处都已随退场删除 ⇒
   `cannot find symbol`）。处理：整批 **`mv`** 到 `/data/apps/ai-cabinet-orphans-20261106/`（保留原相对路径，
-  未删、可逆），重建即 BUILD SUCCESS。⇒ **`deploy-prod.sh` 只清 admin 陈旧哈希资产、不清理已删源码**，
-  下次部署还会踩：建议给它补一步「按归档清单反向隔离孤儿（限 Dockerfile COPY 的源码目录）」。
+  未删、可逆），重建即 BUILD SUCCESS。
+- 🔴 **再订正（同一天，我上一条写错了）**：`deploy-prod.sh` **本来就有**「按 tar 清单清源码树陈旧文件」这一步
+  （2026-10-14 加、11-02 改过写法），不是漏做。真因是它**在错误的 cwd 里跑**：上一步清理 admin 资产时
+  `cd "$ADMIN_REL"` 之后**没有切回部署根**，于是 `find services clients …` 在 `static/admin` 里一颗都不命中
+  （`2>/dev/null` 把报错吞了）⇒ 这段清理自加入以来**一直静默空转**，日志里既不报「陈旧源码」也不报错。
+  修法（本次）：prune 前 `cd "$DIR"`，并把扫描结果落文件后**断言扫描数 > 0**（0 个就 `exit 1`，不接受空转当完成）。
+  已在服务器上做了双向实证：旧 cwd 扫描数 **0**、新 cwd 扫描 **3213** 并正确清掉探针文件；`bash -n` 通过。
 - 🔴 **既有缺陷（非本次引入，被部署后的日志抓到）**：`SkuReviewScheduler:36` 调 `runReview(null, 30)`，
   而 `runReview` 是 `@Transactional` 且无条件写审计 ⇒ `admin_audit_log.operator_id` 违反 NOT NULL(+FK user_info)
   ⇒ **整轮事务回滚，每天的选品下架复核一行都没落库**（服务器日志 5 条 ERROR 全是 `SKU_DELIST_REVIEW_RUN`）。

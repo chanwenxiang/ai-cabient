@@ -83,7 +83,18 @@ echo "✅ 解包完成，admin 资产 $(find . -type f | wc -l) 个文件"
 # 2026-10-14 教训：解包只叠加，上一版部署遗留的旧 .java/.sql 会进服务器编译
 # （本次：要货下线删掉的旧测试文件让现场 mvn 编译挂）。按 tar 清单清理源码树残留。
 # 2026-11-02 修：不要依赖 comm 的目录/排序；逐文件 grep -Fxq，兼容空格文件名。
+# 🔴 2026-11-06 修：上面 admin 清理把 cwd 切到了 $ADMIN_REL 且**从没切回来** ⇒ 本段 find 在
+#    static/admin 里找 services/clients/… 一颗都不命中（stderr 又被 2>/dev/null 吞掉），
+#    于是「陈旧源码清理」自 10-14 加入以来一直静默空转：本次 23 个货道退场孤儿让现场 mvn 编译失败。
+cd "$DIR"
 tar -tzf "/data/apps/prod-src-${SHA}.tar.gz" | grep -v '/$' | grep -v '^$' | sort -u > /tmp/src-keep.txt
+find services clients packages scripts edge proto -type f \( -name '*.java' -o -name '*.sql' -o -name '*.xml' -o -name '*.ts' -o -name '*.vue' -o -name '*.mjs' -o -name '*.py' \) -print0 2>/dev/null > /tmp/src-scan.bin
+SRC_SCANNED=$(tr -cd '\0' < /tmp/src-scan.bin | wc -c)
+# 扫到 0 个文件 = cwd/根目录写错，必须红：否则「清理干净」与「根本没扫」长得一模一样
+if [ "$SRC_SCANNED" -eq 0 ]; then
+  echo "❌ 源码树清理扫到 0 个文件（cwd=$(pwd)）——拒绝把空转当完成"
+  exit 1
+fi
 SRC_STALE=0
 while IFS= read -r -d '' f; do
   if grep -Fxq -- "$f" /tmp/src-keep.txt; then
@@ -93,10 +104,10 @@ while IFS= read -r -d '' f; do
     rm -f -- "$f"
     SRC_STALE=$((SRC_STALE + 1))
   fi
-done < <(find services clients packages scripts edge proto -type f \( -name '*.java' -o -name '*.sql' -o -name '*.xml' -o -name '*.ts' -o -name '*.vue' -o -name '*.mjs' -o -name '*.py' \) -print0 2>/dev/null)
-rm -f /tmp/src-keep.txt
-[ "$SRC_STALE" -gt 0 ] && echo "已清理 ${SRC_STALE} 个陈旧源码文件"
-echo "✅ 服务器源码就绪"
+done < /tmp/src-scan.bin
+rm -f /tmp/src-keep.txt /tmp/src-scan.bin
+[ "$SRC_STALE" -gt 0 ] && echo "已清理 ${SRC_STALE} 个陈旧源码文件（扫描 ${SRC_SCANNED} 个）"
+echo "✅ 服务器源码就绪（扫描 ${SRC_SCANNED} 个源文件）"
 REMOTE
 echo "✅ 服务器源码就绪"
 
