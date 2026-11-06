@@ -2952,9 +2952,9 @@ function stopDevicePoll() {
   inset: -22rpx;
 }
 .stepper-btn.minus {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1.5rpx solid #94a3b8;
+  background: var(--page-bg);
+  color: var(--text-primary);
+  border: 1.5rpx solid var(--text-subtle);
 }
 .stepper-btn.plus {
   background: var(--brand, #0d9488);

@@ -4,5 +4,6 @@
 #   docker compose -p ai-cabinet -f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml -f infra/docker-compose.uat.yml up -d --no-deps --force-recreate trade-service
 services:
   trade-service:
+    stop_grace_period: 60s
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet_uat

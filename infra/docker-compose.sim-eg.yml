@@ -1,0 +1,8 @@
+# UAT 切栈补充（2026-11-04）：模拟柜切到 EG307002410770（扫码测试柜）+ 购物窗 120s。
+# 切回 dev：删掉本文件后重建 device-simulator。
+services:
+  device-simulator:
+    stop_grace_period: 30s
+    command: ["EG307002410770", "tcp://emqx:1883"]
+    environment:
+      AICABINET_SIM_SHOPPING_MS: "120000"
