@@ -100,6 +100,32 @@ class SkuDelistReviewServiceTest {
                 .insert(org.mockito.ArgumentMatchers.argThat(r -> r != null && "SKU-B".equals(r.getSkuId())));
     }
 
+    /**
+     * 🔴 定时任务（SkuReviewScheduler）没有登录人 ⇒ 传 null；而审计行 operator_id 是 NOT NULL + FK(user_info)，
+     * 透传 null 会让整轮事务抛约束错并回滚（2026-11-06 服务器实测：SKU_DELIST_REVIEW_RUN 连续 5 条 ERROR，
+     * 选品复核每天一行都没落库）⇒ 必须归一到系统操作人 0。
+     * 负向漂移：把 runReview 改回直接透传 operatorId，本断言立刻红。
+     */
+    @Test
+    void runReview_nullOperatorFromScheduler_shouldAuditAsSystemOperator() {
+        SkuDelistReviewService service = service();
+        when(lineRepository.skuBreakdownSince(any())).thenReturn(List.<Object[]>of());
+        when(inventoryRepository.findAllLimit(5000)).thenReturn(List.of());
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐", "ACTIVE")));
+        when(reviewRepository.findBySkuId(anyString())).thenReturn(Optional.empty());
+        when(reviewRepository.findAll()).thenReturn(List.of());
+
+        service.runReview(null, 30);
+
+        verify(auditService).appendLog(
+                org.mockito.ArgumentMatchers.eq(0L),
+                org.mockito.ArgumentMatchers.eq("SKU_DELIST_REVIEW_RUN"),
+                org.mockito.ArgumentMatchers.eq("SKU_DELIST_REVIEW"),
+                org.mockito.ArgumentMatchers.eq("-"),
+                org.mockito.ArgumentMatchers.eq("days=30,rows=0"));
+    }
+
     @Test
     void list_shouldExcludeRowsOfInactiveSkus() {
         SkuDelistReviewService service = service();

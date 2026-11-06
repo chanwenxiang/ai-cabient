@@ -69,12 +69,15 @@ public class SkuDelistReviewService {
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
     @Transactional
     public List<SkuDelistReviewDto> runReview(Long operatorId, int days) {
+        // 🔴 定时任务（SkuReviewScheduler）没有登录人，传 null；而审计行 operator_id 是 NOT NULL + FK(user_info)，
+        // 直接透传会让整轮事务回滚、选品复核一行都不落库。归一到系统操作人（0）与其余系统写入同口径。
+        long actor = operatorId == null ? SystemConfigService.SYSTEM_OPERATOR_ID : operatorId;
         if (!distributedLockService.tryLock(REVIEW_BATCH_LOCK_KEY, 120, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "选品评审刷新中，请稍后重试");
         }
         try {
             List<SkuDelistReviewDto> rows = doRunReview(days);
-            auditService.appendLog(operatorId, "SKU_DELIST_REVIEW_RUN", "SKU_DELIST_REVIEW", "-",
+            auditService.appendLog(actor, "SKU_DELIST_REVIEW_RUN", "SKU_DELIST_REVIEW", "-",
                     "days=" + days + ",rows=" + rows.size());
             return rows;
         } finally {

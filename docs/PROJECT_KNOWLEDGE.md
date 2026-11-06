@@ -684,6 +684,28 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-06（服务器部署到 V447 完成；顺带揪出「解包不删孤儿源码」与「调度器写审计传 null」两个真问题）
+
+- **部署结果**：`deploy-prod.sh` 把 HEAD 推到 `120.25.246.179`，Flyway **V434→V447**（13 个号，0.048s），
+  容器 `healthy`（~36s），对外 `admin=200 / captcha=200 / jiangyi=200`（网关 `127.0.0.1:8180`），
+  巡检任务行已入库（`enabled=true last=SUCCESS 未启用（env 兜底关闭）`）。部署前备份
+  `/var/backups/aicabinet/20261106-141414/aicabinet.dump`（1.2 MB）；表数 179 不变、`scheduled_task` 42→43。
+- 🔴 **首次构建失败的真因：服务器源码树里的「孤儿文件」**。服务器 `/data/apps/ai-cabinet` **没有 `.git`**，
+  部署解包只覆盖同名文件、**不删**已被仓库删掉的文件 ⇒ 23 个货道退场批删掉的源文件仍留在树里被 maven 编译
+  （`RestockSnapshotService.java` 调 `DeviceSlotService.applyPhysicalSnapshot(...)`，两处都已随退场删除 ⇒
+  `cannot find symbol`）。处理：整批 **`mv`** 到 `/data/apps/ai-cabinet-orphans-20261106/`（保留原相对路径，
+  未删、可逆），重建即 BUILD SUCCESS。⇒ **`deploy-prod.sh` 只清 admin 陈旧哈希资产、不清理已删源码**，
+  下次部署还会踩：建议给它补一步「按归档清单反向隔离孤儿（限 Dockerfile COPY 的源码目录）」。
+- 🔴 **既有缺陷（非本次引入，被部署后的日志抓到）**：`SkuReviewScheduler:36` 调 `runReview(null, 30)`，
+  而 `runReview` 是 `@Transactional` 且无条件写审计 ⇒ `admin_audit_log.operator_id` 违反 NOT NULL(+FK user_info)
+  ⇒ **整轮事务回滚，每天的选品下架复核一行都没落库**（服务器日志 5 条 ERROR 全是 `SKU_DELIST_REVIEW_RUN`）。
+  修法：在 `runReview` 入口归一到 `SystemConfigService.SYSTEM_OPERATOR_ID (0L)`（`user_info` 确有 0 号，
+  且 `SystemConfigService:826` 就是这么写的）；配钉测 `runReview_nullOperatorFromScheduler_shouldAuditAsSystemOperator`，
+  已做变异验证（改回直接透传 ⇒ 该断言立刻红）。
+- 同类**未修**（留作下一小批，同一根因）：`DeviceRentalService:610/631` 欠租锁柜/解锁传 null ⇒
+  「动作已生效但审计被 catch 吞掉、摘要少计」；`MerchantWithdrawService:560` 备付拦截传 null ⇒ 直接抛异常。
+  统一做法建议：要么一律走 `SYSTEM_OPERATOR_ID`，要么在 `AdminAuditService.appendLog` 单点归一（二选一，别两边都写）。
+
 ### 2026-11-06（D5 前提订正：`/vision-mappings` 不是旧 YOLO 面，是活的将邑映射入口 ⇒ 不退场；附活栈取证数字）
 
 - 🔴 **定性推翻**（我今天上午自己写的「D5 旧 YOLO/阿里云识别映射管理面仍在线」）：
