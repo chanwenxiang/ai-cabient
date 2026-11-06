@@ -631,7 +631,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 | G5 | consumer-mp 技术债 | C1–C12 **done**（C9 deferred）；余 **C10b** easycom→package（mp 风险知情延后） |
 | G6 | merchant-mp 技术债 | M1–M12 **done**（除 M9）；余 **M9** 与 C10b 对齐 |
 | G7 | ~~灰度真金 vision~~ | **拍板 2026-10-11、实删 2026-10-17**：批 3 `vision-service/` 整目录 ✅ `d83a9380`、批 2 重力兜底/dev-cart 结算短路 + `settlement.recognition_mode` + `aicabinet.gravity-fallback-settle` ✅ `3cc19429`、批 6 旧视频链 ✅ `cd74d31c`+`5c80a4c9`+`fac98345`、vision-async Kafka 链 ✅ `f30635ba`、`MinioVideoService` 死注入 ✅ `f7516c77`、`UPLOAD_STUCK` 扫描族 + `ops:session:upload` 权限码 ✅ V386、reserved Kafka SCRAM 用户 `vision` ✅ `aa9d409a`、自研 `edge/android-app` 整模块退役 ✅（分支 `chore/retire-android-app`，2026-10-18；批 6 待拍板的 android-app 多摄开关随整模块删除一并了结）（分支 `chore/dc27-remove-vision` 已 ff 合入 `dev`）。识别现役唯一入口 `POST /internal/v1/vision/edge-results`（HTTP；Kafka `aicabinet.vision.recognize.*` 已随 `f30635ba` 退役） |
-| G8 | 运营台仍有 **98 处**（32 个文件）`(cents / 100).toFixed(2)` 内联换算绕过 `yuanText`；双小程序已清零 | 渲染目前是对的（字面 `¥` + 纯数字），但负额会成 `¥-5.00`、且负数/空态口径与 `yuanText` 不一致。**只在该值可能为负时才算真缺陷**——2026-10-16 已把 5 处调账/提现确认串（输入框 `:min="-1000000"` 可为负）与 25 处重复 `¥` 收口；余量留作增量，动哪页顺手换成 `yuanText` 系 |
+| G8 | 运营台内联分→元换算 | **已收口（2026-11-06）**：原条目写「98 处/32 文件」，现算实为 **107 处/27 文件**（数字过期两个方向）。按用户拍板「先收窄口径」：只换真金额展示 → 27 个文件改完，棘轮 **107 → 19**（9 文件），剩下的全部是**非金额**（bps 费率 `*Bps/100`、图表整数轴标签 `toFixed(0)`、单价除法 `revenueCents/qty/100`），逐条在白名单写明理由。负额口径顺带统一为 `-¥5.00` | `check:no-inline-money-math`（棘轮 + 清单腐烂双向）、`yuanText/centsToYuanFixed/centsToYuanNumber` |
 | G9 | 隔离栈 admin UI **浏览器里登录不了**（403 `Invalid CORS request`）：`docker-compose.full.yml:179` `CORS_ORIGIN:-http://localhost` 未跟 28080 端口重映射对齐 | 纯 API 驱动器不带 `Origin` ⇒ 测不出来。本轮只本机 `CORS_ORIGIN=http://localhost:28080` 临时绕过。**已落地（2026-11-06 复核，不再是待拍板）**：`docker-compose.uat-isolated.yml:26` 已钉 `CORS_ORIGIN: http://localhost:28080` ⇒ 隔离栈运营台开箱可用，无需再拍 |
 | G10 | `POINTS_IDENTITY\|member 1` 累计 181 ≠ available+used+expired 149，**差 32 分**——**根因已查清并已修（2026-10-18 `959a4694`）** | 不是假阳性：`POINTS_BALANCE`（可用 vs Σ 流水）同行为绿。真因＝**退款扣回积分只减 `available_points`**（`MemberService:316-323`），既不记 `used_points` 也不动 `total_points`，而流水 `points_type` 只有 EARN/USE/EXPIRE 三值 ⇒ 扣回该归 `used` 桶却漏记。更危险的是 `fixPointsIdentity`(`DataConsistencyService:1692`) 的自动修复方向相反：**下调 `total_points`** 凑三桶（实测 181→149、H5 升级 gap 319→351），等于让运营一键改口径。另查出等级判定不看积分（`MemberService:150-174`），`min_points` 只当 H5 进度分母、`max_points` 全仓零读取（后台旋钮不生效）。取证 [evidence/points-identity-investigation-2026-10-18.md](evidence/audit-2026-10-13/trackC-admin/points-identity-investigation-2026-10-18.md)，**修法已拍板并落地**（A/D/E 三项全在 2026-10-18 `959a4694`，简报已转归档） [POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md](POINTS_IDENTITY_DECISION_BRIEF_2026-10-18.md)（建议 A 扣回记入 `used` + D 撤积分族自动回写 + E 撤 `max_points` 死旋钮）。**2026-11-06 现状复核（逐条读码，非采信台账）**：A 已落——`MemberService.java:336-348` 扣回同时 `setUsedPoints(+actual)` 并写 `pointsType=USE`/`sourceType=ORDER_REFUND` 流水，注释直引 CB-058；D 已落——`DataConsistencyService` 里 `fixPointsIdentity` **已不存在**，`POINTS_IDENTITY` 现仅巡检（`DataConsistencyService:581`）+ 陈旧失败清理；E 已落——`max_points`/`maxPoints` 在 `src/main` 的 Java/XML 里 **0 处读取**（只剩 V136/V163 历史迁移与列本身，属存量数据不是代码旋钮）。另「等级判定不看积分」经复核是**设计**而非缺陷：`calculateMemberLevel` 明写「累计消费与累计净充值两条口径取高（D1 储值等级）」，`min_points` 只做 H5 进度分母。🔴 **订正上一句**（2026-11-06 现算）：dev 库 `select count(*) from member where coalesce(total_points,0) <> coalesce(available_points,0)+coalesce(used_points,0)+coalesce(expired_points,0)` = **0** ⇒ 没有存量差要平，那条「遗留」不成立。G10 至此无遗留 |
 | G11 | `paid_amount_cents`（订单毛额列）vs `payment_operation` 净额**没有对账判据** | 2026-10-18 拍板「另起一轮」。落点仍是 `DataConsistencyService`，须复用 `PaymentOperationTypes` 单一事实源、并按教训 #325 做负向证明 |
@@ -683,6 +683,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 ---
 
 ## 12. Changelog（按日追加，新条目在上）
+
+### 2026-11-06（G8 收口：admin 内联分→元 107→19，门禁口径收窄到「真金额」）
+
+- 用户拍板「先收窄口径」：只换真金额展示（`yuanText` / `yuanTextZero` / `centsToYuanFixed` /
+  `centsToYuanNumber`），**bps 费率、图表整数轴标签、单价除法**留在白名单并逐条写理由。
+- 现算数字（别信 §10 旧行）：**107 处 / 27 文件** → **19 处 / 9 文件**，改完 27 个文件；
+  `vue-tsc --noEmit` RC=0（首轮漏 import 被抓出）、`check:no-inline-money-math` OK（棘轮+腐烂双向）。
+- 顺带统一负额口径为 `-¥5.00`（此前部分页是 `¥-5.00`）；空值沿用原 `|| 0` / `?? 0` 语义。
+- 关单页 `DeviceRelatedRecordsTab` 那处跨行 `(a+b+c) / 100` 之前门禁看得见、我的行扫描看不见 ——
+  改完用 gate 自报复核才发现，教训同「行扫描会漏跨行表达式」。
 
 ### 2026-11-06（服务器部署到 V447 完成；顺带揪出「解包不删孤儿源码」与「调度器写审计传 null」两个真问题）
 
