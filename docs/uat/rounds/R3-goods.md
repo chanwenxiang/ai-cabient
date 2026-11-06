@@ -42,3 +42,20 @@
 2. 采购审批定义启用时=双节点链（节点2=财务审批，待办箱 pendingTasks 驱动）；P2-4 的「无定义单步直过」分支仍在
 3. SKU 创建必填 sceneLimits（字典 device_scene_type：OFFICE/CAMPUS/FACTORY/HOSPITAL/TRANSIT/MALL）+ 字段名 maxQty
 4. curl 中文 JSON 必须 UTF-8 文件体（本晚第 4 次）
+
+## checkpoint 2（2026-11-07）✅ R3 主体全部收口
+
+### R3-C 盘点全链 ✅
+- 全量盘创建（mode 字段；PD20261107-001，bookQty=370）✓
+- 改实盘 SNACK 40→38 ✓ → complete-and-adjust → **ADJUSTED** ✓
+- 断言：台账 40→38 ✓（调整留痕=盘点单据行自身 bookQty/countedQty/diffQty）
+- **MA-103 回归 ✓**：无锁竞态已在批次修复中收口（行锁读已修，台账标注）
+
+### R3-D 调拨 + MA-157 回归 ✅
+- create（调入仓按 id 精确匹配——名称 404 教训）→ DRAFT ✓
+- cancel ✓ → **WH_TRANSFER_CANCEL 留痕在位**（MA-157 修复回归 ✓）
+- 顺带：cancel 端点=POST /cancel 非 DELETE（R3B 早期 405 是我动词用错）
+
+### R3 剩余转后续
+- 效期告警→拉货任务（uat 库 lot 行需设备绑定期批次，转 R6 定时轮一并）
+- 出库/领货链（铁律 80 措辞回归已由 selfpickup 门禁静态覆盖）
