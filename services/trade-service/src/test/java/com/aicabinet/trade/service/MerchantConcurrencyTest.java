@@ -70,7 +70,7 @@ class MerchantConcurrencyTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.upsertMerchant(1L,
                         new UpsertMerchantRequest("M-1", "测试商户", null, 1000, null,
-                                "ACTIVE", null, null, null, null, null, null)));
+                                "ACTIVE", null, null, null, null, null, null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }
@@ -89,7 +89,7 @@ class MerchantConcurrencyTest {
         assertThrows(ResponseStatusException.class,
                 () -> service.upsertMerchant(1L,
                         new UpsertMerchantRequest("M-2", "测试商户", null, 1000, null,
-                                "ACTIVE", null, null, null, null, null, null)));
+                                "ACTIVE", null, null, null, null, null, null, null, null)));
 
         verify(distributedLockService).unlock(MerchantService.merchantLockKey("M-2"));
     }
@@ -103,7 +103,7 @@ class MerchantConcurrencyTest {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.upsertMerchant(1L,
                         new UpsertMerchantRequest("MCH-EAST", "华东", null, 1000, null,
-                                "ACTIVE", null, null, null, null, null, null)));
+                                "ACTIVE", null, null, null, null, null, null, null, null)));
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
     }
