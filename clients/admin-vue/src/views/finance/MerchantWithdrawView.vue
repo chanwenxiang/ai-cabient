@@ -894,11 +894,12 @@ const adjustLoading = ref(false);
 async function loadAdjustTasks() {
   adjustLoading.value = true;
   try {
-    const inbox = await api.request<{ tasks?: AdjustTaskRow[] }>(
+    // MA-167：ApprovalInboxDto 的待办键是 pendingTasks（此前误读 tasks 恒空）
+    const inbox = await api.request<{ pendingTasks?: AdjustTaskRow[] }>(
       AdminEndpoints.approvalsInbox(50),
       'GET'
     );
-    adjustTasks.value = (inbox.tasks || []).filter(
+    adjustTasks.value = (inbox.pendingTasks || []).filter(
       (t) => t.bizType === 'MERCHANT_WALLET_ADJUST' && t.status === 'PENDING'
     );
   } catch {
