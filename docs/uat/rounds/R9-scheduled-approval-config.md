@@ -92,3 +92,22 @@ ops-exception-scanner、merchant-notify、scheduled-task-stale-monitor（37 个�
 5. **MA-165 商户提现资质编辑面**——否则首个真实商户提现即死锁（P1，可上线后尽快）
 6. **部署前跑一次 `POST /api/v2/ops/admin/consistency/run`** 作数据自检（R8/R9 双验证有效）
 7. 生产 env 补 `AICABINET_PAYOUT_ENCRYPTION_KEY`
+
+## 九、修复批次（2026-11-07 下午，同日收口）
+
+| 缺陷 | 修复 | 活栈回归 |
+|------|------|---------|
+| MA-164（P1 对账崩） | 实为修复 AI **b010ed13 已修**（早于 R9 报告 11 分钟合入，UAT 镜像 15:28 构建没带上→误报 open）；镜像重建后复验 | reconciliation **SUCCESS**（匹配 1 笔 MATCHED）+ 审计 operator=0 ✓ |
+| MA-165（P1 提现死锁） | **afcf3d83**：UpsertMerchantRequest/MerchantDto+MerchantSplitsView 表单+shared-types 补 `legalPerson`/`businessLicenseUrl`（不传不清空） | 无资质拒（复现）→API 写→DB 落库→提现过闸 **PAID** 全绿 ✓ |
+| MA-166（P2 调账死待办） | **afcf3d83**：`POST /merchant-withdraws/wallet-adjustments/{bizId}/review`（复用 completeApproved/Rejected）+ 运营台提现页「调账审批」tab | 调账建实例→运营审→财务审→**APPROVED** 全绿 ✓；驳回=留痕不自动冲回 |
+
+**顺带新增**：`POST /approvals/instances` 手动发起审批（startManual fail-loud：定义缺失 400/重复 409）——**后台新建审批流定义后零代码即可发起**（回归：未知定义 400、发起 ✓、重复 409 ✓）。运营台审批定义页新增「发起实例」行操作。
+
+**事故教训**：回归首轮全红——`docker compose up -d trade-service` 单 `-f` 丢掉 uat override 连回主库 aicabinet；须始终 `docker compose -f full.yml -f uat.yml` 双文件操作。
+
+## 十、更新后的上线前置（覆盖 §八）
+
+1. ~~MA-163 Hikari~~ → 修复 AI 待领（唯一 open 的本轮缺陷）
+2. ~~MA-164/165/166~~ → **已修已验**
+3. 部署前跑一次 `POST /consistency/run` 自检
+4. 生产 env：`AICABINET_PAYOUT_ENCRYPTION_KEY`
