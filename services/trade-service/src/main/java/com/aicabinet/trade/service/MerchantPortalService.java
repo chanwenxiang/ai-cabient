@@ -600,6 +600,7 @@ public class MerchantPortalService {
                 m.isAllowMerchantPricingEdit(),
                 m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
+                m.getLegalPerson(), m.getBusinessLicenseUrl(),
                 m.getCreatedAt(), m.getUpdatedAt()
         );
     }

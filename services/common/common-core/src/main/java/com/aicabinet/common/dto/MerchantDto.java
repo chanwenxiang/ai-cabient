@@ -18,6 +18,10 @@ public record MerchantDto(
         boolean packBizEnabled,
         boolean packTeamEnabled,
         String parentMerchantId,
+        /** MA-165：法人姓名（提现资质）。 */
+        String legalPerson,
+        /** MA-165：营业执照图片 URL（提现资质）。 */
+        String businessLicenseUrl,
         Instant createdAt,
         Instant updatedAt
 ) {}

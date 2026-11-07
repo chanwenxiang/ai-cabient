@@ -168,6 +168,14 @@ public class MerchantService {
         if (request.packTeamEnabled() != null) {
             merchant.setPackTeamEnabled(request.packTeamEnabled());
         }
+        // MA-165：提现资质两字段此前全栈无写入路径（校验要求非空⇒首个真实商户提现必死锁）。
+        // 空串归 null 与 contactPhone 同口径；不传（null）不清空既有值，便于部分更新。
+        if (request.legalPerson() != null) {
+            merchant.setLegalPerson(blankToNull(request.legalPerson()));
+        }
+        if (request.businessLicenseUrl() != null) {
+            merchant.setBusinessLicenseUrl(blankToNull(request.businessLicenseUrl()));
+        }
         String parentId = blankToNull(request.parentMerchantId());
         if (parentId != null) {
             if (parentId.equals(merchantId)) {
@@ -364,6 +372,7 @@ public class MerchantService {
                 m.isAllowMerchantPricingEdit(),
                 m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
+                m.getLegalPerson(), m.getBusinessLicenseUrl(),
                 m.getCreatedAt(), m.getUpdatedAt());
     }
 

@@ -146,6 +146,36 @@ public class ApprovalWorkflowService {
         createTasksForNode(instance, first);
     }
 
+    /**
+     * R9 拍板：后台手动发起审批——让「新建审批流定义」零代码即可用（选定义+填业务单号直接建实例）。
+     * 与业务自动触发的 {@link #start} 不同：定义缺失/禁用/无节点必须 fail-loud（400），
+     * 而非静默不建；同 bizType+bizId 已有 PENDING/APPROVED 实例时拒绝重复发起。
+     */
+    @Transactional
+    public ApprovalInstance startManual(Long operatorId, String bizType, String bizId, String title) {
+        if (bizType == null || bizType.isBlank() || bizId == null || bizId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "bizType 与 bizId 均必填");
+        }
+        String type = bizType.trim();
+        String id = bizId.trim();
+        ApprovalDefinition def = definitionRepository.findByBizType(type)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批定义不存在：" + type));
+        if (Boolean.FALSE.equals(def.getEnabled())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批定义已停用：" + type);
+        }
+        if (nodeRepository.findByDefIdOrderBySeqAsc(def.getDefId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "审批定义未配置节点：" + type);
+        }
+        var existing = instanceRepository.findByBizTypeAndBizId(type, id);
+        if (existing.isPresent() && !"REJECTED".equalsIgnoreCase(existing.get().getStatus())
+                && !"CANCELLED".equalsIgnoreCase(existing.get().getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该业务单已有审批实例（" + existing.get().getStatus() + "），不可重复发起");
+        }
+        start(type, id, operatorId, title);
+        return instanceRepository.findByBizTypeAndBizId(type, id).orElseThrow();
+    }
+
     @Transactional
     public void completeApproved(Long actorUserId, String bizType, String bizId, String remark) {
         ApprovalInstance pending = instanceRepository.findPendingByBizTypeAndBizId(bizType, bizId)

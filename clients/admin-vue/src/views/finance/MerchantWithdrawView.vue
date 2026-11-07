@@ -149,6 +149,29 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane v-if="auth.hasPerm('ops:merchant-withdraw:review')" label="调账审批" name="adjust">
+        <!-- MA-166：大额调账审批实例此前无处审批（永久 PENDING）；此处提供通过/驳回入口。
+             调账资金发起时已即时生效（事后留痕），驳回不自动冲回、仅留痕提示人工处理。 -->
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          title="调账资金在发起时已实时入账；审批为事后留痕——驳回请同时人工评估余额冲回。"
+          class="adjust-note"
+        />
+        <el-table :data="adjustTasks" v-loading="adjustLoading" size="default">
+          <el-table-column prop="instanceId" label="实例" width="180" />
+          <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="nodeName" label="当前节点" width="120" />
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" type="primary" @click="reviewAdjust(row, true)">通过</el-button>
+              <el-button size="small" type="danger" @click="reviewAdjust(row, false)">驳回</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane label="提现审核" name="withdraws">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="wdCrud.search()">
           <el-form-item label="状态">
@@ -847,6 +870,62 @@ function withdrawStatusLabel(status?: string) {
   return displayLabel('merchant_withdraw_status', status, '未知状态');
 }
 
+interface AdjustTaskRow {
+  taskId?: number;
+  instanceId?: number;
+  bizType?: string;
+  bizId?: string;
+  title?: string;
+  nodeName?: string;
+  status?: string;
+}
+
+const adjustTasks = ref<AdjustTaskRow[]>([]);
+const adjustLoading = ref(false);
+
+async function loadAdjustTasks() {
+  adjustLoading.value = true;
+  try {
+    const inbox = await api.request<{ tasks?: AdjustTaskRow[] }>(
+      AdminEndpoints.approvalsInbox(50),
+      'GET'
+    );
+    adjustTasks.value = (inbox.tasks || []).filter(
+      (t) => t.bizType === 'MERCHANT_WALLET_ADJUST' && t.status === 'PENDING'
+    );
+  } catch {
+    adjustTasks.value = [];
+  } finally {
+    adjustLoading.value = false;
+  }
+}
+
+async function reviewAdjust(row: AdjustTaskRow, approve: boolean) {
+  if (!row.bizId) return;
+  const action = approve ? '通过' : '驳回';
+  try {
+    await ElMessageBox.confirm(
+      approve
+        ? '确认通过该调账审批？（资金已入账，通过仅为留痕完结）'
+        : '确认驳回？资金不会自动冲回，请人工评估余额处理。',
+      `调账审批${action}`,
+      { type: 'warning', confirmButtonText: `确认${action}`, cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.merchantWalletAdjustReview(String(row.bizId)), 'POST', {
+      approve,
+      remark: `运营台${action}`
+    });
+    ElMessage.success(`已${action}`);
+    void loadAdjustTasks();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : `${action}失败`);
+  }
+}
+
 function onTab() {
   reload();
 }
@@ -854,6 +933,7 @@ function onTab() {
 function reload() {
   void loadPayoutMode();
   if (tab.value === 'withdraws') void wdCrud.load();
+  else if (tab.value === 'adjust') void loadAdjustTasks();
   else if (tab.value === 'fee' && feeMerchantId.value.trim()) void loadFeePolicy();
   else void walletsCrud.load();
 }

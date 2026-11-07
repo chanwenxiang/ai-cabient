@@ -17,5 +17,9 @@ public record UpsertMerchantRequest(
         Boolean packFieldEnabled,
         Boolean packBizEnabled,
         Boolean packTeamEnabled,
-        String parentMerchantId
+        String parentMerchantId,
+        /** MA-165：法人姓名——商户提现资质校验（WithdrawEligibilityService）要求非空。 */
+        String legalPerson,
+        /** MA-165：营业执照图片 URL——提现资质校验要求非空。 */
+        String businessLicenseUrl
 ) {}

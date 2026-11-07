@@ -36,6 +36,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -307,6 +308,27 @@ public class MerchantWithdrawService {
                         .map(this::toDto)
                         .toList()
         );
+    }
+
+    /**
+     * MA-166：大额调账审批（MERCHANT_WALLET_ADJUST 实例）的人工审批入口。
+     * 调账资金在发起时已即时生效（事后留痕语义），本审批驱动实例状态机：
+     * 通过=APPROVED（留痕完结）；驳回=REJECTED（留痕+审计提示运营人工评估资金冲回，
+     * 不自动反向调账——钱包余额可能已被消耗，自动冲回有透支风险）。
+     */
+    public Map<String, Object> reviewAdjustment(Long operatorId, String bizId, boolean approve, String remark) {
+        permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
+        String status;
+        if (approve) {
+            approvalWorkflowService.completeApproved(operatorId, BIZ_WALLET_ADJUST, bizId, trim(remark));
+            status = "APPROVED";
+        } else {
+            approvalWorkflowService.completeRejected(operatorId, BIZ_WALLET_ADJUST, bizId, trim(remark));
+            status = "REJECTED";
+        }
+        auditService.appendLog(operatorId, BIZ_WALLET_ADJUST + "_REVIEW", BIZ_WALLET_ADJUST, bizId,
+                "结果=" + status + "；备注=" + trim(remark));
+        return Map.of("bizId", bizId, "status", status);
     }
 
     /** 审核短事务提交后，若终审通过再事务外打款。 */

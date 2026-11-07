@@ -90,6 +90,16 @@ public class MerchantWithdrawController {
                 operator(request), requestId, body.approve(), body.remark()));
     }
 
+    /** MA-166：大额调账审批（MERCHANT_WALLET_ADJUST）人工审批入口——此前实例永久 PENDING 无处审批。 */
+    @RequiresPermissions("ops:merchant-withdraw:review")
+    @PostMapping("/wallet-adjustments/{bizId}/review")
+    public ApiResponse<Map<String, Object>> reviewWalletAdjustment(
+            HttpServletRequest request, @PathVariable String bizId,
+            @Valid @RequestBody WithdrawReviewRequest body) {
+        return ApiResponse.ok(merchantWithdrawService.reviewAdjustment(
+                operator(request), bizId, body.approve(), body.remark()));
+    }
+
     @RequiresPermissions("ops:merchant-withdraw:review")
     @PostMapping("/{requestId}/payout")
     public ApiResponse<MerchantWithdrawRequestDto> payout(

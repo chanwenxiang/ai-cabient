@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v2/ops/admin/approvals")
@@ -93,6 +94,27 @@ public class ApprovalController {
     public ApiResponse<Void> deleteDefinition(HttpServletRequest request, @PathVariable Long defId) {
         approvalWorkflowService.deleteDefinition(operatorId(request), defId);
         return ApiResponse.ok(null);
+    }
+
+    /**
+     * R9 拍板：后台手动发起审批——「新建审批流定义」零代码即可用（选定义+填业务单号直接建实例）。
+     * 定义缺失/禁用/无节点 fail-loud 400；同单已有进行中实例 409。
+     */
+    @RequiresPermissions("ops:approval:config")
+    @PostMapping("/instances")
+    public ApiResponse<Map<String, Object>> startInstance(
+            HttpServletRequest request, @RequestBody Map<String, String> body) {
+        var instance = approvalWorkflowService.startManual(
+                operatorId(request),
+                body.get("bizType"),
+                body.get("bizId"),
+                body.get("title"));
+        return ApiResponse.ok(Map.of(
+                "instanceId", instance.getInstanceId(),
+                "bizType", instance.getBizType(),
+                "bizId", instance.getBizId(),
+                "status", instance.getStatus(),
+                "title", instance.getTitle() == null ? "" : instance.getTitle()));
     }
 
     private Long operatorId(HttpServletRequest request) {

@@ -755,6 +755,11 @@ export const AdminEndpoints = {
   approvalsDefinition: (defId: string | number) =>
     `${ops}/approvals/definitions/${encodeURIComponent(String(defId))}`,
   approvalsInbox: (limit = 15) => `${ops}/approvals/inbox?limit=${limit}`,
+  /** R9 拍板：后台手动发起审批实例（零代码使用新建审批流） */
+  approvalsInstances: `${ops}/approvals/instances`,
+  /** MA-166：大额调账审批（MERCHANT_WALLET_ADJUST）人工审批 */
+  merchantWalletAdjustReview: (bizId: string) =>
+    `${ops}/merchant-withdraws/wallet-adjustments/${encodeURIComponent(bizId)}/review`,
   approvalsTaskRead: (taskId: string | number) =>
     `${ops}/approvals/tasks/${encodeURIComponent(String(taskId))}/read`,
   approvalsMessageRead: (messageId: string | number) =>

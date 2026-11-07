@@ -522,6 +522,7 @@ public class MerchantDevicePortalService {
                 m.isAllowMerchantPricingEdit(),
                 m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
+                m.getLegalPerson(), m.getBusinessLicenseUrl(),
                 m.getCreatedAt(), m.getUpdatedAt()
         );
     }

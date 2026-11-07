@@ -641,6 +641,12 @@
         <el-form-item label="联系电话">
           <el-input v-model="orgForm.contactPhone" placeholder="如 0755-88880001" maxlength="32" />
         </el-form-item>
+        <el-form-item label="法人姓名（提现资质）">
+          <el-input v-model="orgForm.legalPerson" placeholder="营业执照法人姓名" maxlength="64" />
+        </el-form-item>
+        <el-form-item label="营业执照 URL（提现资质）">
+          <el-input v-model="orgForm.businessLicenseUrl" placeholder="营业执照图片地址" maxlength="512" />
+        </el-form-item>
         <el-form-item label="上级商户">
           <el-select
             v-model="orgForm.parentMerchantId"
@@ -1010,6 +1016,9 @@ const orgForm = ref({
   merchantId: '',
   merchantName: '',
   contactPhone: '',
+  // MA-165：提现资质两字段（WithdrawEligibilityService 校验要求非空，此前无编辑入口）
+  legalPerson: '',
+  businessLicenseUrl: '',
   parentMerchantId: '' as string | null,
   // 2026-10-17 拍板「平台分账先不收」：新建商户默认 0=平台不抽成，要抽成由运营显式填
   platformRateBps: 0,
@@ -1498,6 +1507,8 @@ function openOrgEdit(row?: MerchantDto) {
       merchantId: row.merchantId,
       merchantName: row.merchantName || '',
       contactPhone: row.contactPhone || '',
+      legalPerson: row.legalPerson || '',
+      businessLicenseUrl: row.businessLicenseUrl || '',
       parentMerchantId: row.parentMerchantId || '',
       platformRateBps: row.platformRateBps ?? 0,
       status: row.status || 'ACTIVE'
@@ -1508,6 +1519,8 @@ function openOrgEdit(row?: MerchantDto) {
       merchantId: '',
       merchantName: '',
       contactPhone: '',
+      legalPerson: '',
+      businessLicenseUrl: '',
       parentMerchantId: '',
       platformRateBps: 0,
       status: 'ACTIVE'
@@ -1535,6 +1548,8 @@ async function saveOrg() {
       merchantId: f.editing ? f.merchantId.trim() : null,
       merchantName: f.merchantName.trim(),
       contactPhone: f.contactPhone.trim() || null,
+      legalPerson: f.legalPerson.trim() || null,
+      businessLicenseUrl: f.businessLicenseUrl.trim() || null,
       platformRateBps: f.platformRateBps,
       wechatReceiverId: existing?.wechatReceiverId,
       status: f.status || 'ACTIVE',

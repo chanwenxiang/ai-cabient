@@ -158,6 +158,24 @@
     </template>
   </el-dialog>
 
+  <el-dialog v-model="startDlg" title="发起审批实例" width="480px" destroy-on-close>
+    <el-form label-width="auto">
+      <el-form-item label="审批流">
+        <el-input :model-value="bizLabel(startForm.bizType)" disabled />
+      </el-form-item>
+      <el-form-item label="业务单号" required>
+        <el-input v-model="startForm.bizId" placeholder="业务单据编号（bizId）" maxlength="64" />
+      </el-form-item>
+      <el-form-item label="标题">
+        <el-input v-model="startForm.title" placeholder="留空则自动生成" maxlength="128" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="startDlg = false">取消</el-button>
+      <el-button type="primary" :loading="startSaving" @click="submitStart">发起</el-button>
+    </template>
+  </el-dialog>
+
   <el-dialog
     v-model="dlg"
     :title="`流程图 · ${bizLabel(editForm.bizType)}`"
@@ -368,6 +386,7 @@ function rowActions(_row: ApprovalDef): CrudRowAction[] {
   return [
     { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
     { key: 'flow', label: '编辑流程图', icon: Share, type: 'primary' },
+    { key: 'start', label: '发起实例', icon: Share, type: 'primary' },
     { key: 'delete', label: '删除', icon: Delete, type: 'danger', overflow: true }
   ];
 }
@@ -375,7 +394,39 @@ function rowActions(_row: ApprovalDef): CrudRowAction[] {
 function onAction({ key, row }: { key: string; row: ApprovalDef }) {
   if (key === 'edit') openMetaEdit(row);
   else if (key === 'flow') openFlowEdit(row);
+  else if (key === 'start') openStartDlg(row);
   else if (key === 'delete') void onDelete(row);
+}
+
+/* R9 拍板：手动发起审批——后台建好定义即可对本系统任意业务单号发起，无需代码接线。 */
+const startDlg = ref(false);
+const startSaving = ref(false);
+const startForm = reactive({ bizType: '', bizId: '', title: '' });
+function openStartDlg(row: ApprovalDef) {
+  startForm.bizType = row.bizType;
+  startForm.bizId = '';
+  startForm.title = '';
+  startDlg.value = true;
+}
+async function submitStart() {
+  if (!startForm.bizId.trim()) {
+    ElMessage.warning('请填写业务单号');
+    return;
+  }
+  startSaving.value = true;
+  try {
+    const r = await api.request<Record<string, unknown>>(AdminEndpoints.approvalsInstances, 'POST', {
+      bizType: startForm.bizType,
+      bizId: startForm.bizId.trim(),
+      title: startForm.title.trim() || undefined
+    });
+    ElMessage.success(`已发起（实例 ${r.instanceId ?? ''}），待办已推给第一节点审批人`);
+    startDlg.value = false;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '发起失败');
+  } finally {
+    startSaving.value = false;
+  }
 }
 
 function bizLabel(bizType: string) {

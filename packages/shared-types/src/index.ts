@@ -291,6 +291,10 @@ export interface MerchantDto {
   /** 功能包：团队与设置 */
   packTeamEnabled?: boolean;
   parentMerchantId?: string | null;
+  /** MA-165：法人姓名（提现资质，WithdrawEligibilityService 校验用） */
+  legalPerson?: string | null;
+  /** MA-165：营业执照图片 URL（提现资质） */
+  businessLicenseUrl?: string | null;
 }
 
 export interface RevenueSplit {
