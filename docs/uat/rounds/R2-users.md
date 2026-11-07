@@ -75,3 +75,7 @@ ops_role/ops_role_permission/ops_user_role/ops_user_merchant/ops_department/ware
 - **S3 货位 ✅**：bin 建（UAT-BIN-01 ACTIVE）+ inbound 3 件入库 ✓（bin_stock 按 bin_id 关联查询确认）
 - **S11 部分 403/400**：商户 ops-config 对超管 403=CB-070 正确拦截；门户用户（无角色）也 403=RBAC 正确；tax-profile 字段名=companyName/taxNo（重试待接手，需门户用户配 merchant 角色）
 - **待接手**：S11 完成（门户用户配角色后重试）、S1/S4-S10/S12/S16-S18 批（见 UAT-SUPPLEMENT-PLAN.md）
+
+## S11 收尾（2026-11-07 深夜）✅
+- 门户用户 100000013 配 merchant 角色（role_id=6）后：ops-config **0 ✓**、tax-profile（补 merchantId）**0 ✓**
+- **MA-076 回归 ✓**：MERCHANT_TAX_PROFILE_UPDATE 审计在位
