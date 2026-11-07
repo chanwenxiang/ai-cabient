@@ -67,3 +67,11 @@
 
 ### 覆盖表新增触达
 ops_role/ops_role_permission/ops_user_role/ops_user_merchant/ops_department/warehouse/line_manager/line_wallet_account(ensure)
+
+## 补充测试批 1（2026-11-07 深夜，S3/S11/S13/S14）——部分完成
+
+- **S13 资金池 ✅ 全过**：建户→充值 500000→sweep 归集→**MA-093 回归 ✓**（负数 400 带根因文案「负数请走人工调整并填原因」）
+- **S14 黑名单 ✅ + MA-097 回归 ✓**：add/remove 全过；remove 留痕在 risk_event（BLACKLIST_REMOVE | 1）——修复生效（原查询 admin_audit_log 是看错表，修复用的是 recordEvent）
+- **S3 货位 ✅**：bin 建（UAT-BIN-01 ACTIVE）+ inbound 3 件入库 ✓（bin_stock 按 bin_id 关联查询确认）
+- **S11 部分 403/400**：商户 ops-config 对超管 403=CB-070 正确拦截；门户用户（无角色）也 403=RBAC 正确；tax-profile 字段名=companyName/taxNo（重试待接手，需门户用户配 merchant 角色）
+- **待接手**：S11 完成（门户用户配角色后重试）、S1/S4-S10/S12/S16-S18 批（见 UAT-SUPPLEMENT-PLAN.md）
