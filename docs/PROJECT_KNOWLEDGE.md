@@ -684,6 +684,55 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08（F1 调账审批修法 B 落地：409 守卫 + 真实状态；镜像重建后复验 15 项全 PASS）
+
+- **用户拍板 F1 修法 = 方案 B**（2026-11-07 三岔口问用户：A 前端兜底 / B 后端补守卫+读真实状态 / C 双管齐下；用户选 B「补 409 守卫 + status 读实例真实状态」）。
+- **改动**（`services/trade-service/src/main/java/.../MerchantWithdrawService.java`）：`reviewAdjustment` 审前读
+  `instanceStatus(BIZ_WALLET_ADJUST, bizId)`；**无实例 → 409**（对齐同文件 `completeReview:349-359` 既有模式，消息「审批流未发起…无法通过」）；
+  实例存在但**非 PENDING**（APPROVED/REJECTED/SKIPPED 终结态）→ **409**（终结态幂等）；
+  通过/驳回后**重读真实状态**写入 `Map.of("bizId","status")` 与审计，**去掉硬编码 APPROVED/REJECTED**。
+- **部署 + 复验**：`docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-service:local .`
+  （Maven 实测「Recompiling the module because of changed source code / Compiling 439 source files」）
+  → `docker compose -f docker-compose.full.yml -f docker-compose.uat.yml up -d --force-recreate trade-service`
+  （新镜像 `ai-cabinet/trade-service:local` @ `58a03f6813c2`；`/actuator/health` = UP）。
+- **复验 15 项全 PASS**（`.tmp/r7-f1-verify-fix.mjs`）：无实例通过/驳回均 409 且**不写假审计**；无实例同 bizId 再点仍 409；
+  ≥阈值(50000)双签实例 → 200 且 `data.status = PENDING` **== 库内实例真实状态**（不再假称 APPROVED）；审计 `结果=PENDING`；
+  通过后同单再点 **403**「您不是当前审批节点的处理人」；F3 重复发起 409、空字段 400（`Map.of` NPE 不可经 API 触发）。
+- **收口归基线**：`approval_instance=14`、`admin_audit_log=306`、`balance_cents=209900`、`MERCHANT_WALLET_ADJUST` 实例 5，`AUDIT-F1-VERIFY` 残留 0。
+- **F1 转 CLOSE（mitigated）**；F3 维持低风险（非缺陷）。⚠️ **修复改动仍在本地工作树，尚未 `git push`**（UAT-FINAL §三.4 已记）。
+- **消费端小程序开发者工具项目目录（用户 2026-11-07 拍板「不清楚，按你的推荐」）→ 落 `dist/build/mp-weixin`**：
+  实测此目录 270 files、`app.json` 在位、`project.config.json` `appid=wx6dacefb3671de630`、
+  `projectname="AI开门柜-消费者"`；构建期烘焙 API = **`http://127.0.0.1`**（`exports.API_BASE_URL`），四个登录闸门已编进产物。
+  只有 `dev:mp-weixin` 监听器写 `dist/dev/mp-weixin`（watcher 与本目录 scoped-id 语义不同，混写会错位）⇒ **验证面用 build 目录；严禁 `Remove-Item dist`（监听器占用）**。
+
+### 2026-11-07（R7 边界轮：F1 调账审批实测坐实；顺带钉住小程序构建产物地基）
+
+- **实测坐实 F1（open，未修）**：`MerchantWithdrawService.reviewAdjustment(319-332)`
+  对**无审批实例**的调账单点「通过」仍返回 HTTP 200 + `status=APPROVED` + 写假审计行（期望对齐 `completeReview:354+`
+  → 409）。驳回路径同失真（假 REJECTED），且同 bizId 幂等无守卫（再点仍 200）。
+  **更深一层**：`MERCHANT_WALLET_ADJUST` 定义是**双节点**（def 9：运营审核 USER 100000001 → 财务复核 USER 100000007）；
+  即使实例真实存在、运营节点通过，方法仍报 `APPROVED`，而库内实例仍 `PENDING`（停在财务复核）⇒ `status` 完全硬编码，
+  未读 `instanceStatus(bizId)`。UI：`MerchantWithdrawView.vue:927-932` 只看 HTTP 200 即 `ElMessage.success('已通过')`。
+  证据/收口：`docs/uat/rounds/R7-boundary.md` + `.tmp/r7-f1-real-trigger.mjs`（真实触发+负向+阳性对照）
+  与 `.tmp/r7-f1-cleanup.mjs`（回滚动造数，归基线核对全部命中）。
+  造的账目/审计行/临时实例已回滚至基线（`balance=209900`、`approval_instance=14`、`admin_audit_log=306`）。
+  **待用户拍板修法**（不猜正当性）：补守卫 409 / 收口 status 读实例 / 前端改凭据申报。
+- **同轮 F3「实测不可触发」（维持低风险）**：`ApprovalController.startInstance:112` 的 `Map.of` 理论 NPE，实测被参数校验
+  fail-loud 拦在 400（空 bizType/bizId），同单重复发起 409；`title` 已做 null→"" 兜底。建议统一化兜底但非必改。
+- **小程序产物地基钉住（本轮起）**：`clients/consumer-mp/dist/dev/mp-weixin` 只由 `dev:mp-weixin` **监听器**写；
+  `build:mp-weixin:dev` 只写 `dist/build/mp-weixin`（+ 早年 SEQ 取序列号）⇒ `dist/dev` 空目录 + 只跑 build ⇒ DevTools 报
+  `未找到 app.json`。曾因手工清空 `dist` 触发过一次；已由监听器自动回填，另用手工 `Copy-Item` 验证过恢复路径。
+  **小程序 base URL 是构建期烘焙**（`api-base.ts` 用 `import.meta.env.VITE_API_BASE_URL`），
+  优先级 `.env.local` > `.env.development` > `.env.development.local`，而 `sync-consumer-mp-api.mjs` 只写
+  `.env.development`（LAN-first）且**不碰** `.env.development.local`（本机钉死 `127.0.0.1`）。历史 `192.168.0.26` 是陈旧烘焙值，
+  换 WLAN 网卡即失效 ⇒ 设备报 `ERR_CONNECTION_TIMED_OUT`。**正确姿势（一次性）`：重写 + 重新导入 `dist/build/mp-weixin`。
+  ⚠️ 严禁在 `dev:mp-weixin` 监听器运行中 `Remove-Item dist`（目录被监听器占用；监听器会自动回填）。
+  **修复面**：`clients/consumer-mp/dist/dev/mp-weixin`（270 files，`app.json` 在位，appid `wx6dacefb3671de630`）
+  + 4 处登录闸门（G1–G4）已编译进产物。
+  401 刷屏根因已实证：`onShow` 无条件 `startDevicePoll()`/`refreshDeviceStatus()` + 网关对匿名 `devices/**` default-deny
+  （WebConfig.AUTH_EXCLUDE_PATTERNS 不含 `devices/**`）⇒ 匿名 401。修复 = 四闸门，**未削弱**网关白名单（用户 A 档拍板）。
+- **文档修正**：新增 `docs/uat/rounds/R7-boundary.md`；UAT-FINAL「可上线」结论补 F1 前置动作。
+
 ### 2026-11-06（C10b 核实为「早已收口」：consumer easycom 已直指 package，欠的是台账）
 
 - 用户要求做 C10b。逐条核实后**代码无改动**：`clients/consumer-mp/src/pages.json` 的 easycom 8 个组件

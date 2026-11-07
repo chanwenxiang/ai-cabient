@@ -315,17 +315,35 @@ public class MerchantWithdrawService {
      * 调账资金在发起时已即时生效（事后留痕语义），本审批驱动实例状态机：
      * 通过=APPROVED（留痕完结）；驳回=REJECTED（留痕+审计提示运营人工评估资金冲回，
      * 不自动反向调账——钱包余额可能已被消耗，自动冲回有透支风险）。
+     *
+     * MA-166/F1 修（对齐 completeReview:354-359）：
+     * ① 实例不存在（无定义/已禁用/未发起）⇒ 409「审批流未发起」；
+     * ② 实例已终结 ⇒ 409「当前状态不可审核」；
+     * ③ 通过/驳回的实效不再无条件回报 APPROVED/REJECTED，而是读实例真实状态——
+     *    双签流里运营节点通过后实例仍 PENDING（移交财务复核），审计留痕与界面显示
+     *    从此与实例状态机一致，不再出现「报表说 APPROVED、库里还 PENDING」的失真。
+     * 幂等重复点：终态再点挡 409；跨节点再点由工作流「非当前处理人」挡 403（fail-loud）。
      */
     public Map<String, Object> reviewAdjustment(Long operatorId, String bizId, boolean approve, String remark) {
         permissionService.requirePermission(operatorId, PERM_OPS_MERCHANT_WITHDRAW_REVIEW);
-        String status;
+        // ② 实例存在性 + 终态守卫。无实例时 completeApproved/completeRejected 是静默 no-op，
+        //    必须挡在调用前，否则仍会走假 APPROVED/REJECTED 并写假审计行。
+        java.util.Optional<String> before =
+                approvalWorkflowService.instanceStatus(BIZ_WALLET_ADJUST, bizId);
+        if (before.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "审批流未发起（审批定义为空或已禁用），无法" + (approve ? "通过" : "驳回") + "；如需退回冻结资金请走驳回");
+        }
+        if (!"PENDING".equals(before.get())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
+        }
         if (approve) {
             approvalWorkflowService.completeApproved(operatorId, BIZ_WALLET_ADJUST, bizId, trim(remark));
-            status = "APPROVED";
         } else {
             approvalWorkflowService.completeRejected(operatorId, BIZ_WALLET_ADJUST, bizId, trim(remark));
-            status = "REJECTED";
         }
+        // ③ 读实例真实状态（双签：本节点过 → 实例移交下一节点仍 PENDING，非 APPROVED）
+        String status = approvalWorkflowService.instanceStatus(BIZ_WALLET_ADJUST, bizId).orElse("");
         auditService.appendLog(operatorId, BIZ_WALLET_ADJUST + "_REVIEW", BIZ_WALLET_ADJUST, bizId,
                 "结果=" + status + "；备注=" + trim(remark));
         return Map.of("bizId", bizId, "status", status);

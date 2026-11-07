@@ -1188,7 +1188,12 @@ onShow(async () => {
   // 因此返回首页时必须在此兜底重启轮询，否则关门永不被识别（不弹账单、不跳结果页）。
   // onAuthenticatedShow 内部还有 reopen/browse 等提前 return 分支，放在它之后才不会被跳过。
   resumeSessionPollingIfActive();
-  startDevicePoll();
+  // 设备状态轮询依赖登录态：/devices/{id}/status 在网关侧默认拒绝（未登录必 401）。
+  // 未登录时不启动轮询，否则控制台无限刷 401、首页状态被钉成登录错误；
+  // 静默建档成功（微信登录生效）后下一次 onShow 再启动。
+  if (isConsumerLoggedIn()) {
+    startDevicePoll();
+  }
 });
 
 onHide(() => {
@@ -1789,6 +1794,13 @@ function clampSelectionToStock() {
 }
 
 async function refreshDeviceStatus() {
+  // 设备状态接口（ConsumerEndpoints.deviceStatus）在网关侧默认拒绝（WebConfig 白名单
+  // 未放行动态状态接口），未登录调用必定 401。未登录时直接返回：
+  // 既不发起请求，也不把登录错误钉在首页状态文案上（否则控制台无限刷 401）。
+  if (!isConsumerLoggedIn()) {
+    stopDevicePoll();
+    return;
+  }
   try {
     const s = await consumerApi.deviceStatus(deviceId.value);
     deviceName.value = s.deviceName || deviceId.value;
@@ -1828,6 +1840,13 @@ async function refreshDeviceStatus() {
     }
   } catch (e) {
     const kind = classifyOpenError(e);
+    // 401：handleUnauthorized 已清会话（getConsumerToken 到期同样清会话），
+    // 此时继续 30s 轮询 = 控制台无限刷 401、首页状态被钉成登录错误。停止轮询，
+    // 等 onShow 重新完成静默建档后再由 enabled 路径恢复，不改动既有文案。
+    if (!isConsumerLoggedIn()) {
+      stopDevicePoll();
+      return;
+    }
     // 采集上新 ≠ 柜机离线：与停业/忙碌一样按「在线但暂不可开」展示
     deviceOffline.value =
       kind !== 'device_paused' && kind !== 'device_gathering' && kind !== 'device_busy';
@@ -1855,10 +1874,15 @@ async function reopenShop() {
 async function showDeviceCatalog(id: string) {
   const cabinetId = id.trim().toUpperCase();
   if (!cabinetId || sessionActive.value || opening.value || enteringFlow.value) return;
-  deviceId.value = cabinetId;
-  scanned.value = true;
+  // F3 门禁：目录加载门闩必须在静默建档（ensureConsumerAuth）await 之前置位。
+  // 门闩晚于鉴权 await 会让握手窗口内按钮不置灰、可二次点开；置位后由 try 的失败分支复位。
   productsLoading.value = true;
   try {
+    // 设备目录接口（status + products）在网关侧要求登录：先做一次静默建档，
+    // 失败则不置 scanned/deviceId，避免首页后续轮询继续打 401。
+    if (!(await ensureConsumerAuth())) return;
+    deviceId.value = cabinetId;
+    scanned.value = true;
     const status = await consumerApi.deviceStatus(cabinetId);
     deviceName.value = status.deviceName || cabinetId;
     await refreshDeviceStatus();
@@ -2384,7 +2408,7 @@ const { pollError, pollRefreshing, startPoll, stopPoll, refreshSessionNow } = us
 function startDevicePoll() {
   stopDevicePoll();
   devicePollTimer = setInterval(() => {
-    if (!opening.value && scanned.value && deviceId.value)
+    if (!opening.value && scanned.value && deviceId.value && isConsumerLoggedIn())
       refreshDeviceStatusThrottled(deviceId.value);
   }, 30000);
 }
