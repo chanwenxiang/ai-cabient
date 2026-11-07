@@ -1419,6 +1419,11 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
   其余退钱包，且拆腿单的幂等键按毛额派生防重试换键双退。判据见 MA-161 行（`8382d814`，已随 `129dceaa` 进主线并推
   `origin/dev`）。本批 MA-160 自身结论不受影响。
 
+| MA-166 | P2 | open | 大额调账审批（MERCHANT_WALLET_ADJUST） | **审批实例无产品内审批入口=永久死待办**：调账 ≥¥500 触发 start() 建实例+approval_task+站内信+inbox 红点，但全栈无审批动作路径（`merchant-withdraws/{id}/review` 只查提现单表→400；OpsApprovalInbox 把该 bizType 跳转 /merchant-withdraw 页，该页无调账实例卡片/按钮；无业务回调）⇒ 实例永久 PENDING、待办清不掉；调账资金本身已即时生效（事后留痕语义），审批纯属形式但永久挂起 | ZCode UAT R9 / 2026-11-07 | R9-E 新增审批流端到端测试（E5a 全入口 400+前端 grep） |
+| MA-165 | P1 | open | 商户提现链 | **资质前置字段全栈无写入路径=提现功能死锁**：`WithdrawEligibilityService` 要求 `legal_person`+`business_license_url` 非空才允许发起提现，但两字段无任何合法写入途径（管理端 `UpsertMerchantRequest` 不暴露、商户门户无表单、后端无 setter 调用）⇒ 第一个真实商户提现必被「资质不完整」拦截且无法自救；须补管理端/门户资质编辑面或放宽前置 | ZCode UAT R9 / 2026-11-07 | R9-D 审批遍历（D4b 被拦+全仓 grep 无写入方） |
+| MA-164 | P1 | open | reconciliation 每日对账 job | **定时上下文写审计崩 500**：`runDailyReconciliation` 无操作者，写 `admin_audit_log`(RECONCILIATION_RUN) 时 operator_id=NULL 撞 NOT NULL → 整个对账事务回滚，**每日 01:30 对账必失败**（UAT 实测：diffCents=0 对账算平仍崩，`scheduled_task.last_result=FAILED`；上线即每日红） | ZCode UAT R9 / 2026-11-07 | .tmp 调度 sweep（scheduled_task.last_message 全栈报错） |
+
+
 ### MA-163 Hikari 连接池只读状态污染（间歇性写失败，P2）
 - 级别/状态：P2 / open
 - 现象：UAT 空库实测，app 写操作随机报 `cannot execute INSERT in a read-only transaction`（SQLSTATE 25006）；同一时刻 psql 新连接写成功；`default_transaction_read_only=off`、库/角色级无覆盖、postgres 容器零重启。
