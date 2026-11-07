@@ -161,7 +161,7 @@
         />
         <el-table :data="adjustTasks" v-loading="adjustLoading" size="default">
           <el-table-column prop="instanceId" label="实例" width="180" />
-          <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
+          <el-table-column prop="title" label="标题" min-width="220" />
           <el-table-column prop="nodeName" label="当前节点" width="120" />
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
