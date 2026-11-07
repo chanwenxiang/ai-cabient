@@ -93,3 +93,21 @@
 - expiry/alerts/ensure → 创建 OPEN 告警 taskId=1 ✓
 - expiry/alerts/{taskId}/create-replenishment → **route 2 PLANNED + task 2 PENDING** ✓
 - **MA-162/MA-157 关联回归 ✓**：拉货任务正确创建且效期告警关联
+
+## R3 最终状态（2026-11-07 深夜）
+
+### 补齐完成
+- 效期告警→拉货任务（造临期批次→ensure→create-replenishment 全链通）✓
+- **pull_off_task 表已有数据** ✓
+
+### 夜间不可续项（需白天人工/消费者配合）
+| 项 | 阻塞原因 |
+|----|----------|
+| 消费者 UI 小点（昵称/偏好/注销） | consumer token 30min 过期，模拟器夜间无人操作无法自动刷新 |
+| 部分退（预估==写侧） | 需新 PAID 订单→部分退（E2E SettlementComboMatrix 已覆盖） |
+| 争议 ADJUST/KEEP | 需要 DISPUTED 单，夜间 consumer token 过期无法造 |
+| 线长实名+提现 | identity-verify 端点 body 格式待反查（Map vs DTO） |
+| 租赁全链 | 需将设备合作模式切 RENTAL（运营台操作） |
+| 外部导入 | 需上传 CSV 文件（multipart） |
+| 发票 | 需 PAID 可开票订单（R1 订单已全额退） |
+| 2FA/短信 | 需运营账号交互 |
