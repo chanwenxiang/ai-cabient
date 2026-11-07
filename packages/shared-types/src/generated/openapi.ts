@@ -3151,6 +3151,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-withdraws/wallet-adjustments/{bizId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reviewWalletAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/merchant-wallets/{merchantId}/withdraw": {
         parameters: {
             query?: never;
@@ -4896,6 +4912,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["markMessageRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/approvals/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startInstance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -14482,6 +14514,8 @@ export interface components {
             packBizEnabled?: boolean;
             packTeamEnabled?: boolean;
             parentMerchantId?: string;
+            legalPerson?: string;
+            businessLicenseUrl?: string;
         };
         ApiResponseMerchantDto: {
             /** Format: int32 */
@@ -14507,6 +14541,8 @@ export interface components {
             packBizEnabled?: boolean;
             packTeamEnabled?: boolean;
             parentMerchantId?: string;
+            legalPerson?: string;
+            businessLicenseUrl?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: date-time */
@@ -14597,6 +14633,14 @@ export interface components {
         RemarkOnlyRequest: {
             remark?: string;
         };
+        ApiResponseMapStringObject: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: {
+                [key: string]: unknown;
+            };
+        };
         WithdrawApplyRequest: {
             /** Format: int64 */
             amountCents: number;
@@ -14647,14 +14691,6 @@ export interface components {
             /** Format: date-time */
             settledAt?: string;
             remark?: string;
-        };
-        ApiResponseMapStringObject: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: {
-                [key: string]: unknown;
-            };
         };
         ApiResponseLineWithdrawRequestDto: {
             /** Format: int32 */
@@ -26821,6 +26857,32 @@ export interface operations {
             };
         };
     };
+    reviewWalletAdjustment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                bizId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WithdrawReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
+                };
+            };
+        };
+    };
     withdraw: {
         parameters: {
             query?: never;
@@ -29859,6 +29921,32 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    startInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMapStringObject"];
                 };
             };
         };
