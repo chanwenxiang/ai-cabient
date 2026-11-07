@@ -149,7 +149,11 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane v-if="auth.hasPerm('ops:merchant-withdraw:review')" label="调账审批" name="adjust">
+      <el-tab-pane
+        v-if="auth.hasPerm('ops:merchant-withdraw:review')"
+        label="调账审批"
+        name="adjust"
+      >
         <!-- MA-166：大额调账审批实例此前无处审批（永久 PENDING）；此处提供通过/驳回入口。
              调账资金发起时已即时生效（事后留痕），驳回不自动冲回、仅留痕提示人工处理。 -->
         <el-alert
@@ -165,8 +169,12 @@
           <el-table-column prop="nodeName" label="当前节点" width="120" />
           <el-table-column label="操作" width="180" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" type="primary" @click="reviewAdjust(row, true)">通过</el-button>
-              <el-button size="small" type="danger" @click="reviewAdjust(row, false)">驳回</el-button>
+              <el-button size="small" type="primary" @click="reviewAdjust(row, true)"
+                >通过</el-button
+              >
+              <el-button size="small" type="danger" @click="reviewAdjust(row, false)"
+                >驳回</el-button
+              >
             </template>
           </el-table-column>
         </el-table>

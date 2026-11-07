@@ -415,11 +415,15 @@ async function submitStart() {
   }
   startSaving.value = true;
   try {
-    const r = await api.request<Record<string, unknown>>(AdminEndpoints.approvalsInstances, 'POST', {
-      bizType: startForm.bizType,
-      bizId: startForm.bizId.trim(),
-      title: startForm.title.trim() || undefined
-    });
+    const r = await api.request<Record<string, unknown>>(
+      AdminEndpoints.approvalsInstances,
+      'POST',
+      {
+        bizType: startForm.bizType,
+        bizId: startForm.bizId.trim(),
+        title: startForm.title.trim() || undefined
+      }
+    );
     ElMessage.success(`已发起（实例 ${r.instanceId ?? ''}），待办已推给第一节点审批人`);
     startDlg.value = false;
   } catch (e) {

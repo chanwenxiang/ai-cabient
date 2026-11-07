@@ -645,7 +645,11 @@
           <el-input v-model="orgForm.legalPerson" placeholder="营业执照法人姓名" maxlength="64" />
         </el-form-item>
         <el-form-item label="营业执照 URL（提现资质）">
-          <el-input v-model="orgForm.businessLicenseUrl" placeholder="营业执照图片地址" maxlength="512" />
+          <el-input
+            v-model="orgForm.businessLicenseUrl"
+            placeholder="营业执照图片地址"
+            maxlength="512"
+          />
         </el-form-item>
         <el-form-item label="上级商户">
           <el-select
