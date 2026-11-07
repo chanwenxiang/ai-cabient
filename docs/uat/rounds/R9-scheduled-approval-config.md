@@ -111,3 +111,22 @@ ops-exception-scanner、merchant-notify、scheduled-task-stale-monitor（37 个�
 2. ~~MA-164/165/166~~ → **已修已验**
 3. 部署前跑一次 `POST /consistency/run` 自检
 4. 生产 env：`AICABINET_PAYOUT_ENCRYPTION_KEY`
+
+## 十一、R10 空表清扫（2026-11-07 晚）
+
+CI 三连红修复（anti-jitter H 门禁 / OpenAPI 类型漂移 / Prettier 格式）+ 产物同源回传后 **CI 全绿（42344903908）**；
+生产已部署 5710fbad（首次四项上线前置执行轮）。
+
+空表 58→40：本轮触达 +10——
+出库领货链 3 张（warehouse_outbound/_line/in_transit：种子出库单→**pick→ship 真实状态机**→在途 1 行）、
+dispute_message（商户端 /disputes/{id}/reply）、merchant_subscribe_pref（alertTypes 列表契约）、
+external_import_batch/_channel_flow/external_product(_mapping)（XLSX+personOverride 契约：**haibianli 模板仅收 XLSX+特定中文列头**）、
+user_blacklist（留行）、device_lifecycle_event（UNDEPLOY→DEPLOY 双向）、site_rent_split_rule（partyType=LANDLORD Σbps=10000）。
+
+**plan/suggest 无缺口的定性**：assertHasReplenishmentGap fail-closed 正确——建议三腿（货道 PAR/低库存/ROP）在
+EG 柜满架+PAR 未配下给 0 是**设计行为**（缺口必须低于 low_threshold 且过 SkuOnShelf+SkuStockLevel 单源判据）。
+出库单创建入口=planRoute/suggest/create-task/要货接单，均为人在环流程。
+
+剩余 40 张空表三分类：B 类设计如此/未启用 22（ad_*、jiangyi_*、ops_org/scope 系、preauth=0 拍板等）+
+周期 job/外部依赖 10（rental 系、payscore、短信商、data_change_log fix 分支等）+
+设计上恒空 2（user_realname_auth 隐私设计、device_fault_order 设备侧触发）+其它按需 6。**无业务链缺口残留。**
