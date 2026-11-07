@@ -79,3 +79,17 @@ ops_role/ops_role_permission/ops_user_role/ops_user_merchant/ops_department/ware
 ## S11 收尾（2026-11-07 深夜）✅
 - 门户用户 100000013 配 merchant 角色（role_id=6）后：ops-config **0 ✓**、tax-profile（补 merchantId）**0 ✓**
 - **MA-076 回归 ✓**：MERCHANT_TAX_PROFILE_UPDATE 审计在位
+
+## 补充批 2（2026-11-07）✅
+
+### S7 工单转闭环 ✅
+- transition 字段名=status（非 action），IN_PROGRESS → 0 ✓
+- 事件留痕 ✓（create + assign + transition 3 行）
+
+### S12-3/5/6 OTA 发布+下架 ✅
+- 发布/下架均 0 ✓（checksumSha256 格式正确时）
+- **MA-115 回归 ✓**：OTA_PUBLISH/OTA_UNPUBLISH 审计在位（修复生效）
+
+### 契约认知
+- 工单 transition 请求体是 `status` 字段（不是 `action`）
+- OTA 发布需 checksumSha256 64 位十六进制 + downloadUrl
