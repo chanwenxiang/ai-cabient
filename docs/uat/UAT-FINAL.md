@@ -36,8 +36,19 @@ MA-096（负积分成本 400 ✓）、MA-069（佣金限幅 400 ✓）、MA-157�
 |----|------|
 | 消费者 UI 小点 | 昵称/偏好/注销四守卫——token 过期，白天 devtools 登录后 10 分钟可验 |
 | 争议 ADJUST/KEEP 裁决 | 同族 CONFIRM/WAIVE 已实测；单测 6 例覆盖 |
-| 真机开门/支付分生产 API | 已知留痕（支付分生产未接=501，设备摄像头售后中） |
+| 真机开门/支付分生产 API | 已留痕（支付分生产未接=501，设备摄像头售后中） |
 | R6 佣金日结 | 周期扫描型，造数后等下一轮（幂等键已在位） |
+
+## 四·补 R8 空表填充轮（2026-11-07，详见 rounds/R8-fill.md）
+
+**181 表触达 108 → 123（+15）**，全部真实 API 链+库断言，新缺陷 0：
+- 新触达：user_feedback/user_notify_pref/device_fault_report/http+mqtt_credential/ops_2fa_recovery_code/
+  site_contract/site_rent_bill/device_temp_plan/announcement/invoice_request/data_consistency_record/
+  balance_refund_request/balance_refund_allocation/repair_ticket（报修自动建单，CB-077 分线 ✓）
+- 部分退线上复证（PARTIAL_REFUNDED 250/500 对平）+ MA-092/119 回归 ✓
+- 余额原路退**双人审批流**全链 ✓（运营审核→财务复核→allocation 分摊到原微信充值单）
+- consumer token 续期链打通（automator login→真 wx-login，全程无需人工扫码）
+- 一致性核查器真库实测：抓故意 +777 立即告警，还原自动 FIXED；6 条存量 FAIL 全部定性为 UAT 造数直改 SQL 遗留（非产品缺陷）——建议部署前跑一次 `POST /consistency/run` 作上线自检
 
 ## 五、全库表覆盖（181 表）
 

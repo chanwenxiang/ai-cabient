@@ -1,6 +1,6 @@
 # UAT 全库表覆盖终检（2026-11-07，uat 库 aicabinet_uat 精确 count）
 
-> 数据：181 表 = **94 触达**（count>0）+ **87 空**。空表三分类见下。
+> 数据：181 表 = **123 触达**（count>0）+ **58 空**（R7 初版 94 触达 → S2-S14 批补 +14 → R8 填充轮 +15，见 rounds/R8-fill.md）。
 > 判定规则：①本轮业务产生过数据=已触达；②空=对应业务流程未在 UAT 周期内触发（多为 R1-R7 夜间批未覆盖、或依赖特定前置）；③极少数=死表候选。
 
 ## 已触达 94 表（明细见 .tmp 快照与轮报告）
@@ -16,9 +16,15 @@ admin_audit_log(53)、sys_dict_data(595)/type(107)、flyway_schema_history(443)�
 notification_log(11)/template(12)、recharge_order(4)、reconciliation(3)、risk_event(3)、
 shopping_session(10)、recognition_result(3)、sku_delist_review(9)、data_consistency_record(1) 等。
 
-## 87 空表三分类
+## 空表三分类（R7 初版 87 空 → R8 后余 58）
 
-### A. 流程未在 UAT 夜间批触发（45 表）——白天/后续补测即有数据
+### R8 填充轮已触达（15 表，全链真实操作，详见 rounds/R8-fill.md）
+user_feedback、user_notify_pref、device_fault_report、device_http_credential、device_mqtt_credential、
+ops_2fa_recovery_code、site_contract、site_rent_bill、device_temp_plan、announcement、invoice_request、
+data_consistency_record、balance_refund_request、balance_refund_allocation、repair_ticket（消费者报修自动建单）；
+另部分退活验（PARTIAL_REFUNDED 250/500 对平）+ MA-092/119 回归 + 余额原路退双人审批流全链 ✓
+
+### A. 流程未在 UAT 夜间批触发（余 34 表）——白天/后续补测即有数据
 announcement（R11 已在 dev 验证读面）、balance_refund_allocation（部分退未触发——E2E 覆盖）、
 commission_clawback、compensation_task、consumer_preauth_hold（R1 脚本 preauth=0）、
 data_change_log、device_data_fee_bill、device_fault_order/report（报修未测）、
@@ -47,6 +53,6 @@ device_ops_event、sku_catalog_vision_cols_bak_20261011 / sku_vision_mapping_bak
 
 ## 结论
 
-- **核心资金/交易/账号/仓储链 100% 触达且数据对平**（94 表含全部资金面）
-- 空表 87 = A 类补测（白天/后续轮次自然产生数据）+ B 类开门柜特化（无数据=正确）+ C 类死表候选 2 张
+- **核心资金/交易/账号/仓储链 100% 触达且数据对平**（123 表含全部资金面）
+- 空表 58 = A 类补测（白天/后续轮次自然产生数据）+ B 类开门柜特化（无数据=正确）+ C 类死表候选 2 张
 - **无「业务测了但表没数据」的可疑缺口**；无新增死表发现
