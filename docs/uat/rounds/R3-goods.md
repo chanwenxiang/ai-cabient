@@ -73,3 +73,16 @@
 - 线长提现（403 未绑定实名用户）——identity-verify 端点 body 格式反查中断
 - staff_commission_daily（佣金 job 周期扫描，需 GMV + 线路成员配置都在了，等下轮周期触发自然产生）
 - commission_clawback（需要线长佣金后退款——依赖上述）
+
+## S5/S6 补充（2026-11-07）
+
+### S5 租赁
+- 正确 **400**：EG 柜合作模式非 RENTAL ⇒ 押金登记 fail-closed 拦截（符合设计——非租赁柜不能登记押金/出租赁账单）
+- 覆盖验证：需先将设备合作模式切为 RENTAL（运营台操作），再走押金全链
+
+### S6 场地
+- 新仓 986516138432 创建 ✓（场地合约需先建 site_contract 再出账——chain 长留后续）
+
+### S4 补充
+- 线长 identity-verify 需要 Map body 键=realName/idCard 但 curl 中文编码又拦（第 5 次）
+- 修正：S4 完整链（实名→绑定→提现）转白天人工 devtools 验证
