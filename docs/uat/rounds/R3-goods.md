@@ -86,3 +86,10 @@
 ### S4 补充
 - 线长 identity-verify 需要 Map body 键=realName/idCard 但 curl 中文编码又拦（第 5 次）
 - 修正：S4 完整链（实名→绑定→提现）转白天人工 devtools 验证
+
+## R3 效期→拉货补齐（2026-11-07）
+
+- 造临期批次 UAT-EXP-01（expiry=now+3d，lot_id VARCHAR 手动分配）
+- expiry/alerts/ensure → 创建 OPEN 告警 taskId=1 ✓
+- expiry/alerts/{taskId}/create-replenishment → **route 2 PLANNED + task 2 PENDING** ✓
+- **MA-162/MA-157 关联回归 ✓**：拉货任务正确创建且效期告警关联
