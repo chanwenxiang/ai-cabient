@@ -59,3 +59,17 @@
 ### R3 剩余转后续
 - 效期告警→拉货任务（uat 库 lot 行需设备绑定期批次，转 R6 定时轮一并）
 - 出库/领货链（铁律 80 措辞回归已由 selfpickup 门禁静态覆盖）
+
+## S4 线路+佣金（checkpoint 1，2026-11-07）
+
+### ✅ 已完成
+- MA-108 回归 ✓（空 body 建 400）
+- 线路建（routeId=1）✓
+- 成员加（佣金 500bps）✓
+- **MA-100 回归 ✓**（bps=1000000 → 400 CommissionParamBounds）
+- 调账 ✓（LINE wallet +2000）
+
+### ⏳ 未完成（需 identity-verify + bind 两步前置）
+- 线长提现（403 未绑定实名用户）——identity-verify 端点 body 格式反查中断
+- staff_commission_daily（佣金 job 周期扫描，需 GMV + 线路成员配置都在了，等下轮周期触发自然产生）
+- commission_clawback（需要线长佣金后退款——依赖上述）
