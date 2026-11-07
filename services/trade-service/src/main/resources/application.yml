@@ -25,6 +25,15 @@ spring:
       minimum-idle: ${DB_POOL_MIN_IDLE:5}
       connection-timeout: 30000
       leak-detection-threshold: ${DB_LEAK_DETECTION_MS:60000}
+      # MA-163：readOnly 事务归还连接后 read_only 状态未复位 ⇒ 后续写事务拿到该连接即 25006
+      #（「cannot execute INSERT in a read-only transaction」，UAT 两轮窗口实证）。
+      # 两层兜底：
+      # ① 新建连接强制复位（init-sql 只在建连时跑，防历史脏连接/初始化序问题）；
+      # ② max-lifetime/idle-timeout 压缩池内连接寿命——被污染连接最多存活 30 分钟自然淘汰，
+      #    把「间歇写失败」从无限期压到分钟级窗口。根治仍以定位漏复位的 readOnly 长事务为准。
+      connection-init-sql: SET default_transaction_read_only = off
+      max-lifetime: ${DB_MAX_LIFETIME_MS:1800000}
+      idle-timeout: ${DB_IDLE_TIMEOUT_MS:300000}
   data:
     redis:
       host: ${REDIS_HOST:localhost}
