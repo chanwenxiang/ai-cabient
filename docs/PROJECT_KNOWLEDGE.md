@@ -684,6 +684,42 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R14（分仓月结账期半开窗口：真库造数 + 跨账期同源 + 负向控制 + 写态生成；**补齐 R13 的 `warehouse-monthly-close` 未覆盖**）
+
+- **前置**：用户序贯指令「按照你的推荐做」＋R13 §九 把 `warehouse-monthly-close` 明列为「本轮未造数」⇒ 本轮补齐。**被测面**：读态（纯计算，不落库）
+  `GET /api/v2/ops/admin/warehouse/monthly-close?warehouseId=&yearMonth=`、写态 `POST /api/v2/ops/admin/warehouse/close-sheets/generate`（`:347`，body `{warehouseId,yearMonth}`）、
+  注册任务 `POST /api/v2/ops/admin/scheduled-tasks/warehouse-monthly-close/run`（key 在 `ScheduledTaskRegistry.java:147` 已注册 runnable ⇒ `ScheduledTaskXxlJobHandler:145` ⇒ `WarehouseMonthlyCloseJob`）。
+  - 🔴 **路径踩坑（钉住）**：月结控制器的类级 `@RequestMapping("/api/v2/ops/admin")` 是前缀 ⇒ 少写 `/admin` 段（`/api/v2/ops/warehouse/monthly-close`）返回 **404**；先 404、再读 `@RequestMapping` 修正，实测 `/admin` + 段路径返回 **200 code 0**。
+- **grounding（先证再跑）**：窗口 = `period.minusMonths(1).atDay(26).atStartOfDay(SHANGHAI)` → `period.atDay(26)`，半开左闭右开（`WarehouseMonthlyCloseService.java:138-144`）；
+  逐行 `opening=at.isBefore(start)`、`inMonth=!opening && at.isBefore(end)`、二者皆 false `continue`（`WarehouseMonthlyCloseMath.java:59-65`）⇒ `at==start` 计入本期、`at==end` 丢弃；
+  期初列三选一：`prevSheetCounted`(`:148`) → `flowStocktake`(`:150-154`) → `acc.openingQty`(`:189-198`)；
+  `restockQty` 的钳 0 **放在全部 movement 应用完之后**（`:73-80`，审计批次4 修复）⇒ 月内「先取消后发运」不会过早钳回 0；
+  客情用水经 `refType=='GUEST_WATER'` 分流进 `guestWaterQty` 而**不进** `restockQty`（`:28`、`:91-95`）；
+  `expectedQty() = opening + purchaseIn + transferIn − return − transferOut − restock`（`:45-47`）；
+  任务目标账期 = `dayOfMonth >= 26 ? 本月 : 上月`（`WarehouseMonthlyCloseJob.java:58-63`，今日 11-08 ⇒ `2026-10`）；
+  幂等 = 已存在则 `ensureDraft` 返回 false 计入「已有单跳过」，**不重生成** DRAFT（`:74-78`、`:87-89`）。
+- **造数（真库 UAT `aicabinet_uat`，今日=2026-11-08）**：**两个账期**同源 5 类边界点，共 **23 条** `warehouse_movement`
+  （标记 `ref_type='AUDIT-R14'/'AUDIT-R14B'`；其中 NOODLE 那行**刻意**标 `ref_type='GUEST_WATER'`，因它必须流入 `guestWaterQty` ⇒ 按 `AUDIT-R14` 计会得 20 而非 21；实测直接 dump 印证 10+10+2 分布）。
+  - 账期 `2026-10` 窗口 UTC `[2026-09-25T16:00Z, 2026-10-25T16:00Z)`：SNACK×5（start−1s→期初 / 恰在 start→本期 / end−1s→本期 / 恰在 end→丢弃 / end+1s→丢弃）+ WATER×1 期初 + SODA×1 负向控制 + MILK×3（SHIP −10 / CANCEL +12 / SHIP −3）+ NOODLE×1 客情。
+  - 账期 `2025-08` 窗口 UTC `[2025-07-25T16:00Z, 2025-08-25T16:00Z)`，**先确认窗口为空**（`win_rows=0`、该账期无 sheet）再造 12 条同分布。
+- **计算（真实 HTTP `GET`，超管 token）** —— 核心判据全部命中：
+  - `2026-10` → **4 行**：SNACK `opening=1, purchaseIn=5, expected=6`；WATER `opening=7, expected=7`；MILK `restock=1, expected=−1`；NOODLE `restock=0, guestWater=4, expected=0`。
+  - `2025-08` → 同为 **4 行**、结构同源：SNACK `opening=9, purchaseIn=6, expected=15`；WATER `purchaseIn=6, expected=6`；MILK `restock=1, expected=−1`；NOODLE `guestWater=4`。
+  - 🔴 **负向控制命中**：`SKU-SODA-001` 只有恰在 `end` 的一条 ⇒ 该 SKU **不出现**（`n=4`）⇒ 上边界确为丢弃，且两侧各 1s 即切换，**无 off-by-one**。
+  - 🔴 **审计批次4 修复坐实**：MILK `−10 + 12 + (−3)` ⇒ `restockQty=1`、`expected=−1`（撤销时瞬态 −12 未被过早钳 0）；若把钳制放回逐条末尾，结果会是 `restock=3, expected=−3`。
+  - 🔴 **客情分流坐实**：`GUEST_WATER` 行进 `guestWaterQty=4`，`restockQty` 保持 `0`。
+- **写态真实生成（真实 HTTP `POST generate`）** → `closeId=4`、`DRAFT`、`2025-08`、4 行，行值与 §四 计算逐字一致；`lossQty=surplusQty=0`
+  （口径 `WarehouseMonthlyCloseSheetService.java:246-273`：`gapQty` 为 null 或 0 的行不计；本轮无盘点流水 ⇒ `countedQty` 全 null ⇒ `gap` 全 null）。随后 drift `consistent=true` / `driftedSkuCount=0`（无外部流水与手工编辑 ⇒ 漂移表空属预期）。
+- **注册任务幂等（真实 HTTP `POST run`）**：连跑 3 次 `TRIGGERED`、`账期 2026-10：生成 0 仓，已有单跳过 3 仓`；生成时新增的 4 行随后已清，仍是跳过 3 ⇒ DRAFT **不被重生成**（保护已存在 DRAFT 上的财务手工补录）。
+- **收口（真库归基线，精确）**：删 `close_id=4`（含其 4 行）+ `warehouse_movement` `movement_id 19..41`（23 条＝本轮全部造数）；
+  收口后 `warehouse_movement 41→18`、`warehouse_monthly_close 4→3`、`warehouse_monthly_close_line 4→0`、`max_movement_id=18`、`AUDIT-R14/R14B/GUEST_WATER` 残留 **0**；复跑计算 `n=0`、复跑任务仍「跳过 3 仓」。
+- **本轮改动均为 docs + 临时脚本**：未改任何产品代码。详见 `docs/uat/rounds/R14-warehouse-monthly-close-window.md`（§一–§十）。
+- **CI 门禁验证（C1 · 真实 GitHub Actions，非本地预检）**：**amended SHA `20ffcb7b…`** 触发 workflow run `42463931974`（number=**1297**，`event=push`），
+  `headSha=20ffcb7b`、`git rev-parse HEAD == git rev-parse origin/dev == 20ffcb7b`，整体 `completed / success`、**5/5 job 全绿**：`build` / `admin-artifacts` / `e2e-h5` / `mini-programs` / `integration` 均 `success`（证据源 `gh run view 42463931974 --repo chanwenxiang/ai-cabient --json jobs`，`updatedAt=2026-11-08T09:01:17Z`）。
+  - 🔴 **订正 R13 §十一 的 SHA**：R13 那条 `58d570a5…` / run `42461333249` 是**被 amend 掉的旧提交**（R13 审计改走 `reset --soft origin/dev` 重提交，最终落在 `20ffcb7b`）⇒ R13 的 CI 绿对**当前已推送 `dev`** 不构成直接证据，本轮另取 run `42463931974` 补齐互证。
+  - ⚠️ 本轮与 R13 只改 docs ⇒ 两份 CI 绿都主要证明「文档增补不破坏门禁」；源码级产物比对仍需在**含产品改动**的提交上复验。
+- **仍待**：`settlement-bill`（未注册、无手动端点）；`claimForPayout` 活库端到端竞态；小程序四闸门人工复验（微信开发者工具）。
+
 ### 2026-11-08 R13（账期切换窗口：真库造数 + 真实注册任务执行 + 幂等 + 精确收口；半开窗口归属实测命中）
 
 - **前置**：R10 §「仍待·账期切换窗口」+ 用户拍板（`R10/D1`「做完整日结边界造数」）。本轮把 D1 从「静态读码」推进到**真库闭环**。

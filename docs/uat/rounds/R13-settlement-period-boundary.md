@@ -153,3 +153,4 @@ body            : 商户名称：默认商户
 - ⇒ **5/5 全绿，run 整体 `conclusion=success`**；其中 `admin-artifacts` 正是「产物逐字节比对」门禁（此前仅推送后才可在远端验）。
 - 证据源：`gh run view 42461333249 --repo chanwenxiang/ai-cabient --json jobs`（A 级，真实读取 GH 返回）。
 - ⚠️ **诚实两侧**：① 本轮只改 **docs**（`docs/uat/rounds/R13-*.md` + `docs/PROJECT_KNOWLEDGE.md`），未触碰任何产品源码，故 CI 绿**主要验证「文档增补不破坏门禁」**；② 更早的「`admin-artifacts` 真字节比对」若需证明**源码级产物一致**，仍需在有产品改动的提交上复验。
+- 🔴 **2026-11-08 追加订正（结论性引用请看 R14 §十）**：本节记录的 commit `58d570a5…` / run `42461333249` 是**被 amend 掉的旧提交**——R13 的 round-report 修订走 `git reset --soft origin/dev` 重提交，最终落在 `20ffcb7b…`（`git rev-parse HEAD == git rev-parse origin/dev == 20ffcb7b`）。当前已推送 `dev` 的真绿由 **run `42463931974`** 提供（number=1297、`headSha=20ffcb7b…`、`updatedAt=2026-11-08T09:01:17Z`、整体 `success`、5/5 job `success`：`build` / `admin-artifacts` / `e2e-h5` / `mini-programs` / `integration`）。本行保留原记录（作为「该轮见证」仍属有效）；**对当前仓库的 C1 引用请用 R14 §十**。
