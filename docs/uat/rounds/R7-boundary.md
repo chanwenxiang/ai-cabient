@@ -202,14 +202,14 @@ SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%_
 
 - **barcode 匹配一致性**：GS1 前端校验 shape 与后端 `BarcodeLookupClient` 不一致。**需用户拍板是否收紧前端**；本轮未改、未降级任何校验。
 - **账期切换窗口造数**：再向 UAT 写入演示数据前需用户同意。
-- **push**：local 领先远端 2 commit（`27e00b90`、`37fb91f1`），**待用户显式确认再推**。
+- **push**：local 领先远端 5 commit（`27e00b90`、`37fb91f1`、`a0b56f9b`、`125ef164`、本条勘误），**待用户显式确认再推**；以 `git rev-list --count origin/dev..HEAD` 为准。
 
 ---
 
 ## §10 · R9 真金库并发双操作（真钱路径，非 mock）
 
 ### 10.1 动机
-R7 §7 项 1「并发双操作」此前仅做 Java 单测，**没有在活库上跑过真并发**：同一 PENDING 单据被两个请求同时点通过/驳回。真金库下 = 双提交审批 + 不可复现的重复记账窗口，属**会开出 bug 的那一类**。
+R7 §7 项 1「并发双操作」原文记「未测（需双登录会话）」——即活库上**一直未实证**：同一 PENDING 单据被两个请求同时点通过/驳回。真金库下 = 双提交审批 + 不可复现的重复记账窗口，属**会开出 bug 的那一类**。本轮在同一实例上做真并发双发，**单测覆盖未再单列**（移植到活库核对，勿反推为「仅单测」）。
 
 ### 10.2 测试面
 - 对象：`MERCHANT_WALLET_ADJUST`（商户钱包调账）——**走真实钱包引擎 + `approval_instance` 工作流，不经 mock 开关**。
@@ -249,7 +249,7 @@ balance            = 209900 (baseline 209900)
 ### 10.5 本轮修掉的测试脚手架 bug（诚实记录）
 初跑出现 2 个 FAIL，根因**在脚手架谓词**，不在产品：
 1. 断言用了 `...||'@'...` 但 `node_seq` 读的是 `instance_id||'/'||status||'/'||current_node_seq`（分隔符错）；
-2. cleanup 用 `DELETE ... WHERE biz_id LIKE 'AUDIT-R7CONC%'`，但 `approval_instance.biz_id` 存的是**带 `'AUDIT-R7CONC-...'` 的 remark**，谓词不匹配 ⇒ 残留 instance 18。
+2. cleanup 用 `DELETE ... WHERE biz_id LIKE 'AUDIT-R7CONC%'`，但实测 `approval_instance.biz_id` 存的是**数字流水号**（如 `1794097…`，即 ledger 的 `ref_id`），业务名只在 `title` 里 ⇒ 谓词不匹配、残留 instance 18。
 修法：断言改用 `= '2,PENDING'`；回滚按真实列 `biz_id`/`remark` 精确定向。**未改任何产品代码**。
 
 ### 10.6 收口与留痕
@@ -258,6 +258,6 @@ balance            = 209900 (baseline 209900)
 - 三端代码行为门禁（`pre-push-ci-preflight.mjs`）、Java 单测、本轮活库并发在 R7/R9 各轮均绿；本节只补「活库并发」证据，**未放宽任何门禁**。
 
 ### 10.7 仍未做（待用户）
-- **笔挺终态的两操作员并发**：需要拿 node1(运营 100000001) 与 node2(财务 100000007) 两套 token 翻案同一笔，验证两阶段竞态。本轮同用户账号并发已拦住（guard 生效），但「不同角色分节点并发提交」未跑——需第二操作员会话。
+- **双操作员（不同角色）并发**：需拿「运营」与「财务」两套 token 分节点并发处理同一笔，验证两阶段竞态。本轮同账号并发已拦住（guard 生效），但该跨角色多阶段并发 **未跑**——需第二操作员会话。
 - **`claimForPayout` 并发抢行**：活库上没有 `APPROVED(非 mock)` 去抢同一 `payout()` 的第二个请求；本轮属调账面，不碰提款闸门。
-- 推送：local 领先远端 **3 commit**（`27e00b90`、`37fb91f1`、`a0b56f9b`），**待用户确认**。
+- 推送：local 领先远端 **5 commit**（含 R7 §9/§10 文档 3 条），**待用户确认**；以 `git rev-list --count origin/dev..HEAD` 为准。
