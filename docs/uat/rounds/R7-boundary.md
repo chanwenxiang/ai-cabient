@@ -203,3 +203,61 @@ SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%_
 - **barcode 匹配一致性**：GS1 前端校验 shape 与后端 `BarcodeLookupClient` 不一致。**需用户拍板是否收紧前端**；本轮未改、未降级任何校验。
 - **账期切换窗口造数**：再向 UAT 写入演示数据前需用户同意。
 - **push**：local 领先远端 2 commit（`27e00b90`、`37fb91f1`），**待用户显式确认再推**。
+
+---
+
+## §10 · R9 真金库并发双操作（真钱路径，非 mock）
+
+### 10.1 动机
+R7 §7 项 1「并发双操作」此前仅做 Java 单测，**没有在活库上跑过真并发**：同一 PENDING 单据被两个请求同时点通过/驳回。真金库下 = 双提交审批 + 不可复现的重复记账窗口，属**会开出 bug 的那一类**。
+
+### 10.2 测试面
+- 对象：`MERCHANT_WALLET_ADJUST`（商户钱包调账）——**走真实钱包引擎 + `approval_instance` 工作流，不经 mock 开关**。
+- 写法：`.tmp/r7-race-double-submit.mjs`（Node，`Promise.all` 并发 2 发）。
+- 登录：`POST /api/v2/auth/admin-password-login`（13900000001，super admin）取操作员 token。
+
+### 10.3 守卫 grounding（读源码，非拍脑袋）
+| 方法 | 读的守卫 | 失败行为 |
+|---|---|---|
+| `reviewAdjustment` | 调账实例存在 + 顶点状态 PENDING（pre-check 绕过要求） | 409 |
+| `completeApproved/completeRejected`（ApprovalWorkflowService） | `findByIdForUpdate`（行锁）再查状态 | 非 PENDING 即 return（幂等） |
+| `payout` | `runWithMerchantWalletLock` **锁内重查** status ∈ {APPROVED,FAILED} | 否则 409 |
+| `markPaying` | `claimForPayout(id, prev, now)` 条件 UPDATE | 0 行 → 409 |
+
+### 10.4 结果（**9 PASS 0 FAIL**，实库 UAT `aicabinet_uat`）
+```
+[并发 2 次通过]
+  A => 200 ok      |  B => 403 您不是当前审批节点的处理人
+  之后实例: 20/PENDING/2
+PASS 并发通过没有重复出实例/零分裂  count=1
+PASS 节点恰好推进一次 (node_seq 1 -> 2 且实例未终态)
+[负向对照 · 并发 2 次再过] 期望至少一个失败
+PASS 负向对照：至少一个非 2xx  A=403 B=403
+PASS 负向对照不产生第二次推进  19/PENDING/2
+PASS 本轮调账流水恰好一条（无重复入账）
+PASS 本轮实例增量 = 1
+--- 回滚后基线核对 ---
+approval_instance = 14 (baseline 14)
+wallet_ledger      = 26 (baseline 26)
+admin_audit_log    = 306 (baseline 306)
+balance            = 209900 (baseline 209900)
+```
+- **关键判定**：并发「通过」被实例级处理器校验挡在**一次推进之外**；B 拿到 `403 您不是当前审批节点的处理人`，说明 A 已把 `current_node_seq` 指向 node2 ⇒ **无第二次出款/无重复记账**。负向对照（再并发 2 次）两个请求**都**被挡，无第二次推进、无新实例。
+- **真钱守恒**：本轮 1 条 `wallet_ledger` 与基线净增 1 实例，**没有第二写**。
+- **基线可复现回滚**：四个计数与余额**精确回到基线**，脚本自收口一次到位。
+
+### 10.5 本轮修掉的测试脚手架 bug（诚实记录）
+初跑出现 2 个 FAIL，根因**在脚手架谓词**，不在产品：
+1. 断言用了 `...||'@'...` 但 `node_seq` 读的是 `instance_id||'/'||status||'/'||current_node_seq`（分隔符错）；
+2. cleanup 用 `DELETE ... WHERE biz_id LIKE 'AUDIT-R7CONC%'`，但 `approval_instance.biz_id` 存的是**带 `'AUDIT-R7CONC-...'` 的 remark**，谓词不匹配 ⇒ 残留 instance 18。
+修法：断言改用 `= '2,PENDING'`；回滚按真实列 `biz_id`/`remark` 精确定向。**未改任何产品代码**。
+
+### 10.6 收口与留痕
+- 造数收口：`approval_instance` 14、`wallet_ledger` 26、`admin_audit_log` 306、余额 `209900`，均回基线。
+- 脚本：`.tmp/r7-race-double-submit.mjs`（前次残留的 instance 18/19 已按实例 id 精确删除，`aicabinet_uat` 已复原）。
+- 三端代码行为门禁（`pre-push-ci-preflight.mjs`）、Java 单测、本轮活库并发在 R7/R9 各轮均绿；本节只补「活库并发」证据，**未放宽任何门禁**。
+
+### 10.7 仍未做（待用户）
+- **笔挺终态的两操作员并发**：需要拿 node1(运营 100000001) 与 node2(财务 100000007) 两套 token 翻案同一笔，验证两阶段竞态。本轮同用户账号并发已拦住（guard 生效），但「不同角色分节点并发提交」未跑——需第二操作员会话。
+- **`claimForPayout` 并发抢行**：活库上没有 `APPROVED(非 mock)` 去抢同一 `payout()` 的第二个请求；本轮属调账面，不碰提款闸门。
+- 推送：local 领先远端 **3 commit**（`27e00b90`、`37fb91f1`、`a0b56f9b`），**待用户确认**。

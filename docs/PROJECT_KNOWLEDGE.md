@@ -684,6 +684,22 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R9（真金库并发双操作：活库真并发已实测；同账号并发守卫生效）
+
+- **动机**：R7 §7 项 1「并发双操作」此前仅 Java 单测，**未在活库跑真并发**。真金库下双提交 = 重复记账/重复出款竞态面。
+- **测试面**：`MERCHANT_WALLET_ADJUST`（商户钱包调账）——走真实钱包引擎 + `approval_instance` 工作流，不经 mock。
+  脚本 `.tmp/r7-race-double-submit.mjs`（Node `Promise.all` 并发 2 发）。登录：`POST /api/v2/auth/admin-password-login`（13900000001）。
+- **守卫 grounding**（读源码）：`reviewAdjustment` 实例存在 + 非 PENDING → 409；`completeApproved/completeRejected`
+  `findByIdForUpdate` 行锁后只认 PENDING；`payout` 在 `runWithMerchantWalletLock` **锁内重查** status ∈
+  {APPROVED,FAILED}；`markPaying` 用 `claimForPayout(id,prev,now)` 条件 UPDATE，0 行 → 409。
+- **结果 9 PASS / 0 FAIL**：并发「通过」= `A 200 / B 403 您不是当前审批节点的处理人`，节点恰好推进一次
+  （`node_seq 1→2`、实例仍 PENDING）、**无重复实例/流水/记账**；负向对照（再并发 2 次）两个请求**都**被挡、
+  无第二次推进；回滚后 `approval_instance=14`、`wallet_ledger=26`、`admin_audit_log=306`、`balance=209900` 全归基线。
+- **修的脚手架 bug（非产品）**：断言分隔符 `'@'` vs `instance_id||'/'||status||'/'||node_seq`；cleanup `WHERE biz_id LIKE 'AUDIT-R7CONC%'`
+  但 `approval_instance.biz_id` 是数字流水号、remark 副本另存 ⇒ 用真实 `biz_id`/`remark` 精确定向。**未改产品代码**。
+- **未跑（待用户会话）**：跨角色双操作员并发（需 node1 运营 100000001 / node2 财务 1000000007 两套 token）；
+  `claimForPayout` 活库抢行（无非 mock 的 APPROVED 提款单可用）。
+
 ### 2026-11-08（F1 调账审批修法 B 落地：409 守卫 + 真实状态；镜像重建后复验 15 项全 PASS）
 
 - **用户拍板 F1 修法 = 方案 B**（2026-11-07 三岔口问用户：A 前端兜底 / B 后端补守卫+读真实状态 / C 双管齐下；用户选 B「补 409 守卫 + status 读实例真实状态」）。
