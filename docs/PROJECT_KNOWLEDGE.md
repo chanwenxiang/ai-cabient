@@ -699,6 +699,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
   但 `approval_instance.biz_id` 是数字流水号、remark 副本另存 ⇒ 用真实 `biz_id`/`remark` 精确定向。**未改产品代码**。
 - **未跑（待用户会话）**：跨角色双操作员并发（需 node1 运营 100000001 / node2 财务 1000000007 两套 token）；
   `claimForPayout` 活库抢行（无非 mock 的 APPROVED 提款单可用）。
+- **R7 §5b 收口复核（同轮追加，诚实记录）**：`.tmp/r7-f1-verify-fix.mjs` 对**运行容器**原样重跑 → **15/15 PASS**；容器判真：镜像 `58a03f6813c2` 的 `MerchantWithdrawService.class` 内 `审批流未发起` 字面量 **2**（= 修复版字节码，修复前源码 1）。顺带发现脚本收口谓词又踩同类坑（锚定 `LIKE` 对 `detail`/`biz_id` 不命中）⇒ `approval_instance` 15、`admin_audit_log` 309、`approval_task` 29 未归基线；按真实列精确删除后归基线。**教训（写进规则）**：测试脚手架的 cleanup 谓词必须按**真实列内容**写（`biz_id` = 数字流水、`detail` 形如 `金额(分)=…；备注=…`、`approval_task` 按 `instance_id` 级联），不要用测试标记串直接锚定 `LIKE`。
 
 ### 2026-11-08（F1 调账审批修法 B 落地：409 守卫 + 真实状态；镜像重建后复验 15 项全 PASS）
 
@@ -715,6 +716,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
   ≥阈值(50000)双签实例 → 200 且 `data.status = PENDING` **== 库内实例真实状态**（不再假称 APPROVED）；审计 `结果=PENDING`；
   通过后同单再点 **403**「您不是当前审批节点的处理人」；F3 重复发起 409、空字段 400（`Map.of` NPE 不可经 API 触发）。
 - **收口归基线**：`approval_instance=14`、`admin_audit_log=306`、`balance_cents=209900`、`MERCHANT_WALLET_ADJUST` 实例 5，`AUDIT-F1-VERIFY` 残留 0。
+  **（2026-11-08 R9 复核后勘误，见该轮 §5c）**：原记「残留 0」按脚本实际行为**不成立**——脚本收口谓词漏删 `admin_audit_log` 3 行 + `approval_instance` 1 行（实例 21 + 2 条 `approval_task`）；按真实列（`biz_id` 数字流水 / `detail` 标记不在串首）精确删除后确实归基线（`INST 14 / TASK 27 / LEDGER 26 / AUDIT 306`）。本行其余结论（15 项断言、缺陷转 CLOSE）由 §5c 独立实测再次确认，不改判。
 - **F1 转 CLOSE（mitigated）**；F3 维持低风险（非缺陷）。⚠️ **修复改动仍在本地工作树，尚未 `git push`**（UAT-FINAL §三.4 已记）。
 - **消费端小程序开发者工具项目目录（用户 2026-11-07 拍板「不清楚，按你的推荐」）→ 落 `dist/build/mp-weixin`**：
   实测此目录 270 files、`app.json` 在位、`project.config.json` `appid=wx6dacefb3671de630`、
