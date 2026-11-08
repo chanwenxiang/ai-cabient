@@ -39,7 +39,7 @@ MA-096（负积分成本 400 ✓）、MA-069（佣金限幅 400 ✓）、MA-157�
 | 争议 ADJUST/KEEP 裁决 | 同族 CONFIRM/WAIVE 已实测；单测 6 例覆盖 |
 | 真机开门/支付分生产 API | 已留痕（支付分生产未接=501，设备摄像头售后中） |
 | R6 佣金日结 | 周期扫描型，造数后等下一轮（幂等键已在位） |
-| R7 边界未覆盖 3 项 | 跨角色双操作员并发——**2026-11-08 R10 已真库闭环（43 PASS，见「四·补 R10」→ rounds/R7-boundary.md §10.8）**；弱网恢复提示、小程序四闸门人工复验仍在排队（需开发者工具人工）。<br>**账期切换窗口——2026-11-08 R11 已做边界取证（只读，见「四·补 R11 条码 + 账期窗口」）：窗口常量从源码修正为 `Asia/Shanghai` 本地 00:00；分仓侧 11 表按 26→25 两账期打点属实。** |
+| R7 边界未覆盖 3 项 | 跨角色双操作员并发——**2026-11-08 R10 已真库闭环（43 PASS，见「四·补 R10」→ rounds/R7-boundary.md §10.8）**；弱网恢复提示、小程序四闸门人工复验仍在排队（需开发者工具人工）。<br>**账期切换窗口——2026-11-08 R11 已做边界取证（只读，见 `rounds/R11-barcode-gs1-consistency.md §六`）：窗口常量从源码修正为 `Asia/Shanghai` 本地 00:00；分仓侧 11 表按 26→25 两账期打点属实。** |
 | **F1 调账审批** | **已修复（2026-11-08）：补 409 守卫 + 返回真实实例状态，重建镜像后复验 15 项 PASS，转 CLOSE**（见「四·补 R7 边界轮 §5b」）——上线前确保该改动随本次提交推送并回归一次 |
 
 ## 四·补 R8 空表填充轮（2026-11-07，详见 rounds/R8-fill.md）
@@ -82,6 +82,20 @@ MA-096（负积分成本 400 ✓）、MA-069（佣金限幅 400 ✓）、MA-157�
 - 负控制：B 处理 node1 → 403 `您不是当前审批节点的处理人`；A 跨节点再点 → 403；终态再点 → 409（`当前状态不可审核`）。
 - 本轮 **未改任何产品代码**；该轮真实缺陷的脚手架谓词问题（`JSON.stringify` 被 psql 当作 SQL identifier、`ORDER BY` 写在聚合外、`const` 做 `&&=`、回填顺序）已在 `r10-cross-role-race.mjs` 内修正并诚实记录。
 - 仍待用户：`claimForPayout` 并发抢行（活库无 `APPROVED(非 mock)`）、账期切换窗口、小程序四闸门人工复验（微信开发者工具）。
+
+## 四·补 R12 CI 产物门禁收口（2026-11-08，详见 rounds/R12-artifact-guard.md）
+
+**R12 不是新业务测试，是把 R11 barcode 改动造成的"推不推得上去"闭环：**
+
+- R11 提交后 `pre-push-ci-preflight` 唯一红 = `check:admin-artifact-pairing`：
+  区间里有 `clients/admin-vue/src/...` 改动，却没有随源码提交的 `static/admin` 重建产物
+  （Admin 静态产物被 git 跟踪，CI 对干净检出重建做**字节比对**，设计如此）。
+- 解法：**干净检出重建**（`git clone` → `pnpm install --frozen-lockfile` → `node scripts/build-admin.mjs`），
+  用 `node:24.18.0` 容器对齐 CI，**不碰宿主 `node_modules`/`.env.local`**（`VITE_*` 会被 vite 内联进产物 ⇒ 哈希必不同 ⇒ CI 必红）。
+  `ADMIN_PAIR_PROVE_INERT=1` 买不到绿：barcode 改动确实进 bundle。
+- 结果：产物随源码提交（`1a32a93f`），重跑 preflight **exit 0**
+  （`✓ check:admin-artifact-pairing`、`✓ admin-bundle-budget`）。旧产物已备份在 `.tmp/stale-admin-ci-r12-admin`。
+- ⚠️ **仍待真实 Actions 验**：CI `admin-artifacts` 的非 Windows 字节比对，须 push 后由 Actions 确认。
 
 ## 五、全库表覆盖（179 表 · R11 分类已作准）
 
