@@ -134,3 +134,22 @@ body            : 商户名称：默认商户
 - 半开窗口 `[from,to)` 归属语义**实测命中**，边界两侧各 1s 无 off-by-one；负控制有效。
 - 任务幂等：**同业务日重复触发不重复发通知**。
 - **0 新缺陷**，0 起产品代码改动，0 资金侧副作用（费用因配置为 NULL 而早退，已在 §四 明确为该**单一商户 MCH-DEFAULT** 的 scoped 结论）。
+
+## 十一、CI 门禁验证（C1 · 真实 GitHub Actions，非本地预检）
+
+本地 preflight 通过不等于 CI 通过。本轮把刚推送的 SHA 在**真实 GitHub Actions** 上跑完并回读：
+
+- 推送 SHA：`58d570a5ed068bebbbdaf02b337e9fca5e8212bb`
+- Workflow run：`42461333249`（`CI`，event=`push`，`updatedAt=2026-11-08T08:23:46Z`）
+
+| Job | status | conclusion |
+|---|---|---|
+| build | completed | **success** |
+| e2e-h5 | completed | **success** |
+| mini-programs | completed | **success** |
+| **admin-artifacts** | completed | **success** |
+| integration | completed | **success** |
+
+- ⇒ **5/5 全绿，run 整体 `conclusion=success`**；其中 `admin-artifacts` 正是「产物逐字节比对」门禁（此前仅推送后才可在远端验）。
+- 证据源：`gh run view 42461333249 --repo chanwenxiang/ai-cabient --json jobs`（A 级，真实读取 GH 返回）。
+- ⚠️ **诚实两侧**：① 本轮只改 **docs**（`docs/uat/rounds/R13-*.md` + `docs/PROJECT_KNOWLEDGE.md`），未触碰任何产品源码，故 CI 绿**主要验证「文档增补不破坏门禁」**；② 更早的「`admin-artifacts` 真字节比对」若需证明**源码级产物一致**，仍需在有产品改动的提交上复验。

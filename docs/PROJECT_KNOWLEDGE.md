@@ -716,6 +716,10 @@ gross − member − activity − coupon = total      （部分退款单例外�
   Redis 口令为 `devredis`（`REDIS_PASSWORD` env，误用 `aicabinet` 会 `WRONGPASS`）；
   手写 JWT 过期 ⇒ 改脚本内现场取验证码（`GET /api/v2/auth/captcha` → redis 读码）+ 现场登录；
   PowerShell `"…" -f` 会把 JSON 的 `{}` 当格式占位符 ⇒ 改 `.Replace('~CID~',…)`。**未改任何产品代码。**
+- **CI 门禁验证（C1 · 真实 GitHub Actions，非本地预检）**：推送 SHA `58d570a5…` 触发 workflow run `42461333249`，
+  整体 `completed / success`；5 个 job **全绿**：`build` / `e2e-h5` / `mini-programs` / `admin-artifacts` / `integration` 均 `success`。
+  其中 `admin-artifacts` 就是「产物逐字节比对」门禁（此前只能在推送远端验）。证据源：`gh run view 42461333249 --repo chanwenxiang/ai-cabient --json jobs`。
+  ⚠️ 本轮只改 docs ⇒ CI 绿主要证明「文档增补不破坏门禁」；源码级产物比对仍需在含产品改动的提交上复验。
 - **仍待**：`settlement-bill`（未注册，需决定是否补）；`warehouse-monthly-close`（读库存，与拆分表无关）；
   `claimForPayout` 活库端到端竞态；小程序四闸门人工复验（微信开发者工具）。
 
