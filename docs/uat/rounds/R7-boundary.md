@@ -171,3 +171,35 @@ MERCHANT_WALLET_ADJUST instances = 5（基线，本轮所建已删）
 `mvn -B -Pskip-admin-ui -Dtest=MerchantWithdraw*Test -Dsurefire.failIfNoSpecifiedTests=false -pl services/trade-service -am test`
 → `Tests run: 38, Failures: 0, Errors: 0, Skipped: 0`，BUILD SUCCESS（含 `MerchantWithdrawConcurrencyTest` 11、`MerchantWithdrawDoubleReviewTest` 5）。
 > 必须从仓根跑且带 `-pl services/trade-service -am`：只跑 trade-service 模块不会编译 common-core，会以「找不到符号 `com.aicabinet.common.dto.*`」报编译错（非产品缺陷）。
+
+## 9 · R7 §7 未覆盖项的进展与收口对账（2026-11-08，只读无需造数）
+
+R7 §7 四项在单元/静态层面已有部分进展，**逐项对账如下**（不谎报）：
+
+| §7 项 | 现状（2026-11-08） | 是否已覆盖 |
+|---|---|---|
+| 1 并发双操作（同单双操作员） | `MerchantWithdrawConcurrencyTest`(11) + `MerchantWithdrawDoubleReviewTest`(5) 已随本提交 Java 回归 PASS——**单测层已覆盖双操作/重复审** | ⚠ 单元层已证，**端到端真金库双会话并发仍未做**（留人工） |
+| 4 全表覆盖终检（三分类补跑） | 本轮只能读 64 校验 → **作准数 = 实库 179 张**、`_bak` 备份表已不存在（见 §9.1）；三分类细分未重跑 | ❌ 未覆盖（留下一轮） |
+| 2 弱网（AUTOMATOR 断网恢复提示） | 需微信开发者工具人工配合 | ❌ 未覆盖（用户在场） |
+| 3 账期切换窗口（跨日下单/日结） | 需时间窗 + away-runner，且再增演示数据前需用户同意 | ❌ 未覆盖（需确认） |
+
+### 9.1 全库表覆盖：旧口径与实库对账（read-only）
+
+发现**文档计数过期且自相矛盾**，以实库为准纠正：
+
+```
+SELECT count(*) FROM information_schema.tables WHERE table_schema='public';  → 179
+SELECT count(*) FROM pg_tables WHERE schemaname='public';                    → 179
+SELECT count(*) FROM flyway_schema_history;                                   → 446
+SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%_bak%';   → 空
+```
+
+- **实库 `aicabinet_uat`.public = 179 张**（双路 count 一致）。`UAT-FINAL.md §五` 写的「181 表 / 94 触达 / 87 空」是 V448 删 2 张备份表前的旧口径，已过期 ⇒ **已作准口径纠正并留痕**。
+- **原「死表候选」两张已不存在**：`sku_catalog_vision_cols_bak_20261011`、`sku_vision_mapping_bak_20261011` 均不在库里（`pg_tables LIKE '%_bak%'` 返回空）⇒ 已被 V448 删除。旧口径「2 死表尚未清理」不成立，**勿据此排队清理动作**。
+- `table-coverage-final.md` **表头 179 = 139 触达 + 40 空 与实库一致**，但其正文「已触达 94 表」/「空表 58 = A34+B22+C2」仍是旧稿残留、两处数字自相矛盾 ⇒ 三分类整轮终检时一并重写（本轮据实力此行/列未逐表重跑，不下结论）。
+
+### 9.2 待用户决策（禁止自行猜测实现）
+
+- **barcode 匹配一致性**：GS1 前端校验 shape 与后端 `BarcodeLookupClient` 不一致。**需用户拍板是否收紧前端**；本轮未改、未降级任何校验。
+- **账期切换窗口造数**：再向 UAT 写入演示数据前需用户同意。
+- **push**：local 领先远端 2 commit（`27e00b90`、`37fb91f1`），**待用户显式确认再推**。

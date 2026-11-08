@@ -72,5 +72,13 @@ MA-096（负积分成本 400 ✓）、MA-069（佣金限幅 400 ✓）、MA-157�
 
 ## 五、全库表覆盖（181 表）
 
-详见 docs/uat/table-coverage-final.md：94 触达（核心资金/交易/账号/仓储全链）/ 87 空
-（45=夜间未触发流程、22=开门柜特化无数据=正确、2=死表候选 sku_catalog_vision_cols_bak / sku_vision_mapping_bak_20261011 建议拍板清理）。
+> ⚠️ 2026-11-08 用真实库对账为**作准数 179 张**（`information_schema.tables WHERE table_schema='public'` 与
+> `pg_tables` 双路 count 一致），原「181 表 / 94 触达 / 87 空」为 V448 删 2 张备份表前的旧口径，已过期。
+> 　合并判据：`SELECT count(*) FROM information_schema.tables WHERE table_schema='public'` = **179**；
+> 　`SELECT count(*) FROM pg_tables WHERE schemaname='public'` = **179**；`flyway_schema_history` = **446 行**。
+> 　上表三分类需要整轮重跑才能作准（本轮未跑）；已核实 **原「死表候选」两张 `*_bak_20261011` 备份表已不存在**
+> （`pg_tables LIKE '%_bak%'` 返回空 ⇒ 已被 V448 删除），故旧的「2 死表尚未清理」口径不成立，勿再据此条排队清理动作。
+> 　重新分类未完工前，本节数字以真实库 179 为准；细分（触达/空）待下一轮全表终检补跑后重写。
+
+详见 docs/uat/table-coverage-final.md（其表头 179 = 139 触达 + 40 空与实库一致，但正文「已触达 94」/ 
+「空表 58 = A34+B22+C2」仍为旧稿残留，两处数字自相矛盾，整轮终检时一并修正）。
