@@ -1,12 +1,17 @@
-# UAT 全库表覆盖终检（2026-11-07，uat 库 aicabinet_uat 精确 count）
+# UAT 全库表覆盖终检（2026-11-08 R11 重跑，uat 库 aicabinet_uat 精确 count）
 
-> 数据：**179 表 = 139 触达 + 40 空**（R7 初版 94 → S2-S14 +14 → R8 +15 → R9 佣金/审批/账单链 +6 → R10 出库领货链+争议消息+订阅偏好等 +10；V448 删 2 死表后总数 181→179）。
+> 🔴 **实测数字（2026-11-08 10:52 重跑，见 `.tmp/r11-table-coverage.mjs` / `rounds/R11-table-coverage.md`）**：
+> **179 表 = 140 触达 + 39 空** —— 本版修正上一版（139/40）的计数差。
+> 根因：上一版 §A 把 **`announcement` 误列为空表**，但它在 **R8 已填充**（`rounds/R8-fill.md:21`「admin 建+publish 行=1」、
+> `UAT-FINAL.md` §四·补 R8 节同；实库现 `announcement=1`）⇒ 旧版自相矛盾、总计差 1。
+> 另：`order_revenue_split` 上一版记 1 行，实库 **3 行且全部 VOIDED**（见下 §C′）。
 > 判定规则：①本轮业务产生过数据=已触达；②空=对应业务流程未在 UAT 周期内触发（多为 R1-R7 夜间批未覆盖、或依赖特定前置）；③极少数=死表候选。
 
-## 已触达 94 表（明细见 .tmp 快照与轮报告）
+## 已触达 140 表（明细见 R11 实测快照与轮报告）
 
-核心资金/交易/账号/仓储/营销/审批/字典全链均产生真实数据（各表行数见 uat-counts 快照），
-包括：cabinet_order(1)/line(1)、payment_operation(3)、order_revenue_split(1)、wallet_account(2)/ledger(3)、
+核心资金/交易/账号/仓储/营销/审批/字典全链均产生真实数据，
+包括：cabinet_order(1)/line(1)、payment_operation(3)、order_revenue_split(3，全 VOIDED——见 §C′)、
+wallet_account(2)/ledger(3)、
 user_info(16)/user_account(15)/user_coupon(3)、merchant(3)、sku_catalog(9)/scene_limit(1)、
 device_info(4)/sku_inventory(7)、warehouse(2)/inventory(7)/stocktake(2)+line(8)/transfer(1)+line(1)/inbound(1)+line(1)/movement(8)、
 purchase_order(3)+line(3)、supplier(2)/payable(1)/entry(1)/payment(1)、dispute_ticket(3)、
@@ -24,8 +29,11 @@ ops_2fa_recovery_code、site_contract、site_rent_bill、device_temp_plan、anno
 data_consistency_record、balance_refund_request、balance_refund_allocation、repair_ticket（消费者报修自动建单）；
 另部分退活验（PARTIAL_REFUNDED 250/500 对平）+ MA-092/119 回归 + 余额原路退双人审批流全链 ✓
 
-### A. 流程未在 UAT 夜间批触发（余 34 表）——白天/后续补测即有数据
-announcement（R11 已在 dev 验证读面）、balance_refund_allocation（部分退未触发——E2E 覆盖）、
+### A. 流程未在 UAT 夜间批触发（余 33 表）——白天/后续补测即有数据。
+> R11 计数已以顶部「🔴 实测数字」为准；下列仍按 R11 前的分类口径保留，仅作**空表原因说明**。
+> ⚠️ ~~`announcement`~~：上一版据此列空表属**自相矛盾**（R8 已填充，实库=1）⇒ R11 已从 A 类移除（见顶部）。
+>
+> balance_refund_allocation（部分退未触发——E2E 覆盖）、
 commission_clawback、compensation_task、consumer_preauth_hold（R1 脚本 preauth=0）、
 data_change_log、device_data_fee_bill、device_fault_order/report（报修未测）、
 device_http_credential/mqtt_credential（凭据签发未测）、device_lifecycle_event、device_rental_bill/deposit/deposit_event（租赁未测）、
@@ -45,14 +53,27 @@ device_slot / device_sku_lot / device_sku_price（开门柜无货道/无设备�
 sku_jiangyi_link（将邑绑定已撤，MQTT 形态）、jiangyi_recognition_report/training_ticket/model_deployment/order_video（将邑采集/学习未走）、
 device_temperature_reading 之外的 env 读数、merchant_payment_onboarding 之外各自按需、
 ops_org_node/ops_user_device_scope(_pref)/ops_user_route_scope（组织点位未启用）、
-device_ops_event、sku_catalog_vision_cols_bak_20261011 / sku_vision_mapping_bak_20261011（备份表，死表候选）
+device_ops_event、sku_jiangyi_link、user_realname_auth（隐私设计）、device_temperature_reading(_entry)、
+slot_template/slot_template_line、ops_device_org、ad_campaign_device/ad_play_event/ad_revenue_daily、
+jiangyi_* / ops_org / ops_config 系。
+- ✅ ~~两张备份表（sku_catalog_vision_cols_bak_20261011 / sku_vision_mapping_bak_20261011）~~：
+  **已在 V448 被 DROP**（实库 `table_name ILIKE '%_bak%'` 空；R11 空表列表中不存在）⇒ 不再是候选。
 
-### C. 死表/备份表候选（建议清理拍板，2 表）
-- sku_catalog_vision_cols_bak_20261011（8 行）——2026-10-11 迁移备份表，确认无回滚需求后 DROP
-- sku_vision_mapping_bak_20261011（24 行）——同上
+### C. ⚠️ 已结清 · 死表/备份表候选（R11 复核：**2 张已在 V448 删除**）
+- ~~sku_catalog_vision_cols_bak_20261011~~ ~~sku_vision_mapping_bak_20261011~~ —— 2026-10-11 迁移备份表，
+  **均已 DROP（V448），`pg_tables LIKE '%_bak%'` 返回空** ⇒ 旧口径「2 死表尚未清理」不成立，勿再据此排队清理。
 
-## 结论
+### C′. 设计恒空但属资金口径（非缺陷）——R11 实证
+- **`merchant_settlement_bill`（商户月度结算单）为空是设计如此，非资金缺陷**：
+  `MerchantSettlementBillService.buildRows()` 明确**排除 VOIDED/REVERSED**；实库 `order_revenue_split` 共 **3 行、全部 VOIDED**
+  （`1793976576044748108876`/`1794017491698733162060`/`1794019755167728594983`，gross 1074/250/500）⇒
+  重建账期 `2026-10 / 2026-11` 聚合结果 0 商户，与执行日志「结算单重建 … 共 0 商户」**一致** ⇒ 正确。
+  该行账期（1 月 1 日 ~ 12 月 1 日 Asia/Shanghai）均覆盖 2026-11-06/07 这些 split，故排除发生在**状态**而非**时间窗口**。
+- 同源口径：`merchant-daily-income-notify` 日志「昨日(2026-11-07)日结通知发送 0 商户」同为 `isReversed` 口径，一致。
 
-- **核心资金/交易/账号/仓储链 100% 触达且数据对平**（123 表含全部资金面）
-- 空表 58 = A 类补测（白天/后续轮次自然产生数据）+ B 类开门柜特化（无数据=正确）+ C 类死表候选 2 张
-- **无「业务测了但表没数据」的可疑缺口**；无新增死表发现
+## 结论（R11 口径）
+
+- **实测 179 = 140 触达 + 39 空**（R11 重跑，`.tmp/r11-table-coverage.out.txt` 存全量 39 空表名单）。
+- 上一版「139/40」差 1 的根因是**文档自相矛盾**（`announcement` 系 R8 已填充却被误列 A 类空表），已返正。
+- 39 空表 = A 类补测（流程未触发，白天/后续轮次自然产生数据）+ B 类开门柜特化（无数据=正确）+ **1 项 C′（`merchant_settlement_bill`，设计不产生）**。
+- **无「业务测了但表没数据」的可疑缺口**；**无新增死表发现**；R11 复核确认 C 类 2 张备份表**已在 V448 删除**（旧口径不成立）。

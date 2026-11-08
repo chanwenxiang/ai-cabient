@@ -83,15 +83,18 @@ MA-096（负积分成本 400 ✓）、MA-069（佣金限幅 400 ✓）、MA-157�
 - 本轮 **未改任何产品代码**；该轮真实缺陷的脚手架谓词问题（`JSON.stringify` 被 psql 当作 SQL identifier、`ORDER BY` 写在聚合外、`const` 做 `&&=`、回填顺序）已在 `r10-cross-role-race.mjs` 内修正并诚实记录。
 - 仍待用户：`claimForPayout` 并发抢行（活库无 `APPROVED(非 mock)`）、账期切换窗口、小程序四闸门人工复验（微信开发者工具）。
 
-## 五、全库表覆盖（181 表）
+## 五、全库表覆盖（179 表 · R11 分类已作准）
 
-> ⚠️ 2026-11-08 用真实库对账为**作准数 179 张**（`information_schema.tables WHERE table_schema='public'` 与
-> `pg_tables` 双路 count 一致），原「181 表 / 94 触达 / 87 空」为 V448 删 2 张备份表前的旧口径，已过期。
-> 　合并判据：`SELECT count(*) FROM information_schema.tables WHERE table_schema='public'` = **179**；
-> 　`SELECT count(*) FROM pg_tables WHERE schemaname='public'` = **179**；`flyway_schema_history` = **446 行**。
-> 　上表三分类需要整轮重跑才能作准（本轮未跑）；已核实 **原「死表候选」两张 `*_bak_20261011` 备份表已不存在**
-> （`pg_tables LIKE '%_bak%'` 返回空 ⇒ 已被 V448 删除），故旧的「2 死表尚未清理」口径不成立，勿再据此条排队清理动作。
-> 　重新分类未完工前，本节数字以真实库 179 为准；细分（触达/空）待下一轮全表终检补跑后重写。
+> ✅ **2026-11-08 R11 整轮重跑已完成，分类已作准**（脚本 `.tmp/r11-table-coverage.mjs`，报告
+> `rounds/R11-table-coverage.md`，详表 `docs/uat/table-coverage-final.md`）。
+> 　合并判据：`information_schema.tables WHERE table_schema='public'` = **179**；`pg_tables WHERE schemaname='public'` = **179**；
+> `flyway_schema_history` = **446 行**。
+> 　🔴 R11 **实测 179 = 140 触达 + 39 空**；旧表头「139/40」差 1 的根因是文档**自相矛盾**
+> （`announcement` 系 R8 已填充却仍被列进 A 类空表，实库 `announcement=1`）。
+> 　旧「2 张 `*_bak_20261011` 备份表尚未清理」口径不成立——**两表已在 V448 DROP**（`pg_tables LIKE '%_bak%'` 空）。
+> 　R11 新增 **C′**：`merchant_settlement_bill` 恒空属**设计如此**（实库 `order_revenue_split` 3 行全 `VOIDED`，
+> 被 `buildRows()` 的 `isReversed` 口径排除），**非资金缺陷**，与日志「重建 0 商户」一致。
+> 　残项：该报表的**确切金额从未用一笔非 VOIDED 实单实跑**——上线前若需实证，建议补一笔无退款实单后重跑 `settlement-bill`。
 
-详见 docs/uat/table-coverage-final.md（其表头 179 = 139 触达 + 40 空与实库一致，但正文「已触达 94」/ 
-「空表 58 = A34+B22+C2」仍为旧稿残留，两处数字自相矛盾，整轮终检时一并修正）。
+详见 docs/uat/table-coverage-final.md（Header/§A/§结论已在 R11 返正；39 空表全名单存
+`.tmp/r11-table-coverage.out.txt`）。
