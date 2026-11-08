@@ -19,7 +19,9 @@
         color: #0f172a;
       }
       .canvas {
-        width: 2160px;
+        /* 🔴 2026-11-08 驳回整改：补充「产品经营首页」「支付分授权分数页面」两屏
+           ⇒ 屏数 6→7，画布改为随内容自适应（生成脚本按 element 宽度截图） */
+        width: max-content;
         padding: 48px 48px 40px;
       }
 
@@ -119,7 +121,55 @@
         display: block;
       }
 
-      /* ── ① 商品展示页 ─────────────────────────────────── */
+      /* ── ① 产品经营首页（2026-11-08 驳回整改：由「商品展示页」升级） ── */
+      .shop-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .shop-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        background: #0d9488;
+        color: #fff;
+        font-size: 24px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .shop-name {
+        font-size: 17px;
+        font-weight: 500;
+      }
+      .shop-sub {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 3px;
+      }
+      .cat-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .cat-tab {
+        font-size: 14px;
+        color: #64748b;
+        background: #fff;
+        border-radius: 16px;
+        padding: 6px 14px;
+      }
+      .cat-tab--on {
+        color: #0d9488;
+        font-weight: 500;
+        background: #ccfbf1;
+      }
       .catalog {
         padding: 16px;
       }
@@ -403,6 +453,75 @@
         color: #475569;
       }
 
+      /* ── ③ 支付分授权分数页面（2026-11-08 驳回整改：新增） ──
+         规范 P5：业务有明确分数要求 ⇒ 必须用「带分数要求版」标语
+         （微信支付分 | 550分及以上优享），分数文案独立展示。 */
+      .auth-score {
+        position: absolute;
+        inset: 0;
+        background: #f5f7fa;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 26px 20px 0;
+      }
+      .auth-logo {
+        width: 56px;
+        height: 56px;
+        margin-bottom: 14px;
+      }
+      .auth-score-hint {
+        font-size: 13px;
+        color: #64748b;
+        margin: 12px 0 18px;
+      }
+      .auth-card {
+        width: 100%;
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px;
+      }
+      .auth-card-title {
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 10px;
+      }
+      .auth-line {
+        font-size: 13px;
+        color: #475569;
+        line-height: 2;
+      }
+      .auth-agree-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: #475569;
+        margin: 16px 0 12px;
+        align-self: flex-start;
+      }
+      .auth-check {
+        width: 17px;
+        height: 17px;
+        border-radius: 50%;
+        background: #07c160;
+        color: #fff;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .auth-foot {
+        font-size: 12px;
+        color: #94a3b8;
+        margin-top: 12px;
+      }
+      .auth-score .btn-primary {
+        width: 100%;
+        margin-top: 0;
+      }
+
       /* ── ③ 支付分开通成功 ─────────────────────────────── */
       .done-wrap {
         position: absolute;
@@ -589,17 +708,29 @@
       </div>
 
       <div class="screens">
-        <!-- ① 商品展示页 -->
+        <!-- ① 产品经营首页 -->
         <div class="screen">
           <div class="screen-cap">
-            <span class="screen-step"><span class="screen-step-no">1</span>商品展示页</span>
-            <div class="screen-name">支付分标签 · 权益感知</div>
+            <span class="screen-step"><span class="screen-step-no">1</span>产品经营首页</span>
+            <div class="screen-name">商户经营主页 · 商品陈列 · 支付分标签</div>
           </div>
           <div class="phone">
             <div class="phone-bar">开门购物</div>
             <div class="phone-body">
               <div class="catalog">
-                <div class="search">搜索本柜商品</div>
+                <div class="shop-head">
+                  <div class="shop-avatar">前</div>
+                  <div>
+                    <div class="shop-name">前海易购智能柜</div>
+                    <div class="shop-sub">开门取货 · 关门自动结算 · 全程免密</div>
+                  </div>
+                </div>
+                <div class="cat-tabs">
+                  <span class="cat-tab cat-tab--on">全部商品</span>
+                  <span class="cat-tab">饮品</span>
+                  <span class="cat-tab">食品</span>
+                  <span class="cat-tab">日用品</span>
+                </div>
                 <div class="grid">
                   <div class="pcard pcard--tagged">
                     <div class="pthumb t1">水</div>
@@ -744,29 +875,89 @@
           </svg>
         </div>
 
+        <!-- ③ 支付分授权分数页面（2026-11-08 驳回整改新增） -->
+        <div class="screen">
+          <div class="screen-cap">
+            <span class="screen-step"><span class="screen-step-no">3</span>支付分授权分数页面</span>
+            <div class="screen-name">分数要求展示 · 授权确认（商户自研页）</div>
+          </div>
+          <div class="phone">
+            <div class="phone-bar">开通免密支付</div>
+            <div class="phone-body">
+              <div class="auth-score">
+                <img class="auth-logo" src="__LOGO__" alt="" />
+                <div class="auth-score-tag">
+                  <span class="ps-tag ps-tag--slogan">
+                    <img class="ps-tag__logo" src="__LOGO__" alt="" />
+                    <span class="ps-tag__brand">微信支付分</span>
+                    <span class="ps-tag__sep"></span>
+                    <span class="ps-tag__biz">550分及以上优享</span>
+                  </span>
+                </div>
+                <div class="auth-score-hint">微信支付分达到门槛，即可先享后付、免密购物</div>
+                <div class="auth-card">
+                  <div class="auth-card-title">服务说明</div>
+                  <div class="auth-line">· 扫码开门，免预付直接取货</div>
+                  <div class="auth-line">· 关门后按实际取货商品金额自动扣款</div>
+                  <div class="auth-line">· 开通一次，后续扫码直接开门购物</div>
+                </div>
+                <div class="auth-agree-row">
+                  <span class="auth-check">✓</span> 我已阅读并同意《微信支付分免密支付协议》
+                </div>
+                <div class="btn-primary">同意并开通</div>
+                <div class="auth-foot">开通服务免费 · 每笔扣款前将收到消息通知</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <svg width="26" height="16" viewBox="0 0 26 16">
+            <path
+              d="M1 8h20M16 3l5 5-5 5"
+              fill="none"
+              stroke="#94a3b8"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+
         <!-- 微信授权页（占位） -->
         <div class="screen">
           <div class="screen-cap">
-            <span class="screen-step"><span class="screen-step-no">3</span>支付分授权页</span>
+            <span class="screen-step"><span class="screen-step-no">4</span>支付分官方授权页</span>
             <div class="screen-name">微信侧提供（本图为跳转目标）</div>
           </div>
           <div class="phone">
             <div class="phone-bar">微信支付分</div>
             <div class="phone-body">
               <div class="wx-auth">
-                <div class="wx-auth-note">
-                  <div class="wx-auth-title">占位说明</div>
-                  <div class="wx-auth-text">
-                    此页为<b>微信支付分官方授权页</b>，由微信在小程序内拉起（wx.openBusinessView /
-                    businessType=wxpayScoreEnable），页面与交互由微信提供，本图仅标注其为流程中的一跳。
+                <div class="wx-page" style="margin-top: 20px">
+                  <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px">
+                    <img class="ps-tag__logo" src="__LOGO__" alt="" style="width: 34px; height: 34px" />
+                    <div>
+                      <div class="wx-page-title" style="margin-bottom: 2px">开通微信支付分</div>
+                      <div style="font-size: 12px; color: #64748b">前海易购智能柜</div>
+                    </div>
                   </div>
-                </div>
-                <div class="wx-page">
-                  <div class="wx-page-title">开通服务</div>
-                  <div class="wx-page-line">服务内容：智能开门柜先享后付</div>
-                  <div class="wx-page-line">扣款规则：按实际取货商品金额计费</div>
-                  <div class="wx-page-line">开通后：扫码即开门，关门自动扣款</div>
+                  <div class="wx-page-line" style="display: flex; justify-content: space-between">
+                    <span>服务内容</span><b>智能开门柜 · 先享后付</b>
+                  </div>
+                  <div class="wx-page-line" style="display: flex; justify-content: space-between">
+                    <span>信用门槛</span><b style="color: #07c160">550分及以上</b>
+                  </div>
+                  <div class="wx-page-line" style="display: flex; justify-content: space-between">
+                    <span>扣款规则</span><b>按实际取货商品金额</b>
+                  </div>
+                  <div class="wx-page-line" style="display: flex; justify-content: space-between">
+                    <span>开通后权益</span><b>扫码即开门 · 关门自动扣款</b>
+                  </div>
                   <div class="wx-agree">同意并开通</div>
+                  <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 10px">
+                    服务由微信支付分提供 · 可随时在「支付分」中关闭
+                  </div>
                 </div>
               </div>
             </div>
@@ -789,7 +980,7 @@
         <!-- ③ 开通成功 -->
         <div class="screen">
           <div class="screen-cap">
-            <span class="screen-step"><span class="screen-step-no">4</span>支付分开通成功</span>
+            <span class="screen-step"><span class="screen-step-no">5</span>支付分开通成功</span>
             <div class="screen-name">弹窗 · 品牌标语</div>
           </div>
           <div class="phone">
@@ -838,7 +1029,7 @@
         <!-- ④ 扣款成功 -->
         <div class="screen">
           <div class="screen-cap">
-            <span class="screen-step"><span class="screen-step-no">5</span>扣款成功</span>
+            <span class="screen-step"><span class="screen-step-no">6</span>扣款成功</span>
             <div class="screen-name">逐件明细 · 申诉入口</div>
           </div>
           <div class="phone">
@@ -910,7 +1101,7 @@
         <!-- ⑤ 订单完成页 -->
         <div class="screen">
           <div class="screen-cap">
-            <span class="screen-step"><span class="screen-step-no">6</span>订单完成页</span>
+            <span class="screen-step"><span class="screen-step-no">7</span>订单完成页</span>
             <div class="screen-name">收口 · 引导复购</div>
           </div>
           <div class="phone">
@@ -952,7 +1143,7 @@
 
       <div class="doc-foot">
         <span>深圳前海易购科创智能设备有限公司 ｜ 微信支付商户号 1700080722</span>
-        <span>场景：无人零售（智能开门柜）先享后付 ｜ 2026-10-26</span>
+        <span>场景：无人零售（智能开门柜）先享后付 ｜ 2026-11-08（v2 · 含经营首页与授权分数页）</span>
       </div>
     </div>
   </body>
