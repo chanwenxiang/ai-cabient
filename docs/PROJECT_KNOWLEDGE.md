@@ -684,6 +684,26 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R10（三端横切 · 跨角色双操作员并发：真金库闭环 43 PASS / 0 FAIL）
+
+- **补齐 R9 未跑项**：跨角色（node1 处理人 A / node2 处理人 B 两套真实 login token 并发点同一笔 `MERCHANT_WALLET_ADJUST`）。
+  脚本 `.tmp/r10-cross-role-race.mjs`；会话 A=`13900000001`(`operator_id=100000001`, node1)、B=`13900000002`(`operator_id=100000007`, node2)。
+- **审批定义 grounding**：def `MERCHANT_WALLET_ADJUST`(def_id=9) 双节点双签；`passRule=ANY`(node1)。
+- 🔴 **勘误（重要）**：`approval_node.assignee_value` 存的是**具体 user_id（如 `100000001`），不是角色 key**；
+  此前「100000001 = 运营角色」不准确——其绑定角色为 **admin 超管**。落地到 `approval_task.assignee_user_id` 时按 user_id 匹配处理人。
+- **行锁语义（决定并发判读）**：`ApprovalInstanceMapper.xml:6-8` `findByIdForUpdateRaw` = `SELECT * FROM approval_instance WHERE instance_id=… FOR UPDATE`。
+  `completeApproved/completeRejected` 事务内先拿到实例行锁再校验，故并发 review 在库层**串行化**。
+- **43 PASS / 0 FAIL**：`B1` 实例停 node1/PENDING → `C2` B 处理 node1 → **403 您不是当前审批节点的处理人**（未动）→ `B3` A 通过 node1 →
+  **返回真实 status=PENDING**（非假 APPROVED，移交财务）→ `C4` A 跨节点再点 → 403（未动）→ `B5` B 通过 node2 → 返回真实 APPROVED → `C6` 终态再点 → **409 当前状态不可审核** →
+  `AUD` bizB1 留痕恰好 2 条且与真实状态一致（无「node1+node2 同时 APPROVED」失真）。
+- **RC2 同会话连点 ×3 轮**：恰好 **1×200 / 1×403**；node1 至多推进一次；**node2 恰好 1 个任务行**（无重复节点任务）。
+- **RC3 跨角色并发 ×3 轮**：看到的两种次序皆合法且安全——`A200/B200`（B 阻塞在实例行锁，A 提交后 B 落到 node2 合法完成 → 实例 APPROVED）；
+  `A200/B403`（B 抢 node1 失败，实例停 node2 保留财务待办）。**不变式恒成立**：node1 由 A 唯一处理且仅推进一次、node2 恰 1 任务/处理人=100000007、B 从不批准 node1、终态再点 409。
+- **收口（真库归基线）**：`approval_instance=14`、`approval_task=27`、`wallet_ledger=26`、`admin_audit_log=306`、`balance_cents=209900`、marker 残留 0。
+- **脚手架修复（非产品，诚实记录）**：`JSON.stringify` 在模板字符串里被 psql 当作 SQL **identifier**（列不存在）→ 须 `sqls()` 单引号包裹注入值；`ORDER BY` 写在 `string_agg` 外 → 须包派生表；
+  回填余额须**先 `SELECT sum` 再 `DELETE`**（顺序反则净额恒 0，余额会 +350000 不复原）；`const` 做 `&&=` 赋值需 `let`。**未改任何产品代码**。
+- **仍待**：`claimForPayout` 并发抢行（活库无 `APPROVED(非 mock)` 提款单）；账期切换窗口；小程序四闸门人工复验（微信开发者工具）。
+
 ### 2026-11-08 R9（真金库并发双操作：活库真并发已实测；同账号并发守卫生效）
 
 - **动机**：R7 §7 项 1「并发双操作」此前仅 Java 单测，**未在活库跑真并发**。真金库下双提交 = 重复记账/重复出款竞态面。

@@ -292,3 +292,62 @@ balance            = 209900 (baseline 209900)
 - **双操作员（不同角色）并发**：需拿「运营」与「财务」两套 token 分节点并发处理同一笔，验证两阶段竞态。本轮同账号并发已拦住（guard 生效），但该跨角色多阶段并发 **未跑**——需第二操作员会话。
 - **`claimForPayout` 并发抢行**：活库上没有 `APPROVED(非 mock)` 去抢同一 `payout()` 的第二个请求；本轮属调账面，不碰提款闸门。
 - 推送：local 领先远端 **N commit**（含 R7 §9/§10 文档 3 条），**待用户确认**；以 `git rev-list --count origin/dev..HEAD` 为准。
+
+### 10.8 R10 · 跨角色双操作员并发（真金库，闭环）— 已实跑 ✅
+
+> 本节把 §10.7 里标「未跑（需第二操作员会话）」的跨角色多阶段并发补齐。
+> 执行日期 2026-11-08，UAT 库 `aicabinet_uat`（容器 `ai-cabinet-postgres-1`），后端 `127.0.0.1:18080`。
+> 脚本：`.tmp/r10-cross-role-race.mjs`（Node；`docker exec … psql` 读库回读 + `Promise.all` 真并发双发）。
+> 基线（本节起跑前）：`approval_instance=14`、`approval_task=27`、`wallet_ledger=26`、`admin_audit_log=306`、`MCH-DEFAULT balance_cents=209900`。
+
+**操作员会话（真实 login 取 token，非伪造）**：
+- 会话 A：`phone=13900000001` → `operator_id=100000001`（`name=运营测试`，`account_type=OPERATOR`，`status=ACTIVE`，密码 `123456`）
+- 会话 B：`phone=13900000002` → `operator_id=100000007`（`name=UAT线长`，`account_type=OPERATOR`，`status=ACTIVE`，密码 `123456`）
+
+**审批定义 grounding（读 `approval_def`/`approval_node` 实库，def `MERCHANT_WALLET_ADJUST`，def_id=9）**：两张 2 节点的双签流：
+- node1 `运营审核` `seq=1` `assignee_value=100000001`，`passRule=ANY` → 执行时落地为 `approval_task.assignee_user_id=100000001`
+- node2 `财务复核` `seq=2` `assignee_value=100000007` → 落地为 `approval_task.assignee_user_id=100000007`
+- ⚠ **勘误**：`approval_node.assignee_value` 存的是**具体 user_id，不是角色 key**。此前把 `100000001` 记成「运营角色」不准确——其绑定角色为 **admin**（超管，`100000001` = superadmin，`role_id=1`）。结论不变：node1=A，node2=B。
+
+**行锁 grounding（读 `ApprovalInstanceMapper.xml:6-8`）**：`findByIdForUpdateRaw` → `SELECT * FROM approval_instance WHERE instance_id = #{instanceId} FOR UPDATE`。
+`reviewAdjustment` → `completeApproved/completeRejected` 在事务内先 `findByIdForUpdate(instanceId)`（行锁）再校验，因此**同实例的并发 review 在库层被串行化**。这决定了并发判读的语义。
+
+#### 结果：**43 PASS / 0 FAIL**（实库 `aicabinet_uat` 真实回读）
+
+| 阶段 | 检查 | 结果 |
+|---|---|---|
+| B1 发起 ≥阈值调账 | 实例停在 node1、`cn=1`、node1 处理人=100000001、PENDING | PASS |
+| C2 负控制：B(财务)处理当前 node1 | HTTP **403** `您不是当前审批节点的处理人`；实例**未动**（仍 `cn=1`） | PASS |
+| B3 运营(A)通过 node1 | HTTP 200，**返回真实 `status=PENDING`**（移交 node2，非假 APPROVED）；实例 `cn=2`、node1 APPROVED、node2 PENDING=100000007 | PASS |
+| C4 A 再点（当前已是财务节点） | HTTP **403**；实例未动（`cn=2`，财务待办保留） | PASS |
+| B5 财务(B)通过 node2 | HTTP 200，返回真实 `status=APPROVED`；双节点全 APPROVED | PASS |
+| C6 终态再点 | HTTP **409** `当前状态不可审核` | PASS |
+| AUD bizB1 留痕 | 恰好 **2** 条；node1 留痕=结果 PENDING、node2 留痕=结果 APPROVED；**无 node1/node2 同时 APPROVED 的失真** | PASS |
+| RC2 同会话 A 连点 ×3 轮 | 每轮**恰好一次 200 / 一次 403**；node1 至多推进一次；**node2 只生成 1 个任务行**（无重复节点任务） | 3 PASS / 0 FAIL |
+| RC3 跨角色并发（A 与 B 同时点同一实例）×3 轮 | 每轮 node1 由 A 唯一处理且仅推进一次；node2 恰好 1 个任务、处理人=100000007；B ∉ {403,200}；不变式全成立 | **3 PASS + 汇总 0 rc3fail** |
+
+**RC3 观察到的两种合法次序（与行锁语义一致，非缺陷）**：
+- `A=200 / B=200`：B 的事务在 `FOR UPDATE` 上阻塞，等 A 提交后重新读 `current_node_seq=2` → 落到 **node2**（B 正是 node2 处理人）→ B 合法完成 node2 → 实例 APPROVED。
+- `A=200 / B=403`：B 在 node1 抢行失败（A 已收走 node1 任务）→ 403，实例停在 `cn=2` 保留财务待办。
+
+**安全不变式（任一次序都成立）**：① node1 由 A 唯一处理、**至多推进一次**（row count 恒 1）；② node2 **恰好 1 个任务行**、处理人恒为 100000007（无 node2 行重复，即「双提交审批」的重复记账窗口不存在）；③ B 从不批准 node1；④ 终态再点 409（幂等保全现有守卫）。因此跨角色并发是**安全的**，与 R9 同账号结论一致。
+
+#### 收口与自洽回填（含一次脚手架错误，诚实记录）
+```
+启动清障: 清掉 marker 行 net=0 cents; 残 biz=none
+baseline: INST=14 TASK=27 LEDGER=26 AUDIT=306 merchant=MCH-DEFAULT threshold=50000 bal=209900
+[收口]
+approval_instance = 14 (baseline 14)
+approval_task     = 27 (baseline 27)
+wallet_ledger     = 26 (baseline 26)
+admin_audit_log   = 306 (baseline 306)
+balance_cents     = 209900 (start-of-run 209900)
+MARKER 残留 = 0
+```
+- **脚手架 bug（非产品）**：收口块先 `DELETE wallet_ledger`、**再** `SELECT sum(amount_cents)` 回填余额 → 读到的净额恒为 0，余额比基线**多 50000**（209900+350000=559900）。改为**先算净额、再删行**后重跑一次即 43 PASS/0 FAIL，余额精确回基线。修复后用 `wallet_ledger.max(balance_after)`（=209900）作偿付真值，未硬编码任何快照。
+- 期间还修掉三类脚手架问题（均非产品代码）：`JSON.stringify` 被 psql 当成 SQL **identifier**（须用 `sqls()` 单引号包裹值）；`ORDER BY` 写在 `string_agg` 之外（须包派生表）；`const` 上做 `&&=` 赋值（改 `let`）。**未改任何产品代码。**
+
+#### 结论对 §10.7 的推进
+- §10.7 「双操作员（不同角色）并发」→ **已补齐**（本节 RC3，3 轮 + 汇总）。
+- §10.7 「`claimForPayout` 并发抢行」→ **仍待用户**：活库无 `APPROVED(非 mock)` 提款单可达 `payout()` 抢行；本轮不碰提款闸门。
+- 推送：见 §10.7 末行（以 `git rev-list --count origin/dev..HEAD` 为准，**待用户确认**）。
