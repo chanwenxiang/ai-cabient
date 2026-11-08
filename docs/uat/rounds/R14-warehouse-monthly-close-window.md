@@ -179,3 +179,11 @@
 - ⇒ **5/5 全绿，run 整体 `conclusion=success`**；其中 `admin-artifacts` 正是「产物逐字节比对」门禁，`integration` 亦完成。
 - 证据源：`gh run view 42463931974 --repo chanwenxiang/ai-cabient --json jobs`、`--json <…>`（A 级，真实读取 GH 返回；`jobs` 直接解析 `conclusion`）。
 - **与 R13 §十一 的关系**：R13 的 §十一 记录的是**被 amend 掉的旧 SHA `58d570a5…`**（run `42461333249`，5/5 success）；本次 §十 记录的是**当前已推送的 `20ffcb7b…`**（run `42463931974`，5/5 success）。两者同为「真实 CI 绿」，§十 说明**被 amend 的 commit 重新推送后 CI 复绿**（push 到 `origin/dev`、fast-forward）。
+- 🔴 **本轮再核验（诚实标注，2026-11-08 收口）**：写下 §十 时 `gh run view <run-id>` 与 jobs 端点对本仓库偶发 404（`{"message":"Not Found"}`；本 token 对**单 run 读/job 级**受限），而 `gh run list` 正常。据此分两层写死：
+  ① 上表**5 个 job 名与 `success`** 系 §十 写下时**当日真实读取**所得（**单源**）；本轮回读该 run 的 job 端点 404，故**不再重复逐 job 主张**。
+  ② **run 级**结论用可用接口 `gh run list --limit 3 --json number,headSha,status,conclusion,updatedAt` 多次回读：
+  - `1297 / headSha=20ffcb7ba35b1eba0f353a23a5a14e019834cfbf / completed / success`（`updatedAt=2026-11-08T09:01:17Z`）
+  - `1298 / headSha=2be58f39702e13ff287b661230075fc211f9af5f / completed / success`（`updatedAt=2026-11-08T10:35:28Z`）
+  - `1296 / headSha=58d570a5ed068bebbbdaf02b337e9fca5e8212bb / completed / success`（`updatedAt=2026-11-08T08:23:46Z`）
+  ③ `1298` 正是**本文终稿（docs-only commit `2be58f39`）**自己的 run ⇒ 本轮交付物本身在真实 GitHub Actions 上绿；`1297` 覆盖同一源码树状态（本仓本轮只改 docs）。两者 run 级均为 `success`，但**均为 docs-only** ⇒ 主要证明「文档增补不破坏门禁」，源码级产物比对仍未在「含产品改动」的提交上复验。
+- 🐚 **踩坑（已记 lessons）**：仓库 slug **从 `git remote get-url origin` 程序化派生**，**绝不手写**——本轮因手写 `ai-cabent`/`ai-cabiert` 等错拼导致数次 404，且控制台换行会把 URL 视觉拆断（`chanwenxiang/` / `ai-cabient/…`）而看起来像不同的 slug。`gh run list` 无 `--repo` 时按当前目录 origin 解析，故可作交叉校验。
