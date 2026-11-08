@@ -689,7 +689,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 按 R19 方案 A1 落地：`ScheduledTaskRegistry` 构造器注入 `MerchantSettlementBillScheduler` + 1 行 `register("settlement-bill","商户月度结算单重建",TRADE,ScheduleZones.desc("每日 02:40"),1800,scheduler::rebuildMonthlyBills)`。保持 Spring 常驻不进 XXL（同 refund-retry 先例）。
 - 效果（静态验证）：运营台「立即执行」`registryBound=true` 自动出现（零前端改动/产物重建）、`POST /scheduled-tasks/settlement-bill/run` 可用、复用 tryBegin 启停+`job:settlement-bill` 锁+执行记录+审计。资金面零变化（同 cron 同方法，只重建上月+本月）。
 - 门禁：`check-scheduled-task-trybegin`（42 任务全带守卫）/`check-scheduled-task-seed`（注册 42 ↔ 种子 43 对齐）/`check-xxl-job-wiring`（托管 37 不变）全绿；`mvn compile` BUILD SUCCESS。
-- 未做（如实登记）：运行时按钮/端点复验需重建 trade-service 容器（共享 UAT）——未擅自重建，待用户确认。
+- 已部署复验（2026-11-09，用户授权重建 trade-service 容器）：`GET /scheduled-tasks` 里 settlement-bill `registryBound=true`；`POST /scheduled-tasks/settlement-bill/run` → 200 `TRIGGERED`（重建 2026-10/11 共 0 商户，VOIDED 口径正确）；jar 含 A1、env 逐键不变。
 
 ### 2026-11-08 R17/R18（月结写态三接口 + 跨账期 drift 形状：37 + 18 PASS/0 FAIL/0 残留）
 

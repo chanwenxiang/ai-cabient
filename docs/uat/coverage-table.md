@@ -83,7 +83,7 @@
 | ~~2~~ | ✅ R16 | **已完成**：restockDetail 逐 SKU 求和一致 + outboundId 耦合/精度实证；0 缺陷 0 写入；3 条 P3 展示/文案待拍板 | — | 见 §1 / `R16-restockdetail-sum-consistency.md` |
 | ~~3~~ | ✅ R17 | **已完成**：月结写态 approve/updateLine/disposeLine 三接口 + 负控，37 PASS/0 FAIL/0 残留（3 张 DRAFT 单 0 行 ⇒ 造最小 gap 行覆盖） | — | 见 §1 / `R17-monthly-close-writes.md` |
 | ~~4~~ | ✅ R18 | **已完成**：跨账期 drift 形状（真实 generate 出单→改 saved 检出→还原→editedFlag 豁免），18 PASS/0 FAIL/0 残留 | — | 见 §1 / `R18-cross-period-drift.md` |
-| ~~5~~ | ✅ R19 | **已完成**：settlement-bill「无手动触发面」真因=未登记 ScheduledTaskRegistry；方案 A1 已落地（补 1 行登记，`d3e8a4ab`，待部署复验） | — | 见 §1 / `R19-settlement-bill-trigger-design.md` |
+| ~~5~~ | ✅ R19 | **已完成**：settlement-bill「无手动触发面」真因=未登记 ScheduledTaskRegistry；方案 A1 已落地（`d3e8a4ab`）并部署复验（registryBound=true、run 200 TRIGGERED、env 不变） | — | 见 §1 / `R19-settlement-bill-trigger-design.md` |
 
 ## 5. 结论
 
