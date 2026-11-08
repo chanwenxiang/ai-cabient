@@ -125,10 +125,41 @@ MERCHANT_WALLET_ADJUST instances = 5（基线，本轮所建已删）
 | F3 重复发起 | **409**（已有实例） | — |
 | F3 空字段 | **400**（不 500，`Map.of` NPE 不可经 API 触发） | — |
 
-**收口**：`approval_instance` 14、`admin_audit_log` 306、`balance_cents` 209900、`MERCHANT_WALLET_ADJUST` 实例 5 —— 全部回到 §5 基线；`AUDIT-F1-VERIFY` 残留 = 0。
+**收口（本轮复核后勘误）**：`approval_instance` 14、`wallet_ledger` 26、`balance_cents` 209900、该类实例 5 —— 账本/实例/余额确已回到 §5 基线；但「`AUDIT-F1-VERIFY` 残留 = 0、`admin_audit_log` 306」**不成立**：脚本收口谓词的锚定位对不上真实列内容，实测残留 `admin_audit_log` 3 行、`approval_instance` 1 行、`approval_task` 2 行。见 §5c 的复核与修正。
 
 > 结论：**F1 已修复并经真实 API 复验，缺陷转 CLOSE（mitigated）**。
 > F3 维持低风险（**非缺陷**）：请求体必填校验在 `Map.of` 之前拦截、`title` 已做 `== null ? "" :` 空安全，空值路径不可从 API 触达；可选加固 `Map.of(k, v==null?"":v)`。
+
+## 5c · F1 运行容器判真 + 收口谓词诚实复核（2026-11-08，R9 轮）
+
+**动机**：§5b 记「镜像重建后 15 项复验全 PASS」，但那句收口数字谁也没复核过。本轮（R9）把 `.tmp/r7-f1-verify-fix.mjs` **原样**对当前运行容器再跑一次，并先判「容器里那份字节码是不是修复版」，否则复验会假 FAIL。
+
+**① 运行容器确实带着 F1 修复（判真）**：
+- 镜像 `ai-cabinet/trade-service:local` @ `58a03f6813c2`（2026-11-07 23:46 构建）；容器名 `ai-cabinet-trade-service-1`；
+- `app.jar` 里抽 `BOOT-INF/classes/com/aicabinet/trade/service/MerchantWithdrawService.class`，对其打 `strings` 数 `审批流未发起` 字面量：**运行中 = 2**；
+- 交叉核对源码计数：修复前 `.java` **1**（仅 `completeReview` 的字面量），修复版 `.java` **3**（多出的 2 = `reviewAdjustment` 的字面量 + 那段 javadoc）；javadoc 不进字节码，故修复版 `.class` 应为 **2** 个字面量。运行容器 **2** ⇒ 与修复版字节码一致；
+- `git log` 里 `27e00b90` 的提交时间（07:55）晚于镜像构建（23:46）是**提交时点**、不是编译时点，故不能当「容器跑旧码」的证据；上面的字节码计数才是。
+
+- 更强的判据其实已是**行为**：无实例调账单点「通过」若返回 409「审批流未发起…」而非 200 假 APPROVED，只可能走的是 `reviewAdjustment` 里新加的 `if (before.isEmpty())` 守卫——修复前这里是静默 no-op。
+
+**② 复验实测：15/15 PASS**（`threshold=50000`，商户 `MCH-DEFAULT`）。关键四条：
+- 无实例（49900）点「通过」→ **409**「审批流未发起（审批定义为空或已禁用），无法通过」，`admin_audit_log` 命中 0，实例仍 0；
+- 无实例点「驳回」→ **409**「…无法驳回」；同 bizId 再点仍 409（幂等守卫在前）；
+- ≥阈值（50000）双签节点1运营通过 → HTTP 200、`data.status=PENDING` **==** 库内实例真实状态，且 `status`/审计不再假称 APPROVED，审计为 `结果=PENDING；备注=AUDIT-F1-VERIFY-ctl-approve`；
+- 通过后再点同单 → fail-loud **403**「您不是当前审批节点的处理人」。
+
+**③ 收口谓词又踩了同一个坑（诚实记录）**：脚本自称的「回滚基线」**没有回到基线**——实测 `admin_audit_log` 309（基线 306）、`approval_instance` 15（基线 14）、`approval_task` 29（基线 27）。根因与 §10.5 同一类，两条谓词各踩一处：
+- `DELETE ... admin_audit_log WHERE detail LIKE 'AUDIT-F1-VERIFY%'`：`detail` 的实际内容是 `金额(分)=49900；备注=AUDIT-F1-VERIFY-below` / `结果=PENDING；备注=AUDIT-F1-VERIFY-ctl-approve`，**标记不在串首** ⇒ 锚定 `LIKE` 命中 0；
+- `DELETE ... approval_instance WHERE biz_id LIKE '%AUDIT-F1-VERIFY%' OR title LIKE 'AUDIT-F1-VERIFY%'`：`biz_id` 存**数字流水号**、业务名只在 `title`（`商户调账 默认商户 ¥500.00`）⇒ 两谓词都命中 0，残留实例 **21**（`biz_id` `1794100018882249316124`，双签 PENDING）及其在 `approval_task` 的 2 行（`APPROVED` / `PENDING`）；
+- **反向对照（重要）**：`DELETE ... wallet_ledger WHERE remark LIKE 'AUDIT-F1-VERIFY%'` **锚定成真**——`remark` 字段本身就以该标记开头 ⇒ 账本行删干净了（`wallet_ledger` 26 = 基线）；余额 209900/0 本来就不受影响。
+
+**收口（按真实列重写后实测成立）**：
+- `DELETE FROM approval_task WHERE instance_id = 21 AND instance_id IN (SELECT instance_id FROM approval_instance WHERE instance_id = 21 AND biz_id = '1794100018882249316124')` → **DELETE 2**；
+- `DELETE FROM approval_instance WHERE instance_id = 21 AND biz_id = '1794100018882249316124'` → **DELETE 1**；
+- `DELETE FROM admin_audit_log WHERE detail LIKE '%AUDIT-F1-VERIFY%'`（**去锚定**，先证全库恰为这 3 行）→ **DELETE 3**。
+- 复核全绿：`INST` **14**、`TASK` **27**、`LEDGER` **26**、`AUDIT` **306**、instance 21 = **0**、task 21 = **0**、`AUDIT-F1-VERIFY` 审计 = **0**、`balance` **209900 / 0**。
+
+**§5b 勘误**：§5b「收口」一行记的 `admin_audit_log` 306 与「残留 = 0」按脚本实际行为不成立，已按 §5c 复核修正；该行其余结论（15 项断言、缺陷转 CLOSE）由 §5c 独立实测再次确认，不改判。
 
 ## 6 · 本轮新增结论
 
@@ -202,7 +233,7 @@ SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE '%_
 
 - **barcode 匹配一致性**：GS1 前端校验 shape 与后端 `BarcodeLookupClient` 不一致。**需用户拍板是否收紧前端**；本轮未改、未降级任何校验。
 - **账期切换窗口造数**：再向 UAT 写入演示数据前需用户同意。
-- **push**：local 领先远端 5 commit（`27e00b90`、`37fb91f1`、`a0b56f9b`、`125ef164`、本条勘误），**待用户显式确认再推**；以 `git rev-list --count origin/dev..HEAD` 为准。
+- **push**：local 领先远端 **N commit**（`27e00b90`、`37fb91f1`、`a0b56f9b`、`125ef164`、本条勘误），**待用户显式确认再推**；以 `git rev-list --count origin/dev..HEAD` 为准。
 
 ---
 
@@ -260,4 +291,4 @@ balance            = 209900 (baseline 209900)
 ### 10.7 仍未做（待用户）
 - **双操作员（不同角色）并发**：需拿「运营」与「财务」两套 token 分节点并发处理同一笔，验证两阶段竞态。本轮同账号并发已拦住（guard 生效），但该跨角色多阶段并发 **未跑**——需第二操作员会话。
 - **`claimForPayout` 并发抢行**：活库上没有 `APPROVED(非 mock)` 去抢同一 `payout()` 的第二个请求；本轮属调账面，不碰提款闸门。
-- 推送：local 领先远端 **5 commit**（含 R7 §9/§10 文档 3 条），**待用户确认**；以 `git rev-list --count origin/dev..HEAD` 为准。
+- 推送：local 领先远端 **N commit**（含 R7 §9/§10 文档 3 条），**待用户确认**；以 `git rev-list --count origin/dev..HEAD` 为准。
