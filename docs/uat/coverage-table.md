@@ -35,6 +35,8 @@
 | **分仓月结账期半开窗口** | 23 条跨两账期同源造数；SKU-SODA 负向控制命中；审计批次4 钳制坐实；真实 POST 写态 + 幂等 | ✅ | `R14-warehouse-monthly-close-window.md` §一–§十 |
 | **`claimForPayout` 竞态（部分覆盖）** | mapper 条件 UPDATE 竞态已有真实 DB 证据 + CI 执行；**活库端到端阻塞**（见 §三 A2） | ✅↑ | `A4-claimForPayout-concurrency.md` |
 | **R15 钱包→提现金额全链对账** | A 自动通过+MOCK 打款 / B 双节点人工审 / 负控制(最低/上限/不足/幂等/冲突) / 金额三恒等；58 PASS/0 FAIL，0 残留（外部全表双核）。单据→分账→钱包腿由 R1 覆盖（commercial-flow 识别恒转争议不成单，用户拍板聚焦提现链） | ✅ | `R15-wallet-withdraw-chain.md` |
+| **R17 月结写态三接口** | approve(DRAFT→APPROVED 锁单) / updateLine(改行重算+editedFlag) / disposeLine(CLAIM→索赔台账)+负控；37 PASS/0 FAIL/0 残留 | ✅ | `R17-monthly-close-writes.md` |
+| **R18 跨账期 drift 形状** | 真实 generate 出单(save=recalc)→改 saved 检出 drift→还原复一致→editedFlag 豁免；18 PASS/0 FAIL/0 残留 | ✅ | `R18-cross-period-drift.md` |
 
 **CI 门禁（C1，真实 GitHub Actions）**：`20ffcb7b`（源码轮）→ run `42463931974`/number **1297** `completed/success` 5/5 job；`2be58f39`（R14 文档轮）→ run **1298** `completed/success`。证据见 `R14 §十` 与 `PROJECT_KNOWLEDGE §12`。
 > ⚠️ 本仓本轮**只改 docs/脚本** ⇒ CI 绿主要证明「文档增补不破坏门禁」，**源码级产物比对尚未在含产品改动的提交上复验**。
@@ -79,13 +81,13 @@
 |---|---|---|---|---|
 | ~~1~~ | ✅ R15 | **已完成**：钱包→提现金额全链对账（聚焦提现链，用户拍板；commercial-flow 识别恒转争议不成单）58 PASS/0 FAIL/0 残留 | — | 见 §1 / `R15-wallet-withdraw-chain.md` |
 | **2** | R16 | `restockDetail` 列求和一致性 + `outboundId`/`warehouse_outbound` 耦合命名清理实证 | ~0.5 轮 | 复用 R3/R14 造数 |
-| **3** | R17 | 月结写态的 **approve / disposeLine / updateLine** 三写接口（本轮只读）→ 财务操作笔（先确认基线） | ~1 轮 | 财务状态机数据基线确认 |
-| **4** | R18 | 跨账期窗口在**写出后又被外部流水改动**（drift 表）的数 据形状 | ~1 轮 | 复用 R14 的 `drift` 端点 |
+| ~~3~~ | ✅ R17 | **已完成**：月结写态 approve/updateLine/disposeLine 三接口 + 负控，37 PASS/0 FAIL/0 残留（3 张 DRAFT 单 0 行 ⇒ 造最小 gap 行覆盖） | — | 见 §1 / `R17-monthly-close-writes.md` |
+| ~~4~~ | ✅ R18 | **已完成**：跨账期 drift 形状（真实 generate 出单→改 saved 检出→还原→editedFlag 豁免），18 PASS/0 FAIL/0 残留 | — | 见 §1 / `R18-cross-period-drift.md` |
 | **5** | R19 | `settlement-bill` 无触发入口的**方案设计**（只出方案，不产品改动） | ~0.5 轮 | 无 |
 
 ## 5. 结论
 
-- **A 类真库链路**：`主链 → 用户 → 商品 → 营销 → 退款 → 定时 → 边界 → 空表填充 → 审批/参数/告警 → 跨角色并发 → 表覆盖 → 条码 → 产物门禁 → 账期窗口 → 月结窗口 → 提现链` **18 轮全部真实落库、可复算**；新缺陷收敛到 **MA-163(P2) + F1**（F1 已修已复验转 CLOSE）。
+- **A 类真库链路**：`主链 → 用户 → 商品 → 营销 → 退款 → 定时 → 边界 → 空表填充 → 审批/参数/告警 → 跨角色并发 → 表覆盖 → 条码 → 产物门禁 → 账期窗口 → 月结窗口 → 提现链 → 月结写态 → 跨账期drift` **20 轮全部真实落库、可复算**；新缺陷收敛到 **MA-163(P2) + F1**（F1 已修已复验转 CLOSE）。
 - **当前最需要你的两双手**：小程序四闸门（§3 A3）＋ 含产品改动的提交上的**源码级 CI 绿**（§1 末的 ⚠️）。
 - **阻塞项口径**（用户已拍板）：`settlement-bill` 真实金额**不造数、如实登记**。
 - 启动下一个 A 类轮次前我会先回读本表 + `PROJECT_KNOWLEDGE §10/§12`，避免重复造数。

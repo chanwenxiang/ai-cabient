@@ -684,6 +684,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R17/R18（月结写态三接口 + 跨账期 drift 形状：37 + 18 PASS/0 FAIL/0 残留）
+
+- **R17 月结写态**：`approve`(DRAFT→APPROVED 锁单) / `updateLine`(DRAFT 改行+重算 gap/金额+editedFlag) / `disposeLine`(仅 APPROVED 且 gap≠0，CLAIM→建 `inventory_write_off` 索赔台账，行锁防双击)。3 张 DRAFT 2026-10 单均 0 行 ⇒ 造最小盘亏行覆盖；37 PASS/0 FAIL/0 残留（单头逐字段还原+删索赔台账+删行）。
+- **R18 跨账期 drift**：`recalcDrift` 重算 closeSheet 与已存行 `(expected,counted)` 比对，editedFlag 豁免。真实 generate 端点出 2026-11 单(6 行, save=recalc)→ 改 saved 行制造 saved≠recalc → drift 检出 `SKU-WATER-001`→ 还原复一致（确定性）→ editedFlag=false→true 验豁免。18 PASS/0 FAIL/0 残留，一致性记录数无新增。
+- **🔴 安全法**：两轮都先 pg_dump 备份；drift 形状用改 saved 行而非改 movement/库存（避开 WAREHOUSE_LEDGER 一致性风险；检测器只看 saved≠recalc，真实流水改 recalc 同路径）。清理精确 ID + 单头快照还原 + 外部全 179 表 count(*) 双核 0 残留。详见 `rounds/R17-monthly-close-writes.md`、`rounds/R18-cross-period-drift.md`。
+- **未发现产品缺陷**。
+
 ### 2026-11-08 R15（钱包→提现金额全链对账：58 PASS/0 FAIL/0 残留；范围经用户拍板聚焦提现链）
 
 - **范围调整（用户拍板）**：coverage §4 原设想「单据→钱包→提现」全链。5 轮实证 **commercial-flow 识别腿恒转争议、orderId=null**（补齐仓库负责人/补货缺口/柜机所属仓三前置后采购补货出库全 DONE，但 AI_SETTLEMENT=WARN 不成单，系 demo 识别 needReview 设计，R1 亦靠裁决 CONFIRM 首结算）⇒ 用户拍板**聚焦「钱包→提现」链**，用现有余额测；单据→分账→钱包入账腿由 R1 覆盖。
