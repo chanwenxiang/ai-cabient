@@ -86,7 +86,8 @@
 
 ## 六、账期窗口边界快照（R11，只读）
 
-> 背景：账期切换 = **跨日下单 + 日结** 的边界必须正确落期。窗口常量曾长期写死为「月首 08:00Z」，与实际不符。
+> 背景：账期切换 = **跨日下单 + 日结** 的边界必须正确落期。本快照的首版脚本曾按「月首 08:00Z」写死窗口，
+> 本轮从源码取真值后发现与 `Asia/Shanghai` 实际口径不符（正确是上海本地 00:00 = 前一天 16:00Z），已修正。
 > 本次**从源码取真值**（非记忆），并落库只读快照。
 
 ### 6.1 窗口真值（源码定位）
@@ -164,6 +165,19 @@ close_id=1  wh=326765247551  period=2026-10  DRAFT  lines=0
 > ⚠️ **未做**：真正的「跨边界造数 + 日结执行」。这需要写入订单/split/金额，属于资金写入路径，
 > 须用户在场确认后才可执行，本脚本不自动做。
 
+### 6.7 单测窗口 vs 生产窗口（已消除歧义，非冲突）
+
+`WarehouseMonthlyCloseMathTest.java:17-18` 的 `START/END` 取的是 `LocalDate.of(2026,10,1).atStartOfDay().toInstant(ZoneOffset.UTC)`
+（= UTC 自然月），**看起来**与 §6.2 的上海本地月首口径相差 8 小时。实读源码后判定这不是冲突：
+
+- `WarehouseMonthlyCloseMath.aggregate(movements, start, end)` 只按传入的 `start`/`end` 过滤，区间是
+  **左闭右开** `[start, end)`（`isBefore(start)` → 期初；`!opening && isBefore(end)` → 账期内）。
+- 单测里的 START/END 是**测试自己的夹具**，不含生产期口径，也从不调用 `WarehouseMonthlyCloseService`。
+- `afterMonthIgnored` 用 `END` 反证右边界开区间，正与生产 `[start, end)` 语义一致，故单测是自洽的。
+
+⇒ 生产账期窗口仍由 `WarehouseMonthlyCloseService#closeSheet` 唯一定义（§6.2）；单测不起约束作用。
+**不要把这个「相距 8 小时」误记成 bug。**
+
 ## 七、变更清单（本轮）
 
 | 文件 | 变更 |
@@ -171,3 +185,4 @@ close_id=1  wh=326765247551  period=2026-10  DRAFT  lines=0
 | `clients/admin-vue/src/views/skus/SkuListView.vue` | 编辑态豁免 GS1 校验（`form.barcodeAtLoad` + `barcodeChanged`） |
 | `services/common/common-core/.../UpsertSkuRequest.java` | `barcode` 注释留痕「有意宽松」 |
 | `docs/uat/rounds/R11-barcode-gs1-consistency.md` | 归档 barcode 决策 + §六账期窗口快照 |
+| `services/trade-service/src/main/resources/static/admin/**` | 随 admin 源码重打包产物（barcode 文案进 bundle，门禁 `check:admin-artifact-pairing` 要求同区间提交） |
