@@ -684,6 +684,41 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R13（账期切换窗口：真库造数 + 真实注册任务执行 + 幂等 + 精确收口；半开窗口归属实测命中）
+
+- **前置**：R10 §「仍待·账期切换窗口」+ 用户拍板（`R10/D1`「做完整日结边界造数」）。本轮把 D1 从「静态读码」推进到**真库闭环**。
+- **被测面**：`merchant-settlement`（`MerchantDailyIncomeNotifyScheduler`）日结通知任务，经运维注册端点
+  `POST /api/v2/ops/admin/scheduled-tasks/merchant-daily-income-notify/run` 真实触发（该 taskKey
+  在 `ScheduledTaskRegistry.java:162` 已注册 runnable）。登录走**真实**超管 + 图形验证码。
+  - 🔴 **任务可达性边界**：`settlement-bill` **未注册**（只有 `@Scheduled(cron="0 40 2 * * *")`，无手动端点）⇒ **不造数**；
+    `warehouse-monthly-close` 虽已注册但读 `warehouse_inventory_movement`、**不读** `order_revenue_split` ⇒ **不造数**。
+- **grounding**：账期窗口 = 昨日 `atStartOfDay(Asia/Shanghai)` → +1 天（半开 `[from,to)`）`java:135-136`；
+  按 `order_revenue_split.created_at` 归集 `merchant_cents`、`VOIDED/REVERSED` 剔除（`:424`）、≤0 商户整笔跳过（`:429`；口径 javadoc `:33`）；
+  费用侧 `dailyFee<=0` 早退不写钱包（`:356-361`）。
+- **造数（今日=2026-11-08，昨日=2026-11-07，窗口 `[2026-11-06T16:00Z, 2026-11-07T16:00Z)`）**：
+  三条同额 1000 分的 `AUDIT-D1-S0/S1/S2`：
+  - `S0` = `2026-11-06 23:59:59` SH（下边界**外** 1s）
+  - `S1` = `2026-11-07 23:59:59` SH（窗口**内**）
+  - `S2` = `2026-11-08 00:00:00` SH（**恰在 `to`**，`<to` 不取）
+  实读 `order_revenue_split` **3 行/1824 → 6 行/4824**。
+- **首次真实触发**：`TRIGGERED`，`日结(2026-11-07)日结通知发送 1 商户（耗时 68 ms）`；落库
+  `notification_log id=106`（`biz_id=2026-11-07`、`income 10.00 元`、`platform 0.00`、`net 10.00`）。
+- 🔴 **归属语义实测命中（本轮核心判据）**：金额恰为 **¥10.00 = 1000 分 = 只有 `S1`**；
+  `S0`、`S2` **均未被归集** ⇒ 下边界外 1s 与上边界 `=to` 都不计入，**无 off-by-one**，半开窗口语义成立。
+- **幂等**：同业务日再触发 ×3，应答均为 `TRIGGERED` 但 `日结通知发送 0 商户`（9/5/12 ms），
+  `notification_log biz_id=2026-11-07` 仍恰为 **1** ⇒ 不重复发通知。
+- **钱包/费用侧**（scoped，仅该单一商户 MCH-DEFAULT）：`balance 209900 / frozen 0`、`wallet_ledger 26`、`merchant_fee_ledger 0`
+  —— **无任何资金副作用**（其 `data_fee_cents`/`rent_fee_cents` 均 NULL ⇒ `dailyFee<=0` 早退）。
+- **收口（真库归基线，精确）**：拆表 **3/1824**、`notification_log 105`（`biz 11-07` → **0**、`biz 11-06` → **1**）、
+  钱包 209900/26/0、`AUDIT-D1-%` 残留 **0**。
+- **脚手架（非产品，诚实记录）**：`cabinet_order.user_id` NOT NULL（补 `10002`）；`shopping_session.state` NOT NULL（补 `OPEN`）；
+  须先建 `shopping_session` 再建 `cabinet_order`（`cabinet_order_session_id_fkey`）再建 `order_revenue_split`（`order_id` FK）；
+  Redis 口令为 `devredis`（`REDIS_PASSWORD` env，误用 `aicabinet` 会 `WRONGPASS`）；
+  手写 JWT 过期 ⇒ 改脚本内现场取验证码（`GET /api/v2/auth/captcha` → redis 读码）+ 现场登录；
+  PowerShell `"…" -f` 会把 JSON 的 `{}` 当格式占位符 ⇒ 改 `.Replace('~CID~',…)`。**未改任何产品代码。**
+- **仍待**：`settlement-bill`（未注册，需决定是否补）；`warehouse-monthly-close`（读库存，与拆分表无关）；
+  `claimForPayout` 活库端到端竞态；小程序四闸门人工复验（微信开发者工具）。
+
 ### 2026-11-08 R10（三端横切 · 跨角色双操作员并发：真金库闭环 43 PASS / 0 FAIL）
 
 - **补齐 R9 未跑项**：跨角色（node1 处理人 A / node2 处理人 B 两套真实 login token 并发点同一笔 `MERCHANT_WALLET_ADJUST`）。
