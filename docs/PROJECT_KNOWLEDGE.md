@@ -702,7 +702,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **收口（真库归基线）**：`approval_instance=14`、`approval_task=27`、`wallet_ledger=26`、`admin_audit_log=306`、`balance_cents=209900`、marker 残留 0。
 - **脚手架修复（非产品，诚实记录）**：`JSON.stringify` 在模板字符串里被 psql 当作 SQL **identifier**（列不存在）→ 须 `sqls()` 单引号包裹注入值；`ORDER BY` 写在 `string_agg` 外 → 须包派生表；
   回填余额须**先 `SELECT sum` 再 `DELETE`**（顺序反则净额恒 0，余额会 +350000 不复原）；`const` 做 `&&=` 赋值需 `let`。**未改任何产品代码**。
-- **仍待**：`claimForPayout` 并发抢行（活库无 `APPROVED(非 mock)` 提款单）；账期切换窗口；小程序四闸门人工复验（微信开发者工具）。
+- **仍待**：`claimForPayout` 活库端到端竞态（阻塞原因已查明，见下）；账期切换窗口；小程序四闸门人工复验（微信开发者工具）。
 
 ### 2026-11-08 R9（真金库并发双操作：活库真并发已实测；同账号并发守卫生效）
 
@@ -718,7 +718,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **修的脚手架 bug（非产品）**：断言分隔符 `'@'` vs `instance_id||'/'||status||'/'||node_seq`；cleanup `WHERE biz_id LIKE 'AUDIT-R7CONC%'`
   但 `approval_instance.biz_id` 是数字流水号、remark 副本另存 ⇒ 用真实 `biz_id`/`remark` 精确定向。**未改产品代码**。
 - **未跑（待用户会话）**：跨角色双操作员并发（需 node1 运营 100000001 / node2 财务 1000000007 两套 token）；
-  `claimForPayout` 活库抢行（无非 mock 的 APPROVED 提款单可用）。
+  `claimForPayout` 活库端到端抢行：活库仅有 2 行提现且全 PAID、无 APPROVED；唯一能停留 APPROVED 的路径是备付闸
+  `MERCHANT_WITHDRAW_PAYOUT_BLOCKED`（`MerchantWithdrawService.java:592-604`，需资金池造亏 = 资金写）⇒ 不造数；
+  阻塞原因与已落地证据见 `docs/uat/rounds/A4-claimForPayout-concurrency.md`。
 - **R7 §5b 收口复核（同轮追加，诚实记录）**：`.tmp/r7-f1-verify-fix.mjs` 对**运行容器**原样重跑 → **15/15 PASS**；容器判真：镜像 `58a03f6813c2` 的 `MerchantWithdrawService.class` 内 `审批流未发起` 字面量 **2**（= 修复版字节码，修复前源码 1）。顺带发现脚本收口谓词又踩同类坑（锚定 `LIKE` 对 `detail`/`biz_id` 不命中）⇒ `approval_instance` 15、`admin_audit_log` 309、`approval_task` 29 未归基线；按真实列精确删除后归基线。**教训（写进规则）**：测试脚手架的 cleanup 谓词必须按**真实列内容**写（`biz_id` = 数字流水、`detail` 形如 `金额(分)=…；备注=…`、`approval_task` 按 `instance_id` 级联），不要用测试标记串直接锚定 `LIKE`。
 
 ### 2026-11-08（F1 调账审批修法 B 落地：409 守卫 + 真实状态；镜像重建后复验 15 项全 PASS）
