@@ -849,6 +849,9 @@ const form = reactive({
   skuCode: undefined as number | undefined,
   skuName: '',
   barcode: '',
+  // R11（CB-025 一致性）：编辑态记录「打开时的存量条码」。GS1 校验位只在**改了/新建**时拦；
+  // 存量码若校验位不成立（如早期种子码），重开编辑不应被锁死（原来会拒绝保存任何改动）。
+  barcodeAtLoad: '',
   brand: '',
   spec: '',
   unit: '件',
@@ -1157,6 +1160,7 @@ function openEdit(row?: SkuCatalog) {
     form.skuCode = row.skuCode;
     form.skuName = moveLeadingSpecToEnd(row.skuName || '');
     form.barcode = row.barcode || '';
+    form.barcodeAtLoad = row.barcode || '';
     form.brand = row.brand || '';
     form.spec = toEnglishSpecUnit(row.spec || '');
     form.unit = row.unit || '件';
@@ -1192,6 +1196,7 @@ function openEdit(row?: SkuCatalog) {
     form.skuCode = undefined;
     form.skuName = '';
     form.barcode = '';
+    form.barcodeAtLoad = '';
     form.brand = '';
     form.spec = '';
     form.unit = '件';
@@ -1300,8 +1305,12 @@ async function saveEdit() {
     ElMessage.warning('条码须为 8 / 12 / 13 / 14 位纯数字');
     return;
   }
-  if (!barcodeChecksumValid(barcode)) {
-    ElMessage.warning('条码校验位不正确，请核对是否录入有误（可重新扫描确认）');
+  // GS1 校验位：拦**新建/改条码**的输入错误（与后端 isValidBarcode 同处放宽：后端落库不查校验位，
+  // 见 R11 证据包 docs/uat/rounds/R11-barcode-gs1-consistency.md）。
+  // 编辑态**沿用未改动的存量条码**豁免——早期种子码存在校验位不成立的，不能因此锁死编辑保存。
+  const barcodeChanged = barcode !== form.barcodeAtLoad;
+  if (barcodeChanged && !barcodeChecksumValid(barcode)) {
+    ElMessage.warning('新条码校验位不正确，请核对是否录入有误（可重新扫描确认）');
     return;
   }
   if (!form.category || !normalizeCategoryToCode(form.category)) {

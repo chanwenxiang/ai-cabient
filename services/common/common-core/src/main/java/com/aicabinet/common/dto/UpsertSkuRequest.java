@@ -16,6 +16,13 @@ public record UpsertSkuRequest(
         String imageUrl,
         String description,
         String category,
+        /**
+         * 商品条码（CB-025）。
+         * <p>🔴 <b>意向性宽松</b>：本字段**只做 trim + 唯一性校验**（见 OpsCatalogAdminService.assertBarcodeUnique），
+         * 不做「长度 + GS1 校验位」强校验——后端要容忍 CSV 导入/外部来源的条码，以及产品上线前已入库的存量码。
+         * 前端（admin-vue SkuListView.saveEdit）对<b>新建/改动</b>的条码做长度+GS1 强校验以拦输入错误；
+         * 该前端校验不具传递性（后端不重复校验），二者口径差异见 docs/uat/rounds/R11-barcode-gs1-consistency.md。
+         */
         String barcode,
         @Pattern(regexp = "ACTIVE|INACTIVE", message = "status must be ACTIVE or INACTIVE")
         String status,
