@@ -684,6 +684,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R19-A1 落地（settlement-bill 补 ScheduledTaskRegistry 登记，恢复手动触发面）
+
+- 按 R19 方案 A1 落地：`ScheduledTaskRegistry` 构造器注入 `MerchantSettlementBillScheduler` + 1 行 `register("settlement-bill","商户月度结算单重建",TRADE,ScheduleZones.desc("每日 02:40"),1800,scheduler::rebuildMonthlyBills)`。保持 Spring 常驻不进 XXL（同 refund-retry 先例）。
+- 效果（静态验证）：运营台「立即执行」`registryBound=true` 自动出现（零前端改动/产物重建）、`POST /scheduled-tasks/settlement-bill/run` 可用、复用 tryBegin 启停+`job:settlement-bill` 锁+执行记录+审计。资金面零变化（同 cron 同方法，只重建上月+本月）。
+- 门禁：`check-scheduled-task-trybegin`（42 任务全带守卫）/`check-scheduled-task-seed`（注册 42 ↔ 种子 43 对齐）/`check-xxl-job-wiring`（托管 37 不变）全绿；`mvn compile` BUILD SUCCESS。
+- 未做（如实登记）：运行时按钮/端点复验需重建 trade-service 容器（共享 UAT）——未擅自重建，待用户确认。
+
 ### 2026-11-08 R17/R18（月结写态三接口 + 跨账期 drift 形状：37 + 18 PASS/0 FAIL/0 残留）
 
 - **R17 月结写态**：`approve`(DRAFT→APPROVED 锁单) / `updateLine`(DRAFT 改行+重算 gap/金额+editedFlag) / `disposeLine`(仅 APPROVED 且 gap≠0，CLAIM→建 `inventory_write_off` 索赔台账，行锁防双击)。3 张 DRAFT 2026-10 单均 0 行 ⇒ 造最小盘亏行覆盖；37 PASS/0 FAIL/0 残留（单头逐字段还原+删索赔台账+删行）。

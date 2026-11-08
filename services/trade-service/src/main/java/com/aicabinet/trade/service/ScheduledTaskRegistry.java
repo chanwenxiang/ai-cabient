@@ -80,6 +80,7 @@ public class ScheduledTaskRegistry {
                                  PlatformFundService platformFundService,
                                  DeviceRentalService deviceRentalService,
                                  WarehouseMonthlyCloseJob warehouseMonthlyCloseJob,
+                                 MerchantSettlementBillScheduler merchantSettlementBillScheduler,
                                  ObjectProvider<OpsFeeBillJob> opsFeeBillJobProvider,
                                  MerchantDailyIncomeNotifyScheduler merchantDailyIncomeNotifyScheduler,
                                  MachinePayeeBillJob machinePayeeBillJob,
@@ -147,6 +148,11 @@ public class ScheduledTaskRegistry {
         register("warehouse-monthly-close", "仓库月结草稿生成", "WAREHOUSE",
                 ScheduleZones.desc("每日 02:10"), 1800,
                 warehouseMonthlyCloseJob::ensureLastClosedPeriodSheets);
+        // R19-A1（2026-11-08）：settlement-bill 原仅有 @Scheduled、缺登记 ⇒ 运营台无「立即执行」、
+        // POST /scheduled-tasks/settlement-bill/run 404（V334 有种子行却无注册，R19 方案 A1）。
+        // 补登记即复用通用触发面（tryBegin 启停/锁/执行记录/审计），保持 Spring 常驻不进 XXL（同 refund-retry 先例）。
+        register("settlement-bill", "商户月度结算单重建", TRADE, ScheduleZones.desc("每日 02:40"), 1800,
+                merchantSettlementBillScheduler::rebuildMonthlyBills);
         register("line-commission", "线长佣金入账", FINANCE, ScheduleZones.desc("每日 00:20"), 1800,
                 lineCommissionJob::postDailyCommission);
         register("finance-margin", "财务保证金固化", FINANCE, ScheduleZones.desc("每日 00:05"), 1800,
