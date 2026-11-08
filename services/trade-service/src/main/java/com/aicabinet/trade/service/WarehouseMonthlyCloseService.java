@@ -81,8 +81,10 @@ public class WarehouseMonthlyCloseService {
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyyMM");
     private static final DateTimeFormatter STAMP_FMT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(SHANGHAI);
-    /** 发运流水（= 月结「上柜」列的唯一来源，见 {@link WarehouseMonthlyCloseMath#applyInMonth}）。 */
+    /** 发运流水（= 月结「上柜」列的正项，见 {@link WarehouseMonthlyCloseMath#applyInMonth}）。 */
     private static final String MOVEMENT_OUTBOUND_SHIP = "OUTBOUND_SHIP";
+    /** 发运作废回库流水（写正 delta）；「上柜」列据此减回，下钻必须以负行并入才能同源。 */
+    private static final String MOVEMENT_OUTBOUND_CANCEL = "OUTBOUND_CANCEL";
     private static final String FORMULA_HINT =
             "应有=上期+采购入库+调入−退货−调出−领货（四损耗列单独展示不进应有）；"
                     + "「领货」=出库单从本仓带出的件数，其中没进柜的部分点该列下钻看「领而未上」（CB-074）；"
@@ -243,10 +245,17 @@ public class WarehouseMonthlyCloseService {
     /**
      * 月结「上柜」列的柜机下钻明细（件数）。
      *
-     * <p>🔴 骨架是 {@code OUTBOUND_SHIP} 流水而不是出库单：月结的 restockQty 就是这批流水逐条累加出来的，
+     * <p>🔴 骨架是 {@code OUTBOUND_SHIP} / {@code OUTBOUND_CANCEL} 流水而不是出库单：月结的 restockQty
+     * 就是「发运 − 作废」逐条累加出来的（{@link WarehouseMonthlyCloseMath#applyInMonth}），
      * 换任何别的真源都会造出「明细合计 ≠ 列值」——那种差异比「某台柜没归属」更难向运营解释。
-     * 柜机归属与领而未上差额由出库行回填：{@code WarehouseService.ship} 逐 line 写流水（{@code :862-869}），
-     * 故 {@code (outboundId, skuId, batchNo)} 能与流水精确配对。
+     * 作废回库写正 delta，下钻取负行并入，才能抵消列值里的减项（R16 §5.1）。
+     * 柜机归属与领而未上差额由出库行回填：{@code WarehouseService.doShipOutbound} 逐 line 写流水
+     * （{@code WarehouseService.java:978-985}），故 {@code (outboundId, skuId, batchNo)} 能与流水精确配对。
+     *
+     * <p>🔴 已知展示边界（P3，如实登记不改口径）：列值在全部流水应用完后钳 0
+     * （{@link WarehouseMonthlyCloseMath#aggregate}），下钻不钳。若本账期作废量大于发运量
+     * （典型：发运在上个账期、作废落在本账期），净额为负 ⇒ 明细合计 &lt; 0 而列值显示 0。
+     * 这里不伪造钳制（那会掩盖作废流向），是否另列核对口径待产品确认。
      *
      * <p>CB-074：列值是**领货量**（出了分仓多少），不是进柜量。下钻里把
      * 领货 / 上柜实收 / 领而未上 三列拆开，运营才看得见「带了 10 件只上了 7 件」这 3 件去哪了
@@ -264,46 +273,53 @@ public class WarehouseMonthlyCloseService {
         Instant start = period.minusMonths(1).atDay(26).atStartOfDay(SHANGHAI).toInstant();
         Instant end = period.atDay(26).atStartOfDay(SHANGHAI).toInstant();
 
-        List<WarehouseMovement> ships = movementRepository.selectList(
+        List<WarehouseMovement> movements = movementRepository.selectList(
                         Wrappers.<WarehouseMovement>lambdaQuery()
                                 .eq(WarehouseMovement::getWarehouseId, wh)
-                                .eq(WarehouseMovement::getMovementType, MOVEMENT_OUTBOUND_SHIP)
+                                .in(WarehouseMovement::getMovementType,
+                                        MOVEMENT_OUTBOUND_SHIP, MOVEMENT_OUTBOUND_CANCEL)
                                 .ge(WarehouseMovement::getCreatedAt, start)
                                 .lt(WarehouseMovement::getCreatedAt, end)
                                 .orderByAsc(WarehouseMovement::getCreatedAt)
                                 .orderByAsc(WarehouseMovement::getMovementId))
                 .stream()
-                // 客情用水在月结里是独立列、不进上柜 ⇒ 下钻必须同样剔除，否则明细合计大于列值
+                // 客情用水在月结里是独立列、不进上柜 ⇒ 发运/作废两侧必须同样剔除，否则明细合计偏
                 .filter(m -> !WarehouseMonthlyCloseMath.REF_GUEST_WATER.equalsIgnoreCase(
                         m.getRefType() == null ? "" : m.getRefType().trim()))
                 .toList();
-        if (ships.isEmpty()) {
+        if (movements.isEmpty()) {
             return List.of();
         }
 
-        Map<String, WarehouseOutboundLine> lineByKey = outboundLineByMovement(ships);
+        Map<String, WarehouseOutboundLine> lineByKey = outboundLineByMovement(movements);
         Map<String, RestockAcc> grouped = new TreeMap<>();
-        for (WarehouseMovement m : ships) {
-            int qty = Math.max(-m.getDeltaQty(), 0);
-            if (qty == 0) {
+        for (WarehouseMovement m : movements) {
+            // 作废回库写正 delta、方向与发运相反：下钻取负，Σ明细 = 发运 − 作废 = 列值
+            boolean cancel = MOVEMENT_OUTBOUND_CANCEL.equals(m.getMovementType());
+            int absQty = cancel ? Math.max(m.getDeltaQty(), 0) : Math.max(-m.getDeltaQty(), 0);
+            if (absQty == 0) {
                 continue;
             }
+            int signedQty = cancel ? -absQty : absQty;
             WarehouseOutboundLine line = lineByKey.get(lineKey(m.getRefId(), m.getSkuId(), m.getBatchNo()));
             String deviceId = line == null ? null : blankToNull(line.getDeviceId());
             RestockAcc acc = grouped.computeIfAbsent(
                     (deviceId == null ? "" : deviceId) + "|" + m.getSkuId(), k -> new RestockAcc());
             acc.deviceId = deviceId;
             acc.skuId = m.getSkuId();
-            acc.qty += qty;
-            // 出库行缺失（历史/外部单据）时不猜差额：按全量上柜出账，差额列留 0
+            acc.qty += signedQty;
+            // 出库行缺失（历史/外部单据）时不猜差额：按全量上柜出账，差额列留 0。
+            // 作废按同键同额回退「领而未上」，整单作废后 qty = shelvedQty + remainderQty 仍成立。
             if (line != null) {
-                acc.remainderQty += Math.max(0, Math.min(line.getRemainderQty(), qty));
+                acc.remainderQty += (cancel ? -1 : 1)
+                        * Math.max(0, Math.min(line.getRemainderQty(), absQty));
             }
             String refId = blankToNull(m.getRefId());
             if (refId != null) {
                 acc.outboundIds.add(refId);
             }
-            if (m.getCreatedAt() != null && (acc.lastShippedAt == null
+            // 「领货时间」只认发运：作废回库不是发货事件
+            if (!cancel && m.getCreatedAt() != null && (acc.lastShippedAt == null
                     || m.getCreatedAt().isAfter(acc.lastShippedAt))) {
                 acc.lastShippedAt = m.getCreatedAt();
             }
@@ -333,10 +349,10 @@ public class WarehouseMonthlyCloseService {
         return rows;
     }
 
-    /** 流水 → 出库行：按 {@code (outboundId, skuId, batchNo)} 回查，用于取柜机归属与领而未上差额。 */
-    private Map<String, WarehouseOutboundLine> outboundLineByMovement(List<WarehouseMovement> ships) {
+    /** 流水 → 出库行：按 {@code (outboundId, skuId, batchNo)} 回查，用于取柜机归属与领而未上差额（发运/作废同键）。 */
+    private Map<String, WarehouseOutboundLine> outboundLineByMovement(List<WarehouseMovement> movements) {
         Set<Long> outboundIds = new LinkedHashSet<>();
-        for (WarehouseMovement m : ships) {
+        for (WarehouseMovement m : movements) {
             String ref = blankToNull(m.getRefId());
             if (ref == null) {
                 continue;
@@ -386,8 +402,9 @@ public class WarehouseMonthlyCloseService {
     private static final class RestockAcc {
         private String deviceId;
         private String skuId;
+        /** 领货净额：发运为正、作废为负。 */
         private int qty;
-        /** 领而未上（CB-074）：本账期该柜×商品出库行上未结的差额合计。 */
+        /** 领而未上（CB-074）：本账期该柜×商品出库行上未结的差额合计（作废同额回退）。 */
         private int remainderQty;
         private final Set<String> outboundIds = new LinkedHashSet<>();
         private Instant lastShippedAt;

@@ -34,8 +34,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 月结「上柜」下钻与列值同源（F4）：下钻按 OUTBOUND_SHIP 流水取数，逐 SKU 件数合计必须等于
- * {@link WarehouseMonthlyCloseMath.Acc#restockQty}。客情用水在列里是独立列，下钻必须一起剔除。
+ * 月结「上柜」下钻与列值同源（F4）：下钻按 OUTBOUND_SHIP − OUTBOUND_CANCEL 流水取数，逐 SKU 件数合计
+ * 必须等于 {@link WarehouseMonthlyCloseMath.Acc#restockQty}。客情用水在列里是独立列，下钻必须一起剔除。
  */
 class WarehouseMonthlyCloseRestockDetailTest {
 
@@ -73,7 +73,7 @@ class WarehouseMonthlyCloseRestockDetailTest {
                 ship("SKU-A", "B-1", -3, "11", START.plusSeconds(120)),
                 ship("SKU-B", "B-2", -6, "12", START.plusSeconds(130))
         );
-        stubShips(all);
+        stubDetailMovements(all);
         when(outboundLineMapper.selectList(any())).thenReturn(List.of(
                 line(11L, "SKU-A", "B-1", "DEV-1"),
                 line(12L, "SKU-B", "B-2", "DEV-1")));
@@ -100,7 +100,7 @@ class WarehouseMonthlyCloseRestockDetailTest {
         WarehouseMovement guest = ship("SKU-A", "B-1", -2, "22", START.plusSeconds(110));
         guest.setRefType(WarehouseMonthlyCloseMath.REF_GUEST_WATER);
         List<WarehouseMovement> all = List.of(normal, guest);
-        stubShips(all);
+        stubDetailMovements(all);
         when(outboundLineMapper.selectList(any())).thenReturn(List.of(
                 line(21L, "SKU-A", "B-1", "DEV-1"),
                 line(22L, "SKU-A", "B-1", "DEV-1")));
@@ -115,7 +115,7 @@ class WarehouseMonthlyCloseRestockDetailTest {
     @Test
     void externalRefIdKeepsRowWithBlankDeviceAttribution() {
         List<WarehouseMovement> all = List.of(ship("SKU-A", "B-1", -3, "EXT-9", START.plusSeconds(100)));
-        stubShips(all);
+        stubDetailMovements(all);
         // 非数字 refId 不参与柜机回填：出库明细与柜机都不该被查
         when(outboundLineMapper.selectList(any())).thenReturn(List.of());
 
@@ -128,10 +128,37 @@ class WarehouseMonthlyCloseRestockDetailTest {
                 sumOf(detail, "SKU-A"));
     }
 
-    /** 下钻的 SQL 只捞本账期 OUTBOUND_SHIP ⇒ 桩按同一条件返回，避免测试替实现作弊。 */
-    private void stubShips(List<WarehouseMovement> all) {
+    @Test
+    void cancelOffsetsShipSoDetailTiesToRestockColumn() {
+        // R16 §5.1 / R14 §四 的实测形状：先发运 −10、整单作废未签收回库 +12、再发运 −3 ⇒ 列值 1
+        List<WarehouseMovement> all = List.of(
+                ship("SKU-A", "B-1", -10, "31", START.plusSeconds(100)),
+                cancel("SKU-A", "B-1", 12, "33", START.plusSeconds(110)),
+                ship("SKU-A", "B-1", -3, "32", START.plusSeconds(120)));
+        stubDetailMovements(all);
+        when(outboundLineMapper.selectList(any())).thenReturn(List.of(
+                line(31L, "SKU-A", "B-1", "DEV-1"),
+                line(32L, "SKU-A", "B-1", "DEV-1"),
+                line(33L, "SKU-A", "B-1", "DEV-1")));
+        when(deviceMapper.selectBatchIds(any())).thenReturn(List.of(device("DEV-1", "演示智能柜")));
+
+        List<WarehouseMonthlyCloseRestockLineDto> detail = service.restockDetail("WH-1", YEAR_MONTH);
+        WarehouseMonthlyCloseMath.Acc acc = WarehouseMonthlyCloseMath.aggregate(all, START, END).get("SKU-A");
+
+        assertEquals(1, acc.restockQty);
+        assertEquals(1, sumOf(detail, "SKU-A"), "作废必须作负行并入，否则明细合计是 13");
+        assertEquals(acc.restockQty, sumOf(detail, "SKU-A"));
+        assertEquals(1, detail.size());
+        assertEquals(1, detail.get(0).qty());
+        assertEquals(1, detail.get(0).shelvedQty());
+        assertEquals(0, detail.get(0).remainderQty());
+    }
+
+    /** 下钻的 SQL 只捞本账期 OUTBOUND_SHIP / OUTBOUND_CANCEL ⇒ 桩按同一条件返回，避免测试替实现作弊。 */
+    private void stubDetailMovements(List<WarehouseMovement> all) {
         when(movementMapper.selectList(any())).thenReturn(all.stream()
-                .filter(m -> "OUTBOUND_SHIP".equals(m.getMovementType()))
+                .filter(m -> "OUTBOUND_SHIP".equals(m.getMovementType())
+                        || "OUTBOUND_CANCEL".equals(m.getMovementType()))
                 .filter(m -> !m.getCreatedAt().isBefore(START) && m.getCreatedAt().isBefore(END))
                 .toList());
     }
@@ -142,6 +169,14 @@ class WarehouseMonthlyCloseRestockDetailTest {
 
     private static WarehouseMovement ship(String sku, String batch, int delta, String refId, Instant at) {
         WarehouseMovement m = base(sku, "OUTBOUND_SHIP", delta, at);
+        m.setBatchNo(batch);
+        m.setRefType("WAREHOUSE_OUTBOUND");
+        m.setRefId(refId);
+        return m;
+    }
+
+    private static WarehouseMovement cancel(String sku, String batch, int delta, String refId, Instant at) {
+        WarehouseMovement m = base(sku, "OUTBOUND_CANCEL", delta, at);
         m.setBatchNo(batch);
         m.setRefType("WAREHOUSE_OUTBOUND");
         m.setRefId(refId);
