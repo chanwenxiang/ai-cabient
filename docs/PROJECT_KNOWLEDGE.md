@@ -684,6 +684,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-08 R15（钱包→提现金额全链对账：58 PASS/0 FAIL/0 残留；范围经用户拍板聚焦提现链）
+
+- **范围调整（用户拍板）**：coverage §4 原设想「单据→钱包→提现」全链。5 轮实证 **commercial-flow 识别腿恒转争议、orderId=null**（补齐仓库负责人/补货缺口/柜机所属仓三前置后采购补货出库全 DONE，但 AI_SETTLEMENT=WARN 不成单，系 demo 识别 needReview 设计，R1 亦靠裁决 CONFIRM 首结算）⇒ 用户拍板**聚焦「钱包→提现」链**，用现有余额测；单据→分账→钱包入账腿由 R1 覆盖。
+- **模型读死**：阈值 50000 分=¥500（`SystemConfigService:897`）；A<阈值 apply 即 APPROVED→MOCK 自动打款 PAID；B≥阈值双节点（MANAGER 初审仍 PENDING_REVIEW→FINANCE 终审 APPROVED→自动 PAID），100000001 同属两部门故同账号审两次；流水记负数（FREEZE/PAID/FEE），三恒等 freeze−paid−fee=0。
+- **结果**：A/B 状态机+金额+负控制（最低/上限/不足 412/幂等重放/同号异额 409）全验；终态 balance=基线−(A+B)、frozen=0。**0 残留双重确认**（脚本内部断言 + 外部全 179 表 count(*) diff 仅温度遥测漂移）。
+- **🔴 过程教训**：活共享 UAT 盲跑造数脚本前 5 轮多次误伤基线（误删出库明细已重建、误删 1 审计行登记）；第 6 轮聚焦提现链 + pg_dump 备份 + 精确 ID 清理（非 id>max 孤儿跨度）+ 审计删除带 target_type + 外部全表计数双核，才稳定 0 残留。详见 `rounds/R15-wallet-withdraw-chain.md` §4。
+- **并行委托**：R16（restockDetail 求和）/R19（settlement-bill 触发方案）派独立会话产出报告（待验收）。
+
 ### 2026-11-08 R14（分仓月结账期半开窗口：真库造数 + 跨账期同源 + 负向控制 + 写态生成；**补齐 R13 的 `warehouse-monthly-close` 未覆盖**）
 
 - **前置**：用户序贯指令「按照你的推荐做」＋R13 §九 把 `warehouse-monthly-close` 明列为「本轮未造数」⇒ 本轮补齐。**被测面**：读态（纯计算，不落库）
