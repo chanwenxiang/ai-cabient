@@ -159,8 +159,12 @@ class DeviceAvailabilityKpiOnlineRateTest {
     }
 
     @Test
-    void snapshotDeviceOnlineRates_ongoingSegment_truncatedToNow() {
-        LocalDate today = LocalDate.now(ZONE);
+    void snapshotDeviceOnlineRates_ongoingSegment_truncatedToWindowEnd() {
+        // 🔴 用「过去整日」而非 LocalDate.now：service 内 totalMinutes=Duration(dayStart,windowEnd).toMinutes()，
+        // 仅当 totalMinutes>0 才调 findOfflineSegmentsOverlapping。若取当日且恰逢上海午夜后第一分钟
+        // （00:00:00–00:00:59），totalMinutes=0 ⇒ service 跳过该调用 ⇒ verify「零调用」假红（CI run 1302 即此）。
+        // 过去整日 windowEnd=dayEnd、totalMinutes 恒 1440>0，确定性覆盖「进行中离线段截断到 windowEnd」同一 clip 口径。
+        LocalDate today = LocalDate.now(ZONE).minusDays(1);
         Instant dayStart = today.atStartOfDay(ZONE).toInstant();
         when(distributedLockService.tryLock(
                 DeviceAvailabilityKpiService.deviceOnlineRateLockKey(today), 60L, 5L)).thenReturn(true);
@@ -176,12 +180,12 @@ class DeviceAvailabilityKpiOnlineRateTest {
 
         service.snapshotDeviceOnlineRates(today);
 
-        // 段从今天开始前 1 小时发起、仍未恢复（resolvedAt=null）→ 截断到 service 实际取的 now
+        // 段从窗口开始前 1 小时发起、仍未恢复（resolvedAt=null）→ 截断到 windowEnd（过去整日=dayEnd）
         ArgumentCaptor<Instant> endCaptor = ArgumentCaptor.forClass(Instant.class);
         verify(exceptionRepository).findOfflineSegmentsOverlapping(eq(dayStart), endCaptor.capture());
         Instant serviceNow = endCaptor.getValue();
         long expectedTotal = java.time.Duration.between(dayStart, serviceNow).toMinutes();
-        assertTrue(expectedTotal > 0, "测试窗口应为当日已流逝时段");
+        assertTrue(expectedTotal > 0, "测试窗口应为完整过去日（恒 1440 分钟）");
         // 期望值用被测纯函数按真实窗口计算（该纯函数已单独负向验证）；截断/取整口径差异由 min 兜住
         long expectedOffline = Math.min(DeviceAvailabilityKpiService.clipOfflineMinutes(
                 dayStart.minusSeconds(3600), serviceNow, dayStart, serviceNow), expectedTotal);
