@@ -243,7 +243,9 @@ onUnmounted(stopPoll);
     <el-descriptions v-if="session" :column="2" border style="margin-top: 12px">
       <el-descriptions-item label="会话">{{ session.sessionId }}</el-descriptions-item>
       <el-descriptions-item label="商品 ID">{{ session.productId }}</el-descriptions-item>
-      <el-descriptions-item label="阶段">{{ jiangyiPhaseText(session.phase) }}</el-descriptions-item>
+      <el-descriptions-item label="阶段">{{
+        jiangyiPhaseText(session.phase)
+      }}</el-descriptions-item>
       <el-descriptions-item label="错误">{{ session.error || '—' }}</el-descriptions-item>
     </el-descriptions>
     <div

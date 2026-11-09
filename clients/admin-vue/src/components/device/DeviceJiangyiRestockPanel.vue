@@ -185,7 +185,9 @@ onUnmounted(stopPoll);
 
     <el-descriptions v-if="progress" :column="2" border style="margin-top: 12px">
       <el-descriptions-item label="historyNo">{{ historyNo }}</el-descriptions-item>
-      <el-descriptions-item label="阶段">{{ jiangyiStageText(progress.stage) }}</el-descriptions-item>
+      <el-descriptions-item label="阶段">{{
+        jiangyiStageText(progress.stage)
+      }}</el-descriptions-item>
       <el-descriptions-item label="进度"
         >{{ progress.applied }} / {{ progress.total }}</el-descriptions-item
       >

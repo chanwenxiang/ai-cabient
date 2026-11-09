@@ -6,7 +6,12 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import HelpTip from '@/components/HelpTip.vue';
 import { useAuthStore } from '@/stores/auth';
-import { yuanToCents, jiangyiStateText, jiangyiNextActionText, jiangyiCategoryText } from '@aicabinet/shared-uni/format';
+import {
+  yuanToCents,
+  jiangyiStateText,
+  jiangyiNextActionText,
+  jiangyiCategoryText
+} from '@aicabinet/shared-uni/format';
 
 interface ProductState {
   barCode?: string;
@@ -52,7 +57,6 @@ const policy = ref<Policy | null>(null);
 
 const refreshText = ref('');
 const refreshLoading = ref(false);
-
 
 async function loadState() {
   const code = queryBarCode.value.trim();
