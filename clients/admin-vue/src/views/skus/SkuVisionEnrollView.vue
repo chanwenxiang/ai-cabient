@@ -104,7 +104,7 @@ const steps: StepView[] = [
       '回传后要过厂商人工审核；「学习中商品」「采集审核」弹窗可随时查进度'
     ],
     status: 'process',
-    action: { label: '去采集台', path: '/learning-library?dialog=console', primary: true }
+    action: { label: '去采集台', path: '/learning-library?dialog=training', primary: true }
   },
   {
     title: '③ 触发学习',

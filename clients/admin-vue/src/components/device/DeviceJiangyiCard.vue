@@ -234,7 +234,7 @@ function goMappings() {
  * 此前这里的「识别模型同步」整段复刻与识别映射页双入口并存（按钮文案还不同），
  * 是流程混乱的来源——已删，三连统一在识别映射页。
  */
-function goLearningLibrary(dialog: 'console' | 'training') {
+function goLearningLibrary(dialog: 'training') {
   void router.push({
     path: '/learning-library',
     query: { dialog, deviceId: props.deviceId }
@@ -644,7 +644,7 @@ onMounted(load);
             统一在「识别映射」页按柜机操作；学新商品先到学习库「开始采集 → 触发学习」。
           </span>
           <el-button type="primary" plain size="small" @click="goMappings">去识别映射</el-button>
-          <el-button size="small" @click="goLearningLibrary('console')">去学习库采集</el-button>
+          <el-button size="small" @click="goLearningLibrary('training')">去学习库</el-button>
           <el-button size="small" @click="goLearningLibrary('training')"
             >去学习库触发学习</el-button
           >
@@ -819,7 +819,7 @@ onMounted(load);
             <el-button type="primary" plain @click="goLearningLibrary('training')">
               去学习库触发学习
             </el-button>
-            <el-button @click="goLearningLibrary('console')">打开采集台</el-button>
+            <el-button @click="goLearningLibrary('training')">触发学习</el-button>
           </div>
 
           <div class="jy-section-label" style="margin-top: 12px">采集审核进度</div>

@@ -57,7 +57,7 @@ const loading = ref(false);
 
 const steps = [
   { title: '商品挂接', route: '/skus' },
-  { title: '柜前采集', route: '/learning-library?dialog=console' },
+  { title: '柜前采集', route: '/learning-library?dialog=training' },
   { title: '厂商审核', route: '/learning-library?dialog=audit' },
   { title: '提交学习', route: '/learning-library?dialog=training' },
   { title: '映射下发', route: '/vision-mappings' },
