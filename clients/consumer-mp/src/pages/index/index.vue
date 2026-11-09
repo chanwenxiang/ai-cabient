@@ -2904,7 +2904,7 @@ function stopDevicePoll() {
   justify-content: center;
   padding: 48rpx;
   box-sizing: border-box;
-  background: rgba(4, 31, 26, 0.42);
+  background: var(--on-deep-mask-bg);
 }
 .landing-sheet {
   width: 100%;
@@ -2912,7 +2912,7 @@ function stopDevicePoll() {
   padding: 28rpx 24rpx 24rpx;
   border-radius: var(--radius-card, 24rpx);
   background: var(--brand-deep, #115e59);
-  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  border: 1rpx solid var(--on-deep-border-soft);
   box-sizing: border-box;
 }
 .landing-sheet-title {
@@ -2972,7 +2972,7 @@ function stopDevicePoll() {
   padding: 8rpx 0;
 }
 .detail-k {
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--on-deep-text-78);
 }
 .detail-v {
   color: var(--white, #ffffff);
@@ -2980,7 +2980,7 @@ function stopDevicePoll() {
 .detail-desc {
   display: block;
   margin-top: 12rpx;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--on-deep-text-78);
   line-height: 1.6;
 }
 .product-stepper {
@@ -3150,7 +3150,7 @@ function stopDevicePoll() {
   width: 132rpx;
   height: 132rpx;
   border-radius: 50%;
-  border: 10rpx solid rgba(255, 255, 255, 0.2);
+  border: 10rpx solid var(--on-deep-track);
   border-top-color: #5eead4;
   margin-bottom: 40rpx;
   box-shadow: 0 16rpx 44rpx rgba(0, 0, 0, 0.25);
@@ -3178,7 +3178,7 @@ function stopDevicePoll() {
 }
 .flow-hint {
   font-size: var(--font-size-md);
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--on-deep-text-78);
   margin-top: 16rpx;
   text-align: center;
   line-height: 1.5;
@@ -3190,7 +3190,7 @@ function stopDevicePoll() {
   margin-top: 24rpx;
   padding: 10rpx 18rpx;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--on-deep-fill-soft);
   font-weight: 600;
 }
 .flow-err {
@@ -3206,7 +3206,7 @@ function stopDevicePoll() {
   height: 88rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--on-deep-fill);
   color: var(--white, #ffffff);
   font-size: var(--font-size-body);
   display: flex;
@@ -3222,7 +3222,7 @@ function stopDevicePoll() {
   margin-top: 16rpx;
   padding: 0 40rpx;
   font-size: var(--font-size-caption);
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--on-deep-text-78);
   text-align: center;
   line-height: 1.5;
 }

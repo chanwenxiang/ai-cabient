@@ -98,6 +98,19 @@
   --on-deep-opacity-92: 0.92;
   --on-deep-opacity-95: 0.95;
 
+  /*
+   * 深底玻璃/遮罩/描边/填充足色令牌（2026-11-09 弹窗白底改深色时新增）。
+   * 裸色棘轮只减不增：新 rgba 一律挂令牌，theme.css 为豁免定义文件。
+   */
+  --on-deep-glass-bg: rgba(4, 31, 26, 0.62);
+  --on-deep-mask-bg: rgba(4, 31, 26, 0.42);
+  --on-deep-border: rgba(255, 255, 255, 0.22);
+  --on-deep-border-soft: rgba(255, 255, 255, 0.16);
+  --on-deep-fill: rgba(255, 255, 255, 0.14);
+  --on-deep-fill-soft: rgba(255, 255, 255, 0.12);
+  --on-deep-track: rgba(255, 255, 255, 0.2);
+  --on-deep-text-78: rgba(255, 255, 255, 0.78);
+
   /* —— 字号 scale（G04；Web px；小程序 page 可覆写 rpx）—— */
   --font-size-xs: 11px;
   --font-size-sm: 12px;

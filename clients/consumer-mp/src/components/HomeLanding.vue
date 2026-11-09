@@ -596,8 +596,8 @@ export default {
   padding: 22rpx 22rpx 20rpx;
   border-radius: var(--radius-card);
   /* 2026-11-09 用户真机反馈「开门失败弹窗白底」：改深色玻璃，与离线 pill/授权弹层同语言 */
-  background: rgba(4, 31, 26, 0.62);
-  border: 1rpx solid rgba(255, 255, 255, 0.22);
+  background: var(--on-deep-glass-bg);
+  border: 1rpx solid var(--on-deep-border);
   box-shadow: 0 12rpx 32rpx rgba(4, 47, 36, 0.28);
   box-sizing: border-box;
 }
@@ -635,7 +635,7 @@ export default {
 }
 .error-detail {
   margin-top: 4rpx;
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
+  color: var(--on-deep-text-78);
   font-size: var(--font-size-sm);
   line-height: 1.45;
 }
@@ -650,7 +650,7 @@ export default {
   border-radius: var(--radius-pill);
   color: var(--white);
   font-size: var(--font-size-sm);
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--on-deep-fill);
 }
 .error-action.primary {
   color: var(--white);
@@ -658,7 +658,7 @@ export default {
 }
 .error-close {
   padding: 0 4rpx;
-  color: rgba(255, 255, 255, var(--on-deep-opacity-78));
+  color: var(--on-deep-text-78);
   font-size: var(--font-size-lg);
   line-height: 1;
 }

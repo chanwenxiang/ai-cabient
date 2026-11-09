@@ -79,6 +79,14 @@ uni-page-body {
   --on-deep-opacity-88: 0.88;
   --on-deep-opacity-92: 0.92;
   --on-deep-opacity-95: 0.95;
+  --on-deep-glass-bg: rgba(4, 31, 26, 0.62);
+  --on-deep-mask-bg: rgba(4, 31, 26, 0.42);
+  --on-deep-border: rgba(255, 255, 255, 0.22);
+  --on-deep-border-soft: rgba(255, 255, 255, 0.16);
+  --on-deep-fill: rgba(255, 255, 255, 0.14);
+  --on-deep-fill-soft: rgba(255, 255, 255, 0.12);
+  --on-deep-track: rgba(255, 255, 255, 0.2);
+  --on-deep-text-78: rgba(255, 255, 255, 0.78);
   /* 自定义导航栏（AppNavBar）在消费端的提亮底色 */
   --nav-bar-bg: #0d9488;
   --color-primary: var(--brand);
