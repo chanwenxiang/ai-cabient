@@ -1185,11 +1185,19 @@ public class ReplenishmentService {
         return bySku;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    @org.springframework.context.annotation.Lazy
+    private JiangyiRestockService jiangyiRestockService;
+
     private ReplenishmentTaskDto finishCompletedTaskSideEffects(ReplenishmentTask task, Long taskId) {
         completeRouteIfReady(task.getRouteId());
         // 完成补货后关闭仍占用柜机的补货开门会话，避免挡消费者
         if (sessionService != null) {
             sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
+        }
+        // 将邑开门柜：补货完成后把现行库存同步为该层最终库存（§7.11），失败不阻断完成
+        if (jiangyiRestockService != null) {
+            jiangyiRestockService.syncAfterRestock(task.getDeviceId());
         }
         return toTaskDto(task);
     }

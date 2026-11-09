@@ -15,6 +15,7 @@ import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -52,6 +53,9 @@ public class JiangyiRestockService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final MerchantSkuPricingService pricingService;
     private final AdminAuditService auditService;
+
+    @Value("${JIANGYI_AUTO_RESTOCK_SYNC:true}")
+    private boolean autoRestockSync;
 
     public JiangyiRestockService(JiangyiRestockClient restockClient,
                                  JiangyiDeviceDirectory deviceDirectory,
@@ -171,6 +175,28 @@ public class JiangyiRestockService {
             return HexFormat.of().formatHex(digest.digest(input.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception e) {
             throw new IllegalStateException("SHA-256 不可用", e);
+        }
+    }
+
+    /** 补货完成后自动把该柜现行库存同步为将邑该层最终库存（§7.11）。失败只告警不阻断补货完成。 */
+    public void syncAfterRestock(String deviceId) {
+        if (!autoRestockSync) {
+            return;
+        }
+        try {
+            if (!deviceDirectory.isJiangyi(deviceId)) {
+                return;
+            }
+            Preview preview = preview(deviceId);
+            if (preview.lines().isEmpty()) {
+                return;
+            }
+            List<SubmitLine> lines = preview.lines().stream()
+                    .map(l -> new SubmitLine(l.barCode(), l.stockNum(), l.salePriceCents()))
+                    .toList();
+            submit(0L, deviceId, new SubmitCommand(1, lines, true));
+        } catch (Exception e) {
+            log.warn("jiangyi auto restock sync skipped deviceId={}: {}", deviceId, e.getMessage());
         }
     }
 }

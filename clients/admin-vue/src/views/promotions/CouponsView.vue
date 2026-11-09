@@ -141,7 +141,7 @@
               }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="140" class-name="col-text">
+          <el-table-column label="说明" width="160" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-ellipsis" :title="row.description || ''">{{
                 row.description || '暂无'

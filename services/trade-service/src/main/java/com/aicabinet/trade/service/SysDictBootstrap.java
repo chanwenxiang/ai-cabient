@@ -295,7 +295,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("supplier_payable_status", t("供应商应付状态", m(
                 "UNPAID", "未付", "PARTIAL", "部分付款", "PAID", "已付", STATUS_CLOSED, "已关闭")));
         map.put("stocktake_mode", t("盘点方式", m(
-                "BLIND", "盲盘", "VISIBLE", "明盘")));
+                "OPEN", "明盘", "BLIND", "盲盘", "VISIBLE", "明盘")));
         map.put("stocktake_status", t("盘点单状态", m(
                 CabinetConstants.PROMOTION_STATUS_DRAFT, "草稿", STATUS_IN_PROGRESS, "盘点中", STATUS_COMPLETED, "已完成",
                 "ADJUSTED", "已调整", STATUS_CANCELLED, "已取消")));
