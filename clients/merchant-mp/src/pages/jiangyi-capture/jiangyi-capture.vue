@@ -177,14 +177,14 @@ async function submit() {
 .rules {
   margin-bottom: 24rpx;
   padding: 16rpx 20rpx;
-  background: #fff8e6;
+  background: var(--color-primary-soft);
   border-radius: 8rpx;
 }
 .rule {
   display: block;
   font-size: 24rpx;
   line-height: 36rpx;
-  color: #8a6d3b;
+  color: var(--color-text-secondary);
 }
 .row {
   display: flex;

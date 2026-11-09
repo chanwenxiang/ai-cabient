@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
+import { centsToYuanDigits, yuanToCents } from '@aicabinet/shared-uni/format';
 
 const props = defineProps<{ deviceId: string; canEdit: boolean }>();
 
@@ -51,7 +52,7 @@ async function loadPreview() {
     );
     rows.value = (preview.value?.lines || []).map((l) => ({
       ...l,
-      priceYuan: (l.salePriceCents / 100).toFixed(2)
+      priceYuan: centsToYuanDigits(l.salePriceCents)
     }));
   } catch (e) {
     ElMessage.error(errorMessage(e, '加载上架清单失败'));
@@ -107,7 +108,7 @@ async function doSubmit() {
     const lines = rows.value.map((r) => ({
       barCode: r.barCode,
       stockNum: Number(r.stockNum) || 0,
-      salePriceCents: Math.round((Number(r.priceYuan) || 0) * 100)
+      salePriceCents: yuanToCents(r.priceYuan) ?? 0
     }));
     const res = await api.request<SubmitResult>(
       AdminEndpoints.jiangyiRestockSubmit(props.deviceId),

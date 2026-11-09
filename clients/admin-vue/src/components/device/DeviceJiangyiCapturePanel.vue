@@ -58,7 +58,7 @@ async function loadShelf() {
       'GET'
     );
   } catch (e) {
-    ElMessage.error(errorMessage(e, '读取厂商货道失败'));
+    ElMessage.error(errorMessage(e, '读取厂商在售清单失败'));
   } finally {
     shelfLoading.value = false;
   }
@@ -173,8 +173,8 @@ onUnmounted(stopPoll);
 
 <template>
   <div class="jy-capture">
-    <div class="jy-section-label">厂商货道核对（§7.13，只读）</div>
-    <el-button :loading="shelfLoading" @click="loadShelf">读取厂商当前货道</el-button>
+    <div class="jy-section-label">厂商侧在售核对（§7.13，只读）</div>
+    <el-button :loading="shelfLoading" @click="loadShelf">读取厂商当前在售清单</el-button>
     <template v-if="shelf">
       <el-descriptions :column="3" border style="margin-top: 12px">
         <el-descriptions-item label="设备">{{ shelf.deviceName || '—' }}</el-descriptions-item>

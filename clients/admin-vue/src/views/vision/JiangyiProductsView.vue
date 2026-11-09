@@ -4,6 +4,8 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
+import HelpTip from '@/components/HelpTip.vue';
+import { yuanToCents } from '@aicabinet/shared-uni/format';
 
 interface ProductState {
   barCode?: string;
@@ -77,8 +79,8 @@ async function doCreate() {
     ElMessage.warning('条码与名称必填');
     return;
   }
-  const yuan = Number(createForm.salePriceYuan);
-  if (!Number.isFinite(yuan) || yuan <= 0) {
+  const cents = yuanToCents(createForm.salePriceYuan);
+  if (cents == null || cents <= 0) {
     ElMessage.warning('零售价须大于 0（元）');
     return;
   }
@@ -87,7 +89,7 @@ async function doCreate() {
     const res = await api.request<ProductState>(AdminEndpoints.jiangyiProductCreate, 'POST', {
       barCode: createForm.barCode.trim(),
       name: createForm.name.trim(),
-      salePriceCents: Math.round(yuan * 100),
+      salePriceCents: cents,
       specs: createForm.specs.trim() || undefined,
       brandName: createForm.brandName.trim() || undefined,
       categoryId: createForm.categoryId,
@@ -150,16 +152,17 @@ onMounted(async () => {
               >建档 → 手机采集（商户小程序）→ 审核 →
               补货上架；本页负责建档、查状态、批量刷新与看驳回原因</span
             >
+            <HelpTip
+              content="拍照采集必须在商户小程序「商品采集」完成（§7.3 现场实物拍摄）；按厂商提示逐张拍、背景统一干净、平视居中；本页只做建档/查状态/批量刷新"
+              aria-label="采集与建档口径"
+            />
           </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button @click="loadState">刷新状态</el-button>
         </div>
       </div>
     </template>
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="拍照采集请在商户小程序「商品采集」完成（§7.3 要求现场实物拍摄）；本页负责建档、查状态与批量刷新。"
-    />
 
     <el-row :gutter="16" style="margin-top: 16px">
       <el-col :span="12">
@@ -261,12 +264,9 @@ onMounted(async () => {
               <el-button type="primary" :loading="createLoading" @click="doCreate">建档</el-button>
             </el-form-item>
           </el-form>
-          <el-alert
-            v-if="policy"
-            type="warning"
-            :closable="false"
-            :title="`手机采集需 ${policy.shotCount} 张：${policy.shotHints.join('、')}`"
-          />
+          <div v-if="policy" class="rules-hint">
+            手机采集需 {{ policy.shotCount }} 张：{{ policy.shotHints.join('、') }}
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -297,6 +297,12 @@ onMounted(async () => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.6;
+}
+.rules-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 8px;
 }
 .reject-cause {
   color: var(--el-color-danger);
