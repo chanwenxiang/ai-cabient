@@ -9,6 +9,7 @@
     "./request": "./src/request.ts",
     "./product-image": "./src/product-image.ts",
     "./session-labels": "./src/session-labels.ts",
+    "./order-refund-policy": "./src/order-refund-policy.ts",
     "./menu-icon": "./src/menu-icon.ts",
     "./runtime-flags": "./src/runtime-flags.ts",
     "./notify": "./src/notify.ts",

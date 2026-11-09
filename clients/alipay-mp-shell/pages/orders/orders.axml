@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="head">
+    <view class="head-avatar">前</view>
+    <view class="head-main">
+      <view class="head-name">前海易购智能柜</view>
+      <view class="head-sub">开门取货 · 关门自动结算 · 全程免密</view>
+    </view>
+  </view>
+
+  <view class="hint-card">
+    <view class="hint-title">我的取货订单</view>
+    <view class="hint-text">
+      本页用于「先享后付」服务的开通说明与守约入口。您在智能柜的取货扣款记录，
+      请在支付宝「账单」或「信用服务」中查询。
+    </view>
+  </view>
+
+  <view class="empty">
+    <view class="empty-icon">🧾</view>
+    <view class="empty-title">订单查询入口</view>
+    <view class="empty-text">
+      扣款与履约记录请在支付宝「账单」或「信用服务」中查看
+    </view>
+  </view>
+
+  <view class="foot-card">
+    <view class="foot-row">
+      <text class="foot-label">客服电话</text>
+      <text class="foot-value">4000182992</text>
+    </view>
+    <view class="foot-row">
+      <text class="foot-label">运营主体</text>
+      <text class="foot-value">深圳前海易购科创智能设备有限公司</text>
+    </view>
+  </view>
+
+  <view class="nav" onTap="goAbout">了解先享后付服务 →</view>
+</view>

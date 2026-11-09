@@ -1,0 +1,28 @@
+<view class="page">
+  <view class="slogan-card">
+    <view class="slogan-brand">芝麻信用 · 先享后付</view>
+    <view class="slogan-title">先享后付服务说明</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">服务流程</view>
+    <view class="step"><text class="step-no">1</text>支付宝扫描柜门二维码，完成一次开通授权</view>
+    <view class="step"><text class="step-no">2</text>柜门打开，自由选取商品</view>
+    <view class="step"><text class="step-no">3</text>关门后系统按实际取货商品金额自动扣款</view>
+    <view class="step"><text class="step-no">4</text>开通一次，后续扫码直接开门购物</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">守约说明</view>
+    <view class="text">
+      按时完成支付有助于积累您的信用记录；如扣款未成功，支付宝将通过
+      「信用守护」提醒您完成支付，避免影响信用。
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">联系我们</view>
+    <view class="row"><text class="label">客服电话</text><text class="val">4000182992</text></view>
+    <view class="row"><text class="label">运营主体</text><text class="val">深圳前海易购科创智能设备有限公司</text></view>
+  </view>
+</view>

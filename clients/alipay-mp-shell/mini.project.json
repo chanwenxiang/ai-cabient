@@ -1,0 +1,12 @@
+{
+  "format": 2,
+  "compileType": "mini",
+  "projectName": "yigou-zhima-shell",
+  "app_id": "2021007118617439",
+  "description": "前海易购智能柜 · 芝麻先享守约服务载体小程序（订单查询/守约说明）",
+  "setting": {
+    "es6": true,
+    "minified": true,
+    "urlCheck": false
+  }
+}

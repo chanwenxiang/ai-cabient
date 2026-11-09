@@ -103,4 +103,42 @@ class SessionIdempotentReplayTest {
         verify(distributedLockService, never()).tryLock(anyString(), anyLong(), anyLong());
         verify(repository, never()).save(any(ShoppingSession.class));
     }
+
+    /**
+     * 🔴 2026-11-10 审计 P0-4（后端半边，铁律 82 ③）：回放必须校验会话状态。
+     * 购物已结束的会话（COMPLETED/CANCELLED/DISPUTED）若按 200 回放，客户端会把旧会话
+     * 当「开门成功」——柜门没开，人还被带进上一笔账单。幂等键的存活期 = 一次开门意图，
+     * 会话终态即意图终止，重试必须重新发起而不是复用旧键。
+     */
+    @Test
+    void createSession_replayingTerminalSession_conflictsInsteadOfFakeSuccess() {
+        for (SessionState ended : new SessionState[] {
+                SessionState.COMPLETED, SessionState.CANCELLED, SessionState.DISPUTED}) {
+            ShoppingSession done = existing("S-DONE", OWNER, "CAB-001");
+            done.setState(ended);
+            when(repository.findByIdempotencyKey("K-REPLAY")).thenReturn(Optional.of(done));
+
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                    () -> service.createSession(OWNER, new CreateSessionRequest("CAB-001", "K-REPLAY")),
+                    () -> ended + " 会话不得按开门成功回放");
+
+            assertEquals(HttpStatus.CONFLICT, ex.getStatusCode(), () -> ended + " 必须拒，不能冒充开门成功");
+            verify(distributedLockService, never()).tryLock(anyString(), anyLong(), anyLong());
+            verify(repository, never()).save(any(ShoppingSession.class));
+        }
+    }
+
+    @Test
+    void createSession_replayingFailedSession_stillReplaysForRetryWindow() {
+        // 对照组（防判据过宽）：FAILED 会话在重试窗口内原样回放——客户端据此展示
+        // 上次开门失败原因；把 FAILED 也打死会让「网络重试看到失败详情」变成凭空 409。
+        ShoppingSession failed = existing("S-FAILED", INTRUDER, "CAB-001");
+        failed.setState(SessionState.FAILED);
+        when(repository.findByIdempotencyKey("K-REPLAY")).thenReturn(Optional.of(failed));
+
+        var dto = service.createSession(INTRUDER, new CreateSessionRequest("CAB-001", "K-REPLAY"));
+
+        assertEquals("S-FAILED", dto.sessionId());
+        assertEquals(SessionState.FAILED, dto.state());
+    }
 }

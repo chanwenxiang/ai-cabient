@@ -1,0 +1,7 @@
+{
+  "pages": ["pages/orders/orders", "pages/about/about"],
+  "window": {
+    "defaultTitle": "易购智能柜",
+    "titleBarColor": "#0d9488"
+  }
+}
