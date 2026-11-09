@@ -21,6 +21,7 @@ import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import com.aicabinet.trade.service.JiangyiCabinetCaptureService;
 import com.aicabinet.trade.service.JiangyiRestockService;
 import com.aicabinet.trade.service.JiangyiShelfService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -67,6 +68,7 @@ public class AdminJiangyiController {
     private final JiangyiFlowSummaryService jiangyiFlowSummaryService;
     private final DeviceFaultOrderService deviceFaultOrderService;
     private final JiangyiRestockService jiangyiRestockService;
+    private final JiangyiCabinetCaptureService jiangyiCabinetCaptureService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
@@ -80,7 +82,8 @@ public class AdminJiangyiController {
                                   JiangyiGatherConsoleService jiangyiGatherConsoleService,
                                   JiangyiFlowSummaryService jiangyiFlowSummaryService,
                                   DeviceFaultOrderService deviceFaultOrderService,
-                                  JiangyiRestockService jiangyiRestockService) {
+                                  JiangyiRestockService jiangyiRestockService,
+                                  JiangyiCabinetCaptureService jiangyiCabinetCaptureService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
@@ -94,6 +97,7 @@ public class AdminJiangyiController {
         this.jiangyiFlowSummaryService = jiangyiFlowSummaryService;
         this.deviceFaultOrderService = deviceFaultOrderService;
         this.jiangyiRestockService = jiangyiRestockService;
+        this.jiangyiCabinetCaptureService = jiangyiCabinetCaptureService;
     }
 
     /**
@@ -396,6 +400,63 @@ public class AdminJiangyiController {
             @PathVariable("historyNo") String historyNo) {
         return ApiResponse.ok(jiangyiRestockService.progress(deviceId, historyNo));
     }
+
+    /** §7.13 厂商当前货道（只读对账：厂商侧 vs 我方清单）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/vendor-shelf")
+    public ApiResponse<JiangyiCabinetCaptureService.VendorShelf> vendorShelf(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.vendorShelf(deviceId));
+    }
+
+    /** §7.14 待柜内采集商品（onShelf=false 需先补货上架）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/cabinet-capture")
+    public ApiResponse<java.util.List<com.aicabinet.trade.dto.JiangyiRestockDtos.CabinetCaptureProduct>> cabinetCaptureList(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.list(deviceId));
+    }
+
+    /** §7.15 开始柜内采集（厂商云自动开锁录制；同柜同时只能一个会话）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/cabinet-capture/start")
+    public ApiResponse<com.aicabinet.trade.dto.JiangyiRestockDtos.CabinetCaptureSession> cabinetCaptureStart(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @Valid @RequestBody CabinetCaptureStartRequest body) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.start(operatorId(request), deviceId, body.productId()));
+    }
+
+    /** §7.16 柜内采集进度（phase 见文档；建议每秒轮询）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}")
+    public ApiResponse<com.aicabinet.trade.dto.JiangyiRestockDtos.CabinetCaptureSession> cabinetCaptureStatus(
+            @PathVariable("deviceId") String deviceId,
+            @PathVariable("sessionId") int sessionId) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.status(deviceId, sessionId));
+    }
+
+    /** §7.17 结束柜内采集（关门后调用）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}/finish")
+    public ApiResponse<com.aicabinet.trade.dto.JiangyiRestockDtos.CabinetCaptureSession> cabinetCaptureFinish(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @PathVariable("sessionId") int sessionId) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.finish(operatorId(request), deviceId, sessionId));
+    }
+
+    /** §7.18 取消柜内采集（释放约 15 分钟占用）。 */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}/cancel")
+    public ApiResponse<com.aicabinet.trade.dto.JiangyiRestockDtos.CabinetCaptureSession> cabinetCaptureCancel(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @PathVariable("sessionId") int sessionId) {
+        return ApiResponse.ok(jiangyiCabinetCaptureService.cancel(operatorId(request), deviceId, sessionId));
+    }
+
+    record CabinetCaptureStartRequest(@jakarta.validation.constraints.Positive long productId) {}
 
     /**
      * 设备侧故障单列表（CB-077，V416）：固件自报故障（如摄像头打开失败）最近 N 条，

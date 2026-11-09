@@ -4582,6 +4582,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cabinetCaptureFinish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cabinetCaptureCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/cabinet-capture/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cabinetCaptureStart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/bind": {
         parameters: {
             query?: never;
@@ -9148,6 +9196,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/vendor-shelf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["vendorShelf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/signal": {
         parameters: {
             query?: never;
@@ -9268,6 +9332,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["classDecode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/cabinet-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["cabinetCaptureList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/cabinet-capture/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["cabinetCaptureStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15490,6 +15586,25 @@ export interface components {
             deviceAddress: string;
             screen?: boolean;
         };
+        ApiResponseCabinetCaptureSession: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["CabinetCaptureSession"];
+        };
+        CabinetCaptureSession: {
+            /** Format: int32 */
+            sessionId?: number;
+            deviceIdentifier?: string;
+            /** Format: int64 */
+            productId?: number;
+            phase?: string;
+            error?: string;
+        };
+        CabinetCaptureStartRequest: {
+            /** Format: int64 */
+            productId?: number;
+        };
         ApiResponseDeviceDataFeeBillDto: {
             /** Format: int32 */
             code?: number;
@@ -18983,6 +19098,34 @@ export interface components {
             binding?: components["schemas"]["JiangyiDeviceDto"];
             mappings?: components["schemas"]["JiangyiClassMappingDto"][];
         };
+        ApiResponseVendorShelf: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["VendorShelf"];
+        };
+        ShelfFloor: {
+            /** Format: int32 */
+            floorNum?: number;
+            floorOrientation?: string;
+            items?: components["schemas"]["ShelfItem"][];
+        };
+        ShelfItem: {
+            /** Format: int64 */
+            productId?: number;
+            productName?: string;
+            /** Format: double */
+            salePriceYuan?: number;
+            /** Format: int32 */
+            stock?: number;
+        };
+        VendorShelf: {
+            deviceName?: string;
+            identifier?: string;
+            /** Format: int32 */
+            totalFloorNum?: number;
+            floors?: components["schemas"]["ShelfFloor"][];
+        };
         ApiResponseSignalView: {
             /** Format: int32 */
             code?: number;
@@ -19161,6 +19304,12 @@ export interface components {
             skuId?: string;
             skuName?: string;
             barcode?: string;
+        };
+        ApiResponseListCabinetCaptureProduct: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["CabinetCaptureProduct"][];
         };
         ApiResponseListDeviceEnvReadingDto: {
             /** Format: int32 */
@@ -29444,6 +29593,78 @@ export interface operations {
             };
         };
     };
+    cabinetCaptureFinish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                sessionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCabinetCaptureSession"];
+                };
+            };
+        };
+    };
+    cabinetCaptureCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                sessionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCabinetCaptureSession"];
+                };
+            };
+        };
+    };
+    cabinetCaptureStart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CabinetCaptureStartRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCabinetCaptureSession"];
+                };
+            };
+        };
+    };
     bind_1: {
         parameters: {
             query?: never;
@@ -36538,6 +36759,28 @@ export interface operations {
             };
         };
     };
+    vendorShelf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVendorShelf"];
+                };
+            };
+        };
+    };
     signal_1: {
         parameters: {
             query?: never;
@@ -36717,6 +36960,51 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseClassDecodeView"];
+                };
+            };
+        };
+    };
+    cabinetCaptureList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseListCabinetCaptureProduct"];
+                };
+            };
+        };
+    };
+    cabinetCaptureStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                sessionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCabinetCaptureSession"];
                 };
             };
         };

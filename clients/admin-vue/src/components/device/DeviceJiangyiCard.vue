@@ -8,6 +8,7 @@ import { errorMessage } from '@/utils/error-message';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import VisionFlowSteps from '@/components/vision/VisionFlowSteps.vue';
 import DeviceJiangyiRestockPanel from '@/components/device/DeviceJiangyiRestockPanel.vue';
+import DeviceJiangyiCapturePanel from '@/components/device/DeviceJiangyiCapturePanel.vue';
 
 /**
  * 将邑接入卡片（CB-022 收尾）：把此前只能手工 SQL 的登记/绑定/映射升级为后台可操作。
@@ -842,6 +843,7 @@ onMounted(load);
     </template>
 
     <DeviceJiangyiRestockPanel v-if="binding" :device-id="deviceId" :can-edit="canEdit" />
+    <DeviceJiangyiCapturePanel v-if="binding" :device-id="deviceId" :can-edit="canEdit" />
   </el-card>
 </template>
 

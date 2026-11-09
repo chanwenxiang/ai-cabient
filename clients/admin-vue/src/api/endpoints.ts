@@ -292,6 +292,20 @@ export const AdminEndpoints = {
   jiangyiRestockProgress: (deviceId: string, historyNo: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/restock/${encodeURIComponent(historyNo)}`,
 
+  /** §7.13 厂商货道核对 + §7.14~§7.18 柜内采集 */
+  jiangyiVendorShelf: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/vendor-shelf`,
+  jiangyiCabinetCaptureList: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/cabinet-capture`,
+  jiangyiCabinetCaptureStart: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/cabinet-capture/start`,
+  jiangyiCabinetCaptureStatus: (deviceId: string, sessionId: number) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/cabinet-capture/${sessionId}`,
+  jiangyiCabinetCaptureFinish: (deviceId: string, sessionId: number) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/cabinet-capture/${sessionId}/finish`,
+  jiangyiCabinetCaptureCancel: (deviceId: string, sessionId: number) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/cabinet-capture/${sessionId}/cancel`,
+
   /** 商户 / 分账 */
   merchants: `${ops}/merchants`,
   merchantsList: (query: URLSearchParams | string) =>

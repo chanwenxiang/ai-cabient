@@ -57,6 +57,7 @@ class AdminJiangyiControllerTest {
     @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
     @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
     @Mock private com.aicabinet.trade.service.JiangyiRestockService restockService;
+    @Mock private com.aicabinet.trade.service.JiangyiCabinetCaptureService cabinetCaptureService;
 
     private static jakarta.servlet.http.HttpServletRequest req() {
         return org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
@@ -66,7 +67,8 @@ class AdminJiangyiControllerTest {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
                 mappingReviewService, learningLibraryService, shelfService,
-                gatherConsoleService, flowSummaryService, deviceFaultOrderService, restockService);
+                gatherConsoleService, flowSummaryService, deviceFaultOrderService, restockService,
+                cabinetCaptureService);
     }
 
     private JiangyiDevice boundDevice() {
