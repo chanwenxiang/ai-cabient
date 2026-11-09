@@ -20,6 +20,16 @@
       </view>
 
       <view v-if="policy" class="card">
+        <text class="label">拍摄须知（厂商审核按此判）</text>
+        <view class="rules">
+          <text class="rule"
+            >· 按下方角度提示逐张拍，共 {{ policy.shotCount }} 张（正放 4 面 + 倒置 4 面）</text
+          >
+          <text class="rule">· 商品居中、尽量占满画面</text>
+          <text class="rule">· 背景干净（纯色墙面/白纸，不要桌面杂物、键盘、包装）</text>
+          <text class="rule">· 避免强反光、遮挡和模糊；一张图只拍一个商品</text>
+          <text class="rule">· 必须实物现场拍摄，不能用网图或商品宣传图</text>
+        </view>
         <text class="label">按顺序拍摄 {{ policy.shotCount }} 张</text>
         <view v-for="(hint, index) in policy.shotHints" :key="index" class="shot">
           <text class="shot-hint">{{ index + 1 }}. {{ hint }}</text>
@@ -161,6 +171,18 @@ async function submit() {
   font-size: 28rpx;
   color: #333333;
   margin-bottom: 16rpx;
+}
+.rules {
+  margin-bottom: 24rpx;
+  padding: 16rpx 20rpx;
+  background: #fff8e6;
+  border-radius: 8rpx;
+}
+.rule {
+  display: block;
+  font-size: 24rpx;
+  line-height: 36rpx;
+  color: #8a6d3b;
 }
 .row {
   display: flex;

@@ -140,7 +140,20 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="jy-products">
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">将邑商品</span>
+            <span class="hint"
+              >建档 → 手机采集（商户小程序）→ 审核 →
+              补货上架；本页负责建档、查状态、批量刷新与看驳回原因</span
+            >
+          </div>
+        </div>
+      </div>
+    </template>
     <el-alert
       type="info"
       :closable="false"
@@ -257,12 +270,33 @@ onMounted(async () => {
         </el-card>
       </el-col>
     </el-row>
-  </div>
+  </el-card>
 </template>
 
 <style scoped>
-.jy-products {
-  padding: 16px;
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-card-head__title .title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.page-card-head__title .hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 .reject-cause {
   color: var(--el-color-danger);

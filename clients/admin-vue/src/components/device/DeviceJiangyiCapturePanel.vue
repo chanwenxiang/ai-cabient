@@ -173,7 +173,7 @@ onUnmounted(stopPoll);
 
 <template>
   <div class="jy-capture">
-    <el-divider content-position-left>厂商货道核对（§7.13，只读）</el-divider>
+    <div class="jy-section-label">厂商货道核对（§7.13，只读）</div>
     <el-button :loading="shelfLoading" @click="loadShelf">读取厂商当前货道</el-button>
     <template v-if="shelf">
       <el-descriptions :column="3" border style="margin-top: 12px">
@@ -202,13 +202,18 @@ onUnmounted(stopPoll);
       </el-table>
     </template>
 
-    <el-divider content-position-left>柜内采集（§7.14~§7.18）</el-divider>
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      title="柜内采集是手机采集审核通过并上架后的补充环节（提高准确率）；未结束会话占用该柜约 15 分钟。"
-    />
+    <div class="jy-section-label">柜内采集（§7.14~§7.18）</div>
+    <el-alert type="info" :closable="false" show-icon title="柜内采集规范（§7.3）">
+      <template #default>
+        <div class="capture-rules">
+          <div>· 商品须已补货上架到该柜；每次只采集一个商品</div>
+          <div>· 开始录制后拉开柜门，拿出商品，在上下摄像头前缓慢转动展示各角度</div>
+          <div>· 放回原位、关好柜门后再点「结束采集」</div>
+          <div>· 上下摄像头各需 30~100 张有效画面，任一不足 30 张需重新采集</div>
+          <div>· 未结束会话占用该柜约 15 分钟，异常时点「取消会话」释放</div>
+        </div>
+      </template>
+    </el-alert>
     <el-button style="margin: 8px 0" :loading="listLoading" @click="loadList"
       >加载待采集商品</el-button
     >
