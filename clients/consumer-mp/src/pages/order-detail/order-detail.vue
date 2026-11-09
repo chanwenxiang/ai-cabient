@@ -1288,6 +1288,12 @@ function callSupport() {
   margin: 12rpx 0 20rpx;
   line-height: 1.5;
 }
+.field-label {
+  display: block;
+  font-size: var(--font-size-caption);
+  color: var(--text-subtle, #888);
+  margin: 0 0 8rpx;
+}
 .chip-row {
   display: flex;
   flex-wrap: wrap;

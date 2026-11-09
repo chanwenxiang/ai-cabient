@@ -2525,6 +2525,7 @@ function stopDevicePoll() {
   font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--brand-deep, #115e59);
+  text-align: center;
 }
 .shopping-banner.wait .shopping-banner-title {
   color: var(--warning, #b45309);
@@ -2535,6 +2536,7 @@ function stopDevicePoll() {
   font-size: var(--font-size-caption);
   color: var(--brand, #0d9488);
   line-height: 1.4;
+  text-align: center;
 }
 .shopping-banner.wait .shopping-banner-sub {
   color: var(--warning);
@@ -2889,6 +2891,38 @@ function stopDevicePoll() {
   height: 100%;
 }
 /*
+ * landing-mask/landing-sheet/landing-sheet-title 只在 HomeLanding.vue（scoped）内定义，
+ * 本页详情弹层拿不到 ⇒ 遮罩不固定、弹层无底色（真机白底 inline）。
+ * 按 HomeLanding 授权弹层设计语言补齐：深色底 + 白字 + 居中遮罩。
+ */
+.landing-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  box-sizing: border-box;
+  background: rgba(4, 31, 26, 0.42);
+}
+.landing-sheet {
+  width: 100%;
+  max-width: 560rpx;
+  padding: 28rpx 24rpx 24rpx;
+  border-radius: var(--radius-card, 24rpx);
+  background: var(--brand-deep, #115e59);
+  border: 1rpx solid rgba(255, 255, 255, 0.16);
+  box-sizing: border-box;
+}
+.landing-sheet-title {
+  display: block;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--white, #ffffff);
+  text-align: center;
+}
+/*
  * 商品详情弹层操作行（2026-10-14 加「转发给好友」时补样式）：
  * landing-sheet-* 此前只在 HomeLanding.vue（scoped）内定义，index 页详情弹层
  * 的「关闭」按钮实际处于无样式状态；本条按 HomeLanding 授权弹层的设计语言补齐
@@ -2938,15 +2972,15 @@ function stopDevicePoll() {
   padding: 8rpx 0;
 }
 .detail-k {
-  color: var(--text-secondary, #6b7280);
+  color: rgba(255, 255, 255, 0.78);
 }
 .detail-v {
-  color: var(--text-primary, #111827);
+  color: var(--white, #ffffff);
 }
 .detail-desc {
   display: block;
   margin-top: 12rpx;
-  color: var(--text-muted, #334155);
+  color: rgba(255, 255, 255, 0.78);
   line-height: 1.6;
 }
 .product-stepper {
@@ -3092,7 +3126,13 @@ function stopDevicePoll() {
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #f0fdfa), var(--white) 55%);
+  /* 2026-11-09 用户真机反馈「开门失败弹窗白底」：旧 wait/error 用 *-soft 近白底，
+     改与落地页同系深色底，色调靠 spinner/文案accent 区分 */
+  background: radial-gradient(
+    circle at 50% 35%,
+    var(--brand-deep, #115e59),
+    var(--brand-ink, #043f32) 75%
+  );
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3100,23 +3140,20 @@ function stopDevicePoll() {
   padding: 48rpx;
   box-sizing: border-box;
 }
-.flow-overlay.wait {
-  background: var(--warning-soft);
+.flow-overlay.wait .flow-spinner {
+  border-top-color: var(--warning, #f59e0b);
 }
-.flow-overlay.active {
-  background: var(--brand-soft, #f0fdfa);
-}
-.flow-overlay.error {
-  background: var(--danger-soft);
+.flow-overlay.error .flow-spinner {
+  border-top-color: #f87171;
 }
 .flow-spinner {
   width: 132rpx;
   height: 132rpx;
   border-radius: 50%;
-  border: 10rpx solid var(--brand-soft, #e8f8ef);
-  border-top-color: var(--brand-wx, #07c160);
+  border: 10rpx solid rgba(255, 255, 255, 0.2);
+  border-top-color: #5eead4;
   margin-bottom: 40rpx;
-  box-shadow: 0 16rpx 44rpx rgba(13, 148, 136, 0.13);
+  box-shadow: 0 16rpx 44rpx rgba(0, 0, 0, 0.25);
 }
 .flow-spinner.pulse {
   animation: spin 1.2s linear infinite;
@@ -3129,19 +3166,19 @@ function stopDevicePoll() {
 @media (prefers-reduced-motion: reduce) {
   .flow-spinner.pulse {
     animation: none;
-    border-top-color: var(--brand-wx, #07c160);
+    border-top-color: #5eead4;
     opacity: 0.85;
   }
 }
 .flow-title {
   font-size: var(--font-size-h1);
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--white, #ffffff);
   text-align: center;
 }
 .flow-hint {
   font-size: var(--font-size-md);
-  color: var(--text-subtle, #888);
+  color: rgba(255, 255, 255, 0.78);
   margin-top: 16rpx;
   text-align: center;
   line-height: 1.5;
@@ -3149,16 +3186,16 @@ function stopDevicePoll() {
 }
 .flow-device {
   font-size: var(--font-size-body);
-  color: var(--brand-wx, #07c160);
+  color: #5eead4;
   margin-top: 24rpx;
   padding: 10rpx 18rpx;
   border-radius: var(--radius-pill);
-  background: var(--brand-soft, #f0fdfa);
+  background: rgba(255, 255, 255, 0.12);
   font-weight: 600;
 }
 .flow-err {
   font-size: var(--font-size-body);
-  color: var(--color-danger);
+  color: #fca5a5;
   margin-top: 16rpx;
   text-align: center;
 }
@@ -3169,8 +3206,8 @@ function stopDevicePoll() {
   height: 88rpx;
   line-height: 1.2;
   border-radius: var(--radius-card);
-  background: var(--surface-muted);
-  color: var(--color-link-secondary);
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--white, #ffffff);
   font-size: var(--font-size-body);
   display: flex;
   align-items: center;
@@ -3185,7 +3222,7 @@ function stopDevicePoll() {
   margin-top: 16rpx;
   padding: 0 40rpx;
   font-size: var(--font-size-caption);
-  color: var(--text-subtle, #888);
+  color: rgba(255, 255, 255, 0.78);
   text-align: center;
   line-height: 1.5;
 }
