@@ -849,6 +849,128 @@ docker exec -i <pg> psql -U aicabinet -d aicabinet -tA -c `
 清理：新版没有删除商品接口，测试商品用旧版 `/merchant/product/delete` 清；7.11 的语义是
 「该层最终库存」，测试后要重新提交**真实在架清单**，否则该层商品会被下架。
 
+### 12B.2 门禁打开后的真跑留痕（2026-11-06，设备 `V9.10.860_ID-OK#CD_WB`）
+
+**门禁判据成立**：17:01 起探针 7.7/7.10 由 503 变 200。§7.6 真建档三发：雪碧→`NEED_PHONE`（41758）、
+康师傅→命中已有 41175、加多宝→**`READY`（41759）**。§7.11 单层提交 `historyNo=B261106615830001`，
+§7.12 约 **4 秒**到 `ready=true / APPLIED 1-1`。§7.13 `datas` 元素结构实测补出（文档缺）：
+`datas[].{floorNum, floorOrientation, dtos[].{productId, productName, salePrice, stock,
+stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePrice, mainImg}}`。
+
+**开门两腿分开验**（17:10 补货腿 / 18:06–18:08 消费腿）：
+
+| 腿 | 结果 | 证据 |
+|---|---|---|
+| 补货开门 `sendOpenStockDoor` | ✅ ack `completed=true` 121 ms | 会话 SHOPPING；前置=负责人 GPS 签到（`check_in_at/lat/lng`，表**无** `updated_at`） |
+| 消费者开门 17:04 / 17:06 | ❌ §4.2.7 上报 `摄像头打开失败` | `device_fault_order` id 12/13（与 10-30 升级前同一句话） |
+| 消费者开门 18:06:37 | 🟡 锁开但**没人拉门** | `lock OK` 18:06:40 → §4.2.8 `doorStatus=fail` 18:06:54（**拉门窗口约 14 s**）→ 会话 FAILED「将邑设备上报拉门失败」 |
+| 消费者开门 18:08:43 | 🟡 **全链跑通到识别**，识别置信度不足 | `lock OK` :45 → door-event OPEN :50 → 关门回执 :55 → §4.2.12 `errorMsg=人工复核`、`detail=开门后调光未确认:cam=1,reason=local_scene_change；原图证据不足，保留复核` :57 → 会话 DISPUTED（未扣款）→ STS :09:12 → `uploadVideoUrl` 落库 18:10:34（左+右双摄 mp4，10-30 以来第一批真视频） |
+
+**由此钉住的口径**：
+
+1. 🔴 摄像头打不开的故障**已由厂商本次升级消除**（18:06 起 `device_fault_order` 零新增）。剩余卡点从「硬件打不开」变成「识别置信度不足→转人工复核」。
+2. §4.2.8 的 fail **不等于故障**——设备开锁后等人拉门约 14 s，无人拉即上报 fail 并回锁；消费开门测试**必须有人在柜前拉门**，否则只能验到 `lock OK`。
+3. DISPUTED 是设计正确的收口：设备自报「原图证据不足」时我方**不采信、不扣款**，转人工复核结案（§12 争议结案走 CONFIRM）。
+4. `deviceInfo/getPValue`、`order/pValueByTransactionId` 本轮 **0 次调用** ⇒「开门后调光未确认」是设备内部自动曝光判定，与我方回 `data:null` **无关**（别再往我方回执上找原因）。
+5. 17:10 那轮补货会话由 `expireStaleRestockShoppingSessions` 在 30 分钟后自动关闭（17:41 CANCELLED「补货会话超时自动关闭」）——正常「完成/取消」路径同样会关会话，无需登记待办。
+
+**18:08 那轮的成因（18:1x 用只读探针复核，非推断）**：现场有人拉门并**拿走一瓶雪碧**，设备拍照后仍报
+「人工复核｜原图证据不足」，原因是**雪碧根本不在本柜的识别参数里**：
+
+| 侧 | 本柜第 1 层当前内容 | 证据 |
+|---|---|---|
+| 将邑云（识别参数的来源） | **只有加多宝 6 件 ¥4**（productId 41759） | §7.13 实测 `datas[0].dtos[0]` |
+| 我方在售面（下行给设备） | `classIds=[29]`（雪碧） | 网关 `floor getDeviceSellProductClassIds` 18:08:44 |
+| 雪碧 / 康师傅在将邑侧的状态 | **`NEED_PHONE` / `nextAction=PHONE_CAPTURE`**（41758 / 41175） | §7.10 批量状态 3 条 |
+
+⇒ 与 §6.3「设备只认本柜已补货、且已完成采集审核的商品」逐字一致：**NEED_PHONE 的商品既进不了 7.11 清单、也没有识别参数**，
+拿走它必然落 §4.2.12 而不是 §4.2.10。两侧清单不同步的直接成因是我方这次测试只提交了加多宝
+（H2「7.11 = 该层最终库存」的真实后果，第一次拿到实证）。
+
+**要出正常单的前置顺序**（现场需 8 张实物照，非夜间可做）：
+§7.7→7.8→7.9 采雪碧 41758（与康师傅 41175）→ 厂商审核至 `READY` → 按**真实现架清单**重提 §7.11 →
+§7.12 `APPLIED` → 我方侧同步挂接/复核闸（V400）与账面库存（须 ≥ 设备可能上报的最大件数，否则结算 409）→
+再测消费开门（有人拉门 + 拿一件 READY 商品），判据是**收到 §4.2.10 识别上报**而非 §4.2.12。
+
+⚠️ 取证时区口径（本次对话一度被误读成「日期不对」）：网关日志带 `+08:00`，psql 里 `timestamptz`
+默认按 UTC 显示（`…+00`）——同一瞬间两种写法。看北京时间请单跳一次
+`列 at time zone 'Asia/Shanghai'`，**别连做两次 `at time zone`**（第二次会把已转换的裸时间戳再当成 UTC 往回挪，得到 02:10 这种假时刻）。
+
+**残留在厂商侧，下次真卖前必须处理**：柜机第 1 层现按测试清单同步为 6 件加多宝（41759），
+须按真实在架清单重提 §7.11；41758/41759 已建档，新版无删除接口。
+
+### 12B.3 升级后第一笔真实正常扣款单（2026-11-09 09:46，现场有人拉门拿加多宝）
+
+会话 `1794188795715186897715` → 订单 `1794188814935921241377`，**COMPLETED / PAID**：
+
+| 层 | 证据 |
+|---|---|
+| 识别上报 | §4.2.10 `RecognitionNormalizer resolved by thirdPid thirdPid=1480 classId=69 skuId=100015`，`items=1 outcome=PROCESSED` |
+| 订单 | `total/paid=78` 分；`gross=400 − activity=314 − member=8 = 78`；`pay_channel=BALANCE`；`inventory_deducted=true` |
+| 支付操作 | `payment_operation …948144` `CHARGE/BALANCE/COMPLETED`，幂等键 `CHARGE:<order>:78`，before 4757 → after 4679 |
+| 消费者余额 | `user_account.balance_cents=4679`（=after）；**消费者侧没有流水表**（只有 `user_account` 单列，legacy 设计），故互证靠订单+支付操作+账户值三者 |
+| 库存 | `device_sku_inventory` sku 100015：1 → **0**（capacity 4） |
+| 商户分账 | `wallet_ledger` #50 `MERCHANT/MCH-DEFAULT SPLIT_CREDIT +78` |
+
+**两条新口径**：
+
+1. 🔴 `_ID-OK` 的 §4.2.10 **带 thirdPid**（本例 1480=加多宝 BOUND 挂接的标准商品 id），我方 thirdPid 优先解析直接命中 ⇒
+   H1「classId 来源断供」在**有 BOUND 挂接的商品**上被 thirdPid 兜住；classId=69 只是伴随字段。没挂接的商品仍会 fail-closed。
+2. 🔴 **周末闲置后第一次开门会被设备拒**：09:45:17 下发 `openDoor`、ack `completed=true`，但 09:45:18 设备回
+   §4.2.9 `openDoubleDoorError doorPosition=D orderNo=null`（「正在使用中」）⇒ 锁不动；09:45:34 WS 1006 断、
+   09:46:01 设备自重新初始化（重发 token+getDetail）后**第二次下发即成功**。单门柜回 `doorPosition=D` 本身也值得问厂商。
+   处置口径：遇到「ack 成功但无 lock OK + openDoubleDoorError」先等设备自重启一轮再重试，不要连发。
+
+**观察未定性**：`user_account.updated_at` 停在 11-03 而余额已是今天的 after 值 ⇒ 扣款 UPDATE 似乎不跳 `updated_at`；
+未读代码确认是否刻意，先记观察不当缺陷报。
+
+### 12B.4 第七章真跑：上新→7.11→识别→扣款（2026-11-09 10:00–10:09）
+
+**链路（我方接口 + 厂商接口混跑，标清哪一腿走哪边）**：
+
+| 步 | 走哪边 | 结果 |
+|---|---|---|
+| 清理周五错条码测试商品 41758 | 厂商 V1.13 `/merchant/product/delete {id}` | 200（厂商按**商品名称唯一**，同名再建回 503「商品名称已存在」） |
+| §7.6 建档（条码 **6954767430386**=我方挂接条码，350 分） | **我方 ops** `/jiangyi/products/create` | 200，命中既有挂接，厂商标准品已有采集 ⇒ **READY**，免手机拍照 |
+| §7.11 提交（雪碧×3 @3.5 元） | 厂商直连（**我方无 7.11 编排入口**，批 3 未做） | `historyNo=B261109360210001`，`cabinetCaptureProducts=[]` |
+| §7.12 轮询 | 厂商直连 | **首轮即 APPLIED / ready=true**（约 4 s） |
+| §7.13 复核 | 探针 | 第 1 层 = 雪碧 3 件 3.5 元（productId 41923） |
+| 消费开门 → 拿雪碧 | 我方 | `thirdPid=664 classId=69` → sku 100013 → **PAID 68 分**（350−活动 275−会员 7），余额 4679→4611，库存 4→3 |
+
+**四个真问题（都值得改，按爆炸半径排）**：
+
+1. 🔴 **`PUT /skus/{skuId}/jiangyi-link` 是「新增」不是「覆盖」**：同条码并存两条 BOUND（1018 与 664），
+   旧的错误挂接仍会把别的商品扣到该 SKU 上。本次用既有 DELETE 解绑接口把 id=1 置 RETIRED 收口（未动厂商侧商品）。
+   ⇒ 要求：bind 需按 `(skuId, barCode, jiangyiProductId)` 幂等 upsert，或至少同条码只允许一条 BOUND。
+2. 🔴 **`JiangyiRestockException` 被全局处理器吞成 500「系统繁忙」**（追踪号 73169f1e77dd），厂商 `msg`
+   （§7.4 明说可直接展示给用户，如「商品名称已存在」）在运营侧完全丢失。⇒ 需在 GlobalExceptionHandler 映射成 4xx/409 带 msg。
+3. 🔴 **我方挂接的 thirdPid 可能是错的**：雪碧挂接原存 1018（厂商「听装」标准品，按名称匹配得来），
+   而设备对上架后的商品报的是 **664**。⇒ 以设备/7.13 的上报为准回填；名称匹配不可信，这也是 H-27 的一侧。
+4. 🔴 **参数应用窗口内设备进维护态**：§7.12 APPLIED 后 10:00:41 消费开门被拒（§4.2.9 `openDoubleDoorError
+   doorPosition=D`），柜机侧提示「设备维护中」（我方全仓代码与 563 固件均无此文案 ⇒ 860 固件本机态）；
+   门磁自报 `doorState=close lockState=close`，排除门未关。**约 2 分钟后同一请求成功**（10:07:39 门开）。
+   ⇒ 补货同步后要留冷却窗口再让消费者开门；期间运营界面最好能提示「参数应用中」。
+
+**未验**：§7.14–7.18 柜内采集（§7.7→7.9 手机采集已于 11-09 真验，见 §12B.5）。
+
+### 12B.5 手机采集真验 + 四问题修复 + 操作面补齐（2026-11-09，fix/jiangyi-link-msg）
+
+**§7.7→7.9 真验**：冰红茶 `6921294307016`（NEED_PHONE）现场拍 8 张（正放正/左/背/右 + 倒置正/左/背/右；
+重复角度用 MD5 去重识别），经我方 ops `POST /jiangyi/products/{barCode}/phone-capture`（multipart 8 张）
+→ §7.8 逐张上传 → §7.9 提交 → 厂商 7.10 回 `REVIEWING / WAIT_PHONE_REVIEW`（productId 41175）。
+张数校验严格等于 §7.7 `shotCount`（6 张会 409）。**采集入口在商户小程序，后台只读+建档**（§7.3 禁网图）。
+
+**四问题修复**（`22f9ff5a`，全量 verify 含 IT 绿）：
+1. bind 换 thirdPid 时同条码旧 BOUND 行置 RETIRED（不再多条并存误扣）；
+2. `JiangyiRestockException` → 409 透出厂商 msg（401/403→502、429 原样），不再吞成 500；
+3. MAPPING_MISS 告警 detail 给出设备上报 thirdPid + 修正建议（thirdPid=0 不建议）；
+4. 维护窗口不改代码（设备行为），靠 §12B.4 冷却口径 + 运营提示。
+
+**操作面补齐**（`f29966e8`）：`JiangyiRestockService`（预览/提交/进度，confirmDelist 显式确认、
+禁空清单、requestId 内容哈希派生）+ 3 个 ops 端点；后台「将邑商品」页（查状态/建档/批量刷新/驳回原因）
++ 设备详情「同步上架到将邑」面板（清单可编辑+覆盖确认+APPLIED 轮询）。契约起我方 jar 抽
+`/v3/api-docs` 再生成 openapi.ts，admin 产物配对重打。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）
