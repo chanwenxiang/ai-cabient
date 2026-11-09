@@ -899,6 +899,31 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
 **残留在厂商侧，下次真卖前必须处理**：柜机第 1 层现按测试清单同步为 6 件加多宝（41759），
 须按真实在架清单重提 §7.11；41758/41759 已建档，新版无删除接口。
 
+### 12B.3 升级后第一笔真实正常扣款单（2026-11-09 09:46，现场有人拉门拿加多宝）
+
+会话 `1794188795715186897715` → 订单 `1794188814935921241377`，**COMPLETED / PAID**：
+
+| 层 | 证据 |
+|---|---|
+| 识别上报 | §4.2.10 `RecognitionNormalizer resolved by thirdPid thirdPid=1480 classId=69 skuId=100015`，`items=1 outcome=PROCESSED` |
+| 订单 | `total/paid=78` 分；`gross=400 − activity=314 − member=8 = 78`；`pay_channel=BALANCE`；`inventory_deducted=true` |
+| 支付操作 | `payment_operation …948144` `CHARGE/BALANCE/COMPLETED`，幂等键 `CHARGE:<order>:78`，before 4757 → after 4679 |
+| 消费者余额 | `user_account.balance_cents=4679`（=after）；**消费者侧没有流水表**（只有 `user_account` 单列，legacy 设计），故互证靠订单+支付操作+账户值三者 |
+| 库存 | `device_sku_inventory` sku 100015：1 → **0**（capacity 4） |
+| 商户分账 | `wallet_ledger` #50 `MERCHANT/MCH-DEFAULT SPLIT_CREDIT +78` |
+
+**两条新口径**：
+
+1. 🔴 `_ID-OK` 的 §4.2.10 **带 thirdPid**（本例 1480=加多宝 BOUND 挂接的标准商品 id），我方 thirdPid 优先解析直接命中 ⇒
+   H1「classId 来源断供」在**有 BOUND 挂接的商品**上被 thirdPid 兜住；classId=69 只是伴随字段。没挂接的商品仍会 fail-closed。
+2. 🔴 **周末闲置后第一次开门会被设备拒**：09:45:17 下发 `openDoor`、ack `completed=true`，但 09:45:18 设备回
+   §4.2.9 `openDoubleDoorError doorPosition=D orderNo=null`（「正在使用中」）⇒ 锁不动；09:45:34 WS 1006 断、
+   09:46:01 设备自重新初始化（重发 token+getDetail）后**第二次下发即成功**。单门柜回 `doorPosition=D` 本身也值得问厂商。
+   处置口径：遇到「ack 成功但无 lock OK + openDoubleDoorError」先等设备自重启一轮再重试，不要连发。
+
+**观察未定性**：`user_account.updated_at` 停在 11-03 而余额已是今天的 after 值 ⇒ 扣款 UPDATE 似乎不跳 `updated_at`；
+未读代码确认是否刻意，先记观察不当缺陷报。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）
