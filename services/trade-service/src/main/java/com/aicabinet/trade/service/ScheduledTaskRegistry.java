@@ -85,7 +85,8 @@ public class ScheduledTaskRegistry {
                                  MerchantDailyIncomeNotifyScheduler merchantDailyIncomeNotifyScheduler,
                                  MachinePayeeBillJob machinePayeeBillJob,
                                  DepositMonthlyRefundJob depositMonthlyRefundJob,
-                                 ScheduledTaskStaleMonitor scheduledTaskStaleMonitor) {
+                                 ScheduledTaskStaleMonitor scheduledTaskStaleMonitor,
+                                 JiangyiProductStatePollScheduler jiangyiProductStatePollScheduler) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
@@ -103,6 +104,8 @@ public class ScheduledTaskRegistry {
         // L2-3：compensation-retry 注册项已随 TCC/分布式事务死代码下线移除（V288 清 scheduled_task 行）
         register("replenishment-timeout", "补货超时收口", "WAREHOUSE", V_60, 600,
                 replenishmentTimeoutScheduler::expireStaleCheckedInTasks);
+        register("jiangyi-product-state-poll", "将邑商品状态轮询", TRADE, V_60, 600,
+                jiangyiProductStatePollScheduler::pollReviewingProducts);
         register("auto-replenish-task", "缺货自动建补货任务", "WAREHOUSE", "每 30 分钟", 1900,
                 autoReplenishmentTaskService::scanAndCreate);
         // 必须走 performConsistencyCheck（含 tryBegin/finish），不能直接 runConsistencyCheck，否则手动触发不写耗时/结果说明

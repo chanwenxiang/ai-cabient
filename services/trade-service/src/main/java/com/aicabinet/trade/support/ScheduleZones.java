@@ -78,6 +78,7 @@ public final class ScheduleZones {
             Map.entry("dispute-sla", "0 0/15 * * * ?"),
             Map.entry("dispute-auto-waive", "0 0/15 * * * ?"),
             Map.entry("replenishment-timeout", "0 0/1 * * * ?"),
+            Map.entry("jiangyi-product-state-poll", "0 0/1 * * * ?"),
             Map.entry("expiry-alert", "0 0 * * * ?"),
             Map.entry("growth-log-archive", "0 0 3 * * ?"),
             Map.entry("sla-snapshot", "0 5 0 * * ?"),
@@ -132,6 +133,7 @@ public final class ScheduleZones {
             Map.entry("dispute-sla", Duration.ofMinutes(45)),                  // 15min ×3
             Map.entry("dispute-auto-waive", Duration.ofMinutes(45)),           // 15min ×3（P3-4）
             Map.entry("replenishment-timeout", Duration.ofMinutes(10)),        // 60s ×10
+            Map.entry("jiangyi-product-state-poll", Duration.ofMinutes(10)),   // 60s ×10
             Map.entry("expiry-alert", Duration.ofHours(3)),                    // 60min ×3
             Map.entry("growth-log-archive", Duration.ofHours(26)),             // 日 03:00 + 2h
             Map.entry("sla-snapshot", Duration.ofHours(26)),                   // 日 00:05 + 2h

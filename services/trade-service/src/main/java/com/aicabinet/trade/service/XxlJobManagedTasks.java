@@ -84,6 +84,7 @@ public final class XxlJobManagedTasks {
             "dispute-sla",
             "dispute-auto-waive",
             "replenishment-timeout",
+            "jiangyi-product-state-poll",
             "expiry-alert",
             "growth-log-archive",
             "sla-snapshot",

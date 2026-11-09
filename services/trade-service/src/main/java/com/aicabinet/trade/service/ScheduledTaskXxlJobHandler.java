@@ -206,6 +206,11 @@ public class ScheduledTaskXxlJobHandler {
         runKey("replenishment-timeout");
     }
 
+    @XxlJob("jiangyiProductStatePollJob")
+    public void jiangyiProductStatePollJob() {
+        runKey("jiangyi-product-state-poll");
+    }
+
     @XxlJob("expiryAlertJob")
     public void expiryAlertJob() {
         runKey("expiry-alert");
