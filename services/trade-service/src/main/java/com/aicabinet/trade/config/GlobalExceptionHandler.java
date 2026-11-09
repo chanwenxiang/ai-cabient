@@ -1,6 +1,7 @@
 package com.aicabinet.trade.config;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.trade.client.JiangyiRestockException;
 import com.aicabinet.trade.service.BalanceInsufficientException;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.RequestCorrelation;
@@ -193,6 +194,26 @@ public class GlobalExceptionHandler {
         log.warn("method not allowed {} {} {}", RequestCorrelation.summary(), method, ex.getMessage());
         return withTrace(ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
                 .body(ApiResponse.error(HttpStatus.METHOD_NOT_ALLOWED.value(), "不支持的请求方法: " + method)));
+    }
+
+    /**
+     * 将邑第七章业务失败（envelope.status != 200）：文档 §7.4 明写「msg 为可直接展示给用户的
+     * 原因」，所以必须原样透出，不能落进通用 500「系统繁忙」。
+     * 2026-11-09 实证：§7.6 建档因厂商「商品名称已存在」失败，运营侧只看到「系统繁忙」。
+     * 401/403 视为上游凭据/权限问题（不是调用方数据错）→ 502；429 原样；其余 → 409。
+     */
+    @ExceptionHandler(JiangyiRestockException.class)
+    public ResponseEntity<ApiResponse<Void>> handleJiangyiRestock(JiangyiRestockException ex) {
+        HttpStatus status = switch (ex.status()) {
+            case 401, 403 -> HttpStatus.BAD_GATEWAY;
+            case 429 -> HttpStatus.TOO_MANY_REQUESTS;
+            default -> HttpStatus.CONFLICT;
+        };
+        String msg = ex.vendorMsg() == null || ex.vendorMsg().isBlank() ? "将邑接口调用失败" : ex.vendorMsg();
+        log.warn("jiangyi restock rejected {} vendorStatus={} msg={}",
+                RequestCorrelation.summary(), ex.status(), msg);
+        return withTrace(ResponseEntity.status(status)
+                .body(ApiResponse.error(status.value(), "将邑：" + msg)));
     }
 
     @ExceptionHandler(Exception.class)

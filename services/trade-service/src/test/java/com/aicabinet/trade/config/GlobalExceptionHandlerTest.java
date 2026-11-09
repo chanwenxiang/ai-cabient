@@ -23,6 +23,32 @@ class GlobalExceptionHandlerTest {
         MDC.clear();
     }
 
+    /**
+     * 2026-11-09 实证：§7.6 建档因厂商「商品名称已存在」失败，运营只看到 500「系统繁忙」。
+     * §7.4 明写厂商 msg 可直接展示 ⇒ 必须 409 + 原文。
+     */
+    @Test
+    void handleJiangyiRestock_businessRejectIsConflictWithVendorMsg() {
+        ResponseEntity<ApiResponse<Void>> res = handler.handleJiangyiRestock(
+                new com.aicabinet.trade.client.JiangyiRestockException(
+                        "productCreate", 503, "商品名称已存在"));
+
+        assertEquals(409, res.getStatusCode().value());
+        ApiResponse<Void> body = res.getBody();
+        assertNotNull(body);
+        assertEquals("将邑：商品名称已存在", body.message());
+    }
+
+    /** 上游凭据/权限失效不是调用方数据错，落 502 而不是 409（避免运营误以为改数据就能过）。 */
+    @Test
+    void handleJiangyiRestock_authFailureIsBadGateway() {
+        ResponseEntity<ApiResponse<Void>> res = handler.handleJiangyiRestock(
+                new com.aicabinet.trade.client.JiangyiRestockException(
+                        "productCreate", 401, "token 无效"));
+
+        assertEquals(502, res.getStatusCode().value());
+    }
+
     @Test
     void handleGeneric_includesTraceIdInBodyAndHeader() {
         MDC.put(RequestCorrelation.TRACE_ID, "abcdef0123456789trace");

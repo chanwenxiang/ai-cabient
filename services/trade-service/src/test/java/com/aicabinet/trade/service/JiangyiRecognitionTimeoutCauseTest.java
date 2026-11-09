@@ -118,6 +118,29 @@ class JiangyiRecognitionTimeoutCauseTest {
         assertTrue(detailCaptor.getValue().contains("classId=29"));
     }
 
+    /**
+     * 2026-11-09 真机：设备上报 thirdPid=664 而挂接存的是名称匹配来的 1018 ⇒ fail-closed。
+     * 告警 detail 必须直接告诉运营该改哪个值，否则每次都要人工去比对厂商原文。
+     */
+    @Test
+    void classMappingMiss_pointsOperatorToReportedThirdPid() {
+        escalate(JiangyiRecognitionTimeoutService.CAUSE_CLASS_MAPPING_MISS,
+                "qty=1 classId=69 thirdPid=664");
+
+        assertTrue(detailCaptor.getValue().contains("thirdPid=664"));
+        assertTrue(detailCaptor.getValue().contains("以设备上报为准"));
+        assertEquals("JIANGYI_CLASS_MAPPING_MISS", typeCaptor.getValue());
+    }
+
+    /** thirdPid=0 是「未识别到标准品」占位值，不能建议运营改成 0。 */
+    @Test
+    void classMappingMiss_zeroThirdPidGetsNoFixHint() {
+        escalate(JiangyiRecognitionTimeoutService.CAUSE_CLASS_MAPPING_MISS,
+                "qty=1 classId=29 thirdPid=0");
+
+        assertTrue(!detailCaptor.getValue().contains("以设备上报为准"));
+    }
+
     /** 未升级的 gateway（或内部调用）不带 cause ⇒ 落回旧「超时未回传」口径，不能变成映射文案。 */
     @Test
     void missingCause_fallsBackToLegacyTimeoutCopy() {

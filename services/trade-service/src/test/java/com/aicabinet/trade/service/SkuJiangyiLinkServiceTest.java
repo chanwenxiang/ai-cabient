@@ -121,6 +121,51 @@ class SkuJiangyiLinkServiceTest {
         verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
     }
 
+    /**
+     * 2026-11-09 真机实证：同一 SKU 同一条码并存两条 BOUND（1018 听装 + 664 瓶装），
+     * 拿听装会被扣成瓶装价。换 thirdPid 时旧行必须置 RETIRED，不能再留第二条有效挂接。
+     */
+    @Test
+    void bind_sameBarCodeNewProductRetiresOldBoundRow() {
+        JiangyiSkuJiangyiLink old = new JiangyiSkuJiangyiLink();
+        old.setId(1L);
+        old.setSkuId(SKU_ID);
+        old.setJiangyiProductId("1018");
+        old.setBarCode("6901234567890");
+        old.setSyncStatus("BOUND");
+        when(linkMapper.byProduct("664")).thenReturn(Optional.empty());
+        when(linkMapper.listBySku(SKU_ID)).thenReturn(List.of(old));
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+
+        service().bind(1L, SKU_ID, 664L, "雪碧柠檬味汽水330ml", "6901234567890");
+
+        assertEquals("RETIRED", old.getSyncStatus());
+        verify(linkMapper).updateById(old);
+        ArgumentCaptor<JiangyiSkuJiangyiLink> captor = ArgumentCaptor.forClass(JiangyiSkuJiangyiLink.class);
+        verify(linkMapper).insert(captor.capture());
+        assertEquals("664", captor.getValue().getJiangyiProductId());
+        assertEquals("BOUND", captor.getValue().getSyncStatus());
+    }
+
+    /** 不同条码的并存挂接不在此列（69 码是同款不同包装，2026-10-21 拍板不阻断）。 */
+    @Test
+    void bind_differentBarCodeKeepsSiblingBound() {
+        JiangyiSkuJiangyiLink other = new JiangyiSkuJiangyiLink();
+        other.setId(2L);
+        other.setSkuId(SKU_ID);
+        other.setJiangyiProductId("1018");
+        other.setBarCode("6900000000001");
+        other.setSyncStatus("BOUND");
+        when(linkMapper.byProduct("664")).thenReturn(Optional.empty());
+        when(linkMapper.listBySku(SKU_ID)).thenReturn(List.of(other));
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
+
+        service().bind(1L, SKU_ID, 664L, "雪碧柠檬味汽水330ml", "6901234567890");
+
+        assertEquals("BOUND", other.getSyncStatus());
+        verify(linkMapper, never()).updateById(other);
+    }
+
     @Test
     void createInJiangyi_clientFailureMeansNoLinkRow() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));

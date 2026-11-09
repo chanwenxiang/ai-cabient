@@ -10,6 +10,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 将邑识别超时即时处置（CB-022）：gateway 在「识别上报到达但 class 映射未命中」
@@ -215,11 +217,14 @@ public class JiangyiRecognitionTimeoutService {
         };
     }
 
+    private static final Pattern REPORTED_THIRD_PID = Pattern.compile("thirdPid=(\\d+)");
+
     private static String exceptionDetail(String cause, String vendor) {
         String tail = "，会话已 fail-closed 转人工审核";
         return switch (cause) {
             case CAUSE_CLASS_MAPPING_MISS -> "识别上报的 classId 无法解析到我方 SKU（"
-                    + (vendor.isEmpty() ? "无上报行" : vendor) + ")" + tail;
+                    + (vendor.isEmpty() ? "无上报行" : vendor) + "）"
+                    + thirdPidFixHint(vendor) + tail;
             case CAUSE_EMPTY_FORMS -> "设备回传识别 forms 为空（未识别到商品）" + tail;
             case CAUSE_DEVICE_ERROR_ORDER -> "设备 uploadOrderError errorMsg："
                     + (vendor.isEmpty() ? "（设备未给 errorMsg）" : vendor) + tail;
@@ -227,6 +232,25 @@ public class JiangyiRecognitionTimeoutService {
                     + "按错位映射结算会错扣款" + tail;
             default -> "识别上报在 watchdog 窗口（关门 300s / 大模型复核 600s）内未到达" + tail;
         };
+    }
+
+    /**
+     * 映射未命中时把「该改哪个值」直接写给运营：设备上报自带 thirdPid（2026-11-09 真机第三档
+     * 与 thirdPid 并存），而挂接里的 thirdPid 可能来自名称匹配（曾把「听装」1018 挂到瓶装 SKU）。
+     * 只给建议不自动改——改名/改价/换标准品的判断仍归运营。
+     */
+    private static String thirdPidFixHint(String vendor) {
+        Matcher matcher = REPORTED_THIRD_PID.matcher(vendor);
+        if (!matcher.find()) {
+            return "";
+        }
+        String reported = matcher.group(1);
+        // thirdPid=0 是设备「未识别到标准品」的占位值，不能建议运营改成 0
+        if ("0".equals(reported)) {
+            return "";
+        }
+        return "；设备上报 thirdPid=" + reported
+                + "，请核对该挂接的将邑商品并以设备上报为准修正（名称匹配得到的 thirdPid 可能是错的）";
     }
 
     private static String withVendor(String base, String vendor) {
