@@ -951,7 +951,27 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
    门磁自报 `doorState=close lockState=close`，排除门未关。**约 2 分钟后同一请求成功**（10:07:39 门开）。
    ⇒ 补货同步后要留冷却窗口再让消费者开门；期间运营界面最好能提示「参数应用中」。
 
-**未验**：§7.14–7.18 柜内采集（§7.7→7.9 手机采集已于 11-09 真验，见 §12B.5）。
+**未验**：§7.14–7.18 柜内采集的**真机联调**（端点与后台面板已于 11-09 补齐，见 §12B.6；等冰红茶审核上架后可现场跑）。
+
+### 12B.6 §7.13 货道核对 + §7.14~7.18 柜内采集补齐（2026-11-09，feat/jiangyi-cabinet-capture）
+
+**结论：第七章接口现已全部有操作面**，本批补上最后两组（此前只有客户端方法、无 HTTP 端点、无 UI）：
+
+| 接口 | 新增端点（ops） | UI |
+|---|---|---|
+| §7.13 读厂商货道 | `GET /devices/{id}/jiangyi/vendor-shelf` | 设备将邑卡「厂商货道核对」：按层展开商品/厂商 ID/售价/库存 |
+| §7.14 待采集商品 | `GET .../jiangyi/cabinet-capture` | 同面板「柜内采集」表格（onShelf=false 禁开始） |
+| §7.15 开始 | `POST .../jiangyi/cabinet-capture/start` | 开始按钮（二次确认：自动开锁录制） |
+| §7.16 进度 | `GET .../jiangyi/cabinet-capture/{sessionId}` | 每秒轮询 phase，DONE/FAILED/CANCELLED 停止 |
+| §7.17 结束 | `POST .../{sessionId}/finish` | 结束按钮 |
+| §7.18 取消 | `POST .../{sessionId}/cancel` | 取消按钮（释放约 15 分钟占用） |
+
+写操作（start/finish/cancel）均落审计；设备解析失败 409。钉测 4 例（货道形状/非将邑柜 409/透传/审计）。
+
+⚠️ **regen 假绿教训（第二次踩到）**：`pnpm gen:api-types` 在 `OPENAPI_FILE` 缺失时会回落到
+`http://127.0.0.1:18080/v3/api-docs`（**活栈旧容器**），把已提交的 restock 端点覆盖掉且门禁仍绿。
+正确做法：起**我方 jar**（一次性空库 + `REDIS_PASSWORD`）抽 spec → 用**绝对路径** `OPENAPI_FILE`
+→ regen 后 `grep -c "新路径" openapi.ts` 必须 >0。本次已按此修正（restock/preview=1、cabinet-capture=5）。
 
 ### 12B.5 手机采集真验 + 四问题修复 + 操作面补齐（2026-11-09，fix/jiangyi-link-msg）
 
