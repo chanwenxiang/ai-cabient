@@ -182,6 +182,14 @@ const BASE_NAV: NavItem[] = [
     keywords: ['学习', '采集', '训练', '模型', 'classes', '将邑', '上架']
   },
   {
+    path: '/jiangyi-products',
+    title: '将邑商品',
+    group: '设备商品',
+    // 第七章商品面：按条码查厂商状态/建档/批量刷新/看驳回原因；拍照采集在商户小程序
+    perm: 'ops:sku:edit',
+    keywords: ['将邑', '商品', '建档', '采集', '条码', '上架', '驳回']
+  },
+  {
     path: '/vision-mappings',
     title: '识别映射',
     group: '设备商品',

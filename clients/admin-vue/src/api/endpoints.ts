@@ -277,6 +277,21 @@ export const AdminEndpoints = {
       : `${ops}/jiangyi/std-skus?${query.toString()}`,
   jiangyiProductCategories: `${ops}/jiangyi/product-categories`,
 
+  /** 第七章商品面：状态/建档/批量刷新/手机采集（拍照在商户小程序，后台只读+建档） */
+  jiangyiCapturePolicy: `${ops}/jiangyi/capture/policy`,
+  jiangyiProductState: (barCode: string) =>
+    `${ops}/jiangyi/products/${encodeURIComponent(barCode)}/state`,
+  jiangyiProductStateRefresh: `${ops}/jiangyi/products/state/refresh`,
+  jiangyiProductCreate: `${ops}/jiangyi/products/create`,
+
+  /** §7.11/§7.12 整单上架：预览/提交（confirmDelist）/进度轮询 */
+  jiangyiRestockPreview: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/restock/preview`,
+  jiangyiRestockSubmit: (deviceId: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/restock`,
+  jiangyiRestockProgress: (deviceId: string, historyNo: string) =>
+    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/restock/${encodeURIComponent(historyNo)}`,
+
   /** 商户 / 分账 */
   merchants: `${ops}/merchants`,
   merchantsList: (query: URLSearchParams | string) =>

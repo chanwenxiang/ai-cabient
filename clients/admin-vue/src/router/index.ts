@@ -327,6 +327,12 @@ const bizChildren: RouteRecordRaw[] = [
     meta: { title: '商品学习库', group: '设备商品' }
   },
   {
+    path: 'jiangyi-products',
+    name: 'jiangyi-products',
+    component: () => import('@/views/vision/JiangyiProductsView.vue'),
+    meta: { title: '将邑商品', group: '设备商品' }
+  },
+  {
     path: 'ota',
     name: 'ota',
     component: () => import('@/views/ota/OtaView.vue'),

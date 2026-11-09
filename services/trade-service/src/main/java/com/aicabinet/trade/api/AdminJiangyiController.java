@@ -21,6 +21,7 @@ import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
+import com.aicabinet.trade.service.JiangyiRestockService;
 import com.aicabinet.trade.service.JiangyiShelfService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -65,6 +66,7 @@ public class AdminJiangyiController {
     private final JiangyiGatherConsoleService jiangyiGatherConsoleService;
     private final JiangyiFlowSummaryService jiangyiFlowSummaryService;
     private final DeviceFaultOrderService deviceFaultOrderService;
+    private final JiangyiRestockService jiangyiRestockService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
@@ -77,7 +79,8 @@ public class AdminJiangyiController {
                                   JiangyiShelfService jiangyiShelfService,
                                   JiangyiGatherConsoleService jiangyiGatherConsoleService,
                                   JiangyiFlowSummaryService jiangyiFlowSummaryService,
-                                  DeviceFaultOrderService deviceFaultOrderService) {
+                                  DeviceFaultOrderService deviceFaultOrderService,
+                                  JiangyiRestockService jiangyiRestockService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
@@ -90,6 +93,7 @@ public class AdminJiangyiController {
         this.jiangyiGatherConsoleService = jiangyiGatherConsoleService;
         this.jiangyiFlowSummaryService = jiangyiFlowSummaryService;
         this.deviceFaultOrderService = deviceFaultOrderService;
+        this.jiangyiRestockService = jiangyiRestockService;
     }
 
     /**
@@ -361,6 +365,36 @@ public class AdminJiangyiController {
     public ApiResponse<JiangyiDeviceOpsService.DoorStateView> doorState(
             @PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(jiangyiDeviceOpsService.doorState(deviceId));
+    }
+
+    /** §7.11 上架预览：柜内库存 + 挂接条码 + 售价；无挂接的 SKU 进 skippedSkus 提示先建档。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/restock/preview")
+    public ApiResponse<JiangyiRestockService.Preview> restockPreview(
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(jiangyiRestockService.preview(deviceId));
+    }
+
+    /**
+     * §7.11 提交该层最终库存（未列出的商品会被下架 ⇒ 必须 confirmDelist=true）。
+     * 返回 historyNo + 首轮 §7.12 进度；UI 用 progress 端点继续轮询到 ready。
+     */
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/jiangyi/restock")
+    public ApiResponse<JiangyiRestockService.SubmitResult> restockSubmit(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @Valid @RequestBody JiangyiRestockService.SubmitCommand body) {
+        return ApiResponse.ok(jiangyiRestockService.submit(operatorId(request), deviceId, body));
+    }
+
+    /** §7.12 识别参数下发进度（ready=true 才可正常购物）。 */
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/jiangyi/restock/{historyNo}")
+    public ApiResponse<com.aicabinet.trade.dto.JiangyiRestockDtos.RestockProgress> restockProgress(
+            @PathVariable("deviceId") String deviceId,
+            @PathVariable("historyNo") String historyNo) {
+        return ApiResponse.ok(jiangyiRestockService.progress(deviceId, historyNo));
     }
 
     /**

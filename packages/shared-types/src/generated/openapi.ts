@@ -4294,6 +4294,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/restock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restockSubmit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/devices/{deviceId}/jiangyi/register": {
         parameters: {
             query?: never;
@@ -9140,6 +9156,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["signal_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/restock/{historyNo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["restockProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/restock/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["restockPreview"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15339,6 +15387,48 @@ export interface components {
         UpdateSnRequest: {
             deviceSn: string;
         };
+        SubmitCommand: {
+            /** Format: int32 */
+            floorNum?: number;
+            lines?: components["schemas"]["SubmitLine"][];
+            confirmDelist?: boolean;
+        };
+        SubmitLine: {
+            barCode?: string;
+            /** Format: int32 */
+            stockNum?: number;
+            /** Format: int64 */
+            salePriceCents?: number;
+        };
+        ApiResponseSubmitResult: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["SubmitResult"];
+        };
+        CabinetCaptureProduct: {
+            /** Format: int64 */
+            productId?: number;
+            name?: string;
+            barCode?: string;
+            mainImg?: string;
+            onShelf?: boolean;
+        };
+        RestockProgress: {
+            ready?: boolean;
+            stage?: string;
+            /** Format: int32 */
+            total?: number;
+            /** Format: int32 */
+            applied?: number;
+            pendingNames?: string[];
+            pendingCodes?: string[];
+        };
+        SubmitResult: {
+            historyNo?: string;
+            progress?: components["schemas"]["RestockProgress"];
+            cabinetCaptureProducts?: components["schemas"]["CabinetCaptureProduct"][];
+        };
         ModelSyncRequest: {
             modelName: string;
             /** Format: int32 */
@@ -18904,6 +18994,31 @@ export interface components {
             signalStrength?: number;
             /** Format: date-time */
             reportedAt?: string;
+        };
+        ApiResponseRestockProgress: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["RestockProgress"];
+        };
+        ApiResponsePreview: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["Preview"];
+        };
+        Preview: {
+            lines?: components["schemas"]["PreviewLine"][];
+            skippedSkus?: string[];
+        };
+        PreviewLine: {
+            skuId?: string;
+            skuName?: string;
+            barCode?: string;
+            /** Format: int32 */
+            stockNum?: number;
+            /** Format: int64 */
+            salePriceCents?: number;
         };
         ApiResponseListDeploymentDto: {
             /** Format: int32 */
@@ -28831,6 +28946,32 @@ export interface operations {
             };
         };
     };
+    restockSubmit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCommand"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSubmitResult"];
+                };
+            };
+        };
+    };
     register_1: {
         parameters: {
             query?: never;
@@ -36415,6 +36556,51 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSignalView"];
+                };
+            };
+        };
+    };
+    restockProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+                historyNo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseRestockProgress"];
+                };
+            };
+        };
+    };
+    restockPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePreview"];
                 };
             };
         };
