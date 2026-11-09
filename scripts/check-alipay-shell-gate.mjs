@@ -81,9 +81,15 @@ if (files.length < MIN_FILES) {
 
 for (const { path, rel, text } of files) {
   for (const [re, why] of [
-    [WECHAT_RE, '出现微信品牌字样 / 微信小程序 API——审核载体必须保持支付宝/芝麻口径（README 红线，审核驳回项）'],
-    [NET_CALL_RE, '壳内出现网络请求调用——占位壳禁止接后端；接入真实订单属新能力归属决策，必须先重评（铁律 57）'],
-    [SECRET_RE, '壳内出现疑似凭证（private_key/secret/PEM 头）——密钥只能走服务端，绝不落仓'],
+    [
+      WECHAT_RE,
+      '出现微信品牌字样 / 微信小程序 API——审核载体必须保持支付宝/芝麻口径（README 红线，审核驳回项）'
+    ],
+    [
+      NET_CALL_RE,
+      '壳内出现网络请求调用——占位壳禁止接后端；接入真实订单属新能力归属决策，必须先重评（铁律 57）'
+    ],
+    [SECRET_RE, '壳内出现疑似凭证（private_key/secret/PEM 头）——密钥只能走服务端，绝不落仓']
   ]) {
     const m = re.exec(text);
     if (m) {

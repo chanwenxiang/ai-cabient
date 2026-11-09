@@ -170,7 +170,11 @@ try {
       );
       restore(inj.file);
       const back = await runGate();
-      check(`② 还原后 ${inj.name}`, back.code === 0, `还原后仍 exit=${back.code}：\n${back.out.slice(0, 600)}`);
+      check(
+        `② 还原后 ${inj.name}`,
+        back.code === 0,
+        `还原后仍 exit=${back.code}：\n${back.out.slice(0, 600)}`
+      );
     }
   }
 } finally {
