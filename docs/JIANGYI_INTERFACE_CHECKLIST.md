@@ -951,7 +951,25 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
    门磁自报 `doorState=close lockState=close`，排除门未关。**约 2 分钟后同一请求成功**（10:07:39 门开）。
    ⇒ 补货同步后要留冷却窗口再让消费者开门；期间运营界面最好能提示「参数应用中」。
 
-**未验**：§7.7→7.9 手机采集（本次因命中标准库已有采集而跳过）；§7.14–7.18 柜内采集。
+**未验**：§7.14–7.18 柜内采集（§7.7→7.9 手机采集已于 11-09 真验，见 §12B.5）。
+
+### 12B.5 手机采集真验 + 四问题修复 + 操作面补齐（2026-11-09，fix/jiangyi-link-msg）
+
+**§7.7→7.9 真验**：冰红茶 `6921294307016`（NEED_PHONE）现场拍 8 张（正放正/左/背/右 + 倒置正/左/背/右；
+重复角度用 MD5 去重识别），经我方 ops `POST /jiangyi/products/{barCode}/phone-capture`（multipart 8 张）
+→ §7.8 逐张上传 → §7.9 提交 → 厂商 7.10 回 `REVIEWING / WAIT_PHONE_REVIEW`（productId 41175）。
+张数校验严格等于 §7.7 `shotCount`（6 张会 409）。**采集入口在商户小程序，后台只读+建档**（§7.3 禁网图）。
+
+**四问题修复**（`22f9ff5a`，全量 verify 含 IT 绿）：
+1. bind 换 thirdPid 时同条码旧 BOUND 行置 RETIRED（不再多条并存误扣）；
+2. `JiangyiRestockException` → 409 透出厂商 msg（401/403→502、429 原样），不再吞成 500；
+3. MAPPING_MISS 告警 detail 给出设备上报 thirdPid + 修正建议（thirdPid=0 不建议）；
+4. 维护窗口不改代码（设备行为），靠 §12B.4 冷却口径 + 运营提示。
+
+**操作面补齐**（`f29966e8`）：`JiangyiRestockService`（预览/提交/进度，confirmDelist 显式确认、
+禁空清单、requestId 内容哈希派生）+ 3 个 ops 端点；后台「将邑商品」页（查状态/建档/批量刷新/驳回原因）
++ 设备详情「同步上架到将邑」面板（清单可编辑+覆盖确认+APPLIED 轮询）。契约起我方 jar 抽
+`/v3/api-docs` 再生成 openapi.ts，admin 产物配对重打。
 
 ## 13. 相关文档
 
