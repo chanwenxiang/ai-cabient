@@ -26,7 +26,7 @@
  * 用法：node scripts/check-alipay-shell-gate.mjs
  *   （SHELL_GATE_ROOT 环境变量可覆盖扫描根，供负向验证沙箱使用）
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
