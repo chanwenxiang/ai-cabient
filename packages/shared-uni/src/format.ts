@@ -459,3 +459,29 @@ export function formatMerchantPriceHistoryDetail(detail?: string | null): string
   }
   return raw;
 }
+
+// ── 将邑枚举中文映射（商户端/后台共用，避免界面露出英文码）──
+const JIANGYI_STATE: Record<string, string> = {
+  NEW: '未建档', READY: '可补货', NEED_PHONE: '待手机采集', REJECTED: '已驳回',
+  REVIEWING: '手机图审核中', CABINET_PENDING: '可补货/待柜内采集', CABINET_REVIEWING: '柜内图审核中',
+};
+const JIANGYI_NEXT_ACTION: Record<string, string> = {
+  CREATE_PRODUCT: '先建档', PHONE_CAPTURE: '手机拍摄采集', WAIT_PHONE_REVIEW: '等待手机图审核',
+  RESTOCK: '补货上架', CABINET_CAPTURE: '柜内采集', WAIT_CABINET_REVIEW: '等待柜内图审核',
+};
+const JIANGYI_CATEGORY: Record<string, string> = {
+  bottle: '瓶装', box: '盒装', bag: '袋装', bowl: '碗装', egg: '蛋类',
+};
+const JIANGYI_STAGE: Record<string, string> = {
+  BUILDING: '生成中', READY: '已生成', SENT: '已下发', APPLIED: '已应用', NOT_REQUIRED: '无需下发',
+};
+const JIANGYI_PHASE: Record<string, string> = {
+  PREPARING: '准备中', UNLOCKING: '开锁中', CAMERA_PREPARING: '相机准备', CAPTURING: '拍摄中',
+  UPLOADING: '上传中', DONE: '完成', FAILED: '失败', CANCELLED: '已取消',
+};
+const pick = (m: Record<string, string>, code?: string | null) => (code && m[code]) || code || '—';
+export const jiangyiStateText = (c?: string | null) => pick(JIANGYI_STATE, c);
+export const jiangyiNextActionText = (c?: string | null) => pick(JIANGYI_NEXT_ACTION, c);
+export const jiangyiCategoryText = (c?: string | null) => pick(JIANGYI_CATEGORY, c);
+export const jiangyiStageText = (c?: string | null) => pick(JIANGYI_STAGE, c);
+export const jiangyiPhaseText = (c?: string | null) => pick(JIANGYI_PHASE, c);

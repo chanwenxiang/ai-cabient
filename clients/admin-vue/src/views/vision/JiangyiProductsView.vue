@@ -6,7 +6,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import HelpTip from '@/components/HelpTip.vue';
 import { useAuthStore } from '@/stores/auth';
-import { yuanToCents } from '@aicabinet/shared-uni/format';
+import { yuanToCents, jiangyiStateText, jiangyiNextActionText, jiangyiCategoryText } from '@aicabinet/shared-uni/format';
 
 interface ProductState {
   barCode?: string;
@@ -53,15 +53,6 @@ const policy = ref<Policy | null>(null);
 const refreshText = ref('');
 const refreshLoading = ref(false);
 
-const STATE_LABEL: Record<string, string> = {
-  NEW: '未建档',
-  READY: '可补货',
-  NEED_PHONE: '待手机采集',
-  REJECTED: '已驳回',
-  REVIEWING: '手机图审核中',
-  CABINET_PENDING: '可补货/待柜内采集',
-  CABINET_REVIEWING: '柜内图审核中'
-};
 
 async function loadState() {
   const code = queryBarCode.value.trim();
@@ -195,14 +186,14 @@ onMounted(async () => {
             }}</el-descriptions-item>
             <el-descriptions-item label="状态">
               <el-tag>{{
-                STATE_LABEL[state.jiangyiState || state.state || ''] ||
+                jiangyiStateText(state.jiangyiState || state.state) ||
                 state.jiangyiState ||
                 state.state ||
                 '—'
               }}</el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="下一步">{{
-              state.nextAction || '—'
+              jiangyiNextActionText(state.nextAction)
             }}</el-descriptions-item>
             <el-descriptions-item label="驳回原因">
               <span :class="{ 'reject-cause': !!state.rejectCause }">{{

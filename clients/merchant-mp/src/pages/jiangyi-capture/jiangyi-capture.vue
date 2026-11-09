@@ -13,7 +13,7 @@
         </view>
         <view v-if="state" class="meta">
           <text>当前状态：{{ stateLabel }}</text>
-          <text v-if="state.nextAction">下一步：{{ state.nextAction }}</text>
+          <text v-if="state.nextAction">下一步：{{ jiangyiNextActionText(state.nextAction) }}</text>
           <text v-if="state.rejectCause" class="err">驳回原因：{{ state.rejectCause }}</text>
         </view>
         <text v-if="error" class="err">{{ error }}</text>
@@ -52,6 +52,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { jiangyiStateText, jiangyiNextActionText } from '@aicabinet/shared-uni/format';
 import { onLoad } from '@dcloudio/uni-app';
 import {
   fetchJiangyiCapturePolicy,
@@ -70,7 +71,7 @@ const error = ref('');
 const submitting = ref(false);
 const picking = ref(false);
 
-const stateLabel = computed(() => state.value?.jiangyiState || '未知');
+const stateLabel = computed(() => jiangyiStateText(state.value?.jiangyiState));
 const canSubmit = computed(
   () =>
     !!policy.value &&

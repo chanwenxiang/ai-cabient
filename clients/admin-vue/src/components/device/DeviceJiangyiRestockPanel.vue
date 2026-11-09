@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
-import { centsToYuanDigits, yuanToCents } from '@aicabinet/shared-uni/format';
+import { centsToYuanDigits, yuanToCents, jiangyiStageText } from '@aicabinet/shared-uni/format';
 
 const props = defineProps<{ deviceId: string; canEdit: boolean }>();
 
@@ -185,7 +185,7 @@ onUnmounted(stopPoll);
 
     <el-descriptions v-if="progress" :column="2" border style="margin-top: 12px">
       <el-descriptions-item label="historyNo">{{ historyNo }}</el-descriptions-item>
-      <el-descriptions-item label="阶段">{{ progress.stage }}</el-descriptions-item>
+      <el-descriptions-item label="阶段">{{ jiangyiStageText(progress.stage) }}</el-descriptions-item>
       <el-descriptions-item label="进度"
         >{{ progress.applied }} / {{ progress.total }}</el-descriptions-item
       >
