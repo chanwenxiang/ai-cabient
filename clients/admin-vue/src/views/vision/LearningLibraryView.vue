@@ -13,14 +13,6 @@
         </div>
         <div class="page-card-head__actions">
           <el-button :loading="loading" @click="load()">刷新</el-button>
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            type="warning"
-            :disabled="!cabinets.length"
-            @click="openConsole()"
-          >
-            开始采集
-          </el-button>
           <el-button @click="openStudying()">学习中商品</el-button>
           <el-button @click="openGatherCheck()">采集审核</el-button>
           <el-button
@@ -42,7 +34,7 @@
       title="链路：挂接 → 采集 → 审核 → 学习 → 下发 → 上架"
     >
       <template #default>
-        「开始采集」柜前拍摄回传（期间停营业）→ 厂商人工审核 → 「触发学习」云端训练（无需柜机在线）→
+        采集回传（手机拍照 / 柜内采集）→ 厂商人工审核 → 「触发学习」云端训练（无需柜机在线）→
         到<el-link type="primary" @click="goMappings()">识别映射</el-link>预生成映射、复核、下发 →
         「跨柜上架」开卖。
       </template>
@@ -649,179 +641,13 @@
         <el-button @click="gatherCheckVisible = false">关闭</el-button>
       </template>
     </el-dialog>
-
-    <el-dialog
-      v-model="consoleVisible"
-      title="采集台（柜前拍摄一条龙）"
-      width="880px"
-      :close-on-click-modal="false"
-      @close="onConsoleClose"
-    >
-      <el-alert
-        class="dialog-alert"
-        type="warning"
-        :closable="false"
-        show-icon
-        title="会话期间该柜自动进入采集模式（停止售货），会话结束自动恢复营业"
-      >
-        <template #default>
-          链路：开门 → 建条目 → 开始拍摄 → 拍摄窗口 → 关门收尾 →
-          等厂商上传。现场按页面提示动作即可；
-          卡住用救援按钮（继续/放弃上传、清批次），或到设备详情「退出采集模式」兜底。
-        </template>
-      </el-alert>
-
-      <template v-if="!consoleRun || isTerminal(consoleRun)">
-        <el-form label-width="92px">
-          <el-form-item label="柜机" required>
-            <el-select
-              v-model="consoleDeviceId"
-              filterable
-              placeholder="选择柜机"
-              style="width: 100%"
-            >
-              <el-option
-                v-for="c in cabinets"
-                :key="c.deviceId"
-                :label="`${c.deviceName || c.deviceId}（${c.identifier || '无编号'}）`"
-                :value="c.deviceId"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="待采商品" required>
-            <div class="console-pending-bar">
-              <el-button
-                size="small"
-                :loading="consolePendingLoading"
-                @click="loadConsolePending()"
-              >
-                拉取待采集列表
-              </el-button>
-              <span v-if="consolePendingLoading" class="form-hint">读取将邑待采集商品…</span>
-              <span v-else-if="!consolePending.length" class="form-hint">
-                将邑侧没有待采集商品（都采过了，或先在「将邑挂接」里新增）
-              </span>
-            </div>
-            <el-table
-              v-if="consolePending.length"
-              :data="consolePending"
-              size="small"
-              border
-              max-height="220"
-              highlight-current-row
-              class="console-pending-table"
-              @current-change="(row: PendingProduct | null) => (consoleSelected = row)"
-            >
-              <el-table-column label="商品" min-width="220">
-                <template #default="{ row }">{{ row.name }}</template>
-              </el-table-column>
-              <el-table-column prop="brandName" label="品牌" width="90" />
-              <el-table-column prop="specs" label="规格" width="90" />
-              <el-table-column label="图片" width="80">
-                <template #default="{ row }">
-                  <el-image
-                    v-if="row.mainImg"
-                    :src="row.mainImg"
-                    fit="cover"
-                    style="width: 44px; height: 44px"
-                  />
-                  <span v-else class="muted">—</span>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div v-if="consoleSelected" class="form-hint">
-              已选：{{ consoleSelected.name }}（厂商商品 id {{ consoleSelected.productId }}）
-            </div>
-          </el-form-item>
-          <el-form-item label="拍摄窗口">
-            <el-input-number v-model="consoleShoot" :min="20" :max="120" :step="5" />
-            <div class="form-hint">
-              实测两摄合计约 25–28 张/秒，厂商门槛「每摄 ≥500 张」：45 秒稳（下摄慢，留余量）。
-            </div>
-          </el-form-item>
-        </el-form>
-      </template>
-
-      <template v-else>
-        <div class="console-phase">
-          <el-tag size="large" :type="consolePhaseTagType(consoleRun.phase)">
-            {{ consolePhaseText(consoleRun.phase) }}
-          </el-tag>
-          <span class="console-hint">{{ consoleHint(consoleRun) }}</span>
-        </div>
-        <pre class="console-log">{{ consoleLogText }}</pre>
-        <el-table v-if="consoleRun.upload.length" :data="consoleRun.upload" size="small" border>
-          <el-table-column prop="productInfo" label="条目" min-width="220" />
-          <el-table-column label="上传" width="90">
-            <template #default="{ row }">
-              <el-tag size="small" :type="uploadTagType(row.status)">{{ row.status }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="厂商判词" min-width="200">
-            <template #default="{ row }">
-              {{ row.errorMessage || row.rejectReason || '—' }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </template>
-
-      <template #footer>
-        <el-button v-if="!consoleRun || isTerminal(consoleRun)" @click="consoleVisible = false">
-          关闭
-        </el-button>
-        <el-button
-          v-if="consoleRun && !isTerminal(consoleRun)"
-          v-hasPermi="['ops:device:edit']"
-          :disabled="consoleRescuing"
-          @click="consoleAbort"
-        >
-          中止会话
-        </el-button>
-        <template v-if="consoleRun && (consoleRun.phase === 'UPLOADING' || isTerminal(consoleRun))">
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            :loading="consoleRescuing"
-            @click="consoleRescue('resume')"
-          >
-            继续上传
-          </el-button>
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            :loading="consoleRescuing"
-            @click="consoleRescue('forgo')"
-          >
-            放弃上传
-          </el-button>
-          <el-button
-            v-hasPermi="['ops:device:edit']"
-            :loading="consoleRescuing"
-            @click="consoleRescue('clear')"
-          >
-            清批次
-          </el-button>
-        </template>
-        <el-button v-if="consoleRun && isTerminal(consoleRun)" @click="consoleReset">
-          重新发起
-        </el-button>
-        <el-button
-          v-if="!consoleRun || isTerminal(consoleRun)"
-          v-hasPermi="['ops:device:edit']"
-          type="primary"
-          :loading="consoleStarting"
-          :disabled="!consoleDeviceId || !consoleSelected"
-          @click="startConsole"
-        >
-          开始采集
-        </el-button>
-      </template>
-    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
@@ -833,7 +659,8 @@ import HelpTip from '@/components/HelpTip.vue';
 /**
  * 商品学习库（租户级）：将邑云端的模型与「可学习商品名单」是商户资产，一次学习全部柜机共用；
  * 但 classId 是 classes.txt 按识别名排序的行号（H-27），重训即整体平移 ⇒ 映射/库存/价格
- * 仍逐柜。本页只做总览与（可选）学习触发，采集编排走本页「开始采集」（§4.3.3–4.3.14）。
+ * 仍逐柜。本页只做总览与（可选）学习触发；采集已改走手机采集（§7.7–7.9，商户小程序）
+ * 与柜内采集（§7.14–7.18，设备将邑卡新面板），旧采集台（selfhelpGatherProduct）已退役删除。
  *
  * 🔴 「可学习名单」（§4.4.2）只证明采集成档且厂商审核通过，<b>不证明已学成</b>——2026-10-27
  * 实测商品 41175 在名单里时，厂商模型数与学习中数同时为 0。本页唯一能证「进了识别链路」的是
@@ -1144,267 +971,6 @@ function auditStatusType(status?: string | null) {
   return 'warning';
 }
 
-// ---- 采集台（§4.3.3–4.3.14 一条龙；后端内存态会话，重启即清）----
-
-interface PendingProduct {
-  productId: number;
-  name: string;
-  brandName: string | null;
-  specs: string | null;
-  category: string | null;
-  mainImg: string | null;
-  barCodeSource: string | null;
-}
-
-interface ConsoleLogLine {
-  ts: string;
-  level: string;
-  message: string;
-}
-
-interface ConsoleUploadRow {
-  id: number;
-  productInfo: string;
-  status: string;
-  errorMessage: string;
-  rejectReason: string;
-  mainImg: string;
-}
-
-interface ConsoleRun {
-  runId: string;
-  deviceId: string;
-  identifier: string;
-  phase: string;
-  shootSeconds: number;
-  abortRequested: boolean;
-  startedAt: string | null;
-  finishedAt: string | null;
-  failure: string | null;
-  entry: Record<string, unknown>;
-  logs: ConsoleLogLine[];
-  upload: ConsoleUploadRow[];
-}
-
-const consoleVisible = ref(false);
-const consoleDeviceId = ref('');
-const consoleShoot = ref(45);
-const consolePending = ref<PendingProduct[]>([]);
-const consolePendingLoading = ref(false);
-const consoleSelected = ref<PendingProduct | null>(null);
-const consoleRun = ref<ConsoleRun | null>(null);
-const consoleStarting = ref(false);
-const consoleRescuing = ref(false);
-let consoleTimer: ReturnType<typeof setInterval> | undefined;
-
-function isTerminal(run: ConsoleRun) {
-  return ['DONE', 'FAILED', 'ABORTED'].includes(run.phase);
-}
-
-const consoleLogText = computed(() =>
-  (consoleRun.value?.logs ?? []).map((l) => `[${formatDateTime(l.ts)}] ${l.message}`).join('\n')
-);
-
-function openConsole() {
-  consoleVisible.value = true;
-  const fromQuery = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
-  if (!consoleDeviceId.value) {
-    consoleDeviceId.value = cabinets.value.some((c) => c.deviceId === fromQuery)
-      ? fromQuery
-      : cabinets.value[0]?.deviceId || '';
-  }
-  void refreshConsoleState();
-}
-
-async function refreshConsoleState() {
-  if (!consoleDeviceId.value) return;
-  try {
-    consoleRun.value = await api.request<ConsoleRun | null>(
-      AdminEndpoints.jiangyiGatherConsoleState(consoleDeviceId.value),
-      'GET'
-    );
-  } catch {
-    consoleRun.value = null;
-  }
-  schedulePoll();
-}
-
-function schedulePoll() {
-  stopPoll();
-  if (consoleVisible.value && consoleRun.value && !isTerminal(consoleRun.value)) {
-    consoleTimer = setInterval(() => {
-      void pollConsole();
-    }, 2000);
-  }
-}
-
-function stopPoll() {
-  if (consoleTimer) {
-    clearInterval(consoleTimer);
-    consoleTimer = undefined;
-  }
-}
-
-async function pollConsole() {
-  if (!consoleDeviceId.value) return;
-  try {
-    consoleRun.value = await api.request<ConsoleRun | null>(
-      AdminEndpoints.jiangyiGatherConsoleState(consoleDeviceId.value),
-      'GET'
-    );
-    if (!consoleRun.value || isTerminal(consoleRun.value)) stopPoll();
-  } catch {
-    /* 单次轮询失败忽略，下个周期再试 */
-  }
-}
-
-async function loadConsolePending() {
-  consolePendingLoading.value = true;
-  try {
-    consolePending.value = await api.request<PendingProduct[]>(
-      AdminEndpoints.jiangyiPendingGather(),
-      'GET'
-    );
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '读取待采集商品失败'));
-  } finally {
-    consolePendingLoading.value = false;
-  }
-}
-
-async function startConsole() {
-  const entry = consoleSelected.value;
-  if (!consoleDeviceId.value || !entry) {
-    ElMessage.warning('请选择柜机和待采集商品');
-    return;
-  }
-  consoleStarting.value = true;
-  try {
-    consoleRun.value = await api.request<ConsoleRun>(
-      AdminEndpoints.jiangyiGatherConsoleStart,
-      'POST',
-      {
-        deviceId: consoleDeviceId.value,
-        productId: entry.productId,
-        name: entry.name,
-        brand: entry.brandName ?? '',
-        specs: entry.specs ?? '',
-        category: entry.category ?? '',
-        barCodeSource: entry.barCodeSource ?? '',
-        shootSeconds: consoleShoot.value
-      }
-    );
-    ElMessage.success('会话已启动：按页面提示开门、摆商品');
-    schedulePoll();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '发起采集失败'));
-  } finally {
-    consoleStarting.value = false;
-  }
-}
-
-async function consoleAbort() {
-  consoleRescuing.value = true;
-  try {
-    consoleRun.value = await api.request<ConsoleRun>(
-      AdminEndpoints.jiangyiGatherConsoleAbort,
-      'POST',
-      { deviceId: consoleDeviceId.value }
-    );
-    schedulePoll();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '中止失败'));
-  } finally {
-    consoleRescuing.value = false;
-  }
-}
-
-async function consoleRescue(action: 'resume' | 'forgo' | 'clear') {
-  const urls = {
-    resume: AdminEndpoints.jiangyiGatherConsoleResumeUpload,
-    forgo: AdminEndpoints.jiangyiGatherConsoleForgoUpload,
-    clear: AdminEndpoints.jiangyiGatherConsoleClearBatch
-  } as const;
-  if (action === 'forgo') {
-    try {
-      await ElMessageBox.confirm('放弃上传＝整批丢弃，厂商侧不可逆。确定放弃？', '放弃上传', {
-        type: 'warning',
-        confirmButtonText: '放弃',
-        cancelButtonText: '取消'
-      });
-    } catch {
-      return;
-    }
-  }
-  consoleRescuing.value = true;
-  try {
-    consoleRun.value = await api.request<ConsoleRun>(urls[action], 'POST', {
-      deviceId: consoleDeviceId.value
-    });
-    schedulePoll();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '救援动作失败'));
-  } finally {
-    consoleRescuing.value = false;
-  }
-}
-
-function consoleReset() {
-  consoleRun.value = null;
-  consoleSelected.value = null;
-}
-
-function onConsoleClose() {
-  stopPoll();
-  void load();
-}
-
-function consolePhaseText(phase: string) {
-  const map: Record<string, string> = {
-    WAIT_DOOR: '等开门',
-    PREPARING: '建条目/等就绪',
-    SHOOTING: '拍摄中',
-    WRAPPING: '关门收尾',
-    UPLOADING: '等厂商上传',
-    DONE: '完成',
-    FAILED: '失败',
-    ABORTED: '已中止'
-  };
-  return map[phase] ?? phase;
-}
-
-function consolePhaseTagType(phase: string) {
-  if (phase === 'DONE') return 'success';
-  if (phase === 'FAILED') return 'danger';
-  if (phase === 'ABORTED') return 'info';
-  if (phase === 'SHOOTING') return 'warning';
-  return 'primary';
-}
-
-function consoleHint(run: ConsoleRun) {
-  const hints: Record<string, string> = {
-    WAIT_DOOR: '请到柜机前把门拉开（60 秒内），门一开自动继续',
-    PREPARING: '门已开：条目建立中，把商品拿在手上准备',
-    SHOOTING: '把商品摆到摄像头前，在柜内缓慢上下扫动，保持到阶段结束',
-    WRAPPING: '可以关门了，系统自动收尾',
-    UPLOADING: '已收尾，等厂商侧上传完成（不出结果别清批次）',
-    DONE: '会话完成；要卖这批商品先等厂商审核通过，再触发学习',
-    FAILED: `会话失败：${run.failure ?? '见日志'}`,
-    ABORTED: '会话已中止'
-  };
-  return hints[run.phase] ?? '';
-}
-
-function uploadTagType(status: string) {
-  if (status === 'success') return 'success';
-  if (status === 'fail') return 'danger';
-  return 'warning';
-}
-
-onUnmounted(() => {
-  stopPoll();
-});
-
 async function load() {
   loading.value = true;
   try {
@@ -1552,8 +1118,7 @@ function formatInstant(t: string | null) {
 onMounted(() => {
   void load();
   const dialog = typeof route.query.dialog === 'string' ? route.query.dialog : '';
-  if (dialog === 'console') openConsole();
-  else if (dialog === 'audit') openGatherCheck();
+  if (dialog === 'audit') openGatherCheck();
   else if (dialog === 'training') openTraining();
 });
 
@@ -1668,38 +1233,6 @@ onActivated(() => {
   display: flex;
   gap: 8px;
   margin-bottom: 8px;
-}
-.console-pending-bar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-}
-.console-pending-table {
-  width: 100%;
-  margin-top: 6px;
-}
-.console-phase {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-.console-hint {
-  font-size: 13px;
-  color: var(--el-text-color-primary);
-}
-.console-log {
-  margin: 0 0 10px;
-  padding: 10px;
-  max-height: 260px;
-  overflow: auto;
-  background: var(--el-fill-color-light);
-  border-radius: 6px;
-  font-size: 12px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 .form-hint {
   width: 100%;

@@ -3590,86 +3590,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/jiangyi/gather-console/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["consoleStart"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-console/resume-upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["consoleResumeUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-console/forgo-upload": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["consoleForgoUpload"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-console/clear-batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["consoleClearBatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-console/abort": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["consoleAbort"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/invoices/{invoiceId}/reject": {
         parameters: {
             query?: never;
@@ -8580,22 +8500,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["learningLibrary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-console/state": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["consoleState"];
         put?: never;
         post?: never;
         delete?: never;
@@ -15012,61 +14916,6 @@ export interface components {
             /** Format: int32 */
             count?: number;
             items?: components["schemas"]["BatchTrainingItem"][];
-        };
-        GatherConsoleStartRequest: {
-            deviceId: string;
-            /** Format: int64 */
-            productId?: number;
-            name: string;
-            brand?: string;
-            specs?: string;
-            category: string;
-            barCodeSource?: string;
-            /** Format: int32 */
-            shootSeconds?: number;
-        };
-        ApiResponseConsoleSnapshot: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ConsoleSnapshot"];
-        };
-        ConsoleSnapshot: {
-            runId?: string;
-            deviceId?: string;
-            identifier?: string;
-            phase?: string;
-            /** Format: int32 */
-            shootSeconds?: number;
-            abortRequested?: boolean;
-            /** Format: date-time */
-            startedAt?: string;
-            /** Format: date-time */
-            finishedAt?: string;
-            failure?: string;
-            entry?: {
-                [key: string]: unknown;
-            };
-            logs?: components["schemas"]["LogLine"][];
-            upload?: components["schemas"]["UploadRow"][];
-        };
-        LogLine: {
-            /** Format: date-time */
-            ts?: string;
-            level?: string;
-            message?: string;
-        };
-        UploadRow: {
-            /** Format: int64 */
-            id?: number;
-            productInfo?: string;
-            status?: string;
-            errorMessage?: string;
-            rejectReason?: string;
-            mainImg?: string;
-        };
-        ConsoleDeviceRequest: {
-            deviceId: string;
         };
         WriteOffRequest: {
             deviceId?: string;
@@ -27887,126 +27736,6 @@ export interface operations {
             };
         };
     };
-    consoleStart: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GatherConsoleStartRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
-                };
-            };
-        };
-    };
-    consoleResumeUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConsoleDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
-                };
-            };
-        };
-    };
-    consoleForgoUpload: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConsoleDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
-                };
-            };
-        };
-    };
-    consoleClearBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConsoleDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
-                };
-            };
-        };
-    };
-    consoleAbort: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ConsoleDeviceRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
-                };
-            };
-        };
-    };
     reject: {
         parameters: {
             query?: never;
@@ -35871,28 +35600,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseLearningLibraryView"];
-                };
-            };
-        };
-    };
-    consoleState: {
-        parameters: {
-            query: {
-                deviceId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseConsoleSnapshot"];
                 };
             };
         };

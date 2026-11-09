@@ -14,7 +14,6 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFlowSummaryService;
-import com.aicabinet.trade.service.JiangyiGatherConsoleService;
 import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiLearningLibraryService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
@@ -64,7 +63,6 @@ public class AdminJiangyiController {
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
     private final JiangyiLearningLibraryService jiangyiLearningLibraryService;
     private final JiangyiShelfService jiangyiShelfService;
-    private final JiangyiGatherConsoleService jiangyiGatherConsoleService;
     private final JiangyiFlowSummaryService jiangyiFlowSummaryService;
     private final DeviceFaultOrderService deviceFaultOrderService;
     private final JiangyiRestockService jiangyiRestockService;
@@ -79,7 +77,6 @@ public class AdminJiangyiController {
                                   JiangyiMappingReviewService jiangyiMappingReviewService,
                                   JiangyiLearningLibraryService jiangyiLearningLibraryService,
                                   JiangyiShelfService jiangyiShelfService,
-                                  JiangyiGatherConsoleService jiangyiGatherConsoleService,
                                   JiangyiFlowSummaryService jiangyiFlowSummaryService,
                                   DeviceFaultOrderService deviceFaultOrderService,
                                   JiangyiRestockService jiangyiRestockService,
@@ -93,7 +90,6 @@ public class AdminJiangyiController {
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
         this.jiangyiLearningLibraryService = jiangyiLearningLibraryService;
         this.jiangyiShelfService = jiangyiShelfService;
-        this.jiangyiGatherConsoleService = jiangyiGatherConsoleService;
         this.jiangyiFlowSummaryService = jiangyiFlowSummaryService;
         this.deviceFaultOrderService = deviceFaultOrderService;
         this.jiangyiRestockService = jiangyiRestockService;
@@ -680,62 +676,6 @@ public class AdminJiangyiController {
         return ApiResponse.ok(jiangyiGatherService.studyingProducts());
     }
 
-    // ---------- 采集台（§4.3.3–4.3.14 一条龙，内存态会话，见 JiangyiGatherConsoleService） ----------
-
-    /**
-     * 发起采集会话：开门→建条目→就绪→confirmStart→拍摄→收尾→上传轮询（异步执行，现场按提示
-     * 开门/摆商品/关门）。identifier 服务端查库补；会话即进采集模式（停营业闸），终态自动恢复。
-     */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather-console/start")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleStart(
-            @Valid @RequestBody GatherConsoleStartRequest body) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.start(body.deviceId().trim(),
-                new com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest(
-                        null, body.productId(), body.name(), body.brand(), body.specs(),
-                        body.category(), body.barCodeSource()),
-                body.shootSeconds()));
-    }
-
-    /** 当前会话快照（阶段/日志尾/上传状态；无会话回 null，前端按空态渲染）。 */
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/jiangyi/gather-console/state")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleState(
-            @RequestParam("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.state(deviceId.trim()));
-    }
-
-    /** §4.3.13 继续上传（批次标记被误清而条目仍 wait 的补救；终态会话重新进入上传轮询）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather-console/resume-upload")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleResumeUpload(
-            @Valid @RequestBody ConsoleDeviceRequest body) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.resumeUpload(body.deviceId().trim()));
-    }
-
-    /** §4.3.12 放弃上传（整批丢弃，不可逆）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather-console/forgo-upload")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleForgoUpload(
-            @Valid @RequestBody ConsoleDeviceRequest body) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.forgoUpload(body.deviceId().trim()));
-    }
-
-    /** §4.3.14 清批次标记（服务端先查确认无 wait 才放行）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather-console/clear-batch")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleClearBatch(
-            @Valid @RequestBody ConsoleDeviceRequest body) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.clearBatch(body.deviceId().trim()));
-    }
-
-    /** 中止会话（链路在下一步退出，尽力补 endOne/endAll 并解锁恢复营业）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather-console/abort")
-    public ApiResponse<JiangyiGatherConsoleService.ConsoleSnapshot> consoleAbort(
-            @Valid @RequestBody ConsoleDeviceRequest body) {
-        return ApiResponse.ok(jiangyiGatherConsoleService.abort(body.deviceId().trim()));
-    }
 
     /**
      * 六步流程导航条数字面板：挂接/柜机/映射走本地库，待采集/审核/学习中/模型直读厂商
@@ -831,7 +771,6 @@ public class AdminJiangyiController {
                                  @NotBlank(message = "缺少审阅版本令牌，请重新拉取差异")
                                  String expectedClassesVersion) {}
 
-    record GatherStartRequest(String doorPosition) {}
 
     record TrainingRequest(@NotBlank(message = "SKU 不能为空") String skuId,
                            @NotBlank(message = "模型名不能为空") String modelName) {}
@@ -842,16 +781,6 @@ public class AdminJiangyiController {
                                 @NotBlank(message = "模型名不能为空") String modelName) {}
 
     /** 采集台发起：条目字段从待采集列表带出；identifier/shootSeconds 服务端补/夹取。 */
-    record GatherConsoleStartRequest(@NotBlank(message = "柜机不能为空") String deviceId,
-                                     long productId,
-                                     @NotBlank(message = "商品名不能为空") String name,
-                                     String brand,
-                                     String specs,
-                                     @NotBlank(message = "类目不能为空") String category,
-                                     String barCodeSource,
-                                     Integer shootSeconds) {}
-
-    record ConsoleDeviceRequest(@NotBlank(message = "柜机不能为空") String deviceId) {}
 
     /** 上架入参：priceCents/quantity 留空 = 不动该柜的价格/库存（各自还需独立权限点）。 */
     record ShelfRequest(@NotBlank(message = "将邑商品不能为空") String jiangyiProductId,
@@ -897,4 +826,5 @@ public class AdminJiangyiController {
                 m.getModelName(), m.getTextName(), m.getSkuId(), m.getStatus(), m.getSource(),
                 m.getCreatedAt(), m.getUpdatedAt());
     }
+    record GatherStartRequest(String doorPosition) {}
 }

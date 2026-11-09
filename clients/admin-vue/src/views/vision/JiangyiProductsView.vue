@@ -153,7 +153,7 @@ onMounted(async () => {
               补货上架；本页负责建档、查状态、批量刷新与看驳回原因</span
             >
             <HelpTip
-              content="拍照采集必须在商户小程序「商品采集」完成（§7.3 现场实物拍摄）；按厂商提示逐张拍、背景统一干净、平视居中；本页只做建档/查状态/批量刷新"
+              content="拍照采集必须在商户小程序「商品采集」完成（现场实物拍摄）；按厂商提示逐张拍、背景统一干净、平视居中；本页只做建档/查状态/批量刷新"
               aria-label="采集与建档口径"
             />
           </div>
@@ -207,7 +207,7 @@ onMounted(async () => {
           <el-empty v-else description="输入条码后查询" :image-size="60" />
         </el-card>
 
-        <el-card header="批量刷新状态（§7.10，无副作用）" style="margin-top: 16px">
+        <el-card header="批量刷新状态（无副作用）" style="margin-top: 16px">
           <el-input
             v-model="refreshText"
             type="textarea"
@@ -225,7 +225,7 @@ onMounted(async () => {
       </el-col>
 
       <el-col :span="12">
-        <el-card header="新条码建档（§7.6）">
+        <el-card header="新条码建档">
           <el-form label-width="90px">
             <el-form-item label="条码" required
               ><el-input v-model="createForm.barCode" placeholder="69 条码"

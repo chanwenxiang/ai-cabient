@@ -1,12 +1,16 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiGatherClient;
+import com.aicabinet.trade.client.JiangyiRestockClient;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.LearnableProduct;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCreateCommand;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductState;
+import com.aicabinet.trade.util.YuanFen;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
@@ -16,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,17 +78,20 @@ public class SkuJiangyiLinkService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final SkuCatalogMapper skuCatalogMapper;
     private final JiangyiGatherClient jiangyiGatherClient;
+    private final JiangyiRestockClient jiangyiRestockClient;
     private final String publicBaseUrl;
     private final AdminAuditService auditService;
 
     public SkuJiangyiLinkService(JiangyiSkuJiangyiLinkMapper linkMapper,
                                  SkuCatalogMapper skuCatalogMapper,
                                  JiangyiGatherClient jiangyiGatherClient,
+                                 JiangyiRestockClient jiangyiRestockClient,
                                  @Value("${JIANGYI_PUBLIC_BASE_URL:}") String publicBaseUrl,
                                  AdminAuditService auditService) {
         this.linkMapper = linkMapper;
         this.skuCatalogMapper = skuCatalogMapper;
         this.jiangyiGatherClient = jiangyiGatherClient;
+        this.jiangyiRestockClient = jiangyiRestockClient;
         this.publicBaseUrl = publicBaseUrl;
         this.auditService = auditService;
     }
@@ -144,21 +152,25 @@ public class SkuJiangyiLinkService {
      * 会误判成「将邑库里没有」。name 留空即全量（该接口 barCode 空转，见客户端注释）。</p>
      */
     public List<PendingGatherView> listPendingGather(String name) {
-        List<GatherPendingProduct> pending = jiangyiGatherClient.waitGatherProduct(name);
-        Map<String, JiangyiSkuJiangyiLink> byProduct = new HashMap<>();
-        for (JiangyiSkuJiangyiLink link : linkMapper.listByProducts(
-                pending.stream().map(p -> String.valueOf(p.productId())).toList())) {
-            byProduct.putIfAbsent(link.getJiangyiProductId(), link);
-        }
-        return pending.stream()
-                .map(p -> {
-                    JiangyiSkuJiangyiLink link = byProduct.get(String.valueOf(p.productId()));
-                    return new PendingGatherView(p.productId(), p.name(), p.brandName(), p.specs(),
-                            p.category(), p.mainImg(), p.barCodeSource(), p.productEn(),
-                            link == null ? null : link.getSkuId(),
-                            link == null ? null : link.getSyncStatus());
-                })
+        // 旧 selfhelpGatherProduct/waitGatherProduct 已停用；待采集改读我方挂接快照
+        // （NEED_PHONE/REJECTED/REVIEWING），name 仅作名称过滤。
+        String needle = name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
+        return linkMapper.listBoundAll().stream()
+                .filter(l -> l.getJiangyiState() != null
+                        && Set.of("NEED_PHONE", "REJECTED", "REVIEWING").contains(l.getJiangyiState()))
+                .filter(l -> needle.isEmpty()
+                        || (l.getJiangyiName() != null && l.getJiangyiName().toLowerCase(Locale.ROOT).contains(needle)))
+                .map(l -> new PendingGatherView(parseProductId(l.getJiangyiProductId()), l.getJiangyiName(),
+                        null, null, null, null, null, null, l.getSkuId(), l.getSyncStatus()))
                 .toList();
+    }
+
+    private static long parseProductId(String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /**
@@ -247,8 +259,11 @@ public class SkuJiangyiLinkService {
         return s == null ? "" : s;
     }
 
+    /** 类目下拉：走 §7.19（第七章接口），旧的 /merchant/productCategory/getTopList 已停用。 */
     public List<JiangyiCategory> productCategories() {
-        return jiangyiGatherClient.productCategories();
+        return jiangyiRestockClient.categories().stream()
+                .map(c -> new JiangyiCategory(c.categoryId(), c.name()))
+                .toList();
     }
 
     /**
@@ -313,7 +328,8 @@ public class SkuJiangyiLinkService {
     }
 
     /**
-     * 我方商品新增到将邑商品库（§4.1.5）→ 成功才落 link(CREATED)，无半挂状态。
+     * 我方商品新增到将邑商品库（§7.6 /restock/product/create）→ 成功才落 link(CREATED)，无半挂状态。
+     * 旧的 /merchant/product/create（V1.13 §4.1.5）已停用；§7.6 回 state/nextAction，顺手落快照。
      * color 枚举 0-10 / category ∈ bottle|box|bag|bowl|egg 由服务层缺省兜底（color=0 其他）。
      *
      * <p>mainImg 将邑侧必填（采集文档 §4.1.5 商品主图 M）：请求未带时回退我方 SKU
@@ -329,28 +345,28 @@ public class SkuJiangyiLinkService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "将邑要求商品主图：请先在商品管理登记该商品的图片，再新增到将邑商品库");
         }
-        Map<String, Object> body = new HashMap<>();
-        body.put("name", spec.name());
-        body.put("specs", spec.specs());
-        body.put("canSale", "yes");
-        body.put("catId", spec.catId());
-        body.put("brandName", spec.brandName());
-        body.put("purchasePrice", spec.purchasePrice());
-        body.put("salePrice", spec.salePrice());
-        body.put("mainImg", mainImg);
-        body.put("color", spec.color() == null ? 0 : spec.color());
-        body.put("applyMachineId", 21);
-        body.put("category", spec.category());
-        if (spec.barCode() != null && !spec.barCode().isBlank()) {
-            body.put("barCode", spec.barCode());
+        if (spec.barCode() == null || spec.barCode().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "条码为必填（§7.6）");
         }
-        long productId;
+        long salePriceCents;
+        Long purchasePriceCents = null;
         try {
-            productId = jiangyiGatherClient.productCreate(body);
-        } catch (IllegalStateException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
-                    "将邑新增商品失败：" + e.getMessage());
+            salePriceCents = YuanFen.toCents(new BigDecimal(spec.salePrice()));
+            if (spec.purchasePrice() != null && !spec.purchasePrice().isBlank()) {
+                purchasePriceCents = YuanFen.toCents(new BigDecimal(spec.purchasePrice()));
+            }
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "售价/进价格式错误（单位元）：" + e.getMessage());
         }
+        ProductState state = jiangyiRestockClient.create(new ProductCreateCommand(
+                spec.barCode(), salePriceCents, purchasePriceCents, spec.name(), spec.brandName(),
+                spec.specs(), spec.category(), (int) spec.catId(),
+                spec.color() == null ? 0 : spec.color(), mainImg));
+        if (state == null || state.productId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "将邑建档未返回商品 ID（§7.6）");
+        }
+        long productId = state.productId();
         Instant now = Instant.now();
         JiangyiSkuJiangyiLink link = new JiangyiSkuJiangyiLink();
         link.setSkuId(skuId);
@@ -361,6 +377,9 @@ public class SkuJiangyiLinkService {
         link.setSyncedAt(now);
         link.setCreatedAt(now);
         link.setUpdatedAt(now);
+        link.setJiangyiState(state.state() == null ? null : state.state().name());
+        link.setNextAction(state.nextAction());
+        link.setStateCheckedAt(now);
         linkMapper.insert(link);
         log.info("jiangyi sku link created-in-jiangyi skuId={} productId={}", skuId, productId);
         auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_CREATE", "JIANGYI_SKU_LINK",

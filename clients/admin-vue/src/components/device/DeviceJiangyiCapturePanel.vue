@@ -173,7 +173,7 @@ onUnmounted(stopPoll);
 
 <template>
   <div class="jy-capture">
-    <div class="jy-section-label">厂商侧在售核对（§7.13，只读）</div>
+    <div class="jy-section-label">厂商侧在售核对（只读）</div>
     <el-button :loading="shelfLoading" @click="loadShelf">读取厂商当前在售清单</el-button>
     <template v-if="shelf">
       <el-descriptions :column="3" border style="margin-top: 12px">
@@ -202,8 +202,8 @@ onUnmounted(stopPoll);
       </el-table>
     </template>
 
-    <div class="jy-section-label">柜内采集（§7.14~§7.18）</div>
-    <el-alert type="info" :closable="false" show-icon title="柜内采集规范（§7.3）">
+    <div class="jy-section-label">柜内采集</div>
+    <el-alert type="info" :closable="false" show-icon title="柜内采集规范">
       <template #default>
         <div class="capture-rules">
           <div>· 商品须已补货上架到该柜；每次只采集一个商品</div>

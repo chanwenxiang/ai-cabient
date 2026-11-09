@@ -137,7 +137,7 @@ onUnmounted(stopPoll);
 
 <template>
   <div class="jy-restock">
-    <div class="jy-section-label">补货上架 · 同步到将邑（§7.11/§7.12）</div>
+    <div class="jy-section-label">补货上架 · 同步到将邑</div>
     <el-alert
       type="warning"
       :closable="false"

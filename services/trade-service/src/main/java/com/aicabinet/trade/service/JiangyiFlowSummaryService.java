@@ -51,11 +51,12 @@ public class JiangyiFlowSummaryService {
         Integer studying = null;
         Integer models = null;
         java.util.List<String> errors = new java.util.ArrayList<>();
-        try {
-            pendingGather = jiangyiGatherClient.waitGatherProduct(null).size();
-        } catch (RuntimeException e) {
-            errors.add("待采集列表：" + rootMessage(e));
-        }
+        // 旧 selfhelpGatherProduct/waitGatherProduct 已停用；待采集改读我方挂接快照
+        // （NEED_PHONE/REJECTED/REVIEWING），不再打旧接口。
+        pendingGather = (int) linkMapper.listBoundAll().stream()
+                .filter(l -> l.getJiangyiState() != null
+                        && java.util.Set.of("NEED_PHONE", "REJECTED", "REVIEWING").contains(l.getJiangyiState()))
+                .count();
         try {
             List<com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem> checks = jiangyiGatherClient.gatherCheck(null);
             auditWait = (int) checks.stream().filter(c -> "wait".equalsIgnoreCase(c.status())).count();

@@ -991,6 +991,23 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
 + 设备详情「同步上架到将邑」面板（清单可编辑+覆盖确认+APPLIED 轮询）。契约起我方 jar 抽
 `/v3/api-docs` 再生成 openapi.ts，admin 产物配对重打。
 
+### 12B.7 老接口退场第一批（2026-11-09，feat/jiangyi-retire-legacy）
+
+按「新 V16 是否还有该路径 + 代码谁在用」对账后的淘汰清单（用户拍板「按建议做」）：
+
+| 老接口 | 处置 | 替代 |
+|---|---|---|
+| `/merchant/productCategory/getTopList` | **已切** | §7.19 `/restock/product/categories`（`SkuJiangyiLinkService.productCategories` 改走 restock client） |
+| `/merchant/product/create` | **已切** | §7.6 `/restock/product/create`（`createInJiangyi` 改走 restock client，顺手落 state/nextAction 快照） |
+| `selfhelpGatherProduct/*` 旧采集台（console） | **已退场** | §7.7–7.9 手机采集 + §7.14–7.18 柜内采集；删 `JiangyiGatherConsoleService` + 6 个 console 端点 + 学习库内嵌控制台 UI + 13 个 console-only client 方法 |
+| `waitGatherProduct`（待采集列表/流程汇总） | **已改读我方挂接快照** | `listPendingGather`/`FlowSummary` 改读 `sku_jiangyi_link.jiangyi_state ∈ {NEED_PHONE,REJECTED,REVIEWING}`，不再打旧接口 |
+
+**保留（本批不退，列为后续项）**：
+- `gatherOpenDoor`/`doorStatus` + admin `gather/start|exit|progress` + merchant mp 旧采集入口：仍被 `DeviceJiangyiCard` 采集模式块与 merchant-mp 使用，属旧柜内采集简单入口，待后续连同 UI 一起退。
+- `product/getPageData`/`modelFile/getModelFileByApi`/`modifyAffiliationTenant`：新 V16 0 命中但只为旧 `_AI-OK` 模型链/onboarding 服务；当前在网唯一柜已 `_ID-OK`，退前需确认不再来旧柜，先标「文档无据」。
+
+**验证**：受影响单测全绿（link 38 / flow 2 / gatherClient 2 / controller 21 / gatherService 28）；admin type-check 绿；openapi 从我方 jar 重抽（console 路径=0）。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）

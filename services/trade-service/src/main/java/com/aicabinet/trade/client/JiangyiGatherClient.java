@@ -123,31 +123,6 @@ public class JiangyiGatherClient {
         return out;
     }
 
-    /** 获取商品分类（§4.1.4 /merchant/productCategory/getTopList，无参数）。 */
-    public List<JiangyiCategory> productCategories() {
-        JsonNode data = post("/merchant/productCategory/getTopList", Map.of(), true, "productCategories");
-        List<JiangyiCategory> out = new ArrayList<>();
-        if (data.isArray()) {
-            for (JsonNode n : data) {
-                out.add(new JiangyiCategory(n.path("id").asLong(), text(n, "name")));
-            }
-        }
-        return out;
-    }
-
-    /**
-     * 新增商品（§4.1.5 /merchant/product/create）→ data=商品id。
-     * color 枚举 0-10（PDF §4.1.5.2）、category ∈ bottle|box|bag|bowl|egg、
-     * barCode/stdSkuCode 可选——字段校验在上层 Service（UI 表单必填兜底）。
-     */
-    public long productCreate(Map<String, Object> req) {
-        JsonNode data = post("/merchant/product/create", req, true, "productCreate");
-        if (data == null || data.isNull() || !data.isValueNode()) {
-            throw new IllegalStateException("将邑 productCreate 响应缺少商品id");
-        }
-        return data.asLong();
-    }
-
     /**
      * 删除商品（§4.1.6 /merchant/product/delete，入参只有 id，响应 data=null）。
      * 厂商侧不可逆——调用方的「只删我方新建的」闸门见
@@ -158,35 +133,6 @@ public class JiangyiGatherClient {
     }
 
     // ---------- 采集（4.2.x） ----------
-
-    /**
-     * 查询待采集商品列表（§4.3.2 waitGatherProduct）。
-     *
-     * <p>只收 name：2026-10-23 实测 name 是真模糊过滤（冰红茶 1 条 / 雪碧 0 / 农夫山泉 0），
-     * 而 barCode 入参<b>完全空转</b>（传 0000000000000 仍返回同一条）——文档 §4.2.2「barCode/name
-     * 至少一项」不成立，两项都留空即返回全量。别在调用方做条码搜索。</p>
-     */
-    public List<GatherPendingProduct> waitGatherProduct(String name) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("barCode", "");
-        body.put("name", name == null ? "" : name);
-        JsonNode data = post("/merchant/selfhelpGatherProduct/waitGatherProduct", body, true, "waitGatherProduct");
-        List<GatherPendingProduct> out = new ArrayList<>();
-        if (data.isArray()) {
-            for (JsonNode n : data) {
-                out.add(new GatherPendingProduct(
-                        n.path("productId").asLong(),
-                        text(n, "name"),
-                        text(n, "brandName"),
-                        text(n, "specs"),
-                        text(n, "category"),
-                        text(n, "mainImg"),
-                        text(n, "barCodeSource"),
-                        text(n, "productEn")));
-            }
-        }
-        return out;
-    }
 
     /** 采集商品开门（§4.2.3 gatherOpenDoor；identifier=CQYB 编号，doorPosition 双门柜 L/R 可空）。 */
     public void gatherOpenDoor(String identifier, String doorPosition) {
@@ -201,116 +147,6 @@ public class JiangyiGatherClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("identifier", identifier);
         return post("/merchant/selfhelpGatherProduct/doorStatus", body, true, "doorStatus");
-    }
-
-    // ---------- 采集编排（4.3.3–4.3.14；2026-10-26 真机自采全链验证过的参数形态） ----------
-
-    /**
-     * 采集准备/建条目（§4.3.3 productInfo）→ data.productInfoId（缺 id 键时回退 id）即本次条目 id。
-     * category ∈ bottle|box|bag|bowl|egg；barCodeSource 空时落 manual（2026-10-26 实测可通过）。
-     */
-    public long gatherProductInfo(GatherEntryRequest entry) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", entry.identifier());
-        body.put("productId", entry.productId());
-        body.put("name", entry.name());
-        body.put("brand", entry.brand());
-        body.put("specs", entry.specs());
-        body.put("category", entry.category());
-        body.put("barCodeSource", entry.barCodeSource() == null || entry.barCodeSource().isBlank()
-                ? "manual" : entry.barCodeSource());
-        JsonNode data = post("/merchant/selfhelpGatherProduct/productInfo", body, true, "gatherProductInfo");
-        JsonNode id = data.path("productInfoId");
-        if (id.isMissingNode() || id.isNull()) {
-            id = data.path("id");
-        }
-        if (!id.canConvertToLong() || id.asLong() <= 0) {
-            throw new IllegalStateException("将邑 productInfo 响应缺少条目id：" + data);
-        }
-        return id.asLong();
-    }
-
-    /** §4.3.4 startGather 查询摄像头/配置就绪：data 含 cameraStatus/configParamStatus/start/prepareStatus/errorMessage。 */
-    public JsonNode gatherStartCheck(String identifier, long entryId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        body.put("id", entryId);
-        return post("/merchant/selfhelpGatherProduct/startGather", body, true, "gatherStartCheck");
-    }
-
-    /**
-     * §4.3.5 confirmStart 开始采集。
-     *
-     * <p>🔴 2026-10-26 实测：<b>identifier 必填</b>——只发 id 厂商回「发送确认开始采集指令失败」
-     * （文档 4.3.5.2 参数表未把 identifier 的必要性写清，以真机为准）。</p>
-     */
-    public void gatherConfirmStart(String identifier, long entryId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        body.put("id", entryId);
-        post("/merchant/selfhelpGatherProduct/confirmStart", body, true, "gatherConfirmStart");
-    }
-
-    /** §4.3.6 gatherError：data 为 yes/no，拍摄期间轮询，yes=设备侧已判错（如开门过长）。 */
-    public String gatherError(long entryId) {
-        JsonNode data = post("/merchant/selfhelpGatherProduct/gatherError",
-                Map.of("id", entryId), true, "gatherError");
-        return data == null || data.isNull() ? "" : data.asText();
-    }
-
-    /** §4.3.7 endOne 结束当次采集（单条目收尾，关门后立即调）。 */
-    public void gatherEndOne(String identifier, long entryId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        body.put("id", entryId);
-        post("/merchant/selfhelpGatherProduct/endOne", body, true, "gatherEndOne");
-    }
-
-    /** §4.3.8 gatherProducts 批内已采条目（原始透传，结构宽松不建 DTO）。 */
-    public JsonNode gatherProducts(String identifier) {
-        return post("/merchant/selfhelpGatherProduct/gatherProducts",
-                Map.of("identifier", identifier), true, "gatherProducts");
-    }
-
-    /** §4.3.9 goOnGather 是否可继续采集（data 含 goOnGather yes/no）。 */
-    public JsonNode gatherGoOn(String identifier) {
-        return post("/merchant/selfhelpGatherProduct/goOnGather",
-                Map.of("identifier", identifier), true, "gatherGoOn");
-    }
-
-    /** §4.3.10 endAll 完成批次采集（phoneNum=商户手机号，厂商把采集回执发到该号）。 */
-    public void gatherEndAll(String identifier, String phoneNum) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        body.put("phoneNum", phoneNum == null || phoneNum.isBlank() ? "" : phoneNum);
-        post("/merchant/selfhelpGatherProduct/endAll", body, true, "gatherEndAll");
-    }
-
-    /**
-     * §4.3.11 uploadInfoNew 上传情况（原始透传）：行含 id/productInfo/status(wait|success|fail)/
-     * errorMessage/rejectReason/mainImg/createTime。
-     */
-    public JsonNode uploadInfoNew(String identifier) {
-        return post("/merchant/selfhelpGatherProduct/uploadInfoNew",
-                Map.of("identifier", identifier), true, "uploadInfoNew");
-    }
-
-    /** §4.3.12 forgoUploadNew 放弃上传（整批丢弃，不可逆）。 */
-    public void forgoUploadNew(String identifier) {
-        post("/merchant/selfhelpGatherProduct/forgoUploadNew",
-                Map.of("identifier", identifier), true, "forgoUploadNew");
-    }
-
-    /** §4.3.13 goOnUploadNew 继续上传（批次标记被误清而条目仍 wait 时的补救）。 */
-    public void goOnUploadNew(String identifier) {
-        post("/merchant/selfhelpGatherProduct/goOnUploadNew",
-                Map.of("identifier", identifier), true, "goOnUploadNew");
-    }
-
-    /** §4.3.14 deleteBatchNoNew 清批次标记——文档原文：所有商品状态没有 wait 才能请求。 */
-    public void deleteBatchNoNew(String identifier) {
-        post("/merchant/selfhelpGatherProduct/deleteBatchNoNew",
-                Map.of("identifier", identifier), true, "deleteBatchNoNew");
     }
 
     // ---------- 学习与模型（4.4.x） ----------

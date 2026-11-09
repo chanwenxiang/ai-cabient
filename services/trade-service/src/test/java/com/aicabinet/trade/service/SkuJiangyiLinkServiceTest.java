@@ -1,6 +1,11 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.JiangyiGatherClient;
+import com.aicabinet.trade.client.JiangyiRestockException;
+import com.aicabinet.trade.client.JiangyiRestockClient;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCreateCommand;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductState;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCategory;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
@@ -44,11 +49,12 @@ class SkuJiangyiLinkServiceTest {
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private SkuCatalogMapper skuCatalogMapper;
     @Mock private JiangyiGatherClient jiangyiGatherClient;
+    @Mock private JiangyiRestockClient jiangyiRestockClient;
     @Mock private AdminAuditService auditService;
 
     private SkuJiangyiLinkService service() {
         return new SkuJiangyiLinkService(linkMapper, skuCatalogMapper, jiangyiGatherClient,
-                "https://public.example.com", auditService);
+                jiangyiRestockClient, "https://public.example.com", auditService);
     }
 
     private SkuCatalog sku(String barcode) {
@@ -169,20 +175,34 @@ class SkuJiangyiLinkServiceTest {
     @Test
     void createInJiangyi_clientFailureMeansNoLinkRow() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.productCreate(any())).thenThrow(new IllegalStateException("将邑 500"));
+        when(jiangyiRestockClient.create(any()))
+                .thenThrow(new JiangyiRestockException("productCreate", 503, "商品名称已存在"));
 
-        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+        assertThrows(JiangyiRestockException.class,
                 () -> service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                         "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                         "http://img/1.png", null, "bottle", "6901234567890")));
-        assertEquals(502, e.getStatusCode().value());
         verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
+    }
+
+    /** §7.19：类目下拉走第七章接口，不再打旧的 productCategory/getTopList。 */
+    @Test
+    void productCategories_useRestockClient() {
+        when(jiangyiRestockClient.categories())
+                .thenReturn(List.of(new ProductCategory(4465, "饮料", 0)));
+
+        var list = service().productCategories();
+
+        assertEquals(1, list.size());
+        assertEquals(4465L, list.get(0).id());
+        assertEquals("饮料", list.get(0).name());
     }
 
     @Test
     void createInJiangyi_successFallsLinkAsCreatedWithDefaultColorZero() {
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku("6901234567890"));
-        when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
+        when(jiangyiRestockClient.create(any())).thenReturn(
+                new ProductState("6901234567890", null, "RESTOCK", 123L, "农夫山泉 550ml", null));
 
         JiangyiSkuJiangyiLink link = service().createInJiangyi(1L, SKU_ID,
                 new SkuJiangyiLinkService.ProductCreateSpec(
@@ -191,6 +211,7 @@ class SkuJiangyiLinkServiceTest {
 
         assertEquals("CREATED", link.getSyncStatus());
         assertEquals("123", link.getJiangyiProductId());
+        assertEquals("RESTOCK", link.getNextAction());
         verify(linkMapper).insert(link);
     }
 
@@ -199,17 +220,16 @@ class SkuJiangyiLinkServiceTest {
         SkuCatalog s = sku("6901234567890");
         s.setImageUrl("http://img/sku-main.png");
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
-        when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
+        when(jiangyiRestockClient.create(any())).thenReturn(
+                new ProductState("6901234567890", null, "RESTOCK", 123L, "农夫山泉 550ml", null));
 
         service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                 "农夫山泉 550ml", "550ml", 238L, "农夫山泉", "1.5", "2.0",
                 " ", null, "bottle", "6901234567890"));
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<java.util.Map<String, Object>> body =
-                ArgumentCaptor.forClass(java.util.Map.class);
-        verify(jiangyiGatherClient).productCreate(body.capture());
-        assertEquals("http://img/sku-main.png", body.getValue().get("mainImg"));
+        ArgumentCaptor<ProductCreateCommand> body = ArgumentCaptor.forClass(ProductCreateCommand.class);
+        verify(jiangyiRestockClient).create(body.capture());
+        assertEquals("http://img/sku-main.png", body.getValue().mainImg());
     }
 
     @Test
@@ -217,17 +237,18 @@ class SkuJiangyiLinkServiceTest {
         SkuCatalog s = sku("6901234567890");
         s.setImageUrl("/api/v2/media/sku-images/1");
         when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
-        when(jiangyiGatherClient.productCreate(any())).thenReturn(123L);
+        when(jiangyiRestockClient.create(any())).thenReturn(
+                new ProductState("6901234567890", null, "RESTOCK", 123L, "农夫山泉 550ml", null));
 
         service().createInJiangyi(1L, SKU_ID, new SkuJiangyiLinkService.ProductCreateSpec(
                 "330ml雪碧柠檬味汽水", "330ml", 4465L, "雪碧", "1.5", "3.0",
                 "", null, "bottle", "6928804010145"));
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<java.util.Map<String, Object>> body =
-                ArgumentCaptor.forClass(java.util.Map.class);
-        verify(jiangyiGatherClient).productCreate(body.capture());
-        assertEquals("https://public.example.com/api/v2/media/sku-images/1", body.getValue().get("mainImg"));
+        ArgumentCaptor<ProductCreateCommand> body = ArgumentCaptor.forClass(ProductCreateCommand.class);
+        verify(jiangyiRestockClient).create(body.capture());
+        assertEquals("https://public.example.com/api/v2/media/sku-images/1", body.getValue().mainImg());
+        assertEquals(300, body.getValue().salePriceCents());
+        assertEquals(0, body.getValue().colorId());
     }
 
     @Test
@@ -240,7 +261,7 @@ class SkuJiangyiLinkServiceTest {
                         "", null, "bottle", "6901234567890")));
         assertEquals(409, e.getStatusCode().value());
         assertTrue(e.getReason().contains("商品主图"));
-        verify(jiangyiGatherClient, never()).productCreate(any());
+        verify(jiangyiRestockClient, never()).create(any());
         verify(linkMapper, never()).insert(any(JiangyiSkuJiangyiLink.class));
     }
 
@@ -598,34 +619,29 @@ class SkuJiangyiLinkServiceTest {
     // ---------- listPendingGather（§4.3.2 待采集：商品库搜不到的那一半） ----------
 
     @Test
-    void pendingGather_marksWhichOfOurSkusCreatedIt() {
-        when(jiangyiGatherClient.waitGatherProduct("冰红茶")).thenReturn(List.of(
-                new GatherPendingProduct(41159L, "康师傅冰红茶柠檬口味茶饮品", "康师傅", "330",
-                        "bottle", "https://public.example.com/api/v2/media/sku-images/2",
-                        "", "ksf_ksfbhcnmkwcyp_330"),
-                new GatherPendingProduct(50001L, "别的商户建的", null, null, null, null,
-                        null, null)));
-        JiangyiSkuJiangyiLink mine = vendorLink(2L, "CREATED", "41159");
-        when(linkMapper.listByProducts(List.of("41159", "50001"))).thenReturn(List.of(mine));
+    void pendingGather_readsOurLinkSnapshotNotVendor() {
+        JiangyiSkuJiangyiLink need = vendorLink(2L, "CREATED", "41159");
+        need.setJiangyiState("NEED_PHONE");
+        need.setJiangyiName("康师傅冰红茶柠檬口味茶饮品");
+        JiangyiSkuJiangyiLink ready = vendorLink(3L, "BOUND", "1018");
+        ready.setJiangyiState("READY");
+        when(linkMapper.listBoundAll()).thenReturn(List.of(need, ready));
 
         List<SkuJiangyiLinkService.PendingGatherView> views = service().listPendingGather("冰红茶");
 
-        assertEquals(2, views.size());
+        assertEquals(1, views.size());
         assertEquals(41159L, views.get(0).productId());
-        assertEquals("330", views.get(0).specs());
         assertEquals(SKU_ID, views.get(0).linkedSkuId());
         assertEquals("CREATED", views.get(0).linkedSyncStatus());
-        assertNull(views.get(1).linkedSkuId());
-        assertNull(views.get(1).linkedSyncStatus());
     }
 
     @Test
-    void pendingGather_blankNameStillQueriesVendorForFullList() {
-        when(jiangyiGatherClient.waitGatherProduct(null)).thenReturn(List.of());
-        when(linkMapper.listByProducts(List.of())).thenReturn(List.of());
+    void pendingGather_blankNameReturnsAllNeedingCapture() {
+        JiangyiSkuJiangyiLink rej = vendorLink(4L, "CREATED", "50001");
+        rej.setJiangyiState("REJECTED");
+        when(linkMapper.listBoundAll()).thenReturn(List.of(rej));
 
-        assertTrue(service().listPendingGather(null).isEmpty());
-        verify(jiangyiGatherClient).waitGatherProduct(null);
+        assertEquals(1, service().listPendingGather(null).size());
     }
 
     @Test

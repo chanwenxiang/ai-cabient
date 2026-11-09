@@ -53,7 +53,6 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiMappingReviewService mappingReviewService;
     @Mock private com.aicabinet.trade.service.JiangyiLearningLibraryService learningLibraryService;
     @Mock private com.aicabinet.trade.service.JiangyiShelfService shelfService;
-    @Mock private com.aicabinet.trade.service.JiangyiGatherConsoleService gatherConsoleService;
     @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
     @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
     @Mock private com.aicabinet.trade.service.JiangyiRestockService restockService;
@@ -67,7 +66,7 @@ class AdminJiangyiControllerTest {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, gatherService, orderVideoService, deviceOpsService,
                 mappingReviewService, learningLibraryService, shelfService,
-                gatherConsoleService, flowSummaryService, deviceFaultOrderService, restockService,
+                flowSummaryService, deviceFaultOrderService, restockService,
                 cabinetCaptureService);
     }
 
@@ -320,37 +319,6 @@ class AdminJiangyiControllerTest {
         assertEquals(payload, controller().trainingProducts().data());
     }
 
-    @Test
-    void consoleStartDelegatesWithEntry() {
-        com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest entry =
-                new com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest(
-                        null, 41175L, "康师傅冰红茶", "康师傅", "310ml", "bottle", "manual");
-        when(gatherConsoleService.start(eq("EG1"), eq(entry), eq(45))).thenReturn(null);
-
-        controller().consoleStart(new AdminJiangyiController.GatherConsoleStartRequest(
-                " EG1 ", 41175L, "康师傅冰红茶", "康师傅", "310ml", "bottle", "manual", 45));
-
-        verify(gatherConsoleService).start(eq("EG1"), eq(entry), eq(45));
-    }
-
-    @Test
-    void consoleStateMayBeNullWhenNoSession() {
-        when(gatherConsoleService.state("EG1")).thenReturn(null);
-        assertNull(controller().consoleState("EG1").data());
-    }
-
-    @Test
-    void consoleRescueActionsTrimDeviceId() {
-        controller().consoleResumeUpload(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
-        controller().consoleForgoUpload(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
-        controller().consoleClearBatch(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
-        controller().consoleAbort(new AdminJiangyiController.ConsoleDeviceRequest(" EG1 "));
-
-        verify(gatherConsoleService).resumeUpload("EG1");
-        verify(gatherConsoleService).forgoUpload("EG1");
-        verify(gatherConsoleService).clearBatch("EG1");
-        verify(gatherConsoleService).abort("EG1");
-    }
 
     @Test
     void flowSummaryDelegates() {

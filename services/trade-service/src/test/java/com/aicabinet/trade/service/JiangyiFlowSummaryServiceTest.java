@@ -40,7 +40,6 @@ class JiangyiFlowSummaryServiceTest {
         unverified.setClassesVersion("v7");
         when(deviceMapper.listBound()).thenReturn(List.of(verified, unverified));
         when(mappingMapper.listActiveAll()).thenReturn(List.of(new com.aicabinet.trade.domain.JiangyiClassMapping()));
-        when(client.waitGatherProduct(null)).thenReturn(List.of());
         when(client.gatherCheck(null)).thenReturn(List.of(
                 new GatherCheckItem(1, 41175L, "wait", null, "康师傅冰红茶", null),
                 new GatherCheckItem(2, 41176L, "reject", "糊了", "雪碧", null),
