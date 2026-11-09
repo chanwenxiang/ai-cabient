@@ -16,6 +16,11 @@
  *   按迁移版本号**数值**顺序叠加（字符串序会把 V228 排在 V8 前面 ⇒ 旧定义覆盖新定义）。
  *
  * fail-closed：解析出的权限码过少（<150）视为解析器失效，直接判红，避免「什么都没解析到」假绿。
+ *
+ * 与 check-menu-permissions.mjs 的分工（不要合并成一条判据）：
+ *   那个管「菜单 perm 码在后端代码里有出处」（@RequiresPermissions 字面量），
+ *   本条管「该码在权限表里是菜单级 C/M」——两者都可能单独成立而另一条不成立
+ *   （本例 ops:sku:edit 在后端有出处、却是 F ⇒ 只有本条能抓住）。
  */
 import fs from 'node:fs';
 import path from 'node:path';
