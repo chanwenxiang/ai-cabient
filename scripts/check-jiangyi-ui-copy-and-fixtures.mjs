@@ -32,7 +32,6 @@ function fail(msg) {
 
 // ── D：界面文案禁令 ──────────────────────────────────────────────────────
 const UI_FILES = [
-  'clients/admin-vue/src/views/vision/LearningLibraryView.vue',
   'clients/admin-vue/src/views/vision/VisionMappingView.vue',
   'clients/admin-vue/src/views/skus/SkuVisionEnrollView.vue',
   'clients/admin-vue/src/components/device/DeviceJiangyiCard.vue',

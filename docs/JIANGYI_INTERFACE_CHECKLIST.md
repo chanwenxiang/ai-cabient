@@ -1008,6 +1008,25 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
 
 **验证**：受影响单测全绿（link 38 / flow 2 / gatherClient 2 / controller 21 / gatherService 28）；admin type-check 绿；openapi 从我方 jar 重抽（console 路径=0）。
 
+### 12B.8 旧学习链整链退场（2026-11-09，用户确认「不再接旧柜」）
+
+**前提**：在网唯一柜已 `_ID-OK`，新 7.x 流程完全替代旧「采集模式→学习→classes 模型」链；用户拍板整链退场。
+
+**删除**：`JiangyiGatherService` + 其测试；client `gatherOpenDoor/doorStatus/commitTraining/trainingProducts/gatherCheck`；
+admin `gather/{start,exit,progress,training,training/batch,gather-check,studying-products}` + learning-library 端点；
+merchant `gather/{start,exit,training-status}`；internal `/gather-finish-notify`；`DeviceValidationService` 采集锁 if 块；
+前端 `LearningLibraryView` + 路由/菜单、`DeviceJiangyiCard` 采集编排块、merchant 旧 gather tab、`?dialog=console` 深链（改指 training/新流程）。
+
+**保留**（仍接结算/识别映射/复核）：`JiangyiModelSyncService`/`JiangyiLearningLibraryService`(isMappingVerified)/`JiangyiShelfService`/`SkuJiangyiLinkService`/class_mapping；
+client `stdSkuList/productDelete/stdSkuByTextNames/learnableProducts/modelFiles`；`modifyAffiliationTenant`（onboarding 绑租户）。
+
+**协调缺口已补**：前端保留功能（device-stocktake/replenishment/device-detail）仍用 `gather/status` 判「将邑绑定=开门柜」，
+旧端点删后会 404 误判 ⇒ 补一个不依赖旧服务的绑定态读面 `MerchantDevicePortalService.jiangyiBindingStatus`
+（`bound=isJiangyi(BOUND)`、`gatherLocked` 恒 false），经 `MerchantPortalService` 委托、merchant `gather/status` 兼容入口暴露。
+
+**验证**：test-compile 过；受影响单测绿（portal 10 / concurrency 3 / validation 11 / flow 2 / controller 13）；
+admin+merchant type-check 绿；audit-gates 绿（更新 ui-copy 扫描清单、slot-copy 基线持平）；openapi 重抽（console/learning-library=0、gather/status=1）。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）

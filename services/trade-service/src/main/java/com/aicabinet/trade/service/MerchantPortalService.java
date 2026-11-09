@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.*;
@@ -7,8 +8,6 @@ import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.storage.MinioVideoService;
@@ -350,25 +349,6 @@ public class MerchantPortalService {
         return devicePortalService.updateDeviceSettings(userId, deviceId, request);
     }
 
-    // ---------- 将邑采集模式（CB-023 商户端补充）：门面委托 ----------
-
-    @Transactional(readOnly = true)
-    public MerchantGatherStatusDto getJiangyiGatherStatus(Long userId, String deviceId) {
-        return devicePortalService.getJiangyiGatherStatus(userId, deviceId);
-    }
-
-    public void startJiangyiGather(Long userId, String deviceId, String doorPosition) {
-        devicePortalService.startJiangyiGather(userId, deviceId, doorPosition);
-    }
-
-    public void exitJiangyiGather(Long userId, String deviceId) {
-        devicePortalService.exitJiangyiGather(userId, deviceId);
-    }
-
-    public MerchantTrainingStatusDto getJiangyiGatherTrainingStatus(Long userId, String deviceId) {
-        return devicePortalService.getJiangyiGatherTrainingStatus(userId, deviceId);
-    }
-
     @Transactional(readOnly = true)
     public List<DeviceTemperatureReadingDto> getTemperatureHistory(Long userId, String deviceId, int hours) {
         return devicePortalService.getTemperatureHistory(userId, deviceId, hours);
@@ -697,5 +677,10 @@ public class MerchantPortalService {
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    /** 将邑绑定态（开门柜判据），旧采集链退场后仅读绑定，见 MerchantDevicePortalService。 */
+    public MerchantGatherStatusDto jiangyiBindingStatus(Long userId, String deviceId) {
+        return devicePortalService.jiangyiBindingStatus(userId, deviceId);
     }
 }

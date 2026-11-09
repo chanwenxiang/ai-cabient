@@ -1230,22 +1230,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/internal/v1/jiangyi/gather-finish-notify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["gatherFinishNotify"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/internal/v1/jiangyi/devices/{deviceId}/ws-online": {
         parameters: {
             query?: never;
@@ -3558,38 +3542,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/jiangyi/learning-library/shelf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["shelveLearnedProduct"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather/training/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startTrainingBatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/invoices/{invoiceId}/reject": {
         parameters: {
             query?: never;
@@ -4336,54 +4288,6 @@ export interface paths {
         get: operations["mappingRebuildPlan"];
         put?: never;
         post: operations["mappingRebuildApply"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/gather/training": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startTraining"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/gather/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startGather"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/gather/exit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["exitGather"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5504,38 +5408,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["openStocktakeDoor"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["jiangyiGatherStart"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/exit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["jiangyiGatherExit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8332,22 +8204,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/ops/admin/jiangyi/training-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["trainingProducts"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/ops/admin/jiangyi/std-skus": {
         parameters: {
             query?: never;
@@ -8484,38 +8340,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["models"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/learning-library": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["learningLibrary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/jiangyi/gather-check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["gatherCheck"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9188,22 +9012,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["mappingStatus_1"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/ops/admin/devices/{deviceId}/jiangyi/gather/progress": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["gatherProgress"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10532,22 +10340,6 @@ export interface paths {
             cookie?: never;
         };
         get: operations["deviceSalesSummary"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/merchant/devices/{deviceId}/jiangyi/gather/training-status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["jiangyiGatherTrainingStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13120,10 +12912,6 @@ export interface components {
         ModelPushTimeoutRequest: {
             reason?: string;
         };
-        GatherFinishNotifyRequest: {
-            finishNotifyId?: string;
-            msg?: string;
-        };
         SignalRequest: {
             /** Format: int32 */
             signalStrength?: number;
@@ -14857,66 +14645,6 @@ export interface components {
         PullVideoRequest: {
             orderNo: string;
         };
-        ShelfRequest: {
-            jiangyiProductId: string;
-            deviceIds: string[];
-            /** Format: int32 */
-            priceCents?: number;
-            /** Format: int32 */
-            quantity?: number;
-        };
-        ApiResponseShelfResult: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["ShelfResult"];
-        };
-        ShelfDeviceResult: {
-            deviceId?: string;
-            deviceName?: string;
-            status?: string;
-            /** Format: int32 */
-            classId?: number;
-            /** Format: int32 */
-            priceCents?: number;
-            /** Format: int32 */
-            quantity?: number;
-            message?: string;
-        };
-        ShelfResult: {
-            jiangyiProductId?: string;
-            skuId?: string;
-            skuName?: string;
-            textName?: string;
-            /** Format: int32 */
-            requestedDevices?: number;
-            devices?: components["schemas"]["ShelfDeviceResult"][];
-        };
-        TrainingBatchRequest: {
-            deviceId: string;
-            skuIds: string[];
-            modelName: string;
-        };
-        ApiResponseBatchTrainingResult: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["BatchTrainingResult"];
-        };
-        BatchTrainingItem: {
-            /** Format: int64 */
-            ticketId?: number;
-            skuId?: string;
-            jiangyiProductId?: string;
-            status?: string;
-        };
-        BatchTrainingResult: {
-            deviceId?: string;
-            modelName?: string;
-            /** Format: int32 */
-            count?: number;
-            items?: components["schemas"]["BatchTrainingItem"][];
-        };
         WriteOffRequest: {
             deviceId?: string;
             warehouseId?: string;
@@ -15422,13 +15150,6 @@ export interface components {
             /** Format: int32 */
             conflicts?: number;
         };
-        TrainingRequest: {
-            skuId: string;
-            modelName: string;
-        };
-        GatherStartRequest: {
-            doorPosition?: string;
-        };
         ConfirmActivateRequest: {
             identifier?: string;
             deviceName: string;
@@ -15800,9 +15521,6 @@ export interface components {
             messages?: components["schemas"]["DisputeMessageDto"][];
             canReply?: boolean;
             canResolve?: boolean;
-        };
-        MerchantGatherStartRequest: {
-            doorPosition?: string;
         };
         MerchantDoorStocktakeRequest: {
             lines: components["schemas"]["StocktakeLine"][];
@@ -18082,13 +17800,6 @@ export interface components {
             activeDays?: number;
             dailies?: components["schemas"]["Daily"][];
         };
-        ApiResponseJsonNode: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["JsonNode"];
-        };
-        JsonNode: unknown;
         ApiResponseStdSkuSearchResult: {
             /** Format: int32 */
             code?: number;
@@ -18219,99 +17930,6 @@ export interface components {
             textName?: string;
             /** Format: int32 */
             lineNumber?: number;
-        };
-        ApiResponseLearningLibraryView: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["LearningLibraryView"];
-        };
-        LearnableProductRow: {
-            /** Format: int64 */
-            jiangyiProductId?: number;
-            name?: string;
-            textName?: string;
-            barCode?: string;
-            skuId?: string;
-            skuName?: string;
-            coverage?: components["schemas"]["ProductCoverage"][];
-        };
-        LearnableSku: {
-            skuId?: string;
-            skuName?: string;
-            jiangyiProductId?: string;
-            jiangyiName?: string;
-            textName?: string;
-            syncStatus?: string;
-            inVendorList?: boolean;
-            mappedDeviceIds?: string[];
-        };
-        LearningCabinet: {
-            deviceId?: string;
-            deviceName?: string;
-            identifier?: string;
-            classesVersion?: string;
-            mappingVerified?: boolean;
-            /** Format: int32 */
-            activeMappingCount?: number;
-            gatherLocked?: boolean;
-            onlineStatus?: string;
-            /** Format: date-time */
-            lastWsOnlineAt?: string;
-        };
-        LearningLibraryView: {
-            models?: components["schemas"]["LearningModel"][];
-            learnableProducts?: components["schemas"]["LearnableProductRow"][];
-            learnableSkus?: components["schemas"]["LearnableSku"][];
-            cabinets?: components["schemas"]["LearningCabinet"][];
-            recentTrainings?: components["schemas"]["TrainingAttempt"][];
-            vendorError?: string;
-        };
-        LearningModel: {
-            /** Format: int64 */
-            id?: number;
-            modelName?: string;
-            customerModelName?: string;
-            /** Format: int32 */
-            quantity?: number;
-            industrialControlModel?: string;
-            modelTextUrl?: string;
-            modelUrl?: string;
-        };
-        ProductCoverage: {
-            deviceId?: string;
-            deviceName?: string;
-            /** Format: int32 */
-            classId?: number;
-            mappingVerified?: boolean;
-        };
-        TrainingAttempt: {
-            deviceId?: string;
-            deviceName?: string;
-            skuId?: string;
-            skuName?: string;
-            modelName?: string;
-            status?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            finishedAt?: string;
-        };
-        ApiResponseListGatherCheckItem: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["GatherCheckItem"][];
-        };
-        GatherCheckItem: {
-            /** Format: int64 */
-            id?: number;
-            /** Format: int64 */
-            productId?: number;
-            status?: string;
-            rejectCause?: string;
-            name?: string;
-            picUrl?: string;
         };
         ApiResponseFlowSummaryView: {
             /** Format: int32 */
@@ -19065,29 +18683,6 @@ export interface components {
             status?: string;
             source?: string;
             reason?: string;
-        };
-        ApiResponseGatherProgress: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["GatherProgress"];
-        };
-        GatherProgress: {
-            gatherLocked?: boolean;
-            doorStatus?: unknown;
-            trainingProducts?: unknown;
-            checks?: components["schemas"]["GatherCheckItem"][];
-            lastTraining?: components["schemas"]["TrainingTicketView"];
-        };
-        TrainingTicketView: {
-            skuId?: string;
-            modelName?: string;
-            jiangyiProductId?: string;
-            status?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            finishedAt?: string;
         };
         ApiResponseListFaultListItem: {
             /** Format: int32 */
@@ -20297,28 +19892,6 @@ export interface components {
             todayOrders?: number;
             /** Format: int64 */
             monthSalesCents?: number;
-        };
-        ApiResponseMerchantTrainingStatusDto: {
-            /** Format: int32 */
-            code?: number;
-            message?: string;
-            data?: components["schemas"]["MerchantTrainingStatusDto"];
-        };
-        MerchantTrainingItemDto: {
-            skuId?: string;
-            skuName?: string;
-            status?: string;
-        };
-        MerchantTrainingStatusDto: {
-            bound?: boolean;
-            gatherLocked?: boolean;
-            modelName?: string;
-            status?: string;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: date-time */
-            finishedAt?: string;
-            items?: components["schemas"]["MerchantTrainingItemDto"][];
         };
         ApiResponseMerchantGatherStatusDto: {
             /** Format: int32 */
@@ -23583,30 +23156,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ModelPushTimeoutRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    gatherFinishNotify: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GatherFinishNotifyRequest"];
             };
         };
         responses: {
@@ -27688,54 +27237,6 @@ export interface operations {
             };
         };
     };
-    shelveLearnedProduct: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ShelfRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseShelfResult"];
-                };
-            };
-        };
-    };
-    startTrainingBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrainingBatchRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseBatchTrainingResult"];
-                };
-            };
-        };
-    };
     reject: {
         parameters: {
             query?: never;
@@ -29053,80 +28554,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseApplyResult"];
-                };
-            };
-        };
-    };
-    startTraining: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TrainingRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseLong"];
-                };
-            };
-        };
-    };
-    startGather: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["GatherStartRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    exitGather: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
@@ -31145,54 +30572,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSessionDto"];
-                };
-            };
-        };
-    };
-    jiangyiGatherStart: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["MerchantGatherStartRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
-                };
-            };
-        };
-    };
-    jiangyiGatherExit: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseVoid"];
                 };
             };
         };
@@ -35364,26 +34743,6 @@ export interface operations {
             };
         };
     };
-    trainingProducts: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseJsonNode"];
-                };
-            };
-        };
-    };
     search: {
         parameters: {
             query?: {
@@ -35580,49 +34939,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListModelPreview"];
-                };
-            };
-        };
-    };
-    learningLibrary: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseLearningLibraryView"];
-                };
-            };
-        };
-    };
-    gatherCheck: {
-        parameters: {
-            query?: {
-                skuId?: string;
-                productId?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseListGatherCheckItem"];
                 };
             };
         };
@@ -36595,28 +35911,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMappingStatus"];
-                };
-            };
-        };
-    };
-    gatherProgress: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseGatherProgress"];
                 };
             };
         };
@@ -38469,28 +37763,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseMerchantDeviceSalesSummaryDto"];
-                };
-            };
-        };
-    };
-    jiangyiGatherTrainingStatus: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                deviceId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseMerchantTrainingStatusDto"];
                 };
             };
         };

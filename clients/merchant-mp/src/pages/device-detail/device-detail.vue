@@ -109,7 +109,7 @@
           </view>
         </view>
 
-        <!-- 选项式详情页签（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 -->
+        <!-- 选项式详情页签（2026-10-27 用户拍板）：概览 / 商品 / 设置 -->
         <!-- 2026-10-28：改用全局 app-underline-tabs，自带选中态/下划线样式；此前 .detail-tabs
              只有模板没有对应样式，渲染成无选中态、无下划线的纯文本。 -->
         <app-underline-tabs
@@ -159,7 +159,7 @@
         </view>
 
         <!-- CB-050：设备控制（merchant:device:control；白名单 停售/恢复售卖/重启，指令留平台审计） -->
-        <view v-if="canControl" class="card" v-show="activeTab === 'gather'">
+        <view v-if="canControl" class="card" v-show="activeTab === 'settings'">
           <text class="section">设备控制</text>
           <text class="meta">远程开门请走补货任务；指令将记入平台审计日志</text>
           <view class="action-row">
@@ -213,64 +213,13 @@
           />
         </view>
 
-        <!-- 将邑采集模式（CB-023 商户端补充）：仅将邑绑定柜机显示；409 营业闸门与 admin 共用 -->
-        <view v-if="jiangyiGather.bound" class="card" v-show="activeTab === 'gather'">
-          <view class="row">
-            <text class="section">将邑识别采集</text>
-            <text class="meta" :class="{ 'gather-on': jiangyiGather.gatherLocked }">
-              {{ jiangyiGather.gatherLocked ? '采集中 · 停止营业' : '营业中' }}
-            </text>
-          </view>
-          <text class="gather-tip">
-            {{
-              jiangyiGather.gatherLocked
-                ? '采集模式下顾客无法开门购物。拍照采集在管理后台「商品学习库 → 开始采集」一条龙完成；学习回调成功后系统会自动退出采集模式恢复营业，也可手动退出。'
-                : '上新商品需柜内采集学习：进入采集模式后柜机停止营业，具体拍摄在管理后台「商品学习库 → 开始采集」操作，无需人工上传图片。'
-            }}
+        <!-- 将邑商品采集入口（第七章新流程）：仅将邑绑定柜机显示；旧采集模式/学习进度已退场 -->
+        <view v-if="jiangyiBound" class="card" v-show="activeTab === 'goods'">
+          <text class="section">将邑商品采集</text>
+          <text class="meta capture-tip">
+            新商品采集走手机拍照：在本小程序「商品采集」页按条码拍摄提交，由将邑审图；柜内采集在运营后台设备将邑卡操作。
           </text>
-          <!-- 只读学习进度：触发学习在运营后台，这里只让补货员看到学完没有 -->
-          <view v-if="gatherTraining.items.length" class="training-progress">
-            <view class="row">
-              <text class="field-label">学习进度</text>
-              <text class="meta">{{ trainingStatusText(gatherTraining.status) }}</text>
-            </view>
-            <text v-for="it in gatherTraining.items" :key="it.skuId" class="meta training-item">
-              {{ it.skuName || it.skuId }} · {{ trainingStatusText(it.status) }}
-            </text>
-            <text class="meta">
-              模型 {{ gatherTraining.modelName || '—' }}
-              <text v-if="gatherTraining.createdAt">
-                · 发起 {{ formatDateTime(gatherTraining.createdAt) }}
-              </text>
-              <text v-if="gatherTraining.finishedAt">
-                · 完成 {{ formatDateTime(gatherTraining.finishedAt) }}
-              </text>
-            </text>
-          </view>
-          <text v-else class="meta training-progress"
-            >学习进度：暂无记录（学习由运营在后台触发）</text
-          >
-          <view v-if="canEditDevice && !jiangyiGather.gatherLocked" class="field field-inline">
-            <text class="field-label">门位（选填）</text>
-            <input
-              v-model="gatherDoorPosition"
-              class="input field-inline-input"
-              placeholder="例如 1"
-            />
-          </view>
-          <view class="gather-actions">
-            <app-button
-              v-if="canEditDevice"
-              :loading="gatherBusy"
-              :label="jiangyiGather.gatherLocked ? '退出采集模式（恢复营业）' : '进入采集模式'"
-              @click="toggleGatherMode"
-            />
-            <app-button
-              v-if="canEditDevice"
-              label="商品采集（手机拍照）"
-              @click="goJiangyiCapture"
-            />
-          </view>
+          <app-button v-if="canEditDevice" label="商品采集（手机拍照）" @click="goJiangyiCapture" />
         </view>
 
         <view id="goodsCard" class="card" v-show="activeTab === 'goods'">
@@ -356,7 +305,7 @@
         </view>
       </view>
 
-      <!-- H5 可访问确认框：进入/退出采集模式前确认（退出营业影响大） -->
+      <!-- H5 可访问确认框：设备控制指令下发前确认 -->
       <AppConfirmDialog
         :visible="confirmDialog.visible"
         :title="confirmDialog.title"
@@ -373,7 +322,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm, softFallback, isMerchantLoggedIn } from '@/utils/merchant-api';
 import type { DeviceFaultOrderItem } from '@/utils/merchant-api';
@@ -432,40 +381,32 @@ const summary = ref<import('@aicabinet/shared-types').OpenApiMerchantDeviceSales
 );
 const cmdBusy = ref(false);
 
-// 将邑采集模式（CB-023 商户端补充）：非将邑绑定柜机 bound=false → 卡片整体隐藏
-const jiangyiGather = ref({ bound: false, gatherLocked: false });
+// 将邑绑定判定（开门柜判据，与盘点/补货同源）：非将邑柜 bound=false → 采集入口卡隐藏。
+// 旧采集模式（进出/学习进度）已随旧学习链退场，这里只读 bound。
+const jiangyiBound = ref(false);
 
 function goJiangyiCapture() {
   uni.navigateTo({ url: '/pages/jiangyi-capture/jiangyi-capture' });
 }
 
-// ===== 选项式详情（2026-10-27 用户拍板）：概览 / 商品 / 采集·识别 / 设置 =====
-type DetailTab = 'overview' | 'goods' | 'gather' | 'settings';
+// ===== 选项式详情（2026-10-27 用户拍板）：概览 / 商品 / 设置（旧「采集」页签随旧学习链退场） =====
+type DetailTab = 'overview' | 'goods' | 'settings';
 const activeTab = ref<DetailTab>('overview');
 function onDetailTab(key: string) {
   const t = key as DetailTab;
-  if (t === 'overview' || t === 'goods' || t === 'gather' || t === 'settings') {
+  if (t === 'overview' || t === 'goods' || t === 'settings') {
     activeTab.value = t;
   }
 }
 const detailTabs = computed(() => {
-  // 页签文本按等分格宽度收短（4 格每格只放得下约 3 个 30rpx 汉字），
-  // 全称留在 ariaLabel 与卡片内一级标题里
+  // 页签文本按等分格宽度收短，全称留在 ariaLabel 与卡片内一级标题里
   const tabs: { key: DetailTab; label: string; ariaLabel: string }[] = [
     { key: 'overview', label: '概览', ariaLabel: '概览' },
     { key: 'goods', label: '商品', ariaLabel: '在架商品' },
-    { key: 'gather', label: '采集', ariaLabel: '采集与识别' },
     { key: 'settings', label: '设置', ariaLabel: '设置' }
   ];
   return tabs;
 });
-// 非将邑柜没有采集卡，页签同步隐藏；停在采集页签时回概览
-watch(
-  () => jiangyiGather.value.bound,
-  (bound) => {
-    if (!bound && activeTab.value === 'gather') activeTab.value = 'overview';
-  }
-);
 type LedgerGood = {
   skuId: string;
   skuName?: string | null;
@@ -484,16 +425,6 @@ function stockLevelOf(g: { quantity?: number; lowThreshold?: number }): 'OOS' | 
   if (qty <= 0) return 'OOS';
   return qty <= Math.max(Number(g.lowThreshold ?? 0), 0) ? 'LOW' : 'OK';
 }
-const gatherDoorPosition = ref('');
-const gatherBusy = ref(false);
-// 只读学习进度（触发学习在运营后台）：一次触发（含批量）共享一个回执 → items 是整组 SKU
-const gatherTraining = ref<{
-  modelName: string | null;
-  status: string | null;
-  createdAt: string | null;
-  finishedAt: string | null;
-  items: { skuId: string; skuName: string | null; status: string }[];
-}>({ modelName: null, status: null, createdAt: null, finishedAt: null, items: [] });
 const { confirmDialog, askConfirm, resolveConfirm } = useAppConfirmDialog();
 
 const lifecycleLabel = computed(() =>
@@ -638,8 +569,8 @@ function syncPreferredFlag() {
 async function loadDeviceExtras(seq: number) {
   // 「无权限=不展示」：无 analytics:view 时不发 velocity 请求（避免控制台 403 噪音）
   const allowVelocity = hasPerm(me.value, 'merchant:analytics:view');
-  // 采集状态只读权限 = 柜机详情权限（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏
-  const [vel, gather, training, detail, kpi, faultRows] = await Promise.all([
+  // 将邑绑定判定只读（canView 已在此处为真）；非将邑柜机接口回 404 → 软兜底隐藏采集入口
+  const [vel, gather, detail, kpi, faultRows] = await Promise.all([
     allowVelocity
       ? softFallback(merchantApi.skuVelocity(deviceId.value), [] as MerchantSkuVelocity[], '动销')
       : Promise.resolve([] as MerchantSkuVelocity[]),
@@ -649,16 +580,7 @@ async function loadDeviceExtras(seq: number) {
         bound: false,
         gatherLocked: false
       } as import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto,
-      '采集状态'
-    ),
-    softFallback(
-      merchantApi.jiangyiGatherTrainingStatus(deviceId.value),
-      {
-        bound: false,
-        gatherLocked: false,
-        items: []
-      } as import('@aicabinet/shared-types').OpenApiMerchantTrainingStatusDto,
-      '学习进度'
+      '将邑绑定状态'
     ),
     // CB-050：详情 device（AdminDeviceDto）带场景/分配时间/最近上下线/信号强度
     softFallback(
@@ -685,7 +607,7 @@ async function loadDeviceExtras(seq: number) {
   if (seq !== loadSeq) return;
   velocity.value = vel;
   faults.value = faultRows;
-  jiangyiGather.value = { bound: !!gather.bound, gatherLocked: !!gather.gatherLocked };
+  jiangyiBound.value = !!gather.bound;
   const inventoryRows = (
     detail as {
       skuInventory?: LedgerGood[];
@@ -696,17 +618,6 @@ async function loadDeviceExtras(seq: number) {
     // 后台存的是 /api/v2/media/... 相对路径，<image> 不吃相对地址（同 device-stocktake）
     imageUrl: absoluteImageUrl(g.imageUrl) || null
   }));
-  gatherTraining.value = {
-    modelName: training.modelName ?? null,
-    status: training.status ?? null,
-    createdAt: training.createdAt ?? null,
-    finishedAt: training.finishedAt ?? null,
-    items: (training.items ?? []).map((it) => ({
-      skuId: it.skuId ?? '',
-      skuName: it.skuName ?? null,
-      status: it.status ?? ''
-    }))
-  };
   const deviceFields = (detail as { device?: { [k: string]: unknown } } | null)?.device;
   if (deviceFields) {
     sceneType.value = String(deviceFields.sceneType || '');
@@ -765,49 +676,6 @@ function goOrders() {
   uni.navigateTo({
     url: `/pages/orders/orders?deviceId=${encodeURIComponent(deviceId.value)}`
   });
-}
-
-/** 学习状态文案（只读展示，来自本地票据聚合）。 */
-function trainingStatusText(status: string | null | undefined) {
-  if (status === 'FINISHED') return '已学成';
-  if (status === 'FAILED') return '失败';
-  if (status === 'PENDING') return '学习中';
-  return '—';
-}
-
-/**
- * 进入/退出采集模式。进入会停止营业（顾客开门 409），必须二次确认；
- * 退出即恢复营业。成功后刷新状态（以服务端回包为准，不乐观更新）。
- */
-async function toggleGatherMode() {
-  if (gatherBusy.value) return;
-  const entering = !jiangyiGather.value.gatherLocked;
-  const ok = await askConfirm({
-    title: entering ? '进入采集模式' : '退出采集模式',
-    content: entering
-      ? '进入后柜机停止营业，顾客无法开门购物，直到手动退出。确定继续？'
-      : '退出后恢复营业。确定继续？',
-    confirmText: entering ? '进入采集模式' : '退出'
-  });
-  if (!ok) return;
-  gatherBusy.value = true;
-  try {
-    if (entering) {
-      await merchantApi.jiangyiGatherStart(
-        deviceId.value,
-        gatherDoorPosition.value.trim() || undefined
-      );
-      showSuccess('已进入采集模式，柜机暂停营业');
-    } else {
-      await merchantApi.jiangyiGatherExit(deviceId.value);
-      showSuccess('已退出采集模式，恢复营业');
-    }
-    jiangyiGather.value.gatherLocked = entering;
-  } catch (e) {
-    showError(e instanceof Error ? e.message : '操作失败');
-  } finally {
-    gatherBusy.value = false;
-  }
 }
 
 async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
@@ -1056,36 +924,12 @@ async function saveSettings() {
   display: block;
   margin-bottom: 8rpx;
 }
-.meta.gather-on {
-  color: var(--warning, #b45309);
-  font-weight: 600;
-}
-.gather-tip {
+.capture-tip {
   display: block;
   font-size: var(--font-size-caption);
   color: var(--text-muted, #475569);
   line-height: 1.5;
   margin-bottom: 12rpx;
-}
-/* lessons 107：相邻 app-button 在小程序里零间距贴死（组件 wrapper 是 inline，
-   页面选择器又穿不进 .app-btn）⇒ 间距只能由这个块级父容器给 gap。 */
-.gather-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 20rpx;
-}
-.training-progress {
-  display: block;
-  margin: 8rpx 0 12rpx;
-  padding: 16rpx 20rpx;
-  background: var(--bg-secondary, #f1f5f9);
-  border-radius: 12rpx;
-}
-.training-item {
-  display: block;
-  font-size: var(--font-size-caption);
-  line-height: 1.5;
 }
 .field {
   margin: 12rpx 0;
@@ -1097,20 +941,6 @@ async function saveSettings() {
 }
 .settings-grid .field {
   flex: 1 1 0;
-  min-width: 0;
-}
-/* 采集门位：标签与输入同行，省一整行竖向空间 */
-.field-inline {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-}
-.field-inline .field-label {
-  margin-bottom: 0;
-  flex-shrink: 0;
-}
-.field-inline-input {
-  flex: 1;
   min-width: 0;
 }
 .field-label {

@@ -1,4 +1,5 @@
 package com.aicabinet.trade.service;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
@@ -17,8 +18,6 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,7 +60,6 @@ public class MerchantDevicePortalService {
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
     private final MerchantMapper merchantRepository;
     private final DistributedLockService distributedLockService;
-    private final JiangyiGatherService jiangyiGatherService;
     private final InventoryLotService inventoryLotService;
     private final MerchantOpsPolicyService merchantOpsPolicyService;
     private final DeviceValidationService deviceValidationService;
@@ -86,7 +84,6 @@ public class MerchantDevicePortalService {
                                        ReplenishmentTaskMapper replenishmentTaskRepository,
                                        MerchantMapper merchantRepository,
                                        DistributedLockService distributedLockService,
-                                       JiangyiGatherService jiangyiGatherService,
                                        InventoryLotService inventoryLotService,
                                        MerchantOpsPolicyService merchantOpsPolicyService,
                                        DeviceValidationService deviceValidationService,
@@ -109,7 +106,6 @@ public class MerchantDevicePortalService {
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.merchantRepository = merchantRepository;
         this.distributedLockService = distributedLockService;
-        this.jiangyiGatherService = jiangyiGatherService;
         this.inventoryLotService = inventoryLotService;
         this.merchantOpsPolicyService = merchantOpsPolicyService;
         this.deviceValidationService = deviceValidationService;
@@ -144,45 +140,6 @@ public class MerchantDevicePortalService {
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         return toDeviceSettings(device);
-    }
-
-    // ---------- 将邑采集模式（CB-023 商户端补充）：与 admin 入口共用 JiangyiGatherService 与 409 闸门 ----------
-
-    /** 商户侧采集状态：非将邑绑定柜机返回 bound=false（前端隐藏入口，不报错）。 */
-    @Transactional(readOnly = true)
-    public MerchantGatherStatusDto getJiangyiGatherStatus(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:devices:detail");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        return jiangyiGatherService.merchantStatus(deviceId);
-    }
-
-    /**
-     * 进入采集模式（柜机归属经 requireDevicePack 校验）。不加事务：markGatherLocked 落库与
-     * 将邑 HTTP 开门必须成对且失败回滚锁，长事务包外呼是反模式——与 admin 路径语义一致。
-     */
-    public void startJiangyiGather(Long userId, String deviceId, String doorPosition) {
-        permissionService.requirePermission(userId, "merchant:devices:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        jiangyiGatherService.startGather(userId, deviceId, doorPosition);
-    }
-
-    /** 退出采集模式（恢复营业）。 */
-    public void exitJiangyiGather(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:devices:edit");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        jiangyiGatherService.exitGatherMode(userId, deviceId);
-    }
-
-    /** 只读学习进度：本地票据聚合（不读厂商读面），权限与归属同一套闸门。 */
-    @Transactional(readOnly = true)
-    public MerchantTrainingStatusDto getJiangyiGatherTrainingStatus(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:devices:detail");
-        merchantPortalGuard.requireAccess(userId);
-        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
-        return jiangyiGatherService.merchantTrainingStatus(deviceId);
     }
 
     @Transactional
@@ -609,5 +566,11 @@ public class MerchantDevicePortalService {
     private static String csv(String value) {
         // S3：统一走 CsvCells（原实现已有公式中和，补齐 \t\r 前缀覆盖）
         return com.aicabinet.trade.support.CsvCells.escape(value);
+    }
+
+    /** 旧 gather/status 退场后的绑定态读面：仅返回 bound（采集锁已无生产者，恒 false）。 */
+    public MerchantGatherStatusDto jiangyiBindingStatus(Long userId, String deviceId) {
+        merchantPortalGuard.requireAccess(userId);
+        return new MerchantGatherStatusDto(jiangyiDeviceDirectory.isJiangyi(deviceId), false);
     }
 }

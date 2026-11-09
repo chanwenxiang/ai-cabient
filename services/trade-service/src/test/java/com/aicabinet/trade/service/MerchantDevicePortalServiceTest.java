@@ -42,7 +42,6 @@ class MerchantDevicePortalServiceTest {
     @Mock ReplenishmentTaskMapper replenishmentTaskRepository;
     @Mock MerchantMapper merchantRepository;
     @Mock DistributedLockService distributedLockService;
-    @Mock JiangyiGatherService jiangyiGatherService;
     @Mock InventoryLotService inventoryLotService;
     @Mock MerchantOpsPolicyService merchantOpsPolicyService;
     @Mock DeviceValidationService deviceValidationService;
@@ -61,7 +60,7 @@ class MerchantDevicePortalServiceTest {
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
                 merchantRepository, distributedLockService,
-                jiangyiGatherService, inventoryLotService, merchantOpsPolicyService,
+                inventoryLotService, merchantOpsPolicyService,
                 deviceValidationService, jiangyiDeviceDirectory, opsEventRepository,
                 inventoryRepository, sessionService, self,
                 new DisplaySnapshotHelper(
@@ -125,52 +124,6 @@ class MerchantDevicePortalServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertTrue(ex.getReason().contains("-30"));
-    }
-
-    // ---------- 将邑采集模式（CB-023 商户端补充） ----------
-
-    @Test
-    void jiangyiGatherStatus_passesOwnershipChecksAndDelegates() {
-        when(jiangyiGatherService.merchantStatus("CAB-JY"))
-                .thenReturn(new com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto(true, true));
-
-        var status = service.getJiangyiGatherStatus(1L, "CAB-JY");
-
-        assertTrue(status.bound());
-        assertTrue(status.gatherLocked());
-        org.mockito.Mockito.verify(permissionService).requirePermission(1L, "merchant:devices:detail");
-        org.mockito.Mockito.verify(merchantPortalGuard).requireAccess(1L);
-        org.mockito.Mockito.verify(merchantFeaturePackService).requireDevicePack(
-                1L, "CAB-JY", MerchantFeaturePacks.FIELD);
-    }
-
-    @Test
-    void jiangyiGatherStart_requiresEditPermissionBeforeDelegation() {
-        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "denied"))
-                .when(permissionService).requirePermission(1L, "merchant:devices:edit");
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.startJiangyiGather(1L, "CAB-JY", "1"));
-
-        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        org.mockito.Mockito.verify(jiangyiGatherService, org.mockito.Mockito.never())
-                .startGather(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
-    }
-
-    @Test
-    void jiangyiGatherStart_delegatesWithDoorPosition() {
-        service.startJiangyiGather(1L, "CAB-JY", "1");
-
-        org.mockito.Mockito.verify(jiangyiGatherService).startGather(1L, "CAB-JY", "1");
-    }
-
-    @Test
-    void jiangyiGatherExit_delegatesAfterOwnershipChecks() {
-        service.exitJiangyiGather(1L, "CAB-JY");
-
-        org.mockito.Mockito.verify(jiangyiGatherService).exitGatherMode(1L, "CAB-JY");
-        org.mockito.Mockito.verify(merchantFeaturePackService).requireDevicePack(
-                1L, "CAB-JY", MerchantFeaturePacks.FIELD);
     }
 
     // ---------- 盘点开门 / 开门柜盘点（2026-10-28） ----------

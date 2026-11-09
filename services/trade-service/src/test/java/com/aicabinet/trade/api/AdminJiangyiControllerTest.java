@@ -6,13 +6,10 @@ import com.aicabinet.common.dto.JiangyiDeviceDto;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
-import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,12 +43,9 @@ class AdminJiangyiControllerTest {
     @Mock private JiangyiOnboardingService onboardingService;
     @Mock private JiangyiClassMappingService mappingService;
     @Mock private JiangyiModelSyncService modelSyncService;
-    @Mock private JiangyiGatherService gatherService;
     @Mock private JiangyiOrderVideoService orderVideoService;
     @Mock private com.aicabinet.trade.service.JiangyiDeviceOpsService deviceOpsService;
     @Mock private JiangyiMappingReviewService mappingReviewService;
-    @Mock private com.aicabinet.trade.service.JiangyiLearningLibraryService learningLibraryService;
-    @Mock private com.aicabinet.trade.service.JiangyiShelfService shelfService;
     @Mock private com.aicabinet.trade.service.JiangyiFlowSummaryService flowSummaryService;
     @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
     @Mock private com.aicabinet.trade.service.JiangyiRestockService restockService;
@@ -64,10 +57,9 @@ class AdminJiangyiControllerTest {
 
     private AdminJiangyiController controller() {
         return new AdminJiangyiController(onboardingService, mappingService,
-                modelSyncService, gatherService, orderVideoService, deviceOpsService,
-                mappingReviewService, learningLibraryService, shelfService,
-                flowSummaryService, deviceFaultOrderService, restockService,
-                cabinetCaptureService);
+                modelSyncService, orderVideoService, deviceOpsService,
+                mappingReviewService, flowSummaryService, deviceFaultOrderService,
+                restockService, cabinetCaptureService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -262,108 +254,14 @@ class AdminJiangyiControllerTest {
         verify(mappingService).setStatus(any(), eq(DEVICE_ID), eq(101), eq(false));
     }
 
-    // ---------- 采集编排面（CB-023 二期） ----------
-
-    @Test
-    void startGather_nullBodyMeansNullDoorPosition() {
-        controller().startGather(req(), DEVICE_ID, null);
-        verify(gatherService).startGather(any(), eq(DEVICE_ID), eq(null));
-
-        controller().startGather(req(), DEVICE_ID, new AdminJiangyiController.GatherStartRequest(" 1 "));
-        verify(gatherService).startGather(any(), eq(DEVICE_ID), eq("1"));
-    }
-
-    @Test
-    void exitGatherDelegates() {
-        controller().exitGather(req(), DEVICE_ID);
-        verify(gatherService).exitGatherMode(any(), eq(DEVICE_ID));
-    }
-
-    @Test
-    void startTrainingReturnsTicketId() {
-        com.aicabinet.trade.domain.JiangyiTrainingTicket ticket =
-                new com.aicabinet.trade.domain.JiangyiTrainingTicket();
-        ticket.setId(77L);
-        when(gatherService.startTraining(any(), eq(DEVICE_ID), eq("SKU-WATER-001"), eq("JY-DOOR-01-model")))
-                .thenReturn(ticket);
-
-        Long id = controller().startTraining(req(), DEVICE_ID,
-                new AdminJiangyiController.TrainingRequest(" SKU-WATER-001 ", " JY-DOOR-01-model ")).data();
-
-        assertEquals(77L, id);
-    }
-
-    @Test
-    void gatherCheckPassesSkuIdThrough() {
-        when(gatherService.checkList("SKU-WATER-001")).thenReturn(List.of());
-        controller().gatherCheck("SKU-WATER-001", null);
-        verify(gatherService).checkList("SKU-WATER-001");
-    }
-
-    @Test
-    void gatherCheckProductIdBypassesLinkLookup() {
-        when(gatherService.checkByProductId(41175L)).thenReturn(List.of());
-
-        controller().gatherCheck("SKU-WATER-001", 41175L);
-
-        verify(gatherService).checkByProductId(41175L);
-        verify(gatherService, never()).checkList(any());
-    }
-
-    @Test
-    void trainingProductsPassesVendorPayloadThrough() throws Exception {
-        JsonNode payload = new ObjectMapper()
-                .readTree("[{\"name\":\"康师傅冰红茶柠檬口味茶饮品\",\"status\":\"wait\"}]");
-        when(gatherService.studyingProducts()).thenReturn(payload);
-
-        assertEquals(payload, controller().trainingProducts().data());
-    }
-
-
     @Test
     void flowSummaryDelegates() {
         when(flowSummaryService.view()).thenReturn(new com.aicabinet.trade.service.JiangyiFlowSummaryService.FlowSummaryView(
-                1, 2, 1, 3, 0, 1, 0, 1, 1, null));
+                1, 2, 1, 3, 0, null, null, null, null, null));
 
         var view = controller().flowSummary().data();
 
         assertEquals(1, view.linkedSkus());
-        assertEquals(1, view.auditWait());
-    }
-
-    // ---------- 跨柜一键上架（学习库 → 多柜） ----------
-
-    @Test
-    void shelveTrimsProductIdAndCarriesOperator() {
-        jakarta.servlet.http.HttpServletRequest httpRequest =
-                mock(jakarta.servlet.http.HttpServletRequest.class);
-        when(httpRequest.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID)).thenReturn(9L);
-        when(shelfService.shelve(9L, "41175", List.of(DEVICE_ID), 350, 4))
-                .thenReturn(new com.aicabinet.trade.service.JiangyiShelfService.ShelfResult(
-                        "41175", "SKU-100016", "可口可乐 330ml", "可口可乐330ml",
-                        1, List.of(new com.aicabinet.trade.service.JiangyiShelfService.ShelfDeviceResult(
-                                DEVICE_ID, "1号柜", "SHELVED", 26, 350, 4, "识别编号 26"))));
-
-        var body = new AdminJiangyiController.ShelfRequest(" 41175 ", List.of(DEVICE_ID), 350, 4);
-        var result = controller().shelveLearnedProduct(httpRequest, body).data();
-
-        verify(shelfService).shelve(9L, "41175", List.of(DEVICE_ID), 350, 4);
-        assertEquals("SHELVED", result.devices().get(0).status());
-        assertEquals(26, result.devices().get(0).classId());
-    }
-
-    @Test
-    void shelveKeepsNullPriceAndQuantity() {
-        jakarta.servlet.http.HttpServletRequest httpRequest =
-                mock(jakarta.servlet.http.HttpServletRequest.class);
-        when(httpRequest.getAttribute(com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID)).thenReturn(9L);
-        when(shelfService.shelve(9L, "41175", List.of(DEVICE_ID), null, null))
-                .thenReturn(new com.aicabinet.trade.service.JiangyiShelfService.ShelfResult(
-                        "41175", "SKU-100016", "可口可乐 330ml", "可口可乐330ml", 1, List.of()));
-
-        controller().shelveLearnedProduct(httpRequest,
-                new AdminJiangyiController.ShelfRequest("41175", List.of(DEVICE_ID), null, null));
-
-        verify(shelfService).shelve(9L, "41175", List.of(DEVICE_ID), null, null);
+        assertNull(view.auditWait());
     }
 }

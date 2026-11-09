@@ -17,7 +17,7 @@
       </div>
     </template>
 
-    <VisionFlowSteps :active="4" />
+    <VisionFlowSteps :active="2" />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load()">
       <el-form-item label="柜机">

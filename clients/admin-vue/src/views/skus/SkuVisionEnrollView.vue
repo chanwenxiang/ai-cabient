@@ -6,11 +6,12 @@
           <div class="page-card-head__title">
             <span class="title"
               >识别入驻<HelpTip
-                content="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第⑤⑥步），无需采集。只有将邑库里没有的新商品才需要柜内采集学习——在学习库「开始采集」发起，把商品摆在柜机摄像头前缓慢扫动约 45 秒（厂商门槛：每摄 ≥500 张轨迹裁图），全程无需人工上传图片；管理后台上传的商品图片仅用于展示，不参与识别训练。"
+                content="识别能力在将邑端侧：先查将邑已有模型库，有现成模型的商品直接走「模型同步 → 映射 → 下发」（本页第④⑤步），无需采集。只有将邑库里没有的新商品才需要采集——手机拍照采集在商户小程序「商品采集」页完成，柜内采集在运营后台设备将邑卡「柜内采集」面板发起；采集提交后由将邑审图，全程无需人工上传图片。管理后台上传的商品图片仅用于展示，不参与识别训练。"
                 aria-label="采集说明"
             /></span>
             <span class="hint">
-              识别能力在将邑端侧（云端不做识别）；让柜机「认识」一件商品 = 挂接 + 采集 + 学习出模型
+              识别能力在将邑端侧（云端不做识别）；让柜机「认识」一件商品 = 挂接 + 采集（手机/柜内）+
+              映射下发
             </span>
           </div>
         </div>
@@ -28,7 +29,7 @@
 
     <VisionFlowSteps :active="1" />
 
-    <el-steps class="jy-steps" direction="vertical" :active="6" space="72px">
+    <el-steps class="jy-steps" direction="vertical" :active="5" space="72px">
       <el-step v-for="step in steps" :key="step.title" :title="step.title" :status="step.status">
         <template #description>
           <div class="jy-step-body">
@@ -55,7 +56,7 @@
     <div class="jy-faq-help">
       <span>常见问题</span>
       <HelpTip
-        content="采集期间柜机停止营业（顾客开门会提示「柜机正在商品采集上新，暂停开放」）；学习触发后由将邑云端异步完成，完成后在「识别映射」页核对 classId ↔ SKU 对照并激活；激活错误的映射会直接导致错误扣款，请逐行核对后再激活。"
+        content="采集提交后由将邑异步审图，驳回原因在「将邑商品」页按条码查询；商品状态就绪后在设备将邑卡「整单上架」铺货，并在「识别映射」页核对 classId ↔ SKU 对照并激活；激活错误的映射会直接导致错误扣款，请逐行核对后再激活。"
         aria-label="常见问题"
       />
     </div>
@@ -69,8 +70,9 @@ import HelpTip from '@/components/HelpTip.vue';
 
 /**
  * 识别入驻（CB-023 改造）：云端识别方案废弃后，本页改为将邑识别体系入驻指引。
- * 管理动作分布在商品管理（挂接）、商品学习库（采集台/触发学习/上架）、识别映射（映射管理），
- * 本页负责讲清链路与跳转，不重复承载管理功能。
+ * 管理动作分布在商品管理（挂接）、将邑商品（建档/状态/驳回原因）、识别映射（映射管理）；
+ * 采集在商户小程序（手机拍照）与设备将邑卡（柜内采集）完成。本页负责讲清链路与跳转，
+ * 不重复承载管理功能。旧学习链（采集模式/触发学习/学习库）已退场，不再保留入口。
  */
 
 const { canAccessPath, goPath } = useNavAccess();
@@ -96,35 +98,25 @@ const steps: StepView[] = [
     action: { label: '去商品管理', path: '/skus', primary: true }
   },
   {
-    title: '② 柜前采集（仅将邑库中没有的商品）',
-    desc: '在商品学习库「采集台」发起：选柜机和待采商品 → 后台自动开门 → 把商品摆到摄像头前缓慢扫动 → 关门后自动收尾回传。',
+    title: '② 商品采集（仅将邑库中没有的商品）',
+    desc: '手机拍照采集在商户小程序「商品采集」页完成；柜内采集在运营后台设备将邑卡「柜内采集」面板发起。采集提交后由将邑审图，状态与驳回原因在「将邑商品」页按条码查询。',
     points: [
-      '入口：商品学习库 →「开始采集」；采集会话期间该柜自动停止营业，结束自动恢复',
-      '厂商门槛「每摄 ≥500 张轨迹裁图」：拍摄窗口建议 45 秒，商品在柜内缓慢上下扫动',
-      '回传后要过厂商人工审核；「学习中商品」「采集审核」弹窗可随时查进度'
+      '手机采集：商户小程序 → 商品采集（jiangyi-capture），按条码拍照提交',
+      '柜内采集：设备详情 → 将邑卡「柜内采集」面板，先核对厂商在售清单再发起',
+      '后台「将邑商品」页可建档、批量刷新状态、查看驳回原因；旧「采集台/触发学习」已退场'
     ],
     status: 'process',
-    action: { label: '去采集台', path: '/learning-library?dialog=training', primary: true }
+    action: { label: '去将邑商品', path: '/jiangyi-products', primary: true }
   },
   {
-    title: '③ 触发学习',
-    desc: '审核通过后在学习库「触发学习」（将邑云端异步训练，无需柜机在线）。',
-    points: [
-      '学习范围 = 将邑侧已采集的全部商品（集合粒度，一次学习全部进模型）',
-      '学习完成回执经 finishNotify 自动回填，已做防伪造校验'
-    ],
-    status: 'process',
-    action: { label: '去学习库', path: '/learning-library?dialog=training' }
-  },
-  {
-    title: '④ 回填 textName',
-    desc: '学习完成后按条码从将邑回填 textName（classes.txt 里的识别键）。',
+    title: '③ 回填 textName',
+    desc: '商品就绪后按条码从将邑回填 textName（classes.txt 里的识别键）。',
     points: ['入口：商品管理 → 将邑挂接弹窗 →「回填 textName」'],
     status: 'process',
     action: { label: '去商品管理', path: '/skus' }
   },
   {
-    title: '⑤ 预生成并激活映射',
+    title: '④ 预生成并激活映射',
     desc: '拉取模型列表 → 预生成 classId ↔ SKU 映射（停用态）→ 逐行核对后激活。',
     points: [
       '将邑库里已有现成模型的商品走本步即可，无需采集',
@@ -135,7 +127,7 @@ const steps: StepView[] = [
     action: { label: '去识别映射', path: '/vision-mappings', primary: true }
   },
   {
-    title: '⑥ 下发模型',
+    title: '⑤ 下发模型',
     desc: '激活映射后把模型下发到柜机，柜机应用后回执确认。',
     points: [
       '设备登记机型须与模型机型一致（字符串校验）',

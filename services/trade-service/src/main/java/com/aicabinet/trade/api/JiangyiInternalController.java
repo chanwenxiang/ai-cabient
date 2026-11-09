@@ -13,7 +13,6 @@ import com.aicabinet.trade.service.JiangyiDeviceDirectory;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFloorGoodsService;
 import com.aicabinet.trade.service.SessionDoorService;
-import com.aicabinet.trade.service.JiangyiGatherService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
@@ -63,7 +62,6 @@ public class JiangyiInternalController {
     private final JiangyiOnboardingService jiangyiOnboardingService;
     private final DevicePresenceService devicePresenceService;
     private final JiangyiModelSyncService jiangyiModelSyncService;
-    private final JiangyiGatherService jiangyiGatherService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final SkuJiangyiLinkService skuJiangyiLinkService;
     private final JiangyiFloorGoodsService jiangyiFloorGoodsService;
@@ -79,7 +77,6 @@ public class JiangyiInternalController {
                                      JiangyiOnboardingService jiangyiOnboardingService,
                                      DevicePresenceService devicePresenceService,
                                      JiangyiModelSyncService jiangyiModelSyncService,
-                                     JiangyiGatherService jiangyiGatherService,
                                      JiangyiOrderVideoService jiangyiOrderVideoService,
                                      SkuJiangyiLinkService skuJiangyiLinkService,
                                      JiangyiFloorGoodsService jiangyiFloorGoodsService,
@@ -94,7 +91,6 @@ public class JiangyiInternalController {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.devicePresenceService = devicePresenceService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
-        this.jiangyiGatherService = jiangyiGatherService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.skuJiangyiLinkService = skuJiangyiLinkService;
         this.jiangyiFloorGoodsService = jiangyiFloorGoodsService;
@@ -232,16 +228,6 @@ public class JiangyiInternalController {
     public ApiResponse<Void> modelPushTimeout(@PathVariable("deploymentId") long deploymentId,
                                               @RequestBody ModelPushTimeoutRequest body) {
         jiangyiModelSyncService.markPushTimeout(deploymentId, body.reason());
-        return ApiResponse.ok(null);
-    }
-
-    /**
-     * 将邑云学习完成回调（gateway 公开面转发）：finishNotifyId 一次性凭据（服务端 UUID）
-     * + PENDING→终态 CAS 防伪造与重放；未知/非 PENDING 凭据静默忽略（无鉴权面不回错误详情）。
-     */
-    @PostMapping("/gather-finish-notify")
-    public ApiResponse<Void> gatherFinishNotify(@RequestBody GatherFinishNotifyRequest body) {
-        jiangyiGatherService.handleFinishNotify(body.finishNotifyId(), body.msg());
         return ApiResponse.ok(null);
     }
 
@@ -450,7 +436,6 @@ public class JiangyiInternalController {
     record BindDomainRequest(String deviceSn, String domain, String socketUrl) {}
     record ModelConfirmedRequest(String modelName) {}
     record ModelPushTimeoutRequest(String reason) {}
-    record GatherFinishNotifyRequest(String finishNotifyId, String msg) {}
     /** 与 gateway TradeInternalClient.OrderVideoReportRequest 对齐（videoUrls 可空=该片失败留痕）。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,
                                    Integer videoQuantity, List<String> videoUrls) {}

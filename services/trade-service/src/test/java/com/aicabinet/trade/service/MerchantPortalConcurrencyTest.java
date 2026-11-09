@@ -45,7 +45,6 @@ class MerchantPortalConcurrencyTest {
     @Mock private com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper temperatureReadingRepository;
     @Mock private com.aicabinet.trade.client.DeviceServiceClient deviceServiceClient;
     @Mock private OperatorUserIdAllocator operatorUserIdAllocator;
-    @Mock private JiangyiGatherService jiangyiGatherService;
     @Mock private MerchantFeaturePackService merchantFeaturePackService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private DisputeService disputeService;
@@ -61,7 +60,7 @@ class MerchantPortalConcurrencyTest {
                 deviceRepository, deviceSlotService, auditService, temperatureReadingRepository,
                 deviceServiceClient, sessionRepository, orderRepository, replenishmentTaskRepository,
                 merchantRepository, distributedLockService,
-                jiangyiGatherService, inventoryLotService,
+                inventoryLotService,
                 org.mockito.Mockito.mock(MerchantOpsPolicyService.class),
                 org.mockito.Mockito.mock(DeviceValidationService.class),
                 org.mockito.Mockito.mock(JiangyiDeviceDirectory.class),

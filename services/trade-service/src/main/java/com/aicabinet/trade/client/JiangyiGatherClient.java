@@ -1,8 +1,5 @@
 package com.aicabinet.trade.client;
 
-import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherEntryRequest;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.GatherPendingProduct;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiModelFile;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiStdSku;
@@ -34,10 +31,6 @@ import java.util.Map;
  * 统一抛 {@link IllegalStateException} 携带 msg。industrialControlModel 存将邑原值
  * （"76"/"88"）不解释语义：PDF §4.4.4.5 示例中 rk3588/rk3576 两种主板的该字段同为
  * "88"，映射关系文档自证不了，下发校验用字符串相等（CB-023 台账结论 4）。</p>
- *
- * <p>已知文档不一致：开始学习（§4.4.3）参数表仅 finishNotifyUrl/finishNotifyId 两行，
- * 请求示例却含 modelName——按示例带 modelName；**学习范围（哪些商品进模型）文档未说明，
- * 以将邑侧「已采集待学习商品集合」为准，待真机联调实锤**。</p>
  */
 @Component
 public class JiangyiGatherClient {
@@ -132,23 +125,6 @@ public class JiangyiGatherClient {
         post("/merchant/product/delete", Map.of("id", productId), true, "productDelete");
     }
 
-    // ---------- 采集（4.2.x） ----------
-
-    /** 采集商品开门（§4.2.3 gatherOpenDoor；identifier=CQYB 编号，doorPosition 双门柜 L/R 可空）。 */
-    public void gatherOpenDoor(String identifier, String doorPosition) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        body.put("doorPosition", doorPosition == null ? "" : doorPosition);
-        post("/merchant/selfhelpGatherProduct/gatherOpenDoor", body, true, "gatherOpenDoor");
-    }
-
-    /** 查询开门状态（§4.2.4 doorStatus）。 */
-    public JsonNode doorStatus(String identifier) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("identifier", identifier);
-        return post("/merchant/selfhelpGatherProduct/doorStatus", body, true, "doorStatus");
-    }
-
     // ---------- 学习与模型（4.4.x） ----------
 
     /**
@@ -179,23 +155,6 @@ public class JiangyiGatherClient {
     }
 
     /**
-     * 开始学习（§4.4.3 commitTrainingTenantOne）。finishNotifyUrl 不得携带 token（文档明文）；
-     * finishNotifyId 为我方一次性凭据（jiangyi_training_ticket）。
-     */
-    public void commitTraining(String modelName, String finishNotifyUrl, String finishNotifyId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("modelName", modelName);
-        body.put("finishNotifyUrl", finishNotifyUrl);
-        body.put("finishNotifyId", finishNotifyId);
-        post("/merchant/selfhelpGatherProduct/commitTrainingTenantOne", body, true, "commitTraining");
-    }
-
-    /** 学习中商品列表（§4.4.5 studyingProduct）。 */
-    public JsonNode trainingProducts() {
-        return post("/merchant/selfhelpGatherProduct/studyingProduct", Map.of(), true, "trainingProducts");
-    }
-
-    /**
      * 查询模型（§4.4.4 getModelFileByApi，无参数）→ 列表含
      * id/modelName/customerModelName(模型初命名)/modelUrl/industrialControlModel(原值 "76"/"88")
      * /modelTextUrl/quantity。
@@ -216,40 +175,6 @@ public class JiangyiGatherClient {
                         text(n, "industrialControlModel"),
                         text(n, "modelTextUrl"),
                         n.path("quantity").asInt(0)));
-            }
-        }
-        return out;
-    }
-
-    /**
-     * 查看采集审核列表（§4.4.6 gatherCheck；productIds 可空=全部）。
-     *
-     * <p>「全部」必须传 null 而不是空数组：2026-10-21 实测厂商 SQL 用 {@code p.id in (...)}
-     * 拼接该集合，空数组直接 555 bad SQL grammar（缺键/null 均 200）。</p>
-     */
-    public List<GatherCheckItem> gatherCheck(List<Long> productIds) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("productIds", productIds == null || productIds.isEmpty() ? null : productIds);
-        JsonNode data = post("/merchant/selfhelpGatherProduct/gatherCheck", body, true, "gatherCheck");
-        List<GatherCheckItem> out = new ArrayList<>();
-        JsonNode rows = data.path("pageData");
-        if (!rows.isArray() && data.isArray()) {
-            rows = data;
-        }
-        if (rows.isArray()) {
-            for (JsonNode n : rows) {
-                String picUrl = text(n, "picUrl");
-                if (picUrl == null || picUrl.isBlank()) {
-                    // 2026-10-26 实测：审核回包图片在 mainImg，picUrl 为 null
-                    picUrl = text(n, "mainImg");
-                }
-                out.add(new GatherCheckItem(
-                        n.path("id").asLong(),
-                        n.path("productId").asLong(),
-                        text(n, "status"),
-                        text(n, "rejectCause"),
-                        text(n, "name"),
-                        picUrl));
             }
         }
         return out;

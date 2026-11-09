@@ -183,7 +183,7 @@ export const AdminEndpoints = {
   deviceJiangyiMappingRebuild: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/mapping-rebuild`,
 
-  /** 将邑模型同步 / 采集编排（CB-023 二期）：classes 对照→预生成→激活→WS 下发→回执审计 */
+  /** 将邑模型同步（CB-023 二期）：classes 对照→预生成→激活→WS 下发→回执审计 */
   jiangyiModels: `${ops}/jiangyi/models`,
   deviceJiangyiModelSync: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/model-sync`,
@@ -201,16 +201,6 @@ export const AdminEndpoints = {
   /** V16 §5.5.3 只读解码：classes 行 → 厂商标准商品 + 本平台条码候选（不写映射） */
   deviceJiangyiClassDecode: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/class-decode`,
-  deviceJiangyiGatherStart: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/start`,
-  deviceJiangyiGatherExit: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/exit`,
-  deviceJiangyiGatherProgress: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/progress`,
-  deviceJiangyiGatherTraining: (deviceId: string) =>
-    `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/gather/training`,
-  /** 批量触发学习（一次 §4.4.3 调用 + 勾选 SKU 各落一张票据，学习=集合粒度） */
-  jiangyiGatherTrainingBatch: `${ops}/jiangyi/gather/training/batch`,
   /** 音量设置（V363，图2 对照；§4.3.2.16/17） */
   deviceJiangyiSound: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/sound`,
@@ -232,15 +222,8 @@ export const AdminEndpoints = {
   /** 机器重启（§4.3.2.1，无回执） */
   deviceJiangyiReboot: (deviceId: string) =>
     `${ops}/devices/${encodeURIComponent(deviceId)}/jiangyi/reboot`,
-  jiangyiGatherCheck: `${ops}/jiangyi/gather-check`,
-  /** 学习中商品列表（§4.4.5 直读厂商原始回包）：提交学习后、学成前停在这里，空数组=没有在学 */
-  jiangyiTrainingProducts: `${ops}/jiangyi/training-products`,
-  /** 六步流程导航条数字面板：挂接/柜机/映射本地读，待采集/审核/学习中/模型厂商读（单项降级） */
+  /** 流程导航条数字面板：挂接/柜机/映射/待采本地读（旧学习链厂商读面已退场） */
   jiangyiFlowSummary: `${ops}/jiangyi/flow-summary`,
-  /** 商品学习库：租户级模型/可学习商品名单/各柜覆盖 + 最近学习凭据（学习本身是商户级，上架仍逐柜） */
-  jiangyiLearningLibrary: `${ops}/jiangyi/learning-library`,
-  /** 跨柜一键上架：名单里的商品按识别名挂到多柜映射（可选柜级价与铺货），逐柜回显结果 */
-  jiangyiLearningLibraryShelf: `${ops}/jiangyi/learning-library/shelf`,
 
   /** 将邑订单视频复核（CB-029）：按订单/设备查上报 → 取短时效播放地址（独立权限点 ops:device:video） */
   jiangyiOrderVideosByOrder: (orderNo: string) =>

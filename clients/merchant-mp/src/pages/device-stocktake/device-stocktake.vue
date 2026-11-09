@@ -76,7 +76,7 @@ async function loadDevice(autoOpen = false) {
   loading.value = true;
   doorResult.value = null;
   try {
-    // 判柜型：将邑绑定柜=开门柜（与柜机详情页同判据 jiangyiGather.bound）
+    // 判柜型：将邑绑定柜=开门柜（与柜机详情页同判据 jiangyiBound）
     let bound = false;
     try {
       const st = await merchantApi.jiangyiGatherStatus(deviceId.value);

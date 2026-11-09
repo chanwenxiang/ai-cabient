@@ -39,8 +39,6 @@ class DeviceValidationServiceTest {
     @Mock
     private MerchantMapper merchantRepository;
     @Mock
-    private JiangyiGatherService jiangyiGatherService;
-    @Mock
     private JiangyiDeviceDirectory jiangyiDeviceDirectory;
     @Mock
     private com.aicabinet.trade.config.SecurityProperties securityProperties;
@@ -51,7 +49,7 @@ class DeviceValidationServiceTest {
     void setUp() {
         service = new DeviceValidationService(
                 deviceInfoRepository, sessionRepository, replenishmentTaskRepository,
-                consumerPreauthService, merchantRepository, jiangyiGatherService,
+                consumerPreauthService, merchantRepository,
                 jiangyiDeviceDirectory, securityProperties);
     }
 
@@ -143,7 +141,6 @@ class DeviceValidationServiceTest {
         device.setOnlineStatus("ONLINE");
         when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
         when(securityProperties.mockEnabled()).thenReturn(true);
-        when(jiangyiGatherService.isGatherLocked("CAB-001")).thenReturn(false);
         when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
                 .thenReturn(List.of());
         when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
@@ -160,7 +157,6 @@ class DeviceValidationServiceTest {
         when(deviceInfoRepository.findById("CAB-001")).thenReturn(Optional.of(device));
         when(securityProperties.mockEnabled()).thenReturn(false);
         when(jiangyiDeviceDirectory.isJiangyi("CAB-001")).thenReturn(true);
-        when(jiangyiGatherService.isGatherLocked("CAB-001")).thenReturn(false);
         when(sessionRepository.findByDeviceIdAndStateIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))
                 .thenReturn(List.of());
         when(replenishmentTaskRepository.findByDeviceIdAndStatusIn(ArgumentMatchers.eq("CAB-001"), ArgumentMatchers.anyList()))

@@ -14,16 +14,12 @@ import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
 import com.aicabinet.trade.service.JiangyiFlowSummaryService;
-import com.aicabinet.trade.service.JiangyiGatherService;
-import com.aicabinet.trade.service.JiangyiLearningLibraryService;
 import com.aicabinet.trade.service.JiangyiMappingReviewService;
 import com.aicabinet.trade.service.JiangyiModelSyncService;
 import com.aicabinet.trade.service.JiangyiOnboardingService;
 import com.aicabinet.trade.service.JiangyiOrderVideoService;
 import com.aicabinet.trade.service.JiangyiCabinetCaptureService;
 import com.aicabinet.trade.service.JiangyiRestockService;
-import com.aicabinet.trade.service.JiangyiShelfService;
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -57,12 +53,9 @@ public class AdminJiangyiController {
     private final JiangyiOnboardingService jiangyiOnboardingService;
     private final JiangyiClassMappingService jiangyiClassMappingService;
     private final JiangyiModelSyncService jiangyiModelSyncService;
-    private final JiangyiGatherService jiangyiGatherService;
     private final JiangyiOrderVideoService jiangyiOrderVideoService;
     private final JiangyiDeviceOpsService jiangyiDeviceOpsService;
     private final JiangyiMappingReviewService jiangyiMappingReviewService;
-    private final JiangyiLearningLibraryService jiangyiLearningLibraryService;
-    private final JiangyiShelfService jiangyiShelfService;
     private final JiangyiFlowSummaryService jiangyiFlowSummaryService;
     private final DeviceFaultOrderService deviceFaultOrderService;
     private final JiangyiRestockService jiangyiRestockService;
@@ -71,12 +64,9 @@ public class AdminJiangyiController {
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
                                   JiangyiModelSyncService jiangyiModelSyncService,
-                                  JiangyiGatherService jiangyiGatherService,
                                   JiangyiOrderVideoService jiangyiOrderVideoService,
                                   JiangyiDeviceOpsService jiangyiDeviceOpsService,
                                   JiangyiMappingReviewService jiangyiMappingReviewService,
-                                  JiangyiLearningLibraryService jiangyiLearningLibraryService,
-                                  JiangyiShelfService jiangyiShelfService,
                                   JiangyiFlowSummaryService jiangyiFlowSummaryService,
                                   DeviceFaultOrderService deviceFaultOrderService,
                                   JiangyiRestockService jiangyiRestockService,
@@ -84,12 +74,9 @@ public class AdminJiangyiController {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
-        this.jiangyiGatherService = jiangyiGatherService;
         this.jiangyiOrderVideoService = jiangyiOrderVideoService;
         this.jiangyiDeviceOpsService = jiangyiDeviceOpsService;
         this.jiangyiMappingReviewService = jiangyiMappingReviewService;
-        this.jiangyiLearningLibraryService = jiangyiLearningLibraryService;
-        this.jiangyiShelfService = jiangyiShelfService;
         this.jiangyiFlowSummaryService = jiangyiFlowSummaryService;
         this.deviceFaultOrderService = deviceFaultOrderService;
         this.jiangyiRestockService = jiangyiRestockService;
@@ -596,130 +583,14 @@ public class AdminJiangyiController {
                 body.expectedClassesVersion(), operatorId(request)));
     }
 
-    // ---------- 采集编排面（CB-023 二期，范围 C） ----------
-
-    /** 进入采集模式：置锁（营业开门即 409）→ 将邑侧采集开门；开门失败自动回滚锁。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/devices/{deviceId}/jiangyi/gather/start")
-    public ApiResponse<Void> startGather(HttpServletRequest request,
-                                         @PathVariable("deviceId") String deviceId,
-                                         @RequestBody(required = false) GatherStartRequest body) {
-        jiangyiGatherService.startGather(operatorId(request), deviceId,
-                body == null ? null : blankToNull(body.doorPosition()));
-        return ApiResponse.ok(null);
-    }
-
-    /** 退出采集模式（恢复营业）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/devices/{deviceId}/jiangyi/gather/exit")
-    public ApiResponse<Void> exitGather(HttpServletRequest request,
-                                        @PathVariable("deviceId") String deviceId) {
-        jiangyiGatherService.exitGatherMode(operatorId(request), deviceId);
-        return ApiResponse.ok(null);
-    }
-
-    /** 采集进度聚合：采集锁状态 + 开门状态 + 学习中 + 审核列表。 */
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/devices/{deviceId}/jiangyi/gather/progress")
-    public ApiResponse<JiangyiGatherService.GatherProgress> gatherProgress(
-            @PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(jiangyiGatherService.progress(deviceId));
-    }
-
-    /** 触发学习（幂等：同 SKU 有 PENDING 凭据直接返回既有 ticket）。 */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/devices/{deviceId}/jiangyi/gather/training")
-    public ApiResponse<Long> startTraining(HttpServletRequest request,
-                                           @PathVariable("deviceId") String deviceId,
-                                           @Valid @RequestBody TrainingRequest body) {
-        return ApiResponse.ok(jiangyiGatherService.startTraining(
-                operatorId(request), deviceId, body.skuId().trim(), body.modelName().trim()).getId());
-    }
-
     /**
-     * 批量触发学习：一次 §4.4.3 厂商调用 + 勾选 SKU 各落一张票据（学习是集合粒度）。
-     * 任一 SKU 未挂将邑商品 / 已有在途票据 / 模型名不在厂商模型列表 → 409，不会半提交。
-     */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/gather/training/batch")
-    public ApiResponse<JiangyiGatherService.BatchTrainingResult> startTrainingBatch(
-            HttpServletRequest request,
-            @Valid @RequestBody TrainingBatchRequest body) {
-        return ApiResponse.ok(jiangyiGatherService.startTrainingBatch(
-                operatorId(request), body.deviceId().trim(), body.skuIds(), body.modelName()));
-    }
-
-    /**
-     * 审核列表（§4.4.6）。skuId=按我方挂接反查 productIds；productId=按厂商商品 id 直查
-     * （不经挂接——已采集回传但还没挂 SKU 的商品只能这样查，如自采后待审核的条目）；
-     * 都缺省=全部。productId 优先于 skuId。
-     */
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/jiangyi/gather-check")
-    public ApiResponse<List<com.aicabinet.trade.dto.JiangyiGatherDtos.GatherCheckItem>> gatherCheck(
-            @RequestParam(value = "skuId", required = false) String skuId,
-            @RequestParam(value = "productId", required = false) Long productId) {
-        if (productId != null) {
-            return ApiResponse.ok(jiangyiGatherService.checkByProductId(productId));
-        }
-        return ApiResponse.ok(jiangyiGatherService.checkList(skuId));
-    }
-
-    /**
-     * 学习中商品列表（§4.4.5 直读厂商，原始透传）：提交学习后、学成前停在这里；
-     * data 为空数组即当前没有在学。字段沿用厂商原文（status pass|reject|wait /
-     * name / rejectCause / mainImg），与我方票据状态互不相干（厂商 App 发起的学习也在这）。
-     */
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/jiangyi/training-products")
-    public ApiResponse<JsonNode> trainingProducts() {
-        return ApiResponse.ok(jiangyiGatherService.studyingProducts());
-    }
-
-
-    /**
-     * 六步流程导航条数字面板：挂接/柜机/映射走本地库，待采集/审核/学习中/模型直读厂商
-     * （单项降级为 null + vendorError，不打挂整条导航条）。
+     * 六步流程导航条数字面板：挂接/柜机/映射走本地库，待采集读我方挂接快照
+     * （旧厂商读面已随 _AI-OK 旧链退场，相应指标恒 null）。
      */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/flow-summary")
     public ApiResponse<JiangyiFlowSummaryService.FlowSummaryView> flowSummary() {
         return ApiResponse.ok(jiangyiFlowSummaryService.view());
-    }
-
-    /**
-     * 商品学习库（租户级资产总览）：厂商模型 + 可学习商品名单 + 各柜覆盖 + 可发起学习的 SKU + 最近凭据。
-     *
-     * <p>学习是商户（租户）级动作（§4.4.3 无 deviceId），所以总览不按柜机切；但「能否卖」仍逐柜
-     * ——覆盖列回的是每台柜子的 ACTIVE 映射编号。🔴 名单在列只表示「厂商肯学」，学没学成看覆盖。
-     * 厂商读面失败只降级该两块 + vendorError。</p>
-     */
-    @RequiresPermissions("ops:device:list")
-    @GetMapping("/jiangyi/learning-library")
-    public ApiResponse<JiangyiLearningLibraryService.LearningLibraryView> learningLibrary() {
-        return ApiResponse.ok(jiangyiLearningLibraryService.view());
-    }
-
-    /**
-     * 跨柜一键上架：把一个厂商名单里的商品挂到多台柜机的识别映射上，可选写柜级价与铺货件数。
-     *
-     * <p>前端只传 {@code jiangyiProductId}——识别名由服务端从 §4.4.2 可学习名单回包取，
-     * 不信前端文本（识别名是钱的对位锚）。逐柜独立事务、部分成功：每台柜回一条
-     * SHELVED / ALREADY / SKIPPED / FAILED，跳过与失败都带人话原因。</p>
-     *
-     * <p>🔴 名单在列不等于已学成（2026-10-27 实测在列时厂商模型数 0）；不扣错钱靠的是
-     * {@code JiangyiShelfWriter}「该柜已复核 + 该识别名已有映射行」的 fail-closed 门。</p>
-     *
-     * <p>写映射要 {@code ops:device:edit}；填价/填件数还各自要求 {@code ops:pricing:edit} /
-     * {@code ops:replenishment:edit}，服务层在写任何一台柜之前校验（不留半批改价）。</p>
-     */
-    @RequiresPermissions("ops:device:edit")
-    @PostMapping("/jiangyi/learning-library/shelf")
-    public ApiResponse<JiangyiShelfService.ShelfResult> shelveLearnedProduct(
-            HttpServletRequest request, @Valid @RequestBody ShelfRequest body) {
-        return ApiResponse.ok(jiangyiShelfService.shelve(
-                operatorId(request), body.jiangyiProductId().trim(), body.deviceIds(),
-                body.priceCents(), body.quantity()));
     }
 
     // ---------- 请求体 / 装配 ----------
@@ -771,24 +642,6 @@ public class AdminJiangyiController {
                                  @NotBlank(message = "缺少审阅版本令牌，请重新拉取差异")
                                  String expectedClassesVersion) {}
 
-
-    record TrainingRequest(@NotBlank(message = "SKU 不能为空") String skuId,
-                           @NotBlank(message = "模型名不能为空") String modelName) {}
-
-    record TrainingBatchRequest(@NotBlank(message = "柜机不能为空") String deviceId,
-                                @jakarta.validation.constraints.NotEmpty(message = "请至少选择一个商品")
-                                List<String> skuIds,
-                                @NotBlank(message = "模型名不能为空") String modelName) {}
-
-    /** 采集台发起：条目字段从待采集列表带出；identifier/shootSeconds 服务端补/夹取。 */
-
-    /** 上架入参：priceCents/quantity 留空 = 不动该柜的价格/库存（各自还需独立权限点）。 */
-    record ShelfRequest(@NotBlank(message = "将邑商品不能为空") String jiangyiProductId,
-                        @jakarta.validation.constraints.NotEmpty(message = "请至少选择一台柜机")
-                        List<String> deviceIds,
-                        Integer priceCents,
-                        Integer quantity) {}
-
     private static DeploymentDto toDto(JiangyiModelDeployment d) {
         return new DeploymentDto(d.getId(), d.getDeviceId(), d.getModelName(), d.getModelUrl(),
                 d.getIndustrialControlModel(), d.getClassesVersion(), d.getStatus(),
@@ -826,5 +679,4 @@ public class AdminJiangyiController {
                 m.getModelName(), m.getTextName(), m.getSkuId(), m.getStatus(), m.getSource(),
                 m.getCreatedAt(), m.getUpdatedAt());
     }
-    record GatherStartRequest(String doorPosition) {}
 }

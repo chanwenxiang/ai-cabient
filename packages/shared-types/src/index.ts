@@ -264,8 +264,6 @@ export type OpenApiMerchantGatherStatusDto =
 /** 商户「学习进度」只读聚合（`GET .../devices/{id}/jiangyi/gather/training-status`，CB-023）：
  * 只读本地学习票据（不读厂商云）；一次 §4.4.3 调用可扇出多 SKU，items 逐条列状态，
  * PENDING=等待将邑回调（回调前柜机采集锁保持） */
-export type OpenApiMerchantTrainingStatusDto =
-  import('./generated/openapi').components['schemas']['MerchantTrainingStatusDto'];
 
 /** 商户「缺货巡柜」聚合行（货道级统一口径，缺口=建议 headroom，2026-10-15） */
 export type OpenApiMerchantShortageSummaryDto =

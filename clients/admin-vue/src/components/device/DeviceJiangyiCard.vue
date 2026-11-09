@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -229,18 +229,6 @@ function goMappings() {
   void router.push({ path: '/vision-mappings', query: { deviceId: props.deviceId } });
 }
 
-/**
- * 学习库聚合采集/审核/学习中/触发学习/跨柜上架（租户级）；本卡片只保留设备级入口。
- * 此前这里的「识别模型同步」整段复刻与识别映射页双入口并存（按钮文案还不同），
- * 是流程混乱的来源——已删，三连统一在识别映射页。
- */
-function goLearningLibrary(dialog: 'training') {
-  void router.push({
-    path: '/learning-library',
-    query: { dialog, deviceId: props.deviceId }
-  });
-}
-
 const modelSection = ref(false);
 const classIdBase = ref(0);
 
@@ -321,151 +309,6 @@ async function doClassDecode() {
   }
 }
 
-// ---------- 采集编排（CB-023 二期）：进入/退出采集模式 + 学习 + 进度 ----------
-
-interface GatherCheckItem {
-  id: number;
-  productId: number;
-  status: 'pass' | 'reject' | 'wait' | string;
-  rejectCause: string | null;
-  name: string | null;
-  picUrl: string | null;
-}
-
-interface TrainingTicketView {
-  skuId: string | null;
-  modelName: string | null;
-  jiangyiProductId: string | null;
-  status: 'PENDING' | 'FINISHED' | 'FAILED' | string;
-  createdAt: string | null;
-  finishedAt: string | null;
-}
-
-interface GatherProgress {
-  gatherLocked: boolean;
-  doorStatus: unknown;
-  trainingProducts: unknown;
-  checks: GatherCheckItem[];
-  lastTraining: TrainingTicketView | null;
-}
-
-const gatherSection = ref(false);
-const gatherProgress = ref<GatherProgress | null>(null);
-const gatherLoading = ref(false);
-const gatherStarting = ref(false);
-const gatherDoorPosition = ref('');
-
-/** 回调结果横幅：FINISHED 才算学习完成（与「关门」动作无关）。 */
-const trainingNotice = computed(() => {
-  const t = gatherProgress.value?.lastTraining;
-  if (!t) return null;
-  const sku = t.skuId || '—';
-  const model = t.modelName || '—';
-  if (t.status === 'FINISHED') {
-    const at = t.finishedAt ? formatDateTime(t.finishedAt) : '—';
-    return gatherProgress.value?.gatherLocked
-      ? {
-          type: 'warning' as const,
-          title: `将邑已回调学习完成（${at}，商品 ${sku}，模型 ${model}），但采集模式仍开启，请点「退出采集模式」恢复营业`
-        }
-      : {
-          type: 'success' as const,
-          title: `将邑已回调学习完成（${at}，商品 ${sku}，模型 ${model}），采集模式已自动退出、营业已恢复`
-        };
-  }
-  if (t.status === 'FAILED') {
-    return {
-      type: 'error' as const,
-      title: `将邑回报学习失败（商品 ${sku}，模型 ${model}）；柜机仍在采集模式，可重试学习或手动退出`
-    };
-  }
-  return {
-    type: 'info' as const,
-    title: `学习已提交（商品 ${sku}，模型 ${model}），等待将邑回调；成功后会自动退出采集模式恢复营业`
-  };
-});
-
-const gatherCheckMeta: Record<string, { label: string; type: 'success' | 'danger' | 'info' }> = {
-  pass: { label: '通过', type: 'success' },
-  reject: { label: '驳回', type: 'danger' },
-  wait: { label: '待审核', type: 'info' }
-};
-
-async function loadGatherProgress(silent = false) {
-  if (!silent) gatherLoading.value = true;
-  try {
-    gatherProgress.value = await api.request<GatherProgress>(
-      AdminEndpoints.deviceJiangyiGatherProgress(props.deviceId),
-      'GET'
-    );
-  } catch (e) {
-    if (!silent) ElMessage.error(errorMessage(e, '加载采集进度失败'));
-  } finally {
-    if (!silent) gatherLoading.value = false;
-  }
-}
-
-// 采集模式期间每 15s 静默刷新：学习回调成功会自动退出，运营不必守着点「刷新进度」
-let gatherPoll: ReturnType<typeof setInterval> | null = null;
-function syncGatherPoll() {
-  const need = gatherSection.value && !!gatherProgress.value?.gatherLocked;
-  if (need && !gatherPoll) {
-    gatherPoll = setInterval(() => void loadGatherProgress(true), 15000);
-  } else if (!need && gatherPoll) {
-    clearInterval(gatherPoll);
-    gatherPoll = null;
-  }
-}
-watch(gatherSection, syncGatherPoll);
-watch(gatherProgress, syncGatherPoll);
-onUnmounted(() => {
-  if (gatherPoll) clearInterval(gatherPoll);
-});
-
-function toggleGatherSection() {
-  gatherSection.value = !gatherSection.value;
-  if (gatherSection.value && !gatherProgress.value) {
-    void loadGatherProgress();
-  }
-}
-
-async function doStartGather() {
-  try {
-    await ElMessageBox.confirm(
-      '进入采集模式后，顾客将无法开门购物，直到手动退出或学习完成回调自动退出。确认进入？',
-      '进入采集模式',
-      { type: 'warning', confirmButtonText: '进入', cancelButtonText: '取消' }
-    );
-  } catch {
-    return;
-  }
-  gatherStarting.value = true;
-  try {
-    await api.request(AdminEndpoints.deviceJiangyiGatherStart(props.deviceId), 'POST', {
-      doorPosition: gatherDoorPosition.value.trim() || undefined
-    });
-    ElMessage.success('已进入采集模式');
-    await loadGatherProgress();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '进入采集模式失败'));
-  } finally {
-    gatherStarting.value = false;
-  }
-}
-
-async function doExitGather() {
-  gatherStarting.value = true;
-  try {
-    await api.request(AdminEndpoints.deviceJiangyiGatherExit(props.deviceId), 'POST');
-    ElMessage.success('已退出采集模式，恢复营业');
-    await loadGatherProgress();
-  } catch (e) {
-    ElMessage.error(errorMessage(e, '退出采集模式失败'));
-  } finally {
-    gatherStarting.value = false;
-  }
-}
-
 defineExpose({ reload: load });
 // 设备控制（信号/音量/柜门/token/退役）已整体移入「设备概览」的 DeviceJiangyiControlCard。
 
@@ -480,7 +323,7 @@ onMounted(load);
           <div class="page-card-head__title">
             <span class="title">识别开门柜套件</span>
             <span class="hint">
-              挂接 → 采集 → 审核 → 学习 → 映射下发 → 上架；库存由补货/理货流程维护
+              挂接 → 采集（手机/柜内）→ 映射下发 → 整单上架；库存由补货/理货流程维护
             </span>
           </div>
         </div>
@@ -641,13 +484,9 @@ onMounted(load);
         <div class="jy-section-label">识别模型同步（预生成对照 → 核对启用 → 下发柜机）</div>
         <div class="jy-mapping-entry">
           <span class="jy-mapping-hint">
-            统一在「识别映射」页按柜机操作；学新商品先到学习库「开始采集 → 触发学习」。
+            统一在「识别映射」页按柜机操作；新商品采集走手机拍照（商户小程序）或下方「柜内采集」面板。
           </span>
           <el-button type="primary" plain size="small" @click="goMappings">去识别映射</el-button>
-          <el-button size="small" @click="goLearningLibrary('training')">去学习库</el-button>
-          <el-button size="small" @click="goLearningLibrary('training')"
-            >去学习库触发学习</el-button
-          >
         </div>
       </div>
 
@@ -755,91 +594,6 @@ onMounted(load);
           </el-table>
         </template>
       </div>
-
-      <!-- 采集编排（CB-023 二期）：进入采集模式（暂停营业）→ 学习 → 审核进度 -->
-      <div v-if="binding.status === 'BOUND'" class="jy-mapping-block">
-        <div class="jy-section-label jy-collapse-head" @click="toggleGatherSection">
-          <span>商品采集（拍照采集 / 触发学习 / 审核进度）</span>
-          <el-icon class="jy-collapse-arrow" :class="{ open: gatherSection }">
-            <component :is="gatherSection ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" />
-          </el-icon>
-        </div>
-        <template v-if="gatherSection">
-          <el-alert
-            type="warning"
-            :closable="false"
-            show-icon
-            class="jy-tip"
-            title="采集会话期间顾客无法开门购物；拍摄一条龙在商品学习库「开始采集」完成，此处只做采集模式的进出与进度查看"
-          />
-          <div class="jy-form-row">
-            <el-input
-              v-model="gatherDoorPosition"
-              class="jy-input"
-              placeholder="门位（可选）"
-              clearable
-            />
-            <el-button
-              v-if="!gatherProgress?.gatherLocked"
-              type="warning"
-              :loading="gatherStarting"
-              @click="doStartGather"
-            >
-              进入采集模式
-            </el-button>
-            <el-button v-else type="success" :loading="gatherStarting" @click="doExitGather">
-              退出采集模式（恢复营业）
-            </el-button>
-            <el-button :loading="gatherLoading" @click="loadGatherProgress">刷新进度</el-button>
-            <el-tag
-              v-if="gatherProgress"
-              :type="gatherProgress.gatherLocked ? 'warning' : 'info'"
-              size="small"
-            >
-              {{ gatherProgress.gatherLocked ? '采集中' : '营业中' }}
-            </el-tag>
-          </div>
-
-          <el-alert
-            v-if="trainingNotice"
-            :type="trainingNotice.type"
-            :title="trainingNotice.title"
-            :closable="false"
-            show-icon
-            class="jy-tip"
-          />
-
-          <div class="jy-section-label" style="margin-top: 12px">
-            触发学习（采集完成并过厂商审核后，在商品学习库提交）
-          </div>
-          <div class="jy-helper-text">
-            学习是否完成以将邑回调为准：回调成功会自动退出采集模式并在此显示；「关门」只是柜门动作，不代表学习完成。
-          </div>
-          <div class="jy-form-row">
-            <el-button type="primary" plain @click="goLearningLibrary('training')">
-              去学习库触发学习
-            </el-button>
-            <el-button @click="goLearningLibrary('training')">触发学习</el-button>
-          </div>
-
-          <div class="jy-section-label" style="margin-top: 12px">采集审核进度</div>
-          <el-table :data="gatherProgress?.checks || []" size="small" empty-text="暂无采集审核记录">
-            <el-table-column prop="name" label="商品" min-width="140">
-              <template #default="{ row }">{{ row.name || '—' }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="审核状态" width="100">
-              <template #default="{ row }">
-                <el-tag size="small" :type="gatherCheckMeta[row.status]?.type || 'info'">
-                  {{ gatherCheckMeta[row.status]?.label || row.status }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="rejectCause" label="驳回原因" min-width="140">
-              <template #default="{ row }">{{ row.rejectCause || '—' }}</template>
-            </el-table-column>
-          </el-table>
-        </template>
-      </div>
     </template>
 
     <DeviceJiangyiRestockPanel v-if="binding" :device-id="deviceId" :can-edit="canEdit" />
@@ -912,12 +666,6 @@ onMounted(load);
 }
 .jy-tip {
   margin: 8px 0;
-}
-.jy-helper-text {
-  margin: 4px 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--el-text-color-secondary);
 }
 .jy-tag-gap {
   margin-left: 6px;

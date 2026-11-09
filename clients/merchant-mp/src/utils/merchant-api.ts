@@ -571,17 +571,10 @@ export const merchantApi = {
   /** CB-077：设备侧故障单（固件自报，如摄像头打开失败），reported_at 降序 */
   deviceFaultOrders: (id: string, limit = 20) =>
     request<DeviceFaultOrderItem[]>(MerchantEndpoints.deviceFaultOrders(id, limit)),
+  /** 将邑绑定判定（开门柜判据：盘点/补货/柜机详情共用）；旧采集模式进出已退场 */
   jiangyiGatherStatus: (id: string) =>
     request<import('@aicabinet/shared-types').OpenApiMerchantGatherStatusDto>(
       MerchantEndpoints.jiangyiGatherStatus(id)
-    ),
-  jiangyiGatherStart: (id: string, doorPosition?: string) =>
-    request(MerchantEndpoints.jiangyiGatherStart(id), 'POST', doorPosition ? { doorPosition } : {}),
-  jiangyiGatherExit: (id: string) => request(MerchantEndpoints.jiangyiGatherExit(id), 'POST', {}),
-  /** 只读学习进度（本地票据聚合）：补货员看「学完没有」，不触发学习 */
-  jiangyiGatherTrainingStatus: (id: string) =>
-    request<import('@aicabinet/shared-types').OpenApiMerchantTrainingStatusDto>(
-      MerchantEndpoints.jiangyiGatherTrainingStatus(id)
     ),
   pricing: (deviceId?: string) => {
     const path = deviceId

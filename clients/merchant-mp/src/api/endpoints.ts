@@ -165,7 +165,7 @@ export const MerchantEndpoints = {
   /** 设备侧故障单（CB-077）：固件自报（如摄像头打开失败），reported_at 降序 */
   deviceFaultOrders: (id: string, limit = 20) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/fault-orders?limit=${limit}`,
-  /** 将邑采集模式（CB-023 商户端补充）：状态 / 进入 / 退出 */
+  /** 第七章手机采集：策略 / 按条码状态 / 拍照上传 / 提交 */
   jiangyiCapturePolicy: `${API_PREFIX}/merchant/skus/jiangyi-capture/policy`,
   jiangyiCaptureState: (barCode: string) =>
     `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/state`,
@@ -173,15 +173,9 @@ export const MerchantEndpoints = {
     `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/photo`,
   jiangyiCaptureSubmit: (barCode: string) =>
     `${API_PREFIX}/merchant/skus/jiangyi-capture/${encodeURIComponent(barCode)}/submit`,
+  /** 将邑绑定判定（开门柜判据：盘点/补货/柜机详情共用）；旧采集模式进出/学习进度端点已退场 */
   jiangyiGatherStatus: (id: string) =>
     `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/status`,
-  jiangyiGatherStart: (id: string) =>
-    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/start`,
-  jiangyiGatherExit: (id: string) =>
-    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/exit`,
-  /** 将邑只读学习进度（本地票据聚合，不读厂商面；触发学习仍在运营后台） */
-  jiangyiGatherTrainingStatus: (id: string) =>
-    `${API_PREFIX}/merchant/devices/${encodeURIComponent(id)}/jiangyi/gather/training-status`,
   /** CB-050 扩展：商户自助改密（须已登录，携带当前密码） */
   merchantPasswordChange: `${API_PREFIX}/merchant/password-change`,
   /** 盘点开门（2026-10-28）：先扫码选中柜机再发起；仅开门柜；关门即完成不结算 */

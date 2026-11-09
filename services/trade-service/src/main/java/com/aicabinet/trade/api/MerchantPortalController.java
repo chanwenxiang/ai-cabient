@@ -1,4 +1,5 @@
 package com.aicabinet.trade.api;
+import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
@@ -6,8 +7,6 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.api.support.MerchantPortalControllerSupport;
 import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
-import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantTrainingStatusDto;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
@@ -320,57 +319,6 @@ public class MerchantPortalController {
 
     /** §7.9 请求体。 */
     record JiangyiCaptureSubmitRequest(@jakarta.validation.constraints.NotNull List<String> imageUrls) {}
-
-    // ---------- 将邑采集模式（CB-023 商户端补充）：小程序设备详情页入口，409 闸门与 admin 共用 ----------
-
-    /** 采集模式状态：非将邑绑定柜机 bound=false（前端隐藏入口，不报错）。 */
-    @RequiresPermissions("merchant:devices:detail")
-    @GetMapping("/devices/{deviceId}/jiangyi/gather/status")
-    public ApiResponse<MerchantGatherStatusDto> jiangyiGatherStatus(
-            HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(
-                merchantPortalService.getJiangyiGatherStatus(userId(request), deviceId));
-    }
-
-    /** 进入采集模式（期间营业开门 409「设备商品采集中」；采集批次操作在将邑商户 App 完成）。 */
-    @RequiresPermissions("merchant:devices:edit")
-    @PostMapping("/devices/{deviceId}/jiangyi/gather/start")
-    public ApiResponse<Void> jiangyiGatherStart(
-            HttpServletRequest request,
-            @PathVariable String deviceId,
-            @RequestBody(required = false) MerchantGatherStartRequest body) {
-        merchantPortalService.startJiangyiGather(
-                userId(request), deviceId, body == null ? null : blankToNull(body.doorPosition()));
-        return ApiResponse.ok(null);
-    }
-
-    /** 退出采集模式（恢复营业）。 */
-    @RequiresPermissions("merchant:devices:edit")
-    @PostMapping("/devices/{deviceId}/jiangyi/gather/exit")
-    public ApiResponse<Void> jiangyiGatherExit(
-            HttpServletRequest request, @PathVariable String deviceId) {
-        merchantPortalService.exitJiangyiGather(userId(request), deviceId);
-        return ApiResponse.ok(null);
-    }
-
-    /**
-     * 只读学习进度（补货员看「学完没有」）：本地票据聚合，不读厂商读面即不会因厂商 503 变错误页；
-     * 触发学习仍在运营后台，商户端只展示。
-     */
-    @RequiresPermissions("merchant:devices:detail")
-    @GetMapping("/devices/{deviceId}/jiangyi/gather/training-status")
-    public ApiResponse<MerchantTrainingStatusDto> jiangyiGatherTrainingStatus(
-            HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(
-                merchantPortalService.getJiangyiGatherTrainingStatus(userId(request), deviceId));
-    }
-
-    private String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
-    }
-
-    /** 进入采集模式请求体（doorPosition 可选，与 admin 侧 GatherStartRequest 同形）。 */
-    public record MerchantGatherStartRequest(String doorPosition) {}
 
     @RequiresPermissions("merchant:reports:view")
     @GetMapping("/device-reports")
@@ -1047,6 +995,14 @@ public class MerchantPortalController {
 
     private static Long userId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
+    /** 绑定态读面（旧 gather/status 退场后的兼容入口）：bound=将邑开门柜，gatherLocked 恒 false。 */
+    @RequiresPermissions("merchant:devices:detail")
+    @GetMapping("/devices/{deviceId}/jiangyi/gather/status")
+    public ApiResponse<MerchantGatherStatusDto> jiangyiGatherStatus(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(merchantPortalService.jiangyiBindingStatus(userId(request), deviceId));
     }
 }
 
