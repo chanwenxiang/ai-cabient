@@ -178,7 +178,11 @@ const BASE_NAV: NavItem[] = [
     title: '将邑商品',
     group: '设备商品',
     // 第七章商品面：按条码查厂商状态/建档/批量刷新/看驳回原因；拍照采集在商户小程序
-    perm: 'ops:sku:edit',
+    // 🔴 菜单权限码必须是「菜单级」(C/M) 权限：路由守卫除 hasPerm 外还要过
+    //    isNavMenuActive，而 /rbac/me/nav 只返回 C/M 类型的 ACTIVE 码 ⇒ 挂 F 类型码
+    //    （如原来的 ops:sku:edit）会让本页对所有人永久「无权访问」，超管也不例外。
+    //    写操作（建档/批量刷新）由页内按钮按 ops:sku:edit 单独控制。
+    perm: 'ops:sku:list',
     keywords: ['将邑', '商品', '建档', '采集', '条码', '上架', '驳回']
   },
   {

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 import HelpTip from '@/components/HelpTip.vue';
+import { useAuthStore } from '@/stores/auth';
 import { yuanToCents } from '@aicabinet/shared-uni/format';
 
 interface ProductState {
@@ -30,6 +31,11 @@ interface Policy {
 const queryBarCode = ref('');
 const stateLoading = ref(false);
 const state = ref<ProductState | null>(null);
+
+const auth = useAuthStore();
+/** 建档 / 批量刷新是写操作（后端 ops:sku:edit）；本页本身按 ops:sku:list 进得来 */
+const canEdit = computed(() => auth.hasPerm('ops:sku:edit'));
+const NEED_EDIT_HINT = '当前账号无商品编辑权限';
 
 const createForm = reactive({
   barCode: '',
@@ -218,7 +224,7 @@ onMounted(async () => {
             type="primary"
             :loading="refreshLoading"
             style="margin-top: 8px"
-            @click="doRefresh"
+            @click="canEdit ? doRefresh() : ElMessage.info(NEED_EDIT_HINT)"
             >刷新</el-button
           >
         </el-card>
@@ -261,7 +267,12 @@ onMounted(async () => {
               </el-select>
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" :loading="createLoading" @click="doCreate">建档</el-button>
+              <el-button
+                type="primary"
+                :loading="createLoading"
+                @click="canEdit ? doCreate() : ElMessage.info(NEED_EDIT_HINT)"
+                >建档</el-button
+              >
             </el-form-item>
           </el-form>
           <div v-if="policy" class="rules-hint">
