@@ -684,6 +684,23 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-09（SKU 图「消失」根因＝桶上全桶 14 天 ILM 过期；拍板图片永久保存，minio-init 改幂等）
+
+- 根因（实测）：桶 `cabinet-videos` 上有一条**无 Filter** 的 `{"Expiration":{"Days":14},"ID":"aicabinet-expire-objects","Status":"Enabled"}`，MinIO 扫描器到期删对象、DB `file_attachment` 行不删 ⇒ 悬空引用。10-23 上传的两张 SKU 图 11-06 到期被删；桶内现存对象最老 10-27（13 天），凡满 14 天者一个不剩。该 ID **从未出现在任何提交/脚本**（`git log -S` 全历史为空），系桶上被额外手工/一次性命令加上；compose 历史上只加带前缀规则。
+- 连带发现：minio-init 用 `mc ilm add`，每次 `up` 追加 3 条，桶上实测堆到 **325 条**规则（108 组重复的 sim//videos//archive/ + 1 条全桶）。
+- 处置（用户拍板「图片不能过期，得一直保存」）：`mc ilm rule export` 备份 325 条到 `.tmp/minio-ilm-backup-1109.json` 后，整桶 `mc ilm rule import` 替换为 3 条固定 ID 的带前缀规则（`sim/`7d、`videos/`30d、`archive/`180d）。`sku-images/`、`ops-avatars/`、`ops-brand/`、`ad/`、`dispute-evidence/`、`replenishment-evidence/` 自此**永久保存**；已删的两张图不可恢复，需重传。
+- 代码：[docker-compose.apps.yml](../infra/docker-compose.apps.yml) 与 [docker-compose.full.yml](../infra/docker-compose.full.yml) 的 minio-init 由 `mc ilm add` 改为 `printf JSON | mc ilm rule import`（整桶幂等替换），并注释「禁止无前缀全桶过期规则」。两条渲染后的初始化脚本都在 mc 容器真跑各两遍，规则数恒 3、无前缀规则 0。prod 栈继承这两个文件，无独立 ilm 命令。
+
+### 2026-11-09（商户端「购物视频」黑屏＝调试基础库 3.3.5 的 wx-video 懒注册缺陷；升 3.10.3 后实测出画面）
+
+- 现象：商户小程序购物视频页播放器整块纯黑，下方切片段「第 1 段·通道1/2」、订单/柜机行、返回链接均正常；控制台 `catch lazyLoadSystemComponent: wx-video error: TypeError: e is not a function`。
+- 三层取证（证明不是页面/后端 bug）：① 页面数据 `src` 为有效预签名 OSS 地址、`clips` 两条 `playable`、`errorView` 空；② 对该地址 Range GET → `206 video/mp4`、3,016,791 字节（对象真实存在）；③ `<video>` 节点在（370×473）但内部 `.wx-video-container` 不存在 ⇒ 组件没实例化。运行时 `SDKVersion=3.3.5`，与 `dist/dev/mp-weixin/project.config.json.libVersion` 一致；该值由 `clients/*/src/manifest.json` 生成，3.3.5 系 2026-10-03 `f030f09f`「遗留改动一并入库」带入、无说明。
+- 根因：仅 3.3.5 的 `/WAComponentWXVideo.js` 走独立懒注册，首行 `var {console:n}=e()` 的 `e` 取自 `getVideoGlobalVar`（`globalThis` / `WeixinJSBridge`），而本机开发者工具全量 `.js/.json/.asar/.pak/.exe/.dll` 均无此符号 ⇒ `e` 为 undefined ⇒ 注册 IIFE 中止；3.8.12 / 3.10.3 / 3.15.3 / 3.16.2 / 3.17.1 均为内联实现（`xWebVideoSupported`），无该路径。
+- 修复：两个小程序 `manifest.json` 的 `libVersion` 3.3.5 → 3.10.3，并同步 `clients/merchant-mp/dist/dev/mp-weixin/project.config.json`（生成物）。切基础库后 automator 实测：柜内首帧 + 播放按钮 + `00:16` 可见；点「通道2」`src` 切换、高亮跟随。
+- 同屏另外两条报错与业务无关：`clickCheckTask err: TypeError: Cannot read properties of null (reading 'g')` 出自基础库 `WAServiceMainContext.js`（开发者工具内置快速填充/AI 助手，日志自带 `no model`）；`[渲染层错误] Cannot destructure property 'Symbol(Symbol.iterator)'…` 同理——本项目零 `.wxs`，自定义组件 JS 跑在服务层，渲染层 JS 报错不可能来自业务代码。
+- 样式（同轮修）：该页是消费者端深色播放页被搬进商户端（原 `background:#000`，搬迁后改成 `var(--text-primary)` 当底色），且播放器固定 `56vh`，柜机片源实测 640×352（1.82:1）⇒ 上下各压一大条黑边，整页「全黑」。改为商户端浅色主题：`--page-bg` 底、导航回品牌绿（去掉 `bg=#000000`）、播放器高度由 `@loadedmetadata` 取真实宽高比计算（16:9 兜底，纵向片源封顶 60% 屏高）、切片段与链接改用 brand/card 令牌。automator 实测播放器 366×201、画面无黑边、点「通道2」可切。
+- 图片 500（用户拍板按推荐处理）：`FileAttachmentService.stream` 改为**先确认对象存在再写响应头**——`file://` 先 `Files.isRegularFile`，MinIO 走 `streamTo` 内部 stat 成功后自行设头（`services/trade-service/.../service/FileAttachmentService.java` 的 `stream`）。新增 `FileAttachmentStreamMissingObjectTest` 3 项（对象缺失不得预设 `image/*`／本地文件缺失 404／本地文件存在正常流出），定向跑 3/3 绿。**已授权重建 trade-service 容器并活栈复验**：`sku-images/2`、`/3` → `404 application/json`（`{"code":404,"message":"视频文件不存在或无法读取"}`）、`/9` → `200 image/jpeg`，日志不再出现 `No converter`；镜像 `800bb3bc`、jar sha `33b304f6`（旧 `44ef07ce`）、env 键集 md5 不变（109 键值逐一对齐、116 键集合不变）、其余容器 Created 未变。两条缺图数据（`file_attachment` 2/3 → SKU 100014/100015）的 MinIO 对象已不存在，只能重传图，本轮不动数据。
+
 ### 2026-11-08 R19-A1 落地（settlement-bill 补 ScheduledTaskRegistry 登记，恢复手动触发面）
 
 - 按 R19 方案 A1 落地：`ScheduledTaskRegistry` 构造器注入 `MerchantSettlementBillScheduler` + 1 行 `register("settlement-bill","商户月度结算单重建",TRADE,ScheduleZones.desc("每日 02:40"),1800,scheduler::rebuildMonthlyBills)`。保持 Spring 常驻不进 XXL（同 refund-retry 先例）。

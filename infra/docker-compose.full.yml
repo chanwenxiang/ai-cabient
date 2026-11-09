@@ -79,7 +79,9 @@ services:
     image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 # 审计批次4：钉 digest
     depends_on: [minio]
     entrypoint: ["/bin/sh", "-c"]
-    command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc anonymous set none local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'sim/' --expire-days '${MINIO_SIM_RETENTION_DAYS:-7}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'videos/' --expire-days '${MINIO_VIDEO_RETENTION_DAYS:-30}' local/${MINIO_BUCKET:-cabinet-videos} || true; mc ilm add --prefix 'archive/' --expire-days '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' local/${MINIO_BUCKET:-cabinet-videos} || true"]
+    # 🔴 2026-11-09 用户拍板：图片类资产永久保存，过期只允许 sim//videos//archive/ 三个
+    # 视频前缀；整桶 import 幂等（mc ilm add 每次 up 追加，实测曾堆到 325 条）。
+    command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc anonymous set none local/${MINIO_BUCKET:-cabinet-videos} || true; printf '{\"Rules\":[{\"ID\":\"aicabinet-sim-7d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"sim/\"}},{\"ID\":\"aicabinet-videos-30d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"videos/\"}},{\"ID\":\"aicabinet-archive-180d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"archive/\"}}]}' '${MINIO_SIM_RETENTION_DAYS:-7}' '${MINIO_VIDEO_RETENTION_DAYS:-30}' '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' | mc ilm rule import local/${MINIO_BUCKET:-cabinet-videos}"]
 
   redpanda:
     stop_grace_period: 60s

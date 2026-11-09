@@ -6,16 +6,28 @@
  * 窗口信息读取：优先官方新 API getWindowInfo（基础库 2.20.1+），
  * 替代已弃用的 getSystemInfoSync（工具台持续告警）；旧基础库走同步回退。
  */
-export function readWindowInfo(): { statusBarHeight?: number; windowWidth?: number } | null {
+export function readWindowInfo(): {
+  statusBarHeight?: number;
+  windowWidth?: number;
+  windowHeight?: number;
+} | null {
   try {
     if (typeof uni.getWindowInfo === 'function') {
-      return uni.getWindowInfo() as { statusBarHeight?: number; windowWidth?: number };
+      return uni.getWindowInfo() as {
+        statusBarHeight?: number;
+        windowWidth?: number;
+        windowHeight?: number;
+      };
     }
   } catch {
     /* fall through */
   }
   try {
-    return uni.getSystemInfoSync() as { statusBarHeight?: number; windowWidth?: number };
+    return uni.getSystemInfoSync() as {
+      statusBarHeight?: number;
+      windowWidth?: number;
+      windowHeight?: number;
+    };
   } catch {
     return null;
   }

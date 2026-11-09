@@ -733,19 +733,25 @@ public class FileAttachmentService {
         if (path == null || path.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件文件缺失");
         }
-        response.setContentType(row.getContentType() != null ? row.getContentType() : "application/octet-stream");
-        response.setHeader("Cache-Control", "private, max-age=3600");
-        if (row.getFileSize() != null && row.getFileSize() > 0) {
-            response.setContentLengthLong(row.getFileSize());
-        }
         if (path.startsWith(FILE)) {
             Path local = Paths.get(URI.create(path));
+            // 先确认文件在，再写响应头：头一旦带上 image/*，后续 404 的 JSON 体就会因
+            // 「No converter for [ApiResponse] with preset Content-Type 'image/jpeg'」变成 500。
+            if (!Files.isRegularFile(local)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件文件缺失");
+            }
+            response.setContentType(row.getContentType() != null ? row.getContentType() : "application/octet-stream");
+            response.setHeader("Cache-Control", "private, max-age=3600");
+            if (row.getFileSize() != null && row.getFileSize() > 0) {
+                response.setContentLengthLong(row.getFileSize());
+            }
             try (InputStream in = Files.newInputStream(local); OutputStream out = response.getOutputStream()) {
                 in.transferTo(out);
             }
             return;
         }
-        // MinIO / OSS：优先用流式代理，避免浏览器跨域
+        // MinIO / OSS：头信息（Content-Type / Cache-Control / 长度）由 streamTo 在 statObject
+        // 成功之后设置；对象缺失时保持响应未提交，让 404 走正常错误体而不是退化成 500。
         minioVideoService.streamTo(path, null, response);
     }
 

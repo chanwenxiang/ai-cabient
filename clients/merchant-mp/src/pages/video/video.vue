@@ -1,6 +1,6 @@
 <template>
   <view class="video-page">
-    <app-nav-bar :title="pageTitle" bg="#000000" color="#ffffff" home-url="/pages/home/home" />
+    <app-nav-bar :title="pageTitle" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="loading" class="state">
         <text class="state-title">{{ UI_COPY.loading }}</text>
@@ -18,11 +18,13 @@
       <template v-else>
         <video
           class="video-player"
+          :style="{ height: playerHeight }"
           :src="src"
           controls
           object-fit="contain"
           :show-center-play-btn="true"
           :enable-progress-gesture="true"
+          @loadedmetadata="onVideoMeta"
           @error="onVideoError"
         />
         <view v-if="clips.length > 1" class="clip-bar">
@@ -65,6 +67,7 @@ import {
   type OrderVideoPlaylist
 } from '@/utils/order-video-url';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
+import { readWindowInfo } from '@aicabinet/shared-uni/status-bar';
 
 const src = ref('');
 const errorView = ref<ReturnType<typeof merchantVideoErrorView> | null>(null);
@@ -149,6 +152,30 @@ function selectClip(index: number) {
 }
 
 /**
+ * 播放器高度按视频真实宽高比算：原先固定 56vh，柜机 640×352 的片源会在上下各留
+ * 一大条黑边，整页看起来像"没加载出来"。元数据未到时按 16:9 兜底。
+ */
+const playerRatio = ref(16 / 9);
+const playerHeight = computed(() => playerHeightFor(playerRatio.value));
+
+function playerHeightFor(ratio: number): string {
+  const info = readWindowInfo();
+  const vw = Number(info?.windowWidth) || 375;
+  const vh = Number(info?.windowHeight) || 667;
+  // 与 .page-body 的 --page-gutter(24rpx) 对齐，播放器两侧各让一条
+  const innerW = vw - (24 * vw * 2) / 750;
+  const px = Math.round(innerW / Math.max(ratio, 0.2));
+  return `${Math.min(Math.max(px, 160), Math.round(vh * 0.6))}px`;
+}
+
+function onVideoMeta(e: Event) {
+  const detail = (e as unknown as { detail?: { width?: number; height?: number } }).detail;
+  const w = Number(detail?.width) || 0;
+  const h = Number(detail?.height) || 0;
+  if (w > 0 && h > 0) playerRatio.value = w / h;
+}
+
+/**
  * 修复 2026-10-14：预签名 URL 短时效，过期/对象被清理时 video 直接黑屏无提示。
  * 播放错误 → 给出可重试的失败态（重新拉清单换新预签名地址）。
  */
@@ -198,7 +225,7 @@ function goBack() {
 <style scoped>
 .video-page {
   min-height: 100%;
-  background: var(--text-primary);
+  background: var(--page-bg);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -206,7 +233,7 @@ function goBack() {
   box-sizing: border-box;
 }
 .page-body {
-  padding: 20rpx;
+  padding: var(--spacing-lg, 24rpx) var(--page-gutter, 24rpx) 48rpx;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -215,20 +242,22 @@ function goBack() {
 }
 .video-player {
   width: 100%;
-  height: 56vh;
-  background: var(--text-primary);
+  /* 首帧前兜底 16:9；真实高度由 onVideoMeta 按片源宽高比覆盖 */
+  height: 52vw;
+  background: var(--text-primary, #0f172a);
   border-radius: var(--radius-control);
 }
 .state {
-  margin-top: 30vh;
+  margin-top: 24vh;
   text-align: center;
-  color: var(--text-subtle);
+  /* 令牌兜底：小程序端 WXSS 不认 :root，令牌未注入时不能变成黑色不可读（P2-2） */
+  color: var(--text-muted, #64748b);
 }
 .state-title {
   display: block;
   font-size: var(--font-size-lg);
   font-weight: 600;
-  color: var(--color-border);
+  color: var(--text-primary);
 }
 .state-desc {
   display: block;
@@ -244,17 +273,17 @@ function goBack() {
   align-items: center;
   padding: 0 48rpx;
   border-radius: var(--radius-control);
-  border: 1rpx solid var(--text-subtle);
-  color: var(--white);
+  border: 1rpx solid var(--brand);
+  color: var(--brand);
   font-size: var(--font-size-body);
 }
 .meta {
-  color: var(--text-subtle);
+  color: var(--text-muted, #64748b);
   font-size: var(--font-size-xs);
 }
 .meta.warn {
   margin-top: 8rpx;
-  color: var(--warning, #b45309);
+  color: var(--warning);
 }
 .tips {
   margin-top: 24rpx;
@@ -266,7 +295,7 @@ function goBack() {
   margin-top: 28rpx;
 }
 .back-link {
-  color: var(--success);
+  color: var(--brand);
   font-size: var(--font-size-body);
 }
 .clip-bar {
@@ -278,15 +307,15 @@ function goBack() {
 }
 .clip-chip {
   padding: 8rpx var(--page-gutter, 24rpx);
-  border-radius: var(--radius-control);
-  border: 1rpx solid var(--text-subtle);
-  color: var(--text-subtle);
-  font-size: var(--font-size-xs);
-  opacity: 0.6;
+  border-radius: var(--radius-pill, 999rpx);
+  border: 1rpx solid var(--card-border, #e2e8f0);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-size: var(--font-size-caption);
 }
 .clip-chip--active {
-  color: var(--white);
-  border-color: var(--white);
-  opacity: 1;
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--brand-soft);
 }
 </style>

@@ -34,9 +34,13 @@ services:
         mc mb --ignore-existing "local/$$MINIO_BUCKET"
         # V4：桶显式私有——对象读取一律走后端流式/presign，禁桶级匿名
         mc anonymous set none "local/$$MINIO_BUCKET" || true
-        mc ilm add --prefix 'sim/' --expire-days "$${MINIO_SIM_RETENTION_DAYS:-7}" "local/$$MINIO_BUCKET" || true
-        mc ilm add --prefix 'videos/' --expire-days "$${MINIO_VIDEO_RETENTION_DAYS:-30}" "local/$$MINIO_BUCKET" || true
-        mc ilm add --prefix 'archive/' --expire-days "$${MINIO_ARCHIVE_RETENTION_DAYS:-180}" "local/$$MINIO_BUCKET" || true
+        # 🔴 2026-11-09 用户拍板：图片类资产（sku-images/、ops-avatars/、ops-brand/、ad/、
+        # *-evidence/）永久保存。禁止任何无前缀的全桶过期规则——曾有一条 14 天全桶规则
+        # 把 10-23 上传的 SKU 图到期删掉，DB 行留下悬空引用。过期只允许下面三个视频前缀。
+        # 整桶 import 幂等替换：mc ilm add 每次 up 追加一条，实测曾堆到 325 条规则。
+        printf '{"Rules":[{"ID":"aicabinet-sim-7d","Status":"Enabled","Expiration":{"Days":%s},"Filter":{"Prefix":"sim/"}},{"ID":"aicabinet-videos-30d","Status":"Enabled","Expiration":{"Days":%s},"Filter":{"Prefix":"videos/"}},{"ID":"aicabinet-archive-180d","Status":"Enabled","Expiration":{"Days":%s},"Filter":{"Prefix":"archive/"}}]}' \
+          "$${MINIO_SIM_RETENTION_DAYS:-7}" "$${MINIO_VIDEO_RETENTION_DAYS:-30}" "$${MINIO_ARCHIVE_RETENTION_DAYS:-180}" \
+          | mc ilm rule import "local/$$MINIO_BUCKET"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
