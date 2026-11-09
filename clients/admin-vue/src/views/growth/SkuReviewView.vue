@@ -13,6 +13,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
+            v-hasPermi="['ops:sku-review:edit']"
             type="warning"
             plain
             :disabled="!crud.hasSelection"
@@ -21,6 +22,7 @@
             >批量下架</el-button
           >
           <el-button
+            v-hasPermi="['ops:sku-review:edit']"
             type="success"
             plain
             :disabled="!crud.hasSelection"
@@ -240,10 +242,13 @@ const csvOptions: CrudCsvOptions = {
 };
 
 function rowActions(_row: ReviewRow): CrudRowAction[] {
+  // 三个决策动作都会写库（下架即停售 SKU），后端要求 ops:sku-review:edit；
+  // 只有 list 码的角色不该看到必 403 的按钮。
+  const perm = 'ops:sku-review:edit';
   return [
-    { key: 'recommend', label: '建议下架', icon: Warning, type: 'warning' },
-    { key: 'keep', label: '保留', icon: CircleCheck, type: 'success' },
-    { key: 'delist', label: '确认下架', icon: CircleClose, type: 'danger' }
+    { key: 'recommend', label: '建议下架', icon: Warning, type: 'warning', perm },
+    { key: 'keep', label: '保留', icon: CircleCheck, type: 'success', perm },
+    { key: 'delist', label: '确认下架', icon: CircleClose, type: 'danger', perm }
   ];
 }
 

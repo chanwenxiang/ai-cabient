@@ -759,10 +759,19 @@ async function submitRefund() {
         restoreInventory
       })
     );
+    // 🔴 2026-11-10 审计 P1-8：原实现只置本地标记不拉快照 ⇒ 页面显示「已退款」，
+    // 但 refundedCents/refundedAt 还是退款前的值：模板「退款」行不出现、「实付」仍是原额。
+    // 本页自动刷新只对非终态继续跑，退款后不会再自己更新，必须在这里回读一次。
+    await refreshQuietly();
     refundDone.value = true;
     disputeFiled.value = true;
     showDispute.value = false;
-    statusLabel.value = '已退款';
+    const nextStatus = String(order.value?.status || '');
+    // 快照跟上时用后端状态（部分退款要显示「部分退款」）；没跟上才用兜底文案，别让用户以为没成功
+    statusLabel.value =
+      nextStatus === 'REFUNDED' || nextStatus === 'PARTIAL_REFUNDED'
+        ? orderStatusLabel(nextStatus)
+        : '已退款';
     showSuccess(result.message || '退款成功');
   } catch (e) {
     showError(consumerAppealErrorMessage(e, '退款失败'));

@@ -132,11 +132,7 @@ import {
   seedMerchantMeDisplayCache
 } from '@/composables/useMerchantMe';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
-import type {
-  MerchantMe,
-  MerchantSkuPriceChange,
-  MerchantSkuPricing
-} from '@aicabinet/shared-types';
+import type { MerchantSkuPriceChange, MerchantSkuPricing } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);

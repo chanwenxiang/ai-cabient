@@ -51,6 +51,26 @@ function detailDiffers(): boolean {
 function detailRemainderTotal(): number {
   return detailRows.value.reduce((acc, r) => acc + (Number(r.remainderQty) || 0), 0);
 }
+
+/**
+ * 「上柜」列取值 = 领货 − 领而未上。
+ * 🔴 2026-11-10 审计 P2-1：原写法 `row.shelvedQty ?? row.qty` 兜底方向是反的——
+ * 字段缺失时把**领货量**当上柜量，与同一行的「领而未上」自相矛盾（领 20、未上 5 却显示上柜 20）。
+ * 后端 `WarehouseMonthlyCloseService:343` 恒传 `qty - remainderQty`，所以线上不触发；
+ * 但兜底值本身必须按同一口径算，字段缺失时宁可显「—」也不冒充。
+ */
+function shelvedQtyText(row: {
+  shelvedQty?: number | string | null;
+  qty?: number | string | null;
+  remainderQty?: number | string | null;
+}): string {
+  const shelved = Number(row.shelvedQty);
+  if (row.shelvedQty != null && Number.isFinite(shelved)) return String(shelved);
+  const qty = Number(row.qty);
+  if (row.qty == null || !Number.isFinite(qty)) return '—';
+  const remainder = Number(row.remainderQty);
+  return String(qty - (Number.isFinite(remainder) ? remainder : 0));
+}
 </script>
 
 <template>
@@ -251,7 +271,7 @@ function detailRemainderTotal(): number {
         label-class-name="col-num"
       />
       <el-table-column label="上柜" min-width="72" class-name="col-num" label-class-name="col-num">
-        <template #default="{ row }">{{ row.shelvedQty ?? row.qty }}</template>
+        <template #default="{ row }">{{ shelvedQtyText(row) }}</template>
       </el-table-column>
       <el-table-column
         label="领而未上"

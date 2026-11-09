@@ -267,7 +267,14 @@ if (src.monthlyTab) {
       );
     }
   }
-  if (!/row\.shelvedQty/.test(src.monthlyTab)) {
+  // 🔴 2026-11-10 审计 P2-1 后模板改走 `shelvedQtyText(row)`（字段缺失显「—」，
+  // 兜底按 qty − remainderQty 同口径算，不再把领货量冒充上柜量）。判据随之升级为两条：
+  //   1) 「上柜」列模板必须调 shelvedQtyText(row)——直接绑 row.qty 就是退回领货量，红；
+  //   2) 文件里必须仍引用 row.shelvedQty（取值函数按真实上柜实收优先）——整段被掏空也红。
+  if (
+    !/shelvedQtyText\(\s*row\s*\)/.test(src.monthlyTab) ||
+    !/row\.shelvedQty/.test(src.monthlyTab)
+  ) {
     problems.push('月结下钻不再渲染 shelvedQty（上柜实收），差额只剩一个可对不上账的总数');
   }
 }

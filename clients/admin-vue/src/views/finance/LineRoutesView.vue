@@ -255,6 +255,7 @@ import { onMounted, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { errorMessage } from '@/utils/error-message';
 import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
@@ -571,8 +572,11 @@ async function submitPayout(): Promise<void> {
     ElMessage.success('已标记出账');
     payoutDialogVisible.value = false;
     await walletsCrud.load();
-  } catch {
-    // 余额不足等错误由后端返回「余额不足，提现失败」，全局拦截器已提示
+  } catch (e) {
+    // 原先这里空 catch，注释称"全局拦截器已提示"，但 admin 与 shared-api 都没有全局提示层
+    // （P1-5）⇒ 打款失败时弹窗不关、列表不刷、零提示，运营会重复提交。
+    // 弹窗保持打开，requestNo 复用同一幂等键，重试安全。
+    ElMessage.error(errorMessage(e, '标记出账失败'));
   }
 }
 

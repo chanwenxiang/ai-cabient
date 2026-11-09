@@ -299,7 +299,6 @@ import {
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
-import type { MerchantMe } from '@aicabinet/shared-types';
 import {
   buildMerchantDisputeResolveBody,
   canReplyMerchantDispute,
@@ -376,7 +375,6 @@ const playbackUrls = computed<string[]>(() => {
   const first = playablePlaybackUrl(detail.value?.videoPreviewUrl);
   return first ? [first] : [];
 });
-const playbackUrl = computed(() => playbackUrls.value[0] || '');
 /**
  * 证据图 fileId/url -> 本地临时路径。
  * image 标签无法携带 Authorization 头，直连证据流 URL 会 401；

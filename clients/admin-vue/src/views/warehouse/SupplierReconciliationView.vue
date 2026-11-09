@@ -14,6 +14,7 @@ import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import { centsToYuanDigits } from '@aicabinet/shared-uni/format';
 import { yuanText } from '@/utils/display';
+import { escapeCsvCell } from '@/utils/csv';
 
 interface SupplierOption {
   supplierId: string;
@@ -137,11 +138,12 @@ function exportCsv() {
       '月边界为 UTC；金额为含税应付口径；与供应商开票数的差异请线下人工核对（系统暂无收票登记）'
     ]
   ];
+  // 🔴 2026-11-10 审计 P2-6：原先手写 `"${String(c).replace(/"/g,'""')}"` 拼装，
+  // 只做了引号转义、没有中和公式注入——这份 CSV 是**外发给供应商**的，
+  // 供应商名等外部字段以 = + - @ 开头时会被 Excel/WPS 当公式执行。
+  // 改用共享的 escapeCsvCell（与页面内置导出同一套判据），空行仍保留。
   const csv =
-    '\ufeff' +
-    rows
-      .map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\r\n');
+    '\ufeff' + rows.map((row) => row.map((c) => escapeCsvCell(c ?? '')).join(',')).join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

@@ -79,6 +79,14 @@
  *      @click/@tap 可达（含一级被调者），且宿主体内调用点之前不得有 await
  *      （手势过期同样静默失败）。2026-10-24 三处同族收口：账单订阅 finishSession
  *      异步链（留置②）+ 两处争议订阅（DISPUTED 分支/onShow 恢复路径）。【本次新增】
+ *   R. 幂等键容器建在提交函数体内：`function submit()` 体内 `new Map` 装 clientRequestNo——
+ *      键随函数返回即销毁，注释里「传输错误保留键供重试」的承诺不成立；部分失败重提时
+ *      已成功的柜换新键 ⇒ 后端查重失效、重复建任务并重复扣分仓库存。
+ *      【2026-11-10 备货单 P0-3，prep-generate/prep-list 两处同款】
+ *   S. 幂等回放的终态会话被无条件接管：`adopt_fulfilled` 分支直接 adoptSession 而不过
+ *      isAdoptableSession——后端 validateIdempotentReplay 只看归属不看状态，命中
+ *      COMPLETED/CANCELLED 时柜门不开、用户被带进上一笔账单。
+ *      【2026-11-10 开门幂等 P0-4】
  *
  * 注释剥离（铁律）：JS/TS 块注释与行注释、Vue HTML 注释一律**等长 blank 成空白
  * 且保留换行**——注释里描述缺陷的 prose 不得命中判据，且报出的 file:line
@@ -870,6 +878,61 @@ function checkSubscribeTapContext(files) {
   }
 }
 
+// ── R. 幂等键容器建在提交函数体内（函数返回即丢，幂等形同虚设）───────────
+/**
+ * 2026-11-10 P0-3：备货单把逐柜 clientRequestNo 存在 `submit()` 的局部 Map 里，
+ * 注释写着「传输错误保留键供重试」，实际 Map 随函数返回销毁；部分失败重提时已成功的柜
+ * 换新键 ⇒ 后端按 clientRequestNo 查重失效 ⇒ 重复建任务、重复扣分仓库存。
+ * 判据：提交类函数体内出现 `new Map`，且同文件使用 clientRequestNo（幂等键）。
+ * 局限：只认 `function submit(` 声明形态（本仓两处均为此形态），箭头函数声明需另扩。
+ */
+function checkIdempotencyKeyLocalStore(files) {
+  for (const f of files) {
+    if (/\.test\.ts$/.test(f)) continue;
+    const code = readSource(f);
+    if (code === null) continue;
+    if (!/clientRequestNo/.test(code)) continue;
+    for (const b of functionBodies(code, 'submit|onSubmit|handleSubmit|doSubmit')) {
+      const m = b.text.match(/\bnew Map\b/);
+      if (!m) continue;
+      const line = b.line + b.text.slice(0, m.index).split('\n').length - 1;
+      report(
+        'R',
+        f,
+        line,
+        `${b.name}() 内建 Map 存幂等键：键随函数返回即销毁，重试必然换新键 ⇒ 后端 clientRequestNo 查重失效、重复建任务/重复扣库存。修法：容器提升为页面级常量（见 self-replenish-submit.ts takePrepRequestNo）`
+      );
+    }
+  }
+}
+
+// ── S. 幂等回放的终态会话被无条件接管 ─────────────────────────────────────
+/**
+ * 2026-11-10 P0-4：后端 validateIdempotentReplay 只校验用户/柜机、不看状态，
+ * 旧键命中已结束会话时会把 COMPLETED/CANCELLED 当「开门成功」原样返回。
+ * 前端 `adopt_fulfilled` 分支若直接 adoptSession，结果就是柜门不开、人还被带进上一笔账单。
+ * 判据：含 'adopt_fulfilled' 的函数体内调用 adoptSession( 却无 isAdoptableSession(。
+ */
+function checkTerminalSessionAdopt(files) {
+  for (const f of files) {
+    if (/\.test\.ts$/.test(f)) continue;
+    const code = readSource(f);
+    if (code === null) continue;
+    if (!code.includes("'adopt_fulfilled'") && !code.includes('"adopt_fulfilled"')) continue;
+    for (const b of allFunctionBodies(code)) {
+      if (!b.text.includes('adopt_fulfilled')) continue;
+      if (!/\badoptSession\s*\(/.test(b.text)) continue;
+      if (/\bisAdoptableSession\s*\(/.test(b.text)) continue;
+      report(
+        'S',
+        f,
+        b.line,
+        `${b.name}() 的 adopt_fulfilled 分支直接接管会话、未过 isAdoptableSession：后端幂等回放不看状态，命中 COMPLETED/CANCELLED 时柜门不开且用户被带进上一笔账单。修法：先判 isAdoptableSession，终态则 clearOpenAttempt() 换键重开`
+      );
+    }
+  }
+}
+
 // ── 汇总 ──────────────────────────────────────────────────────────────────
 const allFiles = [];
 for (const app of APPS) allFiles.push(...walk(join(root, app.src)));
@@ -901,6 +964,8 @@ checkTemplateIdLiteral(allFiles);
 checkNegativeCache(allFiles);
 checkUnboundedCache(allFiles);
 checkSubscribeTapContext(allFiles);
+checkIdempotencyKeyLocalStore(allFiles);
+checkTerminalSessionAdopt(allFiles);
 
 // P 类按 app 解析静态目录（/static/... 在哪个包的 src 下找哪个包）；
 // shared-uni 是共享层，但组件未必被两端都注册（easycom 只在用到它的 app 的 pages.json
@@ -1231,6 +1296,38 @@ const SELFTEST_CASES = [
     cls: 'Q',
     code: '// 参考 requestOrderSubscribe 的用法\nfunction other() {\n  noop();\n}',
     hit: false
+  },
+  // ── R 幂等键容器建在提交函数体内 ──
+  {
+    cls: 'R',
+    code: "async function submit() {\n  const requestNos = new Map<string, string>();\n  const body = { clientRequestNo: requestNos.get('D1') || gen() };\n}",
+    hit: true
+  },
+  {
+    cls: 'R',
+    code: "const requestNos = new Map<string, string>();\nasync function submit() {\n  const body = { clientRequestNo: takePrepRequestNo(requestNos, 'D1') };\n}",
+    hit: false
+  },
+  {
+    cls: 'R',
+    code: 'async function submit() {\n  const seen = new Map();\n  void seen;\n}',
+    hit: false
+  },
+  // ── S 终态会话被 adopt_fulfilled 无条件接管 ──
+  {
+    cls: 'S',
+    code: "function handleSessionOpenResult(cabinetId, sessionResult) {\n  if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {\n    adoptSession(sessionResult.value);\n    return true;\n  }\n}",
+    hit: true
+  },
+  {
+    cls: 'S',
+    code: "function handleSessionOpenResult(cabinetId, sessionResult) {\n  if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {\n    const s = sessionResult.value;\n    if (isAdoptableSession(s, cabinetId)) { adoptSession(s); return true; }\n  }\n}",
+    hit: false
+  },
+  {
+    cls: 'S',
+    code: '// adopt_fulfilled 分支必须过 isAdoptableSession\nfunction other() {\n  noop();\n}',
+    hit: false
   }
 ];
 
@@ -1265,6 +1362,8 @@ for (const c of SELFTEST_CASES) {
   if (c.cls === 'N') checkNegativeCache(single);
   if (c.cls === 'O') checkUnboundedCache(single);
   if (c.cls === 'Q') checkSubscribeTapContext(single);
+  if (c.cls === 'R') checkIdempotencyKeyLocalStore(single);
+  if (c.cls === 'S') checkTerminalSessionAdopt(single);
   if (c.cls === 'P') checkAssetExists(single, join(root, 'clients/consumer-mp/src'));
   const fired = problems.length > before;
   if (fired !== c.hit) {
@@ -1302,5 +1401,5 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `${TAG} OK: ${allFiles.length} 个文件，A 分页死锁 / B 组件生命周期 / C 切换上下文 / D 原始 errMsg / E 端点插值 / F 在途门闩(F1-F4) / G 静默截断 / H 翻页污染 / I blob 泄漏 / J 死导入 / K 刷新失败登出 / L 硬编码版本 / M 模板 ID / N 负缓存钉死 / O 无界缓存 / P 资产悬空引用 / Q 订阅tap上下文 十七个类全部零命中（自检 ${SELFTEST_CASES.length} 例通过）`
+  `${TAG} OK: ${allFiles.length} 个文件，A 分页死锁 / B 组件生命周期 / C 切换上下文 / D 原始 errMsg / E 端点插值 / F 在途门闩(F1-F4) / G 静默截断 / H 翻页污染 / I blob 泄漏 / J 死导入 / K 刷新失败登出 / L 硬编码版本 / M 模板 ID / N 负缓存钉死 / O 无界缓存 / P 资产悬空引用 / Q 订阅tap上下文 / R 幂等键局部容器 / S 终态会话接管 十九个类全部零命中（自检 ${SELFTEST_CASES.length} 例通过）`
 );

@@ -159,12 +159,28 @@ export function wxLoginCode(): Promise<string> {
         if (res.code) resolve(res.code);
         else reject(new Error('未获取到微信登录码'));
       },
-      fail: (err) => reject(new Error('微信登录失败'))
+      fail: () => reject(new Error('微信登录失败'))
     });
   });
 }
 
-export function showBillToast(totalCents: number) {
+/**
+ * 结算完成提示。
+ *
+ * 🔴 2026-11-10 审计 P1-6：`totalCents` 传 `null` 表示「金额未知」（查询失败/弱网/尚未落单）。
+ * 此时必须说「账单已生成，正在打开」，**不能**落到 `<= 0` 分支说「本次未消费」——
+ * 用户刚被扣款却被告知没消费，是对资金事实的错误陈述，极易升级投诉。
+ * 传 `0` 才是「确认零元单」。
+ */
+export function showBillToast(totalCents: number | null) {
+  if (totalCents == null || !Number.isFinite(totalCents)) {
+    uni.showToast({
+      title: '账单已生成，正在打开…',
+      icon: 'none',
+      duration: TOAST_DURATION_MS
+    });
+    return;
+  }
   const yuan = (totalCents / 100).toFixed(2);
   const title = totalCents <= 0 ? '本次未消费' : `已扣款 ¥${yuan}`;
   uni.showToast({

@@ -175,7 +175,7 @@ import {
 import { fmtMoney, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
-import type { MerchantDeviceInfo, MerchantMe } from '@aicabinet/shared-types';
+import type { MerchantDeviceInfo } from '@aicabinet/shared-types';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 

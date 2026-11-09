@@ -178,7 +178,23 @@ function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-export async function resumePendingRechargeIfAny(): Promise<boolean> {
+/**
+ * 进页自动恢复：单飞包装。
+ * 🔴 2026-11-10 审计 P1-7：本函数内部要跑 8×1.5s 的短轮询，原先由页面 `await` 串在
+ * onShow 恢复链最前面 ⇒ 有残留 pending 时每次进页都先卡约 12 秒。
+ * 现由调用方 `void`（不阻塞其它恢复），并用模块级 in-flight 闩防止每次进页叠加并发轮询。
+ */
+let resumeInflight: Promise<boolean> | null = null;
+
+export function resumePendingRechargeIfAny(): Promise<boolean> {
+  if (resumeInflight) return resumeInflight;
+  resumeInflight = doResumePendingRecharge().finally(() => {
+    resumeInflight = null;
+  });
+  return resumeInflight;
+}
+
+async function doResumePendingRecharge(): Promise<boolean> {
   const orderId = peekPendingRechargeOrder();
   if (!orderId) return false;
   try {
@@ -283,7 +299,15 @@ export async function runWeChatRecharge(
     throw new Error('支付参数缺失：预下单未返回微信收银台签名，请稍后重试');
   }
   savePendingRechargeOrder(prepay.orderId);
-  await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
+  try {
+    await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
+  } catch (e) {
+    // 🔴 2026-11-10 审计 P1-7：用户取消收银台 / 支付失败时这笔不会到账，
+    // 原实现把 pending 留到「走完轮询后才清」⇒ 取消后 pending 永久残留，
+    // 之后每次进首页/我的都要白等一轮 8×1.5s。这里立即清掉，只让「支付成功但到账慢」保留 pending。
+    clearPendingRechargeOrder();
+    throw e;
+  }
   await pollRechargePaid(prepay.orderId, 20, 1500);
   clearPendingRechargeOrder();
   return { orderId: prepay.orderId, mode: 'live' };

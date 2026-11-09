@@ -45,6 +45,15 @@ export type UseDeviceRemoteOpsDeps = {
  */
 export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
   const policy = ref<DeviceRemoteOpsPolicy | null>(null);
+  /**
+   * 策略拉取失败标记。
+   * 🔴 2026-11-10 审计 P1-1：原先失败时把四个开关伪造成 `false` 兜底，表单照常可编辑；
+   * 运营拨任一开关 → `savePolicy()` 整份 PUT 回写 ⇒ 真实开启的「禁售/营业锁机」
+   * 被静默关掉，柜机恢复售卖。现在失败即 `policy = null`（表单不渲染）+ 可重试，
+   * 且 `savePolicy()` 在失败态直接拒绝。
+   */
+  const policyLoadFailed = ref(false);
+  const policyLoading = ref(false);
   const refundPolicyDraft = ref('INHERIT');
   const refundPolicySaving = ref(false);
   const globalRefundPolicy = ref('AUTO_REFUND');
@@ -103,20 +112,26 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
     }
   }
 
-  async function loadPolicy(fallbackSalesLocked: boolean) {
+  /**
+   * 拉取柜机策略锁。
+   * `_fallbackSalesLocked` 保留形参只为不改调用方签名——**不再**用它伪造本地状态：
+   * 它来自 metrics 的另一条请求，本身也可能失败，拿它当策略值属于二次猜测。
+   */
+  async function loadPolicy(_fallbackSalesLocked: boolean) {
+    policyLoading.value = true;
+    policyLoadFailed.value = false;
     try {
       policy.value = await api.request<DeviceRemoteOpsPolicy>(
         AdminEndpoints.devicePolicy(deps.deviceId),
         'GET'
       );
-    } catch {
-      policy.value = {
-        deviceId: deps.deviceId,
-        salesLocked: fallbackSalesLocked,
-        priceLocked: false,
-        skuEditForbidden: false,
-        saleForbidden: false
-      };
+    } catch (e) {
+      // 不兜底、不伪造：宁可不显示开关，也不能让运营在错误基线上改真实锁状态
+      policy.value = null;
+      policyLoadFailed.value = true;
+      ElMessage.error(errorMessage(e, '柜机策略加载失败，请重试后再修改'));
+    } finally {
+      policyLoading.value = false;
     }
   }
 
@@ -196,6 +211,11 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
 
   async function savePolicy() {
     if (!policy.value || !deps.canEditDevice.value) return;
+    // 策略从未成功加载过时拒绝保存：此时的 policy 只可能是空值或过期基线
+    if (policyLoadFailed.value) {
+      ElMessage.warning('柜机策略尚未加载成功，请先重试加载');
+      return;
+    }
     try {
       policy.value = await api.request(
         AdminEndpoints.devicePolicy(deps.deviceId),
@@ -246,8 +266,16 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
     }
   }
 
+  /** 失败态重试入口（模板按钮用，不带 metrics 兜底值）。 */
+  function reloadPolicy() {
+    return loadPolicy(false);
+  }
+
   return {
     policy,
+    policyLoadFailed,
+    policyLoading,
+    reloadPolicy,
     refundPolicyDraft,
     refundPolicySaving,
     globalRefundPolicy,

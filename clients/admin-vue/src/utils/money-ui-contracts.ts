@@ -3,23 +3,18 @@
  * View 必须复用本模块，禁止再手写一套可退款状态 / 提现审核体（debt-tracker D5）。
  */
 import { errorMessage } from './error-message';
+import {
+  ORDER_REFUNDABLE_STATUSES,
+  isRefundableOrderStatus
+} from '@aicabinet/shared-uni/order-refund-policy';
 
-export const REFUNDABLE_ORDER_STATUSES = [
-  'PAID',
-  'COMPLETED',
-  'DISPUTED',
-  'PARTIAL_REFUNDED'
-] as const;
+// 状态白名单的唯一源在 shared-uni（P2-7：三端曾各写一套且互不相等），此处仅作别名导出
+export const REFUNDABLE_ORDER_STATUSES = ORDER_REFUNDABLE_STATUSES;
 
 export type RefundableOrderStatus = (typeof REFUNDABLE_ORDER_STATUSES)[number];
 
 export function canRefundOrderStatus(status?: string | null): boolean {
-  return (
-    status === 'PAID' ||
-    status === 'COMPLETED' ||
-    status === 'DISPUTED' ||
-    status === 'PARTIAL_REFUNDED'
-  );
+  return isRefundableOrderStatus(status, 'admin');
 }
 
 /**

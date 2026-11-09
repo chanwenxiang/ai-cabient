@@ -124,7 +124,6 @@ import {
   todoBadgeCount,
   type TodoKpiKey
 } from '@/utils/todo-list';
-import type { MerchantMe } from '@aicabinet/shared-types';
 import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 

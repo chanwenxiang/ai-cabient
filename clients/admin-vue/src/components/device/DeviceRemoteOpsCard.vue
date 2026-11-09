@@ -27,6 +27,9 @@ const props = defineProps<{
   refundDraftHint: string;
   refundPriorityHint: string;
   deviceRefundPolicy?: string | null;
+  /** 策略拉取失败：模板改显错误块 + 重试，绝不渲染可编辑开关（P1-1） */
+  policyLoadFailed: boolean;
+  policyLoading: boolean;
   repairTickets: DeviceRepairTicketRow[];
   repairHydrated: boolean;
   policyLabel: (policyCode?: string | null) => string;
@@ -43,6 +46,7 @@ const emit = defineEmits<{
   'create-repair': [];
   'save-refund-policy': [];
   'save-policy': [];
+  'reload-policy': [];
   'update:refundPolicyDraft': [value: string];
 }>();
 
@@ -249,7 +253,25 @@ watch(
         <div class="field-hint policy-priority-hint">{{ refundPriorityHint }}</div>
 
         <div class="cmd-section-label policy-lock-label">柜机策略锁</div>
-        <el-form v-if="policy" label-width="auto" class="policy-form" @submit.prevent>
+        <!-- 加载失败不兜底成「四个全关」：伪造基线 + 整份 PUT 会把真实锁状态静默关掉（P1-1） -->
+        <el-alert
+          v-if="policyLoadFailed"
+          type="error"
+          :closable="false"
+          show-icon
+          class="policy-load-failed"
+          title="柜机策略加载失败"
+        >
+          <template #default>
+            <div class="policy-load-failed__body">
+              <span>当前无法确认该柜机的锁状态，已禁用此处开关以免误改真实配置。</span>
+              <el-button size="small" :loading="policyLoading" @click="emit('reload-policy')"
+                >重试加载</el-button
+              >
+            </div>
+          </template>
+        </el-alert>
+        <el-form v-else-if="policy" label-width="auto" class="policy-form" @submit.prevent>
           <div class="policy-switch-grid">
             <el-form-item label="营业锁机">
               <el-switch
@@ -368,6 +390,15 @@ watch(
 }
 .policy-lock-label {
   margin-top: 16px;
+}
+.policy-load-failed {
+  margin-top: 8px;
+}
+.policy-load-failed__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .policy-priority-hint {
   margin: 0 0 4px;

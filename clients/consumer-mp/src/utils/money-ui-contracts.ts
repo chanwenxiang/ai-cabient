@@ -2,11 +2,17 @@
  * 消费端金钱相关 UI 契约（可单测）：状态门闩 + 写请求体形状。
  * View 必须复用本模块，禁止再手写退款/充值/余额退申请体（debt-tracker C4）。
  */
+import {
+  CONSUMER_ORDER_REFUNDABLE_STATUSES,
+  RESULT_PAGE_REFUNDABLE_STATUSES as SHARED_RESULT_PAGE_REFUNDABLE_STATUSES,
+  isRefundableOrderStatus
+} from '@aicabinet/shared-uni/order-refund-policy';
 
-export const ORDER_DETAIL_REFUNDABLE_STATUSES = ['PAID', 'COMPLETED', 'PARTIAL_REFUNDED'] as const;
+// 状态白名单的唯一源在 shared-uni（P2-7）：三端曾各写一套，同一张单在不同页能做的操作不同
+export const ORDER_DETAIL_REFUNDABLE_STATUSES = CONSUMER_ORDER_REFUNDABLE_STATUSES;
 
-/** 结算结果页立即退款：不含 PARTIAL_REFUNDED（与 result.vue 历史行为一致） */
-export const RESULT_PAGE_REFUNDABLE_STATUSES = ['PAID', 'COMPLETED'] as const;
+/** 结算结果页立即退款：不含 PARTIAL_REFUNDED（结果页没有行级选择能力，二次退款去订单详情） */
+export const RESULT_PAGE_REFUNDABLE_STATUSES = SHARED_RESULT_PAGE_REFUNDABLE_STATUSES;
 
 export type OrderDetailRefundableStatus = (typeof ORDER_DETAIL_REFUNDABLE_STATUSES)[number];
 
@@ -18,8 +24,7 @@ export function canRefundOnOrderDetail(input: {
 }): boolean {
   if (!input.orderId || input.refundDone) return false;
   if (input.refundPolicy === 'DISPUTE_ONLY') return false;
-  const s = String(input.status || '');
-  return (ORDER_DETAIL_REFUNDABLE_STATUSES as readonly string[]).includes(s);
+  return isRefundableOrderStatus(input.status, 'consumer');
 }
 
 export function canRefundOnResultPage(input: {
@@ -33,8 +38,7 @@ export function canRefundOnResultPage(input: {
   if (!input.orderId || input.refundDone || input.disputeFiled) return false;
   if (Number(input.totalAmountCents ?? 0) <= 0) return false;
   if (input.refundPolicy === 'DISPUTE_ONLY') return false;
-  const s = String(input.status || '');
-  return (RESULT_PAGE_REFUNDABLE_STATUSES as readonly string[]).includes(s);
+  return isRefundableOrderStatus(input.status, 'result-page');
 }
 
 export type OrderRefundLine = {

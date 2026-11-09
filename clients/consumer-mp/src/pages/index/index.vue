@@ -1158,7 +1158,8 @@ async function resumeBrowseDeviceFlow() {
 async function onAuthenticatedShow() {
   // C-P2-10：结算跳转争议页期间禁止 reopen/restore 抢导航
   if (finishingSession.value) return;
-  await resumePendingRechargeIfAny();
+  // 充值待确认是后台核对，不该阻塞首屏恢复（内部有 8×1.5s 轮询，P1-7）
+  void resumePendingRechargeIfAny();
   await refreshReviewState();
   if (scanned.value && deviceId.value) refreshDeviceStatus();
   if (await resumeReopenDeviceFlow()) return;
@@ -1378,11 +1379,34 @@ async function handleSessionOpenResult(
   pendingCreate?: Promise<SessionDto>
 ): Promise<boolean> {
   if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {
-    adoptSession((sessionResult as PromiseFulfilledResult<SessionDto>).value);
-    // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想。
-    // medium：light 档真机几乎无感（2026-10-23 用户反馈），关键节点换可感知档位
-    hapticMedium();
-    return true;
+    const fulfilled = (sessionResult as PromiseFulfilledResult<SessionDto>).value;
+    if (isAdoptableSession(fulfilled, cabinetId)) {
+      adoptSession(fulfilled);
+      // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想。
+      // medium：light 档真机几乎无感（2026-10-23 用户反馈），关键节点换可感知档位
+      hapticMedium();
+      return true;
+    }
+    // 后端幂等回放只校验用户/柜机、不看状态（SessionService.validateIdempotentReplay），
+    // 旧键命中已结束的会话时会把 COMPLETED/CANCELLED 当成「开门成功」原样返回。
+    // 此时接管 = 柜门不开、人还被带进上一笔账单（P0-4）：作废旧键换新键真开一次。
+    clearOpenAttempt();
+    try {
+      const reopened = await withTimeout(
+        consumerApi.createSession(cabinetId, entryChannel.value),
+        OPEN_TIMEOUT_MS,
+        '开门请求超时，请检查网络后重试'
+      );
+      if (isAdoptableSession(reopened, cabinetId)) {
+        adoptSession(reopened);
+        hapticMedium();
+        return true;
+      }
+      // 新键仍非可接管态：交给孤儿会话查询兜底，不在这里直接判死
+      pendingCreate = Promise.resolve(reopened);
+    } catch {
+      /* 换键重开失败（业务拒绝/超时）：继续孤儿查询，失败文案走原有降级路径 */
+    }
   }
   if (await adoptOrphanSession(cabinetId, { pendingCreate })) return true;
   markOpenFailed(cabinetId);
@@ -2225,12 +2249,13 @@ async function finishSession(sessionState: string, sid: string) {
         uni.setStorageSync('last_device_name', deviceName.value || deviceId.value);
       }
       clearSessionUi();
-      let totalCents = 0;
+      // null = 金额未知（查询失败），不能当 0 元说「本次未消费」（P1-6）
+      let totalCents: number | null = null;
       try {
         const order = await consumerApi.getSessionOrder(sid);
         totalCents = order?.totalAmountCents ?? 0;
       } catch {
-        /* 零元单或查询失败仍跳转结果页 */
+        /* 零元单或查询失败：保持 null，提示走「账单已生成，正在打开」 */
       }
       // 账单通知订阅已移到结果页「订阅账单通知」按钮（tap 上下文才稳定弹窗，
       // 异步链上部分基础库版本静默失败——2026-10-24 第五轮审计留置②收口）
@@ -2341,7 +2366,13 @@ async function restoreActiveSession() {
   }
   try {
     const s = saved ? await consumerApi.getSession(saved) : await consumerApi.activeSession();
-    if (!s) return;
+    if (!s) {
+      // 后端 activeSession 只查非终态（null = 会话已结束/不存在）。
+      // 旧键不清的后果：下次扫码复用旧幂等键 → 后端回放终态会话 → 柜门不开还被带进上一笔账单（P0-4）。
+      clearActiveSession();
+      clearOpenAttempt();
+      return;
+    }
     if (isTerminalSessionState(s.state)) {
       clearActiveSession();
       clearOpenAttempt();

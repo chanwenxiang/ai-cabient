@@ -146,7 +146,6 @@ import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { canShowOrderVideo } from '@/utils/order-video-url';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
-import type { MerchantMe } from '@aicabinet/shared-types';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 type OrderLine = {

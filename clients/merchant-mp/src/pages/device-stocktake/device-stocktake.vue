@@ -190,23 +190,43 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
 // ---- 开门柜：批量提交实盘 ----
 async function submitDoorStocktake() {
   if (submittingDoor.value) return;
-  const changed = goods.value
-    .map((g) => ({
-      skuId: g.skuId,
-      countedQuantity: Number(goodsInputs.value[g.skuId] ?? '')
-    }))
-    .filter((l) => {
-      if (Number.isNaN(l.countedQuantity) || l.countedQuantity < 0) return false;
-      const book = goods.value.find((g) => g.skuId === l.skuId)?.quantity ?? 0;
-      return l.countedQuantity !== book; // 只提交有差异的行（覆盖式：相同行提交无意义）
-    });
-  if (!changed.length) {
-    showError('实盘与台账全部一致，无需调账');
+  /**
+   * 🔴 2026-11-10 审计 P1-2'：输入框被清空时 `Number('') === 0`，原实现把它当成
+   * 「实盘 0 且有差异」提交；后端 `InventoryLotService.stocktakeAdjust` 是覆盖式绝对值语义
+   * （`delta = counted - current`），等于把该 SKU 库存直接清零。
+   * 现按「未填写 ≠ 填 0」处理：空值行跳过；非整数/负数阻断并指名到行。
+   */
+  const invalid: string[] = [];
+  const changed: { skuId: string; countedQuantity: number }[] = [];
+  let blankRows = 0;
+  for (const g of goods.value) {
+    const raw = String(goodsInputs.value[g.skuId] ?? '').trim();
+    if (raw === '') {
+      blankRows += 1;
+      continue;
+    }
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0) {
+      invalid.push(`${g.skuName || g.skuId}「${raw}」`);
+      continue;
+    }
+    const book = g.quantity ?? 0;
+    if (n !== book) changed.push({ skuId: g.skuId, countedQuantity: n });
+  }
+  if (invalid.length) {
+    showError(
+      `实盘数量须为不小于 0 的整数：${invalid.slice(0, 3).join('、')}${
+        invalid.length > 3 ? ` 等 ${invalid.length} 行` : ''
+      }`
+    );
     return;
   }
-  const bad = changed.find((l) => Number.isNaN(l.countedQuantity) || l.countedQuantity < 0);
-  if (bad) {
-    showError('实盘数量须为不小于 0 的整数');
+  if (!changed.length) {
+    showError(
+      blankRows
+        ? `有 ${blankRows} 行未填写实盘数量（未填写不会按 0 处理），其余与台账一致，无需调账`
+        : '实盘与台账全部一致，无需调账'
+    );
     return;
   }
   const diffText = changed
@@ -216,9 +236,12 @@ async function submitDoorStocktake() {
       return `${d > 0 ? '+' : ''}${d}`;
     })
     .join('、');
+  const blankHint = blankRows ? `；另有 ${blankRows} 行未填写，本次不调账` : '';
   uni.showModal({
     title: `提交盘点（${changed.length} 行）`,
-    content: `系统将按实盘调账，差值：${diffText}${evidenceUrl.value ? '（含凭证）' : ''}。确认提交？`,
+    content: `系统将按实盘调账，差值：${diffText}${blankHint}${
+      evidenceUrl.value ? '（含凭证）' : ''
+    }。确认提交？`,
     success: (res) => {
       if (res.confirm) void doSubmitDoor(changed);
     }

@@ -225,8 +225,11 @@ const INJECTS = [
   },
   {
     name: '月结下钻不再渲染上柜量',
+    // 🔴 2026-11-10 P2-1 修复把 `{{ row.shelvedQty ?? row.qty }}` 改成了 `{{ shelvedQtyText(row) }}`
+    // （兜底方向反了：字段缺失时把领货量当上柜量）。锚点随之对准新形态：把模板里的
+    // shelvedQtyText 调用直接换成 row.qty，应触发升级后的判据（模板不再调 shelvedQtyText）。
     file: F.monthlyTab,
-    from: '{{ row.shelvedQty ?? row.qty }}',
+    from: '{{ shelvedQtyText(row) }}',
     to: '{{ row.qty }}',
     expect: '月结下钻不再渲染 shelvedQty'
   },

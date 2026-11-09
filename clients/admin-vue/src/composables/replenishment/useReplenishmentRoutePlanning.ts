@@ -74,8 +74,12 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
   }
 
   async function loadAssignees() {
-    const seq = deps.loadSeq.begin('loadAssignees');
+    // 🔴 2026-11-10 审计 P1-2：in-flight 判断必须在 begin() **之前**。
+    // 原顺序是 begin() 先递增 seq，再判 loading 直接 return ⇒ 第二次调用顶掉 seq 却不发请求，
+    // 第一次的 finally 判「非最新」跳过复位 ⇒ assigneeLoading 永真，
+    // 此后每次调用都从 return 掉出、负责人选项永久为空（openPlan 与 ?plan=1 深链都会触发）。
     if (assigneeLoading.value) return;
+    const seq = deps.loadSeq.begin('loadAssignees');
     assigneeLoading.value = true;
     try {
       const data = await api.request<PageResult<ReplenishmentAssigneeOption>>(
@@ -95,7 +99,7 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
         }
       }
     } finally {
-      if (!deps.loadSeq.isCurrent(seq, 'loadAssignees')) return;
+      // 无条件复位：loading 的生命周期属于「这次调用」，不能交给 seq 判新旧
       assigneeLoading.value = false;
     }
   }

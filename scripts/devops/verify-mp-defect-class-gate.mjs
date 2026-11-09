@@ -1,7 +1,7 @@
 /**
  * check-mp-defect-classes 门禁的双向负向验证（2026-10-24 二轮扩展；同日三轮沙箱化，defect-class-gate 技能 §6）：
  *   ⓪ 基线：**未注入**的沙箱副本必须绿 ⇒ 否则 ① 的「红」可能只是拷贝不完整（缺资产/漏树）造成的假象；
- *   ① 红：注入 A-Q 十七个类（20 个注入键，含 F1–F4 子形态）各一处真违规 → 门禁必须非零退出且逐类报对文件；
+ *   ① 红：注入 A-S 十九个类（22 个注入键，含 F1–F4 子形态）各一处真违规 → 门禁必须非零退出且逐类报对文件；
  *   ② 绿：同类 token 进**注释** → 门禁必须保持绿（证明等长注释剥离有效）；
  *   ③ 零污染：真实树里全部探针目标文件 md5 前后一致、无 `.gatebak` 残留、沙箱目录已删除。
  *
@@ -236,6 +236,33 @@ const INJECT = {
       'function probeRestore() {\n  void requestOrderSubscribe([]);\n}\n' +
       'function currentPageOptions(): Record<string, string> {',
     expect: 'result.vue'
+  },
+  R: {
+    file: 'clients/merchant-mp/src/pages/prep-list/prep-list.vue',
+    from: 'async function submit() {',
+    to:
+      '// 负向验证探针（R）：幂等键容器建在提交函数体内\n' +
+      'function handleSubmit() {\n' +
+      '  const probeRequestNos = new Map<string, string>();\n' +
+      '  void probeRequestNos;\n' +
+      '}\n' +
+      'async function submit() {',
+    expect: 'prep-list.vue'
+  },
+  S: {
+    file: 'clients/consumer-mp/src/pages/index/index.vue',
+    from: 'async function handleSessionOpenResult(',
+    to:
+      '// 负向验证探针（S）：adopt_fulfilled 分支直接接管、未过终态白名单\n' +
+      'function probeAdoptFulfilled(cabinetId: string, sessionResult: any) {\n' +
+      "  if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {\n" +
+      '    adoptSession(sessionResult.value);\n' +
+      '    return true;\n' +
+      '  }\n' +
+      '  return false;\n' +
+      '}\n' +
+      'async function handleSessionOpenResult(',
+    expect: 'index.vue'
   }
 };
 
@@ -303,6 +330,16 @@ const COMMENT_PROBES = [
     file: 'clients/consumer-mp/src/pages/result/result.vue',
     from: 'function currentPageOptions(): Record<string, string> {',
     to: '// void requestOrderSubscribe([]); 订阅探针（注释不得命中）\nfunction currentPageOptions(): Record<string, string> {'
+  },
+  {
+    file: 'clients/merchant-mp/src/pages/prep-list/prep-list.vue',
+    from: 'async function submit() {',
+    to: '// function probeSubmit() { const requestNos = new Map<string, string>(); } 幂等键探针（注释不得命中）\nasync function submit() {'
+  },
+  {
+    file: 'clients/consumer-mp/src/pages/index/index.vue',
+    from: 'async function handleSessionOpenResult(',
+    to: "// if (sessionOpenDecision(x) === 'adopt_fulfilled') { adoptSession(y); } 探针（注释不得命中）\nasync function handleSessionOpenResult("
   }
 ];
 
@@ -379,7 +416,7 @@ try {
   check(base.code === 0, `⓪ 沙箱未注入即绿（exit=${base.code}）`);
   if (base.code !== 0) console.log(base.out);
 
-  // ── ① 红：十七类各注入一处真违规 ─────────────────────────────────────────
+  // ── ① 红：十九类各注入一处真违规 ─────────────────────────────────────────
   for (const cls of CLASSES) {
     const inj = INJECT[cls];
     patch(sb(inj.file), inj.from, inj.to);

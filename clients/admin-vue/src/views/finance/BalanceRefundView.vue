@@ -284,6 +284,16 @@ async function batchReviewAll(approve: boolean) {
       </el-form-item>
     </el-form>
 
+    <!-- 关键词是纯前端过滤：必须点破范围，否则「共 N 条」会让人以为搜索是跨页的（P2-5） -->
+    <el-alert
+      v-if="keyword.trim()"
+      type="info"
+      :closable="false"
+      show-icon
+      class="keyword-scope-hint"
+      :title="`关键词仅过滤当前页：本页命中 ${crud.displayItems.length} 条，服务端共 ${crud.total} 条。要查更早的申请请逐页翻或导出后检索。`"
+    />
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <CrudTable
@@ -358,5 +368,8 @@ async function batchReviewAll(approve: boolean) {
 <style scoped>
 .muted {
   color: var(--el-text-color-placeholder);
+}
+.keyword-scope-hint {
+  margin-bottom: 8px;
 }
 </style>

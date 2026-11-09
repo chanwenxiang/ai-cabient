@@ -6,9 +6,11 @@ import {
   buildSelfReplenishBody,
   canStartSelfReplenish,
   newSelfReplenishRequestNo,
+  nextPrepRequestNo,
   nextRequestNoAfterSubmit,
   requestActionErrorMessage,
-  selectedReplenishLines
+  selectedReplenishLines,
+  takePrepRequestNo
 } from './self-replenish-submit';
 
 function line(partial: Partial<ReplenishDraftLine>): ReplenishDraftLine {
@@ -105,5 +107,26 @@ describe('self-replenish-submit', () => {
     );
     expect(nextRequestNoAfterSubmit('self-abc-00000001', 'success')).toBe('');
     expect(nextRequestNoAfterSubmit('self-abc-00000001', 'business_error')).toBe('');
+  });
+
+  // P0-3（2026-11-10）：备货单一次提交多柜，成功后清键会让「部分失败重提」重复建任务。
+  it('备货单幂等键：页面级 store 同柜复用，成功/传输未知保留，仅业务失败清空', () => {
+    const store = new Map<string, string>();
+    let n = 0;
+    const gen = () => `self-test-${++n}`;
+    const first = takePrepRequestNo(store, 'D1', gen);
+    expect(first).toBe('self-test-1');
+    // 同柜再取：复用既有键（重试=同一意图），不生成新键
+    expect(takePrepRequestNo(store, 'D1', gen)).toBe(first);
+    // 不同柜独立键，设备间不互相重放
+    expect(takePrepRequestNo(store, 'D2', gen)).toBe('self-test-2');
+    // 成功 / 传输未知 ⇒ 保留（服务端按同键重放原任务）
+    expect(nextPrepRequestNo(first, 'success')).toBe(first);
+    expect(nextPrepRequestNo(first, 'transport_error')).toBe(first);
+    // 服务端明确业务失败 ⇒ 清空（下次提交是新意图）
+    expect(nextPrepRequestNo(first, 'business_error')).toBe('');
+    // 清空后同柜再取必须换新键
+    store.delete('D1');
+    expect(takePrepRequestNo(store, 'D1', gen)).toBe('self-test-3');
   });
 });

@@ -171,9 +171,9 @@ const route = useRoute();
 const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
-const canDelete = computed(
-  () => auth.hasPerm('ops:feedback') || auth.hasPerm('ops:feedback:reply')
-);
+// 删除是物理删用户原文：后端只认 ops:feedback:reply（MA-111），查看码不得触发。
+// 此处曾用 OR 把 ops:feedback 也算进来，只有查看权的运营会看到必 403 的删除按钮。
+const canDelete = computed(() => auth.hasPerm('ops:feedback:reply'));
 
 const saving = ref(false);
 const status = ref('');
@@ -264,7 +264,8 @@ function feedbackActions(row: Row): CrudRowAction[] {
     label: '删除',
     icon: Delete,
     type: 'danger',
-    perm: ['ops:feedback', 'ops:feedback:reply']
+    // 与后端 UserFeedbackController 的 @RequiresPermissions("ops:feedback:reply") 对齐
+    perm: 'ops:feedback:reply'
   });
   return acts;
 }

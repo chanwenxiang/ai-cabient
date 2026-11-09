@@ -15,7 +15,6 @@ import {
 } from '@aicabinet/shared-uni/request';
 import type {
   LoginResponse,
-  OpenApiDeviceInventoryDto,
   OpenApiNotificationDto,
   OpenApiReplenishmentSuggestDto,
   OpenApiMerchantReplenishmentEfficiencyDto,
@@ -234,7 +233,7 @@ function downloadAuthedFileOnce(url: string, timeoutMs: number): Promise<string>
         }
         reject(new Error(`下载失败 (${res.statusCode})`));
       },
-      fail(err) {
+      fail() {
         // 不带原始 errMsg（第五轮门禁类 D）：同 consumer-api 口径
         reject(new Error('下载失败'));
       }
@@ -403,7 +402,7 @@ function uploadMerchantAuthedFileOnce(
           reject(new Error('上传响应解析失败'));
         }
       },
-      fail(err) {
+      fail() {
         // 不带原始 errMsg（第五轮门禁类 D）：uploadFile:fail 类英文平台串不上浮
         reject(new Error('网络错误'));
       }

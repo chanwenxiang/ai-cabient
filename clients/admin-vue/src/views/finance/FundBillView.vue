@@ -432,6 +432,7 @@ const displayLedger = computed(() => sortLedgerById(ledger.value));
 const {
   onSelectionChange: onLedgerSelectionChange,
   pickSelected: pickLedger,
+  selectedKeys: ledgerSelectedKeys,
   exportButtonLabel: ledgerExportLabel,
   clearSelection: clearLedgerSelection
 } = useTableSelection<LedgerRow>((r) => r.entryId);
@@ -497,6 +498,8 @@ const { onExport: exportBillsCsv } = useListCsv({
 const { onExport: exportLedgerCsv } = useListCsv({
   filePrefix: '资金账务明细',
   headers: ['财务类型', '收支', '金额', '订单', '货柜', '商户', '时间'],
+  // 账务明细没有后端全量导出接口，只能导当前页：把服务端总量交给导出层去确认（P2-4）
+  scope: () => ({ total: ledgerTotal.value, selected: ledgerSelectedKeys.value.length > 0 }),
   toRows: () =>
     pickLedger(displayLedger.value).map((row) => [
       dictLabel('fund_ledger_type', row.financialType),

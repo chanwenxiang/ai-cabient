@@ -77,7 +77,9 @@
               style="width: 220px"
               @keyup.enter="loadConfig"
             />
-            <el-button type="primary" @click="loadConfig">查询配置</el-button>
+            <el-button type="primary" :loading="configLoading" @click="loadConfig"
+              >查询配置</el-button
+            >
             <HelpTip
               content="费用项随时可改，只影响后续账期；场地方不是系统用户，收款人为文本快照，线下结算。"
               aria-label="费用配置口径"
@@ -156,6 +158,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { errorMessage } from '@/utils/error-message';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import HelpTip from '@/components/HelpTip.vue';
@@ -255,6 +258,7 @@ async function submitGenerate(): Promise<void> {
 
 const configDeviceId = ref('');
 const configLoaded = ref(false);
+const configLoading = ref(false);
 const configForm = ref<MachinePositionConfig>(emptyConfig(''));
 const configEnabled = ref(true);
 const configElectricYuan = computed({
@@ -283,14 +287,28 @@ async function loadConfig(): Promise<void> {
     ElMessage.warning('请输入柜机 deviceId');
     return;
   }
-  const cfg = await api.request<MachinePositionConfig | null>(
-    AdminEndpoints.machinePayeeBillConfig(deviceId),
-    'GET'
-  );
-  configForm.value = cfg ?? emptyConfig(deviceId);
-  if (!cfg) configForm.value.deviceId = deviceId;
-  configEnabled.value = (configForm.value.enabled ?? 1) === 1;
-  configLoaded.value = true;
+  // 🔴 2026-11-10 审计 P1-5：查询失败时原实现既不提示也不清表单，
+  // configLoaded 保持上次的 true ⇒ 表单继续显示**上一台柜机**的分账比例与收款人，
+  // 运营照此保存会把这套配置写到当前这台柜（错设备写账）。
+  configLoading.value = true;
+  try {
+    const cfg = await api.request<MachinePositionConfig | null>(
+      AdminEndpoints.machinePayeeBillConfig(deviceId),
+      'GET'
+    );
+    configForm.value = cfg ?? emptyConfig(deviceId);
+    if (!cfg) configForm.value.deviceId = deviceId;
+    configEnabled.value = (configForm.value.enabled ?? 1) === 1;
+    configLoaded.value = true;
+  } catch (e) {
+    // 失败即回到「未加载」：表单不渲染、保存按钮不可用，绝不留上一台柜的残值
+    configForm.value = emptyConfig(deviceId);
+    configEnabled.value = true;
+    configLoaded.value = false;
+    ElMessage.error(errorMessage(e, '柜机配置加载失败，请重试'));
+  } finally {
+    configLoading.value = false;
+  }
 }
 
 async function saveConfig(): Promise<void> {

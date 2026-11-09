@@ -182,7 +182,7 @@ import {
 } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { isOrderTerminal, useAutoRefresh } from '@/composables/use-auto-refresh';
-import type { MerchantMe, OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
+import type { OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 

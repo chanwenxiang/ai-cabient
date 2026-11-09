@@ -315,6 +315,16 @@ function onStatusChange() {
       </el-form-item>
     </el-form>
 
+    <!-- 关键词是纯前端过滤：必须点破范围，否则「共 N 条」会让人以为搜索是跨页的（P2-5） -->
+    <el-alert
+      v-if="keyword.trim()"
+      type="info"
+      :closable="false"
+      show-icon
+      class="keyword-scope-hint"
+      :title="`关键词仅过滤当前页：本页命中 ${crud.displayItems.length} 条，服务端共 ${crud.total} 条。要查更早的申请请逐页翻。`"
+    />
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
         <CrudTable
@@ -405,5 +415,8 @@ function onStatusChange() {
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.keyword-scope-hint {
+  margin-bottom: 8px;
 }
 </style>

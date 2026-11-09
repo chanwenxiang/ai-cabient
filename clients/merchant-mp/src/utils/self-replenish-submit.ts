@@ -37,6 +37,38 @@ export function nextRequestNoAfterSubmit(
   return outcome === 'transport_error' ? current : '';
 }
 
+/** 备货单逐柜提交结果：成功 / 服务端明确业务失败 / 传输类错误（结果未知）。 */
+export type PrepSubmitOutcome = 'success' | 'business_error' | 'transport_error';
+
+/**
+ * 备货单（一次多柜）逐柜幂等键的存续语义 —— 与自主补货**故意不同**。
+ * 自主补货是单柜、成功后离页，所以成功后清键（下次是新意图）；
+ * 备货单一柜失败不影响其余柜，页面会留在本页继续重试，且 `loadPreview()` 会把已成功的柜
+ * 重新勾上（`checked: items.length > 0`）。成功后清键 ⇒ 重提时该柜换新 clientRequestNo，
+ * 后端按 clientRequestNo 查重失效 ⇒ 重复建任务 + 重复扣分仓库存（2026-11-10 审计 P0-3）。
+ * 故：成功 / 传输未知 ⇒ 保留同键（服务端重放原任务）；服务端明确业务失败 ⇒ 清空（新意图）。
+ */
+export function nextPrepRequestNo(current: string, outcome: PrepSubmitOutcome): string {
+  return outcome === 'business_error' ? '' : current;
+}
+
+/**
+ * 取/建某柜的幂等键。store 必须是**页面级**常量——
+ * 建在 submit() 里会随调用返回即销毁，等于没有幂等（P0-3 的原始形态）。
+ * 已有键直接复用：同一柜在本页的重复提交/重试都视为同一意图。
+ */
+export function takePrepRequestNo(
+  store: Map<string, string>,
+  deviceId: string,
+  generate: () => string = () => newSelfReplenishRequestNo()
+): string {
+  const existing = store.get(deviceId);
+  if (existing) return existing;
+  const fresh = generate();
+  store.set(deviceId, fresh);
+  return fresh;
+}
+
 export function buildSelfReplenishBody(input: {
   deviceId: string;
   notes: string;

@@ -220,7 +220,12 @@ import AppButton from '@aicabinet/shared-uni/components/app-button.vue';
 import AppNavBar from '@aicabinet/shared-uni/components/app-nav-bar.vue';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
-import { newSelfReplenishRequestNo } from '@/utils/self-replenish-submit';
+import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
+import {
+  nextPrepRequestNo,
+  takePrepRequestNo,
+  type PrepSubmitOutcome
+} from '@/utils/self-replenish-submit';
 import { matchDeviceKeyword } from '@/utils/prep-filter';
 import { sortByGeneratedTime, taskTimeMs } from '@/utils/prep-order';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -263,6 +268,13 @@ const generatedSort = ref<'desc' | 'asc'>('desc');
 const previewLoading = ref(true);
 const generatedLoading = ref(true);
 const submitting = ref(false);
+/**
+ * 逐柜幂等键（V401）——必须活在页面级：本页部分失败后 `loadPreview()` 会把已成功的柜
+ * 重新勾上（`checked: items.length > 0`），用户直接再点提交时若换了新键，
+ * 后端 `clientRequestNo` 查重失效 ⇒ 重复建任务 + 重复扣分仓库存。
+ * 存续语义见 `nextPrepRequestNo`（成功/传输未知保留，业务失败清）。
+ */
+const prepRequestNos = new Map<string, string>();
 const pendingGroups = ref<PrepGroupView[]>([]);
 const generatedGroups = ref<OpenApiMerchantPrepGroupDto[]>([]);
 
@@ -410,7 +422,7 @@ function goPrepGenerate() {
 
 /**
  * 逐柜确认建任务（顺序提交；单柜失败不中断其余柜）。
- * 幂等：每柜一次一键（V401 契约）——传输类错误保留该柜键，重试复用同键幂等返回原任务。
+ * 幂等：每柜一次一键（V401 契约）——键存页面级，成功/传输未知都保留，重试复用同键幂等返回原任务。
  */
 async function submit() {
   if (submitting.value) return;
@@ -420,10 +432,12 @@ async function submit() {
     return;
   }
   submitting.value = true;
-  const requestNos = new Map<string, string>();
   const okTasks: string[] = [];
   const failures: string[] = [];
   for (const group of targets) {
+    // 每柜独立幂等键（存在页面级 store）：设备间互不重放；同柜重复提交=同一意图
+    const clientRequestNo = takePrepRequestNo(prepRequestNos, group.deviceId);
+    let outcome: PrepSubmitOutcome = 'business_error';
     try {
       const body = {
         deviceId: group.deviceId,
@@ -431,14 +445,17 @@ async function submit() {
         lines: group.items
           .filter((item) => item.qty > 0)
           .map((item) => ({ skuId: item.skuId, qty: item.qty })),
-        clientRequestNo: requestNos.get(group.deviceId) || newSelfReplenishRequestNo()
+        clientRequestNo
       };
-      requestNos.set(group.deviceId, body.clientRequestNo);
       const task = await merchantApi.selfInitiateReplenishment(body);
+      outcome = 'success';
       okTasks.push(`${group.deviceName}（任务 ${task.taskId}）`);
-      requestNos.delete(group.deviceId);
     } catch (e) {
+      if (isRetriableMpTransportError(e)) outcome = 'transport_error';
       failures.push(`${group.deviceName}：${e instanceof Error ? e.message : '提交失败'}`);
+    } finally {
+      // 成功也保留：本页部分失败会把已成功柜重新勾上，重提必须复用同键由后端回放
+      if (!nextPrepRequestNo(clientRequestNo, outcome)) prepRequestNos.delete(group.deviceId);
     }
   }
   submitting.value = false;

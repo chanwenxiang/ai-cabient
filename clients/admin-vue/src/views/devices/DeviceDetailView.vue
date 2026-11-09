@@ -641,6 +641,8 @@
           :refund-priority-hint="refundPriorityHint"
           :device-refund-policy="device?.refundPolicy"
           v-model:policy="policy"
+          :policy-load-failed="policyLoadFailed"
+          :policy-loading="policyLoading"
           :repair-tickets="repairTickets"
           :repair-hydrated="repairHydrated"
           :policy-label="policyLabel"
@@ -654,6 +656,7 @@
           @create-repair="createRepair"
           @save-refund-policy="saveRefundPolicy"
           @save-policy="savePolicy"
+          @reload-policy="reloadPolicy"
           @update:refund-policy-draft="refundPolicyDraft = $event"
         />
       </el-tab-pane>
@@ -947,6 +950,9 @@ const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
 const {
   policy,
+  policyLoadFailed,
+  policyLoading,
+  reloadPolicy,
   refundPolicyDraft,
   refundPolicySaving,
   globalRefundPolicy,

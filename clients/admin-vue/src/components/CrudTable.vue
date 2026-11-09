@@ -1160,7 +1160,9 @@ const csvCtl = props.csv
       filePrefix: props.csv.filePrefix,
       headers: props.csv.headers,
       toRows: () => props.csv!.toRows(table.pickSelected(table.displayItems)),
-      onImportRows: props.csv.onImportRows
+      onImportRows: props.csv.onImportRows,
+      // 内置导出只能拿到当前页数据；把服务端总量喂进去，让用户知道被截断了（P2-3/P2-4）
+      scope: () => ({ total: Number(table.total) || 0, selected: Boolean(table.hasSelection) })
     })
   : null;
 

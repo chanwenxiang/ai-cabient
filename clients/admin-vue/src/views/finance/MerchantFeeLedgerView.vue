@@ -182,9 +182,14 @@ async function onRowAction(payload: { key: string; row: MerchantFeeLedgerRow }):
     ElMessage.error(errorMessage(e, '弹窗不可用，已取消'));
     return;
   }
-  await api.request(AdminEndpoints.merchantFeeLedgerSettle(payload.row.ledgerId, remark), 'POST');
-  ElMessage.success('已标记结清；若该商户欠费清零，费用欠缴锁柜机会自动解除');
-  await crud.load();
+  // 原先裸 await 无 try/catch：结清失败时既无提示也不刷新列表（P1-5）。
+  try {
+    await api.request(AdminEndpoints.merchantFeeLedgerSettle(payload.row.ledgerId, remark), 'POST');
+    ElMessage.success('已标记结清；若该商户欠费清零，费用欠缴锁柜机会自动解除');
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '标记结清失败'));
+  }
 }
 
 const rerunVisible = ref(false);
