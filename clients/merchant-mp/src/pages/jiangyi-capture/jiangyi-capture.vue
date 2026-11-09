@@ -25,8 +25,10 @@
           <text class="rule"
             >· 按下方角度提示逐张拍，共 {{ policy.shotCount }} 张（正放 4 面 + 倒置 4 面）</text
           >
-          <text class="rule">· 商品居中、尽量占满画面</text>
-          <text class="rule">· 背景干净（纯色墙面/白纸，不要桌面杂物、键盘、包装）</text>
+          <text class="rule">· 商品直立居中、尽量占满画面（正放/倒置都要竖直摆）</text>
+          <text class="rule">· 镜头与商品同高、正面平视，不要俯拍或仰拍</text>
+          <text class="rule">· 背景统一干净（同一张白纸/纯色墙面，不要桌面杂物、键盘、包装）</text>
+          <text class="rule">· 光线均匀、避免阴影与强反光</text>
           <text class="rule">· 避免强反光、遮挡和模糊；一张图只拍一个商品</text>
           <text class="rule">· 必须实物现场拍摄，不能用网图或商品宣传图</text>
         </view>
