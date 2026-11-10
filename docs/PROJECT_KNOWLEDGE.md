@@ -690,6 +690,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 两个幂等残留同批修：备货「成功后改量重提」被旧键静默回放 ⇒ 页面级明细指纹拦截并指引去「补货任务」页改量（不换键——换键在传输未知场景会重复建任务）；开门旧键撞后端「会话已结束」409 ⇒ 识别后清键换键真开一次（`isEndedSessionReplayConflict`，409+文案锚）。
 - 首屏误判的修法对齐全仓既有先例（orders/settlements 等 7 页的 `await refreshMe()` 后再判权限），只有 purchase/bills 缺该步；新门禁 `check:merchant-me-gated-load`（显式权限拒绝 ⇒ 必须 await refreshMe()，判据空转即红）+ 三态负向验证已接聚合链。
 - 行号订正：采集上传 401 裸路径是 `uploadJiangyiCapturePhoto`（原 merchant-api.ts:1234），:386 是有 H3 刷新包装的凭证上传内层——复核时 grep 截断引错路径。
+- 同日后台「将邑商品」页可用性优化（用户反馈「必须记 69 码」）：查状态卡片加**按商品名远程搜我方 SKU**（选中自动带条码并查询，手输 69 码入口保留）；补实测值 `RESTOCK_THEN_CABINET_CAPTURE` 的中文映射（补货后柜内采集），建档「形态」下拉改用共用 `jiangyiCategoryText`（瓶/盒/袋/碗/蛋）。dev 浏览器实测：搜「冰红茶」→ 选中 → 状态「可补货/待柜内采集」、下一步「补货后柜内采集」。
 
 ### 2026-11-09（SKU 图「消失」根因＝桶上全桶 14 天 ILM 过期；拍板图片永久保存，minio-init 改幂等）
 

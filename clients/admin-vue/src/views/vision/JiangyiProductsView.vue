@@ -32,10 +32,57 @@ interface Policy {
   shotCount: number;
   shotHints: string[];
 }
+/** 我方 SKU 搜索项（只取搜索需要的三个字段） */
+interface SkuOption {
+  skuId: string;
+  skuName?: string;
+  barcode?: string;
+}
 
 const queryBarCode = ref('');
 const stateLoading = ref(false);
 const state = ref<ProductState | null>(null);
+
+/**
+ * 按商品名搜我方 SKU（2026-11-10 用户反馈：查审核状态必须记 69 码太反人类）。
+ * 选中即带出条码并自动查询；手动输入 69 码的入口保留（未进我方商品库的条码仍可直接查）。
+ */
+const pickedSkuId = ref('');
+const skuOptions = ref<SkuOption[]>([]);
+const skuSearching = ref(false);
+let skuSearchSeq = 0;
+
+async function searchSkus(keyword: string) {
+  const kw = keyword.trim();
+  const seq = ++skuSearchSeq;
+  if (!kw) {
+    skuOptions.value = [];
+    return;
+  }
+  skuSearching.value = true;
+  try {
+    const q = new URLSearchParams({ page: '0', size: '20', q: kw });
+    const res = await api.request<{ items: SkuOption[]; total: number }>(
+      AdminEndpoints.skusList(q)
+    );
+    if (seq !== skuSearchSeq) return;
+    // 无条码的行带不出 69 码，筛选掉免得选了空转
+    skuOptions.value = (res.items || []).filter((s) => s.barcode);
+  } catch (e) {
+    if (seq !== skuSearchSeq) return;
+    skuOptions.value = [];
+    ElMessage.error(errorMessage(e, '搜索商品失败'));
+  } finally {
+    if (seq === skuSearchSeq) skuSearching.value = false;
+  }
+}
+
+async function onPickSku(skuId: string) {
+  const sku = skuOptions.value.find((s) => s.skuId === skuId);
+  if (!sku?.barcode) return;
+  queryBarCode.value = sku.barcode;
+  await loadState();
+}
 
 const auth = useAuthStore();
 /** 建档 / 批量刷新是写操作（后端 ops:sku:edit）；本页本身按 ops:sku:list 进得来 */
@@ -167,10 +214,29 @@ onMounted(async () => {
 
     <el-row :gutter="16" style="margin-top: 16px">
       <el-col :span="12">
-        <el-card header="按条码查厂商状态">
+        <el-card header="查厂商状态（按商品名或 69 码）">
+          <el-select
+            v-model="pickedSkuId"
+            filterable
+            remote
+            clearable
+            reserve-keyword
+            :remote-method="searchSkus"
+            :loading="skuSearching"
+            placeholder="按商品名称搜我方商品（免记 69 码），如：冰红茶"
+            style="width: 100%; margin-bottom: 8px"
+            @change="onPickSku"
+          >
+            <el-option
+              v-for="s in skuOptions"
+              :key="s.skuId"
+              :value="s.skuId"
+              :label="`${s.skuName || s.skuId}（${s.barcode}）`"
+            />
+          </el-select>
           <el-input
             v-model="queryBarCode"
-            placeholder="输入 69 条码"
+            placeholder="或直接输入 69 条码"
             clearable
             @keyup.enter="loadState"
           >
@@ -205,7 +271,7 @@ onMounted(async () => {
               }}</span>
             </el-descriptions-item>
           </el-descriptions>
-          <el-empty v-else description="输入条码后查询" :image-size="60" />
+          <el-empty v-else description="搜商品名或输入 69 码后查询" :image-size="60" />
         </el-card>
 
         <el-card header="批量刷新状态（无副作用）" style="margin-top: 16px">
@@ -256,7 +322,7 @@ onMounted(async () => {
                 <el-option
                   v-for="k in ['bottle', 'box', 'bag', 'bowl', 'egg']"
                   :key="k"
-                  :label="k"
+                  :label="jiangyiCategoryText(k)"
                   :value="k"
                 />
               </el-select>

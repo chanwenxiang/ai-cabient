@@ -475,6 +475,7 @@ const JIANGYI_NEXT_ACTION: Record<string, string> = {
   PHONE_CAPTURE: '手机拍摄采集',
   WAIT_PHONE_REVIEW: '等待手机图审核',
   RESTOCK: '补货上架',
+  RESTOCK_THEN_CABINET_CAPTURE: '补货后柜内采集',
   CABINET_CAPTURE: '柜内采集',
   WAIT_CABINET_REVIEW: '等待柜内图审核'
 };
