@@ -18693,6 +18693,7 @@ export interface components {
             deviceId?: string;
             modelName?: string;
             modelUrl?: string;
+            classesTextUrl?: string;
             industrialControlModel?: string;
             classesVersion?: string;
             status?: string;
