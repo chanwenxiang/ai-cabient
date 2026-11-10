@@ -10,7 +10,29 @@
 - 待修清单（两轮并集）：`docs/AUDIT_FOUR_END_R4_2026-11-10.md`（§1 洞表 + §2/§3）∪ `docs/AUDIT_FOUR_END_R3_2026-11-10.md`（§3–§5）。
 - 已知待拍板两项（低风险顺手收口，终报标注）：D4 提现回放终态窄窗 → 按仿 B1 加 409；RETIRE 柜不解绑 → 不动代码，仅台账留痕。
 
-## 轮次账（进度更新 2026-11-11 01:20 前后）
+## 轮次账（2026-11-11 05:00 前后更新——R5/R6/R7 已全部收口）
+
+### 提交链（893bb2ca → HEAD，16 提交，全部 preflight 绿、未推送）
+9d5f295e R3/R4 P1 批 6 条 → 21f30db5 R4 报告+台账 → bd5845bf R3/R4 P2 批 35 文件 → 7e9d4f0b P2c+P3 批 → e13ac216 E6 语法+测试 → 268fea2c A27 三页+台账 → 852dde45 产物配对 → 17b7a89e 门禁加固批 → 7e0d7961 prettier → 2fb1bc7f 产物配对 → 76c06c23 R5 修复批 24 处 → 602afa24 shared-api dist → bb2a5435 产物配对 → 966bb46d R6 修复批前半 → (R6 后半提交) → (R7 提交)
+
+### R5（5 路审查，基线 2fb1bc7f 之前为审 893bb2ca）
+发现 P1×0/P2×9/P3×20/Info×3（A1-A9/B1-B8/C1-C5/D-新1-6/E1-E5+E6 观察）。**R5 修复批 24 处全部落码提交（76c06c23）**，附 shared-api dist 重烤（602afa24）与 admin 产物配对（bb2a5435）。有意不改（决策记录）：B-新2（同量+COMPLETED 保持 V401 回放）、A5（清空=保持上次保存值，与覆盖式语义一致）、D-新4/D-新5（如实标注/设计内）、A8①（字符串盲区，fail-loud 方向）。
+
+### R6（3 路精简审查：修复批再审+盲区）
+发现 P2×2（F1 alerts loading 未复位致 error 卡不可见、F2 saveLine 底稿 await 后读活值竞态）+ P3×7（F3 CANCELLED 字典缺标签、F4 无重试入口、G1 null skuId NPE→500、G2 元门禁缺用例、H1 质检拒收死写、H2 券 EXPIRED 死写、H3 metaPerm-only 潜在）。R6 修复批落码：F1/F2/F3（四处同改+V455+IT 从零库绿）/G1/H1（REQUIRES_NEW 独立留痕）/H2（删死写）。有意不改：F4（体验）、G2（手动工具）、H3（设计上 meta.perm-only 无菜单行可停用，登记）。
+
+### R7（主审直查）
+B-新3 家族最后一处软形态收口：cabinet-reports/tax 动作时点拒绝文案区分「无权限/弱网不可知」（splits/team 经核本就诚实——refreshMe 失败走 catch 网络文案）。grep 全量 seed 消费页零漏网。
+
+### R8（单路终验）
+进行中（抽样 R6/R5 批 + 家族终扫 + 16 提交说明与 diff 一致性）。结论随回追加。
+
+### 遗留登记（本轮不改，均有归属）
+- 待用户拍板：B7 盲盘头部总量直出（产品语义）、RETIRE 柜不解绑是否留痕有意、R2§9 门禁候选①裸await②CHECKLIST同族条目③updateById 家族门禁（⑤seed→registry 双向已由 17b7a89e 部分覆盖）。
+- 化妆级/低危登记：A8①门禁切片字符串盲区、E-R3-8 import 副作用、F4 两页 permUnknown 无重试钮、replenishment idle-tip 与 error 同屏、HomeCartBar emit 赋值沿袭、WarehouseView.vue 死文件、monitor 摘要措辞「看护/托管」不统一、V139 COMMENT 缺 CANCELLED（需新迁移）、XXL-only 双任务例外（已头注点名）。
+- 登记文档：docs/engineering/lessons-learned.md（判据类修复构造侧用例/注解SQL script 包装/跨端同批改三条）。
+
+## 轮次账（历史进度——01:20 前后）
 
 ### 修复批进度（R3+R4 并集）
 - ✅ P1×6 已提交（D1 script包装 / E5 携空串 / B-新1+2 renew实时复查 / A19 双形态判据 / C1 构造侧status / A-R3-1 保存守卫）
