@@ -196,7 +196,7 @@ class ScheduledTaskStaleMonitorTest {
         monitor.check();
 
         verify(exceptionService).resolveSystem(ScheduledTaskStaleMonitor.ALERT_TYPE, "GLOBAL",
-                "托管任务已恢复按时执行");
+                "看护任务已恢复按时执行");
         verify(dispatcher, never()).send(anyString(), anyString(), anyString(), any(),
                 any(String[].class));
     }
