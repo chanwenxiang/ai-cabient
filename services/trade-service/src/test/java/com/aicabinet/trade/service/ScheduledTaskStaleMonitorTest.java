@@ -79,7 +79,8 @@ class ScheduledTaskStaleMonitorTest {
     }
 
     private void allHealthy() {
-        XxlJobManagedTasks.KEYS.forEach(this::healthy);
+        // R4-E6：看护扫描清单 = KEYS ∪ SPRING_RESIDENT_TASK_KEYS —— 夹具随 watchedKeys 同步
+        ScheduledTaskStaleMonitor.watchedKeys().forEach(this::healthy);
     }
 
     @Test
@@ -270,7 +271,7 @@ class ScheduledTaskStaleMonitorTest {
 
     @Test
     void everyManagedTaskHasSilenceThresholdAndMonitorIsNotManaged() {
-        XxlJobManagedTasks.KEYS.forEach(key ->
+        ScheduledTaskStaleMonitor.watchedKeys().forEach(key ->
                 assertTrue(com.aicabinet.trade.support.ScheduleZones.MAX_SILENCE_BY_TASK.containsKey(key),
                         key + " 缺少超期阈值"));
         assertFalse(XxlJobManagedTasks.isManaged(ScheduledTaskStaleMonitor.TASK_KEY));

@@ -270,6 +270,12 @@ class ProcurementServiceTest {
         existing.setWarehouseId("WH-MINE");
         existing.setRefNo("MP-1731234567890-ABC123");
         existing.setStatus("CREATED");
+        // R4-D2：回放现在核对内容指纹 —— 给已建单补上与请求一致的行
+        com.aicabinet.trade.domain.PurchaseOrderLine existingLine = new com.aicabinet.trade.domain.PurchaseOrderLine();
+        existingLine.setSkuId("SKU-A");
+        existingLine.setOrderedQty(8);
+        when(purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(777L))
+                .thenReturn(List.of(existingLine));
         when(purchaseOrderRepository.findLatestByWarehouseIdAndRefNo("WH-MINE", "MP-1731234567890-ABC123"))
                 .thenReturn(java.util.Optional.of(existing));
 

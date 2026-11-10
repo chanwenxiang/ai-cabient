@@ -60,7 +60,7 @@ public class ScheduledTaskStaleMonitor {
     static final java.util.List<String> SPRING_RESIDENT_TASK_KEYS =
             java.util.List.of("session-failed-hold-clear", "refund-retry", "settlement-bill");
 
-    private static java.util.List<String> watchedKeys() {
+    static java.util.List<String> watchedKeys() {
         java.util.List<String> keys = new ArrayList<>(XxlJobManagedTasks.KEYS);
         keys.addAll(SPRING_RESIDENT_TASK_KEYS);
         keys.sort(null);

@@ -138,12 +138,12 @@ public final class ScheduleZones {
             Map.entry("growth-log-archive", Duration.ofHours(26)),             // 日 03:00 + 2h
             Map.entry("sla-snapshot", Duration.ofHours(26)),                   // 日 00:05 + 2h
             Map.entry("kpi-snapshot", Duration.ofHours(26)),                   // 日 01:10 + 2h
-            Map.entry("risk-auto-disposition", Duration.ofMinutes(45))         // 15min ×3
+            Map.entry("risk-auto-disposition", Duration.ofMinutes(45)),        // 15min ×3
             // R4-E6：三个 Spring 常驻任务（不进 XxlJobManagedTasks.KEYS）也要有看护阈值 ——
             // ScheduledTaskStaleMonitor 的扫描清单 = KEYS ∪ SPRING_RESIDENT_TASK_KEYS。
             Map.entry("session-failed-hold-clear", Duration.ofMinutes(30)),
             Map.entry("refund-retry", Duration.ofMinutes(10)),
-            Map.entry("settlement-bill", Duration.ofHours(26)),
+            Map.entry("settlement-bill", Duration.ofHours(26))
     );
 
     private ScheduleZones() {
