@@ -1352,18 +1352,27 @@ async function saveOpsConfig() {
     ElMessage.warning('运营配置与当前商户不匹配，请重新加载后再保存');
     return;
   }
+  // R3-A-R3-1：PUT 在途期间商户下拉可用 —— 响应晚到时不得把旧商户的配置盖进当前表单
+  //（否则接着点保存会把 A 的参数写进 B）。捕获请求时商户号，赋值前双判。
+  const seq = loadSeq.begin('saveOpsConfig');
+  const merchantId = opsConfigMerchantId.value;
   savingOpsConfig.value = true;
   try {
-    opsConfig.value = await api.request<MerchantOpsConfig>(
-      AdminEndpoints.merchantOpsConfig(opsConfigMerchantId.value),
+    const saved = await api.request<MerchantOpsConfig>(
+      AdminEndpoints.merchantOpsConfig(merchantId),
       'PUT',
       opsConfig.value
     );
+    if (!loadSeq.isCurrent(seq, 'saveOpsConfig') || merchantId !== opsConfigMerchantId.value) {
+      return;
+    }
+    opsConfig.value = saved;
     ElMessage.success('运营配置已保存');
   } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'saveOpsConfig')) return;
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
-    savingOpsConfig.value = false;
+    if (loadSeq.isCurrent(seq, 'saveOpsConfig')) savingOpsConfig.value = false;
   }
 }
 

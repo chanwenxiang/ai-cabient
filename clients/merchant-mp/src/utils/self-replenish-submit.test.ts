@@ -252,7 +252,7 @@ describe('self-replenish-submit', () => {
         throw new Error('network');
       })
     ).toBe('block_changed_with_active_task');
-    // 快照本就放行/终态 ⇒ 不触发复查（refresh 不被调用）
+    // 快照本就放行（首次提交）⇒ 不触发复查（refresh 不被调用）
     let called = 0;
     const spy = async () => {
       called += 1;
@@ -265,6 +265,9 @@ describe('self-replenish-submit', () => {
         spy
       )
     ).toBe('proceed');
+    expect(called).toBe(0);
+    // R4-B-新1：终态快照可能描述的是历史任务而非本页刚建的那张 ⇒ renew 分支同样实时复查；
+    // 新鲜状态仍终态 ⇒ 作废重提
     expect(
       await decidePrepResubmitWithRefresh(
         { prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: 'COMPLETED' },
@@ -272,6 +275,24 @@ describe('self-replenish-submit', () => {
         spy
       )
     ).toBe('renew_after_ended_task');
-    expect(called).toBe(0);
+    expect(called).toBe(1);
+    // 快照说终态（历史任务），但本页刚建的任务仍活着 ⇒ 拦（防重复建任务/重复扣库存）
+    expect(
+      await decidePrepResubmitWithRefresh(
+        { prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: 'COMPLETED' },
+        'D1',
+        async () => 'PENDING'
+      )
+    ).toBe('block_changed_with_active_task');
+    // 终态快照 + 复查失败 ⇒ fail-closed 改拦（绝不静默换新键）
+    expect(
+      await decidePrepResubmitWithRefresh(
+        { prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: 'CANCELLED' },
+        'D1',
+        async () => {
+          throw new Error('network');
+        }
+      )
+    ).toBe('block_changed_with_active_task');
   });
 });

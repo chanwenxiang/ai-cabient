@@ -24,6 +24,7 @@ import { useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { adminDevWarn } from '@/utils/admin-dev-log';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
+import { isFatalRenderInfo } from '@/utils/error-boundary';
 
 const failed = ref(false);
 const route = useRoute();
@@ -32,13 +33,13 @@ const route = useRoute();
  * 只有「setup/渲染期」抛错才说明子树已不可用（白屏），整页替换兜底 UI 才是正确处置。
  * 事件处理（@click / emit 监听）、watcher、生命周期钩子的异常此前被同一钩子吞掉并整页替换 ——
  * 一次接口 403 或确认框点「取消」就会让运营丢掉正在填的表单/筛选/标签页（2026-11-10 R2-A1）。
- * Vue 3 的 info 形如 "native event handler" / "component event handler" / "render function" /
- * "setup function" / "lifecycle hook" / "watcher callback"。
+ * Vue 3 的 info：dev 为可读文案（"native event handler" / "render function" /
+ * "setup function" / "watcher callback"…），生产为 #runtime-N URL —— 判据见 utils/error-boundary。
  */
-const FATAL_INFO_RE = /^(setup function|render|render function|component render function)$/;
-
 onErrorCaptured((err, _instance, info) => {
-  if (FATAL_INFO_RE.test(info)) {
+  // R4-A19：dev 与生产构建的 info 形态不同（dev=可读文案，prod=#runtime-N URL），
+  // 双形态判据抽到 utils/error-boundary.ts（带钉测），否则生产兜底页永不命中。
+  if (isFatalRenderInfo(info)) {
     failed.value = true;
     adminDevWarn('[admin] 页面渲染异常，已用兜底 UI 替代：', err);
     return false;

@@ -51,7 +51,10 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
      * <p>取数纪律（铁律 85）：设备范围与「每柜最新」都在 SQL 里做完，一次查询返回柜数级别的行；
      * 不取上限窗口再内存过滤——那在历史任务多的柜上会漏掉最新那条。</p>
      */
+    // R4-D1：注解 SQL 含 <foreach> 动态标签必须 <script> 包装 —— 否则走 RawSqlSource，
+    // 运行期抛 BindingException: Parameter 'd' not found（同批 WarehouseInTransitMapper 即此写法）。
     @Select("""
+            <script>
             SELECT t.device_id AS device_id, t.status AS status
             FROM replenishment_task t
             JOIN (
@@ -60,6 +63,7 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
                 WHERE device_id IN <foreach collection="deviceIds" item="d" open="(" separator="," close=")">#{d}</foreach>
                 GROUP BY device_id
             ) m ON m.device_id = t.device_id AND m.mx_created_at = t.created_at
+            </script>
             """)
     List<Map<String, Object>> selectLatestStatusByDeviceIds(@Param("deviceIds") Collection<String> deviceIds);
 

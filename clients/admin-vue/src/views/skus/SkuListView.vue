@@ -1435,15 +1435,17 @@ async function saveEdit() {
       skuName: moveLeadingSpecToEnd(form.skuName.trim()),
       priceCents,
       barcode: barcode,
-      brand: form.brand.trim() || undefined,
+      // R4-E5：可清空字段必须显式携带空串 —— `|| undefined` 会被 JSON.stringify 丢键，
+      // 后端「请求里出现过的字段才清列」判据永不可达，「清除主图」照样物理删文件。
+      brand: form.brand.trim(),
       spec: toEnglishSpecUnit(form.spec.trim()) || undefined,
       unit: form.unit.trim() || '件',
       packQty: form.packQty > 0 ? form.packQty : 1,
-      category: normalizeCategoryToCode(form.category) || undefined,
+      category: normalizeCategoryToCode(form.category) ?? '',
       weightGrams: form.weightGrams,
       status: form.status,
-      imageUrl: form.imageUrl.trim() || undefined,
-      description: form.description.trim() || undefined,
+      imageUrl: form.imageUrl.trim(),
+      description: form.description.trim(),
       purchaseCostCents:
         form.costYuan != null && !Number.isNaN(form.costYuan)
           ? (yuanToCents(form.costYuan) ?? undefined)

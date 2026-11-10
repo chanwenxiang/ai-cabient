@@ -139,9 +139,10 @@ export function shouldBlockPrepResubmit(input: {
  * 快照仍说进行中 ⇒ 误拦一次。这里只在「快照判拦」的罕见分支上，用**现成预览接口**
  * （已带 lastTaskStatus，无需新 API）取新鲜状态重判：已结束 ⇒ 作废旧键重提；仍进行中 ⇒ 维持拦截。
  *
- * 🔴 只在 `prevFingerprint` 已存在（本页已成功提交过、任务确实建出来了）时才可能走到复查，
- * 此时新鲜状态是权威的；初始快照的「null ⇒ 拦」规则不受影响（保护部分失败重提主路径）。
- * 🔴 复查失败（网络）⇒ 维持原拦截（fail-closed），不静默放行。
+ * 🔴 只有 `prevFingerprint` 存在（本页已成功提交过、任务确实建出来了）才会走到 renew/block，
+ * 此时新鲜状态是权威的；「指纹相等 ⇒ proceed」的 V401 回放语义不受影响（同内容=同一意图，
+ * 任务被取消由后端 409 + 前端清键自愈）；「指纹不等 + 快照进行中 ⇒ 拦」保护部分失败重提主路径。
+ * 🔴 复查失败（网络）⇒ fail-closed 维持拦截（renew 也降级为拦），不静默放行。
  */
 export async function decidePrepResubmitWithRefresh(
   input: {
@@ -153,12 +154,15 @@ export async function decidePrepResubmitWithRefresh(
   refreshStatus: (deviceId: string) => Promise<string | null>
 ): Promise<PrepResubmitVerdict> {
   const first = shouldBlockPrepResubmit(input);
-  if (first !== 'block_changed_with_active_task') return first;
+  // R4-B-新1：终态快照可能描述的是**历史**任务而非本页刚建的那张（预览是提交前加载的，
+  // 生产中多数柜都有历史已完成任务）—— renew 与 block 都必须用新鲜状态重判；
+  // 复查失败 fail-closed：renew 降级为拦（绝不静默换新键 —— 那会重复建任务+重复扣分仓库存）。
+  if (first === 'proceed') return first;
   try {
     const fresh = await refreshStatus(deviceId);
     return shouldBlockPrepResubmit({ ...input, lastTaskStatus: fresh });
   } catch {
-    return first;
+    return first === 'renew_after_ended_task' ? 'block_changed_with_active_task' : first;
   }
 }
 
