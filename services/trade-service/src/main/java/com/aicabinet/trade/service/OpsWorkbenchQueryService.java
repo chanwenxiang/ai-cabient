@@ -9,7 +9,6 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DisputeTicket;
-import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -309,9 +308,10 @@ public class OpsWorkbenchQueryService {
     }
 
     private void collectReplenishmentActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
+        // 设备范围下推进 SQL：旧写法「取 CAP(20) 条再 filter(inDeviceScope)」的窗口是全局按 createdAt 取的，
+        // 域受限账号自己的任务排在窗口之外就一条都看不到（B13 同族）。
+        replenishmentTaskRepository.findWorkbenchTasks(
+                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), scopedDevices, WORKBENCH_ITEM_CAP)
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT",
                         MEDIUM,
@@ -559,7 +559,8 @@ public class OpsWorkbenchQueryService {
         return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0);
     }
 
-    private long countOccupiedDevices(Set<String> scopedDevices) {
+    // 包内可见：供同包测试直接验证「占柜」口径（与 isRestockingNow 同源），不必走整条 getWorkbench
+    long countOccupiedDevices(Set<String> scopedDevices) {
         if (scopedDevices != null && scopedDevices.isEmpty()) {
             return 0;
         }
@@ -567,13 +568,11 @@ public class OpsWorkbenchQueryService {
         long sessionDevices = scopedDevices == null
                 ? sessionRepository.countDistinctDeviceIdByStateIn(ACTIVE_STATES)
                 : sessionRepository.countDistinctDeviceIdByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES);
-        // 补货 IN_PROGRESS 占柜：与会话设备并集（任务量通常远小于会话全表）
-        for (ReplenishmentTask t : replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                List.of(STATUS_IN_PROGRESS), 500)) {
-            if (inDeviceScope(scopedDevices, t.getDeviceId())) {
-                occupied.add(t.getDeviceId());
-            }
-        }
+        // 补货占柜：只算**已签到**的 IN_PROGRESS（判据与 isRestockingNow 同源）。
+        // 出库明细生成即置 IN_PROGRESS 的行人还没到店，把它算成「占柜」会让运营看到虚高的占用数，
+        // 也和「挡开门」的口径对不上（那边逐柜查的就是 isRestockingNow）。
+        // 设备范围下推 + 不设窗口：旧写法「取 500 条再按范围过滤」在域受限账号下会把自己的任务挤掉（B13 同族）。
+        occupied.addAll(replenishmentTaskRepository.findRestockingNowDeviceIds(scopedDevices));
         // 无法无会话设备列表精确并集时：取「会话占柜」与「补货占柜」的上界近似
         // （补货设备通常也有补货会话；若仅有任务无会话，用 max 会略低估，可接受）
         return Math.max(sessionDevices, occupied.size());

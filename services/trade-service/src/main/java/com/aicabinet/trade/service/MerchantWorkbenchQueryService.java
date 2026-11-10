@@ -362,9 +362,10 @@ public class MerchantWorkbenchQueryService {
     }
 
     private void appendReplenishmentItems(List<OpsActionItemDto> items, Set<String> deviceIds) {
-        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
-                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), WORKBENCH_ITEM_CAP).stream()
-                .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
+        // 设备范围下推进 SQL。旧写法「取 CAP(50) 条再 filter(inDeviceScope)」的窗口是全局按 createdAt 取的，
+        // 域受限账号自己的任务排在第 51 条之后就会被滤空 —— 面板显示「没有待办」而任务还挂着（B13 同族）。
+        replenishmentTaskRepository.findWorkbenchTasks(
+                        List.of(STATUS_PENDING, STATUS_IN_PROGRESS), deviceIds, WORKBENCH_ITEM_CAP)
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", MEDIUM, "补货任务进行中",
                         replenishmentTodoDetail(t.getStatus(), t.getNotes()),

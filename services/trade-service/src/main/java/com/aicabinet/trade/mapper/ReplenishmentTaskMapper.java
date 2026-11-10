@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -97,12 +101,55 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
                 .isNotNull(ReplenishmentTask::getCheckInAt));
     }
 
-    default List<ReplenishmentTask> findByStatusInOrderByCreatedAtAsc(List<String> statuses, int limit) {
-        int lim = Math.max(1, Math.min(limit, 500));
-        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+    /**
+     * 工作台「补货待办」：状态与**设备范围一起下推到 SQL**。
+     *
+     * <p>为什么不能「先取 {@code limit} 条再按设备过滤」：窗口是按 createdAt **全局**取的，
+     * 域受限账号（分仓 / 线长）自己的任务可能排在窗口之外 —— 过完滤一条不剩，
+     * 待办面板显示「没有待办」，而任务实实在在挂在那里（与 B13 同族：上限与判据无关时，
+     * 上限不能设在过滤之前）。
+     *
+     * @param deviceIds {@code null}=不限范围；空集合=范围内没有任何柜机（直接空结果，
+     *                  也避免生成 MyBatis-Plus 的 {@code IN ()} 空列表语法）
+     */
+    default List<ReplenishmentTask> findWorkbenchTasks(
+            List<String> statuses, Collection<String> deviceIds, int limit) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
+        }
+        var query = Wrappers.<ReplenishmentTask>lambdaQuery()
                 .in(ReplenishmentTask::getStatus, statuses)
-                .orderByAsc(ReplenishmentTask::getCreatedAt)
-                .last("LIMIT " + lim));
+                .orderByAsc(ReplenishmentTask::getCreatedAt);
+        if (deviceIds != null) {
+            query.in(ReplenishmentTask::getDeviceId, deviceIds);
+        }
+        return selectList(query.last("LIMIT " + Math.max(1, Math.min(limit, 500))));
+    }
+
+    /**
+     * 「此刻正在补货」的设备集合（{@code IN_PROGRESS} 且已签到），设备范围可下推。
+     *
+     * <p>判据与 {@link ReplenishmentTask#isRestockingNow} **同源**：出库明细生成即置 IN_PROGRESS 但人还没到店，
+     * 那种行不该算「有人占着柜子」（挡开门用的就是这条判据）。设备范围下推 + 只取 distinct device_id、
+     * **不设窗口**：旧写法「取 500 条再按范围过滤」在域受限账号下会把别家的任务全过一遍、自己的反被窗口挤掉。
+     *
+     * @param deviceIds {@code null}=不限范围；空集合=范围内没有任何柜机
+     */
+    default Set<String> findRestockingNowDeviceIds(Collection<String> deviceIds) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return Set.of();
+        }
+        var query = Wrappers.<ReplenishmentTask>lambdaQuery()
+                .select(ReplenishmentTask::getDeviceId)
+                .eq(ReplenishmentTask::getStatus, "IN_PROGRESS")
+                .isNotNull(ReplenishmentTask::getCheckInAt);
+        if (deviceIds != null) {
+            query.in(ReplenishmentTask::getDeviceId, deviceIds);
+        }
+        return selectList(query).stream()
+                .map(ReplenishmentTask::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     default long countByStatusInAndDeviceIdIn(List<String> statuses, Collection<String> deviceIds) {

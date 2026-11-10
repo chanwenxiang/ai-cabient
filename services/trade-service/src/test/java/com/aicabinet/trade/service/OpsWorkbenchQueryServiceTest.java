@@ -165,6 +165,21 @@ class OpsWorkbenchQueryServiceTest {
         assertTrue(items.get(0).detail().indexOf("货道 ") < 0);
     }
 
+    /**
+     * 「补货占柜」必须与 {@code ReplenishmentTask#isRestockingNow} 同源：只算**已签到**的 IN_PROGRESS。
+     * <p>出库明细生成即置 IN_PROGRESS 的行人还没到店，算进去会让运营看到虚高的占用数，
+     * 也和「挡开门」的口径对不上（那边逐柜查的就是 isRestockingNow）。
+     * 这条用例钉的是「取数走 findRestockingNowDeviceIds」——如果谁改回只按状态查窗口，
+     * 这个 stub 就没人用了（严格桩直接报错），且占用数会变 0。
+     */
+    @Test
+    void countOccupiedDevices_usesRestockingNowQuery() {
+        when(sessionRepository.countDistinctDeviceIdByStateIn(anyList())).thenReturn(0L);
+        when(replenishmentTaskRepository.findRestockingNowDeviceIds(null)).thenReturn(Set.of("EG-1", "EG-2"));
+
+        assertEquals(2, service.countOccupiedDevices(null));
+    }
+
     private static WarehouseInTransit line(Long transitId, Long outboundId, String deviceId,
                                            String skuId, int qty, Instant createdAt) {
         WarehouseInTransit t = new WarehouseInTransit();

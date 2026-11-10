@@ -37,9 +37,9 @@
  *      （判的是「缺任务 ⇒ 记失败」这个**结构**，不是某一句文案 —— 见下方注释里的假红事故）。
  *   7. `deviceHasCoords` 的判据不得被重新内联，且实跑脚本必须证明它真出现在响应里
  *      （只断言 DTO 里有这个字段 = 只证明了「声明」，没证明「送达」）。
- *   8. 展示面「补货中」的取数必须**下推 SQL**（`findRestockingNowTasks`），
- *      不得回到「取上限窗口（`findByStatusInOrderByCreatedAtAsc(…, 500)`）再内存过滤」——
- *      见下方 B13 的成因。
+ *   8. 补货任务的**展示面/待办取数必须下推 SQL**（`findRestockingNowTasks` / `findWorkbenchTasks` /
+ *      `findDeviceIdsByStatusAndDeviceIn`），不得回到「取上限窗口
+ *      （`findByStatusInOrderByCreatedAtAsc(…, 500)`）再内存过滤」——见下方 B13 的成因。
  *
  *   node scripts/check-replenishment-checkin-contract.mjs
  */
@@ -87,7 +87,10 @@ const E2E_LIB_FILE = join(root, 'scripts', 'e2e-lib.ps1');
 const TASK_MAPPER_FILE = join(TRADE_MAIN, 'mapper', 'ReplenishmentTaskMapper.java');
 const PORTAL_DEVICE_FILE = join(TRADE_MAIN, 'service', 'MerchantDevicePortalService.java');
 const OPS_DEVICE_FILE = join(TRADE_MAIN, 'service', 'OpsDeviceAdminService.java');
+const MERCHANT_WORKBENCH_FILE = join(TRADE_MAIN, 'service', 'MerchantWorkbenchQueryService.java');
+const OPS_WORKBENCH_FILE = join(TRADE_MAIN, 'service', 'OpsWorkbenchQueryService.java');
 const PUSHED_DOWN_QUERY = 'findRestockingNowTasks';
+const RESTOCKING_DEVICE_IDS_QUERY = 'findRestockingNowDeviceIds';
 const WINDOWED_QUERY = 'findByStatusInOrderByCreatedAtAsc';
 
 const KEY_DEVICE_MISSING = 'REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING';
@@ -463,47 +466,58 @@ if (iStatusGate >= 0 && iDeviceGate >= 0 && iStatusGate > iDeviceGate) {
 // 修法：把 status/check_in_at 下推进 SQL 且不设上限（签到的在途任务是个位数量级）。
 const mapperSrc = read(TASK_MAPPER_FILE);
 const maskedMapper = maskJavaComments(mapperSrc);
-const pushedDownStart = maskedMapper.indexOf(`List<ReplenishmentTask> ${PUSHED_DOWN_QUERY}(`);
-if (pushedDownStart < 0) {
-  problems.push(
-    `ReplenishmentTaskMapper 里找不到 ${PUSHED_DOWN_QUERY}() —— 展示面「补货中」的判据又被搬回内存过滤，` +
-      '未签到的 IN_PROGRESS 脏行攒够上限后会把新签到的任务挤出窗口'
-  );
-} else {
-  const tail = maskedMapper.indexOf('\n    }', pushedDownStart);
-  const mapperBody = maskedMapper.slice(pushedDownStart, tail < 0 ? maskedMapper.length : tail);
+// 两个方法都要守：`findRestockingNowTasks` 供展示面「补货中」，`findRestockingNowDeviceIds` 供「占柜」统计。
+// 占柜口径必须与 isRestockingNow 同源（只算已签到的 IN_PROGRESS），否则运营看到的占用数虚高。
+for (const name of [PUSHED_DOWN_QUERY, RESTOCKING_DEVICE_IDS_QUERY]) {
+  const at = maskedMapper.indexOf(`${name}(`);
+  if (at < 0) {
+    problems.push(
+      `ReplenishmentTaskMapper 里找不到 ${name}() —— 「谁在补货」的判据又被搬回内存过滤，` +
+        '未签到的 IN_PROGRESS 脏行攒够上限后会把真任务挤出窗口'
+    );
+    continue;
+  }
+  const open = maskedMapper.indexOf('{', at);
+  const close = maskedMapper.indexOf('\n    }', open);
+  const body = maskedMapper.slice(open, close < 0 ? maskedMapper.length : close);
   // 判据必须钉在**谓词**上，不能只找 `getCheckInAt`：`select(… getCheckInAt)` 里也有这个词，
   // 光找词会让「把 isNotNull 换成别的列」这种注入假绿（2026-11-10 负向验证当场抓到）。
-  if (!/isNotNull\s*\(\s*ReplenishmentTask::getCheckInAt\s*\)/.test(mapperBody)) {
+  if (!/isNotNull\s*\(\s*ReplenishmentTask::getCheckInAt\s*\)/.test(body)) {
     problems.push(
-      `${PUSHED_DOWN_QUERY}() 没把 check_in_at 非空下推进 SQL —— 只筛 status 的话，` +
-        '窗口里仍会塞满没签到的行，等价于没修'
+      `${name}() 没把 check_in_at 非空下推进 SQL —— 只筛 status 的话，` +
+        '没签到的行也会被当成「正在补货/正在占柜」，等价于没修'
     );
   }
-  if (!/eq\s*\(\s*ReplenishmentTask::getStatus\s*,\s*"IN_PROGRESS"\s*\)/.test(mapperBody)) {
-    problems.push(`${PUSHED_DOWN_QUERY}() 没把 status=IN_PROGRESS 下推进 SQL`);
+  if (!/eq\s*\(\s*ReplenishmentTask::getStatus\s*,\s*"IN_PROGRESS"\s*\)/.test(body)) {
+    problems.push(`${name}() 没把 status=IN_PROGRESS 下推进 SQL`);
   }
-  if (/\.last\s*\(\s*"LIMIT/.test(mapperBody)) {
+  if (/\.last\s*\(\s*"LIMIT/.test(body)) {
     problems.push(
-      `${PUSHED_DOWN_QUERY}() 又加了 LIMIT 上限 —— 上限与「谁在补货」无关，` +
+      `${name}() 又加了 LIMIT 上限 —— 上限与「谁在补货」无关，` +
         '历史脏行攒够就该截断真任务（这正是 B13 的形态）'
     );
   }
 }
-for (const [label, file] of [
-  ['MerchantDevicePortalService', PORTAL_DEVICE_FILE],
-  ['OpsDeviceAdminService', OPS_DEVICE_FILE]
+for (const [label, file, requiredList] of [
+  ['MerchantDevicePortalService', PORTAL_DEVICE_FILE, [PUSHED_DOWN_QUERY]],
+  ['OpsDeviceAdminService', OPS_DEVICE_FILE, [PUSHED_DOWN_QUERY]],
+  ['MerchantWorkbenchQueryService', MERCHANT_WORKBENCH_FILE, ['findWorkbenchTasks']],
+  // 运营工作台两个入口：待办走 findWorkbenchTasks，「占柜」必须与 isRestockingNow 同源（只算已签到）
+  ['OpsWorkbenchQueryService', OPS_WORKBENCH_FILE, ['findWorkbenchTasks', RESTOCKING_DEVICE_IDS_QUERY]]
 ]) {
   const src = maskJavaComments(read(file));
-  if (!src.includes(`${PUSHED_DOWN_QUERY}(`)) {
-    problems.push(
-      `${label} 的「补货中」取数没走 ${PUSHED_DOWN_QUERY}() —— 判据必须下推 SQL（B13）`
-    );
+  for (const required of requiredList) {
+    if (!src.includes(`${required}(`)) {
+      problems.push(
+        `${label} 的补货任务取数没走 ${required}() —— 判据必须下推且与 isRestockingNow 同源（B13），` +
+          '上限窗口 + 内存过滤会让域受限账号看不到自己的任务，只按状态统计会让「占柜」虚高'
+      );
+    }
   }
   if (src.includes(`${WINDOWED_QUERY}(`)) {
     problems.push(
       `${label} 又用 ${WINDOWED_QUERY}(…) 取上限窗口后内存过滤 —— ` +
-        '超过上限的新签任务会被 LIMIT 挤掉，「补货中」永远不亮（B13）'
+        '该方法已下线：窗口是按 createdAt 全局取的，超过窗口的新任务/域内任务会被挤掉（B13）'
     );
   }
 }
@@ -517,5 +531,5 @@ console.log(
     `默认距离 ${declaredMax}m、边界 ${inside}m/${outside}m 与 e2e-replenishment.ps1 的期望值全部一致；` +
     `终态闸与开门共用同一条文案、坐标判据唯一（${KEY_COORDS_PREDICATE}）、` +
     `deviceHasCoords 已声明且被实跑脚本消费；` +
-    `「补货中」判据已下推（${PUSHED_DOWN_QUERY}，无上限窗口）`
+    `补货任务取数全部下推（${PUSHED_DOWN_QUERY} / findWorkbenchTasks，无上限窗口）`
 );

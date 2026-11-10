@@ -159,6 +159,37 @@ class MerchantWorkbenchQueryServiceTest {
         assertTrue(items.get(0).detail().indexOf("货道 ") < 0);
     }
 
+    /**
+     * B13 同族：补货待办的**设备范围必须下推进 SQL**。
+     * <p>旧写法「取全库最早 50 条再 `filter(inDeviceScope)`」的窗口是全局按 createdAt 取的，
+     * 域受限账号（分仓 / 线长）自己的任务排在第 51 条之后就会被滤空 —— 面板显示「没有待办」，
+     * 任务却实实在在挂着。这条用例钉的是「传给仓储的是本账号的范围」，不是「过滤结果对不对」。
+     */
+    @Test
+    void appendReplenishmentItems_pushesDeviceScopeIntoSql() {
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("EG-1"));
+        com.aicabinet.trade.domain.ReplenishmentTask task =
+                new com.aicabinet.trade.domain.ReplenishmentTask();
+        task.setTaskId(77L);
+        task.setDeviceId("EG-1");
+        task.setStatus("IN_PROGRESS");
+        task.setCreatedAt(java.time.Instant.now());
+        when(replenishmentTaskRepository.findWorkbenchTasks(
+                anyList(), org.mockito.ArgumentMatchers.eq(Set.of("EG-1")),
+                org.mockito.ArgumentMatchers.eq(50)))
+                .thenReturn(List.of(task));
+
+        MerchantWorkbenchDto wb = service.getWorkbench(9L);
+
+        verify(replenishmentTaskRepository).findWorkbenchTasks(
+                anyList(), org.mockito.ArgumentMatchers.eq(Set.of("EG-1")),
+                org.mockito.ArgumentMatchers.eq(50));
+        assertTrue(wb.actionItems().stream()
+                        .anyMatch(i -> "REPLENISHMENT".equals(i.type()) && "EG-1".equals(i.deviceId())),
+                "补货待办必须出现在工作台：设备范围已下推 SQL，结果不再需要内存过滤");
+    }
+
     private static com.aicabinet.trade.domain.DeviceSkuInventory inventory(
             String deviceId, String skuId, int qty, int capacity, int lowThreshold) {
         com.aicabinet.trade.domain.DeviceSkuInventory inv = new com.aicabinet.trade.domain.DeviceSkuInventory();
