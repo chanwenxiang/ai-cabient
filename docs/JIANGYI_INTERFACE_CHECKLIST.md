@@ -951,7 +951,8 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
    门磁自报 `doorState=close lockState=close`，排除门未关。**约 2 分钟后同一请求成功**（10:07:39 门开）。
    ⇒ 补货同步后要留冷却窗口再让消费者开门；期间运营界面最好能提示「参数应用中」。
 
-**§7.14–7.18 真机首跑（2026-11-10，冰红茶 41175/6921294307016）**：7.14 清单 `onShelf=true`、7.15 开始成功（`sessionId=8443`，phase=PREPARING）；**7.16 进度 / 7.17 结束 / 7.18 取消三接口全部返回厂商 555**，msg `java.lang.String cannot be cast to java.lang.Number`（我方请求字段与文档 §7.16/§7.17 一致：`deviceIdentifier` String + `sessionId` Integer ⇒ 判定厂商服务端解析缺陷，待其修复后重采）。设备侧等到超时（现场提示「采集超时」），柜内图未上传（`UPLOADING` 只在 7.17 成功后触发）；柜门随后自动上锁，会话约 15 分钟自释放。
+**§7.14–7.18 真机首跑（2026-11-10，冰红茶 41175/6921294307016）**：7.14 清单 `onShelf=true`、7.15 开始成功（`sessionId=8443`，phase=PREPARING）；**7.16 进度 / 7.17 结束 / 7.18 取消三接口全部返回厂商 555**，msg `java.lang.String cannot be cast to java.lang.Number`（我方请求字段与文档 §7.16/§7.17 一致：`deviceIdentifier` String + `sessionId` Integer ⇒ 判定厂商服务端解析缺陷；10 种请求形态变体含「只传 sessionId」全部同错，坐实与请求无关）。设备侧等到超时（现场提示「采集超时」），柜内图未上传；柜门随后自动上锁，会话约 15 分钟自释放。
+**厂商修复后复跑（同日）**：修复判据＝同接口 555 → **503「采集会话不存在或已过期」**（Java 异常消失、回业务文案）。第二次 `sessionId=8468`：phase 全走通（UNLOCKING→CAMERA_PREPARING→CAPTURING）、7.17→UPLOADING→**FAILED「采集未开始，请重新采集」**——现场节奏超过设备约 2 分钟窗口（等运营确认提示、门在会话中不上锁均为预期）。第三次 `sessionId=8469`：**7.15 后立即开门展示、关门即调 7.17 → UPLOADING（约 8 分钟）→ DONE**，7.14 清单清空、商品状态 **CABINET_REVIEWING**（`nextAction=WAIT_CABINET_REVIEW`）。**操作口径：开始后 2 分钟内完成拿放/关门/7.17；会话期间门只合不锁、结束自动锁。**
 
 ### 12B.6 §7.13 货道核对 + §7.14~7.18 柜内采集补齐（2026-11-09，feat/jiangyi-cabinet-capture）
 
