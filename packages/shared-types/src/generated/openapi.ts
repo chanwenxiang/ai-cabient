@@ -1326,6 +1326,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/jiangyi/devices/{deviceId}/model-confirmed-by-txt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["modelConfirmedByTxt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/jiangyi/devices/{deviceId}/door-state": {
         parameters: {
             query?: never;
@@ -12935,6 +12951,9 @@ export interface components {
         ModelConfirmedRequest: {
             modelName?: string;
         };
+        ModelConfirmedByTxtRequest: {
+            txtUrl?: string;
+        };
         DoorStateRequest: {
             doorState?: string;
             lockState?: string;
@@ -23313,6 +23332,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ModelConfirmedRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseVoid"];
+                };
+            };
+        };
+    };
+    modelConfirmedByTxt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelConfirmedByTxtRequest"];
             };
         };
         responses: {
