@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
 import com.aicabinet.trade.mapper.*;
@@ -338,10 +339,17 @@ public class MerchantReplenishmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, LITERAL));
         merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return shoppingSessionRepository.findLatestByReplenishmentTaskId(taskId)
-                .map(session -> new MerchantReplenishmentDoorSessionDto(
-                        true,
-                        session.getSessionId(),
-                        session.getState() != null ? session.getState().name() : null))
+                .map(session -> {
+                    // 🔴 只有「门现在开着」的会话才算 doorOpened（2026-11-10 真机反馈：此前只要该任务
+                    // 存在任何历史会话就回 true ⇒ 开过一次关掉后，再看任务恒显「再次开门」，误以为门开着）。
+                    // OPENING=正在解锁/开门中、SHOPPING=门已开取货中；SETTLING/COMPLETED/CANCELLED 后门已关。
+                    boolean doorOpen = session.getState() == SessionState.OPENING
+                            || session.getState() == SessionState.SHOPPING;
+                    return new MerchantReplenishmentDoorSessionDto(
+                            doorOpen,
+                            doorOpen ? session.getSessionId() : null,
+                            session.getState() != null ? session.getState().name() : null);
+                })
                 .orElseGet(() -> new MerchantReplenishmentDoorSessionDto(false, null, null));
     }
 

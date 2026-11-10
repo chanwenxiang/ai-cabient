@@ -60,7 +60,13 @@ export function useReplenishmentDoorState() {
   async function syncDoorStateFromServer(taskId: number) {
     try {
       const info = await merchantApi.replenishmentDoorSession(taskId);
-      if (info?.doorOpened && info.sessionId) {
+      // 服务端只要该任务有历史会话就回 doorOpened=true（旧口径），必须叠加会话状态判：
+      // 只有 OPENING/SHOPPING 才是「门现在开着」，否则会残留「再次开门」误以为门开着（2026-11-10 真机反馈）。
+      const active =
+        info?.doorOpened &&
+        info.sessionId &&
+        ['OPENING', 'SHOPPING'].includes(String(info.state ?? ''));
+      if (active) {
         doorOpened.value = true;
         openSessionId.value = String(info.sessionId);
         persistDoorState(taskId, String(info.sessionId));

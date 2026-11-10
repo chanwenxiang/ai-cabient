@@ -35,16 +35,11 @@
         @click.stop="$emit('clearCart')"
         >清空</text
       >
-      <button
-        v-if="mockEnabled"
-        class="cart-close-btn"
-        hover-class="btn-hover"
-        :loading="closingDoor"
-        :disabled="closingDoor"
-        @click.stop="$emit('closeDoor')"
-      >
-        关门结算
-      </button>
+      <!-- 2026-11-10 真机反馈：mock 的「关门结算」按钮对真机会话无效（点了没用），
+           改为非交互提示，说清「关门是物理动作、结算自动」，不再给一个假按钮。 -->
+      <view v-if="mockEnabled" class="cart-status-chip soft">
+        取货后请关好柜门，自动识别结算
+      </view>
       <view v-else class="live-door-actions">
         <view class="cart-status-chip soft">请关门</view>
         <button

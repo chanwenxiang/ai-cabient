@@ -1024,7 +1024,8 @@ const shoppingBannerTitle = computed(() => {
 
 const shoppingBannerSub = computed(() => {
   if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '点选商品后可关门结算' : '取货后关门自动结算';
+    // 2026-11-10：不再暗示「点一下就能关门结算」（真机是物理关门+自动结算），统一说清真实行为。
+    return '取货后关好柜门，自动识别结算';
   }
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
     return '可先离开，账单会在「订单」中展示';
