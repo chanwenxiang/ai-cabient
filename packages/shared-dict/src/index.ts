@@ -427,7 +427,8 @@ export const DICT = {
     PAYING: '打款中',
     PAID: '已打款',
     REJECTED: '已驳回',
-    FAILED: '失败'
+    FAILED: '失败',
+    CANCELLED: '已取消' // R6-F3：cancelFailedLocked 的真实终态（与 bootstrap/V455 同值）
   },
   merchant_withdraw_status: {
     PENDING_REVIEW: '待审核',
@@ -435,7 +436,8 @@ export const DICT = {
     PAYING: '打款中',
     PAID: '已打款',
     REJECTED: '已驳回',
-    FAILED: '失败'
+    FAILED: '失败',
+    CANCELLED: '已取消'
   },
   supplier_status: { ACTIVE: '启用', INACTIVE: '停用' },
   purchase_order_status: {

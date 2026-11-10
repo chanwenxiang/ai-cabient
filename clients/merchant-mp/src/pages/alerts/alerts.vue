@@ -283,7 +283,9 @@ async function load() {
   }
   // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无待办权限」（原分支会 switchTab 踢回首页）
   if (!meFromServer.value) {
-    // R5-B5：写持久错误位（否则落「暂无待办」假空态）；自动刷新 10s 一轮 ⇒ toast 节流 60s
+    // R5-B5/R6-F1：写持久错误位（否则落「暂无待办」假空态）；自动刷新 10s 一轮 ⇒ toast 节流 60s。
+    // 🔴 loading 必须在此复位：骨架分支渲染优先级高于 error 位，不复位则 error 卡永远出不来。
+    loading.value = false;
     error.value = '网络异常，暂时无法确认待办权限，请重试';
     if (Date.now() - lastPermUnknownToastAt > 60_000) {
       lastPermUnknownToastAt = Date.now();

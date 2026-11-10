@@ -385,6 +385,7 @@ export declare const DICT: {
         readonly PAID: "已打款";
         readonly REJECTED: "已驳回";
         readonly FAILED: "失败";
+        readonly CANCELLED: "已取消";
     };
     readonly merchant_withdraw_status: {
         readonly PENDING_REVIEW: "待审核";
@@ -393,6 +394,7 @@ export declare const DICT: {
         readonly PAID: "已打款";
         readonly REJECTED: "已驳回";
         readonly FAILED: "失败";
+        readonly CANCELLED: "已取消";
     };
     readonly supplier_status: {
         readonly ACTIVE: "启用";

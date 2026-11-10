@@ -720,6 +720,7 @@ async function persistUnsavedLines(): Promise<boolean> {
     (r) => !isRowBlank(r) && rowBaseline.get(r.lineId) !== rowDraftKey(r)
   );
   for (const row of changed) {
+    const sentKey = rowDraftKey(row); // R6-F2：await 前快照
     const counted = isRowBlank(row) ? null : Number(row.countedInput); // R3-B-R3-6
     const built = buildUpdateLineBody(counted, row.notesInput, row.diffReason);
     if (!built.ok) {
@@ -733,7 +734,7 @@ async function persistUnsavedLines(): Promise<boolean> {
         built.body
       );
       row.status = updated.status || 'PENDING';
-      rowBaseline.set(row.lineId, rowDraftKey(row));
+      rowBaseline.set(row.lineId, sentKey);
     } catch (e) {
       // R5-B6：点名到行，否则多行场景无从定位
       showError(
@@ -780,6 +781,7 @@ async function saveLine(row: EditRow) {
     return;
   }
   row.saving = true;
+  const sentKey = rowDraftKey(row); // R6-F2：await 前快照（保存期间的在途编辑不得标「已存」）
   try {
     const updated = await merchantApi.warehouseStocktakeUpdateLine(
       detailId.value,
@@ -789,7 +791,7 @@ async function saveLine(row: EditRow) {
     row.status = updated.status || 'PENDING';
     // 修复 2026-10-14：不再 loadDetail 重建整表——那会把其它行未保存的
     // 实盘数/备注/原因冲掉（现场盘点数据丢失）。就地只更新本行状态。
-    rowBaseline.set(row.lineId, rowDraftKey(row)); // R5-B6：已保存行同步底稿，过账时不再重 PUT
+    rowBaseline.set(row.lineId, sentKey);
     showSuccess('已保存');
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');
