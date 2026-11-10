@@ -43,6 +43,7 @@ class SessionIdempotentReplayTest {
 
     @Mock private ShoppingSessionMapper repository;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ApiRateLimitService apiRateLimitService;
 
     private SessionService service;
 
@@ -50,7 +51,7 @@ class SessionIdempotentReplayTest {
     void setUp() {
         service = new SessionService(
                 repository, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, distributedLockService, null, null, null);
+                null, null, null, null, null, null, null, null, null, distributedLockService, null, apiRateLimitService, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
