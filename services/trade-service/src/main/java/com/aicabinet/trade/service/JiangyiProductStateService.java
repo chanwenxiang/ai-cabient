@@ -114,6 +114,12 @@ public class JiangyiProductStateService {
         }
         row.setUpdatedAt(Instant.now());
         linkMapper.updateById(row);
+        // 🔴 updateById 默认跳过 null 字段（V446 注释：reject_cause 只在 state=REJECTED 时有值）——
+        // 审核通过/状态前进后厂商不再返回驳回原因，旧文本会永久残留（2026-11-10 实测：冰红茶
+        // CABINET_PENDING 行仍带上一轮的「重新拍摄」）。显式清列走 mapper 的 UPDATE。
+        if (state.rejectCause() == null) {
+            linkMapper.clearRejectCause(row.getId());
+        }
         return Optional.of(row);
     }
 

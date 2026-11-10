@@ -84,6 +84,41 @@ class JiangyiProductStateServiceTest {
         assertEquals("背景不干净，请重拍", captor.getValue().getRejectCause());
     }
 
+    /**
+     * 2026-11-10 数据卫生：审核通过/状态前进后厂商不再返回 rejectCause，而 updateById 跳过
+     * null 字段 ⇒ 上一轮的旧「重新拍摄」会永久残留（实测冰红茶 CABINET_PENDING 行），
+     * 必须走 mapper 的显式清列 UPDATE。
+     */
+    @Test
+    void clearsStaleRejectCauseWhenVendorReturnsNone() {
+        JiangyiSkuJiangyiLink row = new JiangyiSkuJiangyiLink();
+        row.setId(41L);
+        row.setRejectCause("重新拍摄");
+        when(client.lookup("6921294307016")).thenReturn(new ProductState("6921294307016",
+                State.CABINET_PENDING, "RESTOCK_THEN_CABINET_CAPTURE", 41175L, "康师傅冰红茶", null));
+        when(linkMapper.byBarCode("6921294307016")).thenReturn(Optional.of(row));
+
+        service.check("6921294307016");
+
+        ArgumentCaptor<JiangyiSkuJiangyiLink> captor = ArgumentCaptor.forClass(JiangyiSkuJiangyiLink.class);
+        verify(linkMapper).updateById(captor.capture());
+        assertNull(captor.getValue().getRejectCause());
+        verify(linkMapper).clearRejectCause(41L);
+    }
+
+    @Test
+    void doesNotClearWhenVendorReportsRejection() {
+        JiangyiSkuJiangyiLink row = new JiangyiSkuJiangyiLink();
+        row.setId(42L);
+        when(client.lookup("690127")).thenReturn(new ProductState("690127",
+                State.REJECTED, "PHONE_CAPTURE", 8L, "加多宝", "背景杂乱"));
+        when(linkMapper.byBarCode("690127")).thenReturn(Optional.of(row));
+
+        service.check("690127");
+
+        verify(linkMapper, never()).clearRejectCause(any());
+    }
+
     @Test
     void noLinkRowSkipsPersist() {
         when(client.lookup("690125")).thenReturn(new ProductState("690125",

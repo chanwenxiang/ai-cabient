@@ -3,12 +3,22 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.Optional;
 
 @Mapper
 public interface JiangyiSkuJiangyiLinkMapper extends BaseTradeMapper<JiangyiSkuJiangyiLink> {
+
+    /**
+     * 显式清空驳回原因。{@code updateById} 默认跳过 null 字段：审核通过/状态前进后厂商不再
+     * 返回 rejectCause，必须走这条 UPDATE 才会清掉上一轮的旧文本（2026-11-10 数据卫生，
+     * 同 DevicePresenceService 的 clearOnlineSince 先例）。
+     */
+    @Update("UPDATE sku_jiangyi_link SET reject_cause = NULL WHERE id = #{id}")
+    int clearRejectCause(@Param("id") Long id);
 
     default Optional<JiangyiSkuJiangyiLink> byProduct(String jiangyiProductId) {
         return Optional.ofNullable(selectOne(Wrappers.<JiangyiSkuJiangyiLink>lambdaQuery()
