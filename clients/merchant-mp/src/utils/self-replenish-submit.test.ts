@@ -5,6 +5,7 @@ import {
   applyToggleDraftLine,
   buildSelfReplenishBody,
   canStartSelfReplenish,
+  decidePrepResubmitWithRefresh,
   newSelfReplenishRequestNo,
   nextPrepRequestNo,
   nextRequestNoAfterSubmit,
@@ -168,7 +169,11 @@ describe('self-replenish-submit', () => {
   it('改量重提判据：本页没提交过/量没变 ⇒ 放行；任务进行中 ⇒ 拦；任务已结束 ⇒ 作废旧键重提', () => {
     // 本页没成功提交过：没有可回放的旧键，直接提交
     expect(
-      shouldBlockPrepResubmit({ prevFingerprint: undefined, fingerprint: 'S1:3', lastTaskStatus: null })
+      shouldBlockPrepResubmit({
+        prevFingerprint: undefined,
+        fingerprint: 'S1:3',
+        lastTaskStatus: null
+      })
     ).toBe('proceed');
     // 量没变 = 同一意图：复用旧键由后端回放是正确的
     expect(
@@ -196,7 +201,11 @@ describe('self-replenish-submit', () => {
     // 🔴 状态未知（预览是提交前加载的，那时本柜还没任务）必须按「还在进行中」拦——
     // 按 null 放行会把 P0-3 的修复整个废掉（重复建任务 + 重复扣分仓库存）
     expect(
-      shouldBlockPrepResubmit({ prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: null })
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:4',
+        lastTaskStatus: null
+      })
     ).toBe('block_changed_with_active_task');
     expect(
       shouldBlockPrepResubmit({
@@ -223,5 +232,46 @@ describe('self-replenish-submit', () => {
         lastTaskStatus: ' cancelled '
       })
     ).toBe('renew_after_ended_task');
+  });
+
+  // 提交时实时复查（收口「预览后、提交前被取消」的快照竞态）：只在快照判拦分支复查，
+  // 新鲜状态终态 ⇒ 作废重提；仍进行中 ⇒ 维持拦截；复查失败 ⇒ fail-closed 维持拦截。
+  it('改量重提实时复查：快照判拦后按新鲜状态分流，失败 fail-closed', async () => {
+    const base = { prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: 'PENDING' };
+    // 快照说进行中，但提交瞬间任务已被取消 ⇒ 作废旧键重提
+    expect(await decidePrepResubmitWithRefresh(base, 'D1', async () => 'CANCELLED')).toBe(
+      'renew_after_ended_task'
+    );
+    // 新鲜状态仍进行中 ⇒ 维持拦截
+    expect(await decidePrepResubmitWithRefresh(base, 'D1', async () => 'IN_PROGRESS')).toBe(
+      'block_changed_with_active_task'
+    );
+    // 复查抛错（网络）⇒ 不静默放行，维持原拦截
+    expect(
+      await decidePrepResubmitWithRefresh(base, 'D1', async () => {
+        throw new Error('network');
+      })
+    ).toBe('block_changed_with_active_task');
+    // 快照本就放行/终态 ⇒ 不触发复查（refresh 不被调用）
+    let called = 0;
+    const spy = async () => {
+      called += 1;
+      return 'CANCELLED';
+    };
+    expect(
+      await decidePrepResubmitWithRefresh(
+        { prevFingerprint: undefined, fingerprint: 'S1:4', lastTaskStatus: null },
+        'D1',
+        spy
+      )
+    ).toBe('proceed');
+    expect(
+      await decidePrepResubmitWithRefresh(
+        { prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: 'COMPLETED' },
+        'D1',
+        spy
+      )
+    ).toBe('renew_after_ended_task');
+    expect(called).toBe(0);
   });
 });

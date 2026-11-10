@@ -222,6 +222,7 @@ import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import {
+  decidePrepResubmitWithRefresh,
   nextPrepRequestNo,
   prepSubmitFingerprint,
   takePrepRequestNo,
@@ -241,6 +242,8 @@ import type {
 interface PrepGroupView {
   deviceId: string;
   deviceName: string;
+  /** 本柜最近一张补货任务的状态（预览快照；无任务时 null），供改量重提判据 */
+  lastTaskStatus?: string | null;
   checked: boolean;
   /** 全柜在架商品的账面合计（含已满、不在下方列表里的 SKU） */
   currentTotal: number;
@@ -371,6 +374,7 @@ function toView(rows: OpenApiMerchantPrepPreviewGroupDto[]): PrepGroupView[] {
         return {
           deviceId: String(group.deviceId),
           deviceName: String(group.deviceName || group.deviceId),
+          lastTaskStatus: group.lastTaskStatus ?? null,
           currentTotal: all.reduce((sum, item) => sum + item.currentQty, 0),
           inTransitTotal: all.reduce((sum, item) => sum + item.inTransitQty, 0),
           checked: items.length > 0,
@@ -429,6 +433,16 @@ function goPrepGenerate() {
 }
 
 /**
+ * 提交时实时复查本柜最近任务状态（现成预览接口已带 lastTaskStatus，无需新 API）。
+ * 只在「快照判拦」分支被调用，纠正「预览后、提交前被取消」的竞态；失败由调用方 fail-closed。
+ */
+async function refreshLastTaskStatus(deviceId: string): Promise<string | null> {
+  const rows = await merchantApi.replenishmentPrepPreview(true);
+  const row = (rows || []).find((r) => String(r.deviceId) === deviceId);
+  return row?.lastTaskStatus ?? null;
+}
+
+/**
  * 逐柜确认建任务（顺序提交；单柜失败不中断其余柜）。
  * 幂等：每柜一次一键（V401 契约）——键存页面级，成功/传输未知都保留，重试复用同键幂等返回原任务。
  */
@@ -447,15 +461,30 @@ async function submit() {
     const lines = group.items
       .filter((item) => item.qty > 0)
       .map((item) => ({ skuId: item.skuId, qty: item.qty }));
-    // P0-3 残留：该柜已成功建任务且本次改量 ⇒ 显式拦截（复用旧键会静默回放旧数量，
-    // 换新键会重复建任务），指引去「补货任务」页调整
+    // P0-3 / R2-B1：该柜已成功建任务且本次改量 ⇒ 按「那张任务还活着没有」分流：
+    //   进行中/状态未知 ⇒ 拦下，让用户去任务页改量（复用旧键会静默回放旧数量）；
+    //   已取消/已完成   ⇒ 旧键作废、按新意图真提一次（否则提示去改量，而任务页里没有可改的任务）
     const fingerprint = prepSubmitFingerprint(lines);
-    const prevSuccess = prepSuccessFingerprints.get(group.deviceId);
-    if (prevSuccess !== undefined && prevSuccess !== fingerprint) {
+    const verdict = await decidePrepResubmitWithRefresh(
+      {
+        prevFingerprint: prepSuccessFingerprints.get(group.deviceId),
+        fingerprint,
+        lastTaskStatus: group.lastTaskStatus
+      },
+      group.deviceId,
+      refreshLastTaskStatus
+    );
+    if (verdict === 'block_changed_with_active_task') {
       failures.push(
-        `${group.deviceName}：已按上次提交数量生成任务，本次改量未提交，请到「补货任务」页调整数量`
+        `${group.deviceName}：该柜已有进行中的补货任务，本次改量未提交，请到「补货任务」页调整数量`
       );
       continue;
+    }
+    if (verdict === 'renew_after_ended_task') {
+      // 旧键指向已结束的任务：继续用会被后端回放成「已生成」旧任务（COMPLETED），
+      // 或直接 409（CANCELLED）——两种都是假结果。作废后 takePrepRequestNo 会生成新键。
+      prepRequestNos.delete(group.deviceId);
+      prepSuccessFingerprints.delete(group.deviceId);
     }
     // 每柜独立幂等键（存在页面级 store）：设备间互不重放；同柜重复提交=同一意图
     const clientRequestNo = takePrepRequestNo(prepRequestNos, group.deviceId);

@@ -132,6 +132,36 @@ export function shouldBlockPrepResubmit(input: {
   return 'block_changed_with_active_task';
 }
 
+/**
+ * 「改量重提」提交时实时复查（2026-11-10，收口 R2-B1 的快照竞态残余）。
+ *
+ * `lastTaskStatus` 是**预览那一刻**的快照：若用户在「预览加载后、点提交前」才取消任务，
+ * 快照仍说进行中 ⇒ 误拦一次。这里只在「快照判拦」的罕见分支上，用**现成预览接口**
+ * （已带 lastTaskStatus，无需新 API）取新鲜状态重判：已结束 ⇒ 作废旧键重提；仍进行中 ⇒ 维持拦截。
+ *
+ * 🔴 只在 `prevFingerprint` 已存在（本页已成功提交过、任务确实建出来了）时才可能走到复查，
+ * 此时新鲜状态是权威的；初始快照的「null ⇒ 拦」规则不受影响（保护部分失败重提主路径）。
+ * 🔴 复查失败（网络）⇒ 维持原拦截（fail-closed），不静默放行。
+ */
+export async function decidePrepResubmitWithRefresh(
+  input: {
+    prevFingerprint: string | undefined;
+    fingerprint: string;
+    lastTaskStatus?: string | null;
+  },
+  deviceId: string,
+  refreshStatus: (deviceId: string) => Promise<string | null>
+): Promise<PrepResubmitVerdict> {
+  const first = shouldBlockPrepResubmit(input);
+  if (first !== 'block_changed_with_active_task') return first;
+  try {
+    const fresh = await refreshStatus(deviceId);
+    return shouldBlockPrepResubmit({ ...input, lastTaskStatus: fresh });
+  } catch {
+    return first;
+  }
+}
+
 export function buildSelfReplenishBody(input: {
   deviceId: string;
   notes: string;
