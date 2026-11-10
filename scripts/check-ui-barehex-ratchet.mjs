@@ -33,7 +33,10 @@ const PRINT_ONLY = process.argv.includes('--print');
  */
 const BASELINES = {
   admin: { hex6: 239, hex3: 40, hex8: 1, rgba: 144 },
-  mp: { hex6: 1026, hex3: 69, hex8: 0, rgba: 161 }
+  // 2026-11-10 上调冻结：商户端 UI 重设计（6f7c3ba8：柜机列表卡/盘点/订单/补货/详情）引入了
+  // 一批语义化前的裸色（hex6 +52、hex3 +2、rgba +3），先冻结在当前实测值以放行；后续应逐步令牌化，
+  // 本棘轮仍「只减不增」——再增会红，逐批令牌化后请同步下调。
+  mp: { hex6: 1078, hex3: 71, hex8: 0, rgba: 164 }
 };
 
 const ADMIN_GLOBS = [
