@@ -644,13 +644,14 @@ public class AdminJiangyiController {
 
     private static DeploymentDto toDto(JiangyiModelDeployment d) {
         return new DeploymentDto(d.getId(), d.getDeviceId(), d.getModelName(), d.getModelUrl(),
-                d.getIndustrialControlModel(), d.getClassesVersion(), d.getStatus(),
-                d.getSentAt(), d.getConfirmedAt(), d.getFailReason());
+                d.getClassesTextUrl(), d.getIndustrialControlModel(), d.getClassesVersion(),
+                d.getStatus(), d.getSentAt(), d.getConfirmedAt(), d.getFailReason());
     }
 
-    /** 下发审计行（openapi inline schema）。 */
+    /** 下发审计行（openapi inline schema）。classesTextUrl 供前端 §5.5.3 解码 classes 类目名用。 */
     public record DeploymentDto(Long id, String deviceId, String modelName, String modelUrl,
-                                String industrialControlModel, String classesVersion, String status,
+                                String classesTextUrl, String industrialControlModel,
+                                String classesVersion, String status,
                                 java.time.Instant sentAt, java.time.Instant confirmedAt,
                                 String failReason) {}
 

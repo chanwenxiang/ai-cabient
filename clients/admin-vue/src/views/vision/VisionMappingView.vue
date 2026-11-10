@@ -718,6 +718,7 @@ interface DeploymentRow {
   id: number;
   deviceId: string;
   modelName: string;
+  classesTextUrl: string | null;
   industrialControlModel: string | null;
   classesVersion: string | null;
   status: string;
@@ -1033,14 +1034,20 @@ const vendorNameByText = ref<Record<string, string>>({});
 async function loadVendorNames() {
   vendorNameByText.value = {};
   if (!deviceId.value) return;
+  // 优先用「最新 CONFIRMED 下发」的 classes 地址（设备当前生效模型），§4.4.4 模型列表为空时也能解码；
+  // 退化为当前预览模型的 textUrl。
+  const dep =
+    deployments.value.find((d) => d.status === 'CONFIRMED' && d.classesTextUrl) ??
+    deployments.value.find((d) => d.classesTextUrl);
   const preview =
     modelPreviews.value.find((m) => m.modelName === binding.value?.modelName) ??
     modelPreviews.value[0];
-  if (!preview?.modelTextUrl) return;
+  const textUrl = dep?.classesTextUrl || preview?.modelTextUrl;
+  if (!textUrl) return;
   try {
     const q = new URLSearchParams({
-      textUrl: preview.modelTextUrl,
-      quantity: String(preview.quantity),
+      textUrl,
+      quantity: '0',
       classIdBase: String(classIdBase.value)
     });
     const view = await api.request<{
@@ -1143,6 +1150,8 @@ async function loadDeployments() {
   } catch {
     deployments.value = [];
   }
+  // 下发记录到位后重算 classes 类目名解码（依赖 CONFIRMED 下发的 classesTextUrl）
+  void loadVendorNames();
 }
 
 async function loadReviewStatus() {
