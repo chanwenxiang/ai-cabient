@@ -1,5 +1,5 @@
 import { reactive, ref, type ComputedRef, type Ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
@@ -108,8 +108,29 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     }
   }
 
+  /**
+   * 盘点写动作二次确认（2026-11-10 审计 §7#6）：完成/过账/复盘/取消都动库存台账，
+   * 此前按钮直发请求无确认。用户点「取消」返回 false，不当错误处理。
+   */
+  async function confirmStocktakeWrite(content: string, title: string): Promise<boolean> {
+    return ElMessageBox.confirm(content, title, {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    })
+      .then(() => true)
+      .catch(() => false);
+  }
+
   async function completeStocktakeAction() {
     const id = stocktakeDetail.value.stocktakeId;
+    if (
+      !(await confirmStocktakeWrite(
+        '确认完成该盘点单？只完成、不过账；差异可稍后复盘调整。',
+        '完成盘点'
+      ))
+    )
+      return;
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeComplete(id), 'POST');
@@ -125,6 +146,16 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
   /** P2-6：完成并过账（全行实盘校验 + 差异全量过账，一个动作） */
   async function completeAndAdjustStocktakeAction() {
     const id = stocktakeDetail.value.stocktakeId;
+    const diffLines = Number(stocktakeDetail.value.diffLineCount ?? 0);
+    if (
+      !(await confirmStocktakeWrite(
+        `确认完成并过账？差异行将按实盘数量全量调整入库${
+          diffLines > 0 ? `（当前 ${diffLines} 行差异）` : ''
+        }。`,
+        '完成并过账'
+      ))
+    )
+      return;
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeCompleteAndAdjust(id), 'POST');
@@ -139,6 +170,16 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
 
   async function adjustStocktakeAction() {
     const id = stocktakeDetail.value.stocktakeId;
+    const diffLines = Number(stocktakeDetail.value.diffLineCount ?? 0);
+    if (
+      !(await confirmStocktakeWrite(
+        `确认复盘调整？将按实盘差异再次调整入库${
+          diffLines > 0 ? `（当前 ${diffLines} 行差异）` : ''
+        }。`,
+        '复盘调整'
+      ))
+    )
+      return;
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeAdjust(id), 'POST', {});
@@ -153,6 +194,7 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
 
   async function cancelStocktakeAction() {
     const id = stocktakeDetail.value.stocktakeId;
+    if (!(await confirmStocktakeWrite('确认取消该盘点单？', '取消盘点'))) return;
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeCancel(id), 'POST');

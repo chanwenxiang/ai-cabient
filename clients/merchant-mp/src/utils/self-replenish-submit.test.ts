@@ -8,6 +8,7 @@ import {
   newSelfReplenishRequestNo,
   nextPrepRequestNo,
   nextRequestNoAfterSubmit,
+  prepSubmitFingerprint,
   requestActionErrorMessage,
   selectedReplenishLines,
   takePrepRequestNo
@@ -128,5 +129,36 @@ describe('self-replenish-submit', () => {
     // 清空后同柜再取必须换新键
     store.delete('D1');
     expect(takePrepRequestNo(store, 'D1', gen)).toBe('self-test-3');
+  });
+
+  // P0-3 残留（2026-11-10）：后端按 key 回放不核对明细，改量重提会被旧键静默回放。
+  // 指纹必须对「数量/SKU 变化」敏感、对「行序」不敏感，页面据此显式拦截改量重提。
+  it('备货明细指纹：行序无关，数量或 SKU 变化即不同', () => {
+    const a = [
+      { skuId: 'S1', qty: 3 },
+      { skuId: 'S2', qty: 5 }
+    ];
+    const reordered = [
+      { skuId: 'S2', qty: 5 },
+      { skuId: 'S1', qty: 3 }
+    ];
+    expect(prepSubmitFingerprint(a)).toBe(prepSubmitFingerprint(reordered));
+    expect(prepSubmitFingerprint(a)).toBe(prepSubmitFingerprint([...a]));
+    // 改量 ⇒ 指纹变化（触发拦截）
+    expect(
+      prepSubmitFingerprint([
+        { skuId: 'S1', qty: 4 },
+        { skuId: 'S2', qty: 5 }
+      ])
+    ).not.toBe(prepSubmitFingerprint(a));
+    // 换 SKU ⇒ 指纹变化
+    expect(
+      prepSubmitFingerprint([
+        { skuId: 'S3', qty: 3 },
+        { skuId: 'S2', qty: 5 }
+      ])
+    ).not.toBe(prepSubmitFingerprint(a));
+    // 空明细有确定指纹（整柜全 0 的柜在页面层已剔除，这里只钉函数行为）
+    expect(prepSubmitFingerprint([])).toBe('');
   });
 });

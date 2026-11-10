@@ -113,10 +113,10 @@ import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMonthlyBill } from '@aicabinet/shared-types';
 
-const { me } = useMerchantMe();
+const { me, refresh: refreshMe } = useMerchantMe();
 const canView = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 
 function currentMonth() {
@@ -171,11 +171,21 @@ let loadSeq = 0;
 
 async function load() {
   if (!isMerchantLoggedIn()) return;
+  const seq = ++loadSeq;
+  // 🔴 冷启动首屏 me 必为 null（composable 的 onShow 刷新是异步，页面 load 同步先跑）：
+  // 先拉 me 再判权限，否则首屏误报「没有查看账单的权限」（2026-11-10 审计 §7#1，
+  // 对齐 orders/settlements 等页 ensureXMerchantMe 先例）。
+  try {
+    await refreshMe();
+  } catch {
+    if (!isMerchantLoggedIn()) return;
+    seedMerchantMeDisplayCache(me);
+  }
+  if (seq !== loadSeq) return;
   if (!canView.value) {
     loadError.value = '没有查看账单的权限';
     return;
   }
-  const seq = ++loadSeq;
   loading.value = true;
   loadError.value = '';
   try {

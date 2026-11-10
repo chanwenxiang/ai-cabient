@@ -43,7 +43,7 @@
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
             :aria-label="
               canAccessPath('/devices')
-                ? `在售货柜 ${listHydrated ? (workbench?.devicesOnSale ?? '无') : '加载中'}`
+                ? `在售货柜 ${listHydrated ? (workbench?.devicesOnSale ?? '无') : kpiPendingShort}`
                 : undefined
             "
             @click="goPath('/devices', { salesLocked: 'false' })"
@@ -52,10 +52,10 @@
           >
             <div class="stat-label">在售货柜</div>
             <div class="stat-value">
-              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '暂无' }}
+              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
+              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>
                 停售 {{ workbench?.devicesSalesLocked ?? 0 }}
                 <template v-if="canAccessPath('/devices')"> · 查看设备</template>
@@ -71,7 +71,7 @@
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
             :aria-label="
               canAccessPath('/devices')
-                ? `设备在线率 ${listHydrated ? onlineRate.toFixed(1) + '%' : '加载中'}`
+                ? `设备在线率 ${listHydrated ? onlineRate.toFixed(1) + '%' : kpiPendingShort}`
                 : undefined
             "
             @click="goDevicesByOnlineRate"
@@ -81,7 +81,7 @@
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
+              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>
                 {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
                 <template v-if="canAccessPath('/devices')">
@@ -99,7 +99,7 @@
             :tabindex="canAccessPath('/finance') ? 0 : undefined"
             :aria-label="
               canAccessPath('/finance')
-                ? `今日营收 ${listHydrated ? yuanTextZero(stats.revenueTodayCents) : '加载中'}`
+                ? `今日营收 ${listHydrated ? yuanTextZero(stats.revenueTodayCents) : kpiPendingShort}`
                 : undefined
             "
             @click="goPath('/finance')"
@@ -111,7 +111,7 @@
               {{ listHydrated ? yuanTextZero(stats.revenueTodayCents) : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
+              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>{{
                 canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
               }}</template>
@@ -129,7 +129,7 @@
             :tabindex="canAccessPath('/exceptions') ? 0 : undefined"
             :aria-label="
               canAccessPath('/exceptions')
-                ? `待处理异常 ${listHydrated ? openExceptionCount : '加载中'}`
+                ? `待处理异常 ${listHydrated ? openExceptionCount : kpiPendingShort}`
                 : undefined
             "
             @click="goExceptions"
@@ -139,7 +139,7 @@
             <div class="stat-label">待处理异常</div>
             <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ UI_COPY.loading }}</template>
+              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else-if="canAccessPath('/exceptions')">
                 {{
                   openExceptionCount
@@ -331,6 +331,16 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 /** 首屏未拉完前勿展示「0 / 运行正常」，避免与异常中心真实待办数闪错 */
 const listHydrated = ref(false);
+/**
+ * 🔴 2026-11-10 审计 §7#7：首屏加载失败时 listHydrated 不得置真——原实现在 finally
+ * 无条件置真，stats 初始 {} ⇒ KPI 渲染假 0（今日营收 ¥0.00 / 在线率 0.0%）。
+ * 失败且从未成功加载时置 workbenchFailed，KPI 占位显「加载失败」而非假数据。
+ */
+const workbenchFailed = ref(false);
+const kpiPendingLabel = computed(() =>
+  workbenchFailed.value ? '加载失败，请点右上「刷新」重试' : UI_COPY.loading
+);
+const kpiPendingShort = computed(() => (workbenchFailed.value ? '加载失败' : '加载中'));
 const loadSeq = createLoadSeq();
 /** loading 在途数（清理不受过时守卫影响，防遮罩卡死） */
 let dashboardLoadingInflight = 0;
@@ -738,6 +748,7 @@ async function load(opts?: { silent?: boolean }) {
   const seq = loadSeq.begin();
   dashboardLoadingInflight += 1;
   loading.value = true;
+  let landed = false;
   try {
     let { s, wb, ex } = await fetchWorkbenchBundle();
     // 登录刚进页时偶发 token/网关未就绪，静默重试一次，避免误报「加载失败」
@@ -748,27 +759,34 @@ async function load(opts?: { silent?: boolean }) {
     }
     if (!loadSeq.isCurrent(seq)) return;
     if (!s && !wb) {
-      if (!opts?.silent) {
+      // 首屏失败必须给信号（silent 只豁免「已成功后的静默刷新」）；从未成功则标失败态（§7#7）
+      if (!opts?.silent || !listHydrated.value) {
         ElMessage.warning('工作台暂无数据，请稍后点刷新重试');
       }
+      if (!listHydrated.value) workbenchFailed.value = true;
       // 保留上次成功数据，避免刷新失败把 KPI 闪成 0
       return;
     }
     stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
+    landed = true;
+    workbenchFailed.value = false;
     // 聚合数据落位后重切告警明细（保持页码，越界由 filteredActions watch 兜底回退）
     void queueCrud.load();
     await loadOnboardPending();
   } catch (e) {
     if (!loadSeq.isCurrent(seq)) return;
-    if (!opts?.silent) {
+    if (!opts?.silent || !listHydrated.value) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败，请重试');
     }
+    if (!listHydrated.value) workbenchFailed.value = true;
   } finally {
     dashboardLoadingInflight = Math.max(0, dashboardLoadingInflight - 1);
     if (dashboardLoadingInflight === 0) loading.value = false;
-    if (loadSeq.isCurrent(seq)) listHydrated.value = true;
+    // 🔴 只有数据真落位才置真（§7#7）：原实现 finally 无条件置真，首屏失败时
+    // stats={} ⇒ KPI 渲染假 0。失败保持占位 + workbenchFailed 文案。
+    if (loadSeq.isCurrent(seq) && landed) listHydrated.value = true;
   }
 }
 

@@ -132,7 +132,7 @@ import { computed, ref } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { requestActionErrorMessage } from '@/utils/self-replenish-submit';
 import {
@@ -149,8 +149,27 @@ const modeTabs = [
   { value: 'list', label: '单据' }
 ];
 const mode = ref<'create' | 'list'>('create');
-const { me } = useMerchantMe();
+const { me, refresh: refreshMe } = useMerchantMe();
 const canView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
+
+/** 请求序号守卫：申请/单据两个 load 共用，旧响应不得覆盖新结果 */
+let loadSeq = 0;
+
+/**
+ * 🔴 冷启动首屏 me 必为 null（composable 的 onShow 刷新是异步，页面 load 同步先跑）：
+ * 先拉 me 再判权限，否则首屏静默不加载、误判无权限（2026-11-10 审计 §7#1，
+ * 对齐 orders/settlements 等页 ensureXMerchantMe 先例）。
+ */
+async function ensurePurchaseAccess(seq: number): Promise<boolean> {
+  try {
+    await refreshMe();
+  } catch {
+    if (!isMerchantLoggedIn()) return false;
+    seedMerchantMeDisplayCache(me);
+  }
+  if (seq !== loadSeq) return false;
+  return canView.value;
+}
 
 const warehouseId = ref('');
 const warehouseName = ref('');
@@ -281,7 +300,9 @@ function hydrateReceiveLines(rows: OrderLine[] | undefined): OrderLine[] {
 }
 
 async function loadCreate() {
-  if (!canView.value) return;
+  if (!isMerchantLoggedIn()) return;
+  const seq = ++loadSeq;
+  if (!(await ensurePurchaseAccess(seq))) return;
   createLoading.value = true;
   pageError.value = '';
   try {
@@ -290,6 +311,7 @@ async function loadCreate() {
       merchantApi.satellitePurchaseSuppliers(),
       merchantApi.satellitePurchaseSkus()
     ]);
+    if (seq !== loadSeq) return;
     warehouseId.value = wh.warehouseId || '';
     warehouseName.value = wh.warehouseName || wh.warehouseId || '';
     suppliers.value = sup || [];
@@ -302,28 +324,34 @@ async function loadCreate() {
       qty: 0
     }));
   } catch (e) {
+    if (seq !== loadSeq) return;
     pageError.value = requestActionErrorMessage(e, '加载失败');
   } finally {
-    createLoading.value = false;
+    if (seq === loadSeq) createLoading.value = false;
   }
 }
 
 async function loadOrders() {
-  if (!canView.value) return;
+  if (!isMerchantLoggedIn()) return;
+  const seq = ++loadSeq;
+  if (!(await ensurePurchaseAccess(seq))) return;
   listLoading.value = true;
   listError.value = '';
   try {
     if (!suppliers.value.length) {
       suppliers.value = await merchantApi.satellitePurchaseSuppliers();
     }
-    orders.value = (await merchantApi.satellitePurchaseOrders()).map((row) => ({
+    const rows = await merchantApi.satellitePurchaseOrders();
+    if (seq !== loadSeq) return;
+    orders.value = rows.map((row) => ({
       ...row,
       lines: hydrateReceiveLines(row.lines)
     }));
   } catch (e) {
+    if (seq !== loadSeq) return;
     listError.value = requestActionErrorMessage(e, '加载失败');
   } finally {
-    listLoading.value = false;
+    if (seq === loadSeq) listLoading.value = false;
   }
 }
 

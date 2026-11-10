@@ -69,6 +69,20 @@ export function takePrepRequestNo(
   return fresh;
 }
 
+/**
+ * 备货提交明细指纹（2026-11-10 审计 P0-3 残留）：skuId+qty 集合（与行序无关）= 同一意图。
+ * 为什么需要：成功后键保留，后端按 key 回放**不核对明细**（MerchantReplenishmentService
+ * 回放分支直接返回原任务）；用户改量后重提，旧任务会被当结果返回、改量被静默吞掉。
+ * 页面级记录「上次成功提交的指纹」，重提指纹不同 ⇒ 显式拦截并指引去任务页改量，
+ * 而不是换新键（传输未知场景换新键会重新引入重复建任务 + 重复扣分仓库存）。
+ */
+export function prepSubmitFingerprint(lines: { skuId: string; qty: number }[]): string {
+  return lines
+    .map((l) => `${l.skuId}:${l.qty}`)
+    .sort()
+    .join('|');
+}
+
 export function buildSelfReplenishBody(input: {
   deviceId: string;
   notes: string;

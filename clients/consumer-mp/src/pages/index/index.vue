@@ -512,6 +512,7 @@ import {
   concurrentEntryDecision,
   deviceStatusLabel,
   isAdoptableSession,
+  isEndedSessionReplayConflict,
   isTerminalSessionState,
   normalizeCabinetId,
   parseDeviceAvailability,
@@ -1378,6 +1379,7 @@ async function handleSessionOpenResult(
   sessionResult: PromiseSettledResult<SessionDto>,
   pendingCreate?: Promise<SessionDto>
 ): Promise<boolean> {
+  let staleKey = false;
   if (sessionOpenDecision(sessionResult.status) === 'adopt_fulfilled') {
     const fulfilled = (sessionResult as PromiseFulfilledResult<SessionDto>).value;
     if (isAdoptableSession(fulfilled, cabinetId)) {
@@ -1387,9 +1389,19 @@ async function handleSessionOpenResult(
       hapticMedium();
       return true;
     }
-    // 后端幂等回放只校验用户/柜机、不看状态（SessionService.validateIdempotentReplay），
-    // 旧键命中已结束的会话时会把 COMPLETED/CANCELLED 当成「开门成功」原样返回。
-    // 此时接管 = 柜门不开、人还被带进上一笔账单（P0-4）：作废旧键换新键真开一次。
+    // 后端回放状态闸（SessionService.validateIdempotentReplay，2026-11-10 审计 P0-4）：
+    // COMPLETED/CANCELLED/DISPUTED 已改回 409（走下方 else-if）；FAILED 有意原样放行，
+    // 客户端可展示失败原因或换新键重开——本端选择后者。终态判据在此是第二道防线。
+    staleKey = true;
+  } else if (
+    sessionResult.status === 'rejected' &&
+    isEndedSessionReplayConflict(sessionResult.reason)
+  ) {
+    // P0-4 残留（2026-11-10）：旧键命中已结束会话、后端回 409「会话已结束」。
+    // 必须作废旧键换新键真开一次，否则 TTL（≤2min）内重扫同柜会反复撞 409。
+    staleKey = true;
+  }
+  if (staleKey) {
     clearOpenAttempt();
     try {
       const reopened = await withTimeout(

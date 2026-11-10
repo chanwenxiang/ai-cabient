@@ -115,6 +115,7 @@ import { useMerchantMe } from '@/composables/useMerchantMe';
 import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import {
   nextPrepRequestNo,
+  prepSubmitFingerprint,
   takePrepRequestNo,
   type PrepSubmitOutcome
 } from '@/utils/self-replenish-submit';
@@ -152,6 +153,12 @@ const submitting = ref(false);
  * 存续语义见 `nextPrepRequestNo`（成功/传输未知保留，业务失败清）。
  */
 const prepRequestNos = new Map<string, string>();
+/**
+ * 上次**成功**提交的明细指纹（P0-3 残留，2026-11-10）：后端按 key 回放不核对明细，
+ * 改量后重提若复用旧键会把旧任务当结果返回、改量被静默吞掉；换新键又会重复建任务。
+ * 故指纹不同 ⇒ 显式拦截并指引去「补货任务」页改量。仅成功时写入（传输未知不写）。
+ */
+const prepSuccessFingerprints = new Map<string, string>();
 const groups = ref<PrepGroupView[]>([]);
 const keyword = ref('');
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
@@ -279,27 +286,42 @@ async function submit() {
   const okTasks: string[] = [];
   const failures: string[] = [];
   for (const group of targets) {
+    // 下调到 0 的行不建任务行（整柜全 0 的柜已在上面剔除）
+    const lines = group.items
+      .filter((item) => item.qty > 0)
+      .map((item) => ({ skuId: item.skuId, qty: item.qty }));
+    // P0-3 残留：该柜已成功建任务且本次改量 ⇒ 显式拦截（复用旧键会静默回放旧数量，
+    // 换新键会重复建任务），指引去「补货任务」页调整
+    const fingerprint = prepSubmitFingerprint(lines);
+    const prevSuccess = prepSuccessFingerprints.get(group.deviceId);
+    if (prevSuccess !== undefined && prevSuccess !== fingerprint) {
+      failures.push(
+        `${group.deviceName}：已按上次提交数量生成任务，本次改量未提交，请到「补货任务」页调整数量`
+      );
+      continue;
+    }
     // 每柜独立幂等键（存在页面级 store）：设备间互不重放；同柜重复提交=同一意图
     const clientRequestNo = takePrepRequestNo(prepRequestNos, group.deviceId);
     let outcome: PrepSubmitOutcome = 'business_error';
     try {
       const body = {
         deviceId: group.deviceId,
-        // 下调到 0 的行不建任务行（整柜全 0 的柜已在上面剔除）
-        lines: group.items
-          .filter((item) => item.qty > 0)
-          .map((item) => ({ skuId: item.skuId, qty: item.qty })),
+        lines,
         clientRequestNo
       };
       const task = await merchantApi.selfInitiateReplenishment(body);
       outcome = 'success';
+      prepSuccessFingerprints.set(group.deviceId, fingerprint);
       okTasks.push(`${group.deviceName}（任务 ${task.taskId}）`);
     } catch (e) {
       if (isRetriableMpTransportError(e)) outcome = 'transport_error';
       failures.push(`${group.deviceName}：${e instanceof Error ? e.message : '提交失败'}`);
     } finally {
       // 成功也保留：部分失败时用户会重提，已成功的柜必须复用同键由后端回放，否则重复建任务
-      if (!nextPrepRequestNo(clientRequestNo, outcome)) prepRequestNos.delete(group.deviceId);
+      if (!nextPrepRequestNo(clientRequestNo, outcome)) {
+        prepRequestNos.delete(group.deviceId);
+        prepSuccessFingerprints.delete(group.deviceId);
+      }
     }
   }
   submitting.value = false;

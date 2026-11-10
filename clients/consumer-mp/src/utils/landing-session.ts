@@ -296,3 +296,16 @@ export type SessionOpenDecision = 'adopt_fulfilled' | 'try_orphan';
 export function sessionOpenDecision(resultStatus: 'fulfilled' | 'rejected'): SessionOpenDecision {
   return resultStatus === 'fulfilled' ? 'adopt_fulfilled' : 'try_orphan';
 }
+
+/**
+ * 后端幂等回放状态闸的 409（SessionService.validateIdempotentReplay，2026-11-10 审计 P0-4）：
+ * 旧键命中的会话已结束（COMPLETED/CANCELLED/DISPUTED）时回「该开门请求对应的会话已结束，
+ * 请重新发起开门」。命中 ⇒ 客户端应作废旧键、换新键真开一次，而不是留着旧键在 TTL 内
+ * 反复撞 409（P0-4 残留修复）。文案锚「会话已结束」与后端字面量对齐。
+ */
+export function isEndedSessionReplayConflict(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { status?: number; message?: string; errMsg?: string };
+  if (e.status !== 409) return false;
+  return /会话已结束/.test(String(e.message || e.errMsg || ''));
+}

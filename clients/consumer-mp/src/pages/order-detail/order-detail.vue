@@ -589,25 +589,33 @@ async function loadPayChannels() {
   }
 }
 
+// 请求序号守卫（2026-11-10 审计 §7#5）：退款/争议动作后的 reload 与 onShow/bootstrap
+// 的 reload 可能并发，旧响应不得覆盖新快照（同 orders.vue 口径）。
+let reloadSeq = 0;
+
 async function reload() {
   if (!orderId.value) {
     error.value = '缺少订单编号';
     loading.value = false;
     return;
   }
+  const seq = ++reloadSeq;
   if (!order.value) loading.value = true;
   error.value = '';
   try {
-    order.value = await consumerApi.getOrder(orderId.value);
+    const next = await consumerApi.getOrder(orderId.value);
+    if (seq !== reloadSeq) return;
+    order.value = next;
     if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
     if (order.value?.status === 'REFUNDED') {
       refundDone.value = true;
       disputeFiled.value = true;
     }
   } catch (e) {
+    if (seq !== reloadSeq) return;
     if (!order.value) error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === reloadSeq) loading.value = false;
   }
 }
 

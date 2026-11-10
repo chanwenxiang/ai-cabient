@@ -684,6 +684,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-10（四端审计 §7 漏修 6 条 + 修复复核残留 2 条收口；新门禁 merchant-me-gated-load）
+
+- 审计修复批（§10/§11）独立复核发现：§7 定论的 4 P1（首屏 me=null 误判 / settlements 客单价随零元单开关漂移 / 盘点写动作无确认 / Dashboard 首屏失败假 0）+ 2 P2（采集上传 401 英文直出 / order-detail reload 无 seq）漏修且未交代，本批全部收口；详见 `docs/AUDIT_FOUR_END_2026-11-09.md` §12。
+- 两个幂等残留同批修：备货「成功后改量重提」被旧键静默回放 ⇒ 页面级明细指纹拦截并指引去「补货任务」页改量（不换键——换键在传输未知场景会重复建任务）；开门旧键撞后端「会话已结束」409 ⇒ 识别后清键换键真开一次（`isEndedSessionReplayConflict`，409+文案锚）。
+- 首屏误判的修法对齐全仓既有先例（orders/settlements 等 7 页的 `await refreshMe()` 后再判权限），只有 purchase/bills 缺该步；新门禁 `check:merchant-me-gated-load`（显式权限拒绝 ⇒ 必须 await refreshMe()，判据空转即红）+ 三态负向验证已接聚合链。
+- 行号订正：采集上传 401 裸路径是 `uploadJiangyiCapturePhoto`（原 merchant-api.ts:1234），:386 是有 H3 刷新包装的凭证上传内层——复核时 grep 截断引错路径。
+
 ### 2026-11-09（SKU 图「消失」根因＝桶上全桶 14 天 ILM 过期；拍板图片永久保存，minio-init 改幂等）
 
 - 根因（实测）：桶 `cabinet-videos` 上有一条**无 Filter** 的 `{"Expiration":{"Days":14},"ID":"aicabinet-expire-objects","Status":"Enabled"}`，MinIO 扫描器到期删对象、DB `file_attachment` 行不删 ⇒ 悬空引用。10-23 上传的两张 SKU 图 11-06 到期被删；桶内现存对象最老 10-27（13 天），凡满 14 天者一个不剩。该 ID **从未出现在任何提交/脚本**（`git log -S` 全历史为空），系桶上被额外手工/一次性命令加上；compose 历史上只加带前缀规则。

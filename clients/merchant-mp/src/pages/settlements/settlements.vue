@@ -344,7 +344,10 @@ function summarizeDays(days: MerchantDailySettlement[]) {
   };
 }
 
-const summary = computed(() => summarizeDays(visibleDaily.value));
+// 🔴 汇总按全集算，不随「零元单」显示开关漂移（2026-11-10 审计 §7#3）：
+// 零元行金额贡献为 0 但占 orderCount，若按 visibleDaily 汇总，隐藏零元单会把客单价抬高。
+// 列表展示仍用 visibleDaily，汇总口径与显示过滤解耦。
+const summary = computed(() => summarizeDays(daily.value));
 const loading = ref(false);
 const loadError = ref('');
 const batchWarn = ref('');

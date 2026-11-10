@@ -473,7 +473,8 @@ public class SessionService {
      * 幂等键回放时必须拒绝的状态：购物已结束（完成/取消/争议中），回放会把旧会话
      * 当「开门成功」还给客户端——柜门没开，人还被带进上一笔账单。
      * 🔴 2026-11-10 审计 P0-4（后端半边，铁律 82 ③）：只校验 user/device 的回放 = 没有回放校验。
-     * FAILED 不在此列：开门失败的会话原样回放，客户端据此展示失败原因，这正是重试窗口内的正确语义。
+     * FAILED 不在此列：开门失败的会话原样回放，客户端可凭 DTO 展示失败原因，也可作废
+     * 旧键换新键重开（消费者端选择后者，见 consumer-mp index.vue handleSessionOpenResult）。
      */
     private static final Set<SessionState> SESSION_ENDED_FOR_REPLAY =
             EnumSet.of(SessionState.COMPLETED, SessionState.CANCELLED, SessionState.DISPUTED);

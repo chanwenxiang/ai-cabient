@@ -1213,8 +1213,30 @@ export function submitJiangyiPhoneCapture(
   );
 }
 
-/** §7.8 单张上传，返回厂商地址。 */
+/** §7.8 单张上传，返回厂商地址。
+ *  2026-11-10 审计 §7#2：401 对齐 H3 口径（uploadMerchantAuthedFile 同款）——
+ *  静默刷新后重试一次，仍失败才登出；此前裸 reject 让英文串 UPLOAD_AUTH_EXPIRED
+ *  经 jiangyi-capture 页 error.value=e.message 直出给商户。 */
 export function uploadJiangyiCapturePhoto(barCode: string, filePath: string): Promise<string> {
+  return uploadJiangyiCapturePhotoOnce(barCode, filePath).catch(async (e) => {
+    if (e instanceof Error && e.message === 'UPLOAD_AUTH_EXPIRED') {
+      const ok = await refreshTokenSilently(mpApiSession).catch(() => false);
+      if (ok) {
+        // 重试仍 401（如账号被禁）也不让哨兵码漏到页面
+        return uploadJiangyiCapturePhotoOnce(barCode, filePath).catch((retryErr) => {
+          if (retryErr instanceof Error && retryErr.message === 'UPLOAD_AUTH_EXPIRED') {
+            throw handleUnauthorized();
+          }
+          throw retryErr;
+        });
+      }
+      throw handleUnauthorized();
+    }
+    throw e;
+  });
+}
+
+function uploadJiangyiCapturePhotoOnce(barCode: string, filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!isMerchantLoggedIn()) {
       reject(new Error('请先登录'));

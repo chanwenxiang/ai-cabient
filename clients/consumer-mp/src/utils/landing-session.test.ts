@@ -14,6 +14,7 @@ import {
   deviceStatusLabel,
   isAdoptableSession,
   isCabinetIdInvalid,
+  isEndedSessionReplayConflict,
   isNetworkishErrorMessage,
   isTerminalSessionState,
   normalizeCabinetId,
@@ -159,5 +160,30 @@ describe('landing-session · C5/C5b/C5c', () => {
     ).toBe('invalid_cabinet_id');
     expect(sessionOpenDecision('fulfilled')).toBe('adopt_fulfilled');
     expect(sessionOpenDecision('rejected')).toBe('try_orphan');
+  });
+
+  // P0-4 残留（2026-11-10）：后端回放状态闸对已结束会话回 409「会话已结束」，
+  // 客户端须识别后清键重开，而不是留着旧键在 TTL 内反复撞 409。
+  it('isEndedSessionReplayConflict 只认 409+「会话已结束」文案', () => {
+    const ended = Object.assign(new Error('该开门请求对应的会话已结束，请重新发起开门'), {
+      status: 409
+    });
+    expect(isEndedSessionReplayConflict(ended)).toBe(true);
+    // 其它 409（幂等键被其他设备占用 / 设备占用）不误判
+    expect(
+      isEndedSessionReplayConflict(
+        Object.assign(new Error('幂等键已用于其他开门请求'), { status: 409 })
+      )
+    ).toBe(false);
+    expect(
+      isEndedSessionReplayConflict(Object.assign(new Error('柜机正在被使用'), { status: 409 }))
+    ).toBe(false);
+    // 非 409 一律不认
+    expect(
+      isEndedSessionReplayConflict(Object.assign(new Error('会话已结束'), { status: 500 }))
+    ).toBe(false);
+    expect(isEndedSessionReplayConflict(new Error('会话已结束'))).toBe(false);
+    expect(isEndedSessionReplayConflict(null)).toBe(false);
+    expect(isEndedSessionReplayConflict('会话已结束')).toBe(false);
   });
 });

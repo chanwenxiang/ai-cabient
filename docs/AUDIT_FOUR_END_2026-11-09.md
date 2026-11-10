@@ -517,4 +517,55 @@ bad = undefined                                  // 与 filter 同条件 ⇒ 恒
 
 ---
 
-*本报告为静态源码审计 + 可执行逻辑复现口径；未做真机运行时探测与渗透。所有 ✅ 条目均已对照源码（必要时对照后端 Java）确认；§7 的 7 条已从"未复核"升级为"读码定论"，§9.4 列明仍未验证的边界；§10 记录 P0 修复、§11 记录 P1/P2 修复与新增门禁，均附实跑证据。*
+## 12. 遗漏收口：§7 漏修 6 条 + 修复复核残留 2 条（2026-11-10 上午）
+
+> 范围来源：§11 修复批的独立复核发现——§3 标题声称「另 4 条由 §7 并入，合计 14 条 P1」、
+> §8 把 §7#1/#7 列入「本批」，但 §11 实际只修了 §2–§4 的 20 条，**§7 的 4 条 P1（#1/#3/#6/#7）
+> 与 2 条 P2（#2/#5）漏修且未在 §11.5 交代**（#4 已被 P2-7 白名单单源闭环，有交代）。
+> 同批还登记了两个修复残留（P0-3 改量重提被旧键静默回放、P0-4 后端 409 后前端不清键）。
+> 本节把这 8 条全部收口。严重度账目订正：漏修是 **4 P1 + 2 P2**，不是 6 条 P1。
+
+### 12.1 改动清单
+
+| 项 | 文件 | 改法 |
+|---|---|---|
+| §7#1（P1）首屏 me=null 误判 | `pages/bills/bills.vue`、`pages/purchase/purchase.vue` | 判权限前 `await refreshMe()`（失败回落 `seedMerchantMeDisplayCache`），**对齐全仓既有先例** `ensureOrdersMerchantMe`/settlements 等 7 页——机制扫描确认只有这两页缺该步。purchase 顺带补 loadSeq（申请/单据两 load 共用，旧响应不得覆盖） |
+| §7#2（P2）上传 401 英文直出 | `utils/merchant-api.ts` | `uploadJiangyiCapturePhoto` 套 H3 同款包装：401→静默刷新→重试一次→仍失败登出；重试再 401 也不漏哨兵码。**行号订正**：裸路径在 `uploadJiangyiCapturePhoto`（原 :1234），`:386` 是有包装的凭证上传内层（复核时 grep 截断引错） |
+| §7#3（P1）客单价随开关漂移 | `pages/settlements/settlements.vue` | `summary` 改按全集 `daily` 算（零元行金额贡献 0 但占 orderCount，按 visibleDaily 汇总会抬高客单价）；列表展示仍用 visibleDaily，汇总与显示过滤解耦 |
+| §7#5（P2）reload 无 seq | `consumer-mp/pages/order-detail/order-detail.vue` | `reloadSeq` 守卫：退款/争议后的 reload 与 onShow/bootstrap 并发时旧响应不得覆盖新快照（同 orders.vue 口径） |
+| §7#6（P1）盘点写动作无确认 | `admin-vue/composables/warehouse/useWarehouseStocktakes.ts` | 完成/完成并过账/复盘调整/取消四动作前置 `ElMessageBox.confirm`（过账/复盘带差异行数）；点取消静默返回不当错误 |
+| §7#7（P1）Dashboard 首屏失败假 0 | `admin-vue/views/dashboard/DashboardView.vue` | `listHydrated` 只在数据真落位时置真（原 finally 无条件置真）；新增 `workbenchFailed`：首屏失败 KPI 显「加载失败，请点右上刷新重试」而非假 0；首屏失败必给 toast（silent 只豁免已成功后的静默刷新）；刷新失败仍保留上次成功数据 |
+| P0-3 残留：改量重提静默回放 | `utils/self-replenish-submit.ts` + prep-generate/prep-list 两页 | 新增 `prepSubmitFingerprint`（skuId+qty 集合、行序无关）；页面级记录**上次成功提交**的指纹，重提指纹不同 ⇒ 显式拦截并指引去「补货任务」页改量。**不换键**：后端回放不核对明细（`MerchantReplenishmentService:421-430`），换键在传输未知场景会重新引入重复建任务；`ReplenishmentTaskDto` 无结构化明细（只有 lineSummary），前端比对回放明细不可行 |
+| P0-4 残留：409 终态不清键 | `consumer-mp/utils/landing-session.ts`、`pages/index/index.vue`、`SessionService.java`（仅注释） | 新增 `isEndedSessionReplayConflict`（409+「会话已结束」文案锚）；rejected 路径命中 ⇒ 清旧键换新键真开一次（与 fulfilled 终态分支共用 staleKey 逻辑），不再留键在 TTL 内反复撞 409。订正 index.vue 过时注释（后端已有状态闸）；后端 FAILED 注释与消费端实际行为对齐（客户端选择换键重开而非展示失败原因） |
+
+### 12.2 同轮门禁（铁律 75）
+
+- `scripts/check-merchant-me-gated-load.mjs`：商户页面含显式权限拒绝模式（`showError('无…权限')`/`denyXAccess(`/「没有…的权限」）⇒ 同文件必须 `await refreshMe()`；拒绝模式零命中 = 判据空转即红（防基线腐烂）。边界：purchase 的静默 return 变体无拒绝文案、静态不可判，靠 ensurePurchaseAccess 修复收口。
+- `scripts/devops/verify-merchant-me-gated-load.mjs`：三态验证（基线绿 + 3 条注入逐条红并还原绿 + 真实树 36 文件 md5 零污染）。
+- 两脚本已接 `check:audit-gates` 聚合链（wiring：105 引用全定义、115 门禁全接线）。
+- P0-3/P0-4 残留的纯函数各配钉测（指纹行序无关/改量敏感；409 识别只认状态+文案锚，其它 409 不误判）；原 R/S 缺陷类门禁继续覆盖幂等键形态。
+
+### 12.3 实跑结果
+
+| 命令 | 结果 |
+|---|---|
+| merchant `vitest run` | 38 文件 / **250 用例**全绿（+1 指纹钉测） |
+| consumer `vitest run` | 26 文件 / **175 用例**全绿（+1 409 识别钉测） |
+| admin `vitest run` | 17 文件 / **132 用例**全绿 |
+| 三端 `vue-tsc --noEmit`（直调） | admin ✓ / merchant ✓ / consumer ✓（consumer 首跑红：else-if 需显式 `status==='rejected'` 收窄，已修） |
+| `pnpm lint` | 0 error / 19 warning（与修复批基线同数） |
+| `check:mp-defect-classes` | OK：271 文件 / 十九类零命中 / 自检 62 例 |
+| `check:merchant-me-gated-load` | OK：36 页面，13 个含权限拒绝的页面均先 await refreshMe() |
+| `verify-merchant-me-gated-load` | 三态全 PASS（3 条注入红→还原绿、md5 零污染、沙箱零残留） |
+| `check:audit-gates-wiring` | OK：105 引用全定义、115 门禁全接线 |
+| admin 产物 | 源码笔提交后 `build-admin-ci-fidelity.sh` 容器干净检出重烤，产物单独一笔配对 |
+
+### 12.4 边界与留待
+
+- 本批仍是**静态 + 单测口径**：盘点确认弹窗、Dashboard 断网首屏、商户冷启动深链的真机点击链未验（需 dev 栈 + 小程序模拟器/真 Chrome，同 §9.4）。
+- P0-3 残留的「传输未知 + 改量」组合仍走旧键回放（不拦截）：此时首提是否落库未知，拦截会挡掉合法重试；两害相权取其轻（重复建任务 > 显式改量失败），该组合下若首提已落库，数量以首提为准——与「成功后改量被拦」同一语义，不再静默。
+- §7#1 门禁只覆盖显式拒绝类；新页若写「静默 return」变体仍靠 review。
+
+---
+
+*本报告为静态源码审计 + 可执行逻辑复现口径；未做真机运行时探测与渗透。所有 ✅ 条目均已对照源码（必要时对照后端 Java）确认；§7 的 7 条已从"未复核"升级为"读码定论"，§9.4 列明仍未验证的边界；§10 记录 P0 修复、§11 记录 P1/P2 修复与新增门禁、§12 收口 §7 漏修 6 条与修复复核残留 2 条，均附实跑证据。*
