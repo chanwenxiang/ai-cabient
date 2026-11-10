@@ -17,7 +17,7 @@
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { runAsync } from '../lib/async-spawn.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
