@@ -366,10 +366,15 @@ P0-4 **在位且三层闭环**（TTL 键+`isAdoptableSession` 闸+`restoreActive
 | B14 | `ProcurementService.java` / `PurchaseOrderMapper.java` / `merchant-api.ts` / `purchase.vue` | 复用 DTO 已有的 `refNo` 作客户端幂等键（`MP-<ts>-<rand>`）：后端按「仓库+refNo」回放已有单；前端**成功后**才换新键。新增 `createSatellitePurchaseOrder_replaysSameClientRequestNo` 并做负向验证（关掉回放⇒用例报错） |
 | C3 | `recharge.ts` | 支付宝 `openAlipayPrepay` 包 try：收银台没打开就清 pending 再抛（对微信分支 P1-7 同构） |
 | C5 | `marketing-ad-banner.vue` | `deviceId` 变化无条件 `load()`（原 `if (!slides.length)` 让 Tab 态拉到的 ALL 投放挡住 SPECIFIC 定向） |
-| C6 | `recharge.ts` / `index.vue` / `shared-uni/announcement-read.ts` | ①`forgetPendingRecharge()` 连 `recharge_resume_soft_*` 一起清；②弹窗已见改单个有界 map（上限 50）+ 旧前缀键迁移后删除；③公告已读表上限 200，按最久未读淘汰 |
+| C6 | `recharge.ts` / `index.vue` / `result.vue` / `utils/popup-seen.ts` / `shared-uni/announcement-read.ts` | ①`forgetPendingRecharge()` 连 `recharge_resume_soft_*` 一起清；②弹窗已见改单个有界 map（上限 50）+ 旧前缀键迁移后删除；③公告已读表上限 200，按最久未读淘汰 |
 | D7 | `SessionService.java` / `ApiRateLimitService.java` | 新增 `ACTION_SESSION_REPLAY` 独立计数器（不占 `session_create` 配额），回放命中即过闸 |
 
 ### 第二批的两处「按实际代码修正报告」
 
 1. **B14 不新增字段**：报告建议「照提现模式补 requestNo」，但 `CreatePurchaseOrderRequest` 已有 `refNo` 且落库 ⇒ 用它当客户端幂等键即可，**不必改 DTO、不必 `gen:api-types`**（铁律 52 的重建容器代价）。回放只在商户自提路径生效——运营端「新建采购单」的 refNo 是人工参考号，语义不同不能一起吃去重。
 2. **B7 只 afterCommit 不够**：报告给了「afterCommit 或事件异步化」二选一。只 afterCommit 时 HTTP 仍在请求线程上，20s 超时症状不减；故 afterCommit **再投递到专用单线程**（串行避免多柜同步互相覆盖）。代价：进程退出瞬间的同步可能丢失——库存真值在库里，下次补货会重新同步，可接受。
+
+### 第二批的第三处：报告漏了一个同族（C6）
+
+C6 只列了开门前弹窗的 `promoPopupSeen:<activityId>`（`index.vue`），但 `result.vue` 的**关门后**弹窗是同一套写法（`promoPopupAfterCloseSeen:<id>`，同样只写不删）。已一并收口：
+抽出 `utils/popup-seen.ts`（单个有界 map，上限 50，按日期淘汰最旧；**首次读即迁移**旧前缀键并回写），两页共用；新增 `popup-seen.test.ts` 3 例并做负向验证（放大上限 ⇒ 红）。
