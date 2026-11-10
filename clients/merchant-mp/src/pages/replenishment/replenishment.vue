@@ -43,7 +43,7 @@
         </view>
       </view>
 
-      <view v-if="!loading && pendingCount === 0" class="idle-tip">
+      <view v-if="!loading && pendingCount === 0 && !loadError" class="idle-tip">
         <text class="idle-title">今日暂无待补货</text>
         <text class="idle-desc"
           >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text

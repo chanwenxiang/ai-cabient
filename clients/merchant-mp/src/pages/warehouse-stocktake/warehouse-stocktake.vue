@@ -59,8 +59,17 @@
                  数字没撒谎，撒谎的是状态语义 ⇒ 未录入时不报差异。 -->
             <view class="st-facts">
               <text class="chip">{{ stocktakeModeLabel(st.mode) }}</text>
-              <text class="chip">账面 {{ st.bookQty }}</text>
+              <!-- R9-B7：盲盘进行中与 DRAFT 同口径遮总量，防「保存行前后对比」反推账面 -->
+              <text
+                class="chip"
+                :class="st.mode === 'BLIND' && st.status === 'IN_PROGRESS' ? 'chip-muted' : ''"
+              >
+                账面 {{ st.mode === 'BLIND' && st.status === 'IN_PROGRESS' ? '隐' : st.bookQty }}
+              </text>
               <text v-if="st.status === 'DRAFT'" class="chip chip-muted">实盘 未录入</text>
+              <template v-else-if="st.mode === 'BLIND' && st.status === 'IN_PROGRESS'">
+                <text class="chip chip-muted">实盘 盲盘中</text>
+              </template>
               <template v-else>
                 <text class="chip">实盘 {{ st.countedQty ?? '—' }}</text>
                 <text class="chip" :class="(st.diffQty ?? 0) === 0 ? 'chip-ok' : 'chip-warn'">
@@ -161,9 +170,17 @@
             </view>
             <view class="st-facts">
               <text class="chip">{{ stocktakeModeLabel(detail.mode) }}</text>
-              <text class="chip">账面 {{ detail.bookQty }}</text>
-              <text class="chip">实盘 {{ detail.countedQty ?? '—' }}</text>
-              <text class="chip" :class="diffChipWarn ? 'chip-warn' : 'chip-ok'">
+              <!-- R9-B7：盲盘进行中不给账面/实盘总量（行内都遮「隐」，头部直出可反推账面） -->
+              <text class="chip">账面 {{ isBlindActive ? '隐' : detail.bookQty }}</text>
+              <text v-if="isBlindActive" class="chip"
+                >实盘 已录入 {{ enteredCount }}/{{ editRows.length }}</text
+              >
+              <text v-else class="chip">实盘 {{ detail.countedQty ?? '—' }}</text>
+              <text
+                v-if="!isBlindActive"
+                class="chip"
+                :class="diffChipWarn ? 'chip-warn' : 'chip-ok'"
+              >
                 {{ diffChipLabel }}
               </text>
             </view>

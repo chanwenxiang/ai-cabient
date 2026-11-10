@@ -186,7 +186,7 @@ public class ScheduledTaskStaleMonitor {
                     : "超期 " + stale.size() + " 个：" + stale.stream()
                             .map(StaleTask::taskKey).collect(Collectors.joining("、"));
             if (stale.isEmpty()) {
-                exceptionService.resolveSystem(ALERT_TYPE, GLOBAL_BUSINESS_KEY, "托管任务已恢复按时执行");
+                exceptionService.resolveSystem(ALERT_TYPE, GLOBAL_BUSINESS_KEY, "看护任务已恢复按时执行");
             } else {
                 onStale(stale);
             }

@@ -237,6 +237,8 @@ public class DeviceAssetService {
         if (RETURNING.equals(from)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "返厂中不可解绑，请先入库");
         }
+        // R9 拍板（用户 2026-11-11 授权按推荐）：RETIRE 不清 merchantId 是**有意的资产留痕**——
+        // 退役后归属历史可查；解绑（UNBIND）才清（clearMerchantId）。勿「顺手统一」。
         boolean hasMerchant = blankToNull(device.getMerchantId()) != null;
         if (DEPLOYED.equals(from)) {
             device.setMerchantId(null);

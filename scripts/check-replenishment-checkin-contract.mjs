@@ -257,6 +257,8 @@ function extractBracedBodies(masked, name) {
     // 途中先遇 `;`（无体声明/调用）则放弃，避免把下一个函数误认成本体。
     while (k < masked.length && masked[k] !== '{' && masked[k] !== ';' && masked[k] !== '}') k++;
     if (masked[k] === '{') {
+      // R9 化妆1 尝试过「配平前剥字符串」，但 unmatched 引号会吞掉余量 ⇒ 已回滚；
+      // 现有锚体内无字符串花括号（实跑绿），如未来锚体引入再以状态机重做并配注入用例。
       let bd = 0;
       let e = k;
       for (; e < masked.length; e++) {

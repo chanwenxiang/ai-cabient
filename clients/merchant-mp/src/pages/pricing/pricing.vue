@@ -6,6 +6,8 @@
         <text class="err">{{
           meFromServer ? '当前账号无定价查看权限' : '网络异常，暂时无法确认权限，请重试'
         }}</text>
+        <!-- R9-化妆3：弱网不可知给页内重试（本页无下拉刷新声明） -->
+        <view v-if="!meFromServer" role="button" class="retry-hit" @click="load(false)">重试</view>
       </view>
       <template v-else>
         <view class="card">
@@ -586,5 +588,14 @@ async function savePrice(p: MerchantSkuPricing) {
 .sheet-scroll {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* R9-化妆3 配套：重试钮给显式热区（88rpx），避免进触控棘轮「量不出」桶 */
+.retry-hit {
+  color: var(--color-warning);
+  display: inline-block;
+  min-width: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
 }
 </style>

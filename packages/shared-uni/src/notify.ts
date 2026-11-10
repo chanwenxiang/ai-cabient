@@ -194,9 +194,10 @@ export function showBillToast(totalCents: number | null, orderStatus?: string | 
     return;
   }
   const title = totalCents <= 0 ? '本次未消费' : `已扣款 ¥${yuan}`;
+  // R9-化妆6：success 图标标题 ~7 全角字即裁切 —— 大额优先保证金额完整（资金事实）
   uni.showToast({
     title,
-    icon: totalCents <= 0 ? 'none' : 'success',
+    icon: totalCents <= 0 || title.length > 9 ? 'none' : 'success',
     duration: TOAST_DURATION_MS
   });
 }

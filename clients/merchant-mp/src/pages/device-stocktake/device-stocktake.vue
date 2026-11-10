@@ -42,7 +42,7 @@ interface DoorStocktakeLineResult {
   delta: number;
 }
 
-const { me, meFromServer } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMerchantMe } = useMerchantMe();
 const deviceId = ref('');
 const deviceName = ref('');
 const loading = ref(false);
@@ -364,8 +364,16 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
       <view v-if="!canStocktake" class="card"
         ><text class="err">{{
           meFromServer ? '当前账号无盘点权限' : '网络异常，暂时无法确认权限，请重试'
-        }}</text></view
-      >
+        }}</text>
+        <!-- R9-化妆3：弱网不可知给页内重试（刷 me，模板响应式切换） -->
+        <view
+          v-if="!meFromServer"
+          role="button"
+          class="retry-hit"
+          @click="refreshMerchantMe().catch(() => {})"
+          >重试</view
+        >
+      </view>
       <template v-else>
         <!-- ① 柜机身份：已选柜只占一条；未选柜就是整块扫码入口 -->
         <view class="card">
@@ -886,5 +894,14 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
      算成「量不出热区的可点类」（实测 285→286）。这里显式重复一次，判据可证。 */
   min-width: 88rpx;
   min-height: 88rpx;
+}
+
+/* R9-化妆3 配套：重试钮显式热区（88rpx），不进触控棘轮「量不出」桶 */
+.retry-hit {
+  color: var(--color-warning);
+  display: inline-block;
+  min-width: 88rpx;
+  min-height: 88rpx;
+  line-height: 88rpx;
 }
 </style>
