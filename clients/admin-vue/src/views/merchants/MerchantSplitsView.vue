@@ -1332,7 +1332,8 @@ async function loadOpsConfig() {
     );
     // R2-A7：成功赋值处原先**没有** isCurrent 判断（catch/finally 都有）——选 A（慢）→ 改选 B（快）
     // → A 的响应晚到把表单盖成 A 的配置，下拉却显示 B，点保存就写错商户。
-    if (!loadSeq.isCurrent(seq, 'loadOpsConfig') || merchantId !== opsConfigMerchantId.value) return;
+    if (!loadSeq.isCurrent(seq, 'loadOpsConfig') || merchantId !== opsConfigMerchantId.value)
+      return;
     opsConfig.value = cfg;
     opsConfigLoadedMerchantId.value = merchantId;
   } catch (e) {

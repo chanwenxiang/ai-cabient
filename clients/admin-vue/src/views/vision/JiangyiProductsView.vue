@@ -128,10 +128,7 @@ async function loadState() {
   const seq = ++stateSeq;
   stateLoading.value = true;
   try {
-    const data = await api.request<ProductState>(
-      AdminEndpoints.jiangyiProductState(code),
-      'GET'
-    );
+    const data = await api.request<ProductState>(AdminEndpoints.jiangyiProductState(code), 'GET');
     if (seq !== stateSeq) return;
     state.value = data;
   } catch (e) {

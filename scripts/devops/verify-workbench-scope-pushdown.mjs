@@ -70,7 +70,9 @@ async function main() {
   // ⓪ 基线
   const baseline = await runGate(SANDBOX);
   if (baseline.status !== 0) {
-    problems.push(`基线不绿（exit=${baseline.status}）：${(baseline.stderr || baseline.stdout).slice(0, 400)}`);
+    problems.push(
+      `基线不绿（exit=${baseline.status}）：${(baseline.stderr || baseline.stdout).slice(0, 400)}`
+    );
   }
 
   // ① 红 A：争议换回「窗口 + 内存过滤」
@@ -85,8 +87,8 @@ async function main() {
   ) {
     const r = await runGate(SANDBOX);
     const msg = `${r.stderr || ''}${r.stdout || ''}`;
-    const hits = ['inDeviceScope(', 'disputeRepository.findByStatusOrderByCreatedAtDesc('].filter((k) =>
-      msg.includes(k)
+    const hits = ['inDeviceScope(', 'disputeRepository.findByStatusOrderByCreatedAtDesc('].filter(
+      (k) => msg.includes(k)
     );
     if (r.status === 0) problems.push('红 A 未生效：窗口取数 + 内存过滤被放行了');
     else if (hits.length < 2) problems.push(`红 A 报得不够：只命中 ${JSON.stringify(hits)}`);
@@ -104,7 +106,8 @@ async function main() {
     )
   ) {
     const r = await runGate(SANDBOX);
-    if (r.status === 0) problems.push('红 B 未生效：只要出现 inDeviceScope( 就该红，与窗口取数无关');
+    if (r.status === 0)
+      problems.push('红 B 未生效：只要出现 inDeviceScope( 就该红，与窗口取数无关');
     restore(ops, originals.get(ops));
   }
 
@@ -148,7 +151,8 @@ async function main() {
   // ⑤ 零污染
   for (const f of FILES) {
     const now = md5(join(ROOT, SERVICE_REL, f));
-    if (now !== realHashes.get(f)) problems.push(`真实树被写入：${f} 的 md5 从 ${realHashes.get(f)} 变成 ${now}`);
+    if (now !== realHashes.get(f))
+      problems.push(`真实树被写入：${f} 的 md5 从 ${realHashes.get(f)} 变成 ${now}`);
   }
   rmSync(SANDBOX, { recursive: true, force: true });
   if (existsSync(SANDBOX)) problems.push(`沙箱残留：${SANDBOX}`);

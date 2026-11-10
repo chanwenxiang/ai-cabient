@@ -30,7 +30,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const MENU_FILE = 'clients/admin-vue/src/config/menu.ts';
 const FRONT_INBOX = 'clients/admin-vue/src/components/OpsApprovalInbox.vue';
-const BACKEND_APPROVAL = 'services/trade-service/src/main/java/com/aicabinet/trade/service/ApprovalWorkflowService.java';
+const BACKEND_APPROVAL =
+  'services/trade-service/src/main/java/com/aicabinet/trade/service/ApprovalWorkflowService.java';
 const ADMIN_SRC = 'clients/admin-vue/src';
 
 function fail(msg) {
@@ -186,9 +187,9 @@ const specialExact = new Set([...navBody.matchAll(/path\s*===\s*'([^']+)'/g)].ma
 const specialPrefix = [...navBody.matchAll(/path\.startsWith\('([^']+)'\)/g)].map((m) => m[1]);
 
 // 规则 D 自检：findNavByPath 里出现的 `path.xxx` 形态必须都是本门禁认识的解析形态
-const navPathOps = [...new Set([...navBody.matchAll(/path\.([A-Za-z]+)\s*\(/g)].map((m) => m[1]))].filter(
-  (op) => op !== 'startsWith'
-);
+const navPathOps = [
+  ...new Set([...navBody.matchAll(/path\.([A-Za-z]+)\s*\(/g)].map((m) => m[1]))
+].filter((op) => op !== 'startsWith');
 if (navPathOps.length) {
   fail(
     `findNavByPath() 出现本门禁未覆盖的解析形态 path.${navPathOps.join('/path.')}()：` +
@@ -207,8 +208,11 @@ function whyUnresolvable(path) {
 const backendRaw = read(BACKEND_APPROVAL);
 if (!backendRaw) fail(`未找到 ${BACKEND_APPROVAL}`);
 const backendSrc = maskComments(backendRaw, 'java');
-const actionPathSig = /static String actionPath\s*\(\s*String bizType\s*,\s*String bizId\s*\)/.exec(backendSrc);
-if (!actionPathSig) fail(`${BACKEND_APPROVAL} 里没找到 actionPath(String, String)，锚点可能已被重写`);
+const actionPathSig = /static String actionPath\s*\(\s*String bizType\s*,\s*String bizId\s*\)/.exec(
+  backendSrc
+);
+if (!actionPathSig)
+  fail(`${BACKEND_APPROVAL} 里没找到 actionPath(String, String)，锚点可能已被重写`);
 const actionPathBody = functionBody(backendSrc, actionPathSig, 'java');
 
 // ── B：前端 resolvePath() ───────────────────────────────────────────────────
@@ -226,7 +230,8 @@ function checkAnchor(label, body, lang) {
       .map((s) => routePathOf(s.value))
       .filter((p) => p && whyUnresolvable(p))
   );
-  for (const p of paths) violations.push(`${label} 产出 \`${p}\` —— 菜单未登记且 findNavByPath 无特例`);
+  for (const p of paths)
+    violations.push(`${label} 产出 \`${p}\` —— 菜单未登记且 findNavByPath 无特例`);
 }
 
 checkAnchor('后端 actionPath()', actionPathBody, 'java');
@@ -286,7 +291,9 @@ for (const file of walk(join(ROOT, ADMIN_SRC))) {
 
 // ── 判定 ───────────────────────────────────────────────────────────────────
 if (violations.length) {
-  console.error(`${TAG} FAIL: 以下跳转路径无法被菜单登记解析（点进去必被 fail-closed 判「无权限」）：`);
+  console.error(
+    `${TAG} FAIL: 以下跳转路径无法被菜单登记解析（点进去必被 fail-closed 判「无权限」）：`
+  );
   for (const v of violations) console.error(`  - ${v}`);
   console.error(
     '  修复：① 跳转改用拆分后的子页路径（如 /warehouse/procurement）；' +

@@ -126,10 +126,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
 
   async function shipTransfer(row: WarehouseTransferRow) {
     if (
-      !(await confirmWrite(
-        `确认发运调拨单 ${row.transferId}？发运即扣减调出仓库存。`,
-        '确认发运'
-      ))
+      !(await confirmWrite(`确认发运调拨单 ${row.transferId}？发运即扣减调出仓库存。`, '确认发运'))
     ) {
       return;
     }

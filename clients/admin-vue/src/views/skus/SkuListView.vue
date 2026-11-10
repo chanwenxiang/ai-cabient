@@ -1096,7 +1096,11 @@ async function loadJiangyiLinkMap() {
     const map: Record<string, ActiveJiangyiLink> = {};
     for (const l of links ?? []) {
       if (!map[l.skuId]) {
-        map[l.skuId] = { id: l.id, jiangyiProductId: l.jiangyiProductId, jiangyiName: l.jiangyiName };
+        map[l.skuId] = {
+          id: l.id,
+          jiangyiProductId: l.jiangyiProductId,
+          jiangyiName: l.jiangyiName
+        };
       }
     }
     jiangyiLinkBySku.value = map;

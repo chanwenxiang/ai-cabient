@@ -536,7 +536,11 @@ for (const [label, file, requiredList] of [
   ['OpsDeviceAdminService', OPS_DEVICE_FILE, [PUSHED_DOWN_QUERY]],
   ['MerchantWorkbenchQueryService', MERCHANT_WORKBENCH_FILE, ['findWorkbenchTasks']],
   // 运营工作台两个入口：待办走 findWorkbenchTasks，「占柜」必须与 isRestockingNow 同源（只算已签到）
-  ['OpsWorkbenchQueryService', OPS_WORKBENCH_FILE, ['findWorkbenchTasks', RESTOCKING_DEVICE_IDS_QUERY]]
+  [
+    'OpsWorkbenchQueryService',
+    OPS_WORKBENCH_FILE,
+    ['findWorkbenchTasks', RESTOCKING_DEVICE_IDS_QUERY]
+  ]
 ]) {
   const src = maskJavaComments(read(file));
   for (const required of requiredList) {
@@ -595,7 +599,10 @@ if (prepVerdictAt < 0) {
   );
 } else {
   const verdictEnd = prepPageSrc.indexOf('});', prepVerdictAt);
-  const verdictCall = prepPageSrc.slice(prepVerdictAt, verdictEnd < 0 ? prepPageSrc.length : verdictEnd);
+  const verdictCall = prepPageSrc.slice(
+    prepVerdictAt,
+    verdictEnd < 0 ? prepPageSrc.length : verdictEnd
+  );
   if (!verdictCall.includes('lastTaskStatus')) {
     problems.push(
       'prep-generate.vue 调用 shouldBlockPrepResubmit 时没传 lastTaskStatus —— ' +

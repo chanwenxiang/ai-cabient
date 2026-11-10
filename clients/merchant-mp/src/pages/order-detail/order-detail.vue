@@ -5,7 +5,12 @@
       <view v-if="loading && !order" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
-      <error-state v-else-if="error && !order" :title="error" :show-retry="!missingId" @retry="load" />
+      <error-state
+        v-else-if="error && !order"
+        :title="error"
+        :show-retry="!missingId"
+        @retry="load"
+      />
       <view v-else-if="order">
         <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
           <text class="status-title">{{ statusText(order.status) }}</text>

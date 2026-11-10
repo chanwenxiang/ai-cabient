@@ -119,7 +119,9 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
   async function saveAsset() {
     if (!deps.canEditDevice.value) return;
     if (!assetLoaded.value || assetLoadFailed.value) {
-      ElMessage.error('资产信息未加载成功，已阻止保存（避免用空表单清掉所属仓库等字段），请刷新后重试');
+      ElMessage.error(
+        '资产信息未加载成功，已阻止保存（避免用空表单清掉所属仓库等字段），请刷新后重试'
+      );
       return;
     }
     // 投放场景必填（CB-049 扩展，2026-10-16 用户拍板）：没有场景就无法按商品×场景限额校验上架

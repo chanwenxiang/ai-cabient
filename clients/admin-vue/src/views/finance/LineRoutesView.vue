@@ -29,10 +29,7 @@
                 }}</el-tag>
               </span>
               <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
-              <el-button
-                v-hasPermi="['ops:replenishment:edit']"
-                type="primary"
-                @click="openCreate"
+              <el-button v-hasPermi="['ops:replenishment:edit']" type="primary" @click="openCreate"
                 >新建线路</el-button
               >
             </template>
@@ -537,9 +534,7 @@ async function saveMember(): Promise<void> {
   if (!activeRoute.value) return;
   // 按件提成才用得上「每件佣金」；其它基数下传 0，避免上一轮的残留值带进新配置
   const perUnitCents =
-    memberForm.value.commissionBasis === 'RESTOCK_QTY'
-      ? yuanToCents(memberPerUnitYuan.value)
-      : 0;
+    memberForm.value.commissionBasis === 'RESTOCK_QTY' ? yuanToCents(memberPerUnitYuan.value) : 0;
   if (perUnitCents == null) {
     ElMessage.warning('每件佣金格式不正确');
     return;

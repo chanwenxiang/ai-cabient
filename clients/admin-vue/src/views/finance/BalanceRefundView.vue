@@ -29,7 +29,10 @@ const batchLoading = ref<'approve' | 'reject' | ''>('');
 const canReview = computed(() => auth.hasPerm('ops:balance-refund:review'));
 
 /** 关键词为纯前端过滤（后端无该参数）：原 displayRows 计算属性前移到取数处，total 仍取服务端值 */
-function filterByKeyword(rows: BalanceRefundRequestDto[], kwRaw: string): BalanceRefundRequestDto[] {
+function filterByKeyword(
+  rows: BalanceRefundRequestDto[],
+  kwRaw: string
+): BalanceRefundRequestDto[] {
   const kw = kwRaw.trim().toLowerCase();
   if (!kw) return rows;
   return rows.filter(

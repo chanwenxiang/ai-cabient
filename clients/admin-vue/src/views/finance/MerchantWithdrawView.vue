@@ -962,7 +962,8 @@ async function loadFeePolicy() {
   if (!merchantId) {
     ElMessage.warning('请输入商户编号');
     return;
-  }  const seq = loadSeq.begin('loadFeePolicy');
+  }
+  const seq = loadSeq.begin('loadFeePolicy');
   feeLoading.value = true;
   try {
     const rows = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');

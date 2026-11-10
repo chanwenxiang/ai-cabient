@@ -38,7 +38,16 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TAG = '[check-workbench-scope-pushdown]';
 
 const SERVICE_DIR = join(
-  'services', 'trade-service', 'src', 'main', 'java', 'com', 'aicabinet', 'trade', 'service');
+  'services',
+  'trade-service',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'trade',
+  'service'
+);
 const MERCHANT = join(SERVICE_DIR, 'MerchantWorkbenchQueryService.java');
 const OPS = join(SERVICE_DIR, 'OpsWorkbenchQueryService.java');
 

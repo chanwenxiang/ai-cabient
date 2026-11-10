@@ -39,10 +39,7 @@
                 <el-option label="已结清" value="SETTLED" />
               </el-select>
               <el-button type="primary" @click="applyFilters">查询</el-button>
-              <el-button
-                v-hasPermi="['ops:device:edit']"
-                type="warning"
-                @click="openGenerate"
+              <el-button v-hasPermi="['ops:device:edit']" type="warning" @click="openGenerate"
                 >手动出账</el-button
               >
             </template>
@@ -130,10 +127,7 @@
               <el-switch v-model="configEnabled" />
             </el-form-item>
             <el-form-item>
-              <el-button
-                v-hasPermi="['ops:device:edit']"
-                type="primary"
-                @click="saveConfig"
+              <el-button v-hasPermi="['ops:device:edit']" type="primary" @click="saveConfig"
                 >保存配置</el-button
               >
             </el-form-item>
