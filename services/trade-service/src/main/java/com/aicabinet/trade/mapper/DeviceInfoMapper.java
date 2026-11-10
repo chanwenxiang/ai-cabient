@@ -168,6 +168,79 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
         return c == null ? 0 : c;
     }
 
+    /**
+     * 工作台「柜机离线」待办：**设备范围下推** + 排序 + `LIMIT`（上限落在过滤之后）。
+     *
+     * <p>旧写法是「取全局按 updatedAt 最早的 N 台，再内存过滤设备范围」——窗口是全局的，
+     * 域受限账号自己的离线柜排在窗口外就一条都不显示（B13 同族）。计数早已带范围
+     * （{@link #countByDeviceIdInAndOnlineStatusNot}），列表不带 → 数字与列表互相矛盾。
+     */
+    default List<DeviceInfo> findByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+            Collection<String> deviceIds, String onlineStatus, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds == null) {
+            return findByOnlineStatusNot(onlineStatus, lim);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .in(DeviceInfo::getDeviceId, deviceIds)
+                .ne(DeviceInfo::getOnlineStatus, onlineStatus)
+                .orderByAsc(DeviceInfo::getUpdatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    /**
+     * 运营端「设备离线」待办：在设备范围之上再叠「投放柜」口径。
+     *
+     * <p>🔴 lifecycle 判据不能直接写 {@code = 'DEPLOYED'}：{@code DeviceAssetService#normalizeLifecycle}
+     * 把 null/非法值都归一成 DEPLOYED，历史行为 null —— 等值比较会把它们全漏掉。
+     * 「投放柜」这一维也必须下推，否则窗口会被 INBOUND/退役柜占满，只下推设备范围等于没修。
+     */
+    default List<DeviceInfo> findDeployedByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+            Collection<String> deviceIds, String onlineStatus, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
+        }
+        var query = Wrappers.<DeviceInfo>lambdaQuery()
+                .ne(DeviceInfo::getOnlineStatus, onlineStatus)
+                .and(w -> w.isNull(DeviceInfo::getLifecycleStatus)
+                        .or().eq(DeviceInfo::getLifecycleStatus, "DEPLOYED"))
+                .orderByAsc(DeviceInfo::getUpdatedAt)
+                .last("LIMIT " + lim);
+        if (deviceIds != null) {
+            query.in(DeviceInfo::getDeviceId, deviceIds);
+        }
+        return selectList(query);
+    }
+
+    /** 运营端离线计数（全量口径）：与 {@link #findDeployedByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc} 同一谓词。 */
+    default long countDeployedByOnlineStatusNot(String onlineStatus) {
+        Long c = selectCount(Wrappers.<DeviceInfo>lambdaQuery()
+                .ne(DeviceInfo::getOnlineStatus, onlineStatus)
+                .and(w -> w.isNull(DeviceInfo::getLifecycleStatus)
+                        .or().eq(DeviceInfo::getLifecycleStatus, "DEPLOYED")));
+        return c == null ? 0 : c;
+    }
+
+    /** 运营端离线计数（设备范围口径）：同上，范围下推，不再「全表拉回内存里 filter(count)」。 */
+    default long countDeployedByDeviceIdInAndOnlineStatusNot(Collection<String> deviceIds, String onlineStatus) {
+        if (deviceIds == null) {
+            return countDeployedByOnlineStatusNot(onlineStatus);
+        }
+        if (deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<DeviceInfo>lambdaQuery()
+                .in(DeviceInfo::getDeviceId, deviceIds)
+                .ne(DeviceInfo::getOnlineStatus, onlineStatus)
+                .and(w -> w.isNull(DeviceInfo::getLifecycleStatus)
+                        .or().eq(DeviceInfo::getLifecycleStatus, "DEPLOYED")));
+        return c == null ? 0 : c;
+    }
+
     default List<DeviceInfo> findByMerchantIdIn(Collection<String> merchantIds) {
     return selectList(Wrappers.<DeviceInfo>lambdaQuery().in(DeviceInfo::getMerchantId, merchantIds));
     }

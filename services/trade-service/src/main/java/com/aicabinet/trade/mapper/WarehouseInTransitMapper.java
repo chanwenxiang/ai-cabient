@@ -60,6 +60,47 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
         return c == null ? 0 : c;
     }
 
+    /**
+     * 运营工作台「在途超时」告警：状态 + 超时 + **设备范围**一起下推，`LIMIT` 落在过滤之后。
+     *
+     * <p>旧写法 {@code findByStatusAndCreatedAtBefore(…, 500)} 再内存过滤 deviceId：窗口是全局
+     * 最早的 500 行，域受限账号自己的超时行排在窗口外就一条都不显示（B13 同族）。
+     */
+    default List<WarehouseInTransit> findByStatusAndCreatedAtBeforeAndDeviceIdInOrderByCreatedAtAsc(
+            String status, java.time.Instant cutoff, java.util.Collection<String> deviceIds, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds == null) {
+            return findByStatusAndCreatedAtBefore(status, cutoff, lim);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<WarehouseInTransit>lambdaQuery()
+                .eq(WarehouseInTransit::getStatus, status)
+                .lt(WarehouseInTransit::getCreatedAt, cutoff)
+                .in(WarehouseInTransit::getDeviceId, deviceIds)
+                .orderByAsc(WarehouseInTransit::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    /**
+     * 在途超时计数：口径是「按出库单去重」（无出库单号时退化到 transit_id），与告警明细同一谓词。
+     * 旧写法取 500 行样本在内存里去重计数，超时行超过 500 时数字封顶。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            <script>
+            SELECT COUNT(DISTINCT COALESCE(outbound_id, transit_id)) FROM warehouse_in_transit
+            WHERE status = #{status} AND created_at &lt; #{cutoff}
+            <if test="deviceIds != null">
+              AND device_id IN <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+            </if>
+            </script>
+            """)
+    long countDistinctOutboundOverdue(
+            @Param("status") String status,
+            @Param("cutoff") java.time.Instant cutoff,
+            @Param("deviceIds") java.util.Collection<String> deviceIds);
+
     default boolean existsByOutboundIdAndDeviceIdAndStatus(Long outboundId, String deviceId, String status) {
     return selectCount(Wrappers.<WarehouseInTransit>lambdaQuery().eq(WarehouseInTransit::getOutboundId, outboundId).eq(WarehouseInTransit::getDeviceId, deviceId).eq(WarehouseInTransit::getStatus, status)) > 0;
     }

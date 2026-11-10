@@ -46,6 +46,27 @@ public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
                 .last("LIMIT " + lim));
     }
 
+    /**
+     * 工作台「临期/过期下架」待办：**设备范围下推**，`LIMIT` 落在过滤之后。
+     * 旧写法「取全局最近 N 条 OPEN 再内存过滤 deviceId」在域受限账号下会把自家任务挤掉
+     * （B13 同族）；计数 {@link #countByStatusAndDeviceIdIn} 早已带范围，两边口径原本相反。
+     */
+    default List<PullOffTask> findByStatusAndDeviceIdInOrderByCreatedAtDesc(
+            String status, Collection<String> deviceIds, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds == null) {
+            return findByStatusOrderByCreatedAtDesc(status, lim);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<PullOffTask>lambdaQuery()
+                .eq(PullOffTask::getStatus, status)
+                .in(PullOffTask::getDeviceId, deviceIds)
+                .orderByDesc(PullOffTask::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
     default Optional<PullOffTask> findByLotIdAndStatus(String lotId, String status) {
     return Optional.ofNullable(selectOne(Wrappers.<PullOffTask>lambdaQuery().eq(PullOffTask::getLotId, lotId).eq(PullOffTask::getStatus, status)));
     }

@@ -24,8 +24,10 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -188,6 +190,67 @@ class MerchantWorkbenchQueryServiceTest {
         assertTrue(wb.actionItems().stream()
                         .anyMatch(i -> "REPLENISHMENT".equals(i.type()) && "EG-1".equals(i.deviceId())),
                 "补货待办必须出现在工作台：设备范围已下推 SQL，结果不再需要内存过滤");
+    }
+
+    /**
+     * B13 同族：争议 / 离线柜 / 临期下架三处的**设备范围都必须下推进 SQL**。
+     *
+     * <p>旧写法都是「取全局窗口（CAP=50，按 createdAt/updatedAt 全局排）再 `filter(inDeviceScope)`」——
+     * 域受限账号（分仓/线长/单商户）自己的条目排在窗口外就一条都不返回，面板显示「没有待办」而
+     * 工单还挂着。争议与下架是**含资金/含履约**的待办，漏看比补货更贵。
+     *
+     * <p>本条同时钉住「争议的 deviceId 来自联表回填的瞬态字段」——若回退成逐行
+     * `sessionRepository.findById`，`never()` 会立刻红（N+1 回归即失败）。
+     */
+    @Test
+    void workbench_pushesDeviceScopeForDisputeOfflineAndExpiry() {
+        Set<String> scope = Set.of("EG-1");
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(scope);
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(scope);
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("MCH-1"));
+        when(splitRepository.countByMerchantIdInAndStatusIn(any(), any())).thenReturn(0L);
+        when(orderRepository.selectCount(any())).thenReturn(0L);
+
+        com.aicabinet.trade.domain.DisputeTicket ticket = new com.aicabinet.trade.domain.DisputeTicket();
+        ticket.setTicketId("DT-1");
+        ticket.setSessionId("S-1");
+        ticket.setSessionDeviceId("EG-1");
+        ticket.setReason("识别超时");
+        ticket.setCreatedAt(java.time.Instant.now());
+        when(disputeRepository.findByStatusAndDeviceIdsOrderByCreatedAtDesc(
+                eq("OPEN"), eq(scope), eq(50))).thenReturn(List.of(ticket));
+
+        com.aicabinet.trade.domain.DeviceInfo offline = new com.aicabinet.trade.domain.DeviceInfo();
+        offline.setDeviceId("EG-1");
+        offline.setDeviceName("一号柜");
+        offline.setUpdatedAt(java.time.Instant.now());
+        when(deviceRepository.findByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+                eq(scope), eq("ONLINE"), eq(50))).thenReturn(List.of(offline));
+
+        com.aicabinet.trade.domain.PullOffTask task = new com.aicabinet.trade.domain.PullOffTask();
+        task.setTaskId(5L);
+        task.setDeviceId("EG-1");
+        task.setSkuId("SKU-1");
+        task.setReason("临期");
+        task.setCreatedAt(java.time.Instant.now());
+        when(pullOffTaskRepository.findByStatusAndDeviceIdInOrderByCreatedAtDesc(
+                eq("OPEN"), eq(scope), eq(50))).thenReturn(List.of(task));
+
+        MerchantWorkbenchDto wb = service.getWorkbench(9L);
+
+        verify(disputeRepository).findByStatusAndDeviceIdsOrderByCreatedAtDesc("OPEN", scope, 50);
+        verify(deviceRepository).findByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(scope, "ONLINE", 50);
+        verify(pullOffTaskRepository).findByStatusAndDeviceIdInOrderByCreatedAtDesc("OPEN", scope, 50);
+        verify(sessionRepository, never()).findById(anyString());
+
+        assertTrue(wb.actionItems().stream()
+                        .anyMatch(i -> "DISPUTE".equals(i.type()) && "EG-1".equals(i.deviceId())),
+                "争议的 deviceId 应由联表回填，工作台不该再自己查 session：" + wb.actionItems());
+        assertTrue(wb.actionItems().stream().anyMatch(i -> "DEVICE_OFFLINE".equals(i.type())));
+        assertTrue(wb.actionItems().stream().anyMatch(i -> "EXPIRY".equals(i.type())));
     }
 
     private static com.aicabinet.trade.domain.DeviceSkuInventory inventory(

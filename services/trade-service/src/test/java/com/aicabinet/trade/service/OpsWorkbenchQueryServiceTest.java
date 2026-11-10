@@ -28,8 +28,10 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -178,6 +180,102 @@ class OpsWorkbenchQueryServiceTest {
         when(replenishmentTaskRepository.findRestockingNowDeviceIds(null)).thenReturn(Set.of("EG-1", "EG-2"));
 
         assertEquals(2, service.countOccupiedDevices(null));
+    }
+
+    /**
+     * B13 同族：运营工作台「待审核争议 / 设备离线」的**设备范围必须下推进 SQL**（不是取全局窗口再内存过滤）。
+     * <p>旧写法是「取 CAP(20) 条全局最早/最近的记录，再 filter(scopedDevices)」——域受限账号（分仓/线长）
+     * 自己的工单被别家的挤出窗口后，面板显示「没有待办」而工单还挂着；争议含资金、下架含履约。
+     * <p>离线那处还多一维：`lifecycle=DEPLOYED` 也必须下推，否则窗口会被 INBOUND/退役柜占满。
+     */
+    @Test
+    void collectDisputeAndOffline_pushesDeviceScopeIntoSql() {
+        Set<String> scope = Set.of("EG-1");
+        com.aicabinet.trade.domain.DisputeTicket ticket = new com.aicabinet.trade.domain.DisputeTicket();
+        ticket.setTicketId("DT-1");
+        ticket.setSessionId("S-1");
+        ticket.setSessionDeviceId("EG-1");
+        ticket.setReason("识别超时");
+        ticket.setCreatedAt(Instant.now());
+        when(disputeRepository.findByStatusAndDeviceIdsOrderByCreatedAtDesc("OPEN", scope, 20))
+                .thenReturn(List.of(ticket));
+
+        DeviceInfo offline = new DeviceInfo();
+        offline.setDeviceId("EG-1");
+        offline.setDeviceName("一号柜");
+        offline.setUpdatedAt(Instant.now());
+        when(deviceRepository.findDeployedByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+                eq(scope), eq("ONLINE"), eq(20))).thenReturn(List.of(offline));
+
+        List<OpsActionItemDto> items = new ArrayList<>();
+        service.collectDisputeActionItems(scope, items);
+        service.collectOfflineDeviceItems(scope, items);
+
+        verify(disputeRepository).findByStatusAndDeviceIdsOrderByCreatedAtDesc("OPEN", scope, 20);
+        verify(deviceRepository).findDeployedByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(scope, "ONLINE", 20);
+        // deviceId 由联表回填，不该再逐行查 session
+        verify(sessionRepository, never()).findById(anyString());
+        assertTrue(items.stream().anyMatch(i -> "DISPUTE".equals(i.type()) && "EG-1".equals(i.deviceId())),
+                "争议条目必须带出设备号：" + items);
+        assertTrue(items.stream().anyMatch(i -> "DEVICE_OFFLINE".equals(i.type())));
+    }
+
+    /** 在途超时：列表与计数都必须把设备范围下推（旧写法各自取 500 行样本再内存过滤/去重）。 */
+    @Test
+    void collectInTransitOverdue_pushesDeviceScopeIntoSql() {
+        Set<String> scope = Set.of("EG-1");
+        when(inTransitRepository.findByStatusAndCreatedAtBeforeAndDeviceIdInOrderByCreatedAtAsc(
+                eq("IN_TRANSIT"), any(Instant.class), eq(scope), eq(500)))
+                .thenReturn(List.of(line(1L, 90L, "EG-1", "SKU-1", 3, Instant.now().minusSeconds(86400 * 3))));
+        when(inTransitRepository.countDistinctOutboundOverdue(
+                eq("IN_TRANSIT"), any(Instant.class), eq(scope))).thenReturn(1L);
+
+        List<OpsActionItemDto> items = new ArrayList<>();
+        service.collectInTransitOverdueItems(scope, items);
+
+        verify(inTransitRepository).findByStatusAndCreatedAtBeforeAndDeviceIdInOrderByCreatedAtAsc(
+                eq("IN_TRANSIT"), any(Instant.class), eq(scope), eq(500));
+        assertEquals(1, service.countInTransitOverdue(scope));
+        assertTrue(items.stream().anyMatch(i -> "IN_TRANSIT_OVERDUE".equals(i.type())),
+                "超时在途必须产出告警：" + items);
+    }
+
+    /** 分账待跟进：每状态 Top-N 必须带设备范围（旧写法 window 全局最早 20 条，域外工单挤掉域内）。 */
+    @Test
+    void collectSplitException_pushesDeviceScopeIntoSql() {
+        Set<String> scope = Set.of("EG-1");
+        for (String status : OpsWorkbenchQueryService.SPLIT_EXCEPTION_STATUSES) {
+            when(splitRepository.findTopNByStatusAndDeviceIdInOrderByCreatedAtAsc(status, scope, 20))
+                    .thenReturn(List.of());
+        }
+
+        List<OpsActionItemDto> items = new ArrayList<>();
+        service.collectSplitExceptionItems(scope, items);
+
+        for (String status : OpsWorkbenchQueryService.SPLIT_EXCEPTION_STATUSES) {
+            verify(splitRepository).findTopNByStatusAndDeviceIdInOrderByCreatedAtAsc(status, scope, 20);
+        }
+    }
+
+    /**
+     * 计数器同样必须下推：旧写法「取 500 条样本再内存过滤计数」在 OPEN 工单 / 超时行超过 500 时
+     * **数字直接封顶**，面板上的数字本身就是错的（比列表少几条更误导）。
+     */
+    @Test
+    void counts_pushScopeInsteadOfWindowedSample() {
+        Set<String> scope = Set.of("EG-1");
+        when(disputeRepository.countOpenByDeviceIds(scope)).thenReturn(7L);
+        when(deviceRepository.countDeployedByDeviceIdInAndOnlineStatusNot(scope, "ONLINE")).thenReturn(3L);
+        when(inTransitRepository.countDistinctOutboundOverdue(
+                eq("IN_TRANSIT"), any(Instant.class), eq(scope))).thenReturn(5L);
+
+        assertEquals(7, service.countOpenDisputes(scope));
+        assertEquals(3, service.countOfflineDevices(scope));
+        assertEquals(5, service.countInTransitOverdue(scope));
+
+        // 空范围一律 0，且不得退化成「不过滤 = 全量泄漏」
+        assertEquals(0, service.countOpenDisputes(Set.of()));
+        assertEquals(0, service.countInTransitOverdue(Set.of()));
     }
 
     private static WarehouseInTransit line(Long transitId, Long outboundId, String deviceId,

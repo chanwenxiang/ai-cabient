@@ -67,7 +67,7 @@ public class OpsWorkbenchQueryService {
     public static final List<String> PENDING_SPLIT_STATUSES = List.of(
             "ACCRUED", LEDGER_ONLY, CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED
     );
-    private static final List<String> SPLIT_EXCEPTION_STATUSES = List.of(
+    static final List<String> SPLIT_EXCEPTION_STATUSES = List.of(
             CabinetConstants.ORDER_STATUS_FAILED, WECHAT_FAILED, LEDGER_ONLY);
     private static final long STALE_SESSION_MINUTES = 30;
     private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
@@ -213,15 +213,19 @@ public class OpsWorkbenchQueryService {
         return buildWorkbenchDto(operatorId, scopedDevices, items);
     }
 
-    private void collectDisputeActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
+    // 以下 collect* / count* 为包内可见：供同包测试直接验「设备范围是否下推」，
+    // 不必构造整条 workbench（同 collectLowStockItems 先例）。
+    void collectDisputeActionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        // 设备范围下推进 SQL（与 countOpenDisputes 同一判据）。旧写法「取 CAP(20) 条 OPEN 再
+        // filter(session→device)」的窗口全局按 createdAt 取，域受限账号的工单会被别家的挤出窗口
+        // —— 面板显示「没有待办」而工单还挂着，且争议是含资金待办（B13 同族）。
+        disputeRepository.findByStatusAndDeviceIdsOrderByCreatedAtDesc("OPEN", scopedDevices, WORKBENCH_ITEM_CAP)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DISPUTE",
                         disputeSeverity(d),
                         "待审核争议",
                         formatDisputeReasonText(d.getReason()),
-                        sessionDeviceId(d.getSessionId()),
+                        d.getSessionDeviceId(),
                         d.getSessionId(),
                         d.getTicketId(),
                         null,
@@ -231,11 +235,12 @@ public class OpsWorkbenchQueryService {
                 )));
     }
 
-    private void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
-        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
-                // 与缺货口径一致：入库/退役等非投放柜不进运营待办（孤儿柜已禁止再种）
-                .filter(OpsWorkbenchQueryService::isDeployedDevice)
+    void collectOfflineDeviceItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        // 「设备范围」与「投放柜口径」两维一起下推（lifecycle 判据见 mapper 注释：null 归 DEPLOYED）。
+        // 旧写法只把范围留在内存过滤、lifecycle 也在内存过滤 —— 窗口会被 INBOUND/退役柜占满，
+        // 真正离线的投放柜反而挤不进来，等于没修（B13 同族）。
+        deviceRepository.findDeployedByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+                        scopedDevices, CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DEVICE_OFFLINE",
                         offlineSeverity(d),
@@ -339,7 +344,10 @@ public class OpsWorkbenchQueryService {
                 null,
                 null,
                 s.getCreatedAt(),
-                s.getUpdatedAt().plus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES)
+                // updated_at 允许为 null（超时判据里「updated_at IS NULL 且 created_at < cutoff」算超时），
+                // 直接 .plus() 会 NPE —— 兜底用 createdAt，与判据同源。
+                (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt())
+                        .plus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES)
         )));
     }
 
@@ -362,10 +370,12 @@ public class OpsWorkbenchQueryService {
                 )));
     }
 
-    private void collectSplitExceptionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+    void collectSplitExceptionItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+        // 设备范围下推进 SQL，保留「每状态 Top-N 再按展示上限截断」的形状。
+        // 旧写法 findTop20(status) 的窗口是全局最早的 20 条，域受限账号自己的失败分账排在外面
+        // 就一条都不显示 —— 分账失败要主动跟进才回款，漏看比离线柜更贵（B13 同族）。
         SPLIT_EXCEPTION_STATUSES.forEach(status ->
-                splitRepository.findTop20ByStatusOrderByCreatedAtAsc(status).stream()
-                        .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                splitRepository.findTopNByStatusAndDeviceIdInOrderByCreatedAtAsc(status, scopedDevices, 20).stream()
                         .limit(5)
                         .forEach(s -> items.add(new OpsActionItemDto(
                                 "SPLIT_EXCEPTION",
@@ -389,14 +399,12 @@ public class OpsWorkbenchQueryService {
         );
     }
 
-    private void collectInTransitOverdueItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
+    void collectInTransitOverdueItems(Set<String> scopedDevices, List<OpsActionItemDto> items) {
         Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        // 先按行拉取再按出库单聚合，避免同一出库单拆成十几条「紧急」刷屏
+        // 取数上限仍是 500 **行**：下面按出库单聚合，行数≠告警条数，不能压到展示上限 20。
         List<WarehouseInTransit> overdueLines = inTransitRepository
-                .findByStatusAndCreatedAtBefore(IN_TRANSIT, transitCutoff, 500)
-                .stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .toList();
+                .findByStatusAndCreatedAtBeforeAndDeviceIdInOrderByCreatedAtAsc(
+                        IN_TRANSIT, transitCutoff, scopedDevices, 500);
         items.addAll(aggregateInTransitOverdueActionItems(overdueLines));
     }
 
@@ -478,15 +486,14 @@ public class OpsWorkbenchQueryService {
         return aggregated;
     }
 
-    private long countInTransitOverdue(Set<String> scopedDevices) {
+    long countInTransitOverdue(Set<String> scopedDevices) {
         Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        // 与告警明细一致：按出库单计数（无出库单号时按在途行）
-        return inTransitRepository.findByStatusAndCreatedAtBefore(IN_TRANSIT, cutoff, 500).stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .map(t -> t.getOutboundId() != null ? t.getOutboundId() : t.getTransitId())
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .count();
+        if (scopedDevices != null && scopedDevices.isEmpty()) {
+            return 0;
+        }
+        // 与告警明细一致：按出库单去重（无出库单号时按在途行），设备范围下推进 SQL。
+        // 旧写法取 500 行样本在内存里去重计数 —— 超时行超过 500 时数字封顶（与明细同时失真）。
+        return inTransitRepository.countDistinctOutboundOverdue(IN_TRANSIT, cutoff, scopedDevices);
     }
 
     private OpsWorkbenchDto buildWorkbenchDto(
@@ -578,22 +585,23 @@ public class OpsWorkbenchQueryService {
         return Math.max(sessionDevices, occupied.size());
     }
 
-    private long countOpenDisputes(Set<String> scopedDevices) {
+    long countOpenDisputes(Set<String> scopedDevices) {
         if (scopedDevices == null) {
             return disputeRepository.countByStatus("OPEN");
         }
-        // 作用域内无法无会话表直算时，用有限样本过滤计数（与待办列表一致上限）
-        return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
-                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
-                .count();
+        if (scopedDevices.isEmpty()) {
+            return 0;
+        }
+        // 计数也必须下推：旧写法「取 500 条 OPEN 样本再内存过滤」在 OPEN 工单超过 500 条时
+        // 数字直接封顶 500 —— 面板上的数字本身是失真的，比列表少几条更误导。
+        return disputeRepository.countOpenByDeviceIds(scopedDevices);
     }
 
-    private long countOfflineDevices(Set<String> scopedDevices) {
-        // 计数与告警明细同一过滤：仅投放柜离线（避免 INBOUND 孤儿柜抬高「离线设备」）
-        return deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE).stream()
-                .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
-                .filter(OpsWorkbenchQueryService::isDeployedDevice)
-                .count();
+    long countOfflineDevices(Set<String> scopedDevices) {
+        // 与告警明细同一谓词（设备范围 + 投放柜 + 离线），全部下推；
+        // 旧写法是「全表拉回内存 filter count」——行数随设备总量线性涨，且与下推后的列表判据容易走偏。
+        return deviceRepository.countDeployedByDeviceIdInAndOnlineStatusNot(
+                scopedDevices, CabinetConstants.DEVICE_ONLINE);
     }
 
     /** 运营工作台设备类待办只认投放柜（与库存健康默认 lifecycle=DEPLOYED 对齐）。 */
@@ -619,9 +627,10 @@ public class OpsWorkbenchQueryService {
 
     private List<ShoppingSession> findStaleSessions(Set<String> scopedDevices) {
         Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
-        return sessionRepository.findByStateInAndUpdatedAtBefore(ACTIVE_STATES, cutoff, WORKBENCH_ITEM_CAP).stream()
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .toList();
+        // 设备范围下推进 SQL，超时判据与 countStaleSessions 逐字一致（含 updated_at IS NULL 分支）。
+        // 旧写法「取全局最早 CAP(20) 条再内存过滤」会把域受限账号的超时会话挤出窗口（B13 同族）。
+        return sessionRepository.findByStateInAndDeviceIdInAndUpdatedAtBefore(
+                ACTIVE_STATES, scopedDevices, cutoff, WORKBENCH_ITEM_CAP);
     }
 
     private long countStaleSessions(Set<String> scopedDevices) {
@@ -640,10 +649,6 @@ public class OpsWorkbenchQueryService {
         return splitRepository.countByStatusInAndDeviceIdIn(SPLIT_EXCEPTION_STATUSES, scopedDevices);
     }
 
-    private String sessionDeviceId(String sessionId) {
-        return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
-    }
-
     private static String staleSessionSeverity(ShoppingSession session) {
         if (session.getState() == SessionState.WAITING_UPLOAD) {
             return "HIGH";
@@ -652,10 +657,6 @@ public class OpsWorkbenchQueryService {
             return "HIGH";
         }
         return MEDIUM;
-    }
-
-    private static boolean inDeviceScope(Set<String> scopedDevices, String deviceId) {
-        return scopedDevices == null || (deviceId != null && scopedDevices.contains(deviceId));
     }
 
     private static String disputeSeverity(DisputeTicket ticket) {

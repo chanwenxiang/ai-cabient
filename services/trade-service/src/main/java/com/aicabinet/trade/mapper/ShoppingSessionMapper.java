@@ -117,6 +117,34 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
                 .last("LIMIT " + lim));
     }
 
+    /**
+     * 运营工作台「购物会话可能超时」：**设备范围下推**，`LIMIT` 落在过滤之后（B13 同族）。
+     *
+     * <p>🔴 超时判据必须与 {@link #countByDeviceIdInAndStateInAndUpdatedAtBefore} 逐字一致：
+     * {@code updated_at < cutoff OR (updated_at IS NULL AND created_at < cutoff)}。只加
+     * {@code device_id IN} 而简化掉后半段，会让「从没更新过 updated_at」的历史会话
+     * 在列表里消失、却还算在计数里 —— 数字与列表又对不上。
+     */
+    default List<ShoppingSession> findByStateInAndDeviceIdInAndUpdatedAtBefore(
+            Collection<SessionState> states, Collection<String> deviceIds,
+            java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        if (deviceIds == null) {
+            return findByStateInAndUpdatedAtBefore(states, cutoff, lim);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getState, states)
+                .in(ShoppingSession::getDeviceId, deviceIds)
+                .and(w -> w.lt(ShoppingSession::getUpdatedAt, cutoff)
+                        .or()
+                        .isNull(ShoppingSession::getUpdatedAt).lt(ShoppingSession::getCreatedAt, cutoff))
+                .orderByAsc(ShoppingSession::getUpdatedAt)
+                .last("LIMIT " + lim));
+    }
+
     default List<ShoppingSession> findByReplenishmentTaskIdAndStateIn(Long taskId, Collection<SessionState> states) {
         return selectList(Wrappers.<ShoppingSession>lambdaQuery()
                 .eq(ShoppingSession::getReplenishmentTaskId, taskId)

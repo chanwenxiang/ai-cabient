@@ -267,12 +267,14 @@ public class MerchantWorkbenchQueryService {
         } else {
             openDisputes = disputeRepository.countOpenByDeviceIds(bizDeviceIds);
         }
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
+        // 设备范围下推进 SQL：旧写法「取 CAP(50) 条 OPEN 再 filter(session→device)」的窗口是按
+        // createdAt **全局**取的，域受限账号自己的工单排在窗口外就一条都看不到（B13 同族）。
+        // 争议是**含资金**的待办，漏看的代价比补货更高。顺带消掉逐行 findById 的 N+1。
+        disputeRepository.findByStatusAndDeviceIdsOrderByCreatedAtDesc("OPEN", bizDeviceIds, WORKBENCH_ITEM_CAP)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DISPUTE", "HIGH", "待审核争议",
                         formatDisputeReason(d.getReason()),
-                        sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
+                        d.getSessionDeviceId(), d.getSessionId(), d.getTicketId(),
                         null, null, d.getCreatedAt(), d.getSlaDueAt())));
         return openDisputes;
     }
@@ -286,8 +288,10 @@ public class MerchantWorkbenchQueryService {
         } else {
             offline = deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, CabinetConstants.DEVICE_ONLINE);
         }
-        deviceRepository.findByOnlineStatusNot(CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP).stream()
-                .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
+        // 设备范围下推进 SQL（计数早已带范围）。旧写法取全局最早 CAP(50) 台再内存过滤，
+        // 域受限账号自己的离线柜会被别家的挤出窗口（B13 同族）。
+        deviceRepository.findByDeviceIdInAndOnlineStatusNotOrderByUpdatedAtAsc(
+                        deviceIds, CabinetConstants.DEVICE_ONLINE, WORKBENCH_ITEM_CAP)
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DEVICE_OFFLINE", "HIGH", "柜机离线",
                         d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
@@ -351,8 +355,10 @@ public class MerchantWorkbenchQueryService {
         } else {
             expiry = pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds);
         }
-        pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
-                .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
+        // 设备范围下推进 SQL（计数早已带范围）。临期下架是**要人动手**的待办，
+        // 被窗口挤掉就会一直挂着过期商品继续卖（B13 同族）。
+        pullOffTaskRepository.findByStatusAndDeviceIdInOrderByCreatedAtDesc(
+                        "OPEN", deviceIds, WORKBENCH_ITEM_CAP)
                 .forEach(task -> items.add(new OpsActionItemDto(
                         "EXPIRY", MEDIUM, "临期/过期下架",
                         "SKU " + task.getSkuId() + " · " + task.getReason(),
@@ -390,15 +396,6 @@ public class MerchantWorkbenchQueryService {
             return "状态 " + label + " · " + stop;
         }
         return "状态 " + label;
-    }
-
-    private String sessionDeviceId(String sessionId) {
-        return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
-    }
-
-    private static boolean inDeviceScope(Set<String> allowed, String deviceId) {
-        if (deviceId == null) return false;
-        return allowed == null || allowed.contains(deviceId);
     }
 
     private static int severityRank(String severity) {

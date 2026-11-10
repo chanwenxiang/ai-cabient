@@ -19,6 +19,13 @@ public class DisputeTicket {
 
     private String sessionId;
 
+    /**
+     * 仅由「带设备范围的联表查询」回填（{@code DisputeTicketMapper#findByStatusAndDeviceIds…}）。
+     * 非表列；这样工作台不必再为每行做一次 {@code sessionRepository.findById} 的 N+1。
+     */
+    @TableField(exist = false)
+    private String sessionDeviceId;
+
     private String reason;
 
     private String status;

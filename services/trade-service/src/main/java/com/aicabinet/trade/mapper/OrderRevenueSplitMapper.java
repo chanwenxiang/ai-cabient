@@ -91,6 +91,30 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery().eq(OrderRevenueSplit::getStatus, status).orderByAsc(OrderRevenueSplit::getCreatedAt).last("LIMIT 20"));
     }
 
+    /**
+     * 运营工作台「分账待跟进」：状态 + **设备范围下推**，仍保留每状态 Top-N 的形状
+     * （调用方按状态各取一批，再按展示上限截断）。
+     *
+     * <p>旧写法 {@code findTop20ByStatusOrderByCreatedAtAsc(status)} 再内存过滤 deviceId：
+     * 窗口是全局最早的 20 条，域受限账号自己的失败分账排在窗口外就一条都看不到 ——
+     * 分账失败是**要主动跟进才回款**的资金项，漏看比离线柜更贵（B13 同族）。
+     */
+    default List<OrderRevenueSplit> findTopNByStatusAndDeviceIdInOrderByCreatedAtAsc(
+            String status, Collection<String> deviceIds, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds == null) {
+            return findTop20ByStatusOrderByCreatedAtAsc(status);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .eq(OrderRevenueSplit::getStatus, status)
+                .in(OrderRevenueSplit::getDeviceId, deviceIds)
+                .orderByAsc(OrderRevenueSplit::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
     default List<OrderRevenueSplit> findTop20ByWechatPendingReturnNoIsNotNullOrderByCreatedAtAsc() {
         return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
                 .isNotNull(OrderRevenueSplit::getWechatPendingReturnNo)

@@ -25,6 +25,18 @@
                         WHERE d.status = 'OPEN' AND s.device_id IN <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
   </select>
 
+  <!-- 与 countOpenByDeviceIds 同一条 JOIN：设备范围下推，LIMIT 落在过滤之后（B13 同族）。
+       额外带出 s.device_id 回填瞬态字段，省掉逐行 sessionRepository.findById。 -->
+  <select id="findByStatusAndDeviceIdsOrderByCreatedAtDescRaw"
+          resultType="com.aicabinet.trade.domain.DisputeTicket">
+    SELECT d.*, s.device_id AS session_device_id FROM dispute_ticket d
+                        JOIN shopping_session s ON d.session_id = s.session_id
+                        WHERE d.status = #{status}
+                        AND s.device_id IN <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+                        ORDER BY d.created_at DESC
+                        LIMIT #{limit}
+  </select>
+
   <select id="countOverdue" resultType="long">
     <![CDATA[
     SELECT COUNT(*) FROM dispute_ticket d

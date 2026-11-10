@@ -114,6 +114,32 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    /**
+     * 工作台待办「待审核争议」：状态 + **设备范围一起下推**，按 createdAt 倒序，`LIMIT` 落在过滤之后。
+     *
+     * <p>旧写法是「先取全局最早 N 条 OPEN，再在内存里按 session→device 过滤」——窗口按 createdAt
+     * 全局取，域受限账号（分仓/线长）自己的工单排在窗口外就一条都不返回，面板显示「没有待办」，
+     * 而这些是**含资金**的待审工单（B13 同族，2026-11-10 四端审核 R2 复扫）。
+     * 同时消掉逐行 {@code findById(sessionId)} 的 N+1。
+     */
+    default List<DisputeTicket> findByStatusAndDeviceIdsOrderByCreatedAtDesc(
+            String status, Collection<String> deviceIds, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        if (deviceIds == null) {
+            return findByStatusOrderByCreatedAtDesc(status, lim);
+        }
+        if (deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return findByStatusAndDeviceIdsOrderByCreatedAtDescRaw(status, deviceIds, lim);
+    }
+
+    /** 判据与 {@link #countOpenByDeviceIds} 同源：都走 {@code dispute_ticket JOIN shopping_session}。 */
+    List<DisputeTicket> findByStatusAndDeviceIdsOrderByCreatedAtDescRaw(
+            @Param("status") String status,
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("limit") int limit);
+
     List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(
             @Param("userId") Long userId,
             @Param("limit") int limit);
