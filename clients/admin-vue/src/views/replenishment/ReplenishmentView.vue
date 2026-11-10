@@ -1153,7 +1153,8 @@ const reloadCurrentTab = () => loadTab(tab.value, true);
 
 /** 缝合补货动线：从任务直接跳到仓库·出库单 tab（出库单列表按时间排序，单号在首屏可查） */
 function goWarehouseOutbound(outboundId: string | number) {
-  void router.push({ path: '/warehouse', query: { tab: 'outbounds' } });
+  // 出库单属「领货与调拨」子页；旧入口 /warehouse 只剩 router redirect（侧栏已下线）
+  void router.push({ path: '/warehouse/fulfillment', query: { tab: 'outbounds' } });
 }
 
 const {
@@ -1279,7 +1280,8 @@ function applyRouteQuery() {
 function goWarehouse(deviceId?: string) {
   const query: Record<string, string> = { tab: 'transit' };
   if (deviceId) query.deviceId = deviceId;
-  goPath('/warehouse', query);
+  // goPath() 前置 canAccessPath() 精确匹配菜单表：旧入口 /warehouse 未登记 ⇒ 弹「无访问权限」不跳转
+  goPath('/warehouse/fulfillment', query);
 }
 
 function formatCheckInGps(row: Row) {

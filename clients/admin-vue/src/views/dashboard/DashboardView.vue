@@ -436,7 +436,9 @@ const quickLinks = computed<QuickLink[]>(() => [
   {
     label: '未上柜超时',
     count: workbench.value?.inTransitOverdue || 0,
-    path: '/warehouse',
+    // 卡片可见性走 canAccessPath() ⇒ 必须给拆分后的子页（transit 属「领货与调拨」子页）；
+    // 旧入口 /warehouse 没有菜单登记项，会被 fail-closed 整卡隐藏。
+    path: '/warehouse/fulfillment',
     query: { tab: 'transit', overdue: '1' }
   }
 ]);
@@ -521,7 +523,9 @@ function actionTargetPath(row: OpsActionItem) {
     case 'REPLENISHMENT':
       return '/replenishment';
     case 'IN_TRANSIT_OVERDUE':
-      return '/warehouse';
+      // canHandleAction() 用 canAccessPath() 判是否出「查看」按钮 ⇒ 旧入口 /warehouse
+      // 会因无菜单登记被判无权，导致这类行静默丢掉操作按钮。
+      return '/warehouse/fulfillment';
     case 'RECON_MISMATCH':
     case 'RECONCILIATION_MISMATCH':
       return '/reconciliation';
@@ -692,7 +696,10 @@ function goAction(row: OpsActionItem) {
       router.push({ path: '/replenishment', query: { tab: 'routes', ...q } });
       return;
     case 'IN_TRANSIT_OVERDUE':
-      router.push({ path: '/warehouse', query: { tab: 'transit', overdue: '1', ...q } });
+      router.push({
+        path: '/warehouse/fulfillment',
+        query: { tab: 'transit', overdue: '1', ...q }
+      });
       return;
     case 'RECON_MISMATCH':
     case 'RECONCILIATION_MISMATCH':

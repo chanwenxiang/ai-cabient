@@ -160,11 +160,14 @@ function collectStrings(src, lang) {
   return found;
 }
 
-/** 字面量 → 路由路径前缀（切掉 query 与模板插值）；不像路径的返回 null */
+/** 字面量 → 路由路径（切掉 query 与模板插值）；不像路径的返回 null。
+ *  ⚠️ 刻意**不**归一化尾部斜杠：`'/warehouse/'` 在本仓是「子页前缀」用法
+ *  （`path.startsWith('/warehouse/')`），不是导航目标；而真把 `'/warehouse/'` 交给
+ *  canAccessPath 时它同样查不到（navPathOf 不做归一化）⇒ 保留原样才能两侧口径一致。 */
 function routePathOf(literal) {
   const cut = literal.split(/[?$#\s]/)[0].trim();
   if (cut.length < 2 || !/^\/[A-Za-z0-9\-_/]*$/.test(cut)) return null;
-  return cut.replace(/\/+$/, '') || '/';
+  return cut;
 }
 
 // ── 菜单侧：登记表 + findNavByPath 特例（自动对齐运行时实现） ────────────────
@@ -238,10 +241,41 @@ function* walk(dir) {
   }
 }
 
-const CALL_RE = /\b(?:goPath|canAccessPath)\s*\(\s*(['"])((?:\\.|(?!\1).)*)\1\s*\)/g;
+const CALL_RE = /\b(?:goPath|canAccessPath)\s*\(\s*(['"])((?:\\.|(?!\1).)*)\1\s*[,)]/g;
+
+// ── E：已拆页模块的**旧入口路径**不得再作为字面量出现（任意形态） ─────────────
+// 拆分后旧入口只剩 router 里的 redirect 兼容：手输地址能进，但 canAccessPath 精确匹配查不到
+// ⇒ 凡是走 goPath()/canAccessPath() 的入口（快捷卡 path 字段、行操作按钮）都会被静默隐藏或拦下。
+// 判据从 router 自动取（不用白名单）：redirect 目标是无斜杠的段 P，且菜单里存在 `/P/xxx` 子页
+// ⇒ `/P` 就是旧入口。引用它的字面量一律判红，要求直接写子页路径。
+const ROUTER_FILE = 'clients/admin-vue/src/router/index.ts';
+const routerSrc = maskComments(read(ROUTER_FILE) || '', 'js');
+const legacyEntries = new Set();
+for (const m of routerSrc.matchAll(/redirect\s*[:=]/g)) {
+  const before = routerSrc.slice(Math.max(0, m.index - 400), m.index);
+  const pathM = [...before.matchAll(/path:\s*'([^']*)'/g)].pop();
+  if (!pathM) continue;
+  const seg = pathM[1].replace(/^\/+|\/+$/g, '');
+  if (!seg || seg.includes('/')) continue;
+  if ([...registered].some((r) => r.startsWith(`/${seg}/`))) legacyEntries.add(`/${seg}`);
+}
+if (legacyEntries.size === 0) {
+  fail(`${ROUTER_FILE} 里没解析到任何「拆页旧入口 redirect」，锚点可能已被重写（判据会恒真）`);
+}
+
 for (const file of walk(join(ROOT, ADMIN_SRC))) {
   const rel = relative(ROOT, file).replace(/\\/g, '/');
+  // 路由表自己就是定义 redirect 的地方；单测里的字面量不参与运行时导航
+  if (rel === ROUTER_FILE || /\.test\.ts$/.test(rel)) continue;
   const src = maskComments(readFileSync(file, 'utf8'), 'js');
+  for (const { value } of collectStrings(src, 'js')) {
+    const p = routePathOf(value);
+    if (p && legacyEntries.has(p)) {
+      violations.push(
+        `${rel} 引用了拆页旧入口 \`${p}\`（字面量 ${JSON.stringify(value)}；应直接写子页路径，如 ${[...registered].find((r) => r.startsWith(`${p}/`))}）`
+      );
+    }
+  }
   for (const m of src.matchAll(CALL_RE)) {
     const p = routePathOf(m[2]);
     if (p && whyUnresolvable(p)) {
