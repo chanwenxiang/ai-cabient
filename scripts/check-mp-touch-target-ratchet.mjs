@@ -59,7 +59,14 @@ const MIN_TOUCH_RPX = 88;
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
 const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 285);
+// 285→280（2026-11-10 上午）：warehouse-stocktake 重排后 4 个旧「不可验」类转为可验——
+// save-btn→line-save / photo-add-btn→photo-add（min-height 88rpx / 160×160）、
+// load-more 补满宽+min-height 88rpx、mode-opt→seg-item（min 276×88）；st-card 并入带尺寸的 .card。
+// 280→279（2026-11-10 下午）：parseClassSizes 剥 CSS 注释修复「注释 ::after 字样毒化选择器解析」
+// ——orders.vue .aux-export 假不可验转可验，连带纠正 HomeCartBar/HomeLanding/device-ad-banner 10 条同族误报。
+// 279→278（2026-11-10 傍晚）：HEAD 实测即 278（补货页重排前后均 278，降 1 来自更早已提交改动，非本次）；
+// replenishment 重排本身净效应为 0（删 hero-secondary 容器，clear-pill 仍有显式尺寸，新增 aux-pill 显式 88×88 可验）。
+const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 278);
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
@@ -133,10 +140,17 @@ export function parseClassSizes(cssText) {
     sizes.set(name, created);
     return created;
   };
+  // 🔴 先剥 CSS 注释（2026-11-10 实证缺陷）：注释不参与规则结构，但注释里出现「::after」「{」「,」
+  // 等字样会毒化下面的块切分/伪元素判定—— orders.vue 在注释里写了「::after 与 .aux-link 同配方」，
+  // 下一规则的 sel 里含这段注释 ⇒ pseudo 误匹配注释中的 ::after ⇒ head 截断后无类 ⇒
+  // 整条主规则的 min-width/min-height 被静默丢弃（假「不可验」）。反向同理：注释里的
+  // 「.a { width: 88rpx }」示例会注入假尺寸（假可验）。剥注释双向修复；等长替换保行号的
+  // maskComments 只用于模板，这里无需行号、直接删。
+  const clean = cssText.replace(/\/\*[\s\S]*?\*\//g, '');
   // 按规则块切：`sel { decls }`
   const blockRe = /([^{}]+)\{([^{}]*)\}/g;
   let m;
-  while ((m = blockRe.exec(cssText))) {
+  while ((m = blockRe.exec(clean))) {
     const decls = m[2];
     for (const rawSel of m[1].split(',')) {
       const sel = rawSel.trim();
@@ -372,6 +386,18 @@ function selfTest() {
       cls: 'app-btn--bad',
       want: 'undersized',
       why: '修饰符自己写小了仍判红：继承只补默认值，不掩盖覆盖'
+    },
+    {
+      css: '/* 说明里提到 ::after 与 .a 同配方 */\n.a{min-width:88rpx;min-height:32rpx}\n.a::after{content:"";position:absolute;inset:-28rpx 0}',
+      cls: 'a',
+      want: null,
+      why: 'CSS 注释里的「::after」字样不毒化下一规则的解析（orders.vue .aux-export 实证：旧版把主规则 sel 截断成无类文本，min-* 被静默丢弃 ⇒ 假不可验）'
+    },
+    {
+      css: '/* 示例：.fake{width:88rpx;height:88rpx} */\n.a{padding:12rpx}',
+      cls: 'fake',
+      want: 'unverifiable',
+      why: '注释里的示例规则不注入假尺寸（旧版会把 .fake 当真实规则解析 ⇒ 假可验）'
     }
   ];
   let bad = 0;
