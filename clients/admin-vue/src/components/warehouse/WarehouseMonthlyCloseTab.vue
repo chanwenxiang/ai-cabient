@@ -58,6 +58,8 @@ function detailRemainderTotal(): number {
  * 字段缺失时把**领货量**当上柜量，与同一行的「领而未上」自相矛盾（领 20、未上 5 却显示上柜 20）。
  * 后端 `WarehouseMonthlyCloseService:343` 恒传 `qty - remainderQty`，所以线上不触发；
  * 但兜底值本身必须按同一口径算，字段缺失时宁可显「—」也不冒充。
+ * R2-A18②：`remainderQty` 缺失时原先按 0 补 ⇒ 兜底又变成「领货量=上柜量」，
+ * 仍是在冒充。缺一个因子就显「—」，让人知道这行算不出来，而不是给个看着合理的错数。
  */
 function shelvedQtyText(row: {
   shelvedQty?: number | string | null;
@@ -69,7 +71,8 @@ function shelvedQtyText(row: {
   const qty = Number(row.qty);
   if (row.qty == null || !Number.isFinite(qty)) return '—';
   const remainder = Number(row.remainderQty);
-  return String(qty - (Number.isFinite(remainder) ? remainder : 0));
+  if (row.remainderQty == null || !Number.isFinite(remainder)) return '—';
+  return String(qty - remainder);
 }
 </script>
 

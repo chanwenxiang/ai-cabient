@@ -878,10 +878,15 @@ const crud = useCrudTable<JiangyiClassMappingRow>({
   pageSize: 20,
   fetchPage: async ({ page, size }) => {
     if (!deviceId.value) return { items: [], total: 0 };
+    // R2-A13：binding/allMappings 的赋值发生在 useCrudTable 丢弃过期页（isCurrent）之前 ——
+    // 切柜时慢返回的旧柜响应会把 BOUND 态与全量映射盖到新柜上（分页 items 被丢弃，
+    // 但这两个「附带数据」不会）。自己按「请求时的 deviceId」判一次。
+    const requestedDeviceId = deviceId.value;
     const data = await api.request<{
       binding: JiangyiBindingInfo | null;
       mappings: JiangyiClassMappingRow[];
-    }>(AdminEndpoints.deviceJiangyi(deviceId.value), 'GET');
+    }>(AdminEndpoints.deviceJiangyi(requestedDeviceId), 'GET');
+    if (deviceId.value !== requestedDeviceId) return { items: [], total: 0 };
     binding.value = data.binding;
     allMappings.value = data.mappings || [];
     const start = page * size;

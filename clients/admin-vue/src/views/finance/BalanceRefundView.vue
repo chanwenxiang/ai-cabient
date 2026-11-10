@@ -18,13 +18,19 @@ const auth = useAuthStore();
 const { goPath } = useNavAccess();
 const statusTab = ref(localStorage.getItem('ops_balance_refund_status_tab') || 'PENDING_REVIEW');
 const keyword = ref('');
+/**
+ * R2-A18③：输入框里的是**草稿**，只有点「查询」真正取过一次数才算生效。
+ * 提示条的「本页命中」必须按生效口径算——原实现直接读 displayItems，
+ * 边打字边变数字（看起来像实时搜索），而列表其实还是上次过滤的结果。
+ */
+const appliedKeyword = ref('');
 const batchLoading = ref<'approve' | 'reject' | ''>('');
 
 const canReview = computed(() => auth.hasPerm('ops:balance-refund:review'));
 
 /** 关键词为纯前端过滤（后端无该参数）：原 displayRows 计算属性前移到取数处，total 仍取服务端值 */
-function filterByKeyword(rows: BalanceRefundRequestDto[]): BalanceRefundRequestDto[] {
-  const kw = keyword.value.trim().toLowerCase();
+function filterByKeyword(rows: BalanceRefundRequestDto[], kwRaw: string): BalanceRefundRequestDto[] {
+  const kw = kwRaw.trim().toLowerCase();
   if (!kw) return rows;
   return rows.filter(
     (row) =>
@@ -48,6 +54,8 @@ function createdAtMs(createdAt?: string) {
 const crud = useCrudTable<BalanceRefundRequestDto>({
   rowKey: (r) => r.requestId,
   fetchPage: async (params) => {
+    // 取数这一瞬间的口径就是「生效关键词」；输入框后续的改动不影响本次结果
+    const kw = keyword.value;
     const q = new URLSearchParams({
       page: String(params.page), // 0 起（useCrudTable 已换算）
       size: String(params.size)
@@ -56,7 +64,9 @@ const crud = useCrudTable<BalanceRefundRequestDto>({
     const res = await api.request<PageResult<BalanceRefundRequestDto>>(
       AdminEndpoints.balanceRefundsList(q)
     );
-    const list = filterByKeyword(res?.items || []);
+    // 只有「仍是用户当前意图」时才认（旧响应不得改写提示条口径）
+    if (kw.trim() === keyword.value.trim()) appliedKeyword.value = kw;
+    const list = filterByKeyword(res?.items || [], kw);
     list.sort((a, b) => createdAtMs(b.createdAt) - createdAtMs(a.createdAt));
     return { items: list, total: Number(res?.total || 0) };
   }
@@ -286,13 +296,17 @@ async function batchReviewAll(approve: boolean) {
 
     <!-- 关键词是纯前端过滤：必须点破范围，否则「共 N 条」会让人以为搜索是跨页的（P2-5） -->
     <el-alert
-      v-if="keyword.trim()"
+      v-if="appliedKeyword.trim()"
       type="info"
       :closable="false"
       show-icon
       class="keyword-scope-hint"
       :title="`关键词仅过滤当前页：本页命中 ${crud.displayItems.length} 条，服务端共 ${crud.total} 条。要查更早的申请请逐页翻或导出后检索。`"
     />
+    <!-- R2-A18③：只打了字还没查询 —— 提示条不能提前出现，也不能拿上次的命中数冒充 -->
+    <p v-else-if="keyword.trim()" class="muted keyword-scope-hint">
+      关键词尚未生效：点「查询」后才会过滤当前页。
+    </p>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">

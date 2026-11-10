@@ -27,14 +27,20 @@ interface InvoiceRow {
 
 const auth = useAuthStore();
 const keyword = ref('');
+/**
+ * R2-A18③：输入框里的是**草稿**，只有点「查询」真正取过一次数才算生效。
+ * 提示条的「本页命中」必须按生效口径算——原实现直接读 displayItems，
+ * 边打字边变数字（看起来像实时搜索），而列表其实还是上次过滤的结果。
+ */
+const appliedKeyword = ref('');
 const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') ?? '');
 const batchLoading = ref<'issue' | 'reject' | ''>('');
 
 const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'));
 
 /** 关键词为纯前端过滤（后端无该参数）：原 displayRows 计算属性前移到取数处，total 仍取服务端值 */
-function filterByKeyword(rows: InvoiceRow[]): InvoiceRow[] {
-  const kw = keyword.value.trim().toLowerCase();
+function filterByKeyword(rows: InvoiceRow[], kwRaw: string): InvoiceRow[] {
+  const kw = kwRaw.trim().toLowerCase();
   if (!kw) return rows;
   return rows.filter(
     (row) =>
@@ -60,6 +66,8 @@ function filterByKeyword(rows: InvoiceRow[]): InvoiceRow[] {
 const crud = useCrudTable<InvoiceRow>({
   rowKey: (r) => r.invoiceId,
   fetchPage: async (params) => {
+    // 取数这一瞬间的口径就是「生效关键词」；输入框后续的改动不影响本次结果
+    const kw = keyword.value;
     const q = new URLSearchParams({
       page: String(params.page), // 0 起（useCrudTable 已换算）
       size: String(params.size)
@@ -68,7 +76,9 @@ const crud = useCrudTable<InvoiceRow>({
     const data = await api.request<{ items: InvoiceRow[]; total: number }>(
       AdminEndpoints.invoicesList(q)
     );
-    return { items: filterByKeyword(data.items || []), total: Number(data.total) || 0 };
+    // 只有「仍是用户当前意图」时才认（旧响应不得改写提示条口径）
+    if (kw.trim() === keyword.value.trim()) appliedKeyword.value = kw;
+    return { items: filterByKeyword(data.items || [], kw), total: Number(data.total) || 0 };
   }
 });
 
@@ -317,13 +327,17 @@ function onStatusChange() {
 
     <!-- 关键词是纯前端过滤：必须点破范围，否则「共 N 条」会让人以为搜索是跨页的（P2-5） -->
     <el-alert
-      v-if="keyword.trim()"
+      v-if="appliedKeyword.trim()"
       type="info"
       :closable="false"
       show-icon
       class="keyword-scope-hint"
       :title="`关键词仅过滤当前页：本页命中 ${crud.displayItems.length} 条，服务端共 ${crud.total} 条。要查更早的申请请逐页翻。`"
     />
+    <!-- R2-A18③：只打了字还没查询 —— 提示条不能提前出现，也不能拿上次的命中数冒充 -->
+    <p v-else-if="keyword.trim()" class="keyword-scope-hint muted">
+      关键词尚未生效：点「查询」后才会过滤当前页。
+    </p>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
@@ -415,6 +429,9 @@ function onStatusChange() {
 <style scoped>
 .mb {
   margin-bottom: 12px;
+}
+.muted {
+  color: var(--el-text-color-placeholder);
 }
 .keyword-scope-hint {
   margin-bottom: 8px;

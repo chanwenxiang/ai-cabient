@@ -182,8 +182,8 @@
           <el-form-item v-if="memberForm.commissionBasis === 'GMV'" label="比例 bps">
             <el-input-number v-model="memberForm.commissionRateBps" :min="0" :max="10000" />
           </el-form-item>
-          <el-form-item v-else label="每件佣金(分)">
-            <el-input-number v-model="memberForm.commissionPerUnitCents" :min="0" />
+          <el-form-item v-else label="每件佣金(元)">
+            <el-input-number v-model="memberPerUnitYuan" :min="0" :precision="2" :step="0.1" />
           </el-form-item>
         </template>
         <el-form-item>
@@ -257,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan, centsToYuanNumber } from '@/utils/display';
+import { yuanTextZero as yuan, centsToYuanNumber, yuanToCents } from '@/utils/display';
 import { onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
@@ -323,9 +323,15 @@ const memberForm = ref({
   userId: 1,
   role: 'STAFF',
   commissionBasis: 'GMV',
-  commissionRateBps: 0,
-  commissionPerUnitCents: 0
+  commissionRateBps: 0
 });
+
+/**
+ * R2-A18①：表格列显示「元」，表单原先让填「分」——同一弹窗里元/分混用，
+ * 运营按表格的元填进去会被当成分（10 元 ⇒ 1000 元）。表单统一按元录入，
+ * 提交时用 yuanToCents 换算（与打款弹窗同一约定）。
+ */
+const memberPerUnitYuan = ref(0);
 
 const chiefDialogVisible = ref(false);
 const chiefDraft = ref('0');
@@ -529,13 +535,22 @@ async function openMembers(row: LineRoute): Promise<void> {
 
 async function saveMember(): Promise<void> {
   if (!activeRoute.value) return;
+  // 按件提成才用得上「每件佣金」；其它基数下传 0，避免上一轮的残留值带进新配置
+  const perUnitCents =
+    memberForm.value.commissionBasis === 'RESTOCK_QTY'
+      ? yuanToCents(memberPerUnitYuan.value)
+      : 0;
+  if (perUnitCents == null) {
+    ElMessage.warning('每件佣金格式不正确');
+    return;
+  }
   try {
     await api.request(AdminEndpoints.lineRouteMembers(activeRoute.value.id), 'PUT', {
       userId: memberForm.value.userId,
       role: memberForm.value.role,
       commissionBasis: memberForm.value.commissionBasis,
       commissionRateBps: memberForm.value.commissionRateBps,
-      commissionPerUnitCents: memberForm.value.commissionPerUnitCents
+      commissionPerUnitCents: perUnitCents
     });
     ElMessage.success('成员已保存（费用项/比例随时可改）');
     await membersCrud.load();
