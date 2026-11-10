@@ -437,6 +437,12 @@ useAutoRefresh({
   maxDurationMs: 300_000,
   canRefresh: () => !submitting.value && isMerchantLoggedIn()
 });
+
+/**
+ * 2026-11-10：页面层（wallet / line-wallet）开了 enablePullDownRefresh，但下拉回调必须写在
+ * 页面实例上，组件里注册的 onPullDownRefresh 在小程序端不会触发。这里暴露 reload 给外壳页调用。
+ */
+defineExpose({ reload: load });
 </script>
 
 <style scoped>

@@ -23,7 +23,6 @@ type DeviceMeta = Pick<
  */
 export function useReplenishmentShell(opts: {
   me: Ref<MerchantMe | null>;
-  preferredId: Ref<string>;
   filterDeviceId: Ref<string>;
   status: Ref<string>;
   selected: Ref<Task | null>;
@@ -74,14 +73,6 @@ export function useReplenishmentShell(opts: {
     if (opts.filterDeviceId.value) return opts.emptyHintForDeviceFilter();
     return opts.emptyHintForStatusFilter();
   });
-
-  function usePreferredDevice() {
-    const id = opts.preferredId.value;
-    if (!id) return;
-    opts.filterDeviceId.value = id.trim().toUpperCase();
-    opts.status.value = '';
-    void load();
-  }
 
   function goRequest() {
     const q = opts.filterDeviceId.value
@@ -222,7 +213,6 @@ export function useReplenishmentShell(opts: {
     detailIsPullOff,
     statusOptions,
     emptyHint,
-    usePreferredDevice,
     goRequest,
     goDeviceShortage,
     deviceName,

@@ -3,11 +3,7 @@
     <app-nav-bar title="补货任务" home-url="/pages/home/home" />
     <view class="page-body">
       <view class="hero">
-        <view class="hero-head">
-          <text class="eyebrow">现场补货</text>
-          <text class="title">补货任务</text>
-          <text class="subtitle">{{ heroSubtitle }}</text>
-        </view>
+        <!-- 2026-11-10 重排：eyebrow「现场补货」+ title「补货任务」与导航栏标题三重重复，删标题只留数字与流程提示 -->
         <view class="stats">
           <view class="stat">
             <text class="stat-value">{{ pendingCount }}</text>
@@ -22,37 +18,29 @@
             <text class="stat-label">今日完成率</text>
           </view>
         </view>
+        <text class="flow-hint">{{ heroSubtitle }}</text>
         <view class="hero-actions">
           <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
-          <view class="hero-secondary">
-            <view class="clear-pill" role="button" hover-class="clear-pill-hover" @click="goRequest"
-              >发起补货</view
-            >
-            <view
-              v-if="preferredId && filterDeviceId !== preferredId"
-              class="clear-pill"
-              role="button"
-              hover-class="clear-pill-hover"
-              @click="usePreferredDevice"
-              >常驻柜</view
-            >
-            <view
-              v-if="filterDeviceId"
-              class="clear-pill"
-              role="button"
-              hover-class="clear-pill-hover"
-              @click="clearDeviceFilter"
-              >清除筛选</view
-            >
-          </view>
+          <view class="clear-pill" role="button" hover-class="clear-pill-hover" @click="goRequest"
+            >发起补货</view
+          >
         </view>
-        <text v-if="filterDeviceId" class="filter-tip">
-          当前筛选：{{ filterDeviceId }}
-          <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
-        </text>
-        <text v-else-if="preferredId" class="filter-tip muted"
-          >常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text
-        >
+        <!-- 筛选态说明行（2026-11-10 用户拍板撤掉常驻柜/清除筛选徽章——形态不好看）：
+             仅深链 ?deviceId= 筛选时出现，「清除」为文字按钮；非筛选态零显示。 -->
+        <view v-if="filterDeviceId" class="filter-row">
+          <text class="filter-tip">
+            当前筛选：{{ filterDeviceId }}
+            <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
+          </text>
+          <view
+            class="filter-clear"
+            role="button"
+            aria-label="清除柜机筛选"
+            hover-class="filter-clear-hover"
+            @click="clearDeviceFilter"
+            >清除</view
+          >
+        </view>
       </view>
 
       <view v-if="!loading && pendingCount === 0" class="idle-tip">
@@ -66,9 +54,7 @@
         <view class="patrol-head">
           <view class="patrol-copy">
             <text class="patrol-title">缺货巡柜</text>
-            <text class="patrol-sub"
-              >查看缺口；可点「发起补货」按缺货建议一键下单，任务直接生效</text
-            >
+            <text class="patrol-sub">查看各柜缺口明细，可按缺口直接生成补货任务</text>
           </view>
           <text class="patrol-count">{{ lowStockList.length }} 台</text>
         </view>
@@ -597,7 +583,6 @@ const {
   detailIsPullOff,
   statusOptions,
   emptyHint,
-  usePreferredDevice,
   goRequest,
   goDeviceShortage,
   deviceName,
@@ -613,7 +598,6 @@ const {
   currentStep
 } = useReplenishmentShell({
   me,
-  preferredId,
   filterDeviceId,
   status,
   selected,
@@ -740,7 +724,15 @@ onShow(() => {
   preferredId.value = getPreferredDeviceId();
   void load();
 });
-onPullDownRefresh(load);
+// 2026-11-10：原先直接把 load 交给 onPullDownRefresh，没有调用 stopPullDownRefresh，
+// 下拉后转圈会一直挂着不收回。stop 放 finally 保证失败也收起。
+onPullDownRefresh(async () => {
+  try {
+    await load();
+  } finally {
+    uni.stopPullDownRefresh();
+  }
+});
 
 /**
  * 补货任务的「待处理」计数由后端推进（提交后等审核 / 等他人处理）：

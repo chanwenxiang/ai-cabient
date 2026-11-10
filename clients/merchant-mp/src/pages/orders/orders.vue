@@ -17,15 +17,25 @@
         @retry="load"
       />
       <view v-else>
+        <!-- 2026-11-10 筛选区瘦身：原来「搜索框 / 柜机+时间+零元单+重置 / 整宽导出按钮 / 导出说明」
+             四段吃掉首屏约 40%，首条订单被推到 2/5 屏以下。现在：
+             ① 重置并到搜索框行尾（低频但常要随手点，且脱离 aux 行后热区不再受限）；
+             ② 导出从整宽按钮降级为 aux 行末的链接（低频动作不配整宽 + loading 文案已够反馈）；
+             ③ 导出口径说明保留（审计 M3 要求披露「导出只认柜机筛选」），收成一行小字。 -->
         <view class="filter-panel">
-          <input
-            v-model="keyword"
-            class="search-input"
-            placeholder="搜订单号或柜机"
-            confirm-type="search"
-            aria-label="搜索订单"
-            @confirm="applySearch"
-          />
+          <view class="search-row">
+            <input
+              v-model="keyword"
+              class="search-input"
+              placeholder="搜订单号或柜机"
+              confirm-type="search"
+              aria-label="搜索订单"
+              @confirm="applySearch"
+            />
+            <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters"
+              >重置</text
+            >
+          </view>
           <view class="filter-aux">
             <picker
               :range="deviceOptions"
@@ -52,22 +62,19 @@
               @click="toggleZeroOrders"
               >{{ showZeroOrders ? '隐藏零元单' : '零元单' }}</text
             >
-            <text role="button" class="filter-reset" aria-label="重置筛选" @click="resetFilters"
-              >重置</text
+            <text
+              v-if="canExport"
+              role="button"
+              class="aux-link aux-export"
+              :aria-label="exporting ? '导出中' : '导出订单'"
+              @click="exportOrders"
+              >{{ exporting ? '导出中…' : '导出' }}</text
             >
           </view>
-          <view v-if="canExport" class="actions">
-            <app-button
-              variant="outline"
-              block
-              :loading="exporting"
-              :disabled="exporting"
-              :label="exporting ? '导出中…' : '导出'"
-              @click="exportOrders"
-            />
-            <!-- 口径说明（审计 M3）：后端导出仅支持柜机筛选；状态/时间/关键词只影响列表 -->
-            <text class="export-hint">导出当前柜机的全部订单（状态/时间筛选不适用于导出）</text>
-          </view>
+          <!-- 口径说明（审计 M3）：后端导出仅支持柜机筛选；状态/时间/关键词只影响列表 -->
+          <text v-if="canExport" class="export-hint"
+            >导出仅按「柜机」筛选（状态/时间/关键词只影响列表）</text
+          >
         </view>
 
         <view v-if="loading" class="loading inline"><text>筛选中…</text></view>
@@ -614,8 +621,17 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   border: none;
   border-bottom: 1rpx solid rgba(0, 0, 0, 0.08);
 }
+/* 2026-11-10 筛选瘦身：搜索框与「重置」同行。重置离开 aux 行后不再有「撞 aux-link 热区」
+   的约束（原 MA-162 注释所述场景已不存在），热区可以正常向四周扩。 */
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
 .search-input {
   /* 对齐 ui-search：88rpx / 20rpx / #f1f5f9（原 72/8/#f7f7f7） */
+  flex: 1;
+  min-width: 0;
   height: 88rpx;
   box-sizing: border-box;
   background: #f1f5f9;
@@ -652,6 +668,21 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   color: var(--brand);
   font-weight: 600;
 }
+/* 导出：低频动作降级为 aux 行末链接（原整宽 outline 按钮 + 说明行吃掉约 140rpx 首屏高度）。
+   ⚠️ 门禁按类逐个算热区：尺寸写在 .aux-link 上救不了 .aux-export 本身，必须重复声明，
+   纵向热区也同理——::after 与 .aux-link 同配方（横向不扩：左侧紧邻「零元单」chip）。 */
+.aux-export {
+  margin-left: auto;
+  min-width: 88rpx;
+  min-height: 32rpx;
+  color: var(--brand, #0d9488);
+  font-weight: 600;
+}
+.aux-export::after {
+  content: '';
+  position: absolute;
+  inset: -28rpx 0;
+}
 .filter-picker {
   padding: 8rpx 20rpx;
   border-radius: var(--radius-pill);
@@ -662,39 +693,25 @@ function onDetail(item: OpenApiOrderReadModelMerchant) {
   flex-shrink: 0;
 }
 .filter-reset {
-  /* MA-162：真机 34×22。它在筛选行的第二行：上行 5 个 .aux-link 的热区向下多探 14.6px、
-     下方 7.8px 就是整宽导出按钮 ⇒ **只能向上/向右扩，左侧一点都不能动**（横向会撞进
-     aux-link 的热区，点在「全部时间」右下角会误触重置）。min-width/min-height 取接近现值的
-     66/44rpx，只为让判据可证，不改变观感。 */
+  /* 重置已移到搜索框行尾：与 input 同排（行高 88rpx），热区四周扩都不会撞别的可点目标 */
   position: relative;
-  margin-left: auto;
-  /* 🔴 用 border-box + 固定 width，不用 min-width：min-width 作用在内容盒上，
-     会把盒子整体撑宽并（因 margin-left:auto）向左长 12px，正好撞进上行 aux-link 的热区。 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
-  width: 68rpx;
-  min-height: 44rpx;
-  text-align: center;
+  min-width: 88rpx;
+  min-height: 88rpx;
   white-space: nowrap;
-  padding: 8rpx 12rpx;
+  padding: 0 12rpx;
   font-size: var(--font-size-sm);
   color: var(--text-subtle);
   flex-shrink: 0;
-}
-.filter-reset::after {
-  content: '';
-  position: absolute;
-  inset: -36rpx -28rpx -12rpx 0;
-}
-.filter-panel .actions {
-  margin-top: 16rpx;
-  width: 100%;
 }
 .export-hint {
   display: block;
   margin-top: 8rpx;
   font-size: var(--font-size-xs);
   color: var(--text-subtle);
-  text-align: center;
 }
 .card {
   background: var(--card-bg, #ffffff);

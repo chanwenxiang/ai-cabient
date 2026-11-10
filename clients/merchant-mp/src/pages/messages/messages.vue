@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { OpenApiNotificationDto } from '@aicabinet/shared-types';
@@ -161,6 +161,16 @@ onLoad((opts) => {
 });
 
 onShow(load);
+
+// 2026-11-10：pages.json 对该页开了 enablePullDownRefresh，此前没有对应处理函数，
+// 下拉只会一直转圈不收回（与柜机盘点页修的是同族缺陷）。stop 放 finally 保证异常也收起。
+onPullDownRefresh(async () => {
+  try {
+    await load();
+  } finally {
+    uni.stopPullDownRefresh();
+  }
+});
 
 async function load() {
   if (!list.value.length) loading.value = true;

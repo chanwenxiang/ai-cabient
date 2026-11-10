@@ -59,6 +59,26 @@ export function diffDirectionLabel(diffQty: number | null | undefined): string {
   return diffQty < 0 ? '盘亏' : '盘盈';
 }
 
+/**
+ * 实盘输入框 → 与账面的差值。**未录入一律 null，绝不是 0**。
+ *
+ * 🔴 2026-11-10：旧实现是页面内的 `Number(row.countedInput)`，而 `Number('') === 0` ⇒
+ * 盲盘/未预填的行（countedQty 为 null、输入框空）被算成「实盘 0」，
+ * 徽章直接显示「盘亏 N」（N = 整批账面数），等于告诉商户「货全没了」。
+ * 与 device-stocktake「空值被按 0 提交、库存清零」是同一族缺陷：**未填写 ≠ 填 0**。
+ * 非整数/负数同样归 null（输入在途的临时态，不产生方向结论）。
+ */
+export function lineDiff(
+  countedInput: string | number | null | undefined,
+  bookQty: number
+): number | null {
+  const raw = String(countedInput ?? '').trim();
+  if (raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return null;
+  return n - Number(bookQty ?? 0);
+}
+
 // MA-136：这些是自造文案（待录入/录入中/已过账），与 admin 走的字典
 // （草稿/盘点中/已调整）是同一批值的两套词 ⇒ 同一条盘点单两端各说各话。
 // 改走 shared-dict 单源；未知值兜底「未知」而不是裸码。
@@ -79,6 +99,14 @@ export function stocktakeStatusLabel(status: string | null | undefined): string 
 
 export function stocktakeModeLabel(mode: string | null | undefined): string {
   return mode === 'BLIND' ? '盲盘' : '明盘';
+}
+
+/**
+ * 行状态文案（shared-dict 单源，与 admin 同词：未盘/相符/有差异/已调整）。
+ * 此前行上只显示「盘亏/盘盈」方向、不显示状态，已过账的行看不出「已调整」。
+ */
+export function stocktakeLineStatusLabel(status: string | null | undefined): string {
+  return displayLabel('stocktake_line_status', status || 'PENDING', '未盘');
 }
 
 /** 行状态 → 展示色（mp 上用 class 后缀，不裸写业务色值）。 */
@@ -130,13 +158,19 @@ export function buildUpdateLineBody(
   };
 }
 
-/** 列表状态筛选 tab（与后端 status 参数对齐；ALL 不传）。 */
+/**
+ * 列表状态筛选 tab（与后端 status 参数对齐；ALL 不传）。
+ *
+ * 2026-11-10：标签改走字典单源 —— MA-136 只把「状态徽章」改成了字典词，
+ * 页签仍是自造的「待录入/录入中/已过账」，于是同一张单徽章写「草稿」、
+ * 页签写「待录入」，两个词指一个状态。已过账在字典里是「已调整」。
+ */
 export const STOCKTAKE_STATUS_TABS: { value: string; label: string }[] = [
   { value: 'ALL', label: '全部' },
-  { value: 'DRAFT', label: '待录入' },
-  { value: 'IN_PROGRESS', label: '录入中' },
-  { value: 'COMPLETED', label: '已完成' },
-  { value: 'ADJUSTED', label: '已过账' }
+  { value: 'DRAFT', label: stocktakeStatusLabel('DRAFT') },
+  { value: 'IN_PROGRESS', label: stocktakeStatusLabel('IN_PROGRESS') },
+  { value: 'COMPLETED', label: stocktakeStatusLabel('COMPLETED') },
+  { value: 'ADJUSTED', label: stocktakeStatusLabel('ADJUSTED') }
 ];
 
 /** 行是否可编辑（仅 DRAFT/IN_PROGRESS 可录；COMPLETED 后只能走复盘调整）。 */

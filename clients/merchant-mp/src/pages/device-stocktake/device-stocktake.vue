@@ -4,8 +4,18 @@
  * 不结算）→ 逐商品实盘覆盖式提交（台账→实盘差值自动加/减，落批次台账）。
  * 非将邑柜不支持在线盘点（货道实盘链路已随「开门柜去掉货道」退场）。
  * 凭证照片按商户 ops-policy 强制（共用 stocktake-evidence 上传），可选附带定位（防伪）。
+ *
+ * 2026-11-10 版式重做（用户「这个页面重新设计一下」）：
+ *   旧版是四张等高白卡纵排——「选择柜机 / 盘点开门 / 盘点凭证 / 商品实盘」，每张只有一行
+ *   控件，右侧大片空白；说明长句与操作按钮同权，视线没有落点。
+ *   新版按「现场盘点」的真实动线重排：
+ *     ① 柜机身份收成一条（名称+编号+柜型，右侧「重新扫码」），没选柜时整块变成扫码入口；
+ *     ② 开门与拍照合并成并排操作块（同一屏一次点完），说明压成一行小字；
+ *     ③ 商品行把「台账数」和「差值」摆在数量旁边，步进攻克小数、输入框承接大好；
+ *     ④ 提交改成吸底条，长列表不用滚到底部；条上直接显示待调账项数。
+ *   业务链路（开门口径/凭证强制/空值不按 0/只提交差异行）一字未改。
  */
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
@@ -25,6 +35,8 @@ interface StocktakeGoodsRow {
 
 interface DoorStocktakeLineResult {
   skuId: string;
+  /** 提交前从商品清单带过来的名称：结果区直接展示品名，不要甩一串 skuId 给商户看 */
+  skuName?: string;
   quantityBefore: number;
   quantityAfter: number;
   delta: number;
@@ -48,6 +60,38 @@ const uploadingEvidence = ref(false);
 
 const canStocktake = computed(() => hasPerm(me.value, 'merchant:slots:edit'));
 
+/**
+ * 单行差值：null = 未填写或非法（不参与调账，也绝不按 0 处理）。
+ * 与 submitDoorStocktake 的过滤口径必须一致，否则吸底条上的「待调 N 项」会骗人。
+ */
+function diffOf(g: StocktakeGoodsRow): number | null {
+  const raw = String(goodsInputs.value[g.skuId] ?? '').trim();
+  if (raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) return null;
+  return n - (g.quantity ?? 0);
+}
+
+/** 行内徽章直接读这张表：模板里不用反复调函数、也不用写 as 断言 */
+const diffMap = computed<Record<string, number | null>>(() => {
+  const m: Record<string, number | null> = {};
+  for (const g of goods.value) m[g.skuId] = diffOf(g);
+  return m;
+});
+
+/** 真正「没填」= 输入框为空；非法值不算没填，交给提交时的校验去点名 */
+function isBlank(g: StocktakeGoodsRow): boolean {
+  return String(goodsInputs.value[g.skuId] ?? '').trim() === '';
+}
+
+/** 吸底条：有差异的行数 = 提交时真正会动账的条数 */
+const pendingCount = computed(
+  () =>
+    goods.value.filter((g) => diffMap.value[g.skuId] != null && diffMap.value[g.skuId] !== 0).length
+);
+
+const showDock = computed(() => !!deviceId.value && isDoorCabinet.value && goods.value.length > 0);
+
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
@@ -58,6 +102,15 @@ onLoad((opts) => {
     deviceId.value = id;
     void loadDevice();
   }
+});
+
+/** pages.json 开了 enablePullDownRefresh，没有 handler 时下拉只会一直转圈（旧版就是）。 */
+onPullDownRefresh(() => {
+  if (!deviceId.value) {
+    uni.stopPullDownRefresh();
+    return;
+  }
+  void loadDevice(false, true).finally(() => uni.stopPullDownRefresh());
 });
 
 // AU-138：弃用页内正则（EG 改版前旧口径，剥前缀+贪婪抓数字段），改走 shared-uni 权威解析
@@ -71,10 +124,15 @@ async function scanDevice() {
   void loadDevice(true);
 }
 
-async function loadDevice(autoOpen = false) {
+/**
+ * @param autoOpen 扫码进来的：判完柜型直接开门（门禁式）
+ * @param keepResult 重载时保住「本次调账结果」——提交成功后要刷新台账，
+ *   旧实现无条件清空 doorResult，结果框永远来不及显示（死代码）。
+ */
+async function loadDevice(autoOpen = false, keepResult = false) {
   if (!deviceId.value) return;
   loading.value = true;
-  doorResult.value = null;
+  if (!keepResult) doorResult.value = null;
   // R2-B4：凭证是「本次盘点」的证据，换柜/重盘必须清 —— 全仓只有上传成功一处赋值，
   // 否则上一柜（或上一次盘点）的照片会静默满足「必须拍照」（后端只判 URL 非空）。
   evidenceUrl.value = '';
@@ -190,6 +248,18 @@ function fetchLocation(): Promise<{ latitude: number; longitude: number } | null
   });
 }
 
+// ---- 实盘步进 ----
+/**
+ * 点 −/+ 视为「已给出一个明确实盘数」：被清空的行从 0 起算，
+ * 而不是悄悄回填台账数（那样会显示「一致」却和用户看到的不符）。
+ */
+function adjustQty(g: StocktakeGoodsRow, delta: number) {
+  const raw = String(goodsInputs.value[g.skuId] ?? '').trim();
+  const cur = raw === '' ? 0 : Number(raw);
+  const base = Number.isFinite(cur) ? Math.trunc(cur) : 0;
+  goodsInputs.value[g.skuId] = String(Math.max(0, base + delta));
+}
+
 // ---- 开门柜：批量提交实盘 ----
 async function submitDoorStocktake() {
   if (submittingDoor.value) return;
@@ -253,6 +323,8 @@ async function submitDoorStocktake() {
 
 async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[]) {
   submittingDoor.value = true;
+  // 先抓品名：刷新台账后 goods 会被替换，结果区还要按品类展示 before→after
+  const nameOf = new Map(goods.value.map((g) => [g.skuId, g.skuName || g.skuId]));
   try {
     const location = await fetchLocation();
     const result = await merchantApi.submitDoorStocktake(deviceId.value, {
@@ -263,12 +335,14 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
     });
     doorResult.value = (result.lines ?? []).map((r) => ({
       skuId: String(r.skuId ?? ''),
+      skuName: nameOf.get(String(r.skuId ?? '')) || String(r.skuId ?? ''),
       quantityBefore: Number(r.quantityBefore ?? 0),
       quantityAfter: Number(r.quantityAfter ?? 0),
       delta: Number(r.delta ?? 0)
     }));
     showSuccess('盘点已提交，账面已按实盘调整');
-    await loadDevice();
+    // keepResult=true：否则这里把刚拿到的调账结果清空，商户永远看不到本次改了哪几项
+    await loadDevice(false, true);
   } catch (e) {
     showError(e instanceof Error ? e.message : '盘点提交失败');
   } finally {
@@ -280,116 +354,169 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
 <template>
   <view>
     <app-nav-bar title="柜机盘点" home-url="/pages/home/home" />
-    <view class="page-body">
+    <view class="page-body" :class="{ 'page-body-dock': showDock }">
       <view v-if="!canStocktake" class="card"><text class="err">当前账号无盘点权限</text></view>
       <template v-else>
+        <!-- ① 柜机身份：已选柜只占一条；未选柜就是整块扫码入口 -->
         <view class="card">
-          <text class="section">选择柜机</text>
-          <view v-if="!deviceId" class="scan-empty">
-            <text class="meta">扫描柜机二维码开始盘点</text>
+          <view v-if="!deviceId" class="scan-entry">
+            <view class="scan-mark" aria-hidden="true"><text class="scan-mark-txt">扫</text></view>
+            <text class="scan-title">扫描柜机二维码开始盘点</text>
+            <text class="scan-hint">扫码后自动开门；盘点不涉及结算，开门与关门全程留痕</text>
             <app-button label="扫码识别柜机" @click="scanDevice" />
           </view>
-          <view v-else class="scan-done">
-            <text class="title">柜机 {{ deviceName || deviceId }}</text>
-            <text class="meta">{{
-              isDoorCabinet ? '开门柜：已按门禁式开门，清点后按商品提交实盘' : '该柜不支持在线盘点'
-            }}</text>
-            <app-button
-              variant="secondary"
-              compact
-              :block="false"
-              label="重新扫码"
-              @click="scanDevice"
+          <view v-else class="cabinet-head">
+            <image
+              class="cabinet-thumb"
+              src="/static/device-default.png"
+              mode="aspectFill"
+              aria-hidden="true"
             />
+            <view class="cabinet-id">
+              <!-- 名称与「重新扫码」同一行，编号/柜型独占整卡宽度：
+                   否则右侧按钮会把状态文字挤成「…按商品 / 盘点」这种断字换行 -->
+              <view class="cabinet-name-row">
+                <text class="cabinet-name">{{ deviceName || deviceId }}</text>
+                <app-button
+                  variant="text"
+                  size="sm"
+                  :block="false"
+                  label="重新扫码"
+                  @click="scanDevice"
+                />
+              </view>
+              <!-- 无名称时 deviceName 已兜底成编号，再单列一行编号就成了同一串重复两遍 -->
+              <text v-if="deviceName && deviceName !== deviceId" class="cabinet-code">{{
+                deviceId
+              }}</text>
+              <text class="cabinet-state" :class="isDoorCabinet ? 'is-ok' : 'is-warn'">
+                {{
+                  isDoorCabinet
+                    ? '开门柜 · 按商品盘点'
+                    : '不支持在线盘点 · 仅将邑开门柜可按商品盘点'
+                }}
+              </text>
+            </view>
           </view>
         </view>
 
-        <template v-if="deviceId">
-          <!-- 开门柜：盘点开门 + 逐商品实盘 -->
-          <template v-if="isDoorCabinet">
-            <view class="card">
-              <text class="section">盘点开门</text>
-              <view class="door-row">
-                <app-button
-                  compact
-                  :block="false"
-                  :loading="opening"
-                  label="盘点开门"
-                  @click="openDoor"
-                />
-                <text class="meta">门禁式：扫柜机码即自动开门；此按钮为手动兜底（带确认）</text>
-              </view>
+        <template v-if="deviceId && isDoorCabinet">
+          <!-- ② 现场两件事：开门 + 留证，并排一次点完 -->
+          <view class="op-grid">
+            <view class="op-tile">
+              <text class="op-label">盘点开门</text>
+              <app-button :loading="opening" label="开门" @click="openDoor" />
             </view>
-
-            <view class="card">
-              <view class="row">
-                <text class="section">盘点凭证</text>
-              </view>
-              <view class="evidence-row">
-                <app-button
-                  variant="secondary"
-                  compact
-                  :block="false"
-                  :label="evidenceUrl ? '已上传（重拍替换）' : '拍现场照'"
-                  @click="chooseEvidence"
-                />
-                <text v-if="evidenceUrl" class="meta">凭证已随本次盘点提交</text>
-              </view>
+            <view class="op-tile" :class="{ 'is-done': !!evidenceUrl }">
+              <text class="op-label">盘点凭证</text>
+              <app-button
+                variant="outline"
+                :loading="uploadingEvidence"
+                :label="evidenceUrl ? '已拍·重拍' : '拍现场照'"
+                @click="chooseEvidence"
+              />
             </view>
+          </view>
+          <text class="op-hint"
+            >扫柜机码即自动开门，此按钮为手动兜底（带确认）；凭证需拍到柜内商品。</text
+          >
 
-            <view class="card">
-              <view class="row">
-                <text class="section">商品实盘</text>
-                <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
+          <!-- ③ 实盘清单：台账与差值就在数量旁边 -->
+          <view class="card">
+            <view class="list-head">
+              <text class="section">商品实盘</text>
+              <text class="list-stat">{{ goods.length }} 项 · 待调 {{ pendingCount }}</text>
+            </view>
+            <text v-if="loading" class="meta">{{ UI_COPY.loading }}</text>
+
+            <!-- 本次调账结果：提交后刷新台账也要保住这块（此前被 loadDevice 清空成死代码） -->
+            <view v-if="doorResult?.length" class="result-box">
+              <view class="result-head">
+                <text class="result-title">本次调账已完成</text>
+                <text class="result-count">{{ doorResult.length }} 项</text>
               </view>
-              <view v-for="g in goods" :key="g.skuId" class="goods-row">
-                <image
-                  v-if="g.imageUrl"
-                  :src="g.imageUrl"
-                  mode="aspectFill"
-                  class="goods-img"
-                  @error="g.imageUrl = null"
-                />
-                <view v-else class="goods-img goods-img-fallback">
-                  <text>{{ (g.skuName || g.skuId).slice(0, 1) }}</text>
-                </view>
-                <view class="goods-main">
-                  <text class="goods-name">{{ g.skuName || g.skuId }}</text>
-                  <text class="meta">台账 {{ g.quantity ?? 0 }}</text>
-                </view>
-                <input
-                  v-model="goodsInputs[g.skuId]"
-                  class="input stock-input"
-                  type="number"
-                  placeholder="实盘"
-                />
-              </view>
-              <text v-if="!loading && !goods.length" class="meta">暂无在架商品</text>
-              <view v-if="goods.length" class="submit-row">
-                <app-button
-                  :block="false"
-                  :loading="submittingDoor"
-                  label="提交实盘调账"
-                  @click="submitDoorStocktake"
-                />
-                <text class="meta">只提交与台账有差异的商品；调账批次可追溯</text>
-              </view>
-              <view v-if="doorResult?.length" class="result-box">
-                <text class="section">本次调账结果</text>
-                <text v-for="r in doorResult" :key="r.skuId" class="meta">
-                  {{ r.skuId }}：{{ r.quantityBefore }} → {{ r.quantityAfter }}（{{
-                    r.delta > 0 ? '+' : ''
-                  }}{{ r.delta }}）
+              <view v-for="r in doorResult" :key="r.skuId" class="result-row">
+                <text class="result-name">{{ r.skuName || r.skuId }}</text>
+                <text class="result-flow">{{ r.quantityBefore }} → {{ r.quantityAfter }}</text>
+                <text class="result-delta" :class="r.delta > 0 ? 'is-up' : 'is-down'">
+                  {{ r.delta > 0 ? '+' : '' }}{{ r.delta }}
                 </text>
               </view>
             </view>
-          </template>
 
-          <view v-else-if="!loading" class="card">
-            <text class="err">该柜不支持在线盘点：仅将邑开门柜支持按商品盘点</text>
+            <view v-for="g in goods" :key="g.skuId" class="goods-row">
+              <image
+                v-if="g.imageUrl"
+                :src="g.imageUrl"
+                mode="aspectFill"
+                class="goods-img"
+                @error="g.imageUrl = null"
+              />
+              <view v-else class="goods-img goods-img-fallback">
+                <text>{{ (g.skuName || g.skuId).slice(0, 1) }}</text>
+              </view>
+              <view class="goods-main">
+                <text class="goods-name">{{ g.skuName || g.skuId }}</text>
+                <view class="goods-facts">
+                  <text class="book">台账 {{ g.quantity ?? 0 }}</text>
+                  <text v-if="isBlank(g)" class="delta is-blank">未填</text>
+                  <text v-else-if="diffMap[g.skuId] === 0" class="delta is-same">一致</text>
+                  <text
+                    v-else-if="diffMap[g.skuId] != null"
+                    class="delta"
+                    :class="(diffMap[g.skuId] ?? 0) > 0 ? 'is-up' : 'is-down'"
+                  >
+                    差 {{ (diffMap[g.skuId] ?? 0) > 0 ? '+' : '' }}{{ diffMap[g.skuId] }}
+                  </text>
+                </view>
+              </view>
+              <view class="stepper">
+                <text
+                  class="step-btn"
+                  role="button"
+                  aria-label="减少实盘数量"
+                  hover-class="step-btn-hover"
+                  @click="adjustQty(g, -1)"
+                  >−</text
+                >
+                <input
+                  v-model="goodsInputs[g.skuId]"
+                  class="step-input"
+                  type="number"
+                  placeholder="—"
+                />
+                <text
+                  class="step-btn"
+                  role="button"
+                  aria-label="增加实盘数量"
+                  hover-class="step-btn-hover"
+                  @click="adjustQty(g, 1)"
+                  >+</text
+                >
+              </view>
+            </view>
+            <text v-if="!loading && !goods.length" class="meta">暂无在架商品</text>
           </view>
         </template>
+
+        <!-- 不支持在线盘点：说明已并入上方柜机条的状态行，这里不再重复一张红字卡 -->
       </template>
+    </view>
+
+    <!-- ④ 吸底提交：长清单不用滚到底，条上先告诉你要动几项 -->
+    <view v-if="showDock" class="dock">
+      <view class="dock-stat">
+        <text v-if="pendingCount" class="dock-num">{{ pendingCount }}</text>
+        <text class="dock-label">{{ pendingCount ? ' 项待调账' : '与台账一致' }}</text>
+      </view>
+      <app-button
+        class="dock-btn"
+        :block="false"
+        :disabled="!pendingCount"
+        :loading="submittingDoor"
+        label="提交实盘调账"
+        @click="submitDoorStocktake"
+      />
     </view>
   </view>
 </template>
@@ -398,133 +525,170 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
 .page-body {
   padding: 24rpx var(--page-gutter, 24rpx) calc(48rpx + env(safe-area-inset-bottom));
 }
-.card {
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 24rpx;
-}
-.section {
-  font-size: 30rpx;
-  font-weight: 600;
-}
-.row {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
+/* 吸底条占位：否则最后一行商品被压在提交条下面 */
+.page-body-dock {
+  padding-bottom: calc(200rpx + env(safe-area-inset-bottom));
 }
 .meta {
-  font-size: 24rpx;
-  color: #909399;
-}
-.title {
-  font-size: 32rpx;
-  font-weight: 700;
-  display: block;
-  margin-bottom: 8rpx;
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
 }
 .err {
-  color: #d03050;
+  color: var(--danger, #b91c1c);
+  font-size: var(--font-size-md, 28rpx);
 }
-.scan-empty {
+
+/* —— ① 扫码入口 / 柜机身份 —— */
+.scan-entry {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  margin-top: 12rpx;
-}
-.scan-done {
-  margin-top: 12rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  align-items: flex-start;
-}
-.evidence-row {
-  display: flex;
   align-items: center;
-  gap: 16rpx;
-  margin-top: 12rpx;
+  gap: 12rpx;
+  padding: 16rpx 0 8rpx;
 }
-.door-row {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-top: 12rpx;
-  align-items: flex-start;
-}
-.goods-row {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-.goods-img {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 12rpx;
-  flex-shrink: 0;
-  background: #f5f6f8;
-}
-.goods-img-fallback {
+.scan-mark {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 28rpx;
+  /* 纯 --brand-soft 在白色卡片上几乎看不出块形，用更深一档的 mist 才有「入口」的分量 */
+  background: var(--brand-mist, #ccfbf1);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
-  font-size: 36rpx;
+  margin-bottom: 4rpx;
 }
-.goods-main {
+.scan-mark-txt {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: var(--brand, #0d9488);
+}
+.scan-title {
+  font-size: var(--font-size-lg, 32rpx);
+  font-weight: 650;
+  color: var(--color-text-primary, #0f172a);
+}
+.scan-hint {
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 12rpx;
+}
+.cabinet-head {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.cabinet-thumb {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 20rpx;
+  flex-shrink: 0;
+  background: var(--surface-muted, #f4f7f5);
+}
+.cabinet-id {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4rpx;
 }
-.goods-name {
-  font-weight: 600;
-  font-size: 28rpx;
-}
-.submit-row {
+.cabinet-name-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 8rpx;
-  margin-top: 20rpx;
-  align-items: flex-start;
 }
-.result-box {
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-  margin-top: 20rpx;
-  padding: 16rpx;
-  background: #f7f8fa;
-  border-radius: 12rpx;
+.cabinet-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-lg, 32rpx);
+  font-weight: 700;
+  color: var(--color-text-primary, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.stock-input {
-  width: 120rpx;
-  border: 1rpx solid #dcdfe6;
-  border-radius: 8rpx;
-  padding: 8rpx 12rpx;
-  font-size: 26rpx;
+.cabinet-code {
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+}
+.cabinet-state {
+  font-size: var(--font-size-sm, 24rpx);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.cabinet-state.is-ok {
+  color: var(--brand, #0d9488);
+}
+.cabinet-state.is-warn {
+  color: var(--warning, #b45309);
 }
 
-/* —— 统一到 shared-uni 的组件度量（本页覆盖，勿各页再散写） —— */
-.card {
+/* —— ② 开门 / 凭证 并排 —— */
+.op-grid {
+  display: flex;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+.op-tile {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  padding: 20rpx;
   border-radius: 24rpx;
-  padding: 28rpx;
-  margin-bottom: 20rpx;
+  background: var(--card-bg, #fff);
   box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
 }
-.section {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: var(--color-text-primary, #0f172a);
+/* 凭证已拍：左侧一道品牌色细边，扫一眼就知道「这步做完了」 */
+.op-tile.is-done {
+  box-shadow:
+    inset 3rpx 0 0 var(--brand, #0d9488),
+    0 2rpx 12rpx rgba(15, 23, 42, 0.04);
 }
-.goods-img,
-.goods-img-fallback {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 20rpx;
+.op-label {
+  font-size: var(--font-size-sm, 24rpx);
+  font-weight: 650;
+  color: var(--color-text-secondary, #64748b);
+}
+.op-hint {
+  display: block;
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+  line-height: 1.5;
+  padding: 0 4rpx;
+  margin-bottom: 20rpx;
+}
+
+/* —— ③ 实盘清单 —— */
+.list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-bottom: 4rpx;
+}
+.list-stat {
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+}
+.goods-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid var(--color-border-subtle, #f3f4f6);
+}
+.goods-row:last-child {
+  border-bottom: none;
+}
+.goods-img {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 18rpx;
+  flex-shrink: 0;
+  background: var(--surface-muted, #f4f7f5);
 }
 .goods-img-fallback {
   display: flex;
@@ -532,16 +696,185 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
   justify-content: center;
   background: var(--brand-soft, #f0fdfa);
   color: var(--brand, #0d9488);
-  font-size: 40rpx;
+  font-size: 36rpx;
   font-weight: 600;
 }
-.stock-input {
-  width: 132rpx;
-  height: 76rpx;
-  text-align: center;
-  font-size: 30rpx;
+.goods-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.goods-name {
+  font-size: var(--font-size-md, 28rpx);
   font-weight: 600;
-  background: #f8fafc;
-  border-radius: 16rpx;
+  color: var(--color-text-primary, #0f172a);
+  line-height: 1.35;
+}
+.goods-facts {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+}
+.book {
+  font-size: var(--font-size-xs, 22rpx);
+  color: var(--color-text-secondary, #64748b);
+}
+.delta {
+  font-size: var(--font-size-xs, 22rpx);
+  font-weight: 700;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
+}
+.delta.is-up {
+  color: var(--brand, #0d9488);
+  background: var(--brand-soft, #f0fdfa);
+}
+.delta.is-down {
+  color: var(--warning, #b45309);
+  background: var(--warning-soft, #fff7ed);
+}
+.delta.is-same {
+  color: var(--color-text-muted, #94a3b8);
+  background: var(--surface-muted, #f4f7f5);
+}
+.delta.is-blank {
+  color: var(--warning, #b45309);
+  background: var(--warning-soft, #fff7ed);
+}
+
+/* 数量步进：视觉 56rpx，热区靠 ::after 撑到 92rpx（门禁口径 88rpx，同 ReplenishLinesSection） */
+.stepper {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 4rpx;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--brand-soft, #f0fdfa);
+}
+.step-btn {
+  position: relative;
+  width: 56rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: var(--card-bg, #fff);
+  color: var(--brand, #0d9488);
+  font-size: var(--font-size-lg, 32rpx);
+  font-weight: 700;
+}
+.step-btn::after {
+  content: '';
+  position: absolute;
+  inset: -18rpx;
+}
+.step-btn-hover {
+  background: var(--brand-mist, #ccfbf1);
+}
+.step-input {
+  width: 88rpx;
+  height: 56rpx;
+  min-height: 56rpx;
+  text-align: center;
+  font-size: var(--font-size-lg, 32rpx);
+  font-weight: 700;
+  color: var(--color-text-primary, #0f172a);
+}
+
+/* —— 本次调账结果 —— */
+.result-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  margin: 16rpx 0 8rpx;
+  padding: 20rpx;
+  border-radius: 18rpx;
+  background: var(--brand-soft, #f0fdfa);
+}
+.result-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.result-title {
+  font-size: var(--font-size-body, 26rpx);
+  font-weight: 700;
+  color: var(--brand-deep, #115e59);
+}
+.result-count {
+  font-size: var(--font-size-xs, 22rpx);
+  color: var(--brand-deep, #115e59);
+}
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.result-name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-primary, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-flow {
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+}
+.result-delta {
+  font-size: var(--font-size-sm, 24rpx);
+  font-weight: 700;
+  min-width: 56rpx;
+  text-align: right;
+}
+.result-delta.is-up {
+  color: var(--brand, #0d9488);
+}
+.result-delta.is-down {
+  color: var(--warning, #b45309);
+}
+
+/* —— ④ 吸底提交条 —— */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 16rpx var(--page-gutter, 24rpx) calc(16rpx + env(safe-area-inset-bottom));
+  background: var(--card-bg, #fff);
+  border-top: 1rpx solid var(--color-border-subtle, #f3f4f6);
+  box-shadow: 0 -4rpx 20rpx rgba(15, 23, 42, 0.06);
+}
+.dock-stat {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+}
+.dock-num {
+  font-size: var(--font-size-h3, 40rpx);
+  font-weight: 700;
+  color: var(--warning, #b45309);
+  line-height: 1;
+}
+.dock-label {
+  font-size: var(--font-size-sm, 24rpx);
+  color: var(--color-text-secondary, #64748b);
+}
+.dock-btn {
+  flex: 0 0 auto;
+  /* 尺寸写在本类上：app-button 的 88rpx 在组件样式里，页面这层看不见 ⇒ 触控门禁会把它
+     算成「量不出热区的可点类」（实测 285→286）。这里显式重复一次，判据可证。 */
+  min-width: 88rpx;
+  min-height: 88rpx;
 }
 </style>

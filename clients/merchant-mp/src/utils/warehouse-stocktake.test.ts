@@ -6,10 +6,13 @@ import {
   diffReasonLabel,
   diffReasonOptionsFor,
   isLineEditable,
+  lineDiff,
   resolveWarehouseGate,
   stocktakeLineStateClass,
+  stocktakeLineStatusLabel,
   stocktakeModeLabel,
-  stocktakeStatusLabel
+  stocktakeStatusLabel,
+  STOCKTAKE_STATUS_TABS
 } from './warehouse-stocktake';
 
 describe('diffReasonOptionsFor', () => {
@@ -62,6 +65,48 @@ describe('labels', () => {
     expect(stocktakeModeLabel('OPEN')).toBe('明盘');
     expect(stocktakeLineStateClass('DIFF')).toBe('diff');
     expect(stocktakeLineStateClass(undefined)).toBe('pending');
+  });
+
+  it('行状态文案走字典单源（未盘/相符/有差异/已调整）', () => {
+    expect(stocktakeLineStatusLabel('PENDING')).toBe('未盘');
+    expect(stocktakeLineStatusLabel(null)).toBe('未盘');
+    expect(stocktakeLineStatusLabel('MATCHED')).toBe('相符');
+    expect(stocktakeLineStatusLabel('DIFF')).toBe('有差异');
+    expect(stocktakeLineStatusLabel('ADJUSTED')).toBe('已调整');
+    // 未知码不外泄英文枚举（displayLabel 的既有语义：未知码 → 未知）
+    expect(stocktakeLineStatusLabel('WEIRD')).toBe('未知');
+  });
+
+  it('筛选页签与状态徽章同一套词（防「草稿/待录入」两个词指一个状态）', () => {
+    for (const tab of STOCKTAKE_STATUS_TABS) {
+      if (tab.value === 'ALL') continue;
+      expect(tab.label).toBe(stocktakeStatusLabel(tab.value));
+    }
+  });
+});
+
+describe('lineDiff（未录入 ≠ 填 0）', () => {
+  it('空输入返回 null，不得当成 0 ⇒ 不得显示「盘亏 = 整批账面」', () => {
+    expect(lineDiff('', 12)).toBeNull();
+    expect(lineDiff('   ', 12)).toBeNull();
+    expect(lineDiff(null, 12)).toBeNull();
+    expect(lineDiff(undefined, 12)).toBeNull();
+    // 反证：旧实现 Number('') === 0 ⇒ 12 - 12... 实际是 0 - 12 = -12（整批盘亏）
+    expect(0 - 12).toBe(-12);
+  });
+
+  it('合法整数按「实盘 − 账面」给符号', () => {
+    expect(lineDiff('10', 12)).toBe(-2);
+    expect(lineDiff(14, 12)).toBe(2);
+    expect(lineDiff('12', 12)).toBe(0);
+    expect(lineDiff('0', 12)).toBe(-12);
+    expect(lineDiff('0', 0)).toBe(0);
+  });
+
+  it('非整数/负数归 null（录入在途的临时态，不产生方向结论）', () => {
+    expect(lineDiff('1.5', 12)).toBeNull();
+    expect(lineDiff('abc', 12)).toBeNull();
+    expect(lineDiff('-1', 12)).toBeNull();
   });
 });
 

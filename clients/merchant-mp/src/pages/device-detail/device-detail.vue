@@ -119,21 +119,12 @@
           @change="onDetailTab"
         />
 
-        <!-- CB-050：快捷操作宫格（收拢散落入口） -->
+        <!-- CB-050：快捷操作宫格（收拢散落入口）。
+             2026-11-10 重排：删「在售商品」入口（与「商品」页签语义完全重复），
+             5 格 2/2/1 换行 → 4 格 2×2；补货双入口放前（本页高频动作）。 -->
         <view class="card" v-show="activeTab === 'overview'">
           <text class="section">快捷操作</text>
           <view class="action-grid">
-            <view
-              class="action-cell"
-              role="button"
-              aria-label="查看在售商品"
-              @click="scrollToSlots"
-            >
-              <text>在售商品</text>
-            </view>
-            <view class="action-cell" role="button" aria-label="查看货柜订单" @click="goOrders">
-              <text>货柜订单</text>
-            </view>
             <view
               v-if="canReplenishView"
               class="action-cell"
@@ -151,6 +142,9 @@
               @click="goRequest"
             >
               <text>发起补货</text>
+            </view>
+            <view class="action-cell" role="button" aria-label="查看货柜订单" @click="goOrders">
+              <text>货柜订单</text>
             </view>
             <view class="action-cell" role="button" aria-label="理货记录" @click="goTallyRecords">
               <text>理货记录</text>
@@ -222,7 +216,7 @@
           <app-button v-if="canEditDevice" label="商品采集（手机拍照）" @click="goJiangyiCapture" />
         </view>
 
-        <view id="goodsCard" class="card" v-show="activeTab === 'goods'">
+        <view class="card" v-show="activeTab === 'goods'">
           <view class="row">
             <text class="section">在架商品</text>
             <text class="meta">按商品备货，库存为台账在架数</text>
@@ -655,20 +649,6 @@ async function sendCmd(command: 'LOCK' | 'UNLOCK' | 'REBOOT') {
   } finally {
     cmdBusy.value = false;
   }
-}
-
-/** 快捷操作：滚到在架商品卡（选项式：先切到商品页签再定位） */
-function scrollToSlots() {
-  activeTab.value = 'goods';
-  uni
-    .createSelectorQuery()
-    .select('#goodsCard')
-    .boundingClientRect((rect) => {
-      const top = (rect as { top?: number } | null)?.top;
-      if (top == null) return;
-      uni.pageScrollTo({ scrollTop: top + 2, duration: 200 });
-    })
-    .exec();
 }
 
 /** 快捷操作：跳货柜订单（订单页支持 deviceId 预置筛选） */

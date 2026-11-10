@@ -84,66 +84,64 @@
                   @click.stop="togglePreferred(d.deviceId)"
                   >★</text
                 >
+                <!-- 2026-11-10 重排：状态标签从右侧独立竖列并进名称行。原来那条竖列白占 96rpx，
+                     正文和「导航」都被挤在卡片中间；并进来后正文可用整卡宽度，导航才能真贴右边。 -->
+                <view class="device-tags">
+                  <text v-if="d.salesLocked" class="tag tag-lock">{{ UI_COPY.salesLocked }}</text>
+                  <text v-else-if="d.replenishmentInProgress" class="tag tag-warn">{{
+                    UI_COPY.replenishing
+                  }}</text>
+                  <!-- 在线/离线常驻：2026-10-05 改卡片时把它做成三选一的末档，补货中/停售会把运行状态整个吞掉 -->
+                  <text class="tag" :class="d.online ? 'tag-on' : 'tag-off'">{{
+                    onlineLabel(!!d.online)
+                  }}</text>
+                </view>
               </view>
-              <text class="meta">{{ d.deviceId }}</text>
-              <!-- 2026-10-28：今日收入上移到名称/编号下方醒目处（原在 chips 行之后的最底行） -->
+              <!-- 2026-11-10：编号（deviceId）不在卡片展示——点进详情即可见，列表卡片不重复。
+                   2026-10-28：今日收入上移到名称下方醒目处（原在 chips 行之后的最底行） -->
               <text v-if="canSeeRevenue" class="meta revenue"
                 >今日收入 {{ fmtMoney(revenueCentsByDevice[d.deviceId ?? ''] || 0) }}</text
               >
               <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-              <!-- 状态/经营指标合并为可换行 chips 行：此前三条竖排 meta 让卡片又高又散（2026-10-25 排版优化） -->
-              <view
-                v-if="
-                  d.routeCode ||
-                  lifecycleText(d.lifecycleStatus) ||
-                  d.currentTempC != null ||
-                  stockSummary(d) ||
-                  cardMetrics(d)
-                "
-                class="stat-row"
-              >
-                <text v-if="d.routeCode" class="stat-chip">线路 {{ d.routeCode }}</text>
-                <text v-if="lifecycleText(d.lifecycleStatus)" class="stat-chip">{{
-                  lifecycleText(d.lifecycleStatus)
-                }}</text>
-                <text v-if="d.currentTempC != null" class="stat-chip">{{ d.currentTempC }}°C</text>
-                <text v-if="stockSummary(d)" class="stat-chip stat-chip-warn">{{
-                  stockSummary(d)
-                }}</text>
-                <!-- CB-050 扩展：柜机卡片经营指标（填充率/最近核对库存/最近补货） -->
-                <text v-if="cardMetrics(d)" class="stat-chip">{{ cardMetrics(d) }}</text>
+              <!-- 状态/经营指标合并为可换行 chips 行：此前三条竖排 meta 让卡片又高又散（2026-10-25 排版优化）。
+                   2026-11-10：停售原因长句与固件版本不再展示——右上已有「停售」标签，原因属详情页信息，
+                   卡片只留商户决策要看的内容；导航与这一行同排，底部不再另起一行，卡片不留空白。 -->
+              <view class="stat-line">
+                <view
+                  v-if="
+                    d.routeCode ||
+                    lifecycleText(d.lifecycleStatus) ||
+                    d.currentTempC != null ||
+                    stockSummary(d) ||
+                    cardMetricList(d).length
+                  "
+                  class="stat-row"
+                >
+                  <text v-if="d.routeCode" class="stat-chip">线路 {{ d.routeCode }}</text>
+                  <text v-if="lifecycleText(d.lifecycleStatus)" class="stat-chip">{{
+                    lifecycleText(d.lifecycleStatus)
+                  }}</text>
+                  <text v-if="d.currentTempC != null" class="stat-chip"
+                    >{{ d.currentTempC }}°C</text
+                  >
+                  <text v-if="stockSummary(d)" class="stat-chip stat-chip-warn">{{
+                    stockSummary(d)
+                  }}</text>
+                  <!-- CB-050 扩展：柜机卡片指标（填充率/最近核对/最近补货），逐条一个 chip -->
+                  <text v-for="m in cardMetricList(d)" :key="m" class="stat-chip">{{ m }}</text>
+                </view>
+                <view
+                  v-if="d.latitude != null && d.longitude != null"
+                  class="nav-link app-link-chevron"
+                  role="button"
+                  aria-label="导航"
+                  hover-class="nav-link-hover"
+                  @click.stop="openNav(d)"
+                  >导航</view
+                >
               </view>
-              <text v-else-if="d.firmwareVersion" class="meta">固件 {{ d.firmwareVersion }}</text>
             </view>
           </view>
-          <view class="device-right">
-            <text v-if="d.salesLocked" class="tag tag-lock">{{ UI_COPY.salesLocked }}</text>
-            <text v-else-if="d.replenishmentInProgress" class="tag tag-warn">{{
-              UI_COPY.replenishing
-            }}</text>
-            <!-- 在线/离线常驻：2026-10-05 改卡片时把它做成三选一的末档，补货中/停售会把运行状态整个吞掉 -->
-            <text class="tag" :class="d.online ? 'tag-on' : 'tag-off'">{{
-              onlineLabel(!!d.online)
-            }}</text>
-          </view>
-        </view>
-        <view
-          v-if="(d.salesLocked && d.salesLockReason) || (d.latitude != null && d.longitude != null)"
-          class="device-foot"
-        >
-          <text v-if="d.salesLocked && d.salesLockReason" class="device-note">{{
-            d.salesLockReason
-          }}</text>
-          <view v-else class="device-note-spacer" />
-          <view
-            v-if="d.latitude != null && d.longitude != null"
-            class="nav-link app-link-chevron"
-            role="button"
-            aria-label="导航"
-            hover-class="nav-link-hover"
-            @click.stop="openNav(d)"
-            >导航</view
-          >
         </view>
       </view>
       <empty-state
@@ -395,17 +393,22 @@ function lifecycleText(status?: string) {
   return dictLabel('device_lifecycle', status) || '';
 }
 
-/** CB-050 扩展：柜机卡片指标行（填充率/最近核对库存/最近补货，字段来自 MerchantDeviceDto）。 */
-function cardMetrics(d: {
+/**
+ * CB-050 扩展：柜机卡片指标行（填充率/最近核对库存/最近补货，字段来自 MerchantDeviceDto）。
+ * 2026-11-10：原来把它们用「·」拼成一个长胶囊，导航并进同一行后该胶囊被挤成省略号
+ * （真机实测「最近补货 10/30 15:52」→「最近补货 10/30 1…」）。改为逐条独立 chip，
+ * 各自可换行，信息不再被截断。
+ */
+function cardMetricList(d: {
   fillRatePct?: number | null;
   lastCheckAt?: string | null;
   lastRestockAt?: string | null;
-}): string {
+}): string[] {
   const parts: string[] = [];
   if (d.fillRatePct != null) parts.push(`填充率 ${d.fillRatePct}%`);
   if (d.lastCheckAt) parts.push(`最近核对 ${formatDateTimeShort(d.lastCheckAt)}`);
   if (d.lastRestockAt) parts.push(`最近补货 ${formatDateTimeShort(d.lastRestockAt)}`);
-  return parts.join(' · ');
+  return parts;
 }
 
 function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: number | null }) {
@@ -420,7 +423,9 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
 
 <style scoped>
 .meta.addr {
-  max-width: 380rpx;
+  /* 2026-11-10：编号行删掉后正文恢复整卡宽度，原先 380rpx 的窄上限已无理由，
+     实测会把「深圳市罗湖区演示点位 B（CAB-OTHER）」截成「…（CAB-O…」。 */
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -515,24 +520,25 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   align-items: flex-start;
   gap: 16rpx;
 }
-.device-right {
+/* 2026-11-10：状态标签并进名称行后不再独占右侧竖列，横向并排、整体靠右 */
+.device-tags {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 12rpx;
+  align-items: center;
+  gap: 8rpx;
   flex: 0 0 auto;
-  box-sizing: border-box;
-  padding-top: 2rpx;
 }
 .tag {
+  /* 2026-11-10 重排：标签从「右侧竖列、一列一个」改成名称行内并排，
+     原 96rpx 最小宽 + 26rpx 字号会把名称挤没，收成内容宽度的小徽章。 */
   display: inline-block;
-  min-width: 96rpx;
-  padding: 12rpx 20rpx;
-  border-radius: 12rpx;
-  font-size: 26rpx;
+  min-width: 0;
+  padding: 4rpx 14rpx;
+  border-radius: 8rpx;
+  font-size: 22rpx;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.4;
   text-align: center;
+  white-space: nowrap;
   box-sizing: border-box;
 }
 .tag-lock {
@@ -579,36 +585,20 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
 .star.on {
   color: var(--warning, #f59e0b);
 }
-.device-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  margin-top: 16rpx;
-  padding-top: 14rpx;
-  border-top: 1rpx solid var(--color-border-subtle, #e2e8f0);
-}
-.device-note {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--font-size-xs, 20rpx);
-  color: var(--warning, #b45309);
-  line-height: 1.4;
-}
-.device-note-spacer {
-  flex: 1;
-  min-width: 0;
-}
 .nav-link {
   /* MA-162：真机 38×16。同 aux-link 配方：min-width/min-height 让判据可证 + 纵向 inset。 */
+  /* 2026-11-10：导航改为与 chips 行同排（.stat-line 的末项，贴该行右下角），
+     不再绝对定位——底栏/占位都不需要，卡片高度不再为导航多留一行。
+     relative 是给热区伪元素当定位基准，别删（删了 ::before 会相对外层容器扩，吞掉相邻点击）。 */
   position: relative;
+  align-self: flex-end;
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 96rpx;
   min-height: 48rpx;
   flex-shrink: 0;
-  margin: 0;
   padding: 0;
   font-size: 26rpx;
   font-weight: 600;
@@ -728,8 +718,13 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   max-width: 100%;
 }
 .name-row .name {
-  flex: 1;
+  /* 2026-11-10：名称不再吃满整行（flex:1 会把星标顶到最右、和状态标签挤在一起），
+     改成按内容宽度、超长才收缩省略，星标紧跟名称，状态标签靠 margin-left:auto 贴右。 */
+  flex: 0 1 auto;
   min-width: 0;
+}
+.name-row .device-tags {
+  margin-left: auto;
 }
 .meta.revenue {
   /* 2026-10-28：今日收入上移到名称下方醒目处，品牌色 + 加粗强调 */
@@ -742,14 +737,26 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
 }
 /* 卡片状态/经营指标 chips 行（2026-10-25 排版优化）：flex wrap 逐项成胶囊，
    规避历史「inline 拼接连句」的换行坑（lessons：.meta.addr 注释） */
+/* 2026-11-10：chips 行与「导航」同排的最后一行——chips 占左侧自动换行，导航贴该行右下角。
+   导航不进底栏、不绝对定位，卡片高度不再为它单独留一行（用户否定的正是底部大片空白）。 */
+.stat-line {
+  display: flex;
+  align-items: flex-end;
+  gap: 12rpx;
+  margin-top: 8rpx;
+}
 .stat-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8rpx 12rpx;
-  margin-top: 8rpx;
+  /* 与 .nav-link 抢宽度：可压缩，否则长 chips 会把导航顶出卡片 */
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
   max-width: 100%;
 }
+/* 停售原因长句 2026-11-10 起不在卡片展示（理由见模板注释），样式随之删除 */
 .stat-chip {
   display: inline-block;
   padding: 4rpx 14rpx;

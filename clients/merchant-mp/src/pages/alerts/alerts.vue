@@ -69,7 +69,7 @@
         role="button"
         @click="handleItem(a)"
       >
-        <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
+        <text v-if="showTypeTag(a)" class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ sanitizeNotifyTitle(a.title) }}</text>
         <text v-if="a.deviceId" class="meta">柜机 {{ deviceLabel(a.deviceId) }}</text>
         <text v-if="a.detail" class="meta">{{ sanitizeNotifyTitle(a.detail) }}</text>
@@ -216,6 +216,16 @@ function severityText(sev?: string) {
   if (s === 'MEDIUM') return '中';
   if (s === 'LOW') return '低';
   return sev || '';
+}
+
+/**
+ * 2026-11-10：类型标签与标题常常同义（「开门超时」/「开门超时」、「柜机离线」/「柜机离线」），
+ * 两个都渲染时同一句话在一条卡片里出现两遍。标题已表达含义时不再重复出标签。
+ */
+function showTypeTag(a: AlertRow) {
+  const label = String(a.typeLabel || '').trim();
+  if (!label) return false;
+  return label !== sanitizeNotifyTitle(a.title || '').trim();
 }
 
 function tagClass(type: string) {

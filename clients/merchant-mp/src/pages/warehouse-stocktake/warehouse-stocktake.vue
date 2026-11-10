@@ -1,149 +1,176 @@
 <template>
-  <view class="page">
+  <view class="page-root">
     <app-nav-bar title="仓库盘点" home-url="/pages/home/home" />
-    <view class="page-body">
+    <view class="page-body" :class="{ 'page-body-dock': showDock }">
       <!-- ── 列表 ── -->
-      <view v-if="mode === 'list'" class="panel">
-        <view class="card">
-          <text class="label">盘点仓</text>
-          <text class="warehouse-name">{{ warehouseGate.nameText }}</text>
-          <text class="hint">仅本人负责的分仓可盘点</text>
-        </view>
-
-        <app-underline-tabs
-          layout="scroll"
-          :items="statusTabs"
-          :value="statusTab"
-          @change="onStatusTab"
-        />
-
-        <!-- 2026-10-28：分仓解析失败必须常驻错误态（此前只弹一次 toast，页面永久停在「加载中…」） -->
+      <template v-if="mode === 'list'">
+        <!-- ① 分仓身份一条：与柜机盘点同语言（图标+名称+说明），不再「标签/仓名/提示」三行各占一处 -->
         <view v-if="warehouseGate.state === 'error'" class="card">
           <error-state :message="warehouseError" retry-label="重试" @retry="retryWarehouse" />
         </view>
-        <view v-else-if="listError" class="card">
+        <view v-else class="card wh-card">
+          <view class="wh-mark" aria-hidden="true"><text class="wh-mark-txt">仓</text></view>
+          <view class="wh-id">
+            <text class="wh-name">{{ warehouseGate.nameText }}</text>
+            <text class="wh-hint">仅本人负责的分仓可盘点</text>
+          </view>
+        </view>
+
+        <!-- ② 状态筛选：5 个页签超屏宽，右侧渐隐告诉用户「还能往左滑」 -->
+        <view class="tabs-wrap">
+          <app-underline-tabs
+            layout="scroll"
+            :items="statusTabs"
+            :value="statusTab"
+            @change="onStatusTab"
+          />
+        </view>
+
+        <!-- ③ 盘点单列表 -->
+        <view v-if="listError" class="card">
           <error-state :message="listError" retry-label="重试" @retry="loadList" />
         </view>
-        <view v-else-if="listLoading || warehouseGate.state === 'loading'" class="card">
+        <view v-else-if="listLoading" class="card">
           <view class="empty-inline">加载中…</view>
         </view>
         <view v-else-if="!stocktakes.length" class="card">
-          <view class="empty-inline">暂无盘点单</view>
-        </view>
-        <view
-          v-for="st in stocktakes"
-          v-else
-          :key="st.stocktakeId"
-          role="button"
-          class="card st-card"
-          @click="openDetail(Number(st.stocktakeId))"
-        >
-          <view class="row-between">
-            <text class="st-no">{{ st.stocktakeNo }}</text>
-            <text class="st-status" :class="lineStateClass(st.status)">{{
-              stocktakeStatusLabel(st.status)
-            }}</text>
+          <view class="empty-inline">
+            {{ statusTab === 'ALL' ? '暂无盘点单' : `没有「${tabLabel}」的盘点单` }}
           </view>
-          <!-- MA-032：明盘单在创建时就把 counted 预填成账面（DB 实证 9 行全 PENDING、
-               counted=book），所以「待录入」态显示「实盘 502 · 差异 0（0 行）」会被读成
-               「已核平无差异」。数字没撒谎，撒谎的是状态语义 ⇒ 未录入时不报差异。 -->
-          <text class="sku-meta">
-            {{ stocktakeModeLabel(st.mode) }} · 账面 {{ st.bookQty }} ·
-            <template v-if="st.status === 'DRAFT'">实盘 未录入（默认同账面）</template>
-            <template v-else
-              >实盘 {{ st.countedQty ?? '—' }} · 差异 {{ st.diffQty ?? 0 }}（{{
-                st.diffLineCount ?? 0
-              }}
-              行）</template
-            >
-          </text>
-          <text class="sku-meta">{{ fmtTime(st.createdAt) }}</text>
         </view>
+        <template v-else>
+          <view
+            v-for="st in stocktakes"
+            :key="st.stocktakeId"
+            role="button"
+            class="card st-card"
+            @click="openDetail(Number(st.stocktakeId))"
+          >
+            <view class="st-top">
+              <text class="st-no">{{ st.stocktakeNo }}</text>
+              <text class="badge" :class="statusBadgeClass(st.status)">{{
+                stocktakeStatusLabel(st.status)
+              }}</text>
+            </view>
+            <!-- MA-032：明盘单创建时 counted 已预填账面（DB 实证全 PENDING、counted=book），
+                 所以「草稿」态若照常报「实盘 502 · 差异 0」会被读成「已核平无差异」。
+                 数字没撒谎，撒谎的是状态语义 ⇒ 未录入时不报差异。 -->
+            <view class="st-facts">
+              <text class="chip">{{ stocktakeModeLabel(st.mode) }}</text>
+              <text class="chip">账面 {{ st.bookQty }}</text>
+              <text v-if="st.status === 'DRAFT'" class="chip chip-muted">实盘 未录入</text>
+              <template v-else>
+                <text class="chip">实盘 {{ st.countedQty ?? '—' }}</text>
+                <text class="chip" :class="(st.diffQty ?? 0) === 0 ? 'chip-ok' : 'chip-warn'">
+                  差异 {{ st.diffQty ?? 0 }}
+                </text>
+              </template>
+            </view>
+            <view class="st-foot">
+              <text class="st-time">{{ fmtTime(st.createdAt) }}</text>
+              <text v-if="(st.diffLineCount ?? 0) > 0" class="st-diff-lines"
+                >{{ st.diffLineCount }} 行有差异</text
+              >
+            </view>
+          </view>
 
-        <!-- 2026-10-23 审计残留：原先只取 page0/size20，>20 条静默截断；补加载更多。 -->
-        <text v-if="listHasMore" role="button" class="load-more" @click="loadMoreStocktakes">
-          {{ listLoadingMore ? '加载中…' : `加载更多（已显示 ${stocktakes.length}/${listTotal}）` }}
-        </text>
-
-        <app-button
-          block
-          variant="primary"
-          label="发起盘点"
-          :disabled="!canRequest || !warehouseGate.enabled"
-          @click="mode = 'create'"
-        />
-        <text v-if="!canRequest" class="err">当前账号无盘点操作权限</text>
-        <text v-else-if="warehouseGate.state === 'error'" class="err">
-          未绑定分仓，暂时无法盘点
-        </text>
-      </view>
+          <!-- 2026-10-23 审计残留：原先只取 page0/size20，>20 条静默截断；补加载更多。 -->
+          <text v-if="listHasMore" role="button" class="load-more" @click="loadMoreStocktakes">
+            {{
+              listLoadingMore ? '加载中…' : `加载更多（已显示 ${stocktakes.length}/${listTotal}）`
+            }}
+          </text>
+        </template>
+      </template>
 
       <!-- ── 建单 ── -->
-      <view v-else-if="mode === 'create'" class="panel">
-        <view class="card">
-          <text class="label">盘点仓</text>
-          <text class="warehouse-name">{{ warehouseGate.nameText }}</text>
-        </view>
-        <view class="card">
-          <text class="label">盘点方式</text>
-          <view class="mode-row">
-            <view
-              role="button"
-              class="mode-opt"
-              :class="{ on: createMode === 'OPEN' }"
-              @click="createMode = 'OPEN'"
-            >
-              <text class="mode-title">明盘</text>
-              <text class="mode-desc">显示账面数，录入时对照</text>
-            </view>
-            <view
-              role="button"
-              class="mode-opt"
-              :class="{ on: createMode === 'BLIND' }"
-              @click="createMode = 'BLIND'"
-            >
-              <text class="mode-title">盲盘</text>
-              <text class="mode-desc">不显示账面数，直接实盘</text>
-            </view>
-          </view>
-          <text class="hint block-hint">按库存批次逐批盘点；有货批次才会生成盘点行</text>
-        </view>
-        <view class="card">
-          <text class="label">备注（可选）</text>
-          <input
-            v-model="createNotes"
-            class="input"
-            placeholder="如：月末例行盘点"
-            maxlength="80"
-          />
-        </view>
+      <template v-else-if="mode === 'create'">
         <app-button
-          block
-          variant="primary"
-          :loading="creating"
-          label="创建盘点单"
-          @click="submitCreate"
+          variant="text"
+          size="sm"
+          :block="false"
+          label="返回列表"
+          @click="mode = 'list'"
         />
-        <app-button block label="返回列表" @click="mode = 'list'" />
-      </view>
+        <!-- 一张卡承载全部建单输入：仓、方式、备注，用分隔线分段而不是三张等高卡 -->
+        <view class="card create-card">
+          <view class="create-head">
+            <text class="create-title">新建盘点单</text>
+            <text class="create-sub">{{ warehouseGate.nameText }}</text>
+          </view>
+
+          <view class="field">
+            <text class="field-label">盘点方式</text>
+            <view class="seg">
+              <view
+                role="button"
+                class="seg-item"
+                :class="{ on: createMode === 'OPEN' }"
+                @click="createMode = 'OPEN'"
+              >
+                明盘
+              </view>
+              <view
+                role="button"
+                class="seg-item"
+                :class="{ on: createMode === 'BLIND' }"
+                @click="createMode = 'BLIND'"
+              >
+                盲盘
+              </view>
+            </view>
+            <text class="field-hint">
+              {{
+                createMode === 'OPEN'
+                  ? '明盘：录入时能看到账面数，边对边盘'
+                  : '盲盘：不显示账面数，盘完再比对'
+              }}
+            </text>
+          </view>
+
+          <view class="field">
+            <text class="field-label">备注（可选）</text>
+            <input
+              v-model="createNotes"
+              class="input"
+              placeholder="如：月末例行盘点"
+              maxlength="80"
+            />
+          </view>
+
+          <text class="field-hint">按库存批次逐批盘点；有货批次才会生成盘点行。</text>
+        </view>
+      </template>
 
       <!-- ── 详情 / 录入 ── -->
-      <view v-else class="panel">
+      <template v-else>
+        <app-button variant="text" size="sm" :block="false" label="返回列表" @click="backToList" />
         <view v-if="detailError" class="card">
           <error-state :message="detailError" retry-label="重试" @retry="loadDetail" />
         </view>
         <template v-else-if="detail">
+          <!-- ① 单据身份：单号+状态，账面/实盘/录入进度一行看完 -->
           <view class="card">
-            <view class="row-between">
+            <view class="st-top">
               <text class="st-no">{{ detail.stocktakeNo }}</text>
-              <text class="st-status" :class="lineStateClass(detail.status)">{{
+              <text class="badge" :class="statusBadgeClass(detail.status)">{{
                 stocktakeStatusLabel(detail.status)
               }}</text>
             </view>
-            <text class="sku-meta">
-              {{ stocktakeModeLabel(detail.mode) }} · 账面 {{ detail.bookQty }} · 实盘
-              {{ detail.countedQty ?? '—' }}
-            </text>
+            <view class="st-facts">
+              <text class="chip">{{ stocktakeModeLabel(detail.mode) }}</text>
+              <text class="chip">账面 {{ detail.bookQty }}</text>
+              <text class="chip">实盘 {{ detail.countedQty ?? '—' }}</text>
+              <text class="chip" :class="diffRowCount ? 'chip-warn' : 'chip-ok'">
+                差异 {{ diffRowCount }} 行
+              </text>
+            </view>
+            <view class="progress">
+              <view class="progress-bar">
+                <view class="progress-fill" :style="{ width: `${enteredPct}%` }" />
+              </view>
+              <text class="progress-txt">已录入 {{ enteredCount }}/{{ editRows.length }}</text>
+            </view>
             <text
               v-if="detail.status === 'COMPLETED' && (detail.diffLineCount ?? 0) > 0"
               class="hint"
@@ -152,96 +179,138 @@
             </text>
           </view>
 
+          <!-- ② 明细：一行一 SKU，「账面 → 实盘 → 方向」摆在一起，原因只在真有差异时出现 -->
           <view class="card">
-            <text class="label">盘点明细（{{ detail.lines?.length || 0 }} 行）</text>
-            <view v-if="!detail.lines?.length" class="empty-inline">
-              该仓暂无有货批次，无需盘点
+            <view class="list-head">
+              <text class="section">盘点明细</text>
+              <text class="list-stat">{{ editRows.length }} 行</text>
             </view>
-            <view v-for="row in editRows" :key="row.lineId" class="line-block">
-              <view class="row-between">
-                <view class="line-copy">
-                  <text class="sku-name">{{ row.skuName }}</text>
-                  <text class="sku-meta">
-                    {{ row.skuId }} · 批次 {{ row.batchNo || '—' }} · 账面
-                    {{ detail.mode === 'BLIND' && !isDone ? '隐' : row.bookQty }}
-                  </text>
-                </view>
-                <text class="st-status" :class="lineStateClass(row.status)">{{
-                  isBlindActive ? '' : diffDirectionLabel(rowDiff(row))
+            <view v-if="!editRows.length" class="empty-inline">该仓暂无有货批次，无需盘点</view>
+            <view v-for="row in editRows" :key="row.lineId" class="line">
+              <view class="line-top">
+                <text class="line-name">{{ row.skuName }}</text>
+                <text class="badge line-badge" :class="rowBadgeClass(row)">{{
+                  rowBadgeText(row)
                 }}</text>
               </view>
-              <view class="entry-row">
+              <text class="line-meta">
+                {{ row.skuId }} · 批次 {{ row.batchNo || '—' }} · 账面
+                {{ detail.mode === 'BLIND' && !isDone ? '隐' : row.bookQty }}
+              </text>
+              <view class="line-entry">
                 <input
                   v-model="row.countedInput"
-                  class="input qty-input"
+                  class="line-input"
                   type="number"
                   :disabled="!rowEditable(row)"
                   placeholder="实盘数"
                 />
+                <!-- 原因只在真有差异时可填：一致的行走不到这一步，少一个控件少一分误填 -->
                 <picker
+                  v-if="rowEditable(row) && hasDiff(row)"
                   :range="reasonLabels(row)"
                   :value="reasonIndex(row)"
-                  :disabled="!rowEditable(row)"
                   @change="onReasonPick(row, $event)"
                 >
-                  <view class="picker reason-picker">{{ reasonLabel(row) }}</view>
+                  <view class="line-reason">{{ reasonLabel(row) }}</view>
                 </picker>
                 <view
                   v-if="rowEditable(row)"
                   role="button"
-                  class="save-btn"
+                  class="line-save"
                   :class="{ saving: row.saving }"
                   @click="saveLine(row)"
+                  >保存</view
                 >
-                  保存
-                </view>
+                <text v-else class="line-locked">{{ stocktakeLineStatusLabel(row.status) }}</text>
               </view>
               <input
-                v-if="rowEditable(row)"
+                v-if="showNotesEditor(row)"
                 v-model="row.notesInput"
-                class="input"
+                class="line-notes"
                 placeholder="备注（可选，如：破损 2 件）"
                 maxlength="80"
               />
-              <text v-else-if="row.notesInput" class="sku-meta">备注：{{ row.notesInput }}</text>
+              <text v-else-if="row.notesInput" class="line-note-text"
+                >备注：{{ row.notesInput }}</text
+              >
             </view>
           </view>
+
+          <!-- ③ 凭证：空格子提示还差几张，点图可放大核对 -->
           <view class="card">
-            <text class="label">现场照片（{{ photos.length }}/5）</text>
-            <view
-              v-if="!isDone && photos.length < 5"
-              role="button"
-              class="photo-add-btn"
-              @click="choosePhoto"
-            >
-              ＋ 拍照 / 从相册选图
+            <view class="list-head">
+              <text class="section">现场照片</text>
+              <text class="list-stat">{{ photos.length }}/5</text>
             </view>
-            <view v-if="!photos.length" class="empty-inline">暂无照片</view>
-            <view v-else class="photo-grid">
+            <view class="photo-grid">
               <image
                 v-for="p in photos"
                 :key="p.fileId"
                 class="photo"
                 :src="p.localPath"
                 mode="aspectFill"
+                role="button"
+                aria-label="查看大图"
+                @click="previewPhoto(p)"
               />
+              <view
+                v-if="!isDone && photos.length < 5"
+                role="button"
+                class="photo-add"
+                aria-label="拍照或从相册选图"
+                @click="choosePhoto"
+              >
+                <text class="photo-add-txt">＋</text>
+              </view>
             </view>
+            <text v-if="!photos.length" class="empty-inline">暂无照片</text>
           </view>
 
-          <template v-if="!isDone">
+          <view class="tail">
             <app-button
-              block
-              variant="primary"
-              :loading="acting"
-              label="完成并过账（差异直接落库存）"
-              @click="doCompleteAndAdjust"
+              v-if="detail.status === 'DRAFT'"
+              variant="text"
+              label="取消盘点"
+              @click="doCancel"
             />
-            <app-button block :loading="acting" label="仅完成（先核对差异）" @click="doComplete" />
-            <app-button v-if="detail.status === 'DRAFT'" block label="取消盘点" @click="doCancel" />
-          </template>
-          <app-button block label="返回列表" @click="backToList" />
+          </view>
         </template>
-      </view>
+      </template>
+    </view>
+
+    <!-- 吸底操作：列表=发起盘点，建单=创建，详情=仅完成/完成并过账 -->
+    <view v-if="showDock" class="dock">
+      <template v-if="mode === 'list'">
+        <view class="dock-stat"
+          ><text class="dock-label">{{ dockSummary }}</text></view
+        >
+        <view class="dock-main">
+          <app-button
+            :disabled="!canRequest || !warehouseGate.enabled"
+            label="发起盘点"
+            @click="mode = 'create'"
+          />
+        </view>
+      </template>
+      <template v-else-if="mode === 'create'">
+        <view class="dock-stat"
+          ><text class="dock-label"
+            >{{ createMode === 'OPEN' ? '明盘' : '盲盘' }} · 按批次</text
+          ></view
+        >
+        <view class="dock-main">
+          <app-button :loading="creating" label="创建盘点单" @click="submitCreate" />
+        </view>
+      </template>
+      <template v-else>
+        <view class="dock-side">
+          <app-button :loading="acting" variant="outline" label="仅完成" @click="doComplete" />
+        </view>
+        <view class="dock-main">
+          <app-button :loading="acting" label="完成并过账" @click="doCompleteAndAdjust" />
+        </view>
+      </template>
     </view>
   </view>
 </template>
@@ -259,12 +328,12 @@ import { toQuery } from '@aicabinet/shared-uni/query';
 import {
   blindReasonOptions,
   buildUpdateLineBody,
-  diffDirectionLabel,
   diffReasonLabel,
   diffReasonOptionsFor,
   isLineEditable,
+  lineDiff,
   resolveWarehouseGate,
-  stocktakeLineStateClass,
+  stocktakeLineStatusLabel,
   stocktakeModeLabel,
   stocktakeStatusLabel,
   STOCKTAKE_STATUS_TABS
@@ -339,6 +408,32 @@ const isDone = computed(() => {
 
 /** 盲盘录入中：不显示盘盈/盘亏方向、原因选项给全量（不泄露账面方向）。 */
 const isBlindActive = computed(() => detail.value?.mode === 'BLIND' && !isDone.value);
+
+const tabLabel = computed(
+  () => statusTabs.find((t) => t.value === statusTab.value)?.label || '全部'
+);
+
+/** 吸底条左侧：能盘就报当前筛选下的单据数，不能盘就说清为什么（按钮禁用不能没有理由）。 */
+const dockSummary = computed(() => {
+  if (!canRequest.value) return '当前账号无盘点权限';
+  if (warehouseGate.value.state === 'error') return '未绑定分仓，暂时无法盘点';
+  if (warehouseGate.value.state === 'loading') return '正在确认盘点仓…';
+  return `${tabLabel.value} · ${listTotal.value} 单`;
+});
+
+/** 三种模式各有自己的主操作；详情在终态（已过账/已取消/已完成）不再给操作条。 */
+const showDock = computed(() => {
+  if (mode.value === 'list' || mode.value === 'create') return true;
+  return !!detail.value && !isDone.value;
+});
+
+const enteredCount = computed(() => editRows.value.filter((r) => !isRowBlank(r)).length);
+const diffRowCount = computed(() => editRows.value.filter((r) => hasDiff(r)).length);
+const enteredPct = computed(() => {
+  const total = editRows.value.length;
+  if (!total) return 0;
+  return Math.round((enteredCount.value / total) * 100);
+});
 
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
@@ -522,10 +617,60 @@ function rowEditable(row: EditRow): boolean {
   return isLineEditable(detail.value?.status, row.status);
 }
 
+/** 复读共享判据：空输入 = 未录入（null），不是「实盘 0」 */
 function rowDiff(row: EditRow): number | null {
-  const n = Number(row.countedInput);
-  if (!Number.isInteger(n) || n < 0) return null;
-  return n - row.bookQty;
+  return lineDiff(row.countedInput, row.bookQty);
+}
+
+function isRowBlank(row: EditRow): boolean {
+  return String(row.countedInput ?? '').trim() === '';
+}
+
+function hasDiff(row: EditRow): boolean {
+  const d = rowDiff(row);
+  return d != null && d !== 0;
+}
+
+/**
+ * 行徽章：盲盘进行中只说「录没录」（方向即答案，不能泄露账面）；
+ * 明盘给「盘亏/盘盈 + 数量」。未录入的单说「未录入」——旧实现把空输入算成 0，
+ * 空行会显示成「盘亏 = 整批账面」。
+ */
+function rowBadgeText(row: EditRow): string {
+  if (isBlindActive.value) return isRowBlank(row) ? '未录入' : '已录入';
+  const d = rowDiff(row);
+  if (d == null) return '未录入';
+  if (d === 0) return '相符';
+  return `${d < 0 ? '盘亏' : '盘盈'} ${Math.abs(d)}`;
+}
+
+function rowBadgeClass(row: EditRow): string {
+  if (isBlindActive.value) return isRowBlank(row) ? 'is-pending' : 'is-ok';
+  const d = rowDiff(row);
+  if (d == null) return 'is-pending';
+  if (d === 0) return 'is-ok';
+  return 'is-warn';
+}
+
+/** 单据状态 → 徽章配色：草稿待办(橙)、盘点中(品牌)、已完成(绿)、已调整(蓝)、已取消(灰) */
+function statusBadgeClass(status: string | null | undefined): string {
+  switch (status) {
+    case 'DRAFT':
+      return 'is-warn';
+    case 'IN_PROGRESS':
+      return 'is-live';
+    case 'COMPLETED':
+      return 'is-ok';
+    case 'ADJUSTED':
+      return 'is-done';
+    default:
+      return 'is-pending';
+  }
+}
+
+/** 备注只在真有差异时需要：一致的行走不到备注，行高省一半 */
+function showNotesEditor(row: EditRow): boolean {
+  return rowEditable(row) && hasDiff(row);
 }
 
 function reasonOptions(row: EditRow) {
@@ -600,6 +745,11 @@ async function loadPhotos(seq = detailSeq) {
     if (seq !== detailSeq) return;
     photos.value = [];
   }
+}
+
+function previewPhoto(p: PhotoView) {
+  if (!p.localPath) return;
+  uni.previewImage({ urls: photos.value.map((x) => x.localPath), current: p.localPath });
 }
 
 function choosePhoto() {
@@ -701,10 +851,6 @@ function doCancel() {
 
 function fmtTime(v: string | undefined): string {
   return formatDateTimeMinute(v);
-}
-
-function lineStateClass(status: string | null | undefined) {
-  return stocktakeLineStateClass(status);
 }
 </script>
 
