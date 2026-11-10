@@ -52,9 +52,8 @@ function walk(dir, out = []) {
       walk(full, out);
       continue;
     }
-    // README.md 是开发文档不是审核内容，豁免；其余文本文件全扫
+    // README.md 是开发文档不是审核内容；上面的扩展名正则已把它排除（勿再加 no-op 豁免行）
     if (!/\.(js|axml|acss|json)$/.test(entry.name)) continue;
-    if (entry.name === 'README.md') continue;
     out.push(full);
   }
   return out;

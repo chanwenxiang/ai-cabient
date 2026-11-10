@@ -351,7 +351,15 @@ function uploadMerchantAuthedFile(
   return uploadMerchantAuthedFileOnce(url, filePath).catch(async (e) => {
     if (e instanceof Error && e.message === 'UPLOAD_AUTH_EXPIRED') {
       const ok = await refreshTokenSilently(mpApiSession).catch(() => false);
-      if (ok) return uploadMerchantAuthedFileOnce(url, filePath);
+      if (ok) {
+        // R2-B11：重试仍 401（如账号被禁）也不让哨兵码漏到页面；对齐 uploadJiangyiCapturePhoto
+        return uploadMerchantAuthedFileOnce(url, filePath).catch((retryErr) => {
+          if (retryErr instanceof Error && retryErr.message === 'UPLOAD_AUTH_EXPIRED') {
+            throw handleUnauthorized();
+          }
+          throw retryErr;
+        });
+      }
       throw handleUnauthorized();
     }
     throw e;

@@ -307,7 +307,9 @@ function monthStartISO(d = new Date()) {
 }
 
 const today = localDateISO(new Date());
-const sevenDaysAgo = localDateISO(new Date(Date.now() - 7 * 86400000));
+// R2-B12：「近 7 天」= 今天 + 往前 6 天（后端日期区间含当天）。原 `-7 天` 实际是 8 个自然日，
+// 与订单页 `dateStr(6)` 差一天。
+const sevenDaysAgo = localDateISO(new Date(Date.now() - 6 * 86400000));
 
 const startDate = ref(sevenDaysAgo);
 const endDate = ref(today);
@@ -371,7 +373,7 @@ function onEndDate(e: unknown) {
 function applyRangePreset(kind: '7d' | 'month') {
   endDate.value = localDateISO(new Date());
   startDate.value =
-    kind === 'month' ? monthStartISO() : localDateISO(new Date(Date.now() - 7 * 86400000));
+    kind === 'month' ? monthStartISO() : localDateISO(new Date(Date.now() - 6 * 86400000));
   void load();
 }
 
@@ -387,7 +389,7 @@ function onRangeTab(key: string) {
 const rangePreset = computed(() => {
   const todayIso = localDateISO(new Date());
   if (endDate.value !== todayIso) return '';
-  if (startDate.value === localDateISO(new Date(Date.now() - 7 * 86400000))) return '7d';
+  if (startDate.value === localDateISO(new Date(Date.now() - 6 * 86400000))) return '7d';
   if (startDate.value === monthStartISO()) return 'month';
   return '';
 });

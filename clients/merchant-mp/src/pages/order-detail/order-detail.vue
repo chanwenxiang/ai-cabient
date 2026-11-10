@@ -5,7 +5,7 @@
       <view v-if="loading && !order" class="loading"
         ><text>{{ UI_COPY.loading }}</text></view
       >
-      <error-state v-else-if="error && !order" :title="error" @retry="load" />
+      <error-state v-else-if="error && !order" :title="error" :show-retry="!missingId" @retry="load" />
       <view v-else-if="order">
         <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
           <text class="status-title">{{ statusText(order.status) }}</text>
@@ -188,6 +188,8 @@ const orderId = ref('');
 const order = ref<OrderDetail | null>(null);
 const loading = ref(true);
 const error = ref('');
+/** R2-B10：缺 orderId 属「怎么点重试都不会成功」，不给重试按钮（同 announcements/detail 缺参形态） */
+const missingId = computed(() => !orderId.value);
 
 const payChannelText = computed(() =>
   displayLabel('pay_channel', order.value?.payChannel, '未知渠道')

@@ -152,22 +152,25 @@ const mode = ref<'create' | 'list'>('create');
 const { me, refresh: refreshMe } = useMerchantMe();
 const canView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 
-/** 请求序号守卫：申请/单据两个 load 共用，旧响应不得覆盖新结果 */
-let loadSeq = 0;
+/**
+ * 请求序号守卫：R2-B3 —— 申请/单据**各自一个**序号（原共用一个 loadSeq：
+ * 申请页在途时切「单据」页签会把 seq 顶掉，createLoading 永不复位 ⇒ 切回「申请」卡加载）。
+ */
+let createSeq = 0;
+let listSeq = 0;
 
 /**
  * 🔴 冷启动首屏 me 必为 null（composable 的 onShow 刷新是异步，页面 load 同步先跑）：
  * 先拉 me 再判权限，否则首屏静默不加载、误判无权限（2026-11-10 审计 §7#1，
  * 对齐 orders/settlements 等页 ensureXMerchantMe 先例）。
  */
-async function ensurePurchaseAccess(seq: number): Promise<boolean> {
+async function ensurePurchaseAccess(): Promise<boolean> {
   try {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
-  if (seq !== loadSeq) return false;
   return canView.value;
 }
 
@@ -301,8 +304,8 @@ function hydrateReceiveLines(rows: OrderLine[] | undefined): OrderLine[] {
 
 async function loadCreate() {
   if (!isMerchantLoggedIn()) return;
-  const seq = ++loadSeq;
-  if (!(await ensurePurchaseAccess(seq))) return;
+  const seq = ++createSeq;
+  if (!(await ensurePurchaseAccess())) return;
   createLoading.value = true;
   pageError.value = '';
   try {
@@ -311,7 +314,7 @@ async function loadCreate() {
       merchantApi.satellitePurchaseSuppliers(),
       merchantApi.satellitePurchaseSkus()
     ]);
-    if (seq !== loadSeq) return;
+    if (seq !== createSeq) return;
     warehouseId.value = wh.warehouseId || '';
     warehouseName.value = wh.warehouseName || wh.warehouseId || '';
     suppliers.value = sup || [];
@@ -324,17 +327,17 @@ async function loadCreate() {
       qty: 0
     }));
   } catch (e) {
-    if (seq !== loadSeq) return;
+    if (seq !== createSeq) return;
     pageError.value = requestActionErrorMessage(e, '加载失败');
   } finally {
-    if (seq === loadSeq) createLoading.value = false;
+    if (seq === createSeq) createLoading.value = false;
   }
 }
 
 async function loadOrders() {
   if (!isMerchantLoggedIn()) return;
-  const seq = ++loadSeq;
-  if (!(await ensurePurchaseAccess(seq))) return;
+  const seq = ++listSeq;
+  if (!(await ensurePurchaseAccess())) return;
   listLoading.value = true;
   listError.value = '';
   try {
@@ -342,16 +345,16 @@ async function loadOrders() {
       suppliers.value = await merchantApi.satellitePurchaseSuppliers();
     }
     const rows = await merchantApi.satellitePurchaseOrders();
-    if (seq !== loadSeq) return;
+    if (seq !== listSeq) return;
     orders.value = rows.map((row) => ({
       ...row,
       lines: hydrateReceiveLines(row.lines)
     }));
   } catch (e) {
-    if (seq !== loadSeq) return;
+    if (seq !== listSeq) return;
     listError.value = requestActionErrorMessage(e, '加载失败');
   } finally {
-    if (seq === loadSeq) listLoading.value = false;
+    if (seq === listSeq) listLoading.value = false;
   }
 }
 

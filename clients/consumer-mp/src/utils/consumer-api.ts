@@ -189,7 +189,13 @@ export function uploadDisputeEvidenceFile(
   // 接口层审计（2026-10-20）中-7：上传通道原 401 直接报错不自愈——token 过期时用户上传
   // 争议凭证必然失败。对齐 JSON 请求层口径：静默刷新后重试一次，仍 401 再明确报错。
   return uploadDisputeEvidenceOnce(filePath).catch(async (e) => {
-    if (e instanceof Error && e.message.includes('(401)')) {
+    // R2-C1：判据原为 `message.includes('(401)')` —— 后端 401 走
+    // GlobalExceptionHandler → ApiResponse.error(401, 中文)，消息是「请先登录/登录已失效」，
+    // 永远不含 "(401)" ⇒ 静默刷新分支是死代码，token 过期后上传凭证必失败。
+    // 结构化 status 才是真判据；字符串判断留作网关层非 JSON 响应的兜底。
+    const status = (e as { status?: unknown } | null)?.status;
+    const unauthorized = status === 401 || (e instanceof Error && e.message.includes('(401)'));
+    if (unauthorized) {
       const ok = await sharedRefreshToken(mpApiSession).catch(() => false);
       if (ok) return uploadDisputeEvidenceOnce(filePath);
       throw new Error('登录已失效，请重新登录后重试');
