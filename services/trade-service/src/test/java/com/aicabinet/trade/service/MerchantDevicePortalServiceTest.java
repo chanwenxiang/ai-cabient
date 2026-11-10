@@ -259,4 +259,32 @@ class MerchantDevicePortalServiceTest {
         assertTrue(service.listDevices(7L).get(0).replenishmentInProgress(),
                 "已签到仍要显示补货中：只断言上一条的话，整块判据被删掉也会绿");
     }
+
+    /**
+     * 2026-11-10：有批次账本的柜，盘点 before/after/delta 必须与调账同一口径（批次合计），
+     * 不能读聚合行——否则雪碧批次 3→1 会被事件/回执记成 1→1（0），运营看不出真实调账幅度。
+     */
+    @Test
+    void submitDoorStocktake_lotLedger_reportsBeforeAfterFromLots() {
+        String deviceId = "EG-DOOR";
+        when(jiangyiDeviceDirectory.isJiangyi(deviceId)).thenReturn(true);
+        when(inventoryLotService.deviceUsesLotLedger(deviceId)).thenReturn(true);
+        when(inventoryLotService.sellableQuantity(deviceId, "100013")).thenReturn(3, 1);
+
+        var request = new com.aicabinet.common.dto.MerchantDoorStocktakeRequest(
+                List.of(new com.aicabinet.common.dto.MerchantDoorStocktakeRequest.StocktakeLine("100013", 1)),
+                null, null, null);
+
+        var result = service.submitDoorStocktake(1L, deviceId, request);
+
+        assertEquals(1, result.lines().size());
+        var line = result.lines().get(0);
+        assertEquals(3, line.quantityBefore());
+        assertEquals(1, line.quantityAfter());
+        assertEquals(-2, line.delta());
+        var captor = org.mockito.ArgumentCaptor.forClass(com.aicabinet.trade.domain.DeviceOpsEvent.class);
+        org.mockito.Mockito.verify(opsEventRepository).insert(captor.capture());
+        assertTrue(captor.getValue().getDetail().contains("100013 3→1（-2）"),
+                "事件明细必须记真实批次调账幅度：" + captor.getValue().getDetail());
+    }
 }

@@ -1080,19 +1080,26 @@ public class DataConsistencyService {
     /**
      * 柜机账余额公式：按（设备×SKU×批次）聚合 device_sku_lot 余额，必须等于
      * inventory_movement.delta_qty 合计。批次可能拆多个货道 lot 行，故按批次组聚合。
+     *
+     * <p>🔴 只校验**有入库流水**的批次（2026-11-10）：迁移期初批次（如 LEGACY-OPENING）
+     * 建 lot 时没有写入库流水，账本式「余额 = 流水合计」对它结构性不成立，会永久假阳性
+     * （实测雪碧 LEGACY-OPENING 恒 FAIL）。无入库来源的批次不在本巡检范围——其漂移
+     * 由 INVENTORY_MISMATCH（聚合 vs 批次）兜底。代价：这类批次内部的流水漂移不被本检查发现。</p>
      */
     void checkDeviceLedgerConsistency() {
         String sql = "SELECT g.device_id, g.sku_id, g.batch_no, g.movement_sum, "
                 + "COALESCE(l.lot_qty, 0) AS balance FROM ( "
                 + "SELECT device_id, sku_id, COALESCE(batch_no, '') AS batch_no, "
-                + "SUM(delta_qty) AS movement_sum FROM inventory_movement "
+                + "SUM(delta_qty) AS movement_sum, "
+                + "MAX(CASE WHEN delta_qty > 0 THEN 1 ELSE 0 END) AS has_inbound "
+                + "FROM inventory_movement "
                 + "GROUP BY device_id, sku_id, COALESCE(batch_no, '') ) g "
                 + "LEFT JOIN ( "
                 + "SELECT device_id, sku_id, COALESCE(batch_no, '') AS batch_no, "
                 + "SUM(quantity) AS lot_qty FROM device_sku_lot "
                 + "GROUP BY device_id, sku_id, COALESCE(batch_no, '') ) l "
                 + "ON l.device_id = g.device_id AND l.sku_id = g.sku_id AND l.batch_no = g.batch_no "
-                + "WHERE COALESCE(l.lot_qty, 0) <> g.movement_sum "
+                + "WHERE g.has_inbound = 1 AND COALESCE(l.lot_qty, 0) <> g.movement_sum "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();

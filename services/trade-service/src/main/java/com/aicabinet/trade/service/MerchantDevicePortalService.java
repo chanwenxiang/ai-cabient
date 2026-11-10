@@ -254,18 +254,28 @@ public class MerchantDevicePortalService {
         merchantOpsPolicyService.requirePhotoEvidence(deviceId, true, request.photoEvidenceUrl());
 
         Map<String, Integer> before = new java.util.HashMap<>();
-        for (com.aicabinet.trade.domain.DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
-            before.put(inv.getSkuId(), inv.getQuantity());
+        // 有批次账本的柜：可售数以批次合计为准（与 stocktakeAdjust 内部 current 同一口径）。
+        // 否则 before/after/delta 读聚合行会与实调批次不符——2026-11-10 实测：雪碧批次 3→1
+        // 被事件/回执记成 1→1（0），运营看不出真实调账幅度。
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
+        if (!lotLedger) {
+            for (com.aicabinet.trade.domain.DeviceSkuInventory inv : inventoryRepository.findByIdDeviceId(deviceId)) {
+                before.put(inv.getSkuId(), inv.getQuantity());
+            }
         }
         String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
         List<MerchantDoorStocktakeResult.LineResult> results = new java.util.ArrayList<>(request.lines().size());
         for (MerchantDoorStocktakeRequest.StocktakeLine line : request.lines()) {
-            int beforeQty = before.getOrDefault(line.skuId(), 0);
+            int beforeQty = lotLedger
+                    ? inventoryLotService.sellableQuantity(deviceId, line.skuId())
+                    : before.getOrDefault(line.skuId(), 0);
             inventoryLotService.stocktakeAdjust(deviceId, line.skuId(), line.countedQuantity(), userId, refId);
-            int afterQty = inventoryRepository
-                    .findById(new com.aicabinet.trade.domain.DeviceSkuInventoryId(deviceId, line.skuId()))
-                    .map(com.aicabinet.trade.domain.DeviceSkuInventory::getQuantity)
-                    .orElse(0);
+            int afterQty = lotLedger
+                    ? inventoryLotService.sellableQuantity(deviceId, line.skuId())
+                    : inventoryRepository
+                            .findById(new com.aicabinet.trade.domain.DeviceSkuInventoryId(deviceId, line.skuId()))
+                            .map(com.aicabinet.trade.domain.DeviceSkuInventory::getQuantity)
+                            .orElse(0);
             results.add(new MerchantDoorStocktakeResult.LineResult(line.skuId(), beforeQty, afterQty,
                     afterQty - beforeQty));
         }
