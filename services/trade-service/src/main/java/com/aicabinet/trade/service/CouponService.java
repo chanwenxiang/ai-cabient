@@ -324,8 +324,8 @@ public class CouponService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
         }
         if (uc.getExpireAt().isBefore(Instant.now())) {
-            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
-            userCouponRepository.save(uc);
+            // R6-H2：事务随 CONFLICT 回滚，save(EXPIRED) 是死写——真实翻转由日批
+            // expireOverdueCoupons 承担，读面按 expire_at 判（MA-026），删掉误导代码。
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
         }
         return uc;
@@ -722,8 +722,7 @@ public class CouponService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
         }
         if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(Instant.now())) {
-            uc.setStatus(CabinetConstants.COUPON_STATUS_EXPIRED);
-            userCouponRepository.save(uc);
+            // R6-H2：同 requireValidUserCoupon —— 死写删除
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
         }
         uc.setStatus("USED");

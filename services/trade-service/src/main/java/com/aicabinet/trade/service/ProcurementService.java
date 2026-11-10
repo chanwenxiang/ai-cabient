@@ -184,6 +184,11 @@ public class ProcurementService {
         // 语义不同，不能一起吃这个去重。
         String clientKey = trimToNull(request.refNo());
         if (clientKey != null) {
+            // R6-G1：回放指纹比较会对 skuId.trim() 解引用 —— 空值行（fillSatelliteLineCosts 的
+            // 行级校验在回放分支之后）此前走 NPE 500；提前 400 与后续校验同语义。
+            if (request.lines().stream().anyMatch(l -> l.skuId() == null || l.skuId().isBlank())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "采购行 skuId 不能为空");
+            }
             var replay = purchaseOrderRepository.findLatestByWarehouseIdAndRefNo(mine.getWarehouseId(), clientKey);
             if (replay.isPresent()) {
                 PurchaseOrder original = replay.get();
@@ -513,10 +518,11 @@ public class ProcurementService {
         
         QualityResult quality = inspectPurchaseLine(line, deltaCases);
         if (!quality.accepted()) {
-            line.setQualityStatus("REJECTED");
-            line.setQualityNote(quality.note());
-            line.setRejectedQty(deltaCases);
-            purchaseOrderLineRepository.save(line);
+            // R6-H1：本事务将因下方 CONFLICT 回滚 —— 原写法「save 留痕+throw」是死写，
+            // 拒收零留痕。改走 REQUIRES_NEW 独立事务的审计行（operatorId 为收货操作人）。
+            auditService.appendLogIndependent(operatorId, "PURCHASE_QUALITY_REJECTED", "PURCHASE_ORDER",
+                    String.valueOf(order.getPurchaseOrderId()),
+                    "sku=" + line.getSkuId() + " qty=" + deltaCases + " reason=" + quality.note());
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "purchase quality rejected sku=" + line.getSkuId() + " reason=" + quality.note());
         }

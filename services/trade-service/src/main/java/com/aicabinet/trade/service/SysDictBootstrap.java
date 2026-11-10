@@ -325,10 +325,13 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "PRODUCT", "商品异常", PAYMENT, "扣款问题", OTHER, "其他")));
         map.put("line_withdraw_status", t("线长提现状态", m(
                 "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
-                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
+                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败",
+                // R6-F3：cancelFailedLocked 的真实终态（R5-D-新1 前端终态数组已收编）
+                STATUS_CANCELLED, "已取消")));
         map.put("merchant_withdraw_status", t("商户提现状态", m(
                 "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
-                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
+                "PAID", "已打款", STATUS_REJECTED, "已驳回", CabinetConstants.ORDER_STATUS_FAILED, "失败",
+                STATUS_CANCELLED, "已取消")));
         map.put("supplier_status", t("供应商状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用")));
         map.put("purchase_order_status", t("采购单状态", m(
                 // V436（MA-134）：PENDING_APPROVAL/REJECTED 是 ProcurementService 在写的值，
