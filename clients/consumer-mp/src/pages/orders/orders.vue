@@ -495,7 +495,15 @@ function orderSummaryText(o: OrderSummary) {
   return '购物账单';
 }
 function discountCents(o: OrderSummary) {
-  return Math.max(0, Number(o.couponDiscountCents ?? 0) + Number(o.memberDiscountCents ?? 0));
+  // 与 result.vue / order-detail.vue 的「会员/活动/券」三档同口径：漏掉 activityDiscountCents
+  // 会让活动单的「优惠减」只显示券+会员，原价−优惠减算不回实付（订单 1794190141398840109525
+  // 原价 3.50、只显示减 0.07、实付 0.68）。
+  return Math.max(
+    0,
+    Number(o.couponDiscountCents ?? 0) +
+      Number(o.memberDiscountCents ?? 0) +
+      Number(o.activityDiscountCents ?? 0)
+  );
 }
 function showOriginal(o: OrderSummary) {
   const origin = Number(o.originalAmountCents ?? 0);

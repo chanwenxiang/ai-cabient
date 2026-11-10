@@ -108,14 +108,18 @@
                 >
                 <text
                   v-if="
-                    Number(item.couponDiscountCents ?? 0) + Number(item.memberDiscountCents ?? 0) >
+                    Number(item.couponDiscountCents ?? 0) +
+                      Number(item.memberDiscountCents ?? 0) +
+                      Number(item.activityDiscountCents ?? 0) >
                     0
                   "
                   class="card-discount"
                 >
                   优惠减{{
                     money(
-                      Number(item.couponDiscountCents ?? 0) + Number(item.memberDiscountCents ?? 0)
+                      Number(item.couponDiscountCents ?? 0) +
+                        Number(item.memberDiscountCents ?? 0) +
+                        Number(item.activityDiscountCents ?? 0)
                     )
                   }}
                 </text>
