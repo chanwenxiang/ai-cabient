@@ -251,9 +251,43 @@ class ProcurementServiceTest {
         assertEquals(120, options.get(0).unitCostCents());
     }
 
+    /**
+     * R2-B14：客户端幂等键（refNo=MP-xxx）命中同仓既有单时**必须回放**，不得再建一张。
+     *
+     * <p>复现的是「小程序 20s 超时但单已建」后用户原地重试：源实现无任何去重，
+     * 每次重试都会多一张 CREATED 采购单（收货要人工逐单）。
+     */
     @Test
-    void createSatellitePurchaseOrder_rejectsOtherWarehouse() {
+    void createSatellitePurchaseOrder_replaysSameClientRequestNo() {
         com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
+        mine.setWarehouseId("WH-MINE");
+        mine.setManagerUserId(40L);
+        when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));
+
+        PurchaseOrder existing = new PurchaseOrder();
+        existing.setPurchaseOrderId(777L);
+        existing.setSupplierId("SUP-1");
+        existing.setWarehouseId("WH-MINE");
+        existing.setRefNo("MP-1731234567890-ABC123");
+        existing.setStatus("CREATED");
+        when(purchaseOrderRepository.findLatestByWarehouseIdAndRefNo("WH-MINE", "MP-1731234567890-ABC123"))
+                .thenReturn(java.util.Optional.of(existing));
+
+        var dto = service.createSatellitePurchaseOrder(40L, new com.aicabinet.common.dto.CreatePurchaseOrderRequest(
+                "SUP-1", null, "MP-1731234567890-ABC123", null,
+                List.of(lineDto("SKU-A", null, null, 8))));
+
+        assertEquals(777L, dto.purchaseOrderId());
+        // 回放不得落新单，也不得重复起审批流
+        org.mockito.Mockito.verify(purchaseOrderRepository, org.mockito.Mockito.never())
+                .save(org.mockito.ArgumentMatchers.any(PurchaseOrder.class));
+        org.mockito.Mockito.verify(approvalWorkflowService, org.mockito.Mockito.never())
+                .start(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void createSatellitePurchaseOrder_rejectsOtherWarehouse() {        com.aicabinet.trade.domain.Warehouse mine = new com.aicabinet.trade.domain.Warehouse();
         mine.setWarehouseId("WH-MINE");
         mine.setManagerUserId(40L);
         when(warehouseRepository.findFirstActiveByManagerUserId(40L)).thenReturn(java.util.Optional.of(mine));

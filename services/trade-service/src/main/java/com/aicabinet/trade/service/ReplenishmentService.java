@@ -53,9 +53,14 @@ import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
 import org.springframework.web.server.ResponseStatusException;
 
 
+
+import jakarta.annotation.PreDestroy;
 
 import java.time.Instant;
 
@@ -66,6 +71,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import java.util.stream.Collectors;
 
@@ -124,6 +132,25 @@ public class ReplenishmentService {
     private final DistributedLockService distributedLockService;
     private final SystemConfigService systemConfigService;
     private final SkuCatalogMapper skuCatalogMapper;
+
+    /**
+     * 将邑「补货后库存同步」专用单线程执行器（R2-B7）。
+     *
+     * <p>该同步是**厂商 HTTP 调用**，原先跑在 completeTask 的事务 + 任务行锁内：厂商慢时
+     * 小程序 20s 超时但任务其实已完成，重试再撞同一段同步、再超时。改为「事务提交后」
+     * 投递到这条专用线程执行，既出事务、也出请求线程。单线程是刻意的——同一厂商接口
+     * 串行提交，避免多柜并发同步互相覆盖（线程命名/daemon/@PreDestroy 对齐 DeviceCommandTracker）。
+     */
+    private final ExecutorService jiangyiRestockSyncExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "jiangyi-restock-sync");
+        t.setDaemon(true);
+        return t;
+    });
+
+    @PreDestroy
+    void shutdownJiangyiRestockSyncExecutor() {
+        jiangyiRestockSyncExecutor.shutdownNow();
+    }
 
 
 
@@ -1195,11 +1222,37 @@ public class ReplenishmentService {
         if (sessionService != null) {
             sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
         }
-        // 将邑开门柜：补货完成后把现行库存同步为该层最终库存（§7.11），失败不阻断完成
-        if (jiangyiRestockService != null) {
-            jiangyiRestockService.syncAfterRestock(task.getDeviceId());
-        }
+        // 将邑开门柜：补货完成后把现行库存同步为该层最终库存（§7.11），失败不阻断完成。
+        // 🔴 R2-B7：这是厂商 HTTP，不能跑在完成事务（+任务行锁）内 —— 原先同步执行，
+        // 厂商慢 ⇒ 小程序 20s 超时（任务实际已完成），重试 finalizeAlreadyCompletedTask
+        // 又同步一次、再超时。改为事务提交后再投递到专用线程，返回值不再被厂商时延绑架。
+        scheduleJiangyiRestockSync(task.getDeviceId());
         return toTaskDto(task);
+    }
+
+    /** 事务提交后异步执行将邑库存同步；无事务上下文时直接投递（同步在独立线程，行为一致）。 */
+    private void scheduleJiangyiRestockSync(String deviceId) {
+        if (jiangyiRestockService == null || deviceId == null || deviceId.isBlank()) {
+            return;
+        }
+        Runnable push = () -> {
+            try {
+                jiangyiRestockService.syncAfterRestock(deviceId);
+            } catch (Exception e) {
+                // syncAfterRestock 自身已 catch；这里再兜一层，避免异步线程抛出后静默丢失
+                log.warn("jiangyi restock sync after commit failed deviceId={}: {}", deviceId, e.getMessage());
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    jiangyiRestockSyncExecutor.submit(push);
+                }
+            });
+        } else {
+            jiangyiRestockSyncExecutor.submit(push);
+        }
     }
 
     /** 出库行 → 货道分配：优先沿用出库明细货道，并按当前余量截断。 */

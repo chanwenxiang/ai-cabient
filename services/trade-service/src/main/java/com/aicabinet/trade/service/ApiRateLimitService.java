@@ -29,6 +29,8 @@ public class ApiRateLimitService {
     public static final String ACTION_COUPON_CLAIM = "coupon_claim";
     public static final String ACTION_ORDER_PAY = "order_pay";
     public static final String ACTION_SESSION_CREATE = "session_create";
+    /** 会话幂等回放（R2-D7）：与 session_create 分开计数，正常超时重试不吃创建配额。 */
+    public static final String ACTION_SESSION_REPLAY = "session_replay";
     public static final String ACTION_OPEN_DOOR = "open_door";
     public static final String ACTION_OPEN_DOOR_DEVICE = "open_door_device";
     public static final String ACTION_OPEN_LANDING = "open_landing";
@@ -55,6 +57,18 @@ public class ApiRateLimitService {
     public void assertSessionCreateAllowed(Long userId) {
         assertAllowed(ACTION_SESSION_CREATE, String.valueOf(userId), userId, properties.maxSessionCreatesPerHour(),
                 ApiMessages.TOO_MANY_SESSION_CREATES);
+    }
+
+    /**
+     * 幂等回放限流（R2-D7）：回放命中后直接返回既有会话、完全不进创建分支，原先没有任何限流 ——
+     * 持有效 token 可对活跃幂等键无限刷（每次 1~2 次点查）。
+     *
+     * <p>刻意用**独立计数器**（不与 {@code session_create} 共用配额）：回放的主要来源是
+     * 客户端超时重试，属于正常行为，不该消耗「新建会话」额度；但总次数仍受同一小时上限约束。
+     */
+    public void assertSessionReplayAllowed(Long userId) {
+        assertAllowed(ACTION_SESSION_REPLAY, String.valueOf(userId), userId,
+                properties.maxSessionCreatesPerHour(), ApiMessages.TOO_MANY_SESSION_CREATES);
     }
 
     /**

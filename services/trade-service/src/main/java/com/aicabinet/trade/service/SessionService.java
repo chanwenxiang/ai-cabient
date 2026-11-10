@@ -119,7 +119,13 @@ public class SessionService {
         String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
         if (idempotencyKey != null) {
             return repository.findByIdempotencyKey(idempotencyKey)
-                    .map(existing -> validateIdempotentReplay(userId, request.deviceId(), existing))
+                    .map(existing -> {
+                        // R2-D7：回放命中就走不到 createSessionAndRequestOpen 里的那两道限流闸，
+                        // 原先等于给「刷回放」开了不限量的口子。这里补一道独立计数的闸
+                        // （不消耗新建会话配额，避免把正常超时重试判成刷量）。
+                        apiRateLimitService.assertSessionReplayAllowed(userId);
+                        return validateIdempotentReplay(userId, request.deviceId(), existing);
+                    })
                     .orElseGet(() -> runWithDeviceOpenLock(request.deviceId(),
                             () -> createSessionAndRequestOpen(userId, request)));
         }

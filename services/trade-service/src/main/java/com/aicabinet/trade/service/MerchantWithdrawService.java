@@ -475,11 +475,11 @@ public class MerchantWithdrawService {
     @Transactional
     public PayoutGate persistWithdrawApplication(Merchant merchant, long amountCents, String requestNo,
                                                  Long submitterUserId) {
-        // V307：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
-        // 🔴 必须在 validateAmount 之前：限额校验依赖账户的 channel 与 accountId
-        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
-        PayoutAccount payeeAccount = resolvePayeeForApply(merchant.getMerchantId());
-        validateAmount(merchant.getMerchantId(), amountCents, payeeAccount);
+        // R2-B2：幂等回放查询必须在 validateAmount **之前**。
+        // 首笔已冻结入库、客户端 20s 超时按设计保留 requestNo 重试 —— 此时余额已被自己冻结，
+        // validateAmount 必然报「可用余额不足/超限额」，前端当业务失败清键，等于幂等契约在最常见
+        // 场景（超时重试）下失效（不会双扣，但钱其实已提、界面报错）。回放命中只需归属+金额，
+        // 不依赖收款账户，所以查询先走、账户与限额校验留给真正新建的分支。
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
@@ -495,6 +495,11 @@ public class MerchantWithdrawService {
             }
             return PayoutGate.done(toDto(hit));
         }
+        // V307：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
+        // 🔴 必须在 validateAmount 之前：限额校验依赖账户的 channel 与 accountId
+        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
+        PayoutAccount payeeAccount = resolvePayeeForApply(merchant.getMerchantId());
+        validateAmount(merchant.getMerchantId(), amountCents, payeeAccount);
         Instant now = Instant.now();
         MerchantWithdrawRequest request = new MerchantWithdrawRequest();
         request.setRequestNo(no);

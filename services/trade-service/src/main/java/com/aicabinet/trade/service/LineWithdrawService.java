@@ -302,12 +302,8 @@ public class LineWithdrawService {
     @Transactional
     public PayoutGate persistWithdrawApplication(LineManager manager, long amountCents, String requestNo,
                                                  Long submitterUserId) {
-        // V308：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
-        // 🔴 必须在 validateAmount 之前：渠道限额校验依赖账户的 channel 与 accountId
-        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
-        PayoutAccount payeeAccount = payoutAccountService.resolveForApply(
-                PayoutConstants.PAYEE_OWNER_LINE_MANAGER, String.valueOf(manager.getManagerId()), null);
-        validateAmount(manager.getManagerId(), amountCents, payeeAccount);
+        // R2-B2（与商户链同构）：回放查询必须先于 validateAmount —— 超时重试时余额已被自己冻结，
+        // 先校验金额只会把「其实已提现成功」报成「可用余额不足」。
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
         if (existing.isPresent()) {
@@ -321,6 +317,12 @@ public class LineWithdrawService {
             }
             return PayoutGate.done(toDto(hit));
         }
+        // V308：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。
+        // 🔴 必须在 validateAmount 之前：渠道限额校验依赖账户的 channel 与 accountId
+        //    （单收款人单日 / 单通道当日总额两个维度都要用到）。
+        PayoutAccount payeeAccount = payoutAccountService.resolveForApply(
+                PayoutConstants.PAYEE_OWNER_LINE_MANAGER, String.valueOf(manager.getManagerId()), null);
+        validateAmount(manager.getManagerId(), amountCents, payeeAccount);
         Instant now = Instant.now();
         LineWithdrawRequest request = new LineWithdrawRequest();
         request.setRequestNo(no);

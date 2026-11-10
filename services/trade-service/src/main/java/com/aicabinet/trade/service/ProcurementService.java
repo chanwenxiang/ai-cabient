@@ -177,6 +177,18 @@ public class ProcurementService {
                 && !mine.getWarehouseId().equals(request.warehouseId().trim())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.SATELLITE_WAREHOUSE_MISMATCH);
         }
+        // R2-B14：商户端把 refNo 当**客户端幂等键**（`MP-<时间戳>-<随机>`，见 purchase.vue）。
+        // 小程序 20s 超时但单其实已建时，重试必须回放同一张单，而不是再生成一张 CREATED
+        // （收货要人工逐单，重复单会变成两笔在途采购）。
+        // 只在本方法（商户自提路径）做回放：运营端「新建采购单」的 refNo 是人工参考号，
+        // 语义不同，不能一起吃这个去重。
+        String clientKey = trimToNull(request.refNo());
+        if (clientKey != null) {
+            var replay = purchaseOrderRepository.findLatestByWarehouseIdAndRefNo(mine.getWarehouseId(), clientKey);
+            if (replay.isPresent()) {
+                return toPurchaseDto(replay.get());
+            }
+        }
         List<PurchaseOrderLineDto> filled = fillSatelliteLineCosts(request.lines());
         CreatePurchaseOrderRequest body = new CreatePurchaseOrderRequest(
                 request.supplierId(), mine.getWarehouseId(), request.refNo(), request.notes(), filled);
