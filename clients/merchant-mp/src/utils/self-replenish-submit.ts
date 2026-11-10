@@ -83,6 +83,55 @@ export function prepSubmitFingerprint(lines: { skuId: string; qty: number }[]): 
     .join('|');
 }
 
+/**
+ * 后端补货任务的**终态**（任务已结束，改量重提是新意图）。
+ *
+ * 只认明确终态——`null` / 未知值一律按「还可能活着」处理，见 `shouldBlockPrepResubmit`。
+ * 与后端 `MerchantReplenishmentService.selfInitiate` 的回放闸对齐：CANCELLED 那里直接 409
+ *（「上次提交的补货任务已取消」），COMPLETED 按 V401 契约回放原任务。
+ */
+export const PREP_TASK_ENDED_STATUSES = ['CANCELLED', 'COMPLETED', 'FAILED', 'REJECTED'] as const;
+
+/** 改量重提的处置：照旧提交 / 拦下并指引改量 / 旧任务已结束⇒作废旧键后提交 */
+export type PrepResubmitVerdict =
+  /** 本页没成功提交过，或量没变（同一意图）⇒ 直接提交（复用旧键，后端回放原任务） */
+  | 'proceed'
+  /** 该柜上次提交成功、本次改了量、且那张任务还在进行中 ⇒ 拦下，让用户去任务页改量 */
+  | 'block_changed_with_active_task'
+  /** 同上，但那张任务已结束（已取消/已完成）⇒ 旧键作废、按新意图重新生成任务 */
+  | 'renew_after_ended_task';
+
+/**
+ * 备货单「改量重提」判据（R2-B1 残留，2026-11-10）。
+ *
+ * 背景：成功后幂等键保留（否则部分失败重提会重复建任务），而后端回放**不核对明细** ⇒
+ * 改量后重提会被回放成旧数量（静默吞掉改量）。故前端记着上次成功的明细指纹，指纹变了就拦。
+ *
+ * 但「拦」只在**那张任务还活着**时成立。任务被取消后再改量重提，去任务页根本没有可改的任务
+ * ⇒ 提示把用户锁死（P0-3 修复引入的次生缺陷）。此时应作废旧键、按新意图真提一次。
+ *
+ * 🔴 `lastTaskStatus` 为 `null` 时**必须按「还在进行中」拦**，不能放行：
+ * 常见路径是「提交成功 → 部分柜失败 → 留在本页改量重提」，而预览是**提交前**加载的
+ * ⇒ 那时本柜还没有任务，`lastTaskStatus` 天然是 null。按 null 放行等于把 P0-3 的修复整个废掉
+ * （重复建任务 + 重复扣分仓库存）。只有预览里明确读到终态才放行。
+ */
+export function shouldBlockPrepResubmit(input: {
+  /** 本页上次成功提交的指纹；undefined=本页没成功提交过 */
+  prevFingerprint: string | undefined;
+  /** 本次要提交的明细指纹 */
+  fingerprint: string;
+  /** 预览里本柜最近一张任务的状态；null/undefined=预览时该柜没有任务（或未返回） */
+  lastTaskStatus?: string | null;
+}): PrepResubmitVerdict {
+  if (input.prevFingerprint === undefined) return 'proceed';
+  if (input.prevFingerprint === input.fingerprint) return 'proceed';
+  const status = (input.lastTaskStatus ?? '').trim().toUpperCase();
+  if ((PREP_TASK_ENDED_STATUSES as readonly string[]).includes(status)) {
+    return 'renew_after_ended_task';
+  }
+  return 'block_changed_with_active_task';
+}
+
 export function buildSelfReplenishBody(input: {
   deviceId: string;
   notes: string;

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +45,7 @@ class MerchantPrepPreviewTest {
     @Mock private WarehouseService warehouseService;
     @Mock private DeviceInfoMapper deviceRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
+    @Mock private com.aicabinet.trade.mapper.ReplenishmentTaskMapper taskRepository;
 
     private MerchantReplenishmentService service;
 
@@ -52,8 +54,13 @@ class MerchantPrepPreviewTest {
         service = new MerchantReplenishmentService(
                 permissionService, merchantFeaturePackService, merchantPortalGuard, replenishmentService,
                 null, warehouseService, null, deviceRepository, skuCatalogRepository,
-                null, null, null,
-                null, null, null, null, null);
+                null, taskRepository, null,
+                null, null,
+                null, null, null);
+        // 本柜最近任务状态：默认「没有任务」。lenient 因为部分用例（权限/空范围）提前返回、用不到它。
+        org.mockito.Mockito.lenient()
+                .when(taskRepository.findLatestStatusByDeviceIds(any()))
+                .thenReturn(java.util.Map.of());
     }
 
     private ReplenishmentSuggestDto suggest(String skuId, int currentQty, int capacity,
@@ -170,5 +177,38 @@ class MerchantPrepPreviewTest {
                 .when(permissionService).requirePermission(1L, "merchant:replenishment:view");
         assertThrows(ResponseStatusException.class, () -> service.prepPreview(1L));
         verify(merchantFeaturePackService, never()).allowedDeviceIdsForPack(any(), any());
+    }
+
+    /**
+     * R2-B1 残留（2026-11-10）：预览要带上「本柜最近一张补货任务的状态」——前端据此判
+     * 「改量重提」是拦下（任务还在进行中）还是作废旧键重提（任务已取消/已完成）。
+     * 取数必须**一次批量**（柜数级别的行），无任务的柜回 null。
+     */
+    @Test
+    void preview_carriesLatestTaskStatusPerDevice_inOneBatchedQuery() {
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(1L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("DEV-1", "DEV-2"));
+        when(warehouseService.prepRowsForDevice("DEV-1")).thenReturn(List.of(
+                suggest("SKU-A", 0, 5, 0, 5)));
+        when(warehouseService.prepRowsForDevice("DEV-2")).thenReturn(List.of(
+                suggest("SKU-A", 0, 5, 0, 5)));
+        when(skuCatalogRepository.selectList(any())).thenReturn(List.of());
+        when(deviceRepository.findById("DEV-1")).thenReturn(java.util.Optional.empty());
+        when(deviceRepository.findById("DEV-2")).thenReturn(java.util.Optional.empty());
+        when(taskRepository.findLatestStatusByDeviceIds(any()))
+                .thenReturn(java.util.Map.of("DEV-1", "CANCELLED"));
+
+        List<MerchantPrepPreviewGroupDto> out = service.prepPreview(1L);
+
+        assertEquals(2, out.size());
+        MerchantPrepPreviewGroupDto dev1 = out.stream()
+                .filter(g -> "DEV-1".equals(g.deviceId())).findFirst().orElseThrow();
+        MerchantPrepPreviewGroupDto dev2 = out.stream()
+                .filter(g -> "DEV-2".equals(g.deviceId())).findFirst().orElseThrow();
+        assertEquals("CANCELLED", dev1.lastTaskStatus());
+        // 没有任务的柜：null（前端按「可能还在进行中」保守处理，不因缺字段放行）
+        assertNull(dev2.lastTaskStatus());
+        // 两个柜只查一次（逐柜查会变成 N+1）
+        verify(taskRepository, org.mockito.Mockito.times(1)).findLatestStatusByDeviceIds(any());
     }
 }

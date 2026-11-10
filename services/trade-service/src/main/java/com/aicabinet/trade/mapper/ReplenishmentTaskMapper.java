@@ -7,12 +7,14 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
@@ -36,6 +38,46 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
 
     default List<ReplenishmentTask> findByDeviceIdAndStatusIn(String deviceId, List<String> statuses) {
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().eq(ReplenishmentTask::getDeviceId, deviceId).in(ReplenishmentTask::getStatus, statuses));
+    }
+
+    /**
+     * 每台柜「最近一张补货任务」的状态（{@code device_id} → {@code status}）。
+     *
+     * <p>商户端「手动生成备货单」的改量重提判据要用它（R2-B1 残留，2026-11-10）：前端记着
+     * 「上次成功提交的明细指纹」，指纹不同就拦下并让用户去任务页改量——这条拦截**只在
+     * 那张任务还活着时成立**。任务已取消/已完成时改量重提是新意图，继续拦就是把用户锁死
+     *（提示去改量，而任务页里没有可改的任务）。</p>
+     *
+     * <p>取数纪律（铁律 85）：设备范围与「每柜最新」都在 SQL 里做完，一次查询返回柜数级别的行；
+     * 不取上限窗口再内存过滤——那在历史任务多的柜上会漏掉最新那条。</p>
+     */
+    @Select("""
+            SELECT t.device_id AS device_id, t.status AS status
+            FROM replenishment_task t
+            JOIN (
+                SELECT device_id, MAX(created_at) AS mx_created_at
+                FROM replenishment_task
+                WHERE device_id IN <foreach collection="deviceIds" item="d" open="(" separator="," close=")">#{d}</foreach>
+                GROUP BY device_id
+            ) m ON m.device_id = t.device_id AND m.mx_created_at = t.created_at
+            """)
+    List<Map<String, Object>> selectLatestStatusByDeviceIds(@Param("deviceIds") Collection<String> deviceIds);
+
+    /** {@link #selectLatestStatusByDeviceIds} 的 Map → (deviceId, status) 视图。 */
+    default Map<String, String> findLatestStatusByDeviceIds(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return Map.of();
+        }
+        // 同一毫秒建两条任务时 JOIN 会返回两行，取到哪条都不影响「还在不在进行中」的粗判
+        Map<String, String> out = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> row : selectLatestStatusByDeviceIds(deviceIds)) {
+            Object deviceId = row.get("device_id");
+            Object status = row.get("status");
+            if (deviceId != null && status != null) {
+                out.putIfAbsent(deviceId.toString(), status.toString());
+            }
+        }
+        return out;
     }
 
     default List<ReplenishmentTask> findByAssigneeUserIdAndStatus(Long assigneeUserId, String status) {

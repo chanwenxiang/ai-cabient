@@ -16,5 +16,14 @@ import java.util.List;
 public record MerchantPrepPreviewGroupDto(
         String deviceId,
         String deviceName,
+        /**
+         * 本柜**最近一张**补货任务的状态（无任务时 null）。
+         *
+         * <p>商户端「手动生成备货单」判「改量重提」要用：同一柜上次成功提交后，前端记着明细指纹，
+         * 指纹变了就拦下并让用户去任务页改量（后端按 clientRequestNo 回放不核对明细，直接重提会
+         * 静默回放旧数量）。但那张任务若已取消/已完成，改量重提就是新意图，继续拦会把用户锁死
+         *（提示去任务页改量，而任务页里已经没有可改的任务）——R2-B1 残留。</p>
+         */
+        String lastTaskStatus,
         List<MerchantPrepPreviewItemDto> items
 ) {}

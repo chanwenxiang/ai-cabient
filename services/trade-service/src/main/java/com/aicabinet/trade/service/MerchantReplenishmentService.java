@@ -126,6 +126,9 @@ public class MerchantReplenishmentService {
             return List.of();
         }
         List<MerchantPrepPreviewGroupDto> out = new ArrayList<>();
+        // R2-B1 残留：前端「改量重提」的拦截判据要「本柜最近一张任务还在不在进行中」。
+        // 一次批量查（设备范围 + 每柜最新都下推 SQL），不逐柜查、也不取上限窗口再内存过滤。
+        Map<String, String> latestTaskStatus = taskRepository.findLatestStatusByDeviceIds(allowed);
         for (String deviceId : allowed) {
             // 单柜失败（如台账异常）不拖垮整张预览：跳过该柜，交由确认环节的逐柜提交给出明确报错
             List<ReplenishmentSuggestDto> suggestions;
@@ -169,6 +172,7 @@ public class MerchantReplenishmentService {
             out.add(new MerchantPrepPreviewGroupDto(
                     deviceId,
                     device == null ? deviceId : device.getDeviceName(),
+                    latestTaskStatus.get(deviceId),
                     items));
         }
         out.sort(Comparator.comparing(MerchantPrepPreviewGroupDto::deviceId));

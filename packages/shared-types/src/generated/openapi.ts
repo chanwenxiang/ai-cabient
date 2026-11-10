@@ -19625,6 +19625,7 @@ export interface components {
         MerchantPrepPreviewGroupDto: {
             deviceId?: string;
             deviceName?: string;
+            lastTaskStatus?: string;
             items?: components["schemas"]["MerchantPrepPreviewItemDto"][];
         };
         MerchantPrepPreviewItemDto: {

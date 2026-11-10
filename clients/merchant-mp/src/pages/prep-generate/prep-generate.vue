@@ -116,6 +116,7 @@ import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import {
   nextPrepRequestNo,
   prepSubmitFingerprint,
+  shouldBlockPrepResubmit,
   takePrepRequestNo,
   type PrepSubmitOutcome
 } from '@/utils/self-replenish-submit';
@@ -126,6 +127,11 @@ import type { OpenApiMerchantPrepPreviewGroupDto } from '@aicabinet/shared-types
 interface PrepGroupView {
   deviceId: string;
   deviceName: string;
+  /**
+   * 本柜最近一张补货任务的状态（取预览那一刻的快照；无任务时 null/undefined）。
+   * 只用于「改量重提」判据：任务已结束时改量是新意图，不该继续拦。
+   */
+  lastTaskStatus?: string | null;
   checked: boolean;
   items: {
     skuId: string;
@@ -217,6 +223,7 @@ function toView(rows: OpenApiMerchantPrepPreviewGroupDto[]): PrepGroupView[] {
     return {
       deviceId: String(group.deviceId),
       deviceName: String(group.deviceName || group.deviceId),
+      lastTaskStatus: group.lastTaskStatus ?? null,
       // 全柜已满的柜默认不勾（勾了也提交不出任务行）
       checked: items.some((item) => item.qty > 0),
       items
@@ -290,15 +297,27 @@ async function submit() {
     const lines = group.items
       .filter((item) => item.qty > 0)
       .map((item) => ({ skuId: item.skuId, qty: item.qty }));
-    // P0-3 残留：该柜已成功建任务且本次改量 ⇒ 显式拦截（复用旧键会静默回放旧数量，
-    // 换新键会重复建任务），指引去「补货任务」页调整
+    // P0-3 / R2-B1：该柜已成功建任务且本次改量 ⇒ 按「那张任务还活着没有」分流：
+    //   进行中/状态未知 ⇒ 拦下，让用户去任务页改量（复用旧键会静默回放旧数量）；
+    //   已取消/已完成   ⇒ 旧键作废、按新意图真提一次（否则提示去改量，而任务页里没有可改的任务）
     const fingerprint = prepSubmitFingerprint(lines);
-    const prevSuccess = prepSuccessFingerprints.get(group.deviceId);
-    if (prevSuccess !== undefined && prevSuccess !== fingerprint) {
+    const verdict = shouldBlockPrepResubmit({
+      prevFingerprint: prepSuccessFingerprints.get(group.deviceId),
+      fingerprint,
+      lastTaskStatus: group.lastTaskStatus
+    });
+    if (verdict === 'block_changed_with_active_task') {
       failures.push(
-        `${group.deviceName}：已按上次提交数量生成任务，本次改量未提交，请到「补货任务」页调整数量`
+        `${group.deviceName}：该柜已有进行中的补货任务，本次改量未提交，请到「补货任务」页调整数量` +
+          '（若该任务已被取消，请下拉刷新本页后重试）'
       );
       continue;
+    }
+    if (verdict === 'renew_after_ended_task') {
+      // 旧键指向已结束的任务：继续用会被后端回放成「已生成」旧任务（COMPLETED），
+      // 或直接 409（CANCELLED）——两种都是假结果。作废后 takePrepRequestNo 会生成新键。
+      prepRequestNos.delete(group.deviceId);
+      prepSuccessFingerprints.delete(group.deviceId);
     }
     // 每柜独立幂等键（存在页面级 store）：设备间互不重放；同柜重复提交=同一意图
     const clientRequestNo = takePrepRequestNo(prepRequestNos, group.deviceId);

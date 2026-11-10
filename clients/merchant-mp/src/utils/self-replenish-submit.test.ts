@@ -11,6 +11,7 @@ import {
   prepSubmitFingerprint,
   requestActionErrorMessage,
   selectedReplenishLines,
+  shouldBlockPrepResubmit,
   takePrepRequestNo
 } from './self-replenish-submit';
 
@@ -160,5 +161,67 @@ describe('self-replenish-submit', () => {
     ).not.toBe(prepSubmitFingerprint(a));
     // 空明细有确定指纹（整柜全 0 的柜在页面层已剔除，这里只钉函数行为）
     expect(prepSubmitFingerprint([])).toBe('');
+  });
+
+  // R2-B1 残留（2026-11-10）：「改量重提」的拦截只在**那张任务还活着**时成立。
+  // 任务已取消/已完成时继续拦，会把用户锁死（提示去任务页改量，而任务页里没有可改的任务）。
+  it('改量重提判据：本页没提交过/量没变 ⇒ 放行；任务进行中 ⇒ 拦；任务已结束 ⇒ 作废旧键重提', () => {
+    // 本页没成功提交过：没有可回放的旧键，直接提交
+    expect(
+      shouldBlockPrepResubmit({ prevFingerprint: undefined, fingerprint: 'S1:3', lastTaskStatus: null })
+    ).toBe('proceed');
+    // 量没变 = 同一意图：复用旧键由后端回放是正确的
+    expect(
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:3',
+        lastTaskStatus: 'PENDING'
+      })
+    ).toBe('proceed');
+    // 改了量、任务还在进行中 ⇒ 拦（复用旧键会静默回放旧数量）
+    expect(
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:4',
+        lastTaskStatus: 'PENDING'
+      })
+    ).toBe('block_changed_with_active_task');
+    expect(
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:4',
+        lastTaskStatus: 'IN_PROGRESS'
+      })
+    ).toBe('block_changed_with_active_task');
+    // 🔴 状态未知（预览是提交前加载的，那时本柜还没任务）必须按「还在进行中」拦——
+    // 按 null 放行会把 P0-3 的修复整个废掉（重复建任务 + 重复扣分仓库存）
+    expect(
+      shouldBlockPrepResubmit({ prevFingerprint: 'S1:3', fingerprint: 'S1:4', lastTaskStatus: null })
+    ).toBe('block_changed_with_active_task');
+    expect(
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:4',
+        lastTaskStatus: 'SOMETHING_NEW'
+      })
+    ).toBe('block_changed_with_active_task');
+    // 任务已结束（取消/完成/失败）⇒ 作废旧键、按新意图真提一次
+    for (const ended of ['CANCELLED', 'COMPLETED', 'FAILED', 'REJECTED']) {
+      expect(
+        shouldBlockPrepResubmit({
+          prevFingerprint: 'S1:3',
+          fingerprint: 'S1:4',
+          lastTaskStatus: ended
+        })
+      ).toBe('renew_after_ended_task');
+    }
+    // 大小写与空白不影响判据（后端状态字面量偶有大小写差异时不该把用户锁死）
+    expect(
+      shouldBlockPrepResubmit({
+        prevFingerprint: 'S1:3',
+        fingerprint: 'S1:4',
+        lastTaskStatus: ' cancelled '
+      })
+    ).toBe('renew_after_ended_task');
   });
 });

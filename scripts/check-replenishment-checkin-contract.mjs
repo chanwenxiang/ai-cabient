@@ -92,6 +92,39 @@ const OPS_WORKBENCH_FILE = join(TRADE_MAIN, 'service', 'OpsWorkbenchQueryService
 const PUSHED_DOWN_QUERY = 'findRestockingNowTasks';
 const RESTOCKING_DEVICE_IDS_QUERY = 'findRestockingNowDeviceIds';
 const WINDOWED_QUERY = 'findByStatusInOrderByCreatedAtAsc';
+// 规则 9（备货单「改量重提」判据的跨端契约）：后端字段 → 前端判据，少任一侧都会静默退化
+const PREP_PREVIEW_DTO_FILE = join(
+  root,
+  'services',
+  'common',
+  'common-core',
+  'src',
+  'main',
+  'java',
+  'com',
+  'aicabinet',
+  'common',
+  'dto',
+  'MerchantPrepPreviewGroupDto.java'
+);
+const PREP_SERVICE_FILE = join(TRADE_MAIN, 'service', 'MerchantReplenishmentService.java');
+const PREP_PAGE_FILE = join(
+  root,
+  'clients',
+  'merchant-mp',
+  'src',
+  'pages',
+  'prep-generate',
+  'prep-generate.vue'
+);
+const PREP_SUBMIT_UTIL_FILE = join(
+  root,
+  'clients',
+  'merchant-mp',
+  'src',
+  'utils',
+  'self-replenish-submit.ts'
+);
 
 const KEY_DEVICE_MISSING = 'REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING';
 const KEY_LOCATION_REQUIRED = 'REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED';
@@ -522,6 +555,62 @@ for (const [label, file, requiredList] of [
   }
 }
 
+// ── 规则 9：备货单「改量重提」判据的跨端契约（R2-B1 残留，2026-11-10）──────────────
+// 缺陷形态：前端记着「上次成功提交的明细指纹」，指纹变了就拦下并让用户去任务页改量
+//（后端按 clientRequestNo 回放**不核对明细**，直接重提会静默回放旧数量）。
+// 但那张任务被取消/已完成后再拦，就是把用户锁死：提示去改量，而任务页里没有可改的任务。
+// 修法 = 预览接口带上「本柜最近一张任务的状态」，前端按「任务还在不在进行中」分流。
+//
+// 这是一条**跨端契约**，四个落点少任一侧都会静默退化：
+//   DTO 少字段        ⇒ 前端永远拿到 null ⇒ 退化成「无条件拦」（缺陷原形）
+//   服务不查/不传     ⇒ 同上
+//   前端不传参        ⇒ 拿到字段也没用，判据恒按「还在进行中」
+//   终态集合被清空    ⇒ 见上（负向验证就是清空它，用例立刻红）
+// 之所以要静态门禁而不是只靠用例：用例只钉纯函数，删掉 DTO 字段/服务取数/页面传参
+// 三处中的任一处，纯函数用例照样全绿（2026-11-10 实测确认过这个盲区）。
+const prepDtoSrc = maskJavaComments(read(PREP_PREVIEW_DTO_FILE));
+if (!/\bString\s+lastTaskStatus\b/.test(prepDtoSrc)) {
+  problems.push(
+    'MerchantPrepPreviewGroupDto 里没有 `String lastTaskStatus` 分量 —— 前端拿不到本柜最近任务状态，' +
+      '「改量重提」会退化成无条件拦（任务已取消也提示去改量，用户被锁死）'
+  );
+}
+const prepServiceSrc = maskJavaComments(read(PREP_SERVICE_FILE));
+if (!prepServiceSrc.includes('findLatestStatusByDeviceIds(')) {
+  problems.push(
+    'MerchantReplenishmentService.prepPreview 没查本柜最近任务状态 —— DTO 字段会恒为 null（同上）'
+  );
+}
+if (!prepServiceSrc.includes('latestTaskStatus.get(deviceId)')) {
+  problems.push(
+    'MerchantReplenishmentService.prepPreview 查了状态却没回填进 DTO —— 只查不传等于没做'
+  );
+}
+const prepPageSrc = read(PREP_PAGE_FILE);
+const prepVerdictAt = prepPageSrc.indexOf('shouldBlockPrepResubmit({');
+if (prepVerdictAt < 0) {
+  problems.push(
+    'prep-generate.vue 不再调用 shouldBlockPrepResubmit(...) —— 改量重提判据被内联/删除，' +
+      'P0-3（旧键静默回放旧数量）与 R2-B1（任务已取消仍拦）两条都会回归'
+  );
+} else {
+  const verdictEnd = prepPageSrc.indexOf('});', prepVerdictAt);
+  const verdictCall = prepPageSrc.slice(prepVerdictAt, verdictEnd < 0 ? prepPageSrc.length : verdictEnd);
+  if (!verdictCall.includes('lastTaskStatus')) {
+    problems.push(
+      'prep-generate.vue 调用 shouldBlockPrepResubmit 时没传 lastTaskStatus —— ' +
+        '判据会恒按「任务还在进行中」处理，任务已取消的用户仍被锁死'
+    );
+  }
+}
+const prepUtilSrc = read(PREP_SUBMIT_UTIL_FILE);
+if (!/PREP_TASK_ENDED_STATUSES\s*=\s*\[[^\]]*'CANCELLED'/.test(prepUtilSrc)) {
+  problems.push(
+    'self-replenish-submit.ts 的 PREP_TASK_ENDED_STATUSES 不再包含 CANCELLED —— ' +
+      '「任务已取消 ⇒ 作废旧键重提」这条分支失效（B1 后端已对此类回放返 409）'
+  );
+}
+
 if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
@@ -531,5 +620,6 @@ console.log(
     `默认距离 ${declaredMax}m、边界 ${inside}m/${outside}m 与 e2e-replenishment.ps1 的期望值全部一致；` +
     `终态闸与开门共用同一条文案、坐标判据唯一（${KEY_COORDS_PREDICATE}）、` +
     `deviceHasCoords 已声明且被实跑脚本消费；` +
-    `补货任务取数全部下推（${PUSHED_DOWN_QUERY} / findWorkbenchTasks，无上限窗口）`
+    `补货任务取数全部下推（${PUSHED_DOWN_QUERY} / findWorkbenchTasks，无上限窗口）；` +
+    `备货预览回传 lastTaskStatus 且前端判据消费它（改量重提只在任务未结束时拦）`
 );
