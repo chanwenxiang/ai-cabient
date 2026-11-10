@@ -1,5 +1,5 @@
 import { reactive, ref, type Ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
@@ -110,11 +110,40 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
     }
   }
 
+  /**
+   * 动库存动作的二次确认（R2-A5）：发运扣调出仓、收货加调入仓，一点即发风险太高。
+   * 用 then/catch 收口，避免 MessageBox 的 reject('cancel') 冒泡到 PageErrorBoundary。
+   */
+  async function confirmWrite(content: string, title: string): Promise<boolean> {
+    return ElMessageBox.confirm(content, title, {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    })
+      .then(() => true)
+      .catch(() => false);
+  }
+
   async function shipTransfer(row: WarehouseTransferRow) {
-    await api.request(AdminEndpoints.warehouseTransferShip(row.transferId), 'POST');
-    ElMessage.success('已发运');
-    deps.loadedTabs.value.delete('transfers');
-    await deps.loadTab('transfers', true);
+    if (
+      !(await confirmWrite(
+        `确认发运调拨单 ${row.transferId}？发运即扣减调出仓库存。`,
+        '确认发运'
+      ))
+    ) {
+      return;
+    }
+    deps.saving.value = true;
+    try {
+      await api.request(AdminEndpoints.warehouseTransferShip(row.transferId), 'POST');
+      ElMessage.success('已发运');
+      deps.loadedTabs.value.delete('transfers');
+      await deps.loadTab('transfers', true);
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '发运失败'));
+    } finally {
+      deps.saving.value = false;
+    }
   }
 
   /**
@@ -123,21 +152,49 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
    * @param lines 各行实收/损耗；**缺省 = 全部按「全部到齐」**（旧的「只点收货」流程不受影响）
    */
   async function receiveTransfer(row: WarehouseTransferRow, lines?: ReceiveLineInput[]) {
-    await api.request(
-      AdminEndpoints.warehouseTransferReceive(row.transferId),
-      'POST',
-      lines && lines.length ? { lines } : undefined
-    );
-    ElMessage.success('已收货入库');
-    deps.loadedTabs.value.delete('transfers');
-    await deps.loadTab('transfers', true);
+    // 带明细的表单提交由表单自身承担确认；只有「一键全部到齐」需要二次确认
+    const hasLines = Boolean(lines && lines.length);
+    if (
+      !hasLines &&
+      !(await confirmWrite(
+        `确认按「全部到齐」收货入库？收货即增加调入仓库存（有损耗请走明细登记）。`,
+        '确认收货'
+      ))
+    ) {
+      return;
+    }
+    deps.saving.value = true;
+    try {
+      await api.request(
+        AdminEndpoints.warehouseTransferReceive(row.transferId),
+        'POST',
+        hasLines ? { lines } : undefined
+      );
+      ElMessage.success('已收货入库');
+      deps.loadedTabs.value.delete('transfers');
+      await deps.loadTab('transfers', true);
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '收货失败'));
+    } finally {
+      deps.saving.value = false;
+    }
   }
 
   async function cancelTransfer(row: WarehouseTransferRow) {
-    await api.request(AdminEndpoints.warehouseTransferCancel(row.transferId), 'POST');
-    ElMessage.success(displayLabel('order_status', 'CANCELLED'));
-    deps.loadedTabs.value.delete('transfers');
-    await deps.loadTab('transfers', true);
+    if (!(await confirmWrite(`确认取消调拨单 ${row.transferId}？取消后不可恢复。`, '取消调拨单'))) {
+      return;
+    }
+    deps.saving.value = true;
+    try {
+      await api.request(AdminEndpoints.warehouseTransferCancel(row.transferId), 'POST');
+      ElMessage.success(displayLabel('order_status', 'CANCELLED'));
+      deps.loadedTabs.value.delete('transfers');
+      await deps.loadTab('transfers', true);
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '取消失败'));
+    } finally {
+      deps.saving.value = false;
+    }
   }
 
   return {

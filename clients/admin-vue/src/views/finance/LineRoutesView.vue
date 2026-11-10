@@ -29,7 +29,12 @@
                 }}</el-tag>
               </span>
               <el-button type="primary" @click="openChiefEditor">编辑总负责人</el-button>
-              <el-button type="primary" @click="openCreate">新建线路</el-button>
+              <el-button
+                v-hasPermi="['ops:replenishment:edit']"
+                type="primary"
+                @click="openCreate"
+                >新建线路</el-button
+              >
             </template>
             <el-table-column prop="id" label="ID" width="70" />
             <el-table-column prop="routeName" label="线路名称" min-width="140" />
@@ -182,7 +187,9 @@
           </el-form-item>
         </template>
         <el-form-item>
-          <el-button type="primary" @click="saveMember">保存成员</el-button>
+          <el-button v-hasPermi="['ops:replenishment:edit']" type="primary" @click="saveMember"
+            >保存成员</el-button
+          >
         </el-form-item>
       </el-form>
     </el-dialog>
@@ -252,7 +259,7 @@
 <script setup lang="ts">
 import { yuanTextZero as yuan, centsToYuanNumber } from '@/utils/display';
 import { onMounted, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Box, Edit, Money, Tickets, User } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { errorMessage } from '@/utils/error-message';
@@ -439,26 +446,56 @@ function openEdit(row: LineRoute): void {
   routeDialogVisible.value = true;
 }
 
+/**
+ * R2-A4：本页四个写动作（建/改线路、归档、保存成员、移除成员）此前都是裸 await ——
+ * 失败被 PageErrorBoundary 吞成整页错误页、归档/移除一点即生效。统一走「先确认后请求」。
+ */
+async function confirmWrite(content: string, title: string): Promise<boolean> {
+  return ElMessageBox.confirm(content, title, {
+    type: 'warning',
+    confirmButtonText: '确认',
+    cancelButtonText: '取消'
+  })
+    .then(() => true)
+    .catch(() => false);
+}
+
 async function saveRoute(): Promise<void> {
   const body = {
     routeName: routeForm.value.routeName,
     managerId: routeForm.value.managerId,
     remark: routeForm.value.remark
   };
-  if (routeForm.value.id) {
-    await api.request(AdminEndpoints.lineRouteUpdate(routeForm.value.id), 'PUT', body);
-  } else {
-    await api.request(AdminEndpoints.lineRoutes, 'POST', body);
+  try {
+    if (routeForm.value.id) {
+      await api.request(AdminEndpoints.lineRouteUpdate(routeForm.value.id), 'PUT', body);
+    } else {
+      await api.request(AdminEndpoints.lineRoutes, 'POST', body);
+    }
+    ElMessage.success('已保存');
+    routeDialogVisible.value = false;
+    await routesCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '保存失败，请重试'));
   }
-  ElMessage.success('已保存');
-  routeDialogVisible.value = false;
-  await routesCrud.load();
 }
 
 async function archiveRoute(row: LineRoute): Promise<void> {
-  await api.request(AdminEndpoints.lineRouteArchive(row.id), 'POST');
-  ElMessage.success('已归档（可增减，不物理删除）');
-  await routesCrud.load();
+  if (
+    !(await confirmWrite(
+      `确认归档线路「${row.routeName}」？归档后不再派单，历史数据保留（可增减，不物理删除）。`,
+      '确认归档'
+    ))
+  ) {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.lineRouteArchive(row.id), 'POST');
+    ElMessage.success('已归档（可增减，不物理删除）');
+    await routesCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '归档失败'));
+  }
 }
 
 function routeActions(row: LineRoute): CrudRowAction[] {
@@ -492,15 +529,19 @@ async function openMembers(row: LineRoute): Promise<void> {
 
 async function saveMember(): Promise<void> {
   if (!activeRoute.value) return;
-  await api.request(AdminEndpoints.lineRouteMembers(activeRoute.value.id), 'PUT', {
-    userId: memberForm.value.userId,
-    role: memberForm.value.role,
-    commissionBasis: memberForm.value.commissionBasis,
-    commissionRateBps: memberForm.value.commissionRateBps,
-    commissionPerUnitCents: memberForm.value.commissionPerUnitCents
-  });
-  ElMessage.success('成员已保存（费用项/比例随时可改）');
-  await membersCrud.load();
+  try {
+    await api.request(AdminEndpoints.lineRouteMembers(activeRoute.value.id), 'PUT', {
+      userId: memberForm.value.userId,
+      role: memberForm.value.role,
+      commissionBasis: memberForm.value.commissionBasis,
+      commissionRateBps: memberForm.value.commissionRateBps,
+      commissionPerUnitCents: memberForm.value.commissionPerUnitCents
+    });
+    ElMessage.success('成员已保存（费用项/比例随时可改）');
+    await membersCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '成员保存失败，请重试'));
+  }
 }
 
 function memberActions(): CrudRowAction[] {
@@ -511,12 +552,24 @@ function memberActions(): CrudRowAction[] {
 
 async function onMemberAction(payload: { key: string; row: RouteMember }): Promise<void> {
   if (payload.key !== 'remove' || !activeRoute.value) return;
-  await api.request(
-    AdminEndpoints.lineRouteMemberRemove(activeRoute.value.id, payload.row.id),
-    'DELETE'
-  );
-  ElMessage.success('已移除');
-  await membersCrud.load();
+  if (
+    !(await confirmWrite(
+      `确认把成员（userId=${payload.row.userId}）从「${activeRoute.value.routeName}」移除？移除后该成员不再计提成。`,
+      '确认移除'
+    ))
+  ) {
+    return;
+  }
+  try {
+    await api.request(
+      AdminEndpoints.lineRouteMemberRemove(activeRoute.value.id, payload.row.id),
+      'DELETE'
+    );
+    ElMessage.success('已移除');
+    await membersCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '移除失败'));
+  }
 }
 
 function openChiefEditor(): void {

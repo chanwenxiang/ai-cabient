@@ -38,6 +38,15 @@ describe('csv helpers', () => {
     expect(escapeCsvCell('=cmd|"/c calc"!A0')).toBe('"\'=cmd|""/c calc""!A0"');
   });
 
+  it('keeps negative amounts numeric (R2-A15)', () => {
+    // 负数金额不是公式：加 `'` 会让 Excel 当文本、不能求和
+    expect(escapeCsvCell('-500.00')).toBe('-500.00');
+    expect(escapeCsvCell('-1')).toBe('-1');
+    expect(escapeCsvCell(-500)).toBe('-500');
+    // 其他 `-` 开头仍按公式拦截（含 `-1+1`，见上一条用例）
+    expect(escapeCsvCell('-cmd|"/c calc"!A0').startsWith('"\'')).toBe(true);
+  });
+
   it('builds BOM csv and parses round-trip', () => {
     const csv = toCsv(
       ['name', 'qty'],

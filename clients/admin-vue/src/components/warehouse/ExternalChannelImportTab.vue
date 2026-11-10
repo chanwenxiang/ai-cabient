@@ -9,6 +9,29 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
+
+/**
+ * 确认框统一入口：R2-A2 —— confirm 必须包在 try 内。
+ * Element Plus 的 MessageBox 以 reject('cancel'|'close') 结束，裸 await 会让拒绝冒泡到
+ * PageErrorBoundary，点一次「取消」就把整页换成错误页（连同上一步的向导状态一起丢）。
+ */
+async function confirmOrSkip(options: {
+  message: string;
+  title: string;
+  confirmButtonText: string;
+}): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(options.message, options.title, {
+      type: 'warning',
+      confirmButtonText: options.confirmButtonText
+    });
+    return true;
+  } catch (e) {
+    if (!isUserDismiss(e)) ElMessage.error(errorMessage(e, '确认失败，请重试'));
+    return false;
+  }
+}
 
 interface TemplateDto {
   templateId: number;
@@ -196,11 +219,15 @@ async function commitPreview() {
   if (missing.length) {
     return ElMessage.warning(`请为以下人员指定归属仓：${missing.join('、')}`);
   }
-  await ElMessageBox.confirm(
-    `确认把 ${batch.channelName} ${batch.periodLabel} 的 ${batch.rowsMapped} 行聚合入渠道流水？提交后批次锁死不可改。`,
-    '确认提交',
-    { type: 'warning', confirmButtonText: '确认提交' }
-  );
+  if (
+    !(await confirmOrSkip({
+      message: `确认把 ${batch.channelName} ${batch.periodLabel} 的 ${batch.rowsMapped} 行聚合入渠道流水？提交后批次锁死不可改。`,
+      title: '确认提交',
+      confirmButtonText: '确认提交'
+    }))
+  ) {
+    return;
+  }
   try {
     const data = await api.request<BatchDto>(
       AdminEndpoints.externalImportBatchCommit(batch.batchId),
@@ -225,10 +252,15 @@ async function commitPreview() {
 async function discardPreview() {
   const batch = previewBatch.value;
   if (!batch) return;
-  await ElMessageBox.confirm('放弃该解析批次？（留痕删除，可重新上传）', '放弃', {
-    type: 'warning',
-    confirmButtonText: '确认放弃'
-  });
+  if (
+    !(await confirmOrSkip({
+      message: '放弃该解析批次？（留痕删除，可重新上传）',
+      title: '放弃',
+      confirmButtonText: '确认放弃'
+    }))
+  ) {
+    return;
+  }
   try {
     await api.request(AdminEndpoints.externalImportBatch(batch.batchId), 'DELETE');
     previewBatch.value = null;
@@ -353,14 +385,15 @@ async function saveBind() {
 }
 
 async function removeBind(product: ProductDto) {
-  await ElMessageBox.confirm(
-    `解绑「${product.externalName}」→ ${product.mappedSkuName ?? ''}？`,
-    '解绑',
-    {
-      type: 'warning',
+  if (
+    !(await confirmOrSkip({
+      message: `解绑「${product.externalName}」→ ${product.mappedSkuName ?? ''}？`,
+      title: '解绑',
       confirmButtonText: '解绑'
-    }
-  );
+    }))
+  ) {
+    return;
+  }
   try {
     await api.request(AdminEndpoints.externalProductMapping(product.externalProductId), 'DELETE');
     ElMessage.success('已解绑');

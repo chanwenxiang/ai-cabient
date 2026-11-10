@@ -600,6 +600,7 @@
           :can-edit-device="canEditDevice"
           :can-regenerate-device-id="canRegenerateDeviceId"
           :asset-saving="assetSaving"
+          :asset-load-failed="assetLoadFailed"
           :geo-configured="geoConfigured"
           :hardware-reset-loading="hardwareResetLoading"
           :regenerate-id-loading="regenerateIdLoading"
@@ -983,6 +984,7 @@ const {
 const {
   asset,
   assetSaving,
+  assetLoadFailed,
   geoConfigured,
   fillAsset,
   loadAsset,
@@ -1359,12 +1361,17 @@ async function loadDetail() {
   delistedInventory.value = detail.delistedInventory || [];
   slotsHydrated.value = true;
   syncTempDraftFromMetrics(detail.metrics?.targetTempC);
-  await Promise.all([
+  const results = await Promise.allSettled([
     loadAsset(),
     loadLifecycleEvents(),
     loadRepairTickets(),
     loadGlobalRefundPolicy()
   ]);
+  if (results[0].status === 'rejected') {
+    ElMessage.error('资产信息加载失败：保存已禁用，请刷新后重试');
+  }
+  // R2-A8：loadPolicy 原先在 Promise.all 内 —— 资产/生命周期任一失败就整体 reject，
+  // 策略区既不加载也不置失败标记（整块空白无重试）。策略独立加载。
   await loadPolicy(!!detail.metrics?.salesLocked);
 }
 

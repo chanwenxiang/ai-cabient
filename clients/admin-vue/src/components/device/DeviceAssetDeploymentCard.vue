@@ -13,6 +13,8 @@ defineProps<{
   canEditDevice: boolean;
   canRegenerateDeviceId: boolean;
   assetSaving: boolean;
+  /** 资产接口加载失败（R2-A8）：表单是空的，保存会清掉所属仓库等字段 ⇒ 禁用保存 */
+  assetLoadFailed?: boolean;
   geoConfigured: boolean;
   hardwareResetLoading: boolean;
   regenerateIdLoading: boolean;
@@ -75,6 +77,8 @@ const dataFeeYuan = computed({
           type="primary"
           size="small"
           :loading="assetSaving"
+          :disabled="assetLoadFailed"
+          :title="assetLoadFailed ? '资产信息未加载成功，保存已禁用' : undefined"
           @click="emit('save')"
           >保存资产</el-button
         >

@@ -54,6 +54,8 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
    */
   const policyLoadFailed = ref(false);
   const policyLoading = ref(false);
+  /** 策略保存在途锁（R2-A9：防并发 PUT 后到覆盖先到） */
+  const policySaving = ref(false);
   const refundPolicyDraft = ref('INHERIT');
   const refundPolicySaving = ref(false);
   const globalRefundPolicy = ref('AUTO_REFUND');
@@ -216,6 +218,8 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
       ElMessage.warning('柜机策略尚未加载成功，请先重试加载');
       return;
     }
+    if (policySaving.value) return; // R2-A9：无在途锁时可并发 PUT，后到覆盖先到
+    policySaving.value = true;
     try {
       policy.value = await api.request(
         AdminEndpoints.devicePolicy(deps.deviceId),
@@ -226,6 +230,11 @@ export function useDeviceRemoteOps(deps: UseDeviceRemoteOpsDeps) {
       await deps.loadDetail();
     } catch (e) {
       ElMessage.error(errorMessage(e, '策略保存失败'));
+      // R2-A9：保存失败必须回滚服务端基线 —— 否则开关停在「看上去已拨」的位置，
+      // 之后拨任意一个开关会把这份失败值随整份 PUT 一起写进服务端。
+      reloadPolicy();
+    } finally {
+      policySaving.value = false;
     }
   }
 

@@ -21,14 +21,31 @@
  */
 import { onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
 import { adminDevWarn } from '@/utils/admin-dev-log';
+import { errorMessage, isUserDismiss } from '@/utils/error-message';
 
 const failed = ref(false);
 const route = useRoute();
 
-onErrorCaptured((err) => {
-  failed.value = true;
-  adminDevWarn('[admin] 页面渲染异常，已用兜底 UI 替代：', err);
+/**
+ * 只有「setup/渲染期」抛错才说明子树已不可用（白屏），整页替换兜底 UI 才是正确处置。
+ * 事件处理（@click / emit 监听）、watcher、生命周期钩子的异常此前被同一钩子吞掉并整页替换 ——
+ * 一次接口 403 或确认框点「取消」就会让运营丢掉正在填的表单/筛选/标签页（2026-11-10 R2-A1）。
+ * Vue 3 的 info 形如 "native event handler" / "component event handler" / "render function" /
+ * "setup function" / "lifecycle hook" / "watcher callback"。
+ */
+const FATAL_INFO_RE = /^(setup function|render|render function|component render function)$/;
+
+onErrorCaptured((err, _instance, info) => {
+  if (FATAL_INFO_RE.test(info)) {
+    failed.value = true;
+    adminDevWarn('[admin] 页面渲染异常，已用兜底 UI 替代：', err);
+    return false;
+  }
+  adminDevWarn(`[admin] 页面交互异常（${info}），已提示、未替换页面：`, err);
+  // 确认框点「取消」以 'cancel' reject，属用户主动行为，不提示
+  if (!isUserDismiss(err)) ElMessage.error(errorMessage(err, '操作失败，请重试'));
   return false;
 });
 

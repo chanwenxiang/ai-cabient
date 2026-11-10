@@ -30,10 +30,15 @@ function unknownToDisplayString(value: unknown): string {
 /**
  * Escape a CSV cell and neutralize formula injection (OWASP CSV Injection).
  * Excel/WPS treat cells starting with = + - @ TAB CR as formulas.
+ *
+ * R2-A15：负数金额（如 `-500.00`）不是公式，前缀 `'` 会让 Excel 把它当文本、无法求和。
+ * 纯十进制数（可选负号、两位小数或整数）豁免；`-1+2`、`-cmd|...` 这类仍按公式处理。
  */
+const PLAIN_DECIMAL_RE = /^-?\d+(\.\d+)?$/;
+
 export function escapeCsvCell(value: unknown): string {
   let s = unknownToDisplayString(value);
-  if (/^[=+\-@\t\r]/.test(s)) {
+  if (/^[=+\-@\t\r]/.test(s) && !PLAIN_DECIMAL_RE.test(s)) {
     s = `'${s}`;
   }
   if (/[",\n\r]/.test(s)) return `"${s.replaceAll('"', '""')}"`;

@@ -84,25 +84,62 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     await deps.loadTab('stocktakes', true);
   }
 
-  async function saveStocktakeLines() {
+  /**
+   * 把弹窗里录入的实盘数量真正落库。
+   * R2-A6：完成/完成并过账此前只 POST，不带行数据 —— 运营改了实盘没点「保存实盘」就点完成，
+   * 后端按**上次保存值**过账（或首次录入直接 400 all lines must be counted）。
+   * 现在两个完成动作都先过这道闸。
+   */
+  async function persistStocktakeLines(): Promise<boolean> {
     const id = stocktakeDetail.value.stocktakeId;
     const lines: WarehouseStocktakeRow[] = stocktakeDetail.value.lines || [];
-    deps.saving.value = true;
+    const pending = lines.filter((l) => l.countedQty != null);
+    if (!pending.length) return true;
     try {
       await Promise.all(
-        lines
-          .filter((l) => l.countedQty != null)
-          .map((l) =>
-            api.request(AdminEndpoints.warehouseStocktakeLine(id, l.lineId), 'PUT', {
-              countedQty: l.countedQty,
-              notes: l.notes
-            })
-          )
+        pending.map((l) =>
+          api.request(AdminEndpoints.warehouseStocktakeLine(id, l.lineId), 'PUT', {
+            countedQty: l.countedQty,
+            notes: l.notes
+          })
+        )
       );
-      ElMessage.success('实盘数据已保存');
+      return true;
+    } catch (e) {
+      ElMessage.error(errorMessage(e, '实盘数量保存失败，请检查后再完成盘点'));
+      return false;
+    }
+  }
+
+  /** 完成类动作的前置闸：缺行实盘数量时给出中文提示（后端此处的 400 文案是英文）。 */
+  function assertAllLinesCounted(): boolean {
+    const lines: WarehouseStocktakeRow[] = stocktakeDetail.value.lines || [];
+    const missing = lines.filter((l) => l.countedQty == null).length;
+    if (missing > 0) {
+      ElMessage.warning(`还有 ${missing} 行未录入实盘数量，录完再完成盘点`);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * R2-A12：写成功后的刷新失败不能算写失败 —— 否则先弹「已完成」再弹「完成失败」两条相反提示，
+   * 运营重试还会撞 409。刷新单独兜住。
+   */
+  async function reloadStocktakeDetailSafely() {
+    try {
       await reloadStocktakeDetail();
     } catch (e) {
-      ElMessage.error(errorMessage(e, '保存失败'));
+      ElMessage.warning(errorMessage(e, '列表刷新失败，请点刷新重试'));
+    }
+  }
+
+  async function saveStocktakeLines() {
+    deps.saving.value = true;
+    try {
+      if (!(await persistStocktakeLines())) return;
+      ElMessage.success('实盘数据已保存');
+      await reloadStocktakeDetail();
     } finally {
       deps.saving.value = false;
     }
@@ -131,16 +168,19 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       ))
     )
       return;
+    if (!assertAllLinesCounted()) return;
     deps.saving.value = true;
     try {
+      if (!(await persistStocktakeLines())) return;
       await api.request(AdminEndpoints.warehouseStocktakeComplete(id), 'POST');
-      ElMessage.success('盘点已完成');
-      await reloadStocktakeDetail();
     } catch (e) {
       ElMessage.error(errorMessage(e, '完成失败'));
+      return;
     } finally {
       deps.saving.value = false;
     }
+    ElMessage.success('盘点已完成');
+    await reloadStocktakeDetailSafely();
   }
 
   /** P2-6：完成并过账（全行实盘校验 + 差异全量过账，一个动作） */
@@ -156,16 +196,19 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       ))
     )
       return;
+    if (!assertAllLinesCounted()) return;
     deps.saving.value = true;
     try {
+      if (!(await persistStocktakeLines())) return;
       await api.request(AdminEndpoints.warehouseStocktakeCompleteAndAdjust(id), 'POST');
-      ElMessage.success('盘点已完成，差异已过账');
-      await reloadStocktakeDetail();
     } catch (e) {
       ElMessage.error(errorMessage(e, '完成并过账失败'));
+      return;
     } finally {
       deps.saving.value = false;
     }
+    ElMessage.success('盘点已完成，差异已过账');
+    await reloadStocktakeDetailSafely();
   }
 
   async function adjustStocktakeAction() {
@@ -183,13 +226,14 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeAdjust(id), 'POST', {});
-      ElMessage.success('差异已调整入库');
-      await reloadStocktakeDetail();
     } catch (e) {
       ElMessage.error(errorMessage(e, '调整失败'));
+      return;
     } finally {
       deps.saving.value = false;
     }
+    ElMessage.success('差异已调整入库');
+    await reloadStocktakeDetailSafely();
   }
 
   async function cancelStocktakeAction() {
@@ -198,13 +242,14 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     deps.saving.value = true;
     try {
       await api.request(AdminEndpoints.warehouseStocktakeCancel(id), 'POST');
-      ElMessage.success('盘点单已取消');
-      await reloadStocktakeDetail();
     } catch (e) {
       ElMessage.error(errorMessage(e, '取消失败'));
+      return;
     } finally {
       deps.saving.value = false;
     }
+    ElMessage.success('盘点单已取消');
+    await reloadStocktakeDetailSafely();
   }
 
   return {

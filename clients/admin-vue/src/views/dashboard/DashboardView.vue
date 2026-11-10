@@ -79,9 +79,12 @@
             @keydown.space.prevent="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
-            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
+            <div class="stat-value">
+              {{ statsFailed ? '—' : listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}
+            </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
+              <template v-if="statsFailed">设备统计加载失败</template>
+              <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>
                 {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
                 <template v-if="canAccessPath('/devices')">
@@ -108,10 +111,11 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? yuanTextZero(stats.revenueTodayCents) : '…' }}
+              {{ statsFailed ? '—' : listHydrated ? yuanTextZero(stats.revenueTodayCents) : '…' }}
             </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
+              <template v-if="statsFailed">营收统计加载失败</template>
+              <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>{{
                 canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
               }}</template>
@@ -137,9 +141,12 @@
             @keydown.space.prevent="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
+            <div class="stat-value">
+              {{ exceptionCountFailed ? '—' : listHydrated ? openExceptionCount : '…' }}
+            </div>
             <div class="stat-hint">
-              <template v-if="!listHydrated">{{ kpiPendingLabel }}</template>
+              <template v-if="exceptionCountFailed">异常数加载失败</template>
+              <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else-if="canAccessPath('/exceptions')">
                 {{
                   openExceptionCount
@@ -337,6 +344,12 @@ const listHydrated = ref(false);
  * 失败且从未成功加载时置 workbenchFailed，KPI 占位显「加载失败」而非假数据。
  */
 const workbenchFailed = ref(false);
+/**
+ * R2-A11：聚合接口降级后「部分成功」曾渲染假 0 —— stats 失败但 workbench 成功时
+ * stats={} ⇒ KPI 显示 0 台/0 元；异常数接口失败 ⇒ 待处理显示 0。分项标记，失败显「—」。
+ */
+const statsFailed = ref(false);
+const exceptionCountFailed = ref(false);
 const kpiPendingLabel = computed(() =>
   workbenchFailed.value ? '加载失败，请点右上「刷新」重试' : UI_COPY.loading
 );
@@ -768,6 +781,8 @@ async function load(opts?: { silent?: boolean }) {
       return;
     }
     stats.value = s || {};
+    statsFailed.value = !s;
+    exceptionCountFailed.value = !ex;
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
     landed = true;

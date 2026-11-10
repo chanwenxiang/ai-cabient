@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
@@ -57,6 +57,9 @@ async function searchSkus(keyword: string) {
   const seq = ++skuSearchSeq;
   if (!kw) {
     skuOptions.value = [];
+    // R2-A14：清空关键词时也要收掉 loading —— 在途请求因 seq 变了不会再复位它，
+    // 否则远程下拉永久转圈。
+    skuSearching.value = false;
     return;
   }
   skuSearching.value = true;
@@ -84,6 +87,14 @@ async function onPickSku(skuId: string) {
   await loadState();
 }
 
+// R2-A14：手改条码即视为「不再指向已选商品」，否则下拉里还挂着上一个 SKU，
+// 而查询用的是新条码（两个来源互相矛盾）。
+watch(queryBarCode, (v) => {
+  if (!pickedSkuId.value) return;
+  const picked = skuOptions.value.find((s) => s.skuId === pickedSkuId.value);
+  if (picked?.barcode && v !== picked.barcode) pickedSkuId.value = '';
+});
+
 const auth = useAuthStore();
 /** 建档 / 批量刷新是写操作（后端 ops:sku:edit）；本页本身按 ops:sku:list 进得来 */
 const canEdit = computed(() => auth.hasPerm('ops:sku:edit'));
@@ -105,20 +116,30 @@ const policy = ref<Policy | null>(null);
 const refreshText = ref('');
 const refreshLoading = ref(false);
 
+/** R2-A14：连选两个商品时旧响应晚到会把新商品的审核状态/驳回原因盖回旧的 */
+let stateSeq = 0;
+
 async function loadState() {
   const code = queryBarCode.value.trim();
   if (!code) {
     ElMessage.warning('请输入条码');
     return;
   }
+  const seq = ++stateSeq;
   stateLoading.value = true;
   try {
-    state.value = await api.request<ProductState>(AdminEndpoints.jiangyiProductState(code), 'GET');
+    const data = await api.request<ProductState>(
+      AdminEndpoints.jiangyiProductState(code),
+      'GET'
+    );
+    if (seq !== stateSeq) return;
+    state.value = data;
   } catch (e) {
+    if (seq !== stateSeq) return;
     state.value = null;
     ElMessage.error(errorMessage(e, '查询状态失败'));
   } finally {
-    stateLoading.value = false;
+    if (seq === stateSeq) stateLoading.value = false;
   }
 }
 

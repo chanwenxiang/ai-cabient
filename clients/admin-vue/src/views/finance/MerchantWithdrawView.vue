@@ -626,7 +626,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
 import {
   CircleCheck,
@@ -724,6 +724,16 @@ const SAMPLE_WITHDRAW_CENTS = 100000; // 示例提现额 ¥1000
 const feeMerchantId = ref('');
 const feeLoading = ref(false);
 const feeLoaded = ref(false);
+/**
+ * R2-A10：面板读数属于哪个商户。改了「商户编号」但没重新查询时，
+ * 「保存覆盖/清除覆盖」会拿着 A 的读数去写 B —— 两个写动作前都要比对。
+ */
+const feeLoadedMerchantId = ref<string | null>(null);
+watch(feeMerchantId, (v) => {
+  if ((feeLoadedMerchantId.value ?? '') !== v.trim()) {
+    feeLoaded.value = false;
+  }
+});
 const feeSaving = ref(false);
 const feeGlobalBps = ref(0);
 const feeFlatCents = ref(0);
@@ -952,8 +962,7 @@ async function loadFeePolicy() {
   if (!merchantId) {
     ElMessage.warning('请输入商户编号');
     return;
-  }
-  const seq = loadSeq.begin('loadFeePolicy');
+  }  const seq = loadSeq.begin('loadFeePolicy');
   feeLoading.value = true;
   try {
     const rows = await api.request<SystemConfigRow[]>(AdminEndpoints.systemConfigs, 'GET');
@@ -970,6 +979,7 @@ async function loadFeePolicy() {
     feeOverrideBps.value = readConfigNumber(FEE_BPS_OVERRIDE_PREFIX + merchantId);
     feeDraftBps.value = feeOverrideBps.value ?? feeGlobalBps.value;
     feeLoaded.value = true;
+    feeLoadedMerchantId.value = merchantId;
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadFeePolicy')) return;
     feeLoaded.value = false;
@@ -983,6 +993,10 @@ async function saveFeeOverride() {
   const merchantId = feeMerchantId.value.trim();
   if (!merchantId) {
     ElMessage.warning('请输入商户编号');
+    return;
+  }
+  if (feeLoadedMerchantId.value !== merchantId) {
+    ElMessage.warning('当前费率面板与商户编号不一致，请先点「查询」读取该商户费率再保存');
     return;
   }
   feeSaving.value = true;
@@ -1006,6 +1020,10 @@ async function saveFeeOverride() {
 async function clearFeeOverride() {
   const merchantId = feeMerchantId.value.trim();
   if (!merchantId) return;
+  if (feeLoadedMerchantId.value !== merchantId) {
+    ElMessage.warning('当前费率面板与商户编号不一致，请先点「查询」读取该商户费率再操作');
+    return;
+  }
   try {
     await ElMessageBox.confirm(
       `确认清除 ${merchantId} 的费率覆盖？清除后该商户回到全局费率。`,

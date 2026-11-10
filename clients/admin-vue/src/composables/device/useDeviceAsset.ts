@@ -57,6 +57,9 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
     merchantId: ''
   });
   const assetSaving = ref(false);
+  /** 资产是否已成功加载过（R2-A8：未加载成功时禁止保存，防空表单清字段） */
+  const assetLoaded = ref(false);
+  const assetLoadFailed = ref(false);
   const geoConfigured = ref(false);
 
   const warehouseOptions = ref<{ warehouseId: string; warehouseName?: string }[]>([]);
@@ -94,17 +97,31 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
   }
 
   async function loadAsset() {
-    const row = await api.request<OpenApiAdminDeviceDto>(
-      AdminEndpoints.device(deps.deviceId),
-      'GET'
-    );
-    fillAsset(row);
-    deps.onDeviceSynced?.(row);
-    void loadWarehouses();
+    // R2-A8：加载失败要留下失败态 —— 原实现让空表单可保存，PATCH 恒回传
+    // homeWarehouseId:''（空串=清除）⇒ 资产接口单点失败时一点保存就把真实所属仓清掉。
+    try {
+      const row = await api.request<OpenApiAdminDeviceDto>(
+        AdminEndpoints.device(deps.deviceId),
+        'GET'
+      );
+      fillAsset(row);
+      deps.onDeviceSynced?.(row);
+      assetLoaded.value = true;
+      assetLoadFailed.value = false;
+      void loadWarehouses();
+    } catch (e) {
+      assetLoaded.value = false;
+      assetLoadFailed.value = true;
+      throw e;
+    }
   }
 
   async function saveAsset() {
     if (!deps.canEditDevice.value) return;
+    if (!assetLoaded.value || assetLoadFailed.value) {
+      ElMessage.error('资产信息未加载成功，已阻止保存（避免用空表单清掉所属仓库等字段），请刷新后重试');
+      return;
+    }
     // 投放场景必填（CB-049 扩展，2026-10-16 用户拍板）：没有场景就无法按商品×场景限额校验上架
     if (!asset.sceneType) {
       ElMessage.warning('请选择投放场景（必选）：商品上架限额按柜子所属场景校验');
@@ -157,6 +174,8 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
   return {
     asset,
     assetSaving,
+    assetLoaded,
+    assetLoadFailed,
     geoConfigured,
     fillAsset,
     loadAsset,

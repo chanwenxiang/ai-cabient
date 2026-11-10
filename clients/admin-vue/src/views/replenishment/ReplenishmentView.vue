@@ -721,6 +721,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { errorMessage } from '@/utils/error-message';
 import RestockVideoDialog from '@/components/replenishment/RestockVideoDialog.vue';
 import CrudTable from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -1092,17 +1093,25 @@ async function loadSummary() {
 }
 
 async function loadFulfillment() {
-  loadSeq.begin('loadFulfillment');
+  // R2-A16：原实现只 begin() 不捕获 seq —— 快速切筛选时旧响应会盖掉新筛选的结果；
+  // 且裸 await 无 try，失败直接被错误边界接走（整页替换）。
+  const seq = loadSeq.begin('loadFulfillment');
   const extra: Record<string, string> = {};
   if (focusDeviceId.value.trim()) extra.deviceId = focusDeviceId.value.trim();
   if (fulfillmentStatus.value) extra.status = fulfillmentStatus.value;
-  const data = await api.request<{ items: Row[]; total: number }>(
-    AdminEndpoints.replenishmentFulfillmentTasks(replenishmentListParams(extra)),
-    'GET'
-  );
-  fulfillmentTasksList.value = data.items || [];
-  tabTotals.value = { ...tabTotals.value, fulfillment: Number(data.total) || 0 };
-  clearFulfillmentSelection();
+  try {
+    const data = await api.request<{ items: Row[]; total: number }>(
+      AdminEndpoints.replenishmentFulfillmentTasks(replenishmentListParams(extra)),
+      'GET'
+    );
+    if (!loadSeq.isCurrent(seq, 'loadFulfillment')) return;
+    fulfillmentTasksList.value = data.items || [];
+    tabTotals.value = { ...tabTotals.value, fulfillment: Number(data.total) || 0 };
+    clearFulfillmentSelection();
+  } catch (e) {
+    if (!loadSeq.isCurrent(seq, 'loadFulfillment')) return;
+    ElMessage.error(errorMessage(e, '履约任务加载失败'));
+  }
 }
 
 async function loadDeviceRefs() {

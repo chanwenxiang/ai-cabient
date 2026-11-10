@@ -39,7 +39,12 @@
                 <el-option label="已结清" value="SETTLED" />
               </el-select>
               <el-button type="primary" @click="applyFilters">查询</el-button>
-              <el-button type="warning" @click="openGenerate">手动出账</el-button>
+              <el-button
+                v-hasPermi="['ops:device:edit']"
+                type="warning"
+                @click="openGenerate"
+                >手动出账</el-button
+              >
             </template>
             <el-table-column prop="billId" label="ID" width="80" />
             <el-table-column prop="billMonth" label="账期" width="100" />
@@ -125,7 +130,12 @@
               <el-switch v-model="configEnabled" />
             </el-form-item>
             <el-form-item>
-              <el-button type="primary" @click="saveConfig">保存配置</el-button>
+              <el-button
+                v-hasPermi="['ops:device:edit']"
+                type="primary"
+                @click="saveConfig"
+                >保存配置</el-button
+              >
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -155,7 +165,7 @@
 <script setup lang="ts">
 import { yuanTextZero as yuan, centsToYuanNumber } from '@/utils/display';
 import { computed, ref } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { errorMessage } from '@/utils/error-message';
@@ -224,9 +234,24 @@ function rowActions(row: MachinePayeeBill): CrudRowAction[] {
 
 async function onRowAction(payload: { key: string; row: MachinePayeeBill }): Promise<void> {
   if (payload.key !== 'settle') return;
-  await api.request(AdminEndpoints.machinePayeeBillSettle(payload.row.billId), 'POST');
-  ElMessage.success('已标记结清（线下收款后）');
-  await crud.load();
+  // R2-A3：结清=线下已收款的确认动作，误点会把账单置为不可再收，必须二次确认；
+  // 且 MessageBox 的 reject('cancel') 不能裸冒泡（会被 PageErrorBoundary 当页面异常）。
+  const ok = await ElMessageBox.confirm(
+    `确认把账单 ${payload.row.billId}（${payload.row.billMonth ?? ''}）标记为已结清？` +
+      '系统不校验线下是否真收到款，标记后不可撤回。',
+    '确认结清',
+    { type: 'warning', confirmButtonText: '确认结清', cancelButtonText: '取消' }
+  )
+    .then(() => true)
+    .catch(() => false);
+  if (!ok) return;
+  try {
+    await api.request(AdminEndpoints.machinePayeeBillSettle(payload.row.billId), 'POST');
+    ElMessage.success('已标记结清（线下收款后）');
+    await crud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '标记结清失败'));
+  }
 }
 
 const generateDialogVisible = ref(false);
@@ -246,14 +271,18 @@ function openGenerate(): void {
 
 async function submitGenerate(): Promise<void> {
   if (!generateMonth.value) return;
-  const n = await api.request<number>(
-    AdminEndpoints.machinePayeeBillGenerate(generateMonth.value),
-    'POST'
-  );
-  ElMessage.success(`出账完成，共 ${n} 条（幂等，重跑不重复）`);
-  generateDialogVisible.value = false;
-  filterMonth.value = generateMonth.value;
-  await applyFilters();
+  try {
+    const n = await api.request<number>(
+      AdminEndpoints.machinePayeeBillGenerate(generateMonth.value),
+      'POST'
+    );
+    ElMessage.success(`出账完成，共 ${n} 条（幂等，重跑不重复）`);
+    generateDialogVisible.value = false;
+    filterMonth.value = generateMonth.value;
+    await applyFilters();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '出账失败，请重试'));
+  }
 }
 
 const configDeviceId = ref('');
@@ -317,8 +346,16 @@ async function saveConfig(): Promise<void> {
     return;
   }
   const body = { ...configForm.value, enabled: configEnabled.value ? 1 : 0 };
-  await api.request(AdminEndpoints.machinePayeeBillConfig(configForm.value.deviceId), 'PUT', body);
-  ElMessage.success('配置已保存（只影响后续账期）');
+  try {
+    await api.request(
+      AdminEndpoints.machinePayeeBillConfig(configForm.value.deviceId),
+      'PUT',
+      body
+    );
+    ElMessage.success('配置已保存（只影响后续账期）');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '配置保存失败，请重试'));
+  }
 }
 </script>
 

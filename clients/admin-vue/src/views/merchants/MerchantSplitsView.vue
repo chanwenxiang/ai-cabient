@@ -1005,6 +1005,8 @@ type AssignDeviceRow = {
   lifecycleStatus?: string;
 };
 const opsConfig = ref<MerchantOpsConfig | null>(null);
+/** 当前表单属于哪个商户（R2-A7：保存前比对这个，防「表单 A / 下拉 B」写错商户） */
+const opsConfigLoadedMerchantId = ref<string | null>(null);
 const opsConfigLoading = ref(false);
 const savingOpsConfig = ref(false);
 const roleTemplates = ref<MerchantRoleTemplate[]>([]);
@@ -1312,18 +1314,27 @@ async function loadRoleTemplates() {
 }
 
 async function loadOpsConfig() {
-  const seq = loadSeq.begin('loadOpsConfig');
-  if (!opsConfigMerchantId.value) {
-    opsConfig.value = null;
+  const merchantId = opsConfigMerchantId.value;
+  // R2-A7：begin() 必须在空值早退之后 —— 原顺序下「清空商户选择」会留下在途请求，
+  // 其 finally 判过期不复位 opsConfigLoading ⇒ 加载遮罩永久卡住。
+  opsConfig.value = null;
+  opsConfigLoadedMerchantId.value = null;
+  if (!merchantId) {
+    opsConfigLoading.value = false;
     return;
   }
-  opsConfig.value = null;
+  const seq = loadSeq.begin('loadOpsConfig');
   opsConfigLoading.value = true;
   try {
-    opsConfig.value = await api.request<MerchantOpsConfig>(
-      AdminEndpoints.merchantOpsConfig(opsConfigMerchantId.value),
+    const cfg = await api.request<MerchantOpsConfig>(
+      AdminEndpoints.merchantOpsConfig(merchantId),
       'GET'
     );
+    // R2-A7：成功赋值处原先**没有** isCurrent 判断（catch/finally 都有）——选 A（慢）→ 改选 B（快）
+    // → A 的响应晚到把表单盖成 A 的配置，下拉却显示 B，点保存就写错商户。
+    if (!loadSeq.isCurrent(seq, 'loadOpsConfig') || merchantId !== opsConfigMerchantId.value) return;
+    opsConfig.value = cfg;
+    opsConfigLoadedMerchantId.value = merchantId;
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadOpsConfig')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载运营配置失败');
@@ -1335,6 +1346,11 @@ async function loadOpsConfig() {
 
 async function saveOpsConfig() {
   if (!opsConfigMerchantId.value || !opsConfig.value) return;
+  // R2-A7：保存前确认表单属于当前选中的商户，杜绝「表单是 A、下拉是 B」时写错商户
+  if (opsConfigLoadedMerchantId.value !== opsConfigMerchantId.value) {
+    ElMessage.warning('运营配置与当前商户不匹配，请重新加载后再保存');
+    return;
+  }
   savingOpsConfig.value = true;
   try {
     opsConfig.value = await api.request<MerchantOpsConfig>(

@@ -87,6 +87,8 @@
             v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)"
             v-model="row.countedQty"
             :min="0"
+            :precision="0"
+            :step="1"
             size="small"
             controls-position="right"
           />
