@@ -165,20 +165,33 @@ public class DeviceInfoController {
      * 未文档化端点（2026-10-19 真机 CQYB10720 实测：开机序列固定调用，404 会中断
      * 设备启动）。语义据采集文档 §4.4.4 modelTextUrl（模型 classes txt 地址）推断：
      * 设备上报当前使用的模型 txt 文件地址，与 downloadModelNotify 同族回执。
-     * 宽容接收任意 body 只记日志；classes_version 仍以 downloadModelNotify 为准。
+     *
+     * <p>2026-11-10 真机实证升级：806 固件应用模型后<b>不发</b>文档主通道 §4.2.5
+     * downloadModelNotify，改以本开机回执报回当前模型 txt 地址（{@code model/xxx.txt}）确认。
+     * 故此处把 txtUrl 转发 trade {@code model-confirmed-by-txt}：命中本设备某条 SENT 的
+     * classesTextUrl 即闭环 SENT→CONFIRMED（命中不到 no-op，不撤复核）。fire-and-forget，
+     * 确认失败只记 warn，不阻断开机。</p>
      *
      * <p><b>响应照抄云侧，不报 success</b>（log3 行 291/640 实测×2 全为
      * {@code {"status":666,"msg":"当前模型text文件地址不存在","data":null}}）：本端点由
      * 云侧**回给设备**的答复决定，我方若回 200+data 会被固件当成「有 txt 地址可取」而
      * 去下载一个不存在的文件。666 是将邑协议的业务失败码，固件收到即跳过（实测无异常）。
-     * 我方模型 txt 随 {@code /modelFile/notify} 的 modelUrl 一起下发，走
-     * downloadModelNotify 通道，不经本回执。</p>
+     * 确认是我方内部旁路，不改这个回设备的答复。</p>
      */
     @PostMapping("/jiangyi/api/deviceInfo/receiveCurrentTxtUrl")
     public Map<String, Object> receiveCurrentTxtUrl(HttpServletRequest request,
                                                     @RequestBody(required = false) Map<String, Object> body) {
         String deviceId = attr(request, DeviceAuthInterceptor.ATTR_DEVICE_ID);
+        Object txtUrl = body == null ? null : body.get("txtUrl");
         log.info("jiangyi receiveCurrentTxtUrl deviceId={} body={} → 666（我方不下发 txt 地址）", deviceId, body);
+        if (txtUrl != null && !txtUrl.toString().isBlank()) {
+            try {
+                tradeInternalClient.modelConfirmedByTxt(deviceId, txtUrl.toString());
+            } catch (Exception e) {
+                log.warn("jiangyi receiveCurrentTxtUrl confirm forward failed deviceId={} txtUrl={}: {}",
+                        deviceId, txtUrl, e.getMessage());
+            }
+        }
         return envelope(666, "当前模型text文件地址不存在", null);
     }
 

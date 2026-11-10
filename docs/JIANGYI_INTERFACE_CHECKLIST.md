@@ -48,7 +48,7 @@
 | §4.2.2 | `platform/tenant/setDomain` | v16:466 | `JiangyiMerchantClient.java:71` | ✅ 出向，见 §D |
 | §4.2.3 | `token/openDoorDeviceStatus` | v16:557 | `DeviceTokenController.java:62` | ✅ 另接固件别名 `/jiangyi/api/token`；未激活 403、密钥缺失 503 |
 | §4.2.4 | `deviceInfo/getDetail` | v16:654 | `DeviceInfoController.java:82` | 🟡 拓扑值按实测元组回（`doorNum=1/locks=[1]/Lu=1/Lb=3/Ru=0/Rb=0/modelNum=2`）；⚠️ 云侧回 `id:10720` 数字、我方回 deviceId 字符串，**类型差异容忍度未实证**；拓扑属**每机配置**，我方库里无拓扑列 ⇒ 逐台建档前此值=我方声称 |
-| §4.2.5 | `deviceInfo/downloadModelNotify` | v16:732 | `DeviceInfoController.java:125-129` | ✅ 回执主通道（转发 trade `modelConfirmed`；异常吞 WARN 仍回 200）。响应**逐字照抄文档示例** `{status:200,msg:"success",data:"0"}`（v16:789）⇒ `ok()` 形态正确；见 §G-4 的未实锤观察。🔁 同一 handler 另收固件三条分档变体（见 §3 A′ 表；§G-3 已落码） |
+| §4.2.5 | `deviceInfo/downloadModelNotify` | v16:732 | `DeviceInfoController.java:125-129` | ✅ 回执主通道（转发 trade `modelConfirmed`；异常吞 WARN 仍回 200）。响应**逐字照抄文档示例** `{status:200,msg:"success",data:"0"}`（v16:789）⇒ `ok()` 形态正确；见 §G-4 的未实锤观察。🔁 同一 handler 另收固件三条分档变体（见 §3 A′ 表；§G-3 已落码）。🔴 **2026-11-10 真机实证：806 固件应用模型后从不发本回执**（边缘日志全史 0 次）——模型确认改走开机 `receiveCurrentTxtUrl` 旁路（见 §3 该行 + §G-15 判据订正） |
 | §4.2.6 | `aliYunOss/getTempUploadToken` | v16:813 | `AliyunOssController.java:40` | ✅ STS 直传我方 OSS；🔁 另接固件实测变体 `getTempToken`（`:47`） |
 | §4.2.7 | `device/uploadLockState` | v16:929 | `DeviceReportController.java:69` | ✅ fail→trade open-failed |
 | §4.2.8 | `device/uploadDoorState` | v16:997 | `DeviceReportController.java:122` | ✅ success→door-event OPEN |
@@ -84,7 +84,7 @@
 | `deviceInfo/selfCheckReport` / `reportDeviceStatus` / `reportCameraRealInfo` / `updateTrouble` / `uploadDeviceDataCardNo` | `:214`/`:222`/`:230`/`:239`/`:247` | ✅ `data:null` 只留原始日志 |
 | `floor/getDeviceSellProductClassIds` | `DeviceExtensionController.java:52` | ✅ 真机在售面（`floor/getFloorByDevice` 真机 0 命中，见下） |
 | `floor/getFloorByDevice` | `:106` | 🟡 按文档 §5.5.2/补货语义实现，**真机从未请求过**。🔴 10-22 两次复核纠正：0 命中**不能**只归因于「没跑补货开门」——`GetReplenishGoodsInfo` 对 XY/YP/NO_NET 直接 `onResult("suc")` 不发 HTTP，只有 NORMAL 才 POST（`project-jiangyi-mname-dictvalue-trap` 记忆），而本表 0 命中与「对接版本非 NORMAL」一致。⚠️ 早班写的「唯一自洽解释是 `M_NAME=YP`」**已降级**：真机那 20 次 `/device/pokerOrder/uploadOrderError` 出自六处「字面自带 `/device` + `URL`」的站点（`uploadErrorOther:1247`、`CameraPreviewNew:7184`、`OrderRknnResultDeal:2999`、`UploadIdentifyResult:57095`、`UploadLocalOrder:759`、`UploadInfo2ServerStock:1316`，六处逐个读了门＝NORMAL 即 `return-void`）⇒ 只证到 **`M_NAME ∉ {NORMAL, NO_NET}`，XY 与 YP 现有证据分不开**（`OkhttpUtils.postRequest*` 只拦 NO_NET、不拦 XY）。另按 H-18 把本表注册成裸/`/device` 双拼写（原判「COMMON_URL 多一段 /device」已作废，见 §11）（判据=字面 `"status":200`） |
-| `deviceInfo/receiveCurrentTxtUrl` | `DeviceInfoController.java:165` | ✅ 照抄云侧 `666`（2026-10-19 拍板：勿顺手对齐成 200） |
+| `deviceInfo/receiveCurrentTxtUrl` | `DeviceInfoController.java:177` | ✅ 回设备仍照抄云侧 `666`（2026-10-19 拍板：勿顺手对齐成 200）。🟢 **2026-11-10 升级为模型确认旁路**：真机实证 806 固件应用模型后**不发** §4.2.5 `downloadModelNotify`，改以本开机回执报回当前模型 txt 地址（`model/xxx.txt`）⇒ 现把 txtUrl 转发 trade `model-confirmed-by-txt`（`JiangyiModelSyncService.confirmModelByTxtUrl`：带路径边界后缀命中本设备某条 SENT 的 classesTextUrl 才 `confirmModel` 闭环 SENT→CONFIRMED；命中不到 no-op，**不**触发「未知模型撤销复核」）。fire-and-forget，确认失败只记 warn 不阻断开机 |
 | `deviceInfo/isAutoUploadVideo` | `DeviceReportController.java:410` | ✅ 回 false（拍板：只传异常单视频） |
 | `deviceInfo/uploadDeviceOpenStatus` / `order/uploadOrderLockStatus` / `operationMode/sync` | `:133` / `:80` / `:391` | ✅ 真机补 |
 | `aliYunOss/getTempToken` | `AliyunOssController.java:47` | ✅ 真机变体 |
@@ -114,7 +114,7 @@
 
 | 文档节 | msgType | 文档行 | 我方 | 状态 |
 |---|---|---|---|---|
-| §4.3.2.1 机器重启 | `reboot` | v16:1980-1981 | `DeviceCommandController.java:138`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/reboot`） | ✅ 2026-10-23 补接（用户拍板）：现场断电此前只能人工合闸。🔴 无回执；重启期间 WS 断开（gateway 收 ws-offline 即置离线）。⚠️ 下发前过「进行中业务」闸（`DeviceValidationService.ensureMaintenanceCommandAllowed`：消费者购物会话六态 或 已签到补货任务 ⇒ 409；`force=true` 为运营二次确认后越过，审计记「强制」） |
+| §4.3.2.1 机器重启 | `reboot` | v16:1980-1981 | `DeviceCommandController.java:138`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/reboot`） | ✅ 2026-10-23 补接（用户拍板）：现场断电此前只能人工合闸。🟢 **2026-11-10 15:37 真机验**：下发后设备回 WS `rebootSure` → WS 断(1006) → 置离线 → **约 28s 后重连** ONLINE（完整闭环）。文档无回执，固件实发 `rebootSure`。⚠️ 下发前过「进行中业务」闸（`DeviceValidationService.ensureMaintenanceCommandAllowed`：消费者购物会话六态 或 已签到补货任务 ⇒ 409；`force=true` 为运营二次确认后越过，审计记「强制」） |
 | §4.3.2.2 强制开门 | `openDoor`（`msgContent:""`） | v16:2007-2008 | 同一字面量恒带 sessionId（`DeviceWebSocketHandler.java:230`） | ⛔ 空 msgContent **结构性拒绝**（购物开门必须有会话号，空值=无审计开门） |
 | §4.3.2.3 强制双门开门 | `sendForceOpenDoubleDoor` | v16:2035-2036 | — | ⛔ 单门柜无此概念 |
 | §4.3.2.4 补货开门 | `sendOpenStockDoor`（补货单号） | v16:2067-2068 | `:217` | ✅ 补货会话 id ≡ 补货单号 |
@@ -126,11 +126,11 @@
 | §4.3.2.10 灯带控制 | `sendDeviceLightStripFlag` | v16:2356-2357 | — | ❌ 未接（可选，柜无灯带需求） |
 | §4.3.2.11 拉取视频 | `sendUploadErrorOrderVideos` | v16:2390-2391 | `DeviceCommandController.java:105` | ✅ 2026-10-20 上线。🔴 **文档示例 `msgContent:"24005355433545_MSG"` 带 `_MSG` 后缀，固件 `DealSocketMsg.smali:186-200` 按 `/sdcard/{orderNo}-left.mp4` 找文件⇒不带后缀才对**（§H-6）。上游同字面回传=二义（重传请求 or 无文件），我方**只记日志绝不重发**（`DeviceWebSocketHandler.java:176`） |
 | §4.3.2.12 获取门磁状态 | `getDoorState` | v16:2433-2434 | `DeviceCommandController.java:154`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/door-state`） | ✅ 2026-10-23 补接：回执 §4.2.16 此前只进日志，现落 `device_info.door_state/lock_state/door_reported_at`（V402），后台设备卡展示「门/锁」+ 查询按钮。⚠️ 固件 `DealSocketMsg.uploadDoorState` 把两字段初值设为 **`unknown`**（`LockSys` 读 GPIO 抛 IOException/RuntimeException/LinkageError 时照发）⇒ 我方把 `unknown` 也落库、后台显示「未知」，与「未上报」区分（文档只写 open/close，这是固件实发口径）。🔴 设备自报口径，不作结算判据；真机未验（柜关机） |
-| §4.3.2.13 获取设备基本信息 | `getDeviceInfo`（文档 OCR 作 `getDevicelnfo`） | v16:2468-2469 | `DeviceCommandController.java:80`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/device-info`） | ✅ **已实现，🔴 但真机从未点过**（2026-10-22 18:0x 复核纠正本表旧记「❌ 未接」——该行漏读了上面这个文件:行；代码自 2026-10-15 `167f51d7` 就在）。回执是 HTTP 上行 §4.2.15 `deviceInfo/getDeviceSimInfo`，同样 **0 命中** ⇒ 判据见 §9B R2 |
+| §4.3.2.13 获取设备基本信息 | `getDeviceInfo`（文档 OCR 作 `getDevicelnfo`） | v16:2468-2469 | `DeviceCommandController.java:80`（入口 `POST /api/v2/ops/admin/devices/{id}/jiangyi/device-info`） | 🟡 **已实现，2026-11-10 15:34 真机点过：我方 WS 帧下发成功，但设备不回**——固件 `DealSocketMsg` 无 `getDeviceInfo` 处理分支、全固件 0 处 `SimInfo/signalStrength`；回执 §4.2.15 `getDeviceSimInfo` 在边缘日志**全史 0 次**，`device_info.signal_strength` 仍 NULL。结论：**设备侧未实现该可选接口**，非我方缺陷；信号强度展示暂拿不到真值 |
 | §4.3.2.14 检查在线状态 | `sendQueryNetwork` | v16:2515-2516 | — | ❌ 未接（现用 WS 会话存活判在线，够用） |
 | §4.3.2.15 连接 Wi-Fi | `sendChangeWifiCommand` | v16:2552-2553 | — | ⛔ **不接（2026-11-10 用户确认：柜机用厂商自带物联卡联网，无 Wi-Fi 配网需求）**；原「换场地配网只能现场手工」的缺口随之关闭 |
-| §4.3.2.16 声音开关 | `sendDeviceSoundSwitch`（`"0"`/`"1"`） | v16:2613-2614 | `DeviceCommandController.java:58` | ✅ |
-| §4.3.2.17 音量大小 | `sendDeviceSoundVolume`（`"0"`大/`"1"`中/`"2"`小） | v16:2649-2650 | `:67` | ✅ |
+| §4.3.2.16 声音开关 | `sendDeviceSoundSwitch`（`"0"`/`"1"`） | v16:2613-2614 | `DeviceCommandController.java:58` | ✅ **2026-11-10 15:36 真机验**：开/关两档各发一次，设备两次都回 WS `sendDeviceSoundSwitchSure`（真执行回执，文档未定义；现落 WARN 台账）；已恢复开 |
+| §4.3.2.17 音量大小 | `sendDeviceSoundVolume`（`"0"`大/`"1"`中/`"2"`小） | v16:2649-2650 | `:67` | ✅ **2026-11-10 15:36 真机验**：volume=1(中)，设备回 WS `sendDeviceSoundVolumeSure`（真执行回执）；🔴 固件音量帧走 `AudioManager.setStreamVolume` 会解除静音，静音后再发音量帧会把声音放回来（`DeviceCommandController.java:66` 注释） |
 
 ## 5. C｜WS 上行（设备→商户）
 
@@ -141,7 +141,8 @@
 | `heartBeat` | 文档 v16:1967 | `DeviceWebSocketHandler.java:122`，回 `{status:200,msgType:heartBeat,msgContent:PONG}`（`:126-129`） | 🟡 **文档写设备发 PONG、实为 PING**（log3 实测 + 我方注释 `:118`；§H-5）。我方不校验入值⇒两形皆可用 |
 | `openDoorSure` | 固件实测 | `:134-135` | 🔁 开门回执 |
 | `sendOpenStockDoorSure` | 固件实测 | `:134` | 🔁 补货开门回执 |
-| `updateModelSure` | 固件实测（**文档全章 0 次出现 `Sure`**） | `:145`→`completeByDevice(Kind.MODEL)` | 🔁 模型回执兜底（主通道=HTTP §4.2.5） |
+| `sendDeviceSoundSwitchSure` / `sendDeviceSoundVolumeSure` / `rebootSure` | 固件实测（2026-11-10 真机：声音开关/音量/重启下发后设备即回同名 `*Sure`，文档全章 0 次出现 `Sure`） | 未处理 ⇒ 落 WARN 台账（`:186`） | 🔁 **真执行回执**：声音/重启文档本无回执，固件实发 `*Sure` 证明设备已执行；当前只进台账不作事务数据（与 §4.3.2.16/17/1 真机验互证） |
+| `updateModelSure` | 固件实测（**文档全章 0 次出现 `Sure`**） | `:145`→`completeByDevice(Kind.MODEL)` | 🔁 模型 WS 兜底回执：2026-11-10 真机实证它**清空看门狗队列**（`jiangyi:cmd:model:pending` ZCARD=0）⇒ 不会超时置 FAILED/撤复核；但它**不**确认 deployment（CONFIRMED 仍须 HTTP 回执，见下行 receiveCurrentTxtUrl） |
 | `downloadModelNotify`（WS 分支） | 文档只给 HTTP 形态 | `:155` | 🔁 宽容兜底 |
 | `sendUploadErrorOrderVideos` | 固件实测 | `:176` | 🔁 二义⇒只记日志 |
 | `updateBaseModelSure` / `updateBigModelSure` / `updateThirdModelSure` | 固件实测（log2/3/4 tally 各 1-2 次，与同名下行成对） | 未处理 ⇒ 落 WARN 台账（`:186`） | ⛔ **刻意不处理**：回执 msgType 与下行 msgType 同名成对，而我方下行**只发 `updateModel`**（`MSG_TYPE_UPDATE_MODEL`，`ModelPushController.java:18`）⇒ 这三条在我方链路里不可能出现，接了就是死代码。若将来厂商侧代下分档模型，台账会先把它们照出来 |
@@ -267,6 +268,8 @@
 
 ⇒ 🔴 **结论：真正的空白不是「没实现」，是「实现了但一次没点过」**——`sendOpenStockDoor`、`updateModel`、`getDeviceInfo`、音量两条、`closeDoor`、`reboot`、`getDoorState`，全部排进 R2–R4（门磁查询并入 R2：点一次 → 看 `device_info.door_reported_at`）。
 
+> 🟢 **2026-11-10 批量补测订正**：`getDeviceInfo`/音量两条/`reboot`/`updateModel` 已真机点过（结果见 §4 各行 + §9B.5 首推订正）——声音/重启设备回 `*Sure` 真执行回执；`getDeviceInfo` 设备侧未实现（不回）；`updateModel` 设备已应用但确认走 `receiveCurrentTxtUrl` 旁路（已接）。`jiangyi_model_deployment` 现 **1 行**（id=1 SENT，待重建后开机转 CONFIRMED）。仍未真机点：`sendOpenStockDoor`、`closeDoor`、`getDoorState`（§4.3.2.12 行记「真机未验」）。
+
 ### 9B.2 R0｜前置对账（我方，10 分钟，不开门）
 
 | 步 | 做什么 | 判据 / 动作 |
@@ -327,6 +330,8 @@
 
 分叉归因：① 有 downstream 无 notify ⇒ **先怀疑 76/rk3576 与模型编译目标不匹配**（H-10；本柜登记值已按实据改 `'76'`，但**这台工控机加载 76 模型从未观察过**），别判「通道不通」；② HTTP 无回执但 WS 回了 `updateModelSure` ⇒ 走的是兜底分支（`DeviceWebSocketHandler.java:145`），主通道另有问题；③ 停 SENT 到 push-timeout ⇒ 记下 `fail_reason` 原文，先查厂商是否代下了分档模型（台账里会先照出 `update*ModelSure`）。
 回滚：若复跑结算轮转 DISPUTED，立刻用 R0⑤ 留档的 modelName/URL 走同一入口推回。
+
+🔴 **2026-11-10 15:40 真机首推订正（上面判据链的「downloadModelNotify 200」这一环对本固件不成立）**：用与柜当前**逐字节相同**的借来 69 类模型（classes 指纹 `39f575653e84` == 柜现用 `classes_version` == `mapping_verified_version`，零识别变更）走 `model-push-explicit` 首推，`jiangyi_model_deployment` 落 **id=1 SENT**。实测：① 网关 `ws downstream updateModel` ✅；② 设备回 WS `updateModelSure` ⇒ `completeByDevice(Kind.MODEL)` 把看门狗队列清空（Redis `jiangyi:cmd:model:pending` **ZCARD=0**）⇒ **不会** push-timeout 置 FAILED/撤复核；③ 设备下载应用后**重启**（WS 断 1006 → 约 28s 重连），开机 `receiveCurrentTxtUrl` 报回 `txtUrl=model/hysxr…_3.txt`（正是发出的那颗）✅；④ **但 `downloadModelNotify` 全史 0 次**⇒ 按旧判据该行恒停 SENT。**结论：806 固件以 `receiveCurrentTxtUrl`(开机) + `updateModelSure`(WS) 确认模型，不发文档主通道 §4.2.5。** 处置（已落码）：把 `receiveCurrentTxtUrl` 接成确认旁路 `model-confirmed-by-txt`（txtUrl 带路径边界后缀命中 SENT 的 classesTextUrl 即 `confirmModel` 闭环；命中不到 no-op 不撤复核），重建 trade+gateway 后柜再开机一次即把 id=1 自然转 CONFIRMED。柜全程 `verified=true`、ONLINE、正常售卖（首推零识别变更，未触 H-27 平移）。分叉归因①「无 notify 先怀疑 76/rk3576 不匹配」**对本柜作废**——设备确已加载（receiveCurrentTxtUrl 自报同 txt），缺的是回执通道不是加载。
 
 ### 9B.6 R4｜补货开门 + 补货表下行（我方 + 现场，20 分钟；期间购物 409）
 

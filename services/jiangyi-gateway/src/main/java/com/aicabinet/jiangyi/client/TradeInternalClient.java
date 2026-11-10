@@ -231,6 +231,16 @@ public class TradeInternalClient {
                 new ModelConfirmedRequest(modelName), deviceId);
     }
 
+    /**
+     * 开机回执 receiveCurrentTxtUrl 确认转发（2026-11-10 真机实证：806 固件不发
+     * downloadModelNotify，改以开机报回当前模型 txt 地址）：trade 侧 txtUrl 命中 SENT 才确认。
+     * fire-and-forget：调用方吞异常记 warn，确认失败不阻断设备开机回执。
+     */
+    public void modelConfirmedByTxt(String deviceId, String txtUrl) {
+        post("/internal/v1/jiangyi/devices/{deviceId}/model-confirmed-by-txt",
+                new ModelConfirmedByTxtRequest(txtUrl), deviceId);
+    }
+
     /** 模型下发超时（watchdog MODEL kind）：trade deployment → FAILED（幂等：非 SENT no-op）。 */
     public void modelPushTimeout(long deploymentId, String reason) {
         post("/internal/v1/jiangyi/model-deployments/{deploymentId}/push-timeout",
@@ -295,6 +305,9 @@ public class TradeInternalClient {
 
     /** 与 trade JiangyiInternalController.ModelConfirmedRequest 对齐。 */
     record ModelConfirmedRequest(String modelName) {}
+
+    /** 与 trade JiangyiInternalController.ModelConfirmedByTxtRequest 对齐（receiveCurrentTxtUrl）。 */
+    record ModelConfirmedByTxtRequest(String txtUrl) {}
 
     /** 与 trade JiangyiInternalController.ModelPushTimeoutRequest 对齐。 */
     record ModelPushTimeoutRequest(String reason) {}

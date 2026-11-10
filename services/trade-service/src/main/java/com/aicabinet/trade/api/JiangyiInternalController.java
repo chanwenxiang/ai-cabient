@@ -210,17 +210,34 @@ public class JiangyiInternalController {
     @PostMapping("/devices/{deviceId}/model-confirmed")
     public ApiResponse<Void> modelConfirmed(@PathVariable("deviceId") String deviceId,
                                             @RequestBody ModelConfirmedRequest body) {
+        autoRebuildQuietly(deviceId, jiangyiModelSyncService.confirmModel(deviceId, body.modelName()));
+        return ApiResponse.ok(null);
+    }
+
+    /**
+     * 开机回执 receiveCurrentTxtUrl 确认（2026-11-10 真机实证：806 固件不发 downloadModelNotify，
+     * 改以开机报回当前模型 txt 地址确认应用）：txtUrl 命中本设备某条 SENT 才确认，命中不到 no-op。
+     * 与 {@link #modelConfirmed} 共用确认后的自动复核；不触发「未知模型撤销复核」（那是显式新模型到达语义）。
+     */
+    @PostMapping("/devices/{deviceId}/model-confirmed-by-txt")
+    public ApiResponse<Void> modelConfirmedByTxt(@PathVariable("deviceId") String deviceId,
+                                                 @RequestBody ModelConfirmedByTxtRequest body) {
         JiangyiModelDeployment confirmed =
-                jiangyiModelSyncService.confirmModel(deviceId, body.modelName());
+                jiangyiModelSyncService.confirmModelByTxtUrl(deviceId, body.txtUrl());
+        if (confirmed != null) {
+            autoRebuildQuietly(deviceId, confirmed);
+        }
+        return ApiResponse.ok(null);
+    }
+
+    /** 确认后尽力自动复核（H-27/§10.1）：失败只等于「省不掉这次人工」，不能把确认打成失败。 */
+    private void autoRebuildQuietly(String deviceId, JiangyiModelDeployment confirmed) {
         try {
-            // 自动复核（H-27/§10.1）：纯行号平移自动落位，语义变化仍交人工
             jiangyiMappingReviewService.autoRebuild(deviceId, confirmed.getModelName(),
                     confirmed.getClassesTextUrl(), confirmed.getClassesVersion());
         } catch (RuntimeException e) {
-            // 尽力而为：回执已落库，自动复核失败只等于「省不掉这次人工」，不能把确认打成失败
             log.warn("jiangyi auto mapping rebuild failed deviceId={} err={}", deviceId, e.getMessage());
         }
-        return ApiResponse.ok(null);
     }
 
     /** 模型下发超时（watchdog MODEL kind）：deployment SENT → FAILED（幂等）。 */
@@ -435,6 +452,7 @@ public class JiangyiInternalController {
     record RegisterRequest(String deviceId, String deviceSn, String modelName) {}
     record BindDomainRequest(String deviceSn, String domain, String socketUrl) {}
     record ModelConfirmedRequest(String modelName) {}
+    record ModelConfirmedByTxtRequest(String txtUrl) {}
     record ModelPushTimeoutRequest(String reason) {}
     /** 与 gateway TradeInternalClient.OrderVideoReportRequest 对齐（videoUrls 可空=该片失败留痕）。 */
     record OrderVideoReportRequest(String deviceId, String orderNo, Integer serialNum,

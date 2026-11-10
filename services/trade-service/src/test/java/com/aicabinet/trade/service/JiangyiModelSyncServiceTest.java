@@ -324,6 +324,95 @@ class JiangyiModelSyncServiceTest {
                 eq("ab12cd34ef56"), any());
     }
 
+    private JiangyiModelDeployment sentWithTxtUrl(String classesTextUrl) {
+        JiangyiModelDeployment sent = new JiangyiModelDeployment();
+        sent.setId(55L);
+        sent.setDeviceId(DEVICE_ID);
+        sent.setModelName(MODEL_NAME);
+        sent.setStatus("SENT");
+        sent.setClassesTextUrl(classesTextUrl);
+        sent.setClassesVersion("ab12cd34ef56");
+        return sent;
+    }
+
+    /**
+     * 2026-11-10 真机实证：806 固件不发 downloadModelNotify，开机 receiveCurrentTxtUrl 报回
+     * 相对路径 {@code model/xxx.txt}；命中 SENT 的全 URL classesTextUrl 后缀即闭环 CONFIRMED。
+     */
+    @Test
+    void confirmModelByTxtUrl_matchesSentByRelativeSuffixAndConfirms() {
+        JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/model/hysxr_3.txt");
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(sent));
+        when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.of(sent));
+
+        JiangyiModelDeployment returned = service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt");
+
+        assertEquals(sent, returned);
+        verify(deploymentMapper).confirm(eq(55L), eq("ab12cd34ef56"), any());
+        verify(jiangyiDeviceMapper).updateModelInfo(eq(DEVICE_ID), eq(MODEL_NAME), eq("ab12cd34ef56"), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+    }
+
+    /** 命中不到任何 SENT（厂商直推/恢复出厂的开机例行回执）⇒ no-op，绝不触发撤销复核分支。 */
+    @Test
+    void confirmModelByTxtUrl_noMatchingSentIsNoOpAndNeverRevokes() {
+        JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/model/another_3.txt");
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(sent));
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
+
+        verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+        verify(deploymentMapper, org.mockito.Mockito.never()).findLatestSent(anyString(), anyString());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).updateModelInfo(anyString(), anyString(), anyString(), any());
+    }
+
+    /** 无任何下发记录的空柜开机 ⇒ no-op。 */
+    @Test
+    void confirmModelByTxtUrl_emptyDeploymentsIsNoOp() {
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of());
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
+
+        verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+    }
+
+    /** 路径边界：othermodel/x.txt 不得误命中 model/x.txt（leading-slash 后缀判据）。 */
+    @Test
+    void confirmModelByTxtUrl_pathBoundaryPreventsSubstringMisMatch() {
+        JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/othermodel/x.txt");
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(sent));
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/x.txt"));
+
+        verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+    }
+
+    /** 已 CONFIRMED（无 SENT）的重放开机回执 ⇒ no-op，不重复确认、不撤复核。 */
+    @Test
+    void confirmModelByTxtUrl_alreadyConfirmedIsNoOp() {
+        JiangyiModelDeployment confirmed = sentWithTxtUrl("https://oss/model/hysxr_3.txt");
+        confirmed.setStatus("CONFIRMED");
+        when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(confirmed));
+
+        assertNull(service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt"));
+
+        verify(deploymentMapper, org.mockito.Mockito.never()).confirm(anyLong(), anyString(), any());
+        verify(jiangyiDeviceMapper, org.mockito.Mockito.never()).clearMappingVerification(anyString(), any());
+    }
+
+    @Test
+    void txtUrlMatchesCoversEqualitySuffixAndBoundary() {
+        assertTrue(JiangyiModelSyncService.txtUrlMatches("https://oss/model/x.txt", "model/x.txt"));
+        assertTrue(JiangyiModelSyncService.txtUrlMatches("https://oss/model/x.txt", "https://oss/model/x.txt"));
+        assertTrue(JiangyiModelSyncService.txtUrlMatches("model/x.txt", "https://oss/model/x.txt"));
+        assertTrue(!JiangyiModelSyncService.txtUrlMatches("https://oss/othermodel/x.txt", "model/x.txt"));
+        assertTrue(!JiangyiModelSyncService.txtUrlMatches("https://oss/model/x.txt", ""));
+        assertTrue(!JiangyiModelSyncService.txtUrlMatches(null, "model/x.txt"));
+        assertTrue(!JiangyiModelSyncService.txtUrlMatches("https://oss/model/x.txt", null));
+    }
+
     @Test
     void markPushTimeoutDelegatesToFail() {
         when(deploymentMapper.fail(eq(55L), anyString(), any())).thenReturn(1);

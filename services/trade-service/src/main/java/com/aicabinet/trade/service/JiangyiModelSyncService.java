@@ -453,6 +453,48 @@ public class JiangyiModelSyncService {
     }
 
     /**
+     * 开机回执 receiveCurrentTxtUrl 确认（2026-11-10 真机 CQYB10720 实证：806 固件应用模型后
+     * 不发文档主通道 §4.2.5 downloadModelNotify，改以开机序列的 receiveCurrentTxtUrl 报回
+     * 当前模型 txt 地址）：仅当报回 txtUrl 命中本设备某条 SENT 的 classesTextUrl 时，复用
+     * {@link #confirmModel} 闭环（SENT→CONFIRMED + 回填 model_name/classes_version）。
+     *
+     * <p>命中不到则 no-op 返回 null——<b>不</b>调用 confirmModel 去碰它的「未知模型撤销复核」
+     * 分支：那是 downloadModelNotify 显式「新模型到达」的语义，开机例行回执（厂商直推/恢复
+     * 出厂也会发）不该承担撤销复核的后果。设备报相对路径（{@code model/xxx.txt}），我方存
+     * 全 URL，按带路径边界的后缀匹配（防 {@code othermodel/xxx.txt} 误命中 {@code model/xxx.txt}）。</p>
+     */
+    public JiangyiModelDeployment confirmModelByTxtUrl(String deviceId, String txtUrl) {
+        if (txtUrl == null || txtUrl.isBlank()) {
+            return null;
+        }
+        String reported = txtUrl.trim();
+        JiangyiModelDeployment match = deploymentMapper.listByDevice(deviceId).stream()
+                .filter(d -> "SENT".equals(d.getStatus()))
+                .filter(d -> txtUrlMatches(d.getClassesTextUrl(), reported))
+                .findFirst()
+                .orElse(null);
+        if (match == null) {
+            log.info("jiangyi receiveCurrentTxtUrl no matching SENT deviceId={} txtUrl={}（不确认、不撤复核）",
+                    deviceId, reported);
+            return null;
+        }
+        return confirmModel(deviceId, match.getModelName());
+    }
+
+    /** 带路径边界的后缀匹配：相等，或一方以「/另一方」结尾（leading slash 防子串误命中）。 */
+    static boolean txtUrlMatches(String storedUrl, String reported) {
+        if (storedUrl == null || reported == null) {
+            return false;
+        }
+        String s = storedUrl.trim();
+        String r = reported.trim();
+        if (r.isEmpty() || s.isEmpty()) {
+            return false;
+        }
+        return s.equals(r) || s.endsWith("/" + r) || r.endsWith("/" + s);
+    }
+
+    /**
      * 模型下发超时（watchdog）：SENT → FAILED（幂等）。
      *
      * <p>超时只说明没收到回执，柜机可能已经切换过去了（回执丢失要比没收到更常见）。
