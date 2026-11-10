@@ -24,8 +24,8 @@
 ### R7（主审直查）
 B-新3 家族最后一处软形态收口：cabinet-reports/tax 动作时点拒绝文案区分「无权限/弱网不可知」（splits/team 经核本就诚实——refreshMe 失败走 catch 网络文案）。grep 全量 seed 消费页零漏网。
 
-### R8（单路终验）
-进行中（抽样 R6/R5 批 + 家族终扫 + 16 提交说明与 diff 一致性）。结论随回追加。
+### R8（单路终验）—— ✅ 收口
+抽样终验**未发现已知未修洞**：R6 批逐 hunk（H1 REQUIRES_NEW 跨 bean 走代理 ✓/H2 无死 import/G1 位置正确）、R5 批抽 5 hunk 全在位、B-新3 家族 23 消费面无第六处软形态、rowBaseline 5 触点 get/set 一致、F3 三处同值逐字一致、V455 KIND 头 + flyway-seed 门禁绿、16 提交说明与 diff 全部相符（R8 实测窗口 893bb2ca..085ac656，后追加两笔 docs/文档笔仅 18 提交总量）。唯一发现 R8-1（P3 appendLog javadoc 悬空）已修（纯文档提交）。
 
 ### 遗留登记（本轮不改，均有归属）
 - 待用户拍板：B7 盲盘头部总量直出（产品语义）、RETIRE 柜不解绑是否留痕有意、R2§9 门禁候选①裸await②CHECKLIST同族条目③updateById 家族门禁（⑤seed→registry 双向已由 17b7a89e 部分覆盖）。
