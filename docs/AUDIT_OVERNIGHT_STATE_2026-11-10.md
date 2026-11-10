@@ -27,8 +27,10 @@ B-新3 家族最后一处软形态收口：cabinet-reports/tax 动作时点拒�
 ### R8（单路终验）—— ✅ 收口
 抽样终验**未发现已知未修洞**：R6 批逐 hunk（H1 REQUIRES_NEW 跨 bean 走代理 ✓/H2 无死 import/G1 位置正确）、R5 批抽 5 hunk 全在位、B-新3 家族 23 消费面无第六处软形态、rowBaseline 5 触点 get/set 一致、F3 三处同值逐字一致、V455 KIND 头 + flyway-seed 门禁绿、16 提交说明与 diff 全部相符（R8 实测窗口 893bb2ca..085ac656，后追加两笔 docs/文档笔仅 18 提交总量）。唯一发现 R8-1（P3 appendLog javadoc 悬空）已修（纯文档提交）。
 
-### 遗留登记（本轮不改，均有归属）
-- 待用户拍板：B7 盲盘头部总量直出（产品语义）、RETIRE 柜不解绑是否留痕有意、R2§9 门禁候选①裸await②CHECKLIST同族条目③updateById 家族门禁（⑤seed→registry 双向已由 17b7a89e 部分覆盖）。
+### 遗留登记（R9 拍板批后清零更新，2026-11-11 06:00 前后）
+- ✅ 待拍板 3 项已按推荐处置：B7 盲盘总量遮蔽已修；RETIRE 不解绑=有意留痕（注释钉住）；门禁候选①有意豁免/②CHECKLIST 已落/③既有门禁已覆盖（均写进 CODE_FIX_CHECKLIST）。
+- ✅ 化妆 9 项处置完成：8 改（F4 重试钮+88rpx 热区、idle-tip 避让、monitor 措辞统一+测试同步、V456 COMMENT、notify 大额 icon 降级、A8①尝试后回滚留注释、CHECKLIST）+2 登记不改（HomeCartBar emit 赋值沿袭、WarehouseView.vue 疑死文件按铁律 74 不盲删）。
+- R9 过程新坑：①mp 裸色棘轮对「新增可点钮」双敏感——class 复用旧名不进桶、新类必须显式 88rpx 热区且颜色走 var(--color-warning) 无 fallback（fallback hex 也计数）；②check-mp-pull-refresh 之外的 contract 门禁为顶层线性脚本，E-R3-8（import 副作用）包函数重构风险>收益，正式登记不修。
 - 化妆级/低危登记：A8①门禁切片字符串盲区、E-R3-8 import 副作用、F4 两页 permUnknown 无重试钮、replenishment idle-tip 与 error 同屏、HomeCartBar emit 赋值沿袭、WarehouseView.vue 死文件、monitor 摘要措辞「看护/托管」不统一、V139 COMMENT 缺 CANCELLED（需新迁移）、XXL-only 双任务例外（已头注点名）。
 - 登记文档：docs/engineering/lessons-learned.md（判据类修复构造侧用例/注解SQL script 包装/跨端同批改三条）。
 
