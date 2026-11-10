@@ -143,11 +143,15 @@ function money(cents?: number | null) {
 
 function onMonthChange(e: { detail: { value: string } }) {
   month.value = e.detail.value;
+  // R2-B8：标题取 month、内容取 bill —— 不清就会在「新月份」的标题下显示上个月的
+  // 销售额/利润（以及加载中那一段的错配）。换筛选即视为旧内容作废。
+  bill.value = null;
   void load();
 }
 
 function onDeviceChange(e: { detail: { value: number } }) {
   deviceIndex.value = Number(e.detail.value) || 0;
+  bill.value = null;
   void load();
 }
 
@@ -175,13 +179,22 @@ async function load() {
   // 🔴 冷启动首屏 me 必为 null（composable 的 onShow 刷新是异步，页面 load 同步先跑）：
   // 先拉 me 再判权限，否则首屏误报「没有查看账单的权限」（2026-11-10 审计 §7#1，
   // 对齐 orders/settlements 等页 ensureXMerchantMe 先例）。
+  // R2-B9：refreshMe 失败会走去权缓存（permissions 清空）——那是「权限不知道」，
+  // 不是「没有权限」。只有压根没有内存态（me 为 null）时才算不可知，报网络错误可重试。
+  let permUnknown = false;
   try {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
+    permUnknown = !me.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;
+  if (permUnknown) {
+    loading.value = false;
+    loadError.value = '网络异常，暂时无法确认查看账单的权限，请重试';
+    return;
+  }
   if (!canView.value) {
     loadError.value = '没有查看账单的权限';
     return;

@@ -56,10 +56,13 @@ const reported = new Set<string>();
 // 🔴 组件级 onShow 在 mp-weixin 端永不触发（同 use-auto-refresh 实测结论），
 // 曾经的 onShow(() => load()) 导致营销位在微信端静默永不加载。
 // 改用 device-ad-banner.vue 同款 watch+immediate：挂载即拉一次，deviceId 变化重拉。
+// R2-C5：原写法 `if (!slides.value.length) void load()` 只在「还没内容」时才拉 ——
+// 首页 Tab 态先按无柜码拉到 ALL 投放内容后，扫码进柜（deviceId 有值）不会重拉，
+// SPECIFIC 定向投放永远出不来。deviceId 变了就必须重算，无条件拉。
 watch(
   () => props.deviceId,
   () => {
-    if (!slides.value.length) void load();
+    void load();
   },
   { immediate: true }
 );

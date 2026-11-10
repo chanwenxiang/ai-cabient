@@ -179,6 +179,18 @@ const warehouseName = ref('');
 const pageError = ref('');
 const createLoading = ref(false);
 const submitting = ref(false);
+/**
+ * R2-B14：采购申请的客户端幂等键（后端按「仓库 + refNo」回放）。
+ * 🔴 只在**成功后**换新键：网络超时时后端可能已经建单，重试必须还带同一个键，
+ * 否则会生成第二张 CREATED 采购单（收货要人工逐单，等于两笔在途采购）。
+ */
+const submitRequestNo = ref('');
+
+/** 可读且不撞车的键：MP-<时间戳>-<随机 6 位>，同时充当采购单「参考号」 */
+function newSubmitRequestNo(): string {
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `MP-${Date.now()}-${rand}`;
+}
 
 type SupplierRow = { supplierId: string; supplierName: string };
 type SkuLine = {
@@ -439,12 +451,16 @@ async function submit() {
     }));
   submitting.value = true;
   try {
+    // 键在第一次提交时生成，失败/超时重试沿用同一个（成功后才清）
+    if (!submitRequestNo.value) submitRequestNo.value = newSubmitRequestNo();
     const created = await merchantApi.createSatellitePurchaseOrder({
       supplierId: supplier.supplierId,
       warehouseId: warehouseId.value,
+      refNo: submitRequestNo.value,
       lines
     });
     showSuccess(`已提交采购单 ${created.purchaseOrderId}`);
+    submitRequestNo.value = '';
     skuLines.value.forEach((line) => {
       line.selected = false;
       line.qty = 0;

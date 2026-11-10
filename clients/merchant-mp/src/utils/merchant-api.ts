@@ -1111,6 +1111,11 @@ export const merchantApi = {
   createSatellitePurchaseOrder: (body: {
     supplierId: string;
     warehouseId?: string;
+    /**
+     * R2-B14：客户端幂等键（后端按「仓库 + refNo」回放）。**成功后才能换新键**——
+     * 否则超时重试会在服务端生成第二张采购单。
+     */
+    refNo?: string;
     notes?: string;
     lines: { skuId: string; orderedQty: number; unitCostCents: number }[];
   }) =>

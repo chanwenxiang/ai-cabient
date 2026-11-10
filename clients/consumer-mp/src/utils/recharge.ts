@@ -21,8 +21,21 @@ export function clearPendingRechargeOrder() {
 
 export function takePendingRechargeOrder(): string {
   const id = peekPendingRechargeOrder();
-  if (id) clearPendingRechargeOrder();
+  if (id) forgetPendingRecharge(id);
   return id;
+}
+
+/**
+ * 清 pending 时**必须**连「已轻提示过」标记一起清（R2-C6）。
+ *
+ * <p>`recharge_resume_soft_<orderId>` 原先只写不删，每个出过异常的单号都会在 storage 里
+ * 永久留一个键（单号唯一 ⇒ 键只增不减）。标记本身只是「这单别再弹一次」，
+ * pending 一旦消失它就失去意义。
+ */
+function forgetPendingRecharge(orderId: string): void {
+  clearPendingRechargeOrder();
+  const softKey = `recharge_resume_soft_${orderId}`;
+  if (uni.getStorageSync(softKey)) uni.removeStorageSync(softKey);
 }
 
 export function rememberAlipayReturnPage(page = ALIPAY_RETURN_PAGE) {
@@ -200,7 +213,7 @@ async function doResumePendingRecharge(): Promise<boolean> {
   try {
     // 短轮询：覆盖沙箱收银台回跳后的短暂延迟；未支付则静默保留 pending
     await pollRechargePaid(orderId, 8, 1500);
-    clearPendingRechargeOrder();
+    forgetPendingRecharge(orderId);
     showSuccess('充值已到账');
     return true;
   } catch (e) {
@@ -211,12 +224,12 @@ async function doResumePendingRecharge(): Promise<boolean> {
     }
     // 已取消/关闭：清掉 pending，避免每次进「我的」都弹错误
     if (/取消|关闭|CANCELLED|REFUNDED/i.test(msg)) {
-      clearPendingRechargeOrder();
+      forgetPendingRecharge(orderId);
       return false;
     }
     // 订单不存在等：清掉脏 pending
     if (/不存在|404|NOT_FOUND/i.test(msg)) {
-      clearPendingRechargeOrder();
+      forgetPendingRecharge(orderId);
       return false;
     }
     // 开发阶段：避免反复弹错误；仅保留一次轻提示并可手动清理
@@ -305,11 +318,11 @@ export async function runWeChatRecharge(
     // 🔴 2026-11-10 审计 P1-7：用户取消收银台 / 支付失败时这笔不会到账，
     // 原实现把 pending 留到「走完轮询后才清」⇒ 取消后 pending 永久残留，
     // 之后每次进首页/我的都要白等一轮 8×1.5s。这里立即清掉，只让「支付成功但到账慢」保留 pending。
-    clearPendingRechargeOrder();
+    forgetPendingRecharge(prepay.orderId);
     throw e;
   }
   await pollRechargePaid(prepay.orderId, 20, 1500);
-  clearPendingRechargeOrder();
+  forgetPendingRecharge(prepay.orderId);
   return { orderId: prepay.orderId, mode: 'live' };
 }
 
@@ -339,6 +352,13 @@ export async function runAlipayRecharge(
     throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
   }
   savePendingRechargeOrder(prepay.orderId);
-  openAlipayPrepay(prepay.alipayPay);
+  try {
+    openAlipayPrepay(prepay.alipayPay);
+  } catch (e) {
+    // R2-C3：与微信分支 P1-7 同构 ——「收银台没打开」（支付地址非法/非 H5 环境）这一笔不会到账，
+    // 原先 pending 已经写进 storage 就再没人清，之后每次进首页都要白等一轮到账轮询。
+    forgetPendingRecharge(prepay.orderId);
+    throw e;
+  }
   return { orderId: prepay.orderId, mode: 'live' };
 }

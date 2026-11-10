@@ -5,7 +5,9 @@
       <view class="card">
         <text class="label">商品条码</text>
         <view class="row">
-          <input v-model="barCode" class="input" placeholder="扫描或输入条码" @blur="loadState" />
+          <!-- R2-B6：去掉 @blur 自动查 —— 该接口「首次查询会为未采集商品建采集任务」，
+               文案明写「只限用户显式点击」，失焦触发等于替用户建了采集任务。 -->
+          <input v-model="barCode" class="input" placeholder="扫描或输入条码" />
           <button size="mini" class="mini" @click="scan">扫码</button>
         </view>
         <view class="row">
@@ -72,6 +74,18 @@ const submitting = ref(false);
 const picking = ref(false);
 
 const stateLabel = computed(() => jiangyiStateText(state.value?.jiangyiState));
+
+/**
+ * R2-B6：photos 属于**哪个条码**。换条码后必须重拍 —— 原实现只在 onLoad 初始化一次，
+ * 换商品后上一件的实拍图仍留在槽里，会被提交成新条码的采集图（厂商按图学习 ⇒ 识别学错/审核驳回）。
+ */
+let photosForBarCode = '';
+
+function resetPhotos(): void {
+  photos.value = new Array(policy.value?.shotCount ?? 0).fill('');
+  photosForBarCode = barCode.value.trim();
+}
+
 const canSubmit = computed(
   () =>
     !!policy.value &&
@@ -86,7 +100,7 @@ onLoad(async (query) => {
   }
   try {
     policy.value = await fetchJiangyiCapturePolicy();
-    photos.value = new Array(policy.value.shotCount).fill('');
+    resetPhotos();
     if (barCode.value) {
       await loadState();
     }
@@ -99,9 +113,12 @@ async function loadState() {
   if (!barCode.value) {
     return;
   }
+  const code = barCode.value.trim();
+  // 条码变了 ⇒ 已拍的照片不再属于这件商品，先清空再查状态
+  if (photosForBarCode !== code) resetPhotos();
   error.value = '';
   try {
-    state.value = await fetchJiangyiCaptureState(barCode.value.trim());
+    state.value = await fetchJiangyiCaptureState(code);
   } catch (e) {
     state.value = null;
     error.value = e instanceof Error ? e.message : '查询商品状态失败';
@@ -151,6 +168,8 @@ async function submit() {
     }
     state.value = await submitJiangyiPhoneCapture(barCode.value.trim(), imageUrls);
     uni.showToast({ title: '已提交，等待将邑审核', icon: 'none' });
+    // 提交成功后清空：下一件商品从零开始拍，不会误把上一件的图带进去
+    resetPhotos();
   } catch (e) {
     error.value = e instanceof Error ? e.message : '提交失败';
   } finally {

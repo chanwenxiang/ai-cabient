@@ -75,6 +75,9 @@ async function loadDevice(autoOpen = false) {
   if (!deviceId.value) return;
   loading.value = true;
   doorResult.value = null;
+  // R2-B4：凭证是「本次盘点」的证据，换柜/重盘必须清 —— 全仓只有上传成功一处赋值，
+  // 否则上一柜（或上一次盘点）的照片会静默满足「必须拍照」（后端只判 URL 非空）。
+  evidenceUrl.value = '';
   try {
     // 判柜型：将邑绑定柜=开门柜（与柜机详情页同判据 jiangyiBound）
     let bound = false;

@@ -723,7 +723,65 @@ const beforeOpenPopup = ref<MarketingPopup | null>(null);
 const popupVisible = ref(false);
 const popupImageUrl = computed(() => absoluteImageUrl(beforeOpenPopup.value?.imageUrl));
 const POPUP_SEEN_PREFIX = 'promoPopupSeen:';
+/**
+ * R2-C6：弹窗「今天已看过」标记原先是**一个活动一个 storage 键**（`promoPopupSeen:<id>`），
+ * 只写不删 ⇒ 活动越多、键越多，永久占着 storage。改为单个有界 map（保留最近 50 个活动），
+ * 并顺手把历史遗留的前缀键迁移进来后删掉。
+ */
+const POPUP_SEEN_KEY = 'promoPopupSeenMap';
+const POPUP_SEEN_MAX = 50;
+type PopupSeenMap = Record<string, string>;
+
 let popupChecked = false;
+
+function readPopupSeenMap(): PopupSeenMap {
+  const raw = uni.getStorageSync(POPUP_SEEN_KEY);
+  return raw && typeof raw === 'object' ? (raw as PopupSeenMap) : {};
+}
+
+/** "YYYY-M-D"（todayKey 不补零）⇒ 可比较的数值，用于淘汰最旧条目 */
+function dayOrder(day: string): number {
+  const [y, m, d] = String(day || '').split('-').map((n) => Number(n) || 0);
+  return y * 10000 + m * 100 + d;
+}
+
+/** 把旧的 `promoPopupSeen:<activityId>` 键迁进 map 并删除（每个旧键都是永久泄漏） */
+function sweepLegacyPopupSeenKeys(map: PopupSeenMap): void {
+  try {
+    const keys = (uni.getStorageInfoSync()?.keys || []) as string[];
+    for (const key of keys) {
+      if (!key.startsWith(POPUP_SEEN_PREFIX)) continue;
+      const activityId = key.slice(POPUP_SEEN_PREFIX.length);
+      const day = String(uni.getStorageSync(key) || '');
+      if (activityId && day && !map[activityId]) map[activityId] = day;
+      uni.removeStorageSync(key);
+    }
+  } catch {
+    /* 存储信息读不到就跳过迁移：只影响清理，不影响弹窗判定 */
+  }
+}
+
+function popupSeenDay(activityId: number): string {
+  return readPopupSeenMap()[String(activityId)] || '';
+}
+
+function markPopupSeen(activityId: number): void {
+  const map = readPopupSeenMap();
+  sweepLegacyPopupSeenKeys(map);
+  map[String(activityId)] = todayKey();
+  const kept: PopupSeenMap = {};
+  Object.entries(map)
+    .sort((a, b) => dayOrder(a[1]) - dayOrder(b[1]))
+    .slice(-POPUP_SEEN_MAX)
+    .forEach(([id, day]) => {
+      kept[id] = day;
+    });
+  try {
+    uni.setStorageSync(POPUP_SEEN_KEY, kept);
+  } catch {
+    /* 写入失败不影响主流程（下次再弹一次而已） */
+  }
+}
 
 function todayKey() {
   const d = new Date();
@@ -740,7 +798,7 @@ async function maybeShowBeforeOpenPopup() {
     );
     const popup = (list || [])[0];
     if (!popup?.imageUrl) return;
-    if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
+    if (popupSeenDay(popup.activityId) === todayKey()) return;
     beforeOpenPopup.value = popup;
     popupVisible.value = true;
     reportPopup('POPUP_BEFORE_OPEN', popup.activityId, 'IMPRESSION');
@@ -764,7 +822,7 @@ function reportPopup(
 
 function closeBeforeOpenPopup() {
   if (beforeOpenPopup.value) {
-    uni.setStorageSync(POPUP_SEEN_PREFIX + beforeOpenPopup.value.activityId, todayKey());
+    markPopupSeen(beforeOpenPopup.value.activityId);
   }
   popupVisible.value = false;
 }

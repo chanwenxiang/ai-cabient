@@ -459,13 +459,24 @@ async function load() {
     return;
   }
   const seq = ++loadSeq;
+  // R2-B9：refreshMe 失败会走去权缓存（permissions 清空）——那是「权限不知道」，
+  // 不是「没有权限」。原来直接落到下面的 !canViewSettlements 分支，把弱网报成
+  // 「无结算权限」并把人退回首页。只有压根没有内存态（me 为 null）时才算不可知。
+  let permUnknown = false;
   try {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
+    permUnknown = !me.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;
+  if (permUnknown) {
+    loadError.value = '网络异常，暂时无法确认结算权限，请重试';
+    loading.value = false;
+    showError(loadError.value);
+    return;
+  }
   if (!canViewSettlements.value) {
     showError('无结算权限');
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });

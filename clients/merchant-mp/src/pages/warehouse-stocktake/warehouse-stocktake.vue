@@ -409,7 +409,9 @@ async function loadList() {
   // 分仓未解析成功时不发列表请求：后端必然 400，还会把错误叠加到错误态上
   if (!warehouseGate.value.enabled) return;
   // A 类模式：入口无条件复位在途 loadMore + 递增序号作废迟到旧页（对齐 tally-records）
-  listSeq += 1;
+  // R2-B5：序号必须**捕获**并在赋值/finally 处判 —— 原实现只递增不判，快速切状态页签时
+  // 慢返回的旧页签结果会覆盖新页签（loadMore 有守卫，首页反而没有）。
+  const seq = ++listSeq;
   listLoadingMore.value = false;
   listLoading.value = true;
   listError.value = '';
@@ -420,14 +422,16 @@ async function loadList() {
       status: statusTab.value === 'ALL' ? null : statusTab.value
     });
     const page = await merchantApi.warehouseStocktakes(q);
+    if (seq !== listSeq) return;
     stocktakes.value = page?.items || [];
     listTotal.value = page?.total ?? stocktakes.value.length;
     listPage.value = 0;
     listHasMore.value = stocktakes.value.length < listTotal.value;
   } catch (e) {
+    if (seq !== listSeq) return;
     listError.value = e instanceof Error ? e.message : '盘点单加载失败';
   } finally {
-    listLoading.value = false;
+    if (seq === listSeq) listLoading.value = false;
   }
 }
 

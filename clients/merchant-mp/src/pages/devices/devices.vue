@@ -281,15 +281,25 @@ async function load() {
   }
   const seq = ++loadSeq;
   preferredId.value = getPreferredDeviceId();
+  // R2-B9：refreshMe 失败会走去权缓存（permissions 清空）——那是「权限不知道」，
+  // 不是「没有权限」。原来直接落到 !canListDevices 分支，把弱网报成「无柜机权限」
+  // 并切回首页。只有压根没有内存态（me 为 null）时才算不可知。
+  let permUnknown = false;
   try {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
+    permUnknown = !me.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;
   if (!me.value) {
     seedMerchantMeDisplayCache(me);
+  }
+  if (permUnknown) {
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认柜机权限，请重试';
+    return;
   }
   if (!canListDevices.value) {
     // 无权限分支此前 loading 永不复位：直连/深链进入时页面卡在「加载中」白屏（G2-12 ④ run2 实测）
