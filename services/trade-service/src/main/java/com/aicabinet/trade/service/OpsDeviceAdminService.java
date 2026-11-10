@@ -48,7 +48,6 @@ import java.util.stream.Collectors;
 public class OpsDeviceAdminService {
 
     private static final String PERM_OPS_DEVICE_LIST = "ops:device:list";
-    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String DEPLOYED = "DEPLOYED";
     private static final String INBOUND = "INBOUND";
     private static final List<SessionState> ACTIVE_STATES = List.of(
@@ -673,7 +672,9 @@ public class OpsDeviceAdminService {
     }
 
     private Set<String> replenishingDeviceIds() {
-        return replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
+        // 与商户端同源：判据下推 SQL（findRestockingNowTasks），别改回「取最早 500 条再内存过滤」——
+        // 未签到的 IN_PROGRESS 脏行会越积越多，攒够 500 条后新签到的任务被 LIMIT 挤掉（B13）。
+        return replenishmentTaskRepository.findRestockingNowTasks().stream()
                 .filter(ReplenishmentTask::isRestockingNow)
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());

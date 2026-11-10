@@ -201,8 +201,7 @@ class OpsDeviceAdminServiceTest {
         device.setDeviceType("VISUAL");
         device.setOnlineStatus("OFFLINE");
         when(merchantScopeService.allowedDevices(10001L)).thenReturn(List.of(device));
-        when(replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(any(),
-                org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());
+        when(replenishmentTaskRepository.findRestockingNowTasks()).thenReturn(List.of());
         when(sessionRepository.findByStateIn(any(), org.mockito.ArgumentMatchers.anyInt()))
                 .thenReturn(List.of());
         when(jiangyiDeviceDirectory.deviceSnByDeviceIds(List.of("CAB-001")))

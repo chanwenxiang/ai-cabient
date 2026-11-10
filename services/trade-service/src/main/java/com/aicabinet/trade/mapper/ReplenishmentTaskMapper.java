@@ -77,6 +77,26 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().in(ReplenishmentTask::getStatus, statuses).orderByAsc(ReplenishmentTask::getCreatedAt).last("LIMIT 10"));
     }
 
+    /**
+     * 「此刻正在补货」的任务（status=IN_PROGRESS 且 check_in_at 非空），**判据下推到 SQL**。
+     *
+     * <p>为什么不能写成「先 {@code findByStatusInOrderByCreatedAtAsc(…, 500)} 再内存过滤」：
+     * 出库明细生成那一步就会把任务置成 IN_PROGRESS（当时还没到店、check_in_at 为空），
+     * 而 4h 超时收口只扫**已签到**的行（{@link #findByStatusAndCheckInAtBefore}），
+     * 所以这类没签到的行不会自愈、只会越积越多。超过 500 条后新签到的任务被 LIMIT 挤出窗口，
+     * 展示面的「补货中」就永远不亮（而挡开门的判据是逐柜查的，两边结论相反）。
+     *
+     * <p>这里**不设上限**：真正签到的在途任务是个位数量级，不该被历史脏行挤掉窗口；
+     * 只取三列，避免把整行实体带出来。判据单源仍是 {@link ReplenishmentTask#isRestockingNow}，
+     * 调用方拿到结果后再过一遍它（SQL 只是预筛，防的是窗口截断）。
+     */
+    default List<ReplenishmentTask> findRestockingNowTasks() {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .select(ReplenishmentTask::getDeviceId, ReplenishmentTask::getStatus, ReplenishmentTask::getCheckInAt)
+                .eq(ReplenishmentTask::getStatus, "IN_PROGRESS")
+                .isNotNull(ReplenishmentTask::getCheckInAt));
+    }
+
     default List<ReplenishmentTask> findByStatusInOrderByCreatedAtAsc(List<String> statuses, int limit) {
         int lim = Math.max(1, Math.min(limit, 500));
         return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()

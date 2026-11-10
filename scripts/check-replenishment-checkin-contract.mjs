@@ -37,6 +37,9 @@
  *      （判的是「缺任务 ⇒ 记失败」这个**结构**，不是某一句文案 —— 见下方注释里的假红事故）。
  *   7. `deviceHasCoords` 的判据不得被重新内联，且实跑脚本必须证明它真出现在响应里
  *      （只断言 DTO 里有这个字段 = 只证明了「声明」，没证明「送达」）。
+ *   8. 展示面「补货中」的取数必须**下推 SQL**（`findRestockingNowTasks`），
+ *      不得回到「取上限窗口（`findByStatusInOrderByCreatedAtAsc(…, 500)`）再内存过滤」——
+ *      见下方 B13 的成因。
  *
  *   node scripts/check-replenishment-checkin-contract.mjs
  */
@@ -81,6 +84,11 @@ const DTO_FILE = join(
 const E2E_FILE = join(root, 'scripts', 'e2e-replenishment.ps1');
 const E2E_CONTRACT_FILE = join(root, 'scripts', 'e2e-checkin-contract.ps1');
 const E2E_LIB_FILE = join(root, 'scripts', 'e2e-lib.ps1');
+const TASK_MAPPER_FILE = join(TRADE_MAIN, 'mapper', 'ReplenishmentTaskMapper.java');
+const PORTAL_DEVICE_FILE = join(TRADE_MAIN, 'service', 'MerchantDevicePortalService.java');
+const OPS_DEVICE_FILE = join(TRADE_MAIN, 'service', 'OpsDeviceAdminService.java');
+const PUSHED_DOWN_QUERY = 'findRestockingNowTasks';
+const WINDOWED_QUERY = 'findByStatusInOrderByCreatedAtAsc';
 
 const KEY_DEVICE_MISSING = 'REPLENISHMENT_CHECK_IN_DEVICE_LOCATION_MISSING';
 const KEY_LOCATION_REQUIRED = 'REPLENISHMENT_CHECK_IN_LOCATION_REQUIRED';
@@ -107,6 +115,62 @@ function fail(msg) {
 function read(file) {
   if (!existsSync(file)) fail(`找不到文件：${file.replace(root, '.')}`);
   return readFileSync(file, 'utf8');
+}
+
+/**
+ * 把 Java 注释替换成**等长空格**（保留换行，行号不变）：规则 8 扫的是「代码里还有没有旧写法」，
+ * 而修复处的说明注释恰恰会引用 `findByStatusInOrderByCreatedAtAsc(…, 500)` 作为反例
+ * （铁律 84①：不抹注释就会把注释判成违规，把人逼成删注释）。
+ */
+export function maskJavaComments(source) {
+  let out = '';
+  let state = 'code';
+  for (let i = 0; i < source.length; i++) {
+    const c = source[i];
+    const n = source[i + 1];
+    if (state === 'code') {
+      if (c === '/' && n === '/') {
+        out += '  ';
+        i++;
+        state = 'line';
+      } else if (c === '/' && n === '*') {
+        out += '  ';
+        i++;
+        state = 'block';
+      } else if (c === '"') {
+        out += c;
+        state = 'str';
+      } else if (c === "'") {
+        out += c;
+        state = 'char';
+      } else {
+        out += c;
+      }
+      continue;
+    }
+    if (state === 'line') {
+      out += c === '\n' ? '\n' : ' ';
+      if (c === '\n') state = 'code';
+      continue;
+    }
+    if (state === 'block') {
+      if (c === '*' && n === '/') {
+        out += '  ';
+        i++;
+        state = 'code';
+      } else {
+        out += c === '\n' ? '\n' : ' ';
+      }
+      continue;
+    }
+    if (c === '\\' && i + 1 < source.length) {
+      out += c + source[++i];
+      continue;
+    }
+    out += c;
+    if ((state === 'str' && c === '"') || (state === 'char' && c === "'")) state = 'code';
+  }
+  return out;
 }
 
 // ── 真值 A：doCheckInTask 的闸门顺序 ─────────────────────────────────────────
@@ -391,6 +455,59 @@ if (iStatusGate >= 0 && iDeviceGate >= 0 && iStatusGate > iDeviceGate) {
   );
 }
 
+// ── 规则 8：展示面「补货中」判据必须下推 SQL（B13，2026-11-10）───────────────
+// 缺陷形态：`findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500).stream().filter(isRestockingNow)`。
+// 出库明细生成即置 IN_PROGRESS 但 check_in_at 为空；这类行只有「签到 4h 超时收口」会处理，
+// 而收口只扫**已签到**的行 ⇒ 它们不会自愈，只会越积越多。攒够 500 条后，最早 500 条全是脏行，
+// 新签到的任务被 LIMIT 挤出窗口 ⇒ 手机上「补货中」永远不亮，而挡开门的判据是逐柜查的、结论相反。
+// 修法：把 status/check_in_at 下推进 SQL 且不设上限（签到的在途任务是个位数量级）。
+const mapperSrc = read(TASK_MAPPER_FILE);
+const maskedMapper = maskJavaComments(mapperSrc);
+const pushedDownStart = maskedMapper.indexOf(`List<ReplenishmentTask> ${PUSHED_DOWN_QUERY}(`);
+if (pushedDownStart < 0) {
+  problems.push(
+    `ReplenishmentTaskMapper 里找不到 ${PUSHED_DOWN_QUERY}() —— 展示面「补货中」的判据又被搬回内存过滤，` +
+      '未签到的 IN_PROGRESS 脏行攒够上限后会把新签到的任务挤出窗口'
+  );
+} else {
+  const tail = maskedMapper.indexOf('\n    }', pushedDownStart);
+  const mapperBody = maskedMapper.slice(pushedDownStart, tail < 0 ? maskedMapper.length : tail);
+  // 判据必须钉在**谓词**上，不能只找 `getCheckInAt`：`select(… getCheckInAt)` 里也有这个词，
+  // 光找词会让「把 isNotNull 换成别的列」这种注入假绿（2026-11-10 负向验证当场抓到）。
+  if (!/isNotNull\s*\(\s*ReplenishmentTask::getCheckInAt\s*\)/.test(mapperBody)) {
+    problems.push(
+      `${PUSHED_DOWN_QUERY}() 没把 check_in_at 非空下推进 SQL —— 只筛 status 的话，` +
+        '窗口里仍会塞满没签到的行，等价于没修'
+    );
+  }
+  if (!/eq\s*\(\s*ReplenishmentTask::getStatus\s*,\s*"IN_PROGRESS"\s*\)/.test(mapperBody)) {
+    problems.push(`${PUSHED_DOWN_QUERY}() 没把 status=IN_PROGRESS 下推进 SQL`);
+  }
+  if (/\.last\s*\(\s*"LIMIT/.test(mapperBody)) {
+    problems.push(
+      `${PUSHED_DOWN_QUERY}() 又加了 LIMIT 上限 —— 上限与「谁在补货」无关，` +
+        '历史脏行攒够就该截断真任务（这正是 B13 的形态）'
+    );
+  }
+}
+for (const [label, file] of [
+  ['MerchantDevicePortalService', PORTAL_DEVICE_FILE],
+  ['OpsDeviceAdminService', OPS_DEVICE_FILE]
+]) {
+  const src = maskJavaComments(read(file));
+  if (!src.includes(`${PUSHED_DOWN_QUERY}(`)) {
+    problems.push(
+      `${label} 的「补货中」取数没走 ${PUSHED_DOWN_QUERY}() —— 判据必须下推 SQL（B13）`
+    );
+  }
+  if (src.includes(`${WINDOWED_QUERY}(`)) {
+    problems.push(
+      `${label} 又用 ${WINDOWED_QUERY}(…) 取上限窗口后内存过滤 —— ` +
+        '超过上限的新签任务会被 LIMIT 挤掉，「补货中」永远不亮（B13）'
+    );
+  }
+}
+
 if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
@@ -399,5 +516,6 @@ console.log(
   `${TAG} OK：doCheckInTask 闸门顺序（终态 → 无坐标 → 缺定位）、${MESSAGE_KEYS.length} 条文案、` +
     `默认距离 ${declaredMax}m、边界 ${inside}m/${outside}m 与 e2e-replenishment.ps1 的期望值全部一致；` +
     `终态闸与开门共用同一条文案、坐标判据唯一（${KEY_COORDS_PREDICATE}）、` +
-    `deviceHasCoords 已声明且被实跑脚本消费`
+    `deviceHasCoords 已声明且被实跑脚本消费；` +
+    `「补货中」判据已下推（${PUSHED_DOWN_QUERY}，无上限窗口）`
 );

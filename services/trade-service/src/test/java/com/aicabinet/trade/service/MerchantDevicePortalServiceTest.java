@@ -244,7 +244,7 @@ class MerchantDevicePortalServiceTest {
         task.setStatus("IN_PROGRESS");
         when(merchantFeaturePackService.allowedDevicesForPack(7L, MerchantFeaturePacks.FIELD))
                 .thenReturn(List.of(device));
-        when(replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500))
+        when(replenishmentTaskRepository.findRestockingNowTasks())
                 .thenReturn(List.of(task));
         when(sessionRepository.findByStateIn(org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyInt())).thenReturn(List.of());

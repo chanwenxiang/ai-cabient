@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 @Service
 public class MerchantDevicePortalService {
 
-    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final List<SessionState> ACTIVE_STATES = List.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
@@ -437,8 +436,10 @@ public class MerchantDevicePortalService {
     }
 
     private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
-        // 「补货中」只认已签到的任务：挂着没签到的 IN_PROGRESS（出库明细生成即置位）不该占住柜机状态位
-        Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of(STATUS_IN_PROGRESS), 500).stream()
+        // 「补货中」只认已签到的任务：挂着没签到的 IN_PROGRESS（出库明细生成即置位）不该占住柜机状态位。
+        // 取数走 findRestockingNowTasks()（判据下推 SQL），**不要**改回「取最早 500 条再内存过滤」——
+        // 没签到的脏行不回自愈，攒够 500 条后新签到的任务会被 LIMIT 挤出窗口，「补货中」永远不亮（B13）。
+        Set<String> replenishing = replenishmentTaskRepository.findRestockingNowTasks().stream()
                 .filter(ReplenishmentTask::isRestockingNow)
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
