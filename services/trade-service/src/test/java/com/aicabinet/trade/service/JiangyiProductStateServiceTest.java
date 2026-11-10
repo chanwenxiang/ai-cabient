@@ -168,4 +168,23 @@ class JiangyiProductStateServiceTest {
         assertEquals("UNKNOWN", captor.getValue().getJiangyiState());
         assertNull(captor.getValue().getRejectCause());
     }
+
+    /**
+     * 2026-11-10 实测：柜内采集上传期间厂商 7.5 会回七态表之外的值（原始字符串必须落库，
+     * 否则统一存 UNKNOWN，前端只能显示「未知状态」而排查时说不出是哪个新状态）。
+     */
+    @Test
+    void unknownRawStateIsStoredAsRaw() {
+        JiangyiSkuJiangyiLink row = new JiangyiSkuJiangyiLink();
+        row.setId(4L);
+        when(client.lookup("690128")).thenReturn(new ProductState("690128",
+                State.UNKNOWN, "RESTOCK", null, null, null, "UPLOADING"));
+        when(linkMapper.byBarCode("690128")).thenReturn(Optional.of(row));
+
+        service.check("690128");
+
+        ArgumentCaptor<JiangyiSkuJiangyiLink> captor = ArgumentCaptor.forClass(JiangyiSkuJiangyiLink.class);
+        verify(linkMapper).updateById(captor.capture());
+        assertEquals("UPLOADING", captor.getValue().getJiangyiState());
+    }
 }

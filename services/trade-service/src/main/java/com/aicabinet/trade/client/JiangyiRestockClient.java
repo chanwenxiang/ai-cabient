@@ -378,7 +378,8 @@ public class JiangyiRestockClient {
     private static ProductState toProductState(JsonNode n) {
         long pid = n.path("productId").asLong(0);
         return new ProductState(text(n, "barCode"), State.parse(text(n, "state")),
-                text(n, "nextAction"), pid > 0 ? pid : null, text(n, "name"), text(n, "rejectCause"));
+                text(n, "nextAction"), pid > 0 ? pid : null, text(n, "name"), text(n, "rejectCause"),
+                text(n, "state"));
     }
 
     private static CabinetCaptureProduct toCaptureProduct(JsonNode n) {

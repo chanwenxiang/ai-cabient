@@ -28,9 +28,18 @@ public final class JiangyiRestockDtos {
         }
     }
 
-    /** §7.5/§7.6/§7.9 共用的商品状态回包。 */
+    /**
+     * §7.5/§7.6/§7.9 共用的商品状态回包。
+     * <p>{@code rawState} 是厂商原始 state 字符串：不认识的取值会解析成 {@link State#UNKNOWN}，
+     * 此时靠原始值落库/展示（2026-11-10 实测：柜内采集上传期间 7.5 会回七态表之外的值）。</p>
+     */
     public record ProductState(String barCode, State state, String nextAction,
-                               Long productId, String name, String rejectCause) {}
+                               Long productId, String name, String rejectCause, String rawState) {
+        public ProductState(String barCode, State state, String nextAction,
+                            Long productId, String name, String rejectCause) {
+            this(barCode, state, nextAction, productId, name, rejectCause, null);
+        }
+    }
 
     /**
      * §7.6 新建商品入参。

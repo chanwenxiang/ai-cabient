@@ -693,6 +693,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 同日后台「将邑商品」页可用性优化（用户反馈「必须记 69 码」）：查状态卡片加**按商品名远程搜我方 SKU**（选中自动带条码并查询，手输 69 码入口保留）；补实测值 `RESTOCK_THEN_CABINET_CAPTURE` 的中文映射（补货后柜内采集），建档「形态」下拉改用共用 `jiangyiCategoryText`（瓶/盒/袋/碗/蛋）。dev 浏览器实测：搜「冰红茶」→ 选中 → 状态「可补货/待柜内采集」、下一步「补货后柜内采集」。
 - 同日数据卫生：`JiangyiProductStateService.persist` 的 `reject_cause` 回写改**显式清列**——`updateById` 默认跳 null，审核通过后旧「重新拍摄」会永久残留（实测冰红茶 CABINET_PENDING 行）；null 时走 mapper 的显式 `UPDATE ... SET reject_cause=NULL`，配 2 例钉测（通过则清空 / 驳回则保留）。运行栈需重建 trade-service 镜像后生效。
 - 同日补货后柜内采集首跑（冰红茶）：盘点开门放 1 瓶 → 账面 1→2 → 7.11 提交（雪碧 1 + 冰红茶 2，`historyNo=B261110381050001`）→ 7.12 APPLIED → 7.14 `onShelf=true` → 7.15 开始成功。**厂商修 §7.16–7.18 的 555 后复跑成功**（修复判据＝同接口 555→503 业务文案；第一次 8468 因操作超过设备约 2 分钟窗口报「采集未开始」；第二次 8469 立即操作→7.17→UPLOADING≈8 分钟→**DONE**，商品进入 `CABINET_REVIEWING`、待采集清单清空）。操作口径：开始后 2 分钟内完成拿放/关门/7.17；会话中门只合不锁、结束自动锁。同轮修上架预览：**只收 BOUND 会漏我方 CREATED 商品**（预览与提交校验对齐为 BOUND+CREATED，配钉测），含 autoRestockSync 链。
+- 同日补：将邑商品状态**表外值中文化**——`UNKNOWN`→「未知状态」、未映射新值→「未知状态（原始值）」（不再露裸英文码）；后端 `ProductState.rawState` 落库（原先 `State.parse` 把表外值统一存成 UNKNOWN、原始值丢失；实测柜内采集上传期间 §7.5 会回七态表之外的状态）。
 
 ### 2026-11-09（SKU 图「消失」根因＝桶上全桶 14 天 ILM 过期；拍板图片永久保存，minio-init 改幂等）
 

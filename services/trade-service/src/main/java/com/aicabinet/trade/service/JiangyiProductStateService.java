@@ -4,6 +4,7 @@ import com.aicabinet.trade.client.JiangyiRestockClient;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCreateCommand;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductState;
+import com.aicabinet.trade.dto.JiangyiRestockDtos.State;
 import com.aicabinet.trade.mapper.JiangyiSkuJiangyiLinkMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +106,13 @@ public class JiangyiProductStateService {
             return Optional.empty();
         }
         JiangyiSkuJiangyiLink row = link.get();
-        row.setJiangyiState(state.state().name());
+        // 未识别的厂商状态保留原始值（列 VARCHAR(32)，截断兜底）：否则统一存 UNKNOWN，
+        // 前端只能显示「未知状态」、排查时也不知道厂商新增了哪个状态（2026-11-10 实测：
+        // 柜内采集上传期间 7.5 会回七态表之外的值）。
+        String storedState = state.state() == State.UNKNOWN
+                ? truncate(firstNonBlank(state.rawState(), "UNKNOWN"), 32)
+                : state.state().name();
+        row.setJiangyiState(storedState);
         row.setNextAction(state.nextAction());
         row.setRejectCause(state.rejectCause());
         row.setStateCheckedAt(Instant.now());
@@ -128,6 +135,10 @@ public class JiangyiProductStateService {
             return a;
         }
         return b == null || b.isBlank() ? null : b;
+    }
+
+    private static String truncate(String s, int max) {
+        return s == null || s.length() <= max ? s : s.substring(0, max);
     }
 
     /** 供上层批量判断（如运营列表过滤）。 */

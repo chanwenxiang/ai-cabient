@@ -468,7 +468,10 @@ const JIANGYI_STATE: Record<string, string> = {
   REJECTED: '已驳回',
   REVIEWING: '手机图审核中',
   CABINET_PENDING: '可补货/待柜内采集',
-  CABINET_REVIEWING: '柜内图审核中'
+  CABINET_REVIEWING: '柜内图审核中',
+  // 厂商新增/演进状态一律归这里：不露裸英文码（2026-11-10 实测：柜内采集上传期间
+  // 7.5 会回七态表之外的值，原显示 UNKNOWN）
+  UNKNOWN: '未知状态'
 };
 const JIANGYI_NEXT_ACTION: Record<string, string> = {
   CREATE_PRODUCT: '先建档',
@@ -504,7 +507,15 @@ const JIANGYI_PHASE: Record<string, string> = {
   CANCELLED: '已取消'
 };
 const pick = (m: Record<string, string>, code?: string | null) => (code && m[code]) || code || '—';
-export const jiangyiStateText = (c?: string | null) => pick(JIANGYI_STATE, c);
+/**
+ * 商品状态文案（2026-11-10）：厂商新增状态不在七态表时显示「未知状态（原始值）」，
+ * 既不露裸英文码、又保留原始值供排查（后端已把未知状态的原始字符串落库）。
+ */
+export const jiangyiStateText = (c?: string | null) => {
+  const raw = String(c ?? '').trim();
+  if (!raw) return '—';
+  return JIANGYI_STATE[raw] ?? `未知状态（${raw}）`;
+};
 export const jiangyiNextActionText = (c?: string | null) => pick(JIANGYI_NEXT_ACTION, c);
 export const jiangyiCategoryText = (c?: string | null) => pick(JIANGYI_CATEGORY, c);
 export const jiangyiStageText = (c?: string | null) => pick(JIANGYI_STAGE, c);
