@@ -98,7 +98,11 @@ public class JiangyiRestockService {
                 continue;
             }
             String barCode = linkMapper.listBySku(skuId).stream()
-                    .filter(l -> "BOUND".equals(l.getSyncStatus()))
+                    // 🔴 BOUND 与 CREATED 都算「已在将邑库」：CREATED 是我方 7.6 新建的商品，
+                    // 审核通过后同样要上架；只排除 RETIRED（listBySku 已滤）。2026-11-10 实测：
+                    // 只收 BOUND 会让冰红茶（41175/CREATED）永远进不了预览 ⇒ 7.11 上架不了、
+                    // 柜内采集永远 onShelf=false（面板看不到、补货后自动同步也会漏掉）。
+                    .filter(l -> "BOUND".equals(l.getSyncStatus()) || "CREATED".equals(l.getSyncStatus()))
                     .map(JiangyiSkuJiangyiLink::getBarCode)
                     .filter(b -> b != null && !b.isBlank())
                     .findFirst().orElse(null);

@@ -90,6 +90,38 @@ class JiangyiRestockServiceTest {
         assertEquals(List.of("100013"), preview.skippedSkus());
     }
 
+    /**
+     * 2026-11-10 实测回归：我方 7.6 新建（CREATED）的商品审核通过后同样要上架——
+     * 预览若只收 BOUND，冰红茶 41175 永远进不了 7.11 清单，柜内采集永远 onShelf=false。
+     */
+    @Test
+    void preview_includesSelfCreatedLink() {
+        when(deviceDirectory.findDevice(DEVICE)).thenReturn(device());
+        DeviceSkuInventory inv = new DeviceSkuInventory();
+        inv.setSkuId("100014");
+        inv.setQuantity(2);
+        when(inventoryMapper.findByIdDeviceId(DEVICE)).thenReturn(List.of(inv));
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("100014");
+        sku.setSkuName("冰红茶");
+        when(skuCatalogMapper.selectById("100014")).thenReturn(sku);
+        JiangyiSkuJiangyiLink created = new JiangyiSkuJiangyiLink();
+        created.setSkuId("100014");
+        created.setBarCode("6921294307016");
+        created.setSyncStatus("CREATED");
+        when(linkMapper.listBySku("100014")).thenReturn(List.of(created));
+        when(pricingService.resolveUnitPriceCents(eq(DEVICE), any(SkuCatalog.class), any()))
+                .thenReturn(350);
+
+        JiangyiRestockService.Preview preview = service().preview(DEVICE);
+
+        assertEquals(1, preview.lines().size());
+        assertEquals("100014", preview.lines().get(0).skuId());
+        assertEquals("6921294307016", preview.lines().get(0).barCode());
+        assertEquals(2, preview.lines().get(0).stockNum());
+        assertTrue(preview.skippedSkus().isEmpty());
+    }
+
     @Test
     void submit_withoutConfirmDelistIs409() {
         when(deviceDirectory.findDevice(DEVICE)).thenReturn(device());

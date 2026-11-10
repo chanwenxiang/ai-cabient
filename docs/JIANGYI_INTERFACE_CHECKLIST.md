@@ -951,7 +951,7 @@ stockConfirmationRequired, legacySharedInventory, oppositeSide, oppositeSidePric
    门磁自报 `doorState=close lockState=close`，排除门未关。**约 2 分钟后同一请求成功**（10:07:39 门开）。
    ⇒ 补货同步后要留冷却窗口再让消费者开门；期间运营界面最好能提示「参数应用中」。
 
-**未验**：§7.14–7.18 柜内采集的**真机联调**（端点与后台面板已于 11-09 补齐，见 §12B.6；等冰红茶审核上架后可现场跑）。
+**§7.14–7.18 真机首跑（2026-11-10，冰红茶 41175/6921294307016）**：7.14 清单 `onShelf=true`、7.15 开始成功（`sessionId=8443`，phase=PREPARING）；**7.16 进度 / 7.17 结束 / 7.18 取消三接口全部返回厂商 555**，msg `java.lang.String cannot be cast to java.lang.Number`（我方请求字段与文档 §7.16/§7.17 一致：`deviceIdentifier` String + `sessionId` Integer ⇒ 判定厂商服务端解析缺陷，待其修复后重采）。设备侧等到超时（现场提示「采集超时」），柜内图未上传（`UPLOADING` 只在 7.17 成功后触发）；柜门随后自动上锁，会话约 15 分钟自释放。
 
 ### 12B.6 §7.13 货道核对 + §7.14~7.18 柜内采集补齐（2026-11-09，feat/jiangyi-cabinet-capture）
 
