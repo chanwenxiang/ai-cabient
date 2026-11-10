@@ -343,6 +343,8 @@ class JiangyiModelSyncServiceTest {
     void confirmModelByTxtUrl_matchesSentByRelativeSuffixAndConfirms() {
         JiangyiModelDeployment sent = sentWithTxtUrl("https://oss/model/hysxr_3.txt");
         when(deploymentMapper.listByDevice(DEVICE_ID)).thenReturn(List.of(sent));
+        // R6-D-R3-3：确认前重读目标行（selectById）—— 仍 SENT 才进 confirmModel
+        when(deploymentMapper.selectById(55L)).thenReturn(sent);
         when(deploymentMapper.findLatestSent(DEVICE_ID, MODEL_NAME)).thenReturn(Optional.of(sent));
 
         JiangyiModelDeployment returned = service().confirmModelByTxtUrl(DEVICE_ID, "model/hysxr_3.txt");
