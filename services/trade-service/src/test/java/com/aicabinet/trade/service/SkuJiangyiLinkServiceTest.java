@@ -685,4 +685,44 @@ class SkuJiangyiLinkServiceTest {
         when(linkMapper.byProduct("100013")).thenReturn(Optional.of(link("CREATED", "  ")));
         assertTrue(service().resolveSkuIdByProductId("100013").isEmpty());
     }
+
+    // ---------- updateMainImage（V1.13 §4.1.7 改将邑主图，只放 CREATED） ----------
+
+    /**
+     * 2026-11-10：改主图用于我方商品图更新后同步到将邑（不必删了重建）。
+     * 站内相对路径必须按 JIANGYI_PUBLIC_BASE_URL 补成公网地址（厂商直接抓图）。
+     */
+    @Test
+    void updateMainImage_createdSyncsAbsoluteImageAndAudits() {
+        JiangyiSkuJiangyiLink link = vendorLink(9L, "CREATED", "41175");
+        when(linkMapper.selectById(9L)).thenReturn(link);
+        SkuCatalog s = sku(null);
+        s.setImageUrl("/api/v2/media/sku-images/11");
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(s);
+
+        service().updateMainImage(1L, SKU_ID, 9L);
+
+        verify(jiangyiGatherClient).updateMainImage(41175L,
+                "https://public.example.com/api/v2/media/sku-images/11");
+        verify(linkMapper).updateById(link);
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_SKU_LINK_MAIN_IMAGE"),
+                org.mockito.ArgumentMatchers.eq("JIANGYI_SKU_LINK"),
+                org.mockito.ArgumentMatchers.eq("9"),
+                org.mockito.ArgumentMatchers.contains("jiangyiProductId=41175"));
+    }
+
+    @Test
+    void updateMainImage_boundIs409AndVendorNeverCalled() {
+        // BOUND 指向将邑标准库共享条目，改图会波及别的商户
+        when(linkMapper.selectById(9L)).thenReturn(vendorLink(9L, "BOUND", "1018"));
+        when(skuCatalogMapper.selectById(SKU_ID)).thenReturn(sku(null));
+
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service().updateMainImage(1L, SKU_ID, 9L));
+
+        assertEquals(409, e.getStatusCode().value());
+        verify(jiangyiGatherClient, never()).updateMainImage(anyLong(), anyString());
+        verify(linkMapper, never()).updateById(any(JiangyiSkuJiangyiLink.class));
+    }
 }

@@ -127,6 +127,18 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(null);
     }
 
+    /**
+     * 改将邑商品主图（V1.13 §4.1.7，真实路径大写 I，见 H-24）。
+     * 只对我方新增（CREATED）的商品开放；主图取我方 SKU 已登记的图片。
+     */
+    @RequiresPermissions("ops:sku:edit")
+    @PostMapping("/skus/{skuId}/jiangyi-link/{linkId}/main-image")
+    public ApiResponse<JiangyiSkuJiangyiLink> updateMainImage(HttpServletRequest request,
+                                                              @PathVariable("skuId") String skuId,
+                                                              @PathVariable("linkId") long linkId) {
+        return ApiResponse.ok(skuJiangyiLinkService.updateMainImage(operatorId(request), skuId, linkId));
+    }
+
     /** 解挂（RETIRED 留痕）。 */
     @RequiresPermissions("ops:sku:edit")
     @DeleteMapping("/skus/{skuId}/jiangyi-link/{linkId}")

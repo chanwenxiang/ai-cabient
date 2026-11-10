@@ -125,6 +125,19 @@ public class JiangyiGatherClient {
         post("/merchant/product/delete", Map.of("id", productId), true, "productDelete");
     }
 
+    /**
+     * 改商品主图（V1.13 §4.1.7 /merchant/product/updateMainImg，响应 data=null）。
+     * <p>🔴 真实路径是大写 I：文档 OCR 的 {@code updateMainlmg}（小写 L）照抄必 404，见 H-24。
+     * 厂商侧只放开改我方新建（CREATED）的商品，闸门见
+     * {@link com.aicabinet.trade.service.SkuJiangyiLinkService#updateMainImage}。</p>
+     */
+    public void updateMainImage(long productId, String mainImg) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("productId", productId);
+        body.put("mainImg", mainImg);
+        post("/merchant/product/updateMainImg", body, true, "productUpdateMainImg");
+    }
+
     // ---------- 学习与模型（4.4.x） ----------
 
     /**

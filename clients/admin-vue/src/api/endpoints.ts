@@ -244,6 +244,9 @@ export const AdminEndpoints = {
     `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/pull-text-name`,
   skuJiangyiLinkVendorProduct: (skuId: string, linkId: number) =>
     `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/${linkId}/jiangyi-product`,
+  /** V1.13 §4.1.7 改将邑主图（只对我方新增 CREATED 开放） */
+  skuJiangyiLinkMainImage: (skuId: string, linkId: number) =>
+    `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/${linkId}/main-image`,
   jiangyiPendingGather: (name?: string) =>
     `${ops}/jiangyi/pending-gather${name ? `?name=${encodeURIComponent(name)}` : ''}`,
   jiangyiStdSkus: (query: URLSearchParams | string) =>

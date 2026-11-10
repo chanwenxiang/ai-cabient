@@ -424,6 +424,48 @@ public class SkuJiangyiLinkService {
     }
 
     /**
+     * 改将邑商品主图（V1.13 §4.1.7）——用于我方商品图更新后同步到将邑（不必删了重建）。
+     *
+     * <p>闸门只放 CREATED：BOUND 指向将邑标准库共享条目，改图会波及别的商户，我方无权处置。
+     * 主图取我方 SKU 已登记的图片（站内相对路径按 {@code JIANGYI_PUBLIC_BASE_URL} 补成公网地址）。</p>
+     */
+    public JiangyiSkuJiangyiLink updateMainImage(Long operatorId, String skuId, long linkId) {
+        SkuCatalog sku = requireSku(skuId);
+        JiangyiSkuJiangyiLink link = requireLink(skuId, linkId);
+        if (!"CREATED".equals(link.getSyncStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "只有「我方新增」的商品能改将邑主图（当前是 " + link.getSyncStatus()
+                            + "）；标准库既有商品属共享条目");
+        }
+        String mainImg = absoluteImageUrl(sku.getImageUrl());
+        if (mainImg.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "将邑要求商品主图：请先在商品管理登记该商品的图片");
+        }
+        long productId;
+        try {
+            productId = Long.parseLong(link.getJiangyiProductId());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "挂接行的厂商商品 ID 非法：" + link.getJiangyiProductId());
+        }
+        try {
+            jiangyiGatherClient.updateMainImage(productId, mainImg);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "将邑改主图失败：" + e.getMessage());
+        }
+        link.setUpdatedAt(Instant.now());
+        linkMapper.updateById(link);
+        log.info("jiangyi sku link main image updated skuId={} linkId={} productId={}",
+                skuId, linkId, productId);
+        auditService.appendLog(operatorId, "JIANGYI_SKU_LINK_MAIN_IMAGE", "JIANGYI_SKU_LINK",
+                String.valueOf(linkId),
+                "skuId=" + skuId + ",jiangyiProductId=" + productId + ",mainImg=" + mainImg);
+        return link;
+    }
+
+    /**
      * 按 barCode 从厂商可学习商品名单回填 text_name（classes.txt 直接键）。
      *
      * <p>🔴 命中多条不猜（2026-10-22 用户拍板）：将邑库里同一条码可能同时挂着正式行与

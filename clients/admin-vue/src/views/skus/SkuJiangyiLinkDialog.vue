@@ -85,6 +85,8 @@ const pendingName = ref('');
 const pendingLoading = ref(false);
 const pendingError = ref('');
 const deletingVendor = ref<number | null>(null);
+/** V1.13 §4.1.7 同步主图中 */
+const syncingImage = ref<number | null>(null);
 
 // 挂接前并排核对（我方 SKU vs 将邑商品）；无条码一致时不勾选不允许提交
 const confirmItem = ref<StdSkuView | null>(null);
@@ -427,6 +429,31 @@ async function deleteInJiangyi(link: JiangyiLink) {
   }
 }
 
+/**
+ * V1.13 §4.1.7：把我方 SKU 已登记的图片同步为将邑该商品的主图（不必删了重建）。
+ * 只对 CREATED 开放——BOUND 是标准库共享条目，改图会波及别的商户。
+ */
+async function syncMainImage(link: JiangyiLink) {
+  try {
+    await ElMessageBox.confirm(
+      `将把商品管理里该 SKU 的图片同步为将邑商品 ${link.jiangyiProductId} 的主图（厂商侧立即生效）。确认？`,
+      '同步主图确认',
+      { type: 'warning', confirmButtonText: '同步', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  syncingImage.value = link.id;
+  try {
+    await api.request(AdminEndpoints.skuJiangyiLinkMainImage(skuId.value, link.id), 'POST');
+    ElMessage.success('已同步主图到将邑');
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '同步主图失败'));
+  } finally {
+    syncingImage.value = null;
+  }
+}
+
 defineExpose({ open });
 </script>
 
@@ -457,6 +484,16 @@ defineExpose({ open });
           <div v-if="link.syncStatus !== 'RETIRED'" class="jy-link-card-actions">
             <el-button link type="primary" size="small" :loading="pulling" @click="pullTextName">
               回填识别名称
+            </el-button>
+            <el-button
+              v-if="link.syncStatus === 'CREATED'"
+              link
+              type="primary"
+              size="small"
+              :loading="syncingImage === link.id"
+              @click="syncMainImage(link)"
+            >
+              同步主图
             </el-button>
             <el-button
               v-if="link.syncStatus === 'CREATED'"
