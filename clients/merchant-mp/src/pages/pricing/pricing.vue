@@ -134,7 +134,7 @@ import {
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import type { MerchantSkuPriceChange, MerchantSkuPricing } from '@aicabinet/shared-types';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
 const error = ref('');
 const rows = ref<MerchantSkuPricing[]>([]);
@@ -268,6 +268,12 @@ async function ensurePricingAccess(seq: number): Promise<boolean> {
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return false;
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无定价权限」
+  if (!meFromServer.value) {
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    return false;
+  }
   if (!canView.value) {
     denyPricingAccess();
     return false;

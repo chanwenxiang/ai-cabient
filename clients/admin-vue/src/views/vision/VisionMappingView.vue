@@ -1031,9 +1031,16 @@ async function loadModels(opts?: { silent?: boolean }) {
 
 /** §5.5.3 只读解码：classes 原始类目名 → 厂商中文品名，供「厂商品名」列展示（不写映射）。 */
 const vendorNameByText = ref<Record<string, string>>({});
+// R3-A-R3-2（A13 同族）：解码响应必须带设备与请求时点守卫；且「CONFIRMED 下发解码」优先级
+// 高于「退化 preview[0]」—— 慢的低优先响应不得盖掉已落的高优先解码。
+let vendorLoadSeq = 0;
+let vendorAppliedPriority = 0;
 async function loadVendorNames() {
+  const seq = ++vendorLoadSeq;
+  vendorAppliedPriority = 0;
   vendorNameByText.value = {};
   if (!deviceId.value) return;
+  const requestedDeviceId = deviceId.value;
   // 优先用「最新 CONFIRMED 下发」的 classes 地址（设备当前生效模型），§4.4.4 模型列表为空时也能解码；
   // 退化为当前预览模型的 textUrl。
   const dep =
@@ -1044,6 +1051,7 @@ async function loadVendorNames() {
     modelPreviews.value[0];
   const textUrl = dep?.classesTextUrl || preview?.modelTextUrl;
   if (!textUrl) return;
+  const priority = dep?.classesTextUrl ? 2 : 1;
   try {
     const q = new URLSearchParams({
       textUrl,
@@ -1057,6 +1065,9 @@ async function loadVendorNames() {
     for (const r of view?.rows ?? []) {
       if (r.textName && r.stdSkuName) map[r.textName] = r.stdSkuName;
     }
+    if (requestedDeviceId !== deviceId.value || seq !== vendorLoadSeq) return;
+    if (priority < vendorAppliedPriority) return;
+    vendorAppliedPriority = priority;
     vendorNameByText.value = map;
   } catch {
     /* 解码失败只留空列，不阻断对照表 */

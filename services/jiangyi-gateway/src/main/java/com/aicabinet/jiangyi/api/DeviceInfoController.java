@@ -178,6 +178,16 @@ public class DeviceInfoController {
      * 去下载一个不存在的文件。666 是将邑协议的业务失败码，固件收到即跳过（实测无异常）。
      * 确认是我方内部旁路，不改这个回设备的答复。</p>
      */
+    /** R3-D-R3-1：确认转达改异步 —— 同步调 trade（connect 10s/read 30s）会把开机回执挂最长
+     * ~40s 才拿到 666，与「fire-and-forget 不阻断开机」的注释语义相反。daemon 单线程即可：
+     * 确认是内部旁路、无并发争用，trade 慢/宕机只影响确认闭环不影响设备开机。 */
+    private final java.util.concurrent.ExecutorService txtConfirmExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "jiangyi-txt-confirm");
+                t.setDaemon(true);
+                return t;
+            });
+
     @PostMapping("/jiangyi/api/deviceInfo/receiveCurrentTxtUrl")
     public Map<String, Object> receiveCurrentTxtUrl(HttpServletRequest request,
                                                     @RequestBody(required = false) Map<String, Object> body) {
@@ -185,12 +195,14 @@ public class DeviceInfoController {
         Object txtUrl = body == null ? null : body.get("txtUrl");
         log.info("jiangyi receiveCurrentTxtUrl deviceId={} body={} → 666（我方不下发 txt 地址）", deviceId, body);
         if (txtUrl != null && !txtUrl.toString().isBlank()) {
-            try {
-                tradeInternalClient.modelConfirmedByTxt(deviceId, txtUrl.toString());
-            } catch (Exception e) {
-                log.warn("jiangyi receiveCurrentTxtUrl confirm forward failed deviceId={} txtUrl={}: {}",
-                        deviceId, txtUrl, e.getMessage());
-            }
+            txtConfirmExecutor.submit(() -> {
+                try {
+                    tradeInternalClient.modelConfirmedByTxt(deviceId, txtUrl.toString());
+                } catch (Exception e) {
+                    log.warn("jiangyi receiveCurrentTxtUrl confirm forward failed deviceId={} txtUrl={}: {}",
+                            deviceId, txtUrl, e.getMessage());
+                }
+            });
         }
         return envelope(666, "当前模型text文件地址不存在", null);
     }

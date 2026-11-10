@@ -193,7 +193,7 @@ import type {
   OpenApiMerchantDeviceReportDto
 } from '@aicabinet/shared-types';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canViewBusiness = computed(
   () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
 );
@@ -287,6 +287,12 @@ async function ensureAccess() {
   } catch {
     if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无经营分析权限」
+  if (!meFromServer.value) {
+    loading.value = false;
+    showError('网络异常，暂时无法确认权限，请重试');
+    return false;
   }
   if (!canViewBusiness.value) {
     loading.value = false;

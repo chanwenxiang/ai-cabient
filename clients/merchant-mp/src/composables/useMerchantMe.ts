@@ -10,6 +10,10 @@ import type { MerchantMe } from '@aicabinet/shared-types';
 import type { MerchantNavItem, MerchantPack } from '@/config/merchant-nav';
 
 const meRef = ref<MerchantMe | null>(null);
+// R4-B-新3：区分「服务端权威资料」与「去权展示缓存」—— 首页 hydrateFromCache 会先把
+// permissions:[] 的缓存 seed 进共享单例，页面若只判 `me 非空` 会把弱网误报成「无权限」。
+// permUnknown 判据统一用本标志：false = 服务端资料不可知（网络失败且无历史服务端态）。
+const meFromServerRef = ref(false);
 const loadingRef = ref(false);
 
 let meSeq = 0;
@@ -21,6 +25,7 @@ export function clearMerchantMe(): void {
   inflight = null;
   meRef.value = null;
   loadingRef.value = false;
+  meFromServerRef.value = false;
 }
 
 registerMerchantSessionClearHook(clearMerchantMe);
@@ -70,6 +75,7 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
         const { phoneNumber: _stripped, ...cacheable } = me;
         uni.setStorageSync('merchant_me', cacheable);
         meRef.value = me;
+        meFromServerRef.value = true;
       }
       return me;
     } finally {
@@ -106,10 +112,16 @@ export function useMerchantMe() {
 
   return {
     me: meRef,
+    meFromServer: meFromServerRef,
     loading: loadingRef,
     refresh: refreshMerchantMe,
     clear: clearMerchantMe
   };
+}
+
+/** R4-B-新3：跨模块（composable 层）判「服务端 me 是否可知」，供 shell 型调用免透传。 */
+export function isMerchantMeFromServer(): boolean {
+  return meFromServerRef.value;
 }
 
 export function hasPack(me: MerchantMe | null | undefined, pack: MerchantPack): boolean {

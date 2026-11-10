@@ -138,6 +138,10 @@ function take(index: number) {
   if (picking.value) {
     return;
   }
+  // R3-B-R3-2：手改条码不点「查状态」直接拍/提交的旁路 —— 槽里的照片还属于上一个条码。
+  if (photosForBarCode !== barCode.value.trim()) {
+    resetPhotos();
+  }
   picking.value = true;
   uni.chooseImage({
     count: 1,
@@ -157,6 +161,13 @@ function take(index: number) {
 
 async function submit() {
   if (!barCode.value || !canSubmit.value) {
+    return;
+  }
+  // R3-B-R3-2：条码与照片所属不一致（手改条码未重新拍摄）禁止提交 ——
+  // 否则 A 商品实拍图会提交到 B 条码的厂商采集任务（识别学错/审核驳回）。
+  if (photosForBarCode !== barCode.value.trim()) {
+    resetPhotos();
+    error.value = '条码已变更，请按新条码重新拍摄';
     return;
   }
   submitting.value = true;

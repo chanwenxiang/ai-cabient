@@ -135,6 +135,7 @@ import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { loadingLabel } from '@aicabinet/shared-uni/ui-copy';
 import { requestActionErrorMessage } from '@/utils/self-replenish-submit';
+import { isRetriableMpTransportError } from '@aicabinet/shared-uni/request';
 import {
   canConfirmSatelliteReceive,
   canReceiveSatellitePurchase,
@@ -149,7 +150,7 @@ const modeTabs = [
   { value: 'list', label: '单据' }
 ];
 const mode = ref<'create' | 'list'>('create');
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 
 /**
@@ -170,6 +171,11 @@ async function ensurePurchaseAccess(): Promise<boolean> {
   } catch {
     if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠ 无权限 —— pageError 呈现网络错误（此前静默空态，B-新8）
+  if (!meFromServer.value) {
+    pageError.value = '网络异常，暂时无法确认权限，请重试';
+    return false;
   }
   return canView.value;
 }
@@ -468,6 +474,9 @@ async function submit() {
     mode.value = 'list';
     await loadOrders();
   } catch (e) {
+    // R4-D2：业务失败（内容冲突/驳回等，非传输类）清键 —— 保留会让下一次不同内容的
+    // 提交被旧单回放吞掉；传输未知保留（首提是否落库未知，重试回放同一意图）。
+    if (!isRetriableMpTransportError(e)) submitRequestNo.value = '';
     showError(requestActionErrorMessage(e, '提交失败'));
   } finally {
     submitting.value = false;

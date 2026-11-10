@@ -306,10 +306,21 @@ const crud = useCrudTable<StockHealthRow>({
   autoLoad: false,
   errorMessage: '加载失败',
   fetchPage: async (params) => {
+    // R3-A-R3-2（A13 同族）：KPI 计数与 planDeviceIds 是响应旁路字段，必须带请求时点守卫 ——
+    // 快速切筛选后旧响应晚到会把 KPI/「一键补货规划（N 台）」盖成旧筛选口径。
+    const filterSnapshot = () =>
+      [dimension.value, deviceId.value, merchantId.value, routeCode.value, lifecycleStatus.value].join(
+        '|'
+      );
+    const requested = filterSnapshot();
     const data = await api.request<StockHealthPage>(
       AdminEndpoints.reportsStockHealthList(queryString(true, params.page, params.size)),
       'GET'
     );
+    if (requested !== filterSnapshot()) {
+      // 列表仍交给 useCrudTable 的 isCurrent 丢过期；旁路 ref 不写旧值
+      return { items: data.items || [], total: Number(data.total) || 0 };
+    }
     stockoutCount.value = Number(data.stockoutCount) || 0;
     lowCount.value = Number(data.lowCount) || 0;
     nearExpiryCount.value = Number(data.nearExpiryCount) || 0;

@@ -5,6 +5,10 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import { errorMessage } from '@/utils/error-message';
 
+// R3-A20：弹窗内挂接/解挂/删除成功后通知父页刷新「将邑挂接」状态列 ——
+// 原先父页只靠列表 items 变化的 watch 拉全量，弹窗路径的状态列永远停留旧值。
+const emit = defineEmits<{ changed: [] }>();
+
 /**
  * 将邑商品库挂接弹窗（CB-023 二期，范围 B）：
  * 我方 SKU ↔ 将邑商品（商品维度关联，识别 classId 映射之外的另一半）。
@@ -321,6 +325,7 @@ async function confirmBind() {
     });
     ElMessage.success('已挂接');
     confirmVisible.value = false;
+    emit('changed');
     await Promise.all([load(), search()]);
   } catch (e) {
     ElMessage.error(errorMessage(e, '挂接失败'));
@@ -399,6 +404,7 @@ async function unbind(link: JiangyiLink) {
   try {
     await api.request(`${AdminEndpoints.skuJiangyiLink(skuId.value)}/${link.id}`, 'DELETE');
     ElMessage.success('已解挂');
+    emit('changed');
     await load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '解挂失败'));
@@ -421,6 +427,7 @@ async function deleteInJiangyi(link: JiangyiLink) {
   try {
     await api.request(AdminEndpoints.skuJiangyiLinkVendorProduct(skuId.value, link.id), 'DELETE');
     ElMessage.success('已从将邑删除，挂接记录留痕为已解挂');
+    emit('changed');
     await Promise.all([load(), loadPending()]);
   } catch (e) {
     ElMessage.error(errorMessage(e, '从将邑删除失败'));

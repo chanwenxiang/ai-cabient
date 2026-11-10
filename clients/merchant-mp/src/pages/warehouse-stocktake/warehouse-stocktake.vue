@@ -161,8 +161,8 @@
               <text class="chip">{{ stocktakeModeLabel(detail.mode) }}</text>
               <text class="chip">账面 {{ detail.bookQty }}</text>
               <text class="chip">实盘 {{ detail.countedQty ?? '—' }}</text>
-              <text class="chip" :class="diffRowCount ? 'chip-warn' : 'chip-ok'">
-                差异 {{ diffRowCount }} 行
+              <text class="chip" :class="diffChipWarn ? 'chip-warn' : 'chip-ok'">
+                {{ diffChipLabel }}
               </text>
             </view>
             <view class="progress">
@@ -175,7 +175,7 @@
               v-if="detail.status === 'COMPLETED' && (detail.diffLineCount ?? 0) > 0"
               class="hint"
             >
-              已完成，可「完成并过账」落库存，或逐行核对差异原因后再过账
+              已完成。商户端无过账入口：差异落库存请联系运营在后台「完成并过账」
             </text>
           </view>
 
@@ -207,7 +207,7 @@
                 />
                 <!-- 原因只在真有差异时可填：一致的行走不到这一步，少一个控件少一分误填 -->
                 <picker
-                  v-if="rowEditable(row) && hasDiff(row)"
+                  v-if="showReasonRow(row)"
                   :range="reasonLabels(row)"
                   :value="reasonIndex(row)"
                   @change="onReasonPick(row, $event)"
@@ -360,7 +360,7 @@ interface PhotoView {
   localPath: string;
 }
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
 const mode = ref<'list' | 'create' | 'detail'>('list');
@@ -400,6 +400,13 @@ const photos = ref<PhotoView[]>([]);
 const acting = ref(false);
 /** 详情请求序号守卫：快速切换盘点单时丢弃过期响应（修复 2026-10-14 竞态：A 单数据配 B 单照片）。 */
 let detailSeq = 0;
+// R3-B-R3-5/R4-A24：载入时留底稿 —— 过账前只回写「与底稿不同」的行；
+// 全量回写会把他人（admin）并发保存的实盘盖回本端打开详情时的旧值。
+let rowBaseline = new Map<number, string>();
+
+function rowDraftKey(row: EditRow): string {
+  return `${row.countedInput}|${row.notesInput}|${row.diffReason}`;
+}
 
 const isDone = computed(() => {
   const s = detail.value?.status;
@@ -429,6 +436,15 @@ const showDock = computed(() => {
 
 const enteredCount = computed(() => editRows.value.filter((r) => !isRowBlank(r)).length);
 const diffRowCount = computed(() => editRows.value.filter((r) => hasDiff(r)).length);
+// R3-B-R3-1：盲盘进行中的头部统计不得读 hasDiff（方向即答案）—— 改「已录入」口径
+const diffChipLabel = computed(() =>
+  isBlindActive.value
+    ? `已录入 ${enteredCount.value}/${editRows.value.length} 行`
+    : `差异 ${diffRowCount.value} 行`
+);
+const diffChipWarn = computed(() =>
+  isBlindActive.value ? enteredCount.value < editRows.value.length : diffRowCount.value > 0
+);
 const enteredPct = computed(() => {
   const total = editRows.value.length;
   if (!total) return 0;
@@ -463,6 +479,11 @@ async function bootstrap(preferDetailId = 0) {
   } catch {
     if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网（服务端 me 不可知）≠「无盘点权限」——报网络错误可重试
+  if (!meFromServer.value) {
+    listError.value = '网络异常，暂时无法确认权限，请重试';
+    return;
   }
   if (!(await resolveWarehouse())) return;
   if (preferDetailId > 0) {
@@ -589,6 +610,11 @@ function backToList() {
 async function loadDetail() {
   const seq = ++detailSeq;
   detailError.value = '';
+  // R4-B-新6：换单瞬间先清旧明细/照片 —— seq 只防「过期写入」，不防展示窗口，
+  // 不清的话弱网下 B 单头部下先闪现 A 单的行与照片。
+  detail.value = null;
+  editRows.value = [];
+  photos.value = [];
   try {
     const st = await merchantApi.warehouseStocktake(detailId.value);
     if (seq !== detailSeq) return;
@@ -605,6 +631,7 @@ async function loadDetail() {
       diffReason: l.diffReason || '',
       saving: false
     }));
+    rowBaseline = new Map(editRows.value.map((r) => [r.lineId, rowDraftKey(r)]));
     await loadPhotos(seq);
   } catch (e) {
     if (seq !== detailSeq) return;
@@ -668,9 +695,49 @@ function statusBadgeClass(status: string | null | undefined): string {
   }
 }
 
+/**
+ * R3-B-R3-1：原因/备注的显隐不得在盲盘进行中读 hasDiff（差异方向即账面答案）。
+ * 盲盘口径 = 已录入的行给原因/备注（reasonOptions 盲盘时已是全量选项、不泄露方向）。
+ */
+function showReasonRow(row: EditRow): boolean {
+  if (isBlindActive.value) return rowEditable(row) && !isRowBlank(row);
+  return rowEditable(row) && hasDiff(row);
+}
+
 /** 备注只在真有差异时需要：一致的行走不到备注，行高省一半 */
 function showNotesEditor(row: EditRow): boolean {
-  return rowEditable(row) && hasDiff(row);
+  return showReasonRow(row);
+}
+
+/**
+ * R3-B-R3-5：过账前把「与底稿不同」的实盘先落库 —— 否则按上次保存值调库存（静默错账）。
+ * 只 PUT 改动行（幂等），不回写他人并发保存的行。
+ */
+async function persistUnsavedLines(): Promise<boolean> {
+  const changed = editRows.value.filter(
+    (r) => !isRowBlank(r) && rowBaseline.get(r.lineId) !== rowDraftKey(r)
+  );
+  for (const row of changed) {
+    const counted = row.countedInput === '' ? null : Number(row.countedInput);
+    const built = buildUpdateLineBody(counted, row.notesInput, row.diffReason);
+    if (!built.ok) {
+      showError(built.error);
+      return false;
+    }
+    try {
+      const updated = await merchantApi.warehouseStocktakeUpdateLine(
+        detailId.value,
+        row.lineId,
+        built.body
+      );
+      row.status = updated.status || 'PENDING';
+      rowBaseline.set(row.lineId, rowDraftKey(row));
+    } catch (e) {
+      showError(e instanceof Error ? e.message : '保存实盘失败，请先处理后再过账');
+      return false;
+    }
+  }
+  return true;
 }
 
 function reasonOptions(row: EditRow) {
@@ -797,6 +864,7 @@ function doComplete() {
     async () => {
       acting.value = true;
       try {
+        if (!(await persistUnsavedLines())) return;
         detail.value = await merchantApi.warehouseStocktakeComplete(detailId.value);
         showSuccess('盘点已完成');
         await loadDetail();
@@ -816,6 +884,7 @@ function doCompleteAndAdjust() {
     async () => {
       acting.value = true;
       try {
+        if (!(await persistUnsavedLines())) return;
         detail.value = await merchantApi.warehouseStocktakeCompleteAndAdjust(detailId.value);
         showSuccess('已过账');
         await loadDetail();

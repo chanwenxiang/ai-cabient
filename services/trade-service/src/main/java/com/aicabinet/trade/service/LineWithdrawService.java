@@ -315,6 +315,13 @@ public class LineWithdrawService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "提现单号已被其它请求占用，请更换 requestNo 后重新提交");
             }
+            // R4-D4（与商户链同构）：终态单回放闸 —— 语义见 MerchantWithdrawService 同款注释。
+            if ("REJECTED".equals(hit.getStatus()) || "CANCELLED".equals(hit.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "该 requestNo 对应的提现单已"
+                                + ("REJECTED".equals(hit.getStatus()) ? "驳回" : "取消")
+                                + "（单 " + hit.getRequestId() + "），请更换 requestNo 重新提交");
+            }
             return PayoutGate.done(toDto(hit));
         }
         // V308：申请时锁定收款账户（不指定则用默认）—— 快照后历史不可变。

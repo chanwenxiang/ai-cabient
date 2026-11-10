@@ -178,7 +178,7 @@ import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
 const navPlaceStyle = getCustomNavPlaceStyle();
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 /** 今日营业额仅报表可见角色展示（店长/财务；店员/补货员不展示，权限口径 2026-09-30 与运营确认） */
 const canSeeRevenue = computed(() =>
   (me.value?.permissions || []).includes('merchant:reports:view')
@@ -287,7 +287,7 @@ async function load() {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
-    permUnknown = !me.value;
+    permUnknown = !meFromServer.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;

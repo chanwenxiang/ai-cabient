@@ -67,12 +67,18 @@ watch(
   { immediate: true }
 );
 
+let loadSeq = 0;
 async function load() {
+  // R3-C-R3-2：无条件重拉必须配请求时点守卫 —— 弱网下旧 deviceId 的响应晚到不得覆盖新内容，
+  // 失败也不得清掉「已展示的新内容」。
+  const seq = ++loadSeq;
   try {
     const all = await consumerApi.marketingBanners(props.deviceId || undefined);
+    if (seq !== loadSeq) return;
     slides.value = (all || []).filter((b) => !!b.imageUrl);
     slides.value.forEach((b) => report(b, 'IMPRESSION'));
   } catch {
+    if (seq !== loadSeq) return;
     slides.value = []; // 营销位失败必须静默，不得打扰首页
   }
 }

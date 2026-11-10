@@ -125,6 +125,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
   }
 
   async function shipTransfer(row: WarehouseTransferRow) {
+    if (deps.saving.value) return; // R4-A25：在途防连点
     if (
       !(await confirmWrite(`确认发运调拨单 ${row.transferId}？发运即扣减调出仓库存。`, '确认发运'))
     ) {
@@ -149,6 +150,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
    * @param lines 各行实收/损耗；**缺省 = 全部按「全部到齐」**（旧的「只点收货」流程不受影响）
    */
   async function receiveTransfer(row: WarehouseTransferRow, lines?: ReceiveLineInput[]) {
+    if (deps.saving.value) return; // R4-A25：在途防连点
     // 带明细的表单提交由表单自身承担确认；只有「一键全部到齐」需要二次确认
     const hasLines = Boolean(lines && lines.length);
     if (
@@ -178,6 +180,7 @@ export function useWarehouseTransfers(deps: UseWarehouseTransfersDeps) {
   }
 
   async function cancelTransfer(row: WarehouseTransferRow) {
+    if (deps.saving.value) return; // R4-A25：在途防连点
     if (!(await confirmWrite(`确认取消调拨单 ${row.transferId}？取消后不可恢复。`, '取消调拨单'))) {
       return;
     }

@@ -186,7 +186,30 @@ public class ProcurementService {
         if (clientKey != null) {
             var replay = purchaseOrderRepository.findLatestByWarehouseIdAndRefNo(mine.getWarehouseId(), clientKey);
             if (replay.isPresent()) {
-                return toPurchaseDto(replay.get());
+                PurchaseOrder original = replay.get();
+                // R4-D2：回放必须校验状态与内容（铁律 82 ③层，对照提现回放的归属+金额闸同构）——
+                // ①终态单（已驳回）回放会被前端当「已提交」假成功；②同 refNo 但内容不同的新提交
+                // 被旧单静默吞掉（改量/换供应商意图丢失）。
+                if ("REJECTED".equals(original.getStatus())) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "该 refNo 对应的采购单已被驳回（单 " + original.getPurchaseOrderId()
+                                    + "），请更换 refNo 重新提交");
+                }
+                java.util.Map<String, Integer> requestedLines = new java.util.LinkedHashMap<>();
+                request.lines().stream()
+                        .sorted(java.util.Comparator.comparing(PurchaseOrderLineDto::skuId))
+                        .forEach(l -> requestedLines.merge(l.skuId(), l.orderedQty(), Integer::sum));
+                java.util.Map<String, Integer> existingLines = new java.util.LinkedHashMap<>();
+                purchaseOrderLineRepository
+                        .findByPurchaseOrderIdOrderByLineIdAsc(original.getPurchaseOrderId())
+                        .forEach(l -> existingLines.merge(l.getSkuId(), l.getOrderedQty(), Integer::sum));
+                if (!java.util.Objects.equals(request.supplierId(), original.getSupplierId())
+                        || !requestedLines.equals(existingLines)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "采购单内容与首次提交不一致（单 " + original.getPurchaseOrderId()
+                                    + " 已按原内容建单），请更换 refNo 重新提交");
+                }
+                return toPurchaseDto(original);
             }
         }
         List<PurchaseOrderLineDto> filled = fillSatelliteLineCosts(request.lines());

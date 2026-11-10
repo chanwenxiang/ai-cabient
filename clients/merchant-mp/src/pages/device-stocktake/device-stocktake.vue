@@ -84,10 +84,16 @@ function isBlank(g: StocktakeGoodsRow): boolean {
   return String(goodsInputs.value[g.skuId] ?? '').trim() === '';
 }
 
-/** 吸底条：有差异的行数 = 提交时真正会动账的条数 */
+/** 吸底条：待处理行数 = 会动账的行 + 非法非空输入行（R3-B-R3-3：非法值也是「待处理」，
+ *  否则吸底条禁用+「与台账一致」把非法输入说成没差异，提交校验永不可达） */
 const pendingCount = computed(
   () =>
-    goods.value.filter((g) => diffMap.value[g.skuId] != null && diffMap.value[g.skuId] !== 0).length
+    goods.value.filter((g) => {
+      const d = diffMap.value[g.skuId];
+      if (d != null && d !== 0) return true;
+      const raw = String(goodsInputs.value[g.skuId] ?? '').trim();
+      return raw !== '' && d == null;
+    }).length
 );
 
 const showDock = computed(() => !!deviceId.value && isDoorCabinet.value && goods.value.length > 0);

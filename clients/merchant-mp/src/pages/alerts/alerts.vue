@@ -128,7 +128,7 @@ import { sanitizeNotifyTitle } from '@aicabinet/shared-uni/format';
 import { getCustomNavPlaceStyle } from '@aicabinet/shared-uni/status-bar';
 
 const navPlaceStyle = getCustomNavPlaceStyle();
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
 const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory:view'));
 
@@ -279,6 +279,11 @@ async function load() {
   if (seq !== loadSeq) return;
   if (!me.value) {
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无待办权限」（原分支会 switchTab 踢回首页）
+  if (!meFromServer.value) {
+    showError('网络异常，暂时无法确认待办权限，请重试');
+    return;
   }
   if (!canViewAlerts.value) {
     showError('无待办权限');

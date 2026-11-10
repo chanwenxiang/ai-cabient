@@ -2,6 +2,7 @@ import { computed, ref, type Ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { isMerchantLoggedIn, merchantApi, softFallback } from '@/utils/merchant-api';
+import { isMerchantMeFromServer } from '@/composables/useMerchantMe';
 import { getOrgFilter } from '@/utils/org-filter';
 import { orgDeviceScope, keepRowsInOrg } from '@/utils/org-scope';
 import type {
@@ -204,8 +205,13 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     const seq = ++loadSeq;
     if (!(await hooks.ensureMe(seq))) return null;
     if (!hooks.canReplenish()) {
-      showError('无补货权限');
-      uni.switchTab({ url: '/pages/home/home' });
+      // R3-B-R3-4/R4-B-新3：弱网（me 不可知）≠ 无权限 —— 不踢回首页，报网络错误
+      if (!isMerchantMeFromServer()) {
+        showError('网络异常，暂时无法确认补货权限，请重试');
+      } else {
+        showError('无补货权限');
+        uni.switchTab({ url: '/pages/home/home' });
+      }
       return null;
     }
     if (!allTasks.value.length) loading.value = true;

@@ -197,7 +197,7 @@ import type { OpenApiOrderReadModelMerchant } from '@aicabinet/shared-types';
 import { cleanLineSummary } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:reports:export'));
 const exporting = ref(false);
@@ -411,6 +411,14 @@ async function ensureOrdersMerchantMe(seq: number): Promise<boolean> {
   if (seq !== loadSeq) return false;
   if (!me.value) {
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无订单权限」—— 返回 false 由调用方静默中止，
+  // 网络态直接呈现在错误位（不踢回首页）
+  if (!meFromServer.value) {
+    booting.value = false;
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    return false;
   }
   return true;
 }

@@ -115,7 +115,7 @@ import {
 
 type DraftLine = ReplenishDraftLine;
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const preferredId = ref(getPreferredDeviceId());
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
@@ -167,6 +167,11 @@ async function bootstrap(preferDeviceId?: string) {
   } catch {
     if (!isMerchantLoggedIn()) return;
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无补货权限」
+  if (!meFromServer.value) {
+    showError('网络异常，暂时无法确认权限，请重试');
+    return;
   }
   if (!canRequest.value) {
     showError('无补货权限');

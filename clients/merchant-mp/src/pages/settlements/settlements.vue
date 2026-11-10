@@ -226,7 +226,7 @@ import type {
   MerchantSettlementBillDto
 } from '@aicabinet/shared-types';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 const exporting = ref(false);
@@ -467,7 +467,7 @@ async function load() {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
-    permUnknown = !me.value;
+    permUnknown = !meFromServer.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;

@@ -340,7 +340,7 @@ import type {
   OpenApiUpdateMerchantDeviceSettingsRequest
 } from '@aicabinet/shared-types';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
 const error = ref('');
 let loadSeq = 0;
@@ -665,7 +665,14 @@ async function refreshDeviceDetailMe(seq: number): Promise<boolean> {
     if (!isMerchantLoggedIn()) return false;
     seedMerchantMeDisplayCache(me);
   }
-  return seq === loadSeq;
+  if (seq !== loadSeq) return false;
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无柜机详情权限」
+  if (!meFromServer.value) {
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    return false;
+  }
+  return true;
 }
 
 function denyDeviceDetailAccess() {

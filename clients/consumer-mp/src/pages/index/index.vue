@@ -2273,15 +2273,18 @@ async function finishSession(sessionState: string, sid: string) {
       clearSessionUi();
       // null = 金额未知（查询失败），不能当 0 元说「本次未消费」（P1-6）
       let totalCents: number | null = null;
+      let pendingOrderStatus: string | null = null;
       try {
         const order = await consumerApi.getSessionOrder(sid);
         totalCents = order?.totalAmountCents ?? 0;
+        pendingOrderStatus = order?.status ?? null;
       } catch {
         /* 零元单或查询失败：保持 null，提示走「账单已生成，正在打开」 */
       }
       // 账单通知订阅已移到结果页「订阅账单通知」按钮（tap 上下文才稳定弹窗，
       // 异步链上部分基础库版本静默失败——2026-10-24 第五轮审计留置②收口）
-      showBillToast(totalCents);
+      // R4-C2：带上订单状态 —— 待补缴单不报「已扣款」
+      showBillToast(totalCents, pendingOrderStatus);
       await delay(1200);
       uni.redirectTo({ url: `/pages/result/result?sessionId=${encodeURIComponent(sid)}` });
       return;

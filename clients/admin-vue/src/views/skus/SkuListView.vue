@@ -218,6 +218,7 @@
                 :title="`${jiangyiLinkBySku[row.skuId].jiangyiName || ''}（${jiangyiLinkBySku[row.skuId].jiangyiProductId}）`"
                 >已挂接</el-tag
               >
+              <span v-else-if="jiangyiLinkLoadFailed" class="muted">加载失败</span>
               <span v-else class="muted">未挂接</span>
             </template>
           </el-table-column>
@@ -582,7 +583,7 @@
     </el-dialog>
 
     <!-- 将邑商品库挂接（CB-023 二期） -->
-    <SkuJiangyiLinkDialog ref="jiangyiLinkDialog" />
+    <SkuJiangyiLinkDialog ref="jiangyiLinkDialog" @changed="loadJiangyiLinkMap" />
   </el-card>
 </template>
 
@@ -1088,7 +1089,11 @@ interface ActiveJiangyiLink {
   jiangyiName: string | null;
 }
 const jiangyiLinkBySku = ref<Record<string, ActiveJiangyiLink>>({});
+// R3-A-R3-3：加载失败不得静默假报「未挂接」（A11 同族）；翻页重拉要有请求时点守卫。
+const jiangyiLinkLoadFailed = ref(false);
+let linkMapSeq = 0;
 async function loadJiangyiLinkMap() {
+  const seq = ++linkMapSeq;
   try {
     const links = await api.request<
       { id: number; skuId: string; jiangyiProductId: string; jiangyiName: string | null }[]
@@ -1103,9 +1108,13 @@ async function loadJiangyiLinkMap() {
         };
       }
     }
+    if (seq !== linkMapSeq) return;
     jiangyiLinkBySku.value = map;
+    jiangyiLinkLoadFailed.value = false;
   } catch {
+    if (seq !== linkMapSeq) return;
     jiangyiLinkBySku.value = {};
+    jiangyiLinkLoadFailed.value = true;
   }
 }
 watch(

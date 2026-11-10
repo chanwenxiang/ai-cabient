@@ -33,7 +33,11 @@ export function takePendingRechargeOrder(): string {
  * pending 一旦消失它就失去意义。
  */
 function forgetPendingRecharge(orderId: string): void {
-  clearPendingRechargeOrder();
+  // R3-C-R3-3：键归属校验 —— resume 轮询 A 期间用户发起了 B（单键已被 B 覆盖），
+  // A 的终态回调不得把 B 的 pending 清掉（B「支付成功但到账慢」会失去自动恢复兜底）。
+  // pending 为空或就是本单时照常清；softKey 永远清本单自己的。
+  const pending = peekPendingRechargeOrder();
+  if (!pending || pending === orderId) clearPendingRechargeOrder();
   const softKey = `recharge_resume_soft_${orderId}`;
   if (uni.getStorageSync(softKey)) uni.removeStorageSync(softKey);
 }

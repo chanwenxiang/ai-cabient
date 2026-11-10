@@ -304,12 +304,17 @@ function emptyConfig(deviceId: string): MachinePositionConfig {
   };
 }
 
+let configLoadSeq = 0;
 async function loadConfig(): Promise<void> {
   const deviceId = configDeviceId.value.trim();
   if (!deviceId) {
     ElMessage.warning('请输入柜机 deviceId');
     return;
   }
+  // R3-A-R3-2（A7 同族）：输入框 Enter 不受按钮 loading 拦截，在途可并发 ——
+  // 用 seq 守卫，晚到的旧响应不得覆盖表单（否则保存会把 A 柜配置写进 B 柜）。
+  if (configLoading.value) return;
+  const seq = ++configLoadSeq;
   // 🔴 2026-11-10 审计 P1-5：查询失败时原实现既不提示也不清表单，
   // configLoaded 保持上次的 true ⇒ 表单继续显示**上一台柜机**的分账比例与收款人，
   // 运营照此保存会把这套配置写到当前这台柜（错设备写账）。
@@ -319,18 +324,20 @@ async function loadConfig(): Promise<void> {
       AdminEndpoints.machinePayeeBillConfig(deviceId),
       'GET'
     );
+    if (seq !== configLoadSeq) return;
     configForm.value = cfg ?? emptyConfig(deviceId);
     if (!cfg) configForm.value.deviceId = deviceId;
     configEnabled.value = (configForm.value.enabled ?? 1) === 1;
     configLoaded.value = true;
   } catch (e) {
+    if (seq !== configLoadSeq) return;
     // 失败即回到「未加载」：表单不渲染、保存按钮不可用，绝不留上一台柜的残值
     configForm.value = emptyConfig(deviceId);
     configEnabled.value = true;
     configLoaded.value = false;
     ElMessage.error(errorMessage(e, '柜机配置加载失败，请重试'));
   } finally {
-    configLoading.value = false;
+    if (seq === configLoadSeq) configLoading.value = false;
   }
 }
 

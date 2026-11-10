@@ -116,7 +116,7 @@ import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import type { MerchantMonthlyBill } from '@aicabinet/shared-types';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canView = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 
 function currentMonth() {
@@ -186,7 +186,7 @@ async function load() {
     await refreshMe();
   } catch {
     if (!isMerchantLoggedIn()) return;
-    permUnknown = !me.value;
+    permUnknown = !meFromServer.value;
     seedMerchantMeDisplayCache(me);
   }
   if (seq !== loadSeq) return;

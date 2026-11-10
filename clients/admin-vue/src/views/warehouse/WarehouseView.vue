@@ -394,6 +394,7 @@
           <WarehouseTransfersTab
             :loading="isTabLoading('transfers')"
             :hydrated="hydratedTabs.has('transfers')"
+            :saving="saving"
             :rows="transfers"
             :can-warehouse-edit="canWarehouseEdit"
             :warehouse-name="warehouseName"

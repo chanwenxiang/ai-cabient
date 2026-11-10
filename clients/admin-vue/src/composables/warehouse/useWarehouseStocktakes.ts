@@ -61,11 +61,21 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     }
   }
 
+  /** R4-A24：打开弹窗时的行底稿 —— persist 只回写与底稿不同的行，不覆盖他人并发保存值 */
+  let stocktakeBaseline = new Map<number, string>();
+  const lineBaselineKey = (l: { countedQty?: number | null; notes?: string | null }) =>
+    `${l.countedQty ?? ''}|${l.notes ?? ''}`;
+
   async function openStocktakeDetail(row: WarehouseStocktakeRow) {
     try {
       stocktakeDetail.value = await api.request<WarehouseStocktakeRow>(
         AdminEndpoints.warehouseStocktake(row.stocktakeId),
         'GET'
+      );
+      stocktakeBaseline = new Map(
+        (
+        (stocktakeDetail.value.lines || []) as { lineId: number; countedQty?: number | null; notes?: string | null }[]
+      ).map((l) => [l.lineId, lineBaselineKey(l)])
       );
       stocktakeDetailDialog.value = true;
     } catch (e) {
@@ -80,6 +90,11 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       AdminEndpoints.warehouseStocktake(id),
       'GET'
     );
+    stocktakeBaseline = new Map(
+      (
+        (stocktakeDetail.value.lines || []) as { lineId: number; countedQty?: number | null; notes?: string | null }[]
+      ).map((l) => [l.lineId, lineBaselineKey(l)])
+    );
     deps.loadedTabs.value.delete('stocktakes');
     await deps.loadTab('stocktakes', true);
   }
@@ -93,7 +108,10 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
   async function persistStocktakeLines(): Promise<boolean> {
     const id = stocktakeDetail.value.stocktakeId;
     const lines: WarehouseStocktakeRow[] = stocktakeDetail.value.lines || [];
-    const pending = lines.filter((l) => l.countedQty != null);
+    // R4-A24：只回写「与打开弹窗时的底稿不同」的行
+    const pending = lines.filter(
+      (l) => l.countedQty != null && stocktakeBaseline.get(l.lineId) !== lineBaselineKey(l)
+    );
     if (!pending.length) return true;
     try {
       await Promise.all(

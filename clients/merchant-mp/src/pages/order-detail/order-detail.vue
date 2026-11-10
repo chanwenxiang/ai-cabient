@@ -186,7 +186,7 @@ type OrderDetail = {
   splitStatus?: string;
 };
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
 
 const orderId = ref('');
@@ -307,6 +307,12 @@ async function load() {
     await refreshMe();
   } catch {
     seedMerchantMeDisplayCache(me);
+  }
+  // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无订单权限」
+  if (!meFromServer.value) {
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    return;
   }
   if (!canList.value) {
     showError('无订单权限');

@@ -13,6 +13,7 @@ type TransferLine = {
 defineProps<{
   loading: boolean;
   hydrated: boolean;
+  saving?: boolean;
   rows: WarehouseTransferRow[];
   canWarehouseEdit: boolean;
   warehouseName: (id: string) => string;
@@ -116,17 +117,28 @@ function linesSummary(lines: TransferLine[] | undefined, skuName: (skuId?: strin
           label-class-name="col-action"
         >
           <template #default="{ row }">
-            <el-button v-if="row.status === 'DRAFT'" link type="primary" @click="emit('ship', row)"
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              link
+              type="primary"
+              :disabled="saving"
+              @click="emit('ship', row)"
               >发运</el-button
             >
             <el-button
               v-if="row.status === 'SHIPPED'"
               link
               type="success"
+              :disabled="saving"
               @click="emit('receive', row)"
               >收货</el-button
             >
-            <el-button v-if="row.status === 'DRAFT'" link type="danger" @click="emit('cancel', row)"
+            <el-button
+              v-if="row.status === 'DRAFT'"
+              link
+              type="danger"
+              :disabled="saving"
+              @click="emit('cancel', row)"
               >取消</el-button
             >
           </template>

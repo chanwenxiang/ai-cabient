@@ -172,7 +172,7 @@ export function wxLoginCode(): Promise<string> {
  * 用户刚被扣款却被告知没消费，是对资金事实的错误陈述，极易升级投诉。
  * 传 `0` 才是「确认零元单」。
  */
-export function showBillToast(totalCents: number | null) {
+export function showBillToast(totalCents: number | null, orderStatus?: string | null) {
   if (totalCents == null || !Number.isFinite(totalCents)) {
     uni.showToast({
       title: '账单已生成，正在打开…',
@@ -182,6 +182,17 @@ export function showBillToast(totalCents: number | null) {
     return;
   }
   const yuan = (totalCents / 100).toFixed(2);
+  // R4-C2：待补缴单（余额不足/支付分失败落 PENDING）并没有扣款 —— 不能说「已扣款」，
+  // 那是对资金事实的错误陈述（R1-P1-6 的反向形态）。
+  const pendingLike = orderStatus === 'PENDING' || orderStatus === 'PROCESSING';
+  if (pendingLike && totalCents > 0) {
+    uni.showToast({
+      title: `订单已生成，待支付 ¥${yuan}`,
+      icon: 'none',
+      duration: TOAST_DURATION_MS
+    });
+    return;
+  }
   const title = totalCents <= 0 ? '本次未消费' : `已扣款 ¥${yuan}`;
   uni.showToast({
     title,
