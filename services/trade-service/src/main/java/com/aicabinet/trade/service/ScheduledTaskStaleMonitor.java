@@ -55,6 +55,17 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ScheduledTaskStaleMonitor {
+
+    /** R4-E6：Spring 常驻任务（不进 XXL KEYS，注册表有行）同样纳入超期看护扫描。 */
+    static final java.util.List<String> SPRING_RESIDENT_TASK_KEYS =
+            java.util.List.of("session-failed-hold-clear", "refund-retry", "settlement-bill");
+
+    private static java.util.List<String> watchedKeys() {
+        java.util.List<String> keys = new ArrayList<>(XxlJobManagedTasks.KEYS);
+        keys.addAll(SPRING_RESIDENT_TASK_KEYS);
+        keys.sort(null);
+        return keys;
+    }
     private static final Logger log = LoggerFactory.getLogger(ScheduledTaskStaleMonitor.class);
 
     static final String TASK_KEY = "scheduled-task-stale-monitor";
@@ -137,7 +148,7 @@ public class ScheduledTaskStaleMonitor {
         this.enabled = enabled;
         this.realertInterval = Duration.ofMinutes(Math.max(1, realertMinutes));
         this.serviceStart = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().getStartTime());
-        for (String key : XxlJobManagedTasks.KEYS.stream().sorted().toList()) {
+        for (String key : watchedKeys()) {
             AtomicLong holder = new AtomicLong(-1);
             silenceSeconds.put(key, holder);
             Gauge.builder("aicabinet.scheduled.task.silence.seconds", holder, AtomicLong::doubleValue)
@@ -200,7 +211,7 @@ public class ScheduledTaskStaleMonitor {
         List<StaleTask> stale = new ArrayList<>();
         int exemptedByRestart = 0;
         ScheduledTaskRegistry registry = registryProvider.getIfAvailable();
-        for (String key : XxlJobManagedTasks.KEYS) {
+        for (String key : watchedKeys()) {
             Duration maxSilence = ScheduleZones.MAX_SILENCE_BY_TASK.get(key);
             if (maxSilence == null) {
                 // 阈值缺失属静态契约漂移，由 scripts/check-xxl-job-wiring.mjs 拦截；此处保守跳过。

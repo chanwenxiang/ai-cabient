@@ -265,9 +265,8 @@ function resolvePath(item: { actionPath?: string; bizType?: string; bizId?: stri
     //   query 得到 `/warehouse`，而 config/menu.ts 只登记了 8 个仓储子页、没有 `/warehouse` 本身
     //   ⇒ findNavByPath 精确匹配落空 ⇒ canAccessPath fail-closed ⇒ 任何人（含超管）点待办都弹
     //   「当前账号无业务页权限」。旧入口只在 router 里留了 redirect 兼容手输地址。
-    return item.bizId
-      ? `/warehouse/procurement?tab=purchase&orderId=${encodeURIComponent(item.bizId)}`
-      : '/warehouse/procurement?tab=purchase';
+    // R3-A-R3-6：orderId 参在采购单列表页无人消费（定位不到单据），只留 tab
+    return '/warehouse/procurement?tab=purchase';
   }
   if (item.bizType === 'MERCHANT_WITHDRAW' || item.bizType === 'MERCHANT_WALLET_ADJUST') {
     return '/merchant-withdraw';

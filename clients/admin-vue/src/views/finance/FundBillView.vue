@@ -325,7 +325,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { centsToYuanDigits, yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import CrudTable from '@/components/CrudTable.vue';
@@ -485,11 +485,11 @@ const { onExport: exportBillsCsv } = useListCsv({
         row.bizDate,
         row.merchantId,
         row.merchantName,
-        yuan(row.orderPaidCents),
-        yuan(row.platformFeeCents),
-        yuan(row.channelFeeCents) + (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
-        yuan(row.creditedCents),
-        yuan(row.pendingCents),
+        centsToYuanDigits(row.orderPaidCents),
+        centsToYuanDigits(row.platformFeeCents),
+        centsToYuanDigits(row.channelFeeCents) + (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
+        centsToYuanDigits(row.creditedCents),
+        centsToYuanDigits(row.pendingCents),
         row.orderCount,
         row.solidified ? '已固化' : '实时'
       ])
@@ -504,7 +504,7 @@ const { onExport: exportLedgerCsv } = useListCsv({
     pickLedger(displayLedger.value).map((row) => [
       dictLabel('fund_ledger_type', row.financialType),
       dictLabel('fund_direction', row.direction),
-      yuan(row.amountCents),
+      centsToYuanDigits(row.amountCents),
       row.orderId,
       row.deviceId,
       row.merchantName,

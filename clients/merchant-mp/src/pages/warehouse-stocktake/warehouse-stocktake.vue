@@ -718,7 +718,7 @@ async function persistUnsavedLines(): Promise<boolean> {
     (r) => !isRowBlank(r) && rowBaseline.get(r.lineId) !== rowDraftKey(r)
   );
   for (const row of changed) {
-    const counted = row.countedInput === '' ? null : Number(row.countedInput);
+    const counted = isRowBlank(row) ? null : Number(row.countedInput); // R3-B-R3-6
     const built = buildUpdateLineBody(counted, row.notesInput, row.diffReason);
     if (!built.ok) {
       showError(built.error);
@@ -768,7 +768,7 @@ async function saveLine(row: EditRow) {
   // 修复 2026-10-23：row.saving 此前只有赋值无读取（死变量）＝防重实际不存在，
   // 双击会并发两个 PUT 重复写台账。入口守卫 + 按钮 .saving 态。
   if (row.saving) return;
-  const counted = row.countedInput === '' ? null : Number(row.countedInput);
+  const counted = isRowBlank(row) ? null : Number(row.countedInput); // R3-B-R3-6：' ' 也是未录入
   const built = buildUpdateLineBody(counted, row.notesInput, row.diffReason);
   if (!built.ok) {
     showError(built.error);

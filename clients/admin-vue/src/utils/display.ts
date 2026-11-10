@@ -99,6 +99,12 @@ export function yuanTextZero(cents: unknown): string {
 }
 
 /** 金额分 → 元，空/非法值显示「暂无」（大屏/报表类空态文案）。 */
+/**
+ * R4-A27：admin 侧「纯数字元」入口（CSV 导出等不带 ¥ 的场景）——
+ * 单源在 shared-uni/format，此处 re-export 免得各页直跨包导入。
+ */
+export { centsToYuanDigits } from '@aicabinet/shared-uni/format';
+
 export function yuanTextNone(cents: unknown): string {
   return yuanText(cents, '暂无');
 }

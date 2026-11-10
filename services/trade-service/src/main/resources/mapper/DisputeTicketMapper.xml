@@ -37,6 +37,17 @@
                         LIMIT #{limit}
   </select>
 
+  <!-- R3-D3：全局范围（deviceIds=null）也走同一 JOIN —— 无 JOIN 回退会让瞬态
+       session_device_id 为 null ⇒ 行丢设备标签、工作台跳转 query 缺参。 -->
+  <select id="findByStatusOrderByCreatedAtDescRaw"
+          resultType="com.aicabinet.trade.domain.DisputeTicket">
+    SELECT d.*, s.device_id AS session_device_id FROM dispute_ticket d
+                        JOIN shopping_session s ON d.session_id = s.session_id
+                        WHERE d.status = #{status}
+                        ORDER BY d.created_at DESC
+                        LIMIT #{limit}
+  </select>
+
   <select id="countOverdue" resultType="long">
     <![CDATA[
     SELECT COUNT(*) FROM dispute_ticket d

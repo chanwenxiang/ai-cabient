@@ -478,6 +478,15 @@ public class JiangyiModelSyncService {
                     deviceId, reported);
             return null;
         }
+        // R3-D-R3-3：确认前重读目标行 —— match 与 confirmModel 内部重查之间若被 watchdog
+        // 标 FAILED（且该模型从未 CONFIRMED），confirmModel 会走「未知模型撤销复核」分支，
+        // 那是开机例行回执明言不承担的后果；改 no-op（fail-safe：只是少确认一次）。
+        JiangyiModelDeployment current = deploymentMapper.selectById(match.getId());
+        if (current == null || !"SENT".equals(current.getStatus())) {
+            log.info("jiangyi receiveCurrentTxtUrl match no longer SENT deviceId={} txtUrl={}（不确认、不撤复核）",
+                    deviceId, reported);
+            return null;
+        }
         return confirmModel(deviceId, match.getModelName());
     }
 

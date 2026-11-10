@@ -60,9 +60,11 @@
           <view class="sheet-action">
             <app-button variant="ghost" label="继续选购" @click="emit('close')" />
           </view>
-          <view v-if="mockMode" class="sheet-action">
+          <!-- R4-C3：mock 按钮按 DC-27 语义诚实命名 —— 非空购物车关门转人工审核（DISPUTED），
+               不再冒充「结算」；空车的零元结案出口在 foot 之外（foot 整块 items.length 才渲染）。 -->
+          <view v-if="mockMode && items.length" class="sheet-action">
             <app-button
-              label="关门结算"
+              label="模拟关门（购物车将转人工审核）"
               :loading="closingDoor"
               :disabled="closingDoor"
               @click="emit('settle')"
@@ -70,6 +72,17 @@
           </view>
         </view>
         <text v-if="!mockMode" class="sheet-live-hint">取完请直接关门，按识别结果扣款</text>
+      </view>
+      <!-- R4-C3：mock 空车零元结案出口（sheet-foot 只在有商品时渲染，空车此前无任何出口） -->
+      <view v-if="mockMode && !items.length" class="sheet-actions">
+        <view class="sheet-action">
+          <app-button
+            label="模拟关门（空车演示，零元结案）"
+            :loading="closingDoor"
+            :disabled="closingDoor"
+            @click="emit('settle')"
+          />
+        </view>
       </view>
     </view>
   </view>
@@ -107,7 +120,9 @@ const emit = defineEmits<{ close: []; settle: [] }>();
 
 const title = computed(() => (props.mockMode ? '本次取货' : '本次取走预览'));
 const subtitle = computed(() =>
-  props.mockMode ? '点选数量加入清单，关门后按此结算' : '识别结果实时更新；放回柜内后件数会减少'
+  props.mockMode
+    ? '模拟演示：关门后按端侧识别结算（购物车仅为演示预览）'
+    : '识别结果实时更新；放回柜内后件数会减少'
 );
 const emptyHint = computed(() =>
   props.mockMode ? '在价目上点「+」后，明细会出现在这里' : '请从柜内取货；识别到后会显示在这里'

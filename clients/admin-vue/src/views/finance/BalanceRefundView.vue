@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { yuanTextZero as yuan } from '@/utils/display';
+import { centsToYuanDigits, yuanTextZero as yuan } from '@/utils/display';
 import { computed, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { CircleCheck, CircleClose } from '@element-plus/icons-vue';
@@ -83,7 +83,7 @@ const csvOptions: CrudCsvOptions = {
     rows.map((row) => [
       displayBizNo(row.requestNo),
       row.userId ?? '',
-      yuan(row.amountCents),
+      centsToYuanDigits(row.amountCents),
       statusLabel(row.status),
       row.reason || '',
       row.reviewRemark || '',

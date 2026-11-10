@@ -87,7 +87,6 @@ withDefaults(
     sessionActive: boolean;
     canReopen: boolean;
     opening: boolean;
-    closingDoor: boolean;
     pollRefreshing: boolean;
     cartBadgeText: string;
     shoppingCartLabel: string;
@@ -104,7 +103,6 @@ withDefaults(
 const emit = defineEmits<{
   openCart: [];
   clearCart: [];
-  closeDoor: [];
   refresh: [];
   needHelp: [];
   reopen: [];
@@ -255,32 +253,10 @@ export default {
   background: rgba(17, 94, 89, 0.08);
   border-radius: var(--radius-pill);
 }
-.cart-close-btn {
-  margin: 0;
-  padding: 0 36rpx;
-  min-height: 88rpx;
-  height: 88rpx;
-  line-height: 1.2;
-  background: linear-gradient(135deg, var(--brand, #0d9488), var(--brand, #0d9488));
-  color: var(--white);
-  border-radius: var(--radius-pill);
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  box-shadow: 0 8rpx 22rpx rgba(13, 148, 136, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
 .cart-status-chip.soft {
   background: var(--brand-soft);
   color: var(--brand);
   border: 1rpx solid var(--brand-mist, #a7f3d0);
-}
-.cart-close-btn::after {
-  border: none;
 }
 .live-door-actions {
   display: flex;

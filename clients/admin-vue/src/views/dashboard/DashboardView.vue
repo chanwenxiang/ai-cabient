@@ -84,6 +84,7 @@
             </div>
             <div class="stat-hint">
               <template v-if="statsFailed">设备统计加载失败</template>
+              <template v-else-if="statsNoPerm">当前账号无统计权限</template>
               <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>
                 {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
@@ -115,6 +116,7 @@
             </div>
             <div class="stat-hint">
               <template v-if="statsFailed">营收统计加载失败</template>
+              <template v-else-if="statsNoPerm">当前账号无统计权限</template>
               <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else>{{
                 canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
@@ -146,6 +148,7 @@
             </div>
             <div class="stat-hint">
               <template v-if="exceptionCountFailed">异常数加载失败</template>
+              <template v-else-if="exceptionNoPerm">当前账号无异常页权限</template>
               <template v-else-if="!listHydrated">{{ kpiPendingLabel }}</template>
               <template v-else-if="canAccessPath('/exceptions')">
                 {{
@@ -350,6 +353,8 @@ const workbenchFailed = ref(false);
  */
 const statsFailed = ref(false);
 const exceptionCountFailed = ref(false);
+const statsNoPerm = ref(false);
+const exceptionNoPerm = ref(false);
 const kpiPendingLabel = computed(() =>
   workbenchFailed.value ? '加载失败，请点右上「刷新」重试' : UI_COPY.loading
 );
@@ -731,20 +736,33 @@ async function fetchWorkbenchBundle() {
     return {
       s: bundle.stats || null,
       wb: bundle.workbench || null,
-      ex: { total: bundle.openExceptionCount || 0 } as PageResult<{ exceptionId: string }>
+      ex: { total: bundle.openExceptionCount || 0 } as PageResult<{ exceptionId: string }>,
+      statsStatus: null,
+      exStatus: null
     };
   } catch {
     // 兼容降级：窄权限角色可能对 stats/workbench 403；勿互相拖垮
+    let statsStatus: number | null = null;
+    let exStatus: number | null = null;
     const [s, wb, ex] = await Promise.all([
-      api.request<OpsStats>(AdminEndpoints.stats, 'GET').catch(() => null),
+      api.request<OpsStats>(AdminEndpoints.stats, 'GET').catch((e: { status?: number }) => {
+        statsStatus = e?.status ?? null;
+        return null;
+      }),
       api.request<OpsWorkbench>(AdminEndpoints.workbench, 'GET').catch(() => null),
       canAccessPath('/exceptions')
         ? api
-            .request<PageResult<{ exceptionId: string }>>(AdminEndpoints.exceptionsOpenCount, 'GET')
-            .catch(() => null)
+            .request<PageResult<{ exceptionId: string }>>(
+              AdminEndpoints.exceptionsOpenCount,
+              'GET'
+            )
+            .catch((e: { status?: number }) => {
+              exStatus = e?.status ?? null;
+              return null;
+            })
         : Promise.resolve(null)
     ]);
-    return { s, wb, ex };
+    return { s, wb, ex, statsStatus, exStatus };
   }
 }
 
@@ -770,12 +788,12 @@ async function load(opts?: { silent?: boolean }) {
   loading.value = true;
   let landed = false;
   try {
-    let { s, wb, ex } = await fetchWorkbenchBundle();
+    let { s, wb, ex, statsStatus, exStatus } = await fetchWorkbenchBundle();
     // 登录刚进页时偶发 token/网关未就绪，静默重试一次，避免误报「加载失败」
     if (!s && !wb) {
       await new Promise((r) => setTimeout(r, 450));
       if (!loadSeq.isCurrent(seq)) return;
-      ({ s, wb, ex } = await fetchWorkbenchBundle());
+      ({ s, wb, ex, statsStatus, exStatus } = await fetchWorkbenchBundle());
     }
     if (!loadSeq.isCurrent(seq)) return;
     if (!s && !wb) {
@@ -788,8 +806,11 @@ async function load(opts?: { silent?: boolean }) {
       return;
     }
     stats.value = s || {};
-    statsFailed.value = !s;
-    exceptionCountFailed.value = !ex;
+    // R3-A-R3-4：403（无权限）≠ 加载失败 —— 分开呈现，不把权限缺失误报成故障
+    statsFailed.value = !s && statsStatus !== 403;
+    statsNoPerm.value = statsStatus === 403;
+    exceptionCountFailed.value = !ex && exStatus !== 403 && canAccessPath('/exceptions');
+    exceptionNoPerm.value = exStatus === 403 || !canAccessPath('/exceptions');
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
     landed = true;

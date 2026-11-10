@@ -126,13 +126,19 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
             String status, Collection<String> deviceIds, int limit) {
         int lim = Math.max(1, Math.min(limit, 500));
         if (deviceIds == null) {
-            return findByStatusOrderByCreatedAtDesc(status, lim);
+            // R3-D3：不再走无 JOIN 的普通查询 —— 回退路径同样回填 sessionDeviceId
+            return findByStatusOrderByCreatedAtDescRaw(status, lim);
         }
         if (deviceIds.isEmpty()) {
             return List.of();
         }
         return findByStatusAndDeviceIdsOrderByCreatedAtDescRaw(status, deviceIds, lim);
     }
+
+    /** R3-D3：全局范围回退也走 JOIN（回填瞬态 sessionDeviceId），与 scoped 路径同源。 */
+    List<DisputeTicket> findByStatusOrderByCreatedAtDescRaw(
+            @Param("status") String status,
+            @Param("limit") int limit);
 
     /** 判据与 {@link #countOpenByDeviceIds} 同源：都走 {@code dispute_ticket JOIN shopping_session}。 */
     List<DisputeTicket> findByStatusAndDeviceIdsOrderByCreatedAtDescRaw(

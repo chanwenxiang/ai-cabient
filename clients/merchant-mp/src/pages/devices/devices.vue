@@ -460,7 +460,9 @@ function stockSummary(d: { oosSkuCount?: number | null; lowStockSkuCount?: numbe
   padding: 22rpx 12rpx 18rpx;
   position: relative;
 }
-.tool-item::after {
+/* R4-B-新7：热区扩量挂 ::before（同 .nav-link 配方）—— 挂 ::after 会与
+   is-primary 的下划线规则合并，把下划线甩到条目上方且热区失效。 */
+.tool-item::before {
   content: '';
   position: absolute;
   inset: -12rpx 0;
