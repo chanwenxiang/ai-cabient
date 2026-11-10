@@ -250,6 +250,7 @@ import {
   validateAppealForm
 } from '@/utils/order-appeal';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
+import { createPopupSeenStore } from '@/utils/popup-seen';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import {
   pickAndUploadEvidence,
@@ -274,6 +275,11 @@ const afterClosePopup = ref<MarketingPopup | null>(null);
 const popupVisible = ref(false);
 const popupImageUrl = computed(() => absoluteImageUrl(afterClosePopup.value?.imageUrl));
 const POPUP_SEEN_PREFIX = 'promoPopupAfterCloseSeen:';
+/**
+ * R2-C6：与开门前弹窗同族 —— 原先「一个活动一个 storage 键」，只写不删。
+ * 统一走 utils/popup-seen（单个有界 map + 旧前缀键迁移），两处弹窗共用一份实现。
+ */
+const popupSeen = createPopupSeenStore(POPUP_SEEN_PREFIX);
 let popupChecked = false;
 
 function todayKey() {
@@ -288,7 +294,7 @@ async function maybeShowAfterClosePopup(device?: string) {
     const list = await consumerApi.marketingPopups('POPUP_AFTER_CLOSE', device || undefined);
     const popup = (list || [])[0];
     if (!popup?.imageUrl) return;
-    if (uni.getStorageSync(POPUP_SEEN_PREFIX + popup.activityId) === todayKey()) return;
+    if (popupSeen.seenDay(popup.activityId) === todayKey()) return;
     afterClosePopup.value = popup;
     popupVisible.value = true;
     reportPopup('POPUP_AFTER_CLOSE', popup.activityId, 'IMPRESSION');
@@ -311,7 +317,7 @@ function reportPopup(
 
 function closeAfterClosePopup() {
   if (afterClosePopup.value) {
-    uni.setStorageSync(POPUP_SEEN_PREFIX + afterClosePopup.value.activityId, todayKey());
+    popupSeen.markSeen(afterClosePopup.value.activityId);
   }
   popupVisible.value = false;
 }
