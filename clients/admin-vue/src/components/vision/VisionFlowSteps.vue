@@ -47,7 +47,7 @@ interface FlowSummary {
   vendorError: string | null;
 }
 
-const props = defineProps<{ active: number }>();
+const props = defineProps<{ active: number; deviceId?: string }>();
 
 const router = useRouter();
 const summary = ref<FlowSummary | null>(null);
@@ -56,8 +56,8 @@ const loading = ref(false);
 const steps = [
   { title: '商品挂接', route: '/skus' },
   { title: '商品采集', route: '/jiangyi-products' },
-  { title: '映射下发', route: '/vision-mappings' },
-  { title: '整单上架', route: '/devices' }
+  { title: '映射复核', route: '/vision-mappings' },
+  { title: '补货上架', route: '/devices' }
 ];
 
 const descriptions = computed(() => {
@@ -95,7 +95,10 @@ function stepStatus(i: number) {
 }
 
 function go(i: number) {
-  void router.push(steps[i].route);
+  // 补货上架是「 per 柜」动作：已选柜机时直达该柜详情（将邑卡→同步上架到将邑），
+  // 否则才回设备管理列表挑柜，避免点「上架」却落在无关的设备列表。
+  const route = i === 3 && props.deviceId ? `/devices/${props.deviceId}` : steps[i].route;
+  void router.push(route);
 }
 
 async function load() {

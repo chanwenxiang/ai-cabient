@@ -17,7 +17,7 @@
       </div>
     </template>
 
-    <VisionFlowSteps :active="2" />
+    <VisionFlowSteps :active="2" :device-id="deviceId" />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load()">
       <el-form-item label="柜机">
@@ -63,7 +63,9 @@
         </div>
         <div class="jy-device-item">
           <span class="jy-device-label">当前生效模型</span>
-          <span class="jy-mono">{{ binding.modelName || '未下发' }}</span>
+          <span class="jy-mono" :title="binding.modelName || ''">{{
+            binding.modelName || '未下发'
+          }}</span>
         </div>
         <div class="jy-device-item">
           <span class="jy-device-label">模型版本</span>
@@ -206,6 +208,14 @@
         </el-tab-pane>
 
         <el-tab-pane label="预生成与激活" name="pregen">
+          <el-alert
+            class="jy-fallback-alert"
+            type="info"
+            :closable="false"
+            show-icon
+            title="classId 预生成/激活现为兜底"
+            description="结算主路径已改为 thirdPid 挂接（SKU↔将邑商品，识别上报的商品 ID 直接命中、不受重训平移）。本流程仅在识别未命中 thirdPid 时才需要；正常上新/上架请按「识别入驻」页步骤走。"
+          />
           <!-- 预生成与激活：把流程写在最上面，按钮按步骤排 -->
           <el-card class="jy-model-card" shadow="never">
             <template #header>
@@ -325,6 +335,14 @@
         </el-tab-pane>
 
         <el-tab-pane label="识别对照表" name="table">
+          <el-alert
+            class="jy-fallback-alert"
+            type="info"
+            :closable="false"
+            show-icon
+            title="classId 对照表现为兜底"
+            description="结算主路径=thirdPid 挂接；本表只在识别未命中 thirdPid 时参与。核对商品请看「平台商品」中文名；「识别名称」为厂商模型原始类目名，「厂商品名」为解码后的中文。"
+          />
           <!-- 识别编号映射表 -->
           <div class="table-scroll">
             <div class="table-scroll-inner">
@@ -344,6 +362,14 @@
                 </el-table-column>
                 <el-table-column prop="textName" label="识别名称" min-width="150">
                   <template #default="{ row }">{{ row.textName || '—' }}</template>
+                </el-table-column>
+                <el-table-column label="厂商品名" min-width="160">
+                  <template #default="{ row }">
+                    <span v-if="row.textName && vendorNameByText[row.textName]">{{
+                      vendorNameByText[row.textName]
+                    }}</span>
+                    <span v-else class="muted">—</span>
+                  </template>
                 </el-table-column>
                 <el-table-column label="平台商品" min-width="160">
                   <template #default="{ row }">
@@ -990,6 +1016,7 @@ async function loadModels(opts?: { silent?: boolean }) {
     );
     modelsLoaded.value = true;
     if (selectedModel.value && !currentPreview.value) selectedModel.value = '';
+    void loadVendorNames();
   } catch (e) {
     modelsError.value = errorMessage(e, '拉取将邑模型列表失败');
     modelPreviews.value = [];
@@ -998,6 +1025,34 @@ async function loadModels(opts?: { silent?: boolean }) {
     if (!opts?.silent) ElMessage.error(modelsError.value);
   } finally {
     modelsLoading.value = false;
+  }
+}
+
+/** §5.5.3 只读解码：classes 原始类目名 → 厂商中文品名，供「厂商品名」列展示（不写映射）。 */
+const vendorNameByText = ref<Record<string, string>>({});
+async function loadVendorNames() {
+  vendorNameByText.value = {};
+  if (!deviceId.value) return;
+  const preview =
+    modelPreviews.value.find((m) => m.modelName === binding.value?.modelName) ??
+    modelPreviews.value[0];
+  if (!preview?.modelTextUrl) return;
+  try {
+    const q = new URLSearchParams({
+      textUrl: preview.modelTextUrl,
+      quantity: String(preview.quantity),
+      classIdBase: String(classIdBase.value)
+    });
+    const view = await api.request<{
+      rows?: { textName?: string | null; stdSkuName?: string | null }[];
+    }>(`${AdminEndpoints.deviceJiangyiClassDecode(deviceId.value)}?${q.toString()}`, 'GET');
+    const map: Record<string, string> = {};
+    for (const r of view?.rows ?? []) {
+      if (r.textName && r.stdSkuName) map[r.textName] = r.stdSkuName;
+    }
+    vendorNameByText.value = map;
+  } catch {
+    /* 解码失败只留空列，不阻断对照表 */
   }
 }
 
@@ -1396,6 +1451,16 @@ onActivated(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* grid 子项默认 min-width:auto 会被长模型名撑破、溢出撞邻列；置 0 才能收缩截断 */
+  min-width: 0;
+  max-width: 100%;
+}
+.jy-device-item .jy-mono {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .jy-device-label {
   font-size: 12px;
@@ -1415,6 +1480,10 @@ onActivated(() => {
   margin-bottom: 16px;
 }
 .jy-model-alert {
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+.jy-fallback-alert {
   margin-bottom: 12px;
 }
 .jy-preview-rows {
