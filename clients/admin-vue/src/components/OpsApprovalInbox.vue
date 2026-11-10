@@ -261,9 +261,13 @@ function resolvePath(item: { actionPath?: string; bizType?: string; bizId?: stri
       : '/replenishment?tab=requests';
   }
   if (item.bizType === 'PURCHASE_ORDER') {
+    // 🔴 必须给拆分后的子页路径，不能给旧入口 `/warehouse?tab=purchase`：navPathOf() 会砍掉
+    //   query 得到 `/warehouse`，而 config/menu.ts 只登记了 8 个仓储子页、没有 `/warehouse` 本身
+    //   ⇒ findNavByPath 精确匹配落空 ⇒ canAccessPath fail-closed ⇒ 任何人（含超管）点待办都弹
+    //   「当前账号无业务页权限」。旧入口只在 router 里留了 redirect 兼容手输地址。
     return item.bizId
-      ? `/warehouse?tab=purchase&orderId=${encodeURIComponent(item.bizId)}`
-      : '/warehouse?tab=purchase';
+      ? `/warehouse/procurement?tab=purchase&orderId=${encodeURIComponent(item.bizId)}`
+      : '/warehouse/procurement?tab=purchase';
   }
   if (item.bizType === 'MERCHANT_WITHDRAW' || item.bizType === 'MERCHANT_WALLET_ADJUST') {
     return '/merchant-withdraw';

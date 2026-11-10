@@ -832,9 +832,11 @@ public class ApprovalWorkflowService {
         String id = bizId == null ? "" : bizId.trim();
         return switch (bizType) {
             // 2026-10-13 要货下线：MERCHANT_REPLEN_REQUEST 审批不再产生；存量实例跳转落 default /approvals
+            // 🔴 采购单必须给拆分后的子页 `/warehouse/procurement`：前端 canAccessPath() 会砍掉 query
+            //   再按 config/menu.ts 精确匹配，旧入口 `/warehouse` 没有菜单登记项 ⇒ 待办点击被判「无权限」。
             case "PURCHASE_ORDER" -> id.isEmpty()
-                    ? "/warehouse?tab=purchase"
-                    : "/warehouse?tab=purchase&orderId=" + id;
+                    ? "/warehouse/procurement?tab=purchase"
+                    : "/warehouse/procurement?tab=purchase&orderId=" + id;
             case "MERCHANT_WITHDRAW" -> "/merchant-withdraw";
             case "LINE_WITHDRAW" -> "/line-managers?tab=withdraws";
             case "BALANCE_REFUND" -> "/balance-refunds";
