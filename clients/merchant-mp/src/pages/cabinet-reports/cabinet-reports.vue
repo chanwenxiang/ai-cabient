@@ -132,7 +132,11 @@ import {
   openExportedFile,
   softFallback
 } from '@/utils/merchant-api';
-import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
+import {
+  isMerchantMeFromServer,
+  seedMerchantMeDisplayCache,
+  useMerchantMe
+} from '@/composables/useMerchantMe';
 import type {
   OpenApiMerchantDeviceReportDto,
   OpenApiSalesReportRowDto
@@ -284,7 +288,8 @@ function onPeriodTab(key: string) {
 function onExport() {
   if (exporting.value) return; // 防重复导出（连续点击触发多次文件下载）
   if (!canExport.value) {
-    showError('无导出权限');
+    // R7：me 为去权展示缓存（弱网 seed）时，canExport=false 是「不可知」而非「无权限」
+    showError(isMerchantMeFromServer() ? '无导出权限' : '网络异常，暂时无法确认权限，请重试');
     return;
   }
   exporting.value = true;

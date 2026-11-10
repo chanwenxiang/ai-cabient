@@ -87,7 +87,11 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { showConfirm, showError, showSuccess } from '@/utils/notify';
 import { hasPerm, isMerchantLoggedIn, merchantApi } from '@/utils/merchant-api';
-import { seedMerchantMeDisplayCache, useMerchantMe } from '@/composables/useMerchantMe';
+import {
+  isMerchantMeFromServer,
+  seedMerchantMeDisplayCache,
+  useMerchantMe
+} from '@/composables/useMerchantMe';
 import {
   buildSaveTaxProfileBody,
   emptyTaxProfileForm,
@@ -203,7 +207,8 @@ async function saveTax() {
   const mid = taxMerchantId.value;
   if (!mid || taxSaving.value || taxLoading.value) return;
   if (!canEditProfile.value) {
-    showError('无资料编辑权限');
+    // R7：同 cabinet-reports —— 去权缓存下的 false 是「不可知」
+    showError(isMerchantMeFromServer() ? '无资料编辑权限' : '网络异常，暂时无法确认权限，请重试');
     return;
   }
   const formErr = taxProfileFormError(taxForm.value);
