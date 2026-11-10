@@ -238,6 +238,8 @@ export const AdminEndpoints = {
 
   /** 将邑商品库挂接（CB-023 二期）：SKU ↔ 将邑商品关联 + 学习回填 */
   skuJiangyiLink: (skuId: string) => `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link`,
+  /** 批量生效挂接（商品管理「将邑挂接」列 join 用） */
+  jiangyiLinks: `${ops}/jiangyi/links`,
   skuJiangyiLinkCreate: (skuId: string) =>
     `${ops}/skus/${encodeURIComponent(skuId)}/jiangyi-link/create`,
   skuJiangyiLinkPullTextName: (skuId: string) =>

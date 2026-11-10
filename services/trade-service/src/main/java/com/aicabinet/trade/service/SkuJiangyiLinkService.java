@@ -101,6 +101,11 @@ public class SkuJiangyiLinkService {
         return linkMapper.listBySku(skuId);
     }
 
+    /** 全量生效挂接（非 RETIRED），供商品管理列表 join 出「将邑挂接」状态列。 */
+    public List<JiangyiSkuJiangyiLink> listActiveLinks() {
+        return linkMapper.listBoundAll();
+    }
+
     /**
      * 上报报文里的 {@code thirdPid}（将邑标准商品 id）→ 我方 skuId（2026-10-21）。
      *

@@ -204,6 +204,24 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="将邑挂接"
+            width="100"
+            align="center"
+            class-name="col-status"
+            label-class-name="col-status"
+          >
+            <template #default="{ row }">
+              <el-tag
+                v-if="jiangyiLinkBySku[row.skuId]"
+                size="small"
+                type="success"
+                :title="`${jiangyiLinkBySku[row.skuId].jiangyiName || ''}（${jiangyiLinkBySku[row.skuId].jiangyiProductId}）`"
+                >已挂接</el-tag
+              >
+              <span v-else class="muted">未挂接</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             align="center"
             label="添加时间"
             width="96"
@@ -577,6 +595,7 @@ import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { errorMessage } from '@/utils/error-message';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import SkuJiangyiLinkDialog from './SkuJiangyiLinkDialog.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
@@ -1062,12 +1081,65 @@ const skuStatusByLabel: Record<string, string> = {
   DISABLED: 'DISABLED'
 };
 
+/** 商品管理「将邑挂接」状态列 + 行内解挂：一次拉全量生效挂接 join 到行（后端 /jiangyi/links）。 */
+interface ActiveJiangyiLink {
+  id: number;
+  jiangyiProductId: string;
+  jiangyiName: string | null;
+}
+const jiangyiLinkBySku = ref<Record<string, ActiveJiangyiLink>>({});
+async function loadJiangyiLinkMap() {
+  try {
+    const links = await api.request<
+      { id: number; skuId: string; jiangyiProductId: string; jiangyiName: string | null }[]
+    >(AdminEndpoints.jiangyiLinks, 'GET');
+    const map: Record<string, ActiveJiangyiLink> = {};
+    for (const l of links ?? []) {
+      if (!map[l.skuId]) {
+        map[l.skuId] = { id: l.id, jiangyiProductId: l.jiangyiProductId, jiangyiName: l.jiangyiName };
+      }
+    }
+    jiangyiLinkBySku.value = map;
+  } catch {
+    jiangyiLinkBySku.value = {};
+  }
+}
+watch(
+  () => crud.items.map((r) => r.skuId).join(','),
+  () => void loadJiangyiLinkMap(),
+  { immediate: true }
+);
+
+async function unbindJiangyi(row: SkuCatalog) {
+  const link = jiangyiLinkBySku.value[row.skuId];
+  if (!link) return;
+  try {
+    await ElMessageBox.confirm(
+      `解挂 ${row.skuName || row.skuId} 与将邑商品 ${link.jiangyiProductId} 的关联？解挂后识别不再推荐此关联（留痕可复活）。`,
+      '解挂确认',
+      { type: 'warning', confirmButtonText: '解挂', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`${AdminEndpoints.skuJiangyiLink(row.skuId)}/${link.id}`, 'DELETE');
+    ElMessage.success('已解挂');
+    await loadJiangyiLinkMap();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '解挂失败'));
+  }
+}
+
 function rowActions(row: SkuCatalog): CrudRowAction[] {
   const acts: CrudRowAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
     acts.push({ key: 'clone', label: '复制创建', icon: CopyDocument, type: 'primary' });
     acts.push({ key: 'jiangyi-link', label: '将邑挂接', icon: LinkIcon, type: 'primary' });
+    if (jiangyiLinkBySku.value[row.skuId]) {
+      acts.push({ key: 'jiangyi-unbind', label: '解挂', icon: LinkIcon, type: 'primary' });
+    }
   }
   acts.push({ key: 'print-label', label: '打印标签', icon: Printer, type: 'primary' });
   return acts;
@@ -1078,6 +1150,7 @@ function onAction({ key, row }: { key: string; row: SkuCatalog }) {
   else if (key === 'clone') openClone(row);
   else if (key === 'print-label') openPrintLabels([row.skuId]);
   else if (key === 'jiangyi-link') jiangyiLinkDialog.value?.open(row);
+  else if (key === 'jiangyi-unbind') void unbindJiangyi(row);
 }
 
 /**

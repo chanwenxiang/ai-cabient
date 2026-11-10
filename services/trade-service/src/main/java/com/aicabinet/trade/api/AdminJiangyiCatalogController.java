@@ -58,6 +58,13 @@ public class AdminJiangyiCatalogController {
         return ApiResponse.ok(skuJiangyiLinkService.listLinks(skuId));
     }
 
+    /** 批量生效挂接（非 RETIRED）：商品管理列表「将邑挂接」状态列一次拉全量 join，避免逐行 N 次请求。 */
+    @RequiresPermissions("ops:sku:list")
+    @GetMapping("/jiangyi/links")
+    public ApiResponse<List<JiangyiSkuJiangyiLink>> listActiveLinks() {
+        return ApiResponse.ok(skuJiangyiLinkService.listActiveLinks());
+    }
+
     /** 搜索将邑商品库（name/barCode 模糊）；传 skuId 时按我方 SKU 分级并隐藏明显不符。 */
     @RequiresPermissions("ops:sku:list")
     @GetMapping("/jiangyi/std-skus")
