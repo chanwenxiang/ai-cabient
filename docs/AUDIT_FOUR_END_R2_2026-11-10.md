@@ -342,7 +342,8 @@ P0-4 **在位且三层闭环**（TTL 键+`isAdoptableSession` 闸+`restoreActive
 
 > **2026-11-10 第二批已全部落地，见 §12.5。**
 
-> B1 的残余已知：前端 `prepSuccessFingerprints` 在「取消后改量重提」时仍会拦下（提示去补货任务页调量，而任务已取消）。彻底收口需要 `MerchantPrepGroupDto` 暴露 `lastTaskStatus`（改 DTO+`gen:api-types`），两批都没动这条 API。
+> ~~B1 的残余已知：前端 `prepSuccessFingerprints` 在「取消后改量重提」时仍会拦下（提示去补货任务页调量，而任务已取消）。彻底收口需要 `MerchantPrepGroupDto` 暴露 `lastTaskStatus`（改 DTO+`gen:api-types`），两批都没动这条 API。~~
+> **已收口，见 §12.6**（实际要暴露字段的是预览 DTO `MerchantPrepPreviewGroupDto`，不是首页那支 `MerchantPrepGroupDto`）。
 
 ## 12.5 第二批落地记录（2026-11-10，14 条）
 
@@ -378,3 +379,35 @@ P0-4 **在位且三层闭环**（TTL 键+`isAdoptableSession` 闸+`restoreActive
 
 C6 只列了开门前弹窗的 `promoPopupSeen:<activityId>`（`index.vue`），但 `result.vue` 的**关门后**弹窗是同一套写法（`promoPopupAfterCloseSeen:<id>`，同样只写不删）。已一并收口：
 抽出 `utils/popup-seen.ts`（单个有界 map，上限 50，按日期淘汰最旧；**首次读即迁移**旧前缀键并回写），两页共用；新增 `popup-seen.test.ts` 3 例并做负向验证（放大上限 ⇒ 红）。
+
+## 12.6 第三批落地记录（2026-11-10，B1 前端残留 1 条）
+
+> 判据：`mvn -Dtest=MerchantPrepPreviewTest,MerchantSelfReplenishTest` = **25 tests 全绿**（新增 1）、
+> merchant-mp vitest **251 全绿**（新增 1）、`vue-tsc --noEmit` clean、改动文件 eslint 0 error、
+> `check:openapi-regen-required` / `check:openapi-types` / `check:replenishment-checkin-contract` 绿。
+
+| 条 | 改动落点 | 做法 |
+|---|---|---|
+| B1（前端半） | `MerchantPrepPreviewGroupDto.java` / `ReplenishmentTaskMapper.java` / `MerchantReplenishmentService.java` / `self-replenish-submit.ts` / `prep-generate.vue` | 预览带上「本柜最近一张任务状态」（`lastTaskStatus`，设备范围 + 每柜最新都下推 SQL、一次查询、不设上限）；前端判据从「指纹变了就拦」改成「指纹变了**且任务还活着**才拦」，终态时作废旧键按新意图重提 |
+
+### 为什么不能只靠用例（门禁的必要性）
+
+纯函数用例只钉 `shouldBlockPrepResubmit` 本身。**删掉 DTO 字段、或服务不查、或页面不传参**，
+纯函数用例照样全绿，而线上会退化成「永远拿到 null ⇒ 永远拦」。故在
+`check:replenishment-checkin-contract` 加**规则 9**（五条判据，见脚本注释）。
+
+### 两个当场踩到的坑
+
+1. **`lastTaskStatus` 为 null 必须按「还在进行中」拦，不能放行**。常见路径是「提交成功 → 部分柜失败 →
+   留在本页改量重提」，而预览是**提交前**加载的，那时本柜还没有任务 ⇒ `lastTaskStatus` 天然是 null。
+   按 null 放行等于把 P0-3 的修复（防重复建任务 + 重复扣分仓库存）整个废掉。只有预览里**明确读到终态**才放行。
+2. **终态放行时必须同时作废旧键**。COMPLETED 会被后端回放成「已生成」旧任务（假成功）、
+   CANCELLED 直接 409（假失败）。两个都是假结果，故 `renew_after_ended_task` 分支清
+   `prepRequestNos` + 指纹，让 `takePrepRequestNo` 生成新键。
+
+### 残余时序窗口（诚实标注）
+
+`lastTaskStatus` 是**取预览那一刻**的快照。若用户在「预览加载后、点提交前」才把任务取消，
+本页仍会按旧快照拦一次。出路已写进拦截文案（「若该任务已被取消，请下拉刷新本页后重试」），
+刷新后快照更新为 CANCELLED 即走重提分支。未做「提交前实时复查单柜状态」——那需要新增单柜
+状态接口，收益不抵成本。
