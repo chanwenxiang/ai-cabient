@@ -20,14 +20,6 @@ public class AdminAuditService {
     }
 
     /**
-     * 写审计行。
-     *
-     * <p>🔴 {@code operator_id} 是 NOT NULL + FK(user_info)：系统链路（定时任务、支付回调重试）本就没有登录人，
-     * 传 null 会让 <b>整个事务</b>在提交时抛约束错回滚——2026-11-06 服务器实测：选品复核每天一行都没落库，
-     * 欠租锁柜「动作生效但审计丢」，提现备付拦截直接抛错。这里单点归一到
-     * {@link SystemConfigService#SYSTEM_OPERATOR_ID}（0 = 系统），并留 WARN 便于发现漏传的调用点。</p>
-     */
-    /**
      * R6-H1：独立事务留痕 —— 调用方事务随后会因业务异常回滚（如收货质检拒收先留痕再抛 409）
      * 时，审计行仍要落库。方法内直接调用 {@link #appendLog}（self-invocation），其 REQUIRED
      * 加入本 REQUIRES_NEW 事务。
@@ -38,6 +30,14 @@ public class AdminAuditService {
         appendLog(operatorId, action, targetType, targetId, detail);
     }
 
+    /**
+     * 写审计行。
+     *
+     * <p>🔴 {@code operator_id} 是 NOT NULL + FK(user_info)：系统链路（定时任务、支付回调重试）本就没有登录人，
+     * 传 null 会让 <b>整个事务</b>在提交时抛约束错回滚——2026-11-06 服务器实测：选品复核每天一行都没落库，
+     * 欠租锁柜「动作生效但审计丢」，提现备付拦截直接抛错。这里单点归一到
+     * {@link SystemConfigService#SYSTEM_OPERATOR_ID}（0 = 系统），并留 WARN 便于发现漏传的调用点。</p>
+     */
     @Transactional
     public void appendLog(Long operatorId, String action, String targetType, String targetId, String detail) {
         Long actor = operatorId;
