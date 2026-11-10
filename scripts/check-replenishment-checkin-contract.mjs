@@ -591,26 +591,33 @@ if (!prepServiceSrc.includes('latestTaskStatus.get(deviceId)')) {
   );
 }
 const prepPageSrc = read(PREP_PAGE_FILE);
-const prepVerdictAt = prepPageSrc.indexOf('shouldBlockPrepResubmit({');
+// 2026-11-10：改量重提判据重度重构（shouldBlockPrepResubmit 移入 self-replenish-submit.ts，
+// 页面改调包装 decidePrepResubmitWithRefresh(...) 并传 lastTaskStatus，再由它内部调
+// shouldBlockPrepResubmit + 实时复查纠正竞态）。门禁锚点对新调用点，并保留两条不变量：
+//   ① 页面调用包装函数且传 lastTaskStatus（否则按「进行中」恒拦，R2-B1 回归）；
+//   ② util 里 shouldBlockPrepResubmit 仍在（P0-3 旧键回放判据不被内联/删除）。
+const prepVerdictAt = prepPageSrc.indexOf('decidePrepResubmitWithRefresh(');
 if (prepVerdictAt < 0) {
   problems.push(
-    'prep-generate.vue 不再调用 shouldBlockPrepResubmit(...) —— 改量重提判据被内联/删除，' +
+    'prep-generate.vue 不再调用 decidePrepResubmitWithRefresh(...) —— 改量重提判据被内联/删除，' +
       'P0-3（旧键静默回放旧数量）与 R2-B1（任务已取消仍拦）两条都会回归'
   );
 } else {
-  const verdictEnd = prepPageSrc.indexOf('});', prepVerdictAt);
-  const verdictCall = prepPageSrc.slice(
-    prepVerdictAt,
-    verdictEnd < 0 ? prepPageSrc.length : verdictEnd
-  );
+  const verdictCall = prepPageSrc.slice(prepVerdictAt, prepVerdictAt + 400);
   if (!verdictCall.includes('lastTaskStatus')) {
     problems.push(
-      'prep-generate.vue 调用 shouldBlockPrepResubmit 时没传 lastTaskStatus —— ' +
+      'prep-generate.vue 调用 decidePrepResubmitWithRefresh 时没传 lastTaskStatus —— ' +
         '判据会恒按「任务还在进行中」处理，任务已取消的用户仍被锁死'
     );
   }
 }
 const prepUtilSrc = read(PREP_SUBMIT_UTIL_FILE);
+if (prepUtilSrc.indexOf('shouldBlockPrepResubmit(') < 0) {
+  problems.push(
+    'self-replenish-submit.ts 里找不到 shouldBlockPrepResubmit(...) —— ' +
+      'P0-3 旧键回放判据被删，改量会静默回放旧数量'
+  );
+}
 if (!/PREP_TASK_ENDED_STATUSES\s*=\s*\[[^\]]*'CANCELLED'/.test(prepUtilSrc)) {
   problems.push(
     'self-replenish-submit.ts 的 PREP_TASK_ENDED_STATUSES 不再包含 CANCELLED —— ' +
