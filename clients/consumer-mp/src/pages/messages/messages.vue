@@ -201,6 +201,10 @@ function applyEntryQuery(opts?: Record<string, string | undefined>) {
   if (hit) filter.value = hit.key;
 }
 
+// R10：声明必须先于 onLoad/onShow 注册 —— H5 端 onShow 可在 setup 期间同步触发，
+// 回调里 load() 读 loadSeq 会撞 TDZ（CI e2e-h5 TC-QUAL-001 实证）。
+let loadSeq = 0;
+
 onLoad((opts) => {
   applyEntryQuery(opts as Record<string, string | undefined>);
 });
@@ -217,8 +221,6 @@ onShow(async () => {
 
 // pages.json 已开 enablePullDownRefresh，必须有 handler 停表（否则转圈挂死，接口层审计 高-3）
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
-
-let loadSeq = 0;
 
 async function load() {
   const seq = ++loadSeq;
