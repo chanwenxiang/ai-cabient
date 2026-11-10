@@ -261,7 +261,7 @@ const { onExport: onExportDormant } = useListCsv({
       r.name || '',
       r.phone || '',
       r.orderCount,
-      yuan(r.totalSpentCents ?? 0),
+      centsToYuanFixed(r.totalSpentCents ?? 0),
       lastTime(r.lastOrderAt)
     ])
 });
@@ -275,7 +275,7 @@ const { onExport: onExportRepeat } = useListCsv({
       r.name || '',
       r.phone || '',
       r.orderCount,
-      yuan(r.totalSpentCents ?? 0)
+      centsToYuanFixed(r.totalSpentCents ?? 0)
     ])
 });
 

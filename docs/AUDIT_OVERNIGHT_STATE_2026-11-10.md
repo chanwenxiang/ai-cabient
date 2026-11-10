@@ -10,6 +10,24 @@
 - 待修清单（两轮并集）：`docs/AUDIT_FOUR_END_R4_2026-11-10.md`（§1 洞表 + §2/§3）∪ `docs/AUDIT_FOUR_END_R3_2026-11-10.md`（§3–§5）。
 - 已知待拍板两项（低风险顺手收口，终报标注）：D4 提现回放终态窄窗 → 按仿 B1 加 409；RETIRE 柜不解绑 → 不动代码，仅台账留痕。
 
+## 轮次账（进度更新 2026-11-11 01:20 前后）
+
+### 修复批进度（R3+R4 并集）
+- ✅ P1×6 已提交（D1 script包装 / E5 携空串 / B-新1+2 renew实时复查 / A19 双形态判据 / C1 构造侧status / A-R3-1 保存守卫）
+- ✅ P2 Wave A 10 条已提交（seq守卫族/挂接emit/串图守卫/键归属/hint/清三值）
+- ✅ P2 Wave B1 已提交（B-新3 meFromServer+12页 / C2 toast读status）
+- ✅ P2 Wave B2 已提交（D2 采购回放闸+V454 / B-R3-1/3/5 盘点三件 / D-R3-1 异步 / A24/A25/A26）
+- ✅ P2c+P3 批已提交（D3 JOIN回填 / D-R3-3 重读防撤销 / E6 看护三键 / C3 假按钮诚实化 / B-R3-6 / B-新7 / A29 / A-R3-4 / A-R3-6 / A27 两页）
+- ✅ 定向测试 77/77 绿（含新判据钉测更新）；三端 tsc 绿；双端 vitest 全绿（后台复核中）
+- ⏳ 门禁加固批（E-R3-1/2/3/4/5+prep-list锚）子代理进行中
+- ⏳ admin 重烤进行中（后台）；完成后跑 pre-push-ci-preflight 全链
+- ✅ D-R3-5 SQL 终裁：dev 库 lifecycle_status 仅 DEPLOYED(3)/INBOUND(2)，无空串/非法值 ⇒ R3-D-R3-5 降级为「无现网影响，谓词等价成立」（V127 NOT NULL DEFAULT + 写侧大写常量）
+- 📝 D-R3-4/D-R3-6 登记进 PROJECT_KNOWLEDGE Changelog（本次提交随附）
+
+### 修复批故意不改（决策记录）
+- B-新2 未采纳「终态判断提到指纹相等之前」：同量+COMPLETED 保持 V401 回放（重复建任务风险 > 假成功提示；取消态由后端 409+清键自愈）。R4-B-新1 的 renew 实时复查已消掉危险半边。
+- A27 剩 3 页（MarketingRoi/Coupons/UserAnalysis）未改：toRows 结构待读，随 R5 修复批收口。
+
 ## 轮次账
 
 | 轮 | 状态 | 报告/证据 |

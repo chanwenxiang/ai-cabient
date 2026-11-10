@@ -226,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { yuanTextNone as yuan } from '@/utils/display';
+import { centsToYuanFixed, yuanTextNone as yuan } from '@/utils/display';
 import { ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
@@ -330,14 +330,14 @@ const csvOptions: CrudCsvOptions = {
       r.activityName,
       typeLabel(r.activityType),
       displayLabel('enable_status', r.status, '未知'),
-      yuan(r.budgetCents),
-      yuan(r.usedCents),
+      centsToYuanFixed(r.budgetCents),
+      centsToYuanFixed(r.usedCents),
       r.claimedCount,
       r.usedCount,
       pct(r.redeemRate),
-      yuan(r.discountCents),
+      centsToYuanFixed(r.discountCents),
       r.orderCount,
-      yuan(r.orderRevenueCents)
+      centsToYuanFixed(r.orderRevenueCents)
     ])
 };
 

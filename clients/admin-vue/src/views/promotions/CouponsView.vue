@@ -569,8 +569,8 @@ const csvOptions: CrudCsvOptions = {
     rows.map((row) => [
       row.couponName,
       displayLabel('coupon_type', row.couponType, '未知类型'),
-      yuan(row.denominationCents || 0),
-      yuan(row.minSpendCents || 0),
+      centsToYuanFixed(row.denominationCents || 0),
+      centsToYuanFixed(row.minSpendCents || 0),
       row.discountPercent ?? '',
       row.validityDays,
       row.maxIssueCount || 0,
