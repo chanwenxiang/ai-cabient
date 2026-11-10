@@ -388,6 +388,12 @@ public class UnpaidOrderService {
             // F-9（CB-057）：这一支没有新扣款，但冲抵流水就是实收 ⇒ 同样要冻结毛额
             orderPaymentService.freezePaidAmount(order);
             orderRepository.save(order);
+            // R2-D1：本支可能带着 PENDING 期残留的券列结单，而 save=updateById 跳过 null ⇒
+            // setCouponId(null) 落不了库。清券列必须走显式 UPDATE（同 MA-067/MA-147 范式）。
+            if (order.getCouponId() == null) {
+                orderRepository.clearOrderCouponSelection(
+                        order.getOrderId(), order.getTotalAmountCents(), Instant.now());
+            }
             revenueSplitService.recordSplit(order);
             auditService.appendLog(0L, "ORDER_COLLECT_NET_COVERED", ORDER, order.getOrderId(),
                     "净额 " + alreadyPaidCents + " 分已覆盖应付，直接结单");
@@ -400,6 +406,13 @@ public class UnpaidOrderService {
         // F-9（CB-057）：补扣成功 ⇒ 冻结实收毛额（含此前的开门冲抵行）
         orderPaymentService.freezePaidAmount(order);
         orderRepository.save(order);
+        // R2-D1：applyBestCouponForCollect 的两个「不用券」分支只改内存（活动价禁用券 / 券折扣为 0），
+        // save=updateById 跳过 null ⇒ 库里 coupon_id 清不掉：PAID 单悬挂脏券列（巡检告警噪音），
+        // 部分退还会把那张无辜券的 discount_cents 改写 0。补一条显式 UPDATE 收口。
+        if (order.getCouponId() == null) {
+            orderRepository.clearOrderCouponSelection(
+                    order.getOrderId(), order.getTotalAmountCents(), Instant.now());
+        }
         if (applied != null) {
             // 核销失败必须回滚整笔补扣（含扣款/置 PAID），避免「已付但券仍 UNUSED」可被重复用
             couponService.markUsed(

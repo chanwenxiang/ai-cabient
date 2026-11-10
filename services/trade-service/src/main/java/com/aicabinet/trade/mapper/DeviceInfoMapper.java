@@ -83,6 +83,18 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
                 .set(DeviceInfo::getOnlineSince, null));
     }
 
+    /**
+     * 解绑时清空所属商户（R2-D2）。
+     * <p>{@code DeviceAssetService} 解绑只做 {@code setMerchantId(null)} + {@code save}（=updateById
+     * 跳 null）⇒ 库里 {@code merchant_id} 原地不动，原商户的设备列表/异常/经营分析/自主补货
+     * 仍包含该柜并能继续操作。必须与 {@link #clearSalesLockReason} 一样走显式 SQL。</p>
+     */
+    default void clearMerchantId(String deviceId) {
+        update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getMerchantId, null));
+    }
+
     /** 锁机时清空解锁宽限时间戳。 */
     default void clearSalesUnlockedAt(String deviceId) {
         update(null, Wrappers.<DeviceInfo>lambdaUpdate()

@@ -140,6 +140,10 @@ public class CouponService {
         applyActivityId(def, request.activityId());
         applyScope(def, request.scopeType(), request.scopeMerchantId(), request.scopeDeviceIds());
         definitionRepository.save(def);
+        // R2-E2：save=updateById 跳过 null ⇒ 券型切换/活动解绑的清空不落库（旧 discount_percent 仍在
+        // 定义 DTO 里、旧 activity_id 仍吃预算记账）。显式 UPDATE 收口这两列。
+        definitionRepository.writeNullableColumns(
+                def.getCouponDefId(), def.getDiscountPercent(), def.getActivityId());
         log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
         auditService.appendLog(operatorId, "COUPON_DEF_UPDATE", "COUPON_DEF",
                 String.valueOf(def.getCouponDefId()),

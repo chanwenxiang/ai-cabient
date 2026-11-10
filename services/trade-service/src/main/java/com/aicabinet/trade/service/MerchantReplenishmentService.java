@@ -426,6 +426,15 @@ public class MerchantReplenishmentService {
                     // 键被其他设备占用：拒绝而非返回他人任务（既防误出库也防越权读）
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "clientRequestNo 已被其他设备的提交占用");
                 }
+                // R2-B1：回放只看 deviceId ⇒ 任务被**取消**后用同一键重提，会被回放成
+                // 「已生成（任务 xxx）」而实际什么都没建（前端整页假成功、商户以为已备货）。
+                // 取消态必须拒，让前端换新键真开一次。
+                // 注意 COMPLETED 仍按 V401 幂等契约回放原任务（见 MerchantSelfReplenishTest
+                // .selfInitiate_replaysSameClientRequestNo —— 超时重试要能拿回真实存在的任务）。
+                if ("CANCELLED".equals(original.getStatus())) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "上次提交的补货任务已取消，请重新提交生成新任务");
+                }
                 return replenishmentService.getTaskDto(original.getTaskId());
             }
         } else {

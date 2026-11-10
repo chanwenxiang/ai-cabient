@@ -17,6 +17,17 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
 
     ShoppingSession findByIdForUpdateRaw(@Param("sessionId") String sessionId);
 
+    /**
+     * 显式清空失败原因（R2-D3）。{@code setFailReason(null) + save()} = updateById 跳 null ⇒
+     * 重试成功/人工结案后的 COMPLETED 会话 DTO 仍带上一轮的失败文案（读面自相矛盾）。
+     * 同 9d0f31b7 对 {@code sku_jiangyi_link.reject_cause} 的处理范式。
+     */
+    default void clearFailReason(String sessionId) {
+        update(null, Wrappers.<ShoppingSession>lambdaUpdate()
+                .eq(ShoppingSession::getSessionId, sessionId)
+                .set(ShoppingSession::getFailReason, null));
+    }
+
     default Optional<ShoppingSession> findByIdForUpdate(String sessionId) {
         return Optional.ofNullable(findByIdForUpdateRaw(sessionId));
     }

@@ -32,15 +32,6 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                 .orderByAsc(DeviceSkuLot::getCreatedAt));
     }
 
-    default List<DeviceSkuLot> findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(
-            String deviceId, String skuId, String slotId) {
-        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
-                .eq(DeviceSkuLot::getDeviceId, deviceId)
-                .eq(DeviceSkuLot::getSkuId, skuId)
-                .eq(DeviceSkuLot::getSlotId, slotId)
-                .orderByAsc(DeviceSkuLot::getExpiryDate));
-    }
-
     default List<DeviceSkuLot> findByDeviceId(String deviceId) {
         return selectList(Wrappers.<DeviceSkuLot>lambdaQuery().eq(DeviceSkuLot::getDeviceId, deviceId));
     }
@@ -63,16 +54,6 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                 .eq(DeviceSkuLot::getBatchNo, batchNo)
                 .gt(DeviceSkuLot::getQuantity, 0)
                 .orderByAsc(DeviceSkuLot::getExpiryDate));
-    }
-
-    /** 同批次可能分多个货道存放；补货入库按货道精确匹配。 */
-    default Optional<DeviceSkuLot> findByDeviceIdAndSkuIdAndBatchNoAndSlotId(
-            String deviceId, String skuId, String batchNo, String slotId) {
-        return Optional.ofNullable(selectOne(Wrappers.<DeviceSkuLot>lambdaQuery()
-                .eq(DeviceSkuLot::getDeviceId, deviceId)
-                .eq(DeviceSkuLot::getSkuId, skuId)
-                .eq(DeviceSkuLot::getBatchNo, batchNo)
-                .eq(DeviceSkuLot::getSlotId, slotId)));
     }
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);

@@ -152,6 +152,11 @@ public class OpsCatalogAdminService {
         syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        // R2-E1：save=updateById 默认跳过 null ⇒ 「清除主图/描述/分类/条码/品牌」不会落库。
+        // 必须先用显式 UPDATE 把清空写进库，再释放旧图（顺序反了就是「文件已删、URL 还在」的悬空引用）。
+        // 只处理**请求里明确给了值的字段**（含空串=清空）：字段缺省(null)仍按「不改」处理，
+        // 保留 CSV/局部更新等调用方的既有语义。
+        clearExplicitlyBlankColumns(sku, request);
         // 编辑路径：sceneLimits=null = 未提供（CSV 导入等局部更新）→ 保留既有限额；
         // 非 null（含空数组）= 整单替换（空数组被 validateRequestItems 拒绝，场景不可清空）
         if (request.sceneLimits() != null) {
@@ -176,6 +181,43 @@ public class OpsCatalogAdminService {
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents()
                         + changed);
         return sku.toDto(request.sceneLimits());
+    }
+
+    /**
+     * R2-E1：把「用户明确清空」的文本列真正写进库。
+     *
+     * <p>{@code updateById} 默认跳过 null（全仓无 FieldStrategy 覆盖），前端「清除主图」发 '' ⇒
+     * trimToNull 后是 null，库里的旧值原地不动；而随后的 {@code releaseSkuImageIfUnused} 已按
+     * 「图片已移除」删掉附件行与对象存储文件 ⇒ 商品图 404 且不可恢复。
+     * 只处理请求里**出现过**的字段（null=未提供，语义仍是「不改」）。</p>
+     */
+    private void clearExplicitlyBlankColumns(SkuCatalog sku, UpsertSkuRequest request) {
+        var wrapper = Wrappers.<SkuCatalog>lambdaUpdate().eq(SkuCatalog::getSkuId, sku.getSkuId());
+        boolean any = false;
+        if (request.imageUrl() != null) {
+            wrapper.set(SkuCatalog::getImageUrl, sku.getImageUrl());
+            any = true;
+        }
+        if (request.description() != null) {
+            wrapper.set(SkuCatalog::getDescription, sku.getDescription());
+            any = true;
+        }
+        if (request.category() != null) {
+            wrapper.set(SkuCatalog::getCategory, sku.getCategory());
+            wrapper.set(SkuCatalog::getCategoryId, sku.getCategoryId());
+            any = true;
+        }
+        if (request.barcode() != null) {
+            wrapper.set(SkuCatalog::getBarcode, sku.getBarcode());
+            any = true;
+        }
+        if (request.brand() != null) {
+            wrapper.set(SkuCatalog::getBrand, sku.getBrand());
+            any = true;
+        }
+        if (any) {
+            skuCatalogRepository.update(null, wrapper);
+        }
     }
 
     private void assertBarcodeUnique(String barcode, String excludeSkuId) {

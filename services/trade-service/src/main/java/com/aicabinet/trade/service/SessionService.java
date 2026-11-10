@@ -455,6 +455,15 @@ public class SessionService {
         }
         session.setFailReason(null);
         transition(session, SessionState.RECOGNIZING);
+        // R2-D3：上面的 setFailReason(null) 只是内存态（updateById 跳 null）——
+        // 不显式清列，重试成功的会话仍会带着上一轮的失败文案出现在 DTO 里。
+        repository.clearFailReason(session.getSessionId());
+    }
+
+    /** 显式清空失败原因（R2-D3）：{@code setFailReason(null) + save} 对已存在行不落库。 */
+    @Transactional
+    public void clearFailReason(String sessionId) {
+        repository.clearFailReason(sessionId);
     }
 
     @Transactional(readOnly = true)

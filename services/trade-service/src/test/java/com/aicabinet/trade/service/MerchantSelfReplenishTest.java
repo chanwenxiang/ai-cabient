@@ -372,8 +372,28 @@ class MerchantSelfReplenishTest {
                 .findByDeviceIdAndNotesAndCreatedAtSince(anyString(), anyString(), any());
     }
 
-    /** 🔴 负向对照：带键请求**不得**被 90s 短窗误判——窗口内有 PENDING 也照样创建新任务。 */
+    /**
+     * R2-B1：任务被取消后同一键重提必须 409 —— 否则前端把「回放」当成功、整页报
+     * 「已生成（任务 xxx）」而实际什么都没建（2026-11-10 四端审核）。
+     * COMPLETED 仍回放（见上一条，V401 幂等契约）。
+     */
     @Test
+    void selfInitiate_rejectsReplayOfCancelledTask() {
+        when(deviceRepository.findById("CAB-001"))
+                .thenReturn(Optional.of(deviceWithHomeWarehouse("WH-001")));
+        ReplenishmentTask cancelled = new ReplenishmentTask();
+        cancelled.setTaskId(67L);
+        cancelled.setDeviceId("CAB-001");
+        cancelled.setStatus("CANCELLED");
+        when(taskRepository.findByClientRequestNo("req-cancel")).thenReturn(Optional.of(cancelled));
+
+        assertThrows(
+                org.springframework.web.server.ResponseStatusException.class,
+                () -> service.selfInitiateTask(9L, bodyWithRequestNo("req-cancel")));
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** 🔴 负向对照：带键请求**不得**被 90s 短窗误判——窗口内有 PENDING 也照样创建新任务。 */    @Test
     void selfInitiate_withClientRequestNo_bypassesLegacyWindowDedup() {
         stubHappyPath();
         when(taskRepository.findByClientRequestNo("req-new")).thenReturn(Optional.empty());

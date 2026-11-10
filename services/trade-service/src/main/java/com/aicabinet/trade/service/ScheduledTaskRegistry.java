@@ -97,6 +97,11 @@ public class ScheduledTaskRegistry {
                 sessionExpireService::expireStaleConsumerShoppingSessions);
         register("session-recognizing-expire", "识别结算超时升级", TRADE, V_60, 600,
                 sessionExpireService::expireStaleRecognizingSessions);
+        // R2-E3（2026-11-10）：V306 有种子行却未登记注册表 ⇒ POST /scheduled-tasks/
+        // session-failed-hold-clear/run 404，且不进 ScheduledTaskStaleMonitor 扫描
+        // （FAILED 会话预授权悬挂清扫停跑无人告警）。同 settlement-bill 的 R19-A1 先例补登记。
+        register("session-failed-hold-clear", "FAILED 会话预授权悬挂清扫", TRADE, "每 5 分钟", 600,
+                sessionExpireService::releaseStaleFailedSessionHolds);
         register("ops-exception-scanner", "异常卡点扫描", "OPS", V_30, 600,
                 opsExceptionScannerService::scan);
         register("compensation-process", "补偿任务处理", SYSTEM, V_30, 600,

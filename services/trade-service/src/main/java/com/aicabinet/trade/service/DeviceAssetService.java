@@ -118,6 +118,11 @@ public class DeviceAssetService {
         }
         device.setUpdatedAt(Instant.now());
         deviceInfoMapper.save(device);
+        // R2-D2：解绑把 merchantId 置 null，但 save=updateById 跳过 null ⇒ 库里清不掉，
+        // 原商户的设备列表/异常/报表仍含该柜且能继续操作（未复绑窗口期的越权面）。
+        if ("UNBIND".equals(action) && device.getMerchantId() == null) {
+            deviceInfoMapper.clearMerchantId(deviceId);
+        }
         recordEvent(deviceId, from, transition.toStatus(), action, operatorId, remark);
         auditService.appendLog(operatorId, "DEVICE_LIFECYCLE", "DEVICE", deviceId,
                 action + ":" + from + "->" + transition.toStatus());

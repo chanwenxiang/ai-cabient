@@ -297,23 +297,27 @@ public class SkuJiangyiLinkService {
         link.setSyncStatus("BOUND");
         link.setSyncedAt(now);
         link.setUpdatedAt(now);
-        if (link.getId() == null) {
-            // 同一 SKU + 同一条码只允许一条有效挂接：本方法是「新增」语义（按 jiangyiProductId 查重），
-            // 换 thirdPid 时旧行不会自动失效，多条 BOUND 并存会让其他商品按本条映射结算。
-            // 2026-11-09 真机实证：雪碧同时挂着 1018（听装，名称匹配得来）与 664（设备实际上报），
-            // 拿听装会被扣成瓶装价。→ 换产品时把同条码旧行置 RETIRED（保留审计痕迹，不物理删）。
-            if (barCode != null && !barCode.isBlank()) {
-                for (JiangyiSkuJiangyiLink sibling : linkMapper.listBySku(skuId)) {
-                    if (barCode.equals(sibling.getBarCode())
-                            && !String.valueOf(jiangyiProductId).equals(sibling.getJiangyiProductId())) {
-                        sibling.setSyncStatus("RETIRED");
-                        sibling.setUpdatedAt(now);
-                        linkMapper.updateById(sibling);
-                        log.info("jiangyi sku link retired same-barcode sibling skuId={} barCode={} oldProductId={} newProductId={}",
-                                skuId, barCode, sibling.getJiangyiProductId(), jiangyiProductId);
-                    }
+        // 同一 SKU + 同一条码只允许一条有效挂接：本方法是「新增」语义（按 jiangyiProductId 查重），
+        // 换 thirdPid 时旧行不会自动失效，多条 BOUND 并存会让其他商品按本条映射结算。
+        // 2026-11-09 真机实证：雪碧同时挂着 1018（听装，名称匹配得来）与 664（设备实际上报），
+        // 拿听装会被扣成瓶装价。→ 换产品时把同条码旧行置 RETIRED（保留审计痕迹，不物理删）。
+        //
+        // R2-E4：这段退役循环原先只写在 insert 分支里 —— 「解绑（RETIRED 留痕）→ 重绑」走的是
+        // updateById 复活既有行（byProduct 不过滤 status，RETIRED 行能被查到），兄弟不被退役，
+        // 于是 22f9ff5a 修掉的「同条码两条 BOUND 并存」原样回归。循环提到分支之外，两条路径统一生效。
+        if (barCode != null && !barCode.isBlank()) {
+            for (JiangyiSkuJiangyiLink sibling : linkMapper.listBySku(skuId)) {
+                if (barCode.equals(sibling.getBarCode())
+                        && !String.valueOf(jiangyiProductId).equals(sibling.getJiangyiProductId())) {
+                    sibling.setSyncStatus("RETIRED");
+                    sibling.setUpdatedAt(now);
+                    linkMapper.updateById(sibling);
+                    log.info("jiangyi sku link retired same-barcode sibling skuId={} barCode={} oldProductId={} newProductId={}",
+                            skuId, barCode, sibling.getJiangyiProductId(), jiangyiProductId);
                 }
             }
+        }
+        if (link.getId() == null) {
             link.setCreatedAt(now);
             linkMapper.insert(link);
         } else {

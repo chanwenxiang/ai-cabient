@@ -512,6 +512,8 @@ public class OpsExceptionService {
     private void finalizeManualResolve(ManualResolveFinalization ctx) {
         ctx.session().setFailReason(null);
         support.sessionService().transition(ctx.session(), SessionState.COMPLETED);
+        // R2-D3：updateById 跳 null ⇒ 必须显式清列，否则人工结案后的会话仍挂着旧的失败原因。
+        support.sessionService().clearFailReason(ctx.session().getSessionId());
         support.disputeService().closeOpenTicketForSession(
                 ctx.operatorId(), ctx.session().getSessionId(),
                 ctx.outcome().resolutionType(), ctx.outcome().lines());
