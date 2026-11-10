@@ -9,9 +9,13 @@
  *
  * 判据（贴真实责任边界）：
  *  - 只看自己声明了 enablePullDownRefresh 的页面；没声明的页面不具备下拉能力，不在管辖内。
+ *    （E-R3-3②：globalStyle.enablePullDownRefresh=true 时声明是**全局**的 —— 全部页面都必须
+ *    注册 onPullDownRefresh，页面级显式 `false` 才能豁免，否则声明移入 globalStyle 整批漏管。）
  *  - 只认**页面文件本身**的注册：小程序端组件里的 onPullDownRefresh 不会触发，
  *    外壳页（如 wallet.vue 只渲染 <WalletPage>）必须自己在页面层注册。
  *  - 扫源码前先抹掉注释（换等长空格保行号），避免注释里的示例写法造成假绿。
+ *  - E-R3-3①：解析出的页面声明数为 0 ⇒ 直接 FAIL —— pages.json 结构漂移（pages/subPackages
+ *    键改名）会让本门禁从「查 30 页」退化成「查 0 页」的**静默假绿**，防锚必须显式。
  *
  * 用法：node scripts/check-mp-pull-refresh.mjs [--print]
  */
@@ -62,10 +66,25 @@ for (const cmp of MINI_PROGRAMS) {
     continue;
   }
   const pj = loadPagesJson(pagesJsonPath);
+  const entries = collectPages(pj);
   if (PRINT) console.log(`\n=== ${cmp} ===`);
 
-  for (const entry of collectPages(pj)) {
-    if (entry.style.enablePullDownRefresh !== true) continue;
+  // E-R3-3①：结构漂移防锚。pages/subPackages 键被改名/挪走 ⇒ 解析出 0 个页面 ⇒
+  // 旧版从「查 30 页」静默退化成「OK：0 个」。0 个声明本身就是异常，必须显式红。
+  if (entries.length === 0) {
+    failures.push(`${cmp}: 解析到 0 个页面声明，疑似结构漂移（pages/subPackages 键变化？）—— 拒绝按空集假绿`);
+    continue;
+  }
+  // E-R3-3②：globalStyle 全局声明收编。声明移入 globalStyle 后所有页面都有下拉能力，
+  // 旧版只收页面级 style ⇒ 整批漏管。页面级显式 `false` 是覆盖（uni-app 页面样式优先），照旧豁免。
+  const globalPullDown = pj.globalStyle?.enablePullDownRefresh === true;
+
+  for (const entry of entries) {
+    const enabled =
+      'enablePullDownRefresh' in entry.style
+        ? entry.style.enablePullDownRefresh === true
+        : globalPullDown;
+    if (!enabled) continue;
     declared += 1;
     const vuePath = path.join(srcDir, `${entry.path}.vue`);
     if (!fs.existsSync(vuePath)) {

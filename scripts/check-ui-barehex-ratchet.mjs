@@ -14,7 +14,9 @@
  *   - mp：consumer / merchant 的 pages + components（.vue/.ts）+ 两端 src 下 .css、
  *     shared-uni 的 components（.vue/.ts）、utils（.ts）、根级 .css（排除 theme.css）；
  *     两端 App.vue 是 token fallback 定义文件，不在 pages/components 下，天然排除。
- * 超基线 ⇒ FAIL 并列出新增最多的文件；减少任意量 ⇒ 提示可下调基线（本次不自动改文件）。
+ * 超基线 ⇒ FAIL 并列出新增最多的文件；**低于基线同样 FAIL**（E-R3-5）：改进必须显式锁进基线
+ *   （把脚本内基线常量更新为新的实测值后重跑）——「只提示」会让棘轮静默漂移：基线永远停在
+ *   历史值，后面的人看到的余量是虚的，等于变相放松「只减不增」。等于基线 ⇒ 绿。
  *
  * 自检：内置 fixture 走计数函数（防恒真/恒假），并断言 scope 至少覆盖到 components；
  *       断言失败即 exit 1。
@@ -36,7 +38,9 @@ const BASELINES = {
   // 2026-11-10 上调冻结：商户端 UI 重设计（6f7c3ba8：柜机列表卡/盘点/订单/补货/详情）引入了
   // 一批语义化前的裸色（hex6 +52、hex3 +2、rgba +3），先冻结在当前实测值以放行；后续应逐步令牌化，
   // 本棘轮仍「只减不增」——再增会红，逐批令牌化后请同步下调。
-  mp: { hex6: 1078, hex3: 71, hex8: 0, rgba: 164 }
+  // 2026-11-11 E-R3-5 加固（低于基线由提示改 FAIL）后重冻结：hex6 1078→1076、rgba 164→163
+  //（HEAD 实测，既有令牌化改进显式锁进基线）；admin 四项实测与基线恰好相等，不动。
+  mp: { hex6: 1076, hex3: 71, hex8: 0, rgba: 163 }
 };
 
 const ADMIN_GLOBS = [
@@ -160,6 +164,14 @@ function overages(counts, baselines) {
   return METRICS.filter((m) => counts.total[m] > baselines[m]);
 }
 
+/**
+ * 返回低于基线的指标名（E-R3-5：棘轮双向锁）。低于基线=有人改进了却没锁进基线 ⇒
+ * 基线与现实的偏差本身就是「棘轮没咬合」，必须红，逼着显式重冻结。
+ */
+function underages(counts, baselines) {
+  return METRICS.filter((m) => counts.total[m] < baselines[m]);
+}
+
 /** perFile 是否覆盖到某个路径片段（兼容 Windows 反斜杠）。 */
 function hasPath(counts, segment) {
   return Object.keys(counts.perFile).some((f) => f.replaceAll('\\', '/').includes(segment));
@@ -199,6 +211,11 @@ function hasPath(counts, segment) {
     fail('selftest: 超基线未报出');
   }
   if (overages(above, above.total).length !== 0) fail('selftest: 等于基线误报');
+  // E-R3-5 双向锁的负向自检：低于基线必须报出、等于基线不得误报。
+  if (!underages(above, { hex6: 3, hex3: 0, hex8: 0, rgba: 0 }).includes('hex6')) {
+    fail('selftest: 低于基线未报出（underages）');
+  }
+  if (underages(above, above.total).length !== 0) fail('selftest: 等于基线误报（underages）');
   if (hasPath({ perFile: { 'a/views/x.vue': {} } }, '/components/')) {
     fail('selftest: hasPath 误报');
   }
@@ -274,6 +291,17 @@ for (const [scope, counts] of [
       `${scope}.${metric} ${now} > 基线 ${base}（+${now - base}）新增最多：${top.join(', ')}`
     );
   }
+  // E-R3-5：低于基线不再是提示 —— 棘轮双向锁。改进（哪怕是真的）没锁进基线，
+  // 基线就是假的：下次有人加色，余量判断建立在虚构的历史值上。
+  for (const metric of underages(counts, BASELINES[scope])) {
+    bad = true;
+    const base = BASELINES[scope][metric];
+    const now = counts.total[metric];
+    report.push(
+      `裸色数低于基线 ${now}<${base}（${scope}.${metric}）：改进必须显式锁进基线` +
+        '（跑冻结命令更新后重跑）'
+    );
+  }
 }
 
 if (bad) {
@@ -291,4 +319,7 @@ const summary = [
       `${scope}: hex6=${counts.total.hex6}/${BASELINES[scope].hex6} hex3=${counts.total.hex3}/${BASELINES[scope].hex3} hex8=${counts.total.hex8}/${BASELINES[scope].hex8} rgba=${counts.total.rgba}/${BASELINES[scope].rgba}`
   )
   .join(' | ');
-console.log(`${TAG} OK（只减不增）：${summary}（减少后请下调脚本内基线）`);
+console.log(
+  `${TAG} OK（棘轮双向锁：全部指标恰好等于冻结基线）：${summary}` +
+    '（改进后请把脚本内基线更新为新实测值再重跑——低于基线同样红）'
+);

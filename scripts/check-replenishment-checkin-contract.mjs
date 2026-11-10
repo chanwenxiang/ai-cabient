@@ -108,15 +108,12 @@ const PREP_PREVIEW_DTO_FILE = join(
   'MerchantPrepPreviewGroupDto.java'
 );
 const PREP_SERVICE_FILE = join(TRADE_MAIN, 'service', 'MerchantReplenishmentService.java');
-const PREP_PAGE_FILE = join(
-  root,
-  'clients',
-  'merchant-mp',
-  'src',
-  'pages',
-  'prep-generate',
-  'prep-generate.vue'
-);
+// R4-B-新4（=R3-B-R3-7）：改量重提判据有**两个消费页**——手动生成页与备货单页，
+// 只锚 prep-generate 一页时，prep-list 的调用点被删/不传 lastTaskStatus 会静默假绿。
+const PREP_PAGE_FILES = [
+  join(root, 'clients', 'merchant-mp', 'src', 'pages', 'prep-generate', 'prep-generate.vue'),
+  join(root, 'clients', 'merchant-mp', 'src', 'pages', 'prep-list', 'prep-list.vue')
+];
 const PREP_SUBMIT_UTIL_FILE = join(
   root,
   'clients',
@@ -154,11 +151,14 @@ function read(file) {
 }
 
 /**
- * 把 Java 注释替换成**等长空格**（保留换行，行号不变）：规则 8 扫的是「代码里还有没有旧写法」，
+ * 把注释替换成**等长空格**（保留换行，行号不变）：规则 8 扫的是「代码里还有没有旧写法」，
  * 而修复处的说明注释恰恰会引用 `findByStatusInOrderByCreatedAtAsc(…, 500)` 作为反例
  * （铁律 84①：不抹注释就会把注释判成违规，把人逼成删注释）。
+ * 反向同样必要（E-R3-2）：「删真实调用、留注释示例」不能判绿 —— 锚点检查前必须先剥注释。
+ * 字符串/字符/模板字符串（`" `'`）感知：串里的 `//`（如 URL）不当注释起点，避免误吞真代码。
+ * html=true 时额外剥 `<!-- -->`（.vue 模板注释）；Java 走 html=false。
  */
-export function maskJavaComments(source) {
+function maskCommentsLike(source, { html = false } = {}) {
   let out = '';
   let state = 'code';
   for (let i = 0; i < source.length; i++) {
@@ -173,12 +173,13 @@ export function maskJavaComments(source) {
         out += '  ';
         i++;
         state = 'block';
-      } else if (c === '"') {
+      } else if (html && c === '<' && source.startsWith('<!--', i)) {
+        out += '    ';
+        i += 3;
+        state = 'html';
+      } else if (c === '"' || c === "'" || c === '`') {
         out += c;
-        state = 'str';
-      } else if (c === "'") {
-        out += c;
-        state = 'char';
+        state = c; // 记住是哪种引号，遇到配对引号才出串
       } else {
         out += c;
       }
@@ -199,14 +200,77 @@ export function maskJavaComments(source) {
       }
       continue;
     }
+    if (state === 'html') {
+      if (c === '-' && source.startsWith('-->', i)) {
+        out += '   ';
+        i += 2;
+        state = 'code';
+      } else {
+        out += c === '\n' ? '\n' : ' ';
+      }
+      continue;
+    }
+    // 字符串态
     if (c === '\\' && i + 1 < source.length) {
       out += c + source[++i];
       continue;
     }
     out += c;
-    if ((state === 'str' && c === '"') || (state === 'char' && c === "'")) state = 'code';
+    if (c === state) state = 'code';
   }
   return out;
+}
+
+export function maskJavaComments(source) {
+  return maskCommentsLike(source);
+}
+
+/** 前端（.vue / .ts）注释剥离：`//`、块注释、`<!-- -->` 均替换为等长空格（保行号）。 */
+function maskFrontendComments(source) {
+  return maskCommentsLike(source, { html: true });
+}
+
+/**
+ * 从**已剥注释**的源码里切出名为 `name` 的方法/函数体切片（brace 配平）：
+ * 定位 `name(` 的声明（其后参数括号配平、紧跟 `{` 的那处 —— 排除普通调用点），
+ * 再从 `{` 起做大括号配平，返回每个方法体的 [start, end)（含首尾大括号）。
+ * 重载（如 prepPreview 两个）会各返回一片；判据要求「至少一片」还是「每一片」由调用方定。
+ */
+function extractBracedBodies(masked, name) {
+  const bodies = [];
+  const needle = `${name}(`;
+  let at = masked.indexOf(needle);
+  while (at >= 0) {
+    // 参数括号配平，找声明体开括号
+    let depth = 0;
+    let j = at + needle.length - 1;
+    for (; j < masked.length; j++) {
+      if (masked[j] === '(') depth++;
+      else if (masked[j] === ')') {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    let k = j + 1;
+    while (k < masked.length && /\s/.test(masked[k])) k++;
+    // TS 形态 `): Promise<X> {`：`)` 与 `{` 之间可隔一段返回类型注解 —— 跳过它找 `{`；
+    // 途中先遇 `;`（无体声明/调用）则放弃，避免把下一个函数误认成本体。
+    while (k < masked.length && masked[k] !== '{' && masked[k] !== ';' && masked[k] !== '}') k++;
+    if (masked[k] === '{') {
+      let bd = 0;
+      let e = k;
+      for (; e < masked.length; e++) {
+        if (masked[e] === '{') bd++;
+        else if (masked[e] === '}') {
+          bd--;
+          if (bd === 0) break;
+        }
+      }
+      if (bd === 0 && e < masked.length) bodies.push(masked.slice(k, e + 1));
+    }
+    at = masked.indexOf(needle, at + needle.length);
+  }
+  return bodies;
 }
 
 // ── 真值 A：doCheckInTask 的闸门顺序 ─────────────────────────────────────────
@@ -579,43 +643,76 @@ if (!/\bString\s+lastTaskStatus\b/.test(prepDtoSrc)) {
       '「改量重提」会退化成无条件拦（任务已取消也提示去改量，用户被锁死）'
   );
 }
+// E-R3-1：两条服务端判据钉进 **prepPreview 方法体切片**（brace 配平），不再全文件 substring ——
+// 全文件判法下「查询移出 prepPreview、字面量留在同文件他处」照样绿。重载有两片，
+// 要求**至少一片**同时含「查」与「回填」（委托重载是纯转发，不应被误伤）。
 const prepServiceSrc = maskJavaComments(read(PREP_SERVICE_FILE));
-if (!prepServiceSrc.includes('findLatestStatusByDeviceIds(')) {
+const prepPreviewBodies = extractBracedBodies(prepServiceSrc, 'prepPreview');
+if (prepPreviewBodies.length === 0) {
   problems.push(
-    'MerchantReplenishmentService.prepPreview 没查本柜最近任务状态 —— DTO 字段会恒为 null（同上）'
+    'MerchantReplenishmentService 里切不出 prepPreview 方法体（签名/结构漂移？）—— ' +
+      '「查最近任务状态」判据失去锚点'
+  );
+} else if (
+  !prepPreviewBodies.some(
+    (body) => body.includes('findLatestStatusByDeviceIds(') && body.includes('latestTaskStatus.get(deviceId)')
+  )
+) {
+  const queryElsewhere = prepServiceSrc.includes('findLatestStatusByDeviceIds(');
+  problems.push(
+    'MerchantReplenishmentService.prepPreview 方法体内没有「findLatestStatusByDeviceIds(...) 查询 + ' +
+      'latestTaskStatus.get(deviceId) 回填」这对判据' +
+      (queryElsewhere ? '（字面量在同文件他处出现 —— 查询被挪出 prepPreview，DTO 字段会恒为 null）' : '') +
+      ' —— DTO 字段会恒为 null（同上）'
   );
 }
-if (!prepServiceSrc.includes('latestTaskStatus.get(deviceId)')) {
-  problems.push(
-    'MerchantReplenishmentService.prepPreview 查了状态却没回填进 DTO —— 只查不传等于没做'
-  );
-}
-const prepPageSrc = read(PREP_PAGE_FILE);
-// 2026-11-10：改量重提判据重度重构（shouldBlockPrepResubmit 移入 self-replenish-submit.ts，
-// 页面改调包装 decidePrepResubmitWithRefresh(...) 并传 lastTaskStatus，再由它内部调
-// shouldBlockPrepResubmit + 实时复查纠正竞态）。门禁锚点对新调用点，并保留两条不变量：
-//   ① 页面调用包装函数且传 lastTaskStatus（否则按「进行中」恒拦，R2-B1 回归）；
-//   ② util 里 shouldBlockPrepResubmit 仍在（P0-3 旧键回放判据不被内联/删除）。
-const prepVerdictAt = prepPageSrc.indexOf('decidePrepResubmitWithRefresh(');
-if (prepVerdictAt < 0) {
-  problems.push(
-    'prep-generate.vue 不再调用 decidePrepResubmitWithRefresh(...) —— 改量重提判据被内联/删除，' +
-      'P0-3（旧键静默回放旧数量）与 R2-B1（任务已取消仍拦）两条都会回归'
-  );
-} else {
-  const verdictCall = prepPageSrc.slice(prepVerdictAt, prepVerdictAt + 400);
-  if (!verdictCall.includes('lastTaskStatus')) {
+// E-R3-2：前端锚点检查前先剥注释（等长空格保行号）——「删真实调用、留注释示例」不能判绿。
+// R4-B-新4：两个消费页（prep-generate / prep-list）各自都要「调用包装函数且 400 字符窗口含
+// lastTaskStatus」，只锚一页时另一页的调用点被删会静默假绿。
+for (const PREP_PAGE_FILE of PREP_PAGE_FILES) {
+  const pageName = PREP_PAGE_FILE.replaceAll('\\', '/').split('/').slice(-2).join('/');
+  const prepPageSrc = maskFrontendComments(read(PREP_PAGE_FILE));
+  // 2026-11-10：改量重提判据重度重构（shouldBlockPrepResubmit 移入 self-replenish-submit.ts，
+  // 页面改调包装 decidePrepResubmitWithRefresh(...) 并传 lastTaskStatus，再由它内部调
+  // shouldBlockPrepResubmit + 实时复查纠正竞态）。门禁锚点对新调用点，并保留两条不变量：
+  //   ① 页面调用包装函数且传 lastTaskStatus（否则按「进行中」恒拦，R2-B1 回归）；
+  //   ② util 里 shouldBlockPrepResubmit 仍有**真实调用**（P0-3 旧键回放判据不被内联/删除/空心化）。
+  const prepVerdictAt = prepPageSrc.indexOf('decidePrepResubmitWithRefresh(');
+  if (prepVerdictAt < 0) {
     problems.push(
-      'prep-generate.vue 调用 decidePrepResubmitWithRefresh 时没传 lastTaskStatus —— ' +
-        '判据会恒按「任务还在进行中」处理，任务已取消的用户仍被锁死'
+      `${pageName} 不再调用 decidePrepResubmitWithRefresh(...) —— 改量重提判据被内联/删除，` +
+        'P0-3（旧键静默回放旧数量）与 R2-B1（任务已取消仍拦）两条都会回归'
     );
+  } else {
+    const verdictCall = prepPageSrc.slice(prepVerdictAt, prepVerdictAt + 400);
+    if (!verdictCall.includes('lastTaskStatus')) {
+      problems.push(
+        `${pageName} 调用 decidePrepResubmitWithRefresh 时没传 lastTaskStatus —— ` +
+          '判据会恒按「任务还在进行中」处理，任务已取消的用户仍被锁死'
+      );
+    }
   }
 }
-const prepUtilSrc = read(PREP_SUBMIT_UTIL_FILE);
-if (prepUtilSrc.indexOf('shouldBlockPrepResubmit(') < 0) {
+const prepUtilSrc = maskFrontendComments(read(PREP_SUBMIT_UTIL_FILE));
+// E-R3-2：不能只查「shouldBlockPrepResubmit( 出现过」——**函数定义自身即满足**，
+// 包装函数停止调它（空心化）门禁不红。改为：定义仍在 + decidePrepResubmitWithRefresh
+// 函数体切片内必须有真实调用（排除定义行：定义在包装函数体外，切片内的必是调用）。
+if (!/function\s+shouldBlockPrepResubmit\s*\(/.test(prepUtilSrc)) {
   problems.push(
-    'self-replenish-submit.ts 里找不到 shouldBlockPrepResubmit(...) —— ' +
+    'self-replenish-submit.ts 里找不到 shouldBlockPrepResubmit(...) 定义 —— ' +
       'P0-3 旧键回放判据被删，改量会静默回放旧数量'
+  );
+}
+const decideBodies = extractBracedBodies(prepUtilSrc, 'decidePrepResubmitWithRefresh');
+if (decideBodies.length === 0) {
+  problems.push(
+    'self-replenish-submit.ts 里切不出 decidePrepResubmitWithRefresh 函数体（签名/结构漂移？）—— ' +
+      '「包装函数不得空心化」判据失去锚点'
+  );
+} else if (!decideBodies.some((body) => body.includes('shouldBlockPrepResubmit('))) {
+  problems.push(
+    'self-replenish-submit.ts 的 decidePrepResubmitWithRefresh 函数体内没有调用 ' +
+      'shouldBlockPrepResubmit(...) —— 包装函数已空心化（定义还在但不再消费，判据形同虚设）'
   );
 }
 if (!/PREP_TASK_ENDED_STATUSES\s*=\s*\[[^\]]*'CANCELLED'/.test(prepUtilSrc)) {
@@ -635,5 +732,5 @@ console.log(
     `终态闸与开门共用同一条文案、坐标判据唯一（${KEY_COORDS_PREDICATE}）、` +
     `deviceHasCoords 已声明且被实跑脚本消费；` +
     `补货任务取数全部下推（${PUSHED_DOWN_QUERY} / findWorkbenchTasks，无上限窗口）；` +
-    `备货预览回传 lastTaskStatus 且前端判据消费它（改量重提只在任务未结束时拦）`
+    `备货预览在 prepPreview 方法体内查+回填 lastTaskStatus，两页（prep-generate/prep-list）均消费判据且包装函数未空心化`
 );

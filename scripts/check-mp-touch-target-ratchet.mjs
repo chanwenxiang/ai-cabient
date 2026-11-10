@@ -58,7 +58,7 @@ const MIN_TOUCH_RPX = 88;
  *  - TOUCH_UNVERIFIABLE_BASELINE：量不出热区的可点类（旧版把它们当合规静默放行）。
  *    这一档不是「都是 bug」，而是「没证据说它达标」——修法统一是补显式尺寸/满宽声明，让它可证。
  */
-const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
+const TOUCH_BASELINE_DEFAULT = 0;
 // 285→280（2026-11-10 上午）：warehouse-stocktake 重排后 4 个旧「不可验」类转为可验——
 // save-btn→line-save / photo-add-btn→photo-add（min-height 88rpx / 160×160）、
 // load-more 补满宽+min-height 88rpx、mode-opt→seg-item（min 276×88）；st-card 并入带尺寸的 .card。
@@ -66,7 +66,36 @@ const BASELINE = Number(process.env.TOUCH_BASELINE || 0);
 // ——orders.vue .aux-export 假不可验转可验，连带纠正 HomeCartBar/HomeLanding/device-ad-banner 10 条同族误报。
 // 279→278（2026-11-10 傍晚）：HEAD 实测即 278（补货页重排前后均 278，降 1 来自更早已提交改动，非本次）；
 // replenishment 重排本身净效应为 0（删 hero-secondary 容器，clear-pill 仍有显式尺寸，新增 aux-pill 显式 88×88 可验）。
-const UNVERIFIABLE_BASELINE = Number(process.env.TOUCH_UNVERIFIABLE_BASELINE || 278);
+const TOUCH_UNVERIFIABLE_BASELINE_DEFAULT = 278;
+
+/**
+ * E-R3-4：基线环境变量收紧。旧写法 `Number(env || 默认)` 有两个洞：
+ *   ① env='abc' ⇒ NaN ⇒ 大于/小于比较恒 false ⇒ **静默绿**（棘轮整体失效，审计实测）；
+ *   ② env 设大数 ⇒ 自由抬顶 ⇒「只减不增」被环境变量绕过。
+ * 现在：env 存在但不是有限非负数 ⇒ 直接 FAIL（`${name} 非法`）；
+ *       env 值高于脚本内基线 ⇒ FAIL（环境变量抬顶被禁止）；合法且 ≤ 基线才放行
+ *      （允许下调 —— 下调后按普通棘轮判定照常跑，实测数多于新基线自然红）。
+ * 空串/纯空白视同未设置（与旧 `||` 语义一致）。校验放 main() 内：import 本文件（审计复核）无副作用。
+ */
+function resolveBaseline(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    console.error(
+      `[check-mp-touch-target-ratchet] FAIL: 环境变量 ${name} 非法（"${raw}" 不是有限非负数）—— 拒绝按 NaN 静默绿`
+    );
+    process.exit(1);
+  }
+  if (n > fallback) {
+    console.error(
+      `[check-mp-touch-target-ratchet] FAIL: 环境变量 ${name}=${n} 高于脚本内基线 ${fallback} —— ` +
+        '环境变量抬顶被禁止（基线只减不增，只允许下调）'
+    );
+    process.exit(1);
+  }
+  return n;
+}
 
 /** 逐条豁免：file + class + 原因（新增必须写清为什么允许小于 88rpx） */
 const EXEMPT = [];
@@ -476,6 +505,11 @@ function selfTest() {
 
 function main() {
   if (process.argv.includes('--selftest')) return selfTest();
+  const BASELINE = resolveBaseline('TOUCH_BASELINE', TOUCH_BASELINE_DEFAULT);
+  const UNVERIFIABLE_BASELINE = resolveBaseline(
+    'TOUCH_UNVERIFIABLE_BASELINE',
+    TOUCH_UNVERIFIABLE_BASELINE_DEFAULT
+  );
   const files = SCOPES.flatMap((s) => walk(join(ROOT, s)));
   const undersized = new Map();
   const unverifiable = new Map();
