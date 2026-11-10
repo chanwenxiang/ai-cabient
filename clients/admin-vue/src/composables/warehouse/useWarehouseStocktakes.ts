@@ -74,8 +74,12 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
       );
       stocktakeBaseline = new Map(
         (
-        (stocktakeDetail.value.lines || []) as { lineId: number; countedQty?: number | null; notes?: string | null }[]
-      ).map((l) => [l.lineId, lineBaselineKey(l)])
+          (stocktakeDetail.value.lines || []) as {
+            lineId: number;
+            countedQty?: number | null;
+            notes?: string | null;
+          }[]
+        ).map((l) => [l.lineId, lineBaselineKey(l)])
       );
       stocktakeDetailDialog.value = true;
     } catch (e) {
@@ -92,7 +96,11 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     );
     stocktakeBaseline = new Map(
       (
-        (stocktakeDetail.value.lines || []) as { lineId: number; countedQty?: number | null; notes?: string | null }[]
+        (stocktakeDetail.value.lines || []) as {
+          lineId: number;
+          countedQty?: number | null;
+          notes?: string | null;
+        }[]
       ).map((l) => [l.lineId, lineBaselineKey(l)])
     );
     deps.loadedTabs.value.delete('stocktakes');

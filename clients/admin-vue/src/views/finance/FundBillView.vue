@@ -487,7 +487,8 @@ const { onExport: exportBillsCsv } = useListCsv({
         row.merchantName,
         centsToYuanDigits(row.orderPaidCents),
         centsToYuanDigits(row.platformFeeCents),
-        centsToYuanDigits(row.channelFeeCents) + (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
+        centsToYuanDigits(row.channelFeeCents) +
+          (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
         centsToYuanDigits(row.creditedCents),
         centsToYuanDigits(row.pendingCents),
         row.orderCount,

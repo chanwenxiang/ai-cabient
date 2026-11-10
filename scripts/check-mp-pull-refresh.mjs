@@ -72,7 +72,9 @@ for (const cmp of MINI_PROGRAMS) {
   // E-R3-3①：结构漂移防锚。pages/subPackages 键被改名/挪走 ⇒ 解析出 0 个页面 ⇒
   // 旧版从「查 30 页」静默退化成「OK：0 个」。0 个声明本身就是异常，必须显式红。
   if (entries.length === 0) {
-    failures.push(`${cmp}: 解析到 0 个页面声明，疑似结构漂移（pages/subPackages 键变化？）—— 拒绝按空集假绿`);
+    failures.push(
+      `${cmp}: 解析到 0 个页面声明，疑似结构漂移（pages/subPackages 键变化？）—— 拒绝按空集假绿`
+    );
     continue;
   }
   // E-R3-3②：globalStyle 全局声明收编。声明移入 globalStyle 后所有页面都有下拉能力，

@@ -752,10 +752,7 @@ async function fetchWorkbenchBundle() {
       api.request<OpsWorkbench>(AdminEndpoints.workbench, 'GET').catch(() => null),
       canAccessPath('/exceptions')
         ? api
-            .request<PageResult<{ exceptionId: string }>>(
-              AdminEndpoints.exceptionsOpenCount,
-              'GET'
-            )
+            .request<PageResult<{ exceptionId: string }>>(AdminEndpoints.exceptionsOpenCount, 'GET')
             .catch((e: { status?: number }) => {
               exStatus = e?.status ?? null;
               return null;

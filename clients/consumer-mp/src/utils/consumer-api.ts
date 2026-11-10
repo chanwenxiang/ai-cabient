@@ -239,8 +239,7 @@ function uploadDisputeEvidenceOnce(
           }
           // R3-C-R3-1：R2-C1 修复只改了判断侧（读 e.status），构造侧仍是裸 Error ⇒ 判据死代码。
           // 401 必须以结构化 status 到达 catch（对齐同文件下载通道与商户端哨兵式）。
-          const upStatus =
-            res.statusCode === 401 || body?.code === 401 ? 401 : res.statusCode;
+          const upStatus = res.statusCode === 401 || body?.code === 401 ? 401 : res.statusCode;
           reject(
             createMpApiError(
               localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`),

@@ -655,14 +655,18 @@ if (prepPreviewBodies.length === 0) {
   );
 } else if (
   !prepPreviewBodies.some(
-    (body) => body.includes('findLatestStatusByDeviceIds(') && body.includes('latestTaskStatus.get(deviceId)')
+    (body) =>
+      body.includes('findLatestStatusByDeviceIds(') &&
+      body.includes('latestTaskStatus.get(deviceId)')
   )
 ) {
   const queryElsewhere = prepServiceSrc.includes('findLatestStatusByDeviceIds(');
   problems.push(
     'MerchantReplenishmentService.prepPreview 方法体内没有「findLatestStatusByDeviceIds(...) 查询 + ' +
       'latestTaskStatus.get(deviceId) 回填」这对判据' +
-      (queryElsewhere ? '（字面量在同文件他处出现 —— 查询被挪出 prepPreview，DTO 字段会恒为 null）' : '') +
+      (queryElsewhere
+        ? '（字面量在同文件他处出现 —— 查询被挪出 prepPreview，DTO 字段会恒为 null）'
+        : '') +
       ' —— DTO 字段会恒为 null（同上）'
   );
 }
