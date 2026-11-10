@@ -328,7 +328,7 @@ import {
 } from '@/utils/dispute-actions';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
-const { me, refresh: refreshMe } = useMerchantMe();
+const { me, meFromServer, refresh: refreshMe } = useMerchantMe();
 const canListDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
 const canReply = computed(() => hasPerm(me.value, 'merchant:disputes:reply'));
 const canResolve = computed(() => hasPerm(me.value, 'merchant:disputes:resolve'));
@@ -470,6 +470,12 @@ async function refreshDisputesMerchantMe(seq: number): Promise<boolean> {
   if (seq !== loadSeq) return false;
   if (!me.value) {
     seedMerchantMeDisplayCache(me);
+  }
+  // R5-A1/B4（B-新3 家族收口漏网）：弱网不可知 ≠「无争议权限」（原分支 navigateBack 踢回）
+  if (!meFromServer.value) {
+    loading.value = false;
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    return false;
   }
   return true;
 }

@@ -233,6 +233,10 @@ export function isRetriableMpTransportError(err: unknown): boolean {
   // 结构化 code 优先（mpRequestOnce fail 通道写入；文案可改，语义不变）
   const code = String((err as MpApiError).code || '').toUpperCase();
   if (code === 'MP_TRANSPORT_TIMEOUT' || code === 'MP_TRANSPORT_NETWORK') return true;
+  // R5-B8：HTTP 5xx（含网关 502/504）=「服务端是否已落库未知」——幂等键必须保留，
+  // 与「传输未知保留」同一语义；4xx 业务失败（409 等）不在此列，照旧返回 false。
+  const st = (err as MpApiError).status;
+  if (typeof st === 'number' && st >= 500) return true;
   // 兜底：直构 Error 的旧路径（如上传通道 fail 后 new Error(格式化文案)）仍按文案识别
   const msg = err.message || '';
   return (

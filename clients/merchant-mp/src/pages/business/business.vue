@@ -291,7 +291,9 @@ async function ensureAccess() {
   // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无经营分析权限」
   if (!meFromServer.value) {
     loading.value = false;
-    showError('网络异常，暂时无法确认权限，请重试');
+    // R5-B3：只 toast 会落「¥0.00 营收」零值假渲染 —— 必须写 error 位让 error-state 接管
+    error.value = '网络异常，暂时无法确认权限，请重试';
+    showError(error.value);
     return false;
   }
   if (!canViewBusiness.value) {

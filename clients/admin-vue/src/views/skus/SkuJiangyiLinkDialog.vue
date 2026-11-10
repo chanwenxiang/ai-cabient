@@ -367,6 +367,7 @@ async function createInJiangyi() {
       barCode: skuBarcode.value.trim() || undefined
     });
     ElMessage.success('已在将邑新建商品并挂接');
+    emit('changed'); // R5-A2：该路径同样产生挂接关系，父页状态列必须刷新
     await load();
   } catch (e) {
     ElMessage.error(errorMessage(e, '新增到将邑失败'));

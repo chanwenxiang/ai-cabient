@@ -134,6 +134,7 @@ const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory
 
 const loading = ref(true);
 const error = ref('');
+let lastPermUnknownToastAt = 0;
 const preferredId = ref('');
 type AlertRow = {
   type: string;
@@ -282,7 +283,12 @@ async function load() {
   }
   // R3-B-R3-4/R4-B-新3：弱网不可知 ≠「无待办权限」（原分支会 switchTab 踢回首页）
   if (!meFromServer.value) {
-    showError('网络异常，暂时无法确认待办权限，请重试');
+    // R5-B5：写持久错误位（否则落「暂无待办」假空态）；自动刷新 10s 一轮 ⇒ toast 节流 60s
+    error.value = '网络异常，暂时无法确认待办权限，请重试';
+    if (Date.now() - lastPermUnknownToastAt > 60_000) {
+      lastPermUnknownToastAt = Date.now();
+      showError(error.value);
+    }
     return;
   }
   if (!canViewAlerts.value) {

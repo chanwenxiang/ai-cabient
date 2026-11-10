@@ -275,15 +275,14 @@ function extractBracedBodies(masked, name) {
 
 // ── 真值 A：doCheckInTask 的闸门顺序 ─────────────────────────────────────────
 const serviceSrc = read(SERVICE_FILE);
-// 用带参数类型的声明定位，避免命中调用点 `runWithTaskLock(taskId, () -> doCheckInTask(...))`
-const methodStart = serviceSrc.indexOf('doCheckInTask(Long');
-if (methodStart < 0) fail('ReplenishmentService 里找不到 doCheckInTask 声明，锚点可能已被重写');
-const braceStart = serviceSrc.indexOf('{', methodStart);
-const braceEnd = serviceSrc.indexOf('\n    }', braceStart);
-if (braceStart < 0 || braceEnd < 0 || braceEnd <= braceStart) {
-  fail('无法确定 doCheckInTask 方法体范围，锚点可能已被重写');
+// R5-E1：真值 A 改用剥注释 + 大括号配平切片（extractBracedBodies）——旧实现裸切+含注释判序，
+// 「删真闸、留含关键字注释」可保绿（E-R3-2 同类），且 `\n    }` 锚与缩进强耦合。
+const maskedService = maskJavaComments(serviceSrc);
+const checkinBodies = extractBracedBodies(maskedService, 'doCheckInTask');
+if (!checkinBodies.length) {
+  fail('ReplenishmentService 里找不到 doCheckInTask 方法体，锚点可能已被重写');
 }
-const methodBody = serviceSrc.slice(braceStart, braceEnd);
+const methodBody = checkinBodies[0];
 
 const iDeviceGate = methodBody.indexOf(KEY_DEVICE_MISSING);
 const iRequestGate = methodBody.indexOf(KEY_LOCATION_REQUIRED);
@@ -717,6 +716,12 @@ if (decideBodies.length === 0) {
   problems.push(
     'self-replenish-submit.ts 的 decidePrepResubmitWithRefresh 函数体内没有调用 ' +
       'shouldBlockPrepResubmit(...) —— 包装函数已空心化（定义还在但不再消费，判据形同虚设）'
+  );
+}
+const shouldBlockBodies = extractBracedBodies(prepUtilSrc, 'shouldBlockPrepResubmit');
+if (!shouldBlockBodies.some((b) => b.includes('PREP_TASK_ENDED_STATUSES'))) {
+  problems.push(
+    'shouldBlockPrepResubmit 函数体不再消费 PREP_TASK_ENDED_STATUSES —— 终态分流被判据旁路（R5-A8②）'
   );
 }
 if (!/PREP_TASK_ENDED_STATUSES\s*=\s*\[[^\]]*'CANCELLED'/.test(prepUtilSrc)) {

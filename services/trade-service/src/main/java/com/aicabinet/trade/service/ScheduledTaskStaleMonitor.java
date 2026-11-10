@@ -58,7 +58,13 @@ public class ScheduledTaskStaleMonitor {
 
     /** R4-E6：Spring 常驻任务（不进 XXL KEYS，注册表有行）同样纳入超期看护扫描。 */
     static final java.util.List<String> SPRING_RESIDENT_TASK_KEYS =
-            java.util.List.of("session-failed-hold-clear", "refund-retry", "settlement-bill");
+            java.util.List.of(
+                    "session-failed-hold-clear",
+                    "refund-retry",
+                    "settlement-bill",
+                    // R5-E2：config 开关在任务体内，tryBegin/finish 照走（留痕刷新），收编安全
+                    "auto-replenish-task",
+                    "sms-delivery-probe");
 
     static java.util.List<String> watchedKeys() {
         java.util.List<String> keys = new ArrayList<>(XxlJobManagedTasks.KEYS);
@@ -176,7 +182,7 @@ public class ScheduledTaskStaleMonitor {
             List<StaleTask> stale = scan(Instant.now());
             staleCount.set(stale.size());
             summary = stale.isEmpty()
-                    ? "托管任务 " + XxlJobManagedTasks.KEYS.size() + " 个均按时执行"
+                    ? "看护任务 " + watchedKeys().size() + " 个均按时执行"
                     : "超期 " + stale.size() + " 个：" + stale.stream()
                             .map(StaleTask::taskKey).collect(Collectors.joining("、"));
             if (stale.isEmpty()) {

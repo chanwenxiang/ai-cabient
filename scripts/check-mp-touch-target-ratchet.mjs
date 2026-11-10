@@ -271,7 +271,8 @@ export function collectCssFor(file, text) {
 
 export function collectClickableClasses(tpl) {
   const out = new Set();
-  const tagRe = /<(view|text|button|image|a|label|checkbox|switch)[^>]*>/gi;
+  // R5-E3：picker/navigator 也是真实点按目标（渲染为可点单元格），此前整类静默排除
+  const tagRe = /<(view|text|button|image|a|label|checkbox|switch|picker|navigator)[^>]*>/gi;
   let m;
   while ((m = tagRe.exec(tpl))) {
     const tag = m[0];

@@ -3,7 +3,9 @@
     <app-nav-bar title="点位定价" home-url="/pages/home/home" />
     <view class="page-body">
       <view v-if="!canView" class="card">
-        <text class="err">当前账号无定价查看权限</text>
+        <text class="err">{{
+          meFromServer ? '当前账号无定价查看权限' : '网络异常，暂时无法确认权限，请重试'
+        }}</text>
       </view>
       <template v-else>
         <view class="card">

@@ -80,9 +80,9 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
       return me;
     } finally {
       if (seq === meSeq) loadingRef.value = false;
-      // refreshMerchantMe 入口已保证单飞（inflight 存在时直接复用），
-      // 完成后直接清空即可，无需比较 promise 引用。
-      inflight = null;
+      // R5-A7：只在本请求仍是最新代际时清 —— clear（登出）会 meSeq++，旧请求的
+      // finally 不得误清新 refresh 的 inflight（否则单飞在「登出→重登」窗口失效）。
+      if (seq === meSeq) inflight = null;
     }
   })();
   inflight = p;

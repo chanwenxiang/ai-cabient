@@ -197,13 +197,15 @@ public class ProcurementService {
                 }
                 java.util.Map<String, Integer> requestedLines = new java.util.LinkedHashMap<>();
                 request.lines().stream()
-                        .sorted(java.util.Comparator.comparing(PurchaseOrderLineDto::skuId))
-                        .forEach(l -> requestedLines.merge(l.skuId(), l.orderedQty(), Integer::sum));
+                        .sorted(java.util.Comparator.comparing(l -> l.skuId().trim()))
+                        .forEach(l -> requestedLines.merge(l.skuId().trim(), l.orderedQty(), Integer::sum)); // R5-D-新2：对齐落库侧 trim
                 java.util.Map<String, Integer> existingLines = new java.util.LinkedHashMap<>();
                 purchaseOrderLineRepository
                         .findByPurchaseOrderIdOrderByLineIdAsc(original.getPurchaseOrderId())
                         .forEach(l -> existingLines.merge(l.getSkuId(), l.getOrderedQty(), Integer::sum));
-                if (!java.util.Objects.equals(request.supplierId(), original.getSupplierId())
+                if (!java.util.Objects.equals(
+                                request.supplierId() == null ? null : request.supplierId().trim(),
+                                original.getSupplierId())
                         || !requestedLines.equals(existingLines)) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "采购单内容与首次提交不一致（单 " + original.getPurchaseOrderId()

@@ -20,7 +20,7 @@ public interface PurchaseOrderMapper extends BaseTradeMapper<PurchaseOrder> {
     /**
      * 按「仓库 + 参考号」点查（R2-B14 商户端采购申请的幂等回放）。
      *
-     * <p>取最新一条：ref_no 在库里没有唯一约束（内部单号回填也复用它），
+     * <p>取最新一条：ref_no 在库里对 `MP-` 前缀（客户端幂等键）有 V454 partial unique；人工参考号无约束（内部单号回填也复用它），
      * 正常路径下同一 (warehouseId, 客户端键) 只会存在一张单。
      */
     default Optional<PurchaseOrder> findLatestByWarehouseIdAndRefNo(String warehouseId, String refNo) {

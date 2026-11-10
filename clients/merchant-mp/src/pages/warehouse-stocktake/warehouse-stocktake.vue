@@ -27,8 +27,10 @@
         </view>
 
         <!-- ③ 盘点单列表 -->
+        <!-- R5-B2：弱网 permUnknown 时 resolveWarehouse 未跑、gate 未启用，loadList 会被
+             前置守卫静默吞掉 ⇒ 重试必须走完整 bootstrap（先刷 me/解析分仓再进列表）。 -->
         <view v-if="listError" class="card">
-          <error-state :message="listError" retry-label="重试" @retry="loadList" />
+          <error-state :message="listError" retry-label="重试" @retry="() => bootstrap()" />
         </view>
         <view v-else-if="listLoading" class="card">
           <view class="empty-inline">加载中…</view>
@@ -175,7 +177,7 @@
               v-if="detail.status === 'COMPLETED' && (detail.diffLineCount ?? 0) > 0"
               class="hint"
             >
-              已完成。商户端无过账入口：差异落库存请联系运营在后台「完成并过账」
+              该单已完成，商户端不能再过账；差异落库存请联系运营在后台「完成并过账」
             </text>
           </view>
 
@@ -733,7 +735,10 @@ async function persistUnsavedLines(): Promise<boolean> {
       row.status = updated.status || 'PENDING';
       rowBaseline.set(row.lineId, rowDraftKey(row));
     } catch (e) {
-      showError(e instanceof Error ? e.message : '保存实盘失败，请先处理后再过账');
+      // R5-B6：点名到行，否则多行场景无从定位
+      showError(
+        `${row.skuName || row.skuId}：${e instanceof Error ? e.message : '保存实盘失败，请先处理后再过账'}`
+      );
       return false;
     }
   }
@@ -784,6 +789,7 @@ async function saveLine(row: EditRow) {
     row.status = updated.status || 'PENDING';
     // 修复 2026-10-14：不再 loadDetail 重建整表——那会把其它行未保存的
     // 实盘数/备注/原因冲掉（现场盘点数据丢失）。就地只更新本行状态。
+    rowBaseline.set(row.lineId, rowDraftKey(row)); // R5-B6：已保存行同步底稿，过账时不再重 PUT
     showSuccess('已保存');
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');

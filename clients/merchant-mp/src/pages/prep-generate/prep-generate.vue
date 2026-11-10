@@ -322,7 +322,7 @@ async function submit() {
     );
     if (verdict === 'block_changed_with_active_task') {
       failures.push(
-        `${group.deviceName}：该柜已有进行中的补货任务，本次改量未提交，请到「补货任务」页调整数量`
+        `${group.deviceName}：该柜任务状态暂时无法确认（可能仍在进行中），本次改量未提交；请稍后重试，或到「补货任务」页确认`
       );
       continue;
     }

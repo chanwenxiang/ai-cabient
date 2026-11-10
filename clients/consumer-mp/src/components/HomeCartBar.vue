@@ -2,7 +2,7 @@
   <!--
     C13 切三：首页底部购物车条（从 pages/index/index.vue 逐字搬移）。
     shopping = 会话活跃且处于 SHOPPING 态（原模板内联判断收敛为 prop）；
-    动作（开购物车/清空/关门结算/刷新/求助/再次开门）全部上抛，编排仍归首页。
+    动作（开购物车/清空/购物清单上抛/刷新/求助/再次开门）全部上抛，编排仍归首页。
   -->
   <view class="cart-bar" :class="{ 'cart-bar--above-tab': aboveTabBar }">
     <template v-if="shopping">
@@ -100,6 +100,7 @@ withDefaults(
   { aboveTabBar: false }
 );
 
+// R5-C3b：模板走 $emit，此赋值仅保留类型推导（沿袭形态，无运行时消费）
 const emit = defineEmits<{
   openCart: [];
   clearCart: [];

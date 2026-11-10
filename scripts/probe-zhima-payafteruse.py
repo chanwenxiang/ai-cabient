@@ -9,13 +9,12 @@
   每个命令独立可跑，也支持 --all 串跑。
 
 前置（生产服务器 /data/apps/ai-cabinet/infra/.env.production）：
-  ALIPAY_APP_ID       ← 🔴 待定：过审后问 BD——zm_service_id 挂在壳小程序
-                         2021007118617439 上，接口调用大概率要用壳 APPID+密钥签名。
-                         可用 --app-id/--private-key 覆盖 env 值。
-  ALIPAY_PRIVATE_KEY  （PKCS8）
-  ALIPAY_PUBLIC_KEY   （支付宝公钥，验签用）
-  ZM_SERVICE_ID       ← 28 位，信用服务配置过审后分配（状态须「●已上线」）
-                        或命令行 --zm-service-id 传入
+  ALIPAY_ZM_APP_ID        ← 壳小程序 2021007118617439（兼容读 ALIPAY_APP_ID）
+  ALIPAY_ZM_PRIVATE_KEY   （PKCS8，兼容读 ALIPAY_PRIVATE_KEY）
+  ALIPAY_ZM_ALIPAY_PUBLIC_KEY（支付宝公钥，验签用）
+  ZM_SERVICE_ID           ← 2026111000000000000114823700（2026-11-10 分配，
+                             状态须「●已上线」才可线上下单；兼容 ALIPAY_ZM_SERVICE_ID）
+                             或命令行 --zm-service-id 传入
 
 签名算法与仓库 AlipaySignUtil.signRsa2 完全一致：
   TreeMap 排序 + 保留 sign_type + 不做 URL 转义 + SHA256withRSA(RSA2) + UTF-8 字节。
@@ -148,7 +147,7 @@ def main():
     ap.add_argument(
         "cmd",
         nargs="?",
-        choices=["sign", "order", "pay", "query-agreement", "query", "finish", "all"],
+        choices=["sign", "order", "pay", "query-agreement", "query", "finish", "acceptance", "all"],
         default="sign",
     )
     ap.add_argument("--out-agreement-no", default="")
@@ -159,10 +158,12 @@ def main():
     args = ap.parse_args()
 
     env = load_env(args.env)
-    app_id = args.app_id or env.get("ALIPAY_APP_ID", "")
-    priv = (args.private_key or env.get("ALIPAY_PRIVATE_KEY", "")).replace("\\n", "\n")
+    # 芝麻先享挂壳小程序 2021007118617439，密钥三键用 ALIPAY_ZM_* 前缀（与主支付宝 APPID 区分），
+    # 探针兼容两种键名，ZM 专用键优先。
+    app_id = args.app_id or env.get("ALIPAY_ZM_APP_ID", "") or env.get("ALIPAY_APP_ID", "")
+    priv = (args.private_key or env.get("ALIPAY_ZM_PRIVATE_KEY", "") or env.get("ALIPAY_PRIVATE_KEY", "")).replace("\\n", "\n")
     gateway = env.get("ALIPAY_GATEWAY") or GATEWAY_DEFAULT
-    zm = args.zm_service_id or env.get("ZM_SERVICE_ID", "")
+    zm = args.zm_service_id or env.get("ZM_SERVICE_ID", "") or env.get("ALIPAY_ZM_SERVICE_ID", "")
     notify = env.get("ALIPAY_NOTIFY_URL", "")
 
     print("APP_ID =", app_id)
@@ -182,11 +183,38 @@ def main():
             "out_agreement_no": out_no,
             "zm_service_id": zm,
             "product_code": "CREDIT_PAY_AFTER_USE",
-            # 官方 2.2.1：返回 response.getBody()（orderStr）作 signStr → 拼 schemeUrl
         }
-        raw = probe.call("zhima.credit.payafteruse.creditagreement.sign", biz, notify_url=notify)
-        show(f"sign (out_agreement_no={out_no})", raw)
-        return raw
+        # sign 是页面型接口：不要真的 POST 网关（会 302 到内网池地址，无法跟踪）。
+        # 官方做法（2.2.1）：全参数签名后拼成 orderStr/signStr → 放进官方跳转页 → schemeUrl。
+        params = {
+            "app_id": probe.app_id,
+            "method": "zhima.credit.payafteruse.creditagreement.sign",
+            "format": "JSON",
+            "charset": "utf-8",
+            "sign_type": "RSA2",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "version": "1.0",
+            "biz_content": json.dumps(biz, ensure_ascii=False, separators=(",", ":")),
+        }
+        if notify:
+            params["notify_url"] = notify
+        params["sign"] = sign_rsa2(params, probe.priv)
+        order_str = urllib.parse.urlencode(params)
+        # 🔴 caprMode=sync 必带：缺它页面走异步模式拉不起授权页，兜底报「前方拥堵」
+        # （官方实战样例：render.../index.html?caprMode=sync&signStr=<urlencode(orderStr)>）
+        landing = (
+            "https://render.alipay.com/p/yuyan/180020010000706007/index.html?caprMode=sync&signStr="
+            + urllib.parse.quote(order_str, safe="")
+        )
+        scheme = SCHEME_BASE + urllib.parse.quote(landing, safe="")
+        print(f"--- sign (out_agreement_no={out_no}) ---")
+        print("  signStr/orderStr 生成成功（未发 HTTP，无资金动作）")
+        print("  landing =")
+        print("    " + landing)
+        print("  schemeUrl（生成二维码，手机支付宝扫码完成授权）：")
+        print("    " + scheme)
+        print()
+        return scheme
 
     def do_order():
         if not args.credit_agreement_id:
@@ -222,9 +250,12 @@ def main():
         return raw
 
     def do_query_agreement():
-        biz = {"credit_agreement_id": args.credit_agreement_id} if args.credit_agreement_id else {
-            "zm_service_id": zm,
-        }
+        if args.credit_agreement_id:
+            biz = {"credit_agreement_id": args.credit_agreement_id}
+        elif args.out_agreement_no:
+            biz = {"out_agreement_no": args.out_agreement_no}
+        else:
+            biz = {"zm_service_id": zm}
         raw = probe.call("zhima.credit.payafteruse.creditagreement.query", biz)
         show("query-agreement", raw)
         return raw
@@ -246,6 +277,65 @@ def main():
         show("finish", raw)
         return raw
 
+    def do_acceptance():
+        """集成验收一条龙：三笔独立测试单（同一 credit_agreement 下）。
+        A 单只下单不完结（创建订单校验）；B 单下单后 finish（完结校验，不得扣款）；
+        C 单下单后扣款 0.01 元（扣款校验）。输出三个 out_order_no 供验收表填写。"""
+        if not zm:
+            print("[ERR] 缺 zm_service_id")
+            return None
+        if not args.credit_agreement_id:
+            print("[ERR] 缺 --credit-agreement-id（签约成功后从通知或 query-agreement 获取）")
+            return None
+        ts = time.strftime("%Y%m%d%H%M%S")
+        results = {}
+
+        def make_order(tag):
+            out_no = f"ZMACC-{tag}-{ts}"
+            biz = {
+                "out_order_no": out_no,
+                "credit_agreement_id": args.credit_agreement_id,
+                "subject": "智能开门柜集成验收",
+                "extend_params": json.dumps({"credit_allpass": "true"}),
+            }
+            raw = probe.call("zhima.credit.payafteruse.creditbizorder.order", biz, notify_url=notify)
+            show(f"order[{tag}] (out_order_no={out_no})", raw)
+            try:
+                body = json.loads(raw)[next(k for k in json.loads(raw) if k.endswith("_response"))]
+                results[tag] = (out_no, body.get("credit_biz_order_id", ""), body.get("code"))
+            except Exception:
+                results[tag] = (out_no, "", "parse-fail")
+            return raw
+
+        # A：只下单
+        make_order("A")
+        # B：下单 + 完结（不扣款）
+        make_order("B")
+        if results["B"][1]:
+            do_finish_args = results["B"][1]
+            biz = {"credit_biz_order_id": do_finish_args, "is_fulfilled": True}
+            show("finish[B]", probe.call("zhima.credit.payafteruse.creditbizorder.finish", biz))
+        # C：下单 + 扣款
+        make_order("C")
+        if results["C"][1]:
+            biz = {
+                "out_trade_no": "PAY" + ts,
+                "product_code": "GENERAL_WITHHOLDING",
+                "subject": "智能开门柜集成验收结算",
+                "total_amount": args.amount,
+                "auth_code": results["C"][1],
+                "scene": "ZHIMA_CREDIT_CODE",
+                "extend_params": json.dumps({"creditTradeScene": "CREDIT_PAY_UNCERTAIN_FEE"}),
+            }
+            show(f"pay[C] (amount={args.amount})", probe.call("alipay.trade.pay", biz, notify_url=notify))
+
+        print("=== 验收表填写汇总 ===")
+        print("商家PID =", "2088021457101373")
+        print("创建订单外部订单号 =", results["A"][0])
+        print("完结订单外部订单号 =", results["B"][0])
+        print("扣款订单外部订单号 =", results["C"][0])
+        print("（若某笔 code!=10000，先排查再填表）")
+
     steps = {
         "sign": do_sign,
         "order": do_order,
@@ -253,6 +343,7 @@ def main():
         "query-agreement": do_query_agreement,
         "query": do_query,
         "finish": do_finish,
+        "acceptance": do_acceptance,
     }
     if cmd == "all":
         for name in ("sign", "order", "pay", "query"):

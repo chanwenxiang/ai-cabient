@@ -175,6 +175,8 @@ async function ensurePurchaseAccess(): Promise<boolean> {
   // R3-B-R3-4/R4-B-新3：弱网不可知 ≠ 无权限 —— pageError 呈现网络错误（此前静默空态，B-新8）
   if (!meFromServer.value) {
     pageError.value = '网络异常，暂时无法确认权限，请重试';
+    // R5-B5：list 面板只认 listError —— 不写的话切「单据」页签落「暂无采购单」假空态
+    listError.value = pageError.value;
     return false;
   }
   return canView.value;

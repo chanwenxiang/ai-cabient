@@ -244,11 +244,13 @@ function uploadDisputeEvidenceOnce(
             createMpApiError(
               localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`),
               upStatus,
-              'UNAUTHORIZED'
+              // R5-A6/C1a：code 只在真 401 挂 —— 500 携 UNAUTHORIZED 会被 isMpAuthFailure 误判
+              upStatus === 401 ? 'UNAUTHORIZED' : undefined
             )
           );
         } catch {
-          reject(new Error('上传响应解析失败'));
+          // R5-C1b：非 JSON 响应也带 status —— 判断侧的 401 兜底才对它声称的场景可达
+          reject(createMpApiError('上传响应解析失败', res.statusCode));
         }
       },
       fail(err) {

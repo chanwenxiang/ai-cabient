@@ -207,7 +207,9 @@ export function useReplenishmentList(opts: { preferredId: Ref<string> }) {
     if (!hooks.canReplenish()) {
       // R3-B-R3-4/R4-B-新3：弱网（me 不可知）≠ 无权限 —— 不踢回首页，报网络错误
       if (!isMerchantMeFromServer()) {
-        showError('网络异常，暂时无法确认补货权限，请重试');
+        // R5-B5：持久错误位（否则落「当前没有补货任务」假空态）
+        loadError.value = '网络异常，暂时无法确认补货权限，请重试';
+        showError(loadError.value);
       } else {
         showError('无补货权限');
         uni.switchTab({ url: '/pages/home/home' });

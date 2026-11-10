@@ -85,7 +85,7 @@ export function buildWalletWithdrawBody(input: {
   return body;
 }
 
-export const TERMINAL_WITHDRAW_STATUSES = ['PAID', 'REJECTED', 'FAILED'] as const;
+export const TERMINAL_WITHDRAW_STATUSES = ['PAID', 'REJECTED', 'FAILED', 'CANCELLED'] as const; // R5-D-新1：cancelFailedLocked 会置 CANCELLED
 
 export function isTerminalWithdrawStatus(status?: string | null): boolean {
   const s = String(status || '').toUpperCase();

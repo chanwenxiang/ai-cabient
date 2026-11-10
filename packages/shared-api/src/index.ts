@@ -150,7 +150,9 @@ export class ApiClient {
       throw new Error(localizeApiMessage(json.message, '登录已失效'));
     }
     if (res.status === 403) {
-      throw new Error(localizeApiMessage(json.message, '权限不足'));
+      // R5-A3：403 必须带结构化 status —— Dashboard 的 statsNoPerm 判据读 e.status，
+      // 裸 Error 让该判据成为死代码（A-R3-4 修复的构造侧缺口第四次复发）。
+      throw new ApiHttpError(localizeApiMessage(json.message, '权限不足'), 403);
     }
     if (!res.ok || json.code !== 0) {
       throw new ApiHttpError(

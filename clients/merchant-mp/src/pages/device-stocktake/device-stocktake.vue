@@ -42,7 +42,7 @@ interface DoorStocktakeLineResult {
   delta: number;
 }
 
-const { me } = useMerchantMe();
+const { me, meFromServer } = useMerchantMe();
 const deviceId = ref('');
 const deviceName = ref('');
 const loading = ref(false);
@@ -361,7 +361,11 @@ async function doSubmitDoor(lines: { skuId: string; countedQuantity: number }[])
   <view>
     <app-nav-bar title="柜机盘点" home-url="/pages/home/home" />
     <view class="page-body" :class="{ 'page-body-dock': showDock }">
-      <view v-if="!canStocktake" class="card"><text class="err">当前账号无盘点权限</text></view>
+      <view v-if="!canStocktake" class="card"
+        ><text class="err">{{
+          meFromServer ? '当前账号无盘点权限' : '网络异常，暂时无法确认权限，请重试'
+        }}</text></view
+      >
       <template v-else>
         <!-- ① 柜机身份：已选柜只占一条；未选柜就是整块扫码入口 -->
         <view class="card">

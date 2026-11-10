@@ -232,7 +232,8 @@ function fail(msg) {
 function scopeCount(globs, excludes = []) {
   const files = globs
     .flatMap((g) => expandGlob(g))
-    .filter((f) => !excludes.some((e) => f.includes(e)));
+    // R5-E5：basename 严格相等，防 *theme.css 同族文件整文件误豁免
+    .filter((f) => !excludes.some((e) => f.split(/[\\/]/).pop() === e));
   const perFile = {};
   for (const f of files) {
     const counts = countColors(readFileSync(f, 'utf8'));

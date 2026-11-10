@@ -47,7 +47,8 @@ function loadPagesJson(file) {
 function collectPages(pj) {
   const out = [];
   for (const p of pj.pages || []) out.push({ path: p.path, style: p.style || {} });
-  for (const sp of pj.subPackages || []) {
+  for (const sp of pj.subPackages || pj.subpackages || []) {
+    // R5-E4：微信原生接受两种键名
     for (const p of sp.pages || []) {
       out.push({ path: `${sp.root}/${p.path}`, style: p.style || {} });
     }

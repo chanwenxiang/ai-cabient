@@ -195,7 +195,8 @@ public class DeviceInfoController {
         Object txtUrl = body == null ? null : body.get("txtUrl");
         log.info("jiangyi receiveCurrentTxtUrl deviceId={} body={} → 666（我方不下发 txt 地址）", deviceId, body);
         if (txtUrl != null && !txtUrl.toString().isBlank()) {
-            txtConfirmExecutor.submit(() -> {
+            try {
+                txtConfirmExecutor.submit(() -> {
                 try {
                     tradeInternalClient.modelConfirmedByTxt(deviceId, txtUrl.toString());
                 } catch (Exception e) {
@@ -203,6 +204,10 @@ public class DeviceInfoController {
                             deviceId, txtUrl, e.getMessage());
                 }
             });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                // R5-D-新3：JVM 关停瞬间 submit 可能被拒 —— 不能让 500 破坏 666 信封形态
+                log.warn("jiangyi receiveCurrentTxtUrl executor rejected (shutting down?) deviceId={}", deviceId);
+            }
         }
         return envelope(666, "当前模型text文件地址不存在", null);
     }
