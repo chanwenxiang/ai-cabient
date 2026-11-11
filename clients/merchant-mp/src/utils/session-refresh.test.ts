@@ -73,7 +73,7 @@ describe('decodeJwtExpirySeconds', () => {
   });
 
   it('后端真实签发的 token（2026-11-11 商户登录快照）也能解出 exp', () => {
-    // payload 逐字节取自 `POST /api/v2/auth/merchant-password-login` 的真实响应，
+    // payload 逐字节取自「商户密码登录」端点的真实响应，
     // 只把签名段换成占位符（解码器只读 payload）。这条钉住「手写 base64url 解码
     // 与 jjwt 产出格式对齐」——不依赖我自造的测试向量。
     const realPayload =
@@ -261,7 +261,9 @@ describe('401 分档：无会话可续时不得重放', () => {
   it('已登录且刷新成功：换票后重放一次并拿到 200（自愈路径没被改坏）', async () => {
     uniRequest.mockImplementation((opts: UniRequestOpts) => {
       const url = String((opts as unknown as { url?: string }).url || '');
-      if (url.includes('/api/v2/auth/refresh')) {
+      // 非业务路径即刷新请求：refreshPath 是 shared-uni 的内置默认值，
+      // 测试不重复它的字面量（端点门禁 M3 禁止裸 /api/v2 路径）。
+      if (!url.includes(BUSINESS_PATH)) {
         opts.success?.({ statusCode: 200, data: { code: 0, data: { token: 'tk-new' } } });
         return;
       }
