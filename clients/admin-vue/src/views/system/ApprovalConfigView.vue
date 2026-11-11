@@ -552,7 +552,7 @@ async function saveMeta() {
       await api.request(AdminEndpoints.approvalsDefinition(metaForm.defId), 'PUT', {
         defName: metaForm.defName.trim(),
         enabled: metaForm.enabled,
-        remark: metaForm.remark.trim() || null
+        remark: metaForm.remark.trim() ?? null
       });
       ElMessage.success('已保存');
     }

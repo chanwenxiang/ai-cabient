@@ -778,7 +778,7 @@ async function confirmEditLine() {
         countedQty: editCounted.value,
         rockLossQty: editRock.value,
         feeDeductQty: editFee.value,
-        lineRemark: editRemark.value.trim() || null
+        lineRemark: editRemark.value.trim() ?? null
       }
     );
     detail.value = updated;

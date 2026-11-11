@@ -2,7 +2,7 @@
 
 > **基线**：HEAD `e9ca9e9b`（R12 批次修复后 6 个提交，全部已逐条复核）。**方法**：全程会话内手动只读审计（trade-service 后端 / admin-vue / merchant-mp / consumer-mp），先对齐 R11/R12 已修/豁免清单后仅报新增。
 > **总账**：新发现 **1 条 = P2×1**（系统性）；P0/P1/P3 为零。
-> **修复状态**：待用户拍板。
+> **修复状态**：✅ 已修复（2026-11-11 批次落地）。前端 5 处 `|| null` → `?? null` + 后端 5 处显式清列；CouponService 已有 `writeNullableColumns`，`activityId` 豁免。回归验证：后端编译 + 32 测试通过、admin-vue type-check + 140 vitest 通过、`check:mybatis-null-clear` / `check:mp-defect-classes` / `check:admin-artifact-pairing` 门禁全过、admin static 已重建。
 
 ---
 

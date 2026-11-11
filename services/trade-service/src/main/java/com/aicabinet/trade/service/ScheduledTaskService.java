@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -117,6 +119,17 @@ public class ScheduledTaskService {
         row.setRemark(blankToNull(req.remark()));
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
+        // R13-MA-174：显式清列——updateById 跳 null，scheduleDesc/remark 清空后无法落库（M01 家族）。
+        if (row.getScheduleDesc() == null) {
+            taskRepository.update(null, Wrappers.<ScheduledTask>lambdaUpdate()
+                    .eq(ScheduledTask::getTaskKey, taskKey)
+                    .set(ScheduledTask::getScheduleDesc, null));
+        }
+        if (row.getRemark() == null) {
+            taskRepository.update(null, Wrappers.<ScheduledTask>lambdaUpdate()
+                    .eq(ScheduledTask::getTaskKey, taskKey)
+                    .set(ScheduledTask::getRemark, null));
+        }
         auditService.appendLog(operatorId, "SCHEDULED_TASK_UPDATE", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }

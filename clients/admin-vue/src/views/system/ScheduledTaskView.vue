@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -482,8 +482,8 @@ async function saveEdit() {
       await api.request(AdminEndpoints.scheduledTask(editForm.taskKey), 'PUT', {
         taskName: editForm.taskName.trim(),
         taskGroup: editForm.taskGroup.trim(),
-        scheduleDesc: editForm.scheduleDesc.trim() || null,
-        remark: editForm.remark.trim() || null
+        scheduleDesc: editForm.scheduleDesc.trim() ?? null,
+        remark: editForm.remark.trim() ?? null
       });
       ElMessage.success('已保存');
     }

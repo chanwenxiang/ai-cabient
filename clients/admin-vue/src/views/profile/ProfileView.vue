@@ -461,8 +461,8 @@ async function submitProfile() {
     await auth.updateProfile({
       name,
       phoneNumber,
-      email: email || null,
-      avatarUrl: editForm.avatarUrl.trim() || null,
+      email: email ?? null,
+      avatarUrl: editForm.avatarUrl.trim() ?? null,
       phoneSmsCode: phoneChanged.value ? phoneSmsCode : null
     });
     ElMessage.success(phoneChanged.value ? '手机号已换绑' : '资料已保存');

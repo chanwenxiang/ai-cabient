@@ -27,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -490,6 +492,12 @@ public class ApprovalWorkflowService {
             def.setRemark(trim(req.remark()));
         }
         definitionRepository.updateById(def);
+        // R13-MA-174：显式清列——updateById 跳 null，remark 清空后无法落库（M01 家族）。
+        if (def.getRemark() == null) {
+            definitionRepository.update(null, Wrappers.<ApprovalDefinition>lambdaUpdate()
+                    .eq(ApprovalDefinition::getDefId, defId)
+                    .set(ApprovalDefinition::getRemark, null));
+        }
 
         if (req.nodes() != null) {
             replaceNodes(defId, req.nodes());

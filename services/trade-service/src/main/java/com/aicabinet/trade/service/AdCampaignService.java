@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -155,6 +157,12 @@ public class AdCampaignService {
             campaign.setEndAt(request.endAt());
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.updateById(campaign);
+            // R13-MA-174：显式清列——updateById 跳 null，linkUrl 清空后无法落库（M01 家族）。
+            if (campaign.getLinkUrl() == null) {
+                campaignRepository.update(null, Wrappers.<AdCampaign>lambdaUpdate()
+                        .eq(AdCampaign::getCampaignId, campaignId)
+                        .set(AdCampaign::getLinkUrl, null));
+            }
         }
         replaceItems(campaign.getCampaignId(), request.assetIds());
         replaceDevices(campaign.getCampaignId(), scope, request.deviceIds());

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -490,7 +490,7 @@ async function save() {
       name: form.value.name.trim(),
       deviceScope: form.value.deviceScope,
       channel: form.value.channel,
-      linkUrl: form.value.channel === 'MINI_PROGRAM' ? form.value.linkUrl.trim() || null : null,
+      linkUrl: form.value.channel === 'MINI_PROGRAM' ? form.value.linkUrl.trim() ?? null : null,
       startAt: form.value.window?.[0]?.toISOString() ?? null,
       endAt: form.value.window?.[1]?.toISOString() ?? null,
       assetIds: form.value.assetIds,

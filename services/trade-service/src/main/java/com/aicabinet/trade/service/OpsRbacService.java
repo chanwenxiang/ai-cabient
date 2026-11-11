@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.util.PhoneMask;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OpsPermission;
 import com.aicabinet.trade.domain.OpsRole;
@@ -924,6 +925,17 @@ public class OpsRbacService {
         user.setEmail(email);
         user.setAvatarUrl(avatarUrl);
         userInfoRepository.save(user);
+        // R13-MA-174：显式清列——updateById 跳 null，email/avatarUrl 清空后无法落库（M01 家族）。
+        if (user.getEmail() == null) {
+            userInfoRepository.update(null, Wrappers.<UserInfo>lambdaUpdate()
+                    .eq(UserInfo::getUserId, operatorId)
+                    .set(UserInfo::getEmail, null));
+        }
+        if (user.getAvatarUrl() == null) {
+            userInfoRepository.update(null, Wrappers.<UserInfo>lambdaUpdate()
+                    .eq(UserInfo::getUserId, operatorId)
+                    .set(UserInfo::getAvatarUrl, null));
+        }
         return myProfile(operatorId);
     }
 

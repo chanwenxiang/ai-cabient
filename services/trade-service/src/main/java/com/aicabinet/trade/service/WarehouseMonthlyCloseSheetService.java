@@ -240,6 +240,12 @@ public class WarehouseMonthlyCloseSheetService {
             line.setGapAmountCents(amount);
         }
         lineMapper.updateById(line);
+        // R13-MA-174：显式清列——updateById 跳 null，lineRemark 清空后无法落库（M01 家族）。
+        if (line.getLineRemark() == null) {
+            lineMapper.update(null, Wrappers.<WarehouseMonthlyCloseLine>lambdaUpdate()
+                    .eq(WarehouseMonthlyCloseLine::getLineId, line.getLineId())
+                    .set(WarehouseMonthlyCloseLine::getLineRemark, null));
+        }
         recalcSheetTotals(sheet);
         return toDto(sheet, true);
     }
