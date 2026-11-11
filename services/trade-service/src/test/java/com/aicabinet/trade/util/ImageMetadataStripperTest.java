@@ -43,6 +43,31 @@ class ImageMetadataStripperTest {
         assertTrue(out == original);
     }
 
+    /** R15-L2：超限尺寸（不解码像素，仅 header 声明即可）必须抛 OversizedImageException 拒收。 */
+    @Test
+    void strip_oversizedImage_rejected() throws Exception {
+        // 8001×2 = 内存仅 KB 级，但宽度超 MAX_DIMENSION(8000)——等价于「5MB 声明 4 万像素宽」的炸弹形态
+        BufferedImage wide = new BufferedImage(ImageMetadataStripper.MAX_DIMENSION + 1, 2,
+                BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(wide, "jpg", out));
+        org.junit.jupiter.api.Assertions.assertThrows(
+                ImageMetadataStripper.OversizedImageException.class,
+                () -> ImageMetadataStripper.strip(out.toByteArray(), "image/jpeg"));
+    }
+
+    /** R15-L2 反向：上限内的正常图片照常处理（不受防线误伤）。 */
+    @Test
+    void strip_withinLimit_stillProcessed() throws Exception {
+        BufferedImage ok = new BufferedImage(ImageMetadataStripper.MAX_DIMENSION, 2,
+                BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(ok, "jpg", out));
+        byte[] cleaned = ImageMetadataStripper.strip(out.toByteArray(), "image/jpeg");
+        assertNotNull(cleaned);
+        assertTrue(cleaned.length > 2);
+    }
+
     /** 在 SOI 后插入最小 APP1 段（非合法 Exif，仅用于标记检测）。 */
     private static byte[] injectFakeExifApp1(byte[] jpeg) {
         // JPEG SOI = FF D8；APP1 = FF E1 + length(2) + payload

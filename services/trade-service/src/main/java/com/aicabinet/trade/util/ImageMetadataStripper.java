@@ -5,8 +5,11 @@ import org.slf4j.LoggerFactory;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -21,6 +24,14 @@ import java.util.Locale;
 public final class ImageMetadataStripper {
     private static final Logger log = LoggerFactory.getLogger(ImageMetadataStripper.class);
 
+    /**
+     * R15-L2：解压炸弹防线。5MB 的 JPEG 可声明 40000×40000 像素，{@code ImageIO.read}
+     * 会按全尺寸分配 TYPE_INT_RGB（≈6.4GB）——单请求即可打爆 trade-service 堆。
+     * 解码前先只读图片 header 探测尺寸（不解码像素），超限即拒。
+     */
+    static final int MAX_DIMENSION = 8000;
+    static final long MAX_PIXELS = 32_000_000L;
+
     private ImageMetadataStripper() {
     }
 
@@ -28,6 +39,7 @@ public final class ImageMetadataStripper {
      * @param bytes       原始图片字节
      * @param contentType MIME，如 image/jpeg
      * @return 去元数据后的字节；失败则返回原 bytes
+     * @throws OversizedImageException 图片声明尺寸超上限（调用方应转 400，不得静默放行）
      */
     public static byte[] strip(byte[] bytes, String contentType) {
         if (bytes == null || bytes.length == 0) {
@@ -38,6 +50,7 @@ public final class ImageMetadataStripper {
             return bytes;
         }
         try {
+            assertDecodableSize(bytes, format);
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(bytes));
             if (image == null) {
                 return bytes;
@@ -52,9 +65,39 @@ public final class ImageMetadataStripper {
             }
             byte[] cleaned = out.toByteArray();
             return cleaned.length > 0 ? cleaned : bytes;
+        } catch (OversizedImageException e) {
+            // 超限必须上抛：吞掉就走「原样返回」= 炸弹照收（R15-L2）
+            throw e;
         } catch (Exception e) {
             log.warn("strip image metadata failed, keep original: {}", e.toString());
             return bytes;
+        }
+    }
+
+    /** 图片声明尺寸超上限（调用方转 400 拒收）。 */
+    public static final class OversizedImageException extends RuntimeException {
+        public OversizedImageException(String message) {
+            super(message);
+        }
+    }
+
+    /** 只读 header 探测尺寸，不解码像素——防解压炸弹（R15-L2）。 */
+    private static void assertDecodableSize(byte[] bytes, String format) throws Exception {
+        Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName(format);
+        if (!readers.hasNext()) {
+            return; // 无 reader 时后续 ImageIO.read 也会失败，走既有宽容路径
+        }
+        ImageReader reader = readers.next();
+        try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+            reader.setInput(in);
+            int w = reader.getWidth(0);
+            int h = reader.getHeight(0);
+            if (w > MAX_DIMENSION || h > MAX_DIMENSION || (long) w * h > MAX_PIXELS) {
+                throw new OversizedImageException(
+                        "图片尺寸 " + w + "x" + h + " 超出上限 " + MAX_DIMENSION + "px/" + MAX_PIXELS + "px");
+            }
+        } finally {
+            reader.dispose();
         }
     }
 

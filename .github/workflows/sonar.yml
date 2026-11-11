@@ -63,10 +63,15 @@ jobs:
       - name: Resolve Sonar project (dev / main)
         id: sonar_proj
         shell: bash
+        # R15-H5：inputs 经 env 传递而非 ${{ }} 内插——choice 输入服务端不校验取值域，
+        # API 直调可携带任意串；内插进 bash 源码即可逃逸引号执行任意命令（写权限前置，低危必修形态）。
+        env:
+          WF_EVENT: ${{ github.event_name }}
+          WF_REF_INPUT: ${{ inputs.ref }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BRANCH="${{ inputs.ref }}"
+          if [ "$WF_EVENT" = "workflow_dispatch" ]; then
+            BRANCH="$WF_REF_INPUT"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             BRANCH="${GITHUB_BASE_REF:-dev}"
           else

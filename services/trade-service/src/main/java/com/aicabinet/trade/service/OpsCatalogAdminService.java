@@ -163,7 +163,14 @@ public class OpsCatalogAdminService {
             skuSceneLimitService.replaceLimits(sku.getSkuId(), request.sceneLimits());
         }
         String newImageUrl = trimToNull(request.imageUrl());
-        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+        // R15-L1：uploadSkuImage 按 sha256 去重——多个 SKU 共用同一 fileId，而
+        // releaseSkuImageIfUnused 的存活判定只数 file_attachment 行（去重后恒 1 行），
+        // 档案层零引用计数 ⇒ 换 B 的图会物理删掉 A 还在用的图（跨 SKU 悬空引用）。
+        // 故释放前必须判档案层存活：任何 SKU（**含自己**——imageUrl=null=不改的请求
+        // 也会走到 release，此时自己仍引用旧图，不得删）仍引用该 URL 就只换引用不删对象。
+        // 以释放时刻的库态为准（clearExplicitlyBlankColumns 已先行落库，清空场景不受影响）。
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)
+                && !skuCatalogRepository.existsByImageUrl(oldImageUrl, null)) {
             fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl);
         }
         // MA-R1：status/price/category 变化此前完全无痕（100016-18 何时下架全靠猜），逐字段记前后值

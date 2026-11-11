@@ -3,8 +3,17 @@ name: ai-cabinet
 # 基础设施层（生产/预发与 docker-compose.apps.yml 叠加使用）。
 # 本地开发请只用仓库根目录 .\docker-up.ps1（docker-compose.full.yml），勿单独 up 本文件。
 
+# R15-M3：全栈日志轮转——json-file 默认无上限，gateway 访问日志等常驻服务磁盘单调增长。
+# 常驻服务统一引用（x-logging 锚点）；一次性 init 容器不加。
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   postgres:
+    logging: *default-logging
     stop_grace_period: 60s
     image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # AU-192：钉 digest（= 2026-10 本地实测版）
     restart: unless-stopped
@@ -22,6 +31,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   redis:
+    logging: *default-logging
     stop_grace_period: 30s
     image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499 # 钉 digest
     restart: unless-stopped
@@ -44,6 +54,7 @@ services:
     cpus: 0.5
 
   emqx:
+    logging: *default-logging
     stop_grace_period: 30s
     image: emqx/emqx:5.8.6@sha256:a1e3d10fa1dcc8c94325b815a93b5b5974253a97cb36470b44e47d5d3ef9cd13 # 钉 digest
     restart: unless-stopped
@@ -82,6 +93,7 @@ services:
     cpus: 0.5
 
   minio:
+    logging: *default-logging
     stop_grace_period: 60s
     image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e # 审计批次4：钉 digest（原 latest；= 2026-10 本地实测版）
     restart: unless-stopped
@@ -107,7 +119,11 @@ services:
     cpus: 0.5
 
   redpanda:
+    logging: *default-logging
     stop_grace_period: 60s
+    # R15-M1：宿主/Docker 重启后 Kafka 必须自动拉起（trade 的事件链依赖它）；
+    # 此前全栈只有这里和 gateway 缺 restart，宿主重启后需人工 up。
+    restart: unless-stopped
     image: redpandadata/redpanda:v24.1.1@sha256:3387a7ac6b2307129032562bf957653de13373a2748f82de7ab588a39d50b88d # 钉 digest
     # 审计 A2/P1-8：SASL/SCRAM 基线——配置文件挂载渲染（authentication_method 必须显式写在
     # 监听器上；--set/--kafka-addr 旗标写法实证不可靠，见 redpanda.sasl.yaml 头注释）。
@@ -155,7 +171,11 @@ services:
       - redpanda
 
   gateway:
+    logging: *default-logging
     stop_grace_period: 30s
+    # R15-M1：gateway 是 base 栈对外唯一 HTTP 入口，宿主重启后必须自动拉起
+    #（AU-148 目标「入口自动拉起」此前漏了入口本身）。
+    restart: unless-stopped
     image: nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 # 钉 digest
     ports:
       # 生产（2026-10-21 实证）：宿主 nginx 接管 0.0.0.0:80/443（cabinet.easygovm.com vhost），
@@ -169,6 +189,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   prometheus:
+    logging: *default-logging
     stop_grace_period: 30s
     image: prom/prometheus:v2.51.0@sha256:5ccad477d0057e62a7cd1981ffcc43785ac10c5a35522dc207466ff7e7ec845f # 钉 digest
     restart: unless-stopped
@@ -185,6 +206,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   grafana:
+    logging: *default-logging
     stop_grace_period: 30s
     image: grafana/grafana:10.4.0@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5 # 钉 digest
     restart: unless-stopped

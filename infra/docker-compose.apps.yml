@@ -1,6 +1,14 @@
 # 全栈 Compose：在 infra/docker-compose.yml 基础上追加应用服务
 # 用法：docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps up -d --build
 
+# R15-M3：全栈日志轮转——json-file 默认无上限，gateway 访问日志等常驻服务磁盘单调增长。
+# 常驻服务统一引用（x-logging 锚点）；一次性 init 容器不加。
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   postgres:
     stop_grace_period: 60s
@@ -51,6 +59,7 @@ services:
     profiles: ["apps"]
 
   trade-service:
+    logging: *default-logging
     stop_grace_period: 30s
     restart: unless-stopped
     # 默认同机单副本；多实例见 infra/docker-compose.ha.yml + docs/HIGH_AVAILABILITY.md
@@ -205,6 +214,7 @@ services:
     profiles: ["apps"]
 
   device-service:
+    logging: *default-logging
     stop_grace_period: 30s
     restart: unless-stopped
     build:
@@ -247,6 +257,7 @@ services:
   # 🔴 JIANGYI_JWT_SECRET 无默认值（fail-closed）：不注入时设备 token 签发直接 503。
   # 2026-10-11 进基座栈：识别已只认将邑端侧，nginx /jiangyi/、/websocket/ 依赖本服务。
   jiangyi-gateway:
+    logging: *default-logging
     stop_grace_period: 30s
     restart: unless-stopped
     build:
@@ -338,6 +349,7 @@ services:
     ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
 
   alertmanager:
+    logging: *default-logging
     stop_grace_period: 30s
     image: prom/alertmanager:v0.28.1
     restart: unless-stopped

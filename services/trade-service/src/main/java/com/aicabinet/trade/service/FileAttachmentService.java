@@ -57,6 +57,8 @@ public class FileAttachmentService {
     public static final String REF_OPS_BRAND_LOGO = "OPS_BRAND_LOGO";
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
+    /** R15-L3：单用户未绑定（PENDING）凭证配额——堵「只传不绑」的无界堆积面。 */
+    private static final int MAX_PENDING_EVIDENCE = 20;
     private static final Set<String> ALLOWED_TYPES = Set.of(
             IMAGE_JPEG, "image/jpg", IMAGE_PNG, IMAGE_WEBP, IMAGE_GIF
     );
@@ -97,6 +99,17 @@ public class FileAttachmentService {
         String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
         if (!ALLOWED_TYPES.contains(contentType)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        // R15-L3：未绑定凭证配额——绑定侧已有单争议 ≤MAX_EVIDENCE 张，但「上传后不绑定」
+        // 此前零配额：反复上传即可向对象存储无界堆积（叠加「图片永久保存」ILM 放大）。
+        // 配额按用户 PENDING 行数收口；孤儿巡检与超龄清理策略另行立项（涉及保留期产品决策）。
+        Long pending = fileAttachmentMapper.selectCount(
+                com.baomidou.mybatisplus.core.toolkit.Wrappers.<FileAttachment>lambdaQuery()
+                        .eq(FileAttachment::getRefType, REF_PENDING)
+                        .eq(FileAttachment::getUploadedBy, userId));
+        if (pending != null && pending >= MAX_PENDING_EVIDENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "未提交的凭证照片过多（" + MAX_PENDING_EVIDENCE + " 张上限），请先在争议中提交后再上传");
         }
         byte[] bytes = readAndStripImageBytes(file, contentType);
         String sha = sha256Hex(bytes);
@@ -568,6 +581,13 @@ public class FileAttachmentService {
     /**
      * 商品主图被替换/移除时释放旧图：同对象仍被其它附件引用则仅删记录，
      * 无引用时同时删除对象存储里的旧文件（含本地回退文件）。
+     *
+     * <p>🔴 R15-L1：本方法的存活判定只数 {@code file_attachment} 行，而
+     * {@code uploadSkuImage} 按 sha256 去重——多个 SKU 共用同一 fileId 时恒 1 行，
+     * 删除后必判「无引用」并物理删对象。调用方（SKU 换图/清图）必须先判
+     * {@code sku_catalog} 档案层无任何 SKU 引用该 URL（见
+     * {@code OpsCatalogAdminService#updateSku} 的 {@code existsByImageUrl} 守卫），
+     * 否则会删掉其它 SKU 正在使用的图。</p>
      */
     public void releaseSkuImageIfUnused(String imageUrl) {
         if (imageUrl == null || imageUrl.isBlank()) {
@@ -647,7 +667,12 @@ public class FileAttachmentService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
         }
-        return ImageMetadataStripper.strip(bytes, contentType);
+        try {
+            return ImageMetadataStripper.strip(bytes, contentType);
+        } catch (ImageMetadataStripper.OversizedImageException e) {
+            // R15-L2：解压炸弹（小文件声明超大像素）在解码前拒收，避免单请求打爆堆
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     private static String sha256Hex(byte[] data) {

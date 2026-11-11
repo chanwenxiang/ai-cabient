@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captchaFromRedis } from '../../../scripts/lib/redis-captcha.mjs';
+import { adminPageState } from '../../../scripts/lib/ui-assert.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
@@ -210,40 +211,52 @@ async function main() {
 
     await page.goto(`${ADMIN}/dashboard`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
+    // R15-M2：旧断言 /运营工作台|设备|订单|.../ 匹配 document.body.innerText——侧栏菜单
+    // 常驻文案恒真（内容区白屏/接口全 4xx 也 PASS）。改结构化断言：页头标题精确匹配
+    // + 工作台内容区独有统计卡在位。
+    const dashSt = await page.evaluate(() => {
+      const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+      return {
+        titleOk:
+          norm(document.querySelector('.page-card-head__title .title')?.innerText) === '运营工作台',
+        tiles: document.querySelectorAll('.stat-tile').length
+      };
+    });
+    const dashOk = dashSt.titleOk && dashSt.tiles > 0;
     text = await bodyText(page);
-    const dashOk = /运营工作台|设备|订单|异常|预警/.test(text);
     const e5 = await shot(page, '05-dashboard');
     record(
       'A-05',
       '运营工作台',
       '功能',
       dashOk ? 'PASS' : 'FAIL',
-      text.split('\n').slice(0, 8).join(' | '),
+      `titleOk=${dashSt.titleOk} statTiles=${dashSt.tiles} | ${text.split('\n').slice(0, 8).join(' | ')}`,
       e5
     );
     dashOk ? pass++ : fail++;
 
     // —— 订单 / 开门记录 / 设备：三端履约运营主路径 ——
+    // R15-M2：旧断言对 body.innerText 匹配侧栏常驻词恒真；换 adminPageState 结构化
+    // 断言（页头标题精确匹配 + 表格在位 + 非 loading + 有行或已水合空态）。
     const bizPages = [
-      { id: 'A-06', name: '订单管理', path: '/orders', expect: /订单管理|订单号|状态|暂无/ },
-      { id: 'A-07', name: '开门记录', path: '/sessions', expect: /开门记录|会话|柜机|暂无/ },
-      { id: 'A-08', name: '设备列表', path: '/devices', expect: /设备|CAB-|在线|离线|暂无/ }
+      { id: 'A-06', name: '订单管理', path: '/orders', title: '订单管理' },
+      { id: 'A-07', name: '开门记录', path: '/sessions', title: '开门记录' },
+      { id: 'A-08', name: '设备列表', path: '/devices', title: '设备管理' }
     ];
     for (const p of bizPages) {
       await page.goto(`${ADMIN}${p.path}`, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(1800);
-      text = await bodyText(page);
-      const ok = p.expect.test(text);
+      const st = await adminPageState(page, { title: p.title });
       const evidence = await shot(page, p.id.toLowerCase());
       record(
         p.id,
         p.name,
         '功能',
-        ok ? 'PASS' : 'FAIL',
-        text.split('\n').slice(0, 10).join(' | '),
+        st.ok ? 'PASS' : 'FAIL',
+        `titleOk=${st.titleOk} tablePresent=${st.tablePresent} rows=${st.rows} loading=${st.loading}`,
         evidence
       );
-      ok ? pass++ : fail++;
+      st.ok ? pass++ : fail++;
     }
 
     // 争议列表点开首行（若有）看详情抽屉/页
@@ -270,14 +283,22 @@ async function main() {
     );
     detailOk ? pass++ : fail++;
 
+    // R15-M2：旧写法统计 4xx 资源数后无条件 PASS（severe 只进日志）——改 fail-closed。
     const severe = await page
       .evaluate(() => {
         const entries = performance.getEntriesByType('resource') || [];
         return entries.filter((e) => e.name.includes('/api/') && e.responseStatus >= 400).length;
       })
-      .catch(() => 0);
-    record('A-QUAL-01', '控制台无阻断性错误', '质量', 'PASS', `http4xxResources=${severe}`, null);
-    pass++;
+      .catch(() => -1);
+    record(
+      'A-QUAL-01',
+      '控制台无阻断性错误',
+      '质量',
+      severe === 0 ? 'PASS' : 'FAIL',
+      `http4xxResources=${severe}`,
+      null
+    );
+    severe === 0 ? pass++ : fail++;
   } finally {
     await browser.close();
   }

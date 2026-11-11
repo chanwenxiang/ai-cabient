@@ -306,9 +306,16 @@ export const useAuthStore = defineStore('auth', () => {
     if (restoreInflight) return restoreInflight;
     restoreInflight = (async () => {
       if (isSessionSoftExpired()) {
-        const ok = await api.refreshSilently();
-        if (!ok) {
+        // R15-K1/K2：只有刷新端点「明确拒绝」（401/403）才 logout——logout 会经
+        // BroadcastChannel 广播所有标签页强制登出，把瞬态失败（429/5xx/网络抖动）
+        // 也广播出去等于误杀其他窗口里仍有效的会话。transient/no-session 时
+        // 本次 restore 降级为失败，会话保留，用户重试即可。
+        const outcome = await api.refreshWithOutcome();
+        if (outcome.kind === 'invalid') {
           logout();
+          return false;
+        }
+        if (outcome.kind !== 'ok') {
           return false;
         }
       }

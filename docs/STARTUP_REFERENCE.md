@@ -42,7 +42,7 @@
 
 | 服务 | 端口 | 说明 |
 |------|------|------|
-| Redpanda/Kafka | 9092 | 异步识别用，默认关闭 |
+| Redpanda/Kafka | 19092 | 异步识别用，默认关闭（full 栈宿主映射；base 栈为 9092） |
 | Nginx Gateway | 80 | http://localhost/admin/index.html（full 栈或单独起 gateway） |
 | EMQX 控制台 | 28083 | http://localhost:28083 |
 | MinIO 控制台 | 9001（Windows 常需 **19001**） | http://localhost:9001 或 http://localhost:19001 |

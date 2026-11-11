@@ -31,7 +31,7 @@
 - **修法**：解析前判 `r.status`/`r.error`；要求 `report.vulnerabilities` 键必须存在，缺失即 exit 1。
 
 ### K1 [P2·横切] refresh 轮换对并发刷新零容忍——多 tab 同源并发续期必然互踢登出
-- **证据**：后端 `AuthController:203-205` validate→**revoke**→refreshSession（第二个同代刷新必吃 REVOKED 401）；三端刷新单飞全是单 JS 上下文粒度（admin refreshPromise 实例字段 / mp 模块变量），跨 tab 零协调，而 admin 的 token/expires 在共享 localStorage——多 tab 同刻软过期各自刷新，败者 `clearSession+location.assign('/admin/login')`，且 restore 失败还会 `logout()` 广播**所有** tab 强制登出。
+- **证据**：后端 `AuthController:203-205` validate→**revoke**→refreshSession（第二个同代刷新必吃 REVOKED 401）；三端刷新单飞全是单 JS 上下文粒度（admin refreshPromise 实例字段 / mp 模块变量），跨 tab 零协调。**论据勘误（修复批核实）**：admin 生产是**共享 HttpOnly Cookie 会话**（client.ts:89-94 PROD 禁 Bearer 持久化、:124 fail-closed），dev 才是每 tab 独立 sessionStorage（A-P2-006）——原报告「token/expires 在共享 localStorage」表述有误，但「跨 tab 共享会话令牌」的本质成立且更强；多 tab 并发刷新败者 `clearSession+onUnauthorized()`，且 restore 失败还会 `logout()` 广播**所有** tab 强制登出。
 - **修法**：①服务端轮换链（旧 jti 记 rotatedTo，并发续期照常签发）；或 ②前端跨 tab 刷新锁（admin 已有 BroadcastChannel auth-tab-sync 可扩展）。
 - **置信度**：高（串行到达即必败，不依赖微妙时序；admin 双 tab 是常态用法）。
 
@@ -56,7 +56,7 @@
 - **修法**：base 补两行 `restart: unless-stopped`；建议同批立 `check-compose-restart` 门禁（仿 stop-grace 先例）防再漂。
 
 ### M2 [P2·e2e] admin-uat.mjs 恒真/假 PASS 断言进 CI 零容忍强跑——「订单/设备/工作台渲染」只有假信号
-- **证据**：A-QUAL-01 统计 4xx 资源数后**无条件 record PASS**（severe 只进日志）；A-05~A-08 对 `document.body.innerText` 匹配 `/订单管理|设备|运营工作台/`——侧栏菜单常驻文案恒真（`ui-assert.mjs` 头注释点名的假绿反模式，three-end 套件已修，旧 admin-uat 未迁移）；CI ci.yml:999 零容忍强跑。
+- **证据**：A-QUAL-01 统计 4xx 资源数后**无条件 record PASS**（severe 只进日志）；A-05~A-08 对 `document.body.innerText` 匹配 `/订单管理|设备|运营工作台/`——侧栏菜单常驻文案恒真（`ui-assert.mjs` 头注释点名的假绿反模式，three-end 套件已修，旧 admin-uat 未迁移）；CI ci.yml:996 零容忍强跑。
 - **影响**：内容区白屏/接口全 4xx 时这 5 条依旧全绿。
 - **修法**：换 `adminPageState(page, {title})` 结构化断言；A-QUAL-01 改 `severe===0 ? PASS : FAIL`。
 
@@ -107,3 +107,28 @@
 ---
 
 *报告落盘：2026-11-11。基线 HEAD=21f55938；主审亲验 8 条 P2 全部坐实，P3×18 按四路证据一致性暂记成立（关键 4 条已抽查）。R14 的 11 条由并行修复会话处置中（G1 修复已在工作树在制），本轮未重复上报、未改动任何代码。*
+
+## 六、修复批回执（2026-11-11 同日修复，P2×8 + P3×17）
+
+> 修复轮亲验再证两处报告偏差：①K1 论据「共享 localStorage」→ 实为共享 HttpOnly Cookie（见上勘误）；②**H2 比报告更严重**——pnpm 9 `--json` 输出是 npm6 老格式（`advisories`），根本没有 `vulnerabilities` 键，旧脚本 `report.vulnerabilities || {}` 恒空 ⇒ **该 CVE 门禁自落地起从未真正拦过任何漏洞**（实测 24 条 advisory 全部漏网）。
+
+**P2（8/8 全修）**
+- **L1**：`SkuCatalogMapper.existsByImageUrl` + `updateSku` 释放前档案层存活判定（含「imageUrl=null=不改」误触发路径一并堵死）；钉测 ×2（共享不释放/无引用才释放）。注：判定**不排除自己**——以释放时刻库态为准，clearExplicitlyBlankColumns 先行落库保证清空场景正确。
+- **K3**：merchant endpoints 补 `logout` 定义 + `logoutMerchantSession()`（fire-and-forget 吊销，本地清理无条件先行）。
+- **K2**：shared-api `refreshWithOutcome()` 专用刷新通道（ok/invalid/transient/no-session 四态）——仅刷新端点明确 401/403 才清会话跳登录；429/5xx/网络保会话。restore 同步改四态判定，断掉「瞬态失败→logout→广播全 tab」放大链。
+- **K1**：`doRefreshWithCrossTabLock()`——Web Locks 把跨 tab 刷新**串行化**（后来者持前者新代 token 再刷必成功）；无 locks 环境降级单飞。
+- **H1**：ci.yml 五 job（build 90/integration 60/admin-artifacts 30/mini-programs 60/e2e-h5 60）+ deploy-prod.yml deploy 20 补 timeout。
+- **M1**：base compose gateway/redpanda + full.yml redpanda 补 `restart: unless-stopped`。
+- **H2**：spawn 失败/空 stdout/缺结构一律 fail-closed + 解析兼容 `advisories` 老格式 + 存量基线棘轮（17 条 moderate+ 固化 KNOWN_BASELINE_GHSAS，新增必红，依赖升级只减不增）。三态验证：绿→砍基线注入红→还原绿逐字节一致。
+- **M2**：A-05 改页头标题精确匹配 + `.stat-tile` 内容区断言；A-06/07/08 换 `adminPageState` 结构化断言（标题/表格在位/非 loading/行或水合空态）；A-QUAL-01 改 `severe===0 ? PASS : FAIL`。
+
+**P3（17 修 + 3 登记）**
+- **H3** deploy-prod 补顶层 `permissions: contents: read`；**H4** ci.yml 补 concurrency（cancel-in-progress: true，deploy-prod 保持不取消）；**H5** sonar.yml inputs 改 env 传递（去 `${{ }}` shell 内插）；**H6** wiring 门禁三收紧（scripts 递归扫描/「提及即接线」→可执行接线+可达闭包共享/规则 3 支持子目录），负向验证注入红复绿。
+- **K4** refreshTokenSilently 两处 `applyRefreshedToken` 包 try/catch 收口 reject（防单飞 Promise 永不落定死锁）；**K5** consumer 本地过期门改「过期票不用于业务请求但保留会话」（getConsumerToken 返空串不清会话 + `getRefreshToken` 原始票据通道）——C3 语义保留、7 天宽限首次可达；**K6** consumer/admin 下载 401 对齐 merchant（静默刷新重放一次，明确拒绝才登出）；**K7** 判域子串精确化（"merchant"→"/merchant"），双 Cookie 各自续期立项（见下）。
+- **L2** `ImageMetadataStripper` 解码前 header 探测尺寸（MAX 8000px/32MP），超限 `OversizedImageException` → 400 拒收；钉测 ×2（窄图 KB 级构造）；**L3** 争议凭证上传加单用户 PENDING 配额（20 张）；**L4** warehouse-stocktake 补 `assertLocalImageSize`。
+- **M3** base×8 + apps×4 常驻服务 `x-logging` 锚点统一 json-file 轮转（50m×5）；**M4** full.yml grafana 补 `GRAFANA_PROMETHEUS_URL`；**M5** full.yml prometheus/grafana/redpanda 数据卷 + prometheus/grafana 顺带补 restart；**M6** nginx 三处带 Cache-Control 的 location 内联补齐安全头（继承规则）；**M8** 三文档 Redpanda 端口勘误（full 栈 19092）。
+- **登记不修（3+2）**：H7（deploy-prod 校验目标 SHA CI 结论——建议级，半自动档已有人工显式兜底）；K7 双 Cookie 各自续期（需 refresh 端点 realm 契约，跨端变更）；L3 孤儿凭证超龄巡检（保留期属产品决策）；M3 full.yml 本地栈 logging（磁盘增长风险在生产路径，本地登记）；M7（EOL/双版本现状确认，无代码动作）。
+
+**验证**：trade-service 定向测试 32/32 绿（含新钉测 4 条）；consumer 195/195、merchant 278/278、admin 140/140 vitest 全绿；shared-api/shared-uni/shared-types 产物重烤；wiring 门禁基线绿 + 负向注入红；CVE 审计脚本三态验证；compose base/stack config 校验（redpanda-init 报错为改动前既有 profile 状态）。
+
+*修复批落盘：2026-11-11 同日。P2×8 全修、P3×17 修 + 5 条登记。修复轮勘误两处：K1 论据（localStorage→HttpOnly Cookie）、H2 升级（门禁从未真正工作，advisories 格式恒空）。*

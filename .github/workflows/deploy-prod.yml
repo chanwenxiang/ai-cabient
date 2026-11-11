@@ -14,6 +14,11 @@ on:
   push:
     tags: ['deploy-*']
 
+# R15-H3：GITHUB_TOKEN 最小化——本 workflow 只 checkout 与 SSH 部署，只需读代码。
+# （ci.yml/sonar.yml 已收敛，唯本文件此前缺顶层 permissions。）
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-prod
   cancel-in-progress: false
@@ -21,6 +26,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: production
     steps:
       - name: Checkout

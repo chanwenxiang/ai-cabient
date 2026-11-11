@@ -280,7 +280,12 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import AppSheet from '@/components/AppSheet.vue';
-import { clearSession, hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
+import {
+  hasPerm,
+  merchantApi,
+  isMerchantLoggedIn,
+  logoutMerchantSession
+} from '@/utils/merchant-api';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import {
   canAccessNav,
@@ -502,7 +507,9 @@ async function onLogout() {
     confirmText: '退出'
   });
   if (!confirmed) return;
-  clearSession();
+  // R15-K3：登出先尽力吊销服务端会话（补货员共用手机：登出后 JWT 不得继续有效/可续），
+  // 本地清理在 logoutMerchantSession 内无条件收尾（吊销失败不阻塞）。
+  await logoutMerchantSession();
   uni.reLaunch({ url: '/pages/login/login' });
 }
 </script>

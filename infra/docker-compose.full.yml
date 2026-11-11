@@ -85,6 +85,8 @@ services:
 
   redpanda:
     stop_grace_period: 60s
+    # R15-M1：宿主/Docker 重启后 Kafka 自动拉起（与 base 栈同口径）
+    restart: unless-stopped
     image: redpandadata/redpanda:v24.1.1
     # 审计 A2/P1-8：SASL/SCRAM 基线——配置文件挂载渲染（authentication_method 必须显式写在
     # 监听器上，--set kafka_api 数组写法会被 --kafka-addr 整段覆盖而静默丢失，2026-10-15 实证）。
@@ -98,6 +100,8 @@ services:
       REDPANDA_ADVERTISE: redpanda
     volumes:
       - ./redpanda/redpanda.sasl.yaml:/redpanda-tmpl/redpanda.sasl.yaml:ro
+      # R15-M5：数据卷——重启丢 offset/主题（AU-189 同口径）
+      - "redpanda-data:/var/lib/redpanda/data"
     # Host 9092 often in Windows Hyper-V excluded ranges (e.g. 9083–9182); default 19092.
     ports: ["127.0.0.1:${REDPANDA_PORT:-19092}:9092"]
 
@@ -425,15 +429,20 @@ services:
 
   prometheus:
     stop_grace_period: 30s
+    # R15-M5：数据卷——uat 切栈 --force-recreate 不再丢指标历史（AU-189 同口径）
+    restart: unless-stopped
     image: prom/prometheus:v2.51.0
     ports: ["127.0.0.1:9090:9090"]
     volumes:
       - "./monitoring/prometheus-full.yml:/etc/prometheus/prometheus.yml:ro"
       - "./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro"
+      - "prometheus-data:/prometheus"
     depends_on: [trade-service, device-service]
 
   grafana:
     stop_grace_period: 30s
+    # R15-M5：数据卷——看板/账号设置 recreate 不再丢
+    restart: unless-stopped
     image: grafana/grafana:10.4.0
     ports: ["127.0.0.1:${GRAFANA_PORT:-13000}:3000"]
     environment:
@@ -446,9 +455,14 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       # 看板默认中文（Prometheus 原生 UI 无官方中文，日常请用 Grafana）
       GF_USERS_DEFAULT_LANGUAGE: zh-Hans
+      # R15-M4：datasource provisioning 模板变量（与 base docker-compose.yml 同口径）——
+      # 缺失时 16 面板数据源自 2026-10-13 起静默指向未渲染变量（docker-up 默认不起 grafana 无人发现）
+      GRAFANA_PROMETHEUS_URL: http://prometheus:9090
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/provisioning/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+      # R15-M5：数据卷
+      - "grafana-data:/var/lib/grafana"
     depends_on: [prometheus]
 
   # ---------- 告警通知链路（alerting profile，默认不启动） ----------
@@ -485,3 +499,7 @@ volumes:
   miniodata:
   xxljob-mysql-data:
   redisdata:
+  # R15-M5：监控栈/Kafka 数据持久化（uat 切栈 force-recreate 不再丢数据）
+  prometheus-data:
+  grafana-data:
+  redpanda-data:

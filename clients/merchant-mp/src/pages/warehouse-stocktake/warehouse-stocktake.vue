@@ -341,6 +341,7 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi, isMerchantLoggedIn } from '@/utils/merchant-api';
 import { useMerchantMe, seedMerchantMeDisplayCache } from '@/composables/useMerchantMe';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { assertLocalImageSize } from '@aicabinet/shared-uni/upload-limits';
 // 铁律 40 家族：mp 运行时无 URLSearchParams（shared-uni/query.ts 注释自证），
 // 修复 2026-10-14 盘点列表在真机恒「加载失败」的 ReferenceError。
 import { toQuery } from '@aicabinet/shared-uni/query';
@@ -860,6 +861,9 @@ async function uploadPhoto(path: string) {
   if (uploadingPhoto.value) return;
   uploadingPhoto.value = true;
   try {
+    // R15-L4：与 device-stocktake / replenishment / dispute 同族对齐——上传前本地先卡
+    // 尺寸上限（超限抛错走 showError），不给用户「传了半天被后端 5MB 门拒」的体验。
+    await assertLocalImageSize(path);
     await merchantApi.uploadStocktakeEvidence(detailId.value, path);
     showSuccess('照片已上传');
     await loadPhotos();

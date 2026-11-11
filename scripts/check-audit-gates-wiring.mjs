@@ -69,16 +69,69 @@ if (undefinedRefs.length) {
   );
 }
 
-// ── 规则 2：每个 check-*.mjs 必须被接线 ────────────────────────────────────
+// ── 可达性闭包（规则 2 与规则 4 共用；先于规则 2 计算以便共享） ─────────────
 const scriptsDir = join(root, 'scripts');
-const gateFiles = readdirSync(scriptsDir).filter((f) => /^check-.*\.mjs$/.test(f));
+const checkScriptNames = Object.keys(scripts).filter((k) => k.startsWith('check:'));
+if (checkScriptNames.length < 5) {
+  fail(`package.json 里只有 ${checkScriptNames.length} 个 check:* 脚本，锚点可能已被重写`);
+}
+
+// 入口 1：聚合链显式引用
+const reached = new Set(refs.filter((n) => checkScriptNames.includes(n)));
+// 入口 2：CI 里 `pnpm [run] check:xxx`
+for (const m of workflowRaw.matchAll(/pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g)) {
+  if (checkScriptNames.includes(m[1])) reached.add(m[1]);
+}
+// 入口 3：CI 里 `node scripts/check-xxx.mjs`（不经过 pnpm 的直接调用）
+for (const m of workflowRaw.matchAll(/scripts\/(check-[A-Za-z0-9_.-]+\.mjs)/g)) {
+  for (const name of checkScriptNames) {
+    if ((scripts[name] || '').includes(m[1])) reached.add(name);
+  }
+}
+// 传递闭包：被可达脚本内部 `pnpm <name>` 引用的脚本同样算已接线
+for (let guard = 0; guard < 20; guard++) {
+  const before = reached.size;
+  for (const name of [...reached]) {
+    for (const m of (scripts[name] || '').matchAll(/pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g)) {
+      if (checkScriptNames.includes(m[1])) reached.add(name);
+    }
+  }
+  if (reached.size === before) break;
+}
+
+// ── 规则 2：每个 check-*.mjs 必须被「可执行接线」 ────────────────────────────
+// R15-H6 收紧三点：
+//   ① scripts **递归**扫描——旧写法 readdirSync 只看顶层，子目录门禁漏扫；
+//   ② 「提及即接线」→ 只认调用形态（CI 里带 scripts/ 路径前缀，或被**可达**脚本链
+//      引用）——被一条无人调用的 script 字符串提及不再算接线（与规则 4 同源）；
+//   ③ 递归收集到的文件按 basename 与调用形态比对。
+const collectGateFiles = (dir) => {
+  const out = [];
+  for (const f of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, f.name);
+    if (f.isDirectory()) out.push(...collectGateFiles(p));
+    else if (/^check-.*\.mjs$/.test(f.name)) out.push(p);
+  }
+  return out;
+};
+const gateFiles = collectGateFiles(scriptsDir);
 if (gateFiles.length === 0) fail('scripts/ 下没有 check-*.mjs，门禁已失效');
 
-const pkgCommands = Object.values(scripts).join('\n');
-const unwired = gateFiles.filter((f) => !pkgCommands.includes(f) && !workflowRaw.includes(f));
+const reachedBodies = [...reached].map((n) => scripts[n] || '').join('\n');
+const wiredNames = new Set();
+for (const m of (workflowRaw + '\n' + reachedBodies).matchAll(/check-[A-Za-z0-9_.-]+\.mjs/g)) {
+  wiredNames.add(m[0]);
+}
+const unwired = gateFiles
+  .map((p) => p.slice(scriptsDir.length + 1))
+  .filter((rel) => {
+    const base = rel.split(/[\\/]/).pop();
+    if (workflowRaw.includes(`scripts/${base}`)) return false; // CI 直接调用（路径形态）
+    return !wiredNames.has(base);
+  });
 if (unwired.length) {
   problems.push(
-    `门禁脚本没有任何接线（既不在 package.json 命令里，也不被 CI 调用）= 等于没有：\n    - ` +
+    `门禁脚本没有任何**可执行接线**（CI 调用形态或被可达脚本链引用——旧「提及即接线」已收紧，R15-H6）= 等于没有：\n    - ` +
       unwired.join('\n    - ')
   );
 }
@@ -114,33 +167,7 @@ const LOCAL_ONLY = new Map([
   ]
 ]);
 
-const checkScriptNames = Object.keys(scripts).filter((k) => k.startsWith('check:'));
-if (checkScriptNames.length < 5) {
-  fail(`package.json 里只有 ${checkScriptNames.length} 个 check:* 脚本，锚点可能已被重写`);
-}
-
-// 入口 1：聚合链显式引用
-const reached = new Set(refs.filter((n) => checkScriptNames.includes(n)));
-// 入口 2：CI 里 `pnpm [run] check:xxx`
-for (const m of workflowRaw.matchAll(/pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g)) {
-  if (checkScriptNames.includes(m[1])) reached.add(m[1]);
-}
-// 入口 3：CI 里 `node scripts/check-xxx.mjs`（不经过 pnpm 的直接调用）
-for (const m of workflowRaw.matchAll(/scripts\/(check-[A-Za-z0-9_.-]+\.mjs)/g)) {
-  for (const name of checkScriptNames) {
-    if ((scripts[name] || '').includes(m[1])) reached.add(name);
-  }
-}
-// 传递闭包：被可达脚本内部 `pnpm <name>` 引用的脚本同样算已接线
-for (let guard = 0; guard < 20; guard++) {
-  const before = reached.size;
-  for (const name of [...reached]) {
-    for (const m of (scripts[name] || '').matchAll(/pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g)) {
-      if (checkScriptNames.includes(m[1])) reached.add(m[1]);
-    }
-  }
-  if (reached.size === before) break;
-}
+// （checkScriptNames / reached 闭包已在规则 2 之前计算，此处直接复用）
 
 const unreachable = checkScriptNames.filter((n) => !reached.has(n) && !LOCAL_ONLY.has(n));
 if (unreachable.length) {
@@ -165,7 +192,8 @@ for (const [name, { why, ciAnchors }] of LOCAL_ONLY) {
 
 // ── 规则 3：CI 直接调用的脚本文件必须存在 ─────────────────────────────────
 const missingFiles = new Set();
-for (const m of workflowRaw.matchAll(/scripts\/([A-Za-z0-9_.-]+\.(?:mjs|ps1|py|sh))/g)) {
+// R15-H6：路径段允许子目录（scripts/lib/xxx.mjs 形态此前漏检）
+for (const m of workflowRaw.matchAll(/scripts\/([A-Za-z0-9_./-]+\.(?:mjs|ps1|py|sh))/g)) {
   const rel = join('scripts', m[1]);
   if (!existsSync(join(root, rel.replace(/\\/g, '/')))) {
     missingFiles.add(rel);

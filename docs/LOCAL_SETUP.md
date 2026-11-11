@@ -108,7 +108,7 @@ docker compose -f infra/docker-compose.full.yml ps
 | EMQX 控制台 | 28083 | 默认 admin / public |
 | MinIO API | 9000 | 视频存储 |
 | MinIO 控制台 | 9001 | minioadmin / minioadmin |
-| Redpanda | 9092 | Kafka（默认不用，可忽略） |
+| Redpanda | 19092 | Kafka（默认不用，可忽略；full 栈宿主映射 `REDPANDA_PORT:-19092`，base 栈为 9092） |
 | Nginx Gateway | 80 | 可选，需 trade 已启动 |
 
 ### 数据库（无需手动执行 SQL）

@@ -56,6 +56,21 @@ public interface SkuCatalogMapper extends BaseTradeMapper<SkuCatalog> {
         return selectList(Wrappers.<SkuCatalog>lambdaQuery().in(SkuCatalog::getBarcode, barcodes));
     }
 
+    /**
+     * SKU 主图 URL 仍被其它 SKU 引用？（R15-L1：sha256 去重让多个 SKU 共用同一 fileId，
+     * 释放旧图前必须先在档案层判存活，否则会物理删掉别的 SKU 还在用的图。）
+     */
+    default boolean existsByImageUrl(String imageUrl, String excludeSkuId) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return false;
+        }
+        var q = Wrappers.<SkuCatalog>lambdaQuery().eq(SkuCatalog::getImageUrl, imageUrl.trim());
+        if (excludeSkuId != null && !excludeSkuId.isBlank()) {
+            q.ne(SkuCatalog::getSkuId, excludeSkuId.trim());
+        }
+        return selectCount(q) > 0;
+    }
+
     default boolean existsByNameAndSpec(String skuName, String spec, String excludeSkuId) {
         if (skuName == null || skuName.isBlank()) {
             return false;

@@ -6,6 +6,9 @@ import com.aicabinet.trade.mapper.AliyunCategoryMappingMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +27,13 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OpsCatalogAdminServiceTest {
+
+    static {
+        // R15-L1 守卫引入 LambdaQueryWrapper（existsByImageUrl）：纯 Mockito 环境需手动注册 TableInfo 缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                SkuCatalog.class);
+    }
 
     @Mock PermissionService permissionService;
     @Mock SkuCatalogMapper skuCatalogRepository;
@@ -242,6 +252,69 @@ class OpsCatalogAdminServiceTest {
         String detail = detailCaptor.getValue();
         org.junit.jupiter.api.Assertions.assertTrue(detail.contains("status:ACTIVE->INACTIVE"),
                 "audit detail must record status transition, got: " + detail);
+    }
+
+    /**
+     * R15-L1：uploadSkuImage 按 sha256 去重 ⇒ 多个 SKU 共用同一 fileId，
+     * 而 releaseSkuImageIfUnused 只数附件行（去重后恒 1 行）。
+     * 档案层仍有 SKU 引用旧图时，换图操作不得释放该图（否则另一 SKU 的图被物理删掉）。
+     */
+    @Test
+    void updateSku_sharedImageNotReleased() {
+        SkuCatalog existing = new SkuCatalog();
+        existing.setSkuId("100016");
+        existing.setSkuName("可乐330");
+        existing.setStatus("ACTIVE");
+        existing.setPriceCents(350);
+        existing.setImageUrl("/api/v2/media/sku-images/100");
+        when(skuCatalogRepository.findById("100016")).thenReturn(java.util.Optional.of(existing));
+        when(skuCatalogRepository.existsByBarcode(null, "100016")).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐330", null, "100016")).thenReturn(false);
+        // SKU-A 仍引用同一 URL（sha 去重共享 fileId）
+        when(skuCatalogRepository.existsByImageUrl("/api/v2/media/sku-images/100", null)).thenReturn(true);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
+
+        UpsertSkuRequest req = new UpsertSkuRequest(
+                "100016", "可乐330", 350, 500, true,
+                "/api/v2/media/sku-images/200", null, null, null, "ACTIVE",
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, "件", 1, null, null, null,
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
+
+        service.updateSku(10001L, "100016", req);
+
+        verify(fileAttachmentService, never()).releaseSkuImageIfUnused(any());
+    }
+
+    /** R15-L1 反向：档案层确无引用（clearExplicitlyBlankColumns 已先行落库）才允许释放。 */
+    @Test
+    void updateSku_unreferencedOldImageReleased() {
+        SkuCatalog existing = new SkuCatalog();
+        existing.setSkuId("100016");
+        existing.setSkuName("可乐330");
+        existing.setStatus("ACTIVE");
+        existing.setPriceCents(350);
+        existing.setImageUrl("/api/v2/media/sku-images/100");
+        when(skuCatalogRepository.findById("100016")).thenReturn(java.util.Optional.of(existing));
+        when(skuCatalogRepository.existsByBarcode(null, "100016")).thenReturn(false);
+        when(skuCatalogRepository.existsByNameAndSpec("可乐330", null, "100016")).thenReturn(false);
+        when(skuCatalogRepository.existsByImageUrl("/api/v2/media/sku-images/100", null)).thenReturn(false);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(userInfoRepository.findById(10001L)).thenReturn(java.util.Optional.empty());
+
+        UpsertSkuRequest req = new UpsertSkuRequest(
+                "100016", "可乐330", 350, 500, true,
+                "/api/v2/media/sku-images/200", null, null, null, "ACTIVE",
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, "件", 1, null, null, null,
+                java.util.List.of(new com.aicabinet.common.dto.SkuSceneLimitItem("OFFICE", 5)));
+
+        service.updateSku(10001L, "100016", req);
+
+        verify(fileAttachmentService).releaseSkuImageIfUnused("/api/v2/media/sku-images/100");
     }
 
     /** V404 字典门桩：字典恒空 ⇒ 服务回落 KNOWN_SCENES（与改造前行为一致） */

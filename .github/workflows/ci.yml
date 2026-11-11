@@ -10,9 +10,17 @@ on:
 permissions:
   contents: read
 
+# R15-H4：同分支并发推送取消在跑的旧 run——多会话并发推 dev 时全量 CI 排队堵死
+#（反馈延迟+runner 成本），新提交的结论才有效。deploy-prod 保持不取消（部署不可中断）。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    # R15-H1：挂死（mvn 下载阻塞等）单 job 默认烧 6 小时 runner，逐 job 显式超时
+    timeout-minutes: 90
 
     services:
       postgres:
@@ -485,6 +493,7 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
@@ -586,6 +595,7 @@ jobs:
   # 因此本 job 刻意**完全不走 Maven**，用与开发者本地一致的入口重建后比对。
   admin-artifacts:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # 仓库 .npmrc 为 Windows/Cursor 配置了 script-shell=cmd.exe；Linux CI 必须改回 bash，
     # 否则 `pnpm install` 的 lifecycle 脚本在 Linux 上会走 cmd.exe 直接失败（本 job 首跑即栽在这）。
     env:
@@ -634,6 +644,7 @@ jobs:
     # 三个端的所有 UI 用例都跑不起来——这是基础设施不兼容，不是产品缺陷，勿改用例或上调 UAT_MAX_FAIL。
     # 待 Playwright 支持新镜像后可改回 ubuntu-latest。
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     # 仓库 .npmrc 为 Windows/Cursor 配置了 script-shell=cmd.exe；Linux CI 须改回 bash
     env:
       npm_config_script_shell: /bin/bash
@@ -780,6 +791,7 @@ jobs:
   # 因此本条流水线的首要价值是：让「整轮崩溃」和「新增失败」不再静默通过。
   # 已知缺陷（余额流水 ¥0.00 等）用 UAT_MAX_FAIL 基线显式记录，修复后请下调。
   e2e-h5:
+    timeout-minutes: 60
     # 同 mini-programs：Playwright 在 ubuntu26.04 runner 上装不上 chromium，固定到 24.04
     runs-on: ubuntu-24.04
     env:

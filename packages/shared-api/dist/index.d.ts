@@ -29,6 +29,17 @@ export interface ApiClientOptions {
     fetchImpl?: typeof fetch;
 }
 /**
+ * R15-K2：静默刷新的结果分类（口径对齐 shared-uni 2026-11-11 修正）。
+ * 只有刷新端点「明确拒绝」（401/403）才是会话失效；429（网关 auth_ratelimit）、
+ * 5xx（发版窗口）、网络抖动一律 transient——旧写法 catch-all 返回 false 让
+ * 调用方清会话踢登录，把仍有效（7 天宽限完全可续）的会话误杀。
+ */
+export type RefreshOutcome = {
+    kind: 'ok' | 'invalid' | 'transient' | 'no-session';
+    /** transient/invalid 时刷新响应的 HTTP status（网络层失败缺省） */
+    status?: number;
+};
+/**
  * 服务端拒绝（非 2xx 或业务码非 0）。带 HTTP `status`，供调用方区分 409 等——
  * 例如设备维护指令被「进行中业务」拦下时，运营二次确认后带 force 重试。
  */
@@ -50,6 +61,22 @@ export declare class ApiClient {
     constructor(opts: ApiClientOptions);
     request<T>(path: string, method?: string, body?: unknown, auth?: boolean, retried?: boolean): Promise<T>;
     private requestOnce;
+    /**
+     * 静默刷新（带成因分类）。专用通道而非走 requestOnce：
+     * requestOnce 的 401 收口会把刷新端点自身的 401 直接 clearSession+跳登录，
+     * 吞掉「瞬态失败 vs 明确拒绝」的区分（R15-K2）。
+     */
+    refreshWithOutcome(): Promise<RefreshOutcome>;
+    /**
+     * R15-K1：生产 admin 走共享 HttpOnly Cookie 会话（跨标签页共享），而后端 refresh
+     * 对同代并发零容忍（validate→revoke→refresh 串行签发）⇒ 多 tab 同刻软过期各自
+     * 刷新必然互踢，败者 401 清会话跳登录（丢未保存表单）。Web Locks 把跨 tab 刷新
+     * 串行化：后来者持前者刚换出的新代 token 再刷，必然成功。同 tab 并发仍由
+     * refreshPromise 单飞兜底；无 navigator.locks 的环境（小程序/旧浏览器）直接执行。
+     */
+    private doRefreshWithCrossTabLock;
+    private doRefreshOnce;
+    /** 兼容包装：true 仅当刷新成功；瞬态失败同样返回 false，但不清会话（见 refreshWithOutcome）。 */
     refreshSilently(): Promise<boolean>;
     loginByPassword(phone: string, password: string, captcha?: {
         captchaId: string;

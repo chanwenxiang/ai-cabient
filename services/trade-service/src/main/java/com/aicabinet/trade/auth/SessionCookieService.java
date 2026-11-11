@@ -100,10 +100,15 @@ public class SessionCookieService {
         String referer = request.getHeader("Referer");
         if (referer != null) {
             String lower = referer.toLowerCase();
-            if (lower.contains("/admin") || lower.contains("merchant")) {
+            // R15-K7：只认路径段形态——子串匹配（如 "merchant"）会把 URL 里恰好含该词的
+            // 消费者页面误判成运营域，导致身份错挂（读操作审计主体错）/ admin Cookie 轮换停滞。
+            if (lower.contains("/admin") || lower.contains("/merchant")) {
                 return new PresentedSession(adminToken, Realm.ADMIN);
             }
         }
+        // 🔴 残余风险（R15-K7 立项）：双 Cookie 共存且 Referer 无路径信息（浏览器策略/嵌入场景）
+        // 时 fallback 恒判消费者——admin Cookie 该次刷新停滞（下次 401 自愈）。根治需要
+        // /auth/refresh 支持 realm 参数或双 Cookie 各自续期，属跨端契约变更，待立项。
         return new PresentedSession(consumerToken, Realm.CONSUMER);
     }
 

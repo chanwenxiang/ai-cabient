@@ -176,8 +176,22 @@ export async function del<T = unknown>(path: string): Promise<{ data: T }> {
 }
 
 /** Download authenticated CSV/binary endpoints (not JSON ApiResponse). */
-export async function downloadAuthFile(path: string, fallbackName: string) {
+export async function downloadAuthFile(path: string, fallbackName: string, retried = false) {
   const res = await authFetch(`${getBaseUrl()}${path}`);
+  if (res.status === 401 && !retried) {
+    // R15-K6：与 mp 端下载通道同口径——401 先静默刷新重放一次；只有刷新端点明确拒绝
+    // 才清会话跳登录，瞬态失败（429/5xx/网络）保会话按普通错误抛出。
+    const outcome = await api.refreshWithOutcome();
+    if (outcome.kind === 'ok') return downloadAuthFile(path, fallbackName, true);
+    if (outcome.kind === 'invalid') {
+      clearSession();
+      if (!globalThis.location.pathname.includes('/login')) {
+        globalThis.location.assign('/admin/login');
+      }
+      throw new Error('登录已失效');
+    }
+    throw new Error('下载失败，请稍后重试');
+  }
   if (res.status === 401) {
     clearSession();
     if (!globalThis.location.pathname.includes('/login')) {

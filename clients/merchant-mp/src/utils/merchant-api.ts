@@ -140,6 +140,24 @@ export function clearSession() {
 
 const sessionClearHooks = new Set<() => void>();
 
+/**
+ * R15-K3：登出——先尽力通知服务端吊销会话，本地清理保持无条件先行收尾。
+ * 背景：此前 merchant 登出只清本地，服务端 JWT 仍有效 30 分钟且 7 天宽限内可续，
+ * 与「补货员共用手机」威胁模型直接冲突（admin/consumer 均先 POST /auth/logout 吊销）。
+ * 吊销失败（网络抖动/已过期）不阻塞登出，避免卡在坏会话。
+ */
+export async function logoutMerchantSession() {
+  try {
+    if (isMerchantLoggedIn()) {
+      await request<void>(AuthEndpoints.logout, 'POST', null, true);
+    }
+  } catch {
+    /* 吊销失败仍清本地，避免卡在坏会话 */
+  } finally {
+    clearSession();
+  }
+}
+
 /** 注册登出/401 时的额外清理（如模块单例 me）。 */
 export function registerMerchantSessionClearHook(fn: () => void): void {
   sessionClearHooks.add(fn);

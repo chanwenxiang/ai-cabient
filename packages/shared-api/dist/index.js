@@ -88,9 +88,21 @@ export class ApiClient {
         }
         const json = (await res.json().catch(() => ({})));
         if (res.status === 401 && auth && !retried) {
-            const ok = await this.refreshSilently();
-            if (ok)
+            const outcome = await this.refreshWithOutcome();
+            if (outcome.kind === 'ok')
                 return this.requestOnce(path, method, body, auth, true);
+            // R15-K2：只有刷新端点明确拒绝（401/403）才判会话失效——清会话+跳登录。
+            if (outcome.kind === 'invalid') {
+                this.clearSession();
+                this.onUnauthorized?.();
+                throw new Error(localizeApiMessage(json.message, '登录已失效'));
+            }
+            // 无会话可续（游客/票据已被清）：不广播不跳转，按业务 401 抛出。
+            if (outcome.kind === 'no-session') {
+                throw new Error(localizeApiMessage(json.message, '请先登录'));
+            }
+            // transient（429/5xx/网络/超时）：保会话，按普通错误抛出让用户重试。
+            throw new ApiHttpError('登录状态刷新失败，请稍后重试', outcome.status ?? 503);
         }
         // 401 = session invalid → clear & redirect. 403 = missing permission for this API only.
         if (res.status === 401) {
@@ -108,25 +120,81 @@ export class ApiClient {
         }
         return json.data;
     }
-    async refreshSilently() {
+    /**
+     * 静默刷新（带成因分类）。专用通道而非走 requestOnce：
+     * requestOnce 的 401 收口会把刷新端点自身的 401 直接 clearSession+跳登录，
+     * 吞掉「瞬态失败 vs 明确拒绝」的区分（R15-K2）。
+     */
+    async refreshWithOutcome() {
         if (!this.hasSession())
-            return false;
+            return { kind: 'no-session' };
         if (this.refreshPromise)
             return this.refreshPromise;
-        this.refreshPromise = (async () => {
-            try {
-                const data = await this.requestOnce('/api/v2/auth/refresh', 'POST', undefined, true, true);
-                this.setToken(data.token, data.userId, data.expiresInSeconds);
-                return true;
+        this.refreshPromise = this.doRefreshWithCrossTabLock();
+        try {
+            return await this.refreshPromise;
+        }
+        finally {
+            this.refreshPromise = null;
+        }
+    }
+    /**
+     * R15-K1：生产 admin 走共享 HttpOnly Cookie 会话（跨标签页共享），而后端 refresh
+     * 对同代并发零容忍（validate→revoke→refresh 串行签发）⇒ 多 tab 同刻软过期各自
+     * 刷新必然互踢，败者 401 清会话跳登录（丢未保存表单）。Web Locks 把跨 tab 刷新
+     * 串行化：后来者持前者刚换出的新代 token 再刷，必然成功。同 tab 并发仍由
+     * refreshPromise 单飞兜底；无 navigator.locks 的环境（小程序/旧浏览器）直接执行。
+     */
+    async doRefreshWithCrossTabLock() {
+        const locks = globalThis.navigator?.locks;
+        if (!locks)
+            return this.doRefreshOnce();
+        try {
+            return await locks.request('aicabinet-auth-refresh', { ifAvailable: false }, async () => this.doRefreshOnce());
+        }
+        catch {
+            // 拿锁异常（锁管理器被中止等罕见场景）——退化为直接刷新，与旧行为等价
+            return this.doRefreshOnce();
+        }
+    }
+    async doRefreshOnce() {
+        const headers = {
+            // Cookie 会话写请求 CSRF 双保险（与各端对齐）
+            'X-Requested-With': 'XMLHttpRequest'
+        };
+        const token = this.getToken();
+        if (token)
+            headers.Authorization = `Bearer ${token}`;
+        try {
+            const res = await this.fetchImpl(`${this.baseUrl}${API_PREFIX}/auth/refresh`, {
+                method: 'POST',
+                headers,
+                credentials: 'same-origin'
+            });
+            if (res.status === 200) {
+                const body = (await res.json().catch(() => ({})));
+                if (body.code === 0 && body.data) {
+                    // Cookie 模式下 setToken 内部不落 JWT（只续 Cookie + user meta），与登录同路径
+                    this.setToken(body.data.token, body.data.userId, body.data.expiresInSeconds);
+                    return { kind: 'ok' };
+                }
+                // 契约异常（200 但体不符）不该杀会话——按瞬态处理让调用方重试
+                return { kind: 'transient', status: res.status };
             }
-            catch {
-                return false;
+            if (res.status === 401 || res.status === 403) {
+                return { kind: 'invalid', status: res.status };
             }
-            finally {
-                this.refreshPromise = null;
-            }
-        })();
-        return this.refreshPromise;
+            // 429（网关 auth_ratelimit）/5xx（发版窗口）= 瞬态，会话保留
+            return { kind: 'transient', status: res.status };
+        }
+        catch {
+            // 网络层失败/超时 = 瞬态，会话保留
+            return { kind: 'transient' };
+        }
+    }
+    /** 兼容包装：true 仅当刷新成功；瞬态失败同样返回 false，但不清会话（见 refreshWithOutcome）。 */
+    async refreshSilently() {
+        return (await this.refreshWithOutcome()).kind === 'ok';
     }
     loginByPassword(phone, password, captcha) {
         return this.request('/api/v2/auth/admin-password-login', 'POST', {

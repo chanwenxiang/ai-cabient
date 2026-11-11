@@ -64,9 +64,12 @@ export function isConsumerCookieAuth() {
   return isConsumerH5Runtime() && uni.getStorageSync(COOKIE_AUTH_KEY) === '1';
 }
 
-/** 登录态：本地 JWT 或 H5 Cookie 会话标记 */
+/** 登录态：本地 JWT（含已过期——宽限期内仍可静默续期）或 H5 Cookie 会话标记。
+ * R15-K5：过期不清会话——清了 hasSession 就恒 false，7 天服务端宽限对 bearer 永不可达；
+ * 「过期 JWT 不得用于业务请求」由 getConsumerToken 返回空串保证，清会话收敛到
+ * 刷新端点明确拒绝（401/403 → handleUnauthorized）这一收口。 */
 export function isConsumerLoggedIn() {
-  return Boolean(getConsumerToken()) || isConsumerCookieAuth();
+  return Boolean(uni.getStorageSync(TOKEN_KEY)) || isConsumerCookieAuth();
 }
 
 const mpApiSession: MpApiSession = {
@@ -74,6 +77,8 @@ const mpApiSession: MpApiSession = {
   isDevBuild,
   timeoutMs: REQUEST_TIMEOUT_MS,
   getToken: getConsumerToken,
+  // R15-K5：刷新凭原始票据（过期票在 7 天宽限内可换新；本地过期门只管业务请求）
+  getRefreshToken: getConsumerRawToken,
   hasSession: isConsumerLoggedIn,
   useCookieAuth: isConsumerCookieAuth,
   clearSession: clearConsumerSession,
@@ -84,20 +89,39 @@ const mpApiSession: MpApiSession = {
   }
 };
 
+/** 原始票据（不过期门）：仅 /auth/refresh 通道使用。 */
+function getConsumerRawToken() {
+  return uni.getStorageSync(TOKEN_KEY) || '';
+}
+
 export function getConsumerToken() {
   const token = uni.getStorageSync(TOKEN_KEY) || '';
   if (!token) return '';
-  // C3：Bearer 路径必须读 expires；到期清会话，禁止过期 JWT 仍当已登录
+  // C3：Bearer 路径必须读 expires；**过期不得用于业务请求**（返回空串，请求照 401→静默续期链路）。
+  // R15-K5：此处不再 clearConsumerSession——本地硬清会堵死服务端 7 天宽限（过期票据本可
+  // /auth/refresh 换新）；清会话统一收敛到刷新明确失败（handleUnauthorized）。
   const expiresAt = parseConsumerExpiresAt(uni.getStorageSync(EXPIRES_KEY));
   if (isConsumerBearerExpired(expiresAt)) {
-    clearConsumerSession();
     return '';
   }
   return token;
 }
 
-/** 带鉴权下载到本地临时路径（小程序 video/导出等无法带 Authorization 的场景） */
+/** 带鉴权下载到本地临时路径（小程序 video/导出等无法带 Authorization 的场景）。
+ * R15-K6：与 merchant 下载通道同口径——401 先静默刷新重放一次，仍失败才清会话登出
+ *（旧写法下载 401 直接 clearConsumerSession，token 临期下载被硬杀）。 */
 export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<string> {
+  return downloadAuthedFileOnce(url, timeoutMs).catch(async (e) => {
+    if (e instanceof Error && e.message === 'DOWNLOAD_AUTH_EXPIRED') {
+      const ok = await refreshTokenSilently().catch(() => false);
+      if (ok) return downloadAuthedFileOnce(url, timeoutMs);
+      throw mpApiSession.handleUnauthorized();
+    }
+    throw e;
+  });
+}
+
+function downloadAuthedFileOnce(url: string, timeoutMs: number): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!isConsumerLoggedIn()) {
       reject(new Error('请先登录'));
@@ -114,14 +138,8 @@ export function downloadAuthedFile(url: string, timeoutMs = 60_000): Promise<str
       success(res) {
         const classified = classifyDownloadResult(res.statusCode, Boolean(res.tempFilePath));
         if (classified.unauthorized) {
-          clearConsumerSession();
-          reject(
-            createMpApiError(
-              localizeApiMessage('', classified.message || '登录已失效'),
-              401,
-              'UNAUTHORIZED'
-            )
-          );
+          // 不在此清会话：交给刷新重放链路收口（重放仍 401 → handleUnauthorized）
+          reject(new Error('DOWNLOAD_AUTH_EXPIRED'));
           return;
         }
         if (classified.ok && res.tempFilePath) {

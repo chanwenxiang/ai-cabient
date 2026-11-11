@@ -108,7 +108,7 @@ psql -h localhost -U postgres
 redis-cli -h localhost ping
 
 # Kafka
-kafka-topics.sh --list --bootstrap-server localhost:9092
+kafka-topics.sh --list --bootstrap-server localhost:19092
 `
 
 **解决方案**:
@@ -387,13 +387,13 @@ Kafka消息堆积，处理延迟
 
 **步骤1**: 查看消费组状态
 `ash
-kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+kafka-consumer-groups.sh --bootstrap-server localhost:19092 \
   --describe --group ai-cabinet-group
 `
 
 **步骤2**: 查看Topic信息
 `ash
-kafka-topics.sh --bootstrap-server localhost:9092 \
+kafka-topics.sh --bootstrap-server localhost:19092 \
   --describe --topic orders
 `
 
@@ -408,11 +408,11 @@ grep "kafka_consumer" /var/log/trade-service.log
 kubectl scale deployment trade-service --replicas=5
 
 # 重置消费位置（谨慎使用）
-kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+kafka-consumer-groups.sh --bootstrap-server localhost:19092 \
   --group ai-cabinet-group --reset-offsets --to-latest --execute
 
 # 增加分区
-kafka-topics.sh --bootstrap-server localhost:9092 \
+kafka-topics.sh --bootstrap-server localhost:19092 \
   --alter --topic orders --partitions 10
 `
 

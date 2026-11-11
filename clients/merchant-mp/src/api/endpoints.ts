@@ -24,7 +24,9 @@ export const API_PREFIX = '/api/v2' as const;
 export const AuthEndpoints = {
   merchantPasswordLogin: `${API_PREFIX}/auth/merchant-password-login`,
   /** L2-2：图形验证码（连续登录失败后强制校验） */
-  captcha: `${API_PREFIX}/auth/captcha`
+  captcha: `${API_PREFIX}/auth/captcha`,
+  /** R15-K3：登出服务端吊销（补货员共用手机场景，登出后 JWT 不得继续有效） */
+  logout: `${API_PREFIX}/auth/logout`
 } as const;
 
 export const MerchantEndpoints = {

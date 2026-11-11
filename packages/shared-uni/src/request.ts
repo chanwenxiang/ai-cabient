@@ -41,6 +41,8 @@ export interface MpApiSession {
   getRetryCount?: number;
   refreshPath?: string;
   getToken(): string;
+  /** R15-K5：刷新专用取票——过期票据也要带上（服务端 7 天宽限换新）；缺省用 getToken。 */
+  getRefreshToken?(): string;
   /** 是否已登录（含 H5 HttpOnly Cookie 会话标记） */
   hasSession?(): boolean;
   /** H5 Cookie 优先：不落 JWT、请求凭 Cookie */
@@ -224,7 +226,9 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
       // Cookie 会话写请求 CSRF 双保险（与 admin/shared-api 对齐）
       'X-Requested-With': 'XMLHttpRequest'
     };
-    const token = opts.getToken();
+    // R15-K5：刷新走 getRefreshToken（原始票据）——本地过期门的语义是「过期票不得用于
+    // 业务请求」，不代表票据失效：宽限期内仍可凭过期票 /auth/refresh 换新。
+    const token = (opts.getRefreshToken ?? opts.getToken)();
     if (token) header.Authorization = 'Bearer ' + token;
     uni.request({
       url: opts.baseUrl + refreshPath,
@@ -236,13 +240,38 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
         const body = res.data as { code?: number; message?: string; data?: MpRefreshData };
         const okBody = res.statusCode === 200 && body?.code === 0;
         if (okBody && body.data?.token) {
-          opts.applyRefreshedToken(body.data);
+          // R15-K4：applyRefreshedToken（写 storage 等）若在 success 回调内抛错，
+          // Promise 既不 resolve 也不 reject ⇒ refreshInFlight 永不落定 = 全应用刷新死锁
+          //（后续所有 401 都挂在单飞 Promise 上，原请求随之悬挂）。必须收口为 reject。
+          try {
+            opts.applyRefreshedToken(body.data);
+          } catch (e) {
+            reject(
+              createMpApiError(
+                `登录状态续期失败：${e instanceof Error ? e.message : '写本地会话异常'}`,
+                undefined,
+                'REFRESH_FAILED'
+              )
+            );
+            return;
+          }
           resolve(true);
           return;
         }
         // Cookie 会话刷新可能只续 Cookie、不回传 token
         if (okBody && opts.useCookieAuth?.()) {
-          if (body.data) opts.applyRefreshedToken(body.data);
+          try {
+            if (body.data) opts.applyRefreshedToken(body.data);
+          } catch (e) {
+            reject(
+              createMpApiError(
+                `登录状态续期失败：${e instanceof Error ? e.message : '写本地会话异常'}`,
+                undefined,
+                'REFRESH_FAILED'
+              )
+            );
+            return;
+          }
           resolve(true);
           return;
         }
