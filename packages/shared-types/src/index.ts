@@ -366,6 +366,8 @@ export interface OrderReadModel {
   payChannel?: string;
   lineCount?: number;
   lineSummary?: string;
+  /** 列表封面图：第一条有图商品行的 sku_catalog.image_url（相对路径，前端 absoluteImageUrl 补域名） */
+  coverImageUrl?: string;
   payTradeNo?: string;
   paymentOperationId?: string;
   refundedAt?: string;
@@ -1201,6 +1203,8 @@ export interface OrderLineDto {
   lineAmountCents: number;
   batchNo?: string;
   slotId?: string;
+  /** 商品图（sku_catalog.image_url，相对路径）；无图时前端用首字占位 */
+  imageUrl?: string;
 }
 
 export interface OrderDetailDto {
