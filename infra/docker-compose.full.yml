@@ -19,6 +19,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   redis:
     stop_grace_period: 30s
@@ -36,6 +41,11 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   emqx:
     stop_grace_period: 30s
@@ -61,6 +71,11 @@ services:
     volumes:
       - ./docker/emqx/aicabinet-acl.conf:/opt/emqx/etc/aicabinet-acl.conf:ro
       - ./docker/emqx/auth-bootstrap.dev.csv:/opt/emqx/etc/aicabinet-auth-bootstrap.csv:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   minio:
     stop_grace_period: 60s
@@ -82,6 +97,11 @@ services:
     # 🔴 2026-11-09 用户拍板：图片类资产永久保存，过期只允许 sim//videos//archive/ 三个
     # 视频前缀；整桶 import 幂等（mc ilm add 每次 up 追加，实测曾堆到 325 条）。
     command: ["until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done; mc mb --ignore-existing local/${MINIO_BUCKET:-cabinet-videos}; mc anonymous set none local/${MINIO_BUCKET:-cabinet-videos} || true; printf '{\"Rules\":[{\"ID\":\"aicabinet-sim-7d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"sim/\"}},{\"ID\":\"aicabinet-videos-30d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"videos/\"}},{\"ID\":\"aicabinet-archive-180d\",\"Status\":\"Enabled\",\"Expiration\":{\"Days\":%s},\"Filter\":{\"Prefix\":\"archive/\"}}]}' '${MINIO_SIM_RETENTION_DAYS:-7}' '${MINIO_VIDEO_RETENTION_DAYS:-30}' '${MINIO_ARCHIVE_RETENTION_DAYS:-180}' | mc ilm rule import local/${MINIO_BUCKET:-cabinet-videos}"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   redpanda:
     stop_grace_period: 60s
@@ -413,6 +433,11 @@ services:
       trade-service: { condition: service_started }
       emqx: { condition: service_started }
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   gateway:
     stop_grace_period: 30s
@@ -426,6 +451,11 @@ services:
       # AU-146：grafana.htpasswd 不入库，先跑 scripts/devops/gen-grafana-htpasswd.ps1 生成。
       - "./gateway/grafana.htpasswd:/etc/nginx/grafana.htpasswd:ro"
     depends_on: [trade-service]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   prometheus:
     stop_grace_period: 30s
@@ -438,6 +468,11 @@ services:
       - "./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro"
       - "prometheus-data:/prometheus"
     depends_on: [trade-service, device-service]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   grafana:
     stop_grace_period: 30s
@@ -503,3 +538,8 @@ volumes:
   prometheus-data:
   grafana-data:
   redpanda-data:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
