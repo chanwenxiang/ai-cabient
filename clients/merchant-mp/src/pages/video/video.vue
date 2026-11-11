@@ -86,7 +86,9 @@ const isTaskMode = computed(() => !!taskId.value);
 const pageTitle = computed(() => (isTaskMode.value ? '补货录像' : '购物视频'));
 const loadingDesc = computed(() => (isTaskMode.value ? '正在获取补货录像' : '正在获取购物录像'));
 const emptyStateDesc = computed(() =>
-  isTaskMode.value ? '本次补货暂无录像，可返回任务详情' : '本单暂无购物视频，可返回订单详情'
+  isTaskMode.value
+    ? '补货录像由柜机回传，一般十几分钟后才有，请稍后再刷新'
+    : '本单暂无购物视频，可返回订单详情'
 );
 const canRetry = computed(() => !!orderId.value || !!taskId.value);
 const backLabel = computed(() => (isTaskMode.value ? '返回补货任务' : '返回订单详情'));
@@ -119,8 +121,11 @@ async function loadPlaylist() {
       if (!playable.length) {
         errorView.value = {
           title: isTaskMode.value ? '暂无补货录像' : '暂无购物视频',
+          // 台账一条没回 ≠ 有片但坏：前者只是柜机还没回传（实测十几分钟），别写成「上传失败」骗商户报障
           desc: isTaskMode.value
-            ? '本次补货录像该片生成或上传失败，可稍后重试或联系运营核对。'
+            ? failedCount.value > 0
+              ? '本次补货录像该片生成或上传失败，可稍后重试或联系运营核对。'
+              : '柜机还没回传本次补货录像，一般十几分钟后才有，请稍后再刷新。'
             : '本单录像该片生成或上传失败，可稍后重试或联系运营核对。',
           showCopy: false
         };
