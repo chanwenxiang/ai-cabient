@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.ConsumerPreauthHold;
 import com.aicabinet.trade.domain.DeviceInfo;
@@ -85,7 +84,7 @@ public class ConsumerPreauthService {
         return Math.max(0, account.getBalanceCents() - Math.max(0, account.getFrozenCents()));
     }
 
-    /** 余额开门路径：校验可用余额并冻结；免密/运营/补货不冻结。 */
+    /** 余额开门路径：校验可用余额并冻结；免密/补货不冻结（2026-11-11 起运营号段照常冻结）。 */
     @Transactional
     public void freezeForOpen(ShoppingSession session, boolean passwordFreeReady) {
         if (session == null || session.getSessionId() == null) {
@@ -93,8 +92,7 @@ public class ConsumerPreauthService {
         }
         if (DeviceValidationService.isRestockSession(session)
                 || isOpsRemote(session)
-                || session.getUserId() == null
-                || session.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
+                || session.getUserId() == null) {
             reloadSession(session.getSessionId()).ifPresent(this::clearSessionPreauth);
             return;
         }
