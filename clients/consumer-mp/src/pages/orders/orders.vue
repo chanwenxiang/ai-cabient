@@ -187,7 +187,14 @@
               <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
             </view>
             <view class="order-mid">
-              <view class="order-thumb order-mark" aria-hidden="true">{{
+              <image
+                v-if="o.coverImageUrl"
+                class="order-thumb"
+                :src="absoluteImageUrl(o.coverImageUrl)"
+                mode="aspectFill"
+                aria-hidden="true"
+              />
+              <view v-else class="order-thumb order-mark" aria-hidden="true">{{
                 (firstProductName(o.lineSummary) || '购').slice(0, 1)
               }}</view>
               <view class="order-copy">
@@ -287,7 +294,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import { cleanLineSummary, firstProductName } from '@aicabinet/shared-uni/product-image';
+import { absoluteImageUrl, cleanLineSummary, firstProductName } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast, showError } from '@/utils/notify';

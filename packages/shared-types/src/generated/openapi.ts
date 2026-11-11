@@ -13199,6 +13199,7 @@ export interface components {
             lineAmountCents?: number;
             batchNo?: string;
             slotId?: string;
+            imageUrl?: string;
         };
         OrderReadModel_Consumer: {
             orderId?: string;
@@ -13224,6 +13225,7 @@ export interface components {
             lineCount?: number;
             lineSummary?: string;
             lineSkuIds?: string;
+            coverImageUrl?: string;
             payTradeNo?: string;
             paymentOperationId?: string;
             /** Format: date-time */
@@ -13349,6 +13351,7 @@ export interface components {
             lineCount?: number;
             lineSummary?: string;
             lineSkuIds?: string;
+            coverImageUrl?: string;
             payTradeNo?: string;
             paymentOperationId?: string;
             /** Format: date-time */
@@ -13466,6 +13469,7 @@ export interface components {
             lineAmountCents?: number;
             batchNo?: string;
             slotId?: string;
+            imageUrl?: string;
         };
         CloseDisputeRequest: {
             note?: string;

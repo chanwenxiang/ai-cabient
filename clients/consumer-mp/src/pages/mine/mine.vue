@@ -273,20 +273,6 @@
     <view class="pref-section">
       <text class="pref-label">偏好设置</text>
       <view class="menu-list">
-        <view class="menu-cell">
-          <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
-          <view class="menu-text">
-            <text class="menu-title">震动反馈</text>
-            <text class="menu-desc">开门成功、加入购物车时轻微震动</text>
-          </view>
-          <switch
-            class="pref-switch"
-            :checked="hapticOn"
-            color="#0d9488"
-            aria-label="震动反馈开关"
-            @change="onHapticChange"
-          />
-        </view>
         <!-- 版本信息（只读）：客服沟通时用户可直接报版本；更新本身由启动时自动提示 -->
         <view class="menu-cell">
           <image class="menu-icon" :src="menuIcon('repair')" mode="aspectFit" />
@@ -405,7 +391,6 @@ import {
   resolveClientPreauthCents
 } from '@/utils/account';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
-import { isHapticEnabled, setHapticEnabled } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
 import { applyTabBarSkin } from '@/utils/tabbar-skin';
 import {
@@ -425,14 +410,6 @@ import {
 /** Tab「我的」：资料行点进去设昵称或登录 */
 
 const devTools = showDevTools();
-/** 震动反馈开关（我的-偏好设置；本机 Storage，默认开） */
-const hapticOn = ref(isHapticEnabled());
-function onHapticChange(e: unknown) {
-  const on = Boolean((e as { detail?: { value?: unknown } })?.detail?.value);
-  hapticOn.value = on;
-  setHapticEnabled(on);
-  showSuccess(on ? '已开启震动反馈' : '已关闭震动反馈');
-}
 
 /**
  * 版本信息（只读，不做开关）：uni.getAccountInfoSync 仅微信端有，H5 探测失败回退文案。

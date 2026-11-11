@@ -25,7 +25,14 @@
             :key="`${item.skuId || 'line'}-${item.batchNo || idx}`"
             class="item-row"
           >
-            <view class="item-thumb item-mark" aria-hidden="true">{{
+            <image
+              v-if="item.imageUrl"
+              class="item-thumb"
+              :src="absoluteImageUrl(item.imageUrl)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view v-else class="item-thumb item-mark" aria-hidden="true">{{
               (item.skuName || '商').slice(0, 1)
             }}</view>
             <view class="item-info">
@@ -189,14 +196,14 @@
         -->
         <button
           v-if="isMpWeixin"
-          class="support support--contact"
+          class="support support--contact app-link-chevron"
           open-type="contact"
           session-from="mp_order"
           send-message-title="AI开门柜 · 订单问题咨询"
           :send-message-path="orderContactPath"
           show-message-card
         >
-          在线客服（可附本单卡片，微信内实时沟通）
+          在线客服
         </button>
       </view>
 
@@ -316,6 +323,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { safeMakePhoneCall } from '@aicabinet/shared-uni/safe-uni-call';
+import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
 import { showError, showSuccess, showConfirm } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
@@ -1255,15 +1263,15 @@ function callSupport() {
   color: var(--brand);
   font-size: var(--font-size-caption);
 }
-/* 原生 button（open-type=contact）复用 .support 链接样式：去默认边框/底色 */
+/* 原生 button（open-type=contact）复用 .support 链接样式：去默认边框/底色。
+   🔴 不要再写 font-size/line-height: inherit——那会把 .support 的 caption 字号顶掉，
+   按钮退回微信默认 18px（2026-11-11 订单详情实测：整行被放大成标题）。 */
 .support--contact {
   margin: 0 auto;
   width: 100%;
   background: transparent;
   border: none;
   border-radius: 0;
-  line-height: inherit;
-  font-size: inherit;
 }
 .support--contact::after {
   border: none;

@@ -536,7 +536,6 @@ import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/acco
 import { absoluteImageUrl, productGlyph, productThumb } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
-import { hapticLight, hapticMedium } from '@/utils/haptic';
 import { refreshMineTabBadge } from '@/utils/tab-badge';
 import { createPopupSeenStore } from '@/utils/popup-seen';
 import {
@@ -1389,9 +1388,6 @@ async function handleSessionOpenResult(
     const fulfilled = (sessionResult as PromiseFulfilledResult<SessionDto>).value;
     if (isAdoptableSession(fulfilled, cabinetId)) {
       adoptSession(fulfilled);
-      // 开门成功触感反馈（我的-偏好设置可关）；失败路径不震，避免负面联想。
-      // medium：light 档真机几乎无感（2026-10-23 用户反馈），关键节点换可感知档位
-      hapticMedium();
       return true;
     }
     // 后端回放状态闸（SessionService.validateIdempotentReplay，2026-11-10 审计 P0-4）：
@@ -1416,7 +1412,6 @@ async function handleSessionOpenResult(
       );
       if (isAdoptableSession(reopened, cabinetId)) {
         adoptSession(reopened);
-        hapticMedium();
         return true;
       }
       // 新键仍非可接管态：交给孤儿会话查询兜底，不在这里直接判死
@@ -2063,8 +2058,6 @@ function addProduct(p: DeviceProduct) {
     return;
   }
   selected.value = { ...selected.value, [p.skuId]: cur + 1 };
-  // 加入购物车触感反馈（我的-偏好设置可关）；「暂无可选/无法再加」失败路径不震
-  hapticLight();
 }
 
 function removeProduct(p: DeviceProduct) {

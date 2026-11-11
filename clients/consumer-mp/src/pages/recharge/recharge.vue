@@ -241,7 +241,6 @@ import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { secureRandomToken } from '@/utils/secure-id';
-import { hapticMedium } from '@/utils/haptic';
 import {
   displayBizNo,
   formatDateTimeMinute,
@@ -612,8 +611,6 @@ async function onWeChatRecharge() {
     const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmountCents.value, key);
     showSuccess(mode === 'live' ? '充值已到账' : '充值成功');
-    // 支付到账中震动（2026-10-23 补：此前仅开门/加购有触感，支付成功无反馈）
-    hapticMedium();
     await loadBalance();
     await loadRecords();
   } catch (e) {
