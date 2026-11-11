@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.MachinePositionConfigMapper">
+
+    <!-- R16-MA-175：saveConfig 的 insert-or-update 竞态收口——行锁读（配置按柜单行，
+         deviceId 为主键；双运营并发保存时 FOR UPDATE 串行化，消除双 insert 撞主键/丢失更新）。 -->
+    <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.MachinePositionConfig">
+        SELECT * FROM machine_position_config WHERE device_id = #{deviceId} FOR UPDATE
+    </select>
+</mapper>

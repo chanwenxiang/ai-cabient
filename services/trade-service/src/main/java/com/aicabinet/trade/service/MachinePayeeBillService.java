@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -142,11 +143,22 @@ public class MachinePayeeBillService {
                 .orderByDesc(MachinePayeeBill::getBillId));
     }
 
-    /** 标记结清（线下收款后）。MA-091：资金处置动作补操作者归因。 */
+    /**
+     * 标记结清（线下收款后）。MA-091：资金处置动作补操作者归因。
+     *
+     * <p>R16-MA-175：补 @Transactional + FOR UPDATE 行锁 + 状态幂等闸——原实现
+     * 「selectById→setStatus→updateById」读后写无锁，①已 SETTLED 的账单重复点结清会
+     * 重复落审计行；②updateById 与 appendLog 各自独立提交，半程失败出现「结清但无审计/
+     * 有审计未结清」的不一致。</p>
+     */
+    @Transactional
     public void settle(Long operatorId, Long billId) {
-        MachinePayeeBill bill = billMapper.selectById(billId);
+        MachinePayeeBill bill = billMapper.findByIdForUpdateRaw(billId);
         if (bill == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "账单不存在");
+        }
+        if ("SETTLED".equals(bill.getStatus())) {
+            return; // 幂等：已结清不重复落审计（R16-MA-175）
         }
         bill.setStatus("SETTLED");
         bill.setSettledAt(Instant.now());
@@ -172,7 +184,12 @@ public class MachinePayeeBillService {
      * <p>刻意<b>只校验非 null 字段</b>：MyBatis-Plus 的 {@code updateById} 跳过 null
      * （见 lessons #384），PUT 省略字段语义是「保持原值」，把 null 当 0 会静默清配置。
      */
+    @Transactional
     public void saveConfig(String deviceId, MachinePositionConfig cfg) {
+        // R16-MA-175：行锁串行化「查无→insert / 有→update」的读后写竞态——双运营并发保存
+        // 同一新柜时双 insert 撞 deviceId 主键（一边 500），并发更新则丢失更新。
+        // 配置喂 generateMonthly 出账金额（shareBps），丢失更新会改后续账期账单。
+        configMapper.findByIdForUpdateRaw(deviceId);
         cfg.setDeviceId(deviceId);
         if (cfg.getShareBps() != null) {
             cfg.setShareBps(CommissionParamBounds.requireBps("shareBps", cfg.getShareBps()));
