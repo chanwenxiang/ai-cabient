@@ -23,6 +23,22 @@ class OrderViewAssemblerTest {
     }
 
     @Test
+    void assemble_withPreloadedImages_usesPreloaded() {
+        // R14-F2：列表页跨单批量取图——preloadedImages 非 null 时不走 loadSkuImages
+        CabinetOrder order = new CabinetOrder();
+        order.setPayChannel("WECHAT");
+        CabinetOrderLine line = new CabinetOrderLine();
+        line.setSkuId("SKU-1");
+        line.setQuantity(1);
+        line.setLineAmountCents(300);
+
+        var preloaded = java.util.Map.of("SKU-1", "https://oss/sku1.jpg");
+        OrderReadModel model = assembler.assemble(
+                order, List.of(line), null, null, null, null, false, preloaded);
+        assertEquals("https://oss/sku1.jpg", model.coverImageUrl());
+    }
+
+    @Test
     void assembleSummary_buildsLineSummaryAndOriginal() {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("O1");
