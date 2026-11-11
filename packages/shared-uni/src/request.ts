@@ -251,7 +251,11 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
           // 「登录已失效」，补货员只能反复输密码却不知道是哪种成因——这里的 message 会经
           // handleUnauthorized 落到提示。
           reject(
-            createMpApiError(localizeApiMessage(body?.message, '登录已失效'), res.statusCode, 'UNAUTHORIZED')
+            createMpApiError(
+              localizeApiMessage(body?.message, '登录已失效'),
+              res.statusCode,
+              'UNAUTHORIZED'
+            )
           );
           return;
         }
