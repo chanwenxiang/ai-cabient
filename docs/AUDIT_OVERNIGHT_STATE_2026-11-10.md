@@ -10,7 +10,24 @@
 - 待修清单（两轮并集）：`docs/AUDIT_FOUR_END_R4_2026-11-10.md`（§1 洞表 + §2/§3）∪ `docs/AUDIT_FOUR_END_R3_2026-11-10.md`（§3–§5）。
 - 已知待拍板两项（低风险顺手收口，终报标注）：D4 提现回放终态窄窗 → 按仿 B1 加 409；RETIRE 柜不解绑 → 不动代码，仅台账留痕。
 
-## 轮次账（2026-11-11 05:00 前后更新——R5/R6/R7 已全部收口）
+## 轮次账（2026-11-11 06:00 前后更新——R11-R16 全部收口 + R17 审计零新发现 + 改进批）
+
+### R17（主审直查 + 改进批）
+- 四角度审计（凭证持久化 / DTO 校验层 / || null 残余 / UAT 套件假断言）→ **零新发现**
+- F2 跨单批量取图 N+1 优化（OrderService 两次批查替代逐单 N 次 selectBatchIds）
+- M7 resilience4j DM 属性化
+- M3 十六文件全量 logging 轮转（base 9 + apps 12 + full 8 + production 9）
+- M6 nginx-full /admin/ 安全头补齐
+- M7-1 resilience4j DM 属性化
+- 8ff1e050 BOM 清尾
+- 51a75d3e MA-175 修复
+
+### CI 跟踪
+- 567ff041 轮 admin-artifacts 红（R15 批 admin-vue 源码改动后未重烤）→ 5c3c0def 重烤后 **admin-artifacts ✅**
+- 5c3c0def 轮 build ✅ / mini-programs ✅，e2e-h5/integration 在跑
+- 多轮被 cancel（并行推送频繁）——最新 2d8d525b 轮在跑
+
+### 老漏洞历史（原 05:00 版保留在下方）
 
 ### 提交链（893bb2ca → HEAD，16 提交，全部 preflight 绿、未推送）
 9d5f295e R3/R4 P1 批 6 条 → 21f30db5 R4 报告+台账 → bd5845bf R3/R4 P2 批 35 文件 → 7e9d4f0b P2c+P3 批 → e13ac216 E6 语法+测试 → 268fea2c A27 三页+台账 → 852dde45 产物配对 → 17b7a89e 门禁加固批 → 7e0d7961 prettier → 2fb1bc7f 产物配对 → 76c06c23 R5 修复批 24 处 → 602afa24 shared-api dist → bb2a5435 产物配对 → 966bb46d R6 修复批前半 → (R6 后半提交) → (R7 提交)
