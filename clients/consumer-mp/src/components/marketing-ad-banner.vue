@@ -59,6 +59,10 @@ const reported = new Set<string>();
 // R2-C5：原写法 `if (!slides.value.length) void load()` 只在「还没内容」时才拉 ——
 // 首页 Tab 态先按无柜码拉到 ALL 投放内容后，扫码进柜（deviceId 有值）不会重拉，
 // SPECIFIC 定向投放永远出不来。deviceId 变了就必须重算，无条件拉。
+// R10：loadSeq 声明必须先于 immediate watch —— immediate 回调在 setup 期同步执行，
+// 声明在后会撞 TDZ（CI e2e-h5 TC-QUAL-001 实证，messages.vue 同款第二处）。
+let loadSeq = 0;
+
 watch(
   () => props.deviceId,
   () => {
@@ -66,8 +70,6 @@ watch(
   },
   { immediate: true }
 );
-
-let loadSeq = 0;
 async function load() {
   // R3-C-R3-2：无条件重拉必须配请求时点守卫 —— 弱网下旧 deviceId 的响应晚到不得覆盖新内容，
   // 失败也不得清掉「已展示的新内容」。
