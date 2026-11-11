@@ -459,10 +459,12 @@ public class MerchantPortalService {
                 locked.setAlertContactPhone(blankToNull(request.alertContactPhone()));
             }
             merchantRepository.save(locked);
-            // R16-MA-175 家族：alertContactName/Phone 清空后 updateById 跳 null ⇒ 旧值残留。
-            if (locked.getAlertContactName() == null || locked.getAlertContactPhone() == null) {
+            // R16-MA-175 家族：contactPhone/alertContactName/Phone 清空后 updateById 跳 null ⇒ 旧值残留。
+            if (locked.getContactPhone() == null || locked.getAlertContactName() == null
+                    || locked.getAlertContactPhone() == null) {
                 merchantRepository.update(null, Wrappers.<Merchant>lambdaUpdate()
                         .eq(Merchant::getMerchantId, locked.getMerchantId())
+                        .set(locked.getContactPhone() == null, Merchant::getContactPhone, null)
                         .set(locked.getAlertContactName() == null, Merchant::getAlertContactName, null)
                         .set(locked.getAlertContactPhone() == null, Merchant::getAlertContactPhone, null));
             }
