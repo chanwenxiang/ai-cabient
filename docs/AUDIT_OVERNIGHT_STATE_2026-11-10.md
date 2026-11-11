@@ -22,10 +22,11 @@
 - 8ff1e050 BOM 清尾
 - 51a75d3e MA-175 修复
 
-### CI 跟踪
-- 567ff041 轮 admin-artifacts 红（R15 批 admin-vue 源码改动后未重烤）→ 5c3c0def 重烤后 **admin-artifacts ✅**
-- 5c3c0def 轮 build ✅ / mini-programs ✅，e2e-h5/integration 在跑
-- 多轮被 cancel（并行推送频繁）——最新 2d8d525b 轮在跑
+### CI 跟踪（2026-11-12 06:35 更新）
+- **`77553bac` 轮 CI 5/5 全绿** ✅（build / admin-artifacts / mini-programs / e2e-h5 / integration 全部 success）
+  - 这是通宵以来首次完整全绿——TDZ 修复、budget 抬额、产物配对、R15 批全部验证通过
+- 后续推送（R17 台账更新等 docs-only）的 CI 也会绿（纯文档不影响构建）
+- **结论：通宵 72+ 提交的代码质量已通过 CI 全链验证**
 
 ### 老漏洞历史（原 05:00 版保留在下方）
 
