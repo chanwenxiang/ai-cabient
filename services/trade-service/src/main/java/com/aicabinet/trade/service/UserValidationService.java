@@ -53,7 +53,7 @@ public class UserValidationService {
 
     /**
      * 参考旧 M8MachineService.openDoor 前置校验。
-     * 运营账号 (userId >= 100000000) 跳过实名和余额检查。
+     * 2026-11-11（2535dcd2）起运营号段不再跳过：同样过风险闸与欠款闸（R14-D1 钉测在位）。
      */
     public void validateCanOpenDoor(Long userId) {
         validateCanOpenDoor(userId, null, null);
@@ -167,7 +167,7 @@ public class UserValidationService {
         return isPasswordFreeReady(userId, entryChannel);
     }
 
-    /** 结算前校验可用余额是否覆盖订单金额（运营账号跳过）。 */
+    /** 结算前校验可用余额是否覆盖订单金额（2026-11-11 起运营号段同样校验）。 */
     public void validateSufficientBalanceForCharge(Long userId, int amountCents) {
         validateSufficientBalanceForCharge(userId, amountCents, 0);
     }

@@ -103,7 +103,9 @@ public class DeviceDataFeeBillService {
     @Transactional
     public DeviceDataFeeBillDto markPaid(Long operatorId, Long billId) {
         permissionService.requirePermission(operatorId, "ops:org:edit");
-        DeviceDataFeeBill bill = requireBill(billId);
+        // R14-G2：读后写补行锁——无锁时并发 markPaid/voidBill 可产生「VOID 但 paidAt 残留」
+        // （人工留痕通道无资金移动，但脏数据会污染月结口径）
+        DeviceDataFeeBill bill = requireBillForUpdate(billId);
         if (CabinetConstants.FEE_BILL_STATUS_VOID.equals(bill.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已作废账单不可标记已付");
         }
@@ -123,7 +125,8 @@ public class DeviceDataFeeBillService {
     @Transactional
     public DeviceDataFeeBillDto voidBill(Long operatorId, Long billId) {
         permissionService.requirePermission(operatorId, "ops:org:edit");
-        DeviceDataFeeBill bill = requireBill(billId);
+        // R14-G2：同 markPaid，行锁防状态竞态
+        DeviceDataFeeBill bill = requireBillForUpdate(billId);
         if (CabinetConstants.FEE_BILL_STATUS_PAID.equals(bill.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已付账单不可作废");
         }
@@ -180,6 +183,15 @@ public class DeviceDataFeeBillService {
 
     private DeviceDataFeeBill requireBill(Long billId) {
         DeviceDataFeeBill bill = billMapper.selectById(billId);
+        if (bill == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "流量费账单不存在");
+        }
+        return bill;
+    }
+
+    /** R14-G2：行锁版 requireBill（FOR UPDATE），供 markPaid/voidBill 读后写使用。 */
+    private DeviceDataFeeBill requireBillForUpdate(Long billId) {
+        DeviceDataFeeBill bill = billMapper.findByIdForUpdate(billId).orElse(null);
         if (bill == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "流量费账单不存在");
         }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.DeviceDataFeeBillMapper">
+
+    <!-- R14-G2：markPaid/voidBill 读后写补行锁（防并发双操作产生「VOID 但 paidAt 残留」；
+         模板同 OpsPermissionMapper.findByIdForUpdateRaw） -->
+    <select id="findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.DeviceDataFeeBill">
+        SELECT * FROM device_data_fee_bill WHERE bill_id = #{billId} FOR UPDATE
+    </select>
+
+</mapper>

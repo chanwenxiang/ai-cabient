@@ -89,3 +89,24 @@
 ---
 
 *报告落盘：2026-11-11。主审亲验 5 条关键发现全部坐实；其余 P3 与两路证据一致性核对。修复批建议顺序：G1（安全，~8 行）→ A1/A2（M01 清列）→ D1（补 3 钉测）→ F1/G2/D2/D3/F4 随批；F2/F3 登记观察。*
+
+---
+
+## 七、修复批回执（2026-11-11 晚，复核会话执行）
+
+> 用户拍板：G1 采「信任序倒置」；全批开修。**9 条已修 + F2/F3 登记观察**。复核时主审对 5 条关键发现的源码证据全部独立复现（G1 三点/A1 两端/A2 两端/D2 两处/G2 无锁），仅两处笔误修正：A2 前端实际在 `views/users/`（报告写 views/system）；F1 的冲突元素实际是 **consumer-mp order-detail.vue:188 的 `.support--contact`**（报告写 merchant devices.vue，机制描述正确、端与文件写错）。
+
+| 条 | 修法与实证 |
+|---|---|
+| G1 | `resolveClientIp` 信任序倒置：X-Real-IP（nginx 恒覆写不可伪造）→ XFF 首跳（仅直连回退）→ remoteAddr；javadoc 钉死「X-Real-IP 可信前提=仅反代写入，直连 18080 退化为 best-effort」的威胁边界；新钉测 `CabinetOpenLandingClientIpTest` 4/4（伪造首跳不得成为限流键） |
+| A1 | `OpsRbacService.doUpdatePermission` 补 lambdaUpdate 清 path（模板同 ：928 R13-MA-174） |
+| A2 | `CompetitiveGapService.updatePhoneVerify` 补 merchantId/userId 条件清列（`.set(cond, col, null)`） |
+| D1 | 新钉测 `UserValidationServiceOperatorNoExemptionTest` 4/4：欠款 412 拒开门 + 免密不再恒真 + 余额不足预检抛错 + 余额充足放行。踩坑入册：helper 公共 `anyLong()` 桩会顶掉用例内 `eq()` 精确桩（后注册优先）⇒ 欠款 1 笔被 0L 放行成 404；严格桩下 helper 必须零桩 |
+| D2 | UserValidationService:56/:170 两处反向 javadoc 改为「2026-11-11 起运营号段同样校验」 |
+| D3 | `submitChannelCharge` 渠道回落余额分支补 `finalizeChargePending(orderId, null)` 收口痕迹行（消 60 分钟 HIGH 告警噪声） |
+| F1 | 箭头挂内层 `<text class="app-link-chevron">`，button 保留 `.support--contact::after{border:none}` 原生边框清理（同元素互斥实证：page scoped 特异性 > theme 全局） |
+| F4 | update-prompt.ts 悬空「设置里的自定义项见 haptic」删除 |
+| G2 | `DeviceDataFeeBillMapper` 补 `findByIdForUpdateRaw`（XML，模板同 OpsPermissionMapper）+ markPaid/voidBill 改行走 `requireBillForUpdate` |
+| F2/F3 | 登记观察：F2 订单列表逐单取图（可选批量优化）；F3 OpenAPI 变体缺 coverImageUrl（存量，商户端做图时一并查根因） |
+
+**回归**：后端定向 7 类 20 测试全绿（含 R11 分账 4 类回归）；consumer-mp type-check + vitest 195/195 绿；eslint 0 error；门禁实跑 mp-defect-classes / ui-barehex-ratchet / merchant-me-gated-load(+negative) / mp-touch-target-ratchet 全绿。本轮未改 admin 源码 ⇒ 无需重烤产物。

@@ -5,11 +5,19 @@ import com.aicabinet.trade.domain.DeviceDataFeeBill;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
 @Mapper
 public interface DeviceDataFeeBillMapper extends BaseTradeMapper<DeviceDataFeeBill> {
+
+    /** R14-G2：行锁读取（markPaid/voidBill 读后写防并发竞态；SQL 在 DeviceDataFeeBillMapper.xml）。 */
+    DeviceDataFeeBill findByIdForUpdateRaw(@Param("billId") Long billId);
+
+    default java.util.Optional<DeviceDataFeeBill> findByIdForUpdate(Long billId) {
+        return java.util.Optional.ofNullable(findByIdForUpdateRaw(billId));
+    }
 
     default List<DeviceDataFeeBill> findByDeviceAndMonth(String deviceId, String billMonth) {
         return selectList(Wrappers.<DeviceDataFeeBill>lambdaQuery()

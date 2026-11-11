@@ -264,6 +264,13 @@ public class OpsRbacService {
             p.setStatus(normalizeStatus(request.status()));
         }
         permissionRepository.save(p);
+        // R14-A1（MA-174 残余第 7 处）：显式清列——updateById 跳 null，path 清空
+        // /F 型按钮强制 null 后旧路由永留（M01 家族，模板同 updateMyProfile 的 email/avatarUrl）。
+        if (p.getPath() == null) {
+            permissionRepository.update(null, Wrappers.<OpsPermission>lambdaUpdate()
+                    .eq(OpsPermission::getPermissionId, permissionId)
+                    .set(OpsPermission::getPath, null));
+        }
         auditService.appendLog(operatorId, "OPS_PERM_UPDATE", "PERMISSION", String.valueOf(permissionId),
                 "permCode=" + p.getPermCode() + ",status=" + p.getStatus());
         return toPermissionDto(p);

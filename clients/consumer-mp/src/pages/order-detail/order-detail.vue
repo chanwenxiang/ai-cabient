@@ -196,14 +196,17 @@
         -->
         <button
           v-if="isMpWeixin"
-          class="support support--contact app-link-chevron"
+          class="support support--contact"
           open-type="contact"
           session-from="mp_order"
           send-message-title="AI开门柜 · 订单问题咨询"
           :send-message-path="orderContactPath"
           show-message-card
         >
-          在线客服
+          <!-- R14-F1：箭头挂内层 text，不挂 button——.support--contact::after{border:none}
+               是去微信原生按钮边框的必要清理，同元素挂 app-link-chevron 会被它把箭头的
+               border-right/bottom 一并抹掉（特异性 page scoped > theme 全局），箭头不渲染。 -->
+          <text class="app-link-chevron">在线客服</text>
         </button>
       </view>
 

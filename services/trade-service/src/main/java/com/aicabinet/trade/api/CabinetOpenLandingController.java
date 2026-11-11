@@ -87,8 +87,20 @@ public class CabinetOpenLandingController {
         return "OTHER";
     }
 
-    /** L04：取来源 IP，优先代理头第一跳（与限流口径一致，不可伪造多段绕过）。 */
-    private static String resolveClientIp(HttpServletRequest request) {
+    /**
+     * L04：取来源 IP。信任序（R14-G1 信任序倒置）：X-Real-IP 优先——本仓 nginx
+     * 恒定覆写 {@code proxy_set_header X-Real-IP $remote_addr}，客户端无法伪造；
+     * X-Forwarded-For 是追加型（$proxy_add_x_forwarded_for），首跳可被客户端
+     * 自选，仅作「未过反代的直连」回退。威胁边界：X-Real-IP 可信的前提是部署
+     * 拓扑中该头只由反代写入——生产必须经 nginx（直连暴露 18080 时 X-Real-IP
+     * 同样可伪造，此时限流退化为 best-effort，不应作为唯一防线）。
+     */
+    // 包级可见：CabinetOpenLandingClientIpTest 钉取值顺序（R14-G1）
+    static String resolveClientIp(HttpServletRequest request) {
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
             int comma = forwarded.indexOf(',');
@@ -96,10 +108,6 @@ public class CabinetOpenLandingController {
             if (!first.isBlank()) {
                 return first;
             }
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
         }
         return request.getRemoteAddr();
     }

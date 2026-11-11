@@ -7,7 +7,7 @@
  * - 下载失败 → 提示检查网络（下次冷启动微信自然换新包）；
  * - 非微信小程序平台（H5 等）无 getUpdateManager，运行时探测后静默跳过。
  *
- * 不做用户开关：这是运维兜底能力，不属个人偏好；设置里的自定义项见 haptic。
+ * 不做用户开关：这是运维兜底能力，不属个人偏好。
  */
 interface MpUpdateManager {
   onUpdateReady(cb: () => void): void;

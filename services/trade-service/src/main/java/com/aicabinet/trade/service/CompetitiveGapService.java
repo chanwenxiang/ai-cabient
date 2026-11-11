@@ -707,6 +707,14 @@ public class CompetitiveGapService {
         log.setChannel(body.channel() == null || body.channel().isBlank() ? log.getChannel() : body.channel().trim());
         log.setMerchantId(body.merchantId());
         phoneVerifyLogMapper.updateById(log);
+        // R14-A2（MA-174 残余第 8 处）：显式清列——updateById 跳 null，编辑验证记录
+        // 清空「商户编号/用户编号」后旧绑定永留（M01 家族）。行锁已在 findByIdForUpdate，无并发面。
+        if (log.getMerchantId() == null || log.getUserId() == null) {
+            phoneVerifyLogMapper.update(null, Wrappers.<PhoneVerifyLog>lambdaUpdate()
+                    .eq(PhoneVerifyLog::getLogId, logId)
+                    .set(log.getMerchantId() == null, PhoneVerifyLog::getMerchantId, null)
+                    .set(log.getUserId() == null, PhoneVerifyLog::getUserId, null));
+        }
         return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
     }
 

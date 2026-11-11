@@ -297,6 +297,10 @@ public class OrderPaymentService {
             throw e;
         }
         if (PayChannels.BALANCE.equals(charge.channel())) {
+            // R14-D3：渠道判定回落余额 ⇒ 本次渠道扣款尝试已终结，CHARGE_PENDING 痕迹行
+            // 必须收口（FINALIZED，无渠道单号），否则 60 分钟 HIGH 告警对回落单全量误报；
+            // 后续余额扣款会另落自己的 CHARGE 流水（痕迹行仅审计，不计入 netCompletedCents）。
+            self.finalizeChargePending(order.getOrderId(), null);
             return false;
         }
         order.setPayChannel(charge.channel());
