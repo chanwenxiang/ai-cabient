@@ -48,6 +48,22 @@ public class OrderViewAssembler {
                                    String refundPolicy,
                                    String payTradeNo,
                                    boolean includeLines) {
+        return assemble(order, lines, splitStatus, paidAt, refundPolicy, payTradeNo, includeLines, null);
+    }
+
+    /**
+     * R14-F2：列表页跨单批量取图的重载——调用方把整页的 skuId→imageUrl 映射预先算好传进来，
+     * 避免 assembler 逐单调 loadSkuImages 产生 N 次 sku_catalog 点查（每页 +N 次的 N+1）。
+     * 传 null 走原有路径（单单取，详情页/非列表场景不受影响）。
+     */
+    public OrderReadModel assemble(CabinetOrder order,
+                                   List<CabinetOrderLine> lines,
+                                   String splitStatus,
+                                   Instant paidAt,
+                                   String refundPolicy,
+                                   String payTradeNo,
+                                   boolean includeLines,
+                                   java.util.Map<String, String> preloadedImages) {
         if (order == null) {
             throw new IllegalArgumentException("order required");
         }
@@ -60,7 +76,9 @@ public class OrderViewAssembler {
         String tradeNo = (payTradeNo != null && !payTradeNo.isBlank())
                 ? payTradeNo
                 : blankToNull(order.getPayTradeNo());
-        Map<String, String> images = loadSkuImages(safeLines);
+        Map<String, String> images = preloadedImages != null
+                ? preloadedImages
+                : loadSkuImages(safeLines);
         List<OrderLineDto> lineDtos = includeLines ? toLineDtos(safeLines, images) : null;
         return new OrderReadModel(
                 order.getOrderId(),
