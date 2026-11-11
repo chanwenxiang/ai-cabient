@@ -165,7 +165,8 @@ export function useWarehouseStocktakes(deps: UseWarehouseStocktakesDeps) {
     try {
       if (!(await persistStocktakeLines())) return;
       ElMessage.success('实盘数据已保存');
-      await reloadStocktakeDetail();
+      // R10-A23：与完成类四动作对齐——刷新失败不得在「已保存」后再弹「保存失败」双提示
+      await reloadStocktakeDetailSafely();
     } finally {
       deps.saving.value = false;
     }
