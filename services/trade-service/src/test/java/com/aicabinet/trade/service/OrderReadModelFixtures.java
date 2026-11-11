@@ -39,6 +39,7 @@ public final class OrderReadModelFixtures {
                 null,
                 null,
                 null,
+                null,
                 0,
                 false,
                 null,

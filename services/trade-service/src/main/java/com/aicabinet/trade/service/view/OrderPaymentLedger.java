@@ -46,6 +46,7 @@ public final class OrderPaymentLedger {
                 model.lineCount(),
                 model.lineSummary(),
                 model.lineSkuIds(),
+                model.coverImageUrl(),
                 model.payTradeNo(),
                 model.paymentOperationId(),
                 model.refundedAt(),

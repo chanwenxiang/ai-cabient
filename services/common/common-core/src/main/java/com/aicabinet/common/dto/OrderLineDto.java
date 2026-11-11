@@ -10,14 +10,21 @@ public record OrderLineDto(
         @JsonView(OrderViews.Public.class) int unitPriceCents,
         @JsonView(OrderViews.Public.class) int lineAmountCents,
         @JsonView(OrderViews.Public.class) String batchNo,
-        @JsonView(OrderViews.Public.class) String slotId
+        @JsonView(OrderViews.Public.class) String slotId,
+        /** 商品图（sku_catalog.image_url，可能是 /api/v2/media/... 相对路径）；无图为 null。 */
+        @JsonView(OrderViews.Public.class) String imageUrl
 ) {
     public OrderLineDto(String skuId, String skuName, int quantity, int unitPriceCents, int lineAmountCents) {
-        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, null, null);
+        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, null, null, null);
     }
 
     public OrderLineDto(String skuId, String skuName, int quantity, int unitPriceCents, int lineAmountCents,
                         String batchNo) {
-        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, batchNo, null);
+        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, batchNo, null, null);
+    }
+
+    public OrderLineDto(String skuId, String skuName, int quantity, int unitPriceCents, int lineAmountCents,
+                        String batchNo, String slotId) {
+        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, batchNo, slotId, null);
     }
 }

@@ -4,16 +4,34 @@ import com.aicabinet.common.dto.OrderLineDto;
 import com.aicabinet.common.dto.OrderReadModel;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
+import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * 订单读模型唯一装配点：渠道归一、原价回退、行摘要等派生逻辑只在此处计算。
  */
 @Component
 public class OrderViewAssembler {
+
+    /** 商品图来源（sku_catalog.image_url）；无参构造时为 null（既有单测不需要库）。 */
+    private final SkuCatalogMapper skuCatalogMapper;
+
+    public OrderViewAssembler() {
+        this(null);
+    }
+
+    @Autowired
+    public OrderViewAssembler(SkuCatalogMapper skuCatalogMapper) {
+        this.skuCatalogMapper = skuCatalogMapper;
+    }
 
     /**
      * @param lines           订单行；可空
@@ -42,7 +60,8 @@ public class OrderViewAssembler {
         String tradeNo = (payTradeNo != null && !payTradeNo.isBlank())
                 ? payTradeNo
                 : blankToNull(order.getPayTradeNo());
-        List<OrderLineDto> lineDtos = includeLines ? toLineDtos(safeLines) : null;
+        Map<String, String> images = loadSkuImages(safeLines);
+        List<OrderLineDto> lineDtos = includeLines ? toLineDtos(safeLines, images) : null;
         return new OrderReadModel(
                 order.getOrderId(),
                 order.getSessionId(),
@@ -62,6 +81,7 @@ public class OrderViewAssembler {
                 itemQty(safeLines),
                 buildLineSummary(safeLines),
                 buildLineSkuIds(safeLines),
+                coverImageUrl(safeLines, images),
                 tradeNo,
                 blankToNull(order.getPaymentOperationId()),
                 order.getRefundedAt(),
@@ -171,11 +191,63 @@ public class OrderViewAssembler {
                 .orElse(null);
     }
 
-    private static List<OrderLineDto> toLineDtos(List<CabinetOrderLine> lines) {
+    /**
+     * 批量取商品图（sku_catalog.image_url，相对路径由前端 absoluteImageUrl 补域名）。
+     * 无 mapper（单测直接 new）或查询失败一律回空表——订单读面不能因配图缺失而失败。
+     */
+    private Map<String, String> loadSkuImages(List<CabinetOrderLine> lines) {
+        if (skuCatalogMapper == null || lines == null || lines.isEmpty()) {
+            return Map.of();
+        }
+        List<String> ids = lines.stream()
+                .map(CabinetOrderLine::getSkuId)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> images = new HashMap<>();
+        try {
+            for (SkuCatalog sku : skuCatalogMapper.selectBatchIds(ids)) {
+                if (sku != null && sku.getSkuId() != null && sku.getImageUrl() != null
+                        && !sku.getImageUrl().isBlank()) {
+                    images.put(sku.getSkuId().trim(), sku.getImageUrl().trim());
+                }
+            }
+        } catch (RuntimeException e) {
+            return Map.of();
+        }
+        return images;
+    }
+
+    /** 列表封面图：第一条有图的商品行，与「商品」列同序。 */
+    private static String coverImageUrl(List<CabinetOrderLine> lines, Map<String, String> images) {
+        for (CabinetOrderLine line : lines) {
+            String url = imageFor(images, line.getSkuId());
+            if (url != null) {
+                return url;
+            }
+        }
+        return null;
+    }
+
+    private static String imageFor(Map<String, String> images, String skuId) {
+        if (images.isEmpty() || skuId == null) {
+            return null;
+        }
+        String url = images.get(skuId.trim());
+        return url == null || url.isEmpty() ? null : url;
+    }
+
+    private static List<OrderLineDto> toLineDtos(List<CabinetOrderLine> lines, Map<String, String> images) {
         return lines.stream()
                 .map(l -> new OrderLineDto(
                         l.getSkuId(), l.getSkuName(), l.getQuantity(),
-                        l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo(), l.getSlotId()))
+                        l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo(), l.getSlotId(),
+                        imageFor(images, l.getSkuId())))
                 .toList();
     }
 

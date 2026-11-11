@@ -37,6 +37,8 @@ public record OrderReadModel(
         @JsonView(OrderViews.Public.class) String lineSummary,
         /** 商品行 SKU ID（`、` 分隔，与 lineSummary 同序）——运营台订单列表 SKU 列数据源。 */
         @JsonView(OrderViews.Public.class) String lineSkuIds,
+        /** 列表封面图：第一条有图商品行的 sku_catalog.image_url；无图为 null。 */
+        @JsonView(OrderViews.Public.class) String coverImageUrl,
         @JsonView(OrderViews.Public.class) String payTradeNo,
         @JsonView(OrderViews.Public.class) String paymentOperationId,
         @JsonView(OrderViews.Public.class) Instant refundedAt,
