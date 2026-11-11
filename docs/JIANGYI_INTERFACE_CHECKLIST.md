@@ -1033,6 +1033,26 @@ client `stdSkuList/productDelete/stdSkuByTextNames/learnableProducts/modelFiles`
 **验证**：test-compile 过；受影响单测绿（portal 10 / concurrency 3 / validation 11 / flow 2 / controller 13）；
 admin+merchant type-check 绿；audit-gates 绿（更新 ui-copy 扫描清单、slot-copy 基线持平）；openapi 重抽（console/learning-library=0、gather/status=1）。
 
+### 12B.9 补货/盘点录像回传时序实测与拍板（2026-11-11，SN CQYB10720）
+
+**下发侧逐字同形**：补货与盘点走的是同一条 WS 指令（V16 §4.3.2.4 `sendOpenStockDoor`），字段只有
+`status/msgType/msgContent`，我方两条链路共用同一分支，唯一差别是单号值——
+
+| 时刻 | 操作 | msgContent |
+|---|---|---|
+| 10:37:24 | 补货 | `1794364644336729035040` |
+| 10:52:00 | 盘点 | `1794365520171438972459` |
+| 11:27:10 | 补货 | `1794367630931179331443` |
+
+**回传侧**（都打到 `/jiangyi/api/replenishmentHistoryVideo/create`，非 §4.2.14 `uploadVideoUrl`；均 `serial 1/1`、2 个地址）：
+
+- 10:52 盘点 → **10:58 自动上报**（约 6 分钟，我方未拉取）
+- 11:27 补货 → 11:28 我方拉取 `sendUploadErrorOrderVideos` → **11:42 上报**（拉取后约 14 分钟）
+- 10:37 补货 → 11:16 我方拉取，设备回 `sendUploadErrorOrderVideosSure`（`msgContent` 空）→ **至今 0 条上报**
+
+**拍板（2026-11-11 用户确认）**：十几分钟量级的回传延迟属**设备侧节奏**，不是我方缺陷 ⇒ 我方不加轮询补偿、
+不做超时重拉、不补录；唯一未闭合的是 10:37 那笔设备侧漏生成，已把「三笔报文除单号外完全相同」连同时间戳发厂商待答。
+
 ## 13. 相关文档
 
 - `docs/JIANGYI_GATEWAY_DESIGN.md` §2 端点契约 / §5 已知边界与待办（本表是它的**逐条展开**，冲突处以本表的行号证据为准，并回去订正对方）
