@@ -124,13 +124,13 @@ describe('mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥', () =
     expect(items[0].title).toBe('T:临期汇总');
   });
 
-  it('临期行标题带 SKU 与数量，明细按 柜机 · 批次 · 原因 拼接（缺项自动省略）', () => {
+  it('临期行标题带 SKU 与数量，明细按 柜机 · 批次 · 原因 · 待运营安排下架 拼接（缺项自动省略）', () => {
     const items = mergeTodoItems({
       expiryRows: [expiry({ skuId: 'SKU-9', quantity: 3, reason: '', batchNo: 'B7' })]
     });
     expect(items[0].title).toContain('SKU-9');
     expect(items[0].title).toContain('3');
-    expect(items[0].detail).toBe('D1 · B7');
+    expect(items[0].detail).toBe('D1 · B7 · 待运营安排下架');
   });
 
   it('临期行原因码中文化：NEAR_EXPIRY→临期 / EXPIRED→过期 / 表外值原样（不吞成未知）', () => {

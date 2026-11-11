@@ -256,7 +256,8 @@ function actionHint(item: { type: string; deviceId?: string; ticketId?: string }
     if (!hasPerm(me.value, 'merchant:disputes:list')) return item.deviceId ? '查看柜机' : '';
     return item.deviceId ? '查看柜机' : '查看争议';
   }
-  if (type === 'EXPIRY') return '去处理临期任务';
+  // 临期下架由运营发起（pull_off 任务），商户端只看柜机；无柜机时把状态写在入口上而不是骗他点
+  if (type === 'EXPIRY') return item.deviceId ? '查看柜机' : '待运营安排下架';
   if (type === 'LOW_STOCK') return '去发起补货';
   if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务';
   if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT' || type === 'SALES_LOCKED')
@@ -397,7 +398,17 @@ function handleItem(item: {
     }
     return;
   }
-  if (type === 'EXPIRY' || type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') {
+  if (type === 'EXPIRY') {
+    if (item.deviceId) {
+      uni.navigateTo({
+        url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
+      });
+      return;
+    }
+    showError('临期商品下架由运营安排，请联系运营');
+    return;
+  }
+  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') {
     const q = item.deviceId ? `?deviceId=${encodeURIComponent(item.deviceId)}` : '';
     uni.navigateTo({ url: `/pages/replenishment/replenishment${q}` });
     return;

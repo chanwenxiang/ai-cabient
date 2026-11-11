@@ -89,7 +89,9 @@ export function mergeTodoItems(input: {
       type: 'EXPIRY',
       typeLabel: alertTypeLabel('EXPIRY'),
       title: `${e.skuId || '商品'} · 临期/过期 ${e.quantity || 0} 件`,
-      detail: [e.deviceId, e.batchNo, expiryReasonLabel(e.reason)].filter(Boolean).join(' · '),
+      detail: [e.deviceId, e.batchNo, expiryReasonLabel(e.reason), '待运营安排下架']
+        .filter(Boolean)
+        .join(' · '),
       deviceId: e.deviceId
     }));
 
