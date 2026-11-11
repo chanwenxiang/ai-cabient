@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.MerchantOpsConfig;
 import com.aicabinet.trade.domain.UserAccount;
@@ -67,9 +66,6 @@ public class UserValidationService {
     public void validateCanOpenDoor(Long userId, String deviceId, String entryChannel) {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
-        }
-        if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
-            return;
         }
 
         riskControlService.validateCanOpenDoor(userId, deviceId);
@@ -156,7 +152,7 @@ public class UserValidationService {
     }
 
     public boolean isPasswordFreeReady(Long userId, String entryChannel) {
-        if (userId == null || userId >= CabinetConstants.OPERATOR_USER_ID_START) {
+        if (userId == null) {
             return true;
         }
         if (checkoutProperties.balanceOnly()) {
@@ -176,9 +172,9 @@ public class UserValidationService {
         validateSufficientBalanceForCharge(userId, amountCents, 0);
     }
 
-    /** 结算前校验：计入本会话已冻结预授权。 */
+    /** 结算前校验：计入本会话已冻结预授权（2026-11-11 起运营号段同样校验）。 */
     public void validateSufficientBalanceForCharge(Long userId, int amountCents, int sessionPreauthHoldCents) {
-        if (userId == null || userId >= CabinetConstants.OPERATOR_USER_ID_START || amountCents <= 0) {
+        if (userId == null || amountCents <= 0) {
             return;
         }
         UserAccount account = userAccountRepository.findById(userId)
