@@ -132,6 +132,19 @@ describe('mergeTodoItems · 临期行与 workbench EXPIRY 汇总的互斥', () =
     expect(items[0].title).toContain('3');
     expect(items[0].detail).toBe('D1 · B7');
   });
+
+  it('临期行原因码中文化：NEAR_EXPIRY→临期 / EXPIRED→过期 / 表外值原样（不吞成未知）', () => {
+    const items = mergeTodoItems({
+      expiryRows: [
+        expiry({ deviceId: 'D1', reason: 'NEAR_EXPIRY' }),
+        expiry({ deviceId: 'D2', reason: 'EXPIRED' }),
+        expiry({ deviceId: 'D3', reason: 'NEW_CODE' })
+      ]
+    });
+    expect(items[0].detail).toContain('临期');
+    expect(items[1].detail).toContain('过期');
+    expect(items[2].detail).toContain('NEW_CODE');
+  });
 });
 
 describe('mergeTodoItems · 同源屏蔽', () => {

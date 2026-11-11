@@ -38,6 +38,21 @@ function typeKey(type?: string) {
   return String(type || '').toUpperCase();
 }
 
+/**
+ * 临期行的原因码（pull_off_task.reason，后端枚举 NEAR_EXPIRY/EXPIRED）→ 中文。
+ * 不认识的码原样显示（表外值不吞成「未知」）。
+ */
+const EXPIRY_REASON_LABEL: Record<string, string> = {
+  NEAR_EXPIRY: '临期',
+  EXPIRED: '过期'
+};
+
+function expiryReasonLabel(raw?: string | null): string {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  return EXPIRY_REASON_LABEL[t.toUpperCase()] || t;
+}
+
 function deviceKey(deviceId?: string) {
   return String(deviceId || '')
     .trim()
@@ -74,7 +89,7 @@ export function mergeTodoItems(input: {
       type: 'EXPIRY',
       typeLabel: alertTypeLabel('EXPIRY'),
       title: `${e.skuId || '商品'} · 临期/过期 ${e.quantity || 0} 件`,
-      detail: [e.deviceId, e.batchNo, e.reason].filter(Boolean).join(' · '),
+      detail: [e.deviceId, e.batchNo, expiryReasonLabel(e.reason)].filter(Boolean).join(' · '),
       deviceId: e.deviceId
     }));
 
