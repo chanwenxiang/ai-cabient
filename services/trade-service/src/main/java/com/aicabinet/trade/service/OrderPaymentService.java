@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
@@ -138,10 +137,6 @@ public class OrderPaymentService {
      */
     @Transactional(noRollbackFor = BalanceInsufficientException.class)
     public void chargeOrder(CabinetOrder order, String requestedChannel) {
-        if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
-            order.setPayChannel(PayChannels.BALANCE);
-            return;
-        }
         if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);
             releaseSessionPreauth(order);
@@ -608,7 +603,7 @@ public class OrderPaymentService {
      * 短事务准备 → 真实 PayScore/退款 HTTP（事务外）→ 短事务落库；余额/mock 一次短事务完成。
      */
     public void applyPaymentDelta(CabinetOrder order, int deltaCents) {
-        if (deltaCents == 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
+        if (deltaCents == 0) {
             return;
         }
         if (deltaCents < 0) {
@@ -645,8 +640,9 @@ public class OrderPaymentService {
      * @return true=已执行退款（含 finalize）；false=幂等跳过（同 idemKey 已有完成记录，
      *         <b>渠道未执行</b>）。调用方若依赖「渠道必然执行」继续本地推进（如按行部分退款
      *         改行/记账/冲正分账），必须检测 false 并中止，否则重演 AU-175（钱没退账已退）。
-     *         早退（amount≤0 / 演示 OPERATOR 号段）返回 true——无渠道动作属设计内，
+     *         早退（amount≤0）返回 true——无渠道动作属设计内，
      *         由 finalize 的单调兜底记账。
+     *         （2026-11-11 起 OPERATOR 号段不再豁免：运营/商户管理员账号消费照常扣余额。）
      */
     public boolean refundOrder(CabinetOrder order, int amountCents, String reason) {
         return refundOrder(order, amountCents, reason, null);
@@ -658,7 +654,7 @@ public class OrderPaymentService {
      * {@code idemKeyOverride} 为 null 时回落原 M02 键（存量调用方语义不变）。
      */
     public boolean refundOrder(CabinetOrder order, int amountCents, String reason, String idemKeyOverride) {
-        if (amountCents <= 0 || order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
+        if (amountCents <= 0) {
             return true;
         }
         if (!distributedLockService.tryLock(orderPaymentLockKey(order.getOrderId()), 60, 5)) {

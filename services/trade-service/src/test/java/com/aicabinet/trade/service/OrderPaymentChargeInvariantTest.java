@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -32,6 +33,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -359,6 +361,37 @@ class OrderPaymentChargeInvariantTest {
                 "退款只追加 REFUND 行，冻结毛额只增不减（改小就会把退款扣两遍）");
         assertEquals(30, CommissionBaseCalc.netCents(order),
                 "净额 = 冻结毛额 100 − 已退 70 = 30；用被摊薄的 total(30)−70 会算成 0");
+    }
+
+    /**
+     * 2026-11-11：运营/商户管理员号段（≥ {@code OPERATOR_USER_ID_START}）不再免扣。
+     *
+     * <p>旧行为是 {@code chargeOrder} 首行直接 {@code setPayChannel(BALANCE)} 后 return：
+     * 订单 PAID、paid_amount=0、无 payment_operation，而 {@code recordSplit} 的分账基数在
+     * frozen=0 时回落 total ⇒ 商户钱包凭空入账（实测 3 笔 / 220 分）。
+     */
+    @Test
+    void operatorAccountIsChargedLikeConsumer() {
+        long operatorId = CabinetConstants.OPERATOR_USER_ID_START + 6L;
+        String operatorOrderId = "O-INV-OP";
+        stubCapture(0); // 运营号段不开预授权，结算时整额走余额
+        lenient().when(userInfoRepository.findById(operatorId)).thenReturn(Optional.of(new UserInfo()));
+        CabinetOrder operatorOrder = new CabinetOrder();
+        operatorOrder.setOrderId(operatorOrderId);
+        operatorOrder.setUserId(operatorId);
+        operatorOrder.setTotalAmountCents(TOTAL);
+        operatorOrder.setSessionId(SESSION_ID);
+        lenient().when(cabinetOrderRepository.findByIdForUpdate(operatorOrderId))
+                .thenReturn(Optional.of(operatorOrder));
+
+        service.chargeOrder(operatorOrder);
+
+        assertEquals(TOTAL, paymentOperationRepository.netCompletedCents(operatorOrderId),
+                "运营账号必须照常落 CHARGE 流水（旧行为净入账恒 0）");
+        assertTrue(operatorOrder.getPaymentOperationId() != null
+                        && !operatorOrder.getPaymentOperationId().isBlank(),
+                "扣款后必须回填 payment_operation_id（订单列表流水号的数据源）");
+        assertEquals(PayChannels.BALANCE, operatorOrder.getPayChannel());
     }
 
     private PaymentOperation refundRow(int cents) {
