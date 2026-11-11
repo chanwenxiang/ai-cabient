@@ -35,6 +35,8 @@ public record OrderReadModel(
         @JsonView(OrderViews.Public.class) String payChannel,
         @JsonView(OrderViews.Public.class) int lineCount,
         @JsonView(OrderViews.Public.class) String lineSummary,
+        /** 商品行 SKU ID（`、` 分隔，与 lineSummary 同序）——运营台订单列表 SKU 列数据源。 */
+        @JsonView(OrderViews.Public.class) String lineSkuIds,
         @JsonView(OrderViews.Public.class) String payTradeNo,
         @JsonView(OrderViews.Public.class) String paymentOperationId,
         @JsonView(OrderViews.Public.class) Instant refundedAt,

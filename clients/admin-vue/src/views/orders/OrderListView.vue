@@ -146,7 +146,10 @@
           <el-table-column label="流水号" min-width="110" class-name="col-text">
             <template #default="{ row }">
               <span class="mono">{{
-                displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
+                displayBizNo(
+                  row.payTradeNo || row.paymentOperationId,
+                  row.payChannel === 'BALANCE' ? '余额抵扣' : '无'
+                )
               }}</span>
             </template>
           </el-table-column>
@@ -176,6 +179,21 @@
                 </template>
                 <span v-else class="muted">暂无</span>
               </div>
+            </template>
+          </el-table-column>
+          <!-- SKU 列：与「商品」列同序对齐的 skuId（lineSkuIds 由后端从同一 lines 生成） -->
+          <el-table-column label="SKU" min-width="110" class-name="col-text">
+            <template #default="{ row }">
+              <template v-if="row.lineSkuIds">
+                <div
+                  v-for="(sid, i) in String(row.lineSkuIds).split('、')"
+                  :key="`${row.orderId}-sku-${i}`"
+                  class="mono goods-line"
+                >
+                  {{ sid }}
+                </div>
+              </template>
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <!-- 无「货道」列：开门柜（将邑 BOUND）订单行走识别结算，商品行没有 slot。 -->
@@ -438,7 +456,10 @@
             </el-descriptions-item>
             <el-descriptions-item label="流水号">
               <span class="mono">{{
-                displayBizNo(detail.payTradeNo || detail.paymentOperationId, '无')
+                displayBizNo(
+                  detail.payTradeNo || detail.paymentOperationId,
+                  detail.payChannel === 'BALANCE' ? '余额抵扣' : '无'
+                )
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话">

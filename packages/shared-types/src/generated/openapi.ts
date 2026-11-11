@@ -13223,6 +13223,7 @@ export interface components {
             /** Format: int32 */
             lineCount?: number;
             lineSummary?: string;
+            lineSkuIds?: string;
             payTradeNo?: string;
             paymentOperationId?: string;
             /** Format: date-time */
@@ -13347,6 +13348,7 @@ export interface components {
             /** Format: int32 */
             lineCount?: number;
             lineSummary?: string;
+            lineSkuIds?: string;
             payTradeNo?: string;
             paymentOperationId?: string;
             /** Format: date-time */

@@ -61,6 +61,7 @@ public class OrderViewAssembler {
                 channel,
                 itemQty(safeLines),
                 buildLineSummary(safeLines),
+                buildLineSkuIds(safeLines),
                 tradeNo,
                 blankToNull(order.getPaymentOperationId()),
                 order.getRefundedAt(),
@@ -157,6 +158,17 @@ public class OrderViewAssembler {
             return preview + " 等" + lines.size() + "件";
         }
         return preview;
+    }
+
+    /** 商品行 SKU ID 串（`、` 分隔，与 {@link #buildLineSummary} 同序同源；空行返回 null）。 */
+    public static String buildLineSkuIds(List<CabinetOrderLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return null;
+        }
+        return lines.stream()
+                .map(l -> l.getSkuId() == null ? "" : l.getSkuId().trim())
+                .reduce((a, b) -> a.isEmpty() ? b : a + "、" + b)
+                .orElse(null);
     }
 
     private static List<OrderLineDto> toLineDtos(List<CabinetOrderLine> lines) {
