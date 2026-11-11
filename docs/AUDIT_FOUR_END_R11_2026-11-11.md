@@ -137,9 +137,10 @@
 | A-N7 (P3) | ✅ 成立 | create→publish 复合：publish 失败 catch 只报「发布失败」，公告已建无幂等键，重试必重复建 |
 | M-N10 (P3) | ✅ 成立 | `catch { bound=false }` 把查询失败/无权限/非将邑三态并成一态，弱网误报「不支持在线盘点」 |
 | C-N2 (P3) | ✅ 成立 | device-ad-banner load() 无 loadSeq（grep 零命中），与 marketing-ad-banner 修复形态不对称 |
-| **M-N8** | ❌ **证伪（撤账）** | 当前 HEAD messages.vue load() 有完整 seq 守卫（`const seq = ++loadSeq` + 双出口判定，:224-243）；R10-1 上移声明时守卫并未丢失。报告该条所引 :175-186/:202-207 与守卫实况不符 |
+| **M-N8** | ~~证伪~~ → ✅ **成立（复核订正 2026-11-11）** | 首验核错文件（consumer 端 messages.vue——该端确有守卫）；M-N8 报的是 **merchant 端** `clients/merchant-mp/src/pages/messages/messages.vue`。补核实文：load()（:174-186）**零守卫**——`list.value = await merchantApi.notifications(100)` 直接整表赋值，无 seq、无快照比对；markNotificationReadIfNeeded（:200-211）乐观置位 `m.read = true`。回滚场景成立：点「已读」乐观置位 → onShow/下拉触发 load() → 迟到响应整表覆盖 → 已读状态被打回。行号 :175-186/:202-207 与实文吻合 |
+| — | **复核方法订正** | 首验只 grep 了 consumer 端同名文件。教训：**M 系列编号一律以 merchant-mp 为准**，同名页面两端的守卫状态互不相同，跨端核对必须两端都读 |
 
-**判定汇总**：亲验 13 条 = **12 成立 + 1 证伪（M-N8）**。未逐条亲验的其余 P3（12 条）按两路证据质量与抽验命中率（92%）暂记「推定成立」，随修复批逐条过码时再确认。
+**判定汇总（订正后）**：亲验 13 条 = **13 全部成立**（M-N8 首验证伪系核错端，merchant 端补核后坐实）。未逐条亲验的其余 P3（12 条）按两路证据质量与抽验命中率暂记「推定成立」，随修复批逐条过码时再确认。
 
 **两项待拍板的主审推荐**：
 1. **P1+P2 批 + 静态门禁：建议立即修**。C-N1 是 H5 订单详情整页挂死（TDZ 家族 CI 已三次实证）；M-N1/M-N3 是跨柜/跨商户错写数据面。静态门禁建议收窄形态以控误报：仅扫「同函数内 `loadSeq.begin(seq)` + catch 判 isCurrent、但 try 内存在 ref 赋值且其前无 isCurrent 判定」的函数（如 loadLedger 形态），并按 R9 经验先抹注释、配三态注入。
