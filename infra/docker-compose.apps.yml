@@ -10,6 +10,12 @@ x-logging: &default-logging
     max-file: "5"
 
 services:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   postgres:
     stop_grace_period: 60s
     healthcheck:
@@ -17,6 +23,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   minio-init:
     stop_grace_period: 10s
@@ -57,6 +68,11 @@ services:
       MINIO_VIDEO_RETENTION_DAYS: ${MINIO_VIDEO_RETENTION_DAYS:-30}
       MINIO_ARCHIVE_RETENTION_DAYS: ${MINIO_ARCHIVE_RETENTION_DAYS:-180}
     profiles: ["apps"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   trade-service:
     logging: *default-logging
@@ -297,6 +313,11 @@ services:
     environment:
       REDPANDA_ADVERTISE: redpanda
     profiles: ["apps"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   gateway:
     stop_grace_period: 30s
@@ -317,6 +338,11 @@ services:
       jiangyi-gateway:
         condition: service_started
     profiles: ["apps"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   prometheus:
     stop_grace_period: 30s
@@ -335,6 +361,12 @@ services:
   # AU-188（2026-10-18 批次 6）：告警通知链路进生产栈——旧形态只在 full.yml 的 alerting
   # profile（dev/demo 用），base/apps/production 无 relay/alertmanager ⇒ 规则触发了没人收到。
   # 定义对齐 full.yml（含 AU-189 relay 无状态、alertmanager 配置只读挂载）。
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   feishu-alert-relay:
     stop_grace_period: 30s
     image: python:3.12-slim
@@ -347,6 +379,11 @@ services:
     volumes:
       - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
     ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   alertmanager:
     logging: *default-logging

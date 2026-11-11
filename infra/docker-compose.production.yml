@@ -60,6 +60,11 @@ services:
       # 🔴 此前生产链从未映射本键（只在 full.yml 有）⇒ Spring auto 探测容器内网 IP
       #    （2026-10-21 实证 http://172.19.0.8，Docker bridge）⇒ 柜门码全坏。生产必须显式设。
       QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   device-service:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
@@ -85,6 +90,12 @@ services:
   # AU-075：jiangyi-gateway 生产段（此前 prod 叠加层完全无此服务——恒跑 dev profile、
   # CIDR 不显式注入、JIANGYI_* 无声明位）。gateway 的 ProductionStartupValidator 在
   # prod/staging 硬拒 dev key / 空 CIDR / 缺失或占位 JWT secret；compose 层用 :? 双保险。
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   jiangyi-gateway:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
@@ -109,6 +120,11 @@ services:
       # 域名自钉（设计文档 §5 拍板 A）：设备轮询 domainConfig 时按此值回钉我方网关。
       # 留空 ⇒ 两个 domainConfig 端点一起 404（不钉）。生产必须填固定公网域名（勿用穿透域名）。
       JIANGYI_PUBLIC_BASE_URL: ${JIANGYI_PUBLIC_BASE_URL:-}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   emqx:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
@@ -143,6 +159,11 @@ services:
       - "${EMQX_MQTT_BIND:-127.0.0.1}:${EMQX_MQTT_PORT:-11883}:1883"
       - "${EMQX_MQTT_TLS_BIND:-127.0.0.1}:${EMQX_MQTT_TLS_PORT:-18883}:8883"
       - "127.0.0.1:${EMQX_DASHBOARD_PORT:-18083}:18083"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   minio:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
@@ -156,6 +177,12 @@ services:
       MINIO_PROMETHEUS_AUTH_TYPE: public
 
   # B-28：Grafana 禁止 admin/admin 弱默认
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   grafana:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
@@ -179,6 +206,12 @@ services:
 
   # M12 监控接线：Prometheus 挂到同源子路径 /devops/prometheus/（网关 Basic 防护），
   # 指标端点不直接暴露公网端口（base 层仅 127.0.0.1:9090）
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   prometheus:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
@@ -191,6 +224,12 @@ services:
       - --web.external-url=${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env.production}/devops/prometheus/
 
   # B-25：XXL-JOB 生产强口令（需叠加 docker-compose.xxljob.yml）
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
   xxl-job-mysql:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
     restart: unless-stopped
@@ -202,6 +241,11 @@ services:
     stop_grace_period: 60s
     environment:
       MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:?set XXL_JOB_MYSQL_PASSWORD}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   xxl-job-admin:
     # AU-148（批次 10）：常驻服务重启自愈——宿主重启后入口/依赖自动拉起
@@ -211,3 +255,8 @@ services:
     stop_grace_period: 30s
     environment:
       PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:?set XXL_JOB_MYSQL_PASSWORD} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?set XXL_JOB_ACCESS_TOKEN}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
