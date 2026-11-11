@@ -28,6 +28,15 @@
 - 后续推送（R17 台账更新等 docs-only）的 CI 也会绿（纯文档不影响构建）
 - **结论：通宵 72+ 提交的代码质量已通过 CI 全链验证**
 
+### M01 清列家族批量修（R16-MA-175 完成）
+- 第一批（cf7edc08 内）：OpsCatalogAdminService clearExplicitlyBlankColumns 含 operationScope / MerchantDevicePortalService opsRemark wrapper / JiangyiClassMappingMapper textName 显式清列 / useDeviceAsset 6 字段 + MerchantSplitsView 3 字段 ?? null
+- 第二批（0cbbab01）：DisputeService operatorNote / MerchantPortalService alertContactName+Phone / RepairTicketService remark / SysDictService type+data remark（5 站点）
+- 第三批（b3ac0f88）：MerchantPortalService contactPhone 补漏
+- 剩余 2 处确认为非 M01：OpsRbacService :230 = CREATE 路径 / WarehouseStocktakeService :114 = CREATE 路径
+- ScheduledTaskService :97/:99 已由 98979068 修复（scanner 500 字符窗口外）
+- 使用的修复模板：save 后条件式 lambdaUpdate().set(field, null)（照 MA-169 模板）
+- 扫描工具：.tmp/m01_scan.py（已用完可删）
+
 ### 老漏洞历史（原 05:00 版保留在下方）
 
 ### 提交链（893bb2ca → HEAD，16 提交，全部 preflight 绿、未推送）
