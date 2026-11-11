@@ -28,7 +28,13 @@ import {
 import { AuthEndpoints, ConsumerEndpoints } from '@/api/endpoints';
 import { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 import { buildBearerDownloadHeader, classifyDownloadResult } from '@/utils/consumer-download';
-import { createPlacementEventQueue, type PlacementEventBody } from '@/utils/placement-event-queue';
+import {
+  createAdPlayEventQueue,
+  createPlacementEventQueue,
+  type AdPlayEventBody,
+  type PlacementEventBody
+} from '@/utils/placement-event-queue';
+import { createSessionReadyBus } from '@/utils/session-ready';
 
 export { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 
@@ -168,9 +174,12 @@ function applyTokenSession(data: LoginResponse) {
     getToken: getConsumerToken,
     fetchRuntime: () => request(ConsumerEndpoints.dictsRuntime, 'GET')
   });
-  // 登录/续期落定：补发首屏「静默登录完成前」攒下的展示位打点。
-  // 这批事件在游客态发出去就是 401（接口要求登录），只能等票据到手再发。
+  // 登录/续期落定：① 补发首屏「静默登录完成前」攒下的打点（游客态发出去就是 401，
+  // 只能等票据到手再发）；② 广播「会话已就绪」——拉内容的组件（screen-content 投放清单）
+  // 不能补发几秒前的快照，必须重拉一次。
   void placementEvents().flush();
+  void adPlayEvents().flush();
+  consumerSessionReady.emit();
 }
 
 async function refreshTokenSilently(): Promise<boolean> {
@@ -224,6 +233,55 @@ function placementEvents() {
  */
 export function reportMarketingPlacementEvent(body: PlacementEventBody) {
   placementEvents().report(body);
+}
+
+/** 设备推广位打点的底层发送：只在「当前确实有登录态」时被调用（见 adPlayEvents）。 */
+function sendAdPlayEvent(body: AdPlayEventBody) {
+  return request<null>(ConsumerEndpoints.deviceAdPlay(body.deviceId), 'POST', {
+    campaignId: body.campaignId,
+    assetId: body.assetId,
+    eventType: body.eventType
+  });
+}
+
+let adPlayQueue: ReturnType<typeof createAdPlayEventQueue> | null = null;
+
+function adPlayEvents() {
+  if (!adPlayQueue) {
+    adPlayQueue = createAdPlayEventQueue({
+      isLoggedIn: isConsumerLoggedIn,
+      send: sendAdPlayEvent,
+      onSendError: (body, err) =>
+        console.warn(
+          '[marketing] ad-play event dropped:',
+          body.eventType,
+          body.campaignId,
+          body.assetId,
+          String(err)
+        )
+    });
+  }
+  return adPlayQueue;
+}
+
+/**
+ * 开门页设备推广位打点（`/devices/{id}/ad-play`，MA-150 起主体取登录态）。
+ *
+ * <p>同展示位打点的成因：`/api/v2/**` 默认拒绝，游客扫码进柜时组件若已渲染就上报，
+ * 必然 401。设备投放位现在改为「未登录不拉内容、登录后重拉」（见 device-ad-banner.vue），
+ * 正常路径不会在游客态上报；队列是第二道保险 —— token 恰在打点瞬间到期时，
+ * 事件不会丢，续期成功后补发。</p>
+ */
+export function reportDeviceAdPlay(body: AdPlayEventBody) {
+  adPlayEvents().report(body);
+}
+
+/** 会话就绪总线：首屏「只能登录后再做」的取数（如 screen-content）挂在这里。 */
+export const consumerSessionReady = createSessionReadyBus();
+
+/** 注册「登录已就绪」回调；返回取消函数。 */
+export function onConsumerSessionReady(listener: () => void) {
+  return consumerSessionReady.on(listener);
 }
 
 export function uploadDisputeEvidenceFile(
@@ -716,10 +774,17 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').ScreenContentDto>(
       ConsumerEndpoints.deviceScreenContent(deviceId)
     ),
+  /**
+   * 开门页设备推广位打点。**走队列**（未登录先暂存、续期后补发），
+   * 不要改成直连端点：游客态直连必产 401，且会把一次上报变成两次（见 request.ts 的 401 分档）。
+   */
   reportAdPlay: (
     deviceId: string,
     body: { campaignId: number; assetId: number; eventType: 'IMPRESSION' | 'COMPLETE' | 'CLICK' }
-  ) => request<null>(ConsumerEndpoints.deviceAdPlay(deviceId), 'POST', body),
+  ): Promise<null> => {
+    reportDeviceAdPlay({ deviceId, ...body });
+    return Promise.resolve(null);
+  },
   createSession: async (deviceId: string, entryChannel?: string | null) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
     const body: {

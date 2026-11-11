@@ -62,7 +62,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { onHide, onPageHide, onPageShow } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
-import { consumerApi } from '@/utils/consumer-api';
+import { consumerApi, isConsumerLoggedIn, onConsumerSessionReady } from '@/utils/consumer-api';
 import { wxAdEnabled, wxAdUnitId } from '@/utils/feature-flags';
 import { resolvePromoSlot } from '@/utils/promo-slot';
 import WxAdSlot from '@/components/wx-ad-slot.vue';
@@ -132,6 +132,15 @@ async function load() {
     reset();
     return;
   }
+  // 🔴 未登录不拉：`/api/v2/**` 默认拒绝，screen-content 不在公开白名单，游客态拉必 401。
+  // 与打点不同，投放清单是**有时效的内容快照**，攒下来补发没有意义 ——
+  // 正解是等静默登录成功后重拉一次（onConsumerSessionReady 广播，见 consumer-api）。
+  // 旧写法游客态也拉，结果是每次扫码进柜先吃一个 401 再静默 reset（控制台红字）。
+  if (!isConsumerLoggedIn()) {
+    reset();
+    watchSessionReady();
+    return;
+  }
   try {
     const data = await consumerApi.screenContent(id);
     if (seq !== adLoadSeq) return;
@@ -149,6 +158,16 @@ async function load() {
     if (seq !== adLoadSeq) return;
     reset();
   }
+}
+
+/** 登录就绪后的重拉（一次性）：游客态挂载的组件靠这一条把投放内容补上。 */
+let offSessionReady: (() => void) | null = null;
+function watchSessionReady() {
+  if (offSessionReady) return;
+  offSessionReady = onConsumerSessionReady(() => {
+    offSessionReady = null;
+    void load();
+  });
 }
 
 function reset() {
@@ -245,6 +264,8 @@ onPageHide(handleAdPageHide);
 onPageShow(handleAdPageShow);
 
 onBeforeUnmount(() => {
+  offSessionReady?.();
+  offSessionReady = null;
   clearCompleteTimers();
 });
 </script>

@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_MAX_PENDING,
+  adPlayEventKey,
+  createAdPlayEventQueue,
   createPlacementEventQueue,
+  createSendQueue,
   placementEventKey,
+  type AdPlayEventBody,
   type PlacementEventBody
 } from './placement-event-queue';
 
@@ -165,5 +169,75 @@ describe('失败与并发', () => {
     const [a, b] = await Promise.all([q.flush(), q.flush()]);
     expect(a + b).toBe(1);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createSendQueue（通用实现）', () => {
+  it('按 keyOf 去重，上限与补发语义由调用方参数决定', async () => {
+    let loggedIn = false;
+    const sent: number[] = [];
+    const q = createSendQueue<{ id: number }>({
+      isLoggedIn: () => loggedIn,
+      send: async (item) => {
+        sent.push(item.id);
+      },
+      keyOf: (item) => String(item.id),
+      maxSize: 2
+    });
+
+    q.report({ id: 1 });
+    q.report({ id: 1 });
+    q.report({ id: 2 });
+    q.report({ id: 3 });
+    expect(q.pendingCount()).toBe(2);
+
+    loggedIn = true;
+    await expect(q.flush()).resolves.toBe(2);
+    expect(sent).toEqual([2, 3]);
+  });
+});
+
+describe('设备推广位打点队列（ad-play）', () => {
+  const adBody = (overrides: Partial<AdPlayEventBody> = {}): AdPlayEventBody => ({
+    deviceId: 'DEV-1',
+    campaignId: 7,
+    assetId: 9,
+    eventType: 'IMPRESSION',
+    ...overrides
+  });
+
+  it('去重键含 deviceId：同一素材在不同柜机各算一次', () => {
+    expect(adPlayEventKey(adBody())).not.toBe(adPlayEventKey(adBody({ deviceId: 'DEV-2' })));
+    expect(adPlayEventKey(adBody())).toBe(adPlayEventKey(adBody()));
+  });
+
+  it('未登录先入队，续期成功后补发（token 恰在打点瞬间到期的第二道保险）', async () => {
+    let loggedIn = false;
+    const sent: AdPlayEventBody[] = [];
+    const q = createAdPlayEventQueue({
+      isLoggedIn: () => loggedIn,
+      send: async (body) => {
+        sent.push(body);
+      }
+    });
+
+    q.report(adBody({ eventType: 'IMPRESSION' }));
+    q.report(adBody({ eventType: 'COMPLETE' }));
+    expect(q.pendingCount()).toBe(2);
+
+    loggedIn = true;
+    await expect(q.flush()).resolves.toBe(2);
+    expect(sent.map((b) => b.eventType)).toEqual(['IMPRESSION', 'COMPLETE']);
+    expect(q.pendingCount()).toBe(0);
+  });
+
+  it('已登录直发，不占队列', () => {
+    const send = vi.fn(async () => undefined);
+    const q = createAdPlayEventQueue({ isLoggedIn: () => true, send });
+
+    q.report(adBody());
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(q.pendingCount()).toBe(0);
   });
 });

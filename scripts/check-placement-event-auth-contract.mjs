@@ -21,6 +21,13 @@
  *      漏了它，队列只进不出 —— 事件静默丢失，且不会有任何报错。
  *   P3 打点入口：banner 组件与两个弹窗页必须各自调用 `reportPlacementEvent(`。
  *      打点被整段删掉不会有类型错误（返回值是 void），只能靠枚举登记守住。
+ *   P4 队列有界：队列必须有上限与登录态分流（无上限会在长期未登录时无限攒事件）。
+ *   P5 登录落定点：`applyTokenSession` 必须 flush 设备推广位打点队列**并**广播
+ *      `consumerSessionReady`。后者是「登录后重做取数」的唯一信号 —— 漏了它，
+ *      游客态挂载的设备投放位永远不会重拉内容（表现为广告位一直空白，且不报错）。
+ *   P6 拉内容前判登录：`device-ad-banner.vue` 的 `load` 必须判 `isConsumerLoggedIn()`。
+ *      `screen-content` 不在公开白名单，游客态拉必 401；而投放清单是**有时效的内容**，
+ *      不能像打点那样攒着补发，只能「未登录不拉、登录后重拉」。
  *
  * 扫描前统一抹注释（等长空格）：本文件注释里就写着这些标识符，不抹会自己判红。
  *
@@ -39,6 +46,7 @@ const ROOT = process.env.PLACEMENT_GATE_ROOT
 const SRC = join(ROOT, 'clients', 'consumer-mp', 'src');
 const API_FILE = join(SRC, 'utils', 'consumer-api.ts');
 const QUEUE_FILE = join(SRC, 'utils', 'placement-event-queue.ts');
+const AD_BANNER = join(SRC, 'components', 'device-ad-banner.vue');
 
 /** 打点入口登记：新增展示位打点必须在这里加（P3 用）。 */
 const ENTRY_FILES = [
@@ -46,6 +54,12 @@ const ENTRY_FILES = [
   join(SRC, 'pages', 'index', 'index.vue'),
   join(SRC, 'pages', 'result', 'result.vue')
 ];
+
+/**
+ * 只允许 `consumer-api.ts` 直连的打点端点（P1 用）。
+ * 两者都要求登录：游客态直连必产 401，且旧请求层会把一次上报变成两次。
+ */
+const DIRECT_ENDPOINTS = ['marketingPlacementEvent', 'deviceAdPlay'];
 
 const problems = [];
 
@@ -171,11 +185,13 @@ if (files.length === 0) {
 for (const file of files) {
   if (file === API_FILE) continue;
   const code = maskComments(readFileSync(file, 'utf8'));
-  if (/ConsumerEndpoints\s*\.\s*marketingPlacementEvent/.test(code)) {
-    problems.push(
-      `P1：${relative(ROOT, file)} 直连了打点端点 —— 首屏渲染早于微信静默登录，` +
-        '直连必产 401；请改走 consumerApi.reportPlacementEvent（未登录先入队、登录后补发）'
-    );
+  for (const endpoint of DIRECT_ENDPOINTS) {
+    if (new RegExp(`ConsumerEndpoints\\s*\\.\\s*${endpoint}`).test(code)) {
+      problems.push(
+        `P1：${relative(ROOT, file)} 直连了打点端点 ${endpoint} —— 首屏渲染早于微信静默登录，` +
+          '直连必产 401；请改走 consumerApi.reportPlacementEvent / reportAdPlay（未登录先入队、登录后补发）'
+      );
+    }
   }
 }
 
@@ -223,10 +239,46 @@ if (queueRaw) {
   }
 }
 
+// ── P5：设备打点与「登录后重拉」也必须挂在登录落定点 ────────────────────────
+if (apiRaw) {
+  const applyBody = sliceFunctionBody(maskComments(apiRaw), 'function applyTokenSession');
+  if (applyBody) {
+    if (!/adPlayEvents\(\s*\)\s*\.\s*flush\(\s*\)/.test(applyBody)) {
+      problems.push(
+        'P5：applyTokenSession 未 flush 设备推广位打点队列 —— token 恰在打点瞬间到期时事件会静默丢失'
+      );
+    }
+    if (!/consumerSessionReady\s*\.\s*emit\(\s*\)/.test(applyBody)) {
+      problems.push(
+        'P5：applyTokenSession 未广播 consumerSessionReady —— 游客态挂载的投放位永远不会重拉内容（广告位空白到底）'
+      );
+    }
+  }
+}
+
+// ── P6：拉投放内容前必须判登录（内容不可补发，只能重拉） ────────────────────
+const adBannerRaw = readOrFail(AD_BANNER, '设备投放位组件');
+if (adBannerRaw) {
+  const code = maskComments(adBannerRaw);
+  const loadBody = sliceFunctionBody(code, 'async function load(');
+  if (!loadBody) {
+    problems.push(
+      'P6：device-ad-banner.vue 找不到 load 函数体 —— 结构被改，门禁失效，请同步更新判据'
+    );
+  } else if (!/isConsumerLoggedIn\s*\(/.test(loadBody)) {
+    problems.push(
+      'P6：device-ad-banner.load 未判登录态 —— 游客扫码进柜会拿 screen-content 撞 401' +
+        '（该接口不在 WebConfig 公开白名单），且投放清单是有时效的内容，不能像打点那样补发'
+    );
+  }
+}
+
 if (problems.length) {
   console.error(`${TAG} FAIL: 打点鉴权契约被破坏（${problems.length} 条）`);
   for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
 }
 
-console.log(`${TAG} OK（P1 无直连 / P2 登录后补发 / P3 入口在位 / P4 队列有界）`);
+console.log(
+  `${TAG} OK（P1 无直连 / P2 登录后补发 / P3 入口在位 / P4 队列有界 / P5 设备打点+重拉挂登录点 / P6 拉内容前判登录）`
+);

@@ -34,6 +34,7 @@ const REL_SRC = join('clients', 'consumer-mp', 'src');
 const REL_API = join(REL_SRC, 'utils', 'consumer-api.ts');
 const REL_QUEUE = join(REL_SRC, 'utils', 'placement-event-queue.ts');
 const REL_BANNER = join(REL_SRC, 'components', 'marketing-ad-banner.vue');
+const REL_AD_BANNER = join(REL_SRC, 'components', 'device-ad-banner.vue');
 const REL_RESULT = join(REL_SRC, 'pages', 'result', 'result.vue');
 
 function md5(text) {
@@ -123,6 +124,33 @@ const cases = [
     apply: () =>
       patch(REL_QUEUE, (s) =>
         s.replace(/DEFAULT_MAX_PENDING/g, 'UNBOUNDED').replace(/maxSize/g, 'limitless')
+      )
+  },
+  {
+    name: 'N5 设备投放位去掉登录守卫（游客态直接拉内容）',
+    rule: 'P6',
+    apply: () =>
+      patch(REL_AD_BANNER, (s) => s.replace('if (!isConsumerLoggedIn()) {', 'if (false) {'))
+  },
+  {
+    name: 'N6 登录落定点漏掉设备打点补发与会话就绪广播',
+    rule: 'P5',
+    apply: () =>
+      patch(REL_API, (s) =>
+        s
+          .replace(/\n\s*void adPlayEvents\(\)\.flush\(\);/, '')
+          .replace(/\n\s*consumerSessionReady\.emit\(\);/, '')
+      )
+  },
+  {
+    name: 'N7 设备投放位改回直连 deviceAdPlay 端点',
+    rule: 'P1',
+    apply: () =>
+      patch(REL_AD_BANNER, (s) =>
+        s.replace(
+          /consumerApi\.reportAdPlay\(props\.deviceId, \{/,
+          'request<null>(ConsumerEndpoints.deviceAdPlay(props.deviceId), "POST", {'
+        )
       )
   }
 ];
