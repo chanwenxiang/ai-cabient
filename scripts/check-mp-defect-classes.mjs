@@ -144,10 +144,14 @@ function walk(dir, out = []) {
  * - 行注释 // ...（仅整行或以空白开头，避免误伤 URL 中的 //）
  */
 function stripComments(src) {
-  let out = src.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
-  out = out.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
-  out = out.replace(/(^|\s)\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
-  return out;
+  const out = src.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));
+  // 🔴 顺序要求：行注释必须在块注释**之前**抹。
+  // 反过来做的话，行注释里出现的 `/**`（例如说明性文字写成 `/api/v2/**` 默认拒绝）
+  // 会被当成块注释开头，一路吞到后面某个 `*/` 为止，把中间的**真实代码**也抹成空格
+  // ⇒ 判据假绿（缺陷被吞）或假红（2026-11-11 实证：device-ad-banner 的登录守卫被吞，
+  // 报成「死导入 isConsumerLoggedIn」）。
+  const r1 = out.replace(/(^|\s)\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
+  return r1.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
 }
 
 function linesOf(code) {
@@ -1183,6 +1187,18 @@ const SELFTEST_CASES = [
   {
     cls: 'J',
     code: "import { type Foo, showError } from '@/utils/notify';\nfunction x(v: Foo) { showError('x'); }",
+    hit: false
+  },
+  {
+    // 🔴 钉住 stripComments 的顺序：行注释里出现 `/**`（说明性文字写成 `/api/v2/**` 默认拒绝）
+    // 而文件后面又有 `*/` 时，若先抹块注释，就会从这里的 `/**` 一路吞到尾部 `*/`，
+    // 把中间的 `showError('x')` 也抹掉 ⇒ 误报死导入（2026-11-11 device-ad-banner 实证）。
+    cls: 'J',
+    code:
+      "import { showError } from '@/utils/notify';\n" +
+      '// 说明：/api/v2/** 默认拒绝\n' +
+      "function x() { showError('x'); }\n" +
+      '/* 尾部块注释 */',
     hit: false
   },
   // ── K 刷新失败即登出 ──
