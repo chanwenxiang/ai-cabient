@@ -21,6 +21,10 @@
  *      每个 `'UNAUTHORIZED'` 必须处在「显式 401/403 判定」的邻近分支里；
  *      无条件 reject 401 会重演「限流当失效」。
  *   R3 判定面：`isMpAuthFailure` 只认 401/403（禁止改成 `>= 400`，否则 5xx 也会登出）。
+ *   R4 无会话不重放：`mpRequestOnce` 的 401 分支必须接收 `refreshTokenSilently` 的返回值，
+ *      并在其为 false（游客 / 到期已清票）时直接结束。旧写法 `.then(() => 重放)` 会让
+ *      一次请求变两次：2026-11-11 消费者端 `POST /marketing/placement-events` 的
+ *      `401 60B` 就是这样成对出现的（60B = 后端「请先登录」，不是「登录已失效」的 81B）。
  *
  * 扫描前统一 `maskComments()` 抹注释（替换为等长空格、保留换行）：本文件自己的注释里
  * 就写着 `401 UNAUTHORIZED` 与 `await ensureSessionFresh()`，不抹会自己把自己判红。
@@ -214,6 +218,29 @@ if (requestRaw) {
       );
     }
   }
+
+  // R4：401 分支不得在「无会话可续」时重放
+  const onceBody = sliceFunctionBody(code, 'function mpRequestOnce<T>');
+  if (!onceBody) {
+    problems.push('R4：找不到 mpRequestOnce 函数体 —— 结构被改，门禁失效，请同步更新判据');
+  } else {
+    // refreshTokenSilently 用 resolve(false) 表示「没什么可刷的」（游客 / 到期已清票）；
+    // 旧写法 `.then(() => 重放)` 不看返回值 ⇒ 一次打点变两条 401，且第二次落在
+    // retried=true 上会把游客态当「登录已失效」。
+    const thenMatch = onceBody.match(
+      /refreshTokenSilently\(opts\)\s*\.then\(\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/
+    );
+    if (!thenMatch) {
+      problems.push(
+        'R4：mpRequestOnce 的 `refreshTokenSilently(opts).then(...)` 必须接收返回值并在为 false 时直接结束 —— ' +
+          '无会话可续时重放必再 401（消费者端展示位打点 2026-11-11 实证：401 60B × 2）'
+      );
+    } else if (!new RegExp(`if\\s*\\(\\s*!\\s*${thenMatch[1]}\\s*\\)`).test(onceBody)) {
+      problems.push(
+        `R4：mpRequestOnce 拿到了刷新结果 \`${thenMatch[1]}\` 却没用 —— 必须在 \`!\`${thenMatch[1]} 时直接 reject`
+      );
+    }
+  }
 }
 
 if (problems.length) {
@@ -222,4 +249,4 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`${TAG} OK（R1 冷启动续期 / R2 刷新分档 / R3 鉴权判定面）`);
+console.log(`${TAG} OK（R1 冷启动续期 / R2 刷新分档 / R3 鉴权判定面 / R4 无会话不重放）`);

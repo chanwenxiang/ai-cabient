@@ -105,17 +105,14 @@ function report(banner: MarketingBannerDto, eventType: 'IMPRESSION' | 'CLICK') {
   const key = eventType + ':' + banner.adCampaignId + ':' + banner.assetId;
   if (reported.has(key)) return;
   reported.add(key);
-  consumerApi
-    .marketingPlacementEvent({
-      position: 'BANNER',
-      campaignId: banner.adCampaignId,
-      assetId: banner.assetId,
-      eventType
-    })
-    .catch((e: unknown) => {
-      // 营销位失败仍不打扰用户，但不再无声吞掉：至少能在 console/日志里看到丢了多少
-      console.warn('[marketing] banner event dropped:', eventType, banner.adCampaignId, String(e));
-    });
+  // 🔴 打点必须走 reportPlacementEvent（未登录先入队、静默登录成功后补发）：
+  // 首屏挂载早于微信静默登录完成，直连端点必产 401（2026-11-11 实证，见 utils/placement-event-queue）。
+  consumerApi.reportPlacementEvent({
+    position: 'BANNER',
+    campaignId: banner.adCampaignId,
+    assetId: banner.assetId,
+    eventType
+  });
 }
 </script>
 

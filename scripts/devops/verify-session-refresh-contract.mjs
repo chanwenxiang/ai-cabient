@@ -16,6 +16,7 @@
  *   N2 只留注释、删掉调用                            → R1（自证 maskComments 有效）
  *   N3 把 UNAUTHORIZED 压平回无条件 reject 401       → R2
  *   N4 `isMpAuthFailure` 改成 `status >= 400`        → R3
+ *   N5 401 分支改回 `.then(() => 重放)`（不看返回值） → R4
  *   P  还原原样                                      → exit 0
  *
  * 用法：node scripts/verify-session-refresh-contract.mjs
@@ -112,6 +113,12 @@ const cases = [
         /if \(e\.status === 401 \|\| e\.status === 403\) return true;/,
         'if ((e.status as number) >= 400) return true;'
       )
+  },
+  {
+    name: 'N5 401 分支改回「不看刷新结果照样重放」',
+    rule: 'R4',
+    dict: (s) => s,
+    request: (s) => s.replace(/\.then\(\s*\(\s*refreshed\s*\)\s*=>\s*\{/, '.then(() => {')
   }
 ];
 

@@ -659,6 +659,11 @@ function checkHardcodedVersion(files) {
 // ── M. 订阅消息模板 ID 硬编码 ────────────────────────────────────────────
 function checkTemplateIdLiteral(files) {
   for (const f of files) {
+    // 责任边界：本类防的是**生产代码**里硬编码平台 ID（后端换模板 ⇒ 前端 100% 静默失效）。
+    // 单测夹具里的长不透明串是**测试向量**（真实签发的 JWT payload、签名、哈希），
+    // 没有运行时失效面 —— 2026-11-11 实证：session-refresh.test.ts 用后端真实 token
+    // 的 base64url 段钉解码器格式对齐，被本类误判。
+    if (/\.(test|spec)\.ts$/.test(f)) continue;
     const code = readSource(f);
     if (code === null) continue;
     const lines = linesOf(code);

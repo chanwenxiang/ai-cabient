@@ -3,6 +3,7 @@ import {
   decodeJwtExpirySeconds,
   ensureFreshSession,
   isTokenExpiringSoon,
+  mpRequest,
   refreshTokenSilently,
   type MpApiSession
 } from '@aicabinet/shared-uni/request';
@@ -218,5 +219,67 @@ describe('refreshTokenSilently 失败分档', () => {
     const { session, applied } = buildSession();
     await expect(refreshTokenSilently(session)).resolves.toBe(true);
     expect(applied).toEqual([{ token: 'new-token' }]);
+  });
+});
+
+/**
+ * 2026-11-11 消费者端实证：`POST /api/v2/marketing/placement-events 401 60B` 出现**两次**。
+ * 60B = 后端「请先登录」（无凭证），不是「登录已失效」（81B）。成因是 `refreshTokenSilently`
+ * 在无会话时 `return false`（resolve 而非 reject），而 401 分支的 `.then()` 不看返回值照样重放
+ * ⇒ 一次失败变两次请求，第二次带 retried=true 还会落到 `handleUnauthorized`，
+ * 把「游客态」误当「登录已失效」。下面钉住三条：不重放 / 不清会话 / 正常会话仍能自愈。
+ */
+describe('401 分档：无会话可续时不得重放', () => {
+  const BUSINESS_PATH = '/api/v2/marketing/placement-events';
+
+  // 顶层 describe 的 beforeEach 只作用于它自己（见上），这里必须显式重建 uni mock
+  beforeEach(() => {
+    mockUni();
+  });
+
+  it('游客态（无 token）：只发一次，不重放、不判登录失效', async () => {
+    uniRequest.mockImplementation((opts: UniRequestOpts) => {
+      opts.success?.({ statusCode: 401, data: { code: 401, message: '请先登录' } });
+    });
+    const { session, unauthorized, applied } = buildSession({
+      getToken: () => '',
+      hasSession: () => false
+    });
+
+    await expect(mpRequest(session, BUSINESS_PATH, 'POST', {})).rejects.toMatchObject({
+      status: 401,
+      code: 'UNAUTHORIZED'
+    });
+
+    expect(uniRequest).toHaveBeenCalledTimes(1);
+    expect(uniRequest.mock.calls[0][0]).toMatchObject({ url: session.baseUrl + BUSINESS_PATH });
+    expect(unauthorized).toHaveLength(0);
+    expect(applied).toHaveLength(0);
+    expect(session.clearSession).not.toHaveBeenCalled();
+  });
+
+  it('已登录且刷新成功：换票后重放一次并拿到 200（自愈路径没被改坏）', async () => {
+    uniRequest.mockImplementation((opts: UniRequestOpts) => {
+      const url = String((opts as unknown as { url?: string }).url || '');
+      if (url.includes('/api/v2/auth/refresh')) {
+        opts.success?.({ statusCode: 200, data: { code: 0, data: { token: 'tk-new' } } });
+        return;
+      }
+      const seen = uniRequest.mock.calls.filter((c) => String(c[0].url).includes(BUSINESS_PATH));
+      if (seen.length <= 1) {
+        opts.success?.({ statusCode: 401, data: { code: 401, message: '登录已失效' } });
+        return;
+      }
+      opts.success?.({ statusCode: 200, data: { code: 0, data: { ok: true } } });
+    });
+    const { session, applied, unauthorized } = buildSession();
+
+    await expect(mpRequest(session, BUSINESS_PATH, 'POST', {})).resolves.toEqual({ ok: true });
+
+    expect(applied).toEqual([{ token: 'tk-new' }]);
+    expect(unauthorized).toHaveLength(0);
+    expect(
+      uniRequest.mock.calls.filter((c) => String(c[0].url).includes(BUSINESS_PATH))
+    ).toHaveLength(2);
   });
 });

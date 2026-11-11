@@ -761,12 +761,9 @@ function reportPopup(
   activityId: number,
   eventType: 'IMPRESSION' | 'CLICK'
 ) {
-  // 打点失败只记日志：弹窗体验不能被上报打断（与 banner 位同策），但要留痕
-  consumerApi
-    .marketingPlacementEvent({ position, activityId, eventType })
-    .catch((e: unknown) =>
-      console.warn('[marketing] popup event dropped:', position, eventType, String(e))
-    );
+  // 打点失败只留痕、不打断弹窗体验。走队列：首屏弹窗展示早于微信静默登录完成，
+  // 未登录时先暂存，登录成功后补发（直连端点必产 401，2026-11-11 实证）。
+  consumerApi.reportPlacementEvent({ position, activityId, eventType });
 }
 
 function closeBeforeOpenPopup() {

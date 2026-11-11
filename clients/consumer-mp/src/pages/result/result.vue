@@ -308,11 +308,8 @@ function reportPopup(
   activityId: number,
   eventType: 'IMPRESSION' | 'CLICK'
 ) {
-  consumerApi
-    .marketingPlacementEvent({ position, activityId, eventType })
-    .catch((e: unknown) =>
-      console.warn('[marketing] popup event dropped:', position, eventType, String(e))
-    );
+  // 关门后弹窗此时通常已登录，但仍统一走队列：入口只有一条，避免将来又出现直连路径。
+  consumerApi.reportPlacementEvent({ position, activityId, eventType });
 }
 
 function closeAfterClosePopup() {

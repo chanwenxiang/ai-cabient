@@ -28,6 +28,7 @@ import {
 import { AuthEndpoints, ConsumerEndpoints } from '@/api/endpoints';
 import { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 import { buildBearerDownloadHeader, classifyDownloadResult } from '@/utils/consumer-download';
+import { createPlacementEventQueue, type PlacementEventBody } from '@/utils/placement-event-queue';
 
 export { clearOpenAttempt, getOrCreateOpenAttempt } from '@/utils/consumer-open-attempt';
 
@@ -167,6 +168,9 @@ function applyTokenSession(data: LoginResponse) {
     getToken: getConsumerToken,
     fetchRuntime: () => request(ConsumerEndpoints.dictsRuntime, 'GET')
   });
+  // 登录/续期落定：补发首屏「静默登录完成前」攒下的展示位打点。
+  // 这批事件在游客态发出去就是 401（接口要求登录），只能等票据到手再发。
+  void placementEvents().flush();
 }
 
 async function refreshTokenSilently(): Promise<boolean> {
@@ -181,6 +185,45 @@ export function request<T>(
   retried = false
 ): Promise<T> {
   return mpRequest<T>(mpApiSession, path, method, data, auth, retried);
+}
+
+/** 展示位打点的底层发送：只在「当前确实有登录态」时被调用（见 placementEvents）。 */
+function sendPlacementEvent(body: PlacementEventBody) {
+  return request<void>(ConsumerEndpoints.marketingPlacementEvent, 'POST', body, true);
+}
+
+let placementQueue: ReturnType<typeof createPlacementEventQueue> | null = null;
+
+function placementEvents() {
+  if (!placementQueue) {
+    placementQueue = createPlacementEventQueue({
+      isLoggedIn: isConsumerLoggedIn,
+      send: sendPlacementEvent,
+      onSendError: (body, err) =>
+        console.warn(
+          '[marketing] placement event dropped:',
+          body.position,
+          body.eventType,
+          body.campaignId ?? body.activityId ?? '',
+          String(err)
+        )
+    });
+  }
+  return placementQueue;
+}
+
+/**
+ * 批次 S 展示位打点（首页 banner / 开门前弹窗 / 关门后弹窗共用一条口）。
+ *
+ * <p>🔴 打点接口要求登录（后端从登录态取主体，防匿名刷量），但首屏渲染**早于**
+ * `App.onLaunch` 的 `ensureConsumerAuth()` —— 2026-11-11 实证：首页弹窗 `popups`
+ * 走公开白名单，游客拿到数据就立即上报 ⇒ `POST /marketing/placement-events` 必然
+ * `401 60B`（「请先登录」），而且是两条（旧请求层在无会话时也重放一次）。
+ * 故这里统一走队列：未登录先暂存，登录成功后由 `applyTokenSession` 触发补发。
+ * 调用方一律用这个函数，**禁止**直接 `request(...marketingPlacementEvent...)` 绕过队列。</p>
+ */
+export function reportMarketingPlacementEvent(body: PlacementEventBody) {
+  placementEvents().report(body);
 }
 
 export function uploadDisputeEvidenceFile(
@@ -944,14 +987,11 @@ export const consumerApi = {
   /**
    * 批次 S：展示位打点。banner 位带 campaignId（AdCampaign），弹窗位带 activityId（PromotionActivity）
    * ——两个 id 不塞同一列，所以参数是可选的。
+   *
+   * 🔴 必须走 `reportMarketingPlacementEvent`（未登录先入队、登录后补发），
+   * 不要在这里直连端点：首屏渲染早于微信静默登录，直连必产 401（2026-11-11 实证）。
    */
-  marketingPlacementEvent: (body: {
-    position: 'BANNER' | 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE' | string;
-    activityId?: number;
-    campaignId?: number;
-    assetId?: number;
-    eventType: 'IMPRESSION' | 'CLICK';
-  }) => request<void>(ConsumerEndpoints.marketingPlacementEvent, 'POST', body, true),
+  reportPlacementEvent: (body: PlacementEventBody) => reportMarketingPlacementEvent(body),
   /** CB-082 活动弹窗：position=POPUP_BEFORE_OPEN / POPUP_AFTER_CLOSE，最多 1 条 */
   marketingPopups: (position: 'POPUP_BEFORE_OPEN' | 'POPUP_AFTER_CLOSE', deviceId?: string) =>
     request<MarketingPopup[]>(ConsumerEndpoints.marketingPopups(position, deviceId), 'GET'),

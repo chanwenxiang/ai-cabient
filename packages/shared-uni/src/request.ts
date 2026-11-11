@@ -400,9 +400,24 @@ function mpRequestOnce<T>(
             return;
           }
           refreshTokenSilently(opts)
-            .then(() =>
-              mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject)
-            )
+            .then((refreshed) => {
+              // 无会话可续（游客 / getToken 因到期已清票）：`refreshTokenSilently` 用 resolve(false)
+              // 表示「没什么可刷的」，但旧写法不看返回值照样重放 —— 重放必再 401，且第二次会带着
+              // retried=true 落到 handleUnauthorized，把「游客态」当「登录已失效」。
+              // 2026-11-11 实证：消费者端首页弹窗打点早于微信静默登录完成，一次打点变成**两条** 401
+              //（网关 `POST /marketing/placement-events 401 60B` × 2，60B = 后端「请先登录」）。
+              if (!refreshed) {
+                reject(
+                  createMpApiError(
+                    localizeApiMessage(body?.message, '请先登录'),
+                    401,
+                    'UNAUTHORIZED'
+                  )
+                );
+                return;
+              }
+              mpRequestOnce<T>(opts, path, method, data, auth, true).then(resolve, reject);
+            })
             .catch((refreshErr) => {
               // 只有刷新端点「明确 401」才判会话失效走登出（2026-10-23 审计）：
               // 刷新请求自身网络失败/超时（弱网）不代表票据无效，旧代码无条件
