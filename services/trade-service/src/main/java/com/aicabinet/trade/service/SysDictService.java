@@ -4,6 +4,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.DictDtos;
 import com.aicabinet.trade.domain.SysDictData;
 import com.aicabinet.trade.domain.SysDictType;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.trade.mapper.SysDictDataMapper;
 import com.aicabinet.trade.mapper.SysDictTypeMapper;
 import org.springframework.http.HttpStatus;
@@ -185,6 +186,12 @@ public class SysDictService {
             entity.setSortOrder(req.sortOrder());
         }
         typeRepository.save(entity);
+        // R16-MA-175 家族：remark 清空后 updateById 跳 null ⇒ 旧值残留。
+        if (entity.getRemark() == null && !created) {
+            typeRepository.update(null, Wrappers.<SysDictType>lambdaUpdate()
+                    .eq(SysDictType::getDictType, entity.getDictType())
+                    .set(SysDictType::getRemark, null));
+        }
         auditService.appendLog(operatorId, created ? "DICT_TYPE_CREATE" : "DICT_TYPE_UPDATE",
                 "DICT_TYPE", type, name);
         return new DictDtos.DictTypeDto(
@@ -231,6 +238,13 @@ public class SysDictService {
             entity.setSortOrder(req.sortOrder());
         }
         dataRepository.save(entity);
+        // R16-MA-175 家族：remark 清空后 updateById 跳 null ⇒ 旧值残留。
+        if (entity.getRemark() == null && !created) {
+            dataRepository.update(null, Wrappers.<SysDictData>lambdaUpdate()
+                    .eq(SysDictData::getDictType, entity.getDictType())
+                    .eq(SysDictData::getDictValue, entity.getDictValue())
+                    .set(SysDictData::getRemark, null));
+        }
         auditService.appendLog(operatorId, created ? "DICT_DATA_CREATE" : "DICT_DATA_UPDATE",
                 "DICT_DATA", dictType + ":" + value, label);
         return toDataDto(entity);

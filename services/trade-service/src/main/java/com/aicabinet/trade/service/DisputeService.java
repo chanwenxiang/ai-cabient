@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 
 import com.aicabinet.common.dto.DisputeMessageDto;
 import com.aicabinet.common.dto.DisputeTicketDto;
@@ -755,6 +756,12 @@ public class DisputeService {
         ticket.setClosedAt(Instant.now());
         ticket.setOperatorNote(trimToNull(request != null ? request.note() : null));
         disputeRepository.save(ticket);
+        // R16-MA-175 家族：operatorNote 清空后 updateById 跳 null ⇒ 旧值残留。补 wrapper。
+        if (ticket.getOperatorNote() == null) {
+            disputeRepository.update(null, Wrappers.<DisputeTicket>lambdaUpdate()
+                    .eq(DisputeTicket::getTicketId, ticketId)
+                    .set(DisputeTicket::getOperatorNote, null));
+        }
         auditService.appendLog(operatorId, "DISPUTE_CLOSE", DISPUTE, ticketId,
                 SESSION + ticket.getSessionId());
         return toDto(ticket);

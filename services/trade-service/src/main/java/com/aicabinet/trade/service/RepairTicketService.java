@@ -221,6 +221,12 @@ public class RepairTicketService {
         }
         ticket.setUpdatedAt(Instant.now());
         ticketMapper.updateById(ticket);
+        // R16-MA-175 家族：remark 清空后 updateById 跳 null ⇒ 旧值残留。补 wrapper。
+        if (ticket.getRemark() == null) {
+            ticketMapper.update(null, Wrappers.<RepairTicket>lambdaUpdate()
+                    .eq(RepairTicket::getTicketId, ticketId)
+                    .set(RepairTicket::getRemark, null));
+        }
         appendEvent(ticketId, ticket.getStatus(), ticket.getStatus(), "UPDATE", operatorId, remark);
         return toDto(ticket);
     }

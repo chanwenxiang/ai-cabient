@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.MerchantGatherStatusDto;
+import com.aicabinet.trade.domain.Merchant;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.common.constants.CabinetConstants;
 
 import com.aicabinet.common.dto.*;
@@ -457,6 +459,13 @@ public class MerchantPortalService {
                 locked.setAlertContactPhone(blankToNull(request.alertContactPhone()));
             }
             merchantRepository.save(locked);
+            // R16-MA-175 家族：alertContactName/Phone 清空后 updateById 跳 null ⇒ 旧值残留。
+            if (locked.getAlertContactName() == null || locked.getAlertContactPhone() == null) {
+                merchantRepository.update(null, Wrappers.<Merchant>lambdaUpdate()
+                        .eq(Merchant::getMerchantId, locked.getMerchantId())
+                        .set(locked.getAlertContactName() == null, Merchant::getAlertContactName, null)
+                        .set(locked.getAlertContactPhone() == null, Merchant::getAlertContactPhone, null));
+            }
         }
         auditService.appendLog(userId, "MERCHANT_PROFILE_UPDATE", "MERCHANT",
                 String.join(",", allowed), "profile updated");
