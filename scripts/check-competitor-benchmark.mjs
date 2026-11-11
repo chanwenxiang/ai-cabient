@@ -39,7 +39,7 @@
  *   node scripts/check-competitor-benchmark.mjs
  */
 import { gitAsync } from './lib/async-spawn.mjs';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -490,6 +490,126 @@ for (const rel of newFiles) {
       );
     }
   }
+}
+
+// ══ R11-B-N2：全量兜底棘轮（堵「只查相对 origin/dev 新增」的永久盲区）══════════
+// 与 check-flyway-seed-separation 同科：V452 曾经分支直合入库躲过本门禁增量扫描。
+// 判据与增量段完全同口径（feature/CREATE TABLE ⇒ 须 COMPETITOR_REF）；历史存量
+// （规则生效前的建库/模块迁移）82 条冻结为基线，**只减不增**——新违例不在基线即红。
+// ⚠️ 铁律 50：基线条目（已应用迁移）不可直改补注释，只能登记豁免。
+const CB_BASELINE = new Set([
+  'V103__ensure_data_consistency_record.sql',
+  'V105__purchase_return.sql',
+  'V10__concurrency_control.sql',
+  'V123__align_three_end_data_consistency.sql',
+  'V125__competitive_gap_features.sql',
+  'V127__device_asset_lifecycle.sql',
+  'V132__device_map_and_repair_ticket.sql',
+  'V133__line_manager_wallet.sql',
+  'V139__merchant_withdraw.sql',
+  'V151__device_online_since_and_availability_kpi.sql',
+  'V152__scheduled_task_module.sql',
+  'V159__supplier_payables.sql',
+  'V15__merchant_revenue_split.sql',
+  'V160__warehouse_stocktake.sql',
+  'V161__warehouse_bins.sql',
+  'V163__growth_marketing_modules.sql',
+  'V166__notify_prefs_points_idempotent.sql',
+  'V16__ops_user_merchant.sql',
+  'V172__ops_two_factor_auth.sql',
+  'V173__device_temp_plan_and_env_reading.sql',
+  'V174__ad_media_operation.sql',
+  'V176__org_and_site_contract.sql',
+  'V185__balance_refund_request.sql',
+  'V190__invoice_and_mid_pri.sql',
+  'V191__low_pri_risk_ad_demo.sql',
+  'V192__wave1_onboard_device_scope.sql',
+  'V193__wave3_warehouse_transfer.sql',
+  'V194__wave4_rent_split_line_promo.sql',
+  'V1__init_schema.sql',
+  'V228__approval_workflow.sql',
+  'V231__ops_department_and_approval_config.sql',
+  'V24__inventory_lots_phase_a.sql',
+  'V255__site_rent_bill.sql',
+  'V256__device_data_fee_bill.sql',
+  'V257__consumer_preauth_hold.sql',
+  'V26__warehouse_phase_b.sql',
+  'V27__phase_c_finance.sql',
+  'V281__system_config_history.sql',
+  'V290__device_mqtt_credential.sql',
+  'V29__sms_verification_code.sql',
+  'V2__user_order_sku.sql',
+  'V307__payout_account_and_withdraw_payee_snapshot.sql',
+  'V30__device_slot_planogram.sql',
+  'V310__ad_revenue_daily.sql',
+  'V323__identity_verify_channels.sql',
+  'V32__warehouse_in_transit.sql',
+  'V34__procurement_and_warehouse_ledger.sql',
+  'V38__merchant_portal_p3.sql',
+  'V3__auth_payment.sql',
+  'V41__merchant_sku_pricing_m2.sql',
+  'V42__merchant_dispute_collaboration_m3.sql',
+  'V43__merchant_replenishment_request_m4.sql',
+  'V46__merchant_finance_notify_m7.sql',
+  'V4__dispute_ops.sql',
+  'V51__device_fault_report.sql',
+  'V52__balance_ledger_and_ops_exception.sql',
+  'V55__system_config.sql',
+  'V5__dispute_vision.sql',
+  'V65__sys_dict_and_analytics.sql',
+  'V66__coupon_promotion_system.sql',
+  'V67__member_feedback_notification.sql',
+  'V68__enhance_existing_tables.sql',
+  'V6__admin_audit.sql',
+  'V71__concurrency_control.sql',
+  'V72__distributed_transaction.sql',
+  'V73__data_consistency.sql',
+  'V74__payscore_payment.sql',
+  'V75__user_auth.sql',
+  'V76__complete_optimization.sql',
+  'V77__franchise_management.sql',
+  'V78__line_manager_management.sql',
+  'V79__member_management.sql',
+  'V7__commercial_vision_storage.sql',
+  'V80__data_consistency.sql',
+  'V81__ad_management.sql',
+  'V82__social_marketing.sql',
+  'V83__gamification.sql',
+  'V84__edge_computing.sql',
+  'V86__production_enhancements.sql',
+  'V8__ops_rbac.sql',
+  'V99__member_marketing_consumer.sql',
+  'V9__commercial_ops.sql'
+]);
+{
+  const migDir = join(ROOT, 'services/trade-service/src/main/resources/db/migration');
+  let allNames = [];
+  try {
+    allNames = readdirSync(migDir)
+      .filter((n) => /^V\d+__.*\.sql$/i.test(n))
+      .sort();
+  } catch {
+    fail('全量兜底：无法枚举 migration 目录');
+  }
+  const sweepProblems = [];
+  for (const name of allNames) {
+    if (CB_BASELINE.has(name)) continue;
+    const raw = readFileSync(join(migDir, name), 'utf8');
+    const isFeature = /MIGRATION_KIND\s*:\s*(feature|new_table|create)/i.test(raw);
+    const createsTable = /CREATE\s+TABLE/i.test(raw);
+    if (!isFeature && !createsTable) continue;
+    if (!/^--\s*COMPETITOR_REF\s*:/im.test(raw)) {
+      sweepProblems.push(
+        `全量兜底：db/migration/${name} 新建业务表但缺 COMPETITOR_REF（增量扫描盲区补扫，R11-B-N2）`
+      );
+    }
+  }
+  if (sweepProblems.length) {
+    fail(`\n  ${sweepProblems.join('\n  ')}\n`);
+  }
+  console.log(
+    `${TAG} 全量兜底：${allNames.length} 个 V 迁移已扫；基线冻结 ${CB_BASELINE.size} 条（只减不增，R11-B-N2）`
+  );
 }
 
 if (problems.length) {
