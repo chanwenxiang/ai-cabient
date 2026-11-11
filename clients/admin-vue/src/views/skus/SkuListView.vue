@@ -1475,7 +1475,7 @@ async function saveEdit() {
       blockSaleDaysBeforeExpiry: form.blockSaleDaysBeforeExpiry,
       storageType: form.storageType,
       nearExpiryPriceCents: form.nearExpiryPriceCents,
-      operationScope: form.operationScope || undefined,
+      operationScope: form.operationScope ?? undefined,
       sceneLimits: form.sceneLimits.map((r) => ({ sceneType: r.sceneType, maxQty: r.maxQty! }))
     };
     let updated: SkuCatalog;

@@ -215,6 +215,11 @@ public class OpsCatalogAdminService {
             wrapper.set(SkuCatalog::getBrand, sku.getBrand());
             any = true;
         }
+        // R12-MA-170：经营归属（空=未分类）此前不在清列列表 ⇒ 用户清空后 updateById 跳 null 永不可清
+        if (request.operationScope() != null) {
+            wrapper.set(SkuCatalog::getOperationScope, sku.getOperationScope());
+            any = true;
+        }
         if (any) {
             skuCatalogRepository.update(null, wrapper);
         }

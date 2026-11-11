@@ -62,6 +62,15 @@ public interface JiangyiClassMappingMapper extends BaseTradeMapper<JiangyiClassM
             update(row, Wrappers.<JiangyiClassMapping>lambdaQuery()
                     .eq(JiangyiClassMapping::getDeviceId, row.getDeviceId())
                     .eq(JiangyiClassMapping::getClassId, row.getClassId()));
+            // R12-MA-171：显式清列——update 跳 null，textName 清空后无法落库（M01 家族）。
+            // 前端已改 `?? undefined` 确保键恒发，后端 blankToNull(`''`)=null，
+            // 但 update NOT_NULL 策略跳 null ⇒ 必须 lambdaUpdate().set(null) 真清列。
+            if (row.getTextName() == null) {
+                update(null, Wrappers.<JiangyiClassMapping>lambdaUpdate()
+                        .eq(JiangyiClassMapping::getDeviceId, row.getDeviceId())
+                        .eq(JiangyiClassMapping::getClassId, row.getClassId())
+                        .set(JiangyiClassMapping::getTextName, null));
+            }
         }
     }
 

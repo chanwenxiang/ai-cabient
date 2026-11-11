@@ -9,6 +9,7 @@ import { clearPreferredDeviceId } from '@/utils/preferred-device';
 import {
   mpRequest,
   createMpApiError,
+  ensureFreshSession,
   refreshTokenSilently,
   type MpApiSession,
   type MpRefreshData
@@ -91,6 +92,18 @@ const mpApiSession: MpApiSession = {
   applyRefreshedToken: (data) => applyLoginSession(data),
   handleUnauthorized
 };
+
+/**
+ * 冷启动续期：本地 JWT 临期/已过期时先换新票据，避免「明知会 401 还先发业务请求」。
+ *
+ * 2026-11-11 实证：商户端 `GET /api/v2/dicts/runtime` 是 `App.onLaunch` 里唯一「启动即发」的
+ * 带鉴权请求，token 过期时必然先吃一个 401（随后静默刷新重放 200）。网关日志 `401 81B` 紧跟
+ * `200 91KB` 即此链路。控制台红字无法由 JS 抑制（开发者工具原生打印 4xx），只能在源头不发那次必败请求。
+ * 判据与兜底：解析不出 exp（异构/旧 token）时不动作，退回原有 401 自愈路径。
+ */
+export function ensureSessionFresh() {
+  return ensureFreshSession(mpApiSession);
+}
 
 export function clearSession() {
   uni.removeStorageSync(TOKEN_KEY);

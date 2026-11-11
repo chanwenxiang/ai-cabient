@@ -1585,9 +1585,9 @@ async function saveOrg() {
     await api.request(AdminEndpoints.merchants, 'POST', {
       merchantId: f.editing ? f.merchantId.trim() : null,
       merchantName: f.merchantName.trim(),
-      contactPhone: f.contactPhone.trim() || null,
-      legalPerson: f.legalPerson.trim() || null,
-      businessLicenseUrl: f.businessLicenseUrl.trim() || null,
+      contactPhone: f.contactPhone.trim() ?? null,
+      legalPerson: f.legalPerson.trim() ?? null,
+      businessLicenseUrl: f.businessLicenseUrl.trim() ?? null,
       platformRateBps: f.platformRateBps,
       wechatReceiverId: existing?.wechatReceiverId,
       status: f.status || 'ACTIVE',

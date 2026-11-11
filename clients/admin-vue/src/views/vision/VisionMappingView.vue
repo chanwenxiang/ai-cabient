@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -1352,7 +1352,7 @@ async function saveEdit() {
   try {
     await api.request(AdminEndpoints.deviceJiangyiMapping(deviceId.value, classId), 'PUT', {
       skuId: editForm.value.skuId,
-      textName: editForm.value.textName || undefined,
+      textName: editForm.value.textName ?? undefined,
       // 显式回传状态：后端按 active 落 status，漏传会把已启用行静默停用
       active: editForm.value.active
     });

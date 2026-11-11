@@ -18,6 +18,7 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -315,6 +316,14 @@ public class MerchantDevicePortalService {
 
         applyDeviceSettingFields(device, request);
         deviceRepository.save(device);
+        // R12-MA-169：显式清列——updateById 跳 null，opsRemark 清空后无法落库（M01 家族）。
+        // 前端已改 `?? undefined` 确保键恒发（空串→`''`），后端 blankToNull(`''`)=null，
+        // 但 updateById NOT_NULL 策略跳 null ⇒ 必须 lambdaUpdate().set(null) 真清列。
+        if (request.opsRemark() != null && device.getOpsRemark() == null) {
+            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                    .eq(DeviceInfo::getDeviceId, deviceId)
+                    .set(DeviceInfo::getOpsRemark, null));
+        }
         TempCommandResult tempResult = dispatchTargetTempIfRequested(device, request.targetTempC());
         auditService.appendLog(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
                 "名称：" + device.getDeviceName());

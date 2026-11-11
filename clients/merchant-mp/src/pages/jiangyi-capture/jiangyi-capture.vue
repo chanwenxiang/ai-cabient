@@ -73,6 +73,13 @@ const error = ref('');
 const submitting = ref(false);
 const picking = ref(false);
 
+/**
+ * R12-MA-173：loadState 竞态守卫。
+ * onLoad 与 scan() 可先后触发 loadState，若旧请求后返回，其 state 会覆盖新请求的结果。
+ * 用递增序号 + 条码快照，只有最新请求才允许写入 state。
+ */
+let stateLoadSeq = 0;
+
 const stateLabel = computed(() => jiangyiStateText(state.value?.jiangyiState));
 
 /**
@@ -116,10 +123,20 @@ async function loadState() {
   const code = barCode.value.trim();
   // 条码变了 ⇒ 已拍的照片不再属于这件商品，先清空再查状态
   if (photosForBarCode !== code) resetPhotos();
+  const seq = ++stateLoadSeq;
+  const requestedCode = code;
   error.value = '';
   try {
-    state.value = await fetchJiangyiCaptureState(code);
+    const result = await fetchJiangyiCaptureState(code);
+    // R12-MA-173：只有最新请求才写入 —— 防止 onLoad 与 scan 并发时旧响应覆盖新状态
+    if (seq !== stateLoadSeq || requestedCode !== code) {
+      return;
+    }
+    state.value = result;
   } catch (e) {
+    if (seq !== stateLoadSeq || requestedCode !== code) {
+      return;
+    }
     state.value = null;
     error.value = e instanceof Error ? e.message : '查询商品状态失败';
   }

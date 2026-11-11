@@ -19,7 +19,11 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const TARGET_DIRS = [join(ROOT, 'clients/admin-vue/src')];
+const TARGET_DIRS = [
+  join(ROOT, 'clients/admin-vue/src'),
+  join(ROOT, 'clients/merchant-mp/src'),
+  join(ROOT, 'clients/consumer-mp/src')
+];
 const EXTS = new Set(['.vue', '.ts', '.tsx']);
 
 /** 把注释替换为等长空白（保行号与列数），防止注释内示例触发判据。 */

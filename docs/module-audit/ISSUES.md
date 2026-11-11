@@ -1432,3 +1432,16 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 - 定位方向：①全仓 486 处 `@Transactional(readOnly = true)`——Spring 的 DataSourceUtils 会调 `Connection.setReadOnly(true)`，归还时 Hikari 理应复位（resetBits 含 READ_ONLY），但若某条路径绕过（如事务模板外手动借还、或 MyBatis-Spring 与 Hikari 版本组合的复位缺口）即污染；②窗口与 Testcontainers 并行全量测试时间重合，需排除压测串扰。
 - 修法方向：Hikari 显式 `connection-init-sql: SET default_transaction_read_only=off`（每连接借出即复位，兜底任何污染源）+ 复现用例（并发 readOnly 读 + 写穿插，断言写永不 25006）。
 - 实测证据：`.tmp` 心跳/探针脚本与 trade 日志 21:05-21:37、22:07-22:19 段。
+
+---
+
+### R12 审计批次（2026-11-11，基线 `3ed314bf`）
+
+| ID | 级 | 状态 | 端/页面 | 一句话 | 发现人/日期 | 关联 |
+|----|----|------|---------|--------|-------------|------|
+| MA-168 | P1 | fixed | 门禁 `check-seq-success-path-guard` | 只扫 `clients/admin-vue/src`，merchant-mp（≈20 文件）/consumer-mp（≈8 文件）同型 seq 守卫无门禁保护；本轮手动复核发现 jiangyi-capture.vue 缺守卫（MA-173）恰证盲区 | 会话内审计 R12 / 2026-11-11 | 修复：`TARGET_DIRS` 扩至三端；`--self-test` 三态验证通过（红 1/绿 0/注释陷阱 0/同行await红 1） |
+| MA-169 | P2 | fixed | merchant-mp `device-detail.vue` saveSettings + `MerchantDevicePortalService` | opsRemark 双端缺陷：前端 `|| undefined` 丢键 + 后端 `if(request.opsRemark()!=null)` guard + `updateById` NOT_NULL 跳 null ⇒ 运维备注永不可清 | 会话内审计 R12 / 2026-11-11 | R4-E5 家族 + M01 家族；修复：前端 `?? undefined` + 后端 `lambdaUpdate().set(opsRemark,null)` 显式清列；21 后端测试全过 |
+| MA-170 | P2 | fixed | admin-vue `SkuListView.vue` saveSku + `OpsCatalogAdminService` | operationScope `|| undefined` 丢键 + `trimToNull`→null→`updateById` 跳 ⇒ 经营归属永不可清（空=未分类是合法值） | 会话内审计 R12 / 2026-11-11 | R4-E5 家族 + M01 家族；修复：前端 `?? undefined` + 后端 `clearExplicitlyBlankColumns` 补 operationScope |
+| MA-171 | P2 | fixed | admin-vue `VisionMappingView.vue` saveMapping + `AdminJiangyiController` | textName `|| undefined` 丢键 + `blankToNull`→null→`upsert` update 跳 ⇒ 映射文本名永不可清 | 会话内审计 R12 / 2026-11-11 | R4-E5 家族 + M01 家族；修复：前端 `?? undefined` + 后端 `upsert` update 分支后 `lambdaUpdate().set(textName,null)` 显式清列 |
+| MA-172 | P2 | fixed | 后端系统性 + admin-vue `useDeviceAsset.ts`/`MerchantSplitsView.vue` | M01 家族 75+ 处：`setX(blankToNull/trimToNull)`+`save/updateById` ⇒ UPDATE 路径可清空字段永不可清；前端 `|| null` 进一步丢键 | 会话内审计 R12 / 2026-11-11 | R11 B-N1 只修 1 处，漏 75 处；本轮修复 admin-vue 前端 `|| null`→`?? null`（useDeviceAsset 6 字段 + MerchantSplitsView 3 字段），后端 3 处显式清列（MA-169/170/171），`check:mybatis-null-clear` 门禁通过 |
+| MA-173 | P3 | fixed | merchant-mp `jiangyi-capture.vue` loadState | `loadState()` 无 seq 守卫；`scan()`/`onLoad` 均调它，连续扫两个不同条码 → 第一个迟到响应覆盖第二个状态 | 会话内审计 R12 / 2026-11-11 | MA-168 门禁盲区实证；修复：`stateLoadSeq` 递增序号 + `requestedCode` 快照，只有最新请求才写入 |

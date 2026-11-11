@@ -53,6 +53,86 @@ export interface MpApiSession {
 
 let refreshInFlight: Promise<boolean> | null = null;
 
+/** 冷启动预刷新的提前量（秒）：token 剩余寿命不足该值即视为「临期」。 */
+export const DEFAULT_REFRESH_SKEW_SECONDS = 120;
+
+const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * 小程序安全的 base64url 解码（**不用 atob**：微信小程序基础库对 atob 的支持随端而异，
+ * 且 shared-uni 要同时跑 H5/小程序/App 三端）。JWT payload 是 UTF-8 JSON，
+ * 这里只保证 ASCII 正确——非 ASCII（中文 claim）会乱码，调用方只从中抠 `exp` 数字，不受影响。
+ */
+function base64UrlDecodeToString(input: string): string {
+  const s = String(input || '')
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .replace(/=+$/, '');
+  let out = '';
+  let buffer = 0;
+  let bits = 0;
+  for (let i = 0; i < s.length; i++) {
+    const idx = B64_ALPHABET.indexOf(s[i]);
+    if (idx < 0) return '';
+    buffer = ((buffer << 6) | idx) & 0xffffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+  return out;
+}
+
+/**
+ * 解析 JWT 的 exp（**秒**，UTC epoch）。非 JWT / 缺 exp / 解码失败一律返回 null。
+ *
+ * <p>用途：冷启动时判断本地会话是否已过期，避免「明知会 401 还先发一次业务请求」
+ * ——2026-11-11 实证：商户端 `GET /api/v2/dicts/runtime` 每次冷启动必留一条红色 401，
+ * 实为「401 → 静默刷新 → 重放 200」的第一次握手（网关日志 `401 81B` 紧跟 `200 91KB`）。
+ * 判据必须 fail-open：解析不出 exp 时返回 null，调用方退回原有的 401 自愈路径。</p>
+ */
+export function decodeJwtExpirySeconds(token: string): number | null {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  const payload = base64UrlDecodeToString(parts[1]);
+  if (!payload) return null;
+  const m = /"exp"\s*:\s*(\d+)/.exec(payload);
+  if (!m) return null;
+  const exp = Number(m[1]);
+  return Number.isFinite(exp) && exp > 0 ? exp : null;
+}
+
+/** 本地 JWT 是否已过期或将在 `skewSeconds` 内过期（解析不出 exp 时返回 false，交给 401 自愈）。 */
+export function isTokenExpiringSoon(token: string, skewSeconds = DEFAULT_REFRESH_SKEW_SECONDS) {
+  const exp = decodeJwtExpirySeconds(token);
+  if (exp == null) return false;
+  return exp * 1000 - Date.now() <= skewSeconds * 1000;
+}
+
+/**
+ * 冷启动续期：本地 JWT 临期/已过期时**先**换新票据，再发业务请求。
+ *
+ * <p>语义边界：只在「有本地 JWT 且能解出 exp」时下手。H5 Cookie 会话（无本地 JWT）
+ * 不在此处理——它本来就没有可判断的 exp，且每次启动多打一次 refresh 属于净损耗。</p>
+ *
+ * <p>失败处理：静默吞掉。续期失败不代表会话失效（可能是限流/弱网），后续业务请求若真的
+ * 401 会走 `mpRequestOnce` 的分档逻辑；在这里登出会把仍有效的会话误杀。</p>
+ */
+export async function ensureFreshSession(
+  opts: MpApiSession,
+  skewSeconds = DEFAULT_REFRESH_SKEW_SECONDS
+): Promise<boolean> {
+  const token = opts.getToken();
+  if (!token) return false;
+  if (!isTokenExpiringSoon(token, skewSeconds)) return false;
+  try {
+    return await refreshTokenSilently(opts);
+  } catch {
+    return false;
+  }
+}
+
 function isH5Runtime() {
   return (
     typeof window !== 'undefined' &&
@@ -154,21 +234,41 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
       timeout: opts.timeoutMs ?? 20_000,
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: MpRefreshData };
-        if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
+        const okBody = res.statusCode === 200 && body?.code === 0;
+        if (okBody && body.data?.token) {
           opts.applyRefreshedToken(body.data);
           resolve(true);
           return;
         }
         // Cookie 会话刷新可能只续 Cookie、不回传 token
-        if (res.statusCode === 200 && body?.code === 0 && opts.useCookieAuth?.()) {
+        if (okBody && opts.useCookieAuth?.()) {
           if (body.data) opts.applyRefreshedToken(body.data);
           resolve(true);
           return;
         }
-        // CB-070：刷新被拒时后端已按成因分档（超宽限/被下线/纪元重置）。旧写法一律压成「登录已失效」，
-        // 补货员只能反复输密码却不知道是哪种成因——这里的 message 会经 handleUnauthorized 落到提示。
+        if (res.statusCode === 401 || res.statusCode === 403) {
+          // CB-070：刷新被拒时后端已按成因分档（超宽限/被下线/纪元重置）。旧写法一律压成
+          // 「登录已失效」，补货员只能反复输密码却不知道是哪种成因——这里的 message 会经
+          // handleUnauthorized 落到提示。
+          reject(
+            createMpApiError(localizeApiMessage(body?.message, '登录已失效'), res.statusCode, 'UNAUTHORIZED')
+          );
+          return;
+        }
+        // 🔴 2026-11-11 修正：此前这里**无条件**把任何非 (200 & code=0) 压成 `401 UNAUTHORIZED`。
+        // 网关 `auth_ratelimit`（5r/s）返回 429、上游 5xx、契约异常（200 但没 token）都被压成
+        // 「会话失效」⇒ 调用方 `isMpAuthFailure` 判真 ⇒ clearSession + 踢回登录页。
+        // 限流/抖动本不该登出：这类失败按**普通错误**回抛，保持登录态、让用户重试。
+        const status = res.statusCode;
         reject(
-          createMpApiError(localizeApiMessage(body?.message, '登录已失效'), 401, 'UNAUTHORIZED')
+          createMpApiError(
+            localizeApiMessage(
+              body?.message,
+              status ? `刷新登录状态失败 (${status})` : '刷新登录状态失败'
+            ),
+            status,
+            status === 429 ? 'REFRESH_RATE_LIMITED' : 'REFRESH_FAILED'
+          )
         );
       },
       fail(err) {

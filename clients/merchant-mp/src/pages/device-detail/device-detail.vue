@@ -751,7 +751,7 @@ async function saveSettings() {
   // 目标温度已下线（控制不了温度，2026-10-28 用户拍板）——不再提交 targetTempC。
   const body: OpenApiUpdateMerchantDeviceSettingsRequest = {
     deviceName: formName.value.trim() || undefined,
-    opsRemark: formRemark.value.trim() || undefined
+    opsRemark: formRemark.value.trim() ?? undefined
   };
   saving.value = true;
   try {

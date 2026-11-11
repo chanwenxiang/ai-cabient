@@ -138,17 +138,19 @@ export function useDeviceAsset(deps: UseDeviceAssetDeps) {
           deviceName: asset.deviceName || null,
           // CB-049：空串=清除场景，null=不改；表单恒回传当前值
           sceneType: asset.sceneType || '',
-          assetOwner: asset.assetOwner || null,
-          coopMode: asset.coopMode || null,
+          // R12-MA-172：`?? null` 只转 null/undefined，保留空串 `''`——`|| null` 会把
+          // 空串也吞成 null，后端 updateById 跳 null ⇒ 可清空字段永不可清（M01 家族）。
+          assetOwner: asset.assetOwner ?? null,
+          coopMode: asset.coopMode ?? null,
           depositCents: asset.depositCents ?? null,
           dataFeeCents: asset.dataFeeCents ?? null,
-          opsTags: asset.opsTags || null,
-          routeCode: asset.routeCode || null,
+          opsTags: asset.opsTags ?? null,
+          routeCode: asset.routeCode ?? null,
           homeWarehouseId: asset.homeWarehouseId || '',
           latitude: asset.latitude ?? null,
           longitude: asset.longitude ?? null,
-          address: asset.address || null,
-          lifecycleRemark: asset.lifecycleRemark || null
+          address: asset.address ?? null,
+          lifecycleRemark: asset.lifecycleRemark ?? null
         }
       );
       fillAsset(row);
