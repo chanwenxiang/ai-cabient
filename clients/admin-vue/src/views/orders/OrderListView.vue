@@ -181,18 +181,20 @@
               </div>
             </template>
           </el-table-column>
-          <!-- SKU 列：与「商品」列同序对齐的 skuId（lineSkuIds 由后端从同一 lines 生成） -->
+          <!-- SKU 列：与「商品」列同序对齐的 skuId（lineSkuIds 由后端从同一 lines 生成）。
+               🔴 行容器必须用 .goods-cell（grid 逐行堆叠），子项不能带 .goods-line——
+               那是 inline-flex，多 SKU 会横向连排成 "100015100014"。 -->
           <el-table-column label="SKU" min-width="110" class-name="col-text">
             <template #default="{ row }">
-              <template v-if="row.lineSkuIds">
+              <div v-if="row.lineSkuIds" class="goods-cell">
                 <div
                   v-for="(sid, i) in String(row.lineSkuIds).split('、')"
                   :key="`${row.orderId}-sku-${i}`"
-                  class="mono goods-line"
+                  class="mono"
                 >
                   {{ sid }}
                 </div>
-              </template>
+              </div>
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
