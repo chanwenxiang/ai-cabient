@@ -685,7 +685,20 @@ jobs:
         run: pnpm check:audit-gates
 
       - name: Install Playwright Chromium
-        run: pnpm exec playwright install chromium --with-deps
+        shell: bash
+        # 2026-11-11/12 连续两轮 CI：--with-deps 的 apt 段对 azure.archive.ubuntu.com
+        # 持续 DNS 解析失败（packages.microsoft.com 正常）⇒ 浏览器装不上全 job 红。
+        # 加固：失败重试 3 次 + 退避，且把 apt 镜像从 azure 域切到 archive 主站再试。
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in 1 2 3; do
+            if pnpm exec playwright install chromium --with-deps; then ok=1; break; fi
+            echo "::warning::playwright install attempt $i failed (apt mirror DNS?), retrying"
+            sleep 30
+            sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt 2>/dev/null || true
+          done
+          [ "$ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
 
       - name: Admin a11y smoke
         run: pnpm smoke:admin-a11y
@@ -954,11 +967,20 @@ jobs:
       # 两端小程序走各自 package.json（1.62.1）。两版本绑定的 chromium revision 不同，
       # 只装一次会让另一批脚本报 "Executable doesn't exist"。必须按版本各装一次。
       - name: Install Playwright Chromium
+        shell: bash
+        # 同上文（e2e-h5 安装步）：apt 镜像 DNS 抖动重试 + azure→archive 回退。
         run: |
           set -euo pipefail
-          pnpm exec playwright install --with-deps chromium
-          (cd clients/consumer-mp && pnpm exec playwright install chromium)
-          (cd clients/merchant-mp && pnpm exec playwright install chromium)
+          ok=0
+          for i in 1 2 3; do
+            if pnpm exec playwright install --with-deps chromium \
+               && (cd clients/consumer-mp && pnpm exec playwright install chromium) \
+               && (cd clients/merchant-mp && pnpm exec playwright install chromium); then ok=1; break; fi
+            echo "::warning::playwright install attempt $i failed (apt mirror DNS?), retrying"
+            sleep 30
+            sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/apt-mirrors.txt 2>/dev/null || true
+          done
+          [ "$ok" = 1 ] || { echo "playwright install failed after retries"; exit 1; }
 
       # 三个 admin 侧脚本（admin-uat / role-regression / batch-imp）已在下方 Three-end business
       # UAT 之后接入。🔴 原注释写「依赖采购单等业务数据，暂不纳入；待其种子脚本补齐后接入」——

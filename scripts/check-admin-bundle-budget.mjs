@@ -8,7 +8,7 @@
  *
  * 预算可用环境变量覆盖（单位 KB）：
  *   ADMIN_BUDGET_UI_VENDOR_KB=1200
- *   ADMIN_BUDGET_INDEX_KB=130
+ *   ADMIN_BUDGET_INDEX_KB=135
  *   ADMIN_BUDGET_LEAFLET_KB=220
  *   ADMIN_BUDGET_ECHARTS_KB=600
  *   ADMIN_BUDGET_ROUTE_KB=150
@@ -50,9 +50,13 @@ const BUDGET = {
   // model-sync-explicit / model-push-explicit 两个串，无整包误引入）。抬到 125 ≈ 4% 余量。
   // 2026-10-28 同一成因复发：origin/dev 入口 123.5KB（余 1.5KB），月结下钻再加两条 endpoints
   // 路径字面量后 124.0KB（余 1.0KB）⇒ 再抬 130（≈4.8%），与上一条同一判据。
+  // 2026-11-12 第三次抬额度，先归因（22bc75fa CI 实测 130.1KB）：旧 index 131701B=128.6KB →
+  // 新 133209B=130.1KB，Δ+1.5KB 且 navigator.locks/refreshWithOutcome 仅存在于新包
+  // ⇒ 增量就是 R15-K1/K2 认证加固（Web Locks 跨 tab 刷新锁 + 刷新失败四态分类，shared-api
+  // 经 client.ts 进入口 chunk），无整包误引入。抬到 135（≈3.7% 余量）。
   // 真要压入口，正解是把 packages/shared-dict（dist 未压缩 43.8KB，目前整块进 index）
   // 拆成独立 manualChunk，而不是继续抬这条额度。
-  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 130),
+  indexKb: envKb('ADMIN_BUDGET_INDEX_KB', 135),
   leafletKb: envKb('ADMIN_BUDGET_LEAFLET_KB', 220),
   // echarts+zrender 按需注册后的实测体积 ≈513KB（全量引入约 1MB）。600KB 留 ~17% 余量，
   // 既能容忍 minor 升级，又能抓住「有人退回 import * as echarts from 'echarts'」这类回归。
