@@ -133,7 +133,11 @@ async function pageProbe(page) {
   return page.evaluate(() => {
     const main = document.getElementById('main-content');
     const text = (main?.innerText || document.body.innerText || '').replace(/\s+/g, ' ').trim();
-    const forbidden = /无访问权限|无权|403|Forbidden/i.test(text);
+    // 成因（2026-11-12 CI R-03 假红）：裸 `403|Forbidden` 子串匹配会把页面里的
+    // 设备/路线序列号（如 EG186440348368 含 "403"）误判成无权页——种子路线按
+    // 计划日期落表 ⇒ 日期触发的间歇假红（铁律 64 家族）。真无权页的稳定特征
+    // 是「无权访问/无访问权限」标题与 /forbidden 路由，以此为准。
+    const forbidden = /无访问权限|无权访问/.test(text);
     return { textHead: text.slice(0, 220), forbidden };
   });
 }
@@ -244,7 +248,8 @@ async function main() {
             /^(通过|驳回)$/.test((b.textContent || '').trim())
           );
         return {
-          forbidden: /无访问权限|无权|403/.test(text),
+          // 同 pageProbe：裸 `403` 子串会命中设备序列号（EG186440348368），收紧到真无权文案
+          forbidden: /无访问权限|无权访问/.test(text),
           hasPo: !!row,
           rowText: rowText.slice(0, 200),
           hasApprove,
