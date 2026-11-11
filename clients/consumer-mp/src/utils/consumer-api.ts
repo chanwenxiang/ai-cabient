@@ -148,7 +148,7 @@ function downloadAuthedFileOnce(url: string, timeoutMs: number): Promise<string>
         }
         reject(new Error(classified.message || `下载失败 (${res.statusCode})`));
       },
-      fail(err) {
+      fail(_err) {
         // 不带原始 errMsg（第五轮门禁类 D）：downloadFile:fail cancel 类英文平台串
         // 不得进入 Error message——多数调用方 catch 后兜底，少数会直弹给用户
         reject(new Error('下载失败'));
@@ -530,7 +530,7 @@ function wxLoginCode(): Promise<string> {
         if (res.code) resolve(res.code);
         else reject(new Error('微信授权失败'));
       },
-      fail(err) {
+      fail(_err) {
         // 不带原始 errMsg（第五轮门禁类 D）：login:fail cancel 类英文平台串不上浮
         reject(new Error('微信授权失败'));
       }

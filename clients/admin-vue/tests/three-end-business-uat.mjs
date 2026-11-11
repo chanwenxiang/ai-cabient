@@ -24,7 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONSUMER = (process.env.CONSUMER_H5_URL || 'http://127.0.0.1:3002').replace(/\/$/, '');
 const MERCHANT = (process.env.MERCHANT_H5_URL || 'http://127.0.0.1:3001').replace(/\/$/, '');
 const ADMIN = (process.env.ADMIN_URL || 'http://localhost/admin').replace(/\/$/, '');
-const API = (process.env.API_BASE || 'http://127.0.0.1:18080').replace(/\/$/, '');
+const _API = (process.env.API_BASE || 'http://127.0.0.1:18080').replace(/\/$/, '');
 const DEMO_ORDER = process.env.DEMO_ORDER_ID || '1788233752744411094';
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';

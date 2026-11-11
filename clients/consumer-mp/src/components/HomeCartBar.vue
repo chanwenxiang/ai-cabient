@@ -101,7 +101,7 @@ withDefaults(
 );
 
 // R5-C3b：模板走 $emit，此赋值仅保留类型推导（沿袭形态，无运行时消费）
-const emit = defineEmits<{
+const _emit = defineEmits<{
   openCart: [];
   clearCart: [];
   refresh: [];

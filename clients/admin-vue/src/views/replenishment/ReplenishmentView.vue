@@ -725,7 +725,7 @@ import { errorMessage } from '@/utils/error-message';
 import RestockVideoDialog from '@/components/replenishment/RestockVideoDialog.vue';
 import CrudTable from '@/components/CrudTable.vue';
 import PagePager from '@/components/PagePager.vue';
-import ResizableDrawer from '@/components/ResizableDrawer.vue';
+// R10: ResizableDrawer unused
 import { useAdminListTable } from '@/composables/useAdminListTable';
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useReplenishmentTaskActions } from '@/composables/replenishment/useReplenishmentTaskActions';

@@ -684,7 +684,6 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions, type CrudRowAction } from '@/components/CrudTable.vue';
 import ResizableDrawer from '@/components/ResizableDrawer.vue';
@@ -696,7 +695,7 @@ import { buildDisputeResolveBody, type DisputeResolutionType } from '@/utils/mon
 import type { DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
-import { validateImageFile } from '@/utils/upload-validate';
+import { api } from '@/api/client';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 
 interface ResolveDisputeResultDto {

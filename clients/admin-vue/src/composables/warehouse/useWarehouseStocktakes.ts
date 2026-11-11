@@ -1,7 +1,7 @@
 import { reactive, ref, type ComputedRef, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, authFetch } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
+import { api } from '@/api/client';
 import { errorMessage } from '@/utils/error-message';
 import type { AdminDynamicRow } from '@/types/admin-dynamic-row';
 

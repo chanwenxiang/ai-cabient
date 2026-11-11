@@ -1036,7 +1036,7 @@ let qrObjectUrl: string | null = null;
 // 2026-10-16 改版：陈列网格下线（用户需求），卡片即编辑入口——卡上改覆盖价 + 货道行内编辑。
 const MAX_SKUS_PER_DEVICE = 50; // 与后端 DeviceSlotService.MAX_SKUS_PER_DEVICE 对齐
 const listedSkuCount = computed(() => skuInventory.value.length);
-const canEditMerchantConfig = computed(() => auth.hasPerm('ops:merchant:edit'));
+const _canEditMerchantConfig = computed(() => auth.hasPerm('ops:merchant:edit'));
 
 /**
  * 卡片价格：复用单柜定价 composable（CB-037 覆盖价体系 + min/max 限价 + 乐观锁），
