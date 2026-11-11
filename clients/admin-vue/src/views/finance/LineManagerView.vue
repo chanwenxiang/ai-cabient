@@ -1181,6 +1181,8 @@ async function loadManagers() {
       AdminEndpoints.lineManagersList(q),
       'GET'
     );
+    // R11-A-N2：成功路径也须判代际（守卫只挂 catch 会放旧响应回写列表）
+    if (!loadSeq.isCurrent(seq, 'loadManagers')) return;
     managers.value = sortById(res.items || []);
     mTotal.value = Number(res.total || 0);
   } catch (e) {
@@ -1204,6 +1206,8 @@ async function loadWithdraws() {
       AdminEndpoints.lineWithdrawsList(q),
       'GET'
     );
+    // R11-A-N2：成功路径也须判代际（守卫只挂 catch 会放旧响应回写列表并清勾选）
+    if (!loadSeq.isCurrent(seq, 'loadWithdraws')) return;
     withdraws.value = res.items || [];
     wTotal.value = Number(res.total || 0);
     clearWdSelection();
@@ -1248,7 +1252,13 @@ function reload() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    payoutMode.value = await api.request(AdminEndpoints.lineWithdrawsPayoutMode, 'GET');
+    const mode = await api.request<{ mockEnabled?: boolean; note?: string }>(
+      AdminEndpoints.lineWithdrawsPayoutMode,
+      'GET'
+    );
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
+    payoutMode.value = mode;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {
@@ -1594,7 +1604,10 @@ async function loadPromoTasks() {
   const seq = loadSeq.begin('loadPromoTasks');
   promoLoading.value = true;
   try {
-    promoTasks.value = await api.request<PromoTask[]>(AdminEndpoints.linePromoTasks, 'GET');
+    const tasks = await api.request<PromoTask[]>(AdminEndpoints.linePromoTasks, 'GET');
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
+    promoTasks.value = tasks;
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');

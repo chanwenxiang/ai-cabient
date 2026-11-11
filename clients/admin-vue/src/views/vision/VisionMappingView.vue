@@ -1043,9 +1043,12 @@ async function loadVendorNames() {
   const requestedDeviceId = deviceId.value;
   // 优先用「最新 CONFIRMED 下发」的 classes 地址（设备当前生效模型），§4.4.4 模型列表为空时也能解码；
   // 退化为当前预览模型的 textUrl。
+  // R11-A-N1：dep 只能取「归属当前柜」的 deployments——切柜后 deployments.value 可能
+  // 仍是旧柜数据，用旧柜 classesTextUrl 配当前柜 deviceId 会串柜解码（守卫判不出）。
+  const depSource = deploymentsForDeviceId === deviceId.value ? deployments.value : [];
   const dep =
-    deployments.value.find((d) => d.status === 'CONFIRMED' && d.classesTextUrl) ??
-    deployments.value.find((d) => d.classesTextUrl);
+    depSource.find((d) => d.status === 'CONFIRMED' && d.classesTextUrl) ??
+    depSource.find((d) => d.classesTextUrl);
   const preview =
     modelPreviews.value.find((m) => m.modelName === binding.value?.modelName) ??
     modelPreviews.value[0];
@@ -1151,15 +1154,29 @@ async function doPush() {
   }
 }
 
+// R11-A-N1：deployments/reviewStatus 加载器与 loadVendorNames 同科——弱网切柜时旧柜
+// 响应晚到会覆盖新柜数据，且 loadVendorNames 读到 A 柜 deployments 会拿 A 的
+// classesTextUrl 配 B 的 deviceId 发解码请求（A-R3-2 守卫判不出）。三处同批加守卫。
+let deploymentLoadSeq = 0;
+// deployments.value 的归属柜记录：loadVendorNames 取 dep 前先验归属，非当前柜按空表退化。
+let deploymentsForDeviceId = '';
+let reviewLoadSeq = 0;
 async function loadDeployments() {
   if (!deviceId.value) return;
+  const seq = ++deploymentLoadSeq;
+  const requestedDeviceId = deviceId.value;
   try {
-    deployments.value = await api.request<DeploymentRow[]>(
+    const rows = await api.request<DeploymentRow[]>(
       AdminEndpoints.deviceJiangyiModelDeployments(deviceId.value),
       'GET'
     );
+    if (requestedDeviceId !== deviceId.value || seq !== deploymentLoadSeq) return;
+    deployments.value = rows;
+    deploymentsForDeviceId = requestedDeviceId;
   } catch {
+    if (requestedDeviceId !== deviceId.value || seq !== deploymentLoadSeq) return;
     deployments.value = [];
+    deploymentsForDeviceId = requestedDeviceId;
   }
   // 下发记录到位后重算 classes 类目名解码（依赖 CONFIRMED 下发的 classesTextUrl）
   void loadVendorNames();
@@ -1167,16 +1184,21 @@ async function loadDeployments() {
 
 async function loadReviewStatus() {
   if (!deviceId.value) return;
+  const seq = ++reviewLoadSeq;
+  const requestedDeviceId = deviceId.value;
   reviewStatusLoading.value = true;
   try {
-    reviewStatus.value = await api.request<MappingReviewStatus>(
+    const status = await api.request<MappingReviewStatus>(
       AdminEndpoints.deviceJiangyiMappingReviewStatus(deviceId.value),
       'GET'
     );
+    if (requestedDeviceId !== deviceId.value || seq !== reviewLoadSeq) return;
+    reviewStatus.value = status;
   } catch {
+    if (requestedDeviceId !== deviceId.value || seq !== reviewLoadSeq) return;
     reviewStatus.value = null;
   } finally {
-    reviewStatusLoading.value = false;
+    if (seq === reviewLoadSeq) reviewStatusLoading.value = false;
   }
 }
 

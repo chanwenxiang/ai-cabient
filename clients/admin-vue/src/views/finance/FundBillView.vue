@@ -472,28 +472,29 @@ const { onExport: exportBillsCsv } = useListCsv({
     '商户名称',
     '订单实付',
     '平台抽成',
-    '通道费',
+    '通道费(元)',
+    '通道费口径',
     '已入账',
     '待入账',
     '笔数',
     '固化'
   ],
   toRows: () =>
-    crud
-      .pickSelected(crud.displayItems)
-      .map((row) => [
-        row.bizDate,
-        row.merchantId,
-        row.merchantName,
-        centsToYuanDigits(row.orderPaidCents),
-        centsToYuanDigits(row.platformFeeCents),
-        centsToYuanDigits(row.channelFeeCents) +
-          (row.channelFeeSource === 'ACTUAL' ? '(实结)' : '(估)'),
-        centsToYuanDigits(row.creditedCents),
-        centsToYuanDigits(row.pendingCents),
-        row.orderCount,
-        row.solidified ? '已固化' : '实时'
-      ])
+    crud.pickSelected(crud.displayItems).map((row) => [
+      row.bizDate,
+      row.merchantId,
+      row.merchantName,
+      centsToYuanDigits(row.orderPaidCents),
+      centsToYuanDigits(row.platformFeeCents),
+      // R11-A-N9（拍板）：口径区分是有意的（channelFeeSource），但塞进金额列破坏
+      // Excel 求和——拆两列：金额纯数字、口径文字（与其它 CSV 页同形）。
+      centsToYuanDigits(row.channelFeeCents),
+      row.channelFeeSource === 'ACTUAL' ? '实结' : '估算',
+      centsToYuanDigits(row.creditedCents),
+      centsToYuanDigits(row.pendingCents),
+      row.orderCount,
+      row.solidified ? '已固化' : '实时'
+    ])
 });
 
 const { onExport: exportLedgerCsv } = useListCsv({
@@ -567,6 +568,9 @@ async function loadLedger() {
       AdminEndpoints.fundLedger(q),
       'GET'
     );
+    // R11-A-N2：守卫不能只挂 catch——翻页/改筛选后旧响应晚到会回写列表并清勾选，
+    // exportLedgerCsv 会把陈旧明细导出（照 useCrudTable.load 成功路径口径）。
+    if (!loadSeq.isCurrent(seq, 'loadLedger')) return;
     ledger.value = data.items || [];
     ledgerTotal.value = data.total || 0;
     clearLedgerSelection();

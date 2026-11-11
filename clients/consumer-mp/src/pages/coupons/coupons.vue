@@ -137,6 +137,10 @@ const displayList = computed(() => {
   return rows;
 });
 
+// R11-C-N3：onShow 与切 tab 的 load 可并发——旧 tab 的响应晚到会覆盖新 tab 列表
+//（tab 高亮与内容错位）。声明先于 onShow 注册（TDZ 同科）。
+let couponLoadSeq = 0;
+
 onShow(async () => {
   const raw = uni.getStorageSync('preferred_coupon_id');
   const n = Number(raw);
@@ -155,17 +159,22 @@ onShow(async () => {
 watch(activeTab, () => load());
 
 async function load() {
+  const seq = ++couponLoadSeq;
+  const requestedTab = activeTab.value;
   if (!list.value.length) loading.value = true;
   loadError.value = '';
   try {
-    list.value = await consumerApi.myCoupons(activeTab.value || undefined);
+    const rows = await consumerApi.myCoupons(requestedTab || undefined);
+    if (seq !== couponLoadSeq) return;
+    list.value = rows;
   } catch (e) {
     // 切 tab 失败必须提示：旧 tab 数据留着渲染会让「tab 高亮」与「列表内容」错位（审计 M4）。
     // 但初次加载失败时页面已渲染持久 error-state（含重试），同一错误不再弹 toast（审计 B2）。
+    if (seq !== couponLoadSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
     if (list.value.length) showError(loadError.value);
   } finally {
-    loading.value = false;
+    if (seq === couponLoadSeq) loading.value = false;
   }
 }
 

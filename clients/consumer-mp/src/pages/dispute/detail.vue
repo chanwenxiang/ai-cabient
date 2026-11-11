@@ -225,6 +225,10 @@ const timeline = computed(() => {
   return steps;
 });
 
+// R11-C-N4：onShow bootstrap / 8s 轮询 / 下拉三路并发同函数——补代际守卫
+//（与 order-detail 同口径），旧响应不得回退新审核状态。声明先于 onLoad 注册。
+let reloadSeq = 0;
+
 onLoad((opts) => {
   applyQuery(opts as Record<string, string>);
   void bootstrap();
@@ -362,18 +366,6 @@ function findTicketInList(list: DisputeTicketDto[]): DisputeTicketDto | null {
   return null;
 }
 
-async function reloadFromListFallback(primaryError: unknown) {
-  const list = await consumerApi.listMyDisputes();
-  const found = findTicketInList(list);
-  if (!found) {
-    ticket.value = null;
-    error.value =
-      primaryError instanceof Error ? primaryError.message : '未找到该审核单，可能已归档或尚未生成';
-    return;
-  }
-  applyFoundTicket(found);
-}
-
 function abortReload(message: string) {
   error.value = message;
   ticket.value = null;
@@ -392,29 +384,36 @@ function canReloadDispute(): boolean {
   return true;
 }
 
-async function fetchDisputeDetailPrimary() {
-  const found = await consumerApi.getMyDispute({
-    ticketId: ticketId.value || undefined,
-    sessionId: sessionId.value || undefined
-  });
-  applyFoundTicket(found);
-}
-
 async function reload() {
   if (!canReloadDispute()) return;
+  const seq = ++reloadSeq;
   if (!ticket.value) loading.value = true;
   error.value = '';
   try {
-    await fetchDisputeDetailPrimary();
+    const found = await consumerApi.getMyDispute({
+      ticketId: ticketId.value || undefined,
+      sessionId: sessionId.value || undefined
+    });
+    if (seq !== reloadSeq) return;
+    applyFoundTicket(found);
   } catch (e) {
     // 旧后端无 detail 接口时回退列表查找
     try {
-      await reloadFromListFallback(e);
+      const list = await consumerApi.listMyDisputes();
+      if (seq !== reloadSeq) return;
+      const found = findTicketInList(list);
+      if (!found) {
+        ticket.value = null;
+        error.value = e instanceof Error ? e.message : '未找到该审核单，可能已归档或尚未生成';
+        return;
+      }
+      applyFoundTicket(found);
     } catch (error_) {
+      if (seq !== reloadSeq) return;
       error.value = error_ instanceof Error ? error_.message : '加载失败';
     }
   } finally {
-    loading.value = false;
+    if (seq === reloadSeq) loading.value = false;
   }
 }
 

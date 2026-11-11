@@ -49,6 +49,9 @@ export function useReplenishmentDetail(opts: {
 }) {
   /** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
   let pendingDeepLink = false;
+  // R11-M-N2：openTask 代际守卫——弱网下 A 卡详情 4 个请求在途时点 B 卡，A 的迟到
+  // 响应会把补货行/台账上限/可补量/凭证写进 B 的 sheet（误导录数量）。
+  let openTaskSeq = 0;
 
   function readHashQuery(key: string): string | undefined {
     if (typeof location === 'undefined') return undefined;
@@ -130,9 +133,10 @@ export function useReplenishmentDetail(opts: {
     opts.headroomBySku.value = {};
   }
 
-  async function refreshSelectedTask(task: Task) {
+  async function refreshSelectedTask(task: Task, seq: number) {
     try {
       const latest = (await merchantApi.replenishmentTasks()) as Task[];
+      if (seq !== openTaskSeq) return;
       opts.allTasks.value = latest;
       const fresh = latest.find((t) => t.taskId === task.taskId);
       if (fresh) opts.selected.value = { ...fresh };
@@ -153,7 +157,7 @@ export function useReplenishmentDetail(opts: {
     );
   }
 
-  async function loadTaskDetailResources(task: Task) {
+  async function loadTaskDetailResources(task: Task, seq: number) {
     const taskId = task.taskId;
     if (typeof taskId !== 'number') return;
     const [taskLines, evidence, deviceDetail, headroomRows] = await Promise.all([
@@ -174,6 +178,7 @@ export function useReplenishmentDetail(opts: {
         '可补量'
       )
     ]);
+    if (seq !== openTaskSeq) return;
     opts.lines.value = taskLines;
     const invMap: Record<string, { quantity: number; capacity: number }> = {};
     for (const inv of deviceDetail?.skuInventory || []) {
@@ -193,33 +198,37 @@ export function useReplenishmentDetail(opts: {
     }
     opts.headroomBySku.value = headroomMap;
     const mapped = await mapEvidenceFiles(task, evidence || []);
+    if (seq !== openTaskSeq) return;
     opts.evidenceItems.value = mapped;
     opts.evidenceCountMap.value = mergeEvidenceCountMap(
       opts.evidenceCountMap.value,
       taskId,
       mapped.length
     );
+    if (seq !== openTaskSeq) return;
     await opts.syncDoorStateFromServer(taskId);
   }
 
   async function openTask(task: Task) {
+    const seq = ++openTaskSeq;
     prepareTaskDetailSheet(task);
     await nextTick();
     setTimeout(() => {
+      if (seq !== openTaskSeq) return;
       opts.sheetCloseArmed.value = true;
     }, 280);
     try {
       await Promise.all([
         opts.ensureSkuCatalog?.() ?? Promise.resolve(),
         (async () => {
-          await refreshSelectedTask(task);
-          await loadTaskDetailResources(task);
+          await refreshSelectedTask(task, seq);
+          await loadTaskDetailResources(task, seq);
         })()
       ]);
     } catch (error) {
-      showError(error instanceof Error ? error.message : '明细加载失败');
+      if (seq === openTaskSeq) showError(error instanceof Error ? error.message : '明细加载失败');
     } finally {
-      opts.detailLoading.value = false;
+      if (seq === openTaskSeq) opts.detailLoading.value = false;
     }
   }
 

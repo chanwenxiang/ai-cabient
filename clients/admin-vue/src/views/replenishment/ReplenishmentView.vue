@@ -1081,6 +1081,8 @@ async function loadSummary() {
       fulfilledTaskCount: number;
       plannedRouteCount: number;
     }>(AdminEndpoints.replenishmentSummary, 'GET');
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadSummary')) return;
     summary.value = {
       pendingTaskCount: Number(data.pendingTaskCount) || 0,
       fulfilledTaskCount: Number(data.fulfilledTaskCount) || 0,
@@ -1118,7 +1120,10 @@ async function loadDeviceRefs() {
   const seq = loadSeq.begin('loadDeviceRefs');
   if (devices.value.length) return;
   try {
-    devices.value = await api.request<Row[]>(AdminEndpoints.devicesRef, 'GET');
+    const rows = await api.request<Row[]>(AdminEndpoints.devicesRef, 'GET');
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadDeviceRefs')) return;
+    devices.value = rows;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadDeviceRefs')) return;
     devices.value = [];

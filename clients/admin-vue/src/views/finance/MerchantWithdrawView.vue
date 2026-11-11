@@ -1051,7 +1051,13 @@ async function clearFeeOverride() {
 async function loadPayoutMode() {
   const seq = loadSeq.begin('loadPayoutMode');
   try {
-    payoutMode.value = await api.request(AdminEndpoints.merchantWithdrawsPayoutMode, 'GET');
+    const mode = await api.request<{ mockEnabled?: boolean; note?: string }>(
+      AdminEndpoints.merchantWithdrawsPayoutMode,
+      'GET'
+    );
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
+    payoutMode.value = mode;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadPayoutMode')) return;
     payoutMode.value = {

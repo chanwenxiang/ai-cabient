@@ -265,6 +265,7 @@ import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { reportSoftFail } from '@/utils/soft-fallback';
 
 interface LineRoute {
   id: number;
@@ -424,9 +425,14 @@ const ledgerCrud = useCrudTable<LedgerRow>({
 });
 
 async function loadChief(): Promise<void> {
-  const res = await api.request<{ raw: string }>(AdminEndpoints.lineRouteChiefManagers, 'GET');
-  chiefRaw.value = res.raw;
-  chiefList.value = res.raw && res.raw !== '0' ? res.raw.split(',').filter(Boolean) : [];
+  // R11-A-N6：onMounted 裸调用——失败不兜底会让负责人 tag 区静默空 + unhandled rejection
+  try {
+    const res = await api.request<{ raw: string }>(AdminEndpoints.lineRouteChiefManagers, 'GET');
+    chiefRaw.value = res.raw;
+    chiefList.value = res.raw && res.raw !== '0' ? res.raw.split(',').filter(Boolean) : [];
+  } catch (e) {
+    reportSoftFail(e, '线路负责人');
+  }
 }
 
 function loadSummary(): void {

@@ -516,7 +516,20 @@ async function onPublishSubmit() {
     const res = await post<OpenApiAnnouncement>(AdminEndpoints.announcements, formBody());
     const id = res?.data?.announceId;
     if (id) {
-      await post(AdminEndpoints.announcementPublish(id));
+      try {
+        await post(AdminEndpoints.announcementPublish(id));
+      } catch (pubErr: unknown) {
+        // R11-A-N7：「创建+发布」复合操作部分成功必须如实区分——整体 catch 会弹「发布失败」
+        // 让运营重试再建一条重复公告（create 无幂等键）
+        ElMessage.warning(
+          `公告已创建（编号 ${id}）但发布失败：${errorMessage(pubErr, '请稍后重试')}，可在列表手动发布`
+        );
+        showForm.value = false;
+        editingId.value = null;
+        form.value = emptyForm();
+        await crud.load();
+        return;
+      }
     }
     ElMessage.success('发布成功');
     showForm.value = false;

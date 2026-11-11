@@ -461,7 +461,17 @@ public class WeChatProfitSharingService {
     /** 短事务：只落 split 状态，不包含任何渠道 HTTP。 */
     @Transactional
     public OrderRevenueSplit persistSplit(OrderRevenueSplit split) {
-        return splitRepository.save(split);
+        OrderRevenueSplit saved = splitRepository.save(split);
+        if (saved.getFailureReason() == null && saved.getSplitId() != null) {
+            // 审计 R11-B-N1（M01 同家族第 7 处）：updateById/save 默认 NOT_NULL 策略跳 null ——
+            // applyRemoteState 把 FAILED 单刷新成 FINISHED/PROCESSING 时 setFailureReason(null)
+            // 不会清列，旧失败文案残留库中与 WECHAT_SUBMITTED 自相矛盾；照 markLedgerOnly 模板补真清列。
+            splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers
+                    .<OrderRevenueSplit>lambdaUpdate()
+                    .eq(OrderRevenueSplit::getSplitId, saved.getSplitId())
+                    .set(OrderRevenueSplit::getFailureReason, null));
+        }
+        return saved;
     }
 
     /**

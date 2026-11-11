@@ -164,7 +164,17 @@ function onFileChange(file: File | undefined) {
 }
 
 async function loadTemplates() {
-  templates.value = await api.request<TemplateDto[]>(AdminEndpoints.externalImportTemplates, 'GET');
+  // R11-A-N5：onMounted 串行链的首个 await——失败必须就地兜住，否则批次/商品/流水
+  // 三个后续加载全部断链（全 tab 静默假空态、unhandled rejection）
+  try {
+    templates.value = await api.request<TemplateDto[]>(
+      AdminEndpoints.externalImportTemplates,
+      'GET'
+    );
+  } catch (e) {
+    templates.value = [];
+    ElMessage.error(e instanceof Error ? e.message : '渠道模板加载失败，请刷新重试');
+  }
 }
 
 async function uploadPreview() {

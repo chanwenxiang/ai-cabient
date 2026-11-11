@@ -851,7 +851,10 @@ async function loadDepartments() {
 async function loadRoles() {
   const seq = loadSeq.begin('loadRoles');
   try {
-    roles.value = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
+    const rows = await api.request<RoleRow[]>(AdminEndpoints.rbacRoles, 'GET');
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadRoles')) return;
+    roles.value = rows;
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadRoles')) return;
     roles.value = [];

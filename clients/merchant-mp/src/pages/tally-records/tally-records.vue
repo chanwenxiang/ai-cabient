@@ -65,16 +65,19 @@ onLoad((opts) => {
 
 async function load() {
   if (!deviceId.value) return;
-  loading.value = true;
-  loadError.value = '';
   // 🔴 作废在途 loadMore（2026-10-23 第五轮审计）：切 tab 触发 load() 时，
   // 迟到的旧页 append 会污染新列表；同时复位 loadingMore 防分页死锁
   // （同 orders/splits/disputes 已修模式，check-mp-defect-classes 门禁兜底）
-  loadMoreSeq += 1;
+  // R11-M-N7：load 自身也持有代际（onLoad/下拉/切 tab 三入口可并发）——
+  // 旧 load 的迟到响应会提前收起 loading、并把 loadError 写进错误 tab
+  const seq = ++loadMoreSeq;
+  loading.value = true;
+  loadError.value = '';
   loadingMore.value = false;
   try {
     if (mode.value === 'restock') {
       const res = await merchantApi.deviceTallyRecords(deviceId.value, 0, PAGE_SIZE, 30);
+      if (seq !== loadMoreSeq) return;
       restockRows.value = toRestockRows(res);
       restockTotal.value = Number(res.total ?? 0);
       restockPage.value = 0;
@@ -82,6 +85,7 @@ async function load() {
       restockLoaded.value = true;
     } else {
       const res = await merchantApi.deviceStocktakeEvents(deviceId.value, 0, PAGE_SIZE);
+      if (seq !== loadMoreSeq) return;
       stocktakeRows.value = toStocktakeRows(res);
       stocktakeTotal.value = Number(res.total ?? 0);
       stocktakePage.value = 0;
@@ -89,10 +93,11 @@ async function load() {
       stocktakeLoaded.value = true;
     }
   } catch (e) {
+    if (seq !== loadMoreSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载理货记录失败';
     showError(loadError.value);
   } finally {
-    loading.value = false;
+    if (seq === loadMoreSeq) loading.value = false;
   }
 }
 

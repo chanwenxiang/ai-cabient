@@ -87,6 +87,8 @@ export function useReplenishmentRoutePlanning(deps: UseReplenishmentRoutePlannin
         'GET'
       );
       const items = (data.items || []).filter((item) => !item.status || item.status === 'ACTIVE');
+      // R11-A-N2 同族：成功路径也须判代际（守卫只挂 catch 会放旧响应回写选项）
+      if (!deps.loadSeq.isCurrent(seq, 'loadAssignees')) return;
       assigneeOptions.value = items;
       ensureAssigneeOption(deps.currentUserId(), deps.currentUserName());
     } catch {

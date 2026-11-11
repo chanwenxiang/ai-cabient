@@ -121,7 +121,12 @@ function mediaSrc(item: ScreenContentItemDto) {
   return raw.startsWith('/') ? base + raw : `${base}/${raw}`;
 }
 
+// R11-C-N2（R3-C-R3-2 同款存量收口）：load 必须带请求时点守卫——切柜后旧 deviceId
+// 的响应晚到不得覆盖新柜内容；声明先于 immediate watch（setup 期同步执行，TDZ 同科）。
+let adLoadSeq = 0;
+
 async function load() {
+  const seq = ++adLoadSeq;
   const id = (props.deviceId || '').trim();
   if (!id) {
     reset();
@@ -129,6 +134,7 @@ async function load() {
   }
   try {
     const data = await consumerApi.screenContent(id);
+    if (seq !== adLoadSeq) return;
     campaignId.value = data?.campaignId ?? null;
     campaignName.value = data?.campaignName || '';
     items.value = Array.isArray(data?.items) ? data.items : [];
@@ -140,6 +146,7 @@ async function load() {
       scheduleComplete(items.value[0]);
     }
   } catch {
+    if (seq !== adLoadSeq) return;
     reset();
   }
 }

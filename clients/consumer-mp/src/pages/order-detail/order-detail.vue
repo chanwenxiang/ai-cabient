@@ -479,6 +479,12 @@ function resolveOrderId(opt?: Record<string, string | undefined>): string {
   return String(orderId.value || '').trim();
 }
 
+// 请求序号守卫（2026-11-10 审计 §7#5）：退款/争议动作后的 reload 与 onShow/bootstrap
+// 的 reload 可能并发，旧响应不得覆盖新快照（同 orders.vue 口径）。
+// 声明必须先于 onLoad/onShow 注册 —— H5 端回调可在 setup 期间同步触发（R10-1 同科，
+// e2e-h5 TC-QUAL-001 对 messages.vue 实证），bootstrap → reload() 读 reloadSeq 会撞 TDZ。
+let reloadSeq = 0;
+
 async function bootstrap(opt?: Record<string, string | undefined>) {
   const nextId = resolveOrderId(opt);
   if (!nextId) {
@@ -588,10 +594,6 @@ async function loadPayChannels() {
     account.value = null;
   }
 }
-
-// 请求序号守卫（2026-11-10 审计 §7#5）：退款/争议动作后的 reload 与 onShow/bootstrap
-// 的 reload 可能并发，旧响应不得覆盖新快照（同 orders.vue 口径）。
-let reloadSeq = 0;
 
 async function reload() {
   if (!orderId.value) {

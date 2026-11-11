@@ -57,7 +57,7 @@ import { computed, ref } from 'vue';
 import { showError } from '@/utils/notify';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { useMerchantMe, isMerchantMeFromServer } from '@/composables/useMerchantMe';
 import type { OpenApiNotificationDto } from '@aicabinet/shared-types';
 import EmptyState from '@aicabinet/shared-uni/components/empty-state.vue';
 import {
@@ -67,7 +67,7 @@ import {
   sanitizeNotifyTitle
 } from '@aicabinet/shared-uni/format';
 
-const { me } = useMerchantMe();
+const { me, refresh: refreshMe } = useMerchantMe();
 
 const loading = ref(false);
 const loadError = ref('');
@@ -156,6 +156,11 @@ function applyEntryQuery(opts?: Record<string, string | undefined>) {
   if (hit) filter.value = hit.key;
 }
 
+// R11-M-N8：load 代际守卫——onShow/下拉并发时旧响应晚到会整体覆盖 list，把用户
+// 刚点的「已读」（markNotificationReadIfNeeded 本地置位）回滚成未读。声明必须
+// 先于 onLoad/onShow 注册（H5 端回调可同步触发，同 R10-1 TDZ 家族）。
+let listSeq = 0;
+
 onLoad((opts) => {
   applyEntryQuery(opts as Record<string, string | undefined>);
 });
@@ -173,15 +178,19 @@ onPullDownRefresh(async () => {
 });
 
 async function load() {
+  const seq = ++listSeq;
   if (!list.value.length) loading.value = true;
   loadError.value = '';
   try {
-    list.value = await merchantApi.notifications(100);
+    const rows = await merchantApi.notifications(100);
+    if (seq !== listSeq) return;
+    list.value = rows;
   } catch (e) {
+    if (seq !== listSeq) return;
     loadError.value = e instanceof Error ? e.message : '加载失败';
     showError(loadError.value);
   } finally {
-    loading.value = false;
+    if (seq === listSeq) loading.value = false;
   }
 }
 
@@ -236,8 +245,21 @@ function navigateSettlement(id: string) {
   });
 }
 
-function navigateWallet(_id: string) {
-  // 「无权限=看不见」：无 wallet:view 时入口不渲染，此守卫兜底消息深链直跳
+async function navigateWallet(_id: string) {
+  // 「无权限=看不见」：无 wallet:view 时入口不渲染，此守卫兜底消息深链直跳。
+  // R11-M-N9（B-新3 点击时点收口）：me 尚未从服务端拉到（消息深链冷启动直跳）
+  // 不可把「不可知」报成「无权限」——先重试拉一次 me，仍不可知按弱网提示。
+  if (!isMerchantMeFromServer()) {
+    try {
+      await refreshMe();
+    } catch {
+      /* 保持现有 me，下方判据分流 */
+    }
+    if (!isMerchantMeFromServer()) {
+      showError('网络异常，暂时无法确认权限，请重试');
+      return;
+    }
+  }
   if (!hasPerm(me.value, 'merchant:wallet:view')) {
     showError('当前账号无钱包查看权限');
     return;

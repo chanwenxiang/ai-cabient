@@ -331,8 +331,9 @@ async function load() {
     for (const d of deviceRows || []) {
       if (d.deviceId) nameMap[d.deviceId] = d.deviceName || d.deviceId;
     }
-    deviceNames.value = nameMap;
+    // R11-M-N4：赋值必须在 seq 判定之后——旧响应晚到会把柜名映射回写旧值
     if (seq !== loadSeq) return;
+    deviceNames.value = nameMap;
     const deduped = mergeTodoItems({
       exceptions: exceptionPage.items || [],
       actionItems: (wb.actionItems || []).map((a) => ({

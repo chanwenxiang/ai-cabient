@@ -362,7 +362,11 @@ async function loadOrders() {
   listError.value = '';
   try {
     if (!suppliers.value.length) {
-      suppliers.value = await merchantApi.satellitePurchaseSuppliers();
+      const supplierRows = await merchantApi.satellitePurchaseSuppliers();
+      // R11-M-N6：缓存回写须在 seq 判定之后——create/list 双 tab 共用 suppliers，
+      // 并发 loadOrders 交叉回写会让下拉源短暂陈旧
+      if (seq !== listSeq) return;
+      suppliers.value = supplierRows;
     }
     const rows = await merchantApi.satellitePurchaseOrders();
     if (seq !== listSeq) return;

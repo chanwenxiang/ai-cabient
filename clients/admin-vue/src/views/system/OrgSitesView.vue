@@ -969,7 +969,10 @@ async function loadAll() {
   loadingInflight += 1;
   loading.value = true;
   try {
-    orgTree.value = (await api.request<OrgNodeDto[]>(AdminEndpoints.orgTree, 'GET')) || [];
+    const tree = (await api.request<OrgNodeDto[]>(AdminEndpoints.orgTree, 'GET')) || [];
+    // R11-A-N2 同族：成功路径也须判代际（crud.load/loadBills 各自内部有守卫）
+    if (!loadSeq.isCurrent(seq, 'loadAll')) return;
+    orgTree.value = tree;
     await crud.load();
     if (tab.value === 'bills') {
       await loadBills();
@@ -1299,6 +1302,8 @@ async function loadBills() {
         AdminEndpoints.deviceDataFeeBillsList(q),
         'GET'
       );
+      // R11-A-N2：成功路径也须判代际（守卫只挂 catch 会放旧响应回写双列表）
+      if (!loadSeq.isCurrent(seq, 'loadBills')) return;
       dataFeeBills.value = data?.items || [];
       rentBills.value = [];
       billTotal.value = Number(data?.total) || 0;
@@ -1307,6 +1312,7 @@ async function loadBills() {
         AdminEndpoints.siteRentBillsList(q),
         'GET'
       );
+      if (!loadSeq.isCurrent(seq, 'loadBills')) return;
       rentBills.value = data?.items || [];
       dataFeeBills.value = [];
       billTotal.value = Number(data?.total) || 0;

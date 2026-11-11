@@ -1,7 +1,10 @@
 # 四端审计 R11 报告（2026-11-11）
 
 > **基线**：HEAD `cc9e0852`（R10-A23 配对重烤之后）。**方法**：4 路并行只读审计（trade-service 后端 / admin-vue / merchant-mp / consumer-mp），全部先对齐 `AUDIT_FOUR_END_OVERNIGHT_FINAL_2026-11-11.md` + R3/R4 报告的已修/豁免清单（≈95 条）后仅报新增。全程未改任何源文件。
-> **总账**：**新发现 25 条 = P1×1 + P2×7 + P3×17**；P0 为零。
+> **总账**：新发现 **24 条 = P1×1 + P2×5 + P3×18**；P0 为零。（原稿 P2×7 为计数笔误，实际 P2 共 5 条：admin 2 + merchant-mp 3。）
+> **修复状态（2026-11-11 上午批，用户拍板）**：**24 条全部修复**（P1×1 + P2×5 + P3×18，用户 11:00 拍板「把 17 条 P3 也清了」后第二轮完成）：新门禁 `check:seq-success-path-guard` 已接 `check:audit-gates` 链（11 处存量同批补齐判定，门禁零豁免起步，负向注入三态验证通过）。P3 批修法：B-N1 persistSplit 补 wrapper 清列+钉测（WeChatProfitSharingPersistClearReasonTest 2/2 绿）；B-N2 两个迁移门禁加全量兜底棘轮（KIND 基线 203 条/CB 基线 82 条，实跑生成、负向注入双验证）；A-N3~A-N8（CSV ¥/死按钮/断链/loadChief/公告部分成功/auth.ts 结构化 401）；M-N4~N10（三处赋值下移/tally 代际/navigateWallet meFromServer 分流/gatherStatus 403 与网络失败分流）；C-N2~C-N4（device-ad-banner 补 loadSeq/coupons 捕获 tab/dispute reload 补 seq+删两处死函数）。
+> **产物配对**：admin 9 文件源码改动后已重烤 static/admin（121 新 chunk + 121 旧删除 + index.html，diff 非零已核）；FundBillView chunk 产物级实证含「通道费口径」新列头；`check-admin-artifact-pairing` OK。
+> **回归**：三端 type-check 全绿；三端 vitest 全绿（merchant 257 / consumer 178 / admin 140）；eslint 改动文件 0 error（5 warning 均存量）；新门禁自测+负向注入（注入 3 红→还原 md5 零残留→绿）全过。
 
 ---
 
@@ -19,9 +22,10 @@
 
 ---
 
-## 二、P1（1 条，建议立即修）
+## 二、P1（1 条，✅ 已修）
 
-### C-N1 [consumer-mp] order-detail.vue `reloadSeq` TDZ——H5 订单详情页整体挂死
+### ✅ C-N1 [consumer-mp] order-detail.vue `reloadSeq` TDZ——H5 订单详情页整体挂死
+- **修复（2026-11-11）**：声明连注释上移至 bootstrap 之前（现 :486，早于 onLoad :522）；type-check/vitest 回归绿。
 - **位置**：`clients/consumer-mp/src/pages/order-detail/order-detail.vue`：:516/:520 先注册 onLoad/onShow → bootstrap(:482) → IIFE(:504) 同步调 `reload()` → :602 `++reloadSeq` 撞 :594 的 `let reloadSeq = 0;`（声明在后）→ ReferenceError 无 catch → `loading=true` 永久骨架屏。
 - **触发**：H5 端生命周期可在 setup 期同步触发（e2e-h5 TC-QUAL-001 对 messages.vue 已实证该机制）。mp-weixin 不受影响。
 - **与已修区别**：R10-1/R10-2 是 onShow / immediate-watch 两把伞，本条属 **onLoad/onShow 注册位次**第三类；且该守卫是 9b957f19（11-10 09:14，晚于 messages TDZ 修复）新引入时造的位次问题；e2e-h5 未深访 order-detail 故未点名。
@@ -31,27 +35,27 @@
 
 ## 三、P2（7 条）
 
-### A-N1 [admin] VisionMappingView：loadDeployments/loadReviewStatus 无 seq/设备守卫（A-R3-2 的上游前提被打破）
+### ✅ A-N1 [admin] VisionMappingView：loadDeployments/loadReviewStatus 无 seq/设备守卫（A-R3-2 的上游前提被打破）
 - `clients/admin-vue/src/views/vision/VisionMappingView.vue:1154-1181` 两加载器直接赋值，无守卫（对照同文件 :1036-1068 loadVendorNames 已修）。
 - **伤害升级**：loadVendorNames 的守卫读 `deployments.value`——当它是 A 柜陈旧数据时，用 **A 的 classesTextUrl 配 B 的 deviceId** 发解码请求，requestedDeviceId===deviceId 守卫判不出。A 的 reviewStatus 覆盖 B 还会错触发「已复核收起表单」。映射复核是结算闸口核对依据。
 - **修法**：两函数照 :1043 加 requestedDeviceId 捕获 + ++seq 双判；loadVendorNames 对 `dep` 来源再判归属。
 
-### A-N2 [admin] seq 守卫只挂 catch/finally、成功赋值不判 isCurrent——4 处列表旧响应可回写
+### ✅ A-N2 [admin] seq 守卫只挂 catch/finally、成功赋值不判 isCurrent——4 处列表旧响应可回写（已修，且门禁另扫出 11 处存量同批补齐，共 15 处）
 - `FundBillView.vue:570-572`（loadLedger）/ `LineManagerView.vue:1184-1185`（loadManagers）/:1207-1209（loadWithdraws）/ `OrgSitesView.vue:1300-1311`（loadBills）。
 - **触发**：翻页/改筛选后旧响应晚到回写列表+total+清勾选；`exportLedgerCsv` 可导出陈旧明细。
 - 全仓该形态共 14 处，其余 10 处为幂等重取/一次性加载降 P3。**修法**：四处成功赋值前补 `if (!loadSeq.isCurrent(seq,'<channel>')) return;`（照 useCrudTable.load:162）。
 
-### M-N1 [merchant-mp] device-stocktake：loadDevice 完全无代际守卫——换柜竞态跨柜写台账
+### ✅ M-N1 [merchant-mp] device-stocktake：loadDevice 完全无代际守卫——换柜竞态跨柜写台账
 - `pages/device-stocktake/device-stocktake.vue:138-188`；scanDevice(:123-133) 无 loading 门闩。A 柜在途时扫 B 柜 → A 的迟到续体把 isDoorCabinet/deviceName/goods/goodsInputs 写成 A 柜数据；A 非将邑柜还会误弹「不支持在线盘点」+ 清空 goods。**提交的是按 A 柜 SKU 组织的行打到 B 柜门态**——错账基础数据。
 - **区别**：R5-F2 只修了 warehouse-stocktake 的 detailSeq；同批新增的门禁式盘点页从未接过 seq。
 - **修法**：照 warehouse-stocktake detailSeq 形态 + scanDevice 在途拒绝。
 
-### M-N2 [merchant-mp] useReplenishmentDetail：openTask 无代际——A 任务明细写进 B 任务详情
+### ✅ M-N2 [merchant-mp] useReplenishmentDetail：openTask 无代际——A 任务明细写进 B 任务详情
 - `composables/useReplenishmentDetail.ts:134-221`：refreshSelectedTask 与 loadTaskDetailResources（4 个 await 后 5 组赋值）全部无守卫。弱网下 A 卡 → B 卡切换，B 详情显示 A 的补货行/台账上限/可补量/凭证，selected 还会被 A 改回（sheet 提交目标错位）。
 - **区别**：历轮只扫页面层，该 composable 的 await 赋值链未被任何一轮扫过。
 - **修法**：composable 加模块级 openTaskSeq，prepareTaskDetailSheet ++seq + 捕获 taskId，各赋值前比对。
 
-### M-N3 [merchant-mp] ops-config：loadConfig/save 响应无商户+seq 守卫——跨商户配置写穿
+### ✅ M-N3 [merchant-mp] ops-config：loadConfig/save 响应无商户+seq 守卫——跨商户配置写穿
 - `pages/ops-config/ops-config.vue:77/:116` 赋值前不比对请求时商户；:140 picker 在 saving/loading 期间不禁用。B→C 快速两跳，B 的迟到 GET 写 cfg，save() 把 B 的配置写进 C。
 - **区别**：A-R3-1 只落了 admin 端；mp 端当时只修「切换窗口同步清空」半边——恰违反「跨端契约两端同批改」新约定。
 - **修法**：照 A-R3-1 修法（捕获 merchantId + 赋值前比对；或 saving/loading 禁用 picker）。
@@ -76,7 +80,7 @@
 | A-N6 | LineRoutesView loadChief 裸调用静默失败 | `LineRoutesView.vue:426-430/:653` | reportSoftFail |
 | A-N7 | 公告「创建+发布」复合操作部分成功误报 → 重试重复建公告（create 无幂等键） | `AnnouncementsView.vue:514-531` | 失败文案区分「已创建 ID xxx 但发布失败」或拆两步 |
 | A-N8 | auth.ts 401 判据仍为消息正则（软形态最后残留，方向 fail-closed 暴露窗口≈0） | `stores/auth.ts:138/:156` | 改 httpStatus(e)===401 |
-| A-N9 | FundBillView 通道费 CSV 列带「(实结)/(估)」后缀不可求和——**待拍板**：可能是刻意口径区分 | `FundBillView.vue:490-491` | 建议「金额」「口径」拆两列 |
+| A-N9 | ✅ 已按拍板拆两列：「通道费(元)」纯数字 +「通道费口径」（实结/估算），口径保留、Excel 可求和 | `FundBillView.vue` | 完成 |
 
 ### merchant-mp（4）
 | # | 条目 | 位置 | 修法 |
@@ -85,7 +89,7 @@
 | M-N5 | pricing devices 缓存赋值在 seq 判定之前 | `pricing.vue:291/:293` | 同上 |
 | M-N6 | purchase suppliers 回填在 listSeq 判定之前 | `purchase.vue:365/:367` | 同上 |
 | M-N7 | tally-records load() 自身无 seq（上轮只给 loadMore 加了） | `tally-records.vue:67-98` | load 自加代际 |
-| M-N8 | messages load 无 seq——旧响应回滚用户刚点的「已读」（R10-1 删旧 loadSeq 留下的守卫真空） | `messages.vue:175-186/:202-207` | 补 listSeq 或乐观置位 |
+| M-N8 | ✅ 已修（用户确认 merchant 端实锤——注意 consumer 端同文件 R10-1 已有守卫，两端文件不同勿混淆）：load 补 listSeq 守卫 | `messages.vue` | 声明先于 onLoad 注册防 TDZ 同科 |
 | M-N9 | messages navigateWallet 权限兜底无 meFromServer 分流（B-新3 点击时点最后残留） | `messages.vue:239-244` | !meFromServer 先 refreshMe 重试再判 |
 | M-N10 | device-stocktake gatherStatus 失败误报「该柜不支持在线盘点」（把查询不到报成柜型不支持） | `device-stocktake.vue:149-152` | 失败提示网络异常可重试，不落 bound=false 终态 |
 

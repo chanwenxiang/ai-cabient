@@ -288,7 +288,10 @@ async function ensurePricingAccess(seq: number): Promise<boolean> {
 async function fetchPricingRows(seq: number) {
   if (!devices.value.length) {
     // 只保留有 deviceId 的柜机（生成类型里该字段可选）；缺 id 会污染「全部柜机」的空值项
-    devices.value = (await merchantApi.devices()).flatMap((d) =>
+    const deviceRows = await merchantApi.devices();
+    // R11-M-N5：缓存回写须在 seq 判定之后——旧响应晚到会把柜机下拉源回写旧值
+    if (seq !== loadSeq) return null;
+    devices.value = deviceRows.flatMap((d) =>
       d.deviceId ? [{ deviceId: d.deviceId, deviceName: d.deviceName }] : []
     );
   }

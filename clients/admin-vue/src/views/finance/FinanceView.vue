@@ -8,7 +8,8 @@
     >
       <template #extra>
         <el-button type="primary" :loading="crud.loading" @click="crud.refresh()">重试</el-button>
-        <el-button @click="goPath('/')">返回工作台</el-button>
+        <!-- R11-A-N4：'/' 只是 redirect 不在 menu.ts，canAccessPath 会 fail-closed 拦死（恒弹「无访问权限」）；goHome 走 resolveHomePath -->
+        <el-button @click="goHome()">返回工作台</el-button>
       </template>
     </el-result>
 
@@ -289,7 +290,7 @@ interface FinanceReport {
   topSkus: FinanceSku[];
 }
 
-const { router, canAccessPath, goPath } = useNavAccess();
+const { router, canAccessPath, goPath, goHome } = useNavAccess();
 const route = useRoute();
 const solidifying = ref(false);
 const loadError = ref('');

@@ -11,6 +11,7 @@ import {
 import { AdminEndpoints } from '@/api/endpoints';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 import { isNavMenuActiveFor, permissionsAfterSoftFail } from '@/utils/rbac-cache-policy';
+import { httpStatus } from '@/utils/error-message';
 import { broadcastAuthLogout } from '@/utils/auth-tab-sync';
 
 const PERM_KEY = 'admin_permissions';
@@ -134,8 +135,8 @@ export const useAuthStore = defineStore('auth', () => {
       clearLegacyRbacCache();
     } catch (e) {
       // 401 already clears session via ApiClient; keep token only for soft failures
-      const msg = e instanceof Error ? e.message : '';
-      if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
+      // R11-A-N8：判据改结构化 status（消息正则对纯英文 401 消息会漏判，软形态残留收口）
+      if (httpStatus(e) === 401 || !isLoggedIn()) {
         permissions.value = [];
         rbacHydrated.value = false;
         clearLegacyRbacCache();
@@ -152,8 +153,8 @@ export const useAuthStore = defineStore('auth', () => {
       activeNavLoaded.value = true;
       clearLegacyRbacCache();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
+      // R11-A-N8：同上改结构化 status 判据
+      if (httpStatus(e) === 401 || !isLoggedIn()) {
         activeNavPerms.value = [];
         activeNavLoaded.value = false;
         clearLegacyRbacCache();

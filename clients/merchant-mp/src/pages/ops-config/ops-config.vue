@@ -73,11 +73,24 @@ async function load() {
   }
 }
 
+// R11-M-N3：GET/PUT 响应必须比对请求时商户——B→C 快速两跳时 B 的迟到响应会把 B 的
+// 配置写进 cfg，随后 save() 再把 B 的开关写穿到 C（A-R3-1 admin 侧同科，两端同批改）。
+let cfgLoadSeq = 0;
+
 async function loadConfig() {
-  cfg.value = await merchantApi.opsConfig(merchantId.value);
+  const seq = ++cfgLoadSeq;
+  const requestedMerchantId = merchantId.value;
+  const data = await merchantApi.opsConfig(requestedMerchantId);
+  if (seq !== cfgLoadSeq || requestedMerchantId !== merchantId.value) return;
+  cfg.value = data;
 }
 
 function onMerchantChange(e: unknown) {
+  // 保存/加载在途时禁止切换（uni picker 无 disabled）：在途切换会让两个响应交叉回写
+  if (saving.value || loading.value) {
+    showError('正在处理中，请稍后再切换商户');
+    return;
+  }
   const idx = Number((e as { detail?: { value?: number } })?.detail?.value ?? -1);
   const picked = merchantOptions.value[idx];
   if (!picked || picked.merchantId === merchantId.value) return;
@@ -89,13 +102,17 @@ function onMerchantChange(e: unknown) {
   cfg.value = null;
   loading.value = true;
   loadError.value = '';
+  const switchTarget = picked.merchantId;
   loadConfig()
     .catch((err) => {
-      cfg.value = null;
-      loadError.value = err instanceof Error ? err.message : '加载失败';
+      // 旧商户的迟到失败不得清掉新商户正在展示的配置/触发错误卡
+      if (merchantId.value === switchTarget) {
+        cfg.value = null;
+        loadError.value = err instanceof Error ? err.message : '加载失败';
+      }
     })
     .finally(() => {
-      loading.value = false;
+      if (merchantId.value === switchTarget) loading.value = false;
     });
 }
 
@@ -108,12 +125,16 @@ function onFlagChange(key: 'photoReplenish' | 'photoStocktake' | 'useStockingLis
 async function save() {
   if (!cfg.value) return;
   saving.value = true;
+  const requestedMerchantId = merchantId.value;
   try {
     // 缺货阈值不再由商户端设置（2026-10-28 拍板「按后台阈值为准统一」）：
     // 显式剔除该字段，服务端收到 0 会保留库中现值，不会被商户侧保存动作冲成默认 50。
     const payload = { ...cfg.value };
     delete payload.stockoutThresholdPct;
-    cfg.value = await merchantApi.saveOpsConfig(payload, merchantId.value);
+    const saved = await merchantApi.saveOpsConfig(payload, requestedMerchantId);
+    // R11-M-N3：保存在途切商户时，旧商户的响应不得写进新商户的 cfg（写穿路径的第二跳）
+    if (requestedMerchantId !== merchantId.value) return;
+    cfg.value = saved;
     showSuccess('已保存');
   } catch (e) {
     showError(e instanceof Error ? e.message : '保存失败');

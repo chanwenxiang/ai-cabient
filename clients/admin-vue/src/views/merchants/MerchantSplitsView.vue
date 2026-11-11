@@ -1152,16 +1152,15 @@ const { onExport: exportSplits } = useListCsv({
   filePrefix: '分账明细',
   headers: ['分账编号', '订单', '商户', '商户收入', '状态', '失败原因'],
   toRows: () =>
-    crudSplits
-      .pickSelected(crudSplits.items)
-      .map((row) => [
-        row.splitId,
-        row.orderId,
-        row.merchantName || '',
-        `¥${money(row.merchantCents)}`,
-        dictLabel('split_status', row.status),
-        row.failureReason || '无'
-      ])
+    crudSplits.pickSelected(crudSplits.items).map((row) => [
+      row.splitId,
+      row.orderId,
+      row.merchantName || '',
+      // R11-A-N3：导出列禁带 ¥（A27 口径），保 Excel 可求和
+      money(row.merchantCents),
+      dictLabel('split_status', row.status),
+      row.failureReason || '无'
+    ])
 });
 
 function money(cents?: number) {
@@ -1237,7 +1236,10 @@ async function loadMerchants() {
   loadingMerchants.value = true;
   loadingMerchantsInflight += 1;
   try {
-    merchants.value = await fetchAllMerchants();
+    const rows = await fetchAllMerchants();
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
+    merchants.value = rows;
     crudMerchants.clearSelection();
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadMerchants')) return;
@@ -1255,10 +1257,13 @@ async function loadStatus() {
   loadingStatus.value = true;
   loadingStatusInflight += 1;
   try {
-    psStatus.value = await api.request<ProfitSharingStatus>(
+    const status = await api.request<ProfitSharingStatus>(
       AdminEndpoints.merchantsProfitSharingStatus,
       'GET'
     );
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
+    psStatus.value = status;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadStatus')) return;
     psStatus.value = null;
@@ -1303,10 +1308,13 @@ function onTabChange(name: string | number) {
 async function loadRoleTemplates() {
   const seq = loadSeq.begin('loadRoleTemplates');
   try {
-    roleTemplates.value = await api.request<MerchantRoleTemplate[]>(
+    const templates = await api.request<MerchantRoleTemplate[]>(
       AdminEndpoints.merchantRoleTemplates,
       'GET'
     );
+    // R11-A-N2 同族：成功路径也须判代际
+    if (!loadSeq.isCurrent(seq, 'loadRoleTemplates')) return;
+    roleTemplates.value = templates;
   } catch {
     if (!loadSeq.isCurrent(seq, 'loadRoleTemplates')) return;
     roleTemplates.value = [];

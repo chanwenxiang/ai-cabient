@@ -98,6 +98,11 @@ const pendingCount = computed(
 
 const showDock = computed(() => !!deviceId.value && isDoorCabinet.value && goods.value.length > 0);
 
+// R11-M-N1：loadDevice 代际守卫——弱网下 A 柜在途时扫 B 柜，A 的迟到续体会把
+// isDoorCabinet/deviceName/goods/goodsInputs 写成 A 柜数据（B 柜错账基础数据）。
+// 声明必须先于 onLoad 注册（H5 端回调可同步触发，同 R10-1 TDZ 家族）。
+let deviceLoadSeq = 0;
+
 onLoad((opts) => {
   if (!isMerchantLoggedIn()) {
     uni.reLaunch({ url: '/pages/login/login' });
@@ -137,6 +142,10 @@ async function scanDevice() {
  */
 async function loadDevice(autoOpen = false, keepResult = false) {
   if (!deviceId.value) return;
+  const seq = ++deviceLoadSeq;
+  const requestedDeviceId = deviceId.value;
+  // 每处 await 后赋值/报错前都必须双判（seq + 设备号），否则旧柜响应回写新柜
+  const stale = () => seq !== deviceLoadSeq || requestedDeviceId !== deviceId.value;
   loading.value = true;
   if (!keepResult) doorResult.value = null;
   // R2-B4：凭证是「本次盘点」的证据，换柜/重盘必须清 —— 全仓只有上传成功一处赋值，
@@ -148,9 +157,18 @@ async function loadDevice(autoOpen = false, keepResult = false) {
     try {
       const st = await merchantApi.jiangyiGatherStatus(deviceId.value);
       bound = !!st?.bound;
-    } catch {
-      bound = false; // 无 detail 权限/非将邑：按弹簧柜流程走
+    } catch (e) {
+      if (stale()) return;
+      // R11-M-N10：「查询不到」≠「不支持」——后端读面对未绑定恒 200+bound:false，
+      // 抛错=无权限(403)或网络类失败。403 降级按弹簧柜流程走（原口径）；网络类
+      // 失败如实提示可重试，不落 bound=false 终态、不清 goods（重试无需重新扫码）
+      if ((e as { status?: number })?.status !== 403) {
+        showError('网络异常，暂时无法确认柜型，请重试');
+        return;
+      }
+      bound = false;
     }
+    if (stale()) return;
     isDoorCabinet.value = bound;
     if (!bound) {
       // 货道实盘随「开门柜去掉货道」退场：非将邑柜没有可用的盘点链路
@@ -159,6 +177,7 @@ async function loadDevice(autoOpen = false, keepResult = false) {
       return;
     }
     const detail = await merchantApi.deviceDetail(deviceId.value);
+    if (stale()) return;
     deviceName.value = detail.device?.deviceName || deviceId.value;
     const rows: StocktakeGoodsRow[] = (detail.skuInventory ?? [])
       .filter((g) => !!g.skuId)
@@ -182,9 +201,9 @@ async function loadDevice(autoOpen = false, keepResult = false) {
       void executeOpenDoor();
     }
   } catch (e) {
-    showError(e instanceof Error ? e.message : '加载柜机信息失败');
+    if (!stale()) showError(e instanceof Error ? e.message : '加载柜机信息失败');
   } finally {
-    loading.value = false;
+    if (seq === deviceLoadSeq) loading.value = false;
   }
 }
 
