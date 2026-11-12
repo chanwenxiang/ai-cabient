@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
+import com.aicabinet.trade.support.ScheduleZones;
 import com.aicabinet.trade.support.SkuOnShelf;
 import com.aicabinet.trade.support.SkuStockLevel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -572,19 +573,19 @@ public class DeviceSlotService {
      * 状态≠FAILED 全算（与账单/销售报表口径一致）；退款不在此扣减（毛成交口径）。
      */
     private long monthRevenueCents(String deviceId) {
-        YearMonth ym = YearMonth.now(ZoneId.systemDefault());
-        Instant start = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        YearMonth ym = YearMonth.now(ScheduleZones.ZONE);
+        Instant start = ym.atDay(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
+        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
         return orderLineRepository.sumRevenueByDeviceIdsBetween(java.util.List.of(deviceId), start, end);
     }
 
     private int countNearExpiryLots(String deviceId) {
-        LocalDate nearCutoff = LocalDate.now().plusDays(7);
+        LocalDate nearCutoff = LocalDate.now(ScheduleZones.ZONE).plusDays(7);
         return (int) lotRepository.findByDeviceId(deviceId).stream()
                 .filter(l -> l.getQuantity() > 0)
                 .filter(l -> "NEAR_EXPIRY".equals(l.getStatus())
                         || (l.getExpiryDate() != null && !l.getExpiryDate().isAfter(nearCutoff)
-                        && l.getExpiryDate().isAfter(LocalDate.now().minusDays(1))))
+                        && l.getExpiryDate().isAfter(LocalDate.now(ScheduleZones.ZONE).minusDays(1))))
                 .count();
     }
 

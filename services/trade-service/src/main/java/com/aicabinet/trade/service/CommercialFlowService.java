@@ -85,7 +85,7 @@ public class CommercialFlowService {
 
         mark(steps, "DEMO_CONTEXT", "DONE", "Demo catalog, device, warehouse and user are ready");
 
-        String batchNo = "FLOW-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String batchNo = "FLOW-" + LocalDate.now(com.aicabinet.trade.support.ScheduleZones.ZONE) + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         String warehouseId = demo.warehouseId();
         if (warehouseId == null || warehouseId.isBlank()) {
             warehouseId = warehouseService.resolveDefaultWarehouseId();

@@ -46,8 +46,13 @@ public class AlipayPlatformBillProvider implements PlatformBillProvider {
         );
         String downloadUrl = response.path("bill_download_url").asText(null);
         if (downloadUrl == null || downloadUrl.isBlank()) {
-            log.warn("alipay bill url empty for date={}", date);
-            return List.of();
+            // R22-8（四端审计 2026-11-12）：fail-fast 对齐微信侧（WeChatPlatformBillProvider
+            // 同位置抛 IllegalStateException）。此前 log.warn + 空列表静默返回——账单文件
+            // 未出/不可得时，当日无流水会被记 MATCHED 假绿（「空对空算通过」）、有流水则
+            // 伪装成巨大差异，两者都比显性失败更危险。
+            throw new IllegalStateException(
+                    "alipay bill download_url missing for date=" + date + "（账单未出或接口未返回下载地址）"
+                            + " — empty bill download is disabled to avoid silent MATCHED");
         }
         byte[] data = openApiClient.download(downloadUrl);
         List<PlatformBillLine> lines = AlipayBillCsvParser.parseDownloadedBytes(data, date);

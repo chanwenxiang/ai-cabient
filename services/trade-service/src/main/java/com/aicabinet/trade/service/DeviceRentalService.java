@@ -316,7 +316,7 @@ public class DeviceRentalService {
             return false;
         }
         java.time.LocalDate created =
-                java.time.LocalDate.ofInstant(deposit.getCreatedAt(), java.time.ZoneId.systemDefault());
+                java.time.LocalDate.ofInstant(deposit.getCreatedAt(), com.aicabinet.trade.support.ScheduleZones.ZONE);
         return !created.plusYears(contractYears).isAfter(java.time.LocalDate.now(clock));
     }
 
@@ -345,7 +345,7 @@ public class DeviceRentalService {
         int processed = 0;
         for (DeviceRentalDeposit deposit : held) {
             java.time.LocalDate start = deposit.getCreatedAt() == null
-                    ? null : java.time.LocalDate.ofInstant(deposit.getCreatedAt(), java.time.ZoneId.systemDefault())
+                    ? null : java.time.LocalDate.ofInstant(deposit.getCreatedAt(), com.aicabinet.trade.support.ScheduleZones.ZONE)
                     .withDayOfMonth(1);
             if (start == null) {
                 continue;

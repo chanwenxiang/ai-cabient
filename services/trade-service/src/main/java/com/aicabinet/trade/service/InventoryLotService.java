@@ -18,6 +18,7 @@ import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
+import com.aicabinet.trade.support.ScheduleZones;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -374,7 +375,7 @@ public class InventoryLotService {
     private void doAddRestock(String deviceId, String skuId, RestockCommand command) {
         validateRestockExpiry(skuId, command.expiryDate());
         String resolvedBatch = (command.batchNo() == null || command.batchNo().isBlank())
-                ? "B-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
+                ? "B-" + LocalDate.now(ScheduleZones.ZONE) + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
                 : command.batchNo().trim();
 
         // 批 3b 第十八刀 2/2：入库不再有「按货道建账」维度——lot 行身份是 (device, sku, batch)。
@@ -858,7 +859,7 @@ public class InventoryLotService {
         if (createdAt == null || today == null) {
             return 0;
         }
-        LocalDate stockedOn = createdAt.atZone(ZoneId.systemDefault()).toLocalDate();
+        LocalDate stockedOn = createdAt.atZone(ScheduleZones.ZONE).toLocalDate();
         long days = ChronoUnit.DAYS.between(stockedOn, today);
         if (days <= 0) {
             return 0;

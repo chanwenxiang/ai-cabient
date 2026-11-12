@@ -74,12 +74,27 @@ public class JiangyiCabinetCaptureService {
         return restockClient.cabinetCaptureList(identifier(deviceId));
     }
 
-    /** §7.15 开始柜内采集（厂商云自动开锁录制）。 */
+    /**
+     * §7.15 开始柜内采集（厂商云自动开锁录制）。
+     *
+     * <p>R22-7（四端审计 2026-11-12）：受理前先落「意图」留痕、失败补 FAILED 行——
+     * 此前只有成功路径 appendLog：厂商已受理但我方读超时（10s/30s）时 sessionId 从未落
+     * 任何地方，而厂商「同柜单会话、约 15 分钟占用」会让重试的 start 被单会话约束挡住，
+     * 运营既拿不到 sessionId 也没有任何本地痕迹可追。</p>
+     */
     public CabinetCaptureSession start(Long operatorId, String deviceId, long productId) {
-        CabinetCaptureSession session = restockClient.startCabinetCapture(identifier(deviceId), productId);
         auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_START", "JIANGYI_DEVICE", deviceId,
-                "productId=" + productId + ",sessionId=" + session.sessionId());
-        return session;
+                "productId=" + productId + ",phase=REQUESTING");
+        try {
+            CabinetCaptureSession session = restockClient.startCabinetCapture(identifier(deviceId), productId);
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_START", "JIANGYI_DEVICE", deviceId,
+                    "productId=" + productId + ",sessionId=" + session.sessionId() + ",phase=ACCEPTED");
+            return session;
+        } catch (RuntimeException e) {
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_START", "JIANGYI_DEVICE", deviceId,
+                    "productId=" + productId + ",phase=FAILED,error=" + e.getMessage());
+            throw e;
+        }
     }
 
     /** §7.16 进度（phase 见文档；建议每秒轮询）。 */
@@ -87,20 +102,38 @@ public class JiangyiCabinetCaptureService {
         return restockClient.cabinetCaptureStatus(identifier(deviceId), sessionId);
     }
 
-    /** §7.17 结束（关门后调用，设备开始上传柜内图）。 */
+    /**
+     * §7.17 结束（关门后调用，设备开始上传柜内图）。R22-7：失败留 FAILED 痕（sessionId 已知，
+     * 运营可据此重试或走取消出口），不再静默只对端报错。
+     */
     public CabinetCaptureSession finish(Long operatorId, String deviceId, int sessionId) {
-        CabinetCaptureSession session = restockClient.finishCabinetCapture(identifier(deviceId), sessionId);
-        auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_FINISH", "JIANGYI_DEVICE", deviceId,
-                "sessionId=" + sessionId);
-        return session;
+        try {
+            CabinetCaptureSession session = restockClient.finishCabinetCapture(identifier(deviceId), sessionId);
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_FINISH", "JIANGYI_DEVICE", deviceId,
+                    "sessionId=" + sessionId + ",phase=ACCEPTED");
+            return session;
+        } catch (RuntimeException e) {
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_FINISH", "JIANGYI_DEVICE", deviceId,
+                    "sessionId=" + sessionId + ",phase=FAILED,error=" + e.getMessage());
+            throw e;
+        }
     }
 
-    /** §7.18 取消（释放约 15 分钟占用）。 */
+    /**
+     * §7.18 取消（释放约 15 分钟占用）。R22-7：失败留 FAILED 痕——555/超时后取消失败时，
+     * 运营至少能在审计里看到「该柜有一个未收尾的会话」，而不是无声占用到自然超时。
+     */
     public CabinetCaptureSession cancel(Long operatorId, String deviceId, int sessionId) {
-        CabinetCaptureSession session = restockClient.cancelCabinetCapture(identifier(deviceId), sessionId);
-        auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_CANCEL", "JIANGYI_DEVICE", deviceId,
-                "sessionId=" + sessionId);
-        return session;
+        try {
+            CabinetCaptureSession session = restockClient.cancelCabinetCapture(identifier(deviceId), sessionId);
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_CANCEL", "JIANGYI_DEVICE", deviceId,
+                    "sessionId=" + sessionId + ",phase=ACCEPTED");
+            return session;
+        } catch (RuntimeException e) {
+            auditService.appendLog(operatorId, "JIANGYI_CABINET_CAPTURE_CANCEL", "JIANGYI_DEVICE", deviceId,
+                    "sessionId=" + sessionId + ",phase=FAILED,error=" + e.getMessage());
+            throw e;
+        }
     }
 
     private String identifier(String deviceId) {
