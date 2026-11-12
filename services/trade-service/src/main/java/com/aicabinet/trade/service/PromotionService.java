@@ -18,6 +18,11 @@ import java.util.List;
 
 @Service
 public class PromotionService {
+
+    /** 定价引擎可直接执行的折扣类活动类型（预算对它们无效，见 normalizeBudgetForType）。 */
+    private static final java.util.Set<String> PRICED_ACTIVITY_TYPES =
+            java.util.Set.of("SKU_REDUCE", "SKU_DISCOUNT", "SKU_FIXED_PRICE");
+
     private static final String LITERAL = "活动不存在";
 
 
@@ -50,7 +55,7 @@ public class PromotionService {
         a.setActivityType(normalizedActivityType(request.activityType()));
         a.setStartTime(request.startTime());
         a.setEndTime(request.endTime());
-        a.setBudgetCents(requireNonNegativeBudget(request.budgetCents()));
+        a.setBudgetCents(normalizeBudgetForType(a.getActivityType(), request.budgetCents()));
         a.setUserLimit(request.userLimit());
         a.setDeviceScope(request.deviceScope());
         a.setRuleConfig(request.ruleConfig() != null ? request.ruleConfig() : "{}");
@@ -125,7 +130,7 @@ public class PromotionService {
         a.setActivityType(normalizedActivityType(request.activityType()));
         a.setStartTime(request.startTime());
         a.setEndTime(request.endTime());
-        a.setBudgetCents(requireNonNegativeBudget(request.budgetCents()));
+        a.setBudgetCents(normalizeBudgetForType(a.getActivityType(), request.budgetCents()));
         a.setUserLimit(request.userLimit());
         if (request.deviceScope() != null) {
             a.setDeviceScope(request.deviceScope());
@@ -276,5 +281,30 @@ public class PromotionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "budgetCents 不得为负（0 = 不限额）");
         }
         return budgetCents;
+    }
+
+    /**
+     * R20-13：预算只对**券**生效，折扣类活动一律归零（不报错，按 0 落库并留痕）。
+     *
+     * <p>存量事实：{@code budget_cents} 的唯一消费者是 {@code reserveBudgetOnClaim}（发券占预算）
+     * 与 {@code releaseBudget}（退券释放），两者都由 {@code CouponService} 调用；折扣类活动
+     * （SKU_REDUCE/SKU_DISCOUNT/SKU_FIXED_PRICE）的折扣在定价时直接生效，**从不校验预算**。
+     * 后台却把「预算/剩余预算」显示在所有活动上，运营看到「剩余 5000」会以为有封顶——
+     * 这是「死旋钮 + 骗人的展示」。
+     *
+     * <p>为什么不在定价里接预算：折扣额只落在订单级的 {@code activity_discount_cents}，
+     * 同一单多活动时无法拆分到活动，聚合值必然失真；且每候选活动一次聚合查询会拖慢开门计价。
+     * 折扣类控量走 {@code userLimit} / {@code ruleConfig.totalOrderLimit}（单数口径）。
+     * 券面额可精确预留/释放，预算封顶留给券。
+     *
+     * <p>不抛 400 是为了兼容存量：老活动带着非零预算再保存时不能让整单编辑失败，直接按 0 收敛。
+     */
+    private long normalizeBudgetForType(String activityType, long budgetCents) {
+        long checked = requireNonNegativeBudget(budgetCents);
+        if (checked > 0 && PRICED_ACTIVITY_TYPES.contains(activityType)) {
+            log.info("priced activity ignores budget type={} budgetCents={}", activityType, checked);
+            return 0L;
+        }
+        return checked;
     }
 }

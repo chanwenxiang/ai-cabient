@@ -21,12 +21,18 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
     /**
      * v1 活动核销限制（CB-082）：统计某活动已核销的订单数；userId 非空时只算该用户。
      * 订单行带 activity_id 即视为该活动已核销。
+     *
+     * <p>R20-13：必须排除 {@code PENDING}/{@code CANCELLED}。旧实现只要行上有 activity_id 就计数，
+     * 于是「下单未支付」「下单后取消」都白占名额：user_limit=1 的用户只要留着一张未支付单，
+     * 就再也享受不到该活动价（且放开名额要靠他自己去取消，运营无从干预）。
+     * 未支付单在关门超时后才会转 CANCELLED，中间那段窗口正是最常见的自助结算期。
      */
     @org.apache.ibatis.annotations.Select("""
         SELECT COUNT(DISTINCT l.order_id) FROM cabinet_order_line l
+        JOIN cabinet_order o ON o.order_id = l.order_id
         WHERE l.activity_id = #{activityId}
-          AND (#{userId} IS NULL OR EXISTS (
-                SELECT 1 FROM cabinet_order o WHERE o.order_id = l.order_id AND o.user_id = #{userId}))
+          AND o.status NOT IN ('PENDING', 'CANCELLED')
+          AND (#{userId} IS NULL OR o.user_id = #{userId})
         """)
     long countOrdersForActivity(@Param("activityId") Long activityId, @Param("userId") Long userId);
 
@@ -36,9 +42,10 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
      */
     @org.apache.ibatis.annotations.Select("""
         SELECT COUNT(DISTINCT l.order_id) FROM cabinet_order_line l
+        JOIN cabinet_order o ON o.order_id = l.order_id
         WHERE l.activity_id = #{activityId}
-          AND (#{userId} IS NULL OR EXISTS (
-                SELECT 1 FROM cabinet_order o WHERE o.order_id = l.order_id AND o.user_id = #{userId}))
+          AND o.status NOT IN ('PENDING', 'CANCELLED')
+          AND (#{userId} IS NULL OR o.user_id = #{userId})
           AND l.order_id <> #{excludeOrderId}
         """)
     long countOrdersForActivityExcluding(@Param("activityId") Long activityId,

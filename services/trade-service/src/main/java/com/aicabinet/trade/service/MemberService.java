@@ -209,6 +209,14 @@ public class MemberService {
         runWithMemberUserLock(userId, () -> {
             Member member = memberRepository.findByUserIdForUpdate(userId)
                     .orElseGet(() -> createMemberIfAbsent(userId));
+            // P2-3/P3-3：累计消费腿与返积分腿必须**同口径幂等**。旧实现只有积分腿幂等
+            // （earnPoints 里的 existsByMemberAndSource），消费额/订单数腿无条件累加 ⇒
+            // 同一订单走「结算落单支付 + 欠款补缴」两条路径时 total_spent 与 order_count 双计。
+            // 判据用 EARN 行当「该单已计入」的唯一凭据：earnPoints 现在无论积分是否 >0 都会落这一行。
+            if (pointsLogRepository.existsByMemberAndSource(member.getMemberId(), "ORDER", orderId)) {
+                log.info("order already counted, skip memberId={} order={}", member.getMemberId(), orderId);
+                return null;
+            }
             applyMemberStatsDelta(member, BigDecimal.valueOf(paidAmountCents, 2));
             memberRepository.save(member);
             self.earnPoints(member, paidAmountCents, orderId);
@@ -276,6 +284,10 @@ public class MemberService {
         int points = rate.multiply(BigDecimal.valueOf(paidAmountCents, 2))
                 .setScale(0, RoundingMode.DOWN).intValue();
         if (points <= 0) {
+            // 0 分（金额不足 1 分/倍率）也落一行：它就是 onOrderPaid 判「该单已计入统计」的唯一凭据，
+            // 不落行会让同一单的重复回调把 total_spent 累加两次。不置 expire_at ⇒ 积分过期扫描
+            // （按 expire_at 区间取数）不会拾取；明细列表按 points<>0 过滤，消费者看不到这行。
+            pointsLogRepository.save(orderEarnLog(member, 0, sourceId, rate));
             return;
         }
         member.setTotalPoints(nz(member.getTotalPoints()) + points);
@@ -283,6 +295,12 @@ public class MemberService {
         member.setUpdatedAt(Instant.now());
         memberRepository.save(member);
 
+        pointsLogRepository.save(orderEarnLog(member, points, sourceId, rate));
+    }
+
+    /** 返积分流水（R20-10：带上发放时倍率，退款扣回按它算）。 */
+    private static MemberPointsLog orderEarnLog(Member member, int points, String sourceId,
+                                                BigDecimal rate) {
         MemberPointsLog pointsLog = new MemberPointsLog();
         pointsLog.setMemberId(member.getMemberId());
         pointsLog.setPoints(points);
@@ -290,8 +308,9 @@ public class MemberService {
         pointsLog.setSourceType("ORDER");
         pointsLog.setSourceId(sourceId);
         pointsLog.setDescription("购物返积分");
-        pointsLog.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
-        pointsLogRepository.save(pointsLog);
+        pointsLog.setEarnRate(rate);
+        pointsLog.setExpireAt(points > 0 ? Instant.now().plus(365, ChronoUnit.DAYS) : null);
+        return pointsLog;
     }
 
     /**
@@ -318,10 +337,23 @@ public class MemberService {
         if (pointsLogRepository.existsByMemberAndSource(member.getMemberId(), "ORDER_REFUND", sourceId)) {
             return;
         }
-        MemberLevelRule rule = levelRuleRepository.findByLevelCode(member.getMemberLevel()).orElse(null);
-        BigDecimal rate = rule != null && rule.getPointsRate() != null
-                ? rule.getPointsRate()
-                : BigDecimal.ONE;
+        // P2-11：累计消费按**净额**回收（全额退款后归零）。
+        // 有意不重算等级：等级只升不降（2026-11-12 产品拍板）——消费额回落不降级，
+        // 否则用户会因一次退款掉档；权益成本由赠品/优惠券侧的预算闸兜。
+        rollbackSpentQuietly(member, refundAmountCents);
+
+        // P2-10：用**发放时**倍率扣回，不用当前等级倍率。
+        // 「按下单时的 1.0 倍发了 100 分 → 升级到 2.0 倍后全额退款」若按当前倍率要扣 200 分，
+        // 多扣的 100 分是用户从没拿到的。历史 EARN 行没有该列（null）⇒ 回落当前倍率（旧行为）。
+        BigDecimal rate = pointsLogRepository.findOrderEarn(member.getMemberId(), orderId)
+                .map(MemberPointsLog::getEarnRate)
+                .orElse(null);
+        if (rate == null) {
+            MemberLevelRule rule = levelRuleRepository.findByLevelCode(member.getMemberLevel()).orElse(null);
+            rate = rule != null && rule.getPointsRate() != null
+                    ? rule.getPointsRate()
+                    : BigDecimal.ONE;
+        }
         int clawback = rate.multiply(BigDecimal.valueOf(refundAmountCents, 2))
                 .setScale(0, RoundingMode.DOWN).intValue();
         if (clawback <= 0) {
@@ -348,6 +380,33 @@ public class MemberService {
         pointsLogRepository.save(entry);
         log.info("points clawback memberId={} order={} refund={} points={}",
                 member.getMemberId(), orderId, refundAmountCents, actual);
+    }
+
+    /**
+     * 退款回收累计消费（净额口径，R20-11）。
+     *
+     * <p>旧实现 {@code total_spent} 只增不减：买满升级后全额退款，消费额与等级都留在原地，
+     * 会员权益等于白拿（也是刷单升级的入口）。这里按退款金额扣回，并夹到 0
+     * （历史数据/跨期退款可能比当前记账值还大，负数会污染等级判定与后台展示）。
+     *
+     * <p>⛔ **不重算等级**：等级只升不降（2026-11-12 产品拍板）。{@code applyLevelIfChanged}
+     * 在这里会把用户降档，故故意不调用 —— 与「删数据要重启验一次」同理，这是一处
+     * 按字面看像漏了、实际是刻意跳过的分支。
+     */
+    private void rollbackSpentQuietly(Member member, int refundAmountCents) {
+        if (refundAmountCents <= 0) {
+            return;
+        }
+        BigDecimal spent = member.getTotalSpent() == null ? BigDecimal.ZERO : member.getTotalSpent();
+        BigDecimal next = spent.subtract(BigDecimal.valueOf(refundAmountCents, 2));
+        if (next.signum() < 0) {
+            next = BigDecimal.ZERO;
+        }
+        member.setTotalSpent(next);
+        member.setUpdatedAt(Instant.now());
+        memberRepository.save(member);
+        log.info("member spent rolled back memberId={} refund={} spent={}",
+                member.getMemberId(), refundAmountCents, next);
     }
 
     private static int nz(Integer v) {

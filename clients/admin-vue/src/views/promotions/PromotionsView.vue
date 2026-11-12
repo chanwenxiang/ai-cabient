@@ -116,15 +116,24 @@
               >
             </template>
           </el-table-column>
+          <!-- R20-13：折扣类活动不吃预算（预算只服务券面额预留/释放），一律显示 —，
+               避免运营看到「剩余预算」误以为折扣有封顶。控量改用「每人限次/活动总单数」。 -->
           <el-table-column label="预算" width="110" align="center" class-name="col-money">
-            <template #default="{ row }">{{ yuan(row.budgetCents) }}</template>
+            <template #default="{ row }">{{
+              isPricedType(row) ? '—' : yuan(row.budgetCents)
+            }}</template>
           </el-table-column>
           <el-table-column label="已使用" width="110" align="center" class-name="col-money">
-            <template #default="{ row }">{{ yuan(row.usedCents) }}</template>
+            <template #default="{ row }">{{
+              isPricedType(row) ? '—' : yuan(row.usedCents)
+            }}</template>
           </el-table-column>
           <el-table-column label="剩余预算" width="120" align="center" class-name="col-money">
             <template #default="{ row }">
-              <div class="budget-remain">
+              <div v-if="isPricedType(row)" class="budget-remain">
+                <span>—</span>
+              </div>
+              <div v-else class="budget-remain">
                 <span>{{
                   yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0)))
                 }}</span>
@@ -280,7 +289,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="预算(元)">
+            <el-form-item v-if="!SKU_TYPES.has(form.activityType)" label="预算(元)">
               <el-input-number
                 v-model="form.budgetYuan"
                 :min="0"
@@ -713,8 +722,20 @@ function isEnabled(status?: string) {
   return status === 'ACTIVE';
 }
 
+/** 定价引擎可执行类型：不吃预算（后端 PromotionService.normalizeBudgetForType 同口径） */
+function isPricedType(row: { activityType?: string }) {
+  return SKU_TYPES.has(String(row.activityType || ''));
+}
+
 /** 配置仍启用，但预算已占满：派生态（对齐投放侧「启用≠还能花」） */
-function isBudgetExhausted(row: { status?: string; budgetCents?: number; usedCents?: number }) {
+function isBudgetExhausted(row: {
+  status?: string;
+  activityType?: string;
+  budgetCents?: number;
+  usedCents?: number;
+}) {
+  // 折扣类活动不吃预算 ⇒ 永远没有「预算已满」态（否则会展示「已满」却照常打折）
+  if (isPricedType(row)) return false;
   if (!isEnabled(row.status)) return false;
   const budget = Number(row.budgetCents || 0);
   if (budget <= 0) return false;
@@ -911,7 +932,8 @@ async function onSubmit() {
     activityType: f.activityType,
     startTime: start.toISOString(),
     endTime: end.toISOString(),
-    budgetCents: yuanToCents(f.budgetYuan) ?? 0,
+    // 折扣类活动不吃预算（后端按 0 收敛，前端同口径，避免编辑老活动把脏值带回）
+    budgetCents: SKU_TYPES.has(f.activityType) ? 0 : (yuanToCents(f.budgetYuan) ?? 0),
     userLimit: f.userLimit,
     deviceScope: f.deviceScope,
     ruleConfig: JSON.stringify({

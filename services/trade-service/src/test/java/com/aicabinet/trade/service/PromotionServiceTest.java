@@ -191,6 +191,32 @@ class PromotionServiceTest {
         assertEquals(0L, promotionService.create(9001L, req).budgetCents());
     }
 
+    /**
+     * R20-13：折扣类活动的 budget_cents 是死旋钮（只有发券/退券会读写它），
+     * 后台却把它当「封顶」展示 ⇒ 写入侧按 0 收敛，避免运营以为折扣有预算上限。
+     */
+    @Test
+    void create_skuActivity_dropsBudget() {
+        var req = new CreatePromotionRequest("立减", "SKU_REDUCE",
+                Instant.now(), Instant.now().plus(7, ChronoUnit.DAYS),
+                500000L, 1, "ALL", "{\"skuIds\":[\"SKU-1\"]}", null, 300, null, null);
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals(0L, promotionService.create(9001L, req).budgetCents(),
+                "折扣类活动不吃预算，落库必须为 0");
+    }
+
+    /** 券类活动照旧保留预算（发券占预算/退券释放是真实存在的闸）。 */
+    @Test
+    void create_couponActivity_keepsBudget() {
+        var req = new CreatePromotionRequest("满减券活动", "FULL_REDUCE",
+                Instant.now(), Instant.now().plus(7, ChronoUnit.DAYS),
+                500000L, 1, "ALL", "{}", null, null, null, null);
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals(500000L, promotionService.create(9001L, req).budgetCents());
+    }
+
     @Test
     void create_lowercaseActivityType_isNormalizedForMapperInFilter() {
         // 判定侧多处 equalsIgnoreCase 看着没事，但 PromotionActivityMapper:30 的定价筛选是

@@ -81,7 +81,10 @@
         class-name="col-money"
         label-class-name="col-money"
       >
-        <template #default="{ row }">{{ yuan(row.budgetCents) }}</template>
+        <!-- R20-13：折扣类活动不吃预算（预算只服务券），显示 — 而不是让运营误以为有封顶 -->
+        <template #default="{ row }">{{
+          isPricedType(row) ? '—' : yuan(row.budgetCents)
+        }}</template>
       </el-table-column>
       <el-table-column
         label="预算已用(元)"
@@ -90,7 +93,7 @@
         class-name="col-money"
         label-class-name="col-money"
       >
-        <template #default="{ row }">{{ yuan(row.usedCents) }}</template>
+        <template #default="{ row }">{{ isPricedType(row) ? '—' : yuan(row.usedCents) }}</template>
       </el-table-column>
       <el-table-column
         prop="claimedCount"
@@ -233,6 +236,13 @@ import { api } from '@/api/client';
 import { AdminEndpoints } from '@/api/endpoints';
 import CrudTable, { type CrudCsvOptions } from '@/components/CrudTable.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+
+/** 定价引擎可执行类型：预算对它无效（同 PromotionsView / PromotionService.normalizeBudgetForType） */
+const PRICED_ACTIVITY_TYPES = new Set(['SKU_REDUCE', 'SKU_DISCOUNT', 'SKU_FIXED_PRICE']);
+
+function isPricedType(row: { activityType?: string }) {
+  return PRICED_ACTIVITY_TYPES.has(String(row.activityType || ''));
+}
 
 type RoiRow = {
   activityId: number;

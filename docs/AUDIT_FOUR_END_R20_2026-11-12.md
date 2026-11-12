@@ -319,14 +319,14 @@
 > 配对——单渠道下等于把别家退款也扣进本账。三处必须一起改，只补一维仍出假差异。
 > **口径变更需知晓**：历史 `payment_reconciliation` 行是按旧口径算的，重跑同一日期会得到不同数字（新数字才是对的），不回填历史。
 
-### 批 C｜会员/券/活动口径（5 条，P2-9 不成立、P2-12 已修）
+### 批 C｜会员/券/活动口径（5 条，P2-9 不成立、P2-12 已修；**其余 4 条已全清**）
 
 | # | 落点 | 改法要点 | 判据 |
 |---|---|---|---|
-| P2-10 | `MemberService:321-326` | 扣回积分用**发放时**倍率（流水里存 rate 或按 EARN 行反算），不用当前等级 | 单测：升级后退款按旧倍率扣 |
-| P2-11 | `MemberService:116-123` | `total_spent` 全额退款后可回收（净额口径）或至少在等级判定里改用净额 | 单测：买满升级→全退 ⇒ 等级回落（需产品确认是否允许降级） |
-| P2-13 | `PromotionPricingService:131-148` | 限购计数排除 PENDING/CANCELLED + 支持件数上限；`budget_cents` 死旋钮要么接预算要么删 | 校验 mapper 谓词（本轮待补验）；单测：取消单不占名额 |
-| P2-3/P3-3 | `MemberService.onOrderPaid` | **orderId 去重**（同 R20-2 第一刀），与积分腿同口径 | 单测：同一单两条补缴路径只记一次 |
+| **P2-10 ✅** | `MemberService:321-326` | 扣回积分用**发放时**倍率（流水里存 rate 或按 EARN 行反算），不用当前等级 | 单测：升级后退款按旧倍率扣 |
+| **P2-11 ✅** | `MemberService:116-123` | `total_spent` 全额退款后可回收（净额口径）或至少在等级判定里改用净额 | 单测：买满升级→全退 ⇒ 等级回落（需产品确认是否允许降级） |
+| **P2-13 ✅** | `PromotionPricingService:131-148` | 限购计数排除 PENDING/CANCELLED + 支持件数上限；`budget_cents` 死旋钮要么接预算要么删 | 校验 mapper 谓词（本轮待补验）；单测：取消单不占名额 |
+| **P2-3/P3-3 ✅** | `MemberService.onOrderPaid` | **orderId 去重**（同 R20-2 第一刀），与积分腿同口径 | 单测：同一单两条补缴路径只记一次 |
 
 ### 批 D｜N+1 与全表扫描（5 条）
 
@@ -510,3 +510,104 @@ SettlementConfirmDisputeService.prepareConfirmDispute`（无订单 ⇒ `finalize
 本轮**无新增迁移**（纯代码 + 测试 + 门禁）⇒ `mvn -o -pl services/trade-service -am -DskipTests package`
 + `up -d --no-deps --force-recreate trade-service` 即可。存量数据不回填：已 CANCELLED 的历史任务不会自动复活，
 也不需要——本轮的判据只作用于「之后发生的发运/提交/清扫」。
+
+---
+
+## 十五、批 C 修复回执（2026-11-12，会员/券/活动口径 4/4）
+
+> 四条落地。**两条是按产品拍板收口**（P2-11 等级只升不降、P2-13 预算只服务券），
+> 一条**修正报告原判方向**（P2-10 报告说「用发放时倍率」，实现是「流水里存倍率」而不是「反算」——
+> 反算在数学上不成立，见下）。**本轮新增迁移 1 个：V462**。
+
+### 十五.1 P2-10｜扣回积分用发放时倍率（流水存 rate，不反算）
+
+`MemberService.doClawbackPointsOnRefund` 原来用**退款当时**的会员等级倍率，而 `earnPoints` 用的是
+**支付当时**的倍率。两者在「下单后升级、再退款」时背离：按下单时 1.0 倍发了 100 分，升到 2.0 倍后
+全额退款要扣 200 分——多扣的 100 分是用户从没拿到的，而可用积分不够时会被扣到 0，
+用户连原有积分一起赔进去。
+
+改法：**V462 给 `member_points_log` 加 `earn_rate`**，`earnPoints` 落发放倍率，扣回读它；
+历史行（列为 NULL）回落当前等级倍率（旧行为，不比修前更差）。
+
+**为什么不是「按 EARN 行反算」**（报告的建议之一）：返积分是 `floor(rate × 金额)`，
+用 `分 / 金额` 反算会把 1.5 倍算成 1.005（199 分订单只返 2 分时），再乘退款额就是系统性少扣。
+所以必须**存**而不能**推**。也**不做回填**：回填只能填近似值，比 NULL 更危险（看起来有值、实际算错）。
+
+判据：`clawback_usesEarnRateInsteadOfCurrentLevelRate`（1.0 倍发放、2.0 倍退款 ⇒ 扣 5 分不是 10 分）、
+`clawback_fallsBackToCurrentRateWhenLegacyEarnRowHasNoRate`。
+
+### 十五.2 P2-11｜累计消费按净额回收，等级**只升不降**（产品拍板）
+
+旧实现 `total_spent` 只增不减：买满升级后全额退款，消费额与等级都留在原地——权益白拿，
+也是刷单升级的入口。**2026-11-12 产品拍板**：消费额回收（净额口径），但**等级不降级**。
+
+改法：`doClawbackPointsOnRefund` 里新增 `rollbackSpentQuietly(member, refundCents)`
+（`total_spent -= 退款额`，夹到 0——跨期退款可能大于当前记账值，负数会污染等级判定与后台展示），
+**刻意不调 `applyLevelIfChanged`**。代码里写明「这里像是漏了、实际是刻意跳过」，
+避免下次审计或重构把它当缺陷补上（补上就等于改产品口径）。
+
+判据：`refund_rollsBackTotalSpent`（100 元全退 ⇒ 0）、`refund_neverDrivesTotalSpentNegative`（1 元订单退 5 元 ⇒ 0）、
+`refund_doesNotRecomputeLevel`（GOLD 退到 0 元仍是 GOLD，且**从未调用**等级重算查询）。
+
+### 十五.3 P2-13｜限购计数排除 PENDING/CANCELLED + 预算只服务券（产品拍板）
+
+**前半段（真缺陷）**：`CabinetOrderLineMapper` 的两条计数 SQL 只要行上有 `activity_id` 就计数，
+于是「下单未支付」「下单后取消」都白占名额——`userLimit=1` 的用户只要留一张未支付单，
+就再也享受不到该活动价，而这张单要等关门超时才转 CANCELLED，中间正是自助结算高峰。
+改成 `JOIN cabinet_order o … AND o.status NOT IN ('PENDING','CANCELLED')`，两条 SQL 同口径。
+
+**后半段（死旋钮，产品拍板「预算只服务券」）**：`budget_cents` 的唯一消费者是
+`reserveBudgetOnClaim`/`releaseBudget`，两者都只由 `CouponService` 调用；折扣类活动的折扣在定价时
+直接生效、**从不校验预算**。而后台把「预算/剩余预算/预算已满」显示在所有活动上——运营看到
+「剩余 5000」会以为折扣有封顶。收口方式：
+
+- 写入侧 `PromotionService.normalizeBudgetForType`：折扣类活动预算一律按 0 落库（不抛 400，
+  存量活动再编辑不会失败），留 `log.info` 痕迹；券类照旧。
+- 展示侧：`PromotionsView` 的预算/已使用/剩余预算三列与「预算(元)」表单项、`MarketingRoiView`
+  的预算两列，对折扣类一律显示 `—`；`isBudgetExhausted` 对折扣类恒 false（否则会展示「预算已满」却照常打折）。
+- **为什么不给折扣类接预算**：折扣额只落在订单级 `activity_discount_cents`，同一单多活动时无法
+  拆分到活动，聚合必然失真；且每候选活动一次聚合会拖慢开门计价。折扣类控量走
+  `userLimit` / `ruleConfig.totalOrderLimit`（单数口径）。
+
+**件数上限**：判为**有意不同**——注释自证「每人最多 N **单**／活动总共 N **单**」，是单数口径；
+活动价按件打折，件数上限属另一种商品（同 PR 不引入）。
+
+判据：`PromotionUsageLimitPredicateTest`（反射读 `@Select` **真值**断言谓词，不用 grep——
+源码 javadoc 里也写着 PENDING/CANCELLED，按文本搜会被自己的注释骗成假绿）、
+`create_skuActivity_dropsBudget`、`create_couponActivity_keepsBudget`。
+
+### 十五.4 P2-3/P3-3｜累计消费腿补上 orderId 去重（与积分腿同口径）
+
+`onOrderPaid` 里只有积分腿幂等（`existsByMemberAndSource(…,"ORDER",orderId)` + V166 唯一索引），
+消费额/订单数腿无条件累加 ⇒ 同一订单走「结算落单支付 + 欠款补缴」两条路径时 `total_spent` 与
+`order_count` 双计（并通过 `applyLevelIfChanged` 推高等级）。
+
+改法：先判 ORDER 行是否存在，存在则整段跳过。为此 `earnPoints` 在「返 0 分」时也落这一行
+（`points=0`、**不置 `expire_at`** 因而不被积分过期扫描拾取，明细列表按 `points<>0` 过滤后用户看不见），
+否则金额不足 1 分的单永远没有该行、去重判据失效。
+
+判据：`onOrderPaid_whenOrderAlreadyCounted_skipsStatsAndPoints`（不再 save、消费额与订单数不动）、
+`onOrderPaid_firstTime_accumulatesStats`（去重不能把正常单挡掉）、
+`earnPoints_zeroPoints_stillWritesMarkerRowWithoutExpiry`。
+
+### 十五.5 判据与验证
+
+- 定向 **73 例全绿**（11 个类）：`MemberPointsClawbackIdentityTest`(8) / `MemberOnOrderPaidConcurrencyTest`(5)
+  / `MemberStatsConcurrencyTest`(3) / `MemberServiceDepositLevelTest`(9) / `MemberLevelAdminConcurrencyTest`(2)
+  / `PointsExpiryPartialTest`(2) / `PointsRedeemServiceTest`(10) / `PromotionPricingServiceTest`(13)
+  / `PromotionServiceTest`(15) / `PromotionBudgetConcurrencyTest`(2) / `PromotionUsageLimitPredicateTest`(2, 新增)。
+- 负向验证（铁律 4，五轮独立注入、各自转红、还原后 md5 逐字节一致）：
+  ① 扣回退回「只读当前等级倍率」⇒ P2-10 用例转红（strict-stubs 直指读取点）；
+  ② 注释掉 `rollbackSpentQuietly` ⇒ P2-11 两例转红（`expected: <0> but was: <-1>`）；
+  ③ `existsByMemberAndSource` 前加 `false &&` ⇒ P2-3 去重用例转红；
+  ④ 删掉两条 SQL 的 `status NOT IN` ⇒ `PromotionUsageLimitPredicateTest` 2 例转红；
+  ⑤ `normalizeBudgetForType` 退回 `requireNonNegativeBudget` ⇒ `create_skuActivity_dropsBudget` 转红。
+- 附带：`check-flyway-seed-separation` / `check-mapper-xml-binding` / `check-mybatis-null-clear` /
+  `check-admin-table-align` / `check-test-mockito-pitfalls` 全绿；admin-vue `type-check` 通过。
+
+### 十五.6 部署注意
+
+**本轮有迁移 V462** ⇒ 必须 `mvn -o -pl services/trade-service -am -DskipTests package`
++ `up -d --no-deps --force-recreate trade-service`（jar 内迁移不随 restart 更新）；admin 产物需重建
+（两个 vue 文件改动）。存量数据不回填：历史 EARN 行无 `earn_rate` 时走旧口径，历史 SKU 活动若带非零预算，
+再次保存即按 0 收敛、展示侧已不再显示。
