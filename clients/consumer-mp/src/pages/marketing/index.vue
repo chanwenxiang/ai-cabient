@@ -21,7 +21,7 @@
               <image
                 v-if="b.imageUrl"
                 class="banner-media"
-                :src="absoluteImageUrl(b.imageUrl)"
+                :src="thumbUrl(b.imageUrl, 400)"
                 mode="aspectFill"
                 lazy-load
               />
@@ -118,7 +118,7 @@ import {
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
-import { absoluteImageUrl } from '@/utils/product-thumb';
+import { absoluteImageUrl, thumbUrl } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 
 /*
@@ -136,7 +136,7 @@ onShareAppMessage(() => ({
   title: SHARE_TITLE,
   path: SHARE_PATH,
   imageUrl:
-    absoluteImageUrl(banners.value.find((b) => !!b.imageUrl)?.imageUrl) || '/static/share-card.jpg'
+    thumbUrl(banners.value.find((b) => !!b.imageUrl)?.imageUrl, 400) || '/static/share-card.jpg'
 }));
 onShareTimeline(() => ({ title: SHARE_TITLE }));
 

@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：4 条（P3-2 判说明不派修、P3-3 已由批 C 覆盖、P3-5/6/10 已由 §十八、P3-4 已由 §二十二 收口；P3-1 已出蓝图 §二十三）
+### 十七.3 剩余 P3：2 条（P3-1 已出蓝图 §二十三 未落迁移；P3-2 判定不派修）；P3-3~P3-10 均已收口（P3-7/8/9 见 §二十四）
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -776,9 +776,9 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 | 4 | ~~无主/渠道不符回调静默 200，无告警痕迹~~ **已修（§二十二）** | 报告只点名两处，实修 10 类分支（微信/支付宝充值各 3 + 退款通知 2 + 退款同步 2）；统一 `alertSilentCallback` 收口。**关键修正**：`OpsAlertDispatcher.fanout` 未配渠道时静默返回，只发告警仍是零痕迹 ⇒ 必须同时落 `log.error` |
 | 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
 | 6 | ~~券过期按发放时刻而非日末~~ **已修（§十八.2）** | 改发放日 + N 天的日末，`Asia/Shanghai` |
-| 7 | 配置/促销策略每单 N 次查库（一单 N 行 ≥5N 查询） | 加本地缓存（Caffeine/`@Cacheable`），需定失效策略 |
-| 8 | commonPool 跑阻塞 HTTP；XXL executor 默认 200 线程 vs Hikari 20 | `DeviceCommandTracker:238` 给专用 executor；`XxlJobConfig` 显式设线程数 |
-| 9 | 图片无 OSS 缩略参数 + 上传上限 10MB ⇒ 移动端首屏带宽 | `product-image.ts` 加 `x-oss-process`；上传上限另议 |
+| 7 | ~~配置/促销策略每单 N 次查库~~ **已修（§二十四）** | 手写进程内 TTL 缓存（`ConcurrentHashMap`+`ConfigCacheEntry`，30s TTL）+ 写后精准失效；不引 Caffeine（单测纯 Mockito 构造）；`SystemConfigCacheTest` 2 例钉「同键只落库 1 次 / 写后失效回源」 |
+| 8 | ~~commonPool 跑阻塞 HTTP~~ **已修（§二十四）** | `DeviceCommandTracker` 已有专用有界 `notifier` 池（`ArrayBlockingQueue(256)`+`CallerRuns`）；`notifyOpenDoorTimeoutAsync` 走 `notifier.execute`；XXL 3.4.2 触发池硬编码不可配 ⇒ 仅加回归门禁 |
+| 9 | ~~图片无 OSS 缩略参数~~ **已修（§二十四）** | `product-image.ts` 加 `ThumbOptions`/`appendOssProcess`/`thumbUrl`；仅 OSS host 生效；四调用点（订单封面 200 / 营销横幅 400 / 营销首页 400+share / 商户设备详情 200）改用 `thumbUrl` |
 | 10 | ~~`UNPAID` 文案与字典族~~ **已修（§十八.3，报告一半不成立）** | 「待付/未付」是两个业务视角，不得强行统一；只改 1 处真错 + 字典驱动 + 补族 |
 
 > P3-2 **不要改**：`CANCELLED→DISPUTED` 是兜账 v2 刻意保留的唯一救援边（§九 #2、§十.3）。改了就堵死「迟到识别上报转争议后无钱可扣」的路径。
@@ -797,7 +797,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
 4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；**P3-1** 已完成实证盘点并出蓝图（§二十三），未落迁移——87 列缺 CHECK 且枚举不能从 dev 稀疏值域推，需单独一轮带「源码写入点→枚举」自动对齐门禁。
-5. 剩余：P3-7（缓存失效策略待定）/ P3-8（线程池容量）/ P3-9（OSS 缩略参数）与 5 条待定项随迭代（R20 的 P1/P2 至此全部收口）。
+5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
 
@@ -1126,4 +1126,29 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 - **87 列不必一次性全补**：优先资金/订单/争议/对账链（`cabinet_order`、`recharge_order`、`dispute_ticket`、`payment_operation`、`order_revenue_split`…），纯配置类表可留在字典层管控。
 - **验收判据是报表行数**，不是「约束加成功」：P3-1 的原始症状是「越界串可落库、报表静默漏行」，所以补完约束后要验证按状态聚合的报表不再丢行，而不只是 `\d table` 里有 `chk_`。
 - 本轮**未创建 V464、未改任何 DDL、未改任何字典**，dev 库只做了 `SELECT`（`\gexec` 生成的是只读 GROUP BY）。
+
+---
+
+## 二十四、P3-7/8/9 修复回执（2026-11-12，缓存·线程池·OSS 缩略）
+
+### 二十四.1 落地范围（三条互不冲突，按「非硬前提即直接落地」推进）
+- **P3-7 配置读缓存**（修「每单 N 次查库」）：`SystemConfigService` 加手写进程内 TTL 缓存（`ConcurrentHashMap<String,ConfigCacheEntry>`，常量 `CONFIG_CACHE_TTL_MS=30_000` 兜底 + 写时精准失效），所有 `getValue/getInt/getBoolean/getDouble` 经 `loadConfigCached` 汇聚（首读落库、余下命中内存）；`upsert`/`delete`/`refreshDescriptionIfPresent`/`upsertIfAbsent` 四处写后 `configCache.remove(key)`（键变量分别 `key`/`configKey`）。**不引 Caffeine/Spring Cache**——本类单测是纯 Mockito `new Xxx(...)` 构造，手写缓存最轻、易断言命中；bootstrap 修复循环里的 `repository.findById`（一次性数据迁移，非热路径）允许直读。
+- **P3-8 超时通知线程池**：实证确认 `DeviceCommandTracker` 已有专用有界 `notifier` 池（`ThreadPoolExecutor(1, 2, 60s, ArrayBlockingQueue(256), CallerRunsPolicy)`），`notifyOpenDoorTimeoutAsync` 走 `notifier.execute`；全文件无 `ForkJoinPool.commonPool()`/`CompletableFuture.runAsync` 真实用法（仅 69/71 行历史注释）。XXL-JOB 3.4.2 触发线程池在 OSS 版硬编码、不暴露配置项 ⇒ 不可通过配置收敛，仅加回归门禁钉住不变式。
+- **P3-9 OSS 缩略参数**：`packages/shared-uni/src/product-image.ts` 加 `ThumbOptions`/`appendOssProcess`/`thumbUrl`；`appendOssProcess` 仅对 OSS host（`aliyuncs.com` 或 `oss-` 前缀）追加 `x-oss-process=image/resize` 下采样，已带参数不重复加，后端相对路径/非 OSS 域名原样返回；`absoluteImageUrl(url, opts?)` 透传。四个高频调用点改用 `thumbUrl`：订单封面 200、营销横幅 400、营销首页 400（含 share-card）、商户设备详情 200；`consumer-mp` 经 `product-thumb.ts` 重新导出 `thumbUrl`。
+
+### 二十四.2 判据与验证（数字）
+- **P3-7**：`SystemConfigCacheTest` **2 例全绿**（同键跨 `getValue/getInt/getBoolean` 只落库 1 次；`upsert` 写后精准失效、下次读回源拿新值）；trade-service 主源编译通过。因同仓并发会话的半成品测试 `PlatformBillProviderContractTest.java`（未提交新增、引用了与其属性构造器不匹配的签名）导致整模块 test-compile 失败，已临时移出后单独验证 P3-7 用例（BUILD SUCCESS，2/2），验证后**原样还原**——不污染其他会话工作树。
+- **P3-8 / P3-9**：以静态门禁钉住——前者断言全文件 0 处 `commonPool`/`runAsync` 真实用法 + `notifyOpenDoorTimeoutAsync` 走 `notifier.execute` + 专用池有界；后者断言 `thumbUrl`/`appendOssProcess` 存在、OSS host 才下采样、四调用点改用 `thumbUrl` + `consumer-mp` 重新导出。
+- 三个门禁均接入 CI（`ci.yml` 各 2 步：正向 + `--self-test` 沙箱负向变异，md5 零残留）。
+
+### 二十四.3 负向验证（铁律 4，真实源码变异）
+- **P3-7**（`check-system-config-cache.mjs` self-test，7 变异 + 防假红全绿）：删 `configCache.put`、回调 `getValue` 直读 DB、写后失效键写错（`upsert` 硬编码 / `delete` 变量错）、删整段命中逻辑、测试删一条不变式断言——逐条精准转红；注释复述旧写法不假红；磁盘 md5 零残留。
+- **P3-8**（`check-no-commonpool-blocking.mjs` self-test，5 变异）：`notifyOpenDoorTimeoutAsync` 引入 `runAsync`/`commonPool`、整池换成 `commonPool`、删设计缺陷说明注释（含 R19-18）——逐条转红；注释提及 `commonPool` 不假红；md5 零残留。
+- **P3-9**（`check-oss-thumb-param.mjs` self-test，6 变异）：删 `image/resize`、去掉 OSS host 限定、`thumbUrl` 不转交 `absoluteImageUrl`、`absoluteImageUrl` 不调 `appendOssProcess`、订单封面退回原图——逐条转红；注释复述旧写法不假红；md5 零残留。
+
+### 二十四.4 遗留与部署
+- P3-7：不引新依赖，缓存 TTL 取 30s（最差 30s 可见配置变更，配置不需强一致）；若后续要更强一致可换 Caffeine 并接 `redis` 广播失效。
+- P3-8：XXL 触发线程池不可配属已知限制，门禁负责兜底；若升级 XXL 版本需重测。
+- 三处改动**未提交**，待本批精确 `git add` 自己的文件后提交（严格排除同仓并发会话的 `package.json`/`TradeServiceClient.java`/`OpsAlertDispatcher.java` 等半成品）。
+- 后续：P3-1（状态列 CHECK 迁移 + 枚举自动对齐门禁）需单独一轮；5 条待定项（§十七.4）待产品拍板。
 

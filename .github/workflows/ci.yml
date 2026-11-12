@@ -215,6 +215,27 @@ jobs:
       - name: R20 P3-4 silent trace gate self-test
         run: node scripts/check-payment-callback-silent-trace.mjs --self-test
 
+      # R20 P3-7：配置读汇聚进程内 TTL 缓存 + 四处写后精准失效（修「每单 N 次查库」）。
+      - name: R20 P3-7 system config cache gate
+        run: node scripts/check-system-config-cache.mjs
+
+      - name: R20 P3-7 system config cache gate self-test
+        run: node scripts/check-system-config-cache.mjs --self-test
+
+      # R20 P3-8：命令超时通知走专用有界池，禁止 commonPool / runAsync 污染全局并行流。
+      - name: R20 P3-8 no commonPool blocking gate
+        run: node scripts/check-no-commonpool-blocking.mjs
+
+      - name: R20 P3-8 no commonPool blocking gate self-test
+        run: node scripts/check-no-commonpool-blocking.mjs --self-test
+
+      # R20 P3-9：列表/封面/横幅走 OSS 缩略参数，四个高频调用点改用 thumbUrl。
+      - name: R20 P3-9 oss thumb param gate
+        run: node scripts/check-oss-thumb-param.mjs
+
+      - name: R20 P3-9 oss thumb param gate self-test
+        run: node scripts/check-oss-thumb-param.mjs --self-test
+
       # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
       # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
       # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。

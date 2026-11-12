@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class SystemConfigService {
@@ -529,6 +530,26 @@ public class SystemConfigService {
     private final DistributedLockService distributedLockService;
     private final SystemConfigService self;
 
+    /**
+     * P3-7：配置读缓存（进程内 TTL）。
+     * <p>配置是结算 / 计价链路的极热读（每单结算读 ≥7 次，见 {@code MerchantSkuPricingService#loadPromoPolicy}），
+     * 但写极稀（运营改配置）。用 30s TTL 兜底 + 写时精准失效：</p>
+     * <ul>
+     *   <li>TTL 防「新增键未预热」的陈旧空值（缺失键也缓存为 null 哨兵）；</li>
+     *   <li>失效保证 admin 改值后最差 30s 内对全实例可见——配置不需要强一致。</li>
+     * </ul>
+     * <p>不引入 Spring Cache 依赖：本类单测是纯 Mockito 构造，手写缓存更轻、更易断言命中。</p>
+     */
+    private static final long CONFIG_CACHE_TTL_MS = 30_000L;
+    private final Map<String, ConfigCacheEntry> configCache = new ConcurrentHashMap<>();
+
+    /** 缓存项：value 允许为 null（表示「库里没有该键」），用 expireAt 判存活。 */
+    private record ConfigCacheEntry(String value, long expireAt) {
+        boolean alive(long now) {
+            return now < expireAt;
+        }
+    }
+
     public SystemConfigService(SystemConfigMapper repository,
                                SystemConfigHistoryMapper historyRepository,
                                AdminAuditService auditService,
@@ -557,10 +578,28 @@ public class SystemConfigService {
 
     @Transactional(readOnly = true)
     public String getValue(String key, String defaultValue) {
-        return repository.findById(key)
+        String v = loadConfigCached(key);
+        if (v == null || v.isBlank()) {
+            return defaultValue;
+        }
+        return v;
+    }
+
+    /**
+     * P3-7：带进程内 TTL 缓存的底层读。所有 {@code getXxx} 都经此汇聚，
+     * 命中缓存即不碰 DB——把「每单 N 次查库」压到首读一次、余下走内存。
+     */
+    private String loadConfigCached(String key) {
+        long now = System.currentTimeMillis();
+        ConfigCacheEntry hit = configCache.get(key);
+        if (hit != null && hit.alive(now)) {
+            return hit.value;
+        }
+        String v = repository.findById(key)
                 .map(SystemConfig::getConfigValue)
-                .filter(v -> !v.isBlank())
-                .orElse(defaultValue);
+                .orElse(null);
+        configCache.put(key, new ConfigCacheEntry(v, now + CONFIG_CACHE_TTL_MS));
+        return v;
     }
 
     @Transactional(readOnly = true)
@@ -779,6 +818,7 @@ public class SystemConfigService {
         }
         config.setUpdatedAt(Instant.now());
         SystemConfigDto saved = toDto(repository.save(config));
+        configCache.remove(key); // P3-7：写后精准失效，避免读到 30s TTL 内的旧值
         recordChangeIfEnabled(key, created ? null : oldValue, saved.configValue(),
                 operatorId, CONFIG_ACTION_UPSERT);
         return saved;
@@ -799,6 +839,7 @@ public class SystemConfigService {
             SystemConfig existing = repository.findByIdForUpdate(configKey)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在"));
             repository.deleteById(configKey);
+            configCache.remove(configKey); // P3-7：删除后精准失效
             recordChangeIfEnabled(configKey, existing.getConfigValue(), null,
                     operatorId, CONFIG_ACTION_DELETE);
             return null;
@@ -1168,6 +1209,7 @@ public class SystemConfigService {
             row.setDescription(description);
             row.setUpdatedAt(Instant.now());
             repository.save(row);
+            configCache.remove(key); // P3-7：bootstrap 写后失效
         });
     }
 
@@ -1179,6 +1221,7 @@ public class SystemConfigService {
             config.setDescription(description);
             config.setUpdatedAt(Instant.now());
             repository.save(config);
+            configCache.remove(key); // P3-7：bootstrap 写后失效
         }
     }
 

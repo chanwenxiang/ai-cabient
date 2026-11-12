@@ -330,7 +330,7 @@ import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import { centsToYuanDigits, formatDateTime } from '@aicabinet/shared-uni/format';
-import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
+import { absoluteImageUrl, thumbUrl } from '@aicabinet/shared-uni/product-image';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {
@@ -610,7 +610,7 @@ async function loadDeviceExtras(seq: number) {
   ledgerGoods.value = (Array.isArray(inventoryRows) ? inventoryRows : []).map((g) => ({
     ...g,
     // 后台存的是 /api/v2/media/... 相对路径，<image> 不吃相对地址（同 device-stocktake）
-    imageUrl: absoluteImageUrl(g.imageUrl) || null
+    imageUrl: thumbUrl(g.imageUrl, 200) || null
   }));
   const deviceFields = (detail as { device?: { [k: string]: unknown } } | null)?.device;
   if (deviceFields) {

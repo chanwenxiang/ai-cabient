@@ -190,7 +190,7 @@
               <image
                 v-if="o.coverImageUrl"
                 class="order-thumb"
-                :src="absoluteImageUrl(o.coverImageUrl)"
+                :src="thumbUrl(o.coverImageUrl, 200)"
                 mode="aspectFill"
                 aria-hidden="true"
               />
@@ -297,7 +297,8 @@ import {
 import {
   absoluteImageUrl,
   cleanLineSummary,
-  firstProductName
+  firstProductName,
+  thumbUrl
 } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';

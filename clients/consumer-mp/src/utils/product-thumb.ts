@@ -1,7 +1,7 @@
 import type { DeviceProduct } from '@aicabinet/shared-types';
-import { absoluteImageUrl } from '@aicabinet/shared-uni/product-image';
+import { absoluteImageUrl, thumbUrl } from '@aicabinet/shared-uni/product-image';
 
-export { absoluteImageUrl };
+export { absoluteImageUrl, thumbUrl };
 
 const CATEGORY_GLYPH: Record<string, string> = {
   饮料: '饮',

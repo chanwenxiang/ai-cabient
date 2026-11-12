@@ -22,7 +22,7 @@
     >
       <swiper-item v-for="(s, i) in slides" :key="String(s.adCampaignId) + '-' + i">
         <view role="button" class="mab-card" @click="onTap(i)">
-          <image class="mab-img" :src="absoluteImageUrl(s.imageUrl)" mode="aspectFill" />
+          <image class="mab-img" :src="thumbUrl(s.imageUrl, 400)" mode="aspectFill" />
           <view class="mab-scrim" aria-hidden="true" />
           <view class="mab-copy">
             <text class="mab-title">{{ s.title }}</text>
@@ -38,7 +38,7 @@
 import { ref, watch } from 'vue';
 import { consumerApi, type MarketingBannerDto } from '@/utils/consumer-api';
 import { openCampaignPath } from '@/utils/campaign-path';
-import { absoluteImageUrl } from '@/utils/product-thumb';
+import { absoluteImageUrl, thumbUrl } from '@/utils/product-thumb';
 
 /**
  * 设备上下文（可选）：有柜码时带上，让后端过滤 SPECIFIC 投放范围
