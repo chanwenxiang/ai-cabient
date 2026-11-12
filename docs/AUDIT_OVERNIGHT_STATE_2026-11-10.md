@@ -29,7 +29,7 @@
 - **结论：通宵 72+ 提交的代码质量已通过 CI 全链验证**
 
 ### M01 清列家族批量修（R16-MA-175 完成）
-- 第一批（cf7edc08 内）：OpsCatalogAdminService clearExplicitlyBlankColumns 含 operationScope / MerchantDevicePortalService opsRemark wrapper / JiangyiClassMappingMapper textName 显式清列 / useDeviceAsset 6 字段 + MerchantSplitsView 3 字段 ?? null
+- 第一批（**5d34d414**，R12 批 MA-168~171；原记 cf7edc08 系笔误——cf7edc08 对 OpsCatalogAdminService 的改动是 R15-L1 非 M01）：MerchantDevicePortalService opsRemark wrapper / OpsCatalogAdminService clearExplicitlyBlankColumns 含 operationScope / JiangyiClassMappingMapper textName 显式清列 / useDeviceAsset 6 字段 + MerchantSplitsView 3 字段 ?? null
 - 第二批（0cbbab01）：DisputeService operatorNote / MerchantPortalService alertContactName+Phone / RepairTicketService remark / SysDictService type+data remark（5 站点）
 - 第三批（b3ac0f88）：MerchantPortalService contactPhone 补漏
 - 剩余 2 处确认为非 M01：OpsRbacService :230 = CREATE 路径 / WarehouseStocktakeService :114 = CREATE 路径
