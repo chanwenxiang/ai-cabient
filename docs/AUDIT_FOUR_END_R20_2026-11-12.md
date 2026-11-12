@@ -296,14 +296,14 @@
 > 口径订正：报告 §二 的 P2 是 **18 条**（不是 25 条）。其中 **P2-9 复验不成立**（幂等键含行集指纹）、
 > **P2-12 已拍板并落地**（§十一）⇒ 本轮**可派修 16 条**。四批按「同一根因族一起改」切，避免同一文件多轮动刀。
 
-### 批 A｜补货/争议的状态机与并发覆盖（4 条）
+### 批 A｜补货/争议的状态机与并发覆盖（4 条，**已全清**）
 
 | # | 落点 | 改法要点 | 判据 |
 |---|---|---|---|
-| P2-1 | `ReplenishmentService:612-627` | 发运后打回 IN_PROGRESS 的判据从「!= COMPLETED」扩成「只允许 {PENDING,IN_PROGRESS,ARRIVED?} 这些未终结态」，CANCELLED 一律 409 | 单测：CANCELLED 任务再发运 ⇒ 冲突且状态不变 |
-| P2-2 | `ReplenishmentTimeoutScheduler:82-105` | 用**扫描快照直写** CANCELLED → 改成条件更新（`WHERE status=<快照态>`），更新 0 行即放弃 | 单测：并发把 COMPLETED 写回后再跑清扫 ⇒ 不清 |
-| P2-3 | `DisputeService:259` | 建消费单前加 `isRestockSession` 闸（补货会话不得进争议/结案扣款链） | 单测：补货会话 ⇒ 409，且不写钱包 |
-| P2-4 | `PaymentService:1032-1039` | 充值 PENDING→CANCELLED 前先查渠道单状态（有实付即拒绝取消），避免「已付款回调撞 409 无限重试」 | 单测：渠道已付 ⇒ 拒绝取消并可补入账 |
+| **P2-1 ✅** | `ReplenishmentService:612-627` | 发运后打回 IN_PROGRESS 的判据从「!= COMPLETED」扩成「只允许 {PENDING,IN_PROGRESS,ARRIVED?} 这些未终结态」，CANCELLED 一律 409 | 单测：CANCELLED 任务再发运 ⇒ 冲突且状态不变 |
+| **P2-2 ✅** | `ReplenishmentTimeoutScheduler:82-105` | 用**扫描快照直写** CANCELLED → 改成条件更新（`WHERE status=<快照态>`），更新 0 行即放弃 | 单测：并发把 COMPLETED 写回后再跑清扫 ⇒ 不清 |
+| **P2-3 ✅** | `DisputeService:259` | 建消费单前加 `isRestockSession` 闸（补货会话不得进争议/结案扣款链） | 单测：补货会话 ⇒ 409，且不写钱包 |
+| **P2-4 ✅** | `PaymentService:1032-1039` | 充值 PENDING→CANCELLED 前先查渠道单状态（有实付即拒绝取消），避免「已付款回调撞 409 无限重试」 | 单测：渠道已付 ⇒ 拒绝取消并可补入账 |
 
 ### 批 B｜资金幂等与对账口径（4 条，**已全清**）
 
@@ -403,3 +403,110 @@ Mock 账单是**聚合视图**；若跟着过滤成 MOCK，充值（只可能记
 - **新增的判据层**：`RechargeOrderMapperXmlTest` 离线解析 mapper XML（`XMLMapperBuilder` + `getBoundSql`，
   不连库不要 Docker），断言渠道谓词**真下推**——单测里 mock 掉的 mapper 只能证明「调用方传了渠道」，
   证明不了「SQL 用了它」，谓词漏写会静默退化成全渠道求和（正是本缺陷的形态）。
+
+---
+
+## 十四、批 A 修复回执（2026-11-12，补货/争议的状态机与并发覆盖 4/4）
+
+> 四条全部落地并负向验证。两处**修正报告原判**（P2-1 多一层入口、P2-3 闸位应在扣款汇聚点），
+> 一处把判据从「单侧」补成「双侧」（P2-4 取消侧 + 回调侧）。**本轮无新增迁移**。
+
+### 十四.1 P2-1｜任务状态机只进不退（不是只补一处判据）
+
+报告只点了 `generateLinesFromOutbound`（发运后打回 IN_PROGRESS）。复核发现**同一判据有两个消费点**，
+两处都写成「只挡 COMPLETED」：
+
+- `generateLinesForTask`（发运事件）：`if (COMPLETED) return;` ⇒ 发运时把**已取消**的任务
+  重新生成明细并打回 IN_PROGRESS。而「按空任务取消」正是运营用来解冻柜机的手段（冻结判据=
+  `status=IN_PROGRESS 且 check_in_at≠null`）⇒ 一次发运悄悄撤销解冻，柜机重新对消费者停售。
+- `doSubmitTaskLines`（用户改量提交）：`if (COMPLETED) 409;` ⇒ 已取消任务提交明细会把状态打回
+  IN_PROGRESS 并重建未上架行。
+
+改法：抽 `isFulfillableStatus(status)`＝**白名单** {PENDING, IN_PROGRESS, PLANNED}（PLANNED 是历史脏值，
+按待处理同义；COMPLETED/CANCELLED 一律不推进，未知状态也 fail-closed）。两个入口按各自语义处置：
+
+- 发运是仓储侧已经发生的物理事实 ⇒ **跳过 + `log.warn`（带 outboundId/device，提示「在途货需人工核对」）**，
+  不抛错。抛 409 会把出库单卡在在途、货却在车上。
+- 用户提交 ⇒ **409 `REPLENISHMENT_TASK_FINISHED`**（COMPLETED 保留原文案 `ALREADY_COMPLETED`）。
+
+判据：`generateLinesFromOutbound_skipsCancelledTask`（不生成明细、不改状态、连货都不读）、
+`generateLinesFromOutbound_skipsCompletedTask`、`submitTaskLines_rejectsCancelledTask`（409 + 不删旧行 + 不写新行）。
+
+### 十四.2 P2-2｜超时清扫改成条件更新（快照直写会覆盖并发完成）
+
+`ReplenishmentTimeoutScheduler.expireOne` 原来拿**扫描快照**直接 `setStatus(CANCELLED)` + `save`。
+扫描到落库之间补货员可能刚好完成 ⇒ COMPLETED 被改回 CANCELLED，还会连带关掉他的会话、
+按取消收口路线、发一条「存在已上架明细」的 HIGH 告警（货真上过架，任务却算取消）。
+
+改法：新增 `ReplenishmentTaskMapper.cancelIfStatus(taskId, expectedStatus, notes)`
+（`UPDATE … SET status='CANCELLED', notes=#{notes} WHERE task_id=… AND status=#{expectedStatus}`），
+**改到 0 行即整条放弃**——不关会话、不收口路线、不告警、不计入「本次取消 N 条」。
+顺序也调整为「先条件更新成功，再关会话」：先关会话后判状态，抢输了会关掉不该关的会话。
+附注：`notes` 走显式赋值（`updateById 跳 null` 家族），并 `TextTruncate.safeTruncate(…, 256)` 对齐列宽；
+SQL **不写 `updated_at`**——`replenishment_task` 没有这一列（V9 建表）。
+
+判据：`expire_whenTaskMovedOnConcurrently_skipsCloseAndAlert`（cancelIfStatus 返回 0 ⇒ 会话/告警/路线全不碰，
+计数仍是「本次无超时补货任务」）、`expire_whenStillInProgress_cancelsAndClosesSessions`、
+`expire_withAppliedLines_reportsHigh`。
+
+### 十四.3 P2-3｜补货会话的闸放在「扣款汇聚点」，不只是投诉入口
+
+报告落点 `DisputeService:259`（消费者申诉入口）。但扣款发生在结案：`CONFIRM/ADJUST →
+SettlementConfirmDisputeService.prepareConfirmDispute`（无订单 ⇒ `finalizeOrder` 全新落单；有订单 ⇒ 补差扣款）。
+迟到识别兜账（`rescueCancelledSessionWithLateRecognition`）与超时转争议**都不经过消费者入口**——
+只在入口加闸挡不住「补货员开门被端侧迟到识别报到有货未结算，运营在争议单上点确认，
+从**员工余额**扣出这笔货款」（货是商户自己搬进柜子的）。
+
+改法（两处，判据同源 `DeviceValidationService.isNonConsumerSession`，覆盖补货/运维远程/盘点）：
+
+- `prepareConfirmDispute` 开头：非消费者会话 ⇒ 409 `NON_CONSUMER_SESSION_NOT_SETTLEABLE`（**钱这一侧**）。
+- `DisputeService.fileByConsumer`：同样 409（**入口这一侧**），避免建出永远结不了案的死单。
+
+判据：`confirmDisputedItems_restockSession_rejectedWithoutOrderOrWallet`（409 + 无 `orderRepository.save`
++ 无 `applyPaymentDelta`）、`fileByConsumer_restockSession_rejectedBeforeTicketCreated`（409 + 不落单 + 不转状态）。
+
+### 十四.4 P2-4｜充值取消与其回调是同一枚硬币的两面
+
+旧顺序「直接关单，关失败才回查」有两个洞：① 关单接口对「刚付完还没回调」的单常返回成功/未定义错误，
+本地据此置 CANCELLED；② 随后渠道的成功回调撞 `doCreditRecharge` 的状态闸（非 PENDING ⇒ 409），
+微信按非 2xx **无限重投**——用户钱已扣、余额永远不到账，日志里只有一串 409。
+
+改法：
+
+- **取消侧**：`cancelRecharge` 先 `channelAlreadyPaid(order)`（复用 `syncPendingOrder` 查单，查到实收即入账），
+  已实收 ⇒ 409 `ORDER_ALREADY_PAID` 拒绝取消，且**不再关单**（关单只会制造第二次错位）。
+- **回调侧**：`doCreditRecharge` 增加 `reviveCancelled` 变体 `doCreditRechargeAfterChannelPaid`，
+  只由「验签通过的成功通知」与「查单 SUCCESS」两条入口调用。命中已 CANCELLED 立刻补入账并落
+  `RECHARGE_PAID_AFTER_CANCEL` 告警；**只救 CANCELLED**，REFUNDED 等状态重投仍 409（重复支付要人工判）。
+  Mock 确认路径（`confirmRechargeMock`）仍走严格版，不复活。
+
+判据：`cancelRecharge_whenChannelAlreadyPaid_creditsAndRejectsCancel`（409 + 余额已加 + `closeOrder` 从未调用）、
+`doCreditRechargeAfterChannelPaid_whenCancelled_revivesAndAlerts`（PAID + 告警）、
+`doCreditRecharge_whenCancelledWithoutChannelProof_stillRejects`（边界：没有渠道实收凭证不得复活）。
+
+### 十四.5 判据与验证
+
+- 定向 **100 例全绿**（9 个类）：`ReplenishmentServiceOutboundTest`(14) / `ReplenishmentTimeoutSchedulerTest`(3, 新增)
+  / `ReplenishmentTaskConcurrencyTest`(2) / `ReplenishmentCheckInStatusGatesTest`(6) / `ReplenishmentSelfPickupShipTest`(3)
+  / `MerchantSelfReplenishTest`(18) / `SettlementConfirmDisputeTest`(9) / `PaymentServiceTest`(35) / `DisputeTicketSyncTest`(10)。
+- 负向验证（铁律 4，四轮独立注入、各自转红、还原后 md5 逐字节一致）：
+  ① `isFulfillableStatus` 退回「只排 COMPLETED」⇒ P2-1 两例转红；
+  ② 清扫强制 `rows=1`（等价无条件写）⇒ P2-2 并发用例转红；
+  ③ `isNonConsumerSession` 恒 false ⇒ P2-3 两例转红（结算侧 NPE、入口侧 NoSuchElement——即「闸没了会走进去」）；
+  ④ 去掉 `channelAlreadyPaid` 闸 + 禁止复活 ⇒ P2-4 两例转红（一 FAILURE 一 ERROR）。
+- **新增判据层**（铁律 75：修完 bug 同轮落门禁）——`scripts/check-replenishment-checkin-contract.mjs` 扩到 11 组规则：
+  - 规则 10：白名单判据必须存在且**不得退化成黑名单**；每条置 IN_PROGRESS 的路径（切片级）必须有**生效的**闸
+    （`if (!isFulfillableStatus(` / 显式 CANCELLED 判定）；全文出现次数与三个已知方法体吃掉次数对齐
+    （新增路径 ⇒ 门禁判红，不会静默恒绿）；清扫器不得再出现 `taskRepository.save(`/`setStatus(STATUS_CANCELLED)`；
+    `cancelIfStatus` 的注解 SQL 必须同时含「写 CANCELLED」与 `WHERE status = #{expectedStatus}`。
+  - 规则 11：`fileByConsumer` 与 `prepareConfirmDispute` 切片内必须有 `if (DeviceValidationService.isNonConsumerSession(`
+    形态的闸（纯 `includes` 会被 `if (false && …)` 绕过，已按实际情况收紧）。
+  - 门禁自身负向验证：四处判据同时改坏 ⇒ exit 1 并点出 **5 条**；还原后 exit 0。其中一次迭代抓到两个**假红/假绿**：
+    `extractBracedBodies` 会把 `if (!isFulfillableStatus(x)) {` 的调用点当成「方法体」（故定义体判据改用 `some`），
+    以及 `[^)]*` 无法跨过 `STATUS_COMPLETED.equals(...)` 的右括号（故改 `[^;{]*`）。
+
+### 十四.6 部署注意
+
+本轮**无新增迁移**（纯代码 + 测试 + 门禁）⇒ `mvn -o -pl services/trade-service -am -DskipTests package`
++ `up -d --no-deps --force-recreate trade-service` 即可。存量数据不回填：已 CANCELLED 的历史任务不会自动复活，
+也不需要——本轮的判据只作用于「之后发生的发运/提交/清扫」。

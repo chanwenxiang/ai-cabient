@@ -582,6 +582,15 @@ public class PaymentService {
     public RechargeOrderDto cancelRecharge(Long userId, String orderId) {
         return runWithRechargeLock(orderId, 60, () -> {
             RechargeOrder order = self.loadPendingOwnedForUpdate(userId, orderId);
+            // R20 P2-4（2026-11-12）：**先查渠道实收，再关单**。
+            // 旧顺序是「直接关单、关失败才回查」——关单接口对「刚付完还没回调」的单
+            // 通常返回成功或未定义错误，我们据此把本地置 CANCELLED，随后渠道的成功回调
+            // 撞上 doCreditRecharge 的状态闸（非 PENDING ⇒ 409），微信按非 2xx 无限重投：
+            // 用户钱已扣、余额没到账，且日志里只有一串 409。
+            // 现在查单确认已实收就先补入账（syncPendingOrder 成功即 PAID），再拒绝取消。
+            if (channelAlreadyPaid(order)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_PAID);
+            }
             if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
                 cancelPendingAlipay(order);
             } else {
@@ -589,6 +598,19 @@ public class PaymentService {
             }
             return self.markRechargeCancelled(orderId);
         });
+    }
+
+    /**
+     * 渠道侧是否已实收（查单口径）。查单成功即顺带入账（{@code syncPendingOrder} 内部走
+     * {@link #creditRecharge}），所以返回 true 时余额已经加上，不是「只是拒绝取消」。
+     * 未配置支付渠道（Mock/本地）时查单是空操作，按未付处理——由关单结果兜底。
+     */
+    private boolean channelAlreadyPaid(RechargeOrder order) {
+        syncPendingOrder(order);
+        String status = rechargeOrderRepository.findById(order.getOrderId())
+                .map(RechargeOrder::getStatus)
+                .orElse(order.getStatus());
+        return "PAID".equals(status);
     }
 
     /**
@@ -1284,7 +1306,9 @@ public class PaymentService {
             return;
         }
         try {
-            self.doCreditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo);
+            // R20 P2-4：两条入口都是「渠道已实收」——本地查单查到 SUCCESS，或验签通过的成功通知。
+            // 因此允许把已被自动取消/被用户取消的充值单救回来补入账（否则回调会一直 409 重投）。
+            self.doCreditRechargeAfterChannelPaid(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo);
         } finally {
             distributedLockService.unlock(rechargeLockKey(orderId));
         }
@@ -1293,6 +1317,30 @@ public class PaymentService {
     @Transactional
     public void doCreditRecharge(String orderId, Integer notifyAmountCents,
                                   String wxTransactionId, String alipayTradeNo) {
+        doCreditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo, false);
+    }
+
+    /**
+     * 渠道已实收后的补入账（R20 P2-4）：允许把本地已 {@code CANCELLED} 的充值单救回来。
+     *
+     * <p>语义是「钱在渠道侧被扣走了」——不论是超时自动取消后用户又付了，还是关单与支付
+     * 擦肩而过。旧实现遇到非 PENDING 直接 409，微信按非 2xx 重投到天荒地老：用户扣了钱、
+     * 余额永远不到账，人工对账才发现。判据是**渠道签名验过的成功通知**或**查单成功**，
+     * 两者都只由 {@link #creditRechargeNotify}/{@link #syncPendingFromWeChat} 传入。</p>
+     *
+     * <p>只救 CANCELLED：REFUNDED（已退款结案）等状态重投仍按冲突拒绝，那需要人工判断
+     * 是不是重复支付，不能由一条迟到的通知自动决定。</p>
+     */
+    @Transactional
+    public void doCreditRechargeAfterChannelPaid(String orderId, Integer notifyAmountCents,
+                                                 String wxTransactionId, String alipayTradeNo) {
+        doCreditRecharge(orderId, notifyAmountCents, wxTransactionId, alipayTradeNo, true);
+    }
+
+    @Transactional
+    public void doCreditRecharge(String orderId, Integer notifyAmountCents,
+                                  String wxTransactionId, String alipayTradeNo,
+                                  boolean reviveCancelled) {
             RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
                     .orElse(null);
             if (order == null) {
@@ -1301,7 +1349,8 @@ public class PaymentService {
             if ("PAID".equals(order.getStatus())) {
                 return;
             }
-            if (!STATUS_PENDING.equals(order.getStatus())) {
+            boolean revived = reviveCancelled && STATUS_CANCELLED.equals(order.getStatus());
+            if (!STATUS_PENDING.equals(order.getStatus()) && !revived) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
             }
             if (notifyAmountCents != null && notifyAmountCents > 0
@@ -1337,6 +1386,15 @@ public class PaymentService {
             }
             log.info("recharge credited user={} amount={} channel={}",
                     order.getUserId(), order.getAmountCents(), order.getChannel());
+            if (revived) {
+                // 钱确实到了：余额已补上，但「取消后被支付」本身说明关单与支付擦肩而过，
+                // 运营要能看到这类单（对账口径、客服口径都以这条为准）。
+                log.error("recharge credited after local cancel orderId={} channel={} amount={} —— 已补入账，请核对渠道关单时序",
+                        orderId, order.getChannel(), order.getAmountCents());
+                sendOpsAlert("RECHARGE_PAID_AFTER_CANCEL", "充值单已取消但渠道已扣款",
+                        "orderId=" + orderId + " 已自动补入账（余额 +" + order.getAmountCents()
+                                + " 分），请核对关单与支付时序", order);
+            }
             refreshMemberLevelAfterRecharge(order.getUserId());
     }
 

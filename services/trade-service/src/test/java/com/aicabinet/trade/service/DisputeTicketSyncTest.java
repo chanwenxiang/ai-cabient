@@ -90,6 +90,27 @@ class DisputeTicketSyncTest {
     }
 
     @Test
+    void fileByConsumer_restockSession_rejectedBeforeTicketCreated() {
+        // R20 P2-3：补货会话不得开消费者申诉单（user_id 是当班员工，结案会扣本人余额）
+        ShoppingSession restock = new ShoppingSession();
+        restock.setSessionId("S-RS-1");
+        restock.setUserId(100000011L);
+        restock.setDeviceId("CAB-001");
+        restock.setState(SessionState.COMPLETED);
+        restock.setReplenishmentTaskId(77L);
+        when(sessionRepository.findById("S-RS-1")).thenReturn(Optional.of(restock));
+
+        ResponseStatusException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                ResponseStatusException.class,
+                () -> service.fileByConsumer(100000011L,
+                        new com.aicabinet.common.dto.FileDisputeRequest("S-RS-1", "少找货", null, null)));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(disputeRepository, never()).save(any());
+        verify(sessionService, never()).transition(any(), any());
+    }
+
+    @Test
     void closeOpenTicketForSession_waive_marksTicketResolved() {
         DisputeTicket ticket = new DisputeTicket();
         ticket.setTicketId("D-TEST-001");

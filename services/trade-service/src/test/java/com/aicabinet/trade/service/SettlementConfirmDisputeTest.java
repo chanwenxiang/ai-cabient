@@ -53,6 +53,7 @@ class SettlementConfirmDisputeTest {
     @Mock DisplaySnapshotHelper displaySnapshotHelper;
 
     SettlementService settlementService;
+    SettlementConfirmDisputeService confirmDisputeService;
 
     @BeforeEach
     void setUp() {
@@ -71,6 +72,7 @@ class SettlementConfirmDisputeTest {
                 org.mockito.Mockito.mock(OpsAlertDispatcher.class),
                 org.mockito.Mockito.mock(OpsExceptionService.class),
                 settlementService, orderSupport, null);
+        this.confirmDisputeService = confirmSvc;
         org.springframework.test.util.ReflectionTestUtils.setField(confirmSvc, "self", confirmSvc);
         org.springframework.test.util.ReflectionTestUtils.setField(
                 settlementService, "settlementConfirmDisputeService", confirmSvc);
@@ -442,8 +444,37 @@ class SettlementConfirmDisputeTest {
         verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
     }
 
-    private static CabinetOrderLine line(String sku, String name, int qty, int unit) {
-        CabinetOrderLine l = new CabinetOrderLine();
+    /**
+     * R20 P2-3：补货会话不得进「建消费单 + 扣款」链。
+     *
+     * <p>补货员开门被设备迟到识别报到「有货未结算」，运营在争议单上点确认，旧实现会
+     * 直接 finalizeOrder 全新落单，扣的是**补货员本人余额** —— 货是商户自己搬进柜子的。
+     * 判据同时钉住「没有落单」与「没有动钱包」。</p>
+     */
+    @Test
+    void confirmDisputedItems_restockSession_rejectedWithoutOrderOrWallet() {
+        ShoppingSession restock = new ShoppingSession();
+        restock.setSessionId("S-RS");
+        restock.setUserId(100000011L);
+        restock.setDeviceId("CAB-1");
+        restock.setReplenishmentTaskId(9L);
+        when(sessionRepository.findByIdForUpdate("S-RS")).thenReturn(Optional.of(restock));
+        when(sessionRepository.findById("S-RS")).thenReturn(Optional.of(restock));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> confirmDisputeService.prepareConfirmDispute(
+                                "S-RS", List.of(new RecognizedItem("SKU-A", 1, 1f))));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals(com.aicabinet.trade.support.ApiMessages.NON_CONSUMER_SESSION_NOT_SETTLEABLE,
+                ex.getReason());
+        verify(orderRepository, org.mockito.Mockito.never()).save(any());
+        verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
+    }
+
+    private static CabinetOrderLine line(String sku, String name, int qty, int unit) {        CabinetOrderLine l = new CabinetOrderLine();
         l.setSkuId(sku);
         l.setSkuName(name);
         l.setQuantity(qty);

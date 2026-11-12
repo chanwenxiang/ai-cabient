@@ -21,7 +21,7 @@
  *   消费方  `scripts/e2e-replenishment.ps1` 的 `$CheckInContract` 真值块 + 负向用例断言
  *           `scripts/e2e-checkin-contract.ps1`（实跑：终态拒签 + deviceHasCoords 是否真出现在响应里）
  *
- * 七组规则：
+ * 十一组规则：
  *   1. 四条文案必须是 Java 常量的**子串**且长度 ≥ 8（只写「约」这种碎片等于没断言）
  *   2. `MaxDistanceDefaultM` 必须等于服务端 upsertIfAbsent 的默认值
  *   3. 边界用例必须夹住默认值：`BoundaryInsideM < MaxDistanceDefaultM < BoundaryOutsideM`
@@ -40,6 +40,11 @@
  *   8. 补货任务的**展示面/待办取数必须下推 SQL**（`findRestockingNowTasks` / `findWorkbenchTasks` /
  *      `findDeviceIdsByStatusAndDeviceIn`），不得回到「取上限窗口
  *      （`findByStatusInOrderByCreatedAtAsc(…, 500)`）再内存过滤」——见下方 B13 的成因。
+ *   9. 备货单「改量重提」判据的跨端契约（后端字段 → 前端判据）。
+ *  10. 补货任务状态机**只进不退**：能否推进必须白名单枚举（不得只排 COMPLETED），
+ *      每条置 IN_PROGRESS 的路径都要过闸；超时清扫必须条件更新（禁止快照直写）。
+ *  11. 补货/运维/盘点会话不得进争议与结算扣款链（`isNonConsumerSession` 两处闸：
+ *      入口挡单 + `prepareConfirmDispute` 扣款汇聚点）。
  *
  *   node scripts/check-replenishment-checkin-contract.mjs
  */
@@ -733,6 +738,130 @@ if (!/PREP_TASK_ENDED_STATUSES\s*=\s*\[[^\]]*'CANCELLED'/.test(prepUtilSrc)) {
   );
 }
 
+// ── 规则 10：补货任务状态机「只进不退」+ 超时清扫必须条件更新（R20 P2-1/P2-2）────
+// 缺陷形态：判「能不能往前走」写成**黑名单**（只挡 COMPLETED），漏掉 CANCELLED ⇒ 取消被撤销。
+// 这里钉三件事：白名单判据还在、每条置 IN_PROGRESS 的路径都过它、清扫不再用快照直写。
+const SCHEDULER_FILE = join(TRADE_MAIN, 'service', 'ReplenishmentTimeoutScheduler.java');
+const serviceMasked = maskJavaComments(serviceSrc);
+const fulfilBodies = extractBracedBodies(serviceMasked, 'isFulfillableStatus');
+if (fulfilBodies.length === 0) {
+  problems.push(
+    'ReplenishmentService 里找不到 isFulfillableStatus(...) —— ' +
+      '「任务能否推进」的白名单判据被删，CANCELLED 会被发运/提交明细重新打回 IN_PROGRESS'
+  );
+} else if (
+  // some 而不是 every：extractBracedBodies 会把「if (!isFulfillableStatus(x)) {」的**调用点**也
+  // 当成一个「体」（括号配平后紧跟 `{`），那片当然不含状态常量。判据只要有一片是真的定义体。
+  !fulfilBodies.some((b) => b.includes('STATUS_PENDING') && b.includes('STATUS_IN_PROGRESS'))
+) {
+  problems.push(
+    'isFulfillableStatus 的判据不再同时包含 STATUS_PENDING 与 STATUS_IN_PROGRESS —— ' +
+      '白名单被改窄（PENDING 任务将无法发运生成明细）'
+  );
+}
+if (fulfilBodies.some((b) => /!STATUS_COMPLETED\.equals/.test(b))) {
+  problems.push(
+    'isFulfillableStatus 退化成「只排 COMPLETED」的黑名单写法 —— ' +
+      '正是 P2-1 的成因（CANCELLED 会被复活）；未终结态必须白名单枚举'
+  );
+}
+// 「新增了置 IN_PROGRESS 的路径」必须被看见：三个已知方法体吃掉的次数必须等于全文出现次数，
+// 多出来的一处就是门禁不认识的路径（它有没有终态闸没人知道）。
+const RISER_METHODS = ['generateLinesForTask', 'doCheckInTask', 'doSubmitTaskLines'];
+// 必须带 task. 前缀：`route.setStatus(STATUS_IN_PROGRESS)` 是路线状态，不在这条判据里
+const RISER = 'task.setStatus(STATUS_IN_PROGRESS)';
+const riserTotal = serviceMasked.split(RISER).length - 1;
+let riserCovered = 0;
+for (const method of RISER_METHODS) {
+  const bodies = extractBracedBodies(serviceMasked, method);
+  if (bodies.length === 0) {
+    problems.push(`ReplenishmentService 里切不出 ${method} 方法体（签名/结构漂移？）—— 规则 10 失去锚点`);
+    continue;
+  }
+  for (const body of bodies) {
+    const hits = body.split(RISER).length - 1;
+    if (hits === 0) continue;
+    riserCovered += hits;
+    // 判「闸真的生效」而不是「字符串出现过」：`if (false && !isFulfillableStatus(…))` 这类
+    // 关掉闸的写法必须判红（2026-11-12 负向验证时发现纯 includes 会把失效闸放过去）。
+    const hasGate =
+      /if\s*\(\s*!?\s*isFulfillableStatus\s*\(/.test(body) ||
+      // doCheckInTask 用显式双终态闸：`if (COMPLETED.equals(..) || CANCELLED.equals(..))` ——
+      // 中间隔着 `equals(...)` 的右括号，所以这里不能用 `[^)]*`（会漏配，把正确写法判成缺闸）。
+      /if\s*\([^;{]*STATUS_CANCELLED\.equals\s*\(/.test(body);
+    if (!hasGate) {
+      problems.push(
+        `${method} 会把任务置 IN_PROGRESS 却没有生效的终态闸（isFulfillableStatus / 显式 CANCELLED 判定都没有）—— ` +
+          '已取消或已完成的任务会被这条路径复活'
+      );
+    }
+  }
+}
+if (riserTotal !== riserCovered) {
+  problems.push(
+    `ReplenishmentService 里有 ${riserTotal - riserCovered} 处置 IN_PROGRESS 不在已知方法体内 —— ` +
+      '新路径必须先补终态闸，再加进规则 10 的 RISER_METHODS（否则门禁对它恒绿）'
+  );
+}
+
+const schedulerSrc = maskJavaComments(read(SCHEDULER_FILE));
+if (!schedulerSrc.includes('cancelIfStatus(')) {
+  problems.push(
+    'ReplenishmentTimeoutScheduler 不再调用 cancelIfStatus(...) —— ' +
+      '超时清扫退回「用扫描快照直写 CANCELLED」，会把并发完成的 COMPLETED 覆盖成取消'
+  );
+}
+if (/taskRepository\.save\s*\(/.test(schedulerSrc) || schedulerSrc.includes('setStatus(STATUS_CANCELLED)')) {
+  problems.push(
+    'ReplenishmentTimeoutScheduler 里又出现了「改实体再 save」的写法 —— ' +
+      '清扫写状态必须走条件更新（WHERE status=快照态），否则并发完成的任务会被改回 CANCELLED'
+  );
+}
+const taskMapperSrc = read(TASK_MAPPER_FILE);
+const cancelIfBodies = [
+  ...mapperSrc.matchAll(/@Update\("""([\s\S]*?)"""\)\s*int cancelIfStatus/gu)
+].map((m) => m[1]);
+if (cancelIfBodies.length === 0) {
+  problems.push('ReplenishmentTaskMapper 里找不到 cancelIfStatus 的 @Update 注解 SQL —— 条件更新判据丢了');
+} else if (
+  !cancelIfBodies.every((sql) => /status\s*=\s*#\{expectedStatus\}/.test(sql) && /status\s*=\s*'CANCELLED'/.test(sql))
+) {
+  problems.push(
+    'cancelIfStatus 的 SQL 不再同时含「写 CANCELLED」与「WHERE status=#{expectedStatus}」—— ' +
+      '条件更新退化成无条件覆盖，P2-2 回归'
+  );
+}
+
+// ── 规则 11：补货/运维/盘点会话不得进争议与结算扣款链（R20 P2-3）───────────────
+// 这类会话的 user_id 是当班员工：争议结案 CONFIRM/ADJUST 会 finalizeOrder 全新落单，
+// 扣的是**员工余额**（货是商户自己搬进柜子的）。两处闸都要在：入口挡单 + 扣款汇聚点挡钱。
+const CONFIRM_DISPUTE_FILE = join(TRADE_MAIN, 'service', 'SettlementConfirmDisputeService.java');
+const DISPUTE_FILE = join(TRADE_MAIN, 'service', 'DisputeService.java');
+const NON_CONSUMER_KEY = 'NON_CONSUMER_SESSION_NOT_SETTLEABLE';
+const confirmSrc = maskJavaComments(read(CONFIRM_DISPUTE_FILE));
+const prepareBodies = extractBracedBodies(confirmSrc, 'prepareConfirmDispute');
+if (prepareBodies.length === 0) {
+  problems.push('SettlementConfirmDisputeService 里切不出 prepareConfirmDispute 方法体 —— 规则 11 失去锚点');
+} else if (!prepareBodies.every((b) => /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b))) {
+  problems.push(
+    'prepareConfirmDispute 不再判 isNonConsumerSession(...) —— ' +
+      '补货员开门被迟到识别报到「有货未结算」后，运营点确认会从员工余额里扣货款（P2-3）'
+  );
+}
+if (!confirmSrc.includes(NON_CONSUMER_KEY)) {
+  problems.push(`prepareConfirmDispute 的拒绝文案不再是 ${NON_CONSUMER_KEY} —— 客户端按文案分流会错`);
+}
+const disputeSrc = maskJavaComments(read(DISPUTE_FILE));
+const fileBodies = extractBracedBodies(disputeSrc, 'fileByConsumer');
+if (fileBodies.length === 0) {
+  problems.push('DisputeService 里切不出 fileByConsumer 方法体 —— 规则 11 失去锚点');
+} else if (!fileBodies.every((b) => /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b))) {
+  problems.push(
+    'DisputeService.fileByConsumer 不再判 isNonConsumerSession(...) —— ' +
+      '补货会话能开消费者申诉单，而这类单永远结不了案（扣款闸会拒），运营界面成死单'
+  );
+}
+
 if (problems.length) {
   fail(`\n  ${problems.join('\n  ')}\n`);
 }
@@ -743,5 +872,7 @@ console.log(
     `终态闸与开门共用同一条文案、坐标判据唯一（${KEY_COORDS_PREDICATE}）、` +
     `deviceHasCoords 已声明且被实跑脚本消费；` +
     `补货任务取数全部下推（${PUSHED_DOWN_QUERY} / findWorkbenchTasks，无上限窗口）；` +
-    `备货预览在 prepPreview 方法体内查+回填 lastTaskStatus，两页（prep-generate/prep-list）均消费判据且包装函数未空心化`
+    `备货预览在 prepPreview 方法体内查+回填 lastTaskStatus，两页（prep-generate/prep-list）均消费判据且包装函数未空心化；` +
+    '任务状态机只进不退（白名单判据 + 每条置 IN_PROGRESS 路径过闸）、超时清扫走 cancelIfStatus 条件更新、' +
+    '补货/运维/盘点会话两处闸（fileByConsumer / prepareConfirmDispute）均在'
 );

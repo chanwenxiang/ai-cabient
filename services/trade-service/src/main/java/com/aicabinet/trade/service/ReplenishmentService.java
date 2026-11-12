@@ -609,7 +609,16 @@ public class ReplenishmentService {
     }
 
     private void generateLinesForTask(ReplenishmentTask task, Long outboundId) {
-        if (STATUS_COMPLETED.equals(task.getStatus())) {
+        // R20 P2-1（2026-11-12）：终态一律不复活。旧判据只挡 COMPLETED，于是已被运营
+        // 「按空任务取消」的任务会在发运事件到达时被重新生成明细并打回 IN_PROGRESS ——
+        // 取消是运营解冻柜机（status=IN_PROGRESS 且 check_in_at≠null 即冻结售卖）的正规手段，
+        // 被一次发运悄悄撤销，柜机重新对消费者停售，而屏幕上没人动过它。
+        // 这里刻意「跳过 + 告警」而不是抛错：发运是物理事实已经发生的仓储动作，
+        // 抛 409 只会把出库单卡在在途、货却已在车上；后续由运营按异常单处理这批货。
+        if (!isFulfillableStatus(task.getStatus())) {
+            log.warn("generateLinesFromOutbound skipped terminal task task={} status={} outbound={} device={}"
+                            + " —— 该出库单对应的补货任务已终态，明细未生成，需人工核对在途货",
+                    task.getTaskId(), task.getStatus(), outboundId, task.getDeviceId());
             return;
         }
         if (!taskLineRepository.findByTaskIdAndAppliedFalse(task.getTaskId()).isEmpty()) {
@@ -822,6 +831,12 @@ public class ReplenishmentService {
         ReplenishmentTask task = requireTaskForUpdate(taskId);
         if (STATUS_COMPLETED.equals(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
+        }
+        // R20 P2-1：与 generateLinesForTask 同一判据——终态不可复活。旧实现只挡 COMPLETED，
+        // 已取消的任务提交明细会把 status 打回 IN_PROGRESS（并重建一批未上架行），
+        // 于是「运营取消任务以解冻柜机」被一次改量提交撤销。提交是用户动作，这里按 409 拒绝。
+        if (!isFulfillableStatus(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_FINISHED);
         }
         // 开门柜提交数量按台账封顶（2026-10-28 用户实测 EG943322621391：台账可补 2 件，
         // 小程序数量却能加到 9）。货道柜有 validateRestockLine/自动分配截断两层钳制，
@@ -1493,6 +1508,22 @@ public class ReplenishmentService {
 
     private static boolean isTerminalRouteStatus(String status) {
         return STATUS_CANCELLED.equals(status) || STATUS_COMPLETED.equals(status);
+    }
+
+    /**
+     * 任务是否还能被推着往前走（R20 P2-1）。
+     *
+     * <p>「能推进」的状态白名单而不是「不能推进」的黑名单：任务状态只有
+     * PENDING / IN_PROGRESS / COMPLETED / CANCELLED 四种（字典 `replenishment_task_status`），
+     * 黑名单一旦漏一种，那条路径就会把终态复活（旧代码两处都只写了 COMPLETED，
+     * CANCELLED 全部漏掉）。白名单还顺带 fail-closed 掉拼错/历史脏值。
+     * 与 {@code doCheckInTask} 的终态闸同口径：要复活终态必须走显式改派/重建任务。</p>
+     *
+     * <p>{@code PLANNED} 是路线状态（`replenishment_route_status`），任务上出现它是历史脏值；
+     * 按「待处理」同义处理，不做终态。</p>
+     */
+    private static boolean isFulfillableStatus(String status) {
+        return STATUS_PENDING.equals(status) || STATUS_IN_PROGRESS.equals(status) || PLANNED.equals(status);
     }
 
     private void cleanupOrphanOutboundsForTasks(Long operatorId, List<ReplenishmentTask> tasks) {

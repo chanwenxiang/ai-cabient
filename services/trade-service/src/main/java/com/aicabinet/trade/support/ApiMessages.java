@@ -149,6 +149,12 @@ public final class ApiMessages {
     public static final String DISPUTE_APPEAL_CLOSED = "本单已结案，不可再申诉";
     public static final String DISPUTE_ITEMS_REQUIRED = "请至少选择一件商品";
     public static final String DISPUTE_RESOLUTION_TYPE_REQUIRED = "请指定结案方式（KEEP/WAIVE/CONFIRM/ADJUST）";
+    /**
+     * R20 P2-3：非消费者会话（补货/运维远程/盘点）不得进入争议与结算扣款链。
+     * 这些会话是商户自己人开的门，柜里的货不是「卖出去的」，确认改单扣的是补货员余额。
+     */
+    public static final String NON_CONSUMER_SESSION_NOT_SETTLEABLE =
+            "该会话是补货/运维/盘点开门，不是消费者购物会话，不能建单扣款或发起消费申诉";
     public static final String ORDER_ALREADY_REFUNDED = "订单已退款";
 
     // 商品/运营

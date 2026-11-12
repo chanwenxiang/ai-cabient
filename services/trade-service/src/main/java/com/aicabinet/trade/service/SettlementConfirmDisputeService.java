@@ -157,6 +157,16 @@ public class SettlementConfirmDisputeService {
         sessionRepository.findByIdForUpdate(sessionId);
         ShoppingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        // R20 P2-3（2026-11-12）：非消费者会话（补货 / 运维远程 / 盘点）不得走到这里。
+        // 这条是「建消费单 + 扣款」的唯一汇聚点（无订单时 finalizeOrder 全新落单、
+        // 有订单时补差扣款），此前只判会话状态与订单状态，于是补货员开门被设备迟到识别
+        // 报到「有货未结算」后，运营在争议单上点确认就能从**补货员的余额**里扣出这笔货款——
+        // 货是商户自己搬进柜子的，钱却记在员工头上。闸放在汇聚点而不是只放投诉入口：
+        // 迟到识别兜账（rescueCancelledSessionWithLateRecognition）与超时转争议都不经过消费者入口。
+        if (DeviceValidationService.isNonConsumerSession(session)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.NON_CONSUMER_SESSION_NOT_SETTLEABLE);
+        }
 
         var existing = orderRepository.findBySessionId(sessionId);
         if (existing.isEmpty()) {

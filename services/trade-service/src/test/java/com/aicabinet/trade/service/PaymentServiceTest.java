@@ -91,6 +91,90 @@ class PaymentServiceTest {
         assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
     }
 
+    // ── R20 P2-4：充值取消先查渠道实收（2026-11-12）──
+
+    /** 渠道已实收 ⇒ 先补入账再拒绝取消（旧实现直接关单，回调会撞 409 无限重投）。 */
+    @Test
+    void cancelRecharge_whenChannelAlreadyPaid_creditsAndRejectsCancel() {
+        useConfiguredWeChatPay();
+        RechargeOrder order = pendingOrder("R-PAID", 10001L);
+        when(rechargeOrderRepository.findByIdForUpdate("R-PAID")).thenReturn(Optional.of(order));
+        when(weChatPayClient.queryByOutTradeNo("R-PAID")).thenReturn(weChatQuerySuccess(500, "WX-TXN-1"));
+        when(distributedLockService.tryLock(PaymentService.rechargeLockKey("R-PAID"), 30L, 5L))
+                .thenReturn(true);
+        PaymentOperation credit = new PaymentOperation();
+        credit.setOperationId("BL-CREDIT");
+        when(balanceLedgerService.change(eq(10001L), eq(500), eq("RECHARGE"), eq("R-PAID"),
+                anyString(), anyString())).thenReturn(credit);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.cancelRecharge(10001L, "R-PAID"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("PAID", order.getStatus());
+        verify(balanceLedgerService).change(eq(10001L), eq(500), eq("RECHARGE"), eq("R-PAID"),
+                anyString(), anyString());
+        // 钱已经到账就不能再关单（关单只会制造「渠道已付、本地取消」的第二次错位）
+        verify(weChatPayClient, never()).closeOrder(anyString());
+    }
+
+    /** 迟到的成功回调命中已取消单：救回来补入账 + 告警留痕（不再 409 让渠道重投到天亮）。 */
+    @Test
+    void doCreditRechargeAfterChannelPaid_whenCancelled_revivesAndAlerts() {
+        RechargeOrder order = pendingOrder("R-REV", 10001L);
+        order.setStatus("CANCELLED");
+        when(rechargeOrderRepository.findByIdForUpdate("R-REV")).thenReturn(Optional.of(order));
+        PaymentOperation credit = new PaymentOperation();
+        credit.setOperationId("BL-REVIVE");
+        when(balanceLedgerService.change(eq(10001L), eq(500), eq("RECHARGE"), eq("R-REV"),
+                anyString(), anyString())).thenReturn(credit);
+
+        paymentService.doCreditRechargeAfterChannelPaid("R-REV", 500, "WX-TXN-2", null);
+
+        assertEquals("PAID", order.getStatus());
+        assertNotNull(order.getPaidAt());
+        verify(balanceLedgerService).change(eq(10001L), eq(500), eq("RECHARGE"), eq("R-REV"),
+                anyString(), anyString());
+        verify(opsAlertDispatcher).send(eq("RECHARGE_PAID_AFTER_CANCEL"), anyString(), anyString(), anyMap());
+        verify(rechargeOrderRepository).save(order);
+    }
+
+    /** 边界：Mock 确认（非渠道口径）不得复活已取消单——只有渠道实收才允许。 */
+    @Test
+    void doCreditRecharge_whenCancelledWithoutChannelProof_stillRejects() {
+        RechargeOrder order = pendingOrder("R-REJ", 10001L);
+        order.setStatus("CANCELLED");
+        when(rechargeOrderRepository.findByIdForUpdate("R-REJ")).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.doCreditRecharge("R-REJ", 500, null, null));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("CANCELLED", order.getStatus());
+        verify(balanceLedgerService, never()).change(anyLong(), anyInt(), anyString(), anyString(),
+                anyString(), anyString());
+    }
+
+    private void useConfiguredWeChatPay() {
+        weChatPayProperties = new WeChatPayProperties(
+                true, "app", "mch", "notify", "v3key", "serial", "key", "cert", true);
+        paymentService = new PaymentService(
+                rechargeOrderRepository, userInfoRepository, userAccountRepository,
+                weChatPayProperties, securityProperties,
+                weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
+                balanceLedgerService, systemConfigService, notificationService, payScoreService,
+                distributedLockService, paymentOperationRepository, opsAlertDispatcher, memberService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(paymentService, "self", paymentService);
+    }
+
+    private static ObjectNode weChatQuerySuccess(int totalCents, String txnId) {
+        ObjectNode remote = new ObjectMapper().createObjectNode();
+        remote.put("trade_state", "SUCCESS");
+        remote.put("transaction_id", txnId);
+        remote.putObject("amount").put("total", totalCents);
+        return remote;
+    }
+
     @Test
     void refundRecharge_mockMode_debitsBalance() {
         RechargeOrder order = paidOrder("R002", 10001L, 500);

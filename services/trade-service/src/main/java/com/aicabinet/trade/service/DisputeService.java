@@ -259,6 +259,14 @@ public class DisputeService {
         if (session.getState() != SessionState.COMPLETED && session.getState() != SessionState.DISPUTED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
+        // R20 P2-3（2026-11-12）：补货/运维/盘点会话不得开消费者申诉单。
+        // 这类会话的 user_id 是当班员工，后续结案（CONFIRM/ADJUST）会从他的余额里扣货款；
+        // 扣款闸在 SettlementConfirmDisputeService.prepareConfirmDispute（汇聚点），
+        // 这里再挡一次入口，避免工单建出来却永远结不了案（运营界面上是个死单）。
+        if (DeviceValidationService.isNonConsumerSession(session)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.NON_CONSUMER_SESSION_NOT_SETTLEABLE);
+        }
         var existing = disputeRepository.findBySessionId(session.getSessionId());
         if (existing.isPresent()) {
             String st = existing.get().getStatus();

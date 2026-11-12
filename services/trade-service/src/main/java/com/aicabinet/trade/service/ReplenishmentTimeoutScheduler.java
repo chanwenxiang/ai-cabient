@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.mapper.ReplenishmentRouteMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
+import com.aicabinet.trade.support.TextTruncate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -21,6 +22,7 @@ import java.util.List;
 @Service
 public class ReplenishmentTimeoutScheduler {
     private static final String REPLENISHMENT_TIMEOUT = "replenishment-timeout";
+    private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String STATUS_COMPLETED = "COMPLETED";
 
@@ -62,7 +64,7 @@ public class ReplenishmentTimeoutScheduler {
         try {
         Instant cutoff = Instant.now().minus(STALE_CHECK_IN_HOURS, ChronoUnit.HOURS);
         List<ReplenishmentTask> stale = taskRepository.findByStatusAndCheckInAtBefore(
-                "IN_PROGRESS", cutoff, 100);
+                STATUS_IN_PROGRESS, cutoff, 100);
         int n = 0;
         for (ReplenishmentTask task : stale) {
             if (expireStaleTaskSafely(task)) {
@@ -86,26 +88,38 @@ public class ReplenishmentTimeoutScheduler {
 
     private boolean expireStaleTaskSafely(ReplenishmentTask task) {
         try {
-            expireOne(task);
-            return true;
+            return expireOne(task);
         } catch (Exception e) {
             log.warn("expire stale replenishment task failed taskId={}", task.getTaskId(), e);
             return false;
         }
     }
 
-    private void expireOne(ReplenishmentTask task) {
+    /** @return true=本次确实把任务取消掉了（计数只认这个，被并发抢先的不算） */
+    private boolean expireOne(ReplenishmentTask task) {
         Long taskId = task.getTaskId();
-        sessionService.closeRestockSessionsForTask(taskId, "补货任务超时自动关闭会话");
 
         boolean hasApplied = taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).stream()
                 .anyMatch(ReplenishmentTaskLine::isApplied);
 
         String note = "签到超过" + STALE_CHECK_IN_HOURS + "小时未完成，系统自动取消以恢复售卖";
-        task.setStatus(STATUS_CANCELLED);
         String prev = task.getNotes();
-        task.setNotes(prev == null || prev.isBlank() ? note : (prev + "；" + note));
-        taskRepository.save(task);
+        String mergedNotes = prev == null || prev.isBlank() ? note : (prev + "；" + note);
+
+        // R20 P2-2（2026-11-12）：条件更新取代「快照直写」。
+        // 扫描拿到的是几秒前的 IN_PROGRESS 快照；这期间补货员可能刚好完成（或运营取消）。
+        // 旧实现无条件 setStatus(CANCELLED) + save ⇒ 把别人的 COMPLETED 覆盖成 CANCELLED，
+        // 还会连带关掉他的会话、把路线按取消收口。判据必须回数据库再看一眼：只有仍是
+        // IN_PROGRESS 才落 CANCELLED，改到 0 行即整体放弃（不关会话/不收口路线/不告警）。
+        int rows = taskRepository.cancelIfStatus(taskId, STATUS_IN_PROGRESS,
+                TextTruncate.safeTruncate(mergedNotes, 256));
+        if (rows <= 0) {
+            log.info("stale replenishment task no longer IN_PROGRESS, skip taskId={} snapshotStatus={}",
+                    taskId, task.getStatus());
+            return false;
+        }
+
+        sessionService.closeRestockSessionsForTask(taskId, "补货任务超时自动关闭会话");
         finalizeRouteIfReady(task.getRouteId());
 
         opsExceptionService.report(
@@ -113,6 +127,7 @@ public class ReplenishmentTimeoutScheduler {
                         + (hasApplied ? "（存在已上架明细，请核对库存）" : ""));
         log.warn("stale replenishment task cancelled taskId={} device={} hasApplied={}",
                 taskId, task.getDeviceId(), hasApplied);
+        return true;
     }
 
     private void finalizeRouteIfReady(Long routeId) {

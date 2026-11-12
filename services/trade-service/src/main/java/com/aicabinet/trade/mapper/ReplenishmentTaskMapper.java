@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
@@ -220,6 +221,29 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
     }
 
     Instant selectLastCompletedAtByDeviceId(@Param("deviceId") String deviceId);
+
+    /**
+     * 条件取消（R20 P2-2）：只有「扫描时读到的那一状态」仍然成立才落 CANCELLED。
+     *
+     * <p>为什么不能拿扫描快照直写：超时清扫先查一批 IN_PROGRESS 快照，再逐条
+     * {@code save(task)} 覆盖——这中间的几秒里补货员可能已经完成任务（COMPLETED）。
+     * 快照直写会把 COMPLETED 改回 CANCELLED，并且带着「存在已上架明细」的告警一起落库，
+     * 于是任务被算成取消（业绩/路线收口全按取消算），库存却真真切切上过架。</p>
+     *
+     * <p>返回 0 表示状态已被别人推进，调用方必须整体放弃这条（不关会话、不收口路线、不告警）。</p>
+     *
+     * <p>刻意不写 {@code updated_at}：{@code replenishment_task} 没有该列（V9 建表），
+     * 而 MP 的自动填充在这里不生效（注解 SQL 直写）。notes 走显式赋值——这正是
+     * `updateById 跳 null` 家族要绕开的写法。</p>
+     */
+    @Update("""
+            UPDATE replenishment_task
+               SET status = 'CANCELLED', notes = #{notes}
+             WHERE task_id = #{taskId} AND status = #{expectedStatus}
+            """)
+    int cancelIfStatus(@Param("taskId") Long taskId,
+                       @Param("expectedStatus") String expectedStatus,
+                       @Param("notes") String notes);
 
     default Optional<Instant> findLastCompletedAtByDeviceId(String deviceId) {
         return Optional.ofNullable(selectLastCompletedAtByDeviceId(deviceId));

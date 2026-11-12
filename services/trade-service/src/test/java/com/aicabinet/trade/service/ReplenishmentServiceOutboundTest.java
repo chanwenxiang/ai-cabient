@@ -163,8 +163,7 @@ class ReplenishmentServiceOutboundTest {
     }
 
     @Test
-    void generateLinesFromOutbound_skipsWhenManualLinesExist() {
-        ReplenishmentTask task = new ReplenishmentTask();
+    void generateLinesFromOutbound_skipsWhenManualLinesExist() {        ReplenishmentTask task = new ReplenishmentTask();
         task.setTaskId(11L);
         task.setDeviceId("CAB-001");
         task.setStatus("PLANNED");
@@ -209,6 +208,65 @@ class ReplenishmentServiceOutboundTest {
         assertEquals("B20260701-004", saved.getBatchNo());
         verify(deviceSlotService, never()).allocateRestockQuantity(anyString(), anyString(), org.mockito.ArgumentMatchers.anyInt());
         verify(deviceSlotService, never()).hasSkuSlots(anyString(), anyString());
+    }
+
+    // ── R20 P2-1：终态不可复活（2026-11-12）──
+
+    /** 已取消任务收到发运事件：不生成明细、不打回 IN_PROGRESS，只留告警日志。 */
+    @Test
+    void generateLinesFromOutbound_skipsCancelledTask() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(40L);
+        task.setDeviceId("CAB-001");
+        task.setStatus("CANCELLED");
+
+        when(taskRepository.findByOutboundId(104L)).thenReturn(List.of(task));
+
+        replenishmentService.generateLinesFromOutbound(104L);
+
+        verify(taskLineRepository, never()).save(any());
+        verify(taskRepository, never()).save(any());
+        assertEquals("CANCELLED", task.getStatus());
+        // 连货都不该去读：读出来也没地方落
+        verify(warehouseService, never()).outboundLinesForDevice(anyLong(), anyString());
+    }
+
+    /** 已完成任务同理（旧实现已挡，钉住防回退）。 */
+    @Test
+    void generateLinesFromOutbound_skipsCompletedTask() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(41L);
+        task.setDeviceId("CAB-001");
+        task.setStatus("COMPLETED");
+
+        when(taskRepository.findByOutboundId(105L)).thenReturn(List.of(task));
+
+        replenishmentService.generateLinesFromOutbound(105L);
+
+        verify(taskLineRepository, never()).save(any());
+        verify(taskRepository, never()).save(any());
+    }
+
+    /** 已取消任务提交明细：409 且不删旧行、不写新行、状态不变。 */
+    @Test
+    void submitTaskLines_rejectsCancelledTask() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(42L);
+        task.setDeviceId("CAB-001");
+        task.setStatus("CANCELLED");
+
+        when(taskRepository.findByIdForUpdate(42L)).thenReturn(java.util.Optional.of(task));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.submitTaskLines(100000001L, 42L,
+                        new com.aicabinet.common.dto.SubmitReplenishmentLinesRequest(List.of())));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals(com.aicabinet.trade.support.ApiMessages.REPLENISHMENT_TASK_FINISHED, ex.getReason());
+        assertEquals("CANCELLED", task.getStatus());
+        verify(taskLineRepository, never()).deleteByTaskIdAndAppliedFalse(anyLong());
+        verify(taskLineRepository, never()).save(any());
+        verify(taskRepository, never()).save(any());
     }
 
     @Test
