@@ -111,4 +111,18 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
     default List<Object[]> sumBookQtyBySlot(String deviceId) {
         return ColumnMapRows.toObjectRows(selectSumBookQtyBySlot(deviceId), 2);
     }
+
+    /**
+     * 集群就绪 P-1：批次量<b>单语句原子扣减</b>（DB 层兜底，勿改回「读→算→写」）。
+     *
+     * <p>返回影响行数：1 = 扣减成功；0 = 批次现存不足（并发竞争失败/本身不足）。
+     * 归零自动置 {@code DEPLETED}；并发时被别人先扣走的量不会重复扣
+     * （{@code quantity >= take} 谓词与扣减同一条 UPDATE，无检查-写入间隙）。</p>
+     */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE device_sku_lot SET quantity = quantity - #{take}, "
+                    + "status = CASE WHEN quantity - #{take} <= 0 THEN 'DEPLETED' ELSE status END, "
+                    + "updated_at = NOW() "
+                    + "WHERE lot_id = #{lotId} AND quantity >= #{take}")
+    int deductQuantityAtomic(@Param("lotId") String lotId, @Param("take") int take);
 }

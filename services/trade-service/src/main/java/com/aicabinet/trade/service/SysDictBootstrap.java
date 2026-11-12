@@ -387,6 +387,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "DOOR_OPEN_TOO_LONG", "长时间未关门", "OPEN_TIMEOUT", "开门超时", "UPLOAD_STUCK", "录像上传滞留",
                 "RECOGNITION_STUCK", "识别滞留", "RECOGNITION_TIMEOUT", "识别超时",
                 "RECOGNITION_FAILED", "识别存疑需人工审核",
+                // DC-27 vision 链删除后 VisionResultIngestService 仍写 LATE_RECOGNITION
+                //（识别晚到落库）——check:exception-type-dict 钉住「代码会写则字典必须有」
+                "LATE_RECOGNITION", "识别结果晚到",
                 "JIANGYI_CLASS_MAPPING_MISS", "将邑识别映射未命中",
                 "JIANGYI_PARAMS_NOT_READY", "识别参数未就绪",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",

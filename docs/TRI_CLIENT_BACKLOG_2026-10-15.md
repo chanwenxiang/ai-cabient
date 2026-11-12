@@ -85,11 +85,11 @@
 
 | # | 优先级 | 项 | 证据（实跑核过） | 改法 | 负验证（改前红 → 改后绿） |
 |---|---|---|---|---|---|
-| P-1 | **多副本硬门槛** | 库存扣减原子化 | `InventoryService.java:318-337`、`InventoryLotService.java:145-200` 读→算→写，实体无 `@Version`，DB 无 `CHECK (quantity>=0)` | 改 `UPDATE … SET qty = qty-? WHERE id=? AND qty >= ?` 单语句 + 迁移补 `CHECK` 约束；影响行数 0 视为抢锁失败走既有重试 | 并发两条同槽位扣减的集成测试（同一 `CompletableFuture` 双打），**改前**能出现负库存或双成功，**改后**必须一条成功一条失败 |
-| P-2 | **多副本硬门槛** | 钱包流水业务键唯一索引 | `line_wallet_ledger`（V133:101）/`merchant_wallet_ledger`（V139:69-72）/`staff_wallet_ledger`（V359:27）**只有普通索引**；对照 `merchant_fee_ledger`（V355:18）、`commission_clawback`（V361:21）**已有**唯一索引 ⇒ 同仓做法不一致 | 照 V355/V361 写法补 `(业务键, 类型)` 唯一索引；**先跑存量重复检测 SQL**，有脏数据先出清理迁移再建索引（否则迁移直接失败） | 重复流水插入测试（同业务键连插两次），改前双成功、改后第二次抛约束冲突；并把「存量重复检测」脚本一次实跑结果登记在迁移头注释 |
+| P-1 | **多副本硬门槛** | ~~库存扣减原子化~~ ✅ **已完成（2026-11-12，V457 + 原子 UPDATE）** | 复核后缺口聚焦在批次表：`device_sku_lot` 无 version 无 CAS（汇总表 mapper.save 已有版本 CAS）；`InventoryLotService.tryDeductFromSellableLot` 与 `InventoryService.applyDelta` 改单语句 `UPDATE … SET qty = qty-? WHERE qty >= ?`（影响行数 0 = 不足/抢锁失败）+ V457 双表 `CHECK (quantity>=0)`（dev 库预检零负库存）。**三态负验证**：InventoryDeductAtomicityIT 6 用例，无 V457 时 CHECK 用例 2/2 红（负值直插/裸超扣成功=缺陷本体）→ 还原后 6/6 绿；InventoryServiceTest 同步改钉新契约 |
+| P-2 | **多副本硬门槛** | ~~钱包流水业务键唯一索引~~ ✅ **已被 V388 覆盖（2026-11-12 勘误：本行引用的是 V388 之前的旧三表证据）** | 三域台账已物理统一为 `wallet_ledger`（V388），其上已有 `uk_wallet_ledger_ref` 唯一 partial 索引 `(domain, owner_id, ref_type, ref_id)`（排除 WITHDRAW 合法多行；「CREATE UNIQUE INDEX 兼作历史重复当场红检出，禁止静默去重」）。dev 库 2026-11-12 实证索引在位（pg_indexes 计数=1）；V454 亦引用它作范式。无代码动作 |
 | P-3 | 高 | 锁租约与长临界区 | `ScheduledTaskService` 拿 `job:<taskKey>` 租约锁**无续期**；`ProfitSharingRetryScheduler.java:45` 把将邑 HTTP 包在 `@Transactional` 内 | 外部 HTTP 移出事务与锁临界区（先算后写、单条小事务）；或按任务上限对齐租约并加续期 | 一个「任务体耗时 > 租约」的用例：改前第二实例能进临界区（双跑计数=2），改后必须=1 |
 | P-4 | 中 | 缓存失效广播 | `CacheService.java:149-164` evict 只清本进程 L1 + 删 Redis 键，无 pub/sub ⇒ 其他实例 L1 到期前供旧值 | Redis 失效频道（按 prefix）或把 L1 TTL 压到业务可接受窗口并在文档写死窗口值 | 双实例模拟（两个 `CacheService` 共享同一 Redis）：A evict 后 B 读，改前 B 拿到旧值，改后拿到新值 |
-| P-5 | 中（待用户确认口径） | `SCHEDULED_TASK_MANAGEMENT.md` 落地验收判据过期 | 文档 `:102,110,112` 仍写「新代码认 30 个 key / `id BETWEEN 101 AND 131` = 30 条」；实际注册表 **39** key、种子 **37** 行（id 101-135 缺 117，+140/141/142） | 把判据改成 37 与真实 id 集合，并说明差的 2 个（`refund-retry`、`scheduled-task-stale-monitor`）是有意 Spring-only | 属文档订正：以 `pnpm check:xxl-job-wiring` / `check:scheduled-task-seed` 实跑输出为准，判据数字须与门禁输出一致 |
+| P-5 | 中（待用户确认口径） | ~~`SCHEDULED_TASK_MANAGEMENT.md` 落地验收判据过期~~ ✅ **已完成（2026-11-12）** | 复核发现数字已第三次漂移（30→37→实测 38，注册表 44）：订正不再写死数字——判据改为「唯一权威 = `check-xxl-job-wiring` / `check-scheduled-task-seed` 实跑输出」，本文写死数字标注为快照并与门禁冲突时回改（防「日期炸弹」式自爆，判据自动对齐门禁而非人工白名单） |
 
 **为什么不能只靠现有锁就放心开第 2 副本**：`tryBegin` 只保证「同一时刻一个实例跑定时任务」，
 它**不管**用户请求线程里的库存读改写，也不管资金流水的业务键重复——P-1/P-2 红的是**下单/结算主链**，

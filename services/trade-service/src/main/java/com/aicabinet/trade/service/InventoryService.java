@@ -259,26 +259,51 @@ public class InventoryService {
                 List.of(new RecognizedItem(skuId, -delta, 1f)), restoreBatch, orderRefId);
     }
 
+    /**
+     * 集群就绪 P-1：汇总台账增减改为<b>单语句原子 UPDATE</b>（数量谓词与写入同语句，无
+     * 「检查-写入」间隙），DB 层另有 V457 CHECK 兜底。此前是「读→算→写」+ 实体 save CAS——
+     * CAS 只防丢更新，防不住「先读后判不足」的窗口；多副本 + Redis 锁租约过期的组合下
+     * 该窗口可产生超扣。影响行数 0 = 库存不足（或行缺失），按原口径抛 409。
+     */
     private void applyDelta(String deviceId, String skuId, int delta) {
-        DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
-        DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
-            DeviceSkuInventory created = new DeviceSkuInventory();
-            created.setId(id);
-            created.setQuantity(0);
-            created.setCapacity(20);
-            created.setLowThreshold(2);
-            created.setVersion(0);
-            return created;
-        });
-        int next = inv.getQuantity() + delta;
-        if (next < 0) {
-            log.warn("库存不足 device={} sku={} qty={} delta={}", deviceId, skuId, inv.getQuantity(), delta);
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "库存不足 sku=" + skuId + " 当前=" + inv.getQuantity() + " 变更=" + delta);
+        if (delta == 0) {
+            return;
         }
-        inv.setQuantity(next);
-        inventoryRepository.save(inv);
-        log.info("库存已更新 device={} sku={} qty={}", deviceId, skuId, next);
+        if (delta < 0) {
+            int take = -delta;
+            int rows = inventoryRepository.deductQuantityAtomic(deviceId, skuId, take);
+            if (rows == 0) {
+                int current = inventoryRepository.findById(new DeviceSkuInventoryId(deviceId, skuId))
+                        .map(DeviceSkuInventory::getQuantity)
+                        .orElse(0);
+                log.warn("库存不足 device={} sku={} qty={} delta={}", deviceId, skuId, current, delta);
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "库存不足 sku=" + skuId + " 当前=" + current + " 变更=" + delta);
+            }
+            log.info("库存已更新 device={} sku={} qty={}", deviceId, skuId, delta);
+            return;
+        }
+        // 增量（回库）：行缺失先按原默认建档，再单语句累加
+        int rows = inventoryRepository.increaseQuantityAtomic(deviceId, skuId, delta);
+        if (rows == 0) {
+            DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
+            try {
+                inventoryRepository.findById(id).orElseGet(() -> {
+                    DeviceSkuInventory created = new DeviceSkuInventory();
+                    created.setId(id);
+                    created.setQuantity(0);
+                    created.setCapacity(20);
+                    created.setLowThreshold(2);
+                    created.setVersion(0);
+                    inventoryRepository.insert(created);
+                    return created;
+                });
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                // 并发建档竞态：对方已把行建好，直接走累加
+            }
+            inventoryRepository.increaseQuantityAtomic(deviceId, skuId, delta);
+        }
+        log.info("库存已更新 device={} sku={} delta={}", deviceId, skuId, delta);
     }
 
     private static Map<String, Integer> toQtyMap(List<RecognizedItem> items) {

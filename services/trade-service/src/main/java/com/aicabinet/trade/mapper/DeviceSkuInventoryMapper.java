@@ -104,4 +104,27 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
         }
         return null;
     }
+
+    /**
+     * 集群就绪 P-1：汇总台账<b>单语句原子扣减</b>（DB 层兜底，勿改回「读→算→写」）。
+     *
+     * <p>返回影响行数：1 = 扣减成功；0 = 现存不足或行不存在。{@code quantity >= take}
+     * 谓词与扣减同一条 UPDATE，无检查-写入间隙；配合 V457 的
+     * {@code chk_device_sku_inventory_qty_nonneg} 构成双保险。{@code version} 不在此处
+     * 递增——它只服务 {@link #save} 的实体级 CAS 口径，算术增减不经过实体。</p>
+     */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE device_sku_inventory SET quantity = quantity - #{take}, updated_at = NOW() "
+                    + "WHERE device_id = #{deviceId} AND sku_id = #{skuId} AND quantity >= #{take}")
+    int deductQuantityAtomic(@org.apache.ibatis.annotations.Param("deviceId") String deviceId,
+                             @org.apache.ibatis.annotations.Param("skuId") String skuId,
+                             @org.apache.ibatis.annotations.Param("take") int take);
+
+    /** 同上：单语句原子累加（回库/增量），行不存在返回 0（调用方决定是否建档）。 */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE device_sku_inventory SET quantity = quantity + #{add}, updated_at = NOW() "
+                    + "WHERE device_id = #{deviceId} AND sku_id = #{skuId}")
+    int increaseQuantityAtomic(@org.apache.ibatis.annotations.Param("deviceId") String deviceId,
+                               @org.apache.ibatis.annotations.Param("skuId") String skuId,
+                               @org.apache.ibatis.annotations.Param("add") int add);
 }

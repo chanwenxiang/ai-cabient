@@ -45,18 +45,17 @@ class InventoryServiceTest {
 
     @Test
     void deduct_usesDistributedLock() {
-        DeviceSkuInventory inv = new DeviceSkuInventory();
-        inv.setId(new DeviceSkuInventoryId("CAB-001", "SKU-DEMO-001"));
-        inv.setQuantity(5);
-        when(inventoryRepository.findById(any())).thenReturn(Optional.of(inv));
-        when(inventoryRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        // 集群就绪 P-1：扣减走单语句原子 UPDATE（数量谓词与写入同语句），
+        // 不再「findById→实体改字段→save」；本用例钉锁串 + 原子扣减被调用的双重契约
+        when(inventoryRepository.deductQuantityAtomic("CAB-001", "SKU-DEMO-001", 2)).thenReturn(1);
 
         inventoryService.deductForOrder("CAB-001",
                 List.of(new RecognizedItem("SKU-DEMO-001", 2, 1f)), "S1");
 
         verify(lockService).tryLock(InventoryService.deviceLockKey("CAB-001"), 30, 5);
         verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
-        assertEquals(3, inv.getQuantity());
+        verify(inventoryRepository).deductQuantityAtomic("CAB-001", "SKU-DEMO-001", 2);
+        verify(inventoryRepository, never()).save(any());
     }
 
     @Test

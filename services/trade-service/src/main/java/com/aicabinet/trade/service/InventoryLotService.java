@@ -193,6 +193,12 @@ public class InventoryLotService {
 
     private record LotDeductionStep(int taken, String batchNo, String slotCode) {}
 
+    /**
+     * 集群就绪 P-1：批次扣减改走 {@link DeviceSkuLotMapper#deductQuantityAtomic} 单语句
+     * 原子 UPDATE（数量谓词与写入同语句），DB 层另有 V457 CHECK 兜底。此前「读→算→写」
+     * 依赖 Redis 设备锁作唯一防线，多副本 + 租约过期时可超扣负库存。
+     * 返回 null = 本批次没扣到（不足/被并发扣空），调用方继续下一批次。
+     */
     private LotDeductionStep tryDeductFromSellableLot(String deviceId, String skuId, DeviceSkuLot lot,
                                                       int remaining, String refType, String refId,
                                                       LocalDate minExpiry) {
@@ -203,11 +209,22 @@ public class InventoryLotService {
         if (take <= 0) {
             return null;
         }
-        lot.setQuantity(lot.getQuantity() - take);
-        if (lot.getQuantity() == 0) {
-            lot.setStatus(DEPLETED);
+        int rows = lotRepository.deductQuantityAtomic(lot.getLotId(), take);
+        if (rows == 0) {
+            // 并发竞争：本方读到的量已被别人扣走，按 DB 最新量收敛重试一次
+            DeviceSkuLot fresh = lotRepository.findById(lot.getLotId()).orElse(null);
+            if (fresh == null) {
+                return null;
+            }
+            take = Math.min(fresh.getQuantity(), remaining);
+            if (take <= 0) {
+                return null;
+            }
+            rows = lotRepository.deductQuantityAtomic(lot.getLotId(), take);
+            if (rows == 0) {
+                return null;
+            }
         }
-        lotRepository.save(lot);
         recordMovement(deviceId, skuId, new InventoryMovementCommand(
                 lot.getBatchNo(), "SALE", -take, new LotMovementRef(refType, refId, null)));
         String slotCode = null;

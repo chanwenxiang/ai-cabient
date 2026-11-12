@@ -34,7 +34,7 @@
 
 ## 四、与 XXL-JOB
 
-### 1. 托管范围：全部业务定时任务（37 个）
+### 1. 托管范围：全部业务定时任务（快照 38 个，实数以 check-xxl-job-wiring 输出为准）
 
 > 2026-09-16 起由「资金类优先」改为**全量托管**。原因是生产为多实例部署：Spring `@Scheduled`
 > 在集群里靠 Redis 锁只能保证「只有一台真跑」，代价是**每台每周期都空转抢一次锁**（10 个秒级任务
@@ -45,7 +45,7 @@
 | 控制台 | http://localhost:18090/ （**3.x 无 `/xxl-job-admin` 前缀**） |
 | 账号 | admin / 123456 |
 | 执行器 AppName | trade-service |
-| 托管清单 | `XxlJobManagedTasks.KEYS` —— **37 个业务任务**（数字以 `pnpm check:xxl-job-wiring` 输出为准），覆盖 §五 表格中的全部业务项 |
+| 托管清单 | `XxlJobManagedTasks.KEYS` —— **全部业务任务**（快照 38 个；数字以 `pnpm check:xxl-job-wiring` 实跑输出为准），覆盖 §五 表格中的全部业务项 |
 | 路由策略 | `FAILOVER`（多实例下单选一台；该台不可用时自动转下一台） |
 | 阻塞策略 | `SERIAL_EXECUTION` |
 | 执行器开关 | `XXL_JOB_ENABLED`（`application.yml` 默认 `false`） |
@@ -99,20 +99,26 @@
 
 托管后 `tryBegin` 对清单内任务**无条件让位**，所以只做一半会得到比不落地更糟的结果：
 
-> 新代码认 37 个托管 key（注册表 39 个 = 37 托管 + `scheduled-task-stale-monitor`/`refund-retry` 刻意留 Spring）
+> 新代码认 N 个托管 key（注册表 = N 托管 + 刻意留 Spring 的少数任务）
 > → 内置 `@Scheduled` 让位；调度中心若只有旧的排期 ⇒ **差额任务无人派发**
 > ⇒ **静默停摆，调度台和运营台都看不到异常。**（2026-10-26 G8-38 实测到的正是这种：种子把 id=133
 > 同时排给 `disputeAutoWaiveJob` 与 `platformFundDailyJob`，多行 INSERT + `ON DUPLICATE KEY UPDATE`
 > 让后一行就地覆盖前一行 ⇒ 调度中心只有 36 条、争议超时自动免单永不存在，而运营台台账显示它 enabled=true。）
+>
+> 🔴 N **会随任务增删漂移，禁止凭记忆/本文写死**（2026-11-12 P-5 勘误：本文曾钉 30、后 37、
+> 实测已 38——历史数字三次过期）。判据唯一权威 = `node scripts/check-xxl-job-wiring.mjs`
+> 与 `node scripts/check-scheduled-task-seed.mjs` 的实跑输出（托管数/注册表数/种子行数/
+> Spring-only 名单逐次打印，二者数字互为交叉验证）；下表的写死数字只是 2026-11-12 快照，
+> 与门禁输出冲突时**以门禁为准并回改本文**。
 
 顺序：**先重跑 seed，再重建/重启应用**（反了会报 handler not found，至少是响的）。
 落地后按下表逐项验证：
 
 | # | 验证 | 命令/判据 |
 |---|---|---|
-| 1 | 调度中心业务 job 数 = **37** | `SELECT COUNT(*) FROM xxl_job_info WHERE job_group=10;`（🔴 别用 `id BETWEEN 101 AND 131`：真实 id 集是 101–135 里缺 117 与 124、再加 140/141/142/143（136–139 未用），共 37 条——按区间数必然数错，判据只认 `job_group=10` 的实数） |
+| 1 | 调度中心业务 job 数 = **托管数**（快照 38） | `SELECT COUNT(*) FROM xxl_job_info WHERE job_group=10;`（🔴 别按 id 区间数：id 集随增删漂移、区间数必然数错——判据只认 `job_group=10` 的实数，并与 `check-xxl-job-wiring` 输出的托管数互验） |
 | 2 | 已有 job 未被改动 | 逐条比对 `executor_handler`/`schedule_conf` 与改动前相同（防重复插入 → 双触发）；`check-xxl-job-wiring` 3.8.5 起静态拦「种子 id 撞号 / 同 handler 多排 / 种子行数 ≠ 具名 handler 数」 |
-| 3 | 全部启用（两侧都要看） | `SELECT trigger_status, COUNT(*) FROM xxl_job_info WHERE job_group=10 GROUP BY trigger_status;` → 37 条均 `=1`；**同时** `SELECT task_key FROM scheduled_task WHERE NOT enabled;` 只允许 V376 刻意默认关的 `refund-retry`/`deposit-monthly-refund` ⇒ 这两条 XXL 照样派发、但 `tryBegin` 记 `task disabled` 跳过，`trigger_status=1` 不等于真跑 |
+| 3 | 全部启用（两侧都要看） | `SELECT trigger_status, COUNT(*) FROM xxl_job_info WHERE job_group=10 GROUP BY trigger_status;` → 与托管数一致且均 `=1`；**同时** `SELECT task_key FROM scheduled_task WHERE NOT enabled;` 只允许 V376 刻意默认关的 `refund-retry`/`deposit-monthly-refund` ⇒ 这两条 XXL 照样派发、但 `tryBegin` 记 `task disabled` 跳过，`trigger_status=1` 不等于真跑 |
 | 4 | 执行器已注册 | `SELECT * FROM xxl_job_registry;` 有 `EXECUTOR/trade-service` 且 `update_time` 是近期心跳 |
 | 5 | 调度器能解析每条 cron | admin 日志**没有** `refreshNextValidTime error for job: jobId=…` |
 | 6 | 端到端真的跑 | 手动触发 1~2 条 → `xxl_job_log.handle_code=200`，且业务表 `scheduled_task.last_run_at` 推进 |
@@ -203,7 +209,7 @@ XXL 让位（§三 第 4 条）只判「开关开 + key 在清单」，**不校�
 | 项 | 说明 |
 |---|---|
 | 判据 | **只看业务表 `scheduled_task.last_run_at`**，与 `ScheduleZones.MAX_SILENCE_BY_TASK` 的阈值比较 |
-| 范围 | `XxlJobManagedTasks.KEYS` —— **全量托管后即全部 37 个托管任务**（`refund-retry`、`scheduled-task-stale-monitor` 刻意留 Spring 常驻，不在其中） |
+| 范围 | `XxlJobManagedTasks.KEYS` —— **全量托管后即全部托管任务**（快照 38 个；Spring-only 名单以 `check-xxl-job-wiring` 输出为准，勿凭记忆写死） |
 | 周期 | 每 5 分钟（`aicabinet.scheduled-task.stale-monitor-interval-ms`） |
 | 超期判定 | `MISSING_ROW`（运营台无登记行）/ `NEVER_RUN`（有行但从未执行）/ `OVERDUE`（静默超过阈值） |
 | 告警出口 | ① 运营「异常列表」写入 `SCHEDULED_TASK_STALE`（CRITICAL，恢复后自动关闭）；② 钉钉/企微/通用 Webhook；③ Prometheus 指标 `aicabinet_scheduled_task_silence_seconds{task}`、`aicabinet_scheduled_task_stale_count` |
