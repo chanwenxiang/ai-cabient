@@ -28,6 +28,13 @@
  *   P6 拉内容前判登录：`device-ad-banner.vue` 的 `load` 必须判 `isConsumerLoggedIn()`。
  *      `screen-content` 不在公开白名单，游客态拉必 401；而投放清单是**有时效的内容**，
  *      不能像打点那样攒着补发，只能「未登录不拉、登录后重拉」。
+ *   P7 队列守卫必须用「可用凭证」判据：placementEvents/adPlayEvents 的 `isLoggedIn`
+ *      依赖必须接 `canSendTrackedEventsNow`（cookie 会话或**未过期** bearer），
+ *      不得直接接 `isConsumerLoggedIn`——后者对过期票恒真（R15-K5 有意保留），
+ *      过期票按 C3 拿不到 bearer，直发就是无凭证 401。2026-11-12 实证：隔夜票
+ *      冷启动网关日志必现 `placement-events 401 60B → 1s 内 200 48B`（续期重放成功，
+ *      事件没丢但每次冷启动留一条 401 噪音）。守卫收紧后过期票与游客态同构：先入队，
+ *      applyTokenSession 落定后补发。
  *
  * 扫描前统一抹注释（等长空格）：本文件注释里就写着这些标识符，不抹会自己判红。
  *
@@ -273,6 +280,40 @@ if (adBannerRaw) {
   }
 }
 
+// ── P7：队列守卫必须用「可用凭证」判据（过期票不得直发） ───────────────────
+if (apiRaw) {
+  const api = maskComments(apiRaw);
+  const GUARD = 'canSendTrackedEventsNow';
+  const guardBody = sliceFunctionBody(api, `function ${GUARD}(`);
+  if (!guardBody) {
+    problems.push(
+      `P7：consumer-api.ts 找不到 ${GUARD} 函数体 —— 打点队列守卫被删或改名，` +
+        '过期票会重新直发（每次冷启动必现 placement-events 401→续期重放噪音）'
+    );
+  } else if (!/getConsumerToken\s*\(/.test(guardBody)) {
+    problems.push(
+      `P7：${GUARD} 未走 getConsumerToken 判可用凭证 —— 该函数按 C3 对过期票返空串，` +
+        '是「票当前可用」的唯一判据；换 raw 存储（如 uni.getStorageSync(TOKEN_KEY)）会把过期票当可用'
+    );
+  }
+  for (const [label, marker] of [
+    ['展示位打点队列', 'function placementEvents('],
+    ['设备推广位打点队列', 'function adPlayEvents(']
+  ]) {
+    const body = sliceFunctionBody(api, marker);
+    if (!body) {
+      problems.push(`P7：找不到 ${label} 构造体（${marker}）—— 结构被改，门禁失效，请同步更新判据`);
+      continue;
+    }
+    if (!new RegExp(`isLoggedIn\\s*:\\s*${GUARD}`).test(body)) {
+      problems.push(
+        `P7：${label} 的 isLoggedIn 未接 ${GUARD} —— 接 isConsumerLoggedIn 会对过期票恒真，` +
+          '过期票拿不到 bearer（C3），直发必产 401 噪音；过期票应与游客态同构先入队'
+      );
+    }
+  }
+}
+
 if (problems.length) {
   console.error(`${TAG} FAIL: 打点鉴权契约被破坏（${problems.length} 条）`);
   for (const p of problems) console.error(`  - ${p}`);
@@ -280,5 +321,5 @@ if (problems.length) {
 }
 
 console.log(
-  `${TAG} OK（P1 无直连 / P2 登录后补发 / P3 入口在位 / P4 队列有界 / P5 设备打点+重拉挂登录点 / P6 拉内容前判登录）`
+  `${TAG} OK（P1 无直连 / P2 登录后补发 / P3 入口在位 / P4 队列有界 / P5 设备打点+重拉挂登录点 / P6 拉内容前判登录 / P7 守卫用可用凭证）`
 );

@@ -152,6 +152,14 @@ const cases = [
           'request<null>(ConsumerEndpoints.deviceAdPlay(props.deviceId), "POST", {'
         )
       )
+  },
+  {
+    name: 'N8 展示位打点队列守卫改回 isConsumerLoggedIn（过期票直发）',
+    rule: 'P7',
+    apply: () =>
+      patch(REL_API, (s) =>
+        s.replace(/isLoggedIn: canSendTrackedEventsNow,/, 'isLoggedIn: isConsumerLoggedIn,')
+      )
   }
 ];
 

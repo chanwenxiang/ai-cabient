@@ -214,17 +214,34 @@ export function request<T>(
   return mpRequest<T>(mpApiSession, path, method, data, auth, retried);
 }
 
-/** 展示位打点的底层发送：只在「当前确实有登录态」时被调用（见 placementEvents）。 */
+/** 展示位打点的底层发送：只在「当前确实有可用凭证」时被调用（见 canSendTrackedEventsNow）。 */
 function sendPlacementEvent(body: PlacementEventBody) {
   return request<void>(ConsumerEndpoints.marketingPlacementEvent, 'POST', body, true);
 }
 
 let placementQueue: ReturnType<typeof createPlacementEventQueue> | null = null;
 
+/**
+ * 打点队列专用守卫：有「当前可用」的凭证才直发，否则入队等补发。
+ *
+ * <p>与 `isConsumerLoggedIn` 的差别在**过期票**：后者对过期 JWT 恒真（R15-K5 有意
+ * 保留，保 7 天服务端刷新宽限可达），但过期票按 C3 规则拿不到 bearer
+ * （`getConsumerToken` 返空串）——直发就是无凭证 401。对打点来说「过期票」与
+ * 「游客态」同构：都是暂时没有可用主体，正确动作都是先攒着，等
+ * `applyTokenSession`（刷新/登录落定）触发 flush 补发。</p>
+ *
+ * <p>2026-11-12 实证：隔夜过期票冷启动，网关日志每次都是
+ * `POST /marketing/placement-events 401 60B` → 1s 内 `200 48B`（401→静默续期→重放）。
+ * 事件没丢，但每次冷启动控制台都留一条 401 噪音；收紧守卫后该路径不再发生。</p>
+ */
+function canSendTrackedEventsNow() {
+  return isConsumerCookieAuth() || Boolean(getConsumerToken());
+}
+
 function placementEvents() {
   if (!placementQueue) {
     placementQueue = createPlacementEventQueue({
-      isLoggedIn: isConsumerLoggedIn,
+      isLoggedIn: canSendTrackedEventsNow,
       send: sendPlacementEvent,
       onSendError: (body, err) =>
         console.warn(
@@ -248,6 +265,9 @@ function placementEvents() {
  * `401 60B`（「请先登录」），而且是两条（旧请求层在无会话时也重放一次）。
  * 故这里统一走队列：未登录先暂存，登录成功后由 `applyTokenSession` 触发补发。
  * 调用方一律用这个函数，**禁止**直接 `request(...marketingPlacementEvent...)` 绕过队列。</p>
+ *
+ * <p>守卫口径见 `canSendTrackedEventsNow`：**过期票同样入队**（2026-11-12 实证，
+ * 隔夜票冷启动直发 = 401 噪音 + 静默续期重放；守卫收紧后直发仅发生在票确实可用时）。</p>
  */
 export function reportMarketingPlacementEvent(body: PlacementEventBody) {
   placementEvents().report(body);
@@ -267,7 +287,7 @@ let adPlayQueue: ReturnType<typeof createAdPlayEventQueue> | null = null;
 function adPlayEvents() {
   if (!adPlayQueue) {
     adPlayQueue = createAdPlayEventQueue({
-      isLoggedIn: isConsumerLoggedIn,
+      isLoggedIn: canSendTrackedEventsNow,
       send: sendAdPlayEvent,
       onSendError: (body, err) =>
         console.warn(
