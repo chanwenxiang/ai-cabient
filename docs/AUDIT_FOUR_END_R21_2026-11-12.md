@@ -67,3 +67,50 @@ R20-4 只报了支付的两个客户端；本轮把 `services/*` 下所有 `Rest
 1. R21-1 优先修（登录链无超时 = 单点可用性炸弹），一次把 6 处收口到统一工厂。
 2. R21-2 与 R21-3 都很便宜：一条 grep 门禁 + 一处锁边界调整；可与 R18-2（批次账原子化）合并到同一批，因为 R21-3 的缓解正依赖它。
 3. 本轮无 P2，六轴中四轴零命中——若要继续挖，建议换「外部系统契约（将邑/微信/支付宝报文级）」与「数据生命周期（归档/清理/恢复演练）」，其余轴已接近收敛。
+
+---
+
+## 五、后续回执（2026-11-12 夜补记，来自 R22）
+
+> 本节不新增 R21 条目，只把「R21 三条现在的真实状态」和「R22 待定项回执」同步过来，
+> 让只读 R21 的人不必再翻 R22 就能知道哪些已修、哪些没修、哪些根本不是 R21 的遗留项。
+> 证据正文见 [R22 报告 §四 / §八](file:///D:/ai-generated%20code/ai-cabinet/docs/AUDIT_FOUR_END_R22_2026-11-12.md)。
+
+### 5.1 R21-1（P1 出站无超时 6 处）现状
+
+R21 报的是「未显式 setConnectTimeout/setReadTimeout」这一事实；R22 对每一处在 **HEAD 与工作树** 分别复核：
+
+| 站点 | HEAD（`4e230651`） | 工作树 | 结论 |
+|------|------|--------|------|
+| `WeChatPayV3Client` | 无 | 3s/10s（下载 60s） | peer 在制修复（未提交） |
+| `AlipayOpenApiClient` | 无 | 3s/10s | peer 在制修复（未提交） |
+| device `TradeServiceClient` | 无 | 已有 Timeout 配置 | peer 在制修复（未提交） |
+| `WeChatMiniAppClient`（登录 code2session） | 无 | 无 | 🔴 **仍未修** |
+| `IdentityVerifyClient` | 无 | 无 | 🔴 **仍未修** |
+| `JiangyiModelSyncService` | 无 | `RestClient.create()`（[:59](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java#L59)） | 🔴 **仍未修** |
+
+⇒ R21-1 **未收口**；派修时请按「统一客户端工厂」一次收全，别逐处补（R22-1/R22-2 与本族同链路，见 5.3）。
+
+### 5.2 R21-2 / R21-3 现状
+
+- **R21-2（无时区 `LocalDate.now()` 16 文件）**：R22 把它**收窄并加严**为 R22-10——真正会错的是 4 处业务日窗口用 `ZoneId.systemDefault()`（`MerchantFinanceService:266-267`、`DeviceSlotService:575-577`、`DeviceRentalService:319/348`、`InventoryLotService:861`）+ 2 处批次号 `LocalDate.now()`。**实测**：trade-service 容器 `TZ=Asia/Shanghai`、应用日志偏移 `+08:00`，故当前与 `ScheduleZones.ZONE` 等价、生产不发作；兜底来源已定位＝[Dockerfile.java-service:12-13](file:///D:/ai-generated%20code/ai-cabinet/Dockerfile.java-service#L12) 的 `ENV TZ` + `/etc/localtime` 符号链接（compose 里**没有** `TZ:` 字面，只有 `docker-compose.devops.yml` 命中过该串）。
+  - 🔴 **跨轮对账**：peer 在制改动（工作树，HEAD 尚无）已给 ENTRYPOINT 补 `-Duser.timezone=Asia/Shanghai`（R19-17），理由写明「ENV TZ + 符号链接依赖 tzdata 与链接同时正确，换/精简 base image 会**静默退回 UTC**」⇒ 这正好消掉本条「部署侧漏配就平移 8 小时」的一半风险。**但代码侧的 `systemDefault()` 仍应统一改 `ScheduleZones.ZONE`**：镜像参数属于部署前提，不该成为业务日窗口的判据来源。
+  - 修法不变：统一 `ScheduleZones.ZONE` + 一条 grep 门禁禁止业务日窗口用裸 `LocalDate.now()`/`ZoneId.systemDefault()`。
+- **R21-2 的同族新发现（本轮补，属 SQL 侧）**：R22-4 —— 商户账单按日聚合用 `to_char(created_at,'YYYY-MM-DD')`，PostgreSQL **会话时区实测为 UTC** ⇒ 桶标签是 UTC 日。实库已命中 4 笔（上海 11-03 早间被记成 11-02）；每月 1 日 00:00–07:59 的成交会落到上月标签、不在日骨架内 ⇒ 日行与**月合计一起少计**。**这一条不在 R21 的 16 个文件里**（R21 只查了 Java 侧 `now()`，没查 SQL 侧 `to_char`）——时区判据必须同时看 JVM 默认区 **和** PG 会话时区。
+- **R21-3（锁早于事务提交）**：状态未变。[InventoryService.java:59-73](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryService.java#L59) 仍是 `@Transactional` 方法内 `runWithDeviceLock` 在 `finally` 里 `unlock`。R22 未重报（不重复计数），但它**仍在待修清单里**，且按 R21 原文依赖 R18-2（批次账原子化）先落。
+
+### 5.3 R22 待定项回执（同步摘要，**不属于 R21 任何条目**）
+
+R22 §八 的四项收口结论，读 R21 时一并知道即可，别把它们当成 R21 的遗留：
+
+| R22 项 | 回执结论（一句话） | 与 R21 的关系 |
+|---|---|---|
+| 8.1 厂商 §7.15 重复 start | 已证「同柜单会话 + 未结束占用约 15 分钟自释放」，真机过期会话回 `503 采集会话不存在或已过期`；缺「进行中会话再 start」的返回（现场点两次即可定档） | 无关（R22-7 的定档项） |
+| 8.2 jiangyi-gateway 单/多实例 | **结案**：4 份 compose + 3 份 nginx 穷举均为单实例，HA 只 scale trade-service ⇒ 不升 P1；转成部署约束（禁止 scale gateway / 按 identifier 粘连） | 无关；但属「出站路由」同族，R21-1 修客户端时别把网关路由一起动 |
+| 8.3 多层柜 | **钉到结构层**：全库 179 表无 `floor/layer` 列、无货架表、`device_info` 只有 `cabinet_type`（现网 5 台全 `VISION`）⇒ 我方模型无层维度，多层柜**必然错** | 无关（R22-3 的定档项） |
+| 8.4 「两侧皆 0 记 MATCHED」 | **不是待定、是拍板**：现状 A（无交易即平）vs 新增 `NO_DATA` 状态 B；建议启用支付宝前先落 B | 无关（R22-8 的口径项） |
+
+### 5.4 对 R21 第四节「建议」的更新
+
+- 建议 1（R21-1 优先修）：**仍成立**，且 6 处里仍有 3 处完全未动（见 5.1）。
+- 建议 3（下轮换「外部系统契约」「数据生命周期」两条轴）：**已由 R22 执行**，结果见 R22 §一（出站失败语义 6 条）与 §二（生命周期 2 条）；两条轴都**不是零命中**，说明 R21 当时的「接近收敛」判断对这两轴偏乐观。
