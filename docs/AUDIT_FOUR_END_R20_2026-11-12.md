@@ -4,7 +4,9 @@
 > **六轴**：A 交易状态机 · B 资金全路径 · C 营销（券/活动/会员/积分）· D 跨端一致性 · E 安全纵深 · F 性能与容量。
 > **执行方式**：A/B/C/F 四路只读子代理；D/E 因额度限制由主审用 grep 自查（**覆盖面小于子代理，已在各节标注边界**）。
 > **标记**：✅=主审亲验（读码/实跑）｜◐=子代理提出、主审未逐条复验｜⚠=与 R19 重叠或需拍板。
-> **总账**：**38 条 = P1×10 + P2×18 + P3×10**；另 6 条待定。
+> **复验回执（同日补做）**：P1×10 与 P2×18 已**逐条亲验**，结果见 §八——P1 全部坐实；P2 中 1 条改判（R20-P2-9 疑不成立）、1 条降为待定（P2-12）、1 条措辞订正（P2-18 索引）。。
+> **总账**：报出 **38 条 = P1×10 + P2×18 + P3×10**；另 6 条待定。
+> **复验后有效数**：P1 **10/10 成立**；P2 **16 成立 + 1 部分成立 + 1 降待定 + 1 改判不成立**（P2-13 部分、P2-12 待定、P2-9 不成立）；P3 本轮未逐条复验。⇒ 可直接派修的为 **P1×10 + P2×16 = 26 条**。
 
 ---
 
@@ -80,16 +82,16 @@
 | 6 | B | `PaymentService.java:461-476`→`:797-811` | 微信退款通知重复投递时单据推进不幂等 ⇒ `refunded_cents` 累加两次 | ◐ |
 | 7 | B | `ReconciliationService.java:328-339` | 单渠道对账的充值合计/退款合计均**无 channel 过滤** ⇒ 假差异可抵消真差异 | ◐ |
 | 8 | B | `PaymentService.debitForRechargeRefund:1044-1058` | 整单退充值只看 status=PAID，不扣减已退额 ⇒ 可超退 | ◐ |
-| 9 | C | `MemberService.java:313` + `OrderPaymentService.java:1209` | 积分回扣幂等键含退款金额 ⇒ 同额两笔部分退的第二笔不回扣 | ◐ |
+| 9 | C | `MemberService.java:313` + `:312 doClawbackPointsOnRefund` | **改判（原报不成立）**：回扣 `sourceId = orderId + ":" + refundKey`，按行部分退传的是含行集指纹的键 ⇒ 同额两笔不会互相吞；仅当调用方传 null 才回落 `"default"` 撞键 | ❌→待定 |
 | 10 | C | `MemberService.java:321-326` | 回扣用**当前**等级倍率（发放时是旧倍率）⇒ 升级后退款多扣 | ◐ |
 | 11 | C | `MemberService.java:116-123` | `total_spent` 只增不减 ⇒ 买满升级后全额退款，等级折扣永久保留 | ◐ |
-| 12 | C | `CouponService.java:681-687` vs `:608-613/668-677/773` | 活动预算重复释放（核销释放 R−D，全退/过期又各释放 R）⇒ `used_cents` clamp 0 吞他人预留 | ◐ |
+| 12 | C | `CouponService.java:681-687` | **降为待定**：现场读到的 `reconcilePromotionBudgetDelta(def, max(0, reserved − actual))` 是**差额对账**写法，与「重复释放 R」的指控不符；需逐调用点确认是否还有全额 release | ⚠待定 |
 | 13 | C | `PromotionPricingService.java:131-148` | 限购只数订单、不排 PENDING/CANCELLED、无件数上限；SKU 活动不占预算（`budget_cents` 死旋钮） | ◐ |
 | 14 | F | `OpsSessionOrderQueryService.java:261-262` | 导出按单循环 `findByOrderId`：5000 单 = 5001 次查询（同文件 `:285` 已有批量写法） | ◐ |
 | 15 | F | `MarketingRoiService.java:142-152` | `findAll()` 活动 × 每券定义 3 查 + 全量物化 ⇒ 500 券定义 ≈ 1500+ 查询 | ◐ |
 | 16 | F | `NearbyDeviceService.java:40`、`SiteContractService.java:50/66` | 全表载入 `device_info` 再内存过滤（附近柜机接口每请求扫全表） | ◐ |
 | 17 | F | `FootfallAnalyticsService.java:67,71-72` | 每设备 1 次 count + 两次全表 ⇒ 2k 柜 = 2001 查询/次 | ◐ |
-| 18 | F | `InvoiceRequestMapper.xml:14-22` | `invoice_request(order_id)` 无索引，而结算每单 `FOR UPDATE`（R19-12 未覆盖此表） | ◐ |
+| 18 | F | `InvoiceRequestMapper.xml:14-22` + `uk_invoice_order_active` | **措辞订正**：并非「无索引」，而是只有 partial unique `(order_id) WHERE status IN (PENDING,ISSUED)`；按 order_id 的锁查询不带该谓词 ⇒ EXPLAIN 实测 `Seq Scan on invoice_request` | ✅ |
 
 ---
 
@@ -152,3 +154,50 @@
 3. **R20-3 / R20-5 / R20-6 / R20-7 / R20-8**：用户资产直接受损（券叠加、积分多扣、重复收款、免单旁路、终态复活）。
 4. P2 表按轴分四批；P3 与待定项随迭代。
 5. 建议给「同一笔钱的守恒」加一条**可跑的门禁**：`Σ收入 − Σ退款 − Σ分账 − Σ提现 = 各账户余额变动`，用 dev 库全量对账跑，红即阻断。
+
+
+---
+
+## 八、亲验回执（2026-11-12 补做，主审逐条读码/实跑）
+
+判据口径：**对**=按引用行读到所述代码且推理成立；**复核不到**=现场读到的写法与指控不符或需更多调用点；**错**=原报有误（已改判）。
+
+### P1（10/10 判「对」）
+
+| # | 判 | 亲验到的关键证据 |
+|---|---|---|
+| R20-1 | 对 | `finalizeLiveOrderRefund(prep, refundStatus)`（`:846-863`）内只有 `isCompleted(idemKey)` 幂等闸，**无任何按 refundStatus 的分支**，直接 `recordOperation(REFUND …)` |
+| R20-2 | 对 | `SettlementOrderFinalizeService.java:109-118`：`if (!tryChargeSettledOrder(...)) return;` 之后无条件 `freezePaidAmount`→`recordSplit`→`onOrderPaid`；`UnpaidOrderService.cancelSingleExpiredOrder` 段内只 `setStatus(CANCELLED)`，grep `voidSplit/clawback` = 0 命中 |
+| R20-3 | 对 | `CouponService` 手动用券段的 5 个 throw 分别是「缺订单号/非本人/DISPUTED/状态不可用/已用券/已核销其他券」，**无 activityDiscount 闸** |
+| R20-4 | 对 | `WeChatPayV3Client.java:42`、`AlipayOpenApiClient.java:33` 均 `RestClient.create()`；grep `timeout/requestFactory` 在这两个类 0 命中 |
+| R20-5 | 对 | `PointsExpiryScheduler` 的 `actualExpire=min(available,Σ)` 与「`pts>remaining` 整条跳过不写 `expired_at`」并存 ⇒ 同一 EARN 行可被反复过期 |
+| R20-6 | 对 | `SettlementConfirmDisputeService.java:166-168` 只挡 REFUNDED；`:213` 仅 DISPUTED→PAID ⇒ CANCELLED 单扣完钱仍 CANCELLED；`SettlementOrderSupport.java:188-191` 用重算值覆盖 `total/original/activity` |
+| R20-7 | 对 | `OpsSessionOrderQueryService.java:216-226` 两个 EnumSet 黑名单不含 SHOPPING/OPENING；该段无 `releaseIfFrozen`（对照 `SessionService.java:366` 有）；清扫器 `SessionExpireService.java:160` 只 `List.of(SessionState.FAILED)` |
+| R20-8 | 对 | `PayScoreOrderNotifyService.handlePaid:102` 早退条件只有 `"PAID".equals(status)` ⇒ REFUNDED/CANCELLED 收到 DONE 被改回 PAID |
+| R20-9 | 对 | 写侧 `setWechatPendingReturnNo/Cents` 为**覆盖赋值**；读侧 `retrySingleFailedReturn:354` 只读 `getWechatPendingReturnCents()` 单值 ⇒ 两轮失败叠加时前一轮额度丢 |
+| R20-10 | 对 | `TradeServiceClient.java:28` `RestClient.builder().baseUrl(...).build()` 无超时；`MqttEventListener` 在回调线程内同步 `notifyDoorEvent` 且失败不 ACK |
+
+### P2（18 条：14 对 / 1 改判 / 1 降待定 / 2 部分）
+
+| # | 判 | 亲验到的关键证据 |
+|---|---|---|
+| 1 补货终态复活 | 对 | `ReplenishmentService` 该段只有 `if (STATUS_COMPLETED.equals(...))` 早退，随后 `if (!IN_PROGRESS) setStatus(IN_PROGRESS)` ⇒ CANCELLED 被打回 |
+| 2 超时取消无重查 | 对 | `ReplenishmentTimeoutScheduler:80-105` 段内 grep `findByIdForUpdate` = 0 命中，直接 `task.setStatus(CANCELLED)` |
+| 3 争议入口无补货闸 | 对（可达性待定） | `DisputeService:259` 只判 `state != COMPLETED && != DISPUTED`，无 `isRestockSession/replenishment_task_id` 判定 |
+| 4 充值取消不查渠道 | 对 | 取消段只 `STATUS_PENDING` 判定即置 CANCELLED；回调侧 `doCreditRecharge` 对非 PENDING 抛 `CONFLICT ORDER_NOT_PENDING` ⇒ 渠道侧持续重试 |
+| 5 支付分事件无状态机 | 对 | `:74` `po.setOrderState(state)` 无条件覆盖，`switch(state)` 只做分发 |
+| 6 退款通知重复推进 | 对（口径收窄） | 余额腿键 `channel-refund-sync:{refundId}` 幂等；但 `finalizeChannelPartialRefund(orderId, refundCents)` 无同键幂等 ⇒ 同 refundId 重复投递时 `refundedCents` 可累加，受 `already+refund > amount` 超退闸限制 |
+| 7 对账混渠道 | 对 | `sumLedger` 内 `sumPaidAmountBetween(start,end)` 与 `sumGatewayRechargeRefundBetween(start,end)` 均**不传 channel**，而 `sumRechargeRefundByChannel(start,end,channel)` 传 ⇒ 毛额侧混渠道 |
+| 8 整单退充值不扣已退 | 对 | `debitForRechargeRefund` 判据只有 `status=PAID` 与 `balance >= amount`，扣的是 `-order.getAmountCents()`，全段无 `refundedCents` |
+| 9 积分回扣键 | **改判** | `doClawbackPointsOnRefund` 的 `sourceId = orderId + ":" + refundKey`，按行退传指纹键 ⇒ 原报「同额两笔第二笔不回扣」不成立；仅 `refundKey=null` 回落 `"default"` 时才会撞键 |
+| 10 回扣用当前倍率 | 对 | `MemberService:321-326` 用 `findByLevelCode(member.getMemberLevel())` 的**当前** rule 算 clawback |
+| 11 total_spent 只增 | 对 | 该文件内 `setTotalSpent` 仅两处：初始化 ZERO 与 `.add(orderAmount)`，无减 |
+| 12 预算重复释放 | **降待定** | 读到 `reconcilePromotionBudgetDelta(def, max(0, reserved − actual))` 为差额对账写法，与「各释放 R」不符；需逐调用点复核 |
+| 13 活动限购口径 | 部分 | 注释自证「每人最多 N **单**／总共 N **单**」⇒ 无件数上限成立；是否排除 PENDING/CANCELLED 未读到 mapper 谓词 |
+| 14 导出 N+1 | 对 | `for (CabinetOrder o : page.getContent()) { orderLineRepository.findByOrderId(...) }`（同文件另有批量写法可照抄） |
+| 15 MarketingRoi | 对 | `activityRepository.findAll()` → 嵌套 `for (CouponDefinition def : defs)` → `userCouponRepository.findByCouponDefId(...)` 全量物化 |
+| 16 附近柜机全表 | 对 | `for (DeviceInfo d : deviceRepository.findAllOrderByDeviceIdAsc())` 内做 haversine + 半径过滤 |
+| 17 Footfall | 对 | `findAllOrderByDeviceIdAsc()` 被调用两次（一次只为 `.size()`），循环内每设备 `countByDeviceIdAndCreatedAtAfter` |
+| 18 invoice_request | 对（措辞订正） | 实为 partial unique `(order_id) WHERE status IN (PENDING,ISSUED)`；`EXPLAIN … WHERE order_id='x' FOR UPDATE` 实测 `Seq Scan on invoice_request` |
+
+> 修的人请注意：**P2-9 与 P2-12 不要按原报去修**（一条不成立、一条需先复核调用点）；P2-18 的修法是加普通 `(order_id)` 索引或让锁查询带上 status 谓词，而不是「补一个缺失的索引」。
