@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.DisputeTicketDto;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.DisputeSlaProperties;
@@ -13,6 +14,8 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.recognition.RecognitionOutcome;
+import com.aicabinet.trade.recognition.RecognizedItem;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +31,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -57,6 +63,7 @@ class DisputeTicketSyncTest {
     @Mock DistributedLockService distributedLockService;
     @Mock SessionService sessionService;
     @Mock CabinetMetrics metrics;
+    @Mock SystemConfigService systemConfigService;
 
     private DisputeService service;
 
@@ -73,7 +80,7 @@ class DisputeTicketSyncTest {
                 riskControlService,
                 permissionService, merchantScopeService, merchantFeaturePackService, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null, orderPaymentService, distributedLockService, null, null,
+                fileAttachmentService, null, orderPaymentService, distributedLockService, systemConfigService, null,
                 sessionService, metrics, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
@@ -277,5 +284,49 @@ class DisputeTicketSyncTest {
         assertEquals("运营丙", ticket.getAssignee());
         assertEquals("运营丙", dto.assignee());
         verify(disputeRepository).save(ticket);
+    }
+
+    // ---------- 兜账 v2：CANCELLED 会话迟到识别自动转争议单（2026-11-12 真机事故）----------
+
+    @Test
+    void rescueCancelledSessionWithLateRecognition_createsDisputedTicket() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-RESCUE-001");
+        session.setUserId(7L);
+        session.setDeviceId("DEV-RESCUE-001");
+        session.setState(SessionState.CANCELLED);
+        when(sessionRepository.findByIdForUpdate("S-RESCUE-001")).thenReturn(Optional.of(session));
+        when(disputeRepository.findBySessionId("S-RESCUE-001")).thenReturn(Optional.empty());
+        when(disputeRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        RecognitionOutcome late = new RecognitionOutcome("T-1",
+                List.of(new RecognizedItem("SKU-A", 1, 1.0f)), 1.0f, false,
+                "QUECTEL-EDGE-1.2", List.of("cola"));
+
+        DisputeTicketDto dto = service.rescueCancelledSessionWithLateRecognition("S-RESCUE-001", late);
+
+        assertEquals(SessionState.DISPUTED, session.getState(), "会话必须迁移到 DISPUTED（结案链入口）");
+        ArgumentCaptor<DisputeTicket> captor = ArgumentCaptor.forClass(DisputeTicket.class);
+        verify(disputeRepository).save(captor.capture());
+        assertEquals("OPEN", captor.getValue().getStatus());
+        assertTrue(captor.getValue().getItems().contains("SKU-A"), "识别明细必须入单（结案扣款依据）");
+        assertNotNull(dto);
+        assertEquals("S-RESCUE-001", dto.sessionId());
+    }
+
+    @Test
+    void rescueCancelledSessionWithLateRecognition_notCancelled_returnsNull() {
+        // 并发重复上报：后到者看到会话已被前一个上报救援（DISPUTED）⇒ 落空返回 null，不重复建单
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-RESCUE-002");
+        session.setDeviceId("DEV-RESCUE-001");
+        session.setState(SessionState.DISPUTED);
+        when(sessionRepository.findByIdForUpdate("S-RESCUE-002")).thenReturn(Optional.of(session));
+        RecognitionOutcome late = new RecognitionOutcome("T-2",
+                List.of(new RecognizedItem("SKU-A", 1, 1.0f)), 1.0f, false, "v1", List.of());
+
+        assertNull(service.rescueCancelledSessionWithLateRecognition("S-RESCUE-002", late));
+
+        verify(sessionService, never()).transition(any(), any());
+        verify(disputeRepository, never()).save(any());
     }
 }

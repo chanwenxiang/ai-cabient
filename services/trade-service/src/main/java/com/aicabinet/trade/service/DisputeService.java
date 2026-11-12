@@ -203,6 +203,52 @@ public class DisputeService {
                 safeReason);
     }
 
+    /**
+     * 兜账 v2（2026-11-12 真机事故 1794452035347297629828）：CANCELLED 会话收到带商品的
+     * 迟到识别上报（端侧弱网补报，用户开门预授权已释放）→ 自动转争议单人工兜账。
+     *
+     * <p>与 {@code fileByConsumer} 同一原子性口径：先 {@code transition(DISPUTED)} 再
+     * {@code createTicket}，同事务内 saveOpenTicket 失败会连同状态一起回滚。行锁重读 +
+     * 终态复查把并发重复上报串行化（后到者看到 DISPUTED 即落空返回 null）。
+     * 扣款<b>不</b>在本方法发生：结案时运营走 {@code resolveConfirm}（无订单 →
+     * {@code finalizeOrder} 免密/余额全新落单，余额不足转待支付），或免单放弃。</p>
+     *
+     * @return 新建争议单；会话已不是 CANCELLED（并发重复上报）返回 null
+     */
+    @Transactional
+    public DisputeTicketDto rescueCancelledSessionWithLateRecognition(String sessionId,
+                                                                      RecognitionOutcome recognition) {
+        ShoppingSession locked = sessionRepository.findByIdForUpdate(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (locked.getState() != SessionState.CANCELLED) {
+            log.info("late-recognition rescue skipped session={} state={}", sessionId, locked.getState());
+            return null;
+        }
+        sessionService.transition(locked, SessionState.DISPUTED);
+        DisputeTicketDto ticket = self.createTicket(locked, recognition,
+                "开门会话已取消，但设备迟到识别到取货商品，疑似取货未结算，转人工核实兜账");
+        notifyConsumerLateRecognition(locked, ticket.ticketId());
+        log.warn("late-recognition rescued into dispute session={} ticket={}",
+                sessionId, ticket.ticketId());
+        return ticket;
+    }
+
+    /** 消费者触达：迟到识别自动转争议单发 dispute_created 站内信（失败不阻断兜账主链）。 */
+    private void notifyConsumerLateRecognition(ShoppingSession session, String ticketId) {
+        if (notificationService == null || session.getUserId() == null) {
+            return;
+        }
+        try {
+            notificationService.notifyConsumer(session.getUserId(), "dispute_created",
+                    java.util.Map.of("disputeNo", String.valueOf(ticketId),
+                            "reason", "本次开门会话异常关闭，设备识别到你可能已取货未结算，已转人工核实，结果将通知你"),
+                    "DISPUTE", String.valueOf(ticketId));
+        } catch (Exception e) {
+            log.warn("late-recognition dispute notify failed session={} ticket={}",
+                    session.getSessionId(), ticketId, e);
+        }
+    }
+
     @Transactional
     public DisputeTicketDto fileByConsumer(Long userId, FileDisputeRequest request) {
         ShoppingSession session = sessionRepository.findById(request.sessionId().trim())

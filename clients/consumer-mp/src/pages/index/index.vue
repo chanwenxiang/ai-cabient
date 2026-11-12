@@ -2436,7 +2436,10 @@ const { pollError, pollRefreshing, startPoll, stopPoll, refreshSessionNow } = us
       await finishSession(outcome.state, sid);
     } else if (outcome.kind === 'abort') {
       stopPoll();
-      const hint = sessionStateHint(outcome.state) || abortSessionFallbackHint(outcome.state);
+      // 2026-11-12：后端超时判杀现在写 failReason（「设备响应超时，本次开门已取消」），
+      // 优先展示比笼统的「会话已取消」更能定位问题；无 failReason 时退回状态提示
+      const hint =
+        s.failReason || sessionStateHint(outcome.state) || abortSessionFallbackHint(outcome.state);
       clearActiveSession();
       clearOpenAttempt();
       clearSessionUi();

@@ -54,12 +54,17 @@ public class VisionResultIngestService {
     private final ShoppingSessionMapper repository;
     private final SessionService sessionService;
     private final CabinetMetrics metrics;
+    private final OpsExceptionService opsExceptionService;
+    private final DisputeService disputeService;
 
     public VisionResultIngestService(ShoppingSessionMapper repository, SessionService sessionService,
-                                     CabinetMetrics metrics) {
+                                     CabinetMetrics metrics, OpsExceptionService opsExceptionService,
+                                     @org.springframework.context.annotation.Lazy DisputeService disputeService) {
         this.repository = repository;
         this.sessionService = sessionService;
         this.metrics = metrics;
+        this.opsExceptionService = opsExceptionService;
+        this.disputeService = disputeService;
     }
 
     /**
@@ -86,6 +91,22 @@ public class VisionResultIngestService {
             // 端侧通道健康度：非 RECOGNIZING 的每一次上报都记一笔（TOO_EARLY 高说明端侧报得太早、
             // ALREADY_HANDLED 高说明端侧在重发）——没有这个计数，通道质量问题在监控上是隐形的。
             metrics.recordEdgeIngest(outcome.name());
+            // 2026-11-12 真机事故（会话 1794452035347297629828）兜账：弱网下开门会话被
+            // OPEN_TIMEOUT 清扫误杀，设备随后把「用户确实拿了商品」的识别结果补报上来，此前只有
+            // 一条 INFO 日志、三端全部不可见 ⇒ 资金损失无人知晓。
+            // 兜账 v2（用户拍板「半自动」）：CANCELLED 会话带商品上报 → 自动转 DISPUTED +
+            // 自动建争议单（结案时人工确认扣款/免单，复用既有结案链）；FAILED 会话维持 HIGH
+            // 异常留痕（真实事故路径只有 CANCELLED）。兜账失败/竞争落空退回留痕，不让端侧误判通道故障。
+            boolean hasItems = request.items() != null && !request.items().isEmpty();
+            if (hasItems && stateBefore == SessionState.CANCELLED) {
+                VisionResultIngestResponseDto rescued = rescueCancelledSession(request, sessionId, stateBefore);
+                if (rescued != null) {
+                    return rescued;
+                }
+            }
+            if (hasItems && (stateBefore == SessionState.CANCELLED || stateBefore == SessionState.FAILED)) {
+                reportLateRecognition(sessionId, request, stateBefore);
+            }
             log.info("端侧识别结果未采纳 session={} state={} outcome={}",
                     sessionId, stateBefore, outcome);
             return new VisionResultIngestResponseDto(false, outcome,
@@ -103,6 +124,67 @@ public class VisionResultIngestService {
                 sessionId, request.taskId(), request.provider(), stateAfter);
         return new VisionResultIngestResponseDto(true, VisionIngestOutcome.PROCESSED,
                 "已采纳并结算，会话终态 " + stateAfter, sessionId, request.taskId(), stateAfter);
+    }
+
+    /**
+     * 兜账 v2：CANCELLED 会话带商品上报 → 委托 {@link DisputeService#rescueCancelledSessionWithLateRecognition}
+     * 自动转争议单（同事务：DISPUTED 迁移 + 建单 + 用户通知）。返回 null=救援落空（并发重复上报/异常），
+     * 调用方退回 v1 留痕。不抛出：本端点是设备面 HTTP 契约，兜账链故障不应让端侧误判「通道坏了」而重发。
+     */
+    private VisionResultIngestResponseDto rescueCancelledSession(VisionRecognitionResultDto request,
+                                                                 String sessionId, SessionState stateBefore) {
+        com.aicabinet.common.dto.DisputeTicketDto ticket;
+        try {
+            ticket = disputeService.rescueCancelledSessionWithLateRecognition(sessionId, toResult(request));
+        } catch (Exception e) {
+            log.error("迟到识别自动转争议单失败 session={}（退回 HIGH 异常留痕）", sessionId, e);
+            return null;
+        }
+        if (ticket == null) {
+            return null;
+        }
+        try {
+            opsExceptionService.report(
+                    "LATE_RECOGNITION",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            request.deviceId(), sessionId, null, null),
+                    "迟到识别已自动转争议单",
+                    "会话已 " + stateBefore.name() + "（开门超时误杀后端侧补报取货商品），"
+                            + "已自动转 DISPUTED 并建争议单 ticket=" + ticket.ticketId() + "，"
+                            + "请人工核实后确认扣款或免单");
+        } catch (Exception e) {
+            log.error("迟到识别转争议单的运维留痕失败 session={} ticket={}", sessionId, ticket.ticketId(), e);
+        }
+        return new VisionResultIngestResponseDto(false, VisionIngestOutcome.ALREADY_HANDLED,
+                "迟到识别已自动转争议单人工核实，请勿重发", sessionId, request.taskId(), "DISPUTED");
+    }
+
+    /**
+     * 终态会话收到带商品识别上报 → HIGH 级运维异常（疑似用户取货未结算的资金线索）。
+     * 仅留痕不抛出：本端点是设备面 HTTP 契约，异常系统故障不应让端侧误判「通道坏了」而重发。
+     */
+    private void reportLateRecognition(String sessionId, VisionRecognitionResultDto request,
+                                       SessionState state) {
+        StringBuilder items = new StringBuilder();
+        for (VisionRecognitionResultDto.Item item : request.items()) {
+            if (items.length() > 0) {
+                items.append("、");
+            }
+            items.append(item.skuId()).append("×").append(item.quantity());
+        }
+        try {
+            opsExceptionService.report(
+                    "LATE_RECOGNITION",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            request.deviceId(), sessionId, null, null),
+                    "终态会话收到带商品识别上报",
+                    "会话已 " + state.name() + "（疑似开门超时误杀后用户已取货未结算），"
+                            + "识别商品: " + items + "，请人工核实兜账");
+        } catch (Exception e) {
+            log.error("终态会话迟到识别上报留痕失败 session={} items={}", sessionId, items, e);
+        }
     }
 
     /** 非识别态下的受理结论：已处理过的不必重发，未到识别态的可以稍后重试。 */

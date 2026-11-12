@@ -27,12 +27,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 将邑补货开门回执（WS sendOpenStockDoorSure/openDoorSure → /internal/v1/jiangyi/restock-door-opened）：
- * 2026-10-30 把「是否补货会话」的判定从网关 tracker 移到这里——tracker 登记会被 watchdog
- * 15s open-failed 先清掉，回执稍慢即丢，补货会话照旧被 90s 扫杀。
+ * 将邑开门回执（WS sendOpenStockDoorSure/openDoorSure → /internal/v1/jiangyi/restock-door-opened）：
+ * 2026-10-30 把「是否放行」的判定从网关 tracker 移到这里——tracker 登记会被 watchdog
+ * 15s open-failed 先清掉，回执稍慢即丢。
  *
- * <p>锁三件事：补货 OPENING 回执推进到 SHOPPING（不结算、不落快照）；重复回执幂等；
- * 消费会话/设备不符/无此会话一律 false 且不进锁与门事件路径。</p>
+ * <p>2026-11-12 真机事故（会话 1794452035347297629828）放开消费会话：弱网下设备 HTTP
+ * uploadLockState 迟到 2m13s，10s OPEN_TIMEOUT 清扫误杀真开门；openDoorSure 回执
+ * （迟到 14.3s）是唯一能在清扫前到达的设备响应信号。锁四件事：补货/消费 OPENING 回执
+ * 推进到 SHOPPING（不结算）；重复回执幂等；终态会话不复活；设备不符/无此会话一律
+ * false 且不进锁与门事件路径。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class RestockDoorOpenReportTest {
@@ -87,6 +90,7 @@ class RestockDoorOpenReportTest {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-RO-2");
         session.setDeviceId("EG943322621391");
+        session.setUserId(200L);
         session.setState(SessionState.OPENING);
         return session;
     }
@@ -114,11 +118,28 @@ class RestockDoorOpenReportTest {
     }
 
     @Test
-    void consumerSession_isIgnoredWithoutDoorPath() {
-        when(repository.findById("S-RO-2")).thenReturn(Optional.of(consumerSession()));
+    void consumerOpeningSession_rescuedByAck() {
+        // 2026-11-12 真机事故救援路径：消费 OPENING 会话收到迟到 openDoorSure 回执（14.3s，
+        // HTTP lock 上报还在路上）→ 与补货同语义推进 SHOPPING，清扫不再误杀真开门
+        ShoppingSession session = consumerSession();
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-RO-2")).thenReturn(Optional.of(session));
+
+        assertTrue(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
+        assertEquals(SessionState.SHOPPING, session.getState());
+        assertNotNull(session.getOpenTime());
+        verify(settlementService, never()).settle(any());
+    }
+
+    @Test
+    void terminalSession_isNotRevived() {
+        // 已被超时清扫杀掉的会话：迟到回执不复活（兜账走迟到识别上报的运维异常路径）
+        ShoppingSession session = consumerSession();
+        session.setState(SessionState.CANCELLED);
+        when(repository.findById("S-RO-2")).thenReturn(Optional.of(session));
 
         assertFalse(doorService.applyRestockDoorOpened("EG943322621391", "S-RO-2"));
-        // 消费开门回执语义仍是「指令送达」，其门事件走既有 HTTP 面（半径不扩）
+        assertEquals(SessionState.CANCELLED, session.getState());
         verify(repository, never()).findByIdForUpdate(anyString());
     }
 

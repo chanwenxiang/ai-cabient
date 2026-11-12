@@ -118,12 +118,20 @@ public class SessionDoorService {
     }
 
     /**
-     * 将邑补货开门回执推进（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）：网关只按
-     * sessionId 转发，是否补货由本方法判定——tracker 的 stock 标记不可靠，watchdog 15s
-     * open-failed 会先把登记清掉，回执稍慢就丢，补货会话照旧被 90s 扫杀。
+     * 将邑开门回执推进（WS sendOpenStockDoorSure/openDoorSure，2026-10-30）：网关只按
+     * sessionId 转发，是否放行由本方法判定——tracker 的 stock 标记不可靠，watchdog 15s
+     * open-failed 会先把登记清掉，回执稍慢就丢。
      *
-     * @return true=设备一致的补货会话且已投递 {@link DoorState#OPEN}（已过 OPENING 幂等 no-op）；
-     *         false=无此会话/设备不符/非补货会话（消费、盘点、运维）——一律不推进
+     * <p>2026-11-12 真机事故（会话 1794452035347297629828）放开消费会话：弱网下设备
+     * HTTP uploadLockState 迟到 2m13s（花生壳 1Mbps 隧道被视频上传挤占），10s
+     * OPEN_TIMEOUT 清扫误杀真开门；openDoorSure 回执迟到 14.3s 却是唯一能在清扫前
+     * 到达的设备响应信号。回执=设备已执行解锁指令，与 HTTP 门事件同一
+     * {@link #onDoorOpened} 语义（OPENING→SHOPPING；已 SHOPPING 幂等）。终态
+     * （CANCELLED/FAILED/COMPLETED 等）仍拒绝——救会话只发生在清扫尚未杀掉时，
+     * 已杀会话的兜账走迟到识别上报的运维异常路径，不在此复活。</p>
+     *
+     * @return true=设备一致的活跃会话（OPENING/SHOPPING）且已投递 {@link DoorState#OPEN}
+     *         （已开为幂等 no-op）；false=无此会话/设备不符/会话已终态
      */
     @Transactional
     public boolean applyRestockDoorOpened(String deviceId, String sessionId) {
@@ -132,7 +140,8 @@ public class SessionDoorService {
         }
         ShoppingSession session = repository.findById(sessionId).orElse(null);
         if (session == null || !deviceId.equals(session.getDeviceId())
-                || !DeviceValidationService.isRestockSession(session)) {
+                || (session.getState() != SessionState.OPENING
+                && session.getState() != SessionState.SHOPPING)) {
             return false;
         }
         SessionDto after = handleDoorEvent(new DoorEventRequest(sessionId, deviceId,
@@ -169,8 +178,11 @@ public class SessionDoorService {
             session.setOpenTime(Instant.now());
             sessionService.transition(session, SessionState.SHOPPING);
             cabinetMetrics.recordDoorOpen(true);
-            domainEventPublisher.publish("DoorOpened", session.getSessionId(),
-                    Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId()));
+            // Map.of 拒 null（铁律 24-27）：运维/盘点等会话可能无 userId，缺了降级为不带该键而非 NPE
+            Map<String, Object> payload = session.getUserId() != null
+                    ? Map.of(DEVICEID, session.getDeviceId(), "userId", session.getUserId())
+                    : Map.of(DEVICEID, session.getDeviceId());
+            domainEventPublisher.publish("DoorOpened", session.getSessionId(), payload);
             log.info("door opened {}", SessionLogContext.of(session));
         }
         return sessionService.toDto(session);

@@ -372,6 +372,9 @@ public class SessionExpireService {
                 return false;
             }
             consumerPreauthService.releaseIfFrozen(locked);
+            // 2026-11-12 用户意图明确：判杀语义=「设备异常，取消开门并提示用户」。此前不写
+            // failReason（DB 实证为空），前端只能展示笼统的「会话已取消」，设备异常被掩盖。
+            locked.setFailReason("设备响应超时，本次开门已取消");
             sessionService.transition(locked, SessionState.CANCELLED);
             opsExceptionService.report(
                     "OPEN_TIMEOUT",
@@ -379,7 +382,7 @@ public class SessionExpireService {
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(
                             locked.getDeviceId(), locked.getSessionId(), locked.getOrderId(), locked.getUserId()),
                     "开门超时",
-                    "开门命令在10秒内未得到设备响应");
+                    "开门命令在 " + sessionExpireProperties.openingSeconds() + " 秒内未得到设备响应，判定设备异常");
             log.warn("opening session expired {}", SessionLogContext.of(locked));
             return true;
         } finally {

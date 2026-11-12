@@ -49,7 +49,10 @@ public enum SessionState {
             case COMPLETED -> target == DISPUTED;
             case DISPUTED -> target == COMPLETED || target == FAILED || target == RECOGNIZING;
             case FAILED -> target == RECOGNIZING || target == COMPLETED || target == CANCELLED;
-            case CANCELLED -> false;
+            // CANCELLED → DISPUTED（2026-11-12 兜账 v2，真机事故 1794452035347297629828）：
+            // 开门超时误杀的会话收到带商品的迟到识别上报时，自动转争议单人工兜账——用户开门
+            // 时已做预授权（=同意取货扣款），识别+视频是取货证据，钱不能静默丢。仅此一条出边。
+            case CANCELLED -> target == DISPUTED;
         };
     }
 }

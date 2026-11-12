@@ -34,7 +34,11 @@ class SessionStateTest {
     void terminalCancelled_blocksFurtherMoves() {
         assertFalse(SessionState.CANCELLED.canTransitionTo(SessionState.OPENING));
         assertFalse(SessionState.CANCELLED.canTransitionTo(SessionState.COMPLETED));
+        assertFalse(SessionState.CANCELLED.canTransitionTo(SessionState.SHOPPING));
+        assertFalse(SessionState.CANCELLED.canTransitionTo(SessionState.CANCELLED));
         assertFalse(SessionState.COMPLETED.canTransitionTo(SessionState.CANCELLED));
         assertFalse(SessionState.COMPLETED.canTransitionTo(SessionState.SHOPPING));
+        // 兜账 v2（2026-11-12）：唯一出边——迟到识别带商品时自动转争议单人工兜账
+        assertTrue(SessionState.CANCELLED.canTransitionTo(SessionState.DISPUTED));
     }
 }

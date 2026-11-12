@@ -54,6 +54,8 @@ class VisionResultIngestServiceTest {
     @Mock private ShoppingSessionMapper repository;
     @Mock private SessionService sessionService;
     @Mock private CabinetMetrics metrics;
+    @Mock private OpsExceptionService opsExceptionService;
+    @Mock private DisputeService disputeService;
 
     /** 单测内自洽即可（mock 仓库无 DB）；禁止写死历史柜号（lessons #212/#224）。 */
     private static final String DEVICE_ID = "DEV-UT-0001";
@@ -62,7 +64,8 @@ class VisionResultIngestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new VisionResultIngestService(repository, sessionService, metrics);
+        service = new VisionResultIngestService(repository, sessionService, metrics,
+                opsExceptionService, disputeService);
     }
 
     // ---------- 采纳路径 ----------
@@ -184,14 +187,70 @@ class VisionResultIngestServiceTest {
     }
 
     @Test
-    void ingest_cancelledSession_reportsCancelled() {
+    void ingest_cancelledSessionWithItems_rescuedIntoDisputeTicket() {
+        // 2026-11-12 真机事故兜账 v2（用户拍板半自动）：开门超时误杀后设备补报「用户确实拿了商品」
+        // → 自动转争议单（结案时人工确认扣款/免单），响应告知端侧已受理、勿重发
         when(repository.findById("S-CXL")).thenReturn(Optional.of(session("S-CXL", SessionState.CANCELLED)));
+        when(disputeService.rescueCancelledSessionWithLateRecognition(eq("S-CXL"), any()))
+                .thenReturn(disputeTicket("T-R-1", "S-CXL"));
+
+        VisionResultIngestResponseDto response = service.ingest(result("S-CXL"));
+
+        assertFalse(response.accepted());
+        assertEquals(VisionIngestOutcome.ALREADY_HANDLED, response.outcome());
+        assertEquals("DISPUTED", response.sessionState());
+        verify(sessionService, never()).completeAsyncRecognition(any(), any());
+        verify(opsExceptionService).report(
+                eq("LATE_RECOGNITION"), eq("HIGH"), any(),
+                eq("迟到识别已自动转争议单"), any());
+    }
+
+    @Test
+    void ingest_cancelledSession_rescueLostRace_fallsBackToOpsException() {
+        // 并发重复上报落空（会话已被先到的上报救援）⇒ 退回 v1 HIGH 异常留痕，回执仍 CANCELLED
+        when(repository.findById("S-CXL")).thenReturn(Optional.of(session("S-CXL", SessionState.CANCELLED)));
+        when(disputeService.rescueCancelledSessionWithLateRecognition(eq("S-CXL"), any())).thenReturn(null);
 
         VisionResultIngestResponseDto response = service.ingest(result("S-CXL"));
 
         assertFalse(response.accepted());
         assertEquals(VisionIngestOutcome.CANCELLED, response.outcome());
         verify(sessionService, never()).completeAsyncRecognition(any(), any());
+        verify(opsExceptionService).report(
+                eq("LATE_RECOGNITION"), eq("HIGH"), any(),
+                eq("终态会话收到带商品识别上报"), any());
+    }
+
+    @Test
+    void ingest_cancelledSession_rescueFailure_fallsBackToOpsException() {
+        // 兜账链故障不得外抛：设备面契约不能让端侧误判「通道坏了」而重发风暴
+        when(repository.findById("S-CXL")).thenReturn(Optional.of(session("S-CXL", SessionState.CANCELLED)));
+        when(disputeService.rescueCancelledSessionWithLateRecognition(eq("S-CXL"), any()))
+                .thenThrow(new RuntimeException("db down"));
+
+        VisionResultIngestResponseDto response = service.ingest(result("S-CXL"));
+
+        assertFalse(response.accepted());
+        assertEquals(VisionIngestOutcome.CANCELLED, response.outcome());
+        verify(opsExceptionService).report(
+                eq("LATE_RECOGNITION"), eq("HIGH"), any(),
+                eq("终态会话收到带商品识别上报"), any());
+    }
+
+    @Test
+    void ingest_terminalSessionWithoutItems_doesNotFlagLateRecognition() {
+        // 空商品（用户没拿东西）的迟到上报是纯噪声，不值得开 HIGH 异常、更不该转争议单
+        ShoppingSession cancelled = session("S-CXL-EMPTY", SessionState.CANCELLED);
+        when(repository.findById("S-CXL-EMPTY")).thenReturn(Optional.of(cancelled));
+        VisionRecognitionResultDto request = new VisionRecognitionResultDto(
+                "S-CXL-EMPTY", DEVICE_ID, "T-1", null,
+                List.of(), 0.0, false, "QUECTEL-EDGE-1.2", null, "QUECTEL", null);
+
+        VisionResultIngestResponseDto response = service.ingest(request);
+
+        assertFalse(response.accepted());
+        verify(opsExceptionService, never()).report(any(), any(), any(), any(), any());
+        verify(disputeService, never()).rescueCancelledSessionWithLateRecognition(any(), any());
     }
 
     @Test
@@ -405,6 +464,14 @@ class VisionResultIngestServiceTest {
                 sessionId, DEVICE_ID, "T-1", "trace-1",
                 List.of(new VisionRecognitionResultDto.Item("SKU-A", 1, 0.95)),
                 0.95, false, "QUECTEL-EDGE-1.2", List.of("cola"), "QUECTEL", Instant.now());
+    }
+
+    /** 26 参兼容构造（其余展示字段与入站判定无关，留空）。 */
+    private static com.aicabinet.common.dto.DisputeTicketDto disputeTicket(String ticketId, String sessionId) {
+        return new com.aicabinet.common.dto.DisputeTicketDto(
+                ticketId, sessionId, DEVICE_ID, "迟到识别兜账", "OPEN",
+                null, null, null, null, null, null, null, null, null,
+                null, false, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static ShoppingSession session(String id, SessionState state) {

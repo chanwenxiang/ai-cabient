@@ -183,10 +183,10 @@ public class JiangyiInternalController {
     }
 
     /**
-     * 补货开门回执推进（2026-10-30，gateway WS *Sure 转发）：补货会话的开门信号只有这条回执，
-     * 网关不再凭 tracker 判定（watchdog 15s open-failed 会先清掉登记，慢回执即丢），
-     * 改由 trade 做权威校验——设备一致的补货会话才走 door-event OPEN。
-     * true=命中补货会话并投递；false=无此会话/设备不符/非补货会话（幂等 no-op）。
+     * 开门回执推进（WS *Sure 转发，2026-10-30）：网关只按 sessionId 转发，是否放行由
+     * trade 权威校验——设备一致的活跃会话（OPENING/SHOPPING，不限补货/消费）才走
+     * door-event OPEN；终态会话拒绝（迟到回执不复活已被超时清扫杀掉的会话）。
+     * true=已投递；false=无此会话/设备不符/会话已终态（幂等 no-op）。
      */
     @PostMapping("/restock-door-opened")
     public ApiResponse<Boolean> restockDoorOpened(@RequestParam("deviceId") String deviceId,
