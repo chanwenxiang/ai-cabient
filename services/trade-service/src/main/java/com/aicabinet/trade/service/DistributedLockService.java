@@ -95,15 +95,27 @@ public class DistributedLockService {
     }
 
     /**
+     * 续租三态（R18-7，四端审计 2026-11-12）：
+     * <ul>
+     *   <li>{@link RenewOutcome#RENEWED}：锁仍是持有者的，TTL 已重置；</li>
+     *   <li>{@link RenewOutcome#LOST}：锁不存在或已易主——调用方必须立即停止续租并按「锁已丢失」处理；</li>
+     *   <li>{@link RenewOutcome#TRANSIENT}：Redis 瞬断/超时——锁状态<b>未知</b>，调用方应保留心跳、
+     *       下个周期再试（周期=租约/3，一次抖动后仍有两轮补救机会）。</li>
+     * </ul>
+     * 此前「异常也返回 false」把瞬断与易主并成一路：一次网络抖动即永久停租，
+     * 长任务剩余时间无保护，到点可能被第二实例接管（双跑）。
+     */
+    public enum RenewOutcome { RENEWED, LOST, TRANSIENT }
+
+    /**
      * 续租：仅当锁仍由 {@code holderThreadId} 对应线程持有时，把 TTL 重置为 {@code leaseSeconds}。
      *
      * <p>供 {@code ScheduledTaskService} 的租约心跳调用（集群就绪 P-3）：心跳线程不是持锁线程，
-     * 所以必须显式传持锁线程 id；Lua 内做 owner 校验，锁已过期/易主时返回 {@code false}
-     * ——调用方应立即停止续租并按「锁已丢失」处理。</p>
+     * 所以必须显式传持锁线程 id；Lua 内做 owner 校验。</p>
      *
-     * @return true = 续租成功；false = 锁不存在或已易主（或 Redis 异常，按失败处理）
+     * @return 三态，见 {@link RenewOutcome}
      */
-    public boolean renew(String lockKey, long leaseSeconds, long holderThreadId) {
+    public RenewOutcome renew(String lockKey, long leaseSeconds, long holderThreadId) {
         if (leaseSeconds <= 0) {
             throw new IllegalArgumentException("租约时间必须大于 0");
         }
@@ -115,16 +127,15 @@ public class DistributedLockService {
             Long r = redissonClient.getScript(StringCodec.INSTANCE).eval(RScript.Mode.READ_WRITE, RENEW_LUA,
                     RScript.ReturnType.INTEGER, Collections.singletonList(fullKey),
                     owner, String.valueOf(leaseSeconds * 1000));
-            boolean ok = r != null && r > 0;
-            if (ok) {
+            if (r != null && r > 0) {
                 log.debug("锁续租成功 key={} leaseSeconds={}", fullKey, leaseSeconds);
-            } else {
-                log.warn("锁续租失败（锁不存在或已易主）key={}", fullKey);
+                return RenewOutcome.RENEWED;
             }
-            return ok;
+            log.warn("锁续租失败（锁不存在或已易主）key={}", fullKey);
+            return RenewOutcome.LOST;
         } catch (Exception e) {
-            log.error("锁续租异常 key={}", fullKey, e);
-            return false;
+            log.error("锁续租异常（瞬断，下个周期重试）key={}: {}", fullKey, e.toString());
+            return RenewOutcome.TRANSIENT;
         }
     }
 

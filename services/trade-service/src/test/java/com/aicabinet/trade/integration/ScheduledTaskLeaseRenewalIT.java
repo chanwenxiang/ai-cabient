@@ -18,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -114,8 +115,10 @@ class ScheduledTaskLeaseRenewalIT {
         String key = "it-owner-" + System.nanoTime();
         assertTrue(lockService.tryLock("job:" + key, 2, 0), "当前线程应拿到锁");
 
-        assertFalse(lockService.renew("job:" + key, 10, 987654321L),
-                "假冒 owner 续租必须失败");
+        // R18-7 三态：假冒 owner 属于「锁在但已易主」⇒ 必须返回 LOST（而非 TRANSIENT 瞬断）
+        assertEquals(com.aicabinet.trade.service.DistributedLockService.RenewOutcome.LOST,
+                lockService.renew("job:" + key, 10, 987654321L),
+                "假冒 owner 续租必须返回 LOST");
         Thread.sleep(2100);
         assertFalse(lockService.isLocked("job:" + key),
                 "错误 owner 的续租不得延长 TTL（否则挂死任务会钉死锁、堵死自愈）");

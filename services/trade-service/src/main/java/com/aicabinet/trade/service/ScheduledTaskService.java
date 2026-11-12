@@ -29,6 +29,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
@@ -227,6 +228,9 @@ public class ScheduledTaskService {
         }
         // 集群就绪 P-3：显式租约下 Redisson watchdog 不激活，任务体超过租约时
         // 第二实例能进临界区造成双跑——持锁后启动租约心跳按周期续租。
+        // R18-6 配套：登记「执行中」标志（finish finally 移除），心跳续租前校验——
+        // 防止 finish 已收尾而心跳句柄晚到/漏 cancel 时把锁继续钉在续租上限。
+        leaseHolders.put(taskKey, Thread.currentThread().getId());
         startLeaseHeartbeat(taskKey, leaseSeconds, Thread.currentThread().getId());
         LAST_SKIP_REASON.remove();
         return true;
@@ -262,22 +266,31 @@ public class ScheduledTaskService {
         taskRepository.save(row);
     }
 
-    /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）。 */
+    /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）。
+     *
+     *  <p>R18-6（四端审计 2026-11-12）：cancel+unlock 必须 try/finally——此前裸顺序，
+     *  save（REQUIRES_NEW 写库）一旦抛异常，cancel/unlock 被跳过，而心跳仍按 owner
+     *  命中续租 ⇒ 锁在、任务不在，全集群静默跳过该任务至续租上限（约 6.6h）。</p>
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finish(String taskKey, String result, String message, long startNanos) {
-        ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
-        if (row != null) {
-            Instant now = Instant.now();
-            row.setLastRunAt(now);
-            row.setLastResult(result);
-            row.setLastMessage(truncate(defaultMessage(result, message), 500));
-            row.setLastDurationMs(Math.max(0L, (System.nanoTime() - startNanos) / 1_000_000L));
-            row.setUpdatedAt(now);
-            taskRepository.save(row);
+        try {
+            ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
+            if (row != null) {
+                Instant now = Instant.now();
+                row.setLastRunAt(now);
+                row.setLastResult(result);
+                row.setLastMessage(truncate(defaultMessage(result, message), 500));
+                row.setLastDurationMs(Math.max(0L, (System.nanoTime() - startNanos) / 1_000_000L));
+                row.setUpdatedAt(now);
+                taskRepository.save(row);
+            }
+        } finally {
+            // 先停心跳再解锁：解锁后 hash 已删、在途续租的 owner 校验必失败，此序无竞态窗口。
+            leaseHolders.remove(taskKey);
+            cancelLeaseHeartbeat(taskKey);
+            lockService.unlock("job:" + taskKey);
         }
-        // 先停心跳再解锁：解锁后 hash 已删、在途续租的 owner 校验必失败，此序无竞态窗口。
-        cancelLeaseHeartbeat(taskKey);
-        lockService.unlock("job:" + taskKey);
     }
 
     // ── 租约心跳（集群就绪 P-3）──
@@ -292,6 +305,8 @@ public class ScheduledTaskService {
     private static final int MAX_HEARTBEAT_RENEWALS = 120;
 
     private final Map<String, ScheduledFuture<?>> leaseHeartbeats = new ConcurrentHashMap<>();
+    /** R18-6 配套：taskKey → 持锁线程 id 的「执行中」标志。tryBegin 登记、finish finally 移除；心跳只见标志消失即停。 */
+    private final Map<String, Long> leaseHolders = new ConcurrentHashMap<>();
     private ScheduledExecutorService leaseHeartbeatExecutor;
 
     private synchronized ScheduledExecutorService heartbeatExecutor() {
@@ -305,36 +320,70 @@ public class ScheduledTaskService {
         return leaseHeartbeatExecutor;
     }
 
-    /** 任务体可能超过租约：持锁后按租约 1/3 周期续租；锁丢失/达到上限即停（留错误日志）。 */
+    /** 任务体可能超过租约：持锁后按租约 1/3 周期续租；锁丢失/达到上限即停（留错误日志）。
+     *
+     *  <p>R18-7：renew 三态——LOST 才停，TRANSIENT（Redis 瞬断）保留心跳下周期再试；
+     *  此前瞬断也返回 false ⇒ 一次抖动即永久停租。R18-8：取消只摘「自己这一代」的句柄
+     *  （remove(key, future)），上一轮晚到的失败分支摘不掉新一代心跳。</p>
+     */
     private void startLeaseHeartbeat(String taskKey, long leaseSeconds, long holderThreadId) {
         String lockKey = "job:" + taskKey;
         long period = Math.max(1, leaseSeconds / HEARTBEAT_DIVISOR);
         AtomicInteger renewals = new AtomicInteger();
+        AtomicReference<ScheduledFuture<?>> selfRef = new AtomicReference<>();
         ScheduledFuture<?> future = heartbeatExecutor().scheduleAtFixedRate(() -> {
             try {
-                if (!lockService.renew(lockKey, leaseSeconds, holderThreadId)) {
-                    log.error("任务锁续租失败（锁已过期或易主）task={} —— 本次执行存在双跑风险，请检查任务体耗时", taskKey);
-                    cancelLeaseHeartbeat(taskKey);
+                // R18-6 配套：执行中标志已被 finish finally 摘除（或被新一代覆盖）⇒ 本代已收尾，停
+                Long holder = leaseHolders.get(taskKey);
+                if (holder == null || holder != holderThreadId) {
+                    log.warn("任务锁心跳发现执行标志已消失（finish 已收尾或新一代接管）task={} —— 停止本代续租", taskKey);
+                    ScheduledFuture<?> self = selfRef.get();
+                    if (self != null) {
+                        cancelLeaseHeartbeat(taskKey, self);
+                    }
                     return;
                 }
+                DistributedLockService.RenewOutcome outcome =
+                        lockService.renew(lockKey, leaseSeconds, holderThreadId);
+                if (outcome == DistributedLockService.RenewOutcome.LOST) {
+                    log.error("任务锁已丢失（过期或易主）task={} —— 本次执行存在双跑风险，请检查任务体耗时", taskKey);
+                    ScheduledFuture<?> self = selfRef.get();
+                    if (self != null) {
+                        cancelLeaseHeartbeat(taskKey, self);
+                    }
+                    return;
+                }
+                // TRANSIENT：锁状态未知（Redis 瞬断）——保留心跳，下一周期再试
             } catch (Throwable t) {
                 log.warn("任务锁续租异常 task={}: {}", taskKey, t.toString());
             }
             if (renewals.incrementAndGet() >= MAX_HEARTBEAT_RENEWALS) {
                 log.error("任务锁心跳达到续租上限 task={} renewals={} —— 停止续租，锁将按租约自然过期；超长任务应自行分段", taskKey, MAX_HEARTBEAT_RENEWALS);
-                cancelLeaseHeartbeat(taskKey);
+                ScheduledFuture<?> self = selfRef.get();
+                if (self != null) {
+                    cancelLeaseHeartbeat(taskKey, self);
+                }
             }
         }, period, period, TimeUnit.SECONDS);
+        selfRef.set(future);
         ScheduledFuture<?> prev = leaseHeartbeats.put(taskKey, future);
         if (prev != null) {
             prev.cancel(false);
         }
     }
 
+    /** 无身份摘除（finish 收尾用：摘除当前登记的一代）。 */
     private void cancelLeaseHeartbeat(String taskKey) {
         ScheduledFuture<?> f = leaseHeartbeats.remove(taskKey);
         if (f != null) {
             f.cancel(false);
+        }
+    }
+
+    /** R18-8：带身份摘除——只有 map 里登记的还是「自己这一代」才摘，上一轮晚到的失败分支摘不掉新一代。 */
+    private void cancelLeaseHeartbeat(String taskKey, ScheduledFuture<?> mine) {
+        if (leaseHeartbeats.remove(taskKey, mine)) {
+            mine.cancel(false);
         }
     }
 
