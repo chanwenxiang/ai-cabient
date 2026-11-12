@@ -175,14 +175,38 @@ export async function del<T = unknown>(path: string): Promise<{ data: T }> {
   return { data };
 }
 
+/** 下载通道超时（毫秒）。与 MP 端下载口径一致：60s 内无完整响应即失败。 */
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+
 /** Download authenticated CSV/binary endpoints (not JSON ApiResponse). */
 export async function downloadAuthFile(path: string, fallbackName: string, retried = false) {
-  const res = await authFetch(`${getBaseUrl()}${path}`);
+  // P3-r19-8（2026-11-12）：原先无超时。连接建立后服务器零字节挂起时 fetch 永不 settle，
+  // 调用方（DeviceDetailView 的 qrDownloading 等）只在 finally 复位 ⇒ 按钮永久转圈。
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+  try {
+    return await downloadAuthFileWithSignal(path, fallbackName, retried, controller);
+  } catch (e) {
+    if (controller.signal.aborted) throw new Error('下载超时，请检查网络后重试');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function downloadAuthFileWithSignal(
+  path: string,
+  fallbackName: string,
+  retried: boolean,
+  controller: AbortController
+) {
+  const res = await authFetch(`${getBaseUrl()}${path}`, { signal: controller.signal });
   if (res.status === 401 && !retried) {
     // R15-K6：与 mp 端下载通道同口径——401 先静默刷新重放一次；只有刷新端点明确拒绝
     // 才清会话跳登录，瞬态失败（429/5xx/网络）保会话按普通错误抛出。
     const outcome = await api.refreshWithOutcome();
-    if (outcome.kind === 'ok') return downloadAuthFile(path, fallbackName, true);
+    if (outcome.kind === 'ok')
+      return downloadAuthFileWithSignal(path, fallbackName, true, controller);
     if (outcome.kind === 'invalid') {
       clearSession();
       if (!globalThis.location.pathname.includes('/login')) {

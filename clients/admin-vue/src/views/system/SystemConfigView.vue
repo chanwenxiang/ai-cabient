@@ -663,8 +663,9 @@ async function saveJiangyiDomain() {
     jiangyiPushedAt.value = result.pushedAt;
     ElMessage.success('已下发到将邑云（租户级，覆盖全部柜子；设备将随下次开机切换）');
   } catch (e) {
+    // R4-A26：此处**不再 rethrow**——上面已弹一次 toast，抛出去会被 PageErrorBoundary 的
+    // onErrorCaptured 当"页面交互异常"再弹一次（双 toast，2026-11-12 核查坐实）。
     if (!isUserDismiss(e)) ElMessage.error(errorMessage(e));
-    throw e;
   } finally {
     jiangyiSaving.value = false;
   }

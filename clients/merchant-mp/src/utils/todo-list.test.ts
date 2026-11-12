@@ -6,6 +6,7 @@ import {
   todoBadgeCount
 } from './todo-list';
 import type {
+  TodoKpiKey,
   TodoListItem,
   TodoSourceAction,
   TodoSourceException,
@@ -345,32 +346,69 @@ describe('matchTodoKpiCategory', () => {
   it('OPEN_TIMEOUT 归故障卡——否则徽标≠待办总数（2026-10-27 实测 37 vs 41）', () => {
     expect(matchTodoKpiCategory('OPEN_TIMEOUT', 'offline')).toBe(true);
   });
+  it('LATE_RECOGNITION 归审核卡——旧实现 startsWith("RECOGNITION") 匹配不到（R19-10）', () => {
+    expect(matchTodoKpiCategory('LATE_RECOGNITION', 'dispute')).toBe(true);
+  });
+  it('SETTLEMENT_FAILED / BALANCE_INSUFFICIENT 归审核卡（R19-10 前完全不进卡）', () => {
+    expect(matchTodoKpiCategory('SETTLEMENT_FAILED', 'dispute')).toBe(true);
+    expect(matchTodoKpiCategory('SETTLEMENT_STUCK', 'dispute')).toBe(true);
+    expect(matchTodoKpiCategory('BALANCE_INSUFFICIENT', 'dispute')).toBe(true);
+  });
+  it('JIANGYI_* 归故障卡（将邑对接/识别参数异常是设备侧）', () => {
+    expect(matchTodoKpiCategory('JIANGYI_CLASS_MAPPING_MISS', 'offline')).toBe(true);
+    expect(matchTodoKpiCategory('JIANGYI_PARAMS_NOT_READY', 'offline')).toBe(true);
+  });
 });
 
 /**
- * MA-030（2026-11-02 R9 实测）：首页快捷入口角标 60 与待办页四卡合计 58 同屏不一致。
- * 根因是 `RESTOCK_TASK_TIMEOUT`（补货任务超时）没有归属卡——四卡合计里少它 2 行。
- * 与 OPEN_TIMEOUT 同形，所以修法相同：归卡 + 用「全类型覆盖」不变式把这类回归钉死。
+ * R19-10（2026-11-12）：MA-030 同形缺陷第三次复发。根因从「少加一个类型」升级为
+ * 「归类靠白名单枚举，而后端字典 35 类且持续增加」⇒ 新类型既不进卡也不计徽标。
+ * 修法改为**穷尽划分**（故障/库存/临期显式，其余兜底审核），并用字典全集快照钉住。
+ *
+ * <p>快照与后端 `SysDictBootstrap.exception_type` 的一致性由
+ * `scripts/check-todo-type-coverage.mjs`（`pnpm check:todo-type-coverage`）看守：后端新增类型而
+ * 本清单没跟，门禁直接红——这类跨端契约纯前端用例护不住。
  */
-describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（MA-030）', () => {
-  /** 2026-11-02 从活体待办页四个数据源实取的类型全集（`.tmp/r9-todo-types.cjs`） */
-  const OBSERVED_TYPES = [
+describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽划分）', () => {
+  /** 后端 `SysDictBootstrap.exception_type` 全集（2026-11-12 抄录，共 35 类） */
+  const DICT_TYPES = [
     'DISPUTE',
-    'RECOGNITION_FAILED',
-    'RECOGNITION_TIMEOUT',
+    'LOW_STOCK',
+    'EXPIRY',
+    'REPLENISHMENT_REQUIRED',
     'DEVICE_OFFLINE',
     'DEVICE_FAULT',
-    'SALES_LOCKED',
     'DOOR_OPEN_TOO_LONG',
-    'UPLOAD_STUCK',
     'OPEN_TIMEOUT',
-    'LOW_STOCK',
+    'UPLOAD_STUCK',
+    'RECOGNITION_STUCK',
+    'RECOGNITION_TIMEOUT',
+    'RECOGNITION_FAILED',
+    'LATE_RECOGNITION',
+    'JIANGYI_CLASS_MAPPING_MISS',
+    'JIANGYI_PARAMS_NOT_READY',
+    'RECOGNITION_UNAVAILABLE',
+    'BALANCE_INSUFFICIENT',
+    'SETTLEMENT_FAILED',
+    'SETTLEMENT_STUCK',
     'INVENTORY_MISMATCH',
-    'REPLENISHMENT',
-    'REPLENISHMENT_REQUIRED',
+    'TEMP_ABNORMAL',
+    'RESTOCK_SESSION_TIMEOUT',
+    'RESTOCK_RECOGNITION_TIMEOUT',
     'RESTOCK_TASK_TIMEOUT',
-    'EXPIRY'
+    'FAILED_SESSION_HOLD_CLEAR',
+    'DISPUTE_ADJUST_MISMATCH',
+    'COUPON_MARKUSED_FAILED',
+    'CHARGE_PENDING_STALE',
+    'UNPAID_CANCEL_NET_BLOCKED',
+    'SCHEDULED_TASK_STALE',
+    'SCHEDULING_POOL_CAPACITY_RISK',
+    'XXL_JOB_WIRING_BROKEN',
+    'SPLIT_EXCEPTION',
+    'VISION_ANOMALY',
+    'SMS_DELIVERY_FAILURE_HIGH'
   ];
+  const KPI_KEYS: TodoKpiKey[] = ['dispute', 'offline', 'stock', 'expiry'];
   const rows = (types: string[]) =>
     types.map((t, i) => ({
       type: t,
@@ -380,18 +418,26 @@ describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（MA-030）', (
       deviceId: 'DEV-' + i
     })) as unknown as TodoListItem[];
 
-  it('全部已知类型都被四卡覆盖 ⇒ 徽标 == 列表行数（新增类型未归卡时本例必红）', () => {
-    const items = rows(OBSERVED_TYPES);
+  it('字典全集：徽标 == 行数', () => {
+    const items = rows(DICT_TYPES);
+    expect(todoBadgeCount(items)).toBe(items.length);
+  });
+
+  it('字典全集：每个类型恰属一张卡（互斥 + 穷尽）', () => {
+    for (const t of DICT_TYPES) {
+      const hits = KPI_KEYS.filter((k) => matchTodoKpiCategory(t, k));
+      expect(hits, `${t} 应恰属一张卡，实际 ${hits.join('/') || '无'}`).toHaveLength(1);
+    }
+  });
+
+  it('未知类型不再漏计（兜底归审核卡）——R19-10 前这里是「徽标 < 行数」', () => {
+    const items = rows(['SOME_FUTURE_TYPE']);
+    expect(matchTodoKpiCategory('SOME_FUTURE_TYPE', 'dispute')).toBe(true);
     expect(todoBadgeCount(items)).toBe(items.length);
   });
 
   it('RESTOCK_TASK_TIMEOUT 归库存/补货卡（此前未归卡 ⇒ 60 vs 58）', () => {
     expect(matchTodoKpiCategory('RESTOCK_TASK_TIMEOUT', 'stock')).toBe(true);
     expect(todoBadgeCount(rows(['RESTOCK_TASK_TIMEOUT']))).toBe(1);
-  });
-
-  it('未归卡的类型会被这条不变式抓住（护栏方向自证：徽标 < 行数）', () => {
-    const items = rows(['SOME_FUTURE_TYPE']);
-    expect(todoBadgeCount(items)).toBeLessThan(items.length);
   });
 });

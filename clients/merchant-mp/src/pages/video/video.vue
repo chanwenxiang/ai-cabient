@@ -315,7 +315,8 @@ function goBack() {
   border-radius: var(--radius-pill, 999rpx);
   border: 1rpx solid var(--card-border, #e2e8f0);
   background: var(--card-bg);
-  color: var(--text-muted);
+  /* 令牌兜底：WXSS 不认 :root，令牌未注入时不能变成黑色不可读（P2-2 第三处） */
+  color: var(--text-muted, #64748b);
   font-size: var(--font-size-caption);
 }
 .clip-chip--active {

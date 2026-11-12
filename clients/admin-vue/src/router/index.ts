@@ -513,6 +513,14 @@ const bizChildren: RouteRecordRaw[] = [
     name: 'forbidden',
     component: () => import('@/views/error/ForbiddenView.vue'),
     meta: { title: '无权访问', group: '系统' }
+  },
+  {
+    // R19-23：RBAC 拉取失败（429/5xx/网络）专用落地页——与「无权访问」严格分开，
+    // 否则瞬态故障会被当成权限问题（守卫里 restore 的返回值此前被忽略）。
+    path: 'rbac-unavailable',
+    name: 'rbac-unavailable',
+    component: () => import('@/views/error/RbacUnavailableView.vue'),
+    meta: { title: '权限加载失败', group: '系统' }
   }
 ];
 
@@ -580,11 +588,22 @@ router.beforeEach(async (to) => {
   }
 
   // 错误页本身不做权限拦截，避免循环跳转
-  if (to.name === 'forbidden' || to.name === 'not-found') return true;
+  if (to.name === 'forbidden' || to.name === 'not-found' || to.name === 'rbac-unavailable') return true;
 
   const auth = useAuthStore();
   if (!auth.rbacHydrated) {
-    await auth.restore();
+    const restored = await auth.restore();
+    // R19-23：restore 失败 ≠ 没权限。restore 在 429/5xx/网络抖动时刻意不 logout（R15-K1/K2），
+    // 此时 rbacHydrated 仍是 false ⇒ 后面的 hasPerm 全 false ⇒ 用户被送到「无权访问」。
+    // 那是把「后端抖了一下」报成「你的权限被收走了」，排障方向完全错。
+    // 区分判据：仍处于登录态（token 未被清）且 rbac 仍未就绪 ⇒ 归为「加载失败」，给可重试页。
+    if (!restored && isLoggedIn() && !auth.rbacHydrated) {
+      return {
+        name: 'rbac-unavailable',
+        query: { from: to.fullPath, title: String(to.meta.title || '') },
+        replace: true
+      };
+    }
   }
   const metaPerm = typeof to.meta.perm === 'string' ? to.meta.perm : '';
   const nav = findNavByPath(to.path);

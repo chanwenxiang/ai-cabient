@@ -4,12 +4,15 @@ import { findNavByPath, NAV_ITEMS } from '@/config/menu';
 import { useAuthStore } from '@/stores/auth';
 
 type AuthLike = {
-  canAccessNav: (item: { perm?: string } | null | undefined) => boolean;
+  canAccessNav: (item: { perm?: string; perms?: string[] } | null | undefined) => boolean;
 };
 
 /** 按侧栏菜单顺序找首个可访问页（无权限时落到个人中心）。 */
 export function resolveHomePath(auth: AuthLike): string {
-  const hit = NAV_ITEMS.find((item) => !item.perm || auth.canAccessNav(item));
+  // 无 perm 且无 perms ⇒ 登录可见；否则按 canAccessNav（perms 为 OR）
+  const hit = NAV_ITEMS.find(
+    (item) => (!item.perm && !item.perms?.length) || auth.canAccessNav(item)
+  );
   return hit?.path || '/profile';
 }
 
@@ -22,7 +25,7 @@ export function useNavAccess() {
     const nav = findNavByPath(path);
     // 未登记菜单的路径默认拒绝，避免漏登 menu 时 fail-open
     if (!nav) return false;
-    return !nav.perm || auth.canAccessNav(nav);
+    return (!nav.perm && !nav.perms?.length) || auth.canAccessNav(nav);
   }
 
   function firstAccessiblePath(candidates?: string[]) {

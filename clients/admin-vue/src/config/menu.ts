@@ -6,6 +6,16 @@ export interface NavItem {
   keywords?: string[];
   /** 若依风格菜单权限码（C 级）；缺省则登录可见 */
   perm?: string;
+  /**
+   * 多权限码（OR 语义）：页面实际要调多个模块的接口时用。
+   *
+   * <p>P3-r19-6（2026-11-12）：`/print` 只登记了 `ops:warehouse:list`，但页面还会读
+   * `/ops/skus`（`ops:sku:list`）与 `purchase-orders/{id}`（`ops:procurement:list`）——
+   * 只有 sku 权限的人点「打印标签」被守卫拦成「无权访问」，只有 warehouse 权限的人
+   * 进去后 403 被 softFallback 吞成「暂无打印内容」。两者都是假象。
+   * 声明 `perms` 后，任一权限即可进入；页面内再按实际 403 显式提示。
+   */
+  perms?: string[];
 }
 
 /** 侧栏 / 菜单管理共用的一级分类顺序 */
@@ -607,7 +617,7 @@ export function findNavByPath(path: string) {
       perm: 'ops:device:list'
     };
   }
-  // 打印页不进侧栏，但须与仓储同权，避免仅登录即可打开采购/出库单据
+  // 打印页不进侧栏，但必须按「谁能进」而不是「仓储专属」——它同时服务 sku 标签与采购单
   if (path === '/print') {
     return {
       path: '/print',
@@ -615,7 +625,7 @@ export function findNavByPath(path: string) {
       group: '仓储',
       parentTitle: '仓库与库位',
       parentPath: '/warehouse/master',
-      perm: 'ops:warehouse:list'
+      perms: ['ops:warehouse:list', 'ops:sku:list', 'ops:procurement:list']
     };
   }
   return NAV_ITEMS.find((n) => n.path === path);

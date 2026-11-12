@@ -650,7 +650,7 @@ const opening = ref(false);
 const cancelling = ref(false);
 /**
  * M25：createSession 在途标记。HTTP 请求无法中止——本地「取消」清掉 opening/loading 后，
- * 后端仍会建会话并真实开门（仅靠服务端 90s 超时清扫兜底）。因此在途期间必须禁用取消，
+ * 后端仍会建会话并真实开门（仅靠服务端开门超时（默认 60s）清扫兜底）。因此在途期间必须禁用取消，
  * 只允许会话落号（sessionId 有值）后走取消接口，或等请求自然超时失败。
  */
 const openCreateInFlight = ref(false);
@@ -659,7 +659,7 @@ const landingErrorKind = ref<OpenErrorKind>('other');
 /**
  * 手机断网状态（shared-uni 三端统一监听，uni.onNetworkStatusChange 实时下发）。
  * 断网时落地页显示常驻提示，且开门入口直接拦截——与其让用户等开门请求
- * 90s 超时，不如第一句话告诉他「没网」。恢复联网由监听自动更新，无需刷新。
+ * 超时（默认 60s），不如第一句话告诉他「没网」。恢复联网由监听自动更新，无需刷新。
  */
 const { offline: netOffline, startNetworkWatch, stopNetworkWatch } = useNetworkStatus();
 const lastFailedDeviceId = ref('');
@@ -783,7 +783,14 @@ function onBeforeOpenPopupTap() {
 
 /** 当前打开详情的商品（null = 弹层关闭）。 */
 const detailProduct = ref<DeviceProduct | null>(null);
-const openingSeconds = ref(90);
+/**
+ * 开门等待上限（秒）。必须与后端 `application.yml` 的 `SESSION_OPENING_EXPIRE_SECONDS`
+ * （默认 60）保持一致：后端到点即判开门超时并清扫会话，前端若还显示「已等待 N 秒、可安全取消」
+ * 就是在骗用户。R19-P3-7（2026-11-12）：此前前端硬编码 90，比后端多 30 秒。
+ * 跨端一致性由 `scripts/check-open-timeout-contract.mjs`（check:open-timeout-contract）看守。
+ */
+const OPENING_EXPIRE_SECONDS = 60;
+const openingSeconds = ref(OPENING_EXPIRE_SECONDS);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const authPromptVisible = ref(false);
 const showPrepDrawer = ref(false);
@@ -805,6 +812,10 @@ let prepResolve: ((ok: boolean) => void) | null = null;
 let lastDeviceStatusRefreshAt = 0;
 let lastDeviceStatusRefreshDevice = '';
 
+/**
+ * 识别/结算阶段的「慢」提示阈值——**与开门超时（OPENING_EXPIRE_SECONDS）不是一回事**：
+ * 识别要等设备上传视频，90s 属正常波动，不要因为改了开门超时就把这里一起改成 60。
+ */
 const recognitionSlow = computed(
   () =>
     ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value) &&
@@ -994,7 +1005,7 @@ const flowOverlayTitle = computed(() => {
 
 const flowOverlayHint = computed(() => {
   if (state.value === 'OPENING' || state.value === 'CREATED') {
-    const elapsed = Math.max(0, 90 - openingSeconds.value);
+    const elapsed = Math.max(0, OPENING_EXPIRE_SECONDS - openingSeconds.value);
     return `已等待 ${elapsed} 秒，柜门无响应时可安全取消本次开门`;
   }
   if (recognitionSlow.value) {
@@ -1936,7 +1947,7 @@ async function showDeviceCatalog(id: string) {
 async function cancelOpening() {
   if (cancelling.value) return;
   // M25：createSession 在途时取消必然「前端放弃、后端仍建会话并开门」（HTTP 无法中止，
-  // 仅靠后端 90s 超时清扫兜底），故在途且会话未落号时直接忽略取消；
+  // 仅靠后端开门超时（默认 60s）清扫兜底），故在途且会话未落号时直接忽略取消；
   // 会话已落号则走下方取消接口正常关闭。
   if (openCreateInFlight.value && !sessionId.value) return;
   // 尚无 session：仅取消本地开门等待
@@ -2346,7 +2357,10 @@ function startOpeningCountdown(createdAt?: string) {
   stopOpeningCountdown();
   const started = createdAt ? new Date(createdAt).getTime() : Date.now();
   const tick = () => {
-    openingSeconds.value = Math.max(0, 90 - Math.floor((Date.now() - started) / 1000));
+    openingSeconds.value = Math.max(
+      0,
+      OPENING_EXPIRE_SECONDS - Math.floor((Date.now() - started) / 1000)
+    );
   };
   tick();
   countdownTimer = setInterval(tick, 1000);
@@ -2355,7 +2369,7 @@ function startOpeningCountdown(createdAt?: string) {
 function stopOpeningCountdown() {
   if (countdownTimer) clearInterval(countdownTimer);
   countdownTimer = null;
-  openingSeconds.value = 90;
+  openingSeconds.value = OPENING_EXPIRE_SECONDS;
 }
 
 /**

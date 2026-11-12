@@ -287,12 +287,14 @@ export const useAuthStore = defineStore('auth', () => {
     return isNavMenuActiveFor(perm, activeNavLoaded.value, activeNavPerms.value);
   }
 
-  function canAccessNav(item: { perm?: string } | null | undefined) {
+  function canAccessNav(item: { perm?: string; perms?: string[] } | null | undefined) {
     if (!item) return false;
+    // P3-r19-6：perms 为 OR 语义（页面依赖多个模块接口时用）；perm 仍是旧的单码形态。
+    const required = item.perms?.length ? item.perms : item.perm ? [item.perm] : [];
+    if (!required.length) return true;
     // 服务端 RBAC 未就绪前不放行带权限菜单（防本地缓存抬权）
-    if (item.perm && !rbacHydrated.value) return false;
-    if (!hasPerm(item.perm)) return false;
-    return isNavMenuActive(item.perm);
+    if (!rbacHydrated.value) return false;
+    return required.some((code) => hasPerm(code) && isNavMenuActive(code));
   }
 
   /** 并发 restore 共用一个 Promise，避免 App/路由竞态双拉 RBAC */

@@ -227,7 +227,10 @@ const TODO_CATEGORY_FAULT = [
   'DOOR_OPEN_TOO_LONG',
   'UPLOAD_STUCK',
   // 2026-10-27：开门命令无响应也是设备不可用类——此前未归卡导致徽标(37)≠待办总数(41)
-  'OPEN_TIMEOUT'
+  'OPEN_TIMEOUT',
+  // R19-10（2026-11-12）：温度异常是设备侧故障；此前未归卡
+  'TEMP_ABNORMAL',
+  'VISION_ANOMALY'
 ];
 const TODO_CATEGORY_STOCK = [
   'LOW_STOCK',
@@ -236,19 +239,37 @@ const TODO_CATEGORY_STOCK = [
   'REPLENISHMENT_REQUIRED',
   // 2026-11-02（R9 MA-030）：补货任务超时（签到超时自动取消）也是「库存/补货」待办——
   // 此前未归卡，导致首页徽标(60) ≠ 待办页四卡合计(58)，与 2026-10-27 OPEN_TIMEOUT 同形缺陷
-  'RESTOCK_TASK_TIMEOUT'
+  'RESTOCK_TASK_TIMEOUT',
+  // R19-10（2026-11-12）：补货会话/识别超时同属补货链
+  'RESTOCK_SESSION_TIMEOUT',
+  'RESTOCK_RECOGNITION_TIMEOUT'
 ];
 
 /** 待办页四卡：审核 / 故障 / 库存 / 临期 */
 export type TodoKpiKey = 'dispute' | 'offline' | 'stock' | 'expiry';
 
-/** 待办类型是否属于某一 KPI 卡（点卡筛列表用） */
+/**
+ * 待办类型是否属于某一 KPI 卡（点卡筛列表用）。
+ *
+ * <p>R19-10（2026-11-12）：旧实现按「显式白名单 + `startsWith('RECOGNITION')`」枚举四卡，
+ * 而后端字典 `exception_type` 有 35 类且**会继续增加**（`SETTLEMENT_FAILED`、
+ * `LATE_RECOGNITION`、`JIANGYI_*`…）⇒ 新类型既不进任何卡也不计徽标，
+ * 「全部」有行、四卡相加对不上（MA-030 同形第 N 次复发）。
+ *
+ * <p>现在改为**穷尽划分**：故障/库存/临期按显式集合，其余（含一切未知类型）落「审核」卡。
+ * 于是四卡互斥且合计恒等于总数，徽标天然可被用户复算；后端新增类型最坏是归错卡，
+ * 绝不会静默漏计。归类口径调整需改 TEST 快照（`todo-list.test.ts` 的字典全量清单）。
+ */
 export function matchTodoKpiCategory(type: string | undefined, key: TodoKpiKey): boolean {
   const t = typeKey(type);
-  if (key === 'dispute') return t === 'DISPUTE' || t.startsWith('RECOGNITION');
-  if (key === 'offline') return TODO_CATEGORY_FAULT.includes(t);
-  if (key === 'stock') return TODO_CATEGORY_STOCK.includes(t);
-  return t === 'EXPIRY';
+  const isFault = TODO_CATEGORY_FAULT.includes(t) || t.startsWith('JIANGYI_');
+  const isStock = TODO_CATEGORY_STOCK.includes(t);
+  const isExpiry = t === 'EXPIRY';
+  if (key === 'offline') return isFault;
+  if (key === 'stock') return isStock;
+  if (key === 'expiry') return isExpiry;
+  // dispute（审核）：显式争议/识别类 + 兜底——「需要运营人工处理的异常单」
+  return !isFault && !isStock && !isExpiry;
 }
 
 /**
