@@ -283,26 +283,11 @@ public class InventoryService {
             log.info("库存已更新 device={} sku={} qty={}", deviceId, skuId, delta);
             return;
         }
-        // 增量（回库）：行缺失先按原默认建档，再单语句累加
-        int rows = inventoryRepository.increaseQuantityAtomic(deviceId, skuId, delta);
-        if (rows == 0) {
-            DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
-            try {
-                inventoryRepository.findById(id).orElseGet(() -> {
-                    DeviceSkuInventory created = new DeviceSkuInventory();
-                    created.setId(id);
-                    created.setQuantity(0);
-                    created.setCapacity(20);
-                    created.setLowThreshold(2);
-                    created.setVersion(0);
-                    inventoryRepository.insert(created);
-                    return created;
-                });
-            } catch (org.springframework.dao.DuplicateKeyException e) {
-                // 并发建档竞态：对方已把行建好，直接走累加
-            }
-            inventoryRepository.increaseQuantityAtomic(deviceId, skuId, delta);
-        }
+        // 增量（回库）：单语句 upsert（R18-4）——此前「UPDATE 0 行→INSERT→catch
+        // DuplicateKeyException→再 UPDATE」在 PG 下必炸：冲突后事务 aborted（25P02），
+        // 同事务第二条 UPDATE 抛错，整笔回补 500 且增量丢失。upsert 无此间隙，
+        // 默认 capacity=20 / low_threshold=2 与原 Java 建档口径一致。
+        inventoryRepository.upsertIncreaseQuantity(deviceId, skuId, delta);
         log.info("库存已更新 device={} sku={} delta={}", deviceId, skuId, delta);
     }
 

@@ -77,6 +77,13 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryConsistencyR18IT.java',
+    {
+      job: 'integration',
+      why: 'R18-2/4/5（2026-11-12 审计）：failsafe 跑（*IT.java）；真 PG 并发实证批次原子扣不丢扣（含绝对覆盖旧形态负向控制）、upsert 并发建档、原子扣递增 version 使实体 CAS 失效'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/ScheduledTaskLeaseRenewalIT.java',
     {
       job: 'integration',

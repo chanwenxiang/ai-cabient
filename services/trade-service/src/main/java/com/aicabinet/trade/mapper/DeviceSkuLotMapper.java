@@ -125,4 +125,27 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                     + "updated_at = NOW() "
                     + "WHERE lot_id = #{lotId} AND quantity >= #{take}")
     int deductQuantityAtomic(@Param("lotId") String lotId, @Param("take") int take);
+
+    /**
+     * R18-2（四端审计 2026-11-12）：批次量<b>单语句原子累加</b>（回补/退款），勿改回
+     * 「读→算→写」——实体无 version，{@code save} 是绝对覆盖，与下架/报损/FEFO 扣减并发时
+     * 后写者用旧快照覆盖已扣量（账面虚高、可再卖）。
+     *
+     * <p>status 刻意<b>不在此处恢复</b>：DEPLETED/BLOCKED→ON_SALE/NEAR_EXPIRY 的判定依赖
+     * 保质期与 SKU 配置（{@code resolveLotStatus}），SQL CASE 表达不了；恢复由调用方
+     * 用 {@link #updateStatusAndSlotById} 二段完成。两段同事务，外部不可见中间态。</p>
+     */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE device_sku_lot SET quantity = quantity + #{add}, updated_at = NOW() "
+                    + "WHERE lot_id = #{lotId}")
+    int increaseQuantityAtomic(@Param("lotId") String lotId, @Param("add") int add);
+
+    /** 只写 status/slot_id 两列（R18-2 配套）：不触碰 quantity，避免与原子量写互相覆盖。 */
+    @org.apache.ibatis.annotations.Update(
+            "UPDATE device_sku_lot SET status = #{status}, "
+                    + "slot_id = COALESCE(#{slotId}, slot_id), updated_at = NOW() "
+                    + "WHERE lot_id = #{lotId}")
+    int updateStatusAndSlotById(@Param("lotId") String lotId,
+                                @Param("status") String status,
+                                @Param("slotId") String slotId);
 }

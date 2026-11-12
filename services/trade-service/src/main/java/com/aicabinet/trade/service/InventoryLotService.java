@@ -260,13 +260,14 @@ public class InventoryLotService {
         for (DeviceSkuLot lot : lots) {
             if (remaining > 0 && lot.getQuantity() > 0) {
                 int take = Math.min(lot.getQuantity(), remaining);
-                lot.setQuantity(lot.getQuantity() - take);
-                if (lot.getQuantity() == 0) {
-                    lot.setStatus(DEPLETED);
+                // R18-2：单语句原子扣（数量谓词与写入同语句）。读出的 quantity 只是 take 上界的
+                // 快照——并发方先扣走导致 0 行时，本批不重复扣，remaining 找下一批；都不足则
+                // 末尾 CONFLICT 整笔回滚。归零置 DEPLETED 由 UPDATE 内 CASE 完成。
+                int rows = lotRepository.deductQuantityAtomic(lot.getLotId(), take);
+                if (rows > 0) {
+                    remaining -= take;
+                    totalTaken += take;
                 }
-                lotRepository.save(lot);
-                remaining -= take;
-                totalTaken += take;
             }
         }
         if (totalTaken <= 0) {
@@ -300,15 +301,14 @@ public class InventoryLotService {
                         || PULL_OFF.equals(movementType) || isSellable(lot, minExpiry);
                 if (sellable) {
                     int take = Math.min(lot.getQuantity(), remaining);
-                    lot.setQuantity(lot.getQuantity() - take);
-                    if (lot.getQuantity() == 0) {
-                        lot.setStatus(DEPLETED);
+                    // R18-2：单语句原子扣（同 deductBatchAcrossLots）；0 行=并发被先扣，量留给下批兜
+                    int rows = lotRepository.deductQuantityAtomic(lot.getLotId(), take);
+                    if (rows > 0) {
+                        recordMovement(deviceId, skuId, new InventoryMovementCommand(
+                                lot.getBatchNo(), movementType, -take,
+                                new LotMovementRef(refType, refId, operatorId)));
+                        remaining -= take;
                     }
-                    lotRepository.save(lot);
-                    recordMovement(deviceId, skuId, new InventoryMovementCommand(
-                            lot.getBatchNo(), movementType, -take,
-                            new LotMovementRef(refType, refId, operatorId)));
-                    remaining -= take;
                 }
             }
         }
@@ -328,19 +328,35 @@ public class InventoryLotService {
         if (quantity <= 0) {
             return null;
         }
-        DeviceSkuLot lot = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, batchNo)
-                .orElseGet(() -> createFallbackLot(deviceId, skuId, batchNo));
-        if (lot.getSlotId() == null || lot.getSlotId().isBlank()) {
-            String primarySlot = resolvePrimarySlotCode(deviceId, skuId);
-            if (primarySlot != null) {
-                lot.setSlotId(primarySlot);
+        // R18-2：已有批次的量走单语句原子累加——实体 save 是绝对覆盖（DeviceSkuLot 无
+        // version），与下架/报损/FEFO 并发时后写者会覆盖已扣量。status/slot 是低冲突属性列，
+        // 用只写这两列的独立 UPDATE 修正，不触碰 quantity。
+        DeviceSkuLot existing = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, batchNo)
+                .orElse(null);
+        DeviceSkuLot lot = existing != null ? existing : createFallbackLot(deviceId, skuId, batchNo);
+        if (existing == null) {
+            // 新建批次：quantity 一次随 INSERT 写入，无覆盖窗口
+            if (lot.getSlotId() == null || lot.getSlotId().isBlank()) {
+                String primarySlot = resolvePrimarySlotCode(deviceId, skuId);
+                if (primarySlot != null) {
+                    lot.setSlotId(primarySlot);
+                }
+            }
+            lot.setQuantity(quantity);
+            lotRepository.save(lot);
+        } else {
+            lotRepository.increaseQuantityAtomic(lot.getLotId(), quantity);
+            String targetStatus = DEPLETED.equals(lot.getStatus()) || BLOCKED.equals(lot.getStatus())
+                    ? resolveLotStatus(lot)
+                    : lot.getStatus();
+            String slotPatch = (lot.getSlotId() == null || lot.getSlotId().isBlank())
+                    ? resolvePrimarySlotCode(deviceId, skuId) : null;
+            lotRepository.updateStatusAndSlotById(lot.getLotId(), targetStatus, slotPatch);
+            lot.setStatus(targetStatus);
+            if (slotPatch != null) {
+                lot.setSlotId(slotPatch);
             }
         }
-        lot.setQuantity(lot.getQuantity() + quantity);
-        if (DEPLETED.equals(lot.getStatus()) || BLOCKED.equals(lot.getStatus())) {
-            lot.setStatus(resolveLotStatus(lot));
-        }
-        lotRepository.save(lot);
         recordMovement(deviceId, skuId, new InventoryMovementCommand(
                 batchNo, "REFUND", quantity, new LotMovementRef(refType, refId, null)));
         self.syncAggregateInventory(deviceId, skuId);
@@ -518,17 +534,31 @@ public class InventoryLotService {
     @Transactional
     public void syncAggregateInventory(String deviceId, String skuId) {
         materializeUntrackedInventory(deviceId, skuId);
-        int sum = lotRepository.sumSellableQuantity(deviceId, skuId);
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
-        DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
-            DeviceSkuInventory created = new DeviceSkuInventory();
-            created.setId(id);
-            created.setCapacity(20);
-            created.setLowThreshold(2);
-            return created;
-        });
-        inv.setQuantity(sum);
-        inventoryRepository.save(inv);
+        // R18-5：算术 UPDATE 现在递增 version，实体 save 的 CAS 不再对算术写失明——
+        // 409 说明并发方刚动过台账（本方或他方实例），重读-重算-再写让其收敛。
+        // 汇总值恒为「当前批次和」，重试不放大差异；3 轮仍冲突则按 save 原口径抛 409 回滚。
+        for (int attempt = 0; ; attempt++) {
+            int sum = lotRepository.sumSellableQuantity(deviceId, skuId);
+            DeviceSkuInventory inv = inventoryRepository.findById(id).orElseGet(() -> {
+                DeviceSkuInventory created = new DeviceSkuInventory();
+                created.setId(id);
+                created.setCapacity(20);
+                created.setLowThreshold(2);
+                return created;
+            });
+            inv.setQuantity(sum);
+            try {
+                inventoryRepository.save(inv);
+                return;
+            } catch (ResponseStatusException e) {
+                if (!HttpStatus.CONFLICT.equals(e.getStatusCode()) || attempt >= 2) {
+                    throw e;
+                }
+                log.info("aggregate sync CAS conflict, retrying device={} sku={} attempt={}",
+                        deviceId, skuId, attempt + 1);
+            }
+        }
     }
 
     /**

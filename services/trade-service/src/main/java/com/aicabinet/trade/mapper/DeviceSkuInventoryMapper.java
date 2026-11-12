@@ -110,21 +110,43 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
      *
      * <p>返回影响行数：1 = 扣减成功；0 = 现存不足或行不存在。{@code quantity >= take}
      * 谓词与扣减同一条 UPDATE，无检查-写入间隙；配合 V457 的
-     * {@code chk_device_sku_inventory_qty_nonneg} 构成双保险。{@code version} 不在此处
-     * 递增——它只服务 {@link #save} 的实体级 CAS 口径，算术增减不经过实体。</p>
+     * {@code chk_device_sku_inventory_qty_nonneg} 构成双保险。</p>
+     *
+     * <p>R18-5（四端审计 2026-11-12）：{@code version} 必须<b>在此处递增</b>——
+     * {@code syncAggregateInventory} 的「读实体→汇总→save」走 {@code eq(version)} 实体级 CAS，
+     * 本语句若不递增 version，CAS 对算术扣减失明，会把刚扣掉的量按旧快照写回（丢扣）。</p>
      */
     @org.apache.ibatis.annotations.Update(
-            "UPDATE device_sku_inventory SET quantity = quantity - #{take}, updated_at = NOW() "
+            "UPDATE device_sku_inventory SET quantity = quantity - #{take}, version = version + 1, updated_at = NOW() "
                     + "WHERE device_id = #{deviceId} AND sku_id = #{skuId} AND quantity >= #{take}")
     int deductQuantityAtomic(@org.apache.ibatis.annotations.Param("deviceId") String deviceId,
                              @org.apache.ibatis.annotations.Param("skuId") String skuId,
                              @org.apache.ibatis.annotations.Param("take") int take);
 
-    /** 同上：单语句原子累加（回库/增量），行不存在返回 0（调用方决定是否建档）。 */
+    /** 同上：单语句原子累加（回库/增量），行不存在返回 0（调用方决定是否建档）。version 同步递增（R18-5）。 */
     @org.apache.ibatis.annotations.Update(
-            "UPDATE device_sku_inventory SET quantity = quantity + #{add}, updated_at = NOW() "
+            "UPDATE device_sku_inventory SET quantity = quantity + #{add}, version = version + 1, updated_at = NOW() "
                     + "WHERE device_id = #{deviceId} AND sku_id = #{skuId}")
     int increaseQuantityAtomic(@org.apache.ibatis.annotations.Param("deviceId") String deviceId,
+                               @org.apache.ibatis.annotations.Param("skuId") String skuId,
+                               @org.apache.ibatis.annotations.Param("add") int add);
+
+    /**
+     * R18-4（四端审计 2026-11-12）：增量建档<b>单语句 upsert</b>。此前「行缺失→INSERT→
+     * catch DuplicateKeyException→再 UPDATE」在 PG 下必然失败：唯一键冲突后事务进入
+     * aborted（25P02），同事务第二条 UPDATE 抛「current transaction is aborted」，
+     * 整笔回补 500 且增量丢失。INSERT…ON CONFLICT DO UPDATE 把建档与累加合成一个原子点，
+     * 无「检查-写入」间隙，并发建档双方都成功且终量=两笔之和。返回恒 1（插入或更新都算）。
+     * 默认 capacity=20 / low_threshold=2 与 {@code InventoryService#applyDelta} 原 Java 建档口径一致。
+     */
+    @org.apache.ibatis.annotations.Update(
+            "INSERT INTO device_sku_inventory (device_id, sku_id, quantity, capacity, low_threshold, version, updated_at) "
+                    + "VALUES (#{deviceId}, #{skuId}, #{add}, 20, 2, 0, NOW()) "
+                    + "ON CONFLICT (device_id, sku_id) DO UPDATE SET "
+                    + "quantity = device_sku_inventory.quantity + EXCLUDED.quantity, "
+                    + "version = device_sku_inventory.version + 1, "
+                    + "updated_at = NOW()")
+    int upsertIncreaseQuantity(@org.apache.ibatis.annotations.Param("deviceId") String deviceId,
                                @org.apache.ibatis.annotations.Param("skuId") String skuId,
                                @org.apache.ibatis.annotations.Param("add") int add);
 }
