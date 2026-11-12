@@ -389,3 +389,26 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 - **B**：引入 `NO_DATA`/`NOT_READY` 状态（平台侧无行且台账无行时不判 MATCHED）。代价：对账页多一种状态，需同步运营口径与告警规则；好处是「没核对」与「核对通过」不再同一个词。
 
 建议：若支付宝渠道要启用（R22-8），先落 B——因为支付宝空账单当前就是 `List.of()` 静默路径，与 A 叠加会形成「永远平」的假象。
+
+---
+
+## 九、修复回执（2026-11-12 当日，可派修 10 条全清）
+
+| 编号 | 处置 | 提交 |
+|------|------|------|
+| R22-1 ✅ | 写入侧改拼 `#orderId` 对齐查单器契约；读取侧兼容存量空格尾巴（纯数字尾 token）——在途 PROCESSING 行恢复可推进 | `23c57e09` |
+| R22-2 ✅ | `markSendSucceeded` 挪到 `smsSender.send` 成功之后（mock 分支保留前置计冷却）——provider 失败不再白烧冷却/小时额度 | `23c57e09` |
+| R22-3 ✅ | 失败进 ops_exception（新类型 `JIANGYI_AUTO_RESTOCK_SYNC_FAIL`，字典已登记）；`floorNum=1` 以 javadoc 钉死「本通道仅单层柜」——**多层柜时必然错**（§8.3 已钉到结构层），手动面板是多层柜唯一正确通道 | `23c57e09` |
+| R22-4 ✅ | 账单 SQL 四处 `to_char(... AT TIME ZONE 'Asia/Shanghai')` + Java 月窗口 `ScheduleZones.ZONE`，两侧同源 | `23c57e09` |
+| R22-5 ✅ | 资金/账本表入删除保护（语义后缀零误伤 + 点名 5 张；KPI 聚合表刻意豁免）；`deleteRow` 审计补 before 全值；`GrowthLogArchiveScheduler` 的 `member_points_log` 删除分支清除。AdminDataManage 既有 44 用例全绿 | `23c57e09` |
+| R22-6 ✅ | `alertStaleChargePendingOps()` 挪到 `hours<=0` 早退之前——开关只关自动关单，不再连带关巡检 | `23c57e09` |
+| R22-7 ✅（代码面） | start 受理前落意图留痕、finish/cancel 失败补 FAILED 审计行（含 sessionId）；**定档仍悬**（§8.1 现场动作）——若厂商幂等返回同一 session 则降说明 | `382c0769` |
+| R22-8 ✅（静默面） | 空账单改 fail-fast 对齐微信；自动对账开洞与「两侧皆 0 ⇒ MATCHED」**归拍板**（§8.4），本修只消灭静默路径 | `382c0769` |
+| R22-9 ✅ | 温度遥测 90 天保留窗（`ops.log_retention.temperature_days`，0=关闭），分批删复用归档范式（主键 `reading_id`、时间列 `reported_at` 实库核实） | `382c0769` |
+| R22-10 ✅ | 4 处业务日窗口 + 2 处批次号统一 `ScheduleZones.ZONE`；grep 门禁未立（与 R21-2 全量清扫同批并入常规） | `382c0769` |
+
+**真正悬着的只剩两个现场动作**（不阻塞代码，只影响两条的最终定档）：
+1. **同柜连点两次「开始」**（间隔 <10s）→ 定 R22-7 是「降为说明」还是「维持 P3」；
+2. **看一层号**（设备详情→将邑货架面板「层号」列 / `totalFloorNum`）→ 定 R22-3 是「只剩告警面半边」还是「维持 P2」。
+
+**修复时顺手清掉的两处共享门禁红**（非本轮条目）：`PayScoreOrderNotifyService` 新异常类型缺字典登记（`check:exception-type-dict` 红 → 已补 `PAYSCORE_DONE_ON_TERMINAL_ORDER`）；两份 2026-11-12 审计文档把「建议立」的门禁名写成反引号锚点（`check:ledger-evidence` 红 → 措辞改「待立」）。另：`PaymentService` 同文件存在并发会话在制改动，本修复按 hunk 拆分提交（`git apply --cached`），未携带他人改动。

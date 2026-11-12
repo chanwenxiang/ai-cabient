@@ -114,3 +114,15 @@ R22 §八 的四项收口结论，读 R21 时一并知道即可，别把它们�
 
 - 建议 1（R21-1 优先修）：**仍成立**，且 6 处里仍有 3 处完全未动（见 5.1）。
 - 建议 3（下轮换「外部系统契约」「数据生命周期」两条轴）：**已由 R22 执行**，结果见 R22 §一（出站失败语义 6 条）与 §二（生命周期 2 条）；两条轴都**不是零命中**，说明 R21 当时的「接近收敛」判断对这两轴偏乐观。
+
+---
+
+## 六、修复回执（2026-11-12 当日，P1 余量 + P3 全清）
+
+| ID | 处置 | 提交 |
+|---|---|---|
+| R21-1 ✅（收口） | 三处未修站点（WeChatMiniAppClient / IdentityVerifyClient / JiangyiModelSyncService）按 R20-4 同范式补 3s 连接 / 10s 响应；支付两处已在 `1a352188` 修掉 ⇒ **6 处全收口** | `bfaeb937` |
+| R21-3 ✅ | `runWithDeviceLock` 活跃事务时把 unlock 挂 `TransactionSynchronization.afterCompletion`（提交/回滚后释放）⇒ 锁持有区间 ⊇ 事务区间；deduct/restore/recordRefundKeptGoods/adjustForOrder 四入口共用一处生效。账面并发已由 R18-2/4/5 条件 UPDATE 谓词兜底，本修为双保险 | `bfaeb937` |
+| R21-2 ✅（点名面） | R22-10 点名的 4 处业务日窗口 + 2 处批次号已统一 `ScheduleZones.ZONE`（见 R22 §九）；SQL 侧同族由 R22-4 一并修（账单 to_char 加 AT TIME ZONE）。16 文件的**全量**裸 `LocalDate.now()` 清扫与 grep 门禁未做（并入常规批） | `23c57e09` / `382c0769` |
+
+**R21-1 判据复核**：`grep -rn "RestClient.create()\|new SimpleClientHttpRequestFactory()" services/*/src/main/java` 现在全部站点带超时或走内部工厂；「微信域名黑洞 → 登录 10s 内 504」的真机压测未跑（需外网控电环境），建议下次弱网联调时补一次。
