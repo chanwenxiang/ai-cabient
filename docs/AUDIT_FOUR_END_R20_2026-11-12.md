@@ -138,7 +138,7 @@
 
 ## 六、待定（6 条，需数据或产品口径）
 
-1. 会员价与活动价是否叠加：`SettlementOrderSupport.java:126-161` 实现为「先会员价再以其为 base 算活动价」，而 `PROJECT_KNOWLEDGE §6.3` 与本轮前置约定写「不叠加、取优」——**两处矛盾**，需拍板后定级（当前实现会双重优惠）。
+1. ~~会员价与活动价是否叠加~~ **已拍板并落地（2026-11-12，用户裁定「不叠加/取优」）**：`SettlementOrderSupport.java:126-161` 原实现是「先会员价再以其为 base 算活动价」（折扣型活动＝双重优惠），与 `PROJECT_KNOWLEDGE §6.3` 矛盾。现改为活动价按**目录价**算、再与会员价取更低者（`PromotionPricingService.resolveBest/ForOrder`），竞品对照入台账 **CB-084**，回执见 §十一。
 2. 争议改单跌破门槛时券不返还但仍 USED（`SettlementOrderSupport.java:222-225`），是否比照 CB-045 退券。
 3. `ReconciliationService.runDaily:119-137` 删除重建当日对账行，人工处置仅存 audit——重跑是否允许覆盖。
 4. 分账 `WECHAT_FAILED` 同号重提是否依赖微信侧幂等（`WeChatProfitSharingService:481-503`）。
@@ -258,3 +258,80 @@
 - `V459` 是新增迁移 + 回填 ⇒ 需 `mvn -pl services/trade-service -am -DskipTests package` 后 `docker compose … up -d --no-deps --force-recreate trade-service`（种子/迁移在 jar 内，`build` 与 `up` 拆两步）。
 - 若某个环境曾手改过 `member_points_log`，上线前先 `SELECT count(*) FROM member_points_log WHERE expired_at IS NOT NULL AND points > 0 AND expired_points = 0`（应为 0，迁移会清零）。
 
+
+---
+
+## 十一、P2-12 拍板与落地回执（2026-11-12，会员价 × 活动价「不叠加、取优」）
+
+> **用户裁定**：不叠加、取优（低价优先）。此前代码是「先会员价、再以其为 base 算活动价」——
+> 对 `SKU_REDUCE`/`SKU_DISCOUNT` 两类活动等于**在会员价上再打一次折**，与 §6.3 自相矛盾。
+
+### 十一.1 改法（3 个文件，口径收敛到一处）
+
+| 落点 | 改法 |
+|---|---|
+| `PromotionPricingService` | 新增 `resolveBest(...)` / `resolveBestForOrder(...)` 门面：活动价**以目录价为基价**计算，结果再与会员价比较，`>= 会员价` 一律 `Optional.empty()`（＝未命中：不核销限购、不写活动留痕）；返回的 `discountPerUnitCents` 重算为 **会员价 − 活动价**（相对应付基准的少收额）。原 `resolveUnitPrice*` 保留为「活动原语」，javadoc 明写「base 必须是目录价，否则即双重优惠」。 |
+| `SettlementOrderSupport.applyItemsToOrder` | 改调 `resolveBestForOrder(..., listUnitPrice, memberUnitPrice)`；`activity_discount_cents` 落门面返回的**相对会员价**增量 ⇒ 与 `member_discount_cents`（目录价−会员价）、`gross` 一起维持 `gross − member − activity − coupon = total`。改单沿用原单活动（`PreservedActivity`）不动——它存的就是同一增量。 |
+| `DeviceCatalogService.listProducts` | 商品读面改调 `resolveBest(...)`（同样以目录价为基价），保证**显示价＝实付**；活动价不优于会员价时 `activityPriceCents` 下发 `null`（卡片只显示会员价）。 |
+
+### 十一.2 判据（钉测 + 负向验证）
+
+- 新增/改钉测：`PromotionPricingServiceTest.resolveBest_*` 3 例（命中且留痕＝会员价−活动价／活动 ≥ 会员价一律不命中，含**相等**／折扣型活动按目录价打折，900×… 若错成会员价再打 8 折会得 744）；`DeviceCatalogServiceTest.listProducts_activityNotBetterThanMember_isIgnored`；`SettlementMemberDiscountOnceTest.memberAndActivityTogether_bestOfTwoNotStacked`（stub 断言结算侧传的是**目录价 400** 而非会员价 392）。
+- 负向验证（铁律 4）：同时注入三处——① 门面 `.filter(...)` 改成恒真；② 结算侧传 `memberUnitPrice` 当活动基价；③ 展示侧同样叠加 ⇒ **4 例转红**（`resolveBest_activityNotBetterThanMember_isIgnored`、两个 `DeviceCatalogServiceTest`、`SettlementMemberDiscountOnceTest`），还原后 md5 逐字节一致再全绿。
+
+### 十一.3 连带文档
+
+- `PROJECT_KNOWLEDGE §6.3` 第 160 行「先会员价、再活动价」改为「不叠加、取优」，并新增两条硬约束（活动基价必须是目录价；`activity_discount_cents` 记相对会员价的增量）。
+- `COMPETITOR_BENCHMARK.md` 新增 **CB-084**（思迅/星宇收银/云上铺 三家收银服务商 + 金蝶 cross 补充）：思迅明写「低价优先，不支持在会员优惠基础上再参与特价/折扣」，星宇把「取两者较低价」做成默认开关，云上铺点名「先会员后促销」只适合清货期。门禁 `check-competitor-benchmark` **83 条 / 497 URL / exit 0**；负向验证（把 CB-084 取证日期改成 2030-01-01）⇒ exit 1 并点名「禁止编造未来日期」，还原后 md5 一致再 exit 0。
+- 为落该条，门禁主体表登记 `星宇收银`/`云上铺` 为 peer（与既有 `思迅` 同档：便利店/超市收银 SaaS 服务商），未放宽任何判据阈值。
+
+### 十一.4 部署注意
+
+本轮**无新增迁移**（纯代码 + 文档）⇒ 照常 `mvn -o -pl services/trade-service -am -DskipTests package` + `up -d --no-deps --force-recreate trade-service` 即可，无需 Flyway 干预。历史单不回填：已成交订单按当时的单价落库，取优口径只对**新成交/新改单/新展示**生效（成交即定价）。
+
+---
+
+## 十二、P2 派修单（2026-11-12，按轴四批；**实际 18 条不是 25 条**）
+
+> 口径订正：报告 §二 的 P2 是 **18 条**（不是 25 条）。其中 **P2-9 复验不成立**（幂等键含行集指纹）、
+> **P2-12 已拍板并落地**（§十一）⇒ 本轮**可派修 16 条**。四批按「同一根因族一起改」切，避免同一文件多轮动刀。
+
+### 批 A｜补货/争议的状态机与并发覆盖（4 条）
+
+| # | 落点 | 改法要点 | 判据 |
+|---|---|---|---|
+| P2-1 | `ReplenishmentService:612-627` | 发运后打回 IN_PROGRESS 的判据从「!= COMPLETED」扩成「只允许 {PENDING,IN_PROGRESS,ARRIVED?} 这些未终结态」，CANCELLED 一律 409 | 单测：CANCELLED 任务再发运 ⇒ 冲突且状态不变 |
+| P2-2 | `ReplenishmentTimeoutScheduler:82-105` | 用**扫描快照直写** CANCELLED → 改成条件更新（`WHERE status=<快照态>`），更新 0 行即放弃 | 单测：并发把 COMPLETED 写回后再跑清扫 ⇒ 不清 |
+| P2-3 | `DisputeService:259` | 建消费单前加 `isRestockSession` 闸（补货会话不得进争议/结案扣款链） | 单测：补货会话 ⇒ 409，且不写钱包 |
+| P2-4 | `PaymentService:1032-1039` | 充值 PENDING→CANCELLED 前先查渠道单状态（有实付即拒绝取消），避免「已付款回调撞 409 无限重试」 | 单测：渠道已付 ⇒ 拒绝取消并可补入账 |
+
+### 批 B｜资金幂等与对账口径（4 条，P2-6 已修）
+
+| # | 落点 | 改法要点 | 判据 |
+|---|---|---|---|
+| P2-5 | `PayScoreOrderNotifyService:74-91` | 事件状态机：DONE 之后的 USER_PAYING/EXPIRED 不得回退，且不得触发催缴 | 单测：DONE→EXPIRED 不回写、不发催缴 |
+| **P2-6 🟡 已改待提交** | `PaymentService.syncChannelSideRefund` | 以账本幂等键（`channel-refund-sync:<refund_id>`）是否已存在为闸，整段跳过 ⇒ 单据推进与余额同幂等 | `handleWeChatRefundNotify_duplicateDelivery_doesNotDoubleCountRefunded`（已负向验证：拆闸⇒红在金额断言）｜**暂缓提交**：该文件同时含他会话未提交的 R19-2 改动，且模块当前被并发编辑（`InventoryLotService`）挡住编译，等编译恢复后单独提交 |
+| P2-7 | `ReconciliationService:328-339` | 单渠道对账的充值/退款合计补 `channel` 过滤（假差异会抵消真差异） | 单测/对账 SQL：混渠道数据下合计=该渠道 |
+| P2-8 | `PaymentService.debitForRechargeRefund:1044-1058` | 整单退充值改为「可退 = 金额 − 已退」并复用 `refundable` 判据（现只查 status=PAID） | 单测：部分退后再整单退 ⇒ 409 |
+
+### 批 C｜会员/券/活动口径（5 条，P2-9 不成立、P2-12 已修）
+
+| # | 落点 | 改法要点 | 判据 |
+|---|---|---|---|
+| P2-10 | `MemberService:321-326` | 扣回积分用**发放时**倍率（流水里存 rate 或按 EARN 行反算），不用当前等级 | 单测：升级后退款按旧倍率扣 |
+| P2-11 | `MemberService:116-123` | `total_spent` 全额退款后可回收（净额口径）或至少在等级判定里改用净额 | 单测：买满升级→全退 ⇒ 等级回落（需产品确认是否允许降级） |
+| P2-13 | `PromotionPricingService:131-148` | 限购计数排除 PENDING/CANCELLED + 支持件数上限；`budget_cents` 死旋钮要么接预算要么删 | 校验 mapper 谓词（本轮待补验）；单测：取消单不占名额 |
+| P2-3/P3-3 | `MemberService.onOrderPaid` | **orderId 去重**（同 R20-2 第一刀），与积分腿同口径 | 单测：同一单两条补缴路径只记一次 |
+
+### 批 D｜N+1 与全表扫描（5 条）
+
+| # | 落点 | 改法要点 |
+|---|---|---|
+| P2-14 | `OpsSessionOrderQueryService:261-262` | 导出改批量 `findByOrderIdsIn`（同文件 `:285` 已有范式） |
+| P2-15 | `MarketingRoiService:142-152` | `findAll()` 改筛选下推 + 券定义批量取 |
+| P2-16 | `NearbyDeviceService:40`、`SiteContractService:50/66` | 全表载入 `device_info` 改 SQL 过滤（地理/状态条件下推） |
+| P2-17 | `FootfallAnalyticsService:67,71-72` | 每设备 count → 单条 group by 聚合 |
+| P2-18 | `InvoiceRequestMapper.xml:14-22` | 锁查询带 `status IN (PENDING,ISSUED)` 谓词（与 partial unique 对齐），或补 `(order_id)` 普通索引 |
+
+> 排序建议：B → A → C → D（B 批直接对钱，A 批是重复履约与免单旁路）。每批落地后各跑一次
+> `mvn -o -pl services/trade-service -am test -Dtest='<受影响类>'`，并各做一次负向验证（铁律 4）。

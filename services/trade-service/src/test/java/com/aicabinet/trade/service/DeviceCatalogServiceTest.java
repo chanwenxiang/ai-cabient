@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -205,20 +206,44 @@ class DeviceCatalogServiceTest {
         when(skuPricingService.loadPromoPolicy()).thenReturn(null);
         when(skuPricingService.resolveUnitPriceCents(anyString(), any(SkuCatalog.class),
                 nullable(PricingPromoPolicy.class))).thenReturn(350);
-        // 会员 98 折：350 → 343（与结算侧 SettlementOrderSupport 走同一个函数，这里钉的是「同序」）
+        // 会员 98 折：350 → 343（与结算侧 SettlementOrderSupport 走同一个函数，这里钉的是「同判据」）
         when(memberService.applyMemberPriceDiscount(10001L, 350)).thenReturn(343);
-        // 活动立减 1.00 的计价基准是会员价 343 ⇒ 活动价 243
-        when(promotionPricingService.resolveUnitPrice(10001L, DEVICE_ID, null, "SKU-MEMBER-001", 343))
-                .thenReturn(java.util.Optional.of(new PromotionPricingService.Applied(4L, 243, 100)));
+        // 活动立减 1.00 的计价基准是**目录价** 350 ⇒ 活动价 250，再与会员价 343 取优 ⇒ 250
+        when(promotionPricingService.resolveBest(10001L, DEVICE_ID, null, "SKU-MEMBER-001", 350, 343))
+                .thenReturn(java.util.Optional.of(new PromotionPricingService.Applied(4L, 250, 93)));
 
         DeviceProductDto p = service.listProducts(DEVICE_ID, 10001L).get(0);
 
         assertEquals(343, p.priceCents(),
-                "划线价必须是「本用户无活动时的应付单价」——下发目录价 350 会让 350−1.00≠2.43，等于虚标原价");
-        assertEquals(243, p.activityPriceCents().intValue(), "活动价按会员后价再减 1.00");
+                "划线价必须是「本用户无活动时的应付单价」——下发目录价 350 会让 350−1.00≠2.50，等于虚标原价");
+        assertEquals(250, p.activityPriceCents().intValue(),
+                "活动价按目录价算（不再在会员价上叠一层），与结算实付同值");
         assertEquals(4L, p.activityId());
-        assertEquals(100, p.priceCents() - p.activityPriceCents(),
+        assertEquals(93, p.priceCents() - p.activityPriceCents(),
                 "商品卡上「原价 − 活动价」必须等于活动减额，消费者才能自己算平");
+    }
+
+    @Test
+    @DisplayName("活动价不优于会员价 ⇒ 不命中：activityPriceCents 为 null，卡片只显示会员价（不叠加、取优）")
+    void listProducts_activityNotBetterThanMember_isIgnored() {
+        when(lotRepository.findByDeviceId(DEVICE_ID)).thenReturn(List.of(new DeviceSkuLot()));
+        when(lotRepository.sumSellableBySkuOnEnabledSlots(DEVICE_ID))
+                .thenReturn(List.<Object[]>of(row("SKU-MEMBER-002", 3)));
+        when(skuCatalogRepository.findAllById(any()))
+                .thenReturn(List.of(sku("SKU-MEMBER-002", "可乐330ml")));
+        when(skuPricingService.loadPromoPolicy()).thenReturn(null);
+        when(skuPricingService.resolveUnitPriceCents(anyString(), any(SkuCatalog.class),
+                nullable(PricingPromoPolicy.class))).thenReturn(350);
+        when(memberService.applyMemberPriceDiscount(10001L, 350)).thenReturn(343);
+        // 真实判据（活动价 349 仍高于会员价 343）由 PromotionPricingService.resolveBest 拦掉，此处模拟「未命中」
+        when(promotionPricingService.resolveBest(10001L, DEVICE_ID, null, "SKU-MEMBER-002", 350, 343))
+                .thenReturn(java.util.Optional.empty());
+
+        DeviceProductDto p = service.listProducts(DEVICE_ID, 10001L).get(0);
+
+        assertEquals(343, p.priceCents());
+        assertNull(p.activityPriceCents(), "活动价劣于会员价时不得以活动价展示，否则实付会「比标价更贵」");
+        assertNull(p.activityId());
     }
 
     private static DeviceProductDto bySku(List<DeviceProductDto> list, String skuId) {

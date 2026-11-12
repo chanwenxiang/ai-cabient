@@ -155,19 +155,21 @@ jiangyi-gateway 独立 Spring Boot（模式 A 下 IDEA 起 :8083；模式 B 下 
 
 **门禁**：`pnpm check:money-yuan-prefix`（已入 `check:audit-gates`）钉两件事——① 模板写字面 `¥` 又调用「自带 `¥`」的函数（渲染成 `¥¥12.34`、负额 `¥-¥5.00`；2026-10-16 清掉商户端 16 处 + 运营台 25 处）；② `.replace(/^¥/, '')` 剥符号手术（锚 `^` 对 `-¥5.00` 不匹配 ⇒ 只剥了正数）。它**先解析每个文件里标识符的绑定来源**再判，不做全局字符串匹配（第一版全局匹配误报 27 处）。
 
-### 6.3 订单优惠四列的权威口径（2026-11-02 MA-029 方案 A 拍板，勿「顺手对齐」）
+### 6.3 订单优惠四列的权威口径（2026-11-02 MA-029 方案 A 拍板；2026-11-12 追加「会员价×活动价不叠加、取优」，勿「顺手对齐」）
 
-**不变式**：应付永远是 `total = Σ 行金额 − coupon`；会员与活动折扣**只在 `cabinet_order_line.unit_price_cents` 里各减一次**（先会员价、再活动价），`member_discount_cents` / `activity_discount_cents` / `gross_amount_cents` 三列都是**留档不是减项**。四列一起满足：
+**不变式**：应付永远是 `total = Σ 行金额 − coupon`；会员与活动折扣**只在 `cabinet_order_line.unit_price_cents` 里各减一次**，`member_discount_cents` / `activity_discount_cents` / `gross_amount_cents` 三列都是**留档不是减项**。四列一起满足：
 
 ```
 gross − member − activity − coupon = total      （部分退款单例外：total 变小、gross 保持原毛额，差额看 refunded_cents）
 ```
 
+- 🔴 **会员价与活动价不叠加、取优**（2026-11-12 用户拍板，竞品对照 CB-084）：活动价一律以**目录价**为基价计算，算完再与会员价**取更低者**；活动价不低于会员价 ⇒ 视为未命中（`activity_id` 空、`activity_discount_cents=0`、不核销限购），相等时按会员价成交。入口只有一个：`PromotionPricingService.resolveBest/resolveBestForOrder`，结算链（`SettlementOrderSupport.applyItemsToOrder`）与商品读面（`DeviceCatalogService.listProducts`）共用——若把会员价当活动基价传进去，折扣型活动会在会员价上再乘一次折扣＝**双重优惠**（旧实现，已修）。
+- 留档口径随之定死：`activity_discount_cents` 记「**相对会员价**少收的钱」（＝ (会员价 − 活动价) × 数量），**不是**相对目录价——这样两个留档加起来才等于 `gross − total`，恒等式不破。
 - 历史上 ②「把 `member_discount_cents` 当订单级减项再扣一次」与 ① 并存，靠该列恒 0（全仓无写入者）潜伏。照抄「补个入账」而不删 ② = **重复扣减＝少收钱**。写入口 `SettlementOrderSupport.applyItemsToOrder` 自 2026-11-02 起按 Σ(目录价 − 会员价) × 数量 入账。
 - ② 的算术散在 **5 处**，改口径必须一起扫：改单重算、按比例退写侧、**按比例退只读预估侧**（铁律 51 预估≠写侧＝资损）、**巡检 `checkOrderConsistency` 的检测 SQL**（漏改会让每单会员折扣永久误报，且落进「需人工」那条修不掉的分支）、脏券清理里那句 `member_discount_cents = 0`。
 - 会员档不做「应付上限夹取」的减法用途：`recalculatePayableAfterLineChange` 仍夹一次纯属防脏数据撑爆留档列，**不影响应付**。
 - 唯一 ② 形的历史行是 V252 的 local/dev/uat 演示种子 ⇒ 由 `V425`（backfill）把**明细行**改成 ① 形，订单头金额列一律不回填。
-- 钉测：`SettlementMemberDiscountOnceTest`（含「会员 + 活动同时命中只折一次」反例）、`SettlementConfirmDisputeTest.confirmDisputedItems_memberDiscountAppliedOnceNotTwice`、`SettlementPartialRefundTest.partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide`、活库真单 `MemberDiscountLedgerSqlIT`。
+- 钉测：`SettlementMemberDiscountOnceTest`（含「会员 + 活动同时命中 → 取优不叠加」反例）、`PromotionPricingServiceTest.resolveBest_*`、`DeviceCatalogServiceTest.listProducts_activityNotBetterThanMember_isIgnored`、`SettlementConfirmDisputeTest.confirmDisputedItems_memberDiscountAppliedOnceNotTwice`、`SettlementPartialRefundTest.partialRefund_withBookedMemberDiscount_estimateMatchesWriteSide`、活库真单 `MemberDiscountLedgerSqlIT`。
 
 ---
 

@@ -91,8 +91,8 @@ class SettlementMemberDiscountOnceTest {
         void memberOnly_booksArchiveAndPaysOnce() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 350, 343);
-            when(promotionPricingService.resolveUnitPriceForOrder(
-                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+            when(promotionPricingService.resolveBestForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 1, 1f)));
@@ -107,13 +107,20 @@ class SettlementMemberDiscountOnceTest {
             assertEquals(350 - 7 - 0 - 0, order.getTotalAmountCents());
         }
 
-        /** 反例钉测：会员 + 活动同时命中 ⇒ 两档各减一次、互不重复，恒等式仍平。 */
+        /**
+         * 反例钉测：会员 + 活动同时命中 ⇒ **不叠加、取优**（2026-11-12 拍板）。
+         *
+         * <p>活动价以**目录价** 400 为基价算得 342，低于会员价 392 ⇒ 取活动价 342；
+         * 活动留档 = (会员价 − 活动价) × 3 = 150，会员留档仍是 (目录价 − 会员价) × 3 = 24，
+         * 恒等式 1200 − 24 − 150 = 1026 成立。若把会员价 392 当活动基价（旧实现），
+         * 折扣型活动会在会员价上再打一次折，等于双重优惠。</p>
+         */
         @Test
-        void memberAndActivityTogether_discountsEachExactlyOnce() {
+        void memberAndActivityTogether_bestOfTwoNotStacked() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 400, 392);
-            when(promotionPricingService.resolveUnitPriceForOrder(
-                    eq(10001L), eq("CAB-9"), anyString(), eq("SKU-A"), eq(392)))
+            when(promotionPricingService.resolveBestForOrder(
+                    eq(10001L), eq("CAB-9"), anyString(), eq("SKU-A"), eq(400), eq(392)))
                     .thenReturn(Optional.of(new PromotionPricingService.Applied(7L, 342, 50)));
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 3, 1f)));
@@ -134,8 +141,8 @@ class SettlementMemberDiscountOnceTest {
         void nonMember_booksZeroArchive() {
             CabinetOrder order = orderWithDevice("CAB-9");
             stubSku("SKU-A", "CAB-9", 400, 400);
-            when(promotionPricingService.resolveUnitPriceForOrder(
-                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+            when(promotionPricingService.resolveBestForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 2, 1f)));
@@ -235,8 +242,8 @@ class SettlementMemberDiscountOnceTest {
             CabinetOrderLine original = line("SKU-A", 2, 300);
             stubSku("SKU-A", "CAB-9", 300, 300);
             // lenient：改单链根本不该再问当前活动；留着桩是为了「即使此刻配了活动也不生效」
-            org.mockito.Mockito.lenient().when(promotionPricingService.resolveUnitPriceForOrder(
-                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+            org.mockito.Mockito.lenient().when(promotionPricingService.resolveBestForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt(), anyInt()))
                     .thenReturn(Optional.of(new PromotionPricingService.Applied(12L, 200, 100)));
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-A", 3, 1f)),
@@ -246,7 +253,7 @@ class SettlementMemberDiscountOnceTest {
             assertEquals(300, order.getLines().get(0).getUnitPriceCents());
             assertEquals(900, order.getTotalAmountCents());
             org.mockito.Mockito.verify(promotionPricingService, org.mockito.Mockito.never())
-                    .resolveUnitPriceForOrder(anyLong(), anyString(), anyString(), anyString(), anyInt());
+                    .resolveBestForOrder(anyLong(), anyString(), anyString(), anyString(), anyInt(), anyInt());
         }
 
         @Test
@@ -255,8 +262,8 @@ class SettlementMemberDiscountOnceTest {
             CabinetOrder order = orderWithDevice("CAB-9");
             CabinetOrderLine original = line("SKU-A", 1, 300);
             stubSku("SKU-NEW", "CAB-9", 500, 500);
-            when(promotionPricingService.resolveUnitPriceForOrder(
-                    anyLong(), anyString(), anyString(), anyString(), anyInt()))
+            when(promotionPricingService.resolveBestForOrder(
+                    anyLong(), anyString(), anyString(), anyString(), anyInt(), anyInt()))
                     .thenReturn(Optional.of(new PromotionPricingService.Applied(21L, 450, 50)));
 
             support.applyItemsToOrder(order, List.of(new RecognizedItem("SKU-NEW", 2, 1f)),

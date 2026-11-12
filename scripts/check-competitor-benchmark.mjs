@@ -111,6 +111,11 @@ const SUBJECT_ALIASES = [
   { re: /nayax/i, id: 'Nayax', kind: 'peer' },
   { re: /将邑|hunanjysmart|jysmart/i, id: '将邑智能', kind: 'peer' },
   { re: /思迅/i, id: '思迅', kind: 'peer' },
+  // CB-084 会员价与活动价叠加口径：星宇收银 / 云上铺 = 便利店·超市收银 SaaS 服务商，
+  // 与已登记的思迅同档（都是中小零售门店在用的收银系统，官方文档里把「取优/叠加」写成显式规则），
+  // 故登记为 peer；不是转载站，也不是跨行业 ERP（金蝶仍是 cross）。
+  { re: /星宇收银|xingyusoft/i, id: '星宇收银', kind: 'peer' },
+  { re: /云上铺|yunvip/i, id: '云上铺', kind: 'peer' },
   { re: /旺旺/i, id: '旺旺', kind: 'peer' },
   { re: /创弗/i, id: '创弗', kind: 'peer' },
   { re: /dozzon/i, id: 'DOZZON', kind: 'peer' },

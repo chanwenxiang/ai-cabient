@@ -164,8 +164,40 @@ class PromotionPricingServiceTest {
         verify(orderLineRepository).countOrdersForActivityExcluding(6L, 10001L, "O-CUR");
     }
 
-    private long countCalls() {
-        return org.mockito.Mockito.mockingDetails(orderLineRepository).getInvocations().stream()
+    // ===== 会员价与活动价「不叠加、取优」（2026-11-12 拍板）=====
+
+    @Test
+    @DisplayName("取优：活动价优于会员价 ⇒ 按活动价，留痕 = 相对会员价少收的钱（不是相对目录价）")
+    void resolveBest_activityCheaperThanMember_winsWithMemberRelativeDiscount() {
+        candidates(activity(11, "SKU_REDUCE", 150, null, null, 0, null));
+        // 目录价 1000、会员价 930；活动 850 更优
+        var applied = service.resolveBest(10001L, DEVICE, MERCHANT, SKU, 1000, 930).orElseThrow();
+        assertEquals(850, applied.unitPriceCents());
+        assertEquals(80, applied.discountPerUnitCents(), "留痕必须是 930−850，若记 150 会把会员档重复算一次");
+        assertEquals(11L, applied.activityId());
+    }
+
+    @Test
+    @DisplayName("取优：活动价不低于会员价 ⇒ 未命中（不核销限购、不给活动留痕），只按会员价成交")
+    void resolveBest_activityNotBetterThanMember_isIgnored() {
+        candidates(activity(12, "SKU_REDUCE", 50, null, null, 0, null));
+        // 目录价 1000、会员价 930；活动只有 950 ⇒ 会员价更优
+        assertTrue(service.resolveBest(10001L, DEVICE, MERCHANT, SKU, 1000, 930).isEmpty());
+        // 相等也算会员价：活动价 930 == 会员价 930 ⇒ 不命中（相等不额外让利，也不占活动名额）
+        candidates(activity(13, "SKU_REDUCE", 70, null, null, 0, null));
+        assertTrue(service.resolveBest(10001L, DEVICE, MERCHANT, SKU, 1000, 930).isEmpty());
+    }
+
+    @Test
+    @DisplayName("取优：折扣型活动按**目录价**打折，不再乘会员折扣（双重优惠回归即红）")
+    void resolveBest_percentActivityIsOffListPriceNotMemberPrice() {
+        candidates(activity(14, "SKU_DISCOUNT", null, 2000, null, 0, null));
+        // 目录价 1000 → 活动 800；若不叠加口径错成「会员价再打 8 折」会得到 744（930×0.8）
+        var applied = service.resolveBest(10001L, DEVICE, MERCHANT, SKU, 1000, 930).orElseThrow();
+        assertEquals(800, applied.unitPriceCents());
+    }
+
+    private long countCalls() {        return org.mockito.Mockito.mockingDetails(orderLineRepository).getInvocations().stream()
                 .filter(i -> i.getMethod().getName().equals("countOrdersForActivity")).count();
     }
 }

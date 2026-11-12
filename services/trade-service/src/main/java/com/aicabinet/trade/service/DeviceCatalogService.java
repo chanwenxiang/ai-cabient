@@ -27,7 +27,7 @@ public class DeviceCatalogService {
     private final MerchantSkuPricingService skuPricingService;
     private final SysDictService sysDictService;
     private final PromotionPricingService promotionPricingService;
-    /** 会员价必须在活动价之前应用，与结算链 {@code SettlementOrderSupport} 同序，否则「显示价≠实付」。 */
+    /** 会员价与活动价**不叠加、取优**，与结算链 {@code SettlementOrderSupport} 同一套判据，否则「显示价≠实付」。 */
     private final MemberService memberService;
 
     public DeviceCatalogService(DeviceSkuInventoryMapper inventoryRepository,
@@ -95,9 +95,12 @@ public class DeviceCatalogService {
             int qty = qtyBySku.getOrDefault(skuId, 0);
             if (sku != null && qty > 0) {
                 int basePrice = skuPricingService.resolveUnitPriceCents(dev, sku, promoPolicy);
-                // 与结算同序：先会员价，再活动价（活动价覆盖会员价之后的单价）
+                // 会员价与活动价**不叠加、取优**（2026-11-12 拍板，与结算链
+                // SettlementOrderSupport.applyItemsToOrder 同口径）：活动价按目录价算，再与会员价
+                // 取更低者；活动价不优于会员价时 activityPriceCents 下发 null ⇒ 卡片只显示会员价。
                 int memberPrice = memberService.applyMemberPriceDiscount(userId, basePrice);
-                var applied = promotionPricingService.resolveUnitPrice(userId, dev, merchantId, skuId, memberPrice);
+                var applied = promotionPricingService.resolveBest(userId, dev, merchantId, skuId,
+                        basePrice, memberPrice);
                 result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),

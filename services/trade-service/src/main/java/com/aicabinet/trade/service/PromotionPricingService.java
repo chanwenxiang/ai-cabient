@@ -52,6 +52,12 @@ public class PromotionPricingService {
     }
 
     /** 命中则返回**最低**的活动单价；未命中返回 empty。 */
+    /**
+     * 活动价原语：{@code baseUnitPriceCents} 必须是**目录价**，返回值只代表「活动本身的价格」。
+     *
+     * <p>会员价与活动价<b>不叠加、取优</b>的门面是 {@link #resolveBest}/{@link #resolveBestForOrder}——
+     * 直接把会员价当 base 传进来即等于双重优惠（2026-11-12 拍板口径，勿回潮）。</p>
+     */
     public Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String skuId, int baseUnitPriceCents) {
         return resolveUnitPrice(userId, deviceId, resolveMerchantId(deviceId), skuId, baseUnitPriceCents);
     }
@@ -60,6 +66,40 @@ public class PromotionPricingService {
     public Optional<Applied> resolveUnitPrice(Long userId, String deviceId, String merchantId,
                                               String skuId, int baseUnitPriceCents) {
         return resolveUnitPrice(userId, deviceId, merchantId, skuId, baseUnitPriceCents, null, false);
+    }
+
+    /**
+     * 展示 / 结算共用的**会员价与活动价取优**（2026-11-12 拍板：两者<b>不叠加</b>）。
+     *
+     * <p>口径：活动价一律以**目录价**为基价计算（绝不把会员价再当活动基价，否则等于双重优惠），
+     * 再与会员价取更低者。活动价 <b>不低于</b> 会员价 ⇒ 视为未命中：不核销限购、不写活动留痕
+     * （{@code activity_id} 为空、{@code activity_discount_cents} 为 0），订单上只体现会员价一档。</p>
+     *
+     * <p>返回的 {@code discountPerUnitCents} 是「相对本单应付基准（会员价）少收的每件金额」，
+     * 即落 {@code cabinet_order_line.activity_discount_cents} 的值 ⇒ 恒等式
+     * {@code gross − member − activity − coupon = total} 仍成立（member 留档仍是 目录价−会员价）。</p>
+     */
+    public Optional<Applied> resolveBest(Long userId, String deviceId, String merchantId,
+                                        String skuId, int listUnitPriceCents, int memberUnitPriceCents) {
+        return resolveUnitPrice(userId, deviceId, merchantId, skuId, listUnitPriceCents, null, false)
+                .filter(a -> a.unitPriceCents() < memberUnitPriceCents)
+                .map(a -> new Applied(a.activityId(), a.unitPriceCents(), memberUnitPriceCents - a.unitPriceCents()));
+    }
+
+    /** 取优的展示口径（商户由设备反查一次，批量场景请用带 merchantId 的重载）。 */
+    public Optional<Applied> resolveBest(Long userId, String deviceId, String skuId,
+                                        int listUnitPriceCents, int memberUnitPriceCents) {
+        return resolveBest(userId, deviceId, resolveMerchantId(deviceId), skuId,
+                listUnitPriceCents, memberUnitPriceCents);
+    }
+
+    /** 取优 + 结算语义（先锁候选活动行再判限购，并排除本单自身已核销的行）；口径同 {@link #resolveBest}。 */
+    public Optional<Applied> resolveBestForOrder(Long userId, String deviceId, String orderId, String skuId,
+                                                int listUnitPriceCents, int memberUnitPriceCents) {
+        return resolveUnitPrice(userId, deviceId, resolveMerchantId(deviceId), skuId,
+                listUnitPriceCents, orderId, true)
+                .filter(a -> a.unitPriceCents() < memberUnitPriceCents)
+                .map(a -> new Applied(a.activityId(), a.unitPriceCents(), memberUnitPriceCents - a.unitPriceCents()));
     }
 
     /**

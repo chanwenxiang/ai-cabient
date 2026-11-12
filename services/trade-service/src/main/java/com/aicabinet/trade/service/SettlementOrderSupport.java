@@ -135,7 +135,7 @@ public class SettlementOrderSupport {
             requireCentsInColumnRange("会员优惠合计", memberDiscountTotal);
             grossTotal += (long) listUnitPrice * item.quantity();
             requireCentsInColumnRange("订单原价合计", grossTotal);
-            // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且优于当前单价时生效）；
+            // v1 活动价（CB-082）：命中则替换单价（只在不低于 1 分且**优于会员价**时生效）；
             // 订单头记 activity_discount_cents ⇒ 结算据此**禁用券**（活动优先）。
             // 改单传 preserved 时按原单决策定价，不再读当前活动（成交即锁定）。
             int baseUnitPrice = unitPrice;
@@ -149,14 +149,19 @@ public class SettlementOrderSupport {
                     lineActivityDiscount = (long) (baseUnitPrice - unitPrice) * item.quantity();
                 }
             } else {
+                // 🔴 会员价与活动价**不叠加、取优**（2026-11-12 拍板，PROJECT_KNOWLEDGE §6.3）：
+                // 活动价以**目录价** listUnitPrice 为基价计算，再与会员价取更低者；活动价不优于
+                // 会员价时视作未命中（不写 activity_id/不留活动痕）。此前把会员价当活动基价
+                // ⇒ 折扣型活动会在会员价上再打一次折，等于双重优惠。
                 java.util.Optional<PromotionPricingService.Applied> activity =
                         promotionPricingService == null ? java.util.Optional.empty()
-                                : promotionPricingService.resolveUnitPriceForOrder(
+                                : promotionPricingService.resolveBestForOrder(
                                         order.getUserId(), order.getDeviceId(), order.getOrderId(),
-                                        sku.getSkuId(), unitPrice);
+                                        sku.getSkuId(), listUnitPrice, memberUnitPrice);
                 if (activity.isPresent()) {
                     lineActivityId = activity.get().activityId();
                     unitPrice = activity.get().unitPriceCents();
+                    // discountPerUnitCents 已是「相对会员价少收的钱」，与 member 留档一起满足恒等式
                     lineActivityDiscount = (long) activity.get().discountPerUnitCents() * item.quantity();
                 }
             }
