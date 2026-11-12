@@ -183,3 +183,21 @@ cancel/unlock 被跳过，而心跳仍按 owner 命中续租 → 锁在、任务
 2. **R18-2 / R18-4 / R18-5**（库存一致性三连）——同一批，配并发 IT（含负向控制：换回读改写必须红）。
 3. **R18-6 / R18-7 / R18-8**（租约三连）——同一批，补 fake-lock 单测三态。
 4. **R18-9 ~ R18-12**（P3）——按发布节奏并入常规批。
+
+---
+
+## 六、处置记录（2026-11-12 当日修，P1×2 + P2×4 全清）
+
+| ID | 处置 | 验证 |
+|---|---|---|
+| R18-1 ✅ | `77b8feeb`：网关 OPEN 超时配置化 `jiangyi.watchdog.open-timeout-ms`（默认 70s = trade 60s + 10s 余量），yml 注释钉联动约束；15~60s 回执正常开门、60~70s 撞 CANCELLED 由兜账 v2 救 | `SessionWatchdogTest` 4 用例（阈值=构造参数契约 + 15s 旧行为 A/B 对照 + 上报失败不出队） |
+| R18-3 ✅ | `77b8feeb`：V458 种 `dispute_created`（CONSUMER/DISPUTE）；对账实证代码引用 3 码仅此缺种 | 新门禁 `check:notification-template-seeded`（代码引用 vs 迁移已种对账，三态验证过），已接 `check:audit-gates` 链 |
+| R18-2 ✅ | `51916f22`：批次三处读改写改单语句原子 UPDATE（扣减走既有 `deductQuantityAtomic`，回补走新增 `increaseQuantityAtomic` + 独立 `updateStatusAndSlotById` 只写属性列） | `InventoryConsistencyR18IT`（真 PG）：双路原子并发终量 2；**负向控制**——绝对覆盖旧形态实证会覆盖已提交原子结果 |
+| R18-4 ✅ | `51916f22`：`applyDelta` 增量改单语句 upsert（`ON CONFLICT DO UPDATE` 算术累加），默认值与原建档口径一致 | 同 IT：行缺失双连接并发回补双方成功、终量=两笔之和（version=1 为 INSERT+UPDATE 各一指纹） |
+| R18-5 ✅ | `51916f22`：两条汇总算术 UPDATE 追加 `version=version+1`；`syncAggregateInventory` 加 CAS 冲突重试（3 轮收敛）承接显性化 409 | 同 IT：原子扣提交后旧 version 的实体 save 必失败且不覆盖；当前 version save 正常递增 |
+| R18-6 ✅ | `33a1a877`：finish 改 try/finally 包 cancel+unlock；配套 `leaseHolders` 执行中标志（tryBegin 登记 / finish finally 移除 / 心跳校验） | `ScheduledTaskLeaseRenewalIT` 回归 3/3 绿 |
+| R18-7 ✅ | `33a1a877`：`renew` 三态 RENEWED/LOST/TRANSIENT，心跳只对 LOST 停、TRANSIENT 下周期再试 | `DistributedLockServiceRenewTest` 5 用例（mock Redisson 钉三态映射，瞬断≠易主） |
+| R18-8 ✅ | `33a1a877`：心跳失败分支带身份摘除 `remove(key, myFuture)` | 同上单测覆盖签名；摘除语义见 ScheduledTaskService 注释 |
+
+**未处置**：R18-9 ~ R18-12（P3）按审计建议并入常规批；§三待复核 6 条不动。
+**部署提醒**：V458 在 jar 内 ⇒ 验证/发布须重建 trade 镜像再 `up -d --no-deps --force-recreate`（铁律 41）；网关阈值变更须重建 jiangyi-gateway 镜像。
