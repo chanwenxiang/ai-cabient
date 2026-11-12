@@ -66,6 +66,8 @@ public class OpsSessionOrderQueryService {
     private final RefundPolicyService refundPolicyService;
     private final OrderViewAssembler orderViewAssembler;
     private final SessionService sessionService;
+    private final ConsumerPreauthService consumerPreauthService;
+    private final DisputeService disputeService;
 
     public OpsSessionOrderQueryService(PermissionService permissionService,
                                        MerchantScopeService merchantScopeService,
@@ -78,7 +80,9 @@ public class OpsSessionOrderQueryService {
                                        PaymentService paymentService,
                                        RefundPolicyService refundPolicyService,
                                        OrderViewAssembler orderViewAssembler,
-                                       SessionService sessionService) {
+                                       SessionService sessionService,
+                                       ConsumerPreauthService consumerPreauthService,
+                                       @org.springframework.context.annotation.Lazy DisputeService disputeService) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.sessionRepository = sessionRepository;
@@ -91,6 +95,8 @@ public class OpsSessionOrderQueryService {
         this.refundPolicyService = refundPolicyService;
         this.orderViewAssembler = orderViewAssembler;
         this.sessionService = sessionService;
+        this.consumerPreauthService = consumerPreauthService;
+        this.disputeService = disputeService;
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
@@ -223,10 +229,42 @@ public class OpsSessionOrderQueryService {
                     "识别/结算中的会话请到异常中心处理，不可直接取消");
         }
         SessionState previous = session.getState();
+        if (previous == SessionState.SHOPPING) {
+            // R20-7（2026-11-12）：购物中直接取消=免单——用户已把货拿走，会话被置 CANCELLED 后
+            // 既无订单也无争议单，且预授权 FROZEN 没有清扫器覆盖（FAILED 清扫器只扫 FAILED）。
+            // 与 C09/开门超时同口径：先释放 hold，再转 DISPUTED 并建争议工单，由异常中心
+            // 按视频/识别结果人工判定收款还是免单。
+            cancelShoppingSessionAsDispute(operatorId, session);
+            return toSessionDto(session);
+        }
+        // CREATED/OPENING：门未开或刚开门，取消合法；但必须释放预授权，否则 FROZEN 悬挂
+        consumerPreauthService.releaseIfFrozen(session);
         sessionService.transition(session, SessionState.CANCELLED);
         auditService.appendLog(operatorId, "SESSION_CANCEL", "SESSION", sessionId,
                 "device=" + session.getDeviceId() + " previous=" + previous);
         return toSessionDto(session);
+    }
+
+    /** R20-7：购物中会话的运营取消 → 转争议（可收可退），不做免单。 */
+    private void cancelShoppingSessionAsDispute(Long operatorId, ShoppingSession session) {
+        String sessionId = session.getSessionId();
+        String reason = "运营尝试取消购物中会话，转人工核验是否已取货";
+        try {
+            consumerPreauthService.releaseIfFrozen(session);
+        } catch (Exception e) {
+            log.error("ops cancel 释放预授权失败，继续转争议 sessionId={}", sessionId, e);
+        }
+        session.setFailReason(reason);
+        sessionService.transition(session, SessionState.DISPUTED);
+        try {
+            disputeService.createTimeoutTicket(session, reason);
+        } catch (Exception ticketEx) {
+            log.warn("ops cancel 转争议建单失败 sessionId={}", sessionId, ticketEx);
+        }
+        auditService.appendLog(operatorId, "SESSION_CANCEL_TO_DISPUTE", "SESSION", sessionId,
+                "device=" + session.getDeviceId() + " 购物中取消转争议（R20-7）：" + reason);
+        log.warn("ops cancel shopping session converted to dispute session={} device={} operator={}",
+                sessionId, session.getDeviceId(), operatorId);
     }
 
     @Transactional(readOnly = true)

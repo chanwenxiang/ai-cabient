@@ -676,7 +676,12 @@ public class OrderPaymentService {
                 // 痕迹行由 RefundRetryScheduler 分钟级查单/幂等重发闭环。
                 self.recordRefundInitiated(prep);
                 String refundStatus = executeLiveChannelRefund(prep);
-                self.finalizeLiveOrderRefund(prep, refundStatus);
+                if (!self.finalizeLiveOrderRefund(prep, refundStatus)) {
+                    // R20-1：渠道 ABNORMAL ⇒ 不记已退、不清痕迹、不回扣积分、不冲分账。
+                    // 必须抛错让调用方中止（保持订单原状态），否则「钱没退成、单已 REFUNDED」。
+                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                            "渠道退款结果异常（ABNORMAL），已转人工核对；订单未标记退款");
+                }
                 self.finalizeRefundInitiated(prep.idemKey());
             }
             refreshCallerOrder(order);
@@ -839,16 +844,36 @@ public class OrderPaymentService {
     }
 
     @Transactional
-    public void finalizeLiveOrderRefund(OrderRefundPrep prep) {
-        finalizeLiveOrderRefund(prep, null);
+    public boolean finalizeLiveOrderRefund(OrderRefundPrep prep) {
+        return finalizeLiveOrderRefund(prep, null);
     }
 
+    /** 渠道退款状态是否「已受理但结果异常」——钱没退到用户手上，不得记作已退（R20-1）。 */
+    static boolean isAbnormalRefundStatus(String channelRefundStatus) {
+        return channelRefundStatus != null && "ABNORMAL".equalsIgnoreCase(channelRefundStatus.trim());
+    }
+
+    /**
+     * 落地一笔已提交渠道的退款。
+     *
+     * @return true=已记账（含幂等命中）；false=渠道 ABNORMAL <b>未记账</b>，只落 REFUND_FAILED 痕迹，
+     *         调用方必须中止后续本地推进（订单状态/积分回扣/分账冲减）。
+     *
+     * <p>R20-1（2026-11-12）：此前无论渠道返回什么状态都记 REFUND COMPLETED 并累加
+     * {@code refundedCents}——微信返回 {@code ABNORMAL}（退款异常，钱退回失败）时，
+     * 账上是「已退」，用户手里没收到，而 {@code WeChatRefundReconciler} 只扫 {@code refund:PROCESSING}
+     * 也没人兜底。现在仅 SUCCESS/PROCESSING 入账；ABNORMAL 落 REFUND_FAILED 进人工队列。</p>
+     */
     @Transactional
-    public void finalizeLiveOrderRefund(OrderRefundPrep prep, String channelRefundStatus) {
+    public boolean finalizeLiveOrderRefund(OrderRefundPrep prep, String channelRefundStatus) {
         CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(prep.orderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (isCompleted(prep.idemKey())) {
-            return;
+            return true;
+        }
+        if (isAbnormalRefundStatus(channelRefundStatus)) {
+            recordRefundFailed(locked, prep);
+            return false;
         }
         String outRefundNo = deterministicRefundNo(prep.idemKey());
         String reason = channelRefundStatus != null && !channelRefundStatus.isBlank()
@@ -862,6 +887,42 @@ public class OrderPaymentService {
         alertIfInvoicedOnFullRefund(locked, prep.refundCents());
         log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
+        return true;
+    }
+
+    /**
+     * R20-1：渠道 ABNORMAL 的退款流水只记 REFUND_FAILED（不得 COMPLETED），
+     * 且不改订单 {@code refundedCents}/状态——否则「账上已退、用户没收到」。
+     * 幂等键带 {@code :ABNORMAL} 段，避免与正式退款流水争同一键（那样重试会被 isCompleted 短路）。
+     */
+    private void recordRefundFailed(CabinetOrder order, OrderRefundPrep prep) {
+        String key = prep.idemKey() + ":ABNORMAL";
+        if (paymentOperationRepository.findByIdempotencyKey(key).isEmpty()) {
+            PaymentOperation op = new PaymentOperation();
+            op.setOperationId(resolveOperationId(REFUND, prep.channel()));
+            op.setOrderId(order.getOrderId());
+            op.setUserId(order.getUserId());
+            op.setOperationType(REFUND);
+            op.setAmountCents(prep.channelRefundCents());
+            op.setChannel(prep.channel());
+            op.setStatus("REFUND_FAILED");
+            op.setIdempotencyKey(key);
+            op.setGatewayTradeNo(deterministicRefundNo(prep.idemKey()));
+            op.setReason(TextTruncate.safeTruncate(
+                    "渠道退款异常 ABNORMAL，需人工核对：" + reasonOrDefault(prep.reason()), 128));
+            paymentOperationRepository.save(op);
+        }
+        log.error("channel refund ABNORMAL, refund NOT recorded order={} channel={} amount={}",
+                prep.orderId(), prep.channel(), prep.channelRefundCents());
+        try {
+            opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL_PENDING",
+                    "渠道退款异常待人工（订单未记已退）",
+                    "orderId=" + order.getOrderId() + " channel=" + prep.channel()
+                            + " amount=" + prep.channelRefundCents() + " 分；渠道侧状态 ABNORMAL，"
+                            + "本地未记退款、未回扣积分、未冲减分账，请人工核对后再处置");
+        } catch (Exception e) {
+            log.warn("ops alert failed refund abnormal order={}", order.getOrderId(), e);
+        }
     }
 
     /**

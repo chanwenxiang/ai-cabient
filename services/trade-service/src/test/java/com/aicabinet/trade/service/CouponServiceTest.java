@@ -491,6 +491,38 @@ class CouponServiceTest {
         verify(orderRepository, never()).save(any());
     }
 
+    /**
+     * R20-3：活动价订单禁券。结算与补扣都拦，唯独用户端手动核销入口漏了 —— 活动单挂 PENDING 后
+     * 手动用券 = 活动价再叠一张券，且可逐单重复。
+     */
+    @Test
+    void useCoupon_shouldReject_whenOrderHasActivityDiscount() {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
+
+        var order = new CabinetOrder();
+        order.setOrderId("O-ACT");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(2000);
+        order.setActivityDiscountCents(300);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(orderRepository.findByIdForUpdate("O-ACT")).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-ACT", "CAB-1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("活动价"));
+        verify(userCouponRepository, never()).save(any());
+        verify(orderRepository, never()).save(any());
+    }
+
     /** M23：手动核销路径校验券定义状态——INACTIVE 定义不可核销。 */
     @Test
     void useCoupon_shouldReject_whenDefinitionInactive() {

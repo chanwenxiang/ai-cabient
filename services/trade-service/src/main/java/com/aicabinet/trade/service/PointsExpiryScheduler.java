@@ -92,7 +92,13 @@ public class PointsExpiryScheduler {
             if (member == null || member.getUserId() == null) {
                 continue;
             }
-            int points = e.getValue().stream().mapToInt(l -> nz(l.getPoints())).sum();
+            // R20-5：提醒的是「还没过期掉的余额」，部分结转过的行只报剩余部分
+            int points = e.getValue().stream()
+                    .mapToInt(l -> Math.max(0, nz(l.getPoints()) - nz(l.getExpiredPoints())))
+                    .sum();
+            if (points <= 0) {
+                continue;
+            }
             Instant expireAt = e.getValue().stream()
                     .map(MemberPointsLog::getExpireAt)
                     .filter(java.util.Objects::nonNull)
@@ -137,7 +143,11 @@ public class PointsExpiryScheduler {
         if (member == null) {
             return false;
         }
-        int expirePoints = logs.stream().mapToInt(l -> nz(l.getPoints())).sum();
+        // R20-5：预算只算「本行还没过期掉的部分」——部分结转过的行会再次入选，
+        // 用原始 points 求和会把已过期额度重复计入预算，进而多扣用户积分。
+        int expirePoints = logs.stream()
+                .mapToInt(l -> Math.max(0, nz(l.getPoints()) - nz(l.getExpiredPoints())))
+                .sum();
         if (expirePoints <= 0) {
             return false;
         }
@@ -155,6 +165,18 @@ public class PointsExpiryScheduler {
         return true;
     }
 
+    /**
+     * 按行标记已过期积分（R20-5）。
+     *
+     * <p>旧实现的两种标记是「全或无」：{@code pts <= remaining} 就整行置 {@code expired_at}，
+     * 否则整行跳过 —— 而 {@code actualExpire = min(available, Σ)} 常常小于某一行面额，
+     * 于是这行既不标记也不扣减额度，下一轮又被整额重算，同一笔 EARN 被反复过期
+     * （EARN=100、余额 10 ⇒ 本轮扣 10、下轮再扣 100，累计 110 &gt; 100）。</p>
+     *
+     * <p>现在每行记 {@code expired_points} 累计已过期数：可过期额 = {@code points − 已过期}，
+     * 本轮取 {@code min(可过期额, 预算余量)}；整行耗尽才置 {@code expired_at}（并因此不再入选
+     * {@code findEarnExpiredBefore}）。判据：同一 EARN 行累计过期 ≤ 其 points。</p>
+     */
     private void markEarnLogsExpired(List<MemberPointsLog> logs, int actualExpire, Instant now) {
         int remaining = actualExpire;
         for (MemberPointsLog l : logs) {
@@ -162,11 +184,27 @@ public class PointsExpiryScheduler {
                 break;
             }
             int pts = nz(l.getPoints());
-            if (pts > 0 && l.getExpiredAt() == null && pts <= remaining) {
-                l.setExpiredAt(now);
-                pointsLogRepository.save(l);
-                remaining -= pts;
+            if (pts <= 0) {
+                continue;
             }
+            int alreadyExpired = nz(l.getExpiredPoints());
+            int expireLeft = pts - alreadyExpired;
+            if (expireLeft <= 0) {
+                // 存量数据兜底：已整额过期但 expired_at 缺失（V459 回填之后不应出现）
+                if (l.getExpiredAt() == null) {
+                    l.setExpiredAt(now);
+                    pointsLogRepository.save(l);
+                }
+                continue;
+            }
+            int take = Math.min(expireLeft, remaining);
+            int totalExpired = alreadyExpired + take;
+            l.setExpiredPoints(totalExpired);
+            if (totalExpired >= pts) {
+                l.setExpiredAt(now);
+            }
+            pointsLogRepository.save(l);
+            remaining -= take;
         }
     }
 

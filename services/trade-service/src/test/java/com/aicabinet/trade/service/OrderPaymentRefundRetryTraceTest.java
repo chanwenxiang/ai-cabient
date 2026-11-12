@@ -209,4 +209,46 @@ class OrderPaymentRefundRetryTraceTest {
         verify(opsAlertDispatcher).send(eq("REFUND_RETRY_EXHAUSTED"), eq("渠道退款重试耗尽"),
                 contains("O-RT-5"));
     }
+
+    /**
+     * R20-1：微信 createRefund 返回 ABNORMAL（退款异常）时，钱没到用户手里，
+     * 绝不能记 REFUND COMPLETED + 累加 refundedCents。此前的实现无条件 finalize，
+     * 造成「账上已退、用户没收到」，而 WeChatRefundReconciler 只扫 PROCESSING 无人兜底。
+     */
+    @Test
+    void finalize_abnormalStatus_recordsFailedOnly_andKeepsRefundedCents() {
+        CabinetOrder o = order("O-AB-1");
+        when(cabinetOrderRepository.findByIdForUpdate("O-AB-1")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-ab")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.findByIdempotencyKey("rk-ab:ABNORMAL")).thenReturn(Optional.empty());
+
+        OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
+                "O-AB-1", 10001L, 800, 800, "退款", "rk-ab", "WECHAT", "PT-O-AB-1", 800, false, true);
+
+        boolean recorded = service.finalizeLiveOrderRefund(prep, "ABNORMAL");
+
+        assertFalse(recorded, "ABNORMAL 必须返回 false，调用方才会中止本地推进");
+        ArgumentCaptor<PaymentOperation> saved = ArgumentCaptor.forClass(PaymentOperation.class);
+        verify(paymentOperationRepository).save(saved.capture());
+        assertEquals("REFUND_FAILED", saved.getValue().getStatus(), "只许记 REFUND_FAILED");
+        assertEquals("REFUND", saved.getValue().getOperationType());
+        assertEquals(0, o.getRefundedCents(), "已退金额不得累加——钱没退成功");
+        verify(cabinetOrderRepository, never()).updateById(any());
+    }
+
+    @Test
+    void finalize_successStatus_recordsCompleted() {
+        CabinetOrder o = order("O-OK-1");
+        when(cabinetOrderRepository.findByIdForUpdate("O-OK-1")).thenReturn(Optional.of(o));
+        when(paymentOperationRepository.findByIdempotencyKey("rk-ok")).thenReturn(Optional.empty());
+
+        OrderPaymentService.OrderRefundPrep prep = new OrderPaymentService.OrderRefundPrep(
+                "O-OK-1", 10001L, 800, 800, "退款", "rk-ok", "WECHAT", "PT-O-OK-1", 800, false, true);
+
+        assertTrue(service.finalizeLiveOrderRefund(prep, "SUCCESS"));
+        assertEquals(800, o.getRefundedCents());
+        ArgumentCaptor<PaymentOperation> saved = ArgumentCaptor.forClass(PaymentOperation.class);
+        verify(paymentOperationRepository).save(saved.capture());
+        assertEquals("COMPLETED", saved.getValue().getStatus());
+    }
 }

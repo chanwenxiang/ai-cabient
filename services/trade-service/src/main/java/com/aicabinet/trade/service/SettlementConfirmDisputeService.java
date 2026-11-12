@@ -18,6 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +30,9 @@ import java.util.stream.Collectors;
 public class SettlementConfirmDisputeService {
 
     private static final Logger log = LoggerFactory.getLogger(SettlementConfirmDisputeService.class);
+
+    /** R20-6：可改单的订单状态白名单（钱收到且未退款）。 */
+    private static final Set<String> ADJUSTABLE_STATUS = Set.of("PAID", "PENDING", "DISPUTED");
 
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
@@ -166,6 +171,7 @@ public class SettlementConfirmDisputeService {
         if (CabinetConstants.ORDER_STATUS_REFUNDED.equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
         }
+        requireAdjustableStatus(order);
 
         List<RecognizedItem> oldItems = order.getLines().stream()
                 .map(l -> new RecognizedItem(l.getSkuId(), l.getQuantity(),
@@ -198,6 +204,23 @@ public class SettlementConfirmDisputeService {
                 sessionId, order.getOrderId(), originalPayable, finalTotal, delta);
         return ConfirmDisputePrep.adjust(order, originalPayable, finalTotal, delta,
                 session, oldItems, items, batchBySku);
+    }
+
+    /**
+     * R20-6（2026-11-12）：改单只对「钱收过、且没退过」的订单成立。
+     *
+     * <p>原实现只挡 REFUNDED，于是两条真实资损路径能走通：
+     * ① CANCELLED 单确认改单 → 差额扣款成功但订单仍是 CANCELLED（收入消失、货已出）；
+     * ② PARTIAL_REFUNDED 单确认改单 → 差额 ≈ 已退额（因为 total 是全量重算），**重复收款**。
+     * 白名单与「refundedCents=0」双条件：改单是纠正金额，不是二次收款通道。</p>
+     */
+    private static void requireAdjustableStatus(CabinetOrder order) {
+        String status = order.getStatus() == null ? "" : order.getStatus().toUpperCase(Locale.ROOT);
+        int refunded = Math.max(0, order.getRefundedCents());
+        if (!ADJUSTABLE_STATUS.contains(status) || refunded > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "订单当前状态不支持争议改单（status=" + status + "，已退 " + refunded + " 分）");
+        }
     }
 
     @Transactional

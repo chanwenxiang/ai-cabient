@@ -25,7 +25,14 @@ public class TradeServiceClient {
 
     public TradeServiceClient(@Value("${aicabinet.trade-service.url:http://localhost:8080}") String baseUrl,
                               InternalApiProperties internalApiProperties) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+        // R20-10（2026-11-12）：原先 RestClient.builder() 无超时，而 notifyDoorEvent 是在
+        // Paho MQTT 回调线程里同步调用（失败还重试 3 次）——trade 抖动时回调线程被网络等待挂住，
+        // 消息不 ACK，全设备门磁积压。补 2s 连接 / 5s 响应，把单次阻塞上限钉死。
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(2_000);
+        factory.setReadTimeout(5_000);
+        this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
         this.internalApiProperties = internalApiProperties;
     }
 

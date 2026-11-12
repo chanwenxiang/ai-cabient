@@ -30,7 +30,14 @@ public class AlipayOpenApiClient {
         this.properties = properties;
         this.signUtil = signUtil;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.create();
+        // R20-4（2026-11-12）：原先 RestClient.create() 完全无超时——调用方
+        // OrderPaymentService.chargeOrder 在事务 + Redis 锁 + 行锁内同步调本类，
+        // 支付宝网关一卡就同时占住「行锁 + 1 个 Hikari 连接」直到底层 TCP 超时（默认无上限）。
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
     public JsonNode execute(String method, Map<String, Object> bizContent) {

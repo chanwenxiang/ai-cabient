@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,6 +38,7 @@ class PayScoreOrderNotifyTest {
     @Mock CabinetOrderMapper cabinetOrderMapper;
     @Mock PaymentOperationMapper paymentOperationMapper;
     @Mock UnpaidDunningService unpaidDunningService;
+    @Mock OpsExceptionService opsExceptionService;
 
     @InjectMocks PayScoreOrderNotifyService service;
 
@@ -120,9 +122,31 @@ class PayScoreOrderNotifyTest {
         verify(paymentOperationMapper, never()).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
     }
 
+    /**
+     * R20-8：终态订单（REFUNDED/CANCELLED/PARTIAL_REFUNDED）收到迟到 DONE —— 只留 HIGH 痕迹，
+     * 不得回写成 PAID（否则 DisputeService 只挡 REFUNDED 的旧实现还能二次退款）。
+     */
     @Test
-    void unmatchedOrderEvent_isSwallowed() {
-        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of());
+    void doneEvent_onTerminalOrder_doesNotResurrect() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        CabinetOrder o = order("REFUNDED");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE")
+                .put("transaction_id", "WX-TF-9");
+        service.handleOrderNotify(event);
+
+        verify(cabinetOrderMapper, never()).updateById(any(CabinetOrder.class));
+        verify(paymentOperationMapper, never()).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
+        verify(opsExceptionService).report(eq("PAYSCORE_DONE_ON_TERMINAL_ORDER"), eq("HIGH"), any(), any(), any());
+        assertEquals("REFUNDED", o.getStatus());
+    }
+
+    @Test
+    void unmatchedOrderEvent_isSwallowed() {        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of());
         var event = new ObjectMapper().createObjectNode()
                 .put("out_order_no", "PSU-NOBODY")
                 .put("state", "DONE");

@@ -30,6 +30,8 @@ public class WeChatPayV3Client {
     private final WeChatPlatformCertificateStore certificateStore;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
+    /** 仅用于对账单文件下载（读超时更长）。 */
+    private final RestClient downloadRestClient;
 
     public WeChatPayV3Client(WeChatPayProperties properties,
                              WeChatPayV3Signer signer,
@@ -39,7 +41,19 @@ public class WeChatPayV3Client {
         this.signer = signer;
         this.certificateStore = certificateStore;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.create();
+        // R20-4（2026-11-12）：原先 RestClient.create() 无任何超时——下单/退款都在
+        // 「事务 + Redis 锁 + cabinet_order 行锁」内同步调微信，网关卡住即占满行锁与 Hikari 连接
+        // （20 个并发卡点打满全库）。3s 连接 / 10s 响应是微信官方建议量级。
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        this.restClient = RestClient.builder().requestFactory(factory).build();
+        org.springframework.http.client.SimpleClientHttpRequestFactory downloadFactory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        downloadFactory.setConnectTimeout(3_000);
+        downloadFactory.setReadTimeout(60_000);
+        this.downloadRestClient = RestClient.builder().requestFactory(downloadFactory).build();
     }
 
     public JsonNode post(String path, Object body) {
@@ -76,7 +90,8 @@ public class WeChatPayV3Client {
     }
 
     public byte[] download(String url) {
-        byte[] data = restClient.get()
+        // 对账单文件（几 MB，境外 CDN）比 API 慢得多：单独放宽到 60s，不复用 API 客户端的 10s
+        byte[] data = downloadRestClient.get()
                 .uri(URI.create(url))
                 .retrieve()
                 .body(byte[].class);

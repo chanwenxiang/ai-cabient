@@ -349,6 +349,12 @@ public class CouponService {
         if (!Set.of("PENDING", "UNPAID", "CREATED").contains(status)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不可用券");
         }
+        // R20-3（2026-11-12）：活动价订单禁券——结算（SettlementOrderFinalizeService:86）与补扣
+        // （UnpaidOrderService:464）都拦，唯独用户端手动用券入口漏了这道闸：活动单挂 PENDING 后
+        // 手动核销一张券，实付=活动价−券额，且可逐单重复。此闸与那两处同口径（CB-082：活动优先）。
+        if (order.getActivityDiscountCents() > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "活动价订单不支持使用优惠券");
+        }
         if (order.getCouponId() != null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已使用优惠券");
         }

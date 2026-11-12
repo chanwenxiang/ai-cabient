@@ -32,6 +32,9 @@ public class MemberPointsLog {
 
     private Instant expireAt;
 
+    /** R20-5：本行已过期掉的积分数（部分结转累计值，见 V459）。 */
+    private Integer expiredPoints;
+
     private Instant expiredAt;
 
     private Instant remindedAt;

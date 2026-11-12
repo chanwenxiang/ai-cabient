@@ -33,19 +33,26 @@ public class PayScoreOrderNotifyService {
 
     private static final Logger log = LoggerFactory.getLogger(PayScoreOrderNotifyService.class);
 
+    /** R20-8：订单终态——收到迟到 DONE 不得回写成 PAID。 */
+    private static final java.util.Set<String> TERMINAL_ORDER_STATUS =
+            java.util.Set.of("REFUNDED", "PARTIAL_REFUNDED", "CANCELLED");
+
     private final PayScoreOrderMapper payScoreOrderMapper;
     private final CabinetOrderMapper cabinetOrderMapper;
     private final PaymentOperationMapper paymentOperationMapper;
     private final UnpaidDunningService unpaidDunningService;
+    private final OpsExceptionService opsExceptionService;
 
     public PayScoreOrderNotifyService(PayScoreOrderMapper payScoreOrderMapper,
                                       CabinetOrderMapper cabinetOrderMapper,
                                       PaymentOperationMapper paymentOperationMapper,
-                                      UnpaidDunningService unpaidDunningService) {
+                                      UnpaidDunningService unpaidDunningService,
+                                      OpsExceptionService opsExceptionService) {
         this.payScoreOrderMapper = payScoreOrderMapper;
         this.cabinetOrderMapper = cabinetOrderMapper;
         this.paymentOperationMapper = paymentOperationMapper;
         this.unpaidDunningService = unpaidDunningService;
+        this.opsExceptionService = opsExceptionService;
     }
 
     /** 是否订单事件（区别于授权事件）：带 out_order_no。 */
@@ -102,6 +109,13 @@ public class PayScoreOrderNotifyService {
         if ("PAID".equals(order.getStatus())) {
             return;
         }
+        // R20-8（2026-11-12）：原早退条件只有 PAID ⇒ 已退款/已取消的订单收到迟到 DONE 会被
+        // 改回 PAID（DisputeService 又只挡 REFUNDED），同一笔单可以二次退款。订单状态是单向机：
+        // 终态收到 DONE 一律不动订单，只落 HIGH 痕迹交人工（钱可能真到了，必须有人核对）。
+        if (TERMINAL_ORDER_STATUS.contains(order.getStatus())) {
+            reportTerminalResurrect(po, order, event);
+            return;
+        }
         int amount = po.getActualAmountCents() != null ? po.getActualAmountCents() : order.getTotalAmountCents();
         String tradeNo = firstNonBlank(event.path("transaction_id").asText(""),
                 event.path("out_order_no").asText(""));
@@ -129,6 +143,27 @@ public class PayScoreOrderNotifyService {
 
     private static String firstNonBlank(String a, String b) {
         return a != null && !a.isBlank() ? a : b;
+    }
+
+    /** R20-8：终态订单收到 DONE —— 不动订单状态，落 HIGH 异常 + error 日志供人工核对。 */
+    private void reportTerminalResurrect(PayScoreOrder po, CabinetOrder order, JsonNode event) {
+        String tradeNo = firstNonBlank(event.path("transaction_id").asText(""),
+                event.path("out_order_no").asText(""));
+        String detail = "orderId=" + order.getOrderId() + " status=" + order.getStatus()
+                + " outOrderNo=" + po.getOutOrderNo() + " tradeNo=" + tradeNo
+                + " 支付分回调 DONE 迟到，订单已处于终态，未改写状态；请人工核对渠道是否真实扣款并处置";
+        log.error("wechat payscore DONE on terminal order, status NOT changed: {}", detail);
+        if (opsExceptionService == null) {
+            return;
+        }
+        try {
+            opsExceptionService.report("PAYSCORE_DONE_ON_TERMINAL_ORDER", "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            order.getDeviceId(), order.getSessionId(), order.getOrderId(), order.getUserId()),
+                    "支付分扣款到账但订单已终态", detail);
+        } catch (Exception e) {
+            log.warn("ops exception report failed order={}", order.getOrderId(), e);
+        }
     }
 
     /** 供控制器路由的只读探测（避免把 mapper 暴露出去）。 */

@@ -40,6 +40,8 @@ class OpsSessionOrderQueryServiceTest {
     @Mock AdminAuditService auditService;
     @Mock PaymentService paymentService;
     @Mock RefundPolicyService refundPolicyService;
+    @Mock ConsumerPreauthService consumerPreauthService;
+    @Mock DisputeService disputeService;
 
     private OpsSessionOrderQueryService service;
 
@@ -48,7 +50,8 @@ class OpsSessionOrderQueryServiceTest {
         service = new OpsSessionOrderQueryService(
                 permissionService, merchantScopeService, sessionRepository, orderRepository,
                 orderLineRepository, splitRepository, settlementService, auditService,
-                paymentService, refundPolicyService, new OrderViewAssembler(), null);
+                paymentService, refundPolicyService, new OrderViewAssembler(), null,
+                consumerPreauthService, disputeService);
     }
 
     @Test

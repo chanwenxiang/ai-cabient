@@ -380,6 +380,68 @@ class SettlementConfirmDisputeTest {
         verify(revenueSplitService, org.mockito.Mockito.never()).adjustSplitAfterOrderChange(any(), anyInt());
     }
 
+    /**
+     * R20-6：CANCELLED 单确认改单 = 扣到钱但单仍取消（收入消失）。必须 409，一行库存/金额都不许动。
+     */
+    @Test
+    void confirmDisputedItems_cancelledOrder_conflicts() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-D6");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-1");
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-D6");
+        order.setSessionId("S-D6");
+        order.setUserId(10001L);
+        order.setDeviceId("CAB-1");
+        order.setStatus("CANCELLED");
+        order.setTotalAmountCents(400);
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400))));
+        when(orderRepository.findBySessionId("S-D6")).thenReturn(Optional.of(order));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> settlementService.confirmDisputedItems(
+                                session, List.of(new RecognizedItem("SKU-A", 2, 1f))));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
+        verify(orderRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    /**
+     * R20-6：已退过款的单再确认改单 ⇒ delta 按全量重算 ≈ 已退额 ⇒ 重复收款。refundedCents>0 一律 409。
+     */
+    @Test
+    void confirmDisputedItems_partiallyRefundedOrder_conflicts() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-D7");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-1");
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-D7");
+        order.setSessionId("S-D7");
+        order.setUserId(10001L);
+        order.setDeviceId("CAB-1");
+        order.setStatus("PAID");
+        order.setTotalAmountCents(400);
+        order.setRefundedCents(300);
+        order.setLines(new ArrayList<>(List.of(line("SKU-A", "A", 1, 400))));
+        when(orderRepository.findBySessionId("S-D7")).thenReturn(Optional.of(order));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> settlementService.confirmDisputedItems(
+                                session, List.of(new RecognizedItem("SKU-A", 2, 1f))));
+
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(orderPaymentService, org.mockito.Mockito.never()).applyPaymentDelta(any(), anyInt());
+    }
+
     private static CabinetOrderLine line(String sku, String name, int qty, int unit) {
         CabinetOrderLine l = new CabinetOrderLine();
         l.setSkuId(sku);
