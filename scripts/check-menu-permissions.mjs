@@ -39,7 +39,14 @@ if (!menuSrc) {
   console.error(`[check-menu-permissions] 未找到 ${MENU_FILE}`);
   process.exit(1);
 }
-const menuPerms = [...menuSrc.matchAll(/perm:\s*'([^']+)'/g)].map((m) => m[1]);
+const menuPerms = [
+  ...[/perm:\s*'([^']+)'/g].flatMap((re) => [...menuSrc.matchAll(re)].map((m) => m[1])),
+  // P3-r19-6：`perms: ['a','b']` 是 OR 语义的多权限码（如 /print）；单码正则采不到它，
+  // 这几个码就会绕开「必须有后端出处」的校验。
+  ...[/perms:\s*\[([^\]]*)\]/g].flatMap((re) =>
+    [...menuSrc.matchAll(re)].flatMap((m) => [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]))
+  )
+];
 
 // ── 后端侧 ────────────────────────────────────────────────────────────────
 function* walkJava(dir) {

@@ -1,0 +1,25 @@
+# 真机联调专用叠加层（R19-5，2026-11-12）
+#
+# 背景：dev/demo 栈默认开着 mock 短信万能码（application-dev.yml 的 mock-code），
+# 相当于「任意手机号 + 123456 即登录」。此前 gateway 直接绑 0.0.0.0:80 ⇒ 同网段
+# 任何人都能登进超管。现在 base/full 默认绑 127.0.0.1，本文件是**唯一**的书面放行口。
+#
+# 用法（手机 / 平板等外部设备要访问本机栈时）：
+#   docker compose -p ai-cabinet -f infra/docker-compose.full.yml \
+#     -f infra/docker-compose.win-ports.yml -f infra/docker-compose.lan.yml up -d --no-deps gateway
+#   docker compose -p ai-cabinet -f infra/docker-compose.full.yml \
+#     -f infra/docker-compose.win-ports.yml -f infra/docker-compose.lan.yml up -d --force-recreate gateway
+#
+# 用完请回到不带本文件的命令重建，恢复回环绑定：
+#   docker compose -p ai-cabinet -f infra/docker-compose.full.yml \
+#     -f infra/docker-compose.win-ports.yml up -d --no-deps --force-recreate gateway
+#
+# 注意：!override 会替换 full.yml 的 ${GATEWAY_PUBLISH:-127.0.0.1:80:80}
+# （而非追加，追加会因 0.0.0.0 包含 127.0.0.1 而端口冲突）。
+services:
+  gateway:
+    # override 层也带一份（与 full.yml 一致）：check-compose-stop-grace 把本文件里出现的
+    # 服务当成「独立定义」检查，缺这一行会判定「吃本机 1 秒宽限」。
+    stop_grace_period: 30s
+    ports: !override
+      - "0.0.0.0:80:80" # EXPOSE-ALLOW: 真机联调需局域网可达，仅显式叠加本文件时生效

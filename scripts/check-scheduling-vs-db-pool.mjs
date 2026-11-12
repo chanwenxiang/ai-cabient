@@ -36,6 +36,17 @@ const TAG = '[check-scheduling-vs-db-pool]';
 const DEFAULT_SCHEDULING_POOL = 1; // spring.task.scheduling.pool.size
 const DEFAULT_HIKARI_POOL = 10; // spring.datasource.hikari.maximum-pool-size
 
+/**
+ * 一个正在跑的定时任务最多同时占几条连接（R19-20，与 Java 侧
+ * `SchedulingPoolCapacitySelfCheck.CONNECTIONS_PER_TASK` **必须同值**）。
+ *
+ * 一个任务不止一条连接：任务体在事务里跑，收尾 `ScheduledTaskService.finish(...)` 是
+ * `REQUIRES_NEW`（独立事务写执行记录 + 释放锁），外层连接还握着、内层再要一条。
+ * 旧判据「并发 ≤ 池」隐含「一任务一连接」，于是 `并发 8 / 池 10`、`并发 4 / 池 5` 这类
+ * 实际峰值已溢池的配置会被判绿。
+ */
+const CONNECTIONS_PER_TASK = 2;
+
 const SCHED_PATH = ['spring', 'task', 'scheduling', 'pool', 'size'];
 const HIKARI_PATH = ['spring', 'datasource', 'hikari', 'maximum-pool-size'];
 
@@ -123,16 +134,18 @@ for (const service of services) {
   const mainSched = toNumber(yamlGet(mainText, SCHED_PATH));
   const mainPool = toNumber(yamlGet(mainText, HIKARI_PATH));
 
-  // main 自身：声明值（缺省按 Spring 默认）必须满足 并发 ≤ 池
+  // main 自身：声明值（缺省按 Spring 默认）必须满足 峰值 ≤ 池
   const mainSchedEff = mainSched ?? DEFAULT_SCHEDULING_POOL;
   const mainPoolEff = mainPool ?? DEFAULT_HIKARI_POOL;
   report.push(
     `  ${mainRel}: scheduling=${mainSchedEff}${mainSched ? '' : '(默认)'} ` +
-      `hikari=${mainPoolEff}${mainPool ? '' : '(默认)'}`
+      `hikari=${mainPoolEff}${mainPool ? '' : '(默认)'} ` +
+      `峰值=${mainSchedEff * CONNECTIONS_PER_TASK}`
   );
-  if (mainSchedEff > mainPoolEff) {
+  if (mainSchedEff * CONNECTIONS_PER_TASK > mainPoolEff) {
     problems.push(
-      `${mainRel}: @Scheduled 并发 ${mainSchedEff} > 连接池 ${mainPoolEff} —— ` +
+      `${mainRel}: @Scheduled 峰值连接占用 ${mainSchedEff}×${CONNECTIONS_PER_TASK}=` +
+        `${mainSchedEff * CONNECTIONS_PER_TASK} > 连接池 ${mainPoolEff} —— ` +
         `上下文启动瞬间多个定时任务会同时抢连接`
     );
   }
@@ -147,11 +160,13 @@ for (const service of services) {
   report.push(
     `  ${testRel}: scheduling=${testSchedEff}` +
       `${testSchedDeclared ? '(声明)' : '(继承 main)'} ` +
-      `hikari=${testPoolEff}${testPoolDeclared ? '(声明)' : '(继承 main)'}`
+      `hikari=${testPoolEff}${testPoolDeclared ? '(声明)' : '(继承 main)'} ` +
+      `峰值=${testSchedEff * CONNECTIONS_PER_TASK}`
   );
-  if (testSchedEff > testPoolEff) {
+  if (testSchedEff * CONNECTIONS_PER_TASK > testPoolEff) {
     problems.push(
-      `${testRel}: 测试环境下 @Scheduled 并发 ${testSchedEff}` +
+      `${testRel}: 测试环境下 @Scheduled 峰值连接占用 ${testSchedEff}×${CONNECTIONS_PER_TASK}=` +
+        `${testSchedEff * CONNECTIONS_PER_TASK}` +
         `${testSchedDeclared ? '' : '（继承自 main，未在测试 profile 显式钉住）'} ` +
         `> 连接池上限 ${testPoolEff} —— E2E 上下文会因拿不到连接而加载失败。` +
         `请在测试 profile 显式钉住 spring.task.scheduling.pool.size`

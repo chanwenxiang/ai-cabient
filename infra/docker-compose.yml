@@ -182,7 +182,10 @@ services:
       # gateway 必须让位绑 127.0.0.1:8180（.env.production 设 GATEWAY_PUBLISH）；
       # 此前生产旧容器绑定 8180 的配置只存在于历史容器、从未入库 ⇒ 一旦 recreate 即爆
       # 「address already in use 0.0.0.0:80」（ports 序列合并是追加，prod-server 层加 8180 挡不住 base 的 80）。
-      - "${GATEWAY_PUBLISH:-80:80}" # EXPOSE-ALLOW: gateway 业务入口（base 栈对外唯一 HTTP）
+      # R19-5（2026-11-12）：默认绑回环——此栈 dev 下开着 mock 万能短信码，
+      # 绑 0.0.0.0 等于同网段任何人可用任意手机号（含超管）登录。
+      # 真机联调需要局域网可达时，显式叠加 `-f docker-compose.lan.yml`（那是唯一书面放行口）。
+      - "${GATEWAY_PUBLISH:-127.0.0.1:80:80}"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     extra_hosts:

@@ -10,7 +10,8 @@
 #
 # 内容职责：
 # 1) nginx 上游改服务名直连（host.docker.internal 是 Docker Desktop 专属）
-# 2) minio-init 镜像改用实际可得的 mc 版本（仓内 a7fe349 pin 从未可用，加速器对钉 digest 拒发）
+# 2) minio-init 用与 apps/full 同一 digest 的 mc（R19-16：原 `minio/mc:server-pin` 是不存在的 tag，
+#    生产必然 pull 失败；见 services.minio-init 处注释）
 # 3) 短期带上 sms-webhook-mock（真短信网关未到位前的过渡，生产换真 URL 即删本段）
 # 4) admin/consumer/merchant 静态产物挂载（full.yml 同款；服务器栈不叠 full.yml）
 services:
@@ -21,7 +22,12 @@ services:
       - ../services/trade-service/src/main/resources/static/admin:/usr/share/nginx/html/admin:ro
   minio-init:
     stop_grace_period: 10s
-    image: minio/mc:server-pin
+    # R19-16（2026-11-12）：原值 `minio/mc:server-pin` 不是真实镜像 tag（"跟服务端 pin 一致"
+    # 这句备注被当成了 tag），minio-init 在生产必然 pull 失败 ⇒ 桶初始化整段不执行。
+    # 现与 apps.yml / full.yml 统一到同一 digest（本机 `docker images` 实测该 digest 已在本地，
+    # 可正常拉取）；若某台服务器的加速器拒发 digest，请用 docker save/load 侧载，
+    # 不要再退回「编一个 tag 名」的做法。门禁：scripts/check-compose-image-tags.mjs。
+    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
   # 2026-10-20：sms-webhook-mock 容器与 trade 的 SMS_WEBHOOK_URL 钉死已移除——
   # 生产短信走阿里云（.env.production 的 SMS_PROVIDER=aliyun + SMS_ALIYUN_*，apps.yml 统一映射）；
   # mock 容器仅保留在 staging 栈（docker-compose.staging.yml）

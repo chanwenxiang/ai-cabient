@@ -57,7 +57,7 @@ rate(http_server_requests_seconds_count{status=~"5.."}[5m])
 
 #### 8. JVM堆内存使用
 `
-jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}
+sum by (job) (jvm_memory_used_bytes{area="heap"}) / sum by (job) (jvm_memory_max_bytes{area="heap"} > 0)
 `
 
 #### 9. 数据库连接池使用率

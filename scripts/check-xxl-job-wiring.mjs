@@ -582,6 +582,65 @@ for (const { label, value } of appnameDefaults) {
   }
 }
 
+// 3.12 种子行的 `executor_timeout` 禁止为 0（R19-22，2026-11-12）。
+//      XXL-JOB 把 0 解释为**永不超时**，而阻塞策略是 SERIAL_EXECUTION ⇒ 一个悬挂的任务
+//      （死锁 / 等外部回调 / 线程被占死）会让该 job 永久卡死：之后每次触发都排在同一个执行器后面，
+//      调度中心侧没有任何报错，现象只有「这个任务再也没跑过」，运营台台账还显示 enabled=true。
+//      这类「配置看起来生效、实际永久停摆」的形态与 3.10（cron 解析不了）、3.11（执行器组找不到）
+//      同源：都是**外部组件按自己的语义消费我们的配置**，我们没有跟着它的语义校验。
+//
+//      上限也验：timeout 远大于调度周期时，一次悬挂会吃掉后面几十次触发（SERIAL_EXECUTION
+//      不排队补跑），故要求 timeout ≤ 6×周期（日及以上周期不设上限）。
+const EXECUTOR_TIMEOUT_TUPLE_RE =
+  /\((\d+),\s*\d+,\s*'([^']*)',[\s\S]*?'CRON',\s*'([^']+)',[\s\S]*?'([A-Za-z0-9_$]+)',\s*'',\s*'SERIAL_EXECUTION',\s*(\d+),/g;
+
+/** cron（Quartz 6 段）→ 周期秒数；无法判定周期时返回 null（日/月/固定时刻任务）。 */
+function cronIntervalSeconds(cron) {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 6) return null;
+  const [sec, min, hour] = parts;
+  const stepOf = (field) => {
+    const m = field.match(/^(?:\d+|\*)\/(\d+)$/);
+    return m ? Number(m[1]) : null;
+  };
+  if (stepOf(sec) != null) return stepOf(sec);
+  if (sec !== '0') return null;
+  if (stepOf(min) != null) return stepOf(min) * 60;
+  if (min !== '0' && !/^\d+$/.test(min)) return null;
+  if (min === '0' && stepOf(hour) != null) return stepOf(hour) * 3600;
+  return null;
+}
+
+const timeoutProblems = [];
+let timeoutRows = 0;
+for (const m of seedSource.matchAll(EXECUTOR_TIMEOUT_TUPLE_RE)) {
+  const [, id, desc, cron, handler, rawTimeout] = m;
+  timeoutRows++;
+  const timeout = Number(rawTimeout);
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    timeoutProblems.push(
+      `id=${id} ${handler}（${desc}）：executor_timeout=${rawTimeout} —— XXL 语义是「永不超时」，` +
+        `配合 SERIAL_EXECUTION 会让悬挂任务永久占住该 job（后续触发全部丢弃，调度中心无报错）`
+    );
+    continue;
+  }
+  const interval = cronIntervalSeconds(cron);
+  if (interval != null && timeout > interval * 6) {
+    timeoutProblems.push(
+      `id=${id} ${handler}（${desc}）：executor_timeout=${timeout}s 超过调度周期 ${interval}s 的 6 倍 —— ` +
+        `一次悬挂会吃掉后续多轮触发（SERIAL_EXECUTION 不补跑）`
+    );
+  }
+}
+if (timeoutRows === 0) {
+  fail('未能从 seed_aicabinet_jobs.sql 解析出 executor_timeout 元组，门禁已失效，请同步本脚本');
+}
+if (timeoutProblems.length) {
+  problems.push(
+    `XXL 任务超时配置不合格（0=永不超时，悬挂即永久停摆）：\n    - ` + timeoutProblems.join('\n    - ')
+  );
+}
+
 // ── 4. 执行器地址 与 调度中心 context-path 必须一致 ──────────────────────────
 const declaredPaths = new Set();
 const addressDefaults = [];

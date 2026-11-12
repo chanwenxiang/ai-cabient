@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 # AU-189（2026-10-18 批次 7）：Linux 服务器侧数据库备份（替代 backup-database.ps1 的生产职责）。
+#
+# ⚠️ 本仓现在有**两份** bash 备份脚本，语义不同（P3-r19-29，2026-11-12 实证）：
+#   · scripts/backup-postgres.sh  ← **生产实际安装的那份**（cron 02:30，见
+#     docs/production-launch-checklist.md）。平铺目录 + 内建 MinIO 流式异地副本 +
+#     64KB 下限 + 失败/新鲜度告警（BACKUP_ALERT_CMD）。
+#   · scripts/backup-database.sh  ← 本文件，AU-189 的通用实现：按时间戳分子目录、
+#     1KB 下限、异地归档走外部 BACKUP_REMOTE_CMD 钩子。
+# 改备份行为前先确认改的是**哪一份**——只改本文件不会影响生产（这是最容易踩的坑）。
+# 若要收敛成一份，须先核对服务器 crontab 实际指哪个脚本，再删另一个并同步本文档。
 # 旧 Windows 脚本三大缺陷（第三路审计 AU-189）：① Windows-only 与 Linux 生产错配；
 # ② pg_dump 失败仅 Write-Warning 不查退出码 ⇒ 可能长期「零备份」而显示成功；
 # ③ 'wal' 分支只打印配置提示。

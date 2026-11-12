@@ -173,3 +173,47 @@
 3. **R19-7/R19-8/R19-9**（假绿三连）——统一「任务结果以业务结果为真」，加一条门禁：任务体 catch 后不重抛必须写 FAILED 且有告警。
 4. **R19-4/R19-5**（暴露面）——nginx-full 抄 log_format；dev 端口收回环。
 5. **R19-10 ~ R19-14 + P3 表**按迭代并入。
+
+---
+
+## 八、处置记录（2026-11-12 落地批次）
+
+> 编号 R19-15 起为本轮新增（原「待定 1~9」在复核后逐条定级）。判据一律「先说清为什么，再改」，改动均带钉测或门禁。
+
+| 编号 | 原条目 | 判定 | 处置 |
+|---|---|---|---|
+| **R19-15** | 待定 1：`OpsPayoutAccountController` 的 `ownerId` 由 body 传、只查功能码 | **P1 真缺陷** | `ops:merchant:edit` 是功能码，不含商户维度 ⇒ 管 A 商户的运营可拿 `ownerId=MCH-B` 改 B 的默认收款账户（资金改道）。补 `MerchantScopeService.requireMerchantAccess`；线长域**有意不同**（现网无「运营↔线长」数据范围表，注释写明）。钉测 `OpsPayoutAccountScopeTest` 5 例（越权 403 且服务层零调用）|
+| **R19-16** | 待定 9：`minio/mc:server-pin` 疑非真实 tag | **真缺陷** | 「跟服务端 pin 一致」这句备注被当成了 tag，生产 `minio-init` 必然 pull 失败 ⇒ 桶与生命周期策略从未初始化。改为与 apps/full 同一 digest；新增门禁 `check:compose-image-tags`（自带 10 例负向自测，每跑先自证） |
+| **R19-17** | 待定 8：`LocalDate.now()` 依赖 JVM 时区 | 非缺陷（环境已固化） | 容器 2026-10-14 起 `ENV TZ` + `/etc/localtime`。仅给 ENTRYPOINT 补 `-Duser.timezone=Asia/Shanghai`（防换 base image / tzdata 被裁）；60 处调用点**不动**（环境固化优先于大规模改造） |
+| **R19-18** | 待定 6：`DeviceCommandTracker` 多实例重复扫描 + commonPool | **真缺陷** | ①`expireCommandsRedis` 改**抢占式**：用 `ZREM` 返回值当令牌，只有真正摘掉成员的实例才处置；②超时通知从 `CompletableFuture.runAsync`（commonPool、无界）换专用有界池（1/2/256 + CallerRuns 背压）。钉测 `DeviceCommandTrackerClaimTest` 2 例 |
+| **R19-19** | 待定 7：`SessionWatchdog` 30s 租约无 fencing | **真缺陷** | 锁值从常量 `"1"` 改 UUID token，解锁用 Lua 比对（`get==ARGV[1]`）。原实现里扫超 30s 的实例 finally 会**删掉别人的锁**，第三实例随即并发进同一批 due |
+| **R19-20** | 待定 5：`SchedulingPoolCapacitySelfCheck` 判据偏小 | **真缺陷（漏报）** | 判据从「并发 ≤ 池」改为「峰值 = 并发 × 2 ≤ 池」——一个任务不止一条连接：任务体持外层事务，收尾 `ScheduledTaskService.finish(...)` 是 `REQUIRES_NEW`。静态门禁 `check-scheduling-vs-db-pool` 同步改（两侧同源）。默认 8×2=16 ≤ 20 仍绿；`8 并发 / 10 池` 由假绿转红 |
+| **R19-21** | P2：`CouponService` 无 LIMIT 分页 | 半误报 | 分页端点 `listDefinitionsPage` 本就 clamp 100；真正的残留是两个**零调用方**的 `findAll()` 全表方法，已删（留注释说明为何不要复活） |
+| **R19-22** | P2：`seed_aicabinet_jobs.sql` 的 `executor_timeout=0` | **真缺陷** | XXL 里 0 = 永不超时，配合 `SERIAL_EXECUTION` ⇒ 悬挂任务永久占住该 job（调度中心无任何报错）。38 行按「周期 ×4~5，120s~3600s」重填；门禁 `check-xxl-job-wiring` 新增规则 3.12（timeout>0 且 ≤ 6×周期），负向注入指名 `id=101 unpaidCancelJob` |
+| **R19-23** | P3：`admin-vue` 路由 `restore()` 失败被当「无权限」 | 真缺陷（体验/排障） | 守卫此前忽略 `restore()` 返回值：429/5xx/网络抖动时 `rbacHydrated` 仍 false ⇒ `hasPerm` 全 false ⇒ 甩「无权访问」。新增 `rbac-unavailable` 页（说明「不是权限问题」+ 可重复重试），守卫区分「仍未登录」与「已登录但加载失败」 |
+
+### 复核后判「不改」的条目（与「是缺陷」同样要证据）
+
+- **待定 3（`member.total_spent` 元 / DTO 分混用）**：会员域 `DECIMAL(12,2)` 元与订单域「分」各自内部一致（`BigDecimal.valueOf(cents,2)` 写入、规则表比对同单位），管理端表单已按「元」标注并有注释。改口径的收益为零、风险是历史数据全错。
+- **待定 4（`domainConfig` 免鉴权）**：2026-10-20 实证——设备 token 过期后固件以「无 Authorization」探测配置，401 会掐死自愈链（丢配置只能人工到场）；端点只回公网基址。建议后续只补限流与响应字段白名单，**不动鉴权**。
+- **待定 2（设备 token 仅凭 SN 换 7 天 JWT）**：现有三重缓解（激活制 + BOUND + 同 SN 突发告警）成立；缩短 TTL 需真机确认「401 后走 domainConfig 自举重领」再动，未验证前不改。
+- **P3 `V360` 的无 WHERE `UPDATE ... SET charge_mode='OFFLINE'`**：迁移时刻该列刚由 `ADD COLUMN ... DEFAULT 'ONLINE'` 建出，全部既有行按定义都是「存量线下收缴」，无 WHERE 是**当时正确的全表语义**（注释已写明）；且 V360 已应用，重写会破 checksum —— 不改。
+
+---
+
+## 九、处置记录（P2/P3 续批，2026-11-12 下午）
+
+| 编号 | 条目 | 判定 | 处置 |
+|---|---|---|---|
+| **R19-25** | P3：编排 healthcheck 缺口 | **真缺口（范围比原判窄）** | 先用「被 `depends_on: service_healthy` 依赖、自己没有 healthcheck」做判据扫全仓 ⇒ **零命中**：apps/full/staging/xxljob/devops 的被依赖方（postgres / trade-service / device-service / xxl-job-mysql / sonarqube-db / sms-webhook-mock）都有 healthcheck。真缺口是 `full.yml` 的 trade-service / device-service 漏配（apps.yml 同镜像同端口却有）⇒ full 栈 `docker compose ps` 恒 `running` 而非 `healthy`。已按 apps.yml 逐字补齐，`compose config` 实测两个 `actuator/health` 生效 |
+| **R19-26** | P3：网关缺 `server_tokens` / gzip | 加固（低成本） | 三份配置统一加 `server_tokens off`（默认 on 会把 `nginx/x.y.z` 写进 Server 头与 4xx 页）+ gzip（`gzip_types` 只列文本类型，不压 xlsx/图片；`text/html` 默认总压）。三份都用 `nginx -t` 实测通过（full 走运行中容器、另两份走临时 alpine 容器）|
+| **R19-27** | P2：`nginx.conf` 的 `/websocket/` 仍在落 token | **真缺陷（R19-4 同族残留）** | WS 握手 token 在 query string、TTL 7 天；`nginx.conf` 有 `location /websocket/`（151 行）却**没有** `access_log ... ws_noargs` —— R19-4 修了 compose 版、上一轮修了 full 版，这份一直漏着。补齐后三份 `log_format` 逐字一致（md5 相同）。新增门禁 `check-nginx-gateway-parity`：7 条判据（server_tokens / gzip / 三条安全头必须在 **server 级** / body_size 一致 / ws_noargs **定义体**逐字一致 / 有 `/websocket/` 必须有覆盖 / ratelimit zone 集合一致），自带 9 例自测。负向注入删掉 `access_log` ⇒ 指名 `nginx.conf` 变红，还原 md5 一致 |
+| **R19-28** | P3：备份失败静默 | **真缺陷（最贵的假绿）** | `backup-postgres.sh` 失败只写 stderr，cron 没配 `MAILTO` 就是完全静默；连续失败 7 天后 retention 把旧备份清空 = **零备份而所有人以为有**。改动：① 任何非零退出走 `alert()`（配 `BACKUP_ALERT_CMD` 时回调 `<cmd> <LEVEL> <MSG>`，钩子自身失败不改变备份结论）；② 每次成功写 `.last-success-epoch`，开场若距上次成功超 `STALE_HOURS`（默认 30h）先发 WARN，让「昨晚就没成」在今晚失败前被看见。实测四路径：失败⇒CRITICAL、48h 前⇒WARN+CRITICAL、1h 前⇒仅 CRITICAL（不误报）、成功⇒exit 0 且写 state；真实 dump 1831KB / 3742 TOC / 179 张表，`pg_restore -l` 可读 |
+| **R19-29** | 两份 bash 备份脚本语义不同 | 说明（非缺陷） | `backup-postgres.sh`（生产 cron 实装：平铺目录 + 内建 MinIO + 64KB 下限）与 `backup-database.sh`（AU-189：分时间戳子目录 + `BACKUP_REMOTE_CMD` + 1KB 下限）并存且**互不影响**。已在后者头部写明「改备份行为前先确认改的是哪一份，只改本文件不影响生产」，并给出收敛前提（先核对服务器 crontab）|
+| **R19-30** | P2：`DeviceCommandTracker` 全量拉取 | **真缺陷（背压）** | `rangeByScore` 不带 limit ⇒ 一次性把全部到期成员拉成 Set，再每条一次 ZREM + HGETALL，全压在同一条 5s 调度线程。积压 1 万条时单轮几十秒，看门狗自己先超时；积压来源很现实（device-service 停机一天后重启）。改为分批：单批 200、每轮最多 5 批（1000 条/轮、约 2s 上限 < 5s 间歇），未取满即收手。被抢占的成员已不在 zset ⇒ 下一批不会重复，无死循环风险。钉测新增 `fullBatch_triggersAnotherScanRound`（满批 200 ⇒ 恰好 2 次 rangeByScore、200 次 ZREM 且不读 hash）|
+
+### 本批判「不改」的条目
+
+- **`uat-isolated.yml` 六个服务都无 healthcheck**：它是 `-f docker-compose.full.yml -f docker-compose.uat-isolated.yml` 的**端口覆盖层**（文件头明写 `!override` 只改宿主端口），服务定义全部继承 full.yml ⇒ R19-25 补齐后它自动获得 healthcheck，无需重复声明。
+- **设备 token TTL 7 天**：仍需真机实证「401 后走 domainConfig 自举重领」再动，未验证前不改（同 §八）。
+

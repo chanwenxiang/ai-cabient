@@ -18,4 +18,7 @@ RUN useradd --system --create-home --shell /usr/sbin/nologin app \
 COPY --from=build --chown=app:app /workspace/${MODULE}/target/*.jar /app/app.jar
 EXPOSE 8080
 USER app
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-XX:+UseContainerSupport", "-jar", "/app/app.jar"]
+# R19-17（2026-11-12）：显式给 JVM 再钉一次时区。ENV TZ + /etc/localtime 依赖 tzdata 与
+# 符号链接同时正确（换 base image、被精简镜像裁掉 tzdata 时会静默退回 UTC）；-Duser.timezone
+# 是 JVM 层最后的确定性兜底，不依赖任何宿主机/镜像文件状态。二者取值必须一致（Asia/Shanghai）。
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Shanghai", "-XX:MaxRAMPercentage=70", "-XX:+UseContainerSupport", "-jar", "/app/app.jar"]

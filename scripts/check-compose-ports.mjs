@@ -27,8 +27,9 @@ const INFRA = 'infra';
 
 /** 豁免清单：键 = "文件名:宿主端口"，值 = 理由 */
 const ALLOWLIST = new Map([
-  ['docker-compose.full.yml:80', 'gateway 业务入口（全栈部署对外唯一 HTTP）'],
-  ['docker-compose.yml:80', 'gateway 业务入口（base 栈）']
+  // R19-5：base/full 的 gateway 已改为默认绑 127.0.0.1（不再需要豁免）。
+  // 只剩真机联调叠加层是「有意对外」——它必须显式 `-f` 才生效，默认不参与任何栈。
+  ['docker-compose.lan.yml:80', '真机联调叠加层：显式叠加才把 gateway 暴露到局域网']
 ]);
 
 /** 解析单文件 → [{file, line, spec, comment}]，覆盖四形态。注释/空行对块形态透明。 */
@@ -43,11 +44,15 @@ export function parsePortEntries(src) {
       inBlock = true;
       continue;
     }
-    const inline = lines[i].match(/^\s*ports:\s*(\[.*\]|!\S+\s*\[.*\])\s*$/);
+    // 形态③：内联数组。行尾允许 `# 注释`——R19-5 实证：`ports: ["80:80"] # 全栈入口`
+    // 曾因正则要求 `]` 结尾而整行跳过 ⇒ full.yml 的 gateway 从未被本门禁检查过（假绿）。
+    // 数组内元素不含 `]`，故非贪婪到第一个 `]` 即数组边界。
+    const inline = lines[i].match(/^\s*ports:\s*(\[.*?\]|!\S+\s*\[.*?\])\s*(?:#.*)?$/);
     if (inline) {
       // 形态③：内联数组
       for (const spec of inline[1].matchAll(/"([^"]+)"/g)) {
-        entries.push({ line: i + 1, spec: spec[1], comment: '' });
+        const tail = lines[i].slice(lines[i].indexOf(inline[1]) + inline[1].length);
+        entries.push({ line: i + 1, spec: spec[1], comment: tail.trim() });
       }
       inBlock = false;
       continue;
@@ -195,23 +200,34 @@ function runSelfTest() {
     {
       name: '⑦整条变量默认值含冒号且非回环',
       src: 'services:\n  a:\n    ports:\n      - "${PUBLISH:-0.0.0.0:7010:80}"\n'
+    },
+    {
+      // R19-5 实证盲区：内联数组带行尾注释曾整行不解析 ⇒ full.yml 的 gateway 从未被检查
+      name: '⑧内联数组 + 行尾注释（原盲区）',
+      src: 'services:\n  a:\n    ports: ["0.0.0.0:7011:80"] # 全栈入口\n'
+    },
+    {
+      name: '合规对照：内联数组 + 行尾注释 + 回环',
+      src: 'services:\n  a:\n    ports: ["127.0.0.1:7012:80"] # 回环\n'
     }
   ];
   let failed = 0;
   const sources = cases.map((c, idx) => ({ file: `case-${idx}.yml`, src: c.src }));
   const { violations } = checkSources(sources);
   const hitFile = (idx) => violations.some((v) => v.includes(`case-${idx}.yml`));
-  // 违规用例（前 4 例 + 第 7 形态）必须各报 1 条；合规对照必须零报
-  [0, 1, 2, 3, 5].forEach((idx) => {
+  // 违规用例（前 4 例 + 第 7/8 形态）必须各报 1 条；合规对照（第 5、9 例）必须零报
+  [0, 1, 2, 3, 5, 6].forEach((idx) => {
     if (!hitFile(idx)) {
       console.error(`✗ 自测失败（违规未被识别）：${cases[idx].name}`);
       failed++;
     }
   });
-  if (hitFile(4)) {
-    console.error('✗ 自测失败：合规对照被误报');
-    failed++;
-  }
+  [4, 7].forEach((idx) => {
+    if (hitFile(idx)) {
+      console.error(`✗ 自测失败：合规对照被误报（${cases[idx].name}）`);
+      failed++;
+    }
+  });
   // A6 防滥加负向自测：ALLOWLIST 命中但无 compose 侧 EXPOSE-ALLOW 标记 → 必须红
   ALLOWLIST.set('case-allow.yml:7007', '自测豁免');
   const allowCases = [

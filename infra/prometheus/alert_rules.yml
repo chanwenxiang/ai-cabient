@@ -40,8 +40,15 @@ groups:
           description: "{{ $labels.job }} P95 超过 2 秒"
 
       - alert: HighMemoryUsage
+        # P3-r19-11（2026-11-12）：原式按 pool 逐序列相除。G1 的 Eden/Survivor 的
+        # jvm_memory_max_bytes 是 -1（无固定上限），该序列除法得到负值/无意义，
+        # 实测整条表达式查询结果为空 ⇒ 这条告警从未触发过（真实堆占比 4.5%）。
+        # 改为先按 JVM 汇总、并把 max<=0 的 pool 过滤掉（只剩 Old Gen ≈ -Xmx，可代表堆上限）。
         expr: |
-          jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"} > 0.85
+          sum by (job) (jvm_memory_used_bytes{area="heap"})
+            /
+          sum by (job) (jvm_memory_max_bytes{area="heap"} > 0)
+            > 0.85
         for: 5m
         labels:
           severity: warning

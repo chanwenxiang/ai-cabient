@@ -161,7 +161,9 @@ try {
   for (const m of menuSrc.matchAll(/\{[^{}]*path:\s*'([^']+)'[^{}]*\}/g)) {
     const path = m[1];
     const block = m[0];
-    if (/title:/.test(block) && !/perm:/.test(block) && !MENU_PERM_EXEMPT.has(path)) {
+    // P3-r19-6：`perms: [...]`（OR 语义，页面依赖多模块接口时用）与单码 `perm` 等效合规
+    const hasPermDecl = /\bperm\s*:/.test(block) || /\bperms\s*:/.test(block);
+    if (/title:/.test(block) && !hasPermDecl && !MENU_PERM_EXEMPT.has(path)) {
       noPerm.push(path);
     }
   }

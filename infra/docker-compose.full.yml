@@ -6,7 +6,11 @@ name: ai-cabinet
 
 services:
   postgres:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
     stop_grace_period: 60s
+    restart: unless-stopped
     image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea # 钉 digest
     environment:
       POSTGRES_DB: aicabinet
@@ -26,7 +30,11 @@ services:
         max-file: "3"
 
   redis:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${REDIS_MEM_LIMIT:-512m}
     stop_grace_period: 30s
+    restart: unless-stopped
     image: redis:7-alpine
     ports: ["127.0.0.1:6379:6379"]
     # L2-4：Redis 密码（dev 默认 devredis；与 trade/device 的 SPRING_DATA_REDIS_PASSWORD 对齐）
@@ -49,6 +57,7 @@ services:
 
   emqx:
     stop_grace_period: 30s
+    restart: unless-stopped
     image: emqx/emqx:5.8.6
     ports:
       # 开发栈仅绑定回环：MQTT/控制台不暴露局域网（手机真机联调走网关 :80 的业务接口即可）
@@ -79,6 +88,7 @@ services:
 
   minio:
     stop_grace_period: 60s
+    restart: unless-stopped
     image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e # 审计批次4：钉 digest
     command: server /data --console-address ":9001"
     environment:
@@ -88,6 +98,13 @@ services:
       MINIO_PROMETHEUS_AUTH_TYPE: public
     ports: ["127.0.0.1:${MINIO_API_PORT:-9000}:9000", "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"]
     volumes: ["miniodata:/data"]
+    # R15-M3 补正（2026-11-12 核查）：2fc379cf 把本块缩进错置进 volumes（非法），fd7f1a44 删错块
+    # 后没补回这里 ⇒ minio 是唯一裸奔的长驻存储，日志无上限增长。
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   minio-init:
     stop_grace_period: 10s
@@ -160,6 +177,9 @@ services:
       - redpanda
 
   trade-service:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${TRADE_MEM_LIMIT:-2g}
     stop_grace_period: 30s
     build:
       context: ..
@@ -308,6 +328,15 @@ services:
       minio-init: { condition: service_completed_successfully }
       redpanda: { condition: service_started }
       xxl-job-admin: { condition: service_started }
+    # P3-r19-25（2026-11-12）：full 栈与 apps 栈是同一个镜像、同一个 actuator，但此前只有
+    # apps.yml 配了 healthcheck ⇒ `docker compose ps` 在 full 栈恒显示 "running" 而非 "healthy"，
+    # 运维看不出「进程活着但 actuator DOWN」。此处与 apps.yml §trade-service 完全对齐。
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health 2>/dev/null | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
     restart: unless-stopped
 
   # XXL-JOB（随根目录 docker-up.ps1 / full 栈启动；控制台 :18090）
@@ -341,6 +370,9 @@ services:
     restart: unless-stopped
 
   device-service:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${DEVICE_MEM_LIMIT:-1g}
     stop_grace_period: 30s
     build:
       context: ..
@@ -361,11 +393,21 @@ services:
     depends_on:
       emqx: { condition: service_started }
       trade-service: { condition: service_started }
+    # P3-r19-25：与 apps.yml §device-service 对齐（同一镜像，此前 full 栈漏配）。
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health 2>/dev/null | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 45s
     restart: unless-stopped
 
   # 将邑开门柜接入网关（CB-022 模式一）：设备 HTTP 上报 + WS 长连接 + 开门下发。
   # 🔴 JIANGYI_JWT_SECRET 无默认值（fail-closed）：不注入时设备 token 签发直接 503。
   jiangyi-gateway:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${JIANGYI_MEM_LIMIT:-512m}
     stop_grace_period: 30s
     build:
       context: ..
@@ -440,9 +482,16 @@ services:
         max-file: "3"
 
   gateway:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${GATEWAY_MEM_LIMIT:-256m}
     stop_grace_period: 30s
+    # R15-M1/R19-P3#12：当初只补了 base，full 栈入口漏了 ⇒ 宿主重启后全站 100% 不可达（R19 实测复发）。
+    restart: unless-stopped
     image: nginx:alpine
-    ports: ["80:80"] # EXPOSE-ALLOW: gateway 业务入口（全栈对外唯一 HTTP）
+    # R19-5（2026-11-12）：默认绑回环——dev 栈 AICABINET_MOCK_ENABLED=true 且万能码可登任意号，
+    # 绑 0.0.0.0 等于同网段任何人拿超管。真机联调显式叠加 `-f docker-compose.lan.yml`。
+    ports: ["${GATEWAY_PUBLISH:-127.0.0.1:80:80}"] # 全栈对外唯一 HTTP
     volumes:
       - "./gateway/nginx-full.conf:/etc/nginx/conf.d/default.conf:ro"
       # 管理后台前端：直接托管宿主机构建产物，避免后端镜像内嵌旧包
@@ -458,6 +507,9 @@ services:
         max-file: "3"
 
   prometheus:
+    # P3-r19-14（2026-11-12）：无上限时单容器可吃满宿主（O8 压测曾把 Docker 引擎打崩）。
+    # JVM 走 -XX:MaxRAMPercentage=70，mem_limit 直接决定堆大小 ⇒ 按机型用变量调。
+    mem_limit: ${PROMETHEUS_MEM_LIMIT:-512m}
     stop_grace_period: 30s
     # R15-M5：数据卷——uat 切栈 --force-recreate 不再丢指标历史（AU-189 同口径）
     restart: unless-stopped
