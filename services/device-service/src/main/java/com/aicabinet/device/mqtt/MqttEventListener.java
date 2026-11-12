@@ -1,6 +1,7 @@
 package com.aicabinet.device.mqtt;
 
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.mqtt.MqttTopics;
 import com.aicabinet.device.client.TradeServiceClient;
@@ -13,6 +14,7 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
@@ -21,7 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class MqttEventListener implements MqttCallbackExtended {
@@ -32,6 +40,14 @@ public class MqttEventListener implements MqttCallbackExtended {
     // 就是静默漂移。统一收敛到 CabinetConstants（本类其余分支早已用它）。
     /** C11：同一消息连续处理失败达到该次数后 ACK 丢弃（防重投风暴）。 */
     private static final int MAX_DELIVERY_FAILURES = 3;
+
+    /**
+     * R20-10 后半（2026-11-12）：转发专用有界池。Paho QoS1 默认 {@code maxInflight=10}，
+     * 未 ACK 的消息最多 10 条在途，并发度取 8 留 2 个余量——再大也不会让 broker 多投。
+     * 队列 256 是**兜底上限**（正常在途 ≤10 根本用不到），防止异常路径无界堆积。
+     */
+    private static final int FORWARD_POOL_SIZE = 8;
+    private static final int FORWARD_QUEUE_CAPACITY = 256;
 
 
     private static final Logger log = LoggerFactory.getLogger(MqttEventListener.class);
@@ -45,12 +61,16 @@ public class MqttEventListener implements MqttCallbackExtended {
     private final DoorEventDeduplicator deduplicator;
     private final DeviceCommandTracker commandTracker;
     private final String clientId;
+    /** R20-10：所有出站 trade HTTP 只能在这条 executor 上跑，Paho 回调线程一律不碰网络。 */
+    private final Executor forwardExecutor;
 
     /** C11：手动 ACK 模式下记录各消息连续处理失败次数（key = topic#messageId，重投之间保留）。 */
     private final ConcurrentHashMap<String, Integer> deliveryFailures = new ConcurrentHashMap<>();
 
     private MqttClient client;
 
+    /** 生产构造器。铁律 71：双构造器类必须显式 @Autowired，别让 Spring 猜。 */
+    @Autowired
     public MqttEventListener(
             ObjectMapper objectMapper,
             TradeServiceClient tradeServiceClient,
@@ -60,6 +80,21 @@ public class MqttEventListener implements MqttCallbackExtended {
             DeviceMqttMetrics metrics,
             DoorEventDeduplicator deduplicator,
             DeviceCommandTracker commandTracker) {
+        this(objectMapper, tradeServiceClient, mqttProperties, connectOptionsFactory,
+                connectionRegistry, metrics, deduplicator, commandTracker, defaultForwardExecutor());
+    }
+
+    /** 测试注入口：传 {@code Runnable::run} 保持同步确定性，或传自定义 Executor 模拟拒绝。 */
+    MqttEventListener(
+            ObjectMapper objectMapper,
+            TradeServiceClient tradeServiceClient,
+            MqttProperties mqttProperties,
+            MqttConnectOptionsFactory connectOptionsFactory,
+            MqttConnectionRegistry connectionRegistry,
+            DeviceMqttMetrics metrics,
+            DoorEventDeduplicator deduplicator,
+            DeviceCommandTracker commandTracker,
+            Executor forwardExecutor) {
         this.objectMapper = objectMapper;
         this.tradeServiceClient = tradeServiceClient;
         this.mqttProperties = mqttProperties;
@@ -68,6 +103,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         this.metrics = metrics;
         this.deduplicator = deduplicator;
         this.commandTracker = commandTracker;
+        this.forwardExecutor = forwardExecutor;
         // A7/P3：原随机 8 位后缀 + cleanSession=false ⇒ broker 侧每次重启遗留一个死会话无限堆积。
         // 改稳定后缀（容器 HOSTNAME；非容器环境退回随机）：同容器重启复用会话不再堆积，
         // 多实例部署（共享订阅）各实例 hostname 不同亦不互踢。
@@ -76,6 +112,43 @@ public class MqttEventListener implements MqttCallbackExtended {
                 ? host
                 : UUID.randomUUID().toString().substring(0, 8);
         this.clientId = mqttProperties.clientId() + "-evt-" + clientIdSuffix;
+    }
+
+    /**
+     * R20-10：有界池 + AbortPolicy。MqttEventListener 原先把 notifyDoorEvent（3 次退避重试、
+     * 每次 2s/5s 超时）连同 notifyOpsAlert/notifyHeartbeat 全放在 Paho 回调线程里同步跑，
+     * trade 抖动时单条最坏占住回调线程 ~21s，期间全设备门磁/心跳/ACK 全部排队且不 ACK。
+     * 实证：Paho 1.2.5 的 CommsCallback.messageArrivedComplete(qos=1) 只做
+     * clientComms.internalSend(new MqttPubAck(messageId), token)，不依赖回调线程，
+     * 因此「转发成功后由工作线程发 ACK」是安全的，C11 的不丢消息语义得以保留。
+     */
+    /** 包级可见：供同包测试直接断言生产池的「有界 + Abort」两条硬约束。 */
+    static ExecutorService defaultForwardExecutor() {
+        return new ThreadPoolExecutor(
+                FORWARD_POOL_SIZE, FORWARD_POOL_SIZE, 60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(FORWARD_QUEUE_CAPACITY),
+                r -> {
+                    Thread t = new Thread(r, "mqtt-trade-forward");
+                    t.setDaemon(true);
+                    return t;
+                },
+                // CallerRunsPolicy 会把 HTTP 压回 Paho 回调线程——那就等于没修，必须 AbortPolicy。
+                new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    /**
+     * 唯一的转发提交口。队列满＝背压，既不能丢消息也不该压回回调线程：
+     * 直接留作未 ACK（broker 重连后重投），且**不计入 deliveryFailures**——
+     * 背压不是「处理失败」，不该把消息推到「连续 3 次失败 ACK 丢弃」的阈值里。
+     */
+    private void submitForward(String topic, MqttMessage message, Runnable task) {
+        try {
+            forwardExecutor.execute(task);
+        } catch (RejectedExecutionException e) {
+            metrics.recordForwardRejected();
+            log.warn("mqtt forward queue full, left unacked for redelivery topic={} messageId={}",
+                    topic, message.getId());
+        }
     }
 
     @PostConstruct
@@ -96,6 +169,11 @@ public class MqttEventListener implements MqttCallbackExtended {
         connectionRegistry.setListenerConnected(false);
         if (client != null && client.isConnected()) {
             client.disconnect();
+        }
+        // R20-10：shutdown() 温和收尾，已在队列里的转发任务仍能跑完并 ACK；
+        // 生产构造器建的池是 daemon 线程，JVM 退出不受阻，这里主要是归还资源。
+        if (forwardExecutor instanceof ExecutorService es) {
+            es.shutdown();
         }
     }
 
@@ -134,16 +212,15 @@ public class MqttEventListener implements MqttCallbackExtended {
         try {
             String type = node.path("type").asText("");
             if (CabinetConstants.MQTT_EVENT_TYPE_DOOR.equals(type)) {
-                handleDoorEvent(topic, node, message);
+                handleDoorEvent(topic, node, message, body);
             } else if (CabinetConstants.MQTT_EVENT_TYPE_HEARTBEAT.equals(type)) {
-                handleHeartbeat(topic, node);
-                acknowledgeMessage(topic, message);
+                // R20-10：心跳/告警同样是出站 HTTP，与门磁同族；ACK 随任务在工作线程里发。
+                handleHeartbeat(topic, node, message);
             } else if (CabinetConstants.MQTT_EVENT_TYPE_ACK.equals(type)) {
                 handleAck(topic, node);
                 acknowledgeMessage(topic, message);
             } else if (CabinetConstants.MQTT_EVENT_TYPE_ALERT.equals(type)) {
-                handleAlert(topic, node);
-                acknowledgeMessage(topic, message);
+                handleAlert(topic, node, message, body);
             } else {
                 log.debug("ignored mqtt message topic={} type={}", topic, type);
                 acknowledgeMessage(topic, message);
@@ -216,37 +293,55 @@ public class MqttEventListener implements MqttCallbackExtended {
     }
 
     /** H62a：edge 告警事件（如 EDGE_QUEUE_ABANDON）转发到运营告警通道（经 trade 内部端点）。 */
-    private void handleAlert(String topic, JsonNode node) {
+    private void handleAlert(String topic, JsonNode node, MqttMessage mqttMessage, String body) {
         String alertType = node.path("alertType").asText("");
         String message = node.path("message").asText("");
         String deviceId = extractDeviceId(topic);
         // 审计 P2-12：与 door 事件同口径——body.deviceId 与 topic 来源不符即丢弃，
         // 防持本柜凭据者伪造他柜告警（刷飞书/运营通道噪音）
         if (rejectDeviceIdMismatch(topic, node, deviceId, "alert")) {
+            acknowledgeMessage(topic, mqttMessage);
             return;
         }
         log.warn("edge alert received device={} alertType={} message={}", deviceId, alertType, message);
-        tradeServiceClient.notifyOpsAlert(alertType, message, deviceId);
+        submitForward(topic, mqttMessage,
+                () -> forwardAlert(topic, body, mqttMessage, alertType, message, deviceId));
     }
 
-    private void handleHeartbeat(String topic, JsonNode node) {
+    /** R20-10：告警 HTTP 只在工作线程跑；失败不 ACK，交 C11 走重投/阈值丢弃。 */
+    private void forwardAlert(String topic, String body, MqttMessage mqttMessage,
+                              String alertType, String message, String deviceId) {
+        try {
+            tradeServiceClient.notifyOpsAlert(alertType, message, deviceId);
+            acknowledgeMessage(topic, mqttMessage);
+        } catch (Exception e) {
+            onProcessingFailure(topic, body, mqttMessage, e);
+        }
+    }
+
+    private void handleHeartbeat(String topic, JsonNode node, MqttMessage mqttMessage) {
         String deviceId = extractDeviceId(topic);
         // 审计 P2-12：与 door 事件同口径——心跳不得用 body.deviceId 覆盖 topic 来源（伪造他柜在线状态）
         if (rejectDeviceIdMismatch(topic, node, deviceId, "heartbeat")) {
+            acknowledgeMessage(topic, mqttMessage);
             return;
         }
-        String appVersion = textOrNull(node, "appVersion");
-        if (appVersion == null) {
-            appVersion = textOrNull(node, "app_version");
-        }
-        String firmwareVersion = textOrNull(node, "firmwareVersion");
-        if (firmwareVersion == null) {
-            firmwareVersion = textOrNull(node, "firmware_version");
-        }
-        forwardHeartbeat(deviceId, appVersion, firmwareVersion, parseTemp(node),
-                parseDouble(node, "humidityPct", "humidity_pct"),
-                parseDouble(node, "voltageV", "voltage_v"),
-                parseDouble(node, "powerW", "power_w"));
+        String appVersionValue = textOrNull(node, "appVersion");
+        final String appVersion = appVersionValue != null
+                ? appVersionValue : textOrNull(node, "app_version");
+        String firmwareVersionValue = textOrNull(node, "firmwareVersion");
+        final String firmwareVersion = firmwareVersionValue != null
+                ? firmwareVersionValue : textOrNull(node, "firmware_version");
+        Integer currentTempC = parseTemp(node);
+        Double humidityPct = parseDouble(node, "humidityPct", "humidity_pct");
+        Double voltageV = parseDouble(node, "voltageV", "voltage_v");
+        Double powerW = parseDouble(node, "powerW", "power_w");
+        submitForward(topic, mqttMessage, () -> {
+            // forwardHeartbeat 自己吞掉 trade 不可达（心跳不影响开门购物），故这里总是 ACK。
+            forwardHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC,
+                    humidityPct, voltageV, powerW);
+            acknowledgeMessage(topic, mqttMessage);
+        });
     }
 
     private static Integer parseTemp(JsonNode node) {
@@ -283,7 +378,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         }
     }
 
-    private void handleDoorEvent(String topic, JsonNode node, MqttMessage message) {
+    private void handleDoorEvent(String topic, JsonNode node, MqttMessage message, String body) {
         String topicDeviceId = extractDeviceId(topic);
         String bodyDeviceId = textOrNull(node, "deviceId");
         String deviceId = topicDeviceId;
@@ -341,9 +436,20 @@ public class MqttEventListener implements MqttCallbackExtended {
             acknowledgeMessage(topic, message);
             return;
         }
+        // R20-10：回调线程到此为止——只做 JSON 解析/去重/限流等纯内存操作，
+        // 出站 HTTP 与随后的 mark/ACK 全部交给工作线程。
+        DoorEventRequest request = new DoorEventRequest(
+                sessionId, deviceId, doorState, System.currentTimeMillis(), gravityDeltasJson);
+        submitForward(topic, message, () -> forwardDoorEvent(topic, body, message, request,
+                sessionId, doorStateStr, fingerprint));
+    }
+
+    /** R20-10：ACK 与幂等键仍严格排在 HTTP 成功之后（C11 + M11），只是换了线程。 */
+    private void forwardDoorEvent(String topic, String body, MqttMessage message,
+                                  DoorEventRequest request, String sessionId,
+                                  String doorStateStr, String fingerprint) {
         try {
-            tradeServiceClient.notifyDoorEvent(new com.aicabinet.common.dto.DoorEventRequest(
-                    sessionId, deviceId, doorState, System.currentTimeMillis(), gravityDeltasJson));
+            tradeServiceClient.notifyDoorEvent(request);
             // M11：转发成功后才写幂等键；失败不 mark，重投后 seen=false 可再处理
             deduplicator.mark(sessionId, doorStateStr, fingerprint);
             metrics.recordDoorForwarded();
@@ -351,7 +457,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         } catch (Exception e) {
             // C11/M11：转发失败不 ACK 也不 mark，broker 重连后重投（B-2）
             metrics.recordTradeFailure();
-            throw e;
+            onProcessingFailure(topic, body, message, e);
         }
     }
 

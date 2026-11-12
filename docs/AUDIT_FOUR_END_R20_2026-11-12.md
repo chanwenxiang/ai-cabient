@@ -65,8 +65,9 @@
 - 后果：100 元单两轮部分退（30/20）再全额退 ⇒ 渠道只回退 70，商户多留 30。
 - **判据**：`Σ渠道回退额 = 初始 merchant_cents − 现 merchant_cents`。
 
-### R20-10 ◐ MQTT 回调线程内同步转发门磁事件且无超时
+### R20-10 ✅ MQTT 回调线程内同步转发门磁事件且无超时（超时已补；异步化见 §二十一）
 - `MqttEventListener.java:345` + `TradeServiceClient.java:28,38-50`：Paho 回调线程内 3 次重试、无 requestFactory 超时 ⇒ trade 抖动即阻塞 MQTT 线程、消息不 ACK，全设备门磁积压。
+- **现状**：客户端超时已在 §十 补齐；剩余「回调线程内同步 HTTP」由 §二十一 收口（门磁/告警/心跳三类转发全部移到有界池，成功才 ACK 的权责随任务走）。本节保留原始发现记录。
 
 ---
 
@@ -247,7 +248,7 @@
 
 1. **R20-2 支付分未实收即分账**：修法要求「分账/发积分/统计一律挪到实收确认后 + 取消路径 void+clawback」。这不是补闸，是**结算主流程重排**（`tryChargeSettledOrder` 成功与否要与 PENDING 状态解耦），且与「免密支付分先享后付」的产品口径绑定 ⇒ 需先定：支付分单在 DONE 之前，商户钱包是否允许**影子入账**（LEDGER_ONLY 待确认）。**建议**：分两刀——① 先做 `MemberService.onOrderPaid` 的 orderId 去重（同时覆盖 P3-3）；② 再做钱包/分账延后。
 2. **R20-9 分账回退单槽覆盖**：`wechat_pending_return_no/cents` 是**单值列**，多轮部分退需要「多条回退腿」的账。合并成一个新 `out_return_no` 有双退风险（前一条可能已在途）。**建议**：新建 `order_split_return_leg(split_id, out_return_no, cents, status)`，补偿器按腿提交/查单，判据 `Σ腿 = 初始 merchant − 现 merchant`。这是加表，不该顺手做。
-3. **R20-4 移出事务 / R20-10 异步化**：先补超时（本轮已做）已把「无上限阻塞」消掉；把渠道调用移出 `@Transactional` 会改动 `chargeOrder` 的提交语义（现在靠事务回滚保证金货两清），需单独一轮带停机窗口验证。
+3. **R20-4 移出事务**：先补超时（本轮已做）已把「无上限阻塞」消掉；把渠道调用移出 `@Transactional` 会改动 `chargeOrder` 的提交语义（现在靠事务回滚保证金货两清），需单独一轮带停机窗口验证。**R20-10 异步化已从本条拆出**，由 §二十一 单独一轮完成——它只动 MQTT 线程边界，不碰事务，与 R20-4 不是同一约束。
 
 ### 十.3 一条**不采信**报告建议（重要）
 
@@ -755,12 +756,12 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 > 本文档 §一 里 R20-6/7/8 原标 ◐，实为 `1a352188`（P1 首批 8 条）已修未回写标记；本轮回写为 ✅。
 > 下面按「现在还剩什么」重列，判据是**代码现状**（`git log -S` 溯源 + 读现状），不是报告自我声称。
 
-### 十七.1 剩余 P1：盘点时 2 条 → **R20-9 已由 §二十 收口，实剩 R20-10 一条**
+### 十七.1 剩余 P1：盘点时 2 条 → **R20-9 §二十 / R20-10 §二十一 均已收口，实剩 0 条**
 
 | # | 状态 | 现状与剩余部分 |
 |---|---|---|
 | R20-9 | ~~**零落点**~~ **✅ 已修（§二十 / V463 / CB-085）** | 新建 `order_split_return_leg` 腿表，`applyWeChatReturnOutcome` 改按 `out_return_no` 幂等 upsert，六个消费点全部按腿；补偿任务 `txId` 改 `LEG:<legId>`（多腿各有独立调度槽）。守恒判据与真库 SQL 演练见 §二十。 |
-| R20-10 | **半修** | 超时已补：`TradeServiceClient` 走 `OutboundHttp.callbackThreadRpc()`（2s/5s 档，2026-11-12 出站客户端统一治理批次），`MqttEventListener:345` 仍在 Paho 回调线程内 `notifyDoorEvent` + 3 次重试 + `Thread.sleep(200·attempt)` ⇒ 最坏占住回调线程约 16s。**剩余**：把转发移到有界线程池 / 或以「先 ACK、异步转发 + 失败落补偿表」替代同步重试。§十.2 已定「需单独一轮」。 |
+| R20-10 | ~~**半修**~~ **✅ 已修（§二十一）** | 超时已补：`TradeServiceClient` 走 `OutboundHttp.callbackThreadRpc()`（2s/5s 档，出站客户端统一治理批次）。异步化本轮落地：`MqttEventListener` 三类转发（门磁/告警/心跳）全部移到 8 线程 + `ArrayBlockingQueue(256)` + `AbortPolicy` 的专用池；ACK 与幂等键随任务在工作线程执行（Paho 手动 ACK 跨线程已实证安全），队列满留未 ACK 等重投。**不采用「先 ACK + 补偿表」**，故无需加表。 |
 
 ### 十七.2 剩余 P2：0 条
 
@@ -794,9 +795,8 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
-3. **R20-10 后半（异步化 + ACK 语义）**——唯一还会在故障时放大成「全设备门磁积压」的一条；
-   ⚠ 需先等另一个会话的「出站客户端统一治理」批次收口（它正在改 `TradeServiceClient` 等 17 个文件）。
-4. P3-1/4/7/8/9 与 5 条待定项随迭代。
+3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
+4. P3-1/4/7/8/9 与 5 条待定项随迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
 
@@ -974,6 +974,62 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 - **V463 含回填 INSERT**：必须 `mvn -o -pl services/trade-service -am -DskipTests package` 后 `up -d --no-deps --force-recreate trade-service`，两步拆开（迁移在 jar 内，铁律 41）；上线前按迁移 NOTES 的 SQL 核对回填行数。
 - **补偿任务双键并存**：新任务 `LEG:<legId>`，存量 `splitId` 任务由调度器兼容跑完，不需要数据迁移脚本。
 - **门禁接线改用 CI 直调，不碰 `package.json`**：另一会话仍占用 `package.json`（5 insertions / 2 deletions + 多个未跟踪脚本），整文件提交会带走别人半成品。本批在 `.github/workflows/ci.yml` 的 `build` job 加 4 个真实 step（R20 P3 门禁 + 自测、R20-9 守恒门禁 + 自测），顺带把 §十八 遗留的 P3 门禁未接线一并收口。`node scripts/check-audit-gates-wiring.mjs` 现全绿（143 个 `check-*.mjs` 全部已接线）；负向夹具按新版规则 3 抽成具名 `selfTest()` 并显式调用（剥注释后同时出现 `selfTest(` 与 `--self-test`）。等那个会话收口后，可再把这 4 步并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
-- **R20-10 后半仍未做**：`MqttEventListener:345` 同步转发 + 3 次重试，需等那个会话收口后再动 `device-service`（它正在改 `TradeServiceClient`）。
+- ~~**R20-10 后半仍未做**~~ **已由 §二十一 收口**：本条当时写的「需等那个会话收口」经复核并非硬前提——对方只改 `TradeServiceClient` 构造器，本批零文件交集且不依赖 `OutboundHttp`，故直接落地。
 - `check-migration-immutable` 当前对 `V459` 报红，是**本轮之前**其他会话改写已应用迁移所致，与本次 V463 无关；按铁律 50 不重写、不 `flyway repair`，需由该会话自行收口。
+
+---
+
+## 二十一、R20-10 后半修复回执（2026-11-12，MQTT 回调线程零阻塞）
+
+> 结论：**R20 的 P1 剩余项全部收口**。上一轮把「等另一个会话收口」写成硬前提；本轮复核发现该前提不成立（二十一.1），故按 §十七.5 第 3 项落地。
+
+### 二十一.1 为什么可以不等那个会话（推翻上一轮的保守判断）
+
+- 复核 `git diff -- services/device-service/…/TradeServiceClient.java`：并发会话只改了**构造器**一行——把裸 `SimpleClientHttpRequestFactory` 换成 `OutboundHttp.callbackThreadRpc()`（2s/5s 档）；`notifyDoorEvent` 的方法签名、3 次退避重试、`Thread.sleep(200·attempt)` **均未动**。
+- 本批**完全不碰** `TradeServiceClient`，也不 import `OutboundHttp`；改动只在 `device-service/mqtt` 包 + `DeviceMqttMetrics`。两个会话零文件交集。
+- 提交后 CI 检出的是本批版本：`common-core` 里没有 `OutboundHttp`（对方未提交）、`TradeServiceClient` 是基线版（裸 factory）、`MqttEventListener` 不依赖它 ⇒ **编译自洽**；对方后续提交 `OutboundHttp` + `TradeServiceClient` 也不影响本批代码。
+- **Paho 线程约束实证**：`javap -c` 反编译 1.2.5 的 `CommsCallback.messageArrivedComplete(int,int)`，qos=1 分支只做 `clientComms.internalSend(new MqttPubAck(messageId), new MqttToken(...))`，**不碰回调线程的 `messageQueue`、无「必须在回调线程」断言** ⇒ 「工作线程发 ACK」安全，C11 的不丢消息语义可保留，因此**不需要**「先 ACK + 落补偿表」。device-service 无 JDBC，也就不必为此加表。
+
+### 二十一.2 落地范围（修「这一类」，不是只修门磁）
+
+| 面 | 改动 |
+|---|---|
+| 阻塞面 | `MqttEventListener.defaultForwardExecutor()`：8 线程 / `ArrayBlockingQueue(256)` / **AbortPolicy**（Paho QoS1 `maxInflight=10`，并发 8 留 2 余量）；`@PreDestroy` 温和 `shutdown()` |
+| 唯一提交口 | `submitForward(topic, message, task)` 只做 `forwardExecutor.execute(task)`；捕获 `RejectedExecutionException` ⇒ 记 `device.mqtt.forward{result=rejected}`、**不 ACK、不计 `deliveryFailures`**（背压不是处理失败，避免连续 3 次被推到「ACK 丢弃」阈值） |
+| 门磁 | `handleDoorEvent` 只做解析/设备号校验/去重/限流/构造 DTO；`forwardDoorEvent` 在工作线程里 `HTTP → deduplicator.mark → ACK`，失败走 `onProcessingFailure` 不 ACK |
+| 告警 | `handleAlert` 只做校验；`forwardAlert` 在工作线程里 `notifyOpsAlert → ACK`，失败不 ACK |
+| 心跳 | `handleHeartbeat` 在回调线程解析字段；任务里 `forwardHeartbeat`（自身吞 trade 不可达）→ ACK |
+| 构造器 | 8 参生产构造器显式 `@Autowired`（铁律 71），新增 9 参包级重载供测试注入 `Executor` |
+| 指标 | `DeviceMqttMetrics.recordForwardRejected()` + `device.mqtt.forward{result=rejected}` |
+
+> `CallerRunsPolicy` **刻意不用**：它会把 HTTP 压回 Paho 回调线程，等于没修；队列满的正确行为是「留未 ACK 等 broker 重投」。
+
+### 二十一.3 判据与验证（数字）
+
+- **Java 定向 34 例全绿**；`mvn -o -pl services/device-service -am test` **全量 62 例全绿 / BUILD SUCCESS**（另 common 13 例）。
+- 新增 `MqttEventListenerAsyncForwardTest` 6 例：
+  1. **核心线程边界**：用 latch 卡住 `notifyDoorEvent`，断言 `messageArrived` 所在 `Future.get(1s)` 已返回、HTTP 线程名为 `mqtt-forward-test`——改回同步必然超时；
+  2. ACK 严格排在 HTTP 成功之后；
+  3. 转发失败不 ACK（`spy(DeviceMqttMetrics)` + `timeout(2000)` 先等工作线程进 catch，避免判据自身竞态）；
+  4. 队列满：3 次拒绝都不 ACK、不调 trade、`rejected=3`、`failure=0`；
+  5. 门磁/心跳/告警三类都提交到 executor（同族覆盖，铁律 75）；
+  6. 生产池硬约束（8/8 线程、`ArrayBlockingQueue` 256、`AbortPolicy`）——**只跑 direct executor 的旧用例时改回同步照样全绿，这条专门防「只钉一侧」**。
+- 既有 `MqttEventListenerDoorTest`(14) / `EdgeCloudMqttContractTest`(10) / `EdgeCloudMqttIntegrationIT` 三个构造点注入 `Runnable::run`，保持原有语义用例的同步确定性；`TradeServiceClientRetryTest`(4) 的 3 次重试行为**未改**（重试仍在客户端，只是换线程跑）。
+- 静态门禁 `scripts/check-mqtt-callback-no-blocking-rpc.mjs`：8 组判据（抹注释等长空格 + 方法体级判据），`.github/workflows/ci.yml` 加 2 个直调 step 接线（不碰并发会话占用的 `package.json`）。`--self-test` **12 个变异 + 防假红 + md5 零残留**；每条变异都要求命中**指定判据关键词**，且变异本身保持语法完整（防「把源码改崩导致假红」，铁律 3）。
+
+### 二十一.4 负向验证（铁律 4，真实源码注入）
+
+把 `submitForward` 里的 `forwardExecutor.execute(task)` 临时改成 `task.run();`（模拟实现退回同步）：
+
+- 静态门禁 **exit 1**，精准报 `submitForward 必须真的把任务交给 executor，不能用 task.run() 同步执行`；
+- `MqttEventListenerAsyncForwardTest` **6 例中 3 例红**，含 `r20_10_callbackThreadReturnsWhileDoorHttpStillBlocked`（1.017s 超时，正是回调线程被 HTTP 卡住）⇒ 断言级与判据级都能红。
+- 还原后 md5 `f9ab89d8179e3215ef6799b6e5a3a1c9` 与注入前逐字节一致、`grep PSR20-10-NEGATIVE-INJECTION` 全局 **0 命中**、门禁/自测/6 例复跑全绿。
+
+### 二十一.5 遗留与部署
+
+- **无新表、无迁移、无配置键**：纯代码 + 测试 + 门禁，部署只需重建 `device-service` 镜像（`up -d --no-deps --force-recreate device-service`），不涉及 Flyway。
+- **3 次重试仍在 `TradeServiceClient`**：单次最坏 3×(2s+5s)+0.6s ≈ 21s，但占的是**转发工作线程**而非 Paho 回调线程；8 条并发在途 + 队列满留未 ACK，不会再造成全设备门磁积压。是否把重试收敛为「单次 + broker 重投」是独立产品口径，本轮不动。
+- **`check-audit-gates-wiring` 当前红**：失败列表只有并发会话新增的 4 个半成品脚本（`check-bare-localdate*`、`check-ledger-immutability*`）「没有可执行接线」；本批新门禁不在其中 ⇒ 接线与负向夹具均已被识别。按铁律 61 不代修对方半成品。
+- **`package.json` 仍被并发会话占用**（22:07 复核 mtime 21:50），本批继续用 CI 直调；等其收口后可把 §十八 / §二十 / §二十一的 6 个 step 并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
+- 剩余非 P1 项见 §十七.3（P3 5 条）与 §十七.4（待定 5 条）；**R20 的 P1/P2 至此全部收口**。
 

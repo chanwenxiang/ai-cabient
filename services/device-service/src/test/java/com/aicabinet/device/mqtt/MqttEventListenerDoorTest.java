@@ -65,7 +65,8 @@ class MqttEventListenerDoorTest {
                 connectionRegistry,
                 new DeviceMqttMetrics(registry),
                 deduplicator,
-                commandTracker);
+                commandTracker,
+                Runnable::run); // R20-10：用例钉的是语义，用 direct executor 保持同步确定性
     }
 
     private DoorEventDeduplicator sharedRedisDeduplicator() {

@@ -81,7 +81,8 @@ class EdgeCloudMqttContractTest {
                 connectionRegistry,
                 new DeviceMqttMetrics(new SimpleMeterRegistry()),
                 new DoorEventDeduplicator(),
-                commandTracker);
+                commandTracker,
+                Runnable::run); // R20-10：契约用例钉字段映射，direct executor 去掉异步时序
     }
 
     // ---------------------------------------------------------------- DOOR

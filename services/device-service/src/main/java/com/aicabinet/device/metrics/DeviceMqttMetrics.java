@@ -18,6 +18,8 @@ public class DeviceMqttMetrics {
     private final Counter heartbeatsDropped;
     private final Counter acksReceived;
     private final Counter tradeForwardFailures;
+    /** R20-10：转发池队列满导致消息留作未 ACK 的次数（背压信号，不是处理失败）。 */
+    private final Counter forwardRejected;
     private final Counter commandPublished;
     private final Counter commandAckSuccess;
     private final Counter commandAckFailure;
@@ -33,6 +35,7 @@ public class DeviceMqttMetrics {
         this.heartbeatsDropped = registry.counter("device.mqtt.heartbeat", RESULT, "dropped");
         this.acksReceived = registry.counter("device.mqtt.ack");
         this.tradeForwardFailures = registry.counter("device.trade.forward", RESULT, "failure");
+        this.forwardRejected = registry.counter("device.mqtt.forward", RESULT, "rejected");
         this.commandPublished = registry.counter(DEVICE_COMMAND, RESULT, "published");
         this.commandAckSuccess = registry.counter(DEVICE_COMMAND, RESULT, "ack_success");
         this.commandAckFailure = registry.counter(DEVICE_COMMAND, RESULT, "ack_failure");
@@ -48,6 +51,7 @@ public class DeviceMqttMetrics {
     public void recordHeartbeatDropped() { heartbeatsDropped.increment(); }
     public void recordAck() { acksReceived.increment(); }
     public void recordTradeFailure() { tradeForwardFailures.increment(); }
+    public void recordForwardRejected() { forwardRejected.increment(); }
     public void recordCommandPublished() { commandPublished.increment(); }
     public void recordCommandAckSuccess() { commandAckSuccess.increment(); }
     public void recordCommandAckFailure() { commandAckFailure.increment(); }

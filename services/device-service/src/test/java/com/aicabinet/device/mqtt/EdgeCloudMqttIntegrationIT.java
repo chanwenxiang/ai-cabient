@@ -127,7 +127,8 @@ class EdgeCloudMqttIntegrationIT {
                 new MqttConnectionRegistry(),
                 new DeviceMqttMetrics(new SimpleMeterRegistry()),
                 new DoorEventDeduplicator(),
-                mock(DeviceCommandTracker.class));
+                mock(DeviceCommandTracker.class),
+                Runnable::run); // R20-10：IT 验证 broker 投递链路，direct executor 保留原有等待口径
         listener.connect();
         // 共享订阅在 broker 侧的路由注册需要一点时间（既有 IT 同此处理）
         Thread.sleep(1000);
