@@ -205,7 +205,7 @@ def main() -> None:
     lines.append(
         "4. **执行工具**：有 UI 改动或正式验收时，优先 Playwright MCP/CLI；本文本身不宣称任何用例已通过。"
     )
-    lines.append("5. **与旧文档关系**：抽样场景仍可参考 [`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md)、[`BROWSER_FULL_UAT_PLAN.md`](BROWSER_FULL_UAT_PLAN.md)；**全量节点覆盖以本文为准**。")
+    lines.append("5. **与旧文档关系**：抽样场景仍可参考 [`BROWSER_MIN_UAT.md`](archive/BROWSER_MIN_UAT.md)、[`BROWSER_FULL_UAT_PLAN.md`](archive/BROWSER_FULL_UAT_PLAN.md)（已归档）；**全量节点覆盖以本文为准**。")
     lines.append("")
     lines.append("### 0.1 环境入口")
     lines.append("")

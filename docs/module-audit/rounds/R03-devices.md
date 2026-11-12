@@ -220,4 +220,4 @@ COMMIT;
 - 线索 #2 已转正为 MA-008 并闭合 ⇒ `ISSUES.md` 的「待复核线索」区现在只剩历史条目。
 - 🔴 **真值 SQL 必须带 `is_deleted=false`**：`sku_catalog`（16 行含 1 条逻辑删除）差点被我算成「页面少一条」的 P2。（同类逻辑删除字段在各表命名不统一：`is_deleted`。）
 - 🔴 备份表残留：`sku_vision_mapping_bak_20261011` / `sku_catalog_vision_cols_bak_20261011` / `_bak_jiangyi_class_mapping_20261021` 仍在库（不影响页面，列进待拍板）。
-- R2 遗留的两条待办仍在：`/orders` 样式维度补 1600px 复测；`check:list-filter-must-be-server-side` 门禁候选（注意 `OrderListView` 的 `overdueOnly` 页内安全网要进 allowlist）。
+- R2 遗留的两条待办仍在：`/orders` 样式维度补 1600px 复测；`check:list-filter-server-side` 门禁候选（注意 `OrderListView` 的 `overdueOnly` 页内安全网要进 allowlist）。

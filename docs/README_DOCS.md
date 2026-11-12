@@ -3,6 +3,13 @@
 > **现行真源**：日常开发/测试先读 [MASTER_TEST_PLAN.md](MASTER_TEST_PLAN.md)（测试总真源）+ [CODEBASE_FOUNDATION.md](CODEBASE_FOUNDATION.md)（全仓底稿）+ [STARTUP_REFERENCE.md](STARTUP_REFERENCE.md)（端口/账号速查）。  
 > 本文原为 2026-07 上线执行索引，已于 2026-09 收敛；历史分析见 `archive/`。
 
+## 台账纪律（2026-11-12 起，门禁 `check:ledger-evidence` 兜底）
+
+1. **锚点必须真实**：活文档反引号里写的 `check:*` 脚本名、`scripts/`·`docs/`·`.cursor/` 路径、Flyway 迁移/种子文件名，都会被门禁校验存在性——不存在即 CI 红。写「已验证/已落地」必须带锚点；没有锚点就老实写「未核实」。
+2. **候选名不是锚点**：还没落地的门禁候选、计划中的文件，用普通文字书写（不加反引号），落地后再改成真名锚点。
+3. **一次性报告用完即归档**：`git mv` 进 `archive/`（git 历史天然可追溯），活台账留在 docs 根；归档后引用方同步改路径（门禁会抓断链）。
+4. **台账三元组（建议）**：状态 | 证据锚点（反引号书写）| 最后核实日期（仅人读，门禁**不**做日期过期校验——日期驱动门禁会到期自爆）。
+
 ---
 
 ## 现行文档（优先）
@@ -27,8 +34,8 @@
 | [SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md](SYSTEM_COMPARISON_EASYGO_VS_AICABINET_2026-10-01.md) | **新旧系统全面对比**：前海易购弹簧柜（D:\ideaCode\easygo）vs 本仓——仓储三域（采购入库/盘点/补货）+ 核心业务域（订单支付争议/钱包分账/营销/设备/对账）+ 客户端（旧 6 触点 vs 双小程序）逐域对比；P1/P2/P3 分级建议（批次后置收货、盘点口径合一、在途单向化、双钱包抽公共账本等）与「明确不抄」红线；含旧系统 M8=第一代开门柜的血缘论证 |
 | [DEMO_ACCOUNTS.md](DEMO_ACCOUNTS.md) | 演示账号矩阵 |
 | [BUSINESS_FULL_TEST_MATRIX.md](BUSINESS_FULL_TEST_MATRIX.md) | **全业务测试矩阵 v1.2**：页面+L3 挂钩+权限/字典/边界；含 **P0 子集/证据/环境/H5≠小程序/自动化对照** |
-| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小浏览器 UAT（抽样） |
-| [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划（抽样场景编排） |
+| [BROWSER_MIN_UAT.md](archive/BROWSER_MIN_UAT.md)（已归档） | 最小浏览器 UAT（抽样） |
+| [BROWSER_FULL_UAT_PLAN.md](archive/BROWSER_FULL_UAT_PLAN.md)（已归档） | 全量 UAT 计划（抽样场景编排） |
 | [PRODUCTION.md](PRODUCTION.md) | 生产部署 |
 | [VISION_QUECTEL_INTEGRATION.md](VISION_QUECTEL_INTEGRATION.md) | 端侧识别对接（替代已删除的云端 YOLO 文档） |
 | [DEVOPS.md](DEVOPS.md) | 监控 / Sonar / Runner |
@@ -83,7 +90,7 @@
   - `ui-audit-2026-09-12{,-r2}.md`、`ui-audit-r3-2026-09-12.md`、`ui-audit-r3-verify-2026-09-12.md`、`ui-audit-merged-2026-09-12.md`（UI 五轮审计 5 份）
   - `audit-fix-verification-2026-09-15.md`、`audit-fix-verification-{r2,r3,r4}-2026-09-15.md`（整改核验 R1~R4 共 4 份）
 
-**已删除（勿再引用）**：`OPEN_CABINET_DATA_COLLECTION.md`、`VISION_SKU_MODEL.md`、`VISION_YOLO_TEST.md`、`scripts/verify-vision-model.ps1` 及一批一次性 Sonar/编码修复脚本。
+**已删除（勿再引用）**：`OPEN_CABINET_DATA_COLLECTION.md`、`VISION_SKU_MODEL.md`、`VISION_YOLO_TEST.md`、verify-vision-model.ps1 及一批一次性 Sonar/编码修复脚本。
 
 ---
 

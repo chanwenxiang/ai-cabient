@@ -5,7 +5,7 @@
 
 ## 0. 先纠一处编号
 
-上一轮收尾清单写的「AU-070/071 vision-service 退役」**在台账里不存在这两个编号**（`git grep -E "AU-07[01]"` 在 `docs/audit-findings-2026-10-16` 全 ref 零命中；台账 AU 号从 AU-064 直接跳 AU-074）。
+上一轮收尾清单写的「AU-070/071 vision-service 退役」**在台账里不存在这两个编号**（`git grep -E "AU-07[01]"` 在 docs/audit-findings-2026-10-16（当时搜索对象，该文件从未入库）全 ref 零命中；台账 AU 号从 AU-064 直接跳 AU-074）。
 vision-service 退役真正的条目是 **AU-134 / DC-27**（对应 `docs/JIANGYI_ONLY_FINAL_VERDICT_2026-10-11.md` 的批 2/3/6）。事实本身成立，只是别按错误编号去找。
 
 ## 1. DC-26 · V62 内嵌 `SKU-TEA-5839`（东方树叶茉莉花茶335ml）
@@ -81,7 +81,7 @@ V347 外部渠道对账导入 / V355 商户费用台账 / V356 机器账单 / V3
 | 树 | V369 | 状态 |
 |----|------|------|
 | origin/dev | `V369__jiangyi_device_identifier_nullable.sql`（AU-133，已提交已推） | tracked |
-| 本地 dev | `V369__device_scene_type.sql`（CB-049）+ V370/V371 | **untracked，且已应用到共享 dev 库** |
+| 本地 dev | `V372__device_scene_type.sql`（CB-049）+ V370/V371 | **untracked，且已应用到共享 dev 库** |
 
 - `git merge-tree` 干净是**文本层面**的：两个不同文件名的同号迁移不冲突，但 Flyway 起服务会 `Found more than one migration with version 369` ⇒ trade 启动失败。门禁 [check-migration-safety.mjs:105](file:///D:/ai-generated%20code/ai-cabinet/scripts/check-migration-safety.mjs#L105) 会在 preflight 判红（`duplicate Flyway version V369`）。这是 DEV-01 记过的 V346 撞车二次武装。
 - `flyway_schema_history` 实测：本地库已跑到 **V371（370 行）**，即 peer 的 CB-049/050 三条迁移**跑过但没提交**——git 里没有，库里已有。

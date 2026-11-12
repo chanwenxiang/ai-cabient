@@ -216,4 +216,4 @@ cd infra
 | `infra/monitoring/tempo-config.yml` | Tempo OTLP 接收、`block_retention: 24h` |
 | `infra/monitoring/grafana/provisioning/dashboards/json/ai-cabinet-logs-*.json` | 5 个日志主题页（一页一面板：stream / errors / rate / errorcount / trace） |
 | `clients/admin-vue/src/views/system/ObservabilityView.vue` | 后台「日志中心」页（6 个页签内嵌上面这些看板） |
-| `docs/observability-runtime-verification-2026-09-21.md` | 运行期端到端取证记录 |
+| `docs/archive/observability-runtime-verification-2026-09-21.md` | 运行期端到端取证记录 |

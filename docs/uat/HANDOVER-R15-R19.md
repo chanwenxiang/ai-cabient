@@ -148,7 +148,7 @@ node .tmp/r15-chain.mjs
 
 ## 9. 交接后立刻该做的事（按你的优先级）
 
-1. **先你/另一个 AI 跑 R15**（一条命令，见 §3.1）→ 拿基线 → 收口 → 回填 `docs/uat/rounds/R15-order-wallet-withdraw-chain.md`（含精确清理 SQL + 0 残留证据）→ `preflight` → push。
+1. **先你/另一个 AI 跑 R15**（一条命令，见 §3.1）→ 拿基线 → 收口 → 回填 `docs/uat/rounds/R15-wallet-withdraw-chain.md`（含精确清理 SQL + 0 残留证据）→ `preflight` → push。
 2. `PROJECT_KNOWLEDGE §12` 的 **R14 CI bullet 补 run `1298`（`2be58f39`）**（本次已确认 1298 是 R14 文档轮）。
 3. R16 → R17 → R18 → R19（各 ~0.5–1 轮），顺序不换。
 4. B 类四闸门 + 浏览器 UI 回刷新 → **你来做**。

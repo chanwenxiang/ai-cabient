@@ -102,7 +102,7 @@
   `pokerOrderProduct/addProductToOrder`（§5.2.11 二次甄别扣款通知，「商户端收到后需要进行扣款处理」）、
   `thirdRecheckOrder/recheckOrder`（§5.2.12 重审退款/补扣，`orderNo`+`productForms`+`amount`(分)）、
   `pokerOrder/sendTimeOutError`（§5.2.14 订单超时，文档明文**「不用 token 验证」**）。
-  三条均系 2026-10-09 模式一选型时**明确裁掉**（原文「二次甄别/重审/超时异常上报均不接」+「第四章没有订单超时异常接口，模式一下超时兜底靠我方自身逻辑，需在 trade 侧设计」），出处 `docs/JIANGYI_SAAS_INTEGRATION_V16.md` §7 —— **该文件已在 `177ec8c4`「文档治理」删除**，`AUDIT_TRACK_E…:3-4` 仍把它当活文档引用；原文现只可读 `git show 84c2bee8:docs/JIANGYI_SAAS_INTEGRATION_V16.md`。
+  三条均系 2026-10-09 模式一选型时**明确裁掉**（原文「二次甄别/重审/超时异常上报均不接」+「第四章没有订单超时异常接口，模式一下超时兜底靠我方自身逻辑，需在 trade 侧设计」），出处 `git show 84c2bee8:docs/JIANGYI_SAAS_INTEGRATION_V16.md` §7 —— **该文件已在 `177ec8c4`「文档治理」删除**，`AUDIT_TRACK_E…:3-4` 仍把它当活文档引用；原文现只可读 `git show 84c2bee8:docs/JIANGYI_SAAS_INTEGRATION_V16.md`。
   落地核对：超时兜底已实现（OPEN 15s / CLOSE 300s / recognize-timeout 10min → DISPUTED），争议单在我方结算页可人工确认收款（`SettlementConfirmDisputeService`）⇒ 拍板自洽，**不是漏实现**。
   **维持不接**，且理由比选型记录写得更硬：模式一下设备识别/异常上报直发我方 domain，**订单数据根本不落将邑云**，云侧「二次甄别订单列表」无数据来源 ⇒ 不会向商户推这 3 条。（除非日后改用将邑后台结算——那属改选型，须重开此项。）
   两点留档：① 这三条**不是 V15 遗留**——V16 里各存 1 处（`doc_full_text.txt` 行 1318/1361/1446），V15↔V16 入向面逐条完全一致；裁它们的依据是「第四章 vs 第五章」的模式选择，不是版本更替；② 若日后接 §5.2.14，它是**免鉴权的入向写路径**，须 `GatewayWebConfig` 显式豁免 + 只允许「置失败」方向 + 按 orderNo 幂等，禁止任何放款/发货语义。

@@ -449,7 +449,7 @@ python scripts/wxpay_bill_amount_dist.py .tmp/xxx.xlsx
 
 **⇒ 结论：账单里的 1,109 台柜机是【叮当小柜 / easygo 老系统】在收款。**
 
-依据：`docs/OLD_EASYGO_VS_AICABINET_DIFF_2026-10-15.md` 与 `.workbuddy/memory/2026-10-15.md` 记载
+依据：`docs/archive/OLD_EASYGO_VS_AICABINET_DIFF_2026-10-15.md` 与 `.workbuddy/memory/2026-10-15.md` 记载
 ——叮当小柜/easygo 是**老系统**（`D:\ideaCode\easygo`，柜机域 ego-automat + 运营后台 mis-server +
 消费者后端 dvm），`ai-cabinet` 是**按它做对标原型重写的新系统**（2026-10-15 用户提供 4 张老系统截图问
 "我们系统能不能做"，全仓调研后逐项对标）。仓内大量 `图1 对照（叮当小柜，2026-10-15）` 注释即来自此次对标。
@@ -470,7 +470,7 @@ python scripts/wxpay_bill_amount_dist.py .tmp/xxx.xlsx
 |---|---|---|
 | 出货方式 | 用户拉弹簧/旋钮，货道掉货（**无门、无屏**） | **`OPEN_DOOR` 开柜门** + 视觉识别取货（`MQTT_CMD_OPEN_DOOR` / `MQTT_EVENT_TYPE_DOOR`） |
 | 用户交互 | 扫码 → 拉货 → 结束（多为「先取后付/即取即扣」） | 扫码 → 授权 → 开门 → 取货 → 关门 → 按实际取货结算 |
-| 仓库证据 | 老系统 easygo 代码在 `D:\ideaCode\easygo`；消费者小程序 **`dinngdang-wx`（叮当小柜，appid `wx9025aa7a38f11a95`）**；柜型 **m8/m9 两代**（`docs/OLD_EASYGO_VS_AICABINET_DIFF_2026-10-15.md`） | 仓内 `CabinetConstants`：`MQTT_CMD_OPEN_DOOR` / `MQTT_CMD_LOCK` / `MQTT_CMD_UNLOCK`；**「弹簧」全仓 0 命中**（仅 Spring Framework 误匹配），将邑硬件资料亦 0 命中 |
+| 仓库证据 | 老系统 easygo 代码在 `D:\ideaCode\easygo`；消费者小程序 **`dinngdang-wx`（叮当小柜，appid `wx9025aa7a38f11a95`）**；柜型 **m8/m9 两代**（`docs/archive/OLD_EASYGO_VS_AICABINET_DIFF_2026-10-15.md`） | 仓内 `CabinetConstants`：`MQTT_CMD_OPEN_DOOR` / `MQTT_CMD_LOCK` / `MQTT_CMD_UNLOCK`；**「弹簧」全仓 0 命中**（仅 Spring Framework 误匹配），将邑硬件资料亦 0 命中 |
 | 视觉识别 | RFID/视觉在后端 | 端侧 AI 视觉（将邑）识别实际取走商品 |
 
 ⚠️ **对支付分申请的三点影响：**
@@ -656,11 +656,11 @@ python scripts/wxpay_bill_amount_dist.py .tmp/xxx.xlsx
 | # | 附件 | 说明 | 状态 |
 |---|---|---|---|
 | 1 | 营业执照 | 扫描件 | ⛔ 待提供 |
-| 2 | **商户后台长截图** | **电脑端**商户平台 → 账户中心 → 商户信息 → 浏览器长截图（Chrome/Edge `Ctrl+Shift+P` → Capture full size screenshot）。须含商户号 1700080722 + 营业执照信息；**不可截数据中心那两页**（无营业执照信息） | ⛔ 待提供｜操作指引见 `docs/WECHATPAY_BACKSTONE_SCREENSHOT_GUIDE_2026-10-27.md` |
-| 3 | 设备照片 | **商用无人柜真机实拍**（正身 / 侧身 / **二维码特写且能扫出** / 货舱内有商品 / 摆放场景），5 张 | ⛔ 待提供｜拍法见 `docs/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` |
+| 2 | **商户后台长截图** | **电脑端**商户平台 → 账户中心 → 商户信息 → 浏览器长截图（Chrome/Edge `Ctrl+Shift+P` → Capture full size screenshot）。须含商户号 1700080722 + 营业执照信息；**不可截数据中心那两页**（无营业执照信息） | ⛔ 待提供｜操作指引见 `docs/archive/WECHATPAY_BACKSTONE_SCREENSHOT_GUIDE_2026-10-27.md` |
+| 3 | 设备照片 | **商用无人柜真机实拍**（正身 / 侧身 / **二维码特写且能扫出** / 货舱内有商品 / 摆放场景），5 张 | ⛔ 待提供｜拍法见 `docs/archive/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` |
 | 4 | **支付分场景交互图** | **合并为一整张流程图**（官方硬要求） | ✅ **已产出**：`docs/figures/payscore-interaction-figure.png`（2160×1141 @2x，六屏横向 + 标题 + 页脚） |
-| 5 | 业务/产品点位信息 | **表格**（城市/地址/数量/场景图文件名等 13 字段）+ **场景图**（每点位≥1 张，与表格文件名一一对应）。可用 `python scripts/export_payscore_sites.py` 从生产库自动生成，或用 `scripts/make_payscore_sites_template.py` 出模板手工填 | ⛔ 待提供｜见 `docs/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` |
-| 6 | **接入方案说明**（产品方案与业务描述） | ✅ **已产出**：`docs/PAYSCORE_ACCESS_PROPOSAL_2026-10-27.md`（对应正文第 4 项，含架构/接口/状态机/风控/合规声明） |
+| 5 | 业务/产品点位信息 | **表格**（城市/地址/数量/场景图文件名等 13 字段）+ **场景图**（每点位≥1 张，与表格文件名一一对应）。可用 `python scripts/export_payscore_sites.py` 从生产库自动生成，或用 `scripts/make_payscore_sites_template.py` 出模板手工填 | ⛔ 待提供｜见 `docs/archive/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` |
+| 6 | **接入方案说明**（产品方案与业务描述） | ✅ **已产出**：`docs/archive/PAYSCORE_ACCESS_PROPOSAL_2026-10-27.md`（对应正文第 4 项，含架构/接口/状态机/风控/合规声明） |
 | 7 | 客服电话拨测视频 | ⛔ 若官方要求（见问题 3b）——**视频须体现人工拨通 4000182992，且拨通后可确认公司名称/简称** | ⛔ 待提供（视官方答复） |
 | 8 | **经营数据佐证 ①（平台逐日汇总）** | 商户平台导出的 `DAY_TRADE_DATA`（2026-09-27~2026-10-26）：金额 2,065,784.15 / 笔数 361,050 / 人均 7.54 / 逐日 30 行 | ✅ 已产出：`docs/figures/wxpay-day-trade-data-2026-09-27_2026-10-26.csv`（原样存档，GBK 编码） |
 | 9 | **经营数据佐证 ②（交易账单统计摘要）** | 由官方直连交易账单（413,434 笔 ALL，2026-09-01~09-30）汇总而来：支付成功 410,571 笔 / 2,346,355.25 元 / 退款率 0.70% / **笔均 5.7149** / 日均 13,686 笔 / **订单金额 6 档占比分布** / 逐日 30 行明细。**正文第 3 项三组数字的同一口径来源，评审可据此逐项核对** | ✅ 已产出：`docs/figures/wxpay-bill-1700080722-2026-09-summary.csv`（UTF-8 BOM，1.8 KB） |
@@ -882,15 +882,15 @@ python scripts/wxpay_bill_amount_dist.py .tmp/xxx.xlsx
 | 文件 | 用途 |
 |---|---|
 | `docs/figures/wechat-payscore-application-email-body.txt` | **邮件正文终稿**（可直接复制粘贴，含收件人/抄送/主题抬头） |
-| `docs/PAYSCORE_ACCESS_PROPOSAL_2026-10-27.md` | 附件《微信支付分接入方案说明》（对应正文第 4 项） |
+| `docs/archive/PAYSCORE_ACCESS_PROPOSAL_2026-10-27.md` | 附件《微信支付分接入方案说明》（对应正文第 4 项） |
 | `docs/figures/payscore-interaction-figure.png` | 附件《支付分场景交互图》（六屏合并一张，2160×1141 @2x，679 KB） |
 | `docs/PAYSCORE_INTERACTION_SPEC_2026-10-26.md` | 交互图实现规格（R1–R12 规范逐条） |
 | `docs/figures/wxpay-bill-1700080722-2026-09-summary.csv` | 附件·账单统计摘要（正文三组数字的同口径来源） |
 | `docs/figures/wxpay-day-trade-data-2026-09-27_2026-10-26.csv` | 附件·平台逐日汇总（GBK 原样存档） |
 | `docs/figures/payscore-sites-template.csv` | 附件·点位表空白模板（13 字段 + 2 行示例 + 填写说明） |
-| `docs/EASYGO_SITES_EXPORT_GUIDE_2026-10-27.md` | 点位信息导出指引（易购老系统三步法 + 字段来源速查） |
-| `docs/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` | 附件采集总指引（设备照 + 点位信息 + 9 项总览） |
-| `docs/WECHATPAY_BACKSTONE_SCREENSHOT_GUIDE_2026-10-27.md` | 商户后台长截图操作指引（含长截图快捷键） |
+| `docs/archive/EASYGO_SITES_EXPORT_GUIDE_2026-10-27.md` | 点位信息导出指引（易购老系统三步法 + 字段来源速查） |
+| `docs/archive/PAYSCORE_ATTACHMENT_COLLECTION_GUIDE_2026-10-27.md` | 附件采集总指引（设备照 + 点位信息 + 9 项总览） |
+| `docs/archive/WECHATPAY_BACKSTONE_SCREENSHOT_GUIDE_2026-10-27.md` | 商户后台长截图操作指引（含长截图快捷键） |
 
 ### 🔧 可复用脚本
 

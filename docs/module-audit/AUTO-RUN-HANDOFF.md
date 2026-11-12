@@ -139,7 +139,7 @@
 
 ### C. R10 遗留两条
 
-1. **`check:perm-closure` 门禁落地**：把 `.tmp/r10-perm-closure.mjs` 搬进 `scripts/` → A 集改成「`@RequiresPermissions` 注解 **+** `hasPerm`/`requirePermission` 字符串用法」双扫（反例护栏：`ops:audit:recent` 是非注解用法，必须被认作「有引用」）→ 加白名单文件（`ops:nav:*`、realm 根、V421/V427 已 RETIRED 的）→ 负向自测（造一个假幽灵码必须红）→ 进 `run-audit-gates` 聚合链。**判据**：真库上跑 `A∖B`、`C∩B非ACTIVE`、`C∖B` 三方向全 0；故意加一条幽灵码时门禁退出 1。
+1. **perm-closure 校验落地（R10 裁决：以 `PermClosureSqlIT` 集成测试形态，不做静态门禁）**：把 `.tmp/r10-perm-closure.mjs` 搬进 `scripts/` → A 集改成「`@RequiresPermissions` 注解 **+** `hasPerm`/`requirePermission` 字符串用法」双扫（反例护栏：`ops:audit:recent` 是非注解用法，必须被认作「有引用」）→ 加白名单文件（`ops:nav:*`、realm 根、V421/V427 已 RETIRED 的）→ 负向自测（造一个假幽灵码必须红）→ 进 `run-audit-gates` 聚合链。**判据**：真库上跑 `A∖B`、`C∩B非ACTIVE`、`C∖B` 三方向全 0；故意加一条幽灵码时门禁退出 1。
 2. **8 处 admin `toLocaleString*`**：逐处判「是否展示金额」——**是** ⇒ 改走 `@/utils/display` 的 cents→元 helper（金额禁止 `toLocaleString` 直接格式化分）；**否**（纯计数/日期）⇒ 原地加一行注释说明用途。**判据**：`grep -rn "toLocaleString" clients/admin-vue/src` 每处都有归属（改走 helper 或注释），且 `pnpm -C clients/admin-vue test` 绿。
 
 ## 6. 全部完成的判据

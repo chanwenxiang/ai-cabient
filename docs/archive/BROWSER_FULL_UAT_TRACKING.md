@@ -2,8 +2,8 @@
 
 执行日期：2026-07-12  
 执行人：Agent（Browser MCP 真实点击 + CDP）  
-截图目录：`uat-screenshots/2026-07-12/full-uat/`  
-计划：[`BROWSER_FULL_UAT_PLAN.md`](../BROWSER_FULL_UAT_PLAN.md)
+截图目录：`docs/uat-screenshots/2026-07-12/full-uat/`  
+计划：[`BROWSER_FULL_UAT_PLAN.md`](BROWSER_FULL_UAT_PLAN.md)
 
 > MIN-UAT-28 已覆盖项标注「继承 MIN-UAT」；本轮用 Browser MCP 复验或补跑剩余项。
 
@@ -103,18 +103,6 @@
 | L6 | PASS | 继承 MIN-UAT MER-M07/L-08 |
 | L7 | PASS | 继承 MIN-UAT L-09/L-10 |
 
-### MIN 层 C 复测同步（2026-08-04）
-
-> 证据：`uat-screenshots/2026-08-04/` · 跟踪：[`BROWSER_MIN_UAT_TRACKING.md`](../BROWSER_MIN_UAT.md)
-
-| MIN ID | 复测 | 备注 |
-|--------|------|------|
-| L-04～L-10 | PASS | 浏览器真实操作全量复测 |
-| L-06 | PASS | 低库存待办跳转目标更新为「要货申请」（柜机正确） |
-| L-09 | PASS | 刷新后同 session 恢复「门已开 · 购物中」 |
-| UI-01 | FIXED 复测通过 | 三端「测试柜-001」 |
-| API-01 | CLOSED | PowerShell 控制台解码问题，HTTP UTF-8 正常 |
-
 ## 统计
 
 | PASS | FAIL | BLOCK | SKIP | PENDING | PARTIAL |
@@ -173,7 +161,7 @@
 
 ## M7 沙箱模拟全栈（2026-07-13）
 
-计划：云端 YOLO 专项（`VISION_YOLO_TEST.md`）已废弃；现行争议/视觉联调用 `e2e-dispute-recognition.ps1` / `VISION_QUECTEL_INTEGRATION.md` · 环境：`infra/.env.sandbox.example`
+计划：云端 YOLO 专项 `VISION_YOLO_TEST.md`（已随云识别链退役删除）· 环境：`infra/.env.sandbox.example`
 
 | ID | 状态 | 备注 |
 |----|------|------|

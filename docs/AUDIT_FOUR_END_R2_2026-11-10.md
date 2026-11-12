@@ -384,7 +384,7 @@ C6 只列了开门前弹窗的 `promoPopupSeen:<activityId>`（`index.vue`），
 
 > 判据：`mvn -Dtest=MerchantPrepPreviewTest,MerchantSelfReplenishTest` = **25 tests 全绿**（新增 1）、
 > merchant-mp vitest **251 全绿**（新增 1）、`vue-tsc --noEmit` clean、改动文件 eslint 0 error、
-> `check:openapi-regen-required` / `check:openapi-types` / `check:replenishment-checkin-contract` 绿。
+> `check:openapi-regen` / `check:openapi-types` / `check:replenishment-checkin-contract` 绿。
 
 | 条 | 改动落点 | 做法 |
 |---|---|---|

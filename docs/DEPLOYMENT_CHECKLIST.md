@@ -176,7 +176,7 @@ WHERE version IN ('398','399','400','401','402') ORDER BY installed_rank;
 > 仅对**尚未应用 V431**的库执行；已到 V431+ 的库这些表已不存在，跳过本节（Flyway history 查 `431` 是否 success 即可）。
 >
 > **现状（2026-11-02 实测/留痕）**：本机 dev `max(version::int)=434`、服务器测试环境 `120.25.246.179` V433（见
-> `docs/EMPTY_TABLES_DISPOSITION_2026-11-02.md`）——两者都已越过 V431，**本节对现有环境无待办**；
+> `docs/archive/EMPTY_TABLES_DISPOSITION_2026-11-02.md`）——两者都已越过 V431，**本节对现有环境无待办**；
 > 只有将来新建生产库、或从 V431 之前的备份重建时才需要跑。
 
 ```sql

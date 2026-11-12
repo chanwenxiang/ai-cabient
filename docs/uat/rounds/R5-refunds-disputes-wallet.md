@@ -52,7 +52,7 @@
 |-----|----------|------|
 | 余额退款详情页（五 Tab / 写入操作空态） | 计划 §R5 指向各财务小点注 | **B/C** |
 | 余额退款审批实例双节点 | `UAT_FINAL.md §五·窗口`：`MERCHANT_WALLET_ADJUST` 为双节点（运营→财务） | **C**（详见 [`R7-boundary.md §5b`](R7-boundary.md)） |
-| 钱包写接口幂等（库级兜底） | [`docs/engineering/lessons-learned.md`](../../engineering/lessons-learned.md)（钱包流水幂等唯一索引 `uk_wallet_ledger_ref` 的坑与设计）+ [`docs/AUDIT_THREE_END_FULL_2026-10-18.md:164`](../../AUDIT_THREE_END_FULL_2026-10-18.md)（`WalletRefIdempotencySqlIT` 真库 5/5） | **C** |
+| 钱包写接口幂等（库级兜底） | [`docs/engineering/lessons-learned.md`](../../engineering/lessons-learned.md)（钱包流水幂等唯一索引 `uk_wallet_ledger_ref` 的坑与设计）+ [`docs/archive/AUDIT_THREE_END_FULL_2026-10-18.md:164`](../../AUDIT_THREE_END_FULL_2026-10-18.md)（`WalletRefIdempotencySqlIT` 真库 5/5） | **C** |
 
 ### 3.5 跨端同读
 消费端依赖当日 token 续期链，当日夜间 token 过期 ⇒ 计划记「消费端依赖项待白天」。本轮**未补**（D 级，需人工在微信开发者工具复验）。

@@ -174,7 +174,7 @@ COMMIT;
 
 | 候选 | 判据 | 依据 |
 |------|------|------|
-| `check:list-filter-must-be-server-side` | admin 视图的 `fetchPage` 内出现 `rows.filter(` / `displayItems` 参与分页 ⇒ 红（显式 allowlist 例外，须写理由） | MA-007：页内过滤吃掉跨页数据 + `total` 谎报；本轮另有 `/sessions` 导出同源受害 |
+| `check:list-filter-server-side` | admin 视图的 `fetchPage` 内出现 `rows.filter(` / `displayItems` 参与分页 ⇒ 红（显式 allowlist 例外，须写理由） | MA-007：页内过滤吃掉跨页数据 + `total` 谎报；本轮另有 `/sessions` 导出同源受害 |
 
 ## 给下一轮的交接注记
 

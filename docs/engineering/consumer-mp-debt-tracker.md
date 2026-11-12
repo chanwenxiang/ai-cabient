@@ -3,7 +3,7 @@
 > **地位**：消费者小程序（`clients/consumer-mp`）已知问题的**唯一进度表**。  
 > **纪律**：每修完一项 → 状态改 `done` + 填「完成记录」→ 必要时追加 `lessons-learned` → `PROJECT_KNOWLEDGE` §9 一行。  
 > **禁止**：只改代码不更新本表；用「感觉修好了」勾 done（须有门禁/命令或 diff 证据）。  
-> **验收权威**：**mp-weixin**（微信开发者工具 / 真机）。**H5 不参与本表 UI / 验收结论**（与 `docs/CONSUMER_MP_OPTIMIZATION_REPORT_2026-09-24.md` 一致）；H5 仅影响 CI 的条目标 `deferred` 或低优先。
+> **验收权威**：**mp-weixin**（微信开发者工具 / 真机）。**H5 不参与本表 UI / 验收结论**（与 `docs/archive/CONSUMER_MP_OPTIMIZATION_REPORT_2026-09-24.md` 一致）；H5 仅影响 CI 的条目标 `deferred` 或低优先。
 
 **来源会话**：2026-09-25 用户选定「对齐 admin-vue debt-tracker 打法，不管 H5」。  
 **对照**：`docs/engineering/admin-vue-debt-tracker.md`（D1–D25 已清）。  

@@ -49,9 +49,9 @@
 
 ## 10.4 本轮未覆盖（留给 R11 / 下一会话）
 
-1. ~~`check:perm-closure` 门禁未落~~ ✅ 已落（2026-11-02，提交 `3d0e999e`）：以集成测试 `PermClosureSqlIT` 实现（§10.5），不再单独做静态门禁（B 集只有真库知道）。
+1. ~~perm-closure 静态门禁未落~~ ✅ 已落（2026-11-02，提交 `3d0e999e`）：以集成测试 `PermClosureSqlIT` 实现（§10.5），不再单独做静态门禁（B 集只有真库知道）。
 2. ~~8 处 admin `toLocale*` 未判用途~~ ✅ 已判完（2026-11-02）：8 处中 **4 处**是带 `{hour12:false, timeZone:'Asia/Shanghai'}` 的时间显示（正确，不动）；另 **4 处**在 `useReplenishmentRoutePlanning.ts` 用 `toLocaleDateString('zh-CN')` 拼**补货路线名**、**未带时区**（跨零点会与平台日期不一致）⇒ 已补 `timeZone:'Asia/Shanghai'`，`vue-tsc` 退出 0。无金额格式化误用。
-3. ~~MA-036 的 RETIRED 迁移未做~~ ✅ 已做（`V427`，2026-11-02 接手批）：4 个幽灵 + `ops:operlog` 共 5 行置 RETIRED；判据与「为什么把父行也带上」写在迁移头。dev 事务内试跑 `UPDATE 5` 后回滚。剩：`check:perm-closure` 门禁仍未落。
+3. ~~MA-036 的 RETIRED 迁移未做~~ ✅ 已做（`V427`，2026-11-02 接手批）：4 个幽灵 + `ops:operlog` 共 5 行置 RETIRED；判据与「为什么把父行也带上」写在迁移头。dev 事务内试跑 `UPDATE 5` 后回滚。剩：perm-closure 的静态门禁形态仍未落（现行裁决为 IT 形态，见第 1 条）。
 4. R10 全部结论建立在 `:18080` 旧镜像上 ⇒ **凡涉及 MA-029 新口径的三端读数，必须在 R11 重建镜像后复走一遍**（含会员单在 admin 订单列表/商户端/消费端三处的「会员优惠」行是否一致）。
 
 ## 10.5 `PermClosureSqlIT`：权限闭环反向门禁（已实现）
@@ -70,7 +70,7 @@
 3. C 集：扫 `clients/admin-vue/src/config/menu.ts` 的 `perm:` + `clients/**/src/**/*.{ts,vue}` 里散落权限码字面量。
 4. 断言：`B ∖ (A ∪ C) = ∅`，白名单只允许三类：`ops:nav:*`（结构目录行）、realm 根（`ops`/`merchant`）、V421/V427 已 RETIRED 的（本就不在 ACTIVE 集）。
 5. 负向自测：测试内插入一行假幽灵码（如 `ops:__negative_probe__:view`）后断言检测函数**必须**报出它，再回滚——防止"查询写错 ⇒ 恒真绿"。
-6. 加分项（非阻塞）：把两侧扫描抽成 `scripts/lib/perm-scan.mjs`，静态门禁复用 A/C 两集做**正向**检查（已存在），IT 只补反向。
+6. 加分项（非阻塞）：把两侧扫描抽成 scripts/lib/perm-scan.mjs（**未落地**的加分项），静态门禁复用 A/C 两集做**正向**检查（已存在），IT 只补反向。
 
 **判据**：真库上三方向（`A∖B`、`C∩B 非 ACTIVE`、`C∖B`）全 0；负向自测必须红；`mvn verify` 该 IT 通过。
 

@@ -180,7 +180,7 @@ docker compose --env-file infra\.env -f infra\docker-compose.full.yml -f infra\d
 ### MinIO 演示录像（容器重建后）
 
 订单购物视频依赖 `shopping_session.video_uri`（MinIO 对象）。MinIO 数据卷清空后需重新上传。
-旧 `scripts/seed-demo-shopping-video.ps1` 已随云识别/录像链退役删除（DC-27 批 3），现场两条命令即可等价完成：
+旧 seed-demo-shopping-video.ps1（已删）曾随云识别/录像链退役删除（DC-27 批 3），现场两条命令即可等价完成：
 
 ```powershell
 # 1) 上传样例录像（testdata\sample-shopping.mp4，仓库根执行）

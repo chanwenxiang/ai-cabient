@@ -40,7 +40,7 @@
 | 页面 | 数据/口径核对（真值来源） | 交互与写面 | 结论 |
 |------|---------------------------|------------|------|
 | `/system-configs` 参数配置 | 「共 115 条」= `select count(*) from system_config` **115**；首行键/分组/中文说明/值齐（`balance.refund.max_cents`=500000） | 新增/编辑/删除走弹窗并带确认；导入导出 | 无缺陷 |
-| `/alert-rules` 告警规则 | 31 行由 `BUILTIN_GROUPS` 白名单键 ∪ 自定义键派生（数据源仍是 `system_config`，与上页同源，两页 hint 已各自交代） | 「测试告警通道」调 `systemConfigAlertTest`；删除/批量保存带确认 | 无缺陷（硬编码白名单族已在 R7 门禁 `check:dict-display` 轮结论里登记） |
+| `/alert-rules` 告警规则 | 31 行由 `BUILTIN_GROUPS` 白名单键 ∪ 自定义键派生（数据源仍是 `system_config`，与上页同源，两页 hint 已各自交代） | 「测试告警通道」调 `systemConfigAlertTest`；删除/批量保存带确认 | 无缺陷（硬编码白名单族已在 R7 门禁 `check:no-inline-dict-display` 轮结论里登记） |
 | `/scheduled-tasks` 定时任务 | 「共 42 条」= `scheduled_task` **42**；行内「最近执行/状态/耗时/说明」逐列 = 表列 `last_run_at/last_result/last_duration_ms/last_message`；抽查 `auto-replenish-task` 2026-11-01 11:08:39 成功 22ms、`deposit-monthly-refund`「跳过 / skipped: task disabled」与 `enabled=false` 一致 | 启停开关 + 立即执行均有确认；无手写下一行 | 无缺陷 |
 | `/org-sites` 组织与点位 | 「共 0 条」= `site_contract` **0** 且 `ops_org_node` **0** ⇒ 空态是真·无数据，不是过滤掉 | 组织树/点位合同两个分区，新增走弹窗 | 无缺陷 |
 | `/announcements` 通知公告 | 「暂无公告」= `announcement` **0** | — | 无缺陷 |

@@ -12,7 +12,7 @@
 > | 商户端页面 | `clients/merchant-mp/src/pages.json` + `config/merchant-nav.ts`（RBAC ∩ 功能包） |
 > | 消费者端页面 | `clients/consumer-mp/src/pages.json` |
 > | 角色账号 | [`DEMO_ACCOUNTS.md`](DEMO_ACCOUNTS.md) |
-> | 资金/争议深分支 | `docs/pass-notes/PASS_3A`～`3E` |
+> | 资金/争议深分支 | `docs/pass-notes/`（PASS_3A_MONEY～3F 六份） |
 
 版本：1.2 · 更新日期：2026-09-09
 
@@ -518,7 +518,7 @@
 7. 争议/MQTT/库存深分支对照 `pass-notes`  
 8. 汇总 FAIL/BLOCK → issue（比填满状态列更优先）
 
-与旧文档：抽样编排仍可用 [`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md)、[`BROWSER_FULL_UAT_PLAN.md`](BROWSER_FULL_UAT_PLAN.md)；**全量节点 + 挂钩 + 边界 + P0 以本文为准**。
+与旧文档：抽样编排仍可用 [`BROWSER_MIN_UAT.md`](archive/BROWSER_MIN_UAT.md)、[`BROWSER_FULL_UAT_PLAN.md`](archive/BROWSER_FULL_UAT_PLAN.md)（已归档）；**全量节点 + 挂钩 + 边界 + P0 以本文为准**。
 
 ---
 
@@ -528,7 +528,7 @@
 
 | P0-ID | 对应 | 动作摘要 | 证据至少含 | 状态 | 证据备注 |
 |-------|------|----------|------------|------|----------|
-| P0-01 | §4#1 · P-01/P-04 | 扫码/柜号开门→结算出单 | sessionId, orderId | PASS | `e2e-shopping.ps1` BALANCE：session=`1788832341471405582` → DISPUTED→CONFIRM → order=`1788832425799859794` PAID ¥3.50；日志 `docs/uat-screenshots/2026-09-08/e2e-shopping.log` |
+| P0-01 | §4#1 · P-01/P-04 | 扫码/柜号开门→结算出单 | sessionId, orderId | PASS | `e2e-shopping.ps1` BALANCE：session=`1788832341471405582` → DISPUTED→CONFIRM → order=`1788832425799859794` PAID ¥3.50；日志由 `scripts/e2e-shopping.ps1` 运行输出（该 log 从未入库） |
 | P0-02 | §10.1 S-02/S-03 | 支付后 split + 钱包入账 | orderId, splitId, 钱包差额 | PASS | order=`1788832425799859794`；split=`1788832425876341232` LEDGER_ONLY gross=350 platform=35 merchant=315；钱包 `MCH-DEFAULT` +315；ledger `SPLIT_CREDIT` |
 | P0-03 | §10.1 S-05 | 分账/结算重放不双入 | 两次后余额不变 | PASS | `uk_order_revenue_split_order_id` 拒重插；`RevenueSplitService.doRecordSplit` 已存在则直接返回；余额保持 315、ledger 仅 1 条 |
 | P0-04 | §4#5 · S-09 | 提现申请→审核打款或驳回 | withdrawId, 冻结变化 | PASS | withdraw=`1` `P0-WD-20260908100217` 低于审核阈值自动 PAID（MOCK）；钱包 315→冻结→215；UI 截图 `P0-04-merchant-withdraw.png` |

@@ -2,7 +2,7 @@
 
 > **日期**：2026-10-02 ｜ **来源**：三端全面审查 2026-09-27 §F1（「上线前必改」）
 > **状态**：✅ 已实施并全量回归（2026-10-02；1382 测试 0 失败 0 跳过，含 27 个 Docker E2E 本地真跑）
-> **关联**：`docs/THREE_END_FULL_REVIEW_2026-09-27.md` §F1/§11.3；既有护栏 `UnpaidOrderService.markPaid`（5d0c4866，2026-09-28）
+> **关联**：`docs/archive/audit/THREE_END_FULL_REVIEW_2026-09-27.md` §F1/§11.3；既有护栏 `UnpaidOrderService.markPaid`（5d0c4866，2026-09-28）
 
 ---
 

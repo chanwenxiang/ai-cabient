@@ -481,7 +481,7 @@
  - `docs/api-inventory/{admin,consumer,merchant}.md`（自建三册；每条带鉴权/入参/成功码/CRUD 类别/**下游真源**/用例ID）
  - `docs/uat-screenshots/<日期>/`：`p1-base-ledger.md`、`p2-selftest-<端>.md`×3、`p3-business-flow.md`、
    `p4-scheduled.md`、`p5-db-coverage.md`、`FINDINGS.md`（缺陷表）、`context.json` 副本、截图与 SQL 输出
- - `docs/uat/FULL_TEST_MINDMAP_2026-10.md`：M1 全量用例 mindmap（节点 ID = 用例 ID）；
+ - docs/uat/FULL_TEST_MINDMAP_2026-10.md（**计划产物，尚未创建**）：M1 全量用例 mindmap（节点 ID = 用例 ID）；
    M2 主链泳道图（每条箭头标"断言看哪张表/哪个页面"）；M3 会话状态机 + 定时任务挂载点；
    🔴 M4 **业务线覆盖图**：36 条线（L01–L36）为一级节点，子节点=该线步骤序列，
    每节点标 PASS/PARTIAL/FAIL/BLOCKED-LINE/ENV-BLOCK —— 一眼看出"半截线"在哪
