@@ -293,6 +293,9 @@
 
 ## 十二、P2 派修单（2026-11-12，按轴四批；**实际 18 条不是 25 条**）
 
+> **收口状态（2026-11-12）**：批 A 4/4、批 B 4/4、批 C 4/4、批 D 4 修 + 1 判不成立 ⇒ 16 条可派修**全部处置完毕**；
+> 另 P2-9 判不成立、P2-12 已先行落地。
+>
 > 口径订正：报告 §二 的 P2 是 **18 条**（不是 25 条）。其中 **P2-9 复验不成立**（幂等键含行集指纹）、
 > **P2-12 已拍板并落地**（§十一）⇒ 本轮**可派修 16 条**。四批按「同一根因族一起改」切，避免同一文件多轮动刀。
 
@@ -328,15 +331,15 @@
 | **P2-13 ✅** | `PromotionPricingService:131-148` | 限购计数排除 PENDING/CANCELLED + 支持件数上限；`budget_cents` 死旋钮要么接预算要么删 | 校验 mapper 谓词（本轮待补验）；单测：取消单不占名额 |
 | **P2-3/P3-3 ✅** | `MemberService.onOrderPaid` | **orderId 去重**（同 R20-2 第一刀），与积分腿同口径 | 单测：同一单两条补缴路径只记一次 |
 
-### 批 D｜N+1 与全表扫描（5 条）
+### 批 D｜N+1 与全表扫描（5 条，**4 条已清 + P2-18 实测判不成立**）
 
 | # | 落点 | 改法要点 |
 |---|---|---|
-| P2-14 | `OpsSessionOrderQueryService:261-262` | 导出改批量 `findByOrderIdsIn`（同文件 `:285` 已有范式） |
-| P2-15 | `MarketingRoiService:142-152` | `findAll()` 改筛选下推 + 券定义批量取 |
-| P2-16 | `NearbyDeviceService:40`、`SiteContractService:50/66` | 全表载入 `device_info` 改 SQL 过滤（地理/状态条件下推） |
-| P2-17 | `FootfallAnalyticsService:67,71-72` | 每设备 count → 单条 group by 聚合 |
-| P2-18 | `InvoiceRequestMapper.xml:14-22` | 锁查询带 `status IN (PENDING,ISSUED)` 谓词（与 partial unique 对齐），或补 `(order_id)` 普通索引 |
+| **P2-14 ✅** | `OpsSessionOrderQueryService:261-262` | 导出改批量 `findByOrderIdsIn`（同文件 `:285` 已有范式） |
+| **P2-15 ✅** | `MarketingRoiService:142-152` | 三层 N+1 全部批量化（固定 5 次查询）；`findAll()` 改为**列下推**（只选 6 列）——**按 status/时间筛活动不做**，与 OBS-006「无券活动也入表」冲突（见 §十六.2） |
+| **P2-16 ✅** | `NearbyDeviceService:40`、`SiteContractService:50/66` | 全表载入 `device_info` 改 SQL 过滤（地理/状态条件下推） |
+| **P2-17 ✅** | `FootfallAnalyticsService:67,71-72` | 每设备 count → 单条 group by 聚合 |
+| **P2-18 ✖** | `InvoiceRequestMapper.xml:14-22` | ~~锁查询带 `status IN` 谓词，或补 `(order_id)` 索引~~ ⇒ **谓词早已存在（2026-10-03）+ partial unique 索引已覆盖，带上谓词实测 `Index Scan using uk_invoice_order_active`；报告的 EXPLAIN 漏写 status 谓词才 Seq Scan。不加冗余索引**（见 §十六.5） |
 
 > 排序建议：B → A → C → D（B 批直接对钱，A 批是重复履约与免单旁路）。每批落地后各跑一次
 > `mvn -o -pl services/trade-service -am test -Dtest='<受影响类>'`，并各做一次负向验证（铁律 4）。
@@ -611,3 +614,136 @@ SettlementConfirmDisputeService.prepareConfirmDispute`（无订单 ⇒ `finalize
 + `up -d --no-deps --force-recreate trade-service`（jar 内迁移不随 restart 更新）；admin 产物需重建
 （两个 vue 文件改动）。存量数据不回填：历史 EARN 行无 `earn_rate` 时走旧口径，历史 SKU 活动若带非零预算，
 再次保存即按 0 收敛、展示侧已不再显示。
+
+---
+
+## 十六、批 D 修复回执（2026-11-12，N+1 与全表扫描 4/5；**P2-18 判不成立**）
+
+> 四条落地，**一条实测证伪**（P2-18）。本轮**无新增迁移**。批 D 是性能族，
+> 判据必须钉在「哪些过滤/取数发生在 SQL 侧」，因为 Java 侧返回值不变——见 §十六.6。
+
+### 十六.1 P2-14｜按行导出：一次批量取，且**行序不变**
+
+`exportOrdersCsv(byLines)` 在订单循环里 `orderLineRepository.findByOrderId(o.getOrderId())` ——
+一页 `EXPORT_LIMIT` 单就是同量级查询（同文件 `:285` 早就有批量范式，这处没跟上）。
+
+改法：循环外 `loadOrderLinesByOrderIds(pageOrderIds)` 一次 `IN` 取回再分组。
+
+**但批量取有个不许丢的细节**：原实现的逐单版按 `line id ASC` 排序，而内联的
+`selectList(in(...))` 不带 `ORDER BY` ⇒ 导出 CSV 的行顺序会随执行计划漂移。这是一条
+**导出产物**，顺序变了用户下载下来的 diff 就变了。所以：
+- `loadOrderLinesByOrderIds` 内部改用 `findByOrderIds`（内建 `orderByAsc(id)`）；
+- 分组容器换 `LinkedHashMap`（`groupingBy` 默认 `HashMap`，桶内顺序虽保留但跨单顺序不可依赖）。
+
+判据：`exportOrdersCsv_byLines_fetchesAllLinesInOneQueryAndKeepsOrder`
+（一次 `findByOrderIds` + `findByOrderId` **从未**调用 + 同单内 `id` 小的行先出现 + 三行内容逐字段比对）。
+
+### 十六.2 P2-15｜ROI 三层 N+1 → 固定 5 次查询
+
+原实现（每个活动/每个券定义各一次）：
+1. `activityRepository.findAll()` —— `SELECT *`，把 `rule_config` 等大字段一并拉回，ROI 一行都用不到；
+2. 每活动一次 `findByActivityId`；
+3. 每券定义**三次**：`countByCouponDefId`、`countByCouponDefIdAndStatus(USED)`、`findByCouponDefId`（拉全部实例只为拿 id 集合）；
+4. 每活动一次 `findByCouponIdInAndCreatedAtAfter`（大 `IN` 查订单实体，再在内存 stream 求和）。
+
+改法（固定 5 次，与活动数无关）：`findAllForRoi()`（只选 6 列）→ `findByActivityIdIn` →
+`countGroupByCouponDefIds`（一条 group-by 出「领取/已用」）→ `sumCouponOrdersByActivitySince`
+（一条 join + group-by 出「单数/营收/券面额」）→ 内存按活动归并。
+
+**两处口径细节**：
+- 订单聚合用内层 `SELECT DISTINCT` 再外层 `COUNT(*)`/`SUM`，而不是 `COUNT(DISTINCT)+SUM`：
+  join 后若同一订单匹配多行，前者让「单数」与「金额」出自同一批行，后者会金额翻倍而单数正常
+  ——这种分叉比崩溃难查得多。
+- **报告说「`findAll()` 改筛选下推」，这一半没做**：ROI 接口只有 `days` 一个参数，按 `status`
+  或时间筛活动会与 OBS-006（无券活动也要入表）冲突，运营会看到活动凭空消失。真正能下推的是
+  **列**（`SELECT *` → 6 列），已做。口径变化为零。
+
+判据：`list_shouldAggregateClaimRedeemAndRevenuePerActivity`（含 6 条 `verify(never)`：`findAll` /
+`findByActivityId` / `countByCouponDefId` / `countByCouponDefIdAndStatus` / `findByCouponDefId` /
+`findByCouponIdInAndCreatedAtAfter`，任何一条复活即红）、`list_sumsCouponDefsOfSameActivity_andTreatsMissingAggregateAsZero`
+（多券求和 + 无聚合行的券按 0）、`list_keepsActivityWithoutCoupons`。
+
+### 十六.3 P2-16｜附近柜机与合同列表：全表载入 → 条件下推
+
+**（a）`NearbyDeviceService.listNearby`**：`findAllOrderByDeviceIdAsc()` 全表载回内存，
+再逐个 `hasCoordinates` + 生命周期过滤 + haversine。改成分两段：
+- SQL 粗筛：外接矩形 `latitude BETWEEN … AND …`（经度同理）+ 坐标非空 + 生命周期投放态 + `is_deleted = false`；
+- 内存精筛：haversine 判半径（矩形是圆的超集，不会漏）。
+
+三个坑都写进代码注释：
+1. **经度跨度要除 `cos φ`**（1 度经度的米数随纬度收缩）。写反会漏掉东西向的柜机——判据专门断言
+   `lonSpan > latSpan`（上海 φ≈31.23° ⇒ 0.210 > 0.180）。
+2. **跨 ±180 不能硬套 `BETWEEN`**：日界线附近 `lo < -180` 或 `hi > 180` 时传 `minLon=null`，
+   退化成只按纬度过滤（仍砍掉绝大部分），由 haversine 保精度。宁可少用一次索引，也不能漏柜机。
+3. **`lifecycle_status IS NULL` 必须显式放行**：SQL 三值逻辑里 `NULL NOT IN (...)` 是 `NULL`，
+   单写 `NOT IN` 会把 lifecycle 为空的历史柜机**整批滤掉**（`normalizeLifecycle(null)=DEPLOYED`，
+   它们本该算投放中）。归一化也用 `UPPER(TRIM(...))` 与内存版 `isExcludedLifecycle` 逐字对齐。
+   另：注解 SQL 不受 `@TableLogic` 管，`is_deleted = false` 必须手写。
+
+**（b）`SiteContractService.list/listPage`**：为拿「柜机名」把整张 `device_info` 载入，两处各一次。
+改成先取合同、再用当页的 `deviceId` 集合 `findByDeviceIdIn`；查不到的仍回落成 `deviceId`
+（与旧 `getOrDefault` 同行为），一页空合同时连设备表都不碰。
+
+判据：`findNearbyCandidates_pushesCoordinatesLifecycleAndBox`（反射读 `@Select` 断言 5 类谓词）、
+`listNearby_pushesBoundingBoxDownToSql`（捕获矩形参数：`±半径` 的纬度总跨度 0.1799°、经度 0.2104°、
+矩形以查询点为心）、`listNearby_sortsByDistance`（+ `never findAllOrderByDeviceIdAsc`）、
+`listPage_loadsDeviceNamesOnlyForDevicesOnThisPage`、`listPage_withoutContracts_skipsDeviceQuery`。
+
+**未做（明确边界）**：`listNearby` 里 `getDeviceStatus` + `listProducts` 仍是逐台调用（上限 50 ⇒
+最多 100 次）。它们的批量版需要 `DeviceCatalogService` 提供「按柜机批量算商品/可用态」的门面
+（含活动价与货道校验），属独立改造，不在本批塞入；报告也未点此条。
+
+### 十六.4 P2-17｜客流：每台一次 count → 一条 group-by
+
+`FootfallAnalyticsService.analytics` 对**每台柜机**调 `countByDeviceIdAndCreatedAtAfter`
+（线下几百台就是几百次往返），且 `findAllOrderByDeviceIdAsc()` 调了**两次**（overview 计数 + 设备循环）。
+
+改法：柜机清单取一次；新增 `ShoppingSessionMapper.countOpensGroupByDeviceSince(since)` 一条
+group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上榜，不能因为没开门就消失），
+`device_id` 为空的脏行不进桶（不凭空造柜机）。时间窗与逐台版同口径（`created_at > since`）。
+
+判据：`analytics_shouldComputeOverviewDevicesHourlyAndSkus`（+ `never countByDeviceIdAndCreatedAtAfter`
++ `findAllOrderByDeviceIdAsc` 只调用 1 次）、`analytics_deviceWithoutOpenRows_isStillListedWithZeroOpens`、
+`countOpensGroupByDeviceSince_isSingleGroupByAggregate`（SQL 判据：group by / 别名 `opens` / 时间谓词 / 非空设备）。
+
+### 十六.5 P2-18｜**判不成立**：谓词与索引都已具备，报告的 EXPLAIN 少写了谓词
+
+报告 §八 的口径是「实为 partial unique `(order_id) WHERE status IN (PENDING,ISSUED)`；
+`EXPLAIN … WHERE order_id='x' FOR UPDATE` 实测 `Seq Scan`」。亲验：
+
+1. `InvoiceRequestMapper.xml` 的 `findActiveByOrderIdForUpdateRaw` **早就带** `AND i.status IN ('PENDING','ISSUED')`
+   （`git log -S` 追溯：2026-10-03 的 `f030f09f` 引入，早于本次审计）。
+2. 库里实测（`invoice_request` 0 行）：
+   `EXPLAIN SELECT i.* FROM invoice_request i WHERE i.order_id='X' AND i.status IN ('PENDING','ISSUED') ORDER BY i.invoice_id LIMIT 1 FOR UPDATE`
+   ⇒ **`Index Scan using uk_invoice_order_active`**（`Index Cond: order_id = 'X'`）。
+
+即报告的 EXPLAIN 没带 `status` 谓词，而 partial index 的谓词是 `status IN (PENDING,ISSUED)`——
+**查询谓词不蕴含索引谓词，Postgres 当然用不了它**，于是 Seq Scan。带上谓词即走索引。
+
+⇒ **不采纳「再加一个普通 `(order_id)` 索引」**：partial unique 索引已经是该查询的最优索引，
+同列同谓词再加一条普通索引只会带来写放大（发票表是低频写，但没有收益的冗余索引仍不该加）。
+**本条不改代码、不加迁移。**
+
+### 十六.6 判据与验证
+
+- 定向 **23 例全绿**（7 个类）：`OpsSessionOrderQueryServiceTest`(5) / `MarketingRoiServiceTest`(5)
+  / `NearbyDeviceServiceTest`(2) / `FootfallAnalyticsServiceTest`(2) / `SiteContractServiceTest`(4)
+  / `SiteContractConcurrencyTest`(2) / `QueryPushdownPredicateTest`(3, 新增)。
+- 负向验证（铁律 4，**六轮**独立注入、各自转红、还原后 md5 逐字节一致）：
+  ① 导出回到逐单 `findByOrderId` ⇒ `exportOrdersCsv_byLines_…` 转红（CSV 只剩表头）；
+  ② `findAllForRoi` 退回 `findAll()` ⇒ ROI 3 例转红（NPE / 期望 1 得 0）；
+  ③ 附近柜机回到 `findAllOrderByDeviceIdAsc` ⇒ 2 例转红（含矩形参数捕获失败）；
+  ④ 合同列表回到全表载入 ⇒ 2 例转红（设备名回落、空页仍查设备）；
+  ⑤ 客流回到逐台 count ⇒ 2 例转红（开门数 0 + 多余 stub）；
+  ⑥ 删 `is_deleted = false` 与 `SELECT DISTINCT` ⇒ `QueryPushdownPredicateTest` 2 例转红。
+- 门禁：`check-mapper-xml-binding` / `check-mybatis-null-clear` / `check-test-mockito-pitfalls` 全绿。
+- **未新增静态门禁**（明确说明）：这类缺陷是「过滤位置」问题，静态扫「循环体内调用 repository」
+  需要控制流分析，简单正则假红率极高（合法的逐条重试、事务内两段式读都会被误报）。
+  本轮把判据落在两层：SQL 谓词的**反射断言**（`QueryPushdownPredicateTest`，删谓词即红）
+  + 服务层的 `verify(never)` 行为断言（回退即红）。SQL 注解读真值而非 grep，理由同 §十五.3。
+
+### 十六.7 部署注意
+
+本轮**无新增迁移**（纯代码 + 测试）⇒ `mvn -o -pl services/trade-service -am -DskipTests package`
++ `up -d --no-deps --force-recreate trade-service`。前端无改动。
+存量数据无影响：四条都是取数方式变化，返回结果与改前逐字段一致（判据已按此校验）。

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.FootfallAnalyticsDto;
+import com.aicabinet.common.dto.FootfallDeviceDto;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
@@ -20,7 +21,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,8 +68,9 @@ class FootfallAnalyticsServiceTest {
 
         when(orderRepository.findByStatusAndCreatedAtAfter(eq("PAID"), any())).thenReturn(orders);
         when(sessionRepository.countByCreatedAtAfter(any())).thenReturn(10L);
-        when(sessionRepository.countByDeviceIdAndCreatedAtAfter(eq("CAB-001"), any())).thenReturn(6L);
-        when(sessionRepository.countByDeviceIdAndCreatedAtAfter(eq("CAB-002"), any())).thenReturn(4L);
+        // R20 P2-17：各柜开门数改成一条 group-by 取回，不再逐台 count
+        when(sessionRepository.countOpensGroupByDeviceSince(any())).thenReturn(List.of(
+                opensRow("CAB-001", 6L), opensRow("CAB-002", 4L)));
         when(deviceRepository.findAllOrderByDeviceIdAsc()).thenReturn(List.of(
                 device("CAB-001", "柜A"), device("CAB-002", "柜B")));
         when(orderLineRepository.skuBreakdownSince(any())).thenReturn(List.<Object[]>of(
@@ -88,6 +94,41 @@ class FootfallAnalyticsServiceTest {
         assertEquals(2, dto.hourly().get(11).orders());
         // 商品热区
         assertEquals("SKU-1", dto.topSkus().get(0).skuId());
+
+        // R20 P2-17：不得回退成「每台柜机一次 count」
+        verify(sessionRepository, never()).countByDeviceIdAndCreatedAtAfter(anyString(), any());
+        // 柜机清单只加载一次（原来 overview 与设备循环各一次）
+        verify(deviceRepository, times(1)).findAllOrderByDeviceIdAsc();
+    }
+
+    /**
+     * R20 P2-17：group-by 结果里缺失的柜机按 0 记，不能因为聚合行没覆盖到就当它「没数据」而跳过。
+     * 同时聚合结果里的 null 设备（历史脏行）不得凭空造出一台柜机。
+     */
+    @Test
+    void analytics_deviceWithoutOpenRows_isStillListedWithZeroOpens() {
+        when(orderRepository.findByStatusAndCreatedAtAfter(eq("PAID"), any())).thenReturn(List.of());
+        when(sessionRepository.countByCreatedAtAfter(any())).thenReturn(3L);
+        when(sessionRepository.countOpensGroupByDeviceSince(any())).thenReturn(List.of(opensRow("CAB-001", 3L)));
+        when(deviceRepository.findAllOrderByDeviceIdAsc()).thenReturn(List.of(
+                device("CAB-001", "柜A"), device("CAB-002", "柜B")));
+        when(orderLineRepository.skuBreakdownSince(any())).thenReturn(List.of());
+
+        FootfallAnalyticsDto dto = service.analytics(7, 50, 20);
+
+        assertEquals(2, dto.devices().size(), "两台柜机都要在榜上，没开门的那台记 0");
+        assertEquals(2, dto.overview().deviceCount());
+        FootfallDeviceDto zero = dto.devices().stream()
+                .filter(x -> "CAB-002".equals(x.deviceId())).findFirst().orElseThrow();
+        assertEquals(0, zero.opens());
+        assertEquals(0.0, zero.conversionRate(), 1e-9);
+    }
+
+    private static java.util.Map<String, Object> opensRow(String deviceId, long opens) {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("device_id", deviceId);
+        row.put("opens", opens);
+        return row;
     }
 
     private static DeviceInfo device(String id, String name) {

@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 点位场地合同：每个柜机一份合同，按到期时间自动标记 EXPIRING / EXPIRED。
@@ -46,12 +47,10 @@ public class SiteContractService {
     @Transactional(readOnly = true)
     public List<SiteContractDto> list(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:device:list");
-        Map<String, String> deviceNames = new HashMap<>();
-        for (DeviceInfo device : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            deviceNames.put(device.getDeviceId(),
-                    device.getDeviceName() != null ? device.getDeviceName() : device.getDeviceId());
-        }
-        return contractRepository.findAllOrderByUpdatedDesc().stream()
+        List<SiteContract> contracts = contractRepository.findAllOrderByUpdatedDesc();
+        Map<String, String> deviceNames = deviceNamesFor(
+                contracts.stream().map(SiteContract::getDeviceId).toList());
+        return contracts.stream()
                 .map(c -> toDto(c, deviceNames.getOrDefault(c.getDeviceId(), c.getDeviceId())))
                 .toList();
     }
@@ -62,16 +61,35 @@ public class SiteContractService {
         permissionService.requireAnyPermission(operatorId, "ops:org:list", "ops:device:list");
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        Map<String, String> deviceNames = new HashMap<>();
-        for (DeviceInfo device : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            deviceNames.put(device.getDeviceId(),
-                    device.getDeviceName() != null ? device.getDeviceName() : device.getDeviceId());
-        }
         Page<SiteContract> result = contractRepository.searchPage(p, s);
+        Map<String, String> deviceNames = deviceNamesFor(
+                result.getRecords().stream().map(SiteContract::getDeviceId).toList());
         List<SiteContractDto> items = result.getRecords().stream()
                 .map(c -> toDto(c, deviceNames.getOrDefault(c.getDeviceId(), c.getDeviceId())))
                 .toList();
         return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    /**
+     * 合同列表只需要「柜机名」这一列，却原来把整张 {@code device_info} 全表载入（R20 P2-16）——
+     * 两处 list 各一次，一页 100 条合同却拉了全量设备。改成只取当页涉及的 deviceId。
+     *
+     * <p>返回 deviceId → 展示名；查不到（柜机已删/ID 写错）由调用方回落成 deviceId 本身，
+     * 与旧行为一致（旧代码是 {@code getOrDefault(c.getDeviceId(), c.getDeviceId())}）。
+     */
+    private Map<String, String> deviceNamesFor(List<String> deviceIds) {
+        Set<String> distinct = deviceIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        Map<String, String> names = new HashMap<>();
+        if (distinct.isEmpty()) {
+            return names;
+        }
+        for (DeviceInfo device : deviceRepository.findByDeviceIdIn(distinct)) {
+            names.put(device.getDeviceId(),
+                    device.getDeviceName() != null ? device.getDeviceName() : device.getDeviceId());
+        }
+        return names;
     }
 
     @Transactional

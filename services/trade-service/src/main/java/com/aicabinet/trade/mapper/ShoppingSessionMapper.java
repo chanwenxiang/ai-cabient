@@ -546,4 +546,24 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
         return c == null ? 0 : c;
     }
 
+    /**
+     * 窗口内按柜机聚合开门数（R20 P2-17）。
+     *
+     * <p>客流分析原来对**每台柜机**调一次 {@code countByDeviceIdAndCreatedAtAfter} ⇒
+     * 一次页面打开等于「柜机数」次 count 查询（线下几百台就是几百次往返）。改成一条
+     * group-by：滤条件与逐台版完全一致（{@code created_at > since}，设备维度分组）。
+     *
+     * <p>语义对齐点：逐台版只统计 {@code device_id} 命中的会话，group-by 天然按 device_id
+     * 分组，{@code device_id IS NULL} 的历史脏行不进任何桶，两边一致（不要为了「不漏」把
+     * null 归到某个假设备上——那会凭空造出一台有余量无实体的柜机）。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            SELECT device_id AS device_id, COUNT(*) AS opens
+            FROM shopping_session
+            WHERE created_at > #{since}
+              AND device_id IS NOT NULL
+            GROUP BY device_id
+            """)
+    List<java.util.Map<String, Object>> countOpensGroupByDeviceSince(@Param("since") java.time.Instant since);
+
 }

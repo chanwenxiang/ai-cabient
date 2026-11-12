@@ -1,10 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.MarketingRoiRowDto;
-import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.PromotionActivity;
-import com.aicabinet.trade.domain.UserCoupon;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.PromotionActivityMapper;
@@ -18,6 +16,11 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,9 +35,7 @@ class MarketingRoiServiceTest {
 
     @Test
     void list_shouldAggregateClaimRedeemAndRevenuePerActivity() {
-        MarketingRoiService service = new MarketingRoiService(
-                activityRepository, couponDefinitionRepository, userCouponRepository, orderRepository,
-                playEventRepository, adCampaignRepository);
+        MarketingRoiService service = newRoiService();
 
         PromotionActivity activity = new PromotionActivity();
         activity.setActivityId(1L);
@@ -43,32 +44,18 @@ class MarketingRoiServiceTest {
         activity.setStatus("ACTIVE");
         activity.setBudgetCents(500000);
         activity.setUsedCents(0);
-        when(activityRepository.findAll()).thenReturn(List.of(activity));
+        when(activityRepository.findAllForRoi()).thenReturn(List.of(activity));
 
         CouponDefinition def = new CouponDefinition();
         def.setCouponDefId(2L);
         def.setCouponName("满 20 减 5 券");
         def.setActivityId(1L);
-        when(couponDefinitionRepository.findByActivityId(1L)).thenReturn(List.of(def));
-        when(userCouponRepository.countByCouponDefId(2L)).thenReturn(100L);
-        when(userCouponRepository.countByCouponDefIdAndStatus(2L, "USED")).thenReturn(30L);
-
-        UserCoupon c1 = new UserCoupon();
-        c1.setCouponId(101L);
-        c1.setCouponDefId(2L);
-        UserCoupon c2 = new UserCoupon();
-        c2.setCouponId(102L);
-        c2.setCouponDefId(2L);
-        when(userCouponRepository.findByCouponDefId(2L)).thenReturn(List.of(c1, c2));
-
-        CabinetOrder o1 = new CabinetOrder();
-        o1.setTotalAmountCents(5000);
-        o1.setCouponDiscountCents(500);
-        CabinetOrder o2 = new CabinetOrder();
-        o2.setTotalAmountCents(1000);
-        o2.setCouponDiscountCents(200);
-        when(orderRepository.findByCouponIdInAndCreatedAtAfter(any(), any()))
-                .thenReturn(List.of(o1, o2));
+        when(couponDefinitionRepository.findByActivityIdIn(anyCollection()))
+                .thenReturn(List.of(def));
+        when(userCouponRepository.countGroupByCouponDefIds(anyCollection()))
+                .thenReturn(List.of(couponAggRow(2L, 100L, 30L)));
+        when(orderRepository.sumCouponOrdersByActivitySince(anyCollection(), any()))
+                .thenReturn(List.of(orderAggRow(1L, 2L, 6000L, 700L)));
 
         List<MarketingRoiRowDto> rows = service.list(30);
 
@@ -81,6 +68,91 @@ class MarketingRoiServiceTest {
         assertEquals(2, row.orderCount());
         assertEquals(6000, row.orderRevenueCents());
         assertEquals(700, row.discountCents());
+
+        // R20 P2-15：整条链路不得再回退成按活动/按券定义逐条查（三次 N+1）
+        verify(activityRepository, never()).findAll();
+        verify(couponDefinitionRepository, never()).findByActivityId(anyLong());
+        verify(userCouponRepository, never()).countByCouponDefId(anyLong());
+        verify(userCouponRepository, never()).countByCouponDefIdAndStatus(anyLong(), anyString());
+        verify(userCouponRepository, never()).findByCouponDefId(anyLong());
+        verify(orderRepository, never()).findByCouponIdInAndCreatedAtAfter(anyCollection(), any());
+    }
+
+    /**
+     * 一个活动挂多个券定义时，领取/核销要**求和**（旧实现是逐券累加）；
+     * 没被 group-by 结果覆盖到的券定义（一张都没发）按 0 记。
+     */
+    @Test
+    void list_sumsCouponDefsOfSameActivity_andTreatsMissingAggregateAsZero() {
+        MarketingRoiService service = newRoiService();
+
+        PromotionActivity activity = new PromotionActivity();
+        activity.setActivityId(9L);
+        activity.setActivityName("双券活动");
+        when(activityRepository.findAllForRoi()).thenReturn(List.of(activity));
+
+        CouponDefinition a = new CouponDefinition();
+        a.setCouponDefId(11L);
+        a.setActivityId(9L);
+        CouponDefinition b = new CouponDefinition();
+        b.setCouponDefId(12L);
+        b.setActivityId(9L);
+        when(couponDefinitionRepository.findByActivityIdIn(anyCollection()))
+                .thenReturn(List.of(a, b));
+        // 只有 11 号券有发放记录，12 号券无聚合行 ⇒ 记 0
+        when(userCouponRepository.countGroupByCouponDefIds(anyCollection()))
+                .thenReturn(List.of(couponAggRow(11L, 8L, 4L)));
+        when(orderRepository.sumCouponOrdersByActivitySince(anyCollection(), any()))
+                .thenReturn(List.of());
+
+        MarketingRoiRowDto row = service.list(30).get(0);
+
+        assertEquals(8, row.claimedCount());
+        assertEquals(4, row.usedCount());
+        assertEquals(0.5, row.redeemRate(), 1e-9);
+        assertEquals(0, row.orderCount());
+        assertEquals(0, row.orderRevenueCents());
+    }
+
+    /** 无券活动也入表（OBS-006）：一行都不能少，发券/核销/营收全 0。 */
+    @Test
+    void list_keepsActivityWithoutCoupons() {
+        MarketingRoiService service = newRoiService();
+
+        PromotionActivity activity = new PromotionActivity();
+        activity.setActivityId(5L);
+        activity.setActivityName("纯折扣活动");
+        when(activityRepository.findAllForRoi()).thenReturn(List.of(activity));
+        when(couponDefinitionRepository.findByActivityIdIn(anyCollection())).thenReturn(List.of());
+        when(orderRepository.sumCouponOrdersByActivitySince(anyCollection(), any())).thenReturn(List.of());
+
+        List<MarketingRoiRowDto> rows = service.list(30);
+
+        assertEquals(1, rows.size());
+        assertEquals(0, rows.get(0).claimedCount());
+        assertEquals(0.0, rows.get(0).redeemRate(), 1e-9);
+    }
+
+    private MarketingRoiService newRoiService() {
+        return new MarketingRoiService(activityRepository, couponDefinitionRepository,
+                userCouponRepository, orderRepository, playEventRepository, adCampaignRepository);
+    }
+
+    private static java.util.Map<String, Object> couponAggRow(Long defId, long claimed, long used) {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("coupon_def_id", defId);
+        row.put("claimed", claimed);
+        row.put("used", used);
+        return row;
+    }
+
+    private static java.util.Map<String, Object> orderAggRow(Long activityId, long count, long revenue, long discount) {
+        java.util.Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("activity_id", activityId);
+        row.put("order_count", count);
+        row.put("revenue_cents", revenue);
+        row.put("discount_cents", discount);
+        return row;
     }
 
     @Test

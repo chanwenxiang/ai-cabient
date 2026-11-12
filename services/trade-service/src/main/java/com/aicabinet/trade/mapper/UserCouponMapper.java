@@ -85,6 +85,29 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
         return c == null ? 0 : c;
     }
 
+    /**
+     * 按券定义聚合「已领取 / 已使用」张数（R20 P2-15）。
+     *
+     * <p>ROI 表原来对每个券定义跑三次查询（总数、USED 数、全部实例），一个活动挂 5 种券就是 15 次；
+     * 这里一条 group-by 收口。调用方仍按「活动 → 其下全部券定义」求和，与旧口径一致。
+     *
+     * <p>返回列名保持下划线原样（MyBatis 对 {@code Map} 结果不做驼峰转换，与
+     * {@code AdPlayEventMapper.aggregatePlacementsSince} 同规矩）。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            <script>
+            SELECT coupon_def_id,
+                   COUNT(*) AS claimed,
+                   COALESCE(SUM(CASE WHEN status = 'USED' THEN 1 ELSE 0 END), 0) AS used
+            FROM user_coupon
+            WHERE coupon_def_id IN
+            <foreach collection="defIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            GROUP BY coupon_def_id
+            </script>
+            """)
+    List<java.util.Map<String, Object>> countGroupByCouponDefIds(
+            @Param("defIds") java.util.Collection<Long> defIds);
+
     default List<UserCoupon> findByOrderIdAndStatus(String orderId, String status) {
         return selectList(Wrappers.<UserCoupon>lambdaQuery()
                 .eq(UserCoupon::getOrderId, orderId)

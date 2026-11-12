@@ -411,6 +411,43 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                 .orderByDesc(CabinetOrder::getCreatedAt));
     }
 
+    /**
+     * 按**活动**聚合用券订单（R20 P2-15）：单数 / 营收 / 券面额。
+     *
+     * <p>ROI 表原来「每个活动一次」{@link #findByCouponIdInAndCreatedAtAfter}（先拉该活动全部券实例 id
+     * 再 `IN` 查订单），活动多就是 N 次大 IN 查询；这里一条 join + group-by 收口，且不再把订单实体
+     * 整个搬进内存做 stream 求和。
+     *
+     * <p>内层 {@code SELECT DISTINCT} 不是多余：{@code user_coupon} 与 {@code cabinet_order} 是
+     * 一对多方向上的两张表，join 后若同一订单匹配到多行（同一券重复登记/历史脏数据），外层直接
+     * {@code COUNT(DISTINCT)} + {@code SUM} 会让「单数」与「金额」两列口径分叉（金额被翻倍）。
+     * 先按 (活动, 订单, 金额) 去重，外层 {@code COUNT(*)} 与 {@code SUM} 就必然是同一批行。
+     *
+     * <p>时间窗与旧实现一致：{@code created_at >= since}（含当天起点）。**不过滤订单状态**——
+     * 旧实现也不过滤，ROI 的「带动营收」是含退款单的毛额（口径未变，改口径要产品拍板）。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            <script>
+            SELECT t.activity_id AS activity_id,
+                   COUNT(*) AS order_count,
+                   COALESCE(SUM(t.total_amount_cents), 0) AS revenue_cents,
+                   COALESCE(SUM(t.coupon_discount_cents), 0) AS discount_cents
+            FROM (
+              SELECT DISTINCT cd.activity_id, o.order_id, o.total_amount_cents, o.coupon_discount_cents
+              FROM user_coupon uc
+              JOIN coupon_definition cd ON cd.coupon_def_id = uc.coupon_def_id
+              JOIN cabinet_order o ON o.coupon_id = uc.coupon_id
+              WHERE cd.activity_id IN
+              <foreach collection="activityIds" item="aid" open="(" separator="," close=")">#{aid}</foreach>
+                AND o.created_at &gt;= #{since}
+            ) t
+            GROUP BY t.activity_id
+            </script>
+            """)
+    List<java.util.Map<String, Object>> sumCouponOrdersByActivitySince(
+            @Param("activityIds") Collection<Long> activityIds,
+            @Param("since") Instant since);
+
     default List<CabinetOrder> findByStatusAndCreatedAtAfter(String status, Instant since) {
         return selectList(Wrappers.<CabinetOrder>lambdaQuery()
                 .eq(CabinetOrder::getStatus, status)

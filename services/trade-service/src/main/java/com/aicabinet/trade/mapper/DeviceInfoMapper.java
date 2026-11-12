@@ -290,4 +290,44 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
                 .eq(DeviceInfo::getImei, imei.trim())));
     }
 
+    /**
+     * 附近柜机候选（R20 P2-16）：把「有坐标 + 生命周期在投放态 + 地理矩形框」三件事下推到 SQL。
+     *
+     * <p>原实现 {@code findAllOrderByDeviceIdAsc()} 全表载回内存再逐个算 haversine ——
+     * 线下柜机越多越慢，且一次「附近柜机」把全表都拉过网络。这里先用**外接矩形**粗筛
+     * （SQL 走 latitude/longitude 索引可用区间），再由调用方用 haversine 精筛半径。
+     * 矩形是圆的超集，因此不会漏目标柜机，只是候选里会多出矩形角落的几个。
+     *
+     * <p>经度跨越 ±180（日界线附近）时 SQL 的 {@code BETWEEN} 无法表达环绕，此时调用方传
+     * {@code minLon=null} ⇒ **只按纬度过滤**（仍能砍掉绝大部分），精度不受影响（后续 haversine
+     * 才是判据）。宁可少用一次索引，也不能因为跨日界线把该出现的柜机漏掉。
+     *
+     * <p>生命周期判据必须与内存版 {@code isExcludedLifecycle} 逐字对齐：trim + upper 后落在
+     * {RETIRED, WAREHOUSE, SCRAPPED, DECOMMISSIONED} 才排除。{@code NULL} 与空串都要**放行**
+     * （历史行 lifecycle 为 null 时按 DEPLOYED 处理，见 {@code DeviceAssetService.normalizeLifecycle}），
+     * 所以不能写成 {@code NOT IN} 单条件——SQL 三值逻辑里 {@code NULL NOT IN (...)} 是 NULL，
+     * 会把历史柜机整批滤掉。
+     *
+     * <p>{@code is_deleted = false} 手写：{@code @TableLogic} 只对 Wrapper 生效，注解 SQL 不受管。
+     */
+    @Select("""
+            <script>
+            SELECT * FROM device_info
+            WHERE is_deleted = false
+              AND latitude IS NOT NULL AND longitude IS NOT NULL
+              AND latitude BETWEEN #{minLat} AND #{maxLat}
+              AND (lifecycle_status IS NULL
+                   OR UPPER(TRIM(lifecycle_status)) NOT IN
+                      ('RETIRED', 'WAREHOUSE', 'SCRAPPED', 'DECOMMISSIONED'))
+              <if test="minLon != null">
+              AND longitude BETWEEN #{minLon} AND #{maxLon}
+              </if>
+            ORDER BY device_id ASC
+            </script>
+            """)
+    List<DeviceInfo> findNearbyCandidates(@Param("minLat") double minLat,
+                                          @Param("maxLat") double maxLat,
+                                          @Param("minLon") Double minLon,
+                                          @Param("maxLon") Double maxLon);
+
 }

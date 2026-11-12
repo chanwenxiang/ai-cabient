@@ -36,13 +36,33 @@ public class NearbyDeviceService {
         double radiusM = resolveRadiusMeters(radiusKm);
         int max = resolveResultLimit(limit);
 
+        // R20 P2-16：粗筛下推（SQL 外接矩形 + 有坐标 + 生命周期投放态）→ 精筛（haversine 半径）。
+        // 原实现 findAllOrderByDeviceIdAsc 全表载回内存再逐个算距离。
+        double latSpan = Math.toDegrees(radiusM / EARTH_RADIUS_M);
+        double minLat = Math.max(-90d, latitude - latSpan);
+        double maxLat = Math.min(90d, latitude + latSpan);
+        Double minLon = null;
+        Double maxLon = null;
+        double cosLat = Math.cos(Math.toRadians(latitude));
+        if (Math.abs(cosLat) > 1e-9) {
+            // 经度 1 度的实际米数随纬度收缩；除 cos 得到该纬度上的经度跨度。
+            double lonSpan = Math.toDegrees(radiusM / (EARTH_RADIUS_M * Math.abs(cosLat)));
+            double lo = longitude - lonSpan;
+            double hi = longitude + lonSpan;
+            // 跨 ±180（日界线）或跨度大到盖住半球时，BETWEEN 无法表达环绕 ⇒ 不按经度过滤，
+            // 只留纬度谓词（仍是圆的超集，不会漏柜机，见 DeviceInfoMapper 注释）。
+            if (lonSpan < 180d && lo >= -180d && hi <= 180d) {
+                minLon = lo;
+                maxLon = hi;
+            }
+        }
+
         List<NearbyDeviceDto> out = new ArrayList<>();
-        for (DeviceInfo d : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            if (hasCoordinates(d) && !isExcludedLifecycle(d.getLifecycleStatus())) {
-                double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
-                if (dist <= radiusM) {
-                    out.add(toDto(d, dist));
-                }
+        for (DeviceInfo d : deviceRepository.findNearbyCandidates(minLat, maxLat, minLon, maxLon)) {
+            // 坐标非空与生命周期已由 SQL 保证（同判据、同归一化口径），这里只剩距离判据。
+            double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
+            if (dist <= radiusM) {
+                out.add(toDto(d, dist));
             }
         }
         out.sort(Comparator.comparingDouble(NearbyDeviceDto::distanceMeters));
@@ -63,16 +83,6 @@ public class NearbyDeviceService {
 
     private static int resolveResultLimit(int limit) {
         return limit <= 0 ? 20 : Math.min(limit, 50);
-    }
-
-    private static boolean hasCoordinates(DeviceInfo device) {
-        return device.getLatitude() != null && device.getLongitude() != null;
-    }
-
-    private static boolean isExcludedLifecycle(String lifecycleStatus) {
-        String life = lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase();
-        return life.equals("RETIRED") || life.equals("WAREHOUSE") || life.equals("SCRAPPED")
-                || life.equals("DECOMMISSIONED");
     }
 
     private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters) {

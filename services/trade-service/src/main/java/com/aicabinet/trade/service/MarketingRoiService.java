@@ -6,7 +6,6 @@ import com.aicabinet.trade.domain.AdCampaign;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.PromotionActivity;
-import com.aicabinet.trade.domain.UserCoupon;
 import com.aicabinet.trade.mapper.AdCampaignMapper;
 import com.aicabinet.trade.mapper.AdPlayEventMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -25,6 +24,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Set;
 
 /**
@@ -134,34 +134,72 @@ public class MarketingRoiService {
         return v instanceof Number n ? n.longValue() : 0L;
     }
 
+    /**
+     * 活动 ROI 列表（发券 → 核销 → 带动营收）。
+     *
+     * <p>R20 P2-15：原实现是典型的三层 N+1——每个活动查一次券定义、每个券定义查三次券实例
+     * （总数/USED/全部）、每个活动再查一次订单；一个挂 5 种券的活动就是 16 次查询，活动数十个
+     * 就是几百次往返。现在固定为 **5 次**查询：活动清单、券定义（一次 IN）、券实例聚合（一条
+     * group-by）、订单聚合（一条 join+group-by），与活动数无关。
+     *
+     * <p>口径未变（逐项对齐旧实现）：领取数/核销数按「活动下全部券定义求和」；营收与券面额
+     * 按窗口内 {@code created_at >= since}、**不筛订单状态**（含退款单的毛额，旧口径如此）；
+     * 核销率 = 已使用 / 已领取（领取 0 时为 0）。无券活动依旧入表（OBS-006）。
+     */
     @Transactional(readOnly = true)
     public List<MarketingRoiRowDto> list(int days) {
         int window = Math.min(Math.max(days, 7), 90);
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        List<PromotionActivity> activities = activityRepository.findAllForRoi();
+        if (activities.isEmpty()) {
+            return List.of();
+        }
+        List<Long> activityIds = activities.stream().map(PromotionActivity::getActivityId).toList();
+
+        Map<Long, List<CouponDefinition>> defsByActivity = couponDefinitionRepository
+                .findByActivityIdIn(activityIds).stream()
+                .filter(def -> def.getActivityId() != null)
+                .collect(Collectors.groupingBy(CouponDefinition::getActivityId));
+        List<Long> defIds = defsByActivity.values().stream()
+                .flatMap(List::stream)
+                .map(CouponDefinition::getCouponDefId)
+                .toList();
+
+        // defId -> {claimed, used}
+        Map<Long, long[]> couponAgg = new HashMap<>();
+        if (!defIds.isEmpty()) {
+            for (Map<String, Object> r : userCouponRepository.countGroupByCouponDefIds(defIds)) {
+                Long defId = asLongOrNull(r.get("coupon_def_id"));
+                if (defId == null) {
+                    continue;
+                }
+                couponAgg.put(defId, new long[]{asLong(r.get("claimed")), asLong(r.get("used"))});
+            }
+        }
+
+        // activityId -> {orderCount, revenueCents, discountCents}
+        Map<Long, long[]> orderAgg = new HashMap<>();
+        for (Map<String, Object> r : orderRepository.sumCouponOrdersByActivitySince(activityIds, since)) {
+            Long activityId = asLongOrNull(r.get("activity_id"));
+            if (activityId == null) {
+                continue;
+            }
+            orderAgg.put(activityId, new long[]{
+                    asLong(r.get("order_count")),
+                    asLong(r.get("revenue_cents")),
+                    asLong(r.get("discount_cents"))});
+        }
+
         List<MarketingRoiRowDto> out = new ArrayList<>();
-        for (PromotionActivity activity : activityRepository.findAll()) {
-            List<CouponDefinition> defs = couponDefinitionRepository.findByActivityId(activity.getActivityId());
-            // OBS-006：无券活动也入表，发券/核销为 0，避免「有活动却不在 ROI」误解
-            Set<Long> couponInstanceIds = new LinkedHashSet<>();
+        for (PromotionActivity activity : activities) {
             long claimed = 0;
             long used = 0;
-            for (CouponDefinition def : defs) {
-                claimed += userCouponRepository.countByCouponDefId(def.getCouponDefId());
-                used += userCouponRepository.countByCouponDefIdAndStatus(def.getCouponDefId(), "USED");
-                for (UserCoupon uc : userCouponRepository.findByCouponDefId(def.getCouponDefId())) {
-                    couponInstanceIds.add(uc.getCouponId());
-                }
+            for (CouponDefinition def : defsByActivity.getOrDefault(activity.getActivityId(), List.of())) {
+                long[] agg = couponAgg.getOrDefault(def.getCouponDefId(), new long[]{0, 0});
+                claimed += agg[0];
+                used += agg[1];
             }
-            long orderCount = 0;
-            long revenue = 0;
-            long discount = 0;
-            if (!couponInstanceIds.isEmpty()) {
-                for (CabinetOrder o : orderRepository.findByCouponIdInAndCreatedAtAfter(couponInstanceIds, since)) {
-                    orderCount++;
-                    revenue += o.getTotalAmountCents();
-                    discount += o.getCouponDiscountCents();
-                }
-            }
+            long[] orderAggOfActivity = orderAgg.getOrDefault(activity.getActivityId(), new long[]{0, 0, 0});
             double redeemRate = claimed > 0 ? (double) used / claimed : 0.0;
             out.add(new MarketingRoiRowDto(
                     activity.getActivityId(),
@@ -172,13 +210,18 @@ public class MarketingRoiService {
                     activity.getUsedCents(),
                     claimed,
                     used,
-                    orderCount,
-                    revenue,
-                    discount,
+                    orderAggOfActivity[0],
+                    orderAggOfActivity[1],
+                    orderAggOfActivity[2],
                     redeemRate
             ));
         }
         out.sort(Comparator.comparingLong(MarketingRoiRowDto::orderRevenueCents).reversed());
         return out;
+    }
+
+    /** 聚合结果里的 id 列：不可解析/为空时返回 null，由调用方跳过该行（宁缺不错位）。 */
+    private static Long asLongOrNull(Object v) {
+        return v instanceof Number n ? n.longValue() : null;
     }
 }

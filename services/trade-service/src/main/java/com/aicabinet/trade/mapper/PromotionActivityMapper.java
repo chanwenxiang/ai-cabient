@@ -92,4 +92,24 @@ public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivi
         return selectPage(new Page<>(page + 1L, size), query);
     }
 
+
+    /**
+     * ROI 表专用活动清单（R20 P2-15）：只取列表要展示的 6 列。
+     *
+     * <p>原来用 {@code findAll()}（{@code SELECT *}），把 {@code rule_config}、
+     * 描述这类大 JSON/文本一并拉回内存——ROI 一行都用不到。列下推后单次查询体积与
+     * 反序列化开销都降下来。**不按 status/时间下推**：ROI 的口径是「全部活动」，
+     * 无券活动也要入表（OBS-006），筛掉任何一类都会让运营看到的活动消失。
+     *
+     * <p>不过滤 {@code is_deleted}：实体没映射该列，{@code findAll()} 同样不过滤；
+     * 两个入口口径必须一致（软删列未映射属另一族问题）。
+     */
+    default List<PromotionActivity> findAllForRoi() {
+        return selectList(Wrappers.<PromotionActivity>lambdaQuery()
+                .select(PromotionActivity::getActivityId, PromotionActivity::getActivityName,
+                        PromotionActivity::getActivityType, PromotionActivity::getStatus,
+                        PromotionActivity::getBudgetCents, PromotionActivity::getUsedCents)
+                .orderByDesc(PromotionActivity::getActivityId));
+    }
+
 }

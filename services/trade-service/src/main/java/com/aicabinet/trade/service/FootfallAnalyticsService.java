@@ -59,17 +59,29 @@ public class FootfallAnalyticsService {
         long revenue = paidOrders.stream().mapToLong(CabinetOrder::getTotalAmountCents).sum();
         long repeatBuyers = countRepeatBuyers(paidOrders);
 
+        // R20 P2-17：柜机清单只取一次（原来 overview 取一次、下面循环又取一次），
+        // 每台柜机的开门数改成一条 group-by 取回——原实现是「柜机数」次 count 查询。
+        List<DeviceInfo> allDevices = deviceRepository.findAllOrderByDeviceIdAsc();
+
         FootfallOverviewDto overview = new FootfallOverviewDto(
                 opens, orders, revenue,
                 opens == 0 ? 0 : round2(orders * 100.0 / opens),
                 orders == 0 ? 0 : Math.round(revenue / (double) orders),
                 repeatBuyers,
-                deviceRepository.findAllOrderByDeviceIdAsc().size());
+                allDevices.size());
 
         Map<String, long[]> perDevice = bucketByDevice(paidOrders);
+        Map<String, Long> opensByDevice = new HashMap<>();
+        for (Map<String, Object> agg : sessionRepository.countOpensGroupByDeviceSince(since)) {
+            Object deviceId = agg.get("device_id");
+            Object opensOfDevice = agg.get("opens");
+            if (deviceId != null && opensOfDevice instanceof Number n) {
+                opensByDevice.put(String.valueOf(deviceId), n.longValue());
+            }
+        }
         List<FootfallDeviceDto> devices = new ArrayList<>();
-        for (DeviceInfo device : deviceRepository.findAllOrderByDeviceIdAsc()) {
-            long deviceOpens = sessionRepository.countByDeviceIdAndCreatedAtAfter(device.getDeviceId(), since);
+        for (DeviceInfo device : allDevices) {
+            long deviceOpens = opensByDevice.getOrDefault(device.getDeviceId(), 0L);
             long[] agg = perDevice.getOrDefault(device.getDeviceId(), new long[]{0, 0});
             devices.add(new FootfallDeviceDto(
                     device.getDeviceId(),

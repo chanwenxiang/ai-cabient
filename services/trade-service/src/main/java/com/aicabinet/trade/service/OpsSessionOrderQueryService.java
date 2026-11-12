@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -294,10 +295,15 @@ public class OpsSessionOrderQueryService {
         boolean byLines = query.mode() != null
                 && (query.mode().equalsIgnoreCase("lines") || query.mode().equalsIgnoreCase("product"));
         if (byLines) {
+            // R20 P2-14：逐单 findByOrderId 是 N+1（一页 EXPORT_LIMIT 单 ⇒ 同量级查询）。
+            // 一次 in(...) 取回再分组；顺序由 findByOrderIds 的 line id ASC 保证（见 loadOrderLinesByOrderIds）。
+            Map<String, List<CabinetOrderLine>> linesByOrderId = loadOrderLinesByOrderIds(
+                    page.getContent().stream().map(CabinetOrder::getOrderId).toList());
             StringBuilder sb = new StringBuilder(
                     "orderId,deviceId,status,skuId,skuName,quantity,unitPriceCents,lineAmountCents,createdAt\n");
             for (CabinetOrder o : page.getContent()) {
-                List<CabinetOrderLine> lines = orderLineRepository.findByOrderId(o.getOrderId());
+                List<CabinetOrderLine> lines =
+                        linesByOrderId.getOrDefault(o.getOrderId(), List.of());
                 if (lines.isEmpty()) {
                     sb.append(csv(o.getOrderId())).append(',')
                             .append(csv(o.getDeviceId())).append(',')
@@ -495,14 +501,21 @@ public class OpsSessionOrderQueryService {
         return value.trim();
     }
 
+    /**
+     * 批量取订单行并按下单号分组（R20 P2-14）。
+     *
+     * <p>走 {@code findByOrderIds} 而不是内联 {@code selectList(in(...))}：后者不带排序，
+     * 行摘要（{@code lineSummary}）与导出 CSV 的行顺序会随执行计划漂移；前者按
+     * {@code line id ASC} 排，与逐单版 {@code findByOrderId} 同序——这是一条**导出产物**，
+     * 顺序变了就是 diff 变了。分组容器用 {@link LinkedHashMap} 保持同样顺序。</p>
+     */
     private Map<String, List<CabinetOrderLine>> loadOrderLinesByOrderIds(List<String> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return Map.of();
         }
-        return orderLineRepository.selectList(
-                        Wrappers.<CabinetOrderLine>lambdaQuery().in(CabinetOrderLine::getOrderId, orderIds))
-                .stream()
-                .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId));
+        return orderLineRepository.findByOrderIds(orderIds).stream()
+                .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId,
+                        LinkedHashMap::new, Collectors.toList()));
     }
 
     static String buildAdminLineSummary(List<CabinetOrderLine> lines) {

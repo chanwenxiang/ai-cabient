@@ -56,6 +56,56 @@ class SiteContractServiceTest {
         assertEquals("ACTIVE", SiteContractService.statusFor(null));
     }
 
+    /**
+     * R20 P2-16：合同列表原来为了拿「柜机名」把整张 device_info 全表载入。
+     * 现在只按当页涉及到的 deviceId 取；查不到的那台回落成 deviceId 本身（与旧行为一致）。
+     */
+    @Test
+    void listPage_loadsDeviceNamesOnlyForDevicesOnThisPage() {
+        when(contractRepository.searchPage(0, 10)).thenReturn(pageOf(
+                contract("CAB-001"), contract("CAB-404")));
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setDeviceName("门店一号柜");
+        when(deviceRepository.findByDeviceIdIn(any())).thenReturn(java.util.List.of(device));
+
+        var result = service.listPage(OPERATOR_ID, 0, 10);
+
+        assertEquals(2, result.items().size());
+        assertEquals("门店一号柜", result.items().get(0).deviceName());
+        assertEquals("CAB-404", result.items().get(1).deviceName(), "查不到设备时回落成 deviceId");
+        verify(deviceRepository, org.mockito.Mockito.never()).findAllOrderByDeviceIdAsc();
+    }
+
+    /** 一页合同都没有时连设备表都不该碰（全表载入的旧实现在这里也会白跑一次）。 */
+    @Test
+    void listPage_withoutContracts_skipsDeviceQuery() {
+        when(contractRepository.searchPage(0, 10)).thenReturn(pageOf());
+
+        var result = service.listPage(OPERATOR_ID, 0, 10);
+
+        assertEquals(0, result.items().size());
+        verify(deviceRepository, org.mockito.Mockito.never()).findAllOrderByDeviceIdAsc();
+        verify(deviceRepository, org.mockito.Mockito.never()).findByDeviceIdIn(any());
+    }
+
+    private static com.baomidou.mybatisplus.extension.plugins.pagination.Page<SiteContract> pageOf(
+            SiteContract... contracts) {
+        var page = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<SiteContract>(1, 10);
+        page.setRecords(java.util.List.of(contracts));
+        page.setTotal(contracts.length);
+        return page;
+    }
+
+    private static SiteContract contract(String deviceId) {
+        SiteContract c = new SiteContract();
+        c.setDeviceId(deviceId);
+        c.setSiteName("点位-" + deviceId);
+        c.setStatus("ACTIVE");
+        c.setMonthlyFeeCents(50000);
+        return c;
+    }
+
     @Test
     void upsert_shouldCreateWithComputedStatus() {
         DeviceInfo device = new DeviceInfo();

@@ -41,6 +41,22 @@ public interface CouponDefinitionMapper extends BaseTradeMapper<CouponDefinition
     return selectList(Wrappers.<CouponDefinition>lambdaQuery().eq(CouponDefinition::getActivityId, activityId));
     }
 
+    /**
+     * 批量按活动取券定义（R20 P2-15）：ROI 表原来对**每个活动**调一次 {@link #findByActivityId}，
+     * 活动越多查询越多（N+1）。这里一次 {@code IN} 取回，调用方按 activityId 分组。
+     *
+     * <p>口径与 {@code findByActivityId} 一致：**不过滤** {@code is_deleted}——实体没有映射该列，
+     * 单条版同样不过滤；批量版若擅自加上，会与单条版/历史统计口径分叉（软删列未映射属另一族问题）。
+     */
+    default List<CouponDefinition> findByActivityIdIn(java.util.Collection<Long> activityIds) {
+        if (activityIds == null || activityIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<CouponDefinition>lambdaQuery()
+                .in(CouponDefinition::getActivityId, activityIds)
+                .orderByAsc(CouponDefinition::getCouponDefId));
+    }
+
     default long countByStatus(String status) {
     Long c = selectCount(Wrappers.<CouponDefinition>lambdaQuery().eq(CouponDefinition::getStatus, status));
     return c == null ? 0 : c;
