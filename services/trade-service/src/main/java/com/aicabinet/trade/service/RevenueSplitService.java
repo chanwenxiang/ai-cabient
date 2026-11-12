@@ -42,6 +42,8 @@ public class RevenueSplitService {
     private final ProfitSharingReturnCompensationService returnCompensationService;
     private final ProfitSharingReturnAlertService profitSharingAlertService;
     private final DistributedLockService distributedLockService;
+    /** R20-9：分账回退按腿立账的唯一写入口，禁止再直接改 split 的两列 pending。 */
+    private final ProfitSharingReturnLegService returnLegService;
 
     public RevenueSplitService(OrderRevenueSplitMapper splitRepository,
                                DeviceInfoMapper deviceRepository,
@@ -50,7 +52,8 @@ public class RevenueSplitService {
                                MerchantWalletService merchantWalletService,
                                ProfitSharingReturnCompensationService returnCompensationService,
                                ProfitSharingReturnAlertService profitSharingAlertService,
-                               DistributedLockService distributedLockService) {
+                               DistributedLockService distributedLockService,
+                               ProfitSharingReturnLegService returnLegService) {
         this.splitRepository = splitRepository;
         this.deviceRepository = deviceRepository;
         this.merchantRepository = merchantRepository;
@@ -59,6 +62,7 @@ public class RevenueSplitService {
         this.returnCompensationService = returnCompensationService;
         this.profitSharingAlertService = profitSharingAlertService;
         this.distributedLockService = distributedLockService;
+        this.returnLegService = returnLegService;
     }
 
     @Transactional
@@ -280,7 +284,9 @@ public class RevenueSplitService {
             // AU-141：同全额路径——finalize 事务内不提交 HTTP，落 PENDING + 补偿任务异步提交
             applyWeChatReturnOutcome(split, outReturnNo, returnCents,
                     ReturnSubmitOutcome.PROCESSING, "部分退款分账回退 " + order.getOrderId());
-            returnCompensationService.scheduleReturnRetry(split, 30);
+            // R20-9：按腿排补偿任务，多轮部分退各占一个调度槽（旧实现按 splitId 去重会吞掉第二轮）。
+            returnCompensationService.scheduleReturnRetry(
+                    split, returnLegService.openLegs(split.getSplitId()), 30);
         }
         split.setGrossCents(gross);
         split.setPlatformCents(platform);
@@ -352,17 +358,26 @@ public class RevenueSplitService {
             return;
         }
         String outReturnNo = "PSR-FULL-" + split.getSplitId();
-        // AU-141（批次 8）：退款 finalize 事务内不再同步提交微信回退 HTTP——直接落 PENDING
-        // 状态 + 排补偿任务（≤30s 异步提交，refreshPendingReturn 查单确认 / retryFailedReturns
-        // 提交均在补偿调度器的独立短事务）。本地商户钱包 clawback 已先行，渠道回退滞后无资损。
+        // AU-141（批次 8）：退款 finalize 事务内不再同步提交微信回退 HTTP——直接落一条待确认腿
+        // + 按腿排补偿任务（≤30s 异步提交，查单确认 / 重提均在补偿调度器的独立短事务）。
+        // 本地商户钱包 clawback 已先行，渠道回退滞后无资损。
         applyWeChatReturnOutcome(split, outReturnNo, amount,
                 ReturnSubmitOutcome.PROCESSING, "全额退款分账回退 " + split.getOrderId());
-        returnCompensationService.scheduleReturnRetry(split, 30);
+        returnCompensationService.scheduleReturnRetry(
+                split, returnLegService.openLegs(split.getSplitId()), 30);
         if (split.getFailureReason() != null) {
             log.warn("wechat profit sharing full return failed splitId={} order={}", split.getSplitId(), split.getOrderId());
         }
     }
 
+    /**
+     * R20-9 / CB-085：写入改走「腿表」，不再覆盖 split 上的单值列。
+     *
+     * <p>改前这里三处 {@code setWechatPendingReturnXxx}，多轮部分退时后一轮把前一轮
+     * 整笔抹掉 ⇒ 渠道只回退最后一笔。现在 {@link ProfitSharingReturnLegService#recordOutcome}
+     * 按 out_return_no 幂等 upsert 一条腿，并把 split 两列重算成「最老未完结腿」的投影；
+     * 补偿任务也按腿排，不再以 splitId 去重。
+     */
     private void applyWeChatReturnOutcome(OrderRevenueSplit split,
                                           String outReturnNo,
                                           long returnCents,
@@ -371,23 +386,15 @@ public class RevenueSplitService {
         if (split == null || returnCents <= 0 || outcome == null) {
             return;
         }
+        returnLegService.recordOutcome(split, outReturnNo, returnCents, outcome, failureMessage);
         switch (outcome) {
-            case SUCCESS -> {
-                split.setWechatPendingReturnNo(null);
-                split.setWechatPendingReturnCents(null);
-                split.setFailureReason(null);
-            }
-            case PROCESSING -> {
-                split.setWechatPendingReturnNo(outReturnNo);
-                split.setWechatPendingReturnCents(returnCents);
-                split.setFailureReason(null);
-            }
+            case SUCCESS -> split.setFailureReason(null);
+            case PROCESSING -> split.setFailureReason(null);
             case FAILED -> {
-                split.setWechatPendingReturnNo(outReturnNo);
-                split.setWechatPendingReturnCents(returnCents);
                 split.setFailureReason(failureMessage);
                 profitSharingAlertService.sendReturnSubmitFailed(split, outReturnNo, returnCents, failureMessage);
-                returnCompensationService.scheduleReturnRetry(split, 60);
+                returnCompensationService.scheduleReturnRetry(
+                        split, returnLegService.openLegs(split.getSplitId()), 60);
             }
         }
     }

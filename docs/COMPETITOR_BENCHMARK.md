@@ -2905,3 +2905,61 @@
   5. **钉测**：`PromotionPricingServiceTest.resolveBest_*`（3 例：取优命中/不命中/折扣型按目录价）、
      `DeviceCatalogServiceTest.listProducts_activityNotBetterThanMember_isIgnored`、
      `SettlementMemberDiscountOnceTest.memberAndActivityTogether_bestOfTwoNotStacked`。
+
+---
+
+### CB-085 【新】分账回退按「腿」立账：多轮部分退各占一条独立回退单，禁止用单值列覆盖（2026-11-12 R20-9）
+
+> 触发：R20 四端审计 R20-9（`docs/AUDIT_FOUR_END_R20_2026-11-12.md` §十.2 / §十九）。改前
+> `order_revenue_split.wechat_pending_return_no / _cents` 是**一对单值列**，`applyWeChatReturnOutcome`
+> 每次 `setXxx` 覆盖：100 元单先部分退 30、再部分退 20、最后全额退，三笔渠道回退只有最后一笔
+> 留在本地账 ⇒ 渠道合计只回退 70，商户多留 30。更重的一处：`ProfitSharingReturnCompensationService`
+> 以 `splitId` 作 `CompensationTask.txId` + `existsPending(splitId, …)` 去重，**同一 split 只允许一个
+> PENDING 补偿任务** ⇒ 第二轮回退连查单/重提的调度槽都被吞。本条存证「按腿立账」的判定依据。
+> 本条不新增外部取证：逐字证据复用同族 CB-053（渠道退款闭环）与 CB-057（一列金额不得被回写），
+> 两者已各自按「≥3 家独立主体、≥2 家开门柜同行」取证并登记 URL。
+
+- **竞品做法 / 官方口径**（均为 CB-053 / CB-057 已核对的原文，本条复引不重复抓取）：
+  - **微信支付**（⭕ 官方申请退款 API / 分账回退 API）：「一笔退款失败后重新提交，请不要更换退款单号，
+    请使用原商户退款单号」；「单笔部分退款最多 50 次」⇒ 部分退在渠道侧本来就**是多条独立退款单**，
+    一个 `out_return_no` 只对应一条，平台侧没有「把多笔合并成一个号」的接口语义。
+  - **支付宝**（⭕ 官方对账文档）：「发生支付、退款时会产生**新的记录**」「成交订单 = 已付款成功的
+    订单金额汇总（未扣除退款订单金额）」⇒ 退款是**追加行**，不是回写旧行的列。
+  - **易宝支付**（⭕ 开放平台退款文档）：同号重试 + 「申请退款接口的响应参数 code 仅代表业务的受理
+    情况…需要通过查询退款接口获取退款结果」⇒ 每笔退款单有独立状态机，多笔必须各自查单。
+  - **哆啦宝**（⭕ 自助设备支付服务商开放平台）：只公布「总退款金额不能超过用户实际交易金额」与
+    `refundRequestNum` 流水号字段，**未公布多轮部分退的本地账表结构**。
+  - **旧系统 easygo**（⭕ 源码亲验，CB-057 取证）：退款写进**另一张财务退款明细表**
+    `StatFinRefundDetail`（两列并列），订单行只改状态，绝不回写成交额列——「一行一笔」的同构形态。
+  - **友宝 UBOX**（🟡 招股书分成基数，CB-057 复引）：分成按「交易商品总额」这一档，佐证资金事实
+    必须可逐笔还原，不能只留一个被覆盖的当前值。
+- **对照主体**：微信支付 ｜ 易宝支付 ｜ 支付宝 ｜ 哆啦宝 ｜ 旧系统easygo ｜ 友宝UBOX
+- **证据**：
+  - <https://pay.weixin.qq.com/doc/v2/merchant/4011985095> （⭕ 微信支付 · 申请退款 API：失败重提交不换号、单笔部分退款 ≤50 次；CB-053 于 2026-10-16 抓取）
+  - <https://open.yeepay.com/docs-v3/api/post_rest_v1.0_trade_refund.md> （⭕ 易宝支付 · 同号重试、受理≠成功须查单；CB-053 于 2026-10-16 抓取）
+  - <https://open.duolabao.com/html/customer-refund.html> （⭕ 哆啦宝 · 退款总额不超实付、无失败重试规格；CB-053 于 2026-10-16 抓取）
+  - <https://open.alitrip.com/docs/doc.htm?source=search&treeId=826&articleId=121793&docType=1> （⭕ 支付宝对账文档镜像：退款产生新记录、成交订单不扣退款；CB-057 于 2026-10-17 逐字核对）
+  - <https://finance.sina.com.cn/chanjing/gsnews/2022-06-09/doc-imizmscu5937314.shtml> （🟡 新浪财经引友宝招股书：按交易商品总额分成；CB-057 于 2026-10-17 复引）
+  - 本仓一手：`RevenueSplitService.applyWeChatReturnOutcome`、`WeChatProfitSharingService.refreshPendingReturn/retrySingleFailedReturn`、
+    `ProfitSharingReturnCompensationService.scheduleReturnRetry`、`CompensationTaskScheduler.processProfitSharingReturnTask`、`V463`
+- **取证日期**：2026-11-12
+- **我们的结论**：
+  1. **采纳「一笔回退一条腿、按渠道单号幂等」**（微信 50 次部分退上限 / 支付宝「新记录」/ 老系统
+     财务退款明细表同构）：V463 新建 `order_split_return_leg(split_id, out_return_no UNIQUE, cents, status)`，
+     `applyWeChatReturnOutcome` 改为按 `out_return_no` upsert，**金额只从腿读**；查单、重提、清列、
+     补偿任务、告警全部按腿循环。`wechat_pending_return_no/_cents` 降级为「最老一条未完结腿」的派生投影，
+     只供存量报表读取，不再作为任何资金动作的真值。
+  2. **采纳「同号重试、不同轮次不合并单号」**（CB-053 结论 1）：前一条腿可能已在渠道在途，合并后按
+     新单号重提＝双退；同一 `out_return_no` 重复上报走 upsert 且 `status <> 'SUCCESS'` 条件更新，
+     SUCCESS 腿不得被 PROCESSING/FAILED 复活（状态机白名单）。
+  3. **不采纳「在同一个 `splitId` 上排补偿任务」**（现实现）：`existsPending(splitId, …)` 让第二轮
+     回退连调度槽都没有。`CompensationTask.txId` 改 `LEG:<legId>`，多腿各有独立补偿任务；存量
+     `txId=splitId` 的任务由调度器按「最老开放腿」兼容跑完，不改写历史行。
+  4. **有意不同（自己的设计判断，无外部公开规格，改动须回写本条）**：`order_split_return_leg` 的
+     表名/列结构、`LEG:<legId>` 键格式、投影列保留为「最老开放腿」、回填时 `status` 由 `failure_reason`
+     反推 PROCESSING/FAILED —— 这四项在同行公开文档里都查不到规格，是按本仓资金守恒需要自定的；
+     唯一外部依据是上列「一笔退款单一行」的通用形态。
+  5. **验收判据（守恒）**：`Σ(leg.cents WHERE status='SUCCESS') = 初始 merchant_cents − 现 merchant_cents`；
+     100 元单 30/20/50 三轮 ⇒ 三条腿各独立、渠道合计 100、商户留 0；把写入改回单值覆盖守恒必须转红
+     （负向验证，铁律 4）。落地用例 `ProfitSharingReturnLegConservationTest` + 离线门禁
+     `check-split-return-leg-conservation.mjs`（dev 库事务内注入 / ROLLBACK 零残留）。

@@ -60,7 +60,7 @@
 - `PayScoreOrderNotifyService.java:109-123` 只判「已是 PAID 就跳过」，DONE 可把 REFUNDED/CANCELLED 改成 PAID；`DisputeService.java:372` 又只挡 REFUNDED ⇒ 改回后可二次退款。
 - **修法**：状态单向机 + 终态收到 DONE 只记 HIGH 异常人工处置。
 
-### R20-9 ◐ 分账回退单槽覆盖，多轮部分退后全额退会少回退
+### R20-9 ✅ 分账回退单槽覆盖，多轮部分退后全额退会少回退（**已修，见 §二十 / V463**）
 - `RevenueSplitService.java:276-283/354-360/380-383` 每轮覆盖 `wechat_pending_return_no/cents`；`WeChatProfitSharingService.retrySingleFailedReturn:350-370` 只提交最后一轮。
 - 后果：100 元单两轮部分退（30/20）再全额退 ⇒ 渠道只回退 70，商户多留 30。
 - **判据**：`Σ渠道回退额 = 初始 merchant_cents − 现 merchant_cents`。
@@ -755,11 +755,11 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 > 本文档 §一 里 R20-6/7/8 原标 ◐，实为 `1a352188`（P1 首批 8 条）已修未回写标记；本轮回写为 ✅。
 > 下面按「现在还剩什么」重列，判据是**代码现状**（`git log -S` 溯源 + 读现状），不是报告自我声称。
 
-### 十七.1 剩余 P1：2 条
+### 十七.1 剩余 P1：盘点时 2 条 → **R20-9 已由 §二十 收口，实剩 R20-10 一条**
 
 | # | 状态 | 现状与剩余部分 |
 |---|---|---|
-| R20-9 | **零落点** | `grep -rn "R20-9\|split_return_leg\|order_split_return"` 在 `services/` 与 `db/` 全库 **0 命中**。需新建 `order_split_return_leg(split_id, out_return_no, cents, status)` 并把 `RevenueSplitService` 的单值覆盖改为按腿累加、`retrySingleFailedReturn` 按腿提交/查单。§十.2 已论证这是**加表**，不能顺手做（合并单值列会引入双退风险：前一条可能已在途）。判据：`Σ腿回退额 = 初始 merchant_cents − 现 merchant_cents`。 |
+| R20-9 | ~~**零落点**~~ **✅ 已修（§二十 / V463 / CB-085）** | 新建 `order_split_return_leg` 腿表，`applyWeChatReturnOutcome` 改按 `out_return_no` 幂等 upsert，六个消费点全部按腿；补偿任务 `txId` 改 `LEG:<legId>`（多腿各有独立调度槽）。守恒判据与真库 SQL 演练见 §二十。 |
 | R20-10 | **半修** | 超时已补：`TradeServiceClient` 走 `OutboundHttp.callbackThreadRpc()`（2s/5s 档，2026-11-12 出站客户端统一治理批次），`MqttEventListener:345` 仍在 Paho 回调线程内 `notifyDoorEvent` + 3 次重试 + `Thread.sleep(200·attempt)` ⇒ 最坏占住回调线程约 16s。**剩余**：把转发移到有界线程池 / 或以「先 ACK、异步转发 + 失败落补偿表」替代同步重试。§十.2 已定「需单独一轮」。 |
 
 ### 十七.2 剩余 P2：0 条
@@ -793,7 +793,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 ### 十七.5 建议顺序
 
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
-2. **R20-9（加表 + 按腿回退）**——唯一剩余的资损类 P1，但要新建迁移与补偿器，单独一轮带守恒 SQL 验证。
+2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. **R20-10 后半（异步化 + ACK 语义）**——唯一还会在故障时放大成「全设备门磁积压」的一条；
    ⚠ 需先等另一个会话的「出站客户端统一治理」批次收口（它正在改 `TradeServiceClient` 等 17 个文件）。
 4. P3-1/4/7/8/9 与 5 条待定项随迭代。
@@ -853,9 +853,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 **注释抹除是硬要求**：本轮每个落点都写了复述旧写法的成因注释，不 `maskComments()`（替换为等长空格、保行号）就会被自己的注释骗成假红/假绿；`--self-test` 第 9 例专门钉这一点。
 
-> ⚠ **接链状态**：门禁脚本与 `--self-test` 已就绪并随本批提交，但 `package.json` 此刻被另一个会话的「出站客户端统一治理」批次占用（它同时改了 `check:audit-gates` 链、新增 3 条 script 与若干未跟踪的 `.test.mjs`）。为不把别人的半成品一并提交，本批**未改 `package.json`**；待该批次收口后需在链尾追加
-> `pnpm check:p3-window-and-dict-parity && pnpm check:p3-window-and-dict-parity-negative`，
-> 并定义两条 script（正向 / `--self-test`）。在此之前可用 `node scripts/check-p3-window-and-dict-parity.mjs --self-test` 直接跑。
+> ✅ **接链状态（§二十 已收口）**：当时 `package.json` 被另一个会话的「出站客户端统一治理」批次占用，本批未改它；后续 §二十 在 `.github/workflows/ci.yml` 的 `build` job 加了 4 个真实 CI step（本门禁正向 + `--self-test`、R20-9 守恒门禁正向 + `--self-test`），以 CI 直调完成可执行接线，`node scripts/check-audit-gates-wiring.mjs` 全绿（143 个 `check-*.mjs` 全部已接线）。待那个会话收口后可再并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
 
 ### 十八.5 部署注意
 
@@ -866,7 +864,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 ---
 
-## 十九、R20-9 实施蓝图（2026-11-12，本轮**只出设计、不动代码**）
+## 十九、R20-9 实施蓝图（2026-11-12 先出设计；**已按 §二十 落地**，本节保留为设计依据）
 
 > 顺序里 ② 是「单独一轮带守恒 SQL 验证」。本轮把链路全读了一遍，确认它不是「补两行」，
 > 先落蓝图，避免在资金路径上边做边猜。
@@ -926,7 +924,56 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 - dev 库全量守恒 SQL 作为离线门禁，红即阻断（报告 §七 #5 的同一笔钱守恒思路，先在这一族落地）。
 - 部署：`V463` 是**新增表 + 回填** ⇒ `mvn -o -pl services/trade-service -am -DskipTests package` 后 `up -d --no-deps --force-recreate trade-service`，两步拆开（种子/迁移在 jar 内，铁律 41）。
 
-### 十九.5 本轮不动代码的理由
+### 十九.5 出蓝图时不动代码的理由（**已解除，见 §二十**）
 
-① 资金路径，6 个消费点必须一次改齐，留半成品会让 `mvn compile` 与运行时同时挂；② 补偿任务 `txId` 语义变更需要存量兼容方案与真库演练；③ 另一个会话此刻正在工作区改 17 个 client + 多条门禁链，未收口前在同一批文件上叠加资金改动，冲突与归属都不可控。下一轮按本蓝图独立实施。
+① 资金路径，6 个消费点必须一次改齐，留半成品会让 `mvn compile` 与运行时同时挂；② 补偿任务 `txId` 语义变更需要存量兼容方案与真库演练；③ 另一个会话此刻正在工作区改 17 个 client + 多条门禁链，未收口前在同一批文件上叠加资金改动，冲突与归属都不可控。
+本轮复核：待改的 7 个 Java 文件与那个会话改动的 17 个文件**无交集**（它改 client/payment 客户端与若干 service，不碰 `RevenueSplitService` / `WeChatProfitSharingService` / 补偿族 / 两个调度器），因此按蓝图独立实施，只保留 `package.json` 门禁链不动（见 §二十.5）。
+
+---
+
+## 二十、R20-9 修复回执（2026-11-12，**唯一剩余资损类 P1 收口**）
+
+### 二十.1 落地范围
+
+| 层 | 文件 | 变化 |
+|---|---|---|
+| 台账 | `docs/COMPETITOR_BENCHMARK.md` 新增 CB-085 | 6 家主体（微信支付/易宝/支付宝/哆啦宝/旧系统easygo/友宝UBOX，含 3 家开门柜同行），结论含采纳/不采纳/有意不同；「腿表结构、`LEG:` 键、投影口径、回填状态反推」四项明确标**自己的设计判断（无公开规格）** |
+| 迁移 | `V463__order_split_return_leg.sql`（`MIGRATION_KIND: backfill`，`COMPETITOR_REF: CB-085,CB-053,CB-057`） | 新表 + `out_return_no UNIQUE` + `CHECK (cents>0)` + 状态 CHECK + 两条索引（partial 谓词完整）+ 存量回填 `ON CONFLICT DO NOTHING` |
+| 域/Mapper | 新增 `OrderSplitReturnLeg` / `OrderSplitReturnLegMapper` | `findOpenLegs`（自带 `ORDER BY leg_id` + LIMIT）、`sumSuccessCents`、`sumOpenCents`、`updateOutcomeIfNotSuccess … WHERE status <> 'SUCCESS'`、`insertLegIfAbsent … ON CONFLICT DO NOTHING` |
+| 服务 | 新增 `ProfitSharingReturnLegService` | **唯一写入口**：按 `out_return_no` 幂等 upsert + 重算 split 单值投影为「最老一条未完结腿」；`refreshProjection` 用 wrapper `set(col,null)` 真清列（M01） |
+| 写入侧 | `RevenueSplitService.applyWeChatReturnOutcome` | 三处 `setWechatPendingReturnXxx` 覆盖赋值 → `returnLegService.recordOutcome(...)`；两处排补偿任务改传腿列表 |
+| 读侧 | `WeChatProfitSharingService` | 查单/重提/清列全部按腿；金额只从 `leg.getCents()`、单号只从 `leg.getOutReturnNo()`；批量取 split 走一次 `selectBatchIds` + `LinkedHashMap`（N+1 → 一次） |
+| 调度 | `CompensationTaskScheduler` / `ProfitSharingReturnCompensationService` / `ProfitSharingRetryScheduler` | `txId` 改 `LEG:<legId>`（按腿去重）；调度器 `resolveLeg` 兼容存量裸 `splitId`；定时兜底从腿表 `findOpenLegs` 扫，不再扫单值列 |
+| 告警 | `ProfitSharingReturnAlertService` | 新增按腿聚合重载（`pendingReturnCents`/`openLegCount`/全部 `outReturnNo`）；旧两参数入口保留为存量文案兜底 |
+| 下线 | `OrderRevenueSplitMapper` | 删 `findTop20ByWechatPendingReturnNo…` 与 `findTop20ByFailureReasonContaining…` 两个旧扫描入口（铁律 62） |
+
+### 二十.2 相对蓝图的三处修正（都是实跑后改的，不是照抄）
+
+1. **`split_id VARCHAR(32)` 而非 64**：dev 库实查 `order_revenue_split.split_id` 是 `VARCHAR(32)` 且为主键，腿表外键按同型落；`out_return_no` 用 `VARCHAR(128)` 留渠道单号余量。
+2. **回填预期 0 行**：dev 库实跑 `COUNT(*) FROM order_revenue_split` = 36，其中 `wechat_pending_return_no` 非空 = 0，且 `cents<=0` = 0 ⇒ 本次回填 0 行；迁移 NOTES 里写明上线前须按同一 SQL 核对应迁移行数。
+3. **新增「同号不同额」fail-closed**：`recordOutcome` 发现同一 `out_return_no` 已有腿但金额不同 ⇒ 抛 `IllegalStateException` 让本次退款事务回滚转人工。理由：渠道侧把同号当同一笔回退，两笔金额压进一条腿就是双退/少退。蓝图未覆盖这条，属本轮补的边界。
+4. **存量兼容不靠改历史行**：新任务 `LEG:<legId>`；存量 `txId=splitId` 的任务由 `resolveLeg` 取该 split 最老开放腿跑完即止，不批量改写 `compensation_task`。
+5. **守恒 SQL 的诚实边界**：`Σ成功腿 = 初始 merchant − 现 merchant` 里的「初始 merchant」**并未落列**（`merchant_cents` 会被退款重算覆盖），所以库内离线 SQL 无法直接算这一式。离线判据落地为两条真实可查的式：**① 投影一致性**（split 单值 = 最老开放腿，用 `IS DISTINCT FROM`）、**② 资金上界**（`Σ腿.cents ≤ split.gross_cents`）；守恒式本身由应用层 `ProfitSharingReturnLegConservationTest` 用内存态 fake 钉住（100 元单 30/20/50 ⇒ 三腿、合计 100、商户留 0）。**不把「库内能跑全量守恒」写成已做到**。
+
+### 二十.3 判据与验证（数字）
+
+- Java 定向 **59 例全绿**：新增守恒 5 例 + SQL 反射谓词 5 例，另 11 个受构造器/语义变更影响的既有测试文件共 49 例同步升级（补偿调度 7、告警 4、补偿并发 2、补偿服务 3、分账 24+2、支付分 2+1+1+3）。
+- 静态门禁 `scripts/check-split-return-leg-conservation.mjs`：8 组链路判据（抹注释等长空格、方法体级判据、SQL 头注释剥离）；`--self-test` **12 个变异/防假红断言全符合 + md5 零残留**。
+- SQL 真值用**反射读 `@Select`/`@Update`/`@Insert`** 断言（`OrderSplitReturnLegSqlPredicateTest`），不 grep 源码（铁律 84④）；`@Select` 的开放谓词与 V463 partial index 谓词逐字一致（铁律 88①）。
+- **dev 库事务内实跑**（`BEGIN;…ROLLBACK;`，零残留）：投影不一致 0、超额 0、守恒 `10000 = 10000 → OK`；注入「删掉前两条腿」后 `10000 vs 5000 → BROKEN`，注入「投影写成最后一轮」后投影判据报 1 行；`ROLLBACK` 后腿表 0 张、样本 split 金额还原 `150|150|NULL`。
+- 迁移门禁：`check-migration-safety` / `check-flyway-seed-separation` / `check-migration-number-order` / `check-mysql-isms-in-migrations` / `check-competitor-benchmark` 全绿；`check-audit-gates-wiring`（143 个门禁全部已接线）与 `check-preflight-wiring` 全绿。
+- **全量回归（如实记账，未全绿）**：`mvn -o -pl services/trade-service -am test` 共 **2943 例，2939 绿 / 4 红**。4 个红是 `InventoryLotBatchDeductTest` 3 例（`409 CONFLICT` 实得 `404 NOT_FOUND` / `lot not found`）与 `JiangyiCabinetCaptureServiceTest.start_finish_cancel_areAudited`；**单跑这两个类稳定复现（7 例中 4 红）**，且这两个测试文件与其被测代码在 `git status` 里均无未提交改动、与本批 7 个 Java 文件无依赖交集 ⇒ 判为存量红（批次种子 / 审计断言），非本批引入。全量红的根因不在本轮范围内，未擅自改别人的用例。
+
+### 二十.4 负向验证（铁律 4）
+
+把 `ProfitSharingReturnLegService` 的 `draft.setOutReturnNo(outReturnNo.trim())` 临时改成「按 split 固定单号」（模拟旧的单槽覆盖）后跑守恒用例：**5 例中 4 例 error**（`IllegalStateException: 分账回退腿写入后读不到 outReturnNo=…`，是同号不同额 fail-closed 守卫先拦下），`BUILD FAILURE` ⇒ 判据能红。还原后 md5 `f33bfc8c8102ee5f5cbdbcbab80ecb66` 与基线逐字节一致、`grep "PSR-LEGACY-"` 全局 0 命中、复跑 59 例全绿。
+⚠ 如实记账：这一注入的红来自**守卫异常**而非守恒断言本身；断言级的负向由 §二十.3 的真库 SQL 演练给出（`OK → BROKEN`），两者互补，不混为一谈。
+
+### 二十.5 部署与遗留
+
+- **V463 含回填 INSERT**：必须 `mvn -o -pl services/trade-service -am -DskipTests package` 后 `up -d --no-deps --force-recreate trade-service`，两步拆开（迁移在 jar 内，铁律 41）；上线前按迁移 NOTES 的 SQL 核对回填行数。
+- **补偿任务双键并存**：新任务 `LEG:<legId>`，存量 `splitId` 任务由调度器兼容跑完，不需要数据迁移脚本。
+- **门禁接线改用 CI 直调，不碰 `package.json`**：另一会话仍占用 `package.json`（5 insertions / 2 deletions + 多个未跟踪脚本），整文件提交会带走别人半成品。本批在 `.github/workflows/ci.yml` 的 `build` job 加 4 个真实 step（R20 P3 门禁 + 自测、R20-9 守恒门禁 + 自测），顺带把 §十八 遗留的 P3 门禁未接线一并收口。`node scripts/check-audit-gates-wiring.mjs` 现全绿（143 个 `check-*.mjs` 全部已接线）；负向夹具按新版规则 3 抽成具名 `selfTest()` 并显式调用（剥注释后同时出现 `selfTest(` 与 `--self-test`）。等那个会话收口后，可再把这 4 步并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
+- **R20-10 后半仍未做**：`MqttEventListener:345` 同步转发 + 3 次重试，需等那个会话收口后再动 `device-service`（它正在改 `TradeServiceClient`）。
+- `check-migration-immutable` 当前对 `V459` 报红，是**本轮之前**其他会话改写已应用迁移所致，与本次 V463 无关；按铁律 50 不重写、不 `flyway repair`，需由该会话自行收口。
 

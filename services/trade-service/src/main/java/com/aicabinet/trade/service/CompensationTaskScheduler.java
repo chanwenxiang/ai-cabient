@@ -4,9 +4,11 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.CompensationTask;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.OrderSplitReturnLeg;
 import com.aicabinet.trade.mapper.CompensationTaskMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.OrderSplitReturnLegMapper;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +41,8 @@ public class CompensationTaskScheduler {
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingReturnAlertService profitSharingReturnAlertService;
+    /** R20-9：补偿任务按腿而非按 split 定位，多条腿互不遮挡。 */
+    private final OrderSplitReturnLegMapper legRepository;
     /** 自注入：保证 processTask 上的 @Transactional 经 Spring 代理生效。 */
     private final CompensationTaskScheduler self;
 
@@ -48,6 +52,7 @@ public class CompensationTaskScheduler {
                                        MerchantMapper merchantRepository,
                                        WeChatProfitSharingService profitSharingService,
                                        ProfitSharingReturnAlertService profitSharingReturnAlertService,
+                                       OrderSplitReturnLegMapper legRepository,
                                        @Lazy CompensationTaskScheduler self) {
         this.taskRepository = taskRepository;
         this.taskService = taskService;
@@ -55,6 +60,7 @@ public class CompensationTaskScheduler {
         this.merchantRepository = merchantRepository;
         this.profitSharingService = profitSharingService;
         this.profitSharingReturnAlertService = profitSharingReturnAlertService;
+        this.legRepository = legRepository;
         this.self = self;
     }
     @Scheduled(fixedDelay = 30000)
@@ -91,17 +97,28 @@ public class CompensationTaskScheduler {
                 "unsupported task type: " + task.getTaskType());
     }
 
+    /**
+     * R20-9 / CB-085：补偿任务只负责**一条腿**。改前按 split 单值判断「还有没有 pending」，
+     * 多腿时一条腿成功就会把整条任务判完成，其余腿再没人查单/重提。
+     */
     private void processProfitSharingReturnTask(CompensationTask task) {
         task.setStatus("PROCESSING");
         taskRepository.save(task);
+        String splitId = task.getTxId();
         try {
-            OrderRevenueSplit split = splitRepository.selectById(task.getTxId());
-            if (split == null) {
-                finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED, "split not found");
+            OrderSplitReturnLeg leg = resolveLeg(task);
+            if (leg == null) {
+                finishCompensationTask(task, STATUS_COMPLETED, "no pending return leg");
                 return;
             }
-            if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
-                finishCompensationTask(task, STATUS_COMPLETED, "no pending return");
+            splitId = leg.getSplitId();
+            if (!ProfitSharingReturnLegService.isOpen(leg.getStatus())) {
+                finishCompensationTask(task, STATUS_COMPLETED, "return leg already confirmed");
+                return;
+            }
+            OrderRevenueSplit split = splitRepository.selectById(splitId);
+            if (split == null) {
+                finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED, "split not found");
                 return;
             }
             Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
@@ -109,24 +126,46 @@ public class CompensationTaskScheduler {
                 finishCompensationTask(task, CabinetConstants.ORDER_STATUS_FAILED, "merchant not found");
                 return;
             }
-            profitSharingService.refreshPendingReturn(split);
-            split = splitRepository.selectById(task.getTxId());
-            if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
+            profitSharingService.refreshPendingReturn(split, leg);
+            leg = legRepository.selectById(leg.getLegId());
+            if (leg == null || !ProfitSharingReturnLegService.isOpen(leg.getStatus())) {
                 finishCompensationTask(task, STATUS_COMPLETED, "return confirmed");
                 return;
             }
-            profitSharingService.retryFailedReturns(List.of(split), Map.of(merchant.getMerchantId(), merchant));
-            split = splitRepository.selectById(task.getTxId());
-            if ((split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank())
-                    && (split.getFailureReason() == null || !split.getFailureReason().contains("分账回退未成功"))) {
+            profitSharingService.retryFailedReturnLegs(
+                    List.of(leg), Map.of(merchant.getMerchantId(), merchant));
+            leg = legRepository.selectById(leg.getLegId());
+            if (leg == null || !ProfitSharingReturnLegService.isOpen(leg.getStatus())) {
                 finishCompensationTask(task, STATUS_COMPLETED, "return succeeded");
                 return;
             }
-            deferProfitSharingReturnTask(task, split.getSplitId());
+            deferProfitSharingReturnTask(task, splitId);
         } catch (Exception e) {
-            deferProfitSharingReturnTask(task, task.getTxId(), "error: " + e.getMessage());
+            deferProfitSharingReturnTask(task, splitId, "error: " + e.getMessage());
             log.warn("profit sharing return compensation error taskId={}", task.getTaskId(), e);
         }
+    }
+
+    /**
+     * 新任务的 txId 是 {@code LEG:<legId>}；存量任务仍是裸 {@code splitId}，
+     * 此时取该 split 最老一条开放腿跑完即止，不改写历史行。
+     */
+    private OrderSplitReturnLeg resolveLeg(CompensationTask task) {
+        String txId = task.getTxId();
+        if (txId == null || txId.isBlank()) {
+            return null;
+        }
+        String prefix = ProfitSharingReturnLegService.LEG_TX_PREFIX;
+        if (txId.startsWith(prefix)) {
+            try {
+                return legRepository.selectById(Long.parseLong(txId.substring(prefix.length())));
+            } catch (NumberFormatException e) {
+                log.warn("invalid return leg txId={}", txId);
+                return null;
+            }
+        }
+        List<OrderSplitReturnLeg> open = legRepository.findOpenBySplitId(txId);
+        return open.isEmpty() ? null : open.get(0);
     }
 
     private void deferProfitSharingReturnTask(CompensationTask task, String splitId) {
@@ -142,7 +181,9 @@ public class CompensationTaskScheduler {
             log.warn("profit sharing return compensation exhausted splitId={} attempts={}", splitId, attempt);
             OrderRevenueSplit split = splitRepository.selectById(splitId);
             if (split != null) {
-                profitSharingReturnAlertService.sendCompensationExhausted(task, split);
+                // R20-9：告警金额按腿聚合，不再取 split 上被覆盖过的单值。
+                profitSharingReturnAlertService.sendCompensationExhausted(
+                        task, split, legRepository.findOpenBySplitId(splitId));
             }
             return;
         }

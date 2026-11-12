@@ -43,6 +43,7 @@ class RevenueSplitConcurrencyTest {
     @Mock private ProfitSharingReturnCompensationService returnCompensationService;
     @Mock private ProfitSharingReturnAlertService profitSharingAlertService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ProfitSharingReturnLegService returnLegService;
 
     private RevenueSplitService service;
 
@@ -50,7 +51,7 @@ class RevenueSplitConcurrencyTest {
     void setUp() {
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService);
+                profitSharingAlertService, distributedLockService, returnLegService);
     }
 
     @Test

@@ -3,9 +3,11 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.OrderSplitReturnLeg;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.mapper.OrderSplitReturnLegMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,17 +26,20 @@ public class ProfitSharingRetryScheduler {
 
     private final ProfitSharingProperties profitSharingProperties;
     private final OrderRevenueSplitMapper splitRepository;
+    private final OrderSplitReturnLegMapper legRepository;
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
     private final ScheduledTaskService taskService;
 
     public ProfitSharingRetryScheduler(ProfitSharingProperties profitSharingProperties,
                                        OrderRevenueSplitMapper splitRepository,
+                                       OrderSplitReturnLegMapper legRepository,
                                        MerchantMapper merchantRepository,
                                        WeChatProfitSharingService profitSharingService,
                                        ScheduledTaskService taskService) {
         this.profitSharingProperties = profitSharingProperties;
         this.splitRepository = splitRepository;
+        this.legRepository = legRepository;
         this.merchantRepository = merchantRepository;
         this.profitSharingService = profitSharingService;
         this.taskService = taskService;
@@ -72,28 +77,29 @@ public class ProfitSharingRetryScheduler {
                     .map(OrderRevenueSplit::getMerchantId)
                     .filter(id -> id != null && !id.isBlank())
                     .forEach(merchantIds::add);
-            List<OrderRevenueSplit> pendingReturns =
-                    splitRepository.findTop20ByWechatPendingReturnNoIsNotNullOrderByCreatedAtAsc();
-            if (pendingReturns.size() > batch) {
-                pendingReturns = pendingReturns.subList(0, batch);
-            }
-            int polled = profitSharingService.pollPendingReturns(pendingReturns);
-
-            List<OrderRevenueSplit> failedReturns =
-                    splitRepository.findTop20ByFailureReasonContainingOrderByCreatedAtAsc("分账回退未成功");
-            if (failedReturns.size() > batch) {
-                failedReturns = failedReturns.subList(0, batch);
-            }
-            failedReturns.stream()
-                    .map(OrderRevenueSplit::getMerchantId)
+            // R20-9 / CB-085：回退的待办来源改成「腿表」，不再扫 split 上那对被覆盖的单值列。
+            // findOpenLegs 自带 ORDER BY leg_id + LIMIT（铁律 88②），按腿逐条查单/重提。
+            List<OrderSplitReturnLeg> openLegs = legRepository.findOpenLegs(batch);
+            List<OrderSplitReturnLeg> failedLegs = openLegs.stream()
+                    .filter(l -> ProfitSharingReturnLegService.STATUS_FAILED.equals(l.getStatus()))
+                    .toList();
+            var legSplitIds = new java.util.LinkedHashSet<String>();
+            openLegs.stream().map(OrderSplitReturnLeg::getSplitId)
                     .filter(id -> id != null && !id.isBlank())
-                    .forEach(merchantIds::add);
+                    .forEach(legSplitIds::add);
+            if (!legSplitIds.isEmpty()) {
+                splitRepository.selectBatchIds(legSplitIds).stream()
+                        .map(OrderRevenueSplit::getMerchantId)
+                        .filter(id -> id != null && !id.isBlank())
+                        .forEach(merchantIds::add);
+            }
             Map<String, Merchant> merchants = merchantIds.isEmpty()
                     ? Map.of()
                     : merchantRepository.findAllById(merchantIds).stream()
                     .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
             int retried = profitSharingService.retryFailedSplits(failedSplits, merchants);
-            int returnRetried = profitSharingService.retryFailedReturns(failedReturns, merchants);
+            int polled = profitSharingService.pollOpenReturnLegs(openLegs);
+            int returnRetried = profitSharingService.retryFailedReturnLegs(failedLegs, merchants);
 
             summary = buildSummary(retried, polled, returnRetried);
             if (retried > 0 || polled > 0 || returnRetried > 0) {

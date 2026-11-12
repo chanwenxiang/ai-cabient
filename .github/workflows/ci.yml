@@ -183,6 +183,23 @@ jobs:
       - name: Flyway migration number-order self-test
         run: node scripts/check-migration-number-order.test.mjs
 
+      # R20 P3 口径门禁（活动窗三处同源 + 跨端字典自动对齐）。这两条不进
+      # check:audit-gates 聚合链：链尾此刻被另一批次的 package.json 改动占用，
+      # 直接在 CI 调用同样是可执行接线，且无需 pnpm install（纯 node 脚本）。
+      - name: R20 P3 window and dict parity gate
+        run: node scripts/check-p3-window-and-dict-parity.mjs
+
+      - name: R20 P3 parity gate self-test
+        run: node scripts/check-p3-window-and-dict-parity.mjs --self-test
+
+      # R20-9 分账回退按腿立账（资损类 P1）：钉住 V463 腿表、按腿 upsert、
+      # 补偿键按腿、定时兜底从腿表扫，以及旧单值扫描入口已下线。
+      - name: R20-9 split return leg conservation gate
+        run: node scripts/check-split-return-leg-conservation.mjs
+
+      - name: R20-9 conservation gate self-test
+        run: node scripts/check-split-return-leg-conservation.mjs --self-test
+
       # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
       # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
       # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。

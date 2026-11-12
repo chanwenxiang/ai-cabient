@@ -37,7 +37,7 @@ class WeChatProfitSharingRetryIsolationTest {
                 true, "wx-appid", "1900000109", "https://example.test/notify",
                 "0123456789abcdef0123456789abcdef", "SERIAL-1", "PRIVATE-PEM", null, false);
         WeChatProfitSharingService service =
-                new WeChatProfitSharingService(sharing, pay, client, splitRepository, self);
+                new WeChatProfitSharingService(sharing, pay, client, splitRepository, null, self);
 
         OrderRevenueSplit bad = split("S-BAD");
         Merchant merchant = new Merchant();

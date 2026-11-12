@@ -2,11 +2,14 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.CompensationTask;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.OrderSplitReturnLeg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 微信分账运营告警：回退补偿失败、改单增额需人工补分账等。
@@ -31,20 +34,41 @@ public class ProfitSharingReturnAlertService {
         this.opsExceptionService = opsExceptionService;
     }
 
+    /** 存量兼容入口：没有腿列表时按 split 单值兜底，仅用于告警文案，绝不用于资金动作。 */
     public void sendCompensationExhausted(CompensationTask task, OrderRevenueSplit split) {
+        sendCompensationExhausted(task, split, List.of());
+    }
+
+    /**
+     * R20-9 / CB-085：告警金额按未完结腿累加，并把每条腿的单号都列出来。
+     * 改前只取 split 上那对被覆盖过的单值列，多轮部分退时告警金额会少报。
+     */
+    public void sendCompensationExhausted(CompensationTask task, OrderRevenueSplit split,
+                                          List<OrderSplitReturnLeg> openLegs) {
         if (split == null) {
             return;
         }
+        List<OrderSplitReturnLeg> legs = openLegs == null ? List.of() : openLegs.stream()
+                .filter(l -> l != null && ProfitSharingReturnLegService.isOpen(l.getStatus()))
+                .toList();
+        long pendingCents = legs.isEmpty()
+                ? (split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0L)
+                : legs.stream().mapToLong(OrderSplitReturnLeg::getCents).sum();
+        String outReturnNos = legs.isEmpty()
+                ? (split.getWechatPendingReturnNo() != null ? split.getWechatPendingReturnNo() : "")
+                : legs.stream().map(OrderSplitReturnLeg::getOutReturnNo)
+                        .filter(n -> n != null && !n.isBlank())
+                        .collect(Collectors.joining(","));
         String title = "[分账回退补偿失败]";
-        long pendingCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0L;
         String msg = String.format(
-                "补偿任务 %s 已达最大重试 splitId=%s orderId=%s merchantId=%s 待回退=%d分 outReturnNo=%s failure=%s",
+                "补偿任务 %s 已达最大重试 splitId=%s orderId=%s merchantId=%s 待回退=%d分 未完结腿数=%d outReturnNo=%s failure=%s",
                 task.getTaskId(),
                 split.getSplitId(),
                 split.getOrderId(),
                 split.getMerchantId(),
                 pendingCents,
-                split.getWechatPendingReturnNo(),
+                legs.size(),
+                outReturnNos,
                 split.getFailureReason() != null ? split.getFailureReason() : "");
         log.error(LITERAL, title, msg);
         Map<String, Object> extra = Map.of(
@@ -54,7 +78,8 @@ public class ProfitSharingReturnAlertService {
                 "taskId", task.getTaskId() != null ? task.getTaskId() : 0L,
                 "retryCount", task.getRetryCount(),
                 "pendingReturnCents", pendingCents,
-                "outReturnNo", split.getWechatPendingReturnNo() != null ? split.getWechatPendingReturnNo() : ""
+                "openLegCount", legs.size(),
+                "outReturnNo", outReturnNos
         );
         opsExceptionService.report(
                 SPLIT_EXCEPTION, "HIGH", new OpsExceptionService.ExceptionReport.ExceptionRefs(split.getDeviceId(), null, split.getOrderId(), null), title, msg + " taskId=" + task.getTaskId());

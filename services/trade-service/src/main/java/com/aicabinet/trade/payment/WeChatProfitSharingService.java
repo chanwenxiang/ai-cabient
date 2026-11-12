@@ -4,7 +4,9 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.OrderSplitReturnLeg;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
+import com.aicabinet.trade.service.ProfitSharingReturnLegService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -38,17 +42,20 @@ public class WeChatProfitSharingService {
     private final WeChatPayProperties weChatPayProperties;
     private final WeChatPayV3Client weChatPayV3Client;
     private final OrderRevenueSplitMapper splitRepository;
+    private final ProfitSharingReturnLegService returnLegService;
     private final WeChatProfitSharingService self;
 
     public WeChatProfitSharingService(ProfitSharingProperties profitSharingProperties,
                                       WeChatPayProperties weChatPayProperties,
                                       WeChatPayV3Client weChatPayV3Client,
                                       OrderRevenueSplitMapper splitRepository,
+                                      ProfitSharingReturnLegService returnLegService,
                                       @Lazy WeChatProfitSharingService self) {
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.weChatPayV3Client = weChatPayV3Client;
         this.splitRepository = splitRepository;
+        this.returnLegService = returnLegService;
         this.self = self;
     }
 
@@ -298,14 +305,24 @@ public class WeChatProfitSharingService {
     }
 
     /**
-     * 轮询待确认的分账回退并同步本地 split：微信查单 HTTP 在事务外，落库走短事务。
+     * 轮询待确认的分账回退：微信查单 HTTP 在事务外，落库走短事务。
+     * R20-9 / CB-085：单号与金额只从「腿」读，split 上的两列只是派生投影。
      */
-    public boolean refreshPendingReturn(OrderRevenueSplit split) {
-        if (split == null || split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
+    public boolean refreshPendingReturn(OrderRevenueSplit split, OrderSplitReturnLeg leg) {
+        if (split == null || leg == null || !ProfitSharingReturnLegService.isOpen(leg.getStatus())) {
             return false;
         }
-        ReturnSubmitOutcome outcome = queryReturnOutcome(split.getWechatPendingReturnNo());
-        return self.applyReturnOutcome(split, outcome);
+        ReturnSubmitOutcome outcome = queryReturnOutcome(leg.getOutReturnNo());
+        return self.applyReturnOutcome(split, leg, outcome);
+    }
+
+    /** 存量兼容：按 split 取最老一条未完结腿再查单；生产路径一律走带 leg 的重载。 */
+    public boolean refreshPendingReturn(OrderRevenueSplit split) {
+        if (split == null) {
+            return false;
+        }
+        List<OrderSplitReturnLeg> open = returnLegService.openLegs(split.getSplitId());
+        return !open.isEmpty() && refreshPendingReturn(split, open.get(0));
     }
 
     /** 批量轮询；单条异常只记日志，不能让一条坏行中断整批。 */
@@ -313,46 +330,97 @@ public class WeChatProfitSharingService {
         if (!isApiReady() || splits == null || splits.isEmpty()) {
             return 0;
         }
+        List<OrderSplitReturnLeg> legs = splits.stream()
+                .flatMap(s -> returnLegService.openLegs(s.getSplitId()).stream())
+                .toList();
+        return pollOpenReturnLegs(legs);
+    }
+
+    /** R20-9：定时兜底按腿轮询，一次批量取回全部相关 split（不按腿逐个查库）。 */
+    public int pollOpenReturnLegs(List<OrderSplitReturnLeg> legs) {
+        if (!isApiReady() || legs == null || legs.isEmpty()) {
+            return 0;
+        }
+        Map<String, OrderRevenueSplit> splits = loadSplitsForLegs(legs);
         int updated = 0;
-        for (OrderRevenueSplit split : splits) {
+        for (OrderSplitReturnLeg leg : legs) {
+            OrderRevenueSplit split = splits.get(leg.getSplitId());
+            if (split == null) {
+                continue;
+            }
             try {
-                if (self.refreshPendingReturn(split)) {
+                if (self.refreshPendingReturn(split, leg)) {
                     updated++;
                 }
             } catch (Exception e) {
-                log.warn("wechat profit sharing return poll failed splitId={}", split.getSplitId(), e);
+                log.warn("wechat profit sharing return poll failed splitId={} legId={}",
+                        split.getSplitId(), leg.getLegId(), e);
             }
         }
         return updated;
     }
 
+    /** 一次 selectBatchIds + LinkedHashMap 分组，避免按腿 N+1（铁律 88②）。 */
+    private Map<String, OrderRevenueSplit> loadSplitsForLegs(List<OrderSplitReturnLeg> legs) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (OrderSplitReturnLeg leg : legs) {
+            if (leg != null && leg.getSplitId() != null) {
+                ids.add(leg.getSplitId());
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, OrderRevenueSplit> byId = new LinkedHashMap<>();
+        for (OrderRevenueSplit split : splitRepository.selectBatchIds(ids)) {
+            byId.put(split.getSplitId(), split);
+        }
+        return byId;
+    }
+
     /**
-     * 重试失败的分账回退（failureReason 含「分账回退未成功」且记录了 pending 信息）。
-     * 批方法不加事务：HTTP 在事务外，单条结果由 {@link #applyReturnOutcome} 短事务落库。
+     * 重试失败的分账回退。批方法不加事务：HTTP 在事务外，单条结果由
+     * {@link #applyReturnOutcome(OrderRevenueSplit, OrderSplitReturnLeg, ReturnSubmitOutcome)} 短事务落库。
      */
     public int retryFailedReturns(List<OrderRevenueSplit> splits, Map<String, Merchant> merchantsById) {
         if (!isApiReady() || splits == null || splits.isEmpty()) {
             return 0;
         }
+        List<OrderSplitReturnLeg> legs = splits.stream()
+                .flatMap(s -> returnLegService.openLegs(s.getSplitId()).stream())
+                .filter(l -> ProfitSharingReturnLegService.STATUS_FAILED.equals(l.getStatus()))
+                .toList();
+        return retryFailedReturnLegs(legs, merchantsById);
+    }
+
+    /** R20-9：按腿重提，金额与单号都取腿，绝不从 split 单值读。 */
+    public int retryFailedReturnLegs(List<OrderSplitReturnLeg> legs, Map<String, Merchant> merchantsById) {
+        if (!isApiReady() || legs == null || legs.isEmpty()) {
+            return 0;
+        }
+        Map<String, OrderRevenueSplit> splits = loadSplitsForLegs(legs);
         int retried = 0;
-        for (OrderRevenueSplit split : splits) {
+        for (OrderSplitReturnLeg leg : legs) {
+            OrderRevenueSplit split = splits.get(leg.getSplitId());
+            if (split == null) {
+                continue;
+            }
             try {
-                if (retrySingleFailedReturn(split, merchantsById)) {
+                if (retrySingleFailedReturn(split, leg, merchantsById)) {
                     retried++;
                 }
             } catch (Exception e) {
-                log.warn("wechat profit sharing return retry failed splitId={}", split.getSplitId(), e);
+                log.warn("wechat profit sharing return retry failed splitId={} legId={}",
+                        split.getSplitId(), leg.getLegId(), e);
             }
         }
         return retried;
     }
 
-    private boolean retrySingleFailedReturn(OrderRevenueSplit split, Map<String, Merchant> merchantsById) {
-        if (split.getWechatPendingReturnNo() == null || split.getWechatPendingReturnNo().isBlank()) {
-            return false;
-        }
-        long returnCents = split.getWechatPendingReturnCents() != null ? split.getWechatPendingReturnCents() : 0;
-        if (returnCents <= 0) {
+    private boolean retrySingleFailedReturn(OrderRevenueSplit split,
+                                            OrderSplitReturnLeg leg,
+                                            Map<String, Merchant> merchantsById) {
+        if (leg == null || !ProfitSharingReturnLegService.isOpen(leg.getStatus()) || leg.getCents() <= 0) {
             return false;
         }
         Merchant merchant = merchantsById.get(split.getMerchantId());
@@ -362,54 +430,47 @@ public class WeChatProfitSharingService {
         ReturnSubmitOutcome outcome = self.returnMerchantShare(
                 split,
                 merchant,
-                returnCents,
-                split.getWechatPendingReturnNo(),
-                split.getFailureReason() != null ? split.getFailureReason() : "分账回退重试");
-        self.applyReturnOutcome(split, outcome);
+                leg.getCents(),
+                leg.getOutReturnNo(),
+                leg.getFailureReason() != null ? leg.getFailureReason() : "分账回退重试");
+        self.applyReturnOutcome(split, leg, outcome);
         return outcome != ReturnSubmitOutcome.FAILED;
     }
 
-    /** 短事务：只把查单/回退结果落到 split，不包含任何渠道 HTTP。 */
+    /** 短事务：只把查单/回退结果落到腿 + 投影，不包含任何渠道 HTTP。 */
+    @Transactional
+    public boolean applyReturnOutcome(OrderRevenueSplit split,
+                                      OrderSplitReturnLeg leg,
+                                      ReturnSubmitOutcome outcome) {
+        if (split == null || leg == null || outcome == null) {
+            return false;
+        }
+        String legReason = outcome == ReturnSubmitOutcome.FAILED
+                ? (leg.getFailureReason() != null ? leg.getFailureReason() : "分账回退未成功需人工处理")
+                : null;
+        returnLegService.recordOutcome(split, leg.getOutReturnNo(), leg.getCents(), outcome, legReason);
+        String splitReason = outcome == ReturnSubmitOutcome.FAILED ? "分账回退未成功需人工处理" : null;
+        split.setFailureReason(splitReason);
+        // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
+        splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
+                .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
+                .set(OrderRevenueSplit::getFailureReason, splitReason));
+        if (outcome == ReturnSubmitOutcome.SUCCESS) {
+            log.info("profit sharing return confirmed splitId={} legId={} order={}",
+                    split.getSplitId(), leg.getLegId(), split.getOrderId());
+            return true;
+        }
+        return outcome == ReturnSubmitOutcome.FAILED;
+    }
+
+    /** 存量兼容入口：按 split 的最老开放腿落结果。 */
     @Transactional
     public boolean applyReturnOutcome(OrderRevenueSplit split, ReturnSubmitOutcome outcome) {
         if (split == null || outcome == null) {
             return false;
         }
-        switch (outcome) {
-            case SUCCESS -> {
-                split.setWechatPendingReturnNo(null);
-                split.setWechatPendingReturnCents(null);
-                split.setFailureReason(null);
-                splitRepository.save(split);
-                // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
-                splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
-                        .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
-                        .set(OrderRevenueSplit::getWechatPendingReturnNo, null)
-                        .set(OrderRevenueSplit::getWechatPendingReturnCents, null)
-                        .set(OrderRevenueSplit::getFailureReason, null));
-                log.info("profit sharing return confirmed splitId={} order={}", split.getSplitId(), split.getOrderId());
-                return true;
-            }
-            case PROCESSING -> {
-                split.setFailureReason(null);
-                splitRepository.save(split);
-                // M01：updateById 忽略 null 列，清列须 wrapper 显式 set(null)
-                splitRepository.update(null, com.baomidou.mybatisplus.core.toolkit.Wrappers.<OrderRevenueSplit>lambdaUpdate()
-                        .eq(OrderRevenueSplit::getSplitId, split.getSplitId())
-                        .set(OrderRevenueSplit::getFailureReason, null));
-                return false;
-            }
-            case FAILED -> {
-                if (split.getFailureReason() == null || !split.getFailureReason().contains("分账回退未成功")) {
-                    split.setFailureReason("分账回退未成功需人工处理");
-                }
-                splitRepository.save(split);
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
+        List<OrderSplitReturnLeg> open = returnLegService.openLegs(split.getSplitId());
+        return !open.isEmpty() && applyReturnOutcome(split, open.get(0), outcome);
     }
 
     private static ReturnSubmitOutcome mapReturnResult(String result) {

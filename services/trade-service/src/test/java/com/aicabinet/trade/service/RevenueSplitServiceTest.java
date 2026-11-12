@@ -42,6 +42,7 @@ class RevenueSplitServiceTest {
     @Mock private ProfitSharingReturnCompensationService returnCompensationService;
     @Mock private ProfitSharingReturnAlertService profitSharingAlertService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private ProfitSharingReturnLegService returnLegService;
 
     private RevenueSplitService service;
 
@@ -49,7 +50,9 @@ class RevenueSplitServiceTest {
     void setUp() {
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService);
+                profitSharingAlertService, distributedLockService, returnLegService);
+        org.mockito.Mockito.lenient().when(returnLegService.openLegs(anyString()))
+                .thenReturn(java.util.List.of());
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
     }
@@ -436,14 +439,15 @@ class RevenueSplitServiceTest {
 
         service.adjustSplitAfterPartialRefund(order, false);
 
-        // AU-141：finalize 事务内不再同步提交微信回退——落 PENDING + 30s 补偿任务异步提交
+        // AU-141：finalize 事务内不再同步提交微信回退——落一条待确认腿 + 30s 补偿任务异步提交
         verify(profitSharingService, never()).returnMerchantShare(any(), any(), anyLong(), anyString(), anyString());
-        assertEquals("PSR" + split.getSplitId() + ":g360", split.getWechatPendingReturnNo());
-        assertEquals(540L, split.getWechatPendingReturnCents());
+        // R20-9：不再断言 split 单值列被覆盖，改钉「按腿写入」的入参。
+        verify(returnLegService).recordOutcome(eq(split), eq("PSR" + split.getSplitId() + ":g360"),
+                eq(540L), eq(ReturnSubmitOutcome.PROCESSING), anyString());
         verify(splitRepository).save(argThat(s ->
                 s.getMerchantCents() == 360L
                         && s.getFailureReason() == null));
-        verify(returnCompensationService).scheduleReturnRetry(eq(split), eq(30));
+        verify(returnCompensationService).scheduleReturnRetry(eq(split), anyList(), eq(30));
     }
 
     @Test
@@ -473,8 +477,9 @@ class RevenueSplitServiceTest {
 
         verify(profitSharingService, never()).returnMerchantShare(any(), any(), anyLong(), anyString(), anyString());
         verify(profitSharingAlertService, never()).sendReturnSubmitFailed(any(), anyString(), anyLong(), anyString());
-        assertEquals(540L, split.getWechatPendingReturnCents());
-        verify(returnCompensationService).scheduleReturnRetry(eq(split), eq(30));
+        verify(returnLegService).recordOutcome(eq(split), eq("PSR" + split.getSplitId() + ":g360"),
+                eq(540L), eq(ReturnSubmitOutcome.PROCESSING), anyString());
+        verify(returnCompensationService).scheduleReturnRetry(eq(split), anyList(), eq(30));
     }
 
     @Test

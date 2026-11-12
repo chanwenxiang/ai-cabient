@@ -115,20 +115,10 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
                 .last("LIMIT " + lim));
     }
 
-    default List<OrderRevenueSplit> findTop20ByWechatPendingReturnNoIsNotNullOrderByCreatedAtAsc() {
-        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
-                .isNotNull(OrderRevenueSplit::getWechatPendingReturnNo)
-                .ne(OrderRevenueSplit::getWechatPendingReturnNo, "")
-                .orderByAsc(OrderRevenueSplit::getCreatedAt)
-                .last("LIMIT 20"));
-    }
-
-    default List<OrderRevenueSplit> findTop20ByFailureReasonContainingOrderByCreatedAtAsc(String fragment) {
-        return selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
-                .like(OrderRevenueSplit::getFailureReason, fragment)
-                .orderByAsc(OrderRevenueSplit::getCreatedAt)
-                .last("LIMIT 20"));
-    }
+    // R20-9：原 findTop20ByWechatPendingReturnNo… / findTop20ByFailureReasonContaining…
+    // 两个扫描入口已随「单值列」一起下线。回退待办统一从 order_split_return_leg 的
+    // 开放腿扫描（OrderSplitReturnLegMapper.findOpenLegs），避免多轮部分退被覆盖后扫不到。
+    // 铁律 62：删功能必须同时删掉入口，不留半截可调用路径。
 
     default long countByMerchantIdInAndStatusIn(Collection<String> merchantIds, Collection<String> statuses) {
     Long c = selectCount(Wrappers.<OrderRevenueSplit>lambdaQuery().in(OrderRevenueSplit::getMerchantId, merchantIds).in(OrderRevenueSplit::getStatus, statuses));
