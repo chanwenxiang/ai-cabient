@@ -39,6 +39,11 @@ aicabinet:
     # 留空 ⇒ 两个 domainConfig 端点一起回 404（回到「固件对拉取失败的处置未实测」的原风险，
     # 见设计文档 §5「域名自钉已实装（拍板 A）」）。
     public-base-url: ${JIANGYI_PUBLIC_BASE_URL:}
+    watchdog:
+      # 🔴 开门回执超时（毫秒，R18-1）：必须 ≥ trade 侧 session-expire.opening-seconds
+      # （默认 60s）+ 扫描调度余量，否则会抢在 trade 过期处置（置 CANCELLED，迟到兜账 v2 可救）
+      # 之前把会话 open-failed 置 FAILED——兜账 v2 不救 FAILED，货已拿走但无单可结。
+      open-timeout-ms: ${JIANGYI_WATCHDOG_OPEN_TIMEOUT_MS:70000}
     # 识别上报 → 会话关门合成的轮询兜底（秒）：WS 无关门上报（模式一），
     # 会话靠识别上报先行合成 door-event CLOSED，超时则由 trade 侧扫描兜底
     # OSS STS 直传凭证（CB-024 §4.2.6）。🔴 AK/RoleArn 无默认值：未配置时

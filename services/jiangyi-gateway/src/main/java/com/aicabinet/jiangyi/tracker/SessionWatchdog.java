@@ -3,6 +3,7 @@ package com.aicabinet.jiangyi.tracker;
 import com.aicabinet.jiangyi.client.TradeInternalClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,8 @@ import java.util.List;
  * 将邑会话看门狗（CB-022，方案 §4.5 时序 5）：模式一设备侧无超时上报
  * （V16 §5.2.14 仅模式二且不用 token），三组超时兜底必须自建：
  * <ul>
- *   <li>开门 15s 无回执（lockStatus/doorStatus 均未到）→ trade open-failed；</li>
+ *   <li>开门无回执（lockStatus/doorStatus 均未到，阈值 {@code jiangyi.watchdog.open-timeout-ms}，
+ *       默认 70s）→ trade open-failed；</li>
  *   <li>关门 300s 无识别结果 → trade recognize-timeout（RECOGNIZING→DISPUTED）；</li>
  *   <li>大模型复核 doing 悬挂 10min 无二次甄别 → trade recognize-timeout。</li>
  * </ul>
@@ -28,8 +30,17 @@ public class SessionWatchdog {
 
     private static final Logger log = LoggerFactory.getLogger(SessionWatchdog.class);
 
-    private static final long OPEN_TIMEOUT_MS = 15_000L;
     private static final long CLOSE_TIMEOUT_MS = 300_000L;
+
+    /**
+     * 开门回执超时（R18-1，2026-11-12 审计）：🔴 必须 ≥ trade 侧
+     * {@code session-expire.opening-seconds}（默认 60s）+ 调度余量。此前硬编码 15s，
+     * 比新开门窗口早 45s：弱网下回执 15~60s 才到时，会话已被本类 open-failed 置 FAILED，
+     * 而迟到兜账 v2 只救 CANCELLED（trade 60s 过期处置路径）——货已拿走但无单可结。
+     * 阈值调大后：15~60s 内回执正常开门；60~70s 内回执撞 CANCELLED 由兜账 v2 自动转争议单；
+     * 70s 后才真判死（此时 open-failed 仅对仍 CREATED/OPENING 的会话生效，与 trade 过期处置 CAS 不冲突）。
+     */
+    private final long openTimeoutMs;
     private static final long DOING_TIMEOUT_MS = 600_000L;
     /** 模型下发回执超时（rknn 下载 + 机器重启，远长于开门；与 ModelPushController 同值）。 */
     private static final long MODEL_TIMEOUT_MS = 600_000L;
@@ -41,10 +52,12 @@ public class SessionWatchdog {
 
     public SessionWatchdog(CommandTracker commandTracker,
                            TradeInternalClient tradeInternalClient,
-                           StringRedisTemplate redis) {
+                           StringRedisTemplate redis,
+                           @Value("${jiangyi.watchdog.open-timeout-ms:70000}") long openTimeoutMs) {
         this.commandTracker = commandTracker;
         this.tradeInternalClient = tradeInternalClient;
         this.redis = redis;
+        this.openTimeoutMs = openTimeoutMs;
     }
 
     @Scheduled(fixedDelay = 10_000L)
@@ -71,12 +84,12 @@ public class SessionWatchdog {
 
     private void sweepOpen(long now) {
         List<CommandTracker.Pending> due = commandTracker.due(
-                CommandTracker.Kind.OPEN, now - OPEN_TIMEOUT_MS);
+                CommandTracker.Kind.OPEN, now - openTimeoutMs);
         for (CommandTracker.Pending p : due) {
             log.warn("jiangyi watchdog OPEN timeout sessionId={} deviceId={} — open-failed",
                     p.sessionId(), p.deviceId());
             try {
-                tradeInternalClient.postOpenFailed(p.sessionId(), "将邑柜开门指令15秒无设备回执", p.deviceId());
+                tradeInternalClient.postOpenFailed(p.sessionId(), "将邑柜开门指令无设备回执（网关超时）", p.deviceId());
             } catch (Exception e) {
                 log.error("jiangyi watchdog open-failed notify failed sessionId={}", p.sessionId(), e);
                 continue; // 下一趟再试（不出队）
