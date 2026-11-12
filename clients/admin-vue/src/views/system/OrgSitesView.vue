@@ -232,6 +232,9 @@
             style="width: 180px"
             @change="loadBills"
           />
+          <!-- P3-10（2026-11-12）：与设备租赁页同族，改字典驱动。
+               此筛选器同时服务 site_rent_bill_status 与 device_data_fee_bill_status，
+               两族词表逐字一致（待付/已付/已作废），用前者即可。 -->
           <el-select
             v-model="billStatusFilter"
             clearable
@@ -239,9 +242,12 @@
             style="width: 120px"
             @change="loadBills"
           >
-            <el-option label="待付" value="UNPAID" />
-            <el-option label="已付" value="PAID" />
-            <el-option label="已作废" value="VOID" />
+            <el-option
+              v-for="item in billStatusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
           <el-button type="primary" :loading="loading" @click="loadBills">查询</el-button>
           <el-button
@@ -872,6 +878,7 @@ const billSize = ref(20);
 const billTotal = ref(0);
 const billMonthFilter = ref('');
 const billStatusFilter = ref('');
+const billStatusOptions = useDictOptions('site_rent_bill_status');
 
 const generateDialogTitle = computed(() => {
   if (feeBillKind.value === FEE_KIND_DATA) {

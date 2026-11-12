@@ -90,7 +90,7 @@ public class PromotionService {
 
     public List<PromotionActivityDto> listCurrentlyRunning() {
         Instant now = Instant.now();
-        return repository.findByStatusAndStartTimeBeforeAndEndTimeAfter(CabinetConstants.PROMOTION_STATUS_ACTIVE, now, now)
+        return repository.findActiveInWindow(CabinetConstants.PROMOTION_STATUS_ACTIVE, now)
                 .stream().map(this::toDto).toList();
     }
 

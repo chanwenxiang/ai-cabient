@@ -766,19 +766,19 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：8 条可派修（P3-2 判为说明不派修、P3-3 已由批 C 覆盖）
+### 十七.3 剩余 P3：5 条（P3-2 判说明不派修、P3-3 已由批 C 覆盖、P3-5/6/10 已由 §十八 收口）
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
 | 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | 新表已有 `chk_*_status`，按「老表补 CHECK」执行，需先扫存量脏值 |
 | 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
 | 4 | 无主/渠道不符回调静默 200，无告警痕迹 | 微信 `:359-369`、支付宝 `:501-508` 仅 `log.warn`；补 `OpsAlertDispatcher` 落痕 |
-| 5 | 活动窗端点开/闭三处不一致（SQL `end_time > now()` vs Java `now.isAfter`） | 统一方向**以 SQL 为准（不含端点）**：活动窗是「到点即止」语义 |
-| 6 | 券过期按发放时刻而非日末 ⇒「到期当天」少用近一天 | `CouponService:216` 改当日 23:59:59 |
+| 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
+| 6 | ~~券过期按发放时刻而非日末~~ **已修（§十八.2）** | 改发放日 + N 天的日末，`Asia/Shanghai` |
 | 7 | 配置/促销策略每单 N 次查库（一单 N 行 ≥5N 查询） | 加本地缓存（Caffeine/`@Cacheable`），需定失效策略 |
 | 8 | commonPool 跑阻塞 HTTP；XXL executor 默认 200 线程 vs Hikari 20 | `DeviceCommandTracker:238` 给专用 executor；`XxlJobConfig` 显式设线程数 |
 | 9 | 图片无 OSS 缩略参数 + 上传上限 10MB ⇒ 移动端首屏带宽 | `product-image.ts` 加 `x-oss-process`；上传上限另议 |
-| 10 | 同一 `UNPAID` 一处「未付」一处「待付」；`supplier_payable`/`compensation_task` 状态族未进字典 | 文案对齐 + 补 `SysDictBootstrap` 字典项 |
+| 10 | ~~`UNPAID` 文案与字典族~~ **已修（§十八.3，报告一半不成立）** | 「待付/未付」是两个业务视角，不得强行统一；只改 1 处真错 + 字典驱动 + 补族 |
 
 > P3-2 **不要改**：`CANCELLED→DISPUTED` 是兜账 v2 刻意保留的唯一救援边（§九 #2、§十.3）。改了就堵死「迟到识别上报转争议后无钱可扣」的路径。
 
@@ -792,7 +792,75 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 ### 十七.5 建议顺序
 
-1. **R20-10 后半（异步化 + ACK 语义）**——唯一还会在故障时放大成「全设备门磁积压」的一条，改动面在 device-service 单文件。
+1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. **R20-9（加表 + 按腿回退）**——唯一剩余的资损类 P1，但要新建迁移与补偿器，单独一轮带守恒 SQL 验证。
-3. **P3-5 / P3-6 / P3-10**——三条纯口径对齐（活动窗端点、券过期日末、文案字典），一批扫完即可，无结构风险。
+3. **R20-10 后半（异步化 + ACK 语义）**——唯一还会在故障时放大成「全设备门磁积压」的一条；
+   ⚠ 需先等另一个会话的「出站客户端统一治理」批次收口（它正在改 `TradeServiceClient` 等 17 个文件）。
 4. P3-1/4/7/8/9 与 5 条待定项随迭代。
+
+---
+
+## 十八、P3 首批修复回执（2026-11-12，P3-5 / P3-6 / P3-10）
+
+> 三条都是「口径」类，但**没有一条能照报告的建议直接改**——每处都先读了消费点与字典权威来源。
+
+### 十八.1 P3-5｜活动窗：报告只说端点，实际还有一处更重的缺陷
+
+| 落点 | 改法 |
+|---|---|
+| `PromotionActivityMapper.findActiveInWindow` | 原 `findByStatusAndStartTimeBeforeAndEndTimeAfter` 是 MP 派生的 `lt(start,now).gt(end,now)`。改为显式 `(start IS NULL OR start <= now) AND (end IS NULL OR end > now)`，与 `findPricedCandidates` 的注解 SQL **逐字同口径**；调用点 `PromotionService.listCurrentlyRunning` 同步换签名。 |
+| `ConsumerMarketingService.doClaimCampaign` | `now.isAfter(end)` 改 `!now.isBefore(end)`：SQL 的 `end_time > now()` 是「到点即止」，原写法在 `now == end` 那一瞬仍可领。start 侧 `now.isBefore(start)` 本来就与 SQL 的 `<=` 一致，不动。 |
+
+**报告没写、实读才发现的第三处**：MP 的 `lt/gt` 对 NULL 列得 NULL ⇒ 该行被整个排除；而 SQL 侧 `(col IS NULL OR ...)` 是**保留**。`PromotionActivityValidator.validateForSave` 只对 SKU 级活动强制起止，**发券类活动允许不设期限**。于是「不设起止的发券活动」在运营的「进行中活动」列表里整条消失，但 `doClaimCampaign` 对 NULL 放行 ⇒ 用户照领、运营看不见。这比端点那一秒的分歧严重得多。
+
+**有意不改**：报告提的「DB `now()` 与 `Instant.now()` 混用」。把 `now()` 换成应用时钟传参要连带评估两处 SQL 的索引计划与 DB 会话时区，且本轮三条端点/NULL 缺陷与之无关 ⇒ 按「一次只改一个变量」留待单独一轮。
+
+### 十八.2 P3-6｜券有效期按自然日日末
+
+`CouponService` 新增 `expireAtEndOfDay(...)`：`LocalDateTime.now(Asia/Shanghai)` 取发放日 → `plusDays(validityDays)` → `atTime(LocalTime.MAX)` → `atZone(ZONE).toInstant()`。判据用**固定发放日 + 不同发放时刻**重载，避免测试跨日抖动。
+
+有效期列 `validity_days INT NOT NULL DEFAULT 30` 且保存时校验 `>= 1`，无 0/负分支。`expireAt` 全仓只有这一处赋值（另两处 `setExpireAt` 属于积分流水，口径不同，不动）。
+
+### 十八.3 P3-10｜报告**一半不成立**：「未付/待付」是刻意的两个业务视角
+
+先查后端字典权威 `SysDictBootstrap`，结论与报告相反：
+
+| 页面 | 业务对象 | 字典族 | 权威文案 | 原页面 | 判定 |
+|---|---|---|---|---|---|
+| `DeviceRentalView:49` | 设备租赁**账单** | `device_rental_bill_status` | 待付 | 未付 | ❌ 真错（且 V436 注释已记过同族手写 `VOIDED` 的坑） |
+| `OrgSitesView:242` | 站点租金/流量费账单 | `site_rent_bill_status` 等 | 待付 | 待付 | ✔ 已对 |
+| `WarehouseView:224` | 供应商**应付账款** | `supplier_payable_status` | **未付** | 未付 | ✔ 已对，报告误判 |
+
+「待付」= 等**对方**付款（应收账单），「未付」= **我方**尚未付款（应付账款）。财务动作视角不同，**强行统一反而丢语义**。报告还称 `supplier_payable` 未进字典 —— 实测 `SysDictBootstrap:295` 与 `shared-dict/src/index.ts` 都早已有 `supplier_payable_status`，这条指控也不成立。
+
+实际改动：
+
+1. 三处手写 `el-option` 统一改 `useDictOptions(...)` 渲染（复用既有响应式 composable，遵循「勿在 setup 顶层 `dictOptions(...)`」的约定），从源头消掉漂移；`DeviceRentalView` 的文案随之自动变「待付」。
+2. 补真缺口：`compensation_task_status`（`PENDING/PROCESSING/COMPLETED/FAILED`，取值来自 `CompensationTaskScheduler`）同时落后端 `SysDictBootstrap` 与前端 `shared-dict`。
+3. **顺带修同族第 4 处**：`V453` 已把盘点方式遗留码 `VISIBLE` 从字典表删掉、后端权威是 `OPEN`，但前端 `shared-dict` 仍写 `VISIBLE` ⇒ `displayLabel('stocktake_mode','OPEN')` 回落「未知」。已对齐为 `{ BLIND:'盲盘', OPEN:'明盘' }`（该族只有展示消费点，无下拉回传，故无双标签风险）。
+
+> 结论行：**不采纳**报告「统一 UNPAID 文案」的建议；**采纳**「补字典族」的部分。判据把这两种视角钉成刻意（见下）。
+
+### 十八.4 判据与验证
+
+| 层 | 判据 | 结果 |
+|---|---|---|
+| Java | `PromotionActivityWindowParityTest`（3 例）：真调 default 方法捕获 `selectList` 的 wrapper，断**生成出的 SQL 片段**（`IS NULL`×2 / `<=` / `>` / 单个 now / ACTIVE） | 3/3 绿 |
+| Java | `CouponExpiryDayEndTest`（4 例）：日末时刻、自然日而非 24h 窗、同一天不同发放时刻结果一致、次日下午仍可用 | 4/4 绿 |
+| 前端 | `p3-10-dict-parity.test.ts`（5 例）：三族账单=待付、应付=未付（钉住刻意差异）、`OPEN=明盘`/`VISIBLE` 回落未知、补偿任务四值、三个下拉族非空 | 5/5 绿 |
+| 静态门禁 | `scripts/check-p3-window-and-dict-parity.mjs`：① 活动窗 wrapper 与 `@Select` 比较符**自动对齐**（不写白名单）；② 6 个字典族的 Java↔TS 键值自动比对（常量引用走 `CabinetConstants` 解析）；③ 三个下拉不得再出现手写中文 label | 正向绿 |
+| 负向自测 | 同一脚本 `--self-test`：9 个沙箱化内存变异（删 IS NULL / `le→lt` / SQL `>→>=` / 端点退回 `isAfter` / 字典回 `VISIBLE` / 删补偿族 / 加回手写 label / **注释里写旧写法不得假红**） | 9/9 符合预期（该红则红、该绿则绿） |
+
+**注释抹除是硬要求**：本轮每个落点都写了复述旧写法的成因注释，不 `maskComments()`（替换为等长空格、保行号）就会被自己的注释骗成假红/假绿；`--self-test` 第 9 例专门钉这一点。
+
+> ⚠ **接链状态**：门禁脚本与 `--self-test` 已就绪并随本批提交，但 `package.json` 此刻被另一个会话的「出站客户端统一治理」批次占用（它同时改了 `check:audit-gates` 链、新增 3 条 script 与若干未跟踪的 `.test.mjs`）。为不把别人的半成品一并提交，本批**未改 `package.json`**；待该批次收口后需在链尾追加
+> `pnpm check:p3-window-and-dict-parity && pnpm check:p3-window-and-dict-parity-negative`，
+> 并定义两条 script（正向 / `--self-test`）。在此之前可用 `node scripts/check-p3-window-and-dict-parity.mjs --self-test` 直接跑。
+
+### 十八.5 部署注意
+
+- **无新增迁移**（纯代码 + 字典数据）。
+- `packages/shared-dict/dist/{index.js,index.d.ts}` 已 `pnpm --filter @aicabinet/shared-dict build` 重建并随批提交（`check:shared-dist-fresh` 绿）。
+- admin 三个 `.vue` 有改动 ⇒ 上线前需重建前端产物。`build:admin:typecheck`、`format:check`（针对改动文件）、`check:no-inline-dict-display` 均绿。
+- 存量数据无影响：`compensation_task_status` 只是补字典展示，不回填、不改状态值；券过期口径只影响**新发**的券，历史券 `expire_at` 原样保留。
+

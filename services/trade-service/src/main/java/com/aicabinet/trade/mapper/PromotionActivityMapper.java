@@ -58,8 +58,25 @@ public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivi
     return selectList(Wrappers.<PromotionActivity>lambdaQuery().eq(PromotionActivity::getStatus, status));
     }
 
-    default List<PromotionActivity> findByStatusAndStartTimeBeforeAndEndTimeAfter(String status, Instant now1, Instant now2) {
-    return selectList(Wrappers.<PromotionActivity>lambdaQuery().eq(PromotionActivity::getStatus, status).lt(PromotionActivity::getStartTime, now1).gt(PromotionActivity::getEndTime, now2));
+    /**
+     * P3-5（2026-11-12）：活动「生效中」判据——与 {@link #findPricedCandidates} 的 SQL **逐字同口径**。
+     *
+     * <p>原实现是 MP 派生的 {@code lt(startTime, now).gt(endTime, now)}，与 SQL 侧差三处，各自能出独立故障：
+     * ① start 用 {@code <} 而 SQL 是 {@code <=}：起始时刻那一瞬，列表判「未开始」而领券放行；
+     * ② 两侧都不容忍 NULL，SQL 是 {@code col IS NULL OR ...} ⇒ **不设起止的活动**在运营的
+     *    「进行中活动」列表里**整条消失**。发券类活动（非 SKU 类型）validator 并不强制起止
+     *    （见 {@code PromotionActivityValidator#validateForSave}），而领券侧 {@code doClaimCampaign}
+     *    对 NULL 是放行的 ⇒ 用户照领、运营看不到，活动等于隐身跑；
+     * ③ 只有 end 侧端点（{@code >}）原本就与 SQL 一致，但被 ② 掩盖。
+     *
+     * <p>沿用 SQL 语义：{@code start_time IS NULL OR start_time <= now}、{@code end_time IS NULL OR end_time > now}，
+     * 即「不设起止 = 不限期」、「到点即止」（end 端点不含）。
+     */
+    default List<PromotionActivity> findActiveInWindow(String status, Instant now) {
+        return selectList(Wrappers.<PromotionActivity>lambdaQuery()
+                .eq(PromotionActivity::getStatus, status)
+                .and(w -> w.isNull(PromotionActivity::getStartTime).or().le(PromotionActivity::getStartTime, now))
+                .and(w -> w.isNull(PromotionActivity::getEndTime).or().gt(PromotionActivity::getEndTime, now)));
     }
 
     default List<PromotionActivity> findByActivityType(String activityType) {

@@ -214,6 +214,8 @@
           />
         </el-form-item>
         <el-form-item v-if="tab === 'payables'" label="状态">
+          <!-- P3-10（2026-11-12）：应付账款的 UNPAID 是「未付」，与账单族的「待付」
+               语义不同（我方尚未付款 vs 等对方付款），不是文案漂移；但同族下拉统一改字典驱动防漂移。 -->
           <el-select
             v-model="payableStatusFilter"
             clearable
@@ -221,10 +223,12 @@
             style="width: 140px"
             @change="onPayableFilter"
           >
-            <el-option label="未付" value="UNPAID" />
-            <el-option label="部分付款" value="PARTIAL" />
-            <el-option label="已付" value="PAID" />
-            <el-option label="已关闭" value="CLOSED" />
+            <el-option
+              v-for="item in payableStatusOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item v-if="tab === 'payables'" label="逾期">
@@ -823,6 +827,7 @@ const WarehouseTransitTab = defineAsyncComponent(
 );
 import { createLoadSeq } from '@/composables/createLoadSeq';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useWarehouseBins } from '@/composables/warehouse/useWarehouseBins';
 import {
@@ -1331,6 +1336,7 @@ const suggestionCoverageDays = ref(14);
 const payables = ref<Row[]>([]);
 const payableSummary = ref<Row[]>([]);
 const payableStatusFilter = ref('');
+const payableStatusOptions = useDictOptions('supplier_payable_status');
 const payableOverdueOnly = ref(false);
 const stocktakes = ref<Row[]>([]);
 const stocktakeStatusFilter = ref('');

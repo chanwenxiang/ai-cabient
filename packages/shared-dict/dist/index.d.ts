@@ -826,9 +826,15 @@ export declare const DICT: {
         readonly PAID: "已付";
         readonly CLOSED: "已关闭";
     };
+    readonly compensation_task_status: {
+        readonly PENDING: "待执行";
+        readonly PROCESSING: "执行中";
+        readonly COMPLETED: "已完成";
+        readonly FAILED: "失败";
+    };
     readonly stocktake_mode: {
         readonly BLIND: "盲盘";
-        readonly VISIBLE: "明盘";
+        readonly OPEN: "明盘";
     };
     readonly stocktake_status: {
         readonly DRAFT: "草稿";

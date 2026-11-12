@@ -45,10 +45,15 @@
             />
           </el-form-item>
           <el-form-item label="状态">
+            <!-- P3-10（2026-11-12）：原手写「未付」与字典 device_rental_bill_status 的「待付」冲突；
+                 同族 V436 已因手写 VOIDED 踩过一次（后端常量是 VOID）。改为字典驱动消掉漂移。 -->
             <el-select v-model="billStatus" clearable placeholder="全部" style="width: 120px">
-              <el-option label="未付" value="UNPAID" />
-              <el-option label="已付" value="PAID" />
-              <el-option label="已作废" value="VOID" />
+              <el-option
+                v-for="item in billStatusOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="设备">
@@ -352,6 +357,7 @@ import { displayLabel } from '@aicabinet/shared-dict';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
 import HelpTip from '@/components/HelpTip.vue';
 import { useCrudTable } from '@/composables/useCrudTable';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 interface RentalBill {
@@ -408,6 +414,8 @@ function reload() {
 // ── 月租账单（CrudTable 化：分页/空态/操作列统一收口） ───────────────────
 const billMonth = ref('');
 const billStatus = ref('');
+// 端点词表以 SysDictBootstrap 为准（UNPAID=待付 / PAID=已付 / VOID=已作废）。
+const billStatusOptions = useDictOptions('device_rental_bill_status');
 const billDeviceId = ref('');
 
 const billsCrud = useCrudTable<RentalBill>({

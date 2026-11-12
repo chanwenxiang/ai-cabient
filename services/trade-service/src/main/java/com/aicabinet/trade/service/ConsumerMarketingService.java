@@ -274,7 +274,9 @@ public class ConsumerMarketingService {
         if (activity.getStartTime() != null && now.isBefore(activity.getStartTime())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动尚未开始");
         }
-        if (activity.getEndTime() != null && now.isAfter(activity.getEndTime())) {
+        // P3-5（2026-11-12）：端点归属以 SQL 为准（`end_time > now()` 才算有效 ⇒ 到点即止）。
+        // 原写法 now.isAfter(end) 在 now == end 那一瞬判「仍有效」，与列表/定价的 SQL 相反。
+        if (activity.getEndTime() != null && !now.isBefore(activity.getEndTime())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动已结束");
         }
         if ("POINTS".equalsIgnoreCase(activity.getActivityType())) {

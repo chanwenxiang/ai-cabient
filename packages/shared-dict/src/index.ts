@@ -830,7 +830,17 @@ export const DICT = {
     LOW_STOCK: '库存不足'
   },
   supplier_payable_status: { UNPAID: '未付', PARTIAL: '部分付款', PAID: '已付', CLOSED: '已关闭' },
-  stocktake_mode: { BLIND: '盲盘', VISIBLE: '明盘' },
+  // P3-10（2026-11-12）：补偿任务状态此前只有库/dict 表、没进前端字典，客服查单只能看裸码。
+  // 取值来源：CompensationTaskScheduler（PENDING/PROCESSING/COMPLETED/FAILED）。
+  compensation_task_status: {
+    PENDING: '待执行',
+    PROCESSING: '执行中',
+    COMPLETED: '已完成',
+    FAILED: '失败'
+  },
+  // P3-10：V453 已把遗留码 VISIBLE 清掉、后端权威是 OPEN（SysDictBootstrap「盘点方式」），
+  // 前端漏同步 ⇒ displayLabel('stocktake_mode','OPEN') 回落「未知」。此处对齐后端。
+  stocktake_mode: { BLIND: '盲盘', OPEN: '明盘' },
   stocktake_status: {
     DRAFT: '草稿',
     IN_PROGRESS: '盘点中',

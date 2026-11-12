@@ -15,7 +15,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.Locale;
 import java.util.Objects;
@@ -30,6 +32,9 @@ public class CouponService {
     private static final Logger log = LoggerFactory.getLogger(CouponService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUPON_CODE_LENGTH = 12;
+
+    /** P3-6：券有效期的「天」按业务时区的自然日算，与对账/看板同口径（本工程惯例）。 */
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     /** MA-028：券名里的「满 N」门槛承诺（N 允许小数，如「满 99.9 减 10 券」）。 */
     private static final java.util.regex.Pattern COUPON_NAME_THRESHOLD_PATTERN =
@@ -213,7 +218,10 @@ public class CouponService {
             uc.setUserId(userId);
             uc.setCouponDefId(couponDefId);
             uc.setCouponCode(generateCouponCode());
-            uc.setExpireAt(Instant.now().plus(def.getValidityDays(), ChronoUnit.DAYS));
+            // P3-6（2026-11-12）：有效期按「发放当日 + N 天」的**日末**算，不按发放时刻加 N×24h。
+            // 原写法 validityDays=1 在 20:00 发放 ⇒ 次日 20:00 就失效，用户以为「明天还有一天」，
+            // 上午还能用、下午突然用不了（P3-6 报的「到期当天少用近一天」）。
+            uc.setExpireAt(expireAtEndOfDay(def.getValidityDays()));
             uc.setStatus(CabinetConstants.COUPON_STATUS_UNUSED);
             userCouponRepository.save(uc);
 
@@ -995,8 +1003,27 @@ public class CouponService {
         );
     }
 
-    private String generateCouponCode() {
-        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    /**
+     * P3-6（2026-11-12）：发放日 + {@code validityDays} 天的**当日 23:59:59.999999999**。
+     *
+     * <p>语义是「有效 N 天（含到期当天整天）」而不是「N×24 小时」：后者在下午发放时会把到期时刻
+     * 拖到次日同一时刻，用户看到「还有 1 天」却在当天下午就用不了。{@code validityDays} 由
+     * 券定义校验保证 {@code >= 1}（见 {@code validateValidityDays}），故不处理 0/负值。
+     */
+    private static Instant expireAtEndOfDay(int validityDays) {
+        return expireAtEndOfDay(LocalDateTime.now(ZONE), validityDays);
+    }
+
+    /** 包级可见：判据传不同发放时刻，断言同一天结果一致（旧实现在这里必然不同）。 */
+    static Instant expireAtEndOfDay(LocalDateTime issuedAt, int validityDays) {
+        return issuedAt.toLocalDate()
+                .plusDays(validityDays)
+                .atTime(LocalTime.MAX)
+                .atZone(ZONE)
+                .toInstant();
+    }
+
+    private String generateCouponCode() {        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         StringBuilder sb = new StringBuilder(COUPON_CODE_LENGTH);
         for (int i = 0; i < COUPON_CODE_LENGTH; i++) {
             sb.append(chars.charAt(RANDOM.nextInt(chars.length())));

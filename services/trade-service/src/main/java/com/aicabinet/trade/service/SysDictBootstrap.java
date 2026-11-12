@@ -294,6 +294,12 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "SALES_DRIVEN", "销量驱动", "TREND_FORECAST", "趋势预测", LOW_STOCK, "库存不足")));
         map.put("supplier_payable_status", t("供应商应付状态", m(
                 "UNPAID", "未付", "PARTIAL", "部分付款", "PAID", "已付", STATUS_CLOSED, "已关闭")));
+        // P3-10（2026-11-12）：补偿任务状态此前只在库里（V72 建表，DEFAULT 'PENDING'），
+        // 字典表无此族 ⇒ 运维/客服查 compensation_task 只能看到裸码。
+        // 取值权威在 CompensationTaskScheduler（PENDING→PROCESSING→COMPLETED/FAILED）。
+        map.put("compensation_task_status", t("补偿任务状态", m(
+                STATUS_PENDING, "待执行", "PROCESSING", "执行中", STATUS_COMPLETED, "已完成",
+                CabinetConstants.ORDER_STATUS_FAILED, "失败")));
         map.put("stocktake_mode", t("盘点方式", m(
                 "OPEN", "明盘", "BLIND", "盲盘")));
         map.put("stocktake_status", t("盘点单状态", m(
