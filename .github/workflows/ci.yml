@@ -208,6 +208,13 @@ jobs:
       - name: R20-10 MQTT callback gate self-test
         run: node scripts/check-mqtt-callback-no-blocking-rpc.mjs --self-test
 
+      # R20 P3-4：支付回调「静默 200」全族留痕（无主/渠道不符/金额异常 × 微信/支付宝/退款）。
+      - name: R20 P3-4 payment callback silent trace gate
+        run: node scripts/check-payment-callback-silent-trace.mjs
+
+      - name: R20 P3-4 silent trace gate self-test
+        run: node scripts/check-payment-callback-silent-trace.mjs --self-test
+
       # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
       # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
       # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。

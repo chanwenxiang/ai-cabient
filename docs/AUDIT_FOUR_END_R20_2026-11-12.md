@@ -767,13 +767,13 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：5 条（P3-2 判说明不派修、P3-3 已由批 C 覆盖、P3-5/6/10 已由 §十八 收口）
+### 十七.3 剩余 P3：4 条（P3-2 判说明不派修、P3-3 已由批 C 覆盖、P3-5/6/10 已由 §十八、P3-4 已由 §二十二 收口；P3-1 已出蓝图 §二十三）
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
-| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | 新表已有 `chk_*_status`，按「老表补 CHECK」执行，需先扫存量脏值 |
+| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **本轮实证盘点完成、未落迁移**（§二十三）：dev 实测 100 个状态列仅 13 个有 CHECK、87 个缺；dev 值域仅 113 行且稀疏 ⇒ **禁止用 dev 值域推枚举**。枚举须从源码写入点/字典自动对齐，迁移按 `NOT VALID` + 逐表 `VALIDATE` 分批 |
 | 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
-| 4 | 无主/渠道不符回调静默 200，无告警痕迹 | 微信 `:359-369`、支付宝 `:501-508` 仅 `log.warn`；补 `OpsAlertDispatcher` 落痕 |
+| 4 | ~~无主/渠道不符回调静默 200，无告警痕迹~~ **已修（§二十二）** | 报告只点名两处，实修 10 类分支（微信/支付宝充值各 3 + 退款通知 2 + 退款同步 2）；统一 `alertSilentCallback` 收口。**关键修正**：`OpsAlertDispatcher.fanout` 未配渠道时静默返回，只发告警仍是零痕迹 ⇒ 必须同时落 `log.error` |
 | 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
 | 6 | ~~券过期按发放时刻而非日末~~ **已修（§十八.2）** | 改发放日 + N 天的日末，`Asia/Shanghai` |
 | 7 | 配置/促销策略每单 N 次查库（一单 N 行 ≥5N 查询） | 加本地缓存（Caffeine/`@Cacheable`），需定失效策略 |
@@ -796,7 +796,8 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. P3-1/4/7/8/9 与 5 条待定项随迭代（R20 的 P1/P2 至此全部收口）。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；**P3-1** 已完成实证盘点并出蓝图（§二十三），未落迁移——87 列缺 CHECK 且枚举不能从 dev 稀疏值域推，需单独一轮带「源码写入点→枚举」自动对齐门禁。
+5. 剩余：P3-7（缓存失效策略待定）/ P3-8（线程池容量）/ P3-9（OSS 缩略参数）与 5 条待定项随迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
 
@@ -1029,7 +1030,100 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 
 - **无新表、无迁移、无配置键**：纯代码 + 测试 + 门禁，部署只需重建 `device-service` 镜像（`up -d --no-deps --force-recreate device-service`），不涉及 Flyway。
 - **3 次重试仍在 `TradeServiceClient`**：单次最坏 3×(2s+5s)+0.6s ≈ 21s，但占的是**转发工作线程**而非 Paho 回调线程；8 条并发在途 + 队列满留未 ACK，不会再造成全设备门磁积压。是否把重试收敛为「单次 + broker 重投」是独立产品口径，本轮不动。
-- **`check-audit-gates-wiring` 当前红**：失败列表只有并发会话新增的 4 个半成品脚本（`check-bare-localdate*`、`check-ledger-immutability*`）「没有可执行接线」；本批新门禁不在其中 ⇒ 接线与负向夹具均已被识别。按铁律 61 不代修对方半成品。
-- **`package.json` 仍被并发会话占用**（22:07 复核 mtime 21:50），本批继续用 CI 直调；等其收口后可把 §十八 / §二十 / §二十一的 6 个 step 并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
-- 剩余非 P1 项见 §十七.3（P3 5 条）与 §十七.4（待定 5 条）；**R20 的 P1/P2 至此全部收口**。
+- **`check-audit-gates-wiring` 当前红**：失败列表始终是并发会话新增的半成品脚本（21:5x 为 `check-bare-localdate*` / `check-ledger-immutability*` 4 个；22:29 复核变为 `check-mapper-tz-timezone*` 2 个），说明对方在持续推进；本批新门禁始终不在失败列表 ⇒ 接线与负向夹具均已被识别。按铁律 61 不代修对方半成品。
+- **`package.json` 仍被并发会话占用**（22:29 复核 mtime 22:21），本批继续用 CI 直调；等其收口后可把 §十八 / §二十 / §二十一 / §二十二的 **8 个** step 并进 `check:audit-gates` 聚合链，CI 直调保持不动即可。
+- 剩余非 P1 项见 §十七.3（P3 4 条，其中 P3-1 已出蓝图）与 §十七.4（待定 5 条）；**R20 的 P1/P2 至此全部收口**。
+
+---
+
+## 二十二、P3-4 修复回执（2026-11-12，支付回调静默 200 全族留痕）
+
+> 报告 §三 #4 只点名 `PaymentService.java:357-369`（微信）与 `:499-519`（支付宝）两处。
+> 实读后发现「这一类」共 **10 类静默分支**，且派修提示「补 `OpsAlertDispatcher` 落痕」**本身不足以保证有痕迹**。
+
+### 二十二.1 落地范围
+
+| 面 | 改动 |
+|---|---|
+| 唯一收口点 | `PaymentService.alertSilentCallback(type,title,detail)`：`log.error` 本地痕迹 + `opsAlertDispatcher.send` 外部告警 + `catch(Exception)` fail-open |
+| 微信充值回调 | `handleWeChatNotify` 的 `findById(...).ifPresent(...)` 改 `orElse(null)` + 显式分支：无主订单 / 渠道不符 / 金额异常 3 类 |
+| 支付宝充值回调 | `handleAlipayNotify` 同族 3 类；金额与订单不符的 `log.error + 409` 本来就有痕迹且渠道会重投，**刻意不动** |
+| 微信退款回调 | 缺 `out_trade_no`、退款金额 ≤ 0 两类；缺 `refund_id` / ABNORMAL 已有告警，不重复 |
+| 手工退款同步 | `syncChannelSideRefund` 无主订单、渠道不符两类；超退 / 余额不足已有 `sendOpsAlert`，不重复 |
+| 响应语义 | **全部保持 200**（`alertSilentCallback` 后紧跟 `return`）；无主/渠道不符重试不可能自愈，改 4xx 只会换来无限重投 |
+| 告警语义 | 新类型不在 `OpsAlertDispatcher` 的 P0 升级白名单（逐字相等匹配）⇒ 不触发短信/电话；重投造成的重复告警刻意不去重 |
+
+### 二十二.2 相对报告的三处修正
+
+1. **「补 `OpsAlertDispatcher` 落痕」不成立**：实读 `fanout()`——配置全空时 `anyConfigured=false`，`send()` 直接静默返回（只可能走升级链，而升级链总开关默认关闭）。只发告警等于**仍然零痕迹**，故本地 `log.error` 是必需项而非补充项。
+2. **不是 2 处而是 10 类**：报告按行号点名 2 处，但 `handleWeChatRefundNotify` 的缺单号/缺金额、`syncChannelSideRefund` 的无主/渠道不符同样是「渠道已动账、系统静默 200」。按铁律 75 修这一类，不修一处。
+3. **不改响应码、不去重**：报告把「静默 200」当问题，但真正的问题是「无痕迹」而非「200」。渠道重投对无主订单不可能自愈；把 200 改 4xx 或给告警加去重窗口，都会引入新的重投/漏报风险。
+
+### 二十二.3 判据与验证（数字）
+
+- **Java 定向 47 例全绿**：`PaymentServiceTest` 35 + 新增 `PaymentServiceSilentCallbackAlertTest` 11 + `WeChatNotifyIntegrationTest` 1。
+- 新增 11 例：10 类分支逐一 `verify` 告警类型 + 绝不入账（`balanceLedgerService.change` / `findByIdempotencyKey` 零调用），另 1 例把告警通道 stub 成抛异常，断言回调仍不抛（fail-open）。每个用例都 `assertDoesNotThrow` 钉住「响应语义不变」。
+- 静态门禁 `scripts/check-payment-callback-silent-trace.mjs` **6 组判据**：① 收口方法三要素 + 禁 `throw`；② 四个回调/同步方法体不得 `.ifPresent(` / `log.warn`、且各自必须有留痕；③ **实现侧告警类型集合 ↔ 测试侧断言集合自动相等**（不写人工白名单）+ 三族/三语义覆盖；④ 告警后紧跟 `return` 的分支数 = 告警分支数；⑤ 逐个 `@Test` 方法体必须含 `assertDoesNotThrow`；⑥ 抹注释为等长空格，注释里的旧写法不参与判定。
+- `--self-test` **11 个变异 + 1 个防假红 + md5 零残留**，每条变异要求命中**指定判据关键词**且保持语法完整（铁律 3）。ci.yml 加 2 个直调 step（不碰并发会话占用的 `package.json`）。
+
+### 二十二.4 负向验证（铁律 4，真实源码注入）
+
+把微信充值无主分支的 `alertSilentCallback("WECHAT_RECHARGE_NOTIFY_ORDER_NOT_FOUND", …)` 临时改回 `log.warn("wechat notify order not found …")`：
+
+- 静态门禁 **exit 1**，精准报 `handleWeChatNotify 出现 log.warn —— 静默吞回调不得只留 warn 后 return` 与 `告警类型与断言未自动对齐：测试侧多余=[WECHAT_RECHARGE_NOTIFY_ORDER_NOT_FOUND]`；
+- 新测试 **11 例中 1 failure + 1 error**：`wechatRecharge_orderNotFound_alertsAndDoesNotCredit` 在 `verifySilentAlert` 处失败（verify 不到 `send`）；`silentCallback_alertChannelThrows_stillReturnsNormally` 因该分支不再调 `send` 触发 `UnnecessaryStubbing` 连带报错 ⇒ 判据级与断言级都能红。
+- 还原后 md5 `f20bdc2e49974925ae5928c42c5d3c29` 与注入前逐字节一致、`grep PSR20-P3-4-NEGATIVE-INJECTION` 全局 **0 命中**、门禁/自测/46 例复跑全绿。
+
+### 二十二.5 遗留与部署
+
+- **无新表、无迁移、无配置键**：纯代码 + 测试 + 门禁，部署只需重建 `trade-service` 镜像；上一轮 V463 的 `package` + `force-recreate trade-service` 两步部署动作**仍待执行**，可与本批合并一次重建。
+- **痕迹只到日志 + 外部告警通道**，未落 `ops_exception` 持久化表。若需要「可查询的处置闭环 / 重投去重」，应单独开项并配套表与幂等键，本轮不扩范围。
+- **全量回归**（`mvn -o -pl services/trade-service -am test`）：**2962 例，3 failures + 1 error = 4 红**，与 R20-9 当时（2943/4 红）同源，仍是 `InventoryLotBatchDeductTest` 3 例 + `JiangyiCabinetCaptureServiceTest` 1 例；本批新增 19 例（11 静默回调 + 4 契约/构造点 + 4 其它），与本批 `PaymentService` 改动无依赖交集，判为存量红，未擅改别人用例。
+- **不碰并发会话文件**：`OpsAlertDispatcher.java` / `XxlJobWiringSelfCheck.java` 等仍是对方未提交的工作区改动（只换了 HTTP 工厂，方法签名未动），本批**只调用、不修改、不提交**，也不 import 其新增的 `OutboundHttp` ⇒ CI 检出用基线版编译自洽。
+- `check-audit-gates-wiring` 仍红在对方半成品（22:29 复核为 `check-mapper-tz-timezone*` 2 个），本批门禁已被识别为可执行接线；按铁律 61 不代修。
+
+---
+
+## 二十三、P3-1 实证盘点与实施蓝图（2026-11-12，**本轮不落迁移**）
+
+> 派修提示写「按『老表补 CHECK』执行，需先扫存量脏值」。本轮把这两件事都做了实证，
+> 结论是：**现在直接写 V464 加 CHECK 会造成线上写入失败**，故只出蓝图、不动代码。
+
+### 二十三.1 dev 库只读实测（`information_schema` + `\gexec` 逐列 GROUP BY）
+
+| 项 | 实测 |
+|---|---|
+| `%status%` 列（varchar，public schema） | **100** |
+| 已有 CHECK 约束 | **13** |
+| 缺 CHECK | **87** |
+| 全库 distinct 状态值行数 | **113 行**，且大量表为 0 行（dev 是稀疏种子库） |
+| 已有 CHECK 的 13 列 | `device_data_fee_bill` / `device_http_credential` / `jiangyi_class_mapping` / `jiangyi_device` / `jiangyi_model_deployment` / `jiangyi_training_ticket` / `line_promo_task` / `merchant_payment_onboarding` / `site_rent_bill` / `site_rent_split_rule` / `sku_jiangyi_link.sync_status` / `warehouse_monthly_close` / `warehouse_transfer_order` |
+| 抽样值域 | `cabinet_order.status` 仅 `PAID(35)` / `PARTIAL_REFUNDED(7)` / `REFUNDED(2)`；`dispute_ticket.status` 仅 `OPEN(32)` / `RESOLVED(35)` |
+
+> **决定性证据**：报告 §五 已核实 `cabinet_order.status` 实际写入值有 **7 个**
+> （`PENDING/PAID/COMPLETED/CANCELLED/REFUNDED/PARTIAL_REFUNDED/DISPUTED`），dev 只出现 3 个。
+> 用 dev 值域生成 `CHECK (status IN (...))` 会漏掉 4 个合法状态 ⇒ **上线即写入失败**。
+> 这不是「先扫脏值」能解决的：脏值扫描管的是「已有的非法值」，管不了「枚举本身不完整」。
+
+### 二十三.2 不落迁移的理由
+
+1. **值域不可从 dev 推**（上表）：87 列里多数在 dev 全空或只有 1~3 个值，任何基于数据库采样生成的 CHECK 都是残缺枚举。
+2. **枚举必须自动对齐源码写入点**：按铁律 84②，判据不得用人工白名单。CHECK 的字面量集合要与「各 Service 的 `setStatus` / `update…Status` 写入值 + `SysDictBootstrap` 字典族」自动比对，且要能随新增状态同步更新，否则今天补的约束明天就腐化。
+3. **锁风险**：`ADD CONSTRAINT CHECK` 默认扫全表并持 `ACCESS EXCLUSIVE`；核心老表（`cabinet_order` 等）必须 `NOT VALID` 与 `VALIDATE CONSTRAINT` 拆成两步、按表分批，不能一条 V464 全做完。
+4. **台账边界澄清**：`CB-036` 的「字典值而非 CHECK 约束」只约束 `sku_catalog.operation_scope` 这个**可扩展经营归属字段**，不是全库禁令——新表 `chk_*_status`（V192/193/194/255/256…）本就是既有惯例。因此 P3-1 方向成立，但**范围与枚举来源**必须先定。
+5. **并发会话未收口**：22:29 复核 `package.json` mtime 22:21、17 个 client 与多个门禁脚本仍未提交；迁移号 V464 若与其半成品叠加，回滚面会变复杂。
+
+### 二十三.3 下一轮实施蓝图（5 步）
+
+1. **自动枚举**：写工具从 `SysDictBootstrap` 字典族 + 全仓 `setStatus("…")` / LambdaUpdate `set(Entity::getStatus, …)` 写入点提取值，按表归集；再与 dev 值域做**单向差集**（dev 值必须 ⊆ 源码值域，否则先查脏值）。
+2. **脏值扫描**：每个目标列跑 `SELECT DISTINCT status FROM t WHERE status IS NOT NULL AND UPPER(TRIM(status)) NOT IN (源码值域)`；注意三值逻辑，NULL 要显式放行（铁律 88④）。有脏值先出清理工单，禁止直接加约束。
+3. **迁移形态**：V464 起按表分批；`ALTER TABLE … ADD CONSTRAINT chk_x_status CHECK (...) NOT VALID` + 独立 `VALIDATE CONSTRAINT`；迁移头 `MIGRATION_KIND: schema`（无 DML）、`COMPETITOR_REF`（文件内容含业务词必带，铁律 38 / R6，先查台账现成条目）、`LOCK_RISK` 逐表注明。已应用的 V 迁移禁重写（铁律 50）。
+4. **门禁**：`check-status-enum-parity.mjs` 自动对齐「真库 `pg_constraint` 谓词 ↔ 源码写入点集合 ↔ 字典族」；**注解/DDL 谓词读真值而非 grep 源码**（铁律 84④），注释先抹等长空格。
+5. **验收**：dev 事务内注入越界串 ⇒ 期望被拒；源码值域里每个合法值逐个可写；`BEGIN; … ROLLBACK;` 零残留；报表按状态的聚合行数前后一致（这才是「报表静默漏行」的真正判据）。
+
+### 二十三.4 风险与范围
+
+- **87 列不必一次性全补**：优先资金/订单/争议/对账链（`cabinet_order`、`recharge_order`、`dispute_ticket`、`payment_operation`、`order_revenue_split`…），纯配置类表可留在字典层管控。
+- **验收判据是报表行数**，不是「约束加成功」：P3-1 的原始症状是「越界串可落库、报表静默漏行」，所以补完约束后要验证按状态聚合的报表不再丢行，而不只是 `\d table` 里有 `chk_`。
+- 本轮**未创建 V464、未改任何 DDL、未改任何字典**，dev 库只做了 `SELECT`（`\gexec` 生成的是只读 GROUP BY）。
 

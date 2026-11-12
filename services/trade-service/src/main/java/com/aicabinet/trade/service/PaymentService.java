@@ -354,19 +354,27 @@ public class PaymentService {
         if (outTradeNo == null) {
             throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
         }
-        rechargeOrderRepository.findById(outTradeNo).ifPresent(order -> {
-            if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
-                log.warn("wechat notify channel mismatch orderId={} channel={}", outTradeNo, order.getChannel());
-                return;
-            }
-            int notifyCents = transaction.path(AMOUNT).path("total").asInt(0);
-            if (notifyCents <= 0) {
-                log.warn("wechat notify missing amount orderId={}", outTradeNo);
-                return;
-            }
-            creditRechargeNotify(outTradeNo, notifyCents,
-                    transaction.path(TRANSACTION_ID).asText(null), null);
-        });
+        // P3-4：无主回调＝渠道已收款但系统查无此单。旧写法 .ifPresent(...) 对 Optional.empty()
+        // 完全静默，渠道拿到 200 后停止重投 ⇒ 钱到了没入账且无人知。改显式分支并留痕。
+        RechargeOrder order = rechargeOrderRepository.findById(outTradeNo).orElse(null);
+        if (order == null) {
+            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_ORDER_NOT_FOUND", "微信充值回调无主订单",
+                    "outTradeNo=" + outTradeNo + " 渠道已收款但系统无此充值单，未入账，需人工核对");
+            return;
+        }
+        if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
+            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_CHANNEL_MISMATCH", "微信充值回调渠道不符",
+                    "outTradeNo=" + outTradeNo + " channel=" + order.getChannel() + " 未入账，需人工核对");
+            return;
+        }
+        int notifyCents = transaction.path(AMOUNT).path("total").asInt(0);
+        if (notifyCents <= 0) {
+            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_AMOUNT_INVALID", "微信充值回调金额异常",
+                    "outTradeNo=" + outTradeNo + " amount.total=" + notifyCents + " 未入账，需人工核对");
+            return;
+        }
+        creditRechargeNotify(outTradeNo, notifyCents,
+                transaction.path(TRANSACTION_ID).asText(null), null);
     }
 
     /**
@@ -387,7 +395,9 @@ public class PaymentService {
         String refundId = refund.path("refund_id").asText(null);
         String refundStatus = refund.path("refund_status").asText("");
         if (outTradeNo == null || outTradeNo.isBlank()) {
-            log.warn("wechat refund notify missing out_trade_no refundId={}", refundId);
+            // P3-4：退款回调无单号＝无法定位订单，旧写法只 log.warn 后静默 200。
+            alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_OUT_TRADE_NO", "微信退款回调缺 out_trade_no",
+                    "refundId=" + refundId + " refundStatus=" + refundStatus + " 未入账，需人工核对");
             return;
         }
         // MA-088：缺 refund_id 的回调原来照入账，幂等键退化成常量 "channel-refund-sync:null"——
@@ -413,7 +423,10 @@ public class PaymentService {
         }
         int refundCents = refund.path("amount").path("refund").asInt(0);
         if (refundCents <= 0) {
-            log.warn("wechat refund notify missing refund amount orderId={} refundId={}", outTradeNo, refundId);
+            // P3-4：金额缺失的退款回调旧写法静默 200，渠道不再重投 ⇒ 手工退款永远不同步。
+            alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_REFUND_AMOUNT", "微信退款回调金额异常",
+                    "orderId=" + outTradeNo + " refundId=" + refundId + " refund=" + refundCents
+                            + " 未入账，需人工核对");
             return;
         }
         String outRefundNo = refund.path("out_refund_no").asText("").trim();
@@ -443,11 +456,16 @@ public class PaymentService {
     private void syncChannelSideRefund(String orderId, int refundCents, String refundId) {
         RechargeOrder order = rechargeOrderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            log.warn("wechat refund sync order not found orderId={} refundId={}", orderId, refundId);
+            // P3-4：渠道已退款但系统无此充值单 —— 与充值回调无主同族，必须留痕。
+            alertSilentCallback("WECHAT_REFUND_SYNC_ORDER_NOT_FOUND", "微信手工退款同步无主订单",
+                    "orderId=" + orderId + " refundId=" + refundId + " refundCents=" + refundCents
+                            + " 未扣余额，需人工核对");
             return;
         }
         if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
-            log.warn("wechat refund sync channel mismatch orderId={} channel={}", orderId, order.getChannel());
+            alertSilentCallback("WECHAT_REFUND_SYNC_CHANNEL_MISMATCH", "微信手工退款同步渠道不符",
+                    "orderId=" + orderId + " refundId=" + refundId + " channel=" + order.getChannel()
+                            + " 未扣余额，需人工核对");
             return;
         }
         // P2-6（2026-11-12）：微信会**重投**退款通知。余额侧靠幂等键去重（账本 findByIdempotencyKey
@@ -506,27 +524,36 @@ public class PaymentService {
         if (outTradeNo == null || outTradeNo.isBlank()) {
             throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
         }
-        rechargeOrderRepository.findById(outTradeNo).ifPresent(order -> {
-            if (!PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
-                log.warn("alipay notify channel mismatch orderId={} channel={}", outTradeNo, order.getChannel());
-                return;
-            }
-            int notifyCents = parseAlipayAmountCents(verified.get("total_amount"));
-            if (notifyCents <= 0) {
-                log.warn("alipay notify missing amount orderId={}", outTradeNo);
-                return;
-            }
-            // H13: 金额与订单一致性校验前置到 notify_id 占位之前，占位成功后才入账
-            if (notifyCents != order.getAmountCents()) {
-                log.error("alipay notify amount mismatch orderId={} expected={} notify={}",
-                        order.getOrderId(), order.getAmountCents(), notifyCents);
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "充值金额与订单不一致");
-            }
-            // 同一 notify_id 只入账一次（占位在金额校验之后、入账之前）
-            alipayNotifyService.assertNotifyIdOnce(verified.get("notify_id"));
-            String tradeNo = verified.get(TRADE_NO);
-            creditRechargeNotify(order.getOrderId(), notifyCents, null, tradeNo);
-        });
+        // P3-4：与微信回调同族——无主／渠道不符／金额异常一律留痕，响应仍为 200。
+        RechargeOrder order = rechargeOrderRepository.findById(outTradeNo).orElse(null);
+        if (order == null) {
+            alertSilentCallback("ALIPAY_RECHARGE_NOTIFY_ORDER_NOT_FOUND", "支付宝充值回调无主订单",
+                    "outTradeNo=" + outTradeNo + " 渠道已收款但系统无此充值单，未入账，需人工核对");
+            return;
+        }
+        if (!PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
+            alertSilentCallback("ALIPAY_RECHARGE_NOTIFY_CHANNEL_MISMATCH", "支付宝充值回调渠道不符",
+                    "outTradeNo=" + outTradeNo + " channel=" + order.getChannel() + " 未入账，需人工核对");
+            return;
+        }
+        int notifyCents = parseAlipayAmountCents(verified.get("total_amount"));
+        if (notifyCents <= 0) {
+            alertSilentCallback("ALIPAY_RECHARGE_NOTIFY_AMOUNT_INVALID", "支付宝充值回调金额异常",
+                    "outTradeNo=" + outTradeNo + " total_amount=" + verified.get("total_amount")
+                            + " 未入账，需人工核对");
+            return;
+        }
+        // H13: 金额与订单一致性校验前置到 notify_id 占位之前，占位成功后才入账。
+        // 该分支本来就有 log.error + 409（渠道会重投且人工可见），不属于「静默」，不重复告警。
+        if (notifyCents != order.getAmountCents()) {
+            log.error("alipay notify amount mismatch orderId={} expected={} notify={}",
+                    order.getOrderId(), order.getAmountCents(), notifyCents);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "充值金额与订单不一致");
+        }
+        // 同一 notify_id 只入账一次（占位在金额校验之后、入账之前）
+        alipayNotifyService.assertNotifyIdOnce(verified.get("notify_id"));
+        String tradeNo = verified.get(TRADE_NO);
+        creditRechargeNotify(order.getOrderId(), notifyCents, null, tradeNo);
     }
 
     private static boolean isAlipayAgreementNotify(Map<String, String> params) {
@@ -1186,6 +1213,29 @@ public class PaymentService {
                     Map.of(ORDERID, order.getOrderId(), AMOUNT, yuan(order.getAmountCents())));
         } catch (Exception e) {
             log.warn("ops alert failed type={} orderId={}", type, order.getOrderId(), e);
+        }
+    }
+
+    /**
+     * R20 P3-4：支付回调被「静默 200」吞掉时唯一的痕迹收口点。
+     *
+     * <p>三类约束刻意固定，改一处就等于把资损重新变回盲区：</p>
+     * <ol>
+     *   <li><b>本地 log.error 不可省</b>：{@link OpsAlertDispatcher#send} 的 fanout 在
+     *       「一个渠道都没配」时 {@code anyConfigured=false} 直接静默返回，只发告警等于仍然零痕迹；</li>
+     *   <li><b>响应语义刻意不变</b>：调用方继续返回 200 让渠道停止重投 —— 无主订单／渠道不符
+     *       重试不可能自愈，改 4xx 只会换来无限重投；痕迹走告警与日志，不靠重投；</li>
+     *   <li><b>fail-open</b>：告警链路自身异常不得把回调变成 5xx，否则同上。</li>
+     * </ol>
+     * <p>告警类型不在 OpsAlertDispatcher 的 P0 升级白名单内（逐字相等匹配），
+     * 不会因此触发短信/电话升级；重投造成的重复告警刻意不去重 —— 重复告警远优于静默。</p>
+     */
+    private void alertSilentCallback(String type, String title, String detail) {
+        log.error("payment callback silently ignored type={} detail={}", type, detail);
+        try {
+            opsAlertDispatcher.send(type, title, detail, Map.of("detail", detail));
+        } catch (Exception e) {
+            log.warn("ops alert failed type={} detail={}", type, detail, e);
         }
     }
 
