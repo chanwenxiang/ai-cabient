@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p><b>为什么必须有这一层。</b>{@code scripts/check-scheduling-vs-db-pool.mjs} 只能在 CI 里校验
  * <b>声明值</b>（含 {@code ${VAR:默认}} 的默认值）。部署期一旦用环境变量把连接池改小、把调度并发调大，
  * 静态门禁看不到 —— 而那份门禁自己的注释里就把这条边界写成了「需要启动期自检兜底（尚未实现）」。
- * 本类补的正是这一侧：读<b>运行进程里真正生效的值</b>，判据与静态门禁同源（并发 ≤ 连接池），
+ * 本类补的正是这一侧：读<b>运行进程里真正生效的值</b>，判据与静态门禁同源（峰值连接占用 ≤ 连接池），
  * 但取值口径从「YAML 声明」换成「运行时对象 / 已解析属性」。</p>
  *
  * <p><b>已发生过的真实事故（本判据的来历）。</b>2026-09-17 CI run 35198060847：主
@@ -44,9 +44,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * <b>已解析的属性值</b>（{@code @Value} 注入，同样已含环境变量覆盖）。结论里会<b>如实标注每个数字
  * 取自哪一侧</b> —— 「两个数字都对但都取自声明」正是这份自检要消灭的形态。</p>
  *
- * <p><b>判据是必要条件，不是充分条件。</b>{@code 并发 ≤ 连接池} 只保证「池子容得下最大并发」，
- * 并不保证任务不长期持锁握连接（那要靠 {@code leak-detection-threshold} 与任务本身守规矩）。
- * 因此本自检失败 =「已存在容量风险」，通过 ≠「调度一定健康」。</p>
+ * <p><b>判据是必要条件，不是充分条件。</b>{@code 峰值连接占用 ≤ 连接池}（峰值 = 并发 × 每任务
+ * {@value #CONNECTIONS_PER_TASK} 条，见 {@link Capacity#overCapacity()}）只保证「池子容得下最坏
+ * 那一瞬」，并不保证任务不长期持锁握连接（那要靠 {@code leak-detection-threshold} 与任务本身守规矩），
+ * 也不含 XXL-JOB 的执行线程。因此本自检失败 =「已存在容量风险」，通过 ≠「调度一定健康」。</p>
  *
  * <p><b>失败只报不改，绝不阻断启动</b>（与 {@link XxlJobWiringSelfCheck} 同一语义）：
  * 容量配置偏紧不该级联成「交易服务起不来」，那只会更难排查；且 {@code ApplicationReadyEvent}
@@ -84,17 +85,51 @@ public class SchedulingPoolCapacitySelfCheck {
     private final AtomicLong capacityOk = new AtomicLong(1);
 
     /**
+     * 一个正在跑的定时任务最多同时占用几条连接。
+     *
+     * <p>R19-20（2026-11-12 审计）：原判据按「并发 ≤ 池」判，隐含假设「一个任务只占一条连接」。
+     * 本仓不成立：任务体在事务里跑，收尾走 {@code ScheduledTaskService.finish(...)}，
+     * 而 finish 是 {@code @Transactional(propagation = REQUIRES_NEW)}（独立事务写执行记录 +
+     * 释放分布式锁，见该方法注释）——外层事务的连接还握着，内层再要一条。故按 2 计。
+     *
+     * <p>这条修正把「8 并发 / 10 连接池」从<b>假绿</b>变成红：8×2=16 &gt; 10，峰值确实溢池。
+     * 同样是 8 并发配 20 连接（本仓默认值）仍判绿（16 ≤ 20），不会凭空制造长期红线。
+     */
+    static final int CONNECTIONS_PER_TASK = 2;
+
+    /**
      * 一次「容量读数」：并发度、连接池上限，以及各自的取值来源。
      *
      * @param concurrency       {@code @Scheduled} 可同时占用的线程数上限
      * @param concurrencySource 该数字取自哪里（面向排障，必须能在结论里读出来）
      * @param pool              JDBC 连接池上限
      * @param poolSource        该数字取自哪里
+     * @param xxlEnabled        XXL-JOB 执行器是否启用；启用时其线程占用<b>不</b>在本判据内（见 {@link #overCapacity()}）
      */
-    record Capacity(int concurrency, String concurrencySource, int pool, String poolSource) {
+    record Capacity(int concurrency, String concurrencySource, int pool, String poolSource,
+                    boolean xxlEnabled) {
 
+        /** 只关心「并发 vs 池」的调用方（含单测）用这个形态。 */
+        Capacity(int concurrency, String concurrencySource, int pool, String poolSource) {
+            this(concurrency, concurrencySource, pool, poolSource, false);
+        }
+
+        /** 峰值连接占用 = 并发 × 每任务连接数。 */
+        int peakConnections() {
+            return concurrency * CONNECTIONS_PER_TASK;
+        }
+
+        /**
+         * 判据：<b>峰值</b>连接占用是否超过池上限。
+         *
+         * <p><b>能力边界（未计入的部分，必须知道）</b>：XXL-JOB 3.x 的执行线程是
+         * <b>每个 jobId 一条 JobThread</b>（{@code registJobThread}，空闲 30s 回收），没有可读的
+         * 「核心线程数」上限——同时会有几条取决于调度中心上的 cron 与路由策略，本地读不到。
+         * 故 XXL 启用时只在结论里标注「未计入」，由运维按调度中心实际并发另行确认；
+         * 本判据保证的是「{@code @Scheduled} 这一侧单独就够不够」。
+         */
         boolean overCapacity() {
-            return concurrency > pool;
+            return peakConnections() > pool;
         }
     }
 
@@ -122,10 +157,12 @@ public class SchedulingPoolCapacitySelfCheck {
                                            @Value("${spring.task.scheduling.pool.size:1}")
                                            int schedulingPoolProperty,
                                            @Value("${spring.datasource.hikari.maximum-pool-size:10}")
-                                           int datasourcePoolProperty) {
+                                           int datasourcePoolProperty,
+                                           @Value("${aicabinet.xxljob.enabled:false}")
+                                           boolean xxlEnabled) {
         this(exceptionService, alertDispatcher, meterRegistry,
                 () -> readCapacity(dataSource, schedulerProvider.getIfAvailable(),
-                        schedulingPoolProperty, datasourcePoolProperty));
+                        schedulingPoolProperty, datasourcePoolProperty, xxlEnabled));
     }
 
     /** 包内可见：单测注入读数，不依赖 Spring 上下文与真实连接池。 */
@@ -152,21 +189,29 @@ public class SchedulingPoolCapacitySelfCheck {
             if (!capacity.overCapacity()) {
                 capacityOk.set(1);
                 log.info("scheduling/datasource capacity self-check PASSED: "
-                                + "@Scheduled 并发 {}（{}） ≤ 连接池 {}（{}）",
-                        capacity.concurrency(), capacity.concurrencySource(),
-                        capacity.pool(), capacity.poolSource());
+                                + "@Scheduled 并发 {}（{}）× 每任务 {} 条 = 峰值 {} ≤ 连接池 {}（{}）",
+                        capacity.concurrency(), capacity.concurrencySource(), CONNECTIONS_PER_TASK,
+                        capacity.peakConnections(), capacity.pool(), capacity.poolSource());
+                if (capacity.xxlEnabled()) {
+                    log.warn("scheduling/datasource capacity self-check: XXL-JOB 已启用，"
+                            + "其 JobThread 连接占用未计入本判据（3.x 每 jobId 一条线程，本地读不到上限），"
+                            + "请按调度中心实际并发另行确认连接池余量");
+                }
                 // 容量恢复后自动关闭历史异常单，避免运维台上留一条永不消失的红点。
                 exceptionService.resolveSystem(ALERT_TYPE, GLOBAL_BUSINESS_KEY, "定时任务并发与连接池容量已恢复一致");
                 return;
             }
             capacityOk.set(0);
             String detail = detailOf(capacity);
-            log.error("scheduling/datasource capacity self-check FAILED: @Scheduled 并发 {} > 连接池 {} —— "
-                            + "上下文启动瞬间多个定时任务会同时抢连接\n{}",
-                    capacity.concurrency(), capacity.pool(), detail);
+            log.error("scheduling/datasource capacity self-check FAILED: @Scheduled 并发 {} × 每任务 {} 条 "
+                            + "= 峰值 {} > 连接池 {} —— 上下文启动瞬间多个定时任务会同时抢连接\n{}",
+                    capacity.concurrency(), CONNECTIONS_PER_TASK, capacity.peakConnections(),
+                    capacity.pool(), detail);
             exceptionService.report(ALERT_TYPE, "CRITICAL",
                     new OpsExceptionService.ExceptionReport.ExceptionRefs(null, null, null, null),
-                    "定时任务并发超出连接池上限（" + capacity.concurrency() + " > " + capacity.pool() + "）",
+                    "定时任务峰值连接占用超出连接池上限（" + capacity.peakConnections()
+                            + " = " + capacity.concurrency() + "×" + CONNECTIONS_PER_TASK
+                            + " > " + capacity.pool() + "）",
                     detail);
             alertDispatcher.send(ALERT_TYPE, "定时任务并发超出连接池上限",
                     detail + "\n影响：多个 @Scheduled（多为无 initialDelay）会在启动瞬间同时抢连接，"
@@ -198,7 +243,8 @@ public class SchedulingPoolCapacitySelfCheck {
     static Capacity readCapacity(DataSource dataSource,
                                  ThreadPoolTaskScheduler scheduler,
                                  int schedulingPoolProperty,
-                                 int datasourcePoolProperty) {
+                                 int datasourcePoolProperty,
+                                 boolean xxlEnabled) {
         int concurrency = schedulingPoolProperty > 0 ? schedulingPoolProperty : 1;
         String concurrencySource = "属性 spring.task.scheduling.pool.size（已含环境变量覆盖）";
         if (scheduler != null) {
@@ -230,7 +276,7 @@ public class SchedulingPoolCapacitySelfCheck {
                 // 已关闭：保留属性值
             }
         }
-        return new Capacity(concurrency, concurrencySource, pool, poolSource);
+        return new Capacity(concurrency, concurrencySource, pool, poolSource, xxlEnabled);
     }
 
     /** 取底层 Hikari 池；被代理包过时用 {@link DataSource#unwrap} 穿透。 */
@@ -253,8 +299,15 @@ public class SchedulingPoolCapacitySelfCheck {
         StringBuilder sb = new StringBuilder();
         sb.append("@Scheduled 并发 = ").append(capacity.concurrency())
                 .append("（取自：").append(capacity.concurrencySource()).append("）\n");
+        sb.append("每任务连接占用 = ").append(CONNECTIONS_PER_TASK)
+                .append("（任务体持外层事务连接；收尾 ScheduledTaskService.finish 为 REQUIRES_NEW，另要一条）\n");
+        sb.append("峰值连接占用 = ").append(capacity.peakConnections()).append("\n");
         sb.append("连接池上限 = ").append(capacity.pool())
                 .append("（取自：").append(capacity.poolSource()).append("）\n");
+        if (capacity.xxlEnabled()) {
+            sb.append("未计入：XXL-JOB 已启用，JobThread（3.x 每 jobId 一条）的连接占用读不到上限，")
+                    .append("请按调度中心的实际并发另行确认\n");
+        }
         sb.append("⇒ 调整任一侧即可：调大 DB_POOL_SIZE，或调小 SPRING_TASK_SCHEDULING_POOL_SIZE；")
                 .append("若确实需要更多并发，请同时确认没有任务长期持有连接");
         return sb.toString();
@@ -263,9 +316,12 @@ public class SchedulingPoolCapacitySelfCheck {
     private static Map<String, Object> refsOf(Capacity capacity) {
         Map<String, Object> refs = new LinkedHashMap<>();
         refs.put("schedulingConcurrency", capacity.concurrency());
+        refs.put("connectionsPerTask", CONNECTIONS_PER_TASK);
+        refs.put("peakConnections", capacity.peakConnections());
         refs.put("datasourcePool", capacity.pool());
         refs.put("concurrencySource", capacity.concurrencySource());
         refs.put("poolSource", capacity.poolSource());
+        refs.put("xxlEnabled", capacity.xxlEnabled());
         return refs;
     }
 }

@@ -49,15 +49,18 @@ public class MachinePayeeBillService {
     private final MachinePayeeBillMapper billMapper;
     private final CabinetOrderMapper orderMapper;
     private final AdminAuditService auditService;
+    private final MerchantScopeService merchantScopeService;
 
     public MachinePayeeBillService(MachinePositionConfigMapper configMapper,
                                    MachinePayeeBillMapper billMapper,
                                    CabinetOrderMapper orderMapper,
-                                   AdminAuditService auditService) {
+                                   AdminAuditService auditService,
+                                   MerchantScopeService merchantScopeService) {
         this.configMapper = configMapper;
         this.billMapper = billMapper;
         this.orderMapper = orderMapper;
         this.auditService = auditService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     /** 出某账期（上月）机器账单，返回生成笔数。唯一键幂等，重复执行只补缺失项。 */
@@ -135,12 +138,25 @@ public class MachinePayeeBillService {
 
     // ==== 运营端查询/处置（2026-10-14 自 controller 下沉：架构门禁禁 Controller 直调 Mapper）====
 
-    /** 账单列表（按账期/状态）。 */
-    public java.util.List<MachinePayeeBill> listBills(String billMonth, String status) {
-        return billMapper.selectList(Wrappers.<MachinePayeeBill>lambdaQuery()
+    /** 账单列表（按账期/状态）。
+     *
+     * <p>R19-3（2026-11-12）：补数据范围。此前只有 {@code ops:device:list} 就能读到**全平台**
+     * 场地方账单（含 GMV 与应付金额）；现按操作者的设备范围过滤，全域账号（admin 角色）不过滤。
+     * {@link MerchantScopeService#allowedDeviceIds} 的 null = 全部设备、空集 = 无权限。
+     */
+    public java.util.List<MachinePayeeBill> listBills(Long operatorId, String billMonth, String status) {
+        Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
+        if (allowed != null && allowed.isEmpty()) {
+            return List.of();
+        }
+        var query = Wrappers.<MachinePayeeBill>lambdaQuery()
                 .eq(billMonth != null && !billMonth.isBlank(), MachinePayeeBill::getBillMonth, billMonth)
                 .eq(status != null && !status.isBlank(), MachinePayeeBill::getStatus, status)
-                .orderByDesc(MachinePayeeBill::getBillId));
+                .orderByDesc(MachinePayeeBill::getBillId);
+        if (allowed != null) {
+            query.in(MachinePayeeBill::getDeviceId, allowed);
+        }
+        return billMapper.selectList(query);
     }
 
     /**
@@ -157,6 +173,8 @@ public class MachinePayeeBillService {
         if (bill == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "账单不存在");
         }
+        // R19-3：结清是资金处置动作，必须限定在操作者设备范围内
+        merchantScopeService.requireDeviceAccess(operatorId, bill.getDeviceId());
         if ("SETTLED".equals(bill.getStatus())) {
             return; // 幂等：已结清不重复落审计（R16-MA-175）
         }
@@ -167,8 +185,9 @@ public class MachinePayeeBillService {
                 String.valueOf(billId), "billMonth=" + bill.getBillMonth());
     }
 
-    /** 点位费用配置（按柜）。 */
-    public MachinePositionConfig config(String deviceId) {
+    /** 点位费用配置（按柜）。R19-3：读配置同样按设备范围鉴权（含收款人姓名/电话）。 */
+    public MachinePositionConfig config(Long operatorId, String deviceId) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         return configMapper.selectById(deviceId);
     }
 
@@ -185,7 +204,10 @@ public class MachinePayeeBillService {
      * （见 lessons #384），PUT 省略字段语义是「保持原值」，把 null 当 0 会静默清配置。
      */
     @Transactional
-    public void saveConfig(String deviceId, MachinePositionConfig cfg) {
+    public void saveConfig(Long operatorId, String deviceId, MachinePositionConfig cfg) {
+        // R19-3：本接口决定下期出账金额（shareBps × GMV），此前只校验 ops:device:edit、
+        // 不收 operatorId、无数据范围 ⇒ 绑定商户 A 的运营可把**他人柜机**的分成改成 0。
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         // R16-MA-175：行锁串行化「查无→insert / 有→update」的读后写竞态——双运营并发保存
         // 同一新柜时双 insert 撞 deviceId 主键（一边 500），并发更新则丢失更新。
         // 配置喂 generateMonthly 出账金额（shareBps），丢失更新会改后续账期账单。

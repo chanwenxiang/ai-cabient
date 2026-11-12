@@ -144,6 +144,9 @@ public class PlatformFundService {
         if (amountCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "归集金额必须大于 0");
         }
+        // R19-6：归集原无上限，可与 adjust 一起把台账写成天文数字
+        com.aicabinet.trade.support.MoneyLimits.requirePositiveWithin(
+                "归集金额", amountCents, com.aicabinet.trade.support.MoneyLimits.MAX_PLATFORM_FLOW_CENTS);
         return manualFlow(accountId, PlatformFundFlow.TYPE_SWEEP, -amountCents, operatorId, remark);
     }
 
@@ -156,6 +159,9 @@ public class PlatformFundService {
         if (remark == null || remark.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "人工调整必须填写原因");
         }
+        // R19-6：平台资金池调账原先 long 无界（可写 9e18）
+        com.aicabinet.trade.support.MoneyLimits.requireWithin(
+                "平台资金池调账", deltaCents, com.aicabinet.trade.support.MoneyLimits.MAX_PLATFORM_FLOW_CENTS);
         return manualFlow(accountId, PlatformFundFlow.TYPE_ADJUST, deltaCents, operatorId, remark);
     }
 

@@ -252,6 +252,9 @@ public class ScheduledTaskXxlJobHandler {
             return;
         }
         try {
+            // R19-8：用「本次结果是否落库为 FAILED」判成败，而不是「action 有没有抛异常」。
+            // 8 个任务体 catch 后只 finish(FAILED) 就 return，异常根本不上浮 ⇒ 旧实现恒绿。
+            java.time.Instant startedAt = java.time.Instant.now();
             descriptor.action().run();
             // M19：action 内部 tryBegin 失败会静默 return；读取 skip 原因区分「跳过」与「执行成功」
             String skipReason = taskService.consumeLastTryBeginSkip();
@@ -264,6 +267,16 @@ public class ScheduledTaskXxlJobHandler {
                     XxlJobHelper.log("record skip status failed key={}: {}", key, recordEx.toString());
                 }
                 XxlJobHelper.handleSuccess("skipped:" + key + " (" + skipReason + ")");
+                return;
+            }
+            ScheduledTaskService.LastRun lastRun = taskService.lastRun(key);
+            if (lastRun != null
+                    && "FAILED".equalsIgnoreCase(lastRun.result())
+                    && lastRun.lastRunAt() != null
+                    // 容差 1s：finish 的时间戳由服务端 Instant.now() 生成，读回可能有毫秒级先后差
+                    && !lastRun.lastRunAt().isBefore(startedAt.minusSeconds(1))) {
+                XxlJobHelper.log("scheduled task reported FAILED key={} name={}", key, descriptor.name());
+                XxlJobHelper.handleFail("failed:" + key);
                 return;
             }
             XxlJobHelper.log("scheduled task finished key={} name={}", key, descriptor.name());

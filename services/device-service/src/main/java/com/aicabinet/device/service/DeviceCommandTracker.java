@@ -15,10 +15,12 @@ import java.time.Duration;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -36,6 +38,15 @@ public class DeviceCommandTracker {
     private static final Logger log = LoggerFactory.getLogger(DeviceCommandTracker.class);
     private static final long ACK_TIMEOUT_MS = 15_000L;
     private static final int MAX_RECENT_COMMANDS = 500;
+    /**
+     * 过期扫描的分批参数（P3-r19-30）。
+     *
+     * <p>单批 200 条：一次 ZREM + HGETALL 往返约 1~2ms，200 条 ~ 0.4s，远小于 5s 调度间隔。
+     * 每轮最多 5 批 = 1000 条/轮 = 12000 条/分钟；即使停机一天积压 17 万条，也能在一轮
+     * 调度周期内收敛，而单轮最长占用约 2s（不超过调度间隔，不会自我堆积）。
+     */
+    private static final int EXPIRE_SCAN_BATCH = 200;
+    private static final int EXPIRE_SCAN_MAX_BATCHES = 5;
     private static final String KEY_PREFIX = "aicabinet:device-cmd:";
     /** 待 ACK 命令索引：score = publishedAtMs，超时用 ZRANGEBYSCORE（B-20，避免全量 SCAN） */
     private static final String PENDING_ZSET = KEY_PREFIX + "pending-z";
@@ -51,6 +62,28 @@ public class DeviceCommandTracker {
         t.setDaemon(true);
         return t;
     });
+
+    /**
+     * 超时通知专用线程池（R19-18）。
+     *
+     * <p>原实现用 {@code CompletableFuture.runAsync} 的 <b>commonPool</b>：它同时供并行流使用，
+     * 且并行度 = CPU-1。命令超时是「突发批量」场景（一次 MQTT 抖动可同时过期上千条），
+     * 上千个 HTTP 回调会把 commonPool 占满，连带拖慢同一 JVM 内所有并行流，而且队列无界
+     * ⇒ 堆积到 OOM 之前没有任何信号。
+     *
+     * <p>这里换成有界池：core=1 / max=2 / 队列 256，拒绝策略 CallerRuns（压回调度线程，
+     * 形成背压而不丢通知）。丢通知的代价是「会话靠 trade 侧兜底清扫才置失败」，
+     * 比 OOM 更可接受的是排队，但比静默丢弃更可接受的是慢一点。
+     */
+    private final ExecutorService notifier = new ThreadPoolExecutor(
+            1, 2, 60L, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(256),
+            r -> {
+                Thread t = new Thread(r, "device-cmd-notify");
+                t.setDaemon(true);
+                return t;
+            },
+            new ThreadPoolExecutor.CallerRunsPolicy());
 
     /** 本地模式（单元测试 / 无 Redis 环境）。 */
     public DeviceCommandTracker(DeviceMqttMetrics metrics) {
@@ -235,7 +268,7 @@ public class DeviceCommandTracker {
         if (tradeServiceClient == null || sessionId == null || sessionId.isBlank()) {
             return;
         }
-        CompletableFuture.runAsync(() -> {
+        notifier.execute(() -> {
             try {
                 tradeServiceClient.openDoorFailed(sessionId, OPEN_DOOR_ACK_TIMEOUT_REASON);
             } catch (Exception e) {
@@ -328,26 +361,52 @@ public class DeviceCommandTracker {
         return true;
     }
 
-    private void expireCommandsRedis() {
+    /** 包级可见：供 `DeviceCommandTrackerTest` 直接驱动一轮扫描（调度间隔 5s 不适合做单测）。 */
+    void expireCommandsRedis() {
         long now = Instant.now().toEpochMilli();
         long cutoff = now - ACK_TIMEOUT_MS;
-        Set<String> expiredIds = redis.opsForZSet().rangeByScore(PENDING_ZSET, 0, cutoff);
-        if (expiredIds == null || expiredIds.isEmpty()) {
-            return;
-        }
-        for (String commandId : expiredIds) {
-            CommandStatus status = readStatus(commandId);
-            if (status == null || !STATUS_PENDING.equals(status.status())) {
-                redis.opsForZSet().remove(PENDING_ZSET, commandId);
-                continue;
+        // P3-r19-30（2026-11-12）：原来 rangeByScore 不带 limit，一次把**全部**到期成员拉成
+        // Set<String>。正常运行到期命令很少（ACK 超时是异常路径），但 Redis 里出现积压时
+        // 这个调用会变成「一次性 N 条 + N 次 ZREM + N 次 HGETALL」的同步阻塞，全压在这条
+        // 5s 调度线程上：积压 1 万条 ⇒ 单轮几十秒，看门狗自己先超时。
+        // 积压的来源很现实：device-service 停机一天后重启，zset 里全是过期待确认。
+        // 改为分批：每轮最多 MAX_BATCHES 批、每批 BATCH 条（默认 1000 条/轮），剩余留给
+        // 下轮。被抢占（ZREM 返回 0）的成员已不在 zset 里，所以下一批不会重复取到同一批，
+        // 不存在「整批抢不到 ⇒ 死循环」。
+        for (int round = 0; round < EXPIRE_SCAN_MAX_BATCHES; round += 1) {
+            Set<String> expiredIds = redis.opsForZSet()
+                    .rangeByScore(PENDING_ZSET, 0, cutoff, 0, EXPIRE_SCAN_BATCH);
+            if (expiredIds == null || expiredIds.isEmpty()) {
+                return;
             }
-            writeStatus(new CommandStatus(status.commandId(), status.deviceId(), status.sessionId(),
-                    TIMEOUT, false, status.publishedAtMs(), now));
-            metrics.recordCommandAckTimeout();
-            log.warn("device command ACK timeout commandId={} device={} session={}",
-                    status.commandId(), status.deviceId(), status.sessionId());
-            notifyOpenDoorTimeoutAsync(status.sessionId());
+            for (String commandId : expiredIds) {
+                // R19-18：多实例（device-service 可横向扩）会各自 rangeByScore 到**同一批**到期命令，
+                // 原实现「读到就读状态、写 TIMEOUT、通知 trade」⇒ 同一会话被 N 个实例重复
+                // openDoorFailed。trade 侧 CAS 能挡住重复入账，但重复 HTTP + 重复告警都是噪音。
+                // 这里用 ZREM 的返回值当**抢占令牌**：只有真正把成员从 zset 删掉的那个实例（返回 1）
+                // 才处置；其余实例返回 0，直接跳过。处置后 writeStatus 仍会 remove，等价幂等。
+                Long claimed = redis.opsForZSet().remove(PENDING_ZSET, commandId);
+                if (claimed == null || claimed == 0L) {
+                    continue;
+                }
+                CommandStatus status = readStatus(commandId);
+                if (status == null || !STATUS_PENDING.equals(status.status())) {
+                    // 已被 ACK / 已被别的实例处置过：zset 成员已摘除，无需再做任何事。
+                    continue;
+                }
+                writeStatus(new CommandStatus(status.commandId(), status.deviceId(), status.sessionId(),
+                        TIMEOUT, false, status.publishedAtMs(), now));
+                metrics.recordCommandAckTimeout();
+                log.warn("device command ACK timeout commandId={} device={} session={}",
+                        status.commandId(), status.deviceId(), status.sessionId());
+                notifyOpenDoorTimeoutAsync(status.sessionId());
+            }
+            if (expiredIds.size() < EXPIRE_SCAN_BATCH) {
+                return; // 本批未取满 = 已扫到尾部
+            }
         }
+        log.info("device command expiry scan hit per-round cap({}x{}), remaining due items deferred to next round",
+                EXPIRE_SCAN_MAX_BATCHES, EXPIRE_SCAN_BATCH);
     }
 
     private void writeStatus(CommandStatus status) {
@@ -413,6 +472,7 @@ public class DeviceCommandTracker {
     @PreDestroy
     public void stop() {
         executor.shutdownNow();
+        notifier.shutdownNow();
     }
 
     private record PendingCommand(String deviceId, String sessionId, long createdAtMs) {}

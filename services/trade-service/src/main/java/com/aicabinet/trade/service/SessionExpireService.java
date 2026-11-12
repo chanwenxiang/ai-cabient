@@ -146,14 +146,20 @@ public class SessionExpireService {
      * 只在仍 FROZEN 时改写）。滞后 1 小时是为了不与进行中的人工处置抢跑。
      */
     @Scheduled(fixedRate = 300_000)
-    @Transactional
     public void releaseStaleFailedSessionHolds() {
         long start = System.nanoTime();
         if (!taskService.tryBegin(SESSION_FAILED_HOLDCLEAR, 600)) {
             return;
         }
-        boolean failed = false;
+        // R19-9（2026-11-12）：**故意不加方法级 @Transactional**。
+        // 旧实现方法级事务 + 循环内 per-session catch ⇒ releaseIfFrozen 抛错时共享事务已被标
+        // rollback-only，最后 finish(SUCCESS) 以 REQUIRES_NEW 先提交，外层提交再抛
+        // UnexpectedRollbackException：整批释放全回滚、看板却记 SUCCESS，且每 5 分钟重演一次。
+        // 现在每个会话由 ConsumerPreauthService.releaseIfFrozen 自己的事务独立提交（另一 bean，
+        // 调用走代理），前序成功释放不会被后续失败回滚。
+        boolean finished = false;
         String summary = "本次无 FAILED 悬挂冻结";
+        int releaseFailed = 0;
         try {
             Instant cutoff = Instant.now().minus(1, ChronoUnit.HOURS);
             var stale = repository.findByStateInAndUpdatedAtBefore(
@@ -168,6 +174,7 @@ public class SessionExpireService {
                     log.warn("FAILED 会话悬挂预授权已自动释放 sessionId={} updatedAt={}",
                             s.getSessionId(), s.getUpdatedAt());
                 } catch (Exception one) {
+                    releaseFailed++;
                     log.error("FAILED 会话预授权释放失败 sessionId={}", s.getSessionId(), one);
                 }
             }
@@ -179,12 +186,21 @@ public class SessionExpireService {
                         "FAILED 会话预授权悬挂已自动清扫",
                         summary + "；成因为结算失败路径漏释放（审计 P2-4），请核查对应结算失败日志");
             }
+            if (releaseFailed > 0) {
+                // 有会话释放失败 ⇒ 冻结仍在、钱还悬着，任务必须记 FAILED（不再报「已清扫」）
+                summary = "释放 " + released + " 个，失败 " + releaseFailed + " 个（冻结仍在，需人工核查）";
+                finished = true;
+                taskService.finish(SESSION_FAILED_HOLDCLEAR, CabinetConstants.ORDER_STATUS_FAILED, summary, start);
+                opsExceptionService.report("FAILED_SESSION_HOLD_CLEAR", "HIGH",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs(null, null, null, null),
+                        "FAILED 会话预授权清扫部分失败", summary);
+            }
         } catch (Exception e) {
-            failed = true;
+            finished = true;
             taskService.finish(SESSION_FAILED_HOLDCLEAR, CabinetConstants.ORDER_STATUS_FAILED, e.getMessage(), start);
             throw e;
         } finally {
-            if (!failed) {
+            if (!finished) {
                 taskService.finish(SESSION_FAILED_HOLDCLEAR, STATUS_SUCCESS, summary, start);
             }
         }

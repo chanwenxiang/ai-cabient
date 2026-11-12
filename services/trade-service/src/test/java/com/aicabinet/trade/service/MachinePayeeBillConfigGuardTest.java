@@ -34,6 +34,7 @@ class MachinePayeeBillConfigGuardTest {
 
     @Mock private MachinePositionConfigMapper configMapper;
     @Mock private MachinePayeeBillMapper billMapper;
+    @Mock private MerchantScopeService merchantScopeService;
 
     private MachinePayeeBillService service;
 
@@ -41,7 +42,8 @@ class MachinePayeeBillConfigGuardTest {
 
     @BeforeEach
     void setUp() {
-        service = new MachinePayeeBillService(configMapper, billMapper, null, adminAuditService);
+        service = new MachinePayeeBillService(configMapper, billMapper, null, adminAuditService,
+                merchantScopeService);
         when(configMapper.selectById("DEV-1")).thenReturn(null);
     }
 
@@ -58,7 +60,7 @@ class MachinePayeeBillConfigGuardTest {
     @Test
     void shareBps_aboveFull_rejected() {
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.saveConfig("DEV-1", cfg(50_000, "NONE", 0L, 1, "张三")));
+                () -> service.saveConfig(9L, "DEV-1", cfg(50_000, "NONE", 0L, 1, "张三")));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         assertTrue(ex.getReason().contains("shareBps"), ex.getReason());
         verify(configMapper, never()).insert(any());
@@ -69,13 +71,13 @@ class MachinePayeeBillConfigGuardTest {
         // generateMonthly 只筛 enabled=1，写 2 = 整柜从出账面消失
         assertEquals("enabled 只能是 0/1",
                 assertThrows(ResponseStatusException.class,
-                        () -> service.saveConfig("DEV-1", cfg(0, "NONE", 0L, 2, "张三"))).getReason());
+                        () -> service.saveConfig(9L, "DEV-1", cfg(0, "NONE", 0L, 2, "张三"))).getReason());
     }
 
     @Test
     void electricTypeOutsideVocabulary_rejected() {
         assertThrows(ResponseStatusException.class,
-                () -> service.saveConfig("DEV-1", cfg(0, "METERED", 100L, 1, "张三")));
+                () -> service.saveConfig(9L, "DEV-1", cfg(0, "METERED", 100L, 1, "张三")));
     }
 
     @Test
@@ -83,18 +85,18 @@ class MachinePayeeBillConfigGuardTest {
         // 列是 NOT NULL（V356），原来只会撞成没有字段名的泛化 409
         assertEquals("payeeName 必填（场地方收款人）",
                 assertThrows(ResponseStatusException.class,
-                        () -> service.saveConfig("DEV-1", cfg(0, "NONE", 0L, 1, "  "))).getReason());
+                        () -> service.saveConfig(9L, "DEV-1", cfg(0, "NONE", 0L, 1, "  "))).getReason());
     }
 
     @Test
     void oversizePayeeName_rejected() {
         assertThrows(ResponseStatusException.class,
-                () -> service.saveConfig("DEV-1", cfg(0, "NONE", 0L, 1, "名".repeat(65))));
+                () -> service.saveConfig(9L, "DEV-1", cfg(0, "NONE", 0L, 1, "名".repeat(65))));
     }
 
     @Test
     void validConfig_normalizedAndPersisted() {
-        service.saveConfig("DEV-1", cfg(120, "fixed", 8_000L, 1, " 张三 "));
+        service.saveConfig(9L, "DEV-1", cfg(120, "fixed", 8_000L, 1, " 张三 "));
         ArgumentCaptor<MachinePositionConfig> cap = ArgumentCaptor.forClass(MachinePositionConfig.class);
         verify(configMapper).insert(cap.capture());
         assertEquals("FIXED", cap.getValue().getElectricType());
@@ -107,7 +109,7 @@ class MachinePayeeBillConfigGuardTest {
         // MP 的 updateById 跳过 null：PUT 只带 payeeName 时，其余列必须原样保持
         MachinePositionConfig partial = new MachinePositionConfig();
         partial.setPayeeName("张三");
-        service.saveConfig("DEV-1", partial);
+        service.saveConfig(9L, "DEV-1", partial);
         ArgumentCaptor<MachinePositionConfig> cap = ArgumentCaptor.forClass(MachinePositionConfig.class);
         verify(configMapper).insert(cap.capture());
         assertEquals(null, cap.getValue().getShareBps());
@@ -150,7 +152,7 @@ class MachinePayeeBillConfigGuardTest {
     @Test
     void saveConfig_takesConfigRowLockBeforeInsertOrUpdate() {
         // setUp 已 stub selectById("DEV-1")=null → insert 分支
-        service.saveConfig("DEV-1", cfg(100, "NONE", 0L, 1, "张三"));
+        service.saveConfig(9L, "DEV-1", cfg(100, "NONE", 0L, 1, "张三"));
 
         // R16-MA-175：insert-or-update 前必须先拿配置行锁（并发双保存的竞态收口）
         verify(configMapper).findByIdForUpdateRaw("DEV-1");

@@ -38,14 +38,19 @@ public class OpsFeeBillJob {
     @Scheduled(cron = "${aicabinet.fee-bill.auto-generate-cron:0 30 1 1 * ?}",
             zone = "${aicabinet.fee-bill.zone:Asia/Shanghai}")
     public void generateMonthlyFees() {
-        // 2026-10-14：流量费改日扣模式（DAILY_FEE）后，月度自动出账默认停用（避免重复计费）。
-    // 开关 feebill.auto_generate.enabled=true 可回退人工月结模式。
-    if (!"true".equalsIgnoreCase(systemConfigService
-            .getValue("feebill.auto_generate.enabled", "false"))) {
-        return;
-    }
         long taskStart = System.nanoTime();
+        // 🔴 R19-24（2026-11-12）：开关判断必须在 tryBegin **之后**，与同仓 R5-E2 范式
+        // （AutoReplenishmentTaskService / 短信探针）一致。原实现把开关放在 tryBegin 之前、
+        // 直接 return —— 2026-10-14 流量费改日扣后本开关默认 false，于是这个**已托管给 XXL**
+        // 的任务每月都「静默返回」：不写 scheduled_task.last_run_at ⇒ ScheduledTaskStaleMonitor
+        // 按 max-silence（32 天）把它判成停跑，运营台长期挂一条「定时任务停跑」红点。
+        // 语义上「开关关闭」不是故障，必须留一条 SKIPPED 痕迹（与「执行成功」可区分）。
         if (!taskService.tryBegin(TASK_KEY, 1800)) {
+            return;
+        }
+        if (!systemConfigService.getBoolean("feebill.auto_generate.enabled", false)) {
+            taskService.finish(TASK_KEY, "SKIPPED",
+                    "开关 feebill.auto_generate.enabled=false（流量费改日扣后默认停用月结）", taskStart);
             return;
         }
         String month = monthResolver.resolve(null);

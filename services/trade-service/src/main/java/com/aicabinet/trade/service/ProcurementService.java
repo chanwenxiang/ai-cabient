@@ -511,7 +511,15 @@ public class ProcurementService {
         // CB-061：采购按件（箱）、库存/销售按支，成本按支折。
         // orderedQty/receivedQty 以「件」为单位，入库时需换算为「支」。
         int packQty = line.getPackQty() > 0 ? line.getPackQty() : 1;
-        int stockDeltaPieces = deltaCases * packQty;
+        // R19-11：入参侧已有上限，这里兜历史脏数据（老单 packQty 可能是夸张值）——
+        // multiplyExact 溢出即 400，绝不把回绕结果写进库存。
+        int stockDeltaPieces;
+        try {
+            stockDeltaPieces = Math.multiplyExact(deltaCases, packQty);
+        } catch (ArithmeticException overflow) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "入库件数换算溢出：件数 " + deltaCases + " × 件装数 " + packQty);
+        }
         
         // 成本折算：unitCostCents 为「每件成本」，除以件装数得「每支成本」（四舍五入取整）。
         int unitCostPerPiece = Math.round((float) line.getUnitCostCents() / packQty);
@@ -635,7 +643,22 @@ public class ProcurementService {
         }
         if (!receiving && dto.orderedQty() <= 0) throw bad("orderedQty must be positive");
         if (dto.unitCostCents() <= 0) throw bad("unitCostCents must be positive");
+        // R19-11（2026-11-12）：件装数无上界时，deltaCases * packQty 的 int 乘法会静默回绕
+        // （100000 件 × 50000 支 = 5e9 → +705,032,704 支），库存被凭空抬高。
+        // 上限是**自己的设计判断**：件装数 1000 支/件、单行 1000 万支都远超真实采购规模。
+        if (dto.packQty() > MAX_PACK_QTY) {
+            throw bad("packQty 超过上限 " + MAX_PACK_QTY);
+        }
+        long pieces = (long) dto.orderedQty() * Math.max(1, dto.packQty());
+        if (pieces > MAX_STOCK_DELTA_PIECES) {
+            throw bad("单行入库支数 " + pieces + " 超过上限 " + MAX_STOCK_DELTA_PIECES);
+        }
     }
+
+    /** 单行件装数上限（支/件）：真实采购远低于此值，仅用于挡住溢出型入参。 */
+    private static final int MAX_PACK_QTY = 1000;
+    /** 单行入库支数上限：与 int 列域留足余量，同时保证 int 乘法不接近回绕点。 */
+    private static final long MAX_STOCK_DELTA_PIECES = 10_000_000L;
 
     private QualityResult inspectPurchaseLine(PurchaseOrderLine line, int receiveQty) {
         LocalDate today = LocalDate.now();

@@ -91,8 +91,14 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
             <script>
             SELECT COUNT(DISTINCT COALESCE(outbound_id, transit_id)) FROM warehouse_in_transit
             WHERE status = #{status} AND created_at &lt; #{cutoff}
-            <if test="deviceIds != null">
+            <!-- P3-r19-4（2026-11-12）：空集合必须收起整段谓词。
+                 `deviceIds=[]` 时旧写法生成 `IN ()` —— PostgreSQL 语法错，整条计数 500。
+                 空集语义 = 「没有可见设备」⇒ 计 0：用 1=0 兜住，别让 SQL 报错被上层当成功。 -->
+            <if test="deviceIds != null and deviceIds.size() > 0">
               AND device_id IN <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+            </if>
+            <if test="deviceIds != null and deviceIds.size() == 0">
+              AND 1 = 0
             </if>
             </script>
             """)

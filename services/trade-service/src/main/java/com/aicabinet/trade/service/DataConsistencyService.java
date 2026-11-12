@@ -215,8 +215,8 @@ public class DataConsistencyService {
 
     /** 立即巡检（运营手动触发 / 联调）。返回当前仍为 FAIL 的条数。 */
     public int runConsistencyCheck() {
+        log.info("开始数据一致性巡检");
         try {
-            log.info("开始数据一致性巡检");
             checkOrderConsistency();
             checkPaymentConsistency();
             checkPaidGrossConsistency();
@@ -243,10 +243,15 @@ public class DataConsistencyService {
             checkDeviceLedgerConsistency();
             checkOutboundHandoverConsistency();
             checkCrossLinkConsistency();
-            log.info("数据一致性巡检结束");
-        } catch (Exception e) {
-            log.error("数据一致性巡检中断", e);
+        } catch (RuntimeException e) {
+            // R19-7（2026-11-12）：以前这里 `catch (Exception) { log.error }` 后继续往下走，
+            // 于是巡检中途崩掉时 getFailedChecks() 只反映「已跑完的那几项」，
+            // 任务结果仍是 SUCCESS / 「巡检通过，无不一致」——资金对账最该报警的地方假绿。
+            // 中断即结论不可信：向上抛，让 runScheduled 落 FAILED、手动触发返回 5xx。
+            log.error("数据一致性巡检中断，本次结论不可信（不得报『无不一致』）", e);
+            throw e;
         }
+        log.info("数据一致性巡检结束");
         List<DataConsistencyRecord> failed = getFailedChecks();
         return failed == null ? 0 : failed.size();
     }

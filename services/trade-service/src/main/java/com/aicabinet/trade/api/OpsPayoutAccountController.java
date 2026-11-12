@@ -8,6 +8,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.PayoutAccount;
 import com.aicabinet.trade.payout.PayoutConstants;
 import com.aicabinet.trade.service.AdminAuditService;
+import com.aicabinet.trade.service.MerchantScopeService;
 import com.aicabinet.trade.service.PayoutAccountService;
 import com.aicabinet.trade.service.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,13 +32,16 @@ public class OpsPayoutAccountController {
     private final PayoutAccountService payoutAccountService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final MerchantScopeService merchantScopeService;
 
     public OpsPayoutAccountController(PayoutAccountService payoutAccountService,
                                       PermissionService permissionService,
-                                      AdminAuditService auditService) {
+                                      AdminAuditService auditService,
+                                      MerchantScopeService merchantScopeService) {
         this.payoutAccountService = payoutAccountService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @RequiresPermissions("ops:finance:view")
@@ -45,7 +49,7 @@ public class OpsPayoutAccountController {
     public ApiResponse<List<PayoutAccountDto>> list(HttpServletRequest request,
                                                      @RequestParam String ownerType,
                                                      @RequestParam String ownerId) {
-        requireOwnerPermission(operator(request), ownerType, false);
+        requireOwnerPermission(operator(request), ownerType, ownerId, false);
         return ApiResponse.ok(payoutAccountService.listByOwner(ownerType, ownerId).stream()
                 .map(OpsPayoutAccountController::toDto)
                 .toList());
@@ -55,7 +59,7 @@ public class OpsPayoutAccountController {
     public ApiResponse<PayoutAccountDto> create(HttpServletRequest request,
                                                 @Valid @RequestBody PayoutAccountCreateRequest body) {
         Long operator = operator(request);
-        requireOwnerPermission(operator, body.ownerType(), true);
+        requireOwnerPermission(operator, body.ownerType(), body.ownerId(), true);
         PayoutAccount account = payoutAccountService.create(body.ownerType(), body.ownerId(),
                 body.accountType(), body.channel(), body.accountName(), body.accountNo(),
                 body.bankName(), body.bankBranch(), body.taxNo(),
@@ -74,7 +78,7 @@ public class OpsPayoutAccountController {
                                         @PathVariable long accountId,
                                         @RequestBody PayoutAccountCreateRequest body) {
         Long operator = operator(request);
-        requireOwnerPermission(operator, body.ownerType(), true);
+        requireOwnerPermission(operator, body.ownerType(), body.ownerId(), true);
         payoutAccountService.setDefault(body.ownerType(), body.ownerId(), accountId);
         auditService.appendLog(operator, "PAYOUT_ACCOUNT_SET_DEFAULT", "PAYOUT_ACCOUNT",
                 String.valueOf(accountId), "owner=" + body.ownerType() + "/" + body.ownerId());
@@ -86,7 +90,7 @@ public class OpsPayoutAccountController {
                                      @PathVariable long accountId,
                                      @RequestBody PayoutAccountCreateRequest body) {
         Long operator = operator(request);
-        requireOwnerPermission(operator, body.ownerType(), true);
+        requireOwnerPermission(operator, body.ownerType(), body.ownerId(), true);
         payoutAccountService.disable(body.ownerType(), body.ownerId(), accountId, operator);
         auditService.appendLog(operator, "PAYOUT_ACCOUNT_DISABLE", "PAYOUT_ACCOUNT",
                 String.valueOf(accountId), "owner=" + body.ownerType() + "/" + body.ownerId());
@@ -99,12 +103,24 @@ public class OpsPayoutAccountController {
      * <p>MA-077：原实现的 else 分支把<b>任何未知 ownerType</b> 兜到只读码 {@code ops:finance:view} 上，
      * 于是「有查看权 = 能往未知主体写收款账户」，且垃圾值原样落库。现在未知值一律 400；
      * {@code PLATFORM} 保留只读面（现网无平台收款账户的写路径，写侧只认线长/商户）。
+     *
+     * <p>R19-15（2026-11-12）：{@code ops:merchant:edit} 是<b>功能码</b>，不含商户维度——
+     * {@link PermissionService#requirePermission} 只回答「你这个角色有没有这个功能」，
+     * 不回答「这个商户在不在你的数据范围」。原实现只查功能码，于是被授权管 A 商户的运营
+     * 可以拿 {@code ownerId=MCH-B} 把 B 商户的默认收款账户改成自己的卡（资金改道）。
+     * 商户域权限在本仓的既有范式是 {@link MerchantScopeService#requireMerchantAccess}
+     * （MerchantService / MerchantWithdrawService / DeviceAssetService 均如此），此处补齐。
+     *
+     * <p>LINE_MANAGER 无同类域模型（线长按线路归属，现网没有「运营↔线长」的数据范围表），
+     * 只能停在功能码粒度；这是与商户域<b>有意不同</b>，不是漏改。
      */
-    private void requireOwnerPermission(Long operatorId, String ownerType, boolean write) {
+    private void requireOwnerPermission(Long operatorId, String ownerType, String ownerId, boolean write) {
         if (PayoutConstants.PAYEE_OWNER_LINE_MANAGER.equals(ownerType)) {
             permissionService.requirePermission(operatorId, "ops:line-manager:edit");
         } else if (PayoutConstants.PAYEE_OWNER_MERCHANT.equals(ownerType)) {
             permissionService.requirePermission(operatorId, "ops:merchant:edit");
+            // 功能码之后必须过数据范围闸：否则「能改商户」= 「能改所有商户」
+            merchantScopeService.requireMerchantAccess(operatorId, ownerId);
         } else if (PayoutConstants.PAYEE_OWNER_PLATFORM.equals(ownerType) && !write) {
             permissionService.requirePermission(operatorId, "ops:finance:view");
         } else {

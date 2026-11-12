@@ -77,7 +77,7 @@ class SchedulingPoolCapacitySelfCheckTest {
         ThreadPoolTaskScheduler scheduler = initializedScheduler(4);
         try {
             SchedulingPoolCapacitySelfCheck.Capacity read =
-                    SchedulingPoolCapacitySelfCheck.readCapacity(null, scheduler, 8, 20);
+                    SchedulingPoolCapacitySelfCheck.readCapacity(null, scheduler, 8, 20, false);
 
             assertEquals(4, read.concurrency(), "必须取运行中调度器的实际并发上限，而不是属性里的 8");
             assertTrue(read.concurrencySource().contains("ThreadPoolTaskScheduler"),
@@ -97,7 +97,7 @@ class SchedulingPoolCapacitySelfCheckTest {
             assertEquals(0, scheduler.getPoolSize(), "前置：还没跑过任务，当前线程数应为 0");
 
             SchedulingPoolCapacitySelfCheck.Capacity read =
-                    SchedulingPoolCapacitySelfCheck.readCapacity(null, scheduler, 1, 10);
+                    SchedulingPoolCapacitySelfCheck.readCapacity(null, scheduler, 1, 10, false);
 
             assertEquals(4, read.concurrency(), "冷启动时也必须读出 4；读出 0 就是那条假绿");
         } finally {
@@ -111,7 +111,7 @@ class SchedulingPoolCapacitySelfCheckTest {
         when(hikari.getMaximumPoolSize()).thenReturn(3);
 
         SchedulingPoolCapacitySelfCheck.Capacity read =
-                SchedulingPoolCapacitySelfCheck.readCapacity(hikari, null, 8, 20);
+                SchedulingPoolCapacitySelfCheck.readCapacity(hikari, null, 8, 20, false);
 
         assertEquals(3, read.pool(), "必须取运行中连接池的有效上限，而不是属性里的 20");
         assertTrue(read.poolSource().contains("HikariDataSource"),
@@ -121,7 +121,7 @@ class SchedulingPoolCapacitySelfCheckTest {
     @Test
     void readCapacity_whenNoRuntimeObjects_fallsBackToProperties() {
         SchedulingPoolCapacitySelfCheck.Capacity read =
-                SchedulingPoolCapacitySelfCheck.readCapacity(null, null, 8, 20);
+                SchedulingPoolCapacitySelfCheck.readCapacity(null, null, 8, 20, false);
 
         assertEquals(8, read.concurrency());
         assertEquals(20, read.pool());
@@ -134,7 +134,7 @@ class SchedulingPoolCapacitySelfCheckTest {
         // 未 initialize 的调度器 getScheduledThreadPoolExecutor() 会抛 IllegalStateException；
         // 此时属性值是唯一线索，不能因此让自检自身抛异常。
         SchedulingPoolCapacitySelfCheck.Capacity read =
-                SchedulingPoolCapacitySelfCheck.readCapacity(null, new ThreadPoolTaskScheduler(), 8, 20);
+                SchedulingPoolCapacitySelfCheck.readCapacity(null, new ThreadPoolTaskScheduler(), 8, 20, false);
 
         assertEquals(8, read.concurrency(), "未初始化时应退回属性值");
         assertTrue(read.concurrencySource().contains("属性"), read.concurrencySource());
@@ -154,13 +154,38 @@ class SchedulingPoolCapacitySelfCheckTest {
     }
 
     @Test
-    void selfCheck_whenConcurrencyEqualsPool_passes() {
-        // 边界：判据是「并发 > 池」才失败。相等必须判绿 —— 把 > 写成 >= 会凭空制造一条
-        // 永远无法通过的红线（池子为 5、并发为 5 时配置本身是自洽的）。
-        newSelfCheck(() -> capacity(5, 5)).selfCheck();
+    void selfCheck_whenPeakEqualsPool_passes() {
+        // 边界：判据是「峰值 > 池」才失败，峰值相等必须判绿 —— 把 > 写成 >= 会凭空制造一条
+        // 永远无法通过的红线。2 并发 × 2 条 = 4，正好等于池 4，配置本身是自洽的。
+        newSelfCheck(() -> capacity(2, 4)).selfCheck();
 
         assertEquals(1d, gaugeValue());
         verify(exceptionService, never()).report(anyString(), anyString(), any(), anyString(), anyString());
+    }
+
+    /**
+     * R19-20 回归：一个任务占**两条**连接（外层事务 + {@code finish()} 的 REQUIRES_NEW），
+     * 所以「并发 8 < 池 10」并不安全——峰值是 16。旧判据（并发 ≤ 池）在这里是假绿。
+     */
+    @Test
+    void selfCheck_concurrencyBelowPoolButPeakOver_reportsCritical() {
+        SchedulingPoolCapacitySelfCheck.Capacity c = capacity(8, 10);
+        assertEquals(16, c.peakConnections(), "峰值必须按 每任务 2 条连接 折算");
+        assertTrue(c.overCapacity(), "8 并发在 10 连接池里，峰值 16 已溢池");
+
+        newSelfCheck(() -> c).selfCheck();
+
+        assertEquals(0d, gaugeValue());
+        verify(exceptionService).report(eq(SchedulingPoolCapacitySelfCheck.ALERT_TYPE), eq("CRITICAL"),
+                any(), anyString(), anyString());
+    }
+
+    /** 默认生产配置（8 并发 / 20 连接）不能变红，否则这条判据会天天误报而被关掉。 */
+    @Test
+    void selfCheck_defaultProductionConfig_passes() {
+        newSelfCheck(() -> capacity(8, 20)).selfCheck();
+
+        assertEquals(1d, gaugeValue());
     }
 
     @Test
@@ -177,6 +202,8 @@ class SchedulingPoolCapacitySelfCheckTest {
                 anyString(), refs.capture());
         assertEquals(8, refs.getValue().get("schedulingConcurrency"));
         assertEquals(5, refs.getValue().get("datasourcePool"));
+        assertEquals(16, refs.getValue().get("peakConnections"),
+                "告警里必须带上判据真正用到的峰值，否则运维看不出 16 > 5");
         assertTrue(refs.getValue().containsKey("concurrencySource"),
                 "告警里必须带取值来源，否则排障时看不出是配置声明值还是运行时值：" + refs.getValue());
     }

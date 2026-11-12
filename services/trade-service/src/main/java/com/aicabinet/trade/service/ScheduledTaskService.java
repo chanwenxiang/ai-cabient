@@ -85,6 +85,23 @@ public class ScheduledTaskService {
         return toDto(requireTask(taskKey));
     }
 
+    /** 最近一次落库的执行结果（判成败用）。R19-8：XXL 侧不能只看 action 有没有抛异常。 */
+    public record LastRun(String result, Instant lastRunAt) {}
+
+    /**
+     * R19-8（2026-11-12）：读最近一次执行结果。
+     *
+     * <p>背景：8 个任务体在 catch 里只 {@code finish(FAILED)} 后 return、**不重抛**，
+     * 而 XXL handler 原先只看 {@code action().run()} 是否抛异常 ⇒ 调度台对这些任务恒绿，
+     * {@code executor_fail_retry} 与告警全不生效。调用方必须用 {@code lastRunAt}
+     * 判断这条结果是不是**本次**写的（任务体未调 finish 时不至于读到上一轮的 FAILED 误判）。
+     */
+    @Transactional(readOnly = true)
+    public LastRun lastRun(String taskKey) {
+        ScheduledTask row = taskRepository.selectById(taskKey);
+        return row == null ? null : new LastRun(row.getLastResult(), row.getLastRunAt());
+    }
+
     /** 新建自定义任务行（无代码 runner；仅作登记/启停，立即执行需后续注册）。 */
     @Transactional
     public ScheduledTaskDto create(Long operatorId, UpsertScheduledTaskRequest req) {
@@ -195,6 +212,13 @@ public class ScheduledTaskService {
         row.setRemark(remark == null ? null : remark.trim());
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
+        // R13-MA-174 兄弟路径（2026-11-12 核查补）：备注清空走同一"updateById 跳 null"陷阱。
+        // doUpdateMeta 已带 wrapper，本端点（PUT /{taskKey}/remark）此前漏盖 ⇒ remark=null 清不掉旧值。
+        if (row.getRemark() == null) {
+            taskRepository.update(null, Wrappers.<ScheduledTask>lambdaUpdate()
+                    .eq(ScheduledTask::getTaskKey, taskKey)
+                    .set(ScheduledTask::getRemark, null));
+        }
         auditService.appendLog(operatorId, "SCHEDULED_TASK_REMARK", SCHEDULED_TASK, taskKey, row.getTaskName());
         return toDto(row);
     }

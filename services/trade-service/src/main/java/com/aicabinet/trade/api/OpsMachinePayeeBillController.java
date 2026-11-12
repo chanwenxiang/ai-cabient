@@ -35,9 +35,10 @@ public class OpsMachinePayeeBillController {
     @Operation(summary = "账单列表（按账期/状态）")
     @GetMapping
     @RequiresPermissions("ops:device:list")
-    public ApiResponse<List<MachinePayeeBill>> list(@RequestParam(required = false) String billMonth,
+    public ApiResponse<List<MachinePayeeBill>> list(HttpServletRequest request,
+                                             @RequestParam(required = false) String billMonth,
                                              @RequestParam(required = false) String status) {
-        return ApiResponse.ok(billService.listBills(billMonth, status));
+        return ApiResponse.ok(billService.listBills(operatorId(request), billMonth, status));
     }
 
     @Operation(summary = "手动出账（指定账期，幂等）")
@@ -68,15 +69,16 @@ public class OpsMachinePayeeBillController {
     @Operation(summary = "点位费用配置（按柜）")
     @GetMapping("/config/{deviceId}")
     @RequiresPermissions("ops:device:list")
-    public ApiResponse<MachinePositionConfig> config(@PathVariable String deviceId) {
-        return ApiResponse.ok(billService.config(deviceId));
+    public ApiResponse<MachinePositionConfig> config(HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(billService.config(operatorId(request), deviceId));
     }
 
     @Operation(summary = "保存点位费用配置（费用项随时可改，只影响后续账期）")
     @PutMapping("/config/{deviceId}")
     @RequiresPermissions("ops:device:edit")
-    public ApiResponse<Void> saveConfig(@PathVariable String deviceId, @RequestBody MachinePositionConfig cfg) {
-        billService.saveConfig(deviceId, cfg);
+    public ApiResponse<Void> saveConfig(HttpServletRequest request, @PathVariable String deviceId,
+                                        @RequestBody MachinePositionConfig cfg) {
+        billService.saveConfig(operatorId(request), deviceId, cfg);
         return ApiResponse.ok(null);
     }
 

@@ -338,6 +338,9 @@ public class LineManagerService {
         if (amountCents == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
         }
+        // R19-6：人工调账原先对金额零限幅（long 无界，可写 9e18 再提现）
+        com.aicabinet.trade.support.MoneyLimits.requireWithin(
+                "线长钱包调账", amountCents, com.aicabinet.trade.support.MoneyLimits.MAX_ACCOUNT_ADJUST_CENTS);
         return runWithLineWalletLock(managerId, () -> {
             String refId = com.aicabinet.trade.util.BizIds.nextNumeric();
             if (amountCents > 0) {

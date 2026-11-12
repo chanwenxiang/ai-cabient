@@ -14,6 +14,10 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
 
+    /** P3-r19-3：inSql 拼接前的设备编号白名单（inSql 无参数位，只能靠格式约束防注入）。 */
+    java.util.regex.Pattern SAFE_DEVICE_ID =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9_.:\\-]{1,64}$");
+
     DisputeTicket findByIdForUpdateRaw(@Param("ticketId") String ticketId);
 
     default Optional<DisputeTicket> findByIdForUpdate(String ticketId) {
@@ -171,8 +175,18 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
                 .eq(reviewCode != null && !reviewCode.isEmpty(), DisputeTicket::getReviewCode, reviewCode)
                 .orderByDesc(DisputeTicket::getCreatedAt);
         if (deviceIds != null && !deviceIds.isEmpty()) {
+            // P3-r19-3（2026-11-12）：MyBatis-Plus 的 inSql 只接原始 SQL 片段（没有占位符参数），
+            // 因此这里无法直接参数化。改为**白名单校验**：设备编号只允许 [A-Za-z0-9_.:-] 且 ≤64 字符，
+            // 非法值直接 400 —— 不再依赖「手工把 ' 翻倍」这种易忘的转义约定。
             String inList = deviceIds.stream()
-                    .map(id -> "'" + String.valueOf(id).replace("'", "''") + "'")
+                    .map(id -> {
+                        String s = String.valueOf(id);
+                        if (!SAFE_DEVICE_ID.matcher(s).matches()) {
+                            throw new org.springframework.web.server.ResponseStatusException(
+                                    org.springframework.http.HttpStatus.BAD_REQUEST, "设备编号格式非法");
+                        }
+                        return "'" + s + "'";
+                    })
                     .collect(java.util.stream.Collectors.joining(","));
             q.inSql(DisputeTicket::getSessionId,
                     "SELECT session_id FROM shopping_session WHERE device_id IN (" + inList + ")");

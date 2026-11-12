@@ -26,12 +26,19 @@ public interface WalletLedgerMapper extends BaseMapper<WalletLedger> {
                 .last("LIMIT 1")));
     }
 
-    /** 某主体流水（新在前，按 ledger_id 倒序）——补货员运营视图口径。 */
+    /**
+     * 某主体流水（新在前，按 ledger_id 倒序）——补货员运营视图口径。
+     *
+     * <p>P3-r19-14（2026-11-12）：原先无 LIMIT，与同族 {@link #listByOwnerOrderByCreatedAtDesc}
+     * 的 200 上限不一致 ⇒ 单个补货员流水几千行时一次响应全拉，慢查询 + 大 payload。
+     * 运营要看全量请走分页接口，这里只给「最近 200 条」的概览。
+     */
     default List<WalletLedger> listByOwnerOrderByLedgerIdDesc(String domain, String ownerId) {
         return selectList(Wrappers.<WalletLedger>lambdaQuery()
                 .eq(WalletLedger::getDomain, domain)
                 .eq(WalletLedger::getOwnerId, ownerId)
-                .orderByDesc(WalletLedger::getLedgerId));
+                .orderByDesc(WalletLedger::getLedgerId)
+                .last("LIMIT 200"));
     }
 
     /** 某主体流水（新在前，按 created_at 倒序，限量）——商户/线长视图口径。 */

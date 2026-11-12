@@ -152,20 +152,20 @@ public class CouponService {
         return toDefDto(def);
     }
 
-    public List<CouponDefinitionDto> listDefinitions() {
-        return definitionRepository.findAll().stream().map(this::toDefDto).toList();
-    }
-
+    /**
+     * 🔴 R19-21（2026-11-12）：此处原有 {@code listDefinitions()} / {@code listActiveDefinitions()}
+     * 两个 {@code findAll()} 全表方法，**零调用方**（管理端走下面的分页版本）——已删。
+     *
+     * <p>留着比删掉危险：它俩是「无上限查全表」的现成入口，任何人图省事接一个运营端点/周报任务，
+     * 就会在券定义涨到几千条时把整表读进内存（本仓已因「取数上限 + 内存过滤」出过 B13 类缺陷）。
+     * 需要全量时请显式写用途（导出/对账）并自带游标或上限，不要复活这两个名字。
+     */
     public PageResult<CouponDefinitionDto> listDefinitionsPage(String q, String status, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         var result = definitionRepository.searchPage(q, status, p, s);
         List<CouponDefinitionDto> items = result.getRecords().stream().map(this::toDefDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
-    }
-
-    public List<CouponDefinitionDto> listActiveDefinitions() {
-        return definitionRepository.findByStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE).stream().map(this::toDefDto).toList();
     }
 
     @Transactional

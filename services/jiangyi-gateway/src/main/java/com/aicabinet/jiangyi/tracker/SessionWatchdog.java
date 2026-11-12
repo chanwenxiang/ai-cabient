@@ -5,11 +5,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 将邑会话看门狗（CB-022，方案 §4.5 时序 5）：模式一设备侧无超时上报
@@ -45,6 +48,22 @@ public class SessionWatchdog {
     /** 模型下发回执超时（rknn 下载 + 机器重启，远长于开门；与 ModelPushController 同值）。 */
     private static final long MODEL_TIMEOUT_MS = 600_000L;
     private static final String WATCHDOG_LOCK = "jiangyi:watchdog:lock";
+    /** 租约时长：扫一轮的正常耗时是毫秒级，30s 只是「实例假死」的回收期。 */
+    private static final Duration LOCK_LEASE = Duration.ofSeconds(30);
+    /**
+     * fencing 解锁：只有「锁里还是我自己的 token」才删。
+     *
+     * <p>R19-19（2026-11-12 审计）：原实现 {@code setIfAbsent(lock, "1", 30s)} + finally
+     * {@code delete(lock)} —— 锁值是不带身份的常量 "1"。当 A 实例一轮扫超 30s（租约到期，
+     * 锁被 B 拿走）后 A 的 finally 仍会执行 delete，**把 B 的锁删掉**，紧接着 C 也能进来：
+     * 30s 内三实例并发扫同一批 due，同一会话被重复 open-failed / recognize-timeout。
+     * 处置侧虽有 CAS 兜底（不会重复入账），但重复告警与重复调 trade 都是噪音，且 CAS 只保护
+     * 「trade 已改状态」的情形，通知本身仍会重发。改成 unique token + Lua 比对删除后，
+     * 超时的实例至多「白扫一轮」，不会再解除别人的锁。
+     */
+    private static final RedisScript<Long> RELEASE_IF_OWNER = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
 
     private final CommandTracker commandTracker;
     private final TradeInternalClient tradeInternalClient;
@@ -62,8 +81,9 @@ public class SessionWatchdog {
 
     @Scheduled(fixedDelay = 10_000L)
     public void sweep() {
+        String token = UUID.randomUUID().toString();
         try {
-            Boolean locked = redis.opsForValue().setIfAbsent(WATCHDOG_LOCK, "1", Duration.ofSeconds(30));
+            Boolean locked = redis.opsForValue().setIfAbsent(WATCHDOG_LOCK, token, LOCK_LEASE);
             if (!Boolean.TRUE.equals(locked)) {
                 return;
             }
@@ -74,7 +94,7 @@ public class SessionWatchdog {
                 sweepDoing(now);
                 sweepModel(now);
             } finally {
-                redis.delete(WATCHDOG_LOCK);
+                redis.execute(RELEASE_IF_OWNER, List.of(WATCHDOG_LOCK), token);
             }
         } catch (Exception e) {
             // Redis 抖动：本轮跳过，下趟调度再试（不让调度线程反复抛栈，也保护测试上下文）
