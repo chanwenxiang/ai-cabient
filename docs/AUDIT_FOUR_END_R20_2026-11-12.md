@@ -44,19 +44,19 @@
 - ⚠ 与 R19 P3#9 同一条：营销轴复算后**升级为 P1**（直接扣用户资产）。
 - **修法**：按 `min(pts, remaining)` 部分标记；判据：单测「同一 EARN 行累计过期 ≤ 其 points」。
 
-### R20-6 ◐ 争议改单缺订单状态前置：CANCELLED 可扣款、PARTIAL_REFUNDED 可重复收款
+### R20-6 ✅ 争议改单缺订单状态前置：CANCELLED 可扣款、PARTIAL_REFUNDED 可重复收款
 - `SettlementConfirmDisputeService.java:168` 只挡 REFUNDED；`:213` 仅当原状态为 DISPUTED 才改 PAID；
   `OrderPaymentService.java:916-935` 的差额扣款不校验订单状态；`SettlementOrderSupport.java:186` 全量重算 total。
 - 后果：CANCELLED 单 CONFIRM ⇒ 扣到钱但单仍取消（收入消失）；已部分退的单 CONFIRM ⇒ delta≈已退额 ⇒ **重复收款**。
 - **修法**：CONFIRM 白名单 `{PAID, PENDING, DISPUTED}` 且 `refundedCents=0`；finalize 必置 PAID。
 
-### R20-7 ◐ 购物中（SHOPPING）可被运营直接免单取消，且不释放预授权
+### R20-7 ✅ 购物中（SHOPPING）可被运营直接免单取消，且不释放预授权
 - `OpsSessionOrderQueryService.java:218-226` 只挡终态/识别态，SHOPPING 放行 → 置 CANCELLED；无 `releaseIfFrozen`（对照 `SessionService.java:366` 的正常路径），也不建争议单；
   而 FAILED 冻结清扫器只扫 FAILED（`SessionExpireService.java:160`）⇒ CANCELLED 的 FROZEN 悬挂无人清。
 - 后果：用户已取货 → 免单 + 预授权永久冻结。
 - **修法**：SHOPPING 强制转 DISPUTED（与既有 F2 口径一致）并释放 hold；清扫器覆盖 CANCELLED+FROZEN。
 
-### R20-8 ◐ 支付分回调可把终态订单改回 PAID
+### R20-8 ✅ 支付分回调可把终态订单改回 PAID
 - `PayScoreOrderNotifyService.java:109-123` 只判「已是 PAID 就跳过」，DONE 可把 REFUNDED/CANCELLED 改成 PAID；`DisputeService.java:372` 又只挡 REFUNDED ⇒ 改回后可二次退款。
 - **修法**：状态单向机 + 终态收到 DONE 只记 HIGH 异常人工处置。
 
@@ -747,3 +747,52 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 本轮**无新增迁移**（纯代码 + 测试）⇒ `mvn -o -pl services/trade-service -am -DskipTests package`
 + `up -d --no-deps --force-recreate trade-service`。前端无改动。
 存量数据无影响：四条都是取数方式变化，返回结果与改前逐字段一致（判据已按此校验）。
+
+---
+
+## 十七、剩余项盘点（2026-11-12，批 D 收口后复核）
+
+> 本文档 §一 里 R20-6/7/8 原标 ◐，实为 `1a352188`（P1 首批 8 条）已修未回写标记；本轮回写为 ✅。
+> 下面按「现在还剩什么」重列，判据是**代码现状**（`git log -S` 溯源 + 读现状），不是报告自我声称。
+
+### 十七.1 剩余 P1：2 条
+
+| # | 状态 | 现状与剩余部分 |
+|---|---|---|
+| R20-9 | **零落点** | `grep -rn "R20-9\|split_return_leg\|order_split_return"` 在 `services/` 与 `db/` 全库 **0 命中**。需新建 `order_split_return_leg(split_id, out_return_no, cents, status)` 并把 `RevenueSplitService` 的单值覆盖改为按腿累加、`retrySingleFailedReturn` 按腿提交/查单。§十.2 已论证这是**加表**，不能顺手做（合并单值列会引入双退风险：前一条可能已在途）。判据：`Σ腿回退额 = 初始 merchant_cents − 现 merchant_cents`。 |
+| R20-10 | **半修** | 超时已补：`TradeServiceClient` 走 `OutboundHttp.callbackThreadRpc()`（2s/5s 档，2026-11-12 出站客户端统一治理批次），`MqttEventListener:345` 仍在 Paho 回调线程内 `notifyDoorEvent` + 3 次重试 + `Thread.sleep(200·attempt)` ⇒ 最坏占住回调线程约 16s。**剩余**：把转发移到有界线程池 / 或以「先 ACK、异步转发 + 失败落补偿表」替代同步重试。§十.2 已定「需单独一轮」。 |
+
+### 十七.2 剩余 P2：0 条
+
+18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
+
+### 十七.3 剩余 P3：8 条可派修（P3-2 判为说明不派修、P3-3 已由批 C 覆盖）
+
+| # | 一句话 | 派修提示 |
+|---|---|---|
+| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | 新表已有 `chk_*_status`，按「老表补 CHECK」执行，需先扫存量脏值 |
+| 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
+| 4 | 无主/渠道不符回调静默 200，无告警痕迹 | 微信 `:359-369`、支付宝 `:501-508` 仅 `log.warn`；补 `OpsAlertDispatcher` 落痕 |
+| 5 | 活动窗端点开/闭三处不一致（SQL `end_time > now()` vs Java `now.isAfter`） | 统一方向**以 SQL 为准（不含端点）**：活动窗是「到点即止」语义 |
+| 6 | 券过期按发放时刻而非日末 ⇒「到期当天」少用近一天 | `CouponService:216` 改当日 23:59:59 |
+| 7 | 配置/促销策略每单 N 次查库（一单 N 行 ≥5N 查询） | 加本地缓存（Caffeine/`@Cacheable`），需定失效策略 |
+| 8 | commonPool 跑阻塞 HTTP；XXL executor 默认 200 线程 vs Hikari 20 | `DeviceCommandTracker:238` 给专用 executor；`XxlJobConfig` 显式设线程数 |
+| 9 | 图片无 OSS 缩略参数 + 上传上限 10MB ⇒ 移动端首屏带宽 | `product-image.ts` 加 `x-oss-process`；上传上限另议 |
+| 10 | 同一 `UNPAID` 一处「未付」一处「待付」；`supplier_payable`/`compensation_task` 状态族未进字典 | 文案对齐 + 补 `SysDictBootstrap` 字典项 |
+
+> P3-2 **不要改**：`CANCELLED→DISPUTED` 是兜账 v2 刻意保留的唯一救援边（§九 #2、§十.3）。改了就堵死「迟到识别上报转争议后无钱可扣」的路径。
+
+### 十七.4 剩余待定：5 条（6 条中 1 条已拍板落地）
+
+1. 争议改单跌破门槛时券不返还但仍 USED（`SettlementOrderSupport:222-225`）——是否比照 CB-045 退券。
+2. `ReconciliationService.runDaily:119-137` 删除重建当日对账行、人工处置仅存 audit——重跑是否允许覆盖。
+3. 分账 `WECHAT_FAILED` 同号重提是否依赖微信侧幂等（`WeChatProfitSharingService:481-503`）。
+4. Ops「重试」是否可能落到补货会话（取决于异常记录来源）。
+5. `device_sku_price` 的 `FOR UPDATE` 只按 `device_id` 索引 ⇒ 锁该柜全部 SKU 行，并发冲突面需数据判定。
+
+### 十七.5 建议顺序
+
+1. **R20-10 后半（异步化 + ACK 语义）**——唯一还会在故障时放大成「全设备门磁积压」的一条，改动面在 device-service 单文件。
+2. **R20-9（加表 + 按腿回退）**——唯一剩余的资损类 P1，但要新建迁移与补偿器，单独一轮带守恒 SQL 验证。
+3. **P3-5 / P3-6 / P3-10**——三条纯口径对齐（活动窗端点、券过期日末、文案字典），一批扫完即可，无结构风险。
+4. P3-1/4/7/8/9 与 5 条待定项随迭代。
