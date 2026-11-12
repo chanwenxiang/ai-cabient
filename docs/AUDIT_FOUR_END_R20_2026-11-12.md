@@ -864,3 +864,69 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 - admin 三个 `.vue` 有改动 ⇒ 上线前需重建前端产物。`build:admin:typecheck`、`format:check`（针对改动文件）、`check:no-inline-dict-display` 均绿。
 - 存量数据无影响：`compensation_task_status` 只是补字典展示，不回填、不改状态值；券过期口径只影响**新发**的券，历史券 `expire_at` 原样保留。
 
+---
+
+## 十九、R20-9 实施蓝图（2026-11-12，本轮**只出设计、不动代码**）
+
+> 顺序里 ② 是「单独一轮带守恒 SQL 验证」。本轮把链路全读了一遍，确认它不是「补两行」，
+> 先落蓝图，避免在资金路径上边做边猜。
+
+### 十九.1 实测：单值列被 6 个类约 15 处消费
+
+`order_revenue_split.wechat_pending_return_no / _cents` 的读写入口：
+
+| 类 | 用途 |
+|---|---|
+| `RevenueSplitService.applyWeChatReturnOutcome` | **唯一写入点**，PROCESSING/FAILED 都是 `setXxx` 覆盖赋值；部分退（`resyncSplitAfterPartialRefund`）与全额退都调它 |
+| `OrderRevenueSplitMapper.findPendingReturnSplits` | 扫「有 pending 回退」的 split |
+| `WeChatProfitSharingService` | `refreshPendingReturn` 查单、`retrySingleFailedReturn` 取 `getWechatPendingReturnCents()` 单值、`applyReturnOutcome` 成功后清列 |
+| `CompensationTaskScheduler.processProfitSharingReturnTask` | 3 处读单值判「还有没有 pending」 |
+| `ProfitSharingReturnCompensationService.scheduleReturnRetry` | 判单值 + `existsPending(splitId, TASK_TYPE)` 去重 |
+| `ProfitSharingReturnAlertService` | 告警金额取单值 |
+
+**比报告更重的一处**：`scheduleReturnRetry` 以 `splitId` 作 `CompensationTask.txId`，并用 `existsPending(splitId, TASK_TYPE)` 去重 ⇒ **同一个 split 同时只允许一个 PENDING 补偿任务**。多轮部分退时第二轮即使覆盖了单值，也排不进新的补偿任务 ⇒ 那轮回退根本没人提交/查单。报告只说「金额覆盖」，实际连调度槽也被吞。
+
+### 十九.2 表设计（V463）
+
+```sql
+CREATE TABLE IF NOT EXISTS order_split_return_leg (
+    leg_id          BIGSERIAL PRIMARY KEY,
+    split_id        VARCHAR(64) NOT NULL REFERENCES order_revenue_split(split_id) ON DELETE CASCADE,
+    out_return_no   VARCHAR(128) NOT NULL UNIQUE,   -- 微信协议幂等键，禁纯数字业务单号（lesson #223）
+    cents           BIGINT NOT NULL CHECK (cents > 0),
+    status          VARCHAR(16) NOT NULL DEFAULT 'PENDING', -- PENDING/PROCESSING/SUCCESS/FAILED
+    failure_reason  TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
+    ON order_split_return_leg (split_id) WHERE status IN ('PENDING','PROCESSING','FAILED');
+```
+
+🔴 **不把多轮合并成一个 `out_return_no`**：前一条腿可能已在渠道在途，合并后按新单号重提 = 双退（§十.2 已论证）。
+
+### 十九.3 六步改法
+
+1. `applyWeChatReturnOutcome` 改为按 `out_return_no` **upsert 一条腿**（不再覆盖 split 单值）；单值列暂时保留为「最老一条未完结腿」的派生投影，供尚未迁移的读侧兜底，全部迁完后标废弃。
+2. `findPendingReturnSplits` 改为从腿表 join 出「有未完结腿的 split」，不再依赖单值列。
+3. 查单/重试/清列全部按**腿**循环：`refreshPendingReturn(split, leg)`、`returnMerchantShare(..., leg.getOutReturnNo(), leg.getCents())` —— 金额只从腿读，绝不从 split 单值读。
+4. `CompensationTask.txId` 从 `splitId` 改为 `legId`（或 `splitId + ':' + outReturnNo`），`existsPending` 按腿去重 ⇒ 多腿各有独立补偿任务，互不吞。**⚠ 存量 PENDING 任务的 `txId` 是 `splitId`，迁移必须处理这段兼容**（建议保留旧任务跑完，新腿用新键，调度器两种键都认）。
+5. `ProfitSharingReturnAlertService` 按腿聚合未完结金额。
+6. **存量回填**：`INSERT INTO order_split_return_leg(split_id, out_return_no, cents, status, …) SELECT split_id, wechat_pending_return_no, wechat_pending_return_cents, … FROM order_revenue_split WHERE wechat_pending_return_no IS NOT NULL AND wechat_pending_return_no <> ''`，`ON CONFLICT (out_return_no) DO NOTHING`；上线前先 `SELECT count(*)` 核对应迁移行数。
+
+### 十九.4 守恒判据（这一轮的验收线）
+
+```
+Σ(leg.cents WHERE status = 'SUCCESS' AND split_id = :id)
+    = 初始 merchant_cents − 现 merchant_cents
+```
+
+- 单测覆盖报告给的场景：100 元单两轮部分退（30/20）再全额退 ⇒ 三条腿 30/20/50，渠道合计 100，商户留 0；**修前**只会回退 70。
+- 负向验证：把 `applyWeChatReturnOutcome` 改回单值覆盖，守恒用例必须转红（铁律 4）。
+- dev 库全量守恒 SQL 作为离线门禁，红即阻断（报告 §七 #5 的同一笔钱守恒思路，先在这一族落地）。
+- 部署：`V463` 是**新增表 + 回填** ⇒ `mvn -o -pl services/trade-service -am -DskipTests package` 后 `up -d --no-deps --force-recreate trade-service`，两步拆开（种子/迁移在 jar 内，铁律 41）。
+
+### 十九.5 本轮不动代码的理由
+
+① 资金路径，6 个消费点必须一次改齐，留半成品会让 `mvn compile` 与运行时同时挂；② 补偿任务 `txId` 语义变更需要存量兼容方案与真库演练；③ 另一个会话此刻正在工作区改 17 个 client + 多条门禁链，未收口前在同一批文件上叠加资金改动，冲突与归属都不可控。下一轮按本蓝图独立实施。
+
