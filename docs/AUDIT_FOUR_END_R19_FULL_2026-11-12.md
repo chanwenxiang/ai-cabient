@@ -217,3 +217,8 @@
 - **`uat-isolated.yml` 六个服务都无 healthcheck**：它是 `-f docker-compose.full.yml -f docker-compose.uat-isolated.yml` 的**端口覆盖层**（文件头明写 `!override` 只改宿主端口），服务定义全部继承 full.yml ⇒ R19-25 补齐后它自动获得 healthcheck，无需重复声明。
 - **设备 token TTL 7 天**：仍需真机实证「401 后走 domainConfig 自举重领」再动，未验证前不改（同 §八）。
 
+### 顺手修掉的一条（不在原清单里）
+
+**R19-31 `docker-compose.apps.yml` 的幽灵服务**：`services:` 下有一个**缩进 4 空格**的 `logging:` 块（本意是给 prometheus 的日志轮转，被挤到了 AU-188 注释之后）。compose 会把 `services` 下的每个键当服务名 ⇒ 出现一个名为 `logging`、既无 image 也无 build 的服务。已把它挪回 prometheus 服务块内（归属易误判正是它被挤出去的原因，注释已写明）。
+
+
