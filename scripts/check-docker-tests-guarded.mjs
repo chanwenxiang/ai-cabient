@@ -70,6 +70,27 @@ function testSources() {
 // value = { job: 'build' | 'integration', why: 人话依据 }
 const GUARDED = new Map([
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryDeductAtomicityIT.java',
+    {
+      job: 'integration',
+      why: '集群就绪 P-1（2026-11-12）：failsafe 跑（*IT.java）；真 PG 双线程并发实证单语句原子扣减与 V457 CHECK 兜底'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/ScheduledTaskLeaseRenewalIT.java',
+    {
+      job: 'integration',
+      why: '集群就绪 P-3（2026-11-12）：failsafe 跑（*IT.java）；真 Redis 实证租约心跳防「任务体>租约双跑」与 renew 的 owner 校验'
+    }
+  ],
+  [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/CacheInvalidateBroadcastIT.java',
+    {
+      job: 'integration',
+      why: '集群就绪 P-4（2026-11-12）：failsafe 跑（*IT.java）；真 Redis 双实例实证 evict 广播清对端 L1（Redis 命中不写 L1 的旧值独占路径）'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/PlacementEffectSqlIT.java',
     {
       job: 'integration',
