@@ -6,7 +6,7 @@
 > **标记**：✅=主审亲验（读码/实跑）｜◐=子代理提出、主审未逐条复验｜⚠=与 R19 重叠或需拍板。
 > **复验回执（同日补做）**：P1×10 与 P2×18 已**逐条亲验**，结果见 §八——P1 全部坐实；P2 中 1 条改判（R20-P2-9 疑不成立）、1 条降为待定（P2-12）、1 条措辞订正（P2-18 索引）。。
 > **总账**：报出 **38 条 = P1×10 + P2×18 + P3×10**；另 6 条待定。
-> **复验后有效数**：P1 **10/10 成立**；P2 **15 成立 + 1 部分成立（P2-13）+ 1 降待定（P2-12）+ 1 改判不成立（P2-9）= 18**；P3 本轮未逐条复验。⇒ 可直接派修的为 **P1×10 + P2×15 = 25 条**（P2-13 需先补验 mapper 谓词）。
+> **复验后有效数**：P1 **10/10 成立**；P2 **15 成立 + 1 部分成立（P2-13）+ 1 降待定（P2-12）+ 1 改判不成立（P2-9）= 18**；P3 已补验：**9/10 成立，1 条降为说明**（P3-2 的 `CANCELLED→DISPUTED` 是注释写明的刻意设计）。⇒ 可直接派修的为 **P1×10 + P2×15 + P3×9 = 34 条**（P2-13 需先补验 mapper 谓词）。
 
 ---
 
@@ -201,3 +201,23 @@
 | 18 invoice_request | 对（措辞订正） | 实为 partial unique `(order_id) WHERE status IN (PENDING,ISSUED)`；`EXPLAIN … WHERE order_id='x' FOR UPDATE` 实测 `Seq Scan on invoice_request` |
 
 > 修的人请注意：**P2-9 与 P2-12 不要按原报去修**（一条不成立、一条需先复核调用点）；P2-18 的修法是加普通 `(order_id)` 索引或让锁查询带上 status 谓词，而不是「补一个缺失的索引」。
+
+
+---
+
+## 九、P3 亲验回执（2026-11-12 补做）
+
+| # | 判 | 亲验到的证据 |
+|---|---|---|
+| 1 | 对 | `V2__user_order_sku.sql:26` 原文 `status VARCHAR(16) NOT NULL DEFAULT 'PAID'` 无 CHECK；全库 grep 显示**新表普遍有** `chk_*_status`（V192/193/194/255…），核心老表（cabinet_order 等）没有 ⇒ 措辞按「老表缺、新表有」执行 |
+| 2 | **降为说明** | `SessionState.java:52-56` 的 `case CANCELLED -> target == DISPUTED;` 上方注释写明是 2026-11-12 兜账 v2 的**唯一出边、刻意保留**；真正需要关注的只是 `DisputeService` 重开路径复用了这条边（订单侧只在 PAID/COMPLETED 才回写 DISPUTED，不会误改 CANCELLED 单）⇒ 不作为缺陷派修 |
+| 3 | 对 | `MemberService.onOrderPaid:205-217`：`applyMemberStatsDelta(+amount)` **无 orderId 去重**，只有 `earnPoints(...,orderId)` 有幂等 ⇒ 与 R20-2 同根因（未实收先记账，回调/补缴再记一次） |
+| 4 | 对 | 微信侧 `:359-369`、支付宝侧 `:501-508`：channel mismatch 与 missing amount 都是 `log.warn` + `return`（对外仍 200、无告警）；但支付宝金额不符会抛 409 ⇒ 「静默」仅限这两类 |
+| 5 | 对 | `PromotionActivityMapper.java:32` `end_time > now()`（排除端点）vs `ConsumerMarketingService.java:277` `now.isAfter(endTime)` 才拒（**含端点**）⇒ 同一秒 SQL 判过期、Java 判有效 |
+| 6 | 对 | `CouponService.java:216` `uc.setExpireAt(Instant.now().plus(validityDays, DAYS))` ⇒ 按发放时刻而非当日 23:59:59，「到期当天上午即失效」成立 |
+| 7 | 对 | `SystemConfigService:560` 直接 `repository.findById(key)` 无缓存注解；`MerchantSkuPricingService:89-94` 单次 `loadPromoPolicy` ≥5 个 getInt（子代理报 7，实测 ≥5）⇒ 一单 N 行 = 5N+ 次配置查 |
+| 8 | 对 | `DeviceCommandTracker:238` `CompletableFuture.runAsync(...)` 无 executor（commonPool）；`XxlJobConfig:46-52` 只设 adminAddresses/appname/ip，未设执行线程数 ⇒ 默认值远大于 Hikari 20 |
+| 9 | 对 | `packages/shared-uni/src/product-image.ts` grep `x-oss-process/resize/thumbnail` = 0 命中；`application.yml:17-18` `max-file-size: 10MB / max-request-size: 12MB` ⇒ 原图直出 + 10MB 上限 |
+| 10 | 对 | 实测两处：`DeviceRentalView.vue:49` `label="未付" value="UNPAID"`、`OrgSitesView.vue:242` `label="待付" value="UNPAID"`；字典 `SysDictBootstrap` 无 `supplier_payable`/`compensation_task` 状态族 |
+
+> 派修提示：P3-2 不要改（改了会把兜账 v2 的救援路径堵死）；P3-5 的统一方向建议**以 SQL 为准（不含端点）**，因为活动窗是「到点即止」的运营语义，Java 侧含端点会让最后一秒出现「列表可见但领取报活动已结束」。
