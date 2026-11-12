@@ -296,6 +296,9 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 
 ## 五、待定（缺什么证据才能定档）
 
+> ⚠️ 读数口径：下面 4 项里 **1–3 是「缺证据」**、**第 4 项是「缺拍板」**。
+> 提交后已逐项再取证，回执与结论见 **§八**（其中 8.2 已结案为部署约束、8.3 已钉到结构层）。
+
 1. **厂商 §7.15 重复 start 的行为**（R22-7 定档）：拒绝 or 幂等返回同一 sessionId。需真机连点两次，或厂商明确答复。
 2. **jiangyi-gateway 多实例下的开门指令路由**：`DeviceWebSocketHandler.sessions` 是进程内 `ConcurrentHashMap`，而 `CommandTracker` 用 Redis。若 trade 的开门 POST 被负载均衡到「设备没连着的那台」gateway，`isOnline()=false` ⇒ 恒 503「设备不在线」。需确认部署形态（单实例？nginx 按 identifier 粘连？）——**若确为多实例则是 P1**，这条只能由部署侧回答。
 3. **现网将邑柜是否存在多层柜型**（R22-3 定档）：若有多层，「整柜库存写成第 1 层」是确定性错误下发；若只有单层，本条只剩「失败静默」这一半。
@@ -330,3 +333,58 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 - 子代理只跑了「出站集成失败语义」一条轴；它列的未覆盖面（识别归一化 `RecognitionNormalizer` 金额合计逐行、`GatherNotifyController`/`JiangyiProductStateService`/`JiangyiOrderVideoService` 写侧 upsert、`WebhookSmsSender` 体、支付分创单与签约回调全文、trade→gateway 侧 `JiangyiGatewayClient`、SKU 图 MinIO 读路径、device-simulator）本轮**无人覆盖**。
 - 主审两条轴（数据生命周期、时间/单位口径）是**读码 + 只读 SQL**，未做真实运行验证：R22-4 的月界丢数、R22-5 的删除后果、R22-6 的开关短路都属**机制推导 + 局部实证**（跨日 4 笔、暴露表清单、字典文案是实测；丢数/删除后果未造数复现，因为要动活库资金表，本轮口径是「只发现不修复」）。
 - dev 栈是小样本 mock 数据（44 单 / 67 条 `payment_operation` 全 COMPLETED），所以「残留中间态」类判据在本库为空集 ≠ 代码正确。
+
+---
+
+## 八、待定项回执（§五 的 4 项，逐项收口）
+
+> 补记于报告提交后，由主审自查取得证据后追加；**不定级变更、不改代码**，只把「已知/未知」的边界钉死。
+> 另修正 §五 标题口径：4 项里 3 项是「缺证据」，第 4 项（MATCHED 语义）是「缺拍板」，不该与待定混列。
+
+### 8.1 厂商 §7.15「重复 start」行为 —— 仍待现场 30 秒动作
+
+**已取证**
+- 我方代码注释（来自厂商文档语义）：[JiangyiRestockClient.java:301](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/client/JiangyiRestockClient.java#L301)「同一台柜同时只能有一个会话」；[:322](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/client/JiangyiRestockClient.java#L322) 与 [JiangyiCabinetCaptureService.java:19-20](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiCabinetCaptureService.java#L19)「未结束会话占用该柜约 15 分钟，未结束会自释放」。
+- 真机实测（[JIANGYI_INTERFACE_CHECKLIST.md:959-960](file:///D:/ai-generated%20code/ai-cabinet/docs/JIANGYI_INTERFACE_CHECKLIST.md#L959)）：厂商 555 修复后，**过期会话**回 `503「采集会话不存在或已过期」`——即「会话不存在」是一条**业务错误文案**，不是静默新建。
+
+**未取证**：对**仍在进行中**的会话再次 `§7.15 start`，返回的是「拒绝（业务错误）」还是「幂等回同一 sessionId」。本仓资料里没有 §7.15 的原文段落可查（`将邑对接资料/doc_full_text.txt` 是 V16 SaaS 5.x 段，`extracted_text.txt` 无 `cabinetCapture`），只能问厂商或真机验。
+
+**收口动作**：同柜连点两次「开始」（间隔 <10 秒）。
+- 回同一 sessionId ⇒ R22-7 降为说明（运营可自愈），仅保留「无本地留痕」的可观测性问题；
+- 回业务错误 ⇒ R22-7 维持 P3；若错误文案不含 sessionId，运营仍无法取消 ⇒ 建议按原文的「失败进运营待办并带 sessionId」修。
+
+### 8.2 jiangyi-gateway 单/多实例 —— **结案：当前单实例，不构成现存缺陷；转为部署约束**
+
+**已取证（配置面穷举）**
+- `infra/gateway/nginx.conf:14-16`：`upstream jiangyi_gateway { server host.docker.internal:18084; }`（单 server）。
+- `infra/gateway/nginx-full.conf:157,174` 与 `nginx.compose.conf:161,178`：`set $jiangyi_upstream jiangyi-gateway:8083;`（单目标）。
+- `docker-compose.apps.yml:272` / `.full.yml:391` / `.production.yml:99`：单 service 定义，无 `replicas`/`deploy`。
+- `docker-compose.ha.yml`：只扩 `trade-service`（文件头用法即 `--scale trade-service=2`），**没有** gateway 的 scale 入口。
+
+**结论**：`DeviceWebSocketHandler.sessions` 的进程内 `ConcurrentHashMap` 在现网形态下等价于全局表，R22 §五-2 担心的「恒 503」**现在不会发生**，该条**不升 P1**。
+
+**转为部署约束（建议写进 HA/部署文档与门禁）**：`CommandTracker:25` 与 `SessionWatchdog:28` 的注释只说「多实例由 Redis 锁互斥」——那只覆盖**定时扫描**；**WS 会话路由不可跨实例**。若将来 scale gateway，必须二选一：① 明确禁止（门禁拦截 compose 里 gateway 的 replicas）；② 按 `identifier` 做一致性哈希/粘连，或把在线表挪到 Redis。
+
+### 8.3 多层柜 —— 已钉到结构层：**我方模型没有层维度**
+
+**已取证（schema 面穷举）**
+- `information_schema.columns` 中名字含 `floor` / `layer` 的列：**0 个**（全库 179 张表）。
+- 无任何 `%shelf%` / `%floor%` 表。
+- `device_info` 无层数/门数列，只有 `cabinet_type`、`door_state`、`lock_state` 等；现网 5 台设备 `cabinet_type` 全为 `VISION`。
+- `preview()` 取数源是 `device_sku_inventory`（全柜 SKU 聚合），[:88-118](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiRestockService.java#L88) 无层维度 ⇒ **即使厂商分层，我方也取不到「按层清单」**。
+
+**结论**：R22-3 不是「多层柜时可能错」，而是「**多层柜时必然错**」——`floorNum=1 + 整柜清单` 会把其他层全部下架。单层柜下写覆盖语义正确。
+
+**收口动作**：确认目标柜型是否分层（设备详情→将邑货架面板的「层号」列 / `totalFloorNum`）。
+- 单层 ⇒ R22-3 降为「失败静默 + 无告警」这半边（仍 P2 的告警面）；
+- 多层 ⇒ 维持 P2，且需先补层维度（`device_slot` 已有货道概念，可据此派生层）再谈自动同步。
+
+### 8.4 「两侧皆 0 ⇒ MATCHED」 —— **不是待定，是拍板项**
+
+**已取证**：`doReconcile` 的终态判定只比较三个量（`diff==0 && unmatched==0 && ledgerOnly.isEmpty()`，[ReconciliationService.java:220-221](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationService.java#L220)），不区分「核对过且相等」与「两侧都没有数据」；实库 `WECHAT` 13 次对账里 **9 次两侧全 0** 却记 `MATCHED`。
+
+**待拍板**（两条路，代价不同）：
+- **A（现状）**：无交易之日平就是平。代价：账单文件缺失/渠道未出账时也显示平 ⇒ 假绿可覆盖真实缺口。
+- **B**：引入 `NO_DATA`/`NOT_READY` 状态（平台侧无行且台账无行时不判 MATCHED）。代价：对账页多一种状态，需同步运营口径与告警规则；好处是「没核对」与「核对通过」不再同一个词。
+
+建议：若支付宝渠道要启用（R22-8），先落 B——因为支付宝空账单当前就是 `List.of()` 静默路径，与 A 叠加会形成「永远平」的假象。
