@@ -203,7 +203,7 @@ async function runChecks() {
         const f = join(docDir, 'PROBE_LEDGER.md');
         writeFileSync(f, '# 探针台账\n\n状态：已验证（`check:ghost-gate-not-registered`）\n');
         return 'check:ghost-gate-not-registered';
-      },
+      }
     },
     {
       name: 'R2 幽灵仓库路径',
@@ -211,7 +211,7 @@ async function runChecks() {
         const f = join(docDir, 'PROBE_LEDGER.md');
         writeFileSync(f, '# 探针台账\n\n证据：`scripts/definitely-missing-anchor.mjs`\n');
         return 'scripts/definitely-missing-anchor.mjs';
-      },
+      }
     },
     {
       name: 'R3 幽灵迁移文件名',
@@ -219,7 +219,7 @@ async function runChecks() {
         const f = join(docDir, 'PROBE_LEDGER.md');
         writeFileSync(f, '# 探针台账\n\n证据：`V99999__ghost_migration.sql`\n');
         return 'V99999__ghost_migration.sql';
-      },
+      }
     },
     {
       name: '范围下限（静默扫空必须红）',
