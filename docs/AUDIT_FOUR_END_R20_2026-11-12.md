@@ -305,14 +305,19 @@
 | P2-3 | `DisputeService:259` | 建消费单前加 `isRestockSession` 闸（补货会话不得进争议/结案扣款链） | 单测：补货会话 ⇒ 409，且不写钱包 |
 | P2-4 | `PaymentService:1032-1039` | 充值 PENDING→CANCELLED 前先查渠道单状态（有实付即拒绝取消），避免「已付款回调撞 409 无限重试」 | 单测：渠道已付 ⇒ 拒绝取消并可补入账 |
 
-### 批 B｜资金幂等与对账口径（4 条，P2-6 已修）
+### 批 B｜资金幂等与对账口径（4 条，**已全清**）
 
 | # | 落点 | 改法要点 | 判据 |
 |---|---|---|---|
-| P2-5 | `PayScoreOrderNotifyService:74-91` | 事件状态机：DONE 之后的 USER_PAYING/EXPIRED 不得回退，且不得触发催缴 | 单测：DONE→EXPIRED 不回写、不发催缴 |
-| **P2-6 🟡 已改待提交** | `PaymentService.syncChannelSideRefund` | 以账本幂等键（`channel-refund-sync:<refund_id>`）是否已存在为闸，整段跳过 ⇒ 单据推进与余额同幂等 | `handleWeChatRefundNotify_duplicateDelivery_doesNotDoubleCountRefunded`（已负向验证：拆闸⇒红在金额断言）｜**暂缓提交**：该文件同时含他会话未提交的 R19-2 改动，且模块当前被并发编辑（`InventoryLotService`）挡住编译，等编译恢复后单独提交 |
-| P2-7 | `ReconciliationService:328-339` | 单渠道对账的充值/退款合计补 `channel` 过滤（假差异会抵消真差异） | 单测/对账 SQL：混渠道数据下合计=该渠道 |
-| P2-8 | `PaymentService.debitForRechargeRefund:1044-1058` | 整单退充值改为「可退 = 金额 − 已退」并复用 `refundable` 判据（现只查 status=PAID） | 单测：部分退后再整单退 ⇒ 409 |
+| **P2-5 ✅** | `PayScoreOrderNotifyService.handleOrderNotify` | 状态机只进不退：判据命中即整段忽略（不写库/不催缴/不记欠款/不倒退 `order_state`）——① 快照已 `DONE`；② 订单已 `PAID`（快照可能是历史脏数据，实收才是权威）。早退前移的另一个理由：旧实现先 `setOrderState` 再分支，`DONE` 会被迟到的 `EXPIRED` 覆盖 | `expiredEvent_afterDone_doesNotEscalateNorRegressState`、`userPayingEvent_afterDone_doesNotRemind`、`revokedEvent_whenOrderAlreadyPaid_doesNotEscalate` |
+| **P2-6 ✅** | `PaymentService.syncChannelSideRefund` | 以账本幂等键（`channel-refund-sync:<refund_id>`）是否已存在为闸，整段跳过 ⇒ 单据推进与余额同幂等 | `handleWeChatRefundNotify_duplicateDelivery_doesNotDoubleCountRefunded`｜**提交说明**：代码被并发会话的 `23c57e09`（R22 P2×6）连带提交，该提交信息未提及本条；测试随本轮提交补上（实现先于测试入库，属并发会话连带提交的后果） |
+| **P2-7 ✅** | `ReconciliationService.sumLedger/collectLedgerOrderIds` + `RechargeOrderMapper`（含 XML） | 求和与取号同 scope：`WECHAT/ALIPAY` 只算本渠道（毛额与单号都要过滤），`MOCK` 保持全量——Mock 账单由 `MockPlatformBillProvider` 用三渠道拼成，是聚合视图，按 MOCK 过滤会把充值滤空 | `runDaily_wechatIgnoresOtherChannelRechargeRefund`（修前 1450 / 修后 2250）、`runDaily_mockKeepsAggregateScopeForRecharge`、`RechargeOrderMapperXmlTest`（离线解析 XML 断言谓词真下推） |
+| **P2-8 ✅** | `PaymentService.debitForRechargeRefund` | 可退上限改为 `min(面额 − 已退, 余额 − 剩余赠送)`，已退满直接 409；与 `prepareChannelPartialRefund` 的「可退 = 面额 − 已退」收敛到同一口径 | `refundRecharge_afterPartialRefund_onlyRefundsRemainingAmount`、`refundRecharge_alreadyFullyRefunded_rejects` |
+
+> **P2-7 修正报告原判**：缺陷比报告写的多一层。除 `sumPaidAmountBetween` 外，`findPaidOrderIdsBetween`
+> 也不带渠道（会让别家充值单全被判 `LEDGER_ONLY`），且 `sumLedger` 用「扣全部网关退款 + 加回本渠道」
+> 配对——单渠道下等于把别家退款也扣进本账。三处必须一起改，只补一维仍出假差异。
+> **口径变更需知晓**：历史 `payment_reconciliation` 行是按旧口径算的，重跑同一日期会得到不同数字（新数字才是对的），不回填历史。
 
 ### 批 C｜会员/券/活动口径（5 条，P2-9 不成立、P2-12 已修）
 
@@ -335,3 +340,66 @@
 
 > 排序建议：B → A → C → D（B 批直接对钱，A 批是重复履约与免单旁路）。每批落地后各跑一次
 > `mvn -o -pl services/trade-service -am test -Dtest='<受影响类>'`，并各做一次负向验证（铁律 4）。
+
+---
+
+## 十三、批 B 修复回执（2026-11-12，资金幂等与对账口径 4/4）
+
+> 四条全部落地并负向验证。两处**修正报告原判**（P2-7 缺陷比写的多一层）、一处**提交归属异常**（P2-6/P2-8 代码被并发会话连带提交，见 十三.4）。
+
+### 十三.1 P2-5｜支付分事件状态机只进不退
+
+`handleOrderNotify` 原来**先** `po.setOrderState(state)` **再**分支，于是 DONE 之后微信补投的
+`USER_PAYING/EXPIRED/REVOKED` 会：① 把快照从 DONE 倒退回 EXPIRED（查单/对账据此误判钱到没到）；
+② 走 `remindBySms` 发催缴短信；③ 走 `recordUnpaidAndEscalate` 记欠款 + 升级阶梯——**用户已被扣款成功，
+却被按欠款处置，还会被欠款闸拦下一次开门**。
+
+改法：早退闸前移到 `setOrderState` 之前，两条判据任一命中即整段忽略：
+
+- ① 快照已 `DONE`（钱已到账，迟到事件是异步补偿投递）；
+- ② 订单已 `PAID`（快照可能是历史脏数据，**实收**才是权威）。
+
+保留 `DONE→DONE` 重投的正常路径（`handlePaid` 自身有 `CHARGE:{orderId}:{amount}` 幂等键 + `PAID` 早退）。
+
+### 十三.2 P2-7｜单渠道对账的渠道过滤（**比报告多两处**）
+
+报告只指出 `sumPaidAmountBetween` 缺渠道。实读后发现同族三处，缺任一处仍出假差异：
+
+| 位置 | 问题 | 改法 |
+|---|---|---|
+| `RechargeOrderMapper.sumPaidAmountBetween`（XML） | 无渠道谓词 ⇒ 单渠道对账把别家渠道充值毛额算进本账 | 加 `channel` 参数，非空时 `UPPER(r.channel)=UPPER(#{channel})` |
+| `RechargeOrderMapper.findPaidOrderIdsBetween`（XML） | 同上，且后果更隐蔽：别家充值单号进入本账集合 ⇒ 平台账单里查不到 ⇒ **全被判 `LEDGER_ONLY`**（合计对得上、明细全错） | 同 scope 加谓词 |
+| `ReconciliationService.sumLedger` | 用「扣**全部**网关退款 + 加回本渠道」配对 ⇒ 单渠道下多扣别家退款（WECHAT 对账扣了支付宝的退款），假差异会与真差异互相抵消 | 按 scope 对齐：单渠道只扣本渠道，相消后 = 购物净流水 + 本渠道充值毛额 |
+
+**MOCK 必须保持全量**：`MockPlatformBillProvider.GATEWAY_PAY_CHANNELS` 是 WECHAT/ALIPAY/MOCK 三渠道，
+Mock 账单是**聚合视图**；若跟着过滤成 MOCK，充值（只可能记在 WECHAT/ALIPAY）会全被滤空、每笔都变差异。
+故显式区分 `isAggregateBillChannel(MOCK)`，并加钉测防止后续「一刀切统一过滤」。
+
+**口径变更需知晓**：历史 `payment_reconciliation` 行按旧口径落库，重跑同日会得到不同数字（新数字才对），不回填。
+
+### 十三.3 P2-8｜整单退的可退上限扣掉已退
+
+`debitForRechargeRefund` 原来 `refundCents = min(面额, 余额 − 剩余赠送)`，完全不看 `refunded_cents`。
+而部分退款成功后单据**可能仍是 PAID**（`finalizeChannelPartialRefund` 只在退满时置 REFUNDED），
+此时再走整单退会按完整面额再退一次；同时 `prepareChannelPartialRefund` 另有「可退 = 面额 − 已退」——
+两套口径并存即渠道超退。现收敛为 `min(面额 − 已退, 余额 − 剩余赠送)`，已退满直接 409。
+
+### 十三.4 提交归属异常（必须记一笔）
+
+`PaymentService.java` 的 P2-6 幂等闸与 P2-8 净额判据，被**并发会话的 `23c57e09`（R22 P2×6）连带提交**——
+该提交信息只写了 R22-1 的 reason 拼接，未提及这两条（磁盘上它们与 R19-2 改动同文件，对方 `git add` 整文件带走）。
+后果与处置：实现已在 HEAD（已回读核实 `refundableAmount`/`alreadyRefunded`/409 分支/幂等闸四段均完整），
+但**测试没被带走**，本轮把 `PaymentServiceTest` 的 5 个用例与其余改动一起补提交。
+教训：多会话同仓下，「我的改动还在工作区」这个前提随时会被别人的整文件 `git add` 打破，
+判据要落在 `git log -S <特征串>` 而不是 `git diff`。
+
+### 十三.5 判据与验证
+
+- 定向 58 例全绿：`PaymentServiceTest`(32) / `PayScoreOrderNotifyTest`(9) / `ReconciliationServiceTest`(12)
+  / `ReconciliationConcurrencyTest`(2) / `RechargeOrderMapperXmlTest`(3)。
+- 负向验证（铁律 4）：同时拆掉 P2-5 早退闸 + P2-7 scope + P2-8 已退判据 ⇒ **5 例转红**
+  （3 条 P2-5、1 条 P2-7、1 条 P2-8）；单独拆 XML 谓词 ⇒ **2 例转红**（`RechargeOrderMapperXmlTest`）。
+  两次还原后 md5 逐字节一致、`neg:` 注释零残留，复跑全绿。
+- **新增的判据层**：`RechargeOrderMapperXmlTest` 离线解析 mapper XML（`XMLMapperBuilder` + `getBoundSql`，
+  不连库不要 Docker），断言渠道谓词**真下推**——单测里 mock 掉的 mapper 只能证明「调用方传了渠道」，
+  证明不了「SQL 用了它」，谓词漏写会静默退化成全渠道求和（正是本缺陷的形态）。

@@ -9,23 +9,30 @@
     ]]>
   </select>
 
-  <!-- 对账口径：当日曾支付成功的充值（含事后退款成 REFUNDED），与通道账单「先收后记退」一致 -->
+  <!--
+    对账口径：当日曾支付成功的充值（含事后退款成 REFUNDED），与通道账单「先收后记退」一致。
+
+    R20-P2-7（2026-11-12）：channel 非 null 时按充值单渠道过滤 —— 单渠道对账（微信/支付宝）
+    不带过滤会把别家渠道的充值算进本账，产出可抵消真差异的假差异。null = 不过滤（Mock 聚合账单）。
+  -->
   <select id="sumPaidAmountBetween" resultType="long">
-    <![CDATA[
     SELECT COALESCE(SUM(r.amount_cents), 0) FROM recharge_order r
     WHERE r.status IN ('PAID', 'REFUNDED')
       AND r.paid_at IS NOT NULL
-      AND r.paid_at >= #{start} AND r.paid_at < #{end}
-    ]]>
+      AND r.paid_at &gt;= #{start} AND r.paid_at &lt; #{end}
+    <if test="channel != null">
+      AND UPPER(r.channel) = UPPER(#{channel})
+    </if>
   </select>
 
   <select id="findPaidOrderIdsBetween" resultType="string">
-    <![CDATA[
     SELECT r.order_id FROM recharge_order r
     WHERE r.status IN ('PAID', 'REFUNDED')
       AND r.paid_at IS NOT NULL
-      AND r.paid_at >= #{start} AND r.paid_at < #{end}
-    ]]>
+      AND r.paid_at &gt;= #{start} AND r.paid_at &lt; #{end}
+    <if test="channel != null">
+      AND UPPER(r.channel) = UPPER(#{channel})
+    </if>
   </select>
 
   <select id="findPaidBetween" resultType="com.aicabinet.trade.domain.RechargeOrder">

@@ -321,21 +321,30 @@ public class ReconciliationService {
     /**
      * 本账合计：渠道净现金流入 + 充值毛额 − 网关充值退款。
      * <p>
-     * 充值原单多记在 BALANCE 入账流水，{@code sumNetCashflowBetween(MOCK/WECHAT)} 不含毛额，
-     * 须另加 {@code sumPaidAmountBetween}；退款常记在 WECHAT/ALIPAY，Mock 账单会纳入负向，
-     * 故对本账统一扣网关 {@code RECHARGE_REFUND}，并加回已计入本渠道净流入的部分，避免 WECHAT 对账双扣。
+     * 充值原单多记在 BALANCE 入账流水（{@code BalanceLedgerService} 固定写 {@code channel=BALANCE}），
+     * {@code sumNetCashflowBetween} 按渠道过滤时抓不到毛额，须另加 {@code sumPaidAmountBetween}；
+     * 退款流水则记在真渠道上，已含在净流水的负向里。
+     * <p>
+     * <b>R20-P2-7（2026-11-12）</b>：旧实现「扣**全部**网关退款 + 加回本渠道已计入部分」，
+     * 在单渠道对账（微信/支付宝）下等于把别家渠道的退款也扣进本账——产出可抵消真差异的假差异。
+     * 现按 scope 对齐：单渠道只扣本渠道；Mock 渠道的账单由 {@code MockPlatformBillProvider}
+     * 用 WECHAT/ALIPAY/MOCK 三渠道记录拼成（聚合视图），必须保持全量口径，
+     * 否则充值（只可能记在 WECHAT/ALIPAY）会被滤空。单渠道下「− 本渠道 + 本渠道」相消后，
+     * 净效果 = 本渠道购物净流水 + 本渠道充值毛额。
      */
     private long sumLedger(Instant start, Instant end, String channel) {
-        long total = support.paymentOperationRepository().sumNetCashflowBetween(start, end, channel);
+        long net = support.paymentOperationRepository().sumNetCashflowBetween(start, end, channel);
         if (!isGatewayReconChannel(channel)) {
-            return total;
+            return net;
         }
-        long rechargeGross = support.rechargeRepository().sumPaidAmountBetween(start, end);
-        long gatewayRefunds = support.paymentOperationRepository()
-                .sumGatewayRechargeRefundBetween(start, end);
-        long refundsAlreadyInChannel = support.paymentOperationRepository()
+        String scope = isAggregateBillChannel(channel) ? null : channel;
+        long rechargeGross = support.rechargeRepository().sumPaidAmountBetween(start, end, scope);
+        long refundsToDeduct = scope == null
+                ? support.paymentOperationRepository().sumGatewayRechargeRefundBetween(start, end)
+                : support.paymentOperationRepository().sumRechargeRefundByChannel(start, end, scope);
+        long refundsAlreadyInNet = support.paymentOperationRepository()
                 .sumRechargeRefundByChannel(start, end, channel);
-        return total + rechargeGross - gatewayRefunds + refundsAlreadyInChannel;
+        return net + rechargeGross - refundsToDeduct + refundsAlreadyInNet;
     }
 
     private static boolean isGatewayReconChannel(String channel) {
@@ -344,11 +353,21 @@ public class ReconciliationService {
                 || "ALIPAY".equals(channel);
     }
 
+    /**
+     * Mock 账单是对「全网关」的聚合视图（见 {@code MockPlatformBillProvider.GATEWAY_PAY_CHANNELS}），
+     * 不代表单一渠道 ⇒ 对它的求和不得按 channel 过滤。
+     */
+    private static boolean isAggregateBillChannel(String channel) {
+        return "MOCK".equals(channel);
+    }
+
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {
         Set<String> ids = new HashSet<>(support.paymentOperationRepository().findDistinctCabinetOrderIdsBetween(
                 start, end, channel));
         if (isGatewayReconChannel(channel)) {
-            ids.addAll(support.rechargeRepository().findPaidOrderIdsBetween(start, end));
+            // R20-P2-7：与 sumLedger 同 scope——单渠道只收本渠道充值单，否则别家充值单会全被判 LEDGER_ONLY
+            ids.addAll(support.rechargeRepository().findPaidOrderIdsBetween(
+                    start, end, isAggregateBillChannel(channel) ? null : channel));
         }
         return ids;
     }

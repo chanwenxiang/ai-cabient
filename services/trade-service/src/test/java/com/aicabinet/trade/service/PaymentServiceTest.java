@@ -120,6 +120,116 @@ class PaymentServiceTest {
         assertTrue(channelOp.getReason().contains("R002"));
     }
 
+    /**
+     * R19-2（2026-11-12）：充 100 送 20、已消费 30（余额 90）时退款 —— 只退 70 且赠送作废。
+     *
+     * <p>旧实现只扣订单本金 100：余额 90 不够 100 时直接拒绝（用户投诉），
+     * 若余额充足则退 100 + 送 20 留在余额里 ⇒ 可循环铸币。
+     */
+    @Test
+    void refundRecharge_withBonus_refundsRemainingPrincipalAndRevokesBonus() {
+        RechargeOrder order = paidOrder("R010", 10001L, 10000); // 充 100.00
+        UserAccount account = new UserAccount();
+        account.setUserId(10001L);
+        account.setBalanceCents(9000); // 花掉 30 ⇒ 余额 90（其中赠送 20）
+
+        PaymentOperation bonusOp = new PaymentOperation();
+        bonusOp.setOperationId("BL-BONUS");
+        bonusOp.setAmountCents(2000); // 送 20
+
+        when(rechargeOrderRepository.findByIdForUpdate("R010")).thenReturn(Optional.of(order));
+        when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
+        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(paymentOperationRepository.findByIdempotencyKey("recharge-bonus:R010"))
+                .thenReturn(Optional.of(bonusOp));
+
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId("BL-REFUND-R010");
+        when(balanceLedgerService.change(any(), anyInt(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(op);
+
+        var dto = paymentService.refundRecharge("R010", "test refund");
+
+        assertEquals("REFUNDED", dto.status(), "部分退款也要结案，不能留在 PAID");
+        // 只退本金余额 70（100 - 已消费 30）
+        verify(balanceLedgerService).change(10001L, -7000, "RECHARGE_REFUND", "R010",
+                "recharge-refund:R010", "test refund");
+        // 赠送 20 同时作废（否则用户可以「退款拿现金 + 留赠送」）
+        verify(balanceLedgerService).change(10001L, -2000, "RECHARGE_BONUS_REVOKE", "R010",
+                "recharge-bonus-revoke:R010", "退款作废充值赠送");
+        assertEquals(7000, order.getRefundedCents(), "refunded_cents 记真实退回额，不是订单额");
+    }
+
+    /**
+     * R20-P2-8 钉测（2026-11-12）：已部分退过的充值单再走「整单退」，只能退**剩余面额**。
+     *
+     * <p>修前：{@code refundCents = min(面额, 余额−赠送)} 完全不看 {@code refunded_cents}
+     * ⇒ 面额 100 已退 30、余额还剩 100（钱没花）时再退 100，累计退 130 > 面额。
+     * {@code prepareChannelPartialRefund} 另有一套「可退 = 面额 − 已退」的口径，两套并存即超退。</p>
+     */
+    @Test
+    void refundRecharge_afterPartialRefund_onlyRefundsRemainingAmount() {
+        RechargeOrder order = paidOrder("R-PART", 10001L, 10000);
+        order.setRefundedCents(3000); // 已部分退 30，单据仍是 PAID
+        UserAccount account = new UserAccount();
+        account.setUserId(10001L);
+        account.setBalanceCents(10000); // 钱没花，余额仍是全额
+
+        when(rechargeOrderRepository.findByIdForUpdate("R-PART")).thenReturn(Optional.of(order));
+        when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
+        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId("BL-REFUND-R-PART");
+        when(balanceLedgerService.change(any(), anyInt(), anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(op);
+
+        paymentService.refundRecharge("R-PART", "test remainder");
+
+        verify(balanceLedgerService).change(10001L, -7000, "RECHARGE_REFUND", "R-PART",
+                "recharge-refund:R-PART", "test remainder");
+        assertEquals(10000, order.getRefundedCents(), "累计退款不得超过面额");
+    }
+
+    /** 已退满（面额 = 已退）⇒ 直接拒绝，不得再发渠道退款。 */
+    @Test
+    void refundRecharge_alreadyFullyRefunded_rejects() {
+        RechargeOrder order = paidOrder("R-FULL", 10001L, 5000);
+        order.setRefundedCents(5000);
+        UserAccount account = new UserAccount();
+        account.setUserId(10001L);
+        account.setBalanceCents(5000);
+
+        when(rechargeOrderRepository.findByIdForUpdate("R-FULL")).thenReturn(Optional.of(order));
+        when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.refundRecharge("R-FULL", "again"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /** 本金已消费完（余额里只剩赠送）⇒ 拒绝退款，不能把赠送折现。 */
+    @Test
+    void refundRecharge_principalExhausted_rejects() {
+        RechargeOrder order = paidOrder("R011", 10001L, 10000);
+        UserAccount account = new UserAccount();
+        account.setUserId(10001L);
+        account.setBalanceCents(1500); // 只剩 15，且赠送 20 已被消费掉一部分
+
+        PaymentOperation bonusOp = new PaymentOperation();
+        bonusOp.setAmountCents(2000);
+
+        when(rechargeOrderRepository.findByIdForUpdate("R011")).thenReturn(Optional.of(order));
+        when(userAccountRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(account));
+        when(paymentOperationRepository.findByIdempotencyKey("recharge-bonus:R011"))
+                .thenReturn(Optional.of(bonusOp));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.refundRecharge("R011", "test refund"));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
     @Test
     void confirmRechargeMock_isIdempotentAndUsesLedger() {
         RechargeOrder order = pendingOrder("R003", 10001L);
@@ -559,5 +669,34 @@ class PaymentServiceTest {
         verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
                 anyString(), contains("R-BLANK"));
         verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /**
+     * P2-6 钉测（2026-11-12）：微信**重投**同一笔退款通知（同 refund_id）时，单据推进也必须幂等。
+     *
+     * <p>修前症状：余额侧靠账本幂等键去重（不会多扣），但 {@code finalizeChannelPartialRefund}
+     * 无条件 `refundedCents += n` ⇒ 重投一次就把同一笔退款记两次、订单提前置 REFUNDED，
+     * 账面比渠道多退。修后判据＝同幂等键的账本流水已存在即整段跳过。</p>
+     */
+    @Test
+    void handleWeChatRefundNotify_duplicateDelivery_doesNotDoubleCountRefunded() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-DUP", "RF-DUP", "", "SUCCESS", 100));
+        RechargeOrder order = paidOrder("R-DUP", 10001L, 500);
+        order.setChannel("WECHAT");
+        when(rechargeOrderRepository.findById("R-DUP")).thenReturn(Optional.of(order));
+        // 账本里已存在这笔退款的流水 ⇒ 本次是渠道重投
+        when(paymentOperationRepository.findByIdempotencyKey("channel-refund-sync:RF-DUP"))
+                .thenReturn(Optional.of(new PaymentOperation()));
+        // 闸生效时不会走到 finalize；此处 lenient 预置，是为了让「闸被拆掉」时红在金额断言上而不是 404
+        lenient().when(rechargeOrderRepository.findByIdForUpdate("R-DUP")).thenReturn(Optional.of(order));
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(balanceLedgerService, never())
+                .change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        assertEquals(0, order.getRefundedCents(), "重投不得二次累加 refunded_cents");
+        assertEquals("PAID", order.getStatus(), "重投不得把单据推成 REFUNDED");
+        verify(rechargeOrderRepository, never()).findByIdForUpdate(anyString());
     }
 }

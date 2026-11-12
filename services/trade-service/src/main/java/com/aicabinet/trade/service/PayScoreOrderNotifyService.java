@@ -37,6 +37,15 @@ public class PayScoreOrderNotifyService {
     private static final java.util.Set<String> TERMINAL_ORDER_STATUS =
             java.util.Set.of("REFUNDED", "PARTIAL_REFUNDED", "CANCELLED");
 
+    /**
+     * R20-P2-5：**非终态**的欠款类事件。DONE（扣款成功）之后收到这些一律忽略——
+     * 微信支付分的订单态在扣款完成后仍可能因异步补偿投递 USER_PAYING/EXPIRED，
+     * 旧实现无条件 {@code recordUnpaidAndEscalate} ⇒ 已扣款用户被记欠款、升级催缴阶梯、
+     * 并被欠款闸拦下一次开门（钱已到账却按欠款处置）。
+     */
+    private static final java.util.Set<String> DUNNING_STATES =
+            java.util.Set.of("USER_PAYING", "EXPIRED", "REVOKED");
+
     private final PayScoreOrderMapper payScoreOrderMapper;
     private final CabinetOrderMapper cabinetOrderMapper;
     private final PaymentOperationMapper paymentOperationMapper;
@@ -78,10 +87,23 @@ public class PayScoreOrderNotifyService {
                     outOrderNo, event.fieldNames().toString());
             return;
         }
-        po.setOrderState(state);
-        payScoreOrderMapper.updateById(po);
         CabinetOrder order = po.getOrderId() == null ? null
                 : cabinetOrderMapper.selectById(po.getOrderId());
+        // R20-P2-5（2026-11-12）：订单态**只进不退**，两条判据任一命中即整段忽略（不写库、不催缴、不记欠款）：
+        //   ① 本地已收 DONE（钱已到账）⇒ 迟到的 USER_PAYING/EXPIRED/REVOKED 属于异步补偿投递；
+        //   ② 订单本身已 PAID ⇒ 即使快照因历史脏数据不是 DONE，实收也是权威。
+        // 早退必须放在 setOrderState 之前：否则 DONE 会被倒退成 EXPIRED，查单与对账据此误判。
+        if (DUNNING_STATES.contains(state)) {
+            String paidEvidence = "DONE".equals(po.getOrderState()) ? "payscoreState=DONE"
+                    : (order != null && "PAID".equals(order.getStatus()) ? "orderStatus=PAID" : null);
+            if (paidEvidence != null) {
+                log.warn("wechat payscore order {} late state={} ignored ({}), no dunning",
+                        po.getOutOrderNo(), state, paidEvidence);
+                return;
+            }
+        }
+        po.setOrderState(state);
+        payScoreOrderMapper.updateById(po);
         switch (state) {
             case "DONE" -> handlePaid(po, order, event);
             case "USER_PAYING" -> {

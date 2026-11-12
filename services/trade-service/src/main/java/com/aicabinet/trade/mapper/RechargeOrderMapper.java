@@ -23,7 +23,15 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
     return Optional.ofNullable(selectOne(Wrappers.<RechargeOrder>lambdaQuery().eq(RechargeOrder::getIdempotencyKey, idempotencyKey)));
     }
 
-        long sumPaidAmountBetween(@Param("start") Instant start, @Param("end") Instant end);
+        /**
+         * 对账口径：窗口内曾支付成功的充值毛额（含事后退款成 REFUNDED 的单）。
+         *
+         * <p>R20-P2-7（2026-11-12）：{@code channel} 非空时按充值单渠道过滤。单渠道对账（微信/支付宝）
+         * 必须带上，否则会把别家渠道的充值算进本账 ⇒ 假差异（可抵消真差异）。
+         * {@code null} 表示不过滤，仅供 Mock 聚合账单（{@code MockPlatformBillProvider} 用三渠道拼账单）。
+         */
+        long sumPaidAmountBetween(@Param("start") Instant start, @Param("end") Instant end,
+                                  @Param("channel") String channel);
 
         /**
          * D1 储值等级：该用户「累计净充值」（分）= 曾支付成功金额 − 已原路退回金额。
@@ -34,7 +42,9 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
         long sumNetRechargeByUser(@Param("userId") Long userId);
 
 
-        List<String> findPaidOrderIdsBetween(@Param("start") Instant start, @Param("end") Instant end);
+        /** 对账口径：窗口内曾支付成功的充值单号；{@code channel} 语义同 {@link #sumPaidAmountBetween}。 */
+        List<String> findPaidOrderIdsBetween(@Param("start") Instant start, @Param("end") Instant end,
+                                             @Param("channel") String channel);
 
 
         List<RechargeOrder> findPaidBetween(@Param("start") Instant start, @Param("end") Instant end);

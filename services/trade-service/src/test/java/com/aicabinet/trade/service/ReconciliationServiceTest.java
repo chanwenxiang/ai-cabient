@@ -65,10 +65,10 @@ class ReconciliationServiceTest {
 
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(350L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
                 .thenReturn(List.of("ORD-1"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 350, start, "PAY", null, "{}")
         ));
@@ -99,10 +99,10 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.now();
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(100L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
                 .thenReturn(List.of());
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P9", "ORD-X", 500, Instant.now(), "WECHAT", null, "raw")
         ));
@@ -125,10 +125,10 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.now();
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(100L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
                 .thenReturn(List.of("ORD-LEDGER-ONLY"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -150,10 +150,10 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.of(2024, 6, 2);
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(200L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(150L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(150L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
                 .thenReturn(List.of("ORD-1"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 200, Instant.now(), "PAY", null, "{}"),
                 new PlatformBillLine("P2", "RCH-1", 150, Instant.now(), "PAY", null, "{}")
@@ -178,12 +178,12 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.of(2024, 6, 3);
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(2700L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(2700L);
         when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
         when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("MOCK"))).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
                 .thenReturn(List.of());
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
                 new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
                 new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
@@ -210,12 +210,13 @@ class ReconciliationServiceTest {
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
         // 净流入已含本渠道 RECHARGE_REFUND -450
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(-450L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(2700L);
-        when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(2700L);
+        // R20-P2-7 起单渠道不再读「全量网关退款」；留桩只为固定「若有人改回读全量，账本会变 1450 而失败」
+        lenient().when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
         when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("WECHAT"))).thenReturn(450L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
                 .thenReturn(List.of());
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of("RCH-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of("RCH-1"));
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
                 new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
@@ -235,6 +236,85 @@ class ReconciliationServiceTest {
         assertEquals(0, result.diffCents());
     }
 
+    /**
+     * R20-P2-7 钉测（2026-11-12）：单渠道对账不得把**别家渠道**的充值退款扣进本账。
+     *
+     * <p>修前口径是「扣全部网关退款 + 加回本渠道已计入部分」——对微信对账来说，
+     * 支付宝那 800 分退款也被扣了（-450 + 2700 - 1250 + 450 = 1450），
+     * 与真差异互相抵消：既可能把「真差异」压成 MATCHED，也可能凭空造出差异。
+     * 修后只扣本渠道 ⇒ 微信口径 = 购物净流水 + 本渠道充值毛额。</p>
+     */
+    @Test
+    void runDaily_wechatIgnoresOtherChannelRechargeRefund() {
+        LocalDate date = LocalDate.of(2024, 6, 5);
+        when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(-450L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), eq("WECHAT"))).thenReturn(2700L);
+        // 网关退款全量 = 微信 450 + 支付宝 800；单渠道不得用这个数
+        lenient().when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(1250L);
+        when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("WECHAT"))).thenReturn(450L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
+                .thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), eq("WECHAT"))).thenReturn(List.of("RCH-1"));
+        when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) {
+                r.setReconId(14L);
+            }
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "WECHAT");
+
+        assertEquals(2250, result.ledgerTotal(), "只扣本渠道退款：-450 + 2700");
+        assertEquals("MATCHED", result.status());
+        assertEquals(0, result.diffCents());
+        // 毛额与单号都必须按本渠道查（不过滤会把支付宝充值算进微信账）
+        verify(rechargeRepository).sumPaidAmountBetween(any(), any(), eq("WECHAT"));
+        verify(rechargeRepository).findPaidOrderIdsBetween(any(), any(), eq("WECHAT"));
+        // 单渠道不再走「扣全量再补回」那条路
+        verify(paymentOperationRepository, never()).sumGatewayRechargeRefundBetween(any(), any());
+    }
+
+    /**
+     * Mock 账单是**三渠道聚合视图**（{@code MockPlatformBillProvider.GATEWAY_PAY_CHANNELS}），
+     * 不是单一渠道 ⇒ 充值必须保持全量口径。若跟着单渠道一起过滤成 MOCK，
+     * 充值（只可能记在 WECHAT/ALIPAY）会全被滤空，账单每一笔都变 LEDGER_ONLY 差异。
+     */
+    @Test
+    void runDaily_mockKeepsAggregateScopeForRecharge() {
+        LocalDate date = LocalDate.of(2024, 6, 6);
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), isNull())).thenReturn(2700L);
+        when(paymentOperationRepository.sumGatewayRechargeRefundBetween(any(), any())).thenReturn(450L);
+        when(paymentOperationRepository.sumRechargeRefundByChannel(any(), any(), eq("MOCK"))).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), isNull())).thenReturn(List.of("RCH-1"));
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
+                new PlatformBillLine("P-R1", "RCH-1", 2700, Instant.now(), "RECHARGE", null, "{}"),
+                new PlatformBillLine("P-RF1", "RCH-1", -450, Instant.now(), "REFUND", null, "{}")
+        ));
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) {
+                r.setReconId(15L);
+            }
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals(2250, result.ledgerTotal(), "聚合口径：0 + 2700 - 450");
+        assertEquals("MATCHED", result.status());
+        verify(rechargeRepository).sumPaidAmountBetween(any(), any(), isNull());
+    }
+
     @Test
     void runDaily_recomputesExistingReconciliation() {
         LocalDate date = LocalDate.now();
@@ -244,10 +324,10 @@ class ReconciliationServiceTest {
         existing.setChannel("MOCK");
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.of(existing));
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
                 .thenReturn(List.of());
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
@@ -269,10 +349,10 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.of(2024, 6, 5);
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(1000L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
                 .thenReturn(List.of("ORD-1", "ORD-2"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 600, Instant.now(), "PAY", 100L, "{}"),
                 new PlatformBillLine("P2", "ORD-2", 400, Instant.now(), "PAY", 50L, "{}")
@@ -298,10 +378,10 @@ class ReconciliationServiceTest {
         LocalDate date = LocalDate.of(2024, 6, 6);
         when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(350L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
                 .thenReturn(List.of("ORD-1"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 350, Instant.now(), "PAY", null, "{}")
         ));
@@ -324,10 +404,10 @@ class ReconciliationServiceTest {
         when(systemConfigService.getInt("fund.channel_fee_bps", 60)).thenReturn(60);
         when(reconRepository.findByReconDateAndChannel(date, "WECHAT")).thenReturn(Optional.empty());
         when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("WECHAT"))).thenReturn(1000L);
-        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
         when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("WECHAT")))
                 .thenReturn(List.of("ORD-1"));
-        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
         when(billProviderRegistry.fetchBill("WECHAT", date)).thenReturn(List.of(
                 new PlatformBillLine("P1", "ORD-1", 1000, Instant.now(), "PAY", 100L, "{}")
         ));

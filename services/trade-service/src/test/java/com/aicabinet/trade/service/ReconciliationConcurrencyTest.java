@@ -71,7 +71,8 @@ class ReconciliationConcurrencyTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), eq("MOCK")))
                 .thenReturn(0L);
         when(rechargeRepository.sumPaidAmountBetween(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(0L);
         when(paymentOperationRepository.sumGatewayRechargeRefundBetween(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
         when(paymentOperationRepository.sumRechargeRefundByChannel(
@@ -81,7 +82,8 @@ class ReconciliationConcurrencyTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), eq("MOCK")))
                 .thenReturn(java.util.List.of());
         when(rechargeRepository.findPaidOrderIdsBetween(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.List.of());
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(java.util.List.of());
         when(reconRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(inv -> {

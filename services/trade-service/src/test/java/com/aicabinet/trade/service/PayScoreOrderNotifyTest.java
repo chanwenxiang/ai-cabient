@@ -145,8 +145,68 @@ class PayScoreOrderNotifyTest {
         assertEquals("REFUNDED", o.getStatus());
     }
 
+    /**
+     * R20-P2-5（2026-11-12）：扣除成功（DONE）之后，微信仍可能异步补投 USER_PAYING/EXPIRED。
+     * 旧实现把这两种状态当「未收到钱」处理 ⇒ 已扣款用户被记欠款 + 升级催缴 + 被欠款闸拦下一次开门。
+     */
     @Test
-    void unmatchedOrderEvent_isSwallowed() {        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of());
+    void expiredEvent_afterDone_doesNotEscalateNorRegressState() {
+        PayScoreOrder po = po("DONE", "1792659779535535992400");
+        CabinetOrder o = order("PAID");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "EXPIRED");
+        service.handleOrderNotify(event);
+
+        verify(unpaidDunningService, never()).recordUnpaidAndEscalate(any());
+        verify(unpaidDunningService, never()).remindBySms(any(), anyBoolean());
+        // 快照不得从 DONE 倒退成 EXPIRED（查单/对账据此判断钱到没到）
+        verify(payScoreOrderMapper, never()).updateById(any(PayScoreOrder.class));
+        assertEquals("DONE", po.getOrderState());
+    }
+
+    @Test
+    void userPayingEvent_afterDone_doesNotRemind() {
+        PayScoreOrder po = po("DONE", "1792659779535535992400");
+        CabinetOrder o = order("PAID");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "USER_PAYING");
+        service.handleOrderNotify(event);
+
+        verify(unpaidDunningService, never()).remindBySms(any(), anyBoolean());
+        verify(unpaidDunningService, never()).recordUnpaidAndEscalate(any());
+        verify(payScoreOrderMapper, never()).updateById(any(PayScoreOrder.class));
+    }
+
+    /**
+     * 第二层判据：即便快照因历史脏数据不是 DONE，只要**订单实收** PAID，迟到欠款事件也不得催缴。
+     */
+    @Test
+    void revokedEvent_whenOrderAlreadyPaid_doesNotEscalate() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        CabinetOrder o = order("PAID");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "REVOKED");
+        service.handleOrderNotify(event);
+
+        verify(unpaidDunningService, never()).recordUnpaidAndEscalate(any());
+        assertEquals("PAID", o.getStatus());
+    }
+
+    @Test
+    void unmatchedOrderEvent_isSwallowed() {
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of());
         var event = new ObjectMapper().createObjectNode()
                 .put("out_order_no", "PSU-NOBODY")
                 .put("state", "DONE");
