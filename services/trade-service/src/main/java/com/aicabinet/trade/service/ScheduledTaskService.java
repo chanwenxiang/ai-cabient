@@ -15,10 +15,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 /**
@@ -30,6 +40,7 @@ import java.util.regex.Pattern;
  */
 @Service
 public class ScheduledTaskService {
+    private static final Logger log = LoggerFactory.getLogger(ScheduledTaskService.class);
     private static final String SCHEDULED_TASK = "SCHEDULED_TASK";
 
 
@@ -214,6 +225,9 @@ public class ScheduledTaskService {
             recordSkip("lock busy");
             return false;
         }
+        // 集群就绪 P-3：显式租约下 Redisson watchdog 不激活，任务体超过租约时
+        // 第二实例能进临界区造成双跑——持锁后启动租约心跳按周期续租。
+        startLeaseHeartbeat(taskKey, leaseSeconds, Thread.currentThread().getId());
         LAST_SKIP_REASON.remove();
         return true;
     }
@@ -261,7 +275,74 @@ public class ScheduledTaskService {
             row.setUpdatedAt(now);
             taskRepository.save(row);
         }
+        // 先停心跳再解锁：解锁后 hash 已删、在途续租的 owner 校验必失败，此序无竞态窗口。
+        cancelLeaseHeartbeat(taskKey);
         lockService.unlock("job:" + taskKey);
+    }
+
+    // ── 租约心跳（集群就绪 P-3）──
+
+    /** 续租周期 = 租约 / 3；即使个别续租失败也有两次补救机会。 */
+    private static final int HEARTBEAT_DIVISOR = 3;
+    /**
+     * 续租次数上限：防「任务线程挂死 + 心跳无限续租」把锁永久钉死、堵死实例级自愈。
+     * 120 次 × 租约/3 = 租约的 40 倍时长（600s 租约 → 上限约 6.6h），正常任务远达不到；
+     * 达到即停止续租并留错误日志，锁按租约自然过期、其他实例可接管。
+     */
+    private static final int MAX_HEARTBEAT_RENEWALS = 120;
+
+    private final Map<String, ScheduledFuture<?>> leaseHeartbeats = new ConcurrentHashMap<>();
+    private ScheduledExecutorService leaseHeartbeatExecutor;
+
+    private synchronized ScheduledExecutorService heartbeatExecutor() {
+        if (leaseHeartbeatExecutor == null) {
+            leaseHeartbeatExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "scheduled-task-lease-heartbeat");
+                t.setDaemon(true);
+                return t;
+            });
+        }
+        return leaseHeartbeatExecutor;
+    }
+
+    /** 任务体可能超过租约：持锁后按租约 1/3 周期续租；锁丢失/达到上限即停（留错误日志）。 */
+    private void startLeaseHeartbeat(String taskKey, long leaseSeconds, long holderThreadId) {
+        String lockKey = "job:" + taskKey;
+        long period = Math.max(1, leaseSeconds / HEARTBEAT_DIVISOR);
+        AtomicInteger renewals = new AtomicInteger();
+        ScheduledFuture<?> future = heartbeatExecutor().scheduleAtFixedRate(() -> {
+            try {
+                if (!lockService.renew(lockKey, leaseSeconds, holderThreadId)) {
+                    log.error("任务锁续租失败（锁已过期或易主）task={} —— 本次执行存在双跑风险，请检查任务体耗时", taskKey);
+                    cancelLeaseHeartbeat(taskKey);
+                    return;
+                }
+            } catch (Throwable t) {
+                log.warn("任务锁续租异常 task={}: {}", taskKey, t.toString());
+            }
+            if (renewals.incrementAndGet() >= MAX_HEARTBEAT_RENEWALS) {
+                log.error("任务锁心跳达到续租上限 task={} renewals={} —— 停止续租，锁将按租约自然过期；超长任务应自行分段", taskKey, MAX_HEARTBEAT_RENEWALS);
+                cancelLeaseHeartbeat(taskKey);
+            }
+        }, period, period, TimeUnit.SECONDS);
+        ScheduledFuture<?> prev = leaseHeartbeats.put(taskKey, future);
+        if (prev != null) {
+            prev.cancel(false);
+        }
+    }
+
+    private void cancelLeaseHeartbeat(String taskKey) {
+        ScheduledFuture<?> f = leaseHeartbeats.remove(taskKey);
+        if (f != null) {
+            f.cancel(false);
+        }
+    }
+
+    @PreDestroy
+    public void shutdownLeaseHeartbeat() {
+        if (leaseHeartbeatExecutor != null) {
+            leaseHeartbeatExecutor.shutdownNow();
+        }
     }
 
     /** XXL 已接管且当前不是 XXL 线程 / 运营强制执行时，内置调度让位。 */

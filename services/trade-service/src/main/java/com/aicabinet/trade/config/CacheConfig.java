@@ -1,8 +1,14 @@
 package com.aicabinet.trade.config;
 
+import java.nio.charset.StandardCharsets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -38,6 +44,29 @@ public class CacheConfig {
      * 不进 {@code scheduled_task} 台账、运营台不可见、不参与超期看护。
      * 执行情况由 Micrometer 自动打点（{@code tasks_scheduled_execution_seconds_count}）覆盖。</p>
      */
+    /**
+     * 集群就绪 P-4：订阅 {@link CacheService#EVICT_CHANNEL}，把其他实例的 evict
+     * 同步到本进程 L1。Redis 是本服务硬依赖（Redisson 锁），不设条件注册——
+     * 🔴 @ConditionalOnBean 在用户 @Configuration 里评估早于 auto-config，
+     * 对连接工厂这类自动配置 bean 会恒假（2026-11-12 实测监听器静默未注册）。
+     */
+    @Bean
+    public RedisMessageListenerContainer cacheEvictBroadcastListener(RedisConnectionFactory connectionFactory,
+                                                                     CacheService cacheService) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener((message, pattern) -> {
+
+            String body = new String(message.getBody(), StandardCharsets.UTF_8);
+            try {
+                cacheService.handleRemoteEvict(body);
+            } catch (Exception e) {
+                log.warn("cache evict broadcast handle failed: {}", e.toString());
+            }
+        }, new ChannelTopic(CacheService.EVICT_CHANNEL));
+        return container;
+    }
+
     @Scheduled(fixedRate = 300_000)
     public void purgeExpiredCache() {
         int before = cacheService.totalSize();

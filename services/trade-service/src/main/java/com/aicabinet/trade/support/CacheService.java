@@ -25,10 +25,22 @@ public class CacheService {
 
     private static final Logger log = LoggerFactory.getLogger(CacheService.class);
     private static final String KEY_PREFIX = "aicabinet:cache:";
+    /**
+     * 集群就绪 P-4：evict 的跨实例失效广播频道。
+     * evict 只清本进程 L1 + 删 Redis 键时，其他实例 L1 到期前一直供旧值
+     * （lookup 是先 Redis 后 L1，Redis miss 会回落到 L1 旧值，甚至把旧值当 loader
+     * 结果跳过——数据刚变过的场景）。发广播让各实例同步清掉自己的 L1。
+     */
+    public static final String EVICT_CHANNEL = "aicabinet:cache:evict";
+    /** 广播消息里的通配前缀：清空全部 L1。 */
+    private static final String EVICT_ALL_PREFIX = "*";
     /** 空结果占位；反序列化后仍映射为 null 返回给调用方。 */
     private static final Object NULL_PLACEHOLDER = new Object();
     private static final String NULL_ENVELOPE_TYPE = "__null__";
     private static final long NULL_TTL_MS = 60_000L;
+
+    /** 本实例标识：广播消息回环到自己时跳过（本地已在 evict 里清过）。 */
+    private final String instanceId = java.util.UUID.randomUUID().toString();
 
     private static class CacheEntry {
         final Object value;
@@ -145,18 +157,20 @@ public class CacheService {
 
     /**
      * 清除指定前缀的所有缓存（数据变更后调用）。
+     * <p>集群就绪 P-4：本进程 L1 + Redis 键之外，还向 {@link #EVICT_CHANNEL} 广播，
+     * 其他实例收到后清各自 L1（广播丢失时仍有 L1 TTL 兜底，语义退化为旧行为）。</p>
      */
     public void evict(String prefix) {
         long before = cache.size();
-        String redisPrefix = KEY_PREFIX + prefix + ":";
-        cache.entrySet().removeIf(e -> e.getKey().startsWith(redisPrefix));
+        evictLocal(prefix);
         long evicted = before - cache.size();
         if (redis != null) {
-            try (var cursor = redis.scan(ScanOptions.scanOptions().match(redisPrefix + "*").count(200).build())) {
+            try (var cursor = redis.scan(ScanOptions.scanOptions().match(KEY_PREFIX + prefix + ":*").count(200).build())) {
                 cursor.forEachRemaining(redis::delete);
             } catch (Exception e) {
                 log.warn("redis cache evict failed: {}", e.toString());
             }
+            publishEvict(prefix);
         }
         if (evicted > 0) {
             log.debug("cache evicted prefix={} items={}", prefix, evicted);
@@ -174,8 +188,46 @@ public class CacheService {
             } catch (Exception e) {
                 log.warn("redis cache evictAll failed: {}", e.toString());
             }
+            publishEvict(EVICT_ALL_PREFIX);
         }
         log.info("cache fully evicted");
+    }
+
+    /** 只清本进程 L1（广播接收方走这里；Redis 键由发起方删除，接收方不重复删）。 */
+    private void evictLocal(String prefix) {
+        String redisPrefix = KEY_PREFIX + prefix + ":";
+        cache.entrySet().removeIf(e -> e.getKey().startsWith(redisPrefix));
+    }
+
+    private void publishEvict(String prefix) {
+        try {
+            redis.convertAndSend(EVICT_CHANNEL, instanceId + "|" + prefix);
+        } catch (Exception e) {
+            log.warn("cache evict broadcast failed: {}", e.toString());
+        }
+    }
+
+    /**
+     * 收到其他实例的失效广播：清本进程 L1。
+     * <p>消息格式 {@code senderInstanceId|prefix}（prefix 为 {@code *} 表示 evictAll）；
+     * 自己发的消息跳过——evict 已清过本地。</p>
+     */
+    public void handleRemoteEvict(String message) {
+        int sep = message.indexOf('|');
+        if (sep <= 0) {
+            return;
+        }
+        String sender = message.substring(0, sep);
+        String prefix = message.substring(sep + 1);
+        if (instanceId.equals(sender)) {
+            return;
+        }
+        if (EVICT_ALL_PREFIX.equals(prefix)) {
+            cache.clear();
+        } else {
+            evictLocal(prefix);
+        }
+        log.debug("cache remote evict prefix={}", prefix);
     }
 
     private record Envelope(String type, String json) {}
