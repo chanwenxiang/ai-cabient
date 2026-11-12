@@ -221,3 +221,40 @@
 | 10 | 对 | 实测两处：`DeviceRentalView.vue:49` `label="未付" value="UNPAID"`、`OrgSitesView.vue:242` `label="待付" value="UNPAID"`；字典 `SysDictBootstrap` 无 `supplier_payable`/`compensation_task` 状态族 |
 
 > 派修提示：P3-2 不要改（改了会把兜账 v2 的救援路径堵死）；P3-5 的统一方向建议**以 SQL 为准（不含端点）**，因为活动窗是「到点即止」的运营语义，Java 侧含端点会让最后一秒出现「列表可见但领取报活动已结束」。
+
+---
+
+## 十、修复回执（2026-11-12，P1 首批 8 条，本地未推）
+
+> 口径：只动「容器内可局部修」的判据；凡涉及**资金口径拍板**或**拆事务/拆表**的两条（R20-2、R20-9）本轮**不猜着改**，见 §十.2。
+
+### 十.1 已修（8 条）
+
+| # | 落点 | 改法 | 判据 |
+|---|---|---|---|
+| R20-1 | `OrderPaymentService.finalizeLiveOrderRefund` | 按渠道状态分支：仅 SUCCESS/PROCESSING 入账；**ABNORMAL 只记 `REFUND_FAILED` + 保留 INITIATED 痕迹 + HIGH 告警**，并返回 false；`refundOrder` 收到 false 立即抛 502 中止（不累加 `refundedCents`、不回扣积分、不冲分账） | `OrderPaymentRefundRetryTraceTest.finalize_abnormalStatus_…`（断言 `refundedCents==0` 且不 `updateById`）；SQL 判据沿用 `REFUND+COMPLETED+reason LIKE '%ABNORMAL%'` 恒 0 |
+| R20-3 | `CouponService.requireOrderEligibleForCoupon` | 补 `activityDiscountCents>0` 拒绝（与结算 `:86`、补扣 `:464` 同口径） | `useCoupon_shouldReject_whenOrderHasActivityDiscount` |
+| R20-4（半） | `WeChatPayV3Client` / `AlipayOpenApiClient` | `RestClient.create()` → 3s 连接 / 10s 响应（对账单下载单独 60s 客户端）；**「渠道 HTTP 移出事务」未动**（见十.2） | 两客户端构造器实读；`OpsAlertDispatcher`/`AgreementChargeClient` 同范式 |
+| R20-5 | `PointsExpiryScheduler` + `V459` + `MemberPointsLog.expiredPoints` | 新增 `expired_points` 列（回填历史整额过期行），过期按 `min(行内剩余, 预算余量)` 部分标记，整行耗尽才置 `expired_at`；预算与提醒都改用「剩余部分」求和 | `PointsExpiryPartialTest`（两轮累计 ≤ 面额；已过期 60 的行预算只算 40） |
+| R20-6 | `SettlementConfirmDisputeService.prepareConfirmDispute` | 白名单 `{PAID,PENDING,DISPUTED}` **且** `refundedCents==0`，其余一律 409 | `cancelledOrder_conflicts` / `partiallyRefundedOrder_conflicts` |
+| R20-7 | `OpsSessionOrderQueryService.cancelSession` | SHOPPING 不再直接置 CANCELLED：先 `releaseIfFrozen` → 转 DISPUTED → 建争议工单（照 C09/开门超时范式）；CREATED/OPENING 取消也补释放 hold | 代码面（该路径无 DTO 级测试）；审计日志码改为 `SESSION_CANCEL_TO_DISPUTE` |
+| R20-8 | `PayScoreOrderNotifyService.handlePaid` | 终态集 `{REFUNDED,PARTIAL_REFUNDED,CANCELLED}` 收到 DONE 不回写 PAID，改落 `PAYSCORE_DONE_ON_TERMINAL_ORDER`(HIGH) 交人工 | `doneEvent_onTerminalOrder_doesNotResurrect` |
+| R20-10（半） | `device-service/…/TradeServiceClient` | 补 2s 连接 / 5s 响应超时，把 MQTT 回调线程单次阻塞上限钉死；**未改异步化**（见十.2） | 构造器实读 |
+
+**验证**：`mvn -o -pl services/trade-service -am test` 定向 63 例全绿；负向验证（拆掉 R20-3/R20-5/R20-6 三处判据）→ 5 例转红，还原后 md5 逐字节一致 + 全绿。
+
+### 十.2 本轮**有意不改**（3 点，需拍板或需拆结构）
+
+1. **R20-2 支付分未实收即分账**：修法要求「分账/发积分/统计一律挪到实收确认后 + 取消路径 void+clawback」。这不是补闸，是**结算主流程重排**（`tryChargeSettledOrder` 成功与否要与 PENDING 状态解耦），且与「免密支付分先享后付」的产品口径绑定 ⇒ 需先定：支付分单在 DONE 之前，商户钱包是否允许**影子入账**（LEDGER_ONLY 待确认）。**建议**：分两刀——① 先做 `MemberService.onOrderPaid` 的 orderId 去重（同时覆盖 P3-3）；② 再做钱包/分账延后。
+2. **R20-9 分账回退单槽覆盖**：`wechat_pending_return_no/cents` 是**单值列**，多轮部分退需要「多条回退腿」的账。合并成一个新 `out_return_no` 有双退风险（前一条可能已在途）。**建议**：新建 `order_split_return_leg(split_id, out_return_no, cents, status)`，补偿器按腿提交/查单，判据 `Σ腿 = 初始 merchant − 现 merchant`。这是加表，不该顺手做。
+3. **R20-4 移出事务 / R20-10 异步化**：先补超时（本轮已做）已把「无上限阻塞」消掉；把渠道调用移出 `@Transactional` 会改动 `chargeOrder` 的提交语义（现在靠事务回滚保证金货两清），需单独一轮带停机窗口验证。
+
+### 十.3 一条**不采信**报告建议（重要）
+
+> R20-7 原修法写「清扫器覆盖 CANCELLED+FROZEN」。**这条不采信**：`SessionState` 的 `CANCELLED→DISPUTED` 是 2026-11-12 兜账 v2 刻意保留的救援边（见 §九 #2），其扣款来源正是会话上那笔 `FROZEN` 预授权。若把 CANCELLED 的 hold 当「悬挂」清掉，迟到识别上报转争议后**无钱可扣**，等于用清扫器把救援路径拆了。因此本轮只堵「取消入口」（不再产生 CANCELLED+FROZEN），清扫器仍只覆盖 FAILED。
+
+### 十.4 部署注意
+
+- `V459` 是新增迁移 + 回填 ⇒ 需 `mvn -pl services/trade-service -am -DskipTests package` 后 `docker compose … up -d --no-deps --force-recreate trade-service`（种子/迁移在 jar 内，`build` 与 `up` 拆两步）。
+- 若某个环境曾手改过 `member_points_log`，上线前先 `SELECT count(*) FROM member_points_log WHERE expired_at IS NOT NULL AND points > 0 AND expired_points = 0`（应为 0，迁移会清零）。
+
