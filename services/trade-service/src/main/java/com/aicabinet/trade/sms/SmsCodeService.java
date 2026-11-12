@@ -65,15 +65,20 @@ public class SmsCodeService {
         String code = generateCode();
         Instant expiresAt = Instant.now().plusSeconds(authProperties.sms().ttlSeconds());
         persistCode(normalized, code, expiresAt);
-        markSendSucceeded(normalized);
 
         if (securityProperties.mockEnabled()) {
             // L03：验证码属敏感信息，降为 debug 且只打掩码（前 2 位 + ****）
+            markSendSucceeded(normalized);
             String masked = maskPhone(normalized);
             log.debug("DEV SMS code for {}: {} (stored in DB)", masked, maskCode(code));
             return;
         }
+        // R22-2（四端审计 2026-11-12）：先发送后计额度。此前 markSendSucceeded 在 send 之前，
+        // 而 Redis 冷却/小时计数不随事务回滚——provider 失败（含阿里云流控）时一条没发出去
+        // 却把用户锁进 60s 冷却，连点 5 次即触发小时封禁 ⇒ 登录/开门拿不到验证码。
+        // 挪到成功后：发送失败 ⇒ Redis 未动 ⇒ 用户立即可重试。
         smsSender.send(normalized, code);
+        markSendSucceeded(normalized);
     }
 
     @Transactional

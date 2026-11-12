@@ -216,9 +216,12 @@
     AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
   </select>
 
-  <!-- 商户账单（图4 对照，2026-10-15）：按日聚合销售额/销售量/成本；merchantIds 由功能包范围解析 -->
+  <!-- 商户账单（图4 对照，2026-10-15）：按日聚合销售额/销售量/成本；merchantIds 由功能包范围解析。
+       R22-4（2026-11-12）：to_char 必须带 AT TIME ZONE 'Asia/Shanghai'——PG 会话时区为 UTC，
+       裸 to_char 得到 UTC 日 ⇒ 上海 00:00–07:59 的成交记到前一天、月界整笔落上月（实测 4 笔跨日）。
+       与 MerchantFinanceService 的 ScheduleZones.ZONE 月窗口必须同源，改一边会变成跨日+跨窗。 -->
   <select id="selectMerchantBillSalesByDay" resultType="java.util.LinkedHashMap">
-    SELECT to_char(o.created_at, 'YYYY-MM-DD') AS c0,
+    SELECT to_char(o.created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
            COALESCE(SUM(l.quantity), 0) AS c1,
            COALESCE(SUM(l.line_amount_cents), 0) AS c2,
            COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c3,
@@ -232,14 +235,14 @@
       AND o.device_id IN
       <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     </if>
-    GROUP BY to_char(o.created_at, 'YYYY-MM-DD')
+    GROUP BY to_char(o.created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
     ORDER BY c0
   </select>
 
   <!-- 商户账单：按日聚合退款，按订单 pay_channel 归桶（退款原路=订单渠道，见 OrderPaymentService.finalizeLiveOrderRefund）。
        口径与既有报表一致：退款取 cabinet_order.refunded_cents（订单级快照），不做行级分摊。 -->
   <select id="selectMerchantBillRefundsByDay" resultType="java.util.LinkedHashMap">
-    SELECT to_char(created_at, 'YYYY-MM-DD') AS c0,
+    SELECT to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
            COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) &lt;&gt; 'BALANCE'
                              THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c1,
            COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) = 'BALANCE'
@@ -254,7 +257,7 @@
       AND device_id IN
       <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     </if>
-    GROUP BY to_char(created_at, 'YYYY-MM-DD')
+    GROUP BY to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
     ORDER BY c0
   </select>
 </mapper>

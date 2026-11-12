@@ -50,10 +50,11 @@ class JiangyiRestockServiceTest {
     @Mock private JiangyiSkuJiangyiLinkMapper linkMapper;
     @Mock private MerchantSkuPricingService pricingService;
     @Mock private AdminAuditService auditService;
+    @Mock private OpsExceptionService opsExceptionService;
 
     private JiangyiRestockService service() {
         return new JiangyiRestockService(restockClient, deviceDirectory, inventoryMapper,
-                skuCatalogMapper, linkMapper, pricingService, auditService);
+                skuCatalogMapper, linkMapper, pricingService, auditService, opsExceptionService);
     }
 
     private JiangyiDevice device() {

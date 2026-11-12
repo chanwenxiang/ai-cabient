@@ -235,6 +235,15 @@ public class UnpaidOrderService {
 
     @Transactional
     public int autoCancelExpired() {
+        // R22-6（四端审计 2026-11-12）：巡检先于关单开关短路执行——字典把
+        // order.unpaid.auto_cancel_hours=0 定义为「0=关闭」的受支持配置，运营调 0 只应
+        // 关掉自动关单；alertStaleChargePendingOps 是 CHARGE_PENDING（渠道扣款结果未知）
+        // 的唯一自动出口，不能搭关单腿的车一起被关（同族对照：催缴腿遇 hours<=0 有 72h 兜底）。
+        try {
+            alertStaleChargePendingOps();
+        } catch (Exception ex) {
+            log.warn("stale CHARGE_PENDING alert sweep failed", ex);
+        }
         int hours = systemConfigService.getInt(SystemConfigService.UNPAID_AUTO_CANCEL_HOURS, 48);
         if (hours <= 0) {
             return 0;
@@ -254,12 +263,6 @@ public class UnpaidOrderService {
         }
         if (n > 0) {
             log.info("auto cancelled unpaid orders count={} hours={}", n, hours);
-        }
-        // L2-1：顺带巡检渠道扣款痕迹（CHARGE_PENDING 是 H41 事务外痕迹，正常几秒内收口）
-        try {
-            alertStaleChargePendingOps();
-        } catch (Exception ex) {
-            log.warn("stale CHARGE_PENDING alert sweep failed", ex);
         }
         return n;
     }

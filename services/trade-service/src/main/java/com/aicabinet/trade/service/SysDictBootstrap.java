@@ -392,9 +392,13 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "LATE_RECOGNITION", "识别结果晚到",
                 "JIANGYI_CLASS_MAPPING_MISS", "将邑识别映射未命中",
                 "JIANGYI_PARAMS_NOT_READY", "识别参数未就绪",
+                // R22-3（2026-11-12）：补货后自动同步将邑货道失败的运营留痕（此前只有 warn 日志）
+                "JIANGYI_AUTO_RESTOCK_SYNC_FAIL", "将邑货道自动同步失败",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
                 "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
                 "INVENTORY_MISMATCH", "库存差异",
+                // R20 支付分契约（PayScoreOrderNotifyService）：回调 DONE 但订单已终态的资金异常
+                "PAYSCORE_DONE_ON_TERMINAL_ORDER", "支付分扣款到账但订单已终态",
                 // 以下 14 类是代码真会写、但字典此前缺项的类型（G7 §7.27 FS-G7-5）：异常台按
                 // exception_type 渲染标签，缺项 ⇒ 行落了后台显示不出类型。标签取各 report 站点的 title 原文。
                 // 门禁 check:exception-type-dict 守住「report 字面量 ⊆ 本内置集」，新类型漏登记即红。

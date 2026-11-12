@@ -18,7 +18,9 @@ import java.util.List;
  * <p>背景：createRefund 发起后渠道可能返回 PROCESSING，且无退款回调 Controller
  * （无回调地址配置入口），故由每日对账兜底查单推进。
  * out_refund_no 存于流水 gateway_trade_no；out_trade_no：
- * 订单退款取 order_id，充值退款（order_id 为空，见 V98 FK 约束）从 reason 尾部 “#orderId” 解析。</p>
+ * 订单退款取 order_id，充值退款（order_id 为空，见 V98 FK 约束）从 reason 尾部 “#orderId” 解析
+ * ——写入侧（PaymentService.recordRechargeRefundOperation）2026-11-12 起改拼 # 对齐本契约；
+ * resolveOutTradeNo 同时兼容存量空格尾巴行（R22-1）。</p>
  */
 @Component
 public class WeChatRefundReconciler {
@@ -95,13 +97,26 @@ public class WeChatRefundReconciler {
         if (op.getOrderId() != null && !op.getOrderId().isBlank()) {
             return op.getOrderId().trim();
         }
-        // 充值退款流水 order_id 为空，reason 以 “#orderId” 结尾（见 recordRechargeRefundOperation）
-        String reason = op.getReason() == null ? "" : op.getReason();
+        // 充值退款流水 order_id 为空，reason 尾部带充值单号。R22-1（四端审计 2026-11-12）：
+        // 写入侧此前拼的是「空格 + 单号」而本类只认 '#' ⇒ 充值 PROCESSING 行永被跳过。
+        // 现兼容两种形态：新格式 "#orderId"（2026-11-12 起）与存量空格分隔尾部（纯数字）。
+        String reason = op.getReason() == null ? "" : op.getReason().trim();
         int hash = reason.lastIndexOf('#');
         if (hash >= 0 && hash + 1 < reason.length()) {
             String candidate = reason.substring(hash + 1).trim();
             int space = candidate.indexOf(' ');
-            return space > 0 ? candidate.substring(0, space) : candidate;
+            String id = space > 0 ? candidate.substring(0, space) : candidate;
+            if (!id.isEmpty()) {
+                return id;
+            }
+        }
+        // 存量旧格式：空格分隔的最后一个 token（充值单号是纯数字）
+        int space = reason.lastIndexOf(' ');
+        if (space >= 0 && space + 1 < reason.length()) {
+            String tail = reason.substring(space + 1).trim();
+            if (!tail.isEmpty() && tail.chars().allMatch(Character::isDigit)) {
+                return tail;
+            }
         }
         return null;
     }

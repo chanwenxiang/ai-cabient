@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
+import com.aicabinet.trade.support.ScheduleZones;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -197,8 +198,8 @@ public class MerchantFinanceService {
         long pendingAmount = splitRepository.sumMerchantCentsByMerchantIdInAndStatusIn(
                 merchantIds, PENDING_SPLIT_STATUSES);
         long pendingCount = splitRepository.countByMerchantIdInAndStatusIn(merchantIds, PENDING_SPLIT_STATUSES);
-        Instant startOfMonth = LocalDate.now(ZoneId.systemDefault()).withDayOfMonth(1)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant startOfMonth = LocalDate.now(ScheduleZones.ZONE).withDayOfMonth(1)
+                .atStartOfDay(ScheduleZones.ZONE).toInstant();
         long settledMonth = splitRepository.sumSuccessMerchantCentsByMerchantIdInSince(merchantIds, startOfMonth);
         long failedCount = splitRepository.countByMerchantIdInAndStatusIn(merchantIds, FAILED_SPLIT_STATUSES);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
@@ -263,8 +264,8 @@ public class MerchantFinanceService {
                 : (deviceScope != null ? deviceScope : null);
 
         YearMonth ym = parseBillMonth(month);
-        Instant start = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Instant start = ym.atDay(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
+        Instant end = ym.plusMonths(1).atDay(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
 
         Map<String, Object[]> salesByDay = new LinkedHashMap<>();
         for (Object[] row : orderLineRepository.merchantBillSalesByDay(merchantIds, start, end, deviceFilter)) {
@@ -341,7 +342,7 @@ public class MerchantFinanceService {
 
     private static YearMonth parseBillMonth(String month) {
         if (month == null || month.isBlank()) {
-            return YearMonth.now(ZoneId.systemDefault());
+            return YearMonth.now(ScheduleZones.ZONE);
         }
         try {
             return YearMonth.parse(month.trim());
@@ -351,7 +352,7 @@ public class MerchantFinanceService {
     }
 
     private static MerchantMonthlyBillDto emptyBill(String month, String deviceId) {
-        YearMonth ym = YearMonth.now(ZoneId.systemDefault());
+        YearMonth ym = YearMonth.now(ScheduleZones.ZONE);
         try {
             ym = parseBillMonth(month);
         } catch (ResponseStatusException ignored) {
@@ -700,7 +701,7 @@ public class MerchantFinanceService {
             return odt.toLocalDate();
         }
         if (value instanceof Instant i) {
-            return LocalDate.ofInstant(i, ZoneId.systemDefault());
+            return LocalDate.ofInstant(i, ScheduleZones.ZONE);
         }
         String raw = String.valueOf(value).trim();
         if (raw.length() >= 10 && raw.charAt(4) == '-' && raw.charAt(7) == '-') {
@@ -723,7 +724,7 @@ public class MerchantFinanceService {
             return odt.toInstant();
         }
         if (value instanceof java.time.LocalDateTime ldt) {
-            return ldt.atZone(ZoneId.systemDefault()).toInstant();
+            return ldt.atZone(ScheduleZones.ZONE).toInstant();
         }
         if (value instanceof Number n) {
             long epoch = n.longValue();
@@ -750,14 +751,14 @@ public class MerchantFinanceService {
         if (date == null || date.isBlank()) {
             return null;
         }
-        return LocalDate.parse(date.trim()).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return LocalDate.parse(date.trim()).atStartOfDay(ScheduleZones.ZONE).toInstant();
     }
 
     private static Instant parseDateEnd(String date) {
         if (date == null || date.isBlank()) {
             return null;
         }
-        return LocalDate.parse(date.trim()).plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return LocalDate.parse(date.trim()).plusDays(1).atStartOfDay(ScheduleZones.ZONE).toInstant();
     }
 
     private static Instant resolveSplitRangeStart(String fromDate) {
@@ -765,8 +766,8 @@ public class MerchantFinanceService {
         if (from != null) {
             return from;
         }
-        return LocalDate.now(ZoneId.systemDefault()).minusYears(10)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return LocalDate.now(ScheduleZones.ZONE).minusYears(10)
+                .atStartOfDay(ScheduleZones.ZONE).toInstant();
     }
 
     private static Instant resolveSplitRangeEnd(String toDate) {
@@ -774,8 +775,8 @@ public class MerchantFinanceService {
         if (to != null) {
             return to;
         }
-        return LocalDate.now(ZoneId.systemDefault()).plusDays(1)
-                .atStartOfDay(ZoneId.systemDefault()).toInstant();
+        return LocalDate.now(ScheduleZones.ZONE).plusDays(1)
+                .atStartOfDay(ScheduleZones.ZONE).toInstant();
     }
 
     private static String wechatConfigLabel(boolean mock, boolean configured) {

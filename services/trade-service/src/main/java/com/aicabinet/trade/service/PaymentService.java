@@ -450,6 +450,16 @@ public class PaymentService {
             log.warn("wechat refund sync channel mismatch orderId={} channel={}", orderId, order.getChannel());
             return;
         }
+        // P2-6（2026-11-12）：微信会**重投**退款通知。余额侧靠幂等键去重（账本 findByIdempotencyKey
+        // 命中即原样返回），但**单据推进此前是无条件累加** ⇒ 同一条 refund_id 重投会把 refunded_cents
+        // 记两次、订单提前置 REFUNDED（账面比渠道多退，分账/对账全跟着错）。
+        // 判据就用账本流水本身：同幂等键的流水已存在＝这笔退款已入过账，整段跳过（流水是永久事实，
+        // 存活期覆盖整个渠道重试窗口）。
+        String idemKey = "channel-refund-sync:" + refundId;
+        if (paymentOperationRepository.findByIdempotencyKey(idemKey).isPresent()) {
+            log.info("wechat refund sync duplicate delivery ignored orderId={} refundId={}", orderId, refundId);
+            return;
+        }
         int already = Math.max(0, order.getRefundedCents());
         if (already + refundCents > order.getAmountCents()) {
             log.error("wechat refund sync over-refund orderId={} already={} refundCents={} amount={}",
@@ -460,7 +470,7 @@ public class PaymentService {
         }
         try {
             balanceLedgerService.change(order.getUserId(), -refundCents, "RECHARGE_REFUND", orderId,
-                    "channel-refund-sync:" + refundId, "微信商户平台退款同步");
+                    idemKey, "微信商户平台退款同步");
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 log.error("wechat refund sync insufficient balance orderId={} userId={} refundCents={}",
@@ -619,21 +629,29 @@ public class PaymentService {
     /**
      * 先短事务扣余额，提交后再调渠道退款；渠道失败则补偿加回余额。
      * （渠道侧无法随 DB 事务回滚，不可把 HTTP 退款包进同一事务。）
+     *
+     * <p>R19-2：退款额不再恒等于订单金额——已消费的本金不退、赠送作废，
+     * 渠道只退 {@link #debitForRechargeRefund} 算出的剩余本金。
      */
     public RechargeOrderDto refundRecharge(String orderId, String reason) {
         return runWithRechargeLock(orderId, 60, () -> {
-            RechargeOrder prepared = self.debitForRechargeRefund(orderId, reason);
+            RechargeRefundDebit debit = self.debitForRechargeRefund(orderId, reason);
             try {
-                if (PayChannels.ALIPAY.equalsIgnoreCase(prepared.getChannel())) {
-                    refundAlipay(prepared, reason);
+                if (PayChannels.ALIPAY.equalsIgnoreCase(debit.order().getChannel())) {
+                    refundAlipay(debit.order(), debit.refundCents(), reason);
                 } else {
-                    refundWeChat(prepared, reason);
+                    refundWeChat(debit.order(), debit.refundCents(), reason);
                 }
             } catch (RuntimeException e) {
-                self.compensateRechargeRefundDebit(orderId, reason);
+                self.compensateRechargeRefundDebit(orderId, debit.refundCents(), debit.bonusRevokedCents(), reason);
                 throw e;
             }
-            return self.finalizeRechargeRefunded(orderId);
+            self.finalizeChannelPartialRefund(orderId, debit.refundCents());
+            // R19-2：部分退款（已消费本金不退）也必须结案，否则订单留在 PAID、运营以为还能再退。
+            // 这里刻意区分「refunded_cents < amount_cents 但 status=REFUNDED」：
+            // 金额列记录真实退回额，状态表示该充值单的退款流程已终结。
+            self.markRechargeRefundClosed(orderId);
+            return toDto(rechargeOrderRepository.findById(orderId).orElse(debit.order()));
         });
     }
 
@@ -667,12 +685,13 @@ public class PaymentService {
         }
     }
 
-    private void refundWeChat(RechargeOrder order, String reason) {
-        refundWeChatPartial(order, order.getAmountCents(), reason, fullRefundNo(order));
+    private void refundWeChat(RechargeOrder order, int refundCents, String reason) {
+        // 全文/部分共用稳定单号：重试同号，渠道按单号去重（R19-2 起可能只退剩余本金）
+        refundWeChatPartial(order, refundCents, reason, fullRefundNo(order));
     }
 
-    private void refundAlipay(RechargeOrder order, String reason) {
-        refundAlipayPartial(order, order.getAmountCents(), reason, fullRefundNo(order));
+    private void refundAlipay(RechargeOrder order, int refundCents, String reason) {
+        refundAlipayPartial(order, refundCents, reason, fullRefundNo(order));
     }
 
     /** 全额退款单号：由不可变订单号派生 ⇒ 重试同号、渠道可去重；局部退款必须传入按切片持久化的号。 */
@@ -1043,9 +1062,23 @@ public class PaymentService {
         return true;
     }
 
-    /** 短事务：校验余额并扣款，状态仍为 PAID（渠道退款成功后再标 REFUNDED）。 */
+    /** 退款扣款准备：渠道应退本金、本次作废的赠送额（两者都已从余额扣掉）。 */
+    public record RechargeRefundDebit(RechargeOrder order, int refundCents, int bonusRevokedCents) {}
+
+    /**
+     * 短事务：校验余额并扣款，状态仍为 PAID（渠道退款成功后再标 REFUNDED）。
+     *
+     * <p>R19-2（2026-11-12）：**赠送随充值撤销一并作废，且赠送不得折现**。
+     * 旧实现只扣订单本金，赠送（{@code RECHARGE_BONUS}）留在余额里 ⇒「充 100 送 20、全额退款」
+     * 净得 20 元余额，可无限循环铸币。
+     *
+     * <p>口径（与业务确认：充 100 送 20、已花 30 ⇒ 只退 70）：
+     * 赠送视为**最后消耗**，先算「余额里还剩多少赠送」，扣掉后才是可退本金；
+     * 可退本金 {@code min(订单金额, 余额 - 剩余赠送)}。已消费部分不退（钱已换货），
+     * 剩余赠送同时作废 ⇒ 退完余额归零，用户既不亏也不赚，赠送无法变现。
+     */
     @Transactional
-    public RechargeOrder debitForRechargeRefund(String orderId, String reason) {
+    public RechargeRefundDebit debitForRechargeRefund(String orderId, String reason) {
         RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         if (!"PAID".equals(order.getStatus())) {
@@ -1053,38 +1086,75 @@ public class PaymentService {
         }
         UserAccount account = userAccountRepository.findByIdForUpdate(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        if (account.getBalanceCents() < order.getAmountCents()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.INSUFFICIENT_REFUND);
+        // R20-P2-8（2026-11-12）：可退上限必须扣掉**已退**部分。部分退款成功后单据仍可能是 PAID
+        // （finalizeChannelPartialRefund 只在退满时置 REFUNDED，`markRechargeRefundClosed` 只在
+        // refundRecharge 成功路径调用）⇒ 旧实现用 min(面额, 余额−赠送) 会按完整面额再退一次，
+        // 与 prepareChannelPartialRefund 的「可退 = 面额 − 已退」两套口径不一致 ⇒ 渠道超退。
+        int alreadyRefunded = Math.max(0, order.getRefundedCents());
+        int refundableAmount = order.getAmountCents() - alreadyRefunded;
+        if (refundableAmount <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该充值单已退满（面额 " + yuan(order.getAmountCents())
+                            + "，已退 " + yuan(alreadyRefunded) + "）");
         }
-        balanceLedgerService.change(order.getUserId(), -order.getAmountCents(),
+        int balance = Math.max(0, account.getBalanceCents());
+        int bonusRemaining = Math.min(grantedRechargeBonus(order.getOrderId()), balance);
+        int refundablePrincipal = balance - bonusRemaining;
+        int refundCents = Math.min(refundableAmount, refundablePrincipal);
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "本金已消费完毕，无可退金额（充值 " + yuan(order.getAmountCents())
+                            + "，当前余额 " + yuan(balance) + "，其中赠送 " + yuan(bonusRemaining) + "）");
+        }
+        balanceLedgerService.change(order.getUserId(), -refundCents,
                 "RECHARGE_REFUND", order.getOrderId(), "recharge-refund:" + order.getOrderId(),
                 reason == null || reason.isBlank() ? "充值退款" : reason);
-        return order;
+        if (bonusRemaining > 0) {
+            // 独立流水 + 独立幂等键：赠送冲销与退款扣款可分别审计，也避免与主退款幂等键串味
+            balanceLedgerService.change(order.getUserId(), -bonusRemaining,
+                    "RECHARGE_BONUS_REVOKE", order.getOrderId(),
+                    "recharge-bonus-revoke:" + order.getOrderId(), "退款作废充值赠送");
+        }
+        return new RechargeRefundDebit(order, refundCents, bonusRemaining);
+    }
+
+    /** 该充值单已发放的赠送额（分）：查 {@code RECHARGE_BONUS} 流水的幂等键；未发放为 0。 */
+    private int grantedRechargeBonus(String orderId) {
+        return paymentOperationRepository.findByIdempotencyKey("recharge-bonus:" + orderId)
+                .map(PaymentOperation::getAmountCents)
+                .orElse(0);
+    }
+
+    /** R19-2：把充值单标为 REFUNDED 结案（部分退款也走这里；幂等）。 */
+    @Transactional
+    public void markRechargeRefundClosed(String orderId) {
+        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || "REFUNDED".equals(order.getStatus())) {
+            return;
+        }
+        order.setStatus("REFUNDED");
+        order.setRefundedAt(Instant.now());
+        rechargeOrderRepository.save(order);
     }
 
     @Transactional
-    public void compensateRechargeRefundDebit(String orderId, String reason) {
+    public void compensateRechargeRefundDebit(String orderId, int refundCents, int bonusRevokedCents, String reason) {
         RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId).orElse(null);
         if (order == null || !"PAID".equals(order.getStatus())) {
             return;
         }
-        balanceLedgerService.change(order.getUserId(), order.getAmountCents(),
+        balanceLedgerService.change(order.getUserId(), refundCents,
                 "RECHARGE_REFUND_COMPENSATE", order.getOrderId(),
                 "recharge-refund-compensate:" + order.getOrderId(),
                 reason == null || reason.isBlank() ? "充值退款渠道失败回补" : ("回补:" + reason));
-        log.warn("recharge refund compensated after channel failure orderId={}", orderId);
-    }
-
-    @Transactional
-    public RechargeOrderDto finalizeRechargeRefunded(String orderId) {
-        RechargeOrder order = rechargeOrderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        order.setRefundedCents(order.getAmountCents());
-        order.setStatus("REFUNDED");
-        order.setRefundedAt(Instant.now());
-        rechargeOrderRepository.save(order);
-        log.info("recharge refunded orderId={} user={} amount={}", orderId, order.getUserId(), order.getAmountCents());
-        return toDto(order);
+        if (bonusRevokedCents > 0) {
+            // 赠送也一并回补：否则渠道失败后用户白丢赠送，与「退款未发生」不一致
+            balanceLedgerService.change(order.getUserId(), bonusRevokedCents,
+                    "RECHARGE_BONUS_RESTORE", order.getOrderId(),
+                    "recharge-bonus-restore:" + order.getOrderId(), "退款渠道失败回补赠送");
+        }
+        log.warn("recharge refund compensated after channel failure orderId={} refund={} bonus={}",
+                orderId, refundCents, bonusRevokedCents);
     }
 
     /** 复用既有运营告警分发（钉钉/企微/Webhook）；失败仅记日志不影响主流程。 */

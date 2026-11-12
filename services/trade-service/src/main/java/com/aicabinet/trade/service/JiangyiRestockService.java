@@ -53,6 +53,7 @@ public class JiangyiRestockService {
     private final JiangyiSkuJiangyiLinkMapper linkMapper;
     private final MerchantSkuPricingService pricingService;
     private final AdminAuditService auditService;
+    private final OpsExceptionService opsExceptionService;
 
     @Value("${JIANGYI_AUTO_RESTOCK_SYNC:true}")
     private boolean autoRestockSync;
@@ -63,7 +64,8 @@ public class JiangyiRestockService {
                                  SkuCatalogMapper skuCatalogMapper,
                                  JiangyiSkuJiangyiLinkMapper linkMapper,
                                  MerchantSkuPricingService pricingService,
-                                 AdminAuditService auditService) {
+                                 AdminAuditService auditService,
+                                 OpsExceptionService opsExceptionService) {
         this.restockClient = restockClient;
         this.deviceDirectory = deviceDirectory;
         this.inventoryMapper = inventoryMapper;
@@ -71,6 +73,7 @@ public class JiangyiRestockService {
         this.linkMapper = linkMapper;
         this.pricingService = pricingService;
         this.auditService = auditService;
+        this.opsExceptionService = opsExceptionService;
     }
 
     public record PreviewLine(String skuId, String skuName, String barCode, int stockNum, long salePriceCents) {}
@@ -182,7 +185,14 @@ public class JiangyiRestockService {
         }
     }
 
-    /** 补货完成后自动把该柜现行库存同步为将邑该层最终库存（§7.11）。失败只告警不阻断补货完成。 */
+    /**
+     * 补货完成后自动把该柜现行库存同步为将邑该层最终库存（§7.11）。失败告警不阻断补货完成。
+     *
+     * <p>R22-3（四端审计 2026-11-12）：<b>本通道仅支持单层柜</b>（现网将邑柜均为单层，
+     * {@code floorNum} 恒为 1）——§7.11 是「按层全量覆盖 + 未列出即下架」语义，多层柜若走
+     * 本通道会把整柜库存写成第 1 层、其余层被厂商侧下架。多层柜必须走运营台手动面板
+     * （可选 1–10 层并二次确认）。本地无柜层数据源，若引入多层柜型须先把本开关停用并改造。</p>
+     */
     public void syncAfterRestock(String deviceId) {
         if (!autoRestockSync) {
             return;
@@ -200,7 +210,20 @@ public class JiangyiRestockService {
                     .toList();
             submit(0L, deviceId, new SubmitCommand(1, lines, true));
         } catch (Exception e) {
+            // R22-3：失败必须留运营可追的痕——此前只有一条 warn，厂商 5xx/超时/identifier 未登记
+            // 时两侧货道从此静默不一致，运营台无任何待办可追（同族路径都报 ops_exception）。
             log.warn("jiangyi auto restock sync skipped deviceId={}: {}", deviceId, e.getMessage());
+            try {
+                opsExceptionService.report(
+                        "JIANGYI_AUTO_RESTOCK_SYNC_FAIL",
+                        "MEDIUM",
+                        new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null),
+                        "将邑货道自动同步失败",
+                        "补货后自动同步将邑货道未成功（floorNum=1 全量覆盖语义），厂商侧在售面可能与我方台账不一致，"
+                                + "请到运营台手动面板重新提交最终库存。原因: " + e.getMessage());
+            } catch (Exception reportEx) {
+                log.error("jiangyi auto restock sync 留痕失败 deviceId={}", deviceId, reportEx);
+            }
         }
     }
 }

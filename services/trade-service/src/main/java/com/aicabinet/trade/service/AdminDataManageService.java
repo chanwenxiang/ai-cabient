@@ -173,6 +173,31 @@ public class AdminDataManageService {
     }
 
     /**
+     * R22-5（四端审计 2026-11-12）：资金/账本类表<b>不开放删除</b>——schema 推导只认外键
+     * RESTRICT/CASCADE，而 {@code recharge_order}（无子表引用，UI 常驻删除按钮）、
+     * {@code payment_operation}/{@code wallet_ledger} 等资金凭证没有下游 FK，却被递归 CTE
+     * 判为「可删」：删掉后会员累计充值（实时 SUM）、超退检测上限、退款对账对象全部静默消失，
+     * 而余额↔流水一致性检查照常绿（无告警）。按语义后缀（零误伤，实库取证 2026-11-12）
+     * + 点名清单保护；删除仍不可行时走本集合拦截。
+     *
+     * <p>刻意**不**保护 {@code ad_revenue_daily}/{@code device_availability_kpi_daily}
+     * （KPI 聚合表可重算，非资金凭证）——前缀一刀切会误伤。</p>
+     */
+    private static final Set<String> FUNDS_LEDGER_SUFFIXES =
+            Set.of("_ledger", "_bill", "_split", "_clawback", "_points_log", "_operation");
+    private static final Set<String> FUNDS_LEDGER_TABLES = Set.of(
+            "recharge_order", "balance_refund_request", "balance_refund_allocation",
+            "line_commission_daily", "staff_commission_daily");
+
+    /** 资金/账本语义表判定（R22-5）。 */
+    static boolean isFundsLedgerTable(String table) {
+        if (table == null || FUNDS_LEDGER_TABLES.contains(table)) {
+            return table != null;
+        }
+        return FUNDS_LEDGER_SUFFIXES.stream().anyMatch(table::endsWith);
+    }
+
+    /**
      * 「删除可能被挡住」的表集合 —— 由 schema 推导，**不手写清单**（手写清单必漂）。
      *
      * <p>判据：某表 T 若其行删除可能被 RESTRICT / NO ACTION 外键拒绝，或 T 删除时会
@@ -202,9 +227,15 @@ public class AdminDataManageService {
                         + " JOIN pg_namespace ns ON ns.oid = cl.relnamespace"
                         + " WHERE cl.relkind = 'r' AND ns.nspname = current_schema()",
                 String.class);
-        Set<String> set = Set.copyOf(names);
-        deleteProtectedCache = set;
-        return set;
+        Set<String> set = new java.util.HashSet<>(names);
+        set.addAll(FUNDS_LEDGER_TABLES);
+        for (String t : listManagedTables()) {
+            if (isFundsLedgerTable(t)) {
+                set.add(t);
+            }
+        }
+        deleteProtectedCache = Set.copyOf(set);
+        return deleteProtectedCache;
     }
 
     /** 全部受管表的删除能力（表名 → 是否允许删除），供前端一次性拉取 */
@@ -334,12 +365,17 @@ public class AdminDataManageService {
                     "该表存在可能阻止删除的下游引用，未开放删除：" + table);
         }
         PkColumn pk = primaryKey(table);
+        // R22-5（四端审计 2026-11-12）：删除审计补 before 全值——此前只记 pk=xxx，
+        // 事后既不知道删了多少钱、也无法重建（对齐 DATA_UPDATE 的 before/after 口径）。
+        // 行取不到时不提前抛 404：继续走 DELETE 原有「0 行 → 404」路径（与 updateRow 同款语义）。
+        Map<String, Object> beforeRow = selectRowAsText(table, pk, id, columnTypes(table).keySet());
         int rows = jdbc.update(
                 "DELETE FROM " + table + " WHERE " + pk.name() + " = " + placeholder(pk.udt()), id);
         if (rows == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "记录不存在：" + table + "." + id);
         }
-        auditService.appendLog(operatorId, "DATA_DELETE", table.toUpperCase(), id, "pk=" + pk.name());
+        auditService.appendLog(operatorId, "DATA_DELETE", table.toUpperCase(), id,
+                "pk=" + pk.name() + "; before=" + beforeRow);
     }
 
     @Transactional
