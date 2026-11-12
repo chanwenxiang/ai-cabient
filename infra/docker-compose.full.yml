@@ -538,8 +538,3 @@ volumes:
   prometheus-data:
   grafana-data:
   redpanda-data:
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
