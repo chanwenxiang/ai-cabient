@@ -129,7 +129,9 @@ export function checkProject(root) {
 function main() {
   const { findings, scanned } = checkProject(ROOT);
   if (scanned < MIN_SCANNED) {
-    console.error(`${TAG} 范围失效：仅扫到 ${scanned} 个 md（阈值 ${MIN_SCANNED}），疑似 docs 路径变更导致静默扫空`);
+    console.error(
+      `${TAG} 范围失效：仅扫到 ${scanned} 个 md（阈值 ${MIN_SCANNED}），疑似 docs 路径变更导致静默扫空`
+    );
     process.exit(1);
   }
   if (findings.length) {

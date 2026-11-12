@@ -10,7 +10,16 @@
  *
  * 用法：node scripts/devops/verify-ledger-evidence-gate.mjs
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,8 +83,10 @@ function setupSandbox() {
   for (const rel of REAL_TARGETS) cpSync(join(ROOT, rel), sb(rel));
   cpSync(join(ROOT, 'docs'), sb('docs'), { recursive: true });
   // R2 路径校验需要 scripts/ 与 .cursor/ 真实存在
-  if (existsSync(join(ROOT, 'scripts'))) cpSync(join(ROOT, 'scripts'), sb('scripts'), { recursive: true });
-  if (existsSync(join(ROOT, '.cursor'))) cpSync(join(ROOT, '.cursor'), sb('.cursor'), { recursive: true });
+  if (existsSync(join(ROOT, 'scripts')))
+    cpSync(join(ROOT, 'scripts'), sb('scripts'), { recursive: true });
+  if (existsSync(join(ROOT, '.cursor')))
+    cpSync(join(ROOT, '.cursor'), sb('.cursor'), { recursive: true });
   copyMigrationFaces();
 }
 
@@ -145,7 +156,8 @@ async function main() {
       inject: (docDir) => {
         // 删到只剩 1 个 md，扫描数跌破 MIN_SCANNED
         const keep = join(docDir, 'PROJECT_KNOWLEDGE.md');
-        for (const f of listFiles(docDir)) if (f !== keep && f.endsWith('.md')) rmSync(f, { force: true });
+        for (const f of listFiles(docDir))
+          if (f !== keep && f.endsWith('.md')) rmSync(f, { force: true });
         return '范围失效';
       },
       cleanup: null // 沙箱整体重建，无需逐个还原
@@ -162,7 +174,9 @@ async function main() {
     const r = await runGate(SANDBOX);
     const caught = r.code !== 0 && r.out.includes(needle);
     if (!caught) {
-      console.error(`[verify-ledger-evidence] ① 判据「${probe.name}」未挣到红（exit=${r.code}，输出不含 ${needle}）：`);
+      console.error(
+        `[verify-ledger-evidence] ① 判据「${probe.name}」未挣到红（exit=${r.code}，输出不含 ${needle}）：`
+      );
       console.error(r.out);
       failed++;
     } else {
