@@ -61,10 +61,40 @@ public class InventoryService {
         return runWithDeviceLock(deviceId, () -> doDeductForOrder(deviceId, items, refId));
     }
 
+    /**
+     * R21-3（四端审计 2026-11-12）：解锁必须晚于事务提交。此前锁在本类各 @Transactional
+     * 方法体内 try/finally 释放——结算/退款调用方以 REQUIRED 传播进来的常态下，finally
+     * 执行时事务尚未提交，「已解锁、未提交」窗口内其他实例可读到旧账面再扣。
+     * 修法：若当前线程处于活跃事务，把 unlock 挂到 {@code afterCompletion}（提交或回滚后
+     * 执行，回调线程即持锁线程）⇒ 锁的持有区间 ⊇ 事务区间；无事务（直调）则维持立即释放。
+     * 四个入口（deduct/restore/recordRefundKeptGoods/adjustForOrder）共用本包装，一处生效。
+     * 窗口内的账面并发本身已由 R18-2/4/5 的条件 UPDATE 谓词兜底（不超扣不丢扣），
+     * 本修属锁语义与事务边界对齐，双保险。
+     */
     private Map<String, String> runWithDeviceLock(String deviceId, java.util.function.Supplier<Map<String, String>> action) {
         String lockKey = deviceLockKey(deviceId);
         if (!lockService.tryLock(lockKey, INV_LOCK_LEASE_SECONDS, INV_LOCK_WAIT_SECONDS)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            lockService.unlock(lockKey);
+                        }
+                    });
+            try {
+                return action.get();
+            } catch (RuntimeException e) {
+                // 异常路径：事务回滚时 afterCompletion 仍会触发 unlock；此处若同步未激活的
+                // 极端形态（同步已被清除）则兜底释放，双场景都不得漏。
+                if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()
+                        || !org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+                    lockService.unlock(lockKey);
+                }
+                throw e;
+            }
         }
         try {
             return action.get();

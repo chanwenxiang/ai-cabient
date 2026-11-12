@@ -45,7 +45,19 @@ public class IdentityVerifyClient {
 
     private final SecurityProperties securityProperties;
     private final IdentityVerifyProperties properties;
-    private final RestClient restClient = RestClient.create();
+    // R21-1（2026-11-12）：原先 RestClient.create() 无任何超时——实名核验是登录/开店链路
+    // 的同步依赖，核验服务卡住即占死请求线程。3s 连接 / 10s 响应与 R20-4 支付客户端同量级。
+    private final RestClient restClient = RestClient.builder()
+            .requestFactory(timeoutFactory())
+            .build();
+
+    private static org.springframework.http.client.SimpleClientHttpRequestFactory timeoutFactory() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        return factory;
+    }
 
     public IdentityVerifyClient(SecurityProperties securityProperties,
                                 IdentityVerifyProperties properties) {

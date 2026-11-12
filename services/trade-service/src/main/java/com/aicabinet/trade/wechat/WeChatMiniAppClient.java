@@ -53,8 +53,15 @@ public class WeChatMiniAppClient {
         // 改 Transfer-Encoding: chunked）——微信 API 对无 Content-Length 的请求一律回
         // 412 Precondition Failed（实证 2026-10-23：getuserphonenumber 与 subscribe/send 双双 412，
         // 后者此前被误判为"用户未订阅"）。BufferingClientHttpRequestFactory 恢复缓冲 → 带 Content-Length。
+        // R21-1（2026-11-12）：SimpleClientHttpRequestFactory 原先未设任何超时——code2Session 是
+        // 微信登录主链，微信侧卡住 ⇒ 请求线程无限期阻塞，Tomcat 线程被逐个吃掉 ⇒ 全站不可用。
+        // 3s 连接 / 10s 响应与 R20-4 的支付客户端同量级。
+        org.springframework.http.client.SimpleClientHttpRequestFactory httpFactory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        httpFactory.setConnectTimeout(3_000);
+        httpFactory.setReadTimeout(10_000);
         this.restClient = RestClient.builder()
-                .requestFactory(new BufferingClientHttpRequestFactory(new SimpleClientHttpRequestFactory()))
+                .requestFactory(new BufferingClientHttpRequestFactory(httpFactory))
                 .build();
     }
 

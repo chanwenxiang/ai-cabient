@@ -55,8 +55,20 @@ public class JiangyiModelSyncService {
     private final JiangyiGatewayClient jiangyiGatewayClient;
     private final SkuCatalogMapper skuCatalogMapper;
     private final AdminAuditService auditService;
-    /** 拉取 classes.txt（将邑 OSS 外链，不带内部凭据）。 */
-    private final RestClient publicHttp = RestClient.create();
+    /** 拉取 classes.txt（将邑 OSS 外链，不带内部凭据）。
+     *  R21-1（2026-11-12）：原先 RestClient.create() 无任何超时——模型同步在管理操作链路上，
+     *  OSS 外链卡住即占死请求线程。3s 连接 / 10s 响应与 R20-4 支付客户端同量级。 */
+    private final RestClient publicHttp = RestClient.builder()
+            .requestFactory(timeoutFactory())
+            .build();
+
+    private static org.springframework.http.client.SimpleClientHttpRequestFactory timeoutFactory() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(10_000);
+        return factory;
+    }
 
     public JiangyiModelSyncService(JiangyiGatherClient jiangyiGatherClient,
                                    JiangyiDeviceMapper jiangyiDeviceMapper,

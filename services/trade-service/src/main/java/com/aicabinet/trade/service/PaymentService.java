@@ -984,7 +984,11 @@ public class PaymentService {
         op.setIdempotencyKey(idempotencyKey);
         op.setGatewayTradeNo(gatewayTradeNo);
         String base = reasonOrDefault(reason);
-        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " " + order.getOrderId());
+        // R22-1（四端审计 2026-11-12）：对账查单器（WeChatRefundReconciler.resolveOutTradeNo）
+        // 的既定契约是「reason 尾部 #orderId」（其类注释自证），写入侧却拼空格 ⇒ 充值退款
+        // PROCESSING 行永不能被查单推进（幽灵扣款无兜底）。写入改拼 # 对齐契约；
+        // 读取侧另行兼容存量空格行。
+        String withRechargeId = base.contains(order.getOrderId()) ? base : (base + " #" + order.getOrderId());
         // A7/P3：按 code point 边界截断，不切碎代理对（emoji）
         op.setReason(TextTruncate.safeTruncate(withRechargeId, 128));
         paymentOperationRepository.save(op);
