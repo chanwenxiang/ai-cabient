@@ -151,7 +151,7 @@
 ## 七、建议修复顺序（本轮只出报告）
 
 1. **R20-1 / R20-2 / R20-9**：三条都是「账面说钱退了/收了，渠道没动」——同一批修，判据用守恒 SQL。
-2. **R20-4 / R20-10**：把渠道与内部 HTTP 全部移出事务并加超时（这条同时是 R20-1 的放大器：网关卡死时行锁与连接被占）。
+2. **R20-4 / R20-10**：把渠道与内部 HTTP 全部移出事务并加超时（这条同时是 R20-1 的放大器：网关卡死时行锁与连接被占）。**R20-10 的线程面已由 §二十一 完成；此处 R20-4 的事务语义仍是独立待办。**
 3. **R20-3 / R20-5 / R20-6 / R20-7 / R20-8**：用户资产直接受损（券叠加、积分多扣、重复收款、免单旁路、终态复活）。
 4. P2 表按轴分四批；P3 与待定项随迭代。
 5. 建议给「同一笔钱的守恒」加一条**可跑的门禁**：`Σ收入 − Σ退款 − Σ分账 − Σ提现 = 各账户余额变动`，用 dev 库全量对账跑，红即阻断。
@@ -240,7 +240,7 @@
 | R20-6 | `SettlementConfirmDisputeService.prepareConfirmDispute` | 白名单 `{PAID,PENDING,DISPUTED}` **且** `refundedCents==0`，其余一律 409 | `cancelledOrder_conflicts` / `partiallyRefundedOrder_conflicts` |
 | R20-7 | `OpsSessionOrderQueryService.cancelSession` | SHOPPING 不再直接置 CANCELLED：先 `releaseIfFrozen` → 转 DISPUTED → 建争议工单（照 C09/开门超时范式）；CREATED/OPENING 取消也补释放 hold | 代码面（该路径无 DTO 级测试）；审计日志码改为 `SESSION_CANCEL_TO_DISPUTE` |
 | R20-8 | `PayScoreOrderNotifyService.handlePaid` | 终态集 `{REFUNDED,PARTIAL_REFUNDED,CANCELLED}` 收到 DONE 不回写 PAID，改落 `PAYSCORE_DONE_ON_TERMINAL_ORDER`(HIGH) 交人工 | `doneEvent_onTerminalOrder_doesNotResurrect` |
-| R20-10（半） | `device-service/…/TradeServiceClient` | 补 2s 连接 / 5s 响应超时，把 MQTT 回调线程单次阻塞上限钉死；**未改异步化**（见十.2） | 构造器实读 |
+| R20-10（半 → ✅ 见 §二十一） | `device-service/…/TradeServiceClient` | 补 2s 连接 / 5s 响应超时，把 MQTT 回调线程单次阻塞上限钉死；**该轮未改异步化**（见十.2；后由 §二十一 单独一轮完成） | 构造器实读 |
 
 **验证**：`mvn -o -pl services/trade-service -am test` 定向 63 例全绿；负向验证（拆掉 R20-3/R20-5/R20-6 三处判据）→ 5 例转红，还原后 md5 逐字节一致 + 全绿。
 
