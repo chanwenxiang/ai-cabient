@@ -36,12 +36,12 @@ Migration checksum mismatch for migration version 244
 只把 locations 指到 `db/migration` 时，Flyway 认为那 3 条**已应用**的 R__ 种子"本地不存在"，
 `repair()` 于是给它们写 `type=DELETE` 的历史行。后果不是报错而是**静默改历史**：
 
-| 症状 | 说明 |
-|------|------|
-| `repair` 输出仍 `REPAIR_OK` | 它不认为这是问题，日志里也不会点名 |
-| 行数变化 +N（N=本地缺失的已应用迁移数） | 判据：`select count(*) filter (where type='DELETE') from flyway_schema_history` |
-| 下次应用启动重跑这些种子 | 种子是幂等的（`WHERE NOT EXISTS`），所以数据不动，但历史又长一轮 SQL 行 |
-| 反复循环 | 2026-11-13 实测已是**第 4 次**：历史里留着 3 轮同样的 `DELETE→SQL` 抖动（rank 414-416/420-422/473-475，第 4 次 500-502 由本会话误触发并已撤销） |
+| 症状                                    | 说明                                                                                                                                            |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repair` 输出仍 `REPAIR_OK`             | 它不认为这是问题，日志里也不会点名                                                                                                              |
+| 行数变化 +N（N=本地缺失的已应用迁移数） | 判据：`select count(*) filter (where type='DELETE') from flyway_schema_history`                                                                 |
+| 下次应用启动重跑这些种子                | 种子是幂等的（`WHERE NOT EXISTS`），所以数据不动，但历史又长一轮 SQL 行                                                                         |
+| 反复循环                                | 2026-11-13 实测已是**第 4 次**：历史里留着 3 轮同样的 `DELETE→SQL` 抖动（rank 414-416/420-422/473-475，第 4 次 500-502 由本会话误触发并已撤销） |
 
 两个工具的默认值已改为两目录（`Repair.locations()` / `ValidateCheck.locations()`），
 覆盖 `-Dflyway.locations` 时自行按逗号切分并 trim，不依赖 Flyway 的拆分行为。
