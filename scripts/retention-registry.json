@@ -1,0 +1,902 @@
+{
+  "note": "S7 保留注册表（check-retention-registry）：每张活表必须有保留策略或显式 RETAIN。policy=RETAIN=凭证/业务实体永不清理；days/months 必须同时给 config 键且该键在 GrowthLogArchiveScheduler 源码中真实实现（门禁锚点校验）；TBD=流水形态待业务确认的显式欠账（maxTbd 棘轮只许减）。资金表（S5 保护集合同族）必须 RETAIN，与 AdminDataManageService 交叉校验。新表不登记即红（完备性）。",
+  "seedDate": "2026-11-12",
+  "seedLiveTableCount": 178,
+  "maxTbd": 15,
+  "tables": [
+    {
+      "table": "ad_campaign",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "ad_campaign_device",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ad_campaign_item",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ad_play_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "ad_revenue_daily",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "admin_audit_log",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "aliyun_category_mapping",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "announcement",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "approval_definition",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "approval_instance",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "approval_node",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "approval_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "balance_refund_allocation",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "balance_refund_request",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "cabinet_order",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "cabinet_order_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "commission_clawback",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "compensation_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "consumer_preauth_hold",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "coupon_definition",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "data_consistency_record",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_availability_kpi_daily",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_daily_online_rate",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_data_fee_bill",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "device_env_reading",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_fault_order",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_fault_report",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_http_credential",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "device_info",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_lifecycle_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_mqtt_credential",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_ops_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_rental_bill",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "device_rental_deposit",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_rental_deposit_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "device_sku_inventory",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_sku_lot",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_sku_price",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_slot",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_temp_plan",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_temp_plan_entry",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "device_temperature_reading",
+      "policy": "days",
+      "value": 90,
+      "config": "ops.log_retention.temperature_days",
+      "why": "设备温度遥测（R22-9，GrowthLogArchiveScheduler 已接）"
+    },
+    {
+      "table": "dispute_message",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "dispute_ticket",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "external_channel_flow",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "external_import_batch",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "external_import_template",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "external_product",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "external_product_mapping",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "file_attachment",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "finance_margin_daily_lock",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "inventory_movement",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "inventory_write_off",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "invoice_request",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "jiangyi_class_mapping",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "jiangyi_device",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "jiangyi_model_deployment",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "jiangyi_order_video",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "jiangyi_recognition_report",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "jiangyi_training_ticket",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "line_commission_daily",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "line_device",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "line_manager",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "line_promo_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "line_route",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "line_route_member",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "line_withdraw_request",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "machine_payee_bill",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "machine_position_config",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "media_asset",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "member",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "member_level_rule",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "member_points_log",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "merchant",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_fee_ledger",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "merchant_notify_log",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "merchant_ops_config",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_payment_onboarding",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_role_template",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_settlement_bill",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "merchant_subscribe_pref",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_tax_profile",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "merchant_withdraw_request",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "notification_log",
+      "policy": "months",
+      "value": 6,
+      "config": "ops.log_retention.notify_months",
+      "why": "通知发送流水（GrowthLogArchiveScheduler 已接）"
+    },
+    {
+      "table": "notification_template",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_2fa_recovery_code",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_department",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_device_org",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_exception",
+      "policy": "RETAIN",
+      "why": "运营异常单=待办实体（人工收口），非流水"
+    },
+    {
+      "table": "ops_org_node",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_permission",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_role",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_role_permission",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_department",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_device_scope",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_device_scope_pref",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_merchant",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_role",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ops_user_route_scope",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "order_revenue_split",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "order_split_return_leg",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "ota_device_report",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "ota_release",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "payment_operation",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "payment_platform_bill_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "payment_reconciliation",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "payment_risk_config",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "payout_account",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "payscore_order",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "phone_verify_log",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "platform_fund_account",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "platform_fund_flow",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "points_redeem_item",
+      "policy": "RETAIN",
+      "why": "业务实体（S14/P3-1 复核：DROP→重建序列终态存活，状态机判定；原集合差逻辑误判已删）"
+    },
+    {
+      "table": "promotion_activity",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "promotion_placement",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "pull_off_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "purchase_order",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "purchase_order_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "purchase_return",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "purchase_return_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "recharge_order",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "recognition_result",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "repair_ticket",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "repair_ticket_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "replenishment_route",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "replenishment_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "replenishment_task_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "risk_event",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "scheduled_task",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "shopping_session",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "site_contract",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "site_rent_bill",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "site_rent_split_rule",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sku_catalog",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sku_delist_review",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sku_jiangyi_link",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sku_scene_limit",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sla_daily_snapshot",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "slot_template",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "slot_template_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sms_verification_code",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "staff_commission_daily",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "supplier",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "supplier_payable",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "supplier_payable_entry",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "supplier_payment",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sys_dict_data",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "sys_dict_type",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "system_config",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "system_config_history",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "unpaid_dunning_record",
+      "policy": "TBD",
+      "why": "名称呈流水/记录形态——保留策略待业务确认（注册表登记即显式化）"
+    },
+    {
+      "table": "user_account",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_blacklist",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_consent_log",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "user_coupon",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_feedback",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_info",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_notify_pref",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "user_realname_auth",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "wallet_account",
+      "policy": "RETAIN",
+      "why": "业务实体（S14 同源确认轮补登：S7 提取盲区修复——注释 ROLLBACK DROP 曾误判为已删，2026-11-13）"
+    },
+    {
+      "table": "wallet_ledger",
+      "policy": "RETAIN",
+      "why": "资金/账本语义表（S5 保护集合同族）——凭证不可清理"
+    },
+    {
+      "table": "warehouse",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_bin",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_bin_stock",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_in_transit",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_inbound",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_inbound_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_inventory",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_manager",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_monthly_close",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_monthly_close_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_movement",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_outbound",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_outbound_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_stocktake",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_stocktake_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_transfer_line",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    },
+    {
+      "table": "warehouse_transfer_order",
+      "policy": "RETAIN",
+      "why": "业务/配置实体"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 -- MIGRATION_KIND: backfill
 -- （原声明 schema 但含 UPDATE 回填，被 check-flyway-seed-separation 判为自相矛盾；
 --   本迁移未在任何环境应用过（flyway history 无 459），改声明不影响 checksum。）
+-- MIGRATION_IMMUTABLE_EXEMPT: R19 头部声明修正（schema→backfill，V459 未在任何环境应用过，checksum 无影响；
+--   S14 复核：member_points_log 于 V136 DROP 后经 V163 重建，V459 时点已存活，本迁移语句有效，无死语句问题。）
 -- MIGRATION_REVIEWED: yes
 -- LOCK_RISK: low（只加列 + 一条按主键以外的全表 UPDATE；dev 表千行级，ADD COLUMN 带
 --             DEFAULT 在 PG11+ 不重写表）

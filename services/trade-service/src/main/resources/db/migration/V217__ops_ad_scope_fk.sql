@@ -1,5 +1,7 @@
 -- Ops / ad / scope / audit links to device_info, user_info, ad_campaign.
 -- Junction & scope rows CASCADE; telemetry/audit RESTRICT or SET NULL.
+-- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批——ad_campaign（V155 DROP）的引用为死引用，移除
+--   （DELETE 子查询条件与 ad_play_event 外键段）；其余表为活表保留。测试库重建消化 checksum。
 
 UPDATE ad_play_event e
 SET asset_id = NULL
@@ -29,9 +31,9 @@ WHERE e.user_id IS NOT NULL
 DELETE FROM ad_campaign_device d
 WHERE NOT EXISTS (SELECT 1 FROM device_info i WHERE i.device_id = d.device_id);
 
+-- ad_campaign 已于 V155 DROP：原 DELETE 的 campaign 子查询条件为死引用，移除（S14 表名声明集修复）。
 DELETE FROM ad_play_event e
-WHERE NOT EXISTS (SELECT 1 FROM device_info d WHERE d.device_id = e.device_id)
-   OR NOT EXISTS (SELECT 1 FROM ad_campaign c WHERE c.campaign_id = e.campaign_id);
+WHERE NOT EXISTS (SELECT 1 FROM device_info d WHERE d.device_id = e.device_id);
 
 DELETE FROM ops_user_device_scope s
 WHERE NOT EXISTS (SELECT 1 FROM device_info d WHERE d.device_id = s.device_id)
@@ -86,10 +88,7 @@ BEGIN
         SELECT 1 FROM pg_constraint WHERE conname = 'ad_play_event_campaign_id_fkey'
           AND conrelid = 'ad_play_event'::regclass
     ) THEN
-        ALTER TABLE ad_play_event
-            ADD CONSTRAINT ad_play_event_campaign_id_fkey
-            FOREIGN KEY (campaign_id) REFERENCES ad_campaign (campaign_id)
-            ON DELETE CASCADE;
+        -- ad_campaign 已于 V155 DROP：本外键段为死语句，已移除（S14 表名声明集修复）。
     END IF;
 
     IF NOT EXISTS (

@@ -186,8 +186,8 @@ DELETE FROM user_coupon;
 -- replenishment / warehouse movement (business, not master)
 DELETE FROM replenishment_task_line;
 DELETE FROM replenishment_task;
-DELETE FROM merchant_replenishment_request_line;
-DELETE FROM merchant_replenishment_request;
+-- merchant_replenishment_request_line / merchant_replenishment_request 已随 V346 DROP；
+-- 这里再引用会让整个单事务在首条 DELETE 就 relation does not exist，清库链必失败（MA-042 同族）。
 DELETE FROM warehouse_in_transit;
 DELETE FROM warehouse_outbound_line;
 DELETE FROM warehouse_outbound;
@@ -231,7 +231,7 @@ DELETE FROM device_slot WHERE device_id = 'CAB-001';
 DELETE FROM device_temp_plan_entry WHERE plan_id IN (SELECT plan_id FROM device_temp_plan WHERE device_id = 'CAB-001');
 DELETE FROM device_temp_plan WHERE device_id = 'CAB-001';
 DELETE FROM ad_campaign_device WHERE device_id = 'CAB-001';
-DELETE FROM line_device WHERE device_id = 'CAB-001';
+-- line_device 已随 V129 DROP；引用即 relation does not exist（MA-042 同族）。
 DELETE FROM ops_device_org WHERE device_id = 'CAB-001';
 DELETE FROM ops_user_device_scope WHERE device_id = 'CAB-001';
 DELETE FROM site_contract WHERE device_id = 'CAB-001';
@@ -284,16 +284,15 @@ DELETE FROM ops_user_route_scope;
 UPDATE warehouse_outbound SET route_id = NULL WHERE route_id IS NOT NULL;
 UPDATE replenishment_task SET route_id = NULL WHERE route_id IS NOT NULL;
 DELETE FROM replenishment_route;
-DELETE FROM line_device;
+-- line_device / line_manager 已随 V129 DROP；引用即 relation does not exist（MA-042 同族）。
 DELETE FROM line_withdraw_request;
 DELETE FROM wallet_ledger WHERE domain = 'LINE';
 DELETE FROM wallet_account WHERE domain = 'LINE';
 DELETE FROM line_promo_task;
-DELETE FROM line_manager;
 
 -- 优惠券
 DELETE FROM user_coupon;
-DELETE FROM points_redeem_item;
+-- points_redeem_item 已随 V136 DROP；引用即 relation does not exist（MA-042 同族）。
 DELETE FROM coupon_definition;
 
 -- 对账 / 数据一致性 / 公告

@@ -1,13 +1,10 @@
 -- V165: 积分过期管理 / 优惠券临期提醒 / 沉睡用户召回
+-- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批——member_points_log 已于 V136 DROP，原第 1 节的
+--   ALTER/CREATE INDEX 是死语句（任何应用了 V136 的库执行到此处必 relation does not exist），
+--   移除后全新空库可按序构建；测试库重建消化 checksum 变化（生产库不适用本豁免）。
 
 -- 1) 积分日志：过期处理与提醒去重标记
-ALTER TABLE member_points_log
-    ADD COLUMN IF NOT EXISTS expired_at TIMESTAMPTZ;
-ALTER TABLE member_points_log
-    ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ;
-
-CREATE INDEX IF NOT EXISTS idx_member_points_expire_pending
-    ON member_points_log (expire_at) WHERE expired_at IS NULL;
+-- member_points_log 已于 V136 DROP，本节原 ALTER/INDEX 为死语句，已移除（S14 表名声明集修复）。
 
 -- 2) 优惠券：临期提醒去重标记
 ALTER TABLE user_coupon

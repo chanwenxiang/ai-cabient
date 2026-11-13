@@ -19,18 +19,28 @@
  * 🔴 本分支新增、尚未合入基线的迁移**不**受本门禁约束——它们还没被任何库应用。
  * 🔴 git 不可用 / 基线 ref 不存在一律 fail-closed：枚举不到 ≠ 没有违规。
  *
+ * 🔴 **修复批豁免通道（2026-11-13，S14 落地时启用）**：已合入基线的迁移**内容修改**
+ *   （M）可带文件头 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 声明豁免——命中豁免的
+ *   修改留痕（文件+理由打进日志），不静默。**仅 M 开放**：D（删除）是 2026-10-23
+ *   崩溃事故的形态、R（改名）会破坏 version 记账，两者保持硬红不豁免。豁免用于
+ *   「已应用迁移的历史遗留修正」（如 S14 抓到的 47 处引用已 DROP 表的死语句清理），
+ *   须以测试库重建/flyway repair 消化 checksum 变化为前提（生产库不适用）。
+ *
+ *
  * 负向验证：`git mv V400__x.sql V401__x.sql` 或改一行已提交迁移的注释 => 本门禁必须红；
  * 新增一个 V401__*.sql 文件（基线里没有）=> 仍绿。
  *
  *   node scripts/check-migration-immutable.mjs
  */
 import { gitAsync } from './lib/async-spawn.mjs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync, readFileSync } from 'node:fs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-migration-immutable]';
 const MIGRATION_PATHS = ['services'];
+const ACK_RE = /^\s*--+\s*MIGRATION_IMMUTABLE_EXEMPT\s*:\s*(\S.*)$/im;
 
 function fail(msg) {
   console.error(`${TAG} FAIL: ${msg}`);
@@ -95,11 +105,46 @@ for (const [label, args] of checks) {
 }
 
 if (violations.length > 0) {
-  const detail = violations.map((v) => `  - [${v.label}] ${v.status} ${v.paths.join(' -> ')}`);
-  fail(
-    `已合入基线的 Flyway 脚本被删除/改名/修改（基线 ${base}）：\n${detail.join('\n')}\n` +
-      '正解：保留旧文件不动，新增一条迁移；要下线种子数据时把旧文件改成幂等墓碑（不要删文件）。'
-  );
+  const hard = [];
+  const acknowledged = [];
+  for (const v of violations) {
+    if (v.status !== 'M') {
+      hard.push(v);
+      continue;
+    }
+    // M：读取文件内容查豁免头（工作树优先，其次 HEAD）
+    const rel = v.paths[0];
+    let content = '';
+    if (existsSync(join(ROOT, rel))) {
+      try {
+        content = readFileSync(join(ROOT, rel), 'utf8');
+      } catch {
+        content = '';
+      }
+    } else {
+      const shown = await gitAsync(['show', `HEAD:${rel}`], { cwd: ROOT });
+      if (shown.ok) content = shown.out || '';
+    }
+    const ack = content.match(ACK_RE);
+    if (ack) {
+      acknowledged.push({ ...v, reason: ack[1].trim() });
+    } else {
+      hard.push(v);
+    }
+  }
+  if (hard.length > 0) {
+    const detail = hard.map((v) => `  - [${v.label}] ${v.status} ${v.paths.join(' -> ')}`);
+    fail(
+      `已合入基线的 Flyway 脚本被删除/改名/修改（基线 ${base}）：\n${detail.join('\n')}\n` +
+        '正解：保留旧文件不动，新增一条迁移；要下线种子数据时把旧文件改成幂等墓碑（不要删文件）。' +
+        '内容修改须带 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 头（仅 M 开放，D/R 不豁免）。'
+    );
+  }
+  for (const a of acknowledged) {
+    console.log(
+      `${TAG} 豁免留痕：${a.paths[0]}（${a.label}）—— 理由：${a.reason}`
+    );
+  }
 }
 
 console.log(`${TAG} OK：基线 ${base} 里已存在的迁移文件均未被删除/改名/改内容（新增迁移不受限）`);

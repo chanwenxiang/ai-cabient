@@ -637,8 +637,7 @@ if (timeoutRows === 0) {
 }
 if (timeoutProblems.length) {
   problems.push(
-    `XXL 任务超时配置不合格（0=永不超时，悬挂即永久停摆）：\n    - ` +
-      timeoutProblems.join('\n    - ')
+    `XXL 任务超时配置不合格（0=永不超时，悬挂即永久停摆）：\n    - ` + timeoutProblems.join('\n    - ')
   );
 }
 
