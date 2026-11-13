@@ -51,17 +51,20 @@ public class PayScoreOrderNotifyService {
     private final PaymentOperationMapper paymentOperationMapper;
     private final UnpaidDunningService unpaidDunningService;
     private final OpsExceptionService opsExceptionService;
+    private final RevenueSplitService revenueSplitService;
 
     public PayScoreOrderNotifyService(PayScoreOrderMapper payScoreOrderMapper,
                                       CabinetOrderMapper cabinetOrderMapper,
                                       PaymentOperationMapper paymentOperationMapper,
                                       UnpaidDunningService unpaidDunningService,
-                                      OpsExceptionService opsExceptionService) {
+                                      OpsExceptionService opsExceptionService,
+                                      RevenueSplitService revenueSplitService) {
         this.payScoreOrderMapper = payScoreOrderMapper;
         this.cabinetOrderMapper = cabinetOrderMapper;
         this.paymentOperationMapper = paymentOperationMapper;
         this.unpaidDunningService = unpaidDunningService;
         this.opsExceptionService = opsExceptionService;
+        this.revenueSplitService = revenueSplitService;
     }
 
     /** 是否订单事件（区别于授权事件）：带 out_order_no。 */
@@ -159,6 +162,12 @@ public class PayScoreOrderNotifyService {
         order.setStatus("PAID");
         order.setPayTradeNo(tradeNo);
         cabinetOrderMapper.updateById(order);
+        // R20-2（2026-11-13）：分账/商户钱包入账的**实收确认点**就是这里。结算时该单是
+        // PENDING（微信异步扣款，钱还没进来），RevenueSplitService 只建分账行不入账；
+        // 现在订单已 PAID ⇒ 重进 recordSplit 走「已存在」支补入账（creditIfAbsent 以
+        // splitId 为幂等键，重复回调无害）。刻意**不**包 try：资金动作失败要让本回调事务
+        // 整体回滚、订单退回未实收、微信按策略重试——吞掉就留下「钱到了、商户没入账」。
+        revenueSplitService.recordSplit(order);
         unpaidDunningService.onUnpaidCleared(order.getUserId());
         log.info("wechat payscore order PAID order={} amount={} tradeNo={}", order.getOrderId(), amount, tradeNo);
     }

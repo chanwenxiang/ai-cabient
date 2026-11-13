@@ -39,6 +39,8 @@ class PayScoreOrderNotifyTest {
     @Mock PaymentOperationMapper paymentOperationMapper;
     @Mock UnpaidDunningService unpaidDunningService;
     @Mock OpsExceptionService opsExceptionService;
+    /** R20-2：DONE 是本单的分账/商户钱包入账时点（结算时未实收，只建了分账行）。 */
+    @Mock RevenueSplitService revenueSplitService;
 
     @InjectMocks PayScoreOrderNotifyService service;
 
@@ -87,6 +89,8 @@ class PayScoreOrderNotifyTest {
         verify(unpaidDunningService).onUnpaidCleared(10002L);
         // 幂等键与同步扣款同约定，回调重推/补偿都收敛
         assertEquals("CHARGE:1792659779535535992400:350", opCap.getValue().getIdempotencyKey());
+        // R20-2：钱在这里才真的进来 ⇒ 分账入账必须跟着在这里发生（recordSplit 幂等，重推无害）
+        verify(revenueSplitService).recordSplit(o);
     }
 
     @Test
@@ -120,6 +124,10 @@ class PayScoreOrderNotifyTest {
 
         verify(unpaidDunningService).recordUnpaidAndEscalate(10002L);
         verify(paymentOperationMapper, never()).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
+        // R20-2：微信最终没扣到钱 ⇒ 这条腿既不改订单状态也不触发入账，商户份额永不进钱包
+        // （全仓无 SPLIT 反冲路径，所以「不入」就是唯一的正确处置）
+        verify(revenueSplitService, never()).recordSplit(any(CabinetOrder.class));
+        assertEquals("PENDING", o.getStatus());
     }
 
     /**

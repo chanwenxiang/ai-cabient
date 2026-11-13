@@ -31,6 +31,20 @@ public class RevenueSplitService {
     private static final String ACCRUED = "ACCRUED";
     private static final String VOIDED = "VOIDED";
 
+    /**
+     * R20-2：**未实收**状态集。订单在 `buildOrder` 时即置 PAID，落到 PENDING 只有两条路——
+     * ① 支付分免密腿（{@code tryCompleteWeChatPayScore} 只「完结订单」，扣款是微信**异步**的，
+     * 成功与否要等 {@code PayScoreOrderNotifyService} 回调）；② 扣款失败转待支付
+     * （{@code markPendingAndDropCoupon}）。CANCELLED 是待支付单被取消。
+     * 这四类单**钱还没进来**，不能把商户份额整笔记进商户钱包（LEDGER_ONLY 是直入钱包，
+     * 不是挂账；且 EXPIRED/REVOKED 终态全仓无任何反冲路径）。
+     *
+     * <p>刻意用「排除未实收」而不是「只认 PAID」：改单重算/部分退款等路径拿到的是
+     * PARTIAL_REFUNDED 等**已实收过**的状态，若写成 {@code == PAID} 会把它们静默少入账。
+     */
+    private static final java.util.Set<String> UNCOLLECTED_ORDER_STATUSES =
+            java.util.Set.of("PENDING", "CANCELLED");
+
 
     private static final Logger log = LoggerFactory.getLogger(RevenueSplitService.class);
 
@@ -93,6 +107,12 @@ public class RevenueSplitService {
     private Optional<OrderRevenueSplit> doRecordSplit(CabinetOrder order) {
         Optional<OrderRevenueSplit> existing = splitRepository.findByOrderIdForUpdate(order.getOrderId());
         if (existing.isPresent()) {
+            // R20-2：这条早退支同时是「实收后再进来一次」的自愈入口——分账行可能是未实收时建的
+            // （支付分腿 PENDING），DONE 回调或补缴成功后重调本方法，在此补入账。
+            // creditIfAbsent 以 splitId 为幂等键，重复调用只可能命中同一流水，不会双记。
+            if (collected(order)) {
+                creditWalletIfLedgerOnly(existing.get());
+            }
             return existing;
         }
         DeviceInfo device = deviceRepository.findById(order.getDeviceId()).orElse(null);
@@ -139,11 +159,25 @@ public class RevenueSplitService {
             log.info("split insert raced order={} splitId={}", order.getOrderId(), split.getSplitId());
             return splitRepository.findByOrderIdForUpdate(order.getOrderId());
         }
-        creditWalletIfLedgerOnly(split);
+        if (collected(order)) {
+            creditWalletIfLedgerOnly(split);
+        } else {
+            // 未实收：只建分账行不入钱包，等 DONE 回调/补缴成功重进本方法时由早退支补入账。
+            log.warn("revenue split recorded but NOT credited (uncollected order) order={} status={} merchantShare={}",
+                    order.getOrderId(), order.getStatus(), merchantShare);
+        }
         maybeAutoSubmitAccruedSplit(order, split, merchant, 0);
-        log.info("分账记账 order={} merchant={} gross={} platform={} merchantShare={}",
-                order.getOrderId(), merchant.getMerchantId(), gross, platform, merchantShare);
+        log.info("分账记账 order={} merchant={} gross={} platform={} merchantShare={} collected={}",
+                order.getOrderId(), merchant.getMerchantId(), gross, platform, merchantShare, collected(order));
         return Optional.of(split);
+    }
+
+    /** R20-2：该单是否已实收（见 {@link #UNCOLLECTED_ORDER_STATUSES}）。 */
+    private static boolean collected(CabinetOrder order) {
+        String status = order == null || order.getStatus() == null
+                ? ""
+                : order.getStatus().trim().toUpperCase(java.util.Locale.ROOT);
+        return !UNCOLLECTED_ORDER_STATUSES.contains(status);
     }
 
     /**
@@ -549,7 +583,12 @@ public class RevenueSplitService {
         }
         splitRepository.save(split);
         if (convertedToLedgerOnly && gross > 0) {
-            creditWalletIfLedgerOnly(split);
+            if (collected(order)) {
+                creditWalletIfLedgerOnly(split);
+            } else {
+                log.warn("repriced split converted to LEDGER_ONLY but NOT credited (uncollected order) "
+                        + "order={} status={}", order.getOrderId(), order.getStatus());
+            }
         }
         maybeAutoSubmitAccruedSplit(order, split, merchant, oldMerchantCents);
         log.info("分账已按改单重算 order={} gross={} platform={} merchantShare={}",

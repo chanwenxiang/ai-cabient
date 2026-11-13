@@ -303,6 +303,88 @@ class RevenueSplitServiceTest {
         assertEquals("LEDGER_ONLY", split.getStatus());
     }
 
+    /**
+     * R20-2：支付分免密腿在结算时只是「完结订单」，微信**异步**扣款、钱未实收（订单 PENDING）。
+     * 该单的分账行必须建，但**不得**把商户份额入钱包。
+     */
+    @Test
+    void recordSplit_uncollectedPayscorePending_createsSplitButNeverCreditsWallet() {
+        stubSplitPath("O-PS1", 0);
+        CabinetOrder order = splitOrder("O-PS1", 900, 0, 0);
+        order.setStatus("PENDING");
+
+        OrderRevenueSplit split = service.recordSplit(order).orElseThrow();
+
+        assertEquals("LEDGER_ONLY", split.getStatus(), "分账行仍要建，否则实收后无行可入");
+        assertEquals(900L, split.getMerchantCents());
+        verify(merchantWalletService, never())
+                .creditIfAbsent(anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /** R20-2：待支付单被取消同样不得入账。 */
+    @Test
+    void recordSplit_cancelledOrder_neverCreditsWallet() {
+        stubSplitPath("O-CX", 0);
+        CabinetOrder order = splitOrder("O-CX", 900, 0, 0);
+        order.setStatus("CANCELLED");
+
+        service.recordSplit(order);
+
+        verify(merchantWalletService, never())
+                .creditIfAbsent(anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    /**
+     * R20-2 自愈腿：未实收时只建行不入账；DONE 回调/补缴成功后重进 recordSplit，
+     * 走「已存在」支补入账，且以 splitId 为幂等键 ⇒ 重复进来也只该入一次。
+     */
+    @Test
+    void recordSplit_reentryAfterCollection_creditsExactlyOnce() {
+        OrderRevenueSplit existing = new OrderRevenueSplit();
+        existing.setSplitId("SPLIT-PS");
+        existing.setOrderId("O-PS2");
+        existing.setMerchantId("M-1");
+        existing.setStatus("LEDGER_ONLY");
+        existing.setMerchantCents(900L);
+        when(splitRepository.findByOrderIdForUpdate("O-PS2")).thenReturn(Optional.of(existing));
+        when(merchantWalletService.creditIfAbsent(
+                eq("M-1"), eq(900L), eq("SPLIT_CREDIT"), eq("SPLIT"), eq("SPLIT-PS"), anyString()))
+                .thenReturn(true);
+
+        CabinetOrder pending = splitOrder("O-PS2", 900, 900, 0);
+        pending.setStatus("PENDING");
+        service.recordSplit(pending);
+        verify(merchantWalletService, never()).creditIfAbsent(
+                eq("M-1"), eq(900L), eq("SPLIT_CREDIT"), eq("SPLIT"), eq("SPLIT-PS"), anyString());
+
+        CabinetOrder paid = splitOrder("O-PS2", 900, 900, 0);
+        paid.setStatus("PAID");
+        service.recordSplit(paid);
+        service.recordSplit(paid);
+
+        verify(merchantWalletService, times(2)).creditIfAbsent(
+                eq("M-1"), eq(900L), eq("SPLIT_CREDIT"), eq("SPLIT"), eq("SPLIT-PS"), anyString());
+    }
+
+    /**
+     * 回归护栏：同步渠道（余额/微信直付/支付宝）结算时订单就是 PAID，行为与修前逐字一致——
+     * 这条是「门加错方向导致商户少收」的哨兵，不许被顺手改成 PENDING。
+     */
+    @Test
+    void recordSplit_paidOrder_creditsWalletAsBefore() {
+        stubSplitPath("O-OK", 0);
+        when(merchantWalletService.creditIfAbsent(
+                eq("M-1"), eq(700L), eq("SPLIT_CREDIT"), eq("SPLIT"), anyString(), anyString()))
+                .thenReturn(true);
+        CabinetOrder order = splitOrder("O-OK", 700, 700, 0);
+        order.setStatus("PAID");
+
+        service.recordSplit(order);
+
+        verify(merchantWalletService).creditIfAbsent(
+                eq("M-1"), eq(700L), eq("SPLIT_CREDIT"), eq("SPLIT"), anyString(), anyString());
+    }
+
     @Test
     void confirmLedgerOnly_acquiresLockAndCreditsWallet() {
         OrderRevenueSplit split = new OrderRevenueSplit();
@@ -504,7 +586,7 @@ class RevenueSplitServiceTest {
         verify(splitRepository).save(any(OrderRevenueSplit.class));
     }
 
-    /** W1: 无微信接收方 → LEDGER_ONLY 立刻入账；重复 recordSplit 不二次 credit。 */
+    /** W1: 无微信接收方 → LEDGER_ONLY 立刻入账；重复 recordSplit 只入一次钱（靠同一 splitId 幂等键）。 */
     @Test
     void recordSplit_ledgerOnly_creditsWalletOnce_andIdempotentReplay() {
         CabinetOrder order = new CabinetOrder();
@@ -540,8 +622,16 @@ class RevenueSplitServiceTest {
         when(splitRepository.findByOrderIdForUpdate("O-W1")).thenReturn(Optional.of(existing));
         Optional<OrderRevenueSplit> second = service.recordSplit(order);
         assertEquals(existing.getSplitId(), second.map(OrderRevenueSplit::getSplitId).orElse(null));
-        verify(merchantWalletService, times(1)).creditIfAbsent(
-                anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+        // R20-2 后重放会**再次发起**入账尝试（这是实收自愈入口），但钱只动一次：判据不是
+        // 「不发起」而是「发起的幂等键逐字相同」⇒ creditIfAbsent + V379 ref 部分唯一索引兜住
+        // （WalletRefIdempotencySqlIT 在真库钉这条）。所以这里核两次调用的键一致。
+        org.mockito.ArgumentCaptor<String> refCap = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> refTypeCap = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(merchantWalletService, times(2)).creditIfAbsent(
+                anyString(), anyLong(), anyString(), refTypeCap.capture(), refCap.capture(), anyString());
+        assertEquals(java.util.List.of("SPLIT", "SPLIT"), refTypeCap.getAllValues());
+        assertEquals(java.util.List.of(existing.getSplitId(), existing.getSplitId()), refCap.getAllValues(),
+                "重放必须打同一个 splitId，否则商户钱包会双记");
         verify(splitRepository, times(1)).save(any());
     }
 
