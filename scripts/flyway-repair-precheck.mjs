@@ -25,15 +25,7 @@ import { spawn } from 'node:child_process';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-flyway-repair-needed]';
 const HELPER_SRC = join(ROOT, 'scripts', 'FlywayValidateHelper.java');
-const MIG_DIR = join(
-  'services',
-  'trade-service',
-  'src',
-  'main',
-  'resources',
-  'db',
-  'migration'
-);
+const MIG_DIR = join('services', 'trade-service', 'src', 'main', 'resources', 'db', 'migration');
 
 function fail(msg) {
   console.error(`${TAG} FAIL: ${msg}`);
@@ -73,7 +65,7 @@ function findJars(m2Dir) {
     findJar(m2Dir, 'org/flywaydb/flyway-core'),
     findJar(m2Dir, 'org/postgresql/postgresql'),
     findJar(m2Dir, 'org/slf4j/slf4j-api'),
-    findJar(m2Dir, 'com/google/code/gson/gson'),
+    findJar(m2Dir, 'com/google/code/gson/gson')
   ].filter(Boolean);
 }
 
@@ -94,7 +86,7 @@ async function main() {
   const m2Candidates = [
     process.env.M2_REPO,
     process.env.USERPROFILE && join(process.env.USERPROFILE, '.m2', 'repository'),
-    process.env.HOME && join(process.env.HOME, '.m2', 'repository'),
+    process.env.HOME && join(process.env.HOME, '.m2', 'repository')
   ].filter(Boolean);
   let m2Dir = null;
   for (const c of m2Candidates) {
@@ -117,7 +109,15 @@ async function main() {
   const tmpDir = join(ROOT, '.tmp', 'flyway-repair-check');
   mkdirSync(tmpDir, { recursive: true });
   const cp = jars.join(';');
-  const compile = await runCmd('javac', ['-encoding', 'UTF-8', '-cp', cp, '-d', tmpDir, HELPER_SRC]);
+  const compile = await runCmd('javac', [
+    '-encoding',
+    'UTF-8',
+    '-cp',
+    cp,
+    '-d',
+    tmpDir,
+    HELPER_SRC
+  ]);
   if (compile.code !== 0) {
     fail(`javac 编译 helper 失败：${compile.err.trim() || compile.out.trim()}`);
   }
@@ -125,10 +125,15 @@ async function main() {
   // ③ 运行 validate
   const url = `jdbc:postgresql://${host}:${port}/${db}`;
   const locations = `filesystem:${MIG_DIR}`;
-  const run = await runCmd(
-    'java',
-    ['-cp', `${tmpDir};${cp}`, 'FlywayValidateHelper', url, user, pass || '', locations]
-  );
+  const run = await runCmd('java', [
+    '-cp',
+    `${tmpDir};${cp}`,
+    'FlywayValidateHelper',
+    url,
+    user,
+    pass || '',
+    locations
+  ]);
 
   const out = (run.out + run.err).trim();
   if (run.code !== 0 && !out.includes('VALIDATE_')) {
@@ -136,7 +141,9 @@ async function main() {
   }
 
   if (out.includes('VALIDATE_OK')) {
-    console.log(`${TAG} OK：目标库 ${host}:${port}/${db} Flyway validate 通过，无 checksum 漂移，可部署`);
+    console.log(
+      `${TAG} OK：目标库 ${host}:${port}/${db} Flyway validate 通过，无 checksum 漂移，可部署`
+    );
     return;
   }
 

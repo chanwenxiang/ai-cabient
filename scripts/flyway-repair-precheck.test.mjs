@@ -28,7 +28,7 @@ function runScript(env) {
     const child = spawn('node', [join(ROOT, 'scripts', 'flyway-repair-precheck.mjs')], {
       cwd: ROOT,
       env: { ...process.env, ...env },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe']
     });
     let out = '';
     let err = '';
@@ -43,7 +43,7 @@ function runScript(env) {
   const r = await runScript({
     FLYWAY_REPAIR_DB_HOST: undefined,
     FLYWAY_REPAIR_DB_NAME: undefined,
-    FLYWAY_REPAIR_DB_USER: undefined,
+    FLYWAY_REPAIR_DB_USER: undefined
   });
   check(
     '缺 DB 环境变量=红（fail-closed）',
@@ -57,13 +57,9 @@ function runScript(env) {
   const r = await runScript({
     FLYWAY_REPAIR_DB_HOST: '127.0.0.1',
     FLYWAY_REPAIR_DB_NAME: undefined,
-    FLYWAY_REPAIR_DB_USER: 'aicabinet',
+    FLYWAY_REPAIR_DB_USER: 'aicabinet'
   });
-  check(
-    '缺 NAME=红',
-    r.code !== 0 && r.full.includes('缺 DB 连接环境变量'),
-    `code=${r.code}`
-  );
+  check('缺 NAME=红', r.code !== 0 && r.full.includes('缺 DB 连接环境变量'), `code=${r.code}`);
 }
 
 console.log(`\n[check-flyway-repair-needed.test] ${pass} 通过 / ${fail} 失败`);
