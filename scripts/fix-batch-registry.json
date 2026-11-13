@@ -80,6 +80,76 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "ecfaaa6d",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "V165 还原 member_points_log expired_at/reminded_at + 部分索引（S14 误删活 DDL）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V165__points_coupon_expiry_recall.sql"
+          ]
+        },
+        {
+          "id": "V182 还原 ad_campaign 演示数据与演示积分补齐（S14 误删活 DDL）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V182__fix_garbled_names_and_demo_points.sql"
+          ]
+        },
+        {
+          "id": "V200 还原演示积分一致性修正（S14 误删活 DDL）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V200__fix_demo_four_consistency_failures.sql"
+          ]
+        },
+        {
+          "id": "V201 还原积分一致性校验收敛（S14 误删活 DDL）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V201__fix_points_consistency_checker_align.sql"
+          ]
+        },
+        {
+          "id": "V217 还原 ad_play_event → ad_campaign 外键段（S14 误删活 DDL）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V217__ops_ad_scope_fk.sql"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "1d5f526d",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "V465 balance_refund_request.status 值域补 PROCESSING/PARTIAL（审计 R20/R22 复核发现写入面越界）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V465__status_check_batch2_fund.sql"
+          ]
+        },
+        {
+          "id": "V479 pull_off_task.status 值域补 RESOLVED（同上，代码写 RESOLVED）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V479__status_check_batch16_misc_final.sql"
+          ]
+        },
+        {
+          "id": "SysDictBootstrap 两族字典同步补值",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java"
+          ]
+        },
+        {
+          "id": "shared-dict 两族字典同步补值（跨端对齐）",
+          "files": [
+            "packages/shared-dict/src/index.ts"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
@@ -130,6 +200,10 @@
     {
       "commit": "6ec0d2e1",
       "why": "S8① 首用后的门禁/格式修复提交，属门禁基础设施与格式修正，非业务审计条目"
+    },
+    {
+      "commit": "158f0ead",
+      "why": "S8③ 判据改动须同批带夹具：仅 3 个门禁脚本补内联 selfTest 夹具，属门禁基础设施修复，非业务审计条目"
     }
   ]
 }
