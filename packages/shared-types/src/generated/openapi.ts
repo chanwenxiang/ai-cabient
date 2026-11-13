@@ -3199,6 +3199,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/ops/admin/merchant-wallets/{merchantId}/arrears-writeoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["writeOffArrears"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/ops/admin/merchant-wallets/{merchantId}/adjust": {
         parameters: {
             query?: never;
@@ -8064,6 +8080,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["ledgers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/ops/admin/merchant-wallets/arrears.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["arrearsCsv"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14540,6 +14572,21 @@ export interface components {
             requestNo?: string;
             merchantId?: string;
         };
+        ArrearsWriteOffRequest: {
+            reason?: string;
+        };
+        ApiResponseWriteOffResult: {
+            /** Format: int32 */
+            code?: number;
+            message?: string;
+            data?: components["schemas"]["WriteOffResult"];
+        };
+        WriteOffResult: {
+            merchantId?: string;
+            /** Format: int64 */
+            amountCents?: number;
+            alreadyRecorded?: boolean;
+        };
         WalletAdjustRequest: {
             /** Format: int64 */
             amountCents: number;
@@ -14564,6 +14611,9 @@ export interface components {
             availableCents?: number;
             /** Format: int64 */
             pendingSettleCents?: number;
+            arrearsSince?: string;
+            /** Format: int64 */
+            arrearsAgeDays?: number;
         };
         ApiResponseMerchantFeeLedger: {
             /** Format: int32 */
@@ -26688,6 +26738,32 @@ export interface operations {
             };
         };
     };
+    writeOffArrears: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                merchantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ArrearsWriteOffRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseWriteOffResult"];
+                };
+            };
+        };
+    };
     adjust_1: {
         parameters: {
             query?: never;
@@ -34597,6 +34673,7 @@ export interface operations {
                 keyword?: string;
                 page?: number;
                 size?: number;
+                onlyNegative?: boolean;
             };
             header?: never;
             path?: never;
@@ -34635,6 +34712,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseListMerchantWalletLedgerDto"];
+                };
+            };
+        };
+    };
+    arrearsCsv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
                 };
             };
         };

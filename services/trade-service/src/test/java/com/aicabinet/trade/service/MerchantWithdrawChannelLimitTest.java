@@ -77,7 +77,7 @@ class MerchantWithdrawChannelLimitTest {
                 withdrawMapper, merchantMapper,
                 merchantWalletService, payoutService, properties,
                 payoutAccountService, payoutAccountMapper,
-                merchantFeaturePackService, merchantScopeService, permissionService, auditService,
+                merchantFeaturePackService, null, merchantScopeService, permissionService, auditService,
                 distributedLockService, null, WithdrawPolicyResolver.ymlOnly(properties),
                 payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService, null, null, null);
         ReflectionTestUtils.setField(service, "self", service);

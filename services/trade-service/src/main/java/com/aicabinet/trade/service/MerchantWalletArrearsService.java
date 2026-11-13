@@ -55,7 +55,7 @@ public class MerchantWalletArrearsService {
     private static final Logger log = LoggerFactory.getLogger(MerchantWalletArrearsService.class);
 
     /** 一条「欠款满账龄」命中。 */
-    public record Arrears(String merchantId, long arrearsCents, long ageDays) {}
+    public record Arrears(String merchantId, long arrearsCents, long ageDays, LocalDate since) {}
 
     private record Scan(List<Arrears> hits, int unjudgeable) {}
 
@@ -119,9 +119,45 @@ public class MerchantWalletArrearsService {
         return summary;
     }
 
+    /**
+     * 全部负余额账户（含「账龄不可判」的行：{@code since=null}、{@code ageDays=-1}）。
+     * 运营台欠款名单与 CSV 导出用它——欠款人不能因为账本缺流水就从名单里消失；
+     * 告警/锁柜另走 {@link #overThreshold}，那里会剔除不可判行。
+     */
+    public List<Arrears> negativeAccounts() {
+        LocalDate today = LocalDate.now(ScheduleZones.ZONE);
+        List<Map<String, Object>> rows = accountMapper.findNegativeArrears(DOMAIN_MERCHANT, null);
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<Arrears> all = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Long balanceCents = asLong(row.get("c1"));
+            if (balanceCents == null || balanceCents >= 0) {
+                continue;
+            }
+            LocalDate since = asBusinessDate(row.get("c2"));
+            long ageDays = since == null ? -1 : ChronoUnit.DAYS.between(since, today);
+            all.add(new Arrears(String.valueOf(row.get("c0")), -balanceCents, ageDays, since));
+        }
+        return all;
+    }
+
     /** 命中清单（账龄 ≥ {@code minAgeDays}，已排除「账龄不可判」）。调用方传业务日，便于判据测试。 */
     public List<Arrears> overThreshold(long minAgeDays, LocalDate today) {
         return scan(null, today, (int) minAgeDays).hits();
+    }
+
+    /**
+     * 单商户的欠款快照（余额为负才算命中；账龄不可判时返回空）。
+     * 商户钱包列表用它补「账龄」列，按条查询（列表里负余额应是个位数）。
+     */
+    public java.util.Optional<Arrears> arrearsOf(String merchantId) {
+        if (merchantId == null || merchantId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        List<Arrears> hits = scan(merchantId, LocalDate.now(ScheduleZones.ZONE), 0).hits();
+        return hits.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(hits.get(0));
     }
 
     /**
@@ -178,7 +214,7 @@ public class MerchantWalletArrearsService {
             if (ageDays < minAgeDays) {
                 continue;
             }
-            hits.add(new Arrears(String.valueOf(row.get("c0")), -balanceCents, ageDays));
+            hits.add(new Arrears(String.valueOf(row.get("c0")), -balanceCents, ageDays, since));
         }
         return new Scan(hits, unjudgeable);
     }

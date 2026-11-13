@@ -785,7 +785,9 @@ export const DICT = {
     // V436（MA-132/133）：后端真实写入但字典缺项（佣金冲回 / 提现手续费 / 补货员出账）
     COMMISSION_CLAWBACK: '佣金冲回',
     WITHDRAW_FEE: '提现手续费',
-    WITHDRAW_PAYOUT: '提现出账'
+    WITHDRAW_PAYOUT: '提现出账',
+    // CB-086：平台兜底核销（欠款清零流水）
+    ARREARS_WRITEOFF: '欠款核销'
   },
   session_kind: {
     CONSUMER: '消费',

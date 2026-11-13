@@ -260,7 +260,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费",
                 // V436（MA-132/133）：后端真实写入但字典缺项，补种必须与迁移同步
                 "COMMISSION_CLAWBACK", "佣金冲回", "WITHDRAW_FEE", "提现手续费",
-                "WITHDRAW_PAYOUT", "提现出账")));
+                "WITHDRAW_PAYOUT", "提现出账",
+                // CB-086：平台兜底核销（欠款清零流水，只由 MerchantArrearsWriteOffService 写）
+                "ARREARS_WRITEOFF", "欠款核销")));
         // V436（MA-135）：notification_log.biz_type 此前根本不在自愈目录里
         // （V225 只种了 11 值，DAILY_INCOME/FEE_REMINDER 是后来调度器新增的下发值）
         // ⇒ ensureMissingDictItems 连「该类型存在」都不知道，永远补不出来。

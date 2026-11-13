@@ -95,7 +95,7 @@ class MerchantWithdrawDoubleReviewTest {
                 withdrawMapper, merchantMapper,
                 merchantWalletService, payoutService, properties,
                 payoutAccountService, payoutAccountMapper,
-                merchantFeaturePackService, merchantScopeService, permissionService, auditService,
+                merchantFeaturePackService, null, merchantScopeService, permissionService, auditService,
                 distributedLockService, approvalWorkflowService,
                 WithdrawPolicyResolver.ymlOnly(properties),
                 payoutChannelRegistry, orderRevenueSplitMapper, withdrawEligibilityService,

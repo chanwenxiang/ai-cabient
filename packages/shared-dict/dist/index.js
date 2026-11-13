@@ -258,7 +258,9 @@ export const DICT = {
         PENDING_REVIEW: '待审核',
         REFUNDED: '已退款',
         REJECTED: '已驳回',
-        FAILED: '失败'
+        FAILED: '失败',
+        PROCESSING: '处理中',
+        PARTIAL: '部分退款'
     },
     announcement_audience: {
         ALL: '全部用户',
@@ -389,7 +391,8 @@ export const DICT = {
         REVOKED: '已吊销'
     },
     pull_off_task_status: {
-        OPEN: '待下柜'
+        OPEN: '待下柜',
+        RESOLVED: '已处理'
     },
     preauth_status: {
         NONE: '无预授权',
@@ -758,7 +761,9 @@ export const DICT = {
         // V436（MA-132/133）：后端真实写入但字典缺项（佣金冲回 / 提现手续费 / 补货员出账）
         COMMISSION_CLAWBACK: '佣金冲回',
         WITHDRAW_FEE: '提现手续费',
-        WITHDRAW_PAYOUT: '提现出账'
+        WITHDRAW_PAYOUT: '提现出账',
+        // CB-086：平台兜底核销（欠款清零流水）
+        ARREARS_WRITEOFF: '欠款核销'
     },
     session_kind: {
         CONSUMER: '消费',

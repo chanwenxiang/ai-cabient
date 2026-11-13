@@ -243,6 +243,8 @@ export declare const DICT: {
         readonly REFUNDED: "已退款";
         readonly REJECTED: "已驳回";
         readonly FAILED: "失败";
+        readonly PROCESSING: "处理中";
+        readonly PARTIAL: "部分退款";
     };
     readonly announcement_audience: {
         readonly ALL: "全部用户";
@@ -373,6 +375,7 @@ export declare const DICT: {
     };
     readonly pull_off_task_status: {
         readonly OPEN: "待下柜";
+        readonly RESOLVED: "已处理";
     };
     readonly preauth_status: {
         readonly NONE: "无预授权";
@@ -747,6 +750,7 @@ export declare const DICT: {
         readonly COMMISSION_CLAWBACK: "佣金冲回";
         readonly WITHDRAW_FEE: "提现手续费";
         readonly WITHDRAW_PAYOUT: "提现出账";
+        readonly ARREARS_WRITEOFF: "欠款核销";
     };
     readonly session_kind: {
         readonly CONSUMER: "消费";

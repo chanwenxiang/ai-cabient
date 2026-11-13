@@ -9,5 +9,9 @@ public record MerchantWalletAccountDto(
         Long frozenCents,
         Long availableCents,
         /** CB-035：已入钱包但未到 T+1 可提现日（settleAfter>今日）的金额；与提现闸门同口径 */
-        Long pendingSettleCents
+        Long pendingSettleCents,
+        /** CB-086：欠款起算日（余额为负时＝账本最后一次非负的业务日，yyyy-MM-dd）；非负/不可判为 null */
+        String arrearsSince,
+        /** CB-086：连续欠款天数（业务日口径）；非负/不可判为 null */
+        Long arrearsAgeDays
 ) {}

@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -75,6 +76,8 @@ public class MerchantWithdrawService {
     /** CB-035：T+1 可提现解锁时刻（小时）读取；null 容忍（测试兜底默认 0 点解锁）。 */
     private final SystemConfigService systemConfigService;
     private final MerchantFeaturePackService merchantFeaturePackService;
+    /** CB-086：欠款账龄（钱包列表补「账龄」列；仅余额为负时查）。 */
+    private final MerchantWalletArrearsService walletArrearsService;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
@@ -93,6 +96,7 @@ public class MerchantWithdrawService {
                                    PayoutAccountService payoutAccountService,
                                    PayoutAccountMapper payoutAccountMapper,
                                    MerchantFeaturePackService merchantFeaturePackService,
+                                   MerchantWalletArrearsService walletArrearsService,
                                    MerchantScopeService merchantScopeService,
                                    PermissionService permissionService,
                                    AdminAuditService auditService,
@@ -113,6 +117,7 @@ public class MerchantWithdrawService {
         this.payoutAccountService = payoutAccountService;
         this.payoutAccountMapper = payoutAccountMapper;
         this.merchantFeaturePackService = merchantFeaturePackService;
+        this.walletArrearsService = walletArrearsService;
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
@@ -128,7 +133,8 @@ public class MerchantWithdrawService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<MerchantWalletAccountDto> listAccounts(Long operatorId, String keyword, int page, int size) {
+    public PageResult<MerchantWalletAccountDto> listAccounts(Long operatorId, String keyword, int page, int size,
+                                                             boolean onlyNegative) {
         permissionService.requireAnyPermission(operatorId,
                 PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
         int p = Math.max(page, 0);
@@ -136,6 +142,18 @@ public class MerchantWithdrawService {
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
         if (allowed.isEmpty()) {
             return new PageResult<>(List.of(), p, s, 0);
+        }
+        // CB-086：欠款名单——先按负余额账户收窄到商户 id 集，再走原有「权限范围 + 关键字」查询，
+        // 保证分页/总数与其它 tab 同源（不是前端过滤当前页）。
+        if (onlyNegative) {
+            Set<String> negativeIds = walletArrearsService.negativeAccounts().stream()
+                    .map(MerchantWalletArrearsService.Arrears::merchantId)
+                    .filter(allowed::contains)
+                    .collect(java.util.stream.Collectors.toSet());
+            if (negativeIds.isEmpty()) {
+                return new PageResult<>(List.of(), p, s, 0);
+            }
+            allowed = negativeIds;
         }
         LambdaQueryWrapper<Merchant> q = new LambdaQueryWrapper<>();
         q.in(Merchant::getMerchantId, allowed);
@@ -951,6 +969,9 @@ public class MerchantWithdrawService {
         long frozen = account == null ? 0L : value(account.getFrozenCents());
         // CB-035：availableCents 与 V308 提现闸门同口径（扣 T+1 待结算），并把待结算透出给运营台
         long pendingSettle = account == null ? 0L : pendingSettleAmount(merchant.getMerchantId());
+        // CB-086：仅余额为负时补账龄（负余额是少数，避免列表页对每行都查账本）
+        MerchantWalletArrearsService.Arrears arrears =
+                balance < 0 ? walletArrearsService.arrearsOf(merchant.getMerchantId()).orElse(null) : null;
         return new MerchantWalletAccountDto(
                 merchant.getMerchantId(),
                 merchant.getMerchantName(),
@@ -959,8 +980,54 @@ public class MerchantWithdrawService {
                 balance,
                 frozen,
                 Math.max(0, balance - frozen - pendingSettle),
-                pendingSettle
+                pendingSettle,
+                arrears == null || arrears.since() == null ? null : arrears.since().toString(),
+                arrears == null || arrears.ageDays() < 0 ? null : arrears.ageDays()
         );
+    }
+
+    /**
+     * CB-086：欠款名单 CSV（线下追缴用）。口径与 {@code walletArrearsService.negativeAccounts()} 同源：
+     * **包含**账龄不可判的欠款人（ageDays 留空），按欠款金额降序。仅返回当前运营有范围的商户。
+     * 前端以 blob 下载（管理端 token 在 sessionStorage，不能裸链）。
+     */
+    @Transactional(readOnly = true)
+    public String arrearsCsv(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId,
+                PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
+        Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
+        if (allowed.isEmpty()) {
+            return csvHeader();
+        }
+        StringBuilder sb = new StringBuilder(csvHeader());
+        walletArrearsService.negativeAccounts().stream()
+                .filter(a -> allowed.contains(a.merchantId()))
+                .sorted(java.util.Comparator.comparingLong(MerchantWalletArrearsService.Arrears::arrearsCents).reversed())
+                .forEach(a -> {
+                    Merchant m = merchantMapper.findById(a.merchantId()).orElse(null);
+                    sb.append(csvCell(a.merchantId())).append(',')
+                            .append(csvCell(m == null ? "" : m.getMerchantName())).append(',')
+                            .append(csvCell(m == null ? "" : m.getContactPhone())).append(',')
+                            .append(csvCell(m == null ? "" : m.getStatus())).append(',')
+                            .append(BigDecimal.valueOf(a.arrearsCents(), 2).toPlainString()).append(',')
+                            .append(a.since() == null ? "" : a.since()).append(',')
+                            .append(a.ageDays() < 0 ? "" : String.valueOf(a.ageDays())).append(',')
+                            .append(a.ageDays() < 0 ? "账龄不可判（无流水）" : a.ageDays() >= 90 ? "已满 90 天（可核销）" : "未满 90 天")
+                            .append('\n');
+                });
+        return sb.toString();
+    }
+
+    private static String csvHeader() {
+        // BOM 让 Excel 按 UTF-8 打开中文表头
+        return "\uFEFF商户编号,商户名称,联系电话,商户状态,欠款金额(元),欠款起算日,账龄(天),处置提示\n";
+    }
+
+    private static String csvCell(String raw) {
+        String v = raw == null ? "" : raw;
+        return v.contains(",") || v.contains("\"") || v.contains("\n")
+                ? "\"" + v.replace("\"", "\"\"") + "\""
+                : v;
     }
 
     private MerchantWithdrawRequestDto toDto(MerchantWithdrawRequest request) {

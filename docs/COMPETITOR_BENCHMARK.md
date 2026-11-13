@@ -2964,7 +2964,7 @@
      （负向验证，铁律 4）。落地用例 `ProfitSharingReturnLegConservationTest` + 离线门禁
      `check-split-return-leg-conservation.mjs`（dev 库事务内注入 / ROLLBACK 零残留）。
 
-### CB-086 【新】商户钱包「可为负」的边界：采纳「负数挂账 + 入账自动抵扣 + 提现闸门 + 账龄停售」，坏账核销仍待拍板（2026-11-13）
+### CB-086 【新】商户钱包「可为负」的边界：采纳「负数挂账 + 入账自动抵扣 + 提现闸门 + 账龄停售 + 平台兜底核销」（2026-11-13）
 
 > 触发：2026-11-13 用户问「商户钱包可为负，根据真实竞品确认是不是对的」。先读本仓实现（`MerchantWalletService#debitIfAbsentAllowNegative`、`RevenueSplitService#clawbackWalletDelta`、`MerchantWithdrawService` 提现闸门、`DataConsistencyService` 三域对账）确认「可以为负」是 2026-10-15 已拍板的形态（审计 T4 / 台账 CB-085 条目第 2 点：佣金冲正挂负随下次入账抵扣），再对照官方/竞品确认这个形态与行业一致，缺的是「为负之后怎么办」。
 
@@ -2996,5 +2996,42 @@
   2. **有意不同（与渠道侧做法相反，属自己的设计判断）**：微信/抖音要求「回退侧有余额才允许回退」，我方是**本地钱包先挂负、渠道回退滞后**。这样做的前提已核实成立：钱包冲正只对 `LEDGER_ONLY/SETTLED` 的 split 生效，渠道已提交的分账不入钱包 ⇒ 不会出现「渠道退回真钱 + 本地又扣一次」的双收。**① 渠道回退腿永久 `FAILED` 时本地冲正不释放**（渠道没动钱，本地就该向商户收）——此条写入本台账作为判据，禁止后人「顺手对齐」微信的「回退失败就回滚」。
   3. **账龄可见性（本期）**：只读探针 `MerchantWalletArrearsService`——负余额账户按「最后一次非负」起算账龄，连续满 **90 天**（`merchant.wallet_arrears.alert_after_days`，0=关闭；默认 90 与本仓佣金冲正 90 天追溯窗同一把尺，竞品锚点 21/90/120/180 天）⇒ 写进日结任务执行记录 + 推一条**聚合**运营群告警。探针本身不写任何资金数据。
   4. **采纳「钱包欠款满账龄停售」（2026-11-13 用户拍板）**：`merchant.wallet_arrears.lock_after_days`（默认 90，0=关闭锁柜，告警可独立保留）⇒ 名下**未锁**柜机停售（`DeviceSalesLockService`，原因前缀「钱包欠款锁柜」），余额回到非负且无未结费用**自动复机**。四条安全判据（各有反例测试）：① 只锁当前未锁设备——费用欠费锁/离线停售锁的归属不被改写；② 复机只解除本前缀锁，并要求「不再欠款 **且** 无未结费用」；③ 账龄不可判（无流水）不锁；④ 费用已清但钱包仍欠款时，费用复机链路**不得代 unlock**（保持锁定）。与竞品对照：这是 PayPal「120 天锁号」与阿里云「欠费满 7 日停服」在本仓的合成形态；**不采纳** Stripe 式「平台余额兜底平账」与 PayPal 式「外委催收」（前者等于平台认损，后者无资质通道）。
-  4.1 **仍待拍板**：「终止合作/撤柜时的坏账核销」——竞品三条路都存在（Stripe 180 天平台兜底、PayPal 120 天转催收、微信 5 天超时关单），**选哪条等于选谁承担损失**，须单独立项。
+  4.1 **平台兜底 + 线下追缴（2026-11-13 用户拍板）**：终止合作/撤柜后的负余额**由平台认损**，运营线下追缴。落地三件事：
+      ① **核销动作** `MerchantArrearsWriteOffService` + `POST /api/v2/ops/admin/merchant-wallets/{merchantId}/arrears-writeoff`：仅**非 ACTIVE** 且**无在途提现**（PENDING_REVIEW/APPROVED/PAYING）与**无在途分账**（ACCRUED/WECHAT_SUBMITTED/WECHAT_FAILED）可核销；金额取**执行时实际负余额**（服务端现算，不接受前端金额）；写 `ARREARS_WRITEOFF` 流水 + 审计，幂等键 `WO:<merchantId>:<余额>`（连点/重放不记第二笔）；达到调账复核阈值同批发起 `MERCHANT_WALLET_ADJUST` 审批（复用既有定义）。
+      ② **追缴名单**：运营台「商户钱包」页新增「只看欠款」+「导出欠款名单」（CSV：商户编号/名称/联系电话/状态/欠款金额/起算日/账龄/处置提示）；CSV 口径与 `negativeAccounts()` 同源，**账龄不可判的欠款人也在名单里**（ageDays 留空），不会因为账本缺流水从名单消失。
+      ③ **不采纳**：Stripe 式「平台余额自动平账」（无实时清分能力，且自动化的损失不留人审）与 PayPal 式「外委催收」（无资质通道）。
+      运维用只读 SQL（任何环境可直接跑，先出名单再处置）：
+      ```sql
+      -- ① 追缴名单：负余额 + 联系人 + 起算日/账龄 + 柜机数
+      SELECT a.domain, a.owner_id,
+             COALESCE(m.merchant_name, a.owner_id) AS owner_name,
+             COALESCE(m.contact_phone, m.alert_contact_phone) AS phone,
+             m.status AS merchant_status,
+             (a.balance_cents / 100.0)::numeric(12,2) AS balance_yuan,
+             (SELECT MAX(x.created_at) FROM wallet_ledger x
+               WHERE x.domain=a.domain AND x.owner_id=a.owner_id AND x.balance_after>=0) AS arrears_since,
+             date_part('day', now() - COALESCE(
+               (SELECT MAX(x.created_at) FROM wallet_ledger x
+                 WHERE x.domain=a.domain AND x.owner_id=a.owner_id AND x.balance_after>=0),
+               (SELECT MIN(y.created_at) FROM wallet_ledger y
+                 WHERE y.domain=a.domain AND y.owner_id=a.owner_id)))::int AS age_days,
+             (SELECT count(*) FROM device_info d WHERE d.merchant_id=a.owner_id) AS device_count
+        FROM wallet_account a
+        LEFT JOIN merchant m ON m.merchant_id = a.owner_id
+       WHERE a.balance_cents < 0
+       ORDER BY a.balance_cents;
+
+      -- ② 致负来源：按 entry_type 汇总（押金直减 / 佣金冲正 / 分账冲正 / 费用欠缴 追缴口径不同）
+      WITH neg AS (
+        SELECT a.domain, a.owner_id,
+               (SELECT MAX(x.created_at) FROM wallet_ledger x
+                 WHERE x.domain=a.domain AND x.owner_id=a.owner_id AND x.balance_after>=0) AS since
+          FROM wallet_account a WHERE a.balance_cents < 0)
+      SELECT n.domain, n.owner_id, l.entry_type, count(*) AS entries,
+             sum(l.amount_cents) AS sum_cents, min(l.created_at) AS first_at
+        FROM neg n
+        JOIN wallet_ledger l ON l.domain=n.domain AND l.owner_id=n.owner_id
+       WHERE l.created_at > COALESCE(n.since, '-infinity'::timestamptz) AND l.amount_cents < 0
+       GROUP BY 1,2,3 ORDER BY 2,5;
+      ```
   5. **不采纳「商户端自助结清按钮」在本期**：PayPal 的入口背后是真实收款通道；我方商户门户目前只能看到欠款金额与「入账自动抵扣」说明（`WalletPage.vue`），收款仍走运营后台调账/线下打款入账。若要做自助充值结清，须先定「走哪个支付产品 + 是否生成充值单」，属产品拍板。

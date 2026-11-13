@@ -66,7 +66,20 @@
             />
           </el-form-item>
           <el-form-item>
+            <el-checkbox v-model="onlyNegative" @change="walletsCrud.search()"
+              >只看欠款</el-checkbox
+            >
+          </el-form-item>
+          <el-form-item>
             <el-button type="primary" @click="walletsCrud.search()">查询</el-button>
+          </el-form-item>
+          <el-form-item>
+            <el-button
+              plain
+              :loading="arrearsExporting"
+              @click="exportArrearsCsv"
+              >导出欠款名单</el-button
+            >
           </el-form-item>
         </el-form>
 
@@ -131,6 +144,20 @@
                 label-class-name="col-money"
               >
                 <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
+              </el-table-column>
+              <el-table-column
+                label="账龄(天)"
+                width="100"
+                align="center"
+                class-name="col-number"
+                label-class-name="col-number"
+              >
+                <template #default="{ row }">
+                  <span v-if="(row.balanceCents ?? 0) < 0">
+                    {{ row.arrearsAgeDays == null ? '不可判' : row.arrearsAgeDays }}
+                  </span>
+                  <span v-else>—</span>
+                </template>
               </el-table-column>
               <el-table-column
                 prop="status"
@@ -640,7 +667,8 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { errorMessage, isUserDismiss } from '@/utils/error-message';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
+import { csvFileName } from '@/utils/csv';
 import { AdminEndpoints } from '@/api/endpoints';
 import { useAuthStore } from '@/stores/auth';
 import CrudTable, { type CrudRowAction } from '@/components/CrudTable.vue';
@@ -679,6 +707,10 @@ interface WalletRow {
   availableCents?: number;
   /** CB-035：已入账但未到 T+1 可提现日的金额（与提现闸门同口径） */
   pendingSettleCents?: number;
+  /** CB-086：欠款起算日（yyyy-MM-dd）；余额非负/账龄不可判为 null */
+  arrearsSince?: string | null;
+  /** CB-086：连续欠款天数；余额非负/账龄不可判为 null */
+  arrearsAgeDays?: number | null;
 }
 
 interface LedgerRow {
@@ -775,6 +807,7 @@ const walletsCrud = useCrudTable<WalletRow>({
   fetchPage: (params) => {
     const q = new URLSearchParams({ page: String(params.page), size: String(params.size) });
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
+    if (onlyNegative.value) q.set('onlyNegative', 'true');
     return api.request<{ items: WalletRow[]; total: number }>(
       AdminEndpoints.merchantWalletsList(q),
       'GET'
@@ -810,7 +843,13 @@ function canCancelFailedWithdraw(row: Withdraw) {
 }
 
 function walletRowActions(_row: WalletRow): CrudRowAction[] {
+  const acts: CrudRowAction[] = [];
+  // CB-086：只有负余额才有「核销」动作（后端还会校验非 ACTIVE / 无在途提现与分账）
+  if ((_row.balanceCents ?? 0) < 0 && auth.hasPerm('ops:merchant-withdraw:adjust')) {
+    acts.push({ key: 'writeoff', label: '核销欠款', icon: CircleClose, type: 'danger' });
+  }
   return [
+    ...acts,
     {
       key: 'adjust',
       label: '调账',
@@ -830,7 +869,8 @@ function walletRowActions(_row: WalletRow): CrudRowAction[] {
 }
 
 function onWalletAction({ key, row }: { key: string; row: WalletRow }) {
-  if (key === 'adjust') openAdjust(row);
+  if (key === 'writeoff') void writeOffArrears(row);
+  else if (key === 'adjust') openAdjust(row);
   else if (key === 'ledgers') void showLedgers(row);
   else if (key === 'withdraw') openWithdraw(row);
 }
@@ -1064,6 +1104,55 @@ async function loadPayoutMode() {
       mockEnabled: true,
       note: '无法读取打款模式；当前可能为记账打款（非真实转账）'
     };
+  }
+}
+
+// CB-086：欠款名单筛选与导出
+const onlyNegative = ref(false);
+const arrearsExporting = ref(false);
+
+async function exportArrearsCsv() {
+  arrearsExporting.value = true;
+  try {
+    await downloadAuthFile(
+      AdminEndpoints.merchantWalletsArrearsCsv,
+      csvFileName('merchant-wallet-arrears')
+    );
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '导出失败'));
+  } finally {
+    arrearsExporting.value = false;
+  }
+}
+
+/**
+ * CB-086 第 4.1 条：欠款核销（平台兜底）。金额由服务端按执行时实际负余额计算，前端不传金额。
+ * 后端门槛：非 ACTIVE、无在途提现/分账；不满足会 409 并把原因带回来。
+ */
+async function writeOffArrears(row: WalletRow) {
+  let reason = '';
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `确认核销商户 ${row.merchantId} 的欠款 ${yuan(-(row.balanceCents ?? 0))}？该金额将记为平台损失并写入审计，不可撤销。`,
+      '欠款核销（平台兜底）',
+      {
+        type: 'warning',
+        confirmButtonText: '确认核销',
+        cancelButtonText: '取消',
+        inputPlaceholder: '核销原因（如：撤柜不再合作 / 平台兜底）',
+        inputValue: '平台兜底'
+      }
+    );
+    reason = (value || '').trim();
+  } catch {
+    return;
+  }
+  try {
+    await api.request(AdminEndpoints.merchantWalletWriteOff(row.merchantId), 'POST', { reason });
+    ElMessage.success('已核销');
+    await walletsCrud.load();
+  } catch (e) {
+    ElMessage.error(errorMessage(e, '核销失败'));
   }
 }
 

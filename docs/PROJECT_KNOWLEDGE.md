@@ -692,7 +692,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **只读探针 + 告警**：`MerchantWalletArrearsService`——负余额连续满 `merchant.wallet_arrears.alert_after_days`（默认 90，0=关）⇒ 写进日结任务执行记录 + 一条**聚合**运营群告警；账龄起算 = 账本里最后一次 `balance_after >= 0`（SQL 在 `services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml` 的 `findNegativeArrears`）。探针本身不写任何资金数据。
 - **账龄停售（2026-11-13 用户拍板「做」）**：`merchant.wallet_arrears.lock_after_days`（默认 90，0=关闭锁柜）⇒ 名下**未锁**柜机停售（原因前缀「钱包欠款锁柜」），余额回到非负且无未结费用**自动复机**。四条安全判据：只锁未锁设备（不接管费用欠费锁）/ 复机只解本前缀且要求无欠款无未结费用 / 账龄不可判不锁 / 费用已清但钱包仍欠款时费用复机链不得代 unlock。反例用例 `MerchantWalletArrearsLockTest` 6 例。
 - 商户端 `clients/merchant-mp/src/components/WalletPage.vue`：账面为负时显示「当前欠款 X，后续入账自动抵扣，结清前不可提现」——**不新增写入口**，收款仍走运营后台调账/线下打款入账。
-- **有意未做**：终止合作/撤柜时的坏账核销、商户自助结清收款通道——前者等于选「谁承担损失」，后者须先定支付产品，均须单独立项拍板（CB-086 结论第 4.1/5 点）。
+- **平台兜底核销（2026-11-13 用户拍板「做」）**：新增 `MerchantArrearsWriteOffService` + `POST /api/v2/ops/admin/merchant-wallets/{merchantId}/arrears-writeoff`。门槛：非 ACTIVE、无在途提现/在途分账、金额取执行时实际负余额（服务端现算）、幂等键 `WO:<merchantId>:<余额>`、写 `ARREARS_WRITEOFF` 流水 + 审计、达阈值同批发起 `MERCHANT_WALLET_ADJUST` 审批。**平台兜底 = 显式记损失，不是让负数永远挂着**。
+- **追缴名单与导出**：运营台「商户钱包」页新增「只看欠款」+「导出欠款名单」CSV（编号/名称/电话/状态/欠款/起算日/账龄/处置提示），口径与 `negativeAccounts()` 同源、账龄不可判者也在名单里；后端 `GET /api/v2/ops/admin/merchant-wallets/arrears.csv`。运维只读 SQL 两段（名单 + 致负来源）已随 CB-086 4.1 落台账。
+- **有意未做**：商户自助结清收款通道（PayPal 的「结清负余额」背后是真实收款通道；我方须先定支付产品/是否生成充值单，属产品拍板）；Stripe 式平台余额自动平账、PayPal 式外委催收（无资质通道）。
 
 ### 2026-11-12（文档治理：22 份历史报告归档 + 防假账门禁 check:ledger-evidence 上线）
 

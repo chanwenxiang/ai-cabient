@@ -81,7 +81,7 @@ class MerchantWalletArrearsLockTest {
 
     @Test
     void locksOnlyUnlockedDevices_withDedicatedReason() {
-        lockEnabled(90, new Arrears(M1, 5_000L, 91));
+        lockEnabled(90, new Arrears(M1, 5_000L, 91, TODAY.minusDays(91)));
         devices(device("D1", false, null), device("D2", true, "费用欠缴锁柜：欠费 10.00 元"));
         when(walletArrearsService.inArrears(M1)).thenReturn(true);
 

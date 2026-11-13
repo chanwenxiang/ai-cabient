@@ -672,6 +672,11 @@ export const AdminEndpoints = {
       : `${ops}/merchant-wallets?${query.toString()}`,
   merchantWalletAdjust: (merchantId: string) =>
     `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/adjust`,
+  /** CB-086：欠款名单 CSV（管理端 token 在 sessionStorage，需带鉴权下载） */
+  merchantWalletsArrearsCsv: `${ops}/merchant-wallets/arrears.csv`,
+  /** CB-086 第 4.1 条：欠款核销（平台兜底，金额由服务端按实际负余额计算） */
+  merchantWalletWriteOff: (merchantId: string) =>
+    `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/arrears-writeoff`,
   merchantWalletLedgers: (merchantId: string, limit = 50) =>
     `${ops}/merchant-wallets/${encodeURIComponent(merchantId)}/ledgers?limit=${limit}`,
   merchantWalletWithdraw: (merchantId: string) =>
