@@ -68,6 +68,28 @@ export function evaluateBatch(batch, commitFiles, existsFn) {
  * @param {object} registry { batches:[], coverageCutoff, unregisteredAllowlist:[{commit,why}] }
  * @param {{hash:string, subject:string}[]} fixCommits cutoff 之后 HEAD 侧的 fix/perf 提交
  */
+/**
+ * 登记↔提交的比对必须走**前缀**，不能精确比字符串。
+ *
+ * 成因（2026-11-13 CI 实测）：注册表里的 commit 是各自机器上当时 `git log --%h` 打出来的
+ * 缩写，宽度随仓库对象数变化（7/8/9 位都出现过）；同一条命令在 CI 的全量对象库里输出 9 位，
+ * 于是 25 条登记全体匹配失败、被报成「未登记 fix 提交」。改用全长 `%H` + 前缀包含后，
+ * 无论登记表记的是 7 位还是 40 位都能对上，而对不上的仍然红（不是放松判据）。
+ */
+export function isCoveredBy(hash, prefixes) {
+  const h = String(hash || '')
+    .trim()
+    .toLowerCase();
+  if (h.length < 7) return false;
+  return (prefixes || []).some((p) => {
+    const s = String(p || '')
+      .trim()
+      .toLowerCase();
+    if (s.length < 7) return false;
+    return h.startsWith(s) || s.startsWith(h);
+  });
+}
+
 export function evaluateRegistry(registry, fixCommits) {
   const problems = [];
   const seen = new Map();
@@ -85,12 +107,12 @@ export function evaluateRegistry(registry, fixCommits) {
       seen.set(key, b.commit);
     }
   }
-  const registered = new Set((registry.batches || []).map((b) => b.commit));
-  const allow = new Set((registry.unregisteredAllowlist || []).map((a) => a.commit));
+  const registered = (registry.batches || []).map((b) => b.commit);
+  const allow = (registry.unregisteredAllowlist || []).map((a) => a.commit);
   for (const c of fixCommits) {
-    if (!registered.has(c.hash) && !allow.has(c.hash)) {
+    if (!isCoveredBy(c.hash, registered) && !isCoveredBy(c.hash, allow)) {
       problems.push(
-        `fix 提交未登记：${c.hash} ${c.subject}——修复批必须在 fix-batch-registry.json 登记` +
+        `fix 提交未登记：${String(c.hash).slice(0, 12)} ${c.subject}——修复批必须在 fix-batch-registry.json 登记` +
           `（条目→文件 + totalItems 对账），或入 unregisteredAllowlist 带理由`
       );
     }
@@ -139,7 +161,7 @@ async function main() {
   }
 
   // ③ 增量完备性：cutoff..HEAD 的 fix/perf 提交必须已登记或豁免
-  const log = await gitAsync(['log', '--format=%h%x1f%s', `${registry.coverageCutoff}..HEAD`], {
+  const log = await gitAsync(['log', '--format=%H%x1f%s', `${registry.coverageCutoff}..HEAD`], {
     cwd: ROOT
   });
   if (

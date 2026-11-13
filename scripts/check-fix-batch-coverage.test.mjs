@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateBatch, evaluateRegistry } from './check-fix-batch-coverage.mjs';
+import { evaluateBatch, evaluateRegistry, isCoveredBy } from './check-fix-batch-coverage.mjs';
 
 const TAG = '[check-fix-batch-coverage.test]';
 let checks = 0;
@@ -79,6 +79,35 @@ const BATCH = {
   };
   const p = evaluateRegistry(reg, [{ hash: 'fff00011', subject: 'fix(gate): 门禁判据' }]);
   assert(p.length === 0, `豁免后应绿：${p.join('|')}`);
+}
+
+// 6b) 缩写宽度不一致也必须对上（2026-11-13 CI 真实故障的回归钉）
+//     注册表存的是各自机器上 `git log --%h` 的缩写（7/8/9 位不等），CI 全量对象库里
+//     同一条命令输出 9 位 ⇒ 旧的 Set.has() 精确比把 25 条登记全体判成「未登记」。
+{
+  const FULL = 'abcdef1234567890abcdef1234567890abcdef12';
+  const reg = {
+    coverageCutoff: '0000000',
+    batches: [{ ...BATCH, commit: 'abcdef12' }], // 登记表里只有 8 位
+    unregisteredAllowlist: [{ commit: 'ffff000', why: '7 位缩写豁免' }]
+  };
+  assert(
+    evaluateRegistry(reg, [{ hash: FULL, subject: 'fix(trade): 前缀匹配' }]).length === 0,
+    '登记 8 位 / 运行时 40 位 ⇒ 必须判为已登记'
+  );
+  assert(
+    evaluateRegistry(reg, [{ hash: 'ffff000123456789', subject: 'fix(gate): 豁免前缀' }]).length ===
+      0,
+    '豁免表 7 位前缀 ⇒ 必须判为已豁免'
+  );
+  const stillMissing = evaluateRegistry(reg, [
+    { hash: '9999888877776666555544443333222211110000', subject: 'fix(trade): 真未登记' }
+  ]);
+  assert(
+    stillMissing.length === 1 && stillMissing[0].includes('未登记'),
+    `前缀匹配不得放松判据：无关 commit 仍须红（${stillMissing.join('|')}）`
+  );
+  assert(isCoveredBy('abc', ['abcdef12']) === false, '短于 7 位的键不得算命中（防误配）');
 }
 
 // 7) 真实仓面：空登记表 + cutoff 必须可被 rev-parse 解析（由 main 校验），此处验表结构
