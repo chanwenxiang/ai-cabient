@@ -775,7 +775,9 @@ let riserCovered = 0;
 for (const method of RISER_METHODS) {
   const bodies = extractBracedBodies(serviceMasked, method);
   if (bodies.length === 0) {
-    problems.push(`ReplenishmentService 里切不出 ${method} 方法体（签名/结构漂移？）—— 规则 10 失去锚点`);
+    problems.push(
+      `ReplenishmentService 里切不出 ${method} 方法体（签名/结构漂移？）—— 规则 10 失去锚点`
+    );
     continue;
   }
   for (const body of bodies) {
@@ -811,7 +813,10 @@ if (!schedulerSrc.includes('cancelIfStatus(')) {
       '超时清扫退回「用扫描快照直写 CANCELLED」，会把并发完成的 COMPLETED 覆盖成取消'
   );
 }
-if (/taskRepository\.save\s*\(/.test(schedulerSrc) || schedulerSrc.includes('setStatus(STATUS_CANCELLED)')) {
+if (
+  /taskRepository\.save\s*\(/.test(schedulerSrc) ||
+  schedulerSrc.includes('setStatus(STATUS_CANCELLED)')
+) {
   problems.push(
     'ReplenishmentTimeoutScheduler 里又出现了「改实体再 save」的写法 —— ' +
       '清扫写状态必须走条件更新（WHERE status=快照态），否则并发完成的任务会被改回 CANCELLED'
@@ -822,9 +827,13 @@ const cancelIfBodies = [
   ...mapperSrc.matchAll(/@Update\("""([\s\S]*?)"""\)\s*int cancelIfStatus/gu)
 ].map((m) => m[1]);
 if (cancelIfBodies.length === 0) {
-  problems.push('ReplenishmentTaskMapper 里找不到 cancelIfStatus 的 @Update 注解 SQL —— 条件更新判据丢了');
+  problems.push(
+    'ReplenishmentTaskMapper 里找不到 cancelIfStatus 的 @Update 注解 SQL —— 条件更新判据丢了'
+  );
 } else if (
-  !cancelIfBodies.every((sql) => /status\s*=\s*#\{expectedStatus\}/.test(sql) && /status\s*=\s*'CANCELLED'/.test(sql))
+  !cancelIfBodies.every(
+    (sql) => /status\s*=\s*#\{expectedStatus\}/.test(sql) && /status\s*=\s*'CANCELLED'/.test(sql)
+  )
 ) {
   problems.push(
     'cancelIfStatus 的 SQL 不再同时含「写 CANCELLED」与「WHERE status=#{expectedStatus}」—— ' +
@@ -841,21 +850,31 @@ const NON_CONSUMER_KEY = 'NON_CONSUMER_SESSION_NOT_SETTLEABLE';
 const confirmSrc = maskJavaComments(read(CONFIRM_DISPUTE_FILE));
 const prepareBodies = extractBracedBodies(confirmSrc, 'prepareConfirmDispute');
 if (prepareBodies.length === 0) {
-  problems.push('SettlementConfirmDisputeService 里切不出 prepareConfirmDispute 方法体 —— 规则 11 失去锚点');
-} else if (!prepareBodies.every((b) => /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b))) {
+  problems.push(
+    'SettlementConfirmDisputeService 里切不出 prepareConfirmDispute 方法体 —— 规则 11 失去锚点'
+  );
+} else if (
+  !prepareBodies.every((b) =>
+    /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b)
+  )
+) {
   problems.push(
     'prepareConfirmDispute 不再判 isNonConsumerSession(...) —— ' +
       '补货员开门被迟到识别报到「有货未结算」后，运营点确认会从员工余额里扣货款（P2-3）'
   );
 }
 if (!confirmSrc.includes(NON_CONSUMER_KEY)) {
-  problems.push(`prepareConfirmDispute 的拒绝文案不再是 ${NON_CONSUMER_KEY} —— 客户端按文案分流会错`);
+  problems.push(
+    `prepareConfirmDispute 的拒绝文案不再是 ${NON_CONSUMER_KEY} —— 客户端按文案分流会错`
+  );
 }
 const disputeSrc = maskJavaComments(read(DISPUTE_FILE));
 const fileBodies = extractBracedBodies(disputeSrc, 'fileByConsumer');
 if (fileBodies.length === 0) {
   problems.push('DisputeService 里切不出 fileByConsumer 方法体 —— 规则 11 失去锚点');
-} else if (!fileBodies.every((b) => /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b))) {
+} else if (
+  !fileBodies.every((b) => /if\s*\(\s*DeviceValidationService\.isNonConsumerSession\s*\(/.test(b))
+) {
   problems.push(
     'DisputeService.fileByConsumer 不再判 isNonConsumerSession(...) —— ' +
       '补货会话能开消费者申诉单，而这类单永远结不了案（扣款闸会拒），运营界面成死单'
