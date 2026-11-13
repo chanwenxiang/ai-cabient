@@ -74,10 +74,7 @@
             <el-button type="primary" @click="walletsCrud.search()">查询</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button
-              plain
-              :loading="arrearsExporting"
-              @click="exportArrearsCsv"
+            <el-button plain :loading="arrearsExporting" @click="exportArrearsCsv"
               >导出欠款名单</el-button
             >
           </el-form-item>
@@ -149,8 +146,8 @@
                 label="账龄(天)"
                 width="100"
                 align="center"
-                class-name="col-number"
-                label-class-name="col-number"
+                class-name="col-status"
+                label-class-name="col-status"
               >
                 <template #default="{ row }">
                   <span v-if="(row.balanceCents ?? 0) < 0">
