@@ -1061,6 +1061,8 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_ALERT_ESCALATION_PHONE_WEBHOOK, "",
                 "告警升级二级：电话外呼网关 Webhook URL（留空跳过；短信失败后才会走到这里）");
         upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
+        upsertIfAbsent("ops.log_retention.temperature_days", "90",
+                "设备温度读数日志保留天数，0=不清理（GrowthLogArchiveScheduler 读取）");
         upsertIfAbsent("ops.log_retention.points_months", "12",
                 "【已废弃·请勿使用】积分流水是账本组成部分，禁止删除（见 GrowthLogArchiveScheduler）");
         // 扩展功能域（默认全关 = 维持现状）。🔴 seed 用**小写字面量**而非 FALSE 常量：
