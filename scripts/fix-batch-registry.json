@@ -244,6 +244,60 @@
           "why": "MerchantService 无订单仓储上下文，加门要动构造器依赖面；该入口有权限码+审计且当前入账已被门拦住，风险低于本批引入的改动面"
         }
       ]
+    },
+    {
+      "commit": "d760a9a7",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "实收判据抽成单源 OrderCollectionGate，RevenueSplitService 与结算侧共用（防分账挪了、积分没挪的半修状态）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderCollectionGate.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java"
+          ]
+        },
+        {
+          "id": "结算时 onOrderPaid 与 order_paid 通知包进实收门；PayScoreOrderNotifyService.handlePaid 补做两腿",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementOrderFinalizeService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PayScoreOrderNotifyTest.java"
+          ]
+        },
+        {
+          "id": "新增 SettlementUncollectedLegsTest：PENDING 不发不通知 + PAID 照旧（门没加反方向的哨兵）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SettlementUncollectedLegsTest.java"
+          ]
+        }
+      ],
+      "notAdopted": [
+        {
+          "id": "EXPIRED/REVOKED 终态仍无 void/clawback 动作",
+          "why": "门上线后未实收单从未入账、从未发分 ⇒ 无需追回；但历史存量里是否存在「未实收已入账」需要一次性对账 SQL 定性，不臆测补写"
+        }
+      ]
+    },
+    {
+      "commit": "6cea90e0",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "S9 审计证据式改锚调用点 /.s*appendLogs*(/，抽出 hasAuditCallEvidence 供夹具喂源码",
+          "files": ["scripts/check-write-action-attribution.mjs"]
+        },
+        {
+          "id": "夹具第 5 组 6 条断言（定义 vs 调用 vs 1-hop vs 2-hop 已知盲区），S8③ 判据改动同批带夹具",
+          "files": ["scripts/check-write-action-attribution.test.mjs"]
+        },
+        {
+          "id": "门头注 ⑤ 订正被推翻的「误判为可达不存在」自我豁免声明",
+          "files": ["scripts/check-write-action-attribution.mjs"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
