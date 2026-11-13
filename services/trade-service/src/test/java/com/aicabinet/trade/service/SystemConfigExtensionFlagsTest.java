@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -77,6 +78,13 @@ class SystemConfigExtensionFlagsTest {
         row.setConfigKey(key);
         row.setConfigValue(value);
         when(repository.findById(key)).thenReturn(Optional.of(row));
+        // P3-7：本类直接改 mock「库」，绕过了 upsert/delete 的写后失效；显式清缓存模拟
+        // 生产写路径（否则同一用例里二次 stub 会读到 30s TTL 内的旧值）。缓存命中/失效
+        // 两个不变式由 SystemConfigCacheTest 单独钉住，本类只管「下发值跟随库值」。
+        @SuppressWarnings("unchecked")
+        Map<String, ?> cache =
+                (Map<String, ?>) org.springframework.test.util.ReflectionTestUtils.getField(service, "configCache");
+        if (cache != null) cache.clear();
     }
 
     @Test

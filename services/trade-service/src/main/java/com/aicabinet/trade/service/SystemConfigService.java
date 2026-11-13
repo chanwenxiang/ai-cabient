@@ -1116,6 +1116,7 @@ public class SystemConfigService {
                 row.setDescription("侧栏展开时的品牌文案");
                 row.setUpdatedAt(Instant.now());
                 repository.save(row);
+                configCache.remove(OPS_BRAND_SIDEBAR_TITLE); // P3-7：bootstrap 写后失效，避免 30s TTL 内读到旧值
             }
         });
         repository.findById(OPS_BRAND_SUBTITLE).ifPresent(row -> {
@@ -1125,6 +1126,7 @@ public class SystemConfigService {
                 row.setDescription("运营后台副标题（登录页副文案）");
                 row.setUpdatedAt(Instant.now());
                 repository.save(row);
+                configCache.remove(OPS_BRAND_SUBTITLE); // P3-7：bootstrap 写后失效，避免 30s TTL 内读到旧值
             }
         });
         repository.findById(OPS_BRAND_LOGO_URL).ifPresent(row -> {
@@ -1132,6 +1134,7 @@ public class SystemConfigService {
                 row.setDescription("品牌标志图片地址（留空则用标题末字）");
                 row.setUpdatedAt(Instant.now());
                 repository.save(row);
+                configCache.remove(OPS_BRAND_LOGO_URL); // P3-7：bootstrap 写后失效，避免 30s TTL 内读到旧值
             }
         });
         refreshDescriptionIfPresent(REPLENISHMENT_CHECK_IN_REQUIRE_LOCATION,

@@ -1149,6 +1149,36 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 ### 二十四.4 遗留与部署
 - P3-7：不引新依赖，缓存 TTL 取 30s（最差 30s 可见配置变更，配置不需强一致）；若后续要更强一致可换 Caffeine 并接 `redis` 广播失效。
 - P3-8：XXL 触发线程池不可配属已知限制，门禁负责兜底；若升级 XXL 版本需重测。
-- 三处改动**未提交**，待本批精确 `git add` 自己的文件后提交（严格排除同仓并发会话的 `package.json`/`TradeServiceClient.java`/`OpsAlertDispatcher.java` 等半成品）。
+- 本批 13 个文件已精确 `git add` 后提交为 `9c49ddca`（严格排除同仓并发会话的 `package.json`/`TradeServiceClient.java`/`OpsAlertDispatcher.java` 等半成品）；回读 `git log`、`ci.yml` 六步接线与三个门禁正向/自测均已核实。
 - 后续：P3-1（状态列 CHECK 迁移 + 枚举自动对齐门禁）需单独一轮；5 条待定项（§十七.4）待产品拍板。
 
+## 二十五、P3-7 全量回归复核与回归修复（2026-11-13，磁盘级复扫）
+
+> 触发：用户问「应该都修了吧」⇒ 按铁律 2/7/8 做全局复扫，发现 §二十四 只做过定向单测，P3-7 之后**未补全量回归**。
+
+### 二十五.1 首次全量：2969 例 / 5 红，多出的一条是本批引入的
+
+`mvn -o -pl services/trade-service -am test` ⇒ **2969 例，4 failures + 1 error**。比 §二十 记录的 4 个存量红多 1 条：`SystemConfigExtensionFlagsTest.wxAdUnitId_isTrimmed_andBlankFallsBackToEmpty`（`expected: <> but was: <adunit-trimmed>`）。
+
+根因两层：① **测试侧**：该用例在同一方法内先 `stub(key, "  adunit-trimmed 
+")` 再 `stub(key, "   ")`，第二次读命中 30s 缓存；`stub()` 只改 mock 库，绕过写接口 ⇒ 未触发失效。② **生产侧真漏网**（铁律 75「修这一类」复扫发现）：bootstrap 修复循环里 3 处 `repository.save(row)`（品牌侧栏标题 / 副标题 / Logo URL）**没有** `configCache.remove(...)`；§二十四 只把「bootstrap 里的 `findById` 直读」按一次性迁移豁免，却漏了同区域的写。启动时缓存通常为空，但「旁路写 30s 不可见」仍是真实缺陷。
+
+### 二十五.2 修法（三处，钉一族而非一处）
+
+1. `SystemConfigService.java`：三处 `repository.save(row)` 后各补 `configCache.remove(OPS_BRAND_*)`，写路径失效覆盖 4 处 → **7 处**（4 个方法级写入口 + 3 个 bootstrap 旁路写）。
+2. `SystemConfigExtensionFlagsTest.java`：`stub()` 末尾显式清进程内缓存并注明「模拟生产写路径失效」；缓存命中/失效两个不变式仍由 `SystemConfigCacheTest` 专测，本类只钉「下发值跟随库值」。**原断言一字未改**。
+3. `scripts/check-system-config-cache.mjs`：新增 **R7 全族安全网**——抹注释后每一处 `repository.save/insert/updateById/deleteById/delete` 都必须在其后、下一个写调用之前配对 `configCache.remove`；片段按写调用切分，杜绝「借到后一个写调用的 remove」造成假绿。self-test 加第 8 个变异（删 bootstrap 任一 remove 必红）。
+
+### 二十五.3 复跑数字（实跑，非报告自报）
+
+- 门禁：正向 **7 组判据全绿**；`--self-test` **8 个变异 / 防假红断言全绿**、md5 零残留；P3-8 / P3-9 两门禁正向 + 自测同绿。
+- 定向单测：`SystemConfigExtensionFlagsTest` 8 + `SystemConfigCacheTest` 2 = **10/10 绿**（BUILD SUCCESS）。
+- 全量复跑：**2922 例 / 3 failures + 1 error = 4 红**，与 §二十 的存量红完全一致（`InventoryLotBatchDeductTest` 2 failures + 1 error、`JiangyiCabinetCaptureServiceTest` 1 failure），**无新增**。⚠️ 本轮为绕开并发会话半成品 `DataConsistencyServiceTest.java`（testCompile 报找不到 `payment_operation` / `device_sku_lot` 等符号）临时隔离该测试类，故总数比 2969 少 47 例；按「原路径是否被重建」判定还原，未覆盖对方内容。两次全量交叉 ⇒ 修复后红数确为存量 4。
+- 并发会话文件处置留痕：隔离期间对方重建了 `DataConsistencyServiceTest.java`（56KB，与 HEAD 一致、`git status` 为空）；我移出的 87KB WIP 副本保留在 `/tmp/DCS.backup2.java`，**未擅自覆盖**，需要时可取回。
+
+### 二十五.4 复扫结论（回答「都修了吧」）
+
+- **R20 本轮**：P1 10/10、P2 18/18 全部收口；P3 派修 9 条中 8 条落地。剩 **P3-1 只出蓝图、未落 V464 迁移**（dev 实测 100 个状态列 / 13 有 CHECK / 87 缺，禁止用稀疏值域推枚举）；**P3-2 判定为刻意设计，不修**。
+- **未修 ≠ 遗漏**：5 条待定项（§十七.4）需产品拍板；**V463 部署动作**（`package` + `force-recreate` 两步）未执行；P3-1 迁移需单独一轮带「源码写入点→枚举」自动对齐门禁。
+- **全仓层面更不能说「都修了」**：`docs/AUDIT_R23_PLAN_2026-11-12.md` 已立项第 23 轮全量审计（3 阶段、执行窗口待配额重置）；结构化台账第 4 批仍有显式欠账（S9 的 TBD 15、S10 的 TBD 33、S15 缺 18 条夹具、S13/S14 未排批）；R1–R17 核查报告 §四 的 9 条低危观察及「上线前人工」项（支付宝壳隐私政策入口 / 部署前探针）。这些属**新一轮 / 其它台账**范围，不在 R20 内。
+- 顺手修一处文档滞后：§二十四.4 原写「三处改动**未提交**」，磁盘核实已提交 `9c49ddca`，回读后改写。

@@ -8,8 +8,8 @@
  *   ② 判据贴真实责任边界：只取 getter / writer 的**方法体**，不全文 includes；
  *   ③ 修的是「这一类」：getValue/getInt/getBoolean/getDouble 全部汇聚到 loadConfigCached，
  *      且 upsert/delete/refreshDescriptionIfPresent/upsertIfAbsent 四处写后精准失效；
- *   ④ 全局安全网：除 loadConfigCached 外不得出现第二处直读 repository.findById(
- *      （写路径用 findByIdForUpdate，不算）；
+ *   ④ 全族安全网：抹注释后每一处直接写库（save/insert/updateById/deleteById/delete）
+ *      都必须配对 configCache.remove（bootstrap 修复循环的三处旁路写也算）；
  *   ⑤ 钉住单测两个不变式（缓存命中一次 / 写后失效），防「只钉语义不钉测试」。
  *
  * 用法：
@@ -156,6 +156,18 @@ function evaluate(read) {
     if (!test.includes(t)) bad(`SystemConfigCacheTest 缺测试 ${t}——缓存命中 / 写后失效不变式无人钉`);
   }
 
+  // ── R7 全族安全网：每一处直接写库都必须配对失效（旁路写也逃不掉） ──
+  // 片段取「该写调用 → 下一个写调用之前」，避免借到后一个写调用的 remove 造成假绿。
+  const writeRe = /repository\.(?:save|insert|updateById|deleteById|delete)\([^;]*\);/g;
+  const writes = [...impl.matchAll(writeRe)];
+  if (!writes.length) bad('未找到任何直接写库调用（R7 判据失效）');
+  writes.forEach((w, i) => {
+    const end = i + 1 < writes.length ? writes[i + 1].index : impl.length;
+    const seg = impl.slice(w.index, Math.min(end, w.index + 400));
+    if (!/configCache\.remove\(/.test(seg))
+      bad(`第 ${i + 1} 处直接写库未配对 configCache.remove（30s TTL 内会读到旧值）`);
+  });
+
   return problems;
 }
 
@@ -208,6 +220,12 @@ function selfTest() {
           '        // cache lookup disabled'
         ),
       'configCache.get('
+    ],
+    [
+      'bootstrap 旁路写漏掉缓存失效',
+      P.impl,
+      (s) => s.replace('configCache.remove(OPS_BRAND_SIDEBAR_TITLE);', ''),
+      '未配对 configCache.remove'
     ],
     [
       '测试删一条不变式断言',
@@ -276,5 +294,5 @@ if (process.argv.includes('--self-test')) {
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log('[check-system-config-cache] OK：配置读汇聚缓存 + 四处写后精准失效，6 组判据全绿');
+  console.log('[check-system-config-cache] OK：配置读汇聚缓存 + 四处写入口/三处 bootstrap 旁路写全族失效，7 组判据全绿');
 }
