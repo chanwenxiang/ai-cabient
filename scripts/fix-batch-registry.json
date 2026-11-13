@@ -317,6 +317,22 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "4049762a",
+      "report": "scripts/check-fix-batch-coverage.mjs",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "枚举改 --format=%H 全长 + isCoveredBy 前缀匹配（%h 宽度随仓库对象数变化 ⇒ CI 全量克隆下 25 条登记全体失配、8 笔被误报未登记）",
+          "files": ["scripts/check-fix-batch-coverage.mjs"]
+        },
+        {
+          "id": "夹具同批 +5 条：8位登记 vs 40位运行、7位豁免前缀、无关 40 位仍红、短于 7 位不得算命中",
+          "files": ["scripts/check-fix-batch-coverage.test.mjs"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
