@@ -77,8 +77,11 @@ class SessionKindFilterSqlIT {
         if (withTask) {
             // replenishment_task_id 是 bigint 且有外键 ⇒ 必须先有一条真任务（只 device_id 必填）
             // task_id 走序列默认值 ⇒ INSERT ... RETURNING 拿真主键（列名 task_no 不存在，别猜）
+            // status 必须取 V466（f3d4a3a1）chk_replenishment_task_status 允许的词（本用例只关心
+            // "有没有任务行"，状态不参与 sessionKind 判定）。'OPEN' 是加约束前的旧词，
+            // 会被 CHECK 拒掉 ⇒ DataIntegrityViolation；IT 只在 integration job 跑，那次改动没暴露。
             taskId = jdbc.queryForObject(
-                    "INSERT INTO replenishment_task (device_id, status) VALUES (?, 'OPEN') RETURNING task_id",
+                    "INSERT INTO replenishment_task (device_id, status) VALUES (?, 'PENDING') RETURNING task_id",
                     Long.class, device);
         }
         // JdbcTemplate 推不出 java.time.Instant 的 SQL 类型 ⇒ 用 Timestamp（仓内既有写法一致）

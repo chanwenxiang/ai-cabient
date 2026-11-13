@@ -702,6 +702,9 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - **R20-2 余项收口（同日第二批）**：判据抽成单源 `OrderCollectionGate.collected(order)`（未实收 = `PENDING`/`CANCELLED`；空状态按已实收处理，失败方向必须是"照常入账"而不是"静默不入账"）。结算时的 `memberService.onOrderPaid`（消费统计+返积分）与 `order_paid` 通知同样挪到实收确认点，`PayScoreOrderNotifyService.handlePaid` 补做；`onOrderPaid` 自带 ORDER 流水 orderId 去重 ⇒ 重进不双发。**订正一处我自己的过度陈述**：`freezePaidAmount` 其实早被实收证据门住——`chargedCompletedCents` 只累加 COMPLETED 的 CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE，支付分腿此刻无此流水 ⇒ 调用发生但写入 0；先前把它列进"仍在未实收时执行"是不准确的。
 - **S9 写归因门硬化（并行会话结论的复核产物）**：旧证据式 `/appendLog\s*\(/` 匹配**定义点**，而 1-hop 证据集含 `AdminAuditService`（`appendLog` 的定义类）⇒ 98 个写控制器里注入过它的 **17 个**恒判可达，删掉真实审计调用门不红（该门头注 ④ 原先还写着"误判为可达不存在"，方向记反，已订正）。现式锚调用点 `/\.\s*appendLog\s*\(/`；实证：抹掉 `OpsOtaController` 两处调用 ⇒ 两条红（零归因未登记 + 可达 71<72），还原 `cmp` 通过；夹具第 5 组 6 条断言，把实现退回旧式即 `EXIT=1`。**硬化上线不炸欠账**：新式重算可达 72 与基线逐字相等，`maxTbd` 不需重冻结 ⇒ 它补的是防退化能力，不是现漏。
 - ⚠️ **产物计数口径订正**：`a108b9c6` 提交信息里的「231 产物文件」是 `git status --porcelain` 把 rename 数成 D+?? 两次的口径；`git show --name-status` 真实为 **120 个文件（82 R + 4 A + 4 D + 1 M）**。报产物数一律以 `--name-status` 为准，别用 porcelain 行数。
+- ✅ **integration job 首次真跑（101 条 IT）只红 1 条**：`SessionKindFilterSqlIT.seedSession` 往 `replenishment_task` 插 `status='OPEN'`，被 `f3d4a3a1` 引入的 `chk_replenishment_task_status`（V466，值域 CANCELLED/COMPLETED/IN_PROGRESS/PENDING）拒成 `DataIntegrityViolation`。该用例只需要一条真任务行满足外键、状态不参与 sessionKind 判定 ⇒ 夹具改用 `'PENDING'` 并写明"这是 CHECK 之前的旧词"。
+  根因形态值得记：IT 只在 `integration` 作业跑，而该作业此前**从未执行过**（build 红 ⇒ 连带 skip），所以 11-13 12:56 加约束时就没人看见它打破用例。同批 8 条 CHECK 里其余 100 条 IT 全绿，说明只有这一处夹具引用了旧词。
+  连带修复见下两条：`1045fa5d`（mini-programs 浅克隆 + scheduler 夹具魔术数）、`4049762a`（`%h` 缩写宽度随仓库对象数变化 ⇒ 修-batch 登记在 CI 全量库里全体失配，改全长哈希 + 前缀匹配）。
 - **有意未做**：商户自助结清收款通道（PayPal 的「结清负余额」背后是真实收款通道；我方须先定支付产品/是否生成充值单，属产品拍板）；Stripe 式平台余额自动平账、PayPal 式外委催收（无资质通道）。
 
 ### 2026-11-12（文档治理：22 份历史报告归档 + 防假账门禁 check:ledger-evidence 上线）
