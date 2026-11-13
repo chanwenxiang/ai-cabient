@@ -16,6 +16,9 @@
  *      实证会误报 balance_refund_request=PENDING/PROCESSING、replenishment_task=PENDING_REVIEW
  *      （真身分别在通用常量与 LineWithdrawService/MerchantWithdrawService）。本判据是**单向、
  *      不完备**的必要检查：抓得到的一律不许越界，抓不到的靠部署前逐列脏值探针兜底。
+ *      🔴 第 12 批起键升级为 `${cls}::${getter}` 按列推 getter 精确锚定：DeviceInfo（online_status/
+ *      lifecycle_status 双列）、WarehouseOutbound（status/handover_status 双列）等同实体多状态列，
+ *      按类聚合会把 A 列写入值错拿去对 B 列 CHECK（跨列污染）。
  *
  * 用法：
  *   node scripts/check-status-enum-parity.mjs             # 正向门禁
@@ -40,7 +43,8 @@ const MIGRATIONS = [
   'V471__status_check_batch8_content.sql',
   'V472__status_check_batch9_sysdict_media.sql',
   'V473__status_check_batch10_ops_activations.sql',
-  'V474__status_check_batch11_user_account_status.sql'
+  'V474__status_check_batch11_user_account_status.sql',
+  'V475__status_check_batch12_dedicated_families.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -169,7 +173,10 @@ function collectDdlDefaults(sqlFiles) {
   return map;
 }
 
-/** R7：@TableName -> 实体类；带类名锚点的状态写入值（字面量 / 唯一常量 / CabinetConstants）。 */
+/** R7：@TableName -> 实体类；带类名锚点的状态写入值（字面量 / 唯一常量 / CabinetConstants）。
+ *  🔴 键 = `${cls}::${getter}`（按 getter 精确锚定）：DeviceInfo（status/online_status/lifecycle_status）、
+ *  WarehouseOutbound（status/handover_status）等同实体多状态列，若按实体类聚合会把 A 列写入值错拿去
+ *  对 B 列 CHECK（铁律 84② 判据贴真实责任边界）。 */
 function collectWriterValues(javaFiles, global) {
   const t2c = new Map();
   for (const [p, raw] of javaFiles) {
@@ -186,9 +193,9 @@ function collectWriterValues(javaFiles, global) {
   const byClass = new Map();
   for (const [, raw] of javaFiles) {
     const s = maskJava(raw);
-    const re = /set\s*\(\s*([A-Z]\w*)::get(?:Status|[A-Za-z]*Status)\s*,\s*("[^"]*"|CabinetConstants\.\w+|[A-Z][A-Z0-9_]*)\s*\)/g;
+    const re = /set\s*\(\s*([A-Z]\w*)::(get(?:Status|[A-Za-z]*Status))\s*,\s*("[^"]*"|CabinetConstants\.\w+|[A-Z][A-Z0-9_]*)\s*\)/g;
     for (const m of s.matchAll(re)) {
-      const cls = m[1], tok = m[2];
+      const cls = m[1], getter = m[2], tok = m[3];
       let vals = [];
       if (tok.startsWith('"')) vals = [tok.slice(1, -1)];
       else if (tok.startsWith('CabinetConstants.')) {
@@ -199,8 +206,9 @@ function collectWriterValues(javaFiles, global) {
         // 同名常量映射到多个值时放弃（歧义 ⇒ 不判，避免假红）
         if (set && set.size === 1) vals = [...set];
       }
-      if (!byClass.has(cls)) byClass.set(cls, new Set());
-      for (const v of vals) byClass.get(cls).add(v);
+      const key = `${cls}::${getter}`;
+      if (!byClass.has(key)) byClass.set(key, new Set());
+      for (const v of vals) byClass.get(key).add(v);
     }
   }
   return { t2c, byClass };
@@ -286,9 +294,10 @@ function evaluate(input) {
         bad(`${key} 的 DDL DEFAULT '${dv}' 不在 CHECK 值域（默认插入会被拒）`);
     }
 
-    // R7：带类名锚点的源码写入值 ⊆ CHECK 值域
+    // R7：带类名锚点的源码写入值 ⊆ CHECK 值域（按列名推 getter 精确锚定，防同实体多状态列跨列污染）
     const cls = t2c.get(t.table);
-    const writers = cls ? [...(byClass.get(cls) || [])].sort() : [];
+    const expectedGetter = 'get' + t.column.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+    const writers = (cls && byClass.get(`${cls}::${expectedGetter}`)) ? [...byClass.get(`${cls}::${expectedGetter}`)].sort() : [];
     if (cls && c) for (const v of writers)
       if (!c.values.includes(v))
         bad(`${key} 源码锚点写入值 '${v}' 不在 CHECK 值域（上线写入会失败）`);
@@ -403,6 +412,14 @@ function selfTest() {
       (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
     ['V474 CHECK 漏 DELETED（复活第 10 批陷阱）', MIGRATIONS[10],
       (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE','DELETED'\)\)/, "CHECK (status IN ('ACTIVE','INACTIVE'))"), 'CHECK 值域与字典族不同源'],
+    ['V475 迁移删掉一条约束', MIGRATIONS[11],
+      (s) => s.replace(/ALTER TABLE device_sku_lot[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['V475 迁移去掉 NOT VALID', MIGRATIONS[11],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['V475 CHECK 漏一个合法状态（族=CHECK 严判）', MIGRATIONS[11],
+      (s) => s.replace(/CHECK \(status IN \('ON_SALE','NEAR_EXPIRY','BLOCKED','DEPLETED'\)\)/, "CHECK (status IN ('ON_SALE','NEAR_EXPIRY','BLOCKED'))"), 'CHECK 值域与字典族不同源'],
+    ['V475 多状态列跨列污染回归（R7 按 getter 锚定后仍须咬住）', MIGRATIONS[11],
+      (s) => s.replace(/CHECK \(lifecycle_status IN \('IDLE','INBOUND','DEPLOYED','RETURNING','RETIRED'\)\)/, "CHECK (lifecycle_status IN ('IDLE','INBOUND','RETURNING','RETIRED'))"), 'CHECK 值域与字典族不同源'],
     ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
       (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
                        "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']

@@ -1,7 +1,7 @@
 {
-  "batch": 11,
+  "batch": 12,
   "baselineMissingCheck": 87,
-  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）。",
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）；第 12 批转入②类：7 列复用既有专用族（upload_status/handover_status×2/device_lifecycle/inventory_lot_status/risk_disposition_status/sku_review_status），零新族，门禁 R7 同批升级为按 getter 精确锚定（防同实体多状态列跨列污染）。",
   "tables": [
     {
       "table": "cabinet_order",
@@ -371,9 +371,72 @@
       "chain": "ops",
       "batch": 11,
       "migration": "V474__status_check_batch11_user_account_status.sql"
+    },
+    {
+      "table": "shopping_session",
+      "column": "upload_status",
+      "dictFamily": "upload_status",
+      "constraint": "chk_shopping_session_upload_status",
+      "chain": "device",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "warehouse_outbound",
+      "column": "handover_status",
+      "dictFamily": "handover_status",
+      "constraint": "chk_warehouse_outbound_handover_status",
+      "chain": "order",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "warehouse_outbound_line",
+      "column": "handover_status",
+      "dictFamily": "handover_status",
+      "constraint": "chk_warehouse_outbound_line_handover_status",
+      "chain": "order",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "device_info",
+      "column": "lifecycle_status",
+      "dictFamily": "device_lifecycle",
+      "constraint": "chk_device_info_lifecycle_status",
+      "chain": "device",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "device_sku_lot",
+      "column": "status",
+      "dictFamily": "inventory_lot_status",
+      "constraint": "chk_device_sku_lot_status",
+      "chain": "device",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "risk_event",
+      "column": "disposition_status",
+      "dictFamily": "risk_disposition_status",
+      "constraint": "chk_risk_event_disposition_status",
+      "chain": "dispute",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "sku_delist_review",
+      "column": "review_status",
+      "dictFamily": "sku_review_status",
+      "constraint": "chk_sku_delist_review_review_status",
+      "chain": "masterdata",
+      "batch": 12,
+      "migration": "V475__status_check_batch12_dedicated_families.sql"
     }
   ],
-  "maxPendingColumns": 46,
+  "maxPendingColumns": 39,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",
@@ -393,12 +456,13 @@
     "revenue_share_detail.status",
     "revenue_share_rule.status",
     "staff_commission_daily.status",
+    "device_lifecycle_event.from_status",
+    "device_lifecycle_event.to_status",
     "ops_permission.status",
-    "jiangyi_class_mapping.status",
     "notification_template.status"
   ],
-  "excludedNote": "业务链候选 39 列中前 8 批覆盖 20 列；第 9~11 批覆盖 11 列（第 9~10 批用通用族 active_inactive_status 10 列、第 11 批用专用族 user_account_status 收口 user_info 并从本名单解停泊）。本名单余下列为显式欠账：无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，不为减小数字硬造值域。第 10 批登记排除 ops_permission(dev 含 RETIRED)/jiangyi_class_mapping(dev 含 DISABLED)/notification_template(前端无停用入口)；user_info 已于第 11 批以三值族 {ACTIVE,INACTIVE,DELETED} 收口（源码穷举：AccountService:158 写 DELETED 账号注销 + OpsRbacService:524 写 INACTIVE 运营封禁 + normalizeAccountStatus 白名单仅 ACTIVE/INACTIVE）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
-  "pendingNote": "dev 实测 87 列缺 CHECK，累计覆盖 41 列 ⇒ 账面欠账 46，棘轮只减不增（门禁自动派生校验）。",
+  "excludedNote": "业务链候选 39 列中前 8 批覆盖 20 列；第 9~11 批覆盖 11 列（第 9~10 批用通用族 active_inactive_status 10 列、第 11 批用专用族 user_account_status 收口 user_info 并从本名单解停泊）；第 12 批起转入②类复用既有专用族覆盖 7 列。本名单余下列为显式欠账：无权威字典族 / 源码值域与字典族不符 / 历史轨迹列 / 表由未部署迁移创建，不为减小数字硬造值域。第 10 批登记排除 ops_permission(dev 含 RETIRED)/jiangyi_class_mapping(dev 含 DISABLED)/notification_template(前端无停用入口)；第 12 批新增排除 device_lifecycle_event.from_status/to_status(历史轨迹列，同 repair_ticket_event 先例)；jiangyi_class_mapping.status 已销案出名单（dev 历史迁移 ck_jiangyi_class_status {ACTIVE,DISABLED} 已收口，2026-11-13 实测）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
+  "pendingNote": "dev 实测 87 列缺 CHECK（2026-11-12 基线口径，冻结），累计覆盖 48 列 ⇒ 账面欠账 39，棘轮只减不增（门禁自动派生校验）。2026-11-13 复测当前实际缺 CHECK 86 列：jiangyi_class_mapping.status 已由历史迁移 ck_jiangyi_class_status {ACTIVE,DISABLED} 收口（销案出本名单），另有约 6 列属未部署迁移将建的表（franchise_settlement/line_manager_settlement/order_split_return_leg/revenue_share_detail/revenue_share_rule 等，部署后按批处理）。",
   "nextChainExcluded": [
     {
       "column": "warehouse_bin.status",

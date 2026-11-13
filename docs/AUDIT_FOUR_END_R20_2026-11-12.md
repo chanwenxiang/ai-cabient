@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 11 批 / 41 列（§二十六~§三十一，余 46 列为显式欠账 + 21 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 12 批 / 48 列（§二十六~§三十二，余 39 列为显式欠账 + 22 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 11 批（§二十六~§三十一）**——V464~V474 共 41 列、门禁 7 组判据 / 31 变异、真库验收，余 46 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 12 批（§二十六~§三十二）**——V464~V475 共 48 列、门禁 7 组判据 / 35 变异、真库验收，余 39 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1534,3 +1534,36 @@ DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然
 - 其余 46 列仍分两类：① 纯启用/停用列继续复用 `active_inactive_status`（候选池已收敛，第 10 批即排除 4 列）；② 需补专用字典族或值域与族实证不符，留待后续批次（CB-036 边界）。
 - 部署仍待：V463 + V464~V474 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的迁移 / 字典双端 / 实体注释 / 清单 / 门禁 / 报告（铁律 61）。
+
+## 三十二、P3-1 第 12 批：转入②类复用既有专用族销账 7 列 + R7 按 getter 精确锚定（2026-11-13）
+
+### 三十二.1 候选池收敛与复用路线（零新族）
+
+- 纯启用/停用池经第 9~11 批已收敛（第 10 批即排除 4 列），本批起转入②类。对 dev 库重跑权威探针（修正 `format_type` 类型匹配——`LIKE 'varchar%'` 永假，须用 `pg_type.typname='varchar'`），当前实际缺 CHECK 86 列，扣除已覆盖 41 与登记排除后剩余候选约 29 列。
+- 交叉匹配现有字典族后选定 **7 列全部复用既有专用族，零新族**（字典双端零改动）：shopping_session.upload_status←`upload_status`、warehouse_outbound(.line).handover_status←`handover_status`、device_info.lifecycle_status←`device_lifecycle`、device_sku_lot.status←`inventory_lot_status`、risk_event.disposition_status←`risk_disposition_status`、sku_delist_review.review_status←`sku_review_status`。
+- 域实证（六种写入形态穷举，含 setter 形态——R7 类锚点只覆盖 LambdaUpdateWrapper 形态）：handover=WarehouseService 11 处写点（READY/IN_TRANSIT/CANCELLED/RECEIVED/PARTIAL）；lifecycle=DeviceAssetService 状态机 `LIFECYCLE=Set.of(INBOUND,IDLE,DEPLOYED,RETURNING,RETIRED)` 与族键**完全一致**；lot=InventoryLotService resolveLotStatus 只返回族内值；disposition=RiskAutoDispositionService（AUTO_CLEARED/ACKED，OPEN 为 DDL 默认）；review=SkuDelistReviewService 恰好 4 族值；upload_status 实体默认 NONE、全仓零运行时写点。7 列 DDL DEFAULT 全 ∈ 族。
+
+### 三十二.2 🔴 门禁 R7 升级：`${cls}::${getter}` 按列精确锚定（防跨列污染）
+
+- 本批暴露 R7 的**同实体多状态列跨列污染**缺陷：DeviceInfo 同表有 online_status（第 6 批，族 {ONLINE,OFFLINE,UNKNOWN}）与 lifecycle_status（本批，族 {IDLE,INBOUND,DEPLOYED,RETURNING,RETIRED}）两列；WarehouseOutbound 同表有 status（第 3 批）与 handover_status（本批）两列。原 R7 按实体类聚合全部写入值再对每列 CHECK 判包含，ONLINE 会被错拿去对 device_lifecycle 族、SHIPPED 会被错拿去对 handover 族 ⇒ 假红。
+- 升级：写入值键由 `${cls}` 改为 `${cls}::${getter}`，R7 按列名推 getter（`handover_status`→`getHandoverStatus`）精确取**该列自己**的写入值。41 列存量回归全绿，self-test 31 仍全过。
+
+### 三十二.3 🔴 基线对账勘误（铁律 9/10：数字逐一核实）
+
+- dev 库 Flyway 实际停在 **V458**（运行中 jar 为 11-12 16:13 构建，V459~V475 未部署——与既知两步部署待办一致），故 41+ 列在 dev 仍缺 CHECK。
+- 历史迁移（V451~V458 时期，非本程序）已用 `ck_*` 命名收口约 10 列：jiangyi_class_mapping/jiangyi_device/sku_jiangyi_link.sync_status/warehouse_monthly_close/warehouse_transfer_order/merchant_payment_onboarding/device_data_fee_bill/line_promo_task/site_rent_bill/site_rent_split_rule。其中 `jiangyi_class_mapping.status`（第 10 批因「dev 含 DISABLED」登记排除）自 excludedColumns **销案**：`ck_jiangyi_class_status {ACTIVE,DISABLED}` 已收口（2026-11-13 实测）。`baselineMissingCheck=87` 冻结不变（禁止改口径），棘轮按 `87 − 已覆盖` 派生不受影响。
+- excludedColumns 同步修正：franchise_settlement / line_manager_settlement / order_split_return_leg / revenue_share_detail / revenue_share_rule 5 列的表由未部署迁移创建（dev 无此表），属合法排除待部署后按批处理。
+
+### 三十二.4 落 V475 + 清单 + 门禁 + 真库验收
+
+- **`V475__status_check_batch12_dedicated_families.sql`**：7 条 NOT VALID，迁移头含逐列写入点穷举、R7 升级说明、对账勘误、脏值探针 SQL。
+- **清单**：`tables` 41 → 48、`maxPendingColumns` 46 → 39（R5 派生 `87 − 48`）、`batch`=12；excludedColumns + device_lifecycle_event.from_status/to_status（历史轨迹列，同 repair_ticket_event 先例）− jiangyi_class_mapping.status（销案）。
+- **门禁**：`MIGRATIONS` 增 V475（第 12 个）；self-test 增 4 个 V475 变异（含「lifecycle 漏 DEPLOYED」钉族=CHECK 严判）。**正向门禁 48 列三方对齐 + 12 迁移全 NOT VALID + 棘轮 39 全绿；self-test 35 变异全绿、md5 零残留。**
+- **真库验收**（一次性 PG 16-alpine，事务内零残留）：7 约束生效；11 次插入成功（7 默认 + 4 族内值）；4 类越界全被拦——**含两个跨列活体测试**：lifecycle_status 塞同实体邻列值 `ONLINE` 被拒、handover_status 塞同表主状态值 `SHIPPED` 被拒（约束真钉在列上）；ROLLBACK 零残留，容器即删。
+
+### 三十二.5 欠账销账与遗留
+
+- 账面欠账 **46 → 39**（累计 3+20+7+3+7+1+7 = 48 列，`87 − 48`），棘轮只减不增。
+- 剩余候选约 20 列：无族列需建专用族（approval_instance/approval_task 审批链、user_coupon 兑换券、promotion_activity 营销活动、notification_log、merchant.audit_status、ota_*、invoice_request、line_device/line_route/line_route_member、device_mqtt_credential、external_import_batch、device_rental_deposit、pull_off_task、shopping_session.preauth_status、user_realname_auth.auth_status、warehouse_inbound、purchase_order_line.quality_status 等），须逐列建族+双端字典，工作量大于复用批，按链分批。
+- 部署仍待：V463 + V464~V475 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的迁移 / 清单 / 门禁 / 报告（铁律 61）；期间按铁律 69 以 `up -d --pull never --no-deps postgres` 恢复了被 Docker 守护进程重启杀掉的 dev postgres（只读探针，未动栈）。
