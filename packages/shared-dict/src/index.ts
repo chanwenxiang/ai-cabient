@@ -332,6 +332,12 @@ export const DICT = {
     DRAFT: '草稿',
     STOPPED: '已停止'
   },
+  /** R20 P3-1：纯启用/停用通用族（仅 ACTIVE/INACTIVE）。与 enable_status 分离：enable_status 因 MA-146
+   *  一型两义 DRAFT/STOPPED 别名导致两端口键集不相等，门禁跨端对齐会红，故启用停用列另起此族。 */
+  active_inactive_status: {
+    ACTIVE: '启用',
+    INACTIVE: '停用'
+  },
   /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
   bin_status: {
     ACTIVE: '启用',

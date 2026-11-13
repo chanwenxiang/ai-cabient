@@ -1,7 +1,7 @@
 {
-  "batch": 8,
+  "batch": 9,
   "baselineMissingCheck": 87,
-  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~5 批按资金/订单/争议/对账链，第 6~8 批按设备/资产、主数据/组织、内容/运营链。",
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列。",
   "tables": [
     {
       "table": "cabinet_order",
@@ -272,9 +272,36 @@
       "chain": "content",
       "batch": 8,
       "migration": "V471__status_check_batch8_content.sql"
+    },
+    {
+      "table": "sys_dict_data",
+      "column": "status",
+      "dictFamily": "active_inactive_status",
+      "constraint": "chk_sys_dict_data_status",
+      "chain": "ops",
+      "batch": 9,
+      "migration": "V472__status_check_batch9_sysdict_media.sql"
+    },
+    {
+      "table": "sys_dict_type",
+      "column": "status",
+      "dictFamily": "active_inactive_status",
+      "constraint": "chk_sys_dict_type_status",
+      "chain": "ops",
+      "batch": 9,
+      "migration": "V472__status_check_batch9_sysdict_media.sql"
+    },
+    {
+      "table": "media_asset",
+      "column": "status",
+      "dictFamily": "active_inactive_status",
+      "constraint": "chk_media_asset_status",
+      "chain": "ops",
+      "batch": 9,
+      "migration": "V472__status_check_batch9_sysdict_media.sql"
     }
   ],
-  "maxPendingColumns": 57,
+  "maxPendingColumns": 54,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",

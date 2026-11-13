@@ -189,6 +189,10 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));
         map.put("enable_status", t("启用状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用", "ENDED", "已结束")));
+        // R20 P3-1：纯启用/停用通用族（仅 ACTIVE/INACTIVE，不含 ENDED 别名），供无专用族的启用停用列复用；
+        // 不能复用 enable_status（MA-146 一型两义 DRAFT/STOPPED 别名导致两端口键集不相等，门禁会红）。
+        map.put("active_inactive_status", t("启用/停用", m(
+                CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", INACTIVE, "停用")));
         // MA-018：货位状态独立成 bin_status（DISABLED 只在这里用），避免与 enable_status 的「停用」同名
         map.put("bin_status", t("货位状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));

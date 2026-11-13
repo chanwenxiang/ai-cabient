@@ -767,11 +767,11 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 8 批 / 30 列（§二十六~§二十八，余 57 列为显式欠账 + 19 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 9 批 / 33 列（§二十六~§二十九，余 54 列为显式欠账 + 19 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
-| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **已落 8 批 / 30 列（§二十六~§二十八）**：V464 核心 3 列 + V465~V468 四条业务链 20 列 + V469~V471 设备/主数据/内容链 7 列，值域自动对齐字典族 + shared-dict，全部 `NOT VALID`，真库事务内验收通过。余 **57 列**显式欠账（清单 `maxPendingColumns=57` 棘轮只减）+ 19 + 2 列登记排除。`VALIDATE` 与部署前脏值探针仍待运维按表执行 |
+| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **已落 9 批 / 33 列（§二十六~§二十九）**：V464 核心 3 列 + V465~V468 四条业务链 20 列 + V469~V471 设备/主数据/内容链 7 列 + V472 通用族 3 列，值域自动对齐字典族 + shared-dict，全部 `NOT VALID`，真库事务内验收通过。余 **54 列**显式欠账（清单 `maxPendingColumns=54` 棘轮只减）+ 19 + 2 列登记排除。`VALIDATE` 与部署前脏值探针仍待运维按表执行 |
 | 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
 | 4 | ~~无主/渠道不符回调静默 200，无告警痕迹~~ **已修（§二十二）** | 报告只点名两处，实修 10 类分支（微信/支付宝充值各 3 + 退款通知 2 + 退款同步 2）；统一 `alertSilentCallback` 收口。**关键修正**：`OpsAlertDispatcher.fanout` 未配渠道时静默返回，只发告警仍是零痕迹 ⇒ 必须同时落 `log.error` |
 | 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 8 批（§二十六~§二十八）**——V464~V471 共 30 列、门禁 7 组判据 / 21 变异、真库验收，余 57 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 9 批（§二十六~§二十九）**——V464~V472 共 33 列、门禁 7 组判据 / 24 变异、真库验收，余 54 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1403,3 +1403,53 @@ R1~R5 同步扩展：清单四要素（表/列/约束/**迁移文件**）一一�
 - 剩余：**57 列**按链继续分批；V463 + V464~V471 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - `check-migration-immutable` 仍是 §二十七.7 记录的历史红（与本批无关，按铁律 61 不代修）。
 - ⚠️ 并发会话工作区持续有大量 WIP（client/controller 十余个文件、多个未跟踪门禁夹具），本轮只精确改自己的迁移 / 清单 / 门禁 / 报告，未碰 `package.json` 与对方 WIP（铁律 61）。
+
+## 二十九、P3-1 第 9 批：引入通用族 active_inactive_status 销账 3 列（2026-11-13）
+
+> 用户指令「按照你的推荐做」：第 8 批收口后，剩余账面 54 列中大量 DDL 静态列无同源字典族，「按链直接写迁移」已走到尽头——再往下必须先把设备/营销/审批等链补 `SysDictBootstrap + shared-dict` 同源字典族，否则就是硬造值域。本批先做最务实的一步：为「纯启用/停用、无专用族」的列新建通用族 `active_inactive_status = {ACTIVE,INACTIVE}`，销账已硬编码确认值集的 3 列（`sys_dict_data` / `sys_dict_type` / `media_asset`），欠账 57 → 54。
+
+### 二十九.1 为什么不能复用 enable_status（关键陷阱）
+
+`enable_status` 字典族因 **MA-146 一型两义别名**导致两端口键集不相等：
+
+- 后端（`SysDictBootstrap`）：`{ACTIVE, INACTIVE, ENDED}`（3 键）
+- 前端（`shared-dict`）：`{ACTIVE, INACTIVE, ENDED, DRAFT, STOPPED}`（5 键，DRAFT/STOPPED 为刻意保留别名，删之会洗未知）
+
+门禁 R2/R7 跨端自动对齐要求两端口字面**完全相等**，映射 `enable_status` 必红。故新建 `active_inactive_status` 纯 `{ACTIVE,INACTIVE}` 通用族，两端口字面相等，门禁对齐通过。
+
+### 二十九.2 三列源码实证（非宽扫）
+
+| 表 | 状态列 | 实证写入点 | 值域 |
+|---|---|---|---|
+| `sys_dict_data` | `status` | `SysDictService:340 normalizeStatus()` 强制 `status IN {ACTIVE,INACTIVE}` | ACTIVE/INACTIVE |
+| `sys_dict_type` | `status` | 同上（字典类型状态归一化同一函数） | ACTIVE/INACTIVE |
+| `media_asset` | `status` | `MediaAssetService:157-158` 白名单「status 仅支持 ACTIVE/INACTIVE」 | ACTIVE/INACTIVE |
+
+DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然放行（与既有 30 列口径一致）。
+
+### 二十九.3 落 V472 + 门禁 bug 修复
+
+- 新建 `V472__status_check_batch9_sysdict_media.sql`：3 条 `ALTER TABLE ... ADD CONSTRAINT ... CHECK (status IN ('ACTIVE','INACTIVE')) NOT VALID`，迁移头含 `MIGRATION_KIND: schema` / `COMPETITOR_REF: CB-036` / `MIGRATION_REVIEWED` / `LOCK_RISK: medium` / `TABLES` / `NOTES`（含 enable_status 不可复用说明 + 逐列脏值探针 SQL）。
+- `SysDictBootstrap.java` 与 `packages/shared-dict/src/index.ts` 各自新增 `active_inactive_status` 族（两端口字面相等）。
+- `scripts/status-check-inventory.json`：`tables` 30 → 33、`maxPendingColumns` 57 → 54（R5 自动派生 `87 − 33`）、`batch`=9、新增 3 条登记。
+- 🔴 **门禁自测 bug 修复（铁律 4/38）**：原「V472 CHECK 漏一个合法状态」变异用 `s.replace(",'INACTIVE'", '')`，会命中迁移头注释示例 `NOT IN ('ACTIVE','INACTIVE')` 而非约束行 → 假绿。改用精确正则 `/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/` 只匹配约束行，24 变异全绿、md5 零残留。另修「欠账棘轮被改大」变异由钉死旧值 57 改为正则 `\d+` 自适应（棘轮改动后仍能命中）。
+
+### 二十九.4 真库验收（独立一次性 PG 16，事务内零残留）
+
+| 判据 | 结果 |
+|---|---|
+| 3 个合法值（ACTIVE/INACTIVE 各表）+ 3 个 DDL 默认 + 3 个 NULL 放行 | ✅ 9 次 `INSERT 0 1` 成功 |
+| 越界串 `TOTALLY_BOGUS` 逐表被拒 | ✅ 3 张表越界全部被 CHECK 拒绝 |
+| 报表按状态聚合行数守恒 | ✅ 3 张表聚合行数守恒（越界 0 行） |
+| NULL 三值语义（事务内临时去 NOT NULL） | ✅ 3 张表 NULL 放行 |
+| `BEGIN; … ROLLBACK;` 零残留 | ✅ `AFTER_ROLLBACK constraints=0 / tables=0` |
+| 永久应用 3 个迁移的 `NOT VALID` 语义 | ✅ `APPLIED total=3 validated_true=0` |
+
+`PSQL_EXIT=0`，一次性容器用完即删、未动共享 dev 栈（铁律 69）。仍是空库验收，生产存量脏值须按迁移头探针 SQL 逐列核对后再 `VALIDATE`。
+
+### 二十九.5 欠账销账与遗留
+
+- 账面欠账 **57 → 54**（累计 3 + 20 + 7 + 3 = 33 列，`87 − 33`），棘轮只减不增，由门禁 R5 自动派生校验。
+- 其余 54 列分两类：① 纯启用/停用列可批量复用本批 `active_inactive_status` 通用族（需逐列源码实证确认值集，不为减小数字硬造）；② 需补专用字典族（设备/营销/审批等链）或值域与族实证不符，留待后续批次或字典层管控（CB-036 边界）。
+- 部署仍待：V463 + V464~V472 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮只精确改自己的迁移 / 字典双端 / 清单 / 门禁 / 报告（铁律 61）。
