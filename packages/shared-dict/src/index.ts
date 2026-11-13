@@ -346,6 +346,41 @@ export const DICT = {
     INACTIVE: '停用',
     DELETED: '已注销'
   },
+  /** R20 P3-1 第 13 批：审批链两列域不同（instance 无 SKIPPED）必须分族；CANCELLED 全仓无写点不入域。 */
+  approval_instance_status: {
+    PENDING: '待审批',
+    APPROVED: '已通过',
+    REJECTED: '已驳回'
+  },
+  approval_task_status: {
+    PENDING: '待审批',
+    APPROVED: '已通过',
+    SKIPPED: '已跳过',
+    REJECTED: '已驳回'
+  },
+  /** R20 P3-1 第 13 批：用户券状态（发放/核销/过期）。 */
+  coupon_status: {
+    UNUSED: '待使用',
+    USED: '已使用',
+    EXPIRED: '已过期'
+  },
+  /** R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
+   *  normalizeProgressStatus 对白名单外 fail-closed）；通知发送域单值 SENT（全仓写点恒 SENT，零 FAILED）。 */
+  ota_release_status: {
+    DRAFT: '草稿',
+    PUBLISHED: '已发布',
+    UNPUBLISHED: '已下架'
+  },
+  ota_upgrade_status: {
+    IDLE: '未开始',
+    DOWNLOADING: '下载中',
+    INSTALLING: '安装中',
+    SUCCESS: '成功',
+    FAILED: '失败'
+  },
+  notification_log_status: {
+    SENT: '已发送'
+  },
   /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
   bin_status: {
     ACTIVE: '启用',

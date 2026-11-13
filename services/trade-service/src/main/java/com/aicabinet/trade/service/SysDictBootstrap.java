@@ -197,6 +197,23 @@ public class SysDictBootstrap implements ApplicationRunner {
         // AuthService 登录闸门拒绝）；不入 active_inactive_status 通用族——通用族仅两值，硬塞会把「注销」与「停用」混进同一语义池。
         map.put("user_account_status", t("账号状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "正常", INACTIVE, "停用", "DELETED", "已注销")));
+        // R20 P3-1 第 13 批：审批链两列域不同（instance 无 SKIPPED，task 有）——R2 要求 CHECK 与族字面相等，必须分族，不为凑数放宽。
+        // CANCELLED 仅存在于重启守卫的防御性读取（ApprovalWorkflowService:172），全仓无写点，不入域。
+        map.put("approval_instance_status", t("审批单状态", m(
+                STATUS_PENDING, "待审批", "APPROVED", "已通过", "REJECTED", "已驳回")));
+        map.put("approval_task_status", t("审批任务状态", m(
+                STATUS_PENDING, "待审批", "APPROVED", "已通过", "SKIPPED", "已跳过", "REJECTED", "已驳回")));
+        // R20 P3-1 第 13 批：用户券状态（发放 UNUSED / 核销 USED / 过期任务 EXPIRED / 退款回滚 UNUSED）。
+        map.put("coupon_status", t("用户券状态", m(
+                CabinetConstants.COUPON_STATUS_UNUSED, "待使用", CabinetConstants.COUPON_STATUS_USED, "已使用", CabinetConstants.COUPON_STATUS_EXPIRED, "已过期")));
+        // R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
+        // normalizeProgressStatus 对白名单外 fail-closed 抛错，设备自由文本入不了库）；通知发送域单值 SENT（3 处硬编码写点+实体默认，零 FAILED）。
+        map.put("ota_release_status", t("OTA 发布状态", m(
+                "DRAFT", "草稿", "PUBLISHED", "已发布", "UNPUBLISHED", "已下架")));
+        map.put("ota_upgrade_status", t("OTA 升级状态", m(
+                "IDLE", "未开始", "DOWNLOADING", "下载中", "INSTALLING", "安装中", "SUCCESS", "成功", "FAILED", "失败")));
+        map.put("notification_log_status", t("通知发送状态", m(
+                "SENT", "已发送")));
         // MA-018：货位状态独立成 bin_status（DISABLED 只在这里用），避免与 enable_status 的「停用」同名
         map.put("bin_status", t("货位状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));
