@@ -173,7 +173,7 @@ function extractChecks(sql) {
 /** R6：从全部 V*.sql 的 CREATE TABLE 块 + ALTER TABLE ADD COLUMN 自动提取 table.column -> DEFAULT 字面量。 */
 function collectDdlDefaults(sqlFiles) {
   const map = new Map();
-  for (const [p, raw] of sqlFiles) {
+  for (const [, raw] of sqlFiles) {
     const s = maskSql(raw);
     const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(/gi;
     let m;
