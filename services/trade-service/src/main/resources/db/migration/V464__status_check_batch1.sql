@@ -1,5 +1,5 @@
 -- MIGRATION_KIND: schema
--- COMPETITOR_REF: CB-086,CB-036
+-- COMPETITOR_REF: CB-036
 -- MIGRATION_REVIEWED: yes
 -- LOCK_RISK: medium（三条 ADD CONSTRAINT ... NOT VALID 只取短暂 ACCESS EXCLUSIVE 且**不扫存量行**；
 --            不带 NOT VALID 会全表扫并持锁，核心老表禁止。VALIDATE CONSTRAINT 需按表量级评估后单独执行）
@@ -9,7 +9,9 @@
 --        并由 check-status-enum-parity.mjs 与跨端 shared-dict 自动对齐（新增状态未同步约束 ⇒ CI 红）。
 --        🔴 禁止用 dev 稀疏值域推枚举：dev 100 个状态列仅 13 个有 CHECK、全库 distinct 仅 113 行，
 --        cabinet_order.status 源码写入 7 值而 dev 只出现 3 值 ⇒ 采样生成的约束上线即写入失败。
---        CB-036 边界：sku_catalog.operation_scope 等可扩展字段继续走字典零迁移，本批不碰。
+--        CB-036 结论是「可扩展字段用字典而非 CHECK」（仅约束 sku_catalog.operation_scope 这类
+--        可扩张经营归属字段）；本批**有意不同**：只覆盖封闭状态机列，边界见 §二十三.2 第 4 条。
+--        同行公开资料只披露状态枚举、未披露 DB 约束形态 ⇒ 无公开规格，属自己的设计判断（铁律 47）。
 --        CHECK (col IN (...)) 对 NULL 天然放行（SQL 三值逻辑，CHECK 只在 FALSE 时拒绝），无需显式 IS NULL OR。
 --        生产上线前探针（逐列，NULL 显式放行）：
 --          SELECT DISTINCT <col> FROM <table>

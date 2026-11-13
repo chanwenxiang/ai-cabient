@@ -1191,9 +1191,15 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 
 复扫时发现共享 `ai-cabinet-postgres-1` 为 `Exited (255)`，而 `ai-cabinet-trade-service-1` 刚被并发会话重启（Up 3 秒）——铁律 69「staging 与 dev 共用 compose project 原地切栈」的切栈中形态。故**不启动共享栈、不改并发会话任何容器**，改用独立一次性 `postgres:16-alpine` 容器（`p31-verify-pg`，用完即删）做真库验收。生产/dev 的**脏值探针仍属上线前必做**，空库不能替代。
 
-### 二十六.2 竞品对照（CB-086，迁移头 `COMPETITOR_REF` 合规）
+### 二十六.2 竞品对照边界（引用 CB-036，标注「有意不同」）
 
-台账新增 `CB-086`：≥3 家独立主体（PostgreSQL 官方枚举章节 / PlumePHP 状态机三层防御 / CSDN-VPS345 ENUM vs VARCHAR+CHECK 决策树）+ 3 家开门柜同行（鲜果购六态订单状态机、SpringBoot+MQTT 取货即走、哈哈零兽扫码识别扣款）。🔴 同行公开资料只披露状态枚举与流转、**未披露 DB 约束形态** ⇒ 按铁律 47 标注「无公开规格 = 自己的设计判断」，不冒称行业惯例。同时澄清 `CB-036` 边界：可扩展经营归属字段继续走字典零迁移，本批只覆盖**封闭状态机**列。
+P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮检索 PostgreSQL 官方枚举章节（`VARCHAR + CHECK` 用于稳定小值域）、PlumePHP 状态机三层防御（应用层管流转 / DB CHECK 管值域 / 监控兜底）、CSDN-VPS345 的 ENUM vs VARCHAR+CHECK 决策树，以及开门柜同行状态机实践（鲜果购六态订单状态机、SpringBoot+MQTT 取货即走、哈哈零兽扫码识别扣款）。
+
+🔴 **同行公开资料只披露状态枚举与流转，未披露是否在 DB 层加 CHECK、是否用 NOT VALID 分批** ⇒ 属「无公开规格」，按铁律 47 标**自己的设计判断**，不冒称行业惯例，也不为凑台账要求的「≥3 独立主体 + ≥2 开门柜同行」硬造对照。
+
+因此迁移头 `COMPETITOR_REF: CB-036` **复用现成条目并有意不同**：CB-036 的「字典值而非 CHECK 约束」只约束 `sku_catalog.operation_scope` 这类**可扩展经营归属字段**；本批覆盖的是**封闭状态机**列，边界已由 §二十三.2 第 4 条澄清。`check-competitor-benchmark.mjs` 校验编号真实存在、fail-closed。
+
+> 过程记录：初稿曾新建 `CB-086` 自由格式条目，被台账门禁判红（缺「竞品做法 / 证据 / 对照主体 / 取证日期 / 我们的结论」五项）。复核后认为该决策本就不该伪装成竞品对照，遂**撤销条目**改走 CB-036 有意不同——不是补字段凑绿，也不降低门禁判据。
 
 ### 二十六.3 V464 第一批（3 张表）与自动对齐门禁
 
@@ -1215,7 +1221,7 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 | `BEGIN; … ROLLBACK;` 零残留 | ✅ `constraints=0` / `cabinet_order_rows=0` |
 | 永久应用 V464 的 NOT VALID 语义 | ✅ 三条 `validated=false` |
 
-`PSQL_EXIT=0`。⚠️ 这是**空库**验收：证明约束语法与值域完整；生产存量脏值仍需按迁移头给的探针 SQL 逐列核对后再 `VALIDATE`。
+`PSQL_EXIT=0`。§二十六.2 调整迁移头措辞后，又用**最终落盘版 V464** 完整复验一次（同一容器形态、同一组判据），结果逐项一致。⚠️ 这是**空库**验收：证明约束语法与值域完整；生产存量脏值仍需按迁移头给的探针 SQL 逐列核对后再 `VALIDATE`。
 
 ### 二十六.5 4 个存量红清零（测试对齐实现，非放宽断言）
 

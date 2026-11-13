@@ -199,7 +199,7 @@ function selfTest() {
     ['去掉 NOT VALID', P.sql, (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
     ['迁移里偷偷加 VALIDATE', P.sql, (s) => s + '\nALTER TABLE cabinet_order VALIDATE CONSTRAINT chk_cabinet_order_status;\n', 'VALIDATE CONSTRAINT'],
     ['删迁移头 COMPETITOR_REF', P.sql, (s) => s.replace(/^--\s*COMPETITOR_REF.*$/m, ''), '缺 COMPETITOR_REF'],
-    ['COMPETITOR_REF 引用不存在编号', P.sql, (s) => s.replace('CB-086,CB-036', 'CB-999,CB-036'), '台账里不存在'],
+    ['COMPETITOR_REF 引用不存在编号', P.sql, (s) => s.replace('COMPETITOR_REF: CB-036', 'COMPETITOR_REF: CB-999'), '台账里不存在'],
     ['清单改错 dictFamily', P.inv, (s) => s.replace('"order_status"', '"order_status_v2"'), '无法从 SysDictBootstrap 自动提取'],
     ['欠账棘轮被改大', P.inv, (s) => s.replace('"maxPendingColumns": 84', '"maxPendingColumns": 90'), '欠账'],
     ['清单与迁移约束名对不上', P.inv, (s) => s.replace('chk_cabinet_order_status', 'chk_cabinet_order_status_v2'), '找不到约束']
