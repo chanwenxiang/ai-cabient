@@ -36,42 +36,71 @@ function fail(msg) {
   process.exit(1);
 }
 
-let script;
-try {
-  script = readFileSync(resolve(ROOT, DEPLOY_SH), 'utf8');
-} catch (e) {
-  fail(`cannot read ${DEPLOY_SH}: ${e.message}`);
-}
-
-const refs = [...new Set([...script.matchAll(/-f\s+(infra\/[\w.-]+\.yml)/g)].map((m) => m[1]))];
-if (refs.length === 0) {
-  fail(`${DEPLOY_SH} references no "-f infra/*.yml" compose chain - extraction rule may be stale`);
-}
-
-// 异步 git（lessons #292）：同步子进程在 WorkBuddy 下 EBUSY，结果会被误读成「未跟踪」。
-const listed = await gitAsync(['ls-files', '--', 'infra/'], { cwd: ROOT });
-if (!listed.ok) fail(`git ls-files failed: ${listed.out}`);
-const tracked = new Set(
-  listed.out
+/**
+ * 纯判据（供 sibling 夹具喂源码，S8③）：
+ *  A. compose 链：每个 `-f infra/x.yml` 必须既在盘上又被 git 跟踪（AU-185 原判据）；
+ *  B. Flyway 漂移对账必须是构建**之前**的一步（2026-11-13 补）：部署链此前没有 repair 环节，
+ *     已应用迁移被带理由豁免改写后，目标库 checksum 落后 ⇒ 容器起来即 Validate failed。
+ *     只要求"调用过"是不够的——放在 `compose build` 之后等于白跑十几分钟才发现，
+ *     所以这里比对两个索引位置。
+ */
+export function evaluate(script, trackedSet, existsFn) {
+  const problems = [];
+  // 🔴 比对位置前必须剥掉整行注释：deploy-prod.sh 的文件头流程说明里就写着
+  // `compose build trade-service`，不剥的话 indexOf 先命中注释 ⇒ 顺序判据恒假（本仓
+  // check-docker-tests-guarded 头注警告过同一形态：整份文件搜关键词是恒真的）。
+  const code = script
     .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-);
-
-const problems = [];
-for (const ref of refs) {
-  if (!existsSync(resolve(ROOT, ref))) problems.push(`${ref}: missing on disk`);
-  else if (!tracked.has(ref))
-    problems.push(`${ref}: exists locally but NOT tracked in git (CI clone would break)`);
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  const refs = [...new Set([...code.matchAll(/-f\s+(infra\/[\w.-]+\.yml)/g)].map((m) => m[1]))];
+  if (refs.length === 0) {
+    problems.push('references no "-f infra/*.yml" compose chain - extraction rule may be stale');
+  }
+  for (const ref of refs) {
+    if (!existsFn(ref)) problems.push(`${ref}: missing on disk`);
+    else if (!trackedSet.has(ref))
+      problems.push(`${ref}: exists locally but NOT tracked in git (CI clone would break)`);
+  }
+  const driftAt = code.indexOf('flyway-drift-check.mjs');
+  const buildAt = code.indexOf('build trade-service');
+  if (driftAt < 0) {
+    problems.push(
+      'deploy-prod.sh 不再调用 scripts/flyway-drift-check.mjs —— 目标库 checksum 漂移会一路跑到容器起不来'
+    );
+  } else if (buildAt >= 0 && driftAt > buildAt) {
+    problems.push(
+      'flyway-drift-check 必须在 `compose build trade-service` 之前（红=中止部署，别让构建白跑）'
+    );
+  }
+  return problems;
 }
 
-if (problems.length > 0) {
-  fail(
-    `deploy-prod.sh compose chain broken (AU-185):\n  ${problems.join('\n  ')}\n` +
-      'Commit the missing file or fix the -f reference in scripts/deploy-prod.sh.'
+async function main() {
+  let script;
+  try {
+    script = readFileSync(resolve(ROOT, DEPLOY_SH), 'utf8');
+  } catch (e) {
+    fail(`cannot read ${DEPLOY_SH}: ${e.message}`);
+  }
+  const listed = await gitAsync(['ls-files', '--', 'infra/'], { cwd: ROOT });
+  if (!listed.ok) fail(`git ls-files failed: ${listed.out}`);
+  const tracked = new Set(
+    listed.out
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
   );
+  const problems = evaluate(script, tracked, (ref) => existsSync(resolve(ROOT, ref)));
+  if (problems.length > 0) {
+    fail(
+      `deploy-prod.sh 部署链不完整 (AU-185 / 漂移对账):\n  ${problems.join('\n  ')}\n` +
+        '补齐文件、修 -f 引用，或把 flyway-drift-check 挪到 build 之前。'
+    );
+  }
+  console.log(`${TAG} OK：compose 链完整且 Flyway 漂移对账在 build 之前`);
 }
 
-console.log(
-  `${TAG} OK: ${refs.length} compose chain files present and tracked: ${refs.join(', ')}`
-);
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  await main();
+}

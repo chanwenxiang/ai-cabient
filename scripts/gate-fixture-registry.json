@@ -1,7 +1,7 @@
 {
   "note": "S8④ 门禁夹具棘轮（check-audit-gates-wiring 规则 6）：每个 check-*.mjs（非 .test.mjs）必须有可执行负向夹具——sibling .test.mjs / fixtureMap 登记的 devops 验证脚本 / 门禁自带 selfTest(（--self-test，源码自动识别）三者其一，否则必须入 exempt 豁免。exempt 是 2026-11-12 棘轮切线时的存量：只许减不许增（seedExempt 子集锁定 + maxExempt 双保险），已带夹具的条目会被判「陈旧」强制移出。admin-gates-negative 覆盖的是 admin 门禁族（非单门禁 1:1），其成员暂留 exempt。 couplingDebt 已于 2026-11-13 夹具批全数销清（9/9），字段的棘轮语义保留：新欠账只能销旧的、不许净增。",
   "seedDate": "2026-11-12",
-  "maxExempt": 70,
+  "maxExempt": 69,
   "seedExempt": [
     "check-admin-anti-jitter.mjs",
     "check-admin-artifact-pairing.mjs",
@@ -29,7 +29,6 @@
     "check-consumer-mp-extract-leftover.mjs",
     "check-csv-escape.mjs",
     "check-demo-video-format.mjs",
-    "check-deploy-compose-chain.mjs",
     "check-device-code-input.mjs",
     "check-door-cabinet-slot-copy.mjs",
     "check-edge-cloud-mqtt-contract.mjs",
@@ -119,7 +118,6 @@
     "check-consumer-mp-extract-leftover.mjs",
     "check-csv-escape.mjs",
     "check-demo-video-format.mjs",
-    "check-deploy-compose-chain.mjs",
     "check-device-code-input.mjs",
     "check-door-cabinet-slot-copy.mjs",
     "check-edge-cloud-mqtt-contract.mjs",

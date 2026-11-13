@@ -33,7 +33,7 @@ PROD_PORT="${PROD_PORT:-22}"
 SSH_OPTS=(-i "$PROD_SSH_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new -o BatchMode=yes)
 SSH_CMD=("$PROD_USER@$PROD_HOST")
 
-echo "── [0/6] 前置检查 ──"
+echo "── [0/7] 前置检查 ──"
 [ -f "$PROD_SSH_KEY" ] || { echo "❌ SSH 私钥不存在: $PROD_SSH_KEY"; exit 1; }
 # AU-185：compose 链引用的每个 -f 文件必须已入库（2026-10-13 部署时 prod-server.yml
 # 只存在于服务器，仓内缺失导致不可复现；现为入库文件，此处校验防回归）
@@ -51,17 +51,17 @@ SHA="$(git rev-parse HEAD)"
 SHA_SHORT="$(git rev-parse --short HEAD)"
 echo "✅ 工作区干净，部署 HEAD = $SHA_SHORT ($SHA)"
 
-echo "── [1/6] 打源码归档 ──"
+echo "── [1/7] 打源码归档 ──"
 TARBALL=".tmp/prod-src-${SHA}.tar.gz"
 mkdir -p .tmp
 git archive --format=tar.gz -o "$TARBALL" HEAD
 echo "✅ $(du -h "$TARBALL" | cut -f1) → $TARBALL"
 
-echo "── [2/6] 上传 ${PROD_HOST} ──"
+echo "── [2/7] 上传 ${PROD_HOST} ──"
 scp "${SSH_OPTS[@]}" -P "$PROD_PORT" "$TARBALL" "${SSH_CMD[0]}:/data/apps/prod-src-${SHA}.tar.gz"
 echo "✅ 上传完成"
 
-echo "── [3/6] 服务器解包 + 清理陈旧 admin 资产 ──"
+echo "── [3/7] 服务器解包 + 清理陈旧 admin 资产 ──"
 ADMIN_REL="services/trade-service/src/main/resources/static/admin"
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$SHA" "$PROD_DIR" << 'REMOTE'
 set -euo pipefail
@@ -111,7 +111,43 @@ echo "✅ 服务器源码就绪（扫描 ${SRC_SCANNED} 个源文件）"
 REMOTE
 echo "✅ 服务器源码就绪"
 
-echo "── [4/6] 重建 trade-service 镜像 + 容器 ──"
+echo "── [4/7] Flyway checksum 漂移对账（红=中止）──"
+# 为什么要这一步：`check:migration-immutable` 允许「带理由豁免」去改**已应用**的迁移，
+# 而部署链此前没有任何 repair 环节 ⇒ 目标库 flyway_schema_history 存旧 checksum，
+# 容器起来即 `Migration checksum mismatch ... Validate failed` 拒服。
+# 2026-11-13 dev 库实测 8 条漂移（V165/182/200/201/217/459/465/479）就是这么来的。
+#
+# 分工：服务器只导出四列（凭据留在 postgres 容器自己的 env 里，不打印不落盘），
+# 比对在本地仓内迁移文件上做——服务器既没有 node 也没有 JDK（现场构建全在 Docker 里），
+# 而这里必须在 `compose build` **之前**判掉，不能让 19 分钟的构建白跑。
+APPLIED_TMP="$(mktemp)"
+trap 'rm -f "$APPLIED_TMP"' EXIT
+ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" > "$APPLIED_TMP" << 'DRIFT'
+set -euo pipefail
+DIR="$1"
+cd "$DIR"
+C="docker compose -p ai-cabinet --env-file infra/.env.production -f infra/docker-compose.yml -f infra/docker-compose.apps.yml -f infra/docker-compose.production.yml -f infra/docker-compose.prod-server.yml --profile apps"
+# SQL 里刻意不用任何单引号（heredoc + sh -c 双层引号嵌套是这里最容易踩的坑）：
+# 用 where version is not null 直接排除 R__ 可重复迁移，NULL checksum 由 psql -tA 打成空串。
+$C exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F"|" -c "select installed_rank, version, type, checksum from flyway_schema_history where version is not null order by installed_rank"'
+DRIFT
+APPLIED_LINES=$(grep -c '|' "$APPLIED_TMP" || true)
+if [ "${APPLIED_LINES:-0}" -lt 50 ]; then
+  # 导出几乎为空 = 采集失败（库名/容器/compose 任一不对），绝不能当成"没有漂移"放行
+  echo "❌ 目标库导出仅 ${APPLIED_LINES} 行，不足以判定漂移（fail-closed，中止部署）"
+  exit 1
+fi
+if ! node scripts/flyway-drift-check.mjs --applied-file "$APPLIED_TMP"; then
+  echo "❌ 目标库存在 checksum 漂移：先对该库执行 flyway repair"
+  echo "   （scripts/devops/flyway-repair/README.md；🔴 locations 必须同时含 db/migration 与 db/seed，"
+  echo "     只指 migration 会把 3 条已应用 R__ 种子误标成已删除），VALIDATE=PASS 后重跑本部署"
+  exit 1
+fi
+rm -f "$APPLIED_TMP"
+trap - EXIT
+echo "✅ 目标库 checksum 与本次部署的迁移文件逐条一致"
+
+echo "── [5/7] 重建 trade-service 镜像 + 容器 ──"
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- "$PROD_DIR" << 'REMOTE2'
 set -euo pipefail
 DIR="$1"
@@ -140,7 +176,7 @@ docker logs ai-cabinet-trade-service-1 --tail 30 2>&1
 exit 1
 REMOTE2
 
-echo "── [5/6] 部署后验证 ──"
+echo "── [6/7] 部署后验证 ──"
 ssh "${SSH_OPTS[@]}" -p "$PROD_PORT" "${SSH_CMD[0]}" bash -s -- << 'REMOTE3'
 set -euo pipefail
 # 2026-10-20 修正：宿主 nginx 接管 80/443（easygovm vhost）后，gateway 容器改发布在
@@ -157,6 +193,6 @@ JY=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: applicatio
 echo "✅ admin 入口 $IDX_JS = 200；业务 API = 200；domainConfig 探针 = $JY（401=路由通、待设备 token）"
 REMOTE3
 
-echo "── [6/6] 完成 ──"
+echo "── [7/7] 完成 ──"
 echo "✅ 生产已部署 $SHA_SHORT；服务器归档与 .tmp 本地归档可手动清理"
 echo "   回滚方式：git checkout <旧SHA> && 重新跑本脚本"
