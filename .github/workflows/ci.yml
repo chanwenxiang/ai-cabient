@@ -709,7 +709,12 @@ jobs:
     env:
       npm_config_script_shell: /bin/bash
     steps:
+      # fetch-depth: 0 必需——本作业也跑 check:fix-batch-coverage，它要对**历史 commit** 逐个
+      # `git show --name-only` 做「条目↔diff」对账；浅克隆（默认 depth=1）里没有这些对象
+      # ⇒ 8 条登记全报「登记的 commit 不存在」（2026-11-13 CI 实测）。build/integration 早带了。
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:

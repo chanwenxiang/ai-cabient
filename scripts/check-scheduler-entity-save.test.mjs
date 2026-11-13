@@ -8,7 +8,15 @@
  *
  *   node scripts/check-scheduler-entity-save.test.mjs
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -235,7 +243,20 @@ function main() {
     const live = checkProject(ROOT);
     assert(live.ok, `真仓应绿，实际 ${JSON.stringify(live.findings)}`);
     assert(live.hits.length === 10, `真仓应有 10 处读改写，实际 ${live.hits.length}`);
-    assert(live.allowlistCount === 10, `真仓应有 10 条清单，实际 ${live.allowlistCount}`);
+    // 9 条**键**覆盖 10 处：PointsExpiryScheduler#markEarnLogsExpired 一条 count=2
+    // （196/206 两处同一方法）。706dff7d 合并该对时把清单从 10 键降到 9 键，却没同步
+    // 改这里写死的 10 ⇒ CI 一路红到本次推送才被发现（那 65 笔提交从未推过、CI 从未跑过）。
+    // 所以除了钉死两个数，再加一条「Σcount == 站点数」的不变式：以后任何一次合并/新增
+    // 只要两边不匹配就红，不再依赖有人记得改魔术数。
+    assert(live.allowlistCount === 9, `真仓应有 9 条清单（合并后），实际 ${live.allowlistCount}`);
+    const allowlistJson = JSON.parse(
+      readFileSync(resolve(ROOT, 'scripts/scheduler-entity-save-allowlist.json'), 'utf8')
+    );
+    const sumCount = Object.values(allowlistJson).reduce((acc, e) => acc + (e.count || 0), 0);
+    assert(
+      sumCount === live.hits.length,
+      `清单 Σcount(${sumCount}) 必须等于站点数(${live.hits.length})，否则就是漏登记或多登记`
+    );
     assert(
       live.schedulerClasses >= 20,
       `真仓 Scheduler/Job 类数 ${live.schedulerClasses} 低于锚点`
