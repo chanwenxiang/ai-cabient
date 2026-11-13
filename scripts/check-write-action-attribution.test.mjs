@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluate } from './check-write-action-attribution.mjs';
+import { evaluate, hasAuditCallEvidence } from './check-write-action-attribution.mjs';
 
 const TAG = '[check-write-action-attribution.test]';
 let checks = 0;
@@ -129,6 +129,37 @@ const REGISTRY = JSON.parse(
   assert(
     r.problems.some((p) => p.includes(anchor) && p.includes('陈旧')),
     `删文件须销账：${r.problems.join('|')}`
+  );
+}
+
+// 5) 证据判据本体（S8③：判据改动须同批带负向用例）
+//    旧写法 `/appendLog\s*\(/` 把 **定义点** 也算证据 ⇒ 1-hop 证据集里含 AdminAuditService
+//    自己（它就是 appendLog 的定义类）⇒ 凡注入过审计服务的控制器恒判可达，删掉真实调用不红。
+{
+  const CALL =
+    'class FooController { private final AdminAuditService auditService;' +
+    ' @PostMapping void bar() { auditService.appendLog(1L, "A", "T", "id", "d"); } }';
+  const DEF_ONLY = 'class AdminAuditService { public void appendLog(Long o, String a) {} }';
+  const NO_ARG = 'class FooController { @PostMapping void bar() {} }';
+
+  assert(hasAuditCallEvidence(CALL, []) === true, '控制器自身有真实调用 ⇒ 应可达');
+  assert(
+    hasAuditCallEvidence(DEF_ONLY, []) === false,
+    '只有 appendLog 定义（无调用点）⇒ 不得算证据（旧写法在这里误判 true）'
+  );
+  assert(
+    hasAuditCallEvidence(NO_ARG, [DEF_ONLY]) === false,
+    '只注入了 AdminAuditService 却一次都没调 ⇒ 必须不可达（证据自喂回归钉）'
+  );
+  assert(
+    hasAuditCallEvidence(NO_ARG, [CALL]) === true,
+    '1-hop 业务 service 里有真实调用 ⇒ 合法可达'
+  );
+  assert(hasAuditCallEvidence(NO_ARG, []) === false, '全无证据 ⇒ 不可达');
+  // 已知局限（防被误读成已覆盖委托链）：service→service2 的 2-hop 仍判不到，方向是安全侧。
+  assert(
+    hasAuditCallEvidence(NO_ARG, ['class AService { void x() { bService.doWork(); } }']) === false,
+    '2-hop 委托仍属盲区，本断言钉住「盲区已知」而非「已修」'
   );
 }
 

@@ -11,9 +11,16 @@
  *   ② **不可达必登记**：新出现的零归因写控制器必须入册（新端点无审计=红）；
  *   ③ **分类棘轮**：非可达文件必须带分类——CALLBACK / DEV_ONLY / DEVICE_FACING 为
  *     语义豁免（带理由），TBD=真缺口显式欠账（maxTbd 只许减）；
- *   ④ 已知盲区：二层可达（service→service2 的 appendLog）判不到——本仓 277 个
- *     appendLog 调用点里二层形态存在；盲区方向是「误判可达为不可达」（安全侧），
- *     误判为可达不存在（可达要求显式命中）。
+ *   ④ 已知盲区：二层可达（service→service2 的 appendLog 调用）判不到，方向是安全侧
+ *     （漏判成不可达 ⇒ 多要求登记，不会放水）。夹具第 5 组里有一条断言专门钉住这个局限，
+ *     别把它读成「委托链已覆盖」。
+ *   ⑤ **2026-11-13 订正**：本文件此前在 ④ 里写着「误判为可达不存在（可达要求显式命中）」——
+ *     **这句是错的**，实测被推翻：旧证据式 `/appendLog\s*\(/` 匹配**定义点**，而 1-hop 证据集里
+ *     就有 `AdminAuditService`（appendLog 的定义类，AdminAuditService.java:42），于是注入了
+ *     审计服务的控制器恒判可达。负向实证：抹掉 OpsOtaController 两处真实审计调用后，旧式沉默、
+ *     现式两条红（零归因未登记 + 可达 71<基线 72）。受影响面：98 个写控制器中 17 个注入
+ *     AdminAuditService。现状不是「正在裸写」——按新式重算可达 72 与基线逐字相等，
+ *     所以本硬化没炸出欠账、maxTbd 不用重冻结；它补的是**防退化能力**。
  *
  *   node scripts/check-write-action-attribution.mjs
  */
@@ -27,6 +34,26 @@ const REGISTRY_PATH = join('scripts', 'write-attribution-registry.json');
 const FIELD_RE =
   /private\s+final\s+(\w+(?:Service|Repository|Mapper|Support|Client|Manager|Helper|Resolver|Store|Provider))\s+/g;
 const WRITE_RE = /@(?:Post|Put|Patch|Delete)Mapping/g;
+
+/**
+ * 审计证据必须是**调用点** `xxx.appendLog(`，不能是**定义点** `void appendLog(`。
+ *
+ * 🔴 旧写法 `/appendLog\s*\(/` 是「证据自喂」：1-hop 证据集里含 `AdminAuditService`
+ * 本身，而它正是 `appendLog` 的定义类（AdminAuditService.java:42），于是凡注入了审计服务
+ * 的控制器 `auditCapable` 恒真——把真实审计调用整段删掉，判据 ①「可达不退化」也不会红。
+ * 实测受影响面：84 个含写端点的控制器里 **17 个**注入了 AdminAuditService。
+ * 现状并非「已经在裸写」：按新判据重算，84 个全部自己就在调 `.appendLog(`（自身 0 次的=0 个），
+ * 所以本硬化上线时不会炸出新欠账、`maxTbd` 不用重冻结——它修的是**防退化能力**，不是补现漏。
+ */
+export const AUDIT_CALL_RE = /\.\s*appendLog\s*\(/;
+
+/** 控制器自身或其 1-hop 注入类里是否存在真实的审计调用点。 */
+export function hasAuditCallEvidence(controllerSrc, injectedSrcs = []) {
+  return (
+    AUDIT_CALL_RE.test(controllerSrc || '') ||
+    (injectedSrcs || []).some((s) => AUDIT_CALL_RE.test(s || ''))
+  );
+}
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -118,14 +145,12 @@ function main() {
     WRITE_RE.lastIndex = 0;
     const rel = relative(ROOT, f).replace(/\\/g, '/');
     const writes = (src.match(WRITE_RE) || []).length;
-    const injected = [];
+    const injectedSrcs = [];
     for (const m of src.matchAll(FIELD_RE)) {
       const svcFile = byClass.get(m[1]);
-      if (svcFile) injected.push(svcFile);
+      if (svcFile) injectedSrcs.push(srcOf.get(svcFile));
     }
-    const auditCapable =
-      /appendLog\s*\(/.test(src) || injected.some((s) => /appendLog\s*\(/.test(srcOf.get(s) || ''));
-    capability.push({ file: rel, writes, auditCapable });
+    capability.push({ file: rel, writes, auditCapable: hasAuditCallEvidence(src, injectedSrcs) });
   }
   if (capability.length === 0) fail('写控制器提取数=0（提取器坏了，零命中=假绿）');
 
