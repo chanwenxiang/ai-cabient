@@ -214,6 +214,15 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "IDLE", "未开始", "DOWNLOADING", "下载中", "INSTALLING", "安装中", "SUCCESS", "成功", "FAILED", "失败")));
         map.put("notification_log_status", t("通知发送状态", m(
                 "SENT", "已发送")));
+        // R20 P3-1 第 15 批：线路链（V133/V358 重建后的新模型）。line_device {ACTIVE,INACTIVE} 恰等
+        // active_inactive_status 通用族（bind=ACTIVE/unbind=INACTIVE）直接复用；读侧遗留 BOUND 为 V129 前旧表
+        // 死值容忍（无写点，CHECK 不影响读）。
+        map.put("line_route_status", t("线路状态", m(
+                "ACTIVE", "启用中", "ARCHIVED", "已归档")));
+        map.put("line_route_member_status", t("线路成员状态", m(
+                "ACTIVE", "在册")));
+        map.put("warehouse_inbound_status", t("入库单状态", m(
+                "COMPLETED", "已完成")));
         // MA-018：货位状态独立成 bin_status（DISABLED 只在这里用），避免与 enable_status 的「停用」同名
         map.put("bin_status", t("货位状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));

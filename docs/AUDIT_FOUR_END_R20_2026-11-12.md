@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 13 批 / 50 列（§二十六~§三十三，余 37 列为显式欠账 + 22 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 15 批 / 57 列（§二十六~§三十五，余 30 列为显式欠账 + 23 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 13 批（§二十六~§三十三）**——V464~V476 共 50 列、门禁 7 组判据 / 39 变异、真库验收，余 37 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 15 批（§二十六~§三十五）**——V464~V478 共 57 列、门禁 7 组判据 / 45 变异、真库验收，余 30 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；再建 3 专用族销账审批链与用户券（§三十三）落 V476 共 3 列，39 → **37**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；再建 3 专用族销账审批链与用户券（§三十三）落 V476 共 3 列，39 → **37**；再建 3 专用族销账通知/OTA（§三十四）落 V477 共 3 列，37 → **34**；再销账线路链与入库单（§三十五）落 V478 共 4 列，34 → **30**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1600,3 +1600,58 @@ DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然
 - 剩余候选约 17 列：notification_log / merchant.audit_status / ota_release / ota_device_report.upgrade_status / invoice_request / line_device / line_route / line_route_member / device_mqtt_credential / external_import_batch / device_rental_deposit / pull_off_task / shopping_session.preauth_status / user_realname_auth.auth_status / warehouse_inbound / purchase_order_line.quality_status 等，须逐列建族+双端字典，按链分批（下一批建议：notification/OTA/杂项简单状态链）。
 - 部署仍待：V463 + V464~V476 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - ⚠️ 并发会话工作区仍有大量 WIP（含 S14 其余迁移修复），本轮只精确提交自己复核过的文件（铁律 61）。
+
+## 三十四、P3-1 第 14 批：通知/OTA 3 专用族销账 + merchant.audit_status 零写点排除（2026-11-13）
+
+### 三十四.1 域实证（含设备上报白名单 fail-closed 链路）
+
+- **ota_release.status ← ota_release_status {DRAFT,PUBLISHED,UNPUBLISHED}**：OtaService 116/141 两写点 + 实体默认 "DRAFT"(OtaRelease:34)；DDL DEFAULT 'DRAFT'(V9:19) ∈ 值域。
+- **ota_device_report.upgrade_status ← ota_upgrade_status {IDLE,DOWNLOADING,INSTALLING,SUCCESS,FAILED}**：设备上报链 `reportProgress → st=normalizeProgressStatus(status)（:281-288 对 ALLOWED_PROGRESS_STATUS 白名单 fail-closed 抛错、null 归一 IDLE、入参统一大写）→ doReportProgress 落库`——设备自由文本进不了库，域以服务端白名单为权威（V280:31 DDL COMMENT 同口径）；DDL DEFAULT 'IDLE'(V280:25) ∈ 值域。
+- **notification_log.status ← notification_log_status {SENT}**：全仓 3 处硬编码写点恒 "SENT"（NotificationService:187/418、ExternalNotificationDispatcher:204，注释明示「SENT=渠道已受理，不代表用户已收到」）+ 实体默认，零 FAILED 写点。**单值族成立**：后续若引入 FAILED 必须经字典族+门禁同步演进，防静默新增状态；DDL DEFAULT 'SENT'(V163:155) ∈ 值域。
+- **merchant.audit_status → excludedColumns**：全仓（main java）`AuditStatus` **零命中**——V68 遗留列、审核功能未实现，无权威值域可实证（dev PENDING 仅为 DDL 默认），**不为无写点列硬造值域**，留待功能实现时随功能定域。
+
+### 三十四.2 落 V477 + 清单 + 门禁 + 真库验收
+
+- **`V477__status_check_batch14_notification_ota.sql`**：3 条 NOT VALID，迁移头含逐列写入点穷举、升级白名单 fail-closed 链路、单值域说明、merchant.audit_status 排除依据、脏值探针 SQL。
+- **清单**：`tables` 50 → 53、`maxPendingColumns` 37 → 34（R5 派生 `87 − 53`）、`batch`=14；excludedColumns + merchant.audit_status（零写点）。
+- **门禁**：`MIGRATIONS` 增 V477（第 14 个）；self-test 增 3 个 V477 变异（含「升级域漏 FAILED」钉白名单口径）。**正向门禁 53 列三方对齐 + 14 迁移全 NOT VALID + 棘轮 34 全绿；self-test 42 变异全绿、md5 零残留。**
+- **真库验收**（一次性 PG 16-alpine，事务内零残留）：3 约束生效；10 次插入成功（3 默认 + 升级域 5 白名单值逐值落库 + 单值域 SENT 重复写合法）；3 类越界全被拒——release 拒 SHIPPED、升级域拒白名单外设备文本 REBOOTING（服务端 normalize 之外 CHECK 兜底）、**单值域拒 FAILED**（引 FAILED 须走字典族+门禁演进）；ROLLBACK 零残留，容器即删。
+
+### 三十四.3 欠账销账与遗留
+
+- 账面欠账 **37 → 34**（覆盖 53 列，`87 − 53`），棘轮只减不增。
+- 剩余候选约 14 列：invoice_request / line_device / line_route / line_route_member / device_mqtt_credential / external_import_batch / device_rental_deposit / pull_off_task / shopping_session.preauth_status / user_realname_auth.auth_status / warehouse_inbound / purchase_order_line.quality_status（其中若干 dev 零行，须以源码写点定域）。另 5 列的表由未部署迁移创建（franchise_settlement / line_manager_settlement / order_split_return_leg / revenue_share_detail / revenue_share_rule），部署后按批处理。
+- 部署仍待：V463 + V464~V477 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的迁移 / 字典双端 / 清单 / 门禁 / 报告（铁律 61）。
+
+## 三十五、P3-1 第 15 批：线路链与入库单 4 列销账（3 新族 + 1 通用族复用）（2026-11-13）
+
+### 三十五.1 域实证与同名单词跨实体甄别
+
+- 🔴 **背景陷阱**：line_manager/line_device/line_route 均为 V129 DROP → V133 重建、line_route_member 为 V358 重建的新模型（S14 曾被该序列骗过误判死语句，§三十三）；本批约束针对**重建后**的现役表（dev `to_regclass` 实测均在，4 表 dev 均 0 行，域纯以源码写点定域——探针零行不代表无约束价值）。
+- **同名单词跨实体甄别**（防污染，逐一核对实体类型）：ReplenishmentService/MerchantReplenishmentService 的 `route.setStatus` 是 **replenishment_route**（第 3 批已收口）；JiangyiOnboardingService 的 `device.setStatus(UNBOUND/BOUND/RETIRED)` 是 **jiangyi_device**（历史 `ck_jiangyi_device_status` 已收口）——均非本批 line_* 实体。
+- **域与写点**：
+  - **line_route.status ← line_route_status {ACTIVE,ARCHIVED}**：新建置 ACTIVE（OpsLineRouteController:47）、归档置 ARCHIVED（LineRouteAdminService:138，可逆）；update 不触碰 status；DDL DEFAULT 'ACTIVE'(V133:74) ∈ 值域。
+  - **line_route_member.status ← line_route_member_status {ACTIVE}**：182(成员更新复活)/193(新建) 恒置 ACTIVE；成员移除走 DELETE 端点物理删，无停用写点；DDL DEFAULT 'ACTIVE'(V358:25) ∈ 值域。单值族防静默新增状态。
+  - **line_device.status ← 复用 active_inactive_status {ACTIVE,INACTIVE}**：bindDevice 置 ACTIVE(LineManagerService:265)、unbindDevice 置 INACTIVE(:287)；DDL DEFAULT 'ACTIVE'(V133:62) ∈ 值域；`uk_line_device_active` 部分唯一索引 `WHERE status='ACTIVE'` 与域协同。
+  - **warehouse_inbound.status ← warehouse_inbound_status {COMPLETED}**：全仓**零运行时写点**——WarehouseService 242/280 两处创建均不 setStatus，恒走 DDL DEFAULT 'COMPLETED'(V26:29)；单值族成立（入库单即完成态，无草稿/取消流）。
+- ⚠️ 观察项（不修）：LineWithdrawService:580 容忍读 line_device.status='BOUND'——V129 前旧表死值（现模型无写点，BOUND 行不存在读恒空），CHECK 不影响读。
+
+### 三十五.2 门禁自测修正（STATUS_ACTIVE 非字典类常量）
+
+- 首版族定义用 `STATUS_ACTIVE` 常量 → 门禁 R2「常量解析失败」：该常量在 LineManagerService 而非 SysDictBootstrap（collectConstants 只解析字典类本地常量）。改用字面量 "ACTIVE"。负向验证按预期命中（铁律 4：改门禁必负向验证，本次是负向验证自己抓了正向问题）。
+
+### 三十五.3 落 V478 + 清单 + 门禁 + 真库验收
+
+- **`V478__status_check_batch15_line_chain.sql`**：4 条 NOT VALID，迁移头含 DROP→重建背景、跨实体甄别、单值域说明、BOUND 观察项、脏值探针 SQL。
+- **清单**：`tables` 53 → 57、`maxPendingColumns` 34 → 30（R5 派生 `87 − 57`）、`batch`=15。
+- **门禁**：`MIGRATIONS` 增 V478（第 15 个）；self-test 增 3 个 V478 变异（含「线路域漏 ARCHIVED」）。**正向门禁 57 列三方对齐 + 15 迁移全 NOT VALID + 棘轮 30 全绿；self-test 45 变异全绿、md5 零残留。**
+- **真库验收**（一次性 PG 16-alpine，事务内零残留）：4 约束生效；7 次插入成功（4 默认 + 3 族内值）；4 类越界全被拒——**含两个甄别活体测试**：line_route 拒 replenishment_route 专属值 PLANNED、line_device 拒读侧遗留死值 BOUND；两个单值域拒绝 ARCHIVED/DRAFT；ROLLBACK 零残留，容器即删。
+
+### 三十五.4 欠账销账与遗留
+
+- 账面欠账 **34 → 30**（覆盖 57 列，`87 − 57`），棘轮只减不增。
+- 剩余候选约 10 列：invoice_request / device_mqtt_credential / external_import_batch / device_rental_deposit / pull_off_task / shopping_session.preauth_status / user_realname_auth.auth_status / purchase_order_line.quality_status 等；另 5 列的表由未部署迁移创建（franchise_settlement / line_manager_settlement / order_split_return_leg / revenue_share_detail / revenue_share_rule），部署后按批处理。
+- 🔴 提交纪律升级（承 §三十四教训）：提交后核对 `git show --stat` 文件清单与声称变更集一致（本批变更集=V478 + 字典双端 + 清单 + 门禁 + 报告 共 6 文件）。
+- 部署仍待：V463 + V464~V478 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的文件（铁律 61）。

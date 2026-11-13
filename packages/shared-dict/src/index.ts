@@ -381,6 +381,18 @@ export const DICT = {
   notification_log_status: {
     SENT: '已发送'
   },
+  /** R20 P3-1 第 15 批：线路链（V133/V358 重建后模型）。line_device {ACTIVE,INACTIVE} 复用
+   *  active_inactive_status 通用族；读侧遗留 BOUND 为旧表死值容忍（无写点）。 */
+  line_route_status: {
+    ACTIVE: '启用中',
+    ARCHIVED: '已归档'
+  },
+  line_route_member_status: {
+    ACTIVE: '在册'
+  },
+  warehouse_inbound_status: {
+    COMPLETED: '已完成'
+  },
   /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
   bin_status: {
     ACTIVE: '启用',
