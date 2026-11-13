@@ -1,12 +1,12 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
@@ -63,12 +63,6 @@ public class OpsAlertDispatcher {
     /** 首次重试前的退避，之后按 2 倍递增（200ms → 400ms）。 */
     static final long RETRY_BASE_BACKOFF_MILLIS = 200L;
 
-    /** 告警投递连接超时。 */
-    private static final int CONNECT_TIMEOUT_MILLIS = 3_000;
-
-    /** 告警投递读超时。 */
-    private static final int READ_TIMEOUT_MILLIS = 5_000;
-
     private record Channel(String name, String configKey) {
     }
 
@@ -88,24 +82,15 @@ public class OpsAlertDispatcher {
                               SmtpAlertMailer smtpAlertMailer,
                               com.aicabinet.trade.sms.AliyunSmsSender aliyunSmsSender) {
         this.systemConfigService = systemConfigService;
-        this.restClient = restClientBuilder.requestFactory(alertRequestFactory()).build();
+        // S1（2026-11-12）：Boot 注入的 RestClient.Builder 默认不带读超时（＝无限等待），
+        // 告警从支付回调/定时任务线程发出，机器人半死不活会把发送线程永久占住、
+        // 连带让重试永远等不到触发时机。工厂由 OutboundHttp 单源给出（告警档 3s / 5s）。
+        this.restClient = restClientBuilder
+                .requestFactory(OutboundHttp.factory(
+                        OutboundHttp.CONNECT_ALERT_MS, OutboundHttp.READ_ALERT_MS))
+                .build();
         this.smtpAlertMailer = smtpAlertMailer;
         this.aliyunSmsSender = aliyunSmsSender;
-    }
-
-    /**
-     * 告警投递专用请求工厂：**必须显式设超时**。
-     *
-     * <p>Boot 自动配置的 {@code RestClient.Builder} 默认不带读超时（等于无限等待）。目标机器人若
-     * 半死不活（TCP 建连成功但不回包），发送线程会被**永久占住**，重试永远等不到触发时机 ——
-     * 而告警正是从支付回调、定时任务这类不能长时间挂起的关键线程发出的。
-     * 超时预算：单次尝试至多 {@code connect 3s + read 5s}，配 3 次尝试，单渠道最坏 24s。</p>
-     */
-    private static SimpleClientHttpRequestFactory alertRequestFactory() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
-        factory.setReadTimeout(READ_TIMEOUT_MILLIS);
-        return factory;
     }
 
     /**

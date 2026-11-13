@@ -1,5 +1,6 @@
 package com.aicabinet.trade.config;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.service.OpsAlertDispatcher;
 import com.aicabinet.trade.service.OpsExceptionService;
 import com.aicabinet.trade.service.XxlJobManagedTasks;
@@ -108,8 +109,7 @@ public class XxlJobWiringSelfCheck {
      */
     private static final int PROBE_ATTEMPTS = 3;
 
-    private static final HttpClient HTTP = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
+    private static final HttpClient HTTP = OutboundHttp.jdk(OutboundHttp.CONNECT_HUB_MS)
             // 不跟随重定向：反代可能把 404 变成「302 → 登录页 → 200 + HTML」，
             // 跟随重定向会把「配错」伪装成「通」。
             .followRedirects(HttpClient.Redirect.NEVER)

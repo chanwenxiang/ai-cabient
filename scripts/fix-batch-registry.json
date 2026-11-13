@@ -1,0 +1,6 @@
+{
+  "note": "S8① 修复批覆盖对账登记表（2026-11-12 用户拍板：逐批手工登记，存量不回填）。工作流：修复批提交后立即在本表登记——commit（短哈希）+ report（审计报告路径）+ totalItems（报告该批条目总数，items+notAdopted 必须等于它）+ items（条目→应改文件，门禁对 git show --name-only 交叉核，A26 判据）+ notAdopted（有意不采纳，带 why）。coverageCutoff 之后的 fix(/perf( 提交必须已登记或入 unregisteredAllowlist（带 why）。本表由 check-fix-batch-coverage 门禁校验。",
+  "coverageCutoff": "9c30038b",
+  "batches": [],
+  "unregisteredAllowlist": []
+}

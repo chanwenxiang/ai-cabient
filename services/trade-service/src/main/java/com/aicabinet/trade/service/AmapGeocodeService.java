@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.GeoDistrictNode;
 import com.aicabinet.common.dto.GeocodeResponse;
+import com.aicabinet.common.http.OutboundHttp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,9 +54,7 @@ public class AmapGeocodeService {
 
     private final String amapWebKey;
     private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .build();
+    private final HttpClient httpClient = OutboundHttp.jdk(OutboundHttp.CONNECT_GEOCODE_MS).build();
     private final Map<String, CachedDistricts> districtCache = new ConcurrentHashMap<>();
 
     private record CachedDistricts(List<GeoDistrictNode> nodes, long expiresAt) {}

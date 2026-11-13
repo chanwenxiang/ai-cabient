@@ -27,7 +27,8 @@ class OpsFinanceControllerTest {
         assertEquals("/finance/stats", stats.getAnnotation(GetMapping.class).value()[0]);
         Method sla = OpsFinanceController.class.getMethod("sla", HttpServletRequest.class);
         assertEquals("/sla", sla.getAnnotation(GetMapping.class).value()[0]);
-        assertNotNull(OpsFinanceController.class.getConstructor(OpsFinanceAdminService.class));
+        assertNotNull(OpsFinanceController.class.getConstructor(
+                OpsFinanceAdminService.class, com.aicabinet.trade.service.AdminAuditService.class));
     }
 
     @Test

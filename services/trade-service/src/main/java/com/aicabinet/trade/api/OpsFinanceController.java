@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsFinanceAdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -20,8 +21,11 @@ public class OpsFinanceController {
 
     private final OpsFinanceAdminService financeAdminService;
 
-    public OpsFinanceController(OpsFinanceAdminService financeAdminService) {
+    private final AdminAuditService auditService;
+
+    public OpsFinanceController(OpsFinanceAdminService financeAdminService, AdminAuditService auditService) {
         this.financeAdminService = financeAdminService;
+        this.auditService = auditService;
     }
 
     // --- 对账 ---
@@ -41,7 +45,12 @@ public class OpsFinanceController {
             HttpServletRequest request,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(defaultValue = "WECHAT") String channel) {
-        return ApiResponse.ok(financeAdminService.runReconciliation(operatorId(request), date, channel));
+        Long operatorId = operatorId(request);
+        PaymentReconciliationDto recon = financeAdminService.runReconciliation(operatorId, date, channel);
+        auditService.appendLog(operatorId, "RECON_RUN_MANUAL", "PAYMENT_RECONCILIATION",
+                recon == null ? null : String.valueOf(recon.reconId()),
+                "日期=" + date + " 渠道=" + channel + " 状态=" + (recon == null ? "无返回" : recon.status()));
+        return ApiResponse.ok(recon);
     }
 
     @RequiresPermissions("ops:reconciliation:list")

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.MerchantAiInsightDto;
 import com.aicabinet.common.dto.MerchantSkuPerformanceDto;
+import com.aicabinet.common.http.OutboundHttp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,13 @@ public class MerchantAiInsightService {
     private final boolean enabled;
     private final String baseUrl;
     private final String model;
+    /**
+     * Ollama 客户端**只建一次**。原先每次生成建议都 `HttpClient.newBuilder()` 新建一个：
+     * 每个 HttpClient 自带 selector/executor 线程，用完不 close 只能等 GC 回收——
+     * 低频入口下不致命，但形态是错的（S1 门禁第 ④ 条就是拦这个）。
+     * 连接超时 2s（本机 Ollama），单次请求超时仍按 30s 走 {@code HttpRequest.timeout}。
+     */
+    private final HttpClient httpClient = OutboundHttp.jdk(OutboundHttp.CONNECT_LOCAL_LLM_MS).build();
 
     public MerchantAiInsightService(MerchantAnalyticsService analyticsService,
                                     ObjectMapper objectMapper,
@@ -57,8 +65,7 @@ public class MerchantAiInsightService {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
-            HttpResponse<String> response = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(2)).build()
+            HttpResponse<String> response = httpClient
                     .send(request, HttpResponse.BodyHandlers.ofString());
             JsonNode json = objectMapper.readTree(response.body());
             String text = json.path("response").asText("").trim();

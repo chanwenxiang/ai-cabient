@@ -30,13 +30,14 @@ class OpsRiskControllerTest {
 
     @Mock OpsRiskAdminService riskAdminService;
     @Mock OpsCsvExportService csvExportService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsRiskController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OpsRiskController(riskAdminService, csvExportService);
+        controller = new OpsRiskController(riskAdminService, csvExportService, auditService);
     }
 
     @Test

@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..');
 const JAVA =
   'services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java';
 const TS = 'clients/merchant-mp/src/utils/todo-list.test.ts';

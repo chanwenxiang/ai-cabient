@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.LinePromoTaskDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.UpsertLinePromoTaskRequest;
 import com.aicabinet.trade.domain.LinePromoTask;
 import com.aicabinet.trade.mapper.LinePromoTaskMapper;
@@ -46,9 +47,14 @@ public class LinePromoTaskService {
     }
 
     @Transactional(readOnly = true)
-    public List<LinePromoTaskDto> list(Long operatorId, Long managerId, String status) {
+    public PageResult<LinePromoTaskDto> list(Long operatorId, Long managerId, String status, int page, int size) {
         permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
-        return taskMapper.findByManager(managerId, status).stream().map(this::toDto).toList();
+        int p = Math.max(0, page);
+        int s = Math.min(Math.max(1, size), 200);
+        long total = taskMapper.countByManager(managerId, status);
+        List<LinePromoTaskDto> items = taskMapper.findByManager(managerId, status, p * s, s)
+                .stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, total);
     }
 
     @Transactional

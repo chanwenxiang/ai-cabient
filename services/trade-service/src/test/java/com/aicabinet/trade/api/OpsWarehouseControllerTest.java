@@ -51,6 +51,7 @@ class OpsWarehouseControllerTest {
     @Mock OpsCsvExportService csvExportService;
     @Mock OpsWarehouseAdminService warehouseAdminService;
     @Mock com.aicabinet.trade.service.WarehouseMonthlyCloseSheetService monthlyCloseSheetService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsWarehouseController controller;
@@ -59,7 +60,7 @@ class OpsWarehouseControllerTest {
     void setUp() {
         controller = new OpsWarehouseController(
                 warehouseStocktakeService, warehouseBinService, csvExportService, warehouseAdminService,
-                monthlyCloseSheetService);
+                monthlyCloseSheetService, auditService);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.aicabinet.trade.payment;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,11 +34,8 @@ public class AlipayOpenApiClient {
         // R20-4（2026-11-12）：原先 RestClient.create() 完全无超时——调用方
         // OrderPaymentService.chargeOrder 在事务 + Redis 锁 + 行锁内同步调本类，
         // 支付宝网关一卡就同时占住「行锁 + 1 个 Hikari 连接」直到底层 TCP 超时（默认无上限）。
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(3_000);
-        factory.setReadTimeout(10_000);
-        this.restClient = RestClient.builder().requestFactory(factory).build();
+        // S1（2026-11-12）：构造与超时档位收进 OutboundHttp。
+        this.restClient = OutboundHttp.publicApi().build();
     }
 
     public JsonNode execute(String method, Map<String, Object> bizContent) {

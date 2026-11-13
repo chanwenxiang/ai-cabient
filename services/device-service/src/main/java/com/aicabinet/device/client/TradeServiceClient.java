@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.enums.DoorState;
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +28,9 @@ public class TradeServiceClient {
                               InternalApiProperties internalApiProperties) {
         // R20-10（2026-11-12）：原先 RestClient.builder() 无超时，而 notifyDoorEvent 是在
         // Paho MQTT 回调线程里同步调用（失败还重试 3 次）——trade 抖动时回调线程被网络等待挂住，
-        // 消息不 ACK，全设备门磁积压。补 2s 连接 / 5s 响应，把单次阻塞上限钉死。
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(2_000);
-        factory.setReadTimeout(5_000);
-        this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        // 消息不 ACK，全设备门磁积压。S1（2026-11-12）：2s / 5s 的「回调线程档」定义在
+        // OutboundHttp.callbackThreadRpc()，档位比普通内部 RPC 更紧是刻意的。
+        this.restClient = OutboundHttp.callbackThreadRpc().baseUrl(baseUrl).build();
         this.internalApiProperties = internalApiProperties;
     }
 

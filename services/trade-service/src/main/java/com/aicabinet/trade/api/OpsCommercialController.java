@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.CommercialFlowRunRequest;
 import com.aicabinet.common.dto.CommercialFlowRunResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.CommercialFlowService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,8 +27,11 @@ public class OpsCommercialController {
 
     private final CommercialFlowService commercialFlowService;
 
-    public OpsCommercialController(CommercialFlowService commercialFlowService) {
+    private final AdminAuditService auditService;
+
+    public OpsCommercialController(CommercialFlowService commercialFlowService, AdminAuditService auditService) {
         this.commercialFlowService = commercialFlowService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions("ops:admin")
@@ -35,7 +39,12 @@ public class OpsCommercialController {
     public ApiResponse<CommercialFlowRunResult> runCommercialFlow(
             HttpServletRequest request,
             @RequestBody(required = false) CommercialFlowRunRequest body) {
-        return ApiResponse.ok(commercialFlowService.runFullFlow(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        CommercialFlowRunResult run = commercialFlowService.runFullFlow(operatorId, body);
+        auditService.appendLog(operatorId, "COMMERCIAL_FLOW_RUN", "COMMERCIAL_FLOW",
+                run == null ? null : run.sessionId(),
+                "全链演练 设备=" + (run == null ? "无返回" : run.deviceId()) + " 会话=" + (run == null ? "无返回" : run.sessionId()));
+        return ApiResponse.ok(run);
     }
 
     private static Long operatorId(HttpServletRequest request) {

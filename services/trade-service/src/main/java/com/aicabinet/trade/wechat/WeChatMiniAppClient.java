@@ -1,5 +1,6 @@
 package com.aicabinet.trade.wechat;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.support.ApiMessages;
@@ -8,8 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.client.BufferingClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
@@ -49,20 +48,13 @@ public class WeChatMiniAppClient {
         this.properties = properties;
         this.securityProperties = securityProperties;
         this.objectMapper = objectMapper;
-        // 🔴 不能用 RestClient.create()（Spring 6.1+ 对 JSON body 不再预缓冲、不设 Content-Length，
-        // 改 Transfer-Encoding: chunked）——微信 API 对无 Content-Length 的请求一律回
-        // 412 Precondition Failed（实证 2026-10-23：getuserphonenumber 与 subscribe/send 双双 412，
-        // 后者此前被误判为"用户未订阅"）。BufferingClientHttpRequestFactory 恢复缓冲 → 带 Content-Length。
+        // 🔴 微信系 API 必须带 Content-Length：Spring 6.1+ 的 RestClient.create() 对 JSON body
+        // 不再预缓冲、改 Transfer-Encoding: chunked，微信一律回 412 Precondition Failed
+        // （实证 2026-10-23：getuserphonenumber 与 subscribe/send 双双 412，后者曾被误判成「用户未订阅」）。
         // R21-1（2026-11-12）：SimpleClientHttpRequestFactory 原先未设任何超时——code2Session 是
         // 微信登录主链，微信侧卡住 ⇒ 请求线程无限期阻塞，Tomcat 线程被逐个吃掉 ⇒ 全站不可用。
-        // 3s 连接 / 10s 响应与 R20-4 的支付客户端同量级。
-        org.springframework.http.client.SimpleClientHttpRequestFactory httpFactory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        httpFactory.setConnectTimeout(3_000);
-        httpFactory.setReadTimeout(10_000);
-        this.restClient = RestClient.builder()
-                .requestFactory(new BufferingClientHttpRequestFactory(httpFactory))
-                .build();
+        // S1：缓冲 + 3s/10s 档位由 OutboundHttp.publicApiBuffered() 单源提供。
+        this.restClient = OutboundHttp.publicApiBuffered().build();
     }
 
     public Code2SessionResult code2Session(String code, MiniAppTarget target) {

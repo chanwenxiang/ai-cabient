@@ -1,0 +1,84 @@
+{
+  "note": "S4② 增量棘轮基线（R19-17 拍板：裸 LocalDate.now() 存量不动，只拦新增；ZoneId.systemDefault() 同族）。每文件命中数与基线严格相等（多=新增未登记红，少=有人删旧没同步登记表也红）。存量 convert 需要 S4③ TimeWindows 单源时另行处理。",
+  "seedDate": "2026-11-12",
+  "bareLocalDate": [
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WarehouseInventoryMapper.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java",
+      "count": 2
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CommercialFlowService.java",
+      "count": 5
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DemoDataService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java",
+      "count": 15
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineManagerKpiService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+      "count": 4
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantSkuPricingService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ProcurementService.java",
+      "count": 2
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentService.java",
+      "count": 6
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteContractService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SlaMetricsService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseService.java",
+      "count": 2
+    }
+  ],
+  "zoneIdSystemDefault": [
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDevicePortalService.java",
+      "count": 2
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWorkbenchQueryService.java",
+      "count": 5
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsAnalyticsQueryService.java",
+      "count": 3
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java",
+      "count": 4
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsWorkbenchQueryService.java",
+      "count": 3
+    }
+  ]
+}

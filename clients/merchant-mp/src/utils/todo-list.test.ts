@@ -370,7 +370,7 @@ describe('matchTodoKpiCategory', () => {
  * 本清单没跟，门禁直接红——这类跨端契约纯前端用例护不住。
  */
 describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽划分）', () => {
-  /** 后端 `SysDictBootstrap.exception_type` 全集（2026-11-12 抄录，共 35 类） */
+  /** 后端 `SysDictBootstrap.exception_type` 全集（2026-11-13 抄录，共 37 类；欠账修复批补 R20/R22 漏抄 2 码） */
   const DICT_TYPES = [
     'DISPUTE',
     'LOW_STOCK',
@@ -406,7 +406,9 @@ describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽
     'XXL_JOB_WIRING_BROKEN',
     'SPLIT_EXCEPTION',
     'VISION_ANOMALY',
-    'SMS_DELIVERY_FAILURE_HIGH'
+    'SMS_DELIVERY_FAILURE_HIGH',
+    'JIANGYI_AUTO_RESTOCK_SYNC_FAIL',
+    'PAYSCORE_DONE_ON_TERMINAL_ORDER'
   ];
   const KPI_KEYS: TodoKpiKey[] = ['dispute', 'offline', 'stock', 'expiry'];
   const rows = (types: string[]) =>

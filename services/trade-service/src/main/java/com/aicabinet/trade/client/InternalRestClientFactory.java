@@ -1,6 +1,6 @@
 package com.aicabinet.trade.client;
 
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.aicabinet.common.http.OutboundHttp;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -12,13 +12,8 @@ final class InternalRestClientFactory {
     private InternalRestClientFactory() {}
 
     static RestClient create(String baseUrl) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        // 端侧结果受理等内部调用；120s 过长易拖垮线程池，与 resilience4j 重试配合用 30s
-        factory.setReadTimeout(30_000);
-        return RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(factory)
-                .build();
+        // S1（2026-11-12）：档位与构造统一到 common-core 的 OutboundHttp（10s / 30s 内部 RPC）。
+        // 本类保留为「内部服务」语义的入口，不再自己拼 SimpleClientHttpRequestFactory。
+        return OutboundHttp.internalRpc().baseUrl(baseUrl).build();
     }
 }

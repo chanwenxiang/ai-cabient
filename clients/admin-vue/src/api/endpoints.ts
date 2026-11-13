@@ -662,6 +662,10 @@ export const AdminEndpoints = {
   lineWithdrawCancel: (requestId: string | number) =>
     `${ops}/line-withdraws/${encodeURIComponent(String(requestId))}/cancel`,
   linePromoTasks: `${ops}/line-promo-tasks`,
+  linePromoTasksList: (query: URLSearchParams | string) =>
+    typeof query === 'string'
+      ? `${ops}/line-promo-tasks?${query}`
+      : `${ops}/line-promo-tasks?${query.toString()}`,
   merchantWalletsList: (query: URLSearchParams | string) =>
     typeof query === 'string'
       ? `${ops}/merchant-wallets?${query}`

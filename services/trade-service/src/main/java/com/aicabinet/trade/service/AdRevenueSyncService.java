@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.AdRevenueDaily;
 import com.aicabinet.trade.mapper.AdRevenueDailyMapper;
+import com.aicabinet.trade.support.TimeWindows;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.aicabinet.trade.wechat.WeChatPublisherStatClient;
 import org.slf4j.Logger;
@@ -133,7 +134,8 @@ public class AdRevenueSyncService {
      * 交给运营手动触发或月度任务。
      */
     public int syncRecentEstimates(String adSlot) {
-        LocalDate to = LocalDate.now().minusDays(1);
+        // S4③：窗口「今天」走 TimeWindows 单源（时区钉 Asia/Shanghai），不再裸 LocalDate.now()
+        LocalDate to = TimeWindows.now().minusDays(1);
         LocalDate from = to.minusDays(MAX_LOOKBACK_DAYS);
         return syncEstimates(from, to, adSlot);
     }

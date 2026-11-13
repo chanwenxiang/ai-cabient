@@ -40,6 +40,7 @@ class OpsReplenishmentControllerTest {
     @Mock FileAttachmentService fileAttachmentService;
     /** V311 配套待索赔台账（缺口 #4 方案 C）。 */
     @Mock WriteOffClaimLedgerService writeOffClaimLedgerService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsReplenishmentController controller;
@@ -47,7 +48,7 @@ class OpsReplenishmentControllerTest {
     @BeforeEach
     void setUp() {
         controller = new OpsReplenishmentController(
-                replenishmentAdminService, csvExportService, fileAttachmentService, writeOffClaimLedgerService);
+                replenishmentAdminService, csvExportService, fileAttachmentService, writeOffClaimLedgerService, auditService);
     }
 
     @Test

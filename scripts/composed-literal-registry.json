@@ -1,0 +1,359 @@
+{
+  "note": "S3-3a 组合字面量清单（check-composed-literal-roundtrip）：split/lastIndexOf/String.join 的字符串字面量分隔符全量登记。external=外部格式（CSV/行/路径/协议），写侧不在仓内或读侧为外部服务；DISPLAY_ONLY=拼接结果仅作报错/日志/模板/回显文案，仓内无解析读侧（无写读往返，R22-1 风险不成立）；TBD=写读同源待确认（显式欠账，maxTbd 只许减）。新增命中不登记即红；条目失配（文件/分隔符/方向计数）即红。2026-11-13 同源确认轮：TBD 11→0（10 条 DISPLAY_ONLY 全仓无对应分隔符解析读侧实证 + 1 条 SmtpAlertMailer MIME To 头归 external）。",
+  "seedDate": "2026-11-12",
+  "maxTbd": 0,
+  "entries": [
+    {
+      "file": "services/common/common-core/src/main/java/com/aicabinet/common/constants/CouponScopeType.java",
+      "sep": "/",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/common/common-core/src/main/java/com/aicabinet/common/security/InternalApiAuthInterceptor.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/common/common-core/src/main/java/com/aicabinet/common/security/InternalApiProperties.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/device-service/src/main/java/com/aicabinet/device/mqtt/MqttEventListener.java",
+      "sep": "|",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/device-service/src/main/java/com/aicabinet/device/mqtt/MqttEventListener.java",
+      "sep": "/",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OrderVideoReportController.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/ws/DeviceHandshakeInterceptor.java",
+      "sep": "&",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/config/AdminUiController.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/config/VarcharArrayTypeHandler.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/config/XxlJobWiringSelfCheck.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/JiangyiOrderVideoMapper.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/payout/PayoutChannelRegistry.java",
+      "sep": "/",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
+      "sep": "\\n",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
+      "sep": "\\n",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDataManageService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/AmapGeocodeService.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalChannelFileParser.java",
+      "sep": "、",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：表头未识别报错（入 errors→BAD_REQUEST 回显），全仓无「、」解析读侧，无写读往返"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalChannelImportService.java",
+      "sep": "；",
+      "kind": "writer",
+      "count": 2,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：解析 0 行/阻断项 BAD_REQUEST 报错，全仓无「；」解析读侧，无写读往返"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ExternalNotificationDispatcher.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiClassesParser.java",
+      "sep": "\\r?\\n",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiLearningLibraryService.java",
+      "sep": "；",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：log.warn + LearningLibraryView DTO 回显，全仓无「；」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiOrderVideoService.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 2,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiOrderVideoService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiRestockService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiShelfService.java",
+      "sep": "；",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：ShelfDeviceResult.notes 结果回显，全仓无「；」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineRouteAdminService.java",
+      "sep": "/",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantNotifyService.java",
+      "sep": " ",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：微信订阅消息模板参数（thing2），sha256 去重不解析，全仓无空格 split 读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantPortalService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/NotificationService.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsAlertDispatcher.java",
+      "sep": ",",
+      "kind": "reader",
+      "count": 2,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsRbacService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 2,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OtaService.java",
+      "sep": "\\\\.",
+      "kind": "reader",
+      "count": 2,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PermissionService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PermissionService.java",
+      "sep": ":",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PromotionActivityValidator.java",
+      "sep": "/",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentSplitService.java",
+      "sep": ";",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
+      "sep": "、",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：Match SUSPECT 原因文案，全仓无「、」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
+      "sep": " / ",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：CONFLICT 报错文案，全仓无「 / 」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuSceneLimitService.java",
+      "sep": "；",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：BAD_REQUEST 容量超限报错，全仓无「；」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SmtpAlertMailer.java",
+      "sep": ", ",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "外部协议格式：MIME To 头地址列表=RFC 5322（逗号+空格），读侧为外部邮件服务，非仓内往返"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseService.java",
+      "sep": "、",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：WarehouseMonthlyCloseRestockLineDto 字段经 API 回显，全仓无「、」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseService.java",
+      "sep": "；",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：log.warn 补货半满足日志，全仓无「；」解析读侧"
+    }
+  ]
+}

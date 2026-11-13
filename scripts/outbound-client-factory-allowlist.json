@@ -1,0 +1,17 @@
+{
+  "services/common/common-core/src/main/java/com/aicabinet/common/http/OutboundHttp.java": {
+    "builder": 2,
+    "simpleFactory": 1,
+    "bufferingFactory": 1,
+    "jdkClient": 1,
+    "reason": "S1 闸门本体：builder() 走显式毫秒档、publicApiBuffered() 走微信 Content-Length 档、jdk() 是 java.net.http.HttpClient 的唯一构造点；SimpleClientHttpRequestFactory / BufferingClientHttpRequestFactory / HttpClient.newBuilder 的全仓唯一创建位置。任一命中数下降＝闸门被拆空，同样判红。"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/sms/AliyunSmsSender.java": {
+    "urlConnection": 1,
+    "reason": "第三条栈（裸 HttpURLConnection）。postForm 已 connect+read 双设 10s、setFixedLengthStreamingMode 带 Content-Length、4xx/5xx 也读响应体（H14：阿里云流控/关键词拒发的原因在 body 里，只看状态码会把拒发当成功）。刻意不改写走 RestClient：收益为零且改动落在短信登录主链上。"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/sms/WebhookSmsSender.java": {
+    "urlConnection": 1,
+    "reason": "第三条栈（裸 HttpURLConnection），同上：10s/10s 双设 + JSON body 带 Content-Length + ≥400 读 body。webhook 渠道由运营配置，未配置时抛 IllegalStateException 而非静默不发（R22-2 的额度顺序另记）。"
+  }
+}

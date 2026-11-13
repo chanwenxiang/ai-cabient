@@ -18,10 +18,10 @@
  * 用法：node scripts/check-frontend-perm-codes.mjs
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve} from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-frontend-perm-codes]';
 
 /** 豁免清单（键=权限码，值=设计依据）。新增前先补注释说明设计意图。 */

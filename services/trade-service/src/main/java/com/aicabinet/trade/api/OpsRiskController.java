@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsRiskAdminService;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,9 +26,13 @@ public class OpsRiskController {
     private final OpsRiskAdminService riskAdminService;
     private final OpsCsvExportService csvExportService;
 
-    public OpsRiskController(OpsRiskAdminService riskAdminService, OpsCsvExportService csvExportService) {
+    private final AdminAuditService auditService;
+
+    public OpsRiskController(OpsRiskAdminService riskAdminService, OpsCsvExportService csvExportService,
+                             AdminAuditService auditService) {
         this.riskAdminService = riskAdminService;
         this.csvExportService = csvExportService;
+        this.auditService = auditService;
     }
 
     // --- 风控 ---
@@ -71,14 +76,20 @@ public class OpsRiskController {
     public ApiResponse<Void> addBlacklist(
             HttpServletRequest request,
             @Valid @RequestBody AddBlacklistRequest body) {
-        riskAdminService.addBlacklist(operatorId(request), body.userId(), body.reason(), body.expiresAt());
+        Long operatorId = operatorId(request);
+        riskAdminService.addBlacklist(operatorId, body.userId(), body.reason(), body.expiresAt());
+        auditService.appendLog(operatorId, "RISK_BLACKLIST_ADD", "RISK_BLACKLIST",
+                String.valueOf(body.userId()), "原因=" + body.reason() + " 到期=" + body.expiresAt());
         return ApiResponse.ok(null);
     }
 
     @RequiresPermissions("ops:risk:blacklist")
     @DeleteMapping("/risk/blacklist/{userId}")
     public ApiResponse<Void> removeBlacklist(HttpServletRequest request, @PathVariable Long userId) {
-        riskAdminService.removeBlacklist(operatorId(request), userId);
+        Long operatorId = operatorId(request);
+        riskAdminService.removeBlacklist(operatorId, userId);
+        auditService.appendLog(operatorId, "RISK_BLACKLIST_REMOVE", "RISK_BLACKLIST",
+                String.valueOf(userId), "移除黑名单");
         return ApiResponse.ok(null);
     }
 

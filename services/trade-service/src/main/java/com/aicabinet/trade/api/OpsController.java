@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -18,9 +19,11 @@ import java.util.List;
 public class OpsController {
 
     private final OpsService opsService;
+    private final AdminAuditService auditService;
 
-    public OpsController(OpsService opsService) {
+    public OpsController(OpsService opsService, AdminAuditService auditService) {
         this.opsService = opsService;
+        this.auditService = auditService;
     }
 
     /** 商品目录（争议审核 / 异常选品） */
@@ -37,6 +40,10 @@ public class OpsController {
             HttpServletRequest request,
             @Valid @RequestBody OpsOpenDoorRequest body) {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(opsService.openDoorForRestock(operatorId, body));
+        SessionDto session = opsService.openDoorForRestock(operatorId, body);
+        auditService.appendLog(operatorId, "OPS_RESTOCK_OPEN_DOOR", "SHOPPING_SESSION",
+                session == null ? null : session.sessionId(),
+                "设备=" + body.deviceId() + " 任务=" + body.taskId());
+        return ApiResponse.ok(session);
     }
 }

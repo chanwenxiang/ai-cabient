@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.DevOpsHubDto;
 import com.aicabinet.common.dto.DevOpsSonarScanDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.DevOpsHubService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,8 +19,11 @@ public class OpsDevOpsController {
 
     private final DevOpsHubService devOpsHubService;
 
-    public OpsDevOpsController(DevOpsHubService devOpsHubService) {
+    private final AdminAuditService auditService;
+
+    public OpsDevOpsController(DevOpsHubService devOpsHubService, AdminAuditService auditService) {
         this.devOpsHubService = devOpsHubService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions("ops:devops:view")
@@ -34,7 +38,11 @@ public class OpsDevOpsController {
     @RequiresPermissions("ops:devops:scan")
     @PostMapping("/sonar/scan")
     public ApiResponse<DevOpsSonarScanDto> triggerSonarScan(HttpServletRequest request) {
-        return ApiResponse.ok(devOpsHubService.triggerSonarScan(operatorId(request)));
+        Long operatorId = operatorId(request);
+        DevOpsSonarScanDto scan = devOpsHubService.triggerSonarScan(operatorId);
+        auditService.appendLog(operatorId, "DEVOPS_SONAR_SCAN_TRIGGER", "DEVOPS",
+                String.valueOf(scan.accepted()), "手动触发 Sonar 扫描 job=" + scan.jobName());
+        return ApiResponse.ok(scan);
     }
 
     private static Long operatorId(HttpServletRequest request) {

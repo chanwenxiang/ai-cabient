@@ -1,0 +1,1309 @@
+{
+  "note": "S2 非终态注册表（check-pending-state-progress）。口径：每条状态线登记 host（锚文件必须存在）+ advancers（推进器类#方法锚点必须源码可解析，alert code 字面量必须全仓可寻）+ gaps（无兜底缺口，显式记账）+ uncertain（终态语义存疑，待拍板不猜）。enum 形态的状态线，其全部常量必须被 terminal/advancers/gaps/uncertain 覆盖（枚举完备性）；domain 实体含 status 类字段即为状态线宿主，必须登记或在 nonLifecycle（宿主完备性，机械清点）。gaps 只许销不许涨；stateLines 宿主数不许低于 seed。",
+  "seedDate": "2026-11-12",
+  "seedStateLineCount": 65,
+  "stateLines": [
+    {
+      "entity": "ShoppingSession",
+      "host": "services/common/common-core/src/main/java/com/aicabinet/common/enums/SessionState.java",
+      "enum": "SessionState",
+      "terminal": ["COMPLETED", "FAILED", "CANCELLED"],
+      "terminalNote": "三态带事件驱动救援边（CANCELLED→DISPUTED 兜账 v2 只在有商品识别上报时触发、COMPLETED→DISPUTED 结案申诉）——证据驱动设计，非 sweep 职责，故仍记终态",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "expireStaleOpeningSessions",
+          "from": ["CREATED", "OPENING"],
+          "to": "CANCELLED",
+          "threshold": "aicabinet.session-expire.opening-seconds",
+          "alert": "OPEN_TIMEOUT"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "expireStaleRestockShoppingSessions",
+          "from": ["SHOPPING"],
+          "to": "CANCELLED",
+          "threshold": "aicabinet.session-expire.restock-shopping-minutes",
+          "alert": "RESTOCK_SESSION_TIMEOUT"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "expireStaleConsumerShoppingSessions",
+          "from": ["SHOPPING"],
+          "to": "DISPUTED",
+          "threshold": "aicabinet.session-expire.consumer-door-open-minutes",
+          "alert": "DOOR_OPEN_TOO_LONG"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "expireStaleRecognizingSessions",
+          "from": ["RECOGNIZING", "WAITING_UPLOAD", "SETTLING"],
+          "to": "DISPUTED",
+          "threshold": "aicabinet.session-expire.recognizing-minutes",
+          "alert": "RECOGNITION_TIMEOUT"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "releaseStaleFailedSessionHolds",
+          "from": ["FAILED"],
+          "to": "FAILED",
+          "threshold": "硬编码 1h（只清 FROZEN 预授权）",
+          "alert": "FAILED_SESSION_HOLD_CLEAR"
+        },
+        {
+          "class": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/tracker/SessionWatchdog.java",
+          "anchor": "sweep",
+          "from": ["OPENING", "RECOGNIZING"],
+          "to": "FAILED",
+          "threshold": "jiangyi.watchdog.open-timeout-ms / 硬编码 CLOSE=300s DOING=600s",
+          "alert": "OPEN_TIMEOUT"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "DISPUTED",
+          "why": "dispute-auto-waive 只吃 reason 前缀「识别超时」+未认领；开门超时/兜账 v2 转的争议单无自动收口，只有 dispute-sla 告警（人工处置为设计口径，缺口=无 SLA 逾期升级）"
+        }
+      ]
+    },
+    {
+      "entity": "PaymentOperation",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PaymentOperation.java",
+      "terminal": ["FINALIZED", "COMPLETED", "REFUND_FAILED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundRetryScheduler.java",
+          "anchor": "run",
+          "from": ["REFUND_INITIATED"],
+          "to": "FINALIZED",
+          "threshold": "硬编码 QUIET=2min / EXHAUST=30min",
+          "alert": "WECHAT_REFUND_ABNORMAL"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "CHARGE_PENDING",
+          "why": "唯一自动出口=alertStaleChargePendingOps 告警型兜底（60min，CHARGE_PENDING_STALE/HIGH）后转人工——金额未知禁程序臆断，有意不自动推进（R22-6 已保证不被 auto_cancel_hours 短路）"
+        }
+      ]
+    },
+    {
+      "entity": "RechargeOrder",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/RechargeOrder.java",
+      "terminal": ["PAID", "CANCELLED"],
+      "terminalNote": "CANCELLED 有救援边 doCreditRechargeAfterChannelPaid（渠道实收→救回 PAID，R20 P2-4）",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/RechargeOrderScheduler.java",
+          "anchor": "autoCancelExpired",
+          "from": ["PENDING"],
+          "to": "CANCELLED",
+          "threshold": "recharge.pending.auto_cancel_minutes",
+          "alert": "RECHARGE_QUERY_AMOUNT_ZERO"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "REFUNDED",
+          "why": "渠道迟到实收重投命中 409（doCreditRechargeAfterChannelPaid 只救 CANCELLED）：微信按非 2xx 无限重投且无 ops 告警——缺人工信号，需拍板（告警 or 放行）"
+        }
+      ],
+      "uncertain": []
+    },
+    {
+      "entity": "MerchantWithdrawRequest",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MerchantWithdrawRequest.java",
+      "terminal": ["PAID", "FAILED", "REJECTED", "CANCELLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationScheduler.java",
+          "anchor": "failStalePayingWithdraws",
+          "from": ["PAYING"],
+          "to": "FAILED",
+          "threshold": "WithdrawPayoutPolicy.PAYING_TIMEOUT_MINUTES=60",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PENDING_REVIEW",
+          "why": "待审核无 SLA 提醒/自动推进（额度小、审批快为现状口径）"
+        },
+        {
+          "state": "APPROVED",
+          "why": "已审批待打款停滞无 SLA（PAYING 有 60min 兜底，APPROVED 停滞只能人工发现）"
+        }
+      ]
+    },
+    {
+      "entity": "LineWithdrawRequest",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/LineWithdrawRequest.java",
+      "terminal": ["PAID", "FAILED", "REJECTED", "CANCELLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineWithdrawService.java",
+          "anchor": "failStalePayingWithdraws",
+          "from": ["PAYING"],
+          "to": "FAILED",
+          "threshold": "WithdrawPayoutPolicy.PAYING_TIMEOUT_MINUTES=60",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PENDING_REVIEW",
+          "why": "同 MerchantWithdrawRequest：待审核无 SLA"
+        },
+        {
+          "state": "APPROVED",
+          "why": "同 MerchantWithdrawRequest：待打款无 SLA"
+        }
+      ]
+    },
+    {
+      "entity": "BalanceRefundRequest",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/BalanceRefundRequest.java",
+      "terminal": ["REFUNDED", "REJECTED", "FAILED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/WeChatRefundReconciler.java",
+          "anchor": "advanceProcessingRefunds",
+          "from": ["PROCESSING"],
+          "to": "REFUNDED",
+          "threshold": "RefundRetryScheduler 同轮驱动",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PENDING_REVIEW",
+          "why": "审核无 SLA 任务（auto-approve 只在额度内）"
+        },
+        {
+          "state": "PROCESSING",
+          "why": "H63 复审续退只部分覆盖，RefundRetryScheduler 类注释明示「留待后续批次」"
+        }
+      ],
+      "uncertain": [
+        {
+          "state": "PARTIAL",
+          "why": "写点存在但终态语义未核实（可否再退/是否稳定态）"
+        }
+      ]
+    },
+    {
+      "entity": "BalanceRefundAllocation",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/BalanceRefundAllocation.java",
+      "terminal": ["SUCCEEDED", "FAILED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/WeChatRefundReconciler.java",
+          "anchor": "advanceProcessingRefunds",
+          "from": ["PROCESSING"],
+          "to": "SUCCEEDED",
+          "threshold": "同 RefundRetryScheduler",
+          "alert": ""
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "CabinetOrder",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/CabinetOrder.java",
+      "terminal": ["PAID", "REFUNDED", "CANCELLED", "DISPUTED"],
+      "terminalNote": "PAID 可退可争议、DISPUTED 结案回 PAID——非严格终态但均有入口/回调驱动，无 sweep 需求；DISPUTED 的收口在 dispute_ticket 线登记",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/UnpaidOrderScheduler.java",
+          "anchor": "autoCancelExpired",
+          "from": ["PENDING"],
+          "to": "CANCELLED",
+          "threshold": "order.unpaid.auto_cancel_hours",
+          "alert": "UNPAID_CANCEL_NET_BLOCKED"
+        }
+      ],
+      "gaps": [],
+      "uncertain": [
+        {
+          "state": "COMPLETED",
+          "why": "字典与 DisputeService 判据集合存在，全仓未定位写路径——疑 Legacy/预留"
+        },
+        {
+          "state": "PROCESSING",
+          "why": "字典存在，写路径未定位"
+        },
+        {
+          "state": "FAILED",
+          "why": "读侧存在（OpsSessionOrderQueryService），写侧未直接观察到"
+        },
+        {
+          "state": "PARTIAL_REFUNDED",
+          "why": "消费侧当可结算态，未见再出边——终态语义待拍板"
+        }
+      ]
+    },
+    {
+      "entity": "PaymentReconciliation",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PaymentReconciliation.java",
+      "terminal": ["MATCHED", "MISMATCH"],
+      "terminalNote": "MISMATCH 可人工修复后 rerun（非严格终态，rerun 入口在 ReconciliationService）",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationScheduler.java",
+          "anchor": "runDailyReconciliation",
+          "from": ["PENDING"],
+          "to": "MATCHED",
+          "threshold": "aicabinet.reconciliation.scheduled-cron",
+          "alert": "RECON_MISMATCH"
+        }
+      ],
+      "gaps": [],
+      "uncertain": []
+    },
+    {
+      "entity": "ReplenishmentTask",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ReplenishmentTask.java",
+      "terminal": ["COMPLETED", "CANCELLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java",
+          "anchor": "expireStaleCheckedInTasks",
+          "from": ["IN_PROGRESS"],
+          "to": "CANCELLED",
+          "threshold": "硬编码 STALE_CHECK_IN_HOURS=4",
+          "alert": "RESTOCK_TASK_TIMEOUT"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PENDING",
+          "why": "已建任务无人签到则永久悬挂（4h 收口只覆盖 IN_PROGRESS 已签到）——需 SLA 或自动取消拍板"
+        }
+      ]
+    },
+    {
+      "entity": "ReplenishmentRoute",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ReplenishmentRoute.java",
+      "terminal": ["COMPLETED", "CANCELLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java",
+          "anchor": "expireStaleCheckedInTasks",
+          "from": ["IN_PROGRESS"],
+          "to": "COMPLETED",
+          "threshold": "同任务收口连带",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PLANNED",
+          "why": "路线 PLANNED 滞留无兜底（随任务缺口同族）"
+        }
+      ]
+    },
+    {
+      "entity": "OrderRevenueSplit",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/OrderRevenueSplit.java",
+      "terminal": ["SETTLED", "LEDGER_ONLY"],
+      "terminalNote": "LEDGER_ONLY=渠道未回执仅平台记账，FundBillService 计「已到账」——终态口径已拍板（CB 台账）",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ProfitSharingRetryScheduler.java",
+          "anchor": "retryFailedSplits",
+          "from": ["WECHAT_FAILED"],
+          "to": "WECHAT_SUBMITTED",
+          "threshold": "aicabinet.profit-sharing.retry-enabled",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "ACCRUED",
+          "why": "应分账未提交的滞留无 sweep（提交由结算驱动，失败落 WECHAT_FAILED 有重试；ACCRUED 本身停滞只能人工发现）"
+        }
+      ],
+      "uncertain": [
+        {
+          "state": "VOIDED",
+          "why": "冲正的冲正（SPLIT_PARTIAL_REV）后续是否可再 SETTLED 未核实"
+        }
+      ]
+    },
+    {
+      "entity": "DisputeTicket",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/support/DisputeTicketTransitions.java",
+      "terminal": ["RESOLVED", "CLOSED"],
+      "terminalNote": "均可 canReopen 回 OPEN（全额退款重开结案单，S-P2-6）",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeAutoWaiveScheduler.java",
+          "anchor": "autoWaive",
+          "from": ["OPEN"],
+          "to": "RESOLVED",
+          "threshold": "dispute.auto_waive.hours",
+          "alert": "DISPUTE"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/DisputeSlaScheduler.java",
+          "anchor": "checkDisputeSla",
+          "from": ["OPEN"],
+          "to": "OPEN",
+          "threshold": "dispute.sla.hours",
+          "alert": "DISPUTE"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "OPEN",
+          "why": "非「识别超时」来源或已认领的 OPEN 只有人工+SLA 提醒，无逾期自动升级（缺口=SLA 逾期后无动作）"
+        }
+      ]
+    },
+    {
+      "entity": "InvoiceRequest",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/InvoiceRequest.java",
+      "terminal": ["ISSUED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "PENDING",
+          "why": "开票请求无 SLA/自动推进（低频人工流程）"
+        }
+      ],
+      "uncertain": [
+        {
+          "state": "ISSUED",
+          "why": "未见出边，低置信终态"
+        }
+      ]
+    },
+    {
+      "entity": "DeviceSkuLot",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DeviceSkuLot.java",
+      "terminal": [],
+      "terminalNote": "无严格终态：BLOCKED/DEPLETED 补货后可回 ON_SALE/NEAR_EXPIRY——状态由 InventoryLotService.resolveLotStatus 按保质期/库存动态派生重算",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java",
+          "anchor": "resolveLotStatus",
+          "from": ["ON_SALE", "BLOCKED", "DEPLETED"],
+          "to": "NEAR_EXPIRY",
+          "threshold": "保质期/库存派生",
+          "alert": ""
+        }
+      ],
+      "gaps": [],
+      "uncertain": [
+        {
+          "state": "BLOCKED",
+          "why": "派生重算可复活，是否算「非终态需兜底」存疑（派生值非流程态）"
+        }
+      ]
+    },
+    {
+      "entity": "CompensationTask",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/CompensationTask.java",
+      "terminal": ["COMPLETED", "FAILED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/CompensationTaskScheduler.java",
+          "anchor": "processCompensationTasks",
+          "from": ["PENDING", "PROCESSING"],
+          "to": "COMPLETED",
+          "threshold": "硬编码 PROFIT_SHARING_RETURN_MAX_RETRIES=5",
+          "alert": ""
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "OpsException",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/OpsException.java",
+      "terminal": ["RESOLVED"],
+      "terminalNote": "RESOLVED 可被争议反向同步打回 PROCESSING（OpsExceptionReverseSync）",
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "OPEN",
+          "why": "纯告警行（RECOGNITION_STUCK/SETTLEMENT_STUCK/RECON_MISMATCH/CHARGE_PENDING_STALE 等）无自动收口 sweep——resolveSystem 全部事件式配对调用"
+        }
+      ]
+    },
+    {
+      "entity": "UserCoupon",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/UserCoupon.java",
+      "terminal": ["USED", "EXPIRED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java",
+          "anchor": "expireOverdueCoupons",
+          "from": ["UNUSED"],
+          "to": "EXPIRED",
+          "threshold": "cron 0 0 2 * * *",
+          "alert": ""
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "RiskEvent",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/RiskEvent.java",
+      "terminal": ["AUTO_CLEARED", "ACKED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/RiskAutoDispositionService.java",
+          "anchor": "runScheduled",
+          "from": ["OPEN"],
+          "to": "AUTO_CLEARED",
+          "threshold": "risk.auto_clear_info_hours=72 / risk.auto_ack_warn_hours=168",
+          "alert": ""
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "PullOffTask",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PullOffTask.java",
+      "terminal": ["RESOLVED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "OPEN",
+          "why": "拉仓任务无任何超时扫描（agent 清点 #5）"
+        }
+      ]
+    },
+    {
+      "entity": "PayScoreOrder",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PayScoreOrder.java",
+      "terminal": ["DONE", "EXPIRED", "REVOKED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java",
+          "anchor": "handleOrderNotify",
+          "from": ["USER_PAYING"],
+          "to": "DONE",
+          "threshold": "回调驱动",
+          "alert": "PAYSCORE_DONE_ON_TERMINAL_ORDER"
+        }
+      ],
+      "gaps": [
+        {
+          "state": "CREATED",
+          "why": "全仓最高危缺口（agent 清点 #1）：支付分单无定时查单 sweep——会话异常路径没走完结/取消时 CREATED/DOING/USER_PAYING 永久悬挂（对比退款有 WeChatRefundReconciler）。微信侧有超时自动 EXPIRED 但依赖回调送达"
+        },
+        {
+          "state": "COMPLETE_FAILED",
+          "why": "PayScoreService 注释自述「留痕迹供补偿」，全仓无补偿消费者（grep 仅注释一处）"
+        }
+      ]
+    },
+    {
+      "entity": "ConsumerPreauthHold",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ConsumerPreauthHold.java",
+      "terminal": ["CAPTURED", "RELEASED"],
+      "terminalNote": "一律经 markHoldTerminal()（方法名即终态判据）；ShoppingSession.preauthStatus 同步镜像",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionExpireService.java",
+          "anchor": "releaseStaleFailedSessionHolds",
+          "from": ["FROZEN"],
+          "to": "RELEASED",
+          "threshold": "硬编码 1h（仅 FAILED 会话）",
+          "alert": "FAILED_SESSION_HOLD_CLEAR"
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "DeviceInfo",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DeviceInfo.java",
+      "terminal": ["ONLINE", "OFFLINE"],
+      "terminalNote": "双向互切（心跳/超时），非单据终态——收口=自动锁机/自动解锁闭环",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/DevicePresenceService.java",
+          "anchor": "markStaleDevicesOffline",
+          "from": ["ONLINE"],
+          "to": "OFFLINE",
+          "threshold": "device.offline.auto_sales_lock_minutes",
+          "alert": "DEVICE_OFFLINE"
+        },
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceAvailabilityJobScheduler.java",
+          "anchor": "autoUnlockFallback",
+          "from": ["OFFLINE"],
+          "to": "ONLINE",
+          "threshold": "device.offline.auto_unlock_stable_minutes",
+          "alert": "DEVICE_OFFLINE"
+        }
+      ],
+      "gaps": []
+    },
+    {
+      "entity": "TransactionStep",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/TransactionStep.java",
+      "terminal": ["CONFIRMED", "CANCELLED"],
+      "terminalNote": "TCC 同步协调器驱动（TccTransactionCoordinator），无悬挂窗口",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/TccTransactionCoordinator.java",
+          "anchor": "confirmTransaction",
+          "from": ["PENDING"],
+          "to": "CONFIRMED",
+          "threshold": "同步",
+          "alert": ""
+        }
+      ],
+      "gaps": [],
+      "uncertain": [
+        {
+          "state": "FAILED",
+          "why": "步骤失败后的补偿路径语义未核实（TCC cancel 分支）"
+        }
+      ]
+    },
+    {
+      "entity": "SkuDelistReview",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/SkuDelistReview.java",
+      "terminal": ["DELISTED", "KEPT"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "PENDING",
+          "why": "下架评审无 SLA（人工评审流，低频）"
+        }
+      ],
+      "uncertain": [
+        {
+          "state": "DELISTED",
+          "why": "无 reopen 观察，低置信终态"
+        }
+      ]
+    },
+    {
+      "entity": "ApprovalTask",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ApprovalTask.java",
+      "terminal": ["APPROVED", "REJECTED", "SKIPPED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/ApprovalWorkflowService.java",
+          "anchor": "completeApproved",
+          "from": ["PENDING"],
+          "to": "APPROVED",
+          "threshold": "人工审批",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "PENDING",
+          "why": "审批任务无 SLA 提醒（调账审批等入口为 2026-11-07 R10 批新增）"
+        }
+      ],
+      "uncertain": [
+        {
+          "state": "SKIPPED",
+          "why": "跳过语义未深查（可否重发）"
+        }
+      ]
+    },
+    {
+      "entity": "JiangyiProductState",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/dto/JiangyiRestockDtos.java",
+      "enum": "State",
+      "terminal": ["NEW", "READY", "REJECTED"],
+      "terminalNote": "厂商商品生命周期快照（将邑 V16 §7.2），poll 定时刷新——外部权威，我方只同步",
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiProductStatePollScheduler.java",
+          "anchor": "pollReviewingProducts",
+          "from": ["REVIEWING", "CABINET_PENDING", "CABINET_REVIEWING"],
+          "to": "READY",
+          "threshold": "fixedRate=60_000",
+          "alert": ""
+        }
+      ],
+      "gaps": [],
+      "uncertain": [
+        {
+          "state": "NEED_PHONE",
+          "why": "厂商态语义（是否终态）未核实"
+        }
+      ]
+    },
+    {
+      "entity": "MerchantFeeLedger",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MerchantFeeLedger.java",
+      "terminal": ["SETTLED"],
+      "terminalNote": "注释明示「扣款成功不得留 PENDING」",
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "PENDING",
+          "why": "扣款失败重试/SLA 未定位到 sweep（费用扣款入口待核）"
+        }
+      ]
+    },
+    {
+      "entity": "AdCampaign",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/AdCampaign.java",
+      "terminal": ["DRAFT", "RUNNING", "STOPPED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "营销活动启停为人工操作，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "Announcement",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/Announcement.java",
+      "terminal": ["DRAFT", "ARCHIVED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "公告发布/归档人工，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "ApprovalInstance",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ApprovalInstance.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "审批实例由 ApprovalWorkflowService 人工/回调推进，无定时兜底；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "CommissionClawback",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/CommissionClawback.java",
+      "terminal": ["POSTED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "佣金冲回 POSTED 后人工复核，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "CouponDefinition",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/CouponDefinition.java",
+      "terminal": ["DRAFT"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "券定义 DRAFT→启用为人工（上架评审），无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "DeviceDataFeeBill",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DeviceDataFeeBill.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "数据费账单推进器未定位（盘点时未发现直接引用其实体的定时任务）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "DeviceRentalBill",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DeviceRentalBill.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "设备租赁账单推进器未定位；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "DeviceRentalDeposit",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DeviceRentalDeposit.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "押金记录推进器未定位；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "DistributedTransaction",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/DistributedTransaction.java",
+      "terminal": ["CONFIRMED", "CANCELLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/TccTransactionCoordinator.java",
+          "anchor": "confirmTransaction",
+          "from": ["PENDING"],
+          "to": "CONFIRMED",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "ExternalImportBatch",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/ExternalImportBatch.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "导入批处理推进器未定位（盘点时未发现其定时任务）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "JiangyiSkuJiangyiLink",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/JiangyiSkuJiangyiLink.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "SKU 挂接同步推进器未定位（syncStatus 有调度文件引用但实体写点未核）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "LineCommissionDaily",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/LineCommissionDaily.java",
+      "terminal": ["POSTED", "ARCHIVED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineCommissionJob.java",
+          "anchor": "postDailyCommission",
+          "from": ["PENDING"],
+          "to": "POSTED",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "LineDevice",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/LineDevice.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "线路-设备绑定推进器未定位；取值集含评审/打款类值待业务核；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "LinePromoTask",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/LinePromoTask.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "线路促销任务无定时推进器（人工执行）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "LineRoute",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/LineRoute.java",
+      "terminal": ["ACTIVE"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "线路发布/归档人工，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "MachinePayeeBill",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MachinePayeeBill.java",
+      "terminal": ["SETTLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/MachinePayeeBillJob.java",
+          "anchor": "generateMonthlyBills",
+          "from": ["PENDING"],
+          "to": "SETTLED",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "MediaAsset",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MediaAsset.java",
+      "terminal": ["DRAFT", "RUNNING", "STOPPED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "素材启停人工，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "MerchantPaymentOnboarding",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MerchantPaymentOnboarding.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "商户进件流程推进器未定位（进件回调/人工为主）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "MerchantSettlementBill",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/MerchantSettlementBill.java",
+      "terminal": ["SETTLED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantSettlementBillScheduler.java",
+          "anchor": "rebuildMonthlyBills",
+          "from": ["PENDING"],
+          "to": "SETTLED",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "OtaRelease",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/OtaRelease.java",
+      "terminal": ["UNPUBLISHED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "固件发布/下架人工操作（MA-115 归因问题属另一族），无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "PromotionActivity",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PromotionActivity.java",
+      "terminal": ["DRAFT"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "促销活动启停人工，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "PurchaseOrder",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PurchaseOrder.java",
+      "terminal": ["CREATED", "COMPLETED", "REJECTED", "CLOSED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "采购单收口靠人工/审批，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "PurchaseOrderLine",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PurchaseOrderLine.java",
+      "terminal": ["CREATED", "COMPLETED", "REJECTED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "采购明细随主单，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "PurchaseReturn",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/PurchaseReturn.java",
+      "terminal": ["CREATED", "COMPLETED", "REJECTED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "采购退货随采购流，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "RepairTicket",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/RepairTicket.java",
+      "terminal": ["OPEN"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "维修工单人工处理，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "SiteRentBill",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/SiteRentBill.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "站点租金账单推进器未定位（有调度文件引用但实体写点未核）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "StaffCommissionDaily",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/StaffCommissionDaily.java",
+      "terminal": ["POSTED", "ARCHIVED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "员工日佣金推进器未定位（LineCommissionJob 只管线路侧）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "SupplierPayable",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/SupplierPayable.java",
+      "terminal": ["CREATED", "COMPLETED", "CLOSED", "REJECTED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "应付供应商款收口靠人工，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "UserFeedback",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/UserFeedback.java",
+      "terminal": ["PENDING"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "客服反馈 PENDING→HANDLED 人工处理，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseInbound",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseInbound.java",
+      "terminal": [],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "入库单推进器未定位（盘点时未发现定时推进）；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseInTransit",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseInTransit.java",
+      "terminal": ["CANCELLED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "在途库存收口靠入库/退货驱动，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseOutbound",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseOutbound.java",
+      "terminal": ["CANCELLED", "RESOLVED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "出库单收口靠签收/取消，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseOutboundLine",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseOutboundLine.java",
+      "terminal": ["CANCELLED", "RESOLVED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "出库明细随出库单，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseStocktake",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseStocktake.java",
+      "terminal": ["PENDING", "COMPLETED", "CANCELLED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "盘点单人工发起/完成，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseStocktakeLine",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseStocktakeLine.java",
+      "terminal": ["PENDING", "COMPLETED", "CANCELLED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "盘点明细随盘点单；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseTransferOrder",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseTransferOrder.java",
+      "terminal": ["SHIPPED", "RECEIVED", "CANCELLED"],
+      "advancers": [],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "调拨单收口靠签收，无定时推进器；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    },
+    {
+      "entity": "WarehouseMonthlyCloseSheet",
+      "host": "services/trade-service/src/main/java/com/aicabinet/trade/domain/WarehouseMonthlyCloseSheet.java",
+      "terminal": ["COMPLETED"],
+      "advancers": [
+        {
+          "class": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseJob.java",
+          "anchor": "ensureLastClosedPeriodSheets",
+          "from": ["PENDING"],
+          "to": "COMPLETED",
+          "alert": ""
+        }
+      ],
+      "gaps": [
+        {
+          "state": "（盘点待核）",
+          "why": "；终态集合待业务确认后补 terminal；推进器锚点未核实的不编造，查实后补登记"
+        }
+      ]
+    }
+  ],
+  "nonLifecycle": [
+    {
+      "entity": "DoorState",
+      "why": "设备门磁瞬时遥测态（UNKNOWN/OPEN/OPENING/CLOSED），非单据生命周期"
+    },
+    {
+      "entity": "UploadStatus",
+      "why": "全仓 services/edge 零消费点（agent 清点 #3）——疑似死代码或端侧预留"
+    },
+    {
+      "entity": "VisionIngestOutcome",
+      "why": "HTTP 直报一次性应答结论（PROCESSED/ALREADY_HANDLED/TOO_EARLY/CANCELLED），注释明确非持久生命周期"
+    },
+    {
+      "entity": "RefundPolicy",
+      "why": "退款策略配置项（AUTO_REFUND/DISPUTE_ONLY），非状态"
+    },
+    {
+      "entity": "SettlementDecision",
+      "why": "结算路径一次性决策（FINALIZE/HUMAN_REVIEW_*）"
+    },
+    {
+      "entity": "SkuStockLevel",
+      "why": "库存档位派生值（OOS/LOW/OK）"
+    },
+    {
+      "entity": "WalletDomain",
+      "why": "钱包判别列+锁前缀（MERCHANT/LINE/STAFF）"
+    },
+    {
+      "entity": "MiniAppTarget",
+      "why": "小程序路由目标"
+    },
+    {
+      "entity": "DeviceCommandTracker 状态",
+      "why": "device-service Redis 指令回执态（本仓唯一带 isTerminal() 的字符串状态），自带 5s 抢占 sweep，非业务单据生命周期"
+    },
+    {
+      "entity": "CommandTracker",
+      "why": "jiangyi-gateway Redis 指令态（PENDING→ACKED，超时 evict），同上"
+    },
+    {
+      "entity": "OpsRole",
+      "why": "配置态：配置角色，ACTIVE/INACTIVE 翻转即用"
+    },
+    {
+      "entity": "OpsPermission",
+      "why": "配置态：配置权限，启停即用"
+    },
+    {
+      "entity": "OpsDepartment",
+      "why": "配置态：组织配置"
+    },
+    {
+      "entity": "SysDictData",
+      "why": "配置态：字典数据项配置"
+    },
+    {
+      "entity": "SysDictType",
+      "why": "配置态：字典类型配置"
+    },
+    {
+      "entity": "MemberLevelRule",
+      "why": "配置态：会员等级规则配置"
+    },
+    {
+      "entity": "NotificationTemplate",
+      "why": "配置态：通知模板配置（启用开关）"
+    },
+    {
+      "entity": "PayoutAccount",
+      "why": "配置态：收款账户配置态（ACTIVE/DISABLED）"
+    },
+    {
+      "entity": "PlatformFundAccount",
+      "why": "配置态：平台资金账户配置"
+    },
+    {
+      "entity": "PointsRedeemItem",
+      "why": "配置态：积分兑换项配置（ACTIVE 启用）"
+    },
+    {
+      "entity": "JiangyiClassMapping",
+      "why": "配置态：将邑识别映射配置（ACTIVE/DISABLED 启停）"
+    },
+    {
+      "entity": "JiangyiDevice",
+      "why": "配置态：将邑设备绑定态（BOUND/UNBOUND/RETIRED 配置翻转，非流程卡点）"
+    },
+    {
+      "entity": "JiangyiModelDeployment",
+      "why": "配置态：将邑模型部署配置（SENT 已下发）"
+    },
+    {
+      "entity": "Merchant",
+      "why": "配置态：商户配置态（ACTIVE/DISABLED）"
+    },
+    {
+      "entity": "LineManager",
+      "why": "配置态：线路成员配置"
+    },
+    {
+      "entity": "LineRouteMember",
+      "why": "配置态：线路成员配置（ACTIVE/ARCHIVED）"
+    },
+    {
+      "entity": "DeviceHttpCredential",
+      "why": "配置态：设备 HTTP 证书凭据配置"
+    },
+    {
+      "entity": "DeviceMqttCredential",
+      "why": "配置态：设备 MQTT 凭据配置"
+    },
+    {
+      "entity": "SkuCatalog",
+      "why": "配置态：商品目录启用态（ACTIVE/DISABLED）"
+    },
+    {
+      "entity": "Supplier",
+      "why": "配置态：供应商主数据配置"
+    },
+    {
+      "entity": "SiteRentSplitRule",
+      "why": "配置态：站点租金分账规则配置"
+    },
+    {
+      "entity": "DeviceLifecycleEvent",
+      "why": "流水/记录：设备生命周期事件流（fromStatus 仅为记录）"
+    },
+    {
+      "entity": "JiangyiRecognitionReport",
+      "why": "流水/记录：识别上报记录（outcome 为一次性结论）"
+    },
+    {
+      "entity": "OtaDeviceReport",
+      "why": "流水/记录：OTA 设备上报流水（upgradeStatus 记录字段）"
+    },
+    {
+      "entity": "NotificationLog",
+      "why": "流水/记录：通知发送流水"
+    },
+    {
+      "entity": "DataConsistencyRecord",
+      "why": "流水/记录：一致性巡检记录"
+    },
+    {
+      "entity": "RepairTicketEvent",
+      "why": "流水/记录：维修工单事件流（fromStatus 记录）"
+    },
+    {
+      "entity": "JiangyiTrainingTicket",
+      "why": "流水/记录：厂商培训工单记录（厂商侧，无我方推进器）"
+    },
+    {
+      "entity": "OrderSplitReturnLeg",
+      "why": "流水/记录：分账退款腿记录（支付腿流水，非流程态）"
+    },
+    {
+      "entity": "WarehouseBin",
+      "why": "配置态：库位配置"
+    },
+    {
+      "entity": "Warehouse",
+      "why": "配置态：分仓配置（启用态 ACTIVE/DISABLED）"
+    },
+    {
+      "entity": "SiteContract",
+      "why": "配置态：站点合同配置"
+    },
+    {
+      "entity": "UserInfo",
+      "why": "配置态：用户配置态（ACTIVE/INACTIVE）"
+    }
+  ],
+  "uncertainNote": "uncertain 项与 gaps 项的处置均为待拍板/待排期，不阻塞门禁（登记本身即缺口显式化）。"
+}

@@ -1,0 +1,164 @@
+{
+  "note": "S9 写动作归因清单（check-write-action-attribution）：98 个含写端点的控制器，判定=控制器自身或注入依赖（一层可达）含 appendLog。auditCapable=true 由门禁实时校验（退化即红=MA-082 家族复发）；非可达文件必须登记分类——CALLBACK/DEV_ONLY/DEVICE_FACING 为语义豁免（带理由），TBD=真缺口显式欠账（maxTbd 只许减）。二层可达（service→service2）暂为已知盲区，见 why。",
+  "seedDate": "2026-11-13",
+  "capableCount": 72,
+  "maxTbd": 0,
+  "entries": [
+    {
+      "file": "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java",
+      "writes": 3,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/AliyunOssController.java",
+      "writes": 2,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCommandController.java",
+      "writes": 6,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCompatController.java",
+      "writes": 17,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceExtensionController.java",
+      "writes": 3,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceInfoController.java",
+      "writes": 4,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceReportController.java",
+      "writes": 16,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceTokenController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DomainConfigController.java",
+      "writes": 3,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/GatherNotifyController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/ModelPushController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OpenDoorController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OrderVideoReportController.java",
+      "writes": 2,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OssPresignController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "设备面写操作（上报/指令/凭据），鉴权=设备 token/一次性凭据，业务事实=设备上报流水本身"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/AlipayNotifyController.java",
+      "writes": 1,
+      "cls": "CALLBACK",
+      "why": "外部回调幂等处理，审计语义=渠道事件流水（回调侧不写 admin 审计，事件本身即凭据）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/DemoDataInternalController.java",
+      "writes": 1,
+      "cls": "DEV_ONLY",
+      "why": "dev/mock 专用（RECON_MOCK/dev profile 门），不进生产"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockAlipayPaymentController.java",
+      "writes": 1,
+      "cls": "DEV_ONLY",
+      "why": "dev/mock 专用（RECON_MOCK/dev profile 门），不进生产"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockPaymentController.java",
+      "writes": 1,
+      "cls": "DEV_ONLY",
+      "why": "dev/mock 专用（RECON_MOCK/dev profile 门），不进生产"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockRechargeController.java",
+      "writes": 1,
+      "cls": "DEV_ONLY",
+      "why": "dev/mock 专用（RECON_MOCK/dev profile 门），不进生产"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsAlertInternalController.java",
+      "writes": 1,
+      "cls": "DEVICE_FACING",
+      "why": "内部边缘告警接入（无 @RequiresPermissions，内网调用面）：动作本身即产生 ops_alert 记录，审计语义=告警流水本身"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java",
+      "writes": 2,
+      "cls": "CONSUMER_WRITE",
+      "why": "消费者支付操作（充值预下单/取消）：recharge_order 业务单据即流水，渠道回调侧有事件凭据"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/PayScoreNotifyController.java",
+      "writes": 1,
+      "cls": "CALLBACK",
+      "why": "外部回调幂等处理，审计语义=渠道事件流水（回调侧不写 admin 审计，事件本身即凭据）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java",
+      "writes": 4,
+      "cls": "CONSUMER_WRITE",
+      "why": "消费者自主会话操作（创建/取消/购物车/demo-close，会话鉴权）：会话与订单记录即业务流水，无运营归因语义"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionInternalController.java",
+      "writes": 4,
+      "cls": "DEVICE_FACING",
+      "why": "内部设备上报（/internal/v1/sessions：门事件/重力/购物车/开门失败，设备 token 鉴权）——上报记录本身即流水，会话状态机留痕"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/VisionInternalController.java",
+      "writes": 2,
+      "cls": "DEVICE_FACING",
+      "why": "内部视觉接入（anomaly-events/edge-results）——识别/异常记录本身即流水"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/api/WeChatNotifyController.java",
+      "writes": 2,
+      "cls": "CALLBACK",
+      "why": "外部回调幂等处理，审计语义=渠道事件流水（回调侧不写 admin 审计，事件本身即凭据）"
+    }
+  ]
+}

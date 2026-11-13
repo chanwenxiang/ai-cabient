@@ -1,5 +1,6 @@
 package com.aicabinet.trade.payment;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,16 +45,10 @@ public class WeChatPayV3Client {
         // R20-4（2026-11-12）：原先 RestClient.create() 无任何超时——下单/退款都在
         // 「事务 + Redis 锁 + cabinet_order 行锁」内同步调微信，网关卡住即占满行锁与 Hikari 连接
         // （20 个并发卡点打满全库）。3s 连接 / 10s 响应是微信官方建议量级。
-        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(3_000);
-        factory.setReadTimeout(10_000);
-        this.restClient = RestClient.builder().requestFactory(factory).build();
-        org.springframework.http.client.SimpleClientHttpRequestFactory downloadFactory =
-                new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        downloadFactory.setConnectTimeout(3_000);
-        downloadFactory.setReadTimeout(60_000);
-        this.downloadRestClient = RestClient.builder().requestFactory(downloadFactory).build();
+        // S1（2026-11-12）：超时值与构造方式收进 OutboundHttp，此处只声明「用哪个档位」。
+        this.restClient = OutboundHttp.publicApi().build();
+        // 账单下载实测远超普通 RPC，单独走 60s 读档
+        this.downloadRestClient = OutboundHttp.bulkDownload().build();
     }
 
     public JsonNode post(String path, Object body) {

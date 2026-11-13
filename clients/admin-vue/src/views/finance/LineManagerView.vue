@@ -519,6 +519,17 @@
             <template #default="{ row }">{{ row.dueDate || '' }}</template>
           </el-table-column>
         </el-table>
+        <PagePager
+          :hydrated="promoHydrated"
+          v-model:current-page="promoPage"
+          v-model:page-size="promoSize"
+          :total="promoTotal"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadPromoTasks"
+          @size-change="onPromoSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -1104,6 +1115,9 @@ const kpiHydrated = ref(false);
 const kpiTitle = ref('');
 const kpi = ref<ManagerKpi | null>(null);
 const promoTasks = ref<PromoTask[]>([]);
+const promoPage = ref(1);
+const promoSize = ref(20);
+const promoTotal = ref(0);
 const promoLoading = ref(false);
 const promoHydrated = ref(false);
 const promoVisible = ref(false);
@@ -1238,6 +1252,10 @@ function searchWithdraws() {
 function onWithdrawSizeChange() {
   wPage.value = 1;
   loadWithdraws();
+}
+function onPromoSizeChange() {
+  promoPage.value = 1;
+  loadPromoTasks();
 }
 function onTab() {
   if (tab.value === 'managers') loadManagers();
@@ -1604,10 +1622,15 @@ async function loadPromoTasks() {
   const seq = loadSeq.begin('loadPromoTasks');
   promoLoading.value = true;
   try {
-    const tasks = await api.request<PromoTask[]>(AdminEndpoints.linePromoTasks, 'GET');
+    const q = new URLSearchParams({ page: String(promoPage.value - 1), size: String(promoSize.value) });
+    const res = await api.request<{ items: PromoTask[]; total: number }>(
+      AdminEndpoints.linePromoTasksList(q),
+      'GET'
+    );
     // R11-A-N2 同族：成功路径也须判代际
     if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
-    promoTasks.value = tasks;
+    promoTasks.value = res.items || [];
+    promoTotal.value = Number(res.total || 0);
   } catch (e) {
     if (!loadSeq.isCurrent(seq, 'loadPromoTasks')) return;
     ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');

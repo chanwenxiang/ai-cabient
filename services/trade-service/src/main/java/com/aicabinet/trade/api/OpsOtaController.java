@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsOtaAdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -16,10 +17,14 @@ import java.util.List;
 @RequestMapping("/api/v2/ops/admin")
 public class OpsOtaController {
 
-    private final OpsOtaAdminService otaAdminService;
+    private static final String BIZ_OTA_RELEASE = "OTA_RELEASE";
 
-    public OpsOtaController(OpsOtaAdminService otaAdminService) {
+    private final OpsOtaAdminService otaAdminService;
+    private final AdminAuditService auditService;
+
+    public OpsOtaController(OpsOtaAdminService otaAdminService, AdminAuditService auditService) {
         this.otaAdminService = otaAdminService;
+        this.auditService = auditService;
     }
 
     // --- OTA ---
@@ -32,7 +37,14 @@ public class OpsOtaController {
     @RequiresPermissions("ops:ota:publish")
     @PostMapping("/ota/releases")
     public ApiResponse<OtaReleaseDto> publishOta(HttpServletRequest request, @RequestBody OtaReleaseDto body) {
-        return ApiResponse.ok(otaAdminService.publishOta(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        OtaReleaseDto released = otaAdminService.publishOta(operatorId, body);
+        // MA-115（S9 归因）：OTA 发布是全仓最高危运维动作，发布/下架必须留痕
+        auditService.appendLog(operatorId, "OTA_RELEASE_PUBLISH", BIZ_OTA_RELEASE,
+                String.valueOf(released.releaseId()),
+                "版本=" + released.appVersion() + " 渠道=" + released.channel()
+                        + " 强制=" + released.mandatory() + " 灰度=" + released.grayPercent() + "%");
+        return ApiResponse.ok(released);
     }
 
     /** 下架（回滚）：停止推送该版本。 */
@@ -41,7 +53,12 @@ public class OpsOtaController {
     public ApiResponse<OtaReleaseDto> unpublishOta(
             HttpServletRequest request,
             @PathVariable Long releaseId) {
-        return ApiResponse.ok(otaAdminService.unpublishOta(operatorId(request), releaseId));
+        Long operatorId = operatorId(request);
+        OtaReleaseDto unpublished = otaAdminService.unpublishOta(operatorId, releaseId);
+        auditService.appendLog(operatorId, "OTA_RELEASE_UNPUBLISH", BIZ_OTA_RELEASE,
+                String.valueOf(releaseId),
+                "版本=" + unpublished.appVersion() + " 状态=" + unpublished.status());
+        return ApiResponse.ok(unpublished);
     }
 
     /** 设备升级进度列表（O2）；status 省略即不过滤。 */

@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsOtaAdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,12 +25,13 @@ import static org.mockito.Mockito.when;
 class OpsOtaControllerTest {
 
     @Mock OpsOtaAdminService otaAdminService;
+    @Mock AdminAuditService auditService;
     @Mock HttpServletRequest request;
     private OpsOtaController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OpsOtaController(otaAdminService);
+        controller = new OpsOtaController(otaAdminService, auditService);
     }
 
     @Test

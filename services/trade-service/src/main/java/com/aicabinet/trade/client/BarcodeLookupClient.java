@@ -1,5 +1,6 @@
 package com.aicabinet.trade.client;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.dto.BarcodeLookupDto;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -64,11 +64,9 @@ public class BarcodeLookupClient {
             @Value("${BARCODE_LOOKUP_URL:https://v1.apizero.cn/api/barcode-lookup?barcode={code}}")
             String urlTemplate,
             @Value("${BARCODE_LOOKUP_API_KEY:}") String apiKey) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(3_000);
-        // 上游本地库未命中会回源编码中心，留足读超时
-        factory.setReadTimeout(8_000);
-        this.restClient = RestClient.builder().requestFactory(factory).build();
+        // S1（2026-11-12）：3s 连接 / 8s 读（上游本地库未命中会回源编码中心，读预算比公网档放宽），
+        // 档位定义在 OutboundHttp.barcodeLookup()
+        this.restClient = OutboundHttp.barcodeLookup().build();
         this.urlTemplate = urlTemplate;
         this.apiKey = apiKey;
     }

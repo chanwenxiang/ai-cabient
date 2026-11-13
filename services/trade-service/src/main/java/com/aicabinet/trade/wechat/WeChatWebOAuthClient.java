@@ -1,5 +1,6 @@
 package com.aicabinet.trade.wechat;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
 import com.aicabinet.trade.support.ApiMessages;
@@ -31,7 +32,10 @@ public class WeChatWebOAuthClient {
         this.properties = properties;
         this.securityProperties = securityProperties;
         this.objectMapper = objectMapper;
-        this.restClient = RestClient.create();
+        // S1（2026-11-12）：原先 RestClient.create() 零超时（同 WeChatPublisherStatClient，
+        // 两处都不在 R20-4/R21-1 的点名清单内）；H5 授权换 openid 在登录链上，必须封顶。
+        // 只发 GET、无请求体 ⇒ 非缓冲档。
+        this.restClient = OutboundHttp.publicApi().build();
     }
 
     /** H5 网页授权 code → openid（sns/oauth2/access_token）。 */

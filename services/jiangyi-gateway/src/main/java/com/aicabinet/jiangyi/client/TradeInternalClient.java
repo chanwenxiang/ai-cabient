@@ -6,12 +6,12 @@ import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VisionRecognitionResultDto;
 import com.aicabinet.common.dto.VisionResultIngestResponseDto;
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -37,10 +37,8 @@ public class TradeInternalClient {
 
     public TradeInternalClient(@Value("${aicabinet.trade-service.url:http://localhost:8080}") String baseUrl,
                                InternalApiProperties internalApiProperties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(30_000);
-        this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+        // S1（2026-11-12）：内部 RPC 档（10s / 30s）构造统一到 common-core 的 OutboundHttp
+        this.restClient = OutboundHttp.internalRpc().baseUrl(baseUrl).build();
         this.internalApiProperties = internalApiProperties;
     }
 

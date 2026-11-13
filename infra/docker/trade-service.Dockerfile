@@ -63,4 +63,7 @@ EXPOSE 8080
 # `exec` 让 java 仍是 PID 1：SIGTERM 直达 JVM，`stop_grace_period: 30s` 才有意义
 # （见 scripts/check-compose-stop-grace.mjs 头注：装了宽限不处理信号 = 白等后 137）。
 # ExitOnOutOfMemoryError：宁可被 `restart: unless-stopped` 拉起，也不要 OOM 后僵着半死进程。
-ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]
+# R19-17 同款 JVM 层时区兜底（2026-11-12 第 2 批补齐）：ENV TZ + /etc/localtime 依赖 tzdata
+# 与符号链接同时正确（换 base image / 被精简镜像裁掉 tzdata 时静默退回 UTC）；-Duser.timezone
+# 不依赖任何文件。与 Dockerfile.java-service 对齐，由 check-tz-pinned 门禁双向校验。
+ENTRYPOINT ["sh", "-c", "exec java -Duser.timezone=Asia/Shanghai ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]

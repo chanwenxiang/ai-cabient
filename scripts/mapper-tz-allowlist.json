@@ -1,0 +1,4 @@
+{
+  "note": "check-mapper-tz-timezone 的豁免：to_char/date_trunc 参数确为无时区语义（如 date 列）的例外，逐条带理由登记。当前无豁免——R22-4 后全仓唯一含日桶函数的 XML 已全部带 AT TIME ZONE。",
+  "entries": []
+}

@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.FileAttachmentService;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsReplenishmentAdminService;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.WriteOffClaimLedgerService;
@@ -36,10 +37,14 @@ public class OpsReplenishmentController {
     /** V311 配套：待索赔台账（缺口 #4 方案 C）。 */
     private final WriteOffClaimLedgerService writeOffClaimLedgerService;
 
+    private final AdminAuditService auditService;
+
     public OpsReplenishmentController(OpsReplenishmentAdminService replenishmentAdminService,
                                       OpsCsvExportService csvExportService,
                                       FileAttachmentService fileAttachmentService,
-                                      WriteOffClaimLedgerService writeOffClaimLedgerService) {
+                                      WriteOffClaimLedgerService writeOffClaimLedgerService,
+                                      AdminAuditService auditService) {
+        this.auditService = auditService;
         this.replenishmentAdminService = replenishmentAdminService;
         this.csvExportService = csvExportService;
         this.fileAttachmentService = fileAttachmentService;
@@ -59,7 +64,12 @@ public class OpsReplenishmentController {
     @RequiresPermissions("ops:replenishment:edit")
     @PutMapping("/inventory")
     public ApiResponse<DeviceInventoryDto> upsertInventory(HttpServletRequest request, @RequestBody DeviceInventoryDto body) {
-        return ApiResponse.ok(replenishmentAdminService.upsertInventory(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        DeviceInventoryDto saved = replenishmentAdminService.upsertInventory(operatorId, body);
+        auditService.appendLog(operatorId, "REPLENISH_INVENTORY_UPSERT", "DEVICE_INVENTORY",
+                saved == null ? null : saved.deviceId() + "/" + saved.skuId(),
+                "设备台账直写（数量=" + (saved == null ? "无返回" : String.valueOf(saved.quantity())) + "）");
+        return ApiResponse.ok(saved);
     }
 
     @RequiresPermissions("ops:replenishment:list")
@@ -123,7 +133,12 @@ public class OpsReplenishmentController {
     @RequiresPermissions("ops:replenishment:edit")
     @PostMapping("/replenishment/plan")
     public ApiResponse<ReplenishmentRouteDto> planRoute(HttpServletRequest request, @RequestBody PlanRouteRequest body) {
-        return ApiResponse.ok(replenishmentAdminService.planRoute(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        ReplenishmentRouteDto planned = replenishmentAdminService.planRoute(operatorId, body);
+        auditService.appendLog(operatorId, "REPLENISH_ROUTE_PLAN", "REPLENISHMENT_ROUTE",
+                planned == null ? null : String.valueOf(planned.routeId()),
+                "路线=" + (planned == null ? "无返回" : planned.routeName()));
+        return ApiResponse.ok(planned);
     }
 
     /** CB-018 ①：补货建议一键生成补货任务（路线 + PENDING 任务 + RESTOCK 行）。 */
@@ -133,8 +148,13 @@ public class OpsReplenishmentController {
             HttpServletRequest request,
             @RequestBody(required = false) CreateFromSuggestionRequest body) {
         CreateFromSuggestionRequest req = body != null ? body : new CreateFromSuggestionRequest(null, null);
-        return ApiResponse.ok(replenishmentAdminService.createTaskFromSuggestion(
-                operatorId(request), req.deviceId(), req.assigneeUserId()));
+        Long operatorId = operatorId(request);
+        ReplenishmentRouteDto created = replenishmentAdminService.createTaskFromSuggestion(
+                operatorId, req.deviceId(), req.assigneeUserId());
+        auditService.appendLog(operatorId, "REPLENISH_TASK_FROM_SUGGESTION", "REPLENISHMENT_ROUTE",
+                created == null ? null : String.valueOf(created.routeId()),
+                "建议一键建任务 设备=" + req.deviceId());
+        return ApiResponse.ok(created);
     }
 
     @RequiresPermissions("ops:replenishment:edit")
@@ -142,7 +162,11 @@ public class OpsReplenishmentController {
     public ApiResponse<ReplenishmentRouteDto> cancelEmptyRoute(
             HttpServletRequest request,
             @PathVariable Long routeId) {
-        return ApiResponse.ok(replenishmentAdminService.cancelEmptyRoute(operatorId(request), routeId));
+        Long operatorId = operatorId(request);
+        ReplenishmentRouteDto cancelled = replenishmentAdminService.cancelEmptyRoute(operatorId, routeId);
+        auditService.appendLog(operatorId, "REPLENISH_ROUTE_CANCEL_EMPTY", "REPLENISHMENT_ROUTE",
+                String.valueOf(routeId), "空路线取消");
+        return ApiResponse.ok(cancelled);
     }
 
     /** CB-038 任务级补挂：只取消单张任务，路线级 cancel-empty 会连带吃掉同路线的其它任务。 */
@@ -151,7 +175,11 @@ public class OpsReplenishmentController {
     public ApiResponse<ReplenishmentTaskDto> cancelEmptyTask(
             HttpServletRequest request,
             @PathVariable Long taskId) {
-        return ApiResponse.ok(replenishmentAdminService.cancelEmptyTask(operatorId(request), taskId));
+        Long operatorId = operatorId(request);
+        ReplenishmentTaskDto cancelled = replenishmentAdminService.cancelEmptyTask(operatorId, taskId);
+        auditService.appendLog(operatorId, "REPLENISH_TASK_CANCEL_EMPTY", "REPLENISHMENT_TASK",
+                String.valueOf(taskId), "空任务取消");
+        return ApiResponse.ok(cancelled);
     }
 
     /** 设备侧效期告警（PullOffTask 拉下架任务）；与分仓维度的 /warehouse/expiry-alerts 不是同一份数据。 */
@@ -171,7 +199,12 @@ public class OpsReplenishmentController {
     public ApiResponse<PullOffTaskDto> ensureExpiryAlert(
             HttpServletRequest request, @RequestBody Map<String, String> body) {
         String lotId = body == null ? null : body.get("lotId");
-        return ApiResponse.ok(replenishmentAdminService.ensureExpiryAlert(operatorId(request), lotId));
+        Long operatorId = operatorId(request);
+        PullOffTaskDto task = replenishmentAdminService.ensureExpiryAlert(operatorId, lotId);
+        auditService.appendLog(operatorId, "REPLENISH_EXPIRY_ALERT_ENSURE", "PULL_OFF_TASK",
+                task == null ? null : String.valueOf(task.taskId()),
+                "临期告警补建 批次=" + lotId);
+        return ApiResponse.ok(task);
     }
 
     @RequiresPermissions("ops:replenishment:edit")
@@ -180,7 +213,12 @@ public class OpsReplenishmentController {
             HttpServletRequest request,
             @PathVariable Long taskId,
             @RequestBody(required = false) CreateFromExpiryRequest body) {
-        return ApiResponse.ok(replenishmentAdminService.createTaskFromExpiry(operatorId(request), taskId, body));
+        Long operatorId = operatorId(request);
+        ReplenishmentRouteDto created = replenishmentAdminService.createTaskFromExpiry(operatorId, taskId, body);
+        auditService.appendLog(operatorId, "REPLENISH_TASK_FROM_EXPIRY", "REPLENISHMENT_ROUTE",
+                created == null ? null : String.valueOf(created.routeId()),
+                "临期任务转补货 告警任务=" + taskId);
+        return ApiResponse.ok(created);
     }
 
     /**
@@ -219,7 +257,12 @@ public class OpsReplenishmentController {
     public ApiResponse<WriteOffDto> writeOff(
             HttpServletRequest request,
             @Valid @RequestBody WriteOffRequest body) {
-        return ApiResponse.ok(replenishmentAdminService.writeOff(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        WriteOffDto writtenOff = replenishmentAdminService.writeOff(operatorId, body);
+        auditService.appendLog(operatorId, "REPLENISH_WRITE_OFF", "WRITE_OFF",
+                writtenOff == null ? null : String.valueOf(writtenOff.writeOffId()),
+                "报损 设备=" + (writtenOff == null ? "无返回" : writtenOff.deviceId()) + "（资金邻接面）");
+        return ApiResponse.ok(writtenOff);
     }
 
     @RequiresPermissions("ops:replenishment:edit")
@@ -227,7 +270,12 @@ public class OpsReplenishmentController {
     public ApiResponse<DeviceInventoryDto> stocktakeAdjust(
             HttpServletRequest request,
             @Valid @RequestBody StocktakeAdjustRequest body) {
-        return ApiResponse.ok(replenishmentAdminService.stocktakeAdjust(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        DeviceInventoryDto adjusted = replenishmentAdminService.stocktakeAdjust(operatorId, body);
+        auditService.appendLog(operatorId, "REPLENISH_STOCKTAKE_ADJUST", "DEVICE_INVENTORY",
+                adjusted == null ? null : adjusted.deviceId() + "/" + adjusted.skuId(),
+                "盘调（资金邻接面）");
+        return ApiResponse.ok(adjusted);
     }
 
 

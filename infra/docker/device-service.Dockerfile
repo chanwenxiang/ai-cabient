@@ -41,4 +41,5 @@ USER app
 EXPOSE 8081
 # 同 trade-service.Dockerfile：apps.yml 给本容器 mem_limit: 768m，写死 `java -jar` 时
 # JVM 只取 25%（~192MB）堆且改参必须重 build。exec 保 PID 1 ⇒ SIGTERM 直达、宽限不白等。
-ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]
+# R19-17 同款 JVM 层时区兜底（2026-11-12 第 2 批补齐）：见 trade-service.Dockerfile 同名注释。
+ENTRYPOINT ["sh", "-c", "exec java -Duser.timezone=Asia/Shanghai ${JAVA_OPTS:--XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs} -jar app.jar"]

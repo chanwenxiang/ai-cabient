@@ -1,5 +1,6 @@
 package com.aicabinet.trade.wechat;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -76,9 +77,10 @@ public class WeChatPublisherStatClient {
                                       ObjectMapper objectMapper) {
         this.miniAppClient = miniAppClient;
         this.objectMapper = objectMapper;
-        // 与 WeChatMiniAppClient 同一约定：本仓没有共享 RestClient bean，
-        // 各 client 自行 create()（改注入方式会牵动所有现存 client，不值得）
-        this.restClient = RestClient.create();
+        // S1（2026-11-12）：原先 RestClient.create() 属「从未进过任何超时清单」的漏网
+        // （R20-4/R21-1 两次点名超时都只数了已知的 6 处）。本类只发 GET、无请求体，
+        // 因此走非缓冲档：套 Buffering 会把整个广告响应再复制一份，纯亏。
+        this.restClient = OutboundHttp.publicApi().build();
     }
 
     /**

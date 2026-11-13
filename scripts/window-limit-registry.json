@@ -1,0 +1,317 @@
+{
+  "note": "S10 取数窗口诚实性（check-window-limit-honesty）登记表。设计拍板（2026-11-13）：分页面 PageResult 已携带 items/page/size/total=天然诚实豁免；本表管两段非分页面——a) LIMIT N≥2 截断点（LIMIT 1=单行锚点豁免）b) minusDays/Months 窗口字面量。分类：BATCH/ARCHIVE（内部消费或 S7 域）、TOP_N（条数即口径且总数回显）、PARAM_OVERRIDABLE（参数可覆盖）、KPI_FIXED（文案即口径）、DATE_ARITHMETIC（日期边界计算，非取数窗口）、TBD=待确认消费面的显式欠账。新增命中不登记即红；计数失配红；TBD 只减。2026-11-13 分类轮：TBD 33→0，全部按消费面实证定类；LinePromoTaskMapper LIMIT 200 为用户面静默截断真缺口，已修复为分页（PageResult）并销账。",
+  "seedDate": "2026-11-13",
+  "maxTbd": 0,
+  "limitEntries": [
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DataChangeLogMapper.java",
+      "limit": "200",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "审计待核扫描（findByVerifiedFalse），DataChangeLog 审计链内部批消费，非用户列表"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DataConsistencyRecordMapper.java",
+      "limit": "200",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "巡检修复内部取批（findByTableName，DataConsistencyService 内部消费）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DataConsistencyRecordMapper.java",
+      "limit": "5",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "巡检单批小批（同上内部消费，非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/InventoryMovementMapper.java",
+      "limit": "200",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "设备流水历史查询（findByDeviceIdOrderByCreatedAtDesc），未见端点直接暴露，登记防复活"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/MerchantPaymentOnboardingMapper.java",
+      "limit": "500",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "进件批量查询，仅 MerchantOnboardingService 内部消费（控制器仅 PUT/POST 复核，无列表端点）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/OrderRevenueSplitMapper.java",
+      "limit": "20",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "分账重试调度取批（findTop20ByStatus，ProfitSharingRetryScheduler 实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/OrderRevenueSplitMapper.java",
+      "limit": "5",
+      "count": 1,
+      "cls": "TOP_N",
+      "why": "结算概览 recentFailures「最近 5 条」样本，同 DTO 有 failedCount 总数回显（MerchantFinanceService 实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java",
+      "limit": "20",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "网关 trade-no 内部查询（订单查单号提取，非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WalletLedgerMapper.java",
+      "limit": "200",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "账本列表（listByOwnerOrderByLedgerIdDesc），未见控制器直接调用，登记防复活"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WarehouseTransferOrderMapper.java",
+      "limit": "200",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "调拨近单内部通知消费（findRecent→NotificationService.adminRecent，adminRecent 无端点直接调用）"
+    }
+  ],
+  "windowEntries": [
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/AdRevenueSyncService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "广告收益定时回溯同步（调度内部窗口）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CommercialFlowService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "资金流演练内部窗口（非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CommissionClawbackService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "佣金冲回内部窗口（非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CompetitiveGapService.java",
+      "unit": "Days(7)",
+      "count": 2,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "fromDate 参数可覆盖（默认 7 天仅兜底，已实证签名）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceAvailabilityKpiService.java",
+      "unit": "Days(1)",
+      "count": 2,
+      "cls": "KPI_FIXED",
+      "why": "KPI 固定口径（文案「近7/14天」即设计）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceSlotService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "货道临期判断（expiry 过滤内部消费，非取数窗口暴露）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/FinanceMarginLockScheduler.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "ARCHIVE",
+      "why": "保留窗/归档边界（S7 域，config 可调）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/FundBillService.java",
+      "unit": "Days(30)",
+      "count": 2,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "fromDate 参数可覆盖（默认 30 天仅兜底，已实证签名）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/FundBillService.java",
+      "unit": "Days(7)",
+      "count": 1,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "fromDate 参数可覆盖（默认 7 天仅兜底，已实证签名）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/FundBillService.java",
+      "unit": "Days(1)",
+      "count": 3,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "fromDate 参数可覆盖（默认 1 天仅兜底，已实证签名）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/LineManagerKpiService.java",
+      "unit": "Days(29)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "KPI 固定口径（文案「近7/14天」即设计）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MachinePayeeBillJob.java",
+      "unit": "Months(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "月账单定时任务（调度窗口，非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantAnalyticsService.java",
+      "unit": "Days(29)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "商户分析 30 天指标口径（since30，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "ARCHIVE",
+      "why": "保留窗/归档边界（S7 域，config 可调）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+      "unit": "Days(30)",
+      "count": 1,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "fromDate 参数可覆盖（fromDate != null ? fromDate : minusDays(30)，实证签名）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+      "unit": "Days(90)",
+      "count": 1,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "参数可覆盖（同 fromDate 覆盖形态，实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+      "unit": "Months(11)",
+      "count": 1,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "parseYearMonthOrDefault 参数可覆盖（实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+      "unit": "Months(23)",
+      "count": 1,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "参数可覆盖（parseYearMonthOrDefault 兜底，实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantSettlementBillScheduler.java",
+      "unit": "Months(1)",
+      "count": 1,
+      "cls": "ARCHIVE",
+      "why": "保留窗/归档边界（S7 域，config 可调）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "DATE_ARITHMETIC",
+      "why": "解冻日边界计算（unlockedThroughDate：unlockHour 之前返回昨日），非数据取数窗口"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java",
+      "unit": "Days(7)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "CB-018 ② 注释明写「近 7 日在线率」（快照口径，文案即设计）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PurchaseSuggestionService.java",
+      "unit": "Days(7)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "采购建议 7 天销量口径（since7，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PurchaseSuggestionService.java",
+      "unit": "Days(14)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "采购建议 14 天销量口径（since14，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationScheduler.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "ARCHIVE",
+      "why": "保留窗/归档边界（S7 域，config 可调）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationService.java",
+      "unit": "Days(30)",
+      "count": 2,
+      "cls": "PARAM_OVERRIDABLE",
+      "why": "from/to 参数可覆盖（from != null ? from : end.minusDays(30)，list 与 listPage 实证）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SalesVelocityService.java",
+      "unit": "Days(7)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "KPI 固定口径（文案「近7/14天」即设计）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SalesVelocityService.java",
+      "unit": "Days(14)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "KPI 固定口径（文案「近7/14天」即设计）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SlaMetricsService.java",
+      "unit": "Days(1)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "SLA 日口径（指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java",
+      "unit": "Days(6)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "行为分析 7 天窗口指标（since7，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java",
+      "unit": "Days(29)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "行为分析 30 天窗口指标（since30，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java",
+      "unit": "Days(30)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "沉睡用户 30 天判据（dormantCutoff，指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java",
+      "unit": "Days(90)",
+      "count": 1,
+      "cls": "KPI_FIXED",
+      "why": "行为分析 90 天窗口指标（指标即口径）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseJob.java",
+      "unit": "Months(1)",
+      "count": 1,
+      "cls": "BATCH",
+      "why": "月结定时任务（调度窗口，非用户面）"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseService.java",
+      "unit": "Months(1)",
+      "count": 4,
+      "cls": "BATCH",
+      "why": "月结流程内部窗口（月结单自带年月参数，非用户面取数）"
+    }
+  ]
+}

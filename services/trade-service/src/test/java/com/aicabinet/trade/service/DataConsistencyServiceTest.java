@@ -1062,4 +1062,625 @@ class DataConsistencyServiceTest {
                 sqlCaptor.getValue());
         assertTrue(sqlCaptor.getValue().contains("device_sku_inventory"));
     }
+
+    // ── S15 欠账修复：18 条巡检规则的正负夹具（2026-11-13，欠账批）──
+    // 正例=合法空态不报红 + SQL 形态钉住；负例=构造真违规行 ⇒ save 断言。
+
+    @Test
+    void checkPaymentConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaymentConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("payment_operation"), "SQL 应含 payment_operation（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkPaymentConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("order_id", "O-P", "expected_cents", 100, "net_paid", 90)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPaymentConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("PAYMENT_AMOUNT", saved.getCheckType());
+        assertEquals("O-P", saved.getCheckKey());
+        assertEquals("100", saved.getExpectedValue());
+        assertEquals("90", saved.getActualValue());
+    }
+
+    @Test
+    void checkInventoryConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("device_sku_lot"), "SQL 应含 device_sku_lot（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkInventoryConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("device_id", "D1", "sku_id", "S1", "expected_qty", 5, "lot_qty", 3)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("INVENTORY_MISMATCH", saved.getCheckType());
+        assertEquals("D1|S1", saved.getCheckKey());
+        assertEquals("5", saved.getExpectedValue());
+        assertEquals("3", saved.getActualValue());
+    }
+
+    @Test
+    void checkInventoryOrphanLotConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryOrphanLotConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("device_sku_lot"), "SQL 应含 device_sku_lot（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkInventoryOrphanLotConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("device_id", "D2", "sku_id", "S2", "lot_qty", 7)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryOrphanLotConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("INVENTORY_ORPHAN_LOT", saved.getCheckType());
+        assertEquals("D2|S2", saved.getCheckKey());
+        assertEquals("0", saved.getExpectedValue());
+        assertEquals("7", saved.getActualValue());
+    }
+
+    @Test
+    void checkInventoryNoLotLedgerConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryNoLotLedgerConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("device_sku_inventory"), "SQL 应含 device_sku_inventory（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkInventoryNoLotLedgerConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("device_id", "D3", "sku_id", "S3", "expected_qty", 9, "slot_cnt", 2)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkInventoryNoLotLedgerConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("INVENTORY_NO_LOT_LEDGER", saved.getCheckType());
+        assertEquals("D3|S3", saved.getCheckKey());
+        assertEquals("9", saved.getExpectedValue());
+        assertEquals("0", saved.getActualValue());
+    }
+
+    @Test
+    void checkPointsConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPointsConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("member_points_log"), "SQL 应含 member_points_log（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkPointsConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("member_id", "M1", "expected", 500, "calculated", 400)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPointsConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("POINTS_BALANCE", saved.getCheckType());
+        assertEquals("M1", saved.getCheckKey());
+        assertEquals("500", saved.getExpectedValue());
+        assertEquals("400", saved.getActualValue());
+    }
+
+    @Test
+    void checkPointsIdentityConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPointsIdentityConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("member"), "SQL 应含 member（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkPointsIdentityConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("member_id", "M2", "expected", 100, "calculated", 90)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkPointsIdentityConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("POINTS_IDENTITY", saved.getCheckType());
+        assertEquals("M2", saved.getCheckKey());
+        assertEquals("100", saved.getExpectedValue());
+        assertEquals("90", saved.getActualValue());
+    }
+
+    @Test
+    void checkCouponIssuedConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponIssuedConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("user_coupon"), "SQL 应含 user_coupon（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkCouponIssuedConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("coupon_def_id", "C1", "expected", 10, "actual", 8)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponIssuedConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("COUPON_ISSUED", saved.getCheckType());
+        assertEquals("C1", saved.getCheckKey());
+        assertEquals("10", saved.getExpectedValue());
+        assertEquals("8", saved.getActualValue());
+    }
+
+    @Test
+    void checkWalletBalanceConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletBalanceConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("payment_operation"), "SQL 应含 payment_operation（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkWalletBalanceConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("user_id", "U1", "expected", 50, "actual", 40)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletBalanceConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("WALLET_BALANCE", saved.getCheckType());
+        assertEquals("U1", saved.getCheckKey());
+        assertEquals("50", saved.getExpectedValue());
+        assertEquals("40", saved.getActualValue());
+    }
+
+    @Test
+    void checkOrderLineSumConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOrderLineSumConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("cabinet_order_line"), "SQL 应含 cabinet_order_line（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkOrderLineSumConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("line_key", "O1|S1", "expected", 30, "actual", 40)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOrderLineSumConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("ORDER_LINE_SUM", saved.getCheckType());
+        assertEquals("O1|S1", saved.getCheckKey());
+        assertEquals("30", saved.getExpectedValue());
+        assertEquals("40", saved.getActualValue());
+    }
+
+    @Test
+    void checkCouponUsedLinkConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponUsedLinkConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("user_coupon"), "SQL 应含 user_coupon（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkCouponUsedLinkConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("order_id", "O2", "order_discount", 20, "coupon_discount", 10, "order_coupon_id", "C1", "user_coupon_id", "C2")));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponUsedLinkConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("COUPON_USED_LINK", saved.getCheckType());
+        assertEquals("O2", saved.getCheckKey());
+        assertEquals("20", saved.getExpectedValue());
+        assertEquals("10", saved.getActualValue());
+    }
+
+    @Test
+    void checkCouponOverQuotaConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponOverQuotaConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("coupon_definition"), "SQL 应含 coupon_definition（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkCouponOverQuotaConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("coupon_def_id", "C3", "expected", 5, "actual", 8)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponOverQuotaConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("COUPON_OVER_QUOTA", saved.getCheckType());
+        assertEquals("C3", saved.getCheckKey());
+        assertEquals("5", saved.getExpectedValue());
+        assertEquals("8", saved.getActualValue());
+    }
+
+    @Test
+    void checkRevenueSplitSumConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitSumConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("order_revenue_split"), "SQL 应含 order_revenue_split（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkRevenueSplitSumConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("split_id", 1, "order_id", "O3", "expected", 100, "actual", 80)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitSumConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("REVENUE_SPLIT_SUM", saved.getCheckType());
+        assertEquals("O3|1", saved.getCheckKey());
+        assertEquals("100", saved.getExpectedValue());
+        assertEquals("80", saved.getActualValue());
+    }
+
+    @Test
+    void checkRevenueSplitMissingConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitMissingConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("order_revenue_split"), "SQL 应含 order_revenue_split（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkRevenueSplitMissingConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("order_id", "O4", "expected", 50)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitMissingConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("REVENUE_SPLIT_MISSING", saved.getCheckType());
+        assertEquals("O4", saved.getCheckKey());
+        assertEquals("50", saved.getExpectedValue());
+        assertEquals("0", saved.getActualValue());
+    }
+
+    @Test
+    void checkWarehouseNegativeConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWarehouseNegativeConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("warehouse_inventory"), "SQL 应含 warehouse_inventory（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkWarehouseNegativeConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("warehouse_id", "W1", "sku_id", "S1", "batch_no", "B1", "expected", 0, "actual", -5)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWarehouseNegativeConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("WAREHOUSE_NEGATIVE", saved.getCheckType());
+        assertEquals("W1|S1|B1", saved.getCheckKey());
+        assertEquals("0", saved.getExpectedValue());
+        assertEquals("-5", saved.getActualValue());
+    }
+
+    @Test
+    void checkWarehouseLedgerConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWarehouseLedgerConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("warehouse_movement"), "SQL 应含 warehouse_movement（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkWarehouseLedgerConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("warehouse_id", "W2", "sku_id", "S2", "batch_no", "B2", "movement_sum", 10, "balance", 9)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWarehouseLedgerConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("WAREHOUSE_LEDGER", saved.getCheckType());
+        assertEquals("W2|S2|B2", saved.getCheckKey());
+        assertEquals("10", saved.getExpectedValue());
+        assertEquals("9", saved.getActualValue());
+    }
+
+    @Test
+    void checkOutboundHandoverConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOutboundHandoverConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("warehouse_in_transit"), "SQL 应含 warehouse_in_transit（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkOutboundHandoverConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("kind", "ORPHAN_TRANSIT", "outbound_id", "OB1", "device_id", "D5")));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOutboundHandoverConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("OUTBOUND_HANDOVER", saved.getCheckType());
+        assertEquals("OB1|D5", saved.getCheckKey());
+        assertEquals("ORPHAN_TRANSIT", saved.getExpectedValue());
+        assertEquals("MISMATCH", saved.getActualValue());
+    }
+
+    @Test
+    void checkDeviceLedgerConsistency_consistentNoViolation() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkDeviceLedgerConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("inventory_movement"), "SQL 应含 inventory_movement（判据形态被改则这里红）：" + sql.substring(0, 120));
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkDeviceLedgerConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("device_id", "D6", "sku_id", "S6", "batch_no", "B6", "movement_sum", 12, "balance", 10)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkDeviceLedgerConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("DEVICE_LEDGER", saved.getCheckType());
+        assertEquals("D6|S6|B6", saved.getCheckKey());
+        assertEquals("12", saved.getExpectedValue());
+        assertEquals("10", saved.getActualValue());
+    }
+
+    @Test
+    void checkCrossLinkConsistency_consistentNoViolation() {
+        // crosslink 是 4 个子检查的合集（每个子检查各调一次 queryForList）
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCrossLinkConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeastOnce()).queryForList(sqlCaptor.capture());
+        assertTrue(
+                sqlCaptor.getAllValues().stream().anyMatch(q -> q.contains("inventory_movement")),
+                "任一子检查 SQL 应含 inventory_movement（判据形态被改则这里红）");
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkCrossLinkConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("order_id", "O5", "reason", "INVENTORY_FLAG")));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCrossLinkConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        // 4 个子检查各按自己的键形落一条：取 SALE|O5 那条（MissingSale 子检查）
+        DataConsistencyRecord saved = captor.getAllValues().stream()
+                .filter(r -> "SALE|O5".equals(r.getCheckKey()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("应有一条 SALE|O5 的 CROSS_LINK 记录，实际：" + captor.getAllValues()));
+        assertEquals("CROSS_LINK", saved.getCheckType());
+        assertEquals("SALE|O5", saved.getCheckKey());
+        assertEquals("SALE_OK", saved.getExpectedValue());
+        assertEquals("INVENTORY_FLAG", saved.getActualValue());
+    }
 }

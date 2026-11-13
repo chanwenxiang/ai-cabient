@@ -1,0 +1,70 @@
+{
+  "note": "S11 回调入口契约登记（check-callback-endpoint-contract）：外部回调 path+控制器+鉴权模式+白名单锚点+验签器 全量登记。判据：①新 notify/callback 映射不登记即红；②SIGNATURE_BYPASS/ONE_TIME_TOKEN 的 path 必须真实出现在对应白名单配置（MA-047 本体：回调漏免登录白名单=线上死路）；③DEV_ONLY 的 path 必须不在白名单（mock 裸奔防线）；④DEVICE_TOKEN 的 path 必须不在网关豁免表（豁免=裸奔）。",
+  "seedDate": "2026-11-12",
+  "entries": [
+    {
+      "path": "/api/v2/payment/wechat/notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/WeChatNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "WeChatPayV3 通知验签（Wechatpay-* 头；缺头按 MA-065 语义回 4xx 不冒 500）",
+      "outcome": "处理支付结果通知，幂等"
+    },
+    {
+      "path": "/api/v2/payment/wechat/refund-notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/WeChatNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "WeChatPayV3 退款通知验签",
+      "outcome": "退款结果入账（幽灵余额防线 2026-10-23）"
+    },
+    {
+      "path": "/api/v2/payment/alipay/notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/AlipayNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "Alipay 异步通知公钥验签",
+      "outcome": "充值/支付结果入账"
+    },
+    {
+      "path": "/api/v2/payment/payscore/notify",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/PayScoreNotifyController.java",
+      "authMode": "SIGNATURE_BYPASS",
+      "whitelist": "trade",
+      "signature": "v3 验签链（CB-064）",
+      "outcome": "支付分授权/订单事件（只进不退 R20-P2-5）"
+    },
+    {
+      "path": "/api/v2/dev/payment/wechat/notify/mock/{orderId}",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockPaymentController.java",
+      "authMode": "DEV_ONLY",
+      "whitelist": "none",
+      "signature": "无验签（dev profile 限定）",
+      "outcome": "mock 入账；🔴 故意不进白名单——防任意 userId 模拟入账（WebConfig:24 注释）"
+    },
+    {
+      "path": "/api/v2/dev/payment/alipay/notify/mock/{orderId}",
+      "controller": "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockAlipayPaymentController.java",
+      "authMode": "DEV_ONLY",
+      "whitelist": "none",
+      "signature": "无验签（dev profile 限定）",
+      "outcome": "mock 入账；同上"
+    },
+    {
+      "path": "/jiangyi/api/gather-finish-notify",
+      "controller": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/GatherNotifyController.java",
+      "authMode": "ONE_TIME_TOKEN",
+      "whitelist": "gateway",
+      "signature": "trade 侧 finishNotifyId 一次性 UUID + PENDING→终态 CAS（CB-023）",
+      "outcome": "采集学习完成回执"
+    },
+    {
+      "path": "/jiangyi/api/deviceInfo/downloadModelNotify",
+      "controller": "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceInfoController.java",
+      "authMode": "DEVICE_TOKEN",
+      "whitelist": "none-gateway",
+      "signature": "设备 JWT（不豁免）",
+      "outcome": "模型下发回执"
+    }
+  ]
+}

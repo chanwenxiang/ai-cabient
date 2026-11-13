@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKEND_YML = 'services/trade-service/src/main/resources/application.yml';
 const FRONTEND_VUE = 'clients/consumer-mp/src/pages/index/index.vue';
 

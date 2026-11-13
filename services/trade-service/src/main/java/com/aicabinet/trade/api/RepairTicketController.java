@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.RepairTicketDetailDto;
 import com.aicabinet.common.dto.RepairTicketDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.RepairTicketService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -24,8 +25,11 @@ public class RepairTicketController {
 
     private final RepairTicketService repairTicketService;
 
-    public RepairTicketController(RepairTicketService repairTicketService) {
+    private final AdminAuditService auditService;
+
+    public RepairTicketController(RepairTicketService repairTicketService, AdminAuditService auditService) {
         this.repairTicketService = repairTicketService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions(value = {"ops:repair:list", "ops:device:list"}, logical = RequiresPermissions.Logical.OR)
@@ -60,14 +64,19 @@ public class RepairTicketController {
     @RequiresPermissions("ops:repair:edit")
     @PostMapping
     public ApiResponse<RepairTicketDto> create(HttpServletRequest request, @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(repairTicketService.create(
-                operator(request),
+        Long operatorId = operator(request);
+        RepairTicketDto created = repairTicketService.create(
+                operatorId,
                 body.get("deviceId"),
                 body.get("title"),
                 body.get("faultType"),
                 body.get(ASSIGNEE),
                 body.get("priority"),
-                body.get(REMARK)));
+                body.get(REMARK));
+        auditService.appendLog(operatorId, "REPAIR_TICKET_CREATE", "REPAIR_TICKET",
+                created == null ? null : String.valueOf(created.ticketId()),
+                "设备=" + body.get("deviceId") + " 标题=" + body.get("title") + " 优先级=" + body.get("priority"));
+        return ApiResponse.ok(created);
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -76,14 +85,18 @@ public class RepairTicketController {
             HttpServletRequest request,
             @PathVariable long ticketId,
             @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(repairTicketService.update(
-                operator(request),
+        Long operatorId = operator(request);
+        RepairTicketDto updated = repairTicketService.update(
+                operatorId,
                 ticketId,
                 body.get("title"),
                 body.get("faultType"),
                 body.get(ASSIGNEE),
                 body.get("priority"),
-                body.get(REMARK)));
+                body.get(REMARK));
+        auditService.appendLog(operatorId, "REPAIR_TICKET_UPDATE", "REPAIR_TICKET",
+                String.valueOf(ticketId), "标题=" + body.get("title") + " 优先级=" + body.get("priority"));
+        return ApiResponse.ok(updated);
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -103,11 +116,15 @@ public class RepairTicketController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ticketIds 必须是数字");
         }
         Object assignee = body.get(ASSIGNEE);
-        return ApiResponse.ok(repairTicketService.batchAssign(
-                operator(request),
+        Long operatorId = operator(request);
+        int count = repairTicketService.batchAssign(
+                operatorId,
                 ids,
                 // MA-113：{"assignee": null} 经 String.valueOf 会变成字面量 "null" 入库
-                assignee == null ? "" : String.valueOf(assignee)));
+                assignee == null ? "" : String.valueOf(assignee));
+        auditService.appendLog(operatorId, "REPAIR_TICKET_BATCH_ASSIGN", "REPAIR_TICKET",
+                "batch", "批量指派 " + count + " 单 给=" + (assignee == null ? "" : assignee));
+        return ApiResponse.ok(count);
     }
 
     @RequiresPermissions("ops:repair:edit")
@@ -116,9 +133,14 @@ public class RepairTicketController {
             HttpServletRequest request,
             @PathVariable long ticketId,
             @RequestBody Map<String, String> body) {
-        return ApiResponse.ok(repairTicketService.transition(
-                operator(request), ticketId, body.get("status"), body.get(REMARK),
-                "true".equalsIgnoreCase(String.valueOf(body.getOrDefault("unlockDevice", "false")))));
+        Long operatorId = operator(request);
+        RepairTicketDto transitioned = repairTicketService.transition(
+                operatorId, ticketId, body.get("status"), body.get(REMARK),
+                "true".equalsIgnoreCase(String.valueOf(body.getOrDefault("unlockDevice", "false"))));
+        auditService.appendLog(operatorId, "REPAIR_TICKET_TRANSITION", "REPAIR_TICKET",
+                String.valueOf(ticketId), "状态=" + body.get("status")
+                        + " 解锁设备=" + String.valueOf(body.getOrDefault("unlockDevice", "false")));
+        return ApiResponse.ok(transitioned);
     }
 
     private Long operator(HttpServletRequest request) {

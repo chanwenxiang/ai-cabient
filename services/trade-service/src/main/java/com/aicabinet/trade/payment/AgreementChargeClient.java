@@ -1,9 +1,9 @@
 package com.aicabinet.trade.payment;
 
+import com.aicabinet.common.http.OutboundHttp;
 import com.aicabinet.trade.config.PayScoreProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -69,19 +69,12 @@ public class AgreementChargeClient {
     }
 
     private RestClient client() {
-        return RestClient.builder()
+        // S1（2026-11-12）：代扣网关属内部 RPC 档（10s / 30s），构造走 OutboundHttp 单源
+        return OutboundHttp.internalRpc()
                 .baseUrl(properties.chargeGatewayUrl())
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.chargeGatewayApiKey())
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .requestFactory(requestFactory())
                 .build();
-    }
-
-    private static SimpleClientHttpRequestFactory requestFactory() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(30_000);
-        return factory;
     }
 
     /** H41(b): 明确的「网关未配置」类异常，允许上层做确定性 fallback；超时/未知异常不得盲切。 */

@@ -15,10 +15,10 @@ public interface LinePromoTaskMapper extends BaseTradeMapper<LinePromoTask> {
     default Optional<LinePromoTask> findByIdForUpdate(Long taskId) {
         return Optional.ofNullable(findByIdForUpdateRaw(taskId));
     }
-    default List<LinePromoTask> findByManager(Long managerId, String status) {
+    default List<LinePromoTask> findByManager(Long managerId, String status, int offset, int size) {
         var q = Wrappers.<LinePromoTask>lambdaQuery()
                 .orderByDesc(LinePromoTask::getUpdatedAt)
-                .last("LIMIT 200");
+                .last("LIMIT " + size + " OFFSET " + offset);
         if (managerId != null) {
             q.eq(LinePromoTask::getManagerId, managerId);
         }
@@ -26,5 +26,16 @@ public interface LinePromoTaskMapper extends BaseTradeMapper<LinePromoTask> {
             q.eq(LinePromoTask::getStatus, status.trim().toUpperCase());
         }
         return selectList(q);
+    }
+
+    default long countByManager(Long managerId, String status) {
+        var q = Wrappers.<LinePromoTask>lambdaQuery();
+        if (managerId != null) {
+            q.eq(LinePromoTask::getManagerId, managerId);
+        }
+        if (status != null && !status.isBlank()) {
+            q.eq(LinePromoTask::getStatus, status.trim().toUpperCase());
+        }
+        return selectCount(q);
     }
 }

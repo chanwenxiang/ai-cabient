@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsWarehouseAdminService;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.WarehouseBinService;
@@ -29,22 +30,31 @@ import java.util.List;
 @RequestMapping("/api/v2/ops/admin")
 public class OpsWarehouseController {
 
+    private static final String BIZ_STOCKTAKE = "WAREHOUSE_STOCKTAKE";
+    private static final String BIZ_WAREHOUSE_BIN = "WAREHOUSE_BIN";
+    private static final String BIZ_WAREHOUSE = "WAREHOUSE";
+    private static final String BIZ_WAREHOUSE_OUTBOUND = "WAREHOUSE_OUTBOUND";
+    private static final String BIZ_WAREHOUSE_CLOSE_SHEET = "WAREHOUSE_CLOSE_SHEET";
+
     private final WarehouseStocktakeService warehouseStocktakeService;
     private final WarehouseBinService warehouseBinService;
     private final OpsCsvExportService csvExportService;
     private final OpsWarehouseAdminService warehouseAdminService;
     private final WarehouseMonthlyCloseSheetService monthlyCloseSheetService;
+    private final AdminAuditService auditService;
 
     public OpsWarehouseController(WarehouseStocktakeService warehouseStocktakeService,
                                   WarehouseBinService warehouseBinService,
                                   OpsCsvExportService csvExportService,
                                   OpsWarehouseAdminService warehouseAdminService,
-                                  WarehouseMonthlyCloseSheetService monthlyCloseSheetService) {
+                                  WarehouseMonthlyCloseSheetService monthlyCloseSheetService,
+                                  AdminAuditService auditService) {
         this.warehouseStocktakeService = warehouseStocktakeService;
         this.warehouseBinService = warehouseBinService;
         this.csvExportService = csvExportService;
         this.warehouseAdminService = warehouseAdminService;
         this.monthlyCloseSheetService = monthlyCloseSheetService;
+        this.auditService = auditService;
     }
 
     // --- 整仓盘点 ---
@@ -65,7 +75,11 @@ public class OpsWarehouseController {
     public ApiResponse<StocktakeDto> createStocktake(
             HttpServletRequest request,
             @Valid @RequestBody CreateStocktakeRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.create(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        StocktakeDto created = warehouseStocktakeService.create(operatorId, body);
+        auditService.appendLog(operatorId, "STOCKTAKE_CREATE", BIZ_STOCKTAKE,
+                String.valueOf(created == null ? null : created.stocktakeId()), "仓库=" + (created == null ? "无返回" : created.warehouseId()));
+        return ApiResponse.ok(created);
     }
 
     @RequiresPermissions("ops:warehouse:list")
@@ -83,8 +97,12 @@ public class OpsWarehouseController {
             @PathVariable Long stocktakeId,
             @PathVariable Long lineId,
             @Valid @RequestBody UpdateStocktakeLineRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.updateLine(
-                operatorId(request), stocktakeId, lineId, body));
+        Long operatorId = operatorId(request);
+        StocktakeLineDto updated = warehouseStocktakeService.updateLine(
+                operatorId, stocktakeId, lineId, body);
+        auditService.appendLog(operatorId, "STOCKTAKE_LINE_UPDATE", BIZ_STOCKTAKE,
+                String.valueOf(stocktakeId), "行=" + lineId);
+        return ApiResponse.ok(updated);
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -92,7 +110,11 @@ public class OpsWarehouseController {
     public ApiResponse<StocktakeDto> completeStocktake(
             HttpServletRequest request,
             @PathVariable Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.complete(operatorId(request), stocktakeId));
+        Long operatorId = operatorId(request);
+        StocktakeDto done = warehouseStocktakeService.complete(operatorId, stocktakeId);
+        auditService.appendLog(operatorId, "STOCKTAKE_COMPLETE", BIZ_STOCKTAKE,
+                String.valueOf(stocktakeId), "状态=" + (done == null ? "无返回" : done.status()));
+        return ApiResponse.ok(done);
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -100,7 +122,11 @@ public class OpsWarehouseController {
     @PostMapping("/warehouse/stocktakes/{stocktakeId}/complete-and-adjust")
     public ApiResponse<StocktakeDto> completeAndAdjustStocktake(
             HttpServletRequest request, @PathVariable("stocktakeId") Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.completeAndAdjust(operatorId(request), stocktakeId));
+        Long operatorId = operatorId(request);
+        StocktakeDto done = warehouseStocktakeService.completeAndAdjust(operatorId, stocktakeId);
+        auditService.appendLog(operatorId, "STOCKTAKE_COMPLETE_AND_ADJUST", BIZ_STOCKTAKE,
+                String.valueOf(stocktakeId), "完成并过账（差异全量过账）");
+        return ApiResponse.ok(done);
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -109,7 +135,11 @@ public class OpsWarehouseController {
             HttpServletRequest request,
             @PathVariable Long stocktakeId,
             @RequestBody(required = false) AdjustStocktakeRequest body) {
-        return ApiResponse.ok(warehouseStocktakeService.adjust(operatorId(request), stocktakeId, body));
+        Long operatorId = operatorId(request);
+        StocktakeDto adjusted = warehouseStocktakeService.adjust(operatorId, stocktakeId, body);
+        auditService.appendLog(operatorId, "STOCKTAKE_ADJUST", BIZ_STOCKTAKE,
+                String.valueOf(stocktakeId), "差异过账");
+        return ApiResponse.ok(adjusted);
     }
 
     @RequiresPermissions("ops:warehouse:edit")
@@ -117,7 +147,11 @@ public class OpsWarehouseController {
     public ApiResponse<StocktakeDto> cancelStocktake(
             HttpServletRequest request,
             @PathVariable Long stocktakeId) {
-        return ApiResponse.ok(warehouseStocktakeService.cancel(operatorId(request), stocktakeId));
+        Long operatorId = operatorId(request);
+        StocktakeDto cancelled = warehouseStocktakeService.cancel(operatorId, stocktakeId);
+        auditService.appendLog(operatorId, "STOCKTAKE_CANCEL", BIZ_STOCKTAKE,
+                String.valueOf(stocktakeId), "状态=" + (cancelled == null ? "无返回" : cancelled.status()));
+        return ApiResponse.ok(cancelled);
     }
 
     // --- 货位管理 ---
@@ -134,7 +168,11 @@ public class OpsWarehouseController {
     public ApiResponse<WarehouseBinDto> upsertBin(
             HttpServletRequest request,
             @Valid @RequestBody UpsertWarehouseBinRequest body) {
-        return ApiResponse.ok(warehouseBinService.upsertBin(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        WarehouseBinDto saved = warehouseBinService.upsertBin(operatorId, body);
+        auditService.appendLog(operatorId, "WAREHOUSE_BIN_UPSERT", BIZ_WAREHOUSE_BIN,
+                String.valueOf(saved == null ? null : saved.binId()), "仓库=" + (saved == null ? "无返回" : saved.warehouseId()) + " 货位=" + (saved == null ? "无返回" : saved.binCode()));
+        return ApiResponse.ok(saved);
     }
 
     @RequiresPermissions("ops:warehouse:list")
@@ -154,7 +192,10 @@ public class OpsWarehouseController {
     public ApiResponse<Void> binInbound(
             HttpServletRequest request,
             @Valid @RequestBody BinInboundRequest body) {
-        warehouseBinService.inboundToBin(operatorId(request), body);
+        Long operatorId = operatorId(request);
+        warehouseBinService.inboundToBin(operatorId, body);
+        auditService.appendLog(operatorId, "WAREHOUSE_BIN_INBOUND", BIZ_WAREHOUSE_BIN,
+                body.binCode(), "SKU=" + body.skuId() + " 批次=" + body.batchNo() + " 数量=" + body.quantity());
         return ApiResponse.ok(null);
     }
 
@@ -163,7 +204,11 @@ public class OpsWarehouseController {
     public ApiResponse<Void> binMove(
             HttpServletRequest request,
             @Valid @RequestBody BinMoveRequest body) {
-        warehouseBinService.moveBetweenBins(operatorId(request), body);
+        Long operatorId = operatorId(request);
+        warehouseBinService.moveBetweenBins(operatorId, body);
+        auditService.appendLog(operatorId, "WAREHOUSE_BIN_MOVE", BIZ_WAREHOUSE_BIN,
+                String.valueOf(body.fromBinId()) + "->" + body.toBinId(),
+                "SKU=" + body.skuId() + " 批次=" + body.batchNo() + " 数量=" + body.quantity());
         return ApiResponse.ok(null);
     }
 
@@ -199,7 +244,11 @@ public class OpsWarehouseController {
             HttpServletRequest request,
             @PathVariable String warehouseId,
             @Valid @RequestBody UpsertWarehouseRequest body) {
-        return ApiResponse.ok(warehouseAdminService.upsertWarehouse(operatorId(request), warehouseId, body));
+        Long operatorId = operatorId(request);
+        WarehouseDto saved = warehouseAdminService.upsertWarehouse(operatorId, warehouseId, body);
+        auditService.appendLog(operatorId, "WAREHOUSE_UPSERT", BIZ_WAREHOUSE,
+                warehouseId, "名称=" + (saved == null ? "无返回" : saved.warehouseName()));
+        return ApiResponse.ok(saved);
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
@@ -271,7 +320,11 @@ public class OpsWarehouseController {
     public ApiResponse<WarehouseInboundRequest> warehouseInbound(
             HttpServletRequest request,
             @Valid @RequestBody WarehouseInboundRequest body) {
-        return ApiResponse.ok(warehouseAdminService.warehouseInbound(operatorId(request), body));
+        Long operatorId = operatorId(request);
+        WarehouseInboundRequest created = warehouseAdminService.warehouseInbound(operatorId, body);
+        auditService.appendLog(operatorId, "WAREHOUSE_INBOUND", BIZ_WAREHOUSE,
+                String.valueOf(created.refNo()), "仓库=" + created.warehouseId() + " 行数=" + created.lines().size());
+        return ApiResponse.ok(created);
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
@@ -300,7 +353,11 @@ public class OpsWarehouseController {
     public ApiResponse<WarehouseOutboundDto> pickOutbound(
             HttpServletRequest request,
             @PathVariable Long outboundId) {
-        return ApiResponse.ok(warehouseAdminService.pickWarehouseOutbound(operatorId(request), outboundId));
+        Long operatorId = operatorId(request);
+        WarehouseOutboundDto picked = warehouseAdminService.pickWarehouseOutbound(operatorId, outboundId);
+        auditService.appendLog(operatorId, "WAREHOUSE_OUTBOUND_PICK", BIZ_WAREHOUSE_OUTBOUND,
+                String.valueOf(outboundId), "状态=" + (picked == null ? "无返回" : picked.status()));
+        return ApiResponse.ok(picked);
     }
 
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
@@ -308,7 +365,11 @@ public class OpsWarehouseController {
     public ApiResponse<WarehouseOutboundDto> shipOutbound(
             HttpServletRequest request,
             @PathVariable Long outboundId) {
-        return ApiResponse.ok(warehouseAdminService.shipWarehouseOutbound(operatorId(request), outboundId));
+        Long operatorId = operatorId(request);
+        WarehouseOutboundDto shipped = warehouseAdminService.shipWarehouseOutbound(operatorId, outboundId);
+        auditService.appendLog(operatorId, "WAREHOUSE_OUTBOUND_SHIP", BIZ_WAREHOUSE_OUTBOUND,
+                String.valueOf(outboundId), "状态=" + (shipped == null ? "无返回" : shipped.status()));
+        return ApiResponse.ok(shipped);
     }
 
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
@@ -316,14 +377,22 @@ public class OpsWarehouseController {
     public ApiResponse<WarehouseOutboundDto> cancelUnreceivedOutbound(
             HttpServletRequest request,
             @PathVariable Long outboundId) {
-        return ApiResponse.ok(warehouseAdminService.cancelUnreceivedWarehouseOutbound(operatorId(request), outboundId));
+        Long operatorId = operatorId(request);
+        WarehouseOutboundDto cancelled = warehouseAdminService.cancelUnreceivedWarehouseOutbound(operatorId, outboundId);
+        auditService.appendLog(operatorId, "WAREHOUSE_OUTBOUND_CANCEL_UNRECEIVED", BIZ_WAREHOUSE_OUTBOUND,
+                String.valueOf(outboundId), "状态=" + (cancelled == null ? "无返回" : cancelled.status()));
+        return ApiResponse.ok(cancelled);
     }
 
     /** 一键清理空草稿 / 终态路线未发运草稿 / 终态路线未签收且无已完成任务的 SHIPPED（安全 cancel-unreceived，不硬删）。 */
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/warehouse/outbounds/cleanup-stale")
     public ApiResponse<WarehouseStaleCleanupResultDto> cleanupStaleOutbounds(HttpServletRequest request) {
-        return ApiResponse.ok(warehouseAdminService.cleanupStaleWarehouseOutbounds(operatorId(request)));
+        Long operatorId = operatorId(request);
+        WarehouseStaleCleanupResultDto cleaned = warehouseAdminService.cleanupStaleWarehouseOutbounds(operatorId);
+        auditService.appendLog(operatorId, "WAREHOUSE_OUTBOUND_CLEANUP_STALE", BIZ_WAREHOUSE_OUTBOUND,
+                "batch", "结果=" + String.valueOf(cleaned));
+        return ApiResponse.ok(cleaned);
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
@@ -348,8 +417,11 @@ public class OpsWarehouseController {
     public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> generateCloseSheet(
             HttpServletRequest request,
             @RequestBody GenerateCloseSheetRequest body) {
-        return ApiResponse.ok(monthlyCloseSheetService.generateSheet(
-                operatorId(request), body.warehouseId(), body.yearMonth()));
+        Long operatorId = operatorId(request);
+        var sheet = monthlyCloseSheetService.generateSheet(operatorId, body.warehouseId(), body.yearMonth());
+        auditService.appendLog(operatorId, "CLOSE_SHEET_GENERATE", BIZ_WAREHOUSE_CLOSE_SHEET,
+                String.valueOf(sheet == null ? null : sheet.closeId()), "仓库=" + body.warehouseId() + " 月=" + body.yearMonth());
+        return ApiResponse.ok(sheet);
     }
 
     @RequiresPermissions("ops:warehouse:list")
@@ -373,7 +445,11 @@ public class OpsWarehouseController {
     public ApiResponse<com.aicabinet.common.dto.WarehouseCloseSheetDto> approveCloseSheet(
             HttpServletRequest request,
             @PathVariable Long closeId) {
-        return ApiResponse.ok(monthlyCloseSheetService.approve(operatorId(request), closeId));
+        Long operatorId = operatorId(request);
+        var sheet = monthlyCloseSheetService.approve(operatorId, closeId);
+        auditService.appendLog(operatorId, "CLOSE_SHEET_APPROVE", BIZ_WAREHOUSE_CLOSE_SHEET,
+                String.valueOf(closeId), "审批锁单 状态=" + (sheet == null ? "无返回" : sheet.status()));
+        return ApiResponse.ok(sheet);
     }
 
     /** 差异处置（CB-017 两步法第二步）：CLAIM 进索赔台账 / NORMAL_LOSS 正常损耗 / SURPLUS 盘盈待查。 */
@@ -384,9 +460,14 @@ public class OpsWarehouseController {
             @PathVariable Long closeId,
             @PathVariable Long lineId,
             @RequestBody DisposeLineRequest body) {
-        return ApiResponse.ok(monthlyCloseSheetService.disposeLine(
-                operatorId(request), closeId, lineId, body.disposition(),
-                body.responsibleParty(), body.claimNo()));
+        Long operatorId = operatorId(request);
+        var sheet = monthlyCloseSheetService.disposeLine(
+                operatorId, closeId, lineId, body.disposition(),
+                body.responsibleParty(), body.claimNo());
+        auditService.appendLog(operatorId, "CLOSE_SHEET_LINE_DISPOSITION", BIZ_WAREHOUSE_CLOSE_SHEET,
+                String.valueOf(closeId), "行=" + lineId + " 处置=" + body.disposition()
+                        + (body.claimNo() == null ? "" : " 索赔号=" + body.claimNo()));
+        return ApiResponse.ok(sheet);
     }
 
     /** 草稿阶段行编辑（V348）：实盘修正 / 摇机损耗·费用抵扣手工补录 / 行备注；null=不改。 */
@@ -397,9 +478,14 @@ public class OpsWarehouseController {
             @PathVariable Long closeId,
             @PathVariable Long lineId,
             @RequestBody UpdateCloseLineRequest body) {
-        return ApiResponse.ok(monthlyCloseSheetService.updateLine(
-                operatorId(request), closeId, lineId,
-                body.countedQty(), body.rockLossQty(), body.feeDeductQty(), body.lineRemark()));
+        Long operatorId = operatorId(request);
+        var sheet = monthlyCloseSheetService.updateLine(
+                operatorId, closeId, lineId,
+                body.countedQty(), body.rockLossQty(), body.feeDeductQty(), body.lineRemark());
+        auditService.appendLog(operatorId, "CLOSE_SHEET_LINE_UPDATE", BIZ_WAREHOUSE_CLOSE_SHEET,
+                String.valueOf(closeId), "行=" + lineId + " 实盘=" + body.countedQty()
+                        + " 摇机损耗=" + body.rockLossQty() + " 费用抵扣=" + body.feeDeductQty());
+        return ApiResponse.ok(sheet);
     }
 
     /** 财务 18 列导出（V348）：对齐财务现行 Excel（xlsx，金额=元）。 */

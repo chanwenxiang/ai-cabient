@@ -138,6 +138,16 @@ run('migration-immutable', node, [resolve(root, 'scripts/check-migration-immutab
 run('migration-number-order', node, [resolve(root, 'scripts/check-migration-number-order.mjs')]);
 run('openapi-regen', node, [resolve(root, 'scripts/check-openapi-regen-required.mjs')]);
 
+// S8③：判据改动 ↔ 负向夹具同批对账。同为基线 diff 门禁（吃 origin/dev…HEAD 推送前语义，
+// CI 里 origin/dev 已含本次推送 ⇒ 恒空恒绿），只在这里跑；接线由 check-audit-gates-wiring
+// 规则 2 认 preflight 锚点。负向用例先跑（与 check:* 命令的「test 先行」同序）。
+run('gate-test-coupling:test', node, [resolve(root, 'scripts/check-gate-test-coupling.test.mjs')]);
+run('gate-test-coupling', node, [
+  resolve(root, 'scripts/check-gate-test-coupling.mjs'),
+  '--range',
+  'origin/dev...HEAD'
+]);
+
 // 6) 按改动面加检
 const changed = gitDiffNames();
 const adminSrcChanged = changed.some((n) => n.startsWith('clients/admin-vue/src/'));

@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.DevOpsHubDto;
 import com.aicabinet.common.dto.DevOpsSonarScanDto;
 import com.aicabinet.common.dto.DevOpsToolDto;
+import com.aicabinet.common.http.OutboundHttp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,8 +30,7 @@ public class DevOpsHubService {
     private static final Duration GITHUB_TIMEOUT = Duration.ofSeconds(20);
     private static final String SONAR_SCAN_LOCK = "devops:sonar:scan";
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(TIMEOUT)
+    private final HttpClient httpClient = OutboundHttp.jdk(OutboundHttp.CONNECT_HUB_MS)
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 

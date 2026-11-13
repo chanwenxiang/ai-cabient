@@ -1,0 +1,111 @@
+{
+  "note": "S3-3b 元→分增量棘轮基线：前端 * 100 同时混杂「元→分换算」与「百分比换算」两种语义，静态判据无法区分（§八 Q3）⇒ 不做硬扫，按文件计数棘轮封增量——新增命中必须改走 yuanToCents（shared）或登记带理由条目；存量 convert 一个销一个基线条目。",
+  "seedDate": "2026-11-12",
+  "total": 55,
+  "entries": [
+    {
+      "file": "clients/admin-vue/src/views/analytics/AnalyticsView.vue",
+      "count": 9
+    },
+    {
+      "file": "clients/admin-vue/src/views/analytics/FootfallView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/dashboard/BigScreenView.vue",
+      "count": 3
+    },
+    {
+      "file": "clients/admin-vue/src/views/dashboard/DashboardView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/DeviceRentalView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/FinanceView.vue",
+      "count": 5
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/LineManagerView.vue",
+      "count": 4
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/LineRoutesView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/MachinePayeeBillsView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/finance/PlatformFundView.vue",
+      "count": 2
+    },
+    {
+      "file": "clients/admin-vue/src/views/growth/AdCampaignsView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/growth/MarketingRoiView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/growth/ReplenishmentStaffView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/growth/UserAnalysisView.vue",
+      "count": 4
+    },
+    {
+      "file": "clients/admin-vue/src/views/merchants/MerchantSplitsView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/promotions/PromotionsView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/reports/DeviceReportView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/reports/SalesReportsView.vue",
+      "count": 6
+    },
+    {
+      "file": "clients/admin-vue/src/views/sla/SlaView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/views/system/OrgSitesView.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/admin-vue/src/components/device/DeviceAssetDeploymentCard.vue",
+      "count": 2
+    },
+    {
+      "file": "clients/merchant-mp/src/pages/warehouse-stocktake/warehouse-stocktake.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/merchant-mp/src/utils/business-display.ts",
+      "count": 1
+    },
+    {
+      "file": "clients/consumer-mp/src/pages/member/index.vue",
+      "count": 1
+    },
+    {
+      "file": "clients/consumer-mp/src/pages/recharge/recharge.vue",
+      "count": 3
+    },
+    {
+      "file": "clients/consumer-mp/src/utils/popup-seen.ts",
+      "count": 1
+    }
+  ]
+}

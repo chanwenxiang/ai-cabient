@@ -50,7 +50,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-compose-restart]';
 const LIST = process.argv.includes('--list');
 

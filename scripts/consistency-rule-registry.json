@@ -1,0 +1,176 @@
+{
+  "note": "S15 巡检规则夹具登记（check-consistency-rule-fixtures）：DataConsistencyService 每条规则必须登记 + 有正负两夹具（合法空态不报红 + 真异常报红，范式=checkOrderConsistency_consistentRowNotReturnedBySql/recordsTrueMismatch）。判据：①新 check 方法不登记即红；②fixtureClass 锚点必须存在且含规则名；③夹具不足的规则数 maxMissingFixtures 只许减；④已齐夹具的规则数只许增（fixtureOk 计数棘轮）。R22 §8.4 拍板（两侧皆 0 是否 MATCHED）影响个别规则的「合法空态」定义，拍板前夹具判据只到引用计数层。",
+  "seedDate": "2026-11-13",
+  "seedFixtureOk": 24,
+  "maxMissingFixtures": 0,
+  "entries": [
+    {
+      "rule": "checkOrderConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkPaymentConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkPaidGrossConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkInventoryConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkInventoryOrphanLotConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkInventoryNoLotLedgerConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkPointsConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkPointsIdentityConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkCouponIssuedConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWalletBalanceConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkRefundAmountConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkOrderLineSumConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkCouponUsedLinkConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkCouponOverQuotaConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWalletLedgerSumConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWalletLatestBalanceConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWalletLedgerChainConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkRevenueSplitSumConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkRevenueSplitMissingConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWarehouseNegativeConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkWarehouseLedgerConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkOutboundHandoverConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkDeviceLedgerConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkCrossLinkConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 3,
+      "fixtureOk": true,
+      "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    }
+  ]
+}
