@@ -30,6 +30,12 @@
               >待结算 {{ fmtMoney(pendingSettle) }}</text
             >
           </view>
+          <!-- CB-086：欠款可见。后端 availableCents 按 0 钳制，负余额只在「账面」那个数字里，
+               用户看不出可提现为什么是 0——这里补一句原因与处置口径。纯展示：不新增写入口，
+               结清仍走运营后台调账/线下打款后入账，抵扣由后续销售入账自动完成。 -->
+          <text v-if="arrearsCents > 0" class="tip"
+            >当前欠款 {{ fmtMoney(arrearsCents) }}，后续入账自动抵扣，结清前不可提现</text
+          >
         </view>
 
         <view class="action-card">
@@ -224,6 +230,13 @@ const overview = ref<Overview | null>(null);
 const pendingSettle = computed(() => {
   const o = overview.value;
   return o && 'pendingSettleCents' in o ? Number(o.pendingSettleCents ?? 0) : 0;
+});
+// CB-086：欠款 = 账面负余额的绝对值。提现闸门对负余额恒判「可用余额不足」，
+// 而 availableCents 本身已钳到 0 ⇒ 页面上必须单独解释这个 0 是「欠款未清」。
+const arrearsCents = computed(() => {
+  const o = overview.value;
+  const balance = o && 'balanceCents' in o ? Number(o.balanceCents ?? 0) : 0;
+  return balance < 0 ? -balance : 0;
 });
 const maxWithdrawHint = computed(() =>
   overview.value?.availableCents == null

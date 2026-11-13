@@ -15,6 +15,32 @@
     ]]>
   </select>
 
+  <!-- 欠款账龄探针（CB-086）：余额为负的账户 + 「最后一次不为负」的时刻＝欠款起算点。
+       🔴 只读：不改余额、不改提现口径、不碰柜机状态（判因见 MerchantWalletArrearsService）。
+       余额为负本身是拍板内的正常形态（佣金/分账冲正挂负、押金直减，见 MerchantWalletService
+       debitIfAbsentAllowNegative 注释），本查询只回答「负了多久」，不做任何处置。
+       arrears_since 取 MAX(created_at) WHERE balance_after >= 0：账本 append-only 且按 created_at
+       索引（idx_wallet_ledger_owner），即「最后一次有钱的时刻」；整本账从未非负则回落最早一行。
+       两者都为空（无流水的存量账户）⇒ c2 为 NULL，调用方按「账龄不可判」跳过。
+       列别名沿用本仓 LinkedHashMap 结果的既有约定（c0/c1/c2），避开 PG 未加引号别名折小写
+       + MyBatis map-underscore-to-camel-case 对 Map 结果不生效的组合坑。 -->
+  <select id="findNegativeArrears" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT a.owner_id      AS c0,
+           a.balance_cents AS c1,
+           COALESCE(
+             (SELECT MAX(l.created_at) FROM wallet_ledger l
+               WHERE l.domain = a.domain AND l.owner_id = a.owner_id AND l.balance_after >= 0),
+             (SELECT MIN(l2.created_at) FROM wallet_ledger l2
+               WHERE l2.domain = a.domain AND l2.owner_id = a.owner_id)
+           ) AS c2
+      FROM wallet_account a
+     WHERE a.domain = #{domain}
+       AND a.balance_cents < 0
+     ORDER BY a.balance_cents ASC
+    ]]>
+  </select>
+
   <update id="updateBalances">
     UPDATE wallet_account
        SET balance_cents = #{balanceCents},

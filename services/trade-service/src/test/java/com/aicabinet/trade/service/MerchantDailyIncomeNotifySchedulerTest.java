@@ -90,7 +90,15 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 feeLedgerRepository,
                 walletService,
                 configService,
-                salesLockService);
+                salesLockService,
+                walletArrearsService());
+    }
+
+    /** CB-086：欠款探针与本类用例无关，默认返回空串（不污染日结摘要断言）。 */
+    private com.aicabinet.trade.service.MerchantWalletArrearsService walletArrearsService() {
+        var svc = mock(com.aicabinet.trade.service.MerchantWalletArrearsService.class);
+        when(svc.dailySummary(any())).thenReturn("");
+        return svc;
     }
 
     private com.aicabinet.trade.service.SystemConfigService configWithLockDays(String lockDays) {
@@ -384,7 +392,8 @@ class MerchantDailyIncomeNotifySchedulerTest {
                 mock(com.aicabinet.trade.mapper.MerchantMapper.class), splitRepo, notify, notifyLog,
                 mock(com.aicabinet.trade.service.ScheduledTaskService.class), deviceRepo, feeLedger,
                 wallet, configWithLockDays("7"),
-                mock(com.aicabinet.trade.service.DeviceSalesLockService.class));
+                mock(com.aicabinet.trade.service.DeviceSalesLockService.class),
+                walletArrearsService());
     }
 
     @Test

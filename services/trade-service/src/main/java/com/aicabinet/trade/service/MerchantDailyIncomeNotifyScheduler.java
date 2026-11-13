@@ -68,6 +68,8 @@ public class MerchantDailyIncomeNotifyScheduler {
     private final MerchantWalletService walletService;
     private final SystemConfigService configService;
     private final DeviceSalesLockService salesLockService;
+    /** CB-086：钱包欠款账龄探针（只读，结果拼进日结执行记录 + 一条聚合群告警）。 */
+    private final MerchantWalletArrearsService walletArrearsService;
 
     public MerchantDailyIncomeNotifyScheduler(MerchantMapper merchantRepository,
                                               OrderRevenueSplitMapper splitRepository,
@@ -78,7 +80,8 @@ public class MerchantDailyIncomeNotifyScheduler {
                                               MerchantFeeLedgerMapper feeLedgerRepository,
                                               MerchantWalletService walletService,
                                               SystemConfigService configService,
-                                              DeviceSalesLockService salesLockService) {
+                                              DeviceSalesLockService salesLockService,
+                                              MerchantWalletArrearsService walletArrearsService) {
         this.merchantRepository = merchantRepository;
         this.splitRepository = splitRepository;
         this.notificationService = notificationService;
@@ -89,6 +92,7 @@ public class MerchantDailyIncomeNotifyScheduler {
         this.walletService = walletService;
         this.configService = configService;
         this.salesLockService = salesLockService;
+        this.walletArrearsService = walletArrearsService;
     }
 
     @Scheduled(
@@ -111,6 +115,8 @@ public class MerchantDailyIncomeNotifyScheduler {
                         ? "；另有 " + outcome.feeChargeFailed() + " 商户日扣失败（当日未扣到费，"
                             + "通知里费用按实扣显示为 0，需运营台「按日期重跑日扣」补）"
                         : "");
+            // CB-086：钱包欠款账龄只读探针——结果进运营台「执行记录」，不改余额/提现/柜机状态。
+            summary += walletArrearsSummary(LocalDate.now(ScheduleZones.ZONE));
             log.info("scheduled daily income notify completed: {}", summary);
         } catch (Exception e) {
             failed = true;
@@ -275,6 +281,23 @@ public class MerchantDailyIncomeNotifyScheduler {
             if (overdueDays >= lockDays) {
                 lockFeeOverdue(merchantId, debt, overdueDays, lockDays);
             }
+        }
+    }
+
+    /**
+     * CB-086：钱包欠款账龄摘要（只读探针）。探针自身故障绝不连坐日结主流程——
+     * 与「费用日扣单商户失败不阻断全量」同口径。
+     */
+    private String walletArrearsSummary(LocalDate today) {
+        if (walletArrearsService == null) {
+            return "";
+        }
+        try {
+            String summary = walletArrearsService.dailySummary(today);
+            return summary == null ? "" : summary;
+        } catch (Exception e) {
+            log.warn("merchant wallet arrears probe failed: {}", e.getMessage());
+            return "；欠款账龄探针失败（见日志）";
         }
     }
 

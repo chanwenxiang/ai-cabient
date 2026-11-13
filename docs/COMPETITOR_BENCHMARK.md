@@ -2963,3 +2963,37 @@
      100 元单 30/20/50 三轮 ⇒ 三条腿各独立、渠道合计 100、商户留 0；把写入改回单值覆盖守恒必须转红
      （负向验证，铁律 4）。落地用例 `ProfitSharingReturnLegConservationTest` + 离线门禁
      `check-split-return-leg-conservation.mjs`（dev 库事务内注入 / ROLLBACK 零残留）。
+
+### CB-086 【新】商户钱包「可为负」的边界：采纳「负数挂账 + 入账自动抵扣 + 提现闸门」，本期只补账龄可见性（2026-11-13）
+
+> 触发：2026-11-13 用户问「商户钱包可为负，根据真实竞品确认是不是对的」。先读本仓实现（`MerchantWalletService#debitIfAbsentAllowNegative`、`RevenueSplitService#clawbackWalletDelta`、`MerchantWithdrawService` 提现闸门、`DataConsistencyService` 三域对账）确认「可以为负」是 2026-10-15 已拍板的形态（审计 T4 / 台账 CB-085 条目第 2 点：佣金冲正挂负随下次入账抵扣），再对照官方/竞品确认这个形态与行业一致，缺的是「为负之后怎么办」。
+
+- **竞品做法**：
+  - **PayPal**（⭕ 官方帮助 + 用户协议）：余额为负时，账户**收到的所有款项自动先抵欠款**；非美元负余额满 **21 天**折算为美元统一口径；**120 天**内未结清 ⇒ 账户可能被锁定/受限，长期负余额**转交收债机构**；同时提供用户自助的**「结清负余额」**入口（自填金额充值归零）。用户协议里对余额设有留置与担保权益条款。
+  - **Stripe Connect**（⭕ 官方）：余额不足时退款**置 `pending`**，余额到账后按创建顺序**自动补处理**（不静默由平台垫付）；提供 `minimum_balance_hold`（提现最低余额保留）做事前防呆；同一 connected account 负余额满 **180 天**，Stripe **从平台余额划款把该账户平账**并生成 `reserve_` 余额流水（负数好转时反向回冲）；`Managed Risk` 可把「不可回收的负余额」责任整体转给 Stripe。
+  - **微信支付·分账回退**（⭕ 官方接口文档 + 商户客服知识库）：回退「以原分账单为依据、可多次、累计不超过分给该接收方的金额」；接收方**可用余额不足** ⇒ 回退不成功，查询结果仍为 `PROCESSING`，须接收方**充值后原单重试**；处理中满 **5 天** ⇒ `FAILED`/`TIME_OUT_CLOSED`；回退时限 **180 天**（支付宝退分账最长 12 个月）。渠道侧**不产生负数**。
+  - **抖音支付·发起退分账**（⭕ 官方错误码表）：4406「超出可回退金额」、4407「接收方账户状态异常」、4409「超过回退期限」——回退失败即返回业务错误，同样不在渠道侧挂负。
+  - **友宝 UBOX**（🟡 招股书/官方通稿，复用 CB-007/032/035）：平台统收后**月结银行转账**分成，**没有钱包负余额概念**——欠款在下一期分成中抵扣。即同行用「更长的结算周期」替代「负余额」这个形态。
+  - **哈哈零兽**（⭕ 官网，复用 CB-035 已登记链接）：商户提现**每周四申请、周五到账**（周结），资金占用比 T+1 更重 ⇒ 同样靠**结算周期**做风险缓冲；其公开资料**未披露**钱包负余额/欠款核销条款（铁律 48：查不到 ≠ 同行不做，不据此推断）。
+  - **旧系统 ego-automat**（⭕ 源码）：佣金与商户钱包退款**均不冲正**、无负数机制（台账已判定为老系统缺陷，见 CB-085 条目）——不能当「竞品不做负数」的证据。
+  - **跨行业补充（不计入对照主体：非开门柜同行、且未在本仓主体表登记）**：PayPal（入账自动抵扣 + 120 天转催收 + 自助结清入口）、Stripe Connect（余额不足退款置 pending、180 天平台平账 + `minimum_balance_hold`）、微信支付·分账回退（接收方余额不足即回退失败、PROCESSING 满 5 天 `TIME_OUT_CLOSED`、时限 180 天）、抖音支付·退分账（4406/4407/4409 错误码，渠道侧不挂负）。四家用来说明「允许负余额时，账龄阈值 + 升级动作是行业必备」，不替代同行对照。
+- **对照主体**（3 家）：
+
+  友宝 UBOX ｜ 哈哈零兽 ｜ 微信支付
+- **证据**：
+  - <https://www.paypal.com/nf/cshelp/article/what-should-i-do-if-my-balance-is-negative-help389?locale.x=zh_NF> （⭕ PayPal 官方帮助：「所有付款用于结清未支付款额」「120 天未结清 ⇒ 账户锁定/受限」「长期负余额转交收债机构」）
+  - <https://www.paypal.com/ca/legalhub/paypal/useragreement-full> （⭕ PayPal 用户协议：负余额的留置权/担保权益条款）
+  - <https://docs.stripe.com/connect/charges> （⭕ Stripe 官方：余额不足时退款置 `pending`，余额足够后按创建顺序自动处理）
+  - <https://docs.stripe.com/reports/reporting-categories> （⭕ Stripe 官方：负余额满 180 天由平台余额平账、`reserve_` 流水、`payout minimum balance hold`）
+  - <https://docs.stripe.com/connect/risk-management/managed-risk> （⭕ Stripe 官方：不可回收负余额的责任可由 Managed Risk 承接）
+  - <https://developers.weixin.qq.com/miniprogram/dev/wxcloudrun/src/development/pay/account/refundshare.html> （⭕ 微信官方·分账回退：可多次、累计上限、PROCESSING/FAILED/TIME_OUT_CLOSED）
+  - <https://pay.weixin.qq.com/doc/v2/merchant/4011941604> （⭕ 微信商户文档·常见问题：「可用余额不足，请充值后重新发起」；此时查询仍返回 PROCESSING 属正常）
+  - <https://developer.open-douyin.com/docs/resource/zh-CN/mini-app/develop/server/ecpay/return-settle/ReturnSettle> （⭕ 抖音支付·发起退分账：4406/4407/4409 错误码与 微信 180 天 / 支付宝 12 个月时限）
+  - 本仓一手：`MerchantWalletService#debitIfAbsentAllowNegative`（允许扣负的三类写入口）、`RevenueSplitService#clawbackWalletDelta`（仅 `LEDGER_ONLY/SETTLED` 生效 ⇒ 渠道已提交的分账不入钱包，不存在「渠道回退 + 钱包扣款」双收）、`MerchantWithdrawService`（`available = 余额 − 冻结 − T+1 待结算`，负余额恒 412）、`DataConsistencyService`（`MERCHANT × {WALLET, WALLET_LEDGER_SUM}` + `WALLET_LEDGER_CHAIN` 三条对账 ⇒ 负数是账实相符的欠款而非脏数据）、`MerchantWalletArrearsService`（本次新增的只读账龄探针）
+- **取证日期**：2026-11-13
+- **我们的结论**：
+  1. **采纳「负数挂账 + 入账自动抵扣 + 提现闸门阻断」**：与 PayPal（入账先抵欠款）、Stripe（余额不足先挂、到账自动补处理）、有赞/Amazon 系（负数待扣）同族；我方多一层「提现闸门恒 412」等价于 PayPal 的抵扣优先级。**不是错的**，不改成「禁止扣负」（禁止会让退款/冲正被余额闸卡死，正是审计 T4 当初改成 AllowNegative 的原因）。
+  2. **有意不同（与渠道侧做法相反，属自己的设计判断）**：微信/抖音要求「回退侧有余额才允许回退」，我方是**本地钱包先挂负、渠道回退滞后**。这样做的前提已核实成立：钱包冲正只对 `LEDGER_ONLY/SETTLED` 的 split 生效，渠道已提交的分账不入钱包 ⇒ 不会出现「渠道退回真钱 + 本地又扣一次」的双收。**① 渠道回退腿永久 `FAILED` 时本地冲正不释放**（渠道没动钱，本地就该向商户收）——此条写入本台账作为判据，禁止后人「顺手对齐」微信的「回退失败就回滚」。
+  3. **本期只补「账龄可见性」，不补处置动作**：新增只读探针 `MerchantWalletArrearsService`——负余额账户按「最后一次非负」起算账龄，连续满 **90 天**（`merchant.wallet_arrears.alert_after_days`，0=关闭；默认 90 与本仓佣金冲正 90 天追溯窗同一把尺，竞品锚点 21/90/120/180 天）⇒ 写进日结任务执行记录 + 推一条**聚合**运营群告警。**只读：不改余额、不改提现、不锁柜**（审计 T3：按钱包余额判欠费会把押金负扣/佣金冲正挂负的商户全部误锁）。
+  4. **不采纳（留待拍板，理由：平台认损口径与误锁风险）**：「钱包欠款满 N 天锁柜/停服」与「终止合作时的坏账核销」。竞品三条路都存在（Stripe 180 天平台兜底、PayPal 120 天转催收、微信 5 天超时关单），**选哪条等于选谁承担损失**，必须单独立项，不得在本条顺手落地。
+  5. **不采纳「商户端自助结清按钮」在本期**：PayPal 的入口背后是真实收款通道；我方商户门户目前只能看到欠款金额与「入账自动抵扣」说明（`WalletPage.vue`），收款仍走运营后台调账/线下打款入账。若要做自助充值结清，须先定「走哪个支付产品 + 是否生成充值单」，属产品拍板。

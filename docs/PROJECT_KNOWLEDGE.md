@@ -686,6 +686,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-13（商户钱包欠款账龄可见性：只读探针 + 台账 CB-086；负余额处置口径仍待拍板）
+
+- 用户问「商户钱包可为负是否对」：对照 PayPal / Stripe / 微信支付分账回退 / 抖音支付退分账 / 友宝 / 哈哈零兽，确认「负数挂账 + 入账自动抵扣 + 提现闸门阻断」是行业主形态（与本仓 2026-10-15 拍板 T4 同向），差的只是账龄升级；结论与证据入 `docs/COMPETITOR_BENCHMARK.md` **CB-086**。
+- 本期只落地**只读探针**：`MerchantWalletArrearsService`——负余额连续满 `merchant.wallet_arrears.alert_after_days`（默认 90，0=关）⇒ 写进日结任务执行记录 + 一条**聚合**运营群告警；账龄起算 = 账本里最后一次 `balance_after >= 0`（SQL 在 `services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml` 的 `findNegativeArrears`）。**不改余额、不改提现闸门、不锁柜**（T3：按余额判欠费会误锁）。
+- 商户端 `clients/merchant-mp/src/components/WalletPage.vue`：账面为负时显示「当前欠款 X，后续入账自动抵扣，结清前不可提现」——**不新增写入口**，收款仍走运营后台调账/线下打款入账。
+- **有意未做**：钱包欠款停服/锁柜、终止合作坏账核销、商户自助结清收款通道——三者都等于选「谁承担损失」，须单独立项拍板（CB-086 结论第 4/5 点）。
+
 ### 2026-11-12（文档治理：22 份历史报告归档 + 防假账门禁 check:ledger-evidence 上线）
 
 - **归档**：docs 根 22 份无引用的一次性历史报告 `git mv` 进 `docs/archive/`（判定口径=全仓 grep 零引用 + 非近 7 天活跃文件；`AUDIT_LEDGER_2026-10-13.md` 被钉为 AU/DC 编号唯一源故**保留在根**）。归档引发的 20+ 处活文档断链已同步改为 `docs/archive/…` 真路径；`gen-business-test-matrix.py`/`phase-f-gray-launch.ps1` 里的旧链接同步修。

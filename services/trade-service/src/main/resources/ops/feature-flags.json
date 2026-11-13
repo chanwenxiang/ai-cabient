@@ -392,6 +392,14 @@
       "unit": "天"
     },
     {
+      "key": "merchant.wallet_arrears.alert_after_days",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "90",
+      "description": "商户钱包负余额账龄告警阈值：连续满该天数 ⇒ 日结执行记录 + 运营群告警（只读，不改余额/提现/锁柜，CB-086）；0=关闭",
+      "unit": "天"
+    },
+    {
       "key": "device.temp.alert_max_c",
       "group": "设备与柜机",
       "type": "NUMBER",

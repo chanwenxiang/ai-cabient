@@ -949,6 +949,9 @@ public class SystemConfigService {
         upsertIfAbsent("merchant.overdue.lock_days", "7",
                 "商户费用欠缴锁柜账龄阈值（天）：未结清费用里最老一行满该天数即锁柜，结清自动复机"
                         + "（2026-10-16 拍板：替代旧的金额阈值 lock_months；对标阿里云「欠费满 7 个自然日停服」）");
+        upsertIfAbsent("merchant.wallet_arrears.alert_after_days", "90",
+                "商户钱包欠款账龄告警阈值（天），0=关闭：负余额连续满该天数 ⇒ 日结执行记录 + 运营群告警。"
+                        + "只读探针，不改余额/提现/柜机锁售（CB-086；默认 90 与佣金冲正 90 天追溯窗同尺）");
         upsertIfAbsent("line_route.chief_manager_ids", "0",
                 "总线路负责人（user_info.userId，多个用英文逗号分隔，如 1001,1002）；0=未指定，可随时改指");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
