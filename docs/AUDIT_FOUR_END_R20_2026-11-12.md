@@ -767,11 +767,11 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 第一批已落 V464（§二十六，余 84 列为显式欠账）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 5 批 / 23 列（§二十六、§二十七，余 64 列为显式欠账 + 19 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
-| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **第一批已落 V464（§二十六）**：3 张封闭状态机表（`cabinet_order`/`recharge_order`/`dispute_ticket`）值域自动对齐字典族 + shared-dict，全部 `NOT VALID`；真库事务内验收通过。余 **84 列**为显式欠账（清单 `maxPendingColumns=84` 棘轮只减）。`VALIDATE` 与部署前脏值探针仍待运维按表执行 |
+| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **已落 5 批 / 23 列（§二十六、§二十七）**：V464 核心 3 列 + V465~V468 按资金/订单/争议/对账链 20 列，值域自动对齐字典族 + shared-dict，全部 `NOT VALID`，真库事务内验收通过。余 **64 列**显式欠账（清单 `maxPendingColumns=64` 棘轮只减）+ 19 列登记排除。`VALIDATE` 与部署前脏值探针仍待运维按表执行 |
 | 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
 | 4 | ~~无主/渠道不符回调静默 200，无告警痕迹~~ **已修（§二十二）** | 报告只点名两处，实修 10 类分支（微信/支付宝充值各 3 + 退款通知 2 + 退款同步 2）；统一 `alertSilentCallback` 收口。**关键修正**：`OpsAlertDispatcher.fanout` 未配渠道时静默返回，只发告警仍是零痕迹 ⇒ 必须同时落 `log.error` |
 | 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1 第一批**~~ **已完成（§二十六）**——V464 + 自动对齐门禁 + 真库验收，余 84 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已完成 5 批（§二十六、§二十七）**——V464 + V465~V468 共 23 列、门禁升级至 7 组判据、真库验收，余 64 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,6 +1236,96 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. **P3-1 余 84 列**：按资金/订单/争议/对账链优先级分批销账，每批须同步减小 `maxPendingColumns`。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
+
+## 二十七、P3-1 第 2~5 批：四条业务链分批销账（2026-11-13）
+
+> 用户指令「P3-1 余 84 列按资金/订单/争议/对账链分批销账（每批同步减小欠账）」。本轮按链落 4 个独立迁移、覆盖 20 列，累计 23 列，欠账棘轮 **84 → 64**。
+
+### 二十七.1 实证盘点（不猜值域、不凑数字）
+
+沿用 §二十六.1 的环境判断：共享 dev 的 `ai-cabinet-postgres-1` 仍为 `Exited (255)`、trade-service 被并发会话重启 ⇒ 按铁律 69 **不动共享栈**，DB 验收继续用独立一次性 `postgres:16-alpine`。
+
+静态盘点（`.tmp/probe-p31.py`，临时探针不入库）结果：
+
+| 项 | 实测 |
+|---|---|
+| 全部 V 迁移里的状态列（`*status*`，去重） | **119** |
+| 其中已有内联 CHECK（`ck_*` / `chk_*`） | **13**（与 §二十三.1 dev 实测的 13 列一一对应，不重复加） |
+| `SysDictBootstrap` 可自动解析的字典族 | **96** |
+| `shared-dict` 同名族 | **103** |
+| **同名且前后端值域相等**（可作 CHECK 值域来源） | **88** |
+| 同名但值域不等（排除） | 7：`consistency_check_type` / `device_fault_issue` / `enable_status` / `exception_type` / `merchant_alert_type` / `route_code` / `wallet_entry_type` |
+| 资金/订单/争议/对账链上「无 CHECK 且 varchar」候选列 | **39** |
+
+⚠️ **口径对照（铁律 16）**：DDL 静态 119 列 ≠ dev 实测 100 列（含后续 `ALTER ... DROP`/列类型差异/已下线表）。欠账棘轮仍沿用 **dev 实测 87 缺 CHECK** 这一账面基线，`baselineMissingCheck=87` 由门禁硬钉为常量，禁止改口径把数字做小。
+
+### 二十七.2 四批落地（20 列，值域全自动生成）
+
+| 迁移 | 链 | 列数 | 表（字典族值数） |
+|---|---|---|---|
+| `V465__status_check_batch2_fund.sql` | 资金 | **7** | `balance_refund_request`(4) / `merchant_withdraw_request`(7) / `line_withdraw_request`(7) / `merchant_settlement_bill`(2) / `supplier_payable`(4) / `device_rental_bill`(3) / `order_revenue_split`(8) |
+| `V466__status_check_batch3_order.sql` | 订单 | **8** | `purchase_order`(6) / `merchant_replenishment_request`(4) / `replenishment_task`(4) / `replenishment_route`(4) / `warehouse_in_transit`(5) / `warehouse_stocktake`(5) / `warehouse_stocktake_line`(4) / `warehouse_outbound`(4) |
+| `V467__status_check_batch4_dispute.sql` | 争议 | **4** | `compensation_task`(4) / `repair_ticket`(4) / `ops_exception`(4) / `user_feedback`(3) |
+| `V468__status_check_batch5_recon.sql` | 对账 | **1** | `payment_reconciliation`(4) |
+
+- 值域由脚本从字典族 `key` 集合**自动生成** SQL 字面量（并断言前后端相等），无人工枚举白名单；约束名 `chk_<table>_<column>` 逐条与全仓既有约束查重。
+- 迁移头沿用 V464 全套字段（`MIGRATION_KIND: schema` / `COMPETITOR_REF: CB-036` 有意不同 / `MIGRATION_REVIEWED` / `LOCK_RISK: medium` / `TABLES` / `NOTES` + 逐列脏值探针 SQL），全部 `NOT VALID`，`VALIDATE` 仍解耦为运维动作。
+- 迁移族门禁全绿：`check-migration-safety` / `check-migration-number-order` / `check-flyway-seed-separation` / `check-mysql-isms-in-migrations` / `check-competitor-benchmark`。
+
+### 二十七.3 门禁升级：6 组 → 7 组判据
+
+`scripts/check-status-enum-parity.mjs` 重写为**多迁移 / 全清单**版本，新增两条可靠判据：
+
+| 判据 | 内容 | 为什么可靠 |
+|---|---|---|
+| **R6** | 目标列 DDL `DEFAULT '<v>'` 必须 ∈ CHECK 值域 | 100% 静态可判。若默认值被漏出约束，**新行默认插入即被拒**（比越界串更致命）。从全部 461 个 V 迁移的 `CREATE TABLE` 块平衡解析 |
+| **R7** | 带实体类名锚点的 `set(Cls::getStatus, X)` 写入值 ⊆ CHECK 值域 | 类名锚点 100% 可靠（`@TableName` 自动建映射）；字面量 / `CabinetConstants.X` / 唯一值常量自动解析 |
+
+R1~R5 同步扩展：清单四要素（表/列/约束/**迁移文件**）一一对应、23 列三方值域双向相等、5 个迁移每条 ADD 必 `NOT VALID` 且禁止 `VALIDATE`、每个迁移头 `COMPETITOR_REF` 引用真实 CB 编号且 `KIND=schema`、`baselineMissingCheck=87 − 已覆盖 = maxPendingColumns` 自动派生。
+
+- `--self-test`：**17 个变异 / 防假红断言全绿**、md5 零残留；新增咬合点包括「DDL DEFAULT 改成族外值」「Mapper 锚点写入越界值」「清单 migration 字段指错文件」「新迁移删掉一条约束」「基线口径被改小」「注释里复述旧写法不得假红」。
+- 耗时：正向 **602 ms** / 自测 **2258 ms**（扫 1967 个 Java + 461 个 SQL），CI 已接正向 + 自测 2 步，无需改 `ci.yml`。
+- `--emit` 输出 23 列的 `ddlDefault` / `writerValues` / 三方值域，可直接作为验收输入。
+
+### 二十七.4 方法论记录：宽扫描会骗人（铁律 3/84②）
+
+初版探针用「文件里出现类名 ⇒ 扫全部 `setStatus("X")`」归集，结果 20 个映射里 **11 个报越界**。逐条核实后发现全是**串味**：
+
+- `purchase_order` 扫到 `CLOSED/COMPLETED/PAID/PARTIAL/UNPAID` —— 真身是 `supplier_payable_status` 的值；反之 `supplier_payable` 扫到 `COMPLETED/CREATED/REJECTED` 是采购单的值。
+- `replenishment_task` 扫到 `PENDING_REVIEW` —— 真身在 `LineWithdrawService:346` / `MerchantWithdrawService:526`。
+- `balance_refund_request` 扫到 `PENDING/PROCESSING` —— 通用同名常量误收。
+
+改为**语句级变量类型推断**后仍有 2 处假越界（同名局部变量跨方法作用域），最终定位到具体文件行确认非真实写入。因此门禁 **R7 只认类名锚点，不做变量类型推断**，并明确记为**单向、不完备**的必要检查：抓得到的一律不许越界，抓不到的靠部署前逐列脏值探针兜底。🔴 不把「扫描通过」写成「源码值域已完备覆盖」——这是本报告刻意保留的边界。
+
+另记录一个真实副产物：`order_revenue_split.status` 用常量写状态（`LEDGER_ONLY` / `ACCRUED` / `WECHAT_SUBMITTED` / `VOIDED` / `SETTLED` / `WECHAT_FAILED`），全部在 `split_status` 族内，映射成立；而 V463 的 `order_split_return_leg.status` 源码含 `PROCESSING`，**不在** `split_status` 族 ⇒ 本轮**排除**，登记为显式欠账，不为凑数字硬套族。
+
+### 二十七.5 真库验收（独立 PG 16，事务内零残留）
+
+`docker exec -i ... psql -v ON_ERROR_STOP=1`，一次性容器跑完即删。以 `--emit` 的 23 列为输入自动建表（含真实 DDL DEFAULT）：
+
+| 判据 | 结果 |
+|---|---|
+| 每个合法值逐个可写（合计 **110** 值） | ✅ 全部 `INSERT` 成功 |
+| **DDL 默认插入可写**（22 个有 default 的列） | ✅ 22 行 `INSERT ... DEFAULT VALUES` 成功（R6 的真库对应证据） |
+| 越界串 `TOTALLY_BOGUS` 逐表被拒 | ✅ `PASS: 23 张表越界串全部被 CHECK 拒绝` |
+| 报表按状态聚合行数守恒 | ✅ `PASS: 23 张表按状态聚合行数守恒（越界 0 行）` |
+| NULL 三值语义放行 | ✅ 可空探针列插入 NULL 成功 |
+| `BEGIN; … ROLLBACK;` 零残留 | ✅ `AFTER_ROLLBACK constraints=0 / rows=0 / default_probe_rows=0` |
+| 永久应用 5 个迁移的 `NOT VALID` 语义 | ✅ `APPLIED total=23 validated_true=0` / `NOT_VALID count=23` |
+
+`PSQL_EXIT=0`。⚠️ 仍是**空库**验收，证明约束语法与值域完整；生产存量脏值必须按迁移头探针 SQL 逐列核对后再 `VALIDATE`。
+
+### 二十七.6 欠账销账与显式排除
+
+- 账面欠账 **84 → 64**（累计覆盖 3 + 20 = 23 列，87 − 23 = 64），由门禁 R5 自动派生校验，只减不增。
+- 业务链候选 39 列中，除本轮 20 列外 **19 列登记为 `excludedColumns`**（写进清单，不是沉默略过）：无权威字典族（`commission_clawback` / `consumer_preauth_hold` / `data_consistency_record` / `franchise_settlement` / `line_commission_daily` / `line_manager_settlement` / `machine_payee_bill` / `merchant_fee_ledger` / `payment_operation` / `payment_risk_config` / `payout_account` / `platform_fund_account` / `purchase_return` / `revenue_share_detail` / `revenue_share_rule` / `staff_commission_daily`）、源码值域与字典族不符（`order_split_return_leg`）、历史轨迹列值域可能含已废弃值（`repair_ticket_event.from_status` / `to_status`）。
+- 🔴 这 19 列**不是「已修」，也不是遗漏**：要么需先补字典族再对齐，要么应留在字典层管控（CB-036 边界）。为减小数字硬造值域会造成上线写入失败（§二十三.1 的决定性证据）。
+
+### 二十七.7 全仓门禁复扫与遗留
+
+- 复扫 11 个关键门禁 + 聚合 `check-audit-gates-wiring` **全绿**（后者此前长期因并发会话半成品判红，本轮已转绿）。
+- ⚠️ `check-migration-immutable` 仍红，**与本批无关**：历史提交 `56664645`（R19 批次）修改过 `V459__member_points_expired_points.sql`，且 `origin/dev` 基线落后于本地 HEAD ⇒ 门禁把 `base...HEAD` 的已提交改动判成「基线脚本被改」。工作区该文件干净（`git status` / `git diff HEAD` 均空），按铁律 61 不代修。
+- 剩余：**64 列**按链继续分批；V463 + V464~V468 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）待产品拍板；R23 待配额重置。

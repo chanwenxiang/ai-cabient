@@ -1,26 +1,238 @@
 {
-  "batch": 1,
-  "note": "R20 P3-1 第一批：仅封闭状态机列。值域由 SysDictBootstrap 字典族自动提取，禁止人工枚举白名单。",
+  "batch": 5,
+  "baselineMissingCheck": 87,
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。按资金/订单/争议/对账链分批。",
   "tables": [
     {
       "table": "cabinet_order",
       "column": "status",
       "dictFamily": "order_status",
-      "constraint": "chk_cabinet_order_status"
+      "constraint": "chk_cabinet_order_status",
+      "chain": "order",
+      "batch": 1,
+      "migration": "V464__status_check_batch1.sql"
     },
     {
       "table": "recharge_order",
       "column": "status",
       "dictFamily": "recharge_status",
-      "constraint": "chk_recharge_order_status"
+      "constraint": "chk_recharge_order_status",
+      "chain": "fund",
+      "batch": 1,
+      "migration": "V464__status_check_batch1.sql"
     },
     {
       "table": "dispute_ticket",
       "column": "status",
       "dictFamily": "dispute_status",
-      "constraint": "chk_dispute_ticket_status"
+      "constraint": "chk_dispute_ticket_status",
+      "chain": "dispute",
+      "batch": 1,
+      "migration": "V464__status_check_batch1.sql"
+    },
+    {
+      "table": "balance_refund_request",
+      "column": "status",
+      "dictFamily": "balance_refund_status",
+      "constraint": "chk_balance_refund_request_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "merchant_withdraw_request",
+      "column": "status",
+      "dictFamily": "merchant_withdraw_status",
+      "constraint": "chk_merchant_withdraw_request_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "line_withdraw_request",
+      "column": "status",
+      "dictFamily": "line_withdraw_status",
+      "constraint": "chk_line_withdraw_request_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "merchant_settlement_bill",
+      "column": "status",
+      "dictFamily": "merchant_settlement_bill_status",
+      "constraint": "chk_merchant_settlement_bill_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "supplier_payable",
+      "column": "status",
+      "dictFamily": "supplier_payable_status",
+      "constraint": "chk_supplier_payable_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "device_rental_bill",
+      "column": "status",
+      "dictFamily": "device_rental_bill_status",
+      "constraint": "chk_device_rental_bill_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "order_revenue_split",
+      "column": "status",
+      "dictFamily": "split_status",
+      "constraint": "chk_order_revenue_split_status",
+      "chain": "fund",
+      "batch": 2,
+      "migration": "V465__status_check_batch2_fund.sql"
+    },
+    {
+      "table": "purchase_order",
+      "column": "status",
+      "dictFamily": "purchase_order_status",
+      "constraint": "chk_purchase_order_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "merchant_replenishment_request",
+      "column": "status",
+      "dictFamily": "replenishment_request_status",
+      "constraint": "chk_merchant_replenishment_request_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "replenishment_task",
+      "column": "status",
+      "dictFamily": "replenishment_task_status",
+      "constraint": "chk_replenishment_task_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "replenishment_route",
+      "column": "status",
+      "dictFamily": "replenishment_route_status",
+      "constraint": "chk_replenishment_route_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "warehouse_in_transit",
+      "column": "status",
+      "dictFamily": "in_transit_status",
+      "constraint": "chk_warehouse_in_transit_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "warehouse_stocktake",
+      "column": "status",
+      "dictFamily": "stocktake_status",
+      "constraint": "chk_warehouse_stocktake_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "warehouse_stocktake_line",
+      "column": "status",
+      "dictFamily": "stocktake_line_status",
+      "constraint": "chk_warehouse_stocktake_line_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "warehouse_outbound",
+      "column": "status",
+      "dictFamily": "warehouse_outbound_status",
+      "constraint": "chk_warehouse_outbound_status",
+      "chain": "order",
+      "batch": 3,
+      "migration": "V466__status_check_batch3_order.sql"
+    },
+    {
+      "table": "compensation_task",
+      "column": "status",
+      "dictFamily": "compensation_task_status",
+      "constraint": "chk_compensation_task_status",
+      "chain": "dispute",
+      "batch": 4,
+      "migration": "V467__status_check_batch4_dispute.sql"
+    },
+    {
+      "table": "repair_ticket",
+      "column": "status",
+      "dictFamily": "repair_ticket_status",
+      "constraint": "chk_repair_ticket_status",
+      "chain": "dispute",
+      "batch": 4,
+      "migration": "V467__status_check_batch4_dispute.sql"
+    },
+    {
+      "table": "ops_exception",
+      "column": "status",
+      "dictFamily": "exception_status",
+      "constraint": "chk_ops_exception_status",
+      "chain": "dispute",
+      "batch": 4,
+      "migration": "V467__status_check_batch4_dispute.sql"
+    },
+    {
+      "table": "user_feedback",
+      "column": "status",
+      "dictFamily": "feedback_status",
+      "constraint": "chk_user_feedback_status",
+      "chain": "dispute",
+      "batch": 4,
+      "migration": "V467__status_check_batch4_dispute.sql"
+    },
+    {
+      "table": "payment_reconciliation",
+      "column": "status",
+      "dictFamily": "reconciliation_status",
+      "constraint": "chk_payment_reconciliation_status",
+      "chain": "recon",
+      "batch": 5,
+      "migration": "V468__status_check_batch5_recon.sql"
     }
   ],
-  "maxPendingColumns": 84,
-  "pendingNote": "dev 实测 87 列缺 CHECK，本批覆盖 3 列；剩余 84 列为显式欠账，逐批销账后只能减小。"
+  "maxPendingColumns": 64,
+  "excludedColumns": [
+    "commission_clawback.status",
+    "consumer_preauth_hold.status",
+    "data_consistency_record.status",
+    "franchise_settlement.status",
+    "line_commission_daily.status",
+    "line_manager_settlement.status",
+    "machine_payee_bill.status",
+    "merchant_fee_ledger.status",
+    "order_split_return_leg.status",
+    "payment_operation.status",
+    "payment_risk_config.status",
+    "payout_account.status",
+    "platform_fund_account.status",
+    "purchase_return.status",
+    "repair_ticket_event.from_status",
+    "repair_ticket_event.to_status",
+    "revenue_share_detail.status",
+    "revenue_share_rule.status",
+    "staff_commission_daily.status"
+  ],
+  "excludedNote": "业务链候选 39 列中本轮覆盖 20 列；余 19 列无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，登记为显式欠账，留待后续批次或字典层管控（不为减小数字硬造值域）。",
+  "pendingNote": "dev 实测 87 列缺 CHECK，累计覆盖 23 列 ⇒ 账面欠账 64，棘轮只减不增（门禁自动派生校验）。"
 }
