@@ -17779,11 +17779,20 @@ export interface components {
             message?: string;
             data?: components["schemas"]["LineRouteMember"][];
         };
-        ApiResponseListLinePromoTaskDto: {
+        ApiResponsePageResultLinePromoTaskDto: {
             /** Format: int32 */
             code?: number;
             message?: string;
-            data?: components["schemas"]["LinePromoTaskDto"][];
+            data?: components["schemas"]["PageResultLinePromoTaskDto"];
+        };
+        PageResultLinePromoTaskDto: {
+            items?: components["schemas"]["LinePromoTaskDto"][];
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+            /** Format: int64 */
+            total?: number;
         };
         ApiResponsePageResultLineManagerDto: {
             /** Format: int32 */
@@ -27016,6 +27025,8 @@ export interface operations {
             query?: {
                 managerId?: number;
                 status?: string;
+                page?: number;
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -27029,7 +27040,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ApiResponseListLinePromoTaskDto"];
+                    "*/*": components["schemas"]["ApiResponsePageResultLinePromoTaskDto"];
                 };
             };
         };
