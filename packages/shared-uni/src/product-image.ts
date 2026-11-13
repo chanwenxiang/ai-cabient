@@ -19,7 +19,10 @@ function isOssHost(host: string): boolean {
  * 已带 `x-oss-process` 的 URL 不重复加；后端相对路径 / 非 OSS 域名原样返回。
  */
 function appendOssProcess(url: string, opts: ThumbOptions): string {
-  const host = url.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
+  const host = url
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .split(':')[0];
   if (!isOssHost(host)) return url;
   if (/[?&]x-oss-process=/i.test(url)) return url;
   const w = opts.width ? `w_${opts.width}` : '';

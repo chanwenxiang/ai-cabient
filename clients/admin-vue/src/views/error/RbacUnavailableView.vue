@@ -36,8 +36,10 @@ const fromPath = computed(() => String(route.query.from || '').trim());
 
 const subTitle = computed(() => {
   const label = pageTitle.value || fromPath.value || '当前页面';
-  return `没能加载到「${label}」的权限数据（网络或服务暂时不可用），这不是权限不足。`
-    + '请稍后重试；多次失败请联系管理员检查网关与 RBAC 服务。';
+  return (
+    `没能加载到「${label}」的权限数据（网络或服务暂时不可用），这不是权限不足。` +
+    '请稍后重试；多次失败请联系管理员检查网关与 RBAC 服务。'
+  );
 });
 
 async function retry() {

@@ -36,11 +36,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GATEWAY_DIR = join(ROOT, 'infra', 'gateway');
 const FILES = ['nginx.conf', 'nginx.compose.conf', 'nginx-full.conf'];
 
-const SECURITY_HEADERS = [
-  'X-Content-Type-Options',
-  'X-Frame-Options',
-  'Referrer-Policy'
-];
+const SECURITY_HEADERS = ['X-Content-Type-Options', 'X-Frame-Options', 'Referrer-Policy'];
 
 /** 去掉注释行后按行返回（保留行号，便于报错指名） */
 function stripComments(src) {
@@ -53,7 +49,9 @@ function stripComments(src) {
 
 /** 取 `location /xxx/ { ... }` 块的正文字符串（按大括号配平），返回 null 表示没有该 location */
 function locationBlock(lines, key) {
-  const startIdx = lines.findIndex((l) => new RegExp(`^\\s*location\\s+${key}\\s*\\{`).test(l.text));
+  const startIdx = lines.findIndex((l) =>
+    new RegExp(`^\\s*location\\s+${key}\\s*\\{`).test(l.text)
+  );
   if (startIdx < 0) return null;
   let depth = 0;
   const body = [];
@@ -115,7 +113,9 @@ export function validate(sources) {
       problems.push(`${name}: 缺 \`server_tokens off\` —— Server 头会暴露 nginx 版本号`);
     }
     if (!/^\s*gzip\s+on\s*;/m.test(src)) {
-      problems.push(`${name}: 缺 \`gzip on\` —— 文本响应不压缩（若是有意关闭请在此门禁里写明理由）`);
+      problems.push(
+        `${name}: 缺 \`gzip on\` —— 文本响应不压缩（若是有意关闭请在此门禁里写明理由）`
+      );
     }
 
     const serverScope = serverLevel(lines);
@@ -138,8 +138,8 @@ export function validate(sources) {
     if (wsBody !== null) {
       if (!/access_log\s+\S+\s+ws_noargs\s*;/.test(wsBody)) {
         problems.push(
-          `${name}: 有 location /websocket/ 但未覆盖 access_log ... ws_noargs —— `
-            + 'WS 握手 token 在 query string 里，combined 格式会把它整条落进 access.log'
+          `${name}: 有 location /websocket/ 但未覆盖 access_log ... ws_noargs —— ` +
+            'WS 握手 token 在 query string 里，combined 格式会把它整条落进 access.log'
         );
       }
       if (!lf) {
@@ -155,23 +155,24 @@ export function validate(sources) {
   const uniqSizes = [...new Set(sizes.map((s) => s.size))];
   if (uniqSizes.length > 1) {
     problems.push(
-      `client_max_body_size 三份取值不一致：${sizes.map((s) => `${s.name}=${s.size}`).join('，')}`
-        + ' —— 上传在某个入口会莫名 413'
+      `client_max_body_size 三份取值不一致：${sizes.map((s) => `${s.name}=${s.size}`).join('，')}` +
+        ' —— 上传在某个入口会莫名 413'
     );
   }
   const uniqLog = [...new Set(logFormats.map((l) => l.lf))];
   if (uniqLog.length > 1) {
     problems.push(
-      'log_format ws_noargs 定义体不一致（名字相同但格式漂移）：'
-        + logFormats.map((l) => `${l.name}=«${l.lf}»`).join('，')
-        + ' —— 若有人把 $uri 改回 $request，token 就重新落盘了'
+      'log_format ws_noargs 定义体不一致（名字相同但格式漂移）：' +
+        logFormats.map((l) => `${l.name}=«${l.lf}»`).join('，') +
+        ' —— 若有人把 $uri 改回 $request，token 就重新落盘了'
     );
   }
   const uniqZones = [...new Set(zoneSets.map((z) => z.zones.join('|')))];
   if (uniqZones.length > 1) {
     problems.push(
-      'limit_req_zone 集合不一致：' + zoneSets.map((z) => `${z.name}=[${z.zones.join(',')}]`).join('，')
-        + ' —— 只改一份会造出定义无引用的死 zone，或引用未定义的 zone（nginx 起不来）'
+      'limit_req_zone 集合不一致：' +
+        zoneSets.map((z) => `${z.name}=[${z.zones.join(',')}]`).join('，') +
+        ' —— 只改一份会造出定义无引用的死 zone，或引用未定义的 zone（nginx 起不来）'
     );
   }
 
@@ -220,9 +221,12 @@ function selfTest() {
     {
       desc: '安全头只在 location 内、server 级缺失 → 红（继承会被吞）',
       srcs: [
-        BASE.replace('    add_header X-Frame-Options "SAMEORIGIN" always;\n', '')
-          .replace('    location /websocket/ {', '    location /websocket/ {\n        add_header X-Frame-Options "SAMEORIGIN" always;'),
-        BASE, BASE
+        BASE.replace('    add_header X-Frame-Options "SAMEORIGIN" always;\n', '').replace(
+          '    location /websocket/ {',
+          '    location /websocket/ {\n        add_header X-Frame-Options "SAMEORIGIN" always;'
+        ),
+        BASE,
+        BASE
       ],
       expect: false
     },
@@ -230,7 +234,8 @@ function selfTest() {
       desc: '有 /websocket/ 但没覆盖 access_log → 红（token 落盘）',
       srcs: [
         BASE.replace('        access_log /var/log/nginx/access.log ws_noargs;\n', ''),
-        BASE, BASE
+        BASE,
+        BASE
       ],
       expect: false
     },
@@ -238,7 +243,8 @@ function selfTest() {
       desc: 'ws_noargs 格式漂移（$uri 改回 $request）→ 红',
       srcs: [
         BASE.replace('"$request_method $uri" $status', '"$request_method $request" $status'),
-        BASE, BASE
+        BASE,
+        BASE
       ],
       expect: false
     },
@@ -251,16 +257,14 @@ function selfTest() {
       desc: '某份缺一个 ratelimit zone → 红',
       srcs: [
         BASE.replace('limit_req_zone $binary_remote_addr zone=auth_ratelimit:10m rate=5r/s;\n', ''),
-        BASE, BASE
+        BASE,
+        BASE
       ],
       expect: false
     },
     {
       desc: '文件没有 /websocket/（开发直连版）→ 不要求 ws_noargs 覆盖，仍绿',
-      srcs: [
-        BASE.replace(/    location \/websocket\/ \{[\s\S]*?\n    \}\n/, ''),
-        BASE, BASE
-      ],
+      srcs: [BASE.replace(/    location \/websocket\/ \{[\s\S]*?\n    \}\n/, ''), BASE, BASE],
       expect: true
     }
   ];
@@ -285,8 +289,9 @@ function selfTest() {
 }
 
 // ── 主流程 ──────────────────────────────────────────────────────────────
-const invokedDirectly = process.argv[1]
-  && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href;
+const invokedDirectly =
+  process.argv[1] &&
+  import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href;
 
 if (invokedDirectly) {
   if (process.argv.includes('--self-test')) {
@@ -302,7 +307,9 @@ if (invokedDirectly) {
       .join(' ');
     console.log(`检查 infra/gateway/{${FILES.join(',')}}（zone 数 ${zones}）`);
     if (ok) {
-      console.log('网关配置同源检查通过：server_tokens / gzip / 安全头 / body_size / ws_noargs / zone 全部一致');
+      console.log(
+        '网关配置同源检查通过：server_tokens / gzip / 安全头 / body_size / ws_noargs / zone 全部一致'
+      );
     } else {
       console.error(`\n发现 ${problems.length} 处不一致：`);
       problems.forEach((p) => console.error(`  · ${p}`));

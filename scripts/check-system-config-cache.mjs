@@ -78,8 +78,10 @@ function evaluate(read) {
   } else {
     if (!/repository\.findById\(/.test(loadBody))
       bad('loadConfigCached 未直读 repository.findById（缓存读路径断裂）');
-    if (!/configCache\.get\(/.test(loadBody)) bad('loadConfigCached 未从缓存读（缺 configCache.get(）');
-    if (!/configCache\.put\(/.test(loadBody)) bad('loadConfigCached 未写回缓存（缺 configCache.put(）');
+    if (!/configCache\.get\(/.test(loadBody))
+      bad('loadConfigCached 未从缓存读（缺 configCache.get(）');
+    if (!/configCache\.put\(/.test(loadBody))
+      bad('loadConfigCached 未写回缓存（缺 configCache.put(）');
   }
 
   // ── R2 热路径收敛：consumerPublicConfig 也走 getValue（bootstrap 修复循环里的
@@ -126,7 +128,11 @@ function evaluate(read) {
       'configCache.remove(key)',
       'doUpsert'
     ],
-    ['public void delete(String configKey, Long operatorId)', 'configCache.remove(configKey)', 'delete'],
+    [
+      'public void delete(String configKey, Long operatorId)',
+      'configCache.remove(configKey)',
+      'delete'
+    ],
     [
       'private void refreshDescriptionIfPresent(String key, String description)',
       'configCache.remove(key)',
@@ -153,7 +159,8 @@ function evaluate(read) {
     'sameKeyReadHitsDbOnceAcrossAllGetters',
     'writeInvalidatesCacheSoNextReadSeesNewValue'
   ]) {
-    if (!test.includes(t)) bad(`SystemConfigCacheTest 缺测试 ${t}——缓存命中 / 写后失效不变式无人钉`);
+    if (!test.includes(t))
+      bad(`SystemConfigCacheTest 缺测试 ${t}——缓存命中 / 写后失效不变式无人钉`);
   }
 
   // ── R7 全族安全网：每一处直接写库都必须配对失效（旁路写也逃不掉） ──
@@ -186,7 +193,11 @@ function selfTest() {
     [
       '移除缓存写回（loadConfigCached 不再 put）',
       P.impl,
-      (s) => s.replace(/configCache\.put\(key, new ConfigCacheEntry\(v, now \+ CONFIG_CACHE_TTL_MS\)\);/, '/* no cache */'),
+      (s) =>
+        s.replace(
+          /configCache\.put\(key, new ConfigCacheEntry\(v, now \+ CONFIG_CACHE_TTL_MS\)\);/,
+          '/* no cache */'
+        ),
       'configCache.put('
     ],
     [
@@ -294,5 +305,7 @@ if (process.argv.includes('--self-test')) {
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log('[check-system-config-cache] OK：配置读汇聚缓存 + 四处写入口/三处 bootstrap 旁路写全族失效，7 组判据全绿');
+  console.log(
+    '[check-system-config-cache] OK：配置读汇聚缓存 + 四处写入口/三处 bootstrap 旁路写全族失效，7 组判据全绿'
+  );
 }

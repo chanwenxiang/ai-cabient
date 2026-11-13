@@ -96,10 +96,16 @@ function selfTest() {
     ['    image: nginx', true],
     ['    image: nginx:latest', true],
     ['    image: postgres:16-alpine', false],
-    ['    image: emqx/emqx:5.8.6@sha256:a1e3d10fa1dcc8c94325b815a93b5b5974253a97cb36470b44e47d5d3ef9cd13', false],
+    [
+      '    image: emqx/emqx:5.8.6@sha256:a1e3d10fa1dcc8c94325b815a93b5b5974253a97cb36470b44e47d5d3ef9cd13',
+      false
+    ],
     ['    image: ai-cabinet/trade-service:${IMAGE_TAG:-local}', false],
     ['    image: nginx:alpine', false],
-    ['    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 # 钉 digest', false],
+    [
+      '    image: minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 # 钉 digest',
+      false
+    ],
     ['    image: foo/bar@sha256:zzz', true],
     ['    image: "sonarqube:25.12.0.117093-community"', false]
   ];
@@ -116,8 +122,10 @@ function selfTest() {
     console.error(`check-compose-image-tags --self-test: ${failed} 项失败`);
     process.exit(1);
   }
-  console.log(`check-compose-image-tags --self-test: ${cases.length} 例全部符合预期`
-    + '（占用 tag / 缺 tag / latest / 坏 digest 必须红，版本 tag / 变量 / 基础变体 / digest 必须绿）');
+  console.log(
+    `check-compose-image-tags --self-test: ${cases.length} 例全部符合预期` +
+      '（占用 tag / 缺 tag / latest / 坏 digest 必须红，版本 tag / 变量 / 基础变体 / digest 必须绿）'
+  );
 }
 
 if (process.argv.includes('--self-test')) {
@@ -133,5 +141,7 @@ if (process.argv.includes('--self-test')) {
     console.error('修法：钉 digest（首选）或改成真实版本 tag；变量 tag 请写成 ${VAR:-default}。');
     process.exit(1);
   }
-  console.log(`[check-compose-image-tags] OK：${checked} 条 image 引用全部可拉取（${files.length} 个 compose 文件）`);
+  console.log(
+    `[check-compose-image-tags] OK：${checked} 条 image 引用全部可拉取（${files.length} 个 compose 文件）`
+  );
 }

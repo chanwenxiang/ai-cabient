@@ -74,12 +74,18 @@ function evaluate(read) {
   const commonPoolCount = (impl.match(/ForkJoinPool\.commonPool\(\)/g) || []).length;
   const runAsyncCount = (impl.match(/CompletableFuture\.runAsync/g) || []).length;
   if (commonPoolCount !== 0)
-    bad(`存在 ${commonPoolCount} 处 ForkJoinPool.commonPool() 真实用法（注释除外）——会污染全局并行流`);
+    bad(
+      `存在 ${commonPoolCount} 处 ForkJoinPool.commonPool() 真实用法（注释除外）——会污染全局并行流`
+    );
   if (runAsyncCount !== 0)
-    bad(`存在 ${runAsyncCount} 处 CompletableFuture.runAsync 真实用法（注释除外）——突发批量会把 commonPool 占满`);
+    bad(
+      `存在 ${runAsyncCount} 处 CompletableFuture.runAsync 真实用法（注释除外）——突发批量会把 commonPool 占满`
+    );
 
   // ── R2 专用 notifier 池：有界队列，替代 commonPool ──
-  const notifier = impl.match(/private final ExecutorService notifier = new ThreadPoolExecutor\([\s\S]*?\);/);
+  const notifier = impl.match(
+    /private final ExecutorService notifier = new ThreadPoolExecutor\([\s\S]*?\);/
+  );
   if (!notifier) {
     bad('缺专用 notifier 线程池（必须用有界池替代 commonPool）');
   } else if (!/ArrayBlockingQueue/.test(notifier[0])) {
@@ -93,7 +99,8 @@ function evaluate(read) {
   } else {
     if (/ForkJoinPool|runAsync|commonPool/.test(notifyBody))
       bad('notifyOpenDoorTimeoutAsync 仍用 commonPool/runAsync（P3-8 病灶）');
-    if (!/notifier\.execute\(/.test(notifyBody)) bad('notifyOpenDoorTimeoutAsync 未走专用 notifier.execute');
+    if (!/notifier\.execute\(/.test(notifyBody))
+      bad('notifyOpenDoorTimeoutAsync 未走专用 notifier.execute');
   }
 
   // ── R4 不得把其他异步通知也误用 commonPool ──
@@ -139,12 +146,7 @@ function selfTest() {
         ),
       'commonPool'
     ],
-    [
-      '删除 commonPool 设计缺陷说明注释',
-      P.impl,
-      (s) => s.replace(/R19-18/, ''),
-      'R19-18'
-    ]
+    ['删除 commonPool 设计缺陷说明注释', P.impl, (s) => s.replace(/R19-18/, ''), 'R19-18']
   ];
 
   let passed = 0;
@@ -205,5 +207,7 @@ if (process.argv.includes('--self-test')) {
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log('[check-no-commonpool-blocking] OK：notifyOpenDoorTimeoutAsync 走专用有界池，0 处 commonPool/runAsync');
+  console.log(
+    '[check-no-commonpool-blocking] OK：notifyOpenDoorTimeoutAsync 走专用有界池，0 处 commonPool/runAsync'
+  );
 }

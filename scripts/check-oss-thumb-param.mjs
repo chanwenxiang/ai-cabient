@@ -77,7 +77,8 @@ function evaluate(read) {
   if (appendBody === null) {
     bad('找不到 appendOssProcess 函数体');
   } else {
-    if (!/x-oss-process/.test(appendBody)) bad('appendOssProcess 未追加 x-oss-process 参数（OSS 缩略失效）');
+    if (!/x-oss-process/.test(appendBody))
+      bad('appendOssProcess 未追加 x-oss-process 参数（OSS 缩略失效）');
     if (!/image\/resize/.test(appendBody)) bad('appendOssProcess 未使用 image/resize 下采样');
     if (!/isOssHost\(host\)/.test(appendBody))
       bad('appendOssProcess 未对 OSS host 限定（非 OSS 域名不应加缩略参数）');
@@ -113,7 +114,8 @@ function evaluate(read) {
   }
 
   // ── R6 consumer-mp 重新导出 thumbUrl ──
-  if (!/thumbUrl/.test(read(P.thumbExport))) bad('consumer-mp product-thumb.ts 未 re-export thumbUrl');
+  if (!/thumbUrl/.test(read(P.thumbExport)))
+    bad('consumer-mp product-thumb.ts 未 re-export thumbUrl');
 
   return problems;
 }
@@ -185,7 +187,8 @@ function selfTest() {
   const withComment = new Map(baseline);
   withComment.set(
     P.impl,
-    baseline.get(P.impl) + '\n// 旧实现：直接返回原图 url，未拼 x-oss-process=image/resize 下采样参数\n'
+    baseline.get(P.impl) +
+      '\n// 旧实现：直接返回原图 url，未拼 x-oss-process=image/resize 下采样参数\n'
   );
   const commentProblems = evaluate((p) => withComment.get(p));
   if (commentProblems.length) {

@@ -111,8 +111,11 @@ for (const f of javaFiles) {
       if (arg == null) continue;
       const code = resolveCode(arg, f);
       if (code == null) {
-        if (!DYNAMIC_SITE_SETS[rel]) dynamicSites.push(`${rel}: ${label} 第 ${argN} 参未解析 = ${arg}`);
-        else for (const c of DYNAMIC_SITE_SETS[rel]) sites.push({ code: c, where: `${rel}（动态集合）` });
+        if (!DYNAMIC_SITE_SETS[rel])
+          dynamicSites.push(`${rel}: ${label} 第 ${argN} 参未解析 = ${arg}`);
+        else
+          for (const c of DYNAMIC_SITE_SETS[rel])
+            sites.push({ code: c, where: `${rel}（动态集合）` });
       } else {
         sites.push({ code, where: rel });
       }
@@ -147,7 +150,8 @@ for (const f of walk(path.join(root, migDir), '.sql')) {
         const t = /'([a-z0-9_]+)'/i.exec(cur);
         if (t && depth === 0) {
           seeded.add(t[1].toLowerCase());
-          if (!seedWhere.has(t[1].toLowerCase())) seedWhere.set(t[1].toLowerCase(), path.relative(root, f));
+          if (!seedWhere.has(t[1].toLowerCase()))
+            seedWhere.set(t[1].toLowerCase(), path.relative(root, f));
         }
       } else if (depth > 0) {
         cur += c;
@@ -155,7 +159,8 @@ for (const f of walk(path.join(root, migDir), '.sql')) {
     }
   }
 }
-if (seeded.size === 0) fail('迁移里解析不到任何 notification_template 种子（写法变了，请同步本门禁）');
+if (seeded.size === 0)
+  fail('迁移里解析不到任何 notification_template 种子（写法变了，请同步本门禁）');
 
 // ---------- ③ 对账 ----------
 

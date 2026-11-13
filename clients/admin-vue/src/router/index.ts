@@ -588,7 +588,8 @@ router.beforeEach(async (to) => {
   }
 
   // 错误页本身不做权限拦截，避免循环跳转
-  if (to.name === 'forbidden' || to.name === 'not-found' || to.name === 'rbac-unavailable') return true;
+  if (to.name === 'forbidden' || to.name === 'not-found' || to.name === 'rbac-unavailable')
+    return true;
 
   const auth = useAuthStore();
   if (!auth.rbacHydrated) {

@@ -52,8 +52,10 @@ const MIGRATIONS = [
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
-  bootstrap: 'services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java',
-  constants: 'services/common/common-core/src/main/java/com/aicabinet/common/constants/CabinetConstants.java',
+  bootstrap:
+    'services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java',
+  constants:
+    'services/common/common-core/src/main/java/com/aicabinet/common/constants/CabinetConstants.java',
   dictTs: 'packages/shared-dict/src/index.ts',
   bench: 'docs/COMPETITOR_BENCHMARK.md',
   inv: 'scripts/status-check-inventory.json'
@@ -64,11 +66,19 @@ const maskSql = (s) => s.replace(/--[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
 const eq = (a, b) => a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
 
 function balanced(src, openIdx, open = '(', close = ')') {
-  let depth = 1, q = null;
+  let depth = 1,
+    q = null;
   for (let i = openIdx; i < src.length; i++) {
     const c = src[i];
-    if (q) { if (c === '\\') i++; else if (c === q) q = null; continue; }
-    if (c === '"' || c === "'") { q = c; continue; }
+    if (q) {
+      if (c === '\\') i++;
+      else if (c === q) q = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      q = c;
+      continue;
+    }
     if (c === open) depth++;
     else if (c === close && --depth === 0) return src.slice(openIdx, i);
   }
@@ -76,11 +86,25 @@ function balanced(src, openIdx, open = '(', close = ')') {
 }
 
 function splitTop(s) {
-  const out = []; let cur = '', q = null;
+  const out = [];
+  let cur = '',
+    q = null;
   for (const c of s) {
-    if (q) { cur += c; if (c === q) q = null; continue; }
-    if (c === '"' || c === "'") { q = c; cur += c; continue; }
-    if (c === ',') { out.push(cur.trim()); cur = ''; continue; }
+    if (q) {
+      cur += c;
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      q = c;
+      cur += c;
+      continue;
+    }
+    if (c === ',') {
+      out.push(cur.trim());
+      cur = '';
+      continue;
+    }
     cur += c;
   }
   if (cur.trim()) out.push(cur.trim());
@@ -131,11 +155,14 @@ function sharedFamily(ts, family) {
 /** 解析迁移里每条 ADD CONSTRAINT 的 CHECK 真谓词（不 grep 注释）。 */
 function extractChecks(sql) {
   const out = [];
-  const re = /ALTER\s+TABLE\s+(\w+)\s+ADD\s+CONSTRAINT\s+(\w+)\s+CHECK\s*\(\s*(\w+)\s+IN\s*\(([^)]*)\)\s*\)\s*(NOT\s+VALID)?/gi;
+  const re =
+    /ALTER\s+TABLE\s+(\w+)\s+ADD\s+CONSTRAINT\s+(\w+)\s+CHECK\s*\(\s*(\w+)\s+IN\s*\(([^)]*)\)\s*\)\s*(NOT\s+VALID)?/gi;
   let m;
   while ((m = re.exec(sql))) {
     out.push({
-      table: m[1], constraint: m[2], column: m[3],
+      table: m[1],
+      constraint: m[2],
+      column: m[3],
       values: [...m[4].matchAll(/'([^']*)'/g)].map((x) => x[1]),
       notValid: !!m[5]
     });
@@ -154,7 +181,10 @@ function collectDdlDefaults(sqlFiles) {
       const table = m[1];
       const body = balanced(s, m.index + m[0].length);
       for (const part of splitTop(body)) {
-        const cm = /^(\w+)\s+(?:VARCHAR|CHARACTER\s+VARYING|TEXT|SMALLINT|INT|INTEGER|BIGINT|NUMERIC|BOOLEAN)\b/i.exec(part);
+        const cm =
+          /^(\w+)\s+(?:VARCHAR|CHARACTER\s+VARYING|TEXT|SMALLINT|INT|INTEGER|BIGINT|NUMERIC|BOOLEAN)\b/i.exec(
+            part
+          );
         if (!cm) continue;
         const dm = /DEFAULT\s+'([^']*)'/i.exec(part);
         map.set(`${table}.${cm[1]}`, dm ? dm[1] : null);
@@ -167,7 +197,8 @@ function collectDdlDefaults(sqlFiles) {
     while ((alt = alterRe.exec(s))) {
       const table = alt[1];
       const body = alt[2];
-      const addRe = /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+(?:VARCHAR|CHARACTER\s+VARYING|TEXT|SMALLINT|INT|INTEGER|BIGINT|NUMERIC|BOOLEAN)\b[^,;]*?DEFAULT\s+'([^']*)'/gi;
+      const addRe =
+        /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+(?:VARCHAR|CHARACTER\s+VARYING|TEXT|SMALLINT|INT|INTEGER|BIGINT|NUMERIC|BOOLEAN)\b[^,;]*?DEFAULT\s+'([^']*)'/gi;
       let add;
       while ((add = addRe.exec(body))) {
         map.set(`${table}.${add[1]}`, add[2]);
@@ -185,11 +216,20 @@ function collectWriterValues(javaFiles, global) {
   const t2c = new Map();
   for (const [p, raw] of javaFiles) {
     const m = /@TableName\("(\w+)"\)/.exec(raw);
-    if (m) t2c.set(m[1], p.split('/').pop().replace(/\.java$/, ''));
+    if (m)
+      t2c.set(
+        m[1],
+        p
+          .split('/')
+          .pop()
+          .replace(/\.java$/, '')
+      );
   }
   const consts = new Map();
   for (const [, raw] of javaFiles) {
-    for (const m of maskJava(raw).matchAll(/static\s+final\s+String\s+(\w+)\s*=\s*"([A-Z][A-Z0-9_]*)"\s*;/g)) {
+    for (const m of maskJava(raw).matchAll(
+      /static\s+final\s+String\s+(\w+)\s*=\s*"([A-Z][A-Z0-9_]*)"\s*;/g
+    )) {
       if (!consts.has(m[1])) consts.set(m[1], new Set());
       consts.get(m[1]).add(m[2]);
     }
@@ -197,9 +237,12 @@ function collectWriterValues(javaFiles, global) {
   const byClass = new Map();
   for (const [, raw] of javaFiles) {
     const s = maskJava(raw);
-    const re = /set\s*\(\s*([A-Z]\w*)::(get(?:Status|[A-Za-z]*Status))\s*,\s*("[^"]*"|CabinetConstants\.\w+|[A-Z][A-Z0-9_]*)\s*\)/g;
+    const re =
+      /set\s*\(\s*([A-Z]\w*)::(get(?:Status|[A-Za-z]*Status))\s*,\s*("[^"]*"|CabinetConstants\.\w+|[A-Z][A-Z0-9_]*)\s*\)/g;
     for (const m of s.matchAll(re)) {
-      const cls = m[1], getter = m[2], tok = m[3];
+      const cls = m[1],
+        getter = m[2],
+        tok = m[3];
       let vals = [];
       if (tok.startsWith('"')) vals = [tok.slice(1, -1)];
       else if (tok.startsWith('CabinetConstants.')) {
@@ -238,12 +281,15 @@ function evaluate(input) {
     const checks = extractChecks(sql);
     const addCount = (sql.match(/\bADD\s+CONSTRAINT\b/gi) || []).length;
     if (!addCount) bad(`${path}: 没有任何 ADD CONSTRAINT（R3 判据失效）`);
-    if (addCount !== checks.length) bad(`${path}: 存在无法解析成 CHECK (col IN (...)) 的 ADD CONSTRAINT`);
+    if (addCount !== checks.length)
+      bad(`${path}: 存在无法解析成 CHECK (col IN (...)) 的 ADD CONSTRAINT`);
     for (const c of checks) {
-      if (byConstraint.has(c.constraint)) bad(`约束名重复：${c.constraint}（${constraintFile.get(c.constraint)} 与 ${path}）`);
+      if (byConstraint.has(c.constraint))
+        bad(`约束名重复：${c.constraint}（${constraintFile.get(c.constraint)} 与 ${path}）`);
       byConstraint.set(c.constraint, c);
       constraintFile.set(c.constraint, path);
-      if (!c.notValid) bad(`${c.constraint} 缺 NOT VALID（会全表扫并持 ACCESS EXCLUSIVE，核心老表禁止）`);
+      if (!c.notValid)
+        bad(`${c.constraint} 缺 NOT VALID（会全表扫并持 ACCESS EXCLUSIVE，核心老表禁止）`);
     }
     if (/\bVALIDATE\s+CONSTRAINT\b/i.test(sql))
       bad(`${path}: 出现 VALIDATE CONSTRAINT（大表全扫 + 存量脏值会让 Flyway 失败＝部署失败）`);
@@ -251,10 +297,11 @@ function evaluate(input) {
     // ── R4 迁移头：COMPETITOR_REF 必须引用台账真实条目；KIND=schema ──
     const ref = /^--\s*COMPETITOR_REF\s*:\s*(.+)$/im.exec(raw);
     if (!ref) bad(`${path}: 迁移头缺 COMPETITOR_REF（文件内容含业务语义词，N/A 一律判红）`);
-    else for (const id of ref[1].split(',').map((x) => x.trim())) {
-      if (!/^CB-\d{3}$/.test(id)) bad(`${path}: COMPETITOR_REF 引用了非法编号「${id}」`);
-      else if (!bench.includes(`### ${id}`)) bad(`COMPETITOR_REF 引用了台账里不存在的 ${id}`);
-    }
+    else
+      for (const id of ref[1].split(',').map((x) => x.trim())) {
+        if (!/^CB-\d{3}$/.test(id)) bad(`${path}: COMPETITOR_REF 引用了非法编号「${id}」`);
+        else if (!bench.includes(`### ${id}`)) bad(`COMPETITOR_REF 引用了台账里不存在的 ${id}`);
+      }
     if (!/^--\s*MIGRATION_KIND\s*:\s*schema\s*$/im.test(raw))
       bad(`${path}: 迁移头 MIGRATION_KIND 必须是 schema（本迁移无 DML）`);
   }
@@ -266,9 +313,14 @@ function evaluate(input) {
   if (!Array.isArray(inv.tables) || !inv.tables.length) bad('清单里没有任何已对齐表');
   for (const t of inv.tables || []) {
     const c = byConstraint.get(t.constraint);
-    if (!c) { bad(`迁移里找不到约束 ${t.constraint}（清单登记了 ${t.table}.${t.column}）`); continue; }
+    if (!c) {
+      bad(`迁移里找不到约束 ${t.constraint}（清单登记了 ${t.table}.${t.column}）`);
+      continue;
+    }
     if (c.table !== t.table || c.column !== t.column)
-      bad(`${t.constraint} 的表/列与清单不一致（迁移=${c.table}.${c.column}，清单=${t.table}.${t.column}）`);
+      bad(
+        `${t.constraint} 的表/列与清单不一致（迁移=${c.table}.${c.column}，清单=${t.table}.${t.column}）`
+      );
     const expected = `${MIG_DIR}/${t.migration}`;
     if (!MIGRATIONS.includes(expected))
       bad(`${t.constraint}: 清单 migration 字段「${t.migration}」不在已登记迁移列表里`);
@@ -282,12 +334,20 @@ function evaluate(input) {
     const fromDict = dictFamily(boot, t.dictFamily, local, global);
     const fromTs = sharedFamily(ts, t.dictFamily);
     const c = byConstraint.get(t.constraint);
-    if (fromDict === null) { bad(`字典族 ${t.dictFamily} 无法从 SysDictBootstrap 自动提取（常量解析失败）`); continue; }
-    if (fromTs === null) { bad(`shared-dict 找不到同名族 ${t.dictFamily}`); continue; }
+    if (fromDict === null) {
+      bad(`字典族 ${t.dictFamily} 无法从 SysDictBootstrap 自动提取（常量解析失败）`);
+      continue;
+    }
+    if (fromTs === null) {
+      bad(`shared-dict 找不到同名族 ${t.dictFamily}`);
+      continue;
+    }
     if (!eq(fromDict, fromTs))
       bad(`${t.dictFamily} 跨端不同源：SysDictBootstrap=[${fromDict}] vs shared-dict=[${fromTs}]`);
     if (c && !eq(c.values, fromDict))
-      bad(`${t.constraint} 的 CHECK 值域与字典族不同源：CHECK=[${c.values}] vs ${t.dictFamily}=[${fromDict}]`);
+      bad(
+        `${t.constraint} 的 CHECK 值域与字典族不同源：CHECK=[${c.values}] vs ${t.dictFamily}=[${fromDict}]`
+      );
 
     // R6：DDL DEFAULT ⊆ CHECK 值域
     const key = `${t.table}.${t.column}`;
@@ -300,17 +360,28 @@ function evaluate(input) {
 
     // R7：带类名锚点的源码写入值 ⊆ CHECK 值域（按列名推 getter 精确锚定，防同实体多状态列跨列污染）
     const cls = t2c.get(t.table);
-    const expectedGetter = 'get' + t.column.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
-    const writers = (cls && byClass.get(`${cls}::${expectedGetter}`)) ? [...byClass.get(`${cls}::${expectedGetter}`)].sort() : [];
-    if (cls && c) for (const v of writers)
-      if (!c.values.includes(v))
-        bad(`${key} 源码锚点写入值 '${v}' 不在 CHECK 值域（上线写入会失败）`);
+    const expectedGetter =
+      'get' +
+      t.column
+        .split('_')
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .join('');
+    const writers =
+      cls && byClass.get(`${cls}::${expectedGetter}`)
+        ? [...byClass.get(`${cls}::${expectedGetter}`)].sort()
+        : [];
+    if (cls && c)
+      for (const v of writers)
+        if (!c.values.includes(v))
+          bad(`${key} 源码锚点写入值 '${v}' 不在 CHECK 值域（上线写入会失败）`);
 
     emit.push({
-      ...t, entity: cls ?? null,
+      ...t,
+      entity: cls ?? null,
       ddlDefault: ddlDefaults.get(key) ?? null,
       writerValues: writers,
-      dictValues: fromDict.sort(), sharedValues: fromTs.sort(),
+      dictValues: fromDict.sort(),
+      sharedValues: fromTs.sort(),
       checkValues: c ? [...c.values].sort() : null
     });
   }
@@ -318,10 +389,14 @@ function evaluate(input) {
   // ── R5 欠账棘轮：baselineMissingCheck − 已覆盖 = maxPendingColumns，只减不增 ──
   const base = Number(inv.baselineMissingCheck);
   if (!Number.isInteger(base) || base !== 87)
-    bad(`baselineMissingCheck=${inv.baselineMissingCheck} 必须是 dev 实测的 87（禁止改口径做小欠账）`);
+    bad(
+      `baselineMissingCheck=${inv.baselineMissingCheck} 必须是 dev 实测的 87（禁止改口径做小欠账）`
+    );
   const derived = base - (inv.tables || []).length;
   if (inv.maxPendingColumns !== derived)
-    bad(`maxPendingColumns=${inv.maxPendingColumns} 与派生值 ${derived} 不符（新增表必须同步减小欠账，禁止改大）`);
+    bad(
+      `maxPendingColumns=${inv.maxPendingColumns} 与派生值 ${derived} 不符（新增表必须同步减小欠账，禁止改大）`
+    );
 
   return { problems, emit };
 }
@@ -333,8 +408,11 @@ function diskScan(dir, re) {
   const out = [];
   const walk = (rel) => {
     let entries;
-    try { entries = readdirSync(join(ROOT, rel), { withFileTypes: true }); }
-    catch { return; }
+    try {
+      entries = readdirSync(join(ROOT, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
     for (const e of entries) {
       const p = `${rel}/${e.name}`;
       if (e.isDirectory()) walk(p);
@@ -358,109 +436,332 @@ function baselineInput() {
 function selfTest() {
   const base = baselineInput();
   const before = new Map(base.paths.map((p) => [p, md5(base.all.get(p))]));
-  const V464 = MIGRATIONS[0], V465 = MIGRATIONS[1], V466 = MIGRATIONS[2];
+  const V464 = MIGRATIONS[0],
+    V465 = MIGRATIONS[1],
+    V466 = MIGRATIONS[2];
   const DDL_WITHDRAW = `${MIG_DIR}/V139__merchant_withdraw.sql`;
-  const MAPPER_WITHDRAW = 'services/trade-service/src/main/java/com/aicabinet/trade/mapper/MerchantWithdrawRequestMapper.java';
+  const MAPPER_WITHDRAW =
+    'services/trade-service/src/main/java/com/aicabinet/trade/mapper/MerchantWithdrawRequestMapper.java';
 
   const mutations = [
     ['CHECK 漏一个合法状态', V464, (s) => s.replace("'DISPUTED',", ''), 'CHECK 值域与字典族不同源'],
-    ['字典族新增状态但没同步约束', P.bootstrap,
-      (s) => s.replace('"DISPUTED", "争议中", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",',
-                       '"DISPUTED", "争议中", "ARCHIVED", "已归档", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",'),
-      'CHECK 值域与字典族不同源'],
-    ['跨端 shared-dict 删一个键', P.dictTs,
-      (s) => s.replace("  order_status: {\n    PENDING: '待支付',", "  order_status: {\n"),
-      '跨端不同源'],
+    [
+      '字典族新增状态但没同步约束',
+      P.bootstrap,
+      (s) =>
+        s.replace(
+          '"DISPUTED", "争议中", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",',
+          '"DISPUTED", "争议中", "ARCHIVED", "已归档", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",'
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      '跨端 shared-dict 删一个键',
+      P.dictTs,
+      (s) => s.replace("  order_status: {\n    PENDING: '待支付',", '  order_status: {\n'),
+      '跨端不同源'
+    ],
     ['去掉 NOT VALID', V464, (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['迁移里偷偷加 VALIDATE', V466, (s) => s + '\nALTER TABLE purchase_order VALIDATE CONSTRAINT chk_purchase_order_status;\n', 'VALIDATE CONSTRAINT'],
-    ['删迁移头 COMPETITOR_REF', V465, (s) => s.replace(/^--\s*COMPETITOR_REF.*$/m, ''), '缺 COMPETITOR_REF'],
-    ['COMPETITOR_REF 引用不存在编号', V465, (s) => s.replace('COMPETITOR_REF: CB-036', 'COMPETITOR_REF: CB-999'), '台账里不存在'],
-    ['MIGRATION_KIND 被改掉', V466, (s) => s.replace('MIGRATION_KIND: schema', 'MIGRATION_KIND: backfill'), 'MIGRATION_KIND'],
-    ['清单改错 dictFamily', P.inv, (s) => s.replace('"order_status"', '"order_status_v2"'), '无法从 SysDictBootstrap 自动提取'],
-    ['欠账棘轮被改大', P.inv, (s) => s.replace(/"maxPendingColumns": \d+/, '"maxPendingColumns": 90'), '欠账'],
-    ['基线口径被改小', P.inv, (s) => s.replace('"baselineMissingCheck": 87', '"baselineMissingCheck": 60'), 'baselineMissingCheck'],
-    ['清单与迁移约束名对不上', P.inv, (s) => s.replace('chk_cabinet_order_status', 'chk_cabinet_order_status_v2'), '找不到约束'],
-    ['清单 migration 字段指错文件', P.inv,
-      (s) => s.replace('"migration": "V467__status_check_batch4_dispute.sql"', '"migration": "V465__status_check_batch2_fund.sql"'),
-      '实际在'],
-    ['新迁移删掉一条约束', MIGRATIONS[3],
-      (s) => s.replace(/ALTER TABLE repair_ticket[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['DDL DEFAULT 改成族外值', DDL_WITHDRAW,
-      (s) => s.replace("DEFAULT 'PENDING_REVIEW'", "DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT'],
-    ['ALTER 加列 DEFAULT 越界', `${MIG_DIR}/V68__enhance_existing_tables.sql`,
-      (s) => s.replace("DEFAULT 'ACTIVE'", "DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT'],
-    ['源码锚点写入越界值', MAPPER_WITHDRAW,
-      (s) => s.replace('set(MerchantWithdrawRequest::getStatus, "PAYING")',
-                       'set(MerchantWithdrawRequest::getStatus, "TOTALLY_BOGUS")'), '源码锚点写入值'],
-    ['新链迁移删掉一条约束', MIGRATIONS[6],
-      (s) => s.replace(/ALTER TABLE merchant[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['新链迁移去掉 NOT VALID', MIGRATIONS[7],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['新链 CHECK 漏一个合法状态', MIGRATIONS[6],
-      (s) => s.replace(",'PENDING'", ''), 'CHECK 值域与字典族不同源'],
-    ['V472 迁移删掉一条约束', MIGRATIONS[8],
-      (s) => s.replace(/ALTER TABLE sys_dict_data[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V472 迁移去掉 NOT VALID', MIGRATIONS[8],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V472 CHECK 漏一个合法状态', MIGRATIONS[8],
-      (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
-    ['V473 迁移删掉一条约束', MIGRATIONS[9],
-      (s) => s.replace(/ALTER TABLE ops_department[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V473 迁移去掉 NOT VALID', MIGRATIONS[9],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V473 CHECK 漏一个合法状态', MIGRATIONS[9],
-      (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
-    ['V474 迁移删掉一条约束', MIGRATIONS[10],
-      (s) => s.replace(/ALTER TABLE user_info[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V474 迁移去掉 NOT VALID', MIGRATIONS[10],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V474 CHECK 漏 DELETED（复活第 10 批陷阱）', MIGRATIONS[10],
-      (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE','DELETED'\)\)/, "CHECK (status IN ('ACTIVE','INACTIVE'))"), 'CHECK 值域与字典族不同源'],
-    ['V475 迁移删掉一条约束', MIGRATIONS[11],
-      (s) => s.replace(/ALTER TABLE device_sku_lot[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V475 迁移去掉 NOT VALID', MIGRATIONS[11],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V475 CHECK 漏一个合法状态（族=CHECK 严判）', MIGRATIONS[11],
-      (s) => s.replace(/CHECK \(status IN \('ON_SALE','NEAR_EXPIRY','BLOCKED','DEPLETED'\)\)/, "CHECK (status IN ('ON_SALE','NEAR_EXPIRY','BLOCKED'))"), 'CHECK 值域与字典族不同源'],
-    ['V475 多状态列跨列污染回归（R7 按 getter 锚定后仍须咬住）', MIGRATIONS[11],
-      (s) => s.replace(/CHECK \(lifecycle_status IN \('IDLE','INBOUND','DEPLOYED','RETURNING','RETIRED'\)\)/, "CHECK (lifecycle_status IN ('IDLE','INBOUND','RETURNING','RETIRED'))"), 'CHECK 值域与字典族不同源'],
-    ['V476 迁移删掉一条约束', MIGRATIONS[12],
-      (s) => s.replace(/ALTER TABLE approval_instance[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V476 迁移去掉 NOT VALID', MIGRATIONS[12],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V476 task CHECK 混入 SKIPPED 到 instance（分族判据）', MIGRATIONS[12],
-      (s) => s.replace(/CHECK \(status IN \('PENDING','APPROVED','REJECTED'\)\)\s*\n\s*NOT VALID;\nALTER TABLE approval_task/, "CHECK (status IN ('PENDING','APPROVED','REJECTED','SKIPPED'))\n  NOT VALID;\nALTER TABLE approval_task"), 'CHECK 值域与字典族不同源'],
-    ['V476 CHECK 漏 SKIPPED（task 域收窄假绿测试）', MIGRATIONS[12],
-      (s) => s.replace(/CHECK \(status IN \('PENDING','APPROVED','SKIPPED','REJECTED'\)\)/, "CHECK (status IN ('PENDING','APPROVED','REJECTED'))"), 'CHECK 值域与字典族不同源'],
-    ['V477 迁移删掉一条约束', MIGRATIONS[13],
-      (s) => s.replace(/ALTER TABLE ota_device_report[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V477 迁移去掉 NOT VALID', MIGRATIONS[13],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V477 CHECK 漏 FAILED（升级域收窄假绿测试）', MIGRATIONS[13],
-      (s) => s.replace(/CHECK \(upgrade_status IN \('IDLE','DOWNLOADING','INSTALLING','SUCCESS','FAILED'\)\)/, "CHECK (upgrade_status IN ('IDLE','DOWNLOADING','INSTALLING','SUCCESS'))"), 'CHECK 值域与字典族不同源'],
-    ['V478 迁移删掉一条约束', MIGRATIONS[14],
-      (s) => s.replace(/ALTER TABLE line_route[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V478 迁移去掉 NOT VALID', MIGRATIONS[14],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V478 CHECK 漏 ARCHIVED（线路域收窄假绿测试）', MIGRATIONS[14],
-      (s) => s.replace(/CHECK \(status IN \('ACTIVE','ARCHIVED'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
-    ['V479 迁移删掉一条约束', MIGRATIONS[15],
-      (s) => s.replace(/ALTER TABLE pull_off_task[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
-    ['V479 迁移去掉 NOT VALID', MIGRATIONS[15],
-      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
-    ['V479 CHECK 漏 CAPTURED（预授权域收窄假绿测试）', MIGRATIONS[15],
-      (s) => s.replace(/CHECK \(preauth_status IN \('NONE','FROZEN','CAPTURED','RELEASED'\)\)/, "CHECK (preauth_status IN ('NONE','FROZEN','RELEASED'))"), 'CHECK 值域与字典族不同源'],
-    ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
-      (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
-                       "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']
+    [
+      '迁移里偷偷加 VALIDATE',
+      V466,
+      (s) => s + '\nALTER TABLE purchase_order VALIDATE CONSTRAINT chk_purchase_order_status;\n',
+      'VALIDATE CONSTRAINT'
+    ],
+    [
+      '删迁移头 COMPETITOR_REF',
+      V465,
+      (s) => s.replace(/^--\s*COMPETITOR_REF.*$/m, ''),
+      '缺 COMPETITOR_REF'
+    ],
+    [
+      'COMPETITOR_REF 引用不存在编号',
+      V465,
+      (s) => s.replace('COMPETITOR_REF: CB-036', 'COMPETITOR_REF: CB-999'),
+      '台账里不存在'
+    ],
+    [
+      'MIGRATION_KIND 被改掉',
+      V466,
+      (s) => s.replace('MIGRATION_KIND: schema', 'MIGRATION_KIND: backfill'),
+      'MIGRATION_KIND'
+    ],
+    [
+      '清单改错 dictFamily',
+      P.inv,
+      (s) => s.replace('"order_status"', '"order_status_v2"'),
+      '无法从 SysDictBootstrap 自动提取'
+    ],
+    [
+      '欠账棘轮被改大',
+      P.inv,
+      (s) => s.replace(/"maxPendingColumns": \d+/, '"maxPendingColumns": 90'),
+      '欠账'
+    ],
+    [
+      '基线口径被改小',
+      P.inv,
+      (s) => s.replace('"baselineMissingCheck": 87', '"baselineMissingCheck": 60'),
+      'baselineMissingCheck'
+    ],
+    [
+      '清单与迁移约束名对不上',
+      P.inv,
+      (s) => s.replace('chk_cabinet_order_status', 'chk_cabinet_order_status_v2'),
+      '找不到约束'
+    ],
+    [
+      '清单 migration 字段指错文件',
+      P.inv,
+      (s) =>
+        s.replace(
+          '"migration": "V467__status_check_batch4_dispute.sql"',
+          '"migration": "V465__status_check_batch2_fund.sql"'
+        ),
+      '实际在'
+    ],
+    [
+      '新迁移删掉一条约束',
+      MIGRATIONS[3],
+      (s) => s.replace(/ALTER TABLE repair_ticket[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'DDL DEFAULT 改成族外值',
+      DDL_WITHDRAW,
+      (s) => s.replace("DEFAULT 'PENDING_REVIEW'", "DEFAULT 'TOTALLY_BOGUS'"),
+      'DDL DEFAULT'
+    ],
+    [
+      'ALTER 加列 DEFAULT 越界',
+      `${MIG_DIR}/V68__enhance_existing_tables.sql`,
+      (s) => s.replace("DEFAULT 'ACTIVE'", "DEFAULT 'TOTALLY_BOGUS'"),
+      'DDL DEFAULT'
+    ],
+    [
+      '源码锚点写入越界值',
+      MAPPER_WITHDRAW,
+      (s) =>
+        s.replace(
+          'set(MerchantWithdrawRequest::getStatus, "PAYING")',
+          'set(MerchantWithdrawRequest::getStatus, "TOTALLY_BOGUS")'
+        ),
+      '源码锚点写入值'
+    ],
+    [
+      '新链迁移删掉一条约束',
+      MIGRATIONS[6],
+      (s) => s.replace(/ALTER TABLE merchant[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    ['新链迁移去掉 NOT VALID', MIGRATIONS[7], (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    [
+      '新链 CHECK 漏一个合法状态',
+      MIGRATIONS[6],
+      (s) => s.replace(",'PENDING'", ''),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V472 迁移删掉一条约束',
+      MIGRATIONS[8],
+      (s) => s.replace(/ALTER TABLE sys_dict_data[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    ['V472 迁移去掉 NOT VALID', MIGRATIONS[8], (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    [
+      'V472 CHECK 漏一个合法状态',
+      MIGRATIONS[8],
+      (s) =>
+        s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V473 迁移删掉一条约束',
+      MIGRATIONS[9],
+      (s) => s.replace(/ALTER TABLE ops_department[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    ['V473 迁移去掉 NOT VALID', MIGRATIONS[9], (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    [
+      'V473 CHECK 漏一个合法状态',
+      MIGRATIONS[9],
+      (s) =>
+        s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V474 迁移删掉一条约束',
+      MIGRATIONS[10],
+      (s) => s.replace(/ALTER TABLE user_info[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V474 迁移去掉 NOT VALID',
+      MIGRATIONS[10],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V474 CHECK 漏 DELETED（复活第 10 批陷阱）',
+      MIGRATIONS[10],
+      (s) =>
+        s.replace(
+          /CHECK \(status IN \('ACTIVE','INACTIVE','DELETED'\)\)/,
+          "CHECK (status IN ('ACTIVE','INACTIVE'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V475 迁移删掉一条约束',
+      MIGRATIONS[11],
+      (s) => s.replace(/ALTER TABLE device_sku_lot[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V475 迁移去掉 NOT VALID',
+      MIGRATIONS[11],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V475 CHECK 漏一个合法状态（族=CHECK 严判）',
+      MIGRATIONS[11],
+      (s) =>
+        s.replace(
+          /CHECK \(status IN \('ON_SALE','NEAR_EXPIRY','BLOCKED','DEPLETED'\)\)/,
+          "CHECK (status IN ('ON_SALE','NEAR_EXPIRY','BLOCKED'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V475 多状态列跨列污染回归（R7 按 getter 锚定后仍须咬住）',
+      MIGRATIONS[11],
+      (s) =>
+        s.replace(
+          /CHECK \(lifecycle_status IN \('IDLE','INBOUND','DEPLOYED','RETURNING','RETIRED'\)\)/,
+          "CHECK (lifecycle_status IN ('IDLE','INBOUND','RETURNING','RETIRED'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V476 迁移删掉一条约束',
+      MIGRATIONS[12],
+      (s) => s.replace(/ALTER TABLE approval_instance[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V476 迁移去掉 NOT VALID',
+      MIGRATIONS[12],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V476 task CHECK 混入 SKIPPED 到 instance（分族判据）',
+      MIGRATIONS[12],
+      (s) =>
+        s.replace(
+          /CHECK \(status IN \('PENDING','APPROVED','REJECTED'\)\)\s*\n\s*NOT VALID;\nALTER TABLE approval_task/,
+          "CHECK (status IN ('PENDING','APPROVED','REJECTED','SKIPPED'))\n  NOT VALID;\nALTER TABLE approval_task"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V476 CHECK 漏 SKIPPED（task 域收窄假绿测试）',
+      MIGRATIONS[12],
+      (s) =>
+        s.replace(
+          /CHECK \(status IN \('PENDING','APPROVED','SKIPPED','REJECTED'\)\)/,
+          "CHECK (status IN ('PENDING','APPROVED','REJECTED'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V477 迁移删掉一条约束',
+      MIGRATIONS[13],
+      (s) => s.replace(/ALTER TABLE ota_device_report[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V477 迁移去掉 NOT VALID',
+      MIGRATIONS[13],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V477 CHECK 漏 FAILED（升级域收窄假绿测试）',
+      MIGRATIONS[13],
+      (s) =>
+        s.replace(
+          /CHECK \(upgrade_status IN \('IDLE','DOWNLOADING','INSTALLING','SUCCESS','FAILED'\)\)/,
+          "CHECK (upgrade_status IN ('IDLE','DOWNLOADING','INSTALLING','SUCCESS'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V478 迁移删掉一条约束',
+      MIGRATIONS[14],
+      (s) => s.replace(/ALTER TABLE line_route[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V478 迁移去掉 NOT VALID',
+      MIGRATIONS[14],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V478 CHECK 漏 ARCHIVED（线路域收窄假绿测试）',
+      MIGRATIONS[14],
+      (s) =>
+        s.replace(/CHECK \(status IN \('ACTIVE','ARCHIVED'\)\)/, "CHECK (status IN ('ACTIVE'))"),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      'V479 迁移删掉一条约束',
+      MIGRATIONS[15],
+      (s) => s.replace(/ALTER TABLE pull_off_task[\s\S]*?NOT VALID;\n/, ''),
+      '找不到约束'
+    ],
+    [
+      'V479 迁移去掉 NOT VALID',
+      MIGRATIONS[15],
+      (s) => s.replace('NOT VALID;', ';'),
+      '缺 NOT VALID'
+    ],
+    [
+      'V479 CHECK 漏 CAPTURED（预授权域收窄假绿测试）',
+      MIGRATIONS[15],
+      (s) =>
+        s.replace(
+          /CHECK \(preauth_status IN \('NONE','FROZEN','CAPTURED','RELEASED'\)\)/,
+          "CHECK (preauth_status IN ('NONE','FROZEN','RELEASED'))"
+        ),
+      'CHECK 值域与字典族不同源'
+    ],
+    [
+      '设备在线列 DDL DEFAULT 越界',
+      `${MIG_DIR}/V1__init_schema.sql`,
+      (s) =>
+        s.replace(
+          "online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
+          "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"
+        ),
+      'DDL DEFAULT'
+    ]
   ];
   let passed = 0;
   for (const [name, path, mutate, expect] of mutations) {
     const copy = new Map(base.all);
     const src = base.all.get(path);
-    if (!src) { console.error(`[self-test] FAIL 基线缺少文件：${path}`); process.exit(1); }
+    if (!src) {
+      console.error(`[self-test] FAIL 基线缺少文件：${path}`);
+      process.exit(1);
+    }
     const mutated = mutate(src);
-    if (mutated === src) { console.error(`[self-test] FAIL 变异未生效：${name}`); process.exit(1); }
+    if (mutated === src) {
+      console.error(`[self-test] FAIL 变异未生效：${name}`);
+      process.exit(1);
+    }
     copy.set(path, mutated);
     const input = {
       read: (p) => copy.get(p),
@@ -468,33 +769,52 @@ function selfTest() {
       javaFiles: base.javaFiles.map(([p, c]) => [p, copy.get(p) ?? c])
     };
     const { problems } = evaluate(input);
-    if (!problems.length) { console.error(`[self-test] FAIL 变异未被咬住：${name}`); process.exit(1); }
+    if (!problems.length) {
+      console.error(`[self-test] FAIL 变异未被咬住：${name}`);
+      process.exit(1);
+    }
     if (!problems.some((x) => x.includes(expect))) {
-      console.error(`[self-test] FAIL 命中的不是预期判据「${expect}」：${name}`, problems); process.exit(1);
+      console.error(`[self-test] FAIL 命中的不是预期判据「${expect}」：${name}`, problems);
+      process.exit(1);
     }
     passed++;
   }
   // 反向：注释里复述旧写法不得假红（迁移头注释里本来就写了 CHECK/VALIDATE 示例）
   const withComment = new Map(base.all);
-  withComment.set(V465, base.all.get(V465) + "\n-- 旧写法：ALTER TABLE x ADD CONSTRAINT bad CHECK (status IN ('BOGUS'));\n-- ALTER TABLE x VALIDATE CONSTRAINT bad;\n");
+  withComment.set(
+    V465,
+    base.all.get(V465) +
+      "\n-- 旧写法：ALTER TABLE x ADD CONSTRAINT bad CHECK (status IN ('BOGUS'));\n-- ALTER TABLE x VALIDATE CONSTRAINT bad;\n"
+  );
   const cp = evaluate({
     read: (p) => withComment.get(p),
     sqlFiles: base.sqlFiles.map(([p, c]) => [p, withComment.get(p) ?? c]),
     javaFiles: base.javaFiles.map(([p, c]) => [p, withComment.get(p) ?? c])
   }).problems;
-  if (cp.length) { console.error('[self-test] FAIL 注释里的旧写法造成假红：', cp); process.exit(1); }
-  passed++;
-  for (const p of base.paths) if (md5(diskRead(p)) !== before.get(p)) {
-    console.error(`[self-test] FAIL 磁盘被改动：${p}`); process.exit(1);
+  if (cp.length) {
+    console.error('[self-test] FAIL 注释里的旧写法造成假红：', cp);
+    process.exit(1);
   }
-  console.log(`[check-status-enum-parity] self-test OK：${passed} 个变异/防假红断言全部符合，md5 零残留`);
+  passed++;
+  for (const p of base.paths)
+    if (md5(diskRead(p)) !== before.get(p)) {
+      console.error(`[self-test] FAIL 磁盘被改动：${p}`);
+      process.exit(1);
+    }
+  console.log(
+    `[check-status-enum-parity] self-test OK：${passed} 个变异/防假红断言全部符合，md5 零残留`
+  );
   process.exit(0);
 }
 
 if (process.argv.includes('--self-test')) selfTest();
 else {
   const base = baselineInput();
-  const { problems, emit } = evaluate({ read: diskRead, sqlFiles: base.sqlFiles, javaFiles: base.javaFiles });
+  const { problems, emit } = evaluate({
+    read: diskRead,
+    sqlFiles: base.sqlFiles,
+    javaFiles: base.javaFiles
+  });
   if (process.argv.includes('--emit')) {
     console.log(JSON.stringify(emit, null, 2));
     process.exit(problems.length ? 1 : 0);
@@ -504,5 +824,7 @@ else {
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log(`[check-status-enum-parity] OK：${emit.length} 列三方自动对齐 + ${MIGRATIONS.length} 个迁移全 NOT VALID + DDL DEFAULT/源码锚点单向包含 + 欠账棘轮=${base.all.get(P.inv) ? JSON.parse(base.all.get(P.inv)).maxPendingColumns : '?'}，7 组判据全绿`);
+  console.log(
+    `[check-status-enum-parity] OK：${emit.length} 列三方自动对齐 + ${MIGRATIONS.length} 个迁移全 NOT VALID + DDL DEFAULT/源码锚点单向包含 + 欠账棘轮=${base.all.get(P.inv) ? JSON.parse(base.all.get(P.inv)).maxPendingColumns : '?'}，7 组判据全绿`
+  );
 }
