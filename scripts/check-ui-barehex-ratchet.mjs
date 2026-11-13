@@ -154,7 +154,8 @@ function stripComments(text) {
  * 与本门禁头注释「含 var(...) 的不算」的既有意图对齐（此前只对 rgba(var(--x)) 兑现）。
  * 🔴 必须在剥注释**之后**、计数之前剥离；兜底里嵌 var()（var(--a, var(--b))）不含字面色值，自然不受影响。
  */
-const VAR_FALLBACK_COLOR_RE = /var\(--[A-Za-z0-9-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|rgba?\([^()]*\))\s*\)/g;
+const VAR_FALLBACK_COLOR_RE =
+  /var\(--[A-Za-z0-9-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|rgba?\([^()]*\))\s*\)/g;
 
 /** 统计一段文本的四类裸色值（先剥注释与令牌兜底，再匹配）。 */
 export function countColors(text) {
@@ -205,7 +206,8 @@ function hasPath(counts, segment) {
       'background: url(https://cdn.example.com/a.png) #ffffff; // 尾注 #123456 不算\n' +
       '<!-- 模板注释里的 #ABC 也不算 -->',
     // 令牌兜底不算裸色（P2-2 强制形态）；rgba(var(--x), .2) 的 var() 用法也不算
-    'e.vue': 'color: var(--text-muted, #64748b);\nbackground: rgba(var(--x), 0.2);\nborder: var(--x, rgba(0, 0, 0, 0.2));'
+    'e.vue':
+      'color: var(--text-muted, #64748b);\nbackground: rgba(var(--x), 0.2);\nborder: var(--x, rgba(0, 0, 0, 0.2));'
   };
   const agg = totalOf(
     Object.fromEntries(Object.entries(fake).map(([id, text]) => [id, countColors(text)]))
@@ -213,7 +215,8 @@ function hasPath(counts, segment) {
   if (agg.hex6 !== 4) fail(`selftest: hex6 应为 4（var() 兜底不算），实际 ${agg.hex6}`);
   if (agg.hex3 !== 2) fail(`selftest: hex3 应为 2，实际 ${agg.hex3}`);
   if (agg.hex8 !== 1) fail(`selftest: hex8 应为 1，实际 ${agg.hex8}`);
-  if (agg.rgba !== 1) fail(`selftest: rgba 应为 1（var() 用法与 var() 兜底都不算），实际 ${agg.rgba}`);
+  if (agg.rgba !== 1)
+    fail(`selftest: rgba 应为 1（var() 用法与 var() 兜底都不算），实际 ${agg.rgba}`);
 
   // 剥注释三态各自钉死：剥多了（URL 吃掉真色值 ⇒ hex6 掉到 0）与剥少了（注释里的算进来）都要红。
   const d = countColors(fake['d.vue']);

@@ -294,11 +294,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
-import {
-  cleanLineSummary,
-  firstProductName,
-  thumbUrl
-} from '@aicabinet/shared-uni/product-image';
+import { cleanLineSummary, firstProductName, thumbUrl } from '@aicabinet/shared-uni/product-image';
 import { UI_COPY } from '@aicabinet/shared-uni/ui-copy';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast, showError } from '@/utils/notify';
