@@ -1,7 +1,5 @@
 -- V200: 对齐演示环境 4 条数据一致性未通过记录（ORDER / PAYMENT / POINTS / COUPON）
 -- 口径与 DataConsistencyService 巡检 SQL 一致。
--- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批——第 2 节积分余额对齐依赖 member_points_log（V136 已 DROP），
---   死语句移除；其余节（ORDER/PAYMENT/COUPON）为活表，保留。测试库重建消化 checksum。
 
 -- 1) 订单金额：已扣 1038，三行明细合计 1538 → 按比例缩放到 1038（与入账一致）
 UPDATE cabinet_order_line
@@ -22,7 +20,22 @@ SET line_amount_cents = 451,
 WHERE order_id = '1787215465125755801'
   AND sku_id = 'SKU-SNACK-001';
 
--- 2) 积分余额对齐：原实现依赖 member_points_log（V136 已 DROP），死语句移除（S14 表名声明集修复）。
+-- 2) 积分余额：member.available_points 对齐积分流水汇总（EARN − USE/EXPIRE）
+UPDATE member m
+SET available_points = sub.calc
+FROM (
+    SELECT member_id,
+           COALESCE(SUM(CASE
+               WHEN l.points_type = 'EARN' THEN l.points
+               WHEN l.points_type IN ('USE', 'EXPIRE') THEN -l.points
+               ELSE 0
+           END), 0)::INT AS calc
+    FROM member_points_log l
+    WHERE l.member_id = 1
+    GROUP BY member_id
+) sub
+WHERE m.member_id = sub.member_id
+  AND m.available_points <> sub.calc;
 
 -- 3) 发券数量：券定义已发数对齐 user_coupon 实际条数
 UPDATE coupon_definition d

@@ -1,6 +1,9 @@
 -- OBS-010：清理演示脚本写入导致的 ???? 乱码名称（非产品缺陷）
--- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批——ad_campaign（V155 DROP）与 member_points_log（V136 DROP）
---   的语句为死语句（任何应用了对应 DROP 的库必失败），移除后全新空库可按序构建；测试库重建消化 checksum。
+UPDATE ad_campaign
+SET name = 'R10演示投放计划',
+    updated_at = NOW()
+WHERE campaign_id = 1
+  AND (name LIKE '%????%' OR name ~ '\?{2,}');
 
 UPDATE replenishment_route
 SET route_name = CASE route_id
@@ -10,7 +13,25 @@ SET route_name = CASE route_id
   END
 WHERE (route_name LIKE '%????%' OR route_name ~ '\?{2,}');
 
--- OBS-018：演示消费者 10001 积分补齐——原 INSERT 依赖 member_points_log（V136 已 DROP），死语句移除。
+-- OBS-018：演示消费者 10001 积分补齐，可兑最低 100 分档（先记流水再抬余额）
+INSERT INTO member_points_log (member_id, points, points_type, source_type, source_id, description, created_at, expire_at)
+SELECT m.member_id,
+       GREATEST(0, 120 - COALESCE(m.available_points, 0)),
+       'EARN',
+       'DEMO_SEED',
+       'obs018-demo-topup',
+       '演示积分补齐(可兑最低档)',
+       NOW(),
+       NOW() + INTERVAL '365 day'
+FROM member m
+WHERE m.user_id = 10001
+  AND COALESCE(m.available_points, 0) < 120
+  AND NOT EXISTS (
+    SELECT 1 FROM member_points_log l
+    WHERE l.member_id = m.member_id
+      AND l.source_type = 'DEMO_SEED'
+      AND l.source_id = 'obs018-demo-topup'
+  );
 
 UPDATE member
 SET available_points = GREATEST(COALESCE(available_points, 0), 120),
