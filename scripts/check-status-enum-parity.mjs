@@ -39,7 +39,8 @@ const MIGRATIONS = [
   'V470__status_check_batch7_masterdata.sql',
   'V471__status_check_batch8_content.sql',
   'V472__status_check_batch9_sysdict_media.sql',
-  'V473__status_check_batch10_ops_activations.sql'
+  'V473__status_check_batch10_ops_activations.sql',
+  'V474__status_check_batch11_user_account_status.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -396,6 +397,12 @@ function selfTest() {
       (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
     ['V473 CHECK 漏一个合法状态', MIGRATIONS[9],
       (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
+    ['V474 迁移删掉一条约束', MIGRATIONS[10],
+      (s) => s.replace(/ALTER TABLE user_info[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['V474 迁移去掉 NOT VALID', MIGRATIONS[10],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['V474 CHECK 漏 DELETED（复活第 10 批陷阱）', MIGRATIONS[10],
+      (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE','DELETED'\)\)/, "CHECK (status IN ('ACTIVE','INACTIVE'))"), 'CHECK 值域与字典族不同源'],
     ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
       (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
                        "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']

@@ -338,6 +338,14 @@ export const DICT = {
     ACTIVE: '启用',
     INACTIVE: '停用'
   },
+  /** R20 P3-1 第 11 批：user_info 账号状态专用三值族。DELETED=AU-149 账号注销匿名化
+   *  （AccountService 写入，AuthService 登录闸门拒绝）；不入 active_inactive_status 通用族——
+   *  通用族仅两值，硬塞会把「注销」与「停用」混进同一语义池。 */
+  user_account_status: {
+    ACTIVE: '正常',
+    INACTIVE: '停用',
+    DELETED: '已注销'
+  },
   /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
   bin_status: {
     ACTIVE: '启用',

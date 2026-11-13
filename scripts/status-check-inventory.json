@@ -1,7 +1,7 @@
 {
-  "batch": 10,
+  "batch": 11,
   "baselineMissingCheck": 87,
-  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊。",
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）。",
   "tables": [
     {
       "table": "cabinet_order",
@@ -362,9 +362,18 @@
       "chain": "ops",
       "batch": 10,
       "migration": "V473__status_check_batch10_ops_activations.sql"
+    },
+    {
+      "table": "user_info",
+      "column": "status",
+      "dictFamily": "user_account_status",
+      "constraint": "chk_user_info_status",
+      "chain": "ops",
+      "batch": 11,
+      "migration": "V474__status_check_batch11_user_account_status.sql"
     }
   ],
-  "maxPendingColumns": 47,
+  "maxPendingColumns": 46,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",
@@ -384,12 +393,11 @@
     "revenue_share_detail.status",
     "revenue_share_rule.status",
     "staff_commission_daily.status",
-    "user_info.status",
     "ops_permission.status",
     "jiangyi_class_mapping.status",
     "notification_template.status"
   ],
-  "excludedNote": "业务链候选 39 列中前 8 批覆盖 20 列；第 9~10 批续用通用族 active_inactive_status 覆盖 10 列（含 platform_fund_account 从本名单解停泊）。本名单余下列为显式欠账：无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，不为减小数字硬造值域。第 10 批新增登记排除 user_info(源码 AccountService:158 写 DELETED 账号匿名化 + AuthService 注释 INACTIVE=运营封禁，域为 {ACTIVE,INACTIVE,DELETED}，须专用 3 值族收口)/ops_permission(dev 含 RETIRED)/jiangyi_class_mapping(dev 含 DISABLED)/notification_template(前端无停用入口)；platform_fund_account 解停泊（实体无 DISABLED 常量、UI 走 enable_status 族映射、域确为 {ACTIVE,INACTIVE}）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
+  "excludedNote": "业务链候选 39 列中前 8 批覆盖 20 列；第 9~11 批覆盖 11 列（第 9~10 批用通用族 active_inactive_status 10 列、第 11 批用专用族 user_account_status 收口 user_info 并从本名单解停泊）。本名单余下列为显式欠账：无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，不为减小数字硬造值域。第 10 批登记排除 ops_permission(dev 含 RETIRED)/jiangyi_class_mapping(dev 含 DISABLED)/notification_template(前端无停用入口)；user_info 已于第 11 批以三值族 {ACTIVE,INACTIVE,DELETED} 收口（源码穷举：AccountService:158 写 DELETED 账号注销 + OpsRbacService:524 写 INACTIVE 运营封禁 + normalizeAccountStatus 白名单仅 ACTIVE/INACTIVE）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
   "pendingNote": "dev 实测 87 列缺 CHECK，累计覆盖 41 列 ⇒ 账面欠账 46，棘轮只减不增（门禁自动派生校验）。",
   "nextChainExcluded": [
     {

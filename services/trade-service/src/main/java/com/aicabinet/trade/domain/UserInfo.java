@@ -35,7 +35,8 @@ public class UserInfo {
 
     private String passwordHash;
 
-    /** ACTIVE / INACTIVE — 运营账号启停 */
+    /** ACTIVE(正常) / INACTIVE(运营封禁) / DELETED(AU-149 账号注销匿名化，AccountService 写入、登录闸门拒绝)；
+     *  值域钉在 DB CHECK chk_user_info_status（V474）与字典族 user_account_status。 */
     private String status = "ACTIVE";
 
     /**

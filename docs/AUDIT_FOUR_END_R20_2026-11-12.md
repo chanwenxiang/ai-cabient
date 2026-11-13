@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 10 批 / 40 列（§二十六~§三十，余 47 列为显式欠账 + 22 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 11 批 / 41 列（§二十六~§三十一，余 46 列为显式欠账 + 21 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 10 批（§二十六~§三十）**——V464~V473 共 40 列、门禁 7 组判据 / 28 变异、真库验收，余 47 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 11 批（§二十六~§三十一）**——V464~V474 共 41 列、门禁 7 组判据 / 31 变异、真库验收，余 46 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1495,3 +1495,42 @@ DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然
 - 其余 47 列仍分两类：① 纯启用/停用列继续复用 `active_inactive_status`（逐列源码实证，本批又排除 4 列证明该池正在收敛）；② 需补专用字典族或值域与族实证不符，留待后续批次（CB-036 边界）。
 - 部署仍待：V463 + V464~V473 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - ⚠️ 并发会话工作区仍有大量 WIP，本轮只精确改自己的迁移 / 清单 / 门禁 / 报告（铁律 61）。
+
+## 三十一、P3-1 第 11 批：专用族 user_account_status 收口 user_info 三值域（2026-11-13）
+
+### 三十一.1 域的权威实证 = 全仓写入点穷举（非宽扫，六种写入形态逐一核实）
+
+- 🔴 **写入形态覆盖**：LambdaUpdateWrapper 类锚点（`set(UserInfo::getStatus,…)`）、实体 setter（`user.setStatus(…)` 共 6 处主源码）、SQL UPDATE 迁移（12 处 `UPDATE user_info`）、种子数据（不写 status）、DDL DEFAULT、管理端点入参白名单——逐一核实后真域恰为 **{ACTIVE, INACTIVE, DELETED}**：
+  - **ACTIVE**：`OpsAdminBootstrapService:92` / `MerchantTeamAdminService:258`（运营建号硬写）/ 实体字段默认 `"ACTIVE"`（UserInfo:39）/ `V96` DDL `DEFAULT 'ACTIVE'` + 回填 UPDATE；管理端点白名单 `OpsRbacService.normalizeAccountStatus:1046-1055` 仅放行 ACTIVE/INACTIVE，越界直接 400「账号状态仅支持 ACTIVE 或 INACTIVE」。
+  - **INACTIVE**：`OpsRbacService:524` `disableOperator`（运营封禁；`AuthService:402` 注释 `INACTIVE=运营封禁、登录闸门一律拒绝`）。
+  - **DELETED**：`AccountService:158` `set(UserInfo::getStatus,"DELETED")`（AU-149 账号自助注销匿名化；`AuthService:402` 注释 `DELETED=已注销`）。
+- **管理端点不可能写入 DELETED**：normalizeAccountStatus 白名单不含 DELETED，注销只走 AccountService 自助闭环（CB-059）——两语义池物理隔离，正是本列不能复用两值通用族的根本原因。
+- 顺带修正 `UserInfo.java:38` 过时注释（原「ACTIVE / INACTIVE — 运营账号启停」漏 DELETED，与 AccountService 实际写入不符——铁律 12「业务语义真相」同族）。
+
+### 三十一.2 落专用族 + V474 + 清单 + 门禁
+
+- **族双端对齐**：`SysDictBootstrap` 与 `shared-dict` 新增 `user_account_status = {ACTIVE:正常, INACTIVE:停用, DELETED:已注销}`（门禁 R2 跨端自动提取字面相等）。
+- **`V474__status_check_batch11_user_account_status.sql`**：1 条 `ALTER TABLE user_info ADD CONSTRAINT chk_user_info_status CHECK (status IN ('ACTIVE','INACTIVE','DELETED')) NOT VALID`，迁移头含逐形态写入点穷举、normalizeAccountStatus 白名单说明、脏值探针 SQL。
+- **清单**：`tables` 40 → 41、`maxPendingColumns` 47 → 46（R5 派生 `87 − 41`）、`batch`=11、user_info 从 excludedColumns **解停泊**（第 10 批登记 → 第 11 批收口，一进一出闭环）。
+- **门禁**：`MIGRATIONS` 增 V474（第 11 个）；self-test 增 3 个 V474 变异，其中「CHECK 漏 DELETED（复活第 10 批陷阱）」专门钉住「把三值列硬塞进两值 CHECK 会砍掉注销语义」这一类缺陷。**正向门禁 41 列三方对齐 + 11 迁移全 NOT VALID + 棘轮 46 全绿；self-test 31 变异全绿、md5 零残留。**
+- **`--emit` 对齐明细**（user_info 行）：dictValues = sharedValues = checkValues = {ACTIVE, DELETED, INACTIVE}；writerValues=[DELETED] ⊆ 域；ddlDefault=ACTIVE ∈ 域。
+
+### 三十一.3 真库验收（独立一次性 PG 16-alpine，事务内零残留）
+
+| 判据 | 结果 |
+|---|---|
+| 最小 user_info 表 + 原样管道执行 V474 迁移文件 | ✅ ALTER TABLE 成功 |
+| 三值域逐值可写（ACTIVE/INACTIVE/DELETED 各 1 行 + 默认插入） | ✅ 4 次 `INSERT 0 1` 成功（R6 活体实证） |
+| 越界值 RETIRED / DISABLED 被 CHECK 拒绝（NOT VALID 也拦截新写入） | ✅ 全部 `check_violation` |
+| 聚合守恒（4 行全在域内、总数守恒） | ✅ DO 断言通过 |
+| `BEGIN; … ROLLBACK;` 零残留 | ✅ 回滚后 user_info 不存在 |
+
+`PSQL_EXIT=0`，一次性容器用完即删、未动共享 dev 栈（铁律 69）。生产存量脏值仍须按迁移头探针 SQL 核对后再 `VALIDATE`。
+
+### 三十一.4 欠账销账与遗留
+
+- 账面欠账 **47 → 46**（累计 3 + 20 + 7 + 3 + 7 + 1 = 41 列，`87 − 41`），棘轮只减不增。
+- 🔴 **方法论沉淀（新铁律候选）**：R7 类锚点只覆盖 `set(Cls::getStatus,…)` 形态，本批实证「实体 setter（6 处）+ 迁移 UPDATE（12 处）+ 端点白名单」必须人工穷举——门禁是**单向不完备**的必要检查，人工穷举才是域的权威来源；两类证据互补，缺一不可。
+- 其余 46 列仍分两类：① 纯启用/停用列继续复用 `active_inactive_status`（候选池已收敛，第 10 批即排除 4 列）；② 需补专用字典族或值域与族实证不符，留待后续批次（CB-036 边界）。
+- 部署仍待：V463 + V464~V474 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的迁移 / 字典双端 / 实体注释 / 清单 / 门禁 / 报告（铁律 61）。
