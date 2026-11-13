@@ -158,7 +158,9 @@ if (violations.length > 0) {
       if (shown.ok) content = shown.out || '';
     }
     const ack = content.match(ACK_RE);
-    if (ack) {
+    // 🔴 硬化（2026-11-13）：豁免头必须附 to_regclass 实测输出——防无证据豁免。
+    //    静态「声明表集」分析会被 DROP→重建 序列骗过，判死语句必须以 dev 库 to_regclass 实测为准。
+    if (ack && /to_regclass/i.test(content)) {
       acknowledged.push({ ...v, reason: ack[1].trim() });
     } else {
       hard.push(v);
@@ -169,7 +171,7 @@ if (violations.length > 0) {
     fail(
       `已合入基线的 Flyway 脚本被删除/改名/修改（基线 ${base}）：\n${detail.join('\n')}\n` +
         '正解：保留旧文件不动，新增一条迁移；要下线种子数据时把旧文件改成幂等墓碑（不要删文件）。' +
-        '内容修改须带 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 头（仅 M 开放，D/R 不豁免）。'
+        '内容修改须带 `-- MIGRATION_IMMUTABLE_EXEMPT: <理由>` 头且理由含 to_regclass 实测输出（仅 M 开放，D/R 不豁免）。'
     );
   }
   for (const a of acknowledged) {
