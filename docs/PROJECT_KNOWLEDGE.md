@@ -705,6 +705,11 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - ✅ **integration job 首次真跑（101 条 IT）只红 1 条**：`SessionKindFilterSqlIT.seedSession` 往 `replenishment_task` 插 `status='OPEN'`，被 `f3d4a3a1` 引入的 `chk_replenishment_task_status`（V466，值域 CANCELLED/COMPLETED/IN_PROGRESS/PENDING）拒成 `DataIntegrityViolation`。该用例只需要一条真任务行满足外键、状态不参与 sessionKind 判定 ⇒ 夹具改用 `'PENDING'` 并写明"这是 CHECK 之前的旧词"。
   根因形态值得记：IT 只在 `integration` 作业跑，而该作业此前**从未执行过**（build 红 ⇒ 连带 skip），所以 11-13 12:56 加约束时就没人看见它打破用例。同批 8 条 CHECK 里其余 100 条 IT 全绿，说明只有这一处夹具引用了旧词。
   连带修复见下两条：`1045fa5d`（mini-programs 浅克隆 + scheduler 夹具魔术数）、`4049762a`（`%h` 缩写宽度随仓库对象数变化 ⇒ 修-batch 登记在 CI 全量库里全体失配，改全长哈希 + 前缀匹配）。
+- ✅ **部署链接入 Flyway checksum 漂移对账（新工具 `scripts/flyway-drift-check.mjs`）**：`deploy-prod.sh` 新增 `[4/7]` 步——服务器只用 `psql -At -F"|" ` 导出 `installed_rank|version|type|checksum`（凭据留在 postgres 容器 env，不打印不落盘；SQL 刻意不含单引号，避开 heredoc + `sh -c` 双层引号），比对在本地按仓内迁移文件算 CRC32 完成；漂移或采集异常一律**中止部署**（exit 1/2，绝不自动 repair——repair 会掩盖漂移，与 `check-migration-immutable` 铁律同向）。
+  分工原因：服务器既没有 node 也没有 JDK（现场构建全在 Docker 里），而必须在 `compose build` 之前判掉，否则白跑十几分钟构建。
+  算法与 Flyway 9.22 同构（去 BOM → readLine 丢行尾 → 逐行 CRC32 → int32），**用 dev/UAT 库 472 条真实 checksum 反证逐条相等**；夹具另钉 V458=1815510941 这条真库向量。端到端双向验收：对现库 ⇒ exit 0；把库里值换成我今天记录的修复前旧值 ⇒ exit 1 且正好点名 8 条，本地算出的值与 Flyway 自报一致。
+- ✅ **`check:deploy-compose-chain` 长出判据 B + 首个 sibling 夹具**：断言 deploy 链必须调用漂移对账且**排在 build 之前**；同一提交补 `check-deploy-compose-chain.test.mjs`（9 项，含"摘除调用⇒红""挪到 build 后⇒红"）。
+  🔴 过程中我自己造了个假阳性：`indexOf('build trade-service')` 先命中**文件头流程注释**（第 8 行）⇒ 顺序判据恒假。已改成比对前剥掉整行注释，并用夹具第 7 条把这个形态钉死——与本仓 `check-docker-tests-guarded` 头注"整份文件搜关键词是恒真的"是同一族坑。
 - **有意未做**：商户自助结清收款通道（PayPal 的「结清负余额」背后是真实收款通道；我方须先定支付产品/是否生成充值单，属产品拍板）；Stripe 式平台余额自动平账、PayPal 式外委催收（无资质通道）。
 
 ### 2026-11-12（文档治理：22 份历史报告归档 + 防假账门禁 check:ledger-evidence 上线）
