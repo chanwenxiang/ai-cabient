@@ -21,7 +21,7 @@
 
 ALTER TABLE balance_refund_request
   ADD CONSTRAINT chk_balance_refund_request_status
-  CHECK (status IN ('FAILED','PENDING_REVIEW','REFUNDED','REJECTED'))
+  CHECK (status IN ('FAILED','PENDING_REVIEW','REFUNDED','REJECTED','PROCESSING','PARTIAL'))
   NOT VALID;
 
 ALTER TABLE merchant_withdraw_request

@@ -234,7 +234,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("device_mqtt_credential_status", t("设备MQTT凭证状态", m(
                 "ACTIVE", "生效中", "REVOKED", "已吊销")));
         map.put("pull_off_task_status", t("下柜任务状态", m(
-                "OPEN", "待下柜")));
+                "OPEN", "待下柜", "RESOLVED", "已处理")));
         map.put("preauth_status", t("支付分预授权状态", m(
                 "NONE", "无预授权", "FROZEN", "已冻结", "CAPTURED", "已扣款", "RELEASED", "已释放")));
         map.put("quality_status", t("采购验收状态", m(
@@ -511,7 +511,8 @@ public class SysDictBootstrap implements ApplicationRunner {
         // DB/Bootstrap 均缺席 → 字典管理不可见、runtime 常态性缺类型。词条与基线逐字对齐。
         map.put("balance_refund_status", t("余额退款状态", m(
                 "PENDING_REVIEW", "待审核", "REFUNDED", "已退款",
-                "REJECTED", "已驳回", "FAILED", "失败")));
+                "REJECTED", "已驳回", "FAILED", "失败",
+                "PROCESSING", "处理中", "PARTIAL", "部分退款")));
         map.put("user_role", t("用户角色", m(
                 "CONSUMER", "消费者", "OPERATOR", "运营账号", "MERCHANT", "商户", "OPS", "运营")));
         map.put("wallet_ref_type", t("钱包关联类型", m(

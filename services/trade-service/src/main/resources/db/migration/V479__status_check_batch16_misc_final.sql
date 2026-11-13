@@ -54,7 +54,7 @@ ALTER TABLE device_mqtt_credential
   NOT VALID;
 ALTER TABLE pull_off_task
   ADD CONSTRAINT chk_pull_off_task_status
-  CHECK (status IN ('OPEN'))
+  CHECK (status IN ('OPEN','RESOLVED'))
   NOT VALID;
 ALTER TABLE shopping_session
   ADD CONSTRAINT chk_shopping_session_preauth_status

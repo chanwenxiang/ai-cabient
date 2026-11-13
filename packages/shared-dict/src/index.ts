@@ -282,7 +282,9 @@ export const DICT = {
     PENDING_REVIEW: '待审核',
     REFUNDED: '已退款',
     REJECTED: '已驳回',
-    FAILED: '失败'
+    FAILED: '失败',
+    PROCESSING: '处理中',
+    PARTIAL: '部分退款'
   },
   announcement_audience: {
     ALL: '全部用户',
@@ -413,7 +415,8 @@ export const DICT = {
     REVOKED: '已吊销'
   },
   pull_off_task_status: {
-    OPEN: '待下柜'
+    OPEN: '待下柜',
+    RESOLVED: '已处理'
   },
   preauth_status: {
     NONE: '无预授权',
