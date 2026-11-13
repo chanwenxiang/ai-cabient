@@ -298,6 +298,25 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "7d05b2d7",
+      "report": "scripts/devops/flyway-repair/README.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "Repair/ValidateCheck 默认 locations 补 db/seed（只指 migration 时 repair 会给 3 条已应用 R__ 种子写 DELETE 标记，本会话实测第 4 次触发并已精确撤销）",
+          "files": [
+            "scripts/devops/flyway-repair/Repair.java",
+            "scripts/devops/flyway-repair/ValidateCheck.java"
+          ]
+        },
+        {
+          "id": "README 把「唯一的坑」订正为两条，并补跑完必做的行数/DELETE 计数/VALIDATE 对账",
+          "files": ["scripts/devops/flyway-repair/README.md"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
