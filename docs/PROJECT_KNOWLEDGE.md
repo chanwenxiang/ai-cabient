@@ -686,14 +686,19 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
-### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售**；台账 CB-086；坏账核销仍待拍板）
+### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售** + **平台兜底核销**；台账 CB-086）
 
 - 用户问「商户钱包可为负是否对」：对照 PayPal / Stripe / 微信支付分账回退 / 抖音支付退分账 / 友宝 / 哈哈零兽，确认「负数挂账 + 入账自动抵扣 + 提现闸门阻断」是行业主形态（与本仓 2026-10-15 拍板 T4 同向），差的只是账龄处置；结论与证据入 `docs/COMPETITOR_BENCHMARK.md` **CB-086**。
 - **只读探针 + 告警**：`MerchantWalletArrearsService`——负余额连续满 `merchant.wallet_arrears.alert_after_days`（默认 90，0=关）⇒ 写进日结任务执行记录 + 一条**聚合**运营群告警；账龄起算 = 账本里最后一次 `balance_after >= 0`（SQL 在 `services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml` 的 `findNegativeArrears`）。探针本身不写任何资金数据。
-- **账龄停售（2026-11-13 用户拍板「做」）**：`merchant.wallet_arrears.lock_after_days`（默认 90，0=关闭锁柜）⇒ 名下**未锁**柜机停售（原因前缀「钱包欠款锁柜」），余额回到非负且无未结费用**自动复机**。四条安全判据：只锁未锁设备（不接管费用欠费锁）/ 复机只解本前缀且要求无欠款无未结费用 / 账龄不可判不锁 / 费用已清但钱包仍欠款时费用复机链不得代 unlock。反例用例 `MerchantWalletArrearsLockTest` 6 例。
+- **账龄停售（2026-11-13 用户拍板「做」）**：`merchant.wallet_arrears.lock_after_days`（默认 90，0=关闭锁柜）⇒ 名下**未锁**柜机停售（原因前缀「钱包欠款锁柜」），余额回到非负且无未结费用**自动复机**。四条安全判据：只锁未锁设备（不接管费用欠费锁）/ 复机只解本前缀且要求无欠款无未结费用 / 账龄不可判不锁 / 费用已清但钱包仍欠款时费用复机链不得代 unlock。反例用例 `MerchantWalletArrearsLockTest` 7 例。
 - 商户端 `clients/merchant-mp/src/components/WalletPage.vue`：账面为负时显示「当前欠款 X，后续入账自动抵扣，结清前不可提现」——**不新增写入口**，收款仍走运营后台调账/线下打款入账。
-- **平台兜底核销（2026-11-13 用户拍板「做」）**：新增 `MerchantArrearsWriteOffService` + `POST /api/v2/ops/admin/merchant-wallets/{merchantId}/arrears-writeoff`。门槛：非 ACTIVE、无在途提现/在途分账、金额取执行时实际负余额（服务端现算）、幂等键 `WO:<merchantId>:<余额>`、写 `ARREARS_WRITEOFF` 流水 + 审计、达阈值同批发起 `MERCHANT_WALLET_ADJUST` 审批。**平台兜底 = 显式记损失，不是让负数永远挂着**。
+- **平台兜底核销（2026-11-13 用户拍板「做」）**：新增 `MerchantArrearsWriteOffService` + `POST /api/v2/ops/admin/merchant-wallets/{merchantId}/arrears-writeoff`。门槛：非 ACTIVE、无在途提现/在途分账、**冻结资金 >0 直接 409**（核销只清账面，抹不动已冻结的钱）、金额取执行时实际负余额（服务端现算）、幂等键 `WO:<merchantId>:<金额>:<欠款段起算日>`（同一轮欠款同日重复点=幂等命中不双记损失；欠款还清后再次转负=新欠款段自动换键，不吞第二轮）、写 `ARREARS_WRITEOFF` 流水 + 审计、达阈值同批发起 `MERCHANT_WALLET_ADJUST` 审批。**平台兜底 = 显式记损失，不是让负数永远挂着**。
 - **追缴名单与导出**：运营台「商户钱包」页新增「只看欠款」+「导出欠款名单」CSV（编号/名称/电话/状态/欠款/起算日/账龄/处置提示），口径与 `negativeAccounts()` 同源、账龄不可判者也在名单里；后端 `GET /api/v2/ops/admin/merchant-wallets/arrears.csv`。运维只读 SQL 两段（名单 + 致负来源）已随 CB-086 4.1 落台账。
+- **复核轮（用户「再仔细看几轮」，全部只靠端到端实跑抓到，mock 单测恒抓不到）**：
+  - 🔴 **mapper XML 里的 `<if>` 被包进 `<![CDATA[...]]>` ⇒ MyBatis 原样把标签文本送进 PG** ⇒ `PSQLException: syntax error at or near "<"`，`?onlyNegative=` 与 `arrears.csv` **双双 HTTP 500**；单元测试全绿而真栈全红。修：`<` 转 `&lt;`、`<if>` 移出 CDATA，并在 XML 头注写死这条坑。新增 `WalletArrearsSqlIT`（真 PG 跑 `findNegativeArrears`）并登记进 `check-docker-tests-guarded`；**变异验证**：把 CDATA 还原成缺陷形态 ⇒ 5/5 Errors 且报文中正是那句 `syntax error at or near "<"`，跑完 `cmp` 确认源文件逐字节还原。
+  - 核销幂等键加欠款段、冻结资金守卫（上条）；欠款名单 CSV 改走 `CsvCells.escape`（`check:csv-escape` 强制，且手写版可被 `=1+1` 开头的商户名注入）；「核销欠款」行操作补 `perm`（此前只靠 `hasPerm` 判定，`check:admin-write-perm-codes` 会算「查看码当写码」风险）；解锁改在事务提交后触发；策略关闭（`lock_after_days=0`）时清掉历史遗留的欠款锁，不再留「关了旋钮柜机还锁着」。
+  - 空名单导出只有表头 ⇒ 前端先按 CSV 同源口径探一次总数再提示，区分「平台没欠款」与「这些商户不归你管」（探测失败返回 null 不谎报 0）。
+  - ⚠️ **部署链缺口（已定性，修复动作属部署步）**：S14 修复批改写了 8 个已应用迁移（V165/182/200/201/217/465/479 由 `ecfaaa6d`/`1d5f526d` 提交，V459 注释改动随 `5948febf` 提交），共享 dev 库 `flyway_schema_history` 存的还是旧 checksum，而 `validate-on-migrate` 默认开 ⇒ **重建 trade-service 前必须先对目标库跑 `scripts/devops/flyway-repair`**，否则应用拒绝启动（`Migration checksum mismatch`）。peer 已提交预检脚本 `scripts/flyway-repair-precheck.mjs`（`5948febf`，用 Flyway 自己的 `validate()` 判定、不自算 checksum；实测点名 `165 182 200 201 217 459 465 479` 共 8 条，与手算 CRC32 逐条相等）。🔴 它**刻意不接进** `run-audit-gates` / CI：脚本自述「发布前人工步骤，不自动 repair（repair 会掩盖漂移）」，且 CI 无目标库时会 fail-closed 恒红——**别顺手接线**。
 - **有意未做**：商户自助结清收款通道（PayPal 的「结清负余额」背后是真实收款通道；我方须先定支付产品/是否生成充值单，属产品拍板）；Stripe 式平台余额自动平账、PayPal 式外委催收（无资质通道）。
 
 ### 2026-11-12（文档治理：22 份历史报告归档 + 防假账门禁 check:ledger-evidence 上线）

@@ -25,6 +25,23 @@
 - `UnpaidOrderService.cancelSingleExpiredOrder:341-373` 只 `setStatus(CANCELLED)`，**无 voidSplit / 无积分追回**。
 - 后果：LEDGER_ONLY 下商户钱包在用户一分钱没付时就入账并可提现；用户白得积分与消费统计。
 - **修法**：分账/发积分/统计一律挪到「实收确认」（DONE 回调或补缴成功）之后；取消路径补 void+clawback。
+- 🔎 **2026-11-13 复核「部分属实」这一判定不成立（结论仍为「对」）**：
+  - 说「109 有守卫 ⇒ recordSplit 非字面无条件」——**对**；但守卫的语义前提在支付分腿不成立：
+    `SettlementOrderFinalizeService.tryChargeSettledOrder:198-200` 只要 `chargeOrder` **不抛异常就 return true**；
+    而 `OrderPaymentService.tryCompleteWeChatPayScore:194-198` 恰恰是「调 `completeWechatOrderForSession`（微信**异步**扣款）
+    → 本地 `setStatus("PENDING")` → return true」，其 javadoc 自己写明「结算走完结订单→微信异步扣款→回调改 PAID」。
+    ⇒ **支付分腿恒「过守卫但未实收」**，不是需要再判断的灰区。
+  - `RevenueSplitService.recordSplit:69-79` 无任何实收门（只看 `CommissionBaseCalc.netCents(order) > 0`；本文件 grep 订单状态判据 = 0 命中）。
+  - 当前默认平台抽成 0 ⇒ `doRecordSplit` 落 `LEDGER_ONLY` ⇒ `creditWalletIfLedgerOnly` →
+    `merchantWalletService.creditIfAbsent(..., "SPLIT_CREDIT", "SPLIT", splitId, ...)` **毛额整笔入商户钱包**（受 T+1 `settleAfter` 约束但可提现）。
+  - **失败终态无回退**：`PayScoreOrderNotifyService` 的 switch 仅 `DONE` 动订单；`EXPIRED`/`REVOKED` 只做
+    `unpaidDunningService.recordUnpaidAndEscalate`（催**消费者**），全文件 grep
+    `merchantWallet|debitIfAbsent|SPLIT_REVERSE|recordSplit` = **0 命中** ⇒ 商户那笔入账永不回退。
+  - 同一未实收点还执行 `freezePaidAmount`（:114，注释写「钱已收到」）、`memberService.onOrderPaid`（:144，积分+消费统计）、
+    `notifyConsumer("order_paid")`（:149）。
+  - 已落的只是「第一刀」的替代物：`UnpaidOrderService` F1-C（净额>0 的 PENDING 单禁止自动取消，转 HIGH 保持 PENDING），
+    它防「货回库但冲抵款已扣」，**不防「钱没进来、账先进来」**，也没有 void/clawback。
+  - ⇒ **第二刀确实未做**，且爆炸半径是资金创造而非账面失真；属资金链改动，按拍板走他人修复线，本会话不顺手改。
 
 ### R20-3 ✅ 手动用券绕过「活动价禁券」
 - `CouponService.java:334-361`（用户端 `POST /api/v2/coupons/use`）只拦 DISPUTED / 状态不可用 / 已用券 / 已核销其他券，**没有 `activityDiscountCents > 0` 闸**；
