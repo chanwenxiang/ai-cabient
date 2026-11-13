@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * R20 P3-1 门禁（2026-11-13，2026-11-13 第二批扩展）：状态列 CHECK 值域与源码/字典**自动对齐**。
+ * R20 P3-1 门禁（2026-11-13，第 6~8 批扩展：8 个迁移 / 30 列）：状态列 CHECK 值域与源码/字典**自动对齐**。
  *
  * 🔴 判据设计（铁律 84 / 47 / 38 / 88④）：
  *   ① 扫 Java/SQL 源码前 maskComments() 抹注释为等长空格（迁移头注释本身单独用 raw 读）；
@@ -34,7 +34,10 @@ const MIGRATIONS = [
   'V465__status_check_batch2_fund.sql',
   'V466__status_check_batch3_order.sql',
   'V467__status_check_batch4_dispute.sql',
-  'V468__status_check_batch5_recon.sql'
+  'V468__status_check_batch5_recon.sql',
+  'V469__status_check_batch6_device.sql',
+  'V470__status_check_batch7_masterdata.sql',
+  'V471__status_check_batch8_content.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -345,7 +348,7 @@ function selfTest() {
     ['COMPETITOR_REF 引用不存在编号', V465, (s) => s.replace('COMPETITOR_REF: CB-036', 'COMPETITOR_REF: CB-999'), '台账里不存在'],
     ['MIGRATION_KIND 被改掉', V466, (s) => s.replace('MIGRATION_KIND: schema', 'MIGRATION_KIND: backfill'), 'MIGRATION_KIND'],
     ['清单改错 dictFamily', P.inv, (s) => s.replace('"order_status"', '"order_status_v2"'), '无法从 SysDictBootstrap 自动提取'],
-    ['欠账棘轮被改大', P.inv, (s) => s.replace('"maxPendingColumns": 64', '"maxPendingColumns": 90'), '欠账'],
+    ['欠账棘轮被改大', P.inv, (s) => s.replace('"maxPendingColumns": 57', '"maxPendingColumns": 90'), '欠账'],
     ['基线口径被改小', P.inv, (s) => s.replace('"baselineMissingCheck": 87', '"baselineMissingCheck": 60'), 'baselineMissingCheck'],
     ['清单与迁移约束名对不上', P.inv, (s) => s.replace('chk_cabinet_order_status', 'chk_cabinet_order_status_v2'), '找不到约束'],
     ['清单 migration 字段指错文件', P.inv,
@@ -357,7 +360,16 @@ function selfTest() {
       (s) => s.replace("DEFAULT 'PENDING_REVIEW'", "DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT'],
     ['源码锚点写入越界值', MAPPER_WITHDRAW,
       (s) => s.replace('set(MerchantWithdrawRequest::getStatus, "PAYING")',
-                       'set(MerchantWithdrawRequest::getStatus, "TOTALLY_BOGUS")'), '源码锚点写入值']
+                       'set(MerchantWithdrawRequest::getStatus, "TOTALLY_BOGUS")'), '源码锚点写入值'],
+    ['新链迁移删掉一条约束', MIGRATIONS[6],
+      (s) => s.replace(/ALTER TABLE merchant[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['新链迁移去掉 NOT VALID', MIGRATIONS[7],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['新链 CHECK 漏一个合法状态', MIGRATIONS[6],
+      (s) => s.replace(",'PENDING'", ''), 'CHECK 值域与字典族不同源'],
+    ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
+      (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
+                       "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']
   ];
   let passed = 0;
   for (const [name, path, mutate, expect] of mutations) {

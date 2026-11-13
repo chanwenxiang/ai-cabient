@@ -1,7 +1,7 @@
 {
-  "batch": 5,
+  "batch": 8,
   "baselineMissingCheck": 87,
-  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。按资金/订单/争议/对账链分批。",
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~5 批按资金/订单/争议/对账链，第 6~8 批按设备/资产、主数据/组织、内容/运营链。",
   "tables": [
     {
       "table": "cabinet_order",
@@ -209,9 +209,72 @@
       "chain": "recon",
       "batch": 5,
       "migration": "V468__status_check_batch5_recon.sql"
+    },
+    {
+      "table": "device_info",
+      "column": "online_status",
+      "dictFamily": "online_status",
+      "constraint": "chk_device_info_online_status",
+      "chain": "device",
+      "batch": 6,
+      "migration": "V469__status_check_batch6_device.sql"
+    },
+    {
+      "table": "site_contract",
+      "column": "status",
+      "dictFamily": "site_contract_status",
+      "constraint": "chk_site_contract_status",
+      "chain": "device",
+      "batch": 6,
+      "migration": "V469__status_check_batch6_device.sql"
+    },
+    {
+      "table": "merchant",
+      "column": "status",
+      "dictFamily": "merchant_status",
+      "constraint": "chk_merchant_status",
+      "chain": "masterdata",
+      "batch": 7,
+      "migration": "V470__status_check_batch7_masterdata.sql"
+    },
+    {
+      "table": "supplier",
+      "column": "status",
+      "dictFamily": "supplier_status",
+      "constraint": "chk_supplier_status",
+      "chain": "masterdata",
+      "batch": 7,
+      "migration": "V470__status_check_batch7_masterdata.sql"
+    },
+    {
+      "table": "warehouse",
+      "column": "status",
+      "dictFamily": "warehouse_status",
+      "constraint": "chk_warehouse_status",
+      "chain": "masterdata",
+      "batch": 7,
+      "migration": "V470__status_check_batch7_masterdata.sql"
+    },
+    {
+      "table": "line_manager",
+      "column": "status",
+      "dictFamily": "line_manager_status",
+      "constraint": "chk_line_manager_status",
+      "chain": "masterdata",
+      "batch": 7,
+      "migration": "V470__status_check_batch7_masterdata.sql"
+    },
+    {
+      "table": "announcement",
+      "column": "status",
+      "dictFamily": "announcement_status",
+      "constraint": "chk_announcement_status",
+      "chain": "content",
+      "batch": 8,
+      "migration": "V471__status_check_batch8_content.sql"
     }
   ],
-  "maxPendingColumns": 64,
+  "maxPendingColumns": 57,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",
@@ -233,6 +296,16 @@
     "revenue_share_rule.status",
     "staff_commission_daily.status"
   ],
-  "excludedNote": "业务链候选 39 列中本轮覆盖 20 列；余 19 列无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，登记为显式欠账，留待后续批次或字典层管控（不为减小数字硬造值域）。",
-  "pendingNote": "dev 实测 87 列缺 CHECK，累计覆盖 23 列 ⇒ 账面欠账 64，棘轮只减不增（门禁自动派生校验）。"
+  "excludedNote": "业务链候选 39 列中本轮覆盖 20 列；余 19 列无权威字典族 / 源码值域与字典族不符 / 历史轨迹列，登记为显式欠账，留待后续批次或字典层管控（不为减小数字硬造值域）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
+  "pendingNote": "dev 实测 87 列缺 CHECK，累计覆盖 30 列 ⇒ 账面欠账 57，棘轮只减不增（门禁自动派生校验）。",
+  "nextChainExcluded": [
+    {
+      "column": "warehouse_bin.status",
+      "reason": "字典族 bin_status=ACTIVE/DISABLED，但 WarehouseBinServiceTest:138 实证写 INACTIVE，且 WarehouseBinService:96 写入口无白名单 ⇒ 值域与族不符，不硬套"
+    },
+    {
+      "column": "ad_campaign.status",
+      "reason": "V81/V174 两次 CREATE TABLE IF NOT EXISTS，真实生效的 V81 默认 ACTIVE 不在 ad_campaign_status 族(DRAFT/RUNNING/STOPPED)内，AdCampaignServiceTest 亦实证写 ACTIVE ⇒ 加 CHECK 会让默认插入被拒"
+    }
+  ]
 }
