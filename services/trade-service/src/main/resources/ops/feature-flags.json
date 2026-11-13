@@ -400,6 +400,14 @@
       "unit": "天"
     },
     {
+      "key": "merchant.wallet_arrears.lock_after_days",
+      "group": "商户",
+      "type": "NUMBER",
+      "default": "90",
+      "description": "商户钱包欠款锁柜阈值：负余额连续满该天数 ⇒ 名下未锁柜机停售（不接管费用欠费锁），结清且无未结费用自动复机（CB-086）；0=关闭锁柜（告警保留）",
+      "unit": "天"
+    },
+    {
       "key": "device.temp.alert_max_c",
       "group": "设备与柜机",
       "type": "NUMBER",

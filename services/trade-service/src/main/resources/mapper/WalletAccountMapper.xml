@@ -37,6 +37,9 @@
       FROM wallet_account a
      WHERE a.domain = #{domain}
        AND a.balance_cents < 0
+       <if test="ownerId != null and ownerId != ''">
+         AND a.owner_id = #{ownerId}
+       </if>
      ORDER BY a.balance_cents ASC
     ]]>
   </select>

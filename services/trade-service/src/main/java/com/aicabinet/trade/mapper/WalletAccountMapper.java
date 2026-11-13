@@ -48,6 +48,9 @@ public interface WalletAccountMapper extends BaseMapper<WalletAccount> {
      * <p>返回列（LinkedHashMap，别名 c0/c1/c2）：c0=owner_id，c1=balance_cents（负数），
      * c2=arrears_since（最后一条 {@code balance_after >= 0} 的 created_at；整本账从未非负则取最早一行；
      * 无流水 ⇒ null ⇒ 调用方按「账龄不可判」跳过，不得当作 0 天）。</p>
+     *
+     * @param ownerId 非空时只查该商户（锁柜复机判据按商户单查）；null/空=全量（日结告警）
      */
-    java.util.List<java.util.Map<String, Object>> findNegativeArrears(@Param("domain") String domain);
+    java.util.List<java.util.Map<String, Object>> findNegativeArrears(@Param("domain") String domain,
+                                                                     @Param("ownerId") String ownerId);
 }

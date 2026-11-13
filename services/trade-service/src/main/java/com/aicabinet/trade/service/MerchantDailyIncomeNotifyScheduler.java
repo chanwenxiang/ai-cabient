@@ -53,6 +53,8 @@ public class MerchantDailyIncomeNotifyScheduler {
     private static final String TEMPLATE_CODE = "merchant_settlement";
     private static final String BIZ_TYPE = "DAILY_INCOME";
     static final String FEE_OVERDUE_LOCK_PREFIX = "费用欠缴锁柜";
+    /** 钱包欠款锁柜的原因前缀（CB-086）。与费用欠费锁**分开拥有**：两边的复机扫描互不代 unlock。 */
+    static final String WALLET_ARREARS_LOCK_PREFIX = "钱包欠款锁柜";
     private static final DateTimeFormatter PERIOD_FMT = DateTimeFormatter.ofPattern("yyyy年M月d日");
     private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     /** 日扣的钱包流水 refType（refId=费用日期）：{@link #chargeDailyPeriodFees} 与通知取数共用同一把钥匙。 */
@@ -220,6 +222,8 @@ public class MerchantDailyIncomeNotifyScheduler {
             }
         }
         checkOverdueAndRemind(yesterday, merchantIds);
+        // CB-086：钱包欠款连续满账龄 ⇒ 停售；结清自动复机（与费用欠费锁分开拥有设备锁）。
+        enforceWalletArrears(yesterday.plusDays(1));
         return chargedTotal;
     }
 
@@ -337,6 +341,12 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     private void unlockFeeOverdue(String merchantId) {
+        // CB-086：费用已清但钱包仍在欠款账龄内 ⇒ 保持锁定不改归属。钱包扫描只锁「未锁」设备，
+        // 不会重复上锁；等钱包结清后下一次费用扫描会重新走到这里完成解锁。
+        if (walletArrearsService != null && walletArrearsService.inArrears(merchantId)) {
+            log.info("fee overdue cleared but wallet arrears remain, keep locked merchant={}", merchantId);
+            return;
+        }
         List<DeviceInfo> devices = deviceRepository.selectList(
                 Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
         for (DeviceInfo d : devices) {
@@ -344,6 +354,78 @@ public class MerchantDailyIncomeNotifyScheduler {
                     && d.getSalesLockReason() != null
                     && d.getSalesLockReason().startsWith(FEE_OVERDUE_LOCK_PREFIX)) {
                 salesLockService.applySalesLock(null, d, false, "欠费已结清", true);
+            }
+        }
+    }
+
+    /**
+     * CB-086（2026-11-13 用户拍板）：钱包欠款连续满 {@code merchant.wallet_arrears.lock_after_days}
+     * （默认 90，0=关闭）⇒ 名下**未锁**柜机停售；余额回到非负后自动复机。
+     *
+     * <p>安全判据（每条都有反例测试）：
+     * <ol>
+     *   <li>只锁当前未锁的设备——费用欠费锁/离线停售锁的归属不被改写；</li>
+     *   <li>复机只看原因以本前缀开头的设备，且要求「不再欠款」**且**「无未结费用」；</li>
+     *   <li>账龄不可判（无流水）不锁；锁柜阈值 0=关闭（告警可独立保留）；</li>
+     *   <li>单商户异常不阻断其余商户（与费用日扣同口径）。</li>
+     * </ol>
+     */
+    void enforceWalletArrears(LocalDate today) {
+        MerchantWalletArrearsService svc = walletArrearsService;
+        if (svc == null) {
+            return;
+        }
+        int lockDays = svc.lockThresholdDays();
+        if (lockDays <= 0) {
+            return;
+        }
+        for (MerchantWalletArrearsService.Arrears hit : svc.overThreshold(lockDays, today)) {
+            try {
+                lockWalletArrears(hit, lockDays);
+            } catch (Exception e) {
+                log.warn("wallet arrears lock failed merchant={}: {}", hit.merchantId(), e.getMessage());
+            }
+        }
+        unlockClearedWalletArrears(svc);
+    }
+
+    private void lockWalletArrears(MerchantWalletArrearsService.Arrears hit, int lockDays) {
+        List<DeviceInfo> devices = deviceRepository.selectList(
+                Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, hit.merchantId()));
+        String reason = WALLET_ARREARS_LOCK_PREFIX + "：钱包欠款 "
+                + BigDecimal.valueOf(hit.arrearsCents(), 2).toPlainString()
+                + " 元，连续 " + hit.ageDays() + " 天（满 " + lockDays + " 天停售，结清自动复机）";
+        for (DeviceInfo d : devices) {
+            if (!Boolean.TRUE.equals(d.getSalesLocked())) {
+                salesLockService.applySalesLock(null, d, true, reason, true);
+            }
+        }
+    }
+
+    private void unlockClearedWalletArrears(MerchantWalletArrearsService svc) {
+        List<DeviceInfo> locked = deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .eq(DeviceInfo::getSalesLocked, true)
+                .likeRight(DeviceInfo::getSalesLockReason, WALLET_ARREARS_LOCK_PREFIX));
+        if (locked.isEmpty()) {
+            return;
+        }
+        java.util.Map<String, List<DeviceInfo>> byMerchant = new java.util.LinkedHashMap<>();
+        for (DeviceInfo d : locked) {
+            if (d.getMerchantId() != null && !d.getMerchantId().isBlank()) {
+                byMerchant.computeIfAbsent(d.getMerchantId(), k -> new java.util.ArrayList<>()).add(d);
+            }
+        }
+        for (Map.Entry<String, List<DeviceInfo>> e : byMerchant.entrySet()) {
+            // 结清 = 不再欠款且无未结费用；只解本前缀锁住的设备，费用锁/人工锁不动
+            if (svc.inArrears(e.getKey()) || pendingFeeTotal(e.getKey()) > 0) {
+                continue;
+            }
+            for (DeviceInfo d : e.getValue()) {
+                try {
+                    salesLockService.applySalesLock(null, d, false, "钱包欠款已结清", true);
+                } catch (Exception ex) {
+                    log.warn("wallet arrears unlock failed device={}: {}", d.getDeviceId(), ex.getMessage());
+                }
             }
         }
     }

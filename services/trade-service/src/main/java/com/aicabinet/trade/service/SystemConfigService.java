@@ -952,6 +952,9 @@ public class SystemConfigService {
         upsertIfAbsent("merchant.wallet_arrears.alert_after_days", "90",
                 "商户钱包欠款账龄告警阈值（天），0=关闭：负余额连续满该天数 ⇒ 日结执行记录 + 运营群告警。"
                         + "只读探针，不改余额/提现/柜机锁售（CB-086；默认 90 与佣金冲正 90 天追溯窗同尺）");
+        upsertIfAbsent("merchant.wallet_arrears.lock_after_days", "90",
+                "商户钱包欠款锁柜阈值（天），0=关闭锁柜（告警可独立保留）：负余额连续满该天数 ⇒ 名下"
+                        + "未锁柜机停售（只锁未锁设备，不接管费用欠费锁），余额回到非负且无未结费用自动复机（CB-086）");
         upsertIfAbsent("line_route.chief_manager_ids", "0",
                 "总线路负责人（user_info.userId，多个用英文逗号分隔，如 1001,1002）；0=未指定，可随时改指");
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_CAP_CENTS, "0",
