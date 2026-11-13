@@ -817,7 +817,7 @@ if (/taskRepository\.save\s*\(/.test(schedulerSrc) || schedulerSrc.includes('set
       '清扫写状态必须走条件更新（WHERE status=快照态），否则并发完成的任务会被改回 CANCELLED'
   );
 }
-const taskMapperSrc = read(TASK_MAPPER_FILE);
+const _taskMapperSrc = read(TASK_MAPPER_FILE); // lint: 暂未消费，保留文件读取语义（并发会话 WIP 消费点落位后恢复命名）
 const cancelIfBodies = [
   ...mapperSrc.matchAll(/@Update\("""([\s\S]*?)"""\)\s*int cancelIfStatus/gu)
 ].map((m) => m[1]);
