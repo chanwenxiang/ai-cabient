@@ -640,7 +640,9 @@ public class InventoryLotService {
         int alerts = 0;
         if (!BLOCKED.equals(lot.getStatus())) {
             lot.setStatus(BLOCKED);
-            lotRepository.save(lot);
+            // R18-2 收口：过期扫描不在设备锁内，save 是绝对覆盖会与并发扣减竞争
+            // （用旧快照覆盖已扣量）——状态更新走只写 status/slot 的专用 UPDATE
+            lotRepository.updateStatusAndSlotById(lot.getLotId(), BLOCKED, null);
         }
         if (createPullOffTaskIfAbsent(lot, "EXPIRED")) {
             alerts++;
@@ -652,7 +654,8 @@ public class InventoryLotService {
         int alerts = 0;
         if (ON_SALE.equals(lot.getStatus())) {
             lot.setStatus(NEAR_EXPIRY);
-            lotRepository.save(lot);
+            // R18-2 收口：同上，状态更新走专用 UPDATE 不碰 quantity
+            lotRepository.updateStatusAndSlotById(lot.getLotId(), NEAR_EXPIRY, null);
             alerts++;
         }
         // 临期批次同步生成下架任务，避免只改状态无人处理
@@ -699,7 +702,8 @@ public class InventoryLotService {
                             ? "EXPIRED" : NEAR_EXPIRY;
                     if (ON_SALE.equals(lot.getStatus()) && NEAR_EXPIRY.equals(reason)) {
                         lot.setStatus(NEAR_EXPIRY);
-                        lotRepository.save(lot);
+                        // R18-2 收口：同上，状态更新走专用 UPDATE 不碰 quantity
+                        lotRepository.updateStatusAndSlotById(lot.getLotId(), NEAR_EXPIRY, null);
                     }
                     PullOffTask task = new PullOffTask();
                     task.setDeviceId(lot.getDeviceId());
