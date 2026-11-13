@@ -125,4 +125,43 @@ class RestockDoorCloseReportTest {
         assertFalse(doorService.applyRestockDoorClosed(null));
         verify(repository, never()).findLatestActiveRestockByDeviceId(anyString(), any());
     }
+
+    /// P3-待定④（拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md）：运营重试不得落到补货会话——
+    /// 旧实现仅校验状态，补货会话被异常扫描扫出后会被推进 consumer 结算链（订单/扣款/支付分副作用错挂）。
+    @Test
+    void opsRetry_onRestockSession_rejected409() {
+        ShoppingSession session = restockSession(SessionState.FAILED);
+        when(repository.findByIdForUpdate("S-RD-1")).thenReturn(Optional.of(session));
+
+        org.springframework.web.server.ResponseStatusException ex =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        org.springframework.web.server.ResponseStatusException.class,
+                        () -> service.retryForOperations("S-RD-1"));
+        assertEquals(org.springframework.http.HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("补货会话不支持运营重试识别/结算", ex.getReason());
+        assertEquals(SessionState.FAILED, session.getState(), "拒绝后不得改写会话状态");
+    }
+
+    /// 正向对照：消费者会话通过类型守卫进入重试。守卫专属断言 = clearFailReason 被调用
+    /// （仅在守卫通过后才会执行）；守卫之后的结算链失败会把状态合法打回 FAILED，不断言终态。
+    @Test
+    void opsRetry_onConsumerSession_guardPasses() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-CD-1");
+        session.setDeviceId("EG943322621391");
+        session.setState(SessionState.FAILED);
+        session.setVideoUri("video://x");
+        when(repository.findByIdForUpdate("S-CD-1")).thenReturn(Optional.of(session));
+        when(repository.findById("S-CD-1")).thenReturn(Optional.of(session));
+
+        try {
+            service.retryForOperations("S-CD-1");
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            assertFalse(String.valueOf(e.getReason()).contains("补货会话"),
+                    "消费者会话不得被类型守卫拦截");
+        } catch (Exception downstream) {
+            // 守卫已通过，下游结算链失败可接受
+        }
+        verify(repository).clearFailReason("S-CD-1");
+    }
 }

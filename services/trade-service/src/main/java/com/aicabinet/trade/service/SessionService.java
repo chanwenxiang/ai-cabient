@@ -454,6 +454,12 @@ public class SessionService {
                 SessionState.SETTLING).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不支持重新识别或结算");
         }
+        // P3-待定④（拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md，2026-11-13）：运营重试只服务消费者会话。
+        // 异常扫描按会话状态捞取、无 sessionKind 过滤，补货会话若被扫出，旧的仅状态校验会让它进入
+        // consumer 结算链（订单/扣款/支付分副作用错挂补货场景）。fail-closed 拒绝；补货异常走专用处置。
+        if (DeviceValidationService.isRestockSession(session)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补货会话不支持运营重试识别/结算");
+        }
         boolean hasVideo = session.getVideoUri() != null && !session.getVideoUri().isBlank();
         boolean hasGravity = session.getGravityDeltas() != null && !session.getGravityDeltas().isBlank();
         if (!hasVideo && !hasGravity && session.getOrderId() == null) {

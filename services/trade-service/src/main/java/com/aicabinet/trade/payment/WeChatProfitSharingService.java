@@ -427,6 +427,14 @@ public class WeChatProfitSharingService {
         if (merchant == null) {
             return false;
         }
+        // P3-待定③（CB-053 官方口径「先查单、同号重试防重复退款」，拍板材料 2026-11-13）：
+        // 重试前先查单——微信侧已受理（PROCESSING/SUCCESS）不再重提，防同号重复回退；
+        // 查单 FAILED（真失败或查询通道异常）才走同号重提（同号幂等兜底，outReturnNo 稳定存腿行）。
+        ReturnSubmitOutcome queried = queryReturnOutcome(leg.getOutReturnNo());
+        if (queried != ReturnSubmitOutcome.FAILED) {
+            self.applyReturnOutcome(split, leg, queried);
+            return true;
+        }
         ReturnSubmitOutcome outcome = self.returnMerchantShare(
                 split,
                 merchant,
