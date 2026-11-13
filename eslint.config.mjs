@@ -96,6 +96,15 @@ export default tseslint.config(
     files: ['scripts/**/*.mjs'],
     languageOptions: {
       globals: { ...globals.node }
+    },
+    rules: {
+      // 与 ts/vue 块同口径：未用变量 warn + ^_ 豁免。否则 .mjs 落入 recommended 的
+      // error 级无豁免——2026-11-13 推送预检实测：S14 收口批的 14 处脚手架变量
+      // （含 exports 上预留的消费点参数）会整体阻塞 CI lint。
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
+      ]
     }
   },
   {
