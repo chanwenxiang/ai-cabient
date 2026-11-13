@@ -44,6 +44,7 @@ public class SettlementConfirmDisputeService {
     private final SettlementOrderSupport orderSupport;
     private final OpsAlertDispatcher alertDispatcher;
     private final OpsExceptionService opsExceptionService;
+    private final CouponService couponService;
     private final SettlementConfirmDisputeService self;
 
     public SettlementConfirmDisputeService(ShoppingSessionMapper sessionRepository,
@@ -56,6 +57,7 @@ public class SettlementConfirmDisputeService {
                                            OpsExceptionService opsExceptionService,
                                            @Lazy SettlementService settlement,
                                            SettlementOrderSupport orderSupport,
+                                           CouponService couponService,
                                            @Lazy SettlementConfirmDisputeService self) {
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -67,6 +69,7 @@ public class SettlementConfirmDisputeService {
         this.orderSupport = orderSupport;
         this.alertDispatcher = alertDispatcher;
         this.opsExceptionService = opsExceptionService;
+        this.couponService = couponService;
         this.self = self;
     }
 
@@ -242,6 +245,11 @@ public class SettlementConfirmDisputeService {
         orderSupport.applyItemsToOrder(order, prep.newItems(),
                 SettlementOrderSupport.preservedActivityFromLines(order.getLines()));
         orderSupport.recalculatePayableAfterLineChange(order);
+        // P3-待定①（口径 B，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md，2026-11-13）：
+        // 改单后券未产生任何折扣（被活动覆盖——CB-082，或跌破门槛）→ 返还券并清订单券链接；
+        // 已产生折扣的维持 USED（CB-045 已享受不退）。放在 finalize（写路径）；prepare 只读不动券。
+        // 金额基线不受影响：折扣本就为 0，返还只改券状态与订单链接。
+        couponService.restoreUnappliedCouponOnOrder(order);
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
         }

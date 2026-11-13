@@ -71,7 +71,7 @@ class SettlementConfirmDisputeTest {
                 userValidationService, revenueSplitService,
                 org.mockito.Mockito.mock(OpsAlertDispatcher.class),
                 org.mockito.Mockito.mock(OpsExceptionService.class),
-                settlementService, orderSupport, null);
+                settlementService, orderSupport, couponService, null);
         this.confirmDisputeService = confirmSvc;
         org.springframework.test.util.ReflectionTestUtils.setField(confirmSvc, "self", confirmSvc);
         org.springframework.test.util.ReflectionTestUtils.setField(

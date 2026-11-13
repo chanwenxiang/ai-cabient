@@ -7,6 +7,7 @@ import com.aicabinet.trade.service.support.ReconciliationServiceSupport;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
+import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,8 +59,7 @@ class ReconciliationServiceTest {
     }
 
     @Test
-    void runDaily_matchedWhenPlatformEqualsLedger() {
-        LocalDate date = LocalDate.of(2024, 6, 1);
+    void runDaily_matchedWhenPlatformEqualsLedger() {        LocalDate date = LocalDate.of(2024, 6, 1);
         ZoneId zone = ZoneId.systemDefault();
         Instant start = date.atStartOfDay(zone).toInstant();
 
@@ -92,6 +92,52 @@ class ReconciliationServiceTest {
                 org.mockito.ArgumentMatchers.eq("PAYMENT_RECONCILIATION"),
                 org.mockito.ArgumentMatchers.eq("1"),
                 org.mockito.ArgumentMatchers.contains("rebuilt=false"));
+    }
+
+    /// P3-待定②（口径 C，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md）：重跑原地更新——
+    /// reconId/createdAt 承接旧行（audit 处置痕迹不脱链），不物理删除主行，仅明细行清后重写。
+    @Test
+    void runDaily_rerun_reusesReconIdInPlaceWithoutDeletingRow() {
+        LocalDate date = LocalDate.of(2024, 6, 2);
+        ZoneId zone = ZoneId.systemDefault();
+        Instant start = date.atStartOfDay(zone).toInstant();
+        Instant firstRunAt = Instant.parse("2024-06-02T09:00:00Z");
+
+        PaymentReconciliation existing = new PaymentReconciliation();
+        existing.setReconId(99L);
+        existing.setReconDate(date);
+        existing.setChannel("MOCK");
+        existing.setCreatedAt(firstRunAt);
+
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.of(existing));
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(350L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of("ORD-1"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of(
+                new PlatformBillLine("P1", "ORD-1", 350, start, "PAY", null, "{}")
+        ));
+        java.util.concurrent.atomic.AtomicReference<PaymentReconciliation> saved =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            saved.set(inv.getArgument(0, PaymentReconciliation.class));
+            return saved.get();
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        verify(reconRepository, never()).delete(any(PaymentReconciliation.class));
+        verify(billLineRepository).deleteByReconId(99L);
+        org.junit.jupiter.api.Assertions.assertNotNull(saved.get());
+        assertEquals(99L, saved.get().getReconId());
+        assertEquals(firstRunAt, saved.get().getCreatedAt());
+        assertEquals("MATCHED", result.status());
+        verify(auditService).appendLog(org.mockito.ArgumentMatchers.eq(100000001L),
+                org.mockito.ArgumentMatchers.eq("RECONCILIATION_RUN"),
+                org.mockito.ArgumentMatchers.eq("PAYMENT_RECONCILIATION"),
+                org.mockito.ArgumentMatchers.eq("99"),
+                org.mockito.ArgumentMatchers.contains("rebuilt=true"));
     }
 
     @Test
@@ -317,6 +363,8 @@ class ReconciliationServiceTest {
 
     @Test
     void runDaily_recomputesExistingReconciliation() {
+        // P3-待定②（口径 C，2026-11-13）：重跑改为「原地更新」——不再删除重建主行（audit 按
+        // reconId 关联的处置痕迹不脱链），仅明细行清后重写；reconId 承接旧行。
         LocalDate date = LocalDate.now();
         var existing = new com.aicabinet.trade.domain.PaymentReconciliation();
         existing.setReconId(9L);
@@ -331,16 +379,16 @@ class ReconciliationServiceTest {
         when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
         when(reconRepository.save(any())).thenAnswer(inv -> {
             var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
-            if (r.getReconId() == null) r.setReconId(10L);
             return r;
         });
 
         var result = service.runDaily(100000001L, date, "MOCK");
 
         assertEquals("MATCHED", result.status());
+        assertEquals(9L, result.reconId(), "原地更新：reconId 承接旧行");
         verify(billLineRepository).deleteByReconId(9L);
-        verify(reconRepository).delete(existing);
-        verify(reconRepository).flush();
+        verify(reconRepository, never()).delete(any(com.aicabinet.trade.domain.PaymentReconciliation.class));
+        verify(reconRepository, never()).flush();
     }
 
     @Test

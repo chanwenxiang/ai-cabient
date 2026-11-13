@@ -123,12 +123,13 @@ public class ReconciliationService {
             boolean rebuilt = false;
             var existing = reconRepository.findByReconDateAndChannel(date, ch);
             if (existing.isPresent()) {
+                // P3-待定②（口径 C，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md，2026-11-13）：
+                // 重跑不再「删除重建主行」——主行原地更新（reconId/createdAt 保留），audit 按 reconId
+                // 关联的人工处置痕迹不脱链；仅明细行按 reconId 清后重写。审计 rebuilt 标记照旧。
                 support.billLineRepository().deleteByReconId(existing.get().getReconId());
-                reconRepository.delete(existing.get());
-                reconRepository.flush();
                 rebuilt = true;
             }
-            PaymentReconciliationDto dto = toDto(doReconcile(date, ch));
+            PaymentReconciliationDto dto = toDto(doReconcile(date, ch, existing.orElse(null)));
             auditService.appendLog(operatorId, "RECONCILIATION_RUN", "PAYMENT_RECONCILIATION",
                     String.valueOf(dto.reconId()),
                     "date=" + date + ",channel=" + ch + ",rebuilt=" + rebuilt
@@ -157,7 +158,7 @@ public class ReconciliationService {
         }
     }
 
-    private PaymentReconciliation doReconcile(LocalDate date, String channel) {
+    private PaymentReconciliation doReconcile(LocalDate date, String channel, PaymentReconciliation existing) {
         Instant start = date.atStartOfDay(ZONE).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(ZONE).toInstant();
 
@@ -179,6 +180,11 @@ public class ReconciliationService {
         int unmatched = 0;
 
         PaymentReconciliation recon = new PaymentReconciliation();
+        if (existing != null) {
+            // 口径 C：原地更新——reconId/createdAt 承接旧行（audit 处置痕迹按 reconId 不脱链）
+            recon.setReconId(existing.getReconId());
+            recon.setCreatedAt(existing.getCreatedAt());
+        }
         recon.setReconDate(date);
         recon.setChannel(channel);
         recon.setLedgerTotal(ledgerTotal);

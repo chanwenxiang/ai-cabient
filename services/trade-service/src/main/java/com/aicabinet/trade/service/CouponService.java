@@ -691,6 +691,40 @@ public class CouponService {
         log.info("coupon released from order couponId={}", uc.getCouponId());
     }
 
+    /**
+     * P3-待定①（口径 B，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md，2026-11-13）：
+     * 争议改单后券**未产生任何折扣**（被活动覆盖——CB-082 活动优先，或改单后跌破券门槛）
+     * → 返还券（USED→UNUSED，复用退款回滚 CAS {@link UserCouponMapper#restoreUsedToUnused}）
+     * 并清订单券链接；**已产生折扣的维持 USED**（CB-045 商家券「已享受优惠不退」）。
+     * 清列单源走 {@link CabinetOrderMapper#clearOrderCouponColumns}（MA-147：updateById 跳 null）。
+     *
+     * @return true=券已返还；false=订单无券 / 折扣非零 / 券非 USED（幂等）
+     */
+    @Transactional
+    public boolean restoreUnappliedCouponOnOrder(CabinetOrder order) {
+        if (order == null || order.getCouponId() == null || order.getCouponDiscountCents() != 0) {
+            return false;
+        }
+        Long couponId = order.getCouponId();
+        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
+        if (uc == null || !"USED".equalsIgnoreCase(uc.getStatus())) {
+            return false;
+        }
+        if (userCouponRepository.restoreUsedToUnused(couponId) <= 0) {
+            return false;
+        }
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        releasePromotionBudgetIfAny(def);
+        order.setCouponId(null);
+        order.setCouponDiscountCents(0);
+        if (order.getOrderId() != null) {
+            orderRepository.clearOrderCouponColumns(order.getOrderId(), java.time.Instant.now());
+        }
+        log.info("unapplied coupon restored after order adjust orderId={} couponId={}",
+                order.getOrderId(), couponId);
+        return true;
+    }
+
     /** 核销时释放领券预留与实际抵扣的差额（如折扣券实抵小于面额）。 */
     private void reconcilePromotionBudgetOnUse(CouponDefinition def, int actualDiscountCents) {
         if (def == null || def.getActivityId() == null) {

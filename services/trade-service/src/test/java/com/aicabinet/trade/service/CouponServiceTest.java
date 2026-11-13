@@ -73,6 +73,57 @@ class CouponServiceTest {
         verify(promotionService, never()).requireExists(any());
     }
 
+    /// P3-待定①（口径 B，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md）：改单后券未产生
+    /// 任何折扣 → 返还（USED→UNUSED）+ 清订单券链接；已产生折扣 → 维持 USED 不返还。
+    @Test
+    void restoreUnappliedCoupon_returnsWhenDiscountZero() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R1");
+        order.setCouponId(55L);
+        order.setCouponDiscountCents(0);
+        UserCoupon uc = new UserCoupon();
+        uc.setCouponId(55L);
+        uc.setCouponDefId(7L);
+        uc.setStatus("USED");
+        when(userCouponRepository.findById(55L)).thenReturn(Optional.of(uc));
+        when(userCouponRepository.restoreUsedToUnused(55L)).thenReturn(1);
+
+        assertTrue(couponService.restoreUnappliedCouponOnOrder(order));
+
+        assertNull(order.getCouponId());
+        assertEquals(0, order.getCouponDiscountCents());
+        verify(userCouponRepository).restoreUsedToUnused(55L);
+        verify(orderRepository).clearOrderCouponColumns(eq("O-R1"), any(Instant.class));
+    }
+
+    @Test
+    void restoreUnappliedCoupon_keepsUsedWhenDiscountApplied() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R2");
+        order.setCouponId(56L);
+        order.setCouponDiscountCents(200);
+
+        assertFalse(couponService.restoreUnappliedCouponOnOrder(order));
+        verify(userCouponRepository, never()).restoreUsedToUnused(any());
+        verify(orderRepository, never()).clearOrderCouponColumns(anyString(), any());
+    }
+
+    @Test
+    void restoreUnappliedCoupon_idempotentWhenCouponNotUsed() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R3");
+        order.setCouponId(57L);
+        order.setCouponDiscountCents(0);
+        UserCoupon uc = new UserCoupon();
+        uc.setCouponId(57L);
+        uc.setStatus("UNUSED");
+        when(userCouponRepository.findById(57L)).thenReturn(Optional.of(uc));
+
+        assertFalse(couponService.restoreUnappliedCouponOnOrder(order));
+        verify(userCouponRepository, never()).restoreUsedToUnused(any());
+        verify(orderRepository, never()).clearOrderCouponColumns(anyString(), any());
+    }
+
     @Test
     void createDefinition_shouldBindActivityId() {
         var req = new CreateCouponRequest("预算券", "AMOUNT_OFF", 100, 100, null, 7, 10, "T-102", 1L);
