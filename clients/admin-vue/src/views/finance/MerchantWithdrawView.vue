@@ -843,7 +843,13 @@ function walletRowActions(_row: WalletRow): CrudRowAction[] {
   const acts: CrudRowAction[] = [];
   // CB-086：只有负余额才有「核销」动作（后端还会校验非 ACTIVE / 无在途提现与分账）
   if ((_row.balanceCents ?? 0) < 0 && auth.hasPerm('ops:merchant-withdraw:adjust')) {
-    acts.push({ key: 'writeoff', label: '核销欠款', icon: CircleClose, type: 'danger' });
+    acts.push({
+      key: 'writeoff',
+      label: '核销欠款',
+      icon: CircleClose,
+      type: 'danger',
+      perm: 'ops:merchant-withdraw:adjust'
+    });
   }
   return [
     ...acts,
@@ -1111,6 +1117,14 @@ const arrearsExporting = ref(false);
 async function exportArrearsCsv() {
   arrearsExporting.value = true;
   try {
+    // 空名单也会下载成功（只有表头），运营分不清「平台没欠款」和「这些商户不归你管」，
+    // 所以先按 CSV 同源口径问一次总数再提示。探测失败不阻断下载。
+    const total = await probeArrearsCount();
+    if (total === 0) {
+      ElMessage.warning(
+        '当前没有可导出的欠款商户（名单只有表头）；若你是线长，也可能是欠款商户不在你的范围内'
+      );
+    }
     await downloadAuthFile(
       AdminEndpoints.merchantWalletsArrearsCsv,
       csvFileName('merchant-wallet-arrears')
@@ -1119,6 +1133,17 @@ async function exportArrearsCsv() {
     ElMessage.error(errorMessage(e, '导出失败'));
   } finally {
     arrearsExporting.value = false;
+  }
+}
+
+/** 与 arrears.csv 同口径的欠款数；拿不到返回 null（区别于「确实是 0」，不打扰提示）。 */
+async function probeArrearsCount(): Promise<number | null> {
+  try {
+    const q = new URLSearchParams({ page: '0', size: '1', onlyNegative: 'true' });
+    const res = await api.request<{ total: number }>(AdminEndpoints.merchantWalletsList(q), 'GET');
+    return res?.total ?? 0;
+  } catch {
+    return null;
   }
 }
 
