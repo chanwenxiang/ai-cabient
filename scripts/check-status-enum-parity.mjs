@@ -38,7 +38,8 @@ const MIGRATIONS = [
   'V469__status_check_batch6_device.sql',
   'V470__status_check_batch7_masterdata.sql',
   'V471__status_check_batch8_content.sql',
-  'V472__status_check_batch9_sysdict_media.sql'
+  'V472__status_check_batch9_sysdict_media.sql',
+  'V473__status_check_batch10_ops_activations.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -133,10 +134,10 @@ function extractChecks(sql) {
   return out;
 }
 
-/** R6：从全部 V*.sql 的 CREATE TABLE 块自动提取 table.column -> DEFAULT 字面量。 */
+/** R6：从全部 V*.sql 的 CREATE TABLE 块 + ALTER TABLE ADD COLUMN 自动提取 table.column -> DEFAULT 字面量。 */
 function collectDdlDefaults(sqlFiles) {
   const map = new Map();
-  for (const [, raw] of sqlFiles) {
+  for (const [p, raw] of sqlFiles) {
     const s = maskSql(raw);
     const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(/gi;
     let m;
@@ -148,6 +149,19 @@ function collectDdlDefaults(sqlFiles) {
         if (!cm) continue;
         const dm = /DEFAULT\s+'([^']*)'/i.exec(part);
         map.set(`${table}.${cm[1]}`, dm ? dm[1] : null);
+      }
+    }
+    // ALTER TABLE <t> ... ; 内逐条 ADD COLUMN [IF NOT EXISTS] <col> <type> ... DEFAULT 'X'
+    // （覆盖 V18 多子句 ALTER / V96 等追加列的默认值形态；一条 ALTER 可含多个逗号分隔 ADD COLUMN）
+    const alterRe = /ALTER\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\b([\s\S]*?);/gi;
+    let alt;
+    while ((alt = alterRe.exec(s))) {
+      const table = alt[1];
+      const body = alt[2];
+      const addRe = /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+(?:VARCHAR|CHARACTER\s+VARYING|TEXT|SMALLINT|INT|INTEGER|BIGINT|NUMERIC|BOOLEAN)\b[^,;]*?DEFAULT\s+'([^']*)'/gi;
+      let add;
+      while ((add = addRe.exec(body))) {
+        map.set(`${table}.${add[1]}`, add[2]);
       }
     }
   }
@@ -359,6 +373,8 @@ function selfTest() {
       (s) => s.replace(/ALTER TABLE repair_ticket[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
     ['DDL DEFAULT 改成族外值', DDL_WITHDRAW,
       (s) => s.replace("DEFAULT 'PENDING_REVIEW'", "DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT'],
+    ['ALTER 加列 DEFAULT 越界', `${MIG_DIR}/V68__enhance_existing_tables.sql`,
+      (s) => s.replace("DEFAULT 'ACTIVE'", "DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT'],
     ['源码锚点写入越界值', MAPPER_WITHDRAW,
       (s) => s.replace('set(MerchantWithdrawRequest::getStatus, "PAYING")',
                        'set(MerchantWithdrawRequest::getStatus, "TOTALLY_BOGUS")'), '源码锚点写入值'],
@@ -373,6 +389,12 @@ function selfTest() {
     ['V472 迁移去掉 NOT VALID', MIGRATIONS[8],
       (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
     ['V472 CHECK 漏一个合法状态', MIGRATIONS[8],
+      (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
+    ['V473 迁移删掉一条约束', MIGRATIONS[9],
+      (s) => s.replace(/ALTER TABLE ops_department[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['V473 迁移去掉 NOT VALID', MIGRATIONS[9],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['V473 CHECK 漏一个合法状态', MIGRATIONS[9],
       (s) => s.replace(/CHECK \(status IN \('ACTIVE','INACTIVE'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
     ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
       (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
