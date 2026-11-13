@@ -16,6 +16,56 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "6ec0d2e1",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MP-J 死导入 absoluteImageUrl ×4（mp-defect-classes J 类清零，连带修 mp-gate-negative ⓪）",
+          "files": [
+            "clients/consumer-mp/src/components/marketing-ad-banner.vue",
+            "clients/consumer-mp/src/pages/marketing/index.vue",
+            "clients/consumer-mp/src/pages/orders/orders.vue",
+            "clients/merchant-mp/src/pages/device-detail/device-detail.vue"
+          ]
+        },
+        {
+          "id": "shared-dict dist 重建（P3-1 批 11~16 新增字典族落 dist，shared-dist-fresh）",
+          "files": [
+            "packages/shared-dict/dist/index.d.ts",
+            "packages/shared-dict/dist/index.js"
+          ]
+        },
+        {
+          "id": "barehex 棘轮判据校准：var(--token,#hex) 令牌兜底剥离 + 基线显式重冻结（负向验证：注入→红→还原→绿）",
+          "files": [
+            "scripts/check-ui-barehex-ratchet.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "6cf9d58d",
+      "report": "docs/AUDIT_STRUCTURAL_BACKLOG_2026-11-12.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "feature-flags temperature_days 补 seed（feature-flags 门禁 R3：源码读了但注册表没有）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java"
+          ]
+        },
+        {
+          "id": "fix-batch 登记上一批 706dff7d（preflight 登记类修复）",
+          "files": [
+            "scripts/fix-batch-registry.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
