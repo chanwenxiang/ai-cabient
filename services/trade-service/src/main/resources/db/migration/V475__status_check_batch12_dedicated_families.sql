@@ -25,7 +25,7 @@
 --          · disposition_status：RiskAutoDispositionService 119(AUTO_CLEARED) 139(ACKED)；DDL DEFAULT 'OPEN'(V191:3) ∈ 族。
 --          · review_status：SkuDelistReviewService 154/164(PENDING) 233(DELISTED) 240(KEPT) 242(RECOMMEND_DELIST)；
 --            DDL DEFAULT 'PENDING'(V163:167) ∈ 族。
---        🔴 门禁 R7 同批升级：键由实体类聚合改为 `${cls}::${getter}` 按列精确锚定——DeviceInfo（online_status/
+--        🔴 门禁 R7 同批升级：键由实体类聚合改为「实体类名::getter 名」按列精确锚定——DeviceInfo（online_status/
 --        lifecycle_status 双列）、WarehouseOutbound（status/handover_status 双列）若按类聚合会把 A 列写入值错拿去
 --        对 B 列 CHECK（跨列污染，铁律 84② 判据贴真实责任边界）。41 列存量回归全绿。
 --        登记排除（本批新增，不为减小数字硬造值域）：device_lifecycle_event.from_status/to_status——历史轨迹列，
