@@ -98,6 +98,33 @@ function nthArg(src, openIdx, n) {
   return null;
 }
 
+// ---------- 自检（S8③/S8④：--self-test 单独可跑的内联负向夹具） ----------
+function selfTest() {
+  // stripComments：块注释/行注释剥除；URL 的 // 不得吃掉后续真值
+  if (stripComments('/* c */ x') !== ' x') fail('selfTest: stripComments 块注释漂移');
+  if (stripComments('url(https://a/b) KEEP') !== 'url(https://a/b) KEEP')
+    fail('selfTest: stripComments 误把 URL 协议当行注释（(^|[^:]) 守卫失效）');
+  // resolveCode：字面量 / 局部常量 / 全局常量 / 不可解析四态
+  const fakeFile = 'F.java';
+  bodies.set(fakeFile, 'static final String G = "GLOBAL_CODE";\nString LOCAL = "LOCAL_CODE";');
+  if (resolveCode('"LITERAL"', fakeFile) !== 'LITERAL') fail('selfTest: resolveCode 字面量态漂移');
+  if (resolveCode('LOCAL', fakeFile) !== 'LOCAL_CODE') fail('selfTest: resolveCode 局部常量态漂移');
+  if (resolveCode('G', fakeFile) !== 'GLOBAL_CODE') fail('selfTest: resolveCode 全局常量态漂移');
+  if (resolveCode('NOT_DEFINDED_XYZ', fakeFile) !== null)
+    fail('selfTest: resolveCode 不可解析态应返回 null（进动态站点登记）');
+  // nthArg：嵌套括号切参（Map.of(...)）、多参定位
+  const src = 'notificationService.notifyConsumer(u, "CODE_A", Map.of("k", "v"), x);';
+  const open = src.indexOf('(');
+  if (nthArg(src, open, 2) !== '"CODE_A"') fail('selfTest: nthArg 第 2 参漂移');
+  if (nthArg(src, open, 3) !== 'Map.of("k", "v")') fail('selfTest: nthArg 嵌套括号切参漂移');
+}
+
+if (process.argv.includes('--self-test')) {
+  selfTest();
+  console.log('check-notification-template-seeded: self-test OK');
+  process.exit(0);
+}
+
 const sites = []; // { code, where }
 const dynamicSites = [];
 // 动态站点白名单：实参无法静态求值的调用点，人工登记取值集合（新增必登记）。

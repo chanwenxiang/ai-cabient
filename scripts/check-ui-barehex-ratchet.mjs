@@ -194,8 +194,8 @@ function hasPath(counts, segment) {
   return Object.keys(counts.perFile).some((f) => f.replaceAll('\\', '/').includes(segment));
 }
 
-// ---------- 自检（防恒真/恒假） ----------
-(function selftest() {
+// ---------- 自检（防恒真/恒假；--self-test 单独可跑，S8③/S8④ 源码自动识别夹具形态） ----------
+function selfTest() {
   const fake = {
     'a.vue': '#2dd4bf #fff #ffffff rgba(0, 0, 0, 0.2) rgba(var(--x), 0.2)',
     'b.vue': 'no color here',
@@ -243,7 +243,14 @@ function hasPath(counts, segment) {
   if (!hasPath({ perFile: { 'a\\components\\x.vue': {} } }, '/components/')) {
     fail('selftest: hasPath 漏报 Windows 路径');
   }
-})();
+}
+
+if (process.argv.includes('--self-test')) {
+  selfTest();
+  console.log(TAG + ' self-test OK');
+  process.exit(0);
+}
+selfTest();
 
 function fail(msg) {
   console.error(`${TAG} FAIL: ${msg}`);

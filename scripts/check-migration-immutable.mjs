@@ -82,6 +82,38 @@ function parseNameStatus(out) {
   return hits;
 }
 
+// ---------- 自检（S8③/S8④：--self-test 单独可跑的内联负向夹具） ----------
+function selfTest() {
+  // parseNameStatus：M/R100/D 三形态，仅 migration 目录 .sql 命中
+  const sample = [
+    'M\tservices/trade-service/src/main/resources/db/migration/V1__a.sql',
+    'R100\tservices/trade-service/src/main/resources/db/migration/V2__a.sql\tservices/trade-service/src/main/resources/db/migration/V3__a.sql',
+    'M\tclients/admin-vue/src/views/Foo.vue',
+    'D\tservices/trade-service/src/main/resources/db/migration/V4__b.sql',
+    ''
+  ].join('\n');
+  const hits = parseNameStatus(sample);
+  if (hits.length !== 3)
+    fail(`selfTest: parseNameStatus 应命中 3 条 migration 行，实际 ${hits.length}`);
+  if (hits[0].status !== 'M' || hits[0].paths.length !== 1) fail('selfTest: M 形态解析漂移');
+  if (hits[1].status !== 'R100' || hits[1].paths.length !== 2)
+    fail('selfTest: R 形态须保留 old/new 双路径（version 记账靠它）');
+  if (hits[2].status !== 'D') fail('selfTest: D 形态解析漂移');
+  // ACK_RE：豁免头形态匹配；非豁免注释不匹配
+  if (!ACK_RE.test('-- MIGRATION_IMMUTABLE_EXEMPT: 理由说明'))
+    fail('selfTest: 豁免头标准形态未匹配');
+  if (!ACK_RE.test('  ---- MIGRATION_IMMUTABLE_EXEMPT: 带前导横线与缩进'))
+    fail('selfTest: 豁免头缩进形态未匹配');
+  if (ACK_RE.test('-- 普通注释 MIGRATION_IMMUTABLE_EXEMPT 少冒号'))
+    fail('selfTest: 无冒号行不应匹配豁免头');
+}
+
+if (process.argv.includes('--self-test')) {
+  selfTest();
+  console.log(TAG + ' self-test OK');
+  process.exit(0);
+}
+
 const checks = [
   [
     '已提交变更（base...HEAD）',
