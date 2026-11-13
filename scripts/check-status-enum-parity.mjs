@@ -44,7 +44,8 @@ const MIGRATIONS = [
   'V472__status_check_batch9_sysdict_media.sql',
   'V473__status_check_batch10_ops_activations.sql',
   'V474__status_check_batch11_user_account_status.sql',
-  'V475__status_check_batch12_dedicated_families.sql'
+  'V475__status_check_batch12_dedicated_families.sql',
+  'V476__status_check_batch13_approval_coupon.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -420,6 +421,14 @@ function selfTest() {
       (s) => s.replace(/CHECK \(status IN \('ON_SALE','NEAR_EXPIRY','BLOCKED','DEPLETED'\)\)/, "CHECK (status IN ('ON_SALE','NEAR_EXPIRY','BLOCKED'))"), 'CHECK 值域与字典族不同源'],
     ['V475 多状态列跨列污染回归（R7 按 getter 锚定后仍须咬住）', MIGRATIONS[11],
       (s) => s.replace(/CHECK \(lifecycle_status IN \('IDLE','INBOUND','DEPLOYED','RETURNING','RETIRED'\)\)/, "CHECK (lifecycle_status IN ('IDLE','INBOUND','RETURNING','RETIRED'))"), 'CHECK 值域与字典族不同源'],
+    ['V476 迁移删掉一条约束', MIGRATIONS[12],
+      (s) => s.replace(/ALTER TABLE approval_instance[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['V476 迁移去掉 NOT VALID', MIGRATIONS[12],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['V476 task CHECK 混入 SKIPPED 到 instance（分族判据）', MIGRATIONS[12],
+      (s) => s.replace(/CHECK \(status IN \('PENDING','APPROVED','REJECTED'\)\)\s*\n\s*NOT VALID;\nALTER TABLE approval_task/, "CHECK (status IN ('PENDING','APPROVED','REJECTED','SKIPPED'))\n  NOT VALID;\nALTER TABLE approval_task"), 'CHECK 值域与字典族不同源'],
+    ['V476 CHECK 漏 SKIPPED（task 域收窄假绿测试）', MIGRATIONS[12],
+      (s) => s.replace(/CHECK \(status IN \('PENDING','APPROVED','SKIPPED','REJECTED'\)\)/, "CHECK (status IN ('PENDING','APPROVED','REJECTED'))"), 'CHECK 值域与字典族不同源'],
     ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
       (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
                        "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']

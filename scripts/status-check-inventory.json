@@ -1,7 +1,7 @@
 {
-  "batch": 12,
+  "batch": 13,
   "baselineMissingCheck": 87,
-  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）；第 12 批转入②类：7 列复用既有专用族（upload_status/handover_status×2/device_lifecycle/inventory_lot_status/risk_disposition_status/sku_review_status），零新族，门禁 R7 同批升级为按 getter 精确锚定（防同实体多状态列跨列污染）。",
+  "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）；第 12 批转入②类：7 列复用既有专用族（upload_status/handover_status×2/device_lifecycle/inventory_lot_status/risk_disposition_status/sku_review_status），零新族，门禁 R7 同批升级为按 getter 精确锚定（防同实体多状态列跨列污染）；第 13 批建 3 个专用族（approval_instance_status/approval_task_status 两列域不同必须分族 + coupon_status）销账审批链与用户券 3 列。",
   "tables": [
     {
       "table": "cabinet_order",
@@ -98,15 +98,6 @@
       "column": "status",
       "dictFamily": "purchase_order_status",
       "constraint": "chk_purchase_order_status",
-      "chain": "order",
-      "batch": 3,
-      "migration": "V466__status_check_batch3_order.sql"
-    },
-    {
-      "table": "merchant_replenishment_request",
-      "column": "status",
-      "dictFamily": "replenishment_request_status",
-      "constraint": "chk_merchant_replenishment_request_status",
       "chain": "order",
       "batch": 3,
       "migration": "V466__status_check_batch3_order.sql"
@@ -434,9 +425,36 @@
       "chain": "masterdata",
       "batch": 12,
       "migration": "V475__status_check_batch12_dedicated_families.sql"
+    },
+    {
+      "table": "approval_instance",
+      "column": "status",
+      "dictFamily": "approval_instance_status",
+      "constraint": "chk_approval_instance_status",
+      "chain": "ops",
+      "batch": 13,
+      "migration": "V476__status_check_batch13_approval_coupon.sql"
+    },
+    {
+      "table": "approval_task",
+      "column": "status",
+      "dictFamily": "approval_task_status",
+      "constraint": "chk_approval_task_status",
+      "chain": "ops",
+      "batch": 13,
+      "migration": "V476__status_check_batch13_approval_coupon.sql"
+    },
+    {
+      "table": "user_coupon",
+      "column": "status",
+      "dictFamily": "coupon_status",
+      "constraint": "chk_user_coupon_status",
+      "chain": "order",
+      "batch": 13,
+      "migration": "V476__status_check_batch13_approval_coupon.sql"
     }
   ],
-  "maxPendingColumns": 39,
+  "maxPendingColumns": 37,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",
@@ -462,7 +480,7 @@
     "notification_template.status"
   ],
   "excludedNote": "业务链候选 39 列中前 8 批覆盖 20 列；第 9~11 批覆盖 11 列（第 9~10 批用通用族 active_inactive_status 10 列、第 11 批用专用族 user_account_status 收口 user_info 并从本名单解停泊）；第 12 批起转入②类复用既有专用族覆盖 7 列。本名单余下列为显式欠账：无权威字典族 / 源码值域与字典族不符 / 历史轨迹列 / 表由未部署迁移创建，不为减小数字硬造值域。第 10 批登记排除 ops_permission(dev 含 RETIRED)/jiangyi_class_mapping(dev 含 DISABLED)/notification_template(前端无停用入口)；第 12 批新增排除 device_lifecycle_event.from_status/to_status(历史轨迹列，同 repair_ticket_event 先例)；jiangyi_class_mapping.status 已销案出名单（dev 历史迁移 ck_jiangyi_class_status {ACTIVE,DISABLED} 已收口，2026-11-13 实测）。 第 6~8 批另有 2 列实证不符，登记在 nextChainExcluded（同样不为减小数字硬造值域）。",
-  "pendingNote": "dev 实测 87 列缺 CHECK（2026-11-12 基线口径，冻结），累计覆盖 48 列 ⇒ 账面欠账 39，棘轮只减不增（门禁自动派生校验）。2026-11-13 复测当前实际缺 CHECK 86 列：jiangyi_class_mapping.status 已由历史迁移 ck_jiangyi_class_status {ACTIVE,DISABLED} 收口（销案出本名单），另有约 6 列属未部署迁移将建的表（franchise_settlement/line_manager_settlement/order_split_return_leg/revenue_share_detail/revenue_share_rule 等，部署后按批处理）。",
+  "pendingNote": "dev 实测 87 列缺 CHECK（2026-11-12 基线口径，冻结），累计覆盖 50 列 ⇒ 账面欠账 37，棘轮只减不增（门禁自动派生校验）。2026-11-13 复测：merchant_replenishment_request 已于 V346 DROP（S14 移除其死 CHECK 正确，销案出本清单）；points_redeem_item（V136 DROP 后 V163:51 重建，dev 6 行）与 line_manager（V129 DROP 后 V133 重建，dev 表在）被 S14 误判死语句、约束已恢复；jiangyi_class_mapping.status 已由历史迁移 ck_jiangyi_class_status {ACTIVE,DISABLED} 收口（销案出本名单）；另有约 6 列属未部署迁移将建的表（franchise_settlement/line_manager_settlement/order_split_return_leg/revenue_share_detail/revenue_share_rule 等，部署后按批处理）。判死语句必须以 dev 库 to_regclass 实测为准——静态声明表集分析会被 DROP→重建 序列骗过。",
   "nextChainExcluded": [
     {
       "column": "warehouse_bin.status",

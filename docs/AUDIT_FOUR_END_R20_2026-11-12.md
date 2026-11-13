@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 12 批 / 48 列（§二十六~§三十二，余 39 列为显式欠账 + 22 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 13 批 / 50 列（§二十六~§三十三，余 37 列为显式欠账 + 22 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 12 批（§二十六~§三十二）**——V464~V475 共 48 列、门禁 7 组判据 / 35 变异、真库验收，余 39 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 13 批（§二十六~§三十三）**——V464~V476 共 50 列、门禁 7 组判据 / 39 变异、真库验收，余 37 列按批销账。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；再建 3 专用族销账审批链与用户券（§三十三）落 V476 共 3 列，39 → **37**；剩余继续按批销账。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1567,3 +1567,36 @@ DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然
 - 剩余候选约 20 列：无族列需建专用族（approval_instance/approval_task 审批链、user_coupon 兑换券、promotion_activity 营销活动、notification_log、merchant.audit_status、ota_*、invoice_request、line_device/line_route/line_route_member、device_mqtt_credential、external_import_batch、device_rental_deposit、pull_off_task、shopping_session.preauth_status、user_realname_auth.auth_status、warehouse_inbound、purchase_order_line.quality_status 等），须逐列建族+双端字典，工作量大于复用批，按链分批。
 - 部署仍待：V463 + V464~V475 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的迁移 / 清单 / 门禁 / 报告（铁律 61）；期间按铁律 69 以 `up -d --pull never --no-deps postgres` 恢复了被 Docker 守护进程重启杀掉的 dev postgres（只读探针，未动栈）。
+
+## 三十三、P3-1 第 13 批：建 3 专用族销账审批链与用户券 + 🔴 协作复核 S14 死语句判定（2026-11-13）
+
+### 三十三.1 域实证与分族决策
+
+- **approval_instance.status ← approval_instance_status {PENDING,APPROVED,REJECTED}**：ApprovalWorkflowService 122/143(PENDING) 247(APPROVED) 287(REJECTED)，mapper 仅 .eq 读。X 不含 CANCELLED——该值只在重启守卫防御性读取（:172 equalsIgnoreCase）出现，全仓无写点，死分支不入域；X 不含 SKIPPED——跳过是任务级语义（并签非 assignee 行），instance 无此态。
+- **approval_task.status ← approval_task_status {PENDING,APPROVED,SKIPPED,REJECTED}**：214/232/277/281 + 创建即 PENDING。
+- 🔴 **两列域不同 ⇒ 必须分族**（R2 要求 CHECK 与族字面相等）：不为凑数用宽族放宽 instance 的 CHECK 去兼容 task 的 SKIPPED。
+- **user_coupon.status ← coupon_status {UNUSED,USED,EXPIRED}**：CouponService 225(发放) 307/742(核销) 786(过期任务) + UserCouponMapper:131 退款回滚 set(getStatus,"UNUSED")（R7 捕获点）+ 实体默认；CabinetConstants.COUPON_STATUS_* 三值常量齐备，与 dev 实测 DISTINCT 三值完全吻合。
+- DDL DEFAULT 全 ∈ 值域（R6）：V228:29/V228:46('PENDING')、V66:54('UNUSED')。
+
+### 三十三.2 🔴 协作复核：S14 死语句判定 3 判 1 对（铁律 7/9/13：核实≠采信，判定须 dev 库实测）
+
+- 并发会话 S14（迁移不可变豁免修复批）以「表已 DROP、CHECK 为死语句」移除了 3 个约束并加 `MIGRATION_IMMUTABLE_EXEMPT` 头。逐一以 dev 库 `to_regclass` 实测复核：
+  - ✅ **merchant_replenishment_request**：V346:23 DROP，dev 表不存在——移除**正确**（其 CHECK 若部署会因表缺失直接 FAIL）。自清单销案（覆盖 51→50）。
+  - ❌ **points_redeem_item**：V136:5 DROP，但 **V163:51 `CREATE TABLE IF NOT EXISTS` 重建**（dev 实测表在且 6 行）——移除**错误**，约束已恢复。
+  - ❌ **line_manager**：V129:5 DROP，但 **V133 重建**（dev 实测表在）——移除**错误**，约束已恢复。
+- 🔴 **方法论沉淀**：静态「声明表集」分析会被 DROP→重建 序列系统性骗过（本例 3 判 1 对，另 line_device 同型）；判死语句必须以 dev 库 `to_regclass` 实测为准。S14 豁免头已改写为准确结论并保留豁免格式（其 `check-migration-immutable` 门禁解析不受影响）。
+- V466 的 S14 修正经复核正确，随本批一并提交（避免提交快照含会致部署失败的死语句）。
+
+### 三十三.3 落 V476 + 清单 + 门禁 + 真库验收
+
+- **`V476__status_check_batch13_approval_coupon.sql`**：3 条 NOT VALID，迁移头含逐列写入点穷举、分族依据、CANCELLED 死分支说明、脏值探针 SQL。
+- **清单**：`tables` 48 → 50（+3 批 13、−1 销案）、`maxPendingColumns` 39 → 37（R5 派生 `87 − 50`）、`batch`=13。
+- **门禁**：`MIGRATIONS` 增 V476（第 13 个）；self-test 增 4 个 V476 变异（含「instance CHECK 混入 SKIPPED」钉分族判据、「task CHECK 漏 SKIPPED」钉收窄假绿）。**正向门禁 50 列三方对齐 + 13 迁移全 NOT VALID + 棘轮 37 全绿；self-test 39 变异全绿、md5 零残留。**
+- **真库验收**（一次性 PG 16-alpine，V470+V473+V476 全量管道）：14 约束生效；20 次插入成功（14 默认 + 6 族内值）；6 类越界全被拒——**含分族活体测试**（instance 拒 task 专属值 SKIPPED、拒死分支值 CANCELLED）与**恢复约束回归**（points_redeem_item 拒 TOTALLY_BOGUS、line_manager 拒 RETIRED）；ROLLBACK 零残留，容器即删。
+
+### 三十三.4 欠账销账与遗留
+
+- 账面欠账 **39 → 37**（覆盖 50 列，`87 − 50`），棘轮只减不增。
+- 剩余候选约 17 列：notification_log / merchant.audit_status / ota_release / ota_device_report.upgrade_status / invoice_request / line_device / line_route / line_route_member / device_mqtt_credential / external_import_batch / device_rental_deposit / pull_off_task / shopping_session.preauth_status / user_realname_auth.auth_status / warehouse_inbound / purchase_order_line.quality_status 等，须逐列建族+双端字典，按链分批（下一批建议：notification/OTA/杂项简单状态链）。
+- 部署仍待：V463 + V464~V476 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP（含 S14 其余迁移修复），本轮只精确提交自己复核过的文件（铁律 61）。

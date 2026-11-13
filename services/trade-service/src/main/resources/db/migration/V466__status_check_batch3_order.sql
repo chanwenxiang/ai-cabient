@@ -1,3 +1,5 @@
+-- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批——merchant_replenishment_request（V346 DROP）的 CHECK 约束为死语句，移除；
+--   其余 7 表约束保留。测试库重建消化 checksum。
 -- MIGRATION_KIND: schema
 -- COMPETITOR_REF: CB-036
 -- MIGRATION_REVIEWED: yes
@@ -24,10 +26,7 @@ ALTER TABLE purchase_order
   CHECK (status IN ('CANCELLED','CREATED','PARTIAL_RECEIVED','PENDING_APPROVAL','RECEIVED','REJECTED'))
   NOT VALID;
 
-ALTER TABLE merchant_replenishment_request
-  ADD CONSTRAINT chk_merchant_replenishment_request_status
-  CHECK (status IN ('ACCEPTED','COMPLETED','REJECTED','SUBMITTED'))
-  NOT VALID;
+-- merchant_replenishment_request 已于 V346 DROP：原 CHECK 约束为死语句，已移除（S14 表名声明集修复）。
 
 ALTER TABLE replenishment_task
   ADD CONSTRAINT chk_replenishment_task_status

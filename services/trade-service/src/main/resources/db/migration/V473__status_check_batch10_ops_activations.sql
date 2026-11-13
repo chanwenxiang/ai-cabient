@@ -1,3 +1,6 @@
+-- MIGRATION_IMMUTABLE_EXEMPT: S14 修复批 + P3-1 复核修正——points_redeem_item 于 V136:5 DROP 后经 V163:51
+--   CREATE TABLE IF NOT EXISTS 重建（dev 实测 2026-11-13 to_regclass=true 且 6 行），CHECK 非死语句，恢复；
+--   静态「声明表集」分析会被 DROP→重建 序列骗过，判死语句必须以 dev 库 to_regclass 实测为准。测试库重建消化 checksum。
 -- MIGRATION_KIND: schema
 -- COMPETITOR_REF: CB-036
 -- MIGRATION_REVIEWED: yes
