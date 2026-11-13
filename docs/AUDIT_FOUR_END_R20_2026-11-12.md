@@ -25,6 +25,24 @@
 - `UnpaidOrderService.cancelSingleExpiredOrder:341-373` 只 `setStatus(CANCELLED)`，**无 voidSplit / 无积分追回**。
 - 后果：LEDGER_ONLY 下商户钱包在用户一分钱没付时就入账并可提现；用户白得积分与消费统计。
 - **修法**：分账/发积分/统计一律挪到「实收确认」（DONE 回调或补缴成功）之后；取消路径补 void+clawback。
+- ✅ **已修（2026-11-13 两批：`95cee3c3` + 本批）**：判据单源 `OrderCollectionGate.collected(order)`
+  （未实收集 = `PENDING`/`CANCELLED`；刻意不写成 `== PAID`，否则改单重算/退款单会被静默少入账）。
+  - 商户钱包侧：`doRecordSplit` 新建行与「改单转 LEDGER_ONLY」两处入账都过门；「已存在分账行」早退支
+    改为实收后的自愈入口，`PayScoreOrderNotifyService.handlePaid` 在订单置 PAID 后重进 `recordSplit`。
+    幂等仍由 `splitId` + V379 ref 部分唯一索引兜（`WalletRefIdempotencySqlIT`）。
+  - 用户资产/文案侧：结算时的 `memberService.onOrderPaid`（消费统计+返积分）与 `order_paid` 通知
+    同样推迟到实收确认；`onOrderPaid` 自身已有 ORDER 流水 orderId 去重（MemberService:218），
+    重进不双发；基数沿用订单总额，与补缴路径逐字同口径——**本批只改时点，不顺手改基数**。
+  - 订正我此前的过度陈述：`freezePaidAmount` 其实**已经**被实收证据门住——
+    `PaymentOperationMapper.chargedCompletedCents:156-166` 只累加 COMPLETED 的
+    CHARGE/ADJUST_CHARGE/PREAUTH_CAPTURE，支付分腿此刻没有这笔流水 ⇒ 调用发生但写入 0。
+  - 验证：`SettlementUncollectedLegsTest` 2 例（PENDING 不发不通知 / PAID 照旧，后者是「门没加反」哨兵）、
+    `PayScoreOrderNotifyTest` DONE 补做两腿 + EXPIRED 零交互、`RevenueSplitServiceTest` 4 例；
+    变异验证两处（状态集掏空 ⇒ 3/4 红；`if (true)` ⇒ 结算侧红），均 `cmp` 逐字节还原。
+  - ⚠️ 仍未做：`EXPIRED/REVOKED` 终态没有 void/clawback 动作——现在**不再需要**（未实收单从未入账、
+    从未发分），但历史上若存在「未实收已入账」的存量，需要一次性对账 SQL 才能定性；
+    运营「确认完结 LEDGER_ONLY」入口仍无实收门（MerchantService 无订单上下文）。
+
 - 🔎 **2026-11-13 复核「部分属实」这一判定不成立（结论仍为「对」）**：
   - 说「109 有守卫 ⇒ recordSplit 非字面无条件」——**对**；但守卫的语义前提在支付分腿不成立：
     `SettlementOrderFinalizeService.tryChargeSettledOrder:198-200` 只要 `chargeOrder` **不抛异常就 return true**；
