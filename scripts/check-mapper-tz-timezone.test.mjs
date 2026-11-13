@@ -48,7 +48,10 @@ function assert(cond, message) {
 // 5) 例外必须显式记账：裸用 + allowlist 带理由 ⇒ 放行；不带理由条目无来源区分（条目即理由）
 {
   const src = `<select>SELECT to_char(o.created_at, 'YYYY-MM-DD')</select>`;
-  assert(evaluateXml(src, 'a.xml', [{ file: 'a.xml', why: '参数为 date 列，无时区语义' }]).length === 0, '登记例外应放行');
+  assert(
+    evaluateXml(src, 'a.xml', [{ file: 'a.xml', why: '参数为 date 列，无时区语义' }]).length === 0,
+    '登记例外应放行'
+  );
 }
 
 // 6) 行号定位准确

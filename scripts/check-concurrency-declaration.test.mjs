@@ -29,8 +29,8 @@ const WRITE_METHOD = `    public void updateStock(String deviceId) {
     {
       file: 'X.java',
       content: `class X {\n${WRITE_METHOD}\n}`,
-      changedRanges: [{ start: 2, end: 4 }],
-    },
+      changedRanges: [{ start: 2, end: 4 }]
+    }
   ];
   const r = judge(files);
   check('写方法无策略=红', r.problems.length === 1, r.problems.join('|'));
@@ -80,7 +80,11 @@ const WRITE_METHOD = `    public void updateStock(String deviceId) {
 // 8) parseDiffHunks 解析 @@ 行
 {
   const ranges = parseDiffHunks('@@ -1,3 +5,7 @@\n context\n-old\n+new\n');
-  check('parseDiffHunks 正确', ranges.length === 1 && ranges[0].start === 5 && ranges[0].end === 11, JSON.stringify(ranges));
+  check(
+    'parseDiffHunks 正确',
+    ranges.length === 1 && ranges[0].start === 5 && ranges[0].end === 11,
+    JSON.stringify(ranges)
+  );
 }
 
 console.log(`\n[check-concurrency-declaration.test] ${pass} 通过 / ${fail} 失败`);

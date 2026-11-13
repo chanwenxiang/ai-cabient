@@ -23,7 +23,7 @@ function check(name, cond, detail = '') {
 {
   const migs = [
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
-    { file: 'V2__b.sql', version: '2', created: ['b'], dropped: [], hard: ['a', 'b'], soft: [] },
+    { file: 'V2__b.sql', version: '2', created: ['b'], dropped: [], hard: ['a', 'b'], soft: [] }
   ];
   const r = judge(migs, [], new Set(['a', 'b']), ['a', 'b']);
   check('正常时间线绿', r.problems.length === 0, r.problems.join('|'));
@@ -33,7 +33,7 @@ function check(name, cond, detail = '') {
 {
   const migs = [
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: ['a'], hard: [], soft: [] },
-    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: ['a'], soft: [] },
+    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: ['a'], soft: [] }
   ];
   const r = judge(migs, [], new Set(), ['b']);
   check(
@@ -47,16 +47,20 @@ function check(name, cond, detail = '') {
 {
   const migs = [
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
-    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: ['ghost'], soft: [] },
+    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: ['ghost'], soft: [] }
   ];
   const r = judge(migs, [], new Set(['a']), ['a']);
-  check('未知表名=红（fail-closed）', r.problems.some((p) => p.includes('未知表')), r.problems.join('|'));
+  check(
+    '未知表名=红（fail-closed）',
+    r.problems.some((p) => p.includes('未知表')),
+    r.problems.join('|')
+  );
 }
 
 // 4) 同文件自建自用 → 绿（createdInFile 豁免）
 {
   const migs = [
-    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: ['a'], soft: [] },
+    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: ['a'], soft: [] }
   ];
   const r = judge(migs, [], new Set(['a']), ['a']);
   check('同文件自建自用=绿', r.problems.length === 0, r.problems.join('|'));
@@ -65,7 +69,7 @@ function check(name, cond, detail = '') {
 // 5) 清库脚本引用已 DROP 表 → 红
 {
   const migs = [
-    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: ['a'], hard: [], soft: [] },
+    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: ['a'], hard: [], soft: [] }
   ];
   const cleanups = [{ file: 'scripts/clean.ps1', hard: ['a'], content: '' }];
   const r = judge(migs, cleanups, new Set(), []);
@@ -79,7 +83,7 @@ function check(name, cond, detail = '') {
 // 6) 清库脚本引用活表 → 绿
 {
   const migs = [
-    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
+    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] }
   ];
   const cleanups = [{ file: 'scripts/clean.ps1', hard: ['a'], content: '' }];
   const r = judge(migs, cleanups, new Set(['a']), ['a']);
@@ -89,14 +93,22 @@ function check(name, cond, detail = '') {
 // 7) 声明集对账双向漂移 → 红
 {
   const migs = [
-    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
+    { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] }
   ];
   // 注册表少了 a（迁移存活但注册表未登记）
   const r1 = judge(migs, [], new Set(['a']), []);
-  check('注册表漏活表=红', r1.problems.some((p) => p.includes('retention-registry 未登记')), r1.problems.join('|'));
+  check(
+    '注册表漏活表=红',
+    r1.problems.some((p) => p.includes('retention-registry 未登记')),
+    r1.problems.join('|')
+  );
   // 注册表多了 ghost（登记了但迁移不存活）
   const r2 = judge(migs, [], new Set(['a']), ['a', 'ghost']);
-  check('注册表幽灵表=红', r2.problems.some((p) => p.includes('不存活')), r2.problems.join('|'));
+  check(
+    '注册表幽灵表=红',
+    r2.problems.some((p) => p.includes('不存活')),
+    r2.problems.join('|')
+  );
 }
 
 // 8) ACK 豁免头 → 留痕不红
@@ -108,7 +120,7 @@ function check(name, cond, detail = '') {
       created: ['a'],
       dropped: ['a'],
       hard: [],
-      soft: [],
+      soft: []
     },
     {
       file: 'V2__use.sql',
@@ -117,8 +129,8 @@ function check(name, cond, detail = '') {
       dropped: [],
       hard: ['a'],
       soft: [],
-      content: '-- SCRIPT_TABLE_SET_EXEMPT: 历史遗留，已评审',
-    },
+      content: '-- SCRIPT_TABLE_SET_EXEMPT: 历史遗留，已评审'
+    }
   ];
   const r = judge(migs, [], new Set(), []);
   check(
@@ -132,7 +144,7 @@ function check(name, cond, detail = '') {
 {
   const migs = [
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: ['a'], hard: [], soft: [] },
-    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: [], soft: ['a', 'ghost'] },
+    { file: 'V2__use.sql', version: '2', created: [], dropped: [], hard: [], soft: ['a', 'ghost'] }
   ];
   const r = judge(migs, [], new Set(), []);
   check(
@@ -149,14 +161,10 @@ function check(name, cond, detail = '') {
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
     { file: 'V2__drop.sql', version: '2', created: [], dropped: ['a'], hard: [], soft: [] },
     { file: 'V3__recreate.sql', version: '3', created: ['a'], dropped: [], hard: [], soft: [] },
-    { file: 'V4__use.sql', version: '4', created: [], dropped: [], hard: ['a'], soft: [] },
+    { file: 'V4__use.sql', version: '4', created: [], dropped: [], hard: ['a'], soft: [] }
   ];
   const r = judge(migs, [], new Set(['a']), ['a']);
-  check(
-    'DROP→重建终态存活，后续引用不罚',
-    r.problems.length === 0,
-    r.problems.join('|')
-  );
+  check('DROP→重建终态存活，后续引用不罚', r.problems.length === 0, r.problems.join('|'));
 }
 
 // 11) DROP→重建但引用点在重建之前 = 死引用（红）
@@ -165,7 +173,7 @@ function check(name, cond, detail = '') {
     { file: 'V1__a.sql', version: '1', created: ['a'], dropped: [], hard: [], soft: [] },
     { file: 'V2__drop.sql', version: '2', created: [], dropped: ['a'], hard: [], soft: [] },
     { file: 'V3__use.sql', version: '3', created: [], dropped: [], hard: ['a'], soft: [] },
-    { file: 'V4__recreate.sql', version: '4', created: ['a'], dropped: [], hard: [], soft: [] },
+    { file: 'V4__recreate.sql', version: '4', created: ['a'], dropped: [], hard: [], soft: [] }
   ];
   const r = judge(migs, [], new Set(['a']), ['a']);
   check(

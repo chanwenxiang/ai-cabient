@@ -43,7 +43,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const root = process.env.GATE_ROOT
+  ? resolve(process.env.GATE_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-xxl-job-wiring]';
 
 const MANAGED_TASKS_FILE = join(
@@ -637,7 +639,8 @@ if (timeoutRows === 0) {
 }
 if (timeoutProblems.length) {
   problems.push(
-    `XXL 任务超时配置不合格（0=永不超时，悬挂即永久停摆）：\n    - ` + timeoutProblems.join('\n    - ')
+    `XXL 任务超时配置不合格（0=永不超时，悬挂即永久停摆）：\n    - ` +
+      timeoutProblems.join('\n    - ')
   );
 }
 

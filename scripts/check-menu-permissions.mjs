@@ -10,10 +10,12 @@
  * 不得新增同类豁免；新增前先补迁移注释说明设计意图。
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, resolve} from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.GATE_ROOT
+  ? resolve(process.env.GATE_ROOT)
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
 const MENU_FILE = 'clients/admin-vue/src/config/menu.ts';
 const SERVICES_DIR = 'services';
 

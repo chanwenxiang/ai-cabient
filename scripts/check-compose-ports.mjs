@@ -19,10 +19,12 @@
  *   node scripts/check-compose-ports.mjs --self-test # 负向自测（四形态各 1 例违规必须变红）
  */
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, dirname, resolve} from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = process.env.GATE_ROOT ? resolve(process.env.GATE_ROOT) : join(dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = process.env.GATE_ROOT
+  ? resolve(process.env.GATE_ROOT)
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
 const INFRA = 'infra';
 
 /** 豁免清单：键 = "文件名:宿主端口"，值 = 理由 */

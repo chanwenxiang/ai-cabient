@@ -1622,7 +1622,10 @@ async function loadPromoTasks() {
   const seq = loadSeq.begin('loadPromoTasks');
   promoLoading.value = true;
   try {
-    const q = new URLSearchParams({ page: String(promoPage.value - 1), size: String(promoSize.value) });
+    const q = new URLSearchParams({
+      page: String(promoPage.value - 1),
+      size: String(promoSize.value)
+    });
     const res = await api.request<{ items: PromoTask[]; total: number }>(
       AdminEndpoints.linePromoTasksList(q),
       'GET'

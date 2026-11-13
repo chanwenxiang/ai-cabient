@@ -53,7 +53,8 @@ const SHARED_PATTERNS = [
   // 纳管是为了让「下一段复制这段写法的人漏一行」当场红，而不是靠人眼。
   { key: 'urlConnection', re: /\.openConnection\s*\(/g }
 ];
-const JDK_FIELD_ASSIGN_REST = /(?:private|protected|public)?\s*(?:static\s+)?final\s+HttpClient\s+\w+\s*=\s*$/;
+const JDK_FIELD_ASSIGN_REST =
+  /(?:private|protected|public)?\s*(?:static\s+)?final\s+HttpClient\s+\w+\s*=\s*$/;
 
 /**
  * JDK HttpClient 的两条专项判据（S1 第 ④ 条）。
@@ -72,10 +73,7 @@ const JDK_FIELD_ASSIGN_REST = /(?:private|protected|public)?\s*(?:static\s+)?fin
 export function scanJdkClientUsage(code, file) {
   const issues = [];
   if (file.endsWith('OutboundHttp.java')) {
-    if (
-      /HttpClient\.newBuilder\s*\(/.test(code) &&
-      !/\.connectTimeout\s*\(/.test(code)
-    ) {
+    if (/HttpClient\.newBuilder\s*\(/.test(code) && !/\.connectTimeout\s*\(/.test(code)) {
       issues.push('闸门本体的 HttpClient 未设 connectTimeout（不设＝连接无限等待）');
     }
     if (/HttpClient\.newHttpClient\s*\(/.test(code)) {
@@ -110,7 +108,8 @@ export function scanUrlConnectionUsage(code) {
   if (!/\.openConnection\s*\(/.test(code)) return [];
   const missing = [];
   if (!/\.setConnectTimeout\s*\(/.test(code)) missing.push('setConnectTimeout');
-  if (!/\.setReadTimeout\s*\(/.test(code)) missing.push('setReadTimeout（只设 connect 时响应阶段仍无限等待）');
+  if (!/\.setReadTimeout\s*\(/.test(code))
+    missing.push('setReadTimeout（只设 connect 时响应阶段仍无限等待）');
   return missing.length > 0
     ? [`HttpURLConnection 未设 ${missing.join(' / ')}：裸 openConnection 必须 connect+read 双设`]
     : [];

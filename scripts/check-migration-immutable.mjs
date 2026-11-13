@@ -141,9 +141,7 @@ if (violations.length > 0) {
     );
   }
   for (const a of acknowledged) {
-    console.log(
-      `${TAG} 豁免留痕：${a.paths[0]}（${a.label}）—— 理由：${a.reason}`
-    );
+    console.log(`${TAG} 豁免留痕：${a.paths[0]}（${a.label}）—— 理由：${a.reason}`);
   }
 }
 

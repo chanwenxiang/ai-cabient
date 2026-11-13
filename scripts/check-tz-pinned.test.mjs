@@ -41,13 +41,20 @@ assert(evaluateTzPin(OK, []).length === 0, `合规文件应绿：${evaluateTzPin
 // 4) 双钉取值不等 ⇒ 红
 {
   const p = evaluateTzPin({ ...OK, src: 'ENV TZ=UTC\n' }, []);
-  assert(p.some((x) => x.includes('取值不等')), `不等须红：${p.join('|')}`);
+  assert(
+    p.some((x) => x.includes('取值不等')),
+    `不等须红：${p.join('|')}`
+  );
 }
 
 // 5) 值棘轮：双钉但不是 Asia/Shanghai ⇒ 红
 {
   const p = evaluateTzPin(
-    { ...OK, javaLine: 'ENTRYPOINT ["java", "-Duser.timezone=UTC", "-jar", "x"]', src: 'ENV TZ=UTC\n' },
+    {
+      ...OK,
+      javaLine: 'ENTRYPOINT ["java", "-Duser.timezone=UTC", "-jar", "x"]',
+      src: 'ENV TZ=UTC\n'
+    },
     []
   );
   assert(p.length === 1 && p[0].includes('Asia/Shanghai'), `改区须红：${p.join('|')}`);
@@ -81,8 +88,9 @@ assert(evaluateTzPin(OK, []).length === 0, `合规文件应绿：${evaluateTzPin
     }
     return out;
   };
-  const files = [...new Set([walk(ROOT), walk(join(ROOT, 'infra')), walk(join(ROOT, 'edge'))].flat())]
-    .filter((rel) => existsSync(join(ROOT, rel)));
+  const files = [
+    ...new Set([walk(ROOT), walk(join(ROOT, 'infra')), walk(join(ROOT, 'edge'))].flat())
+  ].filter((rel) => existsSync(join(ROOT, rel)));
   const jvm = findJvmDockerfiles(files);
   assert(jvm.length >= 4, `JVM 容器数应 ≥4，实际 ${jvm.length}`);
   const bad = jvm.flatMap((f) => evaluateTzPin(f, []));

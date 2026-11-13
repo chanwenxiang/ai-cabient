@@ -32,15 +32,7 @@ import { compareVersions } from './check-migration-number-order.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-script-table-set]';
-const MIG_DIR = join(
-  'services',
-  'trade-service',
-  'src',
-  'main',
-  'resources',
-  'db',
-  'migration'
-);
+const MIG_DIR = join('services', 'trade-service', 'src', 'main', 'resources', 'db', 'migration');
 const REGISTRY_PATH = join('scripts', 'retention-registry.json');
 const VERSIONED = /^V([\d._]+)__.+\.sql$/;
 const ACK_RE = /^\s*--+\s*SCRIPT_TABLE_SET_EXEMPT\s*:\s*(\S.*)$/im;
@@ -53,7 +45,7 @@ const HARD_REFS = [
   /UPDATE\s+["']?([a-z][a-z_0-9]*)["']?\s+SET/gi,
   /DELETE\s+FROM\s+["']?([a-z][a-z_0-9]*)["']?/gi,
   /ALTER\s+TABLE\s+["']?([a-z][a-z_0-9]*)["']?/gi,
-  /TRUNCATE(?:\s+TABLE)?\s+["']?([a-z][a-z_0-9]*)["']?/gi,
+  /TRUNCATE(?:\s+TABLE)?\s+["']?([a-z][a-z_0-9]*)["']?/gi
 ];
 /** 软引用：只查「已 DROP 复用」，未知不罚（避开 EXTRACT/SUBSTRING 函数上下文） */
 const SOFT_REFS = [/(?:FROM|JOIN)\s+["']?([a-z][a-z_0-9]*)["']?/gi];
@@ -61,9 +53,7 @@ const SOFT_REFS = [/(?:FROM|JOIN)\s+["']?([a-z][a-z_0-9]*)["']?/gi];
 function stripComments(sql) {
   // 未闭合的 /*（如 V157/V421 的历史遗留）视为到串尾的注释，
   // 否则非贪婪正则跨文件吞掉后续内容（2026-11-13 夹具实证）
-  return sql
-    .replace(/\/\*[\s\S]*?(?:\*\/|$)/g, ' ')
-    .replace(/--[^\n]*/g, ' ');
+  return sql.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, ' ').replace(/--[^\n]*/g, ' ');
 }
 
 /** 提取一张 SQL 的：created / dropped / 硬引用 / 软引用（均去注释、小写） */
@@ -95,10 +85,12 @@ export function judge(migrations, cleanupScripts, liveSet, registryTables) {
   // ③ 交叉对账：声明集（迁移自证）与 retention-registry 必须一致
   const regSet = new Set(registryTables);
   for (const t of liveSet) {
-    if (!regSet.has(t)) problems.push(`活表「${t}」在迁移里存活，但 retention-registry 未登记——两处声明集漂移`);
+    if (!regSet.has(t))
+      problems.push(`活表「${t}」在迁移里存活，但 retention-registry 未登记——两处声明集漂移`);
   }
   for (const t of registryTables) {
-    if (!liveSet.has(t)) problems.push(`retention-registry 登记的「${t}」在迁移时间线里不存活——两处声明集漂移`);
+    if (!liveSet.has(t))
+      problems.push(`retention-registry 登记的「${t}」在迁移时间线里不存活——两处声明集漂移`);
   }
 
   const createdAll = new Set();
@@ -111,9 +103,7 @@ export function judge(migrations, cleanupScripts, liveSet, registryTables) {
     for (const t of m.created) createdAll.add(t);
     for (const t of m.dropped) droppedAll.add(t);
 
-    const aliveBefore = [...state.entries()]
-      .filter(([, v]) => v === 'alive')
-      .map(([k]) => k);
+    const aliveBefore = [...state.entries()].filter(([, v]) => v === 'alive').map(([k]) => k);
     const valid = new Set([...aliveBefore, ...m.created]);
 
     const checkRef = (name, ctx, soft) => {
@@ -128,7 +118,9 @@ export function judge(migrations, cleanupScripts, liveSet, registryTables) {
           `${m.file}：${ctx}引用已 DROP 的表「${name}」——MA-042 家族：已删表不得再出现在脚本（清库链首条即 relation does not exist）`
         );
       } else if (!createdAll.has(name)) {
-        problems.push(`${m.file}：${ctx}引用未知表「${name}」——声明集里不存在（从未 CREATE，fail-closed）`);
+        problems.push(
+          `${m.file}：${ctx}引用未知表「${name}」——声明集里不存在（从未 CREATE，fail-closed）`
+        );
       } else {
         problems.push(`${m.file}：${ctx}引用表「${name}」——该表在本脚本之前已被 DROP`);
       }
@@ -173,8 +165,8 @@ export function judge(migrations, cleanupScripts, liveSet, registryTables) {
       migrations: migrations.length,
       cleanupScripts: cleanupScripts.length,
       live: liveSet.size,
-      registry: registryTables.length,
-    },
+      registry: registryTables.length
+    }
   };
 }
 
@@ -202,7 +194,7 @@ function main() {
       dropped: [...dropped],
       hard,
       soft,
-      content: sql,
+      content: sql
     });
   }
   migrations.sort((a, b) => compareVersions(a.version, b.version));
@@ -212,9 +204,7 @@ function main() {
     for (const t of m.created) state.set(t, 'alive');
     for (const t of m.dropped) state.set(t, 'dead');
   }
-  const liveSet = new Set(
-    [...state.entries()].filter(([, v]) => v === 'alive').map(([k]) => k)
-  );
+  const liveSet = new Set([...state.entries()].filter(([, v]) => v === 'alive').map(([k]) => k));
   if (liveSet.size === 0) fail('活表提取数=0（提取器坏了，零命中=假绿）');
 
   // ② 清库脚本：scripts/ 下的 ps1/sh/sql
@@ -234,7 +224,12 @@ function main() {
   const registry = JSON.parse(readFileSync(regPath, 'utf8'));
   const registryTables = (registry.tables || []).map((e) => e.table);
 
-  const { problems, acknowledged, stats } = judge(migrations, cleanupScripts, liveSet, registryTables);
+  const { problems, acknowledged, stats } = judge(
+    migrations,
+    cleanupScripts,
+    liveSet,
+    registryTables
+  );
 
   if (problems.length > 0) {
     for (const p of problems) console.error(`${TAG} FAIL ${p}`);

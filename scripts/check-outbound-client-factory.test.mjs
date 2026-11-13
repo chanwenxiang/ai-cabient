@@ -93,8 +93,14 @@ const findings = (counts, jdkIssues = []) => ({ bareCreate: 0, counts, jdkIssues
     `public String ask() { HttpClient c = OutboundHttp.jdk(2000).build(); return c.toString(); }`,
     BIZ
   );
-  assert(perCall.jdkIssues.length === 1, `方法体内新建 HttpClient 须红，实际 ${perCall.jdkIssues.length}`);
-  assert(perCall.jdkIssues[0].includes('每调用一次就新建'), `红因要点明资源形态：${perCall.jdkIssues[0]}`);
+  assert(
+    perCall.jdkIssues.length === 1,
+    `方法体内新建 HttpClient 须红，实际 ${perCall.jdkIssues.length}`
+  );
+  assert(
+    perCall.jdkIssues[0].includes('每调用一次就新建'),
+    `红因要点明资源形态：${perCall.jdkIssues[0]}`
+  );
 
   const asField = scanFile(
     `private final HttpClient httpClient = OutboundHttp.jdk(OutboundHttp.CONNECT_GEOCODE_MS).build();`,
@@ -107,7 +113,10 @@ const findings = (counts, jdkIssues = []) => ({ bareCreate: 0, counts, jdkIssues
         .followRedirects(HttpClient.Redirect.NEVER).build();`,
     BIZ
   );
-  assert(asStaticField.jdkIssues.length === 0, `static final 形态不应红：${asStaticField.jdkIssues.join()}`);
+  assert(
+    asStaticField.jdkIssues.length === 0,
+    `static final 形态不应红：${asStaticField.jdkIssues.join()}`
+  );
 }
 
 // 7) 闸门本体自己也不能退化：newBuilder 不带 connectTimeout、或改用 newHttpClient 都要红
@@ -137,14 +146,20 @@ const findings = (counts, jdkIssues = []) => ({ bareCreate: 0, counts, jdkIssues
      c.setConnectTimeout(10_000); c.setReadTimeout(10_000);`,
     BIZ
   );
-  assert(both.counts.urlConnection === 1, `openConnection 应命中 1，实际 ${both.counts.urlConnection}`);
+  assert(
+    both.counts.urlConnection === 1,
+    `openConnection 应命中 1，实际 ${both.counts.urlConnection}`
+  );
   assert(both.jdkIssues.length === 0, `双设超时不应红：${both.jdkIssues.join()}`);
 
   const onlyConnect = scanFile(
     `HttpURLConnection c = (HttpURLConnection) url.openConnection(); c.setConnectTimeout(10_000);`,
     BIZ
   );
-  assert(onlyConnect.jdkIssues.length === 1, `只设 connect 须红，实际 ${onlyConnect.jdkIssues.length}`);
+  assert(
+    onlyConnect.jdkIssues.length === 1,
+    `只设 connect 须红，实际 ${onlyConnect.jdkIssues.length}`
+  );
   assert(
     onlyConnect.jdkIssues[0].includes('setReadTimeout'),
     `红因要点明缺 read（响应阶段无限等待）：${onlyConnect.jdkIssues[0]}`
@@ -165,7 +180,10 @@ const findings = (counts, jdkIssues = []) => ({ bareCreate: 0, counts, jdkIssues
     `// 历史：这里曾用 HttpURLConnection#openConnection 且没设 setReadTimeout\nthis.restClient = OutboundHttp.publicApi().build();`,
     BIZ
   );
-  assert(commentOnly.counts.urlConnection === 0, `注释不应计入：${commentOnly.counts.urlConnection}`);
+  assert(
+    commentOnly.counts.urlConnection === 0,
+    `注释不应计入：${commentOnly.counts.urlConnection}`
+  );
   assert(commentOnly.jdkIssues.length === 0, `注释形态不应红：${commentOnly.jdkIssues.join()}`);
 }
 
@@ -180,7 +198,10 @@ const findings = (counts, jdkIssues = []) => ({ bareCreate: 0, counts, jdkIssues
   );
   const s = scanFile(src, FACTORY);
   assert(s.bareCreate === 0, '闸门本体不得用裸 create()');
-  assert(s.counts.builder === FULL.builder, `闸门 builder 命中应恰为 ${FULL.builder}，实际 ${s.counts.builder}`);
+  assert(
+    s.counts.builder === FULL.builder,
+    `闸门 builder 命中应恰为 ${FULL.builder}，实际 ${s.counts.builder}`
+  );
   assert(
     s.counts.jdkClient === FULL.jdkClient,
     `HttpClient.newBuilder 应只在闸门出现 ${FULL.jdkClient} 次，实际 ${s.counts.jdkClient}`

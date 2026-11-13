@@ -39,9 +39,7 @@ const FUNDS_SUFFIXES = ['_ledger', '_bill', '_split', '_clawback', '_points_log'
  * 裸正则曾把它们当 DROP ⇒ 7 张真实活表被误判已删（S14 同源确认轮发现，2026-11-13 修复）。
  * 未闭合的 /*（V157/V421 历史遗留）视为到串尾的注释，防跨文件吞内容。 */
 export function extractTables(sql) {
-  const body = sql
-    .replace(/\/\*[\s\S]*?(?:\*\/|$)/g, ' ')
-    .replace(/--[^\n]*/g, ' ');
+  const body = sql.replace(/\/\*[\s\S]*?(?:\*\/|$)/g, ' ').replace(/--[^\n]*/g, ' ');
   const created = new Set();
   const dropped = new Set();
   for (const m of body.matchAll(CREATE_RE)) created.add(m[1].toLowerCase());
@@ -144,7 +142,10 @@ function main() {
   const state = {
     created: [...stateMap.keys()],
     dropped: [...stateMap.entries()].filter(([, v]) => v === 'dead').map(([k]) => k),
-    live: [...stateMap.entries()].filter(([, v]) => v === 'alive').map(([k]) => k).sort(),
+    live: [...stateMap.entries()]
+      .filter(([, v]) => v === 'alive')
+      .map(([k]) => k)
+      .sort()
   };
   if (state.live.length === 0) fail('活表提取数=0（提取器坏了，零命中=假绿）');
 

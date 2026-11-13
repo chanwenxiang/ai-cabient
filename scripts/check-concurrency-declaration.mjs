@@ -26,12 +26,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-concurrency-declaration]';
 
 // 资金/库存/额度写路径领域词
-const DOMAIN_RE = /fund|inventory|lot|ledger|wallet|quota|balance|amount|cents|stock|deduct|restock|pullOff|settlement|refund|payment/i;
+const DOMAIN_RE =
+  /fund|inventory|lot|ledger|wallet|quota|balance|amount|cents|stock|deduct|restock|pullOff|settlement|refund|payment/i;
 // 写操作调用
-const WRITE_RE = /\.(save|updateById|update|insert|delete|deleteById|deductQuantityAtomic|increaseQuantityAtomic)\s*\(/;
+const WRITE_RE =
+  /\.(save|updateById|update|insert|delete|deleteById|deductQuantityAtomic|increaseQuantityAtomic)\s*\(/;
 // 三策略证据
 const ANCHOR_RE = /\/\/\s*CONCURRENCY\s*:/;
-const COND_UPDATE_RE = /deductQuantityAtomic|increaseQuantityAtomic|updateStatusAndSlotById|UPDATE\s+\w+\s+SET.*WHERE|WHERE\s+\w+\s*=\s*#\{|conditional|原子/i;
+const COND_UPDATE_RE =
+  /deductQuantityAtomic|increaseQuantityAtomic|updateStatusAndSlotById|UPDATE\s+\w+\s+SET.*WHERE|WHERE\s+\w+\s*=\s*#\{|conditional|原子/i;
 const VERSION_RE = /version\s*=\s*version\s*\+\s*1|version\s*=|CAS|乐观锁/i;
 const LOCK_RE = /tryLock|distributedLock|lockKey|runWithLock|runWithDeviceLotLock|显式锁|加锁/i;
 
@@ -42,7 +45,12 @@ function isMethodSignature(line) {
   if (!stripped.includes('(') || !stripped.includes(')')) return false;
   if (stripped.endsWith(';')) return false;
   const firstWord = stripped.split(/\s+/)[0];
-  if (['if', 'for', 'while', 'switch', 'catch', 'return', 'new', 'super', 'this', 'else'].includes(firstWord)) return false;
+  if (
+    ['if', 'for', 'while', 'switch', 'catch', 'return', 'new', 'super', 'this', 'else'].includes(
+      firstWord
+    )
+  )
+    return false;
   return true;
 }
 
@@ -70,7 +78,10 @@ export function judge(files) {
       // 找到包含该变更行的方法（最后一个签名在 range.start 之前的）
       let methodIdx = -1;
       for (let i = methodStarts.length - 1; i >= 0; i--) {
-        if (methodStarts[i] <= range.start) { methodIdx = i; break; }
+        if (methodStarts[i] <= range.start) {
+          methodIdx = i;
+          break;
+        }
       }
       if (methodIdx < 0) continue; // 变更在类级/字段级，非方法
       const start = methodStarts[methodIdx];
@@ -80,12 +91,18 @@ export function judge(files) {
       if (!DOMAIN_RE.test(body) || !WRITE_RE.test(body)) continue;
       checked += 1;
       // 三策略或锚点
-      if (ANCHOR_RE.test(body) || COND_UPDATE_RE.test(body) || VERSION_RE.test(body) || LOCK_RE.test(body)) continue;
+      if (
+        ANCHOR_RE.test(body) ||
+        COND_UPDATE_RE.test(body) ||
+        VERSION_RE.test(body) ||
+        LOCK_RE.test(body)
+      )
+        continue;
       const methodName = lines[start].match(/(\w+)\s*\(/)?.[1] || '(方法)';
       problems.push(
         `${f.file}：diff 触碰的写方法「${methodName}」改到资金/库存/额度写路径，` +
           `但无并发策略证据——须命中三选一（条件 UPDATE / 乐观锁 version / 显式锁 key）` +
-          `或附 `// CONCURRENCY: <策略>` 锚点（R18-2/MA-017 家族）`
+          `或附 ` // CONCURRENCY: <策略>` 锚点（R18-2/MA-017 家族）`
       );
     }
   }
@@ -99,11 +116,11 @@ function fail(msg) {
 
 async function main() {
   // ① 变更的 Java 文件
-  const nameStatus = await gitAsync(
-    ['diff', '--name-only', '--diff-filter=AM', '--', 'services'],
-    { cwd: ROOT }
-  );
-  if (!nameStatus.ok) fail(`git diff 失败（${nameStatus.spawnError || 'non-zero exit'}）：${nameStatus.out}`);
+  const nameStatus = await gitAsync(['diff', '--name-only', '--diff-filter=AM', '--', 'services'], {
+    cwd: ROOT
+  });
+  if (!nameStatus.ok)
+    fail(`git diff 失败（${nameStatus.spawnError || 'non-zero exit'}）：${nameStatus.out}`);
   const changedJava = (nameStatus.out || '')
     .split(/\r?\n/)
     .filter((p) => p.endsWith('.java') && p.includes('src/main/'));
@@ -122,7 +139,11 @@ async function main() {
     if (!diff.ok) continue;
     const ranges = parseDiffHunks(diff.out || '');
     if (ranges.length === 0) continue;
-    files.push({ file: rel.replace(/\\/g, '/'), content: readFileSync(abs, 'utf8'), changedRanges: ranges });
+    files.push({
+      file: rel.replace(/\\/g, '/'),
+      content: readFileSync(abs, 'utf8'),
+      changedRanges: ranges
+    });
   }
 
   if (files.length === 0) {

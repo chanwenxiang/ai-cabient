@@ -34,9 +34,7 @@ const SCHED = readFileSync(
   const migDir = join(ROOT, 'services/trade-service/src/main/resources/db/migration');
   const files = readdirSync(migDir)
     .filter((f) => /^V\d+__.*\.sql$/.test(f))
-    .sort((a, b) =>
-      compareVersions(a.match(/^V([\d._]+)__/)[1], b.match(/^V([\d._]+)__/)[1])
-    );
+    .sort((a, b) => compareVersions(a.match(/^V([\d._]+)__/)[1], b.match(/^V([\d._]+)__/)[1]));
   // 逐表状态机（与 CLI 同口径）：DROP→重建终态由最后一次事件决定
   const stateMap = new Map();
   for (const f of files) {
@@ -47,7 +45,10 @@ const SCHED = readFileSync(
   const state = {
     created: [...stateMap.keys()],
     dropped: [...stateMap.entries()].filter(([, v]) => v === 'dead').map(([k]) => k),
-    live: [...stateMap.entries()].filter(([, v]) => v === 'alive').map(([k]) => k).sort(),
+    live: [...stateMap.entries()]
+      .filter(([, v]) => v === 'alive')
+      .map(([k]) => k)
+      .sort()
   };
   const adminSrc = readFileSync(
     resolve(
