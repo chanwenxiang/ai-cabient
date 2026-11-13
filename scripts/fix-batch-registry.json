@@ -66,6 +66,20 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "6609b0f0",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "V475 注释去 dollar-brace 占位符写法（Flyway placeholder 拒启动，dev 部署实测阻塞）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V475__status_check_batch12_dedicated_families.sql"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
