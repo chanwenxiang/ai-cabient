@@ -16,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -99,8 +100,12 @@ class JiangyiCabinetCaptureServiceTest {
         service().finish(1L, DEVICE, 7);
         service().cancel(1L, DEVICE, 7);
 
+        // R22-7：start 有意落两条留痕——受理前 REQUESTING 意图（厂商已受理但本地读超时时
+        // 仍可追 sessionId）+ 受理成功 ACCEPTED。旧断言 times(1) 未随行为同步，逐条钉语义。
         verify(auditService).appendLog(eq(1L), eq("JIANGYI_CABINET_CAPTURE_START"),
-                eq("JIANGYI_DEVICE"), eq(DEVICE), anyString());
+                eq("JIANGYI_DEVICE"), eq(DEVICE), contains("phase=REQUESTING"));
+        verify(auditService).appendLog(eq(1L), eq("JIANGYI_CABINET_CAPTURE_START"),
+                eq("JIANGYI_DEVICE"), eq(DEVICE), contains("phase=ACCEPTED"));
         verify(auditService).appendLog(eq(1L), eq("JIANGYI_CABINET_CAPTURE_FINISH"),
                 eq("JIANGYI_DEVICE"), eq(DEVICE), anyString());
         verify(auditService).appendLog(eq(1L), eq("JIANGYI_CABINET_CAPTURE_CANCEL"),

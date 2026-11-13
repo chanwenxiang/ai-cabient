@@ -2963,3 +2963,19 @@
      100 元单 30/20/50 三轮 ⇒ 三条腿各独立、渠道合计 100、商户留 0；把写入改回单值覆盖守恒必须转红
      （负向验证，铁律 4）。落地用例 `ProfitSharingReturnLegConservationTest` + 离线门禁
      `check-split-return-leg-conservation.mjs`（dev 库事务内注入 / ROLLBACK 零残留）。
+
+### CB-086 【新】封闭状态机列用 DB CHECK 兜底值域；可扩展经营归属字段仍走字典（CB-036 边界澄清）
+
+**决策（R20 P3-1，2026-11-13）**：对 `cabinet_order.status` / `recharge_order.status` / `dispute_ticket.status` 这类**封闭状态机**列加 `ALTER TABLE ... ADD CONSTRAINT ... CHECK (col IN (...)) NOT VALID`；值域**自动对齐** `SysDictBootstrap` 字典族 + `shared-dict` 跨端同源集合，禁止用 dev 库稀疏采样推枚举。`sku_catalog.operation_scope` 等可扩展字段继续走字典零迁移（CB-036 原判不变）。
+
+**独立主体 / 同行对照**：
+1. PostgreSQL 官方文档（枚举类型章节，runebook 中文镜像）：`VARCHAR + CHECK` 是「状态值少且变动很小」时的标准替代，新增值只需 `DROP/ADD CONSTRAINT`；ENUM/查找表/VARCHAR+CHECK 三者按「修改灵活度 vs 存储/强类型」取舍。
+2. PlumePHP 状态机引擎实践：非法流转分三层防御——应用层管流转、数据库层 CHECK 管值域、监控层告警；给出同款 `ALTER TABLE orders ADD CONSTRAINT chk_order_status CHECK (status IN (...))`。
+3. CSDN / VPS345《PostgreSQL ENUM vs VARCHAR + CHECK 权衡》：核心业务状态变更频率极低 ⇒ 可要 DB 层强检查；动态标签/配置/需国际化 ⇒ 走字典或 JSONB。
+4. 开门柜同行：鲜果购无人果蔬售卖系统 —— 订单六态 `CREATED/PROCESSING/PENDING_PAYMENT/PAID/REFUNDED/CLOSED`，强调「先想清状态机再建表」、Service 层统一状态校验。
+5. 开门柜同行：SpringBoot + MQTT 取货即走智能售货柜 —— 订单 `status: OPEN/CLOSED/PAID/FAILED`，关门信号驱动状态推进。
+6. 开门柜同行：哈哈零兽 —— 扫码开门→关门视觉识别→自动扣款，订单状态随识别/扣款推进（百科/官方运营披露）。
+
+**⚠️ 无公开规格 = 自己的设计判断（铁律 47）**：以上同行公开资料只披露状态枚举与流转，**均未披露是否在 DB 层加 CHECK、是否用 NOT VALID 分批**。因此「只对封闭状态机加约束 + NOT VALID 规避 ACCESS EXCLUSIVE 全表扫 + 门禁自动对齐源码/字典 + VALIDATE 留待部署前脏值探针后按表执行」是本工程自己的设计判断，不冒称行业惯例。
+
+**fail-closed**：CHECK 字面量集合必须与字典族/跨端集合双向相等；新增状态而未同步约束 ⇒ CI 红。dev 实测 100 个状态列仅 13 个有 CHECK、全库 distinct 值仅 113 行 ⇒ 任何基于数据库采样的枚举都是残缺枚举（上线即写入失败）。

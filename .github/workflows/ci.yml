@@ -236,6 +236,13 @@ jobs:
       - name: R20 P3-9 oss thumb param gate self-test
         run: node scripts/check-oss-thumb-param.mjs --self-test
 
+      # R20 P3-1：状态列 CHECK 值域与 SysDictBootstrap / shared-dict 自动对齐（禁止稀疏采样推枚举）。
+      - name: R20 P3-1 status enum parity gate
+        run: node scripts/check-status-enum-parity.mjs
+
+      - name: R20 P3-1 status enum parity gate self-test
+        run: node scripts/check-status-enum-parity.mjs --self-test
+
       # @ConfigurationProperties 字段必须在所属模块 application*.yml 里有键（2026-10-24）：
       # check-config-env-passthrough 只看「已写进 yml 的 ${ENV:} 有没有透传到 compose」，
       # 键整段缺失时它什么都看不到 —— 微信支付 service-id 就是这样静默走了空值。

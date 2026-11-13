@@ -1,0 +1,26 @@
+{
+  "batch": 1,
+  "note": "R20 P3-1 第一批：仅封闭状态机列。值域由 SysDictBootstrap 字典族自动提取，禁止人工枚举白名单。",
+  "tables": [
+    {
+      "table": "cabinet_order",
+      "column": "status",
+      "dictFamily": "order_status",
+      "constraint": "chk_cabinet_order_status"
+    },
+    {
+      "table": "recharge_order",
+      "column": "status",
+      "dictFamily": "recharge_status",
+      "constraint": "chk_recharge_order_status"
+    },
+    {
+      "table": "dispute_ticket",
+      "column": "status",
+      "dictFamily": "dispute_status",
+      "constraint": "chk_dispute_ticket_status"
+    }
+  ],
+  "maxPendingColumns": 84,
+  "pendingNote": "dev 实测 87 列缺 CHECK，本批覆盖 3 列；剩余 84 列为显式欠账，逐批销账后只能减小。"
+}

@@ -767,11 +767,11 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：2 条（P3-1 已出蓝图 §二十三 未落迁移；P3-2 判定不派修）；P3-3~P3-10 均已收口（P3-7/8/9 见 §二十四）
+### 十七.3 剩余 P3：P3-1 第一批已落 V464（§二十六，余 84 列为显式欠账）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
-| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **本轮实证盘点完成、未落迁移**（§二十三）：dev 实测 100 个状态列仅 13 个有 CHECK、87 个缺；dev 值域仅 113 行且稀疏 ⇒ **禁止用 dev 值域推枚举**。枚举须从源码写入点/字典自动对齐，迁移按 `NOT VALID` + 逐表 `VALIDATE` 分批 |
+| 1 | 核心老表（`cabinet_order` 等）状态列无 CHECK，越界串可落库、报表静默漏行 | **第一批已落 V464（§二十六）**：3 张封闭状态机表（`cabinet_order`/`recharge_order`/`dispute_ticket`）值域自动对齐字典族 + shared-dict，全部 `NOT VALID`；真库事务内验收通过。余 **84 列**为显式欠账（清单 `maxPendingColumns=84` 棘轮只减）。`VALIDATE` 与部署前脏值探针仍待运维按表执行 |
 | 3 | ~~补缴双路径 `onOrderPaid` 统计不幂等~~ **已修（批 C 顺带覆盖）** | `MemberService:216` 的 `existsByMemberAndSource(…,"ORDER",orderId)` 早退闸落在 `:220 applyMemberStatsDelta` **之前**且直接 `return`（整段跳过，含消费额/订单数腿）；凭据是 `earnPoints` 连返 0 分也落的那行占位。**不作为剩余项** |
 | 4 | ~~无主/渠道不符回调静默 200，无告警痕迹~~ **已修（§二十二）** | 报告只点名两处，实修 10 类分支（微信/支付宝充值各 3 + 退款通知 2 + 退款同步 2）；统一 `alertSilentCallback` 收口。**关键修正**：`OpsAlertDispatcher.fanout` 未配渠道时静默返回，只发告警仍是零痕迹 ⇒ 必须同时落 `log.error` |
 | 5 | ~~活动窗端点开/闭三处不一致~~ **已修（§十八.1）** | 以 SQL 为准；另发现并修掉「NULL 起止的活动在列表消失但能领」 |
@@ -796,8 +796,8 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；**P3-1** 已完成实证盘点并出蓝图（§二十三），未落迁移——87 列缺 CHECK 且枚举不能从 dev 稀疏值域推，需单独一轮带「源码写入点→枚举」自动对齐门禁。
-5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1 第一批**~~ **已完成（§二十六）**——V464 + 自动对齐门禁 + 真库验收，余 84 列按批销账。
+5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
 
@@ -1182,3 +1182,54 @@ CREATE INDEX IF NOT EXISTS idx_split_return_leg_open
 - **未修 ≠ 遗漏**：5 条待定项（§十七.4）需产品拍板；**V463 部署动作**（`package` + `force-recreate` 两步）未执行；P3-1 迁移需单独一轮带「源码写入点→枚举」自动对齐门禁。
 - **全仓层面更不能说「都修了」**：`docs/AUDIT_R23_PLAN_2026-11-12.md` 已立项第 23 轮全量审计（3 阶段、执行窗口待配额重置）；结构化台账第 4 批仍有显式欠账（S9 的 TBD 15、S10 的 TBD 33、S15 缺 18 条夹具、S13/S14 未排批）；R1–R17 核查报告 §四 的 9 条低危观察及「上线前人工」项（支付宝壳隐私政策入口 / 部署前探针）。这些属**新一轮 / 其它台账**范围，不在 R20 内。
 - 顺手修一处文档滞后：§二十四.4 原写「三处改动**未提交**」，磁盘核实已提交 `9c49ddca`，回读后改写。
+
+## 二十六、P3-1 第一批落地 + 4 个存量红清零（2026-11-13）
+
+> 用户「按你的建议做」⇒ 按 §二十五.4 的建议顺序推进 ① P3-1 迁移 → ② 存量红；③ 等并发会话收口后跑 R23（**本轮条件未满足，未做**）。
+
+### 二十六.1 环境前提（为什么不碰共享 dev 库）
+
+复扫时发现共享 `ai-cabinet-postgres-1` 为 `Exited (255)`，而 `ai-cabinet-trade-service-1` 刚被并发会话重启（Up 3 秒）——铁律 69「staging 与 dev 共用 compose project 原地切栈」的切栈中形态。故**不启动共享栈、不改并发会话任何容器**，改用独立一次性 `postgres:16-alpine` 容器（`p31-verify-pg`，用完即删）做真库验收。生产/dev 的**脏值探针仍属上线前必做**，空库不能替代。
+
+### 二十六.2 竞品对照（CB-086，迁移头 `COMPETITOR_REF` 合规）
+
+台账新增 `CB-086`：≥3 家独立主体（PostgreSQL 官方枚举章节 / PlumePHP 状态机三层防御 / CSDN-VPS345 ENUM vs VARCHAR+CHECK 决策树）+ 3 家开门柜同行（鲜果购六态订单状态机、SpringBoot+MQTT 取货即走、哈哈零兽扫码识别扣款）。🔴 同行公开资料只披露状态枚举与流转、**未披露 DB 约束形态** ⇒ 按铁律 47 标注「无公开规格 = 自己的设计判断」，不冒称行业惯例。同时澄清 `CB-036` 边界：可扩展经营归属字段继续走字典零迁移，本批只覆盖**封闭状态机**列。
+
+### 二十六.3 V464 第一批（3 张表）与自动对齐门禁
+
+- **值域自动提取**（`--emit` 实证，三方完全一致）：`cabinet_order.status` ← `order_status` 9 值；`recharge_order.status` ← `recharge_status` 8 值；`dispute_ticket.status` ← `dispute_status` 3 值。来源 `SysDictBootstrap`（本地常量 + `CabinetConstants` 自动解析）↔ `shared-dict` 同名族 ↔ 迁移 CHECK 字面量**双向相等**，无人工白名单。
+- **迁移形态**：`V464__status_check_batch1.sql` 三条 `ADD CONSTRAINT ... CHECK (status IN (...)) NOT VALID`。`VALIDATE CONSTRAINT` **故意不写进迁移**——大表全扫 + 存量脏值会让 Flyway 失败＝部署失败，必须与「加约束」解耦为运维动作。`CHECK (col IN (...))` 对 NULL 天然放行（SQL 三值逻辑，CHECK 只在 FALSE 时拒绝）。
+- **门禁** `check-status-enum-parity.mjs`：6 组判据（登记制三要素对应 / 三方值域自动对齐 / 每条 ADD 必带 NOT VALID / 禁止迁移内 VALIDATE / `COMPETITOR_REF` 必须引用台账真实条目且 KIND=schema / 欠账棘轮 `87−已覆盖=maxPendingColumns`）；`--self-test` **11 个变异 + 防假红断言全绿**、md5 零残留；`ci.yml` 接正向 + 自测 2 步。清单 `scripts/status-check-inventory.json` 登记 `maxPendingColumns=84`（只减不增）。
+- 解析器修正记录：首版 `sharedFamily` 用行首锚点，单行对象 `dispute_status: { OPEN, RESOLVED, CLOSED }` 只抓到 1 个键 ⇒ 门禁报「跨端不同源」。核实前端确有 3 键后改为提取对象体内全部大写键，**非真实缺陷**。
+
+### 二十六.4 真库验收（独立 PG 16.15，事务内零残留）
+
+`docker exec -i ... psql -v ON_ERROR_STOP=1`，一次性容器，跑完删除：
+
+| 判据 | 结果 |
+|---|---|
+| 每个合法值逐个可写（9 + 8 + 3） | ✅ `INSERT 0 9 / 0 8 / 0 3` |
+| 越界串 `TOTALLY_BOGUS` 被拒 | ✅ `NOTICE: PASS: 越界串被 CHECK 拒绝` |
+| 报表按状态聚合行数守恒 | ✅ `PASS: 按状态聚合行数守恒 = 9`（越界 0 行） |
+| NULL 三值语义放行 | ✅ 可空探针列插入 NULL 成功 |
+| `BEGIN; … ROLLBACK;` 零残留 | ✅ `constraints=0` / `cabinet_order_rows=0` |
+| 永久应用 V464 的 NOT VALID 语义 | ✅ 三条 `validated=false` |
+
+`PSQL_EXIT=0`。⚠️ 这是**空库**验收：证明约束语法与值域完整；生产存量脏值仍需按迁移头给的探针 SQL 逐列核对后再 `VALIDATE`。
+
+### 二十六.5 4 个存量红清零（测试对齐实现，非放宽断言）
+
+| 用例 | 根因（证据） | 修法 |
+|---|---|---|
+| `InventoryLotBatchDeductTest` 2F+1E（404 实得 409 期望） | R18-2 起 `deductBatchAcrossLots` 走 `lotRepository.deductQuantityAtomic` 单语句原子扣；测试只 mock 批次列表 ⇒ Mockito 默认 0 行 ⇒ `totalTaken<=0` 抛 `404 lot not found` | `@BeforeEach` 默认 mock 原子扣返回 1 行；成功用例用 `Answer` 模拟 `SET quantity=quantity-take` 副作用供归零断言 |
+| `JiangyiCabinetCaptureServiceTest.start_finish_cancel_areAudited` | R22-7 给 `start` 加了「受理前 REQUESTING 意图 + 受理成功 ACCEPTED」两条留痕（源码注释写明是刻意设计），旧断言仍 `times(1)` | 断言拆成两条，分别用 `contains("phase=REQUESTING")` / `contains("phase=ACCEPTED")` 钉语义 |
+
+- 定向 **7/7 绿**（BUILD SUCCESS）；全量 **2922 例 / 0 Failures / 0 Errors / BUILD SUCCESS**。
+- ⚠️ 全量为绕开并发会话半成品 `DataConsistencyServiceTest.java`（testCompile 语法错）临时隔离该测试类，故总数比 2969 少 47 例；按「原路径是否被重建」判定还原，未覆盖对方内容。
+- **未改任何实现代码**修这 4 个红——两处都是行为已有意变更、钉住旧行为的测试没同步（铁律 21 的反面教训）。
+
+### 二十六.6 剩余（本轮之后）
+
+1. **P3-1 余 84 列**：按资金/订单/争议/对账链优先级分批销账，每批须同步减小 `maxPendingColumns`。
+2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
+3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。

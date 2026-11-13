@@ -23,7 +23,10 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +51,10 @@ class InventoryLotBatchDeductTest {
         service = new InventoryLotService(lotRepository, movementRepository, inventoryRepository,
                 skuCatalogRepository, pullOffTaskRepository, slotRepository,
                 distributedLockService, self);
+        // R18-2 起实现走单语句原子扣减 deductQuantityAtomic；默认返回 1 行＝UPDATE 命中。
+        // 不 mock 时 Mockito 返回 0 ⇒ totalTaken<=0 ⇒ 404 "lot not found"，测试会误判成缺陷。
+        // 单个用例可覆盖为带副作用的 Answer（模拟 SQL 把内存对象 quantity 扣掉）。
+        lenient().when(lotRepository.deductQuantityAtomic(anyString(), anyInt())).thenReturn(1);
     }
 
     private DeviceSkuLot lot(int quantity) {
@@ -82,6 +89,11 @@ class InventoryLotBatchDeductTest {
         DeviceSkuLot lot = lot(10);
         when(lotRepository.findAllByDeviceIdAndSkuIdAndBatchNo("DEV-H18", "SKU-H18", "B-H18"))
                 .thenReturn(List.of(lot));
+        // 模拟 UPDATE ... SET quantity = quantity - take 的副作用，供下方断言观察归零。
+        when(lotRepository.deductQuantityAtomic(anyString(), anyInt())).thenAnswer(inv -> {
+            lot.setQuantity(lot.getQuantity() - inv.<Integer>getArgument(1));
+            return 1;
+        });
 
         service.writeOffLots("DEV-H18", "SKU-H18", "B-H18", 10, 1L, "REF-2");
 
