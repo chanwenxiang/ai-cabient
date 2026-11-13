@@ -24,16 +24,12 @@
     "reason": "findByIdForUpdate 行锁内改 available/expired/updated_at 后整实体 save；锁内无丢更新，但写放大到全列，应改列级更新"
   },
   "services/trade-service/src/main/java/com/aicabinet/trade/service/PointsExpiryScheduler.java#markEarnLogsExpired": {
-    "count": 1,
-    "reason": "逐日志 set expired_at 后整实体 save；应 update set expired_at where log_id=? and expired_at is null"
+    "count": 2,
+    "reason": "逐日志 set expired_at 后整实体 save（196/206 两处）；应 update set expired_at where log_id=? and expired_at is null"
   },
   "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundRetryScheduler.java#touch": {
     "count": 1,
     "reason": "仅推后 updated_at 却整实体 updateById；应 update set updated_at where op_id=?（其余列一律不动）"
-  },
-  "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java#expireOne": {
-    "count": 1,
-    "reason": "改 status/notes 后整实体 save；应列级 update where task_id=? and status='CHECKED_IN'，防并发重复取消"
   },
   "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentTimeoutScheduler.java#finalizeRouteIfReady": {
     "count": 1,
