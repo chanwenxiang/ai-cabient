@@ -785,11 +785,13 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 ### 十七.4 剩余待定：5 条（6 条中 1 条已拍板落地）
 
+> 📋 拍板决策材料：`docs/PENDING_DECISIONS_5_2026-11-13.md`（逐条现状/影响面/可选口径/建议/拍板问题，行号以 2026-11-13 dev 源码为准）。**其中第 5 条经代码+库实测复核为前提有误，建议直接关闭（勘误，无需拍板）**——实际锁 SQL 两列谓词齐全且复合主键 device_sku_price_pkey (device_id, sku_id) 实测存在，锁粒度=单行。
+
 1. 争议改单跌破门槛时券不返还但仍 USED（`SettlementOrderSupport:222-225`）——是否比照 CB-045 退券。
 2. `ReconciliationService.runDaily:119-137` 删除重建当日对账行、人工处置仅存 audit——重跑是否允许覆盖。
 3. 分账 `WECHAT_FAILED` 同号重提是否依赖微信侧幂等（`WeChatProfitSharingService:481-503`）。
 4. Ops「重试」是否可能落到补货会话（取决于异常记录来源）。
-5. `device_sku_price` 的 `FOR UPDATE` 只按 `device_id` 索引 ⇒ 锁该柜全部 SKU 行，并发冲突面需数据判定。
+5. ~~`device_sku_price` 的 `FOR UPDATE` 只按 `device_id` 索引 ⇒ 锁该柜全部 SKU 行，并发冲突面需数据判定~~ **勘误关闭（2026-11-13）**：实际 SQL 含 sku_id 谓词且复合主键实测在，锁粒度=单行，前提不成立。
 
 ### 十七.5 建议顺序
 
