@@ -33,16 +33,11 @@
         },
         {
           "id": "shared-dict dist 重建（P3-1 批 11~16 新增字典族落 dist，shared-dist-fresh）",
-          "files": [
-            "packages/shared-dict/dist/index.d.ts",
-            "packages/shared-dict/dist/index.js"
-          ]
+          "files": ["packages/shared-dict/dist/index.d.ts", "packages/shared-dict/dist/index.js"]
         },
         {
           "id": "barehex 棘轮判据校准：var(--token,#hex) 令牌兜底剥离 + 基线显式重冻结（负向验证：注入→红→还原→绿）",
-          "files": [
-            "scripts/check-ui-barehex-ratchet.mjs"
-          ]
+          "files": ["scripts/check-ui-barehex-ratchet.mjs"]
         }
       ],
       "notAdopted": []
@@ -60,9 +55,7 @@
         },
         {
           "id": "fix-batch 登记上一批 706dff7d（preflight 登记类修复）",
-          "files": [
-            "scripts/fix-batch-registry.json"
-          ]
+          "files": ["scripts/fix-batch-registry.json"]
         }
       ],
       "notAdopted": []
@@ -144,9 +137,7 @@
         },
         {
           "id": "shared-dict 两族字典同步补值（跨端对齐）",
-          "files": [
-            "packages/shared-dict/src/index.ts"
-          ]
+          "files": ["packages/shared-dict/src/index.ts"]
         }
       ],
       "notAdopted": []
