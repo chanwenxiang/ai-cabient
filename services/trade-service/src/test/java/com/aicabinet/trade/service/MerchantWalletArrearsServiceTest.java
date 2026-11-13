@@ -180,11 +180,40 @@ class MerchantWalletArrearsServiceTest {
     @Test
     void arrearsSql_isReadOnlyAndPinsPredicates() throws Exception {
         String block = selectBlock();
-        assertTrue(block.contains("balance_cents < 0"), "必须以负余额为谓词");
+        // CDATA 之外必须写实体（写进 CDATA 的 &lt; 会变成字面量文本，见下面那条负向断言）
+        assertTrue(block.contains("balance_cents &lt; 0"), "必须以负余额为谓词");
         assertTrue(block.contains("a.domain = #{domain}"), "必须按 domain 隔离（线长/员工钱包不混入）");
         assertTrue(block.contains("balance_after >= 0"), "账龄起算必须取「最后一次非负」");
         assertTrue(block.contains("a.owner_id = #{ownerId}"), "锁柜判据要能按商户单查（不扫全量）");
         assertFalse(block.toUpperCase().contains("UPDATE"), "只读探针不得出现 UPDATE");
         assertFalse(block.toUpperCase().contains("DELETE"), "只读探针不得出现 DELETE");
+    }
+
+    /**
+     * 2026-11-13 真栈 500 的成因：{@code <if>} 被包进 {@code <![CDATA[...]]>} ⇒ MyBatis 当字面文本
+     * 送给 PG（{@code syntax error at or near "<"}），而 mock 单测从不解析 XML ⇒ 恒绿。
+     */
+    @Test
+    void arrearsSql_keepsDynamicTagsOutsideCdata() throws Exception {
+        String block = selectBlock();
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("<!\\[CDATA\\[(.*?)]]>", java.util.regex.Pattern.DOTALL).matcher(block);
+        int sections = 0;
+        while (m.find()) {
+            sections++;
+            String cdata = m.group(1);
+            for (String tag : new String[] {"<if", "<where", "<foreach", "<choose", "<when", "&lt;", "&amp;"}) {
+                assertFalse(cdata.contains(tag),
+                        "CDATA 里混进了动态标签/实体（PG 会收到字面量 \"" + tag + "\"）：" + cdata.strip().lines()
+                                .filter(l -> l.contains(tag)).findFirst().orElse(""));
+            }
+        }
+        if (sections > 0) {
+            // 有 CDATA 时，动态标签必须落在 CDATA 之外——否则等于没测
+            int firstCdata = block.indexOf("<![CDATA[");
+            int ifPos = block.indexOf("<if ");
+            assertTrue(ifPos < 0 || ifPos < firstCdata || ifPos > block.indexOf("]]>", firstCdata),
+                    "<if> 与 CDATA 段重叠 ⇒ 会被原样送进 PG");
+        }
     }
 }

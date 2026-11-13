@@ -23,9 +23,10 @@
        索引（idx_wallet_ledger_owner），即「最后一次有钱的时刻」；整本账从未非负则回落最早一行。
        两者都为空（无流水的存量账户）⇒ c2 为 NULL，调用方按「账龄不可判」跳过。
        列别名沿用本仓 LinkedHashMap 结果的既有约定（c0/c1/c2），避开 PG 未加引号别名折小写
-       + MyBatis map-underscore-to-camel-case 对 Map 结果不生效的组合坑。 -->
+       + MyBatis map-underscore-to-camel-case 对 Map 结果不生效的组合坑。
+       🔴 动态 &lt;if&gt; 必须放在 CDATA **外**：放进 CDATA 会变成字面量 SQL（syntax error at "<"），
+       静态单测用 mock 永远抓不到，必须由 SQL IT / 起真库联调发现（2026-11-13 已实证一次）。 -->
   <select id="findNegativeArrears" resultType="java.util.LinkedHashMap">
-    <![CDATA[
     SELECT a.owner_id      AS c0,
            a.balance_cents AS c1,
            COALESCE(
@@ -36,12 +37,11 @@
            ) AS c2
       FROM wallet_account a
      WHERE a.domain = #{domain}
-       AND a.balance_cents < 0
-       <if test="ownerId != null and ownerId != ''">
-         AND a.owner_id = #{ownerId}
-       </if>
+       AND a.balance_cents &lt; 0
+    <if test="ownerId != null and ownerId != ''">
+       AND a.owner_id = #{ownerId}
+    </if>
      ORDER BY a.balance_cents ASC
-    ]]>
   </select>
 
   <update id="updateBalances">

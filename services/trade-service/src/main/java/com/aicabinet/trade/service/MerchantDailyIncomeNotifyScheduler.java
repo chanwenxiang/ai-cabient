@@ -223,7 +223,8 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         checkOverdueAndRemind(yesterday, merchantIds);
         // CB-086：钱包欠款连续满账龄 ⇒ 停售；结清自动复机（与费用欠费锁分开拥有设备锁）。
-        enforceWalletArrears(yesterday.plusDays(1));
+        // 账龄按「今天」判：本方法也被「按日期重跑日扣」复用，用 feeDate+1 会让停售判据跟着回拨
+        enforceWalletArrears(LocalDate.now(ScheduleZones.ZONE));
         return chargedTotal;
     }
 
@@ -377,6 +378,9 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         int lockDays = svc.lockThresholdDays();
         if (lockDays <= 0) {
+            // 策略关闭：把本前缀的锁全部释放，否则关闸会把已锁商户永久钉在停售上。
+            // 复机仍守「有未结费用不解除」——费用锁的归属不受影响。
+            unlockWalletArrearsDevices(mid -> true, "钱包欠款锁柜已关闭（策略关闭）");
             return;
         }
         for (MerchantWalletArrearsService.Arrears hit : svc.overThreshold(lockDays, today)) {
@@ -403,6 +407,16 @@ public class MerchantDailyIncomeNotifyScheduler {
     }
 
     private void unlockClearedWalletArrears(MerchantWalletArrearsService svc) {
+        unlockWalletArrearsDevices(mid -> !svc.inArrears(mid), "钱包欠款已结清");
+    }
+
+    /**
+     * 解除「钱包欠款锁柜」前缀的设备锁。
+     *
+     * @param cleared 该商户是否已不欠款（策略关闭时传恒 true）
+     * @param reason  复机原因（写进设备锁售审计）
+     */
+    private void unlockWalletArrearsDevices(java.util.function.Predicate<String> cleared, String reason) {
         List<DeviceInfo> locked = deviceRepository.selectList(Wrappers.<DeviceInfo>lambdaQuery()
                 .eq(DeviceInfo::getSalesLocked, true)
                 .likeRight(DeviceInfo::getSalesLockReason, WALLET_ARREARS_LOCK_PREFIX));
@@ -417,12 +431,12 @@ public class MerchantDailyIncomeNotifyScheduler {
         }
         for (Map.Entry<String, List<DeviceInfo>> e : byMerchant.entrySet()) {
             // 结清 = 不再欠款且无未结费用；只解本前缀锁住的设备，费用锁/人工锁不动
-            if (svc.inArrears(e.getKey()) || pendingFeeTotal(e.getKey()) > 0) {
+            if (!cleared.test(e.getKey()) || pendingFeeTotal(e.getKey()) > 0) {
                 continue;
             }
             for (DeviceInfo d : e.getValue()) {
                 try {
-                    salesLockService.applySalesLock(null, d, false, "钱包欠款已结清", true);
+                    salesLockService.applySalesLock(null, d, false, reason, true);
                 } catch (Exception ex) {
                     log.warn("wallet arrears unlock failed device={}: {}", d.getDeviceId(), ex.getMessage());
                 }

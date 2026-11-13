@@ -386,6 +386,18 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletArrearsSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；CB-086 欠款账龄查询走 mapper XML ⇒ mock 单测看不见 XML 里的错误：' +
+        '<if> 被误写进 CDATA 时 MyBatis 原样送字面量，PG 报 syntax error at or near "<"，' +
+        '真栈 onlyNegative 与 arrears.csv 双双 500（2026-11-13 由端到端实跑抓到）。' +
+        '本 IT 在真 PG 上跑 findNegativeArrears，钉欠款段起点取「最后一次 balance_after>=0」、' +
+        '整本账从未非负回落最早一行、无流水账户返回可判空'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/SeedSequenceDriftSqlIT.java',
     {
       job: 'integration',

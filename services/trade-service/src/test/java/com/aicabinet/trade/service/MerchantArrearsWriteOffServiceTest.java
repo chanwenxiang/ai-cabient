@@ -66,6 +66,9 @@ class MerchantArrearsWriteOffServiceTest {
         when(splitMapper.selectCount(any())).thenReturn(0L);
         when(walletService.creditIfAbsent(anyString(), anyLong(), anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(true);
+        // 欠款段固定，便于断言幂等键；未命中时走「今天」兜底
+        when(arrearsService.arrearsOf(M1)).thenReturn(java.util.Optional.of(
+                new MerchantWalletArrearsService.Arrears(M1, 5_000L, 91, java.time.LocalDate.of(2026, 8, 14))));
     }
 
     private void merchantWithStatus(String status) {
@@ -103,6 +106,33 @@ class MerchantArrearsWriteOffServiceTest {
     }
 
     @Test
+    void frozenFunds_blockWriteOff() {
+        merchantWithStatus("INACTIVE");
+        MerchantWalletAccount acc = new MerchantWalletAccount();
+        acc.setMerchantId(M1);
+        acc.setBalanceCents(-5_000L);
+        acc.setFrozenCents(1_000L);
+        when(walletService.findAccount(M1)).thenReturn(acc);
+        ResponseStatusException e = assertThrows(ResponseStatusException.class,
+                () -> service.writeOff(OP, M1, "坏账"));
+        assertTrue(e.getReason() != null && e.getReason().contains("冻结"), e.getReason());
+    }
+
+    @Test
+    void newArrearsEpisode_getsNewIdempotencyKey() {
+        merchantWithStatus("INACTIVE");
+        balance(-5_000L);
+        when(arrearsService.arrearsOf(M1)).thenReturn(java.util.Optional.of(
+                new MerchantWalletArrearsService.Arrears(M1, 5_000L, 10, java.time.LocalDate.of(2026, 11, 1))));
+        service.writeOff(OP, M1, "第二段欠款");
+        // 与 2026-08-14 那一段同金额，但键必须不同，否则第二段会被旧键静默吞掉
+        verify(walletService).creditIfAbsent(eq(M1), eq(5_000L),
+                eq(MerchantArrearsWriteOffService.ENTRY_TYPE),
+                eq(MerchantArrearsWriteOffService.REF_TYPE),
+                eq("WO:M1:5000:2026-11-01"), anyString());
+    }
+
+    @Test
     void inflightWithdraw_blocksWriteOff() {
         merchantWithStatus("INACTIVE");
         balance(-5_000L);
@@ -132,7 +162,7 @@ class MerchantArrearsWriteOffServiceTest {
         verify(walletService).creditIfAbsent(eq(M1), eq(5_000L),
                 eq(MerchantArrearsWriteOffService.ENTRY_TYPE),
                 eq(MerchantArrearsWriteOffService.REF_TYPE),
-                eq("WO:M1:5000"), contains("撤柜不再合作"));
+                eq("WO:M1:5000:2026-08-14"), contains("撤柜不再合作"));
         verify(auditService).appendLog(eq(OP), eq(MerchantArrearsWriteOffService.ENTRY_TYPE),
                 eq("MERCHANT_WALLET"), eq(M1), contains("核销金额(分)=5000"));
         verify(approvalWorkflowService, never()).start(anyString(), anyString(), any(), anyString());
@@ -145,7 +175,7 @@ class MerchantArrearsWriteOffServiceTest {
         when(policy.merchantReviewThresholdCents()).thenReturn(500_000L);
         service.writeOff(OP, M1, "坏账");
         verify(approvalWorkflowService).start(eq(MerchantArrearsWriteOffService.APPROVAL_BIZ_TYPE),
-                eq("WO:" + M1 + ":600000"), eq(OP), contains("欠款核销"));
+                eq("WO:" + M1 + ":600000:2026-08-14"), eq(OP), contains("欠款核销"));
     }
 
     @Test

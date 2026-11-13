@@ -96,11 +96,29 @@ class MerchantWalletArrearsLockTest {
     }
 
     @Test
-    void lockDisabled_doesNothing() {
+    void lockDisabled_releasesOwnLocksInsteadOfStrandingThem() {
+        // 关闸必须释放本前缀的锁：否则已锁商户会永久停售（只有费用复机链才解 FEE 前缀）
         lockEnabled(0);
-        devices(device("D1", false, null));
+        String reason = MerchantDailyIncomeNotifyScheduler.WALLET_ARREARS_LOCK_PREFIX + "：钱包欠款 50.00 元";
+        devices(device("D1", true, reason));
         scheduler.enforceWalletArrears(TODAY);
         verify(walletArrearsService, never()).overThreshold(org.mockito.ArgumentMatchers.anyLong(), any());
+        verify(salesLockService).applySalesLock(eq(null), org.mockito.ArgumentMatchers.argThat(
+                d -> d != null && "D1".equals(d.getDeviceId())), eq(false),
+                org.mockito.ArgumentMatchers.contains("策略关闭"), eq(true));
+    }
+
+    @Test
+    void lockDisabled_keepsDeviceLockedWhileFeeDebtRemains() {
+        lockEnabled(0);
+        String reason = MerchantDailyIncomeNotifyScheduler.WALLET_ARREARS_LOCK_PREFIX + "：钱包欠款 50.00 元";
+        devices(device("D1", true, reason));
+        MerchantFeeLedger fee = new MerchantFeeLedger();
+        fee.setMerchantId(M1);
+        fee.setAmountCents(1_000L);
+        fee.setStatus("PENDING");
+        when(feeLedgerRepository.selectList(any())).thenReturn(List.of(fee));
+        scheduler.enforceWalletArrears(TODAY);
         verify(salesLockService, never()).applySalesLock(any(), any(), anyBoolean(), any(), anyBoolean());
     }
 

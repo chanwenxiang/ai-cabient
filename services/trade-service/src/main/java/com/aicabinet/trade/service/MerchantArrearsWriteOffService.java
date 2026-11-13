@@ -52,8 +52,12 @@ public class MerchantArrearsWriteOffService {
     /** 在途提现：钱可能还会出/被驳回解冻。 */
     static final Set<String> INFLIGHT_WITHDRAW_STATUSES = Set.of("PENDING_REVIEW", "APPROVED", "PAYING");
 
-    /** 在途分账：钱还没最终落到钱包（ACCRUED/已提交微信/微信失败待重试）。 */
-    static final Set<String> INFLIGHT_SPLIT_STATUSES = Set.of("ACCRUED", "WECHAT_SUBMITTED", "WECHAT_FAILED");
+    /**
+     * 在途分账：钱还没最终落到钱包，或失败待重试（与 {@code MerchantFinanceService}
+     * 的「待分账」口径同源，另含失败可重试态）。{@code LEDGER_ONLY}/{@code SETTLED} 已入钱包，不算在途。
+     */
+    static final Set<String> INFLIGHT_SPLIT_STATUSES =
+            Set.of("PENDING", "ACCRUED", "WECHAT_SUBMITTED", "SUBMITTED", "WECHAT_FAILED", "FAILED");
 
     private static final Logger log = LoggerFactory.getLogger(MerchantArrearsWriteOffService.class);
 
@@ -108,40 +112,69 @@ public class MerchantArrearsWriteOffService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "仅已停用的商户可核销欠款；活跃商户请走「入账自动抵扣 + 线下追缴」");
         }
-        requireNoInflight(merchantId);
         String lockKey = MerchantWithdrawService.merchantWalletLockKey(merchantId);
         if (!distributedLockService.tryLock(lockKey, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "商户钱包处理中，请稍后重试");
         }
+        // 锁必须覆盖到事务提交之后：在事务内 finally 解锁会在「已解锁、未提交」窗口放进第二个核销。
+        // 有活跃事务 ⇒ 挂 afterCompletion（提交/回滚后执行）；无事务直调（单测）⇒ 立即释放。
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            distributedLockService.unlock(lockKey);
+                        }
+                    });
+            return doWriteOff(operatorId, merchantId, merchant, reason);
+        }
         try {
-            MerchantWalletAccount account = merchantWalletService.findAccount(merchantId);
-            long balance = account == null || account.getBalanceCents() == null ? 0L : account.getBalanceCents();
-            if (balance >= 0) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "该商户当前无欠款可核销");
-            }
-            long amountCents = -balance;
-            String note = "商户欠款核销：" + (reason == null || reason.isBlank() ? "平台兜底" : reason.trim());
-            String refId = "WO:" + merchantId + ":" + amountCents;
-            boolean written = merchantWalletService.creditIfAbsent(
-                    merchantId, amountCents, ENTRY_TYPE, REF_TYPE, refId, note);
-            if (!written) {
-                // 幂等命中：余额快照没变过（同日重复点击/重放），不再重复记审计
-                log.info("arrears write-off already recorded merchant={} amount={}", merchantId, amountCents);
-                return new WriteOffResult(merchantId, amountCents, true);
-            }
-            auditService.appendLog(operatorId, ENTRY_TYPE, "MERCHANT_WALLET", merchantId,
-                    "核销金额(分)=" + amountCents + "；原因=" + note);
-            if (amountCents >= policy.merchantReviewThresholdCents()) {
-                approvalWorkflowService.start(APPROVAL_BIZ_TYPE, refId, operatorId,
-                        "商户欠款核销 " + merchant.getMerchantName() + " ¥"
-                                + BigDecimal.valueOf(amountCents, 2).toPlainString());
-            }
-            log.warn("merchant wallet arrears written off (platform absorbs): merchant={} amount={} operator={}",
-                    merchantId, amountCents, operatorId);
-            return new WriteOffResult(merchantId, amountCents, false);
+            return doWriteOff(operatorId, merchantId, merchant, reason);
         } finally {
             distributedLockService.unlock(lockKey);
         }
+    }
+
+    private WriteOffResult doWriteOff(Long operatorId, String merchantId, Merchant merchant, String reason) {
+        requireNoInflight(merchantId);
+        MerchantWalletAccount account = merchantWalletService.findAccount(merchantId);
+        long balance = account == null || account.getBalanceCents() == null ? 0L : account.getBalanceCents();
+        long frozen = account == null || account.getFrozenCents() == null ? 0L : account.getFrozenCents();
+        if (balance >= 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该商户当前无欠款可核销");
+        }
+        if (frozen > 0) {
+            // 冻结额度通常对应在途提现/预扣；此时核销可能把「还要付出去的钱」也抹掉
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "存在冻结资金，可能还有在途提现/预扣，请先处理冻结后再核销");
+        }
+        long amountCents = -balance;
+        // 幂等键带「欠款段」：同一段（起算日相同）连点/重放只记一笔；结清后再次欠款是新段，
+        // 必须允许再次核销——只按金额派生会让第二段被旧键静默吞掉（不记账、不审计）。
+        String episode = arrearsService.arrearsOf(merchantId)
+                .map(MerchantWalletArrearsService.Arrears::since)
+                .map(java.time.LocalDate::toString)
+                .orElseGet(() -> java.time.LocalDate.now(com.aicabinet.trade.support.ScheduleZones.ZONE).toString());
+        String refId = "WO:" + merchantId + ":" + amountCents + ":" + episode;
+        String note = "商户欠款核销：" + (reason == null || reason.isBlank() ? "平台兜底" : reason.trim());
+        boolean written = merchantWalletService.creditIfAbsent(
+                merchantId, amountCents, ENTRY_TYPE, REF_TYPE, refId, note);
+        if (!written) {
+            // 幂等命中：同一欠款段、同一金额的重放，不再重复记审计
+            log.info("arrears write-off already recorded merchant={} amount={} episode={}",
+                    merchantId, amountCents, episode);
+            return new WriteOffResult(merchantId, amountCents, true);
+        }
+        auditService.appendLog(operatorId, ENTRY_TYPE, "MERCHANT_WALLET", merchantId,
+                "核销金额(分)=" + amountCents + "；欠款段=" + episode + "；原因=" + note);
+        if (amountCents >= policy.merchantReviewThresholdCents()) {
+            approvalWorkflowService.start(APPROVAL_BIZ_TYPE, refId, operatorId,
+                    "商户欠款核销 " + merchant.getMerchantName() + " ¥"
+                            + BigDecimal.valueOf(amountCents, 2).toPlainString());
+        }
+        log.warn("merchant wallet arrears written off (platform absorbs): merchant={} amount={} operator={} episode={}",
+                merchantId, amountCents, operatorId, episode);
+        return new WriteOffResult(merchantId, amountCents, false);
     }
 
     private void requireNoInflight(String merchantId) {

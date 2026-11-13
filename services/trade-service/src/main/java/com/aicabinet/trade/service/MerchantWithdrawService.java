@@ -19,6 +19,7 @@ import com.aicabinet.trade.payout.PayoutChannel;
 import com.aicabinet.trade.payout.PayoutChannelLimits;
 import com.aicabinet.trade.payout.PayoutChannelRegistry;
 import com.aicabinet.trade.payout.PayoutConstants;
+import com.aicabinet.trade.support.CsvCells;
 import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -996,38 +997,54 @@ public class MerchantWithdrawService {
         permissionService.requireAnyPermission(operatorId,
                 PERM_OPS_MERCHANT_WITHDRAW_LIST, PERM_OPS_FINANCE_VIEW, "ops:merchant:list");
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
-        if (allowed.isEmpty()) {
-            return csvHeader();
-        }
         StringBuilder sb = new StringBuilder(csvHeader());
+        if (allowed.isEmpty()) {
+            return sb.toString();
+        }
+        // 处置提示与配置同源：阈值改了文案跟着变，不写死 90（否则报表会撒谎）
+        int lockDays = walletArrearsService.lockThresholdDays();
         walletArrearsService.negativeAccounts().stream()
                 .filter(a -> allowed.contains(a.merchantId()))
                 .sorted(java.util.Comparator.comparingLong(MerchantWalletArrearsService.Arrears::arrearsCents).reversed())
                 .forEach(a -> {
                     Merchant m = merchantMapper.findById(a.merchantId()).orElse(null);
-                    sb.append(csvCell(a.merchantId())).append(',')
-                            .append(csvCell(m == null ? "" : m.getMerchantName())).append(',')
-                            .append(csvCell(m == null ? "" : m.getContactPhone())).append(',')
-                            .append(csvCell(m == null ? "" : m.getStatus())).append(',')
+                    String phone = m == null ? "" : firstNonBlank(m.getContactPhone(), m.getAlertContactPhone());
+                    String hint;
+                    if (a.ageDays() < 0) {
+                        hint = "账龄不可判（无流水），人工核对";
+                    } else if (lockDays > 0 && a.ageDays() >= lockDays) {
+                        hint = "已满 " + lockDays + " 天（可停售；核销需商户非 ACTIVE）";
+                    } else if (lockDays > 0) {
+                        hint = "未满 " + lockDays + " 天";
+                    } else {
+                        hint = "锁柜已关闭（仅告警）";
+                    }
+                    // 统一走 CsvCells：CSV 公式注入中和 + RFC 转义（审计 P1-7 纪律）
+                    sb.append(CsvCells.escape(a.merchantId())).append(',')
+                            .append(CsvCells.escape(m == null ? "" : m.getMerchantName())).append(',')
+                            .append(CsvCells.escape(phone)).append(',')
+                            .append(CsvCells.escape(m == null ? "" : m.getStatus())).append(',')
                             .append(BigDecimal.valueOf(a.arrearsCents(), 2).toPlainString()).append(',')
-                            .append(a.since() == null ? "" : a.since()).append(',')
+                            .append(CsvCells.escape(a.since() == null ? "" : a.since().toString())).append(',')
                             .append(a.ageDays() < 0 ? "" : String.valueOf(a.ageDays())).append(',')
-                            .append(a.ageDays() < 0 ? "账龄不可判（无流水）" : a.ageDays() >= 90 ? "已满 90 天（可核销）" : "未满 90 天")
+                            .append(CsvCells.escape(hint))
                             .append('\n');
                 });
         return sb.toString();
     }
 
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return "";
+    }
+
     private static String csvHeader() {
         // BOM 让 Excel 按 UTF-8 打开中文表头
         return "\uFEFF商户编号,商户名称,联系电话,商户状态,欠款金额(元),欠款起算日,账龄(天),处置提示\n";
-    }
-
-    private static String csvCell(String raw) {
-        String v = raw == null ? "" : raw;
-        return v.contains(",") || v.contains("\"") || v.contains("\n")
-                ? "\"" + v.replace("\"", "\"\"") + "\""
-                : v;
     }
 
     private MerchantWithdrawRequestDto toDto(MerchantWithdrawRequest request) {
