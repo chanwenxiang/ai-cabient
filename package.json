@@ -71,7 +71,7 @@
     "check:mp-template-comments": "node scripts/check-mp-template-comments.mjs",
     "check:feature-flags": "node scripts/check-feature-flags.mjs",
     "check:competitor-benchmark": "node scripts/check-competitor-benchmark.mjs",
-    "check:docker-tests-guarded": "node scripts/check-docker-tests-guarded.mjs",
+    "check:docker-tests-guarded": "node scripts/check-docker-tests-guarded.test.mjs && node scripts/check-docker-tests-guarded.mjs",
     "check:scheduled-task-trybegin": "node scripts/check-scheduled-task-trybegin.mjs",
     "check:mp-unit-tests-wired": "node scripts/check-mp-unit-tests-wired.mjs",
     "check:compose-stop-grace": "node scripts/check-compose-stop-grace.mjs",
