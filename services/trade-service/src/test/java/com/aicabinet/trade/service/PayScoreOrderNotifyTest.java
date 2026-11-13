@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,6 +42,9 @@ class PayScoreOrderNotifyTest {
     @Mock OpsExceptionService opsExceptionService;
     /** R20-2：DONE 是本单的分账/商户钱包入账时点（结算时未实收，只建了分账行）。 */
     @Mock RevenueSplitService revenueSplitService;
+    /** R20-2：会员消费统计/返积分与 order_paid 通知同样挪到实收确认点。 */
+    @Mock MemberService memberService;
+    @Mock NotificationService notificationService;
 
     @InjectMocks PayScoreOrderNotifyService service;
 
@@ -91,6 +95,10 @@ class PayScoreOrderNotifyTest {
         assertEquals("CHARGE:1792659779535535992400:350", opCap.getValue().getIdempotencyKey());
         // R20-2：钱在这里才真的进来 ⇒ 分账入账必须跟着在这里发生（recordSplit 幂等，重推无害）
         verify(revenueSplitService).recordSplit(o);
+        // R20-2：结算时被推迟的两腿在此补做，基数与结算路径同口径（订单总额，非本次实收额）
+        verify(memberService).onOrderPaid(10002L, 350, o.getOrderId());
+        verify(notificationService).notifyConsumer(
+                eq(10002L), eq("order_paid"), any(), eq("ORDER"), eq(o.getOrderId()));
     }
 
     @Test
@@ -127,6 +135,7 @@ class PayScoreOrderNotifyTest {
         // R20-2：微信最终没扣到钱 ⇒ 这条腿既不改订单状态也不触发入账，商户份额永不进钱包
         // （全仓无 SPLIT 反冲路径，所以「不入」就是唯一的正确处置）
         verify(revenueSplitService, never()).recordSplit(any(CabinetOrder.class));
+        verifyNoInteractions(memberService, notificationService);
         assertEquals("PENDING", o.getStatus());
     }
 

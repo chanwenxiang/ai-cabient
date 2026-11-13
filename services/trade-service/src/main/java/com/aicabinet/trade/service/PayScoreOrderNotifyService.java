@@ -52,19 +52,25 @@ public class PayScoreOrderNotifyService {
     private final UnpaidDunningService unpaidDunningService;
     private final OpsExceptionService opsExceptionService;
     private final RevenueSplitService revenueSplitService;
+    private final MemberService memberService;
+    private final NotificationService notificationService;
 
     public PayScoreOrderNotifyService(PayScoreOrderMapper payScoreOrderMapper,
                                       CabinetOrderMapper cabinetOrderMapper,
                                       PaymentOperationMapper paymentOperationMapper,
                                       UnpaidDunningService unpaidDunningService,
                                       OpsExceptionService opsExceptionService,
-                                      RevenueSplitService revenueSplitService) {
+                                      RevenueSplitService revenueSplitService,
+                                      MemberService memberService,
+                                      NotificationService notificationService) {
         this.payScoreOrderMapper = payScoreOrderMapper;
         this.cabinetOrderMapper = cabinetOrderMapper;
         this.paymentOperationMapper = paymentOperationMapper;
         this.unpaidDunningService = unpaidDunningService;
         this.opsExceptionService = opsExceptionService;
         this.revenueSplitService = revenueSplitService;
+        this.memberService = memberService;
+        this.notificationService = notificationService;
     }
 
     /** 是否订单事件（区别于授权事件）：带 out_order_no。 */
@@ -168,6 +174,27 @@ public class PayScoreOrderNotifyService {
         // splitId 为幂等键，重复回调无害）。刻意**不**包 try：资金动作失败要让本回调事务
         // 整体回滚、订单退回未实收、微信按策略重试——吞掉就留下「钱到了、商户没入账」。
         revenueSplitService.recordSplit(order);
+        // R20-2：结算时对未实收单刻意推迟的两件善后（会员消费统计/返积分、order_paid 通知）
+        // 在实收确认这里补做。金额仍按订单总额而非本次实收额，与补缴路径
+        // （UnpaidOrderService.collect 传 totalAmountCents）逐字同口径——本批改的是**时点**，
+        // 不顺手改**基数**，否则会把「发放基数」和「入账基数」又拆成两套。
+        try {
+            memberService.onOrderPaid(order.getUserId(), order.getTotalAmountCents(), order.getOrderId());
+        } catch (Exception e) {
+            log.warn("member stats on payscore DONE failed order={}", order.getOrderId(), e);
+        }
+        try {
+            notificationService.notifyConsumer(
+                    order.getUserId(),
+                    "order_paid",
+                    java.util.Map.of("orderId", order.getOrderId(), "amount",
+                            java.math.BigDecimal.valueOf(order.getTotalAmountCents(), 2)
+                                    .stripTrailingZeros().toPlainString()),
+                    "ORDER",
+                    order.getOrderId());
+        } catch (Exception e) {
+            log.warn("order paid notification on payscore DONE failed order={}", order.getOrderId(), e);
+        }
         unpaidDunningService.onUnpaidCleared(order.getUserId());
         log.info("wechat payscore order PAID order={} amount={} tradeNo={}", order.getOrderId(), amount, tradeNo);
     }

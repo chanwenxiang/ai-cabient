@@ -140,20 +140,32 @@ public class SettlementOrderFinalizeService {
         revenueSplitService.recordSplit(order);
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
-        try {
-            memberService.onOrderPaid(session.getUserId(), order.getTotalAmountCents(), order.getOrderId());
-        } catch (Exception e) {
-            log.warn("member stats update failed order={}", order.getOrderId(), e);
-        }
-        try {
-            notificationService.notifyConsumer(
-                    session.getUserId(),
-                    "order_paid",
-                    Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
-                    "ORDER",
-                    order.getOrderId());
-        } catch (Exception e) {
-            log.warn("order paid notification failed order={}", order.getOrderId(), e);
+        // R20-2（2026-11-13）：会员消费统计/返积分与 order_paid 通知都属「已收款」的后果，
+        // 与商户入账同源（OrderCollectionGate）。支付分腿此刻是 PENDING——微信还没扣到钱，
+        // 若照常发放，用户 EXPIRED/REVOKED 之后手里还留着积分与「已支付」通知，而取消路径
+        // 全仓没有任何追回动作。善后改由实收确认点执行：DONE 回调
+        // （PayScoreOrderNotifyService.handlePaid）或补缴成功（UnpaidOrderService.collect）。
+        // onOrderPaid 自身以 ORDER 流水的 orderId 做幂等（MemberService:218），重进不会双发。
+        if (OrderCollectionGate.collected(order)) {
+            try {
+                memberService.onOrderPaid(session.getUserId(), order.getTotalAmountCents(), order.getOrderId());
+            } catch (Exception e) {
+                log.warn("member stats update failed order={}", order.getOrderId(), e);
+            }
+            try {
+                notificationService.notifyConsumer(
+                        session.getUserId(),
+                        "order_paid",
+                        Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
+                        "ORDER",
+                        order.getOrderId());
+            } catch (Exception e) {
+                log.warn("order paid notification failed order={}", order.getOrderId(), e);
+            }
+        } else {
+            log.info("deferred member-stats and order_paid notify (uncollected order) "
+                            + "order={} status={} channel={}",
+                    order.getOrderId(), order.getStatus(), order.getPayChannel());
         }
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
