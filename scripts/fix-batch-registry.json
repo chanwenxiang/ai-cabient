@@ -1,6 +1,59 @@
 {
   "note": "S8① 修复批覆盖对账登记表（2026-11-12 用户拍板：逐批手工登记，存量不回填）。工作流：修复批提交后立即在本表登记——commit（短哈希）+ report（审计报告路径）+ totalItems（报告该批条目总数，items+notAdopted 必须等于它）+ items（条目→应改文件，门禁对 git show --name-only 交叉核，A26 判据）+ notAdopted（有意不采纳，带 why）。coverageCutoff 之后的 fix(/perf( 提交必须已登记或入 unregisteredAllowlist（带 why）。本表由 check-fix-batch-coverage 门禁校验。",
   "coverageCutoff": "9c30038b",
-  "batches": [],
-  "unregisteredAllowlist": []
+  "batches": [
+    {
+      "commit": "58e2252f",
+      "report": "docs/AUDIT_STRUCTURAL_BACKLOG_2026-11-12.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "R18-2",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryLotExpiryScanR18Test.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    }
+  ],
+  "unregisteredAllowlist": [
+    {
+      "commit": "27bb5e38",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "43d9e1c2",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "46c12d73",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "9c49ddca",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "13348d1c",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "a727b69f",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "81e82a39",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "4220f711",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    },
+    {
+      "commit": "799f789c",
+      "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
+    }
+  ]
 }

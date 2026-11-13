@@ -118,7 +118,7 @@ async function main() {
     if (verify.spawnError) {
       fail(`git 不可用：${verify.spawnError}——工具故障不得当成「登记正确」`);
     }
-    if (verify.status !== 0) {
+    if (!verify.ok) {
       problems.push(`登记的 commit 不存在：${batch.commit}`);
       continue;
     }
