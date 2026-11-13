@@ -47,7 +47,8 @@ const MIGRATIONS = [
   'V475__status_check_batch12_dedicated_families.sql',
   'V476__status_check_batch13_approval_coupon.sql',
   'V477__status_check_batch14_notification_ota.sql',
-  'V478__status_check_batch15_line_chain.sql'
+  'V478__status_check_batch15_line_chain.sql',
+  'V479__status_check_batch16_misc_final.sql'
 ].map((f) => `${MIG_DIR}/${f}`);
 
 const P = {
@@ -443,6 +444,12 @@ function selfTest() {
       (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
     ['V478 CHECK 漏 ARCHIVED（线路域收窄假绿测试）', MIGRATIONS[14],
       (s) => s.replace(/CHECK \(status IN \('ACTIVE','ARCHIVED'\)\)/, "CHECK (status IN ('ACTIVE'))"), 'CHECK 值域与字典族不同源'],
+    ['V479 迁移删掉一条约束', MIGRATIONS[15],
+      (s) => s.replace(/ALTER TABLE pull_off_task[\s\S]*?NOT VALID;\n/, ''), '找不到约束'],
+    ['V479 迁移去掉 NOT VALID', MIGRATIONS[15],
+      (s) => s.replace('NOT VALID;', ';'), '缺 NOT VALID'],
+    ['V479 CHECK 漏 CAPTURED（预授权域收窄假绿测试）', MIGRATIONS[15],
+      (s) => s.replace(/CHECK \(preauth_status IN \('NONE','FROZEN','CAPTURED','RELEASED'\)\)/, "CHECK (preauth_status IN ('NONE','FROZEN','RELEASED'))"), 'CHECK 值域与字典族不同源'],
     ['设备在线列 DDL DEFAULT 越界', `${MIG_DIR}/V1__init_schema.sql`,
       (s) => s.replace("online_status     VARCHAR(16)  NOT NULL DEFAULT 'OFFLINE'",
                        "online_status     VARCHAR(16)  NOT NULL DEFAULT 'TOTALLY_BOGUS'"), 'DDL DEFAULT']

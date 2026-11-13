@@ -767,7 +767,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 
 18 条全部处置完：16 条实修（批 A 4 / 批 B 4 / 批 C 4 / 批 D 4），P2-9 改判不成立、P2-18 实测证伪（谓词本就存在，`Index Scan using uk_invoice_order_active`）、P2-12 已按用户裁定「不叠加/取优」落地。
 
-### 十七.3 剩余 P3：P3-1 已落 15 批 / 57 列（§二十六~§三十五，余 30 列为显式欠账 + 23 + 2 列登记排除）；P3-2 判定不派修；P3-3~P3-10 均已收口
+### 十七.3 剩余 P3：P3-1 已落 16 批 / 64 列（§二十六~§三十六，余 23 列账面欠账全部为登记排除 24 + 2 列，无未分类悬空列）；P3-2 判定不派修；P3-3~P3-10 均已收口
 
 | # | 一句话 | 派修提示 |
 |---|---|---|
@@ -796,7 +796,7 @@ group-by 取回 `device_id → opens`；聚合缺失的柜机按 0（照旧上�
 1. ~~**P3-5 / P3-6 / P3-10**~~ **已完成（§十八）**。
 2. ~~**R20-9（加表 + 按腿回退）**~~ **已完成（§二十）**——V463 腿表 + 六处按腿 + 守恒判据/真库演练。
 3. ~~**R20-10 后半（异步化 + ACK 语义）**~~ **已完成（§二十一）**——复核发现「等另一个会话收口」并非硬前提（对方只改 `TradeServiceClient` 构造器，本批零文件交集、不依赖 `OutboundHttp`），故直接落地。
-4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 15 批（§二十六~§三十五）**——V464~V478 共 57 列、门禁 7 组判据 / 45 变异、真库验收，余 30 列按批销账。
+4. ~~**P3-4（回调落痕）**~~ **已完成（§二十二）**；~~**P3-1**~~ **已推进 16 批（§二十六~§三十六）**——V464~V479 共 64 列、门禁 7 组判据 / 48 变异、真库验收，基线悬空列全部清账（余 23 = 登记排除 24 + 2，无未分类列）。
 5. ~~P3-7 / P3-8 / P3-9~~ **已完成（§二十四）**；~~4 个存量红~~ **已清零（§二十六.4）**，全量 2922 例 / 0 红。5 条待定项（§十七.4）随产品拍板迭代（R20 的 P1/P2 至此全部收口）。
 
 ---
@@ -1236,7 +1236,7 @@ P3-1 是 **DB 完整性技术决策**，不是新的业务竞品对照。本轮�
 
 ### 二十六.6 剩余（本轮之后）
 
-1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；再建 3 专用族销账审批链与用户券（§三十三）落 V476 共 3 列，39 → **37**；再建 3 专用族销账通知/OTA（§三十四）落 V477 共 3 列，37 → **34**；再销账线路链与入库单（§三十五）落 V478 共 4 列，34 → **30**；剩余继续按批销账。
+1. ~~**P3-1 余 84 列**~~ → **已推进（§二十七）**：按资金/订单/争议/对账链落 V465~V468 共 20 列，`maxPendingColumns` 84 → **64**；再按链推进（§二十八）落 V469~V471 共 7 列，64 → **57**；再按通用族推进（§二十九）落 V472 共 3 列，57 → **54**；再按通用族推进（§三十）落 V473 共 7 列，54 → **47**；再以专用族 user_account_status 收口 user_info（§三十一）落 V474 共 1 列，47 → **46**；再转入②类复用既有专用族（§三十二）落 V475 共 7 列，46 → **39**；再建 3 专用族销账审批链与用户券（§三十三）落 V476 共 3 列，39 → **37**；再建 3 专用族销账通知/OTA（§三十四）落 V477 共 3 列，37 → **34**；再销账线路链与入库单（§三十五）落 V478 共 4 列，34 → **30**；杂项尾批收口（§三十六）落 V479 共 7 列，30 → **23**；剩余账面欠账全部为登记排除（无未分类悬空列）。
 2. **部署动作**：V463 + V464 的 `package` + `force-recreate trade-service`（两步拆开）；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`。
 3. **5 条待定项**（§十七.4）待产品拍板；**R23 第 23 轮全量审计**待并发会话收口 + 配额重置。
 
@@ -1654,4 +1654,39 @@ DDL `DEFAULT` 均为 `ACTIVE`，在值域内。CHECK 对 NULL 三值语义天然
 - 剩余候选约 10 列：invoice_request / device_mqtt_credential / external_import_batch / device_rental_deposit / pull_off_task / shopping_session.preauth_status / user_realname_auth.auth_status / purchase_order_line.quality_status 等；另 5 列的表由未部署迁移创建（franchise_settlement / line_manager_settlement / order_split_return_leg / revenue_share_detail / revenue_share_rule），部署后按批处理。
 - 🔴 提交纪律升级（承 §三十四教训）：提交后核对 `git show --stat` 文件清单与声称变更集一致（本批变更集=V478 + 字典双端 + 清单 + 门禁 + 报告 共 6 文件）。
 - 部署仍待：V463 + V464~V478 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
+- ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的文件（铁律 61）。
+
+## 三十六、P3-1 第 16 批：杂项尾批 7 列收口——基线悬空列全部清账（2026-11-13）
+
+### 三十六.1 域实证（7 列 7 新族，全部小域）
+
+| 列 | 族 | 写点/默认实证 |
+|---|---|---|
+| invoice_request.status | invoice_request_status {PENDING,ISSUED,REJECTED} | InvoiceService 101/141/161；DDL V190:10 'PENDING' |
+| external_import_batch.status | external_import_status {PARSED,COMMITTED} | ExternalChannelImportService 147/427；实体常量仅此两值；DDL V347:65 'PARSED'（行注释同口径） |
+| device_rental_deposit.status | device_rental_deposit_status {HELD,SETTLED} | DeviceRentalService 304/388 结算 SETTLED；创建不 setStatus 走 DDL V342:24 'HELD' |
+| device_mqtt_credential.status | device_mqtt_credential_status {ACTIVE,REVOKED} | DeviceMqttCredentialService 78 签发/95 吊销；DDL V290:14 'ACTIVE' |
+| pull_off_task.status | pull_off_task_status {OPEN} 单值 | InventoryLotService 671/704 两处创建均不 setStatus，**全仓零终结写点**（无 DONE/CANCEL 状态机）；DDL V24:66 'OPEN' |
+| shopping_session.preauth_status | preauth_status {NONE,FROZEN,CAPTURED,RELEASED} | ConsumerPreauthService 常量 :34-37 + 8 处全生命周期写点；实体默认 NONE；DDL V141:9 'NONE' 且 :13 COMMENT 同口径 |
+| purchase_order_line.quality_status | quality_status {PENDING,PASSED} | 实体默认 PENDING + ProcurementService:538 验收 PASSED；DDL V34:57 ALTER ADD COLUMN 'PENDING' |
+
+- 🔴 **user_realname_auth.auth_status → excludedColumns**：**设计性恒 0 行**——WithdrawEligibilityService:24 注释明示「该表在本设计下永远是 0 行，不是缺陷」，全仓无实体/无写点，值域无从实证；未来启用实名落库须先建实体+族再随批收口。
+- 同名单词甄别：DeviceRentalService 450/469 的 `bill.setStatus` 是 device_data_fee_bill（历史 ck 已收口），非本批 deposit。
+- 里程碑意义：**87 列基线自第 1 批（V464）开工以来首次无未分类悬空列**——账面欠账 23 = 登记排除 24 + 2（nextChain），全部有明确理由与 revisit 条件；棘轮余量的进一步下降只能来自①部署后为未建表列收口、②零写点列功能落地时定域、③S14 类死语句勘误，而非新覆盖。
+
+### 三十六.2 落 V479 + 清单 + 门禁 + 真库验收
+
+- **`V479__status_check_batch16_misc_final.sql`**：7 条 NOT VALID，迁移头含逐列写点穷举、realname 排除依据、同名单词甄别、脏值探针 SQL。
+- **清单**：`tables` 57 → 64、`maxPendingColumns` 30 → 23（R5 派生 `87 − 64`）、`batch`=16；excludedColumns + user_realname_auth.auth_status（设计性恒 0 行）。
+- **门禁**：`MIGRATIONS` 增 V479（第 16 个）；self-test 增 3 个 V479 变异（含「预授权域漏 CAPTURED」钉中间态）。**正向门禁 64 列三方对齐 + 16 迁移全 NOT VALID + 棘轮 23 全绿；self-test 48 变异全绿、md5 零残留。**
+- **真库验收**（一次性 PG 16-alpine，事务内零残留）：7 约束生效；16 次插入成功（7 默认 + 9 族内值，preauth 全生命周期 4 值齐写）；4 类越界全被拒——invoice 拒幽灵值 VOIDED、**pull_off 单值域拒 DONE**（零终结写点列引状态机须走族+门禁演进）、mqtt 拒 EXPIRED、preauth 拒中间态 CAPTURING；ROLLBACK 零残留，容器即删。
+
+### 三十六.3 欠账终态与后续
+
+- 账面欠账 **30 → 23**（覆盖 64 列，`87 − 64`）；**剩余 23 全部为登记排除**：
+  - ① 无权威值域/零写点：merchant.audit_status、user_realname_auth.auth_status（设计性恒 0 行）等；
+  - ② 历史轨迹列：repair_ticket_event.from/to、device_lifecycle_event.from/to；
+  - ③ 域与既有族实证不符：ops_permission（RETIRED）、notification_template、warehouse_bin、ad_campaign 等；
+  - ④ 表由未部署迁移创建：franchise_settlement、line_manager_settlement、order_split_return_leg、revenue_share_detail、revenue_share_rule——部署后随批收口（预期棘轮继续下降）。
+- 部署仍待：V463 + V464~V479 的 `package` + `force-recreate trade-service` 两步部署；部署前逐列脏值探针 + 按表 `VALIDATE CONSTRAINT`；5 条待定项（§十七.4）；R23 待并发会话收口 + 配额重置。
 - ⚠️ 并发会话工作区仍有大量 WIP，本轮精确改自己的文件（铁律 61）。

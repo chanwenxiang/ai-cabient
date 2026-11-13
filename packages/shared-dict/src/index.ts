@@ -393,6 +393,38 @@ export const DICT = {
   warehouse_inbound_status: {
     COMPLETED: '已完成'
   },
+  /** R20 P3-1 第 16 批：杂项尾批 7 族。pull_off_task 零运行时写点（恒 DDL 默认 OPEN）单值族；
+   *  preauth 域与 V141:13 DDL COMMENT 同口径；user_realname_auth.auth_status 设计性恒 0 行排除不入族。 */
+  invoice_request_status: {
+    PENDING: '待开票',
+    ISSUED: '已开票',
+    REJECTED: '已驳回'
+  },
+  external_import_status: {
+    PARSED: '已解析',
+    COMMITTED: '已入库'
+  },
+  device_rental_deposit_status: {
+    HELD: '已收取',
+    SETTLED: '已结算'
+  },
+  device_mqtt_credential_status: {
+    ACTIVE: '生效中',
+    REVOKED: '已吊销'
+  },
+  pull_off_task_status: {
+    OPEN: '待下柜'
+  },
+  preauth_status: {
+    NONE: '无预授权',
+    FROZEN: '已冻结',
+    CAPTURED: '已扣款',
+    RELEASED: '已释放'
+  },
+  quality_status: {
+    PENDING: '待验收',
+    PASSED: '验收通过'
+  },
   /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
   bin_status: {
     ACTIVE: '启用',

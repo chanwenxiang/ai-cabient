@@ -1,5 +1,5 @@
 {
-  "batch": 15,
+  "batch": 16,
   "baselineMissingCheck": 87,
   "note": "R20 P3-1：仅封闭状态机列。值域由 SysDictBootstrap ↔ shared-dict ↔ CHECK 三方自动对齐，禁止人工枚举白名单。第 1~8 批按资金/订单/争议/对账/设备/主数据/内容链；第 9 批起引入通用族 active_inactive_status={ACTIVE,INACTIVE}（因 enable_status 受 MA-146 别名影响两端口不等，不可复用），覆盖纯启用/停用列；第 10 批续覆盖 8 列纯启用/停用（ops_department/sku_catalog/user_info/member_level_rule/points_redeem_item/coupon_definition/ops_role/platform_fund_account），platform_fund_account 同期从 excludedColumns 解停泊；第 11 批以专用族 user_account_status={ACTIVE,INACTIVE,DELETED} 收口 user_info（源码穷举实证真域为三值，DELETED=AU-149 账号注销）；第 12 批转入②类：7 列复用既有专用族（upload_status/handover_status×2/device_lifecycle/inventory_lot_status/risk_disposition_status/sku_review_status），零新族，门禁 R7 同批升级为按 getter 精确锚定（防同实体多状态列跨列污染）；第 13 批建 3 个专用族（approval_instance_status/approval_task_status 两列域不同必须分族 + coupon_status）销账审批链与用户券 3 列；第 14 批建 3 个专用族（ota_release_status/ota_upgrade_status 设备上报白名单 fail-closed/notification_log_status 单值 SENT）销账通知 OTA 3 列，merchant.audit_status 零写点登记排除。",
   "tables": [
@@ -515,9 +515,72 @@
       "chain": "order",
       "batch": 15,
       "migration": "V478__status_check_batch15_line_chain.sql"
+    },
+    {
+      "table": "invoice_request",
+      "column": "status",
+      "dictFamily": "invoice_request_status",
+      "constraint": "chk_invoice_request_status",
+      "chain": "ops",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "external_import_batch",
+      "column": "status",
+      "dictFamily": "external_import_status",
+      "constraint": "chk_external_import_batch_status",
+      "chain": "ops",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "device_rental_deposit",
+      "column": "status",
+      "dictFamily": "device_rental_deposit_status",
+      "constraint": "chk_device_rental_deposit_status",
+      "chain": "device",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "device_mqtt_credential",
+      "column": "status",
+      "dictFamily": "device_mqtt_credential_status",
+      "constraint": "chk_device_mqtt_credential_status",
+      "chain": "device",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "pull_off_task",
+      "column": "status",
+      "dictFamily": "pull_off_task_status",
+      "constraint": "chk_pull_off_task_status",
+      "chain": "device",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "shopping_session",
+      "column": "preauth_status",
+      "dictFamily": "preauth_status",
+      "constraint": "chk_shopping_session_preauth_status",
+      "chain": "order",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
+    },
+    {
+      "table": "purchase_order_line",
+      "column": "quality_status",
+      "dictFamily": "quality_status",
+      "constraint": "chk_purchase_order_line_quality_status",
+      "chain": "order",
+      "batch": 16,
+      "migration": "V479__status_check_batch16_misc_final.sql"
     }
   ],
-  "maxPendingColumns": 30,
+  "maxPendingColumns": 23,
   "excludedColumns": [
     "commission_clawback.status",
     "consumer_preauth_hold.status",
@@ -538,6 +601,7 @@
     "revenue_share_rule.status",
     "staff_commission_daily.status",
     "merchant.audit_status",
+    "user_realname_auth.auth_status",
     "device_lifecycle_event.from_status",
     "device_lifecycle_event.to_status",
     "ops_permission.status",

@@ -223,6 +223,22 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "ACTIVE", "在册")));
         map.put("warehouse_inbound_status", t("入库单状态", m(
                 "COMPLETED", "已完成")));
+        // R20 P3-1 第 16 批：杂项尾批 7 族。pull_off_task 零运行时写点（恒 DDL 默认 OPEN）单值族；
+        // preauth 域与 V141:13 DDL COMMENT 同口径；user_realname_auth.auth_status 设计性恒 0 行（WithdrawEligibilityService:24）排除不入族。
+        map.put("invoice_request_status", t("开票申请状态", m(
+                "PENDING", "待开票", "ISSUED", "已开票", "REJECTED", "已驳回")));
+        map.put("external_import_status", t("外部渠道导入批次状态", m(
+                "PARSED", "已解析", "COMMITTED", "已入库")));
+        map.put("device_rental_deposit_status", t("设备押金状态", m(
+                "HELD", "已收取", "SETTLED", "已结算")));
+        map.put("device_mqtt_credential_status", t("设备MQTT凭证状态", m(
+                "ACTIVE", "生效中", "REVOKED", "已吊销")));
+        map.put("pull_off_task_status", t("下柜任务状态", m(
+                "OPEN", "待下柜")));
+        map.put("preauth_status", t("支付分预授权状态", m(
+                "NONE", "无预授权", "FROZEN", "已冻结", "CAPTURED", "已扣款", "RELEASED", "已释放")));
+        map.put("quality_status", t("采购验收状态", m(
+                "PENDING", "待验收", "PASSED", "验收通过")));
         // MA-018：货位状态独立成 bin_status（DISABLED 只在这里用），避免与 enable_status 的「停用」同名
         map.put("bin_status", t("货位状态", m(
                 CabinetConstants.PROMOTION_STATUS_ACTIVE, "启用", CabinetConstants.SKU_STATUS_DISABLED, "停用")));
