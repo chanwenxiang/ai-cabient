@@ -23,7 +23,7 @@ import org.flywaydb.core.Flyway;
  *     db.url      默认 jdbc:postgresql://127.0.0.1:15433/aicabinet
  *     db.user     默认 aicabinet
  *     db.password 默认 aicabinet
- *     flyway.locations 默认 filesystem:services/trade-service/src/main/resources/db/migration
+ *     flyway.locations 默认 db/migration + db/seed 两目录（必须与运行时同集，见 locations()）
  *     seed.env    默认 local   ← 必须与运行时 SEED_ENV 一致
  *
  * 执行后请接着跑 ValidateCheck.java 确认真的对齐了。
@@ -35,17 +35,34 @@ public class Repair {
         return (v == null || v.isBlank()) ? fallback : v;
     }
 
+    /**
+     * 🔴 必须与运行时 {@code application.yml} 的 {@code spring.flyway.locations} **同集**：
+     * 本仓迁移分两目录——{@code db/migration}（结构 V*.sql）与 {@code db/seed}（可重复 R__seed_*.sql）。
+     * 只指 {@code db/migration} 时，Flyway 判定那 3 条已应用的种子「本地不存在」，
+     * repair 会给它们写 DELETE 标记 ⇒ 下次启动重跑种子、再下次 repair 又标一次
+     * （2026-11-13 实测已是第 4 次，历史里留着前 3 轮同样标记）。
+     * 覆盖 -Dflyway.locations 时自行按逗号切并 trim，不依赖 Flyway 的拆分行为。
+     */
+    private static String[] locations() {
+        String raw = prop("flyway.locations",
+                "filesystem:services/trade-service/src/main/resources/db/migration,"
+                        + "filesystem:services/trade-service/src/main/resources/db/seed");
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+    }
+
     public static void main(String[] args) {
         String url = prop("db.url", "jdbc:postgresql://127.0.0.1:15433/aicabinet");
         String user = prop("db.user", "aicabinet");
         String password = prop("db.password", "aicabinet");
-        String locations = prop("flyway.locations",
-                "filesystem:services/trade-service/src/main/resources/db/migration");
+        String[] locations = locations();
         // 与 application.yml 的 flyway.placeholders.seed_env 保持同一口径（默认 local）。
         String seedEnv = prop("seed.env", "local");
 
         System.out.println("[flyway-repair] url=" + url);
-        System.out.println("[flyway-repair] locations=" + locations);
+        System.out.println("[flyway-repair] locations=" + java.util.Arrays.toString(locations));
         System.out.println("[flyway-repair] seed_env=" + seedEnv
                 + "   (必须与运行时 SEED_ENV 一致，否则 repair 白做)");
 

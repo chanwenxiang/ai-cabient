@@ -20,7 +20,7 @@ Migration checksum mismatch for migration version 244
 > 二次 repair 显示改写数 = 0（证明已对齐）。证据见
 > `docs/evidence/2026-09-18-replenishment-checkin/README.md`。
 
-## 🔴 唯一的坑：placeholder 必须与运行时一致
+## 🔴 坑 ①：placeholder 必须与运行时一致
 
 `application.yml` 里迁移的 placeholder 是 `${SEED_ENV:local}`，所以本机/开发库默认 `local`。
 **若 repair 时漏传 `seed_env`（或传了别的值），Flyway 算出的 checksum 与下次应用启动时算出的
@@ -28,9 +28,44 @@ Migration checksum mismatch for migration version 244
 
 所以：`-Dseed.env=` 必须等于目标环境的 `SEED_ENV`。
 
+## 🔴 坑 ②：locations 必须是**两个目录**，漏 `db/seed` 会删掉种子历史（本 README 原文案写着"唯一的坑"，是错的，已订正）
+
+运行时是 `spring.flyway.locations: classpath:db/migration,classpath:db/seed`——
+本仓迁移分两目录：`db/migration` 放结构（`V*.sql`），`db/seed` 放可重复种子（`R__seed_*.sql`，共 3 个）。
+
+只把 locations 指到 `db/migration` 时，Flyway 认为那 3 条**已应用**的 R__ 种子"本地不存在"，
+`repair()` 于是给它们写 `type=DELETE` 的历史行。后果不是报错而是**静默改历史**：
+
+| 症状 | 说明 |
+|------|------|
+| `repair` 输出仍 `REPAIR_OK` | 它不认为这是问题，日志里也不会点名 |
+| 行数变化 +N（N=本地缺失的已应用迁移数） | 判据：`select count(*) filter (where type='DELETE') from flyway_schema_history` |
+| 下次应用启动重跑这些种子 | 种子是幂等的（`WHERE NOT EXISTS`），所以数据不动，但历史又长一轮 SQL 行 |
+| 反复循环 | 2026-11-13 实测已是**第 4 次**：历史里留着 3 轮同样的 `DELETE→SQL` 抖动（rank 414-416/420-422/473-475，第 4 次 500-502 由本会话误触发并已撤销） |
+
+两个工具的默认值已改为两目录（`Repair.locations()` / `ValidateCheck.locations()`），
+覆盖 `-Dflyway.locations` 时自行按逗号切分并 trim，不依赖 Flyway 的拆分行为。
+
+**跑完必须做的两条对账**（别只看 `REPAIR_OK`）：
+
+```bash
+# 1) 只应有 8 条 checksum 变化，DELETE 行数不得增加
+docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -tAc \
+  "select count(*), count(*) filter (where type='DELETE') from flyway_schema_history"
+# 2) 权威判据：应用自己或 ValidateCheck 必须 PASS
+java -Dfile.encoding=UTF-8 -Dseed.env=local -cp "<CP>" scripts/devops/flyway-repair/ValidateCheck.java
+#    期望 VALIDATE=PASS
+```
+
+⚠️ 在 Git Bash 里传 `-Dflyway.locations=a,b` 曾被 shell 拆坏过（结果 475 条全报
+"not resolved locally"）：判据以**应用启动日志**
+（`Successfully validated N migrations` / `Schema "public" is up to date`）为准，
+代理脚本报红先怀疑自己的传参。
+
 ## 怎么跑
 
-在**仓库根**执行（`flyway.locations` 是相对路径，默认指向 trade-service 的迁移目录）。
+在**仓库根**执行（`flyway.locations` 是相对路径，默认指向 trade-service 的
+`db/migration` + `db/seed` 两目录，见坑 ②）。
 
 需要的 4 个 jar（路径按本机 `.m2` 实际位置，版本须与 `pom.xml` 一致）：
 

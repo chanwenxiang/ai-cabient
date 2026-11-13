@@ -20,12 +20,28 @@ public class ValidateCheck {
         return (v == null || v.isBlank()) ? fallback : v;
     }
 
+    /**
+     * 🔴 必须与运行时 {@code application.yml} 的 {@code spring.flyway.locations} 同集：
+     * 本仓迁移分两个目录——{@code db/migration}（结构 V*.sql）与 {@code db/seed}（可重复 R__seed_*.sql）。
+     * 只指 {@code db/migration} 时，Flyway 会认为 3 条已应用的 R__ 种子「本地不存在」，
+     * 于是 repair 给它们写 DELETE 标记（2026-11-13 实测第 4 次踩到，历史已留 3 轮同样标记）。
+     * 默认值取两目录；-Dflyway.locations 覆盖时按逗号自行切分并 trim，不依赖 Flyway 的拆分行为。
+     */
+    private static String[] locations() {
+        String raw = prop("flyway.locations",
+                "filesystem:services/trade-service/src/main/resources/db/migration,"
+                        + "filesystem:services/trade-service/src/main/resources/db/seed");
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+    }
+
     public static void main(String[] args) {
         String url = prop("db.url", "jdbc:postgresql://127.0.0.1:15433/aicabinet");
         String user = prop("db.user", "aicabinet");
         String password = prop("db.password", "aicabinet");
-        String locations = prop("flyway.locations",
-                "filesystem:services/trade-service/src/main/resources/db/migration");
+        String[] locations = locations();
         String seedEnv = prop("seed.env", "local");
 
         Flyway flyway = Flyway.configure()
