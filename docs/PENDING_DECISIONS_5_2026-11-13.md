@@ -51,6 +51,10 @@
 ## ④ Ops「重试」可能落到补货会话
 
 > 🔄 **2026-11-13 已落地入口 fail-closed 过滤（口径 A）**：`SessionService.resetSessionForRetry` 在状态白名单之后增加 `DeviceValidationService.isRestockSession` 守卫，补货会话重试一律 409「补货会话不支持运营重试识别/结算」（单测：`RestockDoorCloseReportTest.opsRetry_onRestockSession_rejected409` + 消费者正向对照）。拍板项收窄为两点：① 扫描源头是否同步排除补货会话（口径 B，减少噪音异常行）；② OPS/STOCKTAKE 会话是否也纳入守卫（本批未动，无实证风险）。
+>
+> ⚖️ **2026-11-13 二次裁决（代码证据，OpsExceptionScannerService 三扫描面核对）**：
+> - **口径 B 否决**：扫描面=SHOPPING 超时（DOOR_OPEN_TOO_LONG）/RECOGNIZING 滞留/SETTLING 滞留。补货会话可达的只有 SHOPPING——「柜门久开」对补货柜是**真实告警**（安全/温度风险），源头排除会消灭信号；RECOGNIZING/SETTLING 补货根本进不去，排除也省不了行。收益为零、代价是盲区 ⇒ 不做。
+> - **守卫扩展 OPS/STOCKTAKE 暂缓**：它们可达的同样只有 SHOPPING 门久开——告警有效，仅「重试」按钮 409；误结算实质风险所在的两态进不去，且无误重试实证。等真实案例或产品明确「运营重试仅限消费者会话」再扩展（一处 if）。
 
 **代码现状**（`OpsExceptionScannerService` 全文件无 sessionKind 过滤 + `SessionService.retryForOperations` :437-468）：
 - 异常扫描按**会话状态**（RECOGNIZING 等）捞取，不区分会话类型 ⇒ 补货（restocking）会话若处于被扫状态也会生成异常行。
@@ -88,7 +92,7 @@
 | ① | 改单未生效券仍 USED | **已落地口径 B**（restoreUnappliedCouponOnOrder，3 单测） | 仅口径确认 |
 | ② | 对账重跑覆盖处置 | **已落地原地更新**（reconId 稳定，audit 不脱链，3 单测） | 仅新功能排期（处置数据模型） |
 | ③ | 分账回退重试 | **已落地「先查单再重提」**（CB-053 口径，4 单测） | 仅口径确认 |
-| ④ | Ops 重试落补货会话 | **已落地入口 fail-closed 守卫**（2 单测）；余：源头排除/OPS-STOCKTAKE 纳入 | 是（处置路径） |
+| ④ | Ops 重试落补货会话 | **已落地入口 fail-closed 守卫**（2 单测）；余两项二次裁决：口径 B 否决（消灭真实门久开告警）、守卫扩展暂缓（无实证） | 否（已闭环，观察即可） |
 | ⑤ | device_sku_price 锁粒度 | **勘误关闭**（前提有误，锁为单行） | 否 |
 
 **P3 待定 5 条至此全部收口**：2 条按推荐口径落地（①②）、1 条按官方口径落地（③）、1 条防御性落地（④入口）、1 条勘误关闭（⑤）；无任何一项仍处于「等拍板才能动」的状态。
