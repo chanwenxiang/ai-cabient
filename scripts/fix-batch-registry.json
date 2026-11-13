@@ -141,6 +141,109 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "98b2a48c",
+      "report": "docs/COMPETITOR_BENCHMARK.md",
+      "totalItems": 7,
+      "items": [
+        {
+          "id": "findNegativeArrears 的 <if> 移出 CDATA（欠款名单/导出 HTTP 500）",
+          "files": ["services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml"]
+        },
+        {
+          "id": "核销幂等键加欠款段 + 冻结资金>0 直接 409",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantArrearsWriteOffService.java"
+          ]
+        },
+        {
+          "id": "欠款名单 CSV 走 CsvCells.escape；在途分账状态集合补齐；名单/账龄透出",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantWithdrawService.java"
+          ]
+        },
+        {
+          "id": "解锁后置到事务提交；lock_after_days=0 时清历史遗留欠款锁",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java"
+          ]
+        },
+        {
+          "id": "新增 WalletArrearsSqlIT 真库钉（含 CDATA 缺陷变异验证）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletArrearsSqlIT.java"
+          ]
+        },
+        {
+          "id": "单测订正陈旧断言 + CDATA 静态负向用例",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWalletArrearsServiceTest.java"
+          ]
+        },
+        {
+          "id": "IT 登记进 check-docker-tests-guarded GUARDED（缺 Docker 会 0 用例假绿）+ 核销/锁柜反例用例",
+          "files": [
+            "scripts/check-docker-tests-guarded.mjs",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantArrearsWriteOffServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantWalletArrearsLockTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "71041413",
+      "report": "docs/COMPETITOR_BENCHMARK.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "「核销欠款」行操作补显式 perm 码（写操作不得只靠 hasPerm 判定）",
+          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
+        },
+        {
+          "id": "空欠款名单导出前按 CSV 同源口径探总数并提示，区分「没欠款」与「不在范围」",
+          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "95cee3c3",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "R20-2 第二刀：未实收（PENDING/CANCELLED）不写商户钱包，recordSplit「已存在」支改做实收自愈入口",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java"
+          ]
+        },
+        {
+          "id": "支付分 DONE 回调补调 recordSplit（实收确认点），失败随回调事务整体回滚不吞",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PayScoreOrderNotifyTest.java"
+          ]
+        },
+        {
+          "id": "重放断言由 times(1) 改为「两次尝试打同一 splitId」——幂等判据挪到键一致性上",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java"
+          ]
+        }
+      ],
+      "notAdopted": [
+        {
+          "id": "freezePaidAmount / onOrderPaid（积分与消费统计）/ order_paid 通知仍在未实收时执行",
+          "why": "同根但未采纳本批：onOrderPaid 无 orderId 去重（R20 项 3），先挪时点会造成「DONE 再发一次」双发；须先给发放侧加幂等键，属另一次改动"
+        },
+        {
+          "id": "运营「确认完结 LEDGER_ONLY」入口未加实收门",
+          "why": "MerchantService 无订单仓储上下文，加门要动构造器依赖面；该入口有权限码+审计且当前入账已被门拦住，风险低于本批引入的改动面"
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
