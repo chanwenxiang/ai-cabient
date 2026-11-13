@@ -352,6 +352,10 @@
     {
       "commit": "158f0ead",
       "why": "S8③ 判据改动须同批带夹具：仅 3 个门禁脚本补内联 selfTest 夹具，属门禁基础设施修复，非业务审计条目"
+    },
+    {
+      "commit": "1045fa5d",
+      "why": "CI 基础设施修复（mini-programs checkout 浅克隆导致历史 commit 对账全报不存在 + 夹具魔术数改不变式），非业务审计条目"
     }
   ]
 }
