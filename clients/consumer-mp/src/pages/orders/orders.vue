@@ -295,7 +295,6 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import {
-  absoluteImageUrl,
   cleanLineSummary,
   firstProductName,
   thumbUrl

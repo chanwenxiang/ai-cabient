@@ -330,7 +330,7 @@ import { confirmOpenDeviceNavigation } from '@/utils/open-device-navigation';
 import { resolveMerchantIdForDevice } from '@/utils/device-settings';
 import { UI_COPY, onlineLabel } from '@aicabinet/shared-uni/ui-copy';
 import { centsToYuanDigits, formatDateTime } from '@aicabinet/shared-uni/format';
-import { absoluteImageUrl, thumbUrl } from '@aicabinet/shared-uni/product-image';
+import { thumbUrl } from '@aicabinet/shared-uni/product-image';
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue';
 import { useAppConfirmDialog } from '@/composables/useAppConfirmDialog';
 import type {

@@ -118,7 +118,7 @@ import {
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
 import { menuIcon } from '@/utils/menu-icon';
-import { absoluteImageUrl, thumbUrl } from '@/utils/product-thumb';
+import { thumbUrl } from '@/utils/product-thumb';
 import { isSafeCampaignPath, openCampaignPath } from '@/utils/campaign-path';
 
 /*

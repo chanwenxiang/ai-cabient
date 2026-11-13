@@ -291,6 +291,99 @@ export declare const DICT: {
         readonly DRAFT: "草稿";
         readonly STOPPED: "已停止";
     };
+    /** R20 P3-1：纯启用/停用通用族（仅 ACTIVE/INACTIVE）。与 enable_status 分离：enable_status 因 MA-146
+     *  一型两义 DRAFT/STOPPED 别名导致两端口键集不相等，门禁跨端对齐会红，故启用停用列另起此族。 */
+    readonly active_inactive_status: {
+        readonly ACTIVE: "启用";
+        readonly INACTIVE: "停用";
+    };
+    /** R20 P3-1 第 11 批：user_info 账号状态专用三值族。DELETED=AU-149 账号注销匿名化
+     *  （AccountService 写入，AuthService 登录闸门拒绝）；不入 active_inactive_status 通用族——
+     *  通用族仅两值，硬塞会把「注销」与「停用」混进同一语义池。 */
+    readonly user_account_status: {
+        readonly ACTIVE: "正常";
+        readonly INACTIVE: "停用";
+        readonly DELETED: "已注销";
+    };
+    /** R20 P3-1 第 13 批：审批链两列域不同（instance 无 SKIPPED）必须分族；CANCELLED 全仓无写点不入域。 */
+    readonly approval_instance_status: {
+        readonly PENDING: "待审批";
+        readonly APPROVED: "已通过";
+        readonly REJECTED: "已驳回";
+    };
+    readonly approval_task_status: {
+        readonly PENDING: "待审批";
+        readonly APPROVED: "已通过";
+        readonly SKIPPED: "已跳过";
+        readonly REJECTED: "已驳回";
+    };
+    /** R20 P3-1 第 13 批：用户券状态（发放/核销/过期）。 */
+    readonly coupon_status: {
+        readonly UNUSED: "待使用";
+        readonly USED: "已使用";
+        readonly EXPIRED: "已过期";
+    };
+    /** R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
+     *  normalizeProgressStatus 对白名单外 fail-closed）；通知发送域单值 SENT（全仓写点恒 SENT，零 FAILED）。 */
+    readonly ota_release_status: {
+        readonly DRAFT: "草稿";
+        readonly PUBLISHED: "已发布";
+        readonly UNPUBLISHED: "已下架";
+    };
+    readonly ota_upgrade_status: {
+        readonly IDLE: "未开始";
+        readonly DOWNLOADING: "下载中";
+        readonly INSTALLING: "安装中";
+        readonly SUCCESS: "成功";
+        readonly FAILED: "失败";
+    };
+    readonly notification_log_status: {
+        readonly SENT: "已发送";
+    };
+    /** R20 P3-1 第 15 批：线路链（V133/V358 重建后模型）。line_device {ACTIVE,INACTIVE} 复用
+     *  active_inactive_status 通用族；读侧遗留 BOUND 为旧表死值容忍（无写点）。 */
+    readonly line_route_status: {
+        readonly ACTIVE: "启用中";
+        readonly ARCHIVED: "已归档";
+    };
+    readonly line_route_member_status: {
+        readonly ACTIVE: "在册";
+    };
+    readonly warehouse_inbound_status: {
+        readonly COMPLETED: "已完成";
+    };
+    /** R20 P3-1 第 16 批：杂项尾批 7 族。pull_off_task 零运行时写点（恒 DDL 默认 OPEN）单值族；
+     *  preauth 域与 V141:13 DDL COMMENT 同口径；user_realname_auth.auth_status 设计性恒 0 行排除不入族。 */
+    readonly invoice_request_status: {
+        readonly PENDING: "待开票";
+        readonly ISSUED: "已开票";
+        readonly REJECTED: "已驳回";
+    };
+    readonly external_import_status: {
+        readonly PARSED: "已解析";
+        readonly COMMITTED: "已入库";
+    };
+    readonly device_rental_deposit_status: {
+        readonly HELD: "已收取";
+        readonly SETTLED: "已结算";
+    };
+    readonly device_mqtt_credential_status: {
+        readonly ACTIVE: "生效中";
+        readonly REVOKED: "已吊销";
+    };
+    readonly pull_off_task_status: {
+        readonly OPEN: "待下柜";
+    };
+    readonly preauth_status: {
+        readonly NONE: "无预授权";
+        readonly FROZEN: "已冻结";
+        readonly CAPTURED: "已扣款";
+        readonly RELEASED: "已释放";
+    };
+    readonly quality_status: {
+        readonly PENDING: "待验收";
+        readonly PASSED: "验收通过";
+    };
     /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
     readonly bin_status: {
         readonly ACTIVE: "启用";

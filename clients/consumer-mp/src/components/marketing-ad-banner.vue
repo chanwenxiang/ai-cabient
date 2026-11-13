@@ -38,7 +38,7 @@
 import { ref, watch } from 'vue';
 import { consumerApi, type MarketingBannerDto } from '@/utils/consumer-api';
 import { openCampaignPath } from '@/utils/campaign-path';
-import { absoluteImageUrl, thumbUrl } from '@/utils/product-thumb';
+import { thumbUrl } from '@/utils/product-thumb';
 
 /**
  * 设备上下文（可选）：有柜码时带上，让后端过滤 SPECIFIC 投放范围

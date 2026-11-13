@@ -308,6 +308,99 @@ export const DICT = {
         DRAFT: '草稿',
         STOPPED: '已停止'
     },
+    /** R20 P3-1：纯启用/停用通用族（仅 ACTIVE/INACTIVE）。与 enable_status 分离：enable_status 因 MA-146
+     *  一型两义 DRAFT/STOPPED 别名导致两端口键集不相等，门禁跨端对齐会红，故启用停用列另起此族。 */
+    active_inactive_status: {
+        ACTIVE: '启用',
+        INACTIVE: '停用'
+    },
+    /** R20 P3-1 第 11 批：user_info 账号状态专用三值族。DELETED=AU-149 账号注销匿名化
+     *  （AccountService 写入，AuthService 登录闸门拒绝）；不入 active_inactive_status 通用族——
+     *  通用族仅两值，硬塞会把「注销」与「停用」混进同一语义池。 */
+    user_account_status: {
+        ACTIVE: '正常',
+        INACTIVE: '停用',
+        DELETED: '已注销'
+    },
+    /** R20 P3-1 第 13 批：审批链两列域不同（instance 无 SKIPPED）必须分族；CANCELLED 全仓无写点不入域。 */
+    approval_instance_status: {
+        PENDING: '待审批',
+        APPROVED: '已通过',
+        REJECTED: '已驳回'
+    },
+    approval_task_status: {
+        PENDING: '待审批',
+        APPROVED: '已通过',
+        SKIPPED: '已跳过',
+        REJECTED: '已驳回'
+    },
+    /** R20 P3-1 第 13 批：用户券状态（发放/核销/过期）。 */
+    coupon_status: {
+        UNUSED: '待使用',
+        USED: '已使用',
+        EXPIRED: '已过期'
+    },
+    /** R20 P3-1 第 14 批：OTA 发布/设备升级进度（升级域=OtaService ALLOWED_PROGRESS_STATUS 白名单，
+     *  normalizeProgressStatus 对白名单外 fail-closed）；通知发送域单值 SENT（全仓写点恒 SENT，零 FAILED）。 */
+    ota_release_status: {
+        DRAFT: '草稿',
+        PUBLISHED: '已发布',
+        UNPUBLISHED: '已下架'
+    },
+    ota_upgrade_status: {
+        IDLE: '未开始',
+        DOWNLOADING: '下载中',
+        INSTALLING: '安装中',
+        SUCCESS: '成功',
+        FAILED: '失败'
+    },
+    notification_log_status: {
+        SENT: '已发送'
+    },
+    /** R20 P3-1 第 15 批：线路链（V133/V358 重建后模型）。line_device {ACTIVE,INACTIVE} 复用
+     *  active_inactive_status 通用族；读侧遗留 BOUND 为旧表死值容忍（无写点）。 */
+    line_route_status: {
+        ACTIVE: '启用中',
+        ARCHIVED: '已归档'
+    },
+    line_route_member_status: {
+        ACTIVE: '在册'
+    },
+    warehouse_inbound_status: {
+        COMPLETED: '已完成'
+    },
+    /** R20 P3-1 第 16 批：杂项尾批 7 族。pull_off_task 零运行时写点（恒 DDL 默认 OPEN）单值族；
+     *  preauth 域与 V141:13 DDL COMMENT 同口径；user_realname_auth.auth_status 设计性恒 0 行排除不入族。 */
+    invoice_request_status: {
+        PENDING: '待开票',
+        ISSUED: '已开票',
+        REJECTED: '已驳回'
+    },
+    external_import_status: {
+        PARSED: '已解析',
+        COMMITTED: '已入库'
+    },
+    device_rental_deposit_status: {
+        HELD: '已收取',
+        SETTLED: '已结算'
+    },
+    device_mqtt_credential_status: {
+        ACTIVE: '生效中',
+        REVOKED: '已吊销'
+    },
+    pull_off_task_status: {
+        OPEN: '待下柜'
+    },
+    preauth_status: {
+        NONE: '无预授权',
+        FROZEN: '已冻结',
+        CAPTURED: '已扣款',
+        RELEASED: '已释放'
+    },
+    quality_status: {
+        PENDING: '待验收',
+        PASSED: '验收通过'
+    },
     /** MA-018：货位状态（原 enable_status.DISABLED 的归属，避免同名「停用」出现在同一字典里） */
     bin_status: {
         ACTIVE: '启用',

@@ -34,7 +34,6 @@ const PRINT_ONLY = process.argv.includes('--print');
  * admin hex3 47→40；mp hex6 1048→1026、hex3 79→69、rgba 166→161（合计 44 处伪命中来自注释文字）。
  */
 const BASELINES = {
-  admin: { hex6: 239, hex3: 40, hex8: 1, rgba: 144 },
   // 2026-11-10 上调冻结：商户端 UI 重设计（6f7c3ba8：柜机列表卡/盘点/订单/补货/详情）引入了
   // 一批语义化前的裸色（hex6 +52、hex3 +2、rgba +3），先冻结在当前实测值以放行；后续应逐步令牌化，
   // 本棘轮仍「只减不增」——再增会红，逐批令牌化后请同步下调。
@@ -42,7 +41,12 @@ const BASELINES = {
   //（HEAD 实测，既有令牌化改进显式锁进基线）；admin 四项实测与基线恰好相等，不动。
   // 2026-11-11 晚再冻结：consumer-mp 移除震动反馈开关时删掉了 `color="#0d9488"`（hex6 1076→1075），
   //  属真实减少 ⇒ 显式下调基线，保持「低于基线即 FAIL」的判据有效。
-  mp: { hex6: 1075, hex3: 71, hex8: 0, rgba: 163 }
+  // 2026-11-13 判据校准重冻结：var(--token, #hex) 令牌兜底剥离（P2-2/mp-css-token-fallback
+  //  强制形态，不是裸色选择）后实测——admin hex6 239→188 / hex3 40→19 / rgba 144→143；
+  //  mp hex6 1075→205 / hex3 71→8 / rgba 163→161。数百处伪命中原为令牌兜底语法，
+  //  剩余为真裸色，棘轮继续只减不增。
+  admin: { hex6: 188, hex3: 19, hex8: 1, rgba: 143 },
+  mp: { hex6: 205, hex3: 8, hex8: 0, rgba: 161 }
 };
 
 const ADMIN_GLOBS = [
@@ -142,9 +146,19 @@ function stripComments(text) {
   );
 }
 
-/** 统计一段文本的四类裸色值（先剥注释，再匹配）。 */
+/**
+ * 令牌兜底剥离：`var(--token, #hex)` / `var(--token, rgba(...))` 的兜底色值不算裸色。
+ * 2026-11-13 实测：商户端 video.vue 新增 `color: var(--text-muted, #64748b)` 把 mp.hex6
+ * 顶到 1076 > 基线 1075 —— 该形态是 P2-2 / mp-css-token-fallback 门禁**强制要求**的
+ * WXSS 兜底写法（小程序不认 :root，令牌未注入时不能变成黑块），不是裸色选择；
+ * 与本门禁头注释「含 var(...) 的不算」的既有意图对齐（此前只对 rgba(var(--x)) 兑现）。
+ * 🔴 必须在剥注释**之后**、计数之前剥离；兜底里嵌 var()（var(--a, var(--b))）不含字面色值，自然不受影响。
+ */
+const VAR_FALLBACK_COLOR_RE = /var\(--[A-Za-z0-9-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|rgba?\([^()]*\))\s*\)/g;
+
+/** 统计一段文本的四类裸色值（先剥注释与令牌兜底，再匹配）。 */
 export function countColors(text) {
-  const code = stripComments(String(text));
+  const code = stripComments(String(text)).replace(VAR_FALLBACK_COLOR_RE, 'VAR_TOKEN_FALLBACK');
   return {
     hex6: (code.match(HEX6_RE) || []).length,
     hex3: (code.match(HEX3_RE) || []).length,
@@ -189,15 +203,17 @@ function hasPath(counts, segment) {
     'd.vue':
       '/* 见 lessons #107 与 #fff 的说明 */\n' +
       'background: url(https://cdn.example.com/a.png) #ffffff; // 尾注 #123456 不算\n' +
-      '<!-- 模板注释里的 #ABC 也不算 -->'
+      '<!-- 模板注释里的 #ABC 也不算 -->',
+    // 令牌兜底不算裸色（P2-2 强制形态）；rgba(var(--x), .2) 的 var() 用法也不算
+    'e.vue': 'color: var(--text-muted, #64748b);\nbackground: rgba(var(--x), 0.2);\nborder: var(--x, rgba(0, 0, 0, 0.2));'
   };
   const agg = totalOf(
     Object.fromEntries(Object.entries(fake).map(([id, text]) => [id, countColors(text)]))
   );
-  if (agg.hex6 !== 4) fail(`selftest: hex6 应为 4，实际 ${agg.hex6}`);
+  if (agg.hex6 !== 4) fail(`selftest: hex6 应为 4（var() 兜底不算），实际 ${agg.hex6}`);
   if (agg.hex3 !== 2) fail(`selftest: hex3 应为 2，实际 ${agg.hex3}`);
   if (agg.hex8 !== 1) fail(`selftest: hex8 应为 1，实际 ${agg.hex8}`);
-  if (agg.rgba !== 1) fail(`selftest: rgba 应为 1（var() 用法不算），实际 ${agg.rgba}`);
+  if (agg.rgba !== 1) fail(`selftest: rgba 应为 1（var() 用法与 var() 兜底都不算），实际 ${agg.rgba}`);
 
   // 剥注释三态各自钉死：剥多了（URL 吃掉真色值 ⇒ hex6 掉到 0）与剥少了（注释里的算进来）都要红。
   const d = countColors(fake['d.vue']);
