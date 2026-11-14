@@ -544,6 +544,29 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "8c4e7981",
+      "report": "docs/AUDIT_STRUCTURAL_BACKLOG_2026-11-12.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "S3-3b-单源强制",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
+            "scripts/check-yuan-to-cents.mjs"
+          ]
+        },
+        {
+          "id": "S9-maxUnattributed",
+          "files": [
+            "scripts/check-write-endpoint-attribution.mjs",
+            "scripts/write-endpoint-attribution-baseline.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
