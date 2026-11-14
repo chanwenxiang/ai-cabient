@@ -397,6 +397,34 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "883b9b1a",
+      "report": "docs/engineering/lessons-learned.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "积分扣回幂等键改为透传 prep.idemKey()（下游不再自拼 REFUND:<orderId>:<cents>），金额口径不动",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java",
+            "docs/PROJECT_KNOWLEDGE.md",
+            "docs/engineering/lessons-learned.md"
+          ]
+        },
+        {
+          "id": "负向夹具 3 条：默认键形状 / 同额两笔不同行集 ⇒ 两个键各扣一次 / 判重放零扣回",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentIdempotencyTest.java"
+          ]
+        },
+        {
+          "id": "变异验证：退回旧自拼键形态 ⇒ 恰第 2 例红（Argument(s) are different），cmp 逐字节还原",
+          "files": [
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
