@@ -586,6 +586,38 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "e49b3556",
+      "report": "docs/AUDIT_STRUCTURAL_BACKLOG_2026-11-12.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "S9-reachable-AdminAuditService定义到达+黑名单入口阻断+common路径",
+          "files": [
+            "scripts/check-write-endpoint-attribution.mjs",
+            "scripts/write-endpoint-attribution-baseline.json"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "0b04137d",
+      "report": "docs/AUDIT_STRUCTURAL_BACKLOG_2026-11-12.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "S3-3b-YuanFen单源收口（CouponService/AlipayBillCsvParser/PaymentService 裸*100 改调 YuanFen）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java",
+            "scripts/yuan-to-cents-baseline.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
