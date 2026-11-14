@@ -51,7 +51,7 @@
   `OtaService.java:120`（OTA_PUBLISH）/:143（OTA_UNPUBLISH）与
   `OpsOtaController.java:43`（OTA_RELEASE_PUBLISH）/:58（OTA_RELEASE_UNPUBLISH）写的是同一动作的审计。
 - **门禁事实（2026-11-14 A/B 实证订正，改写原「技术上可行」一句）**：只改一个变量（把控制器两处 `appendLog(` 改名，隔离副本 `.tmp/gate-ab/{base,mut}`，不碰工作区）——未删时类级绿（可达 72/基线 72、登记 26）、端点级绿（455/240/215 对平）；删后**端点级仍绿**（service 链可达），**类级必红 2 条**（零归因未登记 + 可达 71<基线 72）。所以要绿只能降基线或放宽 1-hop 判据＝**拆 S9 防线**，换掉两条审计收益≈0。「合并到 service 单点记」不是零成本的可行方案。
-- **拍板结论**：✅ 已拍板 2026-11-14（用户**采纳**复核结论）：维持双记、不动码；交 R23 L4 用产品视角复评。落点 = 本条判据锚点说明（纯文档、零代码）。
+- **拍板结论**：✅ 已拍板 2026-11-14（用户**采纳**复核结论）：维持双记、不动码；交 R23 L4 用产品视角复评。落点 = 本条判据锚点说明（纯文档、零代码），落点提交 = `b72a8d0b`。
 - **判据锚点说明**：`OpsOtaController.java:43/:58` 是 `265e55ce`（11-13 15:38，S9 收口）**刻意加的**，注释写明「MA-115：OTA 是全仓最高危运维动作」；`OTA_PUBLISH/UNPUBLISH` 来自更早的 `7f7f5a1d`（MA-115）。这两行不是冗余，是类级 1-hop 判据的锚点。
 - **定案依据勘误**：不以「`OTA_RELEASE_*` 零消费面」定案——`shared-dict` 的 `auditActionLabel` 对两组动作码都无字典项（一律显示「其他操作」），且该快查只扫源码，**`admin_audit_log` 里已有的 `OTA_RELEASE_*` 历史行未查**；删了会让同一动作在历史里留两个 action 值。真正依据是上面的门禁判据。
 - **两处无的放矢（复核留痕）**：`OpsOtaControllerTest` 只有 `verify(listOta)`、**没有 appendLog 断言**（「适配测试」无对象）；`write-attribution-registry.json` 26 条里**没有** OpsOtaController 条目（「销双记条目」无对象，双记条目在本清单 ⑤ 与 `.workbuddy/memory/2026-11-14.md`）。
@@ -60,7 +60,7 @@
 ## ⑥ AccountController 6 写端点 0 归因 —— ✅ 已拍板 2026-11-14：CONSUMER_WRITE 语义豁免
 
 - **现状**：S9 端点级基线 `AccountController {endpoints:6, attributed:0}`；`AccountService.updateNickname` 等为自助改昵称类低风险写（源码注释「无越权面」）。
-- **拍板结论**：✅ 已拍板 2026-11-14（用户点头**采纳**归类建议）：这 6 个端点归类 `CONSUMER_WRITE` 语义豁免（消费者自主操作，业务单据即流水；先例 `PaymentController` / `SessionController`），**不补** `appendLog`。落点 = 本条登记（纯文档、零代码）。端点级 `215` 棘轮**不变**——215 是分类/登记维度的存量天花板，不因归类清零；整体收敛不排期，维持冻结（只许减）。
+- **拍板结论**：✅ 已拍板 2026-11-14（用户点头**采纳**归类建议）：这 6 个端点归类 `CONSUMER_WRITE` 语义豁免（消费者自主操作，业务单据即流水；先例 `PaymentController` / `SessionController`），**不补** `appendLog`。落点 = 本条登记（纯文档、零代码），落点提交 = `b72a8d0b`。端点级 `215` 棘轮**不变**——215 是分类/登记维度的存量天花板，不因归类清零；整体收敛不排期，维持冻结（只许减）。
 - **类级注册表不新增条目（订正原方案「26→27」）**：`write-attribution-registry.json` 的 `entries` 只登记**类级不可达**的写控制器；AccountController 自身无 `appendLog`，但注入的 `InvoiceService` 含真实审计调用点 ⇒ **1-hop 可达**。门禁正向 `98 个写控制器 / 可达 72 / 登记 26 / TBD 0` 且绿，正是因为它未登记（`evaluate()` 第 85 行「可达的无需登记」）。强行加条目构成误登记，且 `evaluate()` 的 `e.auditCapable === false` 条件看不见这种条目 ⇒ 既护不住也不报错。故 26 保持 26。
 - **R23 L4 交待**：本条只解决这 6 个端点的口径；215 里剩下那块（见文末备忘的 134 条）才是「运营侧写端点漏网」镜头该重扫的面。
 
@@ -72,7 +72,7 @@
   - **消费面活着**：`clients/admin-vue/src/views/growth/UserAnalysisView.vue` 有 **10 行**含 `totalSpentCents`（8 处取值/计算 + 1 类型声明 + 1 函数签名），不是死代码——「删派生字段让例外自然消失」这条路堵死。
   - **输入是精确恒等回环**：`u.totalRevenue` 是 long 分（`:112` 的 `toLong(row[2])`），`:194` 用 `BigDecimal.valueOf(u.totalRevenue).movePointLeft(2)` 转元，DTO 构造器再 `movePointRight(2)` 回分 ⇒ 精确两位小数的恒等回环，`setScale(0, HALF_UP)` 永不触发＝死防御路径。这比原描述更硬地支持风险≈0。
   - **下沉成本**：`check-yuan-to-cents.mjs:56` 的 `YUANFEN_FILE` 锚点写死 `services/trade-service/.../util/YuanFen.java`，下沉 common-core 要动锚点 + 全部 importer；R23 前动它＝扩大 L1 被审面换零收益。
-- **拍板结论**：✅ 已拍板 2026-11-14（用户**采纳**复核建议）：维持登记例外、**不动码**；`movePointEntries` 2 处在册不变。R23 L4 保留复评权，若不同意再排修复批。
+- **拍板结论**：✅ 已拍板 2026-11-14（用户**采纳**复核建议）：维持登记例外、**不动码**（落点提交 = `b72a8d0b`）；`movePointEntries` 2 处在册不变。R23 L4 保留复评权，若不同意再排修复批。
 - **关联**：`check-yuan-to-cents` movePoint(2) 棘轮在册 2 处。
 
 ## ⑧ S12 四键值域 —— ✅ 已拍板 2026-11-14（按建议值域开工）
