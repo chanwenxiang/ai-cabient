@@ -69,4 +69,23 @@ assert(
   'WalletArrearsSqlIT 的 why 必须写明它守的是 mapper XML 那类 mock 单测抓不到的缺陷'
 );
 
+// 同族的第二条（CB-086 锁柜腿，2026-11-14）：它不在 integration/ 目录而在 service/ 包，
+// 清单腐烂最容易发生在这种「路径不合常规」的条目上 ⇒ 逐条钉住登记的真实性与 why 的信息量。
+const lock = entries.find(([, rel]) => rel.endsWith('WalletArrearsLockSqlIT.java'));
+assert(
+  !!lock,
+  'WalletArrearsLockSqlIT 必须在 GUARDED 里登记（@Testcontainers(disabledWithoutDocker=true) 的类' +
+    '一旦缺 Docker 就跑 0 用例，只有清单能证明它由 integration 守）'
+);
+assert(
+  /job:\s*'integration'/.test(lock[2]),
+  'WalletArrearsLockSqlIT 是 *IT.java ⇒ job 必须是 integration（failsafe），不能因放在 service 包就记成 build'
+);
+assert(
+  /operator_id/.test(lock[2]) && /LIKE/.test(lock[2]),
+  'WalletArrearsLockSqlIT 的 why 必须同时点名两条「mock 版替不掉」的腿：' +
+    '锁柜原因要真的落库（下轮靠 LIKE 找回）与审计 operator_id 的 NOT NULL+FK 归一' +
+    '——否则 why 会退化成「加了个 IT」这类空话登记'
+);
+
 console.log(`${TAG} OK：${checks} 项断言全过（GUARDED ${entries.length} 条逐条验真）`);
