@@ -237,6 +237,37 @@ class SystemConfigFundKeyGuardTest {
     }
 
     @Test
+    void consumerPublicConfig_limitKeys_fallBackLikeDecisionPath_s12() {
+        // 展示面与判定侧同源：超天花板的存量行 / 非正值都不得原样下发给客户端。
+        SystemConfig refund = new SystemConfig();
+        refund.setConfigKey(SystemConfigService.BALANCE_REFUND_MAX_CENTS);
+        refund.setConfigValue("6000000"); // S12：超过 ¥5 万天花板
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MAX_CENTS))
+                .thenReturn(Optional.of(refund));
+        SystemConfig recharge = new SystemConfig();
+        recharge.setConfigKey(SystemConfigService.RECHARGE_MAX_CENTS);
+        recharge.setConfigValue("0"); // DC-6：0 不再表示「不限制」
+        when(repository.findById(SystemConfigService.RECHARGE_MAX_CENTS))
+                .thenReturn(Optional.of(recharge));
+
+        var consumer = service.consumerPublicConfig();
+        assertEquals("500000", consumer.get("balanceRefundMaxCents"));
+        assertEquals("500000", consumer.get("rechargeMaxCents"));
+    }
+
+    @Test
+    void consumerPublicConfig_limitKeys_passThroughValidValues_s12() {
+        // 双向钉住：合法值必须原样透传，防止把修复写成「永远回落默认」。
+        SystemConfig refund = new SystemConfig();
+        refund.setConfigKey(SystemConfigService.BALANCE_REFUND_MAX_CENTS);
+        refund.setConfigValue("800000");
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MAX_CENTS))
+                .thenReturn(Optional.of(refund));
+
+        assertEquals("800000", service.consumerPublicConfig().get("balanceRefundMaxCents"));
+    }
+
+    @Test
     void upsert_fundKey_auditExplicitlyDisabled_stillLeavesHistory() {
         // 攻击形态：先把开关关掉，再改资金键——键族留痕必须不受开关节制
         auditSwitchRow("false");

@@ -11,6 +11,9 @@
  *   ④ 全族安全网：抹注释后每一处直接写库（save/insert/updateById/deleteById/delete）
  *      都必须配对 configCache.remove（bootstrap 修复循环的三处旁路写也算）；
  *   ⑤ 钉住单测两个不变式（缓存命中一次 / 写后失效），防「只钉语义不钉测试」。
+ *   ⑥ R8（2026-11-14）：上限型资金键的**下发**必须与判定侧同源——consumerPublicConfig
+ *      双向判据（禁裸 getInt + 要 getPositiveLimit 在位）＋ 两个行为用例；同样先抹注释，
+ *      成因注释里复述旧写法不得假红（复核轻项 3 的防复发，铁律 75/84）。
  *
  * 用法：
  *   node scripts/check-system-config-cache.mjs             # 正向门禁
@@ -23,7 +26,9 @@ import { join } from 'node:path';
 const ROOT = process.cwd();
 const P = {
   impl: 'services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java',
-  test: 'services/trade-service/src/test/java/com/aicabinet/trade/service/SystemConfigCacheTest.java'
+  test: 'services/trade-service/src/test/java/com/aicabinet/trade/service/SystemConfigCacheTest.java',
+  guardTest:
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/SystemConfigFundKeyGuardTest.java'
 };
 
 /** 注释替换为等长空格：保行号/列偏移，注释里的旧写法不得被当成实现。 */
@@ -70,6 +75,7 @@ function evaluate(read) {
   const bad = (msg) => problems.push(msg);
   const impl = maskComments(read(P.impl));
   const test = maskComments(read(P.test));
+  const guardTest = maskComments(read(P.guardTest));
 
   // ── R1 汇聚读方法本身正确：唯一直读点 + 命中缓存 + 写回缓存 ──
   const loadBody = methodBody(impl, 'private String loadConfigCached(');
@@ -175,6 +181,30 @@ function evaluate(read) {
       bad(`第 ${i + 1} 处直接写库未配对 configCache.remove（30s TTL 内会读到旧值）`);
   });
 
+  // ── R8 上限型资金键的下发口径（DC-6 / S12）：展示面必须与判定侧同源 ──
+  // 成因：consumerPublicConfig() 曾用裸 getInt 下发 rechargeMaxCents / balanceRefundMaxCents，
+  // 存量荒谬值（超天花板）与非正值（旧「0=不限制」）会原样显示给客户端，而判定侧
+  // getPositiveLimit 已回落默认 ⇒ 展示值与真实上限分叉（2026-11-14 复核轻项 3）。
+  // 判据只取方法体 + 已抹注释（防注释里的成因说明造成假红，铁律 84①），且双向：
+  // 禁裸 getInt + 要求 getPositiveLimit 在位（防「删下发键」绕过）。
+  if (pubBody !== null) {
+    for (const key of ['RECHARGE_MAX_CENTS', 'BALANCE_REFUND_MAX_CENTS']) {
+      if (new RegExp(`\\bgetInt\\s*\\(\\s*${key}\\b`).test(pubBody))
+        bad(
+          `consumerPublicConfig 用裸 getInt 下发 ${key}（上限型键必须走 getPositiveLimit，DC-6/S12）`
+        );
+      if (!new RegExp(`getPositiveLimit\\s*\\(\\s*${key}\\b`).test(pubBody))
+        bad(`consumerPublicConfig 缺 ${key} 的 getPositiveLimit 下发（防删下发键绕过）`);
+    }
+  }
+  for (const t of [
+    'consumerPublicConfig_limitKeys_fallBackLikeDecisionPath_s12',
+    'consumerPublicConfig_limitKeys_passThroughValidValues_s12'
+  ]) {
+    if (!guardTest.includes(t))
+      bad(`SystemConfigFundKeyGuardTest 缺测试 ${t}——展示面回落 / 合法值透传无人钉`);
+  }
+
   return problems;
 }
 
@@ -243,6 +273,23 @@ function selfTest() {
       P.test,
       (s) => s.replace('sameKeyReadHitsDbOnceAcrossAllGetters', 'sameKeyReadHitsDbOnce'),
       'sameKeyReadHitsDbOnceAcrossAllGetters'
+    ],
+    [
+      '展示面退回裸 getInt 下发上限型资金键（R8）',
+      P.impl,
+      (s) =>
+        s.replace(
+          'self.getPositiveLimit(RECHARGE_MAX_CENTS, 500_000)',
+          'self.getInt(RECHARGE_MAX_CENTS, 500_000)'
+        ),
+      '裸 getInt 下发 RECHARGE_MAX_CENTS'
+    ],
+    [
+      '展示面回落用例被删（只钉语义不钉测试，R8）',
+      P.guardTest,
+      (s) =>
+        s.replace('consumerPublicConfig_limitKeys_fallBackLikeDecisionPath_s12', 'renamedTest'),
+      '缺测试 consumerPublicConfig_limitKeys_fallBackLikeDecisionPath_s12'
     ]
   ];
 
@@ -273,7 +320,8 @@ function selfTest() {
     P.impl,
     baseline.get(P.impl) +
       '\n// 旧实现：String v = repository.findById(key).map(SystemConfig::getConfigValue).orElse(null);\n' +
-      '/* getValue 曾每调用直读一次 DB，未汇聚到 loadConfigCached */\n'
+      '/* getValue 曾每调用直读一次 DB，未汇聚到 loadConfigCached */\n' +
+      '// 旧下发：self.getInt(BALANCE_REFUND_MAX_CENTS, 500_000) 已废（R8 注释不得假红）\n'
   );
   const commentProblems = evaluate((p) => withComment.get(p));
   if (commentProblems.length) {
@@ -306,6 +354,6 @@ if (process.argv.includes('--self-test')) {
     process.exit(1);
   }
   console.log(
-    '[check-system-config-cache] OK：配置读汇聚缓存 + 四处写入口/三处 bootstrap 旁路写全族失效，7 组判据全绿'
+    '[check-system-config-cache] OK：配置读汇聚缓存 + 四处写入口/三处 bootstrap 旁路写全族失效 + 上限键下发同源（R8），8 组判据全绿'
   );
 }

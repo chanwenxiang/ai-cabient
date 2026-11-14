@@ -703,10 +703,13 @@ public class SystemConfigService {
         map.put("wechatSubscribeTemplateId",
                 wechatSubscribeOk ? weChatMiniAppProperties.resolveConsumerTemplateId() : "");
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
+        // S12/DC-6：上限型资金键的下发必须与判定侧同源。成因：此前两处用裸 getInt，
+        // 存量荒谬值（超天花板）与非正值（旧口径「0=不限制」）会原样下发给客户端，
+        // 而判定侧走 getPositiveLimit 已回落默认 ⇒ 展示值与真实上限分叉（复核轻项 3）。
         map.put("rechargeMaxCents",
-                String.valueOf(self.getInt(RECHARGE_MAX_CENTS, 500_000)));
+                String.valueOf(self.getPositiveLimit(RECHARGE_MAX_CENTS, 500_000)));
         map.put("balanceRefundMaxCents",
-                String.valueOf(self.getInt(BALANCE_REFUND_MAX_CENTS, 500_000)));
+                String.valueOf(self.getPositiveLimit(BALANCE_REFUND_MAX_CENTS, 500_000)));
         // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
                 || (securityProperties.mockEnabled() && alipayProperties.enabled());

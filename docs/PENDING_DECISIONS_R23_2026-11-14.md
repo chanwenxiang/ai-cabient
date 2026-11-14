@@ -60,6 +60,8 @@
 
 - **拍板结论**：提现手续费率 0–1000 bps（老系统 6‰=60bps，含商户降档覆盖空间）/ `balance.refund.max_cents` 0–5,000,000 分（¥5万）/ `checkout.preauth_cents` 0–1,000,000 分（¥1万）/ 券折扣两族维持既有局部校验（`CouponService` discountPercent 1..99、`PromotionActivityValidator` discountBps 0..10000 开区间）并纳入门禁视野（SETTER_RE 加 `setDiscountBps|setDiscountPercent` + 入口校验形态白名单）。
 - **落点**：`CommissionParamBounds` 常量单源 + `SystemConfigService` 写侧天花板 + 读侧回落双保险 + 门禁 SETTER_RE 扩面。✅ **已落地 2026-11-14：代码 `9d5c724f`（fix-batch 登记 `e2e54807`，33 Java 用例+门禁夹具 21 断言全绿）；本文档本体落盘 = `d0da52d5`**。
+- **拍板来源（2026-11-14 复核补留痕）**：上述值域由修复方按建议值域提出、用户确认拍板（「他推荐我的定的」），非修复方自行选口径；本条从「✅ 已拍板」补上来源，回应复核中「⑧ 已拍板的来源」一问。
+- **竞品台账处置（2026-11-14）**：**不新增 CB 条目**，留痕于此。理由：四键值域是「防手填荒谬值」的**内部防御性边界**，不是对外业务决策，没有可对照的公开产品参数；`check-competitor-benchmark` 要求每条 ≥3 家独立主体、其中 ≥2 家开门柜同行 + ≥1 个真实 URL（fail-closed），为凑数把「同行未披露」写成证据属于编造，违反 AGENTS.md「不得凭记忆填」。故 AGENTS.md 第 6 条在此以**有意不入台账**的方式留痕，R23 L1 不得重复判为欠账。同批改动的 `consumerPublicConfig()` 展示面回落属同一防御性边界的执行面，同样不是新业务决策。
 
 ---
 
