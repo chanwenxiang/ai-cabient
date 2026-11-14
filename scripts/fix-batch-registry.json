@@ -678,6 +678,51 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "80febfeb",
+      "report": "docs/PENDING_DECISIONS_R23_2026-11-14.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "R3 读取点扩面：READ 正则补 getPositiveLimit（5 个资金键读取点，readSites 112→117）+ 共享纯判据/防退化锚点 + sibling 夹具 + 接线与豁免移出",
+          "files": [
+            "scripts/check-feature-flags.mjs",
+            "scripts/check-feature-flags.test.mjs",
+            "scripts/lib/feature-flags-read.mjs",
+            "package.json",
+            "scripts/gate-fixture-registry.json"
+          ]
+        },
+        {
+          "id": "扫描锚点收紧：MIN_WRITERS 5→7（S12 扩面后实测 7 个写侧文件）+ evaluateAnchor 纯函数 + 夹具钉 7 绿/6 红/旧 5 放过 6",
+          "files": [
+            "scripts/check-commission-param-bounds.mjs",
+            "scripts/check-commission-param-bounds.test.mjs"
+          ]
+        },
+        {
+          "id": "预授权 0 语义归位：显式 fromDb==0 → return 0（下游 amount<=0 清预授权）+ 3 个 Java 用例 + 既有测试显式化 stub + e2e 注释订正",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ConsumerPreauthService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/config/CheckoutProperties.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ConsumerPreauthConcurrencyTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/e2e/SettlementComboMatrixE2ETest.java"
+          ]
+        },
+        {
+          "id": "新增独立门禁 check-preauth-zero-semantics + 夹具（10 断言，等长掩码防注释/字符串假绿）+ 接入聚合链",
+          "files": [
+            "scripts/check-preauth-zero-semantics.mjs",
+            "scripts/check-preauth-zero-semantics.test.mjs"
+          ]
+        },
+        {
+          "id": "台账订正：PENDING_DECISIONS 文末「轻项未修」改为已修（含 R4 多重集实测无变化的勘误）+ R23_PLAN §六三行状态改 ✅ 已修",
+          "files": ["docs/PENDING_DECISIONS_R23_2026-11-14.md", "docs/AUDIT_R23_PLAN_2026-11-12.md"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
