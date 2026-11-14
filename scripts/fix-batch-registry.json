@@ -688,6 +688,10 @@
     {
       "commit": "ddbfc438",
       "why": "复核三修复（PlatformFundService 钳位恢复 + movePoint(2) 判据 + R22 过期表订正），钳位属业务修复但规模小且与并行会话协同处理中，先入 allowlist 防阻塞"
+    },
+    {
+      "commit": "e31abac4",
+      "why": "YuanFen.toCents 返回 long 原始类型的编译错修复（.intValueExact() 对 long 不可调用），非业务审计条目"
     }
   ]
 }
