@@ -453,6 +453,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "3a022d3f",
+      "report": "docs/PROJECT_KNOWLEDGE.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "V481 种类声明 data→backfill：check-flyway-seed-separation 只认 schema|backfill|seed，V315/V385 的 data 属 203 条冻结基线存量，照抄先例会红",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V481__retire_device_temp_alert_knob.sql"
+          ]
+        },
+        {
+          "id": "判据：预检（gate 链）当场抓到本批唯一漂移，改后 FSS 与 fix-batch-coverage 双绿——先例≠现行规则，抄头部注释前先看门禁认什么",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V481__retire_device_temp_alert_knob.sql"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
