@@ -194,7 +194,12 @@ function main() {
     : {};
 
   const writers = [];
-  for (const service of ['trade-service', 'device-service', 'common', 'jiangyi-gateway']) {
+  for (const service of [
+    'trade-service',
+    'device-service',
+    'common/common-core',
+    'jiangyi-gateway'
+  ]) {
     const base = join(ROOT, 'services', service, 'src', 'main', 'java');
     if (!existsSync(base)) continue;
     for (const file of walk(base)) {

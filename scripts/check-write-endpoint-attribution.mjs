@@ -66,9 +66,12 @@ function walk(dir, ext, out = []) {
 }
 
 // ── 全量 Java 索引（类名→文件、文件→mask 后源码） ──
-const allJava = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'].flatMap((s) =>
-  walk(join(ROOT, 'services', s, 'src', 'main', 'java'), '.java')
-);
+const allJava = [
+  'trade-service',
+  'device-service',
+  'common/common-core',
+  'jiangyi-gateway'
+].flatMap((s) => walk(join(ROOT, 'services', s, 'src', 'main', 'java'), '.java'));
 const byClass = new Map();
 const rawOf = new Map();
 for (const f of allJava) {

@@ -37,8 +37,8 @@ const DIRS = [
   join('clients', 'merchant-mp', 'src'),
   join('clients', 'consumer-mp', 'src')
 ];
-const JAVA_BASES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'].map((svc) =>
-  join('services', svc, 'src', 'main', 'java')
+const JAVA_BASES = ['trade-service', 'device-service', 'common/common-core', 'jiangyi-gateway'].map(
+  (svc) => join('services', svc, 'src', 'main', 'java')
 );
 const PATTERN = /\*\s*100(?![0-9])/g;
 // 🔴 单源定义点扫描（2026-11-14）：YuanFen（trade/util）是元/分换算唯一入口——
@@ -47,12 +47,20 @@ const PATTERN = /\*\s*100(?![0-9])/g;
 // 均绕过单源且丢失保护，2026-11-14 已全部改调 YuanFen 清零，本判据防复发。
 const DEF_RE =
   /(?:public|protected|private)\s+(?:static\s+)?[\w<>,\[\]\s]+\s+(yuanToCents|toCents|toYuan)\s*\(/g;
+// 🔴 movePoint 判据（2026-11-14 复核补充）：`.movePointRight(2)/.movePointLeft(2)` 是
+//    换名字绕过 DEF_RE 的同族形态（WeChatBillCsvParser 原版即此形态，改名 fen 后两层全盲）。
+//    YUANFEN_FILE 豁免；其余命中入 movePointEntries 棘轮（只许收缩）。
+const MOVEPOINT_RE = /\.movePoint(?:Right|Left)\s*\(\s*2\s*\)/g;
 const YUANFEN_FILE = 'services/trade-service/src/main/java/com/aicabinet/trade/util/YuanFen.java';
 const FRONTEND_ANCHOR = 400;
 const JAVA_ANCHOR = 900;
 
 export function countHits(src) {
   return (src.match(PATTERN) || []).length;
+}
+
+export function countMovePoint(src) {
+  return (src.match(MOVEPOINT_RE) || []).length;
 }
 
 /** 单源定义点：YuanFen 之外的元/分换算方法定义 */
@@ -68,12 +76,14 @@ export function findDefViolations(src, rel) {
 }
 
 /** 纯判定：实际命中 vs 基线（与 check-bare-localdate 同款双向棘轮）。
- *  @param kind 'frontend'｜'java'——只影响报错文案指向的单源目标 */
+ *  @param kind 'frontend'｜'java'｜'movepoint'——只影响报错文案指向的单源目标 */
 export function evaluate(actual, baseline, kind = 'frontend') {
   const target =
     kind === 'java'
       ? 'YuanFen.toCents（trade/util 单源，拒 scale>2 静默精度损失）'
-      : 'yuanToCents（shared）';
+      : kind === 'movepoint'
+        ? 'YuanFen（trade/util 单源）——金额换算不得手写 movePoint(2)'
+        : 'yuanToCents（shared）';
   const problems = [];
   const baseMap = new Map(baseline.map((e) => [e.file, e.count]));
   const actualMap = new Map(actual.map((e) => [e.file, e.count]));
@@ -145,6 +155,15 @@ function main() {
   }
   const javaProblems = evaluate(javaActual, javaBaseline, 'java');
 
+  // ── movePoint(2) 段（换名绕过 DEF_RE 的同族形态） ──
+  const mpBaseline = baselineJson.movePointEntries || [];
+  const mpActual = [];
+  for (const f of javaFiles) {
+    const n = countMovePoint(readFileSync(f, 'utf8'));
+    if (n > 0) mpActual.push({ file: relative(ROOT, f).replace(/\\/g, '/'), count: n });
+  }
+  const mpProblems = evaluate(mpActual, mpBaseline, 'movepoint');
+
   // ── 单源定义点（YuanFen 之外不得定义换算方法） ──
   const defProblems = [];
   for (const f of javaFiles) {
@@ -153,7 +172,7 @@ function main() {
     defProblems.push(...findDefViolations(readFileSync(f, 'utf8'), rel));
   }
 
-  const problems = [...feProblems, ...javaProblems, ...defProblems];
+  const problems = [...feProblems, ...javaProblems, ...mpProblems, ...defProblems];
   if (problems.length > 0) {
     for (const p of problems) console.error(`${TAG} FAIL ${p}`);
     console.error(`${TAG} 共 ${problems.length} 项（S3-3b 元→分增量棘轮）`);
@@ -161,9 +180,11 @@ function main() {
   }
   const feTotal = feActual.reduce((n, e) => n + e.count, 0);
   const javaTotal = javaActual.reduce((n, e) => n + e.count, 0);
+  const mpTotal = mpActual.reduce((n, e) => n + e.count, 0);
   console.log(
     `${TAG} OK：前端 ${feFiles.length} 文件 * 100 命中 ${feTotal} 处（${feActual.length} 文件）+ ` +
-      `后端 ${javaFiles.length} 文件命中 ${javaTotal} 处（${javaActual.length} 文件）全部与基线一致`
+      `后端 ${javaFiles.length} 文件命中 ${javaTotal} 处（${javaActual.length} 文件）+ ` +
+      `movePoint(2) ${mpTotal} 处（${mpActual.length} 文件）全部与基线一致`
   );
 }
 

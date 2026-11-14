@@ -300,8 +300,10 @@ public class PlatformFundService {
         StringBuilder summary = new StringBuilder();
 
         // ① 备付计划
-        long bufferCents = YuanFen.toCents(
-                BigDecimal.valueOf(systemConfigService.getDouble(CFG_PLAN_BUFFER_YUAN, 500.0)));
+        long bufferCents = Math.max(
+                0L,
+                YuanFen.toCents(
+                        BigDecimal.valueOf(systemConfigService.getDouble(CFG_PLAN_BUFFER_YUAN, 500.0))));
         List<PlatformFundAccount> accounts = listAccounts();
         if (accounts.isEmpty()) {
             summary.append("平台资金池未登记任何账户（软启动，备付校验未生效）");
@@ -333,8 +335,10 @@ public class PlatformFundService {
         long sweepCount = flowMapper.countByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
         if (sweepCount > 0) {
             long monthSweep = flowMapper.sumAmountByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
-            long tolerance = YuanFen.toCents(
-                    BigDecimal.valueOf(systemConfigService.getDouble(CFG_RECON_TOLERANCE_YUAN, 10.0)));
+            long tolerance = Math.max(
+                    0L,
+                    YuanFen.toCents(
+                            BigDecimal.valueOf(systemConfigService.getDouble(CFG_RECON_TOLERANCE_YUAN, 10.0))));
             long diff = Math.abs(monthPlatform - monthSweep);
             if (diff > tolerance) {
                 alertDispatcher.trySend(ALERT_RECON, "归集核对不平",

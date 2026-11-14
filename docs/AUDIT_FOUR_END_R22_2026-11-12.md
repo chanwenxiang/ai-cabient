@@ -287,11 +287,14 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 | `WeChatPayV3Client` | 无 | `setConnectTimeout(3_000)`/`setReadTimeout(10_000)`，下载 60s | **peer 在制修复（未提交）** |
 | `AlipayOpenApiClient` | 无 | 3s/10s | **peer 在制修复（未提交）** |
 | device `TradeServiceClient` | 无 | 已含 Timeout | **peer 在制修复（未提交）** |
-| `WeChatMiniAppClient`（登录 code2session） | 无 | 无 | 🔴 **仍未修** |
-| `IdentityVerifyClient` | 无 | 无 | 🔴 **仍未修** |
-| `JiangyiModelSyncService` | 无 | `RestClient.create()` 原样（[:59](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java#L59)） | 🔴 **仍未修** |
+| `WeChatMiniAppClient`（登录 code2session） | 无 | 无 | ~~🔴 **仍未修**~~ ✅ **R21-1 已修**（2026-11-14 复核订正：裸建已替换为 OutboundHttp，源码仅剩 `:51` 处「为什么不能再用裸 RestClient」的历史说明注释） |
+| `IdentityVerifyClient` | 无 | 无 | ~~🔴 **仍未修**~~ ✅ **R21-1 已修**（2026-11-14 复核订正：同上，`:49` 为历史说明注释） |
+| `JiangyiModelSyncService` | 无 | `RestClient.create()` 原样（[:59](file:///D:/ai-generated%20code/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java#L59)） | ~~🔴 **仍未修**~~ ✅ **R21-1 已修**（2026-11-14 复核订正：同上，`:60` 为历史说明注释） |
 
 ⇒ 派修者请注意：这三处与本轮 R22-1/R22-2 是**同一批链路**（登录/实名/模型下发 + 退款/短信），若只修超时不修「先烧额度/结果未知不收口」，现象会从「挂住线程」变成「快速失败但状态残留」。
+<br>
+
+> **2026-11-14 复核订正**：上表三行「🔴 仍未修」已过期——R21-1 随后把三处裸建全部替换为 OutboundHttp 工厂（当前源码中 `RestClient.create()` 仅剩历史说明注释，无实际调用）。复核时曾误报「仍未修」，订正防 R23 重复报。
 
 ---
 
