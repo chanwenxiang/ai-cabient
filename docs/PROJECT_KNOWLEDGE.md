@@ -688,6 +688,28 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ### 2026-11-14（R20-2 最后一块：运营「确认完结 LEDGER_ONLY」加实收门）
 
+- **温度告警整条退役（用户拍板「温度告警旋钮应该去掉，我们监控不了温度」）**：现役将邑柜不上报温度，
+  dev 里 `device_info.current_temp_c` 的值全部来自 device-simulator 默认值 ⇒ 告警的输入本身是假的。
+  一次性删七处（缺一即漂移）：`DevicePresenceService.applyTempAlert` 与调用、`SystemConfigService` 常量与
+  `ensureDefaults()` 播种、`ops/feature-flags.json` 条目（注册表 120→119）、`config-early-return-allowlist.json`
+  豁免条目并**同批下调 `maxEntries` 2→1**、`AlertRuleView.vue` 的「温控告警」分组与中文名（含 admin 产物重建）、
+  `V481` 清存量键（对全新空库是 no-op，因为该键没有迁移播种）、`DevicePresenceServiceTest` 两条告警用例
+  换成**退役哨兵**（温度 99℃ ⇒ 读数仍落库、`TEMP_ABNORMAL` 既不报也不结案）。
+  - 保留面：温度列 / 读数表 / `ops.log_retention.temperature_days`——自有柜 MQTT 协议仍有 `current_temp_c` 通道，
+    退役的是**告警**不是数据面；日后要接回来必须带「温度源可信」的新证据，哨兵用例会红着拦。
+  - 存量核查（实测非推断）：`ops_exception` 的 `TEMP_ABNORMAL` 40 行全部 RESOLVED、open=0 ⇒ 无需结案脚本；
+    结构台账 §277 那条「调 0 后自动结案腿一并停」的已知代价随功能退役自然消失，该节已改写为闭合状态。
+  - 验证：`DevicePresenceServiceTest` 10/10 绿；feature-flags / config-early-return-scope(+夹具) /
+    migration-safety / number-order 全绿；变异验证＝把告警腿加回去 ⇒ 哨兵红（`Never wanted here`），`cmp` 逐字节还原。
+- **将邑侧两条挂账口径更新**：采集自训（V1.13 §4.3.3–4.3.14 共 12 条）从「等厂商」改为**明确不做**——
+  用户实测功能可跑通，但**厂商不会把该权限开放给我方**，控制权在他们侧 ⇒ 挂「等厂商」只会空转；
+  同时订正清单两处自相矛盾的过期状态（§5.5.3 写「未接」而代码在跑、G′ 计数写 0 而 §G-9 自己写「已接入」）。
+- 🔴 **自查订正：我上一轮报的待办里 14/15 两条是错的**——「S10 取数窗口诚实性判据」与「巡检规则族夹具」
+  早在 2026-11-13 就落地并接进聚合链（`check:window-limit-honesty`、`check:consistency-rule-fixtures` 现跑
+  「24 条规则双夹具齐 24（缺 0）」）。错因：只读了台账**顶部小标题**（「显式缓议」「缺 18 条」）而没读它下面
+  的落地回执段——同一天内这个形态坑我撞到第三次（前两次是将邑清单那两处）。⇒ 以后引用台账状态前，
+  必须先 grep 同一文件里该主题的**后续回执小节**，或直接跑对应门禁看自报。
+
 - `RevenueSplitService.doConfirmLedgerOnly` 放款前读订单：订单查不到 ⇒ 拒；`OrderCollectionGate.collected(order)` 为假（`PENDING`/`CANCELLED`）⇒ 拒。**行为变化只有一条**：对未实收的单点「确认完结」，从静默把钱打进商户钱包变成显式 409 + 原因，运营在 `MerchantSplitsView` 直接看见「订单 xxx 尚未实收（status=PENDING）…」。
 - 门落在**钱动作本体**这一侧而不是调用方 `MerchantService`：今天只有这一个入口，明天多一个入口就会绕过（与自动入账腿 `doRecordSplit`/结算侧同判据、同单源）。
 - 异常类型选 `ResponseStatusException(CONFLICT, 中文原因)` 而不是 `IllegalStateException`：`runWithOrderSplitLock` 把锁内其它 Exception 统一包成 500，只有 `ResponseStatusException` 原样透出；`GlobalExceptionHandler` 对 4xx 走 `ApiMessages.translate`（含 CJK 原样回传）⇒ 文案能到运营手里。既有两条 `IllegalStateException` 判据仍走 500（`MerchantService` 那段 `catch→409` 是死代码），本轮不改，细节与理由见 lessons **434** 与 R20 台账。
