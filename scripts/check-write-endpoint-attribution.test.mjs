@@ -95,6 +95,16 @@ assert(
   );
 }
 
+// B5) AdminAuditService.appendLog 定义到达 = 归因（2026-11-14 修复的正向用例）
+assert(
+  reachable('AdminAuditService', 'appendLog', 1, new Set()) === true,
+  'AdminAuditService.appendLog 定义应被判为归因终点'
+);
+assert(
+  reachable('AdminAuditService', 'appendLogIndependent', 1, new Set()) === true,
+  'AdminAuditService.appendLogIndependent 定义应被判为归因终点'
+);
+
 // ── C. controllerEndpoints 真实仓面 ──
 
 // C1) OpsOtaController：2 写端点全归因（自身 appendLog + service 链）
