@@ -473,6 +473,42 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "bbeb5586",
+      "report": "services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyAvailabilityBatchSqlIT.java",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "可用性改批量：DeviceValidationService.availableByDevices(Collection) 三张表各一次 in 查询；mapper 各加 in 变体；NearbyDeviceService 用批量结果，缺失/失败退回同一条兜底判据",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceValidationService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/NearbyDeviceService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/ShoppingSessionMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/ReplenishmentTaskMapper.java"
+          ]
+        },
+        {
+          "id": "等价性真库 IT：五分支（空闲/占用会话/补货中已签到/离线/锁机）逐台断言「批量 == getDeviceStatus().available()」，另加五条显式期望防两边一起错；GUARDED 登记",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyAvailabilityBatchSqlIT.java",
+            "scripts/check-docker-tests-guarded.mjs"
+          ]
+        },
+        {
+          "id": "单测同步：不再 stub getDeviceStatus，改 stub availableByDevices 并断言「批量值→DTO.available」映射",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/NearbyDeviceServiceTest.java"
+          ]
+        },
+        {
+          "id": "变异验证：删掉补货占用腿 ⇒ IT 红（批量与逐台答案不一致），cmp 逐字节还原；边界写明 listProducts 的 N×3 与价格批量仍未做",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyAvailabilityBatchSqlIT.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
