@@ -146,15 +146,25 @@ function fieldsOf(clsName) {
   return map;
 }
 
-/** 递归归因：cls.method 起深度 ≤ MAX_DEPTH 内是否可达 `.appendLog(` 调用点
- *  （拒绝路径审计类【AccessDeniedAudit】不计——它只在鉴权失败时触发） */
+/** 递归归因：cls.method 起深度 ≤ MAX_DEPTH 内是否可达 `.appendLog(` 调用点或
+ *  AdminAuditService.appendLog 方法定义本身（走到定义=委托链终点是审计写入）。
+ *  🔴 拒绝路径审计类（AccessDeniedAudit）：不进入其方法体——整个类的链路都是
+ *     鉴权失败路径，从它出发的任何可达都不是业务归因（负向注入实证：
+ *     不挡在入口则 publishOta ⇒ requirePermission ⇒ denied ⇒ persistDenied
+ *     ⇒ AdminAuditService.appendLog 定义假绿）。 */
 export function reachable(clsName, methodName, depth, visited) {
   const key = clsName + '.' + methodName;
   if (visited.has(key) || depth > MAX_DEPTH) return false;
   visited.add(key);
+  if (FAILURE_PATH_AUDIT_CLASSES.has(clsName)) return false;
+  if (
+    clsName === 'AdminAuditService' &&
+    (methodName === 'appendLog' || methodName === 'appendLogIndependent')
+  )
+    return true;
   const body = bodyOf(clsName, methodName);
   if (!body) return false;
-  if (/\.appendLog\s*\(/.test(body) && !FAILURE_PATH_AUDIT_CLASSES.has(clsName)) return true;
+  if (/\.appendLog\s*\(/.test(body)) return true;
   const fields = fieldsOf(clsName);
   for (const m of body.matchAll(/(\w+)\.(\w+)\s*\(/g)) {
     const cls2 = fields.get(m[1]);
