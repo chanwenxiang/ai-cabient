@@ -386,6 +386,18 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyPreviewBatchSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；附近柜预览从「逐台 listProducts 再取前 3」改成批量 previewByDevices，' +
+        '而可售量有四个 SQL 闸（在售批次/quantity>0/排除禁用货道/无货道兜底）且价格叠设备覆盖价与清仓，' +
+        'mock 证不了「批量==逐台」。本 IT 在真 PG 上铺 3 台（有批次含禁用货道与无货道、无批次回退聚合行、空柜），' +
+        '逐台比对 itemCount/skuCount/前 N 项四字段，另加四条显式期望（禁用不计/无货道计入/覆盖价 450 生效/空柜 0）；' +
+        '变异验证：批量 SQL 去掉禁用货道过滤 ⇒ 2 例全红，cmp 逐字节还原'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyAvailabilityBatchSqlIT.java',
     {
       job: 'integration',

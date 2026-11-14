@@ -69,12 +69,21 @@ public class NearbyDeviceService {
             // 批量查询整体失败时退回与单台版 catch 分支同一条判据（在线且未锁），仍是宁少不多
             availableByDevice = Map.of();
         }
+        // 预览也批量：一次取多台的可售量 + 只给前 3 个算价（原路径每台 6+4n 条查询）。
+        // 语义与「逐台 listProducts 再取前 3」逐字一致，等价性由 NearbyPreviewBatchSqlIT 守着。
+        Map<String, DeviceCatalogService.DevicePreview> previews;
+        try {
+            previews = deviceCatalogService.previewByDevices(
+                    candidates.stream().map(DeviceInfo::getDeviceId).toList(), null, 3);
+        } catch (Exception e) {
+            previews = Map.of();
+        }
         List<NearbyDeviceDto> out = new ArrayList<>();
         for (DeviceInfo d : candidates) {
             // 坐标非空与生命周期已由 SQL 保证（同判据、同归一化口径），这里只剩距离判据。
             double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
             if (dist <= radiusM) {
-                out.add(toDto(d, dist, availableByDevice.get(d.getDeviceId())));
+                out.add(toDto(d, dist, availableByDevice.get(d.getDeviceId()), previews.get(d.getDeviceId())));
             }
         }
         out.sort(Comparator.comparingDouble(NearbyDeviceDto::distanceMeters));
@@ -97,7 +106,8 @@ public class NearbyDeviceService {
         return limit <= 0 ? 20 : Math.min(limit, 50);
     }
 
-    private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters, Boolean batchAvailable) {
+    private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters, Boolean batchAvailable,
+                                   DeviceCatalogService.DevicePreview batchPreview) {
         boolean available;
         if (batchAvailable != null) {
             available = batchAvailable;
@@ -106,19 +116,30 @@ public class NearbyDeviceService {
             String life = d.getOnlineStatus() == null ? "" : d.getOnlineStatus().trim();
             available = "ONLINE".equalsIgnoreCase(life) && !d.salesLockedEnabled();
         }
-        List<DeviceProductDto> products = List.of();
-        try {
-            products = deviceCatalogService.listProducts(d.getDeviceId());
-        } catch (Exception ignored) {
-            // preview optional
+        int itemCount;
+        int skuCount;
+        List<NearbyDeviceDto.PreviewSku> preview;
+        if (batchPreview != null) {
+            itemCount = batchPreview.itemCount();
+            skuCount = batchPreview.skuCount();
+            preview = batchPreview.preview();
+        } else {
+            // 批量结果里没有这台（或批量整体失败）⇒ 退回逐台口径，结果与改造前完全一致
+            List<DeviceProductDto> products = List.of();
+            try {
+                products = deviceCatalogService.listProducts(d.getDeviceId());
+            } catch (Exception ignored) {
+                // preview optional
+            }
+            itemCount = products.stream().mapToInt(p -> Math.max(0, p.quantity())).sum();
+            skuCount = products.size();
+            preview = products.stream()
+                    .sorted((a, b) -> Integer.compare(b.quantity(), a.quantity()))
+                    .limit(3)
+                    .map(p -> new NearbyDeviceDto.PreviewSku(
+                            p.skuId(), p.skuName(), p.quantity(), p.priceCents()))
+                    .toList();
         }
-        int itemCount = products.stream().mapToInt(p -> Math.max(0, p.quantity())).sum();
-        List<NearbyDeviceDto.PreviewSku> preview = products.stream()
-                .sorted((a, b) -> Integer.compare(b.quantity(), a.quantity()))
-                .limit(3)
-                .map(p -> new NearbyDeviceDto.PreviewSku(
-                        p.skuId(), p.skuName(), p.quantity(), p.priceCents()))
-                .toList();
         return new NearbyDeviceDto(
                 d.getDeviceId(),
                 d.getDeviceName(),
@@ -128,7 +149,7 @@ public class NearbyDeviceService {
                 Math.round(distanceMeters * 10.0) / 10.0,
                 d.getOnlineStatus(),
                 available,
-                products.size(),
+                skuCount,
                 itemCount,
                 preview
         );

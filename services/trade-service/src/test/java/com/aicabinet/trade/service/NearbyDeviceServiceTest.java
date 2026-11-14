@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -95,5 +96,32 @@ class NearbyDeviceServiceTest {
         d.setLifecycleStatus("DEPLOYED");
         d.setAddress("demo");
         return d;
+    }
+
+    /**
+     * 2026-11-14：预览改成批量（previewByDevices）。本例只钉「批量值 → DTO 三个字段」的映射：
+     * sellableSkuCount / sellableItemCount / previewSkus 若接错位置，附近页会显示错的件数或商品。
+     * 口径等价性（含禁用货道、覆盖价）由 NearbyPreviewBatchSqlIT 在真库上守。
+     */
+    @Test
+    void listNearby_mapsBatchPreviewIntoDto() {
+        DeviceInfo one = device("CAB-PRV", 31.2304, 121.4737);
+        when(deviceRepository.findNearbyCandidates(anyDouble(), anyDouble(), any(), any()))
+                .thenReturn(List.of(one));
+        when(deviceValidationService.availableByDevices(anyCollection()))
+                .thenReturn(java.util.Map.of("CAB-PRV", true));
+        when(deviceCatalogService.previewByDevices(anyCollection(), any(), anyInt())).thenReturn(
+                java.util.Map.of("CAB-PRV", new DeviceCatalogService.DevicePreview(
+                        7, 2,
+                        List.of(new com.aicabinet.common.dto.NearbyDeviceDto.PreviewSku("S-1", "甲", 4, 350)))));
+
+        NearbyDeviceDto dto = service.listNearby(31.2304, 121.4737, 5, 10).get(0);
+
+        assertEquals(7, dto.sellableItemCount(), "总件数必须取批量 itemCount");
+        assertEquals(2, dto.sellableSkuCount(), "SKU 数必须取批量 skuCount");
+        assertEquals(1, dto.previewSkus().size());
+        assertEquals(350, dto.previewSkus().get(0).unitPriceCents(), "预览单价必须是批量算出的会员价");
+        org.mockito.Mockito.verify(deviceCatalogService, org.mockito.Mockito.never())
+                .listProducts(org.mockito.ArgumentMatchers.anyString());
     }
 }

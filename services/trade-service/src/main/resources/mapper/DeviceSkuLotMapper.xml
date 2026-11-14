@@ -50,6 +50,23 @@
     ]]>
   </select>
 
+  <!--
+    批量版（与 selectSumSellableBySkuOnEnabledSlots 逐字同口径，只多了 device_id IN 与输出列）：
+    附近柜列表一次问多台，替掉逐台 N 次查询。🔴 <foreach> 必须在 CDATA 之外（CDATA 内不是元素是字面量）。
+  -->
+  <select id="selectSumSellableBySkuOnEnabledSlotsByDevices" resultType="java.util.LinkedHashMap">
+    SELECT l.device_id AS c0, l.sku_id AS c1, COALESCE(SUM(l.quantity), 0) AS c2
+    FROM device_sku_lot l
+    LEFT JOIN device_slot s
+           ON s.device_id = l.device_id
+          AND UPPER(s.slot_code) = UPPER(l.slot_id)
+    WHERE l.device_id IN
+    <foreach collection="deviceIds" item="d" open="(" separator="," close=")">#{d}</foreach>
+      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+      AND COALESCE(s.enabled, true) = true
+    GROUP BY l.device_id, l.sku_id
+  </select>
+
   <select id="countNearExpiry" resultType="long">
     <![CDATA[
     SELECT COUNT(*) FROM device_sku_lot l

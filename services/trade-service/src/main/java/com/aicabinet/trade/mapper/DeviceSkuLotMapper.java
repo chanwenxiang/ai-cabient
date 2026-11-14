@@ -4,6 +4,7 @@ import com.aicabinet.trade.domain.DeviceSkuLot;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
@@ -81,6 +82,31 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
 
     default List<Object[]> sumSellableBySkuOnEnabledSlots(String deviceId) {
         return ColumnMapRows.toObjectRows(selectSumSellableBySkuOnEnabledSlots(deviceId), 2);
+    }
+
+    /** 批量版（附近柜列表）：与单台版逐字同口径，按 device_id 分组输出 [deviceId, skuId, qty]。 */
+    List<LinkedHashMap<String, Object>> selectSumSellableBySkuOnEnabledSlotsByDevices(
+            @Param("deviceIds") Collection<String> deviceIds);
+
+    default List<Object[]> sumSellableBySkuOnEnabledSlotsByDevices(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return ColumnMapRows.toObjectRows(selectSumSellableBySkuOnEnabledSlotsByDevices(deviceIds), 3);
+    }
+
+    /** 这 N 台里哪些有批次账本（决定走 lot 口径还是回退聚合行），一次问清。 */
+    default java.util.Set<String> deviceIdsHavingLots(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                        .select(DeviceSkuLot::getDeviceId)
+                        .in(DeviceSkuLot::getDeviceId, deviceIds)
+                        .groupBy(DeviceSkuLot::getDeviceId))
+                .stream()
+                .map(DeviceSkuLot::getDeviceId)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     long countNearExpiry(@Param("today") LocalDate today, @Param("nearDate") LocalDate nearDate);
