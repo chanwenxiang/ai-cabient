@@ -110,7 +110,6 @@
     "check-balance-hold-types.mjs",
     "check-cache-names.mjs",
     "check-channel-id-stability.mjs",
-    "check-commission-param-bounds.mjs",
     "check-competitor-benchmark.mjs",
     "check-config-env-passthrough.mjs",
     "check-config-properties-binding.mjs",

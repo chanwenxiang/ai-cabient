@@ -75,21 +75,21 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
     'clients/merchant-mp/src',
     'clients/consumer-mp/src'
   ];
-  const walk = (dir, out = []) => {
+  const walk = (dir, exts, out = []) => {
     if (!existsSync(dir)) return out;
     for (const name of readdirSync(dir)) {
       const p = join(dir, name);
       const st = statSync(p);
       if (st.isDirectory()) {
-        if (['node_modules', 'dist', 'dev'].includes(name)) continue;
-        walk(p, out);
-      } else if (/\.(vue|ts)$/.test(name)) out.push(p);
+        if (['node_modules', 'dist', 'dev', 'target', 'static'].includes(name)) continue;
+        walk(p, exts, out);
+      } else if (exts.some((e) => name.endsWith(e))) out.push(p);
     }
     return out;
   };
   const actual = [];
   for (const d of DIRS) {
-    for (const f of walk(join(ROOT, d))) {
+    for (const f of walk(join(ROOT, d), ['.vue', '.ts'])) {
       const n = countHits(readFileSync(f, 'utf8'));
       if (n > 0)
         actual.push({ file: f.replace(/\\/g, '/').replace(/^.*?clients\//, 'clients/'), count: n });
@@ -97,6 +97,34 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   }
   const problems = evaluate(actual, baseline.entries);
   assert(problems.length === 0, `真实仓面应零问题：${problems.slice(0, 3).join('|')}`);
+
+  // 6b) 后端段真实仓面：javaEntries × services Java 扫描 ⇒ 零问题
+  const SERVICES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'];
+  const javaActual = [];
+  for (const svc of SERVICES) {
+    for (const f of walk(join(ROOT, 'services', svc, 'src', 'main', 'java'), ['.java'])) {
+      const n = countHits(readFileSync(f, 'utf8'));
+      if (n > 0)
+        javaActual.push({
+          file: f.replace(/\\/g, '/').replace(/^.*?services\//, 'services/'),
+          count: n
+        });
+    }
+  }
+  const javaProblems = evaluate(javaActual, baseline.javaEntries || [], 'java');
+  assert(
+    javaProblems.length === 0,
+    `后端真实仓面应零问题：${javaProblems.slice(0, 3).join('|')}`
+  );
+}
+
+// 7) 后端段报错指向 YuanFen 单源（不是 yuanToCents shared）
+{
+  const p = evaluate([{ file: 'services/x/Y.java', count: 1 }], [], 'java');
+  assert(
+    p.length === 1 && p[0].includes('YuanFen.toCents') && !p[0].includes('yuanToCents（shared）'),
+    `后端报错须指向 YuanFen：${p.join('|')}`
+  );
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

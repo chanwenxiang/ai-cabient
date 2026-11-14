@@ -1,5 +1,5 @@
 {
-  "note": "S3-3b 元→分增量棘轮基线：前端 * 100 同时混杂「元→分换算」与「百分比换算」两种语义，静态判据无法区分（§八 Q3）⇒ 不做硬扫，按文件计数棘轮封增量——新增命中必须改走 yuanToCents（shared）或登记带理由条目；存量 convert 一个销一个基线条目。",
+  "note": "S3-3b 元→分增量棘轮基线（前端+后端双段，2026-11-14 扩后端）：* 100 同时混杂「元→分换算」与「百分比换算」两种语义，静态判据无法区分（§八 Q3）⇒ 不做硬扫，按文件计数棘轮封增量。前端段 entries：新增命中必须改走 yuanToCents（shared-uni）或登记带理由条目。后端段 javaEntries：新增命中必须改走 YuanFen.toCents（trade/util 单源，拒 scale>2 静默精度损失——PlatformFundService 私有 double 版绕过它即丢保护）；百分比/时间等非金额换算登记即显式化。存量 convert 一个销一个条目（棘轮允许收缩）。",
   "seedDate": "2026-11-12",
   "total": 55,
   "entries": [
@@ -107,5 +107,52 @@
       "file": "clients/consumer-mp/src/utils/popup-seen.ts",
       "count": 1
     }
-  ]
+  ],
+  "javaEntries": [
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceSlotService.java",
+      "count": 2
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/FootfallAnalyticsService.java",
+      "count": 3
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiModelSyncService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantAnalyticsService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PromotionService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PurchaseSuggestionService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentStaffReportService.java",
+      "count": 1
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SettlementConfidenceService.java",
+      "count": 4
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SmsDeliveryStats.java",
+      "count": 2
+    }
+  ],
+  "javaTotal": 18
 }

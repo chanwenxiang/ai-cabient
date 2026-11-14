@@ -54,7 +54,7 @@
     "check:inmemory-paging": "node scripts/check-inmemory-paging.mjs",
     "check:list-filter-server-side": "node scripts/check-list-filter-server-side.test.mjs && node scripts/check-list-filter-server-side.mjs",
     "check:no-inline-dict-display": "node scripts/check-no-inline-dict-display.mjs",
-    "check:commission-param-bounds": "node scripts/check-commission-param-bounds.mjs",
+    "check:commission-param-bounds": "node scripts/check-commission-param-bounds.test.mjs && node scripts/check-commission-param-bounds.mjs",
     "check:no-inline-money-math": "node scripts/check-no-inline-money-math.mjs",
     "check:scheduler-entity-save": "node scripts/check-scheduler-entity-save.mjs",
     "check:test-mockito-pitfalls": "node scripts/check-test-mockito-pitfalls.mjs",

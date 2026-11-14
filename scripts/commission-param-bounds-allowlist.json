@@ -6,5 +6,9 @@
   "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentSplitService.java": {
     "count": 1,
     "reason": "MA-069 记录里点名的对照先例：doReplaceRules 自带 shareBps 0..10000 + fixedCents ≥ 0 内联 400 闸（:72-84）"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/LineRouteAdminService.java": {
+    "count": 4,
+    "reason": "入口校验形态（2026-11-14 逐调用点升级时登记）：rateBps/perUnitCents 于方法入口过 CommissionParamBounds.requireBps/requireCents（:164-168），四处 setter（:180/181/191/192）落的是已校验局部变量"
   }
 }
