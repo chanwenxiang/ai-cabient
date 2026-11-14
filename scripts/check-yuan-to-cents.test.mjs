@@ -138,4 +138,56 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   );
 }
 
+// 8) 单源定义点扫描（findDefViolations）：YuanFen 之外的换算方法定义即红
+{
+  const { findDefViolations } = await import('./check-yuan-to-cents.mjs');
+  // 私有 double 版（PlatformFundService 被删形态）
+  const v1 = findDefViolations(
+    'class X { private static long yuanToCents(double yuan) { return 0; } }',
+    'services/x/X.java'
+  );
+  assert(v1.length === 1 && v1[0].includes('yuanToCents'), `私有 double 版须红：${v1.join('|')}`);
+  // movePointRight 版（WeChatBillCsvParser 被删形态）
+  const v2 = findDefViolations(
+    'class X { private static long toCents(String s) { return 0; } }',
+    'services/x/X.java'
+  );
+  assert(v2.length === 1 && v2[0].includes('toCents'), `私有 String 版须红：${v2.join('|')}`);
+  // 无关方法名不误伤
+  const ok = findDefViolations(
+    'class X { private static long unrelatedCalc(double d) { return 0; } }',
+    'services/x/X.java'
+  );
+  assert(ok.length === 0, `无关方法不该命中：${ok.join('|')}`);
+}
+
+// 9) 真实仓面单源：除 YuanFen 外全后端无换算方法定义（2026-11-14 清零后防复发）
+{
+  const { readdirSync, statSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const SERVICES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'];
+  const walkJava = (dir, out = []) => {
+    if (!existsSync(dir)) return out;
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      const st = statSync(p);
+      if (st.isDirectory()) {
+        if (['node_modules', 'target', 'static'].includes(name)) continue;
+        walkJava(p, out);
+      } else if (name.endsWith('.java')) out.push(p);
+    }
+    return out;
+  };
+  const { findDefViolations } = await import('./check-yuan-to-cents.mjs');
+  const violations = [];
+  for (const svc of SERVICES) {
+    for (const f of walkJava(join(ROOT, 'services', svc, 'src', 'main', 'java'))) {
+      const rel = f.replace(/\\/g, '/').replace(/^.*?services\//, 'services/');
+      if (rel.endsWith('YuanFen.java')) continue;
+      violations.push(...findDefViolations(readFileSync(f, 'utf8'), rel));
+    }
+  }
+  assert(violations.length === 0, `后端单源应零违规：${violations.slice(0, 3).join('|')}`);
+}
+
 console.log(`${TAG} OK：${checks} 项断言全过`);

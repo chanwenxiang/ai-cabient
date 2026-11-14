@@ -6,6 +6,7 @@ import com.aicabinet.trade.mapper.MerchantWithdrawRequestMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.mapper.PlatformFundAccountMapper;
 import com.aicabinet.trade.mapper.PlatformFundFlowMapper;
+import com.aicabinet.trade.util.YuanFen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -298,7 +300,8 @@ public class PlatformFundService {
         StringBuilder summary = new StringBuilder();
 
         // ① 备付计划
-        long bufferCents = yuanToCents(systemConfigService.getDouble(CFG_PLAN_BUFFER_YUAN, 500.0));
+        long bufferCents = YuanFen.toCents(
+                BigDecimal.valueOf(systemConfigService.getDouble(CFG_PLAN_BUFFER_YUAN, 500.0)));
         List<PlatformFundAccount> accounts = listAccounts();
         if (accounts.isEmpty()) {
             summary.append("平台资金池未登记任何账户（软启动，备付校验未生效）");
@@ -330,7 +333,8 @@ public class PlatformFundService {
         long sweepCount = flowMapper.countByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
         if (sweepCount > 0) {
             long monthSweep = flowMapper.sumAmountByTypeBetween(PlatformFundFlow.TYPE_SWEEP, monthStart, now);
-            long tolerance = yuanToCents(systemConfigService.getDouble(CFG_RECON_TOLERANCE_YUAN, 10.0));
+            long tolerance = YuanFen.toCents(
+                    BigDecimal.valueOf(systemConfigService.getDouble(CFG_RECON_TOLERANCE_YUAN, 10.0)));
             long diff = Math.abs(monthPlatform - monthSweep);
             if (diff > tolerance) {
                 alertDispatcher.trySend(ALERT_RECON, "归集核对不平",
@@ -347,10 +351,6 @@ public class PlatformFundService {
                     .append(" 元尚未登记归集（提醒）");
         }
         return summary.toString();
-    }
-
-    private static long yuanToCents(double yuan) {
-        return Math.max(0L, Math.round(yuan * 100.0));
     }
 
     private static String yuan(long cents) {

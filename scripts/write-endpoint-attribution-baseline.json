@@ -1,5 +1,5 @@
 {
-  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}，双向棘轮：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红。未解析端点 attributed=false 显式在册，修复后收紧。",
+  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}，双向棘轮：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红。未解析端点 attributed=false 显式在册，修复后收紧。 maxUnattributed（未归因总量棘轮，只许减）：新端点未归因或归因退化都会顶破它——销账路径=补审计后重种快照或显式降基线。",
   "seedDate": "2026-11-14",
   "totalEndpoints": 455,
   "totalAttributed": 238,
@@ -388,5 +388,6 @@
       "endpoints": 1,
       "attributed": 0
     }
-  }
+  },
+  "maxUnattributed": 217
 }

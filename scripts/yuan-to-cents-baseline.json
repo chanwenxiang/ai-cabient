@@ -134,10 +134,6 @@
       "count": 1
     },
     {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
-      "count": 1
-    },
-    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PromotionService.java",
       "count": 1
     },
@@ -158,5 +154,5 @@
       "count": 2
     }
   ],
-  "javaTotal": 20
+  "javaTotal": 19
 }

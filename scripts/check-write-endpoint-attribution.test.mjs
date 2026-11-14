@@ -112,6 +112,12 @@ assert(
   const entryCount = Object.keys(baselineEntries).length;
   assert(entryCount >= 90, `基线条目应 ≥90，实际 ${entryCount}`);
   assert((baseline.totalEndpoints || 0) >= 400, `基线端点应 ≥400，实际 ${baseline.totalEndpoints}`);
+  // C3) maxUnattributed 棘轮与快照口径一致：未归因存量 = 天花板（217 冻结只减）
+  const unattr = (baseline.totalEndpoints || 0) - (baseline.totalAttributed || 0);
+  assert(
+    typeof baseline.maxUnattributed === 'number' && baseline.maxUnattributed === unattr,
+    `maxUnattributed(${baseline.maxUnattributed}) 应等于未归因存量(${unattr})——重种快照后须同步`
+  );
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

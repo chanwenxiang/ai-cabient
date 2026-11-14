@@ -41,11 +41,30 @@ const JAVA_BASES = ['trade-service', 'device-service', 'common', 'jiangyi-gatewa
   join('services', svc, 'src', 'main', 'java')
 );
 const PATTERN = /\*\s*100(?![0-9])/g;
+// 🔴 单源定义点扫描（2026-11-14）：YuanFen（trade/util）是元/分换算唯一入口——
+// 其外的 yuanToCents/toCents/toYuan 方法定义即红（私有副本绕过 scale>2 拒止 = 静默精度损失）。
+// 负向实证：PlatformFundService:352 私有 double 版 + WeChatBillCsvParser:72 movePointRight 版
+// 均绕过单源且丢失保护，2026-11-14 已全部改调 YuanFen 清零，本判据防复发。
+const DEF_RE =
+  /(?:public|protected|private)\s+(?:static\s+)?[\w<>,\[\]\s]+\s+(yuanToCents|toCents|toYuan)\s*\(/g;
+const YUANFEN_FILE = 'services/trade-service/src/main/java/com/aicabinet/trade/util/YuanFen.java';
 const FRONTEND_ANCHOR = 400;
 const JAVA_ANCHOR = 900;
 
 export function countHits(src) {
   return (src.match(PATTERN) || []).length;
+}
+
+/** 单源定义点：YuanFen 之外的元/分换算方法定义 */
+export function findDefViolations(src, rel) {
+  const out = [];
+  for (const m of src.matchAll(DEF_RE)) {
+    const line = src.slice(0, m.index).split('\n').length;
+    out.push(
+      `${rel}:${line}：方法 ${m[1]} 定义在 YuanFen 之外——元/分换算必须走 YuanFen 单源（私有副本绕过 scale>2 拒止）`
+    );
+  }
+  return out;
 }
 
 /** 纯判定：实际命中 vs 基线（与 check-bare-localdate 同款双向棘轮）。
@@ -126,7 +145,15 @@ function main() {
   }
   const javaProblems = evaluate(javaActual, javaBaseline, 'java');
 
-  const problems = [...feProblems, ...javaProblems];
+  // ── 单源定义点（YuanFen 之外不得定义换算方法） ──
+  const defProblems = [];
+  for (const f of javaFiles) {
+    const rel = relative(ROOT, f).replace(/\\/g, '/');
+    if (rel === YUANFEN_FILE) continue;
+    defProblems.push(...findDefViolations(readFileSync(f, 'utf8'), rel));
+  }
+
+  const problems = [...feProblems, ...javaProblems, ...defProblems];
   if (problems.length > 0) {
     for (const p of problems) console.error(`${TAG} FAIL ${p}`);
     console.error(`${TAG} 共 ${problems.length} 项（S3-3b 元→分增量棘轮）`);

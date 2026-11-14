@@ -286,16 +286,26 @@ function main() {
   }
 
   const problems = evaluate(snapshot, baseline);
+  // 未归因总量棘轮（只许减）：存量 217 在册，新端点未归因/归因退化都会顶破
+  const maxUnattr =
+    typeof baselineJson.maxUnattributed === 'number' ? baselineJson.maxUnattributed : Infinity;
+  const totalEp = snapshot.reduce((n, s) => n + s.endpoints, 0);
+  const totalAttr = snapshot.reduce((n, s) => n + s.attributed, 0);
+  const unattr = totalEp - totalAttr;
+  if (unattr > maxUnattr) {
+    problems.push(
+      `未归因总量棘轮击穿：${unattr} > maxUnattributed ${maxUnattr}——` +
+        `新写端点必须带审计留痕；存量销账路径=补审计后重种快照或显式降基线并说明`
+    );
+  }
   if (problems.length > 0) {
     for (const p of problems) console.error(`${TAG} FAIL ${p}`);
     console.error(`${TAG} 共 ${problems.length} 项（S9 端点级归因棘轮）`);
     process.exit(1);
   }
-  const totalEp = snapshot.reduce((n, s) => n + s.endpoints, 0);
-  const totalAttr = snapshot.reduce((n, s) => n + s.attributed, 0);
   console.log(
     `${TAG} OK：${snapshot.length} 个写控制器 ${totalEp} 个写端点，归因 ${totalAttr} ` +
-      `（快照与基线对平，未解析端点显式在册）`
+      `（未归因 ${unattr}/${maxUnattr === Infinity ? '∞' : maxUnattr}，快照与基线对平，未解析端点显式在册）`
   );
 }
 
