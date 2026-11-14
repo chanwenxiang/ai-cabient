@@ -1551,8 +1551,7 @@ public class PaymentService {
             return 0;
         }
         try {
-            return YuanFen.toCents(new java.math.BigDecimal(yuanText.trim()))
-                    .intValueExact();
+            return (int) YuanFen.toCents(new java.math.BigDecimal(yuanText.trim()));
         } catch (Exception e) {
             throw new IllegalArgumentException("非法支付宝金额: " + yuanText, e);
         }
