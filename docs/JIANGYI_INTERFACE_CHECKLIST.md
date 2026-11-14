@@ -62,6 +62,20 @@
   冰红茶 8 张手机图→`REVIEWING`、柜内 §7.14/7.15 起会话 8443、§7.12 4 秒 `APPLIED`）。
   所以「采集全流程测完了」成立，且「12 条全无」也成立，两者**不矛盾**——台账此前把这两件事混成一个缺口，
   才让我推出「大概是同一链的节号平移」这种错话。
+- ✅ **2026-11-14 用 V16.0.0 原文（docx 抽取，6847 行）把「新文档有没有采集编排」钉死：没有 ⇒ V1.13 不废止。**
+  现算命中数：`startGather`/`confirmStart`/`endOne`/`endAll`/`endOne`/`productInfo`/`deleteBatchNoNew` **各 0**；
+  V16 只带 §5.4.9 `receiveGatherProductZipData`（1 处，海外商户 zip 直传）与 §5.6 `tenantGather/*` 审核查询面（8 处），
+  且第 304 行仍写「①参考文档：将邑科技商品采集接口文档v1.2.0.pdf」⇒ **主文档从不吞采集编排，编排始终在独立文档里**。
+  ⚠️ 早前我 grep 的 `doc_full_text.txt` 版本历史只到 V14.0.0，不能当 V16 用——本轮已换成 `将邑科技对接SAAS所需接口及流程V16.0.0.docx` 重抽。
+- 🔴 **由此冒出一个比「12 条未接」要紧的缺口**：我方 `JiangyiRestockClient` 真在调的
+  `/cabinetCapture/start|status|finish|list|cancel`（注释标 §7.15 等）、`/phoneCapture/policy|submit`、
+  `/product/create|lookup|status` 这套**第七章路径，在仓库里所有厂商文档中 0 命中**（V1.13 采集文档、V15/V16 主文档、
+  extracted_text 全 0，只有我方两份台账提到）。⇒ 我们采集链的实现契约**出处不在手上**：多半是厂商后来又发过一版
+  采集文档（第七章编号那版），文件没进仓库。后果：真机跑通≠契约可回溯，厂商换版我们无法察觉。
+  **待办 T-JY-DOC-8**：向厂商索取「商品采集接口文档」现行版本号 + 原文入库（`将邑对接资料/`），
+  入库后按第七章逐条对 `JiangyiRestockClient` 的入参/回包；拿不到原文期间，采集链的任何"已验证"都只算真机实测，
+  不算契约对账。另可只读探针打 `/cabinetCapture/status` 看现网是否仍认这套路径（我方可自做，不阻塞）。
+
 - 🔎 **T-JY-DOC-7X 判据随之改写（原四列对照表作废）**：要证的不再是「12 条 ↔ §7.x 逐条等价」，而是
   **V1.13 是否已被 V16 正式取代**。判据两条：① 向厂商一句确认「商品采集接口文档(移动端)v1.13.0 是否废止」；
   ② 只读探针打一条 V1.13 路径（如 `/merchant/selfhelpGatherProduct/productInfo`），看现网回 404（catch-all
