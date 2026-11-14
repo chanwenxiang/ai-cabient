@@ -4,7 +4,7 @@
  * 负向用例：裸 setter（参数未过 require* 闸）必须红——文件级旧判据「有 import 即过」
  * 的盲区（已过闸文件里补一记裸 setter 门禁照绿）由本夹具钉死不再复发。
  */
-import { extractCalls, evaluate } from './check-commission-param-bounds.mjs';
+import { extractCalls, evaluate, evaluateAnchor } from './check-commission-param-bounds.mjs';
 
 let pass = 0;
 let fail = 0;
@@ -169,6 +169,24 @@ const BARE = `manager.setCommissionRateBps(99999);`;
     }
   );
   check('折扣两族白名单对平=绿', r.length === 0, r.join('|'));
+}
+
+// 12) 🔴 扫描锚点棘轮（2026-11-15 收紧 5→7）：常量写在 main 里时调低它不会有任何红，
+//     抽成纯函数后用夹具钉住「实测 7 绿 / 掉 1 个即红 / 旧下限 5 会放过 6」。
+{
+  const files = (n) => Array.from({ length: n }, (_, i) => ({ rel: `f${i}.java`, calls: [] }));
+  check('实测切线 7 个写侧文件=绿', evaluateAnchor(files(7)).length === 0);
+  const six = evaluateAnchor(files(6));
+  check(
+    '掉到 6 个写侧文件=红（含「锚点失效」）',
+    six.length === 1 && six[0].includes('锚点失效'),
+    six.join('|')
+  );
+  check(
+    '旧下限 5 会放过 6 —— 证明本次收紧有效',
+    evaluateAnchor(files(6), 5).length === 0 && six.length === 1
+  );
+  check('零命中不得假绿', evaluateAnchor([]).length === 1);
 }
 
 console.log(`\n[check-commission-param-bounds.test] ${pass} 通过 / ${fail} 失败`);

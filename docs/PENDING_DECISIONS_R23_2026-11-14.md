@@ -6,7 +6,7 @@
 >
 > **纪律**：拍板项不是缺陷（修的人不自己选口径）；R23 审计期间保持只读，拍板项允许挂着进 L4 现状评估；每条拍板后在此标注「✅ 已拍板 YYYY-MM-DD：结论 → 落点提交」。
 >
-> **收口状态（2026-11-15，用户指令「全部清了吧，只留下 R23 全量审计」）**：本清单 8 条**全部已处置**——⑤⑥⑦⑧ 已拍板（见各条）；①②③ 按用户指令**流程收口、不再单列待办**（⚠️ 这是待办台账的收口，**不是产品语义结论**：现状代码保持不变，R23 若认定需变更另立拍板题）；④ 的真机双点实验并入 R23 L5 运行时面，按本条三态表执行。**当前唯一独立待办 = R23 全量审计**（[`docs/AUDIT_R23_PLAN_2026-11-12.md`](AUDIT_R23_PLAN_2026-11-12.md) §六）；两个门禁轻项与 S9 215 存量均并入 R23 对应镜头，见文末备忘与 R23_PLAN §六「归并 ≠ 已修」表。
+> **收口状态（2026-11-15，用户指令「全部清了吧，只留下 R23 全量审计」）**：本清单 8 条**全部已处置**——⑤⑥⑦⑧ 已拍板（见各条）；①②③ 按用户指令**流程收口、不再单列待办**（⚠️ 这是待办台账的收口，**不是产品语义结论**：现状代码保持不变，R23 若认定需变更另立拍板题）；④ 的真机双点实验并入 R23 L5 运行时面，按本条三态表执行。**当前唯一独立待办 = R23 全量审计**（[`docs/AUDIT_R23_PLAN_2026-11-12.md`](AUDIT_R23_PLAN_2026-11-12.md) §六）。〔2026-11-15 更新：用户随后追加「三个门禁轻项真修掉」，三项已实修并落门禁/夹具/Java 用例，见文末备忘；R23_PLAN §六对应三行状态改为「✅ 已修、抽检复核」。S9 215 存量仍归 R23 L4。〕
 
 ---
 
@@ -95,8 +95,8 @@
 - **S9 215 的分类构成（2026-11-14 实证订正，勿沿用「大头是 CONSUMER_WRITE/DEVICE_FACING」的说法）**：按 `write-attribution-registry.json` × `write-endpoint-attribution-baseline.json` 交叉（每控制器 `endpoints - attributed`），已带语义豁免分类的是 `DEVICE_FACING 68 + CONSUMER_WRITE 6 + CALLBACK 4 + DEV_ONLY 3 = 81`（37.7%）；其余 **134** 条落在「类级判可达、端点级未归因」的控制器（MerchantPortal 21 / Auth 14 / 商户盘点 6 / OpsRbac 5…），是两级判据的口径差，**不是已证实的真缺口，但也绝不能当噪音**。R23 L4 的「运营侧写端点漏网」镜头应重点重扫这 134 条，而不是把 215 整体当噪音收敛。
 - **fixture 三口径并存**（引用时标来源）：独立 `.test.mjs` 文件数（47/144）≠ wiring 夹具覆盖计数（76/144）≠ `check-gate-test-coupling`（diff 范围，推送后「改动集为空」是预期行为非故障）。
 - **提交说明勘误**已在 `AUDIT_FOUR_END_R22_2026-11-12.md` :302-303（e49b3556/48ae2de4 说明与 --stat 不符、ddbfc438 豁免口径冲突）——追溯一律以 `git show --name-only` 为准。
-- **门禁轻项归位（2026-11-15，⚠️ 勿读成「已修」）**：三项均**未改代码**，已写进 `AUDIT_R23_PLAN_2026-11-12.md` §六的 L2 必验清单，由 R23 门禁健康抽检实做：
-  ① `check-feature-flags.mjs:380` 的 R3 `READ` 正则只认 `getValue|getInt|getBoolean|getDouble|getLong`，**不认 `getPositiveLimit`**——实测 5 个调用点（`BalanceRefundService:133` / `PaymentService:146` / `RefundPolicyService:92` / `SystemConfigService:710,712`）的键没被 R3 收集；修它须同步复核 R4 `EXPECTED_DYNAMIC_SITES` 的 `scsRel` 表达式多重集并做负向注入。
-  ② `check-commission-param-bounds.mjs:31` 的 `MIN_WRITERS=5` 锚点口径未随 S12 扩面复核。
-  ③ `checkout.preauth_cents` 值域含 0（⑧ 拍板 0–1,000,000 分），但 `ConsumerPreauthService:75` 只在 `fromDb > 0` 时生效、`CheckoutProperties:11` 把 `<=0` 当回落 ⇒ **0 的语义（关闭预授权 vs 回落默认）缺说明**。
-  **不改码的理由**：R23 阶段 0 明确「审计期间禁止审计者自己改代码」，此刻改门禁会把新代码塞进 L1「R18–R22 从未被独立审计过」的被审面；归并到 L2 才是它本来的归属。
+- **三个门禁轻项 —— ✅ 已修 2026-11-15**（用户追加指令「三个门禁轻项真修掉」；落点 = 2026-11-15 的 fix 提交，见 `scripts/fix-batch-registry.json` 末批）：
+  ① **R3 读取点失明**：`READ` 正则补 `getPositiveLimit`（实测 5 个调用点全部纳入，`readSites` 112→117、可解析键 86→89）；判据抽到 `scripts/lib/feature-flags-read.mjs` 并加「`positiveLimitSites < 5` 即红」的防退化锚点；补 sibling 夹具 `check-feature-flags.test.mjs`（9 断言，含「旧正则对 5 个调用点全盲」的复现）。**R4 实证订正**：扩面后 `EXPECTED_DYNAMIC_SITES` 的 4 个文件多重集**没有变化**——`getPositiveLimit` 内部调的是无接收者 `getInt`，不新增 `self.getValue` 动态站点，上一轮「须同步改 R4」的担心被实测推翻。
+  ② **扫描锚点**：`MIN_WRITERS` 5→7（S12 扩面后实测 7 个写侧文件，旧下限坏掉 2 个仍判绿）；抽 `evaluateAnchor` 纯函数，夹具补「7 绿 / 6 红 / 旧 5 会放过 6 / 零命中不假绿」4 断言（25/0）。
+  ③ **预授权 0 语义**：真分叉而非「缺说明」——`9d5c724f` 的 commit message 与 `CommissionParamBounds` 注释都写「0 仍合法=关闭预授权」，写侧也允许配 0，但 `ConsumerPreauthService.resolvePreauthCents` 只有 `fromDb > 0`，0 被静默回落 yml 默认额度 ⇒ 运营配 0 关不掉、仍冻结用户余额。修复=显式 `fromDb == 0 → return 0`（下游 `doFreezeForOpen` 的 `amount <= 0 → clearSessionPreauth` 本就支持关闭）；补 3 个 Java 用例、订正 1 个既有用例的隐含 Mockito 默认值依赖、订正 e2e 注释；新增独立门禁 `check-preauth-zero-semantics.mjs` + 夹具（10 断言，含注释/字符串掩码防假绿）。
+  **三态验证**：真实工作区 A/B（把 `getPositiveLimit` 从正则删掉 / 删 0 分支）两次都注入红→逐字节还原绿→md5 零残留；聚合链 145 门禁 0 失败；Java `Tests run: 38, Failures: 0, Errors: 0`。R23 L2 仍按门禁健康镜头抽检复核，但**不再是待修欠账**。

@@ -13,7 +13,10 @@
  *   `CommissionParamBounds.requireBps|requireFixedCents|requireCents`（限定名或静态导入形态），
  *   否则该调用点即红；domain/**（setter 定义本身）豁免；
  *   `scripts/commission-param-bounds-allowlist.json`（文件 + 未过闸命中数，棘轮双向）收自带闸先例。
- * 锚点：命中写侧文件数 < 5 即红（正则退化会让零命中变假绿）。
+ * 锚点：命中写侧文件数 < MIN_WRITERS 即红（正则退化会让零命中变假绿）。
+ * 🔴 2026-11-15 收紧 5→7：S12 扩面（SETTER_RE 加折扣两族）后实测写侧文件 = 7，
+ *   旧下限 5 已失去哨兵作用——坏掉 2 个文件的扫描器仍判绿。判据抽成 evaluateAnchor 并在
+ *   同名 .test.mjs 里钉住「7 绿 / 6 红」，防止日后又被悄悄调低。
  *
  *   node scripts/check-commission-param-bounds.mjs
  */
@@ -28,7 +31,7 @@ const SETTER_RE =
   /\bset(CommissionRateBps|CommissionFixedCents|ShareBps|CommissionPerUnitCents|DiscountBps|DiscountPercent)\s*\(/g;
 const GUARD_ARG_RE =
   /CommissionParamBounds\s*\.\s*(?:requireBps|requireFixedCents|requireCents)\s*\(|(?<![.\w])(?:requireBps|requireFixedCents|requireCents)\s*\(/;
-const MIN_WRITERS = 5;
+const MIN_WRITERS = 7;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -188,6 +191,17 @@ export function evaluate(writers, allow) {
   return problems;
 }
 
+/**
+ * 扫描锚点（防「零命中假绿」）：写侧文件数掉到切线以下即红。
+ * 抽成纯函数是为了让 `.test.mjs` 能直接钉住这条棘轮——常量写在 main 里的旧形态
+ * 只能靠人眼复核，调低 MIN_WRITERS 不会有任何红。
+ */
+export function evaluateAnchor(writers, min = MIN_WRITERS) {
+  return writers.length < min
+    ? [`锚点失效：只扫到 ${writers.length} 个写侧文件（预期 ≥ ${min}），正则或目录可能已退化`]
+    : [];
+}
+
 function main() {
   const allow = existsSync(join(ROOT, ALLOWLIST))
     ? JSON.parse(readFileSync(join(ROOT, ALLOWLIST), 'utf8'))
@@ -213,11 +227,7 @@ function main() {
   }
 
   const failures = [];
-  if (writers.length < MIN_WRITERS) {
-    failures.push(
-      `锚点失效：只扫到 ${writers.length} 个写侧文件（预期 ≥ ${MIN_WRITERS}），正则或目录可能已退化`
-    );
-  }
+  failures.push(...evaluateAnchor(writers));
   failures.push(...evaluate(writers, allow));
 
   if (failures.length) {

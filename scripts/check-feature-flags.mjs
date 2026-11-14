@@ -36,6 +36,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeReadRe, evaluateReadAnchor } from './lib/feature-flags-read.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-feature-flags]';
@@ -377,11 +378,14 @@ if (consumerless.length) {
 }
 
 // ── R3 / R4：读取点 ───────────────────────────────────────────────────────
-const READ =
-  /\b(systemConfigService|self)\s*\.\s*(getValue|getInt|getBoolean|getDouble|getLong)\s*\(/g;
+// 🔴 2026-11-15 修：S12 扩面新增的 getPositiveLimit 5 个资金键读取点原先全部失明
+// （键被读却没登记仍判绿）。正则与锚点抽到 scripts/lib/feature-flags-read.mjs，
+// 与同名 .test.mjs 同源，防止判据被改回去而夹具不红。
+const READ = makeReadRe();
 const readKeys = new Set();
 const dynamicByFile = new Map();
 let readSites = 0;
+let positiveLimitSites = 0;
 
 for (const { abs, rel } of mainJava) {
   const text = readFileSync(abs, 'utf8');
@@ -395,6 +399,7 @@ for (const { abs, rel } of mainJava) {
   let m;
   while ((m = READ.exec(text)) !== null) {
     readSites++;
+    if (m[2] === 'getPositiveLimit') positiveLimitSites++;
     // SystemConfigService 自身是转发层：getInt/getBoolean/getDouble 里的 `self.getValue(key, …)`
     // 的 key 来自调用方，不在注册表直接覆盖范围；但仍按 R4 登记计数。
     const args = extractCallArgs(text, m.index + m[0].length - 1);
@@ -408,9 +413,9 @@ for (const { abs, rel } of mainJava) {
   }
 }
 
-if (readSites < 40) {
-  fail(`只扫到 ${readSites} 个读取调用点（下限 40）—— 接收者锚点可能已被重写，判定失效`);
-}
+// 两个扫描锚点（零命中假绿 / getPositiveLimit 失明）统一走共享纯判定，夹具可直接 import 钉住。
+const anchorProblems = evaluateReadAnchor(readSites, positiveLimitSites);
+if (anchorProblems.length) fail(anchorProblems.join('\n  '));
 
 const unregisteredReads = [...readKeys].filter((k) => !seenKeys.has(k));
 if (unregisteredReads.length) {
@@ -558,7 +563,7 @@ if (problems.length) {
 
 console.log(
   `${TAG} OK：注册表 ${flags.length} 个开关 / ${groups.length} 个分组，seed ${seeded.size} 个键全部登记，` +
-    `读取点 ${readSites} 处（可解析键 ${readKeys.size} 个）全部登记，` +
+    `读取点 ${readSites} 处（含 getPositiveLimit ${positiveLimitSites} 处，可解析键 ${readKeys.size} 个）全部登记，` +
     `${EXPECTED_DYNAMIC_SITES.size} 个文件的动态键站点已登记，` +
     `下发键 ${downlink.size} 个前端全部消费，` +
     `${DEPRECATED_ANCHORS.size} 个废弃豁免的代码锚点均存在`

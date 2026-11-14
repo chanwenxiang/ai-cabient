@@ -122,7 +122,6 @@
     "check-edge-cloud-mqtt-contract.mjs",
     "check-env-placeholders.mjs",
     "check-exception-type-dict.mjs",
-    "check-feature-flags.mjs",
     "check-gate-runtime-hygiene.mjs",
     "check-jiangyi-ui-copy-and-fixtures.mjs",
     "check-kafka-consumer-safety.mjs",

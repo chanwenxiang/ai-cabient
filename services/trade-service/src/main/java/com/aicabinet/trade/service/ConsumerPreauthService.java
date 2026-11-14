@@ -72,6 +72,14 @@ public class ConsumerPreauthService {
             }
         }
         int fromDb = systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1);
+        if (fromDb == 0) {
+            // 🔴 0 = 关闭预授权（9d5c724f 既定语义：该键只进 FUND_GUARDED_KEYS、不进 DC-6，
+            // 写侧允许配 0）。旧实现只有 `fromDb > 0` 分支，0 被当成「未配置/非法」静默
+            // 回落 checkoutProperties 默认额度 —— 运营配 0 关不掉，仍按默认冻结用户余额。
+            // 下游 freezeForOpen 的 `amount <= 0` 会 clearSessionPreauth，不冻结即关闭。
+            // ⚠️ 勿把 0 与 -1（getInt 的「未配置」哨兵）合并处理：两者语义不同。
+            return 0;
+        }
         if (fromDb > 0 && fromDb <= CommissionParamBounds.PREAUTH_CENTS_CEILING) {
             return fromDb;
         }

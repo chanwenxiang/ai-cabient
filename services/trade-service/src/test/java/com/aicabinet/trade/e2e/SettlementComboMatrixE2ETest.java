@@ -129,8 +129,10 @@ class SettlementComboMatrixE2ETest {
         int price = readPrice(skuId);
         assertTrue(price >= 200, "演示 SKU 目录价须 ≥200 分，活动立减 100 后仍 ≥MIN_PRICE");
         ensureStock(deviceId, skuId, 50);
-        // 预授权策略：deposit_cents=300（device 源优先且 0 会被 resolvePreauthCents 回落
-        // MIN_BALANCE_CENTS=2000 防呆）。300 < 订单 486 ⇒ 补扣链剧本可制造 remainDebit：
+        // 预授权策略：deposit_cents=300（device 源优先）。本用例删掉 DB 配置行 ⇒
+        // getInt 返回 -1（未配置）才回落 yml 默认；🔴 2026-11-15 起 DB 显式配 0 = 关闭预授权，
+        // 不再回落（见 ConsumerPreauthService.resolvePreauthCents），勿把两者混为一谈。
+        // 300 < 订单 486 ⇒ 补扣链剧本可制造 remainDebit：
         // 开门冻结 300 → 结算 capture 300 → 余款走余额扣款不足 ⇒ MA-066 信号转 PENDING。
         jdbc.update("UPDATE device_info SET deposit_cents = 300 WHERE device_id = ?", deviceId);
         jdbc.update("DELETE FROM system_config WHERE config_key = 'checkout.preauth_cents'");

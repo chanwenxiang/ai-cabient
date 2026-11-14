@@ -90,6 +90,10 @@ class ConsumerPreauthConcurrencyTest {
         when(holdRepository.findByIdForUpdate("S-2")).thenReturn(Optional.empty());
         when(holdRepository.findById("S-2")).thenReturn(Optional.empty());
         when(accountRepository.findByIdForUpdate(10002L)).thenReturn(Optional.of(account));
+        // 🔴 2026-11-15：本用例要测「有预授权时冻结」，必须显式声明配置态。
+        // 旧实现下未 stub 时 Mockito 的 int 默认 0 被当成「未配置」回落 yml 默认，测试才绿；
+        // 修好 0=关闭语义后，这个隐含依赖会让 amount=0 直接走清预授权分支。显式给 -1（未配置）。
+        when(systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1)).thenReturn(-1);
 
         service.freezeForOpen(session, false);
 
@@ -221,6 +225,29 @@ class ConsumerPreauthConcurrencyTest {
 
         assertEquals(HttpStatus.PRECONDITION_FAILED, ex.getStatusCode());
         assertEquals(0, account.getFrozenCents(), "被拦下发时不得留下冻结");
+    }
+
+    // ── 预授权 0 语义（2026-11-15 修）：DB 配 0 = 关闭，不得静默回落 yml 默认 ──────────
+    // 9d5c724f 的 commit message 明写「0 仍合法=关闭预授权」，但实现只有 `fromDb > 0`，
+    // 0 被当非法回落。下游 freezeForOpen 的 amount<=0 分支本来就支持关闭，缺的是这一层。
+    @Test
+    void resolvePreauthCents_configuredZero_closesPreauth() {
+        when(systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1)).thenReturn(0);
+        assertEquals(0, service.resolvePreauthCents(null),
+                "DB 配 0 必须返回 0（关闭），不能回落 CheckoutProperties 的 500 分默认");
+    }
+
+    @Test
+    void resolvePreauthCents_unconfigured_stillFallsBackToYmlDefault() {
+        when(systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1)).thenReturn(-1);
+        assertEquals(500, service.resolvePreauthCents(null),
+                "getInt 的 -1 = 未配置，仍回落 yml 默认；勿与显式 0 合并");
+    }
+
+    @Test
+    void resolvePreauthCents_legalValue_passesThrough() {
+        when(systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1)).thenReturn(2000);
+        assertEquals(2000, service.resolvePreauthCents(null), "界内合法值不受 0 分支影响");
     }
 
     private static ShoppingSession openSession(String sessionId, long userId, String deviceId) {
