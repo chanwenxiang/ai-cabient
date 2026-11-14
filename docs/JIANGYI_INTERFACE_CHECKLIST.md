@@ -32,7 +32,22 @@
 | D 出向 `/merchant/`、`/platform/`（V1.13 + V16 §5.4） | V1.13 **34** 条唯一路径 | 我方 **16** 条（V1.13 内 14 + V16 `setDomain`/`confirmActivate`） | **20 条未接**（§G-5） |
 | E V16 §5.2 独有入向 3 条 | 3 | 0 | ⛔ 选型一致（§G-12） |
 | F V16 §5.4 出向回调 9 条 | 9 | 1（`confirmActivate`） | ⛔ 8 条选型一致 |
-| G′ V16 §5.5/§5.6 商户侧读面 | 6 | 0 | ❌ 其中 §5.5.3 有明确价值（§G-9） |
+| G′ V16 §5.5/§5.6 商户侧读面 | **6** | **1**（§5.5.3，2026-10-22 已接只读对照；本行旧记 0 已于 2026-11-14 现码核对订正） | ❌ 余 **5** 条：§5.5.2 + §5.6.1-3 + §5.6 采集审核面（依赖 §4.3 采集链） |
+
+**📌 2026-11-14 待办小结**（按「谁能推动」分档，逐条来自本表现存 ❌/🟡 行；数字凡标「台账口径」者未重新穷举）
+
+- **只等真柜上电**（本地 dev 栈已重建到 `e1859a20` 并 healthy；柜 `EG943322621391` 自 11-12 04:12Z 起零心跳、近 6h nginx 无任何回调 ⇒ 与本次重启无关）：
+  ① `closeDoor` 真机执行与「关门是否真的锁上」（文档无回执，只能审计下发动作）；② §G-3 三档模型回执「开机一轮 4 条全 200」；
+  ③ `order/setOrderNoVideo` 显式 200 之后设备侧那族无退避重投是否止息；④ 补货/消费开门端到端复跑（含按单拉视频）。
+- **只等厂商一句话**：① V1.13 §4.3.3–4.3.14 采集自训 **12 条全无** ⇒ 自采自训无法由我方驱动（§G-5，最高业务价值缺口）；
+  ② V1.13/V16 出向 **20 条未接**（§G-5）；③ §4.5 商户体系「商户归属以谁为准」——我方不打算接，需一句口径确认。
+- **我方可自推、不需柜也不需厂商**：① §5.5.2 与 §5.6.1-3 四条商户侧只读面（可先只读探针，再决定接不接）；
+  ② `pokerOrder/getChessRoomOpenStatus` 的 **401 侧**（台账口径：98 次命中里 401=70、404=28，同一次 burst 两种码并存
+  ⇒ 有调用点带的不是我方签发凭据；补 200 路由也进不来。先做「按 UA+path+状态码分档」的只读台账，禁照抄猜语义）；
+  ③ R23 全量审计（`docs/AUDIT_R23_PLAN_2026-11-12.md`：阶段 0 四项里前三项——工作树干净、起始 HEAD 可钉、
+  audit-gates + preflight 全绿——现已满足，第四项「建 R23 工作区」本身就是开轮动作）。
+- **明确不做**（沿用本表既有选型，防稀释）：§4.5 商户体系 6 条、V16 §5.2 独有入向 3 条、§5.4 出向回调 8 条、
+  §4.3.2.10 灯带控制、§4.3.2.14 在线检查（现用 WS 会话存活判在线）。
 
 我方设备面具体端点 **46** 条 + `/jiangyi/api/token` 别名 + `/jiangyi/api/**` catch-all 台账；
 内部端点 **6** 条（仅 compose 网内，`nginx location /internal/ → 403`）；
@@ -199,7 +214,7 @@
 |---|---|---|---|
 | §5.5.1 | `merchant/stdSku/getList` | v16:5521 | ✅ 已由 V1.13 §4.1.2 接（同一端点） |
 | §5.5.2 | `merchant/floor/getFloorBySn` | v16:5676 | ❌ 未接。我方 `floor/getFloorByDevice` 是**下行给设备的补货表**，不是这条云侧读；两者不同源，勿混 |
-| **§5.5.3** | **`merchant/stdSku/getStdSkuQueryByTextNames`** | **v16:5885** | ❌ **未接**，但**已实跑通（2026-10-22 00:1x，`.tmp/probe-553.mjs`）**：入 `modelTextUrl`（必填， classes 文件地址），出 `data[] = {stdSkuId, stdSkuName, textName, barCode, classId}`。用厂商后台那次下发的 `classes_auto_6.txt` 实测回 `status:200` + **2 行**：`{stdSkuId:1911,"测试egg",textName:"egg",barCode:null,classId:4}` / `{stdSkuId:2423,"测试toy",textName:"toy",barCode:null,classId:5}`。三条硬结论：① **端点是活的、租户 426 有权调**；② 🔴 **`classId` 就是 classes.txt 的 0-based 行号**（该文件 6 行 `bottle/bowl/bag/box/egg/toy`，egg=下标 4、toy=下标 5，与厂商回值逐字一致）⇒ 我方 `JiangyiClassesParser` 那个「文档未明示 0/1-based、靠 `classIdBase` 可配 + 人工确认」的悬案**到此钉死为 0**；③ **它只回能解析成 stdSku 的行**（bottle/bowl/bag/box 四行整条消失）⇒ 不能拿它当唯一行源，正确用法是「自己下载 txt 数行号 + 用 §5.5.3 补 `stdSkuId/barCode`」的混合法。⇒ **厂商官方替我方做 classes↔SKU 解码**。见 §G-9 |
+| **§5.5.3** | **`merchant/stdSku/getStdSkuQueryByTextNames`** | **v16:5885** | ✅ **已接**（🔴 2026-11-14 现码核对订正：本行旧记「❌ 未接」已过期——`JiangyiGatherClient.stdSkuByTextNames` 存在并在 `JiangyiModelSyncService:136/225` 两处被调，`JiangyiModelSyncServiceTest` 有 5 例夹具覆盖，含「SSRF 闸拦住不安全 textUrl ⇒ never() 调用」的负向例），**已实跑通（2026-10-22 00:1x，`.tmp/probe-553.mjs`）**：入 `modelTextUrl`（必填， classes 文件地址），出 `data[] = {stdSkuId, stdSkuName, textName, barCode, classId}`。用厂商后台那次下发的 `classes_auto_6.txt` 实测回 `status:200` + **2 行**：`{stdSkuId:1911,"测试egg",textName:"egg",barCode:null,classId:4}` / `{stdSkuId:2423,"测试toy",textName:"toy",barCode:null,classId:5}`。三条硬结论：① **端点是活的、租户 426 有权调**；② 🔴 **`classId` 就是 classes.txt 的 0-based 行号**（该文件 6 行 `bottle/bowl/bag/box/egg/toy`，egg=下标 4、toy=下标 5，与厂商回值逐字一致）⇒ 我方 `JiangyiClassesParser` 那个「文档未明示 0/1-based、靠 `classIdBase` 可配 + 人工确认」的悬案**到此钉死为 0**；③ **它只回能解析成 stdSku 的行**（bottle/bowl/bag/box 四行整条消失）⇒ 不能拿它当唯一行源，正确用法是「自己下载 txt 数行号 + 用 §5.5.3 补 `stdSkuId/barCode`」的混合法。⇒ **厂商官方替我方做 classes↔SKU 解码**。见 §G-9 |
 | §5.6.1 | `merchant/tenantGather/searchGatherProductPageData` | v16:6076 | ❌ 采集图审核面（依赖 §4.3 采集链） |
 | §5.6.2 | `merchant/tenantGather/searchGatherProductPicPageData` | v16:6264 | ❌ 同上 |
 | §5.6.3 | `merchant/tenantGather/picDelete` | v16:6459 | ❌ 同上 |
