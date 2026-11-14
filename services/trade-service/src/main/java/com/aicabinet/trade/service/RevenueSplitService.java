@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
 import com.aicabinet.trade.payment.WeChatProfitSharingService.ReturnSubmitOutcome;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
@@ -47,6 +48,12 @@ public class RevenueSplitService {
     private final DistributedLockService distributedLockService;
     /** R20-9：分账回退按腿立账的唯一写入口，禁止再直接改 split 的两列 pending。 */
     private final ProfitSharingReturnLegService returnLegService;
+    /**
+     * R20-2：只为「运营确认完结」这一条手动入账通道读订单状态。
+     * 门必须落在<b>钱动作本体</b>这一侧而不是调用方——调用方今天只有 MerchantService，
+     * 明天再多一个入口就会绕过；放在这里任何调用者都得过同一道实收判据。
+     */
+    private final CabinetOrderMapper orderRepository;
 
     public RevenueSplitService(OrderRevenueSplitMapper splitRepository,
                                DeviceInfoMapper deviceRepository,
@@ -56,7 +63,8 @@ public class RevenueSplitService {
                                ProfitSharingReturnCompensationService returnCompensationService,
                                ProfitSharingReturnAlertService profitSharingAlertService,
                                DistributedLockService distributedLockService,
-                               ProfitSharingReturnLegService returnLegService) {
+                               ProfitSharingReturnLegService returnLegService,
+                               CabinetOrderMapper orderRepository) {
         this.splitRepository = splitRepository;
         this.deviceRepository = deviceRepository;
         this.merchantRepository = merchantRepository;
@@ -66,6 +74,7 @@ public class RevenueSplitService {
         this.profitSharingAlertService = profitSharingAlertService;
         this.distributedLockService = distributedLockService;
         this.returnLegService = returnLegService;
+        this.orderRepository = orderRepository;
     }
 
     @Transactional
@@ -443,6 +452,22 @@ public class RevenueSplitService {
         }
         if (!LEDGER_ONLY.equals(status)) {
             throw new IllegalStateException("仅 LEDGER_ONLY 可确认完结，当前=" + split.getStatus());
+        }
+        // R20-2：这条是留在手动通道上的"把手"——自动入账已被实收门拦住，但运营点确认完结
+        // 仍会把份额打进商户钱包。未实收（支付分腿 PENDING / 待支付单已取消）一律拒绝，
+        // 让操作者看见原因，而不是静默放款之后再靠对账发现。
+        // 订单行查不到同样拒绝：这条通道的失败方向必须是"少放款"，不能是"凭空造钱"。
+        // 用 ResponseStatusException(CONFLICT) 而不是 IllegalStateException：
+        // runWithOrderSplitLock 会把其它 Exception 统一包成 500，只有 ResponseStatusException
+        // 原样透出——这里要让运营在界面上看到 409 + 具体原因。
+        CabinetOrder order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "订单 " + orderId + " 查不到，拒绝确认完结（宁可少入账也不凭空放款）");
+        }
+        if (!OrderCollectionGate.collected(order)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单 " + orderId
+                    + " 尚未实收（status=" + order.getStatus() + "），不能确认完结；待渠道到账回调或用户补缴后再操作");
         }
         creditWalletIfLedgerOnly(split);
         split.setStatus(SETTLED);

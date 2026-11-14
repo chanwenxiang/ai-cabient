@@ -686,6 +686,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-14（R20-2 最后一块：运营「确认完结 LEDGER_ONLY」加实收门）
+
+- `RevenueSplitService.doConfirmLedgerOnly` 放款前读订单：订单查不到 ⇒ 拒；`OrderCollectionGate.collected(order)` 为假（`PENDING`/`CANCELLED`）⇒ 拒。**行为变化只有一条**：对未实收的单点「确认完结」，从静默把钱打进商户钱包变成显式 409 + 原因，运营在 `MerchantSplitsView` 直接看见「订单 xxx 尚未实收（status=PENDING）…」。
+- 门落在**钱动作本体**这一侧而不是调用方 `MerchantService`：今天只有这一个入口，明天多一个入口就会绕过（与自动入账腿 `doRecordSplit`/结算侧同判据、同单源）。
+- 异常类型选 `ResponseStatusException(CONFLICT, 中文原因)` 而不是 `IllegalStateException`：`runWithOrderSplitLock` 把锁内其它 Exception 统一包成 500，只有 `ResponseStatusException` 原样透出；`GlobalExceptionHandler` 对 4xx 走 `ApiMessages.translate`（含 CJK 原样回传）⇒ 文案能到运营手里。既有两条 `IllegalStateException` 判据仍走 500（`MerchantService` 那段 `catch→409` 是死代码），本轮不改，细节与理由见 lessons **434** 与 R20 台账。
+- 验证：`RevenueSplitServiceTest` 新增 2 条负例（断 `HttpStatus.CONFLICT` + reason 关键字 + 不入账不落库）、原正例补 PAID 桩，30/30 + 并发 2/2 绿；变异验证 `if (false && !collected)` ⇒ 负例红，`cmp` 逐字节还原。
+- 历史敞口：本轮无存量影响——dev/UAT 支付分单实收样本为 0，未实收即入账的存量此前已定性（见 R20 台账 §复核）。
+
 ### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售** + **平台兜底核销**；台账 CB-086）
 
 - 用户问「商户钱包可为负是否对」：对照 PayPal / Stripe / 微信支付分账回退 / 抖音支付退分账 / 友宝 / 哈哈零兽，确认「负数挂账 + 入账自动抵扣 + 提现闸门阻断」是行业主形态（与本仓 2026-10-15 拍板 T4 同向），差的只是账龄处置；结论与证据入 `docs/COMPETITOR_BENCHMARK.md` **CB-086**。

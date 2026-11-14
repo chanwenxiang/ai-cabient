@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
@@ -17,10 +18,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -43,6 +48,7 @@ class RevenueSplitServiceTest {
     @Mock private ProfitSharingReturnAlertService profitSharingAlertService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ProfitSharingReturnLegService returnLegService;
+    @Mock private CabinetOrderMapper orderRepository;
 
     private RevenueSplitService service;
 
@@ -50,7 +56,7 @@ class RevenueSplitServiceTest {
     void setUp() {
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService, returnLegService);
+                profitSharingAlertService, distributedLockService, returnLegService, orderRepository);
         org.mockito.Mockito.lenient().when(returnLegService.openLegs(anyString()))
                 .thenReturn(java.util.List.of());
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
@@ -387,13 +393,9 @@ class RevenueSplitServiceTest {
 
     @Test
     void confirmLedgerOnly_acquiresLockAndCreditsWallet() {
-        OrderRevenueSplit split = new OrderRevenueSplit();
-        split.setSplitId("SPLIT-L");
-        split.setOrderId("O-L");
-        split.setMerchantId("M-1");
-        split.setStatus("LEDGER_ONLY");
-        split.setMerchantCents(540L);
+        OrderRevenueSplit split = ledgerSplit("SPLIT-L", "O-L");
 
+        when(orderRepository.findById("O-L")).thenReturn(Optional.of(collectedOrder("O-L")));
         when(splitRepository.findByOrderIdForUpdate("O-L")).thenReturn(Optional.of(split));
         when(splitRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -403,6 +405,67 @@ class RevenueSplitServiceTest {
         verify(merchantWalletService).creditIfAbsent(
                 eq("M-1"), eq(540L), eq("SPLIT_CREDIT"), eq("SPLIT"), eq("SPLIT-L"), anyString());
         verify(distributedLockService).unlock(RevenueSplitService.orderSplitLockKey("O-L"));
+    }
+
+    /**
+     * R20-2：运营「确认完结」是 LEDGER_ONLY 仅剩的手动放款把手。
+     * 订单尚未实收（支付分腿 PENDING）时必须显式拒绝，而不是把钱先打进商户钱包。
+     */
+    @Test
+    void confirmLedgerOnly_uncollectedOrder_isRejectedWithoutCredit() {
+        OrderRevenueSplit split = ledgerSplit("SPLIT-P", "O-P");
+        CabinetOrder pending = new CabinetOrder();
+        pending.setOrderId("O-P");
+        pending.setStatus("PENDING");
+
+        when(orderRepository.findById("O-P")).thenReturn(Optional.of(pending));
+        when(splitRepository.findByOrderIdForUpdate("O-P")).thenReturn(Optional.of(split));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.confirmLedgerOnly(split));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+        assertTrue(error.getReason().contains("尚未实收"), error.getReason());
+        verify(merchantWalletService, never()).creditIfAbsent(
+                anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+        verify(splitRepository, never()).save(any());
+        // 拒绝也要放锁，否则后续合法确认会被自己的锁卡住
+        verify(distributedLockService).unlock(RevenueSplitService.orderSplitLockKey("O-P"));
+    }
+
+    /** 订单行查不到 ⇒ 同样拒绝：这条通道的失败方向只能是「少放款」，不能是凭空造钱。 */
+    @Test
+    void confirmLedgerOnly_missingOrder_isRejectedWithoutCredit() {
+        OrderRevenueSplit split = ledgerSplit("SPLIT-M", "O-M");
+
+        when(orderRepository.findById("O-M")).thenReturn(Optional.empty());
+        when(splitRepository.findByOrderIdForUpdate("O-M")).thenReturn(Optional.of(split));
+
+        ResponseStatusException error = assertThrows(ResponseStatusException.class,
+                () -> service.confirmLedgerOnly(split));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
+        assertTrue(error.getReason().contains("查不到"), error.getReason());
+        verify(merchantWalletService, never()).creditIfAbsent(
+                anyString(), anyLong(), anyString(), anyString(), anyString(), anyString());
+        verify(splitRepository, never()).save(any());
+    }
+
+    private OrderRevenueSplit ledgerSplit(String splitId, String orderId) {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId(splitId);
+        split.setOrderId(orderId);
+        split.setMerchantId("M-1");
+        split.setStatus("LEDGER_ONLY");
+        split.setMerchantCents(540L);
+        return split;
+    }
+
+    private CabinetOrder collectedOrder(String orderId) {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId(orderId);
+        order.setStatus("PAID");
+        return order;
     }
 
     @Test

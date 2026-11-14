@@ -44,6 +44,7 @@ class RevenueSplitConcurrencyTest {
     @Mock private ProfitSharingReturnAlertService profitSharingAlertService;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ProfitSharingReturnLegService returnLegService;
+    @Mock private com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
 
     private RevenueSplitService service;
 
@@ -51,7 +52,7 @@ class RevenueSplitConcurrencyTest {
     void setUp() {
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService, returnLegService);
+                profitSharingAlertService, distributedLockService, returnLegService, orderRepository);
     }
 
     @Test

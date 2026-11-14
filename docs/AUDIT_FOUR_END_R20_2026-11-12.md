@@ -40,8 +40,22 @@
     `PayScoreOrderNotifyTest` DONE 补做两腿 + EXPIRED 零交互、`RevenueSplitServiceTest` 4 例；
     变异验证两处（状态集掏空 ⇒ 3/4 红；`if (true)` ⇒ 结算侧红），均 `cmp` 逐字节还原。
   - ⚠️ 仍未做：`EXPIRED/REVOKED` 终态没有 void/clawback 动作——现在**不再需要**（未实收单从未入账、
-    从未发分），但历史上若存在「未实收已入账」的存量，需要一次性对账 SQL 才能定性；
-    运营「确认完结 LEDGER_ONLY」入口仍无实收门（MerchantService 无订单上下文）。
+    从未发分），但历史上若存在「未实收已入账」的存量，需要一次性对账 SQL 才能定性。
+  - ✅ **2026-11-14 补最后一块：运营「确认完结 LEDGER_ONLY」入口加实收门**
+    （此前「MerchantService 无订单上下文」是描述调用方，门本身落在 `RevenueSplitService.doConfirmLedgerOnly`
+    ——钱动作本体这一侧，任何调用者都得过同一道判据）：
+    订单查不到 ⇒ 拒；`!OrderCollectionGate.collected(order)` ⇒ 拒。两条都抛
+    `ResponseStatusException(CONFLICT, 中文原因)`，因为 `runWithOrderSplitLock` 会把其它 Exception
+    统一包成 500（只有 ResponseStatusException 原样透出），而这条通道要让运营**看见原因**：
+    `GlobalExceptionHandler:72-73` 对 4xx 走 `ApiMessages.translate`，含 CJK 的自陈话术原样回传，
+    前端 `MerchantSplitsView.confirmLedger` 用 `errorMessage(e)` 直接展示。
+    - 行为变化只有一条：对 `PENDING`/`CANCELLED` 的单点「确认完结」，从**静默放款**变成显式 409 + 原因。
+    - 验证：`RevenueSplitServiceTest` 新增 2 例（未实收=409 且不入账不落库 / 订单缺失=409），
+      原正例补 PAID 桩；变异验证 `if (false && !collected)` ⇒ 负例红（"Expected ... to be thrown, but nothing was thrown"），`cmp` 逐字节还原。
+    - ⚠️ 同方法内**既有**两条 `IllegalStateException`（「分账记录已变更」「仅 LEDGER_ONLY 可确认完结」）
+      仍会被锁包装器包成 500 ⇒ `MerchantService.confirmLedgerOnly:325-327` 的
+      `catch (IllegalStateException) → 409` 对**锁内**异常恒抓不到（死代码）。
+      本轮不动：改它等于改既有接口的 HTTP 语义，且原因文案仍能透给运营，只是状态码偏 5xx。
 
 - 🔎 **2026-11-13 复核「部分属实」这一判定不成立（结论仍为「对」）**：
   - 说「109 有守卫 ⇒ recordSplit 非字面无条件」——**对**；但守卫的语义前提在支付分腿不成立：
