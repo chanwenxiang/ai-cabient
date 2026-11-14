@@ -56,7 +56,14 @@ const FRONTEND_ANCHOR = 400;
 const JAVA_ANCHOR = 900;
 
 export function countHits(src) {
-  return (src.match(PATTERN) || []).length;
+  const matches = src.match(PATTERN) || [];
+  if (matches.length > 0 && process.env.S3B_DEBUG) {
+    matches.forEach((m) => {
+      const idx = src.indexOf(m);
+      console.error('[S3B-HIT] ' + JSON.stringify(src.slice(Math.max(0, idx - 50), idx + 15)));
+    });
+  }
+  return matches.length;
 }
 
 export function countMovePoint(src) {
@@ -151,14 +158,20 @@ function main() {
   const javaActual = [];
   for (const f of javaFiles) {
     const n = countHits(readFileSync(f, 'utf8'));
-    if (n > 0) javaActual.push({ file: relative(ROOT, f).replace(/\\/g, '/'), count: n });
+    if (n > 0) {
+      const rel = relative(ROOT, f).replace(/\\/g, '/');
+      javaActual.push({ file: rel, count: n });
+      if (process.env.S3B_DEBUG) console.error(`[DBG-JAVA] ${rel} → ${n}`);
+    }
   }
   const javaProblems = evaluate(javaActual, javaBaseline, 'java');
 
   // ── movePoint(2) 段（换名绕过 DEF_RE 的同族形态） ──
+  // YuanFen 自身的 movePointRight(2) 是单源实现，豁免
   const mpBaseline = baselineJson.movePointEntries || [];
   const mpActual = [];
   for (const f of javaFiles) {
+    if (relative(ROOT, f).replace(/\\/g, '/') === YUANFEN_FILE) continue;
     const n = countMovePoint(readFileSync(f, 'utf8'));
     if (n > 0) mpActual.push({ file: relative(ROOT, f).replace(/\\/g, '/'), count: n });
   }

@@ -190,4 +190,23 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   assert(violations.length === 0, `后端单源应零违规：${violations.slice(0, 3).join('|')}`);
 }
 
+// 10) movePoint(2) 判据：countMovePoint 与 movePointEntries 棘轮
+{
+  const { countMovePoint } = await import('./check-yuan-to-cents.mjs');
+  assert(
+    countMovePoint('x.movePointRight(2)') === 1 && countMovePoint('x.movePointLeft(2)') === 1,
+    'movePointRight(2)/movePointLeft(2) 应命中'
+  );
+  assert(
+    countMovePoint('x.movePointRight(3)') === 0 && countMovePoint('x.movePointRight(1)') === 0,
+    '非 2 位不命中'
+  );
+  // movepoint 报错指向 YuanFen 单源（空基线，只验报错文案）
+  const mpProblems = evaluate([{ file: 'services/x/New.java', count: 1 }], [], 'movepoint');
+  assert(
+    mpProblems.length === 1 && mpProblems[0].includes('YuanFen'),
+    `movePoint 新增须红指向 YuanFen：${mpProblems.join('|')}`
+  );
+}
+
 console.log(`${TAG} OK：${checks} 项断言全过`);
