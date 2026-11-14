@@ -59,7 +59,7 @@
 ## ⑧ S12 四键值域 —— ✅ 已拍板 2026-11-14（按建议值域开工）
 
 - **拍板结论**：提现手续费率 0–1000 bps（老系统 6‰=60bps，含商户降档覆盖空间）/ `balance.refund.max_cents` 0–5,000,000 分（¥5万）/ `checkout.preauth_cents` 0–1,000,000 分（¥1万）/ 券折扣两族维持既有局部校验（`CouponService` discountPercent 1..99、`PromotionActivityValidator` discountBps 0..10000 开区间）并纳入门禁视野（SETTER_RE 加 `setDiscountBps|setDiscountPercent` + 入口校验形态白名单）。
-- **落点**：`CommissionParamBounds` 常量单源 + `SystemConfigService` 写侧天花板 + 读侧回落双保险 + 门禁 SETTER_RE 扩面；完成后回填提交号：＿＿＿（落码后填写）。
+- **落点**：`CommissionParamBounds` 常量单源 + `SystemConfigService` 写侧天花板 + 读侧回落双保险 + 门禁 SETTER_RE 扩面。✅ **已落地 2026-11-14：代码 `9d5c724f`（fix-batch 登记 `e2e54807`，33 Java 用例+门禁夹具 21 断言全绿）；本文档本体落盘 = `d0da52d5`**。
 
 ---
 
