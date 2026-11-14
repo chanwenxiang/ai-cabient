@@ -692,6 +692,10 @@
     {
       "commit": "e31abac4",
       "why": "YuanFen.toCents 返回 long 原始类型的编译错修复（.intValueExact() 对 long 不可调用），非业务审计条目"
+    },
+    {
+      "commit": "e8981f32",
+      "why": "纯门禁基建修复（4 文件全在 scripts/：S9 失败路径改语义派生 + 总量双向对平 + S3-3b 锚点 900→1300/scaleByPowerOfTen 判据 + 基线 note），零业务代码，与 c6e2ed83/c3a033bd 同型，非业务审计条目；实证依据见提交信息（四类隔离快照负向注入）"
     }
   ]
 }
