@@ -39,7 +39,8 @@
 - **只等真柜上电**（本地 dev 栈已重建到 `e1859a20` 并 healthy；柜 `EG943322621391` 自 11-12 04:12Z 起零心跳、近 6h nginx 无任何回调 ⇒ 与本次重启无关）：
   ① `closeDoor` 真机执行与「关门是否真的锁上」（文档无回执，只能审计下发动作）；② §G-3 三档模型回执「开机一轮 4 条全 200」；
   ③ `order/setOrderNoVideo` 显式 200 之后设备侧那族无退避重投是否止息；④ 补货/消费开门端到端复跑（含按单拉视频）。
-- **只等厂商一句话**：① V1.13/V16 出向 **20 条未接**（§G-5）；② §4.5 商户体系「商户归属以谁为准」——我方不打算接，需一句口径确认。
+- **不是「等厂商」的项**（2026-11-14 订正，撤掉我上一条的假前置）：§4.5 六条租户接口**口径已定=不接**（柜机为我方财产，厂商只提供本地识别套件 ⇒ 归属与记账主体从来在我方侧，没有需要厂商裁决的问题）。
+- **等厂商答复的**：V1.13/V16 其余出向未接里的**采集编排 12 条**——不是「求他们开通权限」，而是这 12 条走完只到「我方把样品拍完上传」，其后**商品审核与模型训练在厂商侧**，我方接完也拿不到可识别新品；⇒ 接不接是纯投入产出判断（省掉人工在他们后台建档+挂接），不是待答复项。
 - **我方可自推、不需柜也不需厂商**：① §5.5.2 与 §5.6.1-3 四条商户侧只读面（可先只读探针，再决定接不接）；
   ② `pokerOrder/getChessRoomOpenStatus` 的 **401 侧**（台账口径：98 次命中里 401=70、404=28，同一次 burst 两种码并存
   ⇒ 有调用点带的不是我方签发凭据；补 200 路由也进不来。先做「按 UA+path+状态码分档」的只读台账，禁照抄猜语义）；
@@ -194,7 +195,7 @@
 | V1.13 §4.4.4 | `merchant/modelFile/getModelFileByApi`（**请求参数=无**） | v113:2313 | `:193` | ✅ 模型唯一来源；`.4` 响应字段 `industrialControlModel` 中文名也叫「模型类型」（§H-7）。**租户 426 实测真回 `[]`**（厂商侧无学习完成的模型） |
 | V1.13 §4.4.5 | `merchant/selfhelpGatherProduct/studyingProduct` | v113:2412 | `:185` | ✅ |
 | V1.13 §4.4.6 | `merchant/selfhelpGatherProduct/gatherCheck` | v113:2500 | `:218` | ✅ 已改发 `productIds:null`（传 `[]` 会被厂商 MyBatis 拼非法 SQL 回 555） |
-| V1.13 §4.5.1–4.5.6 | `tenant/create`、`addressdata/provinces`(以及 `cities`、`areas`)、`tenant/findSubByPid`、`tenant/updateSubTenantLimited` | v113:2607/2699/2731/2782/2834/2866 | — | ❌ 未接（我方商户体系自建，**不打算接**；需与厂商一句确认「商户归属以谁为准」） |
+| V1.13 §4.5.1–4.5.6 | `tenant/create`、`addressdata/provinces`(以及 `cities`、`areas`)、`tenant/findSubByPid`、`tenant/updateSubTenantLimited` | v113:2607/2699/2731/2782/2834/2866 | — | ❌ **明确不接（口径已定，不是待厂商答复）**：柜机是**我方公司财产**，将邑只是**本地识别套件的提供方**（用户多次强调，本仓一切「云侧/租户」措辞都按此理解）。⇒ 商户、柜机归属、记账主体永远在我方侧：`merchant` 表 + 运营台 + 商户小程序；将来把柜机租/加盟给第三方商户，也是在我方商户体系里加一条归属，**不需要**在厂商云里为对方建租户，`modifyAffiliationTenant` 同理（我方改 `device_info.merchant_id` 即可）。⚠️ 2026-11-14 订正：本行旧记「需与厂商一句确认『商户归属以谁为准』」是把已定口径当成未知，并据此造出一条假前置（还顺着它推导「租机要先问厂商」）——那个推理整条作废。 |
 | V1.13 §4.6.1 | `merchant/deviceInfo/modifyAffiliationTenant` | v113:2906 | `JiangyiMerchantClient.java:104` | ✅ 换绑租户 |
 | V16 §5.2.2/§4.2.2 | `platform/tenant/setDomain` | v16:466 / 2776 | `JiangyiMerchantClient.java:71` | ✅ `domain`+`socketUrl` 两槽 10-19 写入、10-20 厂商云回查实锤生效 |
 | V16 §5.4.1–5.4.8、5.4.9 | `pokerOrderNotify/sendOrderAmt`、`/sendOrderRecheck`、`/uploadOrderPayError`、`/uploadRecheckOrderPayError`、`deviceInfo/updateDeviceModelByPoker`、`floor/floorPokerCreate`、`device/getOnlineStatusAndVersion`、`selfhelpGatherProduct/receiveGatherProductZipData` | v16:4207 / 4377 / 4587 / 4715 / 4819 / 4930 / 5073 / 5242 | — | ⛔ **选型一致、非缺陷**（模式一下订单数据不落将邑云，回调只是喂他们的展示账本；见 `docs/archive/audit/AUDIT_TRACK_E_JIANGYI_INTERFACE_GAP_2026-10-13.md` E-2） |
