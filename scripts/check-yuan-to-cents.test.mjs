@@ -112,10 +112,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
     }
   }
   const javaProblems = evaluate(javaActual, baseline.javaEntries || [], 'java');
-  assert(
-    javaProblems.length === 0,
-    `后端真实仓面应零问题：${javaProblems.slice(0, 3).join('|')}`
-  );
+  assert(javaProblems.length === 0, `后端真实仓面应零问题：${javaProblems.slice(0, 3).join('|')}`);
 }
 
 // 7) 后端段报错指向 YuanFen 单源（不是 yuanToCents shared）

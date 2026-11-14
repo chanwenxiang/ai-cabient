@@ -34,14 +34,25 @@ const MAX_DEPTH = 4;
 //    .persistDenied 假绿（publishOta 的成功路径永远走不到那个 appendLog）。
 const FAILURE_PATH_AUDIT_CLASSES = new Set(['AccessDeniedAudit']);
 const KEYWORDS = new Set([
-  'if', 'for', 'while', 'switch', 'catch', 'return', 'synchronized', 'do',
-  'else', 'try', 'new', 'super', 'this', 'throw', 'assert'
+  'if',
+  'for',
+  'while',
+  'switch',
+  'catch',
+  'return',
+  'synchronized',
+  'do',
+  'else',
+  'try',
+  'new',
+  'super',
+  'this',
+  'throw',
+  'assert'
 ]);
 
 const maskJava = (s) =>
-  s
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/\/\/[^\n]*/g, '');
+  s.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/\/\/[^\n]*/g, '');
 
 function walk(dir, ext, out = []) {
   if (!existsSync(dir)) return out;
@@ -72,13 +83,21 @@ const fieldsCache = new Map();
 
 /** 花括号计数取方法体（输入是已 mask 的源码的行数组与签名行号） */
 function extractMethod(lines, sigIdx) {
-  let depth = 0, started = false, end = sigIdx;
+  let depth = 0,
+    started = false,
+    end = sigIdx;
   for (let j = sigIdx; j < lines.length; j++) {
     for (const ch of lines[j]) {
-      if (ch === '{') { depth++; started = true; }
+      if (ch === '{') {
+        depth++;
+        started = true;
+      }
       if (ch === '}') depth--;
     }
-    if (started && depth <= 0) { end = j; break; }
+    if (started && depth <= 0) {
+      end = j;
+      break;
+    }
   }
   return { body: lines.slice(sigIdx, end + 1).join('\n'), endLine: end + 1 };
 }
@@ -157,7 +176,10 @@ export function controllerEndpoints(src) {
     if (!/@(?:Post|Put|Patch|Delete)Mapping/.test(lines[i])) continue;
     let sig = -1;
     for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
-      if (/public\s+[\w<>,\s]+?\s+\w+\s*\(/.test(lines[j])) { sig = j; break; }
+      if (/public\s+[\w<>,\s]+?\s+\w+\s*\(/.test(lines[j])) {
+        sig = j;
+        break;
+      }
     }
     if (sig < 0) continue;
     const name = lines[sig].match(/(\w+)\s*\(/)?.[1] ?? '?';
@@ -259,7 +281,7 @@ function main() {
       file: rel,
       cls: endpoints.cls ?? '',
       endpoints: endpoints.length,
-      attributed: endpoints.filter((e) => e.attributed).length,
+      attributed: endpoints.filter((e) => e.attributed).length
     });
   }
 

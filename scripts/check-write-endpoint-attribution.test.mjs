@@ -111,10 +111,7 @@ assert(
   const baselineEntries = baseline.controllers || {};
   const entryCount = Object.keys(baselineEntries).length;
   assert(entryCount >= 90, `基线条目应 ≥90，实际 ${entryCount}`);
-  assert(
-    (baseline.totalEndpoints || 0) >= 400,
-    `基线端点应 ≥400，实际 ${baseline.totalEndpoints}`
-  );
+  assert((baseline.totalEndpoints || 0) >= 400, `基线端点应 ≥400，实际 ${baseline.totalEndpoints}`);
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

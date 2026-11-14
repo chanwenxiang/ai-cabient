@@ -32,8 +32,8 @@ const DIRS = [
   join('clients', 'merchant-mp', 'src'),
   join('clients', 'consumer-mp', 'src')
 ];
-const JAVA_BASES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'].map(
-  (svc) => join('services', svc, 'src', 'main', 'java')
+const JAVA_BASES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'].map((svc) =>
+  join('services', svc, 'src', 'main', 'java')
 );
 const PATTERN = /\*\s*100\b/g;
 const FRONTEND_ANCHOR = 400;
@@ -98,7 +98,9 @@ function main() {
   // ── 前端段 ──
   const feFiles = DIRS.flatMap((d) => walk(join(ROOT, d), ['.vue', '.ts']));
   if (feFiles.length < FRONTEND_ANCHOR)
-    fail(`前端扫描面退化：只扫到 ${feFiles.length} 个文件（锚点 ${FRONTEND_ANCHOR}，实测基线 412）`);
+    fail(
+      `前端扫描面退化：只扫到 ${feFiles.length} 个文件（锚点 ${FRONTEND_ANCHOR}，实测基线 412）`
+    );
   const feActual = [];
   for (const f of feFiles) {
     const n = countHits(readFileSync(f, 'utf8'));
@@ -109,7 +111,9 @@ function main() {
   // ── 后端段 ──
   const javaFiles = JAVA_BASES.flatMap((d) => walk(join(ROOT, d), ['.java']));
   if (javaFiles.length < JAVA_ANCHOR)
-    fail(`后端扫描面退化：只扫到 ${javaFiles.length} 个文件（锚点 ${JAVA_ANCHOR}，实测 976，不含 target）`);
+    fail(
+      `后端扫描面退化：只扫到 ${javaFiles.length} 个文件（锚点 ${JAVA_ANCHOR}，实测 976，不含 target）`
+    );
   const javaActual = [];
   for (const f of javaFiles) {
     const n = countHits(readFileSync(f, 'utf8'));

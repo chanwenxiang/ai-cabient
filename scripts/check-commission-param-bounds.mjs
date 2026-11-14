@@ -57,7 +57,8 @@ export function extractCalls(src) {
   }
   const lineAt = (idx) => {
     // 二分找 idx 之前的最近行首偏移（1-based 行号）
-    let lo = 0, hi = lineStarts.length - 1;
+    let lo = 0,
+      hi = lineStarts.length - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
       if (lineStarts[mid] <= idx) lo = mid;
@@ -67,24 +68,54 @@ export function extractCalls(src) {
   };
   for (const m of src.matchAll(SETTER_RE)) {
     const openIdx = m.index + m[0].length - 1;
-    let depth = 0, end = -1, inStr = false, inLineCmt = false, inBlockCmt = false;
+    let depth = 0,
+      end = -1,
+      inStr = false,
+      inLineCmt = false,
+      inBlockCmt = false;
     for (let i = openIdx; i < src.length; i++) {
       const ch = src[i];
       const next = src[i + 1];
-      if (inLineCmt) { if (ch === '\n') inLineCmt = false; continue; }
-      if (inBlockCmt) { if (ch === '*' && next === '/') { inBlockCmt = false; i++; } continue; }
+      if (inLineCmt) {
+        if (ch === '\n') inLineCmt = false;
+        continue;
+      }
+      if (inBlockCmt) {
+        if (ch === '*' && next === '/') {
+          inBlockCmt = false;
+          i++;
+        }
+        continue;
+      }
       if (inStr) {
-        if (ch === '\\') { i++; continue; }
+        if (ch === '\\') {
+          i++;
+          continue;
+        }
         if (ch === '"') inStr = false;
         continue;
       }
-      if (ch === '/' && next === '/') { inLineCmt = true; i++; continue; }
-      if (ch === '/' && next === '*') { inBlockCmt = true; i++; continue; }
-      if (ch === '"') { inStr = true; continue; }
+      if (ch === '/' && next === '/') {
+        inLineCmt = true;
+        i++;
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        inBlockCmt = true;
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        inStr = true;
+        continue;
+      }
       if (ch === '(') depth++;
       if (ch === ')') {
         depth--;
-        if (depth === 0) { end = i; break; }
+        if (depth === 0) {
+          end = i;
+          break;
+        }
       }
     }
     if (end < 0) continue; // 括号不平衡（非合法 Java），跳过
@@ -93,7 +124,7 @@ export function extractCalls(src) {
       line: lineAt(m.index),
       setter: m[1],
       arg,
-      guarded: GUARD_ARG_RE.test(arg),
+      guarded: GUARD_ARG_RE.test(arg)
     });
   }
   return out;

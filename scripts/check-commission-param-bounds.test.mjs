@@ -77,7 +77,11 @@ const BARE = `manager.setCommissionRateBps(99999);`;
             "commissionFixedCents",
             body.getCommissionFixedCents()));
   }`);
-  check('多行过闸调用 guarded=true', calls.length === 1 && calls[0].guarded === true, JSON.stringify(calls));
+  check(
+    '多行过闸调用 guarded=true',
+    calls.length === 1 && calls[0].guarded === true,
+    JSON.stringify(calls)
+  );
 }
 
 // 7) 白名单残留已删文件 → 红
