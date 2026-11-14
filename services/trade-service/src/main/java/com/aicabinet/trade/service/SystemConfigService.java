@@ -151,11 +151,6 @@ public class SystemConfigService {
      * 配置项会退化成「假可配置」。</p>
      */
     public static final int DEFAULT_DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = 5;
-    /**
-     * 柜内温度高于该值（℃）时上报 TEMP_ABNORMAL；0 或负数关闭。
-     * 对应告警规则页「温度告警上限」，对齐联调文档「温度&gt;8℃」。
-     */
-    public static final String DEVICE_TEMP_ALERT_MAX_C = "device.temp.alert_max_c";
     /** 柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却. */
     public static final String MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES =
             "merchant.notify.incident_cooldown_minutes";
@@ -1017,8 +1012,6 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_CONFIG_AUDIT_ENABLED, "true",
                 "系统配置变更审计（默认开启）；每次改配置留版本历史与审计日志，可回滚。"
                         + "置 false 只关非资金键，资金阈值键族无视开关强制留痕");
-        upsertIfAbsent(DEVICE_TEMP_ALERT_MAX_C, "8",
-                "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭");
         upsertIfAbsent(MERCHANT_INCIDENT_NOTIFY_COOLDOWN_MINUTES, "30",
                 "柜机离线/停售即时通知冷却分钟数（同柜同类型），0=不冷却");
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");

@@ -1,0 +1,23 @@
+-- MIGRATION_KIND: data
+-- MIGRATION_REVIEWED: yes
+-- TABLES: system_config（1 行 DELETE）/ system_config_history（保留，不清）
+-- LOCK_RISK: low
+-- ROLLBACK: 撤销 = INSERT INTO system_config (config_key, config_value, description, updated_at)
+--           VALUES ('device.temp.alert_max_c', '8', '柜内温度高于该值(℃)时上报温度异常告警, 0=关闭', NOW())；
+--           ⚠️ 只恢复旋钮不会恢复行为——读侧 `DevicePresenceService.applyTempAlert` 已随本批删除，
+--           回滚后这个键就是「改了没人执行」的死旋钮，真要恢复告警必须连代码一起回滚。
+-- NOTES: 2026-11-14 用户拍板「温度告警旋钮应该去掉，我们监控不了温度」。
+--  判据（本机 dev 库实测，非推断）：
+--    · 现役柜机是将邑柜，**不上报温度** ⇒ `device_info.current_temp_c` 真机恒空；
+--      历史上写进该列的值全部来自 device-simulator 的默认值（用户口径：「模拟器只有默认的是假的」）。
+--    · `ops_exception` 里 `TEMP_ABNORMAL` 共 40 行，**全部 RESOLVED、open = 0**
+--      ⇒ 退役告警腿不会留下永不收口的存量待办，无需额外结案脚本。
+--    · 该键没有任何迁移播种，唯一来源是 `SystemConfigService.ensureDefaults()` 的 upsertIfAbsent
+--      ⇒ 本文件对**全新空库**是 0 行 no-op，只清曾跑过旧版本的环境（dev/UAT）。
+--  同批改动（缺一即漂移）：`DevicePresenceService`（删 applyTempAlert 与调用）、`SystemConfigService`
+--  （删常量与播种）、`ops/feature-flags.json`（删条目，注册表 120→119）、`config-early-return-allowlist.json`
+--  （删豁免条目并下调 maxEntries 2→1）、`AlertRuleView.vue`（删「温控告警」分组与中文名）、
+--  `DevicePresenceServiceTest`（换成「温度仍记账但恒不告警」的退役哨兵）。
+--  保留面：`device_info.current_temp_c` 列、温度读数表与 `ops.log_retention.temperature_days`
+--  ——自有柜 MQTT 协议仍有 `current_temp_c` 通道，退役的是**告警**，不是数据面。
+DELETE FROM system_config WHERE config_key = 'device.temp.alert_max_c';

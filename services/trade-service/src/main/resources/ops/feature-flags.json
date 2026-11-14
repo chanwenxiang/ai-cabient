@@ -408,14 +408,6 @@
       "unit": "天"
     },
     {
-      "key": "device.temp.alert_max_c",
-      "group": "设备与柜机",
-      "type": "NUMBER",
-      "default": "8",
-      "description": "柜内温度高于该值(℃)时上报温度异常告警, 0=关闭",
-      "unit": "℃"
-    },
-    {
       "key": "dispute.auto_open",
       "group": "争议工单",
       "type": "BOOLEAN",

@@ -274,7 +274,13 @@
 
 **S6 开关作用域**（[check-config-early-return-scope](scripts/check-config-early-return-scope.mjs) + [allowlist](scripts/config-early-return-allowlist.json)）
 - 判据：数字零值配置早退（`<= 0` 且分支 return）之后同一方法体仍有 alert/notify/report/dispatch/resolve/createOps/createTicket 类调用 ⇒ 红。配置来源必须走 config 接收者（内联 `.get*(` + config 语境，或 `Config*/Properties*` 接收者赋值）——**裸全大写常量不算配置证据**（实测误报 CAS 行数判据 `rows <= 0`，`STATUS_IN_PROGRESS` 撞了 CONFIG_KEY 启发式）。布尔整体门不命中；else 链消费（else 分支不算被短路）；正样本=R22-6 修后形态钉绿。
-- 基线 2 条豁免（DevicePresenceService 温度告警 `maxC<=0` / 自动锁机 `lockAfterMinutes<=0`——`0=关整个功能`，方法内副作用属同一行为腿），`maxEntries=2` 双向棘轮。⚠️ 已知代价写在豁免 why：温度告警调 0 后「恢复自动结案」腿一并停，存量 open 的 TEMP_ABNORMAL 不会自动收口（P3 观察，拆腿待拍板）。
+- 基线**由 2 条降为 1 条**（`maxEntries=2→1`，双向棘轮随批下调）：~~DevicePresenceService 温度告警 `maxC<=0`~~ / 自动锁机 `lockAfterMinutes<=0`——`0=关整个功能`，方法内副作用属同一行为腿。
+  ✅ **2026-11-14 温度那条已闭合，但闭合方式不是「拆腿」而是「整条退役」**：用户拍板「我们监控不了温度」，
+  判据 = 现役将邑柜不上报温度、dev 里 `current_temp_c` 的值全部来自 device-simulator 默认值 ⇒
+  告警的输入本身是假的。落码=删 `applyTempAlert` 与调用 + 删 `device.temp.alert_max_c`（Java 常量/播种/注册表/后台分组）
+  + `V481` 清存量键 + 豁免条目同批删除并把 `maxEntries` 下调到 1；存量 `TEMP_ABNORMAL` 实测 40 行全 RESOLVED、
+  open=0 ⇒ 不需要额外结案脚本。**当初那条「已知代价」（调 0 后自动结案腿一并停、存量 open 永不收口）随功能退役自然消失**，
+  因此本节不再挂账；数据面（温度列、读数表、`ops.log_retention.temperature_days`）刻意保留——自有柜 MQTT 协议仍有温度通道。
 - `send*` 有意不进副作用词表（误报面大，§八 Q3）；14 项断言负向用例；接线：`check:config-early-return-scope`（test 先行）入聚合链尾。
 
 **验证**：六门禁全绿——S6（8608 方法体，豁免 2/2）/ wiring（135 脚本全接线，夹具覆盖 35/118，豁免 83/83）/ coupling（148 文件对账通过）/ runtime-hygiene（135 脚本无同步子进程）/ ledger-evidence / line-endings；prettier 全过。

@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceTemperatureReading;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
@@ -16,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -107,8 +109,17 @@ class DevicePresenceServiceTest {
         verify(exceptions).resolveOfflineAutoLockFault(eq("CAB-001"), anyString());
     }
 
+    /**
+     * 2026-11-14 拍板：超温告警这条腿退役（现役将邑柜不报温度，dev 里看到的 `current_temp_c`
+     * 全部来自 device-simulator 的默认值 ⇒ 告警只能对模拟器编造的读数报警）。
+     *
+     * <p>本例是**退役哨兵**：温度故意给到 99℃（旧上限 8 的十几倍），断言
+     * ① 读数仍照记（自有柜 MQTT 协议还有温度通道，数据面不跟着退役）、
+     * ② 既不报 `TEMP_ABNORMAL` 也不替它结案。谁把告警腿接回来，这一条就会红——
+     * 接回来必须带着「温度源可信」的新证据，而不是顺手恢复一个旋钮。</p>
+     */
     @Test
-    void heartbeatReportsTempAbnormalWhenAboveAlertMax() {
+    void heartbeatStillRecordsTemperatureButNeverRaisesTempAlert() {
         DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
         DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
         CabinetMetrics metrics = mock(CabinetMetrics.class);
@@ -120,44 +131,17 @@ class DevicePresenceServiceTest {
         device.setOnlineStatus("ONLINE");
         when(devices.findByIdForUpdate("CAB-TEMP")).thenReturn(Optional.of(device));
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(systemConfig.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8)).thenReturn(8);
 
         DevicePresenceService service = new DevicePresenceService(
                 devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
-        service.heartbeat("CAB-TEMP", "0.9.0", null, 12);
+        service.heartbeat("CAB-TEMP", "0.9.0", null, 99);
 
-        verify(exceptions).report(
-                eq("TEMP_ABNORMAL"),
-                eq("HIGH"),
-                any(),
-                eq("温度异常"),
-                org.mockito.ArgumentMatchers.contains("超过告警上限 8"));
-    }
-
-    @Test
-    void heartbeatResolvesTempAbnormalWhenBackWithinLimit() {
-        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
-        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
-        CabinetMetrics metrics = mock(CabinetMetrics.class);
-        OpsExceptionService exceptions = mock(OpsExceptionService.class);
-        SystemConfigService systemConfig = mock(SystemConfigService.class);
-        AdminAuditService audit = mock(AdminAuditService.class);
-        DeviceInfo device = new DeviceInfo();
-        device.setDeviceId("CAB-TEMP-OK");
-        device.setOnlineStatus("ONLINE");
-        when(devices.findByIdForUpdate("CAB-TEMP-OK")).thenReturn(Optional.of(device));
-        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(systemConfig.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8)).thenReturn(8);
-
-        DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService(), null, null, null);
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
-        service.heartbeat("CAB-TEMP-OK", "0.9.0", null, 5);
-
-        verify(exceptions).resolveSystem(eq("TEMP_ABNORMAL"), eq("CAB-TEMP-OK"), anyString());
-        org.mockito.Mockito.verify(exceptions, org.mockito.Mockito.never())
-                .report(eq("TEMP_ABNORMAL"), anyString(), any(), anyString(), anyString());
+        assertEquals(99, device.getCurrentTempC(), "温度读数仍要落库（退役的是告警，不是数据面）");
+        verify(temperatures).save(any(DeviceTemperatureReading.class));
+        verify(exceptions, never()).report(
+                eq("TEMP_ABNORMAL"), anyString(), any(), anyString(), anyString());
+        verify(exceptions, never()).resolveSystem(eq("TEMP_ABNORMAL"), anyString(), anyString());
     }
 
     @Test

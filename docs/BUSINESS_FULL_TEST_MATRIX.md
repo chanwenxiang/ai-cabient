@@ -433,7 +433,7 @@
 
 | ID | 模块 | 步骤 | 期望 | 状态 |
 |----|------|------|------|------|
-| T-01 | 告警规则 | 配置阈值→制造触发条件 | 告警/待办出现 | PASS（`device.temp.alert_max_c=8`；heartbeat 27℃→`TEMP_ABNORMAL` OPEN） |
+| T-01 | 告警规则 | 配置阈值→制造触发条件 | 告警/待办出现 | ~~PASS~~ ⇒ **2026-11-14 该场景退役**：`device.temp.alert_max_c` 与超温告警腿整体删除（用户拍板「我们监控不了温度」；现役将邑柜不报温度，dev 里该列的值全部来自模拟器默认值）。同族的**离线/停售告警仍在**，本行判据请改用 `device.offline.auto_sales_lock_minutes`（heartbeat 断流超阈值→`DEVICE_OFFLINE` OPEN，恢复即结案）。历史 PASS 记录保留不删，见 V481 头注 |
 | T-02 | 告警规则 | 停用规则 | 同条件不再触发 | PASS（`alert_max_c=0` 后超温不建 OPEN；已恢复 8） |
 | T-03 | 定时任务 | 手动「执行」对账/巡检类 | 有结果行或日志；与按钮文案一致 | PASS（`compensation-process` 手动执行；`lastRunAt` 更新） |
 | T-04 | 定时任务 | 停用后等待触发点 | 不执行 | PASS（停用后 `/run`→`result=SKIPPED`「任务已停用」；已重新启用） |

@@ -113,7 +113,11 @@ public class DevicePresenceService {
             reading.setTempC(currentTempC);
             reading.setReportedAt(Instant.now());
             temperatureReadingRepository.save(reading);
-            applyTempAlert(deviceId, currentTempC);
+            // 2026-11-14 拍板退役「超温告警」这条腿（原 applyTempAlert + device.temp.alert_max_c）：
+            // 现役柜机（将邑）不报温度，dev 里能看到的 current_temp_c 全部来自 device-simulator 的默认值
+            // ⇒ 告警的输入本身是假的，`TEMP_ABNORMAL` 只能对模拟器编造的读数报警。
+            // 保留的是「设备真报了就把这条读数记下来」——自有柜 MQTT 协议仍有 current_temp_c 通道；
+            // 若日后有可信温度源，按新证据把告警接回来，而不是现在留一个恒假的旋钮。
         }
         device.markHeartbeatReceived();
         deviceRepository.save(device);
@@ -125,27 +129,6 @@ public class DevicePresenceService {
         }
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
         log.debug("device heartbeat device={} app={} temp={}", deviceId, appVersion, currentTempC);
-    }
-
-    /**
-     * 按告警规则 {@link SystemConfigService#DEVICE_TEMP_ALERT_MAX_C}：超温上报 TEMP_ABNORMAL，恢复后自动结案。
-     */
-    private void applyTempAlert(String deviceId, int currentTempC) {
-        int maxC = systemConfigService.getInt(SystemConfigService.DEVICE_TEMP_ALERT_MAX_C, 8);
-        if (maxC <= 0) {
-            return;
-        }
-        if (currentTempC > maxC) {
-            opsExceptionService.report(
-                    "TEMP_ABNORMAL",
-                    "HIGH",
-                    new OpsExceptionService.ExceptionReport.ExceptionRefs(deviceId, null, null, null),
-                    "温度异常",
-                    "柜内温度 " + currentTempC + "℃ 超过告警上限 " + maxC + "℃");
-            return;
-        }
-        opsExceptionService.resolveSystem("TEMP_ABNORMAL", deviceId,
-                "柜内温度已回落到告警上限以内");
     }
 
     @Scheduled(fixedRate = 60_000)

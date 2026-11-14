@@ -233,7 +233,6 @@ const BUILTIN_GROUPS: Record<string, string[]> = {
     'device.offline.auto_unlock_enabled',
     'device.offline.auto_unlock_stable_minutes'
   ],
-  温控告警: ['device.temp.alert_max_c'],
   '争议 SLA': ['dispute.sla.hours', 'dispute.sla.reminder_hours', 'dispute.sla.webhook'],
   告警渠道: [
     'ops.alert.feishu_webhook',
@@ -273,7 +272,6 @@ const ALERT_KEY_LABELS: Record<string, string> = {
   'device.offline.manual_unlock_grace_minutes': '手动解锁宽限期',
   'device.offline.auto_unlock_enabled': '离线自动解锁',
   'device.offline.auto_unlock_stable_minutes': '离线稳定判定时长',
-  'device.temp.alert_max_c': '柜内温度报警上限',
   'dispute.sla.hours': '争议处理时限',
   'dispute.sla.reminder_hours': '争议超时提醒提前量',
   'dispute.sla.webhook': '争议超时通知地址',

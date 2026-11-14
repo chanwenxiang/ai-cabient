@@ -1,12 +1,7 @@
 {
   "note": "S6（check-config-early-return-scope）的豁免名单：数字零值配置早退后仍有 alert/notify/report/dispatch/resolve/createOps/createTicket 类副作用调用的命中项，逐条带理由登记；修法优先对齐 R22-6（独立行为腿挪到早退之前，见 23c57e09）。双向棘轮：修掉后必须删条目；maxEntries 只许减不许增。",
-  "maxEntries": 2,
+  "maxEntries": 1,
   "entries": [
-    {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DevicePresenceService.java",
-      "guard": "maxC <= 0",
-      "why": "0=关闭温度告警整体功能（DEVICE_TEMP_ALERT_MAX_C 默认 8）；TEMP_ABNORMAL 上报就是本方法唯一行为，非搭车腿。⚠️ 已知代价：maxC 调 0 后「恢复自动结案」腿一并停——存量 open 的 TEMP_ABNORMAL 不会自动收口（P3 观察，是否拆腿待拍板）。"
-    },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DevicePresenceService.java",
       "guard": "lockAfterMinutes <= 0",
