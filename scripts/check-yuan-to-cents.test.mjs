@@ -61,6 +61,20 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   assert(countHits('x / 100') === 0, `/ 100 属分→元门禁，不在此`);
 }
 
+// 5b) 🔴 数字后缀形态必须命中（2026-11-14 补：旧 `\b` 在 `100` 与 `L` 之间不成立 ⇒ 漏 `* 100L`）
+//     Java 金额是 long，`yuan * 100L` 比 `yuan * 100` 更常见，漏这个形态等于后端段白扫。
+{
+  assert(
+    countHits('long c = yuan * 100L;') === 1,
+    `* 100L 必须命中：${countHits('long c = yuan * 100L;')}`
+  );
+  assert(countHits('long c = yuan * 100l;') === 1, `* 100l 必须命中`);
+  assert(countHits('double d = x * 100.0;') === 1, `* 100.0 必须命中`);
+  assert(countHits('int a = x * 100;') === 1, `* 100 必须命中`);
+  assert(countHits('int a = x * 10000L;') === 0, `* 10000L 不该命中（前缀 100 后接数字）`);
+  assert(countHits('int a = x * 1000;') === 0, `* 1000 不该命中`);
+}
+
 // 6) 真实仓面：基线 × 真实扫描 ⇒ 零问题
 {
   const { readdirSync, statSync, existsSync } = await import('node:fs');

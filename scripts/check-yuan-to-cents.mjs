@@ -16,6 +16,11 @@
  *     （trade/util 单源，拒 scale>2 静默精度损失——PlatformFundService 私有 double 版
  *     绕过它即丢失该保护）；百分比/时间等非金额换算也须登记基线（判据无法区分语义，登记即显式化）
  *
+ * 🔴 2026-11-14 补形：命中式从 `\*\s*100\b` 改 `\*\s*100(?![0-9])`。旧式因 `\b` 在
+ * `100` 与 `L` 之间不成立（两侧都是 \w），**漏掉 `yuan * 100L` 这个 Java 金额换算最典型写法**
+ * （金额是 long，`100L` 比 `100` 更常见；DeviceSlotService:351 就是 `* 100L` 形态）。
+ * 新式 `100L/100l/100.0` 全命中，`1000` 仍不命中。
+ *
  *   node scripts/check-yuan-to-cents.mjs
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -35,7 +40,7 @@ const DIRS = [
 const JAVA_BASES = ['trade-service', 'device-service', 'common', 'jiangyi-gateway'].map((svc) =>
   join('services', svc, 'src', 'main', 'java')
 );
-const PATTERN = /\*\s*100\b/g;
+const PATTERN = /\*\s*100(?![0-9])/g;
 const FRONTEND_ANCHOR = 400;
 const JAVA_ANCHOR = 900;
 
