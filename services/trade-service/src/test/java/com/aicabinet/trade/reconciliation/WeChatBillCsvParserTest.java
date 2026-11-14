@@ -98,4 +98,47 @@ class WeChatBillCsvParserTest {
         assertEquals(1, lines.size());
         assertEquals(120L, lines.get(0).feeCents());
     }
+
+    @Test
+    void parse_amountWithThreeDecimals_skipsOnlyBadLine() {
+        // 🔴 金额列 scale>2：YuanFen 拒收（不静默降级成错账）。坏行必须被丢弃且**可见**
+        //    （parse 内已改 WARN + skipped 计数，静态门禁 check-wechat-bill-skip-visibility 钉住），
+        //    同时不得影响同一账单里的其它正常行——旧式 catch(Exception)+log.debug 会把这类
+        //    失败变成「整行无声消失」，对账侧表现为 PLATFORM_ONLY 假差异。
+        String[] good = new String[25];
+        Arrays.fill(good, "");
+        good[5] = "4200001111";
+        good[6] = "ORD-OK";
+        good[12] = "3.50";
+        String[] bad = new String[25];
+        Arrays.fill(bad, "");
+        bad[5] = "4200002222";
+        bad[6] = "ORD-BAD";
+        bad[12] = "1.005";
+        String csv = OFFICIAL_HEADER + "\n" + String.join(",", good) + "\n" + String.join(",", bad);
+
+        List<PlatformBillLine> lines = WeChatBillCsvParser.parse(csv, LocalDate.of(2024, 1, 15));
+
+        assertEquals(1, lines.size());
+        assertEquals("ORD-OK", lines.get(0).merchantOrderNo());
+        assertEquals(350, lines.get(0).amountCents());
+    }
+
+    @Test
+    void parse_shortLine_doesNotSwallowFollowingRows() {
+        // 短行（<13 列）同样记入 skipped 并 WARN，且不能把后续正常行一起吞掉
+        String shortLine = "a,b,c";
+        String[] good = new String[25];
+        Arrays.fill(good, "");
+        good[5] = "4200003333";
+        good[6] = "ORD-AFTER-SHORT";
+        good[12] = "2.00";
+        String csv = OFFICIAL_HEADER + "\n" + shortLine + "\n" + String.join(",", good);
+
+        List<PlatformBillLine> lines = WeChatBillCsvParser.parse(csv, LocalDate.of(2024, 1, 15));
+
+        assertEquals(1, lines.size());
+        assertEquals("ORD-AFTER-SHORT", lines.get(0).merchantOrderNo());
+        assertEquals(200, lines.get(0).amountCents());
+    }
 }

@@ -296,6 +296,13 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 
 > **2026-11-14 复核订正**：上表三行「🔴 仍未修」已过期——R21-1 随后把三处裸建全部替换为 OutboundHttp 工厂（当前源码中 `RestClient.create()` 仅剩历史说明注释，无实际调用）。复核时曾误报「仍未修」，订正防 R23 重复报。
 
+> **2026-11-14 第二次复核订正（21:4x）**：
+>
+> - **上表前三行不是缺陷，是历史快照**：列头写明「HEAD=`4e230651` vs 工作树」，当时「peer 在制修复（未提交）」是真实状态，保留原文仅为留痕。三处超时现已全部落地并复核过源码：`WeChatPayV3Client:49/51` → `OutboundHttp.publicApi()` / `bulkDownload()`、`AlipayOpenApiClient:38` → `OutboundHttp.publicApi()`、device `TradeServiceClient:33` → `OutboundHttp.callbackThreadRpc()`。§六「超时项见 §四 的 peer 在制状态」应读作「已落地」。R23 勿按现状重复报。
+> - **提交说明勘误**：`e49b3556` 的提交说明称含 common 路径 / PlatformFund / Alipay / Coupon 等 7 类改动，`git show --stat` 实际只有 2 个 `scripts/` 文件；`48ae2de4` 说明称「钳位恢复 + R22 表订正」，`git show --name-only` 实际只有 3 个 `scripts/` 文件（钳位与 R22 表均在 `ddbfc438`）。登记表 `items[].id` 沿用了当时的说明文案，同样不能当 diff 依据。**追溯一律以 `git show --name-only` 为准**。已推送的 commit message 不可改，本条只记勘误、不改写台账。
+> - **豁免口径勘误**：`ddbfc438` 在 `unregisteredAllowlist` 的 why 自认「钳位属业务修复但规模小…先入 allowlist 防阻塞」，与注册表 note 定义的「非业务审计条目」冲突；而后续的 `48ae2de4` / `0b04137d` / `e49b3556` 都走了正规 `batches`，证明本可登记 ⇒ 这是一条不必要的永久豁免。**本轮不改写已提交条目**（改写会让台账与当时登记状态不符，是另一种失真），仅在册留痕，待该批整体重编时并入 batches。
+> - **金额列静默丢行已修**：`WeChatBillCsvParser.parse` 旧式 `catch(Exception) + log.debug` 把金额列解析失败整行吞掉、生产不输出，与同文件 `parseFeeCents`「不能因费用列异常把整行剔除」相矛盾。按拍板口径「只让丢弃可见」修复：金额解析独立 try/catch、`log.debug`→`log.warn`、`skipped` 计数 + 汇总 WARN，**金额语义不降级**（不 HALF_UP、不保留坏行，`YuanFen` 拒 scale>2 的保护保留）。配套 Java 用例 + 静态门禁钉住，详见提交信息。
+
 ---
 
 ## 五、待定（缺什么证据才能定档）
@@ -313,7 +320,7 @@ R21 报的「出站 HTTP 无超时 6 处」现状（HEAD=`4e230651` vs 工作树
 ## 六、检查过且判为无缺陷（附判据，避免下一轮重复劳动）
 
 子代理覆盖（主审抽查其中 4 条判据成立）：
-- 微信 V3 下单/退款/查单、支付宝 OpenAPI 的异常封装：不吞异常，统一上抛（超时项见 §四 的 peer 在制状态）。
+- 微信 V3 下单/退款/查单、支付宝 OpenAPI 的异常封装：不吞异常，统一上抛（超时项已随 R21-1 落地，见 §四 第二次复核订正；此处原写「peer 在制状态」是 11-12 当时口径）。
 - 微信支付分主链：置 PENDING 等回调 DONE→PAID，超时不盲判成功；欠款闸 + 催缴兜底。
 - 退款幂等族：M02「订单+金额」键 + AU-175 行集指纹键 + 确定性退款号 + 「ABNORMAL 不记已退」+ AU-140 切片查单三态。
 - 回调验签/防重：`WeChatPayNotifyService` 先验签再占 nonce 槽、5min 时间窗、mchid 校验；`AlipayNotifyService` RSA2 + app_id/seller_id + notify_id 去重（**fail-closed**，主审读了 `isConfigured` 缺失即抛的分支）。
