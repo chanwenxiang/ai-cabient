@@ -1,4 +1,4 @@
--- MIGRATION_KIND: data
+-- MIGRATION_KIND: backfill
 -- MIGRATION_REVIEWED: yes
 -- TABLES: system_config（1 行 DELETE）/ system_config_history（保留，不清）
 -- LOCK_RISK: low
