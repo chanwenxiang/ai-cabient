@@ -98,5 +98,39 @@ const BARE = `manager.setCommissionRateBps(99999);`;
   check('requireCents 过闸形态=绿', calls[0].guarded === true, JSON.stringify(calls));
 }
 
+// 9) 🔴 注释/字符串形态不得当调用（等长掩码，2026-11-14 补）
+//    旧版只有 `!line.trim().startsWith('//')`，多行块注释、行尾注释、日志字符串全挡不住；
+//    升级逐调用点后必须统一掩码，否则「注释掉一行调试代码」就假红。
+{
+  const lineCmt = extractCalls(`class X {\n  // mgr.setShareBps(99999);\n}`);
+  check('行注释里的 setter 不抽取', lineCmt.length === 0, JSON.stringify(lineCmt));
+  const blockCmt = extractCalls(
+    `class X {\n  /* mgr.setShareBps(99999);\n     mgr.setCommissionRateBps(88888); */\n}`
+  );
+  check('块注释里的 setter 不抽取', blockCmt.length === 0, JSON.stringify(blockCmt));
+  const inString = extractCalls(`class X { log.info("call mgr.setShareBps(99999) failed"); }`);
+  check('字符串字面量里的 setter 不抽取', inString.length === 0, JSON.stringify(inString));
+  // 掩码必须等长：注释不改变行号
+  const afterCmt = extractCalls(
+    `class X {\n  // 注释一行\n  // 又一行\n  mgr.setShareBps(99999);\n}`
+  );
+  check(
+    '掩码等长：注释不影响行号',
+    afterCmt.length === 1 && afterCmt[0].line === 4,
+    JSON.stringify(afterCmt)
+  );
+}
+
+// 10) 🔴 白名单必须双向：文件已全部过闸 ⇒ 条目残留要红（否则清单单向腐烂）
+{
+  const calls = extractCalls(`class X { ${GUARDED} }`);
+  const r = evaluate([{ rel: 'a.java', calls }], { 'a.java': { count: 1, reason: '旧先例' } });
+  check(
+    '已修好但白名单留条=红（请删条目）',
+    r.length === 1 && r[0].includes('已全部过闸'),
+    r.join('|')
+  );
+}
+
 console.log(`\n[check-commission-param-bounds.test] ${pass} 通过 / ${fail} 失败`);
 if (fail > 0) process.exit(1);
