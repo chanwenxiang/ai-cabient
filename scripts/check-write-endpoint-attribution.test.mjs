@@ -3,11 +3,13 @@
  * `check-write-endpoint-attribution.mjs`（S9 第二层：端点级归因快照棘轮）的夹具。
  *
  * 覆盖三组：
- *   A. evaluate 棘轮（合成快照）：归因退化红 / 新端点未归因红 / 对平绿 / 陈旧红；
+ *   A. evaluate 棘轮（合成快照）：归因退化红 / 新端点未归因红 / 对平绿 / 陈旧红 /
+ *      归因虚增红 / 端点漂移红（总量双向对平）；
  *   B. reachable 真实仓面：2-hop 委托链可达（OpsOtaAdminService.publishOta ⇒
- *      OtaService.publishRelease 有 appendLog）/ 拒绝路径黑名单（AccessDeniedAudit
- *      不计——负向注入实证：不封它则删除真实审计后解析器穿 requirePermission 假绿）/
- *      真缺口端点不可达（AccountController.updateNickname 无审计链）；
+ *      OtaService.publishRelease 有 appendLog）/ 失败路径审计不计（AccessDeniedAudit）/
+ *      真缺口端点不可达（AccountController.updateNickname 无审计链）/
+ *      **行为级负向**：失败审计类换类名 / 换 action 都自动纳入，逐调用点排除
+ *      ACCESS_DENIED（2026-11-14 第五轮：旧人工名单改类名即 18 处假归因复活）；
  *   C. controllerEndpoints 真实仓面：端点抽取数量与快照一致。
  *
  *   node scripts/check-write-endpoint-attribution.test.mjs
@@ -15,7 +17,13 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluate, reachable, controllerEndpoints } from './check-write-endpoint-attribution.mjs';
+import {
+  evaluate,
+  reachable,
+  controllerEndpoints,
+  deriveFailurePathClasses,
+  hasBusinessAuditCall
+} from './check-write-endpoint-attribution.mjs';
 
 const TAG = '[check-write-endpoint-attribution.test]';
 let checks = 0;
@@ -63,6 +71,37 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   assert(p[0].includes('基线陈旧'), `陈旧须红：${p.join('|')}`);
 }
 
+// A6) 归因虚增（240→258 假归因复活形态）⇒ 总量对平红
+//     逐控制器判据只防下降，这条专门钉住「解析链放宽」方向。
+{
+  const snap = [{ file: 'a/XController.java', endpoints: 3, attributed: 3 }];
+  const base = { 'a/XController.java': { endpoints: 3, attributed: 2 } };
+  const p = evaluate(snap, base, { totalEndpoints: 3, totalAttributed: 2 });
+  assert(
+    p.some((x) => x.includes('归因总量')),
+    `归因虚增必须红：${p.join('|')}`
+  );
+}
+
+// A7) 端点数下降（逐控制器判据不检查下降）⇒ 总量对平红
+{
+  const snap = [{ file: 'a/XController.java', endpoints: 2, attributed: 2 }];
+  const base = { 'a/XController.java': { endpoints: 3, attributed: 2 } };
+  const p = evaluate(snap, base, { totalEndpoints: 3, totalAttributed: 2 });
+  assert(
+    p.some((x) => x.includes('端点总量')),
+    `端点漂移必须红：${p.join('|')}`
+  );
+}
+
+// A8) totals 不传（旧夹具调用形态）⇒ 不受影响
+assert(
+  evaluate([{ file: 'a/XController.java', endpoints: 3, attributed: 3 }], {
+    'a/XController.java': { endpoints: 3, attributed: 2 }
+  }).length === 0,
+  '不传 totals 时保持旧行为'
+);
+
 // ── B. reachable 真实仓面 ──
 
 // B1) 2-hop 委托链可达：OpsOtaAdminService.publishOta ⇒ otaService.publishRelease ⇒ appendLog
@@ -83,17 +122,64 @@ assert(
   'AccountService.updateNickname 委托链无审计（真缺口）'
 );
 
-// B4) 拒绝路径审计黑名单存在性钉住（防黑名单被意外清空 → 假归因复发）
+// B4) 失败路径类自动派生（行为级负向，替代旧「黑名单存在性」静态断言）
+//     旧式 new Set(['AccessDeniedAudit'])：把类名改成 TmpDeniedAudit 即 240→258 假绿。
 {
-  const gateSrc = readFileSync(
-    resolve(ROOT, 'scripts/check-write-endpoint-attribution.mjs'),
-    'utf8'
-  );
-  assert(
-    gateSrc.includes("FAILURE_PATH_AUDIT_CLASSES = new Set(['AccessDeniedAudit'])"),
-    '拒绝路径审计黑名单必须包含 AccessDeniedAudit（防黑名单被清空后假归因复发）'
-  );
+  const byClassLike = new Map([
+    ['TmpDeniedAudit', 'x.java'],
+    ['RenamedAudit', 'y.java'],
+    ['PlainAudit', 'z.java']
+  ]);
+  const rawOfLike = new Map([
+    [
+      'x.java',
+      'class TmpDeniedAudit { void denied() { audit.appendLog(1, "SOME_ACTION", "USER", "1", ""); } }'
+    ],
+    [
+      'y.java',
+      'class RenamedAudit { void log() { audit.appendLog(1, "ACCESS_DENIED", "USER", "1", ""); } }'
+    ],
+    [
+      'z.java',
+      'class PlainAudit { void log() { audit.appendLog(1, "OTA_PUBLISH", "OTA", "1", ""); } }'
+    ]
+  ]);
+  const derived = deriveFailurePathClasses(byClassLike, rawOfLike);
+  assert(derived.has('TmpDeniedAudit'), '类名带 denied 语义的失败审计类须自动纳入');
+  assert(derived.has('RenamedAudit'), '写 ACCESS_DENIED 的类即使换成无关类名也须自动纳入');
+  assert(!derived.has('PlainAudit'), '普通业务审计类不该被误纳入');
 }
+
+// B6) 逐调用点排除失败 action（不能只看方法体有没有 appendLog）
+assert(
+  hasBusinessAuditCall('void x() { audit.appendLog(1, "ACCESS_DENIED", "USER", "1", ""); }') ===
+    false,
+  '只写 ACCESS_DENIED 的方法体不该算业务归因'
+);
+assert(
+  hasBusinessAuditCall('void x() { audit.appendLog(1, "OTA_PUBLISH", "OTA", "1", ""); }') === true,
+  '正常业务 appendLog 应算归因'
+);
+assert(
+  hasBusinessAuditCall(
+    'void x() { if (denied) { audit.appendLog(1, "ACCESS_DENIED", "USER", "1", ""); } ' +
+      'else { audit.appendLog(1, "OTA_PUBLISH", "OTA", "1", ""); } }'
+  ) === true,
+  '同一方法体内失败路径与成功路径并存时应算归因'
+);
+assert(
+  hasBusinessAuditCall(
+    'void x() { audit.appendLog(1, "OTA_PUBLISH", "OTA", "1", Map.of("k", "v")); }'
+  ) === true,
+  '参数含嵌套括号时不得截断 action 判定'
+);
+assert(
+  hasBusinessAuditCall(
+    'void x() { audit.appendLog(1, "ACCESS_DENIED", "USER", "1", ""); }',
+    'AccessDeniedAudit'
+  ) === false,
+  '失败路径类的整个方法体直接不算'
+);
 
 // B5) AdminAuditService.appendLog 定义到达 = 归因（2026-11-14 修复的正向用例）
 assert(
