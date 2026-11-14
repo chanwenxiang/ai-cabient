@@ -69,6 +69,17 @@ assert(
   'WalletArrearsSqlIT 的 why 必须写明它守的是 mapper XML 那类 mock 单测抓不到的缺陷'
 );
 
+// R18-2/4/5 并发实证条目（51916f22 判据扩面）：正向用例，钉住批次原子扣/upsert 建档/CAS 失效三判据的 GUARDED 登记
+const r18 = entries.find(([, rel]) => rel.endsWith('InventoryConsistencyR18IT.java'));
+assert(
+  !!r18,
+  'InventoryConsistencyR18IT 必须在 GUARDED 里登记（R18-2/4/5 并发实证，判据扩面的正向用例）'
+);
+assert(
+  /job:\s*'integration'/.test(r18[2]),
+  'InventoryConsistencyR18IT 属 *IT.java ⇒ job 必须是 integration（failsafe）'
+);
+
 // 同族的第二条（CB-086 锁柜腿，2026-11-14）：它不在 integration/ 目录而在 service/ 包，
 // 清单腐烂最容易发生在这种「路径不合常规」的条目上 ⇒ 逐条钉住登记的真实性与 why 的信息量。
 const lock = entries.find(([, rel]) => rel.endsWith('WalletArrearsLockSqlIT.java'));
