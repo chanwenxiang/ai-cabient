@@ -83,6 +83,18 @@ assert(
   'AccountService.updateNickname 委托链无审计（真缺口）'
 );
 
+// B4) 拒绝路径审计黑名单存在性钉住（防黑名单被意外清空 → 假归因复发）
+{
+  const gateSrc = readFileSync(
+    resolve(ROOT, 'scripts/check-write-endpoint-attribution.mjs'),
+    'utf8'
+  );
+  assert(
+    gateSrc.includes("FAILURE_PATH_AUDIT_CLASSES = new Set(['AccessDeniedAudit'])"),
+    '拒绝路径审计黑名单必须包含 AccessDeniedAudit（防黑名单被清空后假归因复发）'
+  );
+}
+
 // ── C. controllerEndpoints 真实仓面 ──
 
 // C1) OpsOtaController：2 写端点全归因（自身 appendLog + service 链）

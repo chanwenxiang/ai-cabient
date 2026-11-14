@@ -84,6 +84,18 @@ const BARE = `manager.setCommissionRateBps(99999);`;
   );
 }
 
+// 8) requireCents 过闸形态（三闸同族补验——2026-11-14 逐调用点升级时补）
+{
+  const calls = extractCalls(
+    `class X { cfg.setCommissionPerUnitCents(CommissionParamBounds.requireCents("perUnit", 100L)); }`
+  );
+  check(
+    'requireCents 过闸 guarded=true',
+    calls.length === 1 && calls[0].guarded === true,
+    JSON.stringify(calls)
+  );
+}
+
 // 7) 白名单残留已删文件 → 红
 {
   const r = evaluate([], { 'gone.java': { count: 1 } });
