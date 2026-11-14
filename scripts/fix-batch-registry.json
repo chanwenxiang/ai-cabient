@@ -509,6 +509,41 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "16159eff",
+      "report": "services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyPreviewBatchSqlIT.java",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "批量预览：previewByDevices + XML 批量可售量（foreach 在 CDATA 外）+ 无批次柜 in 查聚合行回退；预览不调 resolveBest/限购，价格只算前 N",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceCatalogService.java",
+            "services/trade-service/src/main/resources/mapper/DeviceSkuLotMapper.xml",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DeviceSkuLotMapper.java"
+          ]
+        },
+        {
+          "id": "NearbyDeviceService 接批量结果；取不到/整体失败退回原逐台口径（与改造前逐字一致）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/NearbyDeviceService.java"
+          ]
+        },
+        {
+          "id": "等价性真库 IT：3 台（有批次含禁用货道+无货道+覆盖价 / 无批次回退 / 空柜）逐台比对 itemCount、skuCount、前 N 项四字段 + 四条显式期望；GUARDED 登记",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyPreviewBatchSqlIT.java",
+            "scripts/check-docker-tests-guarded.mjs"
+          ]
+        },
+        {
+          "id": "单测：批量值→DTO 三字段映射 + 断言 listProducts 不再被调；变异验证＝批量 SQL 去掉禁用货道过滤 ⇒ 2 例全红，cmp 还原",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/NearbyDeviceServiceTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
