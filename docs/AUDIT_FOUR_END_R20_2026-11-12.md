@@ -75,6 +75,30 @@
     它防「货回库但冲抵款已扣」，**不防「钱没进来、账先进来」**，也没有 void/clawback。
   - ⇒ **第二刀确实未做**，且爆炸半径是资金创造而非账面失真；属资金链改动，按拍板走他人修复线，本会话不顺手改。
 
+### R20-2 附：退款侧「已入账份额」到底会不会退回去（2026-11-14 只读定性，结论：**会，三条腿都有**）
+
+起因：本会话曾把「9 笔 `PARTIAL_REFUNDED`/`REFUNDED` 单的分账已入账」列为待查（服务器到期，无法重取那 9 笔的库值，本轮只做代码面定性）。
+
+- **唯一入口是漏斗形的**：金额退（`SettlementPartialRefundService:113`）、按行退（:163/:178）全部汇到
+  `finalizePartialRefund` → `RevenueSplitService.adjustSplitAfterPartialRefund(order, full)`（:287），
+  免单全额退另有 `SettlementWaiveRefundService:136` → `voidSplitOnFullRefund`。⇒ 不存在「某条退款腿漏接分账」。
+- 三条腿各自的回退动作：
+  1. **全额**：`doVoidSplitOnFullRefund` → `reverseWalletCredit`（`SPLIT_REVERSE`，refId 由 `splitId` 派生，
+     `reverseCreditAllowNegativeIfPresent` —— AU-181 允许把余额扣成负，幂等键不变）+ 状态置 `VOIDED` + 显式清 `failure_reason`。
+  2. **部分（账本未提交微信：`LEDGER_ONLY`/`SETTLED`）**：`doResyncSplitForOrder` → `clawbackWalletDelta`
+     （`SPLIT_PARTIAL_REVERSE`，`refId = splitId + ":g" + 新份额`，T4 拍板走 AllowNegative）。
+     🔴 键里带**新份额** ⇒ 多轮部分退各占一个键、不会互相吞（与 `creditWalletDelta` 同键形，方向相反）。
+  3. **部分（已提交微信：`WECHAT_SUBMITTED`/`SUCCESS`）**：`resyncSubmittedSplitAfterPartialRefund`
+     不发钱包扣款，而是按差额提交**微信分账回退**（`out_return_no = "PSR"+splitId+":g"+新份额`）并落 `PENDING` + 按腿排补偿重试（R20-9）；
+     账本三列（gross/platform/merchant）同步重算。这条腿扣的是商户**微信侧**真实所得，不是钱包账面——不双扣是对的。
+- **唯一不回退的分支是刻意的**：`merchant` 缺失或 `status != ACTIVE` ⇒ 跳过 0 费率重算并 `log.warn` 留痕待人工
+  （审计批次 4：否则会把平台抽成静默清零、商户多分）。`VOIDED`/`REVERSED` 终态也直接跳过。
+- ⚠️ 因此历史那 9 笔若确为退款单，其入账「没被回退」只可能是三种情形之一：
+  ① 发生在 `clawbackWalletDelta`/AllowNegative 落地之前的旧版本；② 商户当时非 ACTIVE 被跳过；
+  ③ 库值本身已回退（我此前只读了 `order_revenue_split` 的入账事实，没读同单是否另有 `SPLIT_PARTIAL_REVERSE` 流水）。
+  ⇒ 服务器恢复后判据：对那 9 单跑「流水配对」SQL（同 `merchant_id` + `ref_id LIKE splitId||':g%'` 或 `SPLIT_REVERSE`），
+  **不新增代码**；本条留作待验前提而不是缺陷。
+
 ### R20-3 ✅ 手动用券绕过「活动价禁券」
 - `CouponService.java:334-361`（用户端 `POST /api/v2/coupons/use`）只拦 DISPUTED / 状态不可用 / 已用券 / 已核销其他券，**没有 `activityDiscountCents > 0` 闸**；
   而结算 `SettlementOrderFinalizeService.java:86-88` 与补扣 `UnpaidOrderService.java:464-469` 都拦。
