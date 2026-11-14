@@ -275,11 +275,11 @@ function main() {
   for (const f of controllers) {
     const rel = relative(ROOT, f).replace(/\\/g, '/');
     const src = rawOf.get(f);
-    const { endpoints } = controllerEndpoints(src);
+    const { cls, endpoints } = controllerEndpoints(src);
     if (endpoints.length === 0) continue;
     snapshot.push({
       file: rel,
-      cls: endpoints.cls ?? '',
+      cls: cls ?? '',
       endpoints: endpoints.length,
       attributed: endpoints.filter((e) => e.attributed).length
     });
