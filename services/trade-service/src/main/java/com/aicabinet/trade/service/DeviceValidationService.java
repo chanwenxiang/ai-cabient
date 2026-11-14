@@ -18,7 +18,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class DeviceValidationService {
@@ -95,6 +98,44 @@ public class DeviceValidationService {
                 busyReason,
                 consumerPreauthService.resolvePreauthCents(deviceId)
         );
+    }
+
+    /**
+     * 批量可用性（附近柜列表专用）：语义与 {@link #getDeviceStatus(String)} 的 {@code available()}
+     * **逐字相同** = 在线 ∧ 无占用会话 ∧ 无进行中补货 ∧ 未锁机。
+     *
+     * <p>为什么要批量：附近页一次最多 50 台，逐台调 {@code getDeviceStatus} 是 50×(设备+会话+补货任务) 条查询；
+     * 这里固定 3 条（三张表各一次 in 查询），与台数无关。
+     * 🔴 等价性由 {@code NearbyAvailabilityBatchSqlIT}（真 PG、五种分支逐台比对）守着：
+     * 谁改这里的判据，那份 IT 必须同步改——否则半套语义会把「正被占用」的柜标成可售。
+     */
+    public Map<String, Boolean> availableByDevices(Collection<String> deviceIds) {
+        List<String> ids = deviceIds == null ? List.of() : deviceIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, DeviceInfo> devices = deviceInfoRepository.findAllById(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(DeviceInfo::getDeviceId, d -> d, (a, b) -> a));
+        Set<String> busy = sessionRepository.findByDeviceIdInAndStateIn(ids, ACTIVE_SESSION_STATES).stream()
+                .map(ShoppingSession::getDeviceId)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> restocking = replenishmentTaskRepository
+                .findByDeviceIdInAndStatusIn(ids, List.of("IN_PROGRESS")).stream()
+                .filter(ReplenishmentTask::isRestockingNow)
+                .map(ReplenishmentTask::getDeviceId)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, Boolean> out = new java.util.LinkedHashMap<>();
+        for (String id : ids) {
+            DeviceInfo d = devices.get(id);
+            // 设备行缺失 ⇒ 不可售（与 getDeviceStatus 抛 404 的失败方向一致：宁可少标，不可错标）
+            boolean online = d != null && "ONLINE".equalsIgnoreCase(d.getOnlineStatus());
+            boolean locked = d != null && d.salesLockedEnabled();
+            out.put(id, online && !locked && !busy.contains(id) && !restocking.contains(id));
+        }
+        return out;
     }
 
     /** 消费者开门：无占用会话，且无进行中的补货任务。 */

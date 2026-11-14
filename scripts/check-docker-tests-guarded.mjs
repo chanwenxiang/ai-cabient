@@ -386,6 +386,18 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/NearbyAvailabilityBatchSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；附近柜列表的可用性从「逐台 getDeviceStatus」改成一次批量 availableByDevices，' +
+        '而 available 的四个输入（设备行/ACTIVE 会话/IN_PROGRESS 且已签到的补货任务/锁机）全是 SQL 谓词 ⇒ ' +
+        'mock 单测只能证明「调了哪个方法」，证不了两条路径同答案。本 IT 在真 PG 上铺五种分支（空闲/占用会话/' +
+        '补货中/离线/锁机），逐台断言「批量 == 逐台」，并另断言显式期望（防两边一起错）；' +
+        '变异验证：删掉补货占用腿 ⇒ 1 例红（批量与逐台答案不一致），cmp 逐字节还原'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/service/WalletArrearsLockSqlIT.java',
     {
       job: 'integration',

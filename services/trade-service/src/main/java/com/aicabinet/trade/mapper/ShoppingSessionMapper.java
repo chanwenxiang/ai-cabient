@@ -49,6 +49,19 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getDeviceId, deviceId).in(ShoppingSession::getState, states));
     }
 
+    /**
+     * 批量版：附近柜列表一次问出「这 N 台里哪些正被占用」，替掉逐台 {@code findByDeviceIdAndStateIn}
+     * （N 台 = N 条查询 ⇒ 一次请求 50 台时纯浪费）。判据与单台版逐字相同（同 in 同一批 ACTIVE 状态）。
+     */
+    default List<ShoppingSession> findByDeviceIdInAndStateIn(Collection<String> deviceIds, List<SessionState> states) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getDeviceId, deviceIds)
+                .in(ShoppingSession::getState, states));
+    }
+
     default Page<ShoppingSession> findAllByOrderByCreatedAtDesc(Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

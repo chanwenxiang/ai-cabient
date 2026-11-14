@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class NearbyDeviceService {
@@ -57,12 +58,23 @@ public class NearbyDeviceService {
             }
         }
 
+        List<DeviceInfo> candidates = deviceRepository.findNearbyCandidates(minLat, maxLat, minLon, maxLon);
+        // 2026-11-14：可用性改成一次批量问（3 条查询，与台数无关），替掉逐台 getDeviceStatus 的 50×3 查询。
+        // 语义与 getDeviceStatus(...).available() 逐字相同；等价性由 NearbyAvailabilityBatchSqlIT 守着。
+        Map<String, Boolean> availableByDevice;
+        try {
+            availableByDevice = deviceValidationService.availableByDevices(
+                    candidates.stream().map(DeviceInfo::getDeviceId).toList());
+        } catch (Exception e) {
+            // 批量查询整体失败时退回与单台版 catch 分支同一条判据（在线且未锁），仍是宁少不多
+            availableByDevice = Map.of();
+        }
         List<NearbyDeviceDto> out = new ArrayList<>();
-        for (DeviceInfo d : deviceRepository.findNearbyCandidates(minLat, maxLat, minLon, maxLon)) {
+        for (DeviceInfo d : candidates) {
             // 坐标非空与生命周期已由 SQL 保证（同判据、同归一化口径），这里只剩距离判据。
             double dist = haversineMeters(latitude, longitude, d.getLatitude(), d.getLongitude());
             if (dist <= radiusM) {
-                out.add(toDto(d, dist));
+                out.add(toDto(d, dist, availableByDevice.get(d.getDeviceId())));
             }
         }
         out.sort(Comparator.comparingDouble(NearbyDeviceDto::distanceMeters));
@@ -85,12 +97,12 @@ public class NearbyDeviceService {
         return limit <= 0 ? 20 : Math.min(limit, 50);
     }
 
-    private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters) {
-        boolean available = false;
-        try {
-            available = deviceValidationService.getDeviceStatus(d.getDeviceId()).available();
-        } catch (Exception ignored) {
-            // 兜底与主路径同语义：必须在线才可售（离线柜不能标「可开门」）。
+    private NearbyDeviceDto toDto(DeviceInfo d, double distanceMeters, Boolean batchAvailable) {
+        boolean available;
+        if (batchAvailable != null) {
+            available = batchAvailable;
+        } else {
+            // 批量结果里没有这台（或批量整体失败）⇒ 退回与单台版 catch 同一判据：必须在线且未锁。
             String life = d.getOnlineStatus() == null ? "" : d.getOnlineStatus().trim();
             available = "ONLINE".equalsIgnoreCase(life) && !d.salesLockedEnabled();
         }

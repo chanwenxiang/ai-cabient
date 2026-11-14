@@ -41,6 +41,16 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().eq(ReplenishmentTask::getDeviceId, deviceId).in(ReplenishmentTask::getStatus, statuses));
     }
 
+    /** 批量版：一次问出这 N 台里在指定状态的补货任务（判据与单台版同）。 */
+    default List<ReplenishmentTask> findByDeviceIdInAndStatusIn(Collection<String> deviceIds, List<String> statuses) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .in(ReplenishmentTask::getDeviceId, deviceIds)
+                .in(ReplenishmentTask::getStatus, statuses));
+    }
+
     /**
      * 每台柜「最近一张补货任务」的状态（{@code device_id} → {@code status}）。
      *

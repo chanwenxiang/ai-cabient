@@ -12,8 +12,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -34,13 +36,18 @@ class NearbyDeviceServiceTest {
         DeviceInfo far = device("CAB-FAR", 31.2500, 121.5000);
         when(deviceRepository.findNearbyCandidates(anyDouble(), anyDouble(), any(), any()))
                 .thenReturn(List.of(far, near));
-        when(deviceValidationService.getDeviceStatus(anyString())).thenAnswer(inv ->
-                new com.aicabinet.common.dto.DeviceStatusDto(
-                        inv.getArgument(0), "n", "ONLINE", true, true, null, null, "NONE", 0));
+        // 2026-11-14：可用性改成批量口径（availableByDevices），逐台 getDeviceStatus 不再被调用。
+        // 语义等价由 NearbyAvailabilityBatchSqlIT（真 PG）守着，这里只验「批量值 -> DTO 字段」的映射。
+        when(deviceValidationService.availableByDevices(anyCollection())).thenReturn(
+                java.util.Map.of("CAB-NEAR", true, "CAB-FAR", false));
         when(deviceCatalogService.listProducts(anyString())).thenReturn(List.of());
 
         List<NearbyDeviceDto> list = service.listNearby(31.2304, 121.4737, 10, 10);
         assertEquals(2, list.size());
+        assertTrue(list.stream().filter(d -> "CAB-NEAR".equals(d.deviceId())).findFirst().orElseThrow().available(),
+                "批量判可售 ⇒ DTO available 必须为 true");
+        assertFalse(list.stream().filter(d -> "CAB-FAR".equals(d.deviceId())).findFirst().orElseThrow().available(),
+                "批量判不可售 ⇒ DTO available 必须为 false（映射反了会把占用柜标成可售）");
         assertEquals("CAB-NEAR", list.get(0).deviceId());
         assertTrue(list.get(0).distanceMeters() < list.get(1).distanceMeters());
         // R20 P2-16：候选必须来自 SQL 粗筛，不能再全表载入内存
