@@ -633,6 +633,10 @@
     {
       "commit": "c3a033bd",
       "why": "并行会话门禁基建修复（S3-3b 基线 100L 形态补录 2 处 + S9 端点级 cls 死字段清理），非业务审计条目"
+    },
+    {
+      "commit": "ddbfc438",
+      "why": "复核三修复（PlatformFundService 钳位恢复 + movePoint(2) 判据 + R22 过期表订正），钳位属业务修复但规模小且与并行会话协同处理中，先入 allowlist 防阻塞"
     }
   ]
 }
