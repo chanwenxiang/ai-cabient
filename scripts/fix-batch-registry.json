@@ -582,6 +582,38 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "cfaef147",
+      "report": "docs/AUDIT_FOUR_END_R22_2026-11-12.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "微信账单金额列静默丢行可见化（WARN+skipped 计数，金额语义不降级）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java"
+          ]
+        },
+        {
+          "id": "金额列行为用例：三位小数坏行只丢自己、短行不吞后续行",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParserTest.java"
+          ]
+        },
+        {
+          "id": "丢行可见静态门禁与夹具（含聚合链接线）",
+          "files": [
+            "scripts/check-wechat-bill-skip-visibility.mjs",
+            "scripts/check-wechat-bill-skip-visibility.test.mjs",
+            "package.json"
+          ]
+        },
+        {
+          "id": "R22 §四 订正 + 提交说明/豁免口径勘误（只留痕不改台账）",
+          "files": ["docs/AUDIT_FOUR_END_R22_2026-11-12.md"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
