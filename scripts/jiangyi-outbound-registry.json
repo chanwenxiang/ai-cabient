@@ -1,0 +1,212 @@
+{
+  "note": "T-JY-DOC-9：出向接口对账册。判据＝代码↔本册双向 + 棘轮；文档侧抽取质量未达门禁级（见脚本头注），所以缺口/不接都必须带厂商文档章节锚点，不允许凭印象编号。",
+  "countersAsOf": "2026-11-14 代码侧现算 12 条（client 包 /merchant/* + /platform/* 字面量）",
+  "maxAbsent": 17,
+  "entries": [
+    {
+      "path": "/merchant/selfhelpGatherProduct/productInfo",
+      "section": "V1.13 §4.3.3",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/startGather",
+      "section": "V1.13 §4.3.4",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/confirmStart",
+      "section": "V1.13 §4.3.5",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/gatherError",
+      "section": "V1.13 §4.3.6",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/endOne",
+      "section": "V1.13 §4.3.7",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/gatherProducts",
+      "section": "V1.13 §4.3.8",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/goOnGather",
+      "section": "V1.13 §4.3.9",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/endAll",
+      "section": "V1.13 §4.3.10",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/uploadInfoNew",
+      "section": "V1.13 §4.3.11",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/forgoUploadNew",
+      "section": "V1.13 §4.3.12",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/goOnUploadNew",
+      "section": "V1.13 §4.3.13",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/deleteBatchNoNew",
+      "section": "V1.13 §4.3.14",
+      "status": "absent",
+      "why": "V1.13 采集文档 §4.3.3–4.3.14 这套上一代路径，我方一条没调；现行采集链走另一版（第七章）路径词汇 ⇒ 在厂商确认「V1.13 是否废止」之前保留为未接（T-JY-DOC-8）。"
+    },
+    {
+      "path": "/merchant/tenantGather/searchGatherProductPageData",
+      "section": "V16 §5.6.1",
+      "status": "absent",
+      "why": "采集图审核/自采面：审核与训练在厂商侧，我方只读状态；未接=没有业务动作要驱动它（§G-9 只作显示口径）"
+    },
+    {
+      "path": "/merchant/tenantGather/searchGatherProductPicPageData",
+      "section": "V16 §5.6.2",
+      "status": "absent",
+      "why": "采集图审核/自采面：审核与训练在厂商侧，我方只读状态；未接=没有业务动作要驱动它（§G-9 只作显示口径）"
+    },
+    {
+      "path": "/merchant/tenantGather/picDelete",
+      "section": "V16 §5.6.3",
+      "status": "absent",
+      "why": "采集图审核/自采面：审核与训练在厂商侧，我方只读状态；未接=没有业务动作要驱动它（§G-9 只作显示口径）"
+    },
+    {
+      "path": "/merchant/tenantGather/picSubmit",
+      "section": "V16 §5.6.4",
+      "status": "absent",
+      "why": "采集图审核/自采面：审核与训练在厂商侧，我方只读状态；未接=没有业务动作要驱动它（§G-9 只作显示口径）"
+    },
+    {
+      "path": "/merchant/selfhelpGatherProduct/receiveGatherProductZipData",
+      "section": "V16 §5.4.9",
+      "status": "absent",
+      "why": "海外商户 zip 直传厂商 OSS 的补偿通道，本柜在国内 ⇒ 未接（无场景，非遗漏）"
+    },
+    {
+      "path": "/merchant/tenant/create",
+      "section": "V16 §4.5.1",
+      "status": "vendor-side",
+      "why": "柜机是我方财产、将邑只提供本地识别套件 ⇒ 商户/柜机归属与记账主体永远在我方侧（merchant 表+运营台），不在厂商云建租户；转租/加盟也在我方归属列里改（用户 2026-11-14 口径，本仓不得再当开放问题）"
+    },
+    {
+      "path": "/merchant/addressdata/provinces",
+      "section": "V16 §4.5.2",
+      "status": "vendor-side",
+      "why": "柜机是我方财产、将邑只提供本地识别套件 ⇒ 商户/柜机归属与记账主体永远在我方侧（merchant 表+运营台），不在厂商云建租户；转租/加盟也在我方归属列里改（用户 2026-11-14 口径，本仓不得再当开放问题）"
+    },
+    {
+      "path": "/merchant/tenant/findSubByPid",
+      "section": "V16 §4.5.4",
+      "status": "vendor-side",
+      "why": "柜机是我方财产、将邑只提供本地识别套件 ⇒ 商户/柜机归属与记账主体永远在我方侧（merchant 表+运营台），不在厂商云建租户；转租/加盟也在我方归属列里改（用户 2026-11-14 口径，本仓不得再当开放问题）"
+    },
+    {
+      "path": "/merchant/tenant/updateSubTenantLimited",
+      "section": "V16 §4.5.5",
+      "status": "vendor-side",
+      "why": "柜机是我方财产、将邑只提供本地识别套件 ⇒ 商户/柜机归属与记账主体永远在我方侧（merchant 表+运营台），不在厂商云建租户；转租/加盟也在我方归属列里改（用户 2026-11-14 口径，本仓不得再当开放问题）"
+    },
+    {
+      "path": "/merchant/authentication/login2",
+      "status": "implemented",
+      "code": ["JiangyiMerchantClient.login"],
+      "section": "V16 §4.1.5"
+    },
+    {
+      "path": "/merchant/stdSku/getStdSkuQueryByTextNames",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.stdSkuByTextNames"],
+      "section": "V16 §5.5.3"
+    },
+    {
+      "path": "/platform/tenant/setDomain",
+      "status": "implemented",
+      "code": ["JiangyiPlatformClient.setDomain"],
+      "section": "V16 §5.4"
+    },
+    {
+      "path": "/merchant/deviceInfo/confirmActivate",
+      "status": "implemented",
+      "code": ["JiangyiMerchantClient.confirmActivate"],
+      "section": "V16 §5.4"
+    },
+    {
+      "path": "/merchant/stdSku/getList",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.stdSkuList"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/product/getPageData",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.productPage"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/product/delete",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.productDelete"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/product/updateMainImg",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.updateMainImg"],
+      "section": "V1.13 §4.1.7"
+    },
+    {
+      "path": "/merchant/deviceInfo/getIdentifier",
+      "status": "implemented",
+      "code": ["JiangyiMerchantClient.getIdentifier"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/deviceInfo/modifyAffiliationTenant",
+      "status": "implemented",
+      "code": ["JiangyiMerchantClient.modifyAffiliationTenant"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/modelFile/getModelFileByApi",
+      "status": "implemented",
+      "code": ["JiangyiGatherClient.modelFileByApi"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    },
+    {
+      "path": "/merchant/openapi/v2/restock",
+      "status": "implemented",
+      "code": ["JiangyiRestockClient.restock"],
+      "section": null,
+      "why": "已接：出处见 code 锚点（章节未能逐条核实 ⇒ 不写 section，别把猜的编号当契约）"
+    }
+  ]
+}
