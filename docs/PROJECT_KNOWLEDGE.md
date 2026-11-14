@@ -693,6 +693,7 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 异常类型选 `ResponseStatusException(CONFLICT, 中文原因)` 而不是 `IllegalStateException`：`runWithOrderSplitLock` 把锁内其它 Exception 统一包成 500，只有 `ResponseStatusException` 原样透出；`GlobalExceptionHandler` 对 4xx 走 `ApiMessages.translate`（含 CJK 原样回传）⇒ 文案能到运营手里。既有两条 `IllegalStateException` 判据仍走 500（`MerchantService` 那段 `catch→409` 是死代码），本轮不改，细节与理由见 lessons **434** 与 R20 台账。
 - 验证：`RevenueSplitServiceTest` 新增 2 条负例（断 `HttpStatus.CONFLICT` + reason 关键字 + 不入账不落库）、原正例补 PAID 桩，30/30 + 并发 2/2 绿；变异验证 `if (false && !collected)` ⇒ 负例红，`cmp` 逐字节还原。
 - 历史敞口：本轮无存量影响——dev/UAT 支付分单实收样本为 0，未实收即入账的存量此前已定性（见 R20 台账 §复核）。
+- **CB-086 欠款锁柜那条腿补真库 IT**：新增 `services/trade-service/src/test/java/com/aicabinet/trade/service/WalletArrearsLockSqlIT.java`（4 例，已在 `check-docker-tests-guarded` 的 GUARDED 登记）。此前该链只有 Mockito 版 `MerchantWalletArrearsLockTest`，它把 `DeviceSalesLockService` 整个替掉 ⇒ 三处只有真库能证伪的环节从未被验：① 锁柜原因**真的落库**（下轮复机靠 `LIKE '钱包欠款锁柜%'` 找回自己锁的设备，解锁侧靠显式 `clearSalesLockReason`）；② `applySalesLock(null, …)` 的审计写 `admin_audit_log.operator_id`（NOT NULL + FK），null 没归一成 0 就整事务回滚，而调用点把异常 catch 成 WARN ⇒「任务绿、一台没锁」；③ 判据来自 `findNegativeArrears` 的 mapper XML。变异验证：删掉 `clearSalesLockReason` ⇒ 复机用例红（`expected null but was 钱包欠款锁柜…`），`cmp` 逐字节还原后 4/4 绿。播种夹具两次撞上 `uk_merchant_name` / `uk_device_name` 唯一键（lessons 345 复犯扩面）。
 
 ### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售** + **平台兜底核销**；台账 CB-086）
 

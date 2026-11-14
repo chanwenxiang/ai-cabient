@@ -386,6 +386,21 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/service/WalletArrearsLockSqlIT.java',
+    {
+      job: 'integration',
+      why:
+        'failsafe 跑（*IT.java）；CB-086 欠款锁柜那条腿此前只有 Mockito 版' +
+        'MerchantWalletArrearsLockTest（它把 DeviceSalesLockService 整个替掉），' +
+        '于是三处只有真库能证伪的环节一直没人验：① 锁柜原因必须真的落库，下一轮复机才靠 ' +
+        "LIKE '钱包欠款锁柜%' 找回自己锁的设备（解锁侧靠显式 clearSalesLockReason，MP updateById 跳过 null）；" +
+        '② applySalesLock(null, …) 写 admin_audit_log.operator_id（NOT NULL + FK(user_info)），' +
+        'null 没归一成 0 就整事务回滚，而调用点把异常 catch 成 WARN ⇒ 表现为「任务绿、一台没锁」；' +
+        '③ 判据来自 findNegativeArrears 的 mapper XML。变异验证：删掉 clearSalesLockReason ⇒ ' +
+        'clearedArrearsUnlocksAndClearsReasonInDb 红（expected null but was 钱包欠款锁柜…），还原后 4/4 绿'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/WalletArrearsSqlIT.java',
     {
       job: 'integration',
