@@ -98,6 +98,12 @@
   ③ 库值本身已回退（我此前只读了 `order_revenue_split` 的入账事实，没读同单是否另有 `SPLIT_PARTIAL_REVERSE` 流水）。
   ⇒ 服务器恢复后判据：对那 9 单跑「流水配对」SQL（同 `merchant_id` + `ref_id LIKE splitId||':g%'` 或 `SPLIT_REVERSE`），
   **不新增代码**；本条留作待验前提而不是缺陷。
+- 🔴 **同批后续（2026-11-14，CI 抓到并收口）**：`883b9b1a` 把扣回键改为透传 payment 幂等键后，本地定向小测与
+  门禁预检都绿，但 CI `build` 红——透传的按行退款键（AU-175 带行集指纹）拼进
+  `member_points_log.source_id`（V79 起 `VARCHAR(64)`）超宽 ⇒ PG `22001 value too long` ⇒ 部分退款 500
+  （`SettlementComboMatrixE2ETest:214`）。收口＝`V480__widen_member_points_log_source_id.sql` 放宽到
+  `VARCHAR(128)`，**不截断**（截断会把两笔合法退款重新并成同一个键，正是本条要消灭的那一维）。
+  判据由该端到端用例长期守着；通用坑见 lessons 436。
 
 ### R20-3 ✅ 手动用券绕过「活动价禁券」
 - `CouponService.java:334-361`（用户端 `POST /api/v2/coupons/use`）只拦 DISPUTED / 状态不可用 / 已用券 / 已核销其他券，**没有 `activityDiscountCents > 0` 闸**；

@@ -703,6 +703,13 @@ gross − member − activity − coupon = total      （部分退款单例外�
   `isCompleted(idemKey)` 短路 ⇒ 改键不产生「同一笔退两次分」。
   验证：`OrderPaymentIdempotencyTest` 新增 3 例（默认键形状 / 两笔同额不同行集 ⇒ 两个键 / 判重放零扣回），
   15/15 绿；变异验证＝把扣回侧退回旧自拼形态 ⇒ 恰好第 2 例红（`Argument(s) are different`），`cmp` 逐字节还原。
+  - 🔴 **同日订正（CI 抓到的回归）**：上面「本地全绿」只覆盖定向小测 + 门禁预检，**不等于构建绿**——推送后 CI
+    `build` 作业红：透传进来的按行退款幂等键拼进 `member_points_log.source_id`（V79 起就是 `VARCHAR(64)`）
+    超宽 ⇒ PG `22001 value too long` ⇒ 部分退款接口 500（`SettlementComboMatrixE2ETest:214` 期望 200）。
+    收口＝`V480` 放宽该列到 `VARCHAR(128)`（**刻意不截断**：截断会把刚区分开的两笔又压回同一个键，
+    等于把 883b9b1a 要消灭的那一维换种形式藏回去）；判据挂在真库端到端用例上，列宽再被收窄它就红。
+    两条通用坑入 lessons **436**：键形变更要当场算最坏长度 vs 列宽；`pre-push-ci-preflight` 一条测试都不跑，
+    它的绿只是「格式 + 门禁」绿，资金/资产链改完推前必须补跑一次 `mvn verify -DskipITs`。
 - **CB-086 欠款锁柜那条腿补真库 IT**：新增 `services/trade-service/src/test/java/com/aicabinet/trade/service/WalletArrearsLockSqlIT.java`（4 例，已在 `check-docker-tests-guarded` 的 GUARDED 登记）。此前该链只有 Mockito 版 `MerchantWalletArrearsLockTest`，它把 `DeviceSalesLockService` 整个替掉 ⇒ 三处只有真库能证伪的环节从未被验：① 锁柜原因**真的落库**（下轮复机靠 `LIKE '钱包欠款锁柜%'` 找回自己锁的设备，解锁侧靠显式 `clearSalesLockReason`）；② `applySalesLock(null, …)` 的审计写 `admin_audit_log.operator_id`（NOT NULL + FK），null 没归一成 0 就整事务回滚，而调用点把异常 catch 成 WARN ⇒「任务绿、一台没锁」；③ 判据来自 `findNegativeArrears` 的 mapper XML。变异验证：删掉 `clearSalesLockReason` ⇒ 复机用例红（`expected null but was 钱包欠款锁柜…`），`cmp` 逐字节还原后 4/4 绿。播种夹具两次撞上 `uk_merchant_name` / `uk_device_name` 唯一键（lessons 345 复犯扩面）。
 
 ### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售** + **平台兜底核销**；台账 CB-086）
