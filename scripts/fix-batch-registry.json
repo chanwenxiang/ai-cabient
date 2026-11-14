@@ -651,6 +651,33 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "90111f84",
+      "report": "docs/PENDING_DECISIONS_R23_2026-11-14.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "R23 计划执行前提订正：删去非项目类窗口条件，只留并发收口 + 快照钉住（原句与追加更新并列矛盾，改为改写原句）",
+          "files": ["docs/AUDIT_R23_PLAN_2026-11-12.md"]
+        },
+        {
+          "id": "拍板清单 ⑧ 补拍板来源 + 竞品台账有意不入 CB 的留痕（内部防御性边界、无公开规格，凑主体会编造证据）",
+          "files": ["docs/PENDING_DECISIONS_R23_2026-11-14.md"]
+        },
+        {
+          "id": "展示面上限型资金键与判定侧同源：consumerPublicConfig 两键改走 getPositiveLimit + 2 个行为用例（荒谬值/0 回落、合法值透传）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SystemConfigFundKeyGuardTest.java"
+          ]
+        },
+        {
+          "id": "R8 静态判据 + 内联负向夹具：禁裸 getInt 下发 / 要 getPositiveLimit 在位 / 钉两个行为用例 / 注释掩码防假红",
+          "files": ["scripts/check-system-config-cache.mjs"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
