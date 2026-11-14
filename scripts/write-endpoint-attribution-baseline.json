@@ -1,0 +1,392 @@
+{
+  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}，双向棘轮：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红。未解析端点 attributed=false 显式在册，修复后收紧。",
+  "seedDate": "2026-11-14",
+  "totalEndpoints": 455,
+  "totalAttributed": 238,
+  "controllers": {
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java": {
+      "endpoints": 6,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminBalanceRefundController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDashboardController.java": {
+      "endpoints": 19,
+      "attributed": 12
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDataManageController.java": {
+      "endpoints": 3,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDevicePricingController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminGrowthController.java": {
+      "endpoints": 12,
+      "attributed": 12
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiCatalogController.java": {
+      "endpoints": 9,
+      "attributed": 6
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java": {
+      "endpoints": 21,
+      "attributed": 14
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AlipayNotifyController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AnnouncementController.java": {
+      "endpoints": 4,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ApprovalController.java": {
+      "endpoints": 6,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AuthController.java": {
+      "endpoints": 14,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerBalanceRefundController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerDisputeController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerFeedbackController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ConsumerNotificationController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/CouponController.java": {
+      "endpoints": 6,
+      "attributed": 5
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DataConsistencyController.java": {
+      "endpoints": 2,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DepartmentController.java": {
+      "endpoints": 3,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceDataFeeBillController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceHttpCredentialController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceInternalController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceMqttCredentialController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockAlipayPaymentController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockPaymentController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockRechargeController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DisputeController.java": {
+      "endpoints": 4,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/InvoiceAdminController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/JiangyiInternalController.java": {
+      "endpoints": 20,
+      "attributed": 5
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/LineManagerController.java": {
+      "endpoints": 7,
+      "attributed": 7
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/LinePromoTaskController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/LineWithdrawController.java": {
+      "endpoints": 3,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MarketingController.java": {
+      "endpoints": 3,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantAdminController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantNotificationController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantOnboardingController.java": {
+      "endpoints": 3,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantOpsExceptionController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantPortalController.java": {
+      "endpoints": 33,
+      "attributed": 11
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWalletController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWarehouseStocktakeController.java": {
+      "endpoints": 6,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWithdrawController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsAdController.java": {
+      "endpoints": 8,
+      "attributed": 8
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsAlertInternalController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsCommercialController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceEnvController.java": {
+      "endpoints": 2,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceRentalController.java": {
+      "endpoints": 6,
+      "attributed": 5
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDevOpsController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExceptionController.java": {
+      "endpoints": 7,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExternalImportController.java": {
+      "endpoints": 5,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsFinanceController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java": {
+      "endpoints": 7,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsLineRouteController.java": {
+      "endpoints": 5,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsMachinePayeeBillController.java": {
+      "endpoints": 3,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsMerchantFeeLedgerController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsOrgController.java": {
+      "endpoints": 6,
+      "attributed": 6
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsOtaController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsPayoutAccountController.java": {
+      "endpoints": 3,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsPlatformFundController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsProcurementController.java": {
+      "endpoints": 6,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java": {
+      "endpoints": 19,
+      "attributed": 14
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsReplenishmentController.java": {
+      "endpoints": 9,
+      "attributed": 9
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRiskController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsStaffWalletController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsWarehouseController.java": {
+      "endpoints": 15,
+      "attributed": 15
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OrderController.java": {
+      "endpoints": 3,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/PayScoreNotifyController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/PromotionController.java": {
+      "endpoints": 5,
+      "attributed": 5
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/RepairTicketController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/ScheduledTaskController.java": {
+      "endpoints": 6,
+      "attributed": 6
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionController.java": {
+      "endpoints": 4,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SessionInternalController.java": {
+      "endpoints": 4,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SiteRentBillController.java": {
+      "endpoints": 4,
+      "attributed": 4
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SiteRentSplitController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SysDictController.java": {
+      "endpoints": 2,
+      "attributed": 2
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/SystemConfigController.java": {
+      "endpoints": 4,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/UserFeedbackController.java": {
+      "endpoints": 2,
+      "attributed": 1
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/VisionInternalController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/WarehouseTransferController.java": {
+      "endpoints": 4,
+      "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/WeChatNotifyController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/AliyunOssController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCommandController.java": {
+      "endpoints": 6,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCompatController.java": {
+      "endpoints": 17,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceExtensionController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceInfoController.java": {
+      "endpoints": 4,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceReportController.java": {
+      "endpoints": 16,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceTokenController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DomainConfigController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/GatherNotifyController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/ModelPushController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OpenDoorController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OrderVideoReportController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OssPresignController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    }
+  }
+}
