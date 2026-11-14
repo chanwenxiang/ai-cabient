@@ -25,7 +25,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-commission-param-bounds]';
 const ALLOWLIST = join('scripts', 'commission-param-bounds-allowlist.json');
 const SETTER_RE =
-  /\bset(CommissionRateBps|CommissionFixedCents|ShareBps|CommissionPerUnitCents)\s*\(/g;
+  /\bset(CommissionRateBps|CommissionFixedCents|ShareBps|CommissionPerUnitCents|DiscountBps|DiscountPercent)\s*\(/g;
 const GUARD_ARG_RE =
   /CommissionParamBounds\s*\.\s*(?:requireBps|requireFixedCents|requireCents)\s*\(|(?<![.\w])(?:requireBps|requireFixedCents|requireCents)\s*\(/;
 const MIN_WRITERS = 5;

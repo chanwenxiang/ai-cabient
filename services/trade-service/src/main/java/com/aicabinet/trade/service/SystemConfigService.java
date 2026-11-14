@@ -14,6 +14,7 @@ import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.domain.SystemConfigHistory;
 import com.aicabinet.trade.mapper.SystemConfigHistoryMapper;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
+import com.aicabinet.trade.support.CommissionParamBounds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -460,7 +461,9 @@ public class SystemConfigService {
             MERCHANT_WITHDRAW_FEE_CENTS, MERCHANT_WITHDRAW_FEE_BPS, MERCHANT_WITHDRAW_FEE_CAP_CENTS,
             LINE_WITHDRAW_MIN_CENTS, LINE_WITHDRAW_MAX_CENTS,
             LINE_WITHDRAW_DAILY_LIMIT_CENTS, LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS,
-            LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS);
+            LINE_WITHDRAW_FEE_CENTS, LINE_WITHDRAW_FEE_BPS, LINE_WITHDRAW_FEE_CAP_CENTS,
+            // S12 扩面（2026-11-14 拍板）：此前完全无写侧校验的预授权键入守卫族（0 仍合法=关闭）。
+            CHECKOUT_PREAUTH_CENTS);
 
     /**
      * DC-6（2026-10-19 拍板）：上限型资金键——<b>0 不再表示「不限制」</b>。
@@ -470,6 +473,20 @@ public class SystemConfigService {
      */
     static final java.util.Set<String> FUND_POSITIVE_LIMIT_KEYS = java.util.Set.of(
             RECHARGE_MAX_CENTS, BALANCE_REFUND_MAX_CENTS, REFUND_SELF_MAX_CENTS);
+
+    /**
+     * S12 扩面（2026-11-14 拍板，docs/PENDING_DECISIONS_R23_2026-11-14.md ⑧）：资金键<b>天花板</b>——
+     * 手填值超天花板写侧 400、读侧 {@link #getPositiveLimit} 回落默认（存量行双保险）。
+     * 与 {@link #FUND_POSITIVE_LIMIT_KEYS}（下限防线，防「0=不限制」）互补：这里防「上限被配成
+     * 荒谬值」。常量单源在 {@link CommissionParamBounds}；按商户费率前缀形态
+     * {@code merchant.withdraw.fee_bps.{merchantId}} 不在本 Map（前缀无法穷举），
+     * 由 {@link #validateFundKeyValue} 的前缀分支单独挂同一天花板。
+     */
+    static final java.util.Map<String, Long> FUND_KEY_CEILINGS = java.util.Map.of(
+            MERCHANT_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
+            LINE_WITHDRAW_FEE_BPS, (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX,
+            BALANCE_REFUND_MAX_CENTS, (long) CommissionParamBounds.REFUND_LIMIT_CENTS_CEILING,
+            CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING);
 
     /**
      * 「开关即资金动作」的非数值键：不能塞进 {@link #FUND_GUARDED_KEYS}——那个集合同时挂
@@ -482,7 +499,10 @@ public class SystemConfigService {
     static final java.util.Set<String> AUDIT_FORCED_SWITCH_KEYS = java.util.Set.of(
             DISPUTE_AUTO_WAIVE_ENABLED);
 
-    /** 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）。违规抛 400。 */
+    /**
+     * 资金键值校验：非负整数且不超 int（读取侧 getInt 的硬约束）；S12 扩面追加<b>天花板</b>校验
+     * （{@link #FUND_KEY_CEILINGS} + 按商户费率前缀形态）。违规抛 400。
+     */
     private static void validateFundKeyValue(String key, String value) {
         long parsed;
         try {
@@ -499,6 +519,15 @@ public class SystemConfigService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "资金上限配置 " + key + " 不允许 0（DC-6：上限必须存在，不允许关闭）。"
                             + "如需放宽请配置一个足够大的正数");
+        }
+        Long ceiling = FUND_KEY_CEILINGS.get(key);
+        if (ceiling == null && key.startsWith(MERCHANT_WITHDRAW_FEE_BPS_PREFIX)) {
+            ceiling = (long) CommissionParamBounds.WITHDRAW_FEE_BPS_MAX;
+        }
+        if (ceiling != null && parsed > ceiling) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "资金配置 " + key + " 超出天花板 " + ceiling + "（S12 扩面 2026-11-14 拍板："
+                            + "防手填荒谬值；如确需更高上限先改代码评审，勿在线上直填）");
         }
     }
 
@@ -616,6 +645,10 @@ public class SystemConfigService {
      * <p>与 {@link #getInt} 的差别：配置值 ≤0（旧口径「0=不限制」，或历史遗留脏数据）时
      * <b>回落默认上限</b>并 WARN，而不是放开限制。上限必须存在；确需调整就配一个足够大的正数
      *（写侧 {@link #FUND_POSITIVE_LIMIT_KEYS} 已直接拒绝 0 值，读侧回落是对存量行的双保险）。</p>
+     *
+     * <p>S12 扩面（2026-11-14 拍板）追加<b>天花板</b>分支：配置值超过
+     * {@link #FUND_KEY_CEILINGS} 的键上界时同样回落默认并 WARN——写侧 400 只拦新写入，
+     * 存量行的荒谬值由这里兜底（fail-safe 语义与 DC-6 一致：宁可回落也不放大资金乘数）。</p>
      */
     @Transactional(readOnly = true)
     public int getPositiveLimit(String key, int fallbackDefault) {
@@ -623,6 +656,13 @@ public class SystemConfigService {
         if (value <= 0) {
             log.warn("CONFIG limit key {} has non-positive value {}; falling back to default {} "
                     + "(DC-6: upper-limit keys cannot disable the limit)", key, value, fallbackDefault);
+            return fallbackDefault;
+        }
+        Long ceiling = FUND_KEY_CEILINGS.get(key);
+        if (ceiling != null && value > ceiling) {
+            log.warn("CONFIG limit key {} has value {} above ceiling {}; falling back to default {} "
+                    + "(S12: hand-entered ceiling breach; write side already rejects, "
+                    + "this guards legacy rows)", key, value, ceiling, fallbackDefault);
             return fallbackDefault;
         }
         return value;
@@ -791,7 +831,9 @@ public class SystemConfigService {
 
     private SystemConfigDto doUpsert(String key, String value, String description, Long operatorId) {
         // AU-048：资金阈值键写侧校验——放在任何写副作用之前，违规零落库。
-        if (FUND_GUARDED_KEYS.contains(key)) {
+        // S12 扩面：按商户费率覆盖键 merchant.withdraw.fee_bps.{merchantId} 不在
+        // FUND_GUARDED_KEYS（前缀无法穷举），按前缀命中同一校验（含 S12 天花板）。
+        if (FUND_GUARDED_KEYS.contains(key) || key.startsWith(MERCHANT_WITHDRAW_FEE_BPS_PREFIX)) {
             validateFundKeyValue(key, value);
         }
         java.util.Optional<SystemConfig> existing = repository.findByIdForUpdate(key);

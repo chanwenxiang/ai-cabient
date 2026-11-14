@@ -10,5 +10,13 @@
   "services/trade-service/src/main/java/com/aicabinet/trade/service/LineRouteAdminService.java": {
     "count": 4,
     "reason": "入口校验形态（2026-11-14 逐调用点升级时登记）：rateBps/perUnitCents 于方法入口过 CommissionParamBounds.requireBps/requireCents（:164-168），四处 setter（:180/181/191/192）落的是已校验局部变量"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/PromotionService.java": {
+    "count": 2,
+    "reason": "入口校验形态（S12 扩面 2026-11-14 登记）：discountBps 于 repository.save 前过 PromotionActivityValidator.validateForSave→validatePrice（SKU_DISCOUNT 分支 0..10000 开区间 400），:64/:143 setter 落的是待验实体"
+  },
+  "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java": {
+    "count": 2,
+    "reason": "入口校验形态（S12 扩面 2026-11-14 登记）：discountPercent 于 :900 过 1..99 内联 400 闸（PERCENT_OFF 分支）后才落 :922；:925 是置 null 清列（M01 惯用法，券型切换清空）"
   }
 }

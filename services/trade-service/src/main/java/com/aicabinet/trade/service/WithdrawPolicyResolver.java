@@ -2,6 +2,9 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.LineWithdrawProperties;
 import com.aicabinet.trade.config.MerchantWithdrawProperties;
+import com.aicabinet.trade.support.CommissionParamBounds;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,6 +30,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class WithdrawPolicyResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(WithdrawPolicyResolver.class);
 
     private final SystemConfigService systemConfigService;
     private final MerchantWithdrawProperties merchantProperties;
@@ -105,6 +110,8 @@ public class WithdrawPolicyResolver {
     /**
      * 商户级提现扣率覆盖（对齐老系统 OptMerchantBaseFee.deductionPermillage 按商户配 ‰）：
      * sys_config key = merchant.withdraw.fee_bps.{merchantId}，未配置回退全局费率。
+     * S12 扩面（2026-11-14 拍板）：覆盖值同受 {@link CommissionParamBounds#WITHDRAW_FEE_BPS_MAX}
+     * 天花板——超限的覆盖视为无效（WARN + 回退全局费率），写侧已 400，此处拦存量行。
      */
     public long merchantFeeBpsFor(String merchantId) {
         if (merchantId != null && !merchantId.isBlank() && systemConfigService != null) {
@@ -113,8 +120,13 @@ public class WithdrawPolicyResolver {
             if (raw != null && !raw.isBlank()) {
                 try {
                     long override = Long.parseLong(raw.trim());
-                    if (override >= 0) {
+                    if (override >= 0 && override <= CommissionParamBounds.WITHDRAW_FEE_BPS_MAX) {
                         return override;
+                    }
+                    if (override > CommissionParamBounds.WITHDRAW_FEE_BPS_MAX) {
+                        log.warn("merchant.withdraw.fee_bps.{} = {} exceeds ceiling {}; "
+                                        + "ignoring per-merchant override",
+                                merchantId, override, CommissionParamBounds.WITHDRAW_FEE_BPS_MAX);
                     }
                 } catch (NumberFormatException ignored) {
                     // 配置值非法时回退全局
@@ -191,6 +203,10 @@ public class WithdrawPolicyResolver {
      * 取配置行；行不存在时用 yml 值；两者都无则用代码兜底。
      *
      * <p>负数一律归零（0 = 不限制）：运营台误填负数不该变成「禁止一切提现」。
+     * S12 扩面（2026-11-14 拍板）：配置值超出 {@link SystemConfigService#FUND_KEY_CEILINGS}
+     * 天花板（提现费率族 ≤ {@link CommissionParamBounds#WITHDRAW_FEE_BPS_MAX}）时视为无效
+     * 落回 yml——与「配置值不是数字」同型处理，别让一次误填放大资金乘数。yml 初值不在此拦
+     * （部署期受控值，天花板只针对运营台手填）。
      */
     private long pick(String key, long ymlValue, long codeDefault) {
         // systemConfigService 为 null（ymlOnly 模式）⇒ 直接用 yml，语义 =「运营台没配」
@@ -199,7 +215,14 @@ public class WithdrawPolicyResolver {
             return Math.max(0L, ymlValue > 0 ? ymlValue : codeDefault);
         }
         try {
-            return Math.max(0L, Long.parseLong(raw.trim()));
+            long parsed = Math.max(0L, Long.parseLong(raw.trim()));
+            Long ceiling = SystemConfigService.FUND_KEY_CEILINGS.get(key);
+            if (ceiling != null && parsed > ceiling) {
+                log.warn("CONFIG {} = {} exceeds ceiling {}; falling back to yml/default",
+                        key, parsed, ceiling);
+                return Math.max(0L, ymlValue > 0 ? ymlValue : codeDefault);
+            }
+            return parsed;
         } catch (NumberFormatException e) {
             // 配置值不是数字 ⇒ 落回 yml，而不是让一次误填把提现功能整体打挂
             return Math.max(0L, ymlValue > 0 ? ymlValue : codeDefault);

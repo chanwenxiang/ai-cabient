@@ -61,6 +61,21 @@ class WithdrawFeePolicyTest {
     }
 
     @Test
+    void overrideAboveCeilingFallsBackToGlobal_s12() {
+        // S12 扩面（2026-11-14 拍板）：覆盖值超天花板 1000bps（10%）视为无效——
+        // 写侧已 400，读侧拦存量行；否则一次误填 50000bps = 5 倍手续费
+        assertEquals(60L, withConfig("60", "1001").merchantFeeBpsFor("M1"), "超天花板覆盖回退全局");
+        assertEquals(1000L, withConfig("60", "1000").merchantFeeBpsFor("M1"), "天花板值本身合法");
+    }
+
+    @Test
+    void globalBpsAboveCeilingFallsBackToYml_s12() {
+        // 全局档同样受天花板：落回 yml 初值（本测试 yml feeBps=0），与「非数字回退」同型
+        assertEquals(0L, withConfig("1500", null).merchantFeeBps(),
+                "全局 1500bps 超天花板 → 落 yml（0）");
+    }
+
+    @Test
     void noCapSoFeeAtSingleUpperLimitIsSixYuan() {
         // 封顶留 0 的依据：单笔上限 ¥10000（1_000_000 分）上 6‰ 最多 ¥60，
         // 配 ¥25/¥50 封顶几乎永不触发=死参数。

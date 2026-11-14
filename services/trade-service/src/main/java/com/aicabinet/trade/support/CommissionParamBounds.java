@@ -24,6 +24,26 @@ public final class CommissionParamBounds {
     /** 每件/每单固定佣金上限（分）= ¥50。见类注释：数量级防线。 */
     public static final int FIXED_CENTS_MAX = 5_000;
 
+    /**
+     * 提现手续费率天花板（万分比）= 10%。S12 扩面（2026-11-14 拍板，
+     * docs/PENDING_DECISIONS_R23_2026-11-14.md ⑧）：老系统 6‰=60bps，此处天花板只防
+     * 「手填荒谬值」（如 50000bps=5 倍手续费），不是业务费率上限——调费率走正常拍板。
+     * 适用 merchant.withdraw.fee_bps（全局+按商户前缀形态）与 line.withdraw.fee_bps。
+     */
+    public static final int WITHDRAW_FEE_BPS_MAX = 1_000;
+
+    /**
+     * 余额退款单笔上限天花板（分）= ¥5 万。DC-6 键 balance.refund.max_cents 的上界——
+     * 写侧 400、读侧 {@code getPositiveLimit} 回落默认（存量行双保险）。
+     */
+    public static final int REFUND_LIMIT_CENTS_CEILING = 5_000_000;
+
+    /**
+     * 开门预授权天花板（分）= ¥1 万。checkout.preauth_cents 的上界——0 仍合法
+     * （=关闭预授权，2026-11-11 现状），故该键只进 {@code FUND_GUARDED_KEYS} 不进 DC-6 集合。
+     */
+    public static final int PREAUTH_CENTS_CEILING = 1_000_000;
+
     private CommissionParamBounds() {}
 
     /** 万分比：0..10000（{@link CabinetConstants#SHARE_BPS_FULL}）。>10000 在数学上不成立。 */

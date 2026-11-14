@@ -151,6 +151,91 @@ class SystemConfigFundKeyGuardTest {
         assertEquals(800_000, service.getPositiveLimit(SystemConfigService.RECHARGE_MAX_CENTS, 500_000));
     }
 
+    // ── S12 扩面（2026-11-14 拍板，docs/PENDING_DECISIONS_R23_2026-11-14.md ⑧）：资金键天花板 ──
+
+    @Test
+    void upsert_feeBps_aboveCeiling_rejected400() {
+        // 提现手续费率天花板 1000bps（=10%）：老系统 6‰=60bps，1001bps 即荒谬值
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_BPS, "1001", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(String.valueOf(ex.getReason()).contains("天花板"));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void upsert_feeBps_atCeiling_allowed() {
+        service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_BPS, "1000", "d", 9L);
+        verify(repository).save(any(SystemConfig.class));
+    }
+
+    @Test
+    void upsert_perMerchantFeePrefix_aboveCeiling_rejected400() {
+        // 按商户费率覆盖键（前缀形态，不在 FUND_GUARDED_KEYS）同受天花板
+        String prefixed = SystemConfigService.MERCHANT_WITHDRAW_FEE_BPS_PREFIX + "MCH-T1";
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(prefixed, "1500", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode(), prefixed);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void upsert_perMerchantFeePrefix_zeroAllowed_atCeilingRejected() {
+        // 0 = 该商户免收（合法语义）；前缀键 0 走同一条校验链不误伤
+        service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_BPS_PREFIX + "MCH-T1",
+                "0", "d", 9L);
+        verify(repository).save(any(SystemConfig.class));
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.MERCHANT_WITHDRAW_FEE_BPS_PREFIX + "MCH-T1",
+                        "1001", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    @Test
+    void upsert_preauth_aboveCeiling_rejected400_zeroAllowed() {
+        // checkout.preauth_cents 此前完全无写侧校验（S12 扩面前）：天花板 ¥1 万；0=关闭预授权合法
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.CHECKOUT_PREAUTH_CENTS, "1000001", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(repository, never()).save(any());
+
+        service.upsert(SystemConfigService.CHECKOUT_PREAUTH_CENTS, "0", "d", 9L);
+        verify(repository).save(any(SystemConfig.class));
+    }
+
+    @Test
+    void upsert_refundMaxCents_aboveCeiling_rejected400() {
+        // balance.refund.max_cents：DC-6 拒 0 之后，S12 再拒 >¥5 万
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.upsert(SystemConfigService.BALANCE_REFUND_MAX_CENTS,
+                        "5000001", "d", 9L));
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void getPositiveLimit_aboveCeiling_fallsBackToDefault_s12() {
+        // 读侧双保险：存量行荒谬值（写侧 400 之前入的）⇒ 回落默认而非放大资金乘数
+        SystemConfig row = new SystemConfig();
+        row.setConfigKey(SystemConfigService.BALANCE_REFUND_MAX_CENTS);
+        row.setConfigValue("6000000");
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MAX_CENTS))
+                .thenReturn(Optional.of(row));
+        assertEquals(500_000,
+                service.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000));
+    }
+
+    @Test
+    void getPositiveLimit_atCeiling_passesThrough_s12() {
+        SystemConfig row = new SystemConfig();
+        row.setConfigKey(SystemConfigService.BALANCE_REFUND_MAX_CENTS);
+        row.setConfigValue("5000000");
+        when(repository.findById(SystemConfigService.BALANCE_REFUND_MAX_CENTS))
+                .thenReturn(Optional.of(row));
+        assertEquals(5_000_000,
+                service.getPositiveLimit(SystemConfigService.BALANCE_REFUND_MAX_CENTS, 500_000));
+    }
+
     @Test
     void upsert_fundKey_auditExplicitlyDisabled_stillLeavesHistory() {
         // 攻击形态：先把开关关掉，再改资金键——键族留痕必须不受开关节制

@@ -144,5 +144,32 @@ const BARE = `manager.setCommissionRateBps(99999);`;
   );
 }
 
+// 11) S12 扩面（2026-11-14 拍板）：折扣两族 setter 也纳入视野——裸 setDiscountBps/setDiscountPercent 红
+{
+  const bareBps = extractCalls(`class X { a.setDiscountBps(request.discountBps()); }`);
+  check(
+    'setDiscountBps 纳入 SETTER_RE，裸调用红',
+    bareBps.length === 1 && bareBps[0].guarded === false,
+    JSON.stringify(bareBps)
+  );
+  const barePct = extractCalls(`class X { def.setDiscountPercent(discountPercent); }`);
+  check(
+    'setDiscountPercent 纳入 SETTER_RE，裸调用红',
+    barePct.length === 1 && barePct[0].guarded === false,
+    JSON.stringify(barePct)
+  );
+  const r = evaluate(
+    [
+      { rel: 'PromotionService.java', calls: bareBps },
+      { rel: 'CouponService.java', calls: barePct }
+    ],
+    {
+      'PromotionService.java': { count: 1, reason: '入口校验形态' },
+      'CouponService.java': { count: 1, reason: '入口校验形态' }
+    }
+  );
+  check('折扣两族白名单对平=绿', r.length === 0, r.join('|'));
+}
+
 console.log(`\n[check-commission-param-bounds.test] ${pass} 通过 / ${fail} 失败`);
 if (fail > 0) process.exit(1);

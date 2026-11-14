@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.CommissionParamBounds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -71,8 +72,14 @@ public class ConsumerPreauthService {
             }
         }
         int fromDb = systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1);
-        if (fromDb > 0) {
+        if (fromDb > 0 && fromDb <= CommissionParamBounds.PREAUTH_CENTS_CEILING) {
             return fromDb;
+        }
+        if (fromDb > CommissionParamBounds.PREAUTH_CENTS_CEILING) {
+            // S12 扩面（2026-11-14 拍板）：写侧天花板 400 只拦新写入，存量荒谬值读侧回落配置默认
+            log.warn("CONFIG {} = {} exceeds ceiling {}; ignoring config value",
+                    SystemConfigService.CHECKOUT_PREAUTH_CENTS, fromDb,
+                    CommissionParamBounds.PREAUTH_CENTS_CEILING);
         }
         return checkoutProperties.resolvePreauthCents();
     }
