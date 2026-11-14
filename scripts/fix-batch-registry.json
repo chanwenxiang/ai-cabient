@@ -33,11 +33,16 @@
         },
         {
           "id": "shared-dict dist 重建（P3-1 批 11~16 新增字典族落 dist，shared-dist-fresh）",
-          "files": ["packages/shared-dict/dist/index.d.ts", "packages/shared-dict/dist/index.js"]
+          "files": [
+            "packages/shared-dict/dist/index.d.ts",
+            "packages/shared-dict/dist/index.js"
+          ]
         },
         {
           "id": "barehex 棘轮判据校准：var(--token,#hex) 令牌兜底剥离 + 基线显式重冻结（负向验证：注入→红→还原→绿）",
-          "files": ["scripts/check-ui-barehex-ratchet.mjs"]
+          "files": [
+            "scripts/check-ui-barehex-ratchet.mjs"
+          ]
         }
       ],
       "notAdopted": []
@@ -55,7 +60,9 @@
         },
         {
           "id": "fix-batch 登记上一批 706dff7d（preflight 登记类修复）",
-          "files": ["scripts/fix-batch-registry.json"]
+          "files": [
+            "scripts/fix-batch-registry.json"
+          ]
         }
       ],
       "notAdopted": []
@@ -137,7 +144,9 @@
         },
         {
           "id": "shared-dict 两族字典同步补值（跨端对齐）",
-          "files": ["packages/shared-dict/src/index.ts"]
+          "files": [
+            "packages/shared-dict/src/index.ts"
+          ]
         }
       ],
       "notAdopted": []
@@ -149,7 +158,9 @@
       "items": [
         {
           "id": "findNegativeArrears 的 <if> 移出 CDATA（欠款名单/导出 HTTP 500）",
-          "files": ["services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml"]
+          "files": [
+            "services/trade-service/src/main/resources/mapper/WalletAccountMapper.xml"
+          ]
         },
         {
           "id": "核销幂等键加欠款段 + 冻结资金>0 直接 409",
@@ -199,11 +210,15 @@
       "items": [
         {
           "id": "「核销欠款」行操作补显式 perm 码（写操作不得只靠 hasPerm 判定）",
-          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
+          "files": [
+            "clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"
+          ]
         },
         {
           "id": "空欠款名单导出前按 CSV 同源口径探总数并提示，区分「没欠款」与「不在范围」",
-          "files": ["clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"]
+          "files": [
+            "clients/admin-vue/src/views/finance/MerchantWithdrawView.vue"
+          ]
         }
       ],
       "notAdopted": []
@@ -286,15 +301,21 @@
       "items": [
         {
           "id": "S9 审计证据式改锚调用点 /.s*appendLogs*(/，抽出 hasAuditCallEvidence 供夹具喂源码",
-          "files": ["scripts/check-write-action-attribution.mjs"]
+          "files": [
+            "scripts/check-write-action-attribution.mjs"
+          ]
         },
         {
           "id": "夹具第 5 组 6 条断言（定义 vs 调用 vs 1-hop vs 2-hop 已知盲区），S8③ 判据改动同批带夹具",
-          "files": ["scripts/check-write-action-attribution.test.mjs"]
+          "files": [
+            "scripts/check-write-action-attribution.test.mjs"
+          ]
         },
         {
           "id": "门头注 ⑤ 订正被推翻的「误判为可达不存在」自我豁免声明",
-          "files": ["scripts/check-write-action-attribution.mjs"]
+          "files": [
+            "scripts/check-write-action-attribution.mjs"
+          ]
         }
       ],
       "notAdopted": []
@@ -313,7 +334,9 @@
         },
         {
           "id": "README 把「唯一的坑」订正为两条，并补跑完必做的行数/DELETE 计数/VALIDATE 对账",
-          "files": ["scripts/devops/flyway-repair/README.md"]
+          "files": [
+            "scripts/devops/flyway-repair/README.md"
+          ]
         }
       ],
       "notAdopted": []
@@ -325,11 +348,52 @@
       "items": [
         {
           "id": "枚举改 --format=%H 全长 + isCoveredBy 前缀匹配（%h 宽度随仓库对象数变化 ⇒ CI 全量克隆下 25 条登记全体失配、8 笔被误报未登记）",
-          "files": ["scripts/check-fix-batch-coverage.mjs"]
+          "files": [
+            "scripts/check-fix-batch-coverage.mjs"
+          ]
         },
         {
           "id": "夹具同批 +5 条：8位登记 vs 40位运行、7位豁免前缀、无关 40 位仍红、短于 7 位不得算命中",
-          "files": ["scripts/check-fix-batch-coverage.test.mjs"]
+          "files": [
+            "scripts/check-fix-batch-coverage.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "fbf3e73e",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "R20-2 最后一刀：doConfirmLedgerOnly 放款前过实收门（订单查不到/未实收 ⇒ 拒），门落在钱动作本体而非调用方",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        },
+        {
+          "id": "异常档位改用 ResponseStatusException(CONFLICT)：锁包装器把锁内 Exception 统一包成 500，只有它原样透出，运营才看得见原因（既有两条 IllegalStateException 仍走 500，本轮不动并留痕）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "docs/engineering/lessons-learned.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        },
+        {
+          "id": "负向夹具 2 条：PENDING ⇒ 409 + reason 关键字 + 不入账不落库；订单缺失 ⇒ 409；原正例补 PAID 桩（+ 并发测试构造参数同批）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitConcurrencyTest.java"
+          ]
+        },
+        {
+          "id": "变异验证：`if (false && !collected)` ⇒ 负例红（Expected ResponseStatusException to be thrown, but nothing was thrown），cmp 逐字节还原",
+          "files": [
+            "docs/AUDIT_FOUR_END_R20_2026-11-12.md"
+          ]
         }
       ],
       "notAdopted": []
