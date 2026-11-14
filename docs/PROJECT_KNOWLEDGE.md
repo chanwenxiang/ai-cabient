@@ -693,6 +693,16 @@ gross − member − activity − coupon = total      （部分退款单例外�
 - 异常类型选 `ResponseStatusException(CONFLICT, 中文原因)` 而不是 `IllegalStateException`：`runWithOrderSplitLock` 把锁内其它 Exception 统一包成 500，只有 `ResponseStatusException` 原样透出；`GlobalExceptionHandler` 对 4xx 走 `ApiMessages.translate`（含 CJK 原样回传）⇒ 文案能到运营手里。既有两条 `IllegalStateException` 判据仍走 500（`MerchantService` 那段 `catch→409` 是死代码），本轮不改，细节与理由见 lessons **434** 与 R20 台账。
 - 验证：`RevenueSplitServiceTest` 新增 2 条负例（断 `HttpStatus.CONFLICT` + reason 关键字 + 不入账不落库）、原正例补 PAID 桩，30/30 + 并发 2/2 绿；变异验证 `if (false && !collected)` ⇒ 负例红，`cmp` 逐字节还原。
 - 历史敞口：本轮无存量影响——dev/UAT 支付分单实收样本为 0，未实收即入账的存量此前已定性（见 R20 台账 §复核）。
+- **积分追回幂等键定案（原「唯一还开着的口子」）→ 判定成立并已修**：`MemberService.doClawbackPointsOnRefund`
+  的去重键是 `(member, ORDER_REFUND, orderId + ":" + refundKey)`，而调用方 `OrderPaymentService.clawbackPointsQuietly`
+  在本地现拼 `REFUND:<orderId>:<refundCents>` —— 它**不是**本次退款的 payment 幂等键。
+  按行部分退款走 AU-175 的「订单+金额+行集指纹」键 ⇒ 同单同额、不同商品行的**两笔合法退款**在旧拼法下键完全相同
+  ⇒ 第二笔积分永不扣回（货退了、钱退了、分留着）。修法：把 `prep.idemKey()` 透传给扣回侧，键形与支付层同源；
+  金额口径**不动**（仍 `prep.refundCents()` 总额，MA-161 的「不改 refundCents 语义」约束继续成立）。
+  双扣方向也一并核过：退款被判重放时 `prep.skipped()` 提前 return false，走不到扣回；已扣回的同笔重放被
+  `isCompleted(idemKey)` 短路 ⇒ 改键不产生「同一笔退两次分」。
+  验证：`OrderPaymentIdempotencyTest` 新增 3 例（默认键形状 / 两笔同额不同行集 ⇒ 两个键 / 判重放零扣回），
+  15/15 绿；变异验证＝把扣回侧退回旧自拼形态 ⇒ 恰好第 2 例红（`Argument(s) are different`），`cmp` 逐字节还原。
 - **CB-086 欠款锁柜那条腿补真库 IT**：新增 `services/trade-service/src/test/java/com/aicabinet/trade/service/WalletArrearsLockSqlIT.java`（4 例，已在 `check-docker-tests-guarded` 的 GUARDED 登记）。此前该链只有 Mockito 版 `MerchantWalletArrearsLockTest`，它把 `DeviceSalesLockService` 整个替掉 ⇒ 三处只有真库能证伪的环节从未被验：① 锁柜原因**真的落库**（下轮复机靠 `LIKE '钱包欠款锁柜%'` 找回自己锁的设备，解锁侧靠显式 `clearSalesLockReason`）；② `applySalesLock(null, …)` 的审计写 `admin_audit_log.operator_id`（NOT NULL + FK），null 没归一成 0 就整事务回滚，而调用点把异常 catch 成 WARN ⇒「任务绿、一台没锁」；③ 判据来自 `findNegativeArrears` 的 mapper XML。变异验证：删掉 `clearSalesLockReason` ⇒ 复机用例红（`expected null but was 钱包欠款锁柜…`），`cmp` 逐字节还原后 4/4 绿。播种夹具两次撞上 `uk_merchant_name` / `uk_device_name` 唯一键（lessons 345 复犯扩面）。
 
 ### 2026-11-13（商户钱包欠款账龄：探针 + 告警 + **账龄停售** + **平台兜底核销**；台账 CB-086）

@@ -685,7 +685,7 @@ public class OrderPaymentService {
                 self.finalizeRefundInitiated(prep.idemKey());
             }
             refreshCallerOrder(order);
-            clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId());
+            clawbackPointsQuietly(prep.userId(), prep.refundCents(), prep.orderId(), prep.idemKey());
             return true;
         } catch (ResponseStatusException e) {
             throw e;
@@ -1261,13 +1261,25 @@ public class OrderPaymentService {
         cabinetOrderRepository.findById(order.getOrderId()).ifPresent(latest -> syncPaymentFields(order, latest));
     }
 
-    private void clawbackPointsQuietly(long userId, int refundCents, String orderId) {
+    /**
+     * 退款扣回积分。
+     *
+     * <p>🔴 幂等键必须用**本次退款的 payment 幂等键**（{@code prep.idemKey()}），不能在这里现拼
+     * {@code REFUND:<orderId>:<cents>}：MemberService 的去重是
+     * {@code (memberId, ORDER_REFUND, orderId + ":" + refundKey)}，而按行部分退款走
+     * AU-175 的「订单+金额+行集指纹」键 ⇒ 同单同额、不同商品行的**两笔合法退款**在旧拼法下
+     * 键完全相同 ⇒ 第二笔的积分永不扣回（货退了、钱退了、分留着）。
+     * 用同一个键还有个好处：退款在支付层被判为重放时（{@code prep.skipped()} 提前 return false），
+     * 根本走不到这里，所以「重试同笔退款」不会二次扣回；而「已扣回但本地退款重放」的
+     * 双扣窗口只存在于「改键之前已扣回、之后又重放同一笔」——该路径被 {@code isCompleted(idemKey)}
+     * 短路，实测走不到扣回（见 OrderPaymentIdempotencyTest 的重放行断言）。</p>
+     */
+    private void clawbackPointsQuietly(long userId, int refundCents, String orderId, String refundKey) {
         if (refundCents <= 0 || memberService == null) {
             return;
         }
         try {
-            memberService.clawbackPointsOnRefund(userId, refundCents, orderId,
-                    "REFUND:" + orderId + ":" + refundCents);
+            memberService.clawbackPointsOnRefund(userId, refundCents, orderId, refundKey);
         } catch (Exception e) {
             log.warn("points clawback failed order={} amount={}", orderId, refundCents, e);
         }

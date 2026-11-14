@@ -30,6 +30,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -117,6 +118,55 @@ class OrderPaymentIdempotencyTest {
 
         verify(balanceLedgerService, times(1)).change(
                 eq(10001L), eq(200), eq("REFUND"), eq("O-REF-2"), any(), eq("duplicate test"));
+    }
+
+    /**
+     * 积分扣回的幂等键必须**就是**本次退款的 payment 幂等键。
+     * MemberService 按 (member, ORDER_REFUND, orderId+":"+refundKey) 去重 ⇒ 键形一旦与支付层脱钩，
+     * 「同单同额、不同行集」的两笔合法退款就会共用一个键，第二笔的积分永不扣回。
+     */
+    @Test
+    void pointsClawback_usesThisRefundsIdempotencyKey() {
+        CabinetOrder order = order("O-REF-K1", 10001L, 800, "BALANCE");
+        stubOrderLock(order);
+        stubNetCharged("O-REF-K1", 800);
+        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+
+        service.refundOrder(order, 200, "行退一轮");
+
+        verify(memberService).clawbackPointsOnRefund(10001L, 200, "O-REF-K1", "REFUND:O-REF-K1:200");
+    }
+
+    /** AU-175 的按行退款传「订单+金额+行集指纹」键 ⇒ 两笔同额退款的扣回键也必须不同。 */
+    @Test
+    void pointsClawback_twoLineRefundsWithSameAmount_getDistinctKeys() {
+        CabinetOrder order = order("O-REF-K2", 10001L, 800, "BALANCE");
+        stubOrderLock(order);
+        stubNetCharged("O-REF-K2", 800);
+        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        String keyA = "REFUND:O-REF-K2:200:LINES-A";
+        String keyB = "REFUND:O-REF-K2:200:LINES-B";
+
+        service.refundOrder(order, 200, "行退甲", keyA);
+        service.refundOrder(order, 200, "行退乙", keyB);
+
+        verify(memberService).clawbackPointsOnRefund(10001L, 200, "O-REF-K2", keyA);
+        verify(memberService).clawbackPointsOnRefund(10001L, 200, "O-REF-K2", keyB);
+    }
+
+    /** 退款在支付层被判重放（钱没退）⇒ 绝不扣回积分，否则「分扣了、钱没退」。 */
+    @Test
+    void pointsClawback_skippedReplay_doesNotClawback() {
+        CabinetOrder order = order("O-REF-K3", 10001L, 800, "BALANCE");
+        stubOrderLock(order);
+        stubNetCharged("O-REF-K3", 800);
+        PaymentOperation completed = new PaymentOperation();
+        completed.setStatus("COMPLETED");
+        when(paymentOperationRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.of(completed));
+
+        service.refundOrder(order, 300, "dispute waive");
+
+        verifyNoInteractions(memberService);
     }
 
     @Test
