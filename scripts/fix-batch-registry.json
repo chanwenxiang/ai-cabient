@@ -425,6 +425,34 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "2aaa8cd8",
+      "report": "docs/AUDIT_FOUR_END_R20_2026-11-12.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "V480 放宽 member_points_log.source_id → varchar(128)（收 883b9b1a 引入的 22001 超宽 500；刻意不截断）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V480__widen_member_points_log_source_id.sql",
+            "docs/AUDIT_FOUR_END_R20_2026-11-12.md"
+          ]
+        },
+        {
+          "id": "回归成因与判据落档：键形变更须当场算最坏长度 vs 列宽；预检不跑测试 ⇒ 资金链改完推前跑 mvn verify -DskipITs",
+          "files": [
+            "docs/engineering/lessons-learned.md",
+            "docs/PROJECT_KNOWLEDGE.md"
+          ]
+        },
+        {
+          "id": "判据（真库端到端，非新增而是既有）：SettlementComboMatrixE2ETest 按行部分退三面——列宽再被收窄它就红；本批实跑 1/1 绿（原红）",
+          "files": [
+            "docs/AUDIT_FOUR_END_R20_2026-11-12.md"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
