@@ -15,7 +15,9 @@
  *   ① **归因退化**：attributed < 基线 ⇒ 红（有端点的审计留痕被拆）；
  *   ② **新端点未归因**：endpoints > 基线 且 attributed 增量 < 端点增量 ⇒ 红（新写端点必须带审计或显式降基线）；
  *   ③ **控制器消失** ⇒ 基线条目陈旧红；
- *   ④ 解析不可达（provider/深委托）⇒ 基线 attributed=false 显式在册，修复后棘轮收紧。
+ *   ④ 解析不可达（provider/深委托）⇒ 基线 attributed=false 显式在册，修复后棘轮收紧；
+ *   ⑤ **总量双向对平**：totalEndpoints / totalAttributed 任一变化都要重种基线——
+ *      归因**上升**同样要人工复核（解析链放宽、失败路径审计误算都会造假归因）。
  *
  *   node scripts/check-write-endpoint-attribution.mjs
  */
@@ -28,11 +30,13 @@ const TAG = '[check-write-endpoint-attribution]';
 const BASELINE_PATH = join('scripts', 'write-endpoint-attribution-baseline.json');
 const WRITE_RE = /@(?:Post|Put|Patch|Delete)Mapping/g;
 const MAX_DEPTH = 4;
-// 🔴 拒绝路径审计黑名单：这些类的 appendLog 是「操作被拒」的留痕（action=ACCESS_DENIED），
-//    只在鉴权失败等异常路径触发，不是业务动作归因——递归可达判定不得把它当端点归因证据。
+// 🔴 失败路径审计（操作被拒的留痕，action=ACCESS_DENIED，只在鉴权失败时触发）不是业务归因。
 //    负向注入实证：删掉 OpsOta 真实审计后，解析器穿 requirePermission ⇒ AccessDeniedAudit
 //    .persistDenied 假绿（publishOta 的成功路径永远走不到那个 appendLog）。
-const FAILURE_PATH_AUDIT_CLASSES = new Set(['AccessDeniedAudit']);
+//    🔴 2026-11-14 第五轮：不再用人工类名白名单。旧式 `new Set(['AccessDeniedAudit'])`
+//    只要把类名改成 TmpDeniedAudit（业务行为零变化），18 处假归因全数复活且门禁仍绿
+//    （240→258 仍 OK）。改为从源码自动派生 + 逐调用点按 action 判定，见下方
+//    deriveFailurePathClasses / hasBusinessAuditCall。
 const KEYWORDS = new Set([
   'if',
   'for',
@@ -80,6 +84,36 @@ for (const f of allJava) {
   if (cls && !byClass.has(cls)) byClass.set(cls, f);
   rawOf.set(f, raw);
 }
+
+// ── 失败路径审计类：从源码自动派生，不用人工名单（铁律 84②） ──
+// 规则 A：类体内有 appendLog( 调用，且同文件出现「操作被拒」action 字面量；
+// 规则 B：类名本身带 denied / forbidden / unauthorized 语义。
+// 换类名、新增同类失败审计类都会自动纳入——无需回来维护名单。
+// 边界（显式在册）：若新类既不叫 *Denied*、也不写被拒 action 常量，静态判据无法
+// 区分它与正常业务审计；此时靠 ⑤ 总量对平棘轮强制人工复核，不静默放行。
+const FAILURE_ACTION_LITERAL_RE =
+  /["'][A-Z0-9_]*(?:ACCESS_DENIED|PERMISSION_DENIED|FORBIDDEN|UNAUTHORIZED)[A-Z0-9_]*["']/;
+const FAILURE_CLASS_NAME_RE = /(?:denied|forbidden|unauthorized)/i;
+
+/**
+ * 纯函数（夹具可注入假源码验证换类名场景）：派生失败路径审计类集合。
+ * @param {Map<string,string>} byClassLike 类名 → 文件路径
+ * @param {Map<string,string>} rawOfLike   文件路径 → 源码
+ */
+export function deriveFailurePathClasses(byClassLike, rawOfLike) {
+  const out = new Set();
+  for (const [cls, file] of byClassLike) {
+    if (FAILURE_CLASS_NAME_RE.test(cls)) {
+      out.add(cls);
+      continue;
+    }
+    const src = maskJava(rawOfLike.get(file) ?? '');
+    if (/\bappendLog\s*\(/.test(src) && FAILURE_ACTION_LITERAL_RE.test(src)) out.add(cls);
+  }
+  return out;
+}
+
+const FAILURE_PATH_AUDIT_CLASSES = deriveFailurePathClasses(byClass, rawOf);
 
 const bodyCache = new Map();
 const fieldsCache = new Map();
@@ -146,12 +180,54 @@ function fieldsOf(clsName) {
   return map;
 }
 
-/** 递归归因：cls.method 起深度 ≤ MAX_DEPTH 内是否可达 `.appendLog(` 调用点或
+/** 括号计数取 `(` 起的参数文本（跳过字符串字面量；body 已 mask 注释）。 */
+function argTextOf(src, openIdx) {
+  let depth = 0;
+  let inStr = false;
+  for (let i = openIdx; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = true;
+      continue;
+    }
+    if (ch === '(') depth++;
+    if (ch === ')') {
+      depth--;
+      if (depth === 0) return src.slice(openIdx + 1, i);
+    }
+  }
+  return src.slice(openIdx + 1);
+}
+
+/**
+ * 逐调用点判定：body 内是否存在「非失败路径」的 `.appendLog(` 调用。
+ * 🔴 不能只看方法体有没有 appendLog——同一方法里可能只在 if (denied) 分支留痕；
+ *    也不能只靠类名黑名单——换类名即可绕过（240→258 假绿实证）。
+ *    按 action 字面量逐调用点排除，失败路径类的整个方法体直接不算。
+ * @param {string} body 已 mask 的方法体
+ * @param {string} clsName 所属类（用于自动派生的失败路径类判定）
+ */
+export function hasBusinessAuditCall(body, clsName = '') {
+  if (FAILURE_PATH_AUDIT_CLASSES.has(clsName)) return false;
+  for (const m of body.matchAll(/\.\s*appendLog\s*\(/g)) {
+    if (!FAILURE_ACTION_LITERAL_RE.test(argTextOf(body, m.index + m[0].length - 1))) return true;
+  }
+  return false;
+}
+
+/** 递归归因：cls.method 起深度 ≤ MAX_DEPTH 内是否可达业务 `.appendLog(` 调用点或
  *  AdminAuditService.appendLog 方法定义本身（走到定义=委托链终点是审计写入）。
- *  🔴 拒绝路径审计类（AccessDeniedAudit）：不进入其方法体——整个类的链路都是
- *     鉴权失败路径，从它出发的任何可达都不是业务归因（负向注入实证：
- *     不挡在入口则 publishOta ⇒ requirePermission ⇒ denied ⇒ persistDenied
- *     ⇒ AdminAuditService.appendLog 定义假绿）。 */
+ *  🔴 失败路径审计类（自动派生）不进入其方法体——从它出发的任何可达都是
+ *     鉴权失败路径，不是业务归因（负向注入实证：不挡在入口则 publishOta ⇒
+ *     requirePermission ⇒ denied ⇒ persistDenied ⇒ appendLog 定义假绿）。 */
 export function reachable(clsName, methodName, depth, visited) {
   const key = clsName + '.' + methodName;
   if (visited.has(key) || depth > MAX_DEPTH) return false;
@@ -164,7 +240,7 @@ export function reachable(clsName, methodName, depth, visited) {
     return true;
   const body = bodyOf(clsName, methodName);
   if (!body) return false;
-  if (/\.appendLog\s*\(/.test(body)) return true;
+  if (hasBusinessAuditCall(body, clsName)) return true;
   const fields = fieldsOf(clsName);
   for (const m of body.matchAll(/(\w+)\.(\w+)\s*\(/g)) {
     const cls2 = fields.get(m[1]);
@@ -197,7 +273,7 @@ export function controllerEndpoints(src) {
     if (sig < 0) continue;
     const name = lines[sig].match(/(\w+)\s*\(/)?.[1] ?? '?';
     const { body } = extractMethod(lines, sig);
-    let attributed = /\.appendLog\s*\(/.test(body);
+    let attributed = hasBusinessAuditCall(body, cls);
     if (!attributed && cls) {
       for (const m of body.matchAll(/(\w+)\.(\w+)\s*\(/g)) {
         const cls2 = fields.get(m[1]);
@@ -227,8 +303,9 @@ export function controllerEndpoints(src) {
  * 纯判定：当前快照 × 基线（双向棘轮）。
  * @param {{file:string,cls:string,endpoints:number,attributed:number}[]} snapshot
  * @param {Record<string,{endpoints:number,attributed:number}>} baseline
+ * @param {{totalEndpoints?:number,totalAttributed?:number}|null} totals 基线总量（可选，夹具可不传）
  */
-export function evaluate(snapshot, baseline) {
+export function evaluate(snapshot, baseline, totals = null) {
   const problems = [];
   const baseMap = new Map(Object.entries(baseline));
   for (const s of snapshot) {
@@ -260,6 +337,23 @@ export function evaluate(snapshot, baseline) {
   for (const [file] of baseMap) {
     if (!snapshot.some((s) => s.file === file)) {
       problems.push(`基线陈旧：${file.split('/').pop()} 已无写端点，条目必须删除（棘轮只许收缩）`);
+    }
+  }
+  // ⑤ 总量双向对平：逐控制器判据只防「归因下降」「新端点未归因」，对
+  //    「解析链放宽 / 失败路径审计误算」造成的**归因虚增**零防护（负向实证：
+  //    仅改失败审计类的类名，归因 240→258 仍全绿，18 处假归因复活）。
+  //    总量字段因此不是装饰：任何变化都要求重种快照，上升也必须人工复核。
+  if (totals) {
+    const ep = snapshot.reduce((n, s) => n + s.endpoints, 0);
+    const attr = snapshot.reduce((n, s) => n + s.attributed, 0);
+    if (typeof totals.totalEndpoints === 'number' && ep !== totals.totalEndpoints) {
+      problems.push(`端点总量 ${totals.totalEndpoints} → ${ep}：快照已变，必须重种基线`);
+    }
+    if (typeof totals.totalAttributed === 'number' && attr !== totals.totalAttributed) {
+      problems.push(
+        `归因总量 ${totals.totalAttributed} → ${attr}：必须重种基线（上升也要复核——` +
+          `解析链放宽或失败路径审计被误算会造成假归因）`
+      );
     }
   }
   return problems;
@@ -298,8 +392,8 @@ function main() {
     });
   }
 
-  const problems = evaluate(snapshot, baseline);
-  // 未归因总量棘轮（只许减）：存量 217 在册，新端点未归因/归因退化都会顶破
+  const problems = evaluate(snapshot, baseline, baselineJson);
+  // 未归因总量棘轮（只许减）：存量 215 在册，新端点未归因/归因退化都会顶破
   const maxUnattr =
     typeof baselineJson.maxUnattributed === 'number' ? baselineJson.maxUnattributed : Infinity;
   const totalEp = snapshot.reduce((n, s) => n + s.endpoints, 0);

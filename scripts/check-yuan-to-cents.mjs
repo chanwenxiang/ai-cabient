@@ -49,11 +49,16 @@ const DEF_RE =
   /(?:public|protected|private)\s+(?:static\s+)?[\w<>,\[\]\s]+\s+(yuanToCents|toCents|toYuan)\s*\(/g;
 // 🔴 movePoint 判据（2026-11-14 复核补充）：`.movePointRight(2)/.movePointLeft(2)` 是
 //    换名字绕过 DEF_RE 的同族形态（WeChatBillCsvParser 原版即此形态，改名 fen 后两层全盲）。
+//    2026-11-14 第五轮补 `scaleByPowerOfTen(±2)`——BigDecimal 的同义 API，
+//    旧正则只认字面量 2 与方法名 movePoint* ⇒ 换 API 即绕过（全仓当前零命中，防未来）。
 //    YUANFEN_FILE 豁免；其余命中入 movePointEntries 棘轮（只许收缩）。
-const MOVEPOINT_RE = /\.movePoint(?:Right|Left)\s*\(\s*2\s*\)/g;
+const MOVEPOINT_RE = /\.(?:movePoint(?:Right|Left)|scaleByPowerOfTen)\s*\(\s*-?2\s*\)/g;
 const YUANFEN_FILE = 'services/trade-service/src/main/java/com/aicabinet/trade/util/YuanFen.java';
 const FRONTEND_ANCHOR = 400;
-const JAVA_ANCHOR = 900;
+// 🔴 2026-11-14 第五轮：扫描面扩到 common/common-core（+440 文件）后锚点仍是 900，
+//    而「common 整体漏扫」后的文件数 = 976 > 900 ⇒ 锚点根本防不住这次刚修的漏扫回归。
+//    实测 1416，取 1300（> 976 且留余量），使 common 再次整体漏扫必红。
+export const JAVA_ANCHOR = 1300;
 
 export function countHits(src) {
   const matches = src.match(PATTERN) || [];
@@ -153,7 +158,8 @@ function main() {
   const javaFiles = JAVA_BASES.flatMap((d) => walk(join(ROOT, d), ['.java']));
   if (javaFiles.length < JAVA_ANCHOR)
     fail(
-      `后端扫描面退化：只扫到 ${javaFiles.length} 个文件（锚点 ${JAVA_ANCHOR}，实测 976，不含 target）`
+      `后端扫描面退化：只扫到 ${javaFiles.length} 个文件（锚点 ${JAVA_ANCHOR}，实测 1416，` +
+        `含 common/common-core 约 440 文件；不含 target）`
     );
   const javaActual = [];
   for (const f of javaFiles) {

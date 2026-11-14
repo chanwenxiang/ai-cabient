@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluate, countHits } from './check-yuan-to-cents.mjs';
+import { evaluate, countHits, JAVA_ANCHOR } from './check-yuan-to-cents.mjs';
 
 const TAG = '[check-yuan-to-cents.test]';
 let checks = 0;
@@ -201,11 +201,26 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
     countMovePoint('x.movePointRight(3)') === 0 && countMovePoint('x.movePointRight(1)') === 0,
     '非 2 位不命中'
   );
+  assert(
+    countMovePoint('x.scaleByPowerOfTen(2)') === 1 &&
+      countMovePoint('x.scaleByPowerOfTen(-2)') === 1,
+    'BigDecimal 同义 API scaleByPowerOfTen(±2) 应命中（换 API 绕过形态）'
+  );
   // movepoint 报错指向 YuanFen 单源（空基线，只验报错文案）
   const mpProblems = evaluate([{ file: 'services/x/New.java', count: 1 }], [], 'movepoint');
   assert(
     mpProblems.length === 1 && mpProblems[0].includes('YuanFen'),
     `movePoint 新增须红指向 YuanFen：${mpProblems.join('|')}`
+  );
+}
+
+// 6) 后端扫描面锚点必须能检测 common/common-core 整体漏扫
+//    1416（全量）− 约 440（common/common-core）= 976；漏扫后仍有 976 个文件，
+//    旧锚点 900 < 976 ⇒ 假绿（2026-11-14 第五轮实证）。
+{
+  assert(
+    JAVA_ANCHOR > 976,
+    `JAVA_ANCHOR(${JAVA_ANCHOR}) 必须 > 976，否则 common/common-core 整体漏扫仍判绿`
   );
 }
 
