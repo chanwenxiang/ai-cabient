@@ -614,6 +614,43 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "9d5c724f",
+      "report": "docs/PENDING_DECISIONS_R23_2026-11-14.md",
+      "totalItems": 4,
+      "items": [
+        {
+          "id": "S12 写侧天花板：CommissionParamBounds 三常量 + SystemConfigService（FUND_KEY_CEILINGS/preauth 入守卫族/按商户费率前缀键分发/validateFundKeyValue 天花板 400）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/support/CommissionParamBounds.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SystemConfigService.java"
+          ]
+        },
+        {
+          "id": "S12 读侧双保险（回落默认+WARN 拦存量行）：getPositiveLimit 天花板分支/pick 按 ceiling 回落 yml/merchantFeeBpsFor 超限忽略/resolvePreauthCents 超限回落",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WithdrawPolicyResolver.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ConsumerPreauthService.java"
+          ]
+        },
+        {
+          "id": "门禁扩面：SETTER_RE 增 setDiscountBps|setDiscountPercent + 折扣两族入口校验形态白名单 + 夹具 3 断言",
+          "files": [
+            "scripts/check-commission-param-bounds.mjs",
+            "scripts/commission-param-bounds-allowlist.json",
+            "scripts/check-commission-param-bounds.test.mjs"
+          ]
+        },
+        {
+          "id": "天花板行为测试：SystemConfigFundKeyGuardTest +8（写侧 400/界内放行/前缀键/读侧回落）+ WithdrawFeePolicyTest +2（覆盖超限回退/全局超限落 yml）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SystemConfigFundKeyGuardTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WithdrawFeePolicyTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
