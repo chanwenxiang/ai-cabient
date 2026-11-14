@@ -110,10 +110,6 @@
   ],
   "javaEntries": [
     {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/CouponService.java",
-      "count": 1
-    },
-    {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceAssetService.java",
       "count": 1
     },
@@ -154,16 +150,8 @@
       "count": 2
     }
   ],
-  "javaTotal": 19,
+  "javaTotal": 18,
   "movePointEntries": [
-    {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
-      "count": 1
-    },
-    {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java",
-      "count": 1
-    },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/UserBehaviorAnalyticsService.java",
       "count": 1
@@ -173,5 +161,5 @@
       "count": 1
     }
   ],
-  "mpTotal": 4
+  "mpTotal": 2
 }

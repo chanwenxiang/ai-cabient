@@ -1,6 +1,9 @@
 package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.trade.util.YuanFen;
 import org.springframework.scheduling.annotation.Scheduled;
+
+import java.math.BigDecimal;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
@@ -855,7 +858,7 @@ public class CouponService {
         String name = couponName.trim();
         java.util.regex.Matcher claimed = COUPON_NAME_THRESHOLD_PATTERN.matcher(name);
         if (claimed.find()) {
-            int claimedCents = (int) Math.round(Double.parseDouble(claimed.group(1)) * 100);
+            int claimedCents = YuanFen.toCents(new BigDecimal(claimed.group(1).trim())).intValue();
             if (claimedCents != minSpendCents) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "券名里的「满 " + claimed.group(1) + " 元」与最低消费 "

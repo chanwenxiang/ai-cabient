@@ -3,6 +3,8 @@ package com.aicabinet.trade.reconciliation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicabinet.trade.util.YuanFen;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -183,9 +185,6 @@ public final class AlipayBillCsvParser {
         if (yuan == null || yuan.isBlank()) {
             return 0L;
         }
-        return new BigDecimal(yuan.trim())
-                .movePointRight(2)
-                .setScale(0, RoundingMode.HALF_UP)
-                .longValueExact();
+        return YuanFen.toCents(new BigDecimal(yuan.trim()));
     }
 }

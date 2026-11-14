@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.RechargePrepayResponse;
 import com.aicabinet.common.dto.WxPayParams;
 import com.aicabinet.trade.util.BizIds;
+import com.aicabinet.trade.util.YuanFen;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
@@ -1550,9 +1551,7 @@ public class PaymentService {
             return 0;
         }
         try {
-            return new java.math.BigDecimal(yuanText.trim())
-                    .movePointRight(2)
-                    .setScale(0, java.math.RoundingMode.HALF_UP)
+            return YuanFen.toCents(new java.math.BigDecimal(yuanText.trim()))
                     .intValueExact();
         } catch (Exception e) {
             throw new IllegalArgumentException("非法支付宝金额: " + yuanText, e);
