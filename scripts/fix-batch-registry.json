@@ -551,18 +551,37 @@
       "totalItems": 2,
       "items": [
         {
-          "id": "S3-3b-单源强制",
+          "id": "S3-3b-单源强制+YuanFen改调",
           "files": [
             "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
             "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
-            "scripts/check-yuan-to-cents.mjs"
+            "scripts/check-yuan-to-cents.mjs",
+            "scripts/yuan-to-cents-baseline.json"
           ]
         },
         {
-          "id": "S9-maxUnattributed",
+          "id": "S9-maxUnattributed+movePoint棘轮+夹具",
           "files": [
             "scripts/check-write-endpoint-attribution.mjs",
-            "scripts/write-endpoint-attribution-baseline.json"
+            "scripts/check-write-endpoint-attribution.test.mjs",
+            "scripts/write-endpoint-attribution-baseline.json",
+            "scripts/check-yuan-to-cents.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "48ae2de4",
+      "report": "docs/AUDIT_FOUR_END_R22_2026-11-12.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "S3-3b-单源定义点扫描+movePoint段+common路径修正+基线对账",
+          "files": [
+            "scripts/check-yuan-to-cents.mjs",
+            "scripts/check-yuan-to-cents.test.mjs",
+            "scripts/yuan-to-cents-baseline.json"
           ]
         }
       ],
