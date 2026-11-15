@@ -437,17 +437,37 @@ public class WalletEngine {
      * <p>用流水自证而不是单据状态：提现单据的 FAILED 不区分「冻结已释放」（打款失败即释放）
      * 与「冻结仍在」（重试打款重新冻结后又失败），靠状态判重必然漏。冻结账是唯一事实源。
      * 无任何相关流水时返回 null 让调用方退回账户级旧口径（老单据/迁移前数据没有冻结流水）。
+     *
+     * <p>🔴 三类流水必须**分别**算，不能合并成一个 {@code Σamount}：{@code amount_cents} 记的是
+     * **余额**方向（负=出账），而冻结方向不同——FREEZE 负记但冻结 +、RELEASE 正记且冻结 -、
+     * PAID/FEE 负记且冻结 -。真库实例（ref=1：FREEZE -1000 / PAID -994 / FEE -6，frozen_after
+     * 最终 0）若按 {@code -Σamount} 会得出「仍占用 2000」，恰恰是「多释放吃别人冻结」的方向。
      */
     private Long heldFrozenCents(WalletDomain domain, String ownerId, String refType, String refId) {
         if (refType == null || refId == null) {
             return null;
         }
-        WalletLedgerMapper.FrozenSummary summary = ledgerMapper.summarizeFrozenByRef(
+        List<WalletLedger> rows = ledgerMapper.listByRefAndEntryTypes(
                 domain.column(), ownerId, refType, refId, FROZEN_ENTRY_TYPES);
-        if (summary == null || summary.rows() == 0) {
+        if (rows.isEmpty()) {
             return null;
         }
-        return Math.max(0L, -summary.sumCents());
+        long frozen = 0L;
+        long released = 0L;
+        long consumed = 0L;
+        for (WalletLedger row : rows) {
+            long amount = row.getAmountCents() == null ? 0L : Math.abs(row.getAmountCents());
+            String type = row.getEntryType();
+            if ("WITHDRAW_FREEZE".equals(type)) {
+                frozen += amount;
+            } else if ("WITHDRAW_RELEASE".equals(type)) {
+                released += amount;
+            } else {
+                // WITHDRAW_PAID / WITHDRAW_FEE：渠道已付，冻结同样被消耗
+                consumed += amount;
+            }
+        }
+        return Math.max(0L, frozen - released - consumed);
     }
 
     private void appendLedger(WalletDomain domain, String ownerId, String entryType, long amountCents,

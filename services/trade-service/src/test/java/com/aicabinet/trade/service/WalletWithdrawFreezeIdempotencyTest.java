@@ -75,20 +75,45 @@ class WalletWithdrawFreezeIdempotencyTest {
             ledger.add(inv.getArgument(0));
             return 1;
         });
-        lenient().when(ledgerMapper.summarizeFrozenByRef(
+        lenient().when(ledgerMapper.listByRefAndEntryTypes(
                         anyString(), anyString(), anyString(), anyString(), any()))
                 .thenAnswer(inv -> {
                     String refType = inv.getArgument(2);
                     String refId = inv.getArgument(3);
                     Collection<String> types = inv.getArgument(4);
-                    List<WalletLedger> hits = ledger.stream()
+                    return ledger.stream()
                             .filter(l -> refType.equals(l.getRefType()) && refId.equals(l.getRefId()))
                             .filter(l -> types.contains(l.getEntryType()))
                             .toList();
-                    long sum = hits.stream().mapToLong(l -> l.getAmountCents() == null ? 0L : l.getAmountCents()).sum();
-                    return new WalletLedgerMapper.FrozenSummary(hits.size(), sum);
                 });
         lenient().when(merchantMapper.selectById(anyString())).thenReturn(null);
+    }
+
+    @Test
+    @DisplayName("🔴 已打款单占用额为 0（FREEZE/PAID/FEE 全负数，按 -Σamount 会算成 2000 并吃别单冻结）")
+    void paidWithdraw_hasNoHeldFreeze() {
+        // 真库形态（wallet_ledger ref=1）：FREEZE -1000 / PAID -994 / FEE -6，frozen_after 最终 0
+        ledger.add(row("WITHDRAW_FREEZE", -1_000L, "PAID-1"));
+        ledger.add(row("WITHDRAW_PAID", -994L, "PAID-1"));
+        ledger.add(row("WITHDRAW_FEE", -6L, "PAID-1"));
+        engine.freezeForWithdraw(WalletDomain.MERCHANT, "M-1", 5_000L, REF_TYPE, "OTHER", "他单在途冻结");
+        assertEquals(5_000L, frozenCents);
+
+        engine.releaseFrozen(WalletDomain.MERCHANT, "M-1", 1_000L, REF_TYPE, "PAID-1", "已打款单误触发解冻");
+
+        assertEquals(5_000L, frozenCents, "已打款单不得再释放，更不得吃他单冻结");
+        assertEquals(0L, ledgerCount("WITHDRAW_RELEASE"));
+    }
+
+    private WalletLedger row(String entryType, long amountCents, String refId) {
+        WalletLedger l = new WalletLedger();
+        l.setDomain(WalletDomain.MERCHANT.column());
+        l.setOwnerId("M-1");
+        l.setEntryType(entryType);
+        l.setAmountCents(amountCents);
+        l.setRefType(REF_TYPE);
+        l.setRefId(refId);
+        return l;
     }
 
     private WalletAccount account() {
