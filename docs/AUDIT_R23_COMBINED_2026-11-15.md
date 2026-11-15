@@ -686,9 +686,9 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 
 ### 15-1 推送通道
 
-批 9 的三个提交被本机 HTTPS 代理挡了两轮（`CONNECT tunnel failed, response 502` / `Empty reply from server`），`gh api`（api.github.com）却一直可用，说明坏的只是 github.com 的 git 通道。按用户提示改用 **`origin`（SSH `git@github.com:...`）直推** ⇒ 一次成功：`9f6bbdea..907ef7a4  dev -> dev`。`git ls-remote origin` 复核远端 HEAD = 本地 `907ef7a4`、未推 0。后续推送一律走 `origin`。
+批 9 的三个提交用 `https://x-access-token:...` 推送时被本机代理挡了两轮（`CONNECT tunnel failed, response 502` / `Empty reply from server`）。用户指出本仓 `origin` 本来就是 SSH、不需要代理 ⇒ 改 **`git push origin dev`** 一次成功：`9f6bbdea..907ef7a4  dev -> dev`。`git ls-remote origin` 复核远端 HEAD = 本地 `907ef7a4`、未推 0。
 
-> 结论写进这里是为了别再浪费一轮：HTTPS + token 那条路只在代理正常时可用；代理挂了就换 SSH，不要反复重试 HTTPS。
+> **规则（用户 18:53 指正）**：本仓 `origin` 本来就是 SSH `git@github.com:...`，推送一律 `git push origin dev`，**根本不需要代理**。此前批 7–9 用 `https://x-access-token:$GH_TOKEN@github.com/...` 是绕远路，还把自己绑死在本机代理上；`GH_TOKEN` 只留给 `gh` 查 CI / `git credential fill`。长期记忆铁律 53 已同步改正。
 
 ### 15-2 MA-268：期初外部盘点取错账期
 
