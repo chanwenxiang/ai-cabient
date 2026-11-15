@@ -521,7 +521,7 @@ public class SystemConfigService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "资金配置 " + key + " 必须是元（可带 ≤2 位小数），当前值非法：" + value);
             }
-            long cents = new java.math.BigDecimal(v).movePointRight(2).longValue();
+            long cents = com.aicabinet.trade.util.YuanFen.toCents(new java.math.BigDecimal(v));
             long ceiling = FUND_YUAN_KEYS.get(key);
             if (cents < 0 || cents > ceiling) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -1008,6 +1008,8 @@ public class SystemConfigService {
         upsertIfAbsent(MERCHANT_WITHDRAW_FEE_BPS, "60",
                 "商户提现手续费比例（万分比，60=6‰，2026-10-16 拍板对齐老系统标准档）；"
                         + "个别商户可用 merchant.withdraw.fee_bps.{商户号} 覆盖；0=免收");
+        upsertIfAbsent("feebill.site_rent.auto_generate.enabled", "true",
+                "场地租金月结自动出账（MA-278 拆开关：与流量费月结出账互不门控；租期校验由 MA-273 把关）");
         upsertIfAbsent("feebill.auto_generate.enabled", "false",
                 "流量费月度自动出账开关：日扣模式下默认停用（避免重复计费）；true=回退人工月结模式");
         upsertIfAbsent("device.rental.monthly_bill.enabled", "false",

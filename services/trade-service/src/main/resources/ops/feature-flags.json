@@ -12,7 +12,8 @@
     "风控自动处置",
     "运营告警",
     "卡点监控",
-    "可观测性（追踪/日志）", "消息触达",
+    "可观测性（追踪/日志）",
+    "消息触达",
     "日志留存",
     "客户端展示",
     "品牌文案",
@@ -648,7 +649,7 @@
       "default": "true",
       "description": "系统配置变更审计（默认开启）；每次改配置留版本历史（可回滚到任一历史版本）与审计日志；置 false 只关非资金键，资金阈值键族无视开关强制留痕；读历史不受该开关影响"
     },
-      {
+    {
       "key": "ops.log_retention.notify_months",
       "group": "日志留存",
       "type": "NUMBER",
@@ -885,6 +886,13 @@
       "type": "TEXT",
       "default": "0.72",
       "description": "自动结算最低整体识别置信度（低于则触发人工审；单品另看 SKU 扣款阈值）"
+    },
+    {
+      "key": "feebill.site_rent.auto_generate.enabled",
+      "group": "商户",
+      "type": "BOOLEAN",
+      "default": "true",
+      "description": "场地租金月结自动出账（MA-278 拆开关：与流量费月结出账互不门控；租金出账常态运行，租期校验由 MA-273 把关）"
     },
     {
       "key": "feebill.auto_generate.enabled",
