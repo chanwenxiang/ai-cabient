@@ -383,6 +383,7 @@ public class InventoryLotService {
         DeviceSkuLot lot = lotRepository
                 .findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, resolvedBatch).orElse(null);
         if (lot == null) {
+            // 新建批次：quantity 一次随 INSERT 写入，没有「读→算→写」的覆盖窗口。
             lot = new DeviceSkuLot();
             lot.setLotId("L" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
             lot.setDeviceId(deviceId);
@@ -391,11 +392,20 @@ public class InventoryLotService {
             lot.setProductionDate(command.productionDate());
             lot.setExpiryDate(command.expiryDate());
             lot.setStatus(ON_SALE);
-            lot.setQuantity(0);
+            lot.setQuantity(command.quantity());
+            lot.setStatus(resolveLotStatus(lot));
+            lotRepository.save(lot);
+        } else {
+            // MA-176（R18-2 同族残留）：已有批次不能再 `setQuantity(get + delta)` + save。
+            // DeviceSkuLot 无 version，save 是绝对覆盖；设备锁失效窗口内，后写者会用旧快照
+            // 把并发的下架/报损/FEFO 扣减覆盖回去（账面虚高、可再卖）。
+            // 与 doRestoreToBatch 同一配方：数量走单语句原子累加，status 用只写属性列的
+            // 独立 UPDATE；两段同事务，外部看不到中间态。slot 传 null = 保持原值（不引入新行为）。
+            lotRepository.increaseQuantityAtomic(lot.getLotId(), command.quantity());
+            String targetStatus = resolveLotStatus(lot);
+            lotRepository.updateStatusAndSlotById(lot.getLotId(), targetStatus, null);
+            lot.setStatus(targetStatus);
         }
-        lot.setQuantity(lot.getQuantity() + command.quantity());
-        lot.setStatus(resolveLotStatus(lot));
-        lotRepository.save(lot);
         recordMovement(deviceId, skuId, new InventoryMovementCommand(
                 resolvedBatch, "RESTOCK", command.quantity(),
                 new LotMovementRef(REPLENISH, command.ref().refId(), command.ref().operatorId())));
