@@ -54,7 +54,9 @@ check('删元键条目 ⇒ 红', () => {
   // 删掉末条目后 Map.of 的 `);` 边界会被吞掉 ⇒ 判据至少要报「FUND_YUAN_KEYS 表缺失/缺键」之一
   const problems = fundCeilingProblems(bad);
   assert.ok(
-    problems.some((p) => p.includes('PLATFORM_FUND_RECON_TOLERANCE_YUAN') || p.includes('FUND_YUAN_KEYS')),
+    problems.some(
+      (p) => p.includes('PLATFORM_FUND_RECON_TOLERANCE_YUAN') || p.includes('FUND_YUAN_KEYS')
+    ),
     problems.join('|')
   );
 });
