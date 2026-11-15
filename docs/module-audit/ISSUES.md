@@ -1505,3 +1505,5 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 > - 视频权限口径：MA-263 ↔ **AU-062**（`AUDIT_LEDGER_2026-10-13.md`，列表侧对象键，待 DC-11）。
 > - 退款链：MA-269 ↔ **MA-088**（幂等键/顺序重投）；MA-270 ↔ **MA-124**（同一 fix 端点）。
 > - 数字漂移族：MA-261/MA-290 + MA-226（已 fixed）。
+
+<!-- PR 范围语义点验占位：MA-293 Phase B（docs/pr-scope-check 分支） -->
