@@ -27,13 +27,9 @@ const ROOT = process.env.GATE_ROOT
 const TAG = '[check-frontend-perm-codes]';
 
 /** 豁免清单（键=权限码，值=设计依据）。新增前先补注释说明设计意图。 */
-const ALLOWLIST = new Map([
-  // V138 刻意的菜单/按钮两级权限分离设计（按钮用 ops:sku:demo，菜单可见性码不在后端）
-  [
-    'ops:recognition-demo:view',
-    'V138 刻意的菜单/按钮两级权限分离设计（同 check-menu-permissions 豁免）'
-  ]
-]);
+// MA-200（2026-11-15 拍板）：识别演示页已退役（c498c653）、全仓零引用，原 V138 豁免
+// （ops:recognition-demo:view）空转 ⇒ 删除；权限行随 V482 置 RETIRED。清单暂空。
+const ALLOWLIST = new Map([]);
 
 /**
  * 权限码形态：至少 2 个冒号（realm:group:action，段内允许连字符）。

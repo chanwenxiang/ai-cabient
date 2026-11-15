@@ -127,3 +127,9 @@
 
 - **现状**：`WalletPage.vue:36-38` 欠款提示未披露「满账龄锁柜停售」后果（后端告警与 admin 侧均有此信息）。
 - **拍板问题**：C 端欠款文案是否加一句后果披露（披露会提升还款率但也可能引发焦虑投诉）？产品口径。
+
+### ⑬ MA-200 `ops:recognition-demo:view` 去留（R8 漂移项回填，已拍板执行 2026-11-15）
+
+- **现状（拍板时复核）**：识别演示页 `vision/RecognitionDemoView.vue` 已随 c498c653 删除，路由/侧栏/前端/后端全仓**零引用**；两条门禁（check-menu-permissions / check-frontend-perm-codes）按 V138 挂的 ALLOWLIST 豁免因此空转；V421:24 注明「去留属 R8 待拍板」，但该拍板项此前漂移出本台账与 PENDING_DECISIONS_5（两边 0 命中 recognition-demo）。
+- **拍板**：按 V421 同款口径 **RETIRED**（非 DELETE）——授权行与审计历史留痕，`status='ACTIVE'` 的读面即刻收窄；两条门禁的空转豁免同批删除。
+- **执行**：`V482__retire_recognition_demo_perm.sql`（幂等 UPDATE，仅一行）+ 两门禁 ALLOWLIST 清空 + 本条回填。V138「菜单可见性与按钮两级分离」由在用的按钮码 `ops:sku:demo` 继续承载，不受影响。

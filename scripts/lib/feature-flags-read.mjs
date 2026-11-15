@@ -54,3 +54,64 @@ export function evaluateReadAnchor(
   }
   return problems;
 }
+
+/**
+ * MA-201：等长掩码（只剥注释、保留字符串字面量）。
+ *
+ * R2 消费者判据原先直接对裸源码做 includes —— 注释里提到某个键/常量名会被当成
+ * 「有消费者」，死开关被掩护成活开关。与 check-preauth-zero-semantics 的 maskForScan
+ * 同一套「等长空格、行号不漂移」的思路，但**不剥字符串**：键出现在字符串字面量里
+ * （如 @Value / map.put("…")）是真实消费者，剥掉会造成反假绿。
+ */
+export function maskCommentsOnly(src) {
+  const out = src.split('');
+  const blank = (from, to) => {
+    for (let k = from; k < to && k < out.length; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (ch === '/' && next === '/') {
+      let j = i;
+      while (j < src.length && src[j] !== '\n') j++;
+      blank(i, j);
+      i = j;
+    } else if (ch === '/' && next === '*') {
+      let j = i + 2;
+      while (j < src.length && !(src[j] === '*' && src[j + 1] === '/')) j++;
+      blank(i, Math.min(j + 2, src.length));
+      i = Math.min(j + 2, src.length);
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
+}
+
+/**
+ * MA-201：R2 消费者判定（纯函数）。入参全部是**已剥注释**的文本：
+ *
+ *   - flags            注册表条目（{key, deprecated}）
+ *   - constEntries     SystemConfigService 的常量声明 [名字, 键值]（声明本身已剥掉，
+ *                      否则「定义了自己」会被误读成「有人用它」）
+ *   - otherMasked      除 SystemConfigService 外的 main Java 文本（已剥注释）
+ *   - scsConsumerMasked SystemConfigService 自身剥声明/seed 调用后再剥注释的文本
+ *
+ * 返回「找不到任何消费者」的键（死开关候选）。
+ */
+export function findConsumerlessFlags(flags, constEntries, otherMasked, scsConsumerMasked) {
+  const consumerless = [];
+  for (const f of flags) {
+    if (f.deprecated) continue;
+    const asLiteral = `"${f.key}"`;
+    const names = constEntries.filter(([, v]) => v === f.key).map(([n]) => n);
+    const qualifiers = names.map((n) => `SystemConfigService.${n}`);
+    const hit =
+      otherMasked.some((t) => t.includes(asLiteral)) ||
+      (qualifiers.length > 0 && otherMasked.some((t) => qualifiers.some((q) => t.includes(q)))) ||
+      names.some((n) => new RegExp(`\\b${n}\\b`).test(scsConsumerMasked));
+    if (!hit) consumerless.push(f.key);
+  }
+  return consumerless;
+}

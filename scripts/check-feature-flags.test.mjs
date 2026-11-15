@@ -12,6 +12,8 @@ import {
   makeReadRe,
   countPositiveLimitSites,
   evaluateReadAnchor,
+  findConsumerlessFlags,
+  maskCommentsOnly,
   POSITIVE_LIMIT_MIN_SITES
 } from './lib/feature-flags-read.mjs';
 
@@ -95,3 +97,36 @@ const REAL_SITES = [
 
 console.log(`\n[check-feature-flags.test] ${pass} 通过 / ${fail} 失败`);
 if (fail > 0) process.exit(1);
+// ── MA-201：R2 消费者判定改「剥注释、留字符串」后的行为钉 ─────────────────────
+{
+  const flags = [
+    { key: 'demo.dead', deprecated: false },
+    { key: 'demo.old', deprecated: true }
+  ];
+  // ① 注释里提到键不算消费者 ⇒ 死开关必须被报出（修前裸 includes 会假绿）
+  const commentOnly = maskCommentsOnly('// TODO: 计划用 "demo.dead" 做降级开关\nint x = 1;');
+  const r1 = findConsumerlessFlags(flags, [], [commentOnly], '');
+  check(
+    '注释里提到键不算消费者',
+    r1.includes('demo.dead') && !r1.includes('demo.old'),
+    JSON.stringify(r1)
+  );
+
+  // ② 字符串字面量里的键是真实消费者（@Value / map.put），不得误报
+  const literal = maskCommentsOnly('map.put("flag", "demo.dead");');
+  const r2 = findConsumerlessFlags(flags, [], [literal], '');
+  check('字符串字面量里的键算消费者', !r2.includes('demo.dead'), JSON.stringify(r2));
+
+  // ③ 常量限定名 SystemConfigService.KEY 算消费者
+  const qualifier = maskCommentsOnly('int v = SystemConfigService.DEAD_FLAG;');
+  const r3 = findConsumerlessFlags(flags, [['DEAD_FLAG', 'demo.dead']], [qualifier], '');
+  check('常量限定名算消费者', !r3.includes('demo.dead'), JSON.stringify(r3));
+
+  // ④ scs 内部裸常量名（声明已剥）算消费者
+  const r4 = findConsumerlessFlags(flags, [['DEAD_FLAG', 'demo.dead']], [], 'if (DEAD_FLAG) { }');
+  check('scs 内裸常量名算消费者', !r4.includes('demo.dead'), JSON.stringify(r4));
+
+  // ⑤ deprecated 条目跳过，永不进 consumerless
+  const r5 = findConsumerlessFlags(flags, [], [''], '');
+  check('deprecated 跳过', !r5.includes('demo.old'), JSON.stringify(r5));
+}

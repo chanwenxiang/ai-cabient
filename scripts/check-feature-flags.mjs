@@ -36,7 +36,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeReadRe, evaluateReadAnchor } from './lib/feature-flags-read.mjs';
+import {
+  evaluateReadAnchor,
+  findConsumerlessFlags,
+  makeReadRe,
+  maskCommentsOnly
+} from './lib/feature-flags-read.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-feature-flags]';
@@ -357,18 +362,14 @@ const scsConsumerText = scs
   .replace(/upsertIfAbsent\s*\([\s\S]*?\);/g, '')
   .replace(/refreshDescriptionIfPresent\s*\([\s\S]*?\);/g, '');
 
-const consumerless = [];
-for (const f of flags) {
-  if (f.deprecated) continue;
-  const asLiteral = `"${f.key}"`;
-  const names = [...constMap.entries()].filter(([, v]) => v === f.key).map(([n]) => n);
-  const qualifiers = names.map((n) => `SystemConfigService.${n}`);
-  const hit =
-    otherJava.some((t) => t.includes(asLiteral)) ||
-    (qualifiers.length > 0 && otherJava.some((t) => qualifiers.some((q) => t.includes(q)))) ||
-    names.some((n) => new RegExp(`\\b${n}\\b`).test(scsConsumerText));
-  if (!hit) consumerless.push(f.key);
-}
+// MA-201：三份文本先剥注释（等长空格）再判定——注释里提到键/常量名不算消费者；
+// 字符串字面量保留（@Value / map.put 是真实用法）。判定逻辑抽到 lib 供 sibling 夹具复用。
+const consumerless = findConsumerlessFlags(
+  flags,
+  [...constMap.entries()],
+  otherJava.map(maskCommentsOnly),
+  maskCommentsOnly(scsConsumerText)
+);
 if (consumerless.length) {
   problems.push(
     `R2 注册表里有键但源码里找不到消费者（能关却关了个空气 = 死开关；` +

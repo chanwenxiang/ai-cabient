@@ -19,11 +19,13 @@ const ROOT = process.env.GATE_ROOT
 const MENU_FILE = 'clients/admin-vue/src/config/menu.ts';
 const SERVICES_DIR = 'services';
 
-/** 菜单可见性专用权限码豁免清单（键=perm 码，值=设计依据） */
-const ALLOWLIST = new Map([
-  // V138__align_menus_with_sidebar.sql：识别演示为 C 级菜单，侧栏可见性与按钮(API) ops:sku:demo 刻意分离
-  ['ops:recognition-demo:view', 'V138 刻意的菜单/按钮两级权限分离设计（按钮用 ops:sku:demo）']
-]);
+/**
+ * 菜单可见性专用权限码豁免清单（键=perm 码，值=设计依据）。
+ * MA-200（2026-11-15 拍板）：识别演示页已随 c498c653 退役、全仓零引用，原 V138 豁免
+ * （ops:recognition-demo:view）空转 ⇒ 删除；权限行随 V482 置 RETIRED。清单暂空，
+ * 新增豁免前先补设计依据注释并回填拍板台账。
+ */
+const ALLOWLIST = new Map([]);
 
 const PERM_LITERAL = /[a-z0-9-]+(?::[a-z0-9-]+)+/g;
 
