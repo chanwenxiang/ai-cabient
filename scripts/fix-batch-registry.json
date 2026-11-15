@@ -891,6 +891,45 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "b1764c72",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "C43 补货路线/履约任务/到期下架（+inventory、资费账单、租机账单、两个导出面）设备范围集合下推（MA-295）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantScopeService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsReplenishmentAdminService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ReplenishmentService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/ReplenishmentTaskMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PullOffTaskMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/ReplenishmentRouteMapper.java"
+          ]
+        },
+        {
+          "id": "C44 领货未上柜分页 + 理货台账自拼 SQL 补设备范围（MA-296）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InTransitService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/TallyLedgerService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WarehouseInTransitMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/ReplenishmentReportController.java"
+          ]
+        },
+        {
+          "id": "门禁识别面两处盲区（ops-device-scope R4 隐式命名 @RequestParam；concurrency-declaration 方法起点/前导归属）+ 删死门面 OpsCommercialFacade",
+          "files": [
+            "scripts/check-ops-device-scope.mjs",
+            "scripts/devops/verify-ops-device-scope-gate.mjs",
+            "scripts/ops-device-scope-baseline.json",
+            "scripts/check-concurrency-declaration.mjs",
+            "scripts/check-concurrency-declaration.test.mjs",
+            "scripts/composed-literal-registry.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

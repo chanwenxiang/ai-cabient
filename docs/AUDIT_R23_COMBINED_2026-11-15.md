@@ -339,3 +339,60 @@
 | 存量核查 | 全库 `over_released_refs = 0`、`wallet_account.frozen` 全 0 ⇒ 本环境无存量多发，缺陷属潜伏路径 |
 
 **未覆盖（如实）**：`FAILED → cancel` 双重解冻路径**无法在真栈制造**——MOCK 渠道恒成功，强制失败需要真渠道或改渠道配置（后者会动真实转账行为，不做）。该路径由单测 3 例覆盖（含真库流水形态）。真栈探针留下一笔 MOCK 提现单（`requestId=3`，PAID，¥10），属正常 dev 数据。
+
+## 9. 修复批 4：C43/C44 列表取数设备范围下推（2026-11-15 下午）
+
+**范围**：MA-295（C43）、MA-296（C44），外加同判据扫出来的 5 个同族端点与 2 处门禁盲区。**未改**：MA-298（新登记，口径待拍板）。
+
+### 9-1 缺陷的共同形态：把 `operatorId` 收下，然后在下游丢掉
+
+| 面 | 位置 | 表现 |
+|---|---|---|
+| 补货路线分页 | `OpsReplenishmentAdminService:51-61` → `ReplenishmentService.listRoutesPage` | 传的是单值 `deviceId`；不传即**全平台**路线 |
+| 履约任务分页 | 同上 `:57-61` | 同上 |
+| 到期下架分页 | 同上 `:114-117` | 同上 |
+| 柜机库存台账 | `:36-38` → `listInventory(deviceId, …)` | 不传柜号 = 全平台库存行（2000 上限内） |
+| 资费 / 租机账单 | `DeviceDataFeeBillService.list`、`DeviceRentalService.listBills` | `operatorId` 只用于 `requirePermission`，WHERE 里只有 `device_id = ?` |
+| 领货未上柜 | `InTransitService.listInTransitPage(deviceId, …)` | 签名里**没有** operatorId，物理上无法带范围 |
+| 理货台账 | `TallyLedgerService.ledger`（自拼 SQL） | WHERE 只有「时间窗 + `assignee>0`」 |
+| 导出面 | `exportReplenishmentRoutesCsv`、`exportRiskEventsCsv` | 比列表更狠：不翻页，一次落盘全量 |
+
+### 9-2 修法：一个入口 + 集合下推（不物化「不限」）
+
+`MerchantScopeService#pushdownDeviceIds(operatorId, requestedDeviceId)`：
+
+| 入参 | 返回 | 语义 |
+|---|---|---|
+| 不给柜号 + 全局账号 | `null` | 不限，SQL **不加** `device_id IN (…)` |
+| 不给柜号 + 域受限 | `Set`（可能为空） | 只查这些柜机；空集 ⇒ 调用方直接空页 |
+| 给了柜号 | `List.of(dev)` | **先 `requireDeviceAccess`**：越权 403，不返回空表 |
+
+刻意不把「不限」物化成全表 ID 集合：那是几千个占位符，而且**新建的柜机会落在集合外**（等于给新设备设一个隐形不可见期）。
+
+配套：所有列表查询签名从 `String deviceId` 改为 `Collection<String> deviceIds`，**旧单值重载全部删除**——留着就是「下一个调用方仍然只按柜号过滤」的口子（同 C02「删掉无操作员重载」的判据）。
+
+### 9-3 顺手删掉死门面 `OpsCommercialFacade`（488 行，零调用方）
+
+改签名时才发现它没有一个调用方：它是「自原 OpsCommercialFacade 按域抽出」之后留下的残骸，却仍然保留着**同一批列表的第二套无范围实现**（`listRoutesPage`/`listFulfillmentTasksPage`/`listInTransit` 全部把 operatorId 收下再丢）。门禁只看控制器，看不到它。删掉比修好更省事，也更安全——留着只等哪天有人复用。
+
+### 9-4 门禁：本轮被两个门禁的「识别面」咬了两次
+
+1. **`check:ops-device-scope` R4 只认带引号的 `@RequestParam`**：`@RequestParam(required = false) String deviceId`（Spring 按形参名取参）整批不进判定面。补上后立刻暴露 6 个端点 —— 3 个真泄漏（本批修好）、3 个经 `allowedDeviceIds + contains` 交集实现的（登记为「非同族缺陷」，基线条目写清由谁兜底）。基线 7 → 5 条（修好的必须删，棘轮只降不升）。夹具 S7/S8 分别钉「隐式命名必红」「把修好的范围退回 null 必红」。
+2. **`check:concurrency-declaration` 的归属判据（本轮被它误报才发现）**：
+   - `isMethodSignature` 是「含括号、不以分号结尾」的近似 ⇒ `DeviceSkuInventory inv = existing.orElseGet(() -> {` 被当成方法起点，30 行 blob 命名成「orElseGet」；
+   - 只找「签名行 ≤ 变更行」⇒ hunk 落在新方法的 javadoc/注解上时算到**上一个**方法头上（实测：给只读 `listRoutes` 加 javadoc，报「写方法 upsertInventory 无并发策略」）。
+   改为**真声明形态判据**（括号后只能跟 `{` 或行尾、括号前不得有 `=`/`->`、不得是链式续行）+ **前导块归属**（空白/注释/注解直接算给下面的方法）。夹具 8 → 14 项。
+
+### 9-5 验证
+
+| 项 | 证据 |
+|---|---|
+| 全量单测 | `mvn -o -pl services/trade-service -am test` ⇒ **3104 / 0 fail / 0 error**（+11） |
+| 新增用例 | `OpsReplenishmentScopePushdownTest` 5 例（下推的是范围集合／越权 403 且零取数／`null` 保持不限／空集不当全量）+ `MerchantScopeServiceTest` 5 例（null/空集/单元素/越权 403/未绑定零范围）+ 理货台账空集短路 1 例（`verifyNoInteractions(jdbc)`） |
+| 三态负向（业务） | `pushdownDeviceIds` 退回「不看范围」⇒ 2 红；本单 routes 下推退回 null ⇒ 1 红；理货空集降级成不过滤 ⇒ 1 红；还原 md5 逐字节一致、零 `NEG-INJECT` |
+| 三态负向（门禁） | 并发门禁退回旧谓词 ⇒ 夹具 3 红；R4 退回只认显式命名 ⇒ 夹具 S7 红且 gate exit 0（**正是原来的假绿**） |
+| 预检 | `pre-push-ci-preflight` 全绿（format / lint / audit-gates / migration / openapi） |
+
+**未覆盖（如实）**：真栈点验未做——本批改的是「按范围收口」而非资金路径，且单测已能构造 `null/空集/单元素/越权` 四种输入；需要真栈才能验证的只剩「跨商户实际不可见」，那要有第二个商户的柜机与一个域受限账号，dev 库现有数据（MCH-DEFAULT/MCH-OTHER）具备条件，留到下一批与 MA-298 一起点验。
+
+**新登记**：MA-298（P3）——`MerchantInventoryPortalService` 的 `lowStockOnly` 分支仍是「全局 500 窗口 + 内存过滤」，修它要连带拍板低库存口径（`findLowStockByDeviceIds` 多收 `'DEPLOYED'` 且自带 LIMIT 500，直接换会改行为）。
