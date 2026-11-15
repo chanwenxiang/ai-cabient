@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluateFixtureCoverage } from './check-audit-gates-wiring.mjs';
+import { evaluateFixtureCoverage, extendReachability } from './check-audit-gates-wiring.mjs';
 
 const TAG = '[check-audit-gates-wiring.test]';
 let checks = 0;
@@ -206,6 +206,72 @@ function run({ gates, tests = [], sources = {}, files = [], registry }) {
     files: [...Object.values(registry.fixtureMap || [])]
   });
   assert(r.problems.length === 0, `真实仓面应零问题：${r.problems.join('|')}`);
+}
+
+// 11) MA-291 传递闭包：可达脚本内部 `pnpm check:leaf` 必须让 leaf 进入 reached。
+//     旧实现 `reached.add(name)` 只会把 root 自己再加一遍 ⇒ leaf 永远不可达、规则 4 no-op。
+{
+  const scripts = {
+    'check:root': 'pnpm check:mid',
+    'check:mid': 'pnpm run check:leaf',
+    'check:leaf': 'node scripts/check-leaf.mjs'
+  };
+  const reached = extendReachability(new Set(['check:root']), scripts, [
+    'check:root',
+    'check:mid',
+    'check:leaf'
+  ]);
+  assert(reached.has('check:leaf'), `传递闭包没把 leaf 加进 reached：${[...reached].join(',')}`);
+  assert(reached.has('check:mid'), '中间节点也必须可达');
+}
+
+// 12) 闭包对「引用不存在的 check: 脚本」免疫（不能把无效名字塞进 reached）
+{
+  const reached = extendReachability(
+    new Set(['check:root']),
+    { 'check:root': 'pnpm check:ghost' },
+    ['check:root']
+  );
+  assert(!reached.has('check:ghost'), '未定义的 check: 名不该被当成已接线');
+}
+
+// 13) MA-282 识别面：`--selftest` + process.argv.includes 内联自测块也算已带夹具
+{
+  const r = run({
+    gates: ['check-x.mjs'],
+    sources: {
+      'check-x.mjs':
+        "if (process.argv.includes('--selftest')) { const bad = 0; if (bad) process.exit(1); }"
+    },
+    registry: { exempt: [], maxExempt: 0, seedExempt: [], fixtureMap: {} }
+  });
+  assert(r.problems.length === 0, `--selftest 形态被漏认：${r.problems.join('|')}`);
+}
+
+// 14) MA-282 负向：只在注释里提到 --selftest（剥注释后无可执行入口）⇒ 不算覆盖
+{
+  const r = run({
+    gates: ['check-x.mjs'],
+    sources: { 'check-x.mjs': '// 自检：node check-x.mjs --selftest\nconst x = 1;' },
+    registry: { exempt: [], maxExempt: 0, seedExempt: [], fixtureMap: {} }
+  });
+  assert(
+    r.problems.some((p) => p.includes('没有可执行负向夹具')),
+    `注释里的自测字样不该算覆盖：${r.problems.join('|')}`
+  );
+}
+
+// 15) MA-282 负向：只有自测参数字符串、没有可执行入口 ⇒ 不算覆盖
+{
+  const r = run({
+    gates: ['check-x.mjs'],
+    sources: { 'check-x.mjs': "const label = '--selftest'; console.log(label);" },
+    registry: { exempt: [], maxExempt: 0, seedExempt: [], fixtureMap: {} }
+  });
+  assert(
+    r.problems.some((p) => p.includes('没有可执行负向夹具')),
+    `光有参数字符串不该算夹具：${r.problems.join('|')}`
+  );
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

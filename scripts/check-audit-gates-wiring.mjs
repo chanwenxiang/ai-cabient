@@ -40,10 +40,34 @@ function fail(msg) {
 // ── 规则 6（S8④）：每个 check-*.mjs 必须有可执行负向夹具，豁免走棘轮 ──────────
 // 「114 条门禁只有 13 条带反例」（结构化收口档 §八）的后果：判据被人拆成空壳时，
 // 没有任何用例会红。覆盖形态三者其一：sibling .test.mjs / fixtureMap 登记的 devops
-// 验证脚本（文件必须真实存在）/ 门禁源码自带 selfTest（**剥注释后**同时出现 selfTest(
-// 与 --self-test，compose-image-tags / nginx-gateway-parity / seq-success-path-guard
-// 是现成样本）。豁免 = 2026-11-12 切线时的存量（seedExempt 子集锁定 + maxExempt
+// 验证脚本（文件必须真实存在）/ 门禁源码自带自测（**剥注释后**同时出现自测参数
+// `--self-test` 或 `--selftest` 与可执行入口 `selfTest(` 或 `process.argv.includes(...)`；
+// compose-image-tags / nginx-gateway-parity / seq-success-path-guard 是前一种样本，
+// check-admin-artifact-pairing / check-stocktake-chain 是后一种）。
+// 豁免 = 2026-11-12 切线时的存量（seedExempt 子集锁定 + maxExempt
 // 双保险：只许减不许增）；已获得覆盖的豁免条目=陈旧必须移出。
+/**
+ * MA-291：可达性传递闭包（原地扩充 reached）。
+ *
+ * 旧实现写的是 `reached.add(name)` —— 把「引用者」自己又加一遍，被 `pnpm check:xxx`
+ * 引用的那个脚本永远进不了集合 ⇒ 规则 4 的「间接接线」判据整体 no-op。
+ * 抽成纯函数是为了让 sibling .test.mjs 能用合成脚本图验这条链真的会传递。
+ */
+export function extendReachability(reached, scripts, checkScriptNames) {
+  for (let guard = 0; guard < 20; guard++) {
+    const before = reached.size;
+    for (const name of [...reached]) {
+      for (const m of (scripts[name] || '').matchAll(
+        /pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g
+      )) {
+        if (checkScriptNames.includes(m[1])) reached.add(m[1]);
+      }
+    }
+    if (reached.size === before) break;
+  }
+  return reached;
+}
+
 export function evaluateFixtureCoverage({ gateNames, registry, testExists, sourceOf, existsFn }) {
   const problems = [];
   const fixtureMap = registry.fixtureMap || {};
@@ -56,7 +80,15 @@ export function evaluateFixtureCoverage({ gateNames, registry, testExists, sourc
     const mapped = fixtureMap[name];
     const mappedOk = Boolean(mapped) && existsFn(mapped);
     const src = sourceOf(name) || '';
-    const selfTest = /\bselfTest\s*\(/.test(src) && src.includes('--self-test');
+    // MA-282：原判据只认 `--self-test` + `selfTest(` 这一种写法，5 个门禁用的是
+    // `--selftest` + `if (process.argv.includes('--selftest'))` 内联自测块 ⇒ 被误判成
+    // 「无夹具」而长期挂在 exempt 里。两种参数拼法与两种自测入口形态都要认。
+    // src 已由调用方 stripJsComments ⇒ 注释里提到不算覆盖。
+    const selfTestArg = /(?:--self-test|--selftest)\b/.test(src);
+    const selfTestEntry =
+      /\bselfTest\s*\(/.test(src) ||
+      /process\.argv\.includes\(\s*['"](?:--self-test|--selftest)['"]\s*\)/.test(src);
+    const selfTest = selfTestArg && selfTestEntry;
     if (hasTest || mappedOk || selfTest) {
       if (exempt.has(name)) {
         problems.push(
@@ -170,17 +202,7 @@ function main() {
     }
   }
   // 传递闭包：被可达脚本内部 `pnpm <name>` 引用的脚本同样算已接线
-  for (let guard = 0; guard < 20; guard++) {
-    const before = reached.size;
-    for (const name of [...reached]) {
-      for (const m of (scripts[name] || '').matchAll(
-        /pnpm\s+(?:run\s+)?(check:[A-Za-z0-9:_-]+)/g
-      )) {
-        if (checkScriptNames.includes(m[1])) reached.add(name);
-      }
-    }
-    if (reached.size === before) break;
-  }
+  extendReachability(reached, scripts, checkScriptNames);
 
   // ── 规则 2：每个 check-*.mjs 必须被「可执行接线」 ────────────────────────────
   // R15-H6 收紧三点：
