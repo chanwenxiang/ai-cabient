@@ -393,6 +393,31 @@
 | 三态负向（门禁） | 并发门禁退回旧谓词 ⇒ 夹具 3 红；R4 退回只认显式命名 ⇒ 夹具 S7 红且 gate exit 0（**正是原来的假绿**） |
 | 预检 | `pre-push-ci-preflight` 全绿（format / lint / audit-gates / migration / openapi） |
 
-**未覆盖（如实）**：真栈点验未做——本批改的是「按范围收口」而非资金路径，且单测已能构造 `null/空集/单元素/越权` 四种输入；需要真栈才能验证的只剩「跨商户实际不可见」，那要有第二个商户的柜机与一个域受限账号，dev 库现有数据（MCH-DEFAULT/MCH-OTHER）具备条件，留到下一批与 MA-298 一起点验。
+**真栈点验**：见 §9-6（2026-11-15 补做，已从「未覆盖」转为已覆盖）。
 
 **新登记**：MA-298（P3）——`MerchantInventoryPortalService` 的 `lowStockOnly` 分支仍是「全局 500 窗口 + 内存过滤」，修它要连带拍板低库存口径（`findLowStockByDeviceIds` 多收 `'DEPLOYED'` 且自带 LIMIT 500，直接换会改行为）。
+
+### 9-6 真栈点验：跨商户 / 柜机级范围实际不可见（2026-11-15）
+
+单测只能证明「拼出来的 SQL 带了谓词」，证明不了「换一个账号登进来真的看不到」——那是 `pushdownDeviceIds` 与 `allowedDeviceIds` 在真库上的合流。§9-5 原先把这一项标为未覆盖，本节点验补上。
+
+**方法**：镜像重建（`docker compose build trade-service` + `--force-recreate`）后，用真账号登录（`admin-password-login`，验证码从 Redis `aicabinet:captcha:<id>` 直取），对**同一个 token** 做 A/B。唯一的变量是 DB 里的一行绑定/范围偏好，请求与令牌一律不变。
+
+| # | 场景 | 账号（角色 / 绑定 / 货柜范围） | 结果 |
+|---|---|---|---|
+| 1 | 基线：数据确实在那儿 | 13900000001（admin / 全局） | 库存 8+2+3 行（含 `CAB-OTHER`）、任务 9+1+21、在途 2 行（`CAB-OTHER` 在列） |
+| 2 | 双商户绑定 | 13900000004（replenisher / MCH-DEFAULT+MCH-OTHER / ALL） | `CAB-OTHER` 可见（库存 2 行、任务 1 行、路线命中 2 次） |
+| 3 | **解绑 MCH-OTHER**（只改这一行） | 同上，同 token | 库存只剩 `500909625160`/`EG943322621391`；任务 9+21；路线里 fixture 命中 **0**；`?deviceId=CAB-OTHER` ⇒ **HTTP 403** |
+| 4 | 恢复绑定 | 同上，同 token | `CAB-OTHER` 回来（库存 2 行、任务 1 行），指名查询 200 |
+| 5 | 柜机级求交（DEVICE_IDS） | 同上 + `scope=EG943322621391` | 库存仅 3 行（EG）；指名**同商户**另一台 `500909625160` ⇒ **403**；在途 total 0 |
+| 6 | 柜机级求交反向 | 同上 + `scope=500909625160` | 在途 1 行（`500909625160`）、台账 6 行、库存 8 行；`CAB-OTHER` 始终 0 |
+| 7 | 资金账单同源 | 13900000002（finance / 双商户） | 无货柜范围 ⇒ 租机账单 1 行；`scope=EG` ⇒ **total 0**；`scope=500909625160` ⇒ 1 行 |
+| 8 | 导出口径一致 | 13900000004（`scope=500909625160`） | 路线 CSV 200 / 808 字节：`500909625160` 9 行，`CAB-OTHER` 0 行，fixture 路线 0 行 |
+
+第 3/4 条是**同 token 的前后对照**：范围是每个请求现算的（`allowedDeviceIds` 每次查库），没有把范围缓存进令牌——这点只能真栈验，也顺手排除了「解绑后仍旧可见」这类缓存型泄漏。
+
+**造数与清理**（一次性行，全部带 `E2E-SCOPE` 标记，验完即删，零残留已复核）：`CAB-OTHER` 的 2 条库存行、1 条路线（`route_id=36`）+ 1 条任务（`task_id=38`）、复用出库单 24 的 2 条 `IN_TRANSIT` 行；账号侧只动 `ops_user_merchant` 一行与 `ops_user_device_scope(_pref)` 两行，验完全部还原（`bind9=MCH-DEFAULT,MCH-OTHER`、`scope_pref=0`、`scope_rows=0`）。
+
+**为什么在途要先造 `IN_TRANSIT` 行**：`listInTransitPage` 只列开单在途（`IN_TRANSIT`），dev 库里 24 行全是 `RECEIVED`/`CANCELLED` ⇒ 任何账号都是 0 行，直接拿它当「看不见」的证据是假绿。第 1 条先证明 admin 能看见这两行，第 5/6 条才有意义（负向 + 正向双控）。
+
+**仍未覆盖**：`device_data_fee_bill` 在 dev 库是空表，资费账单端点只验了代码路径与单测，没做真栈数据面；归到 MA-298 那批一起造数。
