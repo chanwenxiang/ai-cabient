@@ -1050,6 +1050,52 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "fde5a9c5",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "MA-224 合同清空日期：可空列改 wrapper 显式 set(null)",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteContractService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SiteContractServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-178 设备押金预授权上界（读侧降级 + 写侧 400 + 共用天花板）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/support/CommissionParamBounds.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ConsumerPreauthService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsDeviceAdminService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/support/CommissionParamBoundsTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ConsumerPreauthServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-289 分账锁封装 IllegalStateException → 409",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-279 LOW_STOCK 判据与跳转同源",
+          "files": ["clients/admin-vue/src/views/dashboard/DashboardView.vue"]
+        },
+        {
+          "id": "规则 E 静态判据（逐 case 比对两个 switch）+ sibling 夹具 + 接线 + 移出 exempt",
+          "files": [
+            "scripts/lib/dashboard-action-path.mjs",
+            "scripts/check-approval-action-path-nav.mjs",
+            "scripts/check-approval-action-path-nav.test.mjs",
+            "scripts/gate-fixture-registry.json",
+            "package.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

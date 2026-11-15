@@ -757,3 +757,35 @@ lotRepository.save(lot);                                  // 全列绝对覆盖
 ### 16-4 本批取舍
 
 一开始列了四条「改动面小」的 P2（MA-176 / 178 / 224 / 279），实际只做了 MA-176：它是**库存并发正确性**、配方现成、能一次验透（含真库 IT）；而 MA-178 要定押金业务上界、MA-224 要同时改前后端清列口径、MA-279 要动菜单权限映射，各自都需要单独一轮口径确认，不适合塞在同一批里凑数。其余三条仍在 open 台账。
+
+## 17. 修复批 12：四条 P2 一起收（MA-178 / 224 / 279 / 289，2026-11-15 晚）
+
+用户反馈「进度太慢、可以做多点」⇒ 本批改成**一轮四条**：代码集中改、一个 fix 提交、一次全量、一次预检、一次推送。四条互不依赖，各自仍有单测/静态判据与负向验证。
+
+### 17-1 四条对照
+
+| 编号 | 缺陷 | 修法 |
+|---|---|---|
+| **MA-224** | 更新合同时 `updateById` 跳 null 列 ⇒ 运营清空起租/到期后 DB 仍留旧日期，而 `status` 已按 null 重算 ACTIVE（页面与状态分叉，MA-273 的出账判据跟着错） | 可空列（address/landlord*/startDate/endDate/remark）改用 `update(null, Wrappers.lambdaUpdate().set(…))` 显式写，含 null。**前端 `startDate \|\| null` 本身正确，没改** —— 问题在后端 |
+| **MA-178** | 设备押金是预授权第二来源：读侧只有 `Math.min(Integer.MAX_VALUE, deposit)`、写侧仅钳负 ⇒ 可写荒谬押金并冻结消费者余额 | 新增 `CommissionParamBounds.requirePreauthCents`（与全局 `checkout.preauth_cents` **共用** `PREAUTH_CENTS_CEILING`=¥1万，不另立第二套上界）；写侧超界 400，读侧超界的存量行 warn 后回落配置默认（与全局键超限同款处置） |
+| **MA-289** | `runWithOrderSplitLock` 把 `IllegalStateException` 一律包成 500 ⇒ 分账不存在 / 记录已变更 / 仅 LEDGER_ONLY 可确认完结这些可预期的状态竞争，在界面变成「服务器错误」 | 在 `ResponseStatusException` 透传之后、`Exception` 包 500 之前加 `IllegalStateException ⇒ CONFLICT(409)` |
+| **MA-279** | `DashboardView` 的 `LOW_STOCK` 判据（`actionTargetPath`，`canAccessPath` 用）指 `/replenishment`，实际 `goAction` 跳 `/stock-health` ⇒ 有目标页权限的人看不到按钮、有判据页权限的人点进去被拦 | 判据改 `/stock-health`（`REPLENISHMENT` 保持原路径）；并在 `check-approval-action-path-nav` 增**规则 E**：逐 case 比对两个 switch 的路径 |
+
+### 17-2 静态判据（规则 E）
+
+前端改动不能只靠肉眼，所以抽了 `scripts/lib/dashboard-action-path.mjs`（`casePaths` / `mismatchedActionPaths`，处理「连续 case 共享同一段」），主门禁 import 后逐 case 比对；新建 sibling 夹具 8 项（真仓零不一致 / 合成旧路径必红 / 连续 case 解析 / 锚点失效必红），接进 `check:approval-action-path-nav` 命令串并移出 exempt ⇒ 夹具覆盖 **90/147**、豁免 **57/69**。
+
+### 17-3 验证
+
+| 项 | 结果 |
+|---|---|
+| 单测 | `CommissionParamBoundsTest` +1、`ConsumerPreauthServiceTest` 新建 3 例、`SiteContractServiceTest` +1、`RevenueSplitServiceTest` +1；相关 57 例全绿 |
+| 全量 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3133, Failures: 0, Errors: 0, Skipped: 0**（上批 3127，+6） |
+| 四处三态负向 | ① LOW_STOCK 判据改回 `/replenishment` ⇒ 门禁报「判据=/replenishment 跳转=/stock-health」红；② 删清列 wrapper ⇒ 合同用例红；③ 读侧退回 `Math.min(Integer.MAX_VALUE,…)` ⇒ 超界用例红；④ 删 ISE catch ⇒ 409 断言红。四处还原后 4 份源码 md5 与备份逐字节一致、正向全绿 |
+| 门禁 | `check-approval-action-path-nav` OK（菜单登记 78 项）、`check-audit-gates-wiring` OK（199 个 check 文件全接线 / 夹具 90/147 / 豁免 57/69）、`check-gate-test-coupling` OK、台账四门禁 OK、批登记 41 批全对账 |
+
+**如实边界**：MA-178 的写侧调用点（`OpsDeviceAdminService` → `requirePreauthCents`）没有单独写一条 Mockito 用例，防线是纯函数 4 例单测 + 调用点代码审查；`check:commission-param-bounds` 门禁的既有扫描面未针对该调用点扩展。这一侧比读侧薄，下批可补。
+
+### 17-4 取舍
+
+剩余 open 里 P2 还有 MA-260（XXL 逃生门，需拍板兜底策略）、MA-274/275/276（并发与事务，需专门并发用例）、MA-278（开关串联，需拍板）、MA-281（超时同源）等，都不是「顺手一行」能安全改的；本批挑的四条都是口径明确、配方现成、能一次验透的。剩余 open 降到 **23 条**。
