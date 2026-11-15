@@ -10,6 +10,9 @@ import com.aicabinet.trade.mapper.ApprovalNodeMapper;
 import com.aicabinet.trade.mapper.ApprovalTaskMapper;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsUserDepartmentMapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +49,12 @@ class ApprovalNodeUpsertTest {
 
     @BeforeEach
     void setUp() {
+        // 纯单测里没人初始化 MyBatis-Plus 的 lambda 列缓存：ApprovalWorkflowService 用
+        // Wrappers.<ApprovalDefinition>lambdaUpdate().set(Entity::getXxx, …) 时要查列名，
+        // 缺缓存直接抛「can not find lambda cache」。不显式注册的话，这个类只能碰巧在
+        // 某个 @SpringBootTest 之后执行才绿 —— 顺序依赖的假绿（单独跑必红）。
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), ApprovalDefinition.class);
         service = new ApprovalWorkflowService(
                 definitionRepository, nodeRepository, instanceRepository, taskRepository,
                 permissionRepository, userDepartmentRepository, notificationService,
