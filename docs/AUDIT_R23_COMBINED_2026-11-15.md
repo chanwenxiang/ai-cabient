@@ -266,3 +266,27 @@
 | C44 | P2 | `InTransitService:183-200`、`TallyLedgerService:36-46` | 领货未上柜分页不接收 `operatorId`（无范围参数）；理货台账自拼 SQL 的 WHERE 只有时间窗 + `assignee>0`，不带设备范围 | MA-296 |
 
 **为什么这一轮不顺手改**：两条都是「列表取数范围下推」——要把单值 `deviceId` 换成设备**集合**下推（`IN (...)`），涉及 3 个 mapper + 分页 SQL，与已被 `check:workbench-scope-pushdown` 钉住的同类修法同源。半修（只加 `requireDeviceFilter`）会让人误以为已闭环：传了 filter 越权 403、**不传 filter 仍全量**。已按「显式欠账」登记在 `scripts/ops-device-scope-baseline.json`，门禁会持续提示，修复后必须删条目。
+
+### 7-5 真栈点验（2026-11-15 12:25，重建镜像后实测）
+
+**前提**：`docker compose -p ai-cabinet -f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml build trade-service` → jar 内含拦截器（`unzip -l /app/app.jar | grep -c OpsDeviceScope` = **1**，产物级证据）→ `up -d --pull never --no-deps --force-recreate trade-service` → healthy。
+
+**口径**：超管 `13900000001`（admin ⇒ 全局范围）；运营 `13900000003`（operator，绑 MCH-DEFAULT + MCH-OTHER）。设备 `EG943322621391` 属 MCH-DEFAULT（范围内）；`719325384517` 无商户归属（范围外）。
+
+| 端点 | 无 token | 超管·范围内 | 超管·范围外 | 运营·范围内 | 运营·范围外 |
+|---|---|---|---|---|---|
+| `GET /ops/admin/devices/{id}/pricing` | 401 | 200（有价目） | 200（空表） | 200（有价目） | **403** |
+| `GET /ops/admin/devices/{id}/temp-plan` | 401 | 200 | 200 | 200 | **403** |
+| `GET /ops/admin/jiangyi/order-videos/by-device?deviceId=` | — | 200（有行） | 200（有行） | 200（有行） | **403** |
+| `GET /ops/admin/devices/{id}/http-credential` | — | 400（业务校验：非 12 位数字） | 404（尚未签发） | 400 | **403** |
+| `PUT /ops/admin/devices/{id}/jiangyi/sound` | — | — | — | — | **403**（未下发） |
+| 不存在设备 `999999999999/pricing` | — | 404 | — | **403** | — |
+| 伪造 JWT | 401 | — | — | — | — |
+
+**三条结论（对应 §7-2 的机制主张）**：
+
+1. **拦截器确实在跑**：`http-credential` 控制器内**没有**范围校验（C04 回退时不注入、纯靠机制），运营访问范围外得 403 —— 该 403 只可能来自 `OpsDeviceScopeInterceptor`，不可能是控制器或权限码。
+2. **闸在业务之前、不泄露存在性**：同一不存在的 deviceId，超管得 404（业务层），运营得 **403**（范围层）——范围判定先于设备查询，越权者不能靠 404/403 差异探测哪些柜存在。
+3. **不误伤**：超管与运营对范围内设备全部 200；`sound` 对范围外 403 且未向设备下发指令。
+
+**未覆盖（有意）**：XXL/定时任务路径（`operatorId=null` 不受拦截器影响，已由 `solidifyMargin_nullOperatorSkipsScopeGate` 等单测断言）；非 `/api/v2/ops/**` 前缀的运营端点（R3 判据当前为 0）。
