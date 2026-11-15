@@ -70,6 +70,13 @@ function testSources() {
 // value = { job: 'build' | 'integration', why: 人话依据 }
 const GUARDED = new Map([
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/MerchantBillRefundDaySqlIT.java',
+    {
+      job: 'integration',
+      why: 'MA-271 真库实证（2026-11-15）：failsafe 跑（*IT.java）；真 PG 钉「跨月退款归退款月 / 历史月不被追溯改写 / refunded_at 为空兜底下单日」'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryDeductAtomicityIT.java',
     {
       job: 'integration',

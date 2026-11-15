@@ -171,6 +171,13 @@
       "fixtureRefs": 3,
       "fixtureOk": true,
       "why": "正负双夹具在册（合法空态不报红 + 真异常报红），夹具批 2026-11-13 销账"
+    },
+    {
+      "rule": "checkRevenueSplitRefundStaleConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "MA-270 新增规则，同批配正负双夹具：sqlUsesNetExpression（合法空态不报红 + SQL 净额式子锚点）/ recordsStaleGross（真异常报红，取 dev 库实锤值 293 vs 586）"
     }
   ]
 }
