@@ -191,7 +191,7 @@
     "check:ui-barehex-ratchet": "node scripts/check-ui-barehex-ratchet.mjs",
     "check:admin-banner-ratchet": "node scripts/check-admin-banner-ratchet.test.mjs && node scripts/check-admin-banner-ratchet.mjs",
     "check:mp-touch-target-ratchet": "node scripts/check-mp-touch-target-ratchet.mjs",
-    "check:mp-scoped-hash": "node scripts/check-mp-scoped-hash.mjs",
+    "check:mp-scoped-hash": "node scripts/check-mp-scoped-hash.test.mjs && node scripts/check-mp-scoped-hash.mjs",
     "check:mp-emoji-icon": "node scripts/check-mp-emoji-icon.mjs",
     "check:door-cabinet-slot-copy": "node scripts/check-door-cabinet-slot-copy.mjs"
   },

@@ -131,7 +131,6 @@
     "check-mp-a11y-coverage.mjs",
     "check-mp-css-token-fallback.mjs",
     "check-mp-pull-refresh.mjs",
-    "check-mp-scoped-hash.mjs",
     "check-mp-tabs-layout.mjs",
     "check-mp-template-comments.mjs",
     "check-mp-unit-tests-wired.mjs",

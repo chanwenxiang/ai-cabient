@@ -45,6 +45,37 @@ function tokens(file) {
   return found;
 }
 
+/** 两侧 release 构建必须内嵌「带产物路径」的 scoped-hash 检查（CI 日志实证的接线）。 */
+export const BUILD_HOOK_TARGETS = [
+  'clients/consumer-mp/package.json',
+  'clients/merchant-mp/package.json'
+];
+const HOOK_RE = /check-mp-scoped-hash\.mjs\s+dist\/build\/mp-weixin/;
+
+/**
+ * MA-280：CI 干净检出时没有任何产物，聚合链里那条无参数调用原本直接 `SKIP` exit 0
+ * ⇒ 恒零覆盖（实证：ci.yml 的聚合链在 mp-weixin 构建之前跑）。
+ *
+ * 真实覆盖来自两个 release 构建命令末尾内嵌的
+ * `node ../../scripts/check-mp-scoped-hash.mjs dist/build/mp-weixin`
+ * （CI 日志：consumer / merchant 各输出一次 OK）。所以无产物时本门禁不再假装判过，
+ * 而是**验这条接线还在**；哪天有人把内嵌调用删掉，这一步立刻红。
+ */
+export function missingBuildHooks(readJson) {
+  const missing = [];
+  for (const rel of BUILD_HOOK_TARGETS) {
+    let script = '';
+    try {
+      const pkg = readJson(rel);
+      script = (pkg && pkg.scripts && pkg.scripts['build:mp-weixin']) || '';
+    } catch {
+      script = '';
+    }
+    if (!HOOK_RE.test(script)) missing.push(rel);
+  }
+  return missing;
+}
+
 export function findScopedHashMismatches(root) {
   if (!existsSync(root)) return [];
   const problems = [];
@@ -76,13 +107,41 @@ export function findScopedHashMismatches(root) {
 function main() {
   const args = process.argv.slice(2);
   // 显式入参按调用方 cwd 解析（package.json 在各子包目录里执行），默认根按仓库根解析
+  // MP_SCOPED_HASH_ROOTS 用于本地复刻「CI 干净检出无产物」的场景（夹具用）：
+  // 逗号分隔、按 cwd 解析；不设则回落仓库内 4 个默认产物目录。
+  const envRoots = process.env.MP_SCOPED_HASH_ROOTS;
   const roots =
     args.length > 0
       ? args.map((p) => resolve(process.cwd(), p))
-      : DEFAULT_ROOTS.map((p) => resolve(ROOT, p));
+      : envRoots
+        ? envRoots.split(',').map((p) => resolve(process.cwd(), p.trim()))
+        : DEFAULT_ROOTS.map((p) => resolve(ROOT, p));
   const existing = roots.filter((r) => existsSync(r));
   if (existing.length === 0) {
-    console.log(`${TAG} SKIP：未找到产物目录（先构建小程序）`);
+    if (args.length > 0) {
+      // 显式传了产物路径 = 调用方承诺「构建刚产出」；此时缺目录必须红，
+      // 不能沿用无参数时的 SKIP（那正是「构建失败也判绿」的口子）。
+      console.error(
+        `${TAG} FAIL：调用方显式指定产物目录但一个都不存在（${roots.join(', ')}）⇒ ` +
+          '构建没产出或路径写错，不得判绿'
+      );
+      process.exit(1);
+    }
+    const missing = missingBuildHooks((rel) =>
+      JSON.parse(readFileSync(resolve(ROOT, rel), 'utf8'))
+    );
+    if (missing.length) {
+      console.error(
+        `${TAG} FAIL：无本地产物（CI 干净检出），且这些 release 构建没有内嵌产物级 ` +
+          `scoped-hash 检查 ⇒ 聚合链那条会恒 SKIP：\n  - ${missing.join('\n  - ')}\n` +
+          '修法：在 build:mp-weixin 命令末尾加 `node ../../scripts/check-mp-scoped-hash.mjs dist/build/mp-weixin`'
+      );
+      process.exit(1);
+    }
+    console.log(
+      `${TAG} OK：无本地产物；已验 consumer/merchant 的 build:mp-weixin 都内嵌 ` +
+        '`dist/build/mp-weixin` 产物级检查（CI 实证），本轮不做哈希比对'
+    );
     return;
   }
   let total = 0;
