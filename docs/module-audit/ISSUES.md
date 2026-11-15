@@ -1495,7 +1495,7 @@ automator 0.12.1 的 `page.data(array)` / `page.text()` / `page.path()` 都不�
 | MA-296 | P2 | open | trade-service `InTransitService` / `TallyLedgerService` | 领货未上柜分页不接收 `operatorId`；理货台账自拼 SQL 的 WHERE 只有时间窗 + `assignee>0`，不带设备范围 ⇒ 域受限账号看全平台 | C44（R23X 修复期新发现） | 亲验 `InTransitService:183-200`（无 operatorId 形参）、`TallyLedgerService:36-46`；修法：同上，需把单值 deviceId 换成集合下推 |
 | MA-297 | P3 | open | trade-service 4 个运营写端点 | C06 修完才看见的审计留痕缺口：`OpsExceptionController` 三个危险动作（`cancel-session:55`/`retry:69`/`manual-resolve:105`）与 `SystemConfigController:96` `alert-test` 探测均无可达业务 `appendLog`；同批新入册的另 3 个（`AccountController` 2 个消费端签约、`DemoDataInternalController:31`）按既有口径不计（消费端 8 端点全 0 归因、内部端点无操作者） | C06 附带（R23X-01 解析面修正后暴露） | 亲验：门禁基线 477/255/222 中 7 个未归因端点逐个点名；修法：危险动作补 `appendLog(action=EXCEPTION_*_... + 操作者 + 目标 id)`，alert-test 可按「探测不算业务写」显式降基线并在文案说明 |
 
-> **号段声明（2026-11-15）**：本表已占用 **MA-262…MA-297**（R23 合并轮补登 33 条 + 修复期新发现 MA-295/296/297）。`docs/module-audit/R23/VERIFY-EXT1.md` §6 的「保留段 MA-280…299」有 8 个号与本表重叠（如 MA-280：本表=mp-scoped-hash，EXT1=提现二次解冻）⇒ **EXT1 让号到 MA-295 起**；其 `R23I-01…22` 一律读作四端轮 `R23Q-01…22`（`R23I-*` 在独立轮旧编号里另有含义）。
+> **号段声明（2026-11-15）**：本表已占用 **MA-262…MA-297**（R23 合并轮补登 33 条 + 修复期新发现 MA-295/296/297）。第三路对抗验证报告 EXT1 §6 的「保留段 MA-280…299」有 8 个号与本表重叠（如 MA-280：本表=mp-scoped-hash，EXT1=提现二次解冻）⇒ **EXT1 让号到 MA-295 起**；其 `R23I-01…22` 一律读作四端轮 `R23Q-01…22`（`R23I-*` 在独立轮旧编号里另有含义）。
 >
 > **同族关联总览（防重复排期）**：
 > - 数据范围越权族：MA-263/264/265/277 ↔ **MA-068 家族**（已按 `requireDeviceAccess` 修过同类）⇒ 修复批 1 应同时落静态门禁，否则复发第 4 次。
