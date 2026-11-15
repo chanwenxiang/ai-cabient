@@ -126,7 +126,17 @@ public class OrderPaymentService {
      * <p>渠道由服务端自动决策（用户偏好 → 扫码入口渠道 → 已签约渠道 → 余额兜底）；
      * 自动结算与运营代收走这条。
      */
-    @Transactional(noRollbackFor = BalanceInsufficientException.class)
+    // MA-274 Phase A（2026-11-15 拍板执行）：本方法**刻意不带** @Transactional。
+    // 结算主流程（SettlementOrderFinalizeService）本就无事务包裹，旧注解让 chargeOrder
+    // 自开一个事务、把 findByIdForUpdate 的**订单行锁**横跨整个渠道 HTTP ⇒ 弱网/渠道
+    // 慢时锁被钉住（Redis 锁有心跳续租，DB 行锁没有）。去事务化后与 refundOrder 同构：
+    // HTTP 前的痕迹（recordChargePending）与 HTTP 后的收口（finalizeChargePending）
+    // 都是 REQUIRES_NEW 自提交；其余写随语句自动提交——重放安全由幂等键
+    // （restoreCompletedCharge / CHARGE:<orderId>:<amount>）兜底。
+    // BalanceInsufficientException 本就不经过 txTemplate（change 内部自捕），传播语义不变。
+    // 残留（Phase B，另行专项）：调用方自带事务的路径（UnpaidOrderService.collect /
+    // collectByUser @Transactional → markPaid → chargeOrder）HTTP 期间仍持调用方行锁——
+    // 消除它需把补缴流程同样拆段。
     public void chargeOrder(CabinetOrder order) {
         chargeOrder(order, null);
     }
@@ -138,7 +148,7 @@ public class OrderPaymentService {
      * 即老客户端/老调用方行为不变；非空 ⇒ 只按该渠道扣款、**不降级**
      * （见 {@link #chargeWithSelectedChannel}）。
      */
-    @Transactional(noRollbackFor = BalanceInsufficientException.class)
+    // MA-274 Phase A：同上，刻意无 @Transactional（重载与主入口必须同进退）。
     public void chargeOrder(CabinetOrder order, String requestedChannel) {
         if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);

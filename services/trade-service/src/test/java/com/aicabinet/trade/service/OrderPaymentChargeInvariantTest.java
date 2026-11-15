@@ -406,4 +406,32 @@ class OrderPaymentChargeInvariantTest {
         op.setUserId(USER_ID);
         return op;
     }
+
+    // ── MA-274 Phase A：chargeOrder 刻意无事务（HTTP 期间不得持有订单行锁）──────────
+
+    @org.junit.jupiter.api.Test
+    void chargeOrder_overloads_mustNotBeTransactional_httpRunsOutsideAnyTx() throws Exception {
+        for (java.lang.reflect.Method m : new java.lang.reflect.Method[] {
+                com.aicabinet.trade.service.OrderPaymentService.class.getMethod("chargeOrder",
+                        com.aicabinet.trade.domain.CabinetOrder.class),
+                com.aicabinet.trade.service.OrderPaymentService.class.getMethod("chargeOrder",
+                        com.aicabinet.trade.domain.CabinetOrder.class, String.class)}) {
+            org.junit.jupiter.api.Assertions.assertNull(
+                    m.getAnnotation(org.springframework.transaction.annotation.Transactional.class),
+                    m.getName() + " 不得带 @Transactional：事务会把订单行锁横跨整个渠道 HTTP");
+        }
+        // 痕迹两腿必须自提交（HTTP 前后不依赖外层事务）
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                com.aicabinet.trade.service.OrderPaymentService.class
+                        .getMethod("recordChargePending", com.aicabinet.trade.domain.CabinetOrder.class)
+                        .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
+                        .propagation());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW,
+                com.aicabinet.trade.service.OrderPaymentService.class
+                        .getMethod("finalizeChargePending", String.class, String.class)
+                        .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
+                        .propagation());
+    }
 }
