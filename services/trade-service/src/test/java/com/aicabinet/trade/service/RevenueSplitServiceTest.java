@@ -54,9 +54,21 @@ class RevenueSplitServiceTest {
 
     @BeforeEach
     void setUp() {
+        RevenueSplitService selfProxy = org.mockito.Mockito.mock(RevenueSplitService.class);
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService, returnLegService, orderRepository);
+                profitSharingAlertService, distributedLockService, returnLegService, orderRepository,
+                selfProxy);
+        // MA-276：recordSplit 经 self 代理进 REQUIRES_NEW 内层；纯单测里没有 Spring 代理，
+        // 用 mock self 把 doRecordSplitInTx / findSplitAfterRace 委托回同包的真实方法，
+        // 保证锁内路径与生产共用同一份业务逻辑。
+        // 该类未开 LENIENT，非 recordSplit 用例不会用到这两个委托 ⇒ 必须 lenient 免全局误伤
+        org.mockito.Mockito.lenient()
+                .when(selfProxy.doRecordSplitInTx(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> service.doRecordSplit(inv.getArgument(0)));
+        org.mockito.Mockito.lenient()
+                .when(selfProxy.findSplitAfterRace(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> service.findSplitAfterRace(inv.getArgument(0)));
         org.mockito.Mockito.lenient().when(returnLegService.openLegs(anyString()))
                 .thenReturn(java.util.List.of());
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
@@ -939,4 +951,29 @@ class RevenueSplitServiceTest {
         assertEquals("分账不存在", ex.getReason());
     }
 
+    // ── MA-276：锁/事务次序的注解形态钉（结构性修复，注解挪回去即红） ──────────────
+
+    @Test
+    void recordSplit_mustNotBeTransactional_lockMustSpanTheWholeTransaction() throws Exception {
+        java.lang.reflect.Method record = RevenueSplitService.class.getMethod("recordSplit", CabinetOrder.class);
+        org.junit.jupiter.api.Assertions.assertNull(record.getAnnotation(
+                org.springframework.transaction.annotation.Transactional.class),
+                "recordSplit 不得带 @Transactional：事务包住锁 = 锁在提交前释放，等于白锁");
+
+        java.lang.reflect.Method inner = RevenueSplitService.class.getMethod("doRecordSplitInTx", CabinetOrder.class);
+        org.springframework.transaction.annotation.Transactional tx =
+                inner.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        org.junit.jupiter.api.Assertions.assertNotNull(tx, "锁内的分账事务方法必须存在");
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, tx.propagation(),
+                "调用方已有事务时必须挂起另开短事务，否则提交点又落回外层");
+
+        java.lang.reflect.Method race = RevenueSplitService.class.getMethod("findSplitAfterRace", String.class);
+        org.springframework.transaction.annotation.Transactional raceTx =
+                race.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
+        org.junit.jupiter.api.Assertions.assertNotNull(raceTx);
+        org.junit.jupiter.api.Assertions.assertEquals(
+                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, raceTx.propagation(),
+                "DKE 兜底重查必须新事务：PG 同事务撞唯一键后已 aborted，原事务重查必 25P02");
+    }
 }

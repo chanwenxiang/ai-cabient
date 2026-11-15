@@ -6,6 +6,7 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.PayScoreOrderMapper;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +35,17 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class PayScoreOrderNotifyTest {
+
+    @BeforeEach
+    void registerLambdaCache() {
+        // 纯单测里没人初始化 MyBatis-Plus 的 lambda 列缓存：handleOrderNotify 与
+        // MA-275 的 CAS 都用 Wrappers/LambdaQueryWrapper 引用 PayScoreOrder 的方法引用。
+        // 之前全量能绿是靠「某个 @SpringBootTest 先跑过」的顺序依赖假绿（单独跑必红）。
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
+                PayScoreOrder.class);
+    }
 
     @Mock PayScoreOrderMapper payScoreOrderMapper;
     @Mock CabinetOrderMapper cabinetOrderMapper;
@@ -219,6 +231,78 @@ class PayScoreOrderNotifyTest {
 
         verify(unpaidDunningService, never()).recordUnpaidAndEscalate(any());
         assertEquals("PAID", o.getStatus());
+    }
+
+    // ── MA-275：订单态 CAS —— 并发通知不得把 DONE 覆盖回催缴态 ──────────────────
+
+    /**
+     * 并发竞态：EXPIRED 投递的快照读在 DONE 落库之前，入口判据没拦住；CAS 抢失败后
+     * 重读现值=DONE ⇒ paid-evidence 判据兜住，不得催缴、不得倒退快照。
+     */
+    @Test
+    void expiredEvent_casLostToConcurrentDone_dropsDunningAndKeepsDone() {
+        PayScoreOrder po = po("USER_PAYING", "1792659779535535992400");
+        CabinetOrder o = order("PENDING");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(0);
+        PayScoreOrder fresh = po("DONE", "1792659779535535992400");
+        when(payScoreOrderMapper.selectById(any())).thenReturn(fresh);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "EXPIRED");
+        service.handleOrderNotify(event);
+
+        verify(unpaidDunningService, never()).recordUnpaidAndEscalate(any());
+        verify(payScoreOrderMapper, never()).updateById(any(PayScoreOrder.class));
+        assertEquals("DONE", fresh.getOrderState());
+    }
+
+    /**
+     * 自愈：EXPIRED 抢先落库记了欠款后，迟到的 DONE 仍能把状态 CAS 回 DONE 并入账
+     *（单向「只进不退」对 DONE 这一侧是允许回头的——钱到了是权威）。
+     */
+    @Test
+    void doneEvent_afterConcurrentExpire_retriesCasAndMarksPaid() {
+        PayScoreOrder po = po("EXPIRED", "1792659779535535992400");
+        CabinetOrder o = order("PENDING");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(0, 1);
+        PayScoreOrder fresh = po("EXPIRED", "1792659779535535992400");
+        fresh.setActualAmountCents(350);
+        when(payScoreOrderMapper.selectById(any())).thenReturn(fresh);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE");
+        service.handleOrderNotify(event);
+
+        // 第二轮 CAS 命中 ⇒ 业务分支照常执行（DONE → 入账/分账链）。
+        // CAS 成功那轮的工作对象是重读出的 fresh（po 已被替换），断言落在 fresh 上。
+        verify(paymentOperationMapper).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
+        assertEquals("DONE", fresh.getOrderState());
+    }
+
+    /** 同态重复投递：CAS 影响行数 0 但现值已是目标态 ⇒ 幂等退出，业务分支不重复执行。 */
+    @Test
+    void duplicateDoneDelivery_casZeroButFreshEqualsTarget_idempotentExit() {
+        PayScoreOrder po = po("DONE", "1792659779535535992400");
+        CabinetOrder o = order("PAID");
+        when(payScoreOrderMapper.selectList(any())).thenReturn(List.of(po));
+        when(cabinetOrderMapper.selectById("1792659779535535992400")).thenReturn(o);
+        when(payScoreOrderMapper.update(any(), any())).thenReturn(0);
+        PayScoreOrder fresh = po("DONE", "1792659779535535992400");
+        when(payScoreOrderMapper.selectById(any())).thenReturn(fresh);
+
+        var event = new ObjectMapper().createObjectNode()
+                .put("out_order_no", "1792659000000000000001")
+                .put("state", "DONE");
+        service.handleOrderNotify(event);
+
+        verify(paymentOperationMapper, never()).insert(any(com.aicabinet.trade.domain.PaymentOperation.class));
+        verify(payScoreOrderMapper, never()).updateById(any(PayScoreOrder.class));
     }
 
     @Test

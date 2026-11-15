@@ -111,8 +111,9 @@ public class PayScoreOrderNotifyService {
                 return;
             }
         }
-        po.setOrderState(state);
-        payScoreOrderMapper.updateById(po);
+        if (!transitionOrderState(po, order, state)) {
+            return;
+        }
         switch (state) {
             case "DONE" -> handlePaid(po, order, event);
             case "USER_PAYING" -> {
@@ -129,6 +130,58 @@ public class PayScoreOrderNotifyService {
             }
             default -> log.debug("wechat payscore order notify state={} outOrderNo={} (no-op)", state, outOrderNo);
         }
+    }
+
+    /**
+     * MA-275（C14/R23Q-14）：订单态「读-判-写」之间无锁/无版本 —— 同一单两条并发通知
+     * （一条 DONE、一条迟到的 EXPIRED）都能通过入口处基于快照的 paid-evidence 判据，
+     * 后写者会把 DONE 覆盖回 EXPIRED 并误记欠款。改成乐观 CAS：仅当「快照态仍是现值」
+     * 时落库；抢不到就重读现值、对现值重放同一判据再试一轮（上限 3 次），仍抢不到则
+     * 丢弃本次投递 —— 渠道会重投，宁可少跑一次分支也不能把状态倒退。
+     *
+     * @return true = 本次投递拥有这次迁移，可继续执行 DONE/EXPIRED 等业务分支
+     */
+    private boolean transitionOrderState(PayScoreOrder po, CabinetOrder order, String nextState) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            String fromState = po.getOrderState();
+            if (DUNNING_STATES.contains(nextState)) {
+                String paidEvidence = "DONE".equals(fromState) ? "payscoreState=DONE"
+                        : (order != null && "PAID".equals(order.getStatus()) ? "orderStatus=PAID" : null);
+                if (paidEvidence != null) {
+                    log.warn("wechat payscore order {} late state={} ignored ({}), no dunning",
+                            po.getOutOrderNo(), nextState, paidEvidence);
+                    return false;
+                }
+            }
+            int moved = payScoreOrderMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PayScoreOrder>()
+                            .eq(PayScoreOrder::getPayscoreOrderId, po.getPayscoreOrderId())
+                            .eq(PayScoreOrder::getOrderState, fromState)
+                            .set(PayScoreOrder::getOrderState, nextState));
+            if (moved > 0) {
+                po.setOrderState(nextState);
+                return true;
+            }
+            PayScoreOrder fresh = payScoreOrderMapper.selectById(po.getPayscoreOrderId());
+            if (fresh == null) {
+                // 行在入口刚查到过、此刻 selectById 未命中：不猜原因，退回无条件幂等落库
+                //（与修前行为一致；单调递进的业务分支由调用方语义兜底）。
+                po.setOrderState(nextState);
+                payScoreOrderMapper.updateById(po);
+                return true;
+            }
+            if (nextState.equals(fresh.getOrderState())) {
+                // 并发投递已迁到同一目标态 ⇒ 业务分支由那次投递执行，本次幂等退出
+                log.info("wechat payscore order {} already transitioned to {} by concurrent delivery",
+                        po.getOutOrderNo(), nextState);
+                po.setOrderState(fresh.getOrderState());
+                return false;
+            }
+            po = fresh;
+        }
+        log.warn("wechat payscore order {} lost state CAS race 3 times (target={}), dropping (channel will redeliver)",
+                po.getOutOrderNo(), nextState);
+        return false;
     }
 
     private void handlePaid(PayScoreOrder po, CabinetOrder order, JsonNode event) {

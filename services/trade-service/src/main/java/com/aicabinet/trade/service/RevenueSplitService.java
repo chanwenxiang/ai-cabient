@@ -55,6 +55,12 @@ public class RevenueSplitService {
      */
     private final CabinetOrderMapper orderRepository;
 
+    /**
+     * MA-276：事务边界必须整体落在锁内 ⇒ recordSplit（无注解，持锁）经 self 代理调
+     * {@link #doRecordSplitInTx}（REQUIRES_NEW）。自引用走 @Lazy 代理，避免构造环。
+     */
+    private final RevenueSplitService self;
+
     public RevenueSplitService(OrderRevenueSplitMapper splitRepository,
                                DeviceInfoMapper deviceRepository,
                                MerchantMapper merchantRepository,
@@ -64,7 +70,8 @@ public class RevenueSplitService {
                                ProfitSharingReturnAlertService profitSharingAlertService,
                                DistributedLockService distributedLockService,
                                ProfitSharingReturnLegService returnLegService,
-                               CabinetOrderMapper orderRepository) {
+                               CabinetOrderMapper orderRepository,
+                               @org.springframework.context.annotation.Lazy RevenueSplitService self) {
         this.splitRepository = splitRepository;
         this.deviceRepository = deviceRepository;
         this.merchantRepository = merchantRepository;
@@ -75,9 +82,18 @@ public class RevenueSplitService {
         this.distributedLockService = distributedLockService;
         this.returnLegService = returnLegService;
         this.orderRepository = orderRepository;
+        this.self = self;
     }
 
-    @Transactional
+    /**
+     * MA-276（C15/R23Q-15）：本方法**刻意不带** {@code @Transactional}。
+     * 旧形态是「事务包住锁」：@Transactional 在方法入口开事务，锁在事务内获取、finally
+     * 里提交前释放 ⇒ 锁失效窗口横跨「解锁 → 事务提交」，第二个持有者读不到未提交的分账行
+     * 会再插一次；且 PostgreSQL 里 DuplicateKeyException 之后同事务任何查询都是 25P02，
+     * catch 分支的重查根本跑不通。现在是「锁包住事务」：锁内经 self 代理进
+     * {@link #doRecordSplitInTx}（REQUIRES_NEW，防调用方已有事务时锁又被外层提交点释放），
+     * 提交完成后才 unlock —— 锁失效窗口不复存在，DKE 分支只是防御性兜底。
+     */
     public Optional<OrderRevenueSplit> recordSplit(CabinetOrder order) {
         if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
             return Optional.empty();
@@ -88,7 +104,28 @@ public class RevenueSplitService {
             log.debug("skip revenue split: zero net order {}", order.getOrderId());
             return Optional.empty();
         }
-        return runWithOrderSplitLock(order.getOrderId(), () -> doRecordSplit(order));
+        return runWithOrderSplitLock(order.getOrderId(), () -> self.doRecordSplitInTx(order));
+    }
+
+    /**
+     * MA-276：REQUIRES_NEW —— 即便调用方（支付分 DONE 回调 / 结算完结 / 欠款补缴）已开事务，
+     * 分账行的插入也要在**独立短事务**里提交完再释放锁，不跟外层长事务共用提交点。
+     * 代价（如实）：外层事务若在 recordSplit 返回后回滚，分账行/入账流水会留存——
+     * creditIfAbsent 以 splitId 为幂等键，重放无害；对账侧已有 REVENUE_SPLIT_* 巡检兜底。
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Optional<OrderRevenueSplit> doRecordSplitInTx(CabinetOrder order) {
+        return doRecordSplit(order);
+    }
+
+    /**
+     * MA-276：DKE catch 分支的重查必须走**新事务**——PG 里同事务内 INSERT 撞唯一键后
+     * 整个事务已 aborted，原重查必抛 25P02。锁现在横跨提交，本方法正常情况下不可达，
+     * 仅作锁失效/人为并发时的兜底。
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Optional<OrderRevenueSplit> findSplitAfterRace(String orderId) {
+        return splitRepository.findByOrderIdForUpdate(orderId);
     }
 
     /** 按订单查分账状态码；无分账记录返回 empty。 */
@@ -102,7 +139,8 @@ public class RevenueSplitService {
                 .filter(s -> s != null && !s.isBlank());
     }
 
-    private Optional<OrderRevenueSplit> doRecordSplit(CabinetOrder order) {
+    /** package-private：同包夹具把 self 代理委托到这里，走与生产一致的真实逻辑。 */
+    Optional<OrderRevenueSplit> doRecordSplit(CabinetOrder order) {
         Optional<OrderRevenueSplit> existing = splitRepository.findByOrderIdForUpdate(order.getOrderId());
         if (existing.isPresent()) {
             // R20-2：这条早退支同时是「实收后再进来一次」的自愈入口——分账行可能是未实收时建的
@@ -155,7 +193,8 @@ public class RevenueSplitService {
             splitRepository.save(split);
         } catch (DuplicateKeyException e) {
             log.info("split insert raced order={} splitId={}", order.getOrderId(), split.getSplitId());
-            return splitRepository.findByOrderIdForUpdate(order.getOrderId());
+            // MA-276：PG 同事务内撞唯一键后已 aborted，原「同事务重查」必抛 25P02 ⇒ 走新事务。
+            return self.findSplitAfterRace(order.getOrderId());
         }
         if (OrderCollectionGate.collected(order)) {
             creditWalletIfLedgerOnly(split);

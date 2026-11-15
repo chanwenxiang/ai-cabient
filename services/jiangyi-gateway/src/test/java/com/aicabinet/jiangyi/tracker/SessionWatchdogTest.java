@@ -76,17 +76,29 @@ class SessionWatchdogTest {
         verify(tracker).evict(CommandTracker.Kind.OPEN, "s-1");
     }
 
-    /** 负向对照：同一代码路径只改阈值（15s 旧行为），超阈上报随之提前——证明阈值确实可配。 */
+    /**
+     * MA-281（2026-11-15 拍板改约）：原「15s 旧行为仍可配」的对照用例与新契约冲突——
+     * 低于 70s 地板意味着 watchdog 先于 trade 60s 过期处置生效，弱网真开门被误判 FAILED
+     * （兜账只救 CANCELLED）。现在装配期必须失败，而不是静默改小阈值。
+     */
     @Test
-    void legacyFifteenSecondThresholdStillConfigurable() {
+    void belowFloorThreshold_isRejectedAtConstruction() {
+        IllegalArgumentException ignored = null; // 占位防误用
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> newWatchdog(mockTrackerReturning(List.of()), mock(TradeInternalClient.class), 15_000L));
+    }
+
+    /** 阈值高于地板仍可配：90s 同样走 due 查询，证明可配性保留在地板之上。 */
+    @Test
+    void aboveFloorThreshold_remainsConfigurable() {
         CommandTracker tracker = mockTrackerReturning(List.of());
-        SessionWatchdog watchdog = newWatchdog(tracker, mock(TradeInternalClient.class), 15_000L);
+        SessionWatchdog watchdog = newWatchdog(tracker, mock(TradeInternalClient.class), 90_000L);
 
         watchdog.sweep();
 
         ArgumentCaptor<Long> cutoff = ArgumentCaptor.forClass(Long.class);
         verify(tracker).due(eq(CommandTracker.Kind.OPEN), cutoff.capture());
-        long impliedNow = cutoff.getValue() + 15_000L;
+        long impliedNow = cutoff.getValue() + 90_000L;
         assertThat(System.currentTimeMillis() - impliedNow).isLessThan(5_000L);
     }
 

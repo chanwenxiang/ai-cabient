@@ -50,9 +50,21 @@ class RevenueSplitConcurrencyTest {
 
     @BeforeEach
     void setUp() {
+        RevenueSplitService selfProxy = org.mockito.Mockito.mock(RevenueSplitService.class);
         service = new RevenueSplitService(splitRepository, deviceRepository, merchantRepository,
                 profitSharingService, merchantWalletService, returnCompensationService,
-                profitSharingAlertService, distributedLockService, returnLegService, orderRepository);
+                profitSharingAlertService, distributedLockService, returnLegService, orderRepository,
+                selfProxy);
+        // MA-276：recordSplit 经 self 代理进 REQUIRES_NEW 内层；纯单测里没有 Spring 代理，
+        // 用 mock self 把 doRecordSplitInTx / findSplitAfterRace 委托回同包的真实方法，
+        // 保证锁内路径与生产共用同一份业务逻辑。
+        // 同上：非 recordSplit 用例用不到委托，lenient 免 UnnecessaryStubbing 误伤
+        org.mockito.Mockito.lenient()
+                .when(selfProxy.doRecordSplitInTx(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> service.doRecordSplit(inv.getArgument(0)));
+        org.mockito.Mockito.lenient()
+                .when(selfProxy.findSplitAfterRace(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> service.findSplitAfterRace(inv.getArgument(0)));
     }
 
     @Test

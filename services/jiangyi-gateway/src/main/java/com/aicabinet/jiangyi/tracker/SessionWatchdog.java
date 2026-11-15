@@ -77,6 +77,9 @@ public class SessionWatchdog {
         this.tradeInternalClient = tradeInternalClient;
         this.redis = redis;
         this.openTimeoutMs = openTimeoutMs;
+        // MA-281：70s 与 trade 60s 过期窗口的契约此前只活在注释里，任一侧调参都可能
+        // 破坏「trade 先处置、watchdog 兜底」的次序 ⇒ 装配期断言（启动失败优于静默资损）。
+        com.aicabinet.common.constants.SessionTimeouts.requireWatchdogFloor(openTimeoutMs);
     }
 
     @Scheduled(fixedDelay = 10_000L)
