@@ -48,6 +48,9 @@ const products = ref<CaptureProduct[]>([]);
 const session = ref<CaptureSession | null>(null);
 const busy = ref(false);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+// MA-225：轮询代际守卫（MA-173 admin 侧同族）——stopPoll/startCapture 会开新一代，
+// 迟到的旧响应一律丢弃，不得覆盖新 sessionId 或误停新单轮询。
+let pollGeneration = 0;
 
 const TERMINAL = ['DONE', 'FAILED', 'CANCELLED'];
 
@@ -80,6 +83,7 @@ async function loadList() {
 }
 
 function stopPoll() {
+  pollGeneration += 1; // MA-225：停轮询 = 开新一代，在途响应作废
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
@@ -88,11 +92,14 @@ function stopPoll() {
 
 async function pollStatus() {
   if (!session.value) return;
+  const gen = pollGeneration;
   try {
-    session.value = await api.request<CaptureSession>(
+    const next = await api.request<CaptureSession>(
       AdminEndpoints.jiangyiCabinetCaptureStatus(props.deviceId, session.value.sessionId),
       'GET'
     );
+    if (gen !== pollGeneration) return; // MA-225：迟到响应，新一代已开
+    session.value = next;
     if (TERMINAL.includes(session.value.phase)) {
       stopPoll();
       if (session.value.phase === 'DONE') ElMessage.success('柜内采集完成，等待将邑审核');

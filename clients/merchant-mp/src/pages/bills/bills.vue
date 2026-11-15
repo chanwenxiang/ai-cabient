@@ -51,7 +51,11 @@
           </view>
           <view class="kpi-cell">
             <text class="kpi-label">流量费</text>
-            <text class="kpi-value">{{ money(bill.dataFeeCents) }}</text>
+            <!-- MA-299（拍板）：流量费是商户级日扣费用（merchant_fee_ledger 无 device 维度），
+                 按柜机筛选时该项不按销售额分摊，显示「商户级」而非误导性的 0。 -->
+            <text class="kpi-value">{{
+              deviceIndex > 0 ? '商户级' : money(bill.dataFeeCents)
+            }}</text>
           </view>
           <view class="kpi-cell kpi-profit">
             <text class="kpi-label">利润额</text>
@@ -59,7 +63,11 @@
           </view>
         </view>
         <view class="bill-note">
-          <text>利润额 = 销售额 − 退款 − 商品成本 − 流量费</text>
+          <text
+            >利润额 = 销售额 − 退款 − 商品成本 − 流量费{{
+              deviceIndex > 0 ? '（流量费为商户级，不按柜机分摊）' : ''
+            }}</text
+          >
         </view>
       </view>
 

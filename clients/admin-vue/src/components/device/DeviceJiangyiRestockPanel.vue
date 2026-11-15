@@ -42,6 +42,9 @@ const submitting = ref(false);
 const historyNo = ref('');
 const progress = ref<Progress | null>(null);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+// MA-225：轮询代际守卫（MA-173 admin 侧同族）——stopPoll/doSubmit 开新一代，
+// 迟到的旧响应一律丢弃，不得覆盖新 historyNo 的进度或误停新单轮询。
+let pollGeneration = 0;
 
 async function loadPreview() {
   loading.value = true;
@@ -62,6 +65,7 @@ async function loadPreview() {
 }
 
 function stopPoll() {
+  pollGeneration += 1; // MA-225：停轮询 = 开新一代，在途响应作废
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
@@ -70,11 +74,15 @@ function stopPoll() {
 
 async function pollProgress() {
   if (!historyNo.value) return;
+  const gen = pollGeneration;
+  const requested = historyNo.value;
   try {
-    progress.value = await api.request<Progress>(
-      AdminEndpoints.jiangyiRestockProgress(props.deviceId, historyNo.value),
+    const next = await api.request<Progress>(
+      AdminEndpoints.jiangyiRestockProgress(props.deviceId, requested),
       'GET'
     );
+    if (gen !== pollGeneration || requested !== historyNo.value) return; // MA-225：迟到响应
+    progress.value = next;
     if (progress.value?.ready) {
       stopPoll();
       ElMessage.success('识别参数已应用（APPLIED），可正常购物');
