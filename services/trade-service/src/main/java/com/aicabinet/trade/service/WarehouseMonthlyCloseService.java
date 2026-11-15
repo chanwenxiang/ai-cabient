@@ -141,7 +141,6 @@ public class WarehouseMonthlyCloseService {
         Instant start = period.minusMonths(1).atDay(26).atStartOfDay(SHANGHAI).toInstant();
         Instant end = period.atDay(26).atStartOfDay(SHANGHAI).toInstant();
         String periodLabel = period.format(PERIOD_FMT);
-        String prevLabel = period.minusMonths(1).format(PERIOD_FMT);
         String nextLabel = period.plusMonths(1).format(PERIOD_FMT);
 
         Map<String, Acc> bySku = WarehouseMonthlyCloseMath.aggregate(
@@ -150,8 +149,12 @@ public class WarehouseMonthlyCloseService {
         // ── 期初结转：上期单实盘 → 外部期末盘点流水 → 账面 ─────────────────────────────
         Map<String, Integer> prevCounted = prevSheetCounted(wh, period);
         boolean prevFromSheet = !prevCounted.isEmpty();
+        // MA-268：外部盘点导入口径是「N 期末盘点填下一账期」——本期期末在 nextLabel，
+        // 则上期期末（= 本期期初）在本期标签 periodLabel。原实现取 period.minusMonths(1)
+        // 会拿到「上期期初」（上上期末）的盘点，仅在上期未关账、需要外部流水兜底时触发，
+        // 与同文件 flowStocktakeBySku 的 javadoc 直接矛盾。
         Map<String, Integer> prevFlowStocktake = prevFromSheet
-                ? Map.of() : flowStocktakeBySku(prevLabel, wh);
+                ? Map.of() : flowStocktakeBySku(periodLabel, wh);
         boolean openingFromPeriod = prevFromSheet || !prevFlowStocktake.isEmpty();
 
         // ── 实盘：系统盘点 → 外部期末盘点流水（period=下一账期 = 本账期期末盘点导入口径）────
