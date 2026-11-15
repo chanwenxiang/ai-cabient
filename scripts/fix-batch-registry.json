@@ -968,7 +968,96 @@
         },
         {
           "id": "门禁 check-payment-callback-silent-trace 增 ②b「扣款↔推进同源」判据，自测夹具 11→13",
-          "files": ["scripts/check-payment-callback-silent-trace.mjs"]
+          "files": [
+            "scripts/check-payment-callback-silent-trace.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "ebd0a54b",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-273 场地租金出账校验合同租期（null=不限 / 手动 400 / 批量跳过）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SiteRentBillService.java"
+          ]
+        },
+        {
+          "id": "静态判据 4 例 + 入口级用例 5 例（钉「入口真的调判据」）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SiteRentBillServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SiteRentBillContractTermTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "6a8a21b2",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-271 退款按 COALESCE(refunded_at, created_at) 归日（含精度边界注释）",
+          "files": [
+            "services/trade-service/src/main/resources/mapper/CabinetOrderLineMapper.xml"
+          ]
+        },
+        {
+          "id": "MerchantBillRefundDaySqlIT 4 例（真库：跨月归月/历史月不改写/未退款不列/老数据兜底）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/integration/MerchantBillRefundDaySqlIT.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "4039f98d",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-272 全量视图流量费改读 merchant_fee_ledger DATA 行 + 费用类型常量收口（单设备维持原数据源，缺口 MA-299）",
+          "files": [
+            "services/common/common-core/src/main/java/com/aicabinet/common/dto/MerchantMonthlyBillDto.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/domain/MerchantFeeLedger.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/MerchantFeeLedgerMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java"
+          ]
+        },
+        {
+          "id": "单测：全量视图读台账、单设备视图不借用全商户费用",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantFinanceServiceTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "37b5927a",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-270 退多收后按净额回算分账 + 巡检 REVENUE_SPLIT_REFUND_STALE + 字典标签",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java"
+          ]
+        },
+        {
+          "id": "单测 85→88（判据 SQL 形态锚点 / 命中实锤值 / 退款后确实调 adjustSplit）+ 构造参数适配",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyConcurrencyTest.java"
+          ]
         }
       ],
       "notAdopted": []

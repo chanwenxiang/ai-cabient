@@ -536,3 +536,60 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 **未覆盖（如实）**：并发窗口没有真栈复现——要同时打两条同 `refund_id` 的微信退款通知进同一个实例，且要让两条都落在第 1 步之前；单测是用 `AppliedChange(applied=false)` 直接构造第 3 步的输入。真栈价值有限：判据在账本一侧，而那侧的幂等（唯一索引 + 行锁）已被既有用例与 `e2e-fund-safety` 覆盖。
 
 **残留边界**：`applied=false` 与「上一次扣款成功、`finalize` 之前进程死掉」在信号上不可区分，那个窗口里的重投不会补推进单据（**与修前相同**——修前第 1 步同样整段跳过）。要彻底闭合得让推进本身可回放（按退款单号落一条推进记录）或由对账反查，已归到 MA-270（退后不回算分账 + 巡检缺判据）那一批。
+
+## 12. 修复批 7：账务四连（MA-270 / 271 / 272 / 273，2026-11-15 傍晚）
+
+上一轮列 open 时把「账真的错了」排在最前，本批一次收掉四条 P2。四条互不依赖，按缺陷分了四个提交。
+
+### 12-1 四条缺陷与修法对照
+
+| 编号 | 缺陷 | 修法 | 提交 |
+|---|---|---|---|
+| **MA-270** | 退多收只改 `cabinet_order.refunded_cents`，`order_revenue_split.gross_cents` 不跟随 ⇒ 佣金/GMV/月结按虚高毛额算。dev 库实锤 1 笔（paid=586 / refunded=293 / gross=586，**多记 293 分**） | 退多收成功后 `adjustSplitAfterPartialRefund(refreshed, full)` 按净额回算；新增巡检 `REVENUE_SPLIT_REFUND_STALE` | `37b5927a` |
+| **MA-271** | 月账单退款按订单 `created_at` 分日 ⇒ 3 月下单 4 月退款的钱记进 3 月（4 月利润虚高 + 历史月被追溯改写） | `selectMerchantBillRefundsByDay` 改 `COALESCE(refunded_at, created_at)` 过滤+分桶 | `6a8a21b2` |
+| **MA-272** | 月账单流量费读 `device_data_fee_bill`（月度出账开关默认关闭 ⇒ 恒 0），而日扣真实写 `merchant_fee_ledger` ⇒ 利润虚高 | 全量视图改读台账 DATA 行按 `fee_date` 落月 | `4039f98d` |
+| **MA-273** | 场地租金出账只看合同 status，`startDate/endDate` 完全没用 ⇒ 未起租/已到期仍出账（**对外付款**） | 新增 `isContractEffectiveInMonth`；手动 400、批量跳过 | `ebd0a54b` |
+
+### 12-2 三处「不猜口径」的判断
+
+这四条最容易翻车的地方都是「顺手把口径也改了」，本批刻意都停住了：
+
+1. **MA-270 的台账第 2 项判据没单列**。台账原文要求补 `PAID+refunded>0` 判据，但亲验 `OrderPaymentService#refundOrder` 全路径**从不改订单状态**（`grep setStatus` 只见 PENDING 与 payment_operation 流水态），`PARTIAL_REFUNDED` 只由 `SettlementPartialRefundService` / `DisputeService` 显式设置 ⇒ 「退过款却仍 PAID」是常态，单列会全库假阳性且修完永远消不掉。于是并进 `gross ≠ netCents` 一条：**退过款 + 分账毛额没回算**才是可判定、修完即消解的信号。状态机不迁移另登记 **MA-300**（需拍板：牵动 6 条退款调用链）。
+
+2. **MA-272 单设备视图没有按销售额分摊**。`merchant_fee_ledger` 的列是 `merchant_id, fee_date, fee_type, amount_cents…`，**没有 device_id**，而商户账单页支持按柜机筛选。按销售额比例分摊是无业务依据的自创口径，商户拿银行流水一对就露馅。所以全量视图修好、单设备视图维持原数据源（开关关闭时恒 0），缺口登记 **MA-299**（需拍板：加列+回填 vs 明确「费用是商户级、单设备不展示」）。
+
+3. **MA-273 月内部分覆盖不按天折算**。合同 3-15 起租时 3 月仍出全额月费。首月是否折算属于商务约定，UI（「起租 / 到期」）与旧系统都没有折算语义；本条只修「完全没有交集仍出账」，不动金额。**null = 不限** 也照 UI 文案（起租空显示「暂无」、到期空显示「不限」）—— 若把 null 判成「不在租期」，改动当天就会让所有未填日期的历史合同停止付款，比原缺陷严重得多。
+
+另外撞见一处既有不一致并顺手收口：`CabinetConstants.FEE_TYPE_SITE_RENT="SITE_RENT"` / `FEE_TYPE_DATA_FEE="DATA_FEE"` 全仓零引用（死常量），而日结批实际写的是 `"REN"` / `"DATA"`。已把写入侧与读取侧统一到 `MerchantFeeLedger.FEE_TYPE_REN/DATA`，防下一个人拿另一种拼法查出 0 行。
+
+### 12-3 真库实证（MA-270）
+
+容器恢复后，把新判据 SQL 直接在 dev 库跑了一遍：
+
+| 项 | 结果 |
+|---|---|
+| 命中行 | `1793669053437918137747 \| split=1793669055849902670496 \| expected=293 \| actual=586` —— **与台账「多记 293 分」逐字对上** |
+| 对照组（不是靠没数据才绿） | 有退款的非作废分账共 **7 行，6 行自洽、1 行不自洽** |
+| 收敛性 | 事务内回算 ⇒ 判据命中 **0**，随后 `ROLLBACK` 验证 |
+| 数据修复 | 正式 `UPDATE`：`gross 586→293`、`merchant 586→293`（platform 保持 0，该商户费率 0%），`failure_reason` 追加 `MA-270 按净额回算(2026-11-15)` 留痕；复跑判据 **0 命中** |
+
+> 该修复是**开发库数据修正**，不是代码绕过：代码侧的防复发在 `refundOverchargeIfNeeded` + 巡检判据里。
+
+### 12-4 验证
+
+| 项 | 结果 |
+|---|---|
+| 单测 | `SiteRentBillServiceTest` 7→11 + 新增 `SiteRentBillContractTermTest` 5 例；`MerchantFinanceServiceTest` 5→7；`DataConsistencyServiceTest` 85→88；`MerchantBillRefundDaySqlIT` 新增 4 例 |
+| 全量 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3122, Failures: 0, Errors: 0**（上批 3108，+14） |
+| 三态负向 | MA-273 判据恒 `true` ⇒ **6 红**；MA-271 SQL 退回 `created_at` ⇒ IT **1 红**；MA-272 全量分支退回出账表 ⇒ **1 红**；三次均还原且源码/SQL md5 与备份逐字节一致 |
+| 门禁预检 | 见本批提交记录 |
+
+**意外收获（顺手修掉一个顺序依赖的假绿）**：全量第一次跑出 2 Errors，都在 `ApprovalNodeUpsertTest`（`can not find lambda cache for ApprovalDefinition`）。单独跑同样红 ⇒ 不是我引入的，是它**靠「前面某个 `@SpringBootTest` 先执行过」蒙绿**。我新增两个测试类改变了 surefire 类顺序，才把它照出来。修法：`@BeforeEach` 显式 `TableInfoHelper.initTableInfo(...)`（`d5cb124a`），单独跑 2/2 绿、全量 3122 绿。
+
+### 12-5 未覆盖 / 残留（如实）
+
+- **没有做 HTTP 级真栈点验**：本轮 trade-service 容器仍是旧镜像（未 `build` + `--force-recreate`）。四条改动各自有单测 / SQL IT / dev 库 SQL 实证，但没有走一遍真实接口。
+- **MA-271 精度边界**：同一订单多次部分退款时 `refunded_cents` 是累计值、`refunded_at` 只记最后一次，整笔会归到最近一个月（修前是整笔归下单月）。精确到笔需要退款流水表，当前数据模型没有 —— 已写进 XML 注释与台账。
+- **MA-270 的 fix 端点不自动修**：回算会冲正商户钱包（动钱），与 `PAID_GROSS_MISMATCH` 同档，只巡检、留人工；`SysDictBootstrap` 已补中文标签「分账未按净额回算」。
+- 新登记 **MA-299**（单设备流量费无 device 维度）、**MA-300**（退款不迁移订单状态），两条都**需拍板**，未猜口径实现。
+- 过程中 Docker 引擎一度掉线（`wsl.exe` / `sc.exe` 被本机安全策略列入黑名单，无法绕过），用户手动拉起后才完成 §12-3；期间 Testcontainers 用例被 `disabledWithoutDocker` 跳过，恢复后单独复跑 `MerchantBillRefundDaySqlIT` 4/4 绿。
