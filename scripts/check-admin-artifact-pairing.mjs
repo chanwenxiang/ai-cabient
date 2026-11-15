@@ -30,6 +30,7 @@
  */
 import { resolve } from 'node:path';
 import { gitAsync, runAsync } from './lib/async-spawn.mjs';
+import { pairingRangePlan } from './lib/admin-pairing-base.mjs';
 
 const ROOT = process.cwd();
 
@@ -195,19 +196,49 @@ if (process.argv.includes('--selftest')) {
 }
 
 const base = process.env.ADMIN_PAIR_BASE || 'origin/dev';
-const mb = await gitAsync(['merge-base', base, 'HEAD']);
-if (!mb.ok) {
-  console.log(
-    `[check-admin-artifact-pairing] SKIP：取不到 ${base} 与 HEAD 的 merge-base（CI 干净检出/首次推送）`
-  );
-  process.exit(0);
+// MA-293：CI push 注入 github.event.before（env ADMIN_PAIR_CI_BEFORE）⇒ 权威基点直连
+// `before..HEAD`，绕开 merge-base（checkout 把 origin/dev 指向 HEAD ⇒ mb==head 恒真）；
+// 引用不存在必须红。本地/PR 未注入时维持旧语义（SKIP / 无待推 OK）——PR 语义另行点验。
+const ciBefore = (process.env.ADMIN_PAIR_CI_BEFORE || '').trim();
+let beforeRefExists = false;
+if (ciBefore) {
+  beforeRefExists = (await gitAsync(['cat-file', '-e', `${ciBefore}^{commit}`])).ok;
 }
 const head = (await gitAsync(['rev-parse', 'HEAD'])).out;
-if (mb.out === head) {
-  console.log('[check-admin-artifact-pairing] OK：无待推提交');
+const plan = pairingRangePlan({
+  ciBefore,
+  beforeRefExists,
+  mergeBaseOk: (await gitAsync(['merge-base', base, 'HEAD'])).ok,
+  mergeBaseOut: '',
+  head
+});
+// merge-base 只在无 CI before 时才真正执行（plan 需要它的输出）
+if (!ciBefore) {
+  const mb = await gitAsync(['merge-base', base, 'HEAD']);
+  const plan2 = pairingRangePlan({
+    ciBefore,
+    beforeRefExists,
+    mergeBaseOk: mb.ok,
+    mergeBaseOut: mb.ok ? mb.out : '',
+    head
+  });
+  if (plan2.action === 'skip') {
+    console.log(`[check-admin-artifact-pairing] SKIP：${plan2.reason}`);
+    process.exit(0);
+  }
+  if (plan2.action === 'ok-empty') {
+    console.log('[check-admin-artifact-pairing] OK：无待推提交');
+    process.exit(0);
+  }
+  plan.rangeBase = plan2.rangeBase;
+} else if (plan.action === 'fail') {
+  console.error(`[check-admin-artifact-pairing] FAIL：${plan.reason}`);
+  process.exit(1);
+} else if (plan.action === 'ok-empty') {
+  console.log('[check-admin-artifact-pairing] OK：' + plan.reason);
   process.exit(0);
 }
-const listed = await gitAsync(['diff', '--name-only', `${mb.out}..${head}`]);
+const listed = await gitAsync(['diff', '--name-only', `${plan.rangeBase}..${head}`]);
 const files = listed.ok && listed.out ? listed.out.split('\n') : [];
 const err = pairingError(files);
 const ARTIFACT_DIR = ARTIFACT_PREFIX.replace(/\/$/, '');
@@ -246,7 +277,7 @@ const label = !touchedInputs
     ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`
     : `（含 ${touchedInputs} 个 admin 输入，经门禁重建自证不进产物）`;
 console.log(
-  `[check-admin-artifact-pairing] OK：范围 ${mb.out.slice(0, 8)}..${head.slice(0, 8)} ` +
+  `[check-admin-artifact-pairing] OK：范围 ${plan.rangeBase.slice(0, 8)}..${head.slice(0, 8)} ` +
     `共 ${files.length} 文件` +
     label +
     verdict.note

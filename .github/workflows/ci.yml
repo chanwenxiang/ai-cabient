@@ -747,6 +747,11 @@ jobs:
 
       # 审计防回归：端点字面量 / pageSize / token 存储 / cron zone / cache 名 / dialog a11y / 布局防抖 / 表列语义 / 小程序 a11y / 余额冻结类型两端一致 / UAT 类选择器有效性 / 编号类输入框不得用数字键盘 / XXL-JOB 托管任务接线（清单↔handler↔种子↔调度中心 context-path）
       - name: Audit regression gates
+        # MA-293：push 事件注入 before SHA ⇒ check-admin-artifact-pairing 走权威直连范围
+        # （原 merge-base(origin/dev, HEAD)==HEAD 恒真 ⇒ 门禁在 CI 恒绿）。PR 事件无 before，
+        # 该变量为空 ⇒ 门禁维持旧语义（PR 范围语义另行点验，见台账 MA-293）。
+        env:
+          ADMIN_PAIR_CI_BEFORE: ${{ github.event.before || '' }}
         run: pnpm check:audit-gates
 
       - name: Install Playwright Chromium
