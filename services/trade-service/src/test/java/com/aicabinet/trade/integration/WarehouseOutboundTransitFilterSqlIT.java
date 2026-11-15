@@ -100,13 +100,13 @@ class WarehouseOutboundTransitFilterSqlIT {
         seedTransit(outboundId, dev, now.minusSeconds(3600));
 
         Instant cutoff = now.minusSeconds(24 * 3600);
-        Page<WarehouseInTransit> overdue = transitMapper.searchPage(dev, "IN_TRANSIT", cutoff, 0, 20);
+        Page<WarehouseInTransit> overdue = transitMapper.searchPage(java.util.List.of(dev), "IN_TRANSIT", cutoff, 0, 20);
         assertEquals(2L, overdue.getTotal(),
                 "total 没随超时截止收窄 ⇒ lt(createdAt) 没进 SQL");
         assertTrue(overdue.getRecords().stream().allMatch(r -> r.getCreatedAt().isBefore(cutoff)),
                 "过滤后仍返回了未超时的行");
 
-        Page<WarehouseInTransit> all = transitMapper.searchPage(dev, "IN_TRANSIT", null, 0, 20);
+        Page<WarehouseInTransit> all = transitMapper.searchPage(java.util.List.of(dev), "IN_TRANSIT", null, 0, 20);
         assertEquals(3L, all.getTotal(), "createdBefore=null 应保持全量口径");
     }
 

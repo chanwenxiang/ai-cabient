@@ -138,6 +138,30 @@ public class MerchantScopeService {
     }
 
     /**
+     * 列表取数的**范围下推集合**：{@code null} = 不限（全局账号），空集 = 范围内没有柜机。
+     *
+     * <p>契约与 {@code ReplenishmentTaskMapper#findWorkbenchTasks} 一类「已下推」查询一致：
+     * {@code null} 表示不加 {@code device_id IN (…)} 谓词，空集表示「一台都看不见」由调用方直接返回空页。
+     * 之所以不物化「不限」为全表 ID 集合：那是几千个占位符，而且新柜机立刻落在集合外
+     * （等于给新设备设了个隐形的不可见期）。
+     *
+     * <p>🔴 为什么要有这个统一入口（R23X C43/C44 的教训）：同一个「把范围塞进列表取数」的动作
+     * 此前在补货路线 / 履约任务 / 到期下架 / 领货未上柜 / 理货台账 / 资费账单 / 租机账单 各写一遍，
+     * 结果五个地方写成了「把 operatorId 收下再丢掉」。收在一处后，新列表只要调它，
+     * 顺带把「请求里的单值 deviceId 必须先过范围」也一并做掉——越权 deviceId 直接 403，
+     * 而不是静默返回空表（空表会让运营以为这柜机没数据）。
+     */
+    @Transactional(readOnly = true)
+    public Collection<String> pushdownDeviceIds(Long operatorId, String requestedDeviceId) {
+        if (requestedDeviceId != null && !requestedDeviceId.isBlank()) {
+            String dev = requestedDeviceId.trim();
+            self.requireDeviceAccess(operatorId, dev);
+            return List.of(dev);
+        }
+        return self.allowedDeviceIds(operatorId);
+    }
+
+    /**
      * 货柜级数据范围：DEVICE_IDS（含历史 PARTIAL）与勾选柜求交；ROUTE 与路线编码求交；ALL 不额外限制。
      * admin 全局账号不受货柜范围限制。
      */

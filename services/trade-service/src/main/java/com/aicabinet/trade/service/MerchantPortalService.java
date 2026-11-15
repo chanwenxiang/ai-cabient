@@ -316,7 +316,8 @@ public class MerchantPortalService {
                                                       int page, int size, int days) {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantScopeService.requireDeviceAccess(userId, deviceId);
-        return tallyLedgerService.ledger(page, size, deviceId, null, days);
+        // 商户端按单柜下钻（@PathVariable），范围已被 requireDeviceAccess 收敛 ⇒ 单元素下推
+        return tallyLedgerService.ledger(page, size, List.of(deviceId.trim()), null, days);
     }
 
     /**

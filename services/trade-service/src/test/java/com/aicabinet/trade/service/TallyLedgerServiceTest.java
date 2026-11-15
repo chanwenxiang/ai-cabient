@@ -43,13 +43,14 @@ class TallyLedgerServiceTest {
                         77L, 4L, "CAB-1", 10001L, "张三", "COMPLETED", "RESTOCK",
                         "SKU-A", "可乐", 6, "A1", true, Instant.now())));
 
-        PageResultAccess.items(new TallyLedgerService(jdbc).ledger(0, 20, "CAB-1", 10001L, 30));
+        PageResultAccess.items(new TallyLedgerService(jdbc).ledger(0, 20, List.of("CAB-1"), 10001L, 30));
 
         ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
         assertTrue(countSql.getValue().contains("COALESCE(t.assignee_user_id, 0) > 0"),
                 "系统动作（无操作员）不算理货记录");
-        assertTrue(countSql.getValue().contains("t.device_id = ?"), "设备过滤须进 COUNT");
+        assertTrue(countSql.getValue().contains("t.device_id IN (?)"),
+                "设备范围须进 COUNT（R23X C44：此前 WHERE 里根本没有设备谓词）");
         assertTrue(countSql.getValue().contains("JOIN replenishment_task_line"),
                 "台账必须行粒度（任务×行 join）");
         assertTrue(countSql.getValue().contains("LEFT JOIN sku_catalog"), "SKU 名须左连目录");
@@ -62,6 +63,16 @@ class TallyLedgerServiceTest {
         assertTrue(sqlCaptor.getValue().contains("SELECT l.line_id"),
                 "行身份 line_id 必须在**投影列**（只写进 ORDER BY 不算）：开门柜 slot_id 恒 null，"
                         + "前端用 taskId:skuId:slotId 会撞 key");
+    }
+
+    @Test
+    void ledger_scopeEmpty_returnsEmptyPageWithoutQuerying() {
+        // R23X C44：范围为空 = 一台柜机都看不见。必须直接空页，**不能**降级成「不过滤」
+        // （那正是修复前的行为：WHERE 里没有设备谓词 ⇒ 全平台明细）
+        var page = new TallyLedgerService(jdbc).ledger(0, 20, List.of(), null, 30);
+
+        assertEquals(0, page.total());
+        org.mockito.Mockito.verifyNoInteractions(jdbc);
     }
 
     @Test

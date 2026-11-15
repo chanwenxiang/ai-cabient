@@ -73,13 +73,13 @@ class InTransitServiceTest {
 
     @Test
     void listInTransitPage_overdueOnly_passes24hCutoffToRepository() {
-        when(transitRepository.searchPage(anyString(), anyString(), any(), anyInt(), anyInt()))
+        when(transitRepository.searchPage(any(), anyString(), any(), anyInt(), anyInt()))
                 .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
 
-        inTransitService.listInTransitPage("CAB-001", true, 0, 20);
+        inTransitService.listInTransitPage(List.of("CAB-001"), true, 0, 20);
 
         ArgumentCaptor<java.time.Instant> cutoff = ArgumentCaptor.forClass(java.time.Instant.class);
-        verify(transitRepository).searchPage(eq("CAB-001"), eq("IN_TRANSIT"), cutoff.capture(), eq(0), eq(20));
+        verify(transitRepository).searchPage(eq(List.of("CAB-001")), eq("IN_TRANSIT"), cutoff.capture(), eq(0), eq(20));
         // 口径锁死 24h（前端 TRANSIT_OVERDUE_HOURS / OpsWorkbenchQueryService 同值）；容差 2 分钟
         java.time.Instant expected = java.time.Instant.now().minus(InTransitService.TRANSIT_OVERDUE_HOURS,
                 java.time.temporal.ChronoUnit.HOURS);
@@ -89,11 +89,11 @@ class InTransitServiceTest {
 
     @Test
     void listInTransitPage_withoutOverdue_passesNullCutoff() {
-        when(transitRepository.searchPage(anyString(), anyString(), any(), anyInt(), anyInt()))
+        when(transitRepository.searchPage(any(), anyString(), any(), anyInt(), anyInt()))
                 .thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
 
-        inTransitService.listInTransitPage("CAB-001", false, 0, 20);
+        inTransitService.listInTransitPage(List.of("CAB-001"), false, 0, 20);
 
-        verify(transitRepository).searchPage(eq("CAB-001"), eq("IN_TRANSIT"), isNull(), eq(0), eq(20));
+        verify(transitRepository).searchPage(eq(List.of("CAB-001")), eq("IN_TRANSIT"), isNull(), eq(0), eq(20));
     }
 }

@@ -39,11 +39,11 @@ class ReplenishmentServiceExpiryPageFilterTest {
         Page<PullOffTask> empty = new Page<>(1, 20);
         empty.setRecords(List.of());
         empty.setTotal(0);
-        when(pullOffTaskRepository.searchPage("OPEN", "DEV-1", 0, 20)).thenReturn(empty);
+        when(pullOffTaskRepository.searchPage("OPEN", java.util.List.of("DEV-1"), 0, 20)).thenReturn(empty);
 
-        PageResult<PullOffTaskDto> result = replenishmentService.listOpenPullOffTasksPage("DEV-1", 0, 20);
+        PageResult<PullOffTaskDto> result = replenishmentService.listOpenPullOffTasksPage(java.util.List.of("DEV-1"), 0, 20);
 
-        verify(pullOffTaskRepository).searchPage("OPEN", "DEV-1", 0, 20);
+        verify(pullOffTaskRepository).searchPage("OPEN", java.util.List.of("DEV-1"), 0, 20);
         assertThat(result.items()).isEmpty();
         assertThat(result.total()).isZero();
     }

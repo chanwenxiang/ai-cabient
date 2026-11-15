@@ -32,12 +32,25 @@ public class TallyLedgerService {
         this.jdbc = jdbc;
     }
 
+    /**
+     * 理货台账分页。
+     *
+     * <p>R23X C44：本方法自拼 SQL，旧的 WHERE 只有「时间窗 + assignee>0」，**不带设备范围**——
+     * 有 {@code ops:replenishment:list} 功能码的域受限账号一页就能读到全平台理货明细。
+     * 现在设备范围由调用方解析成集合下推（{@code null}=不限，空集=无可见柜机 ⇒ 直接空页），
+     * 与补货路线/履约任务/在途分页同一契约（{@code MerchantScopeService#pushdownDeviceIds}）。
+     *
+     * <p>单值 {@code deviceId} 参数已移除：留着「只按柜号过滤」的口子，下一个调用方照样能绕过范围。
+     */
     @Transactional(readOnly = true)
-    public PageResult<TallyRecordRowDto> ledger(int page, int size, String deviceId,
+    public PageResult<TallyRecordRowDto> ledger(int page, int size, java.util.Collection<String> deviceIds,
                                                 Long operatorUserId, int days) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.min(Math.max(size, 1), 100);
         int window = Math.min(Math.max(days, 1), 365);
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new PageResult<>(List.of(), safePage, safeSize, 0);
+        }
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
         // JDBC 驱动无法推断 Instant 类型（Can't infer the SQL type），统一转 Timestamp
         java.sql.Timestamp sinceTs = java.sql.Timestamp.from(since);
@@ -46,9 +59,11 @@ public class TallyLedgerService {
                 " WHERE t.created_at >= ? AND COALESCE(t.assignee_user_id, 0) > 0");
         List<Object> args = new ArrayList<>();
         args.add(sinceTs);
-        if (deviceId != null && !deviceId.isBlank()) {
-            where.append(" AND t.device_id = ?");
-            args.add(deviceId.trim());
+        if (deviceIds != null) {
+            where.append(" AND t.device_id IN (")
+                    .append(String.join(",", java.util.Collections.nCopies(deviceIds.size(), "?")))
+                    .append(')');
+            args.addAll(deviceIds);
         }
         if (operatorUserId != null && operatorUserId > 0) {
             where.append(" AND t.assignee_user_id = ?");

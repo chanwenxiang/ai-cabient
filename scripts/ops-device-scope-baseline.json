@@ -1,14 +1,13 @@
 {
-  "_why": "check-ops-device-scope R4 的显式例外登记。拦截器只能看见「路径变量 deviceId」；把 deviceId 放在 @RequestParam 的运营端点必须自己过范围判据（requireDeviceFilter/requireDeviceAccess/intersectDeviceFilter，≤4 跳），否则在此登记并写明理由。",
+  "_why": "check-ops-device-scope R4 的显式例外登记。拦截器只能看见「路径变量 deviceId」；把 deviceId 放在 @RequestParam 的运营端点必须自己过范围判据（requireDeviceFilter/requireDeviceAccess/intersectDeviceFilter/pushdownDeviceIds，≤4 跳），否则在此登记并写明理由。",
   "_rule": "只许登记「确实无法在方法内校验」的端点，且必须写清由谁兜底；修复后必须删除该行（门禁会对已修复条目告警，棘轮只降不升）。",
   "_seededAt": "2026-11-15",
+  "_note": "2026-11-15 R23X 批 4：C43/C44 的 5 条已修（补货路线/履约任务/到期下架/领货未上柜/理货台账）⇒ 条目删除，棘轮只降不升。同日 R4 补上「隐式命名 @RequestParam」识别面，暴露 3 条经 allowedDeviceIds 交集实现的端点（判据等价，非同族缺陷）与 3 条真泄漏（inventory/资费账单/租机账单，已按 pushdownDeviceIds 修复）。",
   "entries": {
     "AdminDashboardController#deviceReports": "设备报表分页：OpsDeviceAdminService.deviceReports 以 allowedDevices(operatorId) 为源集合再按 deviceFilter 过滤——越权 deviceId 只会得空表，判据等价于「范围优先」（非同族缺陷）",
     "AdminDashboardController#deviceDailyRevenue": "柜机×日营收：OpsDeviceAdminService.deviceDailyRevenue 用 allowedDeviceIds + contains 过滤并按 scoped 取数（非同族缺陷，判据等价于 require）",
-    "OpsReplenishmentController#routes": "补货路线分页：C43 待修（operatorId 传入 OpsReplenishmentAdminService.listRoutesPage 后被丢弃，deviceId 未过范围、无过滤时返回全量路线）",
-    "OpsReplenishmentController#fulfillmentTasks": "补货履约任务分页：C43 待修（同上，listFulfillmentTasksPage 丢弃 operatorId）",
-    "OpsReplenishmentController#expiryAlerts": "到期下架告警分页：C43 待修（listOpenPullOffTasksPage 丢弃 operatorId）",
-    "OpsWarehouseController#warehouseInTransit": "领货未上柜分页：C44 待修（InTransitService.listInTransitPage 根本不接收 operatorId，无范围参数）",
-    "ReplenishmentReportController#tallyRecords": "理货台账分页：C44 待修（有功能码 ops:replenishment:list，但 TallyLedgerService.ledger 自行拼 SQL，WHERE 只有时间窗与 assignee>0，不带设备范围；不传 deviceId 即全量）"
+    "OpsGapFeaturesController#salesReports": "销售报表分页：CompetitiveGapService.salesReport 先取 allowedDeviceIds，再对请求 deviceId 做 contains 判断（越权 ⇒ 空表）并收敛为单元素集合下推（非同族缺陷；改动此方法必须保持「交集」语义）",
+    "OpsGapFeaturesController#salesReportsExport": "销售报表导出：与 salesReports 同一个 service 方法（导出面同源判据），越权 deviceId 只会得空 CSV（非同族缺陷）",
+    "OpsGapFeaturesController#stockHealth": "库存健康分页：DeviceAssetService.stockHealth 以 allowedDeviceIds 为源、loadFilteredDevices 里 `allowed == null || allowed.contains(deviceId)` 与请求柜号取交集（非同族缺陷）"
   }
 }

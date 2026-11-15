@@ -22,6 +22,7 @@ public class OpsCsvExportService {
     private final MerchantReplenishmentService merchantReplenishmentService;
     private final WarehouseService warehouseService;
     private final ProcurementService procurementService;
+    private final MerchantScopeService merchantScopeService;
 
     public OpsCsvExportService(PermissionService permissionService,
                                RiskEventMapper riskEventRepository,
@@ -29,7 +30,8 @@ public class OpsCsvExportService {
                                ReplenishmentService replenishmentService,
                                MerchantReplenishmentService merchantReplenishmentService,
                                WarehouseService warehouseService,
-                               ProcurementService procurementService) {
+                               ProcurementService procurementService,
+                               MerchantScopeService merchantScopeService) {
         this.permissionService = permissionService;
         this.riskEventRepository = riskEventRepository;
         this.blacklistRepository = blacklistRepository;
@@ -37,11 +39,20 @@ public class OpsCsvExportService {
         this.merchantReplenishmentService = merchantReplenishmentService;
         this.warehouseService = warehouseService;
         this.procurementService = procurementService;
+        this.merchantScopeService = merchantScopeService;
     }
 
+    /**
+     * 风控事件导出：设备范围下推（`null`=不限，空集=导空表）。
+     *
+     * <p>R23X C43 同族：导出面此前压根不看范围——域受限账号一次拿走**全平台** 5000 条事件，
+     * 比列表泄漏更严重（不翻页、不计数、直接落盘）。导出口的范围判据必须与列表同源。
+     */
     public byte[] exportRiskEventsCsv(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:risk:export");
-        var page = riskEventRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 5000));
+        java.util.Collection<String> deviceIds = merchantScopeService.pushdownDeviceIds(operatorId, null);
+        var page = riskEventRepository.findAllByOrderByCreatedAtDesc(
+                deviceIds, PageRequest.of(0, 5000));
         StringBuilder sb = new StringBuilder("eventId,userId,deviceId,eventType,severity,detail,createdAt\n");
         for (RiskEvent e : page.getContent()) {
             sb.append(e.getEventId()).append(',')
@@ -71,7 +82,8 @@ public class OpsCsvExportService {
     public byte[] exportReplenishmentRoutesCsv(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:replenishment:export");
         StringBuilder sb = new StringBuilder("routeId,routeName,deviceCount,plannedDate,status,createdAt\n");
-        for (ReplenishmentRouteDto r : replenishmentService.listRoutes()) {
+        for (ReplenishmentRouteDto r : replenishmentService.listRoutes(
+                merchantScopeService.pushdownDeviceIds(operatorId, null))) {
             int devices = r.tasks() == null ? 0 : r.tasks().size();
             sb.append(r.routeId()).append(',')
                     .append(csv(r.routeName())).append(',')

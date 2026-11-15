@@ -72,17 +72,24 @@ public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
     }
 
     /**
-     * page 为 0-based。deviceId 非空则服务端过滤——运营从设备详情下钻时必须服务端筛，
-     * 前端 filter 会让分页 total 失真（显示 N 条 / 共 M 条、翻页大面积空）。
+     * page 为 0-based。设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     *
+     * <p>设备详情下钻时必须服务端筛：前端 filter 会让分页 total 失真（显示 N 条 / 共 M 条、翻页大面积空）。
+     * R23X C43：原签名只有单值 {@code deviceId}，运营不传即返回**全平台**待下架任务，
+     * 且 `operatorId` 在服务层被丢弃 ⇒ 域受限账号可枚举他商户的临期商品。
      */
-    default Page<PullOffTask> searchPage(String status, String deviceId, int page, int size) {
+    default Page<PullOffTask> searchPage(String status, Collection<String> deviceIds, int page, int size) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new Page<>(page + 1L, size);
+        }
         String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "OPEN";
-        String dev = deviceId != null && !deviceId.isBlank() ? deviceId.trim() : null;
-        return selectPage(new Page<>(page + 1L, size),
-                Wrappers.<PullOffTask>lambdaQuery()
-                        .eq(PullOffTask::getStatus, st)
-                        .eq(dev != null, PullOffTask::getDeviceId, dev)
-                        .orderByDesc(PullOffTask::getCreatedAt));
+        var query = Wrappers.<PullOffTask>lambdaQuery()
+                .eq(PullOffTask::getStatus, st)
+                .orderByDesc(PullOffTask::getCreatedAt);
+        if (deviceIds != null) {
+            query.in(PullOffTask::getDeviceId, deviceIds);
+        }
+        return selectPage(new Page<>(page + 1L, size), query);
     }
 
 }

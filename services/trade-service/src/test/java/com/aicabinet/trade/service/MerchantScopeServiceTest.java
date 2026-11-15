@@ -138,6 +138,51 @@ class MerchantScopeServiceTest {
         assertEquals(Set.of("CAB-001"), merchantScopeService.intersectDeviceFilter(MERCHANT_A_USER, null));
     }
 
+    // ── pushdownDeviceIds（R23X C43/C44 的列表取数统一入口）───────────────────
+    // 契约：null=不限（全局账号，SQL 不加谓词）、空集=无可见柜机、单元素=显式柜号且已过范围。
+
+    @Test
+    void pushdownDeviceIds_globalAdmin_returnsNullForUnrestricted() {
+        stubAdminRole(ADMIN_USER);
+
+        assertNull(merchantScopeService.pushdownDeviceIds(ADMIN_USER, null),
+                "全局账号必须是 null（不限），不能物化成全表 ID 集合——新柜机会落在集合外");
+    }
+
+    @Test
+    void pushdownDeviceIds_scopedOperator_returnsAllowedSetWhenNoDeviceRequested() {
+        stubScopedMerchant(MERCHANT_A_USER, "MCH-DEFAULT", device("CAB-001", "MCH-DEFAULT"));
+
+        assertEquals(Set.of("CAB-001"), merchantScopeService.pushdownDeviceIds(MERCHANT_A_USER, null));
+    }
+
+    @Test
+    void pushdownDeviceIds_requestedDeviceInScope_returnsSingleton() {
+        stubScopedMerchant(MERCHANT_A_USER, "MCH-DEFAULT", device("CAB-001", "MCH-DEFAULT"));
+
+        assertEquals(List.of("CAB-001"), merchantScopeService.pushdownDeviceIds(MERCHANT_A_USER, " CAB-001 "),
+                "请求柜号要先 trim 再过范围，最后只下推这一个");
+    }
+
+    @Test
+    void pushdownDeviceIds_requestedDeviceOutOfScope_throws403() {
+        stubScopedMerchant(MERCHANT_A_USER, "MCH-DEFAULT", device("CAB-001", "MCH-DEFAULT"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> merchantScopeService.pushdownDeviceIds(MERCHANT_A_USER, "CAB-OTHER"));
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode(),
+                "越权柜号必须 403（空表会让运营以为这柜机没数据）");
+        assertEquals(ApiMessages.PERMISSION_DENIED, ex.getReason());
+    }
+
+    @Test
+    void pushdownDeviceIds_unboundOperator_returnsEmptySet() {
+        when(userRoleRepository.findByIdUserId(ADMIN_USER)).thenReturn(List.of());
+
+        assertEquals(Set.of(), merchantScopeService.pushdownDeviceIds(ADMIN_USER, null),
+                "未绑定 = 零范围 ⇒ 空集（调用方据此直接返回空页）");
+    }
+
     private void stubAdminRole(long userId) {
         OpsUserRole userRole = new OpsUserRole();
         userRole.setId(new OpsUserRoleId(userId, 1L));

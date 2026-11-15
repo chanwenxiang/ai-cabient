@@ -26,13 +26,23 @@ public interface DeviceDataFeeBillMapper extends BaseTradeMapper<DeviceDataFeeBi
                 .orderByAsc(DeviceDataFeeBill::getBillId));
     }
 
-    default Page<DeviceDataFeeBill> searchPage(String billMonth, String status, String deviceId, int page, int size) {
+    /**
+     * 账单分页：设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     * 旧签名只有单值 deviceId，不传即全平台账单（R23X C43 同族）。
+     */
+    default Page<DeviceDataFeeBill> searchPage(String billMonth, String status,
+                                               java.util.Collection<String> deviceIds, int page, int size) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new Page<>(page, size);
+        }
         var q = Wrappers.<DeviceDataFeeBill>lambdaQuery()
                 .eq(billMonth != null && !billMonth.isBlank(), DeviceDataFeeBill::getBillMonth, billMonth)
                 .eq(status != null && !status.isBlank(), DeviceDataFeeBill::getStatus, status)
-                .eq(deviceId != null && !deviceId.isBlank(), DeviceDataFeeBill::getDeviceId, deviceId)
                 .orderByDesc(DeviceDataFeeBill::getBillMonth)
                 .orderByDesc(DeviceDataFeeBill::getBillId);
+        if (deviceIds != null) {
+            q.in(DeviceDataFeeBill::getDeviceId, deviceIds);
+        }
         return selectPage(new Page<>(page, size), q);
     }
 

@@ -29,16 +29,16 @@
     },
     {
       "file": "services/device-service/src/main/java/com/aicabinet/device/mqtt/MqttEventListener.java",
-      "sep": "|",
-      "kind": "writer",
+      "sep": "/",
+      "kind": "reader",
       "count": 1,
       "classification": "external",
       "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
     },
     {
       "file": "services/device-service/src/main/java/com/aicabinet/device/mqtt/MqttEventListener.java",
-      "sep": "/",
-      "kind": "reader",
+      "sep": "|",
+      "kind": "writer",
       "count": 1,
       "classification": "external",
       "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
@@ -101,7 +101,7 @@
     },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
-      "sep": "\\n",
+      "sep": ",",
       "kind": "reader",
       "count": 1,
       "classification": "external",
@@ -109,14 +109,6 @@
     },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/AlipayBillCsvParser.java",
-      "sep": ",",
-      "kind": "reader",
-      "count": 1,
-      "classification": "external",
-      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
-    },
-    {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
       "sep": "\\n",
       "kind": "reader",
       "count": 1,
@@ -126,6 +118,14 @@
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
       "sep": ",",
+      "kind": "reader",
+      "count": 1,
+      "classification": "external",
+      "why": "外部格式分隔符（CSV/行分隔/路径/协议），写侧不在仓内——解析须配对 csv-escape 等已有门禁"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/reconciliation/WeChatBillCsvParser.java",
+      "sep": "\\n",
       "kind": "reader",
       "count": 1,
       "classification": "external",
@@ -309,19 +309,19 @@
     },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
-      "sep": "、",
-      "kind": "writer",
-      "count": 1,
-      "classification": "DISPLAY_ONLY",
-      "why": "仅展示文案：Match SUSPECT 原因文案，全仓无「、」解析读侧"
-    },
-    {
-      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
       "sep": " / ",
       "kind": "writer",
       "count": 1,
       "classification": "DISPLAY_ONLY",
       "why": "仅展示文案：CONFLICT 报错文案，全仓无「 / 」解析读侧"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuJiangyiLinkService.java",
+      "sep": "、",
+      "kind": "writer",
+      "count": 1,
+      "classification": "DISPLAY_ONLY",
+      "why": "仅展示文案：Match SUSPECT 原因文案，全仓无「、」解析读侧"
     },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/SkuSceneLimitService.java",
@@ -338,6 +338,14 @@
       "count": 1,
       "classification": "external",
       "why": "外部协议格式：MIME To 头地址列表=RFC 5322（逗号+空格），读侧为外部邮件服务，非仓内往返"
+    },
+    {
+      "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/TallyLedgerService.java",
+      "sep": ",",
+      "kind": "writer",
+      "count": 1,
+      "classification": "external",
+      "why": "SQL 占位符列表（?,?,?）——R23X C44 理货台账设备范围下推时按集合长度生成；拼接结果直接交给 JDBC 驱动绑定参数，仓内无解析读侧，无写读往返（不是业务字符串格式）"
     },
     {
       "file": "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseService.java",

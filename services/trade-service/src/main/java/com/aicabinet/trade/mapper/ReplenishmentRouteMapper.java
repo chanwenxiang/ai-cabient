@@ -22,6 +22,16 @@ public interface ReplenishmentRouteMapper extends BaseTradeMapper<ReplenishmentR
     return selectList(Wrappers.<ReplenishmentRoute>lambdaQuery().orderByAsc(ReplenishmentRoute::getRouteId));
     }
 
+    /** 指定路线集合（设备范围下推后的可见路线），顺序同 {@link #findAllByOrderByRouteIdAsc}。 */
+    default List<ReplenishmentRoute> findByRouteIdInOrderByRouteIdAsc(List<Long> routeIds) {
+        if (routeIds == null || routeIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<ReplenishmentRoute>lambdaQuery()
+                .in(ReplenishmentRoute::getRouteId, routeIds)
+                .orderByAsc(ReplenishmentRoute::getRouteId));
+    }
+
     /** page 为 0-based；routeIds 为空时不加 IN 条件。 */
     default Page<ReplenishmentRoute> searchPage(java.util.Collection<Long> routeIds, int page, int size) {
         var query = Wrappers.<ReplenishmentRoute>lambdaQuery().orderByAsc(ReplenishmentRoute::getRouteId);

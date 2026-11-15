@@ -4,7 +4,7 @@
  * 直测 judge() 纯判定：写方法无策略=红 / 三策略（条件UPDATE/乐观锁/显式锁）或锚点=绿 /
  * 非写方法不检查。
  */
-import { judge, parseDiffHunks } from './check-concurrency-declaration.mjs';
+import { isMethodSignature, judge, parseDiffHunks } from './check-concurrency-declaration.mjs';
 
 let pass = 0;
 let fail = 0;
@@ -84,6 +84,55 @@ const WRITE_METHOD = `    public void updateStock(String deviceId) {
     'parseDiffHunks 正确',
     ranges.length === 1 && ranges[0].start === 5 && ranges[0].end === 11,
     JSON.stringify(ranges)
+  );
+}
+
+// 9) 方法声明判据：链式调用/赋值 lambda 不得冒充方法起点
+//    （2026-11-15 实测：只读取数方法被报成「写方法 orElseGet」，根因就是旧近似谓词把
+//     `DeviceSkuInventory inv = existing.orElseGet(() -> {` 当成签名行）
+{
+  check(
+    '赋值+lambda 行不是方法声明',
+    isMethodSignature('        DeviceSkuInventory inv = existing.orElseGet(() -> {') === false
+  );
+  check(
+    '链式续行不是方法声明',
+    isMethodSignature('                .map(inv -> toDto(inv))') === false
+  );
+  check('裸调用不是方法声明', isMethodSignature('        save(entity)') === false);
+  check(
+    '真声明（泛型参数+集合形参）=方法声明',
+    isMethodSignature(
+      '    public List<DeviceInventoryDto> listInventory(java.util.Collection<String> deviceIds, boolean low) {'
+    ) === true
+  );
+  check(
+    '真声明（private static 泛型）=方法声明',
+    isMethodSignature('    private static <T> T cast(Object o) {') === true
+  );
+}
+
+// 10) 方法前导归属：hunk 落在 javadoc/注解上时，不能算到「上一个方法」头上
+//     （旧实现只找「签名行 ≤ 变更行」，给只读方法加 javadoc 会把变更算进上面的写方法）
+{
+  const content = [
+    'class X {',
+    '    public void updateStock(String deviceId) {',
+    '        inventoryMapper.save(lot);',
+    '    }',
+    '',
+    '    /** 只读：不碰任何写 */',
+    '    public void renderInventory(String deviceId) {',
+    '        view.render(deviceId);',
+    '    }',
+    '}'
+  ].join('\n');
+  // 变更行 = javadoc 那一行（6）与签名行（7）
+  const r = judge([{ file: 'X.java', content, changedRanges: [{ start: 6, end: 7 }] }]);
+  check(
+    'javadoc 前导归给下面的方法（不误判成上面的写方法）',
+    r.problems.length === 0 && r.checked === 0,
+    r.problems.join('|')
   );
 }
 

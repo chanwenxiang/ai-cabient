@@ -75,7 +75,7 @@ class PullOffTaskDeviceFilterSqlIT {
         seedTask(devA, "OPEN", 3, null);
         seedTask(devB, "OPEN", 2, null);
 
-        Page<PullOffTask> page = pullOffTaskMapper.searchPage("OPEN", devA, 0, 20);
+        Page<PullOffTask> page = pullOffTaskMapper.searchPage("OPEN", java.util.List.of(devA), 0, 20);
 
         assertEquals(3L, page.getTotal(),
                 "total 没随 deviceId 收窄 ⇒ WHERE 没进 SQL，前端拿到的仍是全量分页元数据");
@@ -85,7 +85,7 @@ class PullOffTaskDeviceFilterSqlIT {
     }
 
     @Test
-    @DisplayName("deviceId 为 null 或空白：保持全量口径（不能把过滤加反）")
+    @DisplayName("deviceIds 为 null：保持全量；空集：0 行（不能退化成不过滤）")
     void blankDeviceId_keepsFullScope() {
         String devC = seedDevice("C");
         long baseline = countAll();
@@ -94,15 +94,16 @@ class PullOffTaskDeviceFilterSqlIT {
 
         Page<PullOffTask> nullFilter =
                 pullOffTaskMapper.searchPage("OPEN", null, 0, 100);
-        Page<PullOffTask> blankFilter =
-                pullOffTaskMapper.searchPage("OPEN", "   ", 0, 100);
 
         assertEquals(expected, nullFilter.getTotal(),
-                "deviceId=null 应不过滤：total 必须等于播种后的全量行数");
-        assertEquals(nullFilter.getTotal(), blankFilter.getTotal(),
-                "空白 deviceId 应与 null 同口径（服务层传的是 trim 后的字符串）");
-        assertTrue(blankFilter.getRecords().stream().anyMatch(t -> devC.equals(t.getDeviceId())),
+                "deviceIds=null 应不过滤：total 必须等于播种后的全量行数");
+        assertTrue(nullFilter.getRecords().stream().anyMatch(t -> devC.equals(t.getDeviceId())),
                 "全量口径里看不到本用例播种的行");
+
+        // 空集 ≠ 不过滤：空集 = 「范围内没有柜机」⇒ 必须 0 行（R23X C43 的核心语义，
+        // 修复前「没传 deviceId」被当成全量，正是跨商户枚举的来源）
+        assertEquals(0L, pullOffTaskMapper.searchPage("OPEN", java.util.List.of(), 0, 100).getTotal(),
+                "空集合必须返回 0 行，不能退化成不过滤");
     }
 
     @Test
@@ -114,7 +115,7 @@ class PullOffTaskDeviceFilterSqlIT {
         seedTask(devD, "OPEN", 1, now.minusSeconds(7200));
         seedTask(devD, "RESOLVED", 1, now.minusSeconds(10));
 
-        Page<PullOffTask> page = pullOffTaskMapper.searchPage("OPEN", devD, 0, 20);
+        Page<PullOffTask> page = pullOffTaskMapper.searchPage("OPEN", java.util.List.of(devD), 0, 20);
         assertEquals(2L, page.getTotal(), "非 OPEN 的行被算进来了");
         assertEquals(2, page.getRecords().size());
         assertTrue(page.getRecords().stream().allMatch(t -> "OPEN".equals(t.getStatus())));
@@ -124,7 +125,7 @@ class PullOffTaskDeviceFilterSqlIT {
                         + " vs " + page.getRecords().get(1).getCreatedAt());
 
         // 状态空白时 mapper 自己兜到 OPEN，行为与显式 "OPEN" 一致
-        assertEquals(page.getTotal(), pullOffTaskMapper.searchPage("", devD, 0, 20).getTotal(),
+        assertEquals(page.getTotal(), pullOffTaskMapper.searchPage("", java.util.List.of(devD), 0, 20).getTotal(),
                 "status 空白的兜底口径变了");
     }
 
@@ -136,12 +137,12 @@ class PullOffTaskDeviceFilterSqlIT {
         seedTask(devE, "OPEN", 4, null);
         seedTask(devF, "OPEN", 5, null);
 
-        var first = replenishmentService.listOpenPullOffTasksPage(devE, 0, 3);
+        var first = replenishmentService.listOpenPullOffTasksPage(java.util.List.of(devE), 0, 3);
         assertEquals(4L, first.total(), "服务层 total 不是过滤后的行数");
         assertEquals(3, first.items().size());
         assertTrue(first.items().stream().allMatch(d -> devE.equals(d.deviceId())));
 
-        var second = replenishmentService.listOpenPullOffTasksPage(devE, 1, 3);
+        var second = replenishmentService.listOpenPullOffTasksPage(java.util.List.of(devE), 1, 3);
         assertEquals(4L, second.total());
         assertEquals(1, second.items().size(),
                 "第二页应恰有过滤集里的最后 1 条；0 条 ⇒ 分页仍按全量算偏移");

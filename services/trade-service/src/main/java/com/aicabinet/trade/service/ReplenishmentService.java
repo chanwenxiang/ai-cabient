@@ -220,13 +220,19 @@ public class ReplenishmentService {
 
     @Transactional(readOnly = true)
 
-    public List<DeviceInventoryDto> listInventory(String deviceId, boolean lowStockOnly) {
+    public List<DeviceInventoryDto> listInventory(java.util.Collection<String> deviceIds, boolean lowStockOnly) {
 
         List<DeviceSkuInventory> rows;
 
-        if (deviceId != null && !deviceId.isBlank()) {
-            String dev = deviceId.trim();
-            rows = inventoryRepository.findByIdDeviceId(dev);
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            // 范围为空 = 一台柜机都看不见（别退化成「不限」，那是越权）
+            return List.of();
+        }
+        if (deviceIds != null) {
+            // 刻意不用 findLowStockByDeviceIds：那条 SQL 额外收 'DEPLOYED' 生命周期并 LIMIT 500，
+            // 口径与本方法的「按设备取行 + 内存 warning()/onShelfOnly」不同（会漏未部署柜机、会截断）。
+            // 这里只把「取哪些柜机的行」下推，低库存判据仍走下面同一条 Java 路径。
+            rows = inventoryRepository.findByIdDeviceIdIn(deviceIds);
         } else if (lowStockOnly) {
             rows = inventoryRepository.findLowStockLimit(500);
         } else {
@@ -321,11 +327,23 @@ public class ReplenishmentService {
 
 
 
+    /** 补货路线全量（导出面）：设备范围下推，`null`=不限、空集=无可见柜机。R23X C43。 */
     @Transactional(readOnly = true)
-
-    public List<ReplenishmentRouteDto> listRoutes() {
-
-        return routeRepository.findAllByOrderByRouteIdAsc().stream()
+    public List<ReplenishmentRouteDto> listRoutes(java.util.Collection<String> deviceIds) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
+        }
+        java.util.Collection<Long> routeIds = null;
+        if (deviceIds != null) {
+            routeIds = taskRepository.findDistinctRouteIdsByDeviceIds(deviceIds);
+            if (routeIds == null || routeIds.isEmpty()) {
+                return List.of();
+            }
+        }
+        List<ReplenishmentRoute> routes = routeIds == null
+                ? routeRepository.findAllByOrderByRouteIdAsc()
+                : routeRepository.findByRouteIdInOrderByRouteIdAsc(List.copyOf(routeIds));
+        return routes.stream()
 
                 .map(this::toRouteDto)
 
@@ -333,14 +351,26 @@ public class ReplenishmentService {
 
     }
 
+    /**
+     * 补货路线分页：设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     *
+     * <p>路线本身没有 device_id 列，范围落在「路线上挂了哪些柜机的任务」——
+     * 先取设备集合内的任务路线 ID，再让路线分页跑 {@code route_id IN (…)}，
+     * LIMIT 落在过滤之后。R23X C43：原实现只收单值 deviceId，运营不传即全平台路线。
+     */
     @Transactional(readOnly = true)
-    public PageResult<ReplenishmentRouteDto> listRoutesPage(String deviceId, int page, int size) {
+    public PageResult<ReplenishmentRouteDto> listRoutesPage(
+            java.util.Collection<String> deviceIds, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new PageResult<>(List.of(), p, s, 0);
+        }
         java.util.Collection<Long> routeIds = null;
-        if (deviceId != null && !deviceId.isBlank()) {
-            routeIds = taskRepository.findDistinctRouteIdsByDeviceId(deviceId.trim());
-            if (routeIds.isEmpty()) {
+        if (deviceIds != null) {
+            routeIds = taskRepository.findDistinctRouteIdsByDeviceIds(deviceIds);
+            if (routeIds == null || routeIds.isEmpty()) {
+                // 范围内没有任何补货任务 ⇒ 没有可见路线（不能当成「不限」返回全量）
                 return new PageResult<>(List.of(), p, s, 0);
             }
         }
@@ -349,21 +379,24 @@ public class ReplenishmentService {
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
+    /** 到期下架告警分页：设备范围下推（`null`=不限，空集=无可见柜机）。R23X C43。 */
     @Transactional(readOnly = true)
-    public PageResult<PullOffTaskDto> listOpenPullOffTasksPage(String deviceId, int page, int size) {
+    public PageResult<PullOffTaskDto> listOpenPullOffTasksPage(
+            java.util.Collection<String> deviceIds, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = pullOffTaskRepository.searchPage("OPEN", deviceId, p, s);
+        var result = pullOffTaskRepository.searchPage("OPEN", deviceIds, p, s);
         List<PullOffTaskDto> items = result.getRecords().stream().map(this::toPullOffDto).toList();
         return new PageResult<>(items, p, s, result.getTotal());
     }
 
+    /** 履约任务分页：设备范围下推（`null`=不限，空集=无可见柜机）。R23X C43。 */
     @Transactional(readOnly = true)
     public PageResult<ReplenishmentFulfillmentTaskDto> listFulfillmentTasksPage(
-            String deviceId, String status, int page, int size) {
+            java.util.Collection<String> deviceIds, String status, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
-        var result = taskRepository.searchPage(deviceId, status, p, s);
+        var result = taskRepository.searchPage(deviceIds, status, p, s);
         Map<Long, ReplenishmentRoute> routeById = new HashMap<>();
         for (ReplenishmentTask task : result.getRecords()) {
             Long routeId = task.getRouteId();
@@ -1661,15 +1694,12 @@ public class ReplenishmentService {
 
 
     @Transactional(readOnly = true)
-
-    public List<PullOffTaskDto> listOpenPullOffTasks() {
-
-        return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
-
+    public List<PullOffTaskDto> listOpenPullOffTasks(java.util.Collection<String> deviceIds) {
+        return pullOffTaskRepository
+                .findByStatusAndDeviceIdInOrderByCreatedAtDesc("OPEN", deviceIds, 500)
+                .stream()
                 .map(this::toPullOffDto)
-
                 .toList();
-
     }
 
     @Transactional

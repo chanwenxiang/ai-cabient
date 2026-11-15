@@ -271,10 +271,20 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
     }
 
     /** page 为 0-based。 */
-    default Page<ReplenishmentTask> searchPage(String deviceId, String status, int page, int size) {
+    /**
+     * 履约任务分页：设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     *
+     * <p>R23X C43：原签名只收单值 {@code deviceId}，调用方把 {@code operatorId} 收下后丢掉，
+     * 于是不传 deviceId 即返回**全平台**任务（跨商户可枚举）。集合语义与
+     * {@link #findWorkbenchTasks} 一致，别退回「先取全局页再内存过滤」。
+     */
+    default Page<ReplenishmentTask> searchPage(Collection<String> deviceIds, String status, int page, int size) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new Page<>(page + 1L, size);
+        }
         var query = Wrappers.<ReplenishmentTask>lambdaQuery().orderByAsc(ReplenishmentTask::getTaskId);
-        if (deviceId != null && !deviceId.isBlank()) {
-            query.eq(ReplenishmentTask::getDeviceId, deviceId.trim());
+        if (deviceIds != null) {
+            query.in(ReplenishmentTask::getDeviceId, deviceIds);
         }
         if (status != null && !status.isBlank()) {
             query.eq(ReplenishmentTask::getStatus, status.trim().toUpperCase());
@@ -282,12 +292,19 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
         return selectPage(new Page<>(page + 1L, size), query);
     }
 
-    default java.util.List<Long> findDistinctRouteIdsByDeviceId(String deviceId) {
-        if (deviceId == null || deviceId.isBlank()) {
+    /**
+     * 指定设备集合涉及的路线 ID（补货路线分页按「任务落在哪些柜机」收口）。
+     * {@code null}=不限（返回 null，调用方不加 IN 条件）；空集=无。
+     */
+    default java.util.List<Long> findDistinctRouteIdsByDeviceIds(Collection<String> deviceIds) {
+        if (deviceIds == null) {
+            return null;
+        }
+        if (deviceIds.isEmpty()) {
             return java.util.List.of();
         }
         return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
-                        .eq(ReplenishmentTask::getDeviceId, deviceId.trim())
+                        .in(ReplenishmentTask::getDeviceId, deviceIds)
                         .select(ReplenishmentTask::getRouteId))
                 .stream()
                 .map(ReplenishmentTask::getRouteId)

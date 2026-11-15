@@ -44,13 +44,13 @@ class ReplenishmentListInventoryOnShelfTest {
 
     @Test
     void listInventory_lowStockOnly_excludesDelistedRows() {
-        when(inventoryRepository.findByIdDeviceId("EG-1"))
+        when(inventoryRepository.findByIdDeviceIdIn(java.util.List.of("EG-1")))
                 .thenReturn(List.of(row("EG-1", "100013"), row("EG-1", "100016")));
         when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
         when(skuCatalogMapper.selectList(any()))
                 .thenReturn(List.of(catalog("100013", "ACTIVE"), catalog("100016", "INACTIVE")));
 
-        List<DeviceInventoryDto> rows = service.listInventory("EG-1", true);
+        List<DeviceInventoryDto> rows = service.listInventory(java.util.List.of("EG-1"), true);
 
         assertEquals(1, rows.size());
         assertEquals("100013", rows.get(0).skuId());
@@ -58,11 +58,11 @@ class ReplenishmentListInventoryOnShelfTest {
 
     @Test
     void listInventory_fullList_keepsDelistedRows() {
-        when(inventoryRepository.findByIdDeviceId("EG-1"))
+        when(inventoryRepository.findByIdDeviceIdIn(java.util.List.of("EG-1")))
                 .thenReturn(List.of(row("EG-1", "100013"), row("EG-1", "100016")));
         when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
 
-        List<DeviceInventoryDto> rows = service.listInventory("EG-1", false);
+        List<DeviceInventoryDto> rows = service.listInventory(java.util.List.of("EG-1"), false);
 
         assertEquals(2, rows.size());
     }

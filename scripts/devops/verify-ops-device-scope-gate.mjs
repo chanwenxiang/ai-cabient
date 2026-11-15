@@ -41,11 +41,15 @@ const REL_INTERCEPTOR =
 const REL_WEB = 'services/trade-service/src/main/java/com/aicabinet/trade/config/WebConfig.java';
 const REL_CTRL =
   'services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java';
+const REL_REPLENISH_SVC =
+  'services/trade-service/src/main/java/com/aicabinet/trade/service/OpsReplenishmentAdminService.java';
 const REL_GATE = 'scripts/check-ops-device-scope.mjs';
 const REL_BASELINE = 'scripts/ops-device-scope-baseline.json';
 
 const md5 = (p) => createHash('md5').update(readFileSync(p)).digest('hex');
-const watched = [REL_INTERCEPTOR, REL_WEB, REL_CTRL].map((rel) => join(ROOT, rel));
+const watched = [REL_INTERCEPTOR, REL_WEB, REL_CTRL, REL_REPLENISH_SVC].map((rel) =>
+  join(ROOT, rel)
+);
 const before = watched.map(md5);
 
 const sandbox = mkdtempSync(join(tmpdir(), 'ops-device-scope-'));
@@ -181,6 +185,51 @@ step('S6', '新增运营端点用 @RequestParam deviceId 且不校验 → R4 红
   assert(r.code === 1, `期望 exit 1，实得 ${r.code}`);
   assert(r.out.includes('fixtureProbe'), `未命中 R4 判据（输出未提夹具端点）：${r.out.trim()}`);
   return 'R4 命中';
+});
+
+step('S7', '隐式命名的 @RequestParam(required=false) String deviceId 且不校验 → R4 红', () => {
+  // 2026-11-15：R4 只认 `name = "deviceId"` 那种写法，隐式命名（Spring 按形参名取参）
+  // 整批跳过了判定面——首版实测 OpsReplenishmentController#inventory 等 6 个端点因此恒绿。
+  writeFileSync(join(sandbox, REL_CTRL), readFileSync(join(ROOT, REL_CTRL)));
+  replaceIn(
+    REL_CTRL,
+    '    /** 幂等 upsert 映射',
+    [
+      '    /** 夹具注入：隐式命名的查询串设备筛选，未过范围判据。 */',
+      '    @RequiresPermissions("ops:device:list")',
+      '    @GetMapping("/fixture/device-probe-implicit")',
+      '    public ApiResponse<String> fixtureProbeImplicit(',
+      '            @RequestParam(required = false) String deviceId) {',
+      '        return ApiResponse.ok(String.valueOf(deviceId));',
+      '    }',
+      '',
+      '    /** 幂等 upsert 映射'
+    ].join('\n')
+  );
+  const r = runGate();
+  assert(r.code === 1, `期望 exit 1，实得 ${r.code}`);
+  assert(/fixtureProbeImplicit/.test(r.out), `未命中 R4 判据（输出未提夹具端点）：${r.out.trim()}`);
+  return 'R4 命中（隐式命名）';
+});
+
+step('S8', '把已修端点的范围下推退回 null → R4 红（证明修复是承重的）', () => {
+  writeFileSync(join(sandbox, REL_CTRL), readFileSync(join(ROOT, REL_CTRL)));
+  writeFileSync(join(sandbox, REL_REPLENISH_SVC), readFileSync(join(ROOT, REL_REPLENISH_SVC)));
+  replaceIn(
+    REL_REPLENISH_SVC,
+    [
+      '        return replenishmentService.listRoutesPage(',
+      '                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), page, size);'
+    ].join('\n'),
+    '        return replenishmentService.listRoutesPage(null, page, size);'
+  );
+  const r = runGate();
+  assert(r.code === 1, `期望 exit 1，实得 ${r.code}`);
+  assert(
+    /OpsReplenishmentController#routes/.test(r.out),
+    `未命中 R4 判据（应点名 routes）：${r.out.trim()}`
+  );
+  return 'R4 命中（C43 回退）';
 });
 
 // ── 零残留 ──

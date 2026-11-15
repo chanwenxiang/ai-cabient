@@ -349,6 +349,23 @@ function handlerParamsAt(src, annoEnd) {
   return { name: nameMatch[1], params: src.slice(k + 1, j) };
 }
 
+/**
+ * 形参表里是否有「deviceId 走查询串」的 {@code @RequestParam}。
+ *
+ * 🔴 必须同时认两种写法，漏一种就是静默跳过（与 C06「只认一种写法」同族）：
+ *   - 显式命名：`@RequestParam(name = "deviceId", required = false) String deviceId`
+ *   - **隐式命名**：`@RequestParam(required = false) String deviceId`
+ *     （Spring 按形参名取查询参数，`deviceId` 照样能传）
+ * 旧实现只认带引号那种，于是 `OpsReplenishmentController#inventory`、
+ * `OpsGapFeaturesController` 4 个端点、`OpsDeviceRentalController` 等整批不进判定面。
+ */
+function takesQueryDeviceId(params) {
+  const explicit = /@RequestParam\s*\([^)]*?\b(?:name|value)\s*=\s*"deviceId"/.test(params);
+  if (explicit) return true;
+  // 隐式：注解后紧跟形参声明 `String deviceId`（名字即参数名）
+  return /@RequestParam\s*\((?:[^)]*)\)\s*(?:final\s+)?String\s+deviceId\b/.test(params);
+}
+
 const baseline = loadBaseline();
 const queryParamOffenders = [];
 for (const { cls, src } of opsControllers) {
@@ -374,8 +391,7 @@ for (const { cls, src } of opsControllers) {
     }
     const h = handlerParamsAt(src, annoEnd);
     if (!h) continue;
-    const takesQueryDeviceId = /@RequestParam\s*\([^)]*"deviceId"[^)]*\)/.test(h.params);
-    if (!takesQueryDeviceId) continue;
+    if (!takesQueryDeviceId(h.params)) continue;
     if (/@PathVariable\s*\(\s*(?:name\s*=\s*)?"deviceId"/.test(h.params)) continue;
     if (enforcedWithin(cls, h.name)) continue;
     if (baseline.has(`${cls}#${h.name}`)) continue;

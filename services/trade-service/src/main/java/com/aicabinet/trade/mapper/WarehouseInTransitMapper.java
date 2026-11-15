@@ -111,17 +111,22 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
     return selectCount(Wrappers.<WarehouseInTransit>lambdaQuery().eq(WarehouseInTransit::getOutboundId, outboundId).eq(WarehouseInTransit::getDeviceId, deviceId).eq(WarehouseInTransit::getStatus, status)) > 0;
     }
 
-    /** page 为 0-based。 */
-    default Page<WarehouseInTransit> searchPage(String deviceId, String status, int page, int size) {
-        return searchPage(deviceId, status, null, page, size);
-    }
+    // 刻意**不保留**单值 deviceId 的旧重载：那正是「服务层不接收 operatorId」的形态，
+    // 留着就是给下一个调用方一个不查范围的入口（R23X C44）。
 
     /**
-     * D28-B5：{@code createdBefore} 可选（超时筛选走服务端）。口径＝「createdAt 早于 now-24h」，
-     * 与前端 {@code TRANSIT_OVERDUE_HOURS = 24}、OpsWorkbenchQueryService.IN_TRANSIT_OVERDUE_HOURS 一致。
+     * page 为 0-based。设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     *
+     * <p>R23X C44：原签名只收单值 {@code deviceId}，服务层不接收 {@code operatorId}，
+     * 运营不传 deviceId 即返回**全平台**在途行。集合语义与
+     * {@link #countDistinctOutboundOverdue} 一致（那边早已带范围，两边口径原本相反）。
      */
     default Page<WarehouseInTransit> searchPage(
-            String deviceId, String status, java.time.Instant createdBefore, int page, int size) {
+            java.util.Collection<String> deviceIds, String status,
+            java.time.Instant createdBefore, int page, int size) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new Page<>(page + 1L, size);
+        }
         String st = status != null && !status.isBlank() ? status.trim().toUpperCase() : "IN_TRANSIT";
         var query = Wrappers.<WarehouseInTransit>lambdaQuery()
                 .eq(WarehouseInTransit::getStatus, st)
@@ -129,8 +134,8 @@ public interface WarehouseInTransitMapper extends BaseTradeMapper<WarehouseInTra
         if (createdBefore != null) {
             query.lt(WarehouseInTransit::getCreatedAt, createdBefore);
         }
-        if (deviceId != null && !deviceId.isBlank()) {
-            query.eq(WarehouseInTransit::getDeviceId, deviceId.trim());
+        if (deviceIds != null) {
+            query.in(WarehouseInTransit::getDeviceId, deviceIds);
         }
         return selectPage(new Page<>(page + 1L, size), query);
     }

@@ -433,7 +433,9 @@ public class DeviceRentalService {
         permissionService.requirePermission(operatorId, "ops:fund:list");
         int p = monthResolver.clampPage(page);
         int s = monthResolver.clampPageSize(size);
-        var result = billMapper.searchPage(blankToNull(billMonth), blankToNull(status), blankToNull(deviceId), p, s);
+        // R23X C43 同族：月租账单此前只按 deviceId 过滤、operatorId 只用于鉴权 ⇒ 域受限账号翻全平台
+        var result = billMapper.searchPage(blankToNull(billMonth), blankToNull(status),
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), p, s);
         return new PageResult<>(result.getRecords(), p, s, result.getTotal());
     }
 

@@ -20,22 +20,26 @@ public class OpsReplenishmentAdminService {
     private final InventoryOpsService inventoryOpsService;
     private final DeviceSlotService deviceSlotService;
     private final MerchantReplenishmentService merchantReplenishmentService;
+    private final MerchantScopeService merchantScopeService;
 
     public OpsReplenishmentAdminService(PermissionService permissionService,
                                         ReplenishmentService replenishmentService,
                                         InventoryOpsService inventoryOpsService,
                                         DeviceSlotService deviceSlotService,
-                                        MerchantReplenishmentService merchantReplenishmentService) {
+                                        MerchantReplenishmentService merchantReplenishmentService,
+                                        MerchantScopeService merchantScopeService) {
         this.permissionService = permissionService;
         this.replenishmentService = replenishmentService;
         this.inventoryOpsService = inventoryOpsService;
         this.deviceSlotService = deviceSlotService;
         this.merchantReplenishmentService = merchantReplenishmentService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     public List<DeviceInventoryDto> listInventory(Long operatorId, String deviceId, boolean lowStockOnly) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listInventory(deviceId, lowStockOnly);
+        return replenishmentService.listInventory(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), lowStockOnly);
     }
 
     public DeviceInventoryDto upsertInventory(Long operatorId, DeviceInventoryDto body) {
@@ -45,19 +49,21 @@ public class OpsReplenishmentAdminService {
 
     public List<ReplenishmentRouteDto> listRoutes(Long operatorId) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listRoutes();
+        return replenishmentService.listRoutes(merchantScopeService.pushdownDeviceIds(operatorId, null));
     }
 
     public PageResult<ReplenishmentRouteDto> listRoutesPage(
             Long operatorId, String deviceId, int page, int size) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listRoutesPage(deviceId, page, size);
+        return replenishmentService.listRoutesPage(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), page, size);
     }
 
     public PageResult<ReplenishmentFulfillmentTaskDto> listFulfillmentTasksPage(
             Long operatorId, String deviceId, String status, int page, int size) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listFulfillmentTasksPage(deviceId, status, page, size);
+        return replenishmentService.listFulfillmentTasksPage(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), status, page, size);
     }
 
     public ReplenishmentOpsSummaryDto replenishmentSummary(Long operatorId) {
@@ -108,12 +114,14 @@ public class OpsReplenishmentAdminService {
 
     public List<PullOffTaskDto> listExpiryAlerts(Long operatorId) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listOpenPullOffTasks();
+        return replenishmentService.listOpenPullOffTasks(
+                merchantScopeService.pushdownDeviceIds(operatorId, null));
     }
 
     public PageResult<PullOffTaskDto> listExpiryAlertsPage(Long operatorId, String deviceId, int page, int size) {
         permissionService.requirePermission(operatorId, PERM_OPS_REPLENISHMENT_LIST);
-        return replenishmentService.listOpenPullOffTasksPage(deviceId, page, size);
+        return replenishmentService.listOpenPullOffTasksPage(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), page, size);
     }
 
     public PullOffTaskDto ensureExpiryAlert(Long operatorId, String lotId) {

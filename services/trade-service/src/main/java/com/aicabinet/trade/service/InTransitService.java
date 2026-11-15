@@ -174,15 +174,20 @@ public class InTransitService {
         return bySku;
     }
 
+    /**
+     * 领货未上柜全量：设备范围下推（`null`=不限，空集=无可见柜机）。
+     * R23X C44：本方法族此前**不接收 operatorId**，运营不传 deviceId 即返回全平台在途行。
+     */
     @Transactional(readOnly = true)
-    public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(String deviceId) {
-        return self.listInTransitPage(deviceId, 0, 500).items();
+    public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(
+            java.util.Collection<String> deviceIds) {
+        return self.listInTransitPage(deviceIds, 0, 500).items();
     }
 
     @Transactional(readOnly = true)
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
-            String deviceId, int page, int size) {
-        return listInTransitPage(deviceId, false, page, size);
+            java.util.Collection<String> deviceIds, int page, int size) {
+        return listInTransitPage(deviceIds, false, page, size);
     }
 
     /** 领货未上柜超时口径：与前端 TRANSIT_OVERDUE_HOURS、OpsWorkbenchQueryService 均为 24h。 */
@@ -191,13 +196,13 @@ public class InTransitService {
     /** D28-B5：overdueOnly 时 createdAt 截止＝now-24h，筛选在服务端完成（别再客户端过滤分页页）。 */
     @Transactional(readOnly = true)
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
-            String deviceId, boolean overdueOnly, int page, int size) {
+            java.util.Collection<String> deviceIds, boolean overdueOnly, int page, int size) {
         int p = Math.max(page, 0);
         int s = Math.min(Math.max(size, 1), 100);
         java.time.Instant createdBefore =
                 overdueOnly ? java.time.Instant.now().minus(TRANSIT_OVERDUE_HOURS, java.time.temporal.ChronoUnit.HOURS)
                         : null;
-        var result = transitRepository.searchPage(deviceId, STATUS_IN_TRANSIT, createdBefore, p, s);
+        var result = transitRepository.searchPage(deviceIds, STATUS_IN_TRANSIT, createdBefore, p, s);
         List<com.aicabinet.common.dto.WarehouseInTransitDto> items = result.getRecords().stream()
                 .map(this::toDto)
                 .toList();

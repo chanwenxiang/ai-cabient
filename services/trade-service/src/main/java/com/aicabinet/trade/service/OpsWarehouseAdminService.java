@@ -20,17 +20,20 @@ public class OpsWarehouseAdminService {
     private final ReplenishmentService replenishmentService;
     private final InTransitService inTransitService;
     private final WarehouseMonthlyCloseService monthlyCloseService;
+    private final MerchantScopeService merchantScopeService;
 
     public OpsWarehouseAdminService(PermissionService permissionService,
                                     WarehouseService warehouseService,
                                     ReplenishmentService replenishmentService,
                                     InTransitService inTransitService,
-                                    WarehouseMonthlyCloseService monthlyCloseService) {
+                                    WarehouseMonthlyCloseService monthlyCloseService,
+                                    MerchantScopeService merchantScopeService) {
         this.permissionService = permissionService;
         this.warehouseService = warehouseService;
         this.replenishmentService = replenishmentService;
         this.inTransitService = inTransitService;
         this.monthlyCloseService = monthlyCloseService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     public List<WarehouseDto> listWarehouses(Long operatorId) {
@@ -154,7 +157,8 @@ public class OpsWarehouseAdminService {
 
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(Long operatorId, String deviceId) {
         requireWarehouseRead(operatorId);
-        return inTransitService.listInTransit(deviceId);
+        return inTransitService.listInTransit(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId));
     }
 
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
@@ -166,7 +170,8 @@ public class OpsWarehouseAdminService {
     public PageResult<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransitPage(
             Long operatorId, String deviceId, boolean overdueOnly, int page, int size) {
         requireWarehouseRead(operatorId);
-        return inTransitService.listInTransitPage(deviceId, overdueOnly, page, size);
+        return inTransitService.listInTransitPage(
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), overdueOnly, page, size);
     }
 
     private void requireWarehouseRead(Long operatorId) {

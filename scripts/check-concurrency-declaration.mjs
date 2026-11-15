@@ -38,12 +38,33 @@ const COND_UPDATE_RE =
 const VERSION_RE = /version\s*=\s*version\s*\+\s*1|version\s*=|CAS|乐观锁/i;
 const LOCK_RE = /tryLock|distributedLock|lockKey|runWithLock|runWithDeviceLotLock|显式锁|加锁/i;
 
-/** 方法签名行检测（近似：含括号、不以分号结尾、非控制语句） */
-function isMethodSignature(line) {
+/**
+ * 方法签名行检测。
+ *
+ * 🔴 旧实现是「含括号、不以分号结尾、首词不是控制语句」的近似——于是
+ * `DeviceSkuInventory inv = existing.orElseGet(() -> {`、`.map(this::toDto)` 这类
+ * **调用/链式续行**也被当成方法起点。后果不是少判而是**判错方法**：
+ * 一个跨 30 行的 blob 被命名成「orElseGet」，diff 落在 blob 内任一位置都会被算成
+ * 「改到了 orElseGet 这个写方法」（2026-11-15 实测：只改了只读取数
+ * `listRoutesPage`，报的是「写方法 orElseGet 无并发策略」）。
+ *
+ * 现在按真实声明形态判：`[注解/修饰符] 返回类型 名字(` + 括号后只能跟 `{` 或行尾，
+ * 且括号前不得出现 `=`（赋值/初始化）、不得是 `.foo(` / `} else` / lambda 续行。
+ * 修饰符不是必需（包级可见方法也是方法），但必须像声明：首词是类型词而不是表达式。
+ */
+export function isMethodSignature(line) {
   const stripped = line.replace(/\/\/.*$/, '').trim();
   if (!stripped || stripped.startsWith('*') || stripped.startsWith('/*')) return false;
-  if (!stripped.includes('(') || !stripped.includes(')')) return false;
-  if (stripped.endsWith(';')) return false;
+  if (stripped.startsWith('@')) return false; // 注解行：真签名在下一行
+  const paren = stripped.indexOf('(');
+  if (paren < 0) return false;
+  // 赋值 / 初始化（含 lambda 赋值）不是方法声明
+  const eq = stripped.indexOf('=');
+  if (eq >= 0 && eq < paren) return false;
+  if (stripped.includes('->')) return false;
+  if (stripped.startsWith('.') || stripped.startsWith('}') || stripped.startsWith(')'))
+    return false;
+  if (!/\)\s*\{?\s*$/.test(stripped)) return false; // `)` 之后只能跟 `{` 或行尾
   const firstWord = stripped.split(/\s+/)[0];
   if (
     ['if', 'for', 'while', 'switch', 'catch', 'return', 'new', 'super', 'this', 'else'].includes(
@@ -51,7 +72,10 @@ function isMethodSignature(line) {
     )
   )
     return false;
-  return true;
+  // 声明形态：修饰符/类型 + 名字 + `(`。链式调用（`repo.find(`）会被上面的 `.`/`=` 拦掉，
+  // 走到这里的 `foo(` 只剩「名字(…」——那种是构造器或裸调用，按声明处理会误判，
+  // 故要求括号前至少有一个类型词（含泛型/数组/限定名）。
+  return /^[\w$@.<>\[\],?&\s]+\s+[A-Za-z_]\w*\s*\(/.test(stripped);
 }
 
 /** 找到所有方法签名行号 */
@@ -61,6 +85,40 @@ function findMethodStarts(lines) {
     if (isMethodSignature(lines[i])) starts.push(i);
   }
   return starts;
+}
+
+/**
+ * 把某个变更行归属到「它所在的方法」。
+ *
+ * 🔴 只按「最后一个签名行 ≤ 变更行」归属会错在**方法前导**上：新写的方法通常带上
+ * javadoc / 注解（`@Transactional`），而 `-U0` 的 hunk 起始行落在那段前导里——
+ * 于是 hunk 被算到**上一个方法**头上。2026-11-15 实测：给只读的 `listRoutes` 加 javadoc，
+ * 报成了「写方法 upsertInventory 改到库存写路径」。
+ *
+ * 规则：若变更行落在「下一个方法声明之前的前导块」（空白/注释/注解）里，归属那个方法；
+ * 否则归属最后一个签名行 ≤ 变更行的方法。
+ */
+function attributeMethod(lines, methodStarts, changedLine) {
+  const below = [...methodStarts].reverse().find((s) => s <= changedLine) ?? -1;
+  const fwd = methodStarts.find((s) => s > changedLine);
+  if (fwd !== undefined) {
+    let lead = fwd;
+    // 1-based 行号 → 0-based 索引；向上吃掉空白/注释/注解
+    while (lead - 2 >= 0) {
+      const prev = lines[lead - 2].trim();
+      const isTrivia =
+        prev === '' ||
+        prev.startsWith('*') ||
+        prev.startsWith('/*') ||
+        prev.startsWith('//') ||
+        prev.startsWith('@') ||
+        prev.endsWith('*/');
+      if (!isTrivia) break;
+      lead -= 1;
+    }
+    if (changedLine >= lead) return fwd;
+  }
+  return below;
 }
 
 /**
@@ -75,17 +133,10 @@ export function judge(files) {
     const lines = f.content.split(/\r?\n/);
     const methodStarts = findMethodStarts(lines);
     for (const range of f.changedRanges) {
-      // 找到包含该变更行的方法（最后一个签名在 range.start 之前的）
-      let methodIdx = -1;
-      for (let i = methodStarts.length - 1; i >= 0; i--) {
-        if (methodStarts[i] <= range.start) {
-          methodIdx = i;
-          break;
-        }
-      }
-      if (methodIdx < 0) continue; // 变更在类级/字段级，非方法
-      const start = methodStarts[methodIdx];
-      const end = methodIdx + 1 < methodStarts.length ? methodStarts[methodIdx + 1] : lines.length;
+      const start = attributeMethod(lines, methodStarts, range.start);
+      if (start < 0) continue; // 变更在类级/字段级，非方法
+      const nextIdx = methodStarts.indexOf(start) + 1;
+      const end = nextIdx < methodStarts.length ? methodStarts[nextIdx] : lines.length;
       const body = lines.slice(start, end).join('\n');
       // 写路径判定：领域词 + 写操作
       if (!DOMAIN_RE.test(body) || !WRITE_RE.test(body)) continue;

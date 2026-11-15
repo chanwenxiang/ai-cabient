@@ -38,28 +38,38 @@ public class DeviceDataFeeBillService {
     private final AdminAuditService auditService;
     private final DistributedLockService distributedLockService;
     private final FeeBillMonthResolver monthResolver;
+    private final MerchantScopeService merchantScopeService;
 
     public DeviceDataFeeBillService(DeviceDataFeeBillMapper billMapper,
                                     DeviceInfoMapper deviceMapper,
                                     PermissionService permissionService,
                                     AdminAuditService auditService,
                                     DistributedLockService distributedLockService,
-                                    FeeBillMonthResolver monthResolver) {
+                                    FeeBillMonthResolver monthResolver,
+                                    MerchantScopeService merchantScopeService) {
         this.billMapper = billMapper;
         this.deviceMapper = deviceMapper;
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.distributedLockService = distributedLockService;
         this.monthResolver = monthResolver;
+        this.merchantScopeService = merchantScopeService;
     }
 
+    /**
+     * 资费账单分页：设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     *
+     * <p>R23X C43 同族：原实现只把 {@code deviceId} 塞进 WHERE，`operatorId` 收下后只用于鉴权，
+     * 于是域受限账号不传 deviceId 就能翻到**全部商户**的流量费账单（含金额）。
+     */
     @Transactional(readOnly = true)
     public PageResult<DeviceDataFeeBillDto> list(Long operatorId, String billMonth, String status,
                                                  String deviceId, int page, int size) {
         permissionService.requirePermission(operatorId, "ops:org:list");
         int p = monthResolver.clampPage(page);
         int s = monthResolver.clampPageSize(size);
-        var result = billMapper.searchPage(blankToNull(billMonth), blankToNull(status), blankToNull(deviceId), p, s);
+        var result = billMapper.searchPage(blankToNull(billMonth), blankToNull(status),
+                merchantScopeService.pushdownDeviceIds(operatorId, deviceId), p, s);
         return new PageResult<>(result.getRecords().stream().map(this::toDto).toList(), p, s, result.getTotal());
     }
 

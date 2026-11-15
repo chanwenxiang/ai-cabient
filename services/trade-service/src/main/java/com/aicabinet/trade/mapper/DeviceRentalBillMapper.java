@@ -18,13 +18,23 @@ public interface DeviceRentalBillMapper extends BaseTradeMapper<DeviceRentalBill
                 .ne(DeviceRentalBill::getStatus, CabinetConstants.FEE_BILL_STATUS_VOID));
     }
 
-    default Page<DeviceRentalBill> searchPage(String billMonth, String status, String deviceId, int page, int size) {
+    /**
+     * 月租账单分页：设备范围**下推**（`null`=不限，空集=无可见柜机）。
+     * 旧签名只有单值 deviceId，不传即全平台账单（R23X C43 同族）。
+     */
+    default Page<DeviceRentalBill> searchPage(String billMonth, String status,
+                                              java.util.Collection<String> deviceIds, int page, int size) {
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return new Page<>(page, size);
+        }
         var q = Wrappers.<DeviceRentalBill>lambdaQuery()
                 .eq(billMonth != null && !billMonth.isBlank(), DeviceRentalBill::getBillMonth, billMonth)
                 .eq(status != null && !status.isBlank(), DeviceRentalBill::getStatus, status)
-                .eq(deviceId != null && !deviceId.isBlank(), DeviceRentalBill::getDeviceId, deviceId)
                 .orderByDesc(DeviceRentalBill::getBillMonth)
                 .orderByDesc(DeviceRentalBill::getBillId);
+        if (deviceIds != null) {
+            q.in(DeviceRentalBill::getDeviceId, deviceIds);
+        }
         return selectPage(new Page<>(page, size), q);
     }
 
