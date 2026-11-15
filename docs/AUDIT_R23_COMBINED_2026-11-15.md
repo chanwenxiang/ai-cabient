@@ -290,3 +290,52 @@
 3. **不误伤**：超管与运营对范围内设备全部 200；`sound` 对范围外 403 且未向设备下发指令。
 
 **未覆盖（有意）**：XXL/定时任务路径（`operatorId=null` 不受拦截器影响，已由 `solidifyMargin_nullOperatorSkipsScopeGate` 等单测断言）；非 `/api/v2/ops/**` 前缀的运营端点（R3 判据当前为 0）。
+
+## 8. 修复批 2 / 批 3 落地（2026-11-15 下午，本轮已改码）
+
+**范围**：批 2 = C06（门禁自证盲区）；批 3 = C01（提现二次解冻）。**未改**：其余 P2/P3 仍 open（C43/C44 已带 why 记不采纳）。
+
+### 8-1 批 2：C06 归因门禁「解析面漏 22 个写端点」（MA-267，P1）
+
+**缺陷的两层**（都在「方法声明解析」这一处）：
+1. 返回类型含**限定名**（`ApiResponse<com.aicabinet.common.dto.PayContractDto>`、`JiangyiRestockService.SubmitResult`）——旧正则字符类 `[\w<>,\s]` 缺 `.` ⇒ `sig` 找不到 ⇒ 端点被**静默跳过**（`continue`，不进快照、不受任何棘轮约束）。
+2. 注解与签名**同行**（`@PostMapping("/{id}/retry") public ApiResponse<OpsExceptionDto> retry(`）——旧实现从注解的**下一行**起扫，同行签名必然扫不到。
+
+后果不是「少算一个数」而是**自证陷阱**：基线 `totalEndpoints=455` 正是坏解析器的输出，逐字相等 ⇒ 门禁全绿。实测 477 个写注解只解析 455 个（9 个控制器 / 22 个端点，`AdminJiangyiController` 21 vs 27 首当其冲）。
+
+**修法**：
+- `declNameOf(line)`：先抹注解（允许同行），再取 `(` 前**最后一个标识符**；窗口 12 行、从注解**本行**起扫；`findMethod`（委托链解析用）同源改造。
+- **新增类级不变量：写注解数 == 解析端点数**（`maskJava` 之后计数）。这是这类盲区的正确判据——不再依赖「基线由解析器自己种」，任何解析不出来就红。
+- 重种基线 **477 / 255 / 222**：+22 端点里 15 个归因、**7 个无业务审计**；`maxUnattributed` 215→222 属解析面纠偏（原 215 是漏算结果），note 写明此后只许减。
+
+**同族顺手修**（同一「注解同行 ⇒ 返回类型抽不到」缺陷，另一个门禁）：`check-openapi-regen-required` 的 `mappingSignature` 先剥行首注解再判返回类型——`OpsExceptionController` 11 个端点此前**改响应类型不触发重生成**，`openapi.ts` 静默过期。
+
+**新暴露的 7 个无审计端点** → **MA-297**：`OpsExceptionController` 三个危险动作（`cancel-session`/`retry`/`manual-resolve`）+ `SystemConfigController` 的 `alert-test` 属真缺口；`AccountController` 2 个消费端签约与 `DemoDataInternalController.ensure` 按既有口径不计（消费端 8 端点全 0 归因、内部端点无操作者），条目里已点名区分。
+
+**验证**：夹具 34 项（新增合成三形态 + 全仓注解对账）；三态负向 —— 缺 `.` ⇒ 夹具与门禁双红（14 项）、窗口退回 `i+1` ⇒ 夹具红（方法名被顶替成 `drop`）、openapi 退回整行判 ⇒ 2 条新断言红；两次还原 md5 零残留。
+
+### 8-2 批 3：C01 提现二次解冻（MA-262，P1）
+
+**缺陷**：打款失败落 `FAILED` 时已 `releaseFrozen` 一次；运营再点「打款失败取消」（`cancelFailed` 只校验状态=FAILED）**又释放一次** ⇒ 本单冻结早为 0，第二次减掉的是**另一张在途单**的冻结额；那张单打款成功走 `consumeFrozenSplit` 时冻结不足 ⇒ 事务回滚，而渠道钱已出账（钱出账、余额未扣）。单据状态挡不住：`FAILED` 不区分「已释放」与「重试前重新冻结」。
+
+**修法（放在冻结账汇聚点，不在 5 个入口各判一次）**：
+- `WalletLedgerMapper.listByRefAndEntryTypes`：按 `(domain, owner, refType, refId)` 取冻结生命周期原始流水。空列表 = **无流水（不可判）**，不等于净额 0。
+- `WalletEngine.releaseFrozen` 幂等：`held = |FREEZE| - |RELEASE| - |PAID| - |FEE|`；`held<=0` ⇒ 空转（info 留痕）；`0<held<金额` ⇒ 只释放 `held`（历史脏数据不越界、不滞留）；无流水 ⇒ 退回账户级旧口径并 warn（迁移前老单据没有冻结流水）。
+- `WalletEngine.consumeFrozenSplit` 加 ref 级闸：**本单**占用不足即 412 拒付，把资损挡在渠道调用之前（账户冻结合计够 ≠ 本单冻结够）。
+
+**首版公式被真库击穿（留痕防回归）**：先按 `-Σamount` 算，真库 `ref=1` 是 `FREEZE -1000 / PAID -994 / FEE -6`、`frozen_after` 最终 0 —— 合并合计得出「仍占用 2000」，恰好是「多释放吃别人冻结」的方向。根因：`amount_cents` 记的是**余额**方向，而冻结方向三类各不相同（FREEZE 负记但冻结 +、RELEASE 正记且冻结 -、PAID/FEE 负记且冻结 -）。已改为按类型分别累加并加例钉住。
+
+**验证**：新增 `WalletWithdrawFreezeIdempotencyTest` 7 例（内存**真实流水账**，不 mock 掉流水——幂等判据的输入正是流水）：二次解冻幂等 / A 重复解冻不吃 B 冻结且 B 可正常扣款 / 本单冻结已释放时拒付 / FAILED 重试重新冻结后扣款正常 / 部分占用只释放剩余 / 无流水退回旧口径 / 已打款单持有 0。负向两态：打回账户级旧口径 ⇒ 4 例红；打回 `-Σamount` ⇒ 钉住真库形态那例红。全量 `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3093, Failures: 0**。
+
+### 8-3 批 3 真栈点验（重建镜像后实测）
+
+| 步骤 | 证据 |
+|---|---|
+| 镜像产物 | `unzip` 出 jar 内 `WalletEngine.class` 含 `heldFrozenCents`、`WalletLedgerMapper.class` 含 `listByRefAndEntryTypes`（产物级，非源码级） |
+| 真栈申请提现 | `POST /api/v2/merchant/wallet/withdraw`（1000 分）→ `requestId=3`、`status=PAID`、`payChannel=MOCK`、`feeCents=6` |
+| 流水落账 | `FREEZE -1000 (frozen_after 1000) → PAID -994 (6) → FEE -6 (0)` —— 新查询在真实 Postgres 上跑通（失败会 500 回滚） |
+| 占用额对账 | `held(ref 1/2/3) = 0`；账户 `217801 → 216801`，`frozen=0` |
+| 状态闸仍在前 | `POST /ops/admin/merchant-withdraws/3/cancel` → **409 仅打款失败的提现单可取消解冻** |
+| 存量核查 | 全库 `over_released_refs = 0`、`wallet_account.frozen` 全 0 ⇒ 本环境无存量多发，缺陷属潜伏路径 |
+
+**未覆盖（如实）**：`FAILED → cancel` 双重解冻路径**无法在真栈制造**——MOCK 渠道恒成功，强制失败需要真渠道或改渠道配置（后者会动真实转账行为，不做）。该路径由单测 3 例覆盖（含真库流水形态）。真栈探针留下一笔 MOCK 提现单（`requestId=3`，PAID，¥10），属正常 dev 数据。
