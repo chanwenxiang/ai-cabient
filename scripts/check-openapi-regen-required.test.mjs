@@ -18,7 +18,11 @@ import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAsync } from './lib/async-spawn.mjs';
-import { pickShapeHit, recordComponentNames, mappingSignature } from './check-openapi-regen-required.mjs';
+import {
+  pickShapeHit,
+  recordComponentNames,
+  mappingSignature
+} from './check-openapi-regen-required.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-openapi-regen-required.test]';
