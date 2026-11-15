@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -38,13 +39,21 @@ public class JiangyiOrderVideoService {
     private final JiangyiOrderVideoMapper jiangyiOrderVideoMapper;
     private final JiangyiGatewayClient jiangyiGatewayClient;
     private final ShoppingSessionMapper shoppingSessionMapper;
+    /**
+     * R23X-01 / MA-263：交易视频是「按柜」的受约束对象（团标单列）。独立权限点
+     * {@code ops:device:video} 只解决「谁能看视频」，「能看哪些柜的视频」必须再过数据范围——
+     * 否则任一持码运营遍历自增 id 就能看任意柜机录像（含跨商户）。
+     */
+    private final MerchantScopeService merchantScopeService;
 
     public JiangyiOrderVideoService(JiangyiOrderVideoMapper jiangyiOrderVideoMapper,
                                     JiangyiGatewayClient jiangyiGatewayClient,
-                                    ShoppingSessionMapper shoppingSessionMapper) {
+                                    ShoppingSessionMapper shoppingSessionMapper,
+                                    MerchantScopeService merchantScopeService) {
         this.jiangyiOrderVideoMapper = jiangyiOrderVideoMapper;
         this.jiangyiGatewayClient = jiangyiGatewayClient;
         this.shoppingSessionMapper = shoppingSessionMapper;
+        this.merchantScopeService = merchantScopeService;
     }
 
     /**
@@ -127,9 +136,16 @@ public class JiangyiOrderVideoService {
         return rows;
     }
 
-    /** DC-11：补货任务视频的脱敏视图（RestockVideoDialog 走 ops:device:video，仍可用原始行；此重载供统一）。 */
-    public List<VideoListItem> listByTaskRedacted(Long taskId) {
-        return findByTask(taskId).stream()
+    /**
+     * DC-11：补货任务视频的脱敏视图（RestockVideoDialog 走 ops:device:video，仍可用原始行；此重载供统一）。
+     *
+     * <p>R23X-01：先按行上柜机过数据范围。{@code operatorId} 必填——不提供「无操作员」重载，
+     * 否则谁都能拿它绕过范围校验（对象级授权一旦有绕过口等于没有）。</p>
+     */
+    public List<VideoListItem> listByTaskRedacted(Long taskId, Long operatorId) {
+        List<JiangyiOrderVideo> rows = findByTask(taskId);
+        requireDeviceAccessForRows(rows, operatorId);
+        return rows.stream()
                 .map(JiangyiOrderVideoService::toListItem)
                 .toList();
     }
@@ -154,15 +170,18 @@ public class JiangyiOrderVideoService {
     }
 
     /** DC-11：按设备查最近上报的脱敏视图（运营台设备详情卡片）。 */
-    public List<VideoListItem> listRecentByDeviceRedacted(String deviceId, int limit) {
+    public List<VideoListItem> listRecentByDeviceRedacted(String deviceId, int limit, Long operatorId) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         return findRecentByDevice(deviceId, limit).stream()
                 .map(JiangyiOrderVideoService::toListItem)
                 .toList();
     }
 
     /** DC-11：按订单查全部分片的脱敏视图（配合 play-url 端点使用）。 */
-    public List<VideoListItem> listByOrderRedacted(String orderNo) {
-        return findByOrderNo(orderNo).stream()
+    public List<VideoListItem> listByOrderRedacted(String orderNo, Long operatorId) {
+        List<JiangyiOrderVideo> rows = findByOrderNo(orderNo);
+        requireDeviceAccessForRows(rows, operatorId);
+        return rows.stream()
                 .map(JiangyiOrderVideoService::toListItem)
                 .toList();
     }
@@ -191,12 +210,27 @@ public class JiangyiOrderVideoService {
      *
      * @throws IllegalArgumentException 记录不存在（404/400 由全局异常处理器落定为 400）
      */
-    public PlayUrlView playUrls(long id) {
+    public PlayUrlView playUrls(long id, Long operatorId) {
         JiangyiOrderVideo row = jiangyiOrderVideoMapper.selectById(id);
         if (row == null) {
             throw new IllegalArgumentException("视频记录不存在: " + id);
         }
+        // 对象级授权：id 是自增主键，可枚举 ⇒ 必须先按行上柜机判范围，再签发短时效地址。
+        merchantScopeService.requireDeviceAccess(operatorId, row.getDeviceId());
         return toPlayUrlView(row);
+    }
+
+    /**
+     * 一批视频行的柜机范围校验（by-order / by-task 入口）。
+     * <p>空行不判（无数据可观，回空表不泄露「该单存在」之外的信息）；有行则逐柜 fail-closed，
+     * 任一柜超范围即整体 403——不静默过滤，避免运营把「看不见」误读成「没有」。</p>
+     */
+    private void requireDeviceAccessForRows(List<JiangyiOrderVideo> rows, Long operatorId) {
+        rows.stream()
+                .map(JiangyiOrderVideo::getDeviceId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(deviceId -> merchantScopeService.requireDeviceAccess(operatorId, deviceId));
     }
 
     /**

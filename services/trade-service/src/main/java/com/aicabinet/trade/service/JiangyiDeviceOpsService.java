@@ -33,19 +33,26 @@ public class JiangyiDeviceOpsService {
     private final ShoppingSessionMapper sessionRepository;
     private final DeviceValidationService deviceValidationService;
     private final AdminAuditService auditService;
+    /**
+     * R23X-05 / MA-277：本类全是对柜机的<b>物理动作</b>（关门/重启/音量/门磁/拉视频）。
+     * 只过 {@code ops:device:edit} 会让受限运营把范围外柜机按停业——必须叠加数据范围。
+     */
+    private final MerchantScopeService merchantScopeService;
 
     public JiangyiDeviceOpsService(JiangyiGatewayClient gatewayClient,
                                    JiangyiDeviceDirectory jiangyiDeviceDirectory,
                                    DeviceInfoMapper deviceRepository,
                                    ShoppingSessionMapper sessionRepository,
                                    DeviceValidationService deviceValidationService,
-                                   AdminAuditService auditService) {
+                                   AdminAuditService auditService,
+                                   MerchantScopeService merchantScopeService) {
         this.gatewayClient = gatewayClient;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.deviceValidationService = deviceValidationService;
         this.auditService = auditService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     /** 音量设置：switchOn 与 volume 至少一项（volume 0=大/1=中/2=小）。 */
@@ -56,6 +63,7 @@ public class JiangyiDeviceOpsService {
         if (volume != null && (volume < 0 || volume > 2)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "音量大小取值 0=大/1=中/2=小");
         }
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         try {
             gatewayClient.soundSet(deviceId, switchOn, volume);
@@ -71,6 +79,7 @@ public class JiangyiDeviceOpsService {
 
     /** 实时拉取设备信息（signalStrength），回执异步落库后由 signal 接口读出。 */
     public void requestDeviceInfo(Long operatorId, String deviceId) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         try {
             gatewayClient.requestDeviceInfo(deviceId);
@@ -88,6 +97,7 @@ public class JiangyiDeviceOpsService {
      * 「请先完成采集并关闭柜门」——所以本指令只能用在「柜门没收上」的补救场景。</p>
      */
     public void closeDoor(Long operatorId, String deviceId, boolean force) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         deviceValidationService.ensureMaintenanceCommandAllowed(deviceId, force);
         try {
@@ -104,6 +114,7 @@ public class JiangyiDeviceOpsService {
 
     /** 机器重启（§4.3.2.1 reboot）：无回执；设备重启后 WS 会短暂断开。 */
     public void reboot(Long operatorId, String deviceId, boolean force) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         deviceValidationService.ensureMaintenanceCommandAllowed(deviceId, force);
         try {
@@ -124,6 +135,7 @@ public class JiangyiDeviceOpsService {
      * 由 {@link #doorState} 读出。设备没回/固件未实现则保持旧值（时间戳可辨）。
      */
     public void requestDoorState(Long operatorId, String deviceId) {
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         try {
             gatewayClient.requestDoorState(deviceId);
@@ -194,6 +206,7 @@ public class JiangyiDeviceOpsService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在或无关联设备：" + sessionId);
         }
         String deviceId = session.getDeviceId();
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireJiangyi(deviceId);
         try {
             gatewayClient.pullVideo(deviceId, sessionId);

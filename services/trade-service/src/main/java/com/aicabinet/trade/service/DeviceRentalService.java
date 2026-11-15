@@ -71,6 +71,12 @@ public class DeviceRentalService {
     private final MerchantWalletService merchantWalletService;
     private final ScheduledTaskService taskService;
     private final Clock clock;
+    /**
+     * R23X-06 / MA-285：押金登记/扣款/结算都是「按柜」的资金动作。当前只有 admin 持
+     * {@code ops:rental:manage} 故不可利用，但功能码一旦下放给运营就是跨商户动押金——
+     * 按「功能码 + 数据范围」双闸补齐，成本为零。
+     */
+    private final MerchantScopeService merchantScopeService;
 
     public DeviceRentalService(DeviceRentalDepositMapper depositMapper,
                                DeviceRentalDepositEventMapper depositEventMapper,
@@ -82,10 +88,11 @@ public class DeviceRentalService {
                                DeviceSalesLockService salesLockService,
                                FeeBillMonthResolver monthResolver,
                                DistributedLockService distributedLockService,
-                               ScheduledTaskService taskService) {
+                               ScheduledTaskService taskService,
+                               MerchantScopeService merchantScopeService) {
         this(depositMapper, depositEventMapper, billMapper, deviceMapper, permissionService,
                 auditService, systemConfigService, salesLockService, monthResolver, distributedLockService,
-                null, taskService, Clock.systemDefaultZone());
+                null, taskService, Clock.systemDefaultZone(), merchantScopeService);
     }
 
     @Autowired // 双构造器（10 参便捷版供测试）必须显式指定 Spring 注入点，否则启动报 Clock bean 缺失
@@ -101,7 +108,8 @@ public class DeviceRentalService {
                                DistributedLockService distributedLockService,
                                MerchantWalletService merchantWalletService,
                                ScheduledTaskService taskService,
-                               Clock clock) {
+                               Clock clock,
+                               MerchantScopeService merchantScopeService) {
         this.depositMapper = depositMapper;
         this.depositEventMapper = depositEventMapper;
         this.billMapper = billMapper;
@@ -115,6 +123,7 @@ public class DeviceRentalService {
         this.merchantWalletService = merchantWalletService;
         this.taskService = taskService;
         this.clock = clock;
+        this.merchantScopeService = merchantScopeService;
     }
 
     // ── 押金台账 ──────────────────────────────────────────────────────────
@@ -153,7 +162,11 @@ public class DeviceRentalService {
                                                Long expireRewardCents,
                                                Long installFeeDeductCents, Boolean installFeeClawbackEnabled,
                                                Integer contractYears) {
+        // CONCURRENCY: 一台柜只允许一条押金行——DB 唯一约束 uk_rental_deposit_device 兜住并发
+        // 重复登记（后到者 23505 → 全局异常处理器落 409/500）；余额扣减走幂等
+        // debitIfAbsentAllowNegative（refType+refId 唯一），重投不会二次扣款。
         permissionService.requirePermission(operatorId, "ops:rental:manage");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireRentalDevice(deviceId);
         if (amountCents <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "押金金额必须大于 0");
@@ -203,6 +216,7 @@ public class DeviceRentalService {
     public DeviceRentalDeposit deduct(Long operatorId, Long depositId, long amountCents, String reason) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceRentalDeposit deposit = requireDeposit(depositId);
+        merchantScopeService.requireDeviceAccess(operatorId, deposit.getDeviceId());
         if (!DeviceRentalDeposit.STATUS_HELD.equals(deposit.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "押金已结算，不能再扣款");
         }
@@ -238,6 +252,7 @@ public class DeviceRentalService {
     public DeviceRentalDeposit settle(Long operatorId, Long depositId, String remark) {
         permissionService.requirePermission(operatorId, "ops:rental:manage");
         DeviceRentalDeposit deposit = requireDeposit(depositId);
+        merchantScopeService.requireDeviceAccess(operatorId, deposit.getDeviceId());
         if (DeviceRentalDeposit.STATUS_SETTLED.equals(deposit.getStatus())) {
             return deposit;
         }

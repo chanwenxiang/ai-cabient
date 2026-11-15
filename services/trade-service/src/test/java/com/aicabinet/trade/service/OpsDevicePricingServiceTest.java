@@ -50,6 +50,7 @@ class OpsDevicePricingServiceTest {
     @Mock InventoryLotService inventoryLotService;
     @Mock DistributedLockService distributedLockService;
     @Mock MerchantSkuPricingService pricingService;
+    @Mock MerchantScopeService merchantScopeService;
 
     private OpsDevicePricingService service;
 
@@ -57,7 +58,8 @@ class OpsDevicePricingServiceTest {
     void setUp() {
         service = new OpsDevicePricingService(
                 priceRepository, inventoryRepository, skuCatalogRepository, deviceRepository,
-                permissionService, auditService, inventoryLotService, distributedLockService, pricingService);
+                permissionService, auditService, inventoryLotService, distributedLockService, pricingService,
+                merchantScopeService);
         // requirePermission/appendLog/unlock 为 void 方法：Mockito 默认 doNothing，无需 stub
         lenient().when(distributedLockService.tryLock(anyString(), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
@@ -235,5 +237,29 @@ class OpsDevicePricingServiceTest {
                 () -> service.updatePricing(1L, "CAB-001", "10001",
                         new UpdateDeviceSkuPriceRequest(300, null, 99L)));
         assertEquals(HttpStatus.CONFLICT, mismatched.getStatusCode());
+    }
+
+    /**
+     * R23X-02 / MA-264：改价三入口（读面 + 单 SKU 写 + 批量重置）都必须先过设备数据范围。
+     * 反向留痕：只补写面、漏读面时本用例仍会红（listPricing 单独断言）。
+     */
+    @Test
+    void pricingEntries_rejectOutOfScopeDevice() {
+        String other = "CAB-OTHER";
+        org.mockito.Mockito.doThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权限"))
+                .when(merchantScopeService).requireDeviceAccess(1L, other);
+
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.listPricing(1L, other)).getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.updatePricing(1L, other, "10001",
+                        new UpdateDeviceSkuPriceRequest(300, null, null))).getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.resetPricing(1L, other)).getStatusCode());
+
+        // fail-closed 顺序：范围不过时不得触达价格行/设备行（否则会泄露「设备存在」）
+        verify(priceRepository, never()).findByIdDeviceId(other);
+        verify(priceRepository, never()).findByIdDeviceId(anyString());
+        verify(deviceRepository, never()).findById(other);
     }
 }

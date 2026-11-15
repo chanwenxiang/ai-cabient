@@ -26,9 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JiangyiOrderVideoServiceTest {
 
+    private static final long OPERATOR_ID = 90000000001L;
+
     private JiangyiOrderVideoMapper mapper;
     private JiangyiGatewayClient gatewayClient;
     private ShoppingSessionMapper sessionMapper;
+    private MerchantScopeService merchantScopeService;
     private JiangyiOrderVideoService service;
 
     @BeforeEach
@@ -36,7 +39,8 @@ class JiangyiOrderVideoServiceTest {
         mapper = Mockito.mock(JiangyiOrderVideoMapper.class);
         gatewayClient = Mockito.mock(JiangyiGatewayClient.class);
         sessionMapper = Mockito.mock(ShoppingSessionMapper.class);
-        service = new JiangyiOrderVideoService(mapper, gatewayClient, sessionMapper);
+        merchantScopeService = Mockito.mock(MerchantScopeService.class);
+        service = new JiangyiOrderVideoService(mapper, gatewayClient, sessionMapper, merchantScopeService);
     }
 
     private JiangyiOrderVideo row(String videoUrls) {
@@ -58,7 +62,7 @@ class JiangyiOrderVideoServiceTest {
         Mockito.when(gatewayClient.presignGet("https://ai-cabinet-by.oss-cn-shenzhen.aliyuncs.com/jiangyi-video/a.mp4"))
                 .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.signed("https://signed-a", "2026-10-10T13:20:00Z")));
 
-        JiangyiOrderVideoService.PlayUrlView view = service.playUrls(7L);
+        JiangyiOrderVideoService.PlayUrlView view = service.playUrls(7L, OPERATOR_ID);
 
         assertEquals("ORD1", view.orderNo());
         assertEquals(1, view.items().size());
@@ -77,7 +81,7 @@ class JiangyiOrderVideoServiceTest {
         Mockito.when(gatewayClient.presignGet(external))
                 .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.externalRef()));
 
-        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L).items().get(0);
+        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L, OPERATOR_ID).items().get(0);
 
         assertFalse(item.signed());
         assertTrue(item.playable());
@@ -89,7 +93,7 @@ class JiangyiOrderVideoServiceTest {
         Mockito.when(mapper.selectById(7L)).thenReturn(row("jiangyi-video/a.mp4"));
         Mockito.when(gatewayClient.presignGet("jiangyi-video/a.mp4")).thenReturn(Optional.empty());
 
-        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L).items().get(0);
+        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L, OPERATOR_ID).items().get(0);
 
         assertFalse(item.playable());
         assertNull(item.url());
@@ -101,7 +105,7 @@ class JiangyiOrderVideoServiceTest {
         // 协议 §4.2.14：[] = 该片生成或上传失败；不能返回「零片」让复核页看不出异常
         Mockito.when(mapper.selectById(7L)).thenReturn(row(""));
 
-        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L).items().get(0);
+        JiangyiOrderVideoService.PlayUrlItem item = service.playUrls(7L, OPERATOR_ID).items().get(0);
 
         assertEquals(1, item.index());
         assertFalse(item.playable());
@@ -117,7 +121,7 @@ class JiangyiOrderVideoServiceTest {
         Mockito.when(gatewayClient.presignGet("https://cdn.example.com/c.mp4"))
                 .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.externalRef()));
 
-        var items = service.playUrls(7L).items();
+        var items = service.playUrls(7L, OPERATOR_ID).items();
 
         assertEquals(3, items.size());
         assertTrue(items.get(0).playable());
@@ -138,7 +142,7 @@ class JiangyiOrderVideoServiceTest {
         Mockito.when(gatewayClient.presignGet("jiangyi-video/a.mp4"))
                 .thenReturn(Optional.of(JiangyiGatewayClient.PresignTarget.signed("https://signed-a", "e")));
 
-        var items = service.playUrls(7L).items();
+        var items = service.playUrls(7L, OPERATOR_ID).items();
 
         assertEquals(2, items.size(), "末尾失败片不能消失");
         assertTrue(items.get(0).playable());
@@ -150,7 +154,7 @@ class JiangyiOrderVideoServiceTest {
     @Test
     void missingRecordIsRejected() {
         Mockito.when(mapper.selectById(404L)).thenReturn(null);
-        assertThrows(IllegalArgumentException.class, () -> service.playUrls(404L));
+        assertThrows(IllegalArgumentException.class, () -> service.playUrls(404L, OPERATOR_ID));
     }
 
     @Test

@@ -76,6 +76,8 @@
   "fixtureMap": {
     "check-mp-defect-classes.mjs": "scripts/devops/verify-mp-defect-class-gate.mjs",
     "check-ledger-evidence.mjs": "scripts/devops/verify-ledger-evidence-gate.mjs",
+    "check-audit-report-registered.mjs": "scripts/devops/verify-audit-report-registered-gate.mjs",
+    "check-ops-device-scope.mjs": "scripts/devops/verify-ops-device-scope-gate.mjs",
     "check-mp-payscore-authorize-params.mjs": "scripts/devops/verify-mp-payscore-authorize-params-gate.mjs",
     "check-mp-payscore-copywriting.mjs": "scripts/devops/verify-mp-payscore-copywriting-gate.mjs",
     "check-outbound-remainder-ledger.mjs": "scripts/devops/verify-outbound-remainder-gate.mjs",

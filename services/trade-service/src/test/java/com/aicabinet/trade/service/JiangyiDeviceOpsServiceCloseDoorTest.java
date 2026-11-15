@@ -37,7 +37,7 @@ class JiangyiDeviceOpsServiceCloseDoorTest {
         auditService = mock(AdminAuditService.class);
         service = new JiangyiDeviceOpsService(gatewayClient, directory,
                 mock(DeviceInfoMapper.class), mock(ShoppingSessionMapper.class), validationService,
-                auditService);
+                auditService, mock(MerchantScopeService.class));
     }
 
     @Test

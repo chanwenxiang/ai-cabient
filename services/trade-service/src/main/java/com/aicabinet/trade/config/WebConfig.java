@@ -3,6 +3,7 @@ package com.aicabinet.trade.config;
 import com.aicabinet.common.security.InternalApiAuthInterceptor;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.DeviceHttpCredentialInterceptor;
+import com.aicabinet.trade.auth.OpsDeviceScopeInterceptor;
 import com.aicabinet.trade.service.DeviceHttpCredentialService;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -49,17 +50,20 @@ public class WebConfig implements WebMvcConfigurer {
     private final ApiVersionInterceptor apiVersionInterceptor;
     private final CorsProperties corsProperties;
     private final DeviceHttpCredentialService deviceHttpCredentialService;
+    private final OpsDeviceScopeInterceptor opsDeviceScopeInterceptor;
 
     public WebConfig(AuthInterceptor authInterceptor,
                      InternalApiAuthInterceptor internalApiAuthInterceptor,
                      ApiVersionInterceptor apiVersionInterceptor,
                      CorsProperties corsProperties,
-                     DeviceHttpCredentialService deviceHttpCredentialService) {
+                     DeviceHttpCredentialService deviceHttpCredentialService,
+                     OpsDeviceScopeInterceptor opsDeviceScopeInterceptor) {
         this.authInterceptor = authInterceptor;
         this.internalApiAuthInterceptor = internalApiAuthInterceptor;
         this.apiVersionInterceptor = apiVersionInterceptor;
         this.corsProperties = corsProperties;
         this.deviceHttpCredentialService = deviceHttpCredentialService;
+        this.opsDeviceScopeInterceptor = opsDeviceScopeInterceptor;
     }
 
     @Override
@@ -89,6 +93,13 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(authInterceptor)
                 .addPathPatterns("/api/v2/**")
                 .excludePathPatterns(AUTH_EXCLUDE_PATTERNS);
+
+        // 柜机对象级授权统一闸（R23X-01/02/03/05/06）：/api/v2/ops/** 下任何带 {deviceId}
+        // 路径变量的端点，先按操作员数据范围判定。🔴 order 必须 > 0：它依赖 AuthInterceptor
+        // 写入的 ATTR_USER_ID，先跑会拿不到身份（fail-closed 401，等于全站运营后台不可用）。
+        registry.addInterceptor(opsDeviceScopeInterceptor)
+                .addPathPatterns(OpsDeviceScopeInterceptor.OPS_PREFIX)
+                .order(10);
     }
 
     @Override

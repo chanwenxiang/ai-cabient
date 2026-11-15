@@ -68,7 +68,8 @@ class DeviceRentalServiceTest {
         when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         service = new DeviceRentalService(depositMapper, depositEventMapper, billMapper, deviceMapper,
                 permissionService, auditService, systemConfigService, salesLockService, monthResolver,
-                distributedLockService, merchantWalletService, taskService, clock);
+                distributedLockService, merchantWalletService, taskService, clock,
+                mock(MerchantScopeService.class));
         when(monthResolver.resolve(any())).thenAnswer(inv -> {
             String m = inv.getArgument(0);
             return m == null || m.isBlank() ? "2026-10" : m;

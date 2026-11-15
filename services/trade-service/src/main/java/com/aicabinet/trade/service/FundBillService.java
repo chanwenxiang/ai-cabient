@@ -19,8 +19,10 @@ import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -38,6 +40,8 @@ import java.util.stream.Collectors;
 public class FundBillService {
     private static final String PERM_OPS_FINANCE_VIEW = "ops:finance:view";
     private static final String PERM_OPS_FUND_LIST = "ops:fund:list";
+    /** 写权限点（V341 只授 admin）：日毛利锁是全局日键，读权限不足以承担这个写。 */
+    private static final String PERM_OPS_FUND_MANAGE = "ops:fund:manage";
 
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -405,10 +409,23 @@ public class FundBillService {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * 固化某营业日的平台毛利快照（R23X-04 / MA-266 修复）。
+     *
+     * <p>🔴 这里是<b>全局</b>日键写入：行 ID 就是 {@code bizDate}，主键唯一决定「全平台那一天」。
+     * 旧实现只要读权限 {@code ops:finance:view} 就放行，且把<b>按操作员范围算出的子集</b>直接
+     * upsert 进全局行——受限运营（或零绑定账号）一按就把全平台 revenue/cogs 覆盖成自己那几台柜。
+     * 故：① 改按写权限点 {@code ops:fund:manage}（V341 只授 admin）；② 非全局范围一律拒，
+     * 定时任务走 {@code operatorId=null} 不受影响。</p>
+     */
     @Transactional
     public FinanceMarginLockDto solidifyMargin(Long operatorId, LocalDate bizDate) {
         if (operatorId != null) {
-            permissionService.requireAnyPermission(operatorId, PERM_OPS_FINANCE_VIEW, PERM_OPS_FUND_LIST);
+            permissionService.requirePermission(operatorId, PERM_OPS_FUND_MANAGE);
+            if (!merchantScopeService.isGlobalScope(operatorId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "日毛利锁是全平台口径，仅全局范围账号可固化");
+            }
         }
         LocalDate day = bizDate != null ? bizDate : LocalDate.now(ZONE).minusDays(1);
         if (!day.isBefore(LocalDate.now(ZONE))) {

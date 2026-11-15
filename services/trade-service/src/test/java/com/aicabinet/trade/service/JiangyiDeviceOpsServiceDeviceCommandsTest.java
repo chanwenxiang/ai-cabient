@@ -46,7 +46,8 @@ class JiangyiDeviceOpsServiceDeviceCommandsTest {
         validationService = mock(DeviceValidationService.class);
         auditService = mock(AdminAuditService.class);
         service = new JiangyiDeviceOpsService(gatewayClient, directory,
-                deviceMapper, mock(ShoppingSessionMapper.class), validationService, auditService);
+                deviceMapper, mock(ShoppingSessionMapper.class), validationService, auditService,
+                mock(MerchantScopeService.class));
     }
 
     @Test

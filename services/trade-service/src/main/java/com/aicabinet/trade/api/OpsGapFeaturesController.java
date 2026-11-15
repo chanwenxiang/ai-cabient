@@ -132,7 +132,9 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(fundBillService.listMarginLocks(operatorId(request), fromDate, toDate));
     }
 
-    @RequiresPermissions("ops:finance:view")
+    // R23X-04 / MA-266：全局日键写入必须用写权限点（ops:fund:manage 只授 admin），
+    // 不能沿用列表用的 ops:finance:view——否则「能看报表」等于「能覆盖全平台报表」。
+    @RequiresPermissions("ops:fund:manage")
     @PostMapping("/finance/margin-locks/solidify")
     public ApiResponse<FinanceMarginLockDto> solidifyMargin(
             HttpServletRequest request,

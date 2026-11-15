@@ -50,6 +50,8 @@ public class OpsDevicePricingService {
     private final DistributedLockService distributedLockService;
     /** 复用商户端取价链路（覆盖价→基准价→临期价→折扣）；经 Spring 代理，避免自调用问题。 */
     private final MerchantSkuPricingService pricingService;
+    /** R23X-02（MA-264）：改价是「柜×商品」的对象级写，必须同时过数据范围，不只过功能码。 */
+    private final MerchantScopeService merchantScopeService;
 
     public OpsDevicePricingService(DeviceSkuPriceMapper priceRepository,
                                    DeviceSkuInventoryMapper inventoryRepository,
@@ -59,7 +61,8 @@ public class OpsDevicePricingService {
                                    AdminAuditService auditService,
                                    InventoryLotService inventoryLotService,
                                    DistributedLockService distributedLockService,
-                                   @Lazy MerchantSkuPricingService pricingService) {
+                                   @Lazy MerchantSkuPricingService pricingService,
+                                   MerchantScopeService merchantScopeService) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -69,11 +72,14 @@ public class OpsDevicePricingService {
         this.inventoryLotService = inventoryLotService;
         this.distributedLockService = distributedLockService;
         this.pricingService = pricingService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @Transactional(readOnly = true)
     public List<DeviceSkuPricingRowDto> listPricing(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, "ops:device:list");
+        // 读面同样要过范围：价格清单能反推柜内商品与数量，属柜机对象数据（R23X-02 反面留痕）。
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
         List<DeviceSkuInventory> invRows = inventoryRepository.findByIdDeviceId(deviceId);
         Set<String> skuIds = invRows.stream().map(r -> r.getId().getSkuId()).collect(Collectors.toSet());
@@ -101,6 +107,7 @@ public class OpsDevicePricingService {
     public DeviceSkuPricingRowDto updatePricing(Long operatorId, String deviceId, String skuId,
                                                 UpdateDeviceSkuPriceRequest request) {
         permissionService.requirePermission(operatorId, "ops:pricing:edit");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
@@ -195,6 +202,7 @@ public class OpsDevicePricingService {
     @Transactional
     public int resetPricing(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, "ops:pricing:edit");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         DeviceInfo device = requireDevice(deviceId);
         List<DeviceSkuPrice> overrides = priceRepository.findByIdDeviceId(deviceId);
         if (overrides.isEmpty()) {

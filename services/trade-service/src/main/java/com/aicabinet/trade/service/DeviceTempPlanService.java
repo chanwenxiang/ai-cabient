@@ -47,6 +47,8 @@ public class DeviceTempPlanService {
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final DeviceTempPlanService self;
     private final ScheduledTaskService taskService;
+    /** R23X-05 / MA-277：温控下发改的是柜内温度（可能压坏货品），属对象级运维，须过数据范围。 */
+    private final MerchantScopeService merchantScopeService;
 
     public DeviceTempPlanService(PermissionService permissionService,
                                  DeviceTempPlanMapper planRepository,
@@ -56,7 +58,8 @@ public class DeviceTempPlanService {
                                  AdminAuditService auditService,
                                  DistributedLockService distributedLockService,
                                  @Lazy DeviceTempPlanService self,
-                                 ScheduledTaskService taskService) {
+                                 ScheduledTaskService taskService,
+                                 MerchantScopeService merchantScopeService) {
         this.permissionService = permissionService;
         this.planRepository = planRepository;
         this.entryRepository = entryRepository;
@@ -66,11 +69,13 @@ public class DeviceTempPlanService {
         this.distributedLockService = distributedLockService;
         this.self = self;
         this.taskService = taskService;
+        this.merchantScopeService = merchantScopeService;
     }
 
     @Transactional(readOnly = true)
     public DeviceTempPlanDto get(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, "ops:device:list");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
         DeviceTempPlan plan = planRepository.findByDeviceId(deviceId).orElse(null);
         return plan == null ? new DeviceTempPlanDto(deviceId, false, List.of()) : toDto(plan);
@@ -85,6 +90,7 @@ public class DeviceTempPlanService {
     private DeviceTempPlanDto doUpsert(Long operatorId, String deviceId,
                                        boolean enabled, List<DeviceTempPlanEntryDto> entries) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
         if (entries == null || entries.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "温控计划至少需要一个时间点");
@@ -134,6 +140,7 @@ public class DeviceTempPlanService {
     @Transactional
     public DeviceTempPlanDto applyNow(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
         return runWithTempPlanLock(deviceId, () -> {
             doApplyNow(deviceId);

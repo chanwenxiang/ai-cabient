@@ -97,25 +97,28 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-order")
     public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByOrder(
-            @RequestParam("orderNo") String orderNo) {
-        return ApiResponse.ok(jiangyiOrderVideoService.listByOrderRedacted(orderNo));
+            HttpServletRequest request, @RequestParam("orderNo") String orderNo) {
+        // R23X-01：脱敏只挡对象键，不挡「这一单属于谁」——逐行柜机仍要过数据范围。
+        return ApiResponse.ok(jiangyiOrderVideoService.listByOrderRedacted(orderNo, operatorId(request)));
     }
 
     /** 视频复核：按补货任务查（收尾E 入口，补货视频 orderNo=补货会话 id）。DC-11：统一脱敏行。 */
     @RequiresPermissions("ops:device:video")
     @GetMapping("/jiangyi/order-videos/by-task/{taskId}")
     public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByTask(
-            @PathVariable("taskId") long taskId) {
-        return ApiResponse.ok(jiangyiOrderVideoService.listByTaskRedacted(taskId));
+            HttpServletRequest request, @PathVariable("taskId") long taskId) {
+        return ApiResponse.ok(jiangyiOrderVideoService.listByTaskRedacted(taskId, operatorId(request)));
     }
 
     /** 视频复核：按设备查最近上报（设备详情「将邑接入」卡片入口）。DC-11：统一脱敏行。 */
     @RequiresPermissions("ops:device:list")
     @GetMapping("/jiangyi/order-videos/by-device")
     public ApiResponse<List<JiangyiOrderVideoService.VideoListItem>> orderVideosByDevice(
+            HttpServletRequest request,
             @RequestParam("deviceId") String deviceId,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return ApiResponse.ok(jiangyiOrderVideoService.listRecentByDeviceRedacted(deviceId, limit));
+        return ApiResponse.ok(jiangyiOrderVideoService.listRecentByDeviceRedacted(
+                deviceId, limit, operatorId(request)));
     }
 
     /**
@@ -128,8 +131,8 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:video")
     @GetMapping("/jiangyi/order-videos/{id}/play-url")
     public ApiResponse<JiangyiOrderVideoService.PlayUrlView> orderVideoPlayUrl(
-            @PathVariable("id") long id) {
-        return ApiResponse.ok(jiangyiOrderVideoService.playUrls(id));
+            HttpServletRequest request, @PathVariable("id") long id) {
+        return ApiResponse.ok(jiangyiOrderVideoService.playUrls(id, operatorId(request)));
     }
 
     /**
