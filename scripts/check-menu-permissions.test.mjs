@@ -25,4 +25,19 @@ try {
 } finally {
   /* 沙箱留给系统清理 */
 }
+// MA-200：识别演示豁免已随 V482/页面退役删除 —— 豁免清单必须保持空，
+// 且不得再把 ops:recognition-demo:view 放回来（V138 语义由按钮码 ops:sku:demo 承载）
+{
+  const src = readFileSync('scripts/check-menu-permissions.mjs', 'utf8');
+  const allow = src.match(/const ALLOWLIST = new Map\(\[([\s\S]*?)\]\);/);
+  assert_ok(allow && allow[1].trim() === '', 'menu ALLOWLIST 必须为空（MA-200 拍板）');
+  assert_ok(!src.includes("'ops:recognition-demo:view'"), 'recognition-demo:view 不得回到豁免清单');
+  checks++;
+}
+function assert_ok(cond, msg) {
+  if (!cond) {
+    console.error(`${TAG} FAIL：${msg}`);
+    process.exit(1);
+  }
+}
 console.log(`${TAG} OK：${checks} 项断言全过`);

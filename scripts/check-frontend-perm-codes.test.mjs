@@ -28,4 +28,13 @@ try {
 } finally {
   /* 沙箱留给系统清理 */
 }
+// MA-200：识别演示豁免已删除 —— 两张 ALLOWLIST 都不得再含 recognition-demo:view
+{
+  const src = readFileSync('scripts/check-frontend-perm-codes.mjs', 'utf8');
+  if (src.includes("'ops:recognition-demo:view'")) {
+    console.error(`${TAG} FAIL：recognition-demo:view 不得回到豁免清单（MA-200 拍板）`);
+    process.exit(1);
+  }
+  checks++;
+}
 console.log(`${TAG} OK：${checks} 项断言全过`);
