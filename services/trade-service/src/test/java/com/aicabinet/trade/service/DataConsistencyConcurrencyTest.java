@@ -38,7 +38,7 @@ class DataConsistencyConcurrencyTest {
     void setUp() {
         service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
                 new com.fasterxml.jackson.databind.ObjectMapper(), null, distributedLockService,
-                null, null, null, auditService, null);
+                null, null, null, null, auditService, null);
         ReflectionTestUtils.setField(service, "self", service);
     }
 

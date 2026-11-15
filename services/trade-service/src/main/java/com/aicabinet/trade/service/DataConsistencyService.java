@@ -58,6 +58,8 @@ public class DataConsistencyService {
     private static final String POINTS_IDENTITY = "POINTS_IDENTITY";
     private static final String REVENUE_SPLIT_SUM = "REVENUE_SPLIT_SUM";
     private static final String REVENUE_SPLIT_MISSING = "REVENUE_SPLIT_MISSING";
+    /** MA-270：已退款订单的分账毛额必须等于净额（冻结毛额 − refunded）。 */
+    static final String REVENUE_SPLIT_REFUND_STALE = "REVENUE_SPLIT_REFUND_STALE";
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
     private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
@@ -132,6 +134,8 @@ public class DataConsistencyService {
     private final CouponService couponService;
     private final CabinetOrderMapper cabinetOrderRepository;
     private final OrderPaymentService orderPaymentService;
+    /** MA-270：退多收后按净额回算分账（@Lazy 防与分账侧潜在循环）。 */
+    private final RevenueSplitService revenueSplitService;
     private final AdminAuditService auditService;
     private final DataConsistencyService self;
 
@@ -144,6 +148,7 @@ public class DataConsistencyService {
                                   CouponService couponService,
                                   CabinetOrderMapper cabinetOrderRepository,
                                   OrderPaymentService orderPaymentService,
+                                  @Lazy RevenueSplitService revenueSplitService,
                                   AdminAuditService auditService,
                                   @Lazy DataConsistencyService self) {
         this.changeLogRepository = changeLogRepository;
@@ -155,6 +160,7 @@ public class DataConsistencyService {
         this.couponService = couponService;
         this.cabinetOrderRepository = cabinetOrderRepository;
         this.orderPaymentService = orderPaymentService;
+        this.revenueSplitService = revenueSplitService;
         this.auditService = auditService;
         this.self = self;
     }
@@ -238,6 +244,7 @@ public class DataConsistencyService {
             checkCouponUsedLinkConsistency();
             checkRevenueSplitSumConsistency();
             checkRevenueSplitMissingConsistency();
+            checkRevenueSplitRefundStaleConsistency();
             checkWarehouseNegativeConsistency();
             checkWarehouseLedgerConsistency();
             checkDeviceLedgerConsistency();
@@ -987,6 +994,52 @@ public class DataConsistencyService {
         resolveStaleFailuresIfComplete(REVENUE_SPLIT_MISSING, failing, rows.size());
     }
 
+    /**
+     * MA-270：已退款订单的分账毛额必须按<b>净额</b>回算。
+     *
+     * <p>缺陷形态：退款只改 {@code cabinet_order.refunded_cents}，分账行不会自己跟着变。
+     * dev 库实锤一笔（订单 total=879 / paid=586 / refunded=293，{@code order_revenue_split.gross_cents=586}）
+     * —— 净额应是 293，多记 293 分。这笔钱在佣金、GMV、月度结算三处都被算多了。
+     *
+     * <p>净额口径与发佣/冲正/分账同源：{@link CommissionBaseCalc#netCents}
+     * = max(0, (paid>0 ? paid : total) − refunded)。SQL 必须照着这个式子写，
+     * 不能自己另立一个「total − refunded」（会把冻结毛额换成订单头，同一笔退款扣两遍）。
+     *
+     * <p><b>为什么把台账里的「PAID + refunded&gt;0」并进这一条而不是单列：</b>
+     * {@code OrderPaymentService#refundOrder} 全路径不改订单状态（只有
+     * {@code SettlementPartialRefundService} / {@code DisputeService} 会显式置
+     * {@code PARTIAL_REFUNDED}），所以「状态仍是 PAID 但退过款」是<b>常态</b>而非异常；
+     * 单列会全库假阳性、并且修完也永远消不掉。真正可判定的是「退过款、分账毛额却没按净额回算」
+     * —— 这条修完即消解。状态机不迁移另登记（MA-300）。
+     */
+    void checkRevenueSplitRefundStaleConsistency() {
+        String netExpr = "GREATEST(0, (CASE WHEN o.paid_amount_cents > 0 THEN o.paid_amount_cents"
+                + " ELSE o.total_amount_cents END) - GREATEST(0, COALESCE(o.refunded_cents, 0)))";
+        String sql = "SELECT o.order_id, s.split_id, " + netExpr + " AS expected, "
+                + "COALESCE(s.gross_cents, 0) AS actual "
+                + "FROM cabinet_order o "
+                + "JOIN order_revenue_split s ON s.order_id = o.order_id "
+                + "WHERE o.status IN ('PAID', 'COMPLETED', 'PARTIAL_REFUNDED', 'REFUNDED') "
+                + "AND COALESCE(o.refunded_cents, 0) > 0 "
+                + "AND UPPER(COALESCE(s.status, '')) <> 'VOIDED' "
+                + "AND COALESCE(s.gross_cents, 0) <> " + netExpr + " "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = row.get(ORDER_ID) + "|" + row.get("split_id");
+            failing.add(key);
+            recordInconsistency(REVENUE_SPLIT_REFUND_STALE, "order_revenue_split",
+                    key,
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "已退款订单分账毛额未按净额回算：应为 " + row.get(EXPECTED)
+                            + "（冻结毛额−已退），实际 " + row.get(ACTUAL));
+        }
+        resolveStaleFailuresIfComplete(REVENUE_SPLIT_REFUND_STALE, failing, rows.size());
+    }
+
     /** 仓存数量为负（明显账实异常）。 */
     void checkWarehouseNegativeConsistency() {
         String sql = "SELECT i.warehouse_id, i.sku_id, COALESCE(i.batch_no, '') AS batch_no, "
@@ -1441,6 +1494,8 @@ public class DataConsistencyService {
             case PAYMENT_AMOUNT -> fixPaymentAmount(consistencyRecord);
             case REFUND_AMOUNT, WALLET_BALANCE,
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING,
+                 // MA-270：回算分账会冲正商户钱包（钱会变），与 PAID_GROSS_MISMATCH 同档 —— 不自动改。
+                 REVENUE_SPLIT_REFUND_STALE,
                  WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
                  // 无批次账本的正解是「期初走真实补货/收货入库」，一键把汇总摊成 lot 行就是 B 档
                  // （会翻转结算 FEFO 与消费者可售口径），所以这里必须拒绝自动修，别落到 default 的
@@ -1628,7 +1683,22 @@ public class DataConsistencyService {
             return FixOutcome.fail("多收 " + over + " 分的退款未被确认（渠道幂等跳过或失败），"
                     + "须人工复核后再重新巡修复，勿按已退处理");
         }
-        return FixOutcome.ok("，已退多收 " + over + " 分");
+        // MA-270：refundOrder 只写 refunded_cents，分账行不会自动跟随 ⇒ 这里必须按净额回算，
+        // 否则「钱退了、分账还按原毛额分」，佣金/GMV/月结三处一起多记（dev 库实锤 293 分）。
+        // 重新读一次拿最新 refunded_cents，不依赖 refundOrder 内部 refresh 的时序；
+        // 本次退款吃掉全部净入账（newHeader=0）时按全额退款走作废分支。
+        CabinetOrder refreshed = cabinetOrderRepository.findById(orderId).orElse(order);
+        boolean fullRefund = over >= netPaid;
+        try {
+            revenueSplitService.adjustSplitAfterPartialRefund(refreshed, fullRefund);
+        } catch (RuntimeException e) {
+            // 退款已经发生，这里失败不能让调用方以为「没退」——钱的事实优先，
+            // 分账回算失败留给下一轮巡检（REVENUE_SPLIT_REFUND_STALE）兜住。
+            log.error("退多收后回算分账失败 orderId={} over={} full={}", orderId, over, fullRefund, e);
+            return FixOutcome.ok("，已退多收 " + over + " 分（分账回算失败，已留待巡检复核："
+                    + e.getMessage() + "）");
+        }
+        return FixOutcome.ok("，已退多收 " + over + " 分（分账已按净额回算）");
     }
 
     private Integer queryNetCompletedCents(String orderId) {

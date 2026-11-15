@@ -314,6 +314,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "REFUND_AMOUNT", "退款金额",
                 "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联",
                 "REVENUE_SPLIT_SUM", "分账金额", "REVENUE_SPLIT_MISSING", "分账缺失",
+                "REVENUE_SPLIT_REFUND_STALE", "分账未按净额回算",
                 "WAREHOUSE_NEGATIVE", "仓存负库存",
                 "CROSS_LINK", "关联投影")));
         map.put("sku_perf_level", t("选品表现等级", m(

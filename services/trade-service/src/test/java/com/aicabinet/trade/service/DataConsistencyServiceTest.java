@@ -42,6 +42,7 @@ class DataConsistencyServiceTest {
     @Mock CabinetOrderMapper cabinetOrderRepository;
     @Mock OrderPaymentService orderPaymentService;
     @Mock AdminAuditService auditService;
+    @Mock RevenueSplitService revenueSplitService;
 
     private static final Long OPERATOR = 9001L;
 
@@ -55,7 +56,7 @@ class DataConsistencyServiceTest {
     void setUp() {
         service = new DataConsistencyService(changeLogRepository, consistencyRepository, jdbcTemplate,
                 new ObjectMapper(), taskService, distributedLockService, couponService,
-                cabinetOrderRepository, orderPaymentService, auditService, null);
+                cabinetOrderRepository, orderPaymentService, revenueSplitService, auditService, null);
         ReflectionTestUtils.setField(service, "self", service);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
         // MA-124：修复链现在读 refundOrder 的返回值（false=未确认即不得回报「已退多收」）
@@ -1506,6 +1507,79 @@ class DataConsistencyServiceTest {
         assertEquals("O4", saved.getCheckKey());
         assertEquals("50", saved.getExpectedValue());
         assertEquals("0", saved.getActualValue());
+    }
+
+    // ---------- MA-270：已退款订单的分账毛额必须按净额回算 ----------
+
+    /** 判据形态锚点：SQL 必须是「冻结毛额 − refunded」的净额式子，不能退回只看 total 或只看 gross。 */
+    @Test
+    void checkRevenueSplitRefundStaleConsistency_sqlUsesNetExpression() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString())).thenReturn(List.of());
+
+        service.checkRevenueSplitRefundStaleConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("order_revenue_split"), sql);
+        assertTrue(sql.contains("paid_amount_cents"), "净额基数必须是冻结毛额列：" + sql);
+        assertTrue(sql.contains("refunded_cents"), "净额必须扣 refunded：" + sql);
+        assertTrue(sql.contains("GREATEST(0"), "净额须为 max(0, 毛额−已退)：" + sql);
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    @Test
+    void checkRevenueSplitRefundStaleConsistency_recordsStaleGross() {
+        // dev 库实锤那单：paid=586、refunded=293 ⇒ 净额 293，分账仍记 586
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-REFUND", "split_id", "S1", "expected", 293, "actual", 586)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRevenueSplitRefundStaleConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("REVENUE_SPLIT_REFUND_STALE", saved.getCheckType());
+        assertEquals("O-REFUND|S1", saved.getCheckKey());
+        assertEquals("293", saved.getExpectedValue());
+        assertEquals("586", saved.getActualValue());
+    }
+
+    /** 退多收成功后必须回算分账 —— 否则「钱退了、分账还按原毛额分」。 */
+    @Test
+    void fixOrderLineSum_afterOverchargeRefund_adjustsSplit() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(31L);
+        record.setCheckType("ORDER_LINE_SUM");
+        record.setCheckKey("O-MULTI|SKU-1");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        when(consistencyRepository.findByIdForUpdate(31L)).thenReturn(java.util.Optional.of(record));
+
+        when(jdbcTemplate.queryForList(startsWith("SELECT ol.quantity"), eq("O-MULTI"), eq("SKU-1")))
+                .thenReturn(List.of(Map.of("quantity", 1, "unit_price_cents", 100,
+                        "line_amount_cents", 150, "total_amount_cents", 200)));
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*) FROM cabinet_order_line WHERE order_id"),
+                anyIntExtractor(), eq("O-MULTI"))).thenReturn(1);
+        // 净入账 300 > 新头 150 ⇒ 退多收 150
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-MULTI")))
+                .thenReturn(300);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-MULTI");
+        order.setPaidAmountCents(300);
+        order.setRefundedCents(0);
+        when(cabinetOrderRepository.findByIdForUpdate("O-MULTI"))
+                .thenReturn(java.util.Optional.of(order));
+        when(cabinetOrderRepository.findById("O-MULTI")).thenReturn(java.util.Optional.of(order));
+
+        assertTrue(service.fixInconsistency(OPERATOR, 31L));
+
+        verify(orderPaymentService).refundOrder(eq(order), eq(150), anyString());
+        verify(revenueSplitService).adjustSplitAfterPartialRefund(eq(order), eq(false));
     }
 
     @Test
