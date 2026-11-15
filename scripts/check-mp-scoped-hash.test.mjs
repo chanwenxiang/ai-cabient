@@ -4,8 +4,8 @@
  *
  *   node scripts/check-mp-scoped-hash.test.mjs
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { runAsync } from './lib/async-spawn.mjs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BUILD_HOOK_TARGETS, missingBuildHooks } from './check-mp-scoped-hash.mjs';
@@ -22,13 +22,17 @@ const GATE = resolve(ROOT, 'scripts/check-mp-scoped-hash.mjs');
 const goodHook =
   'uni build -p mp-weixin && node ../../scripts/check-mp-scoped-hash.mjs dist/build/mp-weixin';
 
-function runGate(args, env = {}) {
-  return execFileSync(process.execPath, [GATE, ...args], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    env: { ...process.env, ...env },
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+// 🔴 check-gate-runtime-hygiene：Windows 下递归 spawn 同 exe 会 EBUSY，
+// 同步子进程会把「根本没跑起来」记成「全红」⇒ 一律走 async-spawn。
+async function runGate(args, env = {}) {
+  const r = await runAsync(process.execPath, [GATE, ...args], { cwd: ROOT, env });
+  if (r.status !== 0) {
+    const err = new Error(`exit=${r.status}: ${r.stderr}`);
+    err.stderr = r.stderr;
+    err.stdout = r.stdout;
+    throw err;
+  }
+  return r.stdout;
 }
 
 // 1) 两侧都内嵌产物级检查 ⇒ 无缺失
@@ -63,7 +67,7 @@ function runGate(args, env = {}) {
 
 // 4) CI 干净检出（无产物）：不再默默 SKIP，必须输出「已验接线」
 {
-  const out = runGate([], { MP_SCOPED_HASH_ROOTS: '__no_such_artifact_dir__' });
+  const out = await runGate([], { MP_SCOPED_HASH_ROOTS: '__no_such_artifact_dir__' });
   assert(/已验 consumer\/merchant/.test(out), `无产物时没有验接线：${out}`);
   assert(!/SKIP/.test(out), `无产物时不许再 SKIP 冒充判过：${out}`);
 }
@@ -72,7 +76,7 @@ function runGate(args, env = {}) {
 {
   let red = false;
   try {
-    runGate(['__no_such_artifact_dir__'], {});
+    await runGate(['__no_such_artifact_dir__'], {});
   } catch (e) {
     red = true;
     assert(/构建没产出|不得判绿/.test(String(e.stderr || '')), `报错文案不对：${e.stderr}`);
