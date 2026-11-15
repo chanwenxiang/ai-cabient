@@ -82,7 +82,7 @@
     "check:compose-stop-grace": "node scripts/check-compose-stop-grace.mjs",
     "check:compose-restart": "node scripts/check-compose-restart.test.mjs && node scripts/check-compose-restart.mjs",
     "check:menu-permissions": "node scripts/check-menu-permissions.test.mjs && node scripts/check-menu-permissions.mjs",
-    "check:approval-action-path-nav": "node scripts/check-approval-action-path-nav.mjs",
+    "check:approval-action-path-nav": "node scripts/check-approval-action-path-nav.test.mjs && node scripts/check-approval-action-path-nav.mjs",
     "check:compose-ports": "node scripts/check-compose-ports.test.mjs && node scripts/check-compose-ports.mjs",
     "check:compose-image-tags": "node scripts/check-compose-image-tags.mjs",
     "check:nginx-gateway-parity": "node scripts/check-nginx-gateway-parity.mjs",

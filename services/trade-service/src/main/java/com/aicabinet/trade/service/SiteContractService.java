@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.SiteContract;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.SiteContractMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -126,7 +127,19 @@ public class SiteContractService {
             contract.setCreatedAt(Instant.now());
             contractRepository.insert(contract);
         } else {
+            // MA-224（M01 清列家族）：MyBatis-Plus 全仓无 FieldStrategy，updateById 会跳过 null 列
+            // ⇒ 运营把起租/到期清空时 DB 仍留旧日期，而 status 已按 null 重算成 ACTIVE，
+            // 页面与状态分叉（未生效/已到期合同被当成有效，MA-273 的出账判据也跟着错）。
+            // 可空列一律用 wrapper 显式 set（含 null），与 updateById 的「跳 null」互补。
             contractRepository.updateById(contract);
+            contractRepository.update(null, Wrappers.<SiteContract>lambdaUpdate()
+                    .eq(SiteContract::getContractId, contract.getContractId())
+                    .set(SiteContract::getAddress, request.address())
+                    .set(SiteContract::getLandlordName, request.landlordName())
+                    .set(SiteContract::getLandlordPhone, request.landlordPhone())
+                    .set(SiteContract::getStartDate, request.startDate())
+                    .set(SiteContract::getEndDate, request.endDate())
+                    .set(SiteContract::getRemark, request.remark()));
         }
         auditService.appendLog(operatorId, created ? "SITE_CONTRACT_CREATE" : "SITE_CONTRACT_UPDATE",
                 "SITE_CONTRACT", String.valueOf(contract.getContractId()),

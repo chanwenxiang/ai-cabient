@@ -605,7 +605,10 @@ public class OpsDeviceAdminService {
             device.setCoopMode(DeviceAssetService.normalizeCoop(request.coopMode()));
         }
         if (request.depositCents() != null) {
-            device.setDepositCents(request.depositCents() < 0 ? 0L : request.depositCents());
+            // MA-178：押金是预授权第二来源，必须有业务上界（与 checkout.preauth_cents 同源），
+            // 不能只钳负——荒谬值会在开门时冻结消费者余额。
+            device.setDepositCents(com.aicabinet.trade.support.CommissionParamBounds
+                    .requirePreauthCents("depositCents", request.depositCents()));
         }
         if (request.dataFeeCents() != null) {
             device.setDataFeeCents(request.dataFeeCents() < 0 ? 0L : request.dataFeeCents());

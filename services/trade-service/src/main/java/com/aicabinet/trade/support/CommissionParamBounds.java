@@ -44,6 +44,23 @@ public final class CommissionParamBounds {
      */
     public static final int PREAUTH_CENTS_CEILING = 1_000_000;
 
+/**
+ * 开门预授权金额（分）：0..{@link #PREAUTH_CENTS_CEILING}。
+ * MA-178：设备押金 {@code device.deposit_cents} 是预授权的第二个来源，
+ * 写侧原先只钳负、读侧用 {@code Math.min(Integer.MAX_VALUE, ...)} ⇒ 可以写入荒谬押金
+ * 并冻结消费者余额。与全局键 checkout.preauth_cents 共用同一天花板，不另立第二套上界。
+ */
+public static long requirePreauthCents(String field, Long value) {
+    if (value == null) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " 不能为空");
+    }
+    if (value < 0 || value > PREAUTH_CENTS_CEILING) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                field + " 须在 0.." + PREAUTH_CENTS_CEILING + " 分");
+    }
+    return value;
+}
+
     private CommissionParamBounds() {}
 
     /** 万分比：0..10000（{@link CabinetConstants#SHARE_BPS_FULL}）。>10000 在数学上不成立。 */

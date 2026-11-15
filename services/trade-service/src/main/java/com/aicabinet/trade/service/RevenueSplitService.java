@@ -716,6 +716,11 @@ public class RevenueSplitService {
             return action.get();
         } catch (ResponseStatusException e) {
             throw e;
+        } catch (IllegalStateException e) {
+            // MA-289：分账状态机的业务冲突（分账不存在 / 记录已变更 / 仅 LEDGER_ONLY 可确认完结）
+            // 抛的是 IllegalStateException，旧封装一律包成 500 ⇒ 运营看到「服务器错误」而不是
+            // 「请稍后重试/状态冲突」。这类是可预期的状态竞争，语义上是 409。
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {

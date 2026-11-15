@@ -24,6 +24,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mismatchedActionPaths } from './lib/dashboard-action-path.mjs';
 
 const TAG = '[check-approval-action-path-nav]';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -286,6 +287,17 @@ for (const file of walk(join(ROOT, ADMIN_SRC))) {
     if (p && whyUnresolvable(p)) {
       violations.push(`${rel} 调用 ${m[0].trim()} —— 菜单未登记且 findNavByPath 无特例`);
     }
+  }
+}
+
+// ── 规则 E（MA-279）：运营台判据路径 vs 实际跳转 ───────────────────────────
+// canHandleAction() 用 actionTargetPath() 查 canAccessPath()，点击却走 goAction() 的
+// router.push。两者不同源时：有目标页权限的人看不到按钮、有判据页权限的人点进去被拦。
+{
+  const dash = join(ROOT, 'clients/admin-vue/src/views/dashboard/DashboardView.vue');
+  const dashSrc = readFileSync(dash, 'utf8');
+  for (const m of mismatchedActionPaths(dashSrc)) {
+    violations.push(`DashboardView.vue ${m}（判据与跳转必须与菜单登记同源）`);
   }
 }
 

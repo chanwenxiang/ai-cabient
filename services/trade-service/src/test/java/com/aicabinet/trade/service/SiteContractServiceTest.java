@@ -39,6 +39,12 @@ class SiteContractServiceTest {
 
     @BeforeEach
     void setUp() {
+        // MA-224 的显式清列用 Wrappers.<SiteContract>lambdaUpdate()；纯单测里需先注册
+        // MyBatis-Plus 的 lambda 列缓存，否则抛 "can not find lambda cache"。
+        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
+                new org.apache.ibatis.builder.MapperBuilderAssistant(
+                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
+                SiteContract.class);
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong(),
@@ -123,4 +129,33 @@ class SiteContractServiceTest {
         verify(contractRepository).insert(any(SiteContract.class));
         verify(auditService).appendLog(eq(OPERATOR_ID), any(), any(), any(), any());
     }
+    /**
+     * MA-224：运营清空起租/到期时，updateById 会跳过 null 列 ⇒ DB 留旧日期而 status 已按
+     * null 重算 ACTIVE（页面与状态分叉，MA-273 的出账判据也跟着错）。必须显式 set(col,null)。
+     */
+    @Test
+    void upsert_whenDatesCleared_explicitlyNullsDateColumns() {
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setDeviceName("门店一号柜");
+        when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        SiteContract existing = new SiteContract();
+        existing.setContractId(7L);
+        existing.setDeviceId("CAB-001");
+        existing.setSiteName("旧名");
+        existing.setStartDate(LocalDate.now().minusDays(10));
+        existing.setEndDate(LocalDate.now().plusDays(10));
+        existing.setStatus("EXPIRING");
+        when(contractRepository.findByDeviceIdForUpdate("CAB-001")).thenReturn(Optional.of(existing));
+
+        service.upsert(OPERATOR_ID, "CAB-001",
+                new UpsertSiteContractRequest("门店一号柜", null, null, null,
+                        null, null, 50000, null));
+
+        verify(contractRepository).update(
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any());
+        assertEquals("ACTIVE", existing.getStatus(), "status 必须按清空后的 endDate 重算");
+    }
+
 }

@@ -525,6 +525,10 @@ function actionTargetPath(row: OpsActionItem) {
     case 'SESSION_STALE':
       return '/sessions';
     case 'LOW_STOCK':
+      // MA-279：goAction 实际跳 /stock-health（ops:stock-health:list）；
+      // 判据必须与跳转同源，否则有 ops:stock-health:list 的人看不到按钮、
+      // 有 ops:replenishment:list 的人点进去却被路由拦下（铁律：深链路径与菜单登记同源）。
+      return '/stock-health';
     case 'REPLENISHMENT':
       return '/replenishment';
     case 'IN_TRANSIT_OVERDUE':

@@ -68,7 +68,14 @@ public class ConsumerPreauthService {
         if (deviceId != null && !deviceId.isBlank()) {
             DeviceInfo device = deviceRepository.findById(deviceId.trim()).orElse(null);
             if (device != null && device.getDepositCents() != null && device.getDepositCents() > 0) {
-                return (int) Math.min(Integer.MAX_VALUE, device.getDepositCents());
+                long deposit = device.getDepositCents();
+                if (deposit <= CommissionParamBounds.PREAUTH_CENTS_CEILING) {
+                    return (int) deposit;
+                }
+                // 存量荒谬值（写侧上界之前的历史行）：与全局键超限同款降级，
+                // 记 warn 后回落配置默认，而不是拿它去冻结消费者余额。
+                log.warn("DEVICE deposit_cents={} exceeds preauth ceiling {}; ignoring device value",
+                        deposit, CommissionParamBounds.PREAUTH_CENTS_CEILING);
             }
         }
         int fromDb = systemConfigService.getInt(SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1);

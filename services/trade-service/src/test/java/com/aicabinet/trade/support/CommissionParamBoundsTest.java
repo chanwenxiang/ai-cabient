@@ -46,4 +46,19 @@ class CommissionParamBoundsTest {
         assertThrows(ResponseStatusException.class,
                 () -> CommissionParamBounds.requireFixedCents("commissionFixedCents", -1));
     }
+    /** MA-178：设备押金与全局预授权键共用同一天花板，不另立第二套上界。 */
+    @Test
+    void preauthCents_sharedCeilingForDeviceDeposit() {
+        assertEquals(0L, CommissionParamBounds.requirePreauthCents("depositCents", 0L));
+        assertEquals(1_000_000L,
+                CommissionParamBounds.requirePreauthCents("depositCents", 1_000_000L));
+        ResponseStatusException over = assertThrows(ResponseStatusException.class,
+                () -> CommissionParamBounds.requirePreauthCents("depositCents", 1_000_001L));
+        assertEquals("depositCents 须在 0..1000000 分", over.getReason());
+        assertThrows(ResponseStatusException.class,
+                () -> CommissionParamBounds.requirePreauthCents("depositCents", -1L));
+        assertThrows(ResponseStatusException.class,
+                () -> CommissionParamBounds.requirePreauthCents("depositCents", null));
+    }
+
 }

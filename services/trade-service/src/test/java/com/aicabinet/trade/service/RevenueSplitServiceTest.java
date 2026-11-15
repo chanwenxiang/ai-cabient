@@ -924,4 +924,19 @@ class RevenueSplitServiceTest {
                 eq("SPLIT_PARTIAL"), eq("SPLIT-AU182C:g1350"), contains("O-AU182C"));
         verify(splitRepository).save(argThat(s -> s.getGrossCents() == 1500L && s.getMerchantCents() == 1350L));
     }
+    /** MA-289：状态机的可预期冲突必须是 409，不能被锁封装包成 500「服务器错误」。 */
+    @Test
+    void confirmLedgerOnly_whenSplitMissing_returnsConflictNotServerError() {
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("S-1");
+        split.setOrderId("O-1");
+        when(splitRepository.findByOrderIdForUpdate("O-1")).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.confirmLedgerOnly(split));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals("分账不存在", ex.getReason());
+    }
+
 }
