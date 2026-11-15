@@ -1096,6 +1096,64 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "fea2c0e7",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-201 feature-flags 消费者判定剥注释（maskCommentsOnly + findConsumerlessFlags 抽 lib + 夹具 +5）",
+          "files": [
+            "scripts/lib/feature-flags-read.mjs",
+            "scripts/check-feature-flags.mjs",
+            "scripts/check-feature-flags.test.mjs"
+          ]
+        },
+        {
+          "id": "MA-200 识别演示豁免退役 + V482 RETIRED + R8 拍板回填",
+          "files": [
+            "scripts/check-menu-permissions.mjs",
+            "scripts/check-frontend-perm-codes.mjs",
+            "services/trade-service/src/main/resources/db/migration/V482__retire_recognition_demo_perm.sql",
+            "docs/PENDING_DECISIONS_R23_2026-11-14.md"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "e6cfefe9",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MA-281 超时契约同源 + 两侧装配期断言 + defaults 90→60",
+          "files": [
+            "services/common/common-core/src/main/java/com/aicabinet/common/constants/SessionTimeouts.java",
+            "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/tracker/SessionWatchdog.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/config/SessionExpireProperties.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/SessionTimeoutsContractTest.java",
+            "services/jiangyi-gateway/src/test/java/com/aicabinet/jiangyi/tracker/SessionWatchdogTest.java"
+          ]
+        },
+        {
+          "id": "MA-275 订单态乐观 CAS（防并发迟到 EXPIRED 覆盖 DONE）+ lambda 缓存顺序依赖修复",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PayScoreOrderNotifyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PayScoreOrderNotifyTest.java"
+          ]
+        },
+        {
+          "id": "MA-276 锁包住事务（doRecordSplitInTx REQUIRES_NEW + DKE 重查新事务）+ 注解形态钉",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitConcurrencyTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

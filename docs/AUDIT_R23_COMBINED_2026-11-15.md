@@ -789,3 +789,35 @@ lotRepository.save(lot);                                  // 全列绝对覆盖
 ### 17-4 取舍
 
 剩余 open 里 P2 还有 MA-260（XXL 逃生门，需拍板兜底策略）、MA-274/275/276（并发与事务，需专门并发用例）、MA-278（开关串联，需拍板）、MA-281（超时同源）等，都不是「顺手一行」能安全改的；本批挑的四条都是口径明确、配方现成、能一次验透的。剩余 open 降到 **23 条**。
+
+## 18. 修复批 13：三条 P2 + 两条 P3（MA-281 / 275 / 276 / 201 / 200，2026-11-15 夜）
+
+延续批 12 的批量打法：五条互不依赖，分两个 fix 提交（`fea2c0e7` 门禁+迁移、`e6cfefe9` 服务端）、一次全量、一次预检、一次推送。
+
+### 18-1 对照表
+
+| 编号 | 缺陷 | 修法 |
+|---|---|---|
+| **MA-281** | 将邑 watchdog 70s 与 trade 会话过期 60s 的时序契约只活在注释里，任一侧调参都可能让 watchdog 先于 trade 处置生效（兜账只救 CANCELLED ⇒ 弱网真开门被误杀成 FAILED） | common-core 新增 `SessionTimeouts`（同源常量 + 两个装配期断言）；watchdog 构造器与 `SessionExpireProperties` 各自 fail-fast；`defaults()` 兜底 90→60（10s 时代遗留） |
+| **MA-275** | 订单态通知读-判-写无锁 ⇒ 同单并发通知（DONE vs 迟到 EXPIRED）都能过快照判据，后写者把 DONE 覆盖回 EXPIRED 并误记欠款 | 乐观 CAS（快照态为现值才落库），抢失败重读现值重放判据再试 ≤3 次，仍丢则放弃投递交渠道重投 |
+| **MA-276** | `recordSplit`「事务包住锁」：锁在提交前释放 ⇒ 失效窗口横跨解锁→提交；PG 里 DKE 后同事务重查必 25P02 | 「锁包住事务」：recordSplit 去注解持锁，self 代理进 `doRecordSplitInTx`（REQUIRES_NEW）；DKE 重查走 `findSplitAfterRace`（REQUIRES_NEW） |
+| **MA-201** | feature-flags R2 消费者判定对裸源码 includes，注释里提到键即算「有消费者」⇒ 死开关可被注释掩护 | `maskCommentsOnly`（只剥注释、留字符串字面量）+ `findConsumerlessFlags` 抽 lib；夹具 +5 |
+| **MA-200** | `ops:recognition-demo:view` 豁免空转（页面已删、全仓零引用）+ R8 拍板项漂移出两份台账 | 两门禁 ALLOWLIST 删除；V482 置 RETIRED；拍板回填 PENDING_DECISIONS_R23 第 ⑬ 条 |
+
+### 18-2 三处设计判断
+
+1. **MA-275 丢投递优先于倒退状态**：CAS 三次抢不到就放弃本次投递——渠道会重投，重投会拿着新的现值重新走判据；而「无条件落库」会把已收款的 DONE 倒退成 EXPIRED 并记欠款。单向「只进不退」对 DONE 侧保留自愈（迟到 DONE 仍能 CAS 回 DONE 并入账，`creditIfAbsent` 幂等）。
+2. **MA-276 用 REQUIRES_NEW 而不是把整段塞进调用方事务**：支付分 DONE 回调/结算完结都自带事务，若内层 REQUIRED 会 join 外层 ⇒ 提交点又落回外层、锁照样提前释放。REQUIRES_NEW 的代价（外层回滚时分账行留存）由 `creditIfAbsent` 幂等键 + REVENUE_SPLIT_* 巡检兜底，已在 javadoc 如实写明。
+3. **MA-281 的「15s 仍可配」旧对照用例与新契约正面冲突**：它验证的正是本条要消灭的行为。改写成「低于地板装配期拒绝 + 高于地板仍可配」，可配性保留在契约之内。
+
+### 18-3 验证
+
+| 项 | 结果 |
+|---|---|
+| 单测 | `SessionTimeoutsContractTest` 新建 6 例；`SessionWatchdogTest` 4→5；`PayScoreOrderNotifyTest` 9→12（+ 顺序依赖假绿修复）；`RevenueSplitServiceTest` 31→32（+注解形态钉）；`feature-flags.test` +5 |
+| jiangyi-gateway | `mvn -o -pl services/jiangyi-gateway -am test -Dtest=SessionWatchdogTest` ⇒ 5/5 绿 |
+| 全量 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3141, Failures: 0, Errors: 0**（上批 3133，+8） |
+| 三处负向（各单变量） | ① CAS 退回无条件落库 ⇒ **3 红**（恰好是 3 个新并发用例）；② recordSplit 复挂 @Transactional ⇒ 形态钉 **1 红**；③ 地板断言 no-op ⇒ **1 红**。还原后 4 份源码 md5 逐字节一致 |
+| 门禁 | feature-flags OK（119 开关 / 读取点 117）；menu-permissions OK（豁免 0）；frontend-perm-codes OK（豁免 0）；迁移 number-order / safety / immutable / seed-separation OK；台账三门禁 OK；批登记 43 批全对账 |
+
+**如实边界**：MA-275 的 CAS 只覆盖「同单两条通知并发」这一形态，`selectById` 未命中时回落无条件落库（与修前一致）——生产上该行刚被读到、不可能真消失，回落只为夹具兼容；MA-276 的 REQUIRES_NEW 改变了「与调用方事务原子」这一隐含契约，边界见 §18-2 第 2 条。
