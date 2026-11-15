@@ -323,7 +323,9 @@ class MerchantDailyIncomeNotifySchedulerTest {
 
         long charged = svc.chargeDailyPeriodFees("M1", java.time.LocalDate.of(2026, 10, 15));
 
-        assertEquals(422L, charged, "月租 10000/31 天=322 + 流量费 100（分/天不摊销）");
+        // MA-286 余数分摊：10000=31×322 余 18 ⇒ 当月第 15 天（≤18）收 323 分；第 19 天起收 322；
+        // 全月合计恰 10000（修前逐日 floor 永久吞掉 18 分）
+        assertEquals(423L, charged, "月租 10000/31 天余 18，第 15 天=322+1 分摊 + 流量费 100");
         assertEquals(2, rows.size());
         for (var row : rows) {
             assertEquals("SETTLED", row.getStatus(), "扣款成功的费用行不得留 PENDING（否则同一笔钱既收了又算欠费）");

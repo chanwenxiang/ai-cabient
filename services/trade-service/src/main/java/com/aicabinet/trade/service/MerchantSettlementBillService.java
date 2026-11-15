@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.MerchantSettlementBill;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.MerchantSettlementBillMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -31,8 +32,9 @@ import java.util.stream.Collectors;
  *
  * <p>口径（与商户端既有视图可对平，差异处均在 javadoc 注明）：</p>
  * <ul>
- *   <li>账期月 = split.created_at 的 Asia/Shanghai 日历月（与既有日结算/批次视图
- *       的 created_at 窗口一致）。</li>
+ *   <li>账期月 = **订单 created_at** 的 Asia/Shanghai 日历月（MA-287，2026-11-15 拍板）：
+ *       原按 split.created_at 归月，跨月补缴的 split 落进补缴月 ⇒ 与商户月账单
+ *       （MerchantFinanceService 按订单 created_at 归月）差一笔。与月账单同源。</li>
  *   <li>排除退款冲正单 VOIDED/REVERSED（旧聚合视图未剔除，属口径瑕疵，不延续）。</li>
  *   <li>settled = status='SUCCESS'；pending = 其余有效状态；failedCount 只数
  *       WECHAT_FAILED/FAILED（与 selectAggregateBatchByMerchants 的 c8/c9/c10 同义）。</li>
@@ -50,13 +52,17 @@ public class MerchantSettlementBillService {
     private final OrderRevenueSplitMapper splitRepository;
     private final MerchantSettlementBillMapper billRepository;
     private final DistributedLockService distributedLockService;
+    /** MA-287：归月改按订单 created_at ⇒ 需要订单窗口查询。 */
+    private final CabinetOrderMapper orderRepository;
 
     public MerchantSettlementBillService(OrderRevenueSplitMapper splitRepository,
                                          MerchantSettlementBillMapper billRepository,
-                                         DistributedLockService distributedLockService) {
+                                         DistributedLockService distributedLockService,
+                                         CabinetOrderMapper orderRepository) {
         this.splitRepository = splitRepository;
         this.billRepository = billRepository;
         this.distributedLockService = distributedLockService;
+        this.orderRepository = orderRepository;
     }
 
     static String settlementBillLockKey(YearMonth month) {
@@ -94,10 +100,18 @@ public class MerchantSettlementBillService {
     private int doRebuildMonth(YearMonth month) {
         Instant from = month.atDay(1).atStartOfDay(ZONE).toInstant();
         Instant to = month.plusMonths(1).atDay(1).atStartOfDay(ZONE).toInstant();
-        List<OrderRevenueSplit> splits = splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
-                .ge(OrderRevenueSplit::getCreatedAt, from)
-                .lt(OrderRevenueSplit::getCreatedAt, to)
-                .isNotNull(OrderRevenueSplit::getSettlementBatchNo));
+        // MA-287：窗口按**订单** created_at 划，split 只按订单集合取——跨月补缴（3 月的单
+        // 4 月才建 split）归 3 月，与商户月账单同源。
+        List<String> orderIdsInMonth = orderRepository.selectList(Wrappers.<com.aicabinet.trade.domain.CabinetOrder>lambdaQuery()
+                .ge(com.aicabinet.trade.domain.CabinetOrder::getCreatedAt, from)
+                .lt(com.aicabinet.trade.domain.CabinetOrder::getCreatedAt, to)
+                .select(com.aicabinet.trade.domain.CabinetOrder::getOrderId))
+                .stream().map(com.aicabinet.trade.domain.CabinetOrder::getOrderId).toList();
+        List<OrderRevenueSplit> splits = orderIdsInMonth.isEmpty()
+                ? java.util.List.of()
+                : splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                        .in(OrderRevenueSplit::getOrderId, orderIdsInMonth)
+                        .isNotNull(OrderRevenueSplit::getSettlementBatchNo));
         List<MerchantSettlementBill> rows = buildRows(month, splits, Instant.now());
 
         int written = 0;

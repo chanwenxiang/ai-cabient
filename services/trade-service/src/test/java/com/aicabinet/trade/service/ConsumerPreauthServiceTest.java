@@ -82,4 +82,20 @@ class ConsumerPreauthServiceTest {
         assertEquals(CommissionParamBounds.PREAUTH_CENTS_CEILING,
                 service.resolvePreauthCents("D-1"));
     }
+
+    /** MA-294（拍板：0 压倒一切）：全局键 0=关闭预授权，必须压倒设备押金分支。 */
+    @Test
+    void globalZero_overridesDeviceDeposit() {
+        org.mockito.Mockito.when(systemConfigService
+                .getInt(com.aicabinet.trade.service.SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1))
+                .thenReturn(0);
+        com.aicabinet.trade.domain.DeviceInfo device = new com.aicabinet.trade.domain.DeviceInfo();
+        device.setDeviceId("CAB-1");
+        device.setDepositCents(500_000L);
+        org.mockito.Mockito.when(deviceRepository.findById("CAB-1"))
+                .thenReturn(java.util.Optional.of(device));
+
+        assertEquals(0, service.resolvePreauthCents("CAB-1"),
+                "全局 0（关闭预授权）必须压倒设备押金");
+    }
 }

@@ -66,6 +66,8 @@ public class OrderPaymentService {
     private final PaymentOperationMapper paymentOperationRepository;
     private final CabinetOrderMapper cabinetOrderRepository;
     private final DistributedLockService distributedLockService;
+    /** MA-274：支付锁心跳（租约 60s / 心跳 20s），构造期建好，不进 Spring 装配面。 */
+    private final LockHeartbeat lockHeartbeat;
     private final ShoppingSessionMapper sessionRepository;
     private final ConsumerPreauthService consumerPreauthService;
     private final MemberService memberService;
@@ -103,6 +105,7 @@ public class OrderPaymentService {
         this.paymentOperationRepository = paymentOperationRepository;
         this.cabinetOrderRepository = cabinetOrderRepository;
         this.distributedLockService = distributedLockService;
+        this.lockHeartbeat = new LockHeartbeat(distributedLockService, 60, 20);
         this.balanceLedgerService = balanceLedgerService;
         this.checkoutProperties = checkoutProperties;
         this.sessionRepository = sessionRepository;
@@ -595,6 +598,11 @@ public class OrderPaymentService {
         return paymentOperationRepository.findStaleChargePending(cutoff, limit);
     }
 
+    /** MA-284：退款同步已扣账（账本 RECHARGE_REFUND 流水）但订单 refunded_cents 未推进的单，供告警巡检。 */
+    public java.util.List<java.util.Map<String, Object>> findRefundSyncNotAdvanced(int limit) {
+        return paymentOperationRepository.findRefundSyncNotAdvanced(limit);
+    }
+
     private void releaseSessionPreauth(CabinetOrder order) {
         if (order.getSessionId() == null || order.getSessionId().isBlank()) {
             return;
@@ -651,6 +659,14 @@ public class OrderPaymentService {
     public boolean refundOrder(CabinetOrder order, int amountCents, String reason) {
         return refundOrder(order, amountCents, reason, null);
     }
+
+    // MA-300（2026-11-15 拍板：本方法刻意**不迁移订单状态**）：退款后订单保持 PAID、
+    // 只累计 refunded_cents/refunded_at——这是常态而非缺陷。资金正确性已由净额口径闭环
+    // （CommissionBaseCalc.netCents = 冻结毛额 − refunded；MA-270 分账回算 + 巡检
+    // REVENUE_SPLIT_REFUND_STALE 兜底），而「按 refunded 迁移 PARTIAL_REFUNDED/REFUNDED」
+    // 会与 SettlementPartialRefundService / DisputeService / BalanceRefundService 等
+    // 自带 setStatus 的 6 条调用链打架，收益仅 UI 展示。勿「顺手」补状态迁移。
+
 
     /**
      * AU-175：带幂等键覆盖的重载。按行部分退款传「订单+金额+行集指纹」键——同单同额、
@@ -1389,9 +1405,15 @@ public class OrderPaymentService {
     }
 
     private void runWithOrderPaymentLock(String orderId, LockedOrderConsumer action) {
-        if (!distributedLockService.tryLock(orderPaymentLockKey(orderId), 60, 5)) {
+        String lockKey = orderPaymentLockKey(orderId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
         }
+        // MA-274：chargeOrder 的渠道 HTTP 在 DB 事务内进行（H41 已落 CHARGE_PENDING 痕迹兜双扣），
+        // 持锁可达分钟级而租约固定 60s ⇒ 到点被第二实例接管双跑。挂租约/3 心跳续租；
+        // LOST 只报错不停活（此刻停活更危险），双跑风险保持可见。
+        java.util.concurrent.ScheduledFuture<?> heartbeat =
+                lockHeartbeat.start(lockKey, Thread.currentThread().getId());
         try {
             CabinetOrder locked = cabinetOrderRepository.findByIdForUpdate(orderId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
@@ -1403,7 +1425,8 @@ public class OrderPaymentService {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
         } finally {
-            distributedLockService.unlock(orderPaymentLockKey(orderId));
+            lockHeartbeat.stop(heartbeat);
+            distributedLockService.unlock(lockKey);
         }
     }
 

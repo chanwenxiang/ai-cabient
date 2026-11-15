@@ -321,7 +321,9 @@ public class DeviceReportController {
             boolean forwarded = false;
             try {
                 var response = tradeInternalClient.edgeResults(result);
-                forwarded = response != null;
+                // MA-288：只有 accepted（PROCESSED）才算送达并注销 CLOSE watchdog；
+                // 非 null 但 DUPLICATE/REJECTED 的响应注销兜底 ⇒ 真没送达的会话失去 300s 兜底。
+                forwarded = response != null && response.accepted();
                 log.info("jiangyi recognition forwarded deviceId={} sessionId={} items={} outcome={}",
                         deviceId, sessionId, items.size(), response == null ? "n/a" : response.outcome());
             } catch (Exception e) {

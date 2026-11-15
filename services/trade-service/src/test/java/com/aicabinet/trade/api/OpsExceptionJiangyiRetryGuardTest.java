@@ -43,13 +43,20 @@ class OpsExceptionJiangyiRetryGuardTest {
     @Mock OpsExceptionService service;
     @Mock SessionService sessionService;
     @Mock JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsExceptionController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OpsExceptionController(service, sessionService, jiangyiDeviceDirectory);
+        org.mockito.Mockito.lenient()
+                .doAnswer(inv -> null)
+                .when(auditService)
+                .appendLog(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString());
+        controller = new OpsExceptionController(service, sessionService, jiangyiDeviceDirectory, auditService);
     }
 
     private static OpsExceptionDetailDto detail(String deviceId) {

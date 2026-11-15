@@ -48,17 +48,26 @@ public class OpsFeeBillJob {
         if (!taskService.tryBegin(TASK_KEY, 1800)) {
             return;
         }
-        if (!systemConfigService.getBoolean("feebill.auto_generate.enabled", false)) {
+        // MA-278（2026-11-15 拍板：拆开关）：原「流量费月结开关」同时门控场地租金出账，
+        // 流量费改日扣后默认 false ⇒ 租金自动出账被误停（对外付款链）。拆为两个键：
+        //   - feebill.site_rent.auto_generate.enabled：默认 true（租金月结出账应常态运行，
+        //     租期校验由 MA-273 的 isContractEffectiveInMonth 把关，不会给未生效/到期合同出账）；
+        //   - feebill.auto_generate.enabled：保留原名与默认 false，只管流量费月结出账
+        //     （流量费已改日扣，月结出账属对账用途，刻意停用）。
+        boolean rentEnabled = systemConfigService.getBoolean("feebill.site_rent.auto_generate.enabled", true);
+        boolean dataEnabled = systemConfigService.getBoolean("feebill.auto_generate.enabled", false);
+        if (!rentEnabled && !dataEnabled) {
             taskService.finish(TASK_KEY, "SKIPPED",
-                    "开关 feebill.auto_generate.enabled=false（流量费改日扣后默认停用月结）", taskStart);
+                    "租金/流量费月结出账开关均为 false（feebill.site_rent.auto_generate.enabled / "
+                            + "feebill.auto_generate.enabled）", taskStart);
             return;
         }
         String month = monthResolver.resolve(null);
         String summary = "账期 " + month + " 无新增";
         boolean failed = false;
         try {
-            int rent = rentBillService.autoGenerate(month).size();
-            int data = dataFeeBillService.autoGenerate(month).size();
+            int rent = rentEnabled ? rentBillService.autoGenerate(month).size() : 0;
+            int data = dataEnabled ? dataFeeBillService.autoGenerate(month).size() : 0;
             summary = "账期 " + month + " 租金账单 " + rent + " 条，流量费账单 " + data + " 条";
             log.info("ops fee bill job done: {}", summary);
         } catch (Exception e) {

@@ -466,7 +466,13 @@ public class MerchantDailyIncomeNotifyScheduler {
         long rentDaily = 0L, dataDaily = 0L;
         for (DeviceInfo d : devices) {
             if ("RENTAL".equalsIgnoreCase(d.getCoopMode()) && d.getRentCents() != null) {
-                rentDaily += d.getRentCents() / daysInMonth;
+                // MA-286：逐日 floor 会把 0~29 分/台/月的余数永久吞掉（系统性少收）。
+                // 余数按日序分摊：每天 base +（当月第 n 天 ≤ 余数 ? 1 分 : 0），月合计恰等于月额，
+                // 任何一天的偏差至多 1 分且方向只会多收一天的分（不会吞钱）。
+                long rent = d.getRentCents();
+                int base = (int) (rent / daysInMonth);
+                int rem = (int) (rent % daysInMonth);
+                rentDaily += base + (yesterday.getDayOfMonth() <= rem ? 1 : 0);
             }
             if (d.getDataFeeCents() != null && d.getDataFeeCents() > 0L) {
                 dataDaily += d.getDataFeeCents();

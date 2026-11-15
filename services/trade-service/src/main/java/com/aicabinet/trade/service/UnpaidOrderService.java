@@ -244,6 +244,14 @@ public class UnpaidOrderService {
         } catch (Exception ex) {
             log.warn("stale CHARGE_PENDING alert sweep failed", ex);
         }
+        // MA-284：退款同步（微信手工退款，账本 RECHARGE_REFUND）与充值占位同频兜底——
+        // 扣账成功但 finalizeChannelPartialRefund 半段丢失的单（§11 残留边界）在这里可见，
+        // 不再「静默等下一次对账」。
+        try {
+            alertRefundSyncNotAdvancedOps();
+        } catch (Exception ex) {
+            log.warn("refund-sync not-advanced alert sweep failed", ex);
+        }
         int hours = systemConfigService.getInt(SystemConfigService.UNPAID_AUTO_CANCEL_HOURS, 48);
         if (hours <= 0) {
             return 0;
@@ -339,6 +347,32 @@ public class UnpaidOrderService {
                     op.getOrderId(), op.getChannel(), op.getAmountCents());
         }
         return stale.size();
+    }
+
+    /**
+     * MA-284：退款同步「扣账成功、单据未推进」的告警巡检（与 CHARGE_PENDING 同频）。
+     * 判据见 {@code PaymentOperationMapper#findRefundSyncNotAdvanced}；只告警不自动修。
+     */
+    public int alertRefundSyncNotAdvancedOps() {
+        java.util.List<java.util.Map<String, Object>> gaps =
+                orderPaymentService.findRefundSyncNotAdvanced(20);
+        for (java.util.Map<String, Object> gap : gaps) {
+            String orderId = String.valueOf(gap.get("orderId"));
+            Object userId = gap.get("userId");
+            long debited = ((Number) gap.get("debitedCents")).longValue();
+            long refunded = ((Number) gap.get("refundedCents")).longValue();
+            opsExceptionService.report(
+                    "REFUND_SYNC_NOT_ADVANCED",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, null, orderId, userId instanceof Number n ? n.longValue() : null),
+                    "退款同步未推进单据",
+                    "订单 " + orderId + " 的退款流水合计 " + debited + " 分大于订单 refunded_cents "
+                            + refunded + " 分：扣账已入账本但单据推进半段丢失（MA-269 残留边界），"
+                            + "请人工核对渠道退款结果后补推进");
+            log.warn("refund sync not advanced orderId={} debited={} refunded={}", orderId, debited, refunded);
+        }
+        return gaps.size();
     }
 
     private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {

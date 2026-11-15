@@ -489,6 +489,16 @@ public class SystemConfigService {
             CHECKOUT_PREAUTH_CENTS, (long) CommissionParamBounds.PREAUTH_CENTS_CEILING);
 
     /**
+     * MA-179：元单位资金键（元字符串，可带 ≤2 位小数）——不能进 {@link #FUND_GUARDED_KEYS}
+     * （那边是 Long.parseLong 整数校验，"500.50" 会被 400）。写侧单独校验：形态
+     * {@code ^\d+(\.\d{1,2})?$} 且换算分后不超天花板。读侧 {@code YuanFen.toCents} 已是
+     * 唯一消费面（8c4e7981），超两位小数在写侧被拦后读侧不再抛。
+     */
+    static final java.util.Map<String, Long> FUND_YUAN_KEYS = java.util.Map.of(
+            PLATFORM_FUND_PLAN_BUFFER_YUAN, 10_000_000L,   // 备付计划额，天花板 ¥100,000
+            PLATFORM_FUND_RECON_TOLERANCE_YUAN, 1_000_000L); // 对账容差，天花板 ¥10,000
+
+    /**
      * 「开关即资金动作」的非数值键：不能塞进 {@link #FUND_GUARDED_KEYS}——那个集合同时挂
      * {@link #validateFundKeyValue} 的**整数**校验，布尔值会被当场 400。
      *
@@ -504,6 +514,22 @@ public class SystemConfigService {
      * （{@link #FUND_KEY_CEILINGS} + 按商户费率前缀形态）。违规抛 400。
      */
     private static void validateFundKeyValue(String key, String value) {
+        if (FUND_YUAN_KEYS.containsKey(key)) {
+            // MA-179：元单位键（可 ≤2 位小数）单独校验，不落整数分支
+            String v = value == null ? "" : value.trim();
+            if (!v.matches("\\d+(\\.\\d{1,2})?")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "资金配置 " + key + " 必须是元（可带 ≤2 位小数），当前值非法：" + value);
+            }
+            long cents = new java.math.BigDecimal(v).movePointRight(2).longValue();
+            long ceiling = FUND_YUAN_KEYS.get(key);
+            if (cents < 0 || cents > ceiling) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "资金配置 " + key + " 超出允许范围（0~" + ceiling + " 分 = ¥"
+                                + ceiling / 100 + "）：" + value);
+            }
+            return;
+        }
         long parsed;
         try {
             parsed = Long.parseLong(value == null ? "" : value.trim());

@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.SystemConfigHistoryDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.FeatureFlagCatalogService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsAlertDispatcher;
@@ -38,17 +39,21 @@ public class SystemConfigController {
     private final FileAttachmentService fileAttachmentService;
     private final OpsAlertDispatcher opsAlertDispatcher;
     private final FeatureFlagCatalogService featureFlagCatalogService;
+    /** MA-297：alert-test 探测的 admin_audit_log 留痕。 */
+    private final AdminAuditService auditService;
 
     public SystemConfigController(SystemConfigService systemConfigService,
                                   SystemConfigAuditService systemConfigAuditService,
                                   FileAttachmentService fileAttachmentService,
                                   OpsAlertDispatcher opsAlertDispatcher,
-                                  FeatureFlagCatalogService featureFlagCatalogService) {
+                                  FeatureFlagCatalogService featureFlagCatalogService,
+                                  AdminAuditService auditService) {
         this.systemConfigService = systemConfigService;
         this.systemConfigAuditService = systemConfigAuditService;
         this.fileAttachmentService = fileAttachmentService;
         this.opsAlertDispatcher = opsAlertDispatcher;
         this.featureFlagCatalogService = featureFlagCatalogService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions("ops:config:list")
@@ -96,6 +101,9 @@ public class SystemConfigController {
     @PostMapping("/alert-test")
     public ApiResponse<List<OpsAlertDispatcher.ChannelProbe>> testAlertChannels(
             HttpServletRequest request) {
+        // MA-297：探测本身写审计——「谁在何时测过告警渠道」是排查飞书漏报的关键线索。
+        auditService.appendLog(operatorId(request), "ALERT_CHANNEL_TEST", "SYSTEM_CONFIG",
+                "alert-test", "运营触发告警渠道连通性探测");
         return ApiResponse.ok(opsAlertDispatcher.probeChannels(
                 "ALERT_CHANNEL_TEST",
                 "【测试】运营告警渠道连通性",

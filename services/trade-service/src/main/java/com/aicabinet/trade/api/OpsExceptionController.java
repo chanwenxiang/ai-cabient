@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.JiangyiDeviceDirectory;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.OpsExceptionService;
 import com.aicabinet.trade.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,10 +17,14 @@ public class OpsExceptionController {
     private final OpsExceptionService service;
     private final SessionService sessionService;
     private final JiangyiDeviceDirectory jiangyiDeviceDirectory;
+    /** MA-297：危险动作的 admin_audit_log 留痕（与异常动作表 recordAction 并行）。 */
+    private final AdminAuditService auditService;
+
     public OpsExceptionController(OpsExceptionService service, SessionService sessionService,
-            JiangyiDeviceDirectory jiangyiDeviceDirectory) {
+            JiangyiDeviceDirectory jiangyiDeviceDirectory, AdminAuditService auditService) {
         this.service = service; this.sessionService = sessionService;
         this.jiangyiDeviceDirectory = jiangyiDeviceDirectory;
+        this.auditService = auditService;
     }
     @RequiresPermissions("ops:exception:list")
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
@@ -62,6 +67,8 @@ public class OpsExceptionController {
                     org.springframework.http.HttpStatus.CONFLICT, "该异常未关联购物会话");
         }
         sessionService.forceCancelForOperations(sessionId, body.reason());
+        auditService.appendLog(operatorId, "OPS_EXCEPTION_CANCEL_SESSION", "OPS_EXCEPTION", id,
+                "强制取消会话 " + sessionId + "：" + body.reason());
         return ApiResponse.ok(service.resolveByAction(operatorId, id, "OPS_EXCEPTION_CANCEL_SESSION",
                 body.idempotencyKey(), "已取消会话并释放设备：" + body.reason()));
     }
@@ -94,6 +101,8 @@ public class OpsExceptionController {
                             + "请改用「人工商品处置」按实际拿货补扣");
         }
         service.recordAction(operatorId, id, "OPS_EXCEPTION_RETRY", body.idempotencyKey(), body.reason());
+        auditService.appendLog(operatorId, "OPS_EXCEPTION_RETRY", "OPS_EXCEPTION", id,
+                "重试会话 " + sessionId + "：" + body.reason());
         var session = sessionService.retryForOperations(sessionId);
         if (session.state() == com.aicabinet.common.enums.SessionState.COMPLETED) {
             return ApiResponse.ok(service.resolveByAction(operatorId, id, "OPS_EXCEPTION_RETRY_SUCCESS",
@@ -105,7 +114,10 @@ public class OpsExceptionController {
     @PostMapping("/{id}/manual-resolve") public ApiResponse<OpsExceptionDto> manualResolve(
             HttpServletRequest request, @PathVariable String id,
             @Valid @RequestBody OpsManualResolveRequest body) {
-        return ApiResponse.ok(service.manualResolve(operator(request), id, body.resolutionType(),
+        Long operatorId = operator(request);
+        auditService.appendLog(operatorId, "OPS_EXCEPTION_MANUAL_RESOLVE", "OPS_EXCEPTION", id,
+                "人工商品处置 resolutionType=" + body.resolutionType() + "：" + body.reason());
+        return ApiResponse.ok(service.manualResolve(operatorId, id, body.resolutionType(),
                 body.items(), body.idempotencyKey(), body.reason()));
     }
     private boolean alreadyProcessed(OpsExceptionDetailDto detail, String idempotencyKey) {

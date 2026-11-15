@@ -245,4 +245,23 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
     java.util.List<PaymentOperation> findStaleChargePending(@Param("cutoff") java.time.Instant cutoff,
                                                             @Param("limit") int limit);
 
+    /**
+     * MA-284：退款同步「扣了账、单据没推进」的存量单（账本 RECHARGE_REFUND 流水合计
+     * 仍大于订单 refunded_cents ⇒ finalizeChannelPartialRefund 那半段丢失），供告警巡检。
+     * 只告警不自动修：补推进要按退款单逐笔核对渠道结果，与 MA-269 的残留边界（§11）同档。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            SELECT o.order_id AS "orderId", o.user_id AS "userId",
+                   COALESCE(SUM(p.amount_cents), 0) AS "debitedCents",
+                   COALESCE(o.refunded_cents, 0) AS "refundedCents"
+            FROM payment_operation p
+            JOIN cabinet_order o ON o.order_id = p.order_id
+            WHERE p.operation_type = 'RECHARGE_REFUND' AND p.status = 'COMPLETED'
+            GROUP BY o.order_id, o.user_id, o.refunded_cents
+            HAVING COALESCE(SUM(p.amount_cents), 0) > COALESCE(o.refunded_cents, 0)
+            ORDER BY o.order_id
+            LIMIT #{limit}
+            """)
+    java.util.List<java.util.Map<String, Object>> findRefundSyncNotAdvanced(@Param("limit") int limit);
+
 }
