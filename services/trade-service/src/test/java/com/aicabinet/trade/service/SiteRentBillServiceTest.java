@@ -1,15 +1,19 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.trade.domain.SiteContract;
 import com.aicabinet.trade.domain.SiteRentSplitRule;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SiteRentBillServiceTest {
 
@@ -108,6 +112,59 @@ class SiteRentBillServiceTest {
                 rule(CabinetConstants.RENT_PARTY_LANDLORD, null, 5000, 8000),
                 rule(CabinetConstants.RENT_PARTY_PLATFORM, null, 5000, 8000))));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+    }
+
+    // ================= MA-273：场地租金出账必须落在合同租期内 =================
+
+    /** 还没起租（起租日晚于账期末）⇒ 不出账。 */
+    @Test
+    void contractTerm_notStartedYet_isNotEffective() {
+        SiteContract c = contract("2026-09-15", "2027-09-14");
+        assertFalse(SiteRentBillService.isContractEffectiveInMonth(
+                c, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)));
+        assertTrue(SiteRentBillService.describeContractTermMiss(
+                c, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31)).contains("未起租"));
+    }
+
+    /** 已到期（到期日早于账期初）⇒ 不出账。 */
+    @Test
+    void contractTerm_expired_isNotEffective() {
+        SiteContract c = contract("2025-01-01", "2026-03-31");
+        assertFalse(SiteRentBillService.isContractEffectiveInMonth(
+                c, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)));
+        assertTrue(SiteRentBillService.describeContractTermMiss(
+                c, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)).contains("已到期"));
+    }
+
+    /** 🔴 null = 不限：历史合同没填日期时不能因此停止出账（否则改动当天全站停付）。 */
+    @Test
+    void contractTerm_nullDates_meanUnbounded() {
+        SiteContract c = contract(null, null);
+        assertTrue(SiteRentBillService.isContractEffectiveInMonth(
+                c, LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)));
+        // 只有一侧为空时，另一侧仍然生效
+        assertFalse(SiteRentBillService.isContractEffectiveInMonth(
+                contract(null, "2026-03-31"), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)));
+        assertTrue(SiteRentBillService.isContractEffectiveInMonth(
+                contract(null, null), LocalDate.of(2030, 1, 1), LocalDate.of(2030, 1, 31)));
+    }
+
+    /** 边界：起租恰在月末、到期恰在月初都算有交集（整月仍出账）。 */
+    @Test
+    void contractTerm_boundaryDaysCountAsOverlap() {
+        assertTrue(SiteRentBillService.isContractEffectiveInMonth(
+                contract("2026-04-30", null), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)));
+        assertTrue(SiteRentBillService.isContractEffectiveInMonth(
+                contract(null, "2026-04-01"), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)));
+    }
+
+    private static SiteContract contract(String start, String end) {
+        SiteContract c = new SiteContract();
+        c.setStartDate(start == null ? null : LocalDate.parse(start));
+        c.setEndDate(end == null ? null : LocalDate.parse(end));
+        c.setMonthlyFeeCents(100000);
+        c.setStatus(CabinetConstants.PROMOTION_STATUS_ACTIVE);
+        return c;
     }
 
     private static SiteRentSplitRule rule(String type, String partyId, int bps, int fixed) {

@@ -81,7 +81,9 @@ public class SiteRentBillService {
     public List<SiteRentBillDto> generateForContract(Long operatorId, Long contractId,
                                                      GenerateMonthlyFeeBillsRequest request) {
         String month = monthResolver.resolve(request == null ? null : request.billMonth());
-        return runWithBillLock(contractId, month, () -> doGenerateForContract(operatorId, contractId, month));
+        // strict=true：手动出账时账期落在合同租期之外要明确报错（不是静默 0 张）
+        return runWithBillLock(contractId, month,
+                () -> doGenerateForContract(operatorId, contractId, month, true));
     }
 
     @Transactional
@@ -107,7 +109,7 @@ public class SiteRentBillService {
                 continue;
             }
             created.addAll(runWithBillLock(c.getContractId(), month,
-                    () -> doGenerateForContract(operatorId, c.getContractId(), month)));
+                    () -> doGenerateForContract(operatorId, c.getContractId(), month, false)));
         }
         log.info("site rent bills generated for month={} count={} operatorId={}", month, created.size(), operatorId);
         return created;
@@ -172,7 +174,12 @@ public class SiteRentBillService {
         return toDto(bill);
     }
 
-    private List<SiteRentBillDto> doGenerateForContract(Long operatorId, Long contractId, String month) {
+    /**
+     * @param strict true=手动出账（账期不在租期内抛 400）；false=批量/定时出账（跳过，
+     *               否则一张租期外的合同会让整批中断）
+     */
+    private List<SiteRentBillDto> doGenerateForContract(Long operatorId, Long contractId, String month,
+                                                        boolean strict) {
         if (operatorId != null) {
             permissionService.requirePermission(operatorId, "ops:org:edit");
         }
@@ -186,6 +193,17 @@ public class SiteRentBillService {
         YearMonth ym = YearMonth.parse(month);
         LocalDate monthStart = ym.atDay(1);
         LocalDate monthEnd = ym.atEndOfMonth();
+
+        // MA-273：账期与合同租期无交集 ⇒ 不出账。场地租金是对外付款，原实现只看合同 status，
+        // 于是「还没起租」和「已经到期」的合同（status 仍是 ACTIVE/EXPIRING）照样按月出账。
+        if (!isContractEffectiveInMonth(contract, monthStart, monthEnd)) {
+            String reason = describeContractTermMiss(contract, monthStart, monthEnd);
+            if (strict) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, reason);
+            }
+            log.info("site rent bill skipped contractId={} month={} reason={}", contractId, month, reason);
+            return List.of();
+        }
 
         List<SiteRentSplitRule> rules = ruleMapper.findByContractId(contractId).stream()
                 .filter(r -> CabinetConstants.PROMOTION_STATUS_ACTIVE.equalsIgnoreCase(r.getStatus()))
@@ -334,6 +352,41 @@ public class SiteRentBillService {
             return false;
         }
         return true;
+    }
+
+    /**
+     * MA-273：账期与合同租期是否有交集。
+     *
+     * <p><b>null = 不限</b>，与 UI 一致（{@code OrgSitesView} 列表里起租空着显示「暂无」、
+     * 到期空着显示「不限」）；历史合同可能没填日期，若把 null 判成「不在租期」，
+     * 加这条判据当天就会让所有未填日期的合同停止出账 —— 那是比原缺陷更大的事故。
+     *
+     * <p><b>有交集即整月出账，月内部分覆盖不按天折算</b>：合同 3-15 起租时 3 月仍出全额月费。
+     * 这是既有口径（首月是否折算属于商务约定，UI 与旧系统都没有折算语义），本条只修
+     * 「完全没有交集仍然出账」这一个缺陷，不顺手改金额。
+     */
+    static boolean isContractEffectiveInMonth(SiteContract c, LocalDate monthStart, LocalDate monthEnd) {
+        if (c == null) {
+            return false;
+        }
+        if (c.getStartDate() != null && c.getStartDate().isAfter(monthEnd)) {
+            return false;
+        }
+        if (c.getEndDate() != null && c.getEndDate().isBefore(monthStart)) {
+            return false;
+        }
+        return true;
+    }
+
+    /** 租期落空的原因文案（手动出账时直接回给操作员，能看出是没起租还是已到期）。 */
+    static String describeContractTermMiss(SiteContract c, LocalDate monthStart, LocalDate monthEnd) {
+        if (c != null && c.getStartDate() != null && c.getStartDate().isAfter(monthEnd)) {
+            return "合同未起租：起租日 " + c.getStartDate() + " 晚于账期截止 " + monthEnd;
+        }
+        if (c != null && c.getEndDate() != null && c.getEndDate().isBefore(monthStart)) {
+            return "合同已到期：到期日 " + c.getEndDate() + " 早于账期开始 " + monthStart;
+        }
+        return "账期不在合同租期内";
     }
 
     private SiteContract requireContract(Long contractId) {
