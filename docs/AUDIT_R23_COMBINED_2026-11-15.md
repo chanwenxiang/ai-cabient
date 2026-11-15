@@ -629,3 +629,55 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 | 登记 | 两个 `fix(gates)` 提交按既有惯例进 `unregisteredAllowlist`（门禁基建、零业务代码），带 why；prettier 全绿 |
 
 **本批没再做「四次预检」**：按批 7 的教训，新增夹具 / 改判据 / 加 `.test.mjs` / `fix(...)` 提交四处登记在一轮里同时改完，第一次预检即通过。
+
+## 14. 修复批 9：CI 真栈取证 + MA-280（2026-11-15 傍晚）
+
+上一批把 MA-280 / MA-293 留了下来，理由是「需要真栈确认」。本批把 CI 日志拉下来实证，两条都拿到了决定性证据；**修掉 MA-280，MA-293 仍留（但阻塞点已从「不知道」变成「知道要验什么」）**。
+
+### 14-1 取证方式
+
+`gh run view --log --job` 走流式日志被代理掐断（`stream ID 1; CANCEL`），改走
+`gh api repos/<owner>/<repo>/actions/jobs/<jobId>/logs` 直接取文本日志（222966 字节），可检索、可存档。
+取的是已完成的 `43698709479`（批 7/8 的 `bdc34d86`）里 `mini-programs` job `132764842835`。
+
+另外 `gh api .../actions/secrets --jq '.secrets[].name'` 确认 `MP_WEIXIN_APPID_CONSUMER` /
+`MP_WEIXIN_APPID_MERCHANT` / `MP_API_BASE_URL` 三个 secret 都在（只看名字，不读值）。
+
+### 14-2 MA-280 实锤与修法修正
+
+| 时刻 | 日志 | 结论 |
+|---|---|---|
+| `09:21:12` | `[check-mp-scoped-hash] SKIP：未找到产物目录（先构建小程序）` | 聚合链（`ci.yml:750`）跑在构建之前 ⇒ **恒零覆盖**，台账成立 |
+| `09:23:18` | `> … uni build -p mp-weixin && … && node ../../scripts/check-mp-scoped-hash.mjs dist/build/mp-weixin` | secrets 有值，构建真跑；命令末尾**内嵌**了产物级检查 |
+| `09:23:25` / `09:23:37` | consumer / merchant 各输出一次 `OK：…/dist/build/mp-weixin 的 wxml/wxss scoped 哈希全部成对` | **真实产物其实被检查了** |
+
+这改变了修法：不需要「摘链 + 构建后加 step」（那样还得处理 secrets 缺失时的跳过语义），而是让无参数那条**不再假装判过**：
+
+- 无产物且无显式参数 ⇒ 验两个 `build:mp-weixin` 都内嵌了带 `dist/build/mp-weixin` 路径的检查，缺一侧即红；
+- 有显式参数却找不到产物 ⇒ 红（构建没产出不得判绿）；
+- 有产物 ⇒ 保持原有 wxml/wxss scoped 哈希比对。
+
+新增 `MP_SCOPED_HASH_ROOTS` 让夹具能复刻「CI 干净检出无产物」。新建 `check-mp-scoped-hash.test.mjs`（9 项：接线三态 / 真仓面 / 无产物验接线 / 显式路径负向），接进 `check:mp-scoped-hash` 命令串并移出 exempt ⇒ 夹具覆盖 **89/147**、豁免 **58/69**。
+
+**残留（如实）**：`dist/dev/mp-weixin` 是本地 watcher 产物、不入库，CI 里不存在也不检查；只有本地能查。这是刻意的——把 dev watcher 产物搬进 CI 需要另起构建，超出本条范围。
+
+### 14-3 MA-293 实锤，以及为什么不在这批硬改
+
+`09:20:40` 输出 `[check-admin-artifact-pairing] OK：无待推提交` ⇒ `merge-base(origin/dev, HEAD) == HEAD` 在 CI 里**恒真**（checkout 把 `origin/dev` 指向 HEAD），两处 fail-open 均实锤。
+
+阻塞点：`ci.yml` 同时由 `push` **和** `pull_request` 触发。
+
+- `push` 可以用 `github.event.before..HEAD`（GitHub 提供推送前 SHA）；
+- `pull_request` 没有 `github.event.before`，且 PR 检出的是 merge commit，`origin/dev` 引用不保证存在 ⇒ 若按台账字面把「merge-base 失败即 SKIP 绿」直接改成红，会挂掉所有 PR CI；
+- 本地预检里 `mb == head` 是**真的**「刚推完、无待推提交」，不能一刀切判红。
+
+正解要按事件类型分别取范围（push 用 `github.event.before`，PR 用 `origin/${base_ref}...HEAD` 或 merge 第一父），并保留本地语义；这轮需要一次 PR CI 点验才能确认。证据与方案已写进 `ISSUES.md` MA-293 的「批 9 真栈实证」段，**不是静默跳过**。
+
+### 14-4 验证
+
+| 项 | 结果 |
+|---|---|
+| 真栈 | CI 日志三条关键输出逐条核对；secrets 名单核对；`git ls-files dist/build/mp-weixin = 0` 解释「干净检出无产物」 |
+| 门禁 | `check-mp-scoped-hash` 本地 4 个产物目录全 OK；`check-audit-gates-wiring` OK（198 个 check 文件全接线 / 夹具 89/147 / 豁免 58/69）；`check-gate-test-coupling` OK（74 文件 / 8 个判据同批夹具齐） |
+| 三态负向 | ① 退回无产物 SKIP ⇒ 断言「无产物时没有验接线」红；② 关掉显式路径 fail-closed ⇒ 「显式路径不存在时竟然 exit 0」红。两次均还原且 md5 逐字节一致 |
+| 上批 CI | `bdc34d86` **completed/success**（build / admin-artifacts / mini-programs / e2e-h5 / integration 五个 job 全绿） |
