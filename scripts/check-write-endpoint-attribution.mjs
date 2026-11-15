@@ -139,11 +139,31 @@ function extractMethod(lines, sigIdx) {
   return { body: lines.slice(sigIdx, end + 1).join('\n'), endLine: end + 1 };
 }
 
+// 🔴 2026-11-15 C06/MA-267：方法声明解析必须容忍两种真实形态，否则**静默漏端点**：
+//   ① **限定名返回类型**：`public ApiResponse<com.aicabinet.common.dto.PayContractDto> signPayScore(`
+//      `public ApiResponse<JiangyiRestockService.SubmitResult> restockSubmit(` —— 类型里有 `.`；
+//   ② **注解与签名同行**：`@PostMapping("/{id}/retry") public ApiResponse<OpsExceptionDto> retry(`
+//      —— 旧实现从注解的**下一行**起扫，同行签名必然扫不到。
+// 旧判据 `/public\s+[\w<>,\s]+?\s+\w+\s*\(/` 缺 `.` 且窗口从 i+1 起 ⇒ 477 个写注解只解析出
+// 455 个端点（漏 22 个 / 9 个控制器），而基线 `totalEndpoints=455` 与坏解析器输出逐字相等 ⇒
+// 漏掉的 22 个端点长期零覆盖、门禁恒绿（基线由坏解析器种出来的自证陷阱）。
+const ANNOTATION_RE = /@[\w.]+(?:\s*\((?:[^()]|\([^()]*\))*\))?/g;
+const DECL_RE = /(?:public|protected|private)\s+[\w.<>[\],?&\s]+?\s+(\w+)\s*\(/;
+/** 窗口：注解与方法声明之间最多隔几行（长注解 + 多行参数表的真实上限） */
+const SIG_WINDOW = 12;
+
+/**
+ * 单行是否有 Java 方法声明；返回方法名或 null。先抹掉注解（允许注解与签名同行），
+ * 再取「`(` 前的最后一个标识符」——非贪婪使返回类型里的 `.` `<>` `[]` `?` `&` 都被吃在类型位。
+ */
+export function declNameOf(line) {
+  const stripped = line.replace(ANNOTATION_RE, ' ');
+  const m = stripped.match(DECL_RE);
+  return m ? m[1] : null;
+}
+
 function findMethod(lines, methodName) {
-  const re = new RegExp(
-    `(?:public|protected|private)\\s+[\\w<>,\\[\\]\\s]+\\s+${methodName}\\s*\\(`
-  );
-  for (let i = 0; i < lines.length; i++) if (re.test(lines[i])) return i;
+  for (let i = 0; i < lines.length; i++) if (declNameOf(lines[i]) === methodName) return i;
   return -1;
 }
 
@@ -263,15 +283,18 @@ export function controllerEndpoints(src) {
   const endpoints = [];
   for (let i = 0; i < lines.length; i++) {
     if (!/@(?:Post|Put|Patch|Delete)Mapping/.test(lines[i])) continue;
+    // 从注解**本行**起扫（同行签名），窗口内第一个方法声明即为该端点的签名行。
     let sig = -1;
-    for (let j = i + 1; j < Math.min(i + 8, lines.length); j++) {
-      if (/public\s+[\w<>,\s]+?\s+\w+\s*\(/.test(lines[j])) {
+    let name = '?';
+    for (let j = i; j < Math.min(i + SIG_WINDOW, lines.length); j++) {
+      const n = declNameOf(lines[j]);
+      if (n) {
         sig = j;
+        name = n;
         break;
       }
     }
     if (sig < 0) continue;
-    const name = lines[sig].match(/(\w+)\s*\(/)?.[1] ?? '?';
     const { body } = extractMethod(lines, sig);
     let attributed = hasBusinessAuditCall(body, cls);
     if (!attributed && cls) {
@@ -379,10 +402,24 @@ function main() {
   if (controllers.length === 0) fail('写控制器提取数=0（提取器坏了，零命中=假绿）');
 
   const snapshot = [];
+  const parseProblems = [];
   for (const f of controllers) {
     const rel = relative(ROOT, f).replace(/\\/g, '/');
     const src = rawOf.get(f);
     const { cls, endpoints } = controllerEndpoints(src);
+    // 🔴 核心不变量（C06/MA-267 落点）：**写注解数 == 解析出的端点数**。
+    //    声明解析一旦有盲区（限定名返回类型 / 注解同行 / 更长窗口），端点就被**静默跳过**：
+    //    它不进 snapshot、不受逐控制器棘轮约束，而基线又是坏解析器种出来的 ⇒
+    //    「基线 totalEndpoints 与坏解析器输出逐字相等」的自证陷阱，门禁恒绿。
+    //    因此这条必须按「注解 vs 解析」对账，不能只依赖基线总量（总量由解析器自己产出）。
+    //    注解计数在 maskJava 之后做：注释掉的端点不算（铁律 84①）。
+    const annoCount = (maskJava(src).match(WRITE_RE) || []).length;
+    if (annoCount !== endpoints.length) {
+      parseProblems.push(
+        `${rel.split('/').pop()}：写注解 ${annoCount} 个但只解析出 ${endpoints.length} 个端点——` +
+          `声明解析盲区，被跳过的端点不进快照、长期零覆盖（C06/MA-267 形态）`
+      );
+    }
     if (endpoints.length === 0) continue;
     snapshot.push({
       file: rel,
@@ -392,8 +429,8 @@ function main() {
     });
   }
 
-  const problems = evaluate(snapshot, baseline, baselineJson);
-  // 未归因总量棘轮（只许减）：存量 215 在册，新端点未归因/归因退化都会顶破
+  const problems = [...parseProblems, ...evaluate(snapshot, baseline, baselineJson)];
+  // 未归因总量棘轮（只许减）：存量 222 在册，新端点未归因/归因退化都会顶破
   const maxUnattr =
     typeof baselineJson.maxUnattributed === 'number' ? baselineJson.maxUnattributed : Infinity;
   const totalEp = snapshot.reduce((n, s) => n + s.endpoints, 0);

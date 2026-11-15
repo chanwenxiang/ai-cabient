@@ -14,8 +14,8 @@
  *
  *   node scripts/check-write-endpoint-attribution.test.mjs
  */
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   evaluate,
@@ -32,6 +32,16 @@ function assert(cond, message) {
   if (!cond) throw new Error(`${TAG} 断言失败：${message}`);
 }
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function walkJava(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) walkJava(p, out);
+    else if (n.endsWith('.java')) out.push(p);
+  }
+  return out;
+}
 
 // ── A. evaluate 棘轮（合成快照） ──
 
@@ -220,12 +230,86 @@ assert(
   const entryCount = Object.keys(baselineEntries).length;
   assert(entryCount >= 90, `基线条目应 ≥90，实际 ${entryCount}`);
   assert((baseline.totalEndpoints || 0) >= 400, `基线端点应 ≥400，实际 ${baseline.totalEndpoints}`);
-  // C3) maxUnattributed 棘轮与快照口径一致：未归因存量 = 天花板（217 冻结只减）
+// C3) maxUnattributed 棘轮与快照口径一致：未归因存量 = 天花板（冻结只减，
+//     2026-11-15 解析面纠偏后 215→222，此后只许减）
+{
   const unattr = (baseline.totalEndpoints || 0) - (baseline.totalAttributed || 0);
   assert(
     typeof baseline.maxUnattributed === 'number' && baseline.maxUnattributed === unattr,
     `maxUnattributed(${baseline.maxUnattributed}) 应等于未归因存量(${unattr})——重种快照后须同步`
   );
+}
+
+// C4) 声明解析盲区（C06/MA-267）：限定名返回类型 + 注解与签名同行 + 路径值内含正则，
+//     三种形态都必须被解析出来。旧判据（`/public\s+[\w<>,\s]+?\s+\w+\s*\(/`、窗口从 i+1 起）
+//     对这三种一律 sig<0 ⇒ 端点被**静默跳过**：不进快照、不受棘轮约束、基线由坏解析器自证。
+{
+  const src = [
+    '@RestController',
+    'public class SynthParseController {',
+    '    @PostMapping("/payscore/sign")',
+    '    public ApiResponse<com.aicabinet.common.dto.PayContractDto> signPayScore(HttpServletRequest r) {',
+    '        return ApiResponse.ok(svc.sign(r));',
+    '    }',
+    '    @PostMapping("/{id}/retry") public ApiResponse<OpsExceptionDto> retry(HttpServletRequest r) {',
+    '        return ApiResponse.ok(svc.retry(r));',
+    '    }',
+    '    @DeleteMapping("/{configKey:.+}")',
+    '    public ApiResponse<Void> drop(@PathVariable String k) {',
+    '        return ApiResponse.ok(svc.drop(k));',
+    '    }',
+    '    /** 注释里的 @PostMapping("/fake") 不算端点 */',
+    '    @GetMapping("/read")',
+    '    public ApiResponse<Void> read() { return ApiResponse.ok(); }',
+    '}'
+  ].join('\n');
+  const { cls, endpoints } = controllerEndpoints(src);
+  assert(cls === 'SynthParseController', `合成类名提取错：${cls}`);
+  assert(
+    endpoints.length === 3,
+    `限定名返回类型/同行签名必须解析出来（旧判据漏解析）：实际 ${endpoints.length}`
+  );
+  const names = endpoints.map((e) => e.name).join(',');
+  assert(
+    names === 'signPayScore,retry,drop',
+    `方法名不得被注解名顶替（@PostMapping( 会先命中）：实际 ${names}`
+  );
+  assert(
+    endpoints.every((e) => e.attributed === false),
+    '合成源码无审计链，不该判成归因'
+  );
+}
+
+// C5) 真实仓面全量不变量：写注解数 == 写端点数（每个控制器逐个对账）。
+//     这是 C06 这类「解析器盲区」的类级判据——只要有一个签名解析不出来就红，
+//     不依赖基线（基线是解析器的输出，自己产自己验会自证）。
+{
+  const WRITE = /@(?:Post|Put|Patch|Delete)Mapping/g;
+  const files = [
+    'trade-service',
+    'device-service',
+    'common/common-core',
+    'jiangyi-gateway'
+  ].flatMap((s) => walkJava(resolve(ROOT, 'services', s, 'src/main/java')));
+  let anno = 0;
+  let parsed = 0;
+  const bad = [];
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    const n = (src.match(WRITE) || []).length;
+    if (n === 0) continue;
+    anno += n;
+    const got = controllerEndpoints(src).endpoints.length;
+    parsed += got;
+    if (got !== n) bad.push(`${f.split(/[\\/]/).pop()} ${n}/${got}`);
+  }
+  assert(anno >= 470, `写注解总数异常偏低（扫描面破了）：${anno}`);
+  assert(
+    bad.length === 0,
+    `写注解数与解析端点数不等（解析盲区）：${bad.join(' | ')}`
+  );
+  assert(parsed === anno, `端点解析 ${parsed} ≠ 注解 ${anno}`);
+}
 }
 
 console.log(`${TAG} OK：${checks} 项断言全过`);

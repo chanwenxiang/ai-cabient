@@ -1,11 +1,68 @@
 {
-  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红；未解析端点 attributed=false 显式在册，修复后收紧。totalEndpoints / totalAttributed / maxUnattributed 全部参与判定（2026-11-14 第五轮）：总量任一变化都须重种基线——归因上升也要人工复核，防解析链放宽或失败路径审计被误算造成的假归因（旧判据改个类名即可 240→258 假绿）；maxUnattributed 是未归因存量天花板（只许减），重种快照后须同步。",
-  "seedDate": "2026-11-14",
-  "totalEndpoints": 455,
-  "totalAttributed": 240,
+  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红；未解析端点 attributed=false 显式在册，修复后收紧。totalEndpoints / totalAttributed / maxUnattributed 全部参与判定（2026-11-14 第五轮）：总量任一变化都须重种基线——归因上升也要人工复核，防解析链放宽或失败路径审计被误算造成的假归因（旧判据改个类名即可 240→258 假绿）；maxUnattributed 是未归因存量天花板（只许减），重种快照后须同步。2026-11-15（MA-267/C06）：方法声明解析补齐限定名返回类型（`ApiResponse<com.x.Y>`）与注解同行签名两形态，端点 455→477（22 个此前从未被解析、长期零覆盖），其中 15 个归因、7 个无审计；maxUnattributed 215→222 属解析面纠偏而非放松棘轮——原 215 是漏算结果，此后只许减。",
+  "seedDate": "2026-11-15",
+  "totalEndpoints": 477,
+  "totalAttributed": 255,
+  "maxUnattributed": 222,
   "controllers": {
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java": {
+    "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/AliyunOssController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCommandController.java": {
       "endpoints": 6,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCompatController.java": {
+      "endpoints": 17,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceExtensionController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceInfoController.java": {
+      "endpoints": 4,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceReportController.java": {
+      "endpoints": 16,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceTokenController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DomainConfigController.java": {
+      "endpoints": 3,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/GatherNotifyController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/ModelPushController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OpenDoorController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OrderVideoReportController.java": {
+      "endpoints": 2,
+      "attributed": 0
+    },
+    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OssPresignController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java": {
+      "endpoints": 8,
       "attributed": 0
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminBalanceRefundController.java": {
@@ -33,8 +90,8 @@
       "attributed": 6
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java": {
-      "endpoints": 21,
-      "attributed": 14
+      "endpoints": 27,
+      "attributed": 20
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AlipayNotifyController.java": {
       "endpoints": 1,
@@ -76,9 +133,25 @@
       "endpoints": 2,
       "attributed": 1
     },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DemoDataInternalController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/DepartmentController.java": {
       "endpoints": 3,
       "attributed": 3
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockAlipayPaymentController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockPaymentController.java": {
+      "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockRechargeController.java": {
+      "endpoints": 1,
+      "attributed": 0
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceController.java": {
       "endpoints": 2,
@@ -99,18 +172,6 @@
     "services/trade-service/src/main/java/com/aicabinet/trade/api/DeviceMqttCredentialController.java": {
       "endpoints": 2,
       "attributed": 2
-    },
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockAlipayPaymentController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockPaymentController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/DevMockRechargeController.java": {
-      "endpoints": 1,
-      "attributed": 0
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/DisputeController.java": {
       "endpoints": 4,
@@ -140,6 +201,10 @@
       "endpoints": 3,
       "attributed": 1
     },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/MemberController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantAdminController.java": {
       "endpoints": 4,
       "attributed": 4
@@ -161,8 +226,8 @@
       "attributed": 12
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWalletController.java": {
-      "endpoints": 2,
-      "attributed": 2
+      "endpoints": 3,
+      "attributed": 3
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWarehouseStocktakeController.java": {
       "endpoints": 6,
@@ -188,6 +253,10 @@
       "endpoints": 1,
       "attributed": 1
     },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDevOpsController.java": {
+      "endpoints": 1,
+      "attributed": 1
+    },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceEnvController.java": {
       "endpoints": 2,
       "attributed": 1
@@ -196,12 +265,8 @@
       "endpoints": 6,
       "attributed": 5
     },
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDevOpsController.java": {
-      "endpoints": 1,
-      "attributed": 1
-    },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExceptionController.java": {
-      "endpoints": 7,
+      "endpoints": 10,
       "attributed": 2
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExternalImportController.java": {
@@ -265,19 +330,19 @@
       "attributed": 1
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsWarehouseController.java": {
-      "endpoints": 15,
-      "attributed": 15
+      "endpoints": 19,
+      "attributed": 19
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OrderController.java": {
       "endpoints": 3,
       "attributed": 2
     },
-    "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java": {
-      "endpoints": 2,
-      "attributed": 0
-    },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/PayScoreNotifyController.java": {
       "endpoints": 1,
+      "attributed": 0
+    },
+    "services/trade-service/src/main/java/com/aicabinet/trade/api/PaymentController.java": {
+      "endpoints": 2,
       "attributed": 0
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/PromotionController.java": {
@@ -309,11 +374,11 @@
       "attributed": 1
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/SysDictController.java": {
-      "endpoints": 2,
-      "attributed": 2
+      "endpoints": 5,
+      "attributed": 5
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/SystemConfigController.java": {
-      "endpoints": 4,
+      "endpoints": 5,
       "attributed": 0
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/UserFeedbackController.java": {
@@ -331,63 +396,6 @@
     "services/trade-service/src/main/java/com/aicabinet/trade/api/WeChatNotifyController.java": {
       "endpoints": 2,
       "attributed": 0
-    },
-    "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java": {
-      "endpoints": 3,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/AliyunOssController.java": {
-      "endpoints": 2,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCommandController.java": {
-      "endpoints": 6,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceCompatController.java": {
-      "endpoints": 17,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceExtensionController.java": {
-      "endpoints": 3,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceInfoController.java": {
-      "endpoints": 4,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceReportController.java": {
-      "endpoints": 16,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceTokenController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DomainConfigController.java": {
-      "endpoints": 3,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/GatherNotifyController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/ModelPushController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OpenDoorController.java": {
-      "endpoints": 1,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OrderVideoReportController.java": {
-      "endpoints": 2,
-      "attributed": 0
-    },
-    "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/OssPresignController.java": {
-      "endpoints": 1,
-      "attributed": 0
     }
-  },
-  "maxUnattributed": 215
+  }
 }

@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAsync } from './lib/async-spawn.mjs';
-import { pickShapeHit, recordComponentNames } from './check-openapi-regen-required.mjs';
+import { pickShapeHit, recordComponentNames, mappingSignature } from './check-openapi-regen-required.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TAG = '[check-openapi-regen-required.test]';
@@ -96,6 +96,39 @@ public record DemoRequest(
   check(
     '普通 DTO 的 private 字段声明仍然命中（旧判据不回退）',
     !!pickShapeHit(DTO, ['    private String note;'], 'class A { private String note; }')
+  );
+}
+
+// ── 纯函数：映射签名（C06 同族，2026-11-15） ─────────────────────────────
+// 注解与方法签名**同行**时返回类型必须进签名——否则只改响应类型不触发重生成，
+// `openapi.ts` 静默过期（实测 OpsExceptionController 11 个端点全中）。
+{
+  const sameLine =
+    '@PostMapping("/{id}/retry") public ApiResponse<OpsExceptionDto> retry(HttpServletRequest request,';
+  check(
+    '注解同行签名 ⇒ 返回类型进签名',
+    mappingSignature(sameLine).includes('ret:ApiResponse<OpsExceptionDto>'),
+    mappingSignature(sameLine).join('|')
+  );
+  check(
+    '注解同行签名 ⇒ 路径字面量仍进签名',
+    mappingSignature(sameLine).includes('Post:/{id}/retry'),
+    mappingSignature(sameLine).join('|')
+  );
+  const twoLine = [
+    '@PostMapping("/{id}/retry")',
+    'public ApiResponse<OpsExceptionDto> retry(HttpServletRequest request,'
+  ].join('\n');
+  check(
+    '注解与签名分行（常规形态）不回退',
+    mappingSignature(twoLine).includes('ret:ApiResponse<OpsExceptionDto>'),
+    mappingSignature(twoLine).join('|')
+  );
+  check(
+    '限定名返回类型也进签名',
+    mappingSignature(
+      '@PostMapping("/a") public ApiResponse<com.aicabinet.common.dto.PayContractDto> sign()'
+    ).includes('ret:ApiResponse<com.aicabinet.common.dto.PayContractDto>')
   );
 }
 

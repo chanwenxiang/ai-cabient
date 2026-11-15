@@ -74,15 +74,20 @@ const EXEMPTIONS = existsSync(EXEMPTION_FILE)
  * 这三类恰恰是真正会改 spec 的动作。参数列表里的服务端形参（HttpServletRequest 等）
  * 不进签名，正是要放行的那一类。
  */
-function mappingSignature(src) {
+export function mappingSignature(src) {
   const out = [];
   for (const l of src.split(/\r?\n/)) {
     const t = l.trim();
     const m = /^@(Get|Post|Put|Delete|Patch)Mapping(?:\(([^)]*)\))?/.exec(t);
     if (m) out.push(`${m[1]}:${(m[2] || '').replace(/["\s]/g, '')}`);
+    // 🔴 C06 同族（2026-11-15）：注解与签名**同行**的控制器方法，返回类型必须也进签名。
+    //    旧判据在整行 trim 后要求 `^public`，而该行以 `@…Mapping` 开头 ⇒ 返回类型永远抽不到
+    //    （实测 OpsExceptionController 11 个端点全中）：只改这些端点的响应类型不会触发
+    //    重生成判据，`openapi.ts` 静默过期。先剥掉行首注解再判。
+    const code = t.startsWith('@') ? t.replace(/^@\w+(?:\([^()]*\))?\s*/, '') : t;
     const r =
       /^\s*public\s+(ApiResponse<[^>]*>|ResponseEntity<[^>]*>|[A-Za-z][\w<>,. ]*)\s+\w+\s*\(/.exec(
-        t
+        code
       );
     if (r) out.push(`ret:${r[1].replace(/\s+/g, '')}`);
   }
