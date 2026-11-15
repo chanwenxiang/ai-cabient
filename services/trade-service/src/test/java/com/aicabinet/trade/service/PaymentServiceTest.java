@@ -667,17 +667,45 @@ class PaymentServiceTest {
         order.setChannel("WECHAT");
         // outRefundNo 为空（商户平台手工退款常态）⇒ 短路不查 selectCount，直接进同步
         when(rechargeOrderRepository.findById("R-MANUAL")).thenReturn(Optional.of(order));
-        when(balanceLedgerService.change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
+        when(balanceLedgerService.changeTracked(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
                 eq("channel-refund-sync:RF-1"), anyString()))
-                .thenReturn(new PaymentOperation());
+                .thenReturn(new BalanceLedgerService.AppliedChange(new PaymentOperation(), true));
         when(rechargeOrderRepository.findByIdForUpdate("R-MANUAL")).thenReturn(Optional.of(order));
 
         paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
 
-        verify(balanceLedgerService).change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
+        verify(balanceLedgerService).changeTracked(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-MANUAL"),
                 eq("channel-refund-sync:RF-1"), anyString());
         assertEquals("REFUNDED", order.getStatus());
         assertEquals(100, order.getRefundedCents());
+    }
+
+    /**
+     * MA-269 钉测（2026-11-15）：同一 {@code refund_id} 的**并发**投递。
+     *
+     * <p>与下面「顺序重投」用例的区别：那一例靠 {@code findByIdempotencyKey} 快速通道拦住
+     * （重投时流水早已提交）；并发时两边都还没看到流水，快速通道双双放行。余额侧因幂等键只扣
+     * 一次，若单据推进不看 {@code applied}，就会记两次已退额。</p>
+     */
+    @Test
+    void handleWeChatRefundNotify_concurrentDuplicate_ledgerNotApplied_skipsOrderAdvance() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(refundNotify("R-CONC", "RF-CONC", "", "SUCCESS", 100));
+        RechargeOrder order = paidOrder("R-CONC", 10001L, 500);
+        order.setChannel("WECHAT");
+        when(rechargeOrderRepository.findById("R-CONC")).thenReturn(Optional.of(order));
+        when(paymentOperationRepository.findByIdempotencyKey("channel-refund-sync:RF-CONC"))
+                .thenReturn(Optional.empty());
+        // 账本侧给出权威答案：流水已存在，本次**没有**扣款
+        when(balanceLedgerService.changeTracked(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-CONC"),
+                eq("channel-refund-sync:RF-CONC"), anyString()))
+                .thenReturn(new BalanceLedgerService.AppliedChange(new PaymentOperation(), false));
+
+        paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
+
+        verify(rechargeOrderRepository, never()).findByIdForUpdate(anyString());
+        assertEquals(0, order.getRefundedCents(), "未扣款的那次投递不得累加 refunded_cents");
+        assertEquals("PAID", order.getStatus(), "未扣款的那次投递不得把单据推成 REFUNDED");
     }
 
     @Test
@@ -688,7 +716,10 @@ class PaymentServiceTest {
 
         paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
 
-        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
         verify(rechargeOrderRepository, never()).findById(anyString());
     }
 
@@ -700,7 +731,8 @@ class PaymentServiceTest {
         paymentService.handleWeChatRefundNotify("body", "ts", "nonce", "sig", "serial");
 
         verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_ABNORMAL"), anyString(), contains("R-AB"));
-        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -710,7 +742,7 @@ class PaymentServiceTest {
         RechargeOrder order = paidOrder("R-POOR", 10001L, 1000);
         order.setChannel("WECHAT");
         when(rechargeOrderRepository.findById("R-POOR")).thenReturn(Optional.of(order));
-        when(balanceLedgerService.change(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-POOR"),
+        when(balanceLedgerService.changeTracked(eq(10001L), eq(-100), eq("RECHARGE_REFUND"), eq("R-POOR"),
                 eq("channel-refund-sync:RF-4"), anyString()))
                 .thenThrow(new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "余额不足"));
 
@@ -738,7 +770,8 @@ class PaymentServiceTest {
 
         verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
                 anyString(), contains("R-NOID"));
-        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
         verify(rechargeOrderRepository, never()).findById(anyString());
     }
 
@@ -752,7 +785,8 @@ class PaymentServiceTest {
 
         verify(opsAlertDispatcher).send(eq("WECHAT_REFUND_SYNC_MISSING_REFUND_ID"),
                 anyString(), contains("R-BLANK"));
-        verify(balanceLedgerService, never()).change(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
+        verify(balanceLedgerService, never())
+                .changeTracked(any(), anyInt(), anyString(), anyString(), anyString(), anyString());
     }
 
     /**

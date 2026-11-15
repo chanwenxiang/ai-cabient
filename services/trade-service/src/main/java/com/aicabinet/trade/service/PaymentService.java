@@ -473,7 +473,8 @@ public class PaymentService {
         // 命中即原样返回），但**单据推进此前是无条件累加** ⇒ 同一条 refund_id 重投会把 refunded_cents
         // 记两次、订单提前置 REFUNDED（账面比渠道多退，分账/对账全跟着错）。
         // 判据就用账本流水本身：同幂等键的流水已存在＝这笔退款已入过账，整段跳过（流水是永久事实，
-        // 存活期覆盖整个渠道重试窗口）。
+        // 存活期覆盖整个渠道重试窗口）。**这一条只是快速通道**——检查与写入不在同一临界区，
+        // 并发投递时两边都能通过；权威判据是下面 changeTracked 返回的 applied（MA-269）。
         String idemKey = "channel-refund-sync:" + refundId;
         if (paymentOperationRepository.findByIdempotencyKey(idemKey).isPresent()) {
             log.info("wechat refund sync duplicate delivery ignored orderId={} refundId={}", orderId, refundId);
@@ -487,9 +488,10 @@ public class PaymentService {
                     "orderId=" + orderId + " refundId=" + refundId + " 需人工核对", order);
             return;
         }
+        BalanceLedgerService.AppliedChange applied;
         try {
-            balanceLedgerService.change(order.getUserId(), -refundCents, "RECHARGE_REFUND", orderId,
-                    idemKey, "微信商户平台退款同步");
+            applied = balanceLedgerService.changeTracked(order.getUserId(), -refundCents, "RECHARGE_REFUND",
+                    orderId, idemKey, "微信商户平台退款同步");
         } catch (ResponseStatusException e) {
             if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
                 log.error("wechat refund sync insufficient balance orderId={} userId={} refundCents={}",
@@ -500,6 +502,15 @@ public class PaymentService {
                 return;
             }
             throw e;
+        }
+        // 🔴 MA-269（2026-11-15）：只有**真的扣了款**的那一次才推进单据。上面第 45 行的
+        // findByIdempotencyKey 只是快速通道——它与写流水不在同一个临界区，同一 refund_id 的
+        // 两次并发投递都能通过检查；余额侧因为有幂等键只会扣一次，若不看 applied 就会
+        // 「扣一次款、记两次已退额」，把后续合法退款挡在「可退金额不足」上。
+        if (!applied.applied()) {
+            log.info("wechat refund sync duplicate delivery (ledger already applied) orderId={} refundId={}",
+                    orderId, refundId);
+            return;
         }
         self.finalizeChannelPartialRefund(orderId, refundCents);
         log.info("wechat manual refund synced orderId={} refundId={} cents={}", orderId, refundId, refundCents);

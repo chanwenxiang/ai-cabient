@@ -10,6 +10,8 @@
  *      「加分支不写断言」与「删分支不删断言」都会红；
  *   ④ 钉住收口方法三要素：本地 log.error + 外部告警 + catch fail-open，且响应语义
  *      仍是「告警后 return 200」，不能改成 throw / 5xx（渠道会无限重投）；
+ *   ④b MA-269：退款同步方法体必须用 {@code changeTracked(} + {@code applied()}，不得退回
+ *      {@code change(}——扣一次款却推进两次单据的并发重投窗口就藏在这个差别里；
  *   ⑤ 负向变异保持语法完整的真实回归形态，并要求命中**指定判据**。
  *
  * 用法：
@@ -122,6 +124,25 @@ function evaluate(read) {
       bad(`${sig} 完全没有留痕收口（这一族分支不能只修别处）`);
   }
 
+  // ②b MA-269（2026-11-15）：「扣款 ↔ 单据推进」必须同源。
+  // 退款同步是唯一既拿不到充值单锁、又会被渠道并发重投的路径：先查幂等键只是快速通道，
+  // 权威判据必须取自写入方（changeTracked 的 applied）。退回 change( 就等于「扣一次款、
+  // 记两次已退额」，后续合法退款被虚高的已退额挡死。
+  const syncBody = bodies.get('private void syncChannelSideRefund(');
+  if (syncBody !== undefined) {
+    if (/balanceLedgerService\.change\s*\(/.test(syncBody))
+      bad(
+        'syncChannelSideRefund 用了 change( —— 拿不到「本次是否真的扣款」的判据，' +
+          '同一 refund_id 并发重投会扣一次款却推进两次单据（MA-269）；改用 changeTracked('
+      );
+    if (!/balanceLedgerService\.changeTracked\s*\(/.test(syncBody))
+      bad(
+        'syncChannelSideRefund 未调用 balanceLedgerService.changeTracked( —— 无法得知本次是否真扣款'
+      );
+    if (!/\.applied\s*\(\s*\)/.test(syncBody))
+      bad('syncChannelSideRefund 没有用 applied() 拦「本次未扣款」的分支（MA-269 的闸没了）');
+  }
+
   // ③ 实现↔测试告警类型集合自动对齐
   const implTypes = [...impl.matchAll(/alertSilentCallback\(\s*"([A-Z_]+)"/g)].map((m) => m[1]);
   const testTypes = [...test.matchAll(/verifySilentAlert\(\s*"([A-Z_]+)"/g)].map((m) => m[1]);
@@ -170,6 +191,18 @@ function selfTest() {
   const before = new Map(paths.map((p) => [p, md5(baseline.get(p))]));
 
   const mutations = [
+    [
+      '退款同步丢掉「本次未扣款」闸（回到无条件推进）',
+      P.impl,
+      (s) => s.replace(/if \(!applied\.applied\(\)\) \{[\s\S]*?\r?\n        \}\r?\n/, ''),
+      'applied()'
+    ],
+    [
+      '退款同步退回 change(（拿不到「是否真扣款」的判据）',
+      P.impl,
+      (s) => s.replace('balanceLedgerService.changeTracked(', 'balanceLedgerService.change('),
+      '用了 change('
+    ],
     [
       '删本地 log.error 痕迹',
       P.impl,

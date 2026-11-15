@@ -52,10 +52,29 @@ public class BalanceLedgerService {
      */
     public PaymentOperation change(Long userId, int deltaCents, String businessType,
                                    String businessId, String idempotencyKey, String reason) {
+        return changeTracked(userId, deltaCents, businessType, businessId, idempotencyKey, reason).operation();
+    }
+
+    /**
+     * 同 {@link #change}，但额外告诉调用方「本次**是否真的**记了这笔流水」。
+     *
+     * <p>MA-269（2026-11-15）：回调侧原先只能靠「先查一次幂等键」判断重投——**检查与写入不在
+     * 同一个临界区**，同一 {@code refund_id} 的两次并发投递都能通过检查，于是余额只扣一次
+     * （第二次在 {@link #doChangeTracked} 内被幂等键去重），但调用方的后续动作（推进单据金额）
+     * 却各做一次 ⇒ 账面比渠道多退。判据必须由**写入方**给出：只有真正落下流水的那一次
+     * {@code applied=true}；重投命中已有流水时 {@code applied=false}，调用方据此跳过一切
+     * 「只能发生一次」的后续动作。</p>
+     *
+     * <p>去重的落点仍是持久化事实（{@code payment_operation.idempotency_key} 唯一索引 +
+     * {@code user_account} 行锁内的二次复查），不依赖 Redis 锁租期——锁只是减少争用，
+     * 键过期的极端情况下行锁 + 复查仍兜住。</p>
+     */
+    public AppliedChange changeTracked(Long userId, int deltaCents, String businessType,
+                                       String businessId, String idempotencyKey, String reason) {
         final ResponseStatusException[] insufficient = new ResponseStatusException[1];
-        PaymentOperation result = runWithBalanceLock(userId, () -> txTemplate.execute(tx -> {
+        AppliedChange result = runWithBalanceLock(userId, () -> txTemplate.execute(tx -> {
             try {
-                return doChange(userId, deltaCents, businessType, businessId, idempotencyKey, reason);
+                return doChangeTracked(userId, deltaCents, businessType, businessId, idempotencyKey, reason);
             } catch (ResponseStatusException e) {
                 if (!isInsufficientBalance(e)) {
                     throw e;
@@ -70,24 +89,30 @@ public class BalanceLedgerService {
         return result;
     }
 
+    /**
+     * 一次余额变动的结果。{@code applied=false} 表示幂等键已存在、本次是重投（**未扣款**），
+     * {@code operation} 是首次落账那条流水。
+     */
+    public record AppliedChange(PaymentOperation operation, boolean applied) {}
+
     /** 只有账本自己的「余额不足」412 走信号路径；其它 4xx/5xx 仍按原样回滚。 */
     private static boolean isInsufficientBalance(ResponseStatusException e) {
         return e.getStatusCode() == HttpStatus.PRECONDITION_FAILED
                 && ApiMessages.INSUFFICIENT_BALANCE.equals(e.getReason());
     }
 
-    private PaymentOperation doChange(Long userId, int deltaCents, String businessType,
-                                      String businessId, String idempotencyKey, String reason) {
+    private AppliedChange doChangeTracked(Long userId, int deltaCents, String businessType,
+                                          String businessId, String idempotencyKey, String reason) {
         if (deltaCents == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
         var existing = operationRepository.findByIdempotencyKey(idempotencyKey);
-        if (existing.isPresent()) return existing.get();
+        if (existing.isPresent()) return new AppliedChange(existing.get(), false);
 
         UserAccount account = accountRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
         existing = operationRepository.findByIdempotencyKey(idempotencyKey);
-        if (existing.isPresent()) return existing.get();
+        if (existing.isPresent()) return new AppliedChange(existing.get(), false);
         int before = account.getBalanceCents();
         long next = (long) before + deltaCents;
         if (next < 0) {
@@ -117,7 +142,7 @@ public class BalanceLedgerService {
         operation.setUserId(userId);
         operation.setBalanceBeforeCents(before);
         operation.setBalanceAfterCents((int) next);
-        return operationRepository.saveAndFlush(operation);
+        return new AppliedChange(operationRepository.saveAndFlush(operation), true);
     }
 
     /**
