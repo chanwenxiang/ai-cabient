@@ -479,3 +479,60 @@
 | 全量单测 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3107, Failures: 0, Errors: 0**（上批 3104，+3） |
 
 **未覆盖（如实）**：`lowStockOnly=1` 这条分支没有做真栈点验。它的范围来源与 `inventory` 普通列表是同一个 `allowedDeviceIdsForPack`，§9-6 已在真库上验过该来源的三种形态（全局 / 商户绑定 / 柜机级求交）；本批只改了分支顺序，没有引入新的范围来源，因此没有再重建镜像跑一遍。
+
+## 11. 修复批 6：MA-269 退款同步的「扣款 ↔ 单据推进」同源（2026-11-15 夜间）
+
+### 11-1 缺陷：判据放在写入之前，两个并发投递都能过闸
+
+`syncChannelSideRefund`（微信商户平台手工退款通知）的时序：
+
+| 步 | 动作 | 并发两次投递（同 `refund_id`） |
+|---|---|---|
+| 1 | `findByIdempotencyKey("channel-refund-sync:"+refundId)` | T1、T2 都**查不到**（流水还没提交）⇒ 双双放行 |
+| 2 | `balanceLedgerService.change(...)` | 幂等键在「用户锁 + `user_account` 行锁 + 二次复查」内生效 ⇒ **只扣一次**，T2 是 no-op |
+| 3 | `self.finalizeChannelPartialRefund(orderId, refundCents)` | **两次都执行** ⇒ `refunded_cents` 累加两次，订单提前 `REFUNDED` |
+
+结果是「钱只退了一次、账上记了两次」：后续合法退款的可用额度被虚高的已退额吃掉，`PaymentService.prepareChannelPartialRefund` 直接以「可退金额不足」拒绝。MA-088 封的是**顺序**重投（重投时流水已提交，第 1 步就能拦住），本条是并发残余。
+
+### 11-2 修法：让写入方回答「本次到底扣没扣」
+
+```java
+var applied = balanceLedgerService.changeTracked(userId, -refundCents, "RECHARGE_REFUND", orderId, idemKey, …);
+if (!applied.applied()) {           // 幂等键已存在 ⇒ 本次是重投，什么都没扣
+    log.info("wechat refund sync duplicate delivery (ledger already applied) …");
+    return;                        // 单据一步都不许推进
+}
+self.finalizeChannelPartialRefund(orderId, refundCents);
+```
+
+`changeTracked` 返回 `AppliedChange{operation, applied}`，`applied` 只能由 `doChangeTracked` 在「真的插入了流水」那一支给出——判定点与写入点在同一事务、同一把锁内，不存在第二个答案。`change(...)` 签名不变，内部委托 `changeTracked(...).operation()`，33 处调用方零改动。
+
+**两条没走的路**（写在这里防下次重走）：
+
+| 方案 | 不选的原因 |
+|---|---|
+| 用 `recharge_order` 行锁把整段包进一个事务 | `BalanceLedgerService` 的锁序约定是「Redis 用户锁 → 短事务 → 解锁」，事务包住整段会让 DB 连接在等 Redis 锁时被占住；而且 `finalize` 在渠道 HTTP 之后，本来就不该在同一事务里 |
+| 新建 `refund_sync_claim(refund_id PK)` 表 + `ON CONFLICT DO NOTHING` | 要用 Flyway 迁移 + 失败清理策略；而**账本流水本身就是永久事实**（幂等键唯一索引），同一件事没必要记两份 |
+
+### 11-3 门禁：把「同源」钉成静态判据
+
+`check-payment-callback-silent-trace` 已经按方法体提取 `syncChannelSideRefund`，直接加一组判据（②b）：
+
+1. 方法体内不得出现 `balanceLedgerService.change(` —— 拿不到「本次是否真扣款」的答案；
+2. 必须出现 `balanceLedgerService.changeTracked(`；
+3. 必须出现 `.applied()` —— 闸被删掉时前两条仍可能满足（赋值了不用）。
+
+自测夹具 11 → 13 条：新增「丢掉 applied 闸（回到无条件推进）」与「退回 `change(`」两条变异，各自必须命中指定判据；`--self-test` 同时验注释免疫与磁盘 md5 零残留。
+
+### 11-4 验证
+
+| 项 | 结果 |
+|---|---|
+| 新增单测 | `handleWeChatRefundNotify_concurrentDuplicate_ledgerNotApplied_skipsOrderAdvance`：快速通道未命中 + 账本回 `applied=false` ⇒ 断言 `findByIdForUpdate` 一次都不调、`refunded_cents`/`status` 原样 |
+| 三态负向 | 闸改 `if (false)` ⇒ **1 Error**，且恰好是新用例；还原后 md5 与备份逐字节一致，36/36 绿 |
+| 门禁 | 正向 OK；`--self-test` 13 条全过（含新增两条变异） |
+| 全量单测 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3108, Failures: 0, Errors: 0**（上批 3107，+1） |
+
+**未覆盖（如实）**：并发窗口没有真栈复现——要同时打两条同 `refund_id` 的微信退款通知进同一个实例，且要让两条都落在第 1 步之前；单测是用 `AppliedChange(applied=false)` 直接构造第 3 步的输入。真栈价值有限：判据在账本一侧，而那侧的幂等（唯一索引 + 行锁）已被既有用例与 `e2e-fund-safety` 覆盖。
+
+**残留边界**：`applied=false` 与「上一次扣款成功、`finalize` 之前进程死掉」在信号上不可区分，那个窗口里的重投不会补推进单据（**与修前相同**——修前第 1 步同样整段跳过）。要彻底闭合得让推进本身可回放（按退款单号落一条推进记录）或由对账反查，已归到 MA-270（退后不回算分账 + 巡检缺判据）那一批。

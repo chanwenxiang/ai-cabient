@@ -952,6 +952,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "d8c849eb",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-269 退款同步按账本 applied 判据推进单据（changeTracked/AppliedChange，change 委托保签名）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/BalanceLedgerService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PaymentServiceTest.java"
+          ]
+        },
+        {
+          "id": "门禁 check-payment-callback-silent-trace 增 ②b「扣款↔推进同源」判据，自测夹具 11→13",
+          "files": ["scripts/check-payment-callback-silent-trace.mjs"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
