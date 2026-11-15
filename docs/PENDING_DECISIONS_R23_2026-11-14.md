@@ -100,3 +100,30 @@
   ② **扫描锚点**：`MIN_WRITERS` 5→7（S12 扩面后实测 7 个写侧文件，旧下限坏掉 2 个仍判绿）；抽 `evaluateAnchor` 纯函数，夹具补「7 绿 / 6 红 / 旧 5 会放过 6 / 零命中不假绿」4 断言（25/0）。
   ③ **预授权 0 语义**：真分叉而非「缺说明」——`9d5c724f` 的 commit message 与 `CommissionParamBounds` 注释都写「0 仍合法=关闭预授权」，写侧也允许配 0，但 `ConsumerPreauthService.resolvePreauthCents` 只有 `fromDb > 0`，0 被静默回落 yml 默认额度 ⇒ 运营配 0 关不掉、仍冻结用户余额。修复=显式 `fromDb == 0 → return 0`（下游 `doFreezeForOpen` 的 `amount <= 0 → clearSessionPreauth` 本就支持关闭）；补 3 个 Java 用例、订正 1 个既有用例的隐含 Mockito 默认值依赖、订正 e2e 注释；新增独立门禁 `check-preauth-zero-semantics.mjs` + 夹具（10 断言，含注释/字符串掩码防假绿）。
   **三态验证**：真实工作区 A/B（把 `getPositiveLimit` 从正则删掉 / 删 0 分支）两次都注入红→逐字节还原绿→md5 零残留；聚合链 145 门禁 0 失败；Java `Tests run: 38, Failures: 0, Errors: 0`。R23 L2 仍按门禁健康镜头抽检复核，但**不再是待修欠账**。
+
+---
+
+## R23 审计新增拍板项（2026-11-15 汇审追加，四路报告产出，均未动码）
+
+> 按计划 §四.3 纪律：审计中新发现的拍板项追加到本文档，不得只在报告里留一句。以下 4 条均为主审亲验过的 A/C 路发现，状态=open。
+
+### ⑨ MA-177 `device_sku_lot` 唯一键迁移（R23-A）
+
+- **现状**：V24:24 只建普通索引 `idx_lot_device_sku(device_id,sku_id)`，无 (device_id,sku_id,batch_no) 唯一约束；R18-4 的 upsert 收口只覆盖聚合表。
+- **风险**：并发建档（两笔补货同批号同时首建）产生重复批次行 + `syncAggregateInventory` 首建竞态 DuplicateKeyException。
+- **拍板问题**：是否落 V482 迁移加唯一键？**前置=先查存量重复行**（有重复则先清再建键，清法需拍板）。
+
+### ⑩ MA-178 设备押金预授权来源的优先级与上界（R23-A）
+
+- **现状**：`ConsumerPreauthService:67-73` 设备 `deposit_cents` 分支**先于** `checkout.preauth_cents` 键分支（我方 11-14 亲读在案）；押金来源不在 S12 天花板（0..1M）内，写侧 `OpsDeviceAdminService:607-609` 无上界，且押金>0 时穿透「0=关闭预授权」语义。
+- **拍板问题**：①押金与全局键的优先级次序维持现状还是反转？②押金是否同样吃 1M 天花板？③押金=0 是否也语义为「关闭」？
+
+### ⑪ MA-260 XXL 逃生门模式的兜底策略（R23-D）
+
+- **现状**：38 个 XXL 托管任务全部无 @Scheduled fallback（`platform-fund-daily`/`device-rental-daily` 最高影响：资金日检告警+欠租锁柜静默停摆），无门禁覆盖此缺口；时区侧实测零漂移。
+- **拍板问题**：三选一——①兜底调度（给关键任务加 @Scheduled 双保险，tryBegin 去重）②停摆告警（XXL disabled 或 job 停投超阈值→告警，推荐）③接受现状（手册已写「资金任务保持关」语义）。**主审推荐 ②**（不引入双调度器复杂度，把静默失效变成可见告警）。
+
+### ⑫ merchant-mp 欠款文案是否披露「锁柜停售」后果（R23-C）
+
+- **现状**：`WalletPage.vue:36-38` 欠款提示未披露「满账龄锁柜停售」后果（后端告警与 admin 侧均有此信息）。
+- **拍板问题**：C 端欠款文案是否加一句后果披露（披露会提升还款率但也可能引发焦虑投诉）？产品口径。
