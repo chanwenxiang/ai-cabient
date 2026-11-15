@@ -1092,6 +1092,14 @@
     {
       "commit": "52549bac",
       "why": "门禁基建自修复（check-consistency-rule-fixtures 的 seedFixtureOk 棘轮切线 24→25 + 自测构造改从真实 fixtureOk 取基线）：3 文件全在 scripts/ 与 docs/，零业务代码、零业务审计条目，与 e8981f32 / c6e2ed83 / c3a033bd 同型；实证依据见提交信息与报告 §12-4"
+    },
+    {
+      "commit": "b8dd8b59",
+      "why": "MA-282/291 元判据识别面与传递闭包修复：3 文件全在 scripts/（判据 + sibling 夹具 + gate-fixture-registry），零业务代码、零业务审计条目，与 e8981f32 / 52549bac 同型；实证见报告 §13"
+    },
+    {
+      "commit": "86aa27b7",
+      "why": "MA-283 横幅棘轮基线与双向判据修复：3 文件（判据 + sibling 夹具 + package.json 接线），零业务代码、零业务审计条目；实证见报告 §13"
     }
   ]
 }

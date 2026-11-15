@@ -593,3 +593,39 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 - **MA-270 的 fix 端点不自动修**：回算会冲正商户钱包（动钱），与 `PAID_GROSS_MISMATCH` 同档，只巡检、留人工；`SysDictBootstrap` 已补中文标签「分账未按净额回算」。
 - 新登记 **MA-299**（单设备流量费无 device 维度）、**MA-300**（退款不迁移订单状态），两条都**需拍板**，未猜口径实现。
 - 过程中 Docker 引擎一度掉线（`wsl.exe` / `sc.exe` 被本机安全策略列入黑名单，无法绕过），用户手动拉起后才完成 §12-3；期间 Testcontainers 用例被 `disabledWithoutDocker` 跳过，恢复后单独复跑 `MerchantBillRefundDaySqlIT` 4/4 绿。
+
+## 13. 修复批 8：门禁轻项三条（MA-282 / 291 / 283，2026-11-15 傍晚）
+
+上一轮建议「门禁轻项一轮清」列了 5 条，本批**修 3 条、明确留 2 条**。留的两条不是忘了，是牵扯 CI 检出与构建顺序，本地改完没有真栈能证，硬推可能把 CI 挂红。
+
+### 13-1 修掉的三条
+
+| 编号 | 缺陷 | 修法 | 提交 |
+|---|---|---|---|
+| **MA-291** | `check-audit-gates-wiring.mjs` 传递闭包写 `reached.add(name)`（把**引用者自己**又加一遍）⇒ 被 `pnpm check:xxx` 引用的脚本永远进不了 `reached`，规则 4 的「间接接线」判据整体 no-op | 改 `reached.add(m[1])`，并抽成导出纯函数 `extendReachability`，sibling test 用合成脚本图 `root→mid→leaf` 验链真的传递 | `b8dd8b59` |
+| **MA-282** | 元判据只认 `--self-test` + `selfTest(` 一种写法，把 `--selftest` + `process.argv.includes('--selftest')` 内联自测块误判成「无夹具」，一批门禁长期挂在 exempt | 认两种参数拼法 × 两种可执行入口（源已剥注释，注释里提到不算）；按实跑结果移出 exempt | `b8dd8b59` |
+| **MA-283** | 横幅棘轮 `BASELINE=52` 而 `--print` 实测 **49** ⇒ 白送 3 个名额；且只判 `total > BASELINE`，横幅删到 45 时基线仍挂 52，下一个人又能加回 7 个 | 基线降到 49 + 补**双向判据**（低于基线同样红，逼着同步下调）；抽纯函数、导出基线、加 `import.meta` 守卫 | `86aa27b7` |
+
+**MA-282 的实际盲区比台账记的更大**：改完识别面后门禁报出 **7 个**「豁免陈旧」而非台账的 5 个，多出 `check-env-placeholders.mjs` 与 `check-scheduled-task-trybegin.mjs`（它们用 `--self-test` + argv 内联块，同样被旧的 `selfTest(` 判据漏掉）。逐个 `node scripts/xxx.mjs --self?test` 实跑 7/7 全绿后才移出 exempt ⇒ 夹具覆盖 **80→88/147**、豁免 **67→59/69**（`maxExempt=69` 与 `seedExempt=69` 不动，棘轮只减不增）。
+
+**MA-283 顺手补的一层**：新建 `check-admin-banner-ratchet.test.mjs`（8 项，含「`BASELINE` 必须**恰好等于**实测横幅数」），并按仓库既有范式接进 `check:admin-banner-ratchet` 的 package.json 命令串（`node …test.mjs && node …mjs`）。这一步不能省 —— 新建 `.test.mjs` 若没人调用，`check-audit-gates-wiring` 规则 2 会把它当「没有可执行接线」的门禁报红（本批实跑撞到并修好）。
+
+### 13-2 明确留下的两条（附亲验结论）
+
+| 编号 | 本批查到的事实 | 为什么不在这批改 |
+|---|---|---|
+| **MA-280** | 本地 4 个 `dist/*/mp-weixin` 目录都在、门禁真判 OK；但 `git ls-files` 显示 **`dist/build/mp-weixin` 零跟踪** ⇒ CI 干净检出没有产物。聚合链在 `ci.yml:750` 跑，mp-weixin 构建在 `:847/:858`（同一 `mini-programs` job 更晚）⇒ CI 上恒 SKIP | 修法必须是「从聚合链摘出 + 构建后加独立 step + `--require-artifacts`」。但那两步构建**条件依赖** `MP_WEIXIN_APPID_*` / `VITE_API_BASE_URL` secrets，缺失时 `exit 0` 跳过 ⇒ 不先确认 secrets 实际配置，改完只能让 CI 红或换个位置继续假绿 |
+| **MA-293** | `merge-base` 失败即 SKIP 绿、`mb==head` 即 OK 绿，两处亲验。后者在 CI 里 HEAD 就是 `origin/dev` 的 HEAD ⇒ 恒绿（这才是恒零覆盖的实质）；前者取决于 checkout 是否提供 `origin/dev` 引用（`fetch-depth: 0` 只保证当前分支全历史） | 正解要用 push event 的 `github.event.before` 或显式范围参数，属于 CI 检出语义变更，需要真栈点验 |
+
+两条都在 `ISSUES.md` 里补了「批 8 评估」原文，不是静默跳过。
+
+### 13-3 验证
+
+| 项 | 结果 |
+|---|---|
+| 门禁 | `check-audit-gates-wiring` OK（197 个 `check-*.mjs` 全接线 / 160 个 `check:*` 中 158 可达 / 夹具 88/147 / 豁免 59/69）；`check-admin-banner-ratchet` OK（49=49）；`check-gate-test-coupling` OK（本批 72 文件 / 7 个判据、夹具同批对账平）；`check-script-table-set` OK；`check-fix-batch-coverage` OK（38 批 + 59 个 fix/perf 提交全登记或豁免） |
+| 夹具 | `check-audit-gates-wiring.test` 15→20 项；新建 `check-admin-banner-ratchet.test` 8 项；7 个曾豁免的门禁 `--self?test` 实跑全绿 |
+| 三态负向 | ① 闭包退回 `add(name)` ⇒ 断言「传递闭包没把 leaf 加进 reached」红；② 识别面退回只认 `--self-test` ⇒ 真实仓面报 5 个门禁「无夹具」红；③ 删「低于基线」判据 ⇒ 断言 `total < baseline 必须红` 失败；④ `BASELINE` 回 52 ⇒ 「BASELINE 与实测不一致」失败。四次均还原且 md5 逐字节一致 |
+| 登记 | 两个 `fix(gates)` 提交按既有惯例进 `unregisteredAllowlist`（门禁基建、零业务代码），带 why；prettier 全绿 |
+
+**本批没再做「四次预检」**：按批 7 的教训，新增夹具 / 改判据 / 加 `.test.mjs` / `fix(...)` 提交四处登记在一轮里同时改完，第一次预检即通过。
