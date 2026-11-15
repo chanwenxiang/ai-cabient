@@ -859,6 +859,38 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "3f9fb891",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "C01 提现二次解冻/吃他单冻结（MA-262）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/wallet/WalletEngine.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WalletLedgerMapper.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WalletWithdrawFreezeIdempotencyTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "9d3245dd",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "C01 补正：冻结占用额按流水类型分别算（-Σamount 把已打款单算成仍占用 2000）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/wallet/WalletEngine.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/WalletLedgerMapper.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WalletWithdrawFreezeIdempotencyTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
