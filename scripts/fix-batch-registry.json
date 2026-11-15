@@ -1222,6 +1222,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "67e72636",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-274 Phase A：chargeOrder 两重载去事务化（HTTP 期间零行锁；痕迹两腿 REQUIRES_NEW 自提交；幂等键兜重放）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OrderPaymentService.java"
+          ]
+        },
+        {
+          "id": "形态钉：两重载无 @Transactional + recordChargePending/finalizeChargePending REQUIRES_NEW（注解挪回去即红）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OrderPaymentChargeInvariantTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
