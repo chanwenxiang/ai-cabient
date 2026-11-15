@@ -136,6 +136,73 @@ class MerchantInventoryPortalServiceTest {
     }
 
     @Test
+    void listInventory_lowStockOnly_scopedAccount_pullsRowsByScopeNotGlobalWindow() {
+        // 🔴 MA-298（B13）：范围受限 + lowStockOnly 必须**先按范围取行**再判低库存。
+        // 原写法走 findLowStockLimit(500) 全局窗口，别家的低库存行占满 500 条时自家的行被挤出。
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("EG-1"));
+        when(inventoryRepository.findByIdDeviceIdIn(Set.of("EG-1")))
+                .thenReturn(List.of(invRow("EG-1", "100013"), invRow("OTHER-1", "100013")));
+        when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
+        when(skuCatalogMapper.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(catalog("100013", "ACTIVE")));
+
+        List<DeviceInventoryDto> rows = service.listInventory(9L, null, true);
+
+        // 二道防线仍在：即便 Mapper 多给了别家行，也不出结果集
+        assertEquals(1, rows.size());
+        assertEquals("EG-1", rows.get(0).deviceId());
+        verify(inventoryRepository, never()).findLowStockLimit(org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void listInventory_lowStockOnly_unrestrictedAccount_keepsLowStockWindow() {
+        // 全局账号（不受设备范围约束）没有「范围」这一层过滤 ⇒ 保留低库存专用查询（只取低库存行，
+        // 比全量 2000 条窗口的召回更准），这是刻意不同，不是漏改。
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(null);
+        when(inventoryRepository.findLowStockLimit(500)).thenReturn(List.of(invRow("EG-1", "100013")));
+        when(inventoryLotService.lotLedgerSkuIds("EG-1")).thenReturn(Set.of());
+        when(skuCatalogMapper.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(List.of(catalog("100013", "ACTIVE")));
+
+        List<DeviceInventoryDto> rows = service.listInventory(9L, null, true);
+
+        assertEquals(1, rows.size());
+        verify(inventoryRepository, never()).findAllLimit(2000);
+    }
+
+    @Test
+    void listExpiryAlerts_scopedAccount_pushesDeviceScopeDown() {
+        // 🔴 MA-298 同族：临期告警原来取全局最近 500 条 OPEN 再内存过滤，域受限商户看不到自己的。
+        when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))
+                .thenReturn(Set.of("EG-1"));
+        when(pullOffTaskRepository.findByStatusAndDeviceIdInOrderByCreatedAtDesc("OPEN", Set.of("EG-1"), 500))
+                .thenReturn(List.of(pullOffTask("EG-1")));
+        when(deviceSlotService.isDoorCabinet("EG-1")).thenReturn(true);
+
+        List<com.aicabinet.common.dto.PullOffTaskDto> rows = service.listExpiryAlerts(9L);
+
+        assertEquals(1, rows.size());
+        assertEquals("EG-1", rows.get(0).deviceId());
+        verify(pullOffTaskRepository, never())
+                .findByStatusOrderByCreatedAtDesc(
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    private static com.aicabinet.trade.domain.PullOffTask pullOffTask(String deviceId) {
+        com.aicabinet.trade.domain.PullOffTask task = new com.aicabinet.trade.domain.PullOffTask();
+        task.setTaskId(1L);
+        task.setDeviceId(deviceId);
+        task.setSkuId("100013");
+        task.setQuantity(1);
+        task.setReason("NEAR_EXPIRY");
+        task.setStatus("OPEN");
+        task.setCreatedAt(java.time.Instant.parse("2026-11-01T00:00:00Z"));
+        return task;
+    }
+
+    @Test
     void listShortageSummary_skipsDelistedSkus() {
         // 下架 SKU 不进缺货面（2026-10-30 拍板）：qty=0 的下架行不得算进「待补商品数/缺货件数」
         when(merchantFeaturePackService.allowedDeviceIdsForPack(9L, MerchantFeaturePacks.FIELD))

@@ -6,7 +6,10 @@
  *   ② 红 B：只把 `inDeviceScope(` 这个词搬回来（窗口取数没动）→ 必须红（判据独立成条）；
  *   ③ 红 C：删掉一个「带范围」取数入口（改用全局窗口名）→ 必须红（正向锚点生效）；
  *   ④ 绿：同样的违规写法只出现在**注释**里 → 必须保持绿（证明等长注释剥离有效）；
- *   ⑤ 零污染：真实树两个文件 md5 前后一致、沙箱目录已删。
+ *   ⑥ 红 D（MA-298）：把 `MerchantInventoryPortalService` 的 else-if 调回「全局低库存窗口在前、
+ *      范围分支在后」→ 必须红，且必须命中「范围分支必须在前」这条判据；
+ *   ⑦ 红 E（MA-298）：把范围分支整段换成 `findLowStockLimit(500)` → 必须红（正向锚点缺失）；
+ *   ⑤ 零污染：真实树三个文件 md5 前后一致、沙箱目录已删。
  *
  * 🔴 不改真实源码：注入全在 `.tmp/wb-gate-<pid>` 沙箱副本上进行，真实树一个字节都不写
  *    —— 本仓常有并发会话的未提交改动，异常中断等于把注入态留在别人的工作树上。
@@ -23,7 +26,11 @@ import { runAsync } from '../lib/async-spawn.mjs';
 const ROOT = resolve(import.meta.dirname, '..', '..');
 const GATE = 'scripts/check-workbench-scope-pushdown.mjs';
 const SERVICE_REL = 'services/trade-service/src/main/java/com/aicabinet/trade/service';
-const FILES = ['MerchantWorkbenchQueryService.java', 'OpsWorkbenchQueryService.java'];
+const FILES = [
+  'MerchantWorkbenchQueryService.java',
+  'OpsWorkbenchQueryService.java',
+  'MerchantInventoryPortalService.java'
+];
 
 const SANDBOX = resolve(ROOT, '.tmp', `wb-gate-${process.pid}`);
 const problems = [];
@@ -148,6 +155,44 @@ async function main() {
     restore(ops, originals.get(ops));
   }
 
+  // ⑥ 红 D（MA-298）：把 else-if 顺序调回「低库存全局窗口在前、范围分支在后」—— 必须红
+  const portal = 'MerchantInventoryPortalService.java';
+  if (
+    inject(
+      portal,
+      '        } else if (allowed != null) {',
+      '        } else if (lowStockOnly) {\n' +
+        '            rows = inventoryRepository.findLowStockLimit(500);\n' +
+        '        } else if (allowed != null) {'
+    )
+  ) {
+    const r = await runGate(SANDBOX);
+    const msg = `${r.stderr || ''}${r.stdout || ''}`;
+    if (r.status === 0) {
+      problems.push('红 D 未生效：全局低库存窗口排在范围分支之前仍判绿（MA-298 会复发）');
+    } else if (!msg.includes('范围分支必须在前')) {
+      problems.push(`红 D 报错了判据：应命中「分支顺序」那一条，实际 ${msg.slice(0, 300)}`);
+    }
+    restore(portal, originals.get(portal));
+  }
+
+  // ⑦ 红 E（MA-298）：把范围分支整段换成全局窗口取数（范围入口消失）—— 必须红
+  if (
+    inject(
+      portal,
+      '            rows = inventoryRepository.findByIdDeviceIdIn(allowed);',
+      '            rows = inventoryRepository.findLowStockLimit(500);'
+    )
+  ) {
+    const r = await runGate(SANDBOX);
+    const msg = `${r.stderr || ''}${r.stdout || ''}`;
+    if (r.status === 0) problems.push('红 E 未生效：范围取数入口被换回全局窗口仍判绿');
+    else if (!msg.includes('findByIdDeviceIdIn(')) {
+      problems.push('红 E 没报到「正向锚点缺失」这一条 —— 只靠窗口判据命中的话，整段删除就会假绿');
+    }
+    restore(portal, originals.get(portal));
+  }
+
   // ⑤ 零污染
   for (const f of FILES) {
     const now = md5(join(ROOT, SERVICE_REL, f));
@@ -164,7 +209,8 @@ async function main() {
   }
   console.log(
     '[verify-workbench-scope-pushdown] OK：基线绿 → ①窗口+内存过滤红 → ②仅 inDeviceScope 红 → ' +
-      '③带范围入口缺失红 → ④注释免疫绿；真实树 md5 未变、沙箱已清'
+      '③带范围入口缺失红 → ④注释免疫绿 → ⑥分支顺序倒置红 → ⑦范围入口换回窗口红；' +
+      '真实树 md5 未变、沙箱已清'
   );
 }
 

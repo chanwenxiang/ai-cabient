@@ -22,6 +22,9 @@
  *      分账 `findTop20ByStatusOrderByCreatedAtAsc(`、补货 `findByStatusInOrderByCreatedAtAsc(`。
  *   3. 每个服务必须出现对应的**带范围**取数方法名（防「把取数整段删掉」也判绿）。
  *   4. 锚点：两文件掩码后长度不足即红（解析退化时「零命中」是假绿）。
+ *   5. 第三个落点（MA-298）：商户门户 `MerchantInventoryPortalService` 形态不同——它**刻意**
+ *      保留 `inDeviceScope(` 当二道防线（范围下推 + 内存复核），所以不套判据 1/2，改为钉
+ *      「分支顺序」与「无范围入口零调用」：低库存的范围分支必须排在全局窗口分支之前。
  *
  * 注释处理：扫源码前用 `stripJavaComments()` 抹成**等长空格**（保行号）。修复处的说明注释
  * 会引用旧写法当反例，不抹就会自己把自己打红（铁律 84①）。
@@ -94,6 +97,27 @@ const REQUIRED_CALLS = {
 /** 掩码后最小长度：文件被截断/换错文件时必需方法必然缺失，这里再兜一层。 */
 const MIN_MASKED_LENGTH = 8000;
 
+/**
+ * 商户门户库存服务的落点（MA-298）。形态与两个工作台服务不同：它**保留** `inDeviceScope(`
+ * 当二道防线（范围已下推，再内存复核一次），因此不可套「零出现」，改钉下面两条：
+ *
+ *   ① **分支顺序**：`listInventory` 里按范围取行（`findByIdDeviceIdIn(`）必须出现在全局低库存
+ *      窗口（`findLowStockLimit(`）**之前**。反过来就是 B13 本尊：先按全局取 500 条，再用
+ *      `inDeviceScope` 过滤，域受限商户自家的低库存行会被别家的行挤出窗口。（MA-298 实证）
+ *   ② **临期告警**用带范围入口 `findByStatusAndDeviceIdInOrderByCreatedAtDesc(`，无范围的那个
+ *      同名方法在这个文件里必须零调用（同一个瑕疵的第二处，同批修掉）。
+ */
+const PORTAL = join(SERVICE_DIR, 'MerchantInventoryPortalService.java');
+const PORTAL_SCOPED_FETCH = 'findByIdDeviceIdIn(';
+const PORTAL_GLOBAL_WINDOW = 'findLowStockLimit(';
+const PORTAL_REQUIRED = [
+  [PORTAL_SCOPED_FETCH, '按设备范围取行'],
+  ['findByStatusAndDeviceIdInOrderByCreatedAtDesc(', '临期告警（范围下推）']
+];
+const PORTAL_BANNED = [
+  ['pullOffTaskRepository.findByStatusOrderByCreatedAtDesc(', '临期告警（全局窗口）']
+];
+
 function read(root, rel) {
   const full = join(root, rel);
   if (!existsSync(full)) return null;
@@ -151,6 +175,44 @@ export function checkProject(root) {
     stats.push(`${label}: ${src.length} 字符`);
   }
 
+  // ── MA-298 落点：商户门户库存服务（形态不同，单独一套判据，见 PORTAL 注释）──────────
+  const portalLabel = PORTAL.split(/[\\/]/).pop().replace('.java', '');
+  const portalRaw = read(root, PORTAL);
+  if (portalRaw == null) {
+    problems.push(`找不到 ${PORTAL.replace(/\\/g, '/')} —— 门禁扫不到目标文件时「零命中」是假绿`);
+  } else {
+    const src = stripJavaComments(portalRaw);
+    if (src.length < MIN_MASKED_LENGTH) {
+      problems.push(
+        `${portalLabel} 掩码后只有 ${src.length} 字符（下限 ${MIN_MASKED_LENGTH}）—— 文件被截断或选错？`
+      );
+    }
+    const scopedAt = src.indexOf(PORTAL_SCOPED_FETCH);
+    const windowAt = src.indexOf(PORTAL_GLOBAL_WINDOW);
+    if (windowAt >= 0 && (scopedAt < 0 || windowAt < scopedAt)) {
+      problems.push(
+        `${portalLabel} 又回到「先取全局低库存窗口、再内存过滤设备范围」：` +
+          `${PORTAL_GLOBAL_WINDOW}…) 排在 ${PORTAL_SCOPED_FETCH}…) 之前 —— ` +
+          '范围分支必须在前，否则域受限商户的低库存行会被别家的行挤出窗口（B13 / MA-298）'
+      );
+    }
+    for (const [call, topic] of PORTAL_REQUIRED) {
+      if (!src.includes(call)) {
+        problems.push(
+          `${portalLabel} 找不到 ${call}…) —— ${topic}的范围取数入口缺失（被删掉或被换回窗口取数）`
+        );
+      }
+    }
+    for (const [call, topic] of PORTAL_BANNED) {
+      if (src.includes(call)) {
+        problems.push(
+          `${portalLabel} 仍调用 ${call}…) 取全局窗口（${topic}）—— 改用带范围的同名方法（B13 / MA-298）`
+        );
+      }
+    }
+    stats.push(`${portalLabel}: ${src.length} 字符`);
+  }
+
   return { ok: problems.length === 0, problems, stats };
 }
 
@@ -163,8 +225,9 @@ function main() {
     process.exit(1);
   }
   console.log(
-    `${TAG} OK：${stats.join('、')}；两服务设备范围全部下推 SQL（` +
-      `${WINDOWED_CALLS.length} 个全局窗口入口零调用、${IN_MEMORY_SCOPE}…) 零出现）`
+    `${TAG} OK：${stats.join('、')}；两工作台服务设备范围全部下推 SQL（` +
+      `${WINDOWED_CALLS.length} 个全局窗口入口零调用、${IN_MEMORY_SCOPE}…) 零出现）、` +
+      '商户门户库存的范围分支排在全局窗口之前（MA-298）'
   );
 }
 

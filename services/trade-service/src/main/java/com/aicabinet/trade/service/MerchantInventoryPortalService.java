@@ -123,10 +123,19 @@ public class MerchantInventoryPortalService {
                 return List.of();
             }
             rows = inventoryRepository.findByIdDeviceId(dev);
+        } else if (allowed != null) {
+            // 🔴 MA-298（B13：上限设在过滤之前）：范围受限时必须**先按范围取行**，低库存判据
+            // 留给下面的 SkuStockLevel 分支。原写法是 lowStockOnly 走 findLowStockLimit(500)
+            // 这个**全局**窗口、再在下面 filter(inDeviceScope) —— 别家低库存行占到 500 条时
+            // 自家的行被挤出窗口，界面显示「没有低库存」而实际有货要补。
+            // 因此「范围分支」必须排在 lowStockOnly 之前（门禁 check-workbench-scope-pushdown
+            // 钉的就是这个顺序，别调回去）。
+            // 刻意不用 findLowStockByDeviceIds：那条 SQL 多一层「仅 DEPLOYED」生命周期过滤、
+            // 且自带 LIMIT 500，两处都会改变可见行（IDLE/INBOUND 柜机在本方法的全量台账分支
+            // 里本来就看得到）。同一端点两条分支只该差「库存档位」，不该差生命周期口径。
+            rows = inventoryRepository.findByIdDeviceIdIn(allowed);
         } else if (lowStockOnly) {
             rows = inventoryRepository.findLowStockLimit(500);
-        } else if (allowed != null) {
-            rows = inventoryRepository.findByIdDeviceIdIn(allowed);
         } else {
             rows = inventoryRepository.findAllLimit(2000);
         }
@@ -186,7 +195,12 @@ public class MerchantInventoryPortalService {
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
                 userId, MerchantFeaturePacks.FIELD);
-        return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
+        // 🔴 MA-298 同族（同一文件、同一缺陷类 B13）：原写法取**全局**最近 500 条 OPEN 再
+        // 内存过滤，域受限商户的临期告警会被别家挤掉 ⇒ 下拉框空、任务却挂着。
+        // 带范围的取数入口本来就有（工作台待办用的就是它），这里没有理由不用。
+        return pullOffTaskRepository
+                .findByStatusAndDeviceIdInOrderByCreatedAtDesc("OPEN", allowed, 500)
+                .stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .map(t -> {
                     // 开门柜按商品备货：不查货道余量（无货道行必得 0，会把补货按钮假锁死）
