@@ -241,15 +241,35 @@
 
   <!-- 商户账单：按日聚合退款，按订单 pay_channel 归桶（退款原路=订单渠道，见 OrderPaymentService.finalizeLiveOrderRefund）。
        口径与既有报表一致：退款取 cabinet_order.refunded_cents（订单级快照），不做行级分摊。 -->
+  <!--
+    MA-271：退款按「退款发生日」归日，不按下单日。
+
+    原实现用 created_at 同时当过滤条件与分桶口径 ⇒ 3 月下单、4 月退款的订单，
+    退款金额被记进 3 月账单：4 月账单看不见这笔退款（利润虚高），3 月账单被追溯改写
+    （已经发给商户的历史月对不上）。退款是对账口径里「当期发生」的事件，跟收入确认日不同。
+
+    COALESCE(refunded_at, created_at)：cabinet_order 只有累计列 refunded_cents + 最后退款时点
+    refunded_at（refund_time 是零写入的历史死列）。真退过款的行必有 refunded_at；为 null 的
+    只可能是 refunded_cents=0（被下面的 >0 过滤掉）或极老数据，回退下单日是安全的兜底。
+
+    ⚠️ 已知精度边界：同一订单多次部分退款时 refunded_cents 是累计值、refunded_at 只记最后一次，
+    整笔会归到最近一个月（修前是整笔归下单月，同样不精确）。要精确到笔需要退款流水表，
+    当前数据模型没有 —— 这条写在 ISSUES.md MA-271 的残留里，不要以为已经精确到笔。
+
+    性能：日期谓词是表达式，用不上 created_at 索引；但 merchant_id IN (...) 仍可走
+    idx_cabinet_order_merchant_id 先按商户收敛，月度账单是低频页面查询，不做表达式索引。
+  -->
   <select id="selectMerchantBillRefundsByDay" resultType="java.util.LinkedHashMap">
-    SELECT to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
+    SELECT to_char(COALESCE(refunded_at, created_at) AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
            COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) &lt;&gt; 'BALANCE'
                              THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c1,
            COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) = 'BALANCE'
                              THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c2,
            COUNT(*) FILTER (WHERE COALESCE(refunded_cents, 0) &gt; 0) AS c3
     FROM cabinet_order
-    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+    WHERE COALESCE(refunded_at, created_at) &gt;= #{start}
+      AND COALESCE(refunded_at, created_at) &lt; #{end}
+      AND COALESCE(refunded_cents, 0) &gt; 0
       AND status &lt;&gt; 'FAILED'
       AND merchant_id IN
       <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
@@ -257,7 +277,7 @@
       AND device_id IN
       <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     </if>
-    GROUP BY to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
+    GROUP BY to_char(COALESCE(refunded_at, created_at) AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
     ORDER BY c0
   </select>
 </mapper>
