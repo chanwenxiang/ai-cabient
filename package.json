@@ -189,7 +189,7 @@
     "check:vue-style-src-inline": "node scripts/check-vue-style-src-inline.mjs",
     "check:mp-tabs-layout": "node scripts/check-mp-tabs-layout.mjs",
     "check:ui-barehex-ratchet": "node scripts/check-ui-barehex-ratchet.mjs",
-    "check:admin-banner-ratchet": "node scripts/check-admin-banner-ratchet.mjs",
+    "check:admin-banner-ratchet": "node scripts/check-admin-banner-ratchet.test.mjs && node scripts/check-admin-banner-ratchet.mjs",
     "check:mp-touch-target-ratchet": "node scripts/check-mp-touch-target-ratchet.mjs",
     "check:mp-scoped-hash": "node scripts/check-mp-scoped-hash.mjs",
     "check:mp-emoji-icon": "node scripts/check-mp-emoji-icon.mjs",
