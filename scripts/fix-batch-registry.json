@@ -1010,6 +1010,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "e1911a38",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-268 月结期初外部盘点改取本期标签 periodLabel（原 prevLabel 拿到上期期初旧盘点）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/WarehouseMonthlyCloseService.java"
+          ]
+        },
+        {
+          "id": "新增 WarehouseMonthlyCloseOpeningLabelTest 2 例（wrapper 参数标签 + 端到端 openingQty=42）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WarehouseMonthlyCloseOpeningLabelTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [

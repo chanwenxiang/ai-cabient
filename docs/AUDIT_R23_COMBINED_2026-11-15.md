@@ -681,3 +681,40 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 | 门禁 | `check-mp-scoped-hash` 本地 4 个产物目录全 OK；`check-audit-gates-wiring` OK（198 个 check 文件全接线 / 夹具 89/147 / 豁免 58/69）；`check-gate-test-coupling` OK（74 文件 / 8 个判据同批夹具齐） |
 | 三态负向 | ① 退回无产物 SKIP ⇒ 断言「无产物时没有验接线」红；② 关掉显式路径 fail-closed ⇒ 「显式路径不存在时竟然 exit 0」红。两次均还原且 md5 逐字节一致 |
 | 上批 CI | `bdc34d86` **completed/success**（build / admin-artifacts / mini-programs / e2e-h5 / integration 五个 job 全绿） |
+
+## 15. 修复批 10：推送通道 + MA-268 月结期初账期（2026-11-15 晚）
+
+### 15-1 推送通道
+
+批 9 的三个提交被本机 HTTPS 代理挡了两轮（`CONNECT tunnel failed, response 502` / `Empty reply from server`），`gh api`（api.github.com）却一直可用，说明坏的只是 github.com 的 git 通道。按用户提示改用 **`origin`（SSH `git@github.com:...`）直推** ⇒ 一次成功：`9f6bbdea..907ef7a4  dev -> dev`。`git ls-remote origin` 复核远端 HEAD = 本地 `907ef7a4`、未推 0。后续推送一律走 `origin`。
+
+> 结论写进这里是为了别再浪费一轮：HTTPS + token 那条路只在代理正常时可用；代理挂了就换 SSH，不要反复重试 HTTPS。
+
+### 15-2 MA-268：期初外部盘点取错账期
+
+| 项 | 内容 |
+|---|---|
+| 缺陷 | `closeSheet` 里 `prevFlowStocktake = flowStocktakeBySku(prevLabel, wh)`，而同文件 `flowStocktakeBySku` 的 javadoc 明写「本期期初（=上期末盘点）在 `periodLabel`」 |
+| 口径 | 外部盘点导入是「N 期末盘点填**下一账期**」⇒ 本期期末在 `nextLabel`，上期期末（本期期初）在 `periodLabel`；`prevLabel` 拿到的是**上期期初**（上上期末）的旧盘点 |
+| 触发条件 | 仅上期未关账（`prevFromSheet=false`）、需要外部流水兜底时 ⇒ 症状隐蔽，但期初数整整错一个月 |
+| 修法 | 改 `flowStocktakeBySku(periodLabel, wh)`，删掉不再使用的 `prevLabel` 变量（`e1911a38`） |
+
+**新增 `WarehouseMonthlyCloseOpeningLabelTest` 2 例**：
+
+1. 捕获 `flowMapper.selectList` 的 lambda wrapper 参数，钉住第一次外部盘点查询用 `202610` 而非 `202609`；
+2. 端到端：本期标签放 42、上期放 99、下期（期末盘点）放 7，断言 `openingQty=42`（修前会取 99）。
+
+踩到两个已记过的坑并当场处理：纯单测里 `Wrappers.<Entity>lambdaQuery().eq(...)` 缺 MyBatis-Plus TableInfo 缓存（同批 7 的 `ApprovalNodeUpsertTest`）⇒ `@BeforeEach` 注册 `ExternalChannelFlow` / `DeviceInfo` / `InventoryWriteOff` / `WarehouseStocktake`；以及 `getParamNameValuePairs()` 要先调一次 `getSqlSegment()` 才会填充（直接读是 `{}`）。另外 `PERIOD_FMT` 是 `yyyyMM`（紧凑 `202610`），与 `closeSheet` 入参的 `yyyy-MM` 不是一回事。
+
+### 15-3 MA-293 的 PR 复核（仍不动）
+
+查了最近一次 PR run `39228287044`（2026-10-19）的 mini-programs job 日志：里面**没有** `check-admin-artifact-pairing` / `check-mp-scoped-hash` 的输出——两条门禁当时还没入链。所以 PR 事件的范围语义**仍无实证**。GitHub checkout 对 PR 会额外 fetch base ref，理论上 `mb != head`、门禁能正常工作，但这是推断不是实测；按「不猜着写」的规矩，本批仍不改 `ci.yml`，等一次含该门禁的 PR run 点验。结论已补进 `ISSUES.md` MA-293。
+
+### 15-4 验证
+
+| 项 | 结果 |
+|---|---|
+| 全量单测 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3124, Failures: 0, Errors: 0, Skipped: 0**（上批 3122，+2；Docker 恢复后 IT 也真跑了） |
+| 三态负向 | 把 `periodLabel` 改回 `period.minusMonths(1).format(PERIOD_FMT)` ⇒ **2 红**：`MPGENVAL1=202609` 与 `expected:<42> but was:<99>`；还原后源码 md5 与备份逐字节一致、2/2 绿 |
+| 台账/登记 | MA-268 置 fixed（e1911a38）；批登记 39 批全对账；MA-293 补批 10 复核结论 |
+| CI | 上三批 `bdc34d86` / `9f6bbdea` / `907ef7a4` 均 **completed/success**（含批 9 的 `43704057041`） |
