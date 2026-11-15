@@ -718,3 +718,42 @@ self.finalizeChannelPartialRefund(orderId, refundCents);
 | 三态负向 | 把 `periodLabel` 改回 `period.minusMonths(1).format(PERIOD_FMT)` ⇒ **2 红**：`MPGENVAL1=202609` 与 `expected:<42> but was:<99>`；还原后源码 md5 与备份逐字节一致、2/2 绿 |
 | 台账/登记 | MA-268 置 fixed（e1911a38）；批登记 39 批全对账；MA-293 补批 10 复核结论 |
 | CI | 上三批 `bdc34d86` / `9f6bbdea` / `907ef7a4` 均 **completed/success**（含批 9 的 `43704057041`） |
+
+## 16. 修复批 11：MA-176 补货已有批次的原子累加（2026-11-15 晚）
+
+### 16-1 同族残留，配方就在隔壁
+
+`InventoryLotService.doAddRestock` 对**已有批次**仍是老三段：
+
+```java
+lot.setQuantity(lot.getQuantity() + command.quantity());  // 内存里算
+lot.setStatus(resolveLotStatus(lot));
+lotRepository.save(lot);                                  // 全列绝对覆盖
+```
+
+`DeviceSkuLot` 没有 `version`，`save` 是全列写。设备锁正常时没问题，但锁失效窗口内，补货拿到的旧快照会把并发的下架 / 报损 / FEFO 扣减**覆盖回去**（账面虚高、已卖的货还能再卖）。P-1 既定标准是「单语句原子 UPDATE 免锁免疫」。
+
+关键是：**同一个文件里 `doRestoreToBatch`（退款/回补路径）早在 R18-2 就改成这个配方了**，并写了长注释说明为什么不能改回 `save`。本条是当时只修了一条、漏掉另一条的同族残留。
+
+### 16-2 修法（`b20435c3`）
+
+| 分支 | 修后 | 理由 |
+|---|---|---|
+| 已有批次 | `increaseQuantityAtomic(lotId, delta)` + `updateStatusAndSlotById(lotId, status, null)`，两段同事务 | 数量走单语句 `quantity = quantity + ?`；status 是低冲突属性列，用只写 status/slot 的独立 UPDATE，不碰 quantity |
+| 新建批次 | `quantity` 随 INSERT 一次写入 | 新建没有「读→算→写」窗口，保持原行为 |
+
+两处刻意的「不改」：`slotId` 传 `null`（SQL 里 `COALESCE(#{slotId}, slot_id)` ⇒ 保持原值，不引入主货道回填这种新行为）；`status` 仍无条件 `resolveLotStatus(lot)`（与修前 `save` 的行为一致，不照抄隔壁只在 DEPLETED/BLOCKED 时重算）。
+
+### 16-3 验证
+
+| 项 | 结果 |
+|---|---|
+| 新增单测 | `InventoryLotRestockAtomicityTest` 3 例：已有批次必须调原子累加且 `save` 零调用 / 新建批次仍一次 INSERT 且 quantity=5 / 传的是 delta=7 而不是绝对量 17 |
+| 相关回归 | 连跑 `InventoryLotConcurrencyTest` / `InventoryLotBatchDeductTest` / `InventoryLotExpiryScanR18Test` + 两个真库 IT（`InventoryConsistencyR18IT` 4 例、`InventoryDeductAtomicityIT` 6 例）⇒ **20/20 绿** |
+| 全量 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3127, Failures: 0, Errors: 0, Skipped: 0**（上批 3124，+3） |
+| 三态负向 | 把已有批次分支换回 `setQuantity(get+delta)` + `save` ⇒ **2 红**（`increaseQuantityAtomic` 未调用 / `save` 被意外调用）；还原后源码 md5 与备份逐字节一致 |
+| 台账 | MA-176 置 fixed（b20435c3）；批登记 40 批全对账；台账三门禁 OK |
+
+### 16-4 本批取舍
+
+一开始列了四条「改动面小」的 P2（MA-176 / 178 / 224 / 279），实际只做了 MA-176：它是**库存并发正确性**、配方现成、能一次验透（含真库 IT）；而 MA-178 要定押金业务上界、MA-224 要同时改前后端清列口径、MA-279 要动菜单权限映射，各自都需要单独一轮口径确认，不适合塞在同一批里凑数。其余三条仍在 open 台账。

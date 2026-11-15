@@ -1030,6 +1030,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "b20435c3",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-176 补货已有批次改走原子累加（increaseQuantityAtomic + updateStatusAndSlotById），消除绝对 save 覆盖并发扣减",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/InventoryLotService.java"
+          ]
+        },
+        {
+          "id": "新增 InventoryLotRestockAtomicityTest 3 例（原子累加/不 save、新建仍 INSERT、传 delta 不是绝对量）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/InventoryLotRestockAtomicityTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
