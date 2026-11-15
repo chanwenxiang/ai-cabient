@@ -1,7 +1,7 @@
 {
   "note": "S15 巡检规则夹具登记（check-consistency-rule-fixtures）：DataConsistencyService 每条规则必须登记 + 有正负两夹具（合法空态不报红 + 真异常报红，范式=checkOrderConsistency_consistentRowNotReturnedBySql/recordsTrueMismatch）。判据：①新 check 方法不登记即红；②fixtureClass 锚点必须存在且含规则名；③夹具不足的规则数 maxMissingFixtures 只许减；④已齐夹具的规则数只许增（fixtureOk 计数棘轮）。R22 §8.4 拍板（两侧皆 0 是否 MATCHED）影响个别规则的「合法空态」定义，拍板前夹具判据只到引用计数层。",
   "seedDate": "2026-11-13",
-  "seedFixtureOk": 24,
+  "seedFixtureOk": 25,
   "maxMissingFixtures": 0,
   "entries": [
     {

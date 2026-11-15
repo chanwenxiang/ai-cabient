@@ -92,7 +92,11 @@ const FIXTURE = (rel) => (rel.endsWith('.java') ? readFileSync(resolve(ROOT, rel
 // 6) 双夹具棘轮：已齐数下降 ⇒ 红
 {
   const reg = JSON.parse(JSON.stringify(REGISTRY));
-  reg.seedFixtureOk = REGISTRY.seedFixtureOk + 1;
+  // 🔴 不能用 REGISTRY.seedFixtureOk + 1：seed 是历史切线基线，规则数增加后
+  // 真实 fixtureOk 会超过它（MA-270 加规则后 24→25，+1 恰好等于真实值 ⇒ 退化判据不触发，
+  // 自测反而假红）。要从当前真实值算出「必然退化」的基线。
+  const baseline = evaluate(SVC, REGISTRY, () => true, FIXTURE).stats.fixtureOk;
+  reg.seedFixtureOk = baseline + 1;
   const r = evaluate(SVC, reg, () => true, FIXTURE);
   assert(
     r.problems.some((p) => p.includes('夹具退化')),
