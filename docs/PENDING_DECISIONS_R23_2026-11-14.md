@@ -133,3 +133,13 @@
 - **现状（拍板时复核）**：识别演示页 `vision/RecognitionDemoView.vue` 已随 c498c653 删除，路由/侧栏/前端/后端全仓**零引用**；两条门禁（check-menu-permissions / check-frontend-perm-codes）按 V138 挂的 ALLOWLIST 豁免因此空转；V421:24 注明「去留属 R8 待拍板」，但该拍板项此前漂移出本台账与 PENDING_DECISIONS_5（两边 0 命中 recognition-demo）。
 - **拍板**：按 V421 同款口径 **RETIRED**（非 DELETE）——授权行与审计历史留痕，`status='ACTIVE'` 的读面即刻收窄；两条门禁的空转豁免同批删除。
 - **执行**：`V482__retire_recognition_demo_perm.sql`（幂等 UPDATE，仅一行）+ 两门禁 ALLOWLIST 清空 + 本条回填。V138「菜单可见性与按钮两级分离」由在用的按钮码 `ops:sku:demo` 继续承载，不受影响。
+
+### ⑭ 批 14 集中拍板（2026-11-15，均已在代码中执行）
+
+- **MA-278（拆开关）**：`feebill.site_rent.auto_generate.enabled`（默认 **true**，租金月结出账常态运行，租期校验由 MA-273 把关）与 `feebill.auto_generate.enabled`（默认 false，仅流量费月结出账，流量费已日扣属对账用途）拆为两键。
+- **MA-294（0 压倒一切）**：全局 `checkout.preauth_cents=0` 判据前移到 `resolvePreauthCents` 最前——「运营关闭预授权」必须压倒设备押金分支，否则配了 deposit_cents 的柜机关不掉冻结。
+- **MA-287（归月同源）**：结算单归月从 split.created_at 改为**订单 created_at**（与商户月账单同源）；跨月补缴归下单月。重建即真相，历史月按新口径重算。
+- **MA-300（不迁移状态）**：`refundOrder` 刻意不改订单状态（PAID+refunded 是常态）；资金正确性已由净额口径（MA-270）闭环，状态迁移会与 6 条自带 setStatus 的调用链打架，收益仅 UI。已在代码写「勿顺手补」注释。
+- **MA-284（同频兜底）**：新增 `alertRefundSyncNotAdvancedOps`（挂 autoCancelExpired 的清扫腿）——账本 RECHARGE_REFUND 流水合计 > 订单 refunded_cents ⇒ HIGH 告警，只告警不自动修（与 MA-269 残留边界同档）。
+- **MA-177（V483 唯一键）**：dev 库 GROUP BY HAVING count>1 实测 0 行 ⇒ 无需清理，V483 直接建 `uq_lot_device_sku_batch(device_id,sku_id,batch_no)`。
+- **MA-260（既有兜底确证）**：`platform-fund-daily`/`device-rental-daily` 已在 `XxlJobManagedTasks.KEYS` + `ScheduleZones.MAX_SILENCE_BY_TASK`（26h）+ StaleMonitor→OpsAlertDispatcher ⇒ 拍板项 ②停摆告警**已有实现**，无需 @Scheduled 回退。台账按证据关闭。

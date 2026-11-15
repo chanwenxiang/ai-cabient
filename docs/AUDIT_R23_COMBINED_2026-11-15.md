@@ -821,3 +821,46 @@ lotRepository.save(lot);                                  // 全列绝对覆盖
 | 门禁 | feature-flags OK（119 开关 / 读取点 117）；menu-permissions OK（豁免 0）；frontend-perm-codes OK（豁免 0）；迁移 number-order / safety / immutable / seed-separation OK；台账三门禁 OK；批登记 43 批全对账 |
 
 **如实边界**：MA-275 的 CAS 只覆盖「同单两条通知并发」这一形态，`selectById` 未命中时回落无条件落库（与修前一致）——生产上该行刚被读到、不可能真消失，回落只为夹具兼容；MA-276 的 REQUIRES_NEW 改变了「与调用方事务原子」这一隐含契约，边界见 §18-2 第 2 条。
+
+## 19. 修复批 13/14：五条 P2+P3（§18-§19 同日）与终局清扫（2026-11-15 夜）
+
+### 19-1 批 13（§18，e6cfefe9 / fea2c0e7 / 419f77aa，未推送随批 14 一并推）
+
+MA-281（超时契约同源+装配期断言）/ MA-275（订单态乐观 CAS）/ MA-276（锁包住事务）三条 P2；MA-201（feature-flags 判据剥注释）/ MA-200（识别演示豁免退役+V482）两条 P3。详见 §18。
+
+### 19-2 批 14：剩余 18 条一次性收口（dac8776f / 56c9072d / 48bb2cb6）
+
+用户拍板「一次性都修了」⇒ 剩余全部 open（3 P2 + 15 P3）在**一轮**内集中处理，含全部需拍板项——拍板口径逐一回填 `PENDING_DECISIONS_R23` 第 ⑬⑭ 条：
+
+| 编号 | 修法（摘要） | 提交 |
+|---|---|---|
+| MA-260 | **证据关闭**：两资金 key 已有 26h 停摆告警链（KEYS+MAX_SILENCE+Monitor→Dispatcher），拍板②已有实现；@Scheduled 双保险落选 | 台账 |
+| MA-274 | `LockHeartbeat`（租约/3 心跳续租）消除「锁过期双跑」半；HTTP 移出事务的残留如实记录 | dac8776f |
+| MA-278 | 拆开关：租金键默认 true、流量费键保持 false | dac8776f |
+| MA-284 | 退款同步兜底告警（RECHARGE_REFUND 流水合计>refunded_cents ⇒ HIGH，挂既有清扫腿） | dac8776f |
+| MA-286 | 月租余数按日序分摊（全月恰等月额） | dac8776f |
+| MA-287 | 结算单归月改按订单 created_at（与月账单同源） | dac8776f |
+| MA-288 | edge-results 仅 accepted 才注销 CLOSE watchdog | dac8776f |
+| MA-294 | 全局 preauth=0 判据前移（0 压倒设备押金） | dac8776f |
+| MA-179 | 元单位资金键写侧校验（≤2 位小数 + 天花板，不进整数守卫族） | dac8776f |
+| MA-297 | 4 个运营写端点补 admin_audit_log | dac8776f |
+| MA-300 | 拍板不迁移状态 + 勿顺手补注释 | dac8776f |
+| MA-177 | V483 唯一键（dev 实测 0 重复） | dac8776f |
+| MA-225 | 两面板轮询代际守卫（MA-173 admin 同族） | 56c9072d |
+| MA-299 | 单设备流量费显示「商户级」（拍板②，拒绝自创分摊口径） | 56c9072d |
+| MA-293 | CI push 注入 before SHA 走权威直连范围（解两处 fail-open）；PR 语义留点验 | 48bb2cb6 |
+| MA-292 | 新门禁 check-system-config-fund-ceilings（天花板逐键钉死） | 48bb2cb6 |
+| MA-261/290 | 文档数字实测回填（44 @Scheduled / 38 XXL / 476 迁移 / V483） | 台账 |
+| MA-201/200 | 批 13 已修（§18） | fea2c0e7 |
+
+### 19-3 验证
+
+| 项 | 结果 |
+|---|---|
+| 定向测试 | LockHeartbeatTest 2 / OpsFeeBillJobTest 3（新）；SchedulerTest（423）/ RebuildTest（6，补订单桩+lambda 缓存）/ ConsumerPreauthServiceTest（+全局 0 压倒）/ OpsExceptionJiangyiRetryGuardTest / OrderPayment 五件套 / PayScoreOrderNotifyTest ⇒ 全绿 |
+| 负向 | MA-293 夹具 7 项含「before 引用缺失必红」；MA-292 夹具 5 项含台账原缺陷形态（999999999L）；批 13 三态负向见 §18 |
+| 编译 | `mvn -o -q -pl services/trade-service,services/jiangyi-gateway -am test-compile` ⇒ 绿（两模块） |
+| 全量 | **本地不跑全量，交给 CI**（用户要求提速；批 12/13 全量基线 3133+14=3147 预期，CI integration job 为准） |
+| 台账 | 4 门禁 OK（18 份报告/225 条、45 批对账、250 行状态锚点、246 活文档）；剩余 open **0 条** |
+
+**如实边界**：MA-274 的渠道 HTTP 仍在 DB 事务内（心跳修的是锁半边，事务外重构留专项）；MA-293 的 PR 事件语义维持旧状待真 run；全量单测数字以推送后 CI 为准。
