@@ -99,4 +99,23 @@ assert(
     '——否则 why 会退化成「加了个 IT」这类空话登记'
 );
 
+// MA-271（2026-11-15）本批新增条目：月账单退款归日的真库实证。
+// S8③：同批给 GUARDED 加了条目，夹具必须同批跟上——否则「登记了」只是把字符串塞进清单，
+// 没有任何用例会阻止它被改名/删掉/写错 job。
+const refundDay = entries.find(([, rel]) => rel.endsWith('MerchantBillRefundDaySqlIT.java'));
+assert(
+  !!refundDay,
+  'MerchantBillRefundDaySqlIT 必须在 GUARDED 里登记（@Testcontainers(disabledWithoutDocker=true)' +
+    ' 的类缺 Docker 时跑 0 用例，只有清单能证明它由 integration 守）'
+);
+assert(
+  /job:\s*'integration'/.test(refundDay[2]),
+  'MerchantBillRefundDaySqlIT 是 *IT.java ⇒ job 必须是 integration（failsafe）'
+);
+assert(
+  /refunded_at/.test(refundDay[2]) && /追溯/.test(refundDay[2]),
+  'why 必须点名两条 mock 单测抓不到的腿：退款按 refunded_at 归日与「历史月不被追溯改写」' +
+    '——否则 why 会退化成「加了个 IT」这类空话登记'
+);
+
 console.log(`${TAG} OK：${checks} 项断言全过（GUARDED ${entries.length} 条逐条验真）`);
