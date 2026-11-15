@@ -395,7 +395,7 @@
 
 **真栈点验**：见 §9-6（2026-11-15 补做，已从「未覆盖」转为已覆盖）。
 
-**新登记**：MA-298（P3）——`MerchantInventoryPortalService` 的 `lowStockOnly` 分支仍是「全局 500 窗口 + 内存过滤」，修它要连带拍板低库存口径（`findLowStockByDeviceIds` 多收 `'DEPLOYED'` 且自带 LIMIT 500，直接换会改行为）。
+**新登记**：MA-298（P3）——`MerchantInventoryPortalService` 的 `lowStockOnly` 分支仍是「全局 500 窗口 + 内存过滤」，修它要连带拍板低库存口径（`findLowStockByDeviceIds` 多收 `'DEPLOYED'` 且自带 LIMIT 500，直接换会改行为）。**已于同日晚修复，见 §10。**
 
 ### 9-6 真栈点验：跨商户 / 柜机级范围实际不可见（2026-11-15）
 
@@ -421,3 +421,61 @@
 **为什么在途要先造 `IN_TRANSIT` 行**：`listInTransitPage` 只列开单在途（`IN_TRANSIT`），dev 库里 24 行全是 `RECEIVED`/`CANCELLED` ⇒ 任何账号都是 0 行，直接拿它当「看不见」的证据是假绿。第 1 条先证明 admin 能看见这两行，第 5/6 条才有意义（负向 + 正向双控）。
 
 **仍未覆盖**：`device_data_fee_bill` 在 dev 库是空表，资费账单端点只验了代码路径与单测，没做真栈数据面；归到 MA-298 那批一起造数。
+
+## 10. 修复批 5：MA-298 商户门户低库存 / 临期告警的窗口顺序（2026-11-15 傍晚）
+
+§9 把「设备范围」推到 SQL 时，`MerchantInventoryPortalService` 只改了带柜号的那条分支，留下两处「全局窗口 → 内存过滤」。本批收掉，并给这一类补上静态判据。
+
+### 10-1 缺陷形态：同一个文件里两处 B13
+
+| 入口 | 原写法 | 后果 |
+|---|---|---|
+| `listInventory(lowStockOnly=true, deviceId=null)` | `findLowStockLimit(500)` 取**全平台**前 500 条低库存行，再 `filter(inDeviceScope)` | 别家行占满 500 条时，域受限商户自己的低库存行被挤出窗口 ⇒ 界面显示「没有要补的」 |
+| `listExpiryAlerts(userId)` | `findByStatusOrderByCreatedAtDesc("OPEN", 500)` 取**全平台**最近 500 条，再 `filter(inDeviceScope)` | 临期告警同样「自家的排在窗口外就看不见」，而计数走的是带范围的方法 ⇒ 数字与列表互相打架 |
+
+共同点还是那句话：**上限设在过滤之前**。B13 已经在工作台待办里修过三轮，这是第四个落点。
+
+### 10-2 修法：把「范围分支」前移到全局窗口分支之前
+
+```java
+} else if (allowed != null) {              // ← 先按范围取行（新增位置）
+    rows = inventoryRepository.findByIdDeviceIdIn(allowed);
+} else if (lowStockOnly) {                 // ← 只剩全局账号会走到这里
+    rows = inventoryRepository.findLowStockLimit(500);
+}
+```
+
+低库存判据不在这里下结论，仍交给下游的 `SkuStockLevel`（`0 < 可售 ≤ 阈值` 含缺货、只收在架 SKU）——同一端点的两条分支只该差「库存档位」，不该差「判据来源」。
+
+**为什么不用现成的 `findLowStockByDeviceIds`**（台账里当时写的待拍板项）：那条 SQL 与本端点有三处口径差，直接换会静默改变可见行——
+
+| 维度 | `findLowStockByDeviceIds` | 本端点（改后） |
+|---|---|---|
+| 生命周期 | `INNER JOIN device_info` 且只收 `DEPLOYED`（`normalizedLifecycle`） | 不筛生命周期（与本端点全量台账分支一致：IDLE/INBOUND 柜机照样列） |
+| 上限 | 自带 `LIMIT 500`，同样是「过滤前就截断」 | 受范围约束，不在过滤前截断 |
+| 数量源 | SQL `effectiveSellableQty` | Java `SkuStockLevel.sellableQty`（同一套批次账本判据，逐柜缓存） |
+
+结论：**取行按范围、判据留一处**。这条判断写进了代码注释，防下一个人「顺手对齐」。
+
+**全局账号刻意保留窗口**（`allowed == null` 才走 `findLowStockLimit`）：那里没有「范围」这一层过滤，窗口只影响列表长度、不会让某个账号的行消失；而它只取低库存行，比「全量 2000 条再内存筛」的召回更准。
+
+### 10-3 门禁：同类的第四个落点，形态却不一样
+
+`check-workbench-scope-pushdown` 原有判据是「两个工作台服务里 `inDeviceScope(` 必须零出现」。这个文件**刻意保留**了 `inDeviceScope` 当二道防线（范围已下推，再复核一次），套上去就是假红。于是给它单独一套判据：
+
+1. **分支顺序**：`findByIdDeviceIdIn(` 必须出现在 `findLowStockLimit(` **之前**——反过来就是本缺陷的字面形态，也是唯一能静态判定「窗口在过滤之前」的锚点；
+2. 临期告警必须用带范围的 `findByStatusAndDeviceIdInOrderByCreatedAtDesc(`，无范围的同名方法在该文件零调用；
+3. 正向锚点：上面两个带范围的入口必须存在（防「整段删掉」也判绿）。
+
+夹具从 5 项扩到 7 项：⑥ 把 else-if 调回「窗口在前」⇒ 必须命中「分支顺序」那一条；⑦ 把范围分支整段换成 `findLowStockLimit(500)` ⇒ 必须命中「正向锚点缺失」。两条都实测红过，还原后全绿，真实树 md5 前后一致。
+
+### 10-4 验证
+
+| 项 | 结果 |
+|---|---|
+| 新增单测 | 3 例：范围受限 `lowStockOnly` 不许调全局窗口（且 Mapper 多给的别家行仍被二道防线滤掉）、全局账号仍走低库存专用查询、临期告警走范围下推 |
+| 三态负向 | 把 `else if (allowed != null)` 改成 `allowed != null && !lowStockOnly`（一个 token，单变量）⇒ **1 红**（`expected: <1> but was: <0>`，正是新用例）；还原后 **14/14 绿**，源码 md5 与备份逐字节相同 |
+| 门禁负向 | `verify-workbench-scope-pushdown` 6 项全过（新增 ⑥⑦） |
+| 全量单测 | `mvn -o -pl services/trade-service -am test` ⇒ **Tests run: 3107, Failures: 0, Errors: 0**（上批 3104，+3） |
+
+**未覆盖（如实）**：`lowStockOnly=1` 这条分支没有做真栈点验。它的范围来源与 `inventory` 普通列表是同一个 `allowedDeviceIdsForPack`，§9-6 已在真库上验过该来源的三种形态（全局 / 商户绑定 / 柜机级求交）；本批只改了分支顺序，没有引入新的范围来源，因此没有再重建镜像跑一遍。

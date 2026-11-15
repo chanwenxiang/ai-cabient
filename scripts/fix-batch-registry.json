@@ -930,6 +930,28 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "030fda55",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-298 商户门户库存低库存 + 临期告警改设备范围下推（B13 第四个落点，同文件两处）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantInventoryPortalService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantInventoryPortalServiceTest.java"
+          ]
+        },
+        {
+          "id": "门禁 check-workbench-scope-pushdown 新增商户门户判据（分支顺序 + 无范围入口零调用 + 正向锚点），夹具 5→7",
+          "files": [
+            "scripts/check-workbench-scope-pushdown.mjs",
+            "scripts/devops/verify-workbench-scope-pushdown.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
