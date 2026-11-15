@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -40,6 +41,13 @@ public class WalletEngine {
     private final WalletLedgerMapper ledgerMapper;
     private final MerchantMapper merchantMapper;
     private final DistributedLockService distributedLockService;
+
+    /**
+     * 会改动「冻结占用额」的流水类型：冻结记负、释放/扣款记正 ⇒ 本单占用额 = {@code -Σamount}。
+     * 新增任何动冻结的 entryType 必须加进来，否则该单的幂等判据会把占用额算小（多释放）。
+     */
+    private static final Set<String> FROZEN_ENTRY_TYPES =
+            Set.of("WITHDRAW_FREEZE", "WITHDRAW_RELEASE", "WITHDRAW_PAID", "WITHDRAW_FEE");
 
     public WalletEngine(WalletAccountMapper accountMapper,
                         WalletLedgerMapper ledgerMapper,
@@ -319,18 +327,44 @@ public class WalletEngine {
         });
     }
 
+    /**
+     * 释放提现冻结。<b>同一 ref 幂等</b>，且只释放本单仍占用的部分。
+     *
+     * <p>MA-262（R23Q-01，P1）：原实现是「账户冻结合计 ≥ 金额就减一次」，不带任何 ref 判据 ——
+     * 打款失败（{@code finalizePayout} 落 FAILED）已经释放过一次，运营再点「打款失败取消」
+     * （{@code cancelFailed}）又释放一次：本单冻结被清空后，第二次减掉的是<b>别的在途单</b>的
+     * 冻结额；那张单后续打款成功走 {@code consumeFrozenSplit} 时冻结已不足 ⇒ 事务回滚，
+     * 而渠道钱已经出账（「钱出账、余额未扣」）。单据状态挡不住这类重复（FAILED 不区分是否已释放）。
+     *
+     * <p>判据改为流水自证：{@code held = -(Σ WITHDRAW_FREEZE/RELEASE/PAID/FEE 金额)}，
+     * {@code held<=0} ⇒ 已释放或已扣款，直接空转（记 info，不再动账户）；{@code 0<held<金额}
+     * ⇒ 只释放 {@code held}（历史脏数据下不stranded、也不越界吃别单）。
+     * 无任何相关流水（{@code held} 不可判）时退回旧口径并留 warn —— 老单据/迁移前数据没有
+     * 冻结流水，此时按账户级判定是唯一可行口径。
+     */
     @Transactional
     public void releaseFrozen(WalletDomain domain, String ownerId, long amountCents,
                               String refType, String refId, String remark) {
         runWithWalletLock(domain, ownerId, () -> {
             requirePositive(amountCents);
+            Long held = heldFrozenCents(domain, ownerId, refType, refId);
+            if (held != null && held <= 0L) {
+                log.info("release skipped (freeze already released/consumed) domain={} owner={} ref={}/{} amount={}",
+                        domain, ownerId, refType, refId, amountCents);
+                return null;
+            }
+            long release = held == null ? amountCents : Math.min(held, amountCents);
+            if (release < amountCents) {
+                log.warn("release clamped to held freeze domain={} owner={} ref={}/{} request={} held={}",
+                        domain, ownerId, refType, refId, amountCents, held);
+            }
             WalletAccount account = reload(domain, ownerId);
-            if (value(account.getFrozenCents()) < amountCents) {
+            if (value(account.getFrozenCents()) < release) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结金额不足");
             }
-            long frozen = value(account.getFrozenCents()) - amountCents;
+            long frozen = value(account.getFrozenCents()) - release;
             persistBalances(domain, ownerId, value(account.getBalanceCents()), frozen);
-            appendLedger(domain, ownerId, "WITHDRAW_RELEASE", amountCents,
+            appendLedger(domain, ownerId, "WITHDRAW_RELEASE", release,
                     new BalanceSnapshot(value(account.getBalanceCents()), frozen), refType, refId, remark);
             return null;
         });
@@ -358,6 +392,14 @@ public class WalletEngine {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "提现金额不合法");
             }
             requirePositive(gross);
+            // MA-262 另一半：账户冻结合计够 ≠ **本单**冻结够。本单冻结被别处释放/被吃后，
+            // 只判合计会扣掉别的在途单的冻结额 ⇒ 那张单打款成功时回滚（钱已出账、余额未扣）。
+            // 有冻结流水时按 ref 判：本单占用不足即拒付，把资损挡在渠道调用之前。
+            Long held = heldFrozenCents(domain, ownerId, refType, refId);
+            if (held != null && held < gross) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                        "本单冻结不足：可扣 " + held + " 分 < 应付 " + gross + " 分");
+            }
             WalletAccount account = reload(domain, ownerId);
             if (value(account.getBalanceCents()) < gross || value(account.getFrozenCents()) < gross) {
                 throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "冻结或余额不足");
@@ -387,6 +429,25 @@ public class WalletEngine {
 
     private void persistBalances(WalletDomain domain, String ownerId, long balanceCents, long frozenCents) {
         accountMapper.updateBalances(domain.column(), ownerId, balanceCents, frozenCents, Instant.now());
+    }
+
+    /**
+     * 该 ref 在冻结账上**仍被占用**的金额（分）；{@code null} = 无法判定（无 ref 或缺冻结流水）。
+     *
+     * <p>用流水自证而不是单据状态：提现单据的 FAILED 不区分「冻结已释放」（打款失败即释放）
+     * 与「冻结仍在」（重试打款重新冻结后又失败），靠状态判重必然漏。冻结账是唯一事实源。
+     * 无任何相关流水时返回 null 让调用方退回账户级旧口径（老单据/迁移前数据没有冻结流水）。
+     */
+    private Long heldFrozenCents(WalletDomain domain, String ownerId, String refType, String refId) {
+        if (refType == null || refId == null) {
+            return null;
+        }
+        WalletLedgerMapper.FrozenSummary summary = ledgerMapper.summarizeFrozenByRef(
+                domain.column(), ownerId, refType, refId, FROZEN_ENTRY_TYPES);
+        if (summary == null || summary.rows() == 0) {
+            return null;
+        }
+        return Math.max(0L, -summary.sumCents());
     }
 
     private void appendLedger(WalletDomain domain, String ownerId, String entryType, long amountCents,

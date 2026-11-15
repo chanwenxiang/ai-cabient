@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,4 +81,35 @@ public interface WalletLedgerMapper extends BaseMapper<WalletLedger> {
     default long sumAmountByEntryTypeSince(String domain, String entryType, Instant since) {
         return sumAmountByEntryTypeBetween(domain, entryType, since, null);
     }
+
+    /**
+     * 某个 ref 的冻结账快照：命中的流水行数 + 金额合计（分，带符号）。
+     *
+     * <p>MA-262（提现二次解冻）：提现冻结生命周期（{@code WITHDRAW_FREEZE/RELEASE/PAID/FEE}）里，
+     * 冻结占用额 = {@code -Σamount}——冻结记负、释放与扣款记正，因此「本单还剩多少钱被冻结」
+     * 可由流水自证，不必依赖单据状态。{@code rows} 用于区分「没有流水（无法判定/历史数据）」
+     * 与「净额 0（已释放或已扣款）」：两者合计都是 0，但语义相反，只看合计会把未冻结当成已释放。
+     */
+    default FrozenSummary summarizeFrozenByRef(String domain, String ownerId, String refType,
+                                               String refId, Collection<String> entryTypes) {
+        if (entryTypes == null || entryTypes.isEmpty()) {
+            return new FrozenSummary(0, 0L);
+        }
+        List<WalletLedger> rows = selectList(Wrappers.<WalletLedger>lambdaQuery()
+                .eq(WalletLedger::getDomain, domain)
+                .eq(WalletLedger::getOwnerId, ownerId)
+                .eq(WalletLedger::getRefType, refType)
+                .eq(WalletLedger::getRefId, refId)
+                .in(WalletLedger::getEntryType, entryTypes));
+        long sum = 0L;
+        for (WalletLedger row : rows) {
+            if (row.getAmountCents() != null) {
+                sum += row.getAmountCents();
+            }
+        }
+        return new FrozenSummary(rows.size(), sum);
+    }
+
+    /** 见 {@link #summarizeFrozenByRef}：行数用于区分「无流水」与「净额 0」。 */
+    record FrozenSummary(int rows, long sumCents) {}
 }
