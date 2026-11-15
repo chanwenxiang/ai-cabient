@@ -836,6 +836,29 @@
           "why": "同上：InTransitService 不接收 operatorId、TallyLedgerService 自拼 SQL，需独立改取数口径；已登记基线与 MA-296。"
         }
       ]
+    },
+    {
+      "commit": "dc6fa1df",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "C06 归因门禁声明解析盲区：477 注解只解析 455（MA-267）",
+          "files": [
+            "scripts/check-write-endpoint-attribution.mjs",
+            "scripts/check-write-endpoint-attribution.test.mjs",
+            "scripts/write-endpoint-attribution-baseline.json"
+          ]
+        },
+        {
+          "id": "C06 同族：openapi 重生成门禁「注解同行 ⇒ 返回类型抽不到」（OpsException 11 端点）",
+          "files": [
+            "scripts/check-openapi-regen-required.mjs",
+            "scripts/check-openapi-regen-required.test.mjs"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
