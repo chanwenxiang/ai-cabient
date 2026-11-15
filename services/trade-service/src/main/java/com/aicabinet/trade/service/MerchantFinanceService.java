@@ -54,6 +54,8 @@ public class MerchantFinanceService {
     private final OrderViewAssembler orderViewAssembler;
     private final MerchantSettlementBillMapper settlementBillRepository;
     private final DeviceDataFeeBillMapper dataFeeBillRepository;
+    /** MA-272：月账单「流量费」读真扣台账（merchant_fee_ledger）而不是月度出账表。 */
+    private final MerchantFeeLedgerMapper feeLedgerRepository;
     /** 经 Spring 代理调用本类 @Transactional 方法，避免自调用失效。 */
     private final MerchantFinanceService self;
 
@@ -73,6 +75,7 @@ public class MerchantFinanceService {
                                   OrderViewAssembler orderViewAssembler,
                                   MerchantSettlementBillMapper settlementBillRepository,
                                   DeviceDataFeeBillMapper dataFeeBillRepository,
+                                  MerchantFeeLedgerMapper feeLedgerRepository,
                                   @Lazy MerchantFinanceService self) {
         this.permissionService = permissionService;
         this.merchantFeaturePackService = merchantFeaturePackService;
@@ -90,6 +93,7 @@ public class MerchantFinanceService {
         this.orderViewAssembler = orderViewAssembler;
         this.settlementBillRepository = settlementBillRepository;
         this.dataFeeBillRepository = dataFeeBillRepository;
+        this.feeLedgerRepository = feeLedgerRepository;
         this.self = self;
     }
 
@@ -276,17 +280,30 @@ public class MerchantFinanceService {
             refundsByDay.put(String.valueOf(row[0]), row);
         }
 
-        // 流量费：device_data_fee_bill 月度出账（无日粒度 ⇒ 日行流量费为 0，月合计=当月出账）
-        long dataFeeCents = dataFeeBillRepository.selectList(
-                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceDataFeeBill>lambdaQuery()
-                                .in(DeviceDataFeeBill::getMerchantId, merchantIds)
-                                .eq(DeviceDataFeeBill::getBillMonth, ym.toString())
-                                .ne(DeviceDataFeeBill::getStatus,
-                                        com.aicabinet.common.constants.CabinetConstants.FEE_BILL_STATUS_VOID))
-                .stream()
-                .filter(b -> normalizedDeviceId == null || normalizedDeviceId.equals(b.getDeviceId()))
-                .mapToLong(DeviceDataFeeBill::getAmountCents)
-                .sum();
+        // 流量费（MA-272）：全量视图读「真扣过钱」的日结台账，不再读月度出账表。
+        // 日结批的实际动作是 walletService.debitIfAbsentAllowNegative(...) + 写 merchant_fee_ledger
+        // （见 MerchantDailyIncomeNotifyScheduler#chargeDailyFee），而 device_data_fee_bill 那张
+        // 月度出账表的开关默认关闭 ⇒ 原实现恒取到 0，商户看到的利润额里根本没减流量费。
+        // 仍无日粒度下推：日行保持 0、只在月合计单列（与既有 DTO 口径一致，不改前端呈现）。
+        long dataFeeCents;
+        if (normalizedDeviceId == null) {
+            dataFeeCents = feeLedgerRepository.sumAmountByMerchantsAndTypeAndMonth(
+                    merchantIds, MerchantFeeLedger.FEE_TYPE_DATA, ym.atDay(1), ym.atEndOfMonth());
+        } else {
+            // 单设备视图仍走按设备出账的表：merchant_fee_ledger 只有「商户×日」粒度、没有 device 维度。
+            // 在没有业务依据前不按销售额分摊（那是自创口径，商户对账会对不上）；
+            // 代价是开关关闭时单设备流量费恒 0 —— 既有缺口，已登记 MA-299，不在本条猜口径。
+            dataFeeCents = dataFeeBillRepository.selectList(
+                            com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceDataFeeBill>lambdaQuery()
+                                    .in(DeviceDataFeeBill::getMerchantId, merchantIds)
+                                    .eq(DeviceDataFeeBill::getBillMonth, ym.toString())
+                                    .ne(DeviceDataFeeBill::getStatus,
+                                            com.aicabinet.common.constants.CabinetConstants.FEE_BILL_STATUS_VOID))
+                    .stream()
+                    .filter(b -> normalizedDeviceId.equals(b.getDeviceId()))
+                    .mapToLong(DeviceDataFeeBill::getAmountCents)
+                    .sum();
+        }
 
         List<MerchantBillDayDto> days = new ArrayList<>();
         int orderCount = 0;

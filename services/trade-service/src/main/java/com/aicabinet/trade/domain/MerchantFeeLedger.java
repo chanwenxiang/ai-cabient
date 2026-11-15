@@ -15,6 +15,18 @@ import java.time.LocalDate;
  */
 @TableName("merchant_fee_ledger")
 public class MerchantFeeLedger {
+
+    /**
+     * 台账里 {@code fee_type} 的<b>实际存储值</b>。
+     *
+     * <p>⚠️ 与 {@code CabinetConstants.FEE_TYPE_SITE_RENT="SITE_RENT"} /
+     * {@code FEE_TYPE_DATA_FEE="DATA_FEE"} <b>不是同一套</b>——那两个常量全仓零引用（死常量），
+     * 日结批发的是这里的 "REN"/"DATA"。MA-272 期间核对"月账单读哪张表"时撞见这个不一致，
+     * 于是把写入侧与读取侧收口到同一处常量，防下一个人拿另一种拼法查出 0 行。
+     */
+    public static final String FEE_TYPE_REN = "REN";
+    public static final String FEE_TYPE_DATA = "DATA";
+
     @TableId(type = IdType.AUTO)
     private Long ledgerId;
     private String merchantId;

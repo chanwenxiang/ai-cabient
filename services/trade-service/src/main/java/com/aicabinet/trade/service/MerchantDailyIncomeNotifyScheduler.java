@@ -485,8 +485,10 @@ public class MerchantDailyIncomeNotifyScheduler {
         boolean debited = walletService.debitIfAbsentAllowNegative(merchantId, dailyFee, "DAILY_FEE",
                 FEE_REF_TYPE, yesterday.format(ISO_FMT),
                 "周期费用日扣(租金月额/" + daysInMonth + "天 + 流量费分/天)");
-        upsertFeeLedger(merchantId, yesterday, "REN", rentDaily, "日扣租金，扣款成功自动结清");
-        upsertFeeLedger(merchantId, yesterday, "DATA", dataDaily, "日扣流量费，扣款成功自动结清");
+        upsertFeeLedger(merchantId, yesterday, MerchantFeeLedger.FEE_TYPE_REN, rentDaily,
+                "日扣租金，扣款成功自动结清");
+        upsertFeeLedger(merchantId, yesterday, MerchantFeeLedger.FEE_TYPE_DATA, dataDaily,
+                "日扣流量费，扣款成功自动结清");
         // F-5（2026-10-17）：false=该日钱包流水已存在（幂等跳过，本调用没再扣钱）。
         // 返回值只用于「本次实扣合计」（运营台重跑、任务汇总），跳过时必须报 0，
         // 否则同一天的费用会在合计里数两遍（收入商户循环 + 全量循环各算一次）。

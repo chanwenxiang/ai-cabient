@@ -50,6 +50,7 @@ class MerchantFinanceServiceTest {
     @Mock JiangyiOrderVideoService jiangyiOrderVideoService;
     @Mock MerchantSettlementBillMapper settlementBillRepository;
     @Mock com.aicabinet.trade.mapper.DeviceDataFeeBillMapper dataFeeBillRepository;
+    @Mock com.aicabinet.trade.mapper.MerchantFeeLedgerMapper feeLedgerRepository;
 
     private MerchantFinanceService service;
 
@@ -61,7 +62,7 @@ class MerchantFinanceServiceTest {
                 settlementService, profitSharingService, profitSharingProperties, weChatPayProperties,
                 sessionRepository, jiangyiOrderVideoService,
                 new com.aicabinet.trade.service.view.OrderViewAssembler(), settlementBillRepository,
-                dataFeeBillRepository, null);
+                dataFeeBillRepository, feeLedgerRepository, null);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -165,5 +166,67 @@ class MerchantFinanceServiceTest {
                         () -> service.orderVideos(9L, "NOPE"));
 
         assertEquals(404, ex.getStatusCode().value());
+    }
+
+    // ---------- MA-272 月账单流量费必须读真扣台账 ----------
+
+    /**
+     * 全量视图：流量费取自 {@code merchant_fee_ledger}（日结批真实扣过的钱）。
+     * 修前读 {@code device_data_fee_bill}（月度出账开关默认关闭）⇒ 恒 0 ⇒ 商户利润虚高。
+     */
+    @Test
+    void getMonthlyBill_allDevices_readsDataFeeFromLedger() {
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("MCH-DEFAULT"));
+        when(merchantFeaturePackService.intersectDeviceFilterForPack(9L, null, MerchantFeaturePacks.BIZ))
+                .thenReturn(null);
+        when(orderLineRepository.merchantBillSalesByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(orderLineRepository.merchantBillRefundsByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(feeLedgerRepository.sumAmountByMerchantsAndTypeAndMonth(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(12345L);
+
+        var bill = service.getMonthlyBill(9L, "2026-04", null);
+
+        assertEquals(12345L, bill.dataFeeCents(), "流量费必须取自日扣台账，不能是停用出账表的 0");
+        assertEquals(-12345L, bill.profitCents(), "无销售/退款/成本时，利润应为负的流量费");
+        org.mockito.Mockito.verifyNoInteractions(dataFeeBillRepository);
+    }
+
+    /**
+     * 单设备视图：费用台账只有「商户×日」粒度、无 device 维度，不能拿全商户的费用顶替，
+     * 也不能自创分摊 ⇒ 仍读按设备出账的表（既有缺口见 MA-299）。
+     */
+    @Test
+    void getMonthlyBill_singleDevice_doesNotBorrowWholeMerchantFee() {
+        when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
+                .thenReturn(Set.of("MCH-DEFAULT"));
+        when(merchantFeaturePackService.intersectDeviceFilterForPack(9L, "DEV-A", MerchantFeaturePacks.BIZ))
+                .thenReturn(java.util.List.of("DEV-A"));
+        when(orderLineRepository.merchantBillSalesByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        when(orderLineRepository.merchantBillRefundsByDay(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of());
+        com.aicabinet.trade.domain.DeviceDataFeeBill row = new com.aicabinet.trade.domain.DeviceDataFeeBill();
+        row.setDeviceId("DEV-A");
+        row.setAmountCents(777);
+        when(dataFeeBillRepository.selectList(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(row));
+
+        var bill = service.getMonthlyBill(9L, "2026-04", "DEV-A");
+
+        assertEquals(777L, bill.dataFeeCents());
+        org.mockito.Mockito.verifyNoInteractions(feeLedgerRepository);
     }
 }
