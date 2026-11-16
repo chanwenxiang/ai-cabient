@@ -1,7 +1,7 @@
 {
   "note": "S7 保留注册表（check-retention-registry）：每张活表必须有保留策略或显式 RETAIN。policy=RETAIN=凭证/业务实体永不清理；days/months 必须同时给 config 键且该键在 GrowthLogArchiveScheduler 源码中真实实现（门禁锚点校验）；TBD=流水形态待业务确认的显式欠账（maxTbd 棘轮只许减）。资金表（S5 保护集合同族）必须 RETAIN，与 AdminDataManageService 交叉校验。新表不登记即红（完备性）。",
   "seedDate": "2026-11-12",
-  "seedLiveTableCount": 178,
+  "seedLiveTableCount": 179,
   "maxTbd": 15,
   "tables": [
     {
@@ -897,6 +897,11 @@
       "table": "warehouse_transfer_order",
       "policy": "RETAIN",
       "why": "业务/配置实体"
+    },
+    {
+      "table": "refund_flow",
+      "policy": "RETAIN",
+      "why": "交易流水（CB-061/CB-059：交易记录留存 ≥3 年，电商法三十一条；逐笔退款明细是资金对账与 MA-271 归月真值，不设删除任务）"
     }
   ]
 }

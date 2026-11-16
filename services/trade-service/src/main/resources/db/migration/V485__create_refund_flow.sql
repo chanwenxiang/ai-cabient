@@ -1,6 +1,6 @@
 -- MIGRATION_KIND: backfill
 -- MIGRATION_REVIEWED: yes（回填 INSERT...SELECT 为聚合口径、与现状月账单等价，批 17 主审）
--- COMPETITOR_REF: CB-059（退款流水逐笔台账：Nayax/映翰通云平台均为「订单级聚合退款额 + 渠道侧逐笔 refund id」双层结构；本表对齐该实践——订单 refunded_cents 保持聚合，逐笔明细落 refund_flow）
+-- COMPETITOR_REF: CB-061
 -- B3（R23 专项，2026-11-16 用户拍板）：退款流水表——MA-271（多次部分退款整笔归最近月）
 -- 与 MA-269 残留（扣款成功但 finalize 半段丢失不可回放）的数据模型彻底解。
 --

@@ -1,6 +1,6 @@
 -- MIGRATION_KIND: schema
 -- MIGRATION_REVIEWED: yes（仅 DROP 冗余唯一索引，批 17 主审）
--- COMPETITOR_REF: CB-059（同 V486/V487）
+-- COMPETITOR_REF: CB-061
 -- B4 追加二（V487 真库验证抓到）：uk_merchant_fee_date_type 在历史库中以
 -- CREATE UNIQUE INDEX（独立索引）形态存在而非 TABLE CONSTRAINT —— V487 的
 -- DROP CONSTRAINT IF EXISTS 只删掉了约束对象，同名唯一索引仍在 ⇒ 逐台行照样撞键。

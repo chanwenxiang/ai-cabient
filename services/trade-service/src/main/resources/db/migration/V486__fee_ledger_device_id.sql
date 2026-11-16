@@ -1,6 +1,6 @@
 -- MIGRATION_KIND: schema
 -- MIGRATION_REVIEWED: yes（加可空列，瞬时完成，批 17 主审）
--- COMPETITOR_REF: CB-059（同上：费用台账按设备维度落明细行，与 Nayax/映翰通的设备级费用明细一致）
+-- COMPETITOR_REF: CB-061
 -- B4（R23 专项，2026-11-16 用户拍板）：merchant_fee_ledger 加 device 维度。
 --
 -- 成因：流量费在源头就是逐台计收（device_info.data_fee_cents 分/天，chargeDailyPeriodFees
