@@ -20,10 +20,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -219,6 +222,54 @@ class UnpaidOrderConcurrencyTest {
     }
 
     /** F1-C 净额三分支②：净额部分覆盖（F1 竞态单）⇒ 委托 chargeOrder 按净额口径只补差额。 */
+    /** B1-B2：reconciler 查到 SUCCESS ⇒ 补记流水 + 收口 PAID。 */
+    @Test
+    void reconcileChargePending_success_finalizesPaid() {
+        CabinetOrder order = reconcileOrder(100);
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-R"), 60L, 5L)).thenReturn(true);
+        when(orderPaymentService.hasChargePending("O-R")).thenReturn(true);
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
+
+        boolean ok = service.reconcileChargePending("O-R", 100, "WECHAT", 40, "TXN-R");
+
+        assertTrue(ok);
+        assertEquals("PAID", order.getStatus());
+        verify(orderPaymentService).recordReconciledCharge(order, 100, "WECHAT", 40, "TXN-R");
+        verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-R"));
+    }
+
+    /** B1-B2：总额与痕迹不一致 ⇒ 只记流水/终结痕迹 + 告警，不擅自置 PAID。 */
+    @Test
+    void reconcileChargePending_amountMismatch_alertsWithoutMarkingPaid() {
+        CabinetOrder order = reconcileOrder(90);
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-R"), 60L, 5L)).thenReturn(true);
+        when(orderPaymentService.hasChargePending("O-R")).thenReturn(true);
+        when(orderRepository.findById("O-R")).thenReturn(Optional.of(order));
+
+        boolean ok = service.reconcileChargePending("O-R", 100, "WECHAT", 40, "TXN-R");
+
+        assertFalse(ok);
+        assertEquals("PENDING", order.getStatus());
+        verify(orderPaymentService).recordReconciledCharge(order, 100, "WECHAT", 40, "TXN-R");
+        verify(orderPaymentService).finalizeChargePending("O-R", "TXN-R");
+        verify(opsExceptionService).report(eq("CHARGE_PENDING_RECONCILE_MANUAL"), eq("HIGH"),
+                any(), eq("渠道扣款成功但无法自动收口"), contains("订单总额"));
+    }
+
+    private static CabinetOrder reconcileOrder(int totalCents) {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-R");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setSessionId("S-R");
+        order.setDeviceId("DEV-R");
+        order.setTotalAmountCents(totalCents);
+        return order;
+    }
+
     @Test
     void collectByUser_whenNetPartial_delegatesRemainderCharge() {
         CabinetOrder order = new CabinetOrder();

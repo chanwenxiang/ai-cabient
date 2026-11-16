@@ -86,7 +86,8 @@ public class ScheduledTaskRegistry {
                                  MachinePayeeBillJob machinePayeeBillJob,
                                  DepositMonthlyRefundJob depositMonthlyRefundJob,
                                  ScheduledTaskStaleMonitor scheduledTaskStaleMonitor,
-                                 JiangyiProductStatePollScheduler jiangyiProductStatePollScheduler) {
+                                 JiangyiProductStatePollScheduler jiangyiProductStatePollScheduler,
+                                 ChargePendingReconciler chargePendingReconciler) {
         register("device-presence", "设备离线巡检", "DEVICE", V_60, 600,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", TRADE, V_30, 600,
@@ -141,6 +142,9 @@ public class ScheduledTaskRegistry {
         // 分钟级轻任务，托管后调度中心排期反而放大延迟）
         register("refund-retry", "渠道退款重试闭环", FINANCE, V_60, 600,
                 refundRetryScheduler::run);
+        // B1-B2：CHARGE_PENDING 对账（分钟级，Spring 常驻不进 XXL，同 refund-retry）
+        register("charge-pending-reconcile", "扣款回执对账", FINANCE, "每 2 分钟", 300,
+                chargePendingReconciler::run);
         // H38 提现打款超时兜底：原先只有 @Scheduled(fixedDelay) 且**未登记** —— 执行记录被
         // finish() 静默丢弃，运营台看不见、不能启停、不能手动触发（门禁 Rule 4 已拦下）。
         register("withdraw-paying-timeout", "提现打款超时兜底", FINANCE, "每 10 分钟", 600,

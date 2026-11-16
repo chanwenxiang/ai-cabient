@@ -126,6 +126,7 @@ public final class ScheduleZones {
             Map.entry("points-expiry", Duration.ofHours(8)),                   // 6h + 2h
             Map.entry("sku-review-daily", Duration.ofHours(26)),               // 日 04:00 + 2h
             // 运维 / 系统
+            Map.entry("charge-pending-reconcile", Duration.ofMinutes(10)),      // 2min ×5
             Map.entry("data-consistency", Duration.ofMinutes(20)),             // 5min ×4
             Map.entry("ops-exception-scanner", Duration.ofMinutes(5)),         // 30s ×10
             Map.entry("compensation-process", Duration.ofMinutes(5)),          // 30s ×10

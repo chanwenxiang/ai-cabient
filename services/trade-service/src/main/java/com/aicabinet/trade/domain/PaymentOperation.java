@@ -25,6 +25,12 @@ public class PaymentOperation {
 
     private String channel;
 
+    /** B1-B2：本次扣款尝试的渠道（WECHAT/ALIPAY/BALANCE），供 UNKNOWN 查单定位。 */
+    private String attemptedChannel;
+
+    /** B1-B2：本次渠道实际尝试扣款额（分，净额口径），不是订单总额。 */
+    private Integer chargeCents;
+
     private String status;
 
     private String idempotencyKey;

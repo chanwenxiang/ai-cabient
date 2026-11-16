@@ -351,7 +351,7 @@ public class OrderPaymentService {
         boolean charged = submitChannelCharge(order, user, session, idemKey, remainCents,
                 () -> payScoreService.chargeExplicit(user, order.getOrderId(), remainCents,
                         CHARGE_SUBJECT, channel),
-                "selected:" + channel);
+                "selected:" + channel, channel);
         if (!charged) {
             // chargeExplicit 对非余额渠道「失败即抛」，返回 BALANCE 只可能源自金额非正（上面已拦）
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
@@ -387,9 +387,10 @@ public class OrderPaymentService {
             return false; // 冲抵已覆盖应付：由余额腿按同一净额口径静默收口
         }
         String origin = entryChannel == null || entryChannel.isBlank() ? "auto" : "auto:" + entryChannel;
+        String attemptedChannel = PayScoreService.resolveChargeChannel(user, entryChannel);
         return submitChannelCharge(order, user, session, idemKey, remainCents,
                 () -> payScoreService.charge(user, order.getOrderId(), remainCents, CHARGE_SUBJECT, entryChannel),
-                origin);
+                origin, attemptedChannel);
     }
 
     /**
@@ -422,10 +423,11 @@ public class OrderPaymentService {
     }
 
     private boolean submitChannelCharge(CabinetOrder order, UserInfo user, ShoppingSession session, String idemKey,
-                                        int chargeCents, Supplier<PayScoreService.ChargeResult> submit, String origin) {
+                                        int chargeCents, Supplier<PayScoreService.ChargeResult> submit, String origin,
+                                        String attemptedChannel) {
         // H41: 渠道 HTTP 之前先以独立事务落 CHARGE_PENDING 并立即提交（mock 路径跳过，行为不变）
         if (!securityProperties.mockEnabled()) {
-            self.recordChargePending(order);
+            self.recordChargePending(order, attemptedChannel, chargeCents);
         }
         ChargeChannelAttempt attempt = chargeChannelOnce(submit);
         if (attempt.outcome() == ChargeChannelOutcome.UNKNOWN) {
@@ -465,6 +467,16 @@ public class OrderPaymentService {
     /** H41: 独立事务落 CHARGE_PENDING 痕迹（立即提交，外层回滚不影响）。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordChargePending(CabinetOrder order) {
+        doRecordChargePending(order, null, order.getTotalAmountCents());
+    }
+
+    /** B1-B2：带尝试渠道/实际差额的痕迹，供 UNKNOWN 查单与补收口。 */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordChargePending(CabinetOrder order, String attemptedChannel, int chargeCents) {
+        doRecordChargePending(order, attemptedChannel, chargeCents);
+    }
+
+    private void doRecordChargePending(CabinetOrder order, String attemptedChannel, int chargeCents) {
         String pendingKey = chargePendingIdempotencyKey(order.getOrderId());
         if (paymentOperationRepository.findByIdempotencyKey(pendingKey).isPresent()) {
             return;
@@ -476,10 +488,138 @@ public class OrderPaymentService {
         op.setAmountCents(order.getTotalAmountCents());
         op.setChannel(order.getPayChannel() != null && !order.getPayChannel().isBlank()
                 ? order.getPayChannel() : "PENDING");
+        op.setAttemptedChannel(attemptedChannel == null || attemptedChannel.isBlank()
+                ? null : attemptedChannel.trim().toUpperCase(Locale.ROOT));
+        op.setChargeCents(chargeCents);
         op.setStatus("CHARGE_PENDING");
         op.setIdempotencyKey(pendingKey);
         op.setReason("渠道扣款进行中（CHARGE_PENDING，事务外痕迹）");
         paymentOperationRepository.save(op);
+    }
+
+    /** B1-B2：是否仍有未收口的渠道扣款痕迹。 */
+    public boolean hasChargePending(String orderId) {
+        return paymentOperationRepository.findByIdempotencyKey(chargePendingIdempotencyKey(orderId))
+                .map(op -> "CHARGE_PENDING".equals(op.getStatus()))
+                .orElse(false);
+    }
+
+    enum ChargeQueryStatus { SUCCESS, FAILED, UNKNOWN }
+
+    record ChargeQueryResult(ChargeQueryStatus status, String channel, String tradeNo, Integer amountCents) {
+        static ChargeQueryResult unknown(String channel) {
+            return new ChargeQueryResult(ChargeQueryStatus.UNKNOWN, channel, null, null);
+        }
+    }
+
+    /**
+     * B1-B2：按痕迹里的 attempted_channel 查渠道真实结果（只读）。
+     * SUCCESS 才允许自动补收口；FAILED 终结痕迹；UNKNOWN 留给下一轮 + 告警。
+     * 支付宝 native 与网关都可能承载同一笔，二者都查：任一 SUCCESS 即成功，只有都明确失败才 FAILED。
+     */
+    public ChargeQueryResult queryPendingCharge(PaymentOperation pending) {
+        String channel = pending.getAttemptedChannel();
+        if (channel == null || channel.isBlank()) {
+            return ChargeQueryResult.unknown(channel);
+        }
+        channel = channel.trim().toUpperCase(Locale.ROOT);
+        String orderId = pending.getOrderId();
+        try {
+            if (PayChannels.WECHAT.equals(channel)) {
+                return queryGatewayCharge(orderId, channel, pending.getChargeCents());
+            }
+            if (PayChannels.ALIPAY.equals(channel)) {
+                ChargeQueryResult nativeResult = alipayPayClient != null && alipayPayClient.isConfigured()
+                        ? queryAlipayNative(orderId, channel, pending.getChargeCents())
+                        : ChargeQueryResult.unknown(channel);
+                ChargeQueryResult gatewayResult = agreementChargeClient != null && agreementChargeClient.isConfigured()
+                        ? queryGatewayCharge(orderId, channel, pending.getChargeCents())
+                        : ChargeQueryResult.unknown(channel);
+                if (nativeResult.status() == ChargeQueryStatus.SUCCESS) {
+                    return nativeResult;
+                }
+                if (gatewayResult.status() == ChargeQueryStatus.SUCCESS) {
+                    return gatewayResult;
+                }
+                if (nativeResult.status() == ChargeQueryStatus.FAILED
+                        && gatewayResult.status() == ChargeQueryStatus.FAILED) {
+                    return new ChargeQueryResult(ChargeQueryStatus.FAILED, channel, null, null);
+                }
+                return ChargeQueryResult.unknown(channel);
+            }
+            return ChargeQueryResult.unknown(channel);
+        } catch (Exception e) {
+            log.warn("charge query failed orderId={} channel={}: {}", orderId, channel, e.getMessage());
+            return ChargeQueryResult.unknown(channel);
+        }
+    }
+
+    private ChargeQueryResult queryGatewayCharge(String orderId, String channel, Integer expectedCents) {
+        if (agreementChargeClient == null || !agreementChargeClient.isConfigured()) {
+            return ChargeQueryResult.unknown(channel);
+        }
+        var response = agreementChargeClient.queryCharge(orderId);
+        if (response.isEmpty()) {
+            return ChargeQueryResult.unknown(channel);
+        }
+        String status = response.get().status();
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            return new ChargeQueryResult(ChargeQueryStatus.SUCCESS, channel, response.get().tradeNo(), expectedCents);
+        }
+        if (status != null) {
+            String s = status.trim().toUpperCase(Locale.ROOT);
+            if (s.equals("FAILED") || s.equals("FAIL") || s.equals("CLOSED")
+                    || s.equals("NOTPAY") || s.equals("CANCELLED") || s.equals("CANCELED")) {
+                return new ChargeQueryResult(ChargeQueryStatus.FAILED, channel, null, null);
+            }
+        }
+        return ChargeQueryResult.unknown(channel);
+    }
+
+    private ChargeQueryResult queryAlipayNative(String orderId, String channel, Integer expectedCents) {
+        com.fasterxml.jackson.databind.JsonNode remote = alipayPayClient.queryByOutTradeNo(orderId);
+        String tradeStatus = remote.path("trade_status").asText("");
+        if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
+            String tradeNo = remote.path("trade_no").asText(null);
+            Integer amountCents = parseYuanCents(remote.path("total_amount").asText(null));
+            if (expectedCents != null && amountCents != null && !expectedCents.equals(amountCents)) {
+                log.error("alipay charge amount mismatch orderId={} expected={} actual={}",
+                        orderId, expectedCents, amountCents);
+                return ChargeQueryResult.unknown(channel);
+            }
+            return new ChargeQueryResult(ChargeQueryStatus.SUCCESS, channel, tradeNo, amountCents);
+        }
+        if ("TRADE_CLOSED".equals(tradeStatus) || "WAIT_BUYER_PAY".equals(tradeStatus)) {
+            return new ChargeQueryResult(ChargeQueryStatus.FAILED, channel, null, null);
+        }
+        return ChargeQueryResult.unknown(channel);
+    }
+
+    private static Integer parseYuanCents(String yuan) {
+        if (yuan == null || yuan.isBlank()) {
+            return null;
+        }
+        try {
+            return new java.math.BigDecimal(yuan).movePointRight(2).intValueExact();
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * B1-B2：reconciler 确认渠道 SUCCESS 后补记 CHARGE 流水（幂等键同主链，重复调用只补一次），
+     * 并把订单渠道/单号回填。必须在持有订单支付锁时调用；finalize 由调用方另开事务。
+     */
+    public void recordReconciledCharge(CabinetOrder order, int traceTotalCents, String channel,
+                                       int chargeCents, String tradeNo) {
+        String idemKey = "CHARGE:" + order.getOrderId() + ":" + traceTotalCents;
+        if (!isCompleted(idemKey)) {
+            recordOperation(order, CHARGE, chargeCents, channel, idemKey, tradeNo, "reconciled charge");
+        }
+        order.setPayChannel(channel);
+        order.setPayTradeNo(tradeNo);
+        ensurePaymentOperationId(order);
+        cabinetOrderRepository.updateById(order);
     }
 
     static String refundInitiatedIdempotencyKey(String refundIdemKey) {

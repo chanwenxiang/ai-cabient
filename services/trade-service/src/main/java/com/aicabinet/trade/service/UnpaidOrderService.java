@@ -499,8 +499,6 @@ public class UnpaidOrderService {
             orderRepository.clearOrderCouponSelection(
                     order.getOrderId(), order.getTotalAmountCents(), Instant.now());
         }
-        // 渠道成功/幂等重放统一收口痕迹；核销失败随本事务回滚
-        orderPaymentService.finalizeChargePending(orderId, order.getPayTradeNo());
         if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
             couponService.markUsed(
                     order.getUserId(),
@@ -511,7 +509,59 @@ public class UnpaidOrderService {
         }
         revenueSplitService.recordSplit(order);
         unpaidDunningService.onUnpaidCleared(order.getUserId());
+        // 渠道成功/自动对账都要释放开门预授权；capture/已释放场景幂等 no-op
+        if (order.getSessionId() != null) {
+            consumerPreauthService.releaseBySessionId(order.getSessionId());
+        }
+        // 最后才终结痕迹：前面任一步失败 ⇒ 痕迹保留，reconciler 可重试
+        orderPaymentService.finalizeChargePending(orderId, order.getPayTradeNo());
         return order;
+    }
+
+    /**
+     * B1-B2：reconciler 确认渠道 SUCCESS 后补收口。渠道流水先落（幂等键同主链），
+     * 再短事务置 PAID/freeze/split/markUsed；订单状态或金额异常只记录+告警，不擅自改单。
+     */
+    public boolean reconcileChargePending(String orderId, int traceTotalCents, String channel,
+                                          int chargeCents, String tradeNo) {
+        return runWithOrderPaymentLock(orderId, () -> {
+            if (!orderPaymentService.hasChargePending(orderId)) {
+                return false;
+            }
+            CabinetOrder order = orderRepository.findById(orderId).orElse(null);
+            if (order == null) {
+                return false;
+            }
+            boolean stateAbnormal = !STATUS_PENDING.equals(order.getStatus())
+                    && !"PAID".equals(order.getStatus());
+            boolean amountMismatch = order.getTotalAmountCents() != traceTotalCents;
+            orderPaymentService.recordReconciledCharge(order, traceTotalCents, channel, chargeCents, tradeNo);
+            if (stateAbnormal) {
+                orderPaymentService.finalizeChargePending(orderId, tradeNo);
+                reportChargePendingAbnormal(order, chargeCents, "订单状态 " + order.getStatus());
+                return false;
+            }
+            if (amountMismatch) {
+                orderPaymentService.finalizeChargePending(orderId, tradeNo);
+                reportChargePendingAbnormal(order, chargeCents,
+                        "订单总额 " + order.getTotalAmountCents() + " 分 ≠ 痕迹总额 " + traceTotalCents + " 分");
+                return false;
+            }
+            CabinetOrder finalized = requiresNewTx.execute(status -> finalizeCollected(orderId));
+            afterCollected(finalized);
+            return true;
+        });
+    }
+
+    private void reportChargePendingAbnormal(CabinetOrder order, int chargeCents, String detail) {
+        opsExceptionService.report(
+                "CHARGE_PENDING_RECONCILE_MANUAL",
+                "HIGH",
+                new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                        null, null, order.getOrderId(), order.getUserId()),
+                "渠道扣款成功但无法自动收口",
+                "订单 " + order.getOrderId() + " 渠道已确认扣款 " + chargeCents + " 分（" + detail
+                        + "），未自动改单，请人工核对");
     }
 
     private void afterCollected(CabinetOrder order) {

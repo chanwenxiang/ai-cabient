@@ -71,6 +71,7 @@ class OrderPaymentChargeInvariantTest {
     @Mock PayScoreService payScoreService;
     @Mock WeChatPayClient weChatPayClient;
     @Mock AlipayPayClient alipayPayClient;
+    @Mock com.aicabinet.trade.payment.AgreementChargeClient agreementChargeClient;
     @Mock PaymentOperationMapper paymentOperationRepository;
     @Mock CabinetOrderMapper cabinetOrderRepository;
     @Mock DistributedLockService distributedLockService;
@@ -177,7 +178,7 @@ class OrderPaymentChargeInvariantTest {
                 sessionRepository,
                 consumerPreauthService,
                 null,
-                null,
+                agreementChargeClient,
                 null,
                 null,
                 memberService,
@@ -279,6 +280,107 @@ class OrderPaymentChargeInvariantTest {
 
         assertEquals(OrderPaymentService.ChargeLeg.ZERO,
                 s.resolveChargePlan(zero, null).leg());
+    }
+
+    // ── B1-B2：痕迹元数据 + 查单 ─────────────────────────────────────
+
+    @Test
+    void recordChargePending_persistsAttemptChannelAndAmount() {
+        buildService(false).recordChargePending(order(), "wechat", 40);
+
+        PaymentOperation op = store.get("CHARGE:PENDING:" + ORDER_ID);
+        assertEquals("WECHAT", op.getAttemptedChannel());
+        assertEquals(40, op.getChargeCents());
+        assertEquals(TOTAL, op.getAmountCents());
+    }
+
+    @Test
+    void recordReconciledCharge_recordsCompletedChargeAndBackfillsOrder() {
+        CabinetOrder order = order();
+        buildService(false).recordReconciledCharge(order, TOTAL, "WECHAT", 40, "TXN-R");
+
+        PaymentOperation op = store.get("CHARGE:" + ORDER_ID + ":" + TOTAL);
+        assertEquals(40, op.getAmountCents());
+        assertEquals("WECHAT", op.getChannel());
+        assertEquals("TXN-R", op.getGatewayTradeNo());
+        assertEquals("WECHAT", order.getPayChannel());
+        assertEquals("TXN-R", order.getPayTradeNo());
+    }
+
+    @Test
+    void queryPendingCharge_gatewaySuccess() {
+        when(agreementChargeClient.isConfigured()).thenReturn(true);
+        when(agreementChargeClient.queryCharge("O-CHG"))
+                .thenReturn(Optional.of(new com.aicabinet.trade.payment.AgreementChargeClient.ChargeResponse(
+                        "TXN-Q", "SUCCESS")));
+
+        OrderPaymentService.ChargeQueryResult result = buildService(false)
+                .queryPendingCharge(pendingTrace("WECHAT", 40));
+
+        assertEquals(OrderPaymentService.ChargeQueryStatus.SUCCESS, result.status());
+        assertEquals("TXN-Q", result.tradeNo());
+    }
+
+    @Test
+    void queryPendingCharge_gatewayFailureIsDefinitive() {
+        when(agreementChargeClient.isConfigured()).thenReturn(true);
+        when(agreementChargeClient.queryCharge("O-CHG"))
+                .thenReturn(Optional.of(new com.aicabinet.trade.payment.AgreementChargeClient.ChargeResponse(
+                        null, "FAILED")));
+
+        assertEquals(OrderPaymentService.ChargeQueryStatus.FAILED,
+                buildService(false).queryPendingCharge(pendingTrace("WECHAT", 40)).status());
+    }
+
+    @Test
+    void queryPendingCharge_alipayNativeSuccess() throws Exception {
+        when(alipayPayClient.isConfigured()).thenReturn(true);
+        when(alipayPayClient.queryByOutTradeNo("O-CHG")).thenReturn(
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                        "{\"trade_status\":\"TRADE_SUCCESS\",\"trade_no\":\"ALI-Q\",\"total_amount\":\"0.40\"}"));
+
+        OrderPaymentService.ChargeQueryResult result = buildService(false)
+                .queryPendingCharge(pendingTrace("ALIPAY", 40));
+
+        assertEquals(OrderPaymentService.ChargeQueryStatus.SUCCESS, result.status());
+        assertEquals("ALI-Q", result.tradeNo());
+    }
+
+    @Test
+    void queryPendingCharge_alipayAmountMismatch_isUnknown() throws Exception {
+        when(alipayPayClient.isConfigured()).thenReturn(true);
+        when(alipayPayClient.queryByOutTradeNo("O-CHG")).thenReturn(
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                        "{\"trade_status\":\"TRADE_SUCCESS\",\"trade_no\":\"ALI-Q\",\"total_amount\":\"0.41\"}"));
+
+        assertEquals(OrderPaymentService.ChargeQueryStatus.UNKNOWN,
+                buildService(false).queryPendingCharge(pendingTrace("ALIPAY", 40)).status());
+    }
+
+    @Test
+    void hasChargePending_onlyWhileTraceIsPending() {
+        OrderPaymentService s = buildService(false);
+        assertFalse(s.hasChargePending("O-CHG"));
+
+        PaymentOperation op = pendingTrace("WECHAT", 40);
+        store.put(op.getIdempotencyKey(), op);
+        assertTrue(s.hasChargePending("O-CHG"));
+
+        op.setStatus("FINALIZED");
+        assertFalse(s.hasChargePending("O-CHG"));
+    }
+
+    private static PaymentOperation pendingTrace(String channel, Integer chargeCents) {
+        PaymentOperation trace = new PaymentOperation();
+        trace.setOperationId("P-TRACE");
+        trace.setOrderId("O-CHG");
+        trace.setUserId(USER_ID);
+        trace.setAmountCents(TOTAL);
+        trace.setAttemptedChannel(channel);
+        trace.setChargeCents(chargeCents);
+        trace.setStatus("CHARGE_PENDING");
+        trace.setIdempotencyKey("CHARGE:PENDING:O-CHG");
+        return trace;
     }
 
     private ShoppingSession session() {

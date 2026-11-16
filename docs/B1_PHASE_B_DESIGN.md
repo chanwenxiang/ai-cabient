@@ -1,6 +1,6 @@
 # B1 Phase B 设计稿：补缴链路拆段（渠道 HTTP 移出 DB 事务）
 
-> 状态：评审完成；**A0、B1-Ba（forceCancel 409）、B1-B1（补缴拆段）已落地**——`collect/collectByUser` 去外层事务，prepare(tx1)/渠道 HTTP 事务外/finalize(tx2)，余额腿随 tx2（拍板 A：余额不足整段回滚，不保留 capture）；计划由 `ChargePlan` 强制腿，避免窗口内腿漂移。**B1-B2 reconciler 待实施**（拍板 A：痕迹补 `attempted_channel + charge_cents`，网关优先、native 兜底）。Q1–Q4 结论与提前修正见 §6。
+> 状态：评审完成；**A0、B1-Ba（forceCancel 409）、B1-B1（补缴拆段）、B1-B2（UNKNOWN 对账）均已落地**——`collect/collectByUser` 去外层事务，prepare(tx1)/渠道 HTTP 事务外/finalize(tx2)，余额腿随 tx2（拍板 A：余额不足整段回滚，不保留 capture）；计划由 `ChargePlan` 强制腿。B1-B2：`payment_operation` 补 `attempted_channel + charge_cents`（V491），`ChargePendingReconciler` 2 分钟静默后查单（网关优先、支付宝 native 兜底），SUCCESS 补收口 / FAILED 终结 / UNKNOWN 下一轮 + 15 分钟告警；任务登记行 V492。**真栈弱网 `pg_locks` 回归待跑**。Q1–Q4 结论与提前修正见 §6。
 > 实施前先按 §6 的修订点改设计，再落码；实施批次含形态钉 + 三态负向 + 真栈弱网回归。
 
 ## 1. 现状与问题
@@ -99,7 +99,7 @@ Redis 支付锁（`runWithOrderPaymentLock` + LockHeartbeat 续租）横跨三�
 2. `markPaid` 拆三段；collect/collectByUser 去 `@Transactional`，编排移入锁体。
 3. **券核销**：`markUsed` 留在段3 finalize（渠道成功之后）；**不新增反向核销**。`ChargePendingReconciler` 成功收口时同样调用 `markUsed`（订单+券幂等，重放安全）。
 4. **强取消拦截（Q2）**：`SessionService.doForceCancelForOperations` 在加载会话后，若 `session.getOrderId()` 存在未收口的 `CHARGE_PENDING` 痕迹 ⇒ 409「支付处理中，请等渠道结果」；超过 10 分钟的陈旧痕迹由 reconciler 先收敛（成功补收口/失败清痕迹），运营不得用强取消绕。
-5. **UNKNOWN 收敛（Q3）**：新增 `ChargePendingReconciler`（照 `RefundRetryScheduler`）：2 分钟静默后按 `out_trade_no=orderId` 查渠道；SUCCESS→补收口（CHARGE 流水 + PAID + freeze + recordSplit + markUsed，持订单支付锁）；NOTPAY/CLOSED→清痕迹允许重试；UNKNOWN→下一轮。告警 15 分钟首告、60 分钟升级。
+5. **UNKNOWN 收敛（Q3）**：新增 `ChargePendingReconciler`（照 `RefundRetryScheduler`）：2 分钟静默后按 `out_trade_no=orderId` 查渠道；SUCCESS→补收口（CHARGE 流水 + PAID + freeze + recordSplit + markUsed，持订单支付锁）；NOTPAY/CLOSED→清痕迹允许重试；UNKNOWN→下一轮。告警 15 分钟首告、60 分钟升级。**已落**：V491 痕迹元数据 + V492 任务登记；查单按 `attempted_channel`（微信网关 / 支付宝 native+网关），旧痕迹无元数据不自动；真栈弱网回归待跑。
 6. **recordSplit 位置（Q4）**：保持在段3 finalize 事务内，**不**移到编排层尾部——保「订单 PAID + 分账」原子性；订单行已在段1 提交，REQUIRED join 可见 FK；配合 NESTED savepoint 防 DKE 打爆段3。
 7. 形态钉测试：collect/collectByUser 无 @Transactional；markPaid 内 HTTP 段方法无事务注解；痕迹两腿 REQUIRES_NEW（已有钉保活）；forceCancel 对 CHARGE_PENDING 409；reconciler 三态。
 8. 三态负向：外层复挂 @Transactional ⇒ 红；HTTP 段塞回事务 ⇒ 红；forceCancel 去守卫 ⇒ 红。
