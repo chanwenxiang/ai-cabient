@@ -380,6 +380,7 @@
 - 现象：`DSP|…`「争议已结案但缺少关联订单」；dev 实查 **8 条**全部是 `category=RECOGNITION` 的识别超时争议（`items=[]`、`resolution_items=[]`、本次未扣款），会话本就无订单，属合法无购买形态。
 - 规则：`RESOLVED/CLOSED` 且会话无订单 ⇒ 记 CROSS_LINK；原判未区分识别类合法无单。
 - 修复：`checkCrossLinkDispute` 的「结案缺单」分支增加 `UPPER(COALESCE(d.category,'')) <> 'RECOGNITION'`；`OPEN` 且订单已 PAID 的分支不动；dev 8 条不再判 CROSS_LINK。
+- 真栈验证（2026-11-16 22:55，重建镜像后）：`data-consistency` SUCCESS，不一致总数 **19→11**；8 条 `DSP|…` 全部转 `FIXED`。
 - 原拍板（2026-10-31）：规则保持原样、3 条演示数据人工处理；**2026-11-16 用户改判**：按推荐修，避免 `/consistency` 永久挂合法红掩盖新问题。
 - 旁证：同批的另一条对齐差异（`payment_reconciliation` 2026-10-05 BALANCE，diff 500 / 未匹配 1，`detail.demo=true`）也由用户定为「人工平账留痕」——已执行：status→MATCHED、diff/unmatched 归零，原始值写入 `detail.manualClose`（`originalDiffCents=500`、`originalUnmatched=1`、`by=R6-audit`）；页面复验「批次总数 7 / 差异 0 / 匹配 7」。
 
