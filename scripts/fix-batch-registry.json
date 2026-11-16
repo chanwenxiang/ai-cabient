@@ -1443,6 +1443,10 @@
     {
       "commit": "d3fc4d42",
       "why": "批 17 门禁收口：CB-061 竞品条目 + V485-488 迁移头注释（flyway repair 对齐）+ retention 登记——文档/配置/注释，零业务代码条目"
+    },
+    {
+      "commit": "288c608a",
+      "why": "夹具补 readFileSync import（一行，上批夹具笔误修正）"
     }
   ]
 }
