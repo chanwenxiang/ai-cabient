@@ -41,6 +41,9 @@ public class RefundFlow {
     /** 渠道退款单号（outRefundNo）；唯一索引做幂等。本地退款无单号 ⇒ NULL。 */
     private String refundNo;
 
+    /** 幂等键：渠道退款 'NO:'+refundNo；本地退款 'LOCAL:'+orderId+':'+method+':'+累计已退额。 */
+    private String idemKey;
+
     private Instant refundedAt;
 
     private String reason;

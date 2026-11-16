@@ -1058,6 +1058,9 @@ public class DataConsistencyService {
                 + "           FROM refund_flow GROUP BY order_id) f ON f.order_id = o.order_id "
                 + "WHERE COALESCE(o.refunded_cents, 0) <> COALESCE(f.flow_sum, 0) "
                 + "AND (COALESCE(o.refunded_cents, 0) > 0 OR COALESCE(f.flow_sum, 0) > 0) "
+                // 与 V485 回填/月账单同口径：FAILED 单不回填、不计入账单，巡检也排除，
+                // 否则「FAILED + refunded>0」会永久报假不一致。
+                + "AND COALESCE(o.status, '') <> 'FAILED' "
                 + "LIMIT " + CHECK_BATCH;
         Set<String> failing = new HashSet<>();
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);

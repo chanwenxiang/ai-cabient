@@ -1,6 +1,7 @@
 -- MIGRATION_KIND: backfill
 -- MIGRATION_REVIEWED: yes（回填 INSERT...SELECT 为聚合口径、与现状月账单等价，批 17 主审）
 -- COMPETITOR_REF: CB-061
+-- MIGRATION_IMMUTABLE_EXEMPT: 已应用迁移回填补空商户兜底（2026-11-16 R23 复核；to_regclass('public.refund_flow') = refund_flow 实测在位；dev 已 repair checksum）
 -- B3（R23 专项，2026-11-16 用户拍板）：退款流水表——MA-271（多次部分退款整笔归最近月）
 -- 与 MA-269 残留（扣款成功但 finalize 半段丢失不可回放）的数据模型彻底解。
 --
@@ -41,7 +42,7 @@ CREATE INDEX idx_refund_flow_order ON refund_flow (order_id);
 INSERT INTO refund_flow (order_id, merchant_id, order_pay_channel, amount_cents,
                          refund_method, refund_no, refunded_at, reason)
 SELECT o.order_id,
-       o.merchant_id,
+       COALESCE(o.merchant_id, 'UNKNOWN'),
        COALESCE(NULLIF(TRIM(o.pay_channel), ''), 'UNKNOWN'),
        o.refunded_cents,
        'BACKFILL_AGGREGATE',

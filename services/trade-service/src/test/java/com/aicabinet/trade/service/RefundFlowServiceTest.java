@@ -87,11 +87,36 @@ class RefundFlowServiceTest {
     }
 
     @Test
-    void recentDuplicateWithoutRefundNo_isSkipped() {
-        when(mapper.selectCount(any())).thenReturn(1L);
-        Long id = service.record(order, 300, RefundFlowService.METHOD_BALANCE,
+    void localRefund_derivesIdemKeyFromCumulative() {
+        order.setRefundedCents(200);
+        Long id = service.record(order, 200, RefundFlowService.METHOD_BALANCE,
                 null, Instant.now(), "r");
-        assertNull(id, "无单号 5 分钟内同 (order,amount,method) 视为重放");
+        assertEquals(99L, id);
+        org.mockito.Mockito.verify(mapper).insertIgnore(org.mockito.ArgumentMatchers.argThat((RefundFlow f) -> {
+            assertEquals("LOCAL:O1:BALANCE:200", f.getIdemKey());
+            return true;
+        }));
+    }
+
+    /** 同单同额第二笔合法部分退：累计额推进到 400 ⇒ 键不同，不会被合并。 */
+    @Test
+    void localSecondSameAmountRefund_getsDifferentIdemKey() {
+        order.setRefundedCents(400);
+        service.record(order, 200, RefundFlowService.METHOD_BALANCE, null, Instant.now(), "r");
+        org.mockito.Mockito.verify(mapper).insertIgnore(org.mockito.ArgumentMatchers.argThat((RefundFlow f) -> {
+            assertEquals("LOCAL:O1:BALANCE:400", f.getIdemKey());
+            return true;
+        }));
+    }
+
+    /** 同累计额重放：唯一索引裁决，插不进去即返回 null。 */
+    @Test
+    void localReplay_sameIdemKey_isIgnored() {
+        order.setRefundedCents(200);
+        when(mapper.insertIgnore(any(RefundFlow.class))).thenReturn(0);
+        Long id = service.record(order, 200, RefundFlowService.METHOD_BALANCE,
+                null, Instant.now(), "r");
+        assertNull(id);
     }
 
     @Test

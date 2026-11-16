@@ -13,9 +13,8 @@ import java.time.Instant;
  *
  * <p>唯一入口 {@link #record}：调用方在**推进订单 refunded_cents 的同一事务**里调用
  * （埋点同序，漏记只影响月账单退款分日显示，不影响资金真值——见 RefundFlow javadoc）。
- * 幂等：有 refundNo 走唯一索引（渠道重试防重）；无单号的本地退款按
- * (order_id, amount_cents, method) 最近 5 分钟内防重——重试窗口只有秒级，5 分钟足够，
- * 又不会把「同单两笔同额部分退」误合并。
+ * 幂等：渠道退款按 refund_no 唯一；本地退款按 idem_key（订单+方式+本次退款后的累计已退额）
+ * 唯一——同笔重放同键、同额第二笔累计额不同不会被合并（2026-11-16 R23 复核根治）。
  * 巡检兜底，审计流水宁多勿缺。</p>
  */
 @Slf4j
@@ -62,20 +61,24 @@ public class RefundFlowService {
                 log.info("refund flow idempotent skip refundNo={} order={}", refundNo, order.getOrderId());
                 return null;
             }
+        }
+        // 真实幂等键（2026-11-16 R23 复核）：渠道退款 'NO:'+refundNo；本地退款
+        // 'LOCAL:'+orderId+':'+method+':'+**本次退款后的累计已退额**。
+        // 调用方在 record 之前先推进 refunded_cents（completeLocalRefund / 结算两处均如此），
+        // 累计额单调递增 ⇒ 同一笔重放同键；同额的第二笔合法退款累计额不同 ⇒ 不会被合并。
+        String normalizedNo = refundNo == null || refundNo.isBlank() ? null : refundNo.trim();
+        String idemKey;
+        if (normalizedNo != null) {
+            idemKey = "NO:" + normalizedNo;
         } else {
-            // 无单号：5 分钟内同 (order, amount, method) 视为重放（重试窗口只有秒级；
-            // 24h 会把「同单两笔同额部分退」误合并，导致月账单少报）。
-            Long recent = refundFlowMapper.selectCount(
-                    com.baomidou.mybatisplus.core.toolkit.Wrappers.<RefundFlow>lambdaQuery()
-                            .eq(RefundFlow::getOrderId, order.getOrderId())
-                            .eq(RefundFlow::getAmountCents, amountCents)
-                            .eq(RefundFlow::getRefundMethod, method)
-                            .gt(RefundFlow::getRefundedAt, Instant.now().minus(java.time.Duration.ofMinutes(5))));
-            if (recent != null && recent > 0) {
-                log.info("refund flow recent-duplicate skip order={} amount={} method={}",
-                        order.getOrderId(), amountCents, method);
-                return null;
+            int cumulative = order.getRefundedCents();
+            if (cumulative <= 0) {
+                // 调用方漏推进累计额：退回「金额」兜底（仍比 5 分钟时间窗强，但会少区分同额两笔）。
+                log.warn("refund flow local refund before refunded_cents advanced order={} amount={}",
+                        order.getOrderId(), amountCents);
+                cumulative = amountCents;
             }
+            idemKey = "LOCAL:" + order.getOrderId() + ":" + method + ":" + cumulative;
         }
         RefundFlow row = new RefundFlow();
         row.setOrderId(order.getOrderId());
@@ -87,10 +90,11 @@ public class RefundFlowService {
                 ? "UNKNOWN" : order.getPayChannel().trim());
         row.setAmountCents(amountCents);
         row.setRefundMethod(method);
-        row.setRefundNo(refundNo == null || refundNo.isBlank() ? null : refundNo.trim());
+        row.setRefundNo(normalizedNo);
+        row.setIdemKey(idemKey);
         row.setRefundedAt(refundedAt == null ? Instant.now() : refundedAt);
         row.setReason(truncate(reason, 500));
-        // MA-271 修正：ON CONFLICT DO NOTHING —— 并发重投不会把调用方事务打成 aborted。
+        // ON CONFLICT DO NOTHING：覆盖 refund_no / idem_key 两张唯一索引，且不污染调用方事务。
         int inserted = refundFlowMapper.insertIgnore(row);
         return inserted > 0 ? row.getFlowId() : null;
     }
