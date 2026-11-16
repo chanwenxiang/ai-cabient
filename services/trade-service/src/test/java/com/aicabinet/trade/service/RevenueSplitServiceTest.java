@@ -964,9 +964,12 @@ class RevenueSplitServiceTest {
         org.springframework.transaction.annotation.Transactional tx =
                 inner.getAnnotation(org.springframework.transaction.annotation.Transactional.class);
         org.junit.jupiter.api.Assertions.assertNotNull(tx, "锁内的分账事务方法必须存在");
+        // 2026-11-16 修订：REQUIRED 而非 REQUIRES_NEW——结算编排外层事务先建订单行（未提交），
+        // REQUIRES_NEW 看不见 ⇒ 分账行 FK violation（CI 全量 E2E 实锤）。join 外层保 FK 可见，
+        // 自开短事务保「无外层时锁横跨提交」；重复防护交给唯一键等待 + DKE 兜底。
         org.junit.jupiter.api.Assertions.assertEquals(
-                org.springframework.transaction.annotation.Propagation.REQUIRES_NEW, tx.propagation(),
-                "调用方已有事务时必须挂起另开短事务，否则提交点又落回外层");
+                org.springframework.transaction.annotation.Propagation.REQUIRED, tx.propagation(),
+                "必须 REQUIRED：join 结算编排外层事务才能看见未提交的订单行（FK），无外层时自开");
 
         java.lang.reflect.Method race = RevenueSplitService.class.getMethod("findSplitAfterRace", String.class);
         org.springframework.transaction.annotation.Transactional raceTx =

@@ -91,8 +91,9 @@ public class RevenueSplitService {
      * 里提交前释放 ⇒ 锁失效窗口横跨「解锁 → 事务提交」，第二个持有者读不到未提交的分账行
      * 会再插一次；且 PostgreSQL 里 DuplicateKeyException 之后同事务任何查询都是 25P02，
      * catch 分支的重查根本跑不通。现在是「锁包住事务」：锁内经 self 代理进
-     * {@link #doRecordSplitInTx}（REQUIRES_NEW，防调用方已有事务时锁又被外层提交点释放），
-     * 提交完成后才 unlock —— 锁失效窗口不复存在，DKE 分支只是防御性兜底。
+     * {@link #doRecordSplitInTx}（REQUIRED——2026-11-16 修订：REQUIRES_NEW 会看不见结算
+     * 编排外层事务里未提交的订单行导致 FK violation；重复插入防护由唯一键等待 + DKE 兜底，
+     * 见内层方法 javadoc），DKE 分支是 join 形态下的真实兜底路径。
      */
     public Optional<OrderRevenueSplit> recordSplit(CabinetOrder order) {
         if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
@@ -108,12 +109,20 @@ public class RevenueSplitService {
     }
 
     /**
-     * MA-276：REQUIRES_NEW —— 即便调用方（支付分 DONE 回调 / 结算完结 / 欠款补缴）已开事务，
-     * 分账行的插入也要在**独立短事务**里提交完再释放锁，不跟外层长事务共用提交点。
-     * 代价（如实）：外层事务若在 recordSplit 返回后回滚，分账行/入账流水会留存——
-     * creditIfAbsent 以 splitId 为幂等键，重放无害；对账侧已有 REVENUE_SPLIT_* 巡检兜底。
+     * MA-276（2026-11-16 修订：REQUIRES_NEW → **REQUIRED**）。
+     *
+     * <p>修订原因（CI 全量 E2E 实锤，批 15）：结算编排 {@code SettlementSettleOrchestrator
+     * .processRecognitionResultInTx} 是外层事务——先建 cabinet_order 行（**未提交**）再调
+     * recordSplit。REQUIRES_NEW 的独立事务看不见外层未提交的订单行 ⇒ 分账行 FK
+     * （order_revenue_split_order_id_fkey）必然 violation。FK 可见性是硬约束，分账事务必须
+     * 能看见同一工作单元里的订单行 ⇒ REQUIRED：有外层 join，无外层自开短事务。</p>
+     *
+     * <p>锁语义变化（如实）：join 外层时提交点落回外层方法结束，「锁横跨提交」只在自开
+     * 事务的路径（调用方无事务）上成立。join 路径的重复插入防护交给唯一键 uq_split_order：
+     * 后来者在 INSERT 上等待前者提交——前者提交则 DKE → findSplitAfterRace（REQUIRES_NEW）
+     * 能看见已提交行并返回；前者回滚则 INSERT 成功。等待 + DKE 兜底替代了锁横跨提交。</p>
      */
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRED)
     public Optional<OrderRevenueSplit> doRecordSplitInTx(CabinetOrder order) {
         return doRecordSplit(order);
     }

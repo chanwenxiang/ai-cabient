@@ -524,6 +524,14 @@ public class SessionService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
         session.setState(target);
+        // 批 15（CI 实锤）：fail_reason 列宽 1024（V484），而调用方可能把整段异常文本
+        // （实测 1218+ 字符）经 setFailReason 塞进来 ⇒ 落库 varchar 溢出，且原始异常被
+        // DataIntegrityViolationException 掩盖成 409「数据校验未通过」。transition 是
+        // save 的唯一收口点，写库前截断——诊断信息够用（含前缀标记），不再炸库。
+        if (session.getFailReason() != null && session.getFailReason().length() > 1000) {
+            session.setFailReason(session.getFailReason().substring(0, 990) + "...[截断,原长 "
+                    + session.getFailReason().length() + "]");
+        }
         repository.save(session);
         cabinetMetrics.recordSessionState(target);
         domainEventPublisher.publish("SessionStateChanged", session.getSessionId(),
