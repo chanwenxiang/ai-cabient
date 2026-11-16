@@ -1490,6 +1490,14 @@
     {
       "commit": "b84706db",
       "why": "B1 Phase B 设计稿（纯文档 docs/B1_PHASE_B_DESIGN.md）+ 批 14 漏交的两份文档数字回填，零代码零业务条目"
+    },
+    {
+      "commit": "06b7aa49",
+      "why": "批 17 门禁收口：pairing 持久自证缓存（纯门禁机制）+ CB-061 证据 URL + 批登记修正——零业务代码"
+    },
+    {
+      "commit": "971fd315",
+      "why": "pairing 自证缓存改按输入 blob sha 记账（纯门禁机制修正）"
     }
   ]
 }
