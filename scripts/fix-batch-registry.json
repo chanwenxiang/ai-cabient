@@ -1559,6 +1559,34 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "ffaa07fe",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-310 S9 P3 25 处成功路径审计 + 归因基线 304/173",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantPortalController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWarehouseStocktakeController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDashboardController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsProcurementController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiCatalogController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsLineRouteController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceEnvController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExternalImportController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MachinePayeeBillService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/api/AdminJiangyiControllerTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/api/OpsRbacControllerTest.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/api/OpsAnalyticsAndDeviceEnvControllerTest.java",
+            "scripts/write-endpoint-attribution-baseline.json"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
