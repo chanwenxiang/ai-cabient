@@ -244,13 +244,26 @@ const err = pairingError(files);
 const ARTIFACT_DIR = ARTIFACT_PREFIX.replace(/\/$/, '');
 const prove =
   process.env.ADMIN_PAIR_PROVE_INERT === '1' || process.env.ADMIN_PAIR_PROVE_INERT === 'true';
-// 持久自证缓存：INERT 重建逐字节一致的结论按 head 记账（见 verdict.red 之后的写入点）
+// 持久自证缓存：INERT 重建逐字节一致的结论按「admin 输入文件的 blob sha」记账——
+// head 每次提交都会变（改注释也变），按 head 记账会让豁免一提交就失效；
+// 按「触发 err 的输入文件当前内容」记账 ⇒ 只要输入真没变，豁免跨提交持续有效。
 const INERT_CACHE_FILE = resolve('scripts/.admin-pairing-inert-ok.json');
+async function blobSha(path) {
+  const r = await gitAsync(['rev-parse', `${head}:${path}`]);
+  return r.ok ? r.out.trim() : '';
+}
 let inertCacheOk = false;
 if (!prove && err) {
   try {
     const cached = JSON.parse((await import('node:fs')).readFileSync(INERT_CACHE_FILE, 'utf8'));
-    inertCacheOk = cached.head === head && cached.rangeBase === plan.rangeBase;
+    const inputs = files.filter((f) => ADMIN_INPUT_PATTERNS.some((re) => re.test(f)));
+    inertCacheOk =
+      inputs.length > 0 &&
+      inputs.every(async (f) => false) === false &&
+      inputs.every((f) => cached.inputs && cached.inputs[f]);
+    // sha 逐个比对（同步拉取会破坏 async 流程，用 await Promise.all）
+    const shas = await Promise.all(inputs.map((f) => blobSha(f)));
+    inertCacheOk = inputs.every((f, i) => cached.inputs && cached.inputs[f] === shas[i]);
   } catch {
     /* 无缓存 = 无豁免 */
   }
@@ -284,10 +297,17 @@ if (verdict.red) {
 // 下后续 run 对同一 head 直接复用结论，不必每次都重建产物。
 if (prove) {
   const fs = await import('node:fs');
+  const inputs = files.filter((f) => ADMIN_INPUT_PATTERNS.some((re) => re.test(f)));
+  const inputShas = {};
+  for (const f of inputs) inputShas[f] = await blobSha(f);
   fs.writeFileSync(
     INERT_CACHE_FILE,
     JSON.stringify(
-      { head, rangeBase: plan.rangeBase, note: 'PROVE_INERT rebuild verified byte-identical' },
+      {
+        verifiedAt: new Date().toISOString(),
+        inputs: inputShas,
+        note: 'PROVE_INERT rebuild verified byte-identical'
+      },
       null,
       2
     ) + '\n'

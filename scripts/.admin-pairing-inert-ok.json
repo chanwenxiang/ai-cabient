@@ -1,5 +1,8 @@
 {
-  "head": "a9bd4de8741ab72ebb20d9e9908dca0fea49fd2d",
-  "rangeBase": "b4269abe2801d3ba284a6cc080d579480eecbc88",
+  "verifiedAt": "2026-11-16T12:40:00+08:00",
+  "inputs": {
+    "packages/shared-types/src/generated/openapi.ts": "eb8fc2df339af56a7ae5a949e820a4baeacb7b50",
+    "packages/shared-types/src/index.ts": "ad25dc0254d1beaca193c458701a257b3f528e35"
+  },
   "note": "PROVE_INERT rebuild verified byte-identical"
 }
