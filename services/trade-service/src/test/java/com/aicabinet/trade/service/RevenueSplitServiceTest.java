@@ -69,6 +69,14 @@ class RevenueSplitServiceTest {
         org.mockito.Mockito.lenient()
                 .when(selfProxy.findSplitAfterRace(org.mockito.ArgumentMatchers.anyString()))
                 .thenAnswer(inv -> service.findSplitAfterRace(inv.getArgument(0)));
+        // MA-276 修正：doRecordSplit 经 self.insertSplitNested（生产是 NESTED/savepoint）；
+        // 纯单测无 Spring 代理，委托回真实的 save 行为。
+        org.mockito.Mockito.lenient()
+                .doAnswer(inv -> {
+                    splitRepository.save(inv.getArgument(0));
+                    return null;
+                })
+                .when(selfProxy).insertSplitNested(org.mockito.ArgumentMatchers.any());
         org.mockito.Mockito.lenient().when(returnLegService.openLegs(anyString()))
                 .thenReturn(java.util.List.of());
         org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))

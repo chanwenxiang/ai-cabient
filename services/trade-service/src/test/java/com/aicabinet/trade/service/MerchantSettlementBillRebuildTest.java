@@ -53,23 +53,15 @@ class MerchantSettlementBillRebuildTest {
     @Mock private OrderRevenueSplitMapper splitRepository;
     @Mock private MerchantSettlementBillMapper billRepository;
     @Mock private DistributedLockService distributedLockService;
-    @Mock private com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
 
     private MerchantSettlementBillService service;
 
     @BeforeEach
     void setUp() {
-        // MA-287 引入 CabinetOrder 的 lambda 查询：纯单测需注册 MyBatis-Plus 列缓存
-        com.baomidou.mybatisplus.core.metadata.TableInfoHelper.initTableInfo(
-                new org.apache.ibatis.builder.MapperBuilderAssistant(
-                        new com.baomidou.mybatisplus.core.MybatisConfiguration(), ""),
-                com.aicabinet.trade.domain.CabinetOrder.class);
-        service = new MerchantSettlementBillService(splitRepository, billRepository, distributedLockService,
-                orderRepository);
-        when(orderRepository.selectList(any())).thenReturn(java.util.List.of());
+        service = new MerchantSettlementBillService(splitRepository, billRepository, distributedLockService);
         when(distributedLockService.tryLock(
                 MerchantSettlementBillService.settlementBillLockKey(MONTH), 120, 5)).thenReturn(true);
-        when(splitRepository.selectList(any())).thenReturn(List.of());
+        when(splitRepository.findByOrderCreatedAtBetween(any(), any())).thenReturn(List.of());
         when(billRepository.selectList(any())).thenReturn(List.of());
     }
 
@@ -131,24 +123,17 @@ class MerchantSettlementBillRebuildTest {
 
     // —— 主流程 ——
 
-    /** MA-287：rebuildMonth 先按订单 created_at 窗口查订单 ⇒ 测试里给对应订单集合。 */
-    private void givenOrdersInMonth(String... orderIds) {
-        java.util.List<com.aicabinet.trade.domain.CabinetOrder> orders = new java.util.ArrayList<>();
-        for (String id : orderIds) {
-            com.aicabinet.trade.domain.CabinetOrder o = new com.aicabinet.trade.domain.CabinetOrder();
-            o.setOrderId(id);
-            orders.add(o);
-        }
-        when(orderRepository.selectList(any())).thenReturn(orders);
+    /** MA-287：rebuildMonth 按订单 created_at 窗口取分账（SQL JOIN）⇒ 测试直接给分账集合。 */
+    private void givenSplitsInMonth(OrderRevenueSplit... splits) {
+        when(splitRepository.findByOrderCreatedAtBetween(any(), any())).thenReturn(List.of(splits));
     }
 
 
     @Test
     void rebuildMonth_insertsRowsForNewMerchants() {
-        givenOrdersInMonth("O1", "O2");
-        when(splitRepository.selectList(any())).thenReturn(List.of(
+        givenSplitsInMonth(
                 split("M1", "SUCCESS", 1000, 100, 900),
-                split("M2", "LEDGER_ONLY", 500, 50, 450)));
+                split("M2", "LEDGER_ONLY", 500, 50, 450));
         when(billRepository.findByMerchantAndPeriod(any(), any())).thenReturn(null);
 
         int written = service.rebuildMonth(MONTH);
@@ -162,9 +147,7 @@ class MerchantSettlementBillRebuildTest {
 
     @Test
     void rebuildMonth_updatesExistingAndKeepsConfirmedStatus() {
-        givenOrdersInMonth("O1");
-        when(splitRepository.selectList(any())).thenReturn(List.of(
-                split("M1", "SUCCESS", 1000, 100, 900)));
+        givenSplitsInMonth(split("M1", "SUCCESS", 1000, 100, 900));
         MerchantSettlementBill existing = new MerchantSettlementBill();
         existing.setMerchantId("M1");
         existing.setPeriodMonth(MONTH.atDay(1));
@@ -191,9 +174,7 @@ class MerchantSettlementBillRebuildTest {
 
     @Test
     void rebuildMonth_deletesStaleRowsWithoutCurrentSplits() {
-        givenOrdersInMonth("O1");
-        when(splitRepository.selectList(any())).thenReturn(List.of(
-                split("M1", "SUCCESS", 1000, 100, 900)));
+        givenSplitsInMonth(split("M1", "SUCCESS", 1000, 100, 900));
         when(billRepository.findByMerchantAndPeriod(any(), any())).thenReturn(null);
         MerchantSettlementBill stale = new MerchantSettlementBill();
         stale.setMerchantId("M3");

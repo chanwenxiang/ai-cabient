@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.MerchantSettlementBill;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
-import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.MerchantSettlementBillMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -52,17 +51,13 @@ public class MerchantSettlementBillService {
     private final OrderRevenueSplitMapper splitRepository;
     private final MerchantSettlementBillMapper billRepository;
     private final DistributedLockService distributedLockService;
-    /** MA-287：归月改按订单 created_at ⇒ 需要订单窗口查询。 */
-    private final CabinetOrderMapper orderRepository;
 
     public MerchantSettlementBillService(OrderRevenueSplitMapper splitRepository,
                                          MerchantSettlementBillMapper billRepository,
-                                         DistributedLockService distributedLockService,
-                                         CabinetOrderMapper orderRepository) {
+                                         DistributedLockService distributedLockService) {
         this.splitRepository = splitRepository;
         this.billRepository = billRepository;
         this.distributedLockService = distributedLockService;
-        this.orderRepository = orderRepository;
     }
 
     static String settlementBillLockKey(YearMonth month) {
@@ -101,17 +96,9 @@ public class MerchantSettlementBillService {
         Instant from = month.atDay(1).atStartOfDay(ZONE).toInstant();
         Instant to = month.plusMonths(1).atDay(1).atStartOfDay(ZONE).toInstant();
         // MA-287：窗口按**订单** created_at 划，split 只按订单集合取——跨月补缴（3 月的单
-        // 4 月才建 split）归 3 月，与商户月账单同源。
-        List<String> orderIdsInMonth = orderRepository.selectList(Wrappers.<com.aicabinet.trade.domain.CabinetOrder>lambdaQuery()
-                .ge(com.aicabinet.trade.domain.CabinetOrder::getCreatedAt, from)
-                .lt(com.aicabinet.trade.domain.CabinetOrder::getCreatedAt, to)
-                .select(com.aicabinet.trade.domain.CabinetOrder::getOrderId))
-                .stream().map(com.aicabinet.trade.domain.CabinetOrder::getOrderId).toList();
-        List<OrderRevenueSplit> splits = orderIdsInMonth.isEmpty()
-                ? java.util.List.of()
-                : splitRepository.selectList(Wrappers.<OrderRevenueSplit>lambdaQuery()
-                        .in(OrderRevenueSplit::getOrderId, orderIdsInMonth)
-                        .isNotNull(OrderRevenueSplit::getSettlementBatchNo));
+        // 4 月才建 split）归 3 月，与商户月账单同源。SQL JOIN 一条完成（2026-11-16 修正：
+        // 原实现把整月订单 id 拉进内存再 IN，订单量大时撞绑定参数上限）。
+        List<OrderRevenueSplit> splits = splitRepository.findByOrderCreatedAtBetween(from, to);
         List<MerchantSettlementBill> rows = buildRows(month, splits, Instant.now());
 
         int written = 0;

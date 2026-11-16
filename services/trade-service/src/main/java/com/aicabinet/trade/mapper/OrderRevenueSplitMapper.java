@@ -15,6 +15,20 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
 
     OrderRevenueSplit findByOrderIdForUpdateRaw(@org.apache.ibatis.annotations.Param("orderId") String orderId);
 
+    /**
+     * MA-287：按**订单 created_at** 窗口取分账行（月结单归月与商户月账单同源）。
+     * SQL JOIN 一条完成，避免把整月订单 id 拉进内存再 IN（订单量大时撞绑定参数上限）。
+     */
+    @org.apache.ibatis.annotations.Select("""
+            SELECT s.* FROM order_revenue_split s
+            JOIN cabinet_order o ON o.order_id = s.order_id
+            WHERE o.created_at >= #{from} AND o.created_at < #{to}
+              AND s.settlement_batch_no IS NOT NULL
+            """)
+    List<OrderRevenueSplit> findByOrderCreatedAtBetween(
+            @org.apache.ibatis.annotations.Param("from") Instant from,
+            @org.apache.ibatis.annotations.Param("to") Instant to);
+
     default Optional<OrderRevenueSplit> findByOrderIdForUpdate(String orderId) {
         return Optional.ofNullable(findByOrderIdForUpdateRaw(orderId));
     }

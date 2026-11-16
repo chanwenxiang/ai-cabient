@@ -201,11 +201,11 @@ class MerchantFinanceServiceTest {
     }
 
     /**
-     * 单设备视图：费用台账只有「商户×日」粒度、无 device 维度，不能拿全商户的费用顶替，
-     * 也不能自创分摊 ⇒ 仍读按设备出账的表（既有缺口见 MA-299）。
+     * 单设备视图（B4/MA-299）：只读该柜机的逐台 DATA 行，不拿全商户聚合额顶替。
+     * 有逐台行 ⇒ basis=DEVICE；不再读开关默认关闭的 device_data_fee_bill 死表。
      */
     @Test
-    void getMonthlyBill_singleDevice_doesNotBorrowWholeMerchantFee() {
+    void getMonthlyBill_singleDevice_readsPerDeviceLedger() {
         when(merchantFeaturePackService.allowedMerchantIdsForPack(9L, MerchantFeaturePacks.BIZ))
                 .thenReturn(Set.of("MCH-DEFAULT"));
         when(merchantFeaturePackService.intersectDeviceFilterForPack(9L, "DEV-A", MerchantFeaturePacks.BIZ))
@@ -218,15 +218,19 @@ class MerchantFinanceServiceTest {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.List.of());
-        com.aicabinet.trade.domain.DeviceDataFeeBill row = new com.aicabinet.trade.domain.DeviceDataFeeBill();
+        com.aicabinet.trade.domain.MerchantFeeLedger row = new com.aicabinet.trade.domain.MerchantFeeLedger();
+        row.setMerchantId("MCH-DEFAULT");
         row.setDeviceId("DEV-A");
-        row.setAmountCents(777);
-        when(dataFeeBillRepository.selectList(org.mockito.ArgumentMatchers.any()))
+        row.setFeeType(com.aicabinet.trade.domain.MerchantFeeLedger.FEE_TYPE_DATA);
+        row.setFeeDate(java.time.LocalDate.of(2026, 4, 15));
+        row.setAmountCents(777L);
+        when(feeLedgerRepository.selectList(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.List.of(row));
 
         var bill = service.getMonthlyBill(9L, "2026-04", "DEV-A");
 
-        assertEquals(777L, bill.dataFeeCents());
-        org.mockito.Mockito.verifyNoInteractions(feeLedgerRepository);
+        assertEquals(777L, bill.dataFeeCents(), "单设备流量费必须取该柜机逐台行");
+        assertEquals("DEVICE", bill.dataFeeBasis());
+        org.mockito.Mockito.verifyNoInteractions(dataFeeBillRepository);
     }
 }

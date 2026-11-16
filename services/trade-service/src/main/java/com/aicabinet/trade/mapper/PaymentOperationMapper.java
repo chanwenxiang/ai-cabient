@@ -247,19 +247,26 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
 
     /**
      * MA-284：退款同步「扣了账、单据没推进」的存量单（账本 RECHARGE_REFUND 流水合计
-     * 仍大于订单 refunded_cents ⇒ finalizeChannelPartialRefund 那半段丢失），供告警巡检。
+     * 仍大于充值单 refunded_cents ⇒ finalizeChannelPartialRefund 那半段丢失），供告警巡检。
      * 只告警不自动修：补推进要按退款单逐笔核对渠道结果，与 MA-269 的残留边界（§11）同档。
+     *
+     * <p>🔴 2026-11-16 修正：充值退款流水的 {@code order_id} 恒为 NULL（充值单号不属于
+     * cabinet_order，{@code recordRechargeRefundOperation} 显式置空避免 FK 失败），
+     * 原 SQL JOIN cabinet_order 永远 0 行 ⇒ 告警是死查询。改为 JOIN recharge_order，
+     * 用 {@code reason} 尾部的 {@code #<orderId>}（BalanceLedgerService.buildReason 的契约）
+     * 关联。</p>
      */
     @org.apache.ibatis.annotations.Select("""
-            SELECT o.order_id AS "orderId", o.user_id AS "userId",
+            SELECT r.order_id AS "orderId", r.user_id AS "userId",
                    COALESCE(SUM(p.amount_cents), 0) AS "debitedCents",
-                   COALESCE(o.refunded_cents, 0) AS "refundedCents"
+                   COALESCE(r.refunded_cents, 0) AS "refundedCents"
             FROM payment_operation p
-            JOIN cabinet_order o ON o.order_id = p.order_id
+            JOIN recharge_order r
+              ON substring(p.reason from '#([^#]+)$') = r.order_id
             WHERE p.operation_type = 'RECHARGE_REFUND' AND p.status = 'COMPLETED'
-            GROUP BY o.order_id, o.user_id, o.refunded_cents
-            HAVING COALESCE(SUM(p.amount_cents), 0) > COALESCE(o.refunded_cents, 0)
-            ORDER BY o.order_id
+            GROUP BY r.order_id, r.user_id, r.refunded_cents
+            HAVING COALESCE(SUM(p.amount_cents), 0) > COALESCE(r.refunded_cents, 0)
+            ORDER BY r.order_id
             LIMIT #{limit}
             """)
     java.util.List<java.util.Map<String, Object>> findRefundSyncNotAdvanced(@Param("limit") int limit);

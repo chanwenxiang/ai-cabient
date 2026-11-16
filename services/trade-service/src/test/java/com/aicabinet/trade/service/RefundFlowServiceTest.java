@@ -52,7 +52,7 @@ class RefundFlowServiceTest {
         order.setMerchantId("M1");
         order.setPayChannel("WECHAT");
         when(mapper.selectCount(any())).thenReturn(0L);
-        when(mapper.insert(any(RefundFlow.class))).thenAnswer(inv -> {
+        when(mapper.insertIgnore(any(RefundFlow.class))).thenAnswer(inv -> {
             inv.getArgument(0, RefundFlow.class).setFlowId(99L);
             return 1;
         });
@@ -63,7 +63,7 @@ class RefundFlowServiceTest {
         Long id = service.record(order, 500, RefundFlowService.METHOD_CHANNEL_REFUND,
                 "RF-1", Instant.now(), "x".repeat(600));
         assertEquals(99L, id);
-        org.mockito.Mockito.verify(mapper).insert(org.mockito.ArgumentMatchers.argThat((RefundFlow f) -> {
+        org.mockito.Mockito.verify(mapper).insertIgnore(org.mockito.ArgumentMatchers.argThat((RefundFlow f) -> {
             assertEquals("O1", f.getOrderId());
             assertEquals("M1", f.getMerchantId());
             assertEquals("WECHAT", f.getOrderPayChannel());
@@ -83,7 +83,7 @@ class RefundFlowServiceTest {
         Long id = service.record(order, 500, RefundFlowService.METHOD_CHANNEL_REFUND,
                 "RF-DUP", Instant.now(), "r");
         assertNull(id, "同 refundNo 已存在 ⇒ 幂等跳过（渠道重试不双记）");
-        verify(mapper, never()).insert(any(RefundFlow.class));
+        verify(mapper, never()).insertIgnore(any(RefundFlow.class));
     }
 
     @Test
@@ -91,7 +91,7 @@ class RefundFlowServiceTest {
         when(mapper.selectCount(any())).thenReturn(1L);
         Long id = service.record(order, 300, RefundFlowService.METHOD_BALANCE,
                 null, Instant.now(), "r");
-        assertNull(id, "无单号 24h 内同 (order,amount,method) 视为重放");
+        assertNull(id, "无单号 5 分钟内同 (order,amount,method) 视为重放");
     }
 
     @Test
@@ -99,6 +99,18 @@ class RefundFlowServiceTest {
         assertNull(service.record(order, 0, RefundFlowService.METHOD_BALANCE, null, Instant.now(), "r"));
         assertNull(service.record(order, -1, RefundFlowService.METHOD_BALANCE, null, Instant.now(), "r"));
         assertNull(service.record(null, 100, RefundFlowService.METHOD_BALANCE, null, Instant.now(), "r"));
-        verify(mapper, never()).insert(any(RefundFlow.class));
+        verify(mapper, never()).insertIgnore(any(RefundFlow.class));
+    }
+
+    @Test
+    void record_nullMerchant_fallsBackToUnknown() {
+        order.setMerchantId(null);
+        Long id = service.record(order, 100, RefundFlowService.METHOD_BALANCE,
+                null, Instant.now(), "r");
+        assertEquals(99L, id);
+        org.mockito.Mockito.verify(mapper).insertIgnore(org.mockito.ArgumentMatchers.argThat((RefundFlow f) -> {
+            assertEquals("UNKNOWN", f.getMerchantId());
+            return true;
+        }));
     }
 }

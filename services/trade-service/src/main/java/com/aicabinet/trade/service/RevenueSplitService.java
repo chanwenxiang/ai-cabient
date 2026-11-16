@@ -128,6 +128,19 @@ public class RevenueSplitService {
     }
 
     /**
+     * MA-276（2026-11-16 修正）：插入分账行走 **NESTED**（JDBC savepoint）。
+     *
+     * <p>唯一键冲突只回滚到 savepoint，外层事务仍然可用；如果直接在 REQUIRED 事务里
+     * 让唯一键异常冒出去，PostgreSQL 会把整个事务打成 aborted（25P02），调用方后续的
+     * 会话保存/入账全部失败。DKE 后由 {@link #findSplitAfterRace} 在独立事务里读回
+     * 已提交的分账行。</p>
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.NESTED)
+    public void insertSplitNested(OrderRevenueSplit split) {
+        splitRepository.save(split);
+    }
+
+    /**
      * MA-276：DKE catch 分支的重查必须走**新事务**——PG 里同事务内 INSERT 撞唯一键后
      * 整个事务已 aborted，原重查必抛 25P02。锁现在横跨提交，本方法正常情况下不可达，
      * 仅作锁失效/人为并发时的兜底。
@@ -199,10 +212,11 @@ public class RevenueSplitService {
             split.setStatus(ACCRUED);
         }
         try {
-            splitRepository.save(split);
+            self.insertSplitNested(split);
         } catch (DuplicateKeyException e) {
             log.info("split insert raced order={} splitId={}", order.getOrderId(), split.getSplitId());
-            // MA-276：PG 同事务内撞唯一键后已 aborted，原「同事务重查」必抛 25P02 ⇒ 走新事务。
+            // MA-276：NESTED 插入撞唯一键只回滚到 savepoint，外层事务仍可继续；
+            // 重查走 REQUIRES_NEW（读完即提交），避免在同事务里做 25P02 查询。
             return self.findSplitAfterRace(order.getOrderId());
         }
         if (OrderCollectionGate.collected(order)) {

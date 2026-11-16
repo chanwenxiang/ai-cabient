@@ -4,7 +4,6 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.RefundFlow;
 import com.aicabinet.trade.mapper.RefundFlowMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,7 +14,8 @@ import java.time.Instant;
  * <p>唯一入口 {@link #record}：调用方在**推进订单 refunded_cents 的同一事务**里调用
  * （埋点同序，漏记只影响月账单退款分日显示，不影响资金真值——见 RefundFlow javadoc）。
  * 幂等：有 refundNo 走唯一索引（渠道重试防重）；无单号的本地退款按
- * (order_id, amount_cents, method) 最近 24h 内防重——宽松防重，重复概率低且有一致性
+ * (order_id, amount_cents, method) 最近 5 分钟内防重——重试窗口只有秒级，5 分钟足够，
+ * 又不会把「同单两笔同额部分退」误合并。
  * 巡检兜底，审计流水宁多勿缺。</p>
  */
 @Slf4j
@@ -63,13 +63,14 @@ public class RefundFlowService {
                 return null;
             }
         } else {
-            // 无单号：24h 内同 (order, amount, method) 视为重放（宽松防重）
+            // 无单号：5 分钟内同 (order, amount, method) 视为重放（重试窗口只有秒级；
+            // 24h 会把「同单两笔同额部分退」误合并，导致月账单少报）。
             Long recent = refundFlowMapper.selectCount(
                     com.baomidou.mybatisplus.core.toolkit.Wrappers.<RefundFlow>lambdaQuery()
                             .eq(RefundFlow::getOrderId, order.getOrderId())
                             .eq(RefundFlow::getAmountCents, amountCents)
                             .eq(RefundFlow::getRefundMethod, method)
-                            .gt(RefundFlow::getRefundedAt, Instant.now().minus(java.time.Duration.ofHours(24))));
+                            .gt(RefundFlow::getRefundedAt, Instant.now().minus(java.time.Duration.ofMinutes(5))));
             if (recent != null && recent > 0) {
                 log.info("refund flow recent-duplicate skip order={} amount={} method={}",
                         order.getOrderId(), amountCents, method);
@@ -78,7 +79,10 @@ public class RefundFlowService {
         }
         RefundFlow row = new RefundFlow();
         row.setOrderId(order.getOrderId());
-        row.setMerchantId(order.getMerchantId());
+        // merchant_id 在 refund_flow 是 NOT NULL，而 cabinet_order.merchant_id 可空
+        //（设备解绑后新单）——退款不能因为「这单没有商户」而把 finalize 事务打回。
+        row.setMerchantId(order.getMerchantId() == null || order.getMerchantId().isBlank()
+                ? "UNKNOWN" : order.getMerchantId().trim());
         row.setOrderPayChannel(order.getPayChannel() == null || order.getPayChannel().isBlank()
                 ? "UNKNOWN" : order.getPayChannel().trim());
         row.setAmountCents(amountCents);
@@ -86,14 +90,9 @@ public class RefundFlowService {
         row.setRefundNo(refundNo == null || refundNo.isBlank() ? null : refundNo.trim());
         row.setRefundedAt(refundedAt == null ? Instant.now() : refundedAt);
         row.setReason(truncate(reason, 500));
-        try {
-            refundFlowMapper.insert(row);
-            return row.getFlowId();
-        } catch (DuplicateKeyException e) {
-            // 并发 finalize 撞 refundNo 唯一键：另一投递已记录，幂等退出
-            log.info("refund flow raced (refundNo={}), concurrent insert won", refundNo);
-            return null;
-        }
+        // MA-271 修正：ON CONFLICT DO NOTHING —— 并发重投不会把调用方事务打成 aborted。
+        int inserted = refundFlowMapper.insertIgnore(row);
+        return inserted > 0 ? row.getFlowId() : null;
     }
 
     private static String truncate(String s, int max) {
