@@ -315,7 +315,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "ORDER_LINE_SUM", "订单行金额", "COUPON_USED_LINK", "券核销关联",
                 "REVENUE_SPLIT_SUM", "分账金额", "REVENUE_SPLIT_MISSING", "分账缺失",
                 "REFUND_SYNC_NOT_ADVANCED", "退款同步未推进单据",
-                "REVENUE_SPLIT_REFUND_STALE", "分账未按净额回算",
+                "REVENUE_SPLIT_REFUND_STALE", "分账未按净额回算", "REFUND_FLOW_VS_ORDER_MISMATCH", "退款流水与订单聚合不一致",
                 "WAREHOUSE_NEGATIVE", "仓存负库存",
                 "CROSS_LINK", "关联投影")));
         map.put("sku_perf_level", t("选品表现等级", m(

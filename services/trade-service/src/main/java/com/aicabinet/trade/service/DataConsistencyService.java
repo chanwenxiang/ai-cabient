@@ -60,6 +60,8 @@ public class DataConsistencyService {
     private static final String REVENUE_SPLIT_MISSING = "REVENUE_SPLIT_MISSING";
     /** MA-270：已退款订单的分账毛额必须等于净额（冻结毛额 − refunded）。 */
     static final String REVENUE_SPLIT_REFUND_STALE = "REVENUE_SPLIT_REFUND_STALE";
+    /** B3（V485）：退款流水合计必须等于订单 refunded_cents（漏埋点/双记的巡检兜底）。 */
+    static final String REFUND_FLOW_VS_ORDER_MISMATCH = "REFUND_FLOW_VS_ORDER_MISMATCH";
     private static final String WAREHOUSE_NEGATIVE = "WAREHOUSE_NEGATIVE";
     private static final String WAREHOUSE_LEDGER = "WAREHOUSE_LEDGER";
     private static final String OUTBOUND_HANDOVER = "OUTBOUND_HANDOVER";
@@ -245,6 +247,7 @@ public class DataConsistencyService {
             checkRevenueSplitSumConsistency();
             checkRevenueSplitMissingConsistency();
             checkRevenueSplitRefundStaleConsistency();
+            checkRefundFlowVsOrderConsistency();
             checkWarehouseNegativeConsistency();
             checkWarehouseLedgerConsistency();
             checkDeviceLedgerConsistency();
@@ -1040,6 +1043,38 @@ public class DataConsistencyService {
         resolveStaleFailuresIfComplete(REVENUE_SPLIT_REFUND_STALE, failing, rows.size());
     }
 
+    /**
+     * B3（V485）：refund_flow 逐笔合计 vs 订单 refunded_cents 聚合——两侧必须一致。
+     * <p>不等只可能是「埋点漏记 / 双记 / 手工改账」：流水是明细账（月账单分日键），
+     * 订单 refunded_cents 是资金真值（MA-284 判据、MA-270 巡检都读它）。差异不自动修
+     * （方向未知：可能是流水少记也可能是 refunded_cents 被绕过推进），人工按 refund_flow
+     * 逐笔核对。</p>
+     */
+    void checkRefundFlowVsOrderConsistency() {
+        String sql = "SELECT o.order_id, COALESCE(o.refunded_cents, 0) AS expected, "
+                + "COALESCE(f.flow_sum, 0) AS actual "
+                + "FROM cabinet_order o "
+                + "LEFT JOIN (SELECT order_id, SUM(amount_cents) AS flow_sum "
+                + "           FROM refund_flow GROUP BY order_id) f ON f.order_id = o.order_id "
+                + "WHERE COALESCE(o.refunded_cents, 0) <> COALESCE(f.flow_sum, 0) "
+                + "AND (COALESCE(o.refunded_cents, 0) > 0 OR COALESCE(f.flow_sum, 0) > 0) "
+                + "LIMIT " + CHECK_BATCH;
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = String.valueOf(row.get(ORDER_ID));
+            failing.add(key);
+            recordInconsistency(REFUND_FLOW_VS_ORDER_MISMATCH, "refund_flow",
+                    key,
+                    String.valueOf(row.get(EXPECTED)),
+                    String.valueOf(row.get(ACTUAL)),
+                    "退款流水合计与订单 refunded_cents 不一致：订单聚合 "
+                            + row.get(EXPECTED) + "，流水合计 " + row.get(ACTUAL)
+                            + "（埋点漏记/双记/手工改账，人工逐笔核对 refund_flow）");
+        }
+        resolveStaleFailuresIfComplete(REFUND_FLOW_VS_ORDER_MISMATCH, failing, rows.size());
+    }
+
     /** 仓存数量为负（明显账实异常）。 */
     void checkWarehouseNegativeConsistency() {
         String sql = "SELECT i.warehouse_id, i.sku_id, COALESCE(i.batch_no, '') AS batch_no, "
@@ -1496,6 +1531,8 @@ public class DataConsistencyService {
                  REVENUE_SPLIT_SUM, REVENUE_SPLIT_MISSING,
                  // MA-270：回算分账会冲正商户钱包（钱会变），与 PAID_GROSS_MISMATCH 同档 —— 不自动改。
                  REVENUE_SPLIT_REFUND_STALE,
+                 // B3：流水 vs 聚合差异方向未知（少记 or 绕过推进），自动修=猜资金方向
+                 REFUND_FLOW_VS_ORDER_MISMATCH,
                  WAREHOUSE_NEGATIVE, COUPON_OVER_QUOTA,
                  // 无批次账本的正解是「期初走真实补货/收货入库」，一键把汇总摊成 lot 行就是 B 档
                  // （会翻转结算 FEFO 与消费者可售口径），所以这里必须拒绝自动修，别落到 default 的

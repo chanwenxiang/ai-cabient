@@ -68,6 +68,13 @@ public class OrderPaymentService {
     private final DistributedLockService distributedLockService;
     /** MA-274：支付锁心跳（租约 60s / 心跳 20s），构造期建好，不进 Spring 装配面。 */
     private final LockHeartbeat lockHeartbeat;
+
+    /**
+     * B3：退款流水记录器。setter 注入（required=false）——构造器已 16 参、12 个测试构造点
+     * 不动；测试不注入时埋点 null-safe 跳过（流水是明细账，不记不影响资金真值）。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RefundFlowService refundFlowService;
     private final ShoppingSessionMapper sessionRepository;
     private final ConsumerPreauthService consumerPreauthService;
     private final MemberService memberService;
@@ -910,6 +917,11 @@ public class OrderPaymentService {
         locked.setRefundedAt(Instant.now());
         locked.setRefundedCents(Math.max(0, locked.getRefundedCents()) + prep.channelRefundCents());
         cabinetOrderRepository.updateById(locked);
+        // B3：逐笔流水（refundNo 唯一索引幂等——渠道重试复用 deterministicRefundNo 不双记）
+        if (prep.channelRefundCents() > 0 && refundFlowService != null) {
+            refundFlowService.record(locked, prep.channelRefundCents(), RefundFlowService.METHOD_CHANNEL_REFUND,
+                    outRefundNo, locked.getRefundedAt(), reason);
+        }
         alertIfInvoicedOnFullRefund(locked, prep.refundCents());
         log.info("live channel order refund finalized order={} channel={} amount={} total={} refundStatus={}",
                 prep.orderId(), prep.channel(), prep.channelRefundCents(), prep.refundCents(), channelRefundStatus);
@@ -1111,6 +1123,11 @@ public class OrderPaymentService {
         order.setRefundedAt(Instant.now());
         order.setRefundedCents(Math.max(0, order.getRefundedCents()) + amountCents);
         cabinetOrderRepository.updateById(order);
+        // B3：本地退款（mock 渠道回钱包 / BALANCE）逐笔流水；无渠道单号 ⇒ 24h 宽松防重
+        if (refundFlowService != null) {
+            refundFlowService.record(order, amountCents, RefundFlowService.METHOD_BALANCE,
+                    null, order.getRefundedAt(), reasonOrDefault(reason));
+        }
     }
 
     /**

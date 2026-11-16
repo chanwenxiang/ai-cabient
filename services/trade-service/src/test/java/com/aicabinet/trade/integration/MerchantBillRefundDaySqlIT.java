@@ -78,6 +78,7 @@ class MerchantBillRefundDaySqlIT {
 
     @BeforeEach
     void setUp() {
+        jdbc.update("DELETE FROM refund_flow WHERE order_id LIKE ?", PREFIX + "%");
         jdbc.update("DELETE FROM cabinet_order WHERE order_id LIKE ?", PREFIX + "%");
         jdbc.update("DELETE FROM shopping_session WHERE session_id LIKE ?", PREFIX + "%");
         jdbc.update("INSERT INTO user_info (user_id, phone_number) VALUES (?, ?) ON CONFLICT (user_id) DO NOTHING",
@@ -115,13 +116,14 @@ class MerchantBillRefundDaySqlIT {
     }
 
     @Test
-    @DisplayName("refunded_at 为空的老数据按下单日兜底，不能整笔消失")
+    @DisplayName("V485 回填聚合流水按 refunded_at=created_at 归日，历史退款不消失")
     void legacyRowWithoutRefundedAt_fallsBackToOrderDay() {
-        // 只有累计退款列、没有退款时点（refunded_at 是后加列）
+        // B3 后查询读 refund_flow；历史数据由 V485 回填（refunded_at=COALESCE(refunded_at, created_at)
+        // = created_at），归日结果与切换前等价
         seedOrder("D", "2026-04-05T10:00", null, 200, "WECHAT");
 
         Totals april = refunds("2026-04", "2026-05");
-        assertEquals(200L, april.total(), "refunded_at 为空时必须回退下单日，否则历史退款一分钱都统计不到");
+        assertEquals(200L, april.total(), "回填流水按下单日归桶，历史退款一分钱都不能统计不到");
         assertEquals(1L, april.count());
     }
 
@@ -178,5 +180,14 @@ class MerchantBillRefundDaySqlIT {
                 id, PREFIX + "S-" + suffix, USER, DEVICE, MERCHANT, Math.max(refundedCents, 100),
                 channel, Timestamp.from(at(createdAt)),
                 refundedCents, refundedAt == null ? null : Timestamp.from(at(refundedAt)));
+        // B3：退款聚合读 refund_flow——与生产写入同构地插流水（refundedAt=null 时模拟
+        // V485 回填口径 refunded_at=created_at）
+        if (refundedCents > 0) {
+            java.time.Instant flowAt = at(refundedAt == null ? createdAt : refundedAt);
+            jdbc.update("INSERT INTO refund_flow (order_id, merchant_id, order_pay_channel, amount_cents, "
+                            + "refund_method, refund_no, refunded_at, reason) "
+                            + "VALUES (?, ?, ?, ?, 'BACKFILL_AGGREGATE', NULL, ?, 'IT seed')",
+                    id, MERCHANT, channel, refundedCents, Timestamp.from(flowAt));
+        }
     }
 }

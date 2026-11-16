@@ -28,6 +28,12 @@ public class SettlementPartialRefundService {
 
     private static final Logger log = LoggerFactory.getLogger(SettlementPartialRefundService.class);
 
+    /**
+     * B3：退款流水记录器（setter 注入，required=false）——兜底净增埋点用；测试不注入时 null-safe。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RefundFlowService refundFlowService;
+
     private final CabinetOrderMapper orderRepository;
     private final OrderPaymentService orderPaymentService;
     private final InventoryService inventoryService;
@@ -272,12 +278,21 @@ public class SettlementPartialRefundService {
         if (charged > 0) {
             nextRefunded = Math.min(nextRefunded, charged);
         }
-        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底
-        if (order.getRefundedCents() < nextRefunded) {
-            order.setRefundedCents(nextRefunded);
-        }
+        // 兜底路径可能连 refunded_at 都是 null（历史行漏写）——先归时间再记流水，
+        // 否则最需要记录的场景反而被 null 判据挡掉（B3 首版顺序 bug，自查修正）
         if (order.getRefundedAt() == null) {
             order.setRefundedAt(java.time.Instant.now());
+        }
+        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底
+        if (order.getRefundedCents() < nextRefunded) {
+            // B3：只对「净增」记流水——正常路径支付层已记（finalizeLiveOrderRefund /
+            // completeLocalRefund），此处 delta=0 不双记；兜底路径 delta>0 补一笔。
+            int flowDelta = nextRefunded - Math.max(0, order.getRefundedCents());
+            order.setRefundedCents(nextRefunded);
+            if (refundFlowService != null) {
+                refundFlowService.record(order, flowDelta, RefundFlowService.METHOD_SETTLEMENT_PARTIAL,
+                        null, order.getRefundedAt(), "结算部分退款兜底对齐（delta=" + flowDelta + "）");
+            }
         }
         boolean full = prep.remainingEmpty() || order.getTotalAmountCents() <= 0;
         order.setStatus(full ? CabinetConstants.ORDER_STATUS_REFUNDED : "PARTIAL_REFUNDED");

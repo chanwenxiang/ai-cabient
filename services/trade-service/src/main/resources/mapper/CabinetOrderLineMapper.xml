@@ -260,24 +260,30 @@
     idx_cabinet_order_merchant_id 先按商户收敛，月度账单是低频页面查询，不做表达式索引。
   -->
   <select id="selectMerchantBillRefundsByDay" resultType="java.util.LinkedHashMap">
-    SELECT to_char(COALESCE(refunded_at, created_at) AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
-           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) &lt;&gt; 'BALANCE'
-                             THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c1,
-           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(pay_channel), ''), 'UNKNOWN')) = 'BALANCE'
-                             THEN COALESCE(refunded_cents, 0) ELSE 0 END), 0) AS c2,
-           COUNT(*) FILTER (WHERE COALESCE(refunded_cents, 0) &gt; 0) AS c3
-    FROM cabinet_order
-    WHERE COALESCE(refunded_at, created_at) &gt;= #{start}
-      AND COALESCE(refunded_at, created_at) &lt; #{end}
-      AND COALESCE(refunded_cents, 0) &gt; 0
-      AND status &lt;&gt; 'FAILED'
-      AND merchant_id IN
+    <!-- B3（V485）：退款按 refund_flow 逐笔流水分桶（MA-271 精度解：多次部分退款各自归日）。
+         口径与切换前逐字等价：c1/c2 按**订单原收款渠道**分桶（rf.order_pay_channel 从订单复制）、
+         c3 保持订单数口径（COUNT(DISTINCT order_id)）、JOIN cabinet_order 仅为 device 过滤与
+         FAILED 排除（merchant 过滤走 rf.merchant_id 冗余列）。历史月回填聚合流水
+         （BACKFILL_AGGREGATE，refunded_at=COALESCE 同款）⇒ 归月结果与切换前完全一致。
+         性能：idx_refund_flow_merchant_day(refunded_at) 可用；月度账单低频页面查询。 -->
+    SELECT to_char(rf.refunded_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD') AS c0,
+           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(rf.order_pay_channel), ''), 'UNKNOWN')) &lt;&gt; 'BALANCE'
+                             THEN rf.amount_cents ELSE 0 END), 0) AS c1,
+           COALESCE(SUM(CASE WHEN UPPER(COALESCE(NULLIF(TRIM(rf.order_pay_channel), ''), 'UNKNOWN')) = 'BALANCE'
+                             THEN rf.amount_cents ELSE 0 END), 0) AS c2,
+           COUNT(DISTINCT rf.order_id) AS c3
+    FROM refund_flow rf
+    JOIN cabinet_order o ON o.order_id = rf.order_id
+    WHERE rf.refunded_at &gt;= #{start}
+      AND rf.refunded_at &lt; #{end}
+      AND o.status &lt;&gt; 'FAILED'
+      AND rf.merchant_id IN
       <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     <if test="deviceIds != null and deviceIds.size() &gt; 0">
-      AND device_id IN
+      AND o.device_id IN
       <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     </if>
-    GROUP BY to_char(COALESCE(refunded_at, created_at) AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
+    GROUP BY to_char(rf.refunded_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD')
     ORDER BY c0
   </select>
 </mapper>

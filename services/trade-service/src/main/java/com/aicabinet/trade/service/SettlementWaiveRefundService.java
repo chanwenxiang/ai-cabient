@@ -29,6 +29,12 @@ public class SettlementWaiveRefundService {
 
     private static final Logger log = LoggerFactory.getLogger(SettlementWaiveRefundService.class);
 
+    /**
+     * B3：退款流水记录器（setter 注入，required=false）；测试不注入时 null-safe。
+     */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RefundFlowService refundFlowService;
+
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
@@ -118,7 +124,13 @@ public class SettlementWaiveRefundService {
             order.setRefundedAt(java.time.Instant.now());
         }
         if (prep.refundCents() > 0 && order.getRefundedCents() < prep.refundCents()) {
+            int flowDelta = prep.refundCents() - Math.max(0, order.getRefundedCents());
             order.setRefundedCents(prep.refundCents());
+            // B3：只对净增记流水（同 SettlementPartial 逻辑——正常路径支付层已记）
+            if (refundFlowService != null && order.getRefundedAt() != null) {
+                refundFlowService.record(order, flowDelta, RefundFlowService.METHOD_SETTLEMENT_WAIVE,
+                        null, order.getRefundedAt(), prep.reason());
+            }
         }
         // 🔴 F3-FIND-1 修法 B：退货退款的「回库 + inventory_deducted=false」与 status=REFUNDED 同事务原子落。
         // 提交时守卫见 status=REFUNDED（非 PAID/PARTIAL_REFUNDED）即豁免，不再因中间态 un-deduct 而 500；
