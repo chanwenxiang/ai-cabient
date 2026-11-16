@@ -659,6 +659,7 @@ export declare const DICT: {
     readonly reconciliation_status: {
         readonly MATCHED: "已平账";
         readonly MISMATCH: "存在差异";
+        readonly EMPTY: "无交易";
         readonly PENDING: "待处理";
         readonly FAILED: "失败";
     };
