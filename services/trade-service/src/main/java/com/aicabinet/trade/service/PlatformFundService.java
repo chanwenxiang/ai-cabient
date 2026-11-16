@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -273,6 +274,8 @@ public class PlatformFundService {
      *
      * @return 人读摘要（运营台任务历史可见）
      */
+    // MA-260（2026-11-16 用户改判）：补 Spring 回退；XXL 开启时 tryBegin 让位，不双跑。
+    @Scheduled(cron = "0 10 8 * * ?", zone = "${aicabinet.schedule.zone:Asia/Shanghai}")
     public String runDailyCheck() {
         // AU-173（2026-10-18 批次 1）：39 任务唯二漏配执行守卫 ⇒ 无 job:* 分布式锁（多副本双跑）
         // 且 scheduled_task.enabled 停用开关被旁路（上线手册「资金任务保持关」关不住）。
