@@ -1,7 +1,7 @@
 # B1 Phase B 设计稿：补缴链路拆段（渠道 HTTP 移出 DB 事务）
 
-> 状态：**待评审**（2026-11-16，B3/B4 专项已完成，本稿为最后一个动支付主链的专项）。
-> 评审通过后再实施；实施批次含形态钉 + 三态负向 + 真栈弱网回归。
+> 状态：**评审完成，按修订后形态实施**（2026-11-16；Q1–Q4 结论与提前修正见 §6）。
+> 实施前先按 §6 的修订点改设计，再落码；实施批次含形态钉 + 三态负向 + 真栈弱网回归。
 
 ## 1. 现状与问题
 
@@ -33,7 +33,7 @@ Phase A 已把 `chargeOrder` 自身去事务化（HTTP 零行锁），但调用�
 collect/collectByUser（去 @Transactional，改 Redis 锁内编排）
   │
   ├─ 段1 prepare（tx1，短事务）
-  │    findByIdForUpdate → 状态/净额三分支判断 → 占券核销（applyBestCouponForCollect）
+  │    findByIdForUpdate → 状态/净额三分支判断 → **选券**（applyBestCouponForCollect 只算券，不核销）
   │    → 置 CHARGE_PENDING 痕迹（recordChargePending，已有）→ 提交（锁短暂持有，毫秒级）
   │
   ├─ 段2 渠道 HTTP（无事务，零行锁）
@@ -59,18 +59,22 @@ collect/collectByUser（去 @Transactional，改 Redis 锁内编排）
 | **超时/连接中断（结果未知）** | **不动**（保留 CHARGE_PENDING + 占券） | 券被占 + 痕迹 | 既有 stale 清扫：渠道查询→成功则补收口 / 失败则清痕迹+还券 |
 | 段3 自身崩溃 | 痕迹在 | 同上 | 同上 |
 
+> 🔴 **2026-11-16 评审修正（Q3）**：上表「既有 stale 清扫」**不存在**——`alertStaleChargePendingOps`
+> 只发 ops 异常，不查渠道、不 finalize、不退券。UNKNOWN 的自动收敛必须新增
+> `ChargePendingReconciler`（见 §5.3），60 分钟只是告警阈值，不是收敛通道。
+
 ### 3.2 幂等键矩阵（全部已有，零新增）
 
 - 渠道幂等：`CHARGE:<orderId>:<amount>`（restoreCompletedCharge）——重放不双扣 ✓
 - 痕迹：`recordChargePending` / `finalizeChargePending`（REQUIRES_NEW 自提交，Phase A 已就位）✓
 - 券核销：applyBestCouponForCollect 的占券幂等（重放不重复占）——**需在实施时核实**占券是否有幂等键（Q1，见 §6）
 
-### 3.3 券的补偿（唯一需要新写的补偿逻辑）
+### 3.3 券的补偿（Q1 结论：**不需要“还券”**）
 
-段1 已占券、段2 超时、段3 清痕迹时**必须还券**。占券核销不可逆（核销=已用），所以：
-
-- 段1 占券后、段2 发起前，把券决策（couponId + 应用金额）写进 CHARGE_PENDING 痕迹的扩展字段；
-- 段3 失败分支按痕迹反向操作：核销未发生→直接解占券；核销已发生（与渠道扣款同事务）→ 解核销还原可用态。
+- **现状**：`applyBestCouponForCollect` 只选券、只写订单字段；真正的 `markUsed` 在渠道成功之后（当前在 `chargeOrder` 返回后），且 `markUsed` 已按「订单+券」幂等（同单同券已 USED 直接返回）。
+- **修订**：段1 **不占券**，`markUsed` 留在段3 finalize（渠道成功之后）。UNKNOWN 时券仍是 UNUSED，无券可还；段3 失败分支也不需要“反向核销”。
+- **必须补的**：`ChargePendingReconciler` 查到渠道 SUCCESS 后补收口时，**必须同时调用 `markUsed`**，否则「渠道已扣、券仍可用」会被二次折扣。段3 崩溃后的补偿同样走 reconciler。
+- 若未来确实需要段1 预占，必须新增 RESERVED 状态+释放路径（新状态机），不在本批次。
 
 ### 3.4 余额冲抵分支不动
 
@@ -93,22 +97,37 @@ Redis 支付锁（`runWithOrderPaymentLock` + LockHeartbeat 续租）横跨三�
 
 1. `chargeOrder` 内抽出 `chargeChannelOnce(order, requestedChannel)`（纯渠道段，返回三态结果枚举：SUCCESS / FAILED / UNKNOWN）——不动现有签名，旧 chargeOrder 保留给非补缴调用方（支付分 DONE 回调等无外层事务路径）。
 2. `markPaid` 拆三段；collect/collectByUser 去 `@Transactional`，编排移入锁体。
-3. 券补偿：痕迹扩展字段 + 反向核销。
-4. 形态钉测试：collect/collectByUser 无 @Transactional；markPaid 内 HTTP 段方法无事务注解；痕迹两腿 REQUIRES_NEW（已有钉保活）。
-5. 三态负向：外层复挂 @Transactional ⇒ 红；HTTP 段塞回事务 ⇒ 红。
-6. 真栈弱网回归：mock 渠道延迟 > 行锁观测窗口，验证 `pg_locks` 无长持锁。
-7. 台账 MA-274 彻底关闭 + 报告 §20。
+3. **券核销**：`markUsed` 留在段3 finalize（渠道成功之后）；**不新增反向核销**。`ChargePendingReconciler` 成功收口时同样调用 `markUsed`（订单+券幂等，重放安全）。
+4. **强取消拦截（Q2）**：`SessionService.doForceCancelForOperations` 在加载会话后，若 `session.getOrderId()` 存在未收口的 `CHARGE_PENDING` 痕迹 ⇒ 409「支付处理中，请等渠道结果」；超过 10 分钟的陈旧痕迹由 reconciler 先收敛（成功补收口/失败清痕迹），运营不得用强取消绕。
+5. **UNKNOWN 收敛（Q3）**：新增 `ChargePendingReconciler`（照 `RefundRetryScheduler`）：2 分钟静默后按 `out_trade_no=orderId` 查渠道；SUCCESS→补收口（CHARGE 流水 + PAID + freeze + recordSplit + markUsed，持订单支付锁）；NOTPAY/CLOSED→清痕迹允许重试；UNKNOWN→下一轮。告警 15 分钟首告、60 分钟升级。
+6. **recordSplit 位置（Q4）**：保持在段3 finalize 事务内，**不**移到编排层尾部——保「订单 PAID + 分账」原子性；订单行已在段1 提交，REQUIRED join 可见 FK；配合 NESTED savepoint 防 DKE 打爆段3。
+7. 形态钉测试：collect/collectByUser 无 @Transactional；markPaid 内 HTTP 段方法无事务注解；痕迹两腿 REQUIRES_NEW（已有钉保活）；forceCancel 对 CHARGE_PENDING 409；reconciler 三态。
+8. 三态负向：外层复挂 @Transactional ⇒ 红；HTTP 段塞回事务 ⇒ 红；forceCancel 去守卫 ⇒ 红。
+9. 真栈弱网回归：mock 渠道延迟 > 行锁观测窗口，验证 `pg_locks` 无长持锁；UNKNOWN → reconciler 收口。
+10. 台账 MA-274 彻底关闭 + 报告 §20。
 
-## 6. 待评审确认的问题（实施前必须回答）
+## 6. Q1–Q4 评审结论（2026-11-16，已按源码复核）
 
-- **Q1**：`applyBestCouponForCollect` 的占券是否有幂等键（重放安全）？若无，段1 重试可能双占——需补。
-- **Q2**：运营强取消（forceCancelForOperations）对 CHARGE_PENDING 订单的现状行为？拆段后 HTTP 窗口内强取消必须被 CHARGE_PENDING 判据拦截。
-- **Q3**：`UNKNOWN` 残留的清扫频率与告警阈值沿用既有 STALE 配置（60min）是否足够？
-- **Q4**：拆段后 `recordSplit` 从 finalize 事务里移到编排层尾部（锁内、finalize 提交后）——MA-276 REQUIRED join 外层的语义变化复核。
+### Q1 占券幂等性 —— **前提修正：没有“段1 占券”**
+- `applyBestCouponForCollect` 只选券/写订单字段，不核销；`markUsed` 在渠道成功之后，且已按「订单+券」幂等（同单同券已 USED 直接返回）。
+- **结论**：`markUsed` 留在段3；UNKNOWN 时券仍 UNUSED，无需还券；**reconciler 成功收口必须补 `markUsed`**。不新增 RESERVED 状态。
+
+### Q2 强取消对 CHARGE_PENDING —— **现状不拦，必须加**
+- `SessionService.forceCancelForOperations` 只判会话 ACTIVE + 释放预授权，拿的是会话锁，不查订单/CHARGE_PENDING。
+- **结论**：`doForceCancelForOperations` 对存在 `CHARGE:PENDING:<orderId>` 痕迹的订单返回 409；>10 分钟的陈旧痕迹交 reconciler 收敛，运营不得绕。
+
+### Q3 UNKNOWN 清扫阈值 —— **60min 只是告警，不是收敛**
+- `CHARGE_PENDING_ALERT_MINUTES=60`；`alertStaleChargePendingOps` 只报 ops 异常，不查单/不 finalize/不退券。
+- **结论**：新增 `ChargePendingReconciler`（2min 静默查单；SUCCESS 补收口 / NOTPAY·CLOSED 清痕迹 / UNKNOWN 下轮）；15min 首告、60min 升级。设计稿 §3.2「零新增」对 UNKNOWN 路径不成立。
+
+### Q4 recordSplit 在 REQUIRED 下的 join 复核 —— **不要移出段3**
+- `SettlementOrderFinalizeService` 刻意不 catch `recordSplit`（失败随结算回滚）；移出编排层尾部会丢这条不变量，失败只剩 `REVENUE_SPLIT_MISSING` 巡检。
+- 段3 时订单行已在段1 提交，REQUIRED join 可见 FK；配合 `NESTED` savepoint（`RevenueSplitService.insertSplitNested`）DKE 不会打爆段3，`findSplitAfterRace` 能读回并发已提交行。
+- **结论**：按 §2 放段3；§6 原 Q4 的“移到编排层尾部”作废（§2 与 Q4 原表述矛盾，以 §2 为准）。
 
 ## 7. 验收标准
 
 - 结算/补缴链全部单测绿（含既有 58 例支付套件）+ 新增拆段用例；
-- 形态钉 + 三态负向全过；
-- 真栈：`pg_locks` 在渠道 HTTP 期间（延迟 5s+）无订单行锁；
-- CI build + integration 全绿；预检 150 门禁全绿。
+- 形态钉 + 三态负向全过（含 forceCancel 409、reconciler 三态、券不双核销）；
+- 真栈：`pg_locks` 在渠道 HTTP 期间（延迟 5s+）无订单行锁；UNKNOWN 后 reconciler 能补收口/清痕迹；
+- CI build + integration 全绿；预检门禁全绿。
