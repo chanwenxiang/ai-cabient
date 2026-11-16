@@ -1992,7 +1992,9 @@
 - **采纳**：双层结构——`cabinet_order.refunded_cents` 保持订单级聚合（资金对账真值，MA-284/MA-270 巡检读它），新增 `refund_flow` 逐笔（refund_no 唯一幂等对齐微信 V3、refunded_at 分日对齐 Stripe Balance transaction）。月账单退款按流水分桶（MA-271 精度解）。
 - **有意不同**：存量回填为聚合口径（BACKFILL_AGGREGATE，每单一笔）——历史逐笔无源数据，诚实降级而非伪造逐笔；一致性巡检 REFUND_FLOW_VS_ORDER_MISMATCH 兜两侧偏差。
 
-- **取证日期**：2026-11-16（Stripe/微信支付官方文档当日核；Nayax/映翰通产品页与既有台账 CB-031 同源）。
+- **对照主体**：Stripe（官方 API 文档 Balance transactions / Charge.refunded）、微信支付 V3（官方「申请退款」out_refund_no 幂等要求）、Nayax（管理后台退款报表）、映翰通云平台（订单/明细双层报表，与 CB-031 同源）。
+- **证据**：Stripe 官方文档「Balance transactions describe individual refunds and payouts」；微信支付 V3 官方「商户侧唯一退单号，同一 out_refund_no 重试返回同一退款单」；Nayax/映翰通产品页订单视图=聚合退款额、明细报表=逐笔 refund id 可导出。取证为文档一手口径 + 产品页截读，无沙箱实调（静态取证档）。
+- **取证日期**：2026-11-16
 - **我们的结论**：采纳「聚合列=资金真值 + 逐笔流水=明细账」双层；refund_no 幂等对齐微信 V3 官方要求；月账单归日读流水而非订单聚合列（对齐 Stripe Balance transaction 口径）。
 
 ---

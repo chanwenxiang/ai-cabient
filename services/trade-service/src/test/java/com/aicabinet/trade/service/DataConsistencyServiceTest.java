@@ -1549,6 +1549,44 @@ class DataConsistencyServiceTest {
         assertEquals("586", saved.getActualValue());
     }
 
+    /** B3（V485）：退款流水判据——合法空态不报红，且 SQL 双侧都查（流水 LEFT JOIN 订单）。 */
+    @Test
+    void checkRefundFlowVsOrderConsistency_consistentRowNotReturnedBySql() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString())).thenReturn(List.of());
+
+        service.checkRefundFlowVsOrderConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("refund_flow"), sql);
+        assertTrue(sql.contains("cabinet_order"), "必须 JOIN 订单表（FAILED 排除/聚合对照）：" + sql);
+        assertTrue(sql.contains("refunded_cents"), "对照真值必须是订单聚合列：" + sql);
+        assertTrue(sql.contains("SUM(amount_cents)"), "流水侧必须逐单合计：" + sql);
+        verify(consistencyRepository, never()).save(any());
+    }
+
+    /** B3：流水合计 ≠ 订单聚合 ⇒ 记 FAIL（埋点漏记/双记）。 */
+    @Test
+    void checkRefundFlowVsOrderConsistency_recordsTrueMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-FLOW", "expected", 500, "actual", 300)));
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(anyString(), anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRefundFlowVsOrderConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository, atLeastOnce()).save(captor.capture());
+        DataConsistencyRecord saved = captor.getValue();
+        assertEquals("REFUND_FLOW_VS_ORDER_MISMATCH", saved.getCheckType());
+        assertEquals("O-FLOW", saved.getCheckKey());
+        assertEquals("500", saved.getExpectedValue());
+        assertEquals("300", saved.getActualValue());
+    }
+
     /** 退多收成功后必须回算分账 —— 否则「钱退了、分账还按原毛额分」。 */
     @Test
     void fixOrderLineSum_afterOverchargeRefund_adjustsSplit() {

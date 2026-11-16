@@ -178,6 +178,13 @@
       "fixtureRefs": 2,
       "fixtureOk": true,
       "why": "MA-270 新增规则，同批配正负双夹具：sqlUsesNetExpression（合法空态不报红 + SQL 净额式子锚点）/ recordsStaleGross（真异常报红，取 dev 库实锤值 293 vs 586）"
+    },
+    {
+      "rule": "checkRefundFlowVsOrderConsistency",
+      "fixtureClass": "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+      "fixtureRefs": 2,
+      "fixtureOk": true,
+      "why": "B3/V485 新增规则，同批配正负双夹具：consistentRowNotReturnedBySql（合法空态不报红 + SQL 双表锚点）/ recordsTrueMismatch（真异常报红，500 vs 300）"
     }
   ]
 }
