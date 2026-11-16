@@ -483,7 +483,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "OPS_EXCEPTION_MANUAL_RESOLVE", "人工处置（确认商品/免单）", "OPS_EXCEPTION_RESOLVE", "标记已解决",
                 "OPS_EXCEPTION_AUTO_RESOLVE", "系统自动解决", "MERCHANT_OPS_EXCEPTION_RESOLVE", "商家处理异常")));
         map.put("reconciliation_status", t("对账状态", m(
-                "MATCHED", "已平账", "MISMATCH", "存在差异", STATUS_PENDING, "待处理", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
+                "MATCHED", "已平账", "MISMATCH", "存在差异", "EMPTY", "无交易",
+                STATUS_PENDING, "待处理", CabinetConstants.ORDER_STATUS_FAILED, "失败")));
         map.put("sku_status", t("商品状态", m(CabinetConstants.PROMOTION_STATUS_ACTIVE, "在售", INACTIVE, "停用", CabinetConstants.SKU_STATUS_DISABLED, "禁售")));
         map.put("order_status", t("订单状态", m(
                 STATUS_PENDING, "待支付", PROCESSING, "处理中", "PAID", "已支付", STATUS_COMPLETED, "已完成",

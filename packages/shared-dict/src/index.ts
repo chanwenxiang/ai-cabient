@@ -696,6 +696,7 @@ export const DICT = {
   reconciliation_status: {
     MATCHED: '已平账',
     MISMATCH: '存在差异',
+    EMPTY: '无交易',
     PENDING: '待处理',
     FAILED: '失败'
   },

@@ -1295,7 +1295,13 @@ public class DataConsistencyService {
         return keys;
     }
 
-    /** C：争议结案缺订单，或仍 OPEN 但订单已 PAID 终态。 */
+    /**
+     * C：争议结案缺订单，或仍 OPEN 但订单已 PAID 终态。
+     *
+     * <p>MA-016（2026-11-16 按推荐修）：识别超时争议（category=RECOGNITION）本就可能没有订单——
+     * 设备识别超时未回传、本次不扣款，结案后 LEFT JOIN 不到 order 是合法无购买形态，不是链接缺失。
+     * 该分支只对非 RECOGNITION 类结案缺单报；OPEN 且订单已 PAID 的分支不受影响。</p>
+     */
     private Set<String> checkCrossLinkDispute() {
         String sql = "SELECT d.ticket_id, d.status AS ticket_status, s.order_id, o.status AS order_status "
                 + "FROM dispute_ticket d "
@@ -1303,6 +1309,7 @@ public class DataConsistencyService {
                 + "LEFT JOIN cabinet_order o ON o.order_id = s.order_id "
                 + "WHERE ("
                 + "  (UPPER(COALESCE(d.status,'')) IN ('RESOLVED','CLOSED') "
+                + "    AND UPPER(COALESCE(d.category,'')) <> 'RECOGNITION' "
                 + "    AND (s.order_id IS NULL OR s.order_id = '' OR o.order_id IS NULL)) "
                 + "  OR (UPPER(COALESCE(d.status,'')) = 'OPEN' "
                 + "    AND UPPER(COALESCE(o.status,'')) = 'PAID')"

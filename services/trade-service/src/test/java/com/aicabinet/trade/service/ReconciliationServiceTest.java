@@ -94,6 +94,31 @@ class ReconciliationServiceTest {
                 org.mockito.ArgumentMatchers.contains("rebuilt=false"));
     }
 
+    /** R22 §8.4：两侧都无数据 ⇒ EMPTY，不再冒充 MATCHED。 */
+    @Test
+    void runDaily_bothSidesEmpty_marksEmpty() {
+        LocalDate date = LocalDate.of(2024, 6, 3);
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
+        when(paymentOperationRepository.sumNetCashflowBetween(any(), any(), eq("MOCK"))).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any(), any())).thenReturn(0L);
+        when(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(any(), any(), eq("MOCK")))
+                .thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(4L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals("EMPTY", result.status());
+        assertEquals(0, result.platformTotal());
+        assertEquals(0, result.ledgerTotal());
+        verify(cabinetMetrics, never()).recordReconciliationMismatch();
+    }
+
     /// P3-待定②（口径 C，拍板材料 docs/PENDING_DECISIONS_5_2026-11-13.md）：重跑原地更新——
     /// reconId/createdAt 承接旧行（audit 处置痕迹不脱链），不物理删除主行，仅明细行清后重写。
     @Test
@@ -384,7 +409,8 @@ class ReconciliationServiceTest {
 
         var result = service.runDaily(100000001L, date, "MOCK");
 
-        assertEquals("MATCHED", result.status());
+        // R22 §8.4：两侧都无数据的重算场景现在是 EMPTY（不再冒充 MATCHED）
+        assertEquals("EMPTY", result.status());
         assertEquals(9L, result.reconId(), "原地更新：reconId 承接旧行");
         verify(billLineRepository).deleteByReconId(9L);
         verify(reconRepository, never()).delete(any(com.aicabinet.trade.domain.PaymentReconciliation.class));

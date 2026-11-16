@@ -223,8 +223,12 @@ public class ReconciliationService {
         Map<String, Object> categories = classifyMismatch(recon.getDiffCents(), unmatched, ledgerOnlyOrderIds.size());
         recon.setMatchedCount(matched);
         recon.setUnmatchedCount(unmatched);
-        recon.setStatus(recon.getDiffCents() == 0 && unmatched == 0 && ledgerOnlyOrderIds.isEmpty()
-                ? "MATCHED" : "MISMATCH");
+        // R22 §8.4（2026-11-16 按推荐修）：两侧都无数据不再冒充 MATCHED（核对过且相等），
+        // 单独记 EMPTY；资金判定不变，只让运营台能区分「无交易」与「已平账」。
+        boolean empty = platformTotal == 0 && ledgerTotal == 0;
+        recon.setStatus(empty ? "EMPTY"
+                : (recon.getDiffCents() == 0 && unmatched == 0 && ledgerOnlyOrderIds.isEmpty()
+                ? "MATCHED" : "MISMATCH"));
         if ("MISMATCH".equals(recon.getStatus())) {
             support.cabinetMetrics().recordReconciliationMismatch();
             // V1：仅打指标运营无感知——补发运营告警（dispatcher 投递失败内部自吞，不影响主流程）
