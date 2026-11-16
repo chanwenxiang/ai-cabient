@@ -300,23 +300,43 @@ public class OrderPaymentService {
      *
      * @return {@code false} ⇒ 渠道判定为不可用（结果渠道为 BALANCE），**未扣任何款**，由调用方决定回落还是报错
      */
+    enum ChargeChannelOutcome { SUCCESS, FAILED, UNKNOWN }
+
+    record ChargeChannelAttempt(ChargeChannelOutcome outcome, PayScoreService.ChargeResult charge,
+                                RuntimeException error) {}
+
+    /**
+     * B1-A0：纯渠道段——只调一次渠道并归类，不做任何落账/痕迹写。
+     * 渠道判回落余额 = FAILED（未扣款）；任何异常 = UNKNOWN（可能已扣，调用方必须保留痕迹）。
+     */
+    static ChargeChannelAttempt chargeChannelOnce(Supplier<PayScoreService.ChargeResult> submit) {
+        try {
+            PayScoreService.ChargeResult charge = submit.get();
+            return PayChannels.BALANCE.equals(charge.channel())
+                    ? new ChargeChannelAttempt(ChargeChannelOutcome.FAILED, charge, null)
+                    : new ChargeChannelAttempt(ChargeChannelOutcome.SUCCESS, charge, null);
+        } catch (RuntimeException e) {
+            return new ChargeChannelAttempt(ChargeChannelOutcome.UNKNOWN, null, e);
+        }
+    }
+
     private boolean submitChannelCharge(CabinetOrder order, UserInfo user, ShoppingSession session, String idemKey,
                                         int chargeCents, Supplier<PayScoreService.ChargeResult> submit, String origin) {
         // H41: 渠道 HTTP 之前先以独立事务落 CHARGE_PENDING 并立即提交（mock 路径跳过，行为不变）
         if (!securityProperties.mockEnabled()) {
             self.recordChargePending(order);
         }
-        PayScoreService.ChargeResult charge;
-        try {
-            charge = submit.get();
-        } catch (RuntimeException e) {
+        ChargeChannelAttempt attempt = chargeChannelOnce(submit);
+        if (attempt.outcome() == ChargeChannelOutcome.UNKNOWN) {
             // H41: 失败保留 CHARGE_PENDING 供补偿/人工（REQUIRES_NEW 已提交，不受外层回滚影响）；
             // 不降级余额、不盲切渠道
+            RuntimeException e = attempt.error();
             log.error("payscore charge failed, CHARGE_PENDING kept order={} channelHint={} origin={} err={}",
                     order.getOrderId(), order.getPayChannel(), origin, e.getMessage(), e);
             throw e;
         }
-        if (PayChannels.BALANCE.equals(charge.channel())) {
+        PayScoreService.ChargeResult charge = attempt.charge();
+        if (attempt.outcome() == ChargeChannelOutcome.FAILED) {
             // R14-D3：渠道判定回落余额 ⇒ 本次渠道扣款尝试已终结，CHARGE_PENDING 痕迹行
             // 必须收口（FINALIZED，无渠道单号），否则 60 分钟 HIGH 告警对回落单全量误报；
             // 后续余额扣款会另落自己的 CHARGE 流水（痕迹行仅审计，不计入 netCompletedCents）。
