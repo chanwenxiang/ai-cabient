@@ -1284,6 +1284,43 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "95089a90",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "B3 退款流水表（V485+RefundFlowService+四埋点+月账单切换+巡检判据）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V485__create_refund_flow.sql",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundFlowService.java",
+            "services/trade-service/src/main/resources/mapper/CabinetOrderLineMapper.xml",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java"
+          ]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "770a7b8b",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "B4 流量费按柜机归集（V486/487/488+逐台写入+basis 信号+前端）",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V486__fee_ledger_device_id.sql",
+            "services/trade-service/src/main/resources/db/migration/V487__fee_ledger_unique_per_device.sql",
+            "services/trade-service/src/main/resources/db/migration/V488__drop_legacy_fee_unique_index.sql",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantDailyIncomeNotifyScheduler.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantFinanceService.java",
+            "packages/shared-types/src/index.ts",
+            "clients/merchant-mp/src/pages/bills/bills.vue"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
@@ -1386,6 +1423,10 @@
     {
       "commit": "2e80d406",
       "why": "批 16 登记手误修正（totalItems 3→2）：仅动 fix-batch-registry.json 自身，零业务条目，与既往登记修正同型"
+    },
+    {
+      "commit": "b84706db",
+      "why": "B1 Phase B 设计稿（纯文档 docs/B1_PHASE_B_DESIGN.md）+ 批 14 漏交的两份文档数字回填，零代码零业务条目"
     }
   ]
 }

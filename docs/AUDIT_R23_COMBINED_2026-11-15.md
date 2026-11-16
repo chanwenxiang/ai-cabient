@@ -864,3 +864,38 @@ MA-281（超时契约同源+装配期断言）/ MA-275（订单态乐观 CAS）/
 | 台账 | 4 门禁 OK（18 份报告/225 条、45 批对账、250 行状态锚点、246 活文档）；剩余 open **0 条** |
 
 **如实边界**：MA-274 的渠道 HTTP 仍在 DB 事务内（心跳修的是锁半边，事务外重构留专项）；MA-293 的 PR 事件语义维持旧状待真 run；全量单测数字以推送后 CI 为准。
+
+
+## 20. 专项批 17：B3 退款流水表 + B4 流量费按柜机归集 + B1 Phase B 设计稿（2026-11-16）
+
+用户拍板三项专项全开工。B3/B4 当日落地（含真栈验证），B1 Phase B 出设计稿待评审后实施。
+
+### 20-1 B3：refund_flow 退款流水表（95089a90，V485）
+
+| 要点 | 内容 |
+|---|---|
+| 数据模型 | 逐笔（订单/商户/原收款渠道/金额/refund_method/refundNo 唯一幂等/refunded_at 分日键）；订单 refunded_cents 保持聚合=资金真值 |
+| 存量回填 | BACKFILL_AGGREGATE（每单一笔聚合流水，refunded_at=COALESCE 同款）——归月精度与切换前**完全等价**，不比现状差 |
+| 月账单切换 | selectMerchantBillRefundsByDay 切流水分桶；c1/c2 原收款渠道口径、c3 订单数口径、FAILED 排除逐字不变 |
+| 一致性 | 新判据 REFUND_FLOW_VS_ORDER_MISMATCH（流水 vs 聚合，仅巡检） |
+| 验证 | RefundFlowServiceTest 4 + IT 4 绿；dev 真栈：回填 10 笔、巡检 0 命中 |
+
+### 20-2 B4：流量费按柜机归集（770a7b8b，V486/487/488）
+
+| 要点 | 内容 |
+|---|---|
+| 维度恢复 | DATA 逐台落行——源头 `device_info.data_fee_cents` 本就分/天逐台计收，**零分摊口径决策**；RENT 保持商户级（站点合同维度另有 site_rent_bill 链路） |
+| 约束迁移 | 真库验证抓两个缺口：旧唯一约束是独立 INDEX 形态（DROP CONSTRAINT no-op）⇒ V488 补 DROP；新约束 (merchant,fee_date,fee_type,device_id) |
+| 幂等兼容 | 切换日同 (商户,日,类型) 存在任意行即整体跳过——防「旧聚合行+新逐台行」双收据 |
+| 展示 | DTO 加 dataFeeBasis（DEVICE/MERCHANT/NONE，record+手写 interface+gen:api-types 三件套）；bills.vue 按 basis 展示金额/「商户级」/0 |
+| 验证 | scheduler 断言加 deviceId；IT 夹具适配 V483 粒度（同批拆两货道=slot 未启用的过时模型）；dev 真栈：单设备 777/DEVICE、全量 2011/MERCHANT |
+
+### 20-3 B1 Phase B 设计稿（b84706db，docs/B1_PHASE_B_DESIGN.md，待评审）
+
+补缴链路（collect/collectByUser @Transactional → markPaid → chargeOrder HTTP）拆「prepare(tx)→HTTP(无事务)→finalize(tx)」三段。状态收敛矩阵、幂等键矩阵（全复用既有：CHARGE 幂等键+痕迹 REQUIRES_NEW）、券补偿为唯一新逻辑、外层去事务化隔离性代价、实施 7 步、待评审 Q1-Q4（占券幂等性/强取消拦截/清扫阈值/recordSplit join 复核）。**评审通过后才实施**——动支付主链不裸奔。
+
+### 20-4 如实边界
+
+- B3 回填是聚合口径：历史月多次部分退款仍整笔归月（与切换前一致）；逐笔精度只对新退款生效。
+- B4 历史聚合行不拆分（历史日设备集合与费率无快照）；单设备视图历史月显示「商户级」。
+- integration job 的 read-only INSERT 报错（AdminAuditLog/ScheduledTask）为 IT 环境后台任务杂音，唯一失败测试（V483 键撞 IT 夹具）已修，2/2 绿。
