@@ -595,12 +595,17 @@ public class OrderPaymentService {
         return ChargeQueryResult.unknown(channel);
     }
 
+    // CONCURRENCY: 只读金额换算（无资金/库存写路径，不改变任何状态）
     private static Integer parseYuanCents(String yuan) {
         if (yuan == null || yuan.isBlank()) {
             return null;
         }
         try {
-            return new java.math.BigDecimal(yuan).movePointRight(2).intValueExact();
+            long cents = com.aicabinet.trade.util.YuanFen.toCents(new java.math.BigDecimal(yuan));
+            if (cents < Integer.MIN_VALUE || cents > Integer.MAX_VALUE) {
+                return null;
+            }
+            return (int) cents;
         } catch (RuntimeException e) {
             return null;
         }
