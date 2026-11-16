@@ -312,3 +312,20 @@ The Step 4 gate must verify:
 - [ ] Ops workbench exposes stale sessions, reconciliation mismatches, split exceptions, and in-transit overdue counters.
 - [ ] Reconciliation run/detail API returns a traceable `reconId`, `detailJson`, and bill lines.
 - [ ] Device command status API returns a trackable command state for open-door commands.
+
+## 7. 上线前残留 gate（2026-11-16）
+
+> 规则：任何一项不能勾选，必须显式写「接受 + 理由 + 复审时点」并留痕；不允许静默遗留。
+
+- [ ] **Flyway 已应用迁移**：已应用过 V483/V485 的环境先 `flyway repair`（dev 已完成；UAT/生产按同一 runbook）。
+- [ ] **新迁移**：V491（`payment_operation` 渠道/金额列）、V492（`charge-pending-reconcile` 登记行）、V493（对账 `EMPTY` 状态）随 jar 应用；`scheduled_task` 该行存在且首跑 SUCCESS。
+- [ ] **调度**：staging `XXL_JOB_ENABLED=false`（无 admin 时 Spring 回退）；生产 `XXL=true` + admin + seed；`ChargePendingReconciler` 是 Spring 常驻（不进 XXL），`platform-fund-daily`/`device-rental-daily` 已有 `@Scheduled` 回退。
+- [ ] **网络暴露**：dev 80/花生壳隧道只留 dev；生产入口只走 nginx 443，无 dev 端口/隧道映射。
+- [ ] **Secret**：生产 env 无 dev JWT/内部 key/支付 mock；引导超管密码建号后移除。
+- [ ] **R19-2（产品拍板）**：不赠送免费券/赠送金；上线前确认无赠送活动、无赠送余额（否则必须实现冲回）。
+- [ ] **R22 §8.4**：`EMPTY`（无交易）状态已随 V493 + shared-dict/admin 产物上线；运营台能与 MATCHED 区分。
+- [ ] **MA-016**：识别类无单争议不再误报（`category=RECOGNITION` 排除）；`/consistency` 的 DSP 红点归零。
+- [ ] **真渠道 UAT**：慢渠道 `pg_locks`（B1）、退款/补缴/对账真实回归；R22-7 真机连点 start；T-JY-DOC-8 厂商文档。
+- [ ] **S9 端点级归因**：D 类 41 条（P2 9）已逐条复核，修复或显式接受；不得把解析器盲区当缺陷。
+
+**已知接受（不在 gate 内，但复核时须确认未变）**：MA-016 原 wontfix 已被 2026-11-16 修复取代；MA-300 维持「退款不改状态」；R19-5 仅 dev 保留；R22 §8.4 已改 EMPTY。

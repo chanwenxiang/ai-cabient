@@ -34,7 +34,7 @@
 | MA-028 | P3 | fixed（V422 + 写入口校验） | consumer-mp `pages/points/redeem` | 3 张兑换券券名与 `min_spend_cents` 不符（满100减20 实际满50、满50减10 实际满20、满20减5 实际无门槛），页面把券名与「满 X 可用」并排显示 | Qoder R9 / 2026-11-01 | 建议以门槛为准改名 + 加「券名满N ⇔ 门槛」校验门禁 |
 | MA-018 | P3 | fixed（V418 彻底清除） | admin 各页字典下拉 | 8 组字典同一 type 下两个值同名（如「已回复」「对账差异」「手工入库」），下拉出现重复项；根因是 `SysDictBootstrap` 的兼容别名 | 用户 / 2026-10-31 | 门禁 `DictLabelUniquenessIT`（白名单已清空）+ V418 + shared-dict baseline 同步 |
 | MA-017 | P3 | fixed | consumer`/auth` 短信验证码（phone-verify 代码审查） | 校验是「查出未用 → save(used_at)」，并发两个请求可同时通过同一码（双花） | Qoder R7 / 2026-10-31 | 见明细 |
-| MA-016 | P3 | wontfix（用户拍板） | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
+| MA-016 | P3 | fixed | admin `/consistency`（争议规则） | 「争议已结案但无关联订单」一律记不一致（3 条），未区分「无购买争议」是否本就允许无单 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-014 | P3 | fixed | admin `/fund-bills`（账务明细） | 账期留空时后端只看**近 7 天**且页面不交代 ⇒ 库里 6 条 10 月流水全不显示，空态「暂无流水」误导为没数据 | Qoder R6 / 2026-10-31 | 见明细 |
 | MA-013 | P3 | fixed | admin `/print`（打印预览） | 纸张固定 720px + 左右 40px 内边距 ⇒ 窄视口（702px）溢出、`margin:auto` 失效看着偏左 | 用户 / 2026-10-31 | 见明细 |
 | MA-012 | P2 | fixed | admin `/ad-campaigns`（关键词） | 关键词为前端本页过滤（`data.items.filter`），`total` 仍取服务端 ⇒ 行数与「共 N 条」不符、跨页命中丢失（MA-007/011 同族，由新门禁扫出） | Qoder R3 门禁 / 2026-10-31 | `check:list-filter-server-side` |
@@ -340,7 +340,7 @@
   ——只有「从批次扣减」的销售才可能产生批次流水；并加注释说明历史无批次订单的时序。
   - 规则 SQL 前后对比（真库）：旧规则命中 **2** 条（正是那两笔 10-22 订单）→ 新规则 **0** 条，其余订单不受影响（库里只有这 2 笔 PAID）。
   - 活栈验证：容器重建后调用 `POST /consistency/run` → `failCount = 3`（仅剩三条争议 CROSS_LINK），SALE 误报消失；记录表状态 FAIL 5 → **3**。
-  - 说明：**未**动 dispute 规则（MA-016 待拍板）。
+  - 说明：MA-016 已于 2026-11-16 按推荐修复（识别类无单争议合法，规则排除 `category=RECOGNITION`）。
 
 ### MA-018 字典同名标签 8 组（下拉重复项）
 
@@ -373,13 +373,14 @@
 - 钉测：新增 `SmsCodeServiceTest` 4 条（正确码走原子消费 / 并发已消费不计失败 / 过期码标记已用 / 第 5 次错码烧码），4/4 绿。
 - 说明：dev 的 `SMS_MOCK_CODE` 会让配置的万能码短路校验（仅 mock 开启时生效，生产由 `ProductionStartupValidator` 禁止），故双花的活栈复现需关 mock-code；本轮以钉测为判据。
 
-### MA-016 争议「已结案但无关联订单」是否一律算不一致（待拍板）
+### MA-016 争议「已结案但无关联订单」误报（2026-11-16 已修）
 
-- 级别/状态：P3 / **wontfix**（用户 2026-10-31 拍板：演示假数据、代码没错，3 条争议数据人工处理，规则不改）
+- 级别/状态：P3 / **fixed**（2026-11-16 按推荐修；原 2026-10-31 wontfix 作废）
 - 端与页面：admin `/consistency` → `checkCrossLinkDispute`
-- 现象：3 条 `DSP|…`「争议已结案但缺少关联订单」，对应会话 `COMPLETED` 且 `order_id` 为空（顾客开门未购 / 识别争议未成单）。
-- 规则：`RESOLVED/CLOSED` 且会话无订单 ⇒ 记 CROSS_LINK（`DataConsistencyService:1273-1284`）。
-- 拍板结果（2026-10-31）：**规则保持原样**；这 3 条是演示数据，按「人工处理」对待（记录仍以 FAIL 呈现，属于检测器如实反映数据，不是缺陷）。
+- 现象：`DSP|…`「争议已结案但缺少关联订单」；dev 实查 **8 条**全部是 `category=RECOGNITION` 的识别超时争议（`items=[]`、`resolution_items=[]`、本次未扣款），会话本就无订单，属合法无购买形态。
+- 规则：`RESOLVED/CLOSED` 且会话无订单 ⇒ 记 CROSS_LINK；原判未区分识别类合法无单。
+- 修复：`checkCrossLinkDispute` 的「结案缺单」分支增加 `UPPER(COALESCE(d.category,'')) <> 'RECOGNITION'`；`OPEN` 且订单已 PAID 的分支不动；dev 8 条不再判 CROSS_LINK。
+- 原拍板（2026-10-31）：规则保持原样、3 条演示数据人工处理；**2026-11-16 用户改判**：按推荐修，避免 `/consistency` 永久挂合法红掩盖新问题。
 - 旁证：同批的另一条对齐差异（`payment_reconciliation` 2026-10-05 BALANCE，diff 500 / 未匹配 1，`detail.demo=true`）也由用户定为「人工平账留痕」——已执行：status→MATCHED、diff/unmatched 归零，原始值写入 `detail.manualClose`（`originalDiffCents=500`、`originalUnmatched=1`、`by=R6-audit`）；页面复验「批次总数 7 / 差异 0 / 匹配 7」。
 
 ### MA-014 「账务明细」默认只查近 7 天且不交代，空态误导

@@ -267,6 +267,8 @@
 
 **为什么这一轮不顺手改**：两条都是「列表取数范围下推」——要把单值 `deviceId` 换成设备**集合**下推（`IN (...)`），涉及 3 个 mapper + 分页 SQL，与已被 `check:workbench-scope-pushdown` 钉住的同类修法同源。半修（只加 `requireDeviceFilter`）会让人误以为已闭环：传了 filter 越权 403、**不传 filter 仍全量**。已按「显式欠账」登记在 `scripts/ops-device-scope-baseline.json`，门禁会持续提示，修复后必须删条目。
 
+> **2026-11-16 更正**：C43/C44 已在 §9 批 4（`b1764c72`）修复为集合下推，台账 MA-295/296 `fixed`，基线 7→5。上面「本轮不顺手改」是修复前快照，引用时以本条和台账为准。
+
 ### 7-5 真栈点验（2026-11-15 12:25，重建镜像后实测）
 
 **前提**：`docker compose -p ai-cabinet -f infra/docker-compose.full.yml -f infra/docker-compose.win-ports.yml build trade-service` → jar 内含拦截器（`unzip -l /app/app.jar | grep -c OpsDeviceScope` = **1**，产物级证据）→ `up -d --pull never --no-deps --force-recreate trade-service` → healthy。
@@ -294,6 +296,7 @@
 ## 8. 修复批 2 / 批 3 落地（2026-11-15 下午，本轮已改码）
 
 **范围**：批 2 = C06（门禁自证盲区）；批 3 = C01（提现二次解冻）。**未改**：其余 P2/P3 仍 open（C43/C44 已带 why 记不采纳）。
+> **2026-11-16 更正**：C43/C44 随后已在 §9 批 4（`b1764c72`）修复（MA-295/296），此处「不采纳」仅记录当时状态；引用时以台账为准。
 
 ### 8-1 批 2：C06 归因门禁「解析面漏 22 个写端点」（MA-267，P1）
 
