@@ -1471,6 +1471,30 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "1a22b06e",
+      "report": "docs/PENDING_DECISIONS_R23_2026-11-14.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-016 识别类无单争议不再误报（category=RECOGNITION 排除）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java"
+          ]
+        },
+        {
+          "id": "R22 §8.4 对账两侧皆 0 记 EMPTY（V493 + 字典 + 测试）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SysDictBootstrap.java",
+            "services/trade-service/src/main/resources/db/migration/V493__reconciliation_status_empty.sql",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ReconciliationServiceTest.java",
+            "packages/shared-dict/src/index.ts"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
