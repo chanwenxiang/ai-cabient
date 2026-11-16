@@ -138,20 +138,25 @@ class WarehouseDeviceLedgerBalanceSqlIT {
     }
 
     @Test
-    @DisplayName("柜账：批次拆两货道 lot 按批次聚合公式成立；直接改库漂移记 FAIL")
+    @DisplayName("柜账：两批次 lot 各自聚合公式成立；直接改库漂移记 FAIL")
     void deviceLedger_multiLotAggregated_driftRed() {
         seedParents();
-        insertLot("LOT-LED-A", SKU, "B-OK", 5);
-        insertLot("LOT-LED-B", SKU, "B-OK", 3);
-        insertDeviceMovement(SKU, "B-OK", "RESTOCK", 8);
+        // V483 后 (device,sku,batch) 唯一 ⇒ 同批两 lot 不可造（slot 维度未启用，写入侧
+        // 批次单行 upsert）；聚合公式验证等价改为两批次各验一行，公式 Σlot=Σmovement 不变。
+        insertLot("LOT-LED-A", SKU, "B-OK-1", 5);
+        insertLot("LOT-LED-B", SKU, "B-OK-2", 3);
+        insertDeviceMovement(SKU, "B-OK-1", "RESTOCK", 5);
+        insertDeviceMovement(SKU, "B-OK-2", "RESTOCK", 3);
         insertLot("LOT-LED-C", "SKU-LED-IT-2", "B-DRIFT", 5);
         insertDeviceMovement("SKU-LED-IT-2", "B-DRIFT", "RESTOCK", 8);
         insertDeviceMovement("SKU-LED-IT-2", "B-DRIFT", "SALE", -2);
 
         consistencyService.runConsistencyCheck();
 
-        assertEquals(0, failCount("DEVICE_LEDGER", DEV + "|" + SKU + "|B-OK"),
-                "两 lot 行 5+3 与流水 +8 按批次聚合必须一致");
+        assertEquals(0, failCount("DEVICE_LEDGER", DEV + "|" + SKU + "|B-OK-1"),
+                "批次 1：lot 5 与流水 +5 聚合必须一致");
+        assertEquals(0, failCount("DEVICE_LEDGER", DEV + "|" + SKU + "|B-OK-2"),
+                "批次 2：lot 3 与流水 +3 聚合必须一致");
         assertEquals(1, failCount("DEVICE_LEDGER", DEV + "|SKU-LED-IT-2|B-DRIFT"),
                 "余额5≠流水+6 必须报 FAIL（注入漂移证明判据会红）");
     }

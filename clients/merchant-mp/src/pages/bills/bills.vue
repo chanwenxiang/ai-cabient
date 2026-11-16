@@ -65,7 +65,7 @@
         <view class="bill-note">
           <text
             >利润额 = 销售额 − 退款 − 商品成本 − 流量费{{
-              deviceIndex > 0 ? '（流量费为商户级，不按柜机分摊）' : ''
+              bill.dataFeeBasis === 'MERCHANT' ? '（流量费为商户级，不按柜机分摊）' : ''
             }}</text
           >
         </view>

@@ -27,6 +27,12 @@ public record MerchantMonthlyBillDto(
         long refundedCents,
         long cogsCents,
         long dataFeeCents,
+        /**
+         * B4：dataFeeCents 的归集口径信号——
+         * DEVICE=该柜机逐台台账行合计（可按柜机展示金额）；MERCHANT=商户级聚合（历史月，
+         * 前端显示「商户级」）；NONE=当月无费用行。
+         */
+        String dataFeeBasis,
         long profitCents,
         List<MerchantBillDayDto> days
 ) {}

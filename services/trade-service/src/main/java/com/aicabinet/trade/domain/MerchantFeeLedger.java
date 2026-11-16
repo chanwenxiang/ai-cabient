@@ -30,7 +30,20 @@ public class MerchantFeeLedger {
     @TableId(type = IdType.AUTO)
     private Long ledgerId;
     private String merchantId;
+    /**
+     * B4（V486）：费用归属设备（DATA 逐台行）；NULL=商户级聚合行（历史行 / RENT 行）。
+     * 源头流量费本就逐台计收（device_info.data_fee_cents 分/天），此处只恢复维度、无分摊口径。
+     */
+    private String deviceId;
     private LocalDate feeDate;
+
+    public String getDeviceId() {
+        return deviceId;
+    }
+
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+    }
     /** REN=租金 / DATA=流量费（费用项可扩展） */
     private String feeType;
     private Long amountCents;

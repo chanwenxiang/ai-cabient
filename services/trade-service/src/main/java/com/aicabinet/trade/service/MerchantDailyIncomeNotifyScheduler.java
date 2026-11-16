@@ -493,8 +493,15 @@ public class MerchantDailyIncomeNotifyScheduler {
                 "周期费用日扣(租金月额/" + daysInMonth + "天 + 流量费分/天)");
         upsertFeeLedger(merchantId, yesterday, MerchantFeeLedger.FEE_TYPE_REN, rentDaily,
                 "日扣租金，扣款成功自动结清");
-        upsertFeeLedger(merchantId, yesterday, MerchantFeeLedger.FEE_TYPE_DATA, dataDaily,
-                "日扣流量费，扣款成功自动结清");
+        // B4（V486）：流量费源头本就逐台计收 ⇒ 台账恢复 device 维度，逐台落行。
+        // RENT 仍为商户级聚合（站点合同维度，已有 site_rent_bill 链路）。
+        for (DeviceInfo d : devices) {
+            if (d.getDataFeeCents() == null || d.getDataFeeCents() <= 0L) {
+                continue; // 0/NULL = 这台柜不收/没配卡，不留行（与聚合口径一致）
+            }
+            upsertFeeLedger(merchantId, yesterday, MerchantFeeLedger.FEE_TYPE_DATA,
+                    d.getDataFeeCents(), "日扣流量费，扣款成功自动结清", d.getDeviceId());
+        }
         // F-5（2026-10-17）：false=该日钱包流水已存在（幂等跳过，本调用没再扣钱）。
         // 返回值只用于「本次实扣合计」（运营台重跑、任务汇总），跳过时必须报 0，
         // 否则同一天的费用会在合计里数两遍（收入商户循环 + 全量循环各算一次）。
@@ -503,20 +510,51 @@ public class MerchantDailyIncomeNotifyScheduler {
 
     private void upsertFeeLedger(String merchantId, LocalDate feeDate, String feeType,
                                  long amountCents, String remark) {
+        upsertFeeLedger(merchantId, feeDate, feeType, amountCents, remark, null);
+    }
+
+    /**
+     * B4：deviceId=null 为商户级聚合行（RENT/历史调用方）；DATA 逐台传 deviceId。
+     * 幂等键升级「商户×日×类型×设备」，但**兼容旧聚合行**：同 (商户,日,类型) 存在任意行
+     * （含 device_id IS NULL 的历史聚合行）即整体跳过——防止切换日「旧行+新逐台行」双收据。
+     */
+    private void upsertFeeLedger(String merchantId, LocalDate feeDate, String feeType,
+                                 long amountCents, String remark, String deviceId) {
         if (amountCents <= 0L) {
-            // 0=不收 ⇒ 不留行。台账粒度是「商户×日×费用类型」，不像老系统的逐台明细，
+            // 0=不收 ⇒ 不留行。台账粒度是「商户×日×费用类型(×设备)」，不像老系统的逐台明细，
             // 留 0 行只剩噪音（阿里云 0 元账单 / Cloudflare $0 invoice 也都是明细粒度才留）。
             return;
         }
-        Long exists = feeLedgerRepository.selectCount(Wrappers.<MerchantFeeLedger>lambdaQuery()
-                .eq(MerchantFeeLedger::getMerchantId, merchantId)
-                .eq(MerchantFeeLedger::getFeeDate, feeDate)
-                .eq(MerchantFeeLedger::getFeeType, feeType));
+        // 幂等查键：有 deviceId 时查 (商户,日,类型,设备)；
+        // 无 deviceId（商户级）或逐台首写防御时查 (商户,日,类型) 任意行（含旧聚合行）
+        Long exists;
+        if (deviceId != null) {
+            Long sameDevice = feeLedgerRepository.selectCount(Wrappers.<MerchantFeeLedger>lambdaQuery()
+                    .eq(MerchantFeeLedger::getMerchantId, merchantId)
+                    .eq(MerchantFeeLedger::getFeeDate, feeDate)
+                    .eq(MerchantFeeLedger::getFeeType, feeType)
+                    .eq(MerchantFeeLedger::getDeviceId, deviceId));
+            if (sameDevice != null && sameDevice > 0) {
+                return;
+            }
+            // 该商户当日该类型已有聚合行（device_id IS NULL）⇒ 切换日兼容：整体跳过
+            exists = feeLedgerRepository.selectCount(Wrappers.<MerchantFeeLedger>lambdaQuery()
+                    .eq(MerchantFeeLedger::getMerchantId, merchantId)
+                    .eq(MerchantFeeLedger::getFeeDate, feeDate)
+                    .eq(MerchantFeeLedger::getFeeType, feeType)
+                    .isNull(MerchantFeeLedger::getDeviceId));
+        } else {
+            exists = feeLedgerRepository.selectCount(Wrappers.<MerchantFeeLedger>lambdaQuery()
+                    .eq(MerchantFeeLedger::getMerchantId, merchantId)
+                    .eq(MerchantFeeLedger::getFeeDate, feeDate)
+                    .eq(MerchantFeeLedger::getFeeType, feeType));
+        }
         if (exists != null && exists > 0) {
             return;
         }
         MerchantFeeLedger row = new MerchantFeeLedger();
         row.setMerchantId(merchantId);
+        row.setDeviceId(deviceId);
         row.setFeeDate(feeDate);
         row.setFeeType(feeType);
         row.setAmountCents(amountCents);

@@ -286,23 +286,35 @@ public class MerchantFinanceService {
         // 月度出账表的开关默认关闭 ⇒ 原实现恒取到 0，商户看到的利润额里根本没减流量费。
         // 仍无日粒度下推：日行保持 0、只在月合计单列（与既有 DTO 口径一致，不改前端呈现）。
         long dataFeeCents;
+        // B4（V486）：流量费源头逐台计收 ⇒ merchant_fee_ledger.DATA 恢复 device 维度。
+        // basis 信号：单设备视图有该柜机逐台行 ⇒ DEVICE（真实金额）；
+        // 无逐台行但商户有聚合行（历史月/未改造日）⇒ MERCHANT（前端显示「商户级」）；
+        // 都没有 ⇒ NONE。MA-299 由此收口（不再读开关默认关闭的 device_data_fee_bill 死表）。
+        String dataFeeBasis;
         if (normalizedDeviceId == null) {
             dataFeeCents = feeLedgerRepository.sumAmountByMerchantsAndTypeAndMonth(
                     merchantIds, MerchantFeeLedger.FEE_TYPE_DATA, ym.atDay(1), ym.atEndOfMonth());
+            dataFeeBasis = dataFeeCents > 0 ? "MERCHANT" : "NONE";
         } else {
-            // 单设备视图仍走按设备出账的表：merchant_fee_ledger 只有「商户×日」粒度、没有 device 维度。
-            // 在没有业务依据前不按销售额分摊（那是自创口径，商户对账会对不上）；
-            // 代价是开关关闭时单设备流量费恒 0 —— 既有缺口，已登记 MA-299，不在本条猜口径。
-            dataFeeCents = dataFeeBillRepository.selectList(
-                            com.baomidou.mybatisplus.core.toolkit.Wrappers.<DeviceDataFeeBill>lambdaQuery()
-                                    .in(DeviceDataFeeBill::getMerchantId, merchantIds)
-                                    .eq(DeviceDataFeeBill::getBillMonth, ym.toString())
-                                    .ne(DeviceDataFeeBill::getStatus,
-                                            com.aicabinet.common.constants.CabinetConstants.FEE_BILL_STATUS_VOID))
-                    .stream()
-                    .filter(b -> normalizedDeviceId.equals(b.getDeviceId()))
-                    .mapToLong(DeviceDataFeeBill::getAmountCents)
-                    .sum();
+            java.util.List<MerchantFeeLedger> deviceRows = feeLedgerRepository.selectList(
+                    com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantFeeLedger>lambdaQuery()
+                            .in(MerchantFeeLedger::getMerchantId, merchantIds)
+                            .eq(MerchantFeeLedger::getFeeType, MerchantFeeLedger.FEE_TYPE_DATA)
+                            .eq(MerchantFeeLedger::getDeviceId, normalizedDeviceId)
+                            .ge(MerchantFeeLedger::getFeeDate, ym.atDay(1))
+                            .le(MerchantFeeLedger::getFeeDate, ym.atEndOfMonth()));
+            dataFeeCents = deviceRows.stream().mapToLong(r -> r.getAmountCents() == null ? 0L : r.getAmountCents()).sum();
+            if (!deviceRows.isEmpty()) {
+                dataFeeBasis = "DEVICE";
+            } else {
+                Long merchantAgg = feeLedgerRepository.selectCount(
+                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<MerchantFeeLedger>lambdaQuery()
+                                .in(MerchantFeeLedger::getMerchantId, merchantIds)
+                                .eq(MerchantFeeLedger::getFeeType, MerchantFeeLedger.FEE_TYPE_DATA)
+                                .ge(MerchantFeeLedger::getFeeDate, ym.atDay(1))
+                                .le(MerchantFeeLedger::getFeeDate, ym.atEndOfMonth()));
+                dataFeeBasis = merchantAgg != null && merchantAgg > 0 ? "MERCHANT" : "NONE";
+            }
         }
 
         List<MerchantBillDayDto> days = new ArrayList<>();
@@ -341,7 +353,7 @@ public class MerchantFinanceService {
         long refundedTotal = instantRefundCents + balanceRefundCents;
         return new MerchantMonthlyBillDto(ym.toString(), normalizedDeviceId, null,
                 orderCount, salesCents, salesQty, instantRefundCents, balanceRefundCents,
-                refundedTotal, cogsCents, dataFeeCents,
+                refundedTotal, cogsCents, dataFeeCents, dataFeeBasis,
                 salesCents - refundedTotal - cogsCents - dataFeeCents, days);
     }
 
@@ -377,7 +389,7 @@ public class MerchantFinanceService {
         }
         return new MerchantMonthlyBillDto(ym.toString(),
                 deviceId == null || deviceId.isBlank() ? null : deviceId.trim(),
-                null, 0, 0, 0, 0, 0, 0, 0, 0, 0, List.of());
+                null, 0, 0, 0, 0, 0, 0, 0, 0, "NONE", 0, List.of());
     }
 
     @Transactional(readOnly = true)

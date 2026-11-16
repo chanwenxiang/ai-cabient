@@ -14625,6 +14625,7 @@ export interface components {
             /** Format: int64 */
             ledgerId?: number;
             merchantId?: string;
+            deviceId?: string;
             /** Format: date */
             feeDate?: string;
             feeType?: string;
@@ -19540,6 +19541,7 @@ export interface components {
             cogsCents?: number;
             /** Format: int64 */
             dataFeeCents?: number;
+            dataFeeBasis?: string;
             /** Format: int64 */
             profitCents?: number;
             days?: components["schemas"]["MerchantBillDayDto"][];

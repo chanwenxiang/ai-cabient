@@ -327,6 +327,13 @@ class MerchantDailyIncomeNotifySchedulerTest {
         // 全月合计恰 10000（修前逐日 floor 永久吞掉 18 分）
         assertEquals(423L, charged, "月租 10000/31 天余 18，第 15 天=322+1 分摊 + 流量费 100");
         assertEquals(2, rows.size());
+        // B4：DATA 逐台行带 deviceId；REN 保持商户级（device_id=null）
+        org.junit.jupiter.api.Assertions.assertEquals("D1",
+                rows.stream().filter(r -> "DATA".equals(r.getFeeType())).findFirst().orElseThrow().getDeviceId(),
+                "DATA 台账行必须带 device 维度（B4/V486）");
+        org.junit.jupiter.api.Assertions.assertNull(
+                rows.stream().filter(r -> "REN".equals(r.getFeeType())).findFirst().orElseThrow().getDeviceId(),
+                "REN 台账行保持商户级聚合（device_id=null）");
         for (var row : rows) {
             assertEquals("SETTLED", row.getStatus(), "扣款成功的费用行不得留 PENDING（否则同一笔钱既收了又算欠费）");
             org.junit.jupiter.api.Assertions.assertNotNull(row.getSettledAt());
