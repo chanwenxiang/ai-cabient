@@ -21,7 +21,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -69,6 +72,7 @@ public class UnpaidOrderService {
     private final ApiRateLimitService apiRateLimitService;
     private final OpsExceptionService opsExceptionService;
     private final UnpaidDunningService unpaidDunningService;
+    private final TransactionTemplate requiresNewTx;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -92,7 +96,8 @@ public class UnpaidOrderService {
                               DistributedLockService distributedLockService,
                               ApiRateLimitService apiRateLimitService,
                               OpsExceptionService opsExceptionService,
-                              UnpaidDunningService unpaidDunningService) {
+                              UnpaidDunningService unpaidDunningService,
+                              PlatformTransactionManager transactionManager) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -116,6 +121,8 @@ public class UnpaidOrderService {
         this.apiRateLimitService = apiRateLimitService;
         this.opsExceptionService = opsExceptionService;
         this.unpaidDunningService = unpaidDunningService;
+        this.requiresNewTx = new TransactionTemplate(transactionManager);
+        this.requiresNewTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
@@ -198,14 +205,15 @@ public class UnpaidOrderService {
         });
     }
 
-    @Transactional
     public OrderReadModel collect(Long operatorId, String orderId) {
         permissionService.requireAnyPermission(operatorId, "ops:order:remind", "ops:order:cancel", "ops:order:refund");
         return runWithOrderPaymentLock(orderId, () -> {
-            CabinetOrder order = requirePendingScoped(operatorId, orderId);
-            markPaid(order, null);
+            PreparedCollect prepared = requiresNewTx.execute(status -> prepareForOps(operatorId, orderId));
+            if (!prepared.netCovered()) {
+                chargeAndFinalize(prepared, null);
+            }
             auditService.appendLog(operatorId, "ORDER_COLLECT_UNPAID", ORDER, orderId, "运营代收");
-            return settlementService.getOrderBySession(order.getSessionId());
+            return settlementService.getOrderBySession(prepared.order().getSessionId());
         });
     }
 
@@ -216,20 +224,14 @@ public class UnpaidOrderService {
      *                {@code null}/空白 ⇒ 沿用服务端自动决策，行为与接入前一致。
      *                非空时只按该渠道扣款、**不降级** —— 未就绪返回 412。
      */
-    @Transactional
     public OrderReadModel collectByUser(Long userId, String orderId, String channel) {
         apiRateLimitService.assertOrderPayAllowed(userId);
         return runWithOrderPaymentLock(orderId, () -> {
-            CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-            if (!order.getUserId().equals(userId)) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+            PreparedCollect prepared = requiresNewTx.execute(status -> prepareForUser(userId, orderId, channel));
+            if (!prepared.netCovered()) {
+                chargeAndFinalize(prepared, channel);
             }
-            if (!STATUS_PENDING.equals(order.getStatus())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
-            }
-            markPaid(order, channel);
-            return settlementService.getOrderBySession(order.getSessionId());
+            return settlementService.getOrderBySession(prepared.order().getSessionId());
         });
     }
 
@@ -410,56 +412,109 @@ public class UnpaidOrderService {
         return cancelled != null;
     }
 
-    private void markPaid(CabinetOrder order, String requestedChannel) {
+    private PreparedCollect prepareForOps(Long operatorId, String orderId) {
+        return prepareOrder(requirePendingScoped(operatorId, orderId), null);
+    }
+
+    private PreparedCollect prepareForUser(Long userId, String orderId, String requestedChannel) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!order.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+        }
+        if (!STATUS_PENDING.equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
+        }
+        return prepareOrder(order, requestedChannel);
+    }
+
+    /** B1-B 段1：短事务内校验 + 选券落单 + 定腿；不发起渠道 HTTP。 */
+    private PreparedCollect prepareOrder(CabinetOrder order, String requestedChannel) {
         hydrate(order);
-        // V325（CB-011）：欠款还清 ⇒ 阶梯降级，让「反复逃单」可被识别的同时**允许用户恢复使用**
-        //（否则等于永久失信；CB-011 明确冻结的是「该平台免密能力」而非征信）。
-        unpaidDunningService.onUnpaidCleared(order.getUserId());
-        // F1-C 净额三分支：PENDING 单可能带有预授权冲抵净额（F1 竞态保留），补扣只收差额。
-        // （原护栏按「净额≠0 即 CONFLICT」实现，但 PREAUTH_CAPTURE 行 order_id 曾为 null 使其失明——
-        //   2026-10-02 F1-A 挂单+计入净额后，此处升级为净额三分支。）
         int alreadyPaidCents = orderPaymentService.netCompletedCents(order.getOrderId());
         if (alreadyPaidCents >= order.getTotalAmountCents()) {
-            // 冲抵已覆盖全额：直接收口，不再扣款、不再占券
-            order.setStatus("PAID");
-            // F-9（CB-057）：这一支没有新扣款，但冲抵流水就是实收 ⇒ 同样要冻结毛额
-            orderPaymentService.freezePaidAmount(order);
-            orderRepository.save(order);
-            // R2-D1：本支可能带着 PENDING 期残留的券列结单，而 save=updateById 跳过 null ⇒
-            // setCouponId(null) 落不了库。清券列必须走显式 UPDATE（同 MA-067/MA-147 范式）。
-            if (order.getCouponId() == null) {
-                orderRepository.clearOrderCouponSelection(
-                        order.getOrderId(), order.getTotalAmountCents(), Instant.now());
-            }
-            revenueSplitService.recordSplit(order);
-            auditService.appendLog(0L, "ORDER_COLLECT_NET_COVERED", ORDER, order.getOrderId(),
-                    "净额 " + alreadyPaidCents + " 分已覆盖应付，直接结单");
-            return;
+            closeNetCovered(order, alreadyPaidCents);
+            return new PreparedCollect(order, null, true);
         }
-        // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
-        CouponService.BestCoupon applied = applyBestCouponForCollect(order);
-        orderPaymentService.chargeOrder(order, requestedChannel);
+        OrderPaymentService.ChargePlan plan = orderPaymentService.resolveChargePlan(order, requestedChannel);
+        if (plan == null || plan.leg() != OrderPaymentService.ChargeLeg.COMPLETED) {
+            // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
+            applyBestCouponForCollect(order);
+            plan = orderPaymentService.resolveChargePlan(order, requestedChannel);
+            orderRepository.save(order);
+        }
+        return new PreparedCollect(order, plan, false);
+    }
+
+    /** 净额已覆盖全额：同事务直接收口（无渠道 HTTP），保持原语义。 */
+    private void closeNetCovered(CabinetOrder order, int alreadyPaidCents) {
         order.setStatus("PAID");
-        // F-9（CB-057）：补扣成功 ⇒ 冻结实收毛额（含此前的开门冲抵行）
+        // F-9（CB-057）：这一支没有新扣款，但冲抵流水就是实收 ⇒ 同样要冻结毛额
         orderPaymentService.freezePaidAmount(order);
         orderRepository.save(order);
-        // R2-D1：applyBestCouponForCollect 的两个「不用券」分支只改内存（活动价禁用券 / 券折扣为 0），
-        // save=updateById 跳过 null ⇒ 库里 coupon_id 清不掉：PAID 单悬挂脏券列（巡检告警噪音），
-        // 部分退还会把那张无辜券的 discount_cents 改写 0。补一条显式 UPDATE 收口。
         if (order.getCouponId() == null) {
             orderRepository.clearOrderCouponSelection(
                     order.getOrderId(), order.getTotalAmountCents(), Instant.now());
         }
-        if (applied != null) {
-            // 核销失败必须回滚整笔补扣（含扣款/置 PAID），避免「已付但券仍 UNUSED」可被重复用
+        revenueSplitService.recordSplit(order);
+        unpaidDunningService.onUnpaidCleared(order.getUserId());
+        auditService.appendLog(0L, "ORDER_COLLECT_NET_COVERED", ORDER, order.getOrderId(),
+                "净额 " + alreadyPaidCents + " 分已覆盖应付，直接结单");
+    }
+
+    /**
+     * B1-B 段2/3：余额腿与 PAID 同事务（不足整段回滚，保持既有语义）；
+     * 渠道腿 HTTP 在事务外，成功后再开短事务收口。
+     */
+    private void chargeAndFinalize(PreparedCollect prepared, String requestedChannel) {
+        CabinetOrder order = prepared.order();
+        OrderPaymentService.ChargePlan plan = prepared.plan();
+        boolean balanceLeg = plan != null && plan.leg() == OrderPaymentService.ChargeLeg.BALANCE;
+        boolean channelLeg = plan != null && plan.leg() == OrderPaymentService.ChargeLeg.CHANNEL;
+        CabinetOrder finalized;
+        if (balanceLeg) {
+            finalized = requiresNewTx.execute(status -> {
+                orderPaymentService.chargeOrderWithPlan(order, requestedChannel, plan);
+                return finalizeCollected(order.getOrderId());
+            });
+        } else if (channelLeg) {
+            orderPaymentService.chargeOrderWithPlan(order, requestedChannel, plan);
+            finalized = requiresNewTx.execute(status -> finalizeCollected(order.getOrderId()));
+        } else {
+            orderPaymentService.chargeOrder(order, requestedChannel);
+            finalized = requiresNewTx.execute(status -> finalizeCollected(order.getOrderId()));
+        }
+        afterCollected(finalized);
+    }
+
+    private CabinetOrder finalizeCollected(String orderId) {
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        order.setStatus("PAID");
+        // F-9（CB-057）：补扣成功 ⇒ 冻结实收毛额（含此前的开门冲抵行）
+        orderPaymentService.freezePaidAmount(order);
+        orderRepository.save(order);
+        // R2-D1：save=updateById 跳过 null ⇒ 清券列必须走显式 UPDATE
+        if (order.getCouponId() == null) {
+            orderRepository.clearOrderCouponSelection(
+                    order.getOrderId(), order.getTotalAmountCents(), Instant.now());
+        }
+        // 渠道成功/幂等重放统一收口痕迹；核销失败随本事务回滚
+        orderPaymentService.finalizeChargePending(orderId, order.getPayTradeNo());
+        if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
             couponService.markUsed(
                     order.getUserId(),
-                    applied.couponId(),
+                    order.getCouponId(),
                     order.getOrderId(),
                     order.getDeviceId(),
                     order.getCouponDiscountCents());
         }
         revenueSplitService.recordSplit(order);
+        unpaidDunningService.onUnpaidCleared(order.getUserId());
+        return order;
+    }
+
+    private void afterCollected(CabinetOrder order) {
         try {
             memberService.onOrderPaid(order.getUserId(), order.getTotalAmountCents(), order.getOrderId());
         } catch (Exception ex) {
@@ -476,6 +531,8 @@ public class UnpaidOrderService {
             log.warn("order paid notification on collect failed order={}", order.getOrderId(), ex);
         }
     }
+
+    private record PreparedCollect(CabinetOrder order, OrderPaymentService.ChargePlan plan, boolean netCovered) {}
 
     private static String yuan(int cents) {
         return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();

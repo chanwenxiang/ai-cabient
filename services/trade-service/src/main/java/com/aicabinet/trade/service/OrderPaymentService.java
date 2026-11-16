@@ -171,6 +171,103 @@ public class OrderPaymentService {
         });
     }
 
+    enum ChargeLeg { ZERO, COMPLETED, ASYNC, BALANCE, CHANNEL }
+
+    record ChargePlan(ChargeLeg leg, String channel) {
+        static ChargePlan of(ChargeLeg leg) {
+            return new ChargePlan(leg, null);
+        }
+
+        static ChargePlan of(ChargeLeg leg, String channel) {
+            return new ChargePlan(leg, channel);
+        }
+    }
+
+    /**
+     * B1-B0：拆分补缴链路前先判定走哪条腿，**不扣款、不写库**。
+     * BALANCE（含净额覆盖/余额专用环境）由调用方放进收口事务，避免拆段改变余额不足的回滚语义；
+     * CHANNEL/ASYNC/ZERO/COMPLETED 走事务外渠道段。选择顺序必须与 chargeOrder 保持一致。
+     */
+    ChargePlan resolveChargePlan(CabinetOrder order, String requestedChannel) {
+        if (order.getTotalAmountCents() <= 0) {
+            return ChargePlan.of(ChargeLeg.ZERO);
+        }
+        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
+        if (isCompleted(idemKey)) {
+            return ChargePlan.of(ChargeLeg.COMPLETED);
+        }
+        UserInfo user = userInfoRepository.findById(order.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        ShoppingSession session = resolveSession(order.getSessionId());
+        if (shouldCompleteWeChatPayScore(session)) {
+            return ChargePlan.of(ChargeLeg.ASYNC);
+        }
+        if (requestedChannel != null && !requestedChannel.isBlank()) {
+            String channel = requestedChannel.trim().toUpperCase(Locale.ROOT);
+            if (!PayScoreService.isChannelUsable(user, channel)) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+            }
+            if (PayChannels.BALANCE.equals(channel)) {
+                return ChargePlan.of(ChargeLeg.BALANCE);
+            }
+            if (checkoutProperties.balanceOnly()) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.PAY_CHANNEL_NOT_READY);
+            }
+            if (remainingChargeCents(order) <= 0) {
+                return ChargePlan.of(ChargeLeg.BALANCE);
+            }
+            return ChargePlan.of(ChargeLeg.CHANNEL, channel);
+        }
+        if (checkoutProperties.balanceOnly() || remainingChargeCents(order) <= 0) {
+            return ChargePlan.of(ChargeLeg.BALANCE);
+        }
+        String entryChannel = session != null ? session.getEntryChannel() : null;
+        String channel = PayScoreService.resolveChargeChannel(user, entryChannel);
+        return PayChannels.BALANCE.equals(channel)
+                ? ChargePlan.of(ChargeLeg.BALANCE)
+                : ChargePlan.of(ChargeLeg.CHANNEL, channel);
+    }
+
+    /**
+     * B1-B：按 prepare 阶段解析出的腿执行，保证事务边界与金额语义一致——
+     * BALANCE 强制走余额（不允许在 tx2 内变成渠道 HTTP）；CHANNEL 强制走该渠道（不回落余额）。
+     * 其余腿（ZERO/COMPLETED/ASYNC）没有余额/渠道歧义，仍交给 {@link #chargeOrder}。
+     */
+    public void chargeOrderWithPlan(CabinetOrder order, String requestedChannel, ChargePlan plan) {
+        if (plan == null || (plan.leg() != ChargeLeg.BALANCE && plan.leg() != ChargeLeg.CHANNEL)) {
+            chargeOrder(order, requestedChannel);
+            return;
+        }
+        runWithOrderPaymentLock(order.getOrderId(), locked -> {
+            chargeOrderUnderLockWithPlan(locked, requestedChannel, plan);
+            cabinetOrderRepository.updateById(locked);
+            syncPaymentFields(order, locked);
+        });
+    }
+
+    private void chargeOrderUnderLockWithPlan(CabinetOrder order, String requestedChannel, ChargePlan plan) {
+        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
+        if (restoreCompletedCharge(order, idemKey)) {
+            return;
+        }
+        UserInfo user = userInfoRepository.findById(order.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        ShoppingSession session = resolveSession(order.getSessionId());
+        if (plan.leg() == ChargeLeg.BALANCE) {
+            applyBalanceCharge(order, session, idemKey);
+            order.setPayChannel(PayChannels.BALANCE);
+            ensurePaymentOperationId(order);
+            return;
+        }
+        String channel = requestedChannel != null && !requestedChannel.isBlank()
+                ? requestedChannel
+                : plan.channel();
+        if (channel == null || channel.isBlank()) {
+            throw new IllegalStateException("charge plan missing channel for order " + order.getOrderId());
+        }
+        chargeWithSelectedChannel(order, user, session, channel, idemKey);
+    }
+
     private void chargeOrderUnderLock(CabinetOrder order, String requestedChannel) {
         String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
         if (restoreCompletedCharge(order, idemKey)) {
@@ -205,17 +302,21 @@ public class OrderPaymentService {
      * 净入账恒 0，差额=全额。
      */
     private boolean tryCompleteWeChatPayScore(CabinetOrder order, ShoppingSession session) {
-        if (session == null || securityProperties.mockEnabled() || !payScoreService.wechatRealChannelReady()) {
+        if (!shouldCompleteWeChatPayScore(session)) {
             return false;
-        }
-        if (!payScoreService.hasOpenWechatOrderForSession(session.getSessionId())) {
-            return false; // 非支付分开门单（或创单未发生）→ 既有同步路径
         }
         payScoreService.completeWechatOrderForSession(session.getSessionId(), order);
         order.setPayChannel(PayChannels.WECHAT);
         order.setPayScoreUsed(true);
         order.setStatus("PENDING");
         return true;
+    }
+
+    private boolean shouldCompleteWeChatPayScore(ShoppingSession session) {
+        if (session == null || securityProperties.mockEnabled() || !payScoreService.wechatRealChannelReady()) {
+            return false;
+        }
+        return payScoreService.hasOpenWechatOrderForSession(session.getSessionId());
     }
 
     /**

@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -211,6 +212,73 @@ class OrderPaymentChargeInvariantTest {
     /** 净额走生产查询原语（SQL 过滤 + switch 口径都由 PaymentOperationMapper 决定）。 */
     private int netProduced() {
         return paymentOperationRepository.netCompletedCents(ORDER_ID);
+    }
+
+    // ── B1-B0：拆段前的定腿（纯读，不扣款） ─────────────────────────────
+
+    @Test
+    void resolveChargePlan_balanceOnly_isBalance() {
+        OrderPaymentService s = buildService(true);
+
+        assertEquals(OrderPaymentService.ChargeLeg.BALANCE,
+                s.resolveChargePlan(order(), null).leg());
+    }
+
+    @Test
+    void resolveChargePlan_autoWithoutChannel_isBalance() {
+        OrderPaymentService s = buildService(false); // 默认 UserInfo.payPreferredChannel=BALANCE
+
+        assertEquals(OrderPaymentService.ChargeLeg.BALANCE,
+                s.resolveChargePlan(order(), null).leg());
+    }
+
+    @Test
+    void resolveChargePlan_autoWithChannel_isChannel() {
+        UserInfo user = new UserInfo();
+        user.setPayPreferredChannel(null);
+        user.setPayscoreEnabled(true);
+        user.setPayscoreContractId("PS-CONTRACT");
+        when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        OrderPaymentService s = buildService(false);
+
+        OrderPaymentService.ChargePlan plan = s.resolveChargePlan(order(), null);
+
+        assertEquals(OrderPaymentService.ChargeLeg.CHANNEL, plan.leg());
+        assertEquals(PayChannels.WECHAT, plan.channel());
+    }
+
+    @Test
+    void resolveChargePlan_explicitBalance_isBalance() {
+        OrderPaymentService s = buildService(false);
+
+        assertEquals(OrderPaymentService.ChargeLeg.BALANCE,
+                s.resolveChargePlan(order(), PayChannels.BALANCE).leg());
+    }
+
+    @Test
+    void resolveChargePlan_completedCharge_isCompleted() {
+        PaymentOperation op = new PaymentOperation();
+        op.setIdempotencyKey("CHARGE:" + ORDER_ID + ":" + TOTAL);
+        op.setOrderId(ORDER_ID);
+        op.setOperationType("CHARGE");
+        op.setStatus("COMPLETED");
+        op.setAmountCents(TOTAL);
+        op.setChannel(PayChannels.BALANCE);
+        store.put(op.getIdempotencyKey(), op);
+        OrderPaymentService s = buildService(false);
+
+        assertEquals(OrderPaymentService.ChargeLeg.COMPLETED,
+                s.resolveChargePlan(order(), null).leg());
+    }
+
+    @Test
+    void resolveChargePlan_zeroTotal_isZero() {
+        CabinetOrder zero = order();
+        zero.setTotalAmountCents(0);
+        OrderPaymentService s = buildService(false);
+
+        assertEquals(OrderPaymentService.ChargeLeg.ZERO,
+                s.resolveChargePlan(zero, null).leg());
     }
 
     private ShoppingSession session() {

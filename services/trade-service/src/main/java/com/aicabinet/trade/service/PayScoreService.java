@@ -743,6 +743,42 @@ public class PayScoreService {
     }
 
     /**
+     * B1-B0：只解析自动决策会选哪个渠道，**不发起任何扣款**。
+     * 必须与 {@link #charge} 的选择顺序逐行一致；用于补缴拆段前判定「余额腿 vs 渠道腿」。
+     */
+    public static String resolveChargeChannel(UserInfo user, String preferredChannel) {
+        String userPrefRaw = user.getPayPreferredChannel();
+        if (userPrefRaw != null && PayChannels.BALANCE.equalsIgnoreCase(userPrefRaw.trim())) {
+            return PayChannels.BALANCE;
+        }
+        if (preferredChannel != null && PayChannels.BALANCE.equalsIgnoreCase(preferredChannel.trim())) {
+            return PayChannels.BALANCE;
+        }
+        String preferred = PayChannels.normalizeEntryChannel(preferredChannel);
+        if (preferred == null) {
+            preferred = PayChannels.normalizeEntryChannel(user.getPayPreferredChannel());
+        }
+        if (PayChannels.WECHAT.equals(preferred)
+                && user.isPayscoreEnabled()
+                && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank()) {
+            return PayChannels.WECHAT;
+        }
+        if (PayChannels.ALIPAY.equals(preferred) && isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+            return PayChannels.ALIPAY;
+        }
+        if (user.isPayscoreEnabled()
+                && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank()) {
+            return PayChannels.WECHAT;
+        }
+        if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+            return PayChannels.ALIPAY;
+        }
+        return PayChannels.BALANCE;
+    }
+
+    /**
      * 显式渠道扣款（消费者在结算页主动选择，F6）：**不做偏好解析、不降级**。
      *
      * <p>与 {@link #charge} 的关键差别：{@code charge} 把「用户偏好 BALANCE」「扫码入口渠道」纳入决策，

@@ -1,6 +1,6 @@
 # B1 Phase B 设计稿：补缴链路拆段（渠道 HTTP 移出 DB 事务）
 
-> 状态：**评审完成；A0 已落地（2026-11-16，零行为抽取 `chargeChannelOnce` 三态）；B1-Ba 已落地（forceCancel 对 CHARGE_PENDING 返 409）；B1-B 拆段/reconciler 待拍板**——余额不足时冲抵回滚语义与 UNKNOWN 查单渠道口径需先定（Q1–Q4 结论与提前修正见 §6）。
+> 状态：评审完成；**A0、B1-Ba（forceCancel 409）、B1-B1（补缴拆段）已落地**——`collect/collectByUser` 去外层事务，prepare(tx1)/渠道 HTTP 事务外/finalize(tx2)，余额腿随 tx2（拍板 A：余额不足整段回滚，不保留 capture）；计划由 `ChargePlan` 强制腿，避免窗口内腿漂移。**B1-B2 reconciler 待实施**（拍板 A：痕迹补 `attempted_channel + charge_cents`，网关优先、native 兜底）。Q1–Q4 结论与提前修正见 §6。
 > 实施前先按 §6 的修订点改设计，再落码；实施批次含形态钉 + 三态负向 + 真栈弱网回归。
 
 ## 1. 现状与问题
@@ -95,7 +95,7 @@ Redis 支付锁（`runWithOrderPaymentLock` + LockHeartbeat 续租）横跨三�
 
 ## 5. 实施步骤（一次批次收口）
 
-1. `chargeOrder` 内抽出 `chargeChannelOnce(order, requestedChannel)`（纯渠道段，返回三态结果枚举：SUCCESS / FAILED / UNKNOWN）——不动现有签名，旧 chargeOrder 保留给非补缴调用方（支付分 DONE 回调等无外层事务路径）。
+1. `chargeOrder` 内抽出 `chargeChannelOnce(order, requestedChannel)`（纯渠道段，返回三态结果枚举：SUCCESS / FAILED / UNKNOWN）——不动现有签名，旧 chargeOrder 保留给非补缴调用方（支付分 DONE 回调等无外层事务路径）。**A0 已落**：`chargeChannelOnce` 三态 + `ChargePlan.resolveChargePlan`（B1-B1 用）。
 2. `markPaid` 拆三段；collect/collectByUser 去 `@Transactional`，编排移入锁体。
 3. **券核销**：`markUsed` 留在段3 finalize（渠道成功之后）；**不新增反向核销**。`ChargePendingReconciler` 成功收口时同样调用 `markUsed`（订单+券幂等，重放安全）。
 4. **强取消拦截（Q2）**：`SessionService.doForceCancelForOperations` 在加载会话后，若 `session.getOrderId()` 存在未收口的 `CHARGE_PENDING` 痕迹 ⇒ 409「支付处理中，请等渠道结果」；超过 10 分钟的陈旧痕迹由 reconciler 先收敛（成功补收口/失败清痕迹），运营不得用强取消绕。

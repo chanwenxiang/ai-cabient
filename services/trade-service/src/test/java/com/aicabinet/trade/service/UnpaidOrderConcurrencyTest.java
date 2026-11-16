@@ -56,6 +56,7 @@ class UnpaidOrderConcurrencyTest {
     @Mock private OpsExceptionService opsExceptionService;
     /** V325：欠款催缴阶梯（CB-011）。用 mock 避免本测试关心短信副作用。 */
     @Mock private UnpaidDunningService unpaidDunningService;
+    @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private UnpaidOrderService service;
 
@@ -68,7 +69,16 @@ class UnpaidOrderConcurrencyTest {
                 riskControlService, systemConfigService, weChatMiniAppClient,
                 weChatMiniAppProperties, settlementService, consumerPreauthService,
                 notificationService, distributedLockService, apiRateLimitService,
-                opsExceptionService, unpaidDunningService);
+                opsExceptionService, unpaidDunningService, transactionManager);
+    }
+
+    /** B1-B 形态钉：补缴入口不得再挂外层事务（否则行锁又会横跨渠道 HTTP）。 */
+    @Test
+    void collectEntrypoints_haveNoOuterTransaction() throws Exception {
+        assertNull(UnpaidOrderService.class.getMethod("collect", Long.class, String.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
+        assertNull(UnpaidOrderService.class.getMethod("collectByUser", Long.class, String.class, String.class)
+                .getAnnotation(org.springframework.transaction.annotation.Transactional.class));
     }
 
     @Test
@@ -143,7 +153,8 @@ class UnpaidOrderConcurrencyTest {
 
         service.collectByUser(10001L, "O-OK", null);
 
-        org.mockito.Mockito.verify(orderRepository).findByIdForUpdate("O-OK");
+        org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.atLeastOnce())
+                .findByIdForUpdate("O-OK");
         org.mockito.Mockito.verify(distributedLockService).unlock(OrderPaymentService.orderPaymentLockKey("O-OK"));
     }
 
