@@ -18,6 +18,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +49,16 @@ class ConsumerPreauthServiceTest {
                 distributedLockService);
     }
 
+    @BeforeEach
+    void stubConfigUnset() {
+        // Mockito 对 int 返回类型默认给 0；MA-294 后 0=「关闭预授权」是显式语义 ⇒
+        // 每个用例若没显式 stub getInt 会静默走关闭路径。类级默认 stub 为 -1（未配置哨兵）。
+        org.mockito.Mockito.when(systemConfigService.getInt(
+                org.mockito.ArgumentMatchers.eq(
+                        com.aicabinet.trade.service.SystemConfigService.CHECKOUT_PREAUTH_CENTS),
+                org.mockito.ArgumentMatchers.eq(-1))).thenReturn(-1);
+    }
+
     private static DeviceInfo device(long depositCents) {
         DeviceInfo d = new DeviceInfo();
         d.setDeviceId("D-1");
@@ -60,14 +71,18 @@ class ConsumerPreauthServiceTest {
         when(deviceRepository.findById("D-1")).thenReturn(Optional.of(device(12_000L)));
 
         assertEquals(12_000, service.resolvePreauthCents("D-1"));
-        verifyNoInteractions(systemConfigService, checkoutProperties);
+        // MA-294 后 0 判据前移到方法最前 ⇒ getInt 一定先于设备分支被调用（新契约）；
+        // 设备命中时仍不得触碰 checkoutProperties 默认值。
+        verify(systemConfigService).getInt(
+                com.aicabinet.trade.service.SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1);
+        verifyNoInteractions(checkoutProperties);
     }
 
     @Test
     void deviceDepositOverCeiling_fallsBackToConfigDefault() {
         when(deviceRepository.findById("D-1"))
                 .thenReturn(Optional.of(device(CommissionParamBounds.PREAUTH_CENTS_CEILING + 1L)));
-        when(systemConfigService.getInt(anyString(), anyInt())).thenReturn(-1); // 未配置哨兵
+        // 未配置哨兵由 @BeforeEach stubConfigUnset 默认提供（-1），此处不再重复 stub
         when(checkoutProperties.resolvePreauthCents()).thenReturn(300);
 
         assertEquals(300, service.resolvePreauthCents("D-1"),
@@ -89,13 +104,12 @@ class ConsumerPreauthServiceTest {
         org.mockito.Mockito.when(systemConfigService
                 .getInt(com.aicabinet.trade.service.SystemConfigService.CHECKOUT_PREAUTH_CENTS, -1))
                 .thenReturn(0);
-        com.aicabinet.trade.domain.DeviceInfo device = new com.aicabinet.trade.domain.DeviceInfo();
-        device.setDeviceId("CAB-1");
-        device.setDepositCents(500_000L);
-        org.mockito.Mockito.when(deviceRepository.findById("CAB-1"))
-                .thenReturn(java.util.Optional.of(device));
 
         assertEquals(0, service.resolvePreauthCents("CAB-1"),
                 "全局 0（关闭预授权）必须压倒设备押金");
+        // 0 压倒一切 ⇒ 设备分支根本不该被走到（stub 会被判 UnnecessaryStubbing，
+        // 改用 never() 验证强化语义）
+        org.mockito.Mockito.verify(deviceRepository,
+                org.mockito.Mockito.never()).findById(org.mockito.ArgumentMatchers.anyString());
     }
 }
