@@ -1388,6 +1388,21 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "4030be91",
+      "report": "docs/AUDIT_R23_CROSSCHECK_2026-11-15.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "MA-270 补齐 PAYMENT_AMOUNT 路径分账回算（真栈并发复现）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DataConsistencyService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
