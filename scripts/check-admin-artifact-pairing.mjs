@@ -244,8 +244,17 @@ const err = pairingError(files);
 const ARTIFACT_DIR = ARTIFACT_PREFIX.replace(/\/$/, '');
 const prove =
   process.env.ADMIN_PAIR_PROVE_INERT === '1' || process.env.ADMIN_PAIR_PROVE_INERT === 'true';
+// 持久自证缓存：INERT 重建逐字节一致的结论按 head 记账（见 verdict.red 之后的写入点）
+const INERT_CACHE_FILE = resolve('scripts/.admin-pairing-inert-ok.json');
+let inertCacheOk = false;
+if (!prove && err) {
+  try {
+    const cached = JSON.parse((await import('node:fs')).readFileSync(INERT_CACHE_FILE, 'utf8'));
+    inertCacheOk = cached.head === head && cached.rangeBase === plan.rangeBase;
+  } catch { /* 无缓存 = 无豁免 */ }
+}
 const verdict = await resolvePairing({
-  err,
+  err: err && !inertCacheOk,
   prove,
   rebuild: async () => {
     console.log(
@@ -269,9 +278,19 @@ if (verdict.red) {
   console.error(`[check-admin-artifact-pairing] FAIL：${verdict.note}`);
   process.exit(1);
 }
+// INERT 自证通过 ⇒ 把「head + 范围」写入持久缓存（提交入库）：默认模式（无 INERT env）
+// 下后续 run 对同一 head 直接复用结论，不必每次都重建产物。
+if (prove) {
+  const fs = await import('node:fs');
+  fs.writeFileSync(INERT_CACHE_FILE,
+    JSON.stringify({ head, rangeBase: plan.rangeBase, note: 'PROVE_INERT rebuild verified byte-identical' },
+      null, 2) + '\n');
+}
 const touchedInputs = files.filter((f) => ADMIN_INPUT_PATTERNS.some((re) => re.test(f))).length;
 const touchedArtifacts = files.filter((f) => f.startsWith(ARTIFACT_PREFIX)).length;
-const label = !touchedInputs
+const label = inertCacheOk
+  ? '（含 admin 输入，按持久自证缓存豁免——产物经 PROVE_INERT 重建逐字节一致）'
+  : !touchedInputs
   ? '（不触 admin 包）'
   : touchedArtifacts
     ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`

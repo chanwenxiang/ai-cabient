@@ -1345,25 +1345,6 @@
       "notAdopted": []
     },
     {
-      "commit": "a61ea246",
-      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
-      "totalItems": 2,
-      "items": [
-        {
-          "id": "B3 巡检规则双夹具（consistentRowNotReturnedBySql/recordsTrueMismatch）+ registry 登记",
-          "files": [
-            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
-            "scripts/consistency-rule-registry.json"
-          ]
-        },
-        {
-          "id": "CB-061 条目补齐（对照主体/证据/取证日期/结论四小节）",
-          "files": ["docs/COMPETITOR_BENCHMARK.md"]
-        }
-      ],
-      "notAdopted": []
-    },
-    {
       "commit": "d3fc4d42",
       "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
       "totalItems": 2,
