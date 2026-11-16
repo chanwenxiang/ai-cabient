@@ -1242,6 +1242,28 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "78e38dc8",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 3,
+      "items": [
+        {
+          "id": "MA-276 传播语义修订 REQUIRES_NEW→REQUIRED（结算编排外层事务 FK 可见性，CI E2E 实锤回归修复）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java"
+          ]
+        },
+        {
+          "id": "fail_reason 收口：V484 加宽 256→1024 + transition 截断防御",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/SessionService.java",
+            "services/trade-service/src/main/resources/db/migration/V484__widen_session_fail_reason.sql"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
