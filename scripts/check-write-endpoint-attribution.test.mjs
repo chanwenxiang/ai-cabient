@@ -280,6 +280,25 @@ assert(
     );
   }
 
+  // C6) 路径占位符不得截断方法体（2026-11-16 S9）：
+  //     `@PostMapping("/{id}/retry")` 的 `{id}` 若参与花括号计数，签名行 depth 归零，
+  //     方法体只剩一行，体内 appendLog 看不到。此夹具在体内放真实审计。
+  {
+    const src = [
+      '@RestController',
+      'public class SynthPathAuditController {',
+      '    @PostMapping("/{id}/retry") public ApiResponse<Void> retry() {',
+      '        auditService.appendLog(1L, "OPS_EXCEPTION_RETRY", "OPS_EXCEPTION", "1", "ok");',
+      '        return ApiResponse.ok();',
+      '    }',
+      '}'
+    ].join('\n');
+    const { cls, endpoints } = controllerEndpoints(src);
+    assert(cls === 'SynthPathAuditController', `路径占位符夹具类名错：${cls}`);
+    assert(endpoints.length === 1, `路径占位符夹具端点数错：${endpoints.length}`);
+    assert(endpoints[0].attributed, '路径占位符 {id} 不得截断方法体，体内 appendLog 必须被识别');
+  }
+
   // C5) 真实仓面全量不变量：写注解数 == 写端点数（每个控制器逐个对账）。
   //     这是 C06 这类「解析器盲区」的类级判据——只要有一个签名解析不出来就红，
   //     不依赖基线（基线是解析器的输出，自己产自己验会自证）。

@@ -124,7 +124,12 @@ function extractMethod(lines, sigIdx) {
     started = false,
     end = sigIdx;
   for (let j = sigIdx; j < lines.length; j++) {
-    for (const ch of lines[j]) {
+    // 🔴 2026-11-16 S9：路径占位符是字符串（`@PostMapping("/{id}/retry")`），
+    // 若直接数字符串里的 `{` `}`，签名行就把 depth 打回 0，方法体被截成一行，
+    // 体内 appendLog 永远看不到（OpsExceptionController 8 个 /{id} 端点实测误判）。
+    // 只对「数括号」这一遍剥掉字符串字面量；返回的 body 仍保留原文供审计识别。
+    const codeOnly = lines[j].replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, '""');
+    for (const ch of codeOnly) {
       if (ch === '{') {
         depth++;
         started = true;
