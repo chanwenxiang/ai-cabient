@@ -1620,6 +1620,36 @@ class DataConsistencyServiceTest {
         verify(revenueSplitService).adjustSplitAfterPartialRefund(eq(order), eq(false));
     }
 
+    /** MA-270 真栈复现的缺口：PAYMENT_AMOUNT 退多收同样必须回算分账（此前只接在订单行路径）。 */
+    @Test
+    void fixPaymentAmount_afterOverchargeRefund_adjustsSplit() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(41L);
+        record.setCheckType("PAYMENT_AMOUNT");
+        record.setCheckKey("O-PAY");
+        record.setExpectedValue("800");
+        record.setActualValue("1000");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+        when(consistencyRepository.findByIdForUpdate(41L)).thenReturn(java.util.Optional.of(record));
+
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-PAY")))
+                .thenReturn(1000);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-PAY");
+        order.setStatus("PAID");
+        order.setPaidAmountCents(1000);
+        order.setRefundedCents(0);
+        when(cabinetOrderRepository.findByIdForUpdate("O-PAY"))
+                .thenReturn(java.util.Optional.of(order));
+        when(cabinetOrderRepository.findById("O-PAY")).thenReturn(java.util.Optional.of(order));
+
+        assertTrue(service.fixInconsistency(OPERATOR, 41L));
+
+        verify(orderPaymentService).refundOrder(eq(order), eq(200), anyString());
+        verify(revenueSplitService).adjustSplitAfterPartialRefund(eq(order), eq(false));
+    }
+
     @Test
     void checkWarehouseNegativeConsistency_consistentNoViolation() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());

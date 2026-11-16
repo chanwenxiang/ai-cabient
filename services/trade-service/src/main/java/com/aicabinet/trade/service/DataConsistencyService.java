@@ -1824,11 +1824,26 @@ public class DataConsistencyService {
             return FixOutcome.fail("订单状态 " + status + " 不支持自动退多收");
         }
         int over = actual - expected;
+        // MA-270：refundOrder 只推进 refunded_cents，分账行不会自动跟随。与
+        // refundOverchargeIfNeeded 同口径：退多收后必须按净额回算分账，否则分账/佣金/GMV
+        // 继续按虚高毛额计算（2026-11-16 真栈复现：PAYMENT_AMOUNT 修完 gross 仍 1000）。
+        Integer netPaidBox = queryNetCompletedCents(orderId);
+        int netPaid = netPaidBox == null ? 0 : netPaidBox;
         // MA-124：同上——refundOrder 返回 false 时不得回报「已退多收」
         if (!orderPaymentService.refundOrder(order, over, "一致性修复退多收")) {
             return FixOutcome.fail("多收 " + over + " 分的退款未被确认（渠道幂等跳过或失败），须人工复核");
         }
-        return FixOutcome.ok("已退多收 " + over + " 分，净入账对齐订单头 " + expected);
+        CabinetOrder refreshed = cabinetOrderRepository.findById(orderId).orElse(order);
+        boolean fullRefund = netPaid > 0 && over >= netPaid;
+        try {
+            revenueSplitService.adjustSplitAfterPartialRefund(refreshed, fullRefund);
+        } catch (RuntimeException e) {
+            // 退款已经发生：失败不得让调用方以为「没退」；分账回算留给 REVENUE_SPLIT_REFUND_STALE 巡检。
+            log.error("退多收后回算分账失败 orderId={} over={} full={}", orderId, over, fullRefund, e);
+            return FixOutcome.ok("已退多收 " + over + " 分（分账回算失败，已留待巡检复核："
+                    + e.getMessage() + "）");
+        }
+        return FixOutcome.ok("已退多收 " + over + " 分（分账已按净额回算）");
     }
 
     private static int parseRecordCents(String raw) {
