@@ -9,6 +9,7 @@
  *   node scripts/check-admin-artifact-pairing.test.mjs
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { pairingRangePlan } from './lib/admin-pairing-base.mjs';
 
 const TAG = '[check-admin-artifact-pairing.test]';
