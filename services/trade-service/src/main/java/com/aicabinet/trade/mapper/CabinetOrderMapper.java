@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,6 +63,15 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         WHERE order_id = #{orderId}
         """)
     int clearOrderCouponColumns(@Param("orderId") String orderId, @Param("updatedAt") Instant updatedAt);
+
+    /** B1-B：订单是否存在未收口的渠道扣款痕迹（forceCancel 409 判据）。 */
+    @Select("""
+        SELECT EXISTS(
+            SELECT 1 FROM payment_operation
+             WHERE idempotency_key = #{pendingKey}
+               AND status = 'CHARGE_PENDING')
+        """)
+    boolean existsChargePending(@Param("pendingKey") String pendingKey);
 
     default Optional<CabinetOrder> findBySessionId(String sessionId) {
     return Optional.ofNullable(selectOne(Wrappers.<CabinetOrder>lambdaQuery().eq(CabinetOrder::getSessionId, sessionId)));

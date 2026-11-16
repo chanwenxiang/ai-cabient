@@ -1,6 +1,6 @@
 # B1 Phase B 设计稿：补缴链路拆段（渠道 HTTP 移出 DB 事务）
 
-> 状态：**评审完成；A0 已落地（2026-11-16，零行为抽取 `chargeChannelOnce` 三态）；B1-B（markPaid 三段 + forceCancel 409 + reconciler）待实施**（Q1–Q4 结论与提前修正见 §6）。
+> 状态：**评审完成；A0 已落地（2026-11-16，零行为抽取 `chargeChannelOnce` 三态）；B1-Ba 已落地（forceCancel 对 CHARGE_PENDING 返 409）；B1-B 拆段/reconciler 待拍板**——余额不足时冲抵回滚语义与 UNKNOWN 查单渠道口径需先定（Q1–Q4 结论与提前修正见 §6）。
 > 实施前先按 §6 的修订点改设计，再落码；实施批次含形态钉 + 三态负向 + 真栈弱网回归。
 
 ## 1. 现状与问题

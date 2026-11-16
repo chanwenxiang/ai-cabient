@@ -421,6 +421,14 @@ public class SessionService {
         ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
+        // B1-B：订单渠道扣款结果未收口时禁止强杀会话——取消后再扣/再退款会制造无主资金。
+        // 陈旧痕迹交 ChargePendingReconciler 收敛，运营不得绕过。
+        String pendingOrderId = session.getOrderId();
+        if (pendingOrderId != null && !pendingOrderId.isBlank()
+                && orderRepository.existsChargePending(
+                        OrderPaymentService.chargePendingIdempotencyKey(pendingOrderId))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "支付处理中，请等渠道结果后再终止会话");
+        }
         consumerPreauthService.releaseIfFrozen(session);
         // H64(b): 运营终止会话同步释放支付分订单
         cancelPayScoreOrdersQuietly(session.getOrderId());
