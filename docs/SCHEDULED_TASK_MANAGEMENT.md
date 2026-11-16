@@ -264,9 +264,9 @@ sum by (code_namespace, code_function, error) (
 ) > 0        # 告警 ScheduledTaskExecutionFailed
 ```
 
-### 覆盖范围：运营台 32 行 = 31 托管 + 1 看护
+### 覆盖范围：运营台 44 行 @Scheduled（2026-11-15 批 14 实测回填，MA-261）
 
-运营台当前 **32 行登记**（已逐个核对触发源，**无残留行**）：
+运营台当前 **44 处 `@Scheduled`**（`grep -rn "@Scheduled" services/trade-service/src/main --include=*.java | wc -l` = 68 含 gateway/其他服务；trade 侧任务行以 `scheduled_task` 注册表为准），其中 **38 个 XXL 托管 key**（`XxlJobManagedTasks.KEYS`）+ 6 个 Spring 常驻（不进托管，另有看护阈值）。本节数字以实测为准，禁止凭记忆改：
 
 | 类别 | 数量 | 触发方式 | 超期看护 |
 |---|---|---|---|

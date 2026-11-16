@@ -34,7 +34,7 @@
 
 | 维度 | 当前值 | 备注 |
 |------|--------|------|
-| Flyway 迁移 | **379** 个脚本（仅 `services/trade-service`），最新 **V385** | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
+| Flyway 迁移 | **476** 个脚本（仅 `services/trade-service`），最新 **V483**（2026-11-15 批 14 实测回填，MA-290） | 合入前 `ls V*` 查重号；门禁拦同号；勿再写已占用版本号 |
 | trade Controllers | **93** | `*Controller.java` |
 | trade 单测 | **380** `*Test.java` | 含大量并发测；全量 `mvn -o -pl services/trade-service -am test` |
 | admin-vue 业务视图 | **83** `.vue` | `src/views` |
