@@ -117,6 +117,7 @@ const FAILURE_PATH_AUDIT_CLASSES = deriveFailurePathClasses(byClass, rawOf);
 
 const bodyCache = new Map();
 const fieldsCache = new Map();
+const returnTypesCache = new Map();
 
 /** 花括号计数取方法体（输入是已 mask 的源码的行数组与签名行号） */
 function extractMethod(lines, sigIdx) {
@@ -205,6 +206,45 @@ function fieldsOf(clsName) {
   return map;
 }
 
+/**
+ * 2026-11-16 S9 P3：provider 访问器链（`support.disputeService().claim(...)`）。
+ * 控制器字段是 support 聚合器；`support.xService()` 的方法体只 return 字段，
+ * 旧解析器只按字段表找 `support.xService`，找不到方法名 ⇒ 端点误判未归因。
+ * 这里从方法声明的返回类型解析（zero-arg accessor），再对目标方法做 reachable。
+ */
+function returnTypesOf(clsName) {
+  if (returnTypesCache.has(clsName)) return returnTypesCache.get(clsName);
+  const map = new Map();
+  const lines = srcLinesOf(clsName);
+  if (lines) {
+    const src = lines.join('\n');
+    for (const m of src.matchAll(
+      /(?:public|private|protected)\s+([\w.<>\[\],?&]+)\s+(\w+)\s*\(/g
+    )) {
+      const raw = m[1]
+        .replace(/<[^>]*>/g, '')
+        .replace(/\[\]/g, '')
+        .trim();
+      const simple = raw.split('.').pop();
+      if (simple && byClass.has(simple)) map.set(m[2], simple);
+    }
+  }
+  returnTypesCache.set(clsName, map);
+  return map;
+}
+
+/** `support.accessor().target(`：解析 accessor 返回类型后继续 reachable。 */
+function providerChainReachable(body, rootFields, depth, visited) {
+  for (const m of body.matchAll(/(\w+)\.(\w+)\(\)\.(\w+)\s*\(/g)) {
+    const rootType = rootFields.get(m[1]);
+    if (!rootType) continue;
+    const accessorType = returnTypesOf(rootType).get(m[2]);
+    if (!accessorType) continue;
+    if (reachable(accessorType, m[3], depth + 1, visited)) return true;
+  }
+  return false;
+}
+
 /** 括号计数取 `(` 起的参数文本（跳过字符串字面量；body 已 mask 注释）。 */
 function argTextOf(src, openIdx) {
   let depth = 0;
@@ -272,6 +312,7 @@ export function reachable(clsName, methodName, depth, visited) {
     if (!cls2) continue;
     if (reachable(cls2, m[2], depth + 1, visited)) return true;
   }
+  if (providerChainReachable(body, fields, depth, visited)) return true;
   for (const m of body.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
     const mn = m[1];
     if (KEYWORDS.has(mn)) continue;
@@ -284,7 +325,13 @@ export function reachable(clsName, methodName, depth, visited) {
 export function controllerEndpoints(src) {
   const lines = maskJava(src).split('\n');
   const cls = (src.match(/public\s+(?:final\s+)?class\s+(\w+)/) || [])[1];
-  const fields = cls ? fieldsOf(cls) : new Map();
+  let fields = cls ? fieldsOf(cls) : new Map();
+  if (fields.size === 0 && cls) {
+    // 合成夹具/未入全局索引的类：从当前源码补字段表，provider 链才能解析
+    for (const m of src.matchAll(/private\s+(?:final\s+)?(\w+)\s+(\w+)\s*;/g)) {
+      if (byClass.has(m[1])) fields.set(m[2], m[1]);
+    }
+  }
   const endpoints = [];
   for (let i = 0; i < lines.length; i++) {
     if (!/@(?:Post|Put|Patch|Delete)Mapping/.test(lines[i])) continue;
@@ -311,6 +358,9 @@ export function controllerEndpoints(src) {
           break;
         }
       }
+    }
+    if (!attributed && cls) {
+      attributed = providerChainReachable(body, fields, 1, new Set([cls + '.' + name]));
     }
     if (!attributed && cls) {
       for (const m of body.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {

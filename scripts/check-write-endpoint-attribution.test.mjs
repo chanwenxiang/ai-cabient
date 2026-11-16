@@ -299,6 +299,27 @@ assert(
     assert(endpoints[0].attributed, '路径占位符 {id} 不得截断方法体，体内 appendLog 必须被识别');
   }
 
+  // C7) provider 访问器链（2026-11-16 S9）：support.xService().method() 必须穿透。
+  //     旧解析器只按字段表找 support.xService，找不到方法名 ⇒ 端点误判未归因；
+  //     这里用真实 MerchantPortalControllerSupport.disputeService() -> DisputeService.replyAsMerchant
+  //     （服务层成功路径有 appendLog）钉住。
+  {
+    const src = [
+      '@RestController',
+      'public class SynthProviderController {',
+      '    private final MerchantPortalControllerSupport support;',
+      '    @PostMapping("/x")',
+      '    public void x() { support.disputeService().replyAsMerchant(1L, 2L); }',
+      '}'
+    ].join('\n');
+    const { endpoints } = controllerEndpoints(src);
+    assert(endpoints.length === 1, `provider 夹具端点数错：${endpoints.length}`);
+    assert(
+      endpoints[0].attributed,
+      'provider 访问器链 support.disputeService().replyAsMerchant 必须归因'
+    );
+  }
+
   // C5) 真实仓面全量不变量：写注解数 == 写端点数（每个控制器逐个对账）。
   //     这是 C06 这类「解析器盲区」的类级判据——只要有一个签名解析不出来就红，
   //     不依赖基线（基线是解析器的输出，自己产自己验会自证）。
