@@ -107,4 +107,22 @@ check('ciBefore 空白 trim', () => {
   assert.equal(p.rangeBase, 'abc123');
 });
 
+// 批 17：INERT 自证缓存按「输入 blob sha」记账（不是 head）——head 一提交就变，
+// 按 head 记账会让豁免一提交就失效（实测踩过）
+{
+  const src = readFileSync('scripts/check-admin-artifact-pairing.mjs', 'utf8');
+  const ok = (cond, msg) => {
+    if (!cond) {
+      console.error(`[check-admin-artifact-pairing.test] FAIL：${msg}`);
+      process.exit(1);
+    }
+  };
+  ok(
+    src.includes('cached.inputs && cached.inputs[f]'),
+    '缓存必须按输入 blob sha 记账（cached.inputs[f] === sha）'
+  );
+  ok(src.includes('blobSha('), 'sha 必须经 git rev-parse HEAD:path 现算（防陈旧）');
+  ok(src.includes('verifiedAt'), '缓存文件必须带取证时点');
+  checks++;
+}
 console.log(`${TAG} OK：${checks} 项断言全过（范围基点三态：fail / skip / ok-empty / proceed）`);
