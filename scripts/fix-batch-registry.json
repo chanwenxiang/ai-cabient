@@ -1321,6 +1321,73 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "531708dc",
+      "report": "docs/AUDIT_R23_CROSSCHECK_2026-11-15.md",
+      "totalItems": 9,
+      "items": [
+        {
+          "id": "MA-284 退款同步告警 SQL 修 JOIN 目标（RECHARGE_REFUND.order_id 恒 NULL）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/PaymentOperationMapper.java"
+          ]
+        },
+        {
+          "id": "MA-287 结算单归月改 SQL JOIN（去整月订单内存 IN）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/OrderRevenueSplitMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MerchantSettlementBillService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantSettlementBillRebuildTest.java"
+          ]
+        },
+        {
+          "id": "MA-276 分账插入改 NESTED savepoint（DKE 不再打爆外层事务）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RevenueSplitService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RevenueSplitServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-271 退款流水 ON CONFLICT + merchant 兜底 + 5min 防重",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/RefundFlowMapper.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/RefundFlowService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/RefundFlowServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-288 watchdog 注销条件补 ALREADY_HANDLED",
+          "files": [
+            "services/jiangyi-gateway/src/main/java/com/aicabinet/jiangyi/api/DeviceReportController.java"
+          ]
+        },
+        {
+          "id": "MA-177 V483 补存量重复预检",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V483__uq_lot_device_sku_batch.sql"
+          ]
+        },
+        {
+          "id": "B4 追加 V489 费用台账 RENT 行 NULLS NOT DISTINCT",
+          "files": [
+            "services/trade-service/src/main/resources/db/migration/V489__fee_ledger_nulls_not_distinct.sql"
+          ]
+        },
+        {
+          "id": "MA-284/287 SQL 契约钉（离线）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/mapper/MapperSqlContractTest.java"
+          ]
+        },
+        {
+          "id": "B4 单设备月账单测试改新口径（全量套件唯一 1 红）",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/MerchantFinanceServiceTest.java"
+          ]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
