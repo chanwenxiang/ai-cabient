@@ -790,7 +790,7 @@ export interface MerchantMonthlyBill {
   cogsCents: number;
   dataFeeCents: number;
   /** B4：流量费归集口径——DEVICE=该柜机逐台行合计；MERCHANT=商户级聚合（历史月）；NONE=无费用行。 */
-  dataFeeBasis: "DEVICE" | "MERCHANT" | "NONE";
+  dataFeeBasis: 'DEVICE' | 'MERCHANT' | 'NONE';
   profitCents: number;
   days: MerchantBillDay[];
 }
