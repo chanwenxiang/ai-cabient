@@ -1495,6 +1495,70 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "d9b259cd",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 9,
+      "items": [
+        {
+          "id": "MA-301 AdminJiangyi 激活/停用/绑定/厂商激活补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/api/AdminJiangyiControllerTest.java"
+          ]
+        },
+        {
+          "id": "MA-302 运营自助资料/改绑手机补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsRbacService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OpsRbacServiceGuardTest.java"
+          ]
+        },
+        {
+          "id": "MA-303/304 采购建单/退货补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ProcurementService.java"
+          ]
+        },
+        {
+          "id": "MA-305 供应商应付付款补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsProcurementController.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/api/OpsProcurementControllerTest.java"
+          ]
+        },
+        {
+          "id": "MA-306 财务保证金固化补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsGapFeaturesController.java"
+          ]
+        },
+        {
+          "id": "MA-307 phone-verify 新增/修改/删除补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/CompetitiveGapService.java"
+          ]
+        },
+        {
+          "id": "MA-308 商户盘点完成/过账补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWarehouseStocktakeController.java"
+          ]
+        },
+        {
+          "id": "MA-309 手动机器收款账单出账补审计",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/MachinePayeeBillService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsMachinePayeeBillController.java"
+          ]
+        },
+        {
+          "id": "S9 端点归因基线重种（279/198）",
+          "files": ["scripts/write-endpoint-attribution-baseline.json"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
