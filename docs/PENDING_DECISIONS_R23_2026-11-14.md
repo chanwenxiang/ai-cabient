@@ -127,6 +127,7 @@
 
 - **现状**：`WalletPage.vue:36-38` 欠款提示未披露「满账龄锁柜停售」后果（后端告警与 admin 侧均有此信息）。
 - **拍板问题**：C 端欠款文案是否加一句后果披露（披露会提升还款率但也可能引发焦虑投诉）？产品口径。
+- **✅ 已拍板 2026-11-16：披露**（用户「按推荐处理」）；落点 = `clients/merchant-mp/src/components/WalletPage.vue`（commit `febe0c29`）：欠款 tip 增加「连续欠款满锁柜账龄（默认 90 天）将锁柜停售，结清自动复机」；与后端 `MerchantWalletArrearsService` 告警口径一致，纯文案、零接口变更。
 
 ### ⑬ MA-200 `ops:recognition-demo:view` 去留（R8 漂移项回填，已拍板执行 2026-11-15）
 

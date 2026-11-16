@@ -1403,6 +1403,18 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "febe0c29",
+      "report": "docs/PENDING_DECISIONS_R23_2026-11-14.md",
+      "totalItems": 1,
+      "items": [
+        {
+          "id": "⑫ merchant-mp 欠款文案披露锁柜停售",
+          "files": ["clients/merchant-mp/src/components/WalletPage.vue"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
