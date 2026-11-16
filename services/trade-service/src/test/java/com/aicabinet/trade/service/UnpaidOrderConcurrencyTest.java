@@ -59,12 +59,14 @@ class UnpaidOrderConcurrencyTest {
     @Mock private OpsExceptionService opsExceptionService;
     /** V325：欠款催缴阶梯（CB-011）。用 mock 避免本测试关心短信副作用。 */
     @Mock private UnpaidDunningService unpaidDunningService;
-    @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     private UnpaidOrderService service;
 
     @BeforeEach
     void setUp() {
+        TrackingTxManager.ACTIVE.set(false);
+        TrackingTxManager.CHARGE_IN_TX.remove();
+        TrackingTxManager.SAVE_IN_TX.set(null);
         service = new UnpaidOrderService(
                 orderRepository, orderLineRepository, userInfoRepository, auditLogRepository,
                 inventoryService, orderPaymentService, revenueSplitService, memberService,
@@ -72,7 +74,7 @@ class UnpaidOrderConcurrencyTest {
                 riskControlService, systemConfigService, weChatMiniAppClient,
                 weChatMiniAppProperties, settlementService, consumerPreauthService,
                 notificationService, distributedLockService, apiRateLimitService,
-                opsExceptionService, unpaidDunningService, transactionManager);
+                opsExceptionService, unpaidDunningService, new TrackingTxManager());
     }
 
     /** B1-B 形态钉：补缴入口不得再挂外层事务（否则行锁又会横跨渠道 HTTP）。 */
@@ -222,6 +224,56 @@ class UnpaidOrderConcurrencyTest {
     }
 
     /** F1-C 净额三分支②：净额部分覆盖（F1 竞态单）⇒ 委托 chargeOrder 按净额口径只补差额。 */
+    /** B1-B1 结构验证：prepare/finalize 在 tx 内，渠道 HTTP 在 tx 外（真栈 pg_locks 需真实慢渠道）。 */
+    @Test
+    void channelCharge_runsOutsideFinalizeTransaction() {
+        CabinetOrder order = reconcileOrder(100);
+        order.setStatus("PENDING");
+        when(distributedLockService.tryLock(
+                OrderPaymentService.orderPaymentLockKey("O-R"), 60L, 5L)).thenReturn(true);
+        when(orderRepository.findByIdForUpdate("O-R")).thenReturn(Optional.of(order));
+        when(orderRepository.save(any())).thenAnswer(inv -> {
+            TrackingTxManager.SAVE_IN_TX.compareAndSet(null, TrackingTxManager.ACTIVE.get());
+            return null;
+        });
+        when(orderPaymentService.resolveChargePlan(any(), any())).thenReturn(
+                OrderPaymentService.ChargePlan.of(OrderPaymentService.ChargeLeg.CHANNEL, "WECHAT"));
+        org.mockito.Mockito.doAnswer(inv -> {
+            TrackingTxManager.CHARGE_IN_TX.set(TrackingTxManager.ACTIVE.get());
+            return null;
+        }).when(orderPaymentService).chargeOrderWithPlan(any(), any(), any());
+
+        service.collectByUser(10001L, "O-R", null);
+
+        assertTrue(Boolean.TRUE.equals(TrackingTxManager.SAVE_IN_TX.get()), "选券/收口必须在事务内");
+        assertFalse(Boolean.TRUE.equals(TrackingTxManager.CHARGE_IN_TX.get()), "渠道调用必须在事务外");
+    }
+
+    /** 内存事务管理器：只为观察回调时是否处于事务内，不接真实 DataSource。 */
+    static final class TrackingTxManager implements org.springframework.transaction.PlatformTransactionManager {
+        static final ThreadLocal<Boolean> ACTIVE = ThreadLocal.withInitial(() -> false);
+        static final ThreadLocal<Boolean> CHARGE_IN_TX = new ThreadLocal<>();
+        static final java.util.concurrent.atomic.AtomicReference<Boolean> SAVE_IN_TX =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        @Override
+        public org.springframework.transaction.TransactionStatus getTransaction(
+                org.springframework.transaction.TransactionDefinition definition) {
+            ACTIVE.set(true);
+            return new org.springframework.transaction.support.SimpleTransactionStatus();
+        }
+
+        @Override
+        public void commit(org.springframework.transaction.TransactionStatus status) {
+            ACTIVE.set(false);
+        }
+
+        @Override
+        public void rollback(org.springframework.transaction.TransactionStatus status) {
+            ACTIVE.set(false);
+        }
+    }
+
     /** B1-B2：reconciler 查到 SUCCESS ⇒ 补记流水 + 收口 PAID。 */
     @Test
     void reconcileChargePending_success_finalizesPaid() {
