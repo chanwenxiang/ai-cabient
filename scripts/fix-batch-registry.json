@@ -1419,6 +1419,10 @@
     {
       "commit": "48bb2cb6",
       "why": "批 14 门禁三条（MA-293 范围基点 + MA-292 新门禁 check-system-config-fund-ceilings）：5 文件全在 scripts/、.github/、package.json（判据 + lib + sibling 夹具 + CI env），零业务代码、零业务审计条目，与 b8dd8b59 / 86aa27b7 同型；MA-292/293 台账行已带本 hash"
+    },
+    {
+      "commit": "2e80d406",
+      "why": "批 16 登记手误修正（totalItems 3→2）：仅动 fix-batch-registry.json 自身，零业务条目，与既往登记修正同型"
     }
   ]
 }
