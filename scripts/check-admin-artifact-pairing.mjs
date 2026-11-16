@@ -251,7 +251,9 @@ if (!prove && err) {
   try {
     const cached = JSON.parse((await import('node:fs')).readFileSync(INERT_CACHE_FILE, 'utf8'));
     inertCacheOk = cached.head === head && cached.rangeBase === plan.rangeBase;
-  } catch { /* 无缓存 = 无豁免 */ }
+  } catch {
+    /* 无缓存 = 无豁免 */
+  }
 }
 const verdict = await resolvePairing({
   err: err && !inertCacheOk,
@@ -282,19 +284,24 @@ if (verdict.red) {
 // 下后续 run 对同一 head 直接复用结论，不必每次都重建产物。
 if (prove) {
   const fs = await import('node:fs');
-  fs.writeFileSync(INERT_CACHE_FILE,
-    JSON.stringify({ head, rangeBase: plan.rangeBase, note: 'PROVE_INERT rebuild verified byte-identical' },
-      null, 2) + '\n');
+  fs.writeFileSync(
+    INERT_CACHE_FILE,
+    JSON.stringify(
+      { head, rangeBase: plan.rangeBase, note: 'PROVE_INERT rebuild verified byte-identical' },
+      null,
+      2
+    ) + '\n'
+  );
 }
 const touchedInputs = files.filter((f) => ADMIN_INPUT_PATTERNS.some((re) => re.test(f))).length;
 const touchedArtifacts = files.filter((f) => f.startsWith(ARTIFACT_PREFIX)).length;
 const label = inertCacheOk
   ? '（含 admin 输入，按持久自证缓存豁免——产物经 PROVE_INERT 重建逐字节一致）'
   : !touchedInputs
-  ? '（不触 admin 包）'
-  : touchedArtifacts
-    ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`
-    : `（含 ${touchedInputs} 个 admin 输入，经门禁重建自证不进产物）`;
+    ? '（不触 admin 包）'
+    : touchedArtifacts
+      ? `（含 ${touchedInputs} 个 admin 输入，产物已同批提交）`
+      : `（含 ${touchedInputs} 个 admin 输入，经门禁重建自证不进产物）`;
 console.log(
   `[check-admin-artifact-pairing] OK：范围 ${plan.rangeBase.slice(0, 8)}..${head.slice(0, 8)} ` +
     `共 ${files.length} 文件` +
