@@ -37,6 +37,7 @@ class OpsProcurementControllerTest {
     @Mock PurchaseSuggestionService purchaseSuggestionService;
     @Mock SupplierPayableService supplierPayableService;
     @Mock SupplierReconciliationService supplierReconciliationService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsProcurementController controller;
@@ -45,7 +46,7 @@ class OpsProcurementControllerTest {
     void setUp() {
         controller = new OpsProcurementController(
                 procurementService, purchaseSuggestionService, supplierPayableService,
-                supplierReconciliationService);
+                supplierReconciliationService, auditService);
     }
 
     @Test

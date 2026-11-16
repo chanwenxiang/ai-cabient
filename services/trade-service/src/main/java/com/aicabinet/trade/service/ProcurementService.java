@@ -452,6 +452,10 @@ public class ProcurementService {
             purchaseReturnLineRepository.save(retLine);
         }
         supplierPayableService.recordReturn(operatorId, order, returnedValueCents);
+        // S9 P2：退货成功留痕（扣仓/应付回退已发生）
+        auditService.appendLog(operatorId, "PURCHASE_RETURN_CREATE", "PURCHASE_RETURN",
+                String.valueOf(ret.getReturnId()),
+                "po=" + order.getPurchaseOrderId() + " valueCents=" + returnedValueCents);
         return toPurchaseReturnDto(ret);
     }
 
@@ -808,6 +812,11 @@ public class ProcurementService {
                 String.valueOf(order.getPurchaseOrderId()),
                 operatorId,
                 "采购单 " + order.getRefNo());
+        // S9 P2：采购建单成功留痕（商户分仓采购与运营采购共用本入口）
+        auditService.appendLog(operatorId, "PURCHASE_ORDER_CREATE", "PURCHASE_ORDER",
+                String.valueOf(order.getPurchaseOrderId()),
+                "supplier=" + order.getSupplierId() + " warehouse=" + order.getWarehouseId()
+                        + " lines=" + request.lines().size());
         return toPurchaseDto(order);
     }
 

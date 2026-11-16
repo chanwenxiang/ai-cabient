@@ -927,6 +927,10 @@ public class OpsRbacService {
         if (avatarUrl != null && avatarUrl.length() > 512) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "头像地址过长");
         }
+        String oldPhone = user.getPhoneNumber();
+        String oldName = user.getName();
+        String oldEmail = user.getEmail();
+        String oldAvatar = user.getAvatarUrl();
         user.setPhoneNumber(phone);
         user.setName(name);
         user.setEmail(email);
@@ -943,6 +947,12 @@ public class OpsRbacService {
                     .eq(UserInfo::getUserId, operatorId)
                     .set(UserInfo::getAvatarUrl, null));
         }
+        // S9 P2：运营自助改绑手机/资料此前无 admin 审计；只记变更项，不落手机号/邮箱原文。
+        auditService.appendLog(operatorId, "OPS_PROFILE_UPDATE", "USER", String.valueOf(operatorId),
+                "phoneChanged=" + !phone.equals(oldPhone)
+                        + " nameChanged=" + !name.equals(oldName == null ? "" : oldName)
+                        + " emailChanged=" + !java.util.Objects.equals(email, oldEmail)
+                        + " avatarChanged=" + !java.util.Objects.equals(avatarUrl, oldAvatar));
         return myProfile(operatorId);
     }
 

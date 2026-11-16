@@ -19,6 +19,9 @@ import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.SmsCodeService;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +50,12 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class OpsRbacServiceGuardTest {
+
+    static {
+        // 显式清列走 Wrappers.<UserInfo>lambdaUpdate()，单测无 Spring 需先注册 lambda 列缓存
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), UserInfo.class);
+    }
 
     private static final Long ACTOR = 100_000_001L;
     private static final Long TARGET = 100_000_002L;

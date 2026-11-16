@@ -10,6 +10,7 @@ import com.aicabinet.common.dto.UpdateStocktakeLineRequest;
 import com.aicabinet.common.dto.WarehouseDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.ProcurementService;
 import com.aicabinet.trade.service.WarehouseStocktakeService;
@@ -43,15 +44,18 @@ public class MerchantWarehouseStocktakeController {
     private final ProcurementService procurementService;
     private final FileAttachmentService fileAttachmentService;
     private final MerchantPortalGuard portalGuard;
+    private final AdminAuditService auditService;
 
     public MerchantWarehouseStocktakeController(WarehouseStocktakeService stocktakeService,
                                                 ProcurementService procurementService,
                                                 FileAttachmentService fileAttachmentService,
-                                                MerchantPortalGuard portalGuard) {
+                                                MerchantPortalGuard portalGuard,
+                                                AdminAuditService auditService) {
         this.stocktakeService = stocktakeService;
         this.procurementService = procurementService;
         this.fileAttachmentService = fileAttachmentService;
         this.portalGuard = portalGuard;
+        this.auditService = auditService;
     }
 
     /** 本人的分仓盘点单列表（服务端锁定仓库=本人负责的分仓）。 */
@@ -116,7 +120,11 @@ public class MerchantWarehouseStocktakeController {
         Long userId = userId(request);
         portalGuard.requireAccess(userId);
         stocktakeService.requireManagedWarehouseId(userId, stocktakeId);
-        return ApiResponse.ok(stocktakeService.complete(userId, stocktakeId));
+        StocktakeDto dto = stocktakeService.complete(userId, stocktakeId);
+        // S9 P2：盘点完成改变库存状态，商户侧也必须留审计
+        auditService.appendLog(userId, "WAREHOUSE_STOCKTAKE_COMPLETE", "WAREHOUSE_STOCKTAKE",
+                String.valueOf(stocktakeId), "status=" + (dto == null ? "null" : dto.status()));
+        return ApiResponse.ok(dto);
     }
 
     /** 完成并过账（同锁同事务，无「已完未调」中间态）。 */
@@ -127,7 +135,11 @@ public class MerchantWarehouseStocktakeController {
         Long userId = userId(request);
         portalGuard.requireAccess(userId);
         stocktakeService.requireManagedWarehouseId(userId, stocktakeId);
-        return ApiResponse.ok(stocktakeService.completeAndAdjust(userId, stocktakeId));
+        StocktakeDto dto = stocktakeService.completeAndAdjust(userId, stocktakeId);
+        // S9 P2：完成并过账会改库存，必须留审计
+        auditService.appendLog(userId, "WAREHOUSE_STOCKTAKE_COMPLETE_ADJUST", "WAREHOUSE_STOCKTAKE",
+                String.valueOf(stocktakeId), "status=" + (dto == null ? "null" : dto.status()));
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:replenishment:request")

@@ -50,6 +50,7 @@ class AdminJiangyiControllerTest {
     @Mock private com.aicabinet.trade.service.DeviceFaultOrderService deviceFaultOrderService;
     @Mock private com.aicabinet.trade.service.JiangyiRestockService restockService;
     @Mock private com.aicabinet.trade.service.JiangyiCabinetCaptureService cabinetCaptureService;
+    @Mock private com.aicabinet.trade.service.AdminAuditService auditService;
 
     private static jakarta.servlet.http.HttpServletRequest req() {
         return org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletRequest.class);
@@ -59,7 +60,7 @@ class AdminJiangyiControllerTest {
         return new AdminJiangyiController(onboardingService, mappingService,
                 modelSyncService, orderVideoService, deviceOpsService,
                 mappingReviewService, flowSummaryService, deviceFaultOrderService,
-                restockService, cabinetCaptureService);
+                restockService, cabinetCaptureService, auditService);
     }
 
     private JiangyiDevice boundDevice() {
@@ -123,7 +124,7 @@ class AdminJiangyiControllerTest {
                 .thenReturn(boundDevice());
 
         var body = new AdminJiangyiController.BindRequest(" https://api.example.com ", "");
-        controller().bind(DEVICE_ID, body);
+        controller().bind(req(), DEVICE_ID, body);
 
         ArgumentCaptor<String> socketUrl = ArgumentCaptor.forClass(String.class);
         verify(onboardingService).bindForDevice(eq(DEVICE_ID), eq("https://api.example.com"), socketUrl.capture());
@@ -181,7 +182,7 @@ class AdminJiangyiControllerTest {
         activated.setAuthEnabled(true);
         when(onboardingService.setDeviceAuthEnabled(DEVICE_ID, true)).thenReturn(activated);
 
-        JiangyiDeviceDto dto = controller().activate(DEVICE_ID).data();
+        JiangyiDeviceDto dto = controller().activate(req(), DEVICE_ID).data();
 
         verify(onboardingService).setDeviceAuthEnabled(DEVICE_ID, true);
         assertTrue(dto.authEnabled());
@@ -193,7 +194,7 @@ class AdminJiangyiControllerTest {
         deactivated.setAuthEnabled(false);
         when(onboardingService.setDeviceAuthEnabled(DEVICE_ID, false)).thenReturn(deactivated);
 
-        JiangyiDeviceDto dto = controller().deactivate(DEVICE_ID).data();
+        JiangyiDeviceDto dto = controller().deactivate(req(), DEVICE_ID).data();
 
         verify(onboardingService).setDeviceAuthEnabled(DEVICE_ID, false);
         assertFalse(dto.authEnabled());

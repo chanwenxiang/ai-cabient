@@ -687,13 +687,22 @@ public class CompetitiveGapService {
         log.setMerchantId(body.merchantId());
         log.setVerifiedAt(Instant.now());
         phoneVerifyLogMapper.insert(log);
+        // S9 P2：验证记录可被改/删，新增必须留 admin 审计（不落手机号原文）
+        auditService.appendLog(operatorId, "PHONE_VERIFY_CREATE", "PHONE_VERIFY",
+                String.valueOf(log.getLogId()),
+                "userId=" + log.getUserId() + " channel=" + log.getChannel()
+                        + " merchant=" + log.getMerchantId());
         return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
     }
 
     @Transactional
     public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
         permissionService.requirePermission(operatorId, PERM_OPS_PHONE_VERIFY_EDIT);
-        return runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
+        PhoneVerifyLogDto dto = runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
+        auditService.appendLog(operatorId, "PHONE_VERIFY_UPDATE", "PHONE_VERIFY",
+                String.valueOf(logId), "userId=" + dto.userId() + " channel=" + dto.channel()
+                        + " merchant=" + dto.merchantId());
+        return dto;
     }
 
     private PhoneVerifyLogDto doUpdatePhoneVerify(Long logId, PhoneVerifyLogDto body) {
@@ -725,6 +734,9 @@ public class CompetitiveGapService {
             doDeletePhoneVerify(logId);
             return null;
         });
+        // S9 P2：删除验证记录必须留痕（事后可追责）
+        auditService.appendLog(operatorId, "PHONE_VERIFY_DELETE", "PHONE_VERIFY",
+                String.valueOf(logId), "deleted");
     }
 
     private void doDeletePhoneVerify(Long logId) {

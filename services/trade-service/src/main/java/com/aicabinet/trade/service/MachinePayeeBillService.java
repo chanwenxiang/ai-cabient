@@ -78,6 +78,14 @@ public class MachinePayeeBillService {
         return created;
     }
 
+    /** 运营手动出账：定时任务无操作者，手动入口必须留 admin 审计（S9 P2）。 */
+    public int generateMonthly(Long operatorId, YearMonth month) {
+        int created = generateMonthly(month);
+        auditService.appendLog(operatorId, "MACHINE_PAYEE_BILL_GENERATE", "MACHINE_PAYEE_BILL",
+                month.toString(), "created=" + created);
+        return created;
+    }
+
     private int upsertElectricBill(MachinePositionConfig cfg, String billMonth) {
         if (!"FIXED".equalsIgnoreCase(cfg.getElectricType()) || nvl(cfg.getElectricAmountCents()) <= 0) {
             return 0;

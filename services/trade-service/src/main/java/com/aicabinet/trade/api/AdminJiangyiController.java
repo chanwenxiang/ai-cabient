@@ -10,6 +10,7 @@ import com.aicabinet.trade.domain.DeviceFaultOrder;
 import com.aicabinet.trade.domain.JiangyiClassMapping;
 import com.aicabinet.trade.domain.JiangyiDevice;
 import com.aicabinet.trade.domain.JiangyiModelDeployment;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.JiangyiClassMappingService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
 import com.aicabinet.trade.service.JiangyiDeviceOpsService;
@@ -60,6 +61,7 @@ public class AdminJiangyiController {
     private final DeviceFaultOrderService deviceFaultOrderService;
     private final JiangyiRestockService jiangyiRestockService;
     private final JiangyiCabinetCaptureService jiangyiCabinetCaptureService;
+    private final AdminAuditService auditService;
 
     public AdminJiangyiController(JiangyiOnboardingService jiangyiOnboardingService,
                                   JiangyiClassMappingService jiangyiClassMappingService,
@@ -70,7 +72,8 @@ public class AdminJiangyiController {
                                   JiangyiFlowSummaryService jiangyiFlowSummaryService,
                                   DeviceFaultOrderService deviceFaultOrderService,
                                   JiangyiRestockService jiangyiRestockService,
-                                  JiangyiCabinetCaptureService jiangyiCabinetCaptureService) {
+                                  JiangyiCabinetCaptureService jiangyiCabinetCaptureService,
+                                  AdminAuditService auditService) {
         this.jiangyiOnboardingService = jiangyiOnboardingService;
         this.jiangyiClassMappingService = jiangyiClassMappingService;
         this.jiangyiModelSyncService = jiangyiModelSyncService;
@@ -81,6 +84,7 @@ public class AdminJiangyiController {
         this.deviceFaultOrderService = deviceFaultOrderService;
         this.jiangyiRestockService = jiangyiRestockService;
         this.jiangyiCabinetCaptureService = jiangyiCabinetCaptureService;
+        this.auditService = auditService;
     }
 
     /**
@@ -175,10 +179,15 @@ public class AdminJiangyiController {
      */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/bind")
-    public ApiResponse<JiangyiDeviceDto> bind(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<JiangyiDeviceDto> bind(HttpServletRequest request,
+                                              @PathVariable("deviceId") String deviceId,
                                               @Valid @RequestBody BindRequest body) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.bindForDevice(
-                deviceId, body.domain().trim(), blankToNull(body.socketUrl()))));
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.bindForDevice(
+                deviceId, body.domain().trim(), blankToNull(body.socketUrl())));
+        // S9 P2：设备绑定改变厂商云路由，成功路径留痕
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_BIND", "JIANGYI_DEVICE",
+                deviceId, "domain=" + body.domain().trim());
+        return ApiResponse.ok(dto);
     }
 
     /**
@@ -234,11 +243,16 @@ public class AdminJiangyiController {
     /** 将邑侧激活（V16 §5.4.10 confirmActivate）：出厂未入库设备用铭牌设备号入库。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/confirm-activate")
-    public ApiResponse<JiangyiDeviceDto> confirmActivate(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<JiangyiDeviceDto> confirmActivate(HttpServletRequest request,
+                                                         @PathVariable("deviceId") String deviceId,
                                                          @Valid @RequestBody ConfirmActivateRequest body) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.activateAtJiangyi(
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.activateAtJiangyi(
                 deviceId, blankToNull(body.identifier()), body.deviceName(),
-                body.deviceAddress(), Boolean.TRUE.equals(body.screen()))));
+                body.deviceAddress(), Boolean.TRUE.equals(body.screen())));
+        // S9 P2：厂商侧激活（铭牌设备号入库）留痕
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_CONFIRM_ACTIVATE", "JIANGYI_DEVICE",
+                deviceId, "identifier=" + blankToNull(body.identifier()));
+        return ApiResponse.ok(dto);
     }
 
     /**
@@ -247,15 +261,25 @@ public class AdminJiangyiController {
      */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/activate")
-    public ApiResponse<JiangyiDeviceDto> activate(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, true)));
+    public ApiResponse<JiangyiDeviceDto> activate(HttpServletRequest request,
+                                                  @PathVariable("deviceId") String deviceId) {
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, true));
+        // S9 P2：激活=允许设备凭 SN 领取 token，属于发放闸门，必须留痕
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_ACTIVATE", "JIANGYI_DEVICE",
+                deviceId, "authEnabled=true");
+        return ApiResponse.ok(dto);
     }
 
     /** 停用：关闭开关并同步吊销存量 token（token_version+1，已发 token 即刻失效）。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/deactivate")
-    public ApiResponse<JiangyiDeviceDto> deactivate(@PathVariable("deviceId") String deviceId) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, false)));
+    public ApiResponse<JiangyiDeviceDto> deactivate(HttpServletRequest request,
+                                                    @PathVariable("deviceId") String deviceId) {
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.setDeviceAuthEnabled(deviceId, false));
+        // S9 P2：停用同时吊销存量 token，必须留痕
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_DEACTIVATE", "JIANGYI_DEVICE",
+                deviceId, "authEnabled=false tokenRevoked");
+        return ApiResponse.ok(dto);
     }
 
     /** 幂等 upsert 映射（识别换算 SKU 的唯一依据；未命中即结算 fail-closed 转 DISPUTED）。 */

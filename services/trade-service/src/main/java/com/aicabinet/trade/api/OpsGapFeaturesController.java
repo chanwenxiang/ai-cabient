@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.AmapGeocodeService;
 import com.aicabinet.trade.service.CompetitiveGapService;
 import com.aicabinet.trade.service.DeviceAssetService;
@@ -27,15 +28,18 @@ public class OpsGapFeaturesController {
     private final CompetitiveGapService gapService;
     private final DeviceAssetService deviceAssetService;
     private final AmapGeocodeService amapGeocodeService;
+    private final AdminAuditService auditService;
 
     public OpsGapFeaturesController(FundBillService fundBillService,
                                     CompetitiveGapService gapService,
                                     DeviceAssetService deviceAssetService,
-                                    AmapGeocodeService amapGeocodeService) {
+                                    AmapGeocodeService amapGeocodeService,
+                                    AdminAuditService auditService) {
         this.fundBillService = fundBillService;
         this.gapService = gapService;
         this.deviceAssetService = deviceAssetService;
         this.amapGeocodeService = amapGeocodeService;
+        this.auditService = auditService;
     }
 
     // ---- geo ----
@@ -139,7 +143,12 @@ public class OpsGapFeaturesController {
     public ApiResponse<FinanceMarginLockDto> solidifyMargin(
             HttpServletRequest request,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate bizDate) {
-        return ApiResponse.ok(fundBillService.solidifyMargin(operatorId(request), bizDate));
+        var dto = fundBillService.solidifyMargin(operatorId(request), bizDate);
+        // S9 P2：财务保证金固化改变资金锁，成功路径必须留痕
+        auditService.appendLog(operatorId(request), "FINANCE_MARGIN_SOLIDIFY", "FINANCE_MARGIN",
+                dto == null ? String.valueOf(bizDate) : dto.bizDate(),
+                "locked=" + (dto != null && dto.locked()));
+        return ApiResponse.ok(dto);
     }
 
     // ---- M2 ----

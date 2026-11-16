@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.ProcurementService;
 import com.aicabinet.trade.service.PurchaseSuggestionService;
 import com.aicabinet.trade.service.SupplierPayableService;
@@ -24,15 +25,18 @@ public class OpsProcurementController {
     private final PurchaseSuggestionService purchaseSuggestionService;
     private final SupplierPayableService supplierPayableService;
     private final SupplierReconciliationService supplierReconciliationService;
+    private final AdminAuditService auditService;
 
     public OpsProcurementController(ProcurementService procurementService,
                                     PurchaseSuggestionService purchaseSuggestionService,
                                     SupplierPayableService supplierPayableService,
-                                    SupplierReconciliationService supplierReconciliationService) {
+                                    SupplierReconciliationService supplierReconciliationService,
+                                    AdminAuditService auditService) {
         this.procurementService = procurementService;
         this.purchaseSuggestionService = purchaseSuggestionService;
         this.supplierPayableService = supplierPayableService;
         this.supplierReconciliationService = supplierReconciliationService;
+        this.auditService = auditService;
     }
 
     // --- 采购 / 供应商 / 应付 ---
@@ -200,7 +204,11 @@ public class OpsProcurementController {
             HttpServletRequest request,
             @PathVariable Long payableId,
             @Valid @RequestBody PaySupplierRequest body) {
-        return ApiResponse.ok(supplierPayableService.pay(operatorId(request), payableId, body));
+        SupplierPayableDto dto = supplierPayableService.pay(operatorId(request), payableId, body);
+        // S9 P2：应付付款是资金动作，成功路径必须留痕（SupplierPayableService 自身无审计）
+        auditService.appendLog(operatorId(request), "SUPPLIER_PAYABLE_PAY", "SUPPLIER_PAYABLE",
+                String.valueOf(payableId), "status=" + (dto == null ? "null" : dto.status()));
+        return ApiResponse.ok(dto);
     }
 
     private static Long operatorId(HttpServletRequest request) {

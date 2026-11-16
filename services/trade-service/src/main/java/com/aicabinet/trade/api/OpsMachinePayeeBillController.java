@@ -45,6 +45,13 @@ public class OpsMachinePayeeBillController {
     @PostMapping("/generate")
     @RequiresPermissions("ops:device:edit")
     public ApiResponse<Integer> generate(@RequestParam("billMonth") String billMonth) {
+        // S9 P2 审计取操作者：不改签名（避免 openapi 形状门禁），从请求上下文读登录属性
+        Long operatorId = null;
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            operatorId = (Long) sra.getRequest().getAttribute(
+                    com.aicabinet.trade.auth.AuthInterceptor.ATTR_USER_ID);
+        }
         // MA-094：裸 YearMonth.parse 非法账期 DateTimeParseException→500；顺带拦未来账期
         YearMonth month;
         try {
@@ -55,7 +62,7 @@ public class OpsMachinePayeeBillController {
         if (month.isAfter(YearMonth.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "billMonth 不能是未来账期");
         }
-        return ApiResponse.ok(billService.generateMonthly(month));
+        return ApiResponse.ok(billService.generateMonthly(operatorId, month));
     }
 
     @Operation(summary = "标记结清（线下收款后）")
