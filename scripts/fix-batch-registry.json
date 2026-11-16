@@ -1321,6 +1321,47 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "d3fc4d42",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "CB-061 退款流水竞品条目（引用错位修复）+ V485-488 迁移头注释改 CB-061 + dev flyway repair 对齐",
+          "files": [
+            "docs/COMPETITOR_BENCHMARK.md",
+            "services/trade-service/src/main/resources/db/migration/V485__create_refund_flow.sql",
+            "services/trade-service/src/main/resources/db/migration/V486__fee_ledger_device_id.sql",
+            "services/trade-service/src/main/resources/db/migration/V487__fee_ledger_unique_per_device.sql",
+            "services/trade-service/src/main/resources/db/migration/V488__drop_legacy_fee_unique_index.sql"
+          ]
+        },
+        {
+          "id": "refund_flow 保留策略登记（RETAIN，交易流水 ≥3 年）",
+          "files": ["scripts/retention-registry.json"]
+        }
+      ],
+      "notAdopted": []
+    },
+    {
+      "commit": "a61ea246",
+      "report": "docs/AUDIT_R23_COMBINED_2026-11-15.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "B3 巡检规则双夹具（consistentRowNotReturnedBySql/recordsTrueMismatch）+ registry 登记",
+          "files": [
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DataConsistencyServiceTest.java",
+            "scripts/consistency-rule-registry.json"
+          ]
+        },
+        {
+          "id": "CB-061 条目补齐（对照主体/证据/取证日期/结论四小节）",
+          "files": ["docs/COMPETITOR_BENCHMARK.md"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
