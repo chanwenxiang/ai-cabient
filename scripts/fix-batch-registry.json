@@ -1451,6 +1451,26 @@
         }
       ],
       "notAdopted": []
+    },
+    {
+      "commit": "411ec70a",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-260 platform-fund-daily/device-rental-daily 补 Spring @Scheduled 回退（钉测 cron 与 XXL 一致）",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PlatformFundService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ManagedFundTaskScheduledFallbackTest.java"
+          ]
+        },
+        {
+          "id": "staging 模板显式 XXL_JOB_ENABLED=false（未叠加调度中心）",
+          "files": ["infra/.env.staging.example"]
+        }
+      ],
+      "notAdopted": []
     }
   ],
   "unregisteredAllowlist": [
