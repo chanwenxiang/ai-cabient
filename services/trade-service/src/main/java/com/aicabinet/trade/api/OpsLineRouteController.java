@@ -5,6 +5,7 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.domain.LineRoute;
 import com.aicabinet.trade.domain.LineRouteMember;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.LineRouteAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,9 +28,12 @@ import java.util.Map;
 public class OpsLineRouteController {
 
     private final LineRouteAdminService lineRouteAdminService;
+    private final AdminAuditService auditService;
 
-    public OpsLineRouteController(LineRouteAdminService lineRouteAdminService) {
+    public OpsLineRouteController(LineRouteAdminService lineRouteAdminService,
+                                  AdminAuditService auditService) {
         this.lineRouteAdminService = lineRouteAdminService;
+        this.auditService = auditService;
     }
 
     @Operation(summary = "线路列表（含归档）")
@@ -46,7 +50,10 @@ public class OpsLineRouteController {
         route.setId(null);
         route.setStatus("ACTIVE");
         route.setCreatedAt(Instant.now());
-        return ApiResponse.ok(lineRouteAdminService.create(route));
+        LineRoute saved = lineRouteAdminService.create(route);
+        auditService.appendLog(currentOperator(), "LINE_ROUTE_CREATE", "LINE_ROUTE",
+                saved == null ? null : String.valueOf(saved.getId()), "name=" + route.getRouteName());
+        return ApiResponse.ok(saved);
     }
 
     @Operation(summary = "修改线路（名称/线长/备注）")
@@ -54,6 +61,8 @@ public class OpsLineRouteController {
     @RequiresPermissions("ops:replenishment:edit")
     public ApiResponse<Void> update(@PathVariable Long routeId, @RequestBody LineRoute body) {
         lineRouteAdminService.update(routeId, body);
+        auditService.appendLog(currentOperator(), "LINE_ROUTE_UPDATE", "LINE_ROUTE",
+                String.valueOf(routeId), "name=" + body.getRouteName());
         return ApiResponse.ok(null);
     }
 
@@ -62,6 +71,8 @@ public class OpsLineRouteController {
     @RequiresPermissions("ops:replenishment:edit")
     public ApiResponse<Void> archive(@PathVariable Long routeId) {
         lineRouteAdminService.archive(routeId);
+        auditService.appendLog(currentOperator(), "LINE_ROUTE_ARCHIVE", "LINE_ROUTE",
+                String.valueOf(routeId), "archived");
         return ApiResponse.ok(null);
     }
 
@@ -94,6 +105,14 @@ public class OpsLineRouteController {
 
     private static Long operator(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
+    private static Long currentOperator() {
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            return (Long) sra.getRequest().getAttribute(AuthInterceptor.ATTR_USER_ID);
+        }
+        return null;
     }
 
     @Operation(summary = "岗位月合计（线长销售提成 + 补货员佣金，供财务对账；佣金=已发-退款冲回）")

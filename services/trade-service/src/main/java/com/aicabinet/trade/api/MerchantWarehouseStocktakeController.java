@@ -85,9 +85,12 @@ public class MerchantWarehouseStocktakeController {
                 && !mine.equals(body.warehouseId().trim())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "只能对本人负责的分仓发起盘点");
         }
-        return ApiResponse.ok(stocktakeService.create(userId,
+        StocktakeDto dto = stocktakeService.create(userId,
                 new CreateStocktakeRequest(mine, body == null ? null : body.mode(),
-                        body == null ? null : body.notes())));
+                        body == null ? null : body.notes()));
+        auditService.appendLog(userId, "MERCHANT_STOCKTAKE_CREATE", "WAREHOUSE_STOCKTAKE",
+                dto == null ? null : String.valueOf(dto.stocktakeId()), "warehouse=" + mine);
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:replenishment:view")
@@ -110,7 +113,10 @@ public class MerchantWarehouseStocktakeController {
         Long userId = userId(request);
         portalGuard.requireAccess(userId);
         stocktakeService.requireManagedWarehouseId(userId, stocktakeId);
-        return ApiResponse.ok(stocktakeService.updateLine(userId, stocktakeId, lineId, body));
+        StocktakeLineDto dto = stocktakeService.updateLine(userId, stocktakeId, lineId, body);
+        auditService.appendLog(userId, "MERCHANT_STOCKTAKE_UPDATE_LINE", "WAREHOUSE_STOCKTAKE",
+                String.valueOf(stocktakeId), "lineId=" + lineId);
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:replenishment:request")
@@ -149,7 +155,10 @@ public class MerchantWarehouseStocktakeController {
         Long userId = userId(request);
         portalGuard.requireAccess(userId);
         stocktakeService.requireManagedWarehouseId(userId, stocktakeId);
-        return ApiResponse.ok(stocktakeService.cancel(userId, stocktakeId));
+        StocktakeDto dto = stocktakeService.cancel(userId, stocktakeId);
+        auditService.appendLog(userId, "MERCHANT_STOCKTAKE_CANCEL", "WAREHOUSE_STOCKTAKE",
+                String.valueOf(stocktakeId), "cancelled");
+        return ApiResponse.ok(dto);
     }
 
     // ── 现场照片（refType=STOCKTAKE，上限 5 张，jpg/png/webp/gif ≤5MB）──
@@ -163,7 +172,10 @@ public class MerchantWarehouseStocktakeController {
         Long userId = userId(request);
         portalGuard.requireAccess(userId);
         stocktakeService.requireManagedWarehouseId(userId, stocktakeId);
-        return ApiResponse.ok(fileAttachmentService.uploadStocktakeEvidence(userId, stocktakeId, file));
+        FileAttachmentDto dto = fileAttachmentService.uploadStocktakeEvidence(userId, stocktakeId, file);
+        auditService.appendLog(userId, "MERCHANT_STOCKTAKE_EVIDENCE_UPLOAD", "STOCKTAKE_EVIDENCE",
+                String.valueOf(stocktakeId), "fileId=" + (dto == null ? null : dto.fileId()));
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:replenishment:view")

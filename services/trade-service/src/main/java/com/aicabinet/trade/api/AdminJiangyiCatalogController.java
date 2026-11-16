@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiGatherDtos.JiangyiCategory;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.ProductCreateCommand;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.JiangyiPhoneCaptureService;
 import com.aicabinet.trade.service.JiangyiProductStateService;
 import com.aicabinet.trade.service.SkuJiangyiLinkService;
@@ -43,13 +44,16 @@ public class AdminJiangyiCatalogController {
     private final SkuJiangyiLinkService skuJiangyiLinkService;
     private final JiangyiProductStateService productStateService;
     private final JiangyiPhoneCaptureService phoneCaptureService;
+    private final AdminAuditService auditService;
 
     public AdminJiangyiCatalogController(SkuJiangyiLinkService skuJiangyiLinkService,
                                          JiangyiProductStateService productStateService,
-                                         JiangyiPhoneCaptureService phoneCaptureService) {
+                                         JiangyiPhoneCaptureService phoneCaptureService,
+                                         AdminAuditService auditService) {
         this.skuJiangyiLinkService = skuJiangyiLinkService;
         this.productStateService = productStateService;
         this.phoneCaptureService = phoneCaptureService;
+        this.auditService = auditService;
     }
 
     @RequiresPermissions("ops:sku:list")
@@ -188,10 +192,13 @@ public class AdminJiangyiCatalogController {
     @RequiresPermissions("ops:sku:edit")
     @PostMapping("/jiangyi/products/create")
     public ApiResponse<JiangyiSkuJiangyiLink> createProduct(@Valid @RequestBody ProductCreateRequest body) {
-        return ApiResponse.ok(productStateService.create(new ProductCreateCommand(
+        JiangyiSkuJiangyiLink link = productStateService.create(new ProductCreateCommand(
                 body.barCode(), body.salePriceCents(), body.purchasePriceCents(),
                 body.name(), body.brandName(), body.specs(), body.category(),
-                body.categoryId(), body.colorId(), body.mainImg())).orElse(null));
+                body.categoryId(), body.colorId(), body.mainImg())).orElse(null);
+        auditService.appendLog(currentOperatorId(), "JIANGYI_PRODUCT_CREATE", "JIANGYI_PRODUCT",
+                body.barCode(), "name=" + body.name());
+        return ApiResponse.ok(link);
     }
 
     /**
@@ -214,7 +221,18 @@ public class AdminJiangyiCatalogController {
         } catch (IOException e) {
             throw new IllegalStateException("读取上传图片失败", e);
         }
-        return ApiResponse.ok(phoneCaptureService.submit(barCode, photos).orElse(null));
+        JiangyiSkuJiangyiLink link = phoneCaptureService.submit(barCode, photos).orElse(null);
+        auditService.appendLog(currentOperatorId(), "JIANGYI_PHONE_CAPTURE_SUBMIT", "JIANGYI_CAPTURE",
+                barCode, "photos=" + photos.size());
+        return ApiResponse.ok(link);
+    }
+
+    private static Long currentOperatorId() {
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            return (Long) sra.getRequest().getAttribute(AuthInterceptor.ATTR_USER_ID);
+        }
+        return null;
     }
 
     private static Long operatorId(HttpServletRequest request) {

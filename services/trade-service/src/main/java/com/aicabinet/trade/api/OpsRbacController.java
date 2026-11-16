@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsRbacService;
 import com.aicabinet.trade.service.OpsTwoFactorService;
@@ -24,13 +25,16 @@ public class OpsRbacController {
     private final OpsRbacService rbacService;
     private final OpsTwoFactorService opsTwoFactorService;
     private final FileAttachmentService fileAttachmentService;
+    private final AdminAuditService auditService;
 
     public OpsRbacController(OpsRbacService rbacService,
                              OpsTwoFactorService opsTwoFactorService,
-                             FileAttachmentService fileAttachmentService) {
+                             FileAttachmentService fileAttachmentService,
+                             AdminAuditService auditService) {
         this.rbacService = rbacService;
         this.opsTwoFactorService = opsTwoFactorService;
         this.fileAttachmentService = fileAttachmentService;
+        this.auditService = auditService;
     }
 
     // --- 个人中心：双因子认证（TOTP） ---
@@ -266,7 +270,11 @@ public class OpsRbacController {
     public ApiResponse<FileAttachmentDto> uploadMyAvatar(
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file) {
-        return ApiResponse.ok(fileAttachmentService.uploadOpsAvatar(operatorId(request), file));
+        FileAttachmentDto dto = fileAttachmentService.uploadOpsAvatar(operatorId(request), file);
+        auditService.appendLog(operatorId(request), "OPS_AVATAR_UPLOAD", "USER",
+                String.valueOf(operatorId(request)),
+                "fileId=" + (dto == null ? null : dto.fileId()));
+        return ApiResponse.ok(dto);
     }
 
     /** 个人中心：自助修改登录密码。 */

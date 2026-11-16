@@ -545,7 +545,10 @@ public class AdminDashboardController {
     public ApiResponse<FileAttachmentDto> uploadSkuImage(
             HttpServletRequest request,
             @RequestPart("file") MultipartFile file) {
-        return ApiResponse.ok(support.fileAttachmentService().uploadSkuImage(operatorId(request), file));
+        FileAttachmentDto dto = support.fileAttachmentService().uploadSkuImage(operatorId(request), file);
+        auditService.appendLog(operatorId(request), "SKU_IMAGE_UPLOAD", "SKU_IMAGE",
+                dto == null ? null : String.valueOf(dto.fileId()), "fileName=" + (dto == null ? null : dto.fileName()));
+        return ApiResponse.ok(dto);
     }
 
     /** CB-025：按条码查编码中心注册库官方资料（聚合接口代理），商品建档自动带出名称/品牌/规格。 */

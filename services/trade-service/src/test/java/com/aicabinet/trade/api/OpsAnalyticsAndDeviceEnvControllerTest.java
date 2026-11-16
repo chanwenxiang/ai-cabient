@@ -27,6 +27,7 @@ class OpsAnalyticsAndDeviceEnvControllerTest {
     @Mock FootfallAnalyticsService footfallAnalyticsService;
     @Mock DeviceTempPlanService deviceTempPlanService;
     @Mock DeviceEnvService deviceEnvService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
 
     @Test
     void analytics_keepsPathAndDelegates() throws Exception {
@@ -54,7 +55,8 @@ class OpsAnalyticsAndDeviceEnvControllerTest {
 
     private void assertNotNullCtor() throws Exception {
         assertTrue(OpsDeviceEnvController.class.getConstructor(
-                DeviceTempPlanService.class, DeviceEnvService.class) != null);
-        new OpsDeviceEnvController(deviceTempPlanService, deviceEnvService);
+                DeviceTempPlanService.class, DeviceEnvService.class,
+                com.aicabinet.trade.service.AdminAuditService.class) != null);
+        new OpsDeviceEnvController(deviceTempPlanService, deviceEnvService, auditService);
     }
 }

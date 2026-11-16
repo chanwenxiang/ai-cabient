@@ -254,6 +254,10 @@ public class MachinePayeeBillService {
         } else {
             configMapper.updateById(cfg);
         }
+        // S9 P3：配置决定后续账期出账金额，保存成功留痕
+        auditService.appendLog(operatorId, "MACHINE_PAYEE_CONFIG_SAVE", "MACHINE_POSITION_CONFIG",
+                deviceId, "shareBps=" + cfg.getShareBps() + " electricCents=" + cfg.getElectricAmountCents()
+                        + " enabled=" + cfg.getEnabled());
     }
 
     /** 超长值撞列宽只会得到全局兜底的泛化 409（22001），这里按目标列宽给出 400+字段名。 */

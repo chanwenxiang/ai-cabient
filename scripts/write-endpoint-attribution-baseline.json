@@ -1,9 +1,9 @@
 {
-  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红；未解析端点 attributed=false 显式在册，修复后收紧。totalEndpoints / totalAttributed / maxUnattributed 全部参与判定（2026-11-14 第五轮）：总量任一变化都须重种基线——归因上升也要人工复核，防解析链放宽或失败路径审计被误算造成的假归因（旧判据改个类名即可 240→258 假绿）；maxUnattributed 是未归因存量天花板（只许减），重种快照后须同步。2026-11-15（MA-267/C06）：方法声明解析补齐限定名返回类型（`ApiResponse<com.x.Y>`）与注解同行签名两形态，端点 455→477（22 个此前从未被解析、长期零覆盖），其中 15 个归因、7 个无审计；maxUnattributed 215→222 属解析面纠偏而非放松棘轮——原 215 是漏算结果，此后只许减。 2026-11-16（S9）：extractMethod 修掉路径占位符 `{id}` 的字符串花括号计数截断（OpsExceptionController 8 个端点体内 appendLog 被截掉）；attributed 256→264、maxUnattributed 221→213，属解析纠偏，非放松。 2026-11-16（S9 P2）：补 9 组成功路径 admin 审计（Jiangyi 激活/绑定、运营资料、采购/退货/付款、保证金固化、phone-verify、盘点完成、机器账单出账），归因 264→279，同时保留 extractMethod {id} 修复。",
+  "note": "S9 第二层：写端点逐端点归因快照基线（机器生成，node .tmp/seed-endpoint-baseline.mjs）。每控制器 {endpoints, attributed}：attributed 降=审计被拆红；endpoints 增而 attributed 不增=新端点未归因红；未解析端点 attributed=false 显式在册，修复后收紧。totalEndpoints / totalAttributed / maxUnattributed 全部参与判定（2026-11-14 第五轮）：总量任一变化都须重种基线——归因上升也要人工复核，防解析链放宽或失败路径审计被误算造成的假归因（旧判据改个类名即可 240→258 假绿）；maxUnattributed 是未归因存量天花板（只许减），重种快照后须同步。2026-11-15（MA-267/C06）：方法声明解析补齐限定名返回类型（`ApiResponse<com.x.Y>`）与注解同行签名两形态，端点 455→477（22 个此前从未被解析、长期零覆盖），其中 15 个归因、7 个无审计；maxUnattributed 215→222 属解析面纠偏而非放松棘轮——原 215 是漏算结果，此后只许减。 2026-11-16（S9）：extractMethod 修掉路径占位符 `{id}` 的字符串花括号计数截断（OpsExceptionController 8 个端点体内 appendLog 被截掉）；attributed 256→264、maxUnattributed 221→213，属解析纠偏，非放松。 2026-11-16（S9 P2）：补 9 组成功路径 admin 审计（Jiangyi 激活/绑定、运营资料、采购/退货/付款、保证金固化、phone-verify、盘点完成、机器账单出账），归因 264→279，同时保留 extractMethod {id} 修复。 2026-11-16（S9 P3）：补 25 处成功路径审计（商户证据/改密/采集/争议/补货凭证/通知绑定/盘点建单改行取消/线路主数据/温度计划/外部导入预览/机器账单配置等），归因 279→304。",
   "seedDate": "2026-11-16",
   "totalEndpoints": 477,
-  "totalAttributed": 279,
-  "maxUnattributed": 198,
+  "totalAttributed": 304,
+  "maxUnattributed": 173,
   "controllers": {
     "services/device-service/src/main/java/com/aicabinet/device/api/DeviceInternalController.java": {
       "endpoints": 3,
@@ -71,7 +71,7 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDashboardController.java": {
       "endpoints": 19,
-      "attributed": 12
+      "attributed": 13
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminDataManageController.java": {
       "endpoints": 3,
@@ -87,11 +87,11 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiCatalogController.java": {
       "endpoints": 9,
-      "attributed": 6
+      "attributed": 8
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java": {
       "endpoints": 27,
-      "attributed": 24
+      "attributed": 27
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/AlipayNotifyController.java": {
       "endpoints": 1,
@@ -223,7 +223,7 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantPortalController.java": {
       "endpoints": 33,
-      "attributed": 13
+      "attributed": 20
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWalletController.java": {
       "endpoints": 3,
@@ -231,7 +231,7 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWarehouseStocktakeController.java": {
       "endpoints": 6,
-      "attributed": 2
+      "attributed": 6
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/MerchantWithdrawController.java": {
       "endpoints": 4,
@@ -259,7 +259,7 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceEnvController.java": {
       "endpoints": 2,
-      "attributed": 1
+      "attributed": 2
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceRentalController.java": {
       "endpoints": 6,
@@ -271,7 +271,7 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsExternalImportController.java": {
       "endpoints": 5,
-      "attributed": 4
+      "attributed": 5
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsFinanceController.java": {
       "endpoints": 1,
@@ -283,11 +283,11 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsLineRouteController.java": {
       "endpoints": 5,
-      "attributed": 2
+      "attributed": 5
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsMachinePayeeBillController.java": {
       "endpoints": 3,
-      "attributed": 1
+      "attributed": 2
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsMerchantFeeLedgerController.java": {
       "endpoints": 2,
@@ -311,11 +311,11 @@
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsProcurementController.java": {
       "endpoints": 6,
-      "attributed": 5
+      "attributed": 6
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java": {
       "endpoints": 19,
-      "attributed": 15
+      "attributed": 16
     },
     "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsReplenishmentController.java": {
       "endpoints": 9,

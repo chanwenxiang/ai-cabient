@@ -111,7 +111,7 @@ class AdminJiangyiControllerTest {
                 .thenReturn(boundDevice());
 
         var body = new AdminJiangyiController.RegisterRequest(" 2b26552554fb7bf9 ", "  ");
-        controller().register(DEVICE_ID, body);
+        controller().register(req(), DEVICE_ID, body);
 
         ArgumentCaptor<String> model = ArgumentCaptor.forClass(String.class);
         verify(onboardingService).registerForDevice(eq(DEVICE_ID), eq("2b26552554fb7bf9"), model.capture());

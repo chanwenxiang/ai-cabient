@@ -167,10 +167,14 @@ public class AdminJiangyiController {
     /** 登记：登记 jiangyi_device（status=UNBOUND），幂等按 SN 判存；柜机档案必须已存在。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/register")
-    public ApiResponse<JiangyiDeviceDto> register(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<JiangyiDeviceDto> register(HttpServletRequest request,
+                                                  @PathVariable("deviceId") String deviceId,
                                                   @Valid @RequestBody RegisterRequest body) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.registerForDevice(
-                deviceId, body.deviceSn().trim(), blankToNull(body.modelName()))));
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.registerForDevice(
+                deviceId, body.deviceSn().trim(), blankToNull(body.modelName())));
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_REGISTER", "JIANGYI_DEVICE",
+                deviceId, "sn=" + body.deviceSn().trim());
+        return ApiResponse.ok(dto);
     }
 
     /**
@@ -222,9 +226,13 @@ public class AdminJiangyiController {
     /** 修改 SN（仅 UNBOUND）：登记抄错的纠正入口；SN 全局唯一，BOUND 须退役重登记。 */
     @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/jiangyi/update-sn")
-    public ApiResponse<JiangyiDeviceDto> updateSn(@PathVariable("deviceId") String deviceId,
+    public ApiResponse<JiangyiDeviceDto> updateSn(HttpServletRequest request,
+                                                  @PathVariable("deviceId") String deviceId,
                                                   @Valid @RequestBody UpdateSnRequest body) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.updateDeviceSn(deviceId, body.deviceSn())));
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.updateDeviceSn(deviceId, body.deviceSn()));
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_UPDATE_SN", "JIANGYI_DEVICE",
+                deviceId, "sn=" + body.deviceSn());
+        return ApiResponse.ok(dto);
     }
 
     /**
@@ -234,10 +242,14 @@ public class AdminJiangyiController {
     @RequiresPermissions("ops:device:edit")
     @PutMapping("/devices/{deviceId}/jiangyi/industrial-control-model")
     public ApiResponse<JiangyiDeviceDto> updateIndustrialControlModel(
+            HttpServletRequest request,
             @PathVariable("deviceId") String deviceId,
             @Valid @RequestBody IndustrialControlModelRequest body) {
-        return ApiResponse.ok(toDto(jiangyiOnboardingService.setIndustrialControlModel(
-                deviceId, body.industrialControlModel())));
+        JiangyiDeviceDto dto = toDto(jiangyiOnboardingService.setIndustrialControlModel(
+                deviceId, body.industrialControlModel()));
+        auditService.appendLog(operatorId(request), "JIANGYI_DEVICE_MODEL_UPDATE", "JIANGYI_DEVICE",
+                deviceId, "model=" + body.industrialControlModel());
+        return ApiResponse.ok(dto);
     }
 
     /** 将邑侧激活（V16 §5.4.10 confirmActivate）：出厂未入库设备用铭牌设备号入库。 */

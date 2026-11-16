@@ -10,6 +10,7 @@ import com.aicabinet.common.dto.ExternalProductDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.ExternalChannelImportService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
@@ -38,9 +39,12 @@ import java.util.List;
 public class OpsExternalImportController {
 
     private final ExternalChannelImportService importService;
+    private final AdminAuditService auditService;
 
-    public OpsExternalImportController(ExternalChannelImportService importService) {
+    public OpsExternalImportController(ExternalChannelImportService importService,
+                                       AdminAuditService auditService) {
         this.importService = importService;
+        this.auditService = auditService;
     }
 
     // ── 模板与向导 ───────────────────────────────────────────────────────────────────────────
@@ -61,8 +65,14 @@ public class OpsExternalImportController {
             @RequestParam("periodLabel") String periodLabel,
             @RequestParam(value = "personOverride", required = false) String personOverride) {
         try {
-            return ApiResponse.ok(importService.preview(operatorId(request), channelCode, periodLabel,
-                    personOverride, file.getOriginalFilename(), file.getBytes()));
+            ExternalImportBatchDto dto = importService.preview(operatorId(request), channelCode, periodLabel,
+                    personOverride, file.getOriginalFilename(), file.getBytes());
+            // S9 P3：预览会落 PARSED 批次与外部商品首见建档，成功路径留痕
+            auditService.appendLog(operatorId(request), "EXTERNAL_IMPORT_PREVIEW", "EXTERNAL_IMPORT",
+                    dto == null ? null : String.valueOf(dto.batchId()),
+                    "channel=" + channelCode + " period=" + periodLabel
+                            + " file=" + file.getOriginalFilename());
+            return ApiResponse.ok(dto);
         } catch (IOException e) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.BAD_REQUEST, "文件读取失败");

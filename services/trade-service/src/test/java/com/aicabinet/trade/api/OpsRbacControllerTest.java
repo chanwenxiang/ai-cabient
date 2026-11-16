@@ -35,13 +35,14 @@ class OpsRbacControllerTest {
     @Mock OpsRbacService rbacService;
     @Mock OpsTwoFactorService opsTwoFactorService;
     @Mock FileAttachmentService fileAttachmentService;
+    @Mock com.aicabinet.trade.service.AdminAuditService auditService;
     @Mock HttpServletRequest request;
 
     private OpsRbacController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new OpsRbacController(rbacService, opsTwoFactorService, fileAttachmentService);
+        controller = new OpsRbacController(rbacService, opsTwoFactorService, fileAttachmentService, auditService);
     }
 
     @Test

@@ -66,7 +66,10 @@ public class OpsProcurementController {
                 body.creditLimitCents(),
                 body.createdAt()
         );
-        return ApiResponse.ok(procurementService.upsertSupplier(operatorId(request), merged));
+        SupplierDto saved = procurementService.upsertSupplier(operatorId(request), merged);
+        auditService.appendLog(operatorId(request), "SUPPLIER_UPSERT", "SUPPLIER", supplierId,
+                "name=" + (saved == null ? null : saved.supplierName()));
+        return ApiResponse.ok(saved);
     }
 
     @RequiresPermissions("ops:procurement:list")

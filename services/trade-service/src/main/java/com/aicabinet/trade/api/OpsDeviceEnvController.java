@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.DeviceEnvService;
 import com.aicabinet.trade.service.DeviceTempPlanService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,11 +21,14 @@ public class OpsDeviceEnvController {
 
     private final DeviceTempPlanService deviceTempPlanService;
     private final DeviceEnvService deviceEnvService;
+    private final AdminAuditService auditService;
 
     public OpsDeviceEnvController(DeviceTempPlanService deviceTempPlanService,
-                                  DeviceEnvService deviceEnvService) {
+                                  DeviceEnvService deviceEnvService,
+                                  AdminAuditService auditService) {
         this.deviceTempPlanService = deviceTempPlanService;
         this.deviceEnvService = deviceEnvService;
+        this.auditService = auditService;
     }
 
     // --- 设备：温控计划 + 环境多指标监控 ---
@@ -49,7 +53,11 @@ public class OpsDeviceEnvController {
     @PostMapping("/devices/{deviceId}/temp-plan/apply")
     public ApiResponse<DeviceTempPlanDto> applyTempPlan(
             HttpServletRequest request, @PathVariable String deviceId) {
-        return ApiResponse.ok(deviceTempPlanService.applyNow(operatorId(request), deviceId));
+        DeviceTempPlanDto dto = deviceTempPlanService.applyNow(operatorId(request), deviceId);
+        auditService.appendLog(operatorId(request), "DEVICE_TEMP_PLAN_APPLY", "DEVICE_TEMP_PLAN",
+                deviceId, "enabled=" + (dto == null ? null : dto.enabled())
+                        + " entries=" + (dto == null ? null : dto.entries().size()));
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("ops:device:list")

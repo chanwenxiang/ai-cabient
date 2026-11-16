@@ -9,6 +9,7 @@ import com.aicabinet.trade.api.dto.SatelliteSkuOptionDto;
 import com.aicabinet.trade.domain.JiangyiSkuJiangyiLink;
 import com.aicabinet.trade.dto.JiangyiRestockDtos.PhoneCapturePolicy;
 import com.aicabinet.trade.dto.OrderVideoPlaylistDto;
+import com.aicabinet.trade.service.AdminAuditService;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.DeviceFaultOrderService;
@@ -57,6 +58,7 @@ public class MerchantPortalController {
     private final MerchantScopeService merchantScopeService;
     private final JiangyiProductStateService jiangyiProductStateService;
     private final JiangyiPhoneCaptureService jiangyiPhoneCaptureService;
+    private final AdminAuditService auditService;
 
     public MerchantPortalController(MerchantPortalService merchantPortalService,
                                     MerchantPortalControllerSupport support,
@@ -66,7 +68,8 @@ public class MerchantPortalController {
                                     DeviceFaultOrderService deviceFaultOrderService,
                                     MerchantScopeService merchantScopeService,
                                     JiangyiProductStateService jiangyiProductStateService,
-                                    JiangyiPhoneCaptureService jiangyiPhoneCaptureService) {
+                                    JiangyiPhoneCaptureService jiangyiPhoneCaptureService,
+                                    AdminAuditService auditService) {
         this.merchantPortalService = merchantPortalService;
         this.support = support;
         this.procurementService = procurementService;
@@ -76,6 +79,7 @@ public class MerchantPortalController {
         this.merchantScopeService = merchantScopeService;
         this.jiangyiProductStateService = jiangyiProductStateService;
         this.jiangyiPhoneCaptureService = jiangyiPhoneCaptureService;
+        this.auditService = auditService;
     }
 
     @GetMapping("/me")
@@ -227,8 +231,10 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @PathVariable String deviceId,
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
-        return ApiResponse.ok(
-                merchantPortalService.uploadStocktakeEvidence(userId(request), deviceId, file));
+        FileAttachmentDto dto = merchantPortalService.uploadStocktakeEvidence(userId(request), deviceId, file);
+        auditService.appendLog(userId(request), "MERCHANT_STOCKTAKE_EVIDENCE_UPLOAD", "STOCKTAKE_EVIDENCE",
+                deviceId, "fileId=" + (dto == null ? null : dto.fileId()));
+        return ApiResponse.ok(dto);
     }
 
     /** CB-050 扩展：柜机盘点凭证回看（流式）。 */
@@ -255,6 +261,9 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @Valid @RequestBody MerchantPasswordChangeRequest body) {
         authService.changeOwnPassword(userId(request), body.oldPassword(), body.newPassword());
+        // S9 P3：商户自助改密留痕（不落任何密码内容）
+        auditService.appendLog(userId(request), "MERCHANT_PASSWORD_CHANGE", "USER",
+                String.valueOf(userId(request)), "passwordChanged");
         return ApiResponse.ok(null);
     }
 
@@ -313,8 +322,12 @@ public class MerchantPortalController {
     public ApiResponse<JiangyiSkuJiangyiLink> submitJiangyiPhoneCapture(
             @PathVariable String barCode,
             @Valid @RequestBody JiangyiCaptureSubmitRequest body) {
-        return ApiResponse.ok(
-                jiangyiPhoneCaptureService.submitByUrls(barCode, body.imageUrls()).orElse(null));
+        JiangyiSkuJiangyiLink link = jiangyiPhoneCaptureService.submitByUrls(barCode, body.imageUrls()).orElse(null);
+        // 该方法无 HttpServletRequest 形态（避免 openapi 形状波动），从请求上下文取操作者
+        auditService.appendLog(currentUserId(), "MERCHANT_JIANGYI_PHONE_CAPTURE_SUBMIT", "JIANGYI_CAPTURE",
+                barCode, "images=" + (body.imageUrls() == null ? 0 : body.imageUrls().size())
+                        + " linked=" + (link != null));
+        return ApiResponse.ok(link);
     }
 
     /** §7.9 请求体。 */
@@ -397,7 +410,9 @@ public class MerchantPortalController {
     public ApiResponse<DisputeTicketDto> disputeClaim(
             HttpServletRequest request,
             @PathVariable String ticketId) {
-        return ApiResponse.ok(support.disputeService().claimAsMerchant(userId(request), ticketId));
+        DisputeTicketDto dto = support.disputeService().claimAsMerchant(userId(request), ticketId);
+        auditService.appendLog(userId(request), "MERCHANT_DISPUTE_CLAIM", "DISPUTE", ticketId, "claimed");
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:disputes:resolve")
@@ -745,7 +760,10 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @PathVariable Long taskId,
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
-        return ApiResponse.ok(support.merchantReplenishmentService().uploadTaskEvidence(userId(request), taskId, file));
+        FileAttachmentDto dto = support.merchantReplenishmentService().uploadTaskEvidence(userId(request), taskId, file);
+        auditService.appendLog(userId(request), "MERCHANT_REPLENISHMENT_EVIDENCE_UPLOAD", "REPLENISHMENT_TASK",
+                String.valueOf(taskId), "fileId=" + (dto == null ? null : dto.fileId()));
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:replenishment:view")
@@ -883,14 +901,20 @@ public class MerchantPortalController {
     @PostMapping("/notify/wx-bind")
     public ApiResponse<MerchantNotifyPrefDto> notifyWxBind(
             HttpServletRequest request, @RequestBody MerchantWxBindRequest body) {
-        return ApiResponse.ok(support.merchantNotifyService().bindWxOpenId(userId(request), body.code()));
+        MerchantNotifyPrefDto dto = support.merchantNotifyService().bindWxOpenId(userId(request), body.code());
+        auditService.appendLog(userId(request), "MERCHANT_NOTIFY_WX_BIND", "MERCHANT_NOTIFY",
+                String.valueOf(userId(request)), "wxBound=" + dto.wxBound());
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:alerts:view")
     @PostMapping("/notify/subscribe")
     public ApiResponse<MerchantNotifyPrefDto> notifySubscribe(
             HttpServletRequest request, @RequestBody MerchantSubscribeRequest body) {
-        return ApiResponse.ok(support.merchantNotifyService().updateSubscribe(userId(request), body));
+        MerchantNotifyPrefDto dto = support.merchantNotifyService().updateSubscribe(userId(request), body);
+        auditService.appendLog(userId(request), "MERCHANT_NOTIFY_SUBSCRIBE", "MERCHANT_NOTIFY",
+                String.valueOf(userId(request)), "enabledTypes=" + dto.enabledAlertTypes().size());
+        return ApiResponse.ok(dto);
     }
 
     @RequiresPermissions("merchant:users:list")
@@ -995,6 +1019,14 @@ public class MerchantPortalController {
 
     private static Long userId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
+    private static Long currentUserId() {
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof org.springframework.web.context.request.ServletRequestAttributes sra) {
+            return (Long) sra.getRequest().getAttribute(AuthInterceptor.ATTR_USER_ID);
+        }
+        return null;
     }
 
     /** 绑定态读面（旧 gather/status 退场后的兼容入口）：bound=将邑开门柜，gatherLocked 恒 false。 */
