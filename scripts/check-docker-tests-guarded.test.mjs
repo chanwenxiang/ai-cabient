@@ -118,4 +118,22 @@ assert(
     '——否则 why 会退化成「加了个 IT」这类空话登记'
 );
 
+// MA-311（2026-11-17）本批新增条目：V494 唯一索引真库实证（慢渠道 UAT 抓到的 409）。
+// 同批补正向用例：该 IT 必须由 integration 守，且 why 要点名「痕迹/资金同号」判据。
+const gwno = entries.find(([, rel]) => rel.endsWith('PaymentOperationGatewayNoIndexIT.java'));
+assert(
+  !!gwno,
+  'PaymentOperationGatewayNoIndexIT 必须在 GUARDED 里登记（@Testcontainers 类缺 Docker 时跑 0 用例，' +
+    '只有清单能证明它由 integration 守）'
+);
+assert(
+  /job:\s*'integration'/.test(gwno[2]),
+  'PaymentOperationGatewayNoIndexIT 是 *IT.java ⇒ job 必须是 integration（failsafe）'
+);
+assert(
+  /同号/.test(gwno[2]) && /COMPLETED/.test(gwno[2]),
+  'why 必须点名「审计痕迹行与 COMPLETED 资金行可同号、两条 COMPLETED 同号仍拦」判据' +
+    '——否则 why 会退化成「加了个 IT」这类空话登记'
+);
+
 console.log(`${TAG} OK：${checks} 项断言全过（GUARDED ${entries.length} 条逐条验真）`);
