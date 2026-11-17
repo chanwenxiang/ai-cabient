@@ -47,12 +47,18 @@ public class ReconciliationScheduler {
             return;
         }
         boolean failed = false;
+        // F1（收敛计划 2026-11-17）：「开关关掉」与「真跑成功」必须落成不同结果。
+        // 此前两者都写 SUCCESS，运营台看起来对账每天正常，实际一笔都没对 —— 而它恰恰是
+        // 「渠道已扣、本地未记」的唯一日级收口点。结果串改成 SKIPPED 后，运营台/看护能区分；
+        // 注意仍走 finish（推进 last_run_at），因为这是**运维有意关闭**，不是停摆，不该报 OVERDUE。
         String summary = "对账调度未启用";
+        if (!properties.scheduledEnabled()) {
+            summary = "对账调度未启用（aicabinet.reconciliation.scheduled-enabled=false）—— 当日未执行任何对账";
+            log.warn("scheduled reconciliation is disabled by config: {}", summary);
+            taskService.finish(RECONCILIATION, "SKIPPED", summary, start);
+            return;
+        }
         try {
-            if (!properties.scheduledEnabled()) {
-                summary = "对账调度未启用";
-                return;
-            }
             LocalDate yesterday = LocalDate.now(ScheduleZones.ZONE).minusDays(1);
             var dto = reconciliationService.runDaily(null, yesterday, "WECHAT");
             summary = "对账 " + yesterday + " 完成，匹配 " + dto.matchedCount()

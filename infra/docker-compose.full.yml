@@ -568,6 +568,18 @@ services:
     volumes:
       - "./monitoring/feishu-relay.py:/app/feishu-relay.py:ro"
     ports: ["127.0.0.1:${FEISHU_RELAY_PORT:-18098}:8098"]
+    # 与 docker-compose.apps.yml 同款：未配置 webhook 时 /webhook 恒 503，
+    # 容器却「健康」—— 把 configured 纳入健康判据，避免「静默无告警」被读成「一切正常」。
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import json,sys,urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8098/health', timeout=3)).get('configured') else 1)\""
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   alertmanager:
     stop_grace_period: 30s

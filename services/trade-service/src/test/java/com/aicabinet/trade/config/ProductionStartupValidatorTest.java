@@ -12,6 +12,9 @@ import org.springframework.core.env.Environment;
 
 class ProductionStartupValidatorTest {
 
+    /** 最近一次 buildValidator(...) 造出的对账属性桩：用例可改桩后复验启动校验的分支。 */
+    private ReconciliationProperties lastReconciliationProperties;
+
     @Test
     void prodRejectsBuiltInMockSmsCode() {
         ProductionStartupValidator validator = buildValidator("prod", "123456", true, true);
@@ -194,6 +197,21 @@ class ProductionStartupValidatorTest {
                 .hasMessageContaining("INTERNAL_API_ALLOWED_CIDRS");
     }
 
+    /**
+     * F1（收敛计划 2026-11-17）：生产关闭对账调度必须**拒绝启动**。
+     * 否则每日对账照跑但只落 SKIPPED，运营台显示「有执行记录」，而「渠道已扣/本地未记」的
+     * 差异从此无人收口 —— 静默程度与彻底停跑完全相同。
+     */
+    @Test
+    void prodRejectsReconciliationScheduledDisabled() {
+        ProductionStartupValidator validator = buildValidator("prod", "482913", true, true);
+        when(lastReconciliationProperties.scheduledEnabled()).thenReturn(false);
+
+        assertThatThrownBy(validator::validateProductionConfig)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("RECON_SCHEDULED_ENABLED");
+    }
+
     private ProductionStartupValidator buildValidatorWithMinioCorsCidr(
             Environment environment,
             MinioProperties minioProperties,
@@ -238,7 +256,9 @@ class ProductionStartupValidatorTest {
         PayScoreProperties payScoreProperties = mock(PayScoreProperties.class);
         when(payScoreProperties.enabled()).thenReturn(false);
         ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
+        lastReconciliationProperties = reconciliationProperties;
         when(reconciliationProperties.mockEnabled()).thenReturn(false);
+        when(reconciliationProperties.scheduledEnabled()).thenReturn(true);
         CheckoutProperties checkoutProperties = mock(CheckoutProperties.class);
         when(checkoutProperties.balanceOnly()).thenReturn(false);
         LineWithdrawProperties lineWithdrawProperties = mock(LineWithdrawProperties.class);
@@ -309,7 +329,9 @@ class ProductionStartupValidatorTest {
         when(payScoreProperties.enabled()).thenReturn(false);
 
         ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
+        lastReconciliationProperties = reconciliationProperties;
         when(reconciliationProperties.mockEnabled()).thenReturn(false);
+        when(reconciliationProperties.scheduledEnabled()).thenReturn(true);
 
         CheckoutProperties checkoutProperties = mock(CheckoutProperties.class);
         when(checkoutProperties.balanceOnly()).thenReturn(false);
@@ -365,7 +387,9 @@ class ProductionStartupValidatorTest {
                 "webhook", null, null, null, null, null));
 
         ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
+        lastReconciliationProperties = reconciliationProperties;
         when(reconciliationProperties.mockEnabled()).thenReturn(true);
+        when(reconciliationProperties.scheduledEnabled()).thenReturn(true);
 
         LineWithdrawProperties lineWithdrawProperties = mock(LineWithdrawProperties.class);
         when(lineWithdrawProperties.mockEnabled()).thenReturn(false);

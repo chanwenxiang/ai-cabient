@@ -64,7 +64,12 @@ public class ScheduledTaskStaleMonitor {
                     "settlement-bill",
                     // R5-E2：config 开关在任务体内，tryBegin/finish 照走（留痕刷新），收编安全
                     "auto-replenish-task",
-                    "sms-delivery-probe");
+                    "sms-delivery-probe",
+                    // F1（收敛计划 2026-11-17）：charge-pending-reconcile 有注册行（V492）、有阈值
+                    // （ScheduleZones:129 = 10 分钟）、也真的在跑，却**不在这张表也不在 XXL KEYS** ⇒
+                    // 看护扫不到它。它是「渠道已扣款、本地仍 PENDING」的唯一自动收口点，停跑等于
+                    // 资金差异无人收敛且零告警。漏登记形态与上面几个不同：不是没建，是**建好了没进名单**。
+                    "charge-pending-reconcile");
 
     static java.util.List<String> watchedKeys() {
         java.util.List<String> keys = new ArrayList<>(XxlJobManagedTasks.KEYS);

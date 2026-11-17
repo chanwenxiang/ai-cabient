@@ -111,6 +111,7 @@ class ProductionStartupValidatorCookieStageTest {
 
         ReconciliationProperties reconciliationProperties = mock(ReconciliationProperties.class);
         when(reconciliationProperties.mockEnabled()).thenReturn(false);
+        when(reconciliationProperties.scheduledEnabled()).thenReturn(true);
 
         CheckoutProperties checkoutProperties = mock(CheckoutProperties.class);
         when(checkoutProperties.balanceOnly()).thenReturn(true);

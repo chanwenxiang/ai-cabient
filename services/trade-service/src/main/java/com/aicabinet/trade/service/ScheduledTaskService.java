@@ -254,7 +254,7 @@ public class ScheduledTaskService {
         // 第二实例能进临界区造成双跑——持锁后启动租约心跳按周期续租。
         // R18-6 配套：登记「执行中」标志（finish finally 移除），心跳续租前校验——
         // 防止 finish 已收尾而心跳句柄晚到/漏 cancel 时把锁继续钉在续租上限。
-        leaseHolders.put(taskKey, Thread.currentThread().getId());
+        leaseHolders.put(taskKey, Thread.currentThread());
         startLeaseHeartbeat(taskKey, leaseSeconds, Thread.currentThread().getId());
         LAST_SKIP_REASON.remove();
         return true;
@@ -274,6 +274,17 @@ public class ScheduledTaskService {
     /**
      * M19：把「跳过」落库为执行记录（lastResult=SKIPPED），运营台可与「执行成功」区分。
      * <p>与 {@link #finish} 不同：不释放分布式锁——跳过场景锁可能正被其它实例持有。</p>
+     *
+     * <p><b>F1（收敛计划 2026-11-17）：跳过**不得**推进 {@code last_run_at}。</b>
+     * 超期看护 {@link ScheduledTaskStaleMonitor} 的唯一判据就是 {@code last_run_at}，
+     * 而 M19 之后「锁忙 / 让位给 XXL / 任务停用」都走本方法 —— 只要任务还在被调度，
+     * 它就永远显示「刚刚执行过」。曾经真实发生的两次全量停摆（XXL 执行器注册 404、
+     * 调度中心层漏部署）就是这种形态：内置调度每轮都 skip、{@code last_run_at} 一路刷新，
+     * 看护 0 告警，直到人工发现业务数据不对。跳过≠执行，时间戳必须只由 {@link #finish} 推进。</p>
+     *
+     * <p>副作用是**期望的**：让位给 XXL 但调度中心从不派发 ⇒ last_run_at 冻住 ⇒ 看护按
+     * OVERDUE 报出来；而另一实例真在跑时它会 finish 推进时间戳，多实例部署不会误报。
+     * 停用（enabled=false）的任务看护本就跳过，不会因此刷出告警。</p>
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markSkipped(String taskKey, String message) {
@@ -282,7 +293,6 @@ public class ScheduledTaskService {
             return;
         }
         Instant now = Instant.now();
-        row.setLastRunAt(now);
         row.setLastResult("SKIPPED");
         row.setLastMessage(truncate(message, 500));
         row.setLastDurationMs(0L);
@@ -323,14 +333,38 @@ public class ScheduledTaskService {
     private static final int HEARTBEAT_DIVISOR = 3;
     /**
      * 续租次数上限：防「任务线程挂死 + 心跳无限续租」把锁永久钉死、堵死实例级自愈。
-     * 120 次 × 租约/3 = 租约的 40 倍时长（600s 租约 → 上限约 6.6h），正常任务远达不到；
-     * 达到即停止续租并留错误日志，锁按租约自然过期、其他实例可接管。
+     * F1（收敛计划 2026-11-17）由 120 收到 12：120 次 × 租约/3 ≈ 租约的 40 倍
+     * （600s 租约 → 6.6h）意味着线程一旦卡死，**全集群 6.6 小时内都在 lock busy 里打转**，
+     * 表现与「任务没接线」一模一样。12 次 × 租约/3 = 租约的 4 倍（600s → 约 40 分钟），
+     * 对单轮最长的月结任务（租约 1800s → 约 2.5h）仍留足余量；
+     * 真正需要更久的任务应当自行分段，而不是靠无限续租占着锁。
      */
-    private static final int MAX_HEARTBEAT_RENEWALS = 120;
+    private static final int MAX_HEARTBEAT_RENEWALS = 12;
 
     private final Map<String, ScheduledFuture<?>> leaseHeartbeats = new ConcurrentHashMap<>();
-    /** R18-6 配套：taskKey → 持锁线程 id 的「执行中」标志。tryBegin 登记、finish finally 移除；心跳只见标志消失即停。 */
-    private final Map<String, Long> leaseHolders = new ConcurrentHashMap<>();
+    /** R18-6 配套 / F1：taskKey → 持锁执行线程。tryBegin 登记、finish finally 移除。
+     *  心跳每轮校验「仍是同一线程 且 该线程仍存活」，任一不成立立即停租 ——
+     *  线程已终止还给锁续租，等于替一个不存在的执行者把锁钉死。 */
+    private final Map<String, Thread> leaseHolders = new ConcurrentHashMap<>();
+
+    /** 心跳续租的前置结论。抽成独立判据是为了能直接单测三种终止形态，
+     *  而不是靠 sleep 等心跳线程跑一轮（那种测试必然不稳）。 */
+    enum RenewalGuard {
+        /** 仍是同一线程且存活 ⇒ 继续续租。 */
+        CONTINUE,
+        /** 执行中标志已消失或被新一代覆盖（finish 已收尾）⇒ 停。 */
+        STOP_FLAG_GONE,
+        /** 标志还在，但持锁线程已终止 ⇒ 停（F1：替死线程续租 = 把锁永久钉住）。 */
+        STOP_THREAD_DEAD
+    }
+
+    static RenewalGuard inspectRenewalGuard(Thread holder, long holderThreadId) {
+        if (holder == null || holder.getId() != holderThreadId) {
+            return RenewalGuard.STOP_FLAG_GONE;
+        }
+        return holder.isAlive() ? RenewalGuard.CONTINUE : RenewalGuard.STOP_THREAD_DEAD;
+    }
+
     private ScheduledExecutorService leaseHeartbeatExecutor;
 
     private synchronized ScheduledExecutorService heartbeatExecutor() {
@@ -357,10 +391,22 @@ public class ScheduledTaskService {
         AtomicReference<ScheduledFuture<?>> selfRef = new AtomicReference<>();
         ScheduledFuture<?> future = heartbeatExecutor().scheduleAtFixedRate(() -> {
             try {
-                // R18-6 配套：执行中标志已被 finish finally 摘除（或被新一代覆盖）⇒ 本代已收尾，停
-                Long holder = leaseHolders.get(taskKey);
-                if (holder == null || holder != holderThreadId) {
+                Thread holder = leaseHolders.get(taskKey);
+                RenewalGuard guard = inspectRenewalGuard(holder, holderThreadId);
+                if (guard == RenewalGuard.STOP_FLAG_GONE) {
+                    // R18-6 配套：执行中标志已被 finish finally 摘除（或被新一代覆盖）⇒ 本代已收尾，停
                     log.warn("任务锁心跳发现执行标志已消失（finish 已收尾或新一代接管）task={} —— 停止本代续租", taskKey);
+                    ScheduledFuture<?> self = selfRef.get();
+                    if (self != null) {
+                        cancelLeaseHeartbeat(taskKey, self);
+                    }
+                    return;
+                }
+                if (guard == RenewalGuard.STOP_THREAD_DEAD) {
+                    // F1：持锁线程已终止（被池强杀 / 线程泄漏后回收）⇒ 没人再需要这把锁。
+                    // 不判这一条时，剩余续租次数会替一个死线程把锁继续钉住，全集群静默跳过该任务。
+                    log.error("任务锁心跳发现持锁线程已终止 task={} threadId={} —— 立即停止续租，锁按租约过期后可被接管",
+                            taskKey, holderThreadId);
                     ScheduledFuture<?> self = selfRef.get();
                     if (self != null) {
                         cancelLeaseHeartbeat(taskKey, self);

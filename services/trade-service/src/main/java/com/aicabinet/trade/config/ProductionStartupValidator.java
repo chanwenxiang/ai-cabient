@@ -188,6 +188,17 @@ public class ProductionStartupValidator {
         }
         validatePayScoreConfig();
         validateProfitSharingConfig();
+        // F1（收敛计划 2026-11-17）：生产必须开启对账调度。
+        // 它是「渠道已扣款、本地未记账」的唯一日级收口点。关掉后每日任务照跑，但只落一行
+        // SKIPPED（见 ReconciliationScheduler），运营台上看起来「有执行记录」——
+        // 静默程度与彻底停跑相同，而这恰恰是资金差异最需要被看见的地方。
+        // staging 保持可关（soak 环境不碰真渠道），此处只约束 prod。
+        if (!reconciliationProperties.scheduledEnabled()) {
+            throw new IllegalStateException(
+                    "Production requires RECON_SCHEDULED_ENABLED=true "
+                            + "(aicabinet.reconciliation.scheduled-enabled) —— 关掉后每日对账只写 SKIPPED，"
+                            + "渠道已扣/本地未记的差异无人收口");
+        }
         // 支付显式关闭时无通道账单可对（对账门禁随支付开关同档降级；启用支付后恢复硬校验）
         validateReconciliationConfig(weChatPayProperties.enabled());
         if (!identityVerifyProperties.isConfigured()) {
