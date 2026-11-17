@@ -42,7 +42,7 @@
 
 | 族 | 名称 | P1 | 覆盖条目 | 一次修法的本质 |
 |---|---|---|---|---|
-| F1 | 可观测性自证 | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
+| F1 | 可观测性自证 ✅`9f0da9c2` | 4 | J1 J2 J3 J9 J14 J15 J16 N-04 | 让「任务停跑」这件事自己暴露出来 |
 | F2 | 设备范围闸形态 | 1 | N-01 N-05 N-06 L-09 | 闸从拦截器下沉到 service 入口 |
 | F3 | 结算/对账事务边界 | 3 | ①/BR5 BR3 J4 J8 ⑧ ⑨ | 拆成 prepare → HTTP → finalize |
 | F4 | 库存/月结账实 | 1 | BR9 BR10 BR11 BR13 BR14 BR15 BR16 BR1 BR2 月账单利润 | 判据改 SKU 级 + 加恒等式 |
@@ -254,15 +254,40 @@ Wave 4（发布前）          F7 部署可复现
 
 ---
 
-## 8. 在飞重构引入的新风险（2026-11-17 15:30 观测，未提交）
+## 8. 在飞重构引入的新风险（已随 `ca290bd5` 提交，三条风险仍在）
 
 另一会话正在删除「用户支付偏好」。这是**用户拍板**的变更，不算缺陷；但落法有三处需要确认：
+
+> 2026-11-17 16:30 复核：该重构已提交为 `ca290bd5`（含 `V495`）。三条风险**均未消除** ——
+> 提交面里没有 `clients/consumer-mp/dist/**`（产物未重建），`AccountController` 的旧端点直接消失（无兼容层），
+> `V495` 仍是 `DROP COLUMN`。F3/F2 开工前按新 HEAD 重新定位行号即可，结论不受影响。
 
 | # | 风险 | 证据 | 建议 |
 |---|---|---|---|
 | R-1 | **破坏性 DDL 与「代码停读」同版发布**：滚动/多实例下 DB 先迁移、旧实例仍在跑，旧 jar 的 SELECT 仍带该列 ⇒ 列不存在 ⇒ 500 | `V495` 的 ROLLBACK 注释自认「旧值不可恢复」；`UserInfo.java`/`AccountDto.java` 已删字段 | 走 expand/contract：本版只停读写，`DROP COLUMN` 留到下一版；或确认单实例停机窗口部署 |
 | R-2 | `PUT /account/pay-preferred` **无兼容层直接删除**，已发布的小程序旧版本调用会 404 | `AccountController` 已无该映射；`consumer-mp/dist/*/api/endpoints.js` 仍含 `payPreferred` | 保留 6 周返回 200 no-op + 打点，或确认强制更新覆盖旧版 |
 | R-3 | 前端产物未重建，仍引用已删端点 | 同上 dist | 发布前用 `build:mp-weixin:dev` 重建并核对产物级 grep |
+
+---
+
+## 9. 执行记录
+
+### F1 可观测性自证 — 已落地（`9f0da9c2`，2026-11-17）
+
+| 计划项 | 落法 | 与计划的差异（都是核实后改的） |
+|---|---|---|
+| `markSkipped` 删 `setLastRunAt` | 按计划删；跳过只落 `lastResult=SKIPPED` | 计划外发现：删掉后**顺手修好一个既有缺陷** —— `ScheduledTaskController` 的「立即执行」原本用 `last_run_at` 是否推进判「跑没跑」，跳过也会推进 ⇒ 被跳过的手工触发会误报 `TRIGGERED`，现在如实回 `SKIPPED` |
+| `charge-pending-reconcile` 入看护 | 补进 `SPRING_RESIDENT_TASK_KEYS` | 无差异 |
+| 心跳上限 120 → 2 + 线程存活校验 | **上限改 12**（不是 2），并加 `inspectRenewalGuard` 三态判据 | 2 次 × 租约/3 = 租约的 0.67 倍：月结任务（租约 1800s）只能跑约 20 分钟就会被判丢锁 ⇒ 反而制造双跑。12 次 = 租约 4 倍（600s→约 40 分钟 / 1800s→约 2.5h），既把「卡死惩罚」从 6.6h 收到 40 分钟，又不误伤长任务 |
+| 对账未启用记 SKIPPED | 按计划；**仍走 `finish`**（推进 `last_run_at`） | 计划原文只说「记 SKIPPED 而非 SUCCESS」，没写是否推进时间戳。这里必须推进：运维**有意关闭**不是停摆，若同时不推进，看护会按 OVERDUE 每天误报。另加 prod 启动期硬拒 `RECON_SCHEDULED_ENABLED=false` |
+| 飞书 webhook 空值 fail-loud | **改在 relay 与部署前置校验**，不在 trade 启动期 | 计划原文写「strict profile 下启动即 fail-loud」是**错的**：trade-service 根本不读这两个 env（它读数据库 `system_config`），env 只喂 `feishu-relay` 容器。所以正确的闸口是 ① relay 健康检查把 `/health` 的 `configured` 纳入判据；② `check-prod-env-secrets.sh` 对空值判红（显式 `ALERTS_DISABLED_ACK=1` 才放行并打印横幅） |
+| 新门禁 `check-scheduled-task-watched` | 按计划；三条规则 R1/R2/R3 | R3 是计划外加的：只比对「@Scheduled → 看护名单」还不够 —— 把 `SPRING_RESIDENT_TASK_KEYS` 从 `watchedKeys()` 里删掉，门禁会拿一份**已不生效**的名单去比对而恒绿（判据与被判对象脱钩） |
+
+**负向验证（铁律 #4）**：删掉 `"charge-pending-reconcile"` 那一行 → 门禁红（R1 + R2 各报一条，含 `file:line`）→ 还原 → md5 一致 → 绿。门禁 `--self-test` 另有 6 类合成反例（孤儿调度 / 孤儿注册 / 解析不出 / 显式豁免 / 名单缩水 ×2）。
+
+**测试**：`ScheduledTaskServiceTest` 10/0（+3）、`ProductionStartupValidatorTest` 17/0（+1 负向）、`ScheduledTaskStaleMonitorTest` 14/0、调度相关门禁 6 条全绿；`pre-push-ci-preflight` 的 audit-gates 全链仅剩 1 条真红（下述，非本族）。
+
+**遗留（不属 F1）**：`check:fix-batch-coverage` 红在另一会话的 `3229e914`（`fix(types)` 未登记）——本族的 `9f0da9c2` 已登记。另有 3 条 `*-negative` 门禁在本机**假红**（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`：同 turn 累计删除 > 50），单跑均绿（铁律 #83）。
 
 ---
 

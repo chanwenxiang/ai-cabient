@@ -1705,7 +1705,52 @@
         }
       ]
     }
-  ],
+,
+    {
+      "commit": "9f0da9c2",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 5,
+      "items": [
+        {
+          "id": "MA-323",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ScheduledTaskServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-324",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskStaleMonitor.java",
+            "scripts/check-scheduled-task-watched.mjs"
+          ]
+        },
+        {
+          "id": "MA-325",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ScheduledTaskService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/ScheduledTaskServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-326",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/ReconciliationScheduler.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/config/ProductionStartupValidator.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/config/ProductionStartupValidatorTest.java"
+          ]
+        },
+        {
+          "id": "MA-327",
+          "files": [
+            "infra/docker-compose.apps.yml",
+            "infra/docker-compose.full.yml",
+            "infra/.env.production.example",
+            "scripts/check-prod-env-secrets.sh"
+          ]
+        }
+      ]
+    }  ],
   "unregisteredAllowlist": [
     {
       "commit": "27bb5e38",
