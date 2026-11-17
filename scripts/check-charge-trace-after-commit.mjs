@@ -155,7 +155,7 @@ export function evaluate(sources) {
     // 允许「无单号」就地收口（渠道判回落余额、一分钱没扣，必须立刻终结痕迹否则告警误报）；
     // 只要带了渠道单号（= 钱真的扣了）就必须等提交，禁止就地提交。
     // `[^;]*` 而不是 `[^)]*`：实参里 `order.getOrderId()` 自带 `)`，用 `[^)]*` 会提前截断，
-// 把「无单号的回落分支」误判成违规（首版实测假红）。
+    // 把「无单号的回落分支」误判成违规（首版实测假红）。
     if (/self\.finalizeChargePending\s*\((?![^;]*\bnull\b)/.test(submit)) {
       errors.push(
         'R1 submitChannelCharge 用渠道单号就地 self.finalizeChargePending( —— 它是 REQUIRES_NEW 独立提交，' +
