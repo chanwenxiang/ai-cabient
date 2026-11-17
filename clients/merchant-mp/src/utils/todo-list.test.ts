@@ -370,7 +370,11 @@ describe('matchTodoKpiCategory', () => {
  * 本清单没跟，门禁直接红——这类跨端契约纯前端用例护不住。
  */
 describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽划分）', () => {
-  /** 后端 `SysDictBootstrap.exception_type` 全集（2026-11-13 抄录，共 37 类；欠账修复批补 R20/R22 漏抄 2 码） */
+  /**
+   * 后端 `SysDictBootstrap.exception_type` 全集（2026-11-13 抄录，共 41 类；欠账修复批补 R20/R22 漏抄 2 码，
+   * 2026-11-17 F3a 补 `CHARGE_SETTLED_NOT_BOOKED`）。数量不是判据——判据是与后端字典逐码对齐，
+   * 漏一个 `check:todo-type-coverage` 就红。
+   */
   const DICT_TYPES = [
     'DISPUTE',
     'LOW_STOCK',
@@ -401,6 +405,7 @@ describe('todoBadgeCount · 徽标 = 四卡合计 = 列表行数（R19-10 穷尽
     'COUPON_MARKUSED_FAILED',
     'CHARGE_PENDING_STALE',
     'CHARGE_PENDING_UNRESOLVED',
+    'CHARGE_SETTLED_NOT_BOOKED',
     'CHARGE_PENDING_RECONCILE_MANUAL',
     'REFUND_SYNC_NOT_ADVANCED',
     'UNPAID_CANCEL_NET_BLOCKED',
