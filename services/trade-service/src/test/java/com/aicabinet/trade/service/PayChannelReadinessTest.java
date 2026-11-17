@@ -7,15 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link PayScoreService#isChannelUsable} 是**两个调用方共用的唯一就绪判据**：
- * <ul>
- *   <li>{@link PayScoreService#chargeExplicit}（F6 结算页显式选渠道）；</li>
- *   <li>{@link AccountService}（个人中心设为「优先支付方式」，见 {@code AccountService#doSetPayPreferredChannel}）。</li>
- * </ul>
+ * {@link PayScoreService#isChannelUsable} 是显式扣款 {@link PayScoreService#chargeExplicit}
+ * （F6 结算页显式选渠道）的唯一就绪判据。
  *
- * <p>两处曾经**不一致**：设为优先渠道只判了协议号非空，于是「签约中」（{@code PENDING:} 前缀）的支付宝协议
- * 能被写成偏好渠道，而前端 {@code alipayAgreementEnabled} 用的是严格判据、会把该选项置灰 ——
- * 用户看到选项不可选、偏好里却存着它。故此处用真值表把语义钉死在「一处定义、两处同源」。
+ * <p>判据必须与前端的 {@code alipayAgreementEnabled / payscoreEnabled} 同源：只把「协议号非空」当就绪，
+ * 会让「签约中」（{@code PENDING:} 前缀）的支付宝协议被当成可用渠道，而前端会把该选项置灰 ——
+ * 用户看到选项不可选、后端却照样扣。故此处用真值表把语义钉死。
  */
 class PayChannelReadinessTest {
 

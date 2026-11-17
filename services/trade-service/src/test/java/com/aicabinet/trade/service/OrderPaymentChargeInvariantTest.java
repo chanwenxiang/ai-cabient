@@ -227,7 +227,7 @@ class OrderPaymentChargeInvariantTest {
 
     @Test
     void resolveChargePlan_autoWithoutChannel_isBalance() {
-        OrderPaymentService s = buildService(false); // 默认 UserInfo.payPreferredChannel=BALANCE
+        OrderPaymentService s = buildService(false);
 
         assertEquals(OrderPaymentService.ChargeLeg.BALANCE,
                 s.resolveChargePlan(order(), null).leg());
@@ -236,13 +236,13 @@ class OrderPaymentChargeInvariantTest {
     @Test
     void resolveChargePlan_autoWithChannel_isChannel() {
         UserInfo user = new UserInfo();
-        user.setPayPreferredChannel(null);
         user.setPayscoreEnabled(true);
         user.setPayscoreContractId("PS-CONTRACT");
         when(userInfoRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         OrderPaymentService s = buildService(false);
 
-        OrderPaymentService.ChargePlan plan = s.resolveChargePlan(order(), null);
+        // 严格入口：只在扫码入口渠道上有合约时才走渠道腿；无入口一律余额（不跨渠道回落）
+        OrderPaymentService.ChargePlan plan = s.resolveChargePlan(order(), PayChannels.WECHAT);
 
         assertEquals(OrderPaymentService.ChargeLeg.CHANNEL, plan.leg());
         assertEquals(PayChannels.WECHAT, plan.channel());

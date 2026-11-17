@@ -847,7 +847,6 @@ export interface AccountDto {
   availableCents: number;
   verified?: boolean;
   operator?: boolean;
-  payPreferredChannel?: string;
   payscoreEnabled?: boolean;
   alipayAgreementEnabled?: boolean;
   passwordFreeReady?: boolean;

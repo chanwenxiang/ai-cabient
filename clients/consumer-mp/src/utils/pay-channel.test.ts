@@ -19,7 +19,6 @@ function account(patch: Partial<AccountDto> = {}): AccountDto {
     availableCents: 0,
     verified: true,
     operator: false,
-    payPreferredChannel: 'BALANCE',
     payscoreEnabled: false,
     alipayAgreementEnabled: false,
     passwordFreeReady: false,

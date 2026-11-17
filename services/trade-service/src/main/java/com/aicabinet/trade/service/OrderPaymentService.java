@@ -1544,7 +1544,9 @@ public class OrderPaymentService {
         if (confirmed != null) {
             return confirmed;
         }
-        return payScoreService.charge(user, channelOutNo, prep.deltaCents(), reasonOrDefault(null));
+        // 补差沿用订单原支付渠道（显式渠道，不读任何用户偏好）；渠道不可用由 charge 回落余额
+        return payScoreService.charge(user, channelOutNo, prep.deltaCents(), reasonOrDefault(null),
+                prep.preferredChannel());
     }
 
     /** M27: 借助网关 queryCharge（H50）确认 INITIATED 扣款的真实结果；无结果返回 null。 */

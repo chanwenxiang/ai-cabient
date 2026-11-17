@@ -76,12 +76,11 @@ class PayScoreContractCancelTest {
         u.setPayscoreEnabled(true);
         u.setPayscoreContractId("PSC-10001-ABCD1234");
         u.setAlipayAgreementId("ALI-AG-10001-EFGH5678");
-        u.setPayPreferredChannel(PayChannels.WECHAT);
         return u;
     }
 
     @Test
-    void cancel_clearsBothContracts_andFallsBackPreferenceToBalance() {
+    void cancel_clearsBothContracts() {
         UserInfo u = signedBoth();
         when(userInfoRepository.findByIdForUpdate(10001L)).thenReturn(Optional.of(u));
 
@@ -98,8 +97,6 @@ class PayScoreContractCancelTest {
         assertFalse(saved.isPayscoreEnabled());
         assertNull(saved.getPayscoreContractId());
         assertNull(saved.getAlipayAgreementId());
-        assertEquals(PayChannels.BALANCE, saved.getPayPreferredChannel(),
-                "偏好指向被解约的渠道必须回落余额，否则留下悬空偏好");
         assertFalse(payScoreService.isPasswordFreeReady(saved));
 
         // M01：updateById 忽略 null 列 ⇒ 必须再用 wrapper 显式把两个协议号列置 null
@@ -110,7 +107,6 @@ class PayScoreContractCancelTest {
     void cancel_isIdempotent_whenNothingSigned_andWritesNothing() {
         UserInfo u = new UserInfo();
         u.setUserId(10002L);
-        u.setPayPreferredChannel(PayChannels.BALANCE);
         when(userInfoRepository.findByIdForUpdate(10002L)).thenReturn(Optional.of(u));
 
         var result = payScoreService.cancelPasswordFree(10002L);
@@ -142,7 +138,6 @@ class PayScoreContractCancelTest {
         UserInfo u = new UserInfo();
         u.setUserId(10003L);
         u.setAlipayAgreementId("PENDING:EXT-ABC123");
-        u.setPayPreferredChannel(PayChannels.ALIPAY);
         when(userInfoRepository.findByIdForUpdate(10003L)).thenReturn(Optional.of(u));
 
         var result = payScoreService.cancelPasswordFree(10003L);
@@ -153,24 +148,6 @@ class PayScoreContractCancelTest {
         ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
         verify(userInfoRepository).save(cap.capture());
         assertNull(cap.getValue().getAlipayAgreementId());
-        assertEquals(PayChannels.BALANCE, cap.getValue().getPayPreferredChannel());
     }
 
-    @Test
-    void cancel_keepsPreference_whenItDoesNotPointToCancelledChannel() {
-        UserInfo u = new UserInfo();
-        u.setUserId(10004L);
-        u.setPayscoreEnabled(true);
-        u.setPayscoreContractId("PSC-10004-ZZZZ0001");
-        // 偏好是余额：解约微信免密不应改动偏好
-        u.setPayPreferredChannel(PayChannels.BALANCE);
-        when(userInfoRepository.findByIdForUpdate(10004L)).thenReturn(Optional.of(u));
-
-        var result = payScoreService.cancelPasswordFree(10004L);
-
-        assertEquals(java.util.List.of(PayChannels.WECHAT), result.channels());
-        ArgumentCaptor<UserInfo> cap = ArgumentCaptor.forClass(UserInfo.class);
-        verify(userInfoRepository).save(cap.capture());
-        assertEquals(PayChannels.BALANCE, cap.getValue().getPayPreferredChannel());
-    }
 }

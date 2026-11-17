@@ -3,7 +3,6 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.AccountDto;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.InvoiceRequestDto;
-import com.aicabinet.common.dto.SetPayPreferredChannelRequest;
 import com.aicabinet.common.dto.VerifyIdentityRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -66,14 +65,6 @@ public class AccountController {
         return ApiResponse.ok(accountService.verifyIdentity(userId, body));
     }
 
-    /** 设置结算优先支付方式：BALANCE / WECHAT / ALIPAY */
-    @PutMapping("/pay-preferred")
-    public ApiResponse<AccountDto> setPayPreferred(
-            HttpServletRequest request,
-            @Valid @RequestBody SetPayPreferredChannelRequest body) {
-        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(accountService.setPayPreferredChannel(userId, body.channel()));
-    }
 
     /** 仅开发环境：生产环境应通过微信 code2session 绑定 openId */
     @PostMapping("/bind-openid")

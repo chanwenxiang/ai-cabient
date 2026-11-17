@@ -159,7 +159,7 @@ public class SessionService {
     }
 
     private SessionDto doCreateSessionForDevTest(Long userId, CreateSessionRequest request) {
-        String entryChannel = resolveEntryChannel(userId, request.entryChannel());
+        String entryChannel = resolveEntryChannel(request.entryChannel());
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
@@ -574,14 +574,9 @@ public class SessionService {
         );
     }
 
-    private String resolveEntryChannel(Long userId, String requested) {
-        String entry = PayChannels.normalizeEntryChannel(requested);
-        if (entry != null) {
-            return entry;
-        }
-        return userInfoRepository.findById(userId)
-                .map(u -> PayChannels.normalizeEntryChannel(u.getPayPreferredChannel()))
-                .orElse(null);
+    /** 入口渠道只认扫码/显式传入；不再回落到用户持久偏好（2026-11-17 拍板移除偏好）。 */
+    private String resolveEntryChannel(String requested) {
+        return PayChannels.normalizeEntryChannel(requested);
     }
 
     static String sessionLifeLockKey(String sessionId) {

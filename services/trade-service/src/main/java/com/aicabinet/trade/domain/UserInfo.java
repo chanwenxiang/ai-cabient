@@ -53,8 +53,6 @@ public class UserInfo {
 
     private String alipayUserId;
 
-    private String payPreferredChannel = "BALANCE";
-
     /** 运营账号 TOTP 密钥（Base32，明文存储于服务端，仅用于校验动态码） */
     private String totpSecret;
 

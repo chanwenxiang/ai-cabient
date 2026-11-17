@@ -182,11 +182,10 @@ class PayScoreWechatSignTest {
     }
 
     @Test
-    void notify_closeEvent_deactivatesAndFallsBackPreferredChannel() {
+    void notify_closeEvent_deactivatesContract() {
         UserInfo active = userWithWx(10002L, "oX-abc");
         active.setPayscoreEnabled(true);
         active.setPayscoreContractId("PSU-ABC123");
-        active.setPayPreferredChannel(PayChannels.WECHAT);
         when(userInfoRepository.selectList(any())).thenReturn(List.of(active));
         when(userInfoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -202,7 +201,6 @@ class PayScoreWechatSignTest {
         verify(userInfoRepository).save(cap.capture());
         assertFalse(cap.getValue().isPayscoreEnabled());
         assertNull(cap.getValue().getPayscoreContractId());
-        assertEquals(PayChannels.BALANCE, cap.getValue().getPayPreferredChannel());
         // M01：null 列必须用 wrapper 显式清
         verify(userInfoRepository).update(isNull(), any());
     }

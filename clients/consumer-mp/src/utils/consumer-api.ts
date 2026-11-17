@@ -771,17 +771,13 @@ export const consumerApi = {
     ),
   /**
    * G9：用户主动解约（关闭免密代扣）。幂等 —— 没有已开通合约时同样返回 200。
-   * 返回刷新后的 `AccountDto`（与 `setPayPreferred` 同款），前端整份替换即可。
+   * 返回刷新后的 `AccountDto`（与签约端点同款），前端整份替换即可。
    */
   unsignPayContract: () =>
     request<import('@aicabinet/shared-types').AccountDto>(
       ConsumerEndpoints.payContractUnsign,
       'POST'
     ),
-  setPayPreferred: (channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') =>
-    request<import('@aicabinet/shared-types').AccountDto>(ConsumerEndpoints.payPreferred, 'PUT', {
-      channel
-    }),
   /** L2-身份展示：自助设置微信昵称（1-20 字符，后端校验；仅能改本人）。 */
   updateNickname: (nickname: string) =>
     request<void>(ConsumerEndpoints.accountNickname, 'PUT', { nickname }),

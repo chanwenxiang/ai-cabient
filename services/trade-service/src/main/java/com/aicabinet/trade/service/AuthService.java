@@ -351,7 +351,7 @@ public class AuthService {
         user.setName("支付宝用户");
         user.setVerified(false);
         user.setAlipayUserId(alipayUserId);
-        user.setPayPreferredChannel("ALIPAY");
+        // CONCURRENCY: 首次登录去重由唯一索引 uk_user_alipay_user_id 兜底（并发重复插入=唯一键冲突，不会双账号）
         userInfoRepository.save(user);
 
         UserAccount account = new UserAccount();

@@ -49,7 +49,6 @@ export const ConsumerEndpoints = {
   alipayAgreementSign: `${API_PREFIX}/account/alipay-agreement/sign`,
   payContractUnsign: `${API_PREFIX}/account/pay-contract/unsign`,
   accountDelete: `${API_PREFIX}/account/delete-account`,
-  payPreferred: `${API_PREFIX}/account/pay-preferred`,
   balanceRefunds: `${API_PREFIX}/account/balance-refunds`,
   rechargePrepay: `${API_PREFIX}/payment/recharge/prepay`,
   rechargeOrder: (orderId: string) =>

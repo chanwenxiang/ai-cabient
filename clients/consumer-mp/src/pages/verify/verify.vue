@@ -42,10 +42,6 @@
           <text class="status-val">{{ frozenYuan }}</text>
         </view>
         <view class="status-row">
-          <text class="status-label">优先支付</text>
-          <text class="status-val">{{ preferredPayText }}</text>
-        </view>
-        <view class="status-row">
           <text class="status-label">开门预授权</text>
           <text class="status-val">约 ¥{{ needYuan }}</text>
         </view>
@@ -108,7 +104,7 @@
           <pay-score-tag variant="slogan" biz="先取后付" />
         </view>
         <view class="done-meta">
-          <text>优先支付：{{ preferredPayText }}</text>
+          <text>支付方式由扫码入口决定</text>
           <text>可用余额 {{ balanceYuan }}</text>
         </view>
         <app-button label="去扫码开门" @click="goShop" />
@@ -161,15 +157,6 @@ const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
  * 🔴 仅微信支付分已开通时展示——支付宝侧品牌体系不同（芝麻先享/信用代扣），不得混用。
  */
 const showPayScoreSlogan = computed(() => wechatReady.value);
-const preferredPayText = computed(() => {
-  const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
-  if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
-  if (ch === 'ALIPAY') return '支付宝免密';
-  if (ch === 'BALANCE') return '账户余额';
-  if (wechatReady.value) return '微信支付分';
-  if (alipayReady.value) return '支付宝免密';
-  return '余额兜底';
-});
 
 function maskPhone(phone?: string | number) {
   const p = String(phone || '').replaceAll(/\D/g, '');

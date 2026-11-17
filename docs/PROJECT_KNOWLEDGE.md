@@ -686,6 +686,14 @@ gross − member − activity − coupon = total      （部分退款单例外�
 
 ## 12. Changelog（按日追加，新条目在上）
 
+### 2026-11-17（支付渠道：严格入口 + 删除用户支付偏好）
+
+- **口径（用户拍板）**：① 扫哪个渠道就用哪个渠道的免密 —— 微信入口只认支付分、支付宝入口只认免密协议，渠道不可用一律**余额兜底，不跨渠道回落**；② 删除「用户支付偏好」（设置项无意义，且会与真实入口打架）。
+- **后端**：`PayScoreService.charge` / `resolveChargeChannel` 不再读 `UserInfo.payPreferredChannel`，未知/空入口 ⇒ 余额；删除 4 参 `charge` 重载，强制调用方显式给出入口渠道。`SessionService` / `SessionOpenService#resolveEntryChannel` 只认扫码/显式传入，不再回落偏好。
+- **补差顺带修复**：`OrderPaymentService#executeLiveAdjustCharge` 原走 4 参 `charge`（读偏好，默认 BALANCE）⇒ 渠道支付的订单补差可能落到余额；现显式传 `prep.preferredChannel()`（订单原支付渠道），不可用仍回落余额。
+- **删除面**：`UserInfo.pay_preferred_channel`（V495 DROP COLUMN）、`AccountDto.payPreferredChannel`、`PUT /api/v2/account/pay-preferred` + `SetPayPreferredChannelRequest`、consumer「我的」三选 chip / verify 读面 / `consumer-api.setPayPreferred` / OpenAPI 生成物 / 权限矩阵清单条目；「关闭免密支付」入口保留。
+- **验证**：trade 定向 70+ 用例（PayScore/OrderPayment/Session/Auth/Account 面）全绿；consumer-mp `vue-tsc` + vitest 199/199；`check:openapi-regen` / `check:openapi-types` / `check:permission-matrix` 绿。
+
 ### 2026-11-17（对抗验证轮落地：2 处越权 + 1 处冻结并发 + 回调防重放 + 前端守卫/2FA/元分口径；MA-313…MA-320）
 
 - **越权（新发现，旧报告没有）**：① 「将邑租户级 setDomain」只挂 `ops:device:edit`（role 2 有）且路径里没有 `{deviceId}` ⇒ 范围拦截器看不见，域受限运营可把**全平台**柜机的上报/WS 目标整体切走（MA-315）——服务层补 `isGlobalScope` 闸 + 2 条钉测；② 押金读面 `/deposits`、`/deposits/{id}/events` 原为 `selectList(null)` / 按 ID 直查 ⇒ 任意持 `ops:fund:list`（V125 从 operator 传播）的账号可跨商户读金额与事件（MA-316）——改 `pushdownDeviceIds` 下推 + 按押金行 `requireDeviceAccess`，旧无参重载直接删除。

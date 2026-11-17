@@ -11,7 +11,6 @@ public record AccountDto(
         int availableCents,
         boolean verified,
         boolean operator,
-        String payPreferredChannel,
         boolean payscoreEnabled,
         boolean alipayAgreementEnabled,
         boolean passwordFreeReady

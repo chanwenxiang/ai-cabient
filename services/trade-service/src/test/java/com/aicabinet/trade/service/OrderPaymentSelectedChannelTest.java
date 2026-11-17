@@ -217,7 +217,7 @@ class OrderPaymentSelectedChannelTest {
 
     /**
      * 支付宝「签约中」（协议号带 {@code PENDING:} 前缀）不是可用渠道 —— 此处与
-     * 前端 {@code alipayAgreementEnabled} 及 {@code AccountService#setPayPreferredChannel} 同源。
+     * 前端 {@code alipayAgreementEnabled} 同源。
      */
     @Test
     void explicitAlipayWithPendingAgreement_rejects412() {
@@ -237,14 +237,12 @@ class OrderPaymentSelectedChannelTest {
     // ---------- 显式选免密：已就绪 ----------
 
     @Test
-    void explicitWeChatWhenUsable_chargesThatChannelEvenIfPreferenceIsBalance() {
+    void explicitWeChatWhenUsable_chargesThatChannel() {
         CabinetOrder order = order("O-SEL-WX", 500);
         stubLockAndOrder(order);
         UserInfo user = user();
         user.setPayscoreEnabled(true);
         user.setPayscoreContractId("CONTRACT-1");
-        // 用户默认偏好是余额（UserInfo 的字段默认值就是 BALANCE）——显式选择必须压过它
-        user.setPayPreferredChannel("BALANCE");
         when(userInfoRepository.findById(CONSUMER_ID)).thenReturn(Optional.of(user));
         when(payScoreService.chargeExplicit(user, "O-SEL-WX", 500, "AI开门柜购物", "WECHAT"))
                 .thenReturn(new PayScoreService.ChargeResult("WECHAT", "WX-TXN-1"));

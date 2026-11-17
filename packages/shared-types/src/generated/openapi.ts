@@ -942,22 +942,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v2/account/pay-preferred": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["setPayPreferred"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v2/account/nickname": {
         parameters: {
             query?: never;
@@ -12730,9 +12714,6 @@ export interface components {
             scopeMerchantId?: string;
             scopeDeviceIds?: string[];
         };
-        SetPayPreferredChannelRequest: {
-            channel: string;
-        };
         AccountDto: {
             /** Format: int64 */
             userId?: number;
@@ -12748,7 +12729,6 @@ export interface components {
             availableCents?: number;
             verified?: boolean;
             operator?: boolean;
-            payPreferredChannel?: string;
             payscoreEnabled?: boolean;
             alipayAgreementEnabled?: boolean;
             passwordFreeReady?: boolean;
@@ -22849,30 +22829,6 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseCouponDefinitionDto"];
-                };
-            };
-        };
-    };
-    setPayPreferred: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetPayPreferredChannelRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "*/*": components["schemas"]["ApiResponseAccountDto"];
                 };
             };
         };

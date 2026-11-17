@@ -14,13 +14,6 @@
     "reviewed": "2026-11-04 批次 R"
   },
   {
-    "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#setPayPreferred",
-    "method": "PUT /api/v2/account/pay-preferred",
-    "category": "self-service",
-    "reason": "消费者自助写面（账号资料/实名/支付偏好/签约解约/注销、下单-支付-退款-开票、充值预单与取消、开门会话与购物车、售后/反馈/通知/积分兑换）：主体一律从 AuthInterceptor.ATTR_USER_ID 取并透传进服务层（实测：OrderController#refund → orderService.refundMyOrder(userId, orderId, body)；AccountController#deleteOwnAccount → accountService.deleteOwnAccount(userId)），因此不存在 ops: 权限码这一层。⚠️ 本条只声明「授权类别」，不证明「归属校验」——IDOR 轴（服务层是否真按 userId 过滤 orderId/sessionId）不属本门禁判据，见 ISSUES 批次 R 遗留段",
-    "reviewed": "2026-11-04 批次 R"
-  },
-  {
     "ep": "services/trade-service/src/main/java/com/aicabinet/trade/api/AccountController.java#signAlipayAgreement",
     "method": "POST /api/v2/account/alipay-agreement/sign",
     "category": "self-service",

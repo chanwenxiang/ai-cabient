@@ -81,7 +81,6 @@ public class AccountService {
                 available,
                 user.isVerified(),
                 userId >= CabinetConstants.OPERATOR_USER_ID_START,
-                user.getPayPreferredChannel() != null ? user.getPayPreferredChannel() : PayChannels.BALANCE,
                 user.isPayscoreEnabled(),
                 alipayReady,
                 payScoreService.isPasswordFreeReady(user)
@@ -203,9 +202,8 @@ public class AccountService {
      * G9：**用户主动解约**（关闭免密代扣），返回刷新后的账户。
      *
      * <p>返回 {@code AccountDto} 而非签约流的 {@code PayContractDto} 是刻意的：解约必然同时改变
-     * {@code payscoreEnabled / alipayAgreementEnabled / passwordFreeReady / payPreferredChannel}
-     * 四个字段，回一份账户快照比回一句 message 更不容易让前端状态与后端漂移；
-     * 惯例对齐同类的 {@link #setPayPreferredChannel}（同样写状态 + 回账户）。
+     * {@code payscoreEnabled / alipayAgreementEnabled / passwordFreeReady} 三个字段，
+     * 回一份账户快照比回一句 message 更不容易让前端状态与后端漂移。
      *
      * <p>幂等：没有已开通合约时也返回 200 + 当前账户，绝不 500；文案由前端按
      * {@code passwordFreeReady} 前后差异决定，避免后端与 UI 两处各写一套判断。
@@ -253,36 +251,6 @@ public class AccountService {
         } else {
             log.warn("identity verify not trusted (mock) userId={} —— 姓名已记录但未标记为已实名", userId);
         }
-        userInfoRepository.save(user);
-        return self.getAccount(userId);
-    }
-
-    @Transactional
-    public AccountDto setPayPreferredChannel(Long userId, String channel) {
-        return runWithUserAccountLock(userId, () -> doSetPayPreferredChannel(userId, channel));
-    }
-
-    private AccountDto doSetPayPreferredChannel(Long userId, String channel) {
-        UserInfo user = requireUserForUpdate(userId);
-        String normalized = channel == null ? "" : channel.trim().toUpperCase();
-        if (!PayChannels.BALANCE.equals(normalized)
-                && !PayChannels.WECHAT.equals(normalized)
-                && !PayChannels.ALIPAY.equals(normalized)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
-        }
-        // 🔴 就绪判据与「结算页显式选择」同源（PayScoreService.isChannelUsable）：
-        // 否则会出现「API 允许设为优先、但真到扣款时又不可用」的自相矛盾。
-        // 附带收紧了支付宝一侧：原先只判 agreementId 非空，PENDING 协议（尚未异步激活）也能设为优先，
-        // 而 AccountDto.alipayAgreementEnabled（前端据此禁用选项）用的是 isActiveAlipayAgreementId ⇒ 前后端口径原本不一致。
-        if (PayChannels.WECHAT.equals(normalized)
-                && !PayScoreService.isChannelUsable(user, PayChannels.WECHAT)) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通微信支付分后再设为优先");
-        }
-        if (PayChannels.ALIPAY.equals(normalized)
-                && !PayScoreService.isChannelUsable(user, PayChannels.ALIPAY)) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通支付宝免密后再设为优先");
-        }
-        user.setPayPreferredChannel(normalized);
         userInfoRepository.save(user);
         return self.getAccount(userId);
     }

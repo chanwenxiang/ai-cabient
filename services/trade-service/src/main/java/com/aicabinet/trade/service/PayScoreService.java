@@ -83,8 +83,8 @@ public class PayScoreService {
     /**
      * 渠道对当前用户是否**已就绪**（余额恒就绪）。这是「显式选择该渠道能否成交」的唯一判据。
      *
-     * <p>🔴 与 {@link AccountService#doSetPayPreferredChannel} 的校验必须同源 —— 否则会出现
-     * 「设得了优先支付、却扣不动款」或反过来的自相矛盾。故两边都调本方法，不再各写一份条件。
+     * <p>🔴 显式扣款（{@link #chargeExplicit}）与同类用户入口必须共用本判据 ——
+     * 否则会出现「设得了免密、却扣不动款」或反过来的自相矛盾。
      */
     public static boolean isChannelUsable(UserInfo user, String channel) {
         if (user == null || channel == null) {
@@ -171,10 +171,6 @@ public class PayScoreService {
             String contractId = "PSC-" + userId + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
             user.setPayscoreEnabled(true);
             user.setPayscoreContractId(contractId);
-            if (!PayChannels.BALANCE.equalsIgnoreCase(
-                    user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-                user.setPayPreferredChannel(PayChannels.WECHAT);
-            }
             userInfoRepository.save(user);
             log.info("payscore contract signed user={} contract={}", userId, contractId);
             return new WechatSignResult(false, contractId, null);
@@ -259,10 +255,6 @@ public class PayScoreService {
         }
         user.setPayscoreEnabled(true);
         user.setPayscoreContractId(authorizationCode);
-        if (!PayChannels.BALANCE.equalsIgnoreCase(
-                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-            user.setPayPreferredChannel(PayChannels.WECHAT);
-        }
         userInfoRepository.save(user);
         log.info("wechat payscore authorized user={} code={}", user.getUserId(),
                 maskAuthorizationCode(authorizationCode));
@@ -276,10 +268,6 @@ public class PayScoreService {
         }
         user.setPayscoreEnabled(false);
         user.setPayscoreContractId(null);
-        if (PayChannels.WECHAT.equalsIgnoreCase(
-                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-            user.setPayPreferredChannel(PayChannels.BALANCE);
-        }
         userInfoRepository.save(user);
         // M01：save/updateById 忽略 null 列 ⇒ 协议号列必须用 wrapper 显式 set(null)
         userInfoRepository.update(null,
@@ -491,10 +479,6 @@ public class PayScoreService {
         String agreementId = "ALI-AG-" + userId + "-"
                 + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         user.setAlipayAgreementId(agreementId);
-        if (!PayChannels.BALANCE.equalsIgnoreCase(
-                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-            user.setPayPreferredChannel(PayChannels.ALIPAY);
-        }
         userInfoRepository.save(user);
         log.info("alipay agreement signed (mock) user={} agreement={}", userId, agreementId);
         return new AlipaySignResult(true, agreementId, null, false);
@@ -572,10 +556,6 @@ public class PayScoreService {
                 }
             }
             user.setAlipayAgreementId(agreementNo.trim());
-            if (!PayChannels.BALANCE.equalsIgnoreCase(
-                    user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-                user.setPayPreferredChannel(PayChannels.ALIPAY);
-            }
             userInfoRepository.save(user);
             log.info("alipay agreement bound user={} agreement={} external={}",
                     user.getUserId(), agreementNo, externalAgreementNo);
@@ -678,11 +658,6 @@ public class PayScoreService {
         if (alipaySigned || alipayPending) {
             cancelled.add(PayChannels.ALIPAY);
         }
-        String preferred = user.getPayPreferredChannel();
-        if (preferred != null
-                && cancelled.contains(preferred.trim().toUpperCase(java.util.Locale.ROOT))) {
-            user.setPayPreferredChannel(PayChannels.BALANCE);
-        }
         user.setPayscoreContractId(null);
         user.setAlipayAgreementId(null);
         userInfoRepository.save(user);
@@ -698,81 +673,59 @@ public class PayScoreService {
         return new ContractCancelResult(true, java.util.List.copyOf(cancelled));
     }
 
-    public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description) {
-        return charge(user, orderId, amountCents, description, null);
-    }
-
     /**
-     * @param preferredChannel 会话扫码渠道优先；为空则用用户偏好，再回落到已签约渠道，最后余额。
-     *                         若用户偏好为 BALANCE，则始终优先扣余额（不被扫码入口 WECHAT/ALIPAY 覆盖）。
+     * 按**入口/显式渠道**选扣款方式（2026-11-17 用户拍板：不再有用户持久偏好）：
+     * <ul>
+     *   <li>BALANCE ⇒ 直接余额；</li>
+     *   <li>WECHAT ⇒ 微信支付分（合约就绪才走，否则余额）；</li>
+     *   <li>ALIPAY ⇒ 支付宝免密（协议就绪才走，否则余额）；</li>
+     *   <li>为空/未知 ⇒ 余额。</li>
+     * </ul>
+     * 刻意**不跨渠道回落**：微信扫码被扣支付宝是背离用户选择；该渠道免密不可用一律余额兜底。
      */
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description,
                                String preferredChannel) {
         if (amountCents <= 0) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
-        String userPrefRaw = user.getPayPreferredChannel();
-        if (userPrefRaw != null && PayChannels.BALANCE.equalsIgnoreCase(userPrefRaw.trim())) {
-            return new ChargeResult(PayChannels.BALANCE, null);
-        }
         if (preferredChannel != null && PayChannels.BALANCE.equalsIgnoreCase(preferredChannel.trim())) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
-        String preferred = PayChannels.normalizeEntryChannel(preferredChannel);
-        if (preferred == null) {
-            preferred = PayChannels.normalizeEntryChannel(user.getPayPreferredChannel());
+        String channel = PayChannels.normalizeEntryChannel(preferredChannel);
+        if (PayChannels.WECHAT.equals(channel)) {
+            if (user.isPayscoreEnabled()
+                    && user.getPayscoreContractId() != null
+                    && !user.getPayscoreContractId().isBlank()) {
+                return chargeWeChatPayScore(user, orderId, amountCents, description);
+            }
+            return new ChargeResult(PayChannels.BALANCE, null);
         }
-
-        if (PayChannels.WECHAT.equals(preferred)
-                && user.isPayscoreEnabled()
-                && user.getPayscoreContractId() != null
-                && !user.getPayscoreContractId().isBlank()) {
-            return chargeWeChatPayScore(user, orderId, amountCents, description);
-        }
-        if (PayChannels.ALIPAY.equals(preferred) && isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
-            return chargeAlipayAgreement(user, orderId, amountCents, description);
-        }
-        if (user.isPayscoreEnabled() && user.getPayscoreContractId() != null
-                && !user.getPayscoreContractId().isBlank()) {
-            return chargeWeChatPayScore(user, orderId, amountCents, description);
-        }
-        if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
-            return chargeAlipayAgreement(user, orderId, amountCents, description);
+        if (PayChannels.ALIPAY.equals(channel)) {
+            if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+                return chargeAlipayAgreement(user, orderId, amountCents, description);
+            }
+            return new ChargeResult(PayChannels.BALANCE, null);
         }
         return new ChargeResult(PayChannels.BALANCE, null);
     }
 
     /**
      * B1-B0：只解析自动决策会选哪个渠道，**不发起任何扣款**。
-     * 必须与 {@link #charge} 的选择顺序逐行一致；用于补缴拆段前判定「余额腿 vs 渠道腿」。
+     * 必须与 {@link #charge} 的严格入口规则逐行一致；用于补缴拆段前判定「余额腿 vs 渠道腿」。
      */
     public static String resolveChargeChannel(UserInfo user, String preferredChannel) {
-        String userPrefRaw = user.getPayPreferredChannel();
-        if (userPrefRaw != null && PayChannels.BALANCE.equalsIgnoreCase(userPrefRaw.trim())) {
-            return PayChannels.BALANCE;
-        }
         if (preferredChannel != null && PayChannels.BALANCE.equalsIgnoreCase(preferredChannel.trim())) {
             return PayChannels.BALANCE;
         }
-        String preferred = PayChannels.normalizeEntryChannel(preferredChannel);
-        if (preferred == null) {
-            preferred = PayChannels.normalizeEntryChannel(user.getPayPreferredChannel());
-        }
-        if (PayChannels.WECHAT.equals(preferred)
+        String channel = PayChannels.normalizeEntryChannel(preferredChannel);
+        if (PayChannels.WECHAT.equals(channel)
                 && user.isPayscoreEnabled()
                 && user.getPayscoreContractId() != null
                 && !user.getPayscoreContractId().isBlank()) {
             return PayChannels.WECHAT;
         }
-        if (PayChannels.ALIPAY.equals(preferred) && isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
-            return PayChannels.ALIPAY;
-        }
-        if (user.isPayscoreEnabled()
-                && user.getPayscoreContractId() != null
-                && !user.getPayscoreContractId().isBlank()) {
-            return PayChannels.WECHAT;
-        }
-        if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
+        if (PayChannels.ALIPAY.equals(channel)
+                && isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
             return PayChannels.ALIPAY;
         }
         return PayChannels.BALANCE;

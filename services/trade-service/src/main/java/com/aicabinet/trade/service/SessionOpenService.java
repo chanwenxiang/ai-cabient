@@ -6,7 +6,6 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
-import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.util.BizIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +29,6 @@ public class SessionOpenService {
     private final MerchantOpsPolicyService opsPolicyService;
     private final ConsumerPreauthService consumerPreauthService;
     private final DisplaySnapshotHelper displaySnapshotHelper;
-    private final UserInfoMapper userInfoRepository;
     private final SessionService sessionService;
     private final DistributedLockService distributedLockService;
     private final OpsAlertDispatcher opsAlertDispatcher;
@@ -42,7 +40,6 @@ public class SessionOpenService {
                               MerchantOpsPolicyService opsPolicyService,
                               ConsumerPreauthService consumerPreauthService,
                               DisplaySnapshotHelper displaySnapshotHelper,
-                              UserInfoMapper userInfoRepository,
                               @Lazy SessionService sessionService,
                               DistributedLockService distributedLockService,
                               OpsAlertDispatcher opsAlertDispatcher,
@@ -53,7 +50,6 @@ public class SessionOpenService {
         this.opsPolicyService = opsPolicyService;
         this.consumerPreauthService = consumerPreauthService;
         this.displaySnapshotHelper = displaySnapshotHelper;
-        this.userInfoRepository = userInfoRepository;
         this.sessionService = sessionService;
         this.distributedLockService = distributedLockService;
         this.opsAlertDispatcher = opsAlertDispatcher;
@@ -62,7 +58,7 @@ public class SessionOpenService {
 
     @Transactional
     public SessionDto persistConsumerOpeningSession(Long userId, CreateSessionRequest request) {
-        String entryChannel = resolveEntryChannel(userId, request.entryChannel());
+        String entryChannel = resolveEntryChannel(request.entryChannel());
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
@@ -152,14 +148,9 @@ public class SessionOpenService {
         }
     }
 
-    private String resolveEntryChannel(Long userId, String requested) {
-        String entry = PayChannels.normalizeEntryChannel(requested);
-        if (entry != null) {
-            return entry;
-        }
-        return userInfoRepository.findById(userId)
-                .map(u -> PayChannels.normalizeEntryChannel(u.getPayPreferredChannel()))
-                .orElse(null);
+    /** 入口渠道只认扫码/显式传入；不再回落到用户持久偏好（2026-11-17 拍板移除偏好）。 */
+    private String resolveEntryChannel(String requested) {
+        return PayChannels.normalizeEntryChannel(requested);
     }
 
     private static String normalizeIdempotencyKey(String key) {
