@@ -108,7 +108,18 @@ export function deriveFailurePathClasses(byClassLike, rawOfLike) {
       continue;
     }
     const src = maskJava(rawOfLike.get(file) ?? '');
-    if (/\bappendLog\s*\(/.test(src) && FAILURE_ACTION_LITERAL_RE.test(src)) out.add(cls);
+    if (/\bappendLog\s*\(/.test(src) && FAILURE_ACTION_LITERAL_RE.test(src)) {
+      // 只有「整类都没有业务审计、只剩 ACCESS_DENIED 类」才整类排除；
+      // OpsRbacService 这类同时有业务审计与拒绝审计的类不能被一刀切（否则 assignRoles 等全失明）。
+      let hasBusiness = false;
+      for (const m of src.matchAll(/\.\s*appendLog\s*\(/g)) {
+        if (!FAILURE_ACTION_LITERAL_RE.test(argTextOf(src, m.index + m[0].length - 1))) {
+          hasBusiness = true;
+          break;
+        }
+      }
+      if (!hasBusiness) out.add(cls);
+    }
   }
   return out;
 }
@@ -116,6 +127,7 @@ export function deriveFailurePathClasses(byClassLike, rawOfLike) {
 const FAILURE_PATH_AUDIT_CLASSES = deriveFailurePathClasses(byClass, rawOf);
 
 const bodyCache = new Map();
+const bodiesCache = new Map();
 const fieldsCache = new Map();
 const returnTypesCache = new Map();
 
@@ -235,7 +247,7 @@ function returnTypesOf(clsName) {
 
 /** `support.accessor().target(`：解析 accessor 返回类型后继续 reachable。 */
 function providerChainReachable(body, rootFields, depth, visited) {
-  for (const m of body.matchAll(/(\w+)\.(\w+)\(\)\.(\w+)\s*\(/g)) {
+  for (const m of body.matchAll(/(\w+)\.(\w+)\(\)\s*\.\s*(\w+)\s*\(/g)) {
     const rootType = rootFields.get(m[1]);
     if (!rootType) continue;
     const accessorType = returnTypesOf(rootType).get(m[2]);
@@ -303,22 +315,47 @@ export function reachable(clsName, methodName, depth, visited) {
     (methodName === 'appendLog' || methodName === 'appendLogIndependent')
   )
     return true;
-  const body = bodyOf(clsName, methodName);
-  if (!body) return false;
-  if (hasBusinessAuditCall(body, clsName)) return true;
+  const bodies = bodiesOf(clsName, methodName);
+  if (bodies.length === 0) return false;
   const fields = fieldsOf(clsName);
-  for (const m of body.matchAll(/(\w+)\.(\w+)\s*\(/g)) {
-    const cls2 = fields.get(m[1]);
-    if (!cls2) continue;
-    if (reachable(cls2, m[2], depth + 1, visited)) return true;
-  }
-  if (providerChainReachable(body, fields, depth, visited)) return true;
-  for (const m of body.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
-    const mn = m[1];
-    if (KEYWORDS.has(mn)) continue;
-    if (reachable(clsName, mn, depth + 1, visited)) return true;
+  // 同名重载：逐个尝试（端点调用的是哪一个按名无法区分；任一重载有业务审计即归因）
+  for (const body of bodies) {
+    if (hasBusinessAuditCall(body, clsName)) return true;
+    for (const m of body.matchAll(/(\w+)\.(\w+)\s*\(/g)) {
+      const cls2 = fields.get(m[1]);
+      if (!cls2) continue;
+      // 失败路径审计（ACCESS_DENIED）不能被 AdminAuditService.appendLog 终点假归因
+      if (FAILURE_ACTION_LITERAL_RE.test(argTextOf(body, m.index + m[0].length - 1))) continue;
+      if (reachable(cls2, m[2], depth + 1, visited)) return true;
+    }
+    // this.privateMethod(...) 与直接 privateMethod(...) 同义
+    for (const m of body.matchAll(/this\.(\w+)\s*\(/g)) {
+      if (KEYWORDS.has(m[1])) continue;
+      if (reachable(clsName, m[1], depth + 1, visited)) return true;
+    }
+    if (providerChainReachable(body, fields, depth, visited)) return true;
+    for (const m of body.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
+      const mn = m[1];
+      if (KEYWORDS.has(mn)) continue;
+      if (reachable(clsName, mn, depth + 1, visited)) return true;
+    }
   }
   return false;
+}
+
+/** 同名方法的所有重载方法体（按声明顺序）。 */
+function bodiesOf(clsName, methodName) {
+  const cacheKey = clsName + '.' + methodName;
+  if (bodiesCache.has(cacheKey)) return bodiesCache.get(cacheKey);
+  const lines = srcLinesOf(clsName);
+  const out = [];
+  if (lines) {
+    for (let i = 0; i < lines.length; i++) {
+      if (declNameOf(lines[i]) === methodName) out.push(extractMethod(lines, i).body);
+    }
+  }
+  bodiesCache.set(cacheKey, out);
+  return out;
 }
 
 /** 控制器写端点枚举 + 逐端点归因。 */
@@ -361,6 +398,15 @@ export function controllerEndpoints(src) {
     }
     if (!attributed && cls) {
       attributed = providerChainReachable(body, fields, 1, new Set([cls + '.' + name]));
+    }
+    if (!attributed && cls) {
+      for (const m of body.matchAll(/this\.(\w+)\s*\(/g)) {
+        if (KEYWORDS.has(m[1])) continue;
+        if (reachable(cls, m[1], 1, new Set([cls + '.' + name]))) {
+          attributed = true;
+          break;
+        }
+      }
     }
     if (!attributed && cls) {
       for (const m of body.matchAll(/(?<![.\w])(\w+)\s*\(/g)) {
