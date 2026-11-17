@@ -1752,7 +1752,11 @@
       ]
     }  ],
   "unregisteredAllowlist": [
+    
     {
+      "commit": "3229e914",
+      "why": "并行会话提交的生成物顺序对齐（fix(types): AccountDto 按 CI 重生成顺序后移，内容不变，修 openapi-types 假红）：仅动 packages/shared-types/src/generated/openapi.ts 的重生成顺序，零业务代码、零业务审计条目，与 e8981f32 / 52549bac / 86aa27b7 同型；登记以解除全仓 fix-batch 门禁阻塞，若后续确认需正式入批可改判"
+    },{
       "commit": "27bb5e38",
       "why": "S8① 机制首用前的历史修复批（R19/R20），修复内容已由核查报告收口，存量不回填（用户拍板逐批手工登记，历史批未在机制生效时登记）"
     },
