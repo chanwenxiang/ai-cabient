@@ -1808,6 +1808,10 @@
     {
       "commit": "288c608a",
       "why": "夹具补 readFileSync import（一行，上批夹具笔误修正）"
+    },
+    {
+      "commit": "efdaf28e",
+      "why": "CI 收口（无新增业务条目）：MA-314 的 nonce 释放改造被 check-payment-callback-silent-trace 的静态形态判据误伤——该门禁要求 alertSilentCallback 分支留在 public 方法体内、且 PaymentServiceSilentCallbackAlertTest 每个 @Test 必须 assertDoesNotThrow（钉静默 200 语义）。本笔只把两条回调链恢复内联 + 把 assertThrows 型 nonce 测试拆到独立类，行为与 5b8cb045 登记的实现一致"
     }
   ]
 }
