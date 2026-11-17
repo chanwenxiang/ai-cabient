@@ -347,7 +347,37 @@ public class PaymentService {
                                    String serial) {
         JsonNode transaction = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
         try {
-            applyVerifiedWeChatNotify(transaction);
+            if (!STATUS_SUCCESS.equals(transaction.path(TRADE_STATE).asText())) {
+                String tradeState = transaction.path(TRADE_STATE).asText();
+                log.info("wechat notify ignored trade_state={}", tradeState);
+                return;
+            }
+            String outTradeNo = transaction.path(OUT_TRADE_NO).asText(null);
+            if (outTradeNo == null) {
+                throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
+            }
+            // P3-4：无主回调＝渠道已收款但系统查无此单。旧写法 .ifPresent(...) 对 Optional.empty()
+            // 完全静默，渠道拿到 200 后停止重投 ⇒ 钱到了没入账且无人知。改显式分支并留痕。
+            RechargeOrder order = rechargeOrderRepository.findById(outTradeNo).orElse(null);
+            if (order == null) {
+                alertSilentCallback("WECHAT_RECHARGE_NOTIFY_ORDER_NOT_FOUND", "微信充值回调无主订单",
+                        "outTradeNo=" + outTradeNo + " 渠道已收款但系统无此充值单，未入账，需人工核对");
+                return;
+            }
+            if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
+                alertSilentCallback("WECHAT_RECHARGE_NOTIFY_CHANNEL_MISMATCH", "微信充值回调渠道不符",
+                        "outTradeNo=" + outTradeNo + " channel=" + order.getChannel() + " 未入账，需人工核对");
+                return;
+            }
+            int notifyCents = transaction.path(AMOUNT).path("total").asInt(0);
+            if (notifyCents <= 0) {
+                alertSilentCallback("WECHAT_RECHARGE_NOTIFY_AMOUNT_INVALID", "微信充值回调金额异常",
+                        "outTradeNo=" + outTradeNo + " amount.total=" + notifyCents + " 未入账，需人工核对");
+                return;
+            }
+            creditRechargeNotify(outTradeNo, notifyCents,
+                    transaction.path(TRANSACTION_ID).asText(null), null);
+
         } catch (RuntimeException e) {
             // MA-314（R23X-03 收口）：验签过了但这一支没入账 ⇒ 归还 nonce 槽位，让渠道重投真正重试。
             // 不归还则 10 分钟 TTL 内每次重投都被判 WECHAT_NOTIFY_REPLAY，钱到没入账只能等查单兜底。
@@ -357,41 +387,7 @@ public class PaymentService {
         }
     }
 
-    /** 已验签的支付成功通知入账；抛异常＝本次没入账，调用方据此归还防重放槽位。 */
-    private void applyVerifiedWeChatNotify(JsonNode transaction) {
-        if (!STATUS_SUCCESS.equals(transaction.path(TRADE_STATE).asText())) {
-            String tradeState = transaction.path(TRADE_STATE).asText();
-            log.info("wechat notify ignored trade_state={}", tradeState);
-            return;
-        }
-        String outTradeNo = transaction.path(OUT_TRADE_NO).asText(null);
-        if (outTradeNo == null) {
-            throw new IllegalArgumentException(ApiMessages.MISSING_OUT_TRADE_NO);
-        }
-        // P3-4：无主回调＝渠道已收款但系统查无此单。旧写法 .ifPresent(...) 对 Optional.empty()
-        // 完全静默，渠道拿到 200 后停止重投 ⇒ 钱到了没入账且无人知。改显式分支并留痕。
-        RechargeOrder order = rechargeOrderRepository.findById(outTradeNo).orElse(null);
-        if (order == null) {
-            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_ORDER_NOT_FOUND", "微信充值回调无主订单",
-                    "outTradeNo=" + outTradeNo + " 渠道已收款但系统无此充值单，未入账，需人工核对");
-            return;
-        }
-        if (!PayChannels.WECHAT.equalsIgnoreCase(order.getChannel())) {
-            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_CHANNEL_MISMATCH", "微信充值回调渠道不符",
-                    "outTradeNo=" + outTradeNo + " channel=" + order.getChannel() + " 未入账，需人工核对");
-            return;
-        }
-        int notifyCents = transaction.path(AMOUNT).path("total").asInt(0);
-        if (notifyCents <= 0) {
-            alertSilentCallback("WECHAT_RECHARGE_NOTIFY_AMOUNT_INVALID", "微信充值回调金额异常",
-                    "outTradeNo=" + outTradeNo + " amount.total=" + notifyCents + " 未入账，需人工核对");
-            return;
-        }
-        creditRechargeNotify(outTradeNo, notifyCents,
-                transaction.path(TRANSACTION_ID).asText(null), null);
-    }
-
-    /**
+        /**
      * 微信 V3 退款结果通知（2026-10-23）：商户平台手工退款此前是系统盲区
      * （refundWeChatPartial 只覆盖系统内发起的退款，无回调端点可配置入口），
      * 手工退款会绕过余额扣减形成幽灵余额（实证：0.10 元充值经商户平台退款后余额未减）。
@@ -406,7 +402,53 @@ public class PaymentService {
                                          String serial) {
         JsonNode refund = notifyService.parseAndVerify(body, timestamp, nonce, signature, serial);
         try {
-            applyVerifiedWeChatRefundNotify(refund);
+
+            String outTradeNo = refund.path(OUT_TRADE_NO).asText(null);
+            String refundId = refund.path("refund_id").asText(null);
+            String refundStatus = refund.path("refund_status").asText("");
+            if (outTradeNo == null || outTradeNo.isBlank()) {
+                // P3-4：退款回调无单号＝无法定位订单，旧写法只 log.warn 后静默 200。
+                alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_OUT_TRADE_NO", "微信退款回调缺 out_trade_no",
+                        "refundId=" + refundId + " refundStatus=" + refundStatus + " 未入账，需人工核对");
+                return;
+            }
+            // MA-088：缺 refund_id 的回调原来照入账，幂等键退化成常量 "channel-refund-sync:null"——
+            // 不同订单的第二笔命中同一键时 BalanceLedgerService 直接返回旧流水**不扣款**，单据却照涨 ⇒ 幽灵余额。
+            // 只在缺关键字段时拒绝入账并转人工；键格式**刻意不动**——微信会重投通知，
+            // 老库已存在旧键流水，改字面量会让部署后的重投被当成新键重复扣一次。
+            if (refundId == null || refundId.isBlank()) {
+                log.error("wechat refund notify missing refund_id orderId={} status={} —— 缺幂等键，拒绝入账",
+                        outTradeNo, refundStatus);
+                opsAlertDispatcher.send("WECHAT_REFUND_SYNC_MISSING_REFUND_ID", "微信退款回调缺 refund_id",
+                        "orderId=" + outTradeNo + " 需人工核对（缺幂等键，未入账）");
+                return;
+            }
+            if (!STATUS_SUCCESS.equals(refundStatus)) {
+                if ("ABNORMAL".equals(refundStatus)) {
+                    log.error("wechat refund notify abnormal confirmed orderId={} refundId={}", outTradeNo, refundId);
+                    opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常（回调确认）",
+                            "orderId=" + outTradeNo + " refundId=" + refundId + " 需人工介入");
+                } else {
+                    log.info("wechat refund notify ignored refund_status={} orderId={}", refundStatus, outTradeNo);
+                }
+                return;
+            }
+            int refundCents = refund.path("amount").path("refund").asInt(0);
+            if (refundCents <= 0) {
+                // P3-4：金额缺失的退款回调旧写法静默 200，渠道不再重投 ⇒ 手工退款永远不同步。
+                alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_REFUND_AMOUNT", "微信退款回调金额异常",
+                        "orderId=" + outTradeNo + " refundId=" + refundId + " refund=" + refundCents
+                                + " 未入账，需人工核对");
+                return;
+            }
+            String outRefundNo = refund.path("out_refund_no").asText("").trim();
+            if (!outRefundNo.isEmpty() && isKnownSystemRefundNo(outRefundNo)) {
+                log.info("wechat refund notify skipped (system-initiated) orderId={} outRefundNo={}",
+                        outTradeNo, outRefundNo);
+                return;
+            }
+            syncChannelSideRefund(outTradeNo, refundCents, refundId);
+
         } catch (RuntimeException e) {
             // MA-314：与充值回调同族——退款同步抛异常＝这笔还没落账，归还 nonce 让微信重投进得来。
             // 同步本身有幂等键（channel-refund-sync:refundId + MA-269 的 applied 判定），重投不会双扣余额。
@@ -415,56 +457,7 @@ public class PaymentService {
         }
     }
 
-    /** 已验签的退款结果通知入账；抛异常＝本次没入账，调用方据此归还防重放槽位。 */
-    private void applyVerifiedWeChatRefundNotify(JsonNode refund) {
-        String outTradeNo = refund.path(OUT_TRADE_NO).asText(null);
-        String refundId = refund.path("refund_id").asText(null);
-        String refundStatus = refund.path("refund_status").asText("");
-        if (outTradeNo == null || outTradeNo.isBlank()) {
-            // P3-4：退款回调无单号＝无法定位订单，旧写法只 log.warn 后静默 200。
-            alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_OUT_TRADE_NO", "微信退款回调缺 out_trade_no",
-                    "refundId=" + refundId + " refundStatus=" + refundStatus + " 未入账，需人工核对");
-            return;
-        }
-        // MA-088：缺 refund_id 的回调原来照入账，幂等键退化成常量 "channel-refund-sync:null"——
-        // 不同订单的第二笔命中同一键时 BalanceLedgerService 直接返回旧流水**不扣款**，单据却照涨 ⇒ 幽灵余额。
-        // 只在缺关键字段时拒绝入账并转人工；键格式**刻意不动**——微信会重投通知，
-        // 老库已存在旧键流水，改字面量会让部署后的重投被当成新键重复扣一次。
-        if (refundId == null || refundId.isBlank()) {
-            log.error("wechat refund notify missing refund_id orderId={} status={} —— 缺幂等键，拒绝入账",
-                    outTradeNo, refundStatus);
-            opsAlertDispatcher.send("WECHAT_REFUND_SYNC_MISSING_REFUND_ID", "微信退款回调缺 refund_id",
-                    "orderId=" + outTradeNo + " 需人工核对（缺幂等键，未入账）");
-            return;
-        }
-        if (!STATUS_SUCCESS.equals(refundStatus)) {
-            if ("ABNORMAL".equals(refundStatus)) {
-                log.error("wechat refund notify abnormal confirmed orderId={} refundId={}", outTradeNo, refundId);
-                opsAlertDispatcher.send("WECHAT_REFUND_ABNORMAL", "微信退款异常（回调确认）",
-                        "orderId=" + outTradeNo + " refundId=" + refundId + " 需人工介入");
-            } else {
-                log.info("wechat refund notify ignored refund_status={} orderId={}", refundStatus, outTradeNo);
-            }
-            return;
-        }
-        int refundCents = refund.path("amount").path("refund").asInt(0);
-        if (refundCents <= 0) {
-            // P3-4：金额缺失的退款回调旧写法静默 200，渠道不再重投 ⇒ 手工退款永远不同步。
-            alertSilentCallback("WECHAT_REFUND_NOTIFY_MISSING_REFUND_AMOUNT", "微信退款回调金额异常",
-                    "orderId=" + outTradeNo + " refundId=" + refundId + " refund=" + refundCents
-                            + " 未入账，需人工核对");
-            return;
-        }
-        String outRefundNo = refund.path("out_refund_no").asText("").trim();
-        if (!outRefundNo.isEmpty() && isKnownSystemRefundNo(outRefundNo)) {
-            log.info("wechat refund notify skipped (system-initiated) orderId={} outRefundNo={}",
-                    outTradeNo, outRefundNo);
-            return;
-        }
-        syncChannelSideRefund(outTradeNo, refundCents, refundId);
-    }
-
-    /** 渠道退款单号是否出自系统内发起（商户平台手工退款单号在系统内无对应流水）。 */
+        /** 渠道退款单号是否出自系统内发起（商户平台手工退款单号在系统内无对应流水）。 */
     private boolean isKnownSystemRefundNo(String outRefundNo) {
         return paymentOperationRepository.selectCount(Wrappers.<PaymentOperation>lambdaQuery()
                 .eq(PaymentOperation::getGatewayTradeNo, outRefundNo)
