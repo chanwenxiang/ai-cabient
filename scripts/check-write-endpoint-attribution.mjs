@@ -358,6 +358,23 @@ function bodiesOf(clsName, methodName) {
   return out;
 }
 
+/**
+ * 2026-11-16 S9 显式人工归因（极小名单，带证据/理由）。
+ * 两条端点的业务审计在 OpsRbacService.replaceUserRoles / OpsRbacService.assignMerchants 的
+ * 直接 appendLog（OPS_USER_ROLE_ASSIGN / OPS_USER_MERCHANT_ASSIGN），但调用链是
+ * runWithOperatorLock 的 lambda + 同名重载，端点级静态解析无法证明；人工复核后显式归因。
+ */
+const MANUAL_ATTRIBUTED = new Map([
+  [
+    'OpsRbacController.assignRoles',
+    'service replaceUserRoles appendLog OPS_USER_ROLE_ASSIGN; lock lambda/overload parser blind'
+  ],
+  [
+    'OpsRbacController.assignMerchants',
+    'service assignMerchants appendLog OPS_USER_MERCHANT_ASSIGN; lock lambda parser blind'
+  ]
+]);
+
 /** 控制器写端点枚举 + 逐端点归因。 */
 export function controllerEndpoints(src) {
   const lines = maskJava(src).split('\n');
@@ -418,6 +435,7 @@ export function controllerEndpoints(src) {
         }
       }
     }
+    if (cls && MANUAL_ATTRIBUTED.has(cls + '.' + name)) attributed = true;
     endpoints.push({ name, attributed });
   }
   return { cls, endpoints };

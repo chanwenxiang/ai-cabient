@@ -320,6 +320,23 @@ assert(
     );
   }
 
+  // C8) 显式人工归因（2026-11-16 S9）：两条 OpsRbac 锁 lambda/重载盲区的业务审计已人工复核，
+  //     名单必须精确命中这两个端点，不能成为泛化豁免。
+  {
+    const src = readFileSync(
+      resolve(
+        ROOT,
+        'services/trade-service/src/main/java/com/aicabinet/trade/api/OpsRbacController.java'
+      ),
+      'utf8'
+    );
+    const { endpoints } = controllerEndpoints(src);
+    for (const n of ['assignRoles', 'assignMerchants']) {
+      const ep = endpoints.find((e) => e.name === n);
+      assert(ep && ep.attributed, `显式人工归因端点 ${n} 必须归因`);
+    }
+  }
+
   // C5) 真实仓面全量不变量：写注解数 == 写端点数（每个控制器逐个对账）。
   //     这是 C06 这类「解析器盲区」的类级判据——只要有一个签名解析不出来就红，
   //     不依赖基线（基线是解析器的输出，自己产自己验会自证）。

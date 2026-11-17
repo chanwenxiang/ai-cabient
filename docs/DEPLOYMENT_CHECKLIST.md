@@ -326,6 +326,6 @@ The Step 4 gate must verify:
 - [ ] **R22 §8.4**：`EMPTY`（无交易）状态已随 V493 + shared-dict/admin 产物上线；运营台能与 MATCHED 区分。
 - [ ] **MA-016**：识别类无单争议不再误报（`category=RECOGNITION` 排除）；`/consistency` 的 DSP 红点归零。
 - [ ] **真渠道 UAT**：慢渠道 `pg_locks`（B1）、退款/补缴/对账真实回归；R22-7 真机连点 start；T-JY-DOC-8 厂商文档。
-- [ ] **S9 端点级归因**：D 类 41 端点已修（MA-301..310：P2 16 + P3 25）；解析器已穿透 `{id}` 8 + provider 15 + 重载/this/失败类派生 10，归因 304→330（baseline 477/330/147）；剩余 B 2（OpsRbac assignRoles/assignMerchants）+ C 19（语义豁免），不得把盲区当审计缺失。
+- [ ] **S9 端点级归因**：D 类 41 端点已修（MA-301..310）；B 29 全部清零（`{id}` 8 + provider 15 + 重载/this/失败类 10 + OpsRbac 2 条人工复核显式归因）；归因 304→332（baseline 477/332/145）；剩余 C 19 语义豁免 + 非 S9 面 126 条（设备/网关/内部等），不得把盲区当审计缺失。
 
 **已知接受（不在 gate 内，但复核时须确认未变）**：MA-016 原 wontfix 已被 2026-11-16 修复取代；MA-300 维持「退款不改状态」；R19-5 仅 dev 保留；R22 §8.4 已改 EMPTY。
