@@ -1610,6 +1610,78 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "5b8cb045",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 8,
+      "items": [
+        {
+          "id": "MA-313",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/wallet/WalletEngine.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/WalletWithdrawFreezeIdempotencyTest.java"
+          ]
+        },
+        {
+          "id": "MA-314",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/payment/WeChatPayNotifyService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/payment/AlipayNotifyService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/PaymentServiceSilentCallbackAlertTest.java"
+          ]
+        },
+        {
+          "id": "MA-315",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/JiangyiOnboardingService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/AdminJiangyiController.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/JiangyiOnboardingTenantDomainTest.java"
+          ]
+        },
+        {
+          "id": "MA-316",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/DeviceRentalService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/api/OpsDeviceRentalController.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/mapper/DeviceRentalDepositMapper.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/DeviceRentalServiceTest.java"
+          ]
+        },
+        {
+          "id": "MA-317",
+          "files": [
+            "clients/admin-vue/src/router/index.ts",
+            "clients/admin-vue/src/router/nav-access.ts",
+            "clients/admin-vue/src/router/nav-access.test.ts"
+          ]
+        },
+        {
+          "id": "MA-318",
+          "files": [
+            "docs/DEPLOYMENT_CHECKLIST.md",
+            "docs/PROJECT_KNOWLEDGE.md",
+            "scripts/deploy-prod.sh"
+          ]
+        },
+        {
+          "id": "MA-319",
+          "files": [
+            "scripts/yuan-to-cents-baseline.json",
+            "clients/admin-vue/src/views/growth/UserAnalysisView.vue",
+            "clients/admin-vue/src/components/device/DeviceAssetDeploymentCard.vue"
+          ]
+        },
+        {
+          "id": "MA-320",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/service/OpsTwoFactorService.java",
+            "services/trade-service/src/main/java/com/aicabinet/trade/auth/LoginThrottleService.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/service/OpsTwoFactorServiceTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
