@@ -1682,6 +1682,28 @@
           ]
         }
       ]
+    },
+    {
+      "commit": "a94ffad8",
+      "report": "docs/module-audit/ISSUES.md",
+      "totalItems": 2,
+      "items": [
+        {
+          "id": "MA-321",
+          "files": [
+            "clients/consumer-mp/src/pages/index/index.vue",
+            "clients/consumer-mp/src/utils/session-bill.ts",
+            "clients/consumer-mp/src/utils/session-bill.test.ts"
+          ]
+        },
+        {
+          "id": "MA-322",
+          "files": [
+            "services/trade-service/src/main/java/com/aicabinet/trade/config/ProductionStartupValidator.java",
+            "services/trade-service/src/test/java/com/aicabinet/trade/config/ProductionStartupValidatorTest.java"
+          ]
+        }
+      ]
     }
   ],
   "unregisteredAllowlist": [
