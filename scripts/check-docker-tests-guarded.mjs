@@ -77,6 +77,13 @@ const GUARDED = new Map([
     }
   ],
   [
+    'services/trade-service/src/test/java/com/aicabinet/trade/integration/PaymentOperationGatewayNoIndexIT.java',
+    {
+      job: 'integration',
+      why: 'MA-311 真库实证（2026-11-17）：failsafe 跑（*IT.java）；真 PG 钉「审计痕迹行与 COMPLETED 资金行可同号、两条 COMPLETED 同号仍被 V494 唯一索引拦」（慢渠道 UAT 抓到的 409）'
+    }
+  ],
+  [
     'services/trade-service/src/test/java/com/aicabinet/trade/integration/InventoryDeductAtomicityIT.java',
     {
       job: 'integration',
