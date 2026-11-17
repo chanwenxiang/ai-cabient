@@ -26,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -381,6 +382,96 @@ class OrderPaymentChargeInvariantTest {
         trace.setStatus("CHARGE_PENDING");
         trace.setIdempotencyKey("CHARGE:PENDING:O-CHG");
         return trace;
+    }
+
+    // ── F3（2026-11-17）：痕迹收口必须晚于本地事务提交 ──────────────────────────
+    // 修前形态：渠道返回成功后立刻 `finalizeChargePending`（REQUIRES_NEW 独立提交），
+    // 外层结算事务随后回滚 ⇒ 钱在渠道被扣、本地账回滚、证据行却是「已收口」，
+    // 于是 PENDING 巡检扫不到、告警不响、重试换 orderId 再扣一次。
+
+    @Test
+    void chargeTraceSettledOnlyAfterCommit() {
+        OrderPaymentService s = buildService(false);
+        PaymentOperation trace = pendingTrace("WECHAT", TOTAL);
+        store.put(trace.getIdempotencyKey(), trace);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            s.settleChargeTraceAfterCommit("O-CHG", "TN-AFTER");
+            // 提交前不得收口：否则回滚会把它一起「洗白」
+            assertEquals("CHARGE_PENDING", store.get(trace.getIdempotencyKey()).getStatus());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        assertEquals("FINALIZED", store.get(trace.getIdempotencyKey()).getStatus());
+        assertEquals("TN-AFTER", store.get(trace.getIdempotencyKey()).getGatewayTradeNo());
+    }
+
+    @Test
+    void chargeTraceStaysPendingWhenTransactionRollsBack() {
+        OrderPaymentService s = buildService(false);
+        PaymentOperation trace = pendingTrace("WECHAT", TOTAL);
+        store.put(trace.getIdempotencyKey(), trace);
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            s.settleChargeTraceAfterCommit("O-CHG", "TN-ROLLBACK");
+            // 回滚 = 只有 afterCompletion，没有 afterCommit
+            TransactionSynchronizationManager.getSynchronizations().forEach(sync ->
+                    sync.afterCompletion(org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        // 痕迹必须活着：这是「渠道已扣」的唯一证据，巡检靠它收敛
+        assertEquals("CHARGE_PENDING", store.get(trace.getIdempotencyKey()).getStatus());
+    }
+
+    @Test
+    void chargeTraceNotSettledWhenNoActiveTransaction() {
+        OrderPaymentService s = buildService(false);
+        PaymentOperation trace = pendingTrace("WECHAT", TOTAL);
+        store.put(trace.getIdempotencyKey(), trace);
+
+        // 补扣链（渠道 HTTP 已在事务外）由 UnpaidOrderService#finalizeCollected 收口
+        s.settleChargeTraceAfterCommit("O-CHG", "TN-NOTX");
+
+        assertEquals("CHARGE_PENDING", store.get(trace.getIdempotencyKey()).getStatus());
+    }
+
+    @Test
+    void hasUnsettledCharge_coversFinalizedWithoutLocalBooking() {
+        OrderPaymentService s = buildService(false);
+        lenient().when(paymentOperationRepository.selectCount(any())).thenReturn(0L, 1L);
+
+        assertFalse(s.hasUnsettledCharge("O-CHG"), "无痕迹 ⇒ 不算未收口");
+
+        PaymentOperation trace = pendingTrace("WECHAT", TOTAL);
+        store.put(trace.getIdempotencyKey(), trace);
+        assertTrue(s.hasUnsettledCharge("O-CHG"), "PENDING ⇒ 未收口");
+
+        // 已 FINALIZED 且带渠道单号，但本地没有 COMPLETED 扣款流水 ⇒ 渠道已扣、本地无账
+        trace.setStatus("FINALIZED");
+        trace.setGatewayTradeNo("TN-X");
+        assertTrue(s.hasUnsettledCharge("O-CHG"));
+
+        // 本地落过账（selectCount 第二返回值 1）⇒ 已收口
+        assertFalse(s.hasUnsettledCharge("O-CHG"));
+    }
+
+    @Test
+    void hasUnsettledCharge_ignoresFinalizedWithoutTradeNo() {
+        OrderPaymentService s = buildService(false);
+        lenient().when(paymentOperationRepository.selectCount(any())).thenReturn(0L);
+
+        PaymentOperation trace = pendingTrace("WECHAT", TOTAL);
+        trace.setStatus("FINALIZED"); // 渠道判回落余额：没扣钱，无单号
+        store.put(trace.getIdempotencyKey(), trace);
+
+        assertFalse(s.hasUnsettledCharge("O-CHG"));
     }
 
     private ShoppingSession session() {

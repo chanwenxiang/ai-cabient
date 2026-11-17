@@ -246,6 +246,31 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                                                             @Param("limit") int limit);
 
     /**
+     * F3（2026-11-17）：**渠道已扣、本地无账**的存量单——痕迹已 FINALIZED 且带渠道单号
+     * （渠道确实扣过），但订单侧没有一笔 COMPLETED 的 CHARGE 流水（本地记账随事务回滚了）。
+     *
+     * <p>为什么单独查而不用 {@code findStaleChargePending}：后者只认 {@code CHARGE_PENDING}，
+     * 而旧代码在渠道返回成功时就地标了 FINALIZED ⇒ 这类单在 PENDING 视图里根本不存在。
+     * 只告警不自动修：金额与渠道单号都齐了，但「订单该不该置 PAID」要人工核（可能已人工补记）。</p>
+     */
+    @Select("""
+            SELECT p.* FROM payment_operation p
+            WHERE p.operation_type = 'CHARGE'
+              AND p.status = 'FINALIZED'
+              AND p.gateway_trade_no IS NOT NULL AND p.gateway_trade_no <> ''
+              AND p.idempotency_key LIKE 'CHARGE:PENDING:%'
+              AND NOT EXISTS (
+                  SELECT 1 FROM payment_operation c
+                  WHERE c.order_id = p.order_id
+                    AND c.operation_type = 'CHARGE'
+                    AND c.status = 'COMPLETED'
+              )
+            ORDER BY p.updated_at ASC
+            LIMIT #{limit}
+            """)
+    java.util.List<PaymentOperation> findSettledButUnbooked(@Param("limit") int limit);
+
+    /**
      * MA-284：退款同步「扣了账、单据没推进」的存量单（账本 RECHARGE_REFUND 流水合计
      * 仍大于充值单 refunded_cents ⇒ finalizeChannelPartialRefund 那半段丢失），供告警巡检。
      * 只告警不自动修：补推进要按退款单逐笔核对渠道结果，与 MA-269 的残留边界（§11）同档。

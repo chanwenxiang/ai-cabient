@@ -254,6 +254,13 @@ public class UnpaidOrderService {
         } catch (Exception ex) {
             log.warn("refund-sync not-advanced alert sweep failed", ex);
         }
+        // F3（2026-11-17）：渠道已扣、本地无账——旧代码在渠道成功后立刻把痕迹标 FINALIZED，
+        // 外层结算事务随后回滚就只剩这一种「已收口」形态 ⇒ PENDING 巡检扫不到。
+        try {
+            alertChargeSettledButUnbookedOps();
+        } catch (Exception ex) {
+            log.warn("settled-but-unbooked charge alert sweep failed", ex);
+        }
         int hours = systemConfigService.getInt(SystemConfigService.UNPAID_AUTO_CANCEL_HOURS, 48);
         if (hours <= 0) {
             return 0;
@@ -375,6 +382,34 @@ public class UnpaidOrderService {
             log.warn("refund sync not advanced orderId={} debited={} refunded={}", orderId, debited, refunded);
         }
         return gaps.size();
+    }
+
+    /**
+     * F3（2026-11-17）：**渠道已扣、本地无账**的告警巡检（与 CHARGE_PENDING 同频）。
+     *
+     * <p>命中形态：痕迹 FINALIZED 且带渠道单号（渠道侧钱真的扣了），而订单侧没有任何
+     * COMPLETED 的 CHARGE 流水（本地记账没落）。历史成因是「渠道成功后立刻收口痕迹 +
+     * 外层结算事务整体回滚」；收口改成 afterCommit 之后新单不再产生，但**存量单**必须能
+     * 被这条巡检捞出来——否则它既不在 PENDING 视图、也不在任何告警里，只能等用户来投诉。
+     * 只告警不自动修：可能已人工补记，程序擅自改单会二次记账。</p>
+     */
+    public int alertChargeSettledButUnbookedOps() {
+        List<com.aicabinet.trade.domain.PaymentOperation> settled =
+                orderPaymentService.findSettledButUnbooked(20);
+        for (com.aicabinet.trade.domain.PaymentOperation op : settled) {
+            opsExceptionService.report(
+                    "CHARGE_SETTLED_NOT_BOOKED",
+                    "HIGH",
+                    new OpsExceptionService.ExceptionReport.ExceptionRefs(
+                            null, null, op.getOrderId(), op.getUserId()),
+                    "渠道已扣款但本地未记账",
+                    "订单 " + op.getOrderId() + " 的扣款痕迹已收口（渠道单号=" + op.getGatewayTradeNo()
+                            + "，实扣(分)=" + op.getChargeCents() + "），但订单侧没有任何已完成的扣款流水："
+                            + "本地记账随事务回滚了。请核对渠道账单后决定补记或退款，勿直接重试扣款");
+            log.warn("charge settled but unbooked orderId={} tradeNo={} chargeCents={}",
+                    op.getOrderId(), op.getGatewayTradeNo(), op.getChargeCents());
+        }
+        return settled.size();
     }
 
     private boolean cancelSingleExpiredOrder(CabinetOrder order, int hours, boolean autoBlacklist) {

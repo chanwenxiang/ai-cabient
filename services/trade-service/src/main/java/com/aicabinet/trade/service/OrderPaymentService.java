@@ -30,6 +30,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
@@ -450,7 +452,7 @@ public class OrderPaymentService {
         order.setPayTradeNo(charge.tradeNo());
         recordOperation(order, CHARGE, chargeCents, charge.channel(), idemKey,
                 charge.tradeNo(), "order charge");
-        self.finalizeChargePending(order.getOrderId(), charge.tradeNo());
+        settleChargeTraceAfterCommit(order.getOrderId(), charge.tradeNo());
         recordPayScoreOrder(order, user, charge, chargeCents);
         if (session != null) {
             consumerPreauthService.releaseIfFrozen(session);
@@ -492,6 +494,9 @@ public class OrderPaymentService {
                 ? null : attemptedChannel.trim().toUpperCase(Locale.ROOT));
         op.setChargeCents(chargeCents);
         op.setStatus("CHARGE_PENDING");
+        // F3：痕迹行必须带 userId —— CHARGE_SETTLED_NOT_BOOKED 告警要靠它定位到人，
+        // 原来只有 orderId，运维得再查一次订单才知道是谁的钱。
+        op.setUserId(order.getUserId());
         op.setIdempotencyKey(pendingKey);
         op.setReason("渠道扣款进行中（CHARGE_PENDING，事务外痕迹）");
         paymentOperationRepository.save(op);
@@ -502,6 +507,41 @@ public class OrderPaymentService {
         return paymentOperationRepository.findByIdempotencyKey(chargePendingIdempotencyKey(orderId))
                 .map(op -> "CHARGE_PENDING".equals(op.getStatus()))
                 .orElse(false);
+    }
+
+    /**
+     * F3（2026-11-17）：{@code hasChargePending} 的**补集缺口**——痕迹已 FINALIZED，
+     * 但本地一分钱都没落账。
+     *
+     * <p>为什么必须单独有一个判据：旧实现里渠道扣款成功后**立即**（REQUIRES_NEW）
+     * 把痕迹标 FINALIZED，而外层结算事务此后还可能整体回滚（分账、订单状态、余额腿任何
+     * 一处抛）。于是「渠道已扣、本地无账」这件事只剩一条 FINALIZED 痕迹，而
+     * {@link #hasChargePending} 只认 PENDING ⇒ 巡检扫不到、告警不响、重试换 orderId 再扣一次。
+     * 判据取「痕迹带渠道单号（渠道确实扣过）+ 订单侧没有 COMPLETED 的 CHARGE 流水（本地没记账）」
+     * 两端同时成立，避免把「渠道判回落余额」那种无单号的 FINALIZED 误判成资损。</p>
+     */
+    public boolean hasUnsettledCharge(String orderId) {
+        PaymentOperation trace = paymentOperationRepository
+                .findByIdempotencyKey(chargePendingIdempotencyKey(orderId)).orElse(null);
+        if (trace == null) {
+            return false;
+        }
+        if ("CHARGE_PENDING".equals(trace.getStatus())) {
+            return true;
+        }
+        boolean chargedWithTradeNo = "FINALIZED".equals(trace.getStatus())
+                && trace.getGatewayTradeNo() != null && !trace.getGatewayTradeNo().isBlank();
+        return chargedWithTradeNo && !hasCompletedChargeOperation(orderId);
+    }
+
+    /** 订单是否已经落过 COMPLETED 的渠道扣款流水（= 本地记账真的发生了）。 */
+    private boolean hasCompletedChargeOperation(String orderId) {
+        Long booked = paymentOperationRepository.selectCount(
+                Wrappers.<PaymentOperation>lambdaQuery()
+                        .eq(PaymentOperation::getOrderId, orderId)
+                        .eq(PaymentOperation::getOperationType, CHARGE)
+                        .eq(PaymentOperation::getStatus, STATUS_COMPLETED));
+        return booked != null && booked > 0;
     }
 
     enum ChargeQueryStatus { SUCCESS, FAILED, UNKNOWN }
@@ -680,6 +720,44 @@ public class OrderPaymentService {
                     }
                     paymentOperationRepository.updateById(op);
                 });
+    }
+
+    /**
+     * F3（2026-11-17）：渠道扣款成功后的痕迹收口——**只在本地事务提交之后**执行。
+     *
+     * <p>旧写法在渠道返回成功的位置直接 `finalizeChargePending(...)`，而它是
+     * {@code REQUIRES_NEW}：独立提交，不管外层成不成。于是主结算链（
+     * {@code SettlementSettleOrchestrator#processRecognitionResultInTx} 那个大事务）里
+     * 后续任一步抛错回滚后，钱已经在渠道被扣、本地账却回滚了，而唯一的证据行已被标成
+     * 「已收口」⇒ 巡检（{@link #hasChargePending}）看不见，重试又换 orderId 再扣一次。</p>
+     *
+     * <p>两种调用环境必须区别对待：</p>
+     * <ul>
+     *   <li><b>有活动事务</b>（主结算链）：注册 afterCommit 回调。回滚 ⇒ 回调不执行 ⇒
+     *       痕迹保持 CHARGE_PENDING，巡检能捞到、能按渠道结果收敛。</li>
+     *   <li><b>无活动事务</b>（补扣链 {@code UnpaidOrderService#chargeAndFinalize}：
+     *       MA-274 已把渠道 HTTP 挪到事务外）：**刻意不收口**——痕迹归
+     *       {@code finalizeCollected} 在本地落账提交后自己收口；在这里提前收口正是要修的缺陷。</li>
+     * </ul>
+     */
+    void settleChargeTraceAfterCommit(String orderId, String tradeNo) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            log.debug("charge trace kept pending (no active tx), caller owns finalize order={}", orderId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    self.finalizeChargePending(orderId, tradeNo);
+                } catch (RuntimeException e) {
+                    // 提交已成功、只是痕迹没收口：绝不能把异常抛回调用方（那会让「扣款成功」
+                    // 被读成「扣款失败」），交给下一轮巡检按 PENDING 收口。
+                    log.error("finalize charge trace after commit failed order={} tradeNo={}",
+                            orderId, tradeNo, e);
+                }
+            }
+        });
     }
 
     /** H64(a): 支付分/代扣渠道扣款成功后落 payscore_order 一行（含渠道单号与状态）。 */
@@ -884,6 +962,11 @@ public class OrderPaymentService {
     /** MA-284：退款同步已扣账（账本 RECHARGE_REFUND 流水）但订单 refunded_cents 未推进的单，供告警巡检。 */
     public java.util.List<java.util.Map<String, Object>> findRefundSyncNotAdvanced(int limit) {
         return paymentOperationRepository.findRefundSyncNotAdvanced(limit);
+    }
+
+    /** F3：渠道已扣（痕迹带渠道单号已 FINALIZED）但本地无 COMPLETED 扣款流水的单，供告警巡检。 */
+    public java.util.List<PaymentOperation> findSettledButUnbooked(int limit) {
+        return paymentOperationRepository.findSettledButUnbooked(limit);
     }
 
     private void releaseSessionPreauth(CabinetOrder order) {
